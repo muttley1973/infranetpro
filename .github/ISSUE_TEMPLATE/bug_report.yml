@@ -1,0 +1,59 @@
+name: 🐞 Bug report
+description: Report something that isn't working as expected
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill in the details below so it can be reproduced.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug and what you expected instead.
+      placeholder: When I do X, Y happens instead of Z…
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to …
+        2. Click …
+        3. See error
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: InfraNet Pro version
+      placeholder: e.g. 2.0.0
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system (where the server runs)
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - Other
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      placeholder: e.g. Chrome 124, Firefox 126
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console / server logs (optional)
+      description: Paste any relevant errors from the browser console or the server terminal.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and didn't find a duplicate
+          required: true

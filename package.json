@@ -1,0 +1,41 @@
+{
+  "name": "infranetpro",
+  "version": "2.0.0",
+  "description": "InfraNet Pro — network infrastructure diagramming tool",
+  "license": "AGPL-3.0-or-later",
+  "author": "muttley1973",
+  "main": "server.js",
+  "scripts": {
+    "start": "node build.js && node server.js",
+    "postinstall": "node build.js",
+    "build": "node build.js",
+    "build:watch": "node build.js --watch",
+    "test": "node --test",
+    "e2e": "node build.js && node --test test/e2e/critical-flows.test.js",
+    "check": "node tools/check-syntax.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc -p tsconfig.json",
+    "update-oui": "node scripts/update-oui-db.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "esbuild": "^0.28.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^8.5.2",
+    "express-session": "^1.19.0",
+    "net-snmp": "^3.11.1",
+    "pdfkit": "^0.18.0",
+    "svg-to-pdfkit": "^0.1.8"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "eslint": "^9.39.4",
+    "globals": "^17.6.0",
+    "playwright-core": "^1.61.0",
+    "typescript": "^5.9.3"
+  }
+}

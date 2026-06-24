@@ -1,0 +1,35 @@
+name: 💡 Feature request / change
+description: Suggest a new feature or a change to existing behaviour
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea or a change in mind? Describe it below. For open-ended ideas, GitHub Discussions is also a good place.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: The need or pain point behind the request.
+      placeholder: When documenting X, it's hard to…
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What you'd like to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered (optional)
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and discussions for a similar request
+          required: true

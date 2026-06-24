@@ -1,0 +1,486 @@
+/* ============================================================
+   InfraNet Pro — styles/04-floor-rack.css
+   Floor plan, rack view, righello U, floor nodes, porte, rack-device, stacking/HA, skin, MGMT
+   Generato dallo split di style.css (ordine cascata preservato).
+   ============================================================ */
+        /* Floor plan */
+        #floorplan { flex:1; position:relative; background-color:var(--bg-color); overflow:hidden; cursor:grab; }
+        #floorplan:active { cursor:grabbing; }
+        /* INT-6alt: collegamento in corso → cursor crosshair su area di lavoro.
+           Feedback visivo persistente non invasivo: l'utente vede di essere in
+           modalità link senza chip/banner. Si toglie su Esc o link completato. */
+        body.link-mode #floorplan,
+        body.link-mode #floorplan:active,
+        body.link-mode #rack-viewport,
+        body.link-mode .floor-node,
+        body.link-mode .floor-rack,
+        body.link-mode .rack-device { cursor: crosshair !important; }
+        #floor-canvas { position:absolute; transform-origin:0 0; width:5000px; height:5000px; pointer-events:none; }
+        #floorplan-grid { position:absolute; inset:0; background-size:40px 40px; background-image:linear-gradient(to right,rgba(255,255,255,0.03) 1px,transparent 1px),linear-gradient(to bottom,rgba(255,255,255,0.03) 1px,transparent 1px); pointer-events:none; z-index:0; }
+        #floor-bg-img { position:absolute; top:0; left:0; opacity:0.4; pointer-events:none; transform-origin:top left; display:none; }
+        #floor-structures { position:absolute; inset:0; z-index:1; pointer-events:none; }
+        #floor-items      { position:absolute; inset:0; z-index:2; pointer-events:none; }
+        #floor-structures > *,#floor-items > *,#floor-bg-img { pointer-events:auto; }
+
+        /* Rack view */
+        #rack-view { width:32%; min-width:320px; max-width:60%; background:var(--panel-bg); border-left:none; display:flex; flex-direction:column; z-index:50; flex-shrink:0; transition:width .25s ease, min-width .25s ease, opacity .25s ease; overflow:hidden; }
+        #rack-view.collapsed { width:0 !important; min-width:0 !important; opacity:0; pointer-events:none; }
+        .rack-header { padding:8px 10px; background:var(--surface-2); border-bottom:1px solid var(--panel-border); display:flex; gap:5px; align-items:center; }
+        .rack-header select { flex:1; background:var(--bg-color); color:#fff; border:1px solid var(--panel-border); padding:4px 6px; border-radius: var(--radius-sm); font-size:var(--fs-md); }
+        /* Toolbar rack DENTRO il viewport come header normale, sticky in alto.
+           Estesa oltre il padding del viewport con margin negativi e width calcolata. */
+        .rack-header.rack-header-floating {
+            position: sticky;
+            top: -24px;                          /* compensa padding-top del viewport */
+            z-index: 20;
+            align-self: stretch;                 /* in flex column, ignora align-items:center */
+            width: calc(100% + 56px);            /* compensa padding-left + padding-right */
+            margin: -24px -28px 16px -28px;      /* estende oltre il padding del viewport */
+            background: var(--surface-2);
+            border-bottom: 1px solid var(--panel-border);
+            padding: 8px 10px;
+            box-sizing: border-box;
+        }
+        .rack-menu-dropdown {
+            position:absolute; top:calc(100% + 6px); right:0; min-width:210px;
+            background:var(--panel-bg); border:1px solid var(--panel-border); border-radius: var(--radius-lg);
+            box-shadow:0 10px 26px rgba(0,0,0,.45); z-index:220; padding:6px;
+        }
+        .rack-menu-dropdown { animation: menuFadeIn .16s ease-out; }
+        .rack-menu-item {
+            width:100%; border:1px solid transparent; background:transparent; color:var(--text-main);
+            border-radius: var(--radius-md); padding:7px 8px; text-align:left; font-size:var(--fs-md); cursor:pointer;
+            font-weight:600; text-transform:uppercase; letter-spacing:.03em;
+            display:flex; align-items:center; gap:8px;
+        }
+        .rack-menu-item:hover { background:#111722; border-color:var(--panel-border); }
+        .rack-menu-item:disabled { opacity:.45; cursor:not-allowed; }
+        .rack-menu-item i { width:14px; text-align:center; color:var(--accent); }
+        .rack-menu-item.primary { background:rgba(0,212,255,.12); border-color:rgba(0,212,255,.35); color:#b8f3ff; }
+        .rack-menu-item.danger { color:var(--fault-color); }
+        .rack-menu-item.danger i { color:var(--fault-color); }
+        .rack-menu-size-row {
+            display:flex; align-items:center; justify-content:space-between; gap:8px;
+            margin:6px 1px; padding:6px 6px; border-top:1px solid var(--panel-border); border-bottom:1px solid var(--panel-border);
+        }
+        .rack-menu-size-row > span { color:var(--text-muted); font-size:var(--fs-sm); text-transform:uppercase; letter-spacing:.04em; }
+
+        /* Tab bar rack/proprietà */
+        #right-tab-bar { display:flex; background:var(--surface-2); border-bottom:1px solid var(--panel-border); flex-shrink:0; }
+        .right-tab { flex:1; padding:7px 4px; text-align:center; font-size:var(--fs-sm); color:var(--text-muted); cursor:pointer; border-bottom:2px solid transparent; transition:color .15s,border-color .15s; user-select:none; display:flex; align-items:center; justify-content:center; gap:5px; }
+        .right-tab:hover { color:var(--text-main); }
+        .right-tab.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
+        .right-tab .tab-badge { background:var(--accent); color:#000; font-size:var(--fs-xs); font-weight:700; border-radius: var(--radius-lg); padding:1px 5px; min-width:14px; text-align:center; display:none; }
+        .right-tab .tab-badge.show { display:inline-block; }
+        #props-panel-wrap { flex:1; overflow-y:auto; padding:13px; display:none; }
+        #props-panel-wrap.active { display:block; }
+        .props-selected-title { font-size:var(--fs-lg); font-weight:700; color:var(--accent); margin:0 0 10px; padding:0 0 8px; border-bottom:1px solid var(--panel-border); word-break:break-word; display:flex; align-items:flex-start; gap:8px; }
+        .props-selected-title > span:first-child { flex:1; min-width:0; }
+        .props-selected-main { display:flex; align-items:center; gap:9px; flex:1; min-width:0; }
+        .props-selected-icon { color:var(--accent); width:24px; text-align:center; font-size:var(--fs-2xl); line-height:1; flex-shrink:0; display:flex; align-items:center; justify-content:center; min-height:calc(1.02rem + 0.74rem + 4px); }
+        .props-selected-text { display:flex; flex-direction:column; justify-content:center; min-width:0; line-height:1.15; }
+        .props-selected-subtitle { display:block; font-size:var(--fs-sm); font-weight:500; color:var(--text-main); text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
+        /* Riga LAG sotto l'header porta: chip "Membro LAG" (viola) + chip porte
+           del bonding (porta corrente evidenziata in ciano). */
+        .props-lag-head { display:flex; align-items:center; flex-wrap:wrap; gap:7px; margin:-2px 0 12px; }
+        .lag-chips { display:inline-flex; flex-wrap:wrap; gap:3px; margin-left:auto; }
+        .lag-chip { font-size:.68rem; padding:1px 6px; border-radius:3px; border:1px solid var(--panel-border); background:var(--bg-color); color:var(--text-main); }
+        .lag-chip.self { border-color:var(--accent); background:var(--accent-soft); color:var(--accent); font-weight:700; }
+        .props-toggles { display:inline-flex; gap:4px; flex-shrink:0; align-items:center; }
+        .props-toggle-btn { background:transparent; border:1px solid var(--panel-border); color:var(--text-main); padding:3px 7px; border-radius: var(--radius-sm); cursor:pointer; font-size:var(--fs-md); transition:color .12s, border-color .12s, background-color .12s, transform .12s; line-height:1; }
+        .props-toggle-btn:hover { color:var(--accent); border-color:var(--accent); background:color-mix(in srgb, var(--accent) 15%, transparent); transform:scale(1.05); }
+        .props-toggle-btn.danger { color:var(--fault-color); }
+        .props-toggle-btn.danger:hover { color:var(--fault-color); border-color:rgba(248,81,73,.5); background:rgba(248,81,73,.12); }
+        .rack-size-control { display:flex; align-items:center; gap:4px; color:var(--text-muted); font-size:var(--fs-sm); white-space:nowrap; }
+        .rack-size-control input { width:50px; background:var(--bg-color); color:#fff; border:1px solid var(--panel-border); padding:4px; border-radius: var(--radius-sm); font-family:inherit; }
+        /* Navigazione SOLO pan (drag) + zoom (rotella), come il floor: overflow
+           hidden → niente scrollbar (lo scroll resta programmatico per il pan e
+           per lo zoom-su-ricerca). touch-action:none evita che il touch nativo
+           rubi il gesto di pan. */
+        #rack-viewport { flex:1; overflow:hidden; touch-action:none; position:relative; display:flex; flex-direction:column; align-items:center; padding:24px 28px; background:#ffffff; }
+        #rack-chassis-wrap { display:flex; align-items:flex-start; transform-origin:top center; transition:transform .1s; position:relative; }
+        /* Durante il pan (drag) la transition renderebbe il trascinamento "molle":
+           la disattiviamo finche' si panna; lo zoom (rotella) la riusa. */
+        body.rack-panning #rack-chassis-wrap { transition:none; }
+        /* Ruler is an absolute overlay on the widened left border of the chassis.
+           top:8px = chassis border-top height, so row 1 of ruler aligns with row 1 of the CSS grid.
+           width:28px = exact border-left width of .rack-chassis. */
+        #rack-ruler { position:absolute; left:0; top:8px; width:19px; pointer-events:none; z-index:10; overflow:hidden; }
+        /* Altezza di una unità rack (1U). UNICO punto di verità (letto dal JS via
+           rackUPx). In scala reale 19":1.75" (≈10.86:1 con la larghezza pannello)
+           così le skin del pannello entrano con proporzioni corrette. */
+        :root { --ru-h: 29px; }
+        .ru { height:var(--ru-h); display:flex; align-items:center; justify-content:center; font-size:0.50rem; font-family:monospace; color:#969696; line-height:1; user-select:none; flex-shrink:0; box-sizing:border-box; }
+        /* Chassis: border-left widened to 28px to host the ruler numbers.
+           Total width 356px keeps the internal port area identical to before (356-28-12=316px). */
+        .rack-chassis { width:356px; background:var(--rack-bg); border:8px solid #333; border-left:19px solid #2a2a2a; border-right:19px solid #2a2a2a; border-bottom:19px solid #2a2a2a; display:grid; position:relative; box-shadow:inset 0 0 8px rgba(0,0,0,.5); overflow:hidden; box-sizing:border-box; }
+        .rack-chassis::before,.rack-chassis::after { content:''; position:absolute; top:0; bottom:0; width:8px; background:repeating-linear-gradient(to bottom,#333,#333 1px,transparent 1px,transparent var(--ru-h)); pointer-events:none; }
+        .rack-chassis::before { left:-10px; } .rack-chassis::after { right:-10px; }
+
+        /* Floor nodes */
+        .floor-node { position:absolute; background:var(--surface-2); border:1px solid #444; border-radius: var(--radius-md); display:flex; flex-direction:column; align-items:center; justify-content:center; padding:8px; cursor:move; box-shadow:0 4px 6px rgba(0,0,0,.3); transform:translate(-50%,-50%); min-width:60px; z-index:10; }
+        .floor-node.selected {
+            border-color:var(--accent);
+            box-shadow:0 0 0 1px rgba(0,212,255,.24), 0 0 18px rgba(0,212,255,.42), 0 8px 22px rgba(0,0,0,.34);
+            z-index:15;
+        }
+        .floor-node.port-selected {
+            border-color:rgba(0,212,255,.78);
+            box-shadow:0 0 0 1px rgba(0,212,255,.26), 0 0 18px rgba(0,212,255,.34), 0 8px 22px rgba(0,0,0,.34);
+            background:linear-gradient(180deg, rgba(24,34,46,.98), rgba(18,25,35,.98));
+            z-index:16;
+        }
+        .floor-node.port-selected .label { color:#d7f7ff; }
+        .floor-node.port-selected i.icon { color:var(--accent); text-shadow:0 0 9px rgba(0,212,255,.45); }
+        .floor-node i.icon { font-size:var(--fs-2xl); margin-bottom:4px; pointer-events:none; }
+        /* Icona centrale wireless (AP) un po' più piccola delle altre */
+        .floor-node i.icon.fa-wifi { font-size:var(--fs-xl); }
+        .floor-node i.icon.port { pointer-events:auto; }
+        .floor-node .label { font-size:var(--fs-xs); color:var(--text-muted); pointer-events:none; white-space:nowrap; }
+        .floor-node.vlan-dim { opacity:0.18; pointer-events:none; }
+        /* VLAN membership modal */
+        .vm-section { margin-bottom:18px; }
+        .vm-section h4 { font-size:var(--fs-md); font-weight:700; color:var(--text-main); margin-bottom:8px; padding-bottom:4px; border-bottom:1px solid var(--panel-border); }
+        .vm-list { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:5px; }
+        .vm-list li { display:flex; align-items:center; font-size:var(--fs-md); color:var(--text-main); }
+        .vm-port { color:var(--text-muted); font-size:var(--fs-sm); margin-left:5px; }
+        .vm-empty { font-size:var(--fs-md); color:var(--text-muted); font-style:italic; margin:0; }
+        .vm-dev-groups { display:flex; flex-direction:column; gap:6px; }
+        .vm-dev-group { border:1px solid var(--panel-border); border-radius: var(--radius-md); background:rgba(255,255,255,.02); overflow:hidden; }
+        .vm-dev-group > summary { display:flex; align-items:center; gap:4px; cursor:pointer; list-style:none; padding:7px 10px; font-size:var(--fs-md); font-weight:600; color:var(--text-main); user-select:none; }
+        .vm-dev-group > summary::-webkit-details-marker { display:none; }
+        .vm-dev-group > summary::after { content:"\f078"; font-family:"Font Awesome 6 Free"; font-weight:900; font-size:.62rem; color:var(--text-muted); margin-left:auto; transition:transform .15s; }
+        .vm-dev-group[open] > summary::after { transform:rotate(180deg); }
+        .vm-dev-group > summary:hover { background:rgba(255,255,255,.04); }
+        .vm-dev-name { flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .vm-dev-role { flex-shrink:0; font-size:var(--fs-xs); font-weight:600; padding:1px 6px; border-radius: var(--radius-xl); margin-left:8px; white-space:nowrap; }
+        .vm-dev-role.src { color:#3fb950; background:rgba(63,185,80,.13); border:1px solid rgba(63,185,80,.3); }
+        .vm-dev-role.cap { color:#d29922; background:rgba(210,153,34,.12); border:1px solid rgba(210,153,34,.3); }
+        .vm-dev-count { flex-shrink:0; font-size:var(--fs-sm); font-weight:400; color:var(--text-muted); margin-left:8px; }
+        .vm-dev-group .vm-list { padding:2px 10px 9px 12px; }
+        .floor-ports { display:flex; flex-wrap:wrap; justify-content:center; gap:4px; margin-top:4px; max-width:90px; }
+        .floor-room { position:absolute; border:2px solid #555; cursor:move; display:flex; align-items:center; justify-content:center; font-weight:bold; overflow:hidden; border-radius: var(--radius-xs); }
+        .floor-room span { pointer-events:none; opacity:.6; text-align:center; line-height:1.2; word-break:break-word; padding:4px; }
+        .floor-room.selected {
+            border-color:var(--accent);
+            box-shadow:0 0 0 1px rgba(0,212,255,.2), 0 0 18px rgba(0,212,255,.2), inset 0 0 15px rgba(0,212,255,.16);
+            z-index:5;
+        }
+        .floor-room.locked { cursor:default; border-style:dashed; }
+        .room-lock-icon { position:absolute; top:4px; right:5px; font-size:var(--fs-xs); opacity:0.55; pointer-events:none; color:var(--text-muted); }
+        .floor-room.locked .room-lock-icon { opacity:0.85; color:var(--accent); }
+        .resize-handle { position:absolute; bottom:0; right:0; width:14px; height:14px; background:var(--text-muted); opacity:.7; cursor:se-resize; border-top-left-radius:4px; }
+        .floor-room.selected .resize-handle { background:var(--accent); }
+
+        /* Ports */
+        .port { width:14px; height:14px; color:#9aa4ad; background:transparent; border:0; cursor:crosshair; transition:.1s; position:relative; z-index:100; display:inline-flex; align-items:center; justify-content:center; font-size:14px; line-height:1; }
+        .port:hover { transform:scale(1.35); color:var(--accent); z-index:101; }
+        .port.selected {
+            color:var(--accent);
+            transform:scale(1.35);
+            text-shadow:0 0 8px rgba(0,212,255,.55);
+            filter:drop-shadow(0 0 5px rgba(0,212,255,.45));
+            z-index:102;
+        }
+        .port.active { color:#9aa4ad; } .port.fault { color:var(--fault-color); } .port.idle { color:var(--idle-color); }
+
+        /* Rack devices */
+        .rack-device { grid-column:1/-1; width:100%; background:var(--rack-metal); border:1px solid #111; border-left:3px solid var(--inactive-color); border-bottom:2px solid #000; display:flex; align-items:center; justify-content:space-between; padding:2px 6px; color:#ddd; position:relative; cursor:move; box-sizing:border-box; overflow:hidden; }
+        .rack-device.selected { outline:1px solid var(--accent); outline-offset:-1px; filter:brightness(1.15); z-index:5; }
+        /* Errore SNMP: barra di stato a SINISTRA rossa (come gli altri stati) +
+           LED di stato; niente piu' "tutto il bordo rosso". */
+        .rack-device.snmp-fault { border-left-color:var(--fault-color); }
+        .rack-device.snmp-ok { border-left-color:var(--active-color); }
+        .rack-device.snmp-err { border-left-color:var(--fault-color); }
+        .rack-device.snmp-pending { border-left-color:#d29922; }
+        .rack-device.snmp-na { border-left-color:var(--inactive-color); }
+        .rack-device.snmp-fault .rack-label { color:#f8a09a; }
+        /* Presenza: device risultati ASSENTI in rete nell'ultima Verifica
+           documentazione (bucket macOrphan del Drift) → attenuati ("grigio").
+           Restano cliccabili (per aprirli e correggere IP/stato). */
+        .floor-node.node-absent { opacity:0.4; filter:grayscale(0.9); }
+        .floor-node.node-absent.selected { opacity:0.72; }
+        .rack-device.node-absent { opacity:0.5; filter:grayscale(0.85); }
+        /* Brand visibile solo per dispositivi a bassa densità (=8 porte) */
+        /* .rack-brand rimosso: l'hostname e' ora un title HTML sul .rack-device
+           (tooltip browser nativo al hover) e non occupa piu' spazio fisso a
+           sinistra. Cosi' le porte hanno tutta la larghezza disponibile. */
+        .cm-face { position:absolute; left:10px; right:10px; top:5px; bottom:5px; border:1px solid rgba(255,255,255,.12); border-radius:3px; background:rgba(255,255,255,.02); pointer-events:none; }
+        .cm-fingers { position:absolute; left:16px; right:16px; top:8px; bottom:8px; display:flex; gap:10px; justify-content:space-between; align-items:stretch; pointer-events:none; }
+        .cm-finger { width:14%; min-width:14px; border:1px solid rgba(0,0,0,.6); border-bottom:none; border-radius:2px 2px 0 0; background:linear-gradient(180deg,#222831 0%, var(--surface-2) 100%); box-shadow:inset 0 0 0 1px rgba(255,255,255,.05); }
+        /* .rack-label: targhetta nera fissa del nome/ID — dimensioni
+           (width/height/padding) e font SEMPRE uguali. Testi piu' lunghi
+           del container vengono troncati con ellipsis. */
+        .rack-label { background:#111; padding:2px 4px; border-radius: var(--radius-xs); border:1px solid #333; font-family:monospace; font-size:0.48rem; pointer-events:none; white-space:nowrap; width:56px; max-width:56px; overflow:hidden; text-overflow:ellipsis; text-align:center; flex-shrink:0; box-sizing:border-box; line-height:1.1; color:#ddd; }
+        /* Stacking visual hint (P7.1): la rack-label cambia colore da nera a
+           ciano accent (stesso colore di highlight LAG) quando il device e'
+           membro di uno stack. Testo nero per contrasto. La distinzione
+           master/membro vive nel pannello Proprieta', non sul rack. */
+        .rack-label.is-stacked {
+            background:var(--accent);
+            color:var(--bg-color);
+            border-color:var(--accent);
+        }
+        /* HA visual hint (P8.1): la rack-label diventa arancione/ambra quando
+           il device e' in HA pair o cluster. Pattern coerente con stacking
+           ma colore distinto per evitare confusione fra i due concetti. */
+        .rack-label.is-ha {
+            background:#f97316;
+            color:var(--bg-color);
+            border-color:#f97316;
+        }
+        /* Lista membri nella fisarmonica Stacking */
+        .stack-members-title {
+            margin-top:8px;
+            font-size:var(--fs-lg);
+            color:var(--text-muted);
+            font-weight:600;
+            line-height:1.2;
+        }
+        .stack-members-list { display:flex; flex-direction:column; gap:3px; margin-top:4px; }
+        .stack-member-row {
+            padding:5px 7px; border-radius:3px;
+            background:rgba(255,255,255,0.03); border:1px solid var(--panel-border);
+            font-size:var(--fs-lg); color:var(--text-main);
+            display:flex; align-items:center; gap:5px;
+            line-height:1.2;
+        }
+        .stack-member-row.is-this {
+            background:rgba(0,212,255,0.08);
+            border-color:rgba(0,212,255,0.4);
+            font-weight:600;
+        }
+        .stack-this-marker { font-size:var(--fs-md); color:var(--accent); font-weight:600; margin-left:auto; }
+        /* Banner auto-detection stack (P7.3): card ciano evidente sopra i
+           controlli di stacking quando l'SNMP poll ha rilevato pattern
+           multi-member <M>/<S>/<P>. Niente animazioni invasive: solo bordo
+           e sfondo ciano leggeri. */
+        .stack-hint-banner {
+            background:rgba(0,212,255,0.08);
+            border:1px solid rgba(0,212,255,0.45);
+            border-radius: var(--radius-sm);
+            padding:8px 10px;
+            margin-bottom:8px;
+            display:flex;
+            flex-direction:column;
+            gap:6px;
+        }
+        .stack-hint-head {
+            font-size:var(--fs-lg);
+            color:var(--accent);
+            font-weight:700;
+            line-height:1.25;
+            display:flex;
+            align-items:center;
+            gap:8px;
+        }
+        .stack-hint-head .fa-magic-wand-sparkles {
+            font-size:var(--fs-lg);
+            margin-right:0;
+            flex-shrink:0;
+        }
+        .stack-hint-body {
+            font-size:var(--fs-md);
+            color:var(--text-main);
+            line-height:1.4;
+        }
+        .stack-hint-body code {
+            background:rgba(0,0,0,0.3);
+            padding:1px 5px;
+            border-radius: var(--radius-xs);
+            font-size:var(--fs-md);
+            font-family:monospace;
+        }
+        .stack-hint-actions {
+            display:grid;
+            grid-template-columns:2fr 1fr;
+            gap:5px;
+        }
+        /* Fisarmonica HA (P8.1) — lista peer/partner. Pattern parallelo a
+           stack-members ma con accent arancione per coerenza visiva con la
+           label `is-ha`. */
+        .ha-partners-title {
+            margin-top:8px;
+            font-size:var(--fs-lg);
+            color:var(--text-muted);
+            font-weight:600;
+            line-height:1.2;
+        }
+        .ha-partners-list { display:flex; flex-direction:column; gap:3px; margin-top:4px; }
+        .ha-partner-row {
+            padding:5px 7px; border-radius:3px;
+            background:rgba(249,115,22,0.06);
+            border:1px solid rgba(249,115,22,0.25);
+            font-size:var(--fs-lg); color:var(--text-main);
+            display:flex; align-items:center; gap:5px;
+            line-height:1.2;
+        }
+        /* Area porte: singola riga per =24 porte, doppia riga per >24 (odd/even Cisco-style) */
+        .rack-ports { --rack-port-cell:8px; --port-gap:2px; display:flex; align-items:center; justify-content:center; gap:var(--port-gap); flex:1; margin:0 2px; pointer-events:auto; flex-wrap:nowrap; min-width:0; }
+        /* Blocco porte "nudo" (senza blocco SFP): centratura naturale del flex →
+           gap UGUALI tra bordo-sinistro↔blocco e blocco↔targhetta nome a destra,
+           per qualsiasi numero di porte. NIENTE translateX: i vecchi -20/-16px
+           erano proprio la causa dello sbilanciamento (blocco schiacciato a sx).
+           Vale per i patch panel e per QUALSIASI device ad alta densità
+           (>16 porte/riga = .dense-xl) privo di blocco SFP. */
+        .rack-device.type-patchpanel .rack-ports,
+        .rack-ports.dense-xl:not(.rack-ports-sfp-layout) { transform:none; }
+        /* Device CON blocco SFP: il bilanciamento lo fanno i blocchi SFP/main
+           (vedi .rack-ports-main sotto) → tuning storico invariato. */
+        .rack-ports.dense-xl.rack-ports-sfp-layout { transform:translateX(-16px); }
+        .rack-ports.rack-ports-2row { flex-direction:column; gap:3px; flex-wrap:nowrap; align-items:center; }
+        .rack-ports.rack-ports-sfp-layout { flex-direction:row; gap:7px; align-items:center; justify-content:center; min-width:0; }
+        .rack-ports.rack-ports-sfp-layout.sfp-right .rack-ports-main { transform:translateX(-6px); }
+        .rack-ports.rack-ports-sfp-layout.sfp-left .rack-ports-main { transform:translateX(6px); }
+        .rack-ports.rack-ports-sfp-layout.dense-xl.sfp-right .rack-ports-main { transform:translateX(-10px); }
+        .rack-ports.rack-ports-sfp-layout.dense-xl.sfp-left .rack-ports-main { transform:translateX(10px); }
+        .rack-ports-main { display:flex; flex-direction:column; gap:3px; align-items:center; justify-content:center; min-width:0; flex:0 1 auto; }
+        .rack-sfp-side {
+            display:grid;
+            grid-template-rows:repeat(2, min-content); /* sempre 2 righe */
+            grid-auto-flow:column;                     /* riempie per colonne: 2 SFP = 1 col verticale, 4 SFP = 2 col, 6 SFP = 3 col */
+            grid-auto-columns:min-content;
+            row-gap:3px;
+            column-gap:2px;
+            align-content:center;
+            align-items:center;
+            justify-items:center;
+            align-self:center;
+            padding:0;
+            box-sizing:border-box;
+            flex:0 0 auto;
+            position:relative;
+            z-index:1;
+        }
+        .rack-ports-row { display:grid; grid-auto-flow:column; grid-auto-columns:var(--rack-port-cell); column-gap:var(--port-gap); justify-content:center; align-items:flex-start; }
+        .rack-ports-row.uplink-row { margin-top:3px; }
+        .rack-port-unit { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:1px; width:var(--rack-port-cell); min-width:var(--rack-port-cell); max-width:var(--rack-port-cell); }
+        /* Cella SFP/uplink: bordo argento metallo (#9aa5b1) — neutrale e
+           realistico (richiama la gabbia anodizzata reale), distinto dal
+           ciano MGMT e dai LED status. */
+        .rack-port-unit.uplink .port-led { border:1px solid rgba(154,165,177,.75); box-shadow:0 0 0 1px rgba(154,165,177,.1); }
+        .rack-port-unit.uplink .port-num { color:#7a8a9e; }
+        .rack-port-unit.sfp-slot { gap:1px; }
+        .rack-ports .rack-port-unit { width:var(--rack-port-cell); min-width:var(--rack-port-cell); max-width:var(--rack-port-cell); }
+        .rack-ports .rack-port-unit.sfp-slot { width:auto; min-width:0; max-width:none; }
+        .port-num { display:block; width:100%; font-size:4px; color:#7a8a9e; line-height:1; pointer-events:none; user-select:none; text-align:center; font-family:monospace; white-space:nowrap; max-width:none; overflow:visible; text-overflow:clip; letter-spacing:-0.1px; }
+        /* Altissima densita': switch con >16 porte per riga (es. 48 porte = 24/riga). */
+        .rack-ports.dense-xl .port-num { font-size:4px; letter-spacing:-.2px; max-width:16px; }
+        .rack-ports.dense-xl.compact-1u .port-num { font-size:3px; max-width:none; }
+        /* 1U doppia riga: LED 5px + numero 4px + gap1px = 10px×2+1px = 21px < 22px disponibili */
+        .rack-ports-2row.compact-1u { --rack-port-cell:6px; gap:1px; }
+        .rack-ports-2row.compact-1u .rack-port-unit { gap:1px; }
+        .rack-ports-2row.compact-1u .port-led { width:5px; height:5px; }
+        .rack-ports-2row.compact-1u .port-num { font-size:4px; max-width:none; line-height:1; }
+        .rack-ports-2row.compact-1u:not(.dense-xl) { gap:0; }
+        .rack-ports-2row.compact-1u:not(.dense-xl) .rack-port-unit { gap:1px; }
+        .rack-ports-2row.compact-1u:not(.dense-xl) .port-num { font-size:4px; line-height:1; }
+        .rack-ports-sfp-layout.compact-1u { gap:2px; }
+        .rack-ports-sfp-layout.compact-1u { --rack-port-cell:6px; }
+        .rack-ports-sfp-layout.compact-1u .rack-ports-main { gap:0; }
+        .rack-ports-sfp-layout.compact-1u .rack-port-unit { gap:0; }
+        .rack-ports-sfp-layout.compact-1u .rack-port-unit.sfp-slot { width:auto; min-width:0; max-width:none; gap:0; }
+        .rack-ports-sfp-layout.compact-1u .port-led:not(.sfp-slot):not(.mgmt-slot) { width:5px; height:5px; }
+        .rack-ports-sfp-layout.compact-1u .port-num { font-size:4px; max-width:none; line-height:1; }
+        .rack-ports-sfp-layout.compact-1u:not(.dense-xl) .rack-ports-main { gap:0; }
+        .rack-ports-sfp-layout.compact-1u:not(.dense-xl) .rack-port-unit { gap:1px; }
+        .rack-ports-sfp-layout.compact-1u:not(.dense-xl) .port-num { font-size:4px; line-height:1; }
+        .rack-ports-sfp-layout.compact-1u .rack-sfp-side {
+            column-gap:1px;
+            row-gap:0;
+            /* width auto: scala in base al numero di SFP (2 righe always) */
+        }
+        .port-led { width:7px; height:7px; border-radius:1px; background:var(--inactive-color); pointer-events:auto; cursor:crosshair; transition:transform .1s, box-shadow .1s; flex-shrink:0; }
+        .port-led.sfp-slot { width:8px; height:5px; border-radius:1px; background:transparent; border:2px solid rgba(154,165,177,.75); box-shadow:inset 0 0 0 1px rgba(154,165,177,.1); }
+        .port-led:hover { transform:scale(1.5); box-shadow:0 0 6px var(--accent); }
+        .port-led.sfp-slot:hover { box-shadow:0 0 6px rgba(154,165,177,.5); }
+        .port-led.active { background:var(--active-color); box-shadow:0 0 5px var(--active-color); }
+        .port-led.sfp-slot.active { background:rgba(63,185,80,.18); box-shadow:0 0 4px rgba(63,185,80,.5); border-color:rgba(63,185,80,.8); }
+        .port-led.active:hover { box-shadow:0 0 9px var(--active-color); }
+        .port-led.fault  { background:var(--fault-color);  box-shadow:0 0 5px var(--fault-color); }
+        .port-led.sfp-slot.fault { background:rgba(248,81,73,.15); box-shadow:0 0 4px rgba(248,81,73,.5); border-color:rgba(248,81,73,.8); }
+        .port-led.idle   { background:var(--idle-color);   box-shadow:0 0 5px var(--idle-color); }
+        .port-led.sfp-slot.idle { background:rgba(210,153,34,.14); box-shadow:0 0 4px rgba(210,153,34,.45); border-color:rgba(210,153,34,.75); }
+        /* ---- Skin pannello custom (prototipo): SVG al posto della griglia LED ---- */
+        /* Con la skin: niente padding e niente bordo telaio (lo disegna l'SVG), MA
+           si tiene la barra di stato SNMP a sinistra (border-left 3px). Si impostano
+           solo width/style: il COLORE resta alle classi .snmp-* (border-left-color). */
+        .rack-device.has-skin { padding:0; border-width:0; border-left-width:3px; border-style:solid; }
+        .rack-skin-wrap { flex:1 1 auto; min-width:0; align-self:stretch; display:flex; overflow:hidden; }
+        .panel-skin-svg { width:100%; height:100%; display:block; }
+        /* il colore di stato va applicato anche alle forme DENTRO la porta:
+           Illustrator spesso annida la forma in un <g id="port-N"> e il <rect>
+           interno tiene il proprio fill. Targettando .skin-port * (con !important)
+           si vince su attributo fill, stile inline e <style> interno. */
+        .panel-skin-svg .skin-port { pointer-events:auto; cursor:crosshair; transition:fill .1s; }
+        .panel-skin-svg .skin-port, .panel-skin-svg .skin-port * { fill:var(--inactive-color) !important; }
+        .panel-skin-svg .skin-port.active, .panel-skin-svg .skin-port.active * { fill:var(--active-color) !important; }
+        .panel-skin-svg .skin-port.fault,  .panel-skin-svg .skin-port.fault *  { fill:var(--fault-color) !important; }
+        .panel-skin-svg .skin-port.idle,   .panel-skin-svg .skin-port.idle *   { fill:var(--idle-color) !important; }
+        .panel-skin-svg .skin-port:hover,  .panel-skin-svg .skin-port:hover *  { fill:var(--accent) !important; }
+        .panel-skin-svg .skin-port.selected { stroke:var(--accent); stroke-width:1.2; paint-order:stroke; }
+        /* sezione "Skin pannello" nel pannello Proprieta */
+        .panel-skin-preview { background:#161616; border:1px solid var(--panel-border); border-radius: var(--radius-sm); padding:6px; margin-bottom:8px; }
+        .panel-skin-preview svg { width:100%; height:auto; display:block; max-height:120px; }
+        .panel-skin-meta { font-size:0.72rem; color:var(--text-muted); margin:0 0 8px; line-height:1.4; }
+        .panel-skin-hint { font-size:0.74rem; color:var(--text-muted); margin:0 0 8px; line-height:1.45; }
+        .panel-skin-btn { display:inline-flex; align-items:center; gap:6px; justify-content:center; flex:1; padding:6px 8px; font-size:var(--fs-md); border:1px solid var(--panel-border); border-radius: var(--radius-md); background:var(--bg-color); color:var(--text-main); cursor:pointer; }
+        .panel-skin-btn:hover { border-color:var(--accent); }
+        .panel-skin-btn.primary { border-color:var(--accent); color:var(--accent); }
+        .panel-skin-btn.danger:hover { border-color:var(--fault-color); color:var(--fault-color); }
+        /* MGMT block dedicato: 1..4 celle forma SFP (rettangolo orizzontale),
+           bordo ciano (cavo console Cisco), DENTRO VUOTE. Wrapper flex-col
+           con [grid celle] + [titolo "MGMT" sotto]. Le celle interne usano
+           lo stesso layout 2-righe x N-colonne del blocco SFP. */
+        .rack-mgmt-side {
+            display:flex; flex-direction:column;
+            align-items:center; justify-content:center;
+            row-gap:1px; padding:0; box-sizing:border-box;
+            flex:0 0 auto; align-self:center;
+            position:relative; z-index:1;
+        }
+        .rack-mgmt-grid {
+            display:grid;
+            grid-template-rows:repeat(2, min-content);
+            grid-auto-flow:column;
+            grid-auto-columns:min-content;
+            row-gap:3px;
+            column-gap:2px;
+            align-content:center;
+            align-items:center;
+            justify-items:center;
+        }
+        .rack-mgmt-grid .rack-port-unit.mgmt-slot { width:auto; min-width:0; max-width:none; gap:1px; }
+        /* Cella MGMT: dimensioni e peso visivo IDENTICI a una cella SFP a
+           runtime. NOTA: le celle SFP usano la regola piu' specifica
+           `.rack-port-unit.uplink .port-led` (border 1px + box-shadow outer
+           halo 1px, non inset). Replico quel pattern qui col tinto ciano,
+           per equivalenza pixel-per-pixel. */
+        .port-led.mgmt-slot { width:8px; height:5px; border-radius:1px; background:transparent; border:1px solid rgba(0,212,255,.55); box-shadow:0 0 0 1px rgba(0,212,255,.08); }
+        .port-led.mgmt-slot:hover { box-shadow:0 0 6px rgba(0,212,255,.45); }
+        .port-led.mgmt-slot.active { box-shadow:0 0 4px rgba(0,212,255,.5); border-color:rgba(0,212,255,.85); }
+        .port-led.mgmt-slot.fault  { box-shadow:0 0 4px rgba(248,81,73,.5);  border-color:rgba(248,81,73,.7); }
+        .port-led.mgmt-slot.idle   { box-shadow:0 0 4px rgba(0,212,255,.45); border-color:rgba(0,212,255,.65); }
+        /* Numero sotto cella MGMT: stessa tipografia del .port-num SFP (font-size
+           4px) ma colorato ciano per identificare visivamente come MGMT. */
+        .port-num.mgmt-num { color:var(--accent); font-weight:600; }
+        /* Titolo "MGMT" sotto il blocco di celle: corpo/font identici ai .port-num
+           (4px monospace) per coerenza tipografica con la numerazione porte;
+           solo il colore cambia in ciano per identificare il blocco MGMT. */
+        .rack-mgmt-title { display:block; font-size:4px; font-family:monospace; color:var(--accent); line-height:1; letter-spacing:-0.1px; white-space:nowrap; user-select:none; pointer-events:none; text-align:center; }
+        .rack-ports-sfp-layout.compact-1u .rack-mgmt-side { row-gap:0; }
+        .rack-ports-sfp-layout.compact-1u .rack-mgmt-grid { row-gap:0; column-gap:1px; }
+        .rack-ports-sfp-layout.compact-1u .rack-mgmt-grid .rack-port-unit.mgmt-slot { width:auto; min-width:0; max-width:none; gap:0; }
+        .rack-ports-sfp-layout.compact-1u .port-num.mgmt-num { font-size:4px; line-height:1; }
+        .rack-ports-sfp-layout.compact-1u .rack-mgmt-title { font-size:4px; line-height:1; }
+        .rack-ports-sfp-layout.mgmt-only { gap:5px; }
+        /* MGMT sul lato opposto a SFP: il transform `translateX(-6/+6)` su
+           .rack-ports-main era stato pensato per stringere il gap verso SFP,
+           ma con MGMT sull'altro lato finisce per creare asimmetria fra il
+           gap MGMT-main e quello main-SFP. Neutralizziamo. Le selettrici
+           originali (.rack-ports.rack-ports-sfp-layout.sfp-right ...) hanno
+           specificita' (0,4,0): replico/aumento qui per vincere. */
+        .rack-ports.rack-ports-sfp-layout.has-mgmt-opposite { gap:9px; }
+        .rack-ports.rack-ports-sfp-layout.sfp-right.has-mgmt-opposite .rack-ports-main,
+        .rack-ports.rack-ports-sfp-layout.sfp-left.has-mgmt-opposite .rack-ports-main { transform:none; }
+

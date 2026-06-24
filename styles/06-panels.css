@@ -1,0 +1,264 @@
+/* ============================================================
+   InfraNet Pro — styles/06-panels.css
+   SNMP poll, fisarmoniche Proprietà, tabella porte, popup porta, segmento condiviso, LAG
+   Generato dallo split di style.css (ordine cascata preservato).
+   ============================================================ */
+        /* SNMP poll button states */
+        .poll-btn-ok    { background:#1a3a1a!important; border-color:var(--active-color)!important; color:var(--active-color)!important; }
+        .poll-btn-err   { background:#3a1a1a!important; border-color:var(--fault-color)!important; color:var(--fault-color)!important; }
+        .mgmt-open-btn  { font-size:var(--fs-md); padding:2px 8px; border-radius: var(--radius-sm); background:var(--accent); color:#000 !important; font-weight:700; text-decoration:none; white-space:nowrap; transition:opacity .15s; }
+        .mgmt-open-btn:hover { background:var(--accent-hover); }
+        .mgmt-row-main  { display:flex; gap:4px; align-items:stretch; }
+        .mgmt-proto-sel { flex:0 0 86px; }
+        .mgmt-row-main input { flex:1; min-width:0; }
+        .mgmt-proto-edit { flex:0 0 28px; background:transparent; border:1px solid var(--panel-border); color:var(--text-main); border-radius:3px; cursor:pointer; padding:0; font-size:var(--fs-md); transition:color .12s, border-color .12s; }
+        .mgmt-proto-edit:hover { color:var(--accent); border-color:var(--accent); }
+        .snmp-section   { border-top:1px solid var(--panel-border); margin-top:10px; padding-top:10px; }
+        .snmp-section h5{ font-size:var(--fs-md); text-transform:uppercase; color:var(--text-main); margin:0 0 8px; letter-spacing:.04em; }
+        .props-collapsible { border-top:1px solid var(--panel-border); margin-top:10px; padding-top:10px; }
+        /* Gerarchia visiva: device-specifici hanno accent left, secondari sono muted. */
+        .props-collapsible.props-primary { border-left:2px solid var(--accent); padding-left:8px; margin-left:-10px; transition:background-color .12s; }
+        .props-collapsible.props-primary:not([open]) { background:color-mix(in srgb, var(--accent) 5%, transparent); }
+        .props-collapsible.props-primary .props-collapsible-head { color:var(--text-main); font-weight:700; font-size:var(--fs-md); }
+        .props-collapsible.props-secondary .props-collapsible-head { font-size:var(--fs-md); }
+        .props-collapsible.props-secondary .props-collapsible-head i:first-child { color:var(--accent); }
+        .props-collapsible summary { list-style:none; }
+        .props-collapsible summary::-webkit-details-marker { display:none; }
+        .props-collapsible-head { display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none; padding:0 0 8px 0; font-size:var(--fs-md); text-transform:uppercase; color:var(--text-main); letter-spacing:.04em; }
+        .props-collapsible-head span { display:flex; align-items:center; gap:7px; font-weight:700; }
+        .props-collapsible-head i:first-child { color:var(--accent); font-size:var(--fs-2xl); }
+        .props-collapsible-chevron { font-size:var(--fs-lg); color:var(--accent); transition:transform .18s ease,color .15s; }
+        .props-collapsible-head:hover .props-collapsible-chevron { color:var(--accent); }
+        .props-collapsible[open] .props-collapsible-chevron { transform:rotate(0deg); }
+        .props-collapsible:not([open]) .props-collapsible-chevron { transform:rotate(-90deg); }
+        .props-collapsible-preview { font-size:var(--fs-md); color:var(--text-main); text-transform:none; letter-spacing:0; font-weight:500; opacity:.78; margin-left:auto; margin-right:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:55%; }
+        .props-collapsible-preview.muted { opacity:.45; font-style:italic; }
+        .props-collapsible[open] .props-collapsible-preview { display:none; }
+        /* Animazione di apertura/chiusura: grid-rows 0fr -> 1fr (override del
+           display:none implicito dei <details> non-open). */
+        .props-collapsible-body { display:grid; grid-template-rows:1fr; transition:grid-template-rows .18s ease, opacity .15s ease; opacity:1; padding-top:2px; min-height:0; }
+        .props-collapsible:not([open]) > .props-collapsible-body { display:grid !important; grid-template-rows:0fr; opacity:0; padding-top:0; }
+        .props-collapsible-body > * { min-width:0; }
+        .props-collapsible:not([open]) > .props-collapsible-body > * { overflow:hidden; }
+        .prop-check { display:flex; align-items:center; gap:6px; margin:0; font-size:var(--fs-md); color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .prop-check input[type="checkbox"] { margin:0; accent-color:var(--accent); flex-shrink:0; }
+        .prop-check input[type="checkbox"]:disabled + * { opacity:.5; }
+        .prop-check-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 10px; margin:8px 0 4px; padding:6px 0; border-top:1px solid var(--panel-border); border-bottom:1px solid var(--panel-border); }
+        .prop-row2      { display:flex; gap:6px; }
+        .prop-row2 .prop-group { flex:1; min-width:0; }
+
+        /* Layout-base thumbnail group: 3 radio button visuali (Lineare /
+           Sequenziale / Alternata) in UNA singola riga di 3 colonne. Auto
+           non e' una scelta visibile — e' lo stato di default quando
+           nessuno e' selezionato. L'utente sceglie esplicitamente solo se
+           vuole sovrascrivere il comportamento automatico. */
+        .layout-thumbnails {
+            display:grid;
+            grid-template-columns:repeat(3, 1fr);
+            gap:5px;
+            margin-top:4px;
+            width:100%;
+        }
+        .layout-thumb {
+            background:rgba(255,255,255,0.03);
+            border:1px solid var(--panel-border);
+            border-radius: var(--radius-sm);
+            padding:0;
+            cursor:pointer;
+            transition:border-color .12s ease, background .12s ease, box-shadow .12s ease, color .12s ease;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            color:var(--text-muted);
+            font-family:inherit;
+            outline:none;
+            min-width:0;
+            overflow:hidden;
+        }
+        .layout-thumb:hover {
+            border-color:var(--accent);
+            background:rgba(0,212,255,0.06);
+            color:var(--text-main);
+        }
+        .layout-thumb:focus-visible {
+            border-color:var(--accent);
+            box-shadow:0 0 0 2px rgba(0,212,255,0.3);
+        }
+        .layout-thumb.selected {
+            border-color:var(--accent);
+            background:rgba(0,212,255,0.12);
+            box-shadow:inset 0 0 0 1px var(--accent);
+            color:var(--accent);
+        }
+        .layout-thumb svg {
+            width:100%;
+            height:auto;
+            display:block;
+        }
+
+        /* Tabella porte nel pannello proprietà */
+        .ports-section  { border-top:1px solid var(--panel-border); margin-top:10px; padding-top:10px; }
+        .ports-section h5 { font-size:var(--fs-sm); text-transform:uppercase; color:var(--text-muted); margin:0 0 6px; letter-spacing:.04em; display:flex; justify-content:space-between; align-items:center; }
+        .ports-section h5 span { font-size:var(--fs-xs); color:var(--text-muted); text-transform:none; letter-spacing:0; }
+        .pt-head { display:grid; grid-template-columns:20px 1fr 52px 36px 28px 16px; gap:2px; padding:0 0 3px; border-bottom:1px solid var(--panel-border); font-size:var(--fs-xs); color:var(--text-muted); margin-bottom:2px; }
+        .pt-body { max-height:360px; overflow-y:auto; }
+        .pt-row  { display:grid; grid-template-columns:20px 1fr 52px 36px 28px 16px; gap:2px; align-items:center; padding:2px 0; border-bottom:1px solid rgba(48,54,61,0.35); }
+        .pt-row:last-child { border-bottom:none; }
+        .pt-num  { color:var(--text-muted); text-align:right; font-size:var(--fs-xs); padding-right:2px; }
+        .pt-row input, .pt-row select {
+            background:var(--bg-color); border:1px solid transparent; color:var(--text-main);
+            border-radius:3px; padding:2px 3px; font-size:var(--fs-xs); font-family:inherit;
+            width:100%; min-width:0;
+        }
+        .pt-row input:focus, .pt-row select:focus { outline:none; border-color:var(--accent); }
+        .pt-row .ovr { border-color:#e3b341 !important; }
+        .pt-rst { background:none; border:none; color:transparent; cursor:pointer; padding:0; font-size:var(--fs-sm); }
+        .pt-rst.has-ovr { color:var(--text-muted); }
+        .pt-rst.has-ovr:hover { color:var(--fault-color); }
+        .pt-hide { background:none; border:none; color:var(--text-muted); cursor:pointer; padding:0; font-size:var(--fs-sm); opacity:0.3; }
+        .pt-hide:hover { opacity:1; }
+        .pt-hide.pt-hide-on { opacity:1; color:var(--fault-color); }
+        .pt-row-hidden { opacity:0.35; background:rgba(255,255,255,0.02); }
+        .pt-row-hidden input, .pt-row-hidden select { pointer-events:none; }
+
+        /* Popup porta */
+        #popup { position:fixed; background:var(--surface-2); border:1px solid var(--accent); padding:11px 13px; border-radius:7px; box-shadow:0 6px 20px rgba(0,0,0,.6); font-size:var(--fs-md); z-index:200; display:none; color:var(--text-main); width:330px; user-select:text; }
+        #popup h4 { margin:0 0 7px; color:var(--accent); border-bottom:1px solid #2a3040; padding-bottom:5px; display:flex; justify-content:space-between; align-items:center; font-size:var(--fs-md); }
+        #popup h4 { cursor:move; user-select:none; }
+        .pop-close { background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:var(--fs-lg); padding:0 2px; line-height:1; }
+        .pop-close:hover { color:var(--text-main); }
+        .snmp-bar { background:rgba(0,212,255,.07); border:1px solid rgba(0,212,255,.18); border-radius: var(--radius-sm); padding:4px 7px; margin:0 0 8px; font-size:var(--fs-xs); color:var(--text-muted); line-height:1.5; }
+        .snmp-bar .sb { background:rgba(0,212,255,.18); color:var(--accent); border-radius:3px; padding:1px 4px; font-size:var(--fs-xs); font-weight:700; letter-spacing:.04em; margin-right:4px; }
+        .port-row { display:grid; grid-template-columns:72px 1fr 20px; align-items:center; gap:4px; margin-bottom:5px; }
+        .port-row label { font-size:var(--fs-xs); color:var(--text-muted); }
+        .port-row input, .port-row select { background:var(--bg-color); border:1px solid var(--panel-border); color:var(--text-main); border-radius: var(--radius-sm); padding:3px 5px; font-size:var(--fs-sm); font-family:inherit; width:100%; min-width:0; }
+        .port-row input:focus, .port-row select:focus { outline:none; border-color:var(--accent); }
+        .port-row input.ovr, .port-row select.ovr { border-color:#e3b341; }
+        .shared-seg-box { margin-top:8px; padding:8px; border:1px solid rgba(227,179,65,.35); background:rgba(227,179,65,.07); border-radius:7px; }
+        .shared-seg-head { display:flex; align-items:center; justify-content:space-between; gap:8px; color:#e3b341; font-size:var(--fs-sm); font-weight:700; }
+        .shared-seg-head span { display:flex; align-items:center; gap:6px; }
+        .shared-seg-head strong { font-size:var(--fs-xs); border:1px solid rgba(227,179,65,.35); border-radius: var(--radius-pill); padding:1px 7px; background:rgba(0,0,0,.18); }
+        .shared-seg-desc { margin-top:5px; color:var(--text-muted); font-size:var(--fs-sm); line-height:1.35; }
+        .shared-seg-role { display:inline-flex; margin-left:4px; color:#ffd36a; font-weight:700; }
+        .shared-seg-list { margin-top:7px; display:flex; flex-direction:column; gap:4px; max-height:150px; overflow:auto; }
+        .shared-seg-row { display:grid; grid-template-columns:16px minmax(0,1fr) auto; gap:5px; align-items:center; padding:3px 4px; border-radius: var(--radius-sm); background:rgba(13,17,23,.55); }
+        .shared-seg-row i { color:var(--accent); font-size:var(--fs-sm); text-align:center; }
+        .shared-seg-row > div { min-width:0; display:flex; flex-direction:column; gap:1px; }
+        .shared-seg-row b { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:var(--fs-sm); color:var(--text-main); }
+        .shared-seg-row span { color:var(--text-muted); font-size:var(--fs-xs); }
+        .shared-seg-row code { color:#ffd36a; font-size:var(--fs-xs); font-family:ui-monospace, SFMono-Regular, Consolas, monospace; }
+        .shared-seg-more { color:var(--text-muted); font-size:var(--fs-xs); padding:2px 4px; }
+        .shared-seg-actions { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+        .shared-seg-actions .toolbar-btn { padding:3px 7px; font-size:var(--fs-xs); margin:0; }
+        /* Segmento L2 condiviso — UI semplificata: chip-tipo + azioni contestuali */
+        .ss-routing { margin-top:10px; }
+        .ss-q { font-size:var(--fs-sm); color:var(--text-muted); margin-bottom:7px; }
+        /* Tutte le scelte su UNA riga: nowrap + compatte; se il pannello è troppo
+           stretto la riga scorre in orizzontale invece di andare a capo. */
+        .ss-chips { display:flex; flex-wrap:nowrap; gap:5px; margin-bottom:12px; overflow-x:auto; padding-bottom:3px; }
+        .ss-radio { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
+        .ss-chip { display:inline-flex; align-items:center; gap:5px; font-size:var(--fs-xs); padding:5px 8px; flex:0 0 auto; white-space:nowrap;
+                   border:1px solid var(--panel-border); border-radius: var(--radius-md); background:var(--surface-2);
+                   color:var(--text-main); cursor:pointer; user-select:none; transition:background .12s, border-color .12s; }
+        .ss-chip i { font-size:.9em; }
+        .ss-chip:hover { background:var(--surface-hover); }
+        .ss-radio:checked + .ss-chip { border-color:var(--accent); background:var(--accent-soft); color:var(--accent); }
+        .ss-radio:focus-visible + .ss-chip { outline:2px solid var(--accent); outline-offset:1px; }
+        .ss-acts .ss-act { display:none; flex-wrap:wrap; gap:6px; }
+        .ss-routing:has(.ss-radio[value="switch"]:checked)     .ss-act[data-for="switch"],
+        .ss-routing:has(.ss-radio[value="ap"]:checked)         .ss-act[data-for="ap"],
+        .ss-routing:has(.ss-radio[value="gateway"]:checked)    .ss-act[data-for="gateway"],
+        .ss-routing:has(.ss-radio[value="hypervisor"]:checked) .ss-act[data-for="hypervisor"],
+        .ss-routing:has(.ss-radio[value="uplink"]:checked)     .ss-act[data-for="uplink"] { display:contents; }
+        .ss-act .toolbar-btn { margin:0; }
+        /* Riga azioni larga come la riga dei chip: la .ss-act attiva è display:contents
+           così i suoi bottoni entrano nella riga flex; tutti i bottoni riempiono la
+           larghezza in proporzione al contenuto (flex:1 1 auto), compatti. "Ignora
+           segmento" (toolbar-btn danger, scuro/rosso) è l'ultimo → a destra. */
+        .ss-acts { display:flex; align-items:stretch; flex-wrap:nowrap; gap:5px; overflow-x:auto; padding-bottom:3px; }
+        .ss-acts .toolbar-btn { flex:1 1 auto; justify-content:center; padding:6px 8px; font-size:var(--fs-xs); }
+        .shared-seg-ignored { margin-top:8px; padding:7px 8px; border:1px dashed var(--panel-border); border-radius:7px; color:var(--text-muted); font-size:var(--fs-sm); display:flex; align-items:center; justify-content:space-between; gap:8px; }
+        .shared-seg-ignored .toolbar-btn { padding:3px 7px; font-size:var(--fs-xs); margin:0; }
+        /* Aspetto "in linea" dentro il pannello proprieta: niente frame ambra,
+           righe MAC piatte con separatori discreti, bottoni in stile prop-group.
+           In popup (fuori dalla fisarmonica) il frame ambra resta come alert. */
+        .props-collapsible-body .shared-seg-box { margin:0; padding:0; border:none; background:transparent; border-radius:0; }
+        .props-collapsible-body .shared-seg-desc { margin-top:0; color:var(--text-main); font-size:var(--fs-md); line-height:1.4; opacity:.85; }
+        .props-collapsible-body .shared-seg-list { margin-top:8px; max-height:200px; }
+        .props-collapsible-body .shared-seg-row { background:transparent; padding:5px 2px; border-radius:0; border-bottom:1px solid var(--panel-border); }
+        .props-collapsible-body .shared-seg-row:last-child { border-bottom:none; }
+        .props-collapsible-body .shared-seg-row b { font-size:var(--fs-md); }
+        .props-collapsible-body .shared-seg-row span { font-size:var(--fs-sm); }
+        .props-collapsible-body .shared-seg-row code { font-size:var(--fs-lg); color:var(--accent); font-weight:600; letter-spacing:.02em; }
+        .props-collapsible-body .shared-seg-more { padding:4px 2px; font-size:var(--fs-sm); }
+        .props-collapsible-body .shared-seg-actions { margin-top:10px; gap:6px; }
+        .props-collapsible-body .shared-seg-actions .toolbar-btn { padding:5px 9px; font-size:var(--fs-md); }
+        .props-collapsible-body .shared-seg-ignored { margin:0; padding:0; border:none; background:transparent; border-radius:0; font-size:var(--fs-md); color:var(--text-main); }
+        .props-collapsible-body .shared-seg-server-hint { margin-top:6px; padding:6px 8px; font-size:var(--fs-sm); }
+        .shared-bind-hint { font-size:var(--fs-md); color:var(--text-muted); line-height:1.5; margin-bottom:12px; }
+        .shared-bind-source { margin-bottom:12px; padding:10px 12px; border:1px solid var(--panel-border); border-radius: var(--radius-lg); background:rgba(255,255,255,.03); }
+        .shared-bind-source strong { color:var(--text-main); }
+        .shared-bind-list { display:flex; flex-direction:column; gap:10px; }
+        .shared-bind-card { width:100%; text-align:left; background:rgba(255,255,255,.02); border:1px solid var(--panel-border); border-radius: var(--radius-xl); padding:12px; color:var(--text-main); cursor:pointer; transition:background .15s,border-color .15s,transform .15s; }
+        .shared-bind-card:hover { background:rgba(0,212,255,.06); border-color:var(--accent); transform:translateY(-1px); }
+        .shared-bind-card-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:4px; }
+        .shared-bind-card-title { font-size:var(--fs-md); font-weight:700; display:flex; align-items:center; gap:8px; }
+        .shared-bind-card-title i { color:var(--accent); }
+        .shared-bind-card-meta { font-size:var(--fs-sm); color:var(--text-muted); line-height:1.45; }
+        .shared-bind-badge { font-size:var(--fs-xs); color:var(--active-color); font-weight:700; white-space:nowrap; }
+        .shared-bind-empty { padding:12px; border:1px dashed var(--panel-border); border-radius: var(--radius-lg); color:var(--text-muted); font-size:var(--fs-md); line-height:1.5; }
+        /* (Regole .port-mac-* rimosse: la lista MAC e' ora unica nel blocco
+           "Segmento L2 condiviso", non piu' duplicata in box separato.) */
+        input.ovr, select.ovr, textarea.ovr { border-color:#e3b341 !important; }
+        .prst { background:none; border:none; color:var(--text-muted); cursor:pointer; padding:1px 3px; font-size:var(--fs-md); border-radius:3px; }
+        .prst:hover { color:var(--fault-color); }
+        .pop-conn { margin-top:7px; padding-top:6px; border-top:1px solid #2a3040; font-size:var(--fs-xs); color:var(--text-muted); }
+        .badge { padding:2px 6px; border-radius: var(--radius-xl); font-size:var(--fs-xs); font-weight:bold; background:#333; }
+        .badge.active { color:var(--active-color); } .badge.fault { color:var(--fault-color); } .badge.idle { color:var(--idle-color); }
+
+        /* Cross-rack connection banner */
+        #cross-rack-banner { position:absolute; top:8px; left:50%; transform:translateX(-50%);
+            background:#0d2010; border:1px solid var(--active-color); color:var(--text-main);
+            padding:6px 14px; border-radius: var(--radius-md); font-size:var(--fs-sm); z-index:40;
+            display:none; gap:7px; align-items:center; white-space:nowrap;
+            box-shadow:0 4px 12px rgba(0,0,0,.5); }
+        #cross-rack-banner.show { display:flex; }
+        #cross-rack-banner strong { color:var(--active-color); }
+        #cross-rack-banner em { color:var(--text-muted); font-style:normal; }
+        #cross-rack-banner kbd { background:#21262d; border:1px solid #444; border-radius:3px;
+            padding:1px 5px; font-size:var(--fs-xs); font-family:monospace; color:var(--text-main); }
+
+        /* LAG selection mode banner */
+        #lag-sel-banner { position:absolute; top:8px; left:50%; transform:translateX(-50%);
+            background:#001a1f; border:1px solid var(--accent); color:var(--text-main);
+            padding:6px 14px; border-radius: var(--radius-md); font-size:var(--fs-sm); z-index:40;
+            display:none; gap:8px; align-items:center; white-space:nowrap;
+            box-shadow:0 4px 12px rgba(0,0,0,.5); }
+        #lag-sel-banner.show { display:flex; }
+        #lag-sel-banner strong { color:var(--accent); }
+        #lag-sel-banner .lag-confirm { background:var(--accent); border:none; border-radius:3px;
+            color:var(--bg-color); font-size:var(--fs-sm); padding:2px 10px; cursor:pointer; font-weight:600; }
+        #lag-sel-banner .lag-cancel  { background:transparent; border:1px solid #555;
+            border-radius:3px; color:#999; font-size:var(--fs-sm); padding:2px 8px; cursor:pointer; }
+        #lag-sel-banner kbd { background:#21262d; border:1px solid #444; border-radius:3px;
+            padding:1px 5px; font-size:var(--fs-xs); font-family:monospace; color:var(--text-main); }
+        /* LED port — stati LAG */
+        .port-led.lag-sel     { box-shadow:0 0 0 2px var(--accent), 0 0 7px #00d4ffaa !important; }
+        .port-led.lag-member  { background:var(--accent) !important; box-shadow:0 0 5px #00d4ffaa; }
+        /* Bundle selezionato: violetto coerente col badge "Membro LAG" (#a371f7) */
+        .port-led.lag-focus   { background:#a371f7 !important;
+                                box-shadow:0 0 7px #a371f7cc !important; z-index:2; }
+        /* Sezione Gruppi LAG nel pannello proprietà */
+        .lag-groups-section { margin:0; padding:0; }
+        .lag-group-row { display:flex; align-items:center; gap:6px; margin-bottom:5px; font-size:var(--fs-md); }
+        /* Chip porte alti come il campo nome LAG, SOLO nella sezione LAG/Aggregazioni (non in proprietà porta) */
+        .lag-group-row .lag-chip { font-size:var(--fs-lg); padding:5px 7px; border-radius: var(--radius-sm); }
+        .lag-group-label { color:#58a6ff; font-weight:600; min-width:46px; }
+        .lag-group-name { flex:0 0 110px; font-family:inherit; font-size:var(--fs-lg); color:#58a6ff; font-weight:600; padding:5px 7px;
+            background:var(--bg-color); border:1px solid var(--panel-border); border-radius: var(--radius-sm); }
+        .lag-group-name:focus { border-color:var(--accent); outline:none; }
+        .lag-group-ports { color:var(--text-main); flex:1; font-size:var(--fs-md); }
+        .lag-group-del { background:none; border:1px solid #444; color:#666; border-radius:3px;
+            padding:1px 6px; font-size:var(--fs-xs); cursor:pointer; flex-shrink:0; }
+        .lag-group-del:hover { border-color:var(--fault-color); color:var(--fault-color); }
+

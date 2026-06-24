@@ -1,0 +1,237 @@
+/* ============================================================
+   InfraNet Pro — styles/08-topology.css
+   Overlay/tooltip topologia, toast, legenda, pillole TRUNK/WLAN/ENDPOINT/VLAN, modalità instradamento
+   Generato dallo split di style.css (ordine cascata preservato).
+   ============================================================ */
+        /* ===== TOPOLOGY — OVERLAY E TOOLTIP ===== */
+
+        /* Evidenziazione linea selezionata/hover: SOLO glow, niente ingrossamento
+           (lo spessore resta quello base). */
+        /* Glow su hover: drop-shadow del COLORE del cavo (currentColor = color
+           inline = stroke), niente ingrossamento. */
+        .tfl-hl { filter: drop-shadow(0 0 1.75px currentColor) drop-shadow(0 0 0.7px currentColor); opacity: 1 !important; }
+
+        /* Indicatore LLDP pending su apparato rack */
+        .rack-device.lldp-discovered::after {
+            content: ''; position: absolute; inset: -2px;
+            border: 1.5px dashed #00aaff; border-radius: var(--radius-xs);
+            pointer-events: none; animation: tfl-dash .8s linear infinite;
+            stroke-dasharray: 6 4; /* visivo, non SVG */
+        }
+
+        /* Tooltip topologia */
+        #topo-tip {
+            display: none; position: fixed; z-index: 450;
+            background: var(--panel-bg); border: 1px solid var(--panel-border);
+            border-radius: var(--radius-xl); padding: 13px 15px;
+            font-size: 13px; color: var(--text-main);
+            box-shadow: 0 6px 22px rgba(0,0,0,.5);
+            max-width: 360px; min-width: 280px;
+            pointer-events: auto;
+        }
+        .topotip-header { display: flex; align-items: center; gap: 7px; margin:-2px -2px 8px; padding:2px; cursor:move; user-select:none; }
+        .topotip-proto { font-size: 11px; font-weight: 700; padding: 3px 7px; border-radius: 5px; color: #000; }
+        .topotip-ok { font-size: 11px; color: var(--active-color); font-weight: 600; }
+        .topotip-racks { font-size: 12px; color: var(--text-muted); margin-bottom: 7px; border-bottom: 1px solid var(--panel-border); padding-bottom: 7px; }
+        .topotip-link { font-family: monospace; font-size: 11.5px; padding: 2px 0; }
+        .topotip-link span { color: var(--text-muted); }
+        .topotip-link-btn { display:block; width:100%; text-align:left; border:0; background:transparent; color:var(--text-main); cursor:pointer; border-radius: var(--radius-sm); }
+        .topotip-link-btn:hover { background:rgba(255,255,255,.07); color:var(--accent); }
+        .topotip-more { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+        .topotip-hint { font-size: 14px; color: var(--text-muted); margin-top: 8px; display: flex; align-items: center; gap: 6px; }
+        .topotip-hint i { color: var(--accent); }
+        .seg-pick { transition: border-color .12s, background .12s; }
+        .seg-pick:not(.sel):hover { border-color: var(--accent) !important; background: rgba(0,212,255,.06) !important; }
+        .topotip-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; border-top: 1px solid var(--panel-border); padding-top: 9px; }
+        #topo-tip .toolbar-btn { font-size:12px !important; padding:5px 10px !important; }
+        #topo-tip .topotip-btn-full { width:100%; justify-content:center; }
+
+        /* Toast non invasivo in basso */
+        #topo-toast {
+            position: fixed; bottom: 22px; left: 50%;
+            transform: translateX(-50%) translateY(16px);
+            background: var(--panel-bg); border: 1px solid var(--panel-border);
+            border-radius: var(--radius-md); padding: 7px 18px;
+            font-size: 12px; color: var(--text-main);
+            box-shadow: 0 4px 14px rgba(0,0,0,.4);
+            opacity: 0; transition: opacity .22s, transform .22s;
+            pointer-events: none; z-index: 400; white-space: nowrap;
+        }
+        #topo-toast.topo-toast-in { opacity: 1; transform: translateX(-50%) translateY(0); }
+        #topo-toast.topo-toast-ok   { border-color: var(--active-color); }
+        #topo-toast.topo-toast-warn { border-color: #e3b341; }
+
+        /* Legenda topology — stessa estetica dei tile della libreria elementi:
+           sfondo scuro var(--surface-2), border-radius 4px (rettangolare leggero),
+           bordo 1px panel-border. Stile uniforme con .equip-item. */
+        /* Barra "controlli-vista mappa": card fissa in alto a destra del
+           floorplan. Raccoglie il toggle Topologia + (|) + il Filtra VLAN.
+           Prima la card era #topo-legend stesso; ora il contenitore è la card e
+           la legenda è il suo contenuto interno. */
+        #map-view-bar {
+            position: absolute; top: 14px; right: 14px; z-index: 90;
+            display: flex; align-items: center; gap: 8px;
+            background: var(--surface-2); border: 1px solid var(--panel-border);
+            border-radius: var(--radius-sm); padding: 5px 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+            pointer-events: auto;
+        }
+        /* Toggle Topologia: in FONDO alla barra, un filo più grande delle pillole
+           VLAN (è l'azione-ancora della barra). Stile guidato dal CONTENITORE
+           perché _setTopoBtn riscrive className/innerHTML del bottone (niente
+           classi proprie affidabili). */
+        #map-view-bar #btn-topology {
+            padding: 5px 11px; font-size: 12.5px; font-weight: 700;
+            gap: 6px; letter-spacing: .3px; box-shadow: none;
+            border-radius: var(--radius-md); border-width: 1.5px;
+        }
+        #map-view-sep { width: 1px; height: 18px; background: var(--panel-border); flex-shrink: 0; }
+        /* Filtra VLAN: ora contenuto interno della barra (niente card propria). */
+        #topo-legend { display: none; }
+        #topo-legend.visible { display: flex; align-items: center; gap: 9px; }
+        #topo-legend .topo-leg-title {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 10.5px; font-weight: 600; color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+        #topo-legend .topo-leg-title i {
+            color: var(--accent); font-size: var(--fs-md);
+        }
+        #topo-legend .topo-leg-vlan-list {
+            display: flex; flex-wrap: wrap; gap: 4px;
+            border-left: 1px solid var(--panel-border);
+            padding: 0 9px;
+        }
+        /* Pillola TRUNK: toggle che evidenzia i collegamenti trunk (palette blu
+           del badge TRUNK nei tooltip). Cliccabile solo in vista topologia. */
+        #topo-legend .topo-leg-trunk,
+        #topo-legend .topo-leg-endpoint,
+        #topo-legend .topo-leg-wlan {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 3px 8px; border-radius: var(--radius-sm); cursor: pointer;
+            font-size: 11px; font-weight: 700; letter-spacing: .4px; user-select: none;
+            color: var(--text-muted); background: rgba(255,255,255,.04);
+            border: 1px dashed var(--panel-border);
+        }
+        #topo-legend .topo-leg-trunk:hover,
+        #topo-legend .topo-leg-endpoint:hover,
+        #topo-legend .topo-leg-wlan:hover { filter: brightness(1.25); }
+        /* WLAN attivo = wireless NASCOSTE → tono ciano (distinto da trunk/endpoint) */
+        #topo-legend .topo-leg-wlan.active {
+            color: #39c5cf; background: rgba(57,197,207,.13);
+            border: 1px solid #2a8c93;
+        }
+        #topo-legend .topo-leg-trunk.active {
+            color: #5ba3f5; background: rgba(91,163,245,.13);
+            border: 1px solid #2d6a9f;
+        }
+        /* ENDPOINT attivo = endpoint NASCOSTI → tono ambra (distinto dal blu trunk) */
+        #topo-legend .topo-leg-endpoint.active {
+            color: #e0a23b; background: rgba(224,162,59,.13);
+            border: 1px solid #9f7320;
+        }
+        /* Separatore verticale fra le pill toggle (TRUNK | ENDPOINT) */
+        #topo-legend .topo-leg-sep {
+            display: inline-block; width: 1px; height: 16px; margin: 0 2px;
+            background: var(--panel-border); vertical-align: middle;
+        }
+        /* Toggle ENDPOINT attivo: nasconde i device endpoint sul floor in topologia */
+        body.view-topology.topo-hide-endpoints .floor-node.topo-endpoint { display: none; }
+        /* Pillole VLAN — stessa forma rettangolare dei tile equip-item */
+        #topo-legend .topo-leg-vlan {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 3px 8px; border-radius: var(--radius-sm); cursor: default;
+            font-size: 11px; font-weight: 700; user-select: none;
+            border: 1.5px solid transparent; transition: filter .12s;
+        }
+        /* Modalita' interattiva (topology): pillole cliccabili */
+        #topo-legend.mode-interactive .topo-leg-vlan { cursor: pointer; }
+        #topo-legend.mode-interactive .topo-leg-vlan:hover { filter: brightness(1.2); }
+        #topo-legend .topo-leg-vlan.active {
+            border-color: var(--text-main);
+        }
+        #topo-legend .topo-leg-vlan .vlan-dot {
+            width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+        }
+        /* Indicatore passivo "endpoint": pillola ATTENUATA (smorzata + desaturata).
+           Il toggle vive nel pannello VLAN; la barra resta pulita. Si riaccende a
+           piena opacità su hover e quando è il filtro VLAN attivo. */
+        #topo-legend .topo-leg-vlan.guest {
+            opacity: .42; filter: saturate(.55);
+        }
+        #topo-legend.mode-interactive .topo-leg-vlan.guest:hover,
+        #topo-legend .topo-leg-vlan.guest.active {
+            opacity: 1; filter: none;
+        }
+        #topo-legend .topo-leg-empty {
+            font-size: 11px; color: var(--text-muted); font-style: italic;
+        }
+        #topo-legend .topo-leg-hint {
+            font-size: 10px; color: var(--text-muted); white-space: nowrap;
+        }
+        /* Vista separata: in Topologia nasconde mappa ed elementi posizionati */
+        /* Topology mode: nasconde solo griglia e cavi floor (riduce rumore visivo).
+           Mappa, strutture, dispositivi, rack e overlay SVG topologia restano visibili. */
+        body.view-topology #floorplan-grid,
+        body.view-topology #cable-overlay { display:none !important; }
+        body.view-topology.cable-trace-active #cable-overlay { display:block !important; }
+        /* Percorso fisico in topologia: l'overlay topologia RESTA visibile e mostra
+           SOLO i segmenti del percorso (buildTopoLines col flag physicalTrace),
+           cosi' si vede anche il tratto rack↔presa. Nascondi solo la legenda. */
+        body.view-topology.physical-trace-active #topo-legend,
+        body.view-topology.physical-trace-active #map-view-sep { display:none !important; }
+
+        /* ===== MODALITÀ INSTRADAMENTO CAVO (P1.5 editor segmenti) ===== */
+        /* Palette porte: grigio = libera · verde = collegata · GIALLO = valida
+           per il cabling in corso. Smorza i device, riaccende quelli che
+           contengono una porta target (:has() supportato su Edge/Chrome). */
+        body.routing-mode #rack-chassis .rack-device,
+        body.routing-mode #floor-items .floor-node { opacity:.32; transition:opacity .15s; }
+        body.routing-mode #rack-chassis .rack-device:has(.routing-target),
+        body.routing-mode #floor-items .floor-node:has(.routing-target) { opacity:1; }
+        /* Porta LED del rack (patch panel) valida per il cabling: GIALLA con
+           lo stesso stile delle porte collegate (.active), solo colore diverso.
+           Niente animazione né scale: statica e pulita. */
+        body.routing-mode .port-led.routing-target {
+            background:#f5c518 !important;
+            box-shadow:0 0 5px #f5c518 !important;
+            border-color:#f5c518 !important;
+            cursor:crosshair !important;
+        }
+        /* Presa a muro in planimetria (icona .port): icona gialla + glow. */
+        body.routing-mode .port.routing-target,
+        body.routing-mode i.routing-target {
+            color:#f5c518 !important;
+            text-shadow:0 0 5px #f5c518;
+            cursor:crosshair !important;
+        }
+        /* Icona rack sul floor che CONTIENE porte valide: attenua gli altri,
+           glow giallo su quello giusto. Indica DOVE andare; la selezione porta
+           resta nel rack (il patch panel non viene disegnato fuori dal rack). */
+        body.routing-mode .floor-rack { opacity:.35; transition:opacity .15s; }
+        body.routing-mode .floor-rack.routing-rack {
+            opacity:1;
+            outline:2px solid #f5c518;
+            box-shadow:0 0 12px #f5c518cc;
+            border-radius: var(--radius-md);
+        }
+        /* Banner hint fisso in basso al centro. */
+        #routing-hint {
+            display:none; position:fixed; left:50%; bottom:22px; transform:translateX(-50%);
+            z-index:700; align-items:center; gap:12px; max-width:min(720px,92vw);
+            background:var(--panel-bg); border:1px solid var(--accent);
+            border-radius: var(--radius-xl); padding:10px 16px; box-shadow:0 6px 20px rgba(0,0,0,.4);
+            font-size:.86rem; color:var(--text-main);
+        }
+        #routing-hint i.fa-route { color:var(--accent); font-size:1.1rem; }
+        #routing-hint kbd {
+            background:var(--panel-border); border-radius: var(--radius-sm); padding:1px 6px;
+            font-family:monospace; font-size:.78rem; border:1px solid rgba(255,255,255,.12);
+        }
+        #routing-hint button {
+            margin-left:4px; background:none; border:none; color:var(--text-muted);
+            cursor:pointer; font-size:1rem; padding:2px 6px; border-radius:5px;
+        }
+        #routing-hint button:hover { background:var(--panel-border); color:var(--text-main); }
+

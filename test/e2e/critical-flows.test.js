@@ -1,0 +1,1956 @@
+'use strict';
+// ============================================================
+// E2E HEADLESS REALE — carica l'app in un Chrome vero (Playwright su Chrome
+// di sistema, niente Chromium scaricato) bypassando il login via
+// INFRANET_DEV_NO_AUTH, ed esercita i FLUSSI CRITICI sul DOM/JS reale del
+// browser. Toglie il punto cieco "non riproducibile in browser" che gli smoke
+// su DOM-stub (node:vm) non possono coprire: ordine/caricamento reale degli
+// script, API DOM/SVG reali, event wiring del pointer.
+//
+// OFF di default (richiede Chrome + spawn del server): si attiva con RUN_E2E=1.
+//   RUN_E2E=1 npm run e2e        oppure        RUN_E2E=1 node --test test/e2e
+// ============================================================
+const test = require('node:test');
+const assert = require('node:assert');
+
+const RUN = process.env.RUN_E2E === '1';
+const SKIP = RUN ? false : 'E2E headless OFF (RUN_E2E=1 per attivarlo; richiede Chrome di sistema)';
+
+// require pigro: senza RUN_E2E non tocchiamo playwright né spawniamo il server.
+let chromium, startServer;
+if (RUN) {
+  ({ chromium } = require('playwright-core'));
+  ({ startServer } = require('./helpers/server.js'));
+}
+
+// Una route 404 attesa: il browser chiede /favicon.ico (nessuna favicon servita).
+const isBenign404 = (u) => /\/favicon\.ico(\?|$)/.test(u);
+
+test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, async (t) => {
+  const srv = await startServer();
+  // In CI (utente non-root, niente /dev/shm ampio) Chrome headless può crashare
+  // senza questi flag; in locale process.env.CI è assente → args:[] → comportamento
+  // identico a prima. Chrome è preinstallato sui runner ubuntu-latest (channel:'chrome').
+  const ciArgs = process.env.CI ? ['--no-sandbox', '--disable-dev-shm-usage'] : [];
+  const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ciArgs });
+  const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
+
+  const pageErrors = [];
+  const consoleErrors = [];
+  const httpErrors = [];
+  page.on('pageerror', (e) => pageErrors.push(String(e)));
+  page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
+  page.on('response', (r) => { if (r.status() >= 400) httpErrors.push({ url: r.url(), status: r.status() }); });
+
+  try {
+    await page.goto(srv.baseURL, { waitUntil: 'load' });
+    // L'app è pronta quando i globali chiave esistono e lo stato è caricato.
+    await page.waitForFunction(() => {
+      try { return typeof renderAll === 'function' && typeof state === 'object' && Array.isArray(state.nodes); }
+      catch (e) { return false; }
+    }, null, { timeout: 15000 });
+    // init() rende via renderAll(), che COALESCE il primo paint in un
+    // requestAnimationFrame (app-render-core.js:35). In headless CI il rAF può
+    // essere throttlato → un waitForTimeout fisso è una race: lo stato risulta
+    // caricato (state.nodes pieno) ma il DOM non ha ancora le porte, e il boot
+    // falliva su dataPid=0 solo in CI. Aspetta la POST-CONDIZIONE osservabile:
+    // il primo render ha davvero prodotto le porte [data-pid] nel DOM.
+    await page.waitForFunction(
+      () => document.querySelectorAll('[data-pid]').length > 10,
+      null, { timeout: 15000 });
+
+    await t.test('boot: bundle caricato in Chrome reale, nessun errore JS, default render produce DOM', async () => {
+      const info = await page.evaluate(() => ({
+        nodes: (state.nodes || []).length,
+        links: (state.links || []).length,
+        dataPid: document.querySelectorAll('[data-pid]').length,
+        fnsOk: typeof renderAll === 'function' && typeof renderProps === 'function' &&
+          typeof propagateVlans === 'function' && typeof _effPortVlan === 'function' &&
+          typeof getCablePath === 'function' && typeof setClientAssoc === 'function' &&
+          typeof apSsidList === 'function' && typeof validMidTypes === 'function',
+      }));
+      assert.equal(pageErrors.length, 0, 'errori JS in pagina: ' + pageErrors.join(' | '));
+      const realConsoleErrs = consoleErrors.filter((m) => !/Failed to load resource/.test(m));
+      assert.deepEqual(realConsoleErrs, [], 'errori console (oltre al 404 risorsa): ' + realConsoleErrs.join(' | '));
+      const badHttp = httpErrors.filter((e) => !isBenign404(e.url));
+      assert.deepEqual(badHttp, [], 'risposte HTTP di errore inattese: ' + JSON.stringify(badHttp));
+      assert.ok(info.fnsOk, 'funzioni di ingresso chiave definite nel browser reale');
+      assert.ok(info.nodes >= 5, 'stato di default caricato (nodi)');
+      assert.ok(info.dataPid > 10, 'render reale: porte [data-pid] presenti nel DOM');
+    });
+
+    await t.test('instradamento cavi: getCablePath è direction-true (niente nodo) nel browser reale', async () => {
+      const r = await page.evaluate(() => ({
+        horiz: getCablePath(10, 20, 210, 20),
+        vert: getCablePath(20, 10, 20, 210),
+      }));
+      // Orizzontale: i punti di controllo restano sulla y degli estremi (no nodo verticale).
+      assert.match(r.horiz, /^M 10 20 C \S+ 20,\S+ 20,210 20$/, 'cavo orizzontale piega solo in x: ' + r.horiz);
+      // Verticale: i punti di controllo restano sulla x degli estremi (no nodo orizzontale).
+      assert.match(r.vert, /^M 20 10 C 20 \S+,20 \S+,20 210$/, 'cavo verticale piega solo in y: ' + r.vert);
+    });
+
+    await t.test('instradamento cavi: validMidTypes/canRouteThrough applicano la gerarchia TIA-568', async () => {
+      const r = await page.evaluate(() => ({
+        wpSwitch: validMidTypes('wallport', 'switch'),
+        pcThroughPp: canRouteThrough('pc', 'patchpanel', 'switch'),
+        pcThroughPc: canRouteThrough('pc', 'pc', 'switch'),
+      }));
+      assert.deepEqual(r.wpSwitch, ['patchpanel'], 'tra wallport e switch passa solo il patch panel');
+      assert.equal(r.pcThroughPp, true, 'pc→patchpanel→switch instradabile');
+      assert.equal(r.pcThroughPc, false, 'pc→pc→switch NON instradabile');
+    });
+
+    await t.test('propagazione VLAN: AP serve un SSID/VLAN, il client wireless la eredita', async () => {
+      const r = await page.evaluate(() => {
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes.length = 0; state.links.length = 0; state.ports = {};
+        state.nodes.push(
+          { id: 'ap', type: 'ap', name: 'AP', x: 0, y: 0, ports: 1, radios: [{ band: '5', ssids: [{ id: 'g', ssid: 'Guest', vlan: 20 }] }] },
+          { id: 'cl', type: 'pc', name: 'CL', x: 9, y: 9, ports: 1, radios: [{}] });
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        const wl = _createLinkRecord('ap-radio', 'cl-radio'); wl.wireless = true;
+        state.links.push(wl); if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        _assignWirelessBss(wl); // 1 solo SSID → bss assegnato in automatico
+        propagateVlans();
+        return { bss: wl.bss, clientVlan: _effPortVlan('cl-radio') };
+      });
+      assert.equal(r.bss, 'g', 'associazione automatica al BSS unico');
+      assert.equal(r.clientVlan, 20, 'il client eredita la VLAN del BSS servito dall’AP');
+    });
+
+    await t.test('wireless: ri-associare il client a un altro BSS ne cambia la VLAN', async () => {
+      const r = await page.evaluate(() => {
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes.length = 0; state.links.length = 0; state.ports = {};
+        state.nodes.push(
+          { id: 'ap2', type: 'ap', name: 'AP2', x: 0, y: 0, ports: 1, radios: [{ ssids: [{ id: 'a', ssid: 'A', vlan: 30 }, { id: 'b', ssid: 'B', vlan: 40 }] }] },
+          { id: 'c2', type: 'pc', name: 'C2', x: 9, y: 9, ports: 1, radios: [{}] });
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        const l2 = _createLinkRecord('ap2-radio', 'c2-radio'); l2.wireless = true;
+        state.links.push(l2); if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        _assignWirelessBss(l2); // 2 SSID → nessuna assegnazione automatica
+        _pickBss(l2.id, 'a'); propagateVlans();
+        const vA = _effPortVlan('c2-radio');
+        _pickBss(l2.id, 'b'); propagateVlans();
+        const vB = _effPortVlan('c2-radio');
+        return { vA, vB };
+      });
+      assert.equal(r.vA, 30, 'BSS A → VLAN 30');
+      assert.equal(r.vB, 40, 'cambiando BSS a B → VLAN 40');
+    });
+
+    await t.test('app-wifi migrato: gestore radio + pannello SSID + report coerenza VLAN nel browser reale', async () => {
+      const r = await page.evaluate(() => {
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes.length = 0; state.links.length = 0; state.ports = {};
+        state.nodes.push(
+          { id: 'apw', type: 'ap', name: 'AP-W', x: 0, y: 0, ports: 1, radios: [{ band: '5', channel: 44, ssids: [{ id: 's1', ssid: 'Corp', vlan: 20, security: 'wpa3-personal' }] }] },
+          { id: 'clw', type: 'pc', name: 'CL-W', x: 9, y: 9, ports: 1, radios: [{}] });
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        const wl = _createLinkRecord('apw-radio', 'clw-radio'); wl.wireless = true;
+        state.links.push(wl); if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        _assignWirelessBss(wl); // 1 SSID → bss assegnato in automatico
+
+        // Gestore interfacce radio dell'AP (HTML builder esposto dal bundle).
+        const ifaces = _radioIfacesHtml(state.nodes[0]);
+
+        // Pannello della singola radio dell'AP, renderizzato in un elemento reale.
+        const panel = document.createElement('div');
+        selType = 'port'; selId = 'apw-radio';
+        _renderRadioProps(panel, 'apw-radio');
+        const radioPanelHtml = panel.innerHTML;
+
+        // Aggiunta SSID + rinomina via i setter esposti (mutano stato + ri-render).
+        const bid = addBss('apw', 0, 30);
+        updateBssCfg('apw', 0, bid, 'ssid', 'Guest');
+        const ssN = (apSsidList(state.nodes[0]) || []).length;
+
+        // Pannello associazione: eredita il Wi-Fi dell'AP servente.
+        const assoc = _wifiAssocHtml(wl);
+
+        // Report coerenza VLAN wireless: apre l'overlay, poi lo chiude.
+        openWifiVlanReport();
+        const ov = document.getElementById('wifivlan-overlay');
+        const reportOpen = !!ov && ov.style.display === 'flex';
+        _closeWifiVlanReport();
+        const reportClosed = !!ov && ov.style.display === 'none';
+
+        // cleanup: niente overlay/selezione residua per i test successivi.
+        selType = null; selId = null;
+        const bm = document.getElementById('bss-menu-overlay'); if (bm) bm.remove();
+        if (ov) ov.remove();
+
+        return {
+          bss: wl.bss,
+          ifacesHasInput: ifaces.indexOf('setNodeRadioCount') >= 0,
+          radioPanelHasSsid: radioPanelHtml.indexOf('Corp') >= 0,
+          radioPanelHasAddBtn: /addBss\(/.test(radioPanelHtml),
+          ssN, bidOk: !!bid,
+          assocInherits: assoc.indexOf('Corp') >= 0,
+          reportOpen, reportClosed,
+        };
+      });
+      assert.equal(r.bss, 's1', 'associazione automatica al BSS unico (s1)');
+      assert.ok(r.bidOk, 'addBss ritorna un id BSS');
+      assert.ok(r.ifacesHasInput, 'il gestore radio espone il setter conteggio (setNodeRadioCount)');
+      assert.ok(r.radioPanelHasSsid, 'il pannello radio dell’AP mostra l’SSID Corp');
+      assert.ok(r.radioPanelHasAddBtn, 'il pannello radio offre "Aggiungi SSID" (addBss)');
+      assert.equal(r.ssN, 2, 'addBss aggiunge un secondo SSID (Corp + Guest)');
+      assert.ok(r.assocInherits, 'il pannello associazione eredita l’SSID Corp dall’AP');
+      assert.ok(r.reportOpen, 'openWifiVlanReport apre l’overlay');
+      assert.ok(r.reportClosed, '_closeWifiVlanReport chiude l’overlay');
+    });
+
+    await t.test('app-properties-floor migrato: pannello contesto planimetria + IPAM cross-boundary (_vlanIpamOpen)', async () => {
+      const r = await page.evaluate(() => {
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        state.vlanColors['10'] = '#00d4ff';
+        state.vlanNames = state.vlanNames || {}; state.vlanNames['10'] = 'Uffici';
+        const panel = document.createElement('div');
+        _renderFloorProps(panel);
+        const closed = panel.innerHTML;
+        // cross-boundary: un writer classic mette VLAN 10 tra le IPAM aperte (Set
+        // var-ificato su window); il modulo bundle deve leggerla via win._vlanIpamOpen.
+        _vlanIpamOpen.add(10);
+        _renderFloorProps(panel);
+        const opened = panel.innerHTML;
+        _vlanIpamOpen.clear();
+        // Auto-poll + rinnovo IP non sono più in floor props: vivono nel popover
+        // "Automazioni rete" in header (renderAutomationMenu su #automation-dropdown).
+        state.autoPoll = { enabled: true, interval: 10 };
+        state.autoIpRenew = true;
+        renderAutomationMenu();
+        const pop = (document.getElementById('automation-dropdown') || {}).innerHTML || '';
+        return {
+          hasHeader: closed.indexOf('Contesto planimetria') >= 0,
+          pollingMovedOut: closed.indexOf('Polling automatico SNMP') < 0,
+          hasColors: closed.indexOf('Colori workspace') >= 0,
+          hasVlan10Card: closed.indexOf('VLAN 10') >= 0,
+          ipamClosed: closed.indexOf('Subnet / CIDR') < 0,
+          ipamOpenedReflectsSet: opened.indexOf('Subnet / CIDR') >= 0,
+          popHasPolling: pop.indexOf('Polling automatico SNMP') >= 0,
+          popHasIpRenew: pop.indexOf('Rinnovo automatico IP') >= 0,
+        };
+      });
+      assert.ok(r.hasHeader, 'header "Contesto planimetria"');
+      assert.ok(r.pollingMovedOut, 'Polling NON è più nelle proprietà planimetria (spostato nel popover Automazioni)');
+      assert.ok(r.hasColors, 'sezione Colori workspace');
+      assert.ok(r.hasVlan10Card, 'card VLAN 10 presente');
+      assert.ok(r.ipamClosed, 'IPAM chiuso di default: niente campi Subnet');
+      assert.ok(r.ipamOpenedReflectsSet, 'il modulo legge win._vlanIpamOpen: aprendo VLAN 10 compaiono i campi IPAM (cross-boundary)');
+      assert.ok(r.popHasPolling, 'popover Automazioni: sezione Polling automatico SNMP');
+      assert.ok(r.popHasIpRenew, 'popover Automazioni: sezione Rinnovo automatico IP (DHCP)');
+    });
+
+    await t.test('app-properties-port migrato: pannello switchport + delega a _renderRadioProps nel browser reale', async () => {
+      const r = await page.evaluate(() => {
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes.length = 0; state.links.length = 0; state.ports = {};
+        state.nodes.push(
+          { id: 'sw', type: 'switch', name: 'SW1', x: 0, y: 0, ports: 4 },
+          { id: 'apx', type: 'ap', name: 'APx', x: 9, y: 9, ports: 1, radios: [{ band: '5', ssids: [{ id: 'r1', ssid: 'Net', vlan: 20 }] }] });
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+
+        // Switchport ATTIVO: Port ID + setter stato/desc + bottoni modalità Access/Trunk.
+        const panel = document.createElement('div');
+        selType = 'port'; selId = 'sw-1';
+        _renderPortProps(panel);
+        const swHtml = panel.innerHTML;
+
+        // pid radio → _renderPortProps deve DELEGARE a win._renderRadioProps (app-wifi
+        // già nel bundle): prova della chiamata cross-modulo via window.
+        selType = 'port'; selId = 'apx-radio';
+        _renderPortProps(panel);
+        const radioHtml = panel.innerHTML;
+
+        selType = null; selId = null;
+        return {
+          swHasPortId: swHtml.indexOf('Port ID') >= 0,
+          swHasField: swHtml.indexOf('setPortField(') >= 0,
+          swHasMode: swHtml.indexOf('setPortMode(') >= 0,
+          radioDelegated: radioHtml.indexOf('Net') >= 0 || /addBss\(/.test(radioHtml),
+        };
+      });
+      assert.ok(r.swHasPortId, 'switchport: mostra Port ID');
+      assert.ok(r.swHasField, 'switchport: setter stato/descrizione (setPortField)');
+      assert.ok(r.swHasMode, 'switchport attivo: bottoni modalità Access/Trunk (setPortMode)');
+      assert.ok(r.radioDelegated, 'pid radio: _renderPortProps delega a _renderRadioProps (app-wifi)');
+    });
+
+    await t.test('app-properties-link migrato: pannello cavo + associazione wireless nel browser reale', async () => {
+      const r = await page.evaluate(() => {
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes.length = 0; state.links.length = 0; state.ports = {};
+        state.nodes.push(
+          { id: 'sw', type: 'switch', name: 'SW1', x: 0, y: 0, ports: 4 },
+          { id: 'pc', type: 'pc', name: 'PC1', x: 5, y: 5, ports: 1 },
+          { id: 'ap', type: 'ap', name: 'AP1', x: 9, y: 9, ports: 1, radios: [{ band: '5', ssids: [{ id: 's1', ssid: 'Net', vlan: 20 }] }] },
+          { id: 'cl', type: 'pc', name: 'CL1', x: 12, y: 12, ports: 1, radios: [{}] });
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        const cable = _createLinkRecord('sw-1', 'pc-1'); state.links.push(cable);
+        const wl = _createLinkRecord('ap-radio', 'cl-radio'); wl.wireless = true; state.links.push(wl);
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        _assignWirelessBss(wl);
+
+        const panel = document.createElement('div');
+        // Cavo: header + endpoint Da/A (_cablePortDesc) + modalità + specifiche fisiche.
+        selType = 'link'; selId = cable.id;
+        _renderLinkProps(panel);
+        const cableHtml = panel.innerHTML;
+
+        // Wireless: sezione associazione che eredita il Wi-Fi via win._wifiAssocHtml.
+        selType = 'link'; selId = wl.id;
+        _renderLinkProps(panel);
+        const wlHtml = panel.innerHTML;
+
+        selType = null; selId = null;
+        return {
+          cableHasMode: /setLinkMode\(/.test(cableHtml),
+          cableHasSrc: cableHtml.indexOf('SW1') >= 0,
+          cablePortDescOk: cableHtml.indexOf('PC1') >= 0,
+          cableHasSpecs: cableHtml.indexOf('setLinkProp(') >= 0,
+          wlHasWifi: /fa-wifi/.test(wlHtml),
+          wlInheritsSsid: wlHtml.indexOf('Net') >= 0,
+        };
+      });
+      assert.ok(r.cableHasMode, 'cavo: bottoni modalità Access/Trunk (setLinkMode)');
+      assert.ok(r.cableHasSrc, 'cavo: endpoint sorgente SW1');
+      assert.ok(r.cablePortDescOk, 'cavo: descrittore porta altro capo (PC1) via _cablePortDesc');
+      assert.ok(r.cableHasSpecs, 'cavo: sezione specifiche fisiche (setLinkProp)');
+      assert.ok(r.wlHasWifi, 'wireless: sezione associazione (icona fa-wifi)');
+      assert.ok(r.wlInheritsSsid, 'wireless: eredita l’SSID Net via win._wifiAssocHtml');
+    });
+
+    await t.test('app-properties (core) migrato: dispatcher renderProps + builder + stato sezioni nel browser reale', async () => {
+      const r = await page.evaluate(() => {
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes.length = 0; state.links.length = 0; state.ports = {};
+        state.nodes.push({ id: 'sv', type: 'server', name: 'SRV', x: 0, y: 0, ports: 2, ip: '10.0.0.5', mac: 'aa:bb:cc:dd:ee:ff' });
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        const panel = document.getElementById('props-panel');
+
+        // 1) Dispatch su NODE → _renderNodeProps (ancora classic) via win.*
+        selType = 'node'; selId = 'sv'; renderProps();
+        const nodeHtml = panel.innerHTML;
+        // 2) Dispatch "nessuna selezione" → _renderFloorProps
+        selType = null; selId = null; renderProps();
+        const floorHtml = panel.innerHTML;
+        // 3) Builder condivisi diretti
+        const header = _buildPropsHeader('T', 'sub', 'fa-server');
+        const net = _buildNetAccessHtml(state.nodes[0], TYPES['server'] || {}, {});
+        // 4) Stato sezioni: round-trip (module-private _propsSectionsState)
+        setPropsSectionState('network-access', false);
+        const closedAfterSet = _propsSectionIsOpen('network-access') === false;
+        setPropsSectionState('network-access', true);
+        const openAfterSet = _propsSectionIsOpen('network-access') === true;
+
+        selType = null; selId = null;
+        return {
+          nodeDispatched: nodeHtml.indexOf('SRV') >= 0,
+          floorDispatched: floorHtml.indexOf('Contesto planimetria') >= 0,
+          headerOk: header.indexOf('fa-server') >= 0 && header.indexOf('sub') >= 0,
+          netHasIp: net.indexOf('10.0.0.5') >= 0 || /updateN\('ip'/.test(net),
+          sectionRoundTrip: closedAfterSet && openAfterSet,
+        };
+      });
+      assert.ok(r.nodeDispatched, 'renderProps dispatcha al ramo NODE (_renderNodeProps)');
+      assert.ok(r.floorDispatched, 'renderProps dispatcha al ramo FLOOR senza selezione');
+      assert.ok(r.headerOk, '_buildPropsHeader produce l’header con icona/sottotitolo');
+      assert.ok(r.netHasIp, '_buildNetAccessHtml mostra IP/campi di rete');
+      assert.ok(r.sectionRoundTrip, 'setPropsSectionState↔_propsSectionIsOpen round-trip (stato module-private)');
+    });
+
+    await t.test('app-properties-node-devices migrato: catena device-spec FLOOR/RACK + _floorAccessVlanRow', async () => {
+      const r = await page.evaluate(() => {
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes.length = 0; state.links.length = 0; state.ports = {};
+        const pc = { id: 'pcx', type: 'pc', name: 'PC-X', x: 0, y: 0, ports: 1, brand: 'Dell', ip: '10.0.0.9' };
+        const srv = { id: 'srx', type: 'server', name: 'SRV-X', x: 5, y: 5, ports: 2 };
+        state.nodes.push(pc, srv);
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+
+        const dPc = (typeof TYPES !== 'undefined' && TYPES['pc']) || {};
+        const dSrv = (typeof TYPES !== 'undefined' && TYPES['server']) || {};
+        // Ramo FLOOR (pc → h) e ramo RACK/attivo (server → devSpec).
+        const pcChain = _nodeDeviceChainHtml(pc, dPc, '<!--id-->');
+        const srvChain = _nodeDeviceChainHtml(srv, dSrv, '<!--id-->');
+        // Helper esposto, usato anche da app-properties-port (bundle).
+        const vlanRow = _floorAccessVlanRow(pc);
+
+        return {
+          pcFloorBranch: (pcChain.h || '').indexOf("updateN('brand'") >= 0,
+          pcHasDell: (pcChain.h || '').indexOf('Dell') >= 0,
+          srvRackBranch: (srvChain.devSpec || '').indexOf('device-server') >= 0,
+          vlanRowOk: (vlanRow || '').indexOf('setEndpointVlan(') >= 0,
+        };
+      });
+      assert.ok(r.pcFloorBranch, '_nodeDeviceChainHtml: ramo FLOOR (pc) popola h con i campi device');
+      assert.ok(r.pcHasDell, '_nodeDeviceChainHtml: win.selected rende l’opzione brand (Dell)');
+      assert.ok(r.srvRackBranch, '_nodeDeviceChainHtml: ramo RACK (server) popola devSpec');
+      assert.ok(r.vlanRowOk, '_floorAccessVlanRow produce la riga VLAN endpoint editabile');
+    });
+
+    await t.test('app-properties-node migrato: _renderNodeProps rack + guard _propsExplicit (var-ify)', async () => {
+      const r = await page.evaluate(() => {
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        const rackId = (state.racks[0] && state.racks[0].id) || state.currentRack;
+        state.nodes.push({ id: 'swk', type: 'switch', name: 'SW-K', ports: 8, rackId, rackU: 1, sizeU: 1 });
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        const panel = document.getElementById('props-panel');
+
+        selType = 'node'; selId = 'swk';
+        // guard OFF: un rack NON apre le proprietà senza intent esplicito → early return
+        // (prova che il modulo legge win._propsExplicit, var-ificato in app.js).
+        window._propsExplicit = false;
+        panel.innerHTML = '__SENTINEL__';
+        renderProps();
+        const blockedWhenImplicit = panel.innerHTML === '__SENTINEL__';
+
+        // guard ON: _renderNodeProps rende il nodo + la sezione device-spec switch.
+        window._propsExplicit = true;
+        renderProps();
+        const rendersWhenExplicit = panel.innerHTML.indexOf('SW-K') >= 0;
+        const hasSwitchSpec = panel.innerHTML.indexOf('device-switch') >= 0;
+
+        window._propsExplicit = false; selType = null; selId = null;
+        return { blockedWhenImplicit, rendersWhenExplicit, hasSwitchSpec };
+      });
+      assert.ok(r.blockedWhenImplicit, 'rack senza _propsExplicit: il dispatcher non apre le proprietà (guard via win._propsExplicit)');
+      assert.ok(r.rendersWhenExplicit, 'rack con _propsExplicit=true: _renderNodeProps rende il nodo (SW-K)');
+      assert.ok(r.hasSwitchSpec, 'rende la sezione device-spec switch (integra la catena node-devices)');
+    });
+
+    await t.test('app-topology-crawl migrato: utility rack condivise _findFreeU / _resolveRackOverlap', async () => {
+      const r = await page.evaluate(() => {
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        const rackId = (state.racks[0] && state.racks[0].id) || state.currentRack;
+        if (state.racks[0]) state.racks[0].sizeU = 42;
+        state.nodes.length = 0;
+        // U1-2 occupati da uno switch 2U
+        state.nodes.push({ id: 'a', type: 'switch', rackId, rackU: 1, sizeU: 2, ports: 8 });
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+
+        const freeU = _findFreeU(rackId, 1); // deve evitare U 1-2
+
+        // overlap: nuovo nodo a U1 (occupato) → _resolveRackOverlap lo riposiziona
+        const b = { id: 'b', type: 'server', rackId, rackU: 1, sizeU: 1 };
+        state.nodes.push(b);
+        _resolveRackOverlap(b);
+
+        return { freeU, bRackU: b.rackU, freeAvoidsOccupied: freeU !== 1 && freeU !== 2 };
+      });
+      assert.ok(typeof r.freeU === 'number' && r.freeU >= 1, '_findFreeU ritorna uno slot U valido');
+      assert.ok(r.freeAvoidsOccupied, '_findFreeU evita gli U occupati (1-2)');
+      assert.notEqual(r.bRackU, 1, '_resolveRackOverlap sposta il nodo sovrapposto fuori da U1');
+    });
+
+    await t.test('app-discovery-classify migrato: _guessType + classificazione + indici identità nel browser reale', async () => {
+      const r = await page.evaluate(() => {
+        // --- euristiche _guessType (OID SNMP, vendor, sysDescr, fallback) ---
+        const gtNas    = _guessType('', '1.3.6.1.4.1.6574.', '', '', '');          // Synology OID
+        const gtCam    = _guessType('', '', 'Reolink', '', '');                    // vendor → webcam
+        const gtSwitch = _guessType('Cisco IOS Software, Catalyst 2960', '', '', '', '');
+        const gtPcFb   = _guessType('', '', '', '', 'DESKTOP-A1B2C3');             // fallback endpoint
+
+        // --- OUI vendor da MAC ---
+        const vendor = _discVendorFromMac('ec:71:db:00:11:22');                    // EC:71:DB → Reolink
+
+        // --- sanitize device class (regex early-return, no _discExistingNode) ---
+        const klass = _discSanitizeDeviceClass({ vendor: 'Synology', hostname: 'nas01' });
+
+        // --- source → label ---
+        const src = _discIdentitySource({ snmpReachable: true });
+        const label = _discIdentityLabel(src);
+
+        // --- indici identità + match per mac / ip / conflitto ip-mac ---
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes.length = 0;
+        state.nodes.push({ id: 'n1', type: 'switch', mac: 'AA:BB:CC:DD:EE:FF', ip: '10.0.0.5', hostname: 'sw-core', ports: 8 });
+        _discInvalidateExistingIndexes();
+        const idx = _discBuildExistingIndexes();
+        const byMac    = _discFindExistingDevice({ mac: 'aa:bb:cc:dd:ee:ff' }, idx);
+        const byIp     = _discFindExistingDevice({ ip: '10.0.0.5' }, idx);
+        const conflict = _discFindExistingDevice({ ip: '10.0.0.5', mac: '11:22:33:44:55:66' }, idx);
+
+        return {
+          gtNas, gtCam, gtSwitch, gtPcFb, vendor, klass, src, label,
+          byMacId: byMac.node && byMac.node.id, byMacBy: byMac.matchedBy,
+          byIpBy: byIp.matchedBy, conflictBy: conflict.matchedBy,
+        };
+      });
+      assert.equal(r.gtNas, 'nas', '_guessType riconosce OID Synology → nas');
+      assert.equal(r.gtCam, 'webcam', '_guessType riconosce vendor Reolink → webcam');
+      assert.equal(r.gtSwitch, 'switch', '_guessType riconosce Catalyst → switch');
+      assert.equal(r.gtPcFb, 'pc', '_guessType fallback host DESKTOP- → pc');
+      assert.equal(r.vendor, 'Reolink', '_discVendorFromMac mappa OUI EC:71:DB → Reolink');
+      assert.equal(r.klass, 'nas', '_discSanitizeDeviceClass classifica Synology → nas');
+      assert.equal(r.src, 'snmp', '_discIdentitySource: snmpReachable → snmp');
+      assert.equal(r.label, 'SNMP confermato', '_discIdentityLabel mappa snmp → etichetta');
+      assert.equal(r.byMacId, 'n1', '_discFindExistingDevice trova il nodo per MAC');
+      assert.equal(r.byMacBy, 'mac', 'match per MAC etichettato mac');
+      assert.equal(r.byIpBy, 'ip', 'match per IP etichettato ip');
+      assert.equal(r.conflictBy, 'conflict', 'stesso IP + MAC diverso → conflitto ip-mac');
+    });
+
+    await t.test('app-topology-discover migrato: stato condiviso var-ify + discoverTopology manual-first + _findPortByIfName', async () => {
+      const r = await page.evaluate(async () => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = state.ports || {};
+          const rackId = (state.racks[0] && state.racks[0].id) || 'r1';
+          // nodo senza SNMP → discoverTopology apre la vista dal cablaggio (manual-first)
+          state.nodes.push({ id: 'tdx1', type: 'switch', name: 'core1', hostname: 'core1', rackId, ports: 8 });
+          state.ports['tdx1-1'] = { ifName: 'GigabitEthernet0/1' };
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+
+          window._topoData = null; window._topoVisible = false; window._viewMode = 'map';
+          await discoverTopology(false);
+          const opened = {
+            vis: window._topoVisible, mode: window._viewMode,
+            // lo stato condiviso deve essere leggibile anche BARE (= var su window, non let)
+            sharedBare: (typeof _topoVisible !== 'undefined') && _topoVisible === window._topoVisible,
+          };
+
+          // _findPortByIfName: match vendor-neutral Gi0/1 → GigabitEthernet0/1
+          const pid = _findPortByIfName('tdx1', 'Gi0/1');
+
+          toggleTopology(); // richiude
+          const closed = { vis: window._topoVisible, mode: window._viewMode };
+          return { ok: true, opened, pid, closed };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso topologia: ' + r.err);
+      assert.equal(r.opened.vis, true, 'discoverTopology (manual-first) apre la vista topologia');
+      assert.equal(r.opened.mode, 'topology', 'viewMode passa a topology');
+      assert.ok(r.opened.sharedBare, '_topoVisible leggibile bare = vive su window (var-ify _topoData/_topoVisible/_viewMode)');
+      assert.equal(r.pid, 'tdx1-1', '_findPortByIfName abbina Gi0/1 → tdx1-1 (match normalizzato)');
+      assert.equal(r.closed.vis, false, 'toggleTopology richiude la vista');
+      assert.equal(r.closed.mode, 'map', 'viewMode torna a map');
+    });
+
+    await t.test('app-discovery migrato: openDiscovery + _discRenderTable + reconcile + var-ify stato nel browser reale', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = state.ports || {};
+          // device già in progetto → il reconcile NON deve marcarlo "Nuovo"
+          state.nodes.push({ id: 'exist1', type: 'switch', name: 'sw-old', hostname: 'sw-old', ip: '10.0.0.5', mac: 'AA:BB:CC:DD:EE:FF', ports: 8 });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+
+          openDiscovery(); // apre overlay + azzera stato condiviso (var su window)
+          const overlayOpen = document.getElementById('disc-overlay').classList.contains('open');
+          const stateReset = window._discResults.length === 0 && window._discRunning === false;
+
+          // popola risultati grezzi e renderizza la tabella (funzione esposta)
+          window._discResults = [
+            { ip: '10.0.0.5', mac: 'aa:bb:cc:dd:ee:ff', hostname: 'sw-old', alive: true, snmpReachable: true, deviceClass: 'switch', vendor: 'Cisco', sources: [{ id: 'snmp', label: 'SNMP' }], confidence: { score: 80, level: 'high' } },
+            { ip: '10.0.0.9', mac: 'EC:71:DB:11:22:33', alive: true, deviceClass: 'webcam', vendor: 'Reolink', sources: [{ id: 'arp', label: 'ARP' }], confidence: { score: 30, level: 'low' } },
+          ];
+          _discRenderTable();
+          const rows = document.querySelectorAll('#disc-tbody tr').length;
+          const hasTypeSelect = !!document.querySelector('#disc-tbody select.disc-type');
+          const hasChk = !!document.querySelector('#disc-tbody input.disc-chk');
+          const recCls = [...document.querySelectorAll('#disc-tbody .disc-badge[class*="rec-"]')].map(b => b.className);
+          const firstRowExisting = recCls.length > 0 && !recCls[0].includes('rec-new');
+
+          const exposed = ['openDiscovery', 'closeDiscovery', 'runDiscovery', 'importDiscovered', 'discSelectAll',
+            '_discOnRowToggle', '_discOnTypeChange', '_discExistingNode', '_discRenderTable']
+            .filter(f => typeof window[f] === 'function');
+
+          const matched = window._discExistingNode({ mac: 'aa:bb:cc:dd:ee:ff' });
+
+          closeDiscovery();
+          const overlayClosed = !document.getElementById('disc-overlay').classList.contains('open');
+
+          return { ok: true, overlayOpen, stateReset, rows, hasTypeSelect, hasChk, firstRowExisting,
+            exposedCount: exposed.length, matchedId: matched && matched.id, overlayClosed };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso discovery: ' + r.err);
+      assert.ok(r.overlayOpen, 'openDiscovery apre l\'overlay');
+      assert.ok(r.stateReset, 'openDiscovery azzera lo stato condiviso (_discResults/_discRunning var su window)');
+      assert.equal(r.rows, 2, '_discRenderTable rende 2 righe');
+      assert.ok(r.hasTypeSelect && r.hasChk, 'ogni riga ha select-tipo + checkbox (onchange bare risolti su window)');
+      assert.ok(r.firstRowExisting, 'il device già in progetto NON è marcato "Nuovo" (reconcile via _discFindExistingDevice del bundle)');
+      assert.equal(r.exposedCount, 9, 'le 9 funzioni discovery sono esposte su window');
+      assert.equal(r.matchedId, 'exist1', '_discExistingNode abbina il device esistente per MAC');
+      assert.ok(r.overlayClosed, 'closeDiscovery chiude l\'overlay');
+    });
+
+    await t.test('Sync: bottone rinominato "Sync", chip drift rimosso (le differenze si vedono in Verifica doc)', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          const scopri = !!document.getElementById('btn-discover');
+          const syncBtn = document.getElementById('btn-snmp-sync');
+          const syncOnclick = syncBtn ? syncBtn.getAttribute('onclick') : null;
+          const syncLabel = (document.getElementById('snmp-sync-label')?.textContent || '').trim();
+          // Il chip drift è stato rimosso: niente badge, niente funzioni esposte.
+          const hasBadge = !!document.getElementById('sync-summary-badge');
+          const chipFns = ['syncSNMP', '_renderSyncSummaryBadge', '_syncOpenReport']
+            .filter(f => typeof window[f] === 'function').length;
+          // Il Sync mantiene l'auto-link: pollAllSNMP è l'handler diretto del bottone.
+          const hasPoll = typeof window.pollAllSNMP === 'function';
+          return { ok: true, scopri, syncOnclick, syncLabel, hasBadge, chipFns, hasPoll };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso sync: ' + r.err);
+      assert.ok(r.scopri, 'il bottone Scopri (btn-discover) resta invariato nell\'header');
+      assert.equal(r.syncOnclick, 'pollAllSNMP()', 'il bottone Sync chiama il poll (che fa anche l\'auto-link)');
+      assert.equal(r.syncLabel, 'Sync', 'il bottone è rinominato "Sync" (non più "Sync SNMP")');
+      assert.equal(r.hasBadge, false, 'il chip drift #sync-summary-badge è stato rimosso');
+      assert.equal(r.chipFns, 0, 'le funzioni del chip non sono più esposte su window');
+      assert.ok(r.hasPoll, 'pollAllSNMP è esposto (handler del bottone Sync)');
+    });
+
+    await t.test('app-drift presence-aware: cambio IP (stesso MAC) rilevato dal motore nel browser reale', async () => {
+      // Test del motore puro nel browser (no state/render → niente inquinamento
+      // della pagina condivisa). Il glue (_driftBuildDocSnapshot/_driftBuildSnmpSnapshot)
+      // e l'azione driftApplyIpChange sono verificati a parte (unit + manuale su Test3).
+      const r = await page.evaluate(() => {
+        try {
+          const rep = window.buildDriftReport(
+            { observedMacs: [], reachabilityChecked: true, fdbObserved: false, presentNodeIds: {},
+              macAtIp: { 'aa:bb:cc:00:00:30': '192.168.1.60', 'aa:bb:cc:00:00:31': '192.168.1.70' } },
+            { macs: [
+              { mac: 'AA:BB:CC:00:00:30', nodeId: 'srv', ip: '192.168.1.50', label: 'srv' },  // spostato
+              { mac: 'AA:BB:CC:00:00:31', nodeId: 'pc',  ip: '192.168.1.70', label: 'pc'  },  // stesso IP
+            ] }, [], {});
+          return { ok: true, ipChanged: rep.counts.ipChanged, macOrphan: rep.counts.macOrphan,
+            row: (rep.ipChanged[0] || null), applyFn: typeof window.driftApplyIpChange };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore: ' + r.err);
+      assert.equal(r.applyFn, 'function', 'driftApplyIpChange è esposta su window');
+      assert.equal(r.ipChanged, 1, 'rilevato 1 cambio IP (srv .50→.60); il pc allo stesso IP non conta');
+      assert.equal(r.macOrphan, 0, 'nessun assente: i MAC sono vivi in ARP');
+      assert.equal(r.row && r.row.oldIp, '192.168.1.50', 'oldIp = IP documentato');
+      assert.equal(r.row && r.row.newIp, '192.168.1.60', 'newIp = IP vivo in ARP');
+    });
+
+    await t.test('auto-rinnovo IP (DHCP) per MAC noto: opt-in + guard manual-first nel browser reale', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          // pcA: IP derivato dalla rete (ipManual false) → eleggibile al rinnovo.
+          // pcB: IP fissato a mano (ipManual true) → NON deve essere toccato.
+          const pcA = { id:'pcA', type:'pc', name:'pcA', ip:'192.168.1.50', mac:'AA:BB:CC:00:00:30', ipManual:false };
+          const pcB = { id:'pcB', type:'pc', name:'pcB', ip:'192.168.1.70', mac:'AA:BB:CC:00:00:31', ipManual:true  };
+          state.nodes.push(pcA, pcB);
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          const mkReport = () => ({ counts: { ipChanged: 2 }, ipChanged: [
+            { key:'ipchg:aa:bb:cc:00:00:30', mac:'AA:BB:CC:00:00:30', oldIp:'192.168.1.50', newIp:'192.168.1.60', nodeId:'pcA', label:'pcA' },
+            { key:'ipchg:aa:bb:cc:00:00:31', mac:'AA:BB:CC:00:00:31', oldIp:'192.168.1.70', newIp:'192.168.1.75', nodeId:'pcB', label:'pcB' },
+          ] });
+          // 1) toggle OFF → niente rinnovo
+          state.autoIpRenew = false;
+          window._driftReport = mkReport();
+          const offApplied = window._driftAutoRenewIps();
+          const offIpA = pcA.ip;
+          // 2) toggle ON → rinnova solo pcA (ipManual false); pcB resta intatto + in tabella
+          state.autoIpRenew = true;
+          window._driftReport = mkReport();
+          const onApplied = window._driftAutoRenewIps();
+          return { ok:true, offApplied, offIpA, onApplied,
+            ipA: pcA.ip, manualA: pcA.ipManual,
+            ipB: pcB.ip, manualB: pcB.ipManual,
+            rowsLeft: (window._driftReport.ipChanged || []).map(x => x.nodeId) };
+        } catch (e) { return { ok:false, err:String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore: ' + r.err);
+      assert.equal(r.offApplied, 0, 'toggle OFF: nessun IP rinnovato');
+      assert.equal(r.offIpA, '192.168.1.50', 'toggle OFF: pcA mantiene il vecchio IP');
+      assert.equal(r.onApplied, 1, 'toggle ON: rinnovato 1 solo IP (pcA); pcB è manuale');
+      assert.equal(r.ipA, '192.168.1.60', 'pcA: IP aggiornato al valore vivo (DHCP)');
+      assert.equal(r.manualA, false, 'pcA: resta derivato dalla rete');
+      assert.equal(r.ipB, '192.168.1.70', 'pcB: IP manuale NON toccato (manual-first)');
+      assert.equal(r.manualB, true, 'pcB: resta fissato a mano');
+      assert.deepEqual(r.rowsLeft, ['pcB'], 'in tabella resta solo pcB (manuale, da revisionare)');
+    });
+
+    await t.test('app-topology-overlay migrato: legenda VLAN + render SVG overlay (buildTopoLines→_drawTopoPair) nel browser reale', async () => {
+      const setup = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.racks = [{ id: 'rA', name: 'A', sizeU: 42, x: 120, y: 120 }, { id: 'rB', name: 'B', sizeU: 42, x: 480, y: 120 }];
+          state.currentRack = 'rA';
+          state.vlanColors = { 10: '#ff5555', 20: '#55ff55' };
+          state.nodes = [
+            { id: 'sA', type: 'switch', name: 'swA', rackId: 'rA', rackU: 1, sizeU: 1, ports: 8 },
+            { id: 'sB', type: 'switch', name: 'swB', rackId: 'rB', rackU: 1, sizeU: 1, ports: 8 },
+          ];
+          state.ports = { 'sA-1': {}, 'sB-1': {} };
+          state.links = [window._createLinkRecord ? window._createLinkRecord('sA-1', 'sB-1') : { id: 'l1', a: 'sA-1', b: 'sB-1' }];
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          window._topoData = null; window._topoVisible = true; window._viewMode = 'topology';
+          renderAll();
+          _renderTopoLegend();   // legenda VLAN (esposta)
+          renderTopoOverlay();   // overlay coalesced (esposto)
+          return { ok: true };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(setup.ok, 'setup overlay senza errori: ' + setup.err);
+      // post-condizione osservabile (no timeout fisso): la linea topologia compare nell'SVG
+      await page.waitForFunction(() => document.querySelectorAll('#topo-floor-overlay .tfl').length > 0, { timeout: 5000 });
+      const r = await page.evaluate(() => ({
+        legendPills: document.querySelectorAll('#topo-legend .topo-leg-vlan').length,
+        legendVisible: document.getElementById('topo-legend').classList.contains('visible'),
+        tflLines: document.querySelectorAll('#topo-floor-overlay .tfl').length,
+        exposed: ['renderTopoOverlay', '_renderTopoLegend'].filter(f => typeof window[f] === 'function').length,
+      }));
+      assert.equal(r.legendPills, 2, '_renderTopoLegend rende 2 pillole VLAN (state.vlanColors via win)');
+      assert.ok(r.legendVisible, 'la legenda topologia è marcata visibile');
+      assert.ok(r.tflLines >= 1, 'renderTopoOverlay disegna ≥1 linea SVG (buildTopoLines→_drawTopoPair)');
+      assert.equal(r.exposed, 2, 'renderTopoOverlay e _renderTopoLegend esposti su window');
+    });
+
+    await t.test('presenza: i device ASSENTI (macOrphan del Drift) sono attenuati in planimetria (.node-absent)', async () => {
+      const r = await page.evaluate(async () => {
+        const raf = () => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          // endpoint floor deterministico (non strutturale → ramo .floor-node)
+          const id = 'absent-test-pc';
+          state.nodes.push({ id, type: 'pc', name: 'PC test', x: 60, y: 60, mac: 'aa:bb:cc:dd:ee:01' });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          // Simula l'esito di una Verifica documentazione: questo device è ASSENTE.
+          window._driftReport = { macOrphan: [{ key: 'mac:x', nodeId: id }] };
+          renderAll(); await raf();   // renderAll è coalesced in rAF → aspetta il flush
+          const sel = `.floor-node[data-id="${id}"]`;
+          const absentMarked = !!document.querySelector(sel)?.classList.contains('node-absent');
+          const othersGray = document.querySelectorAll('.floor-node.node-absent').length;
+          // Guardia: se poi RISPONDE allo SNMP non deve restare grigio.
+          state.nodes.find(n => n.id === id).snmpStatus = 'ok';
+          renderAll(); await raf();
+          const stillAbsentAfterOk = !!document.querySelector(sel)?.classList.contains('node-absent');
+          // cleanup: niente report → niente attenuazione
+          window._driftReport = null;
+          renderAll(); await raf();
+          const absentAfterClear = document.querySelectorAll('.node-absent').length;
+          return { ok: true, absentMarked, othersGray, stillAbsentAfterOk, absentAfterClear };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso presenza→grigio: ' + r.err);
+      assert.ok(r.absentMarked, 'il device assente (macOrphan) riceve la classe .node-absent');
+      assert.equal(r.othersGray, 1, 'solo il device assente è attenuato, non gli altri');
+      assert.equal(r.stillAbsentAfterOk, false, 'se il device poi risponde allo SNMP (ok) NON resta grigio');
+      assert.equal(r.absentAfterClear, 0, 'senza Drift report nessun device è attenuato');
+    });
+
+    await t.test('app-csv-import migrato: openCsvImport + previewCsv (con errore) + importCsvNodes nel browser reale', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.racks = [{ id: 'r1', name: 'Rack1', sizeU: 42 }]; state.currentRack = 'r1';
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+
+          openCsvImport();
+          const overlayOpen = document.getElementById('csv-overlay').classList.contains('open');
+          const btnDisabledInit = document.getElementById('csv-import-btn').disabled === true;
+
+          const csv = [
+            'name,hostname,ip,type,rack,rackU,sizeU,ports',
+            'sw-a,sw-a,10.0.0.1,switch,Rack1,1,1,24',
+            'srv-b,,10.0.0.2,server,Rack1,2,1,4',
+            ',no-name,10.0.0.3,switch,Rack1,3,1,8',
+            'cam-c,,10.0.0.4,webcam,,,,',
+          ].join('\n');
+          document.getElementById('csv-textarea').value = csv;
+          previewCsv();
+          const previewVisible = document.getElementById('csv-preview').style.display !== 'none';
+          const previewRows = document.querySelectorAll('#csv-preview-table tbody tr').length;
+          const hasErrors = (document.getElementById('csv-errors').textContent || '').length > 0;
+          const btnEnabledAfter = document.getElementById('csv-import-btn').disabled === false;
+
+          const before = state.nodes.length;
+          importCsvNodes();
+          const imported = state.nodes.length - before;
+          const overlayClosed = !document.getElementById('csv-overlay').classList.contains('open');
+
+          return { ok: true, overlayOpen, btnDisabledInit, previewVisible, previewRows, hasErrors, btnEnabledAfter, imported, overlayClosed };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso CSV: ' + r.err);
+      assert.ok(r.overlayOpen, 'openCsvImport apre l\'overlay');
+      assert.ok(r.btnDisabledInit, 'import disabilitato all\'apertura');
+      assert.ok(r.previewVisible, 'previewCsv mostra l\'anteprima');
+      assert.equal(r.previewRows, 4, 'anteprima rende 4 righe (inclusa quella con errore)');
+      assert.ok(r.hasErrors, 'la riga senza name è segnalata come errore');
+      assert.ok(r.btnEnabledAfter, 'import abilitato con righe valide');
+      assert.equal(r.imported, 3, 'importCsvNodes crea 3 nodi (la riga senza name è scartata)');
+      assert.ok(r.overlayClosed, 'importCsvNodes chiude l\'overlay');
+    });
+
+    await t.test('app-auth migrato: API esposte + toggle menu/overlay (DOM, no backend) + var-ify _currentUser', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          // 1) le funzioni pubbliche sono sul window (expose dal bundle)
+          const fns = ['initAuth','doLogout','toggleUserMenu','closeUserMenu',
+            'toggleImpExpMenu','closeImpExpMenu','toggleReportMenu','closeReportMenu',
+            'openUserManager','closeUserManager','umCreateUser','umToggleRole','umDeleteUser',
+            'openChangePassword','closeChangePassword','umChangePassword'];
+          const allFns = fns.every(n => typeof window[n] === 'function');
+          // _applyRoleUI è interno → NON deve essere esposto
+          const internalHidden = typeof window._applyRoleUI === 'undefined';
+
+          // 2) toggle deterministico del menu utente (solo DOM)
+          closeUserMenu();
+          const closed = document.getElementById('user-dropdown').style.display === 'none';
+          toggleUserMenu();
+          const opened = document.getElementById('user-dropdown').style.display === 'block';
+          toggleUserMenu();
+          const reclosed = document.getElementById('user-dropdown').style.display === 'none';
+
+          // 3) overlay cambio password apre/chiude (solo DOM)
+          openChangePassword();
+          const ovOpen = document.getElementById('chpwd-overlay').style.display === 'flex';
+          closeChangePassword();
+          const ovClosed = document.getElementById('chpwd-overlay').style.display === 'none';
+
+          // 4) var-ify: _currentUser è una proprietà globale leggibile BARE dai file legacy
+          // (qui in page-scope, come fa app-core.js apiFetch con `_currentUser?.role`)
+          window._currentUser = { id: 7, username: 'tester', role: 'viewer' };
+          const bareRead = _currentUser && _currentUser.username;
+
+          return { ok: true, allFns, internalHidden, closed, opened, reclosed, ovOpen, ovClosed, bareRead };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso auth: ' + r.err);
+      assert.ok(r.allFns, 'tutte le funzioni auth sono esposte su window');
+      assert.ok(r.internalHidden, '_applyRoleUI resta interno (non esposto)');
+      assert.ok(r.closed, 'closeUserMenu chiude il dropdown');
+      assert.ok(r.opened, 'toggleUserMenu apre il dropdown');
+      assert.ok(r.reclosed, 'toggleUserMenu richiude il dropdown');
+      assert.ok(r.ovOpen, 'openChangePassword apre l\'overlay');
+      assert.ok(r.ovClosed, 'closeChangePassword chiude l\'overlay');
+      assert.equal(r.bareRead, 'tester', '_currentUser leggibile BARE (var-ify su window) per i file legacy');
+    });
+
+    await t.test('app-search-zoom-rack migrato: search globale + zoom + gestione rack (switch/move) nel browser reale', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0;
+          state.racks = [{ id: 'rA', name: 'Rack A', sizeU: 42 }, { id: 'rB', name: 'Rack B', sizeU: 42 }];
+          state.currentRack = 'rA';
+          state.nodes.push({ id: 'n1', type: 'switch', name: 'CoreSwitch01', rackId: 'rA', rackU: 1, sizeU: 1, ports: 24 });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          renderRackTabs();
+
+          // 1) API esposte dal bundle
+          const fns = ['buildSearchResults','zoomFloor','zoomRack','switchRack','renderRackTabs',
+            'moveNodeToRack','filterPaletteItems','togglePaletteGroup','updateRackSize','toggleRackMenu'];
+          const allFns = fns.every(n => typeof window[n] === 'function');
+
+          // 2) ricerca globale: trova il device per nome
+          const res = buildSearchResults('coreswitch');
+          const foundDevice = res.some(x => x.kind === 'device' && x.id === 'n1');
+
+          // 3) zoom floor: cambia lo stato e applica scale() al canvas (updateTransforms)
+          const z0 = state.floorView.zoom;
+          zoomFloor(0.1);
+          const zoomed = state.floorView.zoom > z0;
+          const transformApplied = /scale\(/.test(document.getElementById('floor-canvas').style.transform);
+
+          // 4) renderRackTabs popola il <select> dei rack
+          const opts = document.getElementById('rack-select').options.length;
+
+          // 5) switchRack cambia il rack corrente
+          switchRack('rB');
+          const switched = state.currentRack === 'rB';
+
+          // 6) moveNodeToRack sposta il device (era in rA) nel rack libero rB
+          const moved = moveNodeToRack('n1', 'rB');
+          const nodeRack = nodeById('n1').rackId;
+
+          return { ok: true, allFns, foundDevice, zoomed, transformApplied, opts, switched, moved, nodeRack };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso search/zoom/rack: ' + r.err);
+      assert.ok(r.allFns, 'le funzioni search/zoom/rack sono esposte su window');
+      assert.ok(r.foundDevice, 'buildSearchResults trova il device per nome');
+      assert.ok(r.zoomed, 'zoomFloor aumenta lo zoom della planimetria');
+      assert.ok(r.transformApplied, 'updateTransforms applica scale() al floor-canvas');
+      assert.equal(r.opts, 2, 'renderRackTabs popola il select con 2 rack');
+      assert.ok(r.switched, 'switchRack cambia il rack corrente');
+      assert.ok(r.moved, 'moveNodeToRack riesce a spostare il device');
+      assert.equal(r.nodeRack, 'rB', 'il device e ora nel rack B');
+    });
+
+    await t.test('app-shared-segment migrato: rilevazione segmento L2 multi-MAC (FDB) + HTML pannello nel browser reale', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0;
+          state.racks = [{ id: 'rA', name: 'Rack A', sizeU: 42 }]; state.currentRack = 'rA';
+          state.nodes.push({ id: 'sw1', type: 'switch', name: 'SW-Access', rackId: 'rA', rackU: 1, sizeU: 1, ports: 24 });
+          state.ports = state.ports || {};
+          state.ports['sw1-1'] = { ifName: 'Gi0/1' };
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          // 2 MAC dietro la stessa porta (FDB) -> segmento L2 condiviso
+          window._topoFdbCache = { sw1: { 'aa:bb:cc:dd:ee:01': 'Gi0/1', 'aa:bb:cc:dd:ee:02': 'Gi0/1' } };
+
+          const fns = ['_sharedSegmentInfoForPort','_sharedSegmentHtml','_macRowsForPort',
+            '_createSharedSegmentNode','_openSharedSegmentBind','_ignoreSharedSegment','_markSharedSegmentRole'];
+          const allFns = fns.every(n => typeof window[n] === 'function');
+
+          const rows = _macRowsForPort('sw1-1') || [];
+          const info = _sharedSegmentInfoForPort('sw1-1');
+          const html = _sharedSegmentHtml('sw1-1', 'popup') || '';
+          const htmlHasBadge = /Segmento L2 condiviso/.test(html);
+
+          // marca il ruolo e verifica che lo stato porta venga scritto
+          _markSharedSegmentRole('sw1-1', 'switch');
+          const roleSet = (state.ports['sw1-1'] || {}).sharedSegmentRole === 'switch';
+
+          return { ok: true, allFns, rowCount: rows.length, infoMacs: info ? info.macs.length : -1,
+                   unknown: info ? info.unknownCount : -1, htmlHasBadge, roleSet };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso shared-segment: ' + r.err);
+      assert.ok(r.allFns, 'le funzioni shared-segment sono esposte su window');
+      assert.equal(r.rowCount, 2, '_macRowsForPort trova 2 MAC dietro la porta');
+      assert.equal(r.infoMacs, 2, '_sharedSegmentInfoForPort rileva il segmento (2 MAC)');
+      assert.equal(r.unknown, 2, 'i 2 MAC sono sconosciuti (nessun nodo associato)');
+      assert.ok(r.htmlHasBadge, '_sharedSegmentHtml rende il badge del segmento condiviso');
+      assert.ok(r.roleSet, '_markSharedSegmentRole scrive sharedSegmentRole sulla porta');
+    });
+
+    await t.test('app-autolink migrato: API engine esposte + pruneDiscoveryHistory lib (aging/cap in-place) + _isLeafEndpoint nel browser reale', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          const fns = ['_autoDiscoverLinks','_autoLinkEndpoint','_autoLinkEndpointUI','_resolveEndpointSwitchPort',
+            '_recordDiscoveryObservation','_nodeByMacMap','_isLeafEndpoint','_isTransitPort','_matchNodeByIdent'];
+          const allFns = fns.every(n => typeof window[n] === 'function');
+          // pruneDiscoveryHistory ora vive in lib/discovery-history.js (lib-script): verifica
+          // che sia DAVVERO caricato e raggiungibile nello scope pagina (integrazione golden-rule).
+          const libLoaded = typeof window.pruneDiscoveryHistory === 'function' && typeof window.DISCOVERY_HISTORY_MAX === 'number';
+
+          // pruneDiscoveryHistory: aging + tetto + in-place (integrazione; logica pura in test/discovery-history.test.js)
+          const DAY = 864e5, now = Date.now(), iso = ms => new Date(ms).toISOString();
+          const a = [];
+          for (let i = 0; i < 5; i++) a.push({ ts: iso(now - 200 * DAY), lastSeen: iso(now - 200 * DAY), mac: 'old' + i });
+          a.push({ mac: 'nodate' });
+          for (let i = 0; i < 20; i++) a.push({ ts: iso(now - 1 * DAY), lastSeen: iso(now - 1 * DAY), mac: 'new' + i });
+          const retA = pruneDiscoveryHistory(a);
+          const sameRef = retA === a;
+          const noOld = !a.some(x => String(x.mac).startsWith('old'));
+          const keptNoDate = a.some(x => x.mac === 'nodate');
+          const aLen = a.length;
+          const b = []; const N = DISCOVERY_HISTORY_MAX + 50;
+          for (let i = 0; i < N; i++) b.push({ ts: iso(now - 1 * DAY), lastSeen: iso(now - 1 * DAY), mac: 'r' + i });
+          pruneDiscoveryHistory(b);
+          const capped = b.length === DISCOVERY_HISTORY_MAX;
+
+          // _isLeafEndpoint: pc (1 porta, hasIP, !isActive) sì, switch no
+          const leafPc = _isLeafEndpoint('pc');
+          const leafSwitch = _isLeafEndpoint('switch');
+
+          return { ok: true, allFns, libLoaded, sameRef, noOld, keptNoDate, aLen, capped, leafPc, leafSwitch };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso autolink: ' + r.err);
+      assert.ok(r.allFns, 'le funzioni engine auto-link sono esposte su window');
+      assert.ok(r.libLoaded, 'lib/discovery-history.js caricato: pruneDiscoveryHistory + DISCOVERY_HISTORY_MAX su window');
+      assert.ok(r.sameRef, 'pruneDiscoveryHistory sfoltisce IN PLACE (stesso array)');
+      assert.ok(r.noOld, 'aging: observation oltre 90 giorni scartate');
+      assert.ok(r.keptNoDate, 'record senza data valida mantenuti');
+      assert.equal(r.aLen, 21, 'restano 1 senza-data + 20 recenti');
+      assert.ok(r.capped, 'tetto rigido DISCOVERY_HISTORY_MAX applicato');
+      assert.ok(r.leafPc, '_isLeafEndpoint riconosce un endpoint foglia (pc)');
+      assert.ok(!r.leafSwitch, '_isLeafEndpoint esclude lo switch (infrastruttura)');
+    });
+
+    await t.test('app-snmp migrato: applyPollResult mappa interfacce/inventario + converter + freschezza nel browser reale', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = {};
+          state.racks = [{ id: 'rA', name: 'Rack A', sizeU: 42 }]; state.currentRack = 'rA';
+          state.nodes.push({ id: 'sw1', type: 'switch', name: 'SW', rackId: 'rA', rackU: 1, sizeU: 1, ports: 2 });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+
+          const fns = ['pollSNMP','pollAllSNMP','applyPollResult','updateIntegration','_snmpFreshness','_pollPowerNode'];
+          const allFns = fns.every(n => typeof window[n] === 'function');
+
+          // applyPollResult con dati fittizi (niente fetch): interfacce->porte + inventario
+          applyPollResult('sw1', {
+            ok: true,
+            hostname: 'sw1.lan',
+            inventory: { brand: 'Cisco', model: 'C9200', serialNumber: 'ABC123' },
+            interfaces: [
+              { operStatus: 1, vlan: 10, speed: 1000, name: 'Gi0/1' },
+              { operStatus: 2, vlan: 20, speed: 100, name: 'Gi0/2' },
+            ],
+            vlans: [10, 20], lags: [],
+          }, { noHistory: true, noRender: true });
+
+          const n = nodeById('sw1');
+          const portCount = n.ports;
+          const p1status = (state.ports['sw1-1'] || {}).status;
+          const p2status = (state.ports['sw1-2'] || {}).status;
+          const p1vlan = (state.ports['sw1-1'] || {}).vlan;
+          const brand = n.brand;
+          const hostname = n.hostname;
+          const snmpOk = n.snmpStatus === 'ok';
+
+          const operActive = _snmpOperToUiStatus(1, null);
+          const operFault = _snmpOperToUiStatus(6, null);
+          const freshNever = _snmpFreshness(0).level;
+          const freshNow = _snmpFreshness(Date.now()).level;
+
+          return { ok: true, allFns, portCount, p1status, p2status, p1vlan, brand, hostname, snmpOk,
+                   operActive, operFault, freshNever, freshNow };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso snmp: ' + r.err);
+      assert.ok(r.allFns, 'le funzioni SNMP sono esposte su window');
+      assert.equal(r.portCount, 2, 'applyPollResult imposta n.ports dal numero di interfacce');
+      assert.equal(r.p1status, 'active', 'operStatus 1 -> active');
+      assert.equal(r.p2status, 'inactive', 'operStatus 2 -> inactive');
+      assert.equal(r.p1vlan, 10, 'PVID interfaccia mappato sulla porta');
+      assert.equal(r.brand, 'Cisco', 'inventario brand applicato');
+      assert.equal(r.hostname, 'sw1.lan', 'hostname SNMP applicato (no override manuale)');
+      assert.ok(r.snmpOk, 'snmpStatus=ok dopo poll riuscito');
+      assert.equal(r.operActive, 'active', '_snmpOperToUiStatus(1)=active');
+      assert.equal(r.operFault, 'fault', '_snmpOperToUiStatus(6)=fault');
+      assert.equal(r.freshNever, 'none', '_snmpFreshness(0)=none');
+      assert.equal(r.freshNow, 'fresh', '_snmpFreshness(now)=fresh');
+    });
+
+    await t.test('app-vlan-autopoll migrato: propagateVlans (sw->pc) + _effPortVlan + nativa/range nel browser reale', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = {};
+          state.racks = [{ id: 'rA', name: 'Rack A', sizeU: 42 }]; state.currentRack = 'rA';
+          state.nodes.push({ id: 'sw', type: 'switch', name: 'SW', rackId: 'rA', rackU: 1, sizeU: 1, ports: 4 });
+          state.nodes.push({ id: 'pc', type: 'pc', name: 'PC', x: 100, y: 100, ports: 1 });
+          state.links.push({ id: 'l1', src: 'sw-1', dst: 'pc-1' });
+          state.ports['sw-1'] = { vlanOvr: 10 };
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+
+          const fns = ['propagateVlans','_effPortVlan','setSiteNativeVlan','toggleVoiceVlan',
+            'setLinkMode','showVlanMembers','_vlansToRangeStr','_ensureVlanColor','setAutoPoll'];
+          const allFns = fns.every(n => typeof window[n] === 'function');
+
+          propagateVlans();
+          const swEff = _effPortVlan('sw-1');   // switchport access VLAN 10
+          const pcEff = _effPortVlan('pc-1');   // endpoint eredita la VLAN propagata
+          const vlanColorAdded = !!state.vlanColors[10];
+
+          setSiteNativeVlan(99);
+          const nativeSet = state.nativeVlan === 99;
+          setSiteNativeVlan(1);
+          const nativeReset = state.nativeVlan == null;
+
+          const rangeStr = _vlansToRangeStr([1, 10, 11, 12, 20, 100, 101]);
+
+          return { ok: true, allFns, swEff, pcEff, vlanColorAdded, nativeSet, nativeReset, rangeStr };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso vlan-autopoll: ' + r.err);
+      assert.ok(r.allFns, 'le funzioni VLAN/auto-poll sono esposte su window');
+      assert.equal(r.swEff, 10, '_effPortVlan: switchport access VLAN 10');
+      assert.equal(r.pcEff, 10, 'propagateVlans: il PC eredita la VLAN 10 dallo switch');
+      assert.ok(r.vlanColorAdded, '_ensureVlanColor registra la VLAN 10 nella palette');
+      assert.ok(r.nativeSet, 'setSiteNativeVlan(99) imposta la nativa di sito');
+      assert.ok(r.nativeReset, 'setSiteNativeVlan(1) rimuove la nativa custom');
+      assert.equal(r.rangeStr, '1,10-12,20,100-101', '_vlansToRangeStr compatta i range');
+    });
+
+    await t.test('app-pointer migrato: trace BFS + _traceNodeFloor + _tryFinishLink crea cavo nel browser reale', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = {};
+          state.racks = [{ id: 'rA', name: 'Rack A', sizeU: 42 }]; state.currentRack = 'rA';
+          state.nodes.push({ id: 'sw', type: 'switch', name: 'SW', rackId: 'rA', rackU: 1, sizeU: 1, ports: 24 });
+          state.nodes.push({ id: 'sw2', type: 'switch', name: 'SW2', rackId: 'rA', rackU: 3, sizeU: 1, ports: 24 });
+          state.nodes.push({ id: 'wp', type: 'wallport', name: 'WP', x: 0, y: 0, ports: 1 });
+          state.nodes.push({ id: 'pc', type: 'pc', name: 'PC', x: 40, y: 40, ports: 1 });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          // catena fisica: sw-1 → wp-1 → pc-1 (2 segmenti)
+          state.links.push(_createLinkRecord('sw-1', 'wp-1'), _createLinkRecord('wp-1', 'pc-1'));
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+
+          const fns = ['handlePointerDown','handlePointerMove','handlePointerUp','handleDrop',
+            'onDragStart','handleDoubleClick','handleFloorDoubleClick','trace','_traceNodeFloor',
+            '_tryFinishLink','_cancelLink'];
+          const allFns = fns.every(n => typeof window[n] === 'function');
+
+          // trace() BFS dal PC: evidenzia tutto il run fisico (2 segmenti)
+          highPath.clear(); trace('pc-1'); const traceSize = highPath.size;
+          // _traceNodeFloor sul NODO presa a muro: stesso run completo
+          highPath.clear(); _traceNodeFloor('wp'); const wpRun = highPath.size;
+          highPath.clear(); _traceNodeFloor('pc'); const pcRun = highPath.size;
+
+          // _tryFinishLink: crea un cavo sw-2 ↔ sw2-1 e azzera linkStart (via _cancelLink)
+          const before = state.links.length;
+          linkStart = 'sw-2';
+          const made = _tryFinishLink('sw2-1');
+          const after = state.links.length;
+          const linkExists = state.links.some(l => (l.src === 'sw-2' && l.dst === 'sw2-1') || (l.src === 'sw2-1' && l.dst === 'sw-2'));
+
+          return { ok: true, allFns, traceSize, wpRun, pcRun, made, before, after, linkExists, linkStartReset: linkStart };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso pointer: ' + r.err);
+      assert.ok(r.allFns, 'le funzioni pointer/drag&drop sono esposte su window');
+      assert.equal(r.traceSize, 2, 'trace() dal PC evidenzia i 2 segmenti del run');
+      assert.equal(r.wpRun, 2, '_traceNodeFloor sulla presa a muro evidenzia lo stesso run');
+      assert.equal(r.pcRun, 2, '_traceNodeFloor sul PC evidenzia lo stesso run');
+      assert.ok(r.made, '_tryFinishLink restituisce true sul collegamento valido');
+      assert.equal(r.after, r.before + 1, '_tryFinishLink aggiunge un cavo allo state');
+      assert.ok(r.linkExists, '_tryFinishLink crea il cavo sw-2 ↔ sw2-1');
+      assert.equal(r.linkStartReset, null, '_tryFinishLink azzera linkStart via _cancelLink');
+    });
+
+    await t.test('app-render-core migrato: renderAll costruisce il DOM + renderScope + getCablePath + shouldRenderLink nel browser reale', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = {};
+          state.racks = [{ id: 'rA', name: 'Rack A', sizeU: 42 }]; state.currentRack = 'rA';
+          state.nodes.push({ id: 'sw', type: 'switch', name: 'SW', rackId: 'rA', rackU: 1, sizeU: 1, ports: 8 });
+          state.nodes.push({ id: 'pc', type: 'pc', name: 'PC', x: 120, y: 80, ports: 1 });
+          state.links.push({ id: 'l1', src: 'sw-1', dst: 'pc-1' });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+
+          const fns = ['renderAll','renderNow','renderScope','renderFloor','_renderAllNow',
+            'getCablePath','getRackCablePath','shouldRenderLink','isRackPort','rackUPx','getPortHTML']
+            .every(n => typeof window[n] === 'function');
+
+          renderNow(); // build sincrono del DOM
+          const floorItems = document.querySelectorAll('#floor-items .floor-node').length;
+          const rackDevs = document.querySelectorAll('#rack-chassis .rack-device').length;
+
+          // bezier dei cavi
+          const path = getCablePath(0, 0, 100, 50);
+          const isPath = typeof path === 'string' && path.startsWith('M ') && path.includes('C');
+          const rackPath = getRackCablePath(0, 0, 100, 50);
+          const isRackPath = typeof rackPath === 'string' && rackPath.startsWith('M ') && rackPath.includes('Q');
+
+          // isRackPort discrimina rack vs floor
+          const swIsRack = isRackPort('sw-1'), pcIsRack = isRackPort('pc-1');
+
+          // shouldRenderLink: porta selezionata → cavo visibile; deselezionato → nascosto
+          selType = 'port'; selId = 'sw-1'; highPath.clear();
+          const lnkVisible = shouldRenderLink(state.links[0]);
+          selType = null; selId = null; highPath.clear();
+          const lnkHidden = shouldRenderLink(state.links[0]);
+
+          renderScope('floor'); // render mirato senza crash (coalescing rAF)
+
+          return { ok: true, fns, floorItems, rackDevs, isPath, isRackPath, swIsRack, pcIsRack, lnkVisible, lnkHidden };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso render-core: ' + r.err);
+      assert.ok(r.fns, 'le funzioni di render sono esposte su window');
+      assert.equal(r.floorItems, 1, 'renderAll costruisce il nodo floor (PC)');
+      assert.equal(r.rackDevs, 1, 'renderAll costruisce il device rack (SW)');
+      assert.ok(r.isPath, 'getCablePath → bezier cubico (C) valido');
+      assert.ok(r.isRackPath, 'getRackCablePath → bezier quadratico (Q) valido');
+      assert.ok(r.swIsRack, 'isRackPort: sw-1 è porta di un device rack');
+      assert.ok(!r.pcIsRack, 'isRackPort: pc-1 NON è porta di rack');
+      assert.ok(r.lnkVisible, 'shouldRenderLink: cavo visibile con la porta selezionata');
+      assert.ok(!r.lnkHidden, 'shouldRenderLink: cavo nascosto senza selezione (declutter)');
+    });
+
+    await t.test('app-popup migrato: showPop + _getLinkVlan/_linkMatchesVlanFilter + _applyViewMode + stato topo su window', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = {};
+          state.racks = [{ id: 'rA', name: 'Rack A', sizeU: 42 }]; state.currentRack = 'rA';
+          state.nodes.push({ id: 'sw', type: 'switch', name: 'SW', rackId: 'rA', rackU: 1, sizeU: 1, ports: 8 });
+          state.nodes.push({ id: 'pc', type: 'pc', name: 'PC', x: 100, y: 100, ports: 1 });
+          state.links.push({ id: 'l1', src: 'sw-1', dst: 'pc-1' });
+          state.ports['sw-1'] = { vlanOvr: 10 };
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          propagateVlans();
+
+          const fns = ['showPop','closePop','_getLinkVlan','_linkMatchesVlanFilter','_applyViewMode',
+            '_floorNodeColor','_getRackFloorLinks','_vlanLabel','_hideTopoTip','selectPathSegment']
+            .every(n => typeof window[n] === 'function');
+
+          // lo stato topo POSSEDUTO da app-popup vive su window (era var top-level classico)
+          const topoStateOnWin = (typeof window._topoVisible === 'boolean')
+            && (typeof window._viewMode === 'string')
+            && (typeof window._topoFdbVlanCache === 'object');
+
+          // _getLinkVlan: il cavo sw-1↔pc-1 è in VLAN 10 (override sullo switch)
+          const linkVlan = _getLinkVlan(state.links[0]);
+          _filterVlan = 10; const m10 = _linkMatchesVlanFilter(state.links[0]);
+          _filterVlan = 20; const m20 = _linkMatchesVlanFilter(state.links[0]);
+          _filterVlan = null;
+
+          // _floorNodeColor: colori usati dall'export SVG/PDF (classico)
+          const apColor = _floorNodeColor('ap'), fallbackColor = _floorNodeColor('zzz');
+
+          // showPop costruisce il popup della porta
+          showPop({ clientX: 50, clientY: 50 }, 'sw-1');
+          const pop = document.getElementById('popup');
+          const popOpen = pop.style.display === 'block' && pop.innerHTML.includes('Porta');
+          closePop();
+          const popClosed = pop.style.display === 'none';
+
+          // _applyViewMode: toggle mappa/topologia
+          _viewMode = 'topology'; _applyViewMode();
+          const isTopo = document.body.classList.contains('view-topology');
+          _viewMode = 'map'; _applyViewMode();
+          const isMap = document.body.classList.contains('view-map');
+
+          return { ok: true, fns, topoStateOnWin, linkVlan, m10, m20, apColor, fallbackColor, popOpen, popClosed, isTopo, isMap };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso popup: ' + r.err);
+      assert.ok(r.fns, 'le funzioni popup/topo sono esposte su window');
+      assert.ok(r.topoStateOnWin, 'lo stato topo posseduto da app-popup vive su window');
+      assert.equal(r.linkVlan, 10, '_getLinkVlan: cavo in VLAN 10 (override switch)');
+      assert.ok(r.m10, '_linkMatchesVlanFilter: il cavo matcha il filtro VLAN 10');
+      assert.ok(!r.m20, '_linkMatchesVlanFilter: il cavo NON matcha il filtro VLAN 20');
+      assert.equal(r.apColor, '#5ba3f5', '_floorNodeColor: colore AP per l\'export');
+      assert.equal(r.fallbackColor, '#8b949e', '_floorNodeColor: colore di fallback');
+      assert.ok(r.popOpen, 'showPop apre il popup della porta');
+      assert.ok(r.popClosed, 'closePop chiude il popup');
+      assert.ok(r.isTopo, '_applyViewMode(topology) attiva la classe view-topology');
+      assert.ok(r.isMap, '_applyViewMode(map) attiva la classe view-map');
+    });
+
+    await t.test('app-core migrato: modali (showConfirm/showPrompt/modalResolve) + apiFetch viewer-guard nel browser reale', async () => {
+      const r = await page.evaluate(async () => {
+        try {
+          const fns = ['apiFetch','loadProject','saveProject','switchProject','newProject',
+            'showAlert','showConfirm','showPrompt','modalResolve','_initApp']
+            .every(n => typeof window[n] === 'function');
+
+          // showConfirm apre il modal-overlay; modalResolve(true) → onOk + chiusura
+          let confirmed = null;
+          showConfirm('Test?', () => { confirmed = true; }, () => { confirmed = false; });
+          const overlayOpen = document.getElementById('modal-overlay').classList.contains('open');
+          modalResolve(true);
+          const overlayClosed = !document.getElementById('modal-overlay').classList.contains('open');
+
+          // showPrompt: il valore digitato torna nella callback
+          let promptVal = null;
+          showPrompt('Nome?', 'def', v => { promptVal = v; });
+          const inp = document.getElementById('modal-input');
+          const inpVisible = inp.style.display === 'block';
+          inp.value = 'pippo';
+          modalResolve(true);
+          const promptOk = promptVal === 'pippo';
+
+          // apiFetch: guard ruolo viewer → throw sui metodi non-GET (prima del fetch)
+          const prevUser = window._currentUser;
+          window._currentUser = { role: 'viewer' };
+          let guardThrew = false;
+          try { await apiFetch('/api/projects', { method: 'POST', body: '{}' }); }
+          catch (e) { guardThrew = /visualizzatori|consentita/i.test(String(e.message)); }
+          window._currentUser = prevUser;
+
+          return { ok: true, fns, overlayOpen, overlayClosed, confirmed, inpVisible, promptOk, guardThrew };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso core: ' + r.err);
+      assert.ok(r.fns, 'le funzioni core (progetti/modali) sono esposte su window');
+      assert.ok(r.overlayOpen, 'showConfirm apre il modal-overlay');
+      assert.ok(r.overlayClosed, 'modalResolve chiude il modal-overlay');
+      assert.equal(r.confirmed, true, 'modalResolve(true) invoca la callback onOk');
+      assert.ok(r.inpVisible, 'showPrompt mostra il campo input');
+      assert.ok(r.promptOk, 'modalResolve restituisce il valore digitato alla callback prompt');
+      assert.ok(r.guardThrew, 'apiFetch blocca i metodi non-GET per il ruolo viewer');
+    });
+
+    await t.test('app-cabling-editor migrato: enterRoutingMode → _routingPickPort (split) → removeRouteHop (merge) nel browser reale', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = {};
+          state.racks = [{ id: 'rA', name: 'Rack A', sizeU: 42 }]; state.currentRack = 'rA';
+          state.nodes.push({ id: 'sw', type: 'switch', name: 'SW', rackId: 'rA', rackU: 1, sizeU: 1, ports: 8 });
+          state.nodes.push({ id: 'pp', type: 'patchpanel', name: 'PP', rackId: 'rA', rackU: 3, sizeU: 1, ports: 24 });
+          state.nodes.push({ id: 'pc', type: 'pc', name: 'PC', x: 100, y: 100, ports: 1 });
+          const orig = _createLinkRecord('sw-1', 'pc-1'); state.links.push(orig);
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+
+          const fns = ['enterRoutingMode','_exitRoutingMode','_routingPickPort','removeRouteHop',
+            '_routeHopRemovable','_paintRoutingTargets','_computeRoutingTargets']
+            .every(n => typeof window[n] === 'function');
+
+          // il patch panel è una tappa valida tra switch e PC (gerarchia TIA-568)
+          const targets = _computeRoutingTargets(orig.id);
+          const ppIsTarget = targets.has('pp-1');
+
+          enterRoutingMode(orig.id);
+          const inRouting = window._routingLinkId === orig.id && document.body.classList.contains('routing-mode');
+
+          const before = state.links.length;
+          _routingPickPort('pp-1');           // split: sw-1↔pp-1 + pp-1↔pc-1
+          const afterSplit = state.links.length;
+          const hasA = state.links.some(l => (l.src==='sw-1'&&l.dst==='pp-1') || (l.src==='pp-1'&&l.dst==='sw-1'));
+          const hasB = state.links.some(l => (l.src==='pp-1'&&l.dst==='pc-1') || (l.src==='pc-1'&&l.dst==='pp-1'));
+          const exitedAfterSplit = !window._routingLinkId;
+
+          const hopRemovable = _routeHopRemovable('pp-1');
+          removeRouteHop('pp-1');             // merge → cavo diretto
+          const afterMerge = state.links.length;
+          const directRestored = state.links.some(l => (l.src==='sw-1'&&l.dst==='pc-1') || (l.src==='pc-1'&&l.dst==='sw-1'));
+
+          return { ok: true, fns, ppIsTarget, inRouting, before, afterSplit, hasA, hasB, exitedAfterSplit, hopRemovable, afterMerge, directRestored };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso cabling-editor: ' + r.err);
+      assert.ok(r.fns, 'le funzioni di instradamento sono esposte su window');
+      assert.ok(r.ppIsTarget, '_computeRoutingTargets include le porte del patch panel');
+      assert.ok(r.inRouting, 'enterRoutingMode attiva la modalità (routing-mode + _routingLinkId)');
+      assert.equal(r.afterSplit, r.before + 1, '_routingPickPort spezza il cavo in 2 tratti');
+      assert.ok(r.hasA && r.hasB, '_routingPickPort crea i segmenti sw↔pp e pp↔pc');
+      assert.ok(r.exitedAfterSplit, '_routingPickPort esce dalla modalità instradamento');
+      assert.ok(r.hopRemovable, '_routeHopRemovable: la tappa pp ha esattamente 2 cavi');
+      assert.equal(r.afterMerge, r.afterSplit - 1, 'removeRouteHop fonde i 2 tratti');
+      assert.ok(r.directRestored, 'removeRouteHop ripristina il cavo diretto sw↔pc');
+    });
+
+    await t.test('app-types migrato: catalogo TYPES su window + node-spec (compact/view) + front-panel layout nel browser reale', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          const fns = ['_ensureNodeSpec','_compactNodeSpec','_nodeSpecView','_fixedRackLabel',
+            '_frontPanelState','_frontPanelRows','_frontPanelSfpGroups','_frontPanelIsUplink',
+            '_isNodeSpecField','_frontPanelPortLabel'].every(n => typeof window[n] === 'function');
+
+          // TYPES è il catalogo foundation su window
+          const typesOk = !!(window.TYPES && window.TYPES.switch && window.TYPES.switch.isRack
+            && window.TYPES.pc && window.TYPES.pc.isFloor && window.TYPES.patchpanel.passThrough === 'port');
+          const prefixOk = !!(window.NODE_ID_PREFIX && window.NODE_ID_PREFIX.switch === 'sw');
+          const fixedLabel = _fixedRackLabel('blankpanel');
+
+          // node-spec: _compactNodeSpec migra i campi noti dentro node.spec
+          const node = { id: 'sw', type: 'switch', swRole: 'core', name: 'SW' };
+          _compactNodeSpec(node);
+          const compacted = !!(node.spec && node.spec.swRole === 'core' && node.swRole === undefined);
+          const view = _nodeSpecView(node);
+          const viewSees = view.swRole === 'core';
+          const isSpecField = _isNodeSpecField('swRole') && !_isNodeSpecField('nonEsiste');
+
+          // front-panel: uno switch a 24 porte → 2 righe (dispari/pari)
+          const sw = { id: 'sw', type: 'switch', ports: 24 };
+          const rows = _frontPanelRows(sw, 24);
+          const twoRows = Array.isArray(rows) && rows.length === 2;
+          const fpState = _frontPanelState(sw, 24);
+          const fpHasPortCount = !!(fpState && typeof fpState.portCount === 'number' && fpState.portCount > 0);
+
+          return { ok: true, fns, typesOk, prefixOk, fixedLabel, compacted, viewSees, isSpecField, twoRows, fpHasPortCount };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso app-types: ' + r.err);
+      assert.ok(r.fns, 'le funzioni node-spec/front-panel sono esposte su window');
+      assert.ok(r.typesOk, 'il catalogo TYPES (foundation) vive su window');
+      assert.ok(r.prefixOk, 'NODE_ID_PREFIX è esposto (switch→sw)');
+      assert.equal(r.fixedLabel, 'Pannello vuoto', '_fixedRackLabel risolve l\'etichetta fissa');
+      assert.ok(r.compacted, '_compactNodeSpec migra i campi noti in node.spec');
+      assert.ok(r.viewSees, '_nodeSpecView espone i campi spec come fossero sul nodo');
+      assert.ok(r.isSpecField, '_isNodeSpecField distingue i campi spec dai non-spec');
+      assert.ok(r.twoRows, '_frontPanelRows: switch 24 porte → 2 righe');
+      assert.ok(r.fpHasPortCount, '_frontPanelState riporta il portCount');
+    });
+
+    await t.test('app.js (nucleo) migrato: stato core su window + funzioni core esposte + index O(1) + owned-state sloppy nel browser reale', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          // 1) stato core + funzioni core su window (come quando app.js era classic script)
+          const stateOk = !!(window.state && Array.isArray(window.state.nodes)
+            && Array.isArray(window.state.links) && window.state.ports && typeof window.state.ports === 'object');
+          const coreFns = ['nodeById','getNodeByPortId','getPortNodeId','escapeHTML','uid','normalizeNumber',
+            'markDirty','pushHistory','renderCables','updateN','deleteNode','switchRightTab','_migrateState',
+            '_getLinkPhysicalView','_cableAutoLabel','_resetSelection','undo','redo','logAudit','_buildDefaultState'
+          ].every(n => typeof window[n] === 'function');
+
+          // 2) utility pure: comportamento corretto
+          const esc = escapeHTML('<a>&"') === '&lt;a&gt;&amp;&quot;';
+          const num = normalizeNumber('abc', 7, 1, 10) === 7 && normalizeNumber('99', 1, 1, 10) === 10;
+          const idp = _idPrefixForType('switch') === 'sw';
+          const uidUnique = uid('l') !== uid('l');
+
+          // 3) index O(1) (nodeById/_rebuildIdx) su uno stato default fresh, poi ripristina
+          const fresh = _migrateState(_buildDefaultState());
+          const node = fresh.nodes.find(n => n.id === 'sw1');
+          const saved = window.state;
+          window.state = fresh; _invalidateIdx();
+          const lookupOk = nodeById('sw1') === node && nodeById('non-esiste') === null;
+          const portNodeOk = getNodeByPortId('sw1-1') === node;
+          const phys = _getLinkPhysicalView(fresh.links[0]);
+          const physOk = !!(phys && Array.isArray(phys.segments) && phys.segments.length >= 1);
+          window.state = saved; _invalidateIdx();
+
+          // 4) owned-state condiviso (sloppy mode): la scrittura bare interna
+          //    `selId=null` in _resetSelection colpisce window.selId (la stessa
+          //    proprietà che gli altri moduli del bundle leggono via win.selId).
+          const prevSel = window.selId, prevType = window.selType;
+          window.selId = '__probe__'; window.selType = 'node';
+          _resetSelection();
+          const ownedStateOk = window.selId === null && window.selType === null;
+          window.selId = prevSel; window.selType = prevType;
+
+          return { ok: true, stateOk, coreFns, esc, num, idp, uidUnique, lookupOk, portNodeOk, physOk, ownedStateOk };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso app.js nucleo: ' + r.err);
+      assert.ok(r.stateOk, 'window.state (nodes/links/ports) esiste sul nucleo bundlato');
+      assert.ok(r.coreFns, 'le funzioni core del nucleo sono esposte su window');
+      assert.ok(r.esc, 'escapeHTML neutralizza i metacaratteri HTML');
+      assert.ok(r.num, 'normalizeNumber applica fallback e clamp');
+      assert.ok(r.idp, '_idPrefixForType(switch) === sw');
+      assert.ok(r.uidUnique, 'uid genera identificatori distinti');
+      assert.ok(r.lookupOk, 'nodeById risolve in O(1) e ritorna null sugli assenti');
+      assert.ok(r.portNodeOk, 'getNodeByPortId mappa il pid al nodo');
+      assert.ok(r.physOk, '_getLinkPhysicalView ritorna almeno un segmento');
+      assert.ok(r.ownedStateOk, 'owned-state: _resetSelection azzera window.selId/selType (sloppy bare→window)');
+    });
+
+    await t.test('VLAN nativa: toggle per-riga sul pannello VLAN imposta state.nativeVlan (stile guest/voce)', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0;
+          state.vlanColors = { 1: '#888888', 10: '#ff0000', 99: '#00ff00' };
+          delete state.nativeVlan;
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          selType = null; selId = null;                       // contesto planimetria (no selezione)
+          if (typeof switchRightTab === 'function') switchRightTab('props');
+          if (typeof setPropsSectionState === 'function') setPropsSectionState('floor-vlan', true);
+          renderProps();
+
+          const beforeNative = (typeof _siteNativeVlan === 'function') ? _siteNativeVlan() : 1;
+          const btn = document.querySelector('button[onclick="toggleSiteNativeVlan(99)"]');
+          const hadBtn = !!btn;
+          if (btn) btn.click();                                // setSiteNativeVlan(99) + re-render
+          const afterNative = (typeof _siteNativeVlan === 'function') ? _siteNativeVlan() : 1;
+          const stateNat = state.nativeVlan;
+          const btn2 = document.querySelector('button[onclick="toggleSiteNativeVlan(99)"]');
+          const isActive = btn2 ? btn2.className.includes('primary') : false;
+          if (btn2) btn2.click();                              // ri-clic → torna a default (1)
+          const afterToggleOff = (typeof _siteNativeVlan === 'function') ? _siteNativeVlan() : 1;
+
+          return { ok: true, hadBtn, beforeNative, afterNative, stateNat, isActive, afterToggleOff };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso VLAN nativa: ' + r.err);
+      assert.ok(r.hadBtn, 'il toggle nativa è presente in ogni riga VLAN');
+      assert.equal(r.beforeNative, 1, 'nativa di sito parte da 1 (default)');
+      assert.equal(r.afterNative, 99, 'clic sul toggle → nativa di sito = 99');
+      assert.equal(r.stateNat, 99, 'state.nativeVlan persistito a 99');
+      assert.ok(r.isActive, 'il toggle della VLAN scelta è evidenziato (primary)');
+      assert.equal(r.afterToggleOff, 1, 're-clic sulla stessa → torna alla nativa default (1)');
+    });
+
+    await t.test('app-properties-link: VLAN access editabile sul pannello cavo (capo attivo scrive il PVID)', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = {};
+          state.nodes.push({ id: 'sw', type: 'switch', name: 'SW', rackId: state.currentRack, rackU: 1, sizeU: 1, ports: 8 });
+          state.nodes.push({ id: 'pc', type: 'pc', name: 'PC', x: 50, y: 50, w: 60, h: 40, ports: 1 });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          const lk = _createLinkRecord('sw-1', 'pc-1'); state.links.push(lk);   // access: pc è leaf → niente trunk
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          if (typeof switchRightTab === 'function') switchRightTab('props');
+          selType = 'link'; selId = lk.id; renderProps();
+
+          const inputs = [...document.querySelectorAll('#props-panel input[type="number"]')];
+          const vlanInput = inputs.find(i => (i.getAttribute('onchange') || '').includes('setLinkNativeVlan'));
+          const hadInput = !!vlanInput;
+          if (vlanInput) { vlanInput.value = '50'; vlanInput.dispatchEvent(new Event('change')); }  // wiring reale
+
+          const portOvr = state.ports['sw-1'] && state.ports['sw-1'].vlanOvr;
+          const eff = (typeof _getLinkVlan === 'function') ? _getLinkVlan(state.links[0]) : null;
+          return { ok: true, hadInput, portOvr, eff };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso VLAN access cavo: ' + r.err);
+      assert.ok(r.hadInput, 'il pannello cavo in Access mostra un input VLAN editabile (setLinkNativeVlan)');
+      assert.equal(r.portOvr, 50, 'la modifica scrive il PVID (vlanOvr=50) della porta switch attiva');
+      assert.equal(r.eff, 50, 'la VLAN effettiva del cavo diventa 50');
+    });
+
+    await t.test('VLAN voce editabile nel pannello PORTA del telefono (uniformatura interfaccia)', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = {};
+          const rid = state.currentRack;
+          state.nodes.push(
+            { id: 'sw', type: 'switch', name: 'SW', rackId: rid, rackU: 1, sizeU: 1, ports: 24 },
+            { id: 'tel', type: 'voip', name: 'TEL', x: 0, y: 0, ports: 1, voiceVlan: 30 },
+            { id: 'pc', type: 'pc', name: 'PC', x: 0, y: 0, ports: 1 });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          state.links.push(_createLinkRecord('sw-2', 'tel-1'), _createLinkRecord('tel-1', 'pc-1'));
+          state.ports['sw-2'] = { vlanOvr: 10 };
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          propagateVlans();
+          if (typeof switchRightTab === 'function') switchRightTab('props');
+          selType = 'port'; selId = 'tel-1'; renderProps();
+
+          // il device-panel del telefono NON deve più avere la VLAN voce (uniformatura)
+          selType = 'node'; selId = 'tel'; renderProps();
+          const inDevice = (document.getElementById('props-panel').innerHTML || '').includes('setNodeVoiceVlan');
+          // il pannello PORTA sì → editor editabile
+          selType = 'port'; selId = 'tel-1'; renderProps();
+          const inputs = [...document.querySelectorAll('#props-panel input[type="number"]')];
+          const voiceInput = inputs.find(i => (i.getAttribute('onchange') || '').includes('setNodeVoiceVlan'));
+          const hadInput = !!voiceInput;
+          if (voiceInput) { voiceInput.value = '40'; voiceInput.dispatchEvent(new Event('change')); }
+
+          const nodeVoice = (typeof _voipVoiceVlan === 'function') ? _voipVoiceVlan(nodeById('tel')) : nodeById('tel').voiceVlan;
+          const carries40 = _getLinkTrunk(state.links[0]).vlans.includes(40);
+          return { ok: true, inDevice, hadInput, nodeVoice, carries40 };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso VLAN voce: ' + r.err);
+      assert.equal(r.inDevice, false, 'la VLAN voce NON è più nel pannello device del telefono');
+      assert.ok(r.hadInput, 'il pannello PORTA del telefono ha l\'editor VLAN voce (setNodeVoiceVlan)');
+      assert.equal(r.nodeVoice, 40, 'modificando il campo, node.voiceVlan diventa 40');
+      assert.ok(r.carries40, 'il trunk del telefono ora trasporta la nuova VLAN voce (40)');
+    });
+
+    await t.test('hypervisor/homelab: le VLAN delle VM rendono l\'uplink un trunk derivato (stesso motore AP)', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = {};
+          const rid = state.currentRack;
+          state.nodes.push(
+            { id: 'sw', type: 'switch', name: 'SW', rackId: rid, rackU: 1, sizeU: 1, ports: 24 },
+            // hypervisor (rack): 2 VM su VLAN diverse
+            { id: 'hv', type: 'hypervisor', name: 'HV', rackId: rid, rackU: 3, sizeU: 2, ports: 4, mgmtVlan: 99,
+              vms: [{ id: 'vm1', name: 'dc01', vlan: 20, state: 'running' }, { id: 'vm2', name: 'web01', vlan: 30, state: 'running' }] },
+            // homelab (floor): 1 VM su VLAN 40 → stesso motore
+            { id: 'hl', type: 'homelab', name: 'HL', x: 10, y: 10, ports: 1,
+              vms: [{ id: 'v3', name: 'pbs', vlan: 40, state: 'running' }] });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          state.links.push(_createLinkRecord('sw-2', 'hv-1'), _createLinkRecord('sw-3', 'hl-1'));
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          propagateVlans();
+
+          // carriedVlans (lib vlan-trunk su window) aggrega le VLAN delle VM
+          const hvCarried = carriedVlans(nodeById('hv'));
+          const hvTrunk = _getLinkTrunk(state.links[0]).vlans;
+          const hlTrunk = _getLinkTrunk(state.links[1]).vlans;
+
+          // il pannello device dell'hypervisor (rack) mostra l'editor VM
+          selType = 'node'; selId = 'hv'; renderProps();
+          const html = document.getElementById('props-panel').innerHTML || '';
+          const hasEditor = html.includes('addVm(') && html.includes('hv-vms');
+
+          // anche il pannello del homelab (FLOOR) dev'essere completo come l'host rack:
+          // nome + Rete&Accesso + piattaforma + editor VM (regressione: il device-spec
+          // floor finiva nel bucket sbagliato e non veniva mai concatenato).
+          selType = 'node'; selId = 'hl'; renderProps();
+          const labHtml = document.getElementById('props-panel').innerHTML || '';
+          const labComplete = labHtml.includes('addVm(') && labHtml.includes('hvPlatform') && labHtml.includes("updateN('ip'");
+
+          // aggiungere una VM via la funzione esposta e impostarne la VLAN aggiorna il trunk
+          addVm('hv');
+          const hv = nodeById('hv'); const newVm = hv.vms[hv.vms.length - 1];
+          updateVm('hv', newVm.id, 'vlan', '50');
+          propagateVlans();
+          const carries50 = _getLinkTrunk(state.links[0]).vlans.includes(50);
+
+          return { ok: true, hvCarried, hvTrunk, hlTrunk, hasEditor, labComplete, carries50 };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso hypervisor/homelab: ' + r.err);
+      assert.deepEqual(r.hvCarried, [20, 30], 'carriedVlans dell\'hypervisor = VLAN delle VM');
+      assert.ok(r.hvTrunk.includes(20) && r.hvTrunk.includes(30), 'l\'uplink dell\'hypervisor è un trunk con le VLAN delle VM');
+      assert.ok(r.hlTrunk.includes(40), 'l\'uplink del homelab (floor) trasporta la VLAN della sua VM — stesso motore');
+      assert.ok(r.hasEditor, 'il pannello device dell\'hypervisor mostra l\'editor "Macchine virtuali"');
+      assert.ok(r.labComplete, 'il pannello del homelab (floor) è completo: nome+Rete&Accesso+piattaforma+editor VM');
+      assert.ok(r.carries50, 'aggiungendo una VM su VLAN 50 il trunk dell\'uplink la trasporta');
+    });
+
+    await t.test('gesto reale: click su un device seleziona ed aggiorna il pannello Proprietà', async () => {
+      await page.evaluate(() => {
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        renderAll();
+      });
+      await page.waitForSelector('.floor-node', { timeout: 5000 });
+      await page.click('.floor-node'); // pointer reale → handler di selezione (app-pointer.js)
+      await page.waitForTimeout(150);
+      const r = await page.evaluate(() => {
+        if (typeof switchRightTab === 'function') switchRightTab('props');
+        renderProps();
+        const placeholder = 'Seleziona un elemento';
+        const txt = document.getElementById('props-panel').textContent || '';
+        return {
+          selType: typeof selType !== 'undefined' ? selType : null,
+          selId: typeof selId !== 'undefined' ? selId : null,
+          hasSelectedEl: !!document.querySelector('[class*="selected"]'),
+          propsRefreshed: txt.length > 15 && !txt.includes(placeholder),
+        };
+      });
+      assert.ok(['node', 'port'].includes(r.selType), 'il click seleziona un device/porta (event wiring reale): ' + r.selType);
+      assert.ok(r.selId, 'selId impostato dal click');
+      assert.ok(r.hasSelectedEl, 'la selezione è riflessa nel DOM (classe .selected)');
+      assert.ok(r.propsRefreshed, 'il pannello Proprietà si aggiorna sull’elemento selezionato');
+    });
+
+    await t.test('bundle esbuild: i moduli ESM migrati (app-audit, app-spare, app-management) girano nel browser reale', async () => {
+      const r = await page.evaluate(() => {
+        // Le funzioni provengono dal bundle (src/*.js → expose()).
+        const exposed = typeof openAuditLog === 'function' && typeof exportAuditCsv === 'function' &&
+          typeof openSpareReport === 'function' && typeof _applySpareHighlight === 'function' &&
+          typeof _mgmtRow === 'function' && typeof _openMgmt === 'function';
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        // app-audit: legge win.state.auditLog (ponte) + t()/getLang() importati dai puri
+        state.auditLog = [{ ts: Date.now(), action: 'device-add', target: 'SW-Core', user: 'tester' }];
+        openAuditLog();
+        const av = document.getElementById('audit-overlay');
+        // app-spare: usa win.TYPES/_isLeafEndpoint/_frontPanelSfpGroups (ponte) +
+        // buildSpareReport (import puro) sul default state (switch 24 porte).
+        openSpareReport();
+        const sv = document.getElementById('spare-overlay');
+        // app-management: _mgmtRow legge win.nodeById/win.escapeHTML (ponte) e
+        // costruisce l'URL primario protocollo+IP (https di default).
+        const firstNode = (state.nodes || [])[0];
+        const mgmtHtml = firstNode ? _mgmtRow('', '10.0.0.9', firstNode.id) : '';
+        return {
+          exposed,
+          auditVisible: !!av && av.style.display === 'flex',
+          auditRow: av ? (av.querySelector('.audit-row') || {}).textContent || '' : '',
+          spareVisible: !!sv && sv.style.display === 'flex',
+          spareHasRows: !!sv && sv.querySelectorAll('.spare-row').length > 0,
+          mgmtHtml,
+        };
+      });
+      assert.ok(r.exposed, 'le funzioni dei moduli migrati sono pubblicate su window dal bundle');
+      assert.ok(r.auditVisible, 'openAuditLog() apre l’overlay Storia (render reale)');
+      assert.match(r.auditRow, /SW-Core/, 'la riga audit legge state via il ponte e rende il target');
+      assert.ok(r.spareVisible, 'openSpareReport() apre l’overlay Porte libere');
+      assert.ok(r.spareHasRows, 'il report porte legge state+TYPES via il ponte e calcola le righe');
+      assert.match(r.mgmtHtml, /mgmt-block/, '_mgmtRow rende il blocco Management');
+      assert.match(r.mgmtHtml, /https:\/\/10\.0\.0\.9/, '_mgmtRow costruisce l’URL primario protocollo+IP via il ponte');
+    });
+
+    await t.test('app-stack-ha migrato: setNodeHaPair propaga la simmetria nel browser reale', async () => {
+      const r = await page.evaluate(() => {
+        // I setter sono nel bundle (src/app-stack-ha.js → expose()). Leggono
+        // win.nodeById/selId/TYPES/_ensureNodeSpec/propagateHaSymmetry/state.
+        const exposed = typeof setNodeHaPair === 'function' && typeof removeNodeFromHa === 'function' &&
+          typeof _defaultStackName === 'function';
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        // due firewall (tipo haEligible) — modello nodo minimale come negli smoke
+        const fwA = { id: 'fwA', type: 'firewall', name: 'FW-A', x: 0, y: 0, w: 60, h: 40 };
+        const fwB = { id: 'fwB', type: 'firewall', name: 'FW-B', x: 80, y: 0, w: 60, h: 40 };
+        state.nodes.push(fwA, fwB);
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        selType = 'node'; selId = 'fwA';
+        setNodeHaPair('fwB', 'active', 'active-passive');   // A→B
+        const a = nodeById('fwA'), b = nodeById('fwB');
+        return {
+          exposed,
+          aPeer: a?.spec?.haPeer || null, aRole: a?.spec?.haRole || null,
+          bPeer: b?.spec?.haPeer || null, bRole: b?.spec?.haRole || null,  // simmetria propagata
+          slug: _defaultStackName({ hostname: 'Core01.lan' }),
+        };
+      });
+      assert.ok(r.exposed, 'i setter stack/HA sono pubblicati su window dal bundle');
+      assert.equal(r.aPeer, 'fwB', 'A punta a B (setter scrive spec via il ponte)');
+      assert.equal(r.bPeer, 'fwA', 'B punta ad A: propagateHaSymmetry ha letto win.state.nodes');
+      assert.equal(r.bRole, 'standby', 'il peer riceve il ruolo complementare (active→standby)');
+      assert.equal(r.slug, 'stk-core01', '_defaultStackName slugifica hostname senza dominio');
+    });
+
+    await t.test('app-panel-skin migrato: sezione skin + fallback render nel browser reale', async () => {
+      const r = await page.evaluate(() => {
+        // Funzioni dal bundle (src/app-panel-skin.js → expose()). Leggono t (ponte
+        // i18n), win.escapeHTML/_propsSectionIsOpen e win.parsePanelSkin (panel-skin.js).
+        const exposed = typeof _panelSkinSectionHtml === 'function' &&
+          typeof _resolveNodeSkin === 'function' && typeof _panelSkinRackHtml === 'function' &&
+          typeof loadPanelSkinStore === 'function' && typeof assignNodeSkin === 'function';
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        const sw = { id: 'swSkin', type: 'switch', name: 'SW-1', brand: 'Cisco', model: 'C9300' };
+        state.nodes.push(sw);
+        // nodo senza skin: la sezione rende il dropdown "nessuna" e il rack html è '' (fallback)
+        const sectionHtml = _panelSkinSectionHtml(sw);
+        const rackHtml = _panelSkinRackHtml(sw);
+        const resolved = _resolveNodeSkin(sw);
+        return {
+          exposed,
+          sectionHasSelect: sectionHtml.indexOf('assignNodeSkin') >= 0 && sectionHtml.indexOf('skin') >= 0,
+          rackFallback: rackHtml === '',          // niente skin → fallback al layout generato
+          resolvedNull: resolved === null,
+        };
+      });
+      assert.ok(r.exposed, 'le funzioni panel-skin sono pubblicate su window dal bundle');
+      assert.ok(r.sectionHasSelect, '_panelSkinSectionHtml rende il dropdown (legge t + win.escapeHTML via ponte)');
+      assert.ok(r.rackFallback, '_panelSkinRackHtml ritorna \'\' senza skin (fallback al layout generato)');
+      assert.ok(r.resolvedNull, '_resolveNodeSkin → null per nodo senza skin');
+    });
+
+    await t.test('app-l3 migrato: report L3 + badge gateway + SVI nel browser reale', async () => {
+      // Copertura spostata qui dallo smoke (test/smoke-app.test.js) dopo la migrazione
+      // di app-l3 al bundle: lo stub-DOM dello smoke non carica /dist/app.bundle.js.
+      const r = await page.evaluate(() => {
+        const exposed = typeof openL3Report === 'function' && typeof _l3GatewayNodeIds === 'function' &&
+          typeof _l3SviSectionHtml === 'function' && typeof l3ExportCsv === 'function';
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        const rt = { id: 'l3rt', type: 'router', name: 'GW', x: 0, y: 0, w: 60, h: 40, ip: '192.168.50.1', ports: 8 };
+        state.nodes.push(rt); if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        state.vlanColors[50] = '#00d4ff'; state.vlanNames[50] = 'Test';
+        state.ipam = state.ipam || { vlans: {} };
+        state.ipam.vlans['50'] = { subnet: '192.168.50.0/24', gateway: '192.168.50.1' };  // → auto-match su rt.ip
+        const ids = _l3GatewayNodeIds();                 // legge win.buildL3Report + win._parseCidrInfo via ponte
+        const svi = _l3SviSectionHtml('l3rt');
+        openL3Report();                                  // overlay reale nel DOM
+        const ov = document.getElementById('l3-overlay');
+        const res = {
+          exposed,
+          isL3: ids.has('l3rt'),
+          sviVlan: svi.indexOf('VLAN 50') >= 0,
+          overlayVisible: !!ov && ov.style.display === 'flex',
+          overlayHasVlan: !!ov && ov.textContent.indexOf('VLAN 50') >= 0,
+        };
+        if (typeof _closeL3Report === 'function') _closeL3Report();  // pulizia: non coprire il rack ai test successivi
+        return res;
+      });
+      assert.ok(r.exposed, 'le funzioni L3 sono pubblicate su window dal bundle');
+      assert.ok(r.isL3, '_l3GatewayNodeIds riconosce il router come gateway (auto per IP) via il ponte');
+      assert.ok(r.sviVlan, '_l3SviSectionHtml elenca VLAN 50 nel pannello device');
+      assert.ok(r.overlayVisible, 'openL3Report apre l’overlay Mappa L3');
+      assert.ok(r.overlayHasVlan, 'l’overlay L3 rende la riga VLAN 50');
+    });
+
+    await t.test('app-drift-adopt migrato: candidati + creazione nodi + dedup nel browser reale', async () => {
+      // Copertura spostata dallo smoke. Esercita anche il var-ify di _driftReport:
+      // il modulo (bundle) legge win._driftReport che impostiamo qui dalla pagina.
+      const r = await page.evaluate(() => {
+        const exposed = typeof openAdoptModal === 'function' && typeof _adoptCandidates === 'function' &&
+          typeof _adoptCreateNodes === 'function';
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        // drift report finto su window (var condivisa): due MAC non documentati
+        _driftReport = { undocumented: [
+          { key: 'dev:1', sig: '1', mac: 'AA:BB:CC:00:00:01', label: 'vista su Sw1 · Gi0/3', cls: 'infra', vlan: 10 },
+          { key: 'dev:2', sig: '2', mac: '11:22:33:44:55:66', label: 'vista su Sw1 · Gi0/4', cls: 'endpoint', vlan: 20 },
+        ], counts: { undocumented: 1, undocumentedEndpoint: 1 } };
+        const cands = _adoptCandidates();                 // legge win._driftReport + win.buildAdoptCandidates
+        openAdoptModal();                                 // costruisce overlay + tabella
+        const ov = document.getElementById('adopt-overlay');
+        const before = state.nodes.length;
+        const res = _adoptCreateNodes([
+          { cand: cands[0], type: 'switch' },
+          { cand: cands[1], type: 'pc' },
+        ], false);                                        // autoLink off (nessuna FDB nel test)
+        const after = state.nodes.length;
+        const res2 = _adoptCreateNodes([{ cand: cands[0], type: 'switch' }], false);  // dedup
+        if (ov) ov.style.display = 'none';                // pulizia
+        return {
+          exposed, cands: cands.length, added: res.added, delta: after - before,
+          dedup: res2.skipped, overlayRendered: !!ov && ov.querySelectorAll('.adopt-row').length === 2,
+        };
+      });
+      assert.ok(r.exposed, 'le funzioni adopt sono pubblicate su window dal bundle');
+      assert.equal(r.cands, 2, '_adoptCandidates legge win._driftReport (var-ify) → 2 candidati');
+      assert.equal(r.added, 2, '_adoptCreateNodes aggiunge 2 nodi via il ponte');
+      assert.equal(r.delta, 2, 'state.nodes cresce di 2');
+      assert.equal(r.dedup, 1, 'dedup: il MAC già adottato viene saltato');
+      assert.ok(r.overlayRendered, 'openAdoptModal rende 2 righe nella tabella');
+    });
+
+    await t.test('app-drift migrato: snapshot DOC + render pannello + azioni 1-click nel browser reale', async () => {
+      // Copertura della glue Drift (ex lib/app-drift.js) nel bundle ESM. Esercita:
+      //  • _driftBuildDocSnapshot (precedenza override statusOvr/vlanOvr);
+      //  • _renderDriftReport che legge win._driftReport (var cross-boundary,
+      //    scritta qui dalla pagina) e popola l'overlay;
+      //  • driftIgnore (persistenza in state.driftIgnores + drop riga);
+      //  • driftApplyDoc (allinea state.ports alla realtà, rimuove gli override);
+      //  • _closeDriftReport (overlay nascosto → non copre i test rack seguenti).
+      const r = await page.evaluate(() => {
+        const exposed = ['runDriftCheck', '_driftBuildDocSnapshot', '_driftBuildSnmpSnapshot',
+          '_renderDriftReport', 'driftIgnore', 'driftApplyDoc', 'driftInvestigate', '_closeDriftReport']
+          .every((f) => typeof window[f] === 'function');
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        // DOC snapshot: un link con override su una porta → il diff engine deve
+        // vedere i valori override, non i base.
+        state.links = [{ id: 'lk1', src: 'sw1-1', dst: 'sw2-1' }];
+        state.ports['sw1-1'] = { status: 'down', statusOvr: 'active', vlan: 1, vlanOvr: 99 };
+        const doc = _driftBuildDocSnapshot();
+        const snmp = _driftBuildSnmpSnapshot(doc);   // non deve lanciare (FDB vuota → {})
+        // Report finto su window (var condivisa col modulo): una riga per categoria.
+        _driftReport = {
+          consistent: [],
+          stateDrift: [{ key: 'sd:1', label: 'Sw1 / P1', patch: { pid: 'sw1-1', status: 'active', speed: 1000, vlan: 99 }, diffs: [{ field: 'status', doc: 'down', real: 'active' }] }],
+          macOrphan: [{ key: 'mo:1', label: 'Vecchio PC', mac: 'AA:BB:CC:00:00:09' }],
+          undocumented: [{ key: 'ud:1', mac: '11:22:33:44:55:66', label: 'vista su Sw1 · Gi0/4', cls: 'infra', vlan: 20 }],
+          ghostCable: [{ key: 'gc:1', label: 'Sw1 ↔ Sw2', downStreak: 3 }],
+          counts: { consistent: 0, stateDrift: 1, macOrphan: 1, undocumented: 1, undocumentedEndpoint: 0, ghostCable: 1 },
+        };
+        _renderDriftReport();
+        const ov = document.getElementById('drift-overlay');
+        const rowsRendered = ov ? ov.querySelectorAll('.drift-row').length : 0;
+        // ignora il MAC orfano → esce dal report + finisce in state.driftIgnores
+        driftIgnore('mo:1');
+        const ignored = Array.isArray(state.driftIgnores) && state.driftIgnores.includes('mo:1');
+        const macOrphanLeft = _driftReport.macOrphan.length;
+        // applica la doc sullo state drift → allinea state.ports['sw1-1'] alla realtà
+        driftApplyDoc('sd:1');
+        const applied = state.ports['sw1-1'] && state.ports['sw1-1'].status === 'active' && !('statusOvr' in state.ports['sw1-1']);
+        const stateDriftLeft = _driftReport.stateDrift.length;
+        _closeDriftReport();
+        const closed = !!ov && ov.style.display === 'none';
+        return {
+          exposed,
+          docStatus: doc.ports['sw1-1'] && doc.ports['sw1-1'].status,
+          docVlan: doc.ports['sw1-1'] && doc.ports['sw1-1'].vlan,
+          snmpOk: !!snmp && typeof snmp === 'object',
+          rowsRendered, ignored, macOrphanLeft, applied, stateDriftLeft, closed,
+        };
+      });
+      assert.ok(r.exposed, 'le funzioni Drift sono pubblicate su window dal bundle');
+      assert.equal(r.docStatus, 'active', '_driftBuildDocSnapshot usa statusOvr (override) sopra status base');
+      assert.equal(r.docVlan, 99, '_driftBuildDocSnapshot usa vlanOvr (override) sopra vlan base');
+      assert.ok(r.snmpOk, '_driftBuildSnmpSnapshot non lancia con FDB vuota');
+      assert.ok(r.rowsRendered >= 4, `_renderDriftReport popola l'overlay (righe: ${r.rowsRendered})`);
+      assert.ok(r.ignored, 'driftIgnore persiste la chiave in state.driftIgnores');
+      assert.equal(r.macOrphanLeft, 0, 'driftIgnore rimuove la riga dal report');
+      assert.ok(r.applied, 'driftApplyDoc scrive il valore reale e rimuove statusOvr');
+      assert.equal(r.stateDriftLeft, 0, 'driftApplyDoc rimuove la riga applicata');
+      assert.ok(r.closed, '_closeDriftReport nasconde l\'overlay (non copre i test rack)');
+    });
+
+    await t.test('app-ports migrato: override porta + flusso LAG + stato cross-boundary su window', async () => {
+      // Copertura della glue Ports (ex lib/app-ports.js) nel bundle ESM. Verifica
+      // soprattutto i binding CROSS-BOUNDARY che solo il browser reale cattura:
+      //  • lagSelMode/lagSelPorts (var-ificate in app.js) scritte dal bundle e
+      //    bare-lette dai classic (app-render-core durante renderAll);
+      //  • _focusedLagGroup/_focusedLagPorts spostate su window (init nel modulo,
+      //    scritte dai classic non-strict, lette da _isLagFocusedPort nel render).
+      const r = await page.evaluate(() => {
+        const fns = ['renderPortsTable', 'setPortField', 'setPortSpeed', 'clearAllPortOverrides',
+          'startLagMode', '_toggleLagPort', 'confirmLag', 'cancelLag', '_focusLagForPort',
+          '_isLagFocusedPort', 'portTip'];
+        const exposed = fns.every((f) => typeof window[f] === 'function');
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        const sw = nodeById('sw1');
+        if (!sw || (sw.ports || 0) < 2) return { abort: 'sw1 senza ≥2 porte', ports: sw && sw.ports };
+        const p1 = 'sw1-1', p2 = 'sw1-2';
+        // 1) override stato + velocità su una porta, poi reset
+        setPortField(p1, 'statusOvr', 'active');
+        setPortSpeed(p1, '10G');
+        const ovrSet = state.ports[p1] && state.ports[p1].statusOvr === 'active' && state.ports[p1].speedOvr === 10000;
+        clearAllPortOverrides(p1);
+        const ovrCleared = !state.ports[p1] || (state.ports[p1].statusOvr == null && state.ports[p1].speedOvr == null);
+        // 2) flusso LAG: startLagMode scrive win.lagSelMode (var-ify in app.js) e
+        //    renderAll (classic) lo legge senza crash → la var è davvero su window
+        startLagMode(p1);
+        const lagModeOn = window.lagSelMode === true && window.lagSelPorts.has(p1);
+        _toggleLagPort(p2);
+        const twoSelected = window.lagSelPorts.size === 2;
+        confirmLag();
+        const lagCreated = !!(state.ports[p1] && state.ports[p1].lagGroup) && window.lagSelMode === false;
+        // 3) focus LAG: stato spostato su window, letto da _isLagFocusedPort (render)
+        _focusLagForPort(p1);
+        const focused = window._focusedLagPorts.has(p1) && _isLagFocusedPort(p1) === true;
+        const tipHasLag = /LAG/.test(portTip(p1));
+        // cleanup: azzera le flag UI su window per non sporcare i test rack seguenti
+        window.lagSelMode = false; window.lagSelPorts = new Set();
+        window._focusedLagGroup = null; window._focusedLagPorts = new Set();
+        if (typeof selType !== 'undefined') { selType = null; selId = null; }
+        return { exposed, ovrSet, ovrCleared, lagModeOn, twoSelected, lagCreated, focused, tipHasLag };
+      });
+      assert.ok(!r.abort, `precondizione fallita: ${r.abort} (ports=${r.ports})`);
+      assert.ok(r.exposed, 'le funzioni Ports sono pubblicate su window dal bundle');
+      assert.ok(r.ovrSet, 'setPortField/setPortSpeed scrivono gli override (statusOvr=active, speedOvr=10000)');
+      assert.ok(r.ovrCleared, 'clearAllPortOverrides rimuove gli override');
+      assert.ok(r.lagModeOn, 'startLagMode scrive win.lagSelMode=true (var-ify app.js) + ancora la porta');
+      assert.ok(r.twoSelected, '_toggleLagPort aggiunge la seconda porta alla selezione');
+      assert.ok(r.lagCreated, 'confirmLag crea il gruppo LAG e chiude la modalità');
+      assert.ok(r.focused, '_focusLagForPort scrive win._focusedLagPorts, letto da _isLagFocusedPort');
+      assert.ok(r.tipHasLag, 'portTip riporta il LAG nella porta in gruppo');
+    });
+
+    await t.test('drag rack: il device segue il cursore (px→U usa --ru-h, non 24 hardcoded)', async () => {
+      // Regressione: il drag convertiva px→U con /24 hardcoded mentre l'altezza
+      // 1U (--ru-h) è 29px dopo il "rack in scala". Trascinando di k×ruH px il
+      // device deve muoversi di ESATTAMENTE k unità (resta sotto il cursore).
+      // Distanza scelta = 3×ruH: con il bug (/24) round(87/24)=4 ≠ 3 → fallirebbe.
+      await page.evaluate(() => {
+        // chiudi eventuali overlay aperti dai sotto-test precedenti (coprono il rack)
+        ['audit-overlay', 'spare-overlay'].forEach((id) => { const o = document.getElementById(id); if (o) o.style.display = 'none'; });
+        if (typeof selType !== 'undefined') { selType = null; selId = null; }
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        if (typeof switchRightTab === 'function') switchRightTab('rack'); // rende visibile il rack-viewport
+        renderAll();
+      });
+      const dev = page.locator('.rack-device[data-id="sw1"]');
+      await dev.waitFor({ timeout: 5000 });
+      const env = await page.evaluate(() => ({ ruH: rackUPx(), zoom: state.rackView.zoom, before: nodeById('sw1').rackU }));
+      assert.equal(env.ruH, 29, 'precondizione: --ru-h = 29px (rack in scala)');
+      // rAF-throttle hardening (CI headless): durante un re-render in rAF Playwright
+      // boundingBox() può tornare null un istante (nodo ricreato a metà paint) → box.x
+      // su null. Leggo il rect dal page-scope SOLO quando il box è stabile (w/h>0).
+      const box = await page.waitForFunction(() => {
+        const el = document.querySelector('.rack-device[data-id="sw1"]');
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return (r.width > 0 && r.height > 0) ? { x: r.x, y: r.y, width: r.width, height: r.height } : null;
+      }, null, { timeout: 5000 }).then((h) => h.jsonValue());
+      const gx = box.x + box.width - 8;          // bordo destro (targhetta), lontano dalle porte
+      const gy = box.y + box.height / 2;
+      const k = 3;
+      await page.mouse.move(gx, gy);
+      await page.mouse.down();
+      await page.mouse.move(gx, gy + 10);        // supera la soglia 5px
+      await page.mouse.move(gx, gy + k * env.ruH); // k unità in giù
+      await page.mouse.up();
+      const after = await page.evaluate(() => nodeById('sw1').rackU);
+      assert.equal(env.before - after, k, `trascinando ${k}×ruH px il device scende di ${k}U (era ${env.before}, ora ${after})`);
+    });
+
+    await t.test('pan rack: niente scrollbar; drag su area vuota panna via translate, anche LATERALE a zoom alto', async () => {
+      await page.evaluate(() => {
+        ['audit-overlay', 'spare-overlay'].forEach((id) => { const o = document.getElementById(id); if (o) o.style.display = 'none'; });
+        if (typeof selType !== 'undefined') { selType = null; selId = null; }
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        if (typeof switchRightTab === 'function') switchRightTab('rack');
+        // zoom alto: lo zoom è transform:scale → il pan DEVE essere via translate
+        // (lo scroll non muoverebbe il contenuto zoomato, specie lateralmente).
+        state.rackView.zoom = 2.5; state.rackView.x = 0; state.rackView.y = 0;
+        updateTransforms();
+      });
+      const vpLoc = page.locator('#rack-viewport');
+      await vpLoc.waitFor({ timeout: 5000 });
+      await page.waitForTimeout(200);
+      const pre = await page.evaluate(() => {
+        const rv = document.getElementById('rack-viewport');
+        const cs = getComputedStyle(rv);
+        return { overflow: cs.overflow, scrollbar: rv.offsetWidth - rv.clientWidth, rx: state.rackView.x || 0, ry: state.rackView.y || 0, swBefore: nodeById('sw1').rackU };
+      });
+      assert.equal(pre.overflow, 'hidden', 'il rack-viewport non ha più scrollbar (overflow hidden)');
+      assert.equal(pre.scrollbar, 0, 'nessun gutter di scrollbar');
+      const vp = await vpLoc.boundingBox();
+      const sw1Before = await page.locator('.rack-device[data-id="sw1"]').boundingBox();
+      // area VUOTA bassa, drag diagonale: +150 a destra, -80 in alto (il contenuto segue)
+      const px = vp.x + vp.width * 0.5, py = vp.y + vp.height * 0.9;
+      await page.mouse.move(px, py);
+      await page.mouse.down();                 // PLAIN drag, senza Space
+      await page.mouse.move(px + 70, py - 40);
+      await page.mouse.move(px + 150, py - 80);
+      await page.mouse.up();
+      const res = await page.evaluate(() => ({ rx: state.rackView.x || 0, ry: state.rackView.y || 0, swAfter: nodeById('sw1').rackU, panning: isPanningRack }));
+      const sw1After = await page.locator('.rack-device[data-id="sw1"]').boundingBox();
+      assert.equal(res.rx - pre.rx, 150, 'pan LATERALE a zoom 2.5: il translate x segue il cursore (+150)');
+      assert.equal(res.ry - pre.ry, -80, 'pan verticale a zoom 2.5: il translate y segue il cursore (-80)');
+      assert.ok(Math.abs((sw1After.x - sw1Before.x) - 150) <= 2, 'il device si sposta a schermo col pan (laterale reale)');
+      assert.equal(res.swAfter, pre.swBefore, 'il pan NON sposta il device nel rack (drag su area vuota ≠ drag su device)');
+      assert.equal(res.panning, false, 'a pointerup il pan è terminato (isPanningRack=false)');
+    });
+  } finally {
+    await browser.close();
+    await srv.close();
+  }
+});

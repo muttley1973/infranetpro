@@ -1,0 +1,795 @@
+﻿<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InfraNet Pro</title>
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <!-- CSS modularizzato (ex style.css monolitico). ORDINE = cascata: i token
+         per primi, poi base→layout→componenti→tema. Mappa moduli + token: styles/README.md -->
+    <link rel="stylesheet" href="/styles/01-tokens.css">
+    <link rel="stylesheet" href="/styles/02-base.css">
+    <link rel="stylesheet" href="/styles/03-layout.css">
+    <link rel="stylesheet" href="/styles/04-floor-rack.css">
+    <link rel="stylesheet" href="/styles/05-cables-wifi.css">
+    <link rel="stylesheet" href="/styles/06-panels.css">
+    <link rel="stylesheet" href="/styles/07-modals.css">
+    <link rel="stylesheet" href="/styles/08-topology.css">
+    <link rel="stylesheet" href="/styles/09-user-theme.css">
+</head>
+<body>
+
+<header>
+    <div class="header-title"><i class="fas fa-network-wired"></i> <span>Infra<span style="color:var(--accent)">Net</span> Pro</span></div>
+    <div class="header-sep"></div>
+
+    <!-- Project management -->
+    <div class="project-bar">
+        <select id="project-select" onchange="switchProject(parseInt(this.value))" data-i18n-tip="project.tipCurrent" data-tip="Progetto corrente"></select>
+        <button class="toolbar-btn" onclick="newProject()"       data-i18n-tip="project.tipNew"       data-tip="Nuovo progetto"><i class="fas fa-plus"></i></button>
+        <button class="toolbar-btn" onclick="renameProject()"    data-i18n-tip="project.tipRename"    data-tip="Rinomina"><i class="fas fa-pen"></i></button>
+        <button class="toolbar-btn" onclick="duplicateProject()" data-i18n-tip="project.tipDuplicate" data-tip="Duplica"><i class="fas fa-copy"></i></button>
+        <button class="toolbar-btn danger" onclick="deleteProject()" data-i18n-tip="project.tipDelete" data-tip="Elimina progetto"><i class="fas fa-trash"></i></button>
+    </div>
+    <div class="header-sep"></div>
+    <div id="impexp-menu-wrap" style="position:relative">
+        <button class="toolbar-btn icon-only" id="btn-impexp" onclick="toggleImpExpMenu()" data-i18n-tip="impexp.tip" data-tip="Importa / Esporta">
+            <i class="fas fa-right-left"></i><span class="btn-label" data-i18n="impexp.label"> Importa/Esporta</span><i class="fas fa-chevron-down" style="font-size:0.6rem;margin-left:4px;opacity:.6"></i>
+        </button>
+        <div id="impexp-dropdown" class="header-menu-dropdown" style="display:none">
+            <button class="header-menu-item" onclick="document.getElementById('json-upload').click();closeImpExpMenu()">
+                <i class="fas fa-file-import"></i> <span data-i18n="impexp.importJson">Importa progetto JSON</span>
+            </button>
+            <button class="header-menu-item" onclick="openCsvImport();closeImpExpMenu()">
+                <i class="fas fa-file-csv"></i> <span data-i18n="impexp.importCsv">Importa dispositivi da CSV</span>
+            </button>
+            <div class="header-menu-divider"></div>
+            <button class="header-menu-item" onclick="exportJSON();closeImpExpMenu()">
+                <i class="fas fa-file-export"></i> <span data-i18n="impexp.exportJson">Esporta progetto JSON</span>
+            </button>
+            <button class="header-menu-item" id="btn-export-pdf" onclick="openPdfExportOptions();closeImpExpMenu()">
+                <i class="fas fa-file-pdf"></i> <span data-i18n="impexp.exportPdf">Esporta PDF</span>
+            </button>
+            <button class="header-menu-item" onclick="exportDossier();closeImpExpMenu()"
+                    data-i18n-tip="impexp.dossierTip"
+                    data-tip="PDF di consegna completo: copertina, planimetria, rack, porte, VLAN, inventario, note e storia modifiche">
+                <i class="fas fa-folder-open"></i> <span data-i18n="impexp.dossier">Dossier di consegna</span>
+            </button>
+            <button class="header-menu-item" onclick="openLabelExportOptions();closeImpExpMenu()">
+                <i class="fas fa-tags"></i> <span data-i18n="impexp.labels">Esporta etichette…</span>
+            </button>
+        </div>
+    </div>
+    <div class="header-sep"></div>
+    <button class="toolbar-btn primary" id="btn-save" onclick="saveProject()" data-i18n-tip="save.tip" data-tip="Salva (Ctrl+S)">
+        <i id="save-icon" class="fas fa-floppy-disk"></i><span id="save-label" data-i18n="save.label"> Salva </span><span id="save-dot"></span>
+    </button>
+    <div class="header-sep"></div>
+
+    <!-- Undo / Redo -->
+    <button class="toolbar-btn" id="btn-undo" onclick="undo()" data-i18n-tip="undo.tip" data-tip="Annulla (Ctrl+Z)" disabled><i class="fas fa-rotate-left"></i></button>
+    <button class="toolbar-btn" id="btn-redo" onclick="redo()" data-i18n-tip="redo.tip" data-tip="Ripeti (Ctrl+Y)"  disabled><i class="fas fa-rotate-right"></i></button>
+    <div class="header-sep"></div>
+
+    <!-- Search — centrata nella barra -->
+    <div class="search-panel" style="margin:0 auto;">
+        <div class="search-input-wrap">
+            <i class="fas fa-search"></i>
+            <input id="global-search" type="search" data-i18n-ph="search.ph" placeholder="Cerca dispositivi, porte, link…" autocomplete="off"
+                   oninput="handleSearchInput(this.value)" onfocus="handleSearchInput(this.value)" onkeydown="handleSearchKey(event)">
+            <button id="global-search-clear" data-i18n-tip="search.clearTip" data-tip="Cancella" onclick="clearSearch()"><i class="fas fa-times"></i></button>
+        </div>
+        <div id="search-results"></div>
+    </div>
+
+    <!-- Actions — allineati a destra -->
+<!-- Tooltip topologia (compare vicino al cursore al hover sulle linee) -->
+<div id="topo-tip" onmouseenter="clearTimeout(_topoTipTimer)" onmouseleave="_hideTopoTip()"></div>
+
+<!-- ===== MODAL GESTIONE UTENTI ===== -->
+<div id="user-manager-overlay" class="tool-modal-overlay" onclick="if(event.target===this)closeUserManager()">
+  <div id="user-manager-modal" class="tool-modal" style="width:520px;max-height:85vh">
+    <div class="tool-modal-header um-header">
+      <h3><i class="fas fa-users-cog"></i><span data-i18n="um.title">Gestione Utenti</span></h3>
+      <button class="toolbar-btn" onclick="closeUserManager()" style="padding:4px 8px"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="tool-modal-body">
+      <!-- Form nuovo utente -->
+      <div class="um-form">
+        <h3><i class="fas fa-user-plus"></i> <span data-i18n="um.newUser">Nuovo utente</span></h3>
+        <div class="um-row">
+          <input type="text" id="um-new-username" data-i18n-ph="um.phUsername" placeholder="Nome utente" autocomplete="off">
+          <input type="password" id="um-new-password" placeholder="Password" autocomplete="new-password">
+        </div>
+        <div class="um-row">
+          <select id="um-new-role">
+            <option value="viewer" data-i18n="um.roleViewer">Viewer — solo lettura</option>
+            <option value="admin" data-i18n="um.roleAdmin">Admin — accesso completo</option>
+          </select>
+          <button class="um-btn primary" onclick="umCreateUser()">
+            <i class="fas fa-plus"></i> <span data-i18n="um.create">Crea</span>
+          </button>
+        </div>
+        <div class="um-msg" id="um-new-msg"></div>
+      </div>
+      <!-- Lista utenti -->
+      <div id="um-user-list"><i class="fas fa-spinner fa-spin" style="color:var(--text-muted)"></i> Caricamento…</div>
+    </div>
+    <div class="tool-modal-footer">
+      <button class="um-btn ghost" onclick="closeUserManager()"><i class="fas fa-times"></i> <span data-i18n="common.close">Chiudi</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL CAMBIO PASSWORD ===== -->
+<div id="chpwd-overlay" class="tool-modal-overlay" onclick="if(event.target===this)closeChangePassword()" style="display:none">
+  <div class="tool-modal" style="width:380px">
+    <div class="tool-modal-header um-header">
+      <h3><i class="fas fa-key"></i><span data-i18n="chpwd.title">Cambia Password</span></h3>
+      <button class="toolbar-btn" onclick="closeChangePassword()" style="padding:4px 8px"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="tool-modal-body">
+      <div class="um-row"><input type="password" id="chpwd-old" data-i18n-ph="chpwd.phOld" placeholder="Password attuale" autocomplete="current-password"></div>
+      <div class="um-row"><input type="password" id="chpwd-new" data-i18n-ph="chpwd.phNew" placeholder="Nuova password" autocomplete="new-password"></div>
+      <div class="um-row"><input type="password" id="chpwd-confirm" data-i18n-ph="chpwd.phConfirm" placeholder="Conferma nuova password" autocomplete="new-password"></div>
+      <div class="um-msg" id="chpwd-msg"></div>
+    </div>
+    <div class="tool-modal-footer">
+      <button class="um-btn ghost" onclick="closeChangePassword()" data-i18n="common.cancel">Annulla</button>
+      <button class="um-btn primary" onclick="umChangePassword()"><i class="fas fa-check"></i> <span data-i18n="chpwd.update">Aggiorna</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL TOPOLOGY CRAWL ===== -->
+<!-- ===== MODAL EDITOR PROTOCOLLI MANAGEMENT ===== -->
+<div id="mgmt-proto-overlay" class="tool-modal-overlay" style="display:none" onclick="if(event.target===this)_closeMgmtProtoEditor()">
+  <div class="tool-modal">
+    <div class="tool-modal-header">
+      <h3><i class="fas fa-cog"></i> <span data-i18n="mgmt.title">Protocolli di management</span></h3>
+      <button class="toolbar-btn" onclick="_closeMgmtProtoEditor()" style="padding:4px 8px"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="tool-modal-body">
+      <div class="tm-hint" data-i18n-html="mgmt.hint">
+        Aggiungi/togli protocolli e app di gestione. Lo <strong>scheme</strong> deve includere <code>://</code> (o <code>:</code> per scheme "opaque" come <code>anydesk:</code>). L'URL finale al click sarà <code>scheme + IP del device</code>.<br>
+        Esempi: <code>winbox://</code>, <code>anydesk:</code>, <code>teamviewer10:</code>, <code>tightvnc://</code>.
+        L'app di destinazione deve essere installata e avere registrato lo scheme nell'OS.
+      </div>
+      <table class="disc-table" style="margin-top:10px">
+        <thead><tr><th style="width:30%">Label</th><th style="width:35%">Scheme</th><th style="width:25%" data-i18n="mgmt.internalId">ID interno</th><th></th></tr></thead>
+        <tbody id="mgmt-proto-tbody"></tbody>
+      </table>
+    </div>
+    <div class="tool-modal-footer">
+      <button class="toolbar-btn" onclick="_closeMgmtProtoEditor()" data-i18n="common.close">Chiudi</button>
+      <button class="toolbar-btn" onclick="_resetMgmtProtoEditor()"><i class="fas fa-rotate-left"></i> <span data-i18n="mgmt.resetDefault">Ripristina default</span></button>
+      <button class="toolbar-btn primary" onclick="_addMgmtProto()"><i class="fas fa-plus"></i> <span data-i18n="common.add">Aggiungi</span></button>
+    </div>
+  </div>
+</div>
+
+<div id="topodisc-overlay" class="tool-modal-overlay" onclick="if(event.target===this)_closeTopoCrawlOverlayClick()">
+  <div class="tool-modal wide">
+    <div class="tool-modal-header">
+      <h3><i class="fas fa-project-diagram"></i> <span data-i18n="topocrawl.title">Scopri rete da topologia</span></h3>
+      <button class="toolbar-btn" onclick="closeTopoCrawl()" style="padding:4px 8px"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="tool-modal-body">
+      <div class="tm-hint" data-i18n="topocrawl.hint">Inserisci un dispositivo di partenza raggiungibile via SNMP. L'app seguirà i collegamenti LLDP/CDP e mapperà automaticamente tutta la rete connessa.</div>
+      <div class="tm-row">
+        <div class="tm-field" style="width:160px">
+          <label data-i18n="topocrawl.seedIp">IP seme (punto di partenza)</label>
+          <input id="td-seed" placeholder="192.168.1.1">
+        </div>
+        <div class="tm-field" style="width:110px">
+          <label>SNMP</label>
+          <select id="td-driver">
+            <option value="snmp-v2c">SNMPv2c</option>
+            <option value="snmp-v3">SNMPv3</option>
+          </select>
+        </div>
+        <div class="tm-field" style="width:120px">
+          <label>Community</label>
+          <input id="td-community" value="public">
+        </div>
+        <div class="tm-field" style="width:80px">
+          <label data-i18n="topocrawl.maxDepth">Profondità max</label>
+          <input id="td-depth" type="number" value="5" min="1" max="10">
+        </div>
+        <div class="tm-field" style="width:70px">
+          <label data-i18n="topocrawl.timeout">Timeout (s)</label>
+          <input id="td-timeout" type="number" value="3" min="1" max="10">
+        </div>
+      </div>
+      <div id="td-log"></div>
+      <div id="td-results" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <span id="td-summary" style="font-size:0.8rem;font-weight:600"></span>
+          <label style="font-size:0.75rem;color:var(--text-muted);cursor:pointer">
+            <input type="checkbox" id="td-selall" onchange="tdSelectAll(this.checked)" style="margin-right:4px;accent-color:var(--accent)"><span data-i18n="common.selectAllPl">Seleziona tutti</span>
+          </label>
+        </div>
+        <div style="max-height:260px;overflow-y:auto">
+          <table class="disc-table">
+            <thead><tr><th></th><th>IP</th><th>Hostname</th><th data-i18n="common.type">Tipo</th><th data-i18n="common.description">Descrizione</th><th>Hop</th></tr></thead>
+            <tbody id="td-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="tool-modal-footer">
+      <button class="toolbar-btn" onclick="closeTopoCrawl()" data-i18n="common.cancel">Annulla</button>
+      <button class="toolbar-btn" id="td-scan-btn" onclick="runTopoCrawl()"><i class="fas fa-satellite-dish"></i> <span data-i18n="topocrawl.scan">Scopri rete</span></button>
+      <button class="toolbar-btn primary" id="td-import-btn" onclick="importTopoCrawl()" style="display:none"><i class="fas fa-file-import"></i> <span data-i18n="common.importSelected">Importa selezionati</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL DISCOVERY RETE ===== -->
+<div id="disc-overlay" class="tool-modal-overlay" onclick="if(event.target===this)_closeDiscoveryOverlayClick()">
+  <div class="tool-modal wide">
+    <div class="tool-modal-header">
+      <h3><i class="fas fa-satellite-dish"></i> <span data-i18n="disc.title">Scopri dispositivi in rete</span></h3>
+      <button class="toolbar-btn" onclick="closeDiscovery()" style="padding:4px 8px"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="tool-modal-body">
+      <div class="tm-hint" data-i18n="disc.hint">Inserisci un range di rete. Verranno contattati via SNMP tutti gli IP del range e importati quelli che rispondono.</div>
+      <div class="tm-row">
+        <div class="tm-field grow">
+          <label>Subnet / Range</label>
+          <input id="disc-subnet" placeholder="192.168.1.0/24  oppure  192.168.1.1-254" style="width:100%">
+        </div>
+        <div class="tm-field" style="width:120px;min-width:120px">
+          <label>Community</label>
+          <input id="disc-community" value="public">
+        </div>
+        <div class="tm-field timeout">
+          <label>Timeout (s)</label>
+          <input id="disc-timeout" type="number" value="2" min="1" max="10">
+        </div>
+      </div>
+      <div class="disc-opt-row">
+        <label class="disc-opt">
+          <input id="disc-safe-mode" type="checkbox" checked>
+          <span data-i18n="disc.safeMode">Modalità sicura (throttling anti-IDS)</span>
+        </label>
+        <label class="disc-opt disc-opt-deep" data-i18n-tip="disc.deepTip" data-tip="Arricchisce solo gli host candidati con probe TCP su porte comuni. Più lento e più rumoroso.">
+          <input id="disc-deep-scan" type="checkbox" onchange="_saveDeepScanPref(this.checked)">
+          <span data-i18n="disc.deepScan">Scansione profonda TCP</span>
+        </label>
+        <label class="disc-opt">
+          <input id="disc-expand-topology" type="checkbox">
+          <span data-i18n="disc.expand">Espandi via LLDP/CDP (più rumoroso)</span>
+        </label>
+      </div>
+      <div id="disc-progress" class="tm-progress"></div>
+      <div id="disc-results" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <span id="disc-summary" style="font-size:0.8rem;font-weight:600"></span>
+          <label style="font-size:0.75rem;color:var(--text-muted);cursor:pointer">
+            <input type="checkbox" id="disc-selall" onchange="discSelectAll(this.checked)" style="margin-right:4px;accent-color:var(--accent)"><span data-i18n="common.selectAllPl">Seleziona tutti</span>
+          </label>
+        </div>
+        <div id="disc-results-table-wrap">
+          <table class="disc-table">
+            <thead><tr><th></th><th data-i18n="common.status">Stato</th><th data-i18n="common.name">Nome</th><th>IP</th><th>Vendor</th><th>MAC</th><th data-i18n="common.type">Tipo</th></tr></thead>
+            <tbody id="disc-tbody"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:10px;font-size:0.75rem;color:var(--text-muted)">
+          <span data-i18n="disc.rackTarget">Rack di destinazione:</span> <strong id="disc-rack-name">—</strong>
+          <span style="margin-left:8px;opacity:.6" data-i18n="disc.rackTargetNote">(dispositivi rack aggiuntivi al rack corrente)</span>
+        </div>
+      </div>
+    </div>
+    <div class="tool-modal-footer">
+      <button class="toolbar-btn" onclick="closeDiscovery()" data-i18n="common.cancel">Annulla</button>
+      <button class="toolbar-btn" id="disc-scan-btn" onclick="runDiscovery()"><i class="fas fa-search"></i> <span data-i18n="disc.scan">Scansiona</span></button>
+      <button class="toolbar-btn primary" id="disc-import-btn" onclick="importDiscovered()" disabled><i class="fas fa-file-import"></i> <span data-i18n="common.addSelected">Aggiungi selezionati</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL IMPORTA CSV ===== -->
+<div id="csv-overlay" class="tool-modal-overlay" onclick="if(event.target===this)closeCsvImport()">
+  <div class="tool-modal wide">
+    <div class="tool-modal-header">
+      <h3><i class="fas fa-file-csv"></i> <span data-i18n="impexp.importCsv">Importa dispositivi da CSV</span></h3>
+      <button class="toolbar-btn" onclick="closeCsvImport()" style="padding:4px 8px"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="tool-modal-body">
+      <div class="tm-hint">
+        Formato CSV (intestazione obbligatoria):<br>
+        <code style="font-size:0.72rem;opacity:.8">name, hostname, ip, type, rack, rackU, sizeU, ports</code><br>
+        Campi obbligatori: <strong>name</strong>, <strong>type</strong>. Tutti gli altri sono facoltativi.<br>
+        Tipi validi: switch · router · firewall · server · nas · kvm · ups · pdu · ats · patchpanel · ap · wallport · webcam · tv · iot · pc · customfloor · customrack
+      </div>
+      <div class="tm-row" style="gap:8px;margin-bottom:8px">
+        <button class="toolbar-btn" onclick="document.getElementById('csv-file').click()"><i class="fas fa-folder-open"></i> Scegli file</button>
+        <input type="file" id="csv-file" accept=".csv,.txt" style="display:none" onchange="loadCsvFile(this)">
+        <span style="font-size:0.75rem;color:var(--text-muted);align-self:center">oppure incolla il testo qui sotto</span>
+      </div>
+      <textarea id="csv-textarea" rows="7"
+        placeholder="name,hostname,ip,type,rack,rackU,sizeU,ports&#10;Switch-01,,192.168.1.1,switch,Rack A,,,24&#10;Server-02,,192.168.1.10,server,Rack A,,,4"
+        style="width:100%;background:#0d1117;border:1px solid var(--panel-border);color:var(--text-main);padding:8px;border-radius:5px;font-family:monospace;font-size:0.78rem;resize:vertical"
+        oninput="previewCsv()"></textarea>
+      <div id="csv-preview" style="margin-top:10px;display:none">
+        <div style="font-size:0.75rem;font-weight:600;margin-bottom:6px;color:var(--text-muted)">ANTEPRIMA</div>
+        <div style="max-height:200px;overflow-y:auto">
+          <table class="disc-table" id="csv-preview-table"></table>
+        </div>
+        <div id="csv-errors" style="margin-top:6px;font-size:0.75rem;color:var(--fault-color)"></div>
+      </div>
+    </div>
+    <div class="tool-modal-footer">
+      <button class="toolbar-btn" onclick="closeCsvImport()" data-i18n="common.cancel">Annulla</button>
+      <button class="toolbar-btn primary" id="csv-import-btn" onclick="importCsvNodes()" disabled><i class="fas fa-file-import"></i> <span data-i18n="common.import">Importa</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- PDF export options -->
+<div id="pdf-export-overlay" class="tool-modal-overlay" onclick="if(event.target===this)closePdfExportOptions()">
+  <div class="tool-modal" style="width:520px;max-width:96vw">
+    <div class="tool-modal-header">
+      <h3><i class="fas fa-file-pdf"></i> <span data-i18n="pdf.title">Opzioni export PDF</span></h3>
+      <button class="toolbar-btn" onclick="closePdfExportOptions()" style="padding:4px 8px"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="tool-modal-body">
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-bottom:10px">
+        <button class="toolbar-btn" style="padding:3px 8px;font-size:0.75rem" onclick="setPdfExportAll(true)" data-i18n="common.selectAll">Seleziona tutto</button>
+        <button class="toolbar-btn" style="padding:3px 8px;font-size:0.75rem" onclick="setPdfExportAll(false)" data-i18n="common.deselectAll">Deseleziona tutto</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-plan" checked onchange="syncPdfExportUi()"> <span data-i18n="pdf.plan">Planimetria (pagina 1)</span></label>
+        <label style="display:flex;align-items:center;gap:8px;padding-left:22px;opacity:.95"><input type="checkbox" id="pdfopt-bg" checked> <span data-i18n="pdf.bg">Include immagine di sfondo planimetria</span></label>
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-inventory" checked> <span data-i18n="pdf.inventory">Inventario cavi</span></label>
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-asbuilt" checked> <span data-i18n="pdf.asbuilt">Tracciato cablaggio (As-Built)</span></label>
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-racks" checked> <span data-i18n="pdf.racks">Vista rack</span></label>
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-ports" checked> <span data-i18n="pdf.ports">Assegnazione porte</span></label>
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-vlans" checked> <span data-i18n="pdf.vlans">Sommario VLAN</span></label>
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-topology" checked> <span data-i18n="pdf.topology">Topologia LLDP/CDP</span></label>
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-spare" checked> <span data-i18n="pdf.spare">Porte libere (capacità per rack)</span></label>
+      </div>
+      <div id="pdfopt-hint" style="margin-top:12px;font-size:0.76rem;color:var(--text-muted)"></div>
+    </div>
+    <div class="tool-modal-footer">
+      <button class="toolbar-btn" onclick="closePdfExportOptions()" data-i18n="common.cancel">Annulla</button>
+      <button class="toolbar-btn primary" onclick="confirmPdfExport()"><i class="fas fa-file-export"></i> <span data-i18n="common.export">Esporta</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- Cable-label export options -->
+<div id="label-export-overlay" class="tool-modal-overlay" onclick="if(event.target===this)closeLabelExportOptions()">
+  <div class="tool-modal" style="width:520px;max-width:96vw">
+    <div class="tool-modal-header">
+      <h3><i class="fas fa-tags"></i> <span data-i18n="lbl.title">Esporta etichette cavi</span></h3>
+      <button class="toolbar-btn" onclick="closeLabelExportOptions()" style="padding:4px 8px"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="tool-modal-body">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <label style="display:flex;flex-direction:column;gap:4px">
+          <span style="font-size:0.8rem;font-weight:600" data-i18n="lbl.format">Formato</span>
+          <select id="lblexp-format" onchange="syncLabelExportUi()" style="padding:6px">
+            <option value="csv">CSV (mail-merge: Avery Design&amp;Print / Dymo Connect / Word)</option>
+            <option value="avery-l7651">PDF — Avery L7651 (A4, 65/foglio, 38×21mm)</option>
+            <option value="avery-22806">PDF — Avery 22806 (Letter, 12/foglio, quadrata)</option>
+            <option value="dymo-99010">PDF — Dymo 99010 (LabelWriter, 89×28mm)</option>
+            <option value="dymo-11353">PDF — Dymo 11353 (LabelWriter, 25×13mm)</option>
+            <option value="generic-grid">PDF — Griglia generica (configurabile)</option>
+          </select>
+        </label>
+
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <span style="font-size:0.8rem;font-weight:600" data-i18n="lbl.fields">Campi da esportare</span>
+          <div id="lblexp-fields" style="display:grid;grid-template-columns:1fr 1fr;gap:4px 14px"></div>
+        </div>
+
+        <label id="lblexp-wrap-row" style="display:flex;align-items:center;gap:8px">
+          <input type="checkbox" id="lblexp-wrap" onchange="syncLabelExportUi()"> <span data-i18n="lbl.wrap">Etichetta a bandierina (ID ripetuto, leggibile avvolgendo il cavo)</span>
+        </label>
+
+        <div id="lblexp-grid" style="display:none;flex-direction:column;gap:6px;border-top:1px solid var(--panel-border);padding-top:10px">
+          <span style="font-size:0.8rem;font-weight:600" data-i18n="lbl.gridTitle">Griglia generica (mm)</span>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
+            <label style="font-size:0.72rem">colonne<input type="number" id="lblg-cols" value="4" min="1" style="width:100%" oninput="syncLabelExportUi()"></label>
+            <label style="font-size:0.72rem">righe<input type="number" id="lblg-rows" value="10" min="1" style="width:100%" oninput="syncLabelExportUi()"></label>
+            <label style="font-size:0.72rem">largh. et.<input type="number" id="lblg-labelW" value="48" min="1" style="width:100%" oninput="syncLabelExportUi()"></label>
+            <label style="font-size:0.72rem">alt. et.<input type="number" id="lblg-labelH" value="25" min="1" style="width:100%" oninput="syncLabelExportUi()"></label>
+            <label style="font-size:0.72rem">marg. sx<input type="number" id="lblg-marginLeft" value="8" min="0" style="width:100%"></label>
+            <label style="font-size:0.72rem">marg. alto<input type="number" id="lblg-marginTop" value="12" min="0" style="width:100%"></label>
+            <label style="font-size:0.72rem">passo X<input type="number" id="lblg-pitchX" value="49" min="1" style="width:100%"></label>
+            <label style="font-size:0.72rem">passo Y<input type="number" id="lblg-pitchY" value="27" min="1" style="width:100%"></label>
+          </div>
+        </div>
+
+        <div id="lblexp-preview" style="border-top:1px solid var(--panel-border);padding-top:10px"></div>
+      </div>
+      <div id="lblexp-hint" style="margin-top:12px;font-size:0.76rem;color:var(--text-muted)"></div>
+    </div>
+    <div class="tool-modal-footer">
+      <button class="toolbar-btn" onclick="closeLabelExportOptions()" data-i18n="common.cancel">Annulla</button>
+      <button class="toolbar-btn primary" onclick="confirmLabelExport()"><i class="fas fa-file-export"></i> <span data-i18n="common.export">Esporta</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- Shared segment bind existing device -->
+<div id="shared-bind-overlay" class="tool-modal-overlay" onclick="if(event.target===this)_closeSharedSegmentBind()">
+  <div class="tool-modal" style="width:620px;max-width:96vw">
+    <div class="tool-modal-header">
+      <h3 id="shared-bind-title"><i class="fas fa-link"></i> Collega a dispositivo esistente</h3>
+      <button class="toolbar-btn" onclick="_closeSharedSegmentBind()" style="padding:4px 8px"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="shared-bind-body" class="tool-modal-body"></div>
+    <div class="tool-modal-footer">
+      <button class="toolbar-btn" id="shared-bind-back" onclick="_backSharedSegmentBind()" style="display:none"><i class="fas fa-arrow-left"></i> <span data-i18n="common.back">Indietro</span></button>
+      <button class="toolbar-btn primary" onclick="_closeSharedSegmentBind()" data-i18n="common.close">Chiudi</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="map-upload"  accept="image/*,.svg" onchange="handleMapUpload(this)">
+    <input type="file" id="json-upload" accept=".json"        onchange="importJSON(this)">
+    <div class="header-right">
+        <button class="toolbar-btn" id="btn-discover" onclick="openDiscovery()"
+                data-i18n-tip="discover.tip"
+                data-tip="Scansiona la rete via SNMP, poi espande automaticamente via LLDP/CDP">
+            <i class="fas fa-satellite-dish"></i><span class="btn-label" data-i18n="discover.label"> Scopri</span>
+        </button>
+        <span style="width:1px;height:18px;background:var(--panel-border);opacity:.5;flex-shrink:0;align-self:center"></span>
+        <button class="toolbar-btn" id="btn-snmp-sync" onclick="pollAllSNMP()"
+                data-i18n-tip="sync.tip"
+                data-tip="Aggiorna porte, VLAN, stato e topologia da tutti i dispositivi SNMP del progetto">
+            <span id="snmp-sync-label"><i class="fas fa-network-wired"></i> Sync</span><span id="sync-fresh-badge" class="sync-fresh-badge" style="display:none"></span>
+        </button>
+        <button class="toolbar-btn primary" id="btn-drift" onclick="runDriftCheck()"
+                data-i18n-tip="verify.tip"
+                data-tip="Controllo del mattino: esegue il Sync e verifica la presenza reale (ping/ARP/TCP), evidenziando differenze e cambi IP">
+            <i class="fas fa-clipboard-check"></i><span class="btn-label" data-i18n="verify.label"> Verifica</span>
+        </button>
+        <div id="report-menu-wrap" style="position:relative">
+            <button class="toolbar-btn icon-only" id="btn-report" onclick="toggleReportMenu()" data-i18n-tip="report.tip" data-tip="Report e analisi: storia modifiche, porte libere, mappa L3, coerenza VLAN">
+                <i class="fas fa-chart-column"></i><span class="btn-label" data-i18n="report.label"> Report</span><i class="fas fa-chevron-down" style="font-size:0.6rem;margin-left:4px;opacity:.6"></i>
+            </button>
+            <div id="report-dropdown" class="header-menu-dropdown" style="display:none">
+                <button class="header-menu-item" id="btn-audit" onclick="openAuditLog();closeReportMenu()">
+                    <i class="fas fa-clock-rotate-left"></i> <span data-i18n="report.audit">Storia modifiche</span>
+                </button>
+                <button class="header-menu-item" id="btn-spare" onclick="openSpareReport();closeReportMenu()">
+                    <i class="fas fa-plug-circle-plus"></i> <span data-i18n="report.spare">Porte libere</span>
+                </button>
+                <button class="header-menu-item" id="btn-l3" onclick="openL3Report()">
+                    <i class="fas fa-route"></i> <span data-i18n="report.l3">Mappa L3 / Gateway</span>
+                </button>
+                <button class="header-menu-item" id="btn-wifivlan" onclick="openWifiVlanReport();closeReportMenu()">
+                    <i class="fas fa-wifi"></i> <span data-i18n="report.wifiVlan">Coerenza VLAN wireless</span>
+                </button>
+            </div>
+        </div>
+        <span style="width:1px;height:18px;background:var(--panel-border);opacity:.5;flex-shrink:0;align-self:center"></span>
+        <div id="automation-menu-wrap" style="position:relative">
+            <button class="toolbar-btn icon-only" id="btn-automation" onclick="toggleAutomationMenu()" data-i18n-tip="autom.tip" data-tip="Automazioni di rete: polling SNMP in background e rinnovo automatico IP (DHCP)">
+                <i class="fas fa-gear"></i><span class="btn-label" data-i18n="autom.label"> Automazioni</span><i class="fas fa-chevron-down" style="font-size:0.6rem;margin-left:4px;opacity:.6"></i>
+            </button>
+            <div id="automation-dropdown" class="header-menu-dropdown autom-pop" style="display:none"></div>
+        </div>
+        <div id="status-cluster" class="status-cluster">
+            <button class="status-chip s-warn" id="v3-pending-chip" onclick="_v3JumpNext()" data-tip="Device SNMPv3 da configurare — clic per saltare al prossimo"></button>
+            <button class="status-chip s-info" id="spare-active-badge" onclick="setSpareHighlight(false)" data-i18n-tip="spare.badgeTip" data-tip="Porte libere evidenziate nel rack — clicca per spegnere">
+                <i class="fas fa-plug-circle-plus"></i><span data-i18n="report.spare">Porte libere</span><i class="fas fa-times chip-x"></i>
+            </button>
+            <button class="status-chip s-ok" id="autopoll-badge" onclick="toggleAutomationMenu()" data-i18n-tip="autopoll.tip" data-tip="Polling automatico attivo — clic per le automazioni"></button>
+            <button class="status-chip s-info" id="vlan-filter-badge" onclick="setVlanFilter(null)" data-i18n-tip="vlanfilter.tip" data-tip="Filtro VLAN attivo — clicca per rimuovere">
+                <i class="fas fa-filter"></i><span></span><i class="fas fa-times chip-x"></i>
+            </button>
+        </div>
+        <div class="header-sep"></div>
+        <!-- Badge utente + menu (la lingua vive dentro questo menu) -->
+        <div id="user-menu-wrap" style="position:relative">
+            <button class="toolbar-btn" id="btn-user" onclick="toggleUserMenu()" data-i18n-tip="user.tipAccount" data-tip="Account">
+                <i class="fas fa-user-circle"></i>
+                <span id="user-label" style="margin-left:5px;font-size:0.8rem">…</span>
+                <i class="fas fa-chevron-down" style="font-size:0.65rem;margin-left:4px;opacity:.6"></i>
+            </button>
+            <div id="user-dropdown" style="display:none;position:absolute;right:0;top:calc(100% + 6px);background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:8px;min-width:180px;z-index:500;box-shadow:0 8px 24px rgba(0,0,0,.5);padding:6px 0;">
+                <div id="user-info-row" style="padding:8px 14px 6px;font-size:0.85rem;color:var(--text-muted);border-bottom:1px solid var(--panel-border);margin-bottom:4px;"></div>
+                <button class="user-menu-item admin-only" onclick="openUserManager();closeUserMenu()">
+                    <i class="fas fa-users-cog"></i> <span data-i18n="user.manage">Gestione utenti</span>
+                </button>
+                <button class="user-menu-item admin-only" onclick="openChangePassword();closeUserMenu()">
+                    <i class="fas fa-key"></i> <span data-i18n="user.changePw">Cambia password</span>
+                </button>
+                <button class="user-menu-item viewer-ok" onclick="openChangePassword();closeUserMenu()" style="display:none">
+                    <i class="fas fa-key"></i> <span data-i18n="user.changePw">Cambia password</span>
+                </button>
+                <div style="border-top:1px solid var(--panel-border);margin:4px 0"></div>
+                <div class="user-menu-lang">
+                    <span style="font-size:0.85rem;color:var(--text-muted)"><i class="fas fa-language" style="margin-right:6px;opacity:.8"></i><span data-i18n="user.language">Lingua</span></span>
+                    <span class="lang-opts">
+                        <button class="lang-opt" data-lang="it" onclick="switchLang('it')">IT</button>
+                        <button class="lang-opt" data-lang="en" onclick="switchLang('en')">EN</button>
+                    </span>
+                </div>
+                <div style="border-top:1px solid var(--panel-border);margin:4px 0"></div>
+                <button class="user-menu-item" onclick="doLogout()" style="color:#f85149">
+                    <i class="fas fa-sign-out-alt"></i> <span data-i18n="user.logout">Esci</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</header>
+
+<div id="workspace">
+    <div id="export-area">
+        <aside id="sidebar-left">
+            <div class="sidebar-section" style="flex:1;overflow-y:auto">
+                <div class="sidebar-palette-head">
+                    <h3 class="sidebar-title" data-i18n="palette.title">Libreria elementi</h3>
+                    <div class="sidebar-palette-actions">
+                        <button type="button" class="sidebar-mini-btn" onclick="setPaletteGroupsExpanded(true)" data-i18n-tip="palette.expandAll" data-tip="Espandi tutte le sezioni"><i class="fas fa-angles-down"></i></button>
+                        <button type="button" class="sidebar-mini-btn" onclick="setPaletteGroupsExpanded(false)" data-i18n-tip="palette.collapseAll" data-tip="Comprimi tutte le sezioni"><i class="fas fa-angles-up"></i></button>
+                    </div>
+                </div>
+                <div class="sidebar-search-wrap">
+                    <i class="fas fa-magnifying-glass"></i>
+                    <input id="palette-search" type="text" data-i18n-ph="palette.search" placeholder="Cerca elemento..." oninput="filterPaletteItems(this.value)">
+                    <button id="palette-search-clear" type="button" class="sidebar-search-clear" onclick="clearPaletteFilter()" data-i18n-tip="palette.clearSearch" data-tip="Pulisci ricerca">
+                        <i class="fas fa-xmark"></i>
+                    </button>
+                </div>
+
+                <section class="palette-group" data-palette-group="ambienti">
+                    <button type="button" class="palette-group-head" onclick="togglePaletteGroup('ambienti')" aria-expanded="true">
+                        <span><i class="far fa-square"></i> <span data-i18n="pgroup.ambienti">Ambienti</span></span>
+                        <i class="fas fa-chevron-down palette-group-chevron"></i>
+                    </button>
+                    <div class="palette-group-body">
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="room"><i class="far fa-square"></i> <span data-i18n="dev.room">Stanza / Area</span></div>
+                    </div>
+                </section>
+
+                <section class="palette-group" data-palette-group="floor_net">
+                    <button type="button" class="palette-group-head" onclick="togglePaletteGroup('floor_net')" aria-expanded="true">
+                        <span><i class="fas fa-diagram-project"></i> <span data-i18n="pgroup.floor_net">Planimetria · Rete</span></span>
+                        <i class="fas fa-chevron-down palette-group-chevron"></i>
+                    </button>
+                    <div class="palette-group-body">
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="wallport"><i class="fas fa-ethernet"></i> <span data-i18n="dev.wallport">Presa a muro</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="ap"><i class="fas fa-wifi"></i> <span data-i18n="dev.ap">Access Point</span></div>
+                    </div>
+                </section>
+
+                <section class="palette-group" data-palette-group="floor_endpoints">
+                    <button type="button" class="palette-group-head" onclick="togglePaletteGroup('floor_endpoints')" aria-expanded="true">
+                        <span><i class="fas fa-laptop"></i> <span data-i18n="pgroup.floor_endpoints">Planimetria · Endpoint</span></span>
+                        <i class="fas fa-chevron-down palette-group-chevron"></i>
+                    </button>
+                    <div class="palette-group-body">
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="webcam"><i class="fas fa-video"></i> <span data-i18n="dev.webcam">Webcam / CCTV</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="printer"><i class="fas fa-print"></i> <span data-i18n="dev.printer">Stampante di rete</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="voip"><i class="fas fa-phone"></i> <span data-i18n="dev.voip">Telefono VoIP</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="badgereader"><i class="fas fa-id-card"></i> <span data-i18n="dev.badgereader">Lettore badge</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="pc"><i class="fas fa-desktop"></i> <span data-i18n="dev.pc">PC / Workstation</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="mobile"><i class="fas fa-mobile-screen-button"></i> <span data-i18n="dev.mobile">Smartphone / Tablet</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="iot"><i class="fas fa-microchip"></i> <span data-i18n="dev.iot">Dispositivo IoT</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="projector"><i class="fas fa-chalkboard"></i> <span data-i18n="dev.projector">Proiettore</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="tv"><i class="fas fa-tv"></i> <span data-i18n="dev.tv">Smart TV / Media Player</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="doorctrl"><i class="fas fa-door-open"></i> <span data-i18n="dev.doorctrl">Door Controller</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="panelboard"><i class="fas fa-bolt"></i> <span data-i18n="dev.panelboard">Quadro elettrico</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="homelab"><i class="fas fa-cubes"></i> <span data-i18n="dev.homelab">Mini-server</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="nasdesktop"><i class="fas fa-hard-drive"></i> <span data-i18n="dev.nasdesktop">NAS (desktop)</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="customfloor"><i class="fas fa-cube"></i> <span data-i18n="dev.customfloor">Endpoint personalizzato</span></div>
+                    </div>
+                </section>
+
+                <section class="palette-group" data-palette-group="rack_passive">
+                    <button type="button" class="palette-group-head" onclick="togglePaletteGroup('rack_passive')" aria-expanded="true">
+                        <span><i class="fas fa-layer-group"></i> <span data-i18n="pgroup.rack_passive">Rack · Passivi</span></span>
+                        <i class="fas fa-chevron-down palette-group-chevron"></i>
+                    </button>
+                    <div class="palette-group-body">
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="patchpanel"><i class="fas fa-bars"></i> <span data-i18n="dev.patchpanel">Patch Panel (2U)</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="blankpanel"><i class="fas fa-minus"></i> <span data-i18n="dev.blankpanel">Pannello vuoto (1U)</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="cablemanager"><i class="fas fa-grip-lines"></i> <span data-i18n="dev.cablemanager">Passacavo (1U)</span></div>
+                    </div>
+                </section>
+
+                <section class="palette-group" data-palette-group="rack_active">
+                    <button type="button" class="palette-group-head" onclick="togglePaletteGroup('rack_active')" aria-expanded="true">
+                        <span><i class="fas fa-server"></i> <span data-i18n="pgroup.rack_active">Rack · Attivi</span></span>
+                        <i class="fas fa-chevron-down palette-group-chevron"></i>
+                    </button>
+                    <div class="palette-group-body">
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="switch"><i class="fas fa-network-wired"></i> <span data-i18n="dev.switch">Switch</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="router"><i class="fas fa-route"></i> <span data-i18n="dev.router">Router</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="firewall"><i class="fas fa-shield-halved"></i> <span data-i18n="dev.firewall">Firewall</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="server"><i class="fas fa-server"></i> <span data-i18n="dev.server">Server</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="hypervisor"><i class="fas fa-layer-group"></i> <span data-i18n="dev.hypervisor">Hypervisor</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="nas"><i class="fas fa-database"></i> <span data-i18n="dev.nas">Storage (SAN / RAID)</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="kvm"><i class="fas fa-keyboard"></i> <span data-i18n="dev.kvm">KVM Switch</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="ups"><i class="fas fa-car-battery"></i> <span data-i18n="dev.ups">UPS</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="pdu"><i class="fas fa-plug"></i> <span data-i18n="dev.pdu">PDU</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="ats"><i class="fas fa-shuffle"></i> <span data-i18n="dev.ats">ATS — Transfer Switch</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="pbx"><i class="fas fa-phone-volume"></i> <span data-i18n="dev.pbx">Centralino VoIP</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="consolesvr"><i class="fas fa-terminal"></i> <span data-i18n="dev.consolesvr">Console Server</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="wlanctrl"><i class="fas fa-wifi"></i> <span data-i18n="dev.wlanctrl">WLAN Controller</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="mediaconv"><i class="fas fa-right-left"></i> <span data-i18n="dev.mediaconv">Media Converter</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="nvr"><i class="fas fa-record-vinyl"></i> <span data-i18n="dev.nvr">NVR / Videosorveglianza (2U)</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="sdwan"><i class="fas fa-cloud-bolt"></i> <span data-i18n="dev.sdwan">SD-WAN Edge</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="vpncon"><i class="fas fa-key"></i> <span data-i18n="dev.vpncon">VPN Concentrator</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="customrack"><i class="fas fa-cube"></i> <span data-i18n="dev.customrack">Dispositivo rack generico</span></div>
+                    </div>
+                </section>
+            </div>
+        </aside>
+
+        <div id="sidebar-divider" data-tip="Trascina per ridimensionare · Clic per nascondere/mostrare palette">
+            <div id="sidebar-collapse-btn" onclick="toggleSidebarPanel()" data-tip="Nascondi/mostra palette">
+                <i class="fas fa-chevron-left" id="sidebar-collapse-icon"></i>
+            </div>
+        </div>
+
+        <main id="floorplan" ondragover="event.preventDefault();" ondrop="handleDrop(event,'floor')" onwheel="handleFloorZoom(event)">
+            <div class="zoom-controls" style="left:14px;right:auto">
+                <button class="zoom-btn" onclick="zoomFloor(-0.1)"><i class="fas fa-minus"></i></button>
+                <span class="zoom-label" id="floor-zoom-lbl">100%</span>
+                <button class="zoom-btn" onclick="zoomFloor(0.1)"><i class="fas fa-plus"></i></button>
+            </div>
+            <div id="floor-canvas">
+                <img id="floor-bg-img" src="" alt="mappa">
+                <div id="floorplan-grid"></div>
+                <div id="floor-structures"></div>
+                <div id="floor-items"></div>
+                <svg id="topo-floor-overlay" xmlns="http://www.w3.org/2000/svg"></svg>
+            </div>
+            <!-- Barra controlli-vista mappa: posizionata DIRETTAMENTE in #floorplan
+                 (viewport fissa) e NON in #floor-canvas (zoomato/trascinato).
+                 Raccoglie i controlli "come guardo la mappa": il toggle Topologia
+                 (#btn-topology, stato gestito da _setTopoBtn) e, separato da |, il
+                 Filtra VLAN (#topo-legend, contenuto da _renderTopoLegend). -->
+            <div id="map-view-bar">
+                <div id="topo-legend"></div>
+                <span id="map-view-sep"></span>
+                <button class="toolbar-btn" id="btn-topology" onclick="toggleTopology()" oncontextmenu="event.preventDefault();discoverTopology(true)"
+                        data-i18n-tip="topology.tip"
+                        data-tip="Vista: mostra i collegamenti LLDP/CDP sulla planimetria · tasto destro per aggiornare">
+                    <i class="fas fa-project-diagram"></i><span class="btn-label" data-i18n="topology.label"> Topologia</span>
+                </button>
+            </div>
+        </main>
+
+        <div id="floor-rack-divider" data-tip="Trascina per ridimensionare · Clic per nascondere/mostrare rack">
+            <div id="rack-collapse-btn" onclick="toggleRackPanel()" data-tip="Nascondi/mostra rack">
+                <i class="fas fa-chevron-right" id="rack-collapse-icon"></i>
+            </div>
+        </div>
+
+        <aside id="rack-view" ondragover="event.preventDefault();" ondrop="handleDrop(event,'rack')">
+            <!-- Tab bar: Rack / Proprietà -->
+            <div id="right-tab-bar">
+                <div class="right-tab active" id="tab-rack" onclick="switchRightTab('rack')">
+                    <i class="fas fa-server" style="font-size:0.75rem"></i> <span data-i18n="tab.rack">Rack</span>
+                </div>
+                <div class="right-tab" id="tab-props" onclick="switchRightTab('props')">
+                    <i class="fas fa-sliders" style="font-size:0.75rem"></i> <span data-i18n="tab.props">Proprietà</span>
+                    <span class="tab-badge" id="props-tab-badge"></span>
+                </div>
+            </div>
+
+            <!-- Pannello Proprietà (nascosto di default) -->
+            <div id="props-panel-wrap">
+                <div id="props-panel"><p style="color:var(--text-muted);font-size:0.82rem">Seleziona un elemento per modificarne le proprietà.</p></div>
+            </div>
+
+            <div id="rack-viewport" onwheel="handleRackZoom(event)" onscroll="renderCables()">
+                <div class="rack-header rack-header-floating">
+                    <select id="rack-select" onchange="switchRack(this.value)"></select>
+                    <div id="rack-menu-wrap" style="position:relative">
+                        <button class="toolbar-btn" id="rack-menu-btn" style="margin:0;padding:3px 9px" onclick="toggleRackMenu()" data-tip="Gestione rack">
+                            <i class="fas fa-server"></i> Rack <i class="fas fa-chevron-down" style="font-size:0.62rem;opacity:.7;margin-left:4px"></i>
+                        </button>
+                        <div id="rack-menu-dropdown" class="rack-menu-dropdown" style="display:none">
+                            <button class="rack-menu-item" onclick="addRack();closeRackMenu()"><i class="fas fa-plus"></i> <span data-i18n="rack.new">Nuovo rack</span></button>
+                            <button class="rack-menu-item" onclick="renameRack();closeRackMenu()"><i class="fas fa-pen"></i> <span data-i18n="rack.rename">Rinomina rack</span></button>
+                            <div class="rack-menu-size-row">
+                                <span data-i18n="rack.size">Dimensione</span>
+                                <label class="rack-size-control">U <input id="rack-size-input" type="number" min="6" max="60" value="42" onchange="updateRackSize(this.value)"></label>
+                            </div>
+                            <button class="rack-menu-item" id="btn-rack-floor" onclick="toggleRackOnFloor();closeRackMenu()" data-i18n-tip="rack.onFloorTip" data-tip="Piazza/rimuovi questo rack dalla planimetria"><i class="fas fa-map-pin"></i> <span data-i18n="rack.onFloor">Piazza su planimetria</span></button>
+                            <button class="rack-menu-item" id="btn-rack-unum" onclick="toggleRackUNumbering();closeRackMenu()" data-i18n-tip="rack.uNumTip" data-tip="Inverte solo la visualizzazione: 1 in alto come nei rack telco/ETSI"><i class="fas fa-arrows-up-down"></i> <span id="btn-rack-unum-label" data-i18n="rack.uNumFromTop">Numerazione U dall'alto</span></button>
+                            <button class="rack-menu-item danger" onclick="deleteCurrentRack();closeRackMenu()"><i class="fas fa-trash"></i> <span data-i18n="rack.delete">Elimina rack</span></button>
+                        </div>
+                    </div>
+                </div>
+                <svg id="rack-cable-overlay"><path id="temp-link-rack" d=""></path></svg>
+                <div id="cross-rack-banner"></div>
+                <div id="lag-sel-banner"></div>
+                <div class="zoom-controls">
+                    <button class="zoom-btn" onclick="zoomRack(-0.1)"><i class="fas fa-minus"></i></button>
+                    <span class="zoom-label" id="rack-zoom-lbl">100%</span>
+                    <button class="zoom-btn" onclick="zoomRack(0.1)"><i class="fas fa-plus"></i></button>
+                </div>
+                <div id="rack-chassis-wrap">
+                    <div id="rack-ruler"></div>
+                    <div class="rack-chassis" id="rack-chassis"></div>
+                </div>
+            </div>
+        </aside>
+
+        <svg id="cable-overlay"><path id="temp-link" d=""></path></svg>
+    </div>
+</div>
+
+<div id="popup"></div>
+
+<!-- Modal -->
+<div id="modal-overlay">
+    <div id="modal-box">
+        <p id="modal-msg"></p>
+        <input id="modal-input" type="text" autocomplete="off">
+        <div id="modal-actions">
+            <button id="modal-cancel" class="toolbar-btn"         onclick="modalResolve(false)" data-i18n="common.cancel">Annulla</button>
+            <button id="modal-ok"     class="toolbar-btn primary" onclick="modalResolve(true)">OK</button>
+        </div>
+    </div>
+</div>
+
+<!-- VLAN membership modal -->
+<div id="vlan-members-overlay" class="tool-modal-overlay" onclick="if(event.target===this)closeVlanMembers()" style="display:none">
+  <div class="tool-modal" style="width:480px;max-height:80vh">
+    <div class="tool-modal-header um-header">
+      <h3 id="vm-title"><i class="fas fa-layer-group"></i>Membership VLAN</h3>
+      <button class="toolbar-btn" onclick="closeVlanMembers()" style="padding:4px 8px"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="vm-body" class="tool-modal-body"></div>
+    <div class="tool-modal-footer">
+      <button id="vm-btn-filter" class="um-btn primary"></button>
+      <button class="um-btn ghost" onclick="closeVlanMembers()"><i class="fas fa-times"></i> <span data-i18n="common.close">Chiudi</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- Server offline banner -->
+<div id="conn-banner">
+    <i class="fas fa-triangle-exclamation"></i>
+    Server non raggiungibile — avvia <code>avvia.bat</code> e ricarica la pagina.
+</div>
+
+<script src="/lib/i18n.js"></script>
+<script src="/lib/cidr.js"></script>
+<script src="/lib/netnames.js"></script>
+<script src="/lib/name-abbrev.js"></script>
+<script src="/lib/linkstate.js"></script>
+<script src="/lib/cabling.js"></script>
+<script src="/lib/topo-lines.js"></script>
+<script src="/lib/cable-labels.js"></script>
+<script src="/lib/cable-validate.js"></script>
+<script src="/lib/correlate.js"></script>
+<script src="/lib/discovery-history.js"></script>
+<script src="/lib/frontpanel.js"></script>
+<script src="/lib/stack.js"></script>
+<script src="/lib/ha-pair.js"></script>
+<script src="/lib/mac-class.js"></script>
+<script src="/lib/spare-ports.js"></script>
+<script src="/lib/l3-gateway.js"></script>
+<script src="/lib/wave-path.js"></script>
+<script src="/lib/wifi-spec.js"></script>
+<script src="/lib/radio.js"></script>
+<script src="/lib/vlan-trunk.js"></script>
+<script src="/lib/wifi-vlan-check.js"></script>
+<script src="/lib/panel-skin.js"></script>
+<script src="/lib/power-mib.js"></script>
+<script src="/lib/drift-report.js"></script>
+<script src="/lib/update-summary.js"></script>
+<script src="/lib/drift-adopt.js"></script>
+<script src="/lib/audit-log.js"></script>
+<script src="/lib/handoff.js"></script>
+<script src="/export.js"></script>
+<!-- Bundle esbuild dei moduli glue migrati a ESM (vedi build.js / src/main.js).
+     Caricato per ULTIMO: i globali legacy esistono già; i moduli convertiti li
+     leggono via window e ri-pubblicano la propria API (es. app-audit). -->
+<script src="/dist/app.bundle.js"></script>
+</body>
+</html>
