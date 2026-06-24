@@ -1,0 +1,128 @@
+/* ============================================================
+   InfraNet Pro — styles/01-tokens.css
+   Design tokens (:root) — colori, superfici, ombre, tipografia, + skeletro tema chiaro
+   Generato dallo split di style.css (ordine cascata preservato).
+   ============================================================ */
+        :root {
+            color-scheme: dark;   /* controlli nativi (scrollbar/date/autofill/caret) scuri */
+            --bg-color: #0d1117; --panel-bg: #1e2733; --panel-border: #30363d;
+            --text-main: #c9d1d9; --text-muted: #8b949e; --accent: #00d4ff;
+            --active-color: #39d353; --fault-color: #f85149; --inactive-color: #6e7681; --idle-color: #f5a623;
+            --rack-bg: #969696; --rack-metal: linear-gradient(180deg, #4a4a4a, #2b2b2b);
+
+            /* ---- TOKEN SEMANTICI DI SUPERFICIE ----
+               App DARK-ONLY (il tema chiaro e' stato rimosso: era un retrofit
+               fragile, vedi MEMORIA). Questi token restano come buona igiene:
+               per ogni colore "di superficie" (sfondi pannelli/righe/hover,
+               separatori, ombre, tint accent/danger) usa SEMPRE un token, NON un
+               colore hardcoded. Cosi' un eventuale tema chiaro FUTURO si fa
+               "a regole": basta aggiungere un blocco `[data-theme=light] { ... }`
+               che ridefinisce SOLO questi valori — niente piu' retrofit da 500
+               colori. (Accent/VLAN/stato-porta vivaci NON sono superfici.) */
+            --surface-1:     #1e2733;             /* pannelli, menu, dropdown (= panel-bg) */
+            --surface-2:     #161b22;             /* superficie rialzata: righe, equip-item, code */
+            --surface-hover: #243140;             /* hover su superficie */
+            --hairline:      rgba(255,255,255,.08); /* separatori/bordi sottili interni */
+            --accent-soft:   rgba(0,212,255,.12);  /* tint dell'accent ciano (selezione/hover tenui) */
+            --danger-soft:   rgba(248,81,73,.12);  /* tint azione distruttiva */
+            --shadow-sm:     0 1px 3px rgba(0,0,0,.35);
+            --shadow-md:     0 1px 4px rgba(0,0,0,.40);
+            --shadow-lg:     0 8px 24px rgba(0,0,0,.50);
+
+            /* ---- TIPOGRAFIA — scala 6 step (base 16px del browser) ----
+               GUIDA: per ogni testo nuovo usa SEMPRE uno di questi token.
+               Outlier deliberati ammessi: 0.48rem/0.5rem (solo .rack-label fisica). */
+            --fs-xs:  0.75rem;  /* ~12 px — hint, helper text, badge minuscoli, footer */
+            --fs-sm:  0.82rem;  /* ~13 px — label uppercase, controlli compatti, secondari */
+            --fs-md:  0.9rem;   /* ~14.5 px — body UI: bottoni, input, popup, properties */
+            --fs-lg:  1rem;     /* 16 px — titoli accordion, h3 modali */
+            --fs-xl:  1.15rem;  /* ~18 px — header app, titoli sezione */
+            --fs-2xl: 1.4rem;   /* ~22 px — logo, titoli grandi */
+
+            /* ---- RAGGI — scala APPLICATA in tutto il CSS ----
+               GUIDA: per ogni border-radius nuovo usa un token. Outlier
+               deliberati (1/3/5/7/12px) restano grezzi solo dove sono
+               micro-aggiustamenti specifici (LED porta, celle, badge). */
+            --radius-xs:    2px;   /* badge minuscoli, celle porta */
+            --radius-sm:    4px;   /* chip, righe, controlli compatti */
+            --radius-md:    6px;   /* default: bottoni, input, select */
+            --radius-lg:    8px;   /* pannelli, dropdown, modali piccole */
+            --radius-xl:   10px;   /* card grandi, banner */
+            --radius-pill: 999px;  /* pillole/toggle completamente arrotondati */
+
+            /* ---- SPAZIATURA — scala GOING-FORWARD (griglia ~4 px) ----
+               GUIDA: per padding/margin/gap NUOVI usa questi token. Il CSS
+               legacy si migra in modo incrementale (alcuni 5/10px fuori griglia
+               restano grezzi finche' non si rivede il componente). */
+            --space-1:  2px;
+            --space-2:  4px;
+            --space-3:  6px;
+            --space-4:  8px;
+            --space-5: 12px;
+            --space-6: 16px;
+            --space-7: 24px;
+
+            /* ---- Z-INDEX — scala SEMANTICA (guida; rimappatura incrementale) ----
+               I valori legacy sono ad-hoc (0..10000). Per i livelli NUOVI usa
+               questi gradini; migrare lo stacking esistente e' rischioso (si fa
+               per area, verificando), quindi NON e' applicata in massa qui. */
+            --z-base:        1;
+            --z-sticky:     50;   /* header sticky, toolbar rack */
+            --z-overlay:   400;   /* overlay su canvas (topology, connection) */
+            --z-dropdown:  600;   /* menu/dropdown */
+            --z-modal:    1000;   /* modali */
+            --z-toast:    2000;   /* toast/notifiche */
+            --z-tooltip:  3000;   /* tooltip (sopra tutto) */
+
+            /* ---- TRANSIZIONI — durate ricorrenti (guida) ---- */
+            --transition-fast: .12s;  /* hover/stati compatti */
+            --transition-base: .15s;  /* default UI */
+        }
+
+        /* ============================================================
+           SCHELETRO TEMA CHIARO — INERTE (non attivo).
+           Si attiva SOLO se qualcosa mette data-theme="light" su <html>;
+           oggi nessun toggle lo fa → ZERO effetto sull'app dark-only.
+           Qui si ridefiniscono SOLO i valori dei token (niente regole
+           per-componente): e' la strada "a regole" per un futuro chiaro.
+           I valori sotto sono un PUNTO DI PARTENZA gia' tarato, da rifinire
+           a video + verifica WCAG (testo >=4.5:1, UI >=3:1).
+
+           DA COMPLETARE quando si vorra' davvero il tema chiaro:
+            1) rifinire i valori sotto + audit contrasto WCAG;
+            2) triage degli ~80 hex hardcoded rimasti (accent/VLAN vivaci che
+               su bianco diventano illeggibili → tokenizzare/ri-tintare; bordi
+               secondari #444 → token --border-2);
+            3) JS: in lib/app-topology-overlay.js `isDark` e' fisso a true →
+               renderlo theme-aware (documentElement.dataset.theme!=='light');
+            4) "scogli" che restano scuri di proposito: chassis rack (LED
+               vivaci leggibili) + immagini planimetria + SVG → override scoped;
+            5) ri-aggiungere il toggle (setta data-theme + localStorage,
+               opzionale prefers-color-scheme).
+           ============================================================ */
+        html[data-theme="light"] {
+            color-scheme: light;   /* controlli nativi chiari */
+            --bg-color:       #dfe3e8;   /* grigio pagina: pannelli bianchi staccano */
+            --panel-bg:       #ffffff;
+            --panel-border:   rgba(0,0,0,.42);
+            --text-main:      #1f2328;
+            --text-muted:     #57606a;   /* ~6:1 su bianco */
+            --accent:         #0969da;   /* blu, ~5.9:1 su bianco (il ciano dark non regge) */
+            --active-color:   #1a7f37;   /* verde scuro per contrasto */
+            --fault-color:    #cf222e;
+            --inactive-color: #57606a;
+            --idle-color:     #9a6700;   /* ambra scura */
+            --rack-bg:        #8a9099;
+            --rack-metal:     linear-gradient(180deg, #5a6270, #3d4450); /* chassis resta scuro */
+            --surface-1:      #ffffff;
+            --surface-2:      #f1f4f7;
+            --surface-hover:  #e7ebf0;
+            --hairline:       rgba(0,0,0,.10);
+            --accent-soft:    rgba(9,105,218,.10);
+            --danger-soft:    rgba(207,34,46,.12);
+            /* in chiaro le ombre devono essere NETTE (nel dark .06 sparisce) */
+            --shadow-sm:      0 2px 5px rgba(0,0,0,.18);
+            --shadow-md:      0 5px 14px rgba(0,0,0,.22);
+            --shadow-lg:      0 16px 40px rgba(0,0,0,.20);
+        }
+        * { box-sizing: border-box; user-select: none; }

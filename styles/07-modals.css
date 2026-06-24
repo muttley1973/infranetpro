@@ -1,0 +1,232 @@
+/* ============================================================
+   InfraNet Pro — styles/07-modals.css
+   Zoom, modal generica, connection overlay, rack-icon su floor, discovery, auto-poll, toggle
+   Generato dallo split di style.css (ordine cascata preservato).
+   ============================================================ */
+        /* Zoom controls */
+        .zoom-controls { position:absolute; bottom:14px; right:14px; background:var(--panel-bg); border:1px solid var(--panel-border); border-radius: var(--radius-md); display:flex; align-items:center; z-index:80; box-shadow:0 4px 6px rgba(0,0,0,.3); }
+        .zoom-btn { background:none; border:none; color:var(--text-main); padding:5px 9px; cursor:pointer; }
+        .zoom-btn:hover { color:var(--accent); }
+        .zoom-label { font-size:var(--fs-sm); padding:0 5px; min-width:44px; text-align:center; }
+        /* (Regole #floorplan-toolbar-wrap e #floorplan-toolbar-hint rimosse:
+           il menu "Planimetria" in alto a sinistra non viene piu' renderizzato.
+           Le funzioni toggleFloorMenu/closeFloorMenu/_updateFloorMenuState/
+           _updateFloorToolbarVisibility hanno gia' null-check e diventano no-op.) */
+
+        /* Modal */
+        #modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.65); z-index:2000; align-items:center; justify-content:center; }
+        #modal-overlay.open { display:flex; }
+        #modal-box { background:var(--panel-bg); border:1px solid var(--panel-border); border-radius: var(--radius-xl); padding:22px; min-width:300px; max-width:460px; box-shadow:0 16px 40px rgba(0,0,0,.7); }
+        #modal-msg { margin:0 0 14px 0; color:var(--text-main); font-size:var(--fs-md); line-height:1.5; white-space:pre-wrap; }
+        #modal-input { display:none; width:100%; background:var(--bg-color); border:1px solid var(--panel-border); color:var(--text-main); padding:7px 10px; border-radius: var(--radius-sm); margin-bottom:14px; font-family:inherit; font-size:var(--fs-md); outline:0; transition:border-color .2s; }
+        #modal-input:focus { border-color:var(--accent); }
+        #modal-actions { display:flex; gap:8px; justify-content:flex-end; }
+        #modal-cancel { display:none; }
+        .modal-drag-handle { cursor:move; user-select:none; }
+        .modal-drag-handle button,
+        .modal-drag-handle input,
+        .modal-drag-handle select,
+        .modal-drag-handle textarea { cursor:initial; }
+        .dragging-modal {
+            box-shadow:0 24px 70px rgba(0,0,0,.72), 0 0 0 1px rgba(0,212,255,.22) !important;
+            transition:none !important;
+        }
+
+        /* Connection overlay */
+        #conn-banner { position:fixed; bottom:14px; left:50%; transform:translateX(-50%); background:#2d1a00; border:1px solid #e3b341; color:#e3b341; padding:8px 18px; border-radius: var(--radius-md); font-size:var(--fs-md); z-index:3000; display:none; gap:8px; align-items:center; }
+        #conn-banner.show { display:flex; }
+
+        input[type="file"] { display:none; }
+
+        /* ===== RACK ICONS ON FLOOR PLAN ===== */
+        .floor-rack {
+            position: absolute; background: var(--panel-bg);
+            border: 2px solid var(--panel-border); border-radius: var(--radius-lg);
+            padding: 7px 10px; cursor: move;
+            transform: translate(-50%,-50%); min-width: 76px; max-width: 140px;
+            text-align: center; z-index: 12;
+            box-shadow: 0 4px 14px rgba(0,0,0,.45);
+            transition: border-color .15s, box-shadow .15s;
+        }
+        .floor-rack.rack-active {
+            border-color: var(--accent);
+            /* Glow morbido come i floor node selezionati (.floor-node.selected). */
+            box-shadow: 0 0 0 1px rgba(0,212,255,.24), 0 0 18px rgba(0,212,255,.42), 0 8px 22px rgba(0,0,0,.34);
+            z-index: 15;
+        }
+        .floor-rack-icon { position: relative; font-size:var(--fs-2xl); color: var(--accent); margin-bottom: 3px; }
+        .floor-rack-badge {
+            position: absolute; top: -5px; right: -8px; font-size: 9px;
+            background: var(--accent); color: #000; border-radius: var(--radius-lg);
+            padding: 1px 4px; font-weight: 700; line-height: 1.4; pointer-events: none;
+        }
+        .floor-rack-name { font-size:var(--fs-xs); font-weight: 600; white-space: nowrap; color: var(--text-main); pointer-events: none; display: flex; align-items: center; gap: 4px; justify-content: center; }
+        .floor-rack-devs { font-size:var(--fs-xs); color: var(--text-muted); max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; margin-top: 2px; }
+        .floor-rack-floor-badge { font-size: 9px; background: var(--active-color); color: #000; border-radius: var(--radius-md); padding: 1px 4px; font-weight: 700; pointer-events: none; flex-shrink: 0; }
+
+        /* ===== MODAL GENERICA: DISCOVERY + CSV ===== */
+        .tool-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.65); z-index:600; align-items:center; justify-content:center; }
+        .tool-modal-overlay.open { display:flex; }
+        .tool-modal { background:var(--panel-bg); border:1px solid var(--panel-border); border-radius:12px; width:560px; max-width:96vw; max-height:88vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.6); }
+        .tool-modal.wide { width:680px; }
+        .tool-modal-header { display:flex; align-items:center; justify-content:space-between; padding:14px 18px 12px; border-bottom:1px solid var(--panel-border); flex-shrink:0; }
+        .tool-modal-header h3 { margin:0; font-size:var(--fs-lg); display:flex; align-items:center; gap:8px; }
+        .tool-modal-header h3 i { color:var(--accent); }
+        .tool-modal-body { padding:16px 18px; overflow-y:auto; flex:1; }
+        .tool-modal-footer { padding:12px 18px; border-top:1px solid var(--panel-border); display:flex; gap:8px; justify-content:flex-end; flex-shrink:0; }
+        .tm-row { display:flex; gap:10px; margin-bottom:10px; align-items:flex-start; }
+        .tm-field { display:flex; flex-direction:column; gap:4px; }
+        .tm-field label { font-size:var(--fs-sm); color:var(--text-muted); }
+        .tm-field input,.tm-field select { background:var(--bg-color); border:1px solid var(--panel-border); color:var(--text-main); padding:5px 8px; border-radius:5px; font-family:inherit; font-size:var(--fs-md); }
+        .tm-field input:focus,.tm-field select:focus { outline:none; border-color:var(--accent); }
+        .tm-field.grow { flex:1; }
+        /* Discovery modal: layout robusto anche su larghezze ridotte */
+        #disc-overlay .tm-row { flex-wrap:wrap; align-items:flex-end; }
+        #disc-overlay .tm-field { min-width:0; }
+        #disc-overlay .tm-field.grow { flex:1 1 240px; }
+        #disc-overlay .tm-field.compact { width:110px; }
+        #disc-overlay .tm-field.timeout { width:84px; }
+        #disc-overlay .tool-modal { width:min(1180px,96vw); max-height:94vh; }
+        #disc-overlay .tool-modal-body {
+            overflow-y:auto;
+            min-height:0;
+            display:flex;
+            flex-direction:column;
+        }
+        #disc-overlay #disc-results {
+            display:flex;
+            flex-direction:column;
+            min-height:0;
+        }
+        #disc-overlay #disc-results-table-wrap {
+            max-height:calc(94vh - 320px);
+            overflow:auto;
+        }
+        .disc-opt-row { display:flex; flex-wrap:wrap; gap:14px 20px; margin-top:2px; }
+        .disc-opt {
+            display:flex; align-items:center; gap:8px;
+            font-size:var(--fs-sm); color:var(--text-muted); cursor:pointer;
+        }
+        .disc-opt input { margin:0; accent-color:var(--accent); }
+        .tm-hint { font-size:var(--fs-sm); color:var(--text-muted); margin-bottom:10px; line-height:1.5; }
+        .tm-progress { font-size:var(--fs-sm); color:var(--text-muted); margin-bottom:8px; min-height:20px; }
+        .tm-progress .tm-ok { color:var(--active-color); font-weight:600; }
+        .tm-progress .tm-err { color:var(--fault-color); }
+        /* Tabella risultati discovery */
+        .disc-table { width:100%; border-collapse:collapse; font-size:var(--fs-sm); }
+        .disc-table th { text-align:left; padding:5px 7px; border-bottom:2px solid var(--panel-border); color:var(--text-muted); font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.04em; }
+        .disc-table td { padding:5px 7px; border-bottom:1px solid rgba(255,255,255,0.04); vertical-align:middle; }
+        .disc-table tr:hover td { background:rgba(255,255,255,0.03); }
+        .disc-table tr.disc-off td { opacity:.72; }
+        .disc-table input[type=checkbox] { cursor:pointer; accent-color:var(--accent); width:14px; height:14px; }
+        .disc-table select { background:var(--bg-color); border:1px solid var(--panel-border); color:var(--text-main); padding:2px 5px; border-radius: var(--radius-sm); font-size:var(--fs-sm); font-family:inherit; }
+        .disc-st { font-size:var(--fs-xs); border-radius: var(--radius-pill); padding:1px 7px; font-weight:700; display:inline-block; }
+        .disc-st.on { background:#173a22; color:var(--active-color); }
+        .disc-st.seen { background:rgba(236,179,60,.12); color:#e3b341; border:1px solid rgba(236,179,60,.25); }
+        .disc-st.off { background:#2d3138; color:var(--text-muted); }
+        .disc-ip   { font-family:monospace; color:var(--accent); font-size:var(--fs-md); }
+        .disc-host { font-weight:600; }
+        .disc-badge { display:inline-flex; align-items:center; margin-left:5px; border-radius: var(--radius-sm); padding:1px 5px; font-size:var(--fs-xs); font-weight:800; letter-spacing:.02em; vertical-align:middle; border:1px solid transparent; }
+        .disc-badge.src-snmp { background:rgba(0,212,255,.12); color:var(--accent); border-color:rgba(0,212,255,.25); }
+        .disc-badge.src-xd   { background:rgba(57,211,83,.14); color:var(--active-color); border-color:rgba(57,211,83,.28); }
+        .disc-badge.v3-cred  { background:rgba(210,153,34,.14); color:#d29922; border-color:rgba(210,153,34,.32); }
+        .disc-badge.v3-cred i { margin-right:3px; }
+        /* "+v3" (dual-config): supporta anche v3 ma è interrogato via v2c — ambra più tenue, è info non azione */
+        .disc-badge.v3-also  { background:rgba(210,153,34,.07); color:#caa24a; border-color:rgba(210,153,34,.22); }
+        .disc-badge.v3-also i { margin-right:2px; opacity:.8; }
+        .disc-badge.src-lldp { background:rgba(0,170,255,.14); color:#4cc9ff; border-color:rgba(0,170,255,.30); }
+        .disc-badge.src-cdp  { background:rgba(255,140,0,.14); color:#ffb35c; border-color:rgba(255,140,0,.30); }
+        .disc-badge.src-web  { background:rgba(255,140,0,.12); color:#ffb35c; border-color:rgba(255,140,0,.25); }
+        .disc-badge.src-deep { background:rgba(236,179,60,.12); color:#e3b341; border-color:rgba(236,179,60,.26); }
+        .disc-badge.src-arp  { background:rgba(163,113,247,.12); color:#b995ff; border-color:rgba(163,113,247,.25); }
+        .disc-badge.src-ping { background:rgba(139,148,158,.14); color:#b6beca; border-color:rgba(139,148,158,.25); }
+        .disc-badge.src-seen { background:rgba(139,148,158,.08); color:var(--text-muted); border-color:rgba(139,148,158,.18); }
+        .disc-badge.conf-high { background:rgba(57,211,83,.13); color:var(--active-color); border-color:rgba(57,211,83,.25); }
+        .disc-badge.conf-mid  { background:rgba(227,179,65,.13); color:#e3b341; border-color:rgba(227,179,65,.25); }
+        .disc-badge.conf-low  { background:rgba(248,81,73,.10); color:#f78166; border-color:rgba(248,81,73,.22); }
+        .disc-badge.rec-new    { background:rgba(57,211,83,.10); color:var(--active-color); border-color:rgba(57,211,83,.22); }
+        .disc-badge.rec-update { background:rgba(227,179,65,.13); color:#e3b341; border-color:rgba(227,179,65,.25); }
+        .disc-badge.rec-check  { background:rgba(0,170,255,.12); color:#4cc9ff; border-color:rgba(0,170,255,.25); }
+        .disc-badge.rec-same   { background:rgba(139,148,158,.10); color:var(--text-muted); border-color:rgba(139,148,158,.20); }
+        .disc-summary-grid { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+        .disc-summary-grid span { display:inline-flex; align-items:center; gap:5px; background:rgba(255,255,255,.05); border:1px solid var(--panel-border); border-radius: var(--radius-pill); padding:3px 8px; color:var(--text-muted); font-size:var(--fs-sm); }
+        .disc-summary-grid b { color:var(--text-main); font-size:var(--fs-sm); }
+        .disc-descr { color:var(--text-muted); font-size:var(--fs-sm); max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .vlan-ipam-card { border:1px solid rgba(255,255,255,.05); border-radius: var(--radius-lg); padding:7px 8px; margin-bottom:7px; background:rgba(255,255,255,.025); }
+        .vlan-ipam-card.open { border-color:rgba(0,212,255,.22); background:rgba(0,212,255,.035); }
+        .vlan-ipam-row { display:flex; align-items:center; gap:6px; }
+        .vlan-ipam-summary { margin:5px 0 0 68px; font-size:var(--fs-xs); color:var(--text-muted); white-space:normal; }
+        .vlan-ipam-summary.warn { color:#e3b341; }
+        .vlan-ipam-fields { margin:8px 0 0 68px; display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+        .vlan-ipam-fields .prop-group { margin-bottom:0; }
+        .vlan-ipam-hint { grid-column:1/-1; font-size:var(--fs-xs); color:var(--text-muted); padding:5px 7px; border-radius: var(--radius-md); background:rgba(13,17,23,.35); border:1px solid rgba(255,255,255,.05); }
+        .vlan-ipam-hint span { color:var(--text-main); }
+        .vlan-ipam-hint.warn { color:#e3b341; border-color:rgba(227,179,65,.18); }
+        @media (max-width: 1280px) { .vlan-ipam-fields { grid-template-columns:1fr; } }
+        /* ── Area di stato unificata in header ──────────────────────────────
+           Una sola grammatica per i chip "fluttuanti" v3-da-configurare /
+           porte-libere / auto-poll / filtro-VLAN, raccolti in #status-cluster.
+           La VISIBILITÀ resta guidata dal JS proprietario (style.display
+           inline-flex|none); la classe dà solo forma e tono. */
+        .status-cluster { display:flex; align-items:center; gap:6px; }
+        .status-chip { display:none; align-items:center; gap:5px; padding:3px 9px;
+            border-radius: var(--radius-md); font-size:var(--fs-xs); font-weight:600;
+            white-space:nowrap; cursor:pointer; flex-shrink:0; user-select:none;
+            border:1px solid transparent; background:var(--surface-2); color:var(--text-main);
+            transition:filter .12s; }
+        .status-chip:hover { filter:brightness(1.2); }
+        .status-chip.s-info { background:#00d4ff1a; color:var(--accent); border-color:#00d4ff44; }
+        .status-chip.s-warn { background:rgba(210,153,34,.12); color:#d29922; border-color:rgba(210,153,34,.45); }
+        .status-chip.s-ok   { background:#39d35322; color:var(--active-color); border-color:#39d35344; }
+        .status-chip .chip-x { font-size:.65rem; opacity:.7; }
+        /* Popover "Automazioni rete" (auto-poll + rinnovo IP DHCP) */
+        .autom-pop { min-width:264px; padding:8px; }
+        .autom-sec { padding:8px 6px; }
+        .autom-sec + .autom-sec { border-top:1px solid var(--panel-border); }
+        .autom-row { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+        .autom-title { font-size:var(--fs-sm); font-weight:700; display:inline-flex; align-items:center; gap:7px; }
+        .autom-title i { color:var(--accent); width:15px; text-align:center; }
+        .autom-desc { font-size:var(--fs-xs); color:var(--text-muted); margin-top:7px; line-height:1.45; }
+        /* Età dell'ultimo Sync: tutt'uno col bottone Sync, diviso da un |.
+           Niente pillola/pallino: solo il tempo (color-coded), attaccato al bottone. */
+        .sync-fresh-badge { display:none; align-items:center; font-size:var(--fs-xs); font-weight:600;
+            white-space:nowrap; cursor:pointer; user-select:none; flex-shrink:0;
+            padding:0; transition:filter .12s; }
+        .sync-fresh-badge:hover { filter:brightness(1.25); }
+        .sync-fresh-sep { color:var(--text-muted); opacity:.45; font-weight:400; margin:0 7px 0 5px; }
+        /* Pallino di freschezza dentro il pulsante Topologia (stesso linguaggio del chip). */
+        .topo-fresh-dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-left:4px; vertical-align:middle; flex-shrink:0; }
+        /* Toggle switch */
+        .toggle-sw { position:relative; display:inline-flex; align-items:center; cursor:pointer; flex-shrink:0; }
+        .toggle-sw input { opacity:0; width:0; height:0; position:absolute; }
+        .toggle-track { display:inline-block; width:36px; height:20px; background:#444; border-radius: var(--radius-xl); transition:background .2s; position:relative; }
+        .toggle-track::after { content:''; position:absolute; left:2px; top:2px; width:16px; height:16px; border-radius:50%; background:#fff; transition:transform .2s; }
+        .toggle-sw input:checked + .toggle-track { background:var(--accent); }
+        .toggle-sw input:checked + .toggle-track::after { transform:translateX(16px); }
+
+        /* Topology overlay SVG inside floor-canvas */
+        #topo-floor-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 11; overflow: visible; }
+        .tfl { fill: none; stroke-linecap: round; }
+        /* Linea topologia con almeno un cavo "inferito" (MAC/ARP/FDB) sottostante:
+           dash animato LENTO (2.5s) per segnalare "questa connessione contiene
+           almeno un cavo da verificare". Distinto dal trace 0.8s e dal flusso
+           rack/floor 1.0s. Pattern coerente con .cable.ambiguous nel rack/floor. */
+        .tfl.tfl-ambiguous {
+            stroke-dasharray: 6 5;
+            animation: dash 2.5s linear infinite;
+            /* NIENTE opacity qui: in SVG la regola CSS vincerebbe sull'attributo
+               opacity usato per attenuare le linee col toggle TRUNK (i link
+               inferiti non si attenuerebbero). La firma "inferito" e' il dash. */
+        }
+        /* Badge giallo sul rack in topology se contiene cavi intra-rack inferiti.
+           Pulsazione discreta per attirare l'attenzione senza essere fastidiosa. */
+        .topo-rack-alert {
+            animation: topo-alert-pulse 2s ease-in-out infinite;
+            filter: drop-shadow(0 0 4px rgba(227,179,65,0.6));
+        }
+        @keyframes topo-alert-pulse {
+            0%, 100% { opacity: 1; }
+            50%      { opacity: 0.55; }
+        }
+        .tfl-badge { font-size: 9px; font-weight: 700; fill: #000; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+

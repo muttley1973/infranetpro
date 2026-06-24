@@ -1,0 +1,207 @@
+'use strict';
+// Test del diff engine puro del Drift Report (lib/drift-report.js).
+const test = require('node:test');
+const assert = require('node:assert');
+const { buildDriftReport } = require('../lib/drift-report.js');
+
+test('porta coerente → categoria consistent, nessun drift', () => {
+  const doc = { ports: { 'sw1-1': { label: 'SW1 / P1', status: 'active', speed: 1000, vlan: 10 } } };
+  const snmp = { responded: { 'sw1': true }, ports: { 'sw1-1': { status: 'active', speed: 1000, vlan: 10 } } };
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.consistent, 1);
+  assert.equal(r.counts.stateDrift, 0);
+});
+
+test('stato divergente → stateDrift con diffs e patch alla realta', () => {
+  const doc = { ports: { 'sw1-1': { label: 'SW1 / P1', status: 'active', speed: 1000, vlan: 10 } } };
+  const snmp = { responded: { 'sw1': true }, ports: { 'sw1-1': { status: 'inactive', speed: 100, vlan: 20 } } };
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.stateDrift, 1);
+  const row = r.stateDrift[0];
+  const fields = row.diffs.map(d => d.field).sort();
+  assert.deepEqual(fields, ['speed', 'status', 'vlan']);
+  assert.equal(row.patch.status, 'inactive');
+  assert.equal(row.patch.vlan, 20);
+});
+
+test('device muto (non risponde) → porta non valutata', () => {
+  const doc = { ports: { 'sw1-1': { status: 'active', vlan: 10 } } };
+  const snmp = { responded: {}, ports: {} };  // sw1 non ha risposto
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.consistent, 0);
+  assert.equal(r.counts.stateDrift, 0);
+});
+
+test('MAC documentato mai visto → macOrphan; MAC visto → niente', () => {
+  const doc = { macs: [{ mac: 'AA:BB:CC:00:00:01', label: 'srv1' }, { mac: 'AA:BB:CC:00:00:02', label: 'srv2' }] };
+  const snmp = { observedMacs: ['aa:bb:cc:00:00:02'] };  // solo srv2 visto (case-insensitive)
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.macOrphan, 1);
+  assert.equal(r.macOrphan[0].label, 'srv1');
+});
+
+test('fdbObserved=false (nessuna osservabilità) → ZERO macOrphan, anche con MAC documentati non visti', () => {
+  // Caso reale: Sync fallisce su (quasi) tutti i device → FDB vuoto. Senza una
+  // MAC-table non possiamo dichiarare nessuno "assente in rete".
+  const doc = { macs: [
+    { mac: 'AA:BB:CC:00:00:01', label: 'sw1', nodeId: 'sw1' },
+    { mac: 'AA:BB:CC:00:00:02', label: 'sw2', nodeId: 'sw2' },
+  ] };
+  const snmp = { observedMacs: [], fdbObserved: false };
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.macOrphan, 0, 'FDB vuoto → nessuna affermazione di assenza');
+});
+
+test('fdbObserved=true ma MAC non visto + nodo muto → macOrphan (osservabilità presente)', () => {
+  const doc = { macs: [{ mac: 'AA:BB:CC:00:00:09', label: 'old', nodeId: 'old' }] };
+  const snmp = { observedMacs: ['aa:bb:cc:00:00:77'], fdbObserved: true, responded: {} };
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.macOrphan, 1, 'con FDB popolato e device muto non visto → davvero assente');
+});
+
+test('device che HA RISPOSTO al sync NON è macOrphan, anche se il MAC non è in alcun FDB', () => {
+  // sw1: ha risposto (responded), MAC NON osservato in FDB → NON deve essere "assente"
+  // sw2: NON ha risposto, MAC non osservato → resta macOrphan (forse davvero rimosso)
+  const doc = { macs: [
+    { mac: 'AA:BB:CC:00:00:01', label: 'sw1', nodeId: 'sw1' },
+    { mac: 'AA:BB:CC:00:00:02', label: 'sw2', nodeId: 'sw2' },
+  ] };
+  const snmp = { observedMacs: [], responded: { sw1: true } };
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.macOrphan, 1, 'solo sw2 (muto) è assente; sw1 ha risposto → presente');
+  assert.equal(r.macOrphan[0].label, 'sw2');
+});
+
+test('presence-aware: device RAGGIUNGIBILE ma non-SNMP (ping/ARP/TCP) NON è macOrphan', () => {
+  const doc = { macs: [
+    { mac: 'AA:BB:CC:00:00:10', label: 'pc-vivo', nodeId: 'pc1' },
+    { mac: 'AA:BB:CC:00:00:11', label: 'pc-morto', nodeId: 'pc2' },
+  ] };
+  // FDB vuoto, nessuna risposta SNMP, ma la sweep ha girato: pc1 vivo, pc2 no
+  const snmp = { observedMacs: [], responded: {}, fdbObserved: false, reachabilityChecked: true, presentNodeIds: { pc1: true } };
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.macOrphan, 1, 'solo pc2 (non raggiungibile) è assente; pc1 è presente via ping');
+  assert.equal(r.macOrphan[0].label, 'pc-morto');
+});
+
+test('osservabilità: la sweep eseguita abilita il giudizio di assenza anche con FDB vuoto', () => {
+  const doc = { macs: [{ mac: 'AA:BB:CC:00:00:20', label: 'x', nodeId: 'x' }] };
+  // né sweep né FDB → nessuna osservabilità → 0 (non si afferma assenza)
+  assert.equal(buildDriftReport({ observedMacs: [], fdbObserved: false }, doc, [], {}).counts.macOrphan, 0);
+  // sweep eseguita (qualcuno vivo) e x non presente → assente
+  const snmp = { observedMacs: [], fdbObserved: false, reachabilityChecked: true, presentNodeIds: {} };
+  assert.equal(buildDriftReport(snmp, doc, [], {}).counts.macOrphan, 1);
+});
+
+test('cambio IP: MAC documentato VIVO a un IP diverso → ipChanged, NON macOrphan', () => {
+  const doc = { macs: [{ mac: 'AA:BB:CC:00:00:30', label: 'srv', nodeId: 'srv', ip: '192.168.1.50' }] };
+  const snmp = { observedMacs: [], reachabilityChecked: true, fdbObserved: false, presentNodeIds: {},
+                 macAtIp: { 'aa:bb:cc:00:00:30': '192.168.1.60' } };
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.macOrphan, 0, 'non assente: il MAC è vivo in rete');
+  assert.equal(r.counts.ipChanged, 1, 'segnalato come cambio IP');
+  assert.equal(r.ipChanged[0].oldIp, '192.168.1.50');
+  assert.equal(r.ipChanged[0].newIp, '192.168.1.60');
+});
+
+test('cambio IP: MAC vivo allo STESSO IP documentato → presente, niente ipChanged', () => {
+  const doc = { macs: [{ mac: 'AA:BB:CC:00:00:31', label: 'srv', nodeId: 'srv', ip: '192.168.1.50' }] };
+  const snmp = { observedMacs: [], reachabilityChecked: true, fdbObserved: false, presentNodeIds: {},
+                 macAtIp: { 'aa:bb:cc:00:00:31': '192.168.1.50' } };
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.macOrphan, 0);
+  assert.equal(r.counts.ipChanged, 0);
+});
+
+test('device ignoto non documentato → undocumented; se in rejectedSigs → escluso', () => {
+  const doc = { deviceSigs: ['known-1'] };
+  const snmp = {
+    observedDevices: [
+      { sig: 'ghost-x', mac: '11:22:33:44:55:66', label: 'sconosciuto' },
+      { sig: 'rej-y', mac: '77:88:99:aa:bb:cc', label: 'gia-rifiutato' },
+      { sig: 'known-1', mac: 'de:ad:be:ef:00:00', label: 'noto' },
+    ],
+    rejectedSigs: ['rej-y'],
+  };
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.undocumented, 1);
+  assert.equal(r.undocumented[0].sig, 'ghost-x');
+});
+
+test('undocumented: default → cls infra, contato in counts.undocumented', () => {
+  const snmp = { observedDevices: [{ sig: 'x', mac: '11:22:33:44:55:66', label: 'switch?' }] };
+  const r = buildDriftReport(snmp, {}, [], {});
+  assert.equal(r.undocumented[0].cls, 'infra');
+  assert.equal(r.counts.undocumented, 1);
+  assert.equal(r.counts.undocumentedEndpoint, 0);
+});
+
+test('undocumented: MAC su VLAN guest → cls endpoint, fuori da counts.undocumented', () => {
+  const snmp = {
+    observedDevices: [
+      { sig: 'phone', mac: 'aa:00:00:00:00:01', label: 'iPhone', vlan: 99 },
+      { sig: 'sw',    mac: 'bb:00:00:00:00:02', label: 'switch', vlan: 10 },
+    ],
+  };
+  const r = buildDriftReport(snmp, {}, [], { guestVlans: [99] });
+  const bySig = Object.fromEntries(r.undocumented.map(d => [d.sig, d.cls]));
+  assert.equal(bySig.phone, 'endpoint');
+  assert.equal(bySig.sw, 'infra');
+  assert.equal(r.counts.undocumented, 1);          // solo lo switch
+  assert.equal(r.counts.undocumentedEndpoint, 1);  // il telefono
+});
+
+test('undocumented: uplink affollato (portMacCount >= soglia) → cls endpoint', () => {
+  const snmp = {
+    observedDevices: [
+      { sig: 'a', mac: 'aa:00:00:00:00:01', label: 'dietro AP', portMacCount: 27 },
+      { sig: 'b', mac: 'bb:00:00:00:00:02', label: 'access',    portMacCount: 1 },
+    ],
+  };
+  const r = buildDriftReport(snmp, {}, [], { endpointPortThreshold: 5 });
+  const bySig = Object.fromEntries(r.undocumented.map(d => [d.sig, d.cls]));
+  assert.equal(bySig.a, 'endpoint');
+  assert.equal(bySig.b, 'infra');
+});
+
+test('undocumented: vendor consumer (consumer:true) → cls endpoint', () => {
+  const snmp = { observedDevices: [{ sig: 'p', mac: 'aa:00:00:00:00:01', label: 'BYOD', consumer: true }] };
+  const r = buildDriftReport(snmp, {}, [], {});
+  assert.equal(r.undocumented[0].cls, 'endpoint');
+  assert.equal(r.counts.undocumented, 0);
+  assert.equal(r.counts.undocumentedEndpoint, 1);
+});
+
+test('cavo fantasma: porta down da >= N sync → ghostCable; sotto soglia → no', () => {
+  const doc = {
+    cables: [
+      { id: 'c1', label: 'A→B', src: 'sw1-1', dst: 'sw2-1' },   // streak 3 → fantasma
+      { id: 'c2', label: 'A→C', src: 'sw1-2', dst: 'sw3-1' },   // streak 1 → no
+    ],
+  };
+  const snmp = { portDownStreak: { 'sw1-1': 3, 'sw2-1': 0, 'sw1-2': 1 } };
+  const r = buildDriftReport(snmp, doc, [], { downStreakN: 3 });
+  assert.equal(r.counts.ghostCable, 1);
+  assert.equal(r.ghostCable[0].id, 'c1');
+  assert.equal(r.ghostCable[0].downStreak, 3);
+});
+
+test('ignore persiste: la riga con key ignorata non compare', () => {
+  const doc = { ports: { 'sw1-1': { status: 'active', vlan: 10 } } };
+  const snmp = { responded: { 'sw1': true }, ports: { 'sw1-1': { status: 'inactive', vlan: 10 } } };
+  const r1 = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r1.counts.stateDrift, 1);
+  const key = r1.stateDrift[0].key;
+  const r2 = buildDriftReport(snmp, doc, [key], {});       // stessa condizione, ora ignorata
+  assert.equal(r2.counts.stateDrift, 0);
+});
+
+test('ignore segue la condizione: se la realta cambia, la riga riappare', () => {
+  const doc = { ports: { 'sw1-1': { status: 'active', vlan: 10 } } };
+  const snmpA = { responded: { 'sw1': true }, ports: { 'sw1-1': { status: 'inactive', vlan: 10 } } };
+  const keyA = buildDriftReport(snmpA, doc, [], {}).stateDrift[0].key;
+  // realta' cambia: ora vlan diversa → nuova condizione → nuova key
+  const snmpB = { responded: { 'sw1': true }, ports: { 'sw1-1': { status: 'inactive', vlan: 99 } } };
+  const r = buildDriftReport(snmpB, doc, [keyA], {});      // keyA non copre la nuova condizione
+  assert.equal(r.counts.stateDrift, 1);
+});

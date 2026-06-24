@@ -1,0 +1,391 @@
+/* ============================================================
+   InfraNet Pro — styles/09-user-theme.css
+   User menu, disabilitazione viewer, modal utenti, override tema chiaro
+   Generato dallo split di style.css (ordine cascata preservato).
+   ============================================================ */
+        /* ===== USER MENU ===== */
+        .user-menu-item { display:flex; align-items:center; gap:9px; width:100%; padding:8px 14px; background:none; border:none; color:var(--text-main); font-size:var(--fs-md); cursor:pointer; text-align:left; transition:background .14s; }
+        .user-menu-item:hover { background:var(--panel-border); }
+        .role-badge { display:inline-block; font-size:9px; font-weight:700; padding:1px 6px; border-radius: var(--radius-sm); text-transform:uppercase; letter-spacing:.4px; }
+        .role-badge.admin  { background:#00d4ff22; color:var(--accent); border:1px solid #00d4ff44; }
+        .role-badge.viewer { background:#8b949e22; color:var(--text-muted); border:1px solid #8b949e44; }
+
+        /* Disabilita elementi UI per i viewer */
+        body.viewer-mode .admin-only { opacity:.38; pointer-events:none; cursor:not-allowed; }
+        body.viewer-mode [data-admin-only] { opacity:.38; pointer-events:none; }
+
+        /* ===== MODAL UTENTI =====
+           Container/header/body/footer ora ereditati da .tool-modal-* (vedi blocco "Tool modal").
+           Le classi .um-header / .um-body / .um-footer restano come MARKER usati da JS
+           (drag handle in app.js:1133-1134), ma non hanno più stili dedicati. */
+        .um-user-row { display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--panel-border); font-size:var(--fs-md); }
+        .um-user-row:last-child { border-bottom:none; }
+        .um-user-name { flex:1; font-weight:600; }
+        .um-user-date { font-size:var(--fs-sm); color:var(--text-muted); }
+        .um-form { background:var(--bg); border:1px solid var(--panel-border); border-radius: var(--radius-lg); padding:14px; margin-bottom:16px; }
+        .um-form h3 { font-size:var(--fs-md); font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.4px; margin-bottom:12px; }
+        .um-row { display:flex; gap:8px; margin-bottom:8px; }
+        .um-row input, .um-row select { flex:1; padding:7px 10px; background:var(--panel-bg); border:1px solid var(--panel-border); border-radius: var(--radius-md); color:var(--text-main); font-size:var(--fs-md); outline:none; }
+        .um-row input:focus, .um-row select:focus { border-color:var(--accent); }
+        .um-btn { padding:6px 14px; border:none; border-radius: var(--radius-md); font-size:var(--fs-md); font-weight:600; cursor:pointer; display:flex; align-items:center; gap:5px; transition:opacity .15s; }
+        .um-btn:hover { opacity:.82; }
+        .um-btn.primary { background:var(--accent); color:#000; }
+        .um-btn.danger  { background:var(--fault-color); color:#fff; }
+        .um-btn.ghost   { background:var(--panel-border); color:var(--text-main); }
+        .um-msg { font-size:var(--fs-sm); padding:6px 10px; border-radius:5px; margin-top:8px; display:none; }
+        .um-msg.ok   { background:rgba(57,211,83,.12); border:1px solid rgba(57,211,83,.3); color:var(--active-color); display:block; }
+        .um-msg.err  { background:rgba(248,81,73,.12); border:1px solid rgba(248,81,73,.3); color:var(--fault-color); display:block; }
+
+        /* ===== LIGHT THEME — variante C: bordi definiti, palette WCAG AA ===== */
+        /* I LED dei device dentro il rack mantengono i colori del tema scuro:
+           lo sfondo del chassis e' metallo scuro, quindi i colori vivaci sono
+           leggibili e coerenti con la vista standard. Reset locale delle 4
+           variabili colore stato porte dentro #rack-view per        /* Pannelli principali — ombra leggera per profondità */
+        /* Input / select / textarea: SEMPRE bianchi nel tema chiaro.
+           Selettore generico copre tutti i campi (anche futuri). Esclude
+           tipi particolari (color/checkbox/radio/range/file/button) che
+           hanno styling proprio.
+           AGGIUNGE anche i container/wrap che hanno background hardcoded
+           (search-input-wrap, sidebar-search-wrap, sidebar-mini-btn). */
+        /* Pulsanti "Elimina" e simili .danger: rosso vibrante come nel tema
+           scuro per dare un segnale visivo chiaro di azione distruttiva. */
+        /* Selettore progetti: bianco anche in tema chiaro (ID vince su
+        /* Search */
+        /* Sidebar equip items */
+        /* Floor plan grid */
+        /* Floor nodes */
+        /* Icona principale nodi floor (light theme): grigio 50% pieno */
+        /* Rack header */
+        /* Tab bar right panel */
+        /* Sidebar title */
+        /* Popup */
+        /* Banner cross-rack */
+        /* Banner LAG */
+        /* LAG groups panel */
+        /* Modal */
+        /* Connection banner */
+        /* Port table rows */
+        /* Zoom controls */
+        /* Badge */
+        /* SNMP bar */
+        /* Divider sidebar e rack */
+        /* SNMP section */
+        /* Props panel wrap */
+
+        /* ---- Topology Crawl modal ---- */
+        #td-log { display:none; background:var(--bg-color); border:1px solid var(--panel-border); border-radius: var(--radius-md); padding:8px 10px; max-height:200px; overflow-y:auto; font-family:monospace; font-size:var(--fs-sm); line-height:1.6; margin-bottom:10px; }
+        .td-log-ok   { color:var(--active-color); }
+        .td-log-miss { color:var(--text-muted); }
+        .td-log-warn { color:var(--idle-color); }
+        .td-log-info { color:var(--accent); }
+        .td-log-dup  { color:#7a8a9e; }
+
+        /* ---- Header fallback B ---- */
+        @media (max-width: 1100px) {
+            header { padding: 0 10px; gap: 8px; }
+            .header-sep { display: none; }
+            .header-title { font-size:var(--fs-lg); }
+            #project-select { max-width: 145px; }
+            .project-bar { gap: 3px; }
+            .project-bar .toolbar-btn { padding: 5px 7px; }
+            #btn-save #save-label { display: none; }
+            #btn-save { padding: 5px 8px; }
+            .search-panel { flex: 0 1 230px; min-width: 140px; }
+            #btn-impexp .btn-label,
+            #btn-discover .btn-label,
+            #btn-topology .btn-label,
+            #snmp-sync-label,
+            #btn-user span { display: none; }
+            #btn-impexp,
+            #btn-discover,
+            #btn-snmp-sync,
+            #btn-topology,
+            #btn-user { padding: 5px 8px; }
+            #btn-user i:last-child { display: none; }
+        }
+
+/* ============================================================
+   TOOLTIP CSS CUSTOM (traducibile dal browser)
+   Sostituiscono gli attributi title="..." che il browser
+   translate NON traduce mai. Uso: <element data-tip="testo">
+   o aggiungere classe "has-tip" se serve forzare.
+   ============================================================ */
+[data-tip] {
+    position: relative;
+}
+[data-tip]::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    background: var(--popup-bg, #1a232c);
+    color: var(--popup-fg, #f0f6fc);
+    border: 1px solid var(--popup-border, var(--panel-border));
+    padding: 5px 9px;
+    border-radius: var(--radius-sm);
+    font-size:var(--fs-sm);
+    line-height: 1.25;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    z-index: 10000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    max-width: 280px;
+    /* Il testo NON ha white-space:nowrap se lungo */
+}
+[data-tip][data-tip-wrap]::after {
+    white-space: normal;
+    width: 240px;
+}
+[data-tip]:hover::after,
+[data-tip]:focus-visible::after {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    transition-delay: 0.3s;
+}
+/* Varianti posizione */
+[data-tip][data-tip-pos="bottom"]::after {
+    bottom: auto;
+    top: calc(100% + 6px);
+    transform: translateX(-50%) translateY(-4px);
+}
+[data-tip][data-tip-pos="bottom"]:hover::after {
+    transform: translateX(-50%) translateY(0);
+}
+[data-tip][data-tip-pos="right"]::after {
+    bottom: auto;
+    left: calc(100% + 6px);
+    top: 50%;
+    transform: translateX(-4px) translateY(-50%);
+}
+[data-tip][data-tip-pos="right"]:hover::after {
+    transform: translateX(0) translateY(-50%);
+}
+[data-tip][data-tip-pos="left"]::after {
+    bottom: auto;
+    right: calc(100% + 6px);
+    left: auto;
+    top: 50%;
+    transform: translateX(4px) translateY(-50%);
+}
+[data-tip][data-tip-pos="left"]:hover::after {
+    transform: translateX(0) translateY(-50%);
+}
+/* Tooltip disabilitato quando elemento ha display:none o disabilitato */
+[data-tip][disabled]::after,
+[data-tip][aria-disabled="true"]::after {
+    display: none;
+}
+/* I tooltip dei bottoni nell'header escono SOTTO altrimenti vengono tagliati
+   dal body{overflow:hidden} (il top dell'header coincide col top viewport). */
+header [data-tip]:not([data-tip-pos])::after {
+    bottom: auto;
+    top: calc(100% + 6px);
+    transform: translateX(-50%) translateY(-4px);
+}
+header [data-tip]:not([data-tip-pos]):hover::after,
+header [data-tip]:not([data-tip-pos]):focus-visible::after {
+    transform: translateX(-50%) translateY(0);
+}
+
+/* ── Drift Report (Reality Check / N1) ──────────────────────────────── */
+.drift-overlay {
+    position: fixed; inset: 0; z-index: 1000;
+    display: none; align-items: center; justify-content: center;
+    background: rgba(0,0,0,.55);
+}
+.drift-modal {
+    width: min(680px, 92vw); max-height: 86vh; display: flex; flex-direction: column;
+    background: var(--surface-2); border: 1px solid var(--hairline);
+    border-radius: var(--radius-xl); box-shadow: var(--shadow-lg); overflow: hidden;
+}
+.drift-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px; border-bottom: 1px solid var(--hairline);
+    font-weight: 700; color: var(--text-main);
+}
+.drift-head > span > i { color: var(--accent); margin-right: 7px; }
+.drift-body { padding: 12px 14px; overflow-y: auto; }
+.drift-summary { font-size: .82rem; color: var(--text-muted); margin-bottom: 10px; }
+.drift-allok {
+    display: flex; align-items: center; gap: 9px; padding: 12px;
+    background: rgba(57,211,83,.10); border: 1px solid rgba(57,211,83,.30);
+    border-radius: 7px; color: #39d353; font-weight: 600; font-size: .84rem; margin-bottom: 8px;
+}
+.drift-sec { margin-bottom: 6px; }
+.drift-count { margin-left: auto; font-size: .72rem; font-weight: 700; padding: 1px 8px; border-radius: var(--radius-pill); }
+.drift-sec-body { padding: 4px 0; }
+/* +120% — intestazione modale "Verifica documentazione" e titoli categoria
+   (scoped al solo overlay Drift: spare/L3/adopt restano invariati) */
+/* Tipografia condivisa dai report (Verifica doc · Porte libere · Mappa L3 ·
+   Aggiungi alla mappa): header 1.4em, titoli categoria 1.2×, pillole 120%. */
+#drift-overlay .drift-head,
+#adopt-overlay .drift-head,
+#spare-overlay .drift-head,
+#l3-overlay .drift-head,
+#audit-overlay .drift-head { font-size: 1.4em; }
+#drift-overlay .drift-sec > .props-collapsible-head,
+#spare-overlay .drift-sec > .props-collapsible-head { font-size: calc(var(--fs-md) * 1.2); }
+/* +120% pillole contatore colorate per categoria (.72rem → .86rem) */
+#drift-overlay .drift-count,
+#spare-overlay .drift-count { font-size: .86rem; }
+
+/* ===== PORTE LIBERE (spare capacity) ===== */
+/* Highlight nel rack: attenua le occupate, fa "pop" le libere (verde) e le
+   sospette (giallo = libere sulla carta ma SNMP attive). Toggle = body.spare-mode. */
+body.spare-mode .port-led { opacity: .28; transition: opacity .12s; }
+body.spare-mode .port-led.spare-free,
+body.spare-mode .port-led.spare-suspect { opacity: 1; }
+body.spare-mode .port-led.spare-free {
+    background: var(--active-color, #2ea043) !important;
+}
+body.spare-mode .port-led.spare-suspect {
+    background: var(--idle-color, #d29922) !important;
+}
+/* Report overlay (riusa .drift-overlay/.drift-modal). */
+.spare-summary { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--panel-border); }
+.spare-summary-hdr { display: flex; align-items: center; gap: 12px; }
+.spare-summary-big { font-size: 1.05rem; color: var(--text-main); }
+.spare-summary-big b { color: var(--active-color); font-size: 1.25rem; }
+.spare-summary-sub { font-size: .76rem; color: var(--text-muted); }
+.spare-hl { display: inline-flex; align-items: center; gap: 5px; font-size: .76rem; color: var(--text-muted); cursor: pointer; user-select: none; margin-left: auto; }
+.spare-hl.active { color: var(--active-color); }
+.spare-hl input { width: auto; margin: 0; }
+.spare-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius-md); font-size: 1rem; }
+.spare-row:hover { background: var(--surface-hover); }
+.spare-row-name { color: var(--text-main); font-weight: 600; }
+.spare-cap { margin-left: auto; font-size: .82rem; color: var(--text-muted); display: inline-flex; align-items: center; gap: 6px; }
+.spare-cap b { color: var(--active-color); }
+.spare-cap-sub { color: var(--text-muted); opacity: .8; }
+.spare-susp-pill { color: var(--idle-color); font-weight: 700; font-size: .72rem; }
+/* ── L3-lite (gateway VLAN→device): badge rack, hint binding, sezione SVI,
+   overlay Mappa L3. Riusa il guscio modale del Drift. ─────────────────── */
+.rack-l3-badge {
+    display: inline-block; margin-left: 5px; padding: 0 4px; border-radius: 3px;
+    font-size: .58rem; font-weight: 800; line-height: 1.5; letter-spacing: .3px;
+    background: rgba(57,211,83,.18); color: var(--active-color);
+    border: 1px solid rgba(57,211,83,.4); vertical-align: middle; pointer-events: none;
+}
+/* Pill "v3 da configurare" (stesso linguaggio del badge L3, in ambra). */
+.rack-v3-badge, .floor-v3-badge {
+    display: inline-block; margin-left: 4px; padding: 0 4px; border-radius: 3px;
+    font-size: .58rem; font-weight: 800; line-height: 1.5; vertical-align: middle;
+    background: rgba(210,153,34,.18); color: #d29922;
+    border: 1px solid rgba(210,153,34,.45); pointer-events: none;
+}
+/* Chip-contatore accanto al Sync (clic = salta al prossimo da configurare). */
+.v3-pending-chip { color: #d29922 !important; border-color: rgba(210,153,34,.45) !important; background: rgba(210,153,34,.10) !important; font-weight: 800; }
+.v3-pending-chip i { margin-right: 3px; }
+.vlan-l3-hint { grid-column: 1/-1; font-size: var(--fs-xs); color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
+.vlan-l3-hint b { color: var(--text-main); }
+.vlan-l3-hint.warn { color: #e3b341; }
+/* Sezione "Gateway L3 / SVI" nel pannello device */
+.l3-svi-intro { font-size: var(--fs-xs); color: var(--text-muted); margin: 0 2px 6px; }
+.l3-svi-row { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: var(--radius-md); font-size: .8rem; }
+.l3-svi-row:hover { background: var(--surface-hover); }
+.l3-svi-vlan { font-weight: 700; flex-shrink: 0; min-width: 62px; }
+.l3-svi-name { color: var(--text-main); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.l3-svi-gw { color: var(--text-muted); font-size: .74rem; margin-left: auto; font-family: var(--mono, monospace); }
+.l3-svi-sub { opacity: .7; }
+.l3-svi-warn { color: #e3b341; }
+/* Overlay "Mappa L3 / Gateway" — tabella VLAN→subnet→gateway→device→stato */
+.l3-sum-warn { color: #e3b341; font-weight: 600; }
+.l3-table { display: flex; flex-direction: column; gap: 1px; }
+.l3-row {
+    display: grid; grid-template-columns: 74px minmax(130px, 1.7fr) 116px 106px minmax(76px, 1fr) 100px;
+    align-items: center; gap: 6px; padding: 6px 8px; border-radius: var(--radius-md); font-size: .9rem;
+}
+.l3-row:hover { background: var(--surface-hover); }
+.l3-row-head { font-size: .8rem; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); font-weight: 700; border-bottom: 1px solid var(--panel-border); border-radius: 0; }
+.l3-row.has-warn { background: rgba(227,179,65,.06); }
+.l3-row-vlan { font-weight: 700; }
+.l3-row-name { color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.l3-row-sub, .l3-row-gw { color: var(--text-muted); font-size: .82rem; font-family: var(--mono, monospace); }
+.l3-row-dev { color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.l3-st { font-size: .8rem; font-weight: 700; white-space: nowrap; }
+.l3-st-ok { color: var(--active-color); }
+.l3-st-auto { color: var(--active-color); opacity: .85; }
+.l3-st-warn { color: #e3b341; }
+.l3-st-none { color: var(--inactive-color); }
+.drift-empty { font-size: .74rem; color: var(--text-muted); padding: 4px 8px; }
+/* Gruppo grigio "device utente/BYOD": rumore guest collassato di default. */
+.drift-endpoint-group { margin: 2px 4px 0; }
+.drift-endpoint-head {
+    list-style: none; cursor: pointer; user-select: none;
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 8px; border-radius: var(--radius-md); border: 1px dashed var(--hairline);
+    color: var(--text-muted); font-size: .73rem; font-style: italic;
+}
+.drift-endpoint-head::-webkit-details-marker { display: none; }
+.drift-endpoint-head:hover { background: var(--surface-hover); color: var(--text-main); }
+.drift-endpoint-hint { margin-left: 4px; opacity: .8; font-style: normal; }
+.drift-endpoint-hint::after { content: '— mostra'; }
+.drift-endpoint-group[open] .drift-endpoint-hint::after { content: '— nascondi'; }
+.drift-endpoint-body { padding: 2px 0 2px 6px; opacity: .82; }
+.drift-row {
+    display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+    border-radius: var(--radius-md); font-size: 1rem;
+}
+.drift-row:hover { background: var(--surface-hover); }
+.drift-row-main { color: var(--text-main); font-weight: 600; }
+.drift-row-sub { color: var(--text-muted); font-size: .8rem; margin-left: 8px; }
+.drift-row-acts { margin-left: auto; display: flex; gap: 4px; flex-shrink: 0; }
+.drift-act {
+    background: transparent; border: 1px solid var(--hairline); color: var(--text-muted);
+    border-radius: 5px; width: 26px; height: 24px; cursor: pointer; font-size: .72rem;
+}
+.drift-act:hover { color: var(--text-main); border-color: var(--accent); }
+.drift-act.apply:hover { color: var(--accent); background: var(--accent-soft); }
+.drift-act.add:hover { color: var(--active-color); border-color: var(--active-color); }
+
+/* ── Adotta i non documentati (schermata selezione stile Scopri) ─────── */
+.drift-adopt-bar { display: flex; justify-content: flex-end; margin: 2px 4px 8px; }
+.adopt-modal { display: flex; flex-direction: column; max-height: 80vh; }
+.adopt-modal .drift-body { overflow: auto; flex: 1; }
+.adopt-intro { font-size: .9rem; color: var(--text-muted); margin: 2px 2px 10px; line-height: 1.4; }
+.adopt-table { width: 100%; border-collapse: collapse; font-size: 1rem; }   /* tipografia come Verifica documentazione */
+.adopt-table th {
+    text-align: left; font-size: .8rem; text-transform: uppercase; letter-spacing: .4px;
+    color: var(--text-muted); font-weight: 700; padding: 5px 8px;
+    border-bottom: 1px solid var(--panel-border); position: sticky; top: 0; background: var(--bg-color);
+}
+.adopt-table td { padding: 6px 8px; border-bottom: 1px solid var(--hairline); vertical-align: middle; }
+.adopt-row:hover { background: var(--surface-hover); }
+.adopt-row.is-endpoint { opacity: .92; }
+.adopt-mac { font-family: var(--mono, monospace); font-size: .9rem; color: var(--text-main); }
+.adopt-seen { color: var(--text-muted); font-size: .85rem; }
+/* Select tipo: sfondo scuro + testo chiaro come il menu di Scopri (.disc-table select);
+   con --input-bg le option restavano grigio chiaro su bianco = invisibili. */
+.adopt-table select { padding: 3px 6px; font-size: .9rem; font-family: inherit; background: var(--bg-color); color: var(--text-main); border: 1px solid var(--panel-border); border-radius: var(--radius-sm); }
+.adopt-empty { color: var(--text-muted); font-size: .9rem; padding: 14px 8px; text-align: center; }
+.adopt-foot {
+    display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+    padding: 10px 14px; border-top: 1px solid var(--panel-border);
+}
+.adopt-autolink { display: inline-flex; align-items: center; gap: 6px; font-size: .78rem; color: var(--text-muted); cursor: pointer; user-select: none; }
+.adopt-autolink input { width: auto; margin: 0; }
+.adopt-foot .toolbar-btn.primary { margin-left: auto; }
+
+/* ── Audit Trail / Storia modifiche (N2) ────────────────────────────── */
+.audit-toolbar {
+    display: flex; gap: 8px; align-items: center;
+    padding: 10px 14px; border-bottom: 1px solid var(--hairline);
+}
+.audit-toolbar input {
+    flex: 1; padding: 6px 9px; font-size: .9rem;
+    background: var(--surface-1); color: var(--text-main);
+    border: 1px solid var(--hairline); border-radius: var(--radius-md);
+}
+.audit-row {
+    display: flex; align-items: flex-start; gap: 9px; padding: 7px 8px;
+    border-radius: var(--radius-md); font-size: 1rem; border-bottom: 1px solid var(--hairline);
+}
+.audit-row:last-child { border-bottom: none; }
+.audit-row:hover { background: var(--surface-hover); }
+.audit-ic { color: var(--accent); margin-top: 2px; width: 16px; text-align: center; flex-shrink: 0; }
+.audit-main { color: var(--text-main); line-height: 1.35; }
+.audit-act { font-weight: 600; }
+.audit-sum { color: var(--text-muted); }
+.audit-meta { color: var(--text-muted); font-size: .8rem; margin-top: 1px; }

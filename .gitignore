@@ -1,0 +1,119 @@
+# -------------------------------------------------------
+#  InfraNet Pro — .gitignore
+# -------------------------------------------------------
+
+# Dipendenze npm (si reinstallano con: npm install)
+node_modules/
+
+# Bundle esbuild del frontend (artefatto di build: si rigenera con npm run build)
+dist/
+
+# Dati progetti salvati localmente (non versionare dati utente)
+projects/
+
+# Libreria skin pannello caricate localmente (asset utente)
+skins/
+
+# -------------------------------------------------------
+# Strumenti e catture SNMP locali (non versionare)
+# -------------------------------------------------------
+# Simulatore SNMP di rete / UPS-ATS (kit di test locale)
+tools/snmp-sim/
+# Harness compatibilità .snmprec: loader + test + catture di device reali
+# (possono contenere dati personali — restano locali; vedi COMPATIBILITY.md)
+tools/snmprec.js
+test/snmprec-replay.test.js
+test/fixtures/snmprec/
+# Generatori di progetti demo/test (producono dati locali in projects/)
+tools/gen-demo-network.js
+tools/gen-2rack-demo.js
+tools/gen-company-demo.js
+# Script di scan/debug temporanei (scratch, non versionare)
+tools/_*.js
+
+# -------------------------------------------------------
+# Windows
+# -------------------------------------------------------
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# -------------------------------------------------------
+# Editor / IDE
+# -------------------------------------------------------
+.vscode/
+.idea/
+.claude/
+*.sublime-project
+*.sublime-workspace
+
+# -------------------------------------------------------
+# Log e file temporanei
+# -------------------------------------------------------
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm/
+
+# -------------------------------------------------------
+# Variabili d'ambiente (non committare credenziali)
+# -------------------------------------------------------
+.env
+.env.local
+.env*.local
+
+# -------------------------------------------------------
+# Auth — dati sensibili (non versionare)
+# -------------------------------------------------------
+# password hashate degli utenti
+users.json
+# chiave sessione auto-generata
+.session-secret
+
+# -------------------------------------------------------
+# Runtime / backup locali (non versionare)
+# -------------------------------------------------------
+.server-runtime.err
+backup_reset/
+
+# -------------------------------------------------------
+# Screenshot temporanei (non versionare)
+# -------------------------------------------------------
+# Codex / agent screenshots: hash-named PNG in root
+[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f].png
+
+# -------------------------------------------------------
+# Documenti di lavoro / pianificazione interna (non versionare)
+# -------------------------------------------------------
+ROADMAP_STRATEGICA_2026.md
+# Roadmap di monetizzazione (strategia commerciale interna)
+COMMERCIAL_ROADMAP.md
+# Guida authoring skin (know-how riservato per gli skin-pack a pagamento)
+PANEL_SKIN_ILLUSTRATOR.md
+# Diario di progetto / handoff / runbook / spec interne — restano locali (2026-06-22)
+HANDOFF_*.md
+MEMORIA_PROGETTO_INFRANETPRO.md
+DISCOVERY_TOPOLOGY_ROADMAP.md
+HANDOFF_UX_TOOLBAR.md
+MIGRATION_ESM.md
+PANEL_SKIN_MVP.md
+# Doc tecnici/decisionali interni — la sorgente resta locale (i PDF del manuale sono il deliverable pubblico)
+MANUALE_TECNICO.md
+DECISIONS.md
+SQLITE_MIGRATION.md
+
+# -------------------------------------------------------
+# Manuale PDF — sorgente/temporanei di build (il PDF è il deliverable; restano locali)
+# -------------------------------------------------------
+# HTML di build da cui si rigenera MANUALE_TECNICO.pdf (tenuto in locale per le modifiche)
+_manual_build*.html
+# PDF temporaneo prima dello swap + screenshot di verifica
+_manual_new.pdf
+_v_*.png
+# Asset Ko-fi / branding (banner, logo): sorgenti HTML + PNG — restano locali
+_kofi_*
+_logo_square.*

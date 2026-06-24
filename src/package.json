@@ -1,0 +1,4 @@
+{
+  "//": "Marca i moduli in src/ come ESM (import/export). Serve a `node -c` (tools/check-syntax.js) per validarli come moduli su OGNI versione di Node (il Node 18 della CI non fa auto-detection ESM). Non e' un pacchetto npm: nessuna dipendenza, il manifest del progetto resta la package.json root. esbuild bundla src/main.js a IIFE indipendentemente da questo.",
+  "type": "module"
+}

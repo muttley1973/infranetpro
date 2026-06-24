@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Questions & ideas (Discussions)
+    url: https://github.com/muttley1973/infranetpro/discussions
+    about: Ask questions, share ideas or discuss a change before opening an issue.
+  - name: 💼 Commercial license
+    url: https://github.com/muttley1973/infranetpro/blob/main/LICENSING.md
+    about: For closed-source or SaaS use without the AGPL copyleft obligations.

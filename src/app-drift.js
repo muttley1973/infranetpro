@@ -1,0 +1,483 @@
+// ============================================================
+// DRIFT REPORT — orchestratore + UI (migrato a ESM, esbuild)
+// ============================================================
+// Collega lo state dell'app al diff engine puro (lib/drift-report.js):
+//   1) snapshot DOC catturato PRIMA del sync (il sync sovrascrive i campi base)
+//   2) pollAllSNMP() riusato AS-IS (nessuna modifica al sync)
+//   3) snapshot REALTA' da state.ports + _topoFdbCache dopo il sync
+//   4) aggiorna downStreak per porta (regola "cavo fantasma")
+//   5) buildDriftReport → render pannello
+// Azioni 1-click: aggiorna doc (preview) / ignora (persistente) / investiga.
+// Persistenza ADDITIVA: state.driftIgnores[] + state.ports[pid].downStreak.
+//
+// Tutte le dipendenze passano dal ponte: lib <script> (buildDriftReport da
+// drift-report.js; isVirtualMac/isRandomizedMac da mac-class.js) e globali/glue
+// legacy (state, pollAllSNMP, renderAll, …) via win.*; `t` dal ponte. Lo stato
+// condiviso `_driftReport` vive su window (store._driftReport): è letto E scritto
+// anche da src/app-drift-adopt.js, quindi NON è una variabile di modulo.
+import { win, expose, t } from './_bridge.js';
+import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
+import { escapeHTML, normalizeMacAddress } from './app-util.js';
+import { nodeById, markDirty, getNodeByPortId, getNodeDisplayName, pushHistory, logAudit } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { renderAutomationMenu } from './app-vlan-autopoll.js';   // setAutoIpRenew aggiorna il popover Automazioni
+
+// _driftReport è stato condiviso cross-boundary (scritto anche da
+// app-drift-adopt.js) → vive su window, mai come binding di modulo.
+if(typeof store._driftReport === 'undefined') store._driftReport = null;
+let _driftRunning = false;
+const DRIFT_DOWN_STREAK_N = 3;
+
+function _driftNorm(mac){
+    const s = (typeof normalizeMacAddress === 'function') ? normalizeMacAddress(mac) : String(mac || '');
+    return String(s).toLowerCase();
+}
+// Classificazione MAC delegata a lib/mac-class.js (pura, testata): NIC virtuali
+// (container/hypervisor) e MAC randomizzati/locally-administered (telefoni/BYOD).
+function _driftPortLabel(pid){
+    const n = getNodeByPortId(pid);   // importato da app.js (guardia win.* ridondante rimossa)
+    const num = String(pid).slice(String(pid).lastIndexOf('-') + 1);
+    const pn = (n && typeof win._frontPanelPortLabel === 'function') ? win._frontPanelPortLabel(n, num, n.ports || 0) : num;
+    const nm = n ? (getNodeDisplayName(n) || n.name || n.id) : pid;
+    return `${nm} / P${pn}`;
+}
+
+// ── 1) Snapshot DOC (PRIMA del sync) ─────────────────────────────────
+export function _driftBuildDocSnapshot(){
+    const state = store.state;
+    const ports = {};
+    const linkPids = new Set();
+    for(const l of state.links){ if(l && l.src) linkPids.add(l.src); if(l && l.dst) linkPids.add(l.dst); }
+    for(const pid of linkPids){
+        const pi = state.ports[pid] || {};
+        ports[pid] = {
+            label: _driftPortLabel(pid),
+            status: pi.statusOvr ?? pi.status ?? null,
+            speed:  pi.speedOvr  ?? pi.speed  ?? null,
+            duplex: pi.duplex ?? null,
+            vlan:   pi.vlanOvr   ?? pi.vlan   ?? null,
+        };
+    }
+    const macs = [];
+    const deviceSigs = [];
+    for(const n of state.nodes){
+        // nodeId: un device che ha risposto al sync non è "assente" anche senza FDB.
+        // ip: per rilevare il CAMBIO INDIRIZZO (stesso MAC, IP diverso in rete).
+        if(n.mac){ macs.push({ mac: n.mac, label: getNodeDisplayName(n) || n.name || n.id, nodeId: n.id, ip: ((n.integration && n.integration.host) || n.ip || '').trim() }); deviceSigs.push(_driftNorm(n.mac)); }
+    }
+    for(const pid of Object.keys(state.ports)){ const m = state.ports[pid] && state.ports[pid].mac; if(m) deviceSigs.push(_driftNorm(m)); }
+    const cables = state.links.map(l => ({ id: l.id, label: (l.label || win._cableAutoLabel(l)), src: l.src, dst: l.dst }));
+    return { ports, macs, deviceSigs, cables };
+}
+
+// ── 4) Aggiorna lo streak "porta down" per le porte documentate ──────
+function _driftUpdateStreaks(docSnap){
+    const state = store.state;
+    for(const pid of Object.keys(docSnap.ports)){
+        const nodeId = String(pid).slice(0, String(pid).lastIndexOf('-'));
+        const n = nodeById(nodeId);   // importato da app.js (guardia win.* ridondante rimossa)
+        if(!n || n.snmpStatus !== 'ok') continue;           // device muto → non valutabile, non toccare
+        const pi = state.ports[pid]; if(!pi) continue;
+        if(pi.status === 'active') pi.downStreak = 0;
+        else pi.downStreak = (pi.downStreak || 0) + 1;
+    }
+}
+
+// ── 2/3) Snapshot REALTA' (DOPO il sync) ─────────────────────────────
+function _driftBuildSnmpSnapshot(docSnap, reachable, arpTable){
+    const state = store.state;
+    const responded = {};
+    for(const n of state.nodes){ if(n.snmpStatus === 'ok') responded[n.id] = true; }
+    // Presenza MULTI-SEGNALE: un device è presente se ha risposto a SNMP OPPURE
+    // se il suo IP è risultato raggiungibile dalla sweep (ping ICMP / ARP / TCP).
+    // Così "Verifica documentazione" non dà per assenti i device vivi che NON
+    // parlano SNMP (PC/IoT/UPS/webcam…). reachabilityChecked = la sweep ha girato
+    // e ha trovato vivo almeno un host (vantaggio di osservabilità valido).
+    const reach = (reachable && typeof reachable === 'object') ? reachable : null;
+    // Osservabilità: la sweep ha girato se ha trovato vivo almeno un host OPPURE
+    // se abbiamo una tabella ARP non vuota (anch'essa è una vista della rete).
+    const reachabilityChecked = (!!reach && Object.values(reach).some(r => r && r.alive))
+        || (!!arpTable && typeof arpTable === 'object' && Object.keys(arpTable).length > 0);
+    const presentNodeIds = {};
+    for(const n of state.nodes){
+        if(n.snmpStatus === 'ok'){ presentNodeIds[n.id] = true; continue; }
+        if(reach){
+            const ip = ((n.integration||{}).host || n.ip || '').trim();
+            if(ip && reach[ip] && reach[ip].alive) presentNodeIds[n.id] = true;
+        }
+    }
+    // Mappa MAC→IP dalla tabella ARP COMPLETA del segmento: un MAC documentato
+    // visto vivo a un IP è presente (anche se l'IP è cambiato); IP diverso da
+    // quello documentato = "cambio IP". Usa l'ARP intero (non solo gli IP
+    // documentati) così becca anche un device spostato a un IP NUOVO.
+    const macAtIp = {};
+    const arp = (arpTable && typeof arpTable === 'object') ? arpTable : null;
+    if(arp){
+        for(const ip of Object.keys(arp)){
+            const k = String(arp[ip] || '').toLowerCase();
+            if(k && !macAtIp[k]) macAtIp[k] = ip;
+        }
+    } else if(reach){   // fallback: MAC dai soli IP documentati raggiunti
+        for(const ip of Object.keys(reach)){
+            const info = reach[ip];
+            if(info && info.alive && info.mac){
+                const k = String(info.mac).toLowerCase();
+                if(k && !macAtIp[k]) macAtIp[k] = ip;
+            }
+        }
+    }
+    const ports = {};
+    for(const pid of Object.keys(docSnap.ports)){
+        const pi = state.ports[pid] || {};
+        ports[pid] = { status: pi.status ?? null, speed: pi.speed ?? null, duplex: pi.duplex ?? null, vlan: pi.vlan ?? null };
+    }
+    const fdb = (typeof store._topoFdbCache === 'object' && store._topoFdbCache) ? store._topoFdbCache : {};
+    // OSSERVABILITÀ: abbiamo almeno una MAC-table (FDB) popolata? Senza, non
+    // sappiamo NULLA su chi è presente in rete → il motore non deve dichiarare
+    // nessuno "assente" (vedi guardia macOrphan in drift-report.js). Tipico
+    // quando il Sync fallisce su (quasi) tutti i device: FDB vuoto.
+    const fdbObserved = Object.values(fdb).some(t => t && Object.keys(t).length > 0);
+    const observedMacs = [];
+    for(const sw of Object.keys(fdb)){ for(const mac of Object.keys(fdb[sw] || {})) observedMacs.push(mac); }
+    for(const pid of Object.keys(state.ports)){ const m = state.ports[pid] && state.ports[pid].mac; if(m) observedMacs.push(m); }
+    const known = new Set(docSnap.deviceSigs);
+    const vlanCache = (typeof win._topoFdbVlanCache === 'object' && win._topoFdbVlanCache) ? win._topoFdbVlanCache : {};
+    const observedDevices = [];
+    const seen = new Set();
+    for(const sw of Object.keys(fdb)){
+        const swNode = nodeById(sw);   // importato da app.js (guardia win.* ridondante rimossa)
+        const swFdb = fdb[sw] || {};
+        const swVlan = vlanCache[sw] || {};
+        // Conteggio MAC per porta dello switch: un uplink affollato (AP/hub/guest)
+        // raccoglie tanti MAC su una sola ifName → tutti endpoint, non infrastruttura.
+        const macsPerIf = (typeof win.countMacsPerPort === 'function') ? win.countMacsPerPort(swFdb) : {};
+        for(const [mac, ifName] of Object.entries(swFdb)){
+            const sig = _driftNorm(mac);
+            if(!sig || seen.has(sig) || known.has(sig) || (typeof win.isVirtualMac === 'function' && win.isVirtualMac(mac))) continue;
+            seen.add(sig);
+            observedDevices.push({
+                sig, mac,
+                label: `${t('pnl.seg.seenOn',{sw:(swNode && (swNode.name||swNode.id)) || sw})}${ifName ? ' · ' + ifName : ''}`,
+                vlan: (swVlan[mac] != null) ? swVlan[mac] : null,    // VLAN-first (se FDB VLAN-aware)
+                portMacCount: macsPerIf[ifName] || 0,               // uplink affollato
+                consumer: (typeof win.isRandomizedMac === 'function') && win.isRandomizedMac(mac), // telefono/BYOD
+            });
+        }
+    }
+    // rejectedAutoLinks → MAC delle porte coinvolte (un device gia' rifiutato non riappare)
+    const rejectedSigs = [];
+    for(const psig of (state.rejectedAutoLinks || [])){
+        for(const pid of String(psig).split('||')){ const m = state.ports[pid] && state.ports[pid].mac; if(m) rejectedSigs.push(_driftNorm(m)); }
+    }
+    const portDownStreak = {};
+    for(const pid of Object.keys(docSnap.ports)) portDownStreak[pid] = (state.ports[pid] && state.ports[pid].downStreak) || 0;
+    return { responded, ports, observedMacs, observedDevices, rejectedSigs, portDownStreak, fdbObserved, presentNodeIds, reachabilityChecked, macAtIp };
+}
+
+// ── Calcolo Drift dallo stato CORRENTE (SENZA ri-pollare) ────────────
+// Usa il docSnap catturato PRIMA del refresh (i campi base sono già stati
+// sovrascritti dal poll). Riusato da: runDriftCheck (dopo pollAllSNMP) e dal
+// chip "cosa è cambiato" del Sync (che ha già fatto il poll, FDB incluso).
+// Scrive store._driftReport e lo ritorna. NON apre l'overlay.
+export function _driftComputeFromDoc(docSnap, opts){
+    const state = store.state;
+    _driftUpdateStreaks(docSnap);
+    const snmpSnap = _driftBuildSnmpSnapshot(docSnap, opts && opts.reachable, opts && opts.arpTable);
+    if(!Array.isArray(state.driftIgnores)) state.driftIgnores = [];
+    store._driftReport = win.buildDriftReport(snmpSnap, docSnap, state.driftIgnores, {
+        downStreakN: DRIFT_DOWN_STREAK_N,
+        guestVlans: state.guestVlans || [],   // VLAN marcate guest sulla barra VLAN
+        endpointPortThreshold: 5,             // ≥5 MAC su una porta = uplink AP/hub/guest
+    });
+    return store._driftReport;
+}
+
+// ── Sweep di raggiungibilità (audit presenza multi-segnale) ──────────
+// Interroga il server (ping ICMP / ARP / TCP) sugli IP documentati: stabilisce
+// la PRESENZA dei device che NON parlano SNMP. Ritorna { ip: { alive, via } } o
+// null se non c'è nulla da verificare / errore. Usata SOLO da "Verifica
+// documentazione" (non dal Sync veloce, per non rallentarlo).
+async function _driftReachabilitySweep(){
+    const state = store.state;
+    const ips = [...new Set((state.nodes || [])
+        .map(n => ((n.integration || {}).host || n.ip || '').trim())
+        .filter(ip => /^\d{1,3}(\.\d{1,3}){3}$/.test(ip)))];
+    if(!ips.length) return null;
+    try{
+        const r = await fetch('/api/reachability', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ ips }),
+        });
+        const d = await r.json();
+        return (d && d.ok) ? { reachable: d.results || {}, arpTable: d.arpTable || {} } : null;
+    }catch(_){ return null; }
+}
+
+// ── Entry point: bottone "Verifica documentazione" ───────────────────
+async function runDriftCheck(){
+    const state = store.state;
+    if(_driftRunning || win._snmpSyncing) return;
+    const hasSnmp = state.nodes.some(n => String((n.integration||{}).driver||'').startsWith('snmp') && String((n.integration||{}).host||n.ip||'').trim());
+    if(!hasSnmp){ showAlert(t('msg.net.noSnmpDevicesDoc')); return; }
+    _driftRunning = true;
+    const btn = document.getElementById('btn-drift');
+    if(btn){ btn.disabled = true; btn.dataset._lbl = btn.innerHTML; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+    try {
+        const docSnap = _driftBuildDocSnapshot();      // PRIMA del sync (i campi base verranno sovrascritti)
+        await win.pollAllSNMP();                        // riuso, immutato
+        const sweep = await _driftReachabilitySweep();  // presenza multi-segnale (ping/ARP/TCP) + tabella ARP
+        _driftComputeFromDoc(docSnap, sweep || {});     // streaks + snapshot realtà + buildDriftReport
+        const _renewed = _driftAutoRenewIps();          // opt-in: rinnova IP dei MAC noti (DHCP)
+        markDirty();
+        if(_renewed) renderAll();                        // riflette i nuovi IP su floor/rack
+        _renderDriftReport();
+    } catch(e){
+        showAlert(t('msg.net.docCheckFailed') + (e && e.message || e));
+    } finally {
+        _driftRunning = false;
+        if(btn){ btn.disabled = false; if(btn.dataset._lbl){ btn.innerHTML = btn.dataset._lbl; delete btn.dataset._lbl; } }
+    }
+}
+
+// ── Azioni 1-click ───────────────────────────────────────────────────
+function _driftAllRows(){
+    const rep = store._driftReport;
+    if(!rep) return [];
+    return [].concat(rep.stateDrift, rep.macOrphan, rep.undocumented, rep.ghostCable, rep.ipChanged || []);
+}
+function _driftFindRow(key){ return _driftAllRows().find(r => r.key === key) || null; }
+function _driftDropRow(key){
+    const rep = store._driftReport;
+    if(!rep) return;
+    for(const cat of ['stateDrift','macOrphan','undocumented','ghostCable','ipChanged']){
+        if(!Array.isArray(rep[cat])) continue;
+        rep[cat] = rep[cat].filter(r => r.key !== key);
+        if(cat === 'undocumented'){
+            // counts.undocumented resta "solo infra"; gli endpoint hanno il loro conteggio.
+            rep.counts.undocumented = rep.undocumented.filter(r => r.cls !== 'endpoint').length;
+            rep.counts.undocumentedEndpoint = rep.undocumented.filter(r => r.cls === 'endpoint').length;
+        } else {
+            rep.counts[cat] = rep[cat].length;
+        }
+    }
+}
+function driftIgnore(key){
+    const state = store.state;
+    if(!key) return;
+    if(!Array.isArray(state.driftIgnores)) state.driftIgnores = [];
+    if(!state.driftIgnores.includes(key)){ state.driftIgnores.push(key); markDirty(); }
+    _driftDropRow(key);
+    _renderDriftReport();
+}
+function driftApplyDoc(key){
+    const state = store.state;
+    const row = (store._driftReport && store._driftReport.stateDrift || []).find(r => r.key === key);
+    if(!row || !row.patch) return;
+    const { pid, status, speed, duplex, vlan } = row.patch;
+    pushHistory();
+    if(!state.ports[pid]) state.ports[pid] = {};
+    // allinea la DOC alla realta': scrivo i valori reali come nuovi valori base
+    // e rimuovo gli override divergenti (cosi' al re-check doc == realta').
+    if(status != null) state.ports[pid].status = status;
+    if(speed  != null) state.ports[pid].speed  = speed;
+    if(duplex != null) state.ports[pid].duplex = duplex;
+    if(vlan   != null) state.ports[pid].vlan   = vlan;
+    delete state.ports[pid].statusOvr;
+    delete state.ports[pid].speedOvr;
+    delete state.ports[pid].vlanOvr;
+    if(typeof win.logAudit === 'function') win.logAudit('drift-apply', { target: row.label, summary: (row.diffs || []).map(d => `${d.field}→${d.real}`).join(', ') });
+    markDirty(); renderAll();
+    _driftDropRow(key);
+    _renderDriftReport();
+}
+// Applica il cambio IP rilevato (stesso MAC, IP diverso in rete): aggiorna l'IP
+// principale del nodo (e l'host SNMP se era l'IP vecchio), registra in audit.
+function driftApplyIpChange(key){
+    const row = (store._driftReport && store._driftReport.ipChanged || []).find(r => r.key === key);
+    if(!row || !row.newIp) return;
+    const n = row.nodeId ? nodeById(row.nodeId) : null;
+    if(!n){ showAlert(t('msg.net.nodeNotFoundIp')); return; }
+    pushHistory();
+    const oldIp = row.oldIp || '';
+    n.ip = row.newIp;
+    n.ipManual = false;                       // ora deriva dalla rete (verificata)
+    if(!n.integration) n.integration = {};
+    const ih = String(n.integration.host || '').trim();
+    if(!ih || ih === oldIp) n.integration.host = row.newIp;
+    if(typeof win.logAudit === 'function') win.logAudit('drift-ipchange', { target: row.label || n.name || n.id, summary: `${oldIp || '?'} → ${row.newIp}` });
+    markDirty(); renderAll();
+    _driftDropRow(key);
+    _renderDriftReport();
+}
+// ── Auto-rinnovo IP (DHCP) per MAC noto — opt-in, default OFF ─────────
+// Quando `state.autoIpRenew` è attivo, i cambi IP rilevati da "Verifica
+// documentazione" (MAC documentato visto VIVO a un IP diverso) sui nodi con
+// IP NON fissato a mano (`ipManual` falsy) vengono applicati da soli: l'identità
+// è il MAC, l'IP è un attributo effimero del DHCP. Gli IP pinnati a mano restano
+// in tabella per revisione umana → manual-first preservato dove conta davvero.
+// Ritorna quanti ne ha rinnovati. Agisce SOLO da runDriftCheck (il Sync non ha
+// la mappa MAC→IP-vivo, quindi `ipChanged` lì è vuoto).
+function _driftAutoRenewIps(){
+    if(!store.state.autoIpRenew) return 0;
+    const rep = store._driftReport;
+    const rows = (rep && rep.ipChanged) || [];
+    if(!rows.length) return 0;
+    let applied = 0;
+    for(const row of rows.slice()){
+        if(!row.newIp || !row.nodeId) continue;
+        const n = nodeById(row.nodeId);
+        if(!n || n.ipManual) continue;            // IP statico/manuale: non si tocca
+        if(applied === 0) pushHistory();          // un solo punto di undo per il lotto
+        const oldIp = row.oldIp || '';
+        n.ip = row.newIp;
+        n.ipManual = false;                       // deriva dalla rete (verificata)
+        if(!n.integration) n.integration = {};
+        const ih = String(n.integration.host || '').trim();
+        if(!ih || ih === oldIp) n.integration.host = row.newIp;
+        logAudit('drift-ipchange-auto', { target: row.label || n.name || n.id, summary: `${oldIp || '?'} → ${row.newIp}` });
+        _driftDropRow(row.key);
+        applied++;
+    }
+    return applied;
+}
+// Toggle per-progetto del rinnovo automatico IP (UI in proprietà floor).
+function setAutoIpRenew(on){
+    store.state.autoIpRenew = !!on;
+    markDirty();
+    renderAutomationMenu();
+}
+function driftInvestigate(key){
+    const state = store.state;
+    const row = _driftFindRow(key);
+    if(!row) return;
+    _closeDriftReport();
+    if(row.pid){
+        const n = getNodeByPortId(row.pid);
+        if(n){ if(typeof win.ensureNodeRackVisible==='function') win.ensureNodeRackVisible(n); store.selType='port'; store.selId=row.pid; if(typeof win.trace==='function') win.trace(row.pid); renderAll(); if(typeof win.focusNode==='function') win.focusNode(n); }
+    } else if(row.id){
+        const l = state.links.find(x => x.id === row.id);
+        if(l){ const n = getNodeByPortId(l.src) || getNodeByPortId(l.dst); if(typeof store.highPath!=='undefined' && store.highPath.add) store.highPath.add(row.id); store.selType=null; store.selId=null; if(n && typeof win.ensureNodeRackVisible==='function') win.ensureNodeRackVisible(n); renderAll(); if(n && typeof win.focusNode==='function') win.focusNode(n); }
+    } else if(row.sig || row.mac){
+        const sig = row.sig || _driftNorm(row.mac);
+        const n = state.nodes.find(x => x.mac && _driftNorm(x.mac) === sig);
+        if(n && typeof win.selectAndFocusNode==='function') win.selectAndFocusNode(n);
+        else showAlert(t('msg.net.macSeenUnassociated',{mac:row.mac || sig}));
+    }
+}
+
+// ── Rendering del pannello (overlay) ─────────────────────────────────
+// tk = chiave i18n risolta a render-time (t(c.tk)), così il cambio lingua si
+// riflette riaprendo l'overlay.
+const _DRIFT_CATS = [
+    { k:'consistent',   tk:'drift.catConsistent',   i:'fa-circle-check',         c:'#39d353', collapsed:true },
+    { k:'stateDrift',   tk:'drift.catStateDrift',   i:'fa-triangle-exclamation', c:'#d29922' },
+    { k:'ipChanged',    tk:'drift.catIpChanged',    i:'fa-right-left',           c:'#39c5ff' },
+    { k:'macOrphan',    tk:'drift.catMacOrphan',    i:'fa-ghost',                c:'#8b949e' },
+    { k:'undocumented', tk:'drift.catUndocumented', i:'fa-circle-question',      c:'#58a6ff' },
+    { k:'ghostCable',   tk:'drift.catGhost',        i:'fa-link-slash',           c:'#f85149' },
+];
+function _driftEnsureOverlay(){
+    let ov = document.getElementById('drift-overlay');
+    if(!ov){
+        ov = document.createElement('div');
+        ov.id = 'drift-overlay';
+        ov.className = 'drift-overlay';
+        const _ttl = t('report.drift');
+        const _cls = t('common.close');
+        ov.innerHTML = `<div class="drift-modal"><div class="drift-head"><span><i class="fas fa-clipboard-check"></i> <span id="drift-title">${_ttl}</span></span><button class="toolbar-btn" onclick="_closeDriftReport()" data-tip="${_cls}"><i class="fas fa-times"></i></button></div><div class="drift-body" id="drift-body"></div></div>`;
+        document.body.appendChild(ov);
+        ov.addEventListener('mousedown', e => { if(e.target === ov) _closeDriftReport(); });
+    }
+    return ov;
+}
+function _closeDriftReport(){ const ov = document.getElementById('drift-overlay'); if(ov) ov.style.display = 'none'; }
+function _driftRowHtml(cat, r){
+    const esc = s => escapeHTML(String(s == null ? '' : s));
+    let main = '', actions = '';
+    const invBtn = `<button class="drift-act" onclick="driftInvestigate('${esc(r.key)}')" data-tip="${t('drift.tipOpen')}"><i class="fas fa-magnifying-glass"></i></button>`;
+    const ignBtn = `<button class="drift-act" onclick="driftIgnore('${esc(r.key)}')" data-tip="${t('drift.tipIgnore')}"><i class="fas fa-eye-slash"></i></button>`;
+    if(cat === 'stateDrift'){
+        const diffs = (r.diffs || []).map(d => `${esc(d.field)}: <s>${esc(d.doc)}</s> → <b>${esc(d.real)}</b>`).join(' · ');
+        main = `<span class="drift-row-main">${esc(r.label)}</span><span class="drift-row-sub">${diffs}</span>`;
+        actions = `<button class="drift-act apply" onclick="driftApplyDoc('${esc(r.key)}')" data-tip="${t('drift.tipApply')}"><i class="fas fa-arrows-rotate"></i></button>${ignBtn}${invBtn}`;
+    } else if(cat === 'macOrphan'){
+        main = `<span class="drift-row-main">${esc(r.label || r.mac)}</span><span class="drift-row-sub">${esc(r.mac)} — ${t('drift.notSeen')}</span>`;
+        actions = `${ignBtn}${invBtn}`;
+    } else if(cat === 'undocumented' || cat === 'undocumentedEndpoint'){
+        const vlanStr = r.vlan != null ? ` · VLAN ${esc(r.vlan)}` : '';
+        main = `<span class="drift-row-main">${esc(r.mac)}</span><span class="drift-row-sub">${esc(r.label)}${vlanStr}</span>`;
+        const addBtn = `<button class="drift-act add" onclick="openAdoptModal('${esc(r.key)}')" data-tip="${t('drift.tipAddMap')}"><i class="fas fa-plus"></i></button>`;
+        actions = `${addBtn}${ignBtn}${invBtn}`;
+    } else if(cat === 'ghostCable'){
+        main = `<span class="drift-row-main">${esc(r.label)}</span><span class="drift-row-sub">${t('drift.portDown',{n:esc(r.downStreak)})}</span>`;
+        actions = `${ignBtn}${invBtn}`;
+    } else if(cat === 'ipChanged'){
+        main = `<span class="drift-row-main">${esc(r.label || r.mac)}</span><span class="drift-row-sub">${esc(r.mac)} · <s>${esc(r.oldIp)}</s> → <b>${esc(r.newIp)}</b></span>`;
+        const upBtn = `<button class="drift-act apply" onclick="driftApplyIpChange('${esc(r.key)}')" data-tip="${t('drift.tipUpdateIp')}"><i class="fas fa-arrows-rotate"></i></button>`;
+        actions = `${upBtn}${ignBtn}${invBtn}`;
+    } else { // consistent
+        main = `<span class="drift-row-main">${esc(r.label)}</span>`;
+    }
+    return `<div class="drift-row">${main}<span class="drift-row-acts">${actions}</span></div>`;
+}
+function _renderDriftReport(){
+    const rep = store._driftReport;
+    const ov = _driftEnsureOverlay();
+    ov.style.display = 'flex';
+    const body = document.getElementById('drift-body');
+    if(!rep){ body.innerHTML = `<div class="drift-empty">${t('common.noData')}</div>`; return; }
+    // Header overlay reattivo al cambio lingua (l'overlay è creato una volta).
+    const _ttl = document.getElementById('drift-title'); if(_ttl) _ttl.textContent = t('report.drift');
+    const total = _DRIFT_CATS.reduce((a, c) => a + (c.k === 'consistent' ? 0 : rep.counts[c.k]), 0);
+    const header = total === 0
+        ? `<div class="drift-allok"><i class="fas fa-circle-check"></i> ${t('drift.allOk')}</div>`
+        : `<div class="drift-summary">${t('drift.toVerify',{n:total})}</div>`;
+    const sections = _DRIFT_CATS.map(c => {
+        const allRows = rep[c.k] || [];
+        const n = rep.counts[c.k];
+        let rows = allRows, extra = '', topBar = '', openWhen = (c.k !== 'consistent' && n > 0);
+        if(c.k === 'undocumented'){
+            // Solo i candidati infrastruttura in chiaro; il rumore endpoint/guest
+            // (telefoni/BYOD su VLAN guest, dietro uplink affollati, MAC random)
+            // collassato in una riga grigia espandibile.
+            rows = allRows.filter(r => r.cls !== 'endpoint');
+            const epRows = allRows.filter(r => r.cls === 'endpoint');
+            const epN = epRows.length;
+            if(epN){
+                const epBody = epRows.map(r => _driftRowHtml('undocumentedEndpoint', r)).join('');
+                extra = `<details class="drift-endpoint-group">
+                    <summary class="drift-endpoint-head"><i class="fas fa-user-group"></i> ${t('drift.hiddenUsers',{n:epN})}<span class="drift-endpoint-hint"></span></summary>
+                    <div class="drift-endpoint-body">${epBody}</div></details>`;
+            }
+            openWhen = (n + epN) > 0;   // apri anche se ci sono solo endpoint nascosti
+            if(n + epN > 0){
+                // "Chiudi il cerchio": dal gap all'azione. Apre la schermata di
+                // selezione stile Scopri con tutti i non documentati.
+                topBar = `<div class="drift-adopt-bar"><button class="toolbar-btn" onclick="openAdoptModal()" data-tip="${t('drift.addMapTip')}"><i class="fas fa-plus-circle"></i> ${t('drift.addMap')}</button></div>`;
+            }
+        }
+        const open = openWhen ? ' open' : '';
+        const rowsHtml = rows.length ? rows.map(r => _driftRowHtml(c.k, r)).join('') : '';
+        const secBody = (rowsHtml || extra) ? (topBar + rowsHtml + extra) : '<div class="drift-empty">—</div>';
+        return `<details class="props-collapsible drift-sec"${open}>
+            <summary class="props-collapsible-head"><span><i class="fas ${c.i}" style="color:${c.c}"></i> ${t(c.tk)}</span><span class="drift-count" style="background:${c.c}22;color:${c.c}">${n}</span></summary>
+            <div class="props-collapsible-body drift-sec-body">${secBody}</div></details>`;
+    }).join('');
+    body.innerHTML = header + sections;
+}
+
+// Superficie pubblica:
+//   • handler inline HTML: runDriftCheck (btn-drift), _closeDriftReport,
+//     driftInvestigate, driftIgnore, driftApplyDoc (onclick="" generati);
+//   • lette da src/app-drift-adopt.js via win.*: _driftBuildDocSnapshot,
+//     _driftBuildSnmpSnapshot, _renderDriftReport, DRIFT_DOWN_STREAK_N;
+//   • esercitate dall'E2E (copertura spostata dallo smoke).
+// Lo stato `_driftReport` NON è qui: vive direttamente su window (store._driftReport).
+expose({
+    runDriftCheck, driftIgnore, driftApplyDoc, driftApplyIpChange, driftInvestigate,
+    setAutoIpRenew, _driftAutoRenewIps,
+    _closeDriftReport, _renderDriftReport,
+    _driftBuildDocSnapshot, _driftBuildSnmpSnapshot, _driftComputeFromDoc,
+    DRIFT_DOWN_STREAK_N,
+});

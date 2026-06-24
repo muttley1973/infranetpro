@@ -1,0 +1,211 @@
+/* ============================================================
+   InfraNet Pro — styles/05-cables-wifi.css
+   Cavi (trace/wireless), pannello Wi-Fi, porte radio, banner autolink/validazione
+   Generato dallo split di style.css (ordine cascata preservato).
+   ============================================================ */
+        /* Cables */
+        #cable-overlay { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:60; }
+        #rack-cable-overlay { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:25; overflow:visible; }
+        .cable { fill:none; stroke-width:1.2; stroke-linecap:round; opacity:.8; transition:stroke-width .15s,opacity .15s; pointer-events:none; cursor:pointer; }
+        .cable:hover { stroke-width:2.4; opacity:1; }
+        /* Cavo "evidenziato" (trace fisico, highPath): stroke piu' spesso e
+           drop-shadow per dire "questo e' il cavo seguito". NIENTE animazione:
+           l'animazione e' riservata ai cavi inferiti (.ambiguous), per
+           distinguere a colpo d'occhio confermati (statici) da inferiti
+           (pulsanti). */
+        /* Glow uguale all'hover dei cavi in topologia (.tfl-hl): doppio
+           drop-shadow del colore del cavo (currentColor = color inline = stroke). */
+        .cable.highlight,
+        .cable-xrack.highlight { stroke-width:1.9; opacity:1; filter:drop-shadow(0 0 1.75px currentColor) drop-shadow(0 0 0.7px currentColor); }
+        .cable.sel { stroke-width:2.2; opacity:1; filter:drop-shadow(0 0 1.75px currentColor) drop-shadow(0 0 0.7px currentColor); }
+        /* Collegamento wireless: forma a onda (lib/wave-path.js) + glow morbido
+           "segnale". Colore = VLAN (coerente coi cavi); a distinguerlo e' la forma. */
+        .cable.wireless { opacity:1; stroke-width:1.3; filter:drop-shadow(0 0 1.1px currentColor); }
+        .cable.wireless:hover { stroke-width:1.9; }
+        /* Toggle/nota "Collegamento wireless" nel pannello del cavo */
+        .link-wireless-toggle { display:flex; align-items:center; gap:7px; font-size:.82rem; color:var(--text-main); cursor:pointer; user-select:none; padding:4px 2px; }
+        .link-wireless-toggle input { width:auto; margin:0; }
+        .link-wireless-toggle i { color:var(--accent); }
+        .link-wireless-note { font-size:var(--fs-xs); color:var(--text-muted); line-height:1.4; padding:6px 8px; margin-top:6px; background:color-mix(in srgb, var(--accent) 6%, transparent); border:1px solid color-mix(in srgb, var(--accent) 20%, transparent); border-radius: var(--radius-md); }
+        .link-wireless-note i { color:var(--accent); margin-right:5px; }
+        .link-wireless-suggest { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:var(--fs-xs); color:var(--idle-color); margin:4px 2px 2px; }
+        /* Pannello Wi-Fi (config radio AP + associazione) */
+        .wifi-cfg { margin-top:8px; }
+        .prop-grid2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+        .wifi-inherited { font-size:var(--fs-xs); color:var(--text-main); background:color-mix(in srgb, var(--accent) 7%, transparent); border:1px solid color-mix(in srgb, var(--accent) 22%, transparent); border-radius: var(--radius-md); padding:6px 9px; margin:2px 0 8px; line-height:1.4; }
+        .wifi-inherited i { color:var(--accent); margin-right:5px; }
+        /* Blocco Wi-Fi in fondo a "Rete & Accesso": divisore sottile sopra */
+        .netaccess-wifi { margin-top:10px; padding-top:10px; border-top:1px solid var(--hairline); }
+        /* Riga "Dotato di Wi-Fi": box a larghezza piena fino a fine blocco */
+        .netaccess-wifi > .link-wireless-toggle {
+            width:100%; box-sizing:border-box; padding:8px 10px; border-radius: var(--radius-md);
+            font-weight:600; gap:8px; font-size:.98rem; justify-content:center;   /* +120% vs .82rem, centrato */
+            background:color-mix(in srgb, var(--accent) 7%, transparent);
+            border:1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+        }
+        .netaccess-wifi > .link-wireless-toggle i { font-size:1.1em; }
+        /* Stato live UPS/ATS (read-only, popolato da SNMP) */
+        .power-live { margin-top:10px; padding:8px 10px; border-radius: var(--radius-md); background:color-mix(in srgb, var(--accent) 6%, transparent); border:1px solid color-mix(in srgb, var(--accent) 18%, transparent); }
+        .power-live-head { display:flex; align-items:center; gap:6px; font-size:var(--fs-xs); font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:var(--text-muted); margin-bottom:6px; }
+        .power-live-head i { color:var(--accent); }
+        .power-live-ts { margin-left:auto; font-weight:400; text-transform:none; letter-spacing:0; opacity:.75; }
+        .power-live-row { display:flex; justify-content:space-between; gap:10px; font-size:.82rem; padding:2px 0; }
+        .power-live-row > span:first-child { color:var(--text-muted); }
+        .power-live-row > span:last-child { color:var(--text-main); font-variant-numeric:tabular-nums; }
+        .wifi-inh-from { color:var(--text-muted); }
+        /* Porta radio Wi-Fi: badge antenna in alto a destra del device, target di
+           collegamento (trascina qui un client → wireless). */
+        .radio-port {
+            position:absolute; top:-7px; right:-7px; z-index:4;
+            width:19px; height:19px; border-radius:50%;
+            display:flex; align-items:center; justify-content:center;
+            background:var(--bg-color); border:1.5px solid var(--accent);
+            color:var(--accent); font-size:.62rem; cursor:crosshair;
+            box-shadow:0 0 5px rgba(0,0,0,.45); transition:transform .12s,background .12s,color .12s;
+        }
+        .radio-port:hover { background:var(--accent); color:#fff; transform:scale(1.18); }
+        .radio-port.selected { background:var(--accent); color:#fff; box-shadow:0 0 7px var(--accent); }
+        /* Floor: radio GRIGIE di default, si illuminano (accent) su hover/selezione */
+        .floor-node .radio-port { border-color:var(--text-muted); color:var(--text-muted); }
+        .floor-node .radio-port:hover,
+        .floor-node .radio-port.selected { border-color:var(--accent); color:#fff; }
+        /* 8 ancore perimetrali: 4 angoli + 4 centri-lato. La posizione viene SOLO
+           dalle classi pos-* (resettano gli offset di base), cosi' fino a 8 radio
+           si distribuiscono attorno al tile senza sovrapporsi. */
+        .radio-port.pos-tr { top:-7px; right:-7px; bottom:auto; left:auto; }
+        .radio-port.pos-tl { top:-7px; left:-7px;  bottom:auto; right:auto; }
+        .radio-port.pos-br { bottom:-7px; right:-7px; top:auto; left:auto; }
+        .radio-port.pos-bl { bottom:-7px; left:-7px;  top:auto; right:auto; }
+        .radio-port.pos-tc { top:-7px;    left:50%; right:auto; bottom:auto; transform:translateX(-50%); }
+        .radio-port.pos-bc { bottom:-7px; left:50%; right:auto; top:auto;    transform:translateX(-50%); }
+        .radio-port.pos-lc { left:-7px;   top:50%;  right:auto; bottom:auto; transform:translateY(-50%); }
+        .radio-port.pos-rc { right:-7px;  top:50%;  left:auto;  bottom:auto; transform:translateY(-50%); }
+        /* Hover dei centri-lato: conserva la traslazione di centratura */
+        .radio-port.pos-tc:hover, .radio-port.pos-bc:hover { transform:translateX(-50%) scale(1.18); }
+        .radio-port.pos-lc:hover, .radio-port.pos-rc:hover { transform:translateY(-50%) scale(1.18); }
+        /* Device in rack (barra orizzontale): le radio NON usano il perimetro ma
+           una FILA sul lato sinistro, ancorata a sinistra (scorrono verso destra).
+           Badge piccoli, in flusso flex (position:static annulla gli offset). */
+        .rack-radios {
+            position:absolute; left:7px; top:50%; transform:translateY(-50%);
+            display:flex; gap:2px; z-index:4; pointer-events:none;
+        }
+        /* Con skin: badge radio riposizionabili (drag) sul box del device.
+           Posizione (left/top in %) impostata inline; il transform centra il badge
+           sul punto. z sopra l'artwork; cursor grab per segnalare la trascinabilità. */
+        /* Su skin il device è piccolo (1U): badge radio ridotto perché non domini
+           l'artwork (icona/bordo proporzionati). */
+        .radio-port.radio-skin-pos { width:13px; height:13px; font-size:.46rem; border-width:1px; transform:translate(-50%,-50%); cursor:grab; pointer-events:auto; z-index:6; box-shadow:0 0 6px rgba(0,0,0,.6); }
+        .radio-port.radio-skin-pos:hover { transform:translate(-50%,-50%) scale(1.18); }
+        .radio-port.radio-skin-pos.selected { transform:translate(-50%,-50%); }
+        .rack-radios .radio-port.pos-rack {
+            position:static; transform:none; width:10px; height:10px; font-size:.32rem;
+            border-width:1px; pointer-events:auto;
+        }
+        .rack-radios .radio-port.pos-rack:hover { transform:scale(1.18); }
+        /* Gestore interfacce radio nel pannello device + righe elenco */
+        .radio-ifaces { margin-top:8px; }
+        .radio-count input { width:64px; }
+        .radio-iface-row, .radio-assoc-row {
+            display:flex; align-items:center; gap:7px; padding:5px 8px; margin-top:4px;
+            border:1px solid var(--panel-border); border-radius:5px; cursor:pointer;
+            font-size:0.78rem; transition:background .12s,border-color .12s;
+        }
+        .radio-iface-row:hover, .radio-assoc-row:hover { background:rgba(0,212,255,.06); border-color:var(--accent); }
+        .radio-iface-row.selected { border-color:var(--accent); background:rgba(0,212,255,.10); }
+        .radio-iface-row .fa-wifi, .radio-assoc-row .fa-wifi, .radio-assoc-row .fa-ethernet { color:var(--accent); }
+        .radio-iface-row .ri-name, .radio-assoc-row .ra-name { font-weight:600; }
+        .radio-iface-row .ri-sub { color:var(--text-muted); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .radio-iface-row .ri-cnt, .radio-assoc-row .ra-kind { color:var(--text-muted); font-size:0.72rem; margin-left:auto; }
+        .radio-assocs { margin-top:10px; }
+        .radio-assoc-empty { margin-top:10px; color:var(--text-muted); font-size:0.78rem; }
+        .radio-hint { margin-top:10px; color:var(--text-muted); font-size:0.74rem; line-height:1.4; }
+        .radio-hint .fa-circle-info { color:var(--accent); margin-right:4px; }
+        /* Link ambiguo (auto-link a bassa confidenza, da verificare): ambra tratteggiato.
+           Solo quando non selezionato/evidenziato, per non interferire con quegli stati. */
+        /* Banner CTA "da verificare" nel pannello proprieta' cavo (ambiguous).
+           Sfondo giallo attenuato (--idle-color), 2 bottoni primary+danger.
+           Coerente col token "idle" del design system (non hard-coded). */
+        .link-verify-banner {
+            margin-top: 8px;
+            padding: 10px 12px;
+            background: rgba(245,166,35,0.10);
+            border: 1px solid rgba(245,166,35,0.45);
+            border-radius: var(--radius-md);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .link-verify-msg {
+            font-size: var(--fs-sm);
+            color: var(--text-main);
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            line-height: 1.4;
+        }
+        .link-verify-msg i {
+            color: var(--idle-color);
+            font-size: var(--fs-md);
+            margin-top: 1px;
+        }
+        .link-verify-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .link-verify-actions .toolbar-btn {
+            flex: 1;
+            justify-content: center;
+        }
+
+        /* P1.4 — Banner validazioni cablaggio: stessa famiglia di .link-verify-banner.
+           Righe error (rosso) e warn (ambra) con titolo + spiegazione educativa. */
+        .cable-validate-banner { margin: 0 0 10px; display: flex; flex-direction: column; gap: 6px; }
+        .cable-validate-row {
+            display: flex; align-items: flex-start; gap: 8px;
+            padding: 8px 10px; border-radius: var(--radius-md); font-size: var(--fs-sm);
+        }
+        .cable-validate-row.lvl-error { background: rgba(248,81,73,0.09); border: 1px solid rgba(248,81,73,0.40); }
+        .cable-validate-row.lvl-warn  { background: rgba(245,166,35,0.10); border: 1px solid rgba(245,166,35,0.42); }
+        .cable-validate-row > i { margin-top: 2px; font-size: var(--fs-md); flex-shrink: 0; }
+        .cable-validate-row.lvl-error > i { color: #f85149; }
+        .cable-validate-row.lvl-warn  > i { color: var(--idle-color); }
+        .cable-validate-txt { display: flex; flex-direction: column; gap: 2px; }
+        .cable-validate-txt b { color: var(--text-main); font-weight: 700; }
+        .cable-validate-txt span { color: var(--text-muted); font-size: var(--fs-xs); line-height: 1.4; }
+        /* Pillola ⚠ nel preview della sezione (visibile a sezione chiusa). */
+        .cable-warn-pill { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; }
+        .cable-warn-pill.lvl-error { color: #f85149; }
+        .cable-warn-pill.lvl-warn  { color: var(--idle-color); }
+
+        /* Cavo "inferito" nel rack/floor (autoLinked MAC/ARP/FDB):
+           dash animato 1.0s "normale" + opacita' leggermente ridotta. Il
+           colore VLAN del cavo e' preservato. Workflow:
+             - topology = scoperta globale (linee 2.5s + badge "!" sul rack)
+             - rack/floor = azione (dash 1.0s identifica i cavi da verificare)
+           IMPORTANTE: l'animazione si applica ANCHE se il cavo e' highlighted
+           o sel — i cavi nel rack/floor sono visibili solo dopo una selezione
+           (shouldRenderLink), quindi un :not(.highlight) li renderebbe sempre
+           invisibili. Specificita' identica a .cable.highlight ma definita
+           dopo nel file → vince in animation e dasharray. */
+        .cable.ambiguous,
+        .cable-xrack.ambiguous {
+            stroke-dasharray: 6 5;
+            animation: dash 1.0s linear infinite;
+        }
+        .cable.ambiguous:not(.highlight):not(.sel),
+        .cable-xrack.ambiguous:not(.highlight):not(.sel) {
+            opacity: .8;
+        }
+        .cable-hit { fill:none; stroke:transparent; stroke-width:14; stroke-linecap:round; cursor:pointer; pointer-events:stroke; }
+        /* Wireless: banda di click più larga (l'onda esce dalla linea dritta) */
+        .cable-hit.cable-hit-wireless { stroke-width:26; }
+        .cable-xrack { fill:none; stroke-width:1.8; stroke-linecap:round; opacity:1;
+            stroke-dasharray:8; animation:dash .8s linear infinite;
+            filter:drop-shadow(0 0 2.8px currentColor);
+            pointer-events:visibleStroke; cursor:pointer; }
+        .cable-xrack:hover { stroke-width:2.2; }
+        .cable-xrack.sel  { stroke-width:2.2; filter:drop-shadow(0 0 5px currentColor); }
+        @keyframes dash { to { stroke-dashoffset:-16; } }
+        #temp-link, #temp-link-rack { stroke:#aaa; stroke-width:1.6; stroke-dasharray:4; fill:none; pointer-events:none; }
+

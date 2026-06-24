@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InfraNet Pro — Login</title>
+<link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:           #0d1117;
+    --panel-bg:     #161b22;
+    --panel-border: #30363d;
+    --accent:       #00d4ff;
+    --accent-hover: #00b8d9;
+    --text-main:    #e6edf3;
+    --text-muted:   #8b949e;
+    --error:        #f85149;
+    --input-bg:     #0d1117;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text-main);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .login-wrap {
+    width: 100%;
+    max-width: 380px;
+    padding: 24px;
+  }
+
+  .login-logo {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+  .login-logo i {
+    font-size: 2.8rem;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 10px;
+  }
+  .login-logo h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+  .login-logo p {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  .login-card {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 28px 32px;
+  }
+
+  .form-group {
+    margin-bottom: 18px;
+  }
+  label {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+  .input-wrap {
+    position: relative;
+  }
+  .input-wrap i {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    pointer-events: none;
+  }
+  input[type=text], input[type=password] {
+    width: 100%;
+    padding: 10px 12px 10px 36px;
+    background: var(--input-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    color: var(--text-main);
+    font-size: 0.92rem;
+    outline: none;
+    transition: border-color .18s;
+  }
+  input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0,212,255,.12);
+  }
+
+  .btn-login {
+    width: 100%;
+    padding: 11px;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background .18s, opacity .18s;
+    margin-top: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .btn-login:hover { background: var(--accent-hover); }
+  .btn-login:disabled { opacity: .55; cursor: not-allowed; }
+
+  .error-msg {
+    display: none;
+    background: rgba(248,81,73,.12);
+    border: 1px solid rgba(248,81,73,.4);
+    border-radius: 6px;
+    padding: 9px 12px;
+    font-size: 0.82rem;
+    color: var(--error);
+    margin-bottom: 16px;
+  }
+  .error-msg.visible { display: flex; align-items: center; gap: 8px; }
+
+  .login-footer {
+    text-align: center;
+    margin-top: 22px;
+    font-size: 0.72rem;
+    line-height: 1.5;
+    color: var(--text-muted);
+  }
+  .login-footer .lf-app {
+    font-weight: 600;
+    color: var(--text-main);
+    margin-bottom: 3px;
+  }
+  .login-footer .lf-links { margin-top: 6px; }
+  .login-footer .lf-links span { opacity: .45; margin: 0 5px; }
+  .login-footer a {
+    color: var(--text-muted);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--panel-border);
+    transition: color .15s, border-color .15s;
+  }
+  .login-footer a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .lang-switch {
+    display: flex;
+    justify-content: flex-end;
+    gap: 4px;
+    margin-bottom: 14px;
+  }
+  .lang-switch button {
+    background: transparent;
+    border: 1px solid var(--panel-border);
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: color .15s, border-color .15s, background .15s;
+  }
+  .lang-switch button:hover { color: var(--text-main); border-color: var(--text-muted); }
+  .lang-switch button.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .fa-spin-inline { animation: spin .7s linear infinite; }
+</style>
+</head>
+<body>
+
+<div class="login-wrap">
+  <div class="login-logo">
+    <i class="fas fa-network-wired"></i>
+    <h1>Infra<span style="color:#00d4ff">Net</span> Pro</h1>
+    <p>Network Infrastructure Manager</p>
+  </div>
+
+  <div class="login-card">
+    <div class="lang-switch">
+      <button type="button" data-lang="it">IT</button>
+      <button type="button" data-lang="en">EN</button>
+    </div>
+
+    <div class="error-msg" id="err-msg">
+      <i class="fas fa-exclamation-circle"></i>
+      <span id="err-text" data-i18n="badCreds">Credenziali non valide</span>
+    </div>
+
+    <form id="login-form" onsubmit="doLogin(event)">
+      <div class="form-group">
+        <label for="username" data-i18n="user">Utente</label>
+        <div class="input-wrap">
+          <i class="fas fa-user"></i>
+          <input type="text" id="username" name="username"
+                 placeholder="nome utente" data-i18n-ph="userPh" autocomplete="username" autofocus required>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="password" data-i18n="pwd">Password</label>
+        <div class="input-wrap">
+          <i class="fas fa-lock"></i>
+          <input type="password" id="password" name="password"
+                 placeholder="••••••••" autocomplete="current-password" required>
+        </div>
+      </div>
+
+      <button type="submit" class="btn-login" id="btn-login">
+        <i class="fas fa-sign-in-alt" id="btn-icon"></i>
+        <span id="btn-text" data-i18n="signin">Accedi</span>
+      </button>
+    </form>
+  </div>
+
+  <div class="login-footer">
+    <div class="lf-app">InfraNet Pro v2.0.0</div>
+    <div>© 2026 muttley1973 · <span data-i18n="license">Licenza</span> <b>AGPL-3.0-or-later</b></div>
+    <div data-i18n="freeSw">software libero, senza garanzia</div>
+    <div class="lf-links">
+      <a href="https://github.com/muttley1973/infranetpro" target="_blank" rel="noopener" data-i18n="srcCode">Codice sorgente</a>
+      <span>·</span>
+      <a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noopener" data-i18n="viewLic">Vedi licenza</a>
+      <span>·</span>
+      <a href="mailto:iu3npr@gmail.com?subject=InfraNet%20Pro%20%E2%80%94%20licenza%20commerciale" data-i18n="commLic">Licenza commerciale</a>
+    </div>
+  </div>
+</div>
+
+<script>
+// --- i18n della pagina di login (autonoma, fuori dal bundle) ---
+// Scrive sulla stessa chiave dell'app (infranet.lang) → la scelta qui si
+// propaga dentro l'app dopo l'accesso. Switch speculare in-app nel menù utente.
+const LANG_KEY = 'infranet.lang';
+const I18N = {
+  it: {
+    user: 'Utente', userPh: 'nome utente', pwd: 'Password',
+    signin: 'Accedi', signingIn: 'Accesso in corso…',
+    badCreds: 'Credenziali non valide',
+    netErr: 'Errore di rete. Controlla che il server sia attivo.',
+    license: 'Licenza', freeSw: 'software libero, senza garanzia',
+    srcCode: 'Codice sorgente', viewLic: 'Vedi licenza', commLic: 'Licenza commerciale',
+  },
+  en: {
+    user: 'Username', userPh: 'username', pwd: 'Password',
+    signin: 'Sign in', signingIn: 'Signing in…',
+    badCreds: 'Invalid credentials',
+    netErr: 'Network error. Check that the server is running.',
+    license: 'License', freeSw: 'free software, no warranty',
+    srcCode: 'Source code', viewLic: 'View license', commLic: 'Commercial license',
+  },
+};
+let LANG = (function () {
+  try { return localStorage.getItem(LANG_KEY) === 'en' ? 'en' : 'it'; } catch (_) { return 'it'; }
+})();
+function t(k) { return (I18N[LANG] && I18N[LANG][k]) || I18N.it[k] || k; }
+function applyLang() {
+  document.documentElement.lang = LANG;
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.getAttribute('data-i18n')); });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = t(el.getAttribute('data-i18n-ph')); });
+  document.querySelectorAll('.lang-switch button').forEach(b => b.classList.toggle('active', b.dataset.lang === LANG));
+}
+function setLang(l) {
+  LANG = l === 'en' ? 'en' : 'it';
+  try { localStorage.setItem(LANG_KEY, LANG); } catch (_) {}
+  applyLang();
+}
+document.querySelectorAll('.lang-switch button').forEach(b => b.addEventListener('click', () => setLang(b.dataset.lang)));
+applyLang();
+
+async function doLogin(e) {
+  e.preventDefault();
+  const btn  = document.getElementById('btn-login');
+  const icon = document.getElementById('btn-icon');
+  const txt  = document.getElementById('btn-text');
+  const err  = document.getElementById('err-msg');
+  const errT = document.getElementById('err-text');
+
+  btn.disabled = true;
+  icon.className = 'fas fa-spinner fa-spin-inline';
+  txt.textContent = t('signingIn');
+  err.classList.remove('visible');
+
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: document.getElementById('username').value.trim(),
+        password: document.getElementById('password').value,
+      }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      window.location.href = '/';
+    } else {
+      errT.textContent = data.error || t('badCreds');
+      err.classList.add('visible');
+      document.getElementById('password').value = '';
+      document.getElementById('password').focus();
+    }
+  } catch (_) {
+    errT.textContent = t('netErr');
+    err.classList.add('visible');
+  } finally {
+    btn.disabled = false;
+    icon.className = 'fas fa-sign-in-alt';
+    txt.textContent = t('signin');
+  }
+}
+</script>
+</body>
+</html>
