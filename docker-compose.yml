@@ -1,9 +1,18 @@
-# InfraNet Pro — orchestrazione Docker
-#   Avvio:  docker compose up -d --build   →  http://127.0.0.1:8421  (solo loopback dell'host)
-#   Log:    docker compose logs infranetpro   (la password admin del primo avvio è qui)
+# InfraNet Pro — Docker (default: HOST networking → discovery completa)
+#   Avvio:  docker compose up -d --build      →  http://<IP-host>:8421
+#   Log:    docker compose logs infranetpro      (password admin del primo avvio qui)
 #   Stop:   docker compose down
 #
 # Prima del primo avvio: copia .env.example in .env e imposta SESSION_SECRET.
+#
+# Usa network_mode: host così il container si comporta come l'app installata nativamente:
+#  • discovery COMPLETA della LAN — vede la tabella ARP reale → MAC dei device → vendor (OUI),
+#    oltre a SNMP e LLDP/CDP. È lo scopo del prodotto.
+#  • raggiungibile su http://<IP-host>:8421 (il server fa bind secondo HOST, default 0.0.0.0).
+# ⚠️ Sicurezza: la UI (protetta da login) è esposta sulle interfacce dell'host. Tienila su una rete
+#    fidata; per l'accesso da fuori usa VPN o reverse-proxy con TLS. NON esporla direttamente a internet.
+# ⚠️ Richiede un host Linux. Su Docker Desktop (macOS/Windows) host mode è limitato → per quei casi,
+#    o per un'istanza isolata dietro reverse-proxy, usa docker-compose.bridge.yml.
 
 services:
   infranetpro:
@@ -12,40 +21,25 @@ services:
     container_name: infranetpro
     restart: unless-stopped
 
-    # Modalità di rete: "bridge" (default) o "host". In "host" il container condivide la rete
-    # dell'host → vede la tabella ARP reale → MAC dei device → vendor via OUI (come la scansione
-    # bare-metal). Per la discovery COMPLETA della LAN imposta NETWORK_MODE=host tra le environment
-    # della stack. In host mode il blocco "ports" è ignorato (warning innocuo) e il server si
-    # pubblica secondo HOST (0.0.0.0 → IP-host:8421; per limitarlo: HOST=<IP-host>).
-    network_mode: "${NETWORK_MODE:-bridge}"
-
-    # Indirizzo di pubblicazione configurabile via BIND_ADDR (default: solo loopback
-    # dell'host → NON raggiungibile da LAN/internet). Per l'accesso dalla LAN imposta
-    # BIND_ADDR=0.0.0.0 (o un IP specifico dell'host) tra le environment della stack.
-    # Per accesso da fuori LAN: VPN o reverse-proxy con TLS.
-    ports:
-      - "${BIND_ADDR:-127.0.0.1}:8421:8421"
+    # Rete dell'host: dà al container la visibilità L2/ARP reale (→ MAC/vendor) e lo rende
+    # raggiungibile su <IP-host>:8421. È ciò che fa funzionare la discovery come bare-metal.
+    network_mode: host
 
     environment:
       # OBBLIGATORIO: senza un secret fisso le sessioni si invalidano a ogni re-create del container.
       #   Genera:  openssl rand -base64 48
       SESSION_SECRET: "${SESSION_SECRET:?Imposta SESSION_SECRET — copia .env.example in .env}"
+      # Interfaccia di bind del server. Default 0.0.0.0 = tutte le interfacce host (→ <IP-host>:8421).
+      # Per limitarlo a un solo indirizzo: HOST=127.0.0.1 (solo loopback host) oppure HOST=<IP-host>.
+      HOST: "${HOST:-0.0.0.0}"
 
     volumes:
       # Dati persistenti (progetti, skin, account utenti). Conservali per non perdere i dati.
       - infranet_data:/data
 
-    # ICMP ping non privilegiato dentro il container.
+    # ICMP ping non privilegiato per lo scanner.
     cap_add:
       - NET_RAW
-
-    # ─────────────────────────────────────────────────────────────────────────
-    # DISCOVERY DELLA LAN: in bridge (default) lo scanner raggiunge i device via NAT
-    # (ping/TCP) ma NON ne vede il MAC (l'ARP è link-local) → niente vendor via OUI.
-    # SNMP funziona comunque (è L3). Per MAC + vendor su TUTTI i device (come bare-metal)
-    # imposta NETWORK_MODE=host (vedi sopra): il container usa la rete/ARP dell'host e vede
-    # i device sul suo stesso segmento.
-    # ─────────────────────────────────────────────────────────────────────────
 
 volumes:
   infranet_data:
