@@ -304,16 +304,18 @@ reverse proxy with TLS.
 
 ### Network discovery from a container
 
-Ping / ARP / SNMP only reach the network the container is attached to. In the default
-**bridge** mode that's the container's private network, not your real LAN — manual
-documentation works fully, but SNMP discovery won't see physical devices. To scan the
-real network (Linux host):
+In the default **bridge** mode the container reaches LAN devices through NAT, so ping/TCP
+probes and **SNMP** (it's L3/UDP) work — SNMP-capable devices are discovered with full
+vendor/model info. But **ARP is link-local**, so the container never learns the MAC of
+devices on your real subnet → devices *without* SNMP show up with no MAC and **no OUI
+vendor name** (a bare-metal scan, which has ARP, shows them all).
 
-1. In `docker-compose.yml` uncomment `network_mode: host`.
-2. Remove the `ports:` block (host mode ignores it).
-3. Add `HOST: "127.0.0.1"` under `environment:` — host mode shares the host's network
-   namespace, so this keeps the server on the host's loopback instead of exposing it
-   on every interface.
+To get full discovery — MAC + vendor for every device, like a bare-metal scan — give the
+container the host's network stack: set **`NETWORK_MODE=host`** as a stack/compose
+environment variable and redeploy (Linux host). In host mode the `ports:` mapping is
+ignored and the server publishes per `HOST` (default `0.0.0.0` → reachable at
+`http://<host-ip>:8421`; set `HOST=<host-ip>` to limit exposure). The scanner then sees
+every device on the host's own subnet.
 
 ### Plain `docker run`
 
