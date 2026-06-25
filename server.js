@@ -25,6 +25,9 @@ const auth      = require('./auth');
 const { timestamp } = require('./utils');
 
 const PORT         = parseInt(process.env.PORT || '8421', 10);
+// Interfaccia di bind. Default 127.0.0.1 (solo loopback — non esposto in rete; vedi README).
+// In container si imposta HOST=0.0.0.0 e si pubblica la porta SOLO su 127.0.0.1 dell'host.
+const HOST         = process.env.HOST || '127.0.0.1';
 const ROOT         = __dirname;
 
 // ---- Persistenza progetti (server/projects-store.js) ------------------------
@@ -113,10 +116,11 @@ app.use((req, res) => res.status(404).json({ error: 'Not found' }));
 // Avvia il listen SOLO se eseguito direttamente (node server.js).
 // Quando il file viene richiesto da un test (require), NON apre la porta.
 if (require.main === module) {
-  const server = app.listen(PORT, '127.0.0.1', () => {
+  const server = app.listen(PORT, HOST, () => {
+    const shownHost = (HOST === '0.0.0.0' || HOST === '::') ? 'localhost' : HOST;
     console.log('');
     console.log('  ================================================');
-    console.log(`    InfraNet Pro  ->  http://localhost:${PORT}`);
+    console.log(`    InfraNet Pro  ->  http://${shownHost}:${PORT}`);
     console.log(`    Progetti in:   ${PROJECTS_DIR}`);
     console.log('    Premi Ctrl+C per fermare il server');
     console.log('  ================================================');

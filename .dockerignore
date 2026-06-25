@@ -1,0 +1,47 @@
+# Mai nel contesto di build (riduce l'immagine + evita binari nativi host-specifici)
+node_modules
+npm-debug.log*
+.git
+.gitignore
+
+# Artefatto di build (rigenerato dentro l'immagine da `node build.js`)
+dist
+
+# Dati utente / runtime (vivono nel volume /data, non nell'immagine)
+projects
+skins
+users.json
+.session-secret
+
+# Cartella di lavoro locale + archivi + roba di sessione
+_local
+_archive
+.claude
+.vscode
+.idea
+
+# Test e tooling non necessari a runtime
+test
+tools
+scripts
+
+# Docker stesso + env
+Dockerfile
+docker-compose.yml
+.dockerignore
+.env
+.env.*
+
+# Doc, manuali, immagini e asset marketing (non servono al server)
+*.md
+*.pdf
+GitHub Images
+_li_*
+_gh_social*
+_kofi_*
+_logo_square.*
+_manual_build*.html
+
+# Log e temporanei
+*.log
+*.bundle
