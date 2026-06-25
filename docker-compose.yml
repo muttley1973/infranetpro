@@ -12,6 +12,13 @@ services:
     container_name: infranetpro
     restart: unless-stopped
 
+    # Modalità di rete: "bridge" (default) o "host". In "host" il container condivide la rete
+    # dell'host → vede la tabella ARP reale → MAC dei device → vendor via OUI (come la scansione
+    # bare-metal). Per la discovery COMPLETA della LAN imposta NETWORK_MODE=host tra le environment
+    # della stack. In host mode il blocco "ports" è ignorato (warning innocuo) e il server si
+    # pubblica secondo HOST (0.0.0.0 → IP-host:8421; per limitarlo: HOST=<IP-host>).
+    network_mode: "${NETWORK_MODE:-bridge}"
+
     # Indirizzo di pubblicazione configurabile via BIND_ADDR (default: solo loopback
     # dell'host → NON raggiungibile da LAN/internet). Per l'accesso dalla LAN imposta
     # BIND_ADDR=0.0.0.0 (o un IP specifico dell'host) tra le environment della stack.
@@ -33,16 +40,12 @@ services:
       - NET_RAW
 
     # ─────────────────────────────────────────────────────────────────────────
-    # DISCOVERY DELLA TUA LAN REALE (ping/ARP/SNMP sui device fisici)
-    # In bridge (default qui sopra) lo scanner vede solo la rete del container.
-    # Per scoprire la rete vera, su host Linux:
-    #   1) scommenta:            network_mode: host
-    #   2) RIMUOVI il blocco  ports:  (host mode lo ignora)
-    #   3) aggiungi in environment:  HOST: "127.0.0.1"
-    #      (host mode condivide la rete dell'host → così il server resta solo sul
-    #       loopback dell'host invece di esporsi su TUTTE le interfacce)
+    # DISCOVERY DELLA LAN: in bridge (default) lo scanner raggiunge i device via NAT
+    # (ping/TCP) ma NON ne vede il MAC (l'ARP è link-local) → niente vendor via OUI.
+    # SNMP funziona comunque (è L3). Per MAC + vendor su TUTTI i device (come bare-metal)
+    # imposta NETWORK_MODE=host (vedi sopra): il container usa la rete/ARP dell'host e vede
+    # i device sul suo stesso segmento.
     # ─────────────────────────────────────────────────────────────────────────
-    # network_mode: host
 
 volumes:
   infranet_data:
