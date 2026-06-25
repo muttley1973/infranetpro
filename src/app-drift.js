@@ -127,6 +127,14 @@ function _driftBuildSnmpSnapshot(docSnap, reachable, arpTable){
             }
         }
     }
+    // Subnet (/24) effettivamente OSSERVATE dalla sweep (fix falso "assente"
+    // cross-subnet): un /24 è osservato se c'è un'entry ARP in quella subnet
+    // (vista a L2 dal server) o un host raggiunto vivo. I device su subnet NON
+    // incluse qui non vanno dichiarati assenti — la sweep era cieca lì.
+    const _net24 = ip => { const m = /^(\d{1,3}\.\d{1,3}\.\d{1,3})\./.exec(String(ip || '')); return m ? m[1] : null; };
+    const observedSubnets = new Set();
+    if(arp){ for(const ip of Object.keys(arp)){ const n = _net24(ip); if(n) observedSubnets.add(n); } }
+    if(reach){ for(const ip of Object.keys(reach)){ if(reach[ip] && reach[ip].alive){ const n = _net24(ip); if(n) observedSubnets.add(n); } } }
     const ports = {};
     for(const pid of Object.keys(docSnap.ports)){
         const pi = state.ports[pid] || {};
@@ -172,7 +180,7 @@ function _driftBuildSnmpSnapshot(docSnap, reachable, arpTable){
     }
     const portDownStreak = {};
     for(const pid of Object.keys(docSnap.ports)) portDownStreak[pid] = (state.ports[pid] && state.ports[pid].downStreak) || 0;
-    return { responded, ports, observedMacs, observedDevices, rejectedSigs, portDownStreak, fdbObserved, presentNodeIds, reachabilityChecked, macAtIp };
+    return { responded, ports, observedMacs, observedDevices, rejectedSigs, portDownStreak, fdbObserved, presentNodeIds, reachabilityChecked, macAtIp, observedSubnets: [...observedSubnets] };
 }
 
 // ── Calcolo Drift dallo stato CORRENTE (SENZA ri-pollare) ────────────
@@ -244,13 +252,13 @@ async function runDriftCheck(){
 function _driftAllRows(){
     const rep = store._driftReport;
     if(!rep) return [];
-    return [].concat(rep.stateDrift, rep.macOrphan, rep.undocumented, rep.ghostCable, rep.ipChanged || []);
+    return [].concat(rep.stateDrift, rep.macOrphan, rep.undocumented, rep.ghostCable, rep.ipChanged || [], rep.unverified || []);
 }
 function _driftFindRow(key){ return _driftAllRows().find(r => r.key === key) || null; }
 function _driftDropRow(key){
     const rep = store._driftReport;
     if(!rep) return;
-    for(const cat of ['stateDrift','macOrphan','undocumented','ghostCable','ipChanged']){
+    for(const cat of ['stateDrift','macOrphan','undocumented','ghostCable','ipChanged','unverified']){
         if(!Array.isArray(rep[cat])) continue;
         rep[cat] = rep[cat].filter(r => r.key !== key);
         if(cat === 'undocumented'){
@@ -374,6 +382,7 @@ const _DRIFT_CATS = [
     { k:'stateDrift',   tk:'drift.catStateDrift',   i:'fa-triangle-exclamation', c:'#d29922' },
     { k:'ipChanged',    tk:'drift.catIpChanged',    i:'fa-right-left',           c:'#39c5ff' },
     { k:'macOrphan',    tk:'drift.catMacOrphan',    i:'fa-ghost',                c:'#8b949e' },
+    { k:'unverified',   tk:'drift.catUnverified',   i:'fa-plug-circle-xmark',    c:'#6e7681' },
     { k:'undocumented', tk:'drift.catUndocumented', i:'fa-circle-question',      c:'#58a6ff' },
     { k:'ghostCable',   tk:'drift.catGhost',        i:'fa-link-slash',           c:'#f85149' },
 ];
@@ -416,6 +425,10 @@ function _driftRowHtml(cat, r){
         main = `<span class="drift-row-main">${esc(r.label || r.mac)}</span><span class="drift-row-sub">${esc(r.mac)} · <s>${esc(r.oldIp)}</s> → <b>${esc(r.newIp)}</b></span>`;
         const upBtn = `<button class="drift-act apply" onclick="driftApplyIpChange('${esc(r.key)}')" data-tip="${t('drift.tipUpdateIp')}"><i class="fas fa-arrows-rotate"></i></button>`;
         actions = `${upBtn}${ignBtn}${invBtn}`;
+    } else if(cat === 'unverified'){
+        const ipStr = r.ip ? ` · ${esc(r.ip)}` : '';
+        main = `<span class="drift-row-main">${esc(r.label || r.mac)}</span><span class="drift-row-sub">${esc(r.mac)}${ipStr} — ${t('drift.unverifiedSub')}</span>`;
+        actions = `${ignBtn}${invBtn}`;
     } else { // consistent
         main = `<span class="drift-row-main">${esc(r.label)}</span>`;
     }
@@ -429,14 +442,14 @@ function _renderDriftReport(){
     if(!rep){ body.innerHTML = `<div class="drift-empty">${t('common.noData')}</div>`; return; }
     // Header overlay reattivo al cambio lingua (l'overlay è creato una volta).
     const _ttl = document.getElementById('drift-title'); if(_ttl) _ttl.textContent = t('report.drift');
-    const total = _DRIFT_CATS.reduce((a, c) => a + (c.k === 'consistent' ? 0 : rep.counts[c.k]), 0);
+    const total = _DRIFT_CATS.reduce((a, c) => a + ((c.k === 'consistent' || c.k === 'unverified') ? 0 : rep.counts[c.k]), 0);
     const header = total === 0
         ? `<div class="drift-allok"><i class="fas fa-circle-check"></i> ${t('drift.allOk')}</div>`
         : `<div class="drift-summary">${t('drift.toVerify',{n:total})}</div>`;
     const sections = _DRIFT_CATS.map(c => {
         const allRows = rep[c.k] || [];
         const n = rep.counts[c.k];
-        let rows = allRows, extra = '', topBar = '', openWhen = (c.k !== 'consistent' && n > 0);
+        let rows = allRows, extra = '', topBar = '', openWhen = (c.k !== 'consistent' && c.k !== 'unverified' && n > 0);
         if(c.k === 'undocumented'){
             // Solo i candidati infrastruttura in chiaro; il rumore endpoint/guest
             // (telefoni/BYOD su VLAN guest, dietro uplink affollati, MAC random)

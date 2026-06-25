@@ -93,6 +93,48 @@ test('osservabilità: la sweep eseguita abilita il giudizio di assenza anche con
   assert.equal(buildDriftReport(snmp, doc, [], {}).counts.macOrphan, 1);
 });
 
+test('cross-subnet: device su subnet NON raggiunta dalla sweep → unverified, non macOrphan', () => {
+  const doc = { macs: [
+    { mac: 'AA:BB:CC:00:00:40', label: 'cam-altra-vlan', nodeId: 'cam1', ip: '10.20.0.5' },
+    { mac: 'AA:BB:CC:00:00:41', label: 'pc-stessa-subnet', nodeId: 'pc1', ip: '192.168.1.30' },
+  ] };
+  // La sweep ha visto solo 192.168.1.x (subnet del server). 10.20.0.x mai raggiunta.
+  const snmp = { observedMacs: [], responded: {}, fdbObserved: false, reachabilityChecked: true,
+                 presentNodeIds: {}, observedSubnets: ['192.168.1'] };
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.macOrphan, 1, 'solo il device nella subnet osservata può dirsi assente');
+  assert.equal(r.macOrphan[0].label, 'pc-stessa-subnet');
+  assert.equal(r.counts.unverified, 1, 'il device cross-subnet non osservato è non-verificabile');
+  assert.equal(r.unverified[0].label, 'cam-altra-vlan');
+  assert.equal(r.unverified[0].ip, '10.20.0.5');
+});
+
+test('cross-subnet: FDB popolato copre il L2 → assenza affidabile anche fuori dalla subnet della sweep', () => {
+  const doc = { macs: [{ mac: 'AA:BB:CC:00:00:42', label: 'x', nodeId: 'x', ip: '10.20.0.9' }] };
+  // fdbObserved=true: gli switch vedono i MAC su tutte le VLAN → niente unverified
+  const snmp = { observedMacs: [], responded: {}, fdbObserved: true, reachabilityChecked: true,
+                 presentNodeIds: {}, observedSubnets: ['192.168.1'] };
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.unverified, 0, 'con FDB la visibilità L2 è trasversale alle VLAN');
+  assert.equal(r.counts.macOrphan, 1);
+});
+
+test('back-compat: reachabilityChecked senza observedSubnets → macOrphan come prima', () => {
+  const doc = { macs: [{ mac: 'AA:BB:CC:00:00:43', label: 'x', nodeId: 'x', ip: '10.20.0.1' }] };
+  const snmp = { observedMacs: [], responded: {}, fdbObserved: false, reachabilityChecked: true, presentNodeIds: {} };
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.macOrphan, 1, 'senza info per-subnet si mantiene il comportamento storico');
+  assert.equal(r.counts.unverified, 0);
+});
+
+test('unverified ignorabile: la key unver: rispetta la lista ignores', () => {
+  const doc = { macs: [{ mac: 'AA:BB:CC:00:00:44', label: 'y', nodeId: 'y', ip: '10.30.0.7' }] };
+  const snmp = { observedMacs: [], responded: {}, fdbObserved: false, reachabilityChecked: true,
+                 presentNodeIds: {}, observedSubnets: ['192.168.1'] };
+  const r = buildDriftReport(snmp, doc, ['unver:aa:bb:cc:00:00:44'], {});
+  assert.equal(r.counts.unverified, 0, 'riga unverified soppressa via ignores');
+});
+
 test('cambio IP: MAC documentato VIVO a un IP diverso → ipChanged, NON macOrphan', () => {
   const doc = { macs: [{ mac: 'AA:BB:CC:00:00:30', label: 'srv', nodeId: 'srv', ip: '192.168.1.50' }] };
   const snmp = { observedMacs: [], reachabilityChecked: true, fdbObserved: false, presentNodeIds: {},
