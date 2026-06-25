@@ -12,11 +12,12 @@ services:
     container_name: infranetpro
     restart: unless-stopped
 
-    # Pubblica SOLO sul loopback dell'host → NON raggiungibile da LAN/internet
-    # (dentro il container fa bind su 0.0.0.0, ma Docker lo mappa su 127.0.0.1 dell'host).
-    # Per accesso remoto: VPN o reverse-proxy con TLS.
+    # Indirizzo di pubblicazione configurabile via BIND_ADDR (default: solo loopback
+    # dell'host → NON raggiungibile da LAN/internet). Per l'accesso dalla LAN imposta
+    # BIND_ADDR=0.0.0.0 (o un IP specifico dell'host) tra le environment della stack.
+    # Per accesso da fuori LAN: VPN o reverse-proxy con TLS.
     ports:
-      - "127.0.0.1:8421:8421"
+      - "${BIND_ADDR:-127.0.0.1}:8421:8421"
 
     environment:
       # OBBLIGATORIO: senza un secret fisso le sessioni si invalidano a ogni re-create del container.
