@@ -117,3 +117,13 @@ _v_*.png
 # Asset Ko-fi / branding (banner, logo): sorgenti HTML + PNG — restano locali
 _kofi_*
 _logo_square.*
+
+# -------------------------------------------------------
+# Cartella di lavoro locale — mai nel repo
+# -------------------------------------------------------
+# Tutto ciò che non fa parte del repo pubblico (marketing, sorgenti manuale,
+# note/handoff interni) vive qui dentro: _local/marketing, _local/manual-src, _local/notes
+_local/
+# Sicurezza extra: se un render ricrea questi asset in root, restano ignorati
+_li_*
+_gh_social*
