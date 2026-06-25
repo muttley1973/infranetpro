@@ -25,6 +25,7 @@ Current product direction: InfraNet Pro keeps discovery and classification insid
 - [Architecture](#architecture)
 - [Requirements](#requirements)
 - [Installation](#installation)
+- [Docker](#docker)
 - [Configuration](#configuration)
 - [Usage](#usage)
 - [SNMP Integration](#snmp-integration)
@@ -242,7 +243,7 @@ infranetpro/
 | npm | ≥ 8 (bundled with Node 16) |
 | Network access | UDP 161 to managed devices |
 
-No external database. No Docker required (though it works fine in a container).
+No external database. A one-command **[Docker](#docker)** setup is provided, but it's optional — bare-metal Node works exactly the same.
 
 ---
 
@@ -278,6 +279,62 @@ On first start, a default **admin** account is created automatically. You will b
 
 ---
 
+## Docker
+
+Run InfraNet Pro in a container — no Node install required. The image builds the
+frontend bundle internally and keeps all data (projects, skins, user accounts) in a
+named volume, so it survives container re-creation and upgrades.
+
+```bash
+# 1. Set a fixed session secret (otherwise logins reset on every re-create)
+cp .env.example .env          # then edit .env → SESSION_SECRET=<random>
+#   openssl rand -base64 48
+
+# 2. Build and start
+docker compose up -d --build
+```
+
+Open **http://127.0.0.1:8421**. On first start the generated **admin** password is
+printed to the container log — read it with `docker compose logs infranetpro`.
+
+**The server is published on the host's `127.0.0.1` only** — not on the LAN or the
+internet. It binds `0.0.0.0` *inside* the container, which Docker maps to host
+loopback via `127.0.0.1:8421:8421`. For remote access put it behind a VPN or a
+reverse proxy with TLS.
+
+### Network discovery from a container
+
+Ping / ARP / SNMP only reach the network the container is attached to. In the default
+**bridge** mode that's the container's private network, not your real LAN — manual
+documentation works fully, but SNMP discovery won't see physical devices. To scan the
+real network (Linux host):
+
+1. In `docker-compose.yml` uncomment `network_mode: host`.
+2. Remove the `ports:` block (host mode ignores it).
+3. Add `HOST: "127.0.0.1"` under `environment:` — host mode shares the host's network
+   namespace, so this keeps the server on the host's loopback instead of exposing it
+   on every interface.
+
+### Plain `docker run`
+
+```bash
+docker build -t infranetpro .
+docker run -d --name infranetpro \
+  -p 127.0.0.1:8421:8421 \
+  -e SESSION_SECRET="$(openssl rand -base64 48)" \
+  -v infranet_data:/data \
+  --cap-add NET_RAW \
+  infranetpro
+```
+
+| Volume path | Holds |
+|---|---|
+| `/data/projects` | saved projects + image assets |
+| `/data/skins` | uploaded panel skins |
+| `/data/users.json` | user accounts (bcrypt hashes) |
+
+---
+
 ## Configuration
 
 All configuration is done via **environment variables** — no config file needed.
@@ -285,7 +342,11 @@ All configuration is done via **environment variables** — no config file neede
 | Variable | Default | Description |
 |---|---|---|
 | `PORT` | `8421` | TCP port the server listens on |
+| `HOST` | `127.0.0.1` | Interface to bind. Keep loopback unless behind a proxy/VPN; set `0.0.0.0` in a container |
 | `SESSION_SECRET` | *(auto-generated)* | Override the session signing secret |
+| `INFRANET_PROJECTS_DIR` | `./projects` | Where project JSON + image assets are stored |
+| `INFRANET_SKINS_DIR` | `./skins` | Where uploaded panel skins are stored |
+| `INFRANET_USERS_FILE` | `./users.json` | Path to the user-accounts file |
 
 Example:
 ```bash
@@ -293,9 +354,8 @@ PORT=80 node server.js
 ```
 
 To expose the server on all interfaces (e.g. inside a trusted LAN):
-```javascript
-// server.js — change the listen call
-app.listen(PORT, '0.0.0.0', () => { ... });
+```bash
+HOST=0.0.0.0 node server.js
 ```
 
 > ⚠️ InfraNet Pro is designed for **internal/trusted networks**. Do not expose it directly to the internet without a reverse proxy and TLS.
@@ -987,7 +1047,7 @@ The crawl endpoint streams progress as `text/event-stream` events such as `start
 - [ ] SQLite-backed storage for discovery history, IP history, FDB cache and audit log (branch `feat/sqlite-store` when ready)
 - [ ] Internal discovery/classification hardening: richer local sysObjectID plugins, standard MIB coverage and more real-device regression tests
 - [ ] **Topology scoring multi-source fusion**: boost confidence when LLDP and MAC FDB independently agree on the same pairing; bidirectional cross-check (MAC seen on switch port ↔ `ifPhysAddress` on the remote device ↔ ARP entry); stricter `macsOnPort` thresholds to detect unmanaged switches hidden behind managed ports
-- [ ] Docker image + `docker-compose.yml`
+- [x] Docker image + `docker-compose.yml`
 
 **Out of scope** (parked):
 - WebSocket multi-user live push (single-user persona)

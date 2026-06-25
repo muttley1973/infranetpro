@@ -1,0 +1,47 @@
+# InfraNet Pro — orchestrazione Docker
+#   Avvio:  docker compose up -d --build   →  http://127.0.0.1:8421  (solo loopback dell'host)
+#   Log:    docker compose logs infranetpro   (la password admin del primo avvio è qui)
+#   Stop:   docker compose down
+#
+# Prima del primo avvio: copia .env.example in .env e imposta SESSION_SECRET.
+
+services:
+  infranetpro:
+    build: .
+    image: infranetpro:latest
+    container_name: infranetpro
+    restart: unless-stopped
+
+    # Pubblica SOLO sul loopback dell'host → NON raggiungibile da LAN/internet
+    # (dentro il container fa bind su 0.0.0.0, ma Docker lo mappa su 127.0.0.1 dell'host).
+    # Per accesso remoto: VPN o reverse-proxy con TLS.
+    ports:
+      - "127.0.0.1:8421:8421"
+
+    environment:
+      # OBBLIGATORIO: senza un secret fisso le sessioni si invalidano a ogni re-create del container.
+      #   Genera:  openssl rand -base64 48
+      SESSION_SECRET: "${SESSION_SECRET:?Imposta SESSION_SECRET — copia .env.example in .env}"
+
+    volumes:
+      # Dati persistenti (progetti, skin, account utenti). Conservali per non perdere i dati.
+      - infranet_data:/data
+
+    # ICMP ping non privilegiato dentro il container.
+    cap_add:
+      - NET_RAW
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # DISCOVERY DELLA TUA LAN REALE (ping/ARP/SNMP sui device fisici)
+    # In bridge (default qui sopra) lo scanner vede solo la rete del container.
+    # Per scoprire la rete vera, su host Linux:
+    #   1) scommenta:            network_mode: host
+    #   2) RIMUOVI il blocco  ports:  (host mode lo ignora)
+    #   3) aggiungi in environment:  HOST: "127.0.0.1"
+    #      (host mode condivide la rete dell'host → così il server resta solo sul
+    #       loopback dell'host invece di esporsi su TUTTE le interfacce)
+    # ─────────────────────────────────────────────────────────────────────────
+    # network_mode: host
+
+volumes:
+  infranet_data:

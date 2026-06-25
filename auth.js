@@ -11,7 +11,9 @@ const session   = require('express-session');
 const rateLimit = require('express-rate-limit');
 const { timestamp } = require('./utils');
 
-const USERS_FILE  = path.join(__dirname, 'users.json');
+// Override via INFRANET_USERS_FILE: tiene gli account su un volume dati persistente
+// (es. /data/users.json in Docker); default invariato su bare-metal.
+const USERS_FILE  = process.env.INFRANET_USERS_FILE || path.join(__dirname, 'users.json');
 const BCRYPT_COST = 12;
 
 // ---- Bypass auth SOLO per sviluppo (off di default) -------------------------
