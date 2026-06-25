@@ -294,35 +294,43 @@ cp .env.example .env          # then edit .env → SESSION_SECRET=<random>
 docker compose up -d --build
 ```
 
-Open **http://127.0.0.1:8421**. On first start the generated **admin** password is
-printed to the container log — read it with `docker compose logs infranetpro`.
+Open `http://<host-ip>:8421` (the IP of the machine running Docker). On first start the
+generated **admin** password is printed to the container log — read it with
+`docker compose logs infranetpro`, then change it on first login.
 
-**The server is published on the host's `127.0.0.1` only** — not on the LAN or the
-internet. It binds `0.0.0.0` *inside* the container, which Docker maps to host
-loopback via `127.0.0.1:8421:8421`. For remote access put it behind a VPN or a
-reverse proxy with TLS.
+### Networking — full discovery by default
 
-### Network discovery from a container
+The default `docker-compose.yml` uses **`network_mode: host`**, so the container behaves
+like a native install: it sees your real network. **Discovery is complete** — ARP gives
+device MACs → **vendor names** (OUI), alongside SNMP and LLDP/CDP — and the UI is reachable
+at `http://<host-ip>:8421`.
 
-In the default **bridge** mode the container reaches LAN devices through NAT, so ping/TCP
-probes and **SNMP** (it's L3/UDP) work — SNMP-capable devices are discovered with full
-vendor/model info. But **ARP is link-local**, so the container never learns the MAC of
-devices on your real subnet → devices *without* SNMP show up with no MAC and **no OUI
-vendor name** (a bare-metal scan, which has ARP, shows them all).
+> ⚠️ **Security:** host mode publishes the (login-protected) UI on the host's interfaces.
+> Keep it on a trusted network; for outside access use a VPN or a reverse proxy with TLS —
+> never expose it directly to the internet. To bind the server to one address set
+> `HOST=<host-ip>` (or `HOST=127.0.0.1` for host-loopback only).
+>
+> Host networking needs a **Linux** host. On Docker Desktop (macOS/Windows) host mode is
+> limited — use the isolated variant below.
 
-To get full discovery — MAC + vendor for every device, like a bare-metal scan — give the
-container the host's network stack: set **`NETWORK_MODE=host`** as a stack/compose
-environment variable and redeploy (Linux host). In host mode the `ports:` mapping is
-ignored and the server publishes per `HOST` (default `0.0.0.0` → reachable at
-`http://<host-ip>:8421`; set `HOST=<host-ip>` to limit exposure). The scanner then sees
-every device on the host's own subnet.
+**Isolated (bridge) variant** — for a sandboxed container behind a reverse proxy/VPN, or on
+Docker Desktop:
+
+```bash
+docker compose -f docker-compose.bridge.yml up -d --build
+```
+
+Here the container's network is isolated from the host: SNMP discovery still works (it's L3),
+but **ARP-based MAC/vendor detection does not** — devices without SNMP appear with no
+MAC/vendor. It binds host-loopback only by default; set `BIND_ADDR=0.0.0.0` to reach it from
+the LAN.
 
 ### Plain `docker run`
 
 ```bash
 docker build -t infranetpro .
 docker run -d --name infranetpro \
-  -p 127.0.0.1:8421:8421 \
+  --network host \
   -e SESSION_SECRET="$(openssl rand -base64 48)" \
   -v infranet_data:/data \
   --cap-add NET_RAW \

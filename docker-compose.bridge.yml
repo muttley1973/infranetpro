@@ -1,0 +1,36 @@
+# InfraNet Pro — variante ISOLATA (bridge networking)
+#   Avvio:  docker compose -f docker-compose.bridge.yml up -d --build
+#
+# Rete del container ISOLATA dall'host. Da usare quando metti l'app dietro un reverse-proxy/VPN,
+# vuoi il massimo isolamento, o sei su Docker Desktop (macOS/Windows) dove host mode è limitato.
+#
+# ⚠️ Compromesso sulla discovery: lo scanner raggiunge i device via NAT e vede quelli SNMP (L3),
+#    ma NON i MAC/vendor via ARP (l'ARP è link-local al container) → la maggior parte dei device
+#    non-SNMP comparirà senza MAC/vendor. Per la discovery COMPLETA usa docker-compose.yml (host).
+#
+# Prima del primo avvio: copia .env.example in .env e imposta SESSION_SECRET.
+
+services:
+  infranetpro:
+    build: .
+    image: infranetpro:latest
+    container_name: infranetpro
+    restart: unless-stopped
+
+    # Pubblica sul loopback dell'host di default (non esposto in rete). Per raggiungerla dalla
+    # LAN: BIND_ADDR=0.0.0.0 (o un IP dell'host). Per esporla fuori: reverse-proxy con TLS.
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:8421:8421"
+
+    environment:
+      # OBBLIGATORIO (senza, le sessioni si invalidano a ogni re-create). Genera: openssl rand -base64 48
+      SESSION_SECRET: "${SESSION_SECRET:?Imposta SESSION_SECRET — copia .env.example in .env}"
+
+    volumes:
+      - infranet_data:/data
+
+    cap_add:
+      - NET_RAW
+
+volumes:
+  infranet_data:
