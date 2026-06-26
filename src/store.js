@@ -36,7 +36,7 @@ export const store = proxy([
     'linkStart', 'highPath', 'lagSelPorts', '_focusedLagPorts',
     // ── viste topologia / discovery ──────────────────────────────────────────
     '_viewMode', '_topoData', '_topoVisible', '_topoNeighborsCache',
-    '_topoFdbCache', '_discResults', '_driftReport', '_filterVlan',
+    '_topoFdbCache', '_discResults', '_driftReport', '_dhcpLeases', '_filterVlan',
     '_rackCollapsed', '_spareActive', '_topoTrunkOnly',
     // ── popup / sessione UI ──────────────────────────────────────────────────
     '_lastPopPid', '_lastPopX', '_lastPopY', '_currentUser',

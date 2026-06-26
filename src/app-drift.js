@@ -192,7 +192,30 @@ function _driftBuildSnmpSnapshot(docSnap, reachable, arpTable){
     }
     const portDownStreak = {};
     for(const pid of Object.keys(docSnap.ports)) portDownStreak[pid] = (state.ports[pid] && state.ports[pid].downStreak) || 0;
-    return { responded, ports, observedMacs, observedDevices, rejectedSigs, portDownStreak, fdbObserved, presentNodeIds, reachabilityChecked, macAtIp, observedSubnets: [...observedSubnets] };
+    // ── Lease DHCP come FONTE (cross-VLAN) ───────────────────────────────
+    // Danno MAC→IP autorevole su TUTTE le VLAN — il pezzo che l'ARP locale non
+    // vede dietro un firewall L3. Entrano negli stessi canali del motore:
+    // presenza per-MAC, cambio IP, non documentati. L'ARP vivo locale resta
+    // prioritario (più fresco); il lease riempie il resto. Transitorio
+    // (store._dhcpLeases, non persistito): lo carica l'overlay "Lease DHCP".
+    const _leases = Array.isArray(store._dhcpLeases) ? store._dhcpLeases : [];
+    let _leaseChecked = false;
+    for(const l of _leases){
+        const macLc = String((l && l.mac) || '').toLowerCase();
+        const ip = String((l && l.ip) || '').trim();
+        if(!macLc || !ip) continue;
+        if(!macAtIp[macLc]) macAtIp[macLc] = ip;          // ARP vivo ha priorità
+        observedMacs.push(l.mac);
+        const n24 = _net24(ip); if(n24) observedSubnets.add(n24);
+        const sig = _driftNorm(l.mac);
+        if(sig && !known.has(sig) && !seen.has(sig)){
+            seen.add(sig);
+            observedDevices.push({ sig, mac: l.mac, label: t('dhcp.seenLease',{ip}), vlan: (l && l.vlan != null) ? l.vlan : null, portMacCount: 0, consumer: false });
+        }
+        _leaseChecked = true;
+    }
+
+    return { responded, ports, observedMacs, observedDevices, rejectedSigs, portDownStreak, fdbObserved, presentNodeIds, reachabilityChecked: reachabilityChecked || _leaseChecked, macAtIp, observedSubnets: [...observedSubnets] };
 }
 
 // ── Calcolo Drift dallo stato CORRENTE (SENZA ri-pollare) ────────────
@@ -239,13 +262,16 @@ async function runDriftCheck(){
     const state = store.state;
     if(_driftRunning || win._snmpSyncing) return;
     const hasSnmp = state.nodes.some(n => String((n.integration||{}).driver||'').startsWith('snmp') && String((n.integration||{}).host||n.ip||'').trim());
-    if(!hasSnmp){ showAlert(t('msg.net.noSnmpDevicesDoc')); return; }
+    // I lease DHCP sono una fonte valida anche senza SNMP (rete dietro firewall):
+    // se ce ne sono, la Verifica gira lo stesso (il poll SNMP viene saltato).
+    const hasLeases = Array.isArray(store._dhcpLeases) && store._dhcpLeases.length > 0;
+    if(!hasSnmp && !hasLeases){ showAlert(t('msg.net.noSnmpDevicesDoc')); return; }
     _driftRunning = true;
     const btn = document.getElementById('btn-drift');
     if(btn){ btn.disabled = true; btn.dataset._lbl = btn.innerHTML; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
     try {
         const docSnap = _driftBuildDocSnapshot();      // PRIMA del sync (i campi base verranno sovrascritti)
-        await win.pollAllSNMP();                        // riuso, immutato
+        if(hasSnmp) await win.pollAllSNMP();             // riuso, immutato; saltato se solo-lease
         const sweep = await _driftReachabilitySweep();  // presenza multi-segnale (ping/ARP/TCP) + tabella ARP
         _driftComputeFromDoc(docSnap, sweep || {});     // streaks + snapshot realtà + buildDriftReport
         const _renewed = _driftAutoRenewIps();          // opt-in: rinnova IP dei MAC noti (DHCP)

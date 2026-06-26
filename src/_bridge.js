@@ -32,3 +32,5 @@ export const auditToCsv       = (...a)       => win.auditToCsv(...a);        // 
 export const auditActionLabel = (...a)       => win.auditActionLabel(...a);  // lib/audit-log.js
 // Costante: il <script> di audit-log.js gira prima del bundle → riferimento pronto.
 export const ACTION_LABELS    = win.ACTION_LABELS;                          // lib/audit-log.js
+export const parseDhcpLeases     = (...a) => win.parseDhcpLeases(...a);      // lib/dhcp-lease.js
+export const reconcileDhcpLeases = (...a) => win.reconcileDhcpLeases(...a);  // lib/dhcp-lease.js

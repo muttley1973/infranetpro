@@ -781,6 +781,95 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.overlayClosed, 'importCsvNodes chiude l\'overlay');
     });
 
+    await t.test('app-dhcp-import: i lease (file) alimentano il motore Verifica (cambio IP cross-VLAN)', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0;
+          state.nodes.push({ id: 'pcX', type: 'pc', name: 'PC-X', x: 10, y: 10, ports: 1, mac: 'AA:BB:CC:DD:EE:01', ip: '10.0.0.50' });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          window._dhcpLeases = null;
+
+          const exposed = ['openDhcpImport', 'previewDhcp', 'useDhcpLeases', 'loadDhcpFile'].every(f => typeof window[f] === 'function');
+          openDhcpImport();
+          const overlayOpen = document.getElementById('dhcp-overlay').classList.contains('open');
+          const useDisabledInit = document.getElementById('dhcp-use-btn').disabled === true;
+
+          // Lease CSV: pcX a un IP nuovo + un MAC sconosciuto. Niente reconcile qui:
+          // i lease vanno in store._dhcpLeases e li usa il motore Drift.
+          document.getElementById('dhcp-textarea').value = [
+            'ip,mac,hostname',
+            '10.0.0.80,AA:BB:CC:DD:EE:01,pc-x',
+            '10.0.0.82,DE:AD:BE:EF:00:09,ignoto',
+          ].join('\n');
+          previewDhcp();
+          const useEnabled = document.getElementById('dhcp-use-btn').disabled === false;
+          useDhcpLeases();
+          const stored = Array.isArray(window._dhcpLeases) ? window._dhcpLeases.length : 0;
+          const overlayClosed = !document.getElementById('dhcp-overlay').classList.contains('open');
+
+          // Il motore usa i lease come fonte: macAtIp pieno + cambio IP per pcX,
+          // senza alcun ARP (è il caso cross-VLAN dietro il firewall).
+          const doc = _driftBuildDocSnapshot();
+          const snmp = _driftBuildSnmpSnapshot(doc);
+          const rep = buildDriftReport(snmp, doc, [], {});
+          const ipchgX = (rep.ipChanged || []).find(x => x.nodeId === 'pcX');
+          const out = { ok: true, exposed, overlayOpen, useDisabledInit, useEnabled, stored, overlayClosed,
+            macAtIpX: snmp.macAtIp['aa:bb:cc:dd:ee:01'], reachChecked: snmp.reachabilityChecked,
+            ipchgX: ipchgX ? ipchgX.newIp : '' };
+          window._dhcpLeases = null;   // non lasciare lease ai test successivi
+          return out;
+        } catch (e) { return { ok: false, err: String(e && e.message || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore: ' + r.err);
+      assert.ok(r.exposed, 'le funzioni DHCP loader sono esposte dal bundle');
+      assert.ok(r.overlayOpen, 'openDhcpImport apre l\'overlay');
+      assert.ok(r.useDisabledInit, '"Usa nella Verifica" disabilitato all\'apertura');
+      assert.ok(r.useEnabled, '"Usa" abilitato dopo il parse');
+      assert.equal(r.stored, 2, 'useDhcpLeases mette i lease in store._dhcpLeases');
+      assert.ok(r.overlayClosed, 'useDhcpLeases chiude l\'overlay');
+      assert.equal(r.macAtIpX, '10.0.0.80', 'il lease entra in macAtIp del motore (cross-VLAN, senza ARP)');
+      assert.ok(r.reachChecked, 'i lease contano come osservabilità');
+      assert.equal(r.ipchgX, '10.0.0.80', 'il motore Drift rileva il cambio IP dal lease');
+    });
+
+    await t.test('app-dhcp-import: pull live (driver-pack) → carica i lease per la Verifica', async () => {
+      const r = await page.evaluate(async () => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          window._dhcpLeases = null;
+          // openDhcpImport interroga /api/dhcp-drivers (server reale, pack presente in
+          // vendor/) → la sezione live compare e i vendor sono popolati.
+          await openDhcpImport();
+          const exposed = ['fetchDhcpLive', 'updateDhcpVendorFields'].every(f => typeof window[f] === 'function');
+          const liveShown = document.getElementById('dhcp-live-section').style.display !== 'none';
+          const vendorCount = document.getElementById('dhcp-live-vendor').options.length;
+          const cred2hidden = document.getElementById('dhcp-cred2-wrap').style.display === 'none';
+          // Stub solo la POST dei lease (il driver vero lo proviamo su HW reale).
+          const _origFetch = window.fetch;
+          window.fetch = async () => ({ json: async () => ({ ok: true, format: 'api:fortigate', count: 1, leases: [{ mac: 'AA:BB:CC:DD:EE:0A', ip: '10.0.0.90', hostname: 'pc-l', state: 'active' }] }) });
+          document.getElementById('dhcp-live-host').value = '192.168.1.1';
+          document.getElementById('dhcp-live-cred1').value = 'tok';
+          await fetchDhcpLive();
+          const useEnabled = document.getElementById('dhcp-use-btn').disabled === false;
+          useDhcpLeases();
+          window.fetch = _origFetch;
+          const stored = Array.isArray(window._dhcpLeases) ? window._dhcpLeases.length : 0;
+          const storedIp = stored ? window._dhcpLeases[0].ip : '';
+          window._dhcpLeases = null;   // non lasciare lease ai test successivi
+          return { ok: true, exposed, liveShown, vendorCount, cred2hidden, useEnabled, stored, storedIp };
+        } catch (e) { return { ok: false, err: String(e && e.message || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso live: ' + r.err);
+      assert.ok(r.exposed, 'fetchDhcpLive/updateDhcpVendorFields esposte dal bundle');
+      assert.ok(r.liveShown, 'la sezione live compare (driver-pack presente in vendor/)');
+      assert.ok(r.vendorCount >= 1, 'vendor popolati dal server');
+      assert.ok(r.cred2hidden, 'FortiGate: un solo campo credenziale (cred2 nascosto)');
+      assert.ok(r.useEnabled, '"Usa nella Verifica" abilitato dopo il pull');
+      assert.equal(r.stored, 1, 'useDhcpLeases mette il lease live in store._dhcpLeases');
+      assert.equal(r.storedIp, '10.0.0.90', 'IP corretto dal pull live');
+    });
+
     await t.test('app-auth migrato: API esposte + toggle menu/overlay (DOM, no backend) + var-ify _currentUser', async () => {
       const r = await page.evaluate(() => {
         try {

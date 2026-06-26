@@ -12,6 +12,7 @@ const { buildNeighborCandidates, buildPortIndex, buildMacIndex, buildPortMacInde
 const { expandSubnet, _execFileAsync, _pingHost, _normMac, _parseArpTable, _readArpMap, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost } = require('../netscan');
 const { _cleanHostname, PEN_VENDOR, _penFromObjectId, _vendorByObjectId, _decodeSysServices, _classifyDiscoveredDevice, _buildDiscoveryMeta, _decorateDiscoveryRow } = require('../classify');
 const { OuiEngine } = require('../../engine');
+const dhcpDrivers = require('../dhcp-drivers');
 
 // Singleton OUI engine used by the route. Lazy-initialized so the import of
 // discovery.js does not cost the 57k IEEE entries parse at startup.
@@ -137,6 +138,23 @@ router.post('/api/reachability', auth.requireAdmin, async (req, res) => {
     const aliveCount = Object.values(results).filter(r => r.alive).length;
     console.log(`  [REACH] ${list.length} IP verificati, ${aliveCount} raggiungibili, ${Object.keys(arpTable).length} in ARP`);
     res.json({ ok: true, results, arpTable });
+  } catch (err) {
+    res.json({ ok: false, error: err?.message || String(err) });
+  }
+});
+
+// ---- DHCP: pull LIVE dei lease dall'API del vendor (Fase 2, driver-pack) -----
+// Gira lato server (il browser non raggiunge il firewall). Le credenziali sono
+// d'uso singolo (non persistite). Stesso schema della Fase 1 → reconcile identico.
+router.get('/api/dhcp-drivers', auth.requireAdmin, (req, res) => {
+  res.json({ ok: true, drivers: dhcpDrivers.listDrivers() });
+});
+router.post('/api/dhcp-leases', auth.requireAdmin, async (req, res) => {
+  try {
+    const { vendor, ...cfg } = req.body ?? {};
+    const out = await dhcpDrivers.fetchLeases(String(vendor || ''), cfg);
+    console.log(`  [DHCP] ${vendor}@${cfg.host}: ${out.count} lease`);
+    res.json({ ok: true, format: 'api:' + out.vendor, leases: out.leases, count: out.count });
   } catch (err) {
     res.json({ ok: false, error: err?.message || String(err) });
   }
