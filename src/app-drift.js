@@ -17,6 +17,7 @@
 // anche da src/app-drift-adopt.js, quindi NON è una variabile di modulo.
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
+import { TYPES } from './app-types.js';   // catalogo tipi: distingue gli elementi passivi dall'audit di presenza
 import { escapeHTML, normalizeMacAddress } from './app-util.js';
 import { nodeById, markDirty, getNodeByPortId, getNodeDisplayName, pushHistory, logAudit } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -62,9 +63,20 @@ export function _driftBuildDocSnapshot(){
     const macs = [];
     const deviceSigs = [];
     for(const n of state.nodes){
+        if(!n.mac) continue;
+        deviceSigs.push(_driftNorm(n.mac));   // "noto" → escluso dai non-documentati (invariato)
+        // Audit di PRESENZA: gli elementi passivi SENZA IP propria (prese a muro,
+        // patch panel, passacavi, quadri elettrici) non hanno un'identità di rete
+        // verificabile. Un MAC eventualmente stampato su di loro (visto a valle
+        // durante il Sync) appartiene al device COLLEGATO, non alla presa: la presa
+        // non risponde a ping/SNMP/ARP, quindi finirebbe SEMPRE tra gli "assenti"
+        // (e verrebbe ingrigita). Si verifica ciò che ci sta DIETRO, non la presa.
+        // I passivi CON IP (PDU/ATS/media-converter) restano verificabili.
+        const def = TYPES[n.type];
+        if(def && def.isPassive && !def.hasIP) continue;
         // nodeId: un device che ha risposto al sync non è "assente" anche senza FDB.
         // ip: per rilevare il CAMBIO INDIRIZZO (stesso MAC, IP diverso in rete).
-        if(n.mac){ macs.push({ mac: n.mac, label: getNodeDisplayName(n) || n.name || n.id, nodeId: n.id, ip: ((n.integration && n.integration.host) || n.ip || '').trim() }); deviceSigs.push(_driftNorm(n.mac)); }
+        macs.push({ mac: n.mac, label: getNodeDisplayName(n) || n.name || n.id, nodeId: n.id, ip: ((n.integration && n.integration.host) || n.ip || '').trim() });
     }
     for(const pid of Object.keys(state.ports)){ const m = state.ports[pid] && state.ports[pid].mac; if(m) deviceSigs.push(_driftNorm(m)); }
     const cables = state.links.map(l => ({ id: l.id, label: (l.label || win._cableAutoLabel(l)), src: l.src, dst: l.dst }));

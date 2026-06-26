@@ -1771,11 +1771,20 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           '_renderDriftReport', 'driftIgnore', 'driftApplyDoc', 'driftInvestigate', '_closeDriftReport']
           .every((f) => typeof window[f] === 'function');
         state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        // Elementi PASSIVI senza IP (es. presa a muro) con un MAC stampato a valle
+        // dal Sync NON sono verificabili → fuori dall'audit di presenza (doc.macs):
+        // non rispondono a ping/SNMP/ARP, finirebbero sempre "assenti". Un device
+        // ATTIVO con MAC invece c'è. (regressione: wall port marcata "assente".)
+        state.nodes.push({ id: 'wp9', type: 'wallport', name: 'WP-9', x: 10, y: 10, ports: 1, mac: 'AA:BB:CC:DD:EE:01' });
+        state.nodes.push({ id: 'pc9', type: 'pc', name: 'PC-9', x: 20, y: 20, ports: 1, mac: 'AA:BB:CC:DD:EE:02' });
         // DOC snapshot: un link con override su una porta → il diff engine deve
         // vedere i valori override, non i base.
         state.links = [{ id: 'lk1', src: 'sw1-1', dst: 'sw2-1' }];
         state.ports['sw1-1'] = { status: 'down', statusOvr: 'active', vlan: 1, vlanOvr: 99 };
         const doc = _driftBuildDocSnapshot();
+        const _macSet = new Set((doc.macs || []).map((m) => String(m.mac).toUpperCase()));
+        const wallportExcluded = !_macSet.has('AA:BB:CC:DD:EE:01');
+        const activeMacIncluded = _macSet.has('AA:BB:CC:DD:EE:02');
         const snmp = _driftBuildSnmpSnapshot(doc);   // non deve lanciare (FDB vuota → {})
         // Report finto su window (var condivisa col modulo): una riga per categoria.
         _driftReport = {
@@ -1805,6 +1814,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           docVlan: doc.ports['sw1-1'] && doc.ports['sw1-1'].vlan,
           snmpOk: !!snmp && typeof snmp === 'object',
           rowsRendered, ignored, macOrphanLeft, applied, stateDriftLeft, closed,
+          wallportExcluded, activeMacIncluded,
         };
       });
       assert.ok(r.exposed, 'le funzioni Drift sono pubblicate su window dal bundle');
@@ -1817,6 +1827,8 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.applied, 'driftApplyDoc scrive il valore reale e rimuove statusOvr');
       assert.equal(r.stateDriftLeft, 0, 'driftApplyDoc rimuove la riga applicata');
       assert.ok(r.closed, '_closeDriftReport nasconde l\'overlay (non copre i test rack)');
+      assert.ok(r.wallportExcluded, 'elemento passivo senza IP (wall port) escluso da doc.macs (audit presenza)');
+      assert.ok(r.activeMacIncluded, 'un device attivo con MAC resta in doc.macs');
     });
 
     await t.test('app-ports migrato: override porta + flusso LAG + stato cross-boundary su window', async () => {
