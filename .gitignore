@@ -32,6 +32,14 @@ tools/gen-company-demo.js
 tools/_*.js
 
 # -------------------------------------------------------
+# Driver-pack DHCP a pagamento (fuori dal repo pubblico)
+# -------------------------------------------------------
+# I driver API vendor live (FortiGate/PAN-OS/OPNsense/MikroTik…) sono l'add-on
+# commerciale: il framework (registry + endpoint) è open, i driver restano locali
+# e si caricano a runtime da qui se installati. L'open ha solo file/incolla.
+server/dhcp-drivers/vendor/
+
+# -------------------------------------------------------
 # Windows
 # -------------------------------------------------------
 Thumbs.db

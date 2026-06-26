@@ -90,7 +90,7 @@ test('ponte: le funzioni del nucleo non sono più CHIAMATE via win.*', () => {
 const RETIRED_STATE = ['state', 'selId', 'selType', 'dragNode', 'currentProjectId',
   'linkStart', 'highPath', 'lagSelPorts', '_focusedLagPorts', '_viewMode',
   '_topoData', '_topoVisible', '_topoNeighborsCache', '_topoFdbCache',
-  '_discResults', '_driftReport', '_filterVlan', '_rackCollapsed', '_spareActive',
+  '_discResults', '_driftReport', '_dhcpLeases', '_filterVlan', '_rackCollapsed', '_spareActive',
   '_topoTrunkOnly', '_lastPopPid', '_lastPopX', '_lastPopY', '_currentUser'];
 test('ponte: lo stato condiviso è letto solo via store.js (non win.* nei consumatori)', () => {
   for (const sym of RETIRED_STATE) {
@@ -164,7 +164,14 @@ test('ponte: lo stato condiviso è letto solo via store.js (non win.* nei consum
 // 2026-06-23: +26 per il nuovo tipo floor 'mobile' (Smartphone / Tablet) — blocco
 // campi device con win.selected (formato/brand/OS/ownership/MDM/connessione), stesso
 // pattern degli altri ~21 tipi → 1807→1833.
-const MAX_WIN_REFS = 1833;
+//
+// +2 (1833 → 1835, 2026-06-26) — RIALZO CONSAPEVOLE: feature "Import lease DHCP".
+// Il glue src/app-dhcp-import.js NON usa win.* (tutto via import). I +2 sono i due
+// forward dei lib puri in _bridge.js (parseDhcpLeases/reconcileDhcpLeases da
+// lib/dhcp-lease.js, caricato come <script>): stesso pattern di buildSpareReport/
+// auditToCsv — leggono l'unica istanza viva, niente ri-bundle. Crescita inevitabile
+// e coerente con la regola "lib <script> letti dal ponte".
+const MAX_WIN_REFS = 1835;
 
 test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => {
   const total = countInCode(/\bwin\./g);

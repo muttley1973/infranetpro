@@ -365,6 +365,52 @@
   </div>
 </div>
 
+<!-- ===== MODAL IMPORTA LEASE DHCP ===== -->
+<div id="dhcp-overlay" class="tool-modal-overlay" onclick="if(event.target===this)closeDhcpImport()">
+  <div class="tool-modal wide">
+    <div class="tool-modal-header">
+      <h3><i class="fas fa-table-list"></i> <span data-i18n="impexp.importDhcp">Importa lease DHCP</span></h3>
+      <button class="toolbar-btn" onclick="closeDhcpImport()" style="padding:4px 8px"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="tool-modal-body">
+      <div class="tm-hint" data-i18n="dhcp.hint">Incolla o carica la tabella dei lease DHCP. Formati riconosciuti in automatico: ISC dhcpd, dnsmasq, Kea (CSV) e CSV generico.</div>
+      <div id="dhcp-live-section" style="border:1px solid var(--panel-border);border-radius:6px;padding:10px;margin-bottom:10px;display:none">
+        <div style="font-size:0.75rem;font-weight:600;margin-bottom:8px;color:var(--text-muted)"><i class="fas fa-cloud-arrow-down"></i> <span data-i18n="dhcp.liveTitle">Recupero live dall'API del firewall</span></div>
+        <div class="tm-row" style="gap:8px;flex-wrap:wrap;align-items:center;font-size:0.78rem">
+          <select id="dhcp-live-vendor" onchange="updateDhcpVendorFields()" style="background:#0d1117;border:1px solid var(--panel-border);color:var(--text-main);padding:5px 7px;border-radius:4px">
+            <option value="fortigate">Fortinet FortiGate</option>
+            <option value="panos">Palo Alto PAN-OS</option>
+            <option value="opnsense">OPNsense</option>
+            <option value="mikrotik">MikroTik RouterOS</option>
+          </select>
+          <input id="dhcp-live-host" placeholder="Host / IP" style="background:#0d1117;border:1px solid var(--panel-border);color:var(--text-main);padding:5px 7px;border-radius:4px;width:140px">
+          <input id="dhcp-live-port" type="number" placeholder="443" style="background:#0d1117;border:1px solid var(--panel-border);color:var(--text-main);padding:5px 7px;border-radius:4px;width:72px">
+          <span style="display:inline-flex;align-items:center;gap:5px"><label id="dhcp-cred1-label" style="color:var(--text-muted)">API token</label><input id="dhcp-live-cred1" type="password" autocomplete="off" style="background:#0d1117;border:1px solid var(--panel-border);color:var(--text-main);padding:5px 7px;border-radius:4px;width:150px"></span>
+          <span id="dhcp-cred2-wrap" style="display:none;align-items:center;gap:5px"><label id="dhcp-cred2-label" style="color:var(--text-muted)"></label><input id="dhcp-live-cred2" type="password" autocomplete="off" style="background:#0d1117;border:1px solid var(--panel-border);color:var(--text-main);padding:5px 7px;border-radius:4px;width:150px"></span>
+          <label style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted)"><input type="checkbox" id="dhcp-live-insecure" style="width:auto"> <span data-i18n="dhcp.insecureTls">Salta verifica TLS (cert self-signed)</span></label>
+          <button class="toolbar-btn" id="dhcp-live-fetch" onclick="fetchDhcpLive()"><i class="fas fa-cloud-arrow-down"></i> <span data-i18n="dhcp.fetch">Recupera</span></button>
+        </div>
+        <div style="font-size:.68rem;color:var(--text-muted);margin-top:6px" data-i18n="dhcp.liveNote">Le credenziali servono solo per questo recupero e non vengono salvate.</div>
+      </div>
+      <div class="tm-row" style="gap:8px;margin-bottom:8px">
+        <button class="toolbar-btn" onclick="document.getElementById('dhcp-file').click()"><i class="fas fa-folder-open"></i> <span data-i18n="dhcp.chooseFile">Scegli file</span></button>
+        <input type="file" id="dhcp-file" accept=".csv,.txt,.leases" style="display:none" onchange="loadDhcpFile(this)">
+        <span style="font-size:0.75rem;color:var(--text-muted);align-self:center" data-i18n="dhcp.orPaste">oppure incolla il testo qui sotto</span>
+      </div>
+      <textarea id="dhcp-textarea" rows="8"
+        placeholder="10.0.20.50  aa:bb:cc:dd:ee:ff  laptop-01&#10;ISC dhcpd / dnsmasq / Kea CSV / CSV (ip,mac,hostname)…"
+        style="width:100%;background:#0d1117;border:1px solid var(--panel-border);color:var(--text-main);padding:8px;border-radius:5px;font-family:monospace;font-size:0.78rem;resize:vertical"
+        oninput="previewDhcp()"></textarea>
+      <div id="dhcp-summary" style="margin-top:10px;font-size:0.78rem;font-weight:600;color:var(--accent-color)"></div>
+      <div id="dhcp-errors" style="margin-top:6px;font-size:0.75rem;color:var(--fault-color)"></div>
+    </div>
+    <div class="tool-modal-footer">
+      <button class="toolbar-btn" onclick="closeDhcpImport()" data-i18n="common.cancel">Annulla</button>
+      <button class="toolbar-btn primary" id="dhcp-use-btn" onclick="useDhcpLeases()" disabled><i class="fas fa-circle-check"></i> <span data-i18n="dhcp.use">Usa nella Verifica</span></button>
+    </div>
+  </div>
+</div>
+
 <!-- PDF export options -->
 <div id="pdf-export-overlay" class="tool-modal-overlay" onclick="if(event.target===this)closePdfExportOptions()">
   <div class="tool-modal" style="width:520px;max-width:96vw">
@@ -819,6 +865,7 @@
 <script src="/lib/panel-skin.js"></script>
 <script src="/lib/power-mib.js"></script>
 <script src="/lib/drift-report.js"></script>
+<script src="/lib/dhcp-lease.js"></script>
 <script src="/lib/update-summary.js"></script>
 <script src="/lib/drift-adopt.js"></script>
 <script src="/lib/audit-log.js"></script>
