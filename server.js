@@ -81,9 +81,19 @@ app.get('/vendor/fontawesome/webfonts/:file', (req, res) => {
   res.sendFile(path.join(FA_ROOT, 'webfonts', req.params.file));
 });
 
+// ---- REST API v1 (server/routes/api-v1.js) ---------------------------------
+// Read-only, gate a TOKEN Bearer. Montata PRIMA dell'auth di sessione: la
+// superficie esterna NON passa dal requireAuth globale, si autentica solo col
+// token e restituisce esclusivamente dati sanitizzati (lib/api-shape.js).
+app.use(require('./server/routes/api-v1'));
+
 // ---- Auth (sessioni + login page + route /api/auth/*) ----------------------
 // Deve essere registrato PRIMA delle route protette.
 auth.register(app);
+
+// ---- Gestione token API (server/routes/api-tokens.js) ----------------------
+// Solo admin (sessione). Mintare/revocare i token usati dall'API v1 qui sopra.
+app.use(require('./server/routes/api-tokens'));
 
 // ---- Frontend protetto ------------------------------------------------------
 
