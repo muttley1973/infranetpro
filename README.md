@@ -37,6 +37,7 @@ Current product direction: InfraNet Pro keeps discovery and classification insid
 - [Authentication & Roles](#authentication--roles)
 - [Project Data Model](#project-data-model)
 - [API Reference](#api-reference)
+- [REST API (v1)](#rest-api-v1)
 - [Known Limitations](#known-limitations)
 - [Roadmap](#roadmap)
 - [Testing](#testing)
@@ -47,7 +48,7 @@ Current product direction: InfraNet Pro keeps discovery and classification insid
 
 ## Screenshots
 
-> 📖 **Full feature manual (PDF):** [🇮🇹 Italiano](MANUALE_TECNICO_IT.pdf) · [🇬🇧 English](TECHNICAL_MANUAL_EN.pdf) — dark cover, white printable interior, 16 illustrated chapters.
+> 📖 **Full feature manual (PDF):** [🇮🇹 Italiano](MANUALE_TECNICO_IT.pdf) · [🇬🇧 English](TECHNICAL_MANUAL_EN.pdf) — dark cover, white printable interior, 17 illustrated chapters.
 
 <p align="center">
   <img src="GitHub%20Images/Topologia.png" alt="InfraNet Pro — topology view" width="900"><br>
@@ -895,6 +896,9 @@ All endpoints require an authenticated session. Write endpoints require the **ad
 | `POST` | `/api/auth/users` | admin | Create a user |
 | `PUT` | `/api/auth/users/:id` | admin | Update user (password / role) |
 | `DELETE` | `/api/auth/users/:id` | admin | Delete a user |
+| `GET` | `/api/auth/tokens` | admin | List API tokens (prefixes only) |
+| `POST` | `/api/auth/tokens` | admin | Mint an API token (shown once) |
+| `DELETE` | `/api/auth/tokens/:id` | admin | Revoke an API token |
 
 ### Poll Request Body
 
@@ -937,6 +941,38 @@ All endpoints require an authenticated session. Write endpoints require the **ad
 ```
 
 The crawl endpoint streams progress as `text/event-stream` events such as `start`, `probing`, `found`, `queued`, `dup`, `skip`, `warn` and `done`.
+
+---
+
+## REST API (v1)
+
+A versioned, **read-only** API for external consumers (Ansible, dashboards, wikis, automation) to read the documented network as a source of truth. Unlike the session-gated endpoints above, `/api/v1/*` authenticates with a **bearer token** (no browser session needed) and returns **sanitized** data only — never SNMP communities or other secrets.
+
+Mint a token as an admin in **Users and access → API tokens** (shown once), then pass it as a bearer header:
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/v1/openapi.json` | — | OpenAPI 3.0 description (public) |
+| `GET` | `/api/v1/projects` | token | List projects |
+| `GET` | `/api/v1/projects/:id` | token | Full inventory: VLANs, racks, devices |
+| `GET` | `/api/v1/projects/:id/devices` | token | Device list only |
+| `GET` | `/api/v1/projects/:id/ansible-inventory` | token | Ansible dynamic inventory (`--list` format) |
+
+```bash
+curl -H "Authorization: Bearer inp_…" http://<host>:8421/api/v1/projects/1
+```
+
+Each device exposes `id, name, type, brand, model, ip, mac, vlan` (derived from IP ↔ subnet), `rack`, `snmp` (a boolean — the community is never exposed) and `wireless`.
+
+### Ansible dynamic inventory
+
+`integrations/ansible/` ships a ready-made dynamic inventory (`infranet_inventory.py`, Python standard library only): every device with an IP becomes a host (`ansible_host` = its IP), grouped automatically by `type_*`, `vlan_*`, `rack_*` and `brand_*`. InfraNet stays the source of truth; Ansible executes. Set `INFRANET_URL`, `INFRANET_TOKEN` and `INFRANET_PROJECT`, then:
+
+```bash
+ansible-inventory -i infranet_inventory.py --graph
+```
+
+See [integrations/ansible/README.md](integrations/ansible/README.md) for the full walkthrough.
 
 ---
 
