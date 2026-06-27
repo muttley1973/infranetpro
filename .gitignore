@@ -73,6 +73,8 @@ yarn-error.log*
 users.json
 # chiave sessione auto-generata
 .session-secret
+# token REST API (hash sha-256 dei token; segreti — vedi server/api-tokens.js)
+api-tokens.json
 
 # -------------------------------------------------------
 # Runtime / backup locali (non versionare)
