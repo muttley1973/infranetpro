@@ -12,6 +12,12 @@ import { escapeHTML } from './app-util.js';
 // app.js _auditActor, export.js) → deve vivere su window, non module-local.
 store._currentUser = store._currentUser || null; // { id, username, role }
 
+// Stato transitorio del tab Token API (modale "Utenti e accessi"):
+// _lastToken = segreto appena generato (per il bottone Copia, vive solo finché
+// il modale è aperto); _tokensLoaded = lazy-load una volta per apertura.
+let _lastToken = '';
+let _tokensLoaded = false;
+
 async function initAuth(){
     try {
         const r = await fetch('/api/auth/me');
@@ -98,7 +104,22 @@ document.addEventListener('click', e=>{
 
 function openUserManager(){
     document.getElementById('user-manager-overlay').classList.add('open');
+    // Reset allo stato iniziale: tab Utenti, reveal token nascosto.
+    _tokensLoaded = false;
+    umSwitchTab('users');
+    const rev = document.getElementById('tk-reveal'); if(rev) rev.classList.remove('show');
     umLoadUsers();
+}
+
+// Tab del modale "Utenti e accessi": Utenti ↔ Token API. I token si caricano
+// pigramente alla prima apertura del tab (una volta per apertura del modale).
+function umSwitchTab(name){
+    const isTokens = name === 'tokens';
+    document.getElementById('um-tab-users').classList.toggle('active', !isTokens);
+    document.getElementById('um-tab-tokens').classList.toggle('active', isTokens);
+    document.getElementById('um-pane-users').classList.toggle('active', !isTokens);
+    document.getElementById('um-pane-tokens').classList.toggle('active', isTokens);
+    if(isTokens && !_tokensLoaded){ _tokensLoaded = true; tkLoadTokens(); }
 }
 
 function closeUserManager(){
@@ -207,12 +228,87 @@ async function umChangePassword(){
     } catch(_){ msg.textContent=t('pnl.sys.networkError'); msg.className='um-msg err'; }
 }
 
+// ===== Token API (tab del modale "Utenti e accessi") =====
+
+async function tkLoadTokens(){
+    const list = document.getElementById('tk-list');
+    if(!list) return;
+    list.innerHTML='<i class="fas fa-spinner fa-spin" style="color:var(--text-muted)"></i>';
+    try {
+        const r = await fetch('/api/auth/tokens');
+        const tokens = await r.json();
+        if(!Array.isArray(tokens) || !tokens.length){
+            list.innerHTML=`<div style="color:var(--text-muted);font-size:.82rem">${t('tk.none')}</div>`; return;
+        }
+        list.innerHTML = tokens.map(tk=>`
+            <div class="tk-row">
+                <i class="fas fa-key tk-key"></i>
+                <div class="tk-main">
+                    <div class="tk-label">${escapeHTML(tk.label)}</div>
+                    <div class="tk-prefix">${escapeHTML(tk.prefix||'')}…</div>
+                </div>
+                <div class="tk-meta">
+                    <div>${t('tk.created2')} ${tk.createdAt?escapeHTML(tk.createdAt.substring(0,10)):''}</div>
+                    ${tk.lastUsedAt
+                        ? `<div class="tk-used">${t('tk.lastUse')} ${escapeHTML(tk.lastUsedAt.substring(0,10))}</div>`
+                        : `<div style="opacity:.7">${t('tk.never')}</div>`}
+                </div>
+                <button class="um-btn danger" style="padding:5px 9px;font-size:.75rem"
+                    onclick="tkRevokeToken(${tk.id},this)" title="${escapeHTML(t('tk.revoke'))}">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>`).join('');
+    } catch(_){ list.innerHTML=`<span style="color:#f85149">${t('tk.errLoad')}</span>`; }
+}
+
+async function tkCreateToken(){
+    const labelEl = document.getElementById('tk-new-label');
+    const label = labelEl.value.trim();
+    const msg = document.getElementById('tk-new-msg');
+    msg.className='um-msg';
+    if(!label){ msg.textContent=t('tk.labelRequired'); msg.className='um-msg err'; return; }
+    try {
+        const r = await fetch('/api/auth/tokens',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({label})});
+        const d = await r.json();
+        if(d && d.token){
+            _lastToken = d.token;
+            document.getElementById('tk-reveal-code').textContent = d.token;
+            document.getElementById('tk-reveal').classList.add('show');
+            const cb = document.getElementById('tk-copy-btn');
+            if(cb) cb.innerHTML=`<i class="fas fa-copy"></i> ${escapeHTML(t('tk.copy'))}`;
+            labelEl.value='';
+            tkLoadTokens();
+        } else { msg.textContent=(d&&d.error)||t('tk.errCreate'); msg.className='um-msg err'; }
+    } catch(_){ msg.textContent=t('pnl.sys.networkError'); msg.className='um-msg err'; }
+}
+
+function tkCopyToken(){
+    const btn = document.getElementById('tk-copy-btn');
+    const done = ()=>{ if(btn){ btn.innerHTML=`<i class="fas fa-check"></i> ${escapeHTML(t('tk.copied'))}`;
+        setTimeout(()=>{ btn.innerHTML=`<i class="fas fa-copy"></i> ${escapeHTML(t('tk.copy'))}`; },1500); } };
+    try { const p = navigator.clipboard.writeText(_lastToken); if(p&&p.then) p.then(done,done); else done(); }
+    catch(_){ done(); }
+}
+
+async function tkRevokeToken(id, btn){
+    if(!confirm(t('tk.revokeConfirm'))) return;
+    btn.disabled=true;
+    try {
+        const r = await fetch(`/api/auth/tokens/${id}`,{method:'DELETE'});
+        const d = await r.json();
+        if(d && d.ok) tkLoadTokens();
+        else { alert((d&&d.error)||'Error'); btn.disabled=false; }
+    } catch(_){ btn.disabled=false; }
+}
+
 expose({
     initAuth, doLogout,
     toggleUserMenu, closeUserMenu,
     toggleImpExpMenu, closeImpExpMenu,
     toggleReportMenu, closeReportMenu,
-    openUserManager, closeUserManager,
+    openUserManager, closeUserManager, umSwitchTab,
     umLoadUsers, umCreateUser, umToggleRole, umDeleteUser,
+    tkLoadTokens, tkCreateToken, tkRevokeToken, tkCopyToken,
     openChangePassword, closeChangePassword, umChangePassword,
 });

@@ -36,6 +36,31 @@
         .um-msg.ok   { background:rgba(57,211,83,.12); border:1px solid rgba(57,211,83,.3); color:var(--active-color); display:block; }
         .um-msg.err  { background:rgba(248,81,73,.12); border:1px solid rgba(248,81,73,.3); color:var(--fault-color); display:block; }
 
+        /* ===== Tab del modale "Utenti e accessi" + pane Token API ===== */
+        .um-tabs { display:flex; gap:20px; padding:0 18px; border-bottom:1px solid var(--panel-border); flex-shrink:0; }
+        .um-tab { padding:10px 2px; margin-bottom:-1px; background:none; border:none; border-bottom:2px solid transparent; color:var(--text-muted); font-size:var(--fs-md); font-family:inherit; cursor:pointer; display:flex; align-items:center; gap:7px; }
+        .um-tab:hover { color:var(--text-main); }
+        .um-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+        .um-pane { display:none; }
+        .um-pane.active { display:block; }
+        /* Reveal one-time del token appena generato */
+        .tk-reveal { display:none; background:var(--accent-soft); border:1px solid var(--accent); border-radius: var(--radius-lg); padding:12px 14px; margin-bottom:16px; }
+        .tk-reveal.show { display:block; }
+        .tk-reveal-note { display:flex; align-items:center; gap:7px; font-size:var(--fs-sm); color:var(--accent); margin-bottom:9px; }
+        .tk-reveal-row { display:flex; gap:8px; align-items:center; }
+        .tk-code { flex:1; min-width:0; font-family:monospace; font-size:var(--fs-md); color:var(--text-main); background:var(--bg-color); border:1px solid var(--panel-border); border-radius: var(--radius-sm); padding:8px 10px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .tk-sec-label { font-size:var(--fs-md); font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.4px; margin:4px 0 2px; }
+        .tk-row { display:flex; align-items:center; gap:11px; padding:10px 0; border-bottom:1px solid var(--panel-border); }
+        .tk-row:last-of-type { border-bottom:none; }
+        .tk-key { color:var(--text-muted); }
+        .tk-main { flex:1; min-width:0; }
+        .tk-label { font-size:var(--fs-md); font-weight:600; color:var(--text-main); }
+        .tk-prefix { font-size:var(--fs-sm); color:var(--text-muted); font-family:monospace; }
+        .tk-meta { text-align:right; font-size:var(--fs-sm); color:var(--text-muted); line-height:1.5; white-space:nowrap; }
+        .tk-used { color:var(--active-color); }
+        .tk-foot-hint { font-size:var(--fs-sm); color:var(--text-muted); margin-top:12px; display:flex; align-items:center; gap:6px; }
+        .tk-foot-hint code { font-family:monospace; }
+
         /* ===== LIGHT THEME — variante C: bordi definiti, palette WCAG AA ===== */
         /* I LED dei device dentro il rack mantengono i colori del tema scuro:
            lo sfondo del chassis e' metallo scuro, quindi i colori vivaci sono

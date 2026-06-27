@@ -90,30 +90,67 @@
 <div id="user-manager-overlay" class="tool-modal-overlay" onclick="if(event.target===this)closeUserManager()">
   <div id="user-manager-modal" class="tool-modal" style="width:520px;max-height:85vh">
     <div class="tool-modal-header um-header">
-      <h3><i class="fas fa-users-cog"></i><span data-i18n="um.title">Gestione Utenti</span></h3>
+      <h3><i class="fas fa-shield-halved"></i><span data-i18n="um.title">Utenti e accessi</span></h3>
       <button class="toolbar-btn" onclick="closeUserManager()" style="padding:4px 8px"><i class="fas fa-times"></i></button>
     </div>
+    <div class="um-tabs">
+      <button class="um-tab active" id="um-tab-users" onclick="umSwitchTab('users')">
+        <i class="fas fa-users-cog"></i> <span data-i18n="um.tabUsers">Utenti</span>
+      </button>
+      <button class="um-tab" id="um-tab-tokens" onclick="umSwitchTab('tokens')">
+        <i class="fas fa-key"></i> <span data-i18n="um.tabTokens">Token API</span>
+      </button>
+    </div>
     <div class="tool-modal-body">
-      <!-- Form nuovo utente -->
-      <div class="um-form">
-        <h3><i class="fas fa-user-plus"></i> <span data-i18n="um.newUser">Nuovo utente</span></h3>
-        <div class="um-row">
-          <input type="text" id="um-new-username" data-i18n-ph="um.phUsername" placeholder="Nome utente" autocomplete="off">
-          <input type="password" id="um-new-password" placeholder="Password" autocomplete="new-password">
+      <!-- ===== Pane UTENTI ===== -->
+      <div class="um-pane active" id="um-pane-users">
+        <!-- Form nuovo utente -->
+        <div class="um-form">
+          <h3><i class="fas fa-user-plus"></i> <span data-i18n="um.newUser">Nuovo utente</span></h3>
+          <div class="um-row">
+            <input type="text" id="um-new-username" data-i18n-ph="um.phUsername" placeholder="Nome utente" autocomplete="off">
+            <input type="password" id="um-new-password" placeholder="Password" autocomplete="new-password">
+          </div>
+          <div class="um-row">
+            <select id="um-new-role">
+              <option value="viewer" data-i18n="um.roleViewer">Viewer — solo lettura</option>
+              <option value="admin" data-i18n="um.roleAdmin">Admin — accesso completo</option>
+            </select>
+            <button class="um-btn primary" onclick="umCreateUser()">
+              <i class="fas fa-plus"></i> <span data-i18n="um.create">Crea</span>
+            </button>
+          </div>
+          <div class="um-msg" id="um-new-msg"></div>
         </div>
-        <div class="um-row">
-          <select id="um-new-role">
-            <option value="viewer" data-i18n="um.roleViewer">Viewer — solo lettura</option>
-            <option value="admin" data-i18n="um.roleAdmin">Admin — accesso completo</option>
-          </select>
-          <button class="um-btn primary" onclick="umCreateUser()">
-            <i class="fas fa-plus"></i> <span data-i18n="um.create">Crea</span>
-          </button>
-        </div>
-        <div class="um-msg" id="um-new-msg"></div>
+        <!-- Lista utenti -->
+        <div id="um-user-list"><i class="fas fa-spinner fa-spin" style="color:var(--text-muted)"></i> Caricamento…</div>
       </div>
-      <!-- Lista utenti -->
-      <div id="um-user-list"><i class="fas fa-spinner fa-spin" style="color:var(--text-muted)"></i> Caricamento…</div>
+      <!-- ===== Pane TOKEN API ===== -->
+      <div class="um-pane" id="um-pane-tokens">
+        <!-- Form nuovo token -->
+        <div class="um-form">
+          <h3><i class="fas fa-key"></i> <span data-i18n="tk.new">Nuovo token</span></h3>
+          <div class="um-row">
+            <input type="text" id="tk-new-label" data-i18n-ph="tk.phLabel" placeholder="Etichetta — es. ansible, dashboard" autocomplete="off">
+            <button class="um-btn primary" onclick="tkCreateToken()">
+              <i class="fas fa-plus"></i> <span data-i18n="tk.generate">Genera token</span>
+            </button>
+          </div>
+          <div class="um-msg" id="tk-new-msg"></div>
+        </div>
+        <!-- Reveal one-time del token appena creato -->
+        <div class="tk-reveal" id="tk-reveal">
+          <div class="tk-reveal-note"><i class="fas fa-triangle-exclamation"></i> <span data-i18n="tk.created">Token generato — copialo ora, non sarà più visibile.</span></div>
+          <div class="tk-reveal-row">
+            <code class="tk-code" id="tk-reveal-code"></code>
+            <button class="um-btn ghost" id="tk-copy-btn" onclick="tkCopyToken()"><i class="fas fa-copy"></i> <span data-i18n="tk.copy">Copia</span></button>
+          </div>
+        </div>
+        <!-- Lista token attivi -->
+        <div class="tk-sec-label"><span data-i18n="tk.active">Token attivi</span></div>
+        <div id="tk-list"><i class="fas fa-spinner fa-spin" style="color:var(--text-muted)"></i></div>
+        <div class="tk-foot-hint"><i class="fas fa-eye"></i> <span data-i18n="tk.readonly">sola lettura · API</span> <code>/api/v1</code></div>
+      </div>
     </div>
     <div class="tool-modal-footer">
       <button class="um-btn ghost" onclick="closeUserManager()"><i class="fas fa-times"></i> <span data-i18n="common.close">Chiudi</span></button>
@@ -496,7 +533,7 @@
             <div id="user-dropdown" style="display:none;position:absolute;right:0;top:calc(100% + 6px);background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:8px;min-width:180px;z-index:500;box-shadow:0 8px 24px rgba(0,0,0,.5);padding:6px 0;">
                 <div id="user-info-row" style="padding:8px 14px 6px;font-size:0.85rem;color:var(--text-muted);border-bottom:1px solid var(--panel-border);margin-bottom:4px;"></div>
                 <button class="user-menu-item admin-only" onclick="openUserManager();closeUserMenu()">
-                    <i class="fas fa-users-cog"></i> <span data-i18n="user.manage">Gestione utenti</span>
+                    <i class="fas fa-shield-halved"></i> <span data-i18n="user.manage">Utenti e accessi</span>
                 </button>
                 <button class="user-menu-item admin-only" onclick="openChangePassword();closeUserMenu()">
                     <i class="fas fa-key"></i> <span data-i18n="user.changePw">Cambia password</span>
