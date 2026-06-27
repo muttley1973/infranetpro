@@ -1,0 +1,59 @@
+---
+# Demonstrates the InfraNet → Ansible dynamic inventory WITHOUT touching the
+# devices: it runs locally and just prints what the inventory provides. Safe to
+# run anywhere (connection: local, no SSH, read-only).
+#
+#   ansible-playbook -i infranet_inventory.py example-playbook.yml
+#
+# Once your real credentials/connection vars are in place, swap `connection: local`
+# for your transport and replace the debug tasks with real ones (see the commented
+# block at the bottom).
+
+- name: Show the network inventory coming from InfraNet
+  hosts: all
+  gather_facts: false
+  connection: local
+  tasks:
+    - name: Print each device with its key facts
+      ansible.builtin.debug:
+        msg: >-
+          {{ inventory_hostname }} —
+          type={{ infranet_type | default('?') }}
+          ip={{ ansible_host | default('?') }}
+          vlan={{ vlan | default('-') }}
+          brand={{ brand | default('-') }}
+          rack={{ rack | default('-') }}
+          snmp={{ snmp | default(false) }}
+
+- name: Summarise the auto-generated groups
+  hosts: localhost
+  gather_facts: false
+  connection: local
+  tasks:
+    - name: List groups discovered from InfraNet
+      ansible.builtin.debug:
+        msg: "{{ groups.keys() | reject('equalto', 'all') | reject('equalto', 'ungrouped') | sort }}"
+
+    - name: Count switches and firewalls
+      ansible.builtin.debug:
+        msg: >-
+          switches={{ groups['type_switch'] | default([]) | length }}
+          firewalls={{ groups['type_firewall'] | default([]) | length }}
+
+# ----------------------------------------------------------------------------
+# Real-world example (commented out — needs your connection/credentials):
+#
+# - name: Gather facts from Cisco switches documented in InfraNet
+#   hosts: type_switch
+#   gather_facts: false
+#   connection: network_cli
+#   vars:
+#     ansible_network_os: ios
+#   tasks:
+#     - name: Pull device facts
+#       cisco.ios.ios_facts:
+#       register: facts
+#     - name: Compare running hostname with the documented name
+#       ansible.builtin.debug:
+#         msg: "documented={{ inventory_hostname }} running={{ facts.ansible_facts.ansible_net_hostname }}"
+# ----------------------------------------------------------------------------

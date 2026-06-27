@@ -1,0 +1,44 @@
+---
+# Raggiungibilita della rete documentata in InfraNet, SENZA SSH e SENZA
+# credenziali: gira tutto sul control node (connection: local) e fa un ping ICMP
+# verso l'IP reale di ogni device fornito dall'inventario InfraNet. Stampa un
+# RIEPILOGO (quanti rispondono / quali no), non una riga per host.
+#
+#   ansible-playbook -i infranet_inventory.py reach.yml
+#
+# Nota: switch/router gestiti e IoT spesso BLOCCANO l'ICMP -> compaiono come
+# "muti", ma sono comunque documentati (InfraNet li vede via SNMP). Per quelli
+# il test giusto e' una porta TCP di gestione o l'SNMP, non il ping.
+
+- name: Ping ICMP della rete documentata in InfraNet
+  hosts: all
+  gather_facts: false
+  connection: local
+  tasks:
+    - name: Ping verso l'IP reale (dal control node)
+      ansible.builtin.command: "ping -c 2 -w 2 {{ ansible_host }}"
+      register: r
+      changed_when: false
+      failed_when: false
+    - name: Marca lo stato ICMP
+      ansible.builtin.set_fact:
+        icmp_up: "{{ (r.rc == 0) | bool }}"
+
+- name: Riepilogo
+  hosts: localhost
+  gather_facts: false
+  connection: local
+  vars:
+    tot: "{{ groups['all'] | length }}"
+    up: "{{ groups['all'] | map('extract', hostvars, 'icmp_up') | select | list | length }}"
+  tasks:
+    - name: Conteggio
+      ansible.builtin.debug:
+        msg: "RAGGIUNGIBILI via ICMP: {{ up }} / {{ tot }}  (i restanti rispondono via SNMP/TCP, non a ping)"
+    - name: Chi NON risponde a ICMP
+      ansible.builtin.debug:
+        msg: "muto a ICMP -> {{ item }} ({{ hostvars[item].ansible_host }}) [{{ hostvars[item].infranet_type | default('?') }}]"
+      loop: "{{ groups['all'] }}"
+      loop_control:
+        label: "{{ item }}"
+      when: not (hostvars[item].icmp_up | default(false) | bool)
