@@ -1633,21 +1633,83 @@ function _collectKnownIps(){
     return [...seen.values()].sort((a,b)=>a.ip.localeCompare(b.ip, undefined, { numeric:true }));
 }
 
+// IP dei lease DHCP ATTIVI in cache (store._dhcpLeases): scartati gli stale
+// (isLeaseStale = G2, stesso criterio del Drift) e i duplicati. Alimentano
+// l'occupazione IPAM (lib/ipam.js). Transitori, non persistiti.
+function _activeLeaseIps(){
+    const leases = Array.isArray(store._dhcpLeases) ? store._dhcpLeases : [];
+    const out = [], seen = new Set();
+    for(const l of leases){
+        const ip = String((l && l.ip) || '').trim();
+        if(!ip || seen.has(ip) || isLeaseStale(l)) continue;
+        seen.add(ip);
+        out.push(ip);
+    }
+    return out;
+}
+
 function _ipamUsageForVlan(vid){
     const entry = _ipamEntry(vid);
-    const cidr = _parseCidrInfo(entry?.subnet || '');
     const gateway = String(entry?.gateway || '').trim();
-    const allIps = _collectKnownIps();
-    const used = cidr ? allIps.filter(x => _ipInCidr(x.ip, cidr)) : [];
+    const known = _collectKnownIps();
+    // Motore puro (opzione A: documentati + solo-DHCP = realtà sul filo).
+    const u = computeIpamUsage({
+        subnet: entry?.subnet || '',
+        gateway,
+        documentedIps: known.map(x => x.ip),
+        leaseIps: _activeLeaseIps(),
+        parseCidr: _parseCidrInfo,
+        ipInCidr: _ipInCidr,
+    });
+    // Dettaglio documentati con label (per il campione mostrato nella card).
+    const usedDetailed = u.cidr ? known.filter(x => _ipInCidr(x.ip, u.cidr)) : [];
     return {
         hasData: !!(entry && Object.keys(entry).length),
-        cidr,
+        cidr: u.cidr,
         gateway,
-        gatewayOk: !gateway || !cidr ? true : _ipInCidr(gateway, cidr),
-        usedCount: used.length,
-        used,
-        sample: used.slice(0,3)
+        gatewayOk: u.gatewayOk,
+        usedCount: u.usedCount,
+        used: usedDetailed,
+        sample: usedDetailed.slice(0,3),
+        // Occupazione (lib/ipam.js): capacità, ripartizione, liberi, percentuale.
+        capacity: u.capacity,
+        documentedCount: u.documentedCount,
+        dhcpOnlyCount: u.dhcpOnlyCount,
+        freeCount: u.freeCount,
+        pct: u.pct,
+        leaseInCidr: u.leaseInCidr,
+        dhcpOnly: u.dhcpOnly,
     };
+}
+
+// Lease "solo DHCP" di una VLAN come righe stile drift.undocumented, per il flusso
+// Adotta dalla card IPAM (NON richiede una Verifica). Stessa base dell'ambra nella
+// barra (usage.dhcpOnly = IP nel CIDR non documentati), mappata al lease per portare
+// MAC + IP + hostname nell'adozione → il device adottato nasce già documentato (esce
+// dall'ambra). Manual-first: sola lettura, nessun side-effect.
+function _dhcpUndocumentedForVlan(vid){
+    const usage = _ipamUsageForVlan(vid);
+    const want = new Set(Array.isArray(usage.dhcpOnly) ? usage.dhcpOnly : []);
+    if(!usage.cidr || !want.size) return [];
+    const leases = Array.isArray(store._dhcpLeases) ? store._dhcpLeases : [];
+    // Sulla VLAN di management un lease è infrastruttura (interfaccia di gestione),
+    // non un endpoint → default 'infra' (switch/rack) invece di 'pc'/floor.
+    const onMgmt = (state.mgmtVlans || []).map(String).includes(String(vid));
+    const out = [], seen = new Set();
+    for(const l of leases){
+        const ip = String((l && l.ip) || '').trim();
+        if(!want.has(ip) || isLeaseStale(l)) continue;
+        const mac = normalizeMacAddress(String((l && l.mac) || ''));
+        if(!mac || seen.has(mac)) continue; seen.add(mac);
+        const host = String((l && l.hostname) || '').trim();
+        out.push({
+            key: `dhcp:${mac}`, sig: mac, mac, ip, hostname: host,
+            label: host ? `${host} · ${ip}` : ip,
+            cls: onMgmt ? 'infra' : 'endpoint',               // mgmt → infra; altrove un lease è quasi sempre un endpoint
+            vlan: (l && l.vlan != null) ? l.vlan : (Number.isFinite(+vid) ? +vid : null),
+        });
+    }
+    return out;
 }
 
 function _vlanIpamSummary(vid){
@@ -1658,7 +1720,8 @@ function _vlanIpamSummary(vid){
     if(entry?.subnet) parts.push(entry.subnet);
     if(entry?.gateway) parts.push(`GW ${entry.gateway}`);
     if(entry?.dns) parts.push(`DNS ${entry.dns}`);
-    if(usage.usedCount) parts.push(`${usage.usedCount} IP`);
+    if(usage.cidr && usage.capacity) parts.push(`${usage.usedCount}/${usage.capacity} IP`);
+    else if(usage.usedCount) parts.push(`${usage.usedCount} IP`);
     if(!usage.cidr && entry?.subnet) parts.push('CIDR non valido');
     if(usage.cidr && !usage.gatewayOk) parts.push('gateway fuori subnet');
     return parts.join(' · ');
@@ -2378,7 +2441,7 @@ expose({
   _clampFloatingPanel, _clearDirty, _clearPropsTab, _collectKnownIps, _createLinkRecord, _createLinkSegmentRecord,
   _deviceHasWifi, _dispName, _enableManualValueInProps, _endPopupDrag, _ensureIpamState, _expandLagMemberLinks,
   _getLinkDrawEndpoints, _getLinkPhysicalView, _getLinkPortIds, _getLinkSegmentPairs, _getPassThroughMode, _getUiModeMeta,
-  _idPrefixForType, _invalidateIdx, _ipamEntry, _ipamUsageForVlan, _isInteractiveDragTarget, _isLinearPassThroughPort,
+  _idPrefixForType, _invalidateIdx, _dhcpUndocumentedForVlan, _ipamEntry, _ipamUsageForVlan, _isInteractiveDragTarget, _isLinearPassThroughPort,
   _isRadioPid, _isValidProjectPortId, _isWifiCapable, _linkAdjacentPorts, _linkHasPair, _linkOtherPort,
   _linkTouchesPort, _linksForPort, _loadDefaultLocal, _makeFloatingPanel, _migrateState, _movePopupDrag,
   _nextNodeId, _nodeRadios, _normalizeLinkMetadata, _normalizeLinkSegment, _normalizeLinkSegments, _normalizeProjectNodeIds,

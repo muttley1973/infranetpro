@@ -53,3 +53,21 @@ test('robusto senza helper iniettati e con input vuoto', () => {
   assert.equal(out[0].typeDefault, 'switch');   // nessun guessType → fallback infra
   assert.equal(out[0].seenOn, 'X');
 });
+
+test('passthrough ip + hostname per i candidati da lease DHCP', () => {
+  const out = buildAdoptCandidates([
+    { key: 'dhcp:AA:BB:CC:00:00:45', mac: 'AA:BB:CC:00:00:45', label: 'tv-sala · 192.168.20.45',
+      cls: 'endpoint', vlan: 20, ip: '192.168.20.45', hostname: 'tv-sala' },
+  ], { vendorOf, guessType });
+  assert.equal(out[0].ip, '192.168.20.45');     // → il nodo adottato nasce con l'IP
+  assert.equal(out[0].hostname, 'tv-sala');     // → e col nome dal lease
+  assert.equal(out[0].cls, 'endpoint');
+});
+
+test('ip/hostname assenti (candidati FDB) → stringhe vuote, nessuna regressione', () => {
+  const out = buildAdoptCandidates([
+    { key: 'dev:1', mac: 'AA:BB:CC:00:00:01', label: 'vista su Sw1', cls: 'infra', vlan: 10 },
+  ], { vendorOf, guessType });
+  assert.equal(out[0].ip, '');
+  assert.equal(out[0].hostname, '');
+});
