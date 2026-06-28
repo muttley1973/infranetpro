@@ -21,6 +21,7 @@ test('ui: carica l’app per lo smoke UX', () => {
 function ui(body) {
   const out = run(APP.ctx, `(() => { try {
     state = _buildDefaultState(); if(typeof _migrateState==='function') _migrateState(state);
+    _propsExplicit=true;   // smoke: si rendono ESPLICITAMENTE le proprietà device (= doppio click); la guardia uniforme floor/rack lo richiede
     ${body}
   } catch(e){ return JSON.stringify({ ok:false, err:String(e&&e.stack||e) }); } })()`);
   return JSON.parse(out);

@@ -8,16 +8,119 @@
 // ============================================================
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _invalidateIdx, switchRightTab } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _invalidateIdx, switchRightTab, _showToast } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { propagateVlans } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderTopoOverlay } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { absorbNodeAsVm } from './app-hypervisor.js';   // import di un tile come VM (drop sulla zona nel pannello host)
 
 // soglia drag/click (px): unico lettore era questo modulo → module-local
 const _DRAG_THRESHOLD_PX = 5;
+
+// Doppio click su un nodo floor: rilevamento MANUALE via timestamp. Il dblclick
+// nativo NON scatta sui nodi floor — il single click chiama renderAll→renderFloor
+// che fa `innerHTML=''` e ricrea l'elemento del nodo TRA i due click, quindi il
+// browser vede due click su elementi DIVERSI e non emette dblclick. Stesso schema
+// gia' usato per il device rack (handlePointerDown) e le porte floor/rack.
+let _floorDblId = null, _floorDblTime = 0;
+const _FLOOR_DBL_MS = 350;
+// Posizione del nodo floor PRIMA del drag: se il drag finisce in un'area "sbagliata"
+// (pannello/sidebar/fuori, NON la zona import né la planimetria) il device ci torna,
+// invece di restare "perso" sotto il pannello.
+let _floorDragOrigin = null;
+// Apre le Proprieta' di un nodo floor (doppio click): seleziona, evidenzia il run,
+// intent esplicito (uniforme col rack) → switcha al pannello Proprieta'. Condiviso
+// dal doppio click manuale (pointerdown) e da handleFloorDoubleClick (fallback) →
+// l'unico `win._propsExplicit=true` del floor vive qui (niente +1 sul ponte).
+function _openFloorNodeProps(id){
+    store.dragNode = null;
+    store.selType = 'node'; store.selId = id;
+    store.highPath.clear(); _traceNodeFloor(id);   // evidenzia il run alla selezione nodo
+    win._renderModeIndicator();
+    win._propsExplicit = true;
+    switchRightTab('props');
+    renderProps();
+}
+
+// ── Import VM: trascina un tile sulla drop-zone del pannello host ─────
+// Il bersaglio NON è un tile sul floor ma una "zona di rilascio" nel pannello
+// Proprietà dell'host (sezione Macchine virtuali) → vale per host su floor E in
+// rack, senza drag cross-vista. _vmDropHost = id host della zona sotto il cursore.
+// Stato di MODULO (lo leggono solo move=set e up=commit) → niente ponte. Funziona
+// perché afferrare un tile del floor NON ri-renderizza il pannello (selId cambia
+// ma renderProps non parte durante un drag armato): la zona resta sotto il cursore.
+// Manual-first: assorbe solo su gesto esplicito dell'utente.
+let _vmDropHost = null;
+function _vmDropZoneEl(hostId){ return document.querySelector(`[data-vm-dropzone][data-host-id="${hostId}"]`); }
+function _setVmDropTarget(hostId){
+    if(_vmDropHost === hostId) return;
+    if(_vmDropHost){ const p = _vmDropZoneEl(_vmDropHost); if(p) p.classList.remove('active'); }
+    _vmDropHost = hostId || null;
+    if(_vmDropHost){ const el = _vmDropZoneEl(_vmDropHost); if(el) el.classList.add('active'); }
+}
+// "Fantasma" di trascinamento: il tile floor è clippato da #floorplan (overflow
+// hidden) e #floor-canvas ha un transform → non può comparire SOPRA il pannello
+// Proprietà (z-index più alto). Quando il cursore entra nel pannello mostriamo un
+// piccolo chip fixed col nome del device, così si vede cosa stai trascinando sulla
+// drop-zone (prima il device "spariva sotto" il pannello).
+let _vmDragGhost = null;
+function _vmShowGhost(e, n){
+    if(!_vmDragGhost){
+        _vmDragGhost = document.createElement('div');
+        _vmDragGhost.className = 'vm-drag-ghost';
+        _vmDragGhost.innerHTML = '<i class="fas fa-arrow-right-to-bracket"></i> <span></span>';
+        document.body.appendChild(_vmDragGhost);
+    }
+    _vmDragGhost.querySelector('span').textContent = getNodeDisplayName(n) || (n && n.name) || 'VM';
+    _vmDragGhost.style.left = e.clientX + 'px';
+    _vmDragGhost.style.top = e.clientY + 'px';
+    _vmDragGhost.style.display = 'flex';
+}
+function _vmHideGhost(){ if(_vmDragGhost) _vmDragGhost.style.display = 'none'; }
+function _clearVmDropTarget(){ _setVmDropTarget(null); _vmHideGhost(); }
+// Durante il drag di un tile floor assorbibile (non-host, con MAC): se il cursore
+// è sopra una drop-zone VM, evidenziala come bersaglio; e se è sopra il pannello
+// (dove il tile clippa via) mostra il fantasma col nome. Altrimenti pulisci.
+function _updateVmDropTarget(e, n, el){
+    if(!_vmAbsorbEligible(n) || !el){ _clearVmDropTarget(); return; }
+    const pe = el.style.pointerEvents; el.style.pointerEvents = 'none';   // elementFromPoint deve vedere ciò che sta SOTTO il tile
+    const under = document.elementFromPoint(e.clientX, e.clientY);
+    el.style.pointerEvents = pe;
+    const dz = under && under.closest ? under.closest('[data-vm-dropzone]') : null;
+    const overPanel = under && under.closest ? under.closest('#rack-view') : null;
+    _setVmDropTarget(dz ? dz.getAttribute('data-host-id') : null);
+    if(overPanel) _vmShowGhost(e, n); else _vmHideGhost();
+}
+// Una sorgente è "assorbibile" come VM solo se è un tile FLOOR con un MAC e NON è essa
+// stessa un host né un passivo senza IP (no host-in-host, no patch panel/passacavo). Il
+// vincolo isFloor preserva la semantica originaria (il rilevamento girava solo nel ramo
+// floor del move) ora che il check di rilascio vale per qualunque drag.
+function _vmAbsorbEligible(n){
+    const def = n && TYPES[n.type];
+    return !!(n && n.mac && def && def.isFloor && !def.hostsVms && !(def.isPassive && !def.hasIP));
+}
+// Hit-test AUTORITATIVO al pointerup. Nasconde un attimo il tile trascinato e il fantasma
+// (entrambi sotto/vicino al cursore) e ispeziona il PUNTO DI RILASCIO. Ritorna:
+//   • host    = id host se sotto c'è la sua drop-zone VM e la sorgente è idonea → assorbi;
+//   • onFloor = true se sotto c'è la planimetria (#floorplan) → riposizionamento valido.
+// Tutto il resto (pannello, sidebar, fuori finestra) = area "sbagliata" → il device torna
+// a casa. È la verità sul "dove ho rilasciato", non lo stato dei move (su un drag veloce
+// può restare "dentro la zona" anche se rilasci fuori).
+function _vmDropTargetAtPoint(x, y, dragId){
+    const restore = [];
+    const tile = dragId ? document.querySelector(`[data-id="${(window.CSS && CSS.escape) ? CSS.escape(dragId) : dragId}"]`) : null;
+    if(tile){ restore.push([tile, tile.style.pointerEvents]); tile.style.pointerEvents = 'none'; }
+    if(_vmDragGhost){ restore.push([_vmDragGhost, _vmDragGhost.style.pointerEvents]); _vmDragGhost.style.pointerEvents = 'none'; }
+    const under = document.elementFromPoint(x, y);
+    for(const [node, prev] of restore) node.style.pointerEvents = prev;
+    const dz = under && under.closest ? under.closest('[data-vm-dropzone]') : null;
+    const onFloor = !!(under && under.closest && under.closest('#floorplan'));
+    const host = (dz && _vmAbsorbEligible(nodeById(dragId))) ? dz.getAttribute('data-host-id') : null;
+    return { host, onFloor };
+}
 
 // Snap-to-grid planimetria: aggancia alla griglia 20px SOLO se la griglia è
 // visibile. Con la griglia disattivata (state.gridHidden) il posizionamento è
@@ -345,11 +448,23 @@ function handlePointerDown(e){
             const _fid=floorEl.dataset.id;
             const dn=nodeById(_fid);
             if(!dn||!TYPES[dn.type]) return;
+            // Doppio click manuale (il dblclick nativo non scatta: renderFloor
+            // ricostruisce il DOM del nodo tra i due click) → apre le Proprieta',
+            // uniforme col device rack. Primo click = solo selezione (sotto).
+            const _nowF=Date.now();
+            if(_floorDblId===_fid && (_nowF-_floorDblTime)<_FLOOR_DBL_MS){
+                _floorDblId=null; _floorDblTime=0;
+                _openFloorNodeProps(_fid);
+                return;
+            }
+            _floorDblId=_fid; _floorDblTime=_nowF;
+            win._propsExplicit=false;   // single-click/drag = SOLO selezione; le proprietà si aprono col doppio click (uniforme col rack)
             // Stanza bloccata: seleziona ma non avvia drag
             if(TYPES[dn.type].isStructural && dn.locked){
                 store.selType='node'; store.selId=_fid; renderAll(); return;
             }
             store.dragNode=_fid; store.selType='node'; store.selId=store.dragNode;
+            _floorDragOrigin={x:dn.x,y:dn.y};   // per il "ritorno a casa" se rilasciato in area sbagliata
             _traceNodeFloor(_fid);   // evidenzia il run anche per prese/pass-through
             const r=floorEl.getBoundingClientRect();
             if(TYPES[dn.type].isStructural) win.dragOffset={x:(e.clientX-r.left)/store.state.floorView.zoom,y:(e.clientY-r.top)/store.state.floorView.zoom};
@@ -413,6 +528,7 @@ function handlePointerMove(e){
         const _dy = e.clientY - win._dragDownPt.y;
         if((_dx*_dx + _dy*_dy) < (_DRAG_THRESHOLD_PX * _DRAG_THRESHOLD_PX)) return;
         win._dragArmed = true;
+        _floorDblId = null; _floorDblTime = 0;   // un drag NON è la 1ª metà di un doppio click → invalida il timer del doppio click floor
     }
     if(win.isPanningFloor){
         store.state.floorView.x=e.clientX-win.panStart.x; store.state.floorView.y=e.clientY-win.panStart.y;
@@ -435,6 +551,7 @@ function handlePointerMove(e){
             n.x=_snapFloor(rx); n.y=_snapFloor(ry);
             const el=document.querySelector(`[data-id="${n.id}"]`);
             if(el){el.style.left=n.x+'px';el.style.top=n.y+'px';}
+            _updateVmDropTarget(e, n, el);   // tile sopra un host? evidenzia il bersaglio di rilascio
             renderCables();
             // In topologia le linee dell'overlay sono ancorate al DOM del node:
             // vanno ridisegnate durante il drag, altrimenti il cavo non segue.
@@ -607,24 +724,46 @@ function handlePointerUp(e){
         }
         if(store.dragNode||win.resizeNode){
             const _dn=store.dragNode?nodeById(store.dragNode):null;
-            const _wasRackDrag=!!(_dn&&TYPES[_dn.type]?.isRack);
-            // Commit del drag (resolveOverlap, win.pushHistory, win.markDirty, rerender)
-            // solo se davvero ci si e' mossi oltre il threshold. Su un click
-            // breve evitiamo history entries vuoti e renderAll() inutili.
-            if(win._dragArmed){
-                if(_wasRackDrag) win._resolveRackOverlap(_dn);
-                if(store.dragNode) pushHistory();
-                markDirty();
+            // Esito del drag deciso dal PUNTO DI RILASCIO (non dallo stato dei move, che su
+            // un drag veloce può restare "dentro la zona" anche se rilasci fuori):
+            //  • dentro la drop-zone di un host  → assorbi come VM;
+            //  • sulla planimetria               → riposiziona (commit normale, sotto);
+            //  • altrove (pannello/sidebar/fuori)→ AREA SBAGLIATA: il device torna a casa.
+            const _drop = _vmDropTargetAtPoint(e.clientX, e.clientY, store.dragNode);
+            _clearVmDropTarget();
+            const _isFloorDrag = !!(_dn && TYPES[_dn.type]?.isFloor);
+            if(_drop.host){
+                // Rilascio DENTRO la drop-zone → assorbi (reversibile: pushHistory in
+                // absorbNodeAsVm + toast con hint Ctrl+Z). NIENTE riposizionamento.
+                const _src=store.dragNode;
+                store.dragNode=null;
+                absorbNodeAsVm(_src, _drop.host);
+            } else if(_isFloorDrag && !_drop.onFloor && _floorDragOrigin){
+                // Device floor rilasciato FUORI dalla planimetria e NON sulla zona import
+                // → torna alla posizione di partenza + avviso (niente tile "perso" sotto
+                // il pannello, niente riposizionamento accidentale fuori scena).
+                const _n=nodeById(store.dragNode);
+                if(_n){ _n.x=_floorDragOrigin.x; _n.y=_floorDragOrigin.y; }
+                store.dragNode=null;   // (resizeNode è già null in un node-drag)
+                renderAll();
+                _showToast(t('hv.vmImportMissed'), 'info', 4000);
+            } else {
+                const _wasRackDrag=!!(_dn&&TYPES[_dn.type]?.isRack);
+                // Commit del drag (resolveOverlap, pushHistory, markDirty, rerender)
+                // solo se davvero ci si e' mossi oltre il threshold. Su un click
+                // breve evitiamo history entries vuoti e renderAll() inutili.
+                if(win._dragArmed){
+                    if(_wasRackDrag) win._resolveRackOverlap(_dn);
+                    if(store.dragNode) pushHistory();
+                    markDirty();
+                }
+                const wasResize=!!win.resizeNode;
+                store.dragNode=null; win.resizeNode=null;
+                // F4-P3: resize stanza → refresh planimetria; _wasRackDrag → renderAll.
+                if(win._dragArmed && _wasRackDrag) renderAll();
+                else if(win._dragArmed && wasResize) win.renderScope('floor');
+                else { win._renderModeIndicator(); renderCables(); }
             }
-            const wasResize=!!win.resizeNode;
-            store.dragNode=null; win.resizeNode=null;
-            // F4-P3: resize di una stanza (floor structural) → basta refresh
-            // della planimetria (renderFloor), no rack chassis. _wasRackDrag
-            // (drag di un device dentro il chassis) richiede ancora win.renderAll
-            // perche' il rack non e' ancora estratto (P4).
-            if(win._dragArmed && _wasRackDrag) renderAll();
-            else if(win._dragArmed && wasResize) win.renderScope('floor');
-            else { win._renderModeIndicator(); renderCables(); }
         }
         // Reset stato threshold per il prossimo ciclo
         win._dragArmed=false; win._dragDownPt=null;
@@ -722,11 +861,10 @@ function handleFloorDoubleClick(e){
     const nodeEl = e.target.closest('.floor-node, .floor-room');
     if(nodeEl && nodeEl.dataset.id){
         e.stopPropagation();
-        store.selType='node'; store.selId=nodeEl.dataset.id;
-        store.highPath.clear(); _traceNodeFloor(nodeEl.dataset.id);   // evidenzia il run alla selezione nodo
-        win._renderModeIndicator();
-        switchRightTab('props');
-        renderProps();
+        // Fallback: di norma il doppio click sul nodo floor lo intercetta gia' il
+        // rilevamento manuale in handlePointerDown (il dblclick nativo non scatta
+        // perche' renderFloor ricostruisce il DOM tra i click). Stessa azione.
+        _openFloorNodeProps(nodeEl.dataset.id);
         return;
     }
     // Area vuota della planimetria (sfondo o canvas vuoto): apre il pannello

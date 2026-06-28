@@ -243,6 +243,163 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.popHasIpRenew, 'popover Automazioni: sezione Rinnovo automatico IP (DHCP)');
     });
 
+    await t.test('IPAM × DHCP: card VLAN aperta mostra l\'Occupazione (lib/ipam.js, opzione A) coi lease come fonte', async () => {
+      const r = await page.evaluate(() => {
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes.length = 0; state.links.length = 0; state.ports = {};
+        state.vlanColors['20'] = '#00d4ff';
+        state.vlanNames = state.vlanNames || {}; state.vlanNames['20'] = 'Uffici';
+        state.ipam = state.ipam || { vlans: {} };
+        state.ipam.vlans['20'] = { subnet: '192.168.20.0/24', gateway: '192.168.20.1' };
+        state.nodes.push({ id: 'pc20', type: 'pc', name: 'PC-20', x: 10, y: 10, ports: 1, ip: '192.168.20.10' });
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        // Lease: .10 = già documentato · .45 = solo-DHCP (non documentato) · .99 = SCADUTO
+        // (deve essere ignorato da isLeaseStale). → usati = gateway(.1)+nodo(.10)+soloDHCP(.45) = 3.
+        window._dhcpLeases = [
+          { mac: 'AA:BB:CC:00:00:10', ip: '192.168.20.10', hostname: 'pc-20' },
+          { mac: 'AA:BB:CC:00:00:45', ip: '192.168.20.45', hostname: 'tv-sala' },
+          { mac: 'AA:BB:CC:00:00:99', ip: '192.168.20.99', state: 'expired' },
+        ];
+        const panel = document.createElement('div');
+        _vlanIpamOpen.add(20);
+        _renderFloorProps(panel);
+        const withLeases = panel.innerHTML;
+        // Manual-first: senza lease il blocco resta (soli documentati) ma sparisce la fonte "DHCP".
+        window._dhcpLeases = null;
+        _renderFloorProps(panel);
+        const noLeases = panel.innerHTML;
+        _vlanIpamOpen.clear();
+        return {
+          hasOcc: withLeases.indexOf('vlan-ipam-occ') >= 0,
+          hasDhcpSrc: withLeases.indexOf('vlan-ipam-occ-src') >= 0,
+          meta: withLeases.indexOf('3 / 254') >= 0,
+          dhcpOnlyChip: withLeases.indexOf('solo DHCP') >= 0,
+          freeChip: withLeases.indexOf('251 liberi') >= 0,
+          noLeaseStillOcc: noLeases.indexOf('vlan-ipam-occ') >= 0,
+          noLeaseNoSrc: noLeases.indexOf('vlan-ipam-occ-src') < 0,
+          noLeaseNoDhcpOnly: noLeases.indexOf('solo DHCP') < 0,
+        };
+      });
+      assert.ok(r.hasOcc, 'blocco Occupazione presente nella card IPAM aperta');
+      assert.ok(r.hasDhcpSrc, 'occhiello "DHCP" presente quando ci sono lease nel CIDR');
+      assert.ok(r.meta, 'occupazione = 3/254 (gateway + nodo + 1 solo-DHCP; lease scaduto ignorato da isLeaseStale)');
+      assert.ok(r.dhcpOnlyChip, 'legenda mostra il chip "solo DHCP"');
+      assert.ok(r.freeChip, 'legenda mostra gli IP liberi (251)');
+      assert.ok(r.noLeaseStillOcc, 'manual-first: senza lease il blocco Occupazione resta (soli documentati)');
+      assert.ok(r.noLeaseNoSrc, 'manual-first: senza lease sparisce la fonte "DHCP"');
+      assert.ok(r.noLeaseNoDhcpOnly, 'manual-first: senza lease niente chip "solo DHCP"');
+    });
+
+    await t.test('IPAM × DHCP — Adotta dalla card: i "solo DHCP" diventano device documentati (no Verifica)', async () => {
+      const r = await page.evaluate(() => {
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes.length = 0; state.links.length = 0; state.ports = {};
+        state.vlanColors['20'] = '#00d4ff';
+        state.vlanNames = state.vlanNames || {}; state.vlanNames['20'] = 'Uffici';
+        state.ipam = state.ipam || { vlans: {} };
+        state.ipam.vlans['20'] = { subnet: '192.168.20.0/24', gateway: '192.168.20.1' };
+        state.nodes.push({ id: 'pc20', type: 'pc', name: 'PC-20', x: 10, y: 10, ports: 1, mac: 'AA:BB:CC:00:00:10', ip: '192.168.20.10' });
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        window._dhcpLeases = [
+          { mac: 'AA:BB:CC:00:00:10', ip: '192.168.20.10', hostname: 'pc-20' },   // già documentato (MAC+IP)
+          { mac: 'AA:BB:CC:00:00:45', ip: '192.168.20.45', hostname: 'tv-sala' }, // solo-DHCP → adottabile
+          { mac: 'AA:BB:CC:00:00:99', ip: '192.168.20.99', state: 'expired' },    // scaduto → ignorato
+        ];
+        window._driftReport = null;   // nessuna Verifica: l'adozione da lease deve funzionare lo stesso
+
+        // 1) la card aperta mostra il badge "Adotta" coi non documentati
+        const panel = document.createElement('div');
+        _vlanIpamOpen.add(20); _renderFloorProps(panel);
+        const badge = panel.innerHTML;
+        _vlanIpamOpen.clear();
+
+        // 2) apri il modal seeded DIRETTAMENTE dai lease (senza Drift report)
+        openAdoptFromLeases(20);
+        const tb = document.getElementById('adopt-tbody').innerHTML;
+        const rowCount = document.querySelectorAll('#adopt-tbody tr').length;
+
+        // 3) adotta (flusso completo)
+        selType = null; selId = null;   // contesto floor per il renderProps post-adozione
+        const before = state.nodes.length;
+        adoptApply();
+        const after = state.nodes.length;
+        const adopted = state.nodes.find(n => n.ip === '192.168.20.45') || {};
+
+        // 4) ri-render: il device è ora documentato → l'ambra "solo DHCP" e il badge spariscono
+        const panel2 = document.createElement('div');
+        _vlanIpamOpen.add(20); _renderFloorProps(panel2);
+        const afterHtml = panel2.innerHTML;
+        _vlanIpamOpen.clear();
+        window._dhcpLeases = null;
+        const ov = document.getElementById('adopt-overlay'); if (ov) ov.style.display = 'none';
+
+        return {
+          badgeShown: badge.indexOf('vlan-ipam-occ-adopt') >= 0 && badge.indexOf('openAdoptFromLeases(20)') >= 0,
+          modalHas45: tb.indexOf('AA:BB:CC:00:00:45') >= 0,
+          modalNotDoc: tb.indexOf('AA:BB:CC:00:00:10') < 0,
+          modalNotExpired: tb.indexOf('AA:BB:CC:00:00:99') < 0,
+          rowCount,
+          delta: after - before,
+          adoptedIp: adopted.ip || '',
+          adoptedName: adopted.name || '',
+          adoptedMac: adopted.mac || '',
+          amberGone: afterHtml.indexOf('vlan-ipam-occ-adopt') < 0 && afterHtml.indexOf('solo DHCP') < 0,
+        };
+      });
+      assert.ok(r.badgeShown, 'la card IPAM aperta mostra il badge "Adotta" coi non documentati');
+      assert.ok(r.modalHas45, 'il modal Adotta-da-lease mostra il MAC del lease solo-DHCP (.45)');
+      assert.ok(r.modalNotDoc, 'il modal NON ripropone il lease già documentato (.10)');
+      assert.ok(r.modalNotExpired, 'il modal NON mostra il lease scaduto (.99, isLeaseStale)');
+      assert.equal(r.rowCount, 1, 'un solo candidato (il .45)');
+      assert.equal(r.delta, 1, 'adoptApply crea 1 nodo');
+      assert.equal(r.adoptedIp, '192.168.20.45', 'il device adottato nasce con l\'IP del lease');
+      assert.equal(r.adoptedName, 'tv-sala', 'il device adottato prende il nome dal lease (hostname)');
+      assert.equal(r.adoptedMac, 'AA:BB:CC:00:00:45', 'MAC del device adottato normalizzato');
+      assert.ok(r.amberGone, 'adozione → device documentato → sparisce l\'ambra "solo DHCP" e il badge (loop chiuso)');
+    });
+
+    await t.test('VLAN di management: toggle persistente + i lease lì si adottano come infra (non endpoint)', async () => {
+      const r = await page.evaluate(() => {
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes.length = 0; state.links.length = 0; state.ports = {};
+        selType = null; selId = null;
+        state.vlanColors['20'] = '#00d4ff';
+        state.vlanNames = state.vlanNames || {}; state.vlanNames['20'] = 'Mgmt';
+        state.ipam = state.ipam || { vlans: {} };
+        state.ipam.vlans['20'] = { subnet: '192.168.20.0/24', gateway: '192.168.20.1' };
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        window._dhcpLeases = [{ mac: 'AA:BB:CC:00:00:45', ip: '192.168.20.45', hostname: 'sw-access' }];
+
+        const wasEmpty = !(state.mgmtVlans || []).length;
+        toggleMgmtVlan(20);
+        const markedOn = (state.mgmtVlans || []).map(Number).includes(20);
+
+        // la card VLAN mostra il pulsante management
+        const panel = document.createElement('div');
+        _vlanIpamOpen.add(20); _renderFloorProps(panel); _vlanIpamOpen.clear();
+        const cardHasMgmtBtn = panel.innerHTML.indexOf('toggleMgmtVlan(20)') >= 0;
+
+        // adozione dalla card: su VLAN di management il candidato è INFRA → typeDefault 'switch', non 'pc'
+        openAdoptFromLeases(20);
+        const tb = document.getElementById('adopt-tbody').innerHTML;
+        // Contratto (B): su VLAN di management il candidato è INFRA (riga non
+        // is-endpoint → in rack, non nascosto come BYOD). Il tipo di default poi
+        // lo guida l'OUI come sempre — fuori scope qui.
+        const rowIsInfra = tb.indexOf('AA:BB:CC:00:00:45') >= 0 && tb.indexOf('is-endpoint') < 0;
+        const ov = document.getElementById('adopt-overlay'); if (ov) ov.style.display = 'none';
+
+        toggleMgmtVlan(20);   // idempotenza: ri-clic toglie
+        const markedOff = (state.mgmtVlans || []).map(Number).includes(20);
+        window._dhcpLeases = null;
+        return { wasEmpty, markedOn, cardHasMgmtBtn, rowIsInfra, markedOff };
+      });
+      assert.ok(r.wasEmpty, 'mgmtVlans parte vuoto');
+      assert.ok(r.markedOn, 'toggleMgmtVlan marca la VLAN come management (persistito in state)');
+      assert.ok(r.cardHasMgmtBtn, 'la card VLAN mostra il pulsante "VLAN di management"');
+      assert.ok(r.rowIsInfra, 'su VLAN di management il candidato è classificato INFRA (riga non is-endpoint), non BYOD');
+      assert.ok(!r.markedOff, 'toggleMgmtVlan è idempotente (ri-clic rimuove)');
+    });
+
     await t.test('app-properties-port migrato: pannello switchport + delega a _renderRadioProps nel browser reale', async () => {
       const r = await page.evaluate(() => {
         state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
@@ -1673,6 +1830,257 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.hasEditor, 'il pannello device dell\'hypervisor mostra l\'editor "Macchine virtuali"');
       assert.ok(r.labComplete, 'il pannello del homelab (floor) è completo: nome+Rete&Accesso+piattaforma+editor VM');
       assert.ok(r.carries50, 'aggiungendo una VM su VLAN 50 il trunk dell\'uplink la trasporta');
+    });
+
+    await t.test('VM: assorbi un tile scoperto come VM dell\'host + chiude il cerchio col MAC', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = {};
+          // host floor (homelab/mini-server) + un PC scoperto (tile sciolto) con identità di rete
+          state.nodes.push({ id: 'lab',  type: 'homelab', name: 'NUC-01', x: 200, y: 120, ports: 1, mac: 'AA:BB:CC:00:00:01' });
+          state.nodes.push({ id: 'pcvm', type: 'pc',      name: 'VM-Web', x: 60,  y: 60,  ports: 1, mac: 'AA:BB:CC:00:00:77', ip: '10.0.0.77' });
+          state.nodes.push({ id: 'lab2', type: 'homelab', name: 'NUC-02', x: 400, y: 120, ports: 1, mac: 'AA:BB:CC:00:00:02' });
+          state.nodes.push({ id: 'pc2',  type: 'pc',      name: 'PC2',    x: 80,  y: 200, ports: 1, mac: 'AA:BB:CC:00:00:88' });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+
+          const ok = absorbNodeAsVm('pcvm', 'lab');
+          const lab = nodeById('lab');
+          const vm = (lab.vms || [])[0] || {};
+          const vmNameI = vm.name || '', vmIpI = vm.ip || '', vmMacI = vm.mac || '', vmId = vm.id;
+          const tileGone = !nodeById('pcvm');
+
+          // cerchio: il MAC della VM è "noto" nei deviceSigs → non più non-documentato;
+          // e NON entra in doc.macs (audit di presenza) → una VM spenta non risulta "assente".
+          const doc = _driftBuildDocSnapshot();
+          const hex = s => String(s).toUpperCase().replace(/[^0-9A-F]/g, '');
+          const vmKnown = (doc.deviceSigs || []).map(hex).includes('AABBCC000077');
+          const inPresence = (doc.macs || []).some(m => hex(m.mac) === 'AABBCC000077');
+
+          // guardie
+          const guardHostInHost = absorbNodeAsVm('lab2', 'lab');  // un host non si assorbe in un host
+          const guardSameNode  = absorbNodeAsVm('pc2', 'pc2');    // stesso nodo / bersaglio non-host
+
+          // editor VM: campo MAC presente + updateVm normalizza
+          selType = 'node'; selId = 'lab'; renderProps();
+          const panelHasMac = (document.getElementById('props-panel').innerHTML || '').includes("updateVm('lab','" + vmId + "','mac'");
+          updateVm('lab', vmId, 'mac', 'aabbcc009900');
+          const macNorm = nodeById('lab').vms[0].mac;
+
+          return { ok, vmName: vmNameI, vmIp: vmIpI, vmMac: vmMacI, tileGone, vmKnown, inPresence, guardHostInHost, guardSameNode, panelHasMac, macNorm };
+        } catch (e) { return { err: String(e && e.stack || e) }; }
+      });
+      assert.ok(!r.err, 'nessun errore nel flusso assorbimento VM: ' + r.err);
+      assert.ok(r.ok, 'absorbNodeAsVm ritorna true sul drop valido');
+      assert.equal(r.vmName, 'VM-Web', 'la VM eredita il nome del tile');
+      assert.equal(r.vmIp, '10.0.0.77', 'la VM eredita l\'IP del tile');
+      assert.equal(r.vmMac, 'AA:BB:CC:00:00:77', 'la VM eredita il MAC del tile (normalizzato)');
+      assert.ok(r.tileGone, 'il tile sciolto sparisce dal floor dopo l\'assorbimento');
+      assert.ok(r.vmKnown, 'cerchio chiuso: il MAC della VM è nei deviceSigs del Drift → non più non-documentato');
+      assert.ok(!r.inPresence, 'la VM NON entra nell\'audit di presenza (doc.macs): una VM spenta non risulta assente');
+      assert.equal(r.guardHostInHost, false, 'guardia: un host non si assorbe dentro un host');
+      assert.equal(r.guardSameNode, false, 'guardia: stesso nodo / bersaglio non-host rifiutato');
+      assert.ok(r.panelHasMac, 'l\'editor VM mostra il campo MAC (updateVm …,\'mac\')');
+      assert.equal(r.macNorm, 'AA:BB:CC:00:99:00', 'updateVm normalizza il MAC della VM');
+    });
+
+    await t.test('VM: rilascio DENTRO la drop-zone → import (gesto reale)', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = {};
+          state.nodes.push({ id: 'lab',  type: 'homelab', name: 'NUC-01', x: 140, y: 140, ports: 1, mac: 'AA:BB:CC:00:00:01' });
+          state.nodes.push({ id: 'pcvm', type: 'pc',      name: 'VM-App', x: 60,  y: 60,  ports: 1, mac: 'AA:BB:CC:00:00:55', ip: '10.0.0.55' });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          _renderAllNow();   // sincrono (renderAll è rAF-coalescato → il tile non sarebbe ancora nel DOM)
+          // host selezionato + tab Proprietà + sezioni aperte → la drop-zone è nel pannello, misurabile
+          if (typeof switchRightTab === 'function') switchRightTab('props');
+          if (typeof setPropsSectionState === 'function') { setPropsSectionState('device-homelab', true); setPropsSectionState('hv-vms', true); }
+          selType = 'node'; selId = 'lab'; renderProps();
+          const dz = document.querySelector('[data-vm-dropzone][data-host-id="lab"]');
+          const dzPresent = !!dz;
+          const dzText = dz ? (dz.textContent || '').trim() : '';
+          const pcEl = document.querySelector('[data-id="pcvm"]');
+          const pcR = pcEl.getBoundingClientRect(), dzR = dz.getBoundingClientRect();
+          const px = pcR.left + pcR.width / 2, py = pcR.top + pcR.height / 2;
+          const dx = dzR.left + dzR.width / 2, dy = dzR.top + dzR.height / 2;
+          // gesto reale: down sul PC → move (oltre soglia) sulla zona → up DENTRO la zona
+          pcEl.dispatchEvent(new PointerEvent('pointerdown', { clientX: px, clientY: py, button: 0, bubbles: true }));
+          window.dispatchEvent(new PointerEvent('pointermove', { clientX: dx, clientY: dy, button: 0, bubbles: true }));
+          const dzActiveMidDrag = dz.classList.contains('active');
+          const ghost = document.querySelector('.vm-drag-ghost');
+          const ghostShown = !!ghost && ghost.style.display !== 'none' && (ghost.textContent || '').indexOf('VM-App') >= 0;
+          window.dispatchEvent(new PointerEvent('pointerup', { clientX: dx, clientY: dy, button: 0, bubbles: true }));
+          const lab = nodeById('lab'); const vm = (lab.vms || [])[0] || {};
+          return { dzPresent, dzText, dzW: Math.round(dzR.width), dzActiveMidDrag, ghostShown,
+            vmCount: (lab.vms || []).length, vmName: vm.name || '', vmMac: vm.mac || '', vmIp: vm.ip || '', tileGone: !nodeById('pcvm') };
+        } catch (e) { return { err: String(e && e.stack || e) }; }
+      });
+      assert.ok(!r.err, 'nessun errore nel gesto import VM: ' + r.err);
+      assert.ok(r.dzPresent, 'il pannello host mostra la drop-zone (data-vm-dropzone) sotto "+ Aggiungi VM"');
+      assert.ok(/trascina|drag/i.test(r.dzText), 'la drop-zone indica "trascina qui per importare"');
+      assert.ok(r.dzW > 0, 'la drop-zone è visibile/misurabile (sezione aperta)');
+      assert.ok(r.dzActiveMidDrag, 'la drop-zone si illumina (.active) col tile sopra durante il drag');
+      assert.ok(r.ghostShown, 'mentre trascini sul pannello compare il fantasma col nome del device (non "sparisce sotto" il pannello)');
+      assert.equal(r.vmCount, 1, 'il rilascio DENTRO la zona crea una VM sull\'host');
+      assert.equal(r.vmName, 'VM-App', 'la VM importata eredita il nome del tile');
+      assert.equal(r.vmMac, 'AA:BB:CC:00:00:55', 'la VM importata eredita il MAC del tile');
+      assert.equal(r.vmIp, '10.0.0.55', 'la VM importata eredita l\'IP del tile');
+      assert.ok(r.tileGone, 'il tile sparisce dal floor dopo l\'import');
+    });
+
+    await t.test('VM: rilascio sul PANNELLO ma FUORI dalla zona → NESSUN import e il device TORNA alla posizione di partenza', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = {};
+          state.nodes.push({ id: 'lab',  type: 'homelab', name: 'NUC-01', x: 140, y: 140, ports: 1, mac: 'AA:BB:CC:00:00:01' });
+          state.nodes.push({ id: 'pcvm', type: 'pc',      name: 'VM-App', x: 60,  y: 60,  ports: 1, mac: 'AA:BB:CC:00:00:55', ip: '10.0.0.55' });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          _renderAllNow();
+          if (typeof switchRightTab === 'function') switchRightTab('props');
+          if (typeof setPropsSectionState === 'function') { setPropsSectionState('device-homelab', true); setPropsSectionState('hv-vms', true); }
+          selType = 'node'; selId = 'lab'; renderProps();
+          const dz = document.querySelector('[data-vm-dropzone][data-host-id="lab"]');
+          const pcEl = document.querySelector('[data-id="pcvm"]');
+          const pcR = pcEl.getBoundingClientRect(), dzR = dz.getBoundingClientRect();
+          const px = pcR.left + pcR.width / 2, py = pcR.top + pcR.height / 2;
+          const dx = dzR.left + dzR.width / 2, dy = dzR.top + dzR.height / 2;
+          const ox = nodeById('pcvm').x, oy = nodeById('pcvm').y;   // posizione di partenza (60,60)
+          const mx = dzR.left + dzR.width / 2, my = dzR.top - 40;   // sul pannello, SOPRA la zona (non è la zona)
+          pcEl.dispatchEvent(new PointerEvent('pointerdown', { clientX: px, clientY: py, button: 0, bubbles: true }));
+          // 1) passa SOPRA la drop-zone → la "arma" (stato _vmDropHost = 'lab', poi stale)
+          window.dispatchEvent(new PointerEvent('pointermove', { clientX: dx, clientY: dy, button: 0, bubbles: true }));
+          const wasActiveOverZone = dz.classList.contains('active');
+          // 2) RILASCIA sul pannello, fuori dalla zona, SENZA un move intermedio → lo stato
+          //    "ultimo move" resta sulla zona (stale): il vecchio codice avrebbe assorbito.
+          window.dispatchEvent(new PointerEvent('pointerup', { clientX: mx, clientY: my, button: 0, bubbles: true }));
+          const elAt = document.elementFromPoint(mx, my);
+          const relOnPanel = !!(elAt && elAt.closest && elAt.closest('#rack-view'));
+          const relIsDz = !!(elAt && elAt.closest && elAt.closest('[data-vm-dropzone]'));
+          const lab = nodeById('lab'); const pc = nodeById('pcvm');
+          return { wasActiveOverZone, relOnPanel, relIsDz, vmCount: (lab.vms || []).length,
+            tilePresent: !!pc, x: pc ? pc.x : null, y: pc ? pc.y : null, ox, oy };
+        } catch (e) { return { err: String(e && e.stack || e) }; }
+      });
+      assert.ok(!r.err, 'nessun errore: ' + r.err);
+      assert.ok(r.wasActiveOverZone, 'setup: passando sopra la zona questa si arma (stato "ultimo move" sulla zona, poi stale)');
+      assert.ok(r.relOnPanel, 'sanity: il rilascio è sul pannello (#rack-view)');
+      assert.ok(!r.relIsDz, 'sanity: il rilascio NON è sulla drop-zone');
+      assert.equal(r.vmCount, 0, 'NESSUN import (rilasciato fuori dalla zona, anche se l\'ultimo move era sopra)');
+      assert.ok(r.tilePresent, 'il device resta in vita');
+      assert.equal(r.x, r.ox, 'il device TORNA alla X di partenza (area sbagliata → niente tile perso sotto il pannello)');
+      assert.equal(r.y, r.oy, 'il device TORNA alla Y di partenza');
+    });
+
+    await t.test('VM: rilascio sulla PLANIMETRIA (altrove) → riposiziona, NON torna indietro', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = {};
+          state.nodes.push({ id: 'pcx', type: 'pc', name: 'PC-Move', x: 80, y: 80, ports: 1, mac: 'AA:BB:CC:00:00:88', ip: '10.0.0.88' });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          _renderAllNow();
+          const pcEl = document.querySelector('[data-id="pcx"]');
+          const pcR = pcEl.getBoundingClientRect();
+          const px = pcR.left + pcR.width / 2, py = pcR.top + pcR.height / 2;
+          const ox = nodeById('pcx').x, oy = nodeById('pcx').y;
+          const fpR = document.getElementById('floorplan').getBoundingClientRect();
+          const fx = fpR.left + fpR.width * 0.5, fy = fpR.top + fpR.height * 0.5;   // centro planimetria
+          pcEl.dispatchEvent(new PointerEvent('pointerdown', { clientX: px, clientY: py, button: 0, bubbles: true }));
+          window.dispatchEvent(new PointerEvent('pointermove', { clientX: fx, clientY: fy, button: 0, bubbles: true }));
+          window.dispatchEvent(new PointerEvent('pointerup', { clientX: fx, clientY: fy, button: 0, bubbles: true }));
+          const elAt = document.elementFromPoint(fx, fy);
+          const relOnFloor = !!(elAt && elAt.closest && elAt.closest('#floorplan'));
+          const pc = nodeById('pcx');
+          return { relOnFloor, moved: !!(pc && (pc.x !== ox || pc.y !== oy)), present: !!pc };
+        } catch (e) { return { err: String(e && e.stack || e) }; }
+      });
+      assert.ok(!r.err, 'nessun errore: ' + r.err);
+      assert.ok(r.relOnFloor, 'sanity: il rilascio è sulla planimetria (#floorplan)');
+      assert.ok(r.moved, 'il device si è RIPOSIZIONATO sul floor (un normale spostamento NON viene annullato)');
+      assert.ok(r.present, 'il device resta in vita');
+    });
+
+    await t.test('UX uniforme floor=rack: single-click seleziona ma NON apre le proprietà (il pannello host regge)', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = {};
+          state.nodes.push({ id: 'lab',  type: 'homelab', name: 'NUC-01', x: 600, y: 350, ports: 1, mac: 'AA:BB:CC:00:00:01' });
+          state.nodes.push({ id: 'pcvm', type: 'pc',      name: 'VM-Web', x: 360, y: 320, ports: 1, mac: 'AA:BB:CC:00:00:55', ip: '10.0.0.55' });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          _renderAllNow();
+          // host aperto (intent esplicito) → drop-zone nel pannello
+          if (typeof switchRightTab === 'function') switchRightTab('props');
+          if (typeof setPropsSectionState === 'function') { setPropsSectionState('device-homelab', true); setPropsSectionState('hv-vms', true); }
+          window._propsExplicit = true; selType = 'node'; selId = 'lab'; renderProps();
+          const hostShown = !!document.querySelector('[data-vm-dropzone][data-host-id="lab"]');
+
+          // SINGLE click reale sul PC (down+up stesso punto, niente drag) = lo scenario del bug
+          const el = document.querySelector('[data-id="pcvm"]');
+          const rc = el.getBoundingClientRect();
+          const x = rc.left + rc.width / 2, y = rc.top + rc.height / 2;
+          el.dispatchEvent(new PointerEvent('pointerdown', { clientX: x, clientY: y, button: 0, bubbles: true }));
+          window.dispatchEvent(new PointerEvent('pointerup', { clientX: x, clientY: y, button: 0, bubbles: true }));
+          const afterSelId = (typeof selId !== 'undefined') ? selId : null;
+          const stillHostPanel = !!document.querySelector('[data-vm-dropzone][data-host-id="lab"]');
+          const explicit = !!window._propsExplicit;
+
+          // intent esplicito (= ciò che fa il DOPPIO click) → le proprietà del PC SI aprono
+          window._propsExplicit = true; selType = 'node'; selId = 'pcvm'; renderProps();
+          const dblOpens = (document.getElementById('props-panel').innerHTML || '').includes('VM-Web');
+          return { hostShown, afterSelId, stillHostPanel, explicit, dblOpens };
+        } catch (e) { return { err: String(e && e.stack || e) }; }
+      });
+      assert.ok(!r.err, 'nessun errore: ' + r.err);
+      assert.ok(r.hostShown, 'setup: il pannello mostra l\'host con la drop-zone');
+      assert.equal(r.afterSelId, 'pcvm', 'il single-click SELEZIONA il PC');
+      assert.ok(r.stillHostPanel, 'il single-click NON switcha: il pannello resta sull\'host (drop-zone presente) → il drag-import regge anche dopo aver toccato il PC');
+      assert.ok(!r.explicit, 'single-click floor → _propsExplicit=false (solo selezione, come il rack)');
+      assert.ok(r.dblOpens, 'con intent esplicito (= doppio click) le proprietà del device floor si aprono (VM-Web)');
+    });
+
+    await t.test('gesto reale DOPPIO click su device floor → apre le Proprietà (regressione: dblclick nativo non scatta, il DOM si ricostruisce tra i click)', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = {};
+          state.nodes.push({ id: 'pcx', type: 'pc', name: 'PC-Doppio', x: 520, y: 300, ports: 1, mac: 'AA:BB:CC:00:00:77', ip: '10.0.0.77' });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          window._propsExplicit = false; selType = null; selId = null;
+          if (typeof switchRightTab === 'function') switchRightTab('props');
+          _renderAllNow();
+
+          const fireDown = (x, y) => { document.querySelector('[data-id="pcx"]').dispatchEvent(new PointerEvent('pointerdown', { clientX: x, clientY: y, button: 0, bubbles: true })); };
+          const fireUp = (x, y) => { window.dispatchEvent(new PointerEvent('pointerup', { clientX: x, clientY: y, button: 0, bubbles: true })); };
+          const center = () => { const rc = document.querySelector('[data-id="pcx"]').getBoundingClientRect(); return { x: rc.left + rc.width / 2, y: rc.top + rc.height / 2 }; };
+
+          // 1° click reale (down+up stesso punto, niente drag)
+          let c = center();
+          fireDown(c.x, c.y); fireUp(c.x, c.y);
+          const explicitAfter1 = !!window._propsExplicit;          // false = solo selezione
+          const selAfter1 = (typeof selId !== 'undefined') ? selId : null;
+
+          // Forza il rebuild del DOM del floor (è ciò che fa il renderAll del 1°
+          // click → renderFloor fa innerHTML=''): l'elemento del nodo diventa NUOVO
+          // → il dblclick nativo NON scatterebbe. Il rilevamento manuale per
+          // id+timestamp deve reggere comunque.
+          _renderAllNow();
+
+          // 2° click reale entro la soglia, sullo STESSO nodo
+          c = center();
+          fireDown(c.x, c.y); fireUp(c.x, c.y);
+          const explicitAfter2 = !!window._propsExplicit;          // true = doppio click
+          const opens = (document.getElementById('props-panel').innerHTML || '').includes('PC-Doppio');
+          return { explicitAfter1, selAfter1, explicitAfter2, opens };
+        } catch (e) { return { err: String(e && e.stack || e) }; }
+      });
+      assert.ok(!r.err, 'nessun errore: ' + r.err);
+      assert.ok(!r.explicitAfter1, '1° click reale: solo selezione (_propsExplicit resta false)');
+      assert.equal(r.selAfter1, 'pcx', '1° click reale: il device è selezionato');
+      assert.ok(r.explicitAfter2, '2° click reale sullo stesso nodo entro 350ms → doppio click → _propsExplicit=true');
+      assert.ok(r.opens, 'il DOPPIO click reale apre le Proprietà del device floor (PC-Doppio) ANCHE dopo un rebuild del DOM tra i due click');
     });
 
     await t.test('gesto reale: click su un device seleziona ed aggiorna il pannello Proprietà', async () => {
