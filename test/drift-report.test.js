@@ -250,6 +250,15 @@ test('ipChanged: flag manual riflette ipManual del device documentato (G3)', () 
   assert.equal(by['AA:BB:CC:00:00:02'].manual, false);
 });
 
+test('robustezza: doc.macs con entry nulle/malformate non fa lanciare (R1)', () => {
+  const snmp = { reachabilityChecked: true, observedMacs: [], macAtIp: {} };
+  const doc = { macs: [null, undefined, {}, { mac: null }, { mac: '' },
+    { mac: 'AA:BB:CC:00:00:09', ip: '10.0.0.9', nodeId: 'n', label: 'ok' }] };
+  let r;
+  assert.doesNotThrow(() => { r = buildDriftReport(snmp, doc, [], {}); });
+  assert.ok(r && r.counts, 'ritorna un report valido nonostante le entry malformate');
+});
+
 test('cavo fantasma: porta down da >= N sync → ghostCable; sotto soglia → no', () => {
   const doc = {
     cables: [
