@@ -562,6 +562,22 @@ function toggleGuestVlan(vid){
     if(typeof win._renderTopoLegend === 'function') win._renderTopoLegend(); // barra: aggiorna il tratteggio
 }
 
+// ---- VLAN di management (classificazione PERSISTENTE, come guestVlans) -------
+// L'OPPOSTO della guest: i non-documentati su questa VLAN NON sono BYOD da
+// nascondere ma infrastruttura (o intrusi) → restano 'infra', visibili nel Drift
+// con un segnale di sicurezza, e l'Adozione li propone come device di rete. Più
+// VLAN di management sono ammesse (array). Non cambia il modello L2/L3.
+function toggleMgmtVlan(vid){
+    vid = parseInt(vid, 10);
+    if(isNaN(vid)) return;
+    if(!Array.isArray(store.state.mgmtVlans)) store.state.mgmtVlans = [];
+    const i = store.state.mgmtVlans.indexOf(vid);
+    if(i >= 0) store.state.mgmtVlans.splice(i, 1);
+    else store.state.mgmtVlans.push(vid);
+    markDirty();
+    if(typeof renderProps === 'function') renderProps();   // pannello VLAN: aggiorna il pulsante
+}
+
 // ---- VLAN voce (classificazione + assegnazione in blocco ai telefoni) -------
 // Classificazione PERSISTENTE (come guestVlans): segna una VLAN come "voce" dal
 // pannello VLAN. NON cambia il modello (la voce resta per-device su node.spec.
@@ -948,7 +964,7 @@ expose({
     _propagateTrunkMembership, _runActiveAnchor, _effPortVlan, _getLinkTrunk, _linkIsTrunk,
     setLinkNativeVlan, setEndpointVlan, setNodeVoiceVlan, _siteNativeVlan, setSiteNativeVlan,
     toggleSiteNativeVlan, updateVlanColor, updateVlanName, toggleVlanIpam, updateVlanIpam,
-    deleteVlanColor, clearAllVlans, setVlanFilter, toggleGuestVlan, _isVoiceVlan,
+    deleteVlanColor, clearAllVlans, setVlanFilter, toggleGuestVlan, toggleMgmtVlan, _isVoiceVlan,
     toggleVoiceVlan, _voipNodes, _voipVoiceVlan, _setVoipVoiceVlan, _voiceAssignTargets,
     applyVoiceVlanBulk, _tV, _openVoiceAssignDialog, _closeVoiceAssign, _voiceAssignHtml,
     _voiceAssignRead, _voiceAssignPreview, _voiceAssignConfirm, _vlanTagRole, showVlanMembers,
