@@ -187,6 +187,8 @@
         .autom-title { font-size:var(--fs-sm); font-weight:700; display:inline-flex; align-items:center; gap:7px; }
         .autom-title i { color:var(--accent); width:15px; text-align:center; }
         .autom-desc { font-size:var(--fs-xs); color:var(--text-muted); margin-top:7px; line-height:1.45; }
+        .autom-grouphd { font-size:var(--fs-xs); font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; display:flex; align-items:center; gap:6px; margin-bottom:9px; }
+        .autom-grouphd i { color:var(--accent); width:15px; text-align:center; }
         /* Età dell'ultimo Sync: tutt'uno col bottone Sync, diviso da un |.
            Niente pillola/pallino: solo il tempo (color-coded), attaccato al bottone. */
         .sync-fresh-badge { display:none; align-items:center; font-size:var(--fs-xs); font-weight:600;

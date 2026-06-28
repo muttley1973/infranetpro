@@ -210,7 +210,7 @@ function _driftBuildSnmpSnapshot(docSnap, reachable, arpTable){
         const sig = _driftNorm(l.mac);
         if(sig && !known.has(sig) && !seen.has(sig)){
             seen.add(sig);
-            observedDevices.push({ sig, mac: l.mac, label: t('dhcp.seenLease',{ip}), vlan: (l && l.vlan != null) ? l.vlan : null, portMacCount: 0, consumer: false });
+            observedDevices.push({ sig, mac: l.mac, label: `${t('dhcp.seenLease',{ip})}${l.hostname ? ' · ' + l.hostname : ''}`, vlan: (l && l.vlan != null) ? l.vlan : null, portMacCount: 0, consumer: false });
         }
         _leaseChecked = true;
     }
@@ -393,6 +393,13 @@ function setAutoIpRenew(on){
     markDirty();
     renderAutomationMenu();
 }
+// Toggle per-progetto: mostra i dispositivi utente/BYOD in chiaro invece di
+// collassarli nel gruppo grigio (controllo manuale puro). Default OFF = storico.
+function setDriftShowEndpoints(on){
+    store.state.driftShowEndpoints = !!on;
+    markDirty();
+    _renderDriftReport();
+}
 function driftInvestigate(key){
     const state = store.state;
     const row = _driftFindRow(key);
@@ -453,7 +460,19 @@ function _driftRowHtml(cat, r){
         actions = `${ignBtn}${invBtn}`;
     } else if(cat === 'undocumented' || cat === 'undocumentedEndpoint'){
         const vlanStr = r.vlan != null ? ` · VLAN ${esc(r.vlan)}` : '';
-        main = `<span class="drift-row-main">${esc(r.mac)}</span><span class="drift-row-sub">${esc(r.label)}${vlanStr}</span>`;
+        // Trasparenza: un tag per ogni segnale BYOD scattato → "perché è nascosto".
+        // Etichetta in linguaggio comune (capibile dai non-tecnici); il dettaglio
+        // tecnico preciso sta nel tooltip nativo (title=). Infra → reasons vuoto.
+        const whyMap = {
+            guestVlan:   [t('drift.whyGuestVlan'),   t('drift.whyGuestVlanTip')],
+            crowdedPort: [t('drift.whyCrowdedPort'), t('drift.whyCrowdedPortTip', { n: r.portMacCount })],
+            randomMac:   [t('drift.whyRandomMac'),   t('drift.whyRandomMacTip')],
+        };
+        const why = (Array.isArray(r.reasons) ? r.reasons : []).map(rs => whyMap[rs] || [rs, '']);
+        const whyStr = why.length
+            ? `<span class="drift-why">${why.map(([l, tip]) => `<span class="drift-why-tag" title="${esc(tip)}">${esc(l)}</span>`).join('')}</span>`
+            : '';
+        main = `<span class="drift-row-main">${esc(r.mac)}</span><span class="drift-row-sub">${esc(r.label)}${vlanStr}</span>${whyStr}`;
         const addBtn = `<button class="drift-act add" onclick="openAdoptModal('${esc(r.key)}')" data-tip="${t('drift.tipAddMap')}"><i class="fas fa-plus"></i></button>`;
         actions = `${addBtn}${ignBtn}${invBtn}`;
     } else if(cat === 'ghostCable'){
@@ -489,23 +508,32 @@ function _renderDriftReport(){
         const n = rep.counts[c.k];
         let rows = allRows, extra = '', topBar = '', openWhen = (c.k !== 'consistent' && c.k !== 'unverified' && n > 0);
         if(c.k === 'undocumented'){
-            // Solo i candidati infrastruttura in chiaro; il rumore endpoint/guest
+            // I candidati infrastruttura in chiaro; il rumore endpoint/guest
             // (telefoni/BYOD su VLAN guest, dietro uplink affollati, MAC random)
-            // collassato in una riga grigia espandibile.
-            rows = allRows.filter(r => r.cls !== 'endpoint');
+            // collassato in un gruppo grigio espandibile — a meno che l'utente
+            // non scelga di mostrarli in chiaro (toggle driftShowEndpoints).
             const epRows = allRows.filter(r => r.cls === 'endpoint');
             const epN = epRows.length;
-            if(epN){
-                const epBody = epRows.map(r => _driftRowHtml('undocumentedEndpoint', r)).join('');
-                extra = `<details class="drift-endpoint-group">
-                    <summary class="drift-endpoint-head"><i class="fas fa-user-group"></i> ${t('drift.hiddenUsers',{n:epN})}<span class="drift-endpoint-hint"></span></summary>
-                    <div class="drift-endpoint-body">${epBody}</div></details>`;
+            const showEp = !!(store.state && store.state.driftShowEndpoints);
+            if(showEp){
+                rows = allRows;   // tutto in chiaro (ogni endpoint mostra comunque il "perché")
+            } else {
+                rows = allRows.filter(r => r.cls !== 'endpoint');
+                if(epN){
+                    const epBody = epRows.map(r => _driftRowHtml('undocumentedEndpoint', r)).join('');
+                    extra = `<details class="drift-endpoint-group">
+                        <summary class="drift-endpoint-head"><i class="fas fa-user-group"></i> ${t('drift.hiddenUsers',{n:epN})}<span class="drift-endpoint-hint"></span></summary>
+                        <div class="drift-endpoint-body">${epBody}</div></details>`;
+                }
             }
-            openWhen = (n + epN) > 0;   // apri anche se ci sono solo endpoint nascosti
-            if(n + epN > 0){
-                // "Chiudi il cerchio": dal gap all'azione. Apre la schermata di
-                // selezione stile Scopri con tutti i non documentati.
-                topBar = `<div class="drift-adopt-bar"><button class="toolbar-btn" onclick="openAdoptModal()" data-tip="${t('drift.addMapTip')}"><i class="fas fa-plus-circle"></i> ${t('drift.addMap')}</button></div>`;
+            openWhen = (rows.length + (showEp ? 0 : epN)) > 0;   // apri anche se ci sono solo endpoint
+            if(allRows.length){
+                // Toggle trasparenza (mostra utente/BYOD in chiaro) + scorciatoia
+                // "Chiudi il cerchio": dal gap all'azione (schermata Adotta).
+                const epToggle = epN
+                    ? `<label class="drift-ep-toggle" data-tip="${t('drift.showEndpointsTip')}"><input type="checkbox" onchange="setDriftShowEndpoints(this.checked)"${showEp ? ' checked' : ''}> ${t('drift.showEndpoints')}</label>`
+                    : '';
+                topBar = `<div class="drift-adopt-bar">${epToggle}<button class="toolbar-btn" onclick="openAdoptModal()" data-tip="${t('drift.addMapTip')}"><i class="fas fa-plus-circle"></i> ${t('drift.addMap')}</button></div>`;
             }
         }
         const open = openWhen ? ' open' : '';
@@ -527,7 +555,7 @@ function _renderDriftReport(){
 // Lo stato `_driftReport` NON è qui: vive direttamente su window (store._driftReport).
 expose({
     runDriftCheck, driftIgnore, driftApplyDoc, driftApplyIpChange, driftInvestigate,
-    setAutoIpRenew, _driftAutoRenewIps,
+    setAutoIpRenew, setDriftShowEndpoints, _driftAutoRenewIps,
     _closeDriftReport, _renderDriftReport,
     _driftBuildDocSnapshot, _driftBuildSnmpSnapshot, _driftComputeFromDoc,
     DRIFT_DOWN_STREAK_N,
