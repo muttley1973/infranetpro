@@ -236,6 +236,29 @@ test('undocumented: trasparenza — reasons registra QUALI segnali sono scattati
   assert.equal(by.i.cls, 'infra');
 });
 
+test('undocumented: VLAN di management forza infra + onMgmt (anti-guest), anche con segnali BYOD', () => {
+  const snmp = {
+    observedDevices: [
+      { sig: 'm1', mac: 'aa:00:00:00:00:11', label: 'ignoto su mgmt', vlan: 10 },                                  // mgmt, nessun segnale
+      { sig: 'm2', mac: 'bb:00:00:00:00:12', label: 'rogue su mgmt',  vlan: 10, consumer: true, portMacCount: 12 }, // mgmt + segnali BYOD
+      { sig: 'g',  mac: 'cc:00:00:00:00:13', label: 'telefono guest', vlan: 99, consumer: true },                  // guest endpoint (controllo)
+    ],
+  };
+  const r = buildDriftReport(snmp, {}, [], { mgmtVlans: [10], guestVlans: [99], endpointPortThreshold: 5 });
+  const by = Object.fromEntries(r.undocumented.map(d => [d.sig, d]));
+  assert.equal(by.m1.cls, 'infra');
+  assert.equal(by.m1.onMgmt, true);
+  assert.deepEqual(by.m1.reasons, []);
+  assert.equal(by.m2.cls, 'infra');             // i segnali BYOD NON declassano un device sulla VLAN di management
+  assert.equal(by.m2.onMgmt, true);
+  assert.deepEqual(by.m2.reasons, []);          // azzerati: niente badge "MAC privato/porta affollata"
+  assert.equal(by.g.cls, 'endpoint');           // controllo: la guest classifica ancora endpoint
+  assert.equal(by.g.onMgmt, false);
+  // i device su mgmt sono "non documentati" AZIONABILI (mostrati), non collassati come endpoint
+  assert.equal(r.counts.undocumented, 2);
+  assert.equal(r.counts.undocumentedEndpoint, 1);  // solo il telefono guest
+});
+
 test('ipChanged: flag manual riflette ipManual del device documentato (G3)', () => {
   const doc = { macs: [
     { mac: 'AA:BB:CC:00:00:01', ip: '10.0.0.10', nodeId: 'n1', ipManual: true },

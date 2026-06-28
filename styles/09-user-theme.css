@@ -363,6 +363,12 @@ body.spare-mode .port-led.spare-suspect {
     background: var(--surface-hover); border-radius: 999px;
     padding: 0 7px; white-space: nowrap;
 }
+/* Segnale sicurezza: device sconosciuto su VLAN di management (anti-guest). */
+.drift-why-tag.drift-mgmt {
+    color: var(--fault-color); background: rgba(248,81,73,.12);
+    border: 1px solid rgba(248,81,73,.35);
+}
+.drift-why-tag.drift-mgmt i { margin-right: 3px; }
 /* Toggle "mostra utente/BYOD in chiaro": spinto a sinistra, Adotta resta a destra. */
 .drift-ep-toggle {
     margin-right: auto; display: inline-flex; align-items: center; gap: 5px;

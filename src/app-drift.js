@@ -239,6 +239,7 @@ export function _driftComputeFromDoc(docSnap, opts){
     store._driftReport = win.buildDriftReport(snmpSnap, docSnap, state.driftIgnores, {
         downStreakN: DRIFT_DOWN_STREAK_N,
         guestVlans: state.guestVlans || [],   // VLAN marcate guest sulla barra VLAN
+        mgmtVlans: state.mgmtVlans || [],     // VLAN di management: non-doc lì = infra + segnale sicurezza
         endpointPortThreshold: 5,             // ≥5 MAC su una porta = uplink AP/hub/guest
     });
     return store._driftReport;
@@ -483,7 +484,11 @@ function _driftRowHtml(cat, r){
         const whyStr = why.length
             ? `<span class="drift-why">${why.map(([l, tip]) => `<span class="drift-why-tag" title="${esc(tip)}">${esc(l)}</span>`).join('')}</span>`
             : '';
-        main = `<span class="drift-row-main">${esc(r.mac)}</span><span class="drift-row-sub">${esc(r.label)}${vlanStr}</span>${whyStr}`;
+        // Segnale sicurezza: device sconosciuto su VLAN di management (anti-guest).
+        const mgmtStr = r.onMgmt
+            ? `<span class="drift-why"><span class="drift-why-tag drift-mgmt" title="${esc(t('drift.onMgmtVlanTip'))}"><i class="fas fa-shield-halved"></i> ${esc(t('drift.onMgmtVlan'))}</span></span>`
+            : '';
+        main = `<span class="drift-row-main">${esc(r.mac)}</span><span class="drift-row-sub">${esc(r.label)}${vlanStr}</span>${whyStr}${mgmtStr}`;
         const addBtn = `<button class="drift-act add" onclick="openAdoptModal('${esc(r.key)}')" data-tip="${t('drift.tipAddMap')}"><i class="fas fa-plus"></i></button>`;
         actions = `${addBtn}${ignBtn}${invBtn}`;
     } else if(cat === 'ghostCable'){

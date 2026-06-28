@@ -26,6 +26,7 @@ store.state = {
     autoPoll:{ enabled:false, interval:5 },
     discoveryHistory:{ observations:[] },
     guestVlans:[],          // VLAN "ospiti": i loro device escono dai "non documentati" (drift)
+    mgmtVlans:[],           // VLAN di management: i non-documentati lì sono infra (mai BYOD) + segnale sicurezza
     lastSnmpSyncAt:0,       // timestamp ultimo Sync SNMP riuscito (chip freschezza toolbar)
     nodes:[], links:[], ports:{},
     dhcpSources:[]   // lease DHCP persistiti per-fonte (multi-server) → set unito in store._dhcpLeases
@@ -801,6 +802,7 @@ function _migrateState(s) {
     if (typeof win.pruneDiscoveryHistory === 'function') win.pruneDiscoveryHistory(s.discoveryHistory.observations);
     if (!Array.isArray(s.auditLog)) s.auditLog = [];   // N2: journal append-only (additivo)
     if (!Array.isArray(s.guestVlans)) s.guestVlans = []; // VLAN guest (additivo): filtro rumore drift
+    if (!Array.isArray(s.mgmtVlans)) s.mgmtVlans = [];   // VLAN management (additivo): anti-guest + sicurezza
     // Lease DHCP persistiti per-FONTE (multi-server). Additivo: i progetti vecchi
     // partono senza fonti. Il set unito alimenta store._dhcpLeases (cache derivata
     // letta dal motore Verifica e dall'auto-poll VLAN).
