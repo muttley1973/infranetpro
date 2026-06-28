@@ -25,6 +25,13 @@ function _adoptCandidates(filterKey){
     if(typeof store._driftReport === 'undefined' || !store._driftReport) return [];
     let rows = store._driftReport.undocumented || [];      // include infra + endpoint
     if(filterKey) rows = rows.filter(r => r.key === filterKey);
+    return _adoptBuild(rows);
+}
+
+// Costruisce i candidati Adotta da righe stile drift.undocumented (FDB o lease):
+// inietta vendor (OUI) e tipo indovinato. Punto unico → un solo aggancio al ponte
+// (riusato da _adoptCandidates e openAdoptFromLeases).
+function _adoptBuild(rows){
     return win.buildAdoptCandidates(rows, {
         vendorOf: m => (typeof win._discVendorFromMac === 'function' ? win._discVendorFromMac(m) : ''),
         guessType: v => (typeof win._guessType === 'function' ? win._guessType('', '', v, '', '') : ''),
@@ -71,6 +78,19 @@ function _adoptToggleAll(on){ document.querySelectorAll('#adopt-tbody .adopt-chk
 
 function openAdoptModal(filterKey){
     _adoptRows = _adoptCandidates(filterKey);
+    _adoptShowModal();
+}
+
+// Adozione dei "solo DHCP" di una VLAN dalla card IPAM: candidati costruiti
+// DIRETTAMENTE dai lease in cache nella subnet (no Verifica richiesta). Portano
+// IP + hostname → il device adottato nasce già documentato (esce dall'ambra).
+function openAdoptFromLeases(vid){
+    const rows = (typeof _dhcpUndocumentedForVlan === 'function') ? _dhcpUndocumentedForVlan(vid) : [];
+    _adoptRows = _adoptBuild(rows);
+    _adoptShowModal();
+}
+
+function _adoptShowModal(){
     const ov = _adoptEnsureOverlay();
     ov.style.display = 'flex';
     const esc = s => escapeHTML(String(s == null ? '' : s));
@@ -111,6 +131,7 @@ function adoptApply(){
     markDirty();
     if(typeof win.renderAll === 'function') renderAll();
     if(typeof win.renderCables === 'function') renderCables();
+    if(typeof renderProps === 'function') renderProps();   // rinfresca la card IPAM: l'ambra "solo DHCP" cala dopo l'adozione
     _closeAdoptModal();
     _adoptRecomputeDrift();   // le righe adottate spariscono dal Drift (feedback "si vede")
 
@@ -155,13 +176,13 @@ function _adoptCreateNodes(picks, autoLink){
             const match = win._discFindExistingDevice({ mac: macN }, existingIdx);
             if(match && match.node){ skipped++; return; }
         }
-        const name = cand.vendor || macN || def.name;
+        const name = cand.hostname || cand.vendor || macN || def.name;   // il nome dal lease (se c'è) vince
         const nid = (typeof win._nextNodeId === 'function') ? win._nextNodeId(type, usedNodeIds) : uid(type);
         let n;
         if(def.isFloor){
             const col = floorCount % 5, row = Math.floor(floorCount / 5);
             n = {
-                id: nid, type, name, hostname: '', ip: '', mac: macN,
+                id: nid, type, name, hostname: cand.hostname || '', ip: cand.ip || '', mac: macN,
                 brand: cand.vendor || def.brand || '', vendorHint: cand.vendor || '',
                 identitySource: 'fdb', identityConfidence: 'low',
                 x: baseX - 200 + col * 120, y: baseY - 100 + row * 120,
@@ -172,7 +193,7 @@ function _adoptCreateNodes(picks, autoLink){
             const sU = def.sizeU || 1;
             const rackU = (typeof win._findFreeU === 'function') ? win._findFreeU(rackId, sU) : 1;
             n = {
-                id: nid, type, name, hostname: '', ip: '', mac: macN,
+                id: nid, type, name, hostname: cand.hostname || '', ip: cand.ip || '', mac: macN,
                 brand: cand.vendor || def.brand || '', vendorHint: cand.vendor || '',
                 identitySource: 'fdb', identityConfidence: 'low',
                 rackId, rackU, sizeU: sU, ports: def.ports || 0,
@@ -205,6 +226,7 @@ function _adoptRecomputeDrift(){
         store._driftReport = win.buildDriftReport(snmpSnap, docSnap, store.state.driftIgnores, {
             downStreakN: (typeof win.DRIFT_DOWN_STREAK_N !== 'undefined') ? win.DRIFT_DOWN_STREAK_N : 3,
             guestVlans: store.state.guestVlans || [],
+            mgmtVlans: store.state.mgmtVlans || [],
             endpointPortThreshold: 5,
         });
         if(typeof win._renderDriftReport === 'function') win._renderDriftReport();
@@ -215,6 +237,6 @@ function _adoptRecomputeDrift(){
 // onclick/onchange (_closeAdoptModal, _adoptToggleAll, adoptApply) + le funzioni
 // "testabili" esercitate dall'E2E (_adoptCandidates, _adoptCreateNodes).
 expose({
-    openAdoptModal, adoptApply, _closeAdoptModal, _adoptToggleAll,
+    openAdoptModal, openAdoptFromLeases, adoptApply, _closeAdoptModal, _adoptToggleAll,
     _adoptCandidates, _adoptCreateNodes,
 });

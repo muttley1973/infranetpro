@@ -28,6 +28,7 @@
     "lib/ha-pair.js",
     "lib/handoff.js",
     "lib/i18n.js",
+    "lib/ipam.js",
     "lib/l3-gateway.js",
     "lib/linkstate.js",
     "lib/mac-class.js",

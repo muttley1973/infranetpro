@@ -201,12 +201,9 @@ function _driftBuildSnmpSnapshot(docSnap, reachable, arpTable){
     const _leases = Array.isArray(store._dhcpLeases) ? store._dhcpLeases : [];
     let _leaseChecked = false;
     // G2: un lease scaduto/rilasciato non prova né presenza né IP corrente (una
-    // tabella incollata può contenerne). `state` arriva da ISC; `expiry` da tutti.
-    const _leaseStale = l => {
-        if(l && (l.state === 'expired' || l.state === 'released' || l.state === 'declined' || l.state === 'free')) return true;
-        if(l && l.expiry){ const e = Date.parse(l.expiry); if(Number.isFinite(e) && e < Date.now()) return true; }
-        return false;
-    };
+    // tabella incollata può contenerne). Predicato condiviso (lib/dhcp-lease.js,
+    // riusato anche dall'occupazione IPAM) → un'unica fonte di verità.
+    const _leaseStale = l => isLeaseStale(l);
     for(const l of _leases){
         const macLc = String((l && l.mac) || '').toLowerCase();
         const ip = String((l && l.ip) || '').trim();

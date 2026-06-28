@@ -14,6 +14,30 @@ import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (e
 import { escapeHTML, normalizeNumber } from './app-util.js';
 import { _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte: lettura stato sezioni (ex win.*)
 
+// Blocco "Occupazione" della card IPAM aperta: barra di capacità + ripartizione
+// documentati / solo-DHCP / liberi (dati da _ipamUsageForVlan → lib/ipam.js,
+// opzione A = realtà sul filo). La fonte "DHCP" appare solo se ci sono lease nel
+// CIDR (manual-first: senza lease il blocco resta utile coi soli documentati).
+// Solo numeri + stringhe t() fidate → nessun escape necessario.
+function _ipamOccHtml(u, vid){
+    const cap = u.capacity || 0;
+    const near = cap > 0 && u.pct >= 90;                       // subnet quasi piena → ambra
+    const docColor = near ? '#f5a623' : '#00d4ff';
+    const docW = cap ? Math.min(100, (u.documentedCount / cap) * 100) : 0;
+    const dhcpW = cap ? Math.min(Math.max(100 - docW, 0), (u.dhcpOnlyCount / cap) * 100) : 0;
+    const legend = [`<span><i class="dot" style="background:${docColor}"></i>${t('floor.occDocumented',{n:u.documentedCount})}</span>`];
+    if(u.dhcpOnlyCount) legend.push(`<span><i class="dot" style="background:#f5a623"></i>${t('floor.occDhcpOnly',{n:u.dhcpOnlyCount})}</span>`);
+    legend.push(`<span><i class="dot dot-free"></i>${t('floor.occFree',{n:u.freeCount})}</span>`);
+    return `<div class="vlan-ipam-occ${near?' near':''}" style="grid-column:1/-1">
+                        <div class="vlan-ipam-occ-hd"><span>${t('floor.occupancy')}</span>${u.leaseInCidr?`<span class="vlan-ipam-occ-src">DHCP</span>`:''}</div>
+                        <div class="vlan-ipam-occ-bar"><i style="width:${docW.toFixed(1)}%;background:${docColor}"></i><i style="width:${dhcpW.toFixed(1)}%;background:#f5a623"></i></div>
+                        <div class="vlan-ipam-occ-meta">${u.usedCount} / ${cap} · ${u.pct}%</div>
+                        <div class="vlan-ipam-occ-leg">${legend.join('')}</div>
+                        ${!u.gatewayOk?`<div class="vlan-ipam-occ-warn">${t('floor.gwOutSubnet')}</div>`:''}
+                        ${u.dhcpOnlyCount?`<div class="vlan-ipam-occ-adopt"><span><i class="fas fa-triangle-exclamation"></i> ${t('floor.occUndoc',{n:u.dhcpOnlyCount})}</span><button type="button" class="vlan-ipam-adopt-btn" onclick="openAdoptFromLeases(${vid})">${t('floor.occAdopt')}</button></div>`:''}
+                      </div>`;
+}
+
 // Contesto planimetria / nessuna selezione (ramo else).
 function _renderFloorProps(panel){
         const state = store.state;
@@ -113,7 +137,8 @@ function _renderFloorProps(panel){
             const ipamOpen=win._vlanIpamOpen.has(vid);
             const ipamSummary=escapeHTML(win._vlanIpamSummary(vid));
             const ipamWarn=(!usage.cidr && ipam?.subnet) || (usage.cidr && !usage.gatewayOk);
-            const sample=usage.sample.map(x=>`${escapeHTML(x.ip)}${x.nodes?.[0]?` <span>${escapeHTML(x.nodes[0])}</span>`:''}`).join(' · ');
+            const nearFull=!!(usage.cidr && usage.capacity && usage.pct>=90);   // subnet quasi piena → ambra a colpo d'occhio
+            const summaryWarn=ipamWarn || nearFull;
             h+=`<div class="vlan-ipam-card${ipamOpen?' open':''}">
                   <div class="vlan-ipam-row">
                     <label style="margin:0;width:68px;font-size:0.78rem;flex-shrink:0;white-space:nowrap;font-weight:700;color:${escapeHTML(state.vlanColors[v]||'#8b949e')}">VLAN ${vid}</label>
@@ -123,12 +148,13 @@ function _renderFloorProps(panel){
                     <input type="color" value="${escapeHTML(state.vlanColors[v])}" onchange="updateVlanColor(${vid},this.value)" style="width:32px;flex-shrink:0;padding:2px">
                     <button class="toolbar-btn${ipamOpen?' primary':''}" style="padding:3px 6px;margin:0" data-tip="${t('floor.ipamTip',{vid})}" onclick="toggleVlanIpam(${vid})"><i class="fas fa-network-wired"></i></button>
                     <button class="toolbar-btn${(Array.isArray(state.guestVlans)&&state.guestVlans.map(Number).includes(vid))?' primary':''}" style="padding:3px 6px;margin:0" data-tip="${(Array.isArray(state.guestVlans)&&state.guestVlans.map(Number).includes(vid))?t('floor.guestOn'):t('floor.guestOff')}" onclick="toggleGuestVlan(${vid})"><i class="fas fa-user-group"></i></button>
+                    <button class="toolbar-btn${(Array.isArray(state.mgmtVlans)&&state.mgmtVlans.map(Number).includes(vid))?' primary':''}" style="padding:3px 6px;margin:0" data-tip="${(Array.isArray(state.mgmtVlans)&&state.mgmtVlans.map(Number).includes(vid))?t('floor.mgmtOn'):t('floor.mgmtOff')}" onclick="toggleMgmtVlan(${vid})"><i class="fas fa-screwdriver-wrench"></i></button>
                     <button class="toolbar-btn${_isNative?' primary':''}" style="padding:3px 6px;margin:0" data-tip="${_isNative?t('vlan.nativeUnmark'):t('vlan.nativeMark')}" onclick="toggleSiteNativeVlan(${vid})"><i class="fas fa-house"></i></button>
                     <button class="toolbar-btn${(typeof win._isVoiceVlan==='function'&&win._isVoiceVlan(vid))?' primary':''}" style="padding:3px 6px;margin:0" data-tip="${(typeof win._isVoiceVlan==='function'&&win._isVoiceVlan(vid))?t('voice.unmark'):t('voice.mark')}" onclick="toggleVoiceVlan(${vid})"><i class="fas fa-phone"></i></button>
                     ${(typeof win._isVoiceVlan==='function'&&win._isVoiceVlan(vid))?`<button class="toolbar-btn" style="padding:3px 6px;margin:0" data-tip="${t('voice.assignTip')}" onclick="_openVoiceAssignDialog(${vid})"><i class="fas fa-arrow-right-to-bracket"></i></button>`:''}
                     <button class="toolbar-btn" style="padding:3px 6px;margin:0" onclick="deleteVlanColor(${vid})"><i class="fas fa-times"></i></button>
                   </div>
-                  ${(ipamSummary || ipamOpen) ? `<div class="vlan-ipam-summary${ipamWarn?' warn':''}">${ipamSummary || t('floor.noNetInfo')}</div>` : ''}
+                  ${(ipamSummary || ipamOpen) ? `<div class="vlan-ipam-summary${summaryWarn?' warn':''}">${ipamSummary ? `${ipamSummary}${nearFull?` · ${usage.pct}% — ${t('floor.occNearFull')}`:''}` : t('floor.noNetInfo')}</div>` : ''}
                   ${ipamOpen ? `<div class="vlan-ipam-fields">
                       <div class="prop-group">
                         <label>${t('floor.subnetCidr')}</label>
@@ -143,11 +169,9 @@ function _renderFloorProps(panel){
                         <input value="${escapeHTML(ipam?.dns||'')}" placeholder="${t('floor.phDns')}" onchange="updateVlanIpam(${vid},'dns',this.value)">
                       </div>
                       ${(typeof win._l3GatewayBindingHtml==='function') ? win._l3GatewayBindingHtml(vid, _l3rows[vid]) : ''}
-                      <div class="vlan-ipam-hint${ipamWarn?' warn':''}">
-                        ${!ipam?.subnet ? t('floor.hintNoSubnet')
-                          : !usage.cidr ? t('floor.hintBadCidr')
-                          : `${t('floor.ipDetected',{n:usage.usedCount})}${sample?` · ${sample}`:''}${!usage.gatewayOk?` · ${t('floor.gwOutSubnet')}`:''}` }
-                      </div>
+                      ${!ipam?.subnet ? `<div class="vlan-ipam-hint">${t('floor.hintNoSubnet')}</div>`
+                        : !usage.cidr ? `<div class="vlan-ipam-hint warn">${t('floor.hintBadCidr')}</div>`
+                        : _ipamOccHtml(usage, vid)}
                     </div>` : ''}
                 </div>`;
         });
