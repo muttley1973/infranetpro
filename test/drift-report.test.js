@@ -236,6 +236,20 @@ test('undocumented: trasparenza — reasons registra QUALI segnali sono scattati
   assert.equal(by.i.cls, 'infra');
 });
 
+test('ipChanged: flag manual riflette ipManual del device documentato (G3)', () => {
+  const doc = { macs: [
+    { mac: 'AA:BB:CC:00:00:01', ip: '10.0.0.10', nodeId: 'n1', ipManual: true },
+    { mac: 'AA:BB:CC:00:00:02', ip: '10.0.0.20', nodeId: 'n2', ipManual: false },
+  ] };
+  const snmp = { reachabilityChecked: true,
+    macAtIp: { 'aa:bb:cc:00:00:01': '10.0.0.99', 'aa:bb:cc:00:00:02': '10.0.0.98' } };
+  const r = buildDriftReport(snmp, doc, [], {});
+  const by = Object.fromEntries(r.ipChanged.map(x => [x.mac, x]));
+  assert.equal(r.counts.ipChanged, 2);
+  assert.equal(by['AA:BB:CC:00:00:01'].manual, true);   // pin manuale → applicare chiede conferma
+  assert.equal(by['AA:BB:CC:00:00:02'].manual, false);
+});
+
 test('cavo fantasma: porta down da >= N sync → ghostCable; sotto soglia → no', () => {
   const doc = {
     cables: [

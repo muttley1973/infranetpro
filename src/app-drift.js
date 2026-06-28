@@ -76,7 +76,7 @@ export function _driftBuildDocSnapshot(){
         if(def && def.isPassive && !def.hasIP) continue;
         // nodeId: un device che ha risposto al sync non è "assente" anche senza FDB.
         // ip: per rilevare il CAMBIO INDIRIZZO (stesso MAC, IP diverso in rete).
-        macs.push({ mac: n.mac, label: getNodeDisplayName(n) || n.name || n.id, nodeId: n.id, ip: ((n.integration && n.integration.host) || n.ip || '').trim() });
+        macs.push({ mac: n.mac, label: getNodeDisplayName(n) || n.name || n.id, nodeId: n.id, ip: ((n.integration && n.integration.host) || n.ip || '').trim(), ipManual: !!n.ipManual });
     }
     for(const pid of Object.keys(state.ports)){ const m = state.ports[pid] && state.ports[pid].mac; if(m) deviceSigs.push(_driftNorm(m)); }
     const cables = state.links.map(l => ({ id: l.id, label: (l.label || win._cableAutoLabel(l)), src: l.src, dst: l.dst }));
@@ -200,13 +200,24 @@ function _driftBuildSnmpSnapshot(docSnap, reachable, arpTable){
     // (store._dhcpLeases, non persistito): lo carica l'overlay "Lease DHCP".
     const _leases = Array.isArray(store._dhcpLeases) ? store._dhcpLeases : [];
     let _leaseChecked = false;
+    // G2: un lease scaduto/rilasciato non prova né presenza né IP corrente (una
+    // tabella incollata può contenerne). `state` arriva da ISC; `expiry` da tutti.
+    const _leaseStale = l => {
+        if(l && (l.state === 'expired' || l.state === 'released' || l.state === 'declined' || l.state === 'free')) return true;
+        if(l && l.expiry){ const e = Date.parse(l.expiry); if(Number.isFinite(e) && e < Date.now()) return true; }
+        return false;
+    };
     for(const l of _leases){
         const macLc = String((l && l.mac) || '').toLowerCase();
         const ip = String((l && l.ip) || '').trim();
-        if(!macLc || !ip) continue;
+        if(!macLc || !ip || _leaseStale(l)) continue;     // G2: ignora lease non più validi
         if(!macAtIp[macLc]) macAtIp[macLc] = ip;          // ARP vivo ha priorità
-        observedMacs.push(l.mac);
-        const n24 = _net24(ip); if(n24) observedSubnets.add(n24);
+        observedMacs.push(l.mac);                          // il MAC col lease è "visto" (presenza per-MAC)
+        // G1: un lease prova la presenza del SUO MAC e dà l'IP corrente (→ cambio IP
+        // cross-VLAN), ma NON è una sweep di raggiungibilità: NON marca la subnet come
+        // "osservata" per l'audit di assenza. Così un device documentato SENZA lease
+        // resta "non verificabile", non "assente" (observedSubnets si popola solo da
+        // ARP/ping reali). Assenza-da-lease ≠ device assente.
         const sig = _driftNorm(l.mac);
         if(sig && !known.has(sig) && !seen.has(sig)){
             seen.add(sig);
@@ -344,6 +355,9 @@ function driftApplyIpChange(key){
     if(!row || !row.newIp) return;
     const n = row.nodeId ? nodeById(row.nodeId) : null;
     if(!n){ showAlert(t('msg.net.nodeNotFoundIp')); return; }
+    // G3 manual-first: un IP fissato a mano non si sovrascrive in silenzio →
+    // conferma esplicita prima di sbloccare il pin manuale.
+    if(n.ipManual && !window.confirm(t('drift.ipManualConfirm',{ip:row.newIp}))) return;
     pushHistory();
     const oldIp = row.oldIp || '';
     n.ip = row.newIp;
@@ -479,7 +493,9 @@ function _driftRowHtml(cat, r){
         main = `<span class="drift-row-main">${esc(r.label)}</span><span class="drift-row-sub">${t('drift.portDown',{n:esc(r.downStreak)})}</span>`;
         actions = `${ignBtn}${invBtn}`;
     } else if(cat === 'ipChanged'){
-        main = `<span class="drift-row-main">${esc(r.label || r.mac)}</span><span class="drift-row-sub">${esc(r.mac)} · <s>${esc(r.oldIp)}</s> → <b>${esc(r.newIp)}</b></span>`;
+        // G3: segnala se l'IP era fissato a mano → applicarlo sblocca il pin.
+        const manualTag = r.manual ? `<span class="drift-why"><span class="drift-why-tag" title="${t('drift.ipManualTip')}">${t('drift.ipManualBadge')}</span></span>` : '';
+        main = `<span class="drift-row-main">${esc(r.label || r.mac)}</span><span class="drift-row-sub">${esc(r.mac)} · <s>${esc(r.oldIp)}</s> → <b>${esc(r.newIp)}</b></span>${manualTag}`;
         const upBtn = `<button class="drift-act apply" onclick="driftApplyIpChange('${esc(r.key)}')" data-tip="${t('drift.tipUpdateIp')}"><i class="fas fa-arrows-rotate"></i></button>`;
         actions = `${upBtn}${ignBtn}${invBtn}`;
     } else if(cat === 'unverified'){
