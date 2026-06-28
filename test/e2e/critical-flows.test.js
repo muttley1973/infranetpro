@@ -821,6 +821,8 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
             ipchgX: ipchgX ? ipchgX.newIp : '',
             udLabel: udIgn ? udIgn.label : '' };
           state.dhcpSources = []; window._dhcpLeases = null;   // non lasciare fonti/lease ai test successivi
+          if (typeof closeDhcpImport === 'function') closeDhcpImport();   // chiudi l'overlay: aperto intercetterebbe i click dei test a gesto reale
+          { const _ov = document.getElementById('dhcp-overlay'); if (_ov) _ov.classList.remove('open'); }
           return out;
         } catch (e) { return { ok: false, err: String(e && e.message || e) }; }
       });
@@ -862,6 +864,8 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           const stored = Array.isArray(window._dhcpLeases) ? window._dhcpLeases.length : 0;
           const storedIp = stored ? window._dhcpLeases[0].ip : '';
           state.dhcpSources = []; window._dhcpLeases = null;   // non lasciare fonti/lease ai test successivi
+          if (typeof closeDhcpImport === 'function') closeDhcpImport();   // chiudi l'overlay: aperto intercetterebbe i click dei test a gesto reale
+          { const _ov = document.getElementById('dhcp-overlay'); if (_ov) _ov.classList.remove('open'); }
           return { ok: true, exposed, liveShown, vendorCount, cred2hidden, useEnabled, stored, storedIp };
         } catch (e) { return { ok: false, err: String(e && e.message || e) }; }
       });
