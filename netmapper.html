@@ -369,7 +369,7 @@
 <div id="dhcp-overlay" class="tool-modal-overlay" onclick="if(event.target===this)closeDhcpImport()">
   <div class="tool-modal wide">
     <div class="tool-modal-header">
-      <h3><i class="fas fa-table-list"></i> <span data-i18n="impexp.importDhcp">Importa lease DHCP</span></h3>
+      <h3><i class="fas fa-table-list"></i> <span data-i18n="dhcp.title">Lease DHCP</span></h3>
       <button class="toolbar-btn" onclick="closeDhcpImport()" style="padding:4px 8px"><i class="fas fa-times"></i></button>
     </div>
     <div class="tool-modal-body">
@@ -401,12 +401,17 @@
         placeholder="10.0.20.50  aa:bb:cc:dd:ee:ff  laptop-01&#10;ISC dhcpd / dnsmasq / Kea CSV / CSV (ip,mac,hostname)…"
         style="width:100%;background:#0d1117;border:1px solid var(--panel-border);color:var(--text-main);padding:8px;border-radius:5px;font-family:monospace;font-size:0.78rem;resize:vertical"
         oninput="previewDhcp()"></textarea>
-      <div id="dhcp-summary" style="margin-top:10px;font-size:0.78rem;font-weight:600;color:var(--accent-color)"></div>
+      <div class="tm-row" style="gap:10px;align-items:center;margin-top:10px">
+        <button class="toolbar-btn primary" id="dhcp-use-btn" onclick="useDhcpLeases()" disabled><i class="fas fa-plus"></i> <span data-i18n="dhcp.add">Aggiungi</span></button>
+        <div id="dhcp-summary" style="font-size:0.78rem;font-weight:600;color:var(--accent-color)"></div>
+      </div>
       <div id="dhcp-errors" style="margin-top:6px;font-size:0.75rem;color:var(--fault-color)"></div>
+      <!-- Fonti lease in memoria (persistite nel progetto, una per DHCP server) -->
+      <div id="dhcp-sources" style="margin-top:14px"></div>
     </div>
-    <div class="tool-modal-footer">
-      <button class="toolbar-btn" onclick="closeDhcpImport()" data-i18n="common.cancel">Annulla</button>
-      <button class="toolbar-btn primary" id="dhcp-use-btn" onclick="useDhcpLeases()" disabled><i class="fas fa-circle-check"></i> <span data-i18n="dhcp.use">Usa nella Verifica</span></button>
+    <div class="tool-modal-footer" style="justify-content:space-between">
+      <button class="toolbar-btn" id="dhcp-clear-btn" onclick="clearDhcpSources()"><i class="fas fa-trash"></i> <span data-i18n="dhcp.clearAll">Svuota tutto</span></button>
+      <button class="toolbar-btn primary" id="dhcp-verify-btn" onclick="dhcpVerifyNow()"><i class="fas fa-clipboard-check"></i> <span data-i18n="dhcp.verifyNow">Verifica ora</span></button>
     </div>
   </div>
 </div>

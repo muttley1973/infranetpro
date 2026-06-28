@@ -27,7 +27,8 @@ store.state = {
     discoveryHistory:{ observations:[] },
     guestVlans:[],          // VLAN "ospiti": i loro device escono dai "non documentati" (drift)
     lastSnmpSyncAt:0,       // timestamp ultimo Sync SNMP riuscito (chip freschezza toolbar)
-    nodes:[], links:[], ports:{}
+    nodes:[], links:[], ports:{},
+    dhcpSources:[]   // lease DHCP persistiti per-fonte (multi-server) → set unito in store._dhcpLeases
 };
 
 store.currentProjectId = null;   // var: letto/scritto dal bundle app-core (projects) via win.*
@@ -693,6 +694,30 @@ function _sanitizeProjectConnectivity(s){
     );
 }
 
+// ── Lease DHCP: unione delle FONTI persistite → set unico per il motore ──────
+// Le fonti (state.dhcpSources, una per DHCP server) sono la verità persistita; il
+// motore Verifica legge un set UNITO e dedup per-MAC (scadenza più recente vince)
+// tramite store._dhcpLeases, cache derivata. Identità = MAC (come lib/dhcp-lease.js).
+export function _dhcpMergeSources(sources) {
+    const byMac = new Map();
+    for (const src of (Array.isArray(sources) ? sources : [])) {
+        for (const l of ((src && Array.isArray(src.leases)) ? src.leases : [])) {
+            if (!l || !l.mac) continue;
+            const prev = byMac.get(l.mac);
+            if (!prev) { byMac.set(l.mac, l); continue; }
+            const a = prev.expiry ? Date.parse(prev.expiry) : 0;
+            const b = l.expiry ? Date.parse(l.expiry) : 0;
+            if (b >= a) byMac.set(l.mac, l);
+        }
+    }
+    return [...byMac.values()];
+}
+// Ricalcola la cache derivata dal valore CORRENTE di store.state.dhcpSources.
+// La chiamano l'overlay «Lease DHCP» dopo ogni mutazione (_migrateState lo fa al load).
+export function _dhcpSyncLeases() {
+    store._dhcpLeases = _dhcpMergeSources(store.state && store.state.dhcpSources);
+}
+
 function _migrateState(s) {
     if(!s || typeof s !== 'object') s = _buildDefaultState();
     _sanitizeProjectConnectivity(s);
@@ -776,6 +801,11 @@ function _migrateState(s) {
     if (typeof win.pruneDiscoveryHistory === 'function') win.pruneDiscoveryHistory(s.discoveryHistory.observations);
     if (!Array.isArray(s.auditLog)) s.auditLog = [];   // N2: journal append-only (additivo)
     if (!Array.isArray(s.guestVlans)) s.guestVlans = []; // VLAN guest (additivo): filtro rumore drift
+    // Lease DHCP persistiti per-FONTE (multi-server). Additivo: i progetti vecchi
+    // partono senza fonti. Il set unito alimenta store._dhcpLeases (cache derivata
+    // letta dal motore Verifica e dall'auto-poll VLAN).
+    if (!Array.isArray(s.dhcpSources)) s.dhcpSources = [];
+    store._dhcpLeases = _dhcpMergeSources(s.dhcpSources);
     s.racks.forEach(r => { if (!r.sizeU) r.sizeU=42; });
     _normalizeProjectNodeIds(s);
     _expandLagMemberLinks(s);

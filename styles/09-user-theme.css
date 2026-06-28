@@ -356,6 +356,19 @@ body.spare-mode .port-led.spare-suspect {
 .drift-row:hover { background: var(--surface-hover); }
 .drift-row-main { color: var(--text-main); font-weight: 600; }
 .drift-row-sub { color: var(--text-muted); font-size: .8rem; margin-left: 8px; }
+/* Trasparenza "perché è nascosto": tag-pillola per ogni segnale BYOD scattato. */
+.drift-why { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: 8px; }
+.drift-why-tag {
+    font-size: .68rem; line-height: 1.5; color: var(--text-muted);
+    background: var(--surface-hover); border-radius: 999px;
+    padding: 0 7px; white-space: nowrap;
+}
+/* Toggle "mostra utente/BYOD in chiaro": spinto a sinistra, Adotta resta a destra. */
+.drift-ep-toggle {
+    margin-right: auto; display: inline-flex; align-items: center; gap: 5px;
+    font-size: .74rem; color: var(--text-muted); cursor: pointer; user-select: none;
+}
+.drift-ep-toggle input { cursor: pointer; }
 .drift-row-acts { margin-left: auto; display: flex; gap: 4px; flex-shrink: 0; }
 .drift-act {
     background: transparent; border: 1px solid var(--hairline); color: var(--text-muted);

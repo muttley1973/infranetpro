@@ -214,6 +214,28 @@ test('undocumented: vendor consumer (consumer:true) → cls endpoint', () => {
   assert.equal(r.counts.undocumentedEndpoint, 1);
 });
 
+test('undocumented: trasparenza — reasons registra QUALI segnali sono scattati', () => {
+  const snmp = {
+    observedDevices: [
+      { sig: 'g', mac: 'aa:00:00:00:00:01', label: 'su guest',  vlan: 99 },                     // solo guest-VLAN
+      { sig: 'c', mac: 'bb:00:00:00:00:02', label: 'dietro AP', portMacCount: 12 },             // solo porta affollata
+      { sig: 'r', mac: 'cc:00:00:00:00:03', label: 'telefono',  consumer: true },               // solo MAC random
+      { sig: 'm', mac: 'dd:00:00:00:00:04', label: 'tutti',     vlan: 99, portMacCount: 12, consumer: true }, // 3 segnali
+      { sig: 'i', mac: 'ee:00:00:00:00:05', label: 'switch',    portMacCount: 1 },              // nessun segnale → infra
+    ],
+  };
+  const r = buildDriftReport(snmp, {}, [], { guestVlans: [99], endpointPortThreshold: 5 });
+  const by = Object.fromEntries(r.undocumented.map(d => [d.sig, d]));
+  assert.deepEqual(by.g.reasons, ['guestVlan']);
+  assert.deepEqual(by.c.reasons, ['crowdedPort']);
+  assert.equal(by.c.portMacCount, 12);                       // il conteggio viaggia con la riga (per "porta affollata (N)")
+  assert.deepEqual(by.r.reasons, ['randomMac']);
+  assert.deepEqual(by.m.reasons, ['guestVlan', 'crowdedPort', 'randomMac']);
+  assert.equal(by.m.cls, 'endpoint');
+  assert.deepEqual(by.i.reasons, []);                        // infra → nessun motivo, si mostra
+  assert.equal(by.i.cls, 'infra');
+});
+
 test('cavo fantasma: porta down da >= N sync → ghostCable; sotto soglia → no', () => {
   const doc = {
     cables: [

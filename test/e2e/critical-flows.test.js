@@ -806,7 +806,8 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           const useEnabled = document.getElementById('dhcp-use-btn').disabled === false;
           useDhcpLeases();
           const stored = Array.isArray(window._dhcpLeases) ? window._dhcpLeases.length : 0;
-          const overlayClosed = !document.getElementById('dhcp-overlay').classList.contains('open');
+          const overlayStillOpen = document.getElementById('dhcp-overlay').classList.contains('open');
+          const sourcesCount = Array.isArray(state.dhcpSources) ? state.dhcpSources.length : 0;
 
           // Il motore usa i lease come fonte: macAtIp pieno + cambio IP per pcX,
           // senza alcun ARP (è il caso cross-VLAN dietro il firewall).
@@ -814,23 +815,27 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           const snmp = _driftBuildSnmpSnapshot(doc);
           const rep = buildDriftReport(snmp, doc, [], {});
           const ipchgX = (rep.ipChanged || []).find(x => x.nodeId === 'pcX');
-          const out = { ok: true, exposed, overlayOpen, useDisabledInit, useEnabled, stored, overlayClosed,
+          const udIgn = (rep.undocumented || []).find(x => String(x.mac || '').toUpperCase() === 'DE:AD:BE:EF:00:09');
+          const out = { ok: true, exposed, overlayOpen, useDisabledInit, useEnabled, stored, overlayStillOpen, sourcesCount,
             macAtIpX: snmp.macAtIp['aa:bb:cc:dd:ee:01'], reachChecked: snmp.reachabilityChecked,
-            ipchgX: ipchgX ? ipchgX.newIp : '' };
-          window._dhcpLeases = null;   // non lasciare lease ai test successivi
+            ipchgX: ipchgX ? ipchgX.newIp : '',
+            udLabel: udIgn ? udIgn.label : '' };
+          state.dhcpSources = []; window._dhcpLeases = null;   // non lasciare fonti/lease ai test successivi
           return out;
         } catch (e) { return { ok: false, err: String(e && e.message || e) }; }
       });
       assert.ok(r.ok, 'nessun errore: ' + r.err);
       assert.ok(r.exposed, 'le funzioni DHCP loader sono esposte dal bundle');
       assert.ok(r.overlayOpen, 'openDhcpImport apre l\'overlay');
-      assert.ok(r.useDisabledInit, '"Usa nella Verifica" disabilitato all\'apertura');
-      assert.ok(r.useEnabled, '"Usa" abilitato dopo il parse');
-      assert.equal(r.stored, 2, 'useDhcpLeases mette i lease in store._dhcpLeases');
-      assert.ok(r.overlayClosed, 'useDhcpLeases chiude l\'overlay');
+      assert.ok(r.useDisabledInit, '"Aggiungi" disabilitato all\'apertura');
+      assert.ok(r.useEnabled, '"Aggiungi" abilitato dopo il parse');
+      assert.equal(r.stored, 2, 'Aggiungi accumula i lease nella cache store._dhcpLeases');
+      assert.equal(r.sourcesCount, 1, 'Aggiungi crea una fonte persistita in state.dhcpSources');
+      assert.ok(r.overlayStillOpen, 'Aggiungi NON chiude l\'overlay (si possono aggiungere altre fonti)');
       assert.equal(r.macAtIpX, '10.0.0.80', 'il lease entra in macAtIp del motore (cross-VLAN, senza ARP)');
       assert.ok(r.reachChecked, 'i lease contano come osservabilità');
       assert.equal(r.ipchgX, '10.0.0.80', 'il motore Drift rileva il cambio IP dal lease');
+      assert.match(r.udLabel, /ignoto/, 'la riga non-documentata da lease mostra l\'hostname del lease: ' + r.udLabel);
     });
 
     await t.test('app-dhcp-import: pull live (driver-pack) → carica i lease per la Verifica', async () => {
@@ -856,7 +861,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           window.fetch = _origFetch;
           const stored = Array.isArray(window._dhcpLeases) ? window._dhcpLeases.length : 0;
           const storedIp = stored ? window._dhcpLeases[0].ip : '';
-          window._dhcpLeases = null;   // non lasciare lease ai test successivi
+          state.dhcpSources = []; window._dhcpLeases = null;   // non lasciare fonti/lease ai test successivi
           return { ok: true, exposed, liveShown, vendorCount, cred2hidden, useEnabled, stored, storedIp };
         } catch (e) { return { ok: false, err: String(e && e.message || e) }; }
       });
