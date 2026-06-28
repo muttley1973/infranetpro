@@ -385,10 +385,10 @@
           </select>
           <input id="dhcp-live-host" placeholder="Host / IP" style="background:#0d1117;border:1px solid var(--panel-border);color:var(--text-main);padding:5px 7px;border-radius:4px;width:140px">
           <input id="dhcp-live-port" type="number" placeholder="443" style="background:#0d1117;border:1px solid var(--panel-border);color:var(--text-main);padding:5px 7px;border-radius:4px;width:72px">
-          <span style="display:inline-flex;align-items:center;gap:5px"><label id="dhcp-cred1-label" style="color:var(--text-muted)">API token</label><input id="dhcp-live-cred1" type="password" autocomplete="off" style="background:#0d1117;border:1px solid var(--panel-border);color:var(--text-main);padding:5px 7px;border-radius:4px;width:150px"></span>
+          <span style="display:inline-flex;align-items:center;gap:5px;flex:1 1 180px;min-width:0"><label id="dhcp-cred1-label" style="color:var(--text-muted)">API token</label><input id="dhcp-live-cred1" type="password" autocomplete="off" style="background:#0d1117;border:1px solid var(--panel-border);color:var(--text-main);padding:5px 7px;border-radius:4px;flex:1;min-width:0"></span>
           <span id="dhcp-cred2-wrap" style="display:none;align-items:center;gap:5px"><label id="dhcp-cred2-label" style="color:var(--text-muted)"></label><input id="dhcp-live-cred2" type="password" autocomplete="off" style="background:#0d1117;border:1px solid var(--panel-border);color:var(--text-main);padding:5px 7px;border-radius:4px;width:150px"></span>
           <label style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted)"><input type="checkbox" id="dhcp-live-insecure" style="width:auto"> <span data-i18n="dhcp.insecureTls">Salta verifica TLS (cert self-signed)</span></label>
-          <button class="toolbar-btn" id="dhcp-live-fetch" onclick="fetchDhcpLive()"><i class="fas fa-cloud-arrow-down"></i> <span data-i18n="dhcp.fetch">Recupera</span></button>
+          <button class="toolbar-btn" id="dhcp-live-fetch" onclick="fetchDhcpLive()" style="margin-left:auto"><i class="fas fa-cloud-arrow-down"></i> <span data-i18n="dhcp.fetch">Recupera</span></button>
         </div>
         <div style="font-size:.68rem;color:var(--text-muted);margin-top:6px" data-i18n="dhcp.liveNote">Le credenziali servono solo per questo recupero e non vengono salvate.</div>
       </div>
