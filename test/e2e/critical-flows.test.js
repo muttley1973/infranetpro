@@ -850,6 +850,14 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           await openDhcpImport();
           const exposed = ['fetchDhcpLive', 'updateDhcpVendorFields'].every(f => typeof window[f] === 'function');
           const liveShown = document.getElementById('dhcp-live-section').style.display !== 'none';
+          // Pack-aware (come test/dhcp-drivers.test.js): senza driver-pack
+          // (server/dhcp-drivers/vendor/ è gitignored → assente in CI / repo pubblico)
+          // la sezione live NON compare. Il pull live è feature locale/a pagamento → salta.
+          if (!liveShown) {
+            if (typeof closeDhcpImport === 'function') closeDhcpImport();
+            { const _ov = document.getElementById('dhcp-overlay'); if (_ov) _ov.classList.remove('open'); }
+            return { ok: true, exposed, liveShown: false, noPack: true };
+          }
           const vendorCount = document.getElementById('dhcp-live-vendor').options.length;
           const cred2hidden = document.getElementById('dhcp-cred2-wrap').style.display === 'none';
           // Stub solo la POST dei lease (il driver vero lo proviamo su HW reale).
@@ -871,6 +879,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       });
       assert.ok(r.ok, 'nessun errore nel flusso live: ' + r.err);
       assert.ok(r.exposed, 'fetchDhcpLive/updateDhcpVendorFields esposte dal bundle');
+      if (r.noPack) return;   // CI/repo pubblico: nessun driver-pack → pull live non applicabile (degradazione: resta file/incolla)
       assert.ok(r.liveShown, 'la sezione live compare (driver-pack presente in vendor/)');
       assert.ok(r.vendorCount >= 1, 'vendor popolati dal server');
       assert.ok(r.cred2hidden, 'FortiGate: un solo campo credenziale (cred2 nascosto)');
