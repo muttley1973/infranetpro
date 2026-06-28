@@ -2310,15 +2310,22 @@ function updateP(k,v){
     }
     renderAll(); markDirty();
 }
+// Rimozione "core" di un nodo: nodo + cavi che lo toccano + porte. SENZA
+// history/render/audit (li gestisce il chiamante). Riusato da deleteNode
+// (selezione) e dall'assorbimento di un tile come VM (app-hypervisor).
+export function _removeNodeById(rid){
+    if(!rid) return;
+    state.nodes=state.nodes.filter(n=>n.id!==rid);
+    state.links=state.links.filter(l=>!isPortOnNode(l.src,rid)&&!isPortOnNode(l.dst,rid));
+    removeNodePorts(new Set([rid]));
+}
 function deleteNode(){
     if(!selId) return;
     pushHistory();
     const rid=selId;
     const _dn=nodeById(rid);
     if(_dn) logAudit('device-remove', { target:getNodeDisplayName(_dn)||_dn.name||rid, summary:TYPES[_dn.type]?.name||_dn.type });
-    state.nodes=state.nodes.filter(n=>n.id!==rid);
-    state.links=state.links.filter(l=>!isPortOnNode(l.src,rid)&&!isPortOnNode(l.dst,rid));
-    removeNodePorts(new Set([rid]));
+    _removeNodeById(rid);
     selId=null;selType=null; renderAll(); markDirty();
 }
 function deleteLink(id){

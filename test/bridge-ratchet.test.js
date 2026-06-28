@@ -171,7 +171,15 @@ test('ponte: lo stato condiviso è letto solo via store.js (non win.* nei consum
 // lib/dhcp-lease.js, caricato come <script>): stesso pattern di buildSpareReport/
 // auditToCsv — leggono l'unica istanza viva, niente ri-bundle. Crescita inevitabile
 // e coerente con la regola "lib <script> letti dal ponte".
-const MAX_WIN_REFS = 1835;
+// +3 (1835 → 1838) — RIALZO CONSAPEVOLE: UX uniforme floor=rack. Le proprietà di
+// un device floor ora si aprono solo con intent ESPLICITO (doppio click), come il
+// rack, via la guardia `_propsExplicit` (prima il floor switchava al singolo click
+// — renderAll→renderProps senza guardia — rubando il pannello durante il drag-import
+// VM). I +3 sono `win._propsExplicit=...`: single-click floor=false (app-pointer),
+// doppio click floor=true (app-pointer), e re-show host dopo l'import (app-hypervisor).
+// _propsExplicit è var su window (non store-proxata) → resta sul ponte come gli altri
+// 3 set esistenti. Crescita inevitabile per estendere la guardia al floor.
+const MAX_WIN_REFS = 1838;
 
 test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => {
   const total = countInCode(/\bwin\./g);

@@ -63,6 +63,10 @@ export function _driftBuildDocSnapshot(){
     const macs = [];
     const deviceSigs = [];
     for(const n of state.nodes){
+        // VM ospitate (node.vms[]): i loro MAC sono "noti" (documentati) → fuori dai
+        // non-documentati alla prossima scansione. SOLO deviceSigs, NON macs: una VM
+        // (magari spenta) non entra nell'audit di presenza, come i passivi.
+        if(Array.isArray(n.vms)) for(const vm of n.vms){ if(vm && vm.mac) deviceSigs.push(_driftNorm(vm.mac)); }
         if(!n.mac) continue;
         deviceSigs.push(_driftNorm(n.mac));   // "noto" → escluso dai non-documentati (invariato)
         // Audit di PRESENZA: gli elementi passivi SENZA IP propria (prese a muro,
