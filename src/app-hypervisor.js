@@ -15,11 +15,13 @@
 // PAGINA → nomi bare; in JS si usa win.*.
 
 import { win, expose, t } from './_bridge.js';
-import { escapeHTML } from './app-util.js';
-import { nodeById, markDirty, pushHistory, _invalidateIdx } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { store } from './store.js';   // ritiro ponte fase 3: selId/selType dopo l'assorbimento
+import { escapeHTML, normalizeMacAddress } from './app-util.js';
+import { nodeById, markDirty, pushHistory, _invalidateIdx, getNodeDisplayName, _showToast, _removeNodeById } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { propagateVlans } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps, _buildDeviceBrandModelPreview } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { TYPES } from './app-types.js';   // catalogo tipi (hostsVms/isPassive/hasIP) per l'assorbimento VM
 
 // Piattaforme datacenter (hypervisor) e homelab: liste diverse, stesso campo
 // `hvPlatform`. Tutte on-prem (il cloud pubblico è un modello a sé, fuori scope).
@@ -73,7 +75,8 @@ function addVm(nodeId){
 function updateVm(nodeId, vmId, field, value){
     const n = nodeById(nodeId); if(!n || !Array.isArray(n.vms)) return;
     const vm = n.vms.find(v => v && v.id === vmId); if(!vm) return;
-    const v = String(value == null ? '' : value).trim();
+    let v = String(value == null ? '' : value).trim();
+    if(field === 'mac' && v) v = normalizeMacAddress(v);   // identità di rete della VM (vNIC)
     if(v) vm[field] = v; else delete vm[field];
     if(field === 'vlan'){
         const list = (typeof win.parseVlanList === 'function') ? win.parseVlanList(vm.vlan) : [];
@@ -116,9 +119,10 @@ function _vmRowHtml(vm, nodeId){
             <div class="prop-group"><label>VLAN</label><input value="${esc(vm.vlan || '')}" placeholder="${esc(t('pnl.feat.vlanPh'))}" inputmode="numeric" onchange="updateVm(${u},'vlan',this.value)"></div>
         </div>
         <div class="prop-grid2">
-            <div class="prop-group"><label>${t('hv.vmRole')}</label><input value="${esc(vm.role || '')}" placeholder="${esc(t('hv.vmRolePh'))}" onchange="updateVm(${u},'role',this.value)"></div>
             <div class="prop-group"><label>IP</label><input value="${esc(vm.ip || '')}" placeholder="${esc(t('pnl.feat.optional'))}" onchange="updateVm(${u},'ip',this.value)"></div>
+            <div class="prop-group"><label>MAC</label><input value="${esc(vm.mac || '')}" placeholder="${esc(t('pnl.feat.optional'))}" onchange="updateVm(${u},'mac',this.value)"></div>
         </div>
+        <div class="prop-group"><label>${t('hv.vmRole')}</label><input value="${esc(vm.role || '')}" placeholder="${esc(t('hv.vmRolePh'))}" onchange="updateVm(${u},'role',this.value)"></div>
     </div>`;
 }
 
@@ -159,10 +163,46 @@ function _hvPanelHtml(n, d){
             <div class="props-collapsible-body">
                 ${vmRows}
                 <button type="button" class="toolbar-btn" style="width:100%;justify-content:center;margin-top:4px" onclick="addVm('${n.id}')"><i class="fas fa-plus"></i> ${t('hv.addVm')}</button>
+                <div class="vm-import-dz" data-vm-dropzone data-host-id="${esc(n.id)}"><i class="fas fa-arrow-down-to-bracket"></i> ${esc(t('hv.vmImportHint'))}</div>
             </div>
         </details>
     </div></details>`;
 }
 
+// ── Assorbi un tile (device scoperto) come VM dell'host ──────────────
+// Gesto: drag&drop di un tile NON-host (con MAC) sopra un host nel floor (vedi
+// app-pointer). Il tile È quella VM — tipicamente bridged, quindi vista in rete
+// come device a sé: la fondiamo in host.vms[] ereditandone l'identità
+// (nome/IP/MAC) e rimuovendo il tile sciolto (col suo cavo di discovery). Il MAC
+// rende la VM "documentata" nel Drift → non riappare come non-documentata.
+// Manual-first: parte SOLO da un gesto dell'utente; undo via pushHistory.
+export function absorbNodeAsVm(srcId, hostId){
+    const host = nodeById(hostId), src = nodeById(srcId);
+    if(!host || !src || host.id === src.id) return false;
+    const hostDef = TYPES[host.type], srcDef = TYPES[src.type];
+    if(!hostDef || !hostDef.hostsVms) return false;                                      // il bersaglio deve ospitare VM
+    if(srcDef && (srcDef.hostsVms || (srcDef.isPassive && !srcDef.hasIP))) return false; // no host-in-host / passivi senza IP
+    pushHistory();
+    if(!Array.isArray(host.vms)) host.vms = [];
+    const name = getNodeDisplayName(src) || src.name || '';
+    const ip = ((src.integration && src.integration.host) || src.ip || '').trim();
+    const mac = normalizeMacAddress(String(src.mac || ''));
+    const vm = { id: _newVmId(host.vms.length), state: 'running' };
+    if(name) vm.name = name;
+    if(ip) vm.ip = ip;
+    if(mac) vm.mac = mac;                         // identità → chiude il cerchio col Drift
+    host.vms.push(vm);
+    _removeNodeById(src.id);                      // via il tile sciolto + il suo cavo di discovery
+    propagateVlans();                            // l'uplink trunk dell'host assorbe la VLAN della VM
+    _invalidateIdx();
+    store.selId = host.id; store.selType = 'node';   // mostra l'host: la VM appena aggiunta è lì
+    win._propsExplicit = true;                        // intent esplicito → il pannello host si ri-renderizza (guardia uniforme floor/rack)
+    markDirty();
+    renderAll();
+    renderProps();
+    _showToast(t('hv.vmAbsorbed', { name: name || mac || 'VM', host: getNodeDisplayName(host) || host.name || host.id }), 'ok');
+    return true;
+}
+
 // ── Pubblicazione sul ponte ──────────────────────────────────────────
-expose({ addVm, updateVm, removeVm, _hvPanelHtml, _vmRowHtml, _nodeVms });
+expose({ addVm, updateVm, removeVm, _hvPanelHtml, _vmRowHtml, _nodeVms, absorbNodeAsVm });

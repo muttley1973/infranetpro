@@ -53,9 +53,11 @@ function _renderNodeProps(panel){
         const _rawNode=nodeById(store.selId); if(!_rawNode) return;
         const n=_nodeSpecView(_rawNode);
         const d=TYPES[n.type]; if(!d){store.selId=null;store.selType=null;renderProps();return;}
-        // UX rack: click singolo/drag selezionano soltanto il device.
-        // Le proprieta' si aprono intenzionalmente con doppio click.
-        if(d.isRack && !_propsExplicit) return;
+        // UX uniforme rack + floor: click singolo/drag selezionano soltanto il
+        // device; le proprieta' si aprono intenzionalmente col DOPPIO click. (Il
+        // floor seguiva renderAll→renderProps senza guardia → switchava al singolo
+        // click, rubando il pannello durante il drag-import VM. Ora come il rack.)
+        if((d.isRack || d.isFloor) && !_propsExplicit) return;
         const _delTip = d.isStructural ? t('pnl.node.delObject') : t('pnl.node.delDevice');
         const _panelHeader = _buildPropsHeader(
             n.name || n.hostname || n.ip || d.name,
