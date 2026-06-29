@@ -140,6 +140,7 @@ let _aiCfgCache = null;       // ultima config nota (per render immediato senza 
 let _aiConvo = [];            // [{ role:'user'|'assistant'|'error', content }]
 let _aiConvoProject = null;   // progetto a cui appartiene la conversazione corrente
 let _aiBusy = false;
+let _aiStepDismissed = null;  // id del «prossimo passo» chiuso dall'utente (per-passo)
 
 const _aiEl = (id) => document.getElementById(id);
 
@@ -218,6 +219,110 @@ function _aiCompact(obj){
     return out;
 }
 
+// ── Onboarding «copilota» (spec §4d): chip «prossimo passo» + spotlight ──────
+// «InfraNet calcola, l'AI racconta»: il passo più utile ORA è una REGOLA
+// DETERMINISTICA (lib/onboarding, global bare) su un riassunto dello stato del
+// progetto — NON il modello. Manual-first assoluto: il chip GUIDA (illumina il
+// bottone vero o semina una domanda), non applica mai nulla. Riusa i conteggi già
+// calcolati da _aiCollectLiveFacts (drift/gaps) → niente doppioni.
+function _aiBuildSummary(){
+    const st = (store.state && typeof store.state === 'object') ? store.state : {};
+    const nodes = Array.isArray(st.nodes) ? st.nodes : [];
+    let facts;
+    try { facts = _aiCollectLiveFacts() || {}; } catch(_){ facts = {}; }
+    const d = (facts.drift && typeof facts.drift === 'object') ? facts.drift : {};
+    const len = (a) => Array.isArray(a) ? a.length : 0;
+    let noSubnet = 0, noGateway = 0;
+    for(const x of (Array.isArray(facts.gaps) ? facts.gaps : [])){
+        if(x && x.kind === 'vlan_no_subnet') noSubnet++;
+        else if(x && x.kind === 'vlan_no_gateway') noGateway++;
+    }
+    return {
+        devices: nodes.length,
+        verified: !!store._driftReport,
+        drift: { absent: len(d.absent), undocumented: len(d.undocumented), ipChanged: len(d.ipChanged) },
+        gaps: { noSubnet, noGateway },
+    };
+}
+
+// Coach-mark: illumina il bottone REALE (alone ciano pulsante) e lo porta in
+// vista. Un solo spotlight per volta, si spegne da solo. Pure DOM, niente win.*.
+let _aiSpotEl = null, _aiSpotTimer = null;
+function _aiSpotlight(selector){
+    try {
+        if(_aiSpotEl){ _aiSpotEl.classList.remove('coach-spotlight'); _aiSpotEl = null; }
+        if(_aiSpotTimer){ clearTimeout(_aiSpotTimer); _aiSpotTimer = null; }
+        const el = selector ? document.querySelector(selector) : null;
+        if(!el) return;
+        el.classList.add('coach-spotlight');
+        _aiSpotEl = el;
+        try { el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' }); } catch(_){}
+        _aiSpotTimer = setTimeout(() => {
+            if(_aiSpotEl){ _aiSpotEl.classList.remove('coach-spotlight'); _aiSpotEl = null; }
+            _aiSpotTimer = null;
+        }, 4200);
+    } catch(_){}
+}
+
+// Costruisce il chip «prossimo passo». allowAsk=false (empty-state non
+// configurato) nasconde l'azione «Chiedi» (richiede l'assistente attivo); lo
+// spotlight «Mostrami» funziona comunque. `refresh` = come ridisegnare dopo la
+// chiusura. Ritorna null se non c'è un passo o se l'utente l'ha già chiuso.
+function _aiNextStepEl(allowAsk, refresh){
+    if(typeof nextStep !== 'function') return null;
+    let step = null;
+    try { step = nextStep(_aiBuildSummary()); } catch(_){ return null; }
+    if(!step || !step.id || step.id === _aiStepDismissed) return null;
+    const ok = step.id === 'allGood';
+    const wrap = document.createElement('div');
+    wrap.className = 'ai-nextstep' + (ok ? ' ai-nextstep-ok' : '');
+    const ic = document.createElement('i');
+    ic.className = 'fas ' + (ok ? 'fa-circle-check' : 'fa-circle-arrow-right');
+    wrap.appendChild(ic);
+    const txt = document.createElement('span');
+    txt.className = 'ai-nextstep-txt';
+    txt.textContent = t('onboard.' + step.id, step.data);   // textContent: zero injection
+    wrap.appendChild(txt);
+    if(step.target){
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'ai-nextstep-act';
+        b.textContent = t('onboard.show');
+        b.addEventListener('click', () => _aiSpotlight(step.target));
+        wrap.appendChild(b);
+    } else if(allowAsk && step.askKey){
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'ai-nextstep-act';
+        b.textContent = t('onboard.ask');
+        b.addEventListener('click', () => aiExplain(t(step.askKey, step.data)));
+        wrap.appendChild(b);
+    }
+    const x = document.createElement('button');
+    x.type = 'button'; x.className = 'ai-nextstep-x';
+    x.textContent = '×';
+    x.title = t('onboard.dismiss');
+    x.setAttribute('aria-label', t('onboard.dismiss'));
+    x.addEventListener('click', () => { _aiStepDismissed = step.id; if(typeof refresh === 'function') refresh(); });
+    wrap.appendChild(x);
+    return wrap;
+}
+
+// Inietta (idempotente) il chip nell'empty-state non-configurato → l'onboarding
+// guida Scopri/Verifica anche PRIMA di aver configurato un modello.
+function _aiInjectEmptyNextStep(){
+    const empty = _aiEl('ai-empty');
+    if(!empty) return;
+    let holder = _aiEl('ai-empty-step');
+    if(!holder){
+        holder = document.createElement('div');
+        holder.id = 'ai-empty-step';
+        const inner = empty.querySelector('.ai-empty');
+        if(inner) inner.appendChild(holder); else empty.appendChild(holder);
+    }
+    holder.innerHTML = '';
+    const chip = _aiNextStepEl(false, _aiApplyPanelState);
+    if(chip) holder.appendChild(chip);
+}
+
 function _aiChipStatus(cfg){
     const chip = _aiEl('ai-chip-status');
     if(!chip) return;
@@ -235,12 +340,13 @@ function _aiApplyPanelState(){
     if(empty) empty.style.display = enabled ? 'none' : 'flex';
     if(chat) chat.style.display = enabled ? 'flex' : 'none';
     if(enabled){ _aiChipStatus(_aiCfgCache); _renderAiMessages(); }
+    else _aiInjectEmptyNextStep();   // onboarding anche da non-configurato
 }
 
 // Apertura della tab Assistente (da switchRightTab('ai')): conversazione legata
 // al progetto (cambio progetto → riparti pulito), poi ricarica la config.
 function _aiPanelOpen(){
-    if(_aiConvoProject !== store.currentProjectId){ _aiConvo = []; _aiConvoProject = store.currentProjectId; }
+    if(_aiConvoProject !== store.currentProjectId){ _aiConvo = []; _aiStepDismissed = null; _aiConvoProject = store.currentProjectId; }
     _aiApplyPanelState();
     fetch('/api/ai/config', { credentials: 'same-origin' })
         .then(r => r.json())
@@ -260,6 +366,10 @@ function _renderAiMessages(){
         g.className = 'ai-greeting';
         g.textContent = t('assistant.greeting');
         box.appendChild(g);
+        // Chip «prossimo passo» (onboarding §4d): sotto il saluto, prima degli
+        // esempi. Solo a conversazione vuota → guida senza disturbare la chat.
+        const step = _aiNextStepEl(true, _renderAiMessages);
+        if(step) box.appendChild(step);
         const chips = document.createElement('div');
         chips.className = 'ai-ex-chips';
         [t('assistant.ex1'), t('assistant.ex2'), t('assistant.ex3')].forEach(ex => {
