@@ -233,7 +233,7 @@ function _routingPickPort(midPid){
         }
         pushHistory();
         store.state.links = store.state.links.filter(l => l.id !== linkId);
-        store.state.links.push(win._normalizeLinkMetadata(newRec));
+        store.state.links.push(_normalizeLinkMetadata(newRec));
         _markPortActive(midPid); _markPortActive(otherEnd); _markPortActive(info.reuse);
         if(typeof win._invalidateIdx === 'function') _invalidateIdx();
         store.selType = 'link'; store.selId = newRec.id;
@@ -261,7 +261,7 @@ function _routingPickPort(midPid){
     pushHistory();
     store.state.links = store.state.links.filter(l => l.id !== linkId);
     for(const rec of res.links){
-        store.state.links.push(win._normalizeLinkMetadata(rec));
+        store.state.links.push(_normalizeLinkMetadata(rec));
         // Porte collegate → stato 'active' (verde), come _tryFinishLink:
         // include la porta pass-through intermedia che diventa "occupata".
         _markPortActive(rec.src); _markPortActive(rec.dst);
@@ -296,7 +296,7 @@ function removeRouteHop(midPid){
 
     pushHistory();
     store.state.links = store.state.links.filter(l => l !== touching[0] && l !== touching[1]);
-    store.state.links.push(win._normalizeLinkMetadata(res.link));
+    store.state.links.push(_normalizeLinkMetadata(res.link));
     _markPortActive(res.link.src); _markPortActive(res.link.dst);
     _refreshPortActiveState(midPid);   // tappa liberata → torna grigia
     if(typeof win._invalidateIdx === 'function') _invalidateIdx();

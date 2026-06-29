@@ -16,7 +16,7 @@ import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: cata
 
 function _findProjectLinkByPorts(a,b){
     if(!a||!b) return null;
-    return store.state.links.find(l=>win._linkHasPair(l, a, b))||null;
+    return store.state.links.find(l=>_linkHasPair(l, a, b))||null;
 }
 
 function _selectProjectLink(linkId, opts={}){
@@ -191,7 +191,7 @@ function showPop(e,pid){
     const isActiveNode = node && !!TYPES[node.type]?.isActive;
     const portNum=pid.split('-').slice(1).join('-');
     const connSet=new Set();
-    store.state.links.forEach(l=>win._linkAdjacentPorts(l, pid).forEach(other=>connSet.add(other)));
+    store.state.links.forEach(l=>_linkAdjacentPorts(l, pid).forEach(other=>connSet.add(other)));
     const conn=[...connSet];
     const lagRepConn = (!conn.length && isActiveNode && (pi.lagGroup || (pi.lagId > 0))) ? _lagRepresentativeConnection(pid) : null;
     const lagBadgeName = (() => {
@@ -270,7 +270,7 @@ ${snmpBar}
 </div>
 ${(()=>{
     // Cerca il cavo trunk collegato a questa porta per ottenere la lista VLAN
-    const tLink = store.state.links.find(l=>win._linkTouchesPort(l, pid) && l.mode==='trunk');
+    const tLink = store.state.links.find(l=>_linkTouchesPort(l, pid) && l.mode==='trunk');
     const isTrunk = pi.isTrunk || !!tLink;
     if(isTrunk){
         const vlanStr = tLink?.trunkVlans || (pi.trunkVlans&&pi.trunkVlans.length?win._vlansToRangeStr(pi.trunkVlans):'');

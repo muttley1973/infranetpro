@@ -223,7 +223,7 @@ function computeLagCarrierPids(){
         while(queue.length){
             const curr = queue.shift();
             for(const l of state.links){
-                for(const other of win._linkAdjacentPorts(l, curr)){
+                for(const other of _linkAdjacentPorts(l, curr)){
                     if(!other || visited.has(other)) continue;
                     visited.add(other);
                     const on = getNodeByPortId(other);
@@ -246,7 +246,7 @@ function getPassivePortLagInfo(pid){
     while(queue.length){
         const curr = queue.shift();
         for(const l of state.links){
-            for(const other of win._linkAdjacentPorts(l, curr)){
+            for(const other of _linkAdjacentPorts(l, curr)){
                 if(!other || visited.has(other)) continue;
                 visited.add(other);
                 const on = getNodeByPortId(other);

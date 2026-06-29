@@ -622,7 +622,7 @@ function _cancelLink(){
 
 function _tryFinishLink(tgt){
     if(!tgt||tgt===store.linkStart) return false;
-    const ext=store.state.links.find(l=>win._linkHasPair(l, store.linkStart, tgt));
+    const ext=store.state.links.find(l=>_linkHasPair(l, store.linkStart, tgt));
     if(ext){
         // Stesso collegamento già presente: se era automatico, la conferma manuale
         // lo "promuove" a manuale (così non verrà più toccato dall'auto-discovery).
@@ -631,7 +631,7 @@ function _tryFinishLink(tgt){
     }
     // Priorità al collegamento MANUALE: rimuovi eventuali auto-link concorrenti
     // sulle stesse porte (un cavo manuale sostituisce quello dedotto automaticamente).
-    const _isConcurrentAuto = l => l.autoLinked && (win._linkTouchesPort(l, store.linkStart) || win._linkTouchesPort(l, tgt));
+    const _isConcurrentAuto = l => l.autoLinked && (_linkTouchesPort(l, store.linkStart) || _linkTouchesPort(l, tgt));
     if(store.state.links.some(_isConcurrentAuto)){
         store.state.links = store.state.links.filter(l => !_isConcurrentAuto(l));
         _invalidateIdx();
@@ -905,7 +905,7 @@ function trace(start){
         // suoi client (selezione della radio = tutte le associazioni).
         if(curr!==start && typeof win._isRadioPid==='function' && win._isRadioPid(curr)) continue;
         for(const l of win._linksForPort(curr)){
-            const nextPorts = win._linkAdjacentPorts(l, curr);
+            const nextPorts = _linkAdjacentPorts(l, curr);
             if(!nextPorts.length) continue;
             store.highPath.add(l.id);
             nextPorts.forEach(nxt=>{ if(!vis.has(nxt)) q.push(nxt); });
