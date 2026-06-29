@@ -2608,6 +2608,42 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(cfg.keyType, 'password', 'la chiave API è un campo password (write-only)');
     });
 
+    await t.test('Assistente AI: salvare la config aggiorna SUBITO il pannello (empty-state→chat, senza cambiare tab)', async () => {
+      // Parti da DISABILITATO → empty-state visibile, chat nascosta.
+      await page.evaluate(async () => {
+        await fetch('/api/ai/config', {
+          method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: false }),
+        });
+        if (typeof switchRightTab === 'function') switchRightTab('ai');   // _aiPanelOpen rilegge la config
+      });
+      await page.waitForFunction(() => {
+        const e = document.getElementById('ai-empty');
+        const c = document.getElementById('ai-chat');
+        return !!(e && e.style.display !== 'none' && c && c.style.display === 'none');
+      }, null, { timeout: 5000 });
+
+      // Compila il form della scheda AI e SALVA (gesto = aiCfgSave) restando sulla tab Assistente.
+      await page.evaluate(() => { if (typeof umSwitchTab === 'function') umSwitchTab('ai'); });
+      await page.waitForFunction(() => {
+        const el = document.getElementById('ai-cfg-endpoint');
+        return !!(el && el.value && el.value.length > 0);
+      }, null, { timeout: 5000 });
+      await page.evaluate(() => {
+        document.getElementById('ai-cfg-enabled').checked = true;
+        document.getElementById('ai-cfg-endpoint').value = 'http://127.0.0.1:11434/v1';   // LAN → chip «Locale»
+        if (typeof aiCfgSave === 'function') aiCfgSave();
+      });
+      // SENZA cambiare tab: il pannello riflette subito enabled (chat) + endpoint (chip Locale).
+      await page.waitForFunction(() => {
+        const e = document.getElementById('ai-empty');
+        const c = document.getElementById('ai-chat');
+        const chip = document.getElementById('ai-chip-status');
+        return !!(c && c.style.display !== 'none' && e && e.style.display === 'none' &&
+                  chip && /Locale|Local/.test(chip.textContent || ''));
+      }, null, { timeout: 5000 });
+    });
+
     await t.test('Assistente AI L0: config round-trip (PUT→GET mascherato, chiave mai esposta) + preview sanitizzato', async () => {
       const r = await page.evaluate(async () => {
         const put = await fetch('/api/ai/config', {
@@ -2677,13 +2713,18 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           () => /RISPOSTA-MOCK/.test((document.getElementById('ai-messages') || {}).textContent || ''),
           null, { timeout: 8000 });
 
-        const ui = await page.evaluate(() => ({
-          msgs: document.getElementById('ai-messages').textContent || '',
-          chip: (document.getElementById('ai-chip-status') || {}).textContent || '',
-        }));
+        const ui = await page.evaluate(() => {
+          const g = document.querySelector('#ai-chat .ai-gear');
+          return {
+            msgs: document.getElementById('ai-messages').textContent || '',
+            chip: (document.getElementById('ai-chip-status') || {}).textContent || '',
+            gearVisible: !!(g && g.offsetParent !== null),   // ingranaggio impostazioni raggiungibile anche a chat aperta (admin)
+          };
+        });
         assert.match(ui.msgs, /Chi è sulla VLAN 20\?/, 'la domanda utente compare in chat');
         assert.match(ui.msgs, /RISPOSTA-MOCK/, 'la risposta del provider compare in chat');
         assert.match(ui.chip, /Locale|Local/, 'chip privacy «Locale» (endpoint LAN, niente key)');
+        assert.ok(ui.gearVisible, 'l\'ingranaggio impostazioni resta accessibile nella testata della chat (admin)');
 
         // Il provider ha ricevuto system-prompt (grounding) + contesto + turno utente.
         assert.ok(seen, 'il mock provider ha ricevuto la richiesta');
@@ -2694,6 +2735,21 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         assert.match(payload.messages[0].content, /context:/, 'il contesto sanitizzato è incluso nel system');
         assert.equal(payload.messages[payload.messages.length - 1].content, 'Chi è sulla VLAN 20?', 'ultimo turno = domanda utente');
         assert.ok(!/SUPERSECRET|community/i.test(seen.body), 'nessun segreto nel payload verso il provider');
+
+        // Cestino «Pulisci chat»: compare a conversazione avviata → click → reset.
+        const clearVisible = await page.evaluate(() => {
+          const b = document.getElementById('ai-clear-btn');
+          return !!(b && b.offsetParent !== null);
+        });
+        assert.ok(clearVisible, 'il cestino «Pulisci chat» compare a conversazione avviata');
+        await page.click('#ai-clear-btn');
+        // Reset = la risposta del provider (marcatore univoco, mai nel saluto/esempi)
+        // sparisce e il cestino si ri-nasconde (conversazione vuota → torna il saluto).
+        await page.waitForFunction(() => {
+          const msgs = (document.getElementById('ai-messages') || {}).textContent || '';
+          const b = document.getElementById('ai-clear-btn');
+          return !/RISPOSTA-MOCK/.test(msgs) && !!(b && b.offsetParent === null);
+        }, null, { timeout: 5000 });
       } finally {
         await new Promise((r) => mock.close(r));
       }

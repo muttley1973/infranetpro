@@ -82,6 +82,11 @@
         .ai-head-title { font-size:var(--fs-lg); font-weight:700; color:var(--accent); display:flex; align-items:center; gap:7px; }
         .ai-chip { font-size:var(--fs-xs); font-weight:600; padding:2px 8px; border-radius:var(--radius-lg); display:inline-flex; align-items:center; gap:5px; white-space:nowrap; }
         .ai-chip-off { background:var(--surface-2); color:var(--text-muted); border:1px solid var(--panel-border); }
+        .ai-head-actions { display:flex; align-items:center; gap:7px; }
+        .ai-gear { background:transparent; border:none; color:var(--text-muted); cursor:pointer; padding:3px 5px; border-radius:var(--radius-md); font-size:var(--fs-sm); line-height:1; }
+        .ai-gear:hover { color:var(--accent); background:var(--surface-2); }
+        .ai-gear.danger { color:var(--fault-color); }
+        .ai-gear.danger:hover { color:var(--fault-color); background:var(--danger-soft); }
         .ai-empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:11px; padding:20px 12px; min-height:0; }
         .ai-empty-icon { font-size:2.7rem; color:var(--accent); opacity:.45; }
         .ai-empty-title { font-size:var(--fs-md); font-weight:700; color:var(--text-main); margin:0; }
