@@ -2,6 +2,16 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-06-29 — Assistant & Verify refinements
+
+### Added
+- **Wireless SSID inventory in the AI context** — the assistant now sees each AP's **SSIDs** (name, VLAN, security type, bands), so questions like *"which SSIDs are on the network?"* are answered from the documentation instead of *"not documented"*. Allowlisted by construction (`server/ai/context.js`): only SSID/VLAN/security-type/band leave — **never a passphrase/PSK** (covered by a build-failing anti-leak guard test).
+- **Friendlier assistant tone** — the system-prompt now asks for a warm, conversational, helpful-colleague tone (informal "tu" in Italian) with a human touch, **but no jokes** — while keeping every guardrail (grounding, no invention, advisory). The in-chat greeting is warmer too.
+
+### Changed
+- **Verify never claims "aligned" when it couldn't actually verify** — if the Reality Check ran but observed nothing (everything in *unverifiable*, e.g. the network's subnets weren't reachable from this host), the banner no longer shows the green *"Documentation aligned"*. Instead it shows an amber *"Can't verify from this machine: N devices on networks not reached…"* with how to fix it. When some devices were verified and others weren't, the green banner carries a *"(N not verifiable)"* note. Pure, tested helper `driftBannerKind()` in `lib/drift-report.js`.
+- **Floor properties panel tidy-up** — the section is now titled **"Floor plan"** (was "Floor plan image"); the **Workspace colors** and **Labels (abbreviated names)** controls moved **inside** it as flat sub-groups (no nested collapsibles); and the **VLAN list frame is taller** (more VLANs visible without scrolling).
+
 ## 2026-06-29 — AI assistant (advisory)
 
 ### Added
