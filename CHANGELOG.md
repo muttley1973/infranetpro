@@ -2,6 +2,14 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-06-29
+
+### Added
+- **Richer Ansible inventory host‑vars** — every host in the dynamic inventory (`/api/v1/projects/:id/ansible-inventory`) now carries its **network context** (`vlan_name`, `subnet`, `gateway`, `dns`, derived from the device's VLAN), **asset data** (`serial`, `firmware`, `hostname`), **physical placement** (`rack_id`, `rack_unit`) and **management** info (`wireless`, `mgmt_protocol`, `mgmt_url`). Two new facet groups — `wireless` and `snmp_managed` — let you target APs or SNMP‑managed gear directly. Still allowlist‑only and secret‑free: the SNMP community never leaks, and `mgmt_url` is stripped of any `user:pass@` credentials before it is exposed.
+
+### Fixed
+- DHCP lease reconciliation now matches devices even when a pasted/imported lease table uses a non‑normalized MAC format (lowercase or dash‑separated) — the lease MAC is normalized in the lookup, so a "messy" export no longer produces false *undocumented* rows.
+
 ## 2026-06-28
 
 ### Added
