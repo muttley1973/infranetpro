@@ -245,22 +245,37 @@ function _aiBuildSummary(){
     };
 }
 
-// Coach-mark: illumina il bottone REALE (alone ciano pulsante) e lo porta in
-// vista. Un solo spotlight per volta, si spegne da solo. Pure DOM, niente win.*.
-let _aiSpotEl = null, _aiSpotTimer = null;
+// Coach-mark: illumina il bottone REALE (alone ciano lampeggiante) e lo porta in
+// vista. Resta acceso FINCHÉ l'utente non clicca il bottone illuminato (o finché
+// non si chiede un altro spotlight). Un solo spotlight per volta. Niente win.*.
+let _aiSpotEl = null, _aiSpotClear = null;
+function _aiSpotClearNow(){
+    if(_aiSpotEl){
+        _aiSpotEl.classList.remove('coach-spotlight');
+        if(_aiSpotClear){ try { _aiSpotEl.removeEventListener('click', _aiSpotClear); } catch(_){} }
+    }
+    _aiSpotEl = null; _aiSpotClear = null;
+}
 function _aiSpotlight(selector){
     try {
-        if(_aiSpotEl){ _aiSpotEl.classList.remove('coach-spotlight'); _aiSpotEl = null; }
-        if(_aiSpotTimer){ clearTimeout(_aiSpotTimer); _aiSpotTimer = null; }
+        _aiSpotClearNow();
         const el = selector ? document.querySelector(selector) : null;
         if(!el) return;
         el.classList.add('coach-spotlight');
         _aiSpotEl = el;
-        try { el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' }); } catch(_){}
-        _aiSpotTimer = setTimeout(() => {
-            if(_aiSpotEl){ _aiSpotEl.classList.remove('coach-spotlight'); _aiSpotEl = null; }
-            _aiSpotTimer = null;
-        }, 4200);
+        // Si spegne SOLO quando l'utente clicca il bottone illuminato (once).
+        _aiSpotClear = () => _aiSpotClearNow();
+        el.addEventListener('click', _aiSpotClear, { once: true });
+        // Scrolla SOLO se il bottone è davvero fuori dalla viewport (i bottoni
+        // della toolbar sono già visibili) → non spostare mai la pagina.
+        try {
+            const r = el.getBoundingClientRect();
+            const vh = window.innerHeight || document.documentElement.clientHeight;
+            const vw = window.innerWidth || document.documentElement.clientWidth;
+            if(r.bottom < 0 || r.top > vh || r.right < 0 || r.left > vw){
+                el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+            }
+        } catch(_){}
     } catch(_){}
 }
 

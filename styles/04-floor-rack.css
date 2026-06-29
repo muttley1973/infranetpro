@@ -136,11 +136,13 @@
         .ai-nextstep-act:hover { background:var(--accent); color:#000; }
         .ai-nextstep-x { flex-shrink:0; border:none; background:none; color:var(--text-muted); font-size:var(--fs-lg); line-height:1; padding:0 2px; cursor:pointer; }
         .ai-nextstep-x:hover { color:var(--text-main); }
-        .coach-spotlight { position:relative; z-index:50; border-radius:var(--radius-md); animation:coachPulse 1.1s ease-in-out infinite; }
-        @keyframes coachPulse {
-            0%   { box-shadow:0 0 0 0 rgba(0,212,255,.55); }
-            70%  { box-shadow:0 0 0 8px rgba(0,212,255,0); }
-            100% { box-shadow:0 0 0 0 rgba(0,212,255,0); }
+        /* Coach-mark LAMPEGGIANTE: bordo ciano + alone che pulsano da ACCESO a
+           quasi-spento (blink vero, ben visibile). Nessun transform (non sposta
+           nulla) e nessuno scroll forzato della pagina. */
+        .coach-spotlight { position:relative; z-index:200; border-radius:var(--radius-md); outline:2px solid var(--accent); outline-offset:2px; animation:coachBlink 0.7s ease-in-out infinite; }
+        @keyframes coachBlink {
+            0%, 100% { outline-color:rgba(0,212,255,1);   box-shadow:0 0 0 3px rgba(0,212,255,.5), 0 0 14px 4px rgba(0,212,255,.55); }
+            50%      { outline-color:rgba(0,212,255,.10); box-shadow:0 0 0 0 rgba(0,212,255,0); }
         }
         .ai-composer { flex-shrink:0; display:flex; gap:7px; align-items:flex-end; padding-top:8px; border-top:1px solid var(--panel-border); }
         .ai-composer textarea { flex:1; resize:none; background:var(--panel-bg); border:1px solid var(--panel-border); border-radius:var(--radius-md); color:var(--text-main); font-size:var(--fs-sm); font-family:inherit; padding:7px 10px; outline:none; }
