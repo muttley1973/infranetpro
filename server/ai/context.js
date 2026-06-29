@@ -167,6 +167,33 @@ function _deviceHealth(node) {
   return Object.keys(h).length ? h : undefined;
 }
 
+// ── Wireless: inventario SSID per AP (allowlist ESPLICITA). ──────────────────
+// Il modello radio è a 2 livelli: radios[i] = PHY (banda/standard) · radios[i].ssids[]
+// = BSS logici {ssid, vlan, security}. `security` è il TIPO (es. wpa3-personal),
+// NON una chiave: nel modello non esiste passphrase/psk. Per difesa in profondità
+// leggiamo SOLO ssid/vlan/security/banda (qualunque campo extra è scartato per
+// costruzione → nessun segreto può uscire). Dedup per ssid+vlan, bande raccolte.
+function _wirelessSsids(node) {
+  const radios = (node && Array.isArray(node.radios)) ? node.radios : [];
+  const map = new Map();
+  for (const r of radios) {
+    const band = (r && r.band) ? String(r.band).slice(0, 8) : null;
+    const ssids = (r && Array.isArray(r.ssids)) ? r.ssids : [];
+    for (const s of ssids) {
+      if (!s || s.ssid == null || String(s.ssid).trim() === '') continue;
+      const ssid = String(s.ssid).slice(0, 64);
+      const vlan = (s.vlan != null) ? (Number(s.vlan) || s.vlan) : undefined;
+      const key = ssid + '|' + (vlan != null ? vlan : '');
+      let e = map.get(key);
+      if (!e) { e = { ssid, vlan, security: s.security ? String(s.security).slice(0, 32) : undefined, bands: [] }; map.set(key, e); }
+      if (band && !e.bands.includes(band)) e.bands.push(band);
+      if (map.size >= 64) break;       // cap di sicurezza
+    }
+  }
+  if (!map.size) return undefined;
+  return [...map.values()].map(e => _compact({ ssid: e.ssid, vlan: e.vlan, security: e.security, bands: e.bands.length ? e.bands : undefined }));
+}
+
 // ── Topologia: adiacenza device↔device dai link. ─────────────────────────────
 function _topology(links, resolveNode, nameById) {
   const seen = new Set();
@@ -253,6 +280,7 @@ function buildAiContext(project, liveFacts, scope) {
     const raw = rawById[d.id];
     if (sc.ports && raw) { const pr = _devicePorts(raw, state, resolveNode, neighborIndex, nameById); if (pr) out.ports = pr; }
     if (sc.snmpHealth && raw) { const hl = _deviceHealth(raw); if (hl) out.health = hl; }
+    if (raw) { const ss = _wirelessSsids(raw); if (ss) out.ssids = ss; }   // inventario SSID (AP)
     return out;
   });
 
@@ -275,5 +303,5 @@ function buildAiContext(project, liveFacts, scope) {
 module.exports = {
   buildAiContext, _sanitizeFacts, _device, _compact,
   _normScope, _buildPortNodeResolver, _portNum, _buildNeighborIndex,
-  _safeScalars, _devicePorts, _deviceHealth, _topology,
+  _safeScalars, _devicePorts, _deviceHealth, _topology, _wirelessSsids,
 };
