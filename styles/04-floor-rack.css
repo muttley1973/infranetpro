@@ -109,6 +109,22 @@
         .ai-msg-ai { align-self:flex-start; background:var(--surface-2); color:var(--text-main); border:1px solid var(--panel-border); }
         .ai-msg-err { align-self:flex-start; background:rgba(248,81,73,.12); color:var(--text-main); border:1px solid var(--fault-color); }
         .ai-typing { align-self:flex-start; color:var(--text-muted); font-size:var(--fs-sm); font-style:italic; padding:4px 2px; }
+        /* Citazioni sotto la risposta: chip device cliccabili, VLAN informative,
+           ⚠ riferimenti non trovati (anti-invenzione, lib/ai-grounding). */
+        .ai-citations { align-self:flex-start; display:flex; flex-wrap:wrap; gap:5px; max-width:90%; margin:-3px 0 2px; }
+        .ai-cite-chip { font-size:var(--fs-xs); line-height:1.35; padding:2px 8px; border-radius:var(--radius-lg); border:1px solid var(--panel-border); background:var(--surface-2); color:var(--text-muted); }
+        button.ai-cite-chip { cursor:pointer; color:var(--accent); border-color:var(--accent); }
+        button.ai-cite-chip:hover { background:var(--accent-soft); }
+        .ai-cite-vlan { color:var(--text-main); }
+        .ai-cite-unknown { color:var(--fault-color); border-color:var(--fault-color); background:rgba(248,81,73,.12); cursor:help; }
+        /* Bozza Ansible (L3): banner ambra «non applicata» + codice mono + Copia.
+           InfraNet non esegue nulla → è testo da rivedere e copiare. */
+        .ai-draft { align-self:flex-start; max-width:96%; border:1px solid var(--panel-border); border-radius:8px; overflow:hidden; background:var(--bg-color); }
+        .ai-draft-warn { border-color:var(--idle-color); }
+        .ai-draft-head { display:flex; align-items:center; gap:6px; padding:5px 9px; font-size:var(--fs-xs); font-weight:700; color:var(--idle-color); background:rgba(245,166,35,.14); border-bottom:1px solid var(--idle-color); }
+        .ai-draft-code { margin:0; padding:9px 11px; overflow-x:auto; font-family:ui-monospace,Consolas,"SF Mono",monospace; font-size:var(--fs-xs); line-height:1.45; color:var(--text-main); white-space:pre; }
+        .ai-draft-copy { display:block; width:100%; border:none; border-top:1px solid var(--panel-border); background:var(--surface-2); color:var(--accent); font-size:var(--fs-xs); padding:5px; cursor:pointer; }
+        .ai-draft-copy:hover { background:var(--accent-soft); }
         .ai-composer { flex-shrink:0; display:flex; gap:7px; align-items:flex-end; padding-top:8px; border-top:1px solid var(--panel-border); }
         .ai-composer textarea { flex:1; resize:none; background:var(--panel-bg); border:1px solid var(--panel-border); border-radius:var(--radius-md); color:var(--text-main); font-size:var(--fs-sm); font-family:inherit; padding:7px 10px; outline:none; }
         .ai-composer textarea:focus { border-color:var(--accent); }

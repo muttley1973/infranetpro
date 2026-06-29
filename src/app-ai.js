@@ -1,13 +1,13 @@
 // ============================================================
 // ASSISTENTE AI (advisory) — glue della 3ª tab del pannello destro   [modulo ESM]
 // ============================================================
-// SCHELETRO (pre-L0). Per ora apre/attiva soltanto la tab «Assistente» del
-// pannello destro e la scheda AI dell'overlay «Utenti e accessi». L'empty-state
-// è HTML STATICO in netmapper.html (#ai-panel): bilingue via data-i18n, ruolo
-// via .admin-only/.viewer-ok (lo gestisce _applyRoleUI in app-auth) → qui nessun
-// render. I prossimi strati aggiungeranno la logica:
-//   L0 provider+config (server/ai/*, server/routes/ai.js) · L1 Q&A+grounding ·
-//   L2 trova-buchi/suggerisci · L3 bozza Ansible · L4 «Spiega» inline sul Drift.
+// Glue della tab «Assistente» + scheda AI in «Utenti e accessi». L'empty-state è
+// HTML STATICO in netmapper.html (#ai-panel): bilingue via data-i18n, ruolo via
+// .admin-only/.viewer-ok (_applyRoleUI in app-auth). Stato corrente:
+//   L0 provider+config (server/ai/*, server/routes/ai.js) ✓ · L1 Q&A ✓ +
+//   GROUNDING ✓ (liveFacts dal browser → ri-sanitizzati dal server; citazioni
+//   cliccabili + controllo anti-invenzione via lib/ai-grounding).
+// Prossimi: L2 trova-buchi/suggerisci · L3 bozza Ansible · L4 «Spiega» sul Drift.
 // Vedi _local/notes/AI_ASSISTANT_SPEC_2026-06-29.md.
 //
 // Igiene ponte (ratchet 1804, può solo scendere): NESSUN nuovo win.*. Le funzioni
@@ -16,7 +16,7 @@
 // degli shortcut R/P in app.js. switchRightTab arriva via import ESM dal nucleo.
 import { expose, t, getLang } from './_bridge.js';
 import { store } from './store.js';
-import { switchRightTab } from './app.js';
+import { switchRightTab, nodeById } from './app.js';
 
 // Apre la tab «Assistente» (pulsante toolbar + shortcut «A»). Se il pannello
 // destro è collassato lo ri-espande PRIMA dello switch, altrimenti l'utente non
@@ -120,7 +120,8 @@ function aiCfgPreview(){
     fetch('/api/ai/preview', {
         method: 'POST', credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId: pid }),
+        // Stessi liveFacts della chat → l'anteprima mostra ESATTAMENTE cosa uscirebbe.
+        body: JSON.stringify({ projectId: pid, liveFacts: _aiCollectLiveFacts() }),
     }).then(r => r.json().then(d => ({ ok: r.ok, d })))
       .then(({ ok, d }) => {
           if(!ok || !d.context){ _aiCfgMsg(t('ai.cfgPreviewErr'), 'err'); return; }
@@ -141,6 +142,81 @@ let _aiConvoProject = null;   // progetto a cui appartiene la conversazione corr
 let _aiBusy = false;
 
 const _aiEl = (id) => document.getElementById(id);
+
+// ── L1: fatti VIVI dal runtime del browser (spec §5) ─────────────────────────
+// drift e IPAM NON sono nel JSON persistito: vivono in pagina (store._driftReport,
+// motore IPAM). Li raccogliamo qui e li alleghiamo alla POST; il SERVER li
+// RI-SANITIZZA (allowlist _sanitizeFacts, gated da scope.drift) e li fonde nel
+// contesto. Mappa la forma interna di store._driftReport → forma attesa dal
+// server. Best-effort: ogni pezzo mancante è semplicemente omesso (mai throw).
+// Niente win.*: nodeById è import ESM, _ipamUsageForVlan è global bare (typeof).
+function _aiCollectLiveFacts(){
+    const facts = {};
+    try {
+        const rep = (store._driftReport && typeof store._driftReport === 'object') ? store._driftReport : null;
+        if(rep){
+            const byId = (id) => { try { return id ? nodeById(id) : null; } catch(_){ return null; } };
+            const drift = {};
+            const absent = (Array.isArray(rep.macOrphan) ? rep.macOrphan : []).map(r => {
+                const n = byId(r.nodeId);
+                return _aiCompact({ id: r.nodeId, name: r.label || (n && n.name), ip: n && n.ip, mac: r.mac, vlan: (n && n.vlan != null) ? n.vlan : undefined });
+            }).filter(e => Object.keys(e).length);
+            const undoc = (Array.isArray(rep.undocumented) ? rep.undocumented : []).map(r =>
+                _aiCompact({ mac: r.mac, vlan: (r.vlan != null) ? r.vlan : undefined, hostname: r.label })
+            ).filter(e => Object.keys(e).length);
+            const ipch = (Array.isArray(rep.ipChanged) ? rep.ipChanged : []).map(r => {
+                const n = byId(r.nodeId);
+                return _aiCompact({ id: r.nodeId, name: r.label || (n && n.name), mac: r.mac, from: r.oldIp, to: r.newIp });
+            }).filter(e => Object.keys(e).length);
+            if(absent.length) drift.absent = absent;
+            if(undoc.length) drift.undocumented = undoc;
+            if(ipch.length) drift.ipChanged = ipch;
+            if(Object.keys(drift).length) facts.drift = drift;
+        }
+    } catch(_){}
+    try {
+        // VLAN reali: id da vlanColors/vlanNames (dichiarate) ∪ voci IPAM; subnet/gw
+        // da state.ipam.vlans (NON da un array "vlans"). Le occupazioni le calcola il
+        // motore puro via _ipamUsageForVlan (global bare). «InfraNet calcola, l'AI racconta».
+        const st = store.state || {};
+        const ipamVlans = (st.ipam && st.ipam.vlans) ? st.ipam.vlans : {};
+        const vids = new Set();
+        for(const k of Object.keys(st.vlanColors || {})) vids.add(+k);
+        for(const k of Object.keys(st.vlanNames || {})) vids.add(+k);
+        for(const k of Object.keys(ipamVlans)) vids.add(+k);
+        const haveUsage = typeof _ipamUsageForVlan === 'function';
+        const ipam = [], gaps = [];
+        for(const vid of vids){
+            if(!Number.isFinite(vid)) continue;
+            const entry = ipamVlans[vid] || ipamVlans[String(vid)] || null;
+            const subnet = entry && String(entry.subnet || '').trim();
+            if(!subnet){
+                // VLAN dichiarata (con nome) ma senza subnet → l'IPAM non può aiutare lì.
+                if(st.vlanNames && st.vlanNames[vid]) gaps.push({ kind: 'vlan_no_subnet', vlan: vid });
+                continue;
+            }
+            if(!haveUsage) continue;
+            try {
+                const u = _ipamUsageForVlan(vid);
+                if(u && u.capacity){
+                    ipam.push(_aiCompact({ vlan: vid, used: u.usedCount, free: u.freeCount, nextFree: u.nextFree }));
+                    if(!u.gatewayOk) gaps.push({ kind: 'vlan_no_gateway', vlan: vid });
+                    if(u.pct >= 90) gaps.push({ kind: 'vlan_ipam_high', vlan: vid });
+                }
+            } catch(_){}
+            if(gaps.length >= 50) break;   // cap di sicurezza (budget token)
+        }
+        if(ipam.length) facts.ipam = ipam;
+        if(gaps.length) facts.gaps = gaps;
+    } catch(_){}
+    return facts;
+}
+// Toglie le chiavi null/undefined/'' (snapshot compatto, gemello di context._compact).
+function _aiCompact(obj){
+    const out = {};
+    for(const k of Object.keys(obj)){ const v = obj[k]; if(v === null || v === undefined || v === '') continue; out[k] = v; }
+    return out;
+}
 
 function _aiChipStatus(cfg){
     const chip = _aiEl('ai-chip-status');
@@ -196,10 +272,19 @@ function _renderAiMessages(){
         return;
     }
     for(const m of _aiConvo){
-        const d = document.createElement('div');
-        d.className = 'ai-msg ' + (m.role === 'user' ? 'ai-msg-user' : m.role === 'error' ? 'ai-msg-err' : 'ai-msg-ai');
-        d.textContent = m.content;   // textContent: nessuna HTML-injection dall'output del modello
-        box.appendChild(d);
+        if(m.role === 'assistant'){
+            // Il corpo può contenere blocchi di codice (bozze Ansible) → li rende
+            // come card-bozza (banner + Copia), il resto come bolle (lib/ai-draft).
+            _aiRenderAssistantBody(box, m.content);
+            // Sotto la risposta: citazioni cliccabili + ⚠ riferimenti non trovati
+            // (controllo anti-invenzione, lib/ai-grounding).
+            if(m.entities){ const cite = _aiCitationsEl(m.content, m.entities); if(cite) box.appendChild(cite); }
+        } else {
+            const d = document.createElement('div');
+            d.className = 'ai-msg ' + (m.role === 'user' ? 'ai-msg-user' : 'ai-msg-err');
+            d.textContent = m.content;   // textContent: nessuna HTML-injection
+            box.appendChild(d);
+        }
     }
     if(_aiBusy){
         const ty = document.createElement('div');
@@ -225,17 +310,119 @@ function aiSend(){
     fetch('/api/ai/chat', {
         method: 'POST', credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId: pid, messages: _aiConvo.filter(m => m.role !== 'error'), lang: getLang() }),
+        // liveFacts = drift/IPAM dal runtime browser (ri-sanitizzati dal server).
+        body: JSON.stringify({ projectId: pid, messages: _aiConvo.filter(m => m.role !== 'error'), lang: getLang(), liveFacts: _aiCollectLiveFacts() }),
     }).then(r => r.json().then(d => ({ ok: r.ok, d })).catch(() => ({ ok: r.ok, d: {} })))
       .then(({ ok, d }) => {
           if(ok && d && typeof d.content === 'string' && d.content.trim()){
-              _aiConvo.push({ role: 'assistant', content: d.content });
+              // entities = digest del contesto reale → controllo anti-invenzione lato client.
+              _aiConvo.push({ role: 'assistant', content: d.content, entities: d.entities || null });
           } else {
               _aiConvo.push({ role: 'error', content: t('assistant.errProvider') });
           }
       })
       .catch(() => { _aiConvo.push({ role: 'error', content: t('assistant.errProvider') }); })
       .then(() => { _aiBusy = false; const b = _aiEl('ai-send-btn'); if(b) b.disabled = false; _renderAiMessages(); });
+}
+
+// ── Corpo della risposta: testo + bozze Ansible (lib/ai-draft, global bare) ──
+// Segmenta in bolle di testo e card-bozza (blocco di codice). Fallback a una
+// singola bolla se il lib non è caricato. Tutto via textContent (zero injection).
+function _aiRenderAssistantBody(box, content){
+    let segs = null;
+    try { if(typeof splitDraftBlocks === 'function') segs = splitDraftBlocks(content); } catch(_){ segs = null; }
+    if(!segs || !segs.length) segs = [{ type: 'text', content: content }];
+    for(const seg of segs){
+        if(seg.type === 'code'){ box.appendChild(_aiDraftCard(seg)); continue; }
+        const d = document.createElement('div');
+        d.className = 'ai-msg ai-msg-ai';
+        d.textContent = seg.content;
+        box.appendChild(d);
+    }
+}
+
+// Card di una bozza: banner ambra «non applicata» (solo per linguaggi di
+// automazione), codice mono, bottone Copia. InfraNet non esegue: è testo.
+function _aiDraftCard(seg){
+    const card = document.createElement('div');
+    card.className = 'ai-draft' + (seg.draft ? ' ai-draft-warn' : '');
+    if(seg.draft){
+        const head = document.createElement('div');
+        head.className = 'ai-draft-head';
+        const ic = document.createElement('i'); ic.className = 'fas fa-triangle-exclamation';
+        const sp = document.createElement('span'); sp.textContent = t('assistant.draftBanner');
+        head.appendChild(ic); head.appendChild(sp);
+        card.appendChild(head);
+    }
+    const pre = document.createElement('pre');
+    pre.className = 'ai-draft-code';
+    const code = document.createElement('code');
+    code.textContent = seg.content;
+    pre.appendChild(code);
+    card.appendChild(pre);
+    const copy = document.createElement('button');
+    copy.type = 'button'; copy.className = 'ai-draft-copy';
+    copy.textContent = t('assistant.copy');
+    copy.addEventListener('click', () => _aiCopy(seg.content, copy));
+    card.appendChild(copy);
+    return card;
+}
+
+// Copia negli appunti (azione locale, avviata dall'utente). Feedback breve.
+function _aiCopy(text, btn){
+    try {
+        navigator.clipboard.writeText(text).then(() => {
+            const prev = btn.textContent;
+            btn.textContent = t('assistant.copied');
+            setTimeout(() => { btn.textContent = prev; }, 1500);
+        }).catch(() => {});
+    } catch(_){}
+}
+
+// ── Citazioni + controllo anti-invenzione (lib/ai-grounding, global bare) ────
+// Costruisce la riga sotto la risposta: chip device CLICCABILI (saltano al nodo
+// sulla mappa), chip VLAN informative, chip ⚠ per gli IP/MAC citati ma assenti
+// dai dati (possibile invenzione). Tutto via DOM+textContent (zero injection).
+function _aiCitationsEl(content, entities){
+    if(typeof checkGrounding !== 'function') return null;
+    let res;
+    try { res = checkGrounding(content, entities); } catch(_){ return null; }
+    if(!res || (!res.citations.length && !res.unknownRefs.length)) return null;
+    const wrap = document.createElement('div');
+    wrap.className = 'ai-citations';
+    for(const c of res.citations){
+        if(c.kind === 'device'){
+            const chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'ai-cite-chip';
+            chip.textContent = c.name || c.id;
+            chip.title = t('assistant.citationTip');
+            chip.addEventListener('click', () => _aiJumpToNode(c.id));
+            wrap.appendChild(chip);
+        } else if(c.kind === 'vlan'){
+            const chip = document.createElement('span');
+            chip.className = 'ai-cite-chip ai-cite-vlan';
+            chip.textContent = 'VLAN ' + c.vlan;
+            wrap.appendChild(chip);
+        }
+    }
+    for(const u of res.unknownRefs){
+        const chip = document.createElement('span');
+        chip.className = 'ai-cite-chip ai-cite-unknown';
+        chip.textContent = '⚠ ' + u.value;
+        chip.title = t('assistant.unknownRefTip');
+        wrap.appendChild(chip);
+    }
+    return wrap;
+}
+
+// Salta al device citato sulla mappa: seleziona + centra (riusa il motore di
+// ricerca esistente). selectAndFocusNode è global bare (typeof) → niente win.*.
+function _aiJumpToNode(id){
+    let n = null;
+    try { n = nodeById(id); } catch(_){}
+    if(!n) return;
+    if(typeof selectAndFocusNode === 'function') selectAndFocusNode(n);
 }
 
 // Pulisce la conversazione corrente (cestino in testata). La chat vive solo in
@@ -248,4 +435,41 @@ function aiClearChat(){
     _renderAiMessages();
 }
 
-expose({ openAssistant, openAiSettings, _aiCfgLoad, aiCfgSave, aiCfgPreview, _aiPanelOpen, aiSend, aiClearChat });
+// ── L4: «Spiega» dalle righe della Verifica (loop Verifica→capisci→agisci) ───
+// Apre la tab Assistente, semina la domanda e la invia. Se l'assistente non è
+// configurato, aiSend è un no-op (input assente) → al massimo apre la tab.
+function aiExplain(question){
+    const q = (question == null ? '' : String(question)).trim();
+    if(!q) return;
+    openAssistant();
+    const i = _aiEl('ai-input');
+    if(!i) return;          // non configurato / chat non montata → solo apertura tab
+    i.value = q;
+    aiSend();
+}
+
+// Costruisce la domanda dalla riga del Drift (store._driftReport) e la inoltra.
+// Le risposte sono GROUNDED: i fatti del Drift sono già nel contesto (liveFacts).
+function aiExplainDrift(cat, key){
+    let row = null;
+    try {
+        const rep = store._driftReport;
+        const list = rep && rep[cat];
+        row = Array.isArray(list) ? list.find(r => r && r.key === key) : null;
+    } catch(_){}
+    aiExplain(_aiDriftQuestion(cat, row));
+}
+
+function _aiDriftQuestion(cat, row){
+    const r = row || {};
+    const name = (r.label || r.mac || '').toString().trim() || (r.mac || '');
+    const vlan = (r.vlan != null) ? (', VLAN ' + r.vlan) : '';
+    if(cat === 'macOrphan' || cat === 'unverified') return t('assistant.qAbsent', { name });
+    if(cat === 'ipChanged') return t('assistant.qIpChange', { name: name || (r.mac || ''), from: r.oldIp || '?', to: r.newIp || '?' });
+    if(cat === 'stateDrift') return t('assistant.qDrift', { name });
+    if(cat === 'undocumented' || cat === 'undocumentedEndpoint') return t('assistant.qUndoc', { mac: r.mac || name, vlan });
+    if(cat === 'ghostCable') return t('assistant.qGhost', { name });
+    return t('assistant.qGeneric', { name });
+}
+
+expose({ openAssistant, openAiSettings, _aiCfgLoad, aiCfgSave, aiCfgPreview, _aiPanelOpen, aiSend, aiClearChat, aiExplain, aiExplainDrift });

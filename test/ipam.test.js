@@ -41,6 +41,32 @@ test('computeIpamUsage: conteggio opzione A con gateway, dedup e fuori-subnet', 
   assert.equal(u.gatewayOk, true);
 });
 
+// ---------- nextFree: «prossimo IP libero» suggerito (IPAM Fase 2) ----------
+test('computeIpamUsage: nextFree = primo host non occupato (salta gateway/doc/lease)', () => {
+  const u = usage('192.168.20.0/24', {
+    gateway: '192.168.20.1',
+    documentedIps: ['192.168.20.2', '192.168.20.3'],
+    leaseIps: ['192.168.20.4'],
+  });
+  assert.equal(u.nextFree, '192.168.20.5', 'salta .1 gw + .2/.3 doc + .4 lease → .5');
+});
+
+test('computeIpamUsage: nextFree parte da network+1 quando la rete è vuota', () => {
+  assert.equal(usage('10.10.0.0/24').nextFree, '10.10.0.1');
+});
+
+test('computeIpamUsage: nextFree = null se la rete è piena o senza CIDR', () => {
+  const full = usage('10.0.0.0/30', { documentedIps: ['10.0.0.1', '10.0.0.2'] }); // /30 → 2 host usabili (.1,.2)
+  assert.equal(full.freeCount, 0);
+  assert.equal(full.nextFree, null);
+  assert.equal(usage('').nextFree, null, 'subnet non valida → niente nextFree');
+});
+
+test('computeIpamUsage: nextFree su /31 usa entrambi gli host (RFC 3021)', () => {
+  const u = usage('10.0.0.0/31', { documentedIps: ['10.0.0.0'] });
+  assert.equal(u.nextFree, '10.0.0.1', '/31: .0 usato → .1 libero');
+});
+
 test('computeIpamUsage: senza lease conta i soli documentati (manual-first)', () => {
   const u = usage('192.168.30.0/24', {
     gateway: '192.168.30.1',
