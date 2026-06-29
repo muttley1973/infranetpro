@@ -188,6 +188,18 @@ test('reconcile: confirmed / updates / manualHold / unmatched classificati', () 
   assert.equal(r.unmatched[0].mac, 'DE:AD:BE:EF:00:99');
 });
 
+test('reconcile (hardening): un lease con MAC NON normalizzato (lowercase + dash) combacia comunque', () => {
+  // Le chiavi di byMac sono _normMac dei MAC dei nodi: il lookup deve normalizzare
+  // anche il MAC del lease, così un chiamante che passa lease "sporchi" (export
+  // Linux/dnsmasq, case/separatori diversi) non genera falsi "non documentati".
+  const nodes = [{ id: 'pc', name: 'PC', mac: 'AA:BB:CC:DD:EE:30', ip: '10.0.50.30' }];
+  const leases = [{ mac: 'aa-bb-cc-dd-ee-30', ip: '10.0.50.45', hostname: 'pc' }];
+  const r = reconcileDhcpLeases(leases, nodes);
+  assert.equal(r.unmatched.length, 0, 'il MAC non normalizzato NON resta orfano');
+  assert.equal(r.updates.length, 1, 'combacia col nodo → cambio IP');
+  assert.equal(r.updates[0].nodeId, 'pc');
+});
+
 test('reconcile: input vuoti → tutte liste vuote, nessun crash', () => {
   const r = reconcileDhcpLeases([], []);
   assert.deepEqual(r, { updates: [], manualHold: [], confirmed: [], unmatched: [] });
