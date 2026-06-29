@@ -42,7 +42,12 @@ These are deliberate. Don't "fix" them without understanding why:
 server.js              Express bootstrap: static files, auth, routers, listen (127.0.0.1)
 auth.js                Sessions, bcrypt login, roles (admin/viewer), user CRUD
 server/                Backend (CommonJS): projects-store, netscan, classify,
-                       pdf-report, label-sheet, routes/{projects,discovery,export}
+                       pdf-report, label-sheet, routes/{projects,discovery,export,ai}
+server/ai-config.js    AI assistant config: enabled/endpoint/model/key + scope/features
+                       (data/ai-config.json git-ignored; key server-side only, env INFRANET_AI_KEY)
+server/ai/             AI assistant: context.js (sanitized §8b + ports/SNMP-health/topology,
+                       scope-aware, allowlist+denylist), prompt.js (grounding it/en + capabilities),
+                       provider.js (OpenAI-compatible client via node:https, zero-dep)
 drivers/snmp.js        SNMP v1/v2c/v3 driver
 engine/                sysObjectID + OUI classification engines (plugin loaders)
 plugins/               Seed vendor catalogs (zero database)
@@ -151,7 +156,9 @@ so language changes apply when reopened.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. ~780 tests.
+  logic. Fast, zero-dep. ~840 tests. Includes the AI assistant's **anti-leak guard**
+  (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
+  field can ever reach the AI context (data-security paletto, build-failing).
 - **Golden-master render** (`test/golden-render.test.js`): snapshots the rendered
   `innerHTML` of every device's Properties panel + the 4 scopes + the generated
   rack render vs `test/golden/render-golden.json`, to catch unintended UI changes.
