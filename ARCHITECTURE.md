@@ -45,9 +45,11 @@ server/                Backend (CommonJS): projects-store, netscan, classify,
                        pdf-report, label-sheet, routes/{projects,discovery,export,ai}
 server/ai-config.js    AI assistant config: enabled/endpoint/model/key + scope/features
                        (data/ai-config.json git-ignored; key server-side only, env INFRANET_AI_KEY)
-server/ai/             AI assistant: context.js (sanitized §8b + ports/SNMP-health/topology,
-                       scope-aware, allowlist+denylist), prompt.js (grounding it/en + capabilities),
-                       provider.js (OpenAI-compatible client via node:https, zero-dep)
+server/ai/             AI assistant: context.js (sanitized §8b + ports/SNMP-health/topology +
+                       re-sanitized browser liveFacts, scope-aware, allowlist+denylist),
+                       prompt.js (grounding it/en + capabilities), provider.js (OpenAI-compatible
+                       client via node:https, zero-dep). routes/ai.js returns an entities digest
+                       (extractEntities) so the client can run the anti-invention check.
 drivers/snmp.js        SNMP v1/v2c/v3 driver
 engine/                sysObjectID + OUI classification engines (plugin loaders)
 plugins/               Seed vendor catalogs (zero database)
@@ -57,6 +59,9 @@ lib/                   Shared browser + test modules (the heart of the app)
   cidr.js netnames.js linkstate.js correlate.js cabling.js
   topo-lines.js frontpanel.js stack.js ha-pair.js l3-gateway.js
   power-mib.js wifi-spec.js cable-labels.js drift-report.js
+  ai-grounding.js   extractEntities + checkGrounding (citations + anti-invention)  (pure)
+  ai-draft.js       splitDraftBlocks (segments AI reply → text + Ansible draft cards)  (pure)
+  ipam.js           computeIpamUsage incl. nextFree (next free host = «suggested IP»)  (pure)
   radio.js          radio interfaces: pid/anchor/linkKind/seeds       (pure)
   vlan-trunk.js     carriedVlans + effLinkVlans (trunk derivato)       (pure)  …
                        (PURE only — the ex-`lib/app-*.js` GLUE now lives in src/)

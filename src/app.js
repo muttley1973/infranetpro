@@ -1514,6 +1514,7 @@ function _ipamUsageForVlan(vid){
         pct: u.pct,
         leaseInCidr: u.leaseInCidr,
         dhcpOnly: u.dhcpOnly,
+        nextFree: u.nextFree,        // «prossimo IP libero» (suggerimento IPAM / Assistente AI)
     };
 }
 
