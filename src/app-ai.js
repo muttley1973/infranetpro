@@ -106,6 +106,9 @@ function aiCfgSave(){
           if(!ok){ _aiCfgMsg(t('ai.cfgSaveErr'), 'err'); return; }
           if(key){ key.value = ''; key.placeholder = _aiCfgKeyPlaceholder(d); }
           _aiCfgMsg(t('ai.cfgSaved'), 'ok');
+          // Rifletti SUBITO nel pannello Assistente il nuovo stato (enabled →
+          // empty-state↔chat, endpoint → chip 🔒/☁) senza dover cambiare tab.
+          _aiCfgCache = d; _aiApplyPanelState();
       }).catch(() => _aiCfgMsg(t('ai.cfgSaveErr'), 'err'));
 }
 
@@ -172,6 +175,9 @@ function _aiPanelOpen(){
 function _renderAiMessages(){
     const box = _aiEl('ai-messages');
     if(!box) return;
+    // Il cestino «Pulisci chat» ha senso solo a conversazione avviata.
+    const clearBtn = _aiEl('ai-clear-btn');
+    if(clearBtn) clearBtn.style.display = _aiConvo.length ? '' : 'none';
     box.innerHTML = '';
     if(!_aiConvo.length){
         const g = document.createElement('p');
@@ -232,4 +238,14 @@ function aiSend(){
       .then(() => { _aiBusy = false; const b = _aiEl('ai-send-btn'); if(b) b.disabled = false; _renderAiMessages(); });
 }
 
-expose({ openAssistant, openAiSettings, _aiCfgLoad, aiCfgSave, aiCfgPreview, _aiPanelOpen, aiSend });
+// Pulisce la conversazione corrente (cestino in testata). La chat vive solo in
+// sessione browser (mai persistita), quindi è un semplice reset locale: torna al
+// saluto + chip esempi e nasconde il cestino. Niente azzeramento mentre una
+// risposta è in volo (come la guardia _aiBusy di aiSend).
+function aiClearChat(){
+    if(_aiBusy) return;
+    _aiConvo = [];
+    _renderAiMessages();
+}
+
+expose({ openAssistant, openAiSettings, _aiCfgLoad, aiCfgSave, aiCfgPreview, _aiPanelOpen, aiSend, aiClearChat });
