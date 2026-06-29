@@ -766,6 +766,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           const baseN = state.nodes.length;
           state.nodes.push({ id: 'n_lock', type: 'switch', name: 'LOCK-SW', ip: '10.9.9.9' });
           state.ports['n_lock-1'] = { vlan: 30 };
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();   // nodeById è lazy-indexed
           selType = 'node'; selId = 'n_lock';
           // IP: lock → ipManual true; unlock → false (riusa il flag manual-first)
           const ipBefore = !!nodeById('n_lock').ipManual;
@@ -782,6 +783,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           // cleanup (non inquinare i test successivi)
           state.nodes = state.nodes.filter(n => n.id !== 'n_lock');
           delete state.ports['n_lock-1'];
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
           selType = null; selId = null; renderProps();
           return { ok: true, ipBefore, ipLocked, ipUnlocked, hnLocked, ovrBefore, ovrLocked, ovrUnlocked, restored: state.nodes.length === baseN };
         } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
