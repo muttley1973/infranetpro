@@ -47,44 +47,20 @@ function _driftPortLabel(pid){
 // ── 1) Snapshot DOC (PRIMA del sync) ─────────────────────────────────
 export function _driftBuildDocSnapshot(){
     const state = store.state;
-    const ports = {};
-    const linkPids = new Set();
-    for(const l of state.links){ if(l && l.src) linkPids.add(l.src); if(l && l.dst) linkPids.add(l.dst); }
-    for(const pid of linkPids){
-        const pi = state.ports[pid] || {};
-        ports[pid] = {
-            label: _driftPortLabel(pid),
-            status: pi.statusOvr ?? pi.status ?? null,
-            speed:  pi.speedOvr  ?? pi.speed  ?? null,
-            duplex: pi.duplex ?? null,
-            vlan:   pi.vlanOvr   ?? pi.vlan   ?? null,
-        };
-    }
-    const macs = [];
-    const deviceSigs = [];
-    for(const n of state.nodes){
-        // VM ospitate (node.vms[]): i loro MAC sono "noti" (documentati) → fuori dai
-        // non-documentati alla prossima scansione. SOLO deviceSigs, NON macs: una VM
-        // (magari spenta) non entra nell'audit di presenza, come i passivi.
-        if(Array.isArray(n.vms)) for(const vm of n.vms){ if(vm && vm.mac) deviceSigs.push(_driftNorm(vm.mac)); }
-        if(!n.mac) continue;
-        deviceSigs.push(_driftNorm(n.mac));   // "noto" → escluso dai non-documentati (invariato)
-        // Audit di PRESENZA: gli elementi passivi SENZA IP propria (prese a muro,
-        // patch panel, passacavi, quadri elettrici) non hanno un'identità di rete
-        // verificabile. Un MAC eventualmente stampato su di loro (visto a valle
-        // durante il Sync) appartiene al device COLLEGATO, non alla presa: la presa
-        // non risponde a ping/SNMP/ARP, quindi finirebbe SEMPRE tra gli "assenti"
-        // (e verrebbe ingrigita). Si verifica ciò che ci sta DIETRO, non la presa.
+    // Trasformazione PURA in lib/drift-snapshot.js (buildDocSnapshot); qui solo
+    // raccolta-dati da stato + iniezione degli helper UI (etichette) e del catalogo.
+    return buildDocSnapshot({
+        nodes: state.nodes, links: state.links, ports: state.ports,
+        portLabel: _driftPortLabel,
+        nodeLabel: n => getNodeDisplayName(n) || n.name || n.id,
+        cableLabel: l => l.label || win._cableAutoLabel(l),
+        normMac: _driftNorm,
+        // Passivo SENZA IP proprio (presa a muro / patch panel / passacavi / quadro):
+        // il MAC eventualmente stampato su di loro è del device a VALLE → fuori
+        // dall'audit di presenza (altrimenti finirebbe sempre tra gli "assenti").
         // I passivi CON IP (PDU/ATS/media-converter) restano verificabili.
-        const def = TYPES[n.type];
-        if(def && def.isPassive && !def.hasIP) continue;
-        // nodeId: un device che ha risposto al sync non è "assente" anche senza FDB.
-        // ip: per rilevare il CAMBIO INDIRIZZO (stesso MAC, IP diverso in rete).
-        macs.push({ mac: n.mac, label: getNodeDisplayName(n) || n.name || n.id, nodeId: n.id, ip: ((n.integration && n.integration.host) || n.ip || '').trim(), ipManual: !!n.ipManual });
-    }
-    for(const pid of Object.keys(state.ports)){ const m = state.ports[pid] && state.ports[pid].mac; if(m) deviceSigs.push(_driftNorm(m)); }
-    const cables = state.links.map(l => ({ id: l.id, label: (l.label || win._cableAutoLabel(l)), src: l.src, dst: l.dst }));
-    return { ports, macs, deviceSigs, cables };
+        isPassiveNoIp: n => { const def = TYPES[n.type]; return !!(def && def.isPassive && !def.hasIP); },
+    });
 }
 
 // ── 4) Aggiorna lo streak "porta down" per le porte documentate ──────
@@ -101,133 +77,32 @@ function _driftUpdateStreaks(docSnap){
 }
 
 // ── 2/3) Snapshot REALTA' (DOPO il sync) ─────────────────────────────
+// Trasformazione PURA in lib/drift-snapshot.js (buildSnmpSnapshot): tutte le
+// regole (presenza multi-segnale, macAtIp da ARP, subnet osservate, classifica
+// non-documentati, merge lease G1/G2) vivono lì e sono testate a tavolino. Qui:
+// solo raccolta-dati da stato/cache + iniezione di etichette i18n e predicati MAC.
 function _driftBuildSnmpSnapshot(docSnap, reachable, arpTable){
     const state = store.state;
-    const responded = {};
-    for(const n of state.nodes){ if(n.snmpStatus === 'ok') responded[n.id] = true; }
-    // Presenza MULTI-SEGNALE: un device è presente se ha risposto a SNMP OPPURE
-    // se il suo IP è risultato raggiungibile dalla sweep (ping ICMP / ARP / TCP).
-    // Così "Verifica documentazione" non dà per assenti i device vivi che NON
-    // parlano SNMP (PC/IoT/UPS/webcam…). reachabilityChecked = la sweep ha girato
-    // e ha trovato vivo almeno un host (vantaggio di osservabilità valido).
-    const reach = (reachable && typeof reachable === 'object') ? reachable : null;
-    // Osservabilità: la sweep ha girato se ha trovato vivo almeno un host OPPURE
-    // se abbiamo una tabella ARP non vuota (anch'essa è una vista della rete).
-    const reachabilityChecked = (!!reach && Object.values(reach).some(r => r && r.alive))
-        || (!!arpTable && typeof arpTable === 'object' && Object.keys(arpTable).length > 0);
-    const presentNodeIds = {};
-    for(const n of state.nodes){
-        if(n.snmpStatus === 'ok'){ presentNodeIds[n.id] = true; continue; }
-        if(reach){
-            const ip = ((n.integration||{}).host || n.ip || '').trim();
-            if(ip && reach[ip] && reach[ip].alive) presentNodeIds[n.id] = true;
-        }
-    }
-    // Mappa MAC→IP dalla tabella ARP COMPLETA del segmento: un MAC documentato
-    // visto vivo a un IP è presente (anche se l'IP è cambiato); IP diverso da
-    // quello documentato = "cambio IP". Usa l'ARP intero (non solo gli IP
-    // documentati) così becca anche un device spostato a un IP NUOVO.
-    const macAtIp = {};
-    const arp = (arpTable && typeof arpTable === 'object') ? arpTable : null;
-    if(arp){
-        for(const ip of Object.keys(arp)){
-            const k = String(arp[ip] || '').toLowerCase();
-            if(k && !macAtIp[k]) macAtIp[k] = ip;
-        }
-    } else if(reach){   // fallback: MAC dai soli IP documentati raggiunti
-        for(const ip of Object.keys(reach)){
-            const info = reach[ip];
-            if(info && info.alive && info.mac){
-                const k = String(info.mac).toLowerCase();
-                if(k && !macAtIp[k]) macAtIp[k] = ip;
-            }
-        }
-    }
-    // Subnet (/24) effettivamente OSSERVATE dalla sweep (fix falso "assente"
-    // cross-subnet): un /24 è osservato se c'è un'entry ARP in quella subnet
-    // (vista a L2 dal server) o un host raggiunto vivo. I device su subnet NON
-    // incluse qui non vanno dichiarati assenti — la sweep era cieca lì.
-    const _net24 = ip => { const m = /^(\d{1,3}\.\d{1,3}\.\d{1,3})\./.exec(String(ip || '')); return m ? m[1] : null; };
-    const observedSubnets = new Set();
-    if(arp){ for(const ip of Object.keys(arp)){ const n = _net24(ip); if(n) observedSubnets.add(n); } }
-    if(reach){ for(const ip of Object.keys(reach)){ if(reach[ip] && reach[ip].alive){ const n = _net24(ip); if(n) observedSubnets.add(n); } } }
-    const ports = {};
-    for(const pid of Object.keys(docSnap.ports)){
-        const pi = state.ports[pid] || {};
-        ports[pid] = { status: pi.status ?? null, speed: pi.speed ?? null, duplex: pi.duplex ?? null, vlan: pi.vlan ?? null };
-    }
     const fdb = (typeof store._topoFdbCache === 'object' && store._topoFdbCache) ? store._topoFdbCache : {};
-    // OSSERVABILITÀ: abbiamo almeno una MAC-table (FDB) popolata? Senza, non
-    // sappiamo NULLA su chi è presente in rete → il motore non deve dichiarare
-    // nessuno "assente" (vedi guardia macOrphan in drift-report.js). Tipico
-    // quando il Sync fallisce su (quasi) tutti i device: FDB vuoto.
-    const fdbObserved = Object.values(fdb).some(t => t && Object.keys(t).length > 0);
-    const observedMacs = [];
-    for(const sw of Object.keys(fdb)){ for(const mac of Object.keys(fdb[sw] || {})) observedMacs.push(mac); }
-    for(const pid of Object.keys(state.ports)){ const m = state.ports[pid] && state.ports[pid].mac; if(m) observedMacs.push(m); }
-    const known = new Set(docSnap.deviceSigs);
     const vlanCache = (typeof win._topoFdbVlanCache === 'object' && win._topoFdbVlanCache) ? win._topoFdbVlanCache : {};
-    const observedDevices = [];
-    const seen = new Set();
-    for(const sw of Object.keys(fdb)){
-        const swNode = nodeById(sw);   // importato da app.js (guardia win.* ridondante rimossa)
-        const swFdb = fdb[sw] || {};
-        const swVlan = vlanCache[sw] || {};
-        // Conteggio MAC per porta dello switch: un uplink affollato (AP/hub/guest)
-        // raccoglie tanti MAC su una sola ifName → tutti endpoint, non infrastruttura.
-        const macsPerIf = (typeof win.countMacsPerPort === 'function') ? win.countMacsPerPort(swFdb) : {};
-        for(const [mac, ifName] of Object.entries(swFdb)){
-            const sig = _driftNorm(mac);
-            if(!sig || seen.has(sig) || known.has(sig) || (typeof win.isVirtualMac === 'function' && win.isVirtualMac(mac))) continue;
-            seen.add(sig);
-            observedDevices.push({
-                sig, mac,
-                label: `${t('pnl.seg.seenOn',{sw:(swNode && (swNode.name||swNode.id)) || sw})}${ifName ? ' · ' + ifName : ''}`,
-                vlan: (swVlan[mac] != null) ? swVlan[mac] : null,    // VLAN-first (se FDB VLAN-aware)
-                portMacCount: macsPerIf[ifName] || 0,               // uplink affollato
-                consumer: (typeof win.isRandomizedMac === 'function') && win.isRandomizedMac(mac), // telefono/BYOD
-            });
-        }
-    }
-    // rejectedAutoLinks → MAC delle porte coinvolte (un device gia' rifiutato non riappare)
-    const rejectedSigs = [];
-    for(const psig of (state.rejectedAutoLinks || [])){
-        for(const pid of String(psig).split('||')){ const m = state.ports[pid] && state.ports[pid].mac; if(m) rejectedSigs.push(_driftNorm(m)); }
-    }
-    const portDownStreak = {};
-    for(const pid of Object.keys(docSnap.ports)) portDownStreak[pid] = (state.ports[pid] && state.ports[pid].downStreak) || 0;
-    // ── Lease DHCP come FONTE (cross-VLAN) ───────────────────────────────
-    // Danno MAC→IP autorevole su TUTTE le VLAN — il pezzo che l'ARP locale non
-    // vede dietro un firewall L3. Entrano negli stessi canali del motore:
-    // presenza per-MAC, cambio IP, non documentati. L'ARP vivo locale resta
-    // prioritario (più fresco); il lease riempie il resto. Transitorio
-    // (store._dhcpLeases, non persistito): lo carica l'overlay "Lease DHCP".
-    const _leases = Array.isArray(store._dhcpLeases) ? store._dhcpLeases : [];
-    let _leaseChecked = false;
-    // G2: un lease scaduto/rilasciato non prova né presenza né IP corrente (una
-    // tabella incollata può contenerne). Predicato condiviso (lib/dhcp-lease.js,
-    // riusato anche dall'occupazione IPAM) → un'unica fonte di verità.
-    const _leaseStale = l => isLeaseStale(l);
-    for(const l of _leases){
-        const macLc = String((l && l.mac) || '').toLowerCase();
-        const ip = String((l && l.ip) || '').trim();
-        if(!macLc || !ip || _leaseStale(l)) continue;     // G2: ignora lease non più validi
-        if(!macAtIp[macLc]) macAtIp[macLc] = ip;          // ARP vivo ha priorità
-        observedMacs.push(l.mac);                          // il MAC col lease è "visto" (presenza per-MAC)
-        // G1: un lease prova la presenza del SUO MAC e dà l'IP corrente (→ cambio IP
-        // cross-VLAN), ma NON è una sweep di raggiungibilità: NON marca la subnet come
-        // "osservata" per l'audit di assenza. Così un device documentato SENZA lease
-        // resta "non verificabile", non "assente" (observedSubnets si popola solo da
-        // ARP/ping reali). Assenza-da-lease ≠ device assente.
-        const sig = _driftNorm(l.mac);
-        if(sig && !known.has(sig) && !seen.has(sig)){
-            seen.add(sig);
-            observedDevices.push({ sig, mac: l.mac, label: `${t('dhcp.seenLease',{ip})}${l.hostname ? ' · ' + l.hostname : ''}`, vlan: (l && l.vlan != null) ? l.vlan : null, portMacCount: 0, consumer: false });
-        }
-        _leaseChecked = true;
-    }
-
-    return { responded, ports, observedMacs, observedDevices, rejectedSigs, portDownStreak, fdbObserved, presentNodeIds, reachabilityChecked: reachabilityChecked || _leaseChecked, macAtIp, observedSubnets: [...observedSubnets] };
+    return buildSnmpSnapshot({
+        nodes: state.nodes,
+        docPorts: docSnap.ports,
+        ports: state.ports,
+        fdb, vlanCache,
+        reachable, arpTable,
+        // Lease DHCP: fonte MAC→IP cross-VLAN (transitorio, store._dhcpLeases).
+        leases: Array.isArray(store._dhcpLeases) ? store._dhcpLeases : [],
+        knownSigs: docSnap.deviceSigs,
+        rejectedAutoLinks: state.rejectedAutoLinks || [],
+        normMac: _driftNorm,
+        isVirtualMac: mac => (typeof win.isVirtualMac === 'function') && win.isVirtualMac(mac),
+        isRandomizedMac: mac => (typeof win.isRandomizedMac === 'function') && win.isRandomizedMac(mac),
+        isLeaseStale: isLeaseStale,   // G2: predicato condiviso (lib/dhcp-lease.js)
+        countMacsPerPort: (typeof win.countMacsPerPort === 'function') ? win.countMacsPerPort : undefined,
+        fdbSeenLabel: (sw, ifName) => { const swNode = nodeById(sw); return `${t('pnl.seg.seenOn',{sw:(swNode && (swNode.name||swNode.id)) || sw})}${ifName ? ' · ' + ifName : ''}`; },
+        leaseSeenLabel: (ip, hostname) => `${t('dhcp.seenLease',{ip})}${hostname ? ' · ' + hostname : ''}`,
+    });
 }
 
 // ── Calcolo Drift dallo stato CORRENTE (SENZA ri-pollare) ────────────
