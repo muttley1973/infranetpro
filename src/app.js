@@ -2155,6 +2155,18 @@ function updateN(k,v){
     renderAll(); markDirty();
 }
 
+// Lock manual-first VISIBILE: fissa/sblocca un campo identità del device (IP /
+// hostname). NON è un meccanismo nuovo: commuta i flag *Manual già esistenti che
+// Sync e Discovery rispettano (app-snmp.js / app-discovery-classify.js) e che il
+// Drift evidenzia (ipChanged.manual). Bloccato = la Verifica segnala se la rete
+// diverge; sbloccato = il campo torna a seguire la rete.
+function toggleNodeLock(field){
+    const n=nodeById(selId); if(!n) return;
+    const flag=field+'Manual';   // ipManual / hostnameManual
+    n[flag]=!n[flag];
+    markDirty();
+}
+
 // Stacking (P7.2): wrapper per updateIntegration / setter SNMP che propaga
 // ai membri quando si edita il master. Da chiamare dopo ogni mutazione di
 // integration.* sul master.
@@ -2466,7 +2478,7 @@ expose({
   nodeById, promoteLinkToManual, pushHistory,
   rackUToVisible, redo, removeNodePorts, renderCables, selected, setCableLabel,
   setDeviceWifi, setLinkProp, setLinkWireless, setNodeRadioCount, switchLang, switchRightTab,
-  toggleAbbrevNames, undo, updateFloorId, updateFrontPanel, updateN,
+  toggleAbbrevNames, toggleNodeLock, undo, updateFloorId, updateFrontPanel, updateN,
   updateP, updateWallPortId, visibleUToRackU,
 });
 
