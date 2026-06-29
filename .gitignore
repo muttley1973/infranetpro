@@ -28,6 +28,7 @@ test/fixtures/snmprec/
 tools/gen-demo-network.js
 tools/gen-2rack-demo.js
 tools/gen-company-demo.js
+tools/gen-enterprise-500.js
 # Script di scan/debug temporanei (scratch, non versionare)
 tools/_*.js
 
