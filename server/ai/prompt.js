@@ -86,6 +86,61 @@ const FEATURE_LABELS = {
   },
 };
 
+// ── Aiuto / onboarding (spec §4c): catalogo UI reale + flussi chiave. ────────
+// La fonte di verità su «come si usa InfraNet» è la UI stessa (pulsanti+tooltip),
+// non il manuale. Il CATALOGO (righe «"Etichetta" — cosa fa») è DERIVATO da
+// netmapper.html+i18n (lib/ui-catalog) e passato a runtime dalla route: qui
+// aggiungiamo solo la regola di grounding-aiuto + i FLUSSI CHIAVE curati (la
+// spina dorsale, che il catalogo da solo non racconta passo-passo). Niente help
+// passato → nessuna sezione (retrocompatibile coi test che confrontano PROMPTS).
+const CHEAT_SHEET = {
+  it: [
+    '- Spina dorsale: Scopri → Sync → Verifica. «Scopri» trova i device in un range;',
+    '  «Sync» aggiorna porte/VLAN/topologia dai device SNMP; «Verifica» confronta la',
+    '  documentazione con la realtà (presenza, cambi IP, non-documentati).',
+    '- Bloccare un valore a mano (manual-first): nel pannello Proprietà del device, il',
+    '  lucchetto accanto a IP/hostname (o alla VLAN di una porta) fissa il valore → il',
+    '  Sync non lo sovrascrive.',
+    '- Adottare un non-documentato: dalla Verifica/Drift, il comando «Adotta» lo rende',
+    '  un nodo del progetto.',
+  ],
+  en: [
+    '- Backbone: Discover → Sync → Verify. "Discover" finds devices in a range;',
+    '  "Sync" updates ports/VLANs/topology from SNMP devices; "Verify" compares the',
+    '  documentation against reality (presence, IP changes, undocumented).',
+    '- Lock a value by hand (manual-first): in the device Properties panel, the lock',
+    '  next to IP/hostname (or a port VLAN) pins the value → Sync will not overwrite it.',
+    '- Adopt an undocumented device: from Verify/Drift, the "Adopt" command turns it',
+    '  into a project node.',
+  ],
+};
+
+function _helpLinesText(helpLines) {
+  if (Array.isArray(helpLines)) return helpLines.filter(l => l && String(l).trim()).join('\n');
+  return (helpLines == null) ? '' : String(helpLines).trim();
+}
+
+function _helpBlock(lang, helpLines) {
+  const catalog = _helpLinesText(helpLines);
+  if (!catalog) return '';                            // nessun catalogo → nessuna sezione
+  if (lang === 'en') {
+    return '\n\nINFRANET HELP (for "how do I X" / "what is Y for" questions):' +
+      '\n- To explain how to use InfraNet use ONLY the CATALOG below (real buttons with' +
+      '\n  their function) and the KEY FLOWS. Cite the exact button label (e.g. "click' +
+      '\n  Discover"). Do NOT invent buttons, menus or commands; if it is not in the' +
+      '\n  catalog, say so.' +
+      '\n\nKEY FLOWS:\n' + CHEAT_SHEET.en.join('\n') +
+      '\n\nBUTTON CATALOG (label — what it does):\n' + catalog;
+  }
+  return '\n\nAIUTO INFRANET (per domande «come si fa X» / «a cosa serve Y»):' +
+    '\n- Per spiegare come usare InfraNet usa SOLO il CATALOGO qui sotto (pulsanti reali' +
+    '\n  con la loro funzione) e i FLUSSI CHIAVE. Cita l\'etichetta esatta del pulsante' +
+    '\n  (es. «clicca Scopri»). NON inventare pulsanti, menu o comandi; se qualcosa non' +
+    '\n  è nel catalogo, dillo.' +
+    '\n\nFLUSSI CHIAVE:\n' + CHEAT_SHEET.it.join('\n') +
+    '\n\nCATALOGO PULSANTI (etichetta — cosa fa):\n' + catalog;
+}
+
 function _capabilitiesBlock(lang, features) {
   const f = (features && typeof features === 'object') ? features : {};
   const off = FEATURE_ORDER.filter(k => f[k] === false);
@@ -108,10 +163,12 @@ function _capabilitiesBlock(lang, features) {
 }
 
 // Ritorna il system-prompt nella lingua UI (default it) + sezione capacità se
-// qualche funzione è disabilitata. Lingua sconosciuta → it.
-function buildSystemPrompt(lang, features) {
+// qualche funzione è disabilitata + sezione AIUTO §4c se è passato un catalogo UI
+// (helpLines, da lib/ui-catalog). Lingua sconosciuta → it. Senza features/help
+// extra l'output è IDENTICO a PROMPTS[lg] (retrocompatibile).
+function buildSystemPrompt(lang, features, helpLines) {
   const lg = lang === 'en' ? 'en' : 'it';
-  return PROMPTS[lg] + _capabilitiesBlock(lg, features);
+  return PROMPTS[lg] + _capabilitiesBlock(lg, features) + _helpBlock(lg, helpLines);
 }
 
-module.exports = { buildSystemPrompt, _capabilitiesBlock, PROMPTS, FEATURE_ORDER };
+module.exports = { buildSystemPrompt, _capabilitiesBlock, _helpBlock, CHEAT_SHEET, PROMPTS, FEATURE_ORDER };

@@ -47,8 +47,10 @@ server/ai-config.js    AI assistant config: enabled/endpoint/model/key + scope/f
                        (data/ai-config.json git-ignored; key server-side only, env INFRANET_AI_KEY)
 server/ai/             AI assistant: context.js (sanitized §8b + ports/SNMP-health/topology +
                        re-sanitized browser liveFacts, scope-aware, allowlist+denylist),
-                       prompt.js (grounding it/en + capabilities), provider.js (OpenAI-compatible
-                       client via node:https, zero-dep). routes/ai.js returns an entities digest
+                       prompt.js (grounding it/en + capabilities + §4c help: UI catalog +
+                       key-flows cheat-sheet), provider.js (OpenAI-compatible client via
+                       node:https, zero-dep). routes/ai.js derives the UI help catalog once
+                       (lib/ui-catalog from netmapper.html+i18n) and returns an entities digest
                        (extractEntities) so the client can run the anti-invention check.
 drivers/snmp.js        SNMP v1/v2c/v3 driver
 engine/                sysObjectID + OUI classification engines (plugin loaders)
@@ -61,6 +63,8 @@ lib/                   Shared browser + test modules (the heart of the app)
   power-mib.js wifi-spec.js cable-labels.js drift-report.js
   ai-grounding.js   extractEntities + checkGrounding (citations + anti-invention)  (pure)
   ai-draft.js       splitDraftBlocks (segments AI reply → text + Ansible draft cards)  (pure)
+  onboarding.js     nextStep(summary) → deterministic «next step» chip (onboarding §4d)  (pure)
+  ui-catalog.js     extractCatalog/catalogLines: derive UI help (buttons+tooltips) from HTML+i18n  (pure)
   ipam.js           computeIpamUsage incl. nextFree (next free host = «suggested IP»)  (pure)
   radio.js          radio interfaces: pid/anchor/linkKind/seeds       (pure)
   vlan-trunk.js     carriedVlans + effLinkVlans (trunk derivato)       (pure)  …
