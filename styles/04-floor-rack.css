@@ -74,6 +74,40 @@
         .right-tab .tab-badge.show { display:inline-block; }
         #props-panel-wrap { flex:1; overflow-y:auto; padding:13px; display:none; }
         #props-panel-wrap.active { display:block; }
+        /* ── Pannello Assistente AI (3ª tab) — gemello di props-panel-wrap ── */
+        #ai-panel-wrap { flex:1; overflow-y:auto; display:none; min-height:0; }
+        #ai-panel-wrap.active { display:flex; }
+        #ai-panel { flex:1; display:flex; flex-direction:column; padding:13px; min-height:0; }
+        .ai-head { display:flex; align-items:center; justify-content:space-between; gap:8px; padding-bottom:10px; border-bottom:1px solid var(--panel-border); flex-shrink:0; }
+        .ai-head-title { font-size:var(--fs-lg); font-weight:700; color:var(--accent); display:flex; align-items:center; gap:7px; }
+        .ai-chip { font-size:var(--fs-xs); font-weight:600; padding:2px 8px; border-radius:var(--radius-lg); display:inline-flex; align-items:center; gap:5px; white-space:nowrap; }
+        .ai-chip-off { background:var(--surface-2); color:var(--text-muted); border:1px solid var(--panel-border); }
+        .ai-empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:11px; padding:20px 12px; min-height:0; }
+        .ai-empty-icon { font-size:2.7rem; color:var(--accent); opacity:.45; }
+        .ai-empty-title { font-size:var(--fs-md); font-weight:700; color:var(--text-main); margin:0; }
+        .ai-empty-sub { font-size:var(--fs-sm); color:var(--text-muted); margin:0; line-height:1.5; max-width:300px; }
+        .ai-empty-hint { font-size:var(--fs-sm); color:var(--text-muted); margin:4px 0 0; }
+        .ai-empty .toolbar-btn { margin-top:4px; }
+        .ai-foot { flex-shrink:0; font-size:var(--fs-xs); color:var(--text-muted); border-top:1px solid var(--panel-border); padding-top:9px; margin-top:10px; display:flex; align-items:flex-start; gap:6px; line-height:1.45; }
+        /* I due stati del pannello riempiono l'altezza; app-ai.js commuta display. */
+        #ai-empty, #ai-chat { flex:1; display:flex; flex-direction:column; min-height:0; }
+        .ai-chip-local { background:rgba(57,211,83,.12); color:var(--active-color); border:1px solid var(--active-color); }
+        .ai-chip-cloud { background:rgba(245,166,35,.14); color:var(--idle-color); border:1px solid var(--idle-color); }
+        /* Chat: lista messaggi + composer */
+        .ai-messages { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:8px; padding:10px 2px; min-height:0; }
+        .ai-greeting { color:var(--text-muted); font-size:var(--fs-sm); margin:0 0 4px; line-height:1.45; }
+        .ai-ex-chips { display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
+        .ai-ex-chip { font-size:var(--fs-sm); padding:5px 10px; border:1px solid var(--panel-border); border-radius:var(--radius-lg); color:var(--accent); cursor:pointer; background:var(--surface-2); text-align:left; }
+        .ai-ex-chip:hover { border-color:var(--accent); }
+        .ai-msg { max-width:90%; padding:7px 11px; border-radius:10px; font-size:var(--fs-sm); line-height:1.45; white-space:pre-wrap; word-break:break-word; }
+        .ai-msg-user { align-self:flex-end; background:var(--accent-soft); color:var(--text-main); border:1px solid var(--accent); }
+        .ai-msg-ai { align-self:flex-start; background:var(--surface-2); color:var(--text-main); border:1px solid var(--panel-border); }
+        .ai-msg-err { align-self:flex-start; background:rgba(248,81,73,.12); color:var(--text-main); border:1px solid var(--fault-color); }
+        .ai-typing { align-self:flex-start; color:var(--text-muted); font-size:var(--fs-sm); font-style:italic; padding:4px 2px; }
+        .ai-composer { flex-shrink:0; display:flex; gap:7px; align-items:flex-end; padding-top:8px; border-top:1px solid var(--panel-border); }
+        .ai-composer textarea { flex:1; resize:none; background:var(--panel-bg); border:1px solid var(--panel-border); border-radius:var(--radius-md); color:var(--text-main); font-size:var(--fs-sm); font-family:inherit; padding:7px 10px; outline:none; }
+        .ai-composer textarea:focus { border-color:var(--accent); }
+        .ai-composer .toolbar-btn { flex-shrink:0; align-self:stretch; }
         .props-selected-title { font-size:var(--fs-lg); font-weight:700; color:var(--accent); margin:0 0 10px; padding:0 0 8px; border-bottom:1px solid var(--panel-border); word-break:break-word; display:flex; align-items:flex-start; gap:8px; }
         .props-selected-title > span:first-child { flex:1; min-width:0; }
         .props-selected-main { display:flex; align-items:center; gap:9px; flex:1; min-width:0; }

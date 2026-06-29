@@ -83,6 +83,9 @@ users.json
 .session-secret
 # token REST API (hash sha-256 dei token; segreti — vedi server/api-tokens.js)
 api-tokens.json
+# config Assistente AI: endpoint/modello/enabled + chiave BYO. La chiave NON deve
+# MAI finire nel repo (override anche via env INFRANET_AI_KEY) — vedi server/ai-config.js
+data/ai-config.json
 
 # -------------------------------------------------------
 # Runtime / backup locali (non versionare)

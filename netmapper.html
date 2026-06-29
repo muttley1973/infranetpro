@@ -100,6 +100,9 @@
       <button class="um-tab" id="um-tab-tokens" onclick="umSwitchTab('tokens')">
         <i class="fas fa-key"></i> <span data-i18n="um.tabTokens">Token API</span>
       </button>
+      <button class="um-tab" id="um-tab-ai" onclick="umSwitchTab('ai')">
+        <i class="fas fa-robot"></i> <span data-i18n="um.tabAi">Assistente AI</span>
+      </button>
     </div>
     <div class="tool-modal-body">
       <!-- ===== Pane UTENTI ===== -->
@@ -150,6 +153,51 @@
         <div class="tk-sec-label"><span data-i18n="tk.active">Token attivi</span></div>
         <div id="tk-list"><i class="fas fa-spinner fa-spin" style="color:var(--text-muted)"></i></div>
         <div class="tk-foot-hint"><i class="fas fa-eye"></i> <span data-i18n="tk.readonly">sola lettura · API</span> <code>/api/v1</code></div>
+      </div>
+      <!-- ===== Pane ASSISTENTE AI (L0: config + «mostra cosa esce») ===== -->
+      <div class="um-pane" id="um-pane-ai">
+        <div class="um-form">
+          <h3><i class="fas fa-robot"></i> <span data-i18n="ai.cfgTitle">Assistente AI (advisory)</span></h3>
+          <p class="ai-cfg-intro" data-i18n="ai.cfgIntro">L'assistente interroga la TUA rete documentata. I dati restano sul server: esce solo l'inventario sanitizzato (mai password o community SNMP). Di default l'inferenza è locale (Ollama).</p>
+          <label class="ai-cfg-toggle">
+            <input type="checkbox" id="ai-cfg-enabled">
+            <span data-i18n="ai.cfgEnable">Abilita l'assistente</span>
+          </label>
+          <label class="ai-cfg-label" for="ai-cfg-endpoint" data-i18n="ai.cfgEndpoint">Endpoint (OpenAI-compatibile)</label>
+          <input type="text" id="ai-cfg-endpoint" class="ai-cfg-input" placeholder="http://localhost:11434/v1" autocomplete="off">
+          <label class="ai-cfg-label" for="ai-cfg-model" data-i18n="ai.cfgModel">Modello</label>
+          <input type="text" id="ai-cfg-model" class="ai-cfg-input" data-i18n-ph="ai.cfgModelPh" placeholder="es. llama3.1, gpt-4o-mini" autocomplete="off">
+          <label class="ai-cfg-label" for="ai-cfg-key" data-i18n="ai.cfgKey">Chiave API (solo cloud · write-only)</label>
+          <input type="password" id="ai-cfg-key" class="ai-cfg-input" data-i18n-ph="ai.cfgKeyPh" placeholder="non necessaria in locale" autocomplete="new-password">
+          <div class="ai-cfg-hint"><i class="fas fa-lock"></i> <span data-i18n="ai.cfgKeyHint">La chiave resta sul server, non torna mai al browser e non finisce nel progetto.</span></div>
+          <!-- Ambito dati: cosa esce verso il modello (privacy + costo) -->
+          <div class="ai-cfg-group">
+            <div class="ai-cfg-grouphd"><i class="fas fa-shield-halved"></i> <span data-i18n="ai.scopeTitle">Ambito dati — cosa esce verso il modello</span></div>
+            <label class="ai-cfg-check"><input type="checkbox" id="ai-scope-devices"> <span data-i18n="ai.scopeDevices">Inventario device</span></label>
+            <label class="ai-cfg-check"><input type="checkbox" id="ai-scope-ports"> <span data-i18n="ai.scopePorts">Porte (stato/VLAN/collegamenti)</span></label>
+            <label class="ai-cfg-check"><input type="checkbox" id="ai-scope-snmpHealth"> <span data-i18n="ai.scopeHealth">Salute SNMP (CPU/RAM/toner/UPS)</span></label>
+            <label class="ai-cfg-check"><input type="checkbox" id="ai-scope-topology"> <span data-i18n="ai.scopeTopology">Topologia (collegamenti tra device)</span></label>
+            <label class="ai-cfg-check"><input type="checkbox" id="ai-scope-drift"> <span data-i18n="ai.scopeDrift">Drift / Verifica</span></label>
+          </div>
+          <!-- Capacità: cosa l'assistente può fare -->
+          <div class="ai-cfg-group">
+            <div class="ai-cfg-grouphd"><i class="fas fa-sliders"></i> <span data-i18n="ai.featTitle">Capacità — cosa può fare</span></div>
+            <label class="ai-cfg-check"><input type="checkbox" id="ai-feat-qa"> <span data-i18n="ai.featQa">Q&amp;A sulla rete</span></label>
+            <label class="ai-cfg-check"><input type="checkbox" id="ai-feat-diagnostics"> <span data-i18n="ai.featDiag">Diagnostica</span></label>
+            <label class="ai-cfg-check"><input type="checkbox" id="ai-feat-gaps"> <span data-i18n="ai.featGaps">Trova lacune</span></label>
+            <label class="ai-cfg-check"><input type="checkbox" id="ai-feat-suggestions"> <span data-i18n="ai.featSugg">Suggerimenti</span></label>
+            <label class="ai-cfg-check"><input type="checkbox" id="ai-feat-ansible"> <span data-i18n="ai.featAnsible">Bozza Ansible</span></label>
+          </div>
+          <div class="um-row" style="margin-top:10px">
+            <button class="um-btn primary admin-only" id="ai-cfg-save" onclick="aiCfgSave()"><i class="fas fa-floppy-disk"></i> <span data-i18n="ai.cfgSave">Salva</span></button>
+            <button class="um-btn ghost" id="ai-cfg-preview-btn" onclick="aiCfgPreview()"><i class="fas fa-eye"></i> <span data-i18n="ai.cfgPreview">Mostra cosa esce</span></button>
+          </div>
+          <div class="um-msg" id="ai-cfg-msg"></div>
+        </div>
+        <div class="ai-cfg-preview" id="ai-cfg-preview" style="display:none">
+          <div class="ai-cfg-preview-head"><i class="fas fa-shield-halved"></i> <span data-i18n="ai.cfgPreviewHead">Questo è ciò che uscirebbe verso il modello — sanitizzato (niente password né community SNMP).</span></div>
+          <pre class="ai-cfg-preview-out" id="ai-cfg-preview-out"></pre>
+        </div>
       </div>
     </div>
     <div class="tool-modal-footer">
@@ -556,6 +604,10 @@
                 </button>
             </div>
         </div>
+        <button class="toolbar-btn icon-only" id="btn-assistant" onclick="openAssistant()"
+                data-i18n-tip="assistant.toolbarTip" data-tip="Assistente di rete — domande, diagnosi e bozze · scorciatoia: A">
+            <i class="fas fa-robot"></i><span class="btn-label" data-i18n="assistant.label"> Assistente</span>
+        </button>
         <span style="width:1px;height:18px;background:var(--panel-border);opacity:.5;flex-shrink:0;align-self:center"></span>
         <div id="automation-menu-wrap" style="position:relative">
             <button class="toolbar-btn icon-only" id="btn-automation" onclick="toggleAutomationMenu()" data-i18n-tip="autom.tip" data-tip="Automazioni di rete: polling SNMP in background e rinnovo automatico IP (DHCP)">
@@ -755,20 +807,62 @@
         </div>
 
         <aside id="rack-view" ondragover="event.preventDefault();" ondrop="handleDrop(event,'rack')">
-            <!-- Tab bar: Rack / Proprietà -->
-            <div id="right-tab-bar">
-                <div class="right-tab active" id="tab-rack" onclick="switchRightTab('rack')">
+            <!-- Tab bar: Rack / Proprietà / Assistente -->
+            <div id="right-tab-bar" role="tablist" data-i18n-aria="tab.barAria" aria-label="Pannello destro">
+                <div class="right-tab active" id="tab-rack" role="tab" aria-selected="true" aria-controls="rack-viewport" tabindex="0" onclick="switchRightTab('rack')">
                     <i class="fas fa-server" style="font-size:0.75rem"></i> <span data-i18n="tab.rack">Rack</span>
                 </div>
-                <div class="right-tab" id="tab-props" onclick="switchRightTab('props')">
+                <div class="right-tab" id="tab-props" role="tab" aria-selected="false" aria-controls="props-panel-wrap" tabindex="0" onclick="switchRightTab('props')">
                     <i class="fas fa-sliders" style="font-size:0.75rem"></i> <span data-i18n="tab.props">Proprietà</span>
                     <span class="tab-badge" id="props-tab-badge"></span>
+                </div>
+                <div class="right-tab" id="tab-ai" role="tab" aria-selected="false" aria-controls="ai-panel-wrap" tabindex="0" onclick="switchRightTab('ai')"
+                     data-i18n-tip="assistant.tabTip" data-tip="Assistente di rete — domande, diagnosi e bozze · scorciatoia: A">
+                    <i class="fas fa-robot" style="font-size:0.75rem"></i> <span data-i18n="tab.ai">Assistente</span>
+                    <span class="tab-badge" id="ai-tab-badge"></span>
                 </div>
             </div>
 
             <!-- Pannello Proprietà (nascosto di default) -->
             <div id="props-panel-wrap">
                 <div id="props-panel"><p style="color:var(--text-muted);font-size:0.82rem">Seleziona un elemento per modificarne le proprietà.</p></div>
+            </div>
+
+            <!-- Pannello Assistente AI (nascosto di default). Due stati gestiti da
+                 app-ai.js: #ai-empty (non configurato, statico bilingue + ruolo via
+                 .admin-only/.viewer-ok) e #ai-chat (configurato → composer chat).
+                 La conversazione vive in sessione browser (project-global), non nel JSON. -->
+            <div id="ai-panel-wrap" role="tabpanel" aria-labelledby="tab-ai" data-i18n-aria="tab.ai" aria-label="Assistente">
+                <div id="ai-panel">
+                    <!-- Stato: NON configurato -->
+                    <div id="ai-empty">
+                        <div class="ai-head">
+                            <span class="ai-head-title"><i class="fas fa-robot"></i> <span data-i18n="assistant.title">Assistente</span></span>
+                            <span class="ai-chip ai-chip-off" data-i18n-tip="assistant.chipOffTip" data-tip="L'assistente non è ancora configurato"><i class="fas fa-circle-half-stroke"></i> <span data-i18n="assistant.chipOff">Non configurato</span></span>
+                        </div>
+                        <div class="ai-empty">
+                            <i class="fas fa-robot ai-empty-icon"></i>
+                            <p class="ai-empty-title" data-i18n="assistant.emptyTitle">L'assistente non è ancora configurato</p>
+                            <p class="ai-empty-sub" data-i18n="assistant.emptySub">Interroga la tua rete documentata in linguaggio naturale — presenze, VLAN, IP liberi, diagnosi e bozze di automazione — sempre citando i dati reali. I dati restano sul tuo server.</p>
+                            <button class="toolbar-btn primary admin-only" onclick="openAiSettings()"><i class="fas fa-gear"></i> <span data-i18n="assistant.configure">Configura l'assistente</span></button>
+                            <p class="ai-empty-hint viewer-ok" style="display:none" data-i18n="assistant.askAdmin">Chiedi a un amministratore di configurare l'assistente.</p>
+                        </div>
+                        <div class="ai-foot"><i class="fas fa-shield-halved"></i> <span data-i18n="assistant.footer">Advisory: propone, confermi tu. Esce solo l'inventario sanitizzato.</span></div>
+                    </div>
+                    <!-- Stato: configurato (chat) — mostrato da app-ai.js quando abilitato -->
+                    <div id="ai-chat" style="display:none">
+                        <div class="ai-head">
+                            <span class="ai-head-title"><i class="fas fa-robot"></i> <span data-i18n="assistant.title">Assistente</span></span>
+                            <span class="ai-chip" id="ai-chip-status"></span>
+                        </div>
+                        <div id="ai-messages" class="ai-messages" aria-live="polite"></div>
+                        <div class="ai-composer">
+                            <textarea id="ai-input" rows="2" data-i18n-ph="assistant.inputPh" placeholder="Chiedi qualcosa sulla tua rete…"></textarea>
+                            <button class="toolbar-btn primary" id="ai-send-btn" onclick="aiSend()" data-i18n-aria="assistant.send" aria-label="Invia"><i class="fas fa-paper-plane"></i></button>
+                        </div>
+                        <div class="ai-foot"><i class="fas fa-shield-halved"></i> <span data-i18n="assistant.footer">Advisory: propone, confermi tu. Esce solo l'inventario sanitizzato.</span></div>
+                    </div>
+                </div>
             </div>
 
             <div id="rack-viewport" onwheel="handleRackZoom(event)" onscroll="renderCables()">

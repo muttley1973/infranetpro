@@ -114,12 +114,18 @@ function openUserManager(){
 // Tab del modale "Utenti e accessi": Utenti ↔ Token API. I token si caricano
 // pigramente alla prima apertura del tab (una volta per apertura del modale).
 function umSwitchTab(name){
-    const isTokens = name === 'tokens';
-    document.getElementById('um-tab-users').classList.toggle('active', !isTokens);
-    document.getElementById('um-tab-tokens').classList.toggle('active', isTokens);
-    document.getElementById('um-pane-users').classList.toggle('active', !isTokens);
-    document.getElementById('um-pane-tokens').classList.toggle('active', isTokens);
-    if(isTokens && !_tokensLoaded){ _tokensLoaded = true; tkLoadTokens(); }
+    const tabs = ['users', 'tokens', 'ai'];   // ai = scheletro (scheda Assistente)
+    if(!tabs.includes(name)) name = 'users';
+    for(const tn of tabs){
+        const tab = document.getElementById('um-tab-' + tn);
+        const pane = document.getElementById('um-pane-' + tn);
+        if(tab) tab.classList.toggle('active', tn === name);
+        if(pane) pane.classList.toggle('active', tn === name);
+    }
+    if(name === 'tokens' && !_tokensLoaded){ _tokensLoaded = true; tkLoadTokens(); }
+    // Scheda Assistente AI: ricarica la config dal server a ogni apertura
+    // (glue in app-ai.js, bundle → chiamata bare con guardia typeof).
+    if(name === 'ai' && typeof _aiCfgLoad === 'function') _aiCfgLoad();
 }
 
 function closeUserManager(){
