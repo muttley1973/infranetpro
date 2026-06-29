@@ -250,10 +250,13 @@ function _buildNetAccessHtml(n, d, opts){
              ${(typeof win._radioIfacesHtml==='function') ? win._radioIfacesHtml(n) : ''}
            </div></details>`
         : '';
+    // Lucchetto manual-first VISIBILE: riflette/commuta il flag *Manual del campo
+    // (ipManual/hostnameManual). Bloccato = la Verifica segnala se la rete diverge.
+    const _lockBtn = (field, locked) => `<button type="button" class="toolbar-btn" style="padding:2px 7px;margin:0;font-size:0.78rem;line-height:1${locked?';color:var(--accent);border-color:var(--accent)':''}" data-tip="${t(locked?'lock.locked':'lock.unlocked')}" aria-label="${t(locked?'lock.locked':'lock.unlocked')}" aria-pressed="${locked?'true':'false'}" onclick="toggleNodeLock('${field}');renderProps()"><i class="fas fa-lock${locked?'':'-open'}"></i></button>`;
     return `<details class="props-collapsible" ${_propsSectionIsOpen('network-access')?'open':''} ontoggle="setPropsSectionState('network-access',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-link"></i> ${t('sec.netAccess')}</span>${_previewHtml}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
         ${_stackHint}
-        ${includeHostname ? `<div class="prop-group"><label>Hostname</label><input value="${escapeHTML(n.hostname||'')}" placeholder="${escapeHTML(d.brand||'')}" ${_ro} onchange="updateN('hostname',this.value);updateN('hostnameManual',!!this.value.trim())"></div>` : ''}
-        <div class="prop-group"><label>${t('net.ip')}</label><input value="${escapeHTML(n.ip||'')}" placeholder="${escapeHTML(ipPlaceholder)}" ${_ro} onchange="updateN('ip',this.value);updateN('ipManual',!!this.value.trim())"></div>
+        ${includeHostname ? `<div class="prop-group"><label>Hostname</label><div style="display:flex;gap:5px;align-items:center"><input style="flex:1" value="${escapeHTML(n.hostname||'')}" placeholder="${escapeHTML(d.brand||'')}" ${_ro} onchange="updateN('hostname',this.value);updateN('hostnameManual',!!this.value.trim())">${_ro?'':_lockBtn('hostname',!!n.hostnameManual)}</div></div>` : ''}
+        <div class="prop-group"><label>${t('net.ip')}</label><div style="display:flex;gap:5px;align-items:center"><input style="flex:1" value="${escapeHTML(n.ip||'')}" placeholder="${escapeHTML(ipPlaceholder)}" ${_ro} onchange="updateN('ip',this.value);updateN('ipManual',!!this.value.trim())">${_ro?'':_lockBtn('ip',!!n.ipManual)}</div></div>
         ${win._mgmtRow(n.mgmtUrl||'', n.ip||'', n.id)}
         ${showMac ? `<div class="prop-group"><label>${escapeHTML(macLabel)}</label><input value="${escapeHTML(n.mac||'')}" placeholder="${escapeHTML(macPlaceholder)}" ${_ro} onchange="updateN('mac',this.value)"></div>` : ''}
         ${_autoLinkBtn}

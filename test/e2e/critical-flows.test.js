@@ -760,6 +760,43 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.hasPoll, 'pollAllSNMP è esposto (handler del bottone Sync)');
     });
 
+    await t.test('lock manual-first: toggleNodeLock (IP/hostname) e togglePortVlanLock fissano/sbloccano il valore', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          const baseN = state.nodes.length;
+          state.nodes.push({ id: 'n_lock', type: 'switch', name: 'LOCK-SW', ip: '10.9.9.9' });
+          state.ports['n_lock-1'] = { vlan: 30 };
+          selType = 'node'; selId = 'n_lock';
+          // IP: lock → ipManual true; unlock → false (riusa il flag manual-first)
+          const ipBefore = !!nodeById('n_lock').ipManual;
+          toggleNodeLock('ip'); const ipLocked = !!nodeById('n_lock').ipManual;
+          toggleNodeLock('ip'); const ipUnlocked = !!nodeById('n_lock').ipManual;
+          // hostname: lock → hostnameManual true
+          toggleNodeLock('hostname'); const hnLocked = !!nodeById('n_lock').hostnameManual;
+          // VLAN porta: lock → vlanOvr = VLAN live; unlock → rimosso
+          const ovrBefore = state.ports['n_lock-1'].vlanOvr != null ? state.ports['n_lock-1'].vlanOvr : null;
+          togglePortVlanLock('n_lock-1'); const ovrLocked = state.ports['n_lock-1'].vlanOvr != null ? state.ports['n_lock-1'].vlanOvr : null;
+          togglePortVlanLock('n_lock-1'); const ovrUnlocked = state.ports['n_lock-1'].vlanOvr != null ? state.ports['n_lock-1'].vlanOvr : null;
+          // render del pannello col lucchetto: non deve lanciare
+          selType = 'node'; selId = 'n_lock'; renderProps();
+          // cleanup (non inquinare i test successivi)
+          state.nodes = state.nodes.filter(n => n.id !== 'n_lock');
+          delete state.ports['n_lock-1'];
+          selType = null; selId = null; renderProps();
+          return { ok: true, ipBefore, ipLocked, ipUnlocked, hnLocked, ovrBefore, ovrLocked, ovrUnlocked, restored: state.nodes.length === baseN };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso lock: ' + r.err);
+      assert.equal(r.ipBefore, false);
+      assert.equal(r.ipLocked, true, 'lock IP → ipManual true');
+      assert.equal(r.ipUnlocked, false, 'unlock IP → ipManual false');
+      assert.equal(r.hnLocked, true, 'lock hostname → hostnameManual true');
+      assert.equal(r.ovrBefore, null);
+      assert.equal(r.ovrLocked, 30, 'lock VLAN porta → vlanOvr = VLAN live (30)');
+      assert.equal(r.ovrUnlocked, null, 'unlock VLAN porta → vlanOvr rimosso');
+      assert.ok(r.restored, 'stato ripristinato dopo il test');
+    });
+
     await t.test('app-drift presence-aware: cambio IP (stesso MAC) rilevato dal motore nel browser reale', async () => {
       // Test del motore puro nel browser (no state/render → niente inquinamento
       // della pagina condivisa). Il glue (_driftBuildDocSnapshot/_driftBuildSnmpSnapshot)
