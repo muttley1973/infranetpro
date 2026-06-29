@@ -16,6 +16,8 @@
   },
   "include": [
     "lib/types.d.ts",
+    "lib/ai-draft.js",
+    "lib/ai-grounding.js",
     "lib/audit-log.js",
     "lib/cable-labels.js",
     "lib/cable-validate.js",

@@ -342,6 +342,8 @@ function _driftRowHtml(cat, r){
     let main = '', actions = '';
     const invBtn = `<button class="drift-act" onclick="driftInvestigate('${esc(r.key)}')" data-tip="${t('drift.tipOpen')}"><i class="fas fa-magnifying-glass"></i></button>`;
     const ignBtn = `<button class="drift-act" onclick="driftIgnore('${esc(r.key)}')" data-tip="${t('drift.tipIgnore')}"><i class="fas fa-eye-slash"></i></button>`;
+    // L4: «Spiega» con l'Assistente AI (semina la domanda sul caso → loop Verifica→capisci→agisci).
+    const explBtn = `<button class="drift-act" onclick="aiExplainDrift('${esc(cat)}','${esc(r.key)}')" data-tip="${t('assistant.explain')}"><i class="fas fa-robot"></i></button>`;
     if(cat === 'stateDrift'){
         const diffs = (r.diffs || []).map(d => `${esc(d.field)}: <s>${esc(d.doc)}</s> → <b>${esc(d.real)}</b>`).join(' · ');
         main = `<span class="drift-row-main">${esc(r.label)}</span><span class="drift-row-sub">${diffs}</span>`;
@@ -386,7 +388,9 @@ function _driftRowHtml(cat, r){
     } else { // consistent
         main = `<span class="drift-row-main">${esc(r.label)}</span>`;
     }
-    return `<div class="drift-row">${main}<span class="drift-row-acts">${actions}</span></div>`;
+    // «Spiega» su tutte le righe azionabili (non sulle consistenti = nessuna azione).
+    const acts = (cat === 'consistent') ? actions : actions + explBtn;
+    return `<div class="drift-row">${main}<span class="drift-row-acts">${acts}</span></div>`;
 }
 function _renderDriftReport(){
     const rep = store._driftReport;

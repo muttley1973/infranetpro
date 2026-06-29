@@ -17,6 +17,7 @@ const express = require('express');
 const auth = require('../../auth');
 const aiConfig = require('../ai-config');
 const { buildAiContext } = require('../ai/context');
+const { extractEntities } = require('../../lib/ai-grounding');
 const { buildSystemPrompt } = require('../ai/prompt');
 const { chatCompletion } = require('../ai/provider');
 const { loadProject } = require('../projects-store');
@@ -81,7 +82,11 @@ router.post('/api/ai/chat', async (req, res) => {
       endpoint: cfg.endpoint, model: cfg.model, key: cfg.key,
       messages: [{ role: 'system', content: system }, ...turns],
     });
-    res.json({ content: out.content });
+    // `entities` = digest delle entità REALI del contesto (id/nome/ip/mac/vlan)
+    // → il client fa il controllo anti-invenzione (lib/ai-grounding) su ciò che
+    // il modello ha visto DAVVERO (rispetta lo scope). Niente segreti: sono gli
+    // stessi dati già sanitizzati del contesto.
+    res.json({ content: out.content, entities: extractEntities(context) });
   } catch (e) {
     // e.message può citare host/HTTP status (utile a chi configura) ma MAI la chiave.
     res.status(502).json({ error: 'ai_provider', detail: String((e && e.message) || e) });

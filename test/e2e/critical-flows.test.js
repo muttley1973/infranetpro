@@ -2685,7 +2685,10 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         req.on('end', () => {
           seen = { url: req.url, body: b };
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ choices: [{ message: { role: 'assistant', content: 'RISPOSTA-MOCK: dal tuo inventario.' } }] }));
+          // La risposta cita un IP INVENTATO (TEST-NET-3, mai in un progetto reale)
+          // → chip ⚠ (anti-invenzione, L1) + un blocco ```yaml → card-bozza (L3).
+          const content = 'RISPOSTA-MOCK: dal tuo inventario; nodo sconosciuto 203.0.113.250.\n\n```yaml\n- hosts: all\n  tasks:\n    - ansible.builtin.ping:\n```';
+          res.end(JSON.stringify({ choices: [{ message: { role: 'assistant', content } }] }));
         });
       });
       await new Promise((r) => mock.listen(0, '127.0.0.1', r));
@@ -2705,6 +2708,12 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           const c = document.getElementById('ai-chat');
           return !!(c && c.style.display !== 'none');
         }, null, { timeout: 5000 });
+
+        // Semina un Drift VIVO nel runtime del browser (NON nel JSON): _aiCollectLiveFacts
+        // deve allegarlo alla POST e il server ri-sanitizzarlo nel contesto (liveFacts L1).
+        await page.evaluate(() => {
+          window._driftReport = { undocumented: [{ key: 'dev:x', mac: 'de:ad:be:ef:00:01', label: 'mystery', vlan: 99 }] };
+        });
 
         // Gesto reale: digita + clic Invia.
         await page.fill('#ai-input', 'Chi è sulla VLAN 20?');
@@ -2735,6 +2744,39 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         assert.match(payload.messages[0].content, /context:/, 'il contesto sanitizzato è incluso nel system');
         assert.equal(payload.messages[payload.messages.length - 1].content, 'Chi è sulla VLAN 20?', 'ultimo turno = domanda utente');
         assert.ok(!/SUPERSECRET|community/i.test(seen.body), 'nessun segreto nel payload verso il provider');
+        // I liveFacts (Drift dal runtime browser) sono arrivati al provider via contesto.
+        assert.match(seen.body, /de:ad:be:ef:00:01/, 'il Drift vivo (non-documentato) viaggia nel contesto sanitizzato');
+
+        // Grounding: l'IP inventato 203.0.113.250 → chip ⚠ «riferimento non trovato».
+        const grounding = await page.evaluate(() => {
+          const chips = [...document.querySelectorAll('#ai-messages .ai-cite-chip')];
+          const unknown = chips.find((c) => c.classList.contains('ai-cite-unknown'));
+          return { unknownText: unknown ? unknown.textContent : null };
+        });
+        assert.ok(grounding.unknownText && /203\.0\.113\.250/.test(grounding.unknownText),
+          'il controllo anti-invenzione marca l\'IP citato ma assente dai dati');
+
+        // L3: il blocco ```yaml → card-bozza con banner «non applicata» + Copia.
+        const draft = await page.evaluate(() => {
+          const card = document.querySelector('#ai-messages .ai-draft');
+          return {
+            present: !!card,
+            warn: !!(card && card.classList.contains('ai-draft-warn')),
+            code: card ? (card.querySelector('.ai-draft-code') || {}).textContent || '' : '',
+            hasCopy: !!(card && card.querySelector('.ai-draft-copy')),
+          };
+        });
+        assert.ok(draft.present && draft.warn, 'la bozza Ansible è una card con banner «non applicata»');
+        assert.ok(draft.hasCopy, 'la card-bozza ha il bottone Copia');
+        assert.match(draft.code, /hosts: all/, 'il codice della bozza è preservato');
+
+        // L4: aiExplain semina la domanda e la invia (loop «Spiega» dal Drift).
+        const explainExposed = await page.evaluate(() => typeof aiExplainDrift === 'function');
+        assert.ok(explainExposed, 'aiExplainDrift è esposto per il bottone «Spiega» del Drift');
+        await page.evaluate(() => { if (typeof aiExplain === 'function') aiExplain('DOMANDA-L4'); });
+        await page.waitForFunction(
+          () => /DOMANDA-L4/.test((document.getElementById('ai-messages') || {}).textContent || ''),
+          null, { timeout: 5000 });
 
         // Cestino «Pulisci chat»: compare a conversazione avviata → click → reset.
         const clearVisible = await page.evaluate(() => {
