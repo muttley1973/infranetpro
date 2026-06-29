@@ -151,7 +151,7 @@ so language changes apply when reopened.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. ~700 tests.
+  logic. Fast, zero-dep. ~780 tests.
 - **Golden-master render** (`test/golden-render.test.js`): snapshots the rendered
   `innerHTML` of every device's Properties panel + the 4 scopes + the generated
   rack render vs `test/golden/render-golden.json`, to catch unintended UI changes.
