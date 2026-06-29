@@ -2796,6 +2796,75 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         await new Promise((r) => mock.close(r));
       }
     });
+
+    await t.test('Onboarding §4d: chip «prossimo passo» (empty-state) + spotlight sul bottone reale + passo che evolve', async () => {
+      // L'onboarding deve guidare ANCHE prima di configurare un modello → forziamo
+      // l'assistente DISABILITATO così è visibile l'empty-state (non la chat).
+      await page.evaluate(async () => {
+        await fetch('/api/ai/config', {
+          method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: false, endpoint: 'http://localhost:11434/v1', model: '', key: '' }),
+        });
+      });
+
+      // Stato 1: rete VUOTA, nessuna Verifica → passo «Scopri».
+      await page.evaluate(() => {
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes = []; state.links = [];   // svuota i nodi demo → rete vuota davvero
+        window._driftReport = null;
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        if (typeof switchRightTab === 'function') { switchRightTab('rack'); switchRightTab('ai'); }
+      });
+      await page.waitForFunction(() => {
+        const e = document.getElementById('ai-empty');
+        const chip = document.querySelector('#ai-empty .ai-nextstep');
+        return !!(e && e.style.display !== 'none' && chip);
+      }, null, { timeout: 5000 });
+
+      const s1 = await page.evaluate(() => {
+        const chip = document.querySelector('#ai-empty .ai-nextstep');
+        const act = chip && chip.querySelector('.ai-nextstep-act');
+        return { text: chip ? (chip.querySelector('.ai-nextstep-txt') || {}).textContent || '' : '', actText: act ? act.textContent : '' };
+      });
+      assert.match(s1.text, /Scopri|Discover/, 'rete vuota → passo «Scopri»: ' + s1.text);
+      assert.ok(/Mostrami|Show me/.test(s1.actText), 'azione «Mostrami» (spotlight) presente: ' + s1.actText);
+
+      // Click «Mostrami» (gesto reale) → illumina il bottone REALE #btn-discover.
+      await page.click('#ai-empty .ai-nextstep-act');
+      const lit = await page.evaluate(() => {
+        const b = document.getElementById('btn-discover');
+        return !!(b && b.classList.contains('coach-spotlight'));
+      });
+      assert.ok(lit, 'lo spotlight (coach-mark) illumina il bottone reale «Scopri»');
+
+      // Stato 2: device documentati ma SENZA Verifica → il passo evolve in «Verifica».
+      await page.evaluate(() => {
+        state.nodes.push({ id: 'ob1', type: 'switch', name: 'OB-SW', rackId: state.currentRack, rackU: 1, sizeU: 1, ip: '10.0.0.2', mac: '00:11:22:33:44:aa', integration: { driver: 'snmp' } });
+        window._driftReport = null;
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        if (typeof switchRightTab === 'function') { switchRightTab('rack'); switchRightTab('ai'); }   // ri-render empty-state
+      });
+      await page.waitForFunction(() => {
+        const chip = document.querySelector('#ai-empty .ai-nextstep .ai-nextstep-txt');
+        return !!(chip && /Verifica|Verify/.test(chip.textContent || ''));
+      }, null, { timeout: 5000 });
+      const s2 = await page.evaluate(() => {
+        const act = document.querySelector('#ai-empty .ai-nextstep .ai-nextstep-act');
+        // simula il click → deve illuminare #btn-drift
+        if (act) act.click();
+        const b = document.getElementById('btn-drift');
+        return { litDrift: !!(b && b.classList.contains('coach-spotlight')) };
+      });
+      assert.ok(s2.litDrift, 'con device non verificati lo spotlight punta a «Verifica» (#btn-drift)');
+
+      // Dismiss «×»: chiude il chip per quel passo → sparisce.
+      await page.evaluate(() => {
+        const x = document.querySelector('#ai-empty .ai-nextstep .ai-nextstep-x');
+        if (x) x.click();
+      });
+      const dismissed = await page.evaluate(() => !document.querySelector('#ai-empty .ai-nextstep'));
+      assert.ok(dismissed, 'il chip si nasconde dopo «×» (dismiss per-passo)');
+    });
   } finally {
     await browser.close();
     await srv.close();

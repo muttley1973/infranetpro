@@ -13,6 +13,8 @@
 //  Provider + POST /api/ai/chat arrivano nel prossimo incremento (con verifica
 //  live dell'utente sulla propria key e il composer chat).
 // ============================================================
+const fs = require('fs');
+const path = require('path');
 const express = require('express');
 const auth = require('../../auth');
 const aiConfig = require('../ai-config');
@@ -20,9 +22,27 @@ const { buildAiContext } = require('../ai/context');
 const { extractEntities } = require('../../lib/ai-grounding');
 const { buildSystemPrompt } = require('../ai/prompt');
 const { chatCompletion } = require('../ai/provider');
+const { extractCatalog, catalogLines } = require('../../lib/ui-catalog');
+const i18n = require('../../lib/i18n');
 const { loadProject } = require('../projects-store');
 
 const router = express.Router();
+
+// ── Aiuto §4c: catalogo UI (pulsanti+tooltip) DERIVATO una volta da
+// netmapper.html (single-source-of-truth) e risolto per lingua → l'assistente
+// risponde a «come si fa X» citando l'etichetta REALE, senza inventare comandi.
+// È metadato di UI generico (nessun dato utente / segreto) → fuori dallo scope.
+let _uiCatalog = null;
+function _helpLines(lang) {
+  if (_uiCatalog === null) {
+    try {
+      const html = fs.readFileSync(path.join(__dirname, '..', '..', 'netmapper.html'), 'utf8');
+      _uiCatalog = extractCatalog(html);
+    } catch (_e) { _uiCatalog = []; }
+  }
+  try { return catalogLines(_uiCatalog, i18n._i18nDict, lang, { max: 60 }); }
+  catch (_e) { return []; }
+}
 
 router.get('/api/ai/config', (_req, res) => {
   res.json(aiConfig.getConfig());
@@ -68,7 +88,8 @@ router.post('/api/ai/chat', async (req, res) => {
   const lang = (body.lang === 'en') ? 'en' : 'it';
   // scope = ambito dati (cosa esce) · features = capacità abilitate (cosa fa).
   const context = buildAiContext(project, body.liveFacts, cfg.scope);
-  const system = buildSystemPrompt(lang, cfg.features) + '\n\ncontext:\n' + JSON.stringify(context);
+  // system = grounding + capacità + AIUTO §4c (catalogo UI) + contesto del progetto.
+  const system = buildSystemPrompt(lang, cfg.features, _helpLines(lang)) + '\n\ncontext:\n' + JSON.stringify(context);
 
   // Solo i turni user/assistant con testo (niente system/altro dal client).
   const history = Array.isArray(body.messages) ? body.messages : [];

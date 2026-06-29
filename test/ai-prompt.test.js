@@ -50,3 +50,29 @@ test('capacità en: Ansible OFF → sezione CAPABILITIES + vincolo esplicito', (
   assert.match(p, /CAPABILITIES/);
   assert.match(p, /do NOT produce Ansible/i);
 });
+
+// ── Aiuto §4c: catalogo UI nel system-prompt ────────────────────────────────
+test('help it: catalogo passato → sezione AIUTO + flussi chiave + righe del catalogo', () => {
+  const p = buildSystemPrompt('it', undefined, ['"Scopri" — Scansiona la rete', '"Verifica" — Confronta doc e realtà']);
+  assert.match(p, /AIUTO INFRANET/);
+  assert.match(p, /FLUSSI CHIAVE/);
+  assert.match(p, /Spina dorsale: Scopri → Sync → Verifica/);
+  assert.match(p, /CATALOGO PULSANTI/);
+  assert.match(p, /"Scopri" — Scansiona la rete/);
+  assert.match(p, /NON inventare pulsanti/);
+});
+
+test('help en: catalogo passato → sezione HELP localizzata', () => {
+  const p = buildSystemPrompt('en', undefined, ['"Discover" — Scan the network']);
+  assert.match(p, /INFRANET HELP/);
+  assert.match(p, /KEY FLOWS/);
+  assert.match(p, /Backbone: Discover → Sync → Verify/);
+  assert.match(p, /BUTTON CATALOG/);
+  assert.match(p, /Do NOT invent buttons/i);
+});
+
+test('help: nessun catalogo (assente o vuoto) → output IDENTICO a PROMPTS (retrocompat)', () => {
+  assert.equal(buildSystemPrompt('it', undefined, []), PROMPTS.it);
+  assert.equal(buildSystemPrompt('it', undefined, ''), PROMPTS.it);
+  assert.equal(buildSystemPrompt('it'), PROMPTS.it);
+});
