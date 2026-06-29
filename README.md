@@ -12,7 +12,7 @@
   <a href="https://ko-fi.com/infranetpro"><img height="36" src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Support InfraNet Pro on Ko-fi"></a>
 </p>
 
-> 📰 **What's new:** see [CHANGELOG.md](CHANGELOG.md) — latest: per‑VLAN IPAM occupancy, management‑VLAN role, import a discovered device as a host VM, DHCP lease import, REST API v1.
+> 📰 **What's new:** see [CHANGELOG.md](CHANGELOG.md) — latest: **AI assistant (advisory, bring‑your‑own‑key)**, per‑VLAN IPAM occupancy, management‑VLAN role, DHCP lease import, REST API v1.
 
 InfraNet Pro is a **self-hosted web application** that lets network engineers draw rack layouts and floor-plan diagrams, then bring them to life by polling live data from real devices via SNMP. Interfaces, VLANs, LAG groups and neighbour topology are discovered automatically — no external database, no cloud dependency, minimal tooling (a lightweight esbuild bundle for the frontend; `npm start` builds it).
 
@@ -149,6 +149,12 @@ Current product direction: InfraNet Pro keeps discovery and classification insid
 - **Topology legend toggles** — `TRUNK` highlights trunk links (dims the rest) and, while in Topology view, also makes trunk cables appear (highlighted) inside the rack window; `ENDPOINT` hides the last hop to leaf devices and the endpoint nodes themselves to declutter the backbone view
 - **Physical-path trace** — double-click a cable in Topology to open its properties and light up the **whole** physical run (switch → patch → wall socket → endpoint) across racks and floor, not just the clicked segment
 
+### AI Assistant (advisory)
+- **In-app assistant, bring-your-own-key** — a third **«Assistant»** tab in the right panel (keyboard shortcut **A** + a toolbar entry) that answers questions about *your documented network* in plain language: who's on a VLAN, what's on a port, which IPs are free, why a device is absent, SNMP health (CPU/RAM/toner/UPS), topology. Provider-agnostic via a single **OpenAI-compatible** endpoint — **local (Ollama) by default** so data never leaves the machine, or any cloud model (OpenAI, Anthropic's OpenAI-compatible endpoint, …); configured under *Users and access → AI assistant*. Advisory and manual-first: it proposes, you confirm; Ansible output is a marked **draft**, never executed
+- **Data security by construction** — the API key lives **only on the server** (`data/ai-config.json`, git-ignored, or env `INFRANET_AI_KEY`) and never returns to the browser. The context the model sees is built from the **same allowlist** as the REST API (`lib/api-shape.js`): the SNMP community and credentials are *not in the list*, so they physically cannot leave; an extra secret-name denylist guards the SNMP-health passthrough. A **«Show what leaves»** button previews the exact sanitized JSON before you enable anything, and a build-failing guard test asserts no secret can reach the AI context
+- **No hallucination** — *"InfraNet computes, the AI narrates"*: drift, free IPs and gaps are pre-computed and passed as facts; the model is instructed to never invent names/IPs/VLANs and to answer *"not in the documentation"* when it doesn't know
+- **Scope & capability toggles** — pick **what leaves** the machine (Inventory · Ports · SNMP health · Topology · Drift) for privacy and token cost, and **what the assistant may do** (Q&A · Diagnostics · Find gaps · Suggestions · Ansible draft). All on by default; zero-dependency server client (`node:https`), no model bundled
+
 ### Security
 - Session-based authentication (express-session + bcryptjs)
 - Rate-limited login endpoint (blocks brute-force)
@@ -179,9 +185,15 @@ infranetpro/
 │   ├── classify.js         # Classificazione device + metadata discovery
 │   ├── pdf-report.js       # Generazione report PDF
 │   ├── label-sheet.js      # Render PDF etichette cavo (Avery/Dymo/generico)
+│   ├── ai-config.js        # Config Assistente AI: endpoint/modello/chiave + ambito/capacità
+│   ├── ai/                 # Assistente AI (server-side)
+│   │   ├── context.js      # Contesto sanitizzato (allowlist) + porte/salute SNMP/topologia, scope-aware
+│   │   ├── prompt.js       # System-prompt grounding it/en + sezione capacità
+│   │   └── provider.js     # Client OpenAI-compatibile (node:https, zero-dep)
 │   └── routes/
 │       ├── projects.js     # CRUD progetti
 │       ├── discovery.js    # poll / discover / topology / crawl SSE
+│       ├── ai.js           # Assistente AI: GET/PUT config · POST preview («mostra cosa esce») · POST chat
 │       └── export.js       # export PDF report + PDF etichette
 ├── drivers/
 │   └── snmp.js             # Driver SNMP v1/v2c/v3
@@ -193,7 +205,8 @@ infranetpro/
 ├── plugins/                # Catalogo seed vendor sysObjectID (zero database)
 ├── plugins/oui/            # Catalogo seed vendor OUI/MAC + _ieee-database.js (IEEE fallback)
 ├── data/
-│   └── oui-db.json         # Snapshot ufficiale IEEE (~57k voci) — rigenerabile con `npm run update-oui`
+│   ├── oui-db.json         # Snapshot ufficiale IEEE (~57k voci) — rigenerabile con `npm run update-oui`
+│   └── ai-config.json      # Config Assistente AI (chiave BYO) — git-ignored, mai nel repo
 ├── scripts/
 │   └── update-oui-db.js    # Zero-dep downloader registri IEEE (MA-L+MA-M+MA-S+IAB)
 ├── lib/                    # Moduli condivisi browser + test
@@ -1001,6 +1014,7 @@ See [integrations/ansible/README.md](integrations/ansible/README.md) for the ful
 ## Roadmap
 
 **Recently shipped:**
+- [x] **AI assistant — advisory, bring‑your‑own‑key (June 2026)**: a third **«Assistant»** tab in the right panel (shortcut **A** + toolbar entry) that answers in plain language about *your documented network* — presence, VLANs, free IPs, **ports** (status/VLAN/what's connected), **SNMP health** (CPU/RAM/toner/UPS) and **topology**. Provider‑agnostic via one **OpenAI‑compatible** endpoint, **local (Ollama) by default** or any cloud model (configured in *Users and access → AI assistant*). **Data security by construction**: the key stays server‑side (`data/ai-config.json`, git‑ignored, or env `INFRANET_AI_KEY`) and never reaches the browser; the context reuses the REST **allowlist** (`lib/api-shape.js`) so the SNMP community/credentials can't leave, with a secret‑name denylist on SNMP‑health and a **«Show what leaves»** preview + a build‑failing anti‑leak guard test. **No hallucination** («InfraNet computes, the AI narrates»): facts pre‑computed, no inventing, *"not in the documentation"* when unknown. **Scope/capability toggles**: choose what leaves (Inventory · Ports · SNMP health · Topology · Drift) and what it may do (Q&A · Diagnostics · Find gaps · Suggestions · Ansible draft). Zero new runtime dep (`node:https`); advisory/manual‑first, never auto‑applies. See [CHANGELOG.md](CHANGELOG.md).
 - [x] **Visible lock for documented values (June 2026)**: a clickable lock next to **IP**, **hostname** and a **port's VLAN** in the Properties panel makes the existing manual‑first protection visible and one‑click. Lock a value to freeze it (the Sync won't touch it and *Verify documentation* flags any divergence from the network); unlock to let it follow the network. A **visible control over behavior that already existed** — it reuses the `ipManual` / `hostnameManual` / `vlanOvr` pins, no engine change.
 - [x] **Richer Ansible inventory host‑vars (June 2026)**: the dynamic inventory now enriches every host with its **network context** (`vlan_name` / `subnet` / `gateway` / `dns`, derived from the device's VLAN), **asset data** (`serial` / `firmware` / `hostname`), **physical placement** (`rack_id` / `rack_unit`) and **management** info (`wireless` / `mgmt_protocol` / `mgmt_url`), plus two new facet groups (`wireless`, `snmp_managed`) to target APs or SNMP‑managed gear directly. Allowlist‑only and secret‑free — the SNMP community never leaks and `mgmt_url` is stripped of any embedded credentials. See [integrations/ansible/README.md](integrations/ansible/README.md).
 - [x] **IPAM occupancy · management‑VLAN role · VM import (June 2026)**: the per‑VLAN IPAM card now shows **real address occupancy** (capacity · documented / DHCP‑only / free · usage bar) from documented IPs ∪ active leases, with a *"N undocumented → Adopt"* shortcut that maps DHCP‑only leases into the Adopt picker (`lib/ipam.js`). New per‑VLAN **"management VLAN"** role (anti‑guest): an unknown device there is forced to infrastructure and flagged with an *"On management VLAN"* security badge. **Import a discovered device as a host VM** by dragging its floor tile onto the host's *Import VM* drop‑zone (inherits name/IP/MAC; its MAC joins the documentation set, so it stops being undocumented); absorb fires **only** on release inside the zone — otherwise the device repositions, or snaps back if dropped on a panel. Floor interaction is now **uniform with the rack**: single click selects, double click opens Properties (native `dblclick` doesn't fire on floor nodes, so it's detected manually by timestamp).
