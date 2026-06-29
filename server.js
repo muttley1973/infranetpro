@@ -105,6 +105,11 @@ app.use(require('./server/routes/projects'));
 // ---- Skin store (server/routes/skins.js) ------------------------------------
 app.use(require('./server/routes/skins'));
 
+// ---- Assistente AI (server/routes/ai.js) ------------------------------------
+// Config (GET mascherato / PUT admin) + preview del contesto sanitizzato.
+// Session-gated (montata dopo auth.register). La chiave resta server-side.
+app.use(require('./server/routes/ai'));
+
 // ---- Primitive di rete / discovery (server/netscan.js) ----------------------
 const { expandSubnet, _execFileAsync, _pingHost, _normMac, _parseArpTable, _readArpMap, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost } = require('./server/netscan');
 
