@@ -368,7 +368,7 @@ function _createTopoLink(pairKey){
         if(!((inAs&&inBd)||(inBs&&inAd))){skipped++;continue;}
         const sp=_findPortByIfName(sT.nodeId,e.srcPort),dp=_findPortByIfName(dT.nodeId,e.dstPort);
         if(!sp||!dp){skipped++;continue;}
-        if(store.state.links.some(l=>win._linkHasPair(l, sp, dp))){skipped++;continue;}
+        if(store.state.links.some(l=>_linkHasPair(l, sp, dp))){skipped++;continue;}
         store.state.links.push(win._createLinkRecord(sp,dp)); created++;
     }
     markDirty(); renderAll(); renderCables(); renderTopoOverlay();
@@ -437,7 +437,7 @@ function applyTopologyToProject(){
         if(!sN.nodeId||!dN.nodeId){skipped++;continue;}
         const sp=_findPortByIfName(sN.nodeId,e.srcPort),dp=_findPortByIfName(dN.nodeId,e.dstPort);
         if(!sp||!dp){skipped++;continue;}
-        if(store.state.links.some(l=>win._linkHasPair(l, sp, dp))){skipped++;continue;}
+        if(store.state.links.some(l=>_linkHasPair(l, sp, dp))){skipped++;continue;}
         store.state.links.push(win._createLinkRecord(sp,dp)); created++;
     }
     markDirty(); renderAll(); renderCables(); renderTopoOverlay();
