@@ -336,190 +336,14 @@ function _buildDefaultState() {
     };
 }
 
-function _normalizeLinkMetadata(link){
-    if(!link || typeof link !== 'object') return link;
-
-    if(link.length == null && link.lengthM != null) link.length = link.lengthM;
-    if(link.length != null && link.lengthM == null) link.lengthM = link.length;
-    if(link.cableCategory == null && link.category != null) link.cableCategory = link.category;
-    if(link.colorOvr == null && link.color != null) link.colorOvr = link.color;
-    if(link.colorOvr != null && link.color == null) link.color = link.colorOvr;
-
-    if(link.cableType != null){
-        const raw = String(link.cableType).trim();
-        if(raw) link.cableType = raw;
-        else delete link.cableType;
-    }
-
-    if(link.installedAt != null){
-        const raw = String(link.installedAt).trim();
-        if(raw) link.installedAt = raw;
-        else delete link.installedAt;
-    }
-    if(link.installedBy != null){
-        const raw = String(link.installedBy).trim();
-        if(raw) link.installedBy = raw;
-        else delete link.installedBy;
-    }
-    if(link.isPermanent != null){
-        if(link.isPermanent === true || link.isPermanent === 'true' || link.isPermanent === 1 || link.isPermanent === '1'){
-            link.isPermanent = true;
-        } else {
-            delete link.isPermanent;
-        }
-    }
-
-    _normalizeLinkSegments(link);
-
-    return link;
-}
-
-function _normalizeLinkSegment(segment){
-    if(!segment || typeof segment !== 'object') return null;
-
-    if(segment.from != null){
-        const raw = String(segment.from).trim();
-        if(raw) segment.from = raw;
-        else delete segment.from;
-    }
-    if(segment.to != null){
-        const raw = String(segment.to).trim();
-        if(raw) segment.to = raw;
-        else delete segment.to;
-    }
-
-    if(segment.length == null && segment.lengthM != null) segment.length = segment.lengthM;
-    if(segment.length != null && segment.lengthM == null) segment.lengthM = segment.length;
-
-    if(segment.cableType == null && segment.type != null) segment.cableType = segment.type;
-    if(segment.type == null && segment.cableType != null) segment.type = segment.cableType;
-
-    if(segment.cableType != null){
-        const raw = String(segment.cableType).trim();
-        if(raw){
-            segment.cableType = raw;
-            segment.type = raw;
-        } else {
-            delete segment.cableType;
-            delete segment.type;
-        }
-    }
-
-    if(segment.installedAt != null){
-        const raw = String(segment.installedAt).trim();
-        if(raw) segment.installedAt = raw;
-        else delete segment.installedAt;
-    }
-    if(segment.installedBy != null){
-        const raw = String(segment.installedBy).trim();
-        if(raw) segment.installedBy = raw;
-        else delete segment.installedBy;
-    }
-    if(segment.notes != null){
-        const raw = String(segment.notes).trim();
-        if(raw) segment.notes = raw;
-        else delete segment.notes;
-    }
-
-    if(segment.isPermanent == null && segment.permanent != null) segment.isPermanent = segment.permanent;
-    if(segment.isPermanent != null){
-        if(segment.isPermanent === true || segment.isPermanent === 'true' || segment.isPermanent === 1 || segment.isPermanent === '1'){
-            segment.isPermanent = true;
-            segment.permanent = true;
-        } else {
-            delete segment.isPermanent;
-            segment.permanent = false;
-        }
-    } else if(segment.permanent != null){
-        segment.permanent = !!segment.permanent;
-    }
-
-    return segment;
-}
-
-function _normalizeLinkSegments(link){
-    if(!link || !Array.isArray(link.segments)) return link;
-
-    const normalized = link.segments
-        .map(_normalizeLinkSegment)
-        .filter(segment => segment && (segment.from || segment.to || segment.length != null || segment.cableType || segment.notes));
-
-    if(normalized.length) link.segments = normalized;
-    else delete link.segments;
-
-    return link;
-}
-
-function _createLinkSegmentRecord(from, to, extra={}){
-    return _normalizeLinkSegment({ from, to, ...extra });
-}
-
-function _getLinkSegmentPairs(link){
-    const pairs = [];
-    if(Array.isArray(link?.segments)){
-        for(const segment of link.segments){
-            const from = String(segment?.from || '').trim();
-            const to = String(segment?.to || '').trim();
-            if(from && to && from !== to) pairs.push([from, to]);
-        }
-    }
-    if(!pairs.length){
-        const src = String(link?.src || '').trim();
-        const dst = String(link?.dst || '').trim();
-        if(src && dst && src !== dst) pairs.push([src, dst]);
-    }
-    return pairs;
-}
-
-function _getLinkPortIds(link){
-    const out = new Set();
-    const src = String(link?.src || '').trim();
-    const dst = String(link?.dst || '').trim();
-    if(src) out.add(src);
-    if(dst) out.add(dst);
-    for(const [from, to] of _getLinkSegmentPairs(link)){
-        out.add(from);
-        out.add(to);
-    }
-    return [...out];
-}
-
-function _linkTouchesPort(link, pid){
-    if(!link || !pid) return false;
-    return _getLinkPortIds(link).includes(pid);
-}
-
-function _linkAdjacentPorts(link, pid){
-    if(!link || !pid) return [];
-    const adj = new Set();
-    for(const [from, to] of _getLinkSegmentPairs(link)){
-        if(from === pid && to !== pid) adj.add(to);
-        if(to === pid && from !== pid) adj.add(from);
-    }
-    return [...adj];
-}
-
-function _linkOtherPort(link, pid){
-    const adj = _linkAdjacentPorts(link, pid);
-    return adj[0] || null;
-}
-
-function _linkHasPair(link, a, b){
-    if(!link || !a || !b) return false;
-    return _getLinkSegmentPairs(link).some(([from, to]) => (from === a && to === b) || (from === b && to === a));
-}
-
-function _getLinkDrawEndpoints(link){
-    let src = String(link?.src || '').trim();
-    let dst = String(link?.dst || '').trim();
-    if((!src || !dst) && Array.isArray(link?.segments) && link.segments.length){
-        const first = link.segments[0] || {};
-        const last = link.segments[link.segments.length - 1] || {};
-        src = src || String(first.from || first.to || '').trim();
-        dst = dst || String(last.to || last.from || '').trim();
-    }
-    return { src, dst };
-}
+// ── Modello link/segmenti (PURO) → ESTRATTO in lib/link-model.js ──────────────
+// _normalizeLinkMetadata · _normalizeLinkSegment · _normalizeLinkSegments ·
+// _createLinkSegmentRecord · _getLinkSegmentPairs · _getLinkPortIds ·
+// _linkTouchesPort · _linkAdjacentPorts · _linkOtherPort · _linkHasPair ·
+// _getLinkDrawEndpoints. Sono funzioni PURE (solo l'oggetto link, niente state/DOM):
+// vivono in lib/link-model.js, caricato come <script> (window-assign) PRIMA del
+// bundle. app.js e il glue le usano come global bare / via il ponte (win.*),
+// esattamente come prima. Vedi test/link-model.test.js.
 
 // Wireless verso un device IN RACK: la radio vive nel pannello rack. Quando quel
 // pannello è nascosto (tab Proprietà aperta), l'elemento radio non ha coordinate
@@ -2459,13 +2283,13 @@ async function init(){
 // ============================================================
 expose({
   _activatePropsTab, _bindDraggablePanel, _buildDefaultState, _cableAutoLabel, _chainAmbiguousLinkIds, _chainVlanColors,
-  _clampFloatingPanel, _clearDirty, _clearPropsTab, _collectKnownIps, _createLinkRecord, _createLinkSegmentRecord,
+  _clampFloatingPanel, _clearDirty, _clearPropsTab, _collectKnownIps, _createLinkRecord,
   _deviceHasWifi, _dispName, _enableManualValueInProps, _endPopupDrag, _ensureIpamState, _expandLagMemberLinks,
-  _getLinkDrawEndpoints, _getLinkPhysicalView, _getLinkPortIds, _getLinkSegmentPairs, _getPassThroughMode, _getUiModeMeta,
+  _getLinkPhysicalView, _getPassThroughMode, _getUiModeMeta,
   _idPrefixForType, _invalidateIdx, _dhcpUndocumentedForVlan, _ipamEntry, _ipamUsageForVlan, _isInteractiveDragTarget, _isLinearPassThroughPort,
-  _isRadioPid, _isValidProjectPortId, _isWifiCapable, _linkAdjacentPorts, _linkHasPair, _linkOtherPort,
-  _linkTouchesPort, _linksForPort, _loadDefaultLocal, _makeFloatingPanel, _migrateState, _movePopupDrag,
-  _nextNodeId, _nodeRadios, _normalizeLinkMetadata, _normalizeLinkSegment, _normalizeLinkSegments, _normalizeProjectNodeIds,
+  _isRadioPid, _isValidProjectPortId, _isWifiCapable,
+  _linksForPort, _loadDefaultLocal, _makeFloatingPanel, _migrateState, _movePopupDrag,
+  _nextNodeId, _nodeRadios, _normalizeProjectNodeIds,
   _paletteTypeLabel, _patchPanelChainOptions, _patchPanelOffset, _portNumForLabel, _promoteLinkToManual, _propagateStackMasterIntegration,
   _rackDeviceBg, _radioCountOf, _radioPid, _rebuildIdx, _renderCablesNow, _renderModeIndicator,
   _repairRackPlacements, _resetSelection, _resolveManualPropValue, _runInlineOnChange, _sanitizeProjectConnectivity,
