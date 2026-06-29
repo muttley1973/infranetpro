@@ -179,7 +179,7 @@ function _renderPortProps(panel){
                     <div style="display:flex;gap:5px">
                       <input type="number" min="1" max="4094" value="${effVlan}" class="${pi.vlanOvr!=null?'ovr':''}" style="flex:1"
                              onchange="setPortField('${pid}','vlanOvr',+this.value||1)">
-                      ${rst('vlanOvr','VLAN')}
+                      <button type="button" class="toolbar-btn" style="padding:2px 7px;margin:0;font-size:0.78rem;line-height:1${pi.vlanOvr!=null?';color:var(--accent);border-color:var(--accent)':''}" data-tip="${t(pi.vlanOvr!=null?'lock.locked':'lock.unlocked')}" aria-label="${t(pi.vlanOvr!=null?'lock.locked':'lock.unlocked')}" aria-pressed="${pi.vlanOvr!=null?'true':'false'}" onclick="togglePortVlanLock('${pid}')"><i class="fas fa-lock${pi.vlanOvr!=null?'':'-open'}"></i></button>
                     </div>
                     ${state.vlanNames?.[effVlan]?`<div style="font-size:0.73rem;color:var(--text-muted);margin-top:3px;padding-left:2px"><i class="fas fa-tag" style="font-size:0.65rem;margin-right:4px"></i>${escapeHTML(state.vlanNames[effVlan])}</div>`:''}
                   </div>`;

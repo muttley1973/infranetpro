@@ -551,11 +551,29 @@ function _isLagFocusedPort(pid){
     return store._focusedLagPorts.has(pid) || (!!win._focusedLagGroup && _samePortLag(pid,store._lastPopPid));
 }
 
+// Lock manual-first VISIBILE sulla VLAN della porta. NON è un meccanismo nuovo:
+// usa l'override `vlanOvr` già esistente che il Sync NON tocca (app-snmp.js
+// "NON toccare … vlanOvr") e che il Drift confronta con la realtà. Bloccare =
+// congela la VLAN attuale in vlanOvr; sbloccare = rimuove l'override → la porta
+// torna a seguire la VLAN live. NON deseleziona (a differenza di set/clearPortField
+// sul percorso vlanOvr): tiene aperto il pannello con lo stato lock aggiornato.
+function togglePortVlanLock(pid){
+    const state = store.state;
+    const pi = state.ports[pid] || (state.ports[pid] = {});
+    if(pi.vlanOvr != null) delete pi.vlanOvr;                 // sblocca → segue la VLAN live
+    else pi.vlanOvr = (pi.vlan != null ? pi.vlan : 1);        // blocca → congela il valore attuale
+    propagateVlans();
+    markDirty();
+    renderAll();
+    renderProps();
+}
+
 // Superficie pubblica: tutta l'API del modulo (handler inline onclick generati:
 // setPortField/setPortSpeed/clearAllPortOverrides/togglePortHidden/confirmLag/
 // cancelLag + funzioni chiamate dai file classic: renderPortsTable [props],
 // portTip/_isLagFocusedPort/_focusLagForPort [render/popup], LAG UI, ecc).
 expose({
+    togglePortVlanLock,
     renderPortsTable, getLagGroupsForNode, startLagMode, _toggleLagPort,
     confirmLag, cancelLag, removePortFromLag, dissolveLag, renameLag,
     _updateLagBanner, computeLagCarrierPids, getPassivePortLagInfo,
