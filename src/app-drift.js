@@ -401,9 +401,19 @@ function _renderDriftReport(){
     // Header overlay reattivo al cambio lingua (l'overlay è creato una volta).
     const _ttl = document.getElementById('drift-title'); if(_ttl) _ttl.textContent = t('report.drift');
     const total = _DRIFT_CATS.reduce((a, c) => a + ((c.k === 'consistent' || c.k === 'unverified') ? 0 : rep.counts[c.k]), 0);
-    const header = total === 0
-        ? `<div class="drift-allok"><i class="fas fa-circle-check"></i> ${t('drift.allOk')}</div>`
-        : `<div class="drift-summary">${t('drift.toVerify',{n:total})}</div>`;
+    // Banner a 3 vie: anomalie · "cieca" (niente verificato) · allineata. Niente
+    // falso "tutto a posto" quando in realtà non si è potuto verificare nulla.
+    const kind = (typeof driftBannerKind === 'function') ? driftBannerKind(rep.counts) : (total > 0 ? 'discrepancies' : 'aligned');
+    const unver = rep.counts.unverified || 0;
+    let header;
+    if(kind === 'discrepancies'){
+        header = `<div class="drift-summary">${t('drift.toVerify',{n:total})}</div>`;
+    } else if(kind === 'blind'){
+        header = `<div class="drift-blind"><i class="fas fa-plug-circle-xmark"></i> ${t('drift.allUnverified',{n:unver})}</div>`;
+    } else {
+        const note = unver > 0 ? ` <span class="drift-allok-note">${t('drift.someUnverified',{n:unver})}</span>` : '';
+        header = `<div class="drift-allok"><i class="fas fa-circle-check"></i> ${t('drift.allOk')}${note}</div>`;
+    }
     const sections = _DRIFT_CATS.map(c => {
         const allRows = rep[c.k] || [];
         const n = rep.counts[c.k];
