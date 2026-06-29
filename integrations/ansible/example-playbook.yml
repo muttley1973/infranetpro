@@ -20,10 +20,12 @@
           {{ inventory_hostname }} —
           type={{ infranet_type | default('?') }}
           ip={{ ansible_host | default('?') }}
-          vlan={{ vlan | default('-') }}
-          brand={{ brand | default('-') }}
-          rack={{ rack | default('-') }}
-          snmp={{ snmp | default(false) }}
+          vlan={{ vlan | default('-') }} ({{ subnet | default('-') }}, gw={{ gateway | default('-') }})
+          brand={{ brand | default('-') }} model={{ model | default('-') }}
+          serial={{ serial | default('-') }} fw={{ firmware | default('-') }}
+          rack={{ rack | default('-') }}/U{{ rack_unit | default('-') }}
+          mgmt={{ mgmt_protocol | default('-') }}
+          snmp={{ snmp | default(false) }} wireless={{ wireless | default(false) }}
 
 - name: Summarise the auto-generated groups
   hosts: localhost
