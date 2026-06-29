@@ -2,6 +2,14 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-06-29 — AI assistant (advisory)
+
+### Added
+- **AI assistant (advisory, in‑app)** — a third **«Assistant»** tab in the right panel (keyboard shortcut **A**, plus a toolbar entry) that answers questions about *your documented network* in plain language: presence, VLANs, free IPs, **ports** (status / VLAN / what's connected), **SNMP health** (CPU/RAM/toner/UPS) and **topology**. **Bring‑your‑own‑key, provider‑agnostic**: a single **OpenAI‑compatible** endpoint → **local (Ollama) by default** for privacy, or any cloud model (OpenAI, Anthropic's OpenAI‑compatible endpoint, …). Configured under **Users and access → AI assistant** (enable, endpoint, model, write‑only key). Advisory and manual‑first: it proposes, you confirm; Ansible output is a marked **draft**, never executed.
+  - **Data security (paletto #1)** — the key lives **only on the server** (`data/ai-config.json`, git‑ignored; or env `INFRANET_AI_KEY`) and never returns to the browser. The context is built from the **same allowlist** as the REST API (`lib/api-shape.js`) — the SNMP community and credentials are *physically not in the list* — plus a defense‑in‑depth secret‑name denylist on the SNMP‑health passthrough. A **«Show what leaves»** button previews the exact sanitized JSON before anything is sent, and a build‑failing **guard test** asserts no secret can reach the AI context.
+  - **No hallucination (paletto #2)** — «InfraNet computes, the AI narrates»: facts (drift, free IPs, gaps) are pre‑computed and put in the context; the system‑prompt forbids inventing names/IPs/VLANs and instructs the model to answer *"not in the documentation"* when it doesn't know.
+  - **Scope & capability toggles** — choose **what leaves** the machine (Inventory · Ports · SNMP health · Topology · Drift) for privacy/cost, and **what the assistant may do** (Q&A · Diagnostics · Find gaps · Suggestions · Ansible draft). All on by default. Zero new runtime dependency (HTTPS via `node:https`); no model bundled.
+
 ## 2026-06-29
 
 ### Added
