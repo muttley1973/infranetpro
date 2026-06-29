@@ -60,6 +60,20 @@
         .tk-used { color:var(--active-color); }
         .tk-foot-hint { font-size:var(--fs-sm); color:var(--text-muted); margin-top:12px; display:flex; align-items:center; gap:6px; }
         .tk-foot-hint code { font-family:monospace; }
+        /* ── Scheda Assistente AI (scheletro) nel modale «Utenti e accessi» ── */
+        .ai-cfg-intro { font-size:var(--fs-sm); color:var(--text-muted); line-height:1.55; margin-bottom:14px; }
+        .ai-cfg-toggle { display:flex; align-items:center; gap:8px; font-size:var(--fs-md); color:var(--text-main); margin-bottom:14px; }
+        .ai-cfg-label { display:block; font-size:var(--fs-sm); font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:.4px; margin:0 0 5px; }
+        .ai-cfg-input { width:100%; padding:7px 10px; background:var(--panel-bg); border:1px solid var(--panel-border); border-radius:var(--radius-md); color:var(--text-main); font-size:var(--fs-md); outline:none; margin-bottom:12px; }
+        .ai-cfg-input:focus { border-color:var(--accent); }
+        .ai-cfg-input:disabled { opacity:.6; cursor:not-allowed; }
+        .ai-cfg-hint { display:flex; align-items:flex-start; gap:6px; font-size:var(--fs-sm); color:var(--text-muted); line-height:1.45; margin-top:-4px; }
+        .ai-cfg-preview-head { display:flex; align-items:flex-start; gap:6px; font-size:var(--fs-sm); color:var(--accent); margin-bottom:8px; line-height:1.4; }
+        .ai-cfg-preview-out { background:var(--bg-color); border:1px solid var(--panel-border); border-radius:var(--radius-md); padding:10px 12px; font-family:monospace; font-size:var(--fs-sm); color:var(--text-main); max-height:300px; overflow:auto; white-space:pre-wrap; word-break:break-word; margin:0; }
+        .ai-cfg-group { margin-top:14px; padding-top:12px; border-top:1px solid var(--panel-border); }
+        .ai-cfg-grouphd { font-size:var(--fs-sm); font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.4px; margin-bottom:9px; display:flex; align-items:center; gap:7px; }
+        .ai-cfg-check { display:flex; align-items:center; gap:8px; font-size:var(--fs-md); color:var(--text-main); margin-bottom:7px; cursor:pointer; }
+        .ai-cfg-check input { flex-shrink:0; }
 
         /* ===== LIGHT THEME — variante C: bordi definiti, palette WCAG AA ===== */
         /* I LED dei device dentro il rack mantengono i colori del tema scuro:

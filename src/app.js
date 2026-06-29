@@ -723,6 +723,15 @@ function bindEventsOnce() {
                     if (_rightTab !== 'props') switchRightTab('props');
                     return;
                 }
+                // A → tab Assistente (riusa openAssistant: ri-espande il pannello
+                // se collassato, poi switcha). Guardia typeof: la glue vive in
+                // app-ai.js (bundle), caricato dopo app.js.
+                if (e.key === 'a' || e.key === 'A') {
+                    e.preventDefault();
+                    if (typeof openAssistant === 'function') openAssistant();
+                    else if (_rightTab !== 'ai') switchRightTab('ai');
+                    return;
+                }
             }
         }
         if (e.key==='Escape') {
@@ -1807,11 +1816,24 @@ win._rightTab = 'rack';   // 'rack' | 'props' (var: letto bare da app-pointer/ap
 export function switchRightTab(tab){
     _propsTabHold = null;   // cambio tab esplicito → decade l'hold di selectPathSegment
     _rightTab = tab;
-    document.getElementById('tab-rack').classList.toggle('active', tab==='rack');
-    document.getElementById('tab-props').classList.toggle('active', tab==='props');
+    const tabRack = document.getElementById('tab-rack');
+    const tabProps = document.getElementById('tab-props');
+    const tabAi = document.getElementById('tab-ai');   // 3ª tab «Assistente» (può mancare in HTML vecchio)
+    tabRack.classList.toggle('active', tab==='rack');
+    tabProps.classList.toggle('active', tab==='props');
+    if(tabAi) tabAi.classList.toggle('active', tab==='ai');
+    // a11y: role="tab" → aria-selected segue lo stato visivo.
+    tabRack.setAttribute('aria-selected', String(tab==='rack'));
+    tabProps.setAttribute('aria-selected', String(tab==='props'));
+    if(tabAi) tabAi.setAttribute('aria-selected', String(tab==='ai'));
     document.getElementById('rack-viewport').style.display = tab==='rack' ? '' : 'none';
     const pw = document.getElementById('props-panel-wrap');
     pw.classList.toggle('active', tab==='props');
+    const aw = document.getElementById('ai-panel-wrap');
+    if(aw) aw.classList.toggle('active', tab==='ai');
+    // Tab Assistente: carica config + sincronizza empty-state/chat (glue app-ai.js,
+    // bundle → chiamata bare con guardia typeof; no win.* sul ratchet).
+    if(tab === 'ai' && typeof _aiPanelOpen === 'function') _aiPanelOpen();
     _updateFloorToolbarVisibility();
     renderCables();
     // INT-4: chi switcha a 'props' deve sempre vedere il pannello popolato.
@@ -2239,6 +2261,8 @@ function applyStaticI18n(){
     document.querySelectorAll('[data-i18n-html]').forEach(el=>{ el.innerHTML = t(el.getAttribute('data-i18n-html')); });
     document.querySelectorAll('[data-i18n-tip]').forEach(el=>{ el.setAttribute('data-tip', t(el.getAttribute('data-i18n-tip'))); });
     document.querySelectorAll('[data-i18n-ph]').forEach(el=>{ el.setAttribute('placeholder', t(el.getAttribute('data-i18n-ph'))); });
+    // data-i18n-aria → attributo aria-label (accessibilità su tablist/icon-button)
+    document.querySelectorAll('[data-i18n-aria]').forEach(el=>{ el.setAttribute('aria-label', t(el.getAttribute('data-i18n-aria'))); });
 }
 
 // Evidenzia la lingua attiva tra i pulsanti IT/EN nel menu utente (ex

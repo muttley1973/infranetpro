@@ -1,0 +1,91 @@
+'use strict';
+// ============================================================
+//  server/routes/ai.js — Assistente AI (L0: config + «mostra cosa esce»).
+//
+//  Montata DOPO auth.register → tutte le route sono gate a SESSIONE (same-origin,
+//  utente loggato), NON a token: la chat è una feature interna, non l'API esterna.
+//    • GET  /api/ai/config   → config MASCHERATA (mai la chiave) — ogni utente.
+//    • PUT  /api/ai/config   → aggiorna (enabled/endpoint/model/key) — solo ADMIN.
+//    • POST /api/ai/preview  → contesto SANITIZZATO del progetto = «mostra cosa
+//                              esce» (paletto SICUREZZA #1). NESSUN modello, nessuna
+//                              chiave: prova che il tubo dati regge e cosa lascia.
+//
+//  Provider + POST /api/ai/chat arrivano nel prossimo incremento (con verifica
+//  live dell'utente sulla propria key e il composer chat).
+// ============================================================
+const express = require('express');
+const auth = require('../../auth');
+const aiConfig = require('../ai-config');
+const { buildAiContext } = require('../ai/context');
+const { buildSystemPrompt } = require('../ai/prompt');
+const { chatCompletion } = require('../ai/provider');
+const { loadProject } = require('../projects-store');
+
+const router = express.Router();
+
+router.get('/api/ai/config', (_req, res) => {
+  res.json(aiConfig.getConfig());
+});
+
+router.put('/api/ai/config', auth.requireAdmin, (req, res) => {
+  try {
+    res.json(aiConfig.setConfig(req.body || {}));
+  } catch (_e) {
+    res.status(500).json({ error: 'Impossibile salvare la configurazione AI' });
+  }
+});
+
+router.post('/api/ai/preview', (req, res) => {
+  const body = req.body || {};
+  const pid = body.projectId;
+  if (pid === undefined || pid === null || pid === '') {
+    return res.status(400).json({ error: 'projectId mancante' });
+  }
+  const project = loadProject(pid);
+  if (!project) return res.status(404).json({ error: 'Progetto non trovato' });
+  // L'anteprima rispetta gli interruttori d'ambito → mostra ESATTAMENTE cosa uscirebbe.
+  const context = buildAiContext(project, body.liveFacts, aiConfig.getConfig().scope);
+  res.json({ context });
+});
+
+// POST chat — la conversazione vera. Assembla system-prompt (grounding) +
+// contesto sanitizzato, poi chiama il provider OpenAI-compatibile (BYO key,
+// server-side). La chiave NON compare mai nella risposta né negli errori.
+router.post('/api/ai/chat', async (req, res) => {
+  const cfg = aiConfig.getConfigWithKey();        // include la chiave (solo qui, server-side)
+  if (!cfg.enabled) return res.status(409).json({ error: 'ai_disabled' });
+  if (!cfg.endpoint) return res.status(409).json({ error: 'ai_no_endpoint' });
+
+  const body = req.body || {};
+  const pid = body.projectId;
+  if (pid === undefined || pid === null || pid === '') {
+    return res.status(400).json({ error: 'projectId mancante' });
+  }
+  const project = loadProject(pid);
+  if (!project) return res.status(404).json({ error: 'Progetto non trovato' });
+
+  const lang = (body.lang === 'en') ? 'en' : 'it';
+  // scope = ambito dati (cosa esce) · features = capacità abilitate (cosa fa).
+  const context = buildAiContext(project, body.liveFacts, cfg.scope);
+  const system = buildSystemPrompt(lang, cfg.features) + '\n\ncontext:\n' + JSON.stringify(context);
+
+  // Solo i turni user/assistant con testo (niente system/altro dal client).
+  const history = Array.isArray(body.messages) ? body.messages : [];
+  const turns = history
+    .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+    .map(m => ({ role: m.role, content: String(m.content) }));
+  if (!turns.length) return res.status(400).json({ error: 'Nessun messaggio' });
+
+  try {
+    const out = await chatCompletion({
+      endpoint: cfg.endpoint, model: cfg.model, key: cfg.key,
+      messages: [{ role: 'system', content: system }, ...turns],
+    });
+    res.json({ content: out.content });
+  } catch (e) {
+    // e.message può citare host/HTTP status (utile a chi configura) ma MAI la chiave.
+    res.status(502).json({ error: 'ai_provider', detail: String((e && e.message) || e) });
+  }
+});
+
+module.exports = router;
