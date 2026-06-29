@@ -2,7 +2,28 @@
 // Test del diff engine puro del Drift Report (lib/drift-report.js).
 const test = require('node:test');
 const assert = require('node:assert');
-const { buildDriftReport } = require('../lib/drift-report.js');
+const { buildDriftReport, driftBannerKind } = require('../lib/drift-report.js');
+
+// ── Banner della Verifica (3 vie): allineata vs cieca vs anomalie ───────────
+test('driftBannerKind: anomalie azionabili → "discrepancies"', () => {
+  assert.equal(driftBannerKind({ consistent: 50, stateDrift: 1, unverified: 0 }), 'discrepancies');
+  assert.equal(driftBannerKind({ macOrphan: 2 }), 'discrepancies');
+  assert.equal(driftBannerKind({ ipChanged: 1, consistent: 100 }), 'discrepancies');
+});
+test('driftBannerKind: ZERO anomalie ma niente verificato (tutto unverified) → "blind" (NON allineata)', () => {
+  // Il caso del progetto da 500 device su reti non raggiunte: 0 anomalie, 0
+  // confermati presenti, 487 non verificabili → NON è "tutto a posto".
+  assert.equal(driftBannerKind({ consistent: 0, unverified: 487, stateDrift: 0, macOrphan: 0, undocumented: 0, ipChanged: 0, ghostCable: 0 }), 'blind');
+});
+test('driftBannerKind: nessuna anomalia con copertura reale → "aligned"', () => {
+  assert.equal(driftBannerKind({ consistent: 200, unverified: 0 }), 'aligned');
+  assert.equal(driftBannerKind({ consistent: 200, unverified: 7 }), 'aligned', 'qualcosa verificato + alcuni non verificabili = comunque allineata (con nota)');
+  assert.equal(driftBannerKind({ consistent: 0, unverified: 0 }), 'aligned', 'progetto vuoto → niente da allarmare');
+});
+test('driftBannerKind: input mancante → "aligned" (mai throw)', () => {
+  assert.equal(driftBannerKind(), 'aligned');
+  assert.equal(driftBannerKind(null), 'aligned');
+});
 
 test('porta coerente → categoria consistent, nessun drift', () => {
   const doc = { ports: { 'sw1-1': { label: 'SW1 / P1', status: 'active', speed: 1000, vlan: 10 } } };

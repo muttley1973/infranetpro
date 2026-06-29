@@ -253,6 +253,16 @@ header [data-tip]:not([data-tip-pos]):focus-visible::after {
     background: rgba(57,211,83,.10); border: 1px solid rgba(57,211,83,.30);
     border-radius: 7px; color: #39d353; font-weight: 600; font-size: .84rem; margin-bottom: 8px;
 }
+.drift-allok-note { color: var(--text-muted); font-weight: 400; }
+/* Banner "cieca": la Verifica non ha potuto osservare la rete (tutto non
+   verificabile) → ambra, NON il verde "tutto a posto" (sarebbe un falso OK). */
+.drift-blind {
+    display: flex; align-items: flex-start; gap: 9px; padding: 12px;
+    background: rgba(245,166,35,.10); border: 1px solid rgba(245,166,35,.32);
+    border-radius: 7px; color: var(--idle-color); font-weight: 600; font-size: .82rem;
+    line-height: 1.4; margin-bottom: 8px;
+}
+.drift-blind i { margin-top: 2px; }
 .drift-sec { margin-bottom: 6px; }
 .drift-count { margin-left: auto; font-size: .72rem; font-weight: 700; padding: 1px 8px; border-radius: var(--radius-pill); }
 .drift-sec-body { padding: 4px 0; }
