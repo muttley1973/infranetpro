@@ -5,6 +5,7 @@ What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://k
 ## 2026-06-29
 
 ### Added
+- **Visible lock for documented values** — a clickable lock (🔒) next to **IP**, **hostname** and a **port's VLAN** in the Properties panel. It is **not a new mechanism**: it surfaces the manual‑first protection that already existed. Locked = the value is your decision (the Sync leaves it untouched and *Verify documentation* flags any divergence from the network); unlocked = the field follows the network again. Reuses the existing `ipManual` / `hostnameManual` / `vlanOvr` pins — no engine change.
 - **Richer Ansible inventory host‑vars** — every host in the dynamic inventory (`/api/v1/projects/:id/ansible-inventory`) now carries its **network context** (`vlan_name`, `subnet`, `gateway`, `dns`, derived from the device's VLAN), **asset data** (`serial`, `firmware`, `hostname`), **physical placement** (`rack_id`, `rack_unit`) and **management** info (`wireless`, `mgmt_protocol`, `mgmt_url`). Two new facet groups — `wireless` and `snmp_managed` — let you target APs or SNMP‑managed gear directly. Still allowlist‑only and secret‑free: the SNMP community never leaks, and `mgmt_url` is stripped of any `user:pass@` credentials before it is exposed.
 
 ### Fixed
