@@ -20,14 +20,20 @@ grouped automatically:
 | `vlan_*`  | `vlan_10`, `vlan_20` | by VLAN (derived from IP ↔ subnet) |
 | `rack_*`  | `rack_rk_core` | by rack |
 | `brand_*` | `brand_cisco`, `brand_fortinet` | by vendor |
+| `wireless` | `wireless` | devices with radios (APs) |
+| `snmp_managed` | `snmp_managed` | devices with SNMP configured |
 
-Each host carries these vars (from `_meta.hostvars`):
+Each host carries rich vars (from `_meta.hostvars`), organized by concern:
 
-`ansible_host`, `infranet_id`, `infranet_type`, `mac`, `brand`, `model`, `vlan`,
-`rack`, `snmp`.
+- **Identity** — `infranet_id`, `infranet_type`, `hostname`, `mac`
+- **Asset** — `brand`, `model`, `serial`, `firmware`
+- **Network** (from the device's VLAN) — `vlan`, `vlan_name`, `subnet`, `gateway`, `dns`
+- **Location** — `rack`, `rack_id`, `rack_unit`
+- **Management** — `snmp` (bool), `wireless` (bool), `mgmt_protocol`, `mgmt_url`
+- plus `ansible_host` = the device IP
 
-> Note: SNMP community strings and other secrets are **never** exposed by the API —
-> `snmp` is just a boolean telling you whether the device has SNMP configured.
+> Secrets are **never** exposed: `snmp` is just a boolean, `mgmt_url` is IP-only
+> (no credentials), and SNMP community strings never leave InfraNet.
 
 ## Requirements
 
@@ -48,7 +54,7 @@ fetch('/api/auth/tokens', {
 // → inp_…  (copy it now — it is shown only once)
 ```
 
-(A token-management panel in the admin UI is on the way; until then, use the console.)
+(You can also mint and revoke tokens from the admin UI under **Users and access → API tokens** — the reveal is shown only once.)
 
 ## 2. Configure
 
