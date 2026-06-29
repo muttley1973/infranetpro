@@ -77,6 +77,9 @@ async function startServer(opts = {}) {
       INFRANET_DEV_NO_AUTH: '1',
       INFRANET_PROJECTS_DIR: projectsDir,
       INFRANET_SKINS_DIR: skinsDir,
+      // Config Assistente AI su file temporaneo: l'E2E può fare PUT senza toccare
+      // (né committare) il data/ai-config.json reale. La chiave eventuale resta qui.
+      INFRANET_AI_CONFIG_FILE: path.join(tmpDir, 'ai-config.json'),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });

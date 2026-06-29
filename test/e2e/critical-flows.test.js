@@ -12,6 +12,7 @@
 // ============================================================
 const test = require('node:test');
 const assert = require('node:assert');
+const http = require('node:http');
 
 const RUN = process.env.RUN_E2E === '1';
 const SKIP = RUN ? false : 'E2E headless OFF (RUN_E2E=1 per attivarlo; richiede Chrome di sistema)';
@@ -2514,6 +2515,188 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(Math.abs((sw1After.x - sw1Before.x) - 150) <= 2, 'il device si sposta a schermo col pan (laterale reale)');
       assert.equal(res.swAfter, pre.swBefore, 'il pan NON sposta il device nel rack (drag su area vuota ≠ drag su device)');
       assert.equal(res.panning, false, 'a pointerup il pan è terminato (isPanningRack=false)');
+    });
+
+    await t.test('Assistente AI (scheletro): 3ª tab + entry toolbar + shortcut «A» + scheda impostazioni + a11y', async () => {
+      await page.evaluate(() => {
+        ['audit-overlay', 'spare-overlay'].forEach((id) => { const o = document.getElementById(id); if (o) o.style.display = 'none'; });
+        const um = document.getElementById('user-manager-overlay'); if (um) um.classList.remove('open');
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        if (typeof switchRightTab === 'function') switchRightTab('rack');
+      });
+
+      // 1) API del modulo app-ai pubblicate dal bundle (expose())
+      const exposed = await page.evaluate(() => typeof openAssistant === 'function' && typeof openAiSettings === 'function');
+      assert.ok(exposed, 'openAssistant/openAiSettings pubblicate su window dal bundle');
+
+      // 2) switchRightTab('ai') attiva tab+pannello, nasconde il rack, aggiorna aria-selected
+      const sw = await page.evaluate(() => {
+        switchRightTab('ai');
+        const tabAi = document.getElementById('tab-ai');
+        const aw = document.getElementById('ai-panel-wrap');
+        return {
+          rightTab: typeof _rightTab !== 'undefined' ? _rightTab : null,
+          tabActive: tabAi.classList.contains('active'),
+          tabRole: tabAi.getAttribute('role'),
+          tabAriaSel: tabAi.getAttribute('aria-selected'),
+          panelActive: aw.classList.contains('active'),
+          panelRole: aw.getAttribute('role'),
+          rackHidden: document.getElementById('rack-viewport').style.display === 'none',
+          propsAria: document.getElementById('tab-props').getAttribute('aria-selected'),
+        };
+      });
+      assert.equal(sw.rightTab, 'ai', '_rightTab = ai');
+      assert.ok(sw.tabActive, 'la tab Assistente è attiva');
+      assert.equal(sw.tabRole, 'tab', 'role=tab sulla tab (a11y)');
+      assert.equal(sw.tabAriaSel, 'true', 'aria-selected=true sulla tab attiva');
+      assert.equal(sw.propsAria, 'false', 'aria-selected=false sulle altre tab');
+      assert.ok(sw.panelActive, '#ai-panel-wrap è attivo');
+      assert.equal(sw.panelRole, 'tabpanel', 'role=tabpanel sul pannello (a11y)');
+      assert.ok(sw.rackHidden, 'il rack-viewport è nascosto con la tab AI attiva');
+
+      // 3) Empty-state «non configurato» presente + i18n statica applicata (IT)
+      const empty = await page.evaluate(() => {
+        const p = document.getElementById('ai-panel');
+        return {
+          hasRobot: !!p.querySelector('.ai-empty-icon'),
+          title: (p.querySelector('.ai-empty-title')?.textContent || '').trim(),
+          hasConfigBtn: !!p.querySelector('button[onclick="openAiSettings()"]'),
+          footer: (p.querySelector('.ai-foot')?.textContent || '').trim(),
+        };
+      });
+      assert.ok(empty.hasRobot, 'icona robot nell\'empty-state');
+      assert.ok(/non è ancora configurato/i.test(empty.title), 'titolo empty-state tradotto (IT): ' + empty.title);
+      assert.ok(empty.hasConfigBtn, 'pulsante «Configura» (apre la scheda AI)');
+      assert.ok(empty.footer.length > 10, 'footer advisory presente');
+
+      // 4) openAssistant() da un'altra tab → porta alla tab AI
+      const viaEntry = await page.evaluate(() => {
+        switchRightTab('rack');
+        openAssistant();
+        return { rightTab: _rightTab, panelActive: document.getElementById('ai-panel-wrap').classList.contains('active') };
+      });
+      assert.equal(viaEntry.rightTab, 'ai', 'openAssistant() (entry toolbar) apre la tab AI');
+      assert.ok(viaEntry.panelActive, 'openAssistant() attiva il pannello AI');
+
+      // 5) shortcut tastiera «A» (gesto reale) → apre l'assistente
+      await page.evaluate(() => {
+        switchRightTab('rack');
+        if (typeof selType !== 'undefined') { selType = null; selId = null; }
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+      });
+      await page.keyboard.press('a');
+      await page.waitForTimeout(80);
+      const viaKey = await page.evaluate(() => _rightTab);
+      assert.equal(viaKey, 'ai', 'il tasto «A» apre la tab Assistente');
+
+      // 6) scheda AI nel modale «Utenti e accessi» (umSwitchTab('ai')): _aiCfgLoad
+      //    popola i campi via fetch (async) → aspetta che l'endpoint compaia.
+      await page.evaluate(() => { if (typeof umSwitchTab === 'function') umSwitchTab('ai'); });
+      await page.waitForFunction(() => {
+        const el = document.getElementById('ai-cfg-endpoint');
+        return !!(el && el.value && el.value.length > 0);
+      }, null, { timeout: 5000 });
+      const cfg = await page.evaluate(() => ({
+        tabActive: document.getElementById('um-tab-ai').classList.contains('active'),
+        paneActive: document.getElementById('um-pane-ai').classList.contains('active'),
+        endpointDefault: (document.getElementById('ai-cfg-endpoint') || {}).value || '',
+        keyType: (document.getElementById('ai-cfg-key') || {}).type || '',
+      }));
+      assert.ok(cfg.tabActive && cfg.paneActive, 'umSwitchTab("ai") attiva scheda + pane AI');
+      assert.equal(cfg.endpointDefault, 'http://localhost:11434/v1', 'endpoint default = Ollama locale (privacy), caricato dal server');
+      assert.equal(cfg.keyType, 'password', 'la chiave API è un campo password (write-only)');
+    });
+
+    await t.test('Assistente AI L0: config round-trip (PUT→GET mascherato, chiave mai esposta) + preview sanitizzato', async () => {
+      const r = await page.evaluate(async () => {
+        const put = await fetch('/api/ai/config', {
+          method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: true, endpoint: 'https://api.example.com/v1', model: 'llama3.1', key: 'sk-LEAKTEST-123' }),
+        });
+        const putStatus = put.status;
+        const getText = await (await fetch('/api/ai/config', { credentials: 'same-origin' })).text();
+        const list = await (await fetch('/api/projects', { credentials: 'same-origin' })).json();
+        const pid = Array.isArray(list) && list.length ? list[0].id : null;
+        let previewText = '';
+        if (pid != null) {
+          const pv = await fetch('/api/ai/preview', {
+            method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ projectId: pid }),
+          });
+          previewText = await pv.text();
+        }
+        return { putStatus, getText, getJson: JSON.parse(getText), pid, previewText, preview: previewText ? JSON.parse(previewText) : null };
+      });
+      assert.equal(r.putStatus, 200, 'PUT config ok (sessione dev = admin)');
+      assert.equal(r.getJson.enabled, true, 'enabled persistito sul server');
+      assert.equal(r.getJson.model, 'llama3.1', 'model persistito');
+      assert.equal(r.getJson.keySet, true, 'keySet=true dopo aver salvato una chiave');
+      assert.ok(!('key' in r.getJson), 'la config restituita non contiene il campo key');
+      assert.ok(!/sk-LEAKTEST-123/.test(r.getText), 'la CHIAVE non compare mai nella config restituita (paletto sicurezza)');
+      assert.ok(r.pid != null, 'progetto corrente disponibile per il preview');
+      assert.ok(r.preview && r.preview.context && r.preview.context.summary, 'il preview restituisce il contesto sanitizzato');
+      assert.ok(!/sk-LEAKTEST-123/.test(r.previewText), 'la chiave non compare nel preview');
+    });
+
+    await t.test('Assistente AI: chat end-to-end con provider MOCK (config → invio → risposta + grounding nel contesto)', async () => {
+      // Provider OpenAI-compatibile finto in-process: cattura la richiesta e
+      // risponde con un contenuto canned → pipe deterministico, niente modello vero.
+      let seen = null;
+      const mock = http.createServer((req, res) => {
+        let b = '';
+        req.on('data', (c) => { b += c; });
+        req.on('end', () => {
+          seen = { url: req.url, body: b };
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ choices: [{ message: { role: 'assistant', content: 'RISPOSTA-MOCK: dal tuo inventario.' } }] }));
+        });
+      });
+      await new Promise((r) => mock.listen(0, '127.0.0.1', r));
+      const mockPort = mock.address().port;
+      try {
+        // Abilita + punta al mock (nessuna key → endpoint LAN = «Locale»).
+        await page.evaluate(async (ep) => {
+          await fetch('/api/ai/config', {
+            method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: true, endpoint: ep, model: 'mock', key: '' }),
+          });
+        }, `http://127.0.0.1:${mockPort}/v1`);
+
+        // Aprendo la tab, _aiPanelOpen rilegge la config → mostra la chat.
+        await page.evaluate(() => { if (typeof switchRightTab === 'function') switchRightTab('ai'); });
+        await page.waitForFunction(() => {
+          const c = document.getElementById('ai-chat');
+          return !!(c && c.style.display !== 'none');
+        }, null, { timeout: 5000 });
+
+        // Gesto reale: digita + clic Invia.
+        await page.fill('#ai-input', 'Chi è sulla VLAN 20?');
+        await page.click('#ai-send-btn');
+        await page.waitForFunction(
+          () => /RISPOSTA-MOCK/.test((document.getElementById('ai-messages') || {}).textContent || ''),
+          null, { timeout: 8000 });
+
+        const ui = await page.evaluate(() => ({
+          msgs: document.getElementById('ai-messages').textContent || '',
+          chip: (document.getElementById('ai-chip-status') || {}).textContent || '',
+        }));
+        assert.match(ui.msgs, /Chi è sulla VLAN 20\?/, 'la domanda utente compare in chat');
+        assert.match(ui.msgs, /RISPOSTA-MOCK/, 'la risposta del provider compare in chat');
+        assert.match(ui.chip, /Locale|Local/, 'chip privacy «Locale» (endpoint LAN, niente key)');
+
+        // Il provider ha ricevuto system-prompt (grounding) + contesto + turno utente.
+        assert.ok(seen, 'il mock provider ha ricevuto la richiesta');
+        assert.match(seen.url, /\/v1\/chat\/completions$/, 'POST a /chat/completions');
+        const payload = JSON.parse(seen.body);
+        assert.equal(payload.messages[0].role, 'system', 'primo messaggio = system');
+        assert.match(payload.messages[0].content, /GROUNDING/, 'il system-prompt porta le regole di grounding');
+        assert.match(payload.messages[0].content, /context:/, 'il contesto sanitizzato è incluso nel system');
+        assert.equal(payload.messages[payload.messages.length - 1].content, 'Chi è sulla VLAN 20?', 'ultimo turno = domanda utente');
+        assert.ok(!/SUPERSECRET|community/i.test(seen.body), 'nessun segreto nel payload verso il provider');
+      } finally {
+        await new Promise((r) => mock.close(r));
+      }
     });
   } finally {
     await browser.close();
