@@ -657,7 +657,7 @@ function shouldRenderLink(l){
     // interfaccia di un client selezionata → SOLO la sua. (Il percorso fisico
     // store.highPath, se attivo, ha comunque precedenza ed e' gestito sotto.)
     if(l.wireless && !(store.highPath && store.highPath.size>0)){
-        if(store.selType==='port' && store.selId) return win._linkTouchesPort(l, store.selId);
+        if(store.selType==='port' && store.selId) return _linkTouchesPort(l, store.selId);
         // Solo se a essere selezionato e' un NODO FLOOR (il client): mostra la sua
         // onda. Se invece e' selezionato un DEVICE IN RACK (con radio), NON mostrare
         // le onde sul floor — vale la regola standard "rack node → niente cavi"
@@ -674,7 +674,7 @@ function shouldRenderLink(l){
     }
     if(store.highPath.size>0) return store.highPath.has(l.id);
     if(store.selType==='link'&&store.selId===l.id) return true;  // link selezionato: sempre visibile
-    if(store.selType==='port'&&store.selId) return win._linkTouchesPort(l, store.selId);
+    if(store.selType==='port'&&store.selId) return _linkTouchesPort(l, store.selId);
     // Nodi rack: cavi visibili solo selezionando la singola porta (non il device)
     if(store.selType==='node'&&store.selId){
         const n=nodeById(store.selId);

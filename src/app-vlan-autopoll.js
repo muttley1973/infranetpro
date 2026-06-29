@@ -836,7 +836,7 @@ function setLinkColor(id,color){
     if(typeof win._promoteLinkToManual==='function') win._promoteLinkToManual(l);
     if(color===null){ delete l.colorOvr; delete l.color; }
     else { l.colorOvr=color; l.color=color; }
-    if(typeof win._normalizeLinkMetadata==='function') win._normalizeLinkMetadata(l);
+    if(typeof _normalizeLinkMetadata==='function') _normalizeLinkMetadata(l);
     renderCables(); renderProps(); markDirty();
 }
 

@@ -128,7 +128,7 @@ function _sharedExistingRoleLabel(role){
 
 function _sharedSegmentResolvedLink(pid, nodeId){
     return store.state.links.find(l=>{
-        if(!win._linkTouchesPort(l, pid)) return false;
+        if(!_linkTouchesPort(l, pid)) return false;
         const a = getPortNodeId(l.src), b = getPortNodeId(l.dst);
         return a === nodeId || b === nodeId;
     }) || null;
@@ -209,11 +209,11 @@ function _sharedSegmentPortChoices(node, role, sourcePid){
     for(let i=1;i<=count;i++){
         const pid = `${node.id}-${i}`;
         const links = win._linksForPort(pid);
-        const manualBusy = links.some(l=>!l.autoLinked && !win._linkHasPair(l, sourcePid, pid));
+        const manualBusy = links.some(l=>!l.autoLinked && !_linkHasPair(l, sourcePid, pid));
         const conn = win.getPortConnectionCount(pid);
         const max = win.getPortMaxConnections(pid);
         if(manualBusy) continue;
-        if(conn >= max && !links.some(l=>win._linkHasPair(l, sourcePid, pid))) continue;
+        if(conn >= max && !links.some(l=>_linkHasPair(l, sourcePid, pid))) continue;
         const pi = store.state.ports[pid] || {};
         const score = _sharedSegmentPortHintScore(pi, role) + (conn === 0 ? 15 : 0) + (conn < max ? 10 : 0);
         out.push({
@@ -342,19 +342,19 @@ function _confirmSharedSegmentBind(nodeId, portId){
     const node = nodeById(nodeId);
     if(!info || !role || !srcPid || !node) return;
 
-    const srcManualConflict = win._linksForPort(srcPid).some(l=>!l.autoLinked && !win._linkHasPair(l, srcPid, portId));
-    const dstManualConflict = win._linksForPort(portId).some(l=>!l.autoLinked && !win._linkHasPair(l, srcPid, portId));
+    const srcManualConflict = win._linksForPort(srcPid).some(l=>!l.autoLinked && !_linkHasPair(l, srcPid, portId));
+    const dstManualConflict = win._linksForPort(portId).some(l=>!l.autoLinked && !_linkHasPair(l, srcPid, portId));
     if(srcManualConflict || dstManualConflict){
         _showToast(t('msg.rack.manualLinkExists'), 'warn', 4200);
         return;
     }
 
-    const existing = store.state.links.find(l=>win._linkHasPair(l, srcPid, portId));
+    const existing = store.state.links.find(l=>_linkHasPair(l, srcPid, portId));
     pushHistory();
     if(existing){
         if(existing.autoLinked && typeof win._promoteLinkToManual === 'function') win._promoteLinkToManual(existing);
     } else {
-        store.state.links = store.state.links.filter(l => !(l.autoLinked && (win._linkTouchesPort(l, srcPid) || win._linkTouchesPort(l, portId))));
+        store.state.links = store.state.links.filter(l => !(l.autoLinked && (_linkTouchesPort(l, srcPid) || _linkTouchesPort(l, portId))));
         _invalidateIdx();
         if(!win.canAddConnection(srcPid) || !win.canAddConnection(portId)){
             _showToast(t('msg.rack.portUnavailable'), 'warn', 3800);
@@ -424,7 +424,7 @@ function _sharedSegmentHtml(pid, context='popup'){
 
     if(resolvedNode && roleKey && ['switch','ap','gateway','hypervisor'].includes(roleKey)){
         const resolvedLink = _sharedSegmentResolvedLink(pid, resolvedNode.id);
-        const targetPid = resolvedLink ? win._linkOtherPort(resolvedLink, pid) : '';
+        const targetPid = resolvedLink ? _linkOtherPort(resolvedLink, pid) : '';
         const targetPort = targetPid ? win._portDisplayName(targetPid) : '';
         const targetLine = targetPort ? `${getNodeDisplayName(resolvedNode)} / ${targetPort}` : getNodeDisplayName(resolvedNode);
         if(compact){
@@ -578,7 +578,7 @@ function _findFreeFloorSpot(){
 
 function _connectPortsSafe(src, dst, meta={}){
     if(!src || !dst) return false;
-    const exists = store.state.links.some(l=>win._linkHasPair(l, src, dst));
+    const exists = store.state.links.some(l=>_linkHasPair(l, src, dst));
     if(exists) return false;
     store.state.links.push(typeof win._createLinkRecord === 'function'
         ? win._createLinkRecord(src, dst, meta)
@@ -712,7 +712,7 @@ function _createSharedSegmentNode(pid, role){
             const ep = item.node;
             if(!ep || !win._isLeafEndpoint(ep.type)) continue;
             const epPid = `${ep.id}-1`;
-            const existing = store.state.links.find(l=>win._linkTouchesPort(l, epPid));
+            const existing = store.state.links.find(l=>_linkTouchesPort(l, epPid));
             if(existing && !existing.autoLinked) continue;
             if(existing && existing.autoLinked) store.state.links = store.state.links.filter(l=>l!==existing);
             if(idx <= n.ports){

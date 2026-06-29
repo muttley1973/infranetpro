@@ -179,7 +179,17 @@ test('ponte: lo stato condiviso è letto solo via store.js (non win.* nei consum
 // doppio click floor=true (app-pointer), e re-show host dopo l'import (app-hypervisor).
 // _propsExplicit è var su window (non store-proxata) → resta sul ponte come gli altri
 // 3 set esistenti. Crescita inevitabile per estendere la guardia al floor.
-const MAX_WIN_REFS = 1838;
+//
+// −34 (1838 → 1804, 2026-06-29): RITIRO PONTE — estratte 11 funzioni PURE del modello
+// link/segmenti da src/app.js → lib/link-model.js (UMD-lite, <script> window-assign
+// caricato PRIMA del bundle, +21 test in test/link-model.test.js). I 9 consumatori che
+// le chiamavano via win._link*/win._getLink*/win._normalizeLink* sono passati a
+// bare-global (il lib le espone su window): app-shared-segment 11, app-autolink 5,
+// app-pointer 4, app-cabling-editor 3, app-popup 3, app-ports 2, app-render-core 2,
+// app-topology-discover 2, app-vlan-autopoll 2. Behavior-identical (golden invariato,
+// smoke + e2e 62/62 verdi). NB: win._linksForPort resta sul ponte (definita in app.js,
+// NON estratta perché legge state).
+const MAX_WIN_REFS = 1804;
 
 test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => {
   const total = countInCode(/\bwin\./g);

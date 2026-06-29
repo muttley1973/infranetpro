@@ -340,7 +340,7 @@ function _findWallPortBehindInfrastructurePort(infraPid, epPid){
     while(queue.length){
         const curr = queue.shift();
         for(const l of win._linksForPort(curr)){
-            for(const other of win._linkAdjacentPorts(l, curr)){
+            for(const other of _linkAdjacentPorts(l, curr)){
                 if(!other || visited.has(other)) continue;
                 visited.add(other);
                 const n = getNodeByPortId(other);
@@ -374,7 +374,7 @@ function _autoLinkEndpoint(nodeId){
     // Switch/router/server si collegano via LLDP/CDP/FDB nel motore principale.
     if(!_isLeafEndpoint(node.type)) return { ok:false, reason:'tipo-non-endpoint' };
     const epPid = `${nodeId}-1`;
-    const existing = store.state.links.find(l => win._linkTouchesPort(l, epPid));
+    const existing = store.state.links.find(l => _linkTouchesPort(l, epPid));
     if(existing && !existing.autoLinked) return { ok:false, reason:'manual-link' };
     const res = _resolveEndpointSwitchPort(node);
     if(!res.ok) return res;
@@ -811,7 +811,7 @@ async function _autoDiscoverLinks(nodeIds){
         if(!win._normMacKey(node.mac)) continue;
         const epPid = `${node.id}-1`;
         // non sovrascrivere un link manuale già presente sull'endpoint
-        const ex = store.state.links.find(l => win._linkTouchesPort(l, epPid));
+        const ex = store.state.links.find(l => _linkTouchesPort(l, epPid));
         if(ex && !ex.autoLinked){
             diag.endpointReasons['manual-link'] = (diag.endpointReasons['manual-link']||0) + 1;
             continue;
@@ -1085,7 +1085,7 @@ async function _autoDiscoverLinks(nodeIds){
         }
         _applyLinkTrunkMeta(linkObj, cand.src, cand.dst);
 
-        store.state.links.push(typeof win._normalizeLinkMetadata === 'function' ? win._normalizeLinkMetadata(linkObj) : linkObj);
+        store.state.links.push(typeof _normalizeLinkMetadata === 'function' ? _normalizeLinkMetadata(linkObj) : linkObj);
         existingByPair[_pairSig(linkObj.src, linkObj.dst)] = linkObj;
         for(const p of cand.protocols) protocols.add(p);
         created++;
