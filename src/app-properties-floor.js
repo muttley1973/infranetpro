@@ -114,6 +114,17 @@ function _renderFloorProps(panel){
                     <span class="toggle-track"></span>
                   </label>
                 </div>
+                <div class="prop-notes-header"><i class="fas fa-palette"></i> ${t('floor.colorsSection')}</div>
+                <div class="prop-group"><label>${t('f.floorBg')}</label><input type="color" value="${escapeHTML(state.uiColors?.floorBg||'#0d1117')}" onchange="updateUiColor('floorBg',this.value)"></div>
+                <div class="prop-group"><label>${t('f.rackBg')}</label><input type="color" value="${escapeHTML(state.uiColors?.rackBg||'#ffffff')}" onchange="updateUiColor('rackBg',this.value)"></div>
+                <div class="prop-notes-header"><i class="fas fa-tag"></i> ${t('floor.labelsSection')}</div>
+                <div class="prop-group" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+                  <label style="margin:0">${t('f.abbrevNames')}</label>
+                  <label class="toggle-sw" data-tip="${t('f.abbrevNamesTip')}">
+                    <input type="checkbox" ${state.abbrevNames?'checked':''} onchange="toggleAbbrevNames(this.checked)">
+                    <span class="toggle-track"></span>
+                  </label>
+                </div>
               </div>
             </details>
             <details class="props-collapsible props-primary" ${_propsSectionIsOpen('floor-vlan')?'open':''} ontoggle="setPropsSectionState('floor-vlan',this.open)">
@@ -122,7 +133,7 @@ function _renderFloorProps(panel){
                 <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
                   <button class="toolbar-btn" style="padding:4px 10px;margin:0;font-size:0.74rem;background:var(--accent-soft);border-color:var(--accent);color:var(--text-main)" data-tip="${t('floor.clearAllVlansTip')}" onclick="clearAllVlans()"><i class="fas fa-trash-alt" style="margin-right:6px;color:var(--fault-color)"></i>${t('floor.clearAllVlans')}</button>
                 </div>
-                <div style="max-height:320px;overflow-y:auto;padding-right:4px">`;
+                <div style="max-height:640px;overflow-y:auto;padding-right:4px">`;
         // L3-lite: righe gateway calcolate UNA volta (non per card) per la
         // riga "Device gateway" dentro ogni IPAM aperta.
         const _l3rows = {};
@@ -180,25 +191,6 @@ function _renderFloorProps(panel){
                   <input type="number" id="new-vlan-id" placeholder="ID" style="width:55px">
                   <input type="color" id="new-vlan-color" value="#00d4ff" style="flex:1">
                   <button class="toolbar-btn primary" style="padding:4px 9px;margin:0" onclick="addVlanColor()">${t('common.add')}</button>
-                </div>
-              </div>
-            </details>
-            <details class="props-collapsible props-secondary" ${_propsSectionIsOpen('floor-colors')?'open':''} ontoggle="setPropsSectionState('floor-colors',this.open)">
-              <summary class="props-collapsible-head"><span><i class="fas fa-palette"></i> ${t('floor.colorsSection')}</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
-              <div class="props-collapsible-body">
-                <div class="prop-group"><label>${t('f.floorBg')}</label><input type="color" value="${escapeHTML(state.uiColors?.floorBg||'#0d1117')}" onchange="updateUiColor('floorBg',this.value)"></div>
-                <div class="prop-group"><label>${t('f.rackBg')}</label><input type="color" value="${escapeHTML(state.uiColors?.rackBg||'#ffffff')}" onchange="updateUiColor('rackBg',this.value)"></div>
-              </div>
-            </details>
-            <details class="props-collapsible props-secondary" ${_propsSectionIsOpen('floor-display')?'open':''} ontoggle="setPropsSectionState('floor-display',this.open)">
-              <summary class="props-collapsible-head"><span><i class="fas fa-tag"></i> ${t('floor.labelsSection')}</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
-              <div class="props-collapsible-body">
-                <div class="prop-group" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
-                  <label style="margin:0">${t('f.abbrevNames')}</label>
-                  <label class="toggle-sw" data-tip="${t('f.abbrevNamesTip')}">
-                    <input type="checkbox" ${state.abbrevNames?'checked':''} onchange="toggleAbbrevNames(this.checked)">
-                    <span class="toggle-track"></span>
-                  </label>
                 </div>
               </div>
             </details>`;
