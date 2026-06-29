@@ -2837,6 +2837,19 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       });
       assert.ok(lit, 'lo spotlight (coach-mark) illumina il bottone reale «Scopri»');
 
+      // PERSISTENZA: il faro resta acceso (nessun auto-spegnimento a tempo)…
+      await page.waitForTimeout(350);
+      const persisted = await page.evaluate(() => document.getElementById('btn-discover').classList.contains('coach-spotlight'));
+      assert.ok(persisted, 'il faro resta acceso finché non lo si clicca (niente timer)');
+      // …e si spegne SOLO quando si clicca il bottone illuminato (neutralizzo
+      // l'onclick reale per non aprire la discovery: testo solo lo spegnimento).
+      const cleared = await page.evaluate(() => {
+        const b = document.getElementById('btn-discover');
+        b.onclick = null; b.click();
+        return !b.classList.contains('coach-spotlight');
+      });
+      assert.ok(cleared, 'cliccando il bottone illuminato il faro si spegne');
+
       // Stato 2: device documentati ma SENZA Verifica → il passo evolve in «Verifica».
       await page.evaluate(() => {
         state.nodes.push({ id: 'ob1', type: 'switch', name: 'OB-SW', rackId: state.currentRack, rackU: 1, sizeU: 1, ip: '10.0.0.2', mac: '00:11:22:33:44:aa', integration: { driver: 'snmp' } });
