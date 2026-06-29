@@ -68,7 +68,7 @@ function buildOpenApi() {
       '/api/v1/projects/{id}/ansible-inventory': {
         get: {
           tags: ['ansible'], summary: 'Ansible dynamic inventory (formato --list)', operationId: 'getAnsibleInventory', parameters: [PROJECT_ID],
-          description: 'Restituisce il JSON nel formato dynamic inventory di Ansible: `_meta.hostvars` (con `ansible_host` = IP) + gruppi per `type_*`, `vlan_*`, `rack_*`, `brand_*`. Solo i device con IP diventano host.',
+          description: 'Restituisce il JSON nel formato dynamic inventory di Ansible. `_meta.hostvars` di ogni host include `ansible_host` (=IP), `hostname`, `mac`, `brand`/`model`/`serial`/`firmware`, il contesto di rete della sua VLAN (`vlan`/`vlan_name`/`subnet`/`gateway`/`dns`), la collocazione (`rack`/`rack_id`/`rack_unit`) e la gestione (`snmp`/`wireless`/`mgmt_protocol`/`mgmt_url`). Gruppi: `type_*`, `vlan_*`, `rack_*`, `brand_*`, più `wireless` e `snmp_managed`. Solo i device con IP diventano host. Nessun segreto (mai la community SNMP né credenziali).',
           responses: {
             200: { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/AnsibleInventory' } } } },
             401: { $ref: '#/components/responses/Unauthorized' }, 404: { $ref: '#/components/responses/NotFound' },
@@ -100,10 +100,15 @@ function buildOpenApi() {
             model: { type: 'string', nullable: true },
             ip: { type: 'string', nullable: true },
             mac: { type: 'string', nullable: true, description: 'MAC normalizzato in UPPER — l\'identità del device' },
+            hostname: { type: 'string', nullable: true, description: 'Nome di rete documentato (sysName)' },
+            serial: { type: 'string', nullable: true, description: 'Numero di serie (inventario ENTITY-MIB)' },
+            firmware: { type: 'string', nullable: true, description: 'Versione firmware / OS' },
             vlan: { type: 'integer', nullable: true, description: 'VLAN derivata dall\'appartenenza IP↔subnet' },
             rack: { type: 'object', nullable: true, properties: { id: { type: 'string' }, name: { type: 'string', nullable: true }, u: { type: 'integer', nullable: true }, sizeU: { type: 'integer', nullable: true } } },
             snmp: { type: 'boolean', description: 'true se il device ha un\'integrazione SNMP configurata (la community NON è esposta)' },
             wireless: { type: 'boolean' },
+            mgmtProtocol: { type: 'string', nullable: true, description: 'Protocollo di gestione (https/ssh/…) — solo IP, MAI credenziali' },
+            mgmtUrl: { type: 'string', nullable: true, description: 'URL di gestione opzionale (solo IP, nessuna credenziale)' },
           },
         },
         Inventory: {
