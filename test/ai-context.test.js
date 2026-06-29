@@ -140,6 +140,47 @@ test('salute SNMP: host (CPU/RAM) + printer (toner) + system, niente contatto/se
   assert.ok(!('secretToken' in pr.health.printer), 'token scartato');
 });
 
+// ── Wireless: inventario SSID nel contesto (allowlist, niente passphrase) ────
+function projWithWifi() {
+  return {
+    id: 11, name: 'Wifi',
+    state: {
+      vlanNames: { 20: 'Dati', 40: 'Guest' },
+      ipam: { vlans: { 20: { subnet: '10.40.20.0/24' } } },
+      racks: [],
+      nodes: [{
+        id: 'ap1', type: 'ap', name: 'AP-Sala', ip: '10.40.10.20',
+        integration: { driver: 'snmp', community: 'SECRET-COMM' },
+        radios: [
+          // un campo "psk"/"passphrase" iniettato AD ARTE → NON deve uscire.
+          { band: '2.4', standard: 'wifi6', psk: 'WIFI-PSK-LEAK', ssids: [
+            { id: 's1', ssid: 'ACME-Corp', vlan: 20, security: 'wpa3-personal', passphrase: 'PSK-LEAK-2' },
+            { id: 's2', ssid: 'ACME-Guest', vlan: 40, security: 'wpa2-personal' } ] },
+          { band: '5', standard: 'wifi6', ssids: [
+            { id: 's3', ssid: 'ACME-Corp', vlan: 20, security: 'wpa3-personal' } ] },
+        ],
+      }],
+    },
+  };
+}
+
+test('wireless: SSID nel contesto (ssid/vlan/security/bande), dedup per ssid+vlan', () => {
+  const ctx = buildAiContext(projWithWifi(), null);
+  const ap = ctx.devices.find(d => d.id === 'ap1');
+  assert.ok(ap && Array.isArray(ap.ssids), 'l\'AP porta l\'inventario SSID');
+  assert.equal(ap.ssids.length, 2, 'ACME-Corp (2.4+5) deduplicato + ACME-Guest = 2 voci');
+  const corp = ap.ssids.find(s => s.ssid === 'ACME-Corp');
+  assert.equal(corp.vlan, 20); assert.equal(corp.security, 'wpa3-personal');
+  assert.deepEqual(corp.bands.sort(), ['2.4', '5'], 'le bande della stessa SSID sono raccolte');
+});
+
+test('GUARDIA wireless: nessuna passphrase/psk nel contesto SSID', () => {
+  const json = JSON.stringify(buildAiContext(projWithWifi(), null));
+  for (const s of ['WIFI-PSK-LEAK', 'PSK-LEAK-2', 'SECRET-COMM']) {
+    assert.ok(!json.includes(s), `segreto wireless trapelato: ${s}`);
+  }
+});
+
 test('topologia: adiacenza device coi nomi', () => {
   const ctx = buildAiContext(projWithTopo(), null);
   assert.ok(Array.isArray(ctx.topology) && ctx.topology.length === 1);
