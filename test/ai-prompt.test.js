@@ -49,6 +49,20 @@ test('en: hardware capacity + solutions + per-model advice', () => {
   assert.match(p, /verify on the official datasheet/i);
 });
 
+test('it: problemi (alert) + potenzialità proattive nel grounding', () => {
+  const p = buildSystemPrompt('it');
+  assert.match(p, /PROBLEMI/);
+  assert.match(p, /alerts/);
+  assert.match(p, /POTENZIALITÀ/);
+});
+
+test('en: problems (alerts) + proactive potential in grounding', () => {
+  const p = buildSystemPrompt('en');
+  assert.match(p, /PROBLEMS/);
+  assert.match(p, /alerts/);
+  assert.match(p, /POTENTIAL/);
+});
+
 const { PROMPTS } = require('../server/ai/prompt.js');
 
 test('capacità: tutto ON (o assente) → nessuna sezione extra', () => {
@@ -87,6 +101,24 @@ test('help en: catalogo passato → sezione HELP localizzata', () => {
   assert.match(p, /Backbone: Discover → Sync → Verify/);
   assert.match(p, /BUTTON CATALOG/);
   assert.match(p, /Do NOT invent buttons/i);
+});
+
+test('help it: viaggio completo + funzioni reali (Report/export/automazioni)', () => {
+  const p = buildSystemPrompt('it', undefined, ['"Scopri" — Scansiona la rete']);
+  assert.match(p, /Il viaggio in InfraNet/);
+  assert.match(p, /Libreria elementi/);
+  assert.match(p, /«Report»/);
+  assert.match(p, /Dossier di consegna/);
+  assert.match(p, /«Automazioni»/);
+});
+
+test('help en: full journey + real features (Report/export/automation)', () => {
+  const p = buildSystemPrompt('en', undefined, ['"Discover" — Scan the network']);
+  assert.match(p, /InfraNet journey/);
+  assert.match(p, /Element library/);
+  assert.match(p, /"Report" menu/);
+  assert.match(p, /Handoff dossier/);
+  assert.match(p, /"Automation" menu/);
 });
 
 test('help: nessun catalogo (assente o vuoto) → output IDENTICO a PROMPTS (retrocompat)', () => {

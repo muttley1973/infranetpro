@@ -18,6 +18,7 @@
 const { projectToInventory } = require('../../lib/api-shape.js');
 const { _getLinkDrawEndpoints } = require('../../lib/link-model.js');
 const { computeDeviceCapabilities, computeFleetCapabilities } = require('../../lib/hw-capabilities.js');
+const { computeHealthAlerts, summarizeAlerts } = require('../../lib/health-alerts.js');
 
 // Rimuove le chiavi a valore null/'' da un oggetto piatto (snapshot più compatto).
 function _compact(obj) {
@@ -79,10 +80,15 @@ function _buildNeighborIndex(links) {
 
 // ── Scalari sicuri: tiene numeri/bool/stringhe corte; SCARTA le chiavi che
 // "sembrano" segreti (community/password/key/token/auth…). Difesa in profondità
-// per i blocchi salute a passthrough (hostResources/printer/powerLive). ───────
+// per i blocchi salute a passthrough (hostResources/printer/powerLive).
+// Profondità 4: le forme REALI dei driver sono annidate fino a 3 livelli
+// (printer.supplies[].pct, hostResources.volumes[].pct) → con un cap troppo basso
+// venivano scartate e l'AI non vedeva inchiostro/dischi. Il filtro _SECRET_RE gira
+// per-chiave a OGNI livello (+ cap 24 elementi / 200 char) → nessun segreto
+// trapela anche più in profondità. ───────────────────────────────────────────
 const _SECRET_RE = /pass|pwd|secret|token|key|community|auth|credential/i;
 function _safeScalars(obj, depth) {
-  if (depth == null) depth = 2;
+  if (depth == null) depth = 4;
   if (obj == null) return undefined;
   if (typeof obj === 'number') return Number.isFinite(obj) ? obj : undefined;
   if (typeof obj === 'boolean') return obj;
@@ -318,6 +324,10 @@ function buildAiContext(project, liveFacts, scope) {
       });
       if (cap) out.capabilities = cap;
     }
+    // PROBLEMI (lib/health-alerts): alert deterministici dalla salute → l'AI li
+    // segnala proattivamente. Naturalmente gated da snmpHealth: senza il blocco
+    // health (scope off o nessun dato) non c'è nulla da cui derivarli.
+    if (out.health) { const al = computeHealthAlerts(out); if (al) out.alerts = al; }
     return out;
   });
 
@@ -335,6 +345,9 @@ function buildAiContext(project, liveFacts, scope) {
   // uplink, AP/SSID) — solo se almeno un device porta capacità.
   const fleetCap = computeFleetCapabilities(devices.map(d => d.capabilities));
   if (fleetCap) ctx.summary.capabilities = fleetCap;
+  // Riepilogo problemi di flotta (conteggi warn/crit) — solo se almeno un alert.
+  const fleetAlerts = summarizeAlerts(devices.map(d => d.alerts));
+  if (fleetAlerts) ctx.summary.alerts = fleetAlerts;
   if (sc.topology) { const topo = _topology(state.links, resolveNode, nameById); if (topo) ctx.topology = topo; }
   const facts = _sanitizeFacts(liveFacts, sc);
   if (Object.keys(facts).length) ctx.facts = facts;
