@@ -2,6 +2,19 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-06-30 — AI assistant UI refinements
+
+### Changed
+- **Chat typography like Claude Code** — the assistant conversation now reads as a real chat: larger body text (15px), relaxed line-height (1.6), system font stack with anti-aliasing, applied to message bubbles, the greeting and the composer (so what you type matches what you read). Tuned from a single `#ai-panel-wrap` variable. `styles/04-floor-rack.css`.
+- **Assistant settings moved out of the chat** — the ⚙️ gear was removed from the chat header (the 🗑️ *Clear chat* stays). The **robot button in the toolbar** (right of *Report*) now opens **Settings** for admins; the chat itself still opens from the *Assistant* tab or the **A** shortcut. This keeps the conversation uncluttered while guaranteeing admins can always reach (and disable) the assistant. `src/app-ai.js`, `netmapper.html`, `lib/i18n.js`.
+
+## 2026-06-30 — Security hardening (audit follow-up)
+
+### Security
+- **Path traversal closed on the AI routes** — `POST /api/ai/preview` and `POST /api/ai/chat` took `projectId` straight from the request body into `loadProject` (which builds `projects/${id}.json`); a body like `{"projectId":"../users"}` could step outside `projects/`. The id is now coerced and validated to a **positive integer** (`_safeProjectId`, `server/routes/ai.js`), matching the `+req.params.id` used everywhere else. Disclosure was already limited by the sanitizing context builder, but the traversal is now removed at the source (+ a dedicated guard test).
+- **CSPRNG for security secrets** — the auto-generated `SESSION_SECRET` fallback and the first-run **default admin password** now use `crypto.randomBytes`/`crypto.randomInt` instead of `Math.random()` (a non-cryptographic PRNG). The default password also gains a much larger keyspace (~72 bits). `auth.js`.
+- **`secure` session cookie behind TLS** — set `INFRANET_TRUST_PROXY=1` when running behind a TLS reverse proxy: the session cookie is then flagged `secure` (HTTPS-only) and Express trusts `X-Forwarded-*`. Default off → plain HTTP / localhost behaviour is unchanged. `auth.js`, documented in the README env table.
+
 ## 2026-06-30 — Hardware capabilities in the AI assistant
 
 ### Added

@@ -202,12 +202,21 @@ E2E), `npm start` (server on `http://localhost:8421`). CI runs all of them.
 
 ## 8. Security model (summary)
 
-bcrypt-hashed passwords, server-side sessions (httpOnly, sameSite=strict), a
-rate-limited login, admin/viewer roles, and **scan/poll routes gated to admin**.
-`execFile` is always called with an argument array (no shell → no injection).
-Binds to `127.0.0.1`. `users.json`, `.session-secret`, `projects/` are
-git-ignored. Do **not** expose the instance to the public internet — it is a
-network scanner with command execution; the right access model is VPN/LAN.
+bcrypt-hashed passwords (cost 12), server-side sessions (httpOnly, sameSite=strict;
+`secure` behind a TLS proxy via `INFRANET_TRUST_PROXY=1`), a rate-limited login,
+admin/viewer roles, and **scan/poll routes gated to admin**. `execFile` is always
+called with an argument array (no shell → no injection). The session secret and the
+first-run admin password are generated with a **CSPRNG** (`crypto.randomBytes` /
+`crypto.randomInt`), never `Math.random`. Every `projectId` reaching the filesystem
+is coerced to a positive integer (no path traversal). The data surfaces — AI context,
+REST DTOs, exports — are **allowlist-only**: secrets are structurally excluded and a
+build-failing guard test enforces it. Binds to `127.0.0.1`. `users.json`,
+`.session-secret`, `api-tokens.json`, `data/ai-config.json`, `projects/` are
+git-ignored. A 2026-06 AppSec audit found **no critical issues**; the follow-up
+hardening is covered by regression tests (`test/ai-context.test.js`,
+`test/ai-route-security.test.js`). Do **not** expose the instance to the public
+internet — it is a network scanner with command execution; the right access model
+is VPN/LAN.
 
 ---
 
