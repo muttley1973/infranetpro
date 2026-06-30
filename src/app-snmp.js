@@ -15,6 +15,14 @@ import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: fun
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _driftBuildDocSnapshot, _driftComputeFromDoc } from './app-drift.js';   // presenza→grigio: ricalcolo Drift dopo il Sync
+
+// Tipi per cui richiedere HOST-RESOURCES-MIB standard (CPU/RAM/dischi). Oltre agli
+// host generici, includiamo gli apparati di rete spesso Linux-based (MikroTik,
+// FortiGate, Aruba CX, OPNsense…): chi espone il MIB standard dà CPU/RAM/disco
+// gratis, chi no resta semplicemente vuoto (innocuo). CPU-vendor e temperatura
+// restano ai MIB del produttore (ENTITY-SENSOR/vendor → backlog).
+const _HOST_RES_TYPES = ['server', 'pc', 'nas', 'homelab', 'switch', 'router', 'firewall', 'sdwan'];
+
 function _hasSnmpIntegration(n){
     const drv=String(n?.integration?.driver||'').toLowerCase();
     return drv==='snmp-v1' || drv==='snmp-v2c' || drv==='snmp-v3';
@@ -183,7 +191,7 @@ async function pollSNMP(nodeId){
         // Stampante: il driver legge il Printer-MIB in isolamento (vedi poll()).
         printer:    n.type==='printer',
         // Compute: HOST-RESOURCES (CPU/RAM/dischi) in passaggio supplementare.
-        hostResources: ['server','pc','nas','homelab'].includes(n.type)
+        hostResources: _HOST_RES_TYPES.includes(n.type)
     });
     try{
         const r=await fetch('/api/poll',{method:'POST',headers:{'Content-Type':'application/json'},body});
@@ -284,7 +292,7 @@ async function pollAllSNMP(opts){
             v3secLevel:  cfg.v3secLevel  ||'authPriv',
             v3context:   cfg.v3context   ||'',
             printer:     n.type==='printer',
-            hostResources: ['server','pc','nas','homelab'].includes(n.type)
+            hostResources: _HOST_RES_TYPES.includes(n.type)
         });
         // UPS/ATS: niente walk interfacce, ma valori live via UPS-MIB / ATS.
         if(n.type==='ups' || n.type==='ats'){
