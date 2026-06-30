@@ -14,6 +14,8 @@
 
 > 📰 **What's new:** see [CHANGELOG.md](CHANGELOG.md) — latest: **AI assistant (advisory, bring‑your‑own‑key)**, per‑VLAN IPAM occupancy, management‑VLAN role, DHCP lease import, REST API v1.
 
+> 🔒 **Security-audited & hardened.** The codebase has undergone an application-security audit (no critical issues) and the follow-up fixes are covered by **automated security regression tests**: the data surfaces (AI context, REST DTOs, exports) are **allowlist-only** so secrets never leave the machine, OS commands run via `execFile` with no shell, project IDs are path-traversal-safe, and secrets use a CSPRNG. See [Authentication & Roles → Security hardening & audit](#authentication--roles).
+
 InfraNet Pro is a **self-hosted web application** that lets network engineers draw rack layouts and floor-plan diagrams, then bring them to life by polling live data from real devices via SNMP. Interfaces, VLANs, LAG groups and neighbour topology are discovered automatically — no external database, no cloud dependency, minimal tooling (a lightweight esbuild bundle for the frontend; `npm start` builds it).
 
 Current product direction: InfraNet Pro keeps discovery and classification inside the app. External discovery and monitoring engines are not part of the active roadmap; the internal SNMP/sysObjectID/LLDP/CDP/FDB engine is the source of truth and can be refined with local plugins over time.
@@ -384,6 +386,7 @@ All configuration is done via **environment variables** — no config file neede
 | `INFRANET_PROJECTS_DIR` | `./projects` | Where project JSON + image assets are stored |
 | `INFRANET_SKINS_DIR` | `./skins` | Where uploaded panel skins are stored |
 | `INFRANET_USERS_FILE` | `./users.json` | Path to the user-accounts file |
+| `INFRANET_TRUST_PROXY` | *(off)* | Set `1` when behind a TLS reverse proxy: flags the session cookie `secure` (HTTPS-only) and trusts `X-Forwarded-*`. Leave unset for plain HTTP / localhost |
 
 Example:
 ```bash
@@ -396,6 +399,7 @@ HOST=0.0.0.0 node server.js
 ```
 
 > ⚠️ InfraNet Pro is designed for **internal/trusted networks**. Do not expose it directly to the internet without a reverse proxy and TLS.
+> When you put it behind a TLS reverse proxy, also set `INFRANET_TRUST_PROXY=1` so the session cookie is flagged `secure` (sent over HTTPS only).
 
 ---
 
@@ -796,6 +800,16 @@ Trunk vs access detection is derived from the egress / untagged bitmaps: a port 
 Users are stored in `users.json` with bcrypt-hashed passwords (cost factor 12).
 
 The login endpoint is rate-limited to **10 attempts per 15 minutes** per IP.
+
+### Security hardening & audit
+InfraNet Pro is designed for a **trusted LAN, behind login**, bound to `127.0.0.1` by default. The codebase has undergone an **application-security audit** (no critical findings) and the follow-up hardening is enforced by tests:
+- **Secrets never leave the machine on the data surfaces** — the AI context, the REST API v1 DTOs and the exports are built from an **explicit allowlist** (`lib/api-shape.js`, `server/ai/context.js`): SNMP communities, Wi-Fi passphrases/PSK, API keys and tokens are structurally excluded. A **build-failing guard test** (`test/ai-context.test.js`) fails the build if a secret-looking field ever reaches the AI context.
+- **No command injection** — every OS call (`ping`, `arp`, …) uses `execFile` with an argument array (no shell); scan inputs are regex-validated and capped.
+- **Path-traversal-safe project IDs** — every `projectId` is coerced to a positive integer before touching the filesystem (guarded by `test/ai-route-security.test.js`).
+- **CSPRNG secrets** — the session secret and the first-run admin password are generated with `crypto.randomBytes` / `crypto.randomInt`, never `Math.random`.
+- **Cookies** — session cookies are `httpOnly` + `sameSite=strict`; set `INFRANET_TRUST_PROXY=1` behind a TLS reverse proxy to also flag them `secure` (HTTPS-only).
+
+> 🔐 Found a vulnerability? Please report it **privately** to the maintainer instead of opening a public issue.
 
 ### Managing Users (admin panel)
 Log in as admin → **Settings → Users** to:

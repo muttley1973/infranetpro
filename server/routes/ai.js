@@ -28,6 +28,15 @@ const { loadProject } = require('../projects-store');
 
 const router = express.Router();
 
+// Id progetto SICURO: intero positivo. `loadProject` fa
+// path.join(PROJECTS_DIR, `${id}.json`) → senza coercizione un projectId come
+// "../users" nel body uscirebbe dalla cartella projects/ (path traversal).
+// Allinea al `+req.params.id` già usato dalle altre route. Ritorna l'intero o null.
+function _safeProjectId(raw) {
+  const n = Number(raw);
+  return (Number.isInteger(n) && n > 0) ? n : null;
+}
+
 // ── Aiuto §4c: catalogo UI (pulsanti+tooltip) DERIVATO una volta da
 // netmapper.html (single-source-of-truth) e risolto per lingua → l'assistente
 // risponde a «come si fa X» citando l'etichetta REALE, senza inventare comandi.
@@ -58,9 +67,9 @@ router.put('/api/ai/config', auth.requireAdmin, (req, res) => {
 
 router.post('/api/ai/preview', (req, res) => {
   const body = req.body || {};
-  const pid = body.projectId;
-  if (pid === undefined || pid === null || pid === '') {
-    return res.status(400).json({ error: 'projectId mancante' });
+  const pid = _safeProjectId(body.projectId);
+  if (pid === null) {
+    return res.status(400).json({ error: 'projectId mancante o non valido' });
   }
   const project = loadProject(pid);
   if (!project) return res.status(404).json({ error: 'Progetto non trovato' });
@@ -78,9 +87,9 @@ router.post('/api/ai/chat', async (req, res) => {
   if (!cfg.endpoint) return res.status(409).json({ error: 'ai_no_endpoint' });
 
   const body = req.body || {};
-  const pid = body.projectId;
-  if (pid === undefined || pid === null || pid === '') {
-    return res.status(400).json({ error: 'projectId mancante' });
+  const pid = _safeProjectId(body.projectId);
+  if (pid === null) {
+    return res.status(400).json({ error: 'projectId mancante o non valido' });
   }
   const project = loadProject(pid);
   if (!project) return res.status(404).json({ error: 'Progetto non trovato' });
@@ -114,4 +123,5 @@ router.post('/api/ai/chat', async (req, res) => {
   }
 });
 
+router._safeProjectId = _safeProjectId;   // esportato per il test di sicurezza
 module.exports = router;

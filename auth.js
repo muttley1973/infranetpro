@@ -6,6 +6,7 @@
 
 const fs        = require('fs');
 const path      = require('path');
+const crypto    = require('crypto');
 const bcrypt    = require('bcryptjs');
 const session   = require('express-session');
 const rateLimit = require('express-rate-limit');
@@ -23,6 +24,12 @@ const BCRYPT_COST = 12;
 const DEV_NO_AUTH = process.env.INFRANET_DEV_NO_AUTH === '1';
 const DEV_USER = { id: 0, username: 'dev', role: 'admin' };
 
+// ---- Reverse-proxy TLS ------------------------------------------------------
+// Dietro un reverse-proxy che termina il TLS: INFRANET_TRUST_PROXY=1 marca il
+// cookie di sessione come `secure` (inviato solo su HTTPS) e fa fidare Express
+// dell'header X-Forwarded-*. OFF di default → su HTTP/localhost nulla cambia.
+const TRUST_PROXY = process.env.INFRANET_TRUST_PROXY === '1';
+
 // ---- Secret auto-generato (persiste tra riavvii grazie a .session-secret) --
 
 const SECRET_FILE = path.join(__dirname, '.session-secret');
@@ -31,9 +38,9 @@ function _genSecret() {
   if (fs.existsSync(SECRET_FILE)) {
     return fs.readFileSync(SECRET_FILE, 'utf8').trim();
   }
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
-  let s = '';
-  for (let i = 0; i < 64; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  // CSPRNG (NON Math.random): il secret firma i cookie di sessione → deve essere
+  // imprevedibile. 48 byte casuali → ~64 char base64 ad alta entropia.
+  const s = crypto.randomBytes(48).toString('base64');
   fs.writeFileSync(SECRET_FILE, s, 'utf8');
   return s;
 }
@@ -92,9 +99,13 @@ function ensureDefaultAdmin() {
 }
 
 function _randomPassword() {
+  // CSPRNG + keyspace ampio: la password admin di primo avvio non deve essere
+  // né prevedibile (Math.random) né a basso numero di combinazioni. Prefisso
+  // leggibile + 12 char casuali url-safe da crypto.randomBytes (~72 bit).
   const w = ['Net','Pro','Rack','Infra','Switch','Vlan','Port','Link'];
-  const d = Math.floor(1000 + Math.random() * 9000);
-  return w[Math.floor(Math.random() * w.length)] + d + '!';
+  const word = w[crypto.randomInt(w.length)];
+  const rand = crypto.randomBytes(9).toString('base64url');
+  return `${word}-${rand}!`;
 }
 
 // ---- Session middleware -----------------------------------------------------
@@ -107,6 +118,7 @@ function sessionMiddleware() {
     cookie: {
       httpOnly:  true,
       sameSite:  'strict',
+      secure:    TRUST_PROXY,        // dietro reverse-proxy TLS → cookie solo su HTTPS
       maxAge:    8 * 60 * 60 * 1000, // 8 ore
     },
     name: 'infranet.sid',
@@ -280,6 +292,10 @@ function deleteUser(req, res) {
 
 function register(app) {
   ensureDefaultAdmin();
+
+  // Dietro reverse-proxy TLS: fidati dell'header X-Forwarded-Proto così il
+  // cookie `secure` viene impostato anche se l'hop proxy→app è in chiaro.
+  if (TRUST_PROXY) app.set('trust proxy', 1);
 
   if (DEV_NO_AUTH) {
     console.warn('');
