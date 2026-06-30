@@ -46,9 +46,11 @@ server/                Backend (CommonJS): projects-store, netscan, classify,
 server/ai-config.js    AI assistant config: enabled/endpoint/model/key + scope/features
                        (data/ai-config.json git-ignored; key server-side only, env INFRANET_AI_KEY)
 server/ai/             AI assistant: context.js (sanitized §8b + ports/SNMP-health/topology +
-                       re-sanitized browser liveFacts, scope-aware, allowlist+denylist),
-                       prompt.js (grounding it/en + capabilities + §4c help: UI catalog +
-                       key-flows cheat-sheet), provider.js (OpenAI-compatible client via
+                       hw-capabilities + health alerts, re-sanitized browser liveFacts,
+                       scope-aware, allowlist+denylist; nested driver shapes survive a
+                       depth-4 secret-filtered sanitizer), prompt.js (grounding it/en +
+                       capabilities + problem alerts + §4c help: UI catalog + full workflow
+                       journey), provider.js (OpenAI-compatible client via
                        node:https, zero-dep). routes/ai.js derives the UI help catalog once
                        (lib/ui-catalog from netmapper.html+i18n) and returns an entities digest
                        (extractEntities) so the client can run the anti-invention check.
@@ -64,6 +66,7 @@ lib/                   Shared browser + test modules (the heart of the app)
   ai-grounding.js   extractEntities + checkGrounding (citations + anti-invention)  (pure)
   ai-draft.js       splitDraftBlocks (segments AI reply → text + Ansible draft cards)  (pure)
   onboarding.js     nextStep(summary) → deterministic «next step» chip (onboarding §4d)  (pure)
+  health-alerts.js  computeHealthAlerts → deterministic problem alerts from SNMP telemetry (RAM/disk/ink/UPS)  (pure)
   ui-catalog.js     extractCatalog/catalogLines: derive UI help (buttons+tooltips) from HTML+i18n  (pure)
   ipam.js           computeIpamUsage incl. nextFree (next free host = «suggested IP»)  (pure)
   radio.js          radio interfaces: pid/anchor/linkKind/seeds       (pure)

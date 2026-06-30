@@ -2,6 +2,22 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-06-30 — AI sees SNMP health & flags problems
+
+### Fixed
+- **SNMP health now actually reaches the assistant** — the context sanitizer (`_safeScalars` in `server/ai/context.js`) capped recursion at depth 2, which silently dropped the **real nested shapes** the SNMP drivers produce: a printer's `printer.supplies[]` (ink/toner cartridges) and a host's `hostResources.volumes[]` (disks) were stripped before reaching the AI, so it answered *"not documented"* for ink levels and disk usage. Depth raised to 4 (printer/host nesting is 3 levels) while the per-key secret filter (`_SECRET_RE`) and the element/length caps still run at **every** level — no secret leaks. The unit test fixtures were corrected from the old **flat** placeholder shapes (`tonerBlackPct`, `cpuPercent`) to the **real** driver shapes, with a nested injected secret proving the guard still strips it in depth.
+
+### Added
+- **The assistant proactively flags real problems** — new pure engine `lib/health-alerts.js` (`computeHealthAlerts`, *"InfraNet computes, the AI narrates"*) derives **deterministic alerts from documented SNMP telemetry against thresholds**: host **RAM** near full (≥90% warn / ≥98% crit), **disk** volumes near full (≥90/95), printer **ink/toner** low (≤15/5%, waste receptacles excluded, unknown levels never invented), and **UPS** on battery / low runtime / low charge / high load. Surfaced as `device.alerts` + a fleet `summary.alerts`, gated by the *SNMP health* scope; the system-prompt (it+en) tells the assistant to report them first, citing the device by name, using only the pre-computed values. Validated on a real project: a Synology NAS correctly flags *RAM 99% (crit)* + *disk /volume1 90% (warn)*.
+- **HOST-RESOURCES now requested for network gear too** — the SNMP poll previously asked for HOST-RESOURCES (CPU/RAM/disk) only on `server/pc/nas/homelab`. It now also asks `switch/router/firewall/sdwan` (`_HOST_RES_TYPES` in `src/app-snmp.js`): the many Linux-based network OSes (MikroTik, FortiGate, Aruba CX, OPNsense…) expose the standard MIB and so get CPU/RAM/disk — and the alert engine flags them — for free; devices that don't support it simply stay empty (harmless). Vendor CPU/temperature MIBs (Cisco/Juniper…) remain future work.
+- **Out of scope (honest):** *device-down / reachability* alerts are intentionally left to **Verify/drift** (which distinguishes a real fault from *"not verifiable from this host"*), avoiding false *"critical: switch down"* floods; **temperature/overheating** (ENTITY-SENSOR-MIB) and **traffic congestion** (live interface utilisation) are not collected yet, so they are never fabricated.
+
+## 2026-06-30 — AI assistant as an onboarding guide
+
+### Changed
+- **The assistant now guides the whole workflow, not just the spine** — the in-prompt help section was expanded from the 3-step *Discover → Sync → Verify* backbone into the **full InfraNet journey** (① build the map → ② document → ③ verify → ④ analyse → ⑤ hand off → ⑥ automate), each phase naming the **real features by their actual labels**: dragging from the *Element library*, the *Report* menu (*Change history*, *Free ports*, *L3 map / Gateway*, *Wireless VLAN coherence*), the *Import/Export* menu (*Export PDF*, *Handoff dossier*, *Export labels*) and the *Automation* menu (SNMP polling, DHCP IP renewal, *DHCP leases*). So *"what can I do with InfraNet?"*, *"where do I start?"* and *"what is X for?"* are answered comprehensively, citing the real buttons — closing the gap where the auto-derived button catalog (toolbar only) couldn't see dropdown commands, the drag-drop palette or the Properties panel. `server/ai/prompt.js` (it+en).
+- **Proactive potential** — a new grounding rule lets the assistant **surface useful, under-used features** when relevant to the project's *real* state (e.g. free ports → where to relocate; a documented & verified network → generate a *Handoff dossier* or *Export labels*; many SNMP devices → enable *Automation* polling), staying advisory and kept **separate from the facts**. No new data leaves the machine (prompt-only change — the sanitized context and the anti-leak guard are untouched).
+
 ## 2026-06-30 — AI assistant UI refinements
 
 ### Changed
