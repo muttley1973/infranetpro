@@ -2,6 +2,16 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-06-30 — Hardware capabilities in the AI assistant
+
+### Added
+- **Hardware capabilities in the AI context** — the assistant now sees each device's *documented* capabilities, **pre-computed by InfraNet** (`lib/hw-capabilities.js`, pure & tested — *"InfraNet computes, the AI narrates"*): switch **PoE budget & headroom** (a worst-case envelope = Σ of each active PoE port's class nominal — 802.3af/at/bt — clearly a theoretical max, not a meter reading), **UPS/PDU/ATS** power (VA/W, runtime, current, outlets), **server/hypervisor** CPU/RAM/storage (+ hosted VMs), **NAS** capacity/RAID, **firewall/SD-WAN** throughput, **WLAN-controller** AP capacity, **NVR** channels/storage, **AP** radios/bands/SSID counts, and per-device **port capacity** (free ports, speed mix, **aggregate LAG / uplink bandwidth**) — plus a **fleet summary** (total free ports, PoE headroom, aggregate uplink, AP/SSID counts). So *"how much PoE headroom on SW-X?"*, *"how many VMs can this host take?"*, *"do I have uplink bandwidth for another AP?"* are answered from facts. A field that isn't documented is **omitted**, so the assistant says *"not documented"* instead of inventing a number (paletto #2). **Allowlist by construction**: the engine reads only known `spec` keys, so secrets (SNMP community, keys) are structurally excluded — the build-failing anti-leak guard test is extended to cover the new block.
+- **Per-model, vendor-grounded advice** — the system-prompt now lets the assistant use each device's **official identity already in the context** (vendor / model / firmware + SNMP `sysDescr`) to propose **model-specific solutions and configuration snippets in the device's real CLI/OS** (rendered as a draft, never applied), **explicitly labelled *"typical for &lt;brand/model&gt;, verify on the official datasheet/CLI"*** and kept **separate** from InfraNet's authoritative data (which always wins). No new data leaves the machine (the identity already left to your configured model) and there are **no third-party calls**.
+- **Copy any chat message** — every turn in the AI assistant (your question and the assistant's answer) now has an **always-visible copy icon anchored to the top corner of its bubble** — on the *outer* side (left of your message, right of the answer) so it follows the tile without stealing width. One click copies that single message to the clipboard (✓ feedback). The Ansible draft cards keep their own per-block *Copy*.
+
+### Changed
+- **The assistant now proposes sized solutions** — the grounding rules instruct it to combine the pre-computed facts (drift / gaps / IPAM) with these capabilities to suggest **concrete fixes** to network problems (e.g. *free ports* to relocate a device, *PoE/uplink headroom* before adding an AP), citing the devices by name and staying advisory (it proposes, you apply).
+
 ## 2026-06-29 — Assistant & Verify refinements
 
 ### Added
