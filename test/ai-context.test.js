@@ -87,11 +87,16 @@ function projWithTopo() {
       nodes: [
         { id: 'sw1', type: 'switch', name: 'SW-Core', ip: '10.0.20.2', snmpStatus: 'ok',
           integration: { driver: 'snmp', community: 'SECRET-COMM',
-            hostResources: { cpuPercent: 42, memPercent: 55, authKey: 'HOSTLEAK' },
+            // Forma REALE del driver: ram/volumes annidati (3 livelli) + segreto in fondo.
+            hostResources: { cpuLoad: 42, cpuCores: 4, ram: { pct: 55 },
+              volumes: [{ name: '/vol1', kind: 'fixedDisk', pct: 90, authKey: 'HOSTLEAK' }] },
             system: { sysUpTime: '10 days', sysDescr: 'Cisco IOS', sysContact: 'admin@x.com' } } },
         { id: 'ap1', type: 'ap', name: 'AP-Sala', ip: '10.0.20.9', integration: { driver: 'snmp', community: 'SECRET2' } },
         { id: 'pr1', type: 'printer', name: 'HP-LJ', ip: '10.0.20.50',
-          integration: { printer: { tonerBlackPct: 80, pageCount: 12000, secretToken: 'PRLEAK' } } },
+          // Forma REALE Printer-MIB: supplies è un ARRAY di oggetti (3 livelli) + segreto annidato.
+          integration: { printer: { supplies: [
+            { index: 1, color: 'black', type: 'ink', max: 200, level: 30, pct: 15, secretToken: 'PRLEAK' },
+            { index: 2, color: 'cyan', type: 'ink', max: 200, level: 180, pct: 90 } ], pageCount: 12000 } } },
       ],
       ports: {
         'sw1-1': { status: 'active', speed: '1G', vlan: 20, ifName: 'Gi0/1', password: 'PORTLEAK' },
@@ -126,18 +131,36 @@ test('porte: lista + summary used/free + connectedTo (cablaggio risolto al nome)
   assert.ok(!sw.ports.list.find(p => p.port === '3'), 'porta vuota assente dalla lista');
 });
 
-test('salute SNMP: host (CPU/RAM) + printer (toner) + system, niente contatto/segreti', () => {
+test('salute SNMP: host (CPU/RAM + dischi annidati) + printer (inchiostro) + system, niente contatto/segreti', () => {
   const ctx = buildAiContext(projWithTopo(), null);
   const sw = ctx.devices.find(d => d.id === 'sw1');
   assert.ok(sw.health && sw.health.host, 'host resources presenti');
-  assert.equal(sw.health.host.cpuPercent, 42);
-  assert.ok(!('authKey' in sw.health.host), 'authKey scartato');
+  assert.equal(sw.health.host.cpuLoad, 42);
+  assert.equal(sw.health.host.ram.pct, 55, 'RAM% (oggetto annidato) presente');
+  assert.equal(sw.health.host.volumes[0].pct, 90, 'disco (array annidato di 3° livello) ORA raggiunto');
+  assert.ok(!('authKey' in sw.health.host.volumes[0]), 'segreto annidato in profondità scartato');
   assert.equal(sw.health.snmpStatus, 'ok');
   assert.match(sw.health.system.descr, /Cisco IOS/);
   assert.ok(!('contact' in sw.health.system) && !('sysContact' in sw.health.system), 'sysContact non incluso');
   const pr = ctx.devices.find(d => d.id === 'pr1');
-  assert.equal(pr.health.printer.tonerBlackPct, 80);
-  assert.ok(!('secretToken' in pr.health.printer), 'token scartato');
+  assert.equal(pr.health.printer.supplies[0].pct, 15, 'livello inchiostro (array annidato) ORA raggiunto');
+  assert.ok(!('secretToken' in pr.health.printer.supplies[0]), 'segreto annidato nelle supplies scartato');
+});
+
+test('alert salute: disco quasi pieno + inchiostro basso + riepilogo flotta', () => {
+  const ctx = buildAiContext(projWithTopo(), null);
+  const sw = ctx.devices.find(d => d.id === 'sw1');
+  assert.ok(Array.isArray(sw.alerts) && sw.alerts.some(a => a.kind === 'disk' && a.value === 90), 'disco 90% segnalato');
+  const pr = ctx.devices.find(d => d.id === 'pr1');
+  assert.ok(pr.alerts.some(a => a.kind === 'ink' && a.value === 15), 'inchiostro 15% segnalato');
+  assert.ok(ctx.summary.alerts && ctx.summary.alerts.warn >= 2, 'riepilogo flotta conta i warn');
+});
+
+test('alert salute: scope.snmpHealth=false → niente alert (gated come la salute)', () => {
+  const ctx = buildAiContext(projWithTopo(), null, { snmpHealth: false });
+  const sw = ctx.devices.find(d => d.id === 'sw1');
+  assert.ok(!sw.alerts, 'senza il blocco salute non si derivano alert');
+  assert.ok(!(ctx.summary && ctx.summary.alerts), 'nessun riepilogo alert di flotta');
 });
 
 // ── Wireless: inventario SSID nel contesto (allowlist, niente passphrase) ────
