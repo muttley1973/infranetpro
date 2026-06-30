@@ -31,6 +31,24 @@ test('lingua sconosciuta → ricade su it', () => {
   assert.equal(buildSystemPrompt('xx'), buildSystemPrompt('it'));
 });
 
+test('it: capacità hardware + soluzioni + consigli per-modello', () => {
+  const p = buildSystemPrompt('it');
+  assert.match(p, /CAPACITÀ HARDWARE/);
+  assert.match(p, /device\.capabilities/);
+  assert.match(p, /SOLUZIONI/);
+  assert.match(p, /PER MODELLO/);
+  assert.match(p, /da verificare sul datasheet/i);
+});
+
+test('en: hardware capacity + solutions + per-model advice', () => {
+  const p = buildSystemPrompt('en');
+  assert.match(p, /HARDWARE CAPACITY/);
+  assert.match(p, /device\.capabilities/);
+  assert.match(p, /SOLUTIONS/);
+  assert.match(p, /PER MODEL/);
+  assert.match(p, /verify on the official datasheet/i);
+});
+
 const { PROMPTS } = require('../server/ai/prompt.js');
 
 test('capacità: tutto ON (o assente) → nessuna sezione extra', () => {

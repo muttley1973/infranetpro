@@ -17,6 +17,7 @@
 // ============================================================
 const { projectToInventory } = require('../../lib/api-shape.js');
 const { _getLinkDrawEndpoints } = require('../../lib/link-model.js');
+const { computeDeviceCapabilities, computeFleetCapabilities } = require('../../lib/hw-capabilities.js');
 
 // Rimuove le chiavi a valore null/'' da un oggetto piatto (snapshot più compatto).
 function _compact(obj) {
@@ -142,6 +143,30 @@ function _devicePorts(node, state, resolveNode, neighborIndex, nameById) {
   const out = _compact({ total: total || undefined, used: used || undefined, free: total ? (total - used) : undefined });
   if (entries.length) out.list = entries;
   return Object.keys(out).length ? out : undefined;
+}
+
+// ── Porte GREZZE di un device per il motore capacità (lib/hw-capabilities). ──
+// A differenza di _devicePorts (che filtra/cappa la lista mostrata all'AI), qui
+// raccogliamo TUTTE le porte del nodo con i soli campi utili al calcolo (velocità/
+// stato/LAG/PoE) + il conteggio total/used/free dal cablaggio. Cap alto di sicurezza.
+function _collectPorts(node, state, resolveNode, neighborIndex) {
+  const ports = (state && state.ports) || {};
+  const list = [];
+  let total = 0, used = 0;
+  for (const pid of Object.keys(ports)) {
+    if (resolveNode(pid) !== node.id) continue;
+    total++;
+    const p = ports[pid] || {};
+    if (neighborIndex[pid] && neighborIndex[pid].size) used++;
+    list.push({
+      speed: (p.speedOvr != null) ? p.speedOvr : (p.speed != null ? p.speed : null),
+      status: p.statusOvr || p.status || null,
+      lagGroup: p.lagGroup || null,
+      poe: (p.snmpPoe != null) ? p.snmpPoe : null,
+    });
+    if (list.length >= 512) break;
+  }
+  return { total, used, free: total - used, list };
 }
 
 // ── Salute SNMP (sola lettura, già importata): system/host/printer/power. ────
@@ -281,6 +306,18 @@ function buildAiContext(project, liveFacts, scope) {
     if (sc.ports && raw) { const pr = _devicePorts(raw, state, resolveNode, neighborIndex, nameById); if (pr) out.ports = pr; }
     if (sc.snmpHealth && raw) { const hl = _deviceHealth(raw); if (hl) out.health = hl; }
     if (raw) { const ss = _wirelessSsids(raw); if (ss) out.ssids = ss; }   // inventario SSID (AP)
+    // Capacità hardware DOCUMENTATE (lib/hw-capabilities): «InfraNet calcola».
+    // Allowlist per costruzione (legge solo chiavi spec note). I sotto-blocchi
+    // derivati dalle porte arrivano solo se anche lo scope Porte è ON.
+    if (raw) {
+      const portsCap = sc.ports ? _collectPorts(raw, state, resolveNode, neighborIndex) : undefined;
+      const cap = computeDeviceCapabilities({
+        type: raw.type, spec: raw.spec, radios: raw.radios,
+        vmsCount: Array.isArray(raw.vms) ? raw.vms.length : 0,
+        ports: portsCap, lagNames: state.lagGroups,
+      });
+      if (cap) out.capabilities = cap;
+    }
     return out;
   });
 
@@ -294,6 +331,10 @@ function buildAiContext(project, liveFacts, scope) {
     vlans,
   };
   if (devices.length) ctx.devices = devices;
+  // Riepilogo capacità di FLOTTA (totali utili: porte libere, headroom PoE, banda
+  // uplink, AP/SSID) — solo se almeno un device porta capacità.
+  const fleetCap = computeFleetCapabilities(devices.map(d => d.capabilities));
+  if (fleetCap) ctx.summary.capabilities = fleetCap;
   if (sc.topology) { const topo = _topology(state.links, resolveNode, nameById); if (topo) ctx.topology = topo; }
   const facts = _sanitizeFacts(liveFacts, sc);
   if (Object.keys(facts).length) ctx.facts = facts;
@@ -303,5 +344,5 @@ function buildAiContext(project, liveFacts, scope) {
 module.exports = {
   buildAiContext, _sanitizeFacts, _device, _compact,
   _normScope, _buildPortNodeResolver, _portNum, _buildNeighborIndex,
-  _safeScalars, _devicePorts, _deviceHealth, _topology, _wirelessSsids,
+  _safeScalars, _devicePorts, _deviceHealth, _topology, _wirelessSsids, _collectPorts,
 };

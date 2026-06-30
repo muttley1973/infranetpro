@@ -30,6 +30,7 @@
     "lib/frontpanel.js",
     "lib/ha-pair.js",
     "lib/handoff.js",
+    "lib/hw-capabilities.js",
     "lib/i18n.js",
     "lib/ipam.js",
     "lib/l3-gateway.js",
