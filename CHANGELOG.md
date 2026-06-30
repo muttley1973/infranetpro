@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-06-30 — Discovery enables SNMP only on devices that answered
+
+### Fixed
+- **Imported devices no longer get a phantom SNMP driver** — *Discover* used to stamp **every** imported device with a fallback `snmp-v2c` integration driver, including endpoints that never answered SNMP (PCs, TVs, printers without SNMP). The next *Sync* then polled them all and the non-SNMP ones predictably **failed**. Import now assigns an SNMP driver **only to devices that actually responded to SNMP during the scan** (`d.snmpReachable`, the authoritative signal set by the server probe in `server/routes/discovery.js`): responders keep their concrete version (`snmp-v1/v2c/v3`), non-responders are imported with just their host/IP and **no driver**, so *Sync* skips them cleanly instead of failing on them. SNMP stays **opt-in** — enableable by hand from the device's Integration panel for anything you want to poll later — and an existing node's manually-chosen driver is never overwritten or cleared. `src/app-discovery.js` (+ an e2e regression: a reachable switch gets `snmp-v2c`, an ARP-only PC gets no driver). *Note: applies to future scans; devices imported before this fix keep the driver they were given.*
+
 ## 2026-06-30 — AI sees SNMP health & flags problems
 
 ### Fixed
