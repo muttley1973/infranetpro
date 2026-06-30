@@ -604,8 +604,8 @@
                 </button>
             </div>
         </div>
-        <button class="toolbar-btn icon-only" id="btn-assistant" onclick="openAssistant()"
-                data-i18n-tip="assistant.toolbarTip" data-tip="Assistente di rete — domande, diagnosi e bozze · scorciatoia: A">
+        <button class="toolbar-btn icon-only" id="btn-assistant" onclick="openAssistantOrSettings()"
+                data-i18n-tip="assistant.toolbarTip" data-tip="Impostazioni assistente (admin) · la chat si apre dalla tab «Assistente» o col tasto A">
             <i class="fas fa-robot"></i><span class="btn-label" data-i18n="assistant.label"> Assistente</span>
         </button>
         <span style="width:1px;height:18px;background:var(--panel-border);opacity:.5;flex-shrink:0;align-self:center"></span>
@@ -856,7 +856,6 @@
                             <span class="ai-head-actions">
                                 <span class="ai-chip" id="ai-chip-status"></span>
                                 <button type="button" id="ai-clear-btn" class="ai-gear danger" onclick="aiClearChat()" data-i18n-aria="assistant.clear" data-i18n-tip="assistant.clear" aria-label="Pulisci chat" style="display:none"><i class="fas fa-trash"></i></button>
-                                <button type="button" class="ai-gear admin-only" onclick="openAiSettings()" data-i18n-aria="assistant.settings" data-i18n-tip="assistant.settings" aria-label="Impostazioni assistente"><i class="fas fa-gear"></i></button>
                             </span>
                         </div>
                         <div id="ai-messages" class="ai-messages" aria-live="polite"></div>

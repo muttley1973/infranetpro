@@ -34,6 +34,18 @@ function openAiSettings(){
     if (typeof umSwitchTab === 'function') umSwitchTab('ai');
 }
 
+// Pulsante robot in toolbar (a destra di «Report»). Per gli ADMIN è l'accesso
+// rapido alle Impostazioni dell'assistente (scheda «Utenti e accessi» → AI):
+// sostituisce l'ingranaggio rimosso dalla testata della chat e garantisce che
+// le impostazioni restino SEMPRE raggiungibili (anche solo per spegnerlo).
+// Per i viewer (la config è admin-only) apre la chat. La conversazione resta
+// comunque apribile da tutti: tab «Assistente» del pannello destro o tasto «A».
+function openAssistantOrSettings(){
+    const isAdmin = !!(store._currentUser && store._currentUser.role === 'admin');
+    if (isAdmin) { openAiSettings(); return; }
+    openAssistant();
+}
+
 // ── L0: scheda config «Assistente AI» nel modale «Utenti e accessi» ──────────
 // Caricata da umSwitchTab('ai') (app-auth) a ogni apertura del pane. Niente win.*:
 // stato via `store`, i18n via `t`, DOM via document → il ponte resta a 1804.
@@ -640,4 +652,4 @@ function _aiDriftQuestion(cat, row){
     return t('assistant.qGeneric', { name });
 }
 
-expose({ openAssistant, openAiSettings, _aiCfgLoad, aiCfgSave, aiCfgPreview, _aiPanelOpen, aiSend, aiClearChat, aiExplain, aiExplainDrift });
+expose({ openAssistant, openAssistantOrSettings, openAiSettings, _aiCfgLoad, aiCfgSave, aiCfgPreview, _aiPanelOpen, aiSend, aiClearChat, aiExplain, aiExplainDrift });
