@@ -181,6 +181,81 @@ test('GUARDIA wireless: nessuna passphrase/psk nel contesto SSID', () => {
   }
 });
 
+// ── Capacità hardware nel contesto (lib/hw-capabilities) ─────────────────────
+function projWithCaps() {
+  return {
+    id: 12, name: 'Caps',
+    state: {
+      vlanNames: { 20: 'Dati' },
+      ipam: { vlans: { 20: { subnet: '10.0.20.0/24', gateway: '10.0.20.1' } } },
+      racks: [],
+      lagGroups: { g1: 'Port-channel1' },
+      nodes: [
+        // PoE budget documentato + chiavi segrete iniettate NELLO SPEC → non devono uscire.
+        { id: 'sw1', type: 'switch', name: 'SW-Core', ip: '10.0.20.2', snmpStatus: 'ok',
+          spec: { swPoeBudgetW: 370, community: 'SPECLEAK', apiKey: 'SPECKEY-LEAK' },
+          integration: { driver: 'snmp', community: 'SECRET-COMM' } },
+        { id: 'ups1', type: 'ups', name: 'UPS-A', ip: '10.0.20.3', spec: { upsVa: 3000, upsW: 2700, upsAutonomyMin: 12 } },
+        { id: 'srv1', type: 'server', name: 'ESXi-01', ip: '10.0.20.4', spec: { srvCpu: 'Xeon Gold', srvRamGb: 512 }, vms: [{ mac: 'aa:aa:aa:aa:aa:01' }, { mac: 'aa:aa:aa:aa:aa:02' }] },
+      ],
+      ports: {
+        'sw1-1': { status: 'active', speed: 10000, lagGroup: 'g1', ifName: 'Te1/0/1' },
+        'sw1-2': { status: 'active', speed: 10000, lagGroup: 'g1', ifName: 'Te1/0/2' },
+        'sw1-3': { status: 'active', speed: 1000, snmpPoe: '802.3at', ifName: 'Gi1/0/3' },
+        'sw1-4': { status: 'active', speed: 1000, snmpPoe: '802.3af', ifName: 'Gi1/0/4' },
+      },
+      links: [{ id: 'L1', src: 'sw1-1', dst: 'ups1-1' }],   // 1 porta usata su sw1
+    },
+  };
+}
+
+test('GUARDIA capacità: chiavi segrete nello spec NON entrano nelle capacità', () => {
+  const json = JSON.stringify(buildAiContext(projWithCaps(), null));
+  for (const s of ['SPECLEAK', 'SPECKEY-LEAK', 'SECRET-COMM']) {
+    assert.ok(!json.includes(s), `segreto spec trapelato: ${s}`);
+  }
+});
+
+test('capacità switch: PoE (budget+headroom) + porte (free/mix/LAG)', () => {
+  const ctx = buildAiContext(projWithCaps(), null);
+  const sw = ctx.devices.find(d => d.id === 'sw1');
+  assert.ok(sw.capabilities, 'lo switch porta le capacità');
+  assert.equal(sw.capabilities.poe.budgetW, 370);
+  assert.equal(sw.capabilities.poe.poePorts, 2);
+  assert.equal(sw.capabilities.poe.worstCaseW, 45.4);          // 30 (at) + 15.4 (af)
+  assert.equal(sw.capabilities.poe.headroomW, 324.6);
+  assert.equal(sw.capabilities.ports.free, 3);                 // 4 porte − 1 usata
+  assert.equal(sw.capabilities.ports.uplinkAggregateMbps, 20000);
+  assert.equal(sw.capabilities.ports.lags[0].name, 'Port-channel1');
+  assert.deepEqual(sw.capabilities.ports.speeds, { '10G': 2, '1G': 2 });
+});
+
+test('capacità UPS/server: power + compute (con VM)', () => {
+  const ctx = buildAiContext(projWithCaps(), null);
+  const ups = ctx.devices.find(d => d.id === 'ups1');
+  assert.equal(ups.capabilities.power.va, 3000);
+  assert.equal(ups.capabilities.power.autonomyMin, 12);
+  assert.ok(!ups.capabilities.ports, 'UPS senza porte → niente blocco porte');
+  const srv = ctx.devices.find(d => d.id === 'srv1');
+  assert.equal(srv.capabilities.compute.ramGb, 512);
+  assert.equal(srv.capabilities.compute.vms, 2);
+});
+
+test('capacità flotta: summary.capabilities con totali utili', () => {
+  const ctx = buildAiContext(projWithCaps(), null);
+  assert.ok(ctx.summary.capabilities, 'riepilogo capacità di flotta presente');
+  assert.equal(ctx.summary.capabilities.poeHeadroomW, 324.6);
+  assert.equal(ctx.summary.capabilities.uplinkAggregateMbps, 20000);
+  assert.equal(ctx.summary.capabilities.freePorts, 3);
+});
+
+test('scope.ports=false → capacità SENZA il blocco porte (gating)', () => {
+  const ctx = buildAiContext(projWithCaps(), null, { ports: false });
+  const sw = ctx.devices.find(d => d.id === 'sw1');
+  assert.ok(sw.capabilities && sw.capabilities.poe, 'PoE (da spec) resta con scope.ports off');
+  assert.ok(!sw.capabilities.ports, 'il blocco porte sparisce con scope.ports=false');
+});
+
 test('topologia: adiacenza device coi nomi', () => {
   const ctx = buildAiContext(projWithTopo(), null);
   assert.ok(Array.isArray(ctx.topology) && ctx.topology.length === 1);
