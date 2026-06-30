@@ -599,7 +599,12 @@ async function importDiscovered(){
 
         toImport.forEach(d=>{
             const def=TYPES[d.type]; if(!def) return;
-            const importDriver = d.snmpDriver || driver;
+            // SNMP attivo SOLO sui device che hanno risposto a SNMP durante lo Scopri
+            // (d.snmpReachable). Chi non risponde viene importato SENZA driver SNMP: il
+            // Sync non lo interroga (niente fail su chi non parla SNMP) e resta comunque
+            // abilitabile a mano dal pannello Proprieta'. Chi risponde usa il driver
+            // concreto rilevato (v1/v2c/v3); v2c solo come ripiego se la versione manca.
+            const importDriver = d.snmpReachable ? (d.snmpDriver || driver) : '';
             const match = win._discFindExistingDevice(d, existingIdx);
             if(match.conflict?.existing){
                 win._discMarkIpMacConflict(match.conflict.existing, d);
@@ -672,11 +677,14 @@ async function importDiscovered(){
                 }
                 if(!foundExisting.integration) foundExisting.integration = {};
                 const hasDriverChoice = Object.prototype.hasOwnProperty.call(foundExisting.integration,'driver');
-                if(!hasDriverChoice || foundExisting.integration.driver==null){
+                // Solo se il device ha risposto a SNMP (importDriver valorizzato) e il nodo
+                // non ha gia' una scelta driver: non sovrascriviamo mai una config manuale
+                // ne' scriviamo un driver SNMP vuoto su un nodo gia' esistente.
+                if(importDriver && (!hasDriverChoice || foundExisting.integration.driver==null)){
                     foundExisting.integration.driver = importDriver;
+                    foundExisting.integration.community = foundExisting.integration.community || community;
                 }
                 foundExisting.integration.host   = foundExisting.integration.host   || d.ip || '';
-                foundExisting.integration.community = foundExisting.integration.community || community;
                 win._discIndexNode(existingIdx, foundExisting);
                 win._recordDiscoveryObservation({
                     mac:d.mac, ip:d.ip, switchId:'', portId:'', ifName:'',
@@ -684,7 +692,11 @@ async function importDiscovered(){
                 });
                 updated++; return;
             }
-            const integration = { driver: importDriver, host: d.ip||'', community };
+            // Responder SNMP -> driver + community; non-responder -> solo host, cosi'
+            // il Sync lo salta finche' l'utente non abilita SNMP a mano dal pannello.
+            const integration = importDriver
+                ? { driver: importDriver, host: d.ip||'', community }
+                : { host: d.ip||'' };
             let n;
             if(def.isFloor){
                 const col = floorCount % 5, row = Math.floor(floorCount / 5);
