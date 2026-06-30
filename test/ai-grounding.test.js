@@ -77,6 +77,16 @@ test('checkGrounding: NON segnala CIDR di rete né maschere', () => {
   assert.equal(r.unknownRefs.length, 0, 'CIDR e netmask non sono host inventati');
 });
 
+test('checkGrounding: NON scambia un OID SNMP per un IP inventato', () => {
+  // Spezzoni come 1.3.6.1 / 2.1.43.11 dentro il Printer-MIB non sono host.
+  const r = checkGrounding('Leggi il toner con l\'OID 1.3.6.1.2.1.43.11.1.1.9 via SNMP.', extractEntities(ctx()));
+  assert.equal(r.unknownRefs.length, 0, 'gli ottetti interni a un OID non sono IP inventati');
+  // L'argine sugli IP veri NON deve allentarsi: un host estraneo resta segnalato.
+  const r2 = checkGrounding('Vedo l\'OID 1.3.6.1.2.1.1 ma anche il nodo 203.0.113.7.', extractEntities(ctx()));
+  assert.ok(r2.unknownRefs.some(u => u.value === '203.0.113.7'), 'l\'IP estraneo resta segnalato');
+  assert.ok(!r2.unknownRefs.some(u => u.value === '1.3.6.1'), 'l\'OID non è segnalato');
+});
+
 test('checkGrounding: NON segnala l\'IP non-documentato (è nel contesto via liveFacts)', () => {
   const r = checkGrounding('Il misterioso 10.0.20.50 è da adottare.', extractEntities(ctx()));
   assert.equal(r.unknownRefs.length, 0, 'IP presente nei liveFacts → noto, non invenzione');
