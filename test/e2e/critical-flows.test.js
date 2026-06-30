@@ -736,6 +736,44 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.overlayClosed, 'closeDiscovery chiude l\'overlay');
     });
 
+    await t.test('Import: SNMP attivo SOLO sui device che hanno risposto (snmpReachable); gli altri senza driver', async () => {
+      const r = await page.evaluate(async () => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = state.ports || {};
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+
+          openDiscovery();
+          // Due NUOVI device: uno che RISPONDE a SNMP (switch v2c), uno che NON risponde
+          // (PC visto solo via ARP). Atteso: il primo riceve il driver snmp-v2c, il
+          // secondo NESSUN driver SNMP (cosi' il Sync non lo interroga e non va in fail).
+          window._discResults = [
+            { ip: '10.9.9.1', mac: '11:22:33:44:55:66', hostname: 'sw-new', alive: true, snmpReachable: true, snmpDriver: 'snmp-v2c', deviceClass: 'switch', vendor: 'Cisco', sources: [{ id: 'snmp', label: 'SNMP' }], confidence: { score: 80, level: 'high' } },
+            { ip: '10.9.9.2', mac: 'EC:71:DB:AA:BB:CC', alive: true, snmpReachable: false, deviceClass: 'pc', vendor: 'Dell', sources: [{ id: 'arp', label: 'ARP' }], confidence: { score: 30, level: 'low' } },
+          ];
+          _discRenderTable();
+          document.querySelectorAll('#disc-tbody input.disc-chk').forEach(c => { c.checked = true; });
+          await importDiscovered();
+
+          const byIp = ip => (state.nodes || []).find(n => (n.ip || (n.integration && n.integration.host)) === ip);
+          const sw = byIp('10.9.9.1');
+          const pc = byIp('10.9.9.2');
+          return {
+            ok: true,
+            nodeCount: state.nodes.length,
+            swDriver: sw && sw.integration ? sw.integration.driver : 'NO-NODE',
+            pcDriver: pc && pc.integration ? (pc.integration.driver || '') : 'NO-NODE',
+            pcHost: pc && pc.integration ? pc.integration.host : 'NO-NODE',
+          };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nell\'import: ' + r.err);
+      assert.equal(r.nodeCount, 2, 'importati i 2 device selezionati');
+      assert.equal(r.swDriver, 'snmp-v2c', 'il device che ha risposto a SNMP riceve il driver snmp-v2c');
+      assert.equal(r.pcDriver, '', 'il device che NON ha risposto a SNMP NON riceve un driver SNMP (il Sync lo salta)');
+      assert.equal(r.pcHost, '10.9.9.2', 'il non-responder mantiene comunque host=IP (SNMP abilitabile a mano dal pannello)');
+    });
+
     await t.test('Sync: bottone rinominato "Sync", chip drift rimosso (le differenze si vedono in Verifica doc)', async () => {
       const r = await page.evaluate(() => {
         try {
