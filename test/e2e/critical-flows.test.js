@@ -2728,12 +2728,15 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
             msgs: document.getElementById('ai-messages').textContent || '',
             chip: (document.getElementById('ai-chip-status') || {}).textContent || '',
             gearVisible: !!(g && g.offsetParent !== null),   // ingranaggio impostazioni raggiungibile anche a chat aperta (admin)
+            // copia per-messaggio (stile chat Claude): un'iconcina su input utente + output AI
+            copyBtns: document.querySelectorAll('#ai-messages .ai-msg-copy').length,
           };
         });
         assert.match(ui.msgs, /Chi è sulla VLAN 20\?/, 'la domanda utente compare in chat');
         assert.match(ui.msgs, /RISPOSTA-MOCK/, 'la risposta del provider compare in chat');
         assert.match(ui.chip, /Locale|Local/, 'chip privacy «Locale» (endpoint LAN, niente key)');
         assert.ok(ui.gearVisible, 'l\'ingranaggio impostazioni resta accessibile nella testata della chat (admin)');
+        assert.ok(ui.copyBtns >= 2, 'copia per-messaggio presente su domanda utente + risposta AI (stile Claude)');
 
         // Il provider ha ricevuto system-prompt (grounding) + contesto + turno utente.
         assert.ok(seen, 'il mock provider ha ricevuto la richiesta');

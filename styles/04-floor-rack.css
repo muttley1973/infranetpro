@@ -108,6 +108,26 @@
         .ai-msg-user { align-self:flex-end; background:var(--accent-soft); color:var(--text-main); border:1px solid var(--accent); }
         .ai-msg-ai { align-self:flex-start; background:var(--surface-2); color:var(--text-main); border:1px solid var(--panel-border); }
         .ai-msg-err { align-self:flex-start; background:rgba(248,81,73,.12); color:var(--text-main); border:1px solid var(--fault-color); }
+        /* Riga messaggio: il corpo si stringe al CONTENUTO (bolla); l'iconcina «copia»
+           è ANCORATA al frame del tile (assoluta, in alto, appena fuori dal bordo, sul
+           lato opposto alla bolla) → segue il tile e NON occupa una colonna. Input
+           (utente, bolla a destra) → copia in alto a sinistra del SUO frame; output
+           (assistente, bolla a sinistra) → copia in alto a destra del suo frame. Un
+           gutter di 30px è sempre riservato sul lato della copia, così non viene mai
+           tagliata. Sempre visibile; il corpo impila i segmenti (bolle/card/citazioni). */
+        .ai-msg-row { display:flex; flex-direction:column; align-self:stretch; }
+        .ai-msg-row-user { align-items:flex-end; }
+        .ai-msg-row-ai, .ai-msg-row-err { align-items:flex-start; }
+        .ai-msg-body { position:relative; display:flex; flex-direction:column; gap:3px; min-width:0; max-width:calc(100% - 30px); }
+        .ai-msg-row-user .ai-msg-body { align-items:flex-end; }
+        .ai-msg-row-ai .ai-msg-body, .ai-msg-row-err .ai-msg-body { align-items:flex-start; }
+        .ai-msg-body .ai-msg { max-width:100%; }   /* il cap di larghezza è sul corpo */
+        .ai-msg-actions { position:absolute; top:2px; }
+        .ai-msg-row-user .ai-msg-actions { left:-28px; }    /* a ridosso del frame INPUT */
+        .ai-msg-row-ai .ai-msg-actions, .ai-msg-row-err .ai-msg-actions { right:-28px; }   /* a ridosso del frame OUTPUT */
+        .ai-msg-copy { display:inline-flex; align-items:center; padding:3px 5px; border:none; background:transparent; color:var(--text-muted); font-size:var(--fs-xs); line-height:1; cursor:pointer; border-radius:var(--radius-md); transition:color .12s ease, background .12s ease; }
+        .ai-msg-copy:hover { color:var(--accent); background:var(--surface-2); }
+        .ai-msg-copy.copied { color:var(--active-color); }
         .ai-typing { align-self:flex-start; color:var(--text-muted); font-size:var(--fs-sm); font-style:italic; padding:4px 2px; }
         /* Citazioni sotto la risposta: chip device cliccabili, VLAN informative,
            ⚠ riferimenti non trovati (anti-invenzione, lib/ai-grounding). */

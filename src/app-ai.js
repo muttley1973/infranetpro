@@ -397,19 +397,35 @@ function _renderAiMessages(){
         return;
     }
     for(const m of _aiConvo){
+        // Ogni turno = RIGA orizzontale [corpo + iconcina «copia»], top-aligned: la
+        // copia sta IN ALTO, allineata col bordo superiore del tile, sul lato OPPOSTO
+        // alla bolla → a sinistra sull'input (utente, bolla a destra), a destra
+        // sull'output (assistente, bolla a sinistra). Il corpo è avvolto in
+        // .ai-msg-body così i segmenti (bolle/card/citazioni) restano impilati.
+        const role = m.role === 'assistant' ? 'ai' : (m.role === 'user' ? 'user' : 'err');
+        const row = document.createElement('div');
+        row.className = 'ai-msg-row ai-msg-row-' + role;
+        const body = document.createElement('div');
+        body.className = 'ai-msg-body';
         if(m.role === 'assistant'){
             // Il corpo può contenere blocchi di codice (bozze Ansible) → li rende
             // come card-bozza (banner + Copia), il resto come bolle (lib/ai-draft).
-            _aiRenderAssistantBody(box, m.content);
+            _aiRenderAssistantBody(body, m.content);
             // Sotto la risposta: citazioni cliccabili + ⚠ riferimenti non trovati
             // (controllo anti-invenzione, lib/ai-grounding).
-            if(m.entities){ const cite = _aiCitationsEl(m.content, m.entities); if(cite) box.appendChild(cite); }
+            if(m.entities){ const cite = _aiCitationsEl(m.content, m.entities); if(cite) body.appendChild(cite); }
         } else {
             const d = document.createElement('div');
             d.className = 'ai-msg ' + (m.role === 'user' ? 'ai-msg-user' : 'ai-msg-err');
             d.textContent = m.content;   // textContent: nessuna HTML-injection
-            box.appendChild(d);
+            body.appendChild(d);
         }
+        // La copia vive DENTRO il corpo (assoluta in CSS) → è ancorata al frame del
+        // tile e lo segue; il lato (sinistra input / destra output) lo decide il CSS.
+        const copy = (m.role === 'error') ? null : _aiMsgCopyBtn(m.content);
+        if(copy) body.appendChild(copy);
+        row.appendChild(body);
+        box.appendChild(row);
     }
     if(_aiBusy){
         const ty = document.createElement('div');
@@ -500,6 +516,33 @@ function _aiCopy(text, btn){
             const prev = btn.textContent;
             btn.textContent = t('assistant.copied');
             setTimeout(() => { btn.textContent = prev; }, 1500);
+        }).catch(() => {});
+    } catch(_){}
+}
+
+// Pulsante «copia messaggio» (stile chat Claude): iconcina che compare su hover
+// sotto la bolla e copia il testo del SINGOLO turno (input utente o output AI).
+function _aiMsgCopyBtn(text){
+    const bar = document.createElement('div');
+    bar.className = 'ai-msg-actions';
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'ai-msg-copy';
+    b.title = t('assistant.copyMsg');
+    b.setAttribute('aria-label', t('assistant.copyMsg'));
+    const ic = document.createElement('i'); ic.className = 'fas fa-copy';
+    b.appendChild(ic);
+    b.addEventListener('click', () => _aiCopyIcon(String(text == null ? '' : text), b, ic));
+    bar.appendChild(b);
+    return bar;
+}
+
+// Variante a icona di _aiCopy: copia + feedback ✓ breve (ripristina al re-render).
+function _aiCopyIcon(text, btn, icon){
+    try {
+        navigator.clipboard.writeText(text).then(() => {
+            icon.className = 'fas fa-check';
+            btn.classList.add('copied');
+            setTimeout(() => { icon.className = 'fas fa-copy'; btn.classList.remove('copied'); }, 1400);
         }).catch(() => {});
     } catch(_){}
 }
