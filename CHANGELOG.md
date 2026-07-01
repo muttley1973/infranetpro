@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-01 — Stray link-mode cable when switching to Properties/Assistant
+
+### Fixed
+- **A ghost cable no longer lingers on the canvas after switching the right-panel tab** — starting a cable (right-click a port) sets link-mode and draws a rubber-band (`#temp-link`) that follows the cursor; its path is only cleared by `_cancelLink` (Esc, click-on-empty, or completing the link). But `switchRightTab` never cancelled link-mode, so clicking the **Properties** or **Assistant** tab while a link was in progress left the rubber-band frozen on the floor as a stray dashed cable. `switchRightTab` now cancels an in-progress link when switching to a non-Rack tab; switching **to** Rack still keeps link-mode alive on purpose (needed to finish floor→rack / cross-rack cables by navigating to the rack). `src/app.js` (one guard, bare-global `_cancelLink` + typeof-guard, ratchet unchanged). *Frontend: rebuild + hard-reload.*
+
 ## 2026-07-01 — Modals were clipped at the top (reskin regression)
 
 ### Fixed
