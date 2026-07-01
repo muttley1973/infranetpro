@@ -393,6 +393,9 @@ function _guessType(descr, objectId, vendor='', banner='', host=''){
     const d=(descr||'').toLowerCase();
     const oid=(objectId||'');
     const vhb = `${vendor||''} ${banner||''} ${host||''}`.toLowerCase();
+    // Firme OID dalla tabella CONDIVISA (lib/device-signatures): stessa priorita'
+    // di prima (chiesta a posizione), ma senza ripetere qui la lista dei prefissi.
+    const _oidIs = (type) => typeof oidIsType === 'function' && oidIsType(oid, type);
 
     if(/reolink|hikvision|dahua|vivotek|camera|cctv/.test(vhb)) return 'webcam';
     if(/synology|sinology|qnap|nas|lacie/.test(vhb)) return 'nas';
@@ -409,35 +412,23 @@ function _guessType(descr, objectId, vendor='', banner='', host=''){
 
     // --- Stampanti di rete (prima di server: HP/Ricoh/Xerox spesso riportano Linux) ---
     if(/jetdirect|laserjet|officejet|deskjet|pagewide|designjet|colorlaserjet|printserver|hp.*print|print.*hp|ricoh\b|aficio|nashuatec|\bxerox\b|phaser|workcentre|versalink|altalink|\bcanon\b.*print|imagerunner|imageclass|kyocera|ecosys|taskalfa|konica.?minolta|bizhub|\blexmark\b|\bbrother\b.*mfc|\bmfc-[0-9]|\bdcp-[0-9]|\bhl-[0-9]|workforce.*epson|epson.*print|\bsharp\b.*mx|\bsharp\b.*ar|oc[eé]\b|develop.*ineo/.test(d)) return 'printer';
-    if(oid.startsWith('1.3.6.1.4.1.11.2.3.9'))  return 'printer'; // HP JetDirect
-    if(oid.startsWith('1.3.6.1.4.1.1248.'))      return 'printer'; // Epson
-    if(oid.startsWith('1.3.6.1.4.1.1602.'))      return 'printer'; // Canon
-    if(oid.startsWith('1.3.6.1.4.1.367.'))       return 'printer'; // Ricoh
-    if(oid.startsWith('1.3.6.1.4.1.253.'))       return 'printer'; // Xerox
-    if(oid.startsWith('1.3.6.1.4.1.1347.'))      return 'printer'; // Kyocera
-    if(oid.startsWith('1.3.6.1.4.1.2435.'))      return 'printer'; // Brother
-    if(oid.startsWith('1.3.6.1.4.1.18334.'))     return 'printer'; // Konica Minolta
-    if(oid.startsWith('1.3.6.1.4.1.641.'))       return 'printer'; // Lexmark
+    if(_oidIs('printer')) return 'printer'; // HP/Epson/Canon/Ricoh/Xerox/Kyocera/Brother/Konica/Lexmark
 
     // --- IP Camera / CCTV ---
     if(/hikvision|dahua\b|hanwha|vivotek|uniview|reolink|\bcctv\b|ip.?camera|\bnvr\b|\bdvr\b|bosch.*security|axis.*camera|camera.*axis/.test(d)) return 'webcam';
-    if(oid.startsWith('1.3.6.1.4.1.39165.')) return 'webcam'; // Hikvision
-    if(oid.startsWith('1.3.6.1.4.1.368.'))   return 'webcam'; // Axis
+    if(_oidIs('webcam')) return 'webcam'; // Hikvision / Axis
 
     // --- Telefoni VoIP / SIP ---
     if(/cisco.*phone|ip.?phone.*cisco|polycom|yealink|grandstream|\bsnom\b|\bmitel\b|\baastra\b|\bhtek\b|\bfanvil\b|gigaset.*sip|sip.*phone|voip.*phone/.test(d)) return 'voip';
-    if(oid.startsWith('1.3.6.1.4.1.37049.')) return 'voip'; // Yealink
-    if(oid.startsWith('1.3.6.1.4.1.25858.')) return 'voip'; // Grandstream
+    if(_oidIs('voip')) return 'voip'; // Yealink / Grandstream
 
     // --- Access Point (pattern specifici prima del check generico "aruba" in switch) ---
     if(/\baironet\b|air-ap[0-9]|unifi.*ap|\buap-|airmax|nanostation|litebeam|nanobeam|ruckus\b|zoneflex|unleashed|aruba.*iap|aruba.*rap|\biap-[0-9]|\brap-[0-9]|meraki\s*mr|omada.*ap|eap[0-9]{3,4}|wlan controller/.test(d)) return 'ap';
-    if(oid.startsWith('1.3.6.1.4.1.41112.1.4.')) return 'ap'; // Ubiquiti UniFi AP
-    if(oid.startsWith('1.3.6.1.4.1.14179.'))     return 'ap'; // Cisco Aironet AP
+    if(_oidIs('ap')) return 'ap'; // Ubiquiti UniFi / Cisco Aironet / Ruckus
 
     // --- PDU (prima di UPS: APC numera i due tipi diversamente) ---
     if(/\bpdu\b|power.?distribution|metered.*outlet|switched.*outlet|raritan|servertech|\bgeist\b|power.?iq/.test(d)) return 'pdu';
-    if(oid.startsWith('1.3.6.1.4.1.13742.'))      return 'pdu'; // Raritan
-    if(oid.startsWith('1.3.6.1.4.1.318.1.1.12.')) return 'pdu'; // APC rPDU
+    if(_oidIs('pdu')) return 'pdu'; // Raritan / APC rPDU
 
     // --- Switch (prima dei router, per IOS/vIOS L2) ---
     if(/switch|catalyst|nexus|procurve|aruba|comware|vios_l2|ios[_-]?l2|l2iol/.test(d)) return 'switch';
@@ -447,13 +438,11 @@ function _guessType(descr, objectId, vendor='', banner='', host=''){
 
     // --- UPS (prima di server: APC/Eaton a volte riportano Linux in sysDescr) ---
     if(/\bups\b|\bapc\b|\beaton\b|powerware|cyberpower|riello|liebert|vertiv|\bmge\b/.test(d)) return 'ups';
-    if(oid.startsWith('1.3.6.1.4.1.318.')) return 'ups';  // APC (generico)
-    if(oid.startsWith('1.3.6.1.4.1.534.')) return 'ups';  // Eaton
+    if(_oidIs('ups')) return 'ups';  // APC (generico) / Eaton
 
     // --- NAS / Storage (prima di server: Synology/QNAP girano su Linux) ---
     if(/\bnas\b|synology|sinology|qnap|freenas|truenas|netapp|readynas|buffalo|drobo|iomega|dell\s*emc|powerstore|isilon|infinidat|hitachi\s*vsp|hpe\s*nimble|hpe\s*msa|storeonce|wd\s*my\s*cloud|seagate\s*nas|asustor|terramaster|openmediavault/.test(d)) return 'nas';
-    if(oid.startsWith('1.3.6.1.4.1.6574.'))  return 'nas';  // Synology
-    if(oid.startsWith('1.3.6.1.4.1.24681.')) return 'nas';  // QNAP
+    if(_oidIs('nas')) return 'nas';  // Synology / QNAP
 
     // --- Server / virtualizzazione ---
     if(/vmware\s*esx|esxi|proxmox|hyper.?v|xcp-ng|xenserver|nutanix|\bahv\b/.test(d)) return 'hypervisor';

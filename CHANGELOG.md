@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-01 — Client reads the shared OID table too (part 2)
+
+### Changed
+- **The client `_guessType` no longer keeps its own copy of the OID prefixes** — it now asks the shared `lib/device-signatures.js` (`oidIsType`) at each priority position, so server and client can't drift apart on the OID→type mapping. Behaviour is unchanged except the client additionally recognizes the Ruckus AP OID (25053) it was missing. `lib/device-signatures.js`, `src/app-discovery-classify.js`, `netmapper.html` (+ test).
+
 ## 2026-07-01 — Shared canonical OID→type table (kills classifier drift, part 1)
 
 ### Changed

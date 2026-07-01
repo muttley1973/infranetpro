@@ -2,7 +2,7 @@
 // Test della tabella firme device condivisa (lib/device-signatures.js).
 const test = require('node:test');
 const assert = require('node:assert');
-const { oidType, oidTypeVotes, OID_TYPE_VOTES } = require('../lib/device-signatures.js');
+const { oidType, oidTypeVotes, oidIsType, OID_TYPE_VOTES } = require('../lib/device-signatures.js');
 
 test('oidType: riconosce gli OID che al server MANCAVANO (Lexmark/Grandstream/Yealink)', () => {
   assert.equal(oidType('1.3.6.1.4.1.641.1.1'), 'printer', 'Lexmark 641 -> printer');
@@ -27,6 +27,16 @@ test('oidType: nessun match / input vuoto -> stringa vuota', () => {
   assert.equal(oidType(''), '');
   assert.equal(oidType(undefined), '');
   assert.deepEqual(oidTypeVotes('  '), []);
+});
+
+test('oidIsType: chiede se un OID e\' di un tipo preciso (per il client first-match)', () => {
+  assert.equal(oidIsType('1.3.6.1.4.1.641.1', 'printer'), true);
+  assert.equal(oidIsType('1.3.6.1.4.1.641.1', 'nas'), false);
+  assert.equal(oidIsType('1.3.6.1.4.1.318.1.1.12.4', 'pdu'), true);
+  assert.equal(oidIsType('1.3.6.1.4.1.318.1.1.12.4', 'ups'), true, '318. e\' anche ups');
+  assert.equal(oidIsType('1.3.6.1.4.1.25053.1', 'ap'), true, 'Ruckus AP (nuovo lato client)');
+  assert.equal(oidIsType('', 'printer'), false);
+  assert.equal(oidIsType('1.3.6.1.4.1.641.1', ''), false);
 });
 
 test('OID_TYPE_VOTES: forma stabile (prefix/type/points) e prefissi OID validi', () => {
