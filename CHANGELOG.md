@@ -2,6 +2,19 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-01 — Modern dark reskin (additive, CSS-only)
+
+### Changed
+- **A modern dark reskin of the whole shell** — a new, purely additive stylesheet `styles/10-modern.css` (last in the cascade) refreshes surfaces, borders, shadows and radii through the existing `:root` design tokens, plus light refinements to the header (glass blur), the element library (type-tinted icon chips), the topology chrome, the right panel, modals and the floor — **without touching** the rack chassis, devices, port LEDs or the (white) rack viewport, and with no markup or logic change. Fully reversible by removing the single `<link>`. The login page got a matching palette tune (deeper background, hairline borders, chip logo, cyan glow). `styles/10-modern.css`, `netmapper.html`, `login.html`.
+
+### Fixed
+- **Login page: broken "commercial licence" link and a stray injected script removed** — a pass through an external tool had rewritten the `mailto:` licence link into a Cloudflare email-obfuscation URL (`/cdn-cgi/l/email-protection#…`) and injected a `/cdn-cgi/scripts/…/email-decode.min.js` tag, both of which 404 on our own server. Restored the plain `mailto:` and removed the injected script. `login.html`.
+
+## 2026-07-01 — Sub-header: breadcrumb, next-step suggestion & project stats
+
+### Added
+- **A sub-header bar under the toolbar** — a thin bar now sits directly below the header with three zones. **Left**: a **breadcrumb** path (InfraNet Pro / project / Floor plan). **Centre**: the **next-step suggestion** — the very same deterministic onboarding step the assistant uses (`nextStep`), shown flat as just text + one button that runs the real action (e.g. *Discover now* / *Verify now*) or seeds the question to the assistant. **Right**: **project statistics** — **documentation completeness** (share of *addressable* devices, i.e. types that can hold an IP, that have one documented), **total devices** (structural rooms excluded), and **SNMP health** as a coloured dot (green = all responding · red = a real failure with nothing up · amber = mixed, or configured-but-not-yet-polled · grey = none under SNMP). The numbers come from a new pure engine `lib/subbar-stats.js` (`computeSubbarStats`, + tests) using the **same field definitions as the rest of the app** (`withIp` as in `lib/api-shape.js`, "has SNMP" as in `src/app-drift.js`, `snmpStatus==='ok'`) — **zero invented numbers**; a never-synced project shows amber, never a misleading red. Rendered by `src/app-subbar.js` (`renderSubbar`, hooked into `renderAll`) into a real `#modern-subbar` element that lives **outside the export area**, so it never appears in PDF/SVG exports; styling in `styles/10-modern.css`, it+en. `lib/subbar-stats.js`, `src/app-subbar.js`, `netmapper.html`, `src/app-render-core.js`, `src/app-ai.js`, `styles/10-modern.css`, i18n (+ tests). *Frontend: rebuild the bundle + hard-reload.*
+
 ## 2026-07-01 — Cables no longer draw over the Properties/Assistant panel
 
 ### Fixed

@@ -16,7 +16,9 @@
     <link rel="stylesheet" href="/styles/07-modals.css">
     <link rel="stylesheet" href="/styles/08-topology.css">
     <link rel="stylesheet" href="/styles/09-user-theme.css">
+    <link rel="stylesheet" href="/styles/10-modern.css">
 </head>
+
 <body>
 
 <header>
@@ -661,6 +663,11 @@
     </div>
 </header>
 
+<!-- Sotto-header: breadcrumb (sx) - suggerimento prossimo-passo (centro) -
+     statistiche progetto (dx). Contenuto reso da src/app-subbar.js (renderSubbar,
+     agganciato a renderAll). Fuori da #export-area -> non entra negli export. -->
+<div id="modern-subbar" aria-live="polite"></div>
+
 <div id="workspace">
     <div id="export-area">
         <aside id="sidebar-left">
@@ -975,6 +982,7 @@
 <script src="/lib/ai-grounding.js"></script>
 <script src="/lib/ai-draft.js"></script>
 <script src="/lib/onboarding.js"></script>
+<script src="/lib/subbar-stats.js"></script>
 <script src="/lib/hw-capabilities.js"></script>
 <script src="/lib/dhcp-lease.js"></script>
 <script src="/lib/update-summary.js"></script>
