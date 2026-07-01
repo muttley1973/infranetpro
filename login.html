@@ -9,21 +9,25 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --bg:           #0d1117;
-    --panel-bg:     #161b22;
-    --panel-border: #30363d;
+    --bg:           #0a0e14;
+    --panel-bg:     #131922;
+    --panel-border: #232b35;
+    --hairline:     rgba(255,255,255,.07);
     --accent:       #00d4ff;
-    --accent-hover: #00b8d9;
+    --accent-hover: #2fddff;
     --text-main:    #e6edf3;
     --text-muted:   #8b949e;
     --error:        #f85149;
-    --input-bg:     #0d1117;
+    --input-bg:     #0e131a;
   }
 
   body {
-    background: var(--bg);
+    background:
+      radial-gradient(900px 520px at 50% 28%, rgba(0,212,255,.06), transparent 70%),
+      var(--bg);
     color: var(--text-main);
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
     min-height: 100vh;
     display: flex;
     align-items: center;
@@ -38,30 +42,39 @@
 
   .login-logo {
     text-align: center;
-    margin-bottom: 32px;
+    margin-bottom: 30px;
   }
   .login-logo i {
-    font-size: 2.8rem;
+    width: 64px;
+    height: 64px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.9rem;
     color: var(--accent);
-    display: block;
-    margin-bottom: 10px;
+    background: rgba(0,212,255,.10);
+    border: 1px solid rgba(0,212,255,.35);
+    border-radius: 16px;
+    box-shadow: 0 0 24px rgba(0,212,255,.20);
+    margin-bottom: 14px;
   }
   .login-logo h1 {
     font-size: 1.5rem;
-    font-weight: 700;
-    letter-spacing: -0.3px;
+    font-weight: 800;
+    letter-spacing: -0.4px;
   }
   .login-logo p {
     font-size: 0.8rem;
     color: var(--text-muted);
-    margin-top: 4px;
+    margin-top: 5px;
   }
 
   .login-card {
     background: var(--panel-bg);
-    border: 1px solid var(--panel-border);
-    border-radius: 12px;
+    border: 1px solid var(--hairline);
+    border-radius: 16px;
     padding: 28px 32px;
+    box-shadow: 0 12px 34px rgba(0,0,0,.55);
   }
 
   .form-group {
@@ -81,7 +94,7 @@
   }
   .input-wrap i {
     position: absolute;
-    left: 12px;
+    left: 13px;
     top: 50%;
     transform: translateY(-50%);
     color: var(--text-muted);
@@ -90,45 +103,46 @@
   }
   input[type=text], input[type=password] {
     width: 100%;
-    padding: 10px 12px 10px 36px;
+    padding: 11px 12px 11px 38px;
     background: var(--input-bg);
-    border: 1px solid var(--panel-border);
-    border-radius: 8px;
+    border: 1px solid var(--hairline);
+    border-radius: 10px;
     color: var(--text-main);
     font-size: 0.92rem;
     outline: none;
-    transition: border-color .18s;
+    transition: border-color .18s, box-shadow .18s;
   }
   input:focus {
     border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(0,212,255,.12);
+    box-shadow: 0 0 0 3px rgba(0,212,255,.14);
   }
 
   .btn-login {
     width: 100%;
-    padding: 11px;
+    padding: 12px;
     background: var(--accent);
-    color: #000;
+    color: #04141a;
     border: none;
-    border-radius: 8px;
+    border-radius: 10px;
     font-size: 0.95rem;
     font-weight: 700;
     cursor: pointer;
-    transition: background .18s, opacity .18s;
+    transition: background .18s, opacity .18s, filter .18s;
     margin-top: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
+    box-shadow: 0 0 18px rgba(0,212,255,.38);
   }
-  .btn-login:hover { background: var(--accent-hover); }
-  .btn-login:disabled { opacity: .55; cursor: not-allowed; }
+  .btn-login:hover { background: var(--accent-hover); filter: brightness(1.04); }
+  .btn-login:disabled { opacity: .55; cursor: not-allowed; box-shadow: none; }
 
   .error-msg {
     display: none;
     background: rgba(248,81,73,.12);
     border: 1px solid rgba(248,81,73,.4);
-    border-radius: 6px;
+    border-radius: 8px;
     padding: 9px 12px;
     font-size: 0.82rem;
     color: var(--error);
@@ -166,17 +180,17 @@
   }
   .lang-switch button {
     background: transparent;
-    border: 1px solid var(--panel-border);
+    border: 1px solid var(--hairline);
     color: var(--text-muted);
     font-size: 0.72rem;
     font-weight: 600;
     padding: 3px 9px;
-    border-radius: 6px;
+    border-radius: 8px;
     cursor: pointer;
     transition: color .15s, border-color .15s, background .15s;
   }
   .lang-switch button:hover { color: var(--text-main); border-color: var(--text-muted); }
-  .lang-switch button.active { background: var(--accent); color: #000; border-color: var(--accent); }
+  .lang-switch button.active { background: var(--accent); color: #04141a; border-color: var(--accent); }
 
   @keyframes spin { to { transform: rotate(360deg); } }
   .fa-spin-inline { animation: spin .7s linear infinite; }
