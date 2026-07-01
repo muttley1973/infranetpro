@@ -141,8 +141,30 @@ function _l3StatusBadge(row){
     return '<span class="l3-st l3-st-none">—</span>';
 }
 
+// Sezione "Igiene IPAM" del report L3: IP duplicati + overlap di subnet (doc↔doc,
+// non doc↔realta' che e' il Drift). Stringa vuota quando la rete e' pulita. I valori
+// interpolati sono gia' escapati (nomi device = input utente).
+function _l3HygieneHtml(audit, esc){
+    if(!audit || (!audit.duplicateIps.length && !audit.subnetOverlaps.length)) return '';
+    const rs = 'style="font-size:0.8rem;color:var(--text-muted);padding:2px 0"';
+    const rows = [];
+    for(const d of audit.duplicateIps){
+        rows.push(`<div ${rs}>⚠ ${t('l3.dupIpRow',{ip:`<b>${esc(d.ip)}</b>`, names:esc(d.nodes.map(n=>n.name).join(', '))})}</div>`);
+    }
+    for(const o of audit.subnetOverlaps){
+        rows.push(`<div ${rs}>⚠ ${t(o.identical?'l3.overlapRowSame':'l3.overlapRow',{a:o.vidA, b:o.vidB, sa:`<b>${esc(o.subnetA)}</b>`, sb:`<b>${esc(o.subnetB)}</b>`})}</div>`);
+    }
+    return `<div class="l3-hygiene" style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">`
+        + `<div style="font-weight:600;margin-bottom:4px"><i class="fas fa-triangle-exclamation" style="color:#d29922"></i> ${t('l3.ipamHygiene')}</div>`
+        + rows.join('') + `</div>`;
+}
+
 function openL3Report(){
     const rep = _l3Report = _l3Compute(true);
+    // Global bare (risolve a window via la lib UMD-lite ipam-audit.js): non passa
+    // dal ponte win.* (cricchetto invariato). Ripiego "rete pulita" se non caricata.
+    let audit = { duplicateIps: [], subnetOverlaps: [] };
+    try { if(typeof buildIpamAudit === 'function') audit = buildIpamAudit(_l3BuildModel(false)); } catch(_){ /* ripiego */ }
     const ov = _l3EnsureOverlay();
     ov.style.display = 'flex';
     const esc = s => escapeHTML(String(s == null ? '' : s));
@@ -152,6 +174,8 @@ function openL3Report(){
     if(tot.orphan) warnBits.push(`<span class="l3-sum-warn">⚠ ${t('l3.orphanGw',{n:tot.orphan})}</span>`);
     if(tot.noGateway) warnBits.push(`<span class="l3-sum-warn">⚠ ${t('l3.vlanNoGw',{n:tot.noGateway})}</span>`);
     if(tot.outOfSubnet) warnBits.push(`<span class="l3-sum-warn">⚠ ${t('l3.outSubnet',{n:tot.outOfSubnet})}</span>`);
+    if(audit.duplicateIps.length) warnBits.push(`<span class="l3-sum-warn">⚠ ${t('l3.dupIpChip',{n:audit.duplicateIps.length})}</span>`);
+    if(audit.subnetOverlaps.length) warnBits.push(`<span class="l3-sum-warn">⚠ ${t('l3.overlapChip',{n:audit.subnetOverlaps.length})}</span>`);
     const header = `<div class="spare-summary">
         <div class="spare-summary-hdr">
             <div class="spare-summary-big">${t('l3.summary',{dev:`<b>${tot.l3Devices}</b>`,gw:`<b>${tot.withGateway}</b>`,vlans:tot.vlans})}</div>
@@ -174,7 +198,7 @@ function openL3Report(){
     const body = rep.rows.length
         ? head + rep.rows.map(renderRow).join('')
         : `<div class="drift-empty">${t('l3.empty')}</div>`;
-    document.getElementById('l3-body').innerHTML = header + `<div class="l3-table">${body}</div>`;
+    document.getElementById('l3-body').innerHTML = header + `<div class="l3-table">${body}</div>` + _l3HygieneHtml(audit, esc);
     if(typeof win.closeReportMenu === 'function') win.closeReportMenu();
 }
 
