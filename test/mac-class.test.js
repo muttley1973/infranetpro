@@ -2,7 +2,7 @@
 // Test degli helper puri di classificazione MAC (lib/mac-class.js).
 const test = require('node:test');
 const assert = require('node:assert');
-const { isVirtualMac, isRandomizedMac, countMacsPerPort, sharedMacsInBatch } = require('../lib/mac-class.js');
+const { isVirtualMac, isRandomizedMac, countMacsPerPort, sharedMacsInBatch, gatewayMacSet } = require('../lib/mac-class.js');
 
 test('isVirtualMac: riconosce NIC virtuali note (Docker/VMware/Hyper-V/KVM/VBox)', () => {
   assert.equal(isVirtualMac('02:42:ac:11:00:02'), true);  // Docker
@@ -38,6 +38,26 @@ test('sharedMacsInBatch: rispetta il normalizzatore passato + robusto a input mo
   ], norm);
   assert.equal(shared.has('AABBCC000001'), true, 'stesso MAC su 2 IP distinti (normalizzati) = condiviso');
   assert.deepEqual([...sharedMacsInBatch(undefined)], [], 'input assurdo -> set vuoto, mai throw');
+});
+
+test('gatewayMacSet: raccoglie e normalizza i MAC dei gateway documentati (chassis + interfacce)', () => {
+  const nodes = [
+    { id: 'r1', macs: ['AA:BB:CC:00:00:01', 'AA:BB:CC:00:00:02'] },   // router: 2 MAC (chassis + iface)
+    { id: 'fw', macs: ['DE:AD:BE:EF:00:FF'] },
+    { id: 'x',  macs: [] },                                            // nodo senza MAC
+  ];
+  const macsOf = (n) => n.macs;
+  const norm = (m) => String(m || '').toUpperCase().replace(/[^0-9A-F]/g, '');
+  const set = gatewayMacSet(nodes, macsOf, norm);
+  assert.equal(set.has('AABBCC000001'), true);
+  assert.equal(set.has('AABBCC000002'), true, 'anche il 2o MAC del gateway conta');
+  assert.equal(set.has('DEADBEEF00FF'), true);
+  assert.equal(set.size, 3);
+});
+
+test('gatewayMacSet: robusto a input monchi', () => {
+  assert.equal(gatewayMacSet(undefined).size, 0);
+  assert.equal(gatewayMacSet([{}, null, { macs: [''] }]).size, 0);
 });
 
 test('isVirtualMac: false su MAC fisici reali', () => {
