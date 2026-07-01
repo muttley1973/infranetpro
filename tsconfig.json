@@ -34,6 +34,7 @@
     "lib/hw-capabilities.js",
     "lib/i18n.js",
     "lib/ipam.js",
+    "lib/ipam-audit.js",
     "lib/l3-gateway.js",
     "lib/linkstate.js",
     "lib/link-model.js",
