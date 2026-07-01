@@ -179,16 +179,35 @@ function _discIndexNode(idx, n){
     }
 }
 
+// MAC dei GATEWAY documentati (L3-lite: VLAN -> device che instrada, via
+// _l3GatewayNodeIds). Un gateway e' un next-hop: il suo MAC compare nell'ARP per
+// gli host remoti dietro di lui ma NON e' la loro impronta -> escluso dal merge
+// per-MAC (deterministico e manual-first, complementare all'euristica sharedMacs).
+function _discGatewayMacs(){
+    try {
+        const ids = (typeof _l3GatewayNodeIds === 'function') ? _l3GatewayNodeIds() : null;
+        if(!ids || !ids.size || typeof gatewayMacSet !== 'function') return new Set();
+        const byId = new Map((store.state.nodes || []).map(n => [String(n.id), n]));
+        const nodes = [...ids].map(id => byId.get(String(id))).filter(Boolean);
+        return gatewayMacSet(nodes, (n) => [..._discNodeMacs(n)], normalizeMacAddress);
+    } catch(_){ return new Set(); }
+}
+
 function _discFindExistingDevice(row, idx = _discExistingIndexes()){
     const mac = normalizeMacAddress(row?.mac || '');
     const ip = _discNorm(row?.ip);
     const host = _discNorm(row?.hostname || row?.netbiosName);
 
-    // Un MAC "condiviso" nel batch (next-hop/gateway: stesso MAC su piu' IP remoti,
-    // vedi sharedMacsInBatch) NON e' una chiave d'identita' affidabile: NON fondere
-    // per-MAC, lascia decidere hostname/IP sotto (il gateway stesso matcha per IP).
-    const _macShared = mac && idx.sharedMacs instanceof Set && idx.sharedMacs.has(mac);
-    if(mac && !_macShared && idx.byMac.has(mac)) return { node:idx.byMac.get(mac), matchedBy:'mac' };
+    // Un MAC che NON identifica un endpoint non e' una chiave di merge affidabile:
+    //  - CONDIVISO nel batch (sharedMacsInBatch): stesso MAC su piu' IP remoti = next-hop;
+    //  - GATEWAY documentato (idx.gatewayMacs, L3-lite): deterministico + manual-first.
+    // In entrambi i casi NON fondere per-MAC: lascia decidere hostname/IP sotto (il
+    // gateway stesso continua a matchare per il suo IP).
+    const _macBlocked = mac && (
+        (idx.sharedMacs instanceof Set && idx.sharedMacs.has(mac)) ||
+        (idx.gatewayMacs instanceof Set && idx.gatewayMacs.has(mac))
+    );
+    if(mac && !_macBlocked && idx.byMac.has(mac)) return { node:idx.byMac.get(mac), matchedBy:'mac' };
 
     if(host && idx.byHost.has(host)){
         const node = idx.byHost.get(host);
@@ -459,7 +478,7 @@ function _guessType(descr, objectId, vendor='', banner='', host=''){
 
 expose({
     _discVendorFromMac, _discRememberClassHint, _discInvalidateExistingIndexes,
-    _discBuildExistingIndexes, _discIndexNode, _discFindExistingDevice,
+    _discBuildExistingIndexes, _discIndexNode, _discFindExistingDevice, _discGatewayMacs,
     _discMarkIpMacConflict, _discTouchNodeIdentity, _discIdentitySource,
     _discIdentityLabel, _discSanitizeDeviceClass, _discConfidenceScore,
     _discHasStrongIdentity, _discCanAutoRetype, _loadDeepScanPref,

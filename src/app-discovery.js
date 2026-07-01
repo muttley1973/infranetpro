@@ -593,6 +593,11 @@ async function importDiscovered(){
         // ripiega su hostname/IP (il gateway stesso continua a matchare per IP).
         existingIdx.sharedMacs = (typeof sharedMacsInBatch === 'function')
             ? sharedMacsInBatch(toImport, normalizeMacAddress) : null;
+        // Segnale DETERMINISTICO e manual-first complementare: i MAC dei gateway
+        // documentati (L3-lite VLAN->device). Se un MAC E' un gateway che hai scelto
+        // tu, non fondere per-MAC su di esso (vince sull'euristica batch).
+        existingIdx.gatewayMacs = (typeof _discGatewayMacs === 'function')
+            ? _discGatewayMacs() : null;
 
         let imported=0, updated=0, floorCount=0, conflicts=0;
         const _importedEndpoints=[];

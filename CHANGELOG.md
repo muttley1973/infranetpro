@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-01 — Discovery uses documented L3 gateways to avoid MAC collapse
+
+### Added
+- **The by-MAC merge guard now also trusts your documented gateways** — the previous fix detected a shared next-hop MAC heuristically (same MAC on ≥2 IPs in the scan). This adds a **deterministic, manual-first** signal alongside it: the MACs of the devices you documented as **VLAN gateways** (L3-lite `gatewayNodeId`, resolved via the existing `_l3GatewayNodeIds`) are next-hops by definition, so a discovered row carrying a documented-gateway MAC is never merged onto that gateway by MAC — it falls through to hostname/IP. When you've told InfraNet who routes a VLAN, that beats the heuristic; the batch heuristic remains the safety net when the gateway isn't documented. New pure `gatewayMacSet` in `lib/mac-class.js`; `_discGatewayMacs` + guard in `src/app-discovery-classify.js`; wired at import in `src/app-discovery.js` (+ tests).
+
 ## 2026-07-01 — Discovery no longer collapses remote devices onto the gateway
 
 ### Fixed
