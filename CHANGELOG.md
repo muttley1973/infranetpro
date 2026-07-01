@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-01 — LAG-member links showed a raw i18n key
+
+### Fixed
+- **A LAG-member topology link now reads "LAG" instead of the raw key `linkstate.lag`** — `lib/linkstate.js` classifies a link into one of four states (`manual` / `lag` / `discovered` / `ambiguous`) and resolves the label via `t('linkstate.' + key)`, but `lib/i18n.js` was missing the `linkstate.lag` entry in **both** languages, so `t()` fell back to echoing the key. Added `linkstate.lag: 'LAG'` (it+en) and aligned the pure-lib fallback label to match. `lib/i18n.js`, `lib/linkstate.js`. *Loaded as `<script>` — no rebuild, just hard-reload.*
+
 ## 2026-07-01 — Modern dark reskin (additive, CSS-only)
 
 ### Changed
