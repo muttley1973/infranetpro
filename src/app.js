@@ -1828,6 +1828,12 @@ export function switchRightTab(tab){
     tabProps.setAttribute('aria-selected', String(tab==='props'));
     if(tabAi) tabAi.setAttribute('aria-selected', String(tab==='ai'));
     document.getElementById('rack-viewport').style.display = tab==='rack' ? '' : 'none';
+    // Il layer cavi (#cable-overlay, z-index 60) sta SOPRA il pannello destro
+    // (#rack-view, 50) di proposito: sulla tab Rack i cavi cross-rack devono
+    // poter raggiungere le porte del rack. Ma su Proprieta'/Assistente nessun
+    // cavo deve finire sul pannello → lo alziamo sopra l'overlay, cosi' la
+    // rubber-band del link-mode (che segue il cursore) non ci si disegna sopra.
+    document.getElementById('rack-view').classList.toggle('rv-above-cables', tab !== 'rack');
     const pw = document.getElementById('props-panel-wrap');
     pw.classList.toggle('active', tab==='props');
     const aw = document.getElementById('ai-panel-wrap');
