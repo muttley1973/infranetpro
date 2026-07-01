@@ -2,6 +2,17 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-01 — Network-model coherence: IPAM hygiene, LAG member consistency, Cat8 reach
+
+A CCNP-level audit checked InfraNet's data model against how switches / routers / VLANs / trunks / cabling actually behave. Verdict: **coherent within the declared L2 + L3-lite scope**; three real gaps were closed — all **pure, read-only, manual-first** (they only compare data you already documented, never invent or mutate).
+
+### Added
+- **IPAM hygiene — duplicate IPs & overlapping subnets** — the *L3 map* report now flags two misconfigurations a real IPAM catches but InfraNet previously missed: the **same IP documented on ≥2 devices**, and **two VLANs whose declared CIDRs overlap** (including containment and identical subnets). New pure engine `lib/ipam-audit.js` (`buildIpamAudit`, + tests); surfaced as summary chips + an *IPAM hygiene* section in the *L3 map* overlay (`src/app-l3.js`), it+en. The check is **doc↔doc** (doc↔reality stays with Verify/drift). Before, `computeIpamUsage` deduped IPs into a `Set`, so a duplicate IP or an overlapping subnet passed with no warning at all.
+- **LAG member consistency** — a LAG whose member ports have **different speeds or different access/native VLANs** won't actually bundle on real hardware (LACP drops mismatched members); InfraNet had the data but didn't warn. New pure engine `lib/lag-audit.js` (`checkLagMembers`, + tests); the LAG section of the device panel now shows a per-group warning when members are misaligned (`src/app-properties-node.js`), it+en. LACP active/passive/on **mode** remains out of scope (not modelled).
+
+### Fixed
+- **Cat8 reach limit now enforced** — the cable validator allowed 40G on Cat8 and only flagged copper beyond 100m, so a Cat8 40G run documented at 60–80m passed clean, contradicting TIA/IEEE (Cat8 Class I/II is specified only to **30m**). It now warns (`cat-reach`) when copper Cat8 exceeds 30m within the 100m channel, with an educational explanation (use Cat6A to 100m or fibre); Cat7 was also added to the category-recommendation ladder for internal consistency. `lib/cable-validate.js` (+ tests).
+
 ## 2026-06-30 — Discovery enables SNMP only on devices that answered
 
 ### Fixed
