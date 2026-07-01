@@ -25,6 +25,22 @@ import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: cata
 // app-properties.js. NESSUN cambiamento di logica rispetto alloriginale.
 // ============================================================
 
+// Modalita LACP del LAG all'ALTRO CAPO (coerenza cross-end). Riusa
+// _lagRepresentativeConnection (global bare, esposto da app-popup) per trovare
+// la porta peer del bundle, poi ne legge il gruppo -> state.lagModes. Ritorna
+// null se il peer non e un LAG con modalita nota (nessun giudizio = honest).
+// Sola lettura, zero mutazioni.
+function _lagPeerMode(members){
+    if(typeof _lagRepresentativeConnection !== 'function') return null;
+    const first = Array.isArray(members) && members.length ? members[0] : null;
+    const rep = (first && first.pid) ? _lagRepresentativeConnection(first.pid) : null;
+    if(!rep || !rep.remotePid) return null;
+    const rpi = (store.state.ports && store.state.ports[rep.remotePid]) || {};
+    const pgid = String(rpi.lagGroup || '').trim();
+    if(pgid && store.state.lagModes && store.state.lagModes[pgid]) return store.state.lagModes[pgid];
+    return null;
+}
+
 // Proprieta' di un DISPOSITIVO/struttura selezionato (selType==='node').
 function _renderNodeProps(panel){
         // ── Alias verso lo scope legacy (build-time); gli onclick="" restano bare ──
@@ -596,9 +612,12 @@ ${showFiber ? `<div class="prop-row2">
                         for(const gid of _lagGids){
                             const gname=(state.lagGroups&&state.lagGroups[gid])||'LAG';
                             const members=_lagMap[gid].map(m=>`<span class="lag-chip">P${escapeHTML(String(m.num))}</span>`).join('');
-                            // Coerenza dei membri (velocità/VLAN) via lib/lag-audit.js — global bare
-                            // (no ponte win.* → cricchetto invariato). Warning solo se disallineati.
-                            let _lagWarn='';
+                            const _curMode=(state.lagModes&&state.lagModes[gid])||'';
+                            // Coerenza dei MEMBRI (velocità/VLAN) + coerenza CROSS-END della
+                            // modalità LACP, via lib/lag-audit.js — global bare (no ponte win.*
+                            // → cricchetto invariato). Warning solo se c'è un problema reale
+                            // (giudica solo dati documentati, niente invenzioni).
+                            const _bits=[];
                             try {
                                 if(typeof checkLagMembers==='function'){
                                     const _mm=_lagMap[gid].map(m=>{
@@ -609,15 +628,26 @@ ${showFiber ? `<div class="prop-row2">
                                     });
                                     const _c=checkLagMembers(_mm);
                                     const _fmt=s=>s>=1000?`${(s/1000).toFixed(s%1000?1:0)}G`:`${s}M`;
-                                    const _bits=[];
                                     if(_c.speedMismatch) _bits.push(t('lag.warnSpeed',{list:_c.speeds.map(_fmt).join(', ')}));
                                     if(_c.vlanMismatch)  _bits.push(t('lag.warnVlan',{list:_c.vlans.join(', ')}));
-                                    if(_bits.length) _lagWarn=`<div class="lag-warn" style="font-size:0.72rem;color:#d29922;padding:2px 0 6px">⚠ ${escapeHTML(_bits.join(' · '))}</div>`;
+                                }
+                                if(_curMode && typeof checkLagPair==='function'){
+                                    const _peerMode=_lagPeerMode(_lagMap[gid]);
+                                    const _pair=_peerMode?checkLagPair(_curMode,_peerMode):null;
+                                    if(_pair) _bits.push(_pair.issue==='both-passive'?t('lag.warnBothPassive'):t('lag.warnLacpStatic'));
                                 }
                             } catch(_){}
+                            const _lagWarn=_bits.length?`<div class="lag-warn" style="font-size:0.72rem;color:#d29922;padding:2px 0 6px">⚠ ${escapeHTML(_bits.join(' · '))}</div>`:'';
+                            const _modeSel=`<select class="lag-group-mode" onchange="setLagMode('${gid}',this.value)" data-tip="${t('lag.modeTip')}">`
+                              +`<option value="" ${!_curMode?'selected':''}>${escapeHTML(t('lag.modeUnset'))}</option>`
+                              +`<option value="active" ${_curMode==='active'?'selected':''}>${escapeHTML(t('lag.modeActive'))}</option>`
+                              +`<option value="passive" ${_curMode==='passive'?'selected':''}>${escapeHTML(t('lag.modePassive'))}</option>`
+                              +`<option value="static" ${_curMode==='static'?'selected':''}>${escapeHTML(t('lag.modeStatic'))}</option>`
+                              +`</select>`;
                             lagHtml+=`<div class="lag-group-row">
                               <input class="lag-group-name" value="${escapeHTML(gname)}" placeholder="${t('pnl.node.lagNamePlaceholder')}" onchange="renameLag('${gid}',this.value)" data-tip="${t('pnl.node.renameLagGroup')}">
                               <span class="lag-chips">${members}</span>
+                              ${_modeSel}
                               <button class="lag-group-del" onclick="dissolveLag('${gid}')" data-tip="${t('pnl.node.dissolveGroup')}">✕</button>
                             </div>${_lagWarn}`;
                         }

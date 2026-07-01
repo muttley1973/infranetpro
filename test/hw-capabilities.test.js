@@ -116,6 +116,19 @@ test('porte: porte libere + mix velocità + banda LAG aggregata', () => {
   assert.equal(caps.ports.lags[0].name, 'Port-channel1');
   assert.equal(caps.ports.lags[0].members, 2);
   assert.equal(caps.ports.lags[0].aggregateMbps, 20000);
+  assert.ok(!('mode' in caps.ports.lags[0]), 'senza lagModes → nessuna modalità');
+});
+
+test('porte: modalità LACP nel blocco LAG quando documentata (lagModes)', () => {
+  const caps = computeDeviceCapabilities({
+    type: 'switch', spec: {},
+    ports: { total: 8, used: 2, free: 6, list: [
+      { speed: 10000, lagGroup: 'g1' }, { speed: 10000, lagGroup: 'g1' },
+    ] },
+    lagNames: { g1: 'Po1' },
+    lagModes: { g1: 'active', gX: 'bogus' },
+  });
+  assert.equal(caps.ports.lags[0].mode, 'active');
 });
 
 test('device senza dati-capacità → undefined (niente blocco)', () => {

@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { checkLagMembers } = require('../lib/lag-audit.js');
+const { checkLagMembers, checkLagPair } = require('../lib/lag-audit.js');
 
 test('membri omogenei (stessa velocità + VLAN) → nessun mismatch', () => {
   const c = checkLagMembers([
@@ -67,4 +67,35 @@ test('valori duplicati deduplicati; ordinamento crescente', () => {
 test('input vuoto o non-array → nessun mismatch, liste vuote', () => {
   assert.deepEqual(checkLagMembers([]), { speedMismatch: false, vlanMismatch: false, speeds: [], vlans: [] });
   assert.deepEqual(checkLagMembers(null), { speedMismatch: false, vlanMismatch: false, speeds: [], vlans: [] });
+});
+
+// ── checkLagPair: coerenza cross-end della modalità LACP ─────────────────────
+test('LACP: entrambi passivi → both-passive (il bundle non si forma)', () => {
+  assert.deepEqual(checkLagPair('passive', 'passive'), { issue: 'both-passive' });
+});
+
+test('LACP: active+passive → ok (uno inizia la negoziazione)', () => {
+  assert.equal(checkLagPair('active', 'passive'), null);
+  assert.equal(checkLagPair('passive', 'active'), null);
+});
+
+test('LACP: active+active → ok', () => {
+  assert.equal(checkLagPair('active', 'active'), null);
+});
+
+test('LACP vs statico → lacp-vs-static (incompatibili), in entrambi i versi', () => {
+  assert.deepEqual(checkLagPair('active', 'static'), { issue: 'lacp-vs-static' });
+  assert.deepEqual(checkLagPair('static', 'active'), { issue: 'lacp-vs-static' });
+  assert.deepEqual(checkLagPair('passive', 'static'), { issue: 'lacp-vs-static' });
+});
+
+test('statico + statico → ok (bundle statico, nessuna negoziazione)', () => {
+  assert.equal(checkLagPair('static', 'static'), null);
+});
+
+test('modalità sconosciuta/assente su un lato → null (serve conoscere entrambi i capi)', () => {
+  assert.equal(checkLagPair('passive', null), null);
+  assert.equal(checkLagPair('', 'passive'), null);
+  assert.equal(checkLagPair('active', 'boh'), null);
+  assert.equal(checkLagPair(undefined, undefined), null);
 });

@@ -329,7 +329,7 @@ function buildAiContext(project, liveFacts, scope) {
       const cap = computeDeviceCapabilities({
         type: raw.type, spec: raw.spec, radios: raw.radios,
         vmsCount: Array.isArray(raw.vms) ? raw.vms.length : 0,
-        ports: portsCap, lagNames: state.lagGroups,
+        ports: portsCap, lagNames: state.lagGroups, lagModes: state.lagModes,
       });
       if (cap) out.capabilities = cap;
     }

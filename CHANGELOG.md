@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-01 — LACP mode: bundle mode + cross-end coherence
+
+### Added
+- **LACP mode is now a first-class LAG attribute** — a LAG bundle already worked (grouping member ports, aggregate bandwidth, SNMP auto-derivation, member speed/VLAN consistency), but the **LACP mode** (active / passive / static) of the bundle was not modelled, so a real misconfiguration went unseen. Each LAG group in the device Properties panel now has a **mode selector** (— / LACP active / LACP passive / Static "on"), stored manual-first in a new additive `state.lagModes[gid]` map (kept separate from `state.lagGroups`, which stays the name, so none of its many readers change). Alongside the existing member-consistency warning, InfraNet now also checks **cross-end coherence**: it resolves the peer LAG from the cabling and warns on the two classic failures a real switch hits — **both ends passive** (neither starts LACP negotiation → the bundle never forms) and **LACP vs static** (one end speaks LACP, the other is `mode on` → incompatible). New pure engine `lib/lag-audit.js` (`checkLagPair`, + tests); the mode also flows into the AI context (`capabilities.ports.lags[].mode`) so the assistant can reason about it. Read-only, manual-first, zero-invention: it only compares modes you documented on **both** ends, and stays silent when the peer LAG's mode is unknown. `lib/lag-audit.js`, `lib/hw-capabilities.js`, `src/app-ports.js`, `src/app-properties-node.js`, `server/ai/context.js`, i18n it+en (+ tests). SNMP auto-derivation of active/passive (from the LACP actor state the driver already fetches) remains a future, manual-first-respecting enhancement.
+
 ## 2026-07-01 — AI no longer treats passive wall ports as missing-IP gaps
 
 ### Fixed
