@@ -7,6 +7,7 @@
 const path = require('path');
 const { _normMac } = require('./netscan');
 const { SysObjectEngine, OuiEngine, FusionScorer } = require('../engine');
+const { oidTypeVotes } = require('../lib/device-signatures');
 
 let _defaultSysObjectEngine = null;
 let _defaultOuiEngine = null;
@@ -289,18 +290,8 @@ function _classifyDiscoveredDeviceLegacy(row) {
   }
   if (osInfo?.family === 'windows' && /server/.test(String(osInfo.name || '').toLowerCase())) bump('server', 55);
   if ((osInfo?.family === 'linux' || osInfo?.family === 'bsd' || osInfo?.family === 'vmware') && !/android/.test(fullText)) bump(osFingerprint?.deviceType || 'server', 45);
-  if (oid('1.3.6.1.4.1.11.2.3.9') || oid('1.3.6.1.4.1.1248.') || oid('1.3.6.1.4.1.1602.') ||
-      oid('1.3.6.1.4.1.367.') || oid('1.3.6.1.4.1.253.') || oid('1.3.6.1.4.1.1347.') ||
-      oid('1.3.6.1.4.1.2435.') || oid('1.3.6.1.4.1.18334.')) bump('printer', 95);
-  if (oid('1.3.6.1.4.1.39165.') || oid('1.3.6.1.4.1.368.')) bump('webcam', 95);
-  if (oid('1.3.6.1.4.1.6574.') || oid('1.3.6.1.4.1.24681.')) bump('nas', 95);
-  if (oid('1.3.6.1.4.1.41112.1.4.') || oid('1.3.6.1.4.1.14179.') || oid('1.3.6.1.4.1.25053.')) bump('ap', 95);
-  if (oid('1.3.6.1.4.1.13742.') || oid('1.3.6.1.4.1.318.1.1.12.')) bump('pdu', 95);
-  if (oid('1.3.6.1.4.1.318.') || oid('1.3.6.1.4.1.534.')) bump('ups', 85);
-  if (oid('1.3.6.1.4.1.12356.') || oid('1.3.6.1.4.1.25461.')) bump('firewall', 95);
-  if (oid('1.3.6.1.4.1.14988.') || oid('1.3.6.1.4.1.11863.') || oid('1.3.6.1.4.1.4526.') || oid('1.3.6.1.4.1.171.')) bump('router', 60);
-  if (oid('1.3.6.1.4.1.14823.') || oid('1.3.6.1.4.1.1916.') || oid('1.3.6.1.4.1.1588.')) bump('switch', 70);
-  if (oid('1.3.6.1.4.1.6876.')) bump('hypervisor', 90);
+  // OID prefix votes — dalla tabella CANONICA condivisa (parità col FusionScorer).
+  for (const v of oidTypeVotes(objectId)) bump(v.type, v.points);
 
   if (/officejet|laserjet|deskjet|pagewide|designjet|colorlaserjet|printer|printserver|\bhp.*print|print.*hp|epson|xerox|ricoh|kyocera|jetdirect|imagerunner|imageclass|ecosys|taskalfa|bizhub|lexmark|brother/.test(fullText)) bump('printer', 90);
   if (/^hp[0-9a-f]{6}$/i.test(String(row?.hostname || '').trim()) && /hewlett packard/.test(vendor)) bump('printer', 65);

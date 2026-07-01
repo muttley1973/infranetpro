@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-01 — Shared canonical OID→type table (kills classifier drift, part 1)
+
+### Changed
+- **The sysObjectID → device-type table is now a single shared source** — the fusion scorer, the legacy classifier and the client each carried their own copy of the OID prefix table, and they had drifted: the client knew Lexmark (641) and the Grandstream/Yealink VoIP OIDs (25858 / 37049) that the server did **not**. Extracted the canonical table into a new pure `lib/device-signatures.js` (`OID_TYPE_VOTES` + `oidTypeVotes` / `oidType`) and pointed both server classifiers at it. The server now recognizes those vendors instead of falling back to a generic *switch*; every existing OID keeps its prefix and points, so legacy↔fusion parity is preserved. Client wiring and the vendor-regex table follow in later slices. `lib/device-signatures.js`, `engine/fusion-scorer.js`, `server/classify.js` (+ tests).
+
 ## 2026-07-01 — Discovery uses documented L3 gateways to avoid MAC collapse
 
 ### Added
