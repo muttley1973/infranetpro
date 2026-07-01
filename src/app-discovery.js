@@ -587,6 +587,12 @@ async function importDiscovered(){
         }
 
         const existingIdx = win._discBuildExistingIndexes();
+        // Non fondere per-MAC i device che condividono un MAC "next-hop/gateway"
+        // (stesso MAC su piu' IP remoti nello stesso Scopri, tipico del cross-subnet):
+        // senza questo, piu' host remoti collassano tutti sul nodo-gateway. Il match
+        // ripiega su hostname/IP (il gateway stesso continua a matchare per IP).
+        existingIdx.sharedMacs = (typeof sharedMacsInBatch === 'function')
+            ? sharedMacsInBatch(toImport, normalizeMacAddress) : null;
 
         let imported=0, updated=0, floorCount=0, conflicts=0;
         const _importedEndpoints=[];

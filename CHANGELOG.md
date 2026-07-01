@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-01 — Discovery no longer collapses remote devices onto the gateway
+
+### Fixed
+- **Cross-subnet discovery stops merging remote devices onto the gateway node** — when you scan a routed subnet, the ARP layer answers with the **next-hop (gateway) MAC** for every remote IP (that's how routing works), so many discovery rows carry the *same* MAC. Import matched existing devices by MAC first and unconditionally, so those rows all collapsed onto whatever node owns the gateway MAC → `imported = 0`, "already present", and discovery looked broken. Import now detects a **shared MAC** (new pure `sharedMacsInBatch` in `lib/mac-class.js`: a MAC seen on ≥2 distinct IPs in the same scan = a next-hop, not a device fingerprint) and skips the by-MAC merge for it, falling through to hostname/IP matching — so remote devices import individually while the gateway itself still matches by its own IP. `lib/mac-class.js`, `src/app-discovery-classify.js`, `src/app-discovery.js` (+ tests).
+
 ## 2026-07-01 — Device-recognition hardening: fusion classifier edge cases
 
 Two correctness fixes to the discovery fusion classifier, found during a CCNP-level audit of the device discrimination/recognition pipeline. Both are pure/testable and preserve legacy↔fusion parity.
