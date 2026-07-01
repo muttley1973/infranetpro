@@ -36,12 +36,16 @@
     --radius-xl: 14px;
 }
 
-/* ---- HEADER: un filo più alto, effetto vetro, separatore hairline ---- */
+/* ---- HEADER: un filo più alto, separatore hairline ---- */
+/* NIENTE backdrop-filter qui: i modali (#user-manager-overlay, #modal-overlay,
+   #disc-overlay...) sono figli DOM di <header>, e un backdrop-filter/transform/
+   filter sull'header lo renderebbe il BLOCCO CONTENITORE dei discendenti
+   position:fixed -> l'overlay si ancorerebbe al box dell'header (56px) invece che
+   al viewport e il modale verrebbe TAGLIATO in alto. Sfondo opaco: nel flex-column
+   non c'e' nulla dietro l'header da sfocare, quindi il vetro non serviva. */
 header {
     height: 56px;
-    background: rgba(16,21,28,.88);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    background: #10151c;
     border-bottom: 1px solid var(--hairline);
 }
 .header-title { letter-spacing: -.01em; }
