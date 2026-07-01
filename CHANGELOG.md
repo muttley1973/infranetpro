@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-01 — AI no longer treats passive wall ports as missing-IP gaps
+
+### Fixed
+- **The assistant stops flagging wall ports (and other passive cabling) as undocumented gaps** — the app already knows that wall ports, patch panels, cable managers, blank panels and power boards are **passive elements with no IP/MAC/VLAN of their own by design** (`isPassive && !hasIP`, see `src/app-drift.js`), and excludes them from the presence audit. But the AI runs server-side on the raw project JSON and lacked that signal: it saw `type: "wallport"` with no IP and invented a gap ("23 wall ports without documentation", "assign them an IP/VLAN") — contradicting both the passive model and the *no-invention* principle. Now InfraNet **marks** those devices `passive: true` in the AI context (new `_PASSIVE_NO_IP_TYPES` allow-set in `server/ai/context.js`; `ups/pdu/ats/mediaconv` are passive but `hasIP:true`, so they are **not** marked — they can carry a management IP), and a grounding rule (it+en) in `server/ai/prompt.js` tells the assistant that a documented wall port without an IP is **correct as-is** and must never be reported as missing IP/VLAN, undocumented, or a gap. Pure/read-only, both guardrails intact. `server/ai/context.js`, `server/ai/prompt.js` (+ tests). *Server-side: restart the server for it to take effect.*
+
 ## 2026-07-01 — Network-model coherence: IPAM hygiene, LAG member consistency, Cat8 reach
 
 A CCNP-level audit checked InfraNet's data model against how switches / routers / VLANs / trunks / cabling actually behave. Verdict: **coherent within the declared L2 + L3-lite scope**; three real gaps were closed — all **pure, read-only, manual-first** (they only compare data you already documented, never invent or mutate).

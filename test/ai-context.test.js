@@ -49,6 +49,27 @@ test('contesto §8b: forma corretta + VLAN derivata + mgmtUrl senza credenziali'
   assert.ok(!('community' in d) && !('password' in d) && !('apiKey' in d), 'nessun campo segreto sul device');
 });
 
+test('passivi: prese a muro/patch panel marcati passive:true (non sono lacune «senza IP»)', () => {
+  const proj = {
+    id: 8, name: 'Piano', updated_at: '2026-07-01',
+    state: {
+      nodes: [
+        { id: 'sw', type: 'switch', name: 'SW-1', ip: '10.0.0.2', mac: 'aa:bb:cc:00:00:01' },
+        { id: 'wp', type: 'wallport', name: 'A-42' },            // presa a muro: nessun IP/VLAN PER DISEGNO
+        { id: 'pp', type: 'patchpanel', name: 'PP-1', rackId: 'r1', rackU: 1 },
+        { id: 'ups', type: 'ups', name: 'UPS-1', ip: '10.0.0.9', mac: 'aa:bb:cc:00:00:09' }, // passivo ma hasIP → NON passive
+      ],
+    },
+  };
+  const ctx = buildAiContext(proj, null);
+  const byName = Object.fromEntries(ctx.devices.map(d => [d.name, d]));
+  assert.equal(byName['A-42'].passive, true, 'wallport deve essere passive:true');
+  assert.equal(byName['PP-1'].passive, true, 'patchpanel deve essere passive:true');
+  assert.ok(!('passive' in byName['SW-1']), 'lo switch (attivo) NON deve avere passive');
+  assert.ok(!('passive' in byName['UPS-1']), 'UPS ha hasIP → NON marcato passive (puo avere IP di mgmt)');
+  assert.ok(!('ip' in byName['A-42']), 'la presa a muro resta senza IP (corretto)');
+});
+
 test('liveFacts ri-sanitizzati: solo allowlist, qualunque extra (anche segreti) scartato', () => {
   const live = {
     drift: {

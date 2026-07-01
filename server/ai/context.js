@@ -31,11 +31,20 @@ function _compact(obj) {
   return out;
 }
 
+// Tipi PASSIVI SENZA IP (isPassive && !hasIP nel catalogo src/app-types.js):
+// prese a muro, patch panel, passacavi, pannelli vuoti, quadri elettrici. Sono
+// cablaggio fisico / pass-through: NON hanno IP/MAC/VLAN propri PER DISEGNO. Li
+// marchiamo `passive:true` così l'AI non li scambia per «device senza IP» o
+// lacune (paletto #2). Allineato a app-drift.js isPassiveNoIp; ups/pdu/ats/
+// mediaconv sono passivi ma hasIP:true → NON qui (possono avere un IP di mgmt).
+const _PASSIVE_NO_IP_TYPES = new Set(['wallport', 'patchpanel', 'blankpanel', 'cablemanager', 'panelboard']);
+
 // Device compatto: parte dal DTO allowlist di api-shape (già sicuro).
 function _device(d) {
   return _compact({
     id: d.id, name: d.name, type: d.type, ip: d.ip, mac: d.mac, hostname: d.hostname,
     vlan: d.vlan, brand: d.brand, model: d.model, serial: d.serial, firmware: d.firmware,
+    passive: _PASSIVE_NO_IP_TYPES.has(d.type) ? true : undefined,
     rack: d.rack ? _compact({ name: d.rack.name, u: d.rack.u }) : undefined,
     snmp: d.snmp || undefined, wireless: d.wireless || undefined,
     mgmtProtocol: d.mgmtProtocol, mgmtUrl: d.mgmtUrl,
@@ -358,4 +367,5 @@ module.exports = {
   buildAiContext, _sanitizeFacts, _device, _compact,
   _normScope, _buildPortNodeResolver, _portNum, _buildNeighborIndex,
   _safeScalars, _devicePorts, _deviceHealth, _topology, _wirelessSsids, _collectPorts,
+  _PASSIVE_NO_IP_TYPES,
 };

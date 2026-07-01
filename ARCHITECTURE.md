@@ -48,7 +48,9 @@ server/ai-config.js    AI assistant config: enabled/endpoint/model/key + scope/f
 server/ai/             AI assistant: context.js (sanitized §8b + ports/SNMP-health/topology +
                        hw-capabilities + health alerts, re-sanitized browser liveFacts,
                        scope-aware, allowlist+denylist; nested driver shapes survive a
-                       depth-4 secret-filtered sanitizer), prompt.js (grounding it/en +
+                       depth-4 secret-filtered sanitizer; passive no-IP gear -- wall
+                       ports/patch panels -- marked passive:true so the AI won't call
+                       them missing-IP gaps), prompt.js (grounding it/en +
                        capabilities + problem alerts + §4c help: UI catalog + full workflow
                        journey), provider.js (OpenAI-compatible client via
                        node:https, zero-dep). routes/ai.js derives the UI help catalog once
