@@ -63,6 +63,20 @@ test('en: problems (alerts) + proactive potential in grounding', () => {
   assert.match(p, /POTENTIAL/);
 });
 
+test('it: regola passivi (prese a muro senza IP NON sono lacune)', () => {
+  const p = buildSystemPrompt('it');
+  assert.match(p, /PASSIVI/);
+  assert.match(p, /"passive": true/);
+  assert.match(p, /prese a muro/i);
+});
+
+test('en: passive rule (wall ports without IP are not gaps)', () => {
+  const p = buildSystemPrompt('en');
+  assert.match(p, /PASSIVE/);
+  assert.match(p, /"passive": true/);
+  assert.match(p, /wall ports/i);
+});
+
 const { PROMPTS } = require('../server/ai/prompt.js');
 
 test('capacità: tutto ON (o assente) → nessuna sezione extra', () => {
