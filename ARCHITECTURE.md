@@ -78,6 +78,12 @@ lib/                   Shared browser + test modules (the heart of the app)
   subbar-stats.js   computeSubbarStats → sub-header numbers: doc completeness
                     (withIp/addressable), device count (rooms excluded), SNMP health
                     (ok/err/warn/none) — same field defs as api-shape/app-drift  (pure)
+  mac-class.js      isVirtualMac/isRandomizedMac (BYOD); sharedMacsInBatch (a MAC on
+                    ≥2 IPs = shared next-hop) + gatewayMacSet (documented L3 gateways)
+                    → discovery skips by-MAC merge on those, no gateway collapse  (pure)
+  device-signatures.js  canonical sysObjectID→type table (OID_TYPE_VOTES; oidTypeVotes/
+                    oidType/oidIsType) — single source read by the fusion scorer, the
+                    legacy classifier AND the client _guessType (no OID drift)  (pure)
   radio.js          radio interfaces: pid/anchor/linkKind/seeds       (pure)
   vlan-trunk.js     carriedVlans + effLinkVlans (trunk derivato)       (pure)  …
                        (PURE only — the ex-`lib/app-*.js` GLUE now lives in src/)
