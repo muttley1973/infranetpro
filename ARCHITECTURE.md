@@ -75,6 +75,9 @@ lib/                   Shared browser + test modules (the heart of the app)
   lag-audit.js      checkLagMembers → LAG member consistency (speed/VLAN mismatch);
                     checkLagPair → LACP cross-end mode coherence (both-passive /
                     lacp-vs-static)  (pure)
+  subbar-stats.js   computeSubbarStats → sub-header numbers: doc completeness
+                    (withIp/addressable), device count (rooms excluded), SNMP health
+                    (ok/err/warn/none) — same field defs as api-shape/app-drift  (pure)
   radio.js          radio interfaces: pid/anchor/linkKind/seeds       (pure)
   vlan-trunk.js     carriedVlans + effLinkVlans (trunk derivato)       (pure)  …
                        (PURE only — the ex-`lib/app-*.js` GLUE now lives in src/)
@@ -142,6 +145,9 @@ serializes `state` to JSON via `PUT /api/<projectId>`.
 `renderAll()` (rAF-coalesced) rebuilds the rack chassis, floor, cables overlay and
 the right panel. `renderProps()` dispatches by selection (`selType`/`selId`) to
 `_renderNodeProps` / `_renderLinkProps` / `_renderPortProps` / `_renderFloorProps`.
+At the tail of each rebuild it also refreshes the sub-header (`src/app-subbar.js`
+`renderSubbar` → `#modern-subbar`: breadcrumb · next-step suggestion · project
+stats) — a bare-global typeof-guarded call, so no new `win.*` reference.
 
 ---
 

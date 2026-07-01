@@ -437,6 +437,9 @@ function _renderAllNow(){
     // Highlight "porte libere" (decoupled): ri-applica le classi spare-free/
     // spare-suspect dopo ogni rebuild del DOM. No-op se il toggle e' off.
     if(typeof win._applySpareHighlight === 'function' && typeof store._spareActive !== 'undefined' && store._spareActive) win._applySpareHighlight();
+    // Sotto-header (breadcrumb + suggerimento + statistiche): sempre coerente col
+    // progetto/stato correnti. Global bare (typeof-guard) -> nessun win.* nuovo.
+    if(typeof renderSubbar === 'function') renderSubbar();
 }
 
 // ─────────────────────────────────────────────────────────────────

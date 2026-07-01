@@ -652,4 +652,4 @@ function _aiDriftQuestion(cat, row){
     return t('assistant.qGeneric', { name });
 }
 
-expose({ openAssistant, openAssistantOrSettings, openAiSettings, _aiCfgLoad, aiCfgSave, aiCfgPreview, _aiPanelOpen, aiSend, aiClearChat, aiExplain, aiExplainDrift });
+expose({ openAssistant, openAssistantOrSettings, openAiSettings, _aiCfgLoad, aiCfgSave, aiCfgPreview, _aiPanelOpen, aiSend, aiClearChat, aiExplain, aiExplainDrift, _aiBuildSummary });

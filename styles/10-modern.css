@@ -1,0 +1,457 @@
+/* ============================================================
+   InfraNet Pro — styles/10-modern.css
+   REFRESH GRAFICO (additivo, ultimo in cascata) — reskin puro-CSS.
+   - Ridefinisce SOLO i token di superficie di :root (sfondi/bordi/ombre/raggi)
+     + rifiniture su selettori GIA' esistenti; nessun cambio a markup/classi/JS.
+   - Accent invariato (#00d4ff). 100% reversibile: togli il <link> in netmapper.html.
+   - NON tocca il rack chassis (--rack-*, .rack-device, .port-led) ne' #rack-viewport
+     (lasciato BIANCO, coerente con l'export PDF/dossier).
+   ============================================================ */
+
+:root {
+    /* ---- SUPERFICI: più profonde e "sleek" ---- */
+    --bg-color:      #0a0e14;   /* fondo app un filo più profondo */
+    --panel-bg:      #131922;   /* pannelli/header/menu (meno bluastro) */
+    --panel-border:  #232b35;
+    --surface-1:     #131922;   /* = panel-bg */
+    --surface-2:     #0e131a;   /* superficie rialzata: righe, item, code */
+    --surface-hover: #1b232d;
+    --hairline:      rgba(255,255,255,.07);
+
+    /* ---- TESTO: primario più brillante per contrasto ---- */
+    --text-main:  #e6edf3;
+    --text-muted: #8b949e;
+
+    /* accent ciano invariato; tint leggermente più presente */
+    --accent-soft: rgba(0,212,255,.13);
+
+    /* ---- OMBRE: più profonde, staccano meglio sul fondo scuro ---- */
+    --shadow-sm: 0 1px 3px rgba(0,0,0,.40);
+    --shadow-md: 0 4px 14px rgba(0,0,0,.42);
+    --shadow-lg: 0 12px 34px rgba(0,0,0,.55);
+
+    /* ---- RAGGI: leggermente più morbidi (feel "rounded-xl") ---- */
+    --radius-md:  8px;
+    --radius-lg: 10px;
+    --radius-xl: 14px;
+}
+
+/* ---- HEADER: un filo più alto, effetto vetro, separatore hairline ---- */
+header {
+    height: 56px;
+    background: rgba(16,21,28,.88);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--hairline);
+}
+.header-title { letter-spacing: -.01em; }
+.header-title i { filter: drop-shadow(0 0 8px rgba(0,212,255,.35)); }
+.header-sep { background: var(--hairline); }
+
+/* ---- TOOLBAR BUTTONS: raggio + hover puliti; primari con glow ---- */
+.toolbar-btn {
+    border-radius: var(--radius-lg);
+    border-color: var(--hairline);
+}
+.toolbar-btn:hover {
+    background: var(--surface-hover);
+    border-color: rgba(255,255,255,.18);
+}
+/* Salva e i .primary restano come nell'originale (nessun override colore/glow):
+   l'enfasi "azione attiva" vive solo su Verifica (#btn-drift, vedi Step 8). */
+.toolbar-btn.soft { box-shadow: 0 0 14px rgba(0,212,255,.18); }
+
+/* ---- PROJECT SELECT ---- */
+#project-select {
+    border-radius: var(--radius-lg);
+    border-color: var(--hairline);
+    background: var(--surface-1);
+}
+#project-select:hover { border-color: rgba(255,255,255,.18); }
+
+/* ---- SEARCH: più alta, hairline, focus glow morbido ---- */
+.search-input-wrap {
+    height: 34px;
+    border-radius: var(--radius-lg);
+    border-color: var(--hairline);
+    background: var(--surface-1);
+}
+.search-input-wrap:focus-within { box-shadow: 0 0 0 3px rgba(0,212,255,.14); }
+
+/* ---- DROPDOWN dell'header: bordo hairline + raggio morbido ---- */
+.header-menu-dropdown { border-color: var(--hairline); border-radius: var(--radius-xl); }
+.header-menu-item { border-radius: var(--radius-md); }
+
+/* ============================================================
+   Step 2 — SIDEBAR / LIBRERIA ELEMENTI  (classi di 03-layout.css)
+   Fisarmoniche più pulite + voci con icona "a chip" tinta accent.
+   ============================================================ */
+.sidebar-title { color: var(--text-muted); letter-spacing: .08em; font-size: var(--fs-sm); }
+.sidebar-search-wrap {
+    border-radius: var(--radius-lg);
+    border-color: var(--hairline);
+    background: var(--surface-2);
+}
+.sidebar-mini-btn { border-radius: var(--radius-md); border-color: var(--hairline); }
+.sidebar-mini-btn:hover { background: var(--surface-hover); }
+
+/* Gruppi (fisarmoniche) */
+.palette-group { border-color: var(--hairline); border-radius: var(--radius-lg); background: transparent; }
+.palette-group-head { background: var(--surface-1); font-size: var(--fs-sm); letter-spacing: .06em; }
+.palette-group-head:hover { background: var(--surface-hover); }
+.palette-group-body { background: transparent; }
+
+/* Voci trascinabili: riga arrotondata + icona in chip tinta accent */
+.equip-item {
+    border-radius: var(--radius-lg);
+    border-color: var(--hairline);
+    background: var(--surface-2);
+    gap: 11px;
+    padding: 8px 10px;
+}
+.equip-item:hover { border-color: var(--accent); background: var(--surface-hover); }
+.equip-item i {
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-soft);
+    border-radius: var(--radius-lg);
+    font-size: var(--fs-md);
+    flex-shrink: 0;
+}
+
+/* ============================================================
+   Step 3 — CANVAS CHROME  (classi di 08-topology.css)
+   Barra vista mappa "a vetro" + pillole VLAN/TRUNK/ENDPOINT/WLAN e
+   tooltip/toast topologia modernizzati. La logica-colore attiva (JS) resta.
+   ============================================================ */
+#map-view-bar {
+    background: rgba(19,25,34,.82);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-color: var(--hairline);
+    border-radius: var(--radius-xl);
+    padding: 7px 10px;
+    gap: 9px;
+    box-shadow: var(--shadow-lg);
+}
+#map-view-bar #btn-topology { border-radius: var(--radius-lg); }
+#map-view-sep { background: var(--hairline); }
+
+#topo-legend .topo-leg-title i { filter: drop-shadow(0 0 6px rgba(0,212,255,.40)); }
+#topo-legend .topo-leg-vlan-list { border-left-color: var(--hairline); }
+#topo-legend .topo-leg-vlan { border-radius: var(--radius-pill); padding: 4px 9px; }
+#topo-legend .topo-leg-vlan.active { box-shadow: 0 0 0 1px rgba(255,255,255,.06); }
+#topo-legend .topo-leg-trunk,
+#topo-legend .topo-leg-endpoint,
+#topo-legend .topo-leg-wlan { border-radius: var(--radius-pill); padding: 4px 10px; }
+#topo-legend .topo-leg-sep { background: var(--hairline); }
+
+/* Tooltip topologia "a vetro" */
+#topo-tip {
+    background: rgba(19,25,34,.94);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-color: var(--hairline);
+    box-shadow: var(--shadow-lg);
+}
+/* Toast */
+#topo-toast {
+    background: rgba(19,25,34,.92);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-color: var(--hairline);
+    border-radius: var(--radius-lg);
+}
+
+/* ============================================================
+   Step 4 — PANNELLO DESTRO: tab bar · Assistente · Proprietà
+   (classi di 04-floor-rack.css + 06-panels.css) — chrome intorno al rack.
+   NON tocca .rack-chassis / .rack-device / .port-led / #rack-viewport.
+   ============================================================ */
+/* Tab bar + header rack */
+#right-tab-bar { background: var(--surface-2); border-bottom-color: var(--hairline); }
+.rack-header,
+.rack-header.rack-header-floating { background: var(--surface-2); border-bottom-color: var(--hairline); }
+.rack-header select { border-radius: var(--radius-md); border-color: var(--hairline); }
+
+/* Assistente — testata */
+.ai-head-title i { filter: drop-shadow(0 0 7px rgba(0,212,255,.35)); }
+.ai-head, .ai-foot { border-color: var(--hairline); }
+
+/* Bolle chat con "code" arrotondate (stile moderno) */
+.ai-msg { border-radius: 12px; }
+.ai-msg-user { border-radius: 12px 4px 12px 12px; }
+.ai-msg-ai,
+.ai-msg-err { border-radius: 4px 12px 12px 12px; }
+.ai-msg-ai { border-color: var(--hairline); }
+
+/* Chip esempi / citazioni a pillola */
+.ai-ex-chip { border-radius: var(--radius-pill); }
+.ai-cite-chip { border-radius: var(--radius-pill); }
+
+/* Card "prossimo passo": tint + glow morbido come nel mock */
+.ai-nextstep {
+    border-radius: var(--radius-lg);
+    background: linear-gradient(180deg, rgba(0,212,255,.09), rgba(0,212,255,.03));
+    box-shadow: 0 0 22px rgba(0,212,255,.10);
+}
+
+/* Composer */
+.ai-composer { border-color: var(--hairline); }
+.ai-composer textarea {
+    border-radius: var(--radius-lg);
+    border-color: var(--hairline);
+    background: var(--surface-2);
+}
+
+/* Proprietà — titolo selezione + popup porta */
+.props-selected-icon { filter: drop-shadow(0 0 8px rgba(0,212,255,.3)); }
+#popup { border-radius: var(--radius-lg); }
+
+/* ============================================================
+   Step 5 — MODALI · OVERLAY · ZOOM · TOGGLE  (07-modals.css + 09)
+   Le modali (Scopri, AI-config, Utenti, Drift…) usano già i token semantici,
+   quindi ereditano lo Step 1: qui solo rifiniture (vetro, raggi, pillole).
+   ============================================================ */
+/* Overlay: leggero blur di sfondo (feel moderno) */
+#modal-overlay,
+.tool-modal-overlay,
+.drift-overlay { backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+
+/* Modali generiche/strumenti */
+.tool-modal { border-radius: var(--radius-xl); border-color: var(--hairline); }
+.tool-modal-header,
+.tool-modal-footer { border-color: var(--hairline); }
+.tm-field input,
+.tm-field select { border-radius: var(--radius-md); border-color: var(--hairline); }
+
+/* Zoom control del floorplan → vetro come la barra VLAN */
+.zoom-controls {
+    background: rgba(19,25,34,.82);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-color: var(--hairline);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+}
+
+/* Chip di stato a pillola; toggle off più sobrio */
+.status-chip { border-radius: var(--radius-pill); }
+.toggle-track { background: #2b323c; }
+
+/* Utenti & accessi: hover voce menu + input arrotondati */
+.user-menu-item:hover { background: var(--surface-hover); }
+.um-tabs { border-bottom-color: var(--hairline); }
+
+/* ============================================================
+   Step 6 — FLOOR + VIEWPORT RACK (04-floor-rack.css)
+   Uniforma le ultime superfici "chiare/legacy" al tema scuro.
+   NON tocca .rack-chassis / .rack-device / .port-led (chassis + LED restano).
+   ============================================================ */
+/* Viewport rack: LASCIATO BIANCO di proposito (decisione utente 2026-07-01) —
+   coerenza con l'export PDF/dossier che ritrae il rack su bianco
+   ([[preferenze-documenti-pdf]] p.5). NON ridefinire qui #rack-viewport. */
+
+/* Nodi e stanze del floor: bordi coerenti coi token (niente più #444/#555) */
+.floor-node { border-color: #2b323c; box-shadow: 0 4px 12px rgba(0,0,0,.42); }
+.floor-room { border-color: #2b323c; }
+
+/* Divider (sidebar / floor-rack): hover coerente */
+#floor-rack-divider:hover,
+#sidebar-divider:hover { background: var(--surface-hover); }
+
+/* ============================================================
+   Step 7 — ICONE COLORATE PER TIPO (Libreria + Planimetria)
+   La Libreria (netmapper.html) è statica con data-type="…"; i .floor-node
+   rendono l'icona con la classe fa-* del tipo (app-render-core.js).
+   Coloro per FAMIGLIA, ripetendo gli stessi colori in libreria e su mappa.
+   NB: sui nodi floor a 1 porta l'icona fa anche da spia di stato porta:
+   preservo fault/idle (rosso/ambra) con :not(); il resto prende il colore-tipo.
+   ============================================================ */
+
+/* ---- LIBRERIA: chip icona tinto per tipo ---- */
+/* ciano — networking/accesso/generici */
+.equip-item[data-type="switch"] i, .equip-item[data-type="wallport"] i,
+.equip-item[data-type="pc"] i, .equip-item[data-type="tv"] i,
+.equip-item[data-type="mobile"] i, .equip-item[data-type="mediaconv"] i,
+.equip-item[data-type="kvm"] i, .equip-item[data-type="customrack"] i,
+.equip-item[data-type="customfloor"] i, .equip-item[data-type="ap"] i,
+.equip-item[data-type="wlanctrl"] i { color:#00d4ff; background:rgba(0,212,255,.13); }
+/* viola — video/edge */
+.equip-item[data-type="router"] i, .equip-item[data-type="webcam"] i,
+.equip-item[data-type="projector"] i, .equip-item[data-type="nvr"] i,
+.equip-item[data-type="sdwan"] i { color:#a371f7; background:rgba(163,113,247,.14); }
+/* rosso — sicurezza */
+.equip-item[data-type="firewall"] i, .equip-item[data-type="vpncon"] i { color:#f85149; background:rgba(248,81,73,.13); }
+/* verde — compute/storage/iot/print */
+.equip-item[data-type="server"] i, .equip-item[data-type="hypervisor"] i,
+.equip-item[data-type="nas"] i, .equip-item[data-type="nasdesktop"] i,
+.equip-item[data-type="homelab"] i, .equip-item[data-type="iot"] i,
+.equip-item[data-type="consolesvr"] i, .equip-item[data-type="printer"] i { color:#3fb950; background:rgba(63,185,80,.14); }
+/* teal — voce */
+.equip-item[data-type="voip"] i, .equip-item[data-type="pbx"] i { color:#2dd4a7; background:rgba(45,212,167,.14); }
+/* ambra — alimentazione/accessi */
+.equip-item[data-type="ups"] i, .equip-item[data-type="pdu"] i,
+.equip-item[data-type="ats"] i, .equip-item[data-type="panelboard"] i,
+.equip-item[data-type="badgereader"] i, .equip-item[data-type="doorctrl"] i { color:#f0b429; background:rgba(240,180,41,.14); }
+/* grigio — passivi/strutturali */
+.equip-item[data-type="patchpanel"] i, .equip-item[data-type="blankpanel"] i,
+.equip-item[data-type="cablemanager"] i, .equip-item[data-type="room"] i { color:#8b949e; background:rgba(139,148,158,.14); }
+
+/* ---- PLANIMETRIA: stessa palette sull'icona del nodo (per classe fa-*) ---- */
+.floor-node i.icon.fa-ethernet:not(.fault):not(.idle),
+.floor-node i.icon.fa-desktop:not(.fault):not(.idle),
+.floor-node i.icon.fa-tv:not(.fault):not(.idle),
+.floor-node i.icon.fa-mobile-screen-button:not(.fault):not(.idle),
+.floor-node i.icon.fa-wifi:not(.fault):not(.idle),
+.floor-node i.icon.fa-cube:not(.fault):not(.idle) { color:#00d4ff; }
+
+.floor-node i.icon.fa-video:not(.fault):not(.idle),
+.floor-node i.icon.fa-chalkboard:not(.fault):not(.idle) { color:#a371f7; }
+
+.floor-node i.icon.fa-microchip:not(.fault):not(.idle),
+.floor-node i.icon.fa-cubes:not(.fault):not(.idle),
+.floor-node i.icon.fa-hard-drive:not(.fault):not(.idle),
+.floor-node i.icon.fa-print:not(.fault):not(.idle) { color:#3fb950; }
+
+.floor-node i.icon.fa-phone:not(.fault):not(.idle) { color:#2dd4a7; }
+
+.floor-node i.icon.fa-id-card:not(.fault):not(.idle),
+.floor-node i.icon.fa-door-open:not(.fault):not(.idle),
+.floor-node i.icon.fa-bolt:not(.fault):not(.idle) { color:#f0b429; }
+
+/* La selezione vince sul colore-tipo — in VERDE ACQUAMARINA (#2ee6c0),
+   così stacca dal ciano usato dalle icone/accent. */
+@keyframes selPulse {
+    0%,100% { box-shadow:0 0 0 3px rgba(46,230,192,.9),  0 0 0 10px rgba(46,230,192,.18), 0 0 34px 7px  rgba(46,230,192,.5),  0 8px 22px rgba(0,0,0,.42); }
+    50%     { box-shadow:0 0 0 4px rgba(46,230,192,1),   0 0 0 20px rgba(46,230,192,.28), 0 0 64px 16px rgba(46,230,192,.75), 0 8px 22px rgba(0,0,0,.42); }
+}
+.floor-node.selected,
+.floor-node.port-selected {
+    border-color:#2ee6c0;
+    animation: selPulse 1.8s ease-in-out infinite;
+}
+.floor-node.selected i.icon,
+.floor-node.port-selected i.icon { color:#2ee6c0 !important; text-shadow:0 0 9px rgba(46,230,192,.5); }
+.floor-node.port-selected .label { color:#d7fff5; }
+.floor-rack.rack-active {
+    border-color:#2ee6c0;
+    animation: selPulse 1.8s ease-in-out infinite;
+}
+.rack-device.selected { outline-color:#2ee6c0 !important; }
+.port.selected { color:#2ee6c0 !important; text-shadow:0 0 8px rgba(46,230,192,.6); filter:drop-shadow(0 0 5px rgba(46,230,192,.5)); }
+.port-led:hover { box-shadow:0 0 6px #2ee6c0 !important; }
+
+/* ============================================================
+   Step 8 — HEADER stile mock (02-base.css)
+   Logo "a chip", strumenti progetto raggruppati, Verifica evidenziata.
+   Solo CSS: nessun cambio di markup/JS.
+   ============================================================ */
+/* Logo in riquadro tinto con alone (come nel mock) */
+.header-title i {
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    color: var(--accent);
+    background: rgba(0,212,255,.10);
+    border: 1px solid rgba(0,212,255,.35);
+    border-radius: 10px;
+    box-shadow: 0 0 16px rgba(0,212,255,.18);
+    filter: none;
+}
+
+/* Strumenti progetto raggruppati in un riquadro unico */
+.project-bar {
+    background: var(--surface-2);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-lg);
+    padding: 3px;
+    gap: 2px;
+}
+.project-bar .toolbar-btn {
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+}
+.project-bar .toolbar-btn:hover { background: var(--surface-hover); }
+.project-bar .toolbar-btn.danger:hover { background: rgba(248,81,73,.12); }
+.project-bar #project-select {
+    border: 1px solid var(--hairline);
+    background: var(--bg-color);
+    border-radius: var(--radius-md);
+}
+
+/* Verifica = azione-ancora del workflow: bordo/alone accent marcato (come nel mock) */
+#btn-drift.primary {
+    box-shadow: 0 0 0 1px rgba(0,212,255,.55), 0 0 18px rgba(0,212,255,.42);
+}
+#btn-drift.primary:hover { box-shadow: 0 0 0 1px rgba(0,212,255,.8), 0 0 24px rgba(0,212,255,.6); }
+
+/* ============================================================
+   Step 9 — SOTTO-HEADER (breadcrumb + azione consigliata)
+   DORMIENTE: lo stile e' pronto ma NESSUN #modern-subbar esiste ancora
+   Feature VERA (src/app-subbar.js -> renderSubbar): 3 zone.
+     - SINISTRA  .msb-crumb   breadcrumb "percorso" (InfraNet Pro / progetto / vista)
+     - CENTRO    .msb-suggest suggerimento prossimo-passo: FLAT (solo scritta + pulsante)
+     - DESTRA    .msb-stats   statistiche: documentazione % - device - salute SNMP (pallino)
+   ============================================================ */
+#modern-subbar {
+    display:flex; align-items:center; gap:16px;
+    height:40px; padding:0 16px; background:#090c11;
+    border-bottom:1px solid var(--hairline); flex-shrink:0; position:relative; z-index:90;
+}
+/* ZONA SINISTRA: breadcrumb. Mostra il nome progetto PER INTERO quando c'e' spazio;
+   solo il nome si accorcia (icona, "InfraNet Pro", separatori e "Planimetria" restano
+   sempre interi), con ellissi unicamente se la barra e' davvero stretta. */
+#modern-subbar .msb-crumb { flex:1 1 auto; display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-muted); font-weight:500; min-width:0; overflow:hidden; }
+#modern-subbar .msb-crumb > i,
+#modern-subbar .msb-crumb > span { flex-shrink:0; white-space:nowrap; }
+#modern-subbar .msb-crumb i { color:#4d5560; font-size:11px; }
+#modern-subbar .msb-crumb .sep { color:#3d444d; }
+#modern-subbar .msb-crumb b { flex:0 1 auto; min-width:0; color:var(--text-main); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* ZONA CENTRO: suggerimento FLAT — niente pill/riquadro, solo icona + scritta + pulsante */
+#modern-subbar .msb-suggest { flex:0 1 auto; min-width:0; display:flex; align-items:center; gap:9px; justify-content:center; }
+#modern-subbar .msb-suggest > i { color:var(--accent); font-size:12px; flex-shrink:0; }
+#modern-subbar .msb-suggest.msb-ok > i { color:#3fb950; }
+#modern-subbar .msb-txt { font-size:12.5px; color:#c9eef7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#modern-subbar .msb-suggest.msb-ok .msb-txt { color:var(--text-muted); }
+#modern-subbar .msb-btn {
+    background:var(--accent); color:#04141a; font-weight:700; font-size:11.5px; border:none; border-radius:999px;
+    padding:4px 11px; cursor:pointer; font-family:inherit; white-space:nowrap; box-shadow:0 0 14px rgba(0,212,255,.35);
+}
+#modern-subbar .msb-btn:hover { filter:brightness(1.08); }
+
+/* ZONA DESTRA: statistiche progetto */
+#modern-subbar .msb-stats { flex:1 1 0; display:flex; align-items:center; justify-content:flex-end; gap:18px; }
+#modern-subbar .msb-stat { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--text-muted); white-space:nowrap; }
+#modern-subbar .msb-stat > i { color:#5b6570; font-size:11px; }
+#modern-subbar .msb-stat b { color:var(--text-main); font-weight:700; font-size:12.5px; }
+#modern-subbar .msb-stat-l { color:var(--text-muted); }
+#modern-subbar .msb-dot { width:8px; height:8px; border-radius:50%; display:inline-block; flex-shrink:0; }
+#modern-subbar .msb-dot-ok   { background:#3fb950; box-shadow:0 0 6px rgba(63,185,80,.7); }
+#modern-subbar .msb-dot-warn { background:#f0b429; box-shadow:0 0 6px rgba(240,180,41,.7); }
+#modern-subbar .msb-dot-err  { background:#f85149; box-shadow:0 0 6px rgba(248,81,73,.7); }
+#modern-subbar .msb-dot-none { background:#3d444d; }
+
+/* Stretto: nascondi il breadcrumb e le etichette-parola delle statistiche (restano
+   icone + valori + pulsante del suggerimento). */
+@media (max-width:1200px){
+    #modern-subbar .msb-crumb { display:none; }
+    #modern-subbar .msb-stat-l { display:none; }
+}
+@media (max-width:820px){
+    #modern-subbar .msb-txt { display:none; }
+}
+
+/* ---- SCROLLBAR sottili e discrete (WebKit) ---- */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #2b323c; border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: #3d444d; }
+::-webkit-scrollbar-track { background: transparent; }

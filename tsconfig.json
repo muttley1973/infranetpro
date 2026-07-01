@@ -47,6 +47,7 @@
     "lib/radio.js",
     "lib/spare-ports.js",
     "lib/stack.js",
+    "lib/subbar-stats.js",
     "lib/topo-lines.js",
     "lib/ui-catalog.js",
     "lib/vlan-trunk.js",
