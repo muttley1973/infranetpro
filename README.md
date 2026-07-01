@@ -74,6 +74,11 @@ Current product direction: InfraNet Pro keeps discovery and classification insid
 | ![Discovery](GitHub%20Images/Scopri.png) | ![Login](GitHub%20Images/Login.png) |
 | Scan a subnet with SNMP v1 / v2c / v3 and import reachable devices | Session-based auth, IT / EN switcher, bound to `127.0.0.1` by default |
 
+| AI assistant — setup | AI assistant — chat |
+|:---:|:---:|
+| ![AI assistant configuration](GitHub%20Images/configurazione%20AI.png) | ![AI assistant chat](GitHub%20Images/chat%20ai.png) |
+| Connect any OpenAI-compatible endpoint (Ollama / OpenAI / Anthropic) and pick which context scopes it may read — data stays on your server | Grounded on your own network: onboarding guidance, SNMP health & capacity alerts, and Ansible / CLI config drafts — advisory and manual-first |
+
 ---
 
 ## Features
