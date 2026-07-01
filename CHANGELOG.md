@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-01 — Modals were clipped at the top (reskin regression)
+
+### Fixed
+- **Dialog windows (AI settings, user manager, discovery…) are no longer cut off at the top** — the modern reskin added `backdrop-filter: blur()` to `<header>`, but every modal overlay lives **inside** `<header>` in the DOM. Per the CSS spec an element with `backdrop-filter` (like `transform`/`filter`) becomes the **containing block for its `position:fixed` descendants**, so each `position:fixed; inset:0` overlay was suddenly anchored to the 56px header box instead of the viewport — a tall modal centred in that strip had its top clipped off-screen. Removed the header's `backdrop-filter` (it blurred nothing anyway — in the flex column there is no content behind the header) and gave it a solid background. Overlays are viewport-relative again. `styles/10-modern.css` (CSS-only, hard-reload).
+
 ## 2026-07-01 — LAG-member links showed a raw i18n key
 
 ### Fixed
