@@ -25,6 +25,7 @@
     "lib/cidr.js",
     "lib/correlate.js",
     "lib/drift-adopt.js",
+    "lib/device-signatures.js",
     "lib/drift-report.js",
     "lib/drift-snapshot.js",
     "lib/frontpanel.js",
