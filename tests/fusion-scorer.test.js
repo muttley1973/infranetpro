@@ -161,6 +161,18 @@ test('FusionScorer: LG webOS TV recognized by MAC prefix even with the default n
     `expected tv from the LG MAC prefix, got ${result.deviceType} (scores ${JSON.stringify(result.scores)})`);
 });
 
+test('shared OID table: server now recognizes vendors it previously missed (Lexmark, Grandstream)', () => {
+  // Before the shared lib/device-signatures table, the server had no OID prefix
+  // for Lexmark (641) or Grandstream VoIP (25858), so these fell to the 'switch'
+  // hasSnmpSignal fallback. Now BOTH server paths (fusion + legacy) vote them.
+  const lex = { objectId: '1.3.6.1.4.1.641.1.1', snmpReachable: true };
+  const gs  = { objectId: '1.3.6.1.4.1.25858.2', snmpReachable: true };
+  assert.equal(_classifyDiscoveredDevice(lex), 'printer');
+  assert.equal(_classifyDiscoveredDevice(gs), 'voip');
+  assert.equal(_classifyDiscoveredDeviceLegacy(lex), 'printer', 'legacy in parita\' (stessa tabella)');
+  assert.equal(_classifyDiscoveredDeviceLegacy(gs), 'voip', 'legacy in parita\' (stessa tabella)');
+});
+
 // -------- Behavioural parity with legacy classifier --------------------------
 //
 // The fusion scorer must produce identical device-type decisions to the
