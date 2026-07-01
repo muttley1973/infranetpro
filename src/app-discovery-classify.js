@@ -184,7 +184,11 @@ function _discFindExistingDevice(row, idx = _discExistingIndexes()){
     const ip = _discNorm(row?.ip);
     const host = _discNorm(row?.hostname || row?.netbiosName);
 
-    if(mac && idx.byMac.has(mac)) return { node:idx.byMac.get(mac), matchedBy:'mac' };
+    // Un MAC "condiviso" nel batch (next-hop/gateway: stesso MAC su piu' IP remoti,
+    // vedi sharedMacsInBatch) NON e' una chiave d'identita' affidabile: NON fondere
+    // per-MAC, lascia decidere hostname/IP sotto (il gateway stesso matcha per IP).
+    const _macShared = mac && idx.sharedMacs instanceof Set && idx.sharedMacs.has(mac);
+    if(mac && !_macShared && idx.byMac.has(mac)) return { node:idx.byMac.get(mac), matchedBy:'mac' };
 
     if(host && idx.byHost.has(host)){
         const node = idx.byHost.get(host);
