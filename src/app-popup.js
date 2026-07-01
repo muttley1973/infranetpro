@@ -755,5 +755,5 @@ expose({
     toggleTopoTrunkFilter, toggleTopoEndpointFilter, toggleTopoWlanFilter, _applyViewMode,
     _vlanLabel, _rackPairMatchesVlan, _floorNodeHiddenByVlan, _getLinkVlan, _linkMatchesVlanFilter,
     _floorNodeColor, _rectEdge, _getRackFloorLinks, _drawFanoutLineDesc, _showTopoTip, _hideTopoTip,
-    _SVG_DEV,
+    _SVG_DEV, _lagRepresentativeConnection,
 });

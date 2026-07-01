@@ -167,6 +167,7 @@ function removePortFromLag(pid){
     if(remaining.length < 2){
         for(const [p] of remaining) delete state.ports[p].lagGroup;
         if(state.lagGroups) delete state.lagGroups[gid];
+        if(state.lagModes) delete state.lagModes[gid];
     }
     markDirty();
     renderAll();
@@ -180,6 +181,7 @@ function dissolveLag(gid){
         if(pi.lagGroup === gid) delete pi.lagGroup;
     }
     if(state.lagGroups) delete state.lagGroups[gid];
+    if(state.lagModes) delete state.lagModes[gid];
     markDirty();
     renderAll();
     renderProps();
@@ -193,6 +195,21 @@ function renameLag(gid, name){
     state.lagGroups[gid] = (name||'').trim() || 'LAG';
     markDirty();
     renderAll();
+}
+
+/** Imposta la modalita LACP di un gruppo LAG (manual-first, additiva).
+ *  Valori ammessi: 'active' | 'passive' | 'static'; '' (o altro) = non impostata
+ *  -> rimuove la voce. Storage in state.lagModes[gid], separato da lagGroups
+ *  (che resta il nome) per non toccare i suoi tanti lettori. */
+function setLagMode(gid, mode){
+    const state = store.state;
+    if(!gid) return;
+    if(!state.lagModes) state.lagModes = {};
+    const m = (mode==='active'||mode==='passive'||mode==='static') ? mode : '';
+    if(m) state.lagModes[gid] = m; else delete state.lagModes[gid];
+    markDirty();
+    renderAll();
+    renderProps();
 }
 
 function _updateLagBanner(){
@@ -575,7 +592,7 @@ function togglePortVlanLock(pid){
 expose({
     togglePortVlanLock,
     renderPortsTable, getLagGroupsForNode, startLagMode, _toggleLagPort,
-    confirmLag, cancelLag, removePortFromLag, dissolveLag, renameLag,
+    confirmLag, cancelLag, removePortFromLag, dissolveLag, renameLag, setLagMode,
     _updateLagBanner, computeLagCarrierPids, getPassivePortLagInfo,
     togglePortHidden, clearAllPortOverrides, _refreshPortRow, portTip,
     _portDisplayName, setPortField, clearPortField, setPortSpeed,
