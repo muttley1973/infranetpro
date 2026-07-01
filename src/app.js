@@ -1817,6 +1817,11 @@ win._rightTab = 'rack';   // 'rack' | 'props' (var: letto bare da app-pointer/ap
 export function switchRightTab(tab){
     _propsTabHold = null;   // cambio tab esplicito → decade l'hold di selectPathSegment
     _rightTab = tab;
+    // Cambiare tab verso Proprieta'/Assistente ABBANDONA un cavo in corso: la
+    // rubber-band del link-mode (#temp-link) non deve restare come linea fantasma
+    // sulla tela. Verso 'rack' il link-mode SOPRAVVIVE di proposito (serve per
+    // completare i cavi floor->rack / cross-rack raggiungendo le porte del rack).
+    if(tab !== 'rack' && store.linkStart && typeof _cancelLink === 'function') _cancelLink();
     const tabRack = document.getElementById('tab-rack');
     const tabProps = document.getElementById('tab-props');
     const tabAi = document.getElementById('tab-ai');   // 3ª tab «Assistente» (può mancare in HTML vecchio)
