@@ -518,11 +518,19 @@ function applyPollResult(nodeId, data, opts={}){
     n.integration.lastPoll = new Date().toISOString();
     // Auto-nome gruppi snmp-lag dall'aggregatore (es. "Port-channel1", "bond0", "LAG1")
     if(!store.state.lagGroups) store.state.lagGroups={};
+    if(!store.state.lagModes) store.state.lagModes={};
     for(const lag of (data.lags||[])){
         const logical = _snmpLagToUi(lag.lagId || lag.index, lag.index);
         const gid = _snmpLagMap[logical] || _snmpLagMap[lag.index];
         if(gid && lag.name && !store.state.lagGroups[gid]){
             store.state.lagGroups[gid] = lag.name;
+        }
+        // Modalita LACP auto-derivata dall'SNMP (active/passive dall'ActorState).
+        // MANUAL-FIRST: riempie SOLO se l'utente non l'ha gia impostata a mano
+        // (come il nome del gruppo qui sopra). Lo statico non arriva mai dall'SNMP
+        // (derivazione conservativa nel driver) → resta scelta manuale.
+        if(gid && (lag.mode==='active'||lag.mode==='passive') && !store.state.lagModes[gid]){
+            store.state.lagModes[gid] = lag.mode;
         }
     }
     n.snmpStatus = data.ok === false ? 'err' : 'ok';

@@ -877,6 +877,21 @@ function extractData(vbs) {
   }
 
   // ==========================================================================
+  // ActorOperState (.21) grezzo per porta → per derivare la MODALITA LACP.
+  // ActorState (IEEE 802.3ad) e' un octet BITS: bit0 (0x01)=LACP_Activity
+  // (1=attivo, 0=passivo) · bit2 (0x04)=Aggregation (LACP sta gestendo la porta).
+  // Passata SEMPRE attiva (indipendente da L0/L1/L2): serve solo a ETICHETTARE la
+  // modalita, non a decidere la membership → non tocca la logica sopra.
+  // ==========================================================================
+  for (const [oid, val] of Object.entries(vbs)) {
+    if (!oid.startsWith(OID.lagOperState + '.')) continue;
+    const ix = lastIdx(oid);
+    const rawByte = Buffer.isBuffer(val) ? val[0] : (bufToInt(val) & 0xFF);
+    if (!ifaces[ix]) ifaces[ix] = {};
+    ifaces[ix].lacpActorState = rawByte;
+  }
+
+  // ==========================================================================
   // Separazione fisici / LAG + validazione lagId finale
   // ==========================================================================
 
@@ -1003,6 +1018,30 @@ function extractData(vbs) {
     // a pattern di aggregazione (Cisco Port-channel, Linux bond, Juniper ae, ecc.)
     else if (t === 53 && /^(port-?channel|bond\d*|ae\d|po\d+$|lag\d)/i.test(f.name||'')) { lags.push(obj); _classify.push({ idx, name: obj.name, type: t, mac: mac||'-', r: 'LAG (ifType=53)' }); }
     else _classify.push({ idx, name: obj.name, type: t, mac: mac||'-', r: `SKIP ifType=${t} (non fisico)` });
+  }
+
+  // ---- Modalita LACP per aggregatore, derivata dall'ActorState dei membri -------
+  // CONSERVATIVO (paletto anti-invenzione): etichetta SOLO quando LACP e' davvero
+  // in gestione (Aggregation bit su almeno un membro) → 'active' se un membro ha il
+  // bit Activity, altrimenti 'passive' (uguale per tutti i membri del bundle).
+  // Nessuna evidenza LACP → nessuna etichetta: statico (mode on) o MIB dot3ad non
+  // esposta restano scelta MANUALE (l'assenza di prova non prova lo statico).
+  // I membri portano lagIfIndex = ifIndex dell'aggregatore = lag.index.
+  {
+    const _lagLacp = {};    // aggregator ifIndex → { lacp:bool, active:bool }
+    for (const m of physical) {
+      const li = m.lagIfIndex;
+      if (!li) continue;
+      const st = ifaces[m.index] ? ifaces[m.index].lacpActorState : undefined;
+      if (st == null) continue;
+      const e = _lagLacp[li] || (_lagLacp[li] = { lacp: false, active: false });
+      if (st & 0x04) e.lacp = true;      // Aggregation → LACP in gestione
+      if (st & 0x01) e.active = true;    // Activity   → attivo
+    }
+    for (const lag of lags) {
+      const e = _lagLacp[lag.index];
+      if (e && e.lacp) lag.mode = e.active ? 'active' : 'passive';
+    }
   }
 
   // ---- Diagnostica classificazione: quante e quali interfacce incluse/scartate ----

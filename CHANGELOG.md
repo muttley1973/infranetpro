@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-01 — LACP mode auto-derived over SNMP
+
+### Added
+- **LACP mode now fills in automatically from SNMP** — the LACP mode selector added earlier today was manual-only; a Sync now **auto-derives active / passive** from the member ports' 802.3ad actor state (`dot3adAggPortActorOperState`, which the driver already walks): the **Activity** bit gives active vs passive, gated on the **Aggregation** bit so we only label a bundle where LACP is genuinely in charge. It is **conservative and zero-invention** — *static* is never inferred (absence of an LACP actor state is not proof of a static bundle, so it stays a manual choice), and it is **manual-first**: a mode you set by hand is never overwritten (SNMP only fills a group whose mode is still empty). Per-aggregator derivation in the pure `extractData` (`drivers/snmp.js`, + tests), mapped to `state.lagModes` on import in `src/app-snmp.js`.
+
 ## 2026-07-01 — LACP mode: bundle mode + cross-end coherence
 
 ### Added

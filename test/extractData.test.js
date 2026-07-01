@@ -100,6 +100,55 @@ test('extractData: LAG via lista NOMI porta (ArubaCX) -> membri con lagId logico
   }
 });
 
+// ── Modalita LACP auto-derivata dall'ActorState (.21) dei membri ─────────────
+// Helper: costruisce un LAG a 2 membri (bitmap non serve, usiamo la lista nomi)
+// con un ActorState assegnato a ciascun membro.
+function _lagFixture(actorByMember) {
+  const aggIfIndex = 100;
+  const vbs = {
+    [at(OID.sysName, 0)]: Buffer.from('sw', 'utf8'),
+    [at(OID.ifDescr, aggIfIndex)]: Buffer.from('Po1', 'utf8'),
+    [at(OID.ifType, aggIfIndex)]: u32(161),
+  };
+  const members = { 1: 'Gi0/1', 2: 'Gi0/2' };
+  for (const [idx, name] of Object.entries(members)) {
+    vbs[at(OID.ifDescr, idx)] = Buffer.from(name, 'utf8');
+    vbs[at(OID.ifType, idx)] = u32(6);
+    vbs[at(OID.ifPhysAddress, idx)] = Buffer.from([0x00, 0x11, 0x22, 0x33, 0x44, Number(idx)]);
+    vbs[at(OID.ifOperStatus, idx)] = u32(1);
+    if (actorByMember[idx] != null) vbs[at(OID.lagOperState, idx)] = Buffer.from([actorByMember[idx]]);
+  }
+  vbs[at(OID.aggMemberPorts, aggIfIndex)] = Buffer.from('Gi0/1,Gi0/2', 'latin1');
+  return extractData(vbs);
+}
+
+test('extractData: LACP attivo → lag.mode=active (Aggregation+Activity nell ActorState)', () => {
+  // 0x0D = Activity(0x01) + Aggregation(0x04) + Sync(0x08)
+  const r = _lagFixture({ 1: 0x0D, 2: 0x0D });
+  const lag = r.lags.find(l => l.name === 'Po1');
+  assert.equal(lag.mode, 'active');
+});
+
+test('extractData: LACP passivo → lag.mode=passive (Aggregation senza Activity)', () => {
+  // 0x0C = Aggregation(0x04) + Sync(0x08), Activity=0
+  const r = _lagFixture({ 1: 0x0C, 2: 0x0C });
+  const lag = r.lags.find(l => l.name === 'Po1');
+  assert.equal(lag.mode, 'passive');
+});
+
+test('extractData: nessun ActorState → nessuna modalita (statico/non esposto = manuale)', () => {
+  const r = _lagFixture({ 1: null, 2: null });
+  const lag = r.lags.find(l => l.name === 'Po1');
+  assert.ok(!('mode' in lag), 'senza evidenza LACP la modalita NON va inventata');
+});
+
+test('extractData: ActorState senza Aggregation → nessuna modalita (LACP non in gestione)', () => {
+  // 0x01 = solo Activity, ma senza Aggregation non consideriamo LACP attiva
+  const r = _lagFixture({ 1: 0x01, 2: 0x01 });
+  const lag = r.lags.find(l => l.name === 'Po1');
+  assert.ok(!('mode' in lag), 'senza Aggregation non etichettiamo la modalita');
+});
+
 test('extractData: una PortList BINARIA non viene scambiata per lista nomi', () => {
   // Bitmap reale (non ASCII stampabile come nomi porta validi): deve NON
   // produrre membri via name-list. Verifica che il ramo bitmap non crashi.
