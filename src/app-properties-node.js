@@ -596,11 +596,30 @@ ${showFiber ? `<div class="prop-row2">
                         for(const gid of _lagGids){
                             const gname=(state.lagGroups&&state.lagGroups[gid])||'LAG';
                             const members=_lagMap[gid].map(m=>`<span class="lag-chip">P${escapeHTML(String(m.num))}</span>`).join('');
+                            // Coerenza dei membri (velocità/VLAN) via lib/lag-audit.js — global bare
+                            // (no ponte win.* → cricchetto invariato). Warning solo se disallineati.
+                            let _lagWarn='';
+                            try {
+                                if(typeof checkLagMembers==='function'){
+                                    const _mm=_lagMap[gid].map(m=>{
+                                        const _pi=(state.ports&&state.ports[m.pid])||{};
+                                        const _sp=_pi.speedOvr!=null?_pi.speedOvr:(_pi.speed!=null?_pi.speed:null);
+                                        const _vl=(typeof _effPortVlan==='function')?_effPortVlan(m.pid):null;
+                                        return { num:m.num, speed:_sp, vlan:_vl };
+                                    });
+                                    const _c=checkLagMembers(_mm);
+                                    const _fmt=s=>s>=1000?`${(s/1000).toFixed(s%1000?1:0)}G`:`${s}M`;
+                                    const _bits=[];
+                                    if(_c.speedMismatch) _bits.push(t('lag.warnSpeed',{list:_c.speeds.map(_fmt).join(', ')}));
+                                    if(_c.vlanMismatch)  _bits.push(t('lag.warnVlan',{list:_c.vlans.join(', ')}));
+                                    if(_bits.length) _lagWarn=`<div class="lag-warn" style="font-size:0.72rem;color:#d29922;padding:2px 0 6px">⚠ ${escapeHTML(_bits.join(' · '))}</div>`;
+                                }
+                            } catch(_){}
                             lagHtml+=`<div class="lag-group-row">
                               <input class="lag-group-name" value="${escapeHTML(gname)}" placeholder="${t('pnl.node.lagNamePlaceholder')}" onchange="renameLag('${gid}',this.value)" data-tip="${t('pnl.node.renameLagGroup')}">
                               <span class="lag-chips">${members}</span>
                               <button class="lag-group-del" onclick="dissolveLag('${gid}')" data-tip="${t('pnl.node.dissolveGroup')}">✕</button>
-                            </div>`;
+                            </div>${_lagWarn}`;
                         }
                         lagHtml+='</div></div></details>';
                         _lagHtml = lagHtml;
