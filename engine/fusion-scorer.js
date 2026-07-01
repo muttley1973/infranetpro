@@ -77,7 +77,10 @@ function _safeIntMax(value, min, max, fallback) {
 
 function _defaultNormMac(mac) {
   // Minimal MAC normalization used only if the caller doesn't pass `normMac`.
-  return String(mac || '').toLowerCase().replace(/[^0-9a-f]/g, '').replace(/(.{2})(?=.)/g, '$1:').slice(0, 17);
+  // UPPERCASE to match server/netscan.js `_normMac` (the production normMac):
+  // the MAC-prefix rules below compare against uppercase literals (e.g.
+  // '58:FD:B1'), so a lowercase default silently killed those signals.
+  return String(mac || '').replace(/[^0-9a-fA-F]/g, '').toUpperCase().replace(/(.{2})(?=.)/g, '$1:').slice(0, 17);
 }
 
 function _defaultDecodeSysServices(value) {
@@ -169,7 +172,10 @@ class FusionScorer {
     const oid = p => objectId.startsWith(p);
 
     const bump = (type, points, reasonId, evidence) => {
-      if (!type || !points) return;
+      // 'unknown' is the SysObjectEngine "matched-but-untyped" placeholder, not a
+      // real app type: never let it score (it would win with high confidence and
+      // leak a non-type — no-invention rule). Same guard in the legacy classifier.
+      if (!type || type === 'unknown' || !points) return;
       score[type] = (score[type] || 0) + points;
       if (reasonId) reasons.add(reasonId);
       if (evidence) evidences.push({ ...evidence, type, points });

@@ -2,6 +2,14 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-01 — Device-recognition hardening: fusion classifier edge cases
+
+Two correctness fixes to the discovery fusion classifier, found during a CCNP-level audit of the device discrimination/recognition pipeline. Both are pure/testable and preserve legacy↔fusion parity.
+
+### Fixed
+- **An untyped plugin match no longer classifies a device as the literal type `unknown`** — `SysObjectEngine.normalizeRecord` defaults `deviceType` to `'unknown'` when a plugin matches (status `found`) but its `enrich()` returns no type. The fusion scorer then scored `'unknown'` (75–98 pts) and it could win, leaking a non-type (not a valid app type; a high-confidence non-classification that rubs against the no-invention rule). The scorer's `bump()` now ignores `type === 'unknown'` — same guard in the legacy classifier to keep parity. `engine/fusion-scorer.js`, `server/classify.js` (+ test).
+- **The LG-webOS-TV MAC-prefix signal no longer dies off the production path** — the scorer's MAC-prefix rules compare against uppercase literals (e.g. `58:FD:B1`), but the built-in `_defaultNormMac` (used when the caller doesn't pass a `normMac`) returned lowercase, so the signal silently never fired. Production passes the uppercase `_normMac` so it worked live, but any other caller (or a unit test) lost it. `_defaultNormMac` now uppercases to match `server/netscan.js`'s `_normMac`. `engine/fusion-scorer.js` (+ test).
+
 ## 2026-07-01 — Highlighted rack cable swerved to the top-left on the Assistant tab
 
 ### Fixed
