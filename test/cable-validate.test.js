@@ -57,6 +57,26 @@ test('rame a 90m → nessun warn lunghezza', () => {
   assert.equal(has(validateCable({ medium:'copper', length:90 }), 'copper-length'), false);
 });
 
+test('Cat8 40G a 60m → warn cat-reach (limite 30m)', () => {
+  const w = validateCable({ medium:'copper', cableCategory:'Cat8', maxSpeed:'40G', length:60 }).find(x=>x.code==='cat-reach');
+  assert.ok(w && w.level==='warn');
+  assert.match(w.why, /30m/);
+});
+
+test('Cat8 a 25m → nessun warn cat-reach (entro il limite)', () => {
+  assert.equal(has(validateCable({ medium:'copper', cableCategory:'Cat8', maxSpeed:'40G', length:25 }), 'cat-reach'), false);
+});
+
+test('Cat8 a 130m → solo copper-length, non cat-reach (oltre i 100m parla la #4)', () => {
+  const r = validateCable({ medium:'copper', cableCategory:'Cat8', length:130 });
+  assert.ok(has(r, 'copper-length'));
+  assert.equal(has(r, 'cat-reach'), false);
+});
+
+test('Cat6A a 80m → nessun cat-reach (reach 100m)', () => {
+  assert.equal(has(validateCable({ medium:'copper', cableCategory:'Cat6A', maxSpeed:'10G', length:80 }), 'cat-reach'), false);
+});
+
 test('DAC > 10m → warn dac-length', () => {
   assert.ok(has(validateCable({ medium:'dac', length:15 }), 'dac-length'));
 });
