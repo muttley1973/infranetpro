@@ -1619,7 +1619,13 @@ function _renderCablesNow(){
     if(tempFloor) tempFloor.setAttribute('d','');
     if(tempRack) tempRack.setAttribute('d','');
     const banner=document.getElementById('cross-rack-banner');
-    const suppressRackOverlays = _rightTab==='props';
+    // Vero quando il #rack-viewport e' NASCOSTO (display:none), cioe' su OGNI tab
+    // non-Rack (Proprieta' E Assistente; vedi switchRightTab). Le porte del rack
+    // nascosto danno getBoundingClientRect azzerato (0,0): senza questo, i cavi/onde
+    // verso porte rack verrebbero disegnati verso l'angolo alto-sinistra ("svirgolano
+    // a sinistra"). NB: era '=== props' e ignorava la tab Assistente (3a tab aggiunta
+    // dopo) -> bug dello swerve passando all'Assistente.
+    const suppressRackOverlays = _rightTab !== 'rack';
     if(suppressRackOverlays && banner) banner.classList.remove('show');
     const hasSelectedCable = highPath.size > 0 || (selType === 'link' && !!selId) || (selType === 'port' && !!selId);
     // In topologia il percorso fisico si mostra con l'OVERLAY topologia (linee
