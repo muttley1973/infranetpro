@@ -135,6 +135,32 @@ test('FusionScorer: storage seam is accepted but unused', () => {
   assert.equal(result.deviceType, 'switch');
 });
 
+test('FusionScorer: a plugin match without a type ("unknown") never becomes the device type', () => {
+  const scorer = makeScorer();
+  // SysObjectEngine.normalizeRecord defaults deviceType to 'unknown' when a
+  // plugin matches (status:found) but its enrich() returns no type. That must
+  // NOT be scored as a device type: 'unknown' is not a valid app type and would
+  // be a high-confidence non-type invention (violates the no-invention rule).
+  const result = scorer.classify(
+    { httpTitle: 'Some Web UI' },   // only a weak fallback signal
+    { sysObjectInfo: { deviceType: 'unknown', vendor: 'ACME', confidence: 95 } }
+  );
+  assert.notEqual(result.deviceType, 'unknown');
+  assert.ok(!Object.keys(result.scores).includes('unknown'),
+    `'unknown' must not appear as a scored type: ${JSON.stringify(result.scores)}`);
+});
+
+test('FusionScorer: LG webOS TV recognized by MAC prefix even with the default normMac', () => {
+  const scorer = makeScorer();
+  // No TV text at all: the only TV signal is the LG OUI prefix 58:FD:B1. When
+  // the caller does not pass a normMac, the built-in default must still match the
+  // (uppercase) prefix literal used in the rule — otherwise the signal is dead
+  // off the production path.
+  const result = scorer.classify({ mac: '58:FD:B1:00:11:22' });   // no ctx.normMac
+  assert.equal(result.deviceType, 'tv',
+    `expected tv from the LG MAC prefix, got ${result.deviceType} (scores ${JSON.stringify(result.scores)})`);
+});
+
 // -------- Behavioural parity with legacy classifier --------------------------
 //
 // The fusion scorer must produce identical device-type decisions to the
