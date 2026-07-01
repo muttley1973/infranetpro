@@ -72,7 +72,9 @@ lib/                   Shared browser + test modules (the heart of the app)
   ui-catalog.js     extractCatalog/catalogLines: derive UI help (buttons+tooltips) from HTML+i18n  (pure)
   ipam.js           computeIpamUsage incl. nextFree (next free host = «suggested IP»)  (pure)
   ipam-audit.js     buildIpamAudit → duplicate IPs + overlapping subnets (IPAM hygiene, doc↔doc)  (pure)
-  lag-audit.js      checkLagMembers → LAG member consistency (speed/VLAN mismatch)  (pure)
+  lag-audit.js      checkLagMembers → LAG member consistency (speed/VLAN mismatch);
+                    checkLagPair → LACP cross-end mode coherence (both-passive /
+                    lacp-vs-static)  (pure)
   radio.js          radio interfaces: pid/anchor/linkKind/seeds       (pure)
   vlan-trunk.js     carriedVlans + effLinkVlans (trunk derivato)       (pure)  …
                        (PURE only — the ex-`lib/app-*.js` GLUE now lives in src/)
@@ -125,7 +127,7 @@ A project is a single `state` object (see `_buildDefaultState()` in `src/app.js`
 
 ```text
 state = { racks[], currentRack, nodes[], links[], ports{}, vlanColors{},
-          vlanNames{}, ipam{vlans{}}, lagGroups{}, guestVlans[], … }
+          vlanNames{}, ipam{vlans{}}, lagGroups{}, lagModes{}, guestVlans[], … }
 ```
 
 - **node**: `{ id, type, name, rackU, sizeU, ports, rackId, ip, … }`
