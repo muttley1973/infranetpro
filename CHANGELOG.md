@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-01 — Cables no longer draw over the Properties/Assistant panel
+
+### Fixed
+- **Link-mode rubber-band (and stray cables) no longer paint over the right panel** — the floor cable overlay (`#cable-overlay`, z-index 60) intentionally sits above the right panel (`#rack-view`, z-index 50) so that on the **Rack** tab cross-rack cables can reach the rack ports shown in the panel. But when you start a link (right-click a port) while the **Properties/Assistant** tab is showing, the rubber-band that follows the cursor drew on top of the panel content. Now `switchRightTab` gives `#rack-view` the class `rv-above-cables` (z-index 70, above the overlay) whenever the active tab is not Rack, so the panel covers any cable/rubber-band; on the Rack tab the overlay stays on top as before. CSS + one class toggle only — no logic, DOM, canvas, or rack/port rendering changed. `src/app.js`, `styles/04-floor-rack.css`.
+
 ## 2026-07-01 — LACP mode auto-derived over SNMP
 
 ### Added

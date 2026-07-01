@@ -24,6 +24,10 @@
 
         /* Rack view */
         #rack-view { width:32%; min-width:320px; max-width:60%; background:var(--panel-bg); border-left:none; display:flex; flex-direction:column; z-index:50; flex-shrink:0; transition:width .25s ease, min-width .25s ease, opacity .25s ease; overflow:hidden; }
+        /* Tab Proprieta'/Assistente: alza il pannello SOPRA #cable-overlay (z-index 60)
+           cosi' nessun cavo/rubber-band del link-mode ci si disegna sopra. Sulla tab
+           Rack la classe non c'e' e l'overlay resta sopra (cavi cross-rack alle porte). */
+        #rack-view.rv-above-cables { z-index:70; }
         #rack-view.collapsed { width:0 !important; min-width:0 !important; opacity:0; pointer-events:none; }
         .rack-header { padding:8px 10px; background:var(--surface-2); border-bottom:1px solid var(--panel-border); display:flex; gap:5px; align-items:center; }
         .rack-header select { flex:1; background:var(--bg-color); color:#fff; border:1px solid var(--panel-border); padding:4px 6px; border-radius: var(--radius-sm); font-size:var(--fs-md); }
