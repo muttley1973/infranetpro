@@ -265,7 +265,9 @@ function _classifyDiscoveredDeviceLegacy(row) {
   const hasSnmpSignal = !!(row?.snmpReachable || String(row?.descr || '').trim() || String(row?.objectId || '').trim());
   const score = {};
   const bump = (type, points) => {
-    if (!type || !points) return;
+    // 'unknown' = SysObjectEngine "matched-but-untyped" placeholder, not an app
+    // type: never score it (parity with engine/fusion-scorer.js bump guard).
+    if (!type || type === 'unknown' || !points) return;
     score[type] = (score[type] || 0) + points;
   };
   const oid = p => objectId.startsWith(p);
