@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-01 — Highlighted rack cable swerved to the top-left on the Assistant tab
+
+### Fixed
+- **A highlighted cable that touches a rack port no longer whips toward the top-left when the Assistant tab is open** — double-clicking a device interface highlights its link; if that link touches a rack port and you then switch to the **Assistant** tab, the cable shot off to the top-left corner. Root cause: `_renderCablesNow` computed `suppressRackOverlays = _rightTab === 'props'`, but `switchRightTab` hides `#rack-viewport` (`display:none`) on **every** non-Rack tab — Properties **and** Assistant. The Assistant (3rd) tab was added later and this guard was never updated, so on the Assistant tab rack cables were drawn using the hidden rack port's zeroed `getBoundingClientRect()` (0,0) → the swerve. Changed the guard to `_rightTab !== 'rack'` so it matches exactly when the rack viewport is hidden (covers Properties, Assistant, and any future non-Rack tab); this also re-applies the wireless "anchor the wave to the rack floor icon" branch on the Assistant tab. `src/app.js` (one condition). *Frontend: rebuild + hard-reload.*
+
 ## 2026-07-01 — Stray link-mode cable when switching to Properties/Assistant
 
 ### Fixed
