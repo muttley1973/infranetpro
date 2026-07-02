@@ -2,6 +2,14 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-02 — LAG cable hygiene: no LAG on passive devices, one member per active port
+
+Reported as tangled/duplicate LAG cables in the rack. The root cause was mis-inferred LAG topology, not the rendering — so the fix is in the data, kept surgical (a new pure `lib/lag-reconcile.js`, applied on project load and inside the auto-linker). LAG member ports keep showing as cyan (and turn violet on a sibling when you select one) — that affordance was already there and is unchanged.
+
+### Fixed
+- **A LAG can no longer be attached to a passive or pass-through device** — a patch panel, wall port, VoIP phone or media converter is passive/pass-through: it *carries* a cable, it doesn't aggregate. The auto-linker was tagging a switch-to-patch-panel cable as a LAG member because the switch side was a LAG port. Now a link is a LAG member only when **both** ends are active devices (`isLagEligibleType` = not passive, not pass-through); the spurious LAG tag is stripped (the cable itself stays). `lib/lag-reconcile.js`, `src/app-autolink.js`, `src/app.js`. *Frontend: rebuild + hard-reload.*
+- **An active port now terminates a single LAG member** — LAG inference over FDB/CDP could land two member cables on the same switch port (the bundle's MAC appears on several ports). When auto-inferred LAG member cables contend for one active port, InfraNet keeps the most trustworthy (manual > LLDP/CDP > MAC/ARP/FDB) and drops the rest — **manual-first**, and only among auto LAG members. It never touches a hand-laid cable, a non-LAG shared segment (e.g. two cameras behind one switch port), or a pass-through port (a VoIP phone daisy-chaining a PC). Runs on project load (cleans existing data) and inside the auto-linker (so a Sync won't re-introduce the conflict). `lib/lag-reconcile.js` (+ tests), `src/app.js`, `src/app-autolink.js`. *Frontend: rebuild + hard-reload.*
+
 ## 2026-07-02 — Discovery import keeps your hand-set identity (hostname, brand, type)
 
 Two manual-first fixes on the discovery **import** path onto an *existing* node, from the read-only app audit. The SNMP **Sync** already honoured these rules; the import did not, so a second scan could undo values you had pinned.
