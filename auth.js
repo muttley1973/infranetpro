@@ -11,6 +11,7 @@ const bcrypt    = require('bcryptjs');
 const session   = require('express-session');
 const rateLimit = require('express-rate-limit');
 const { timestamp } = require('./utils');
+const { atomicWriteFile } = require('./server/projects-store');
 
 // Override via INFRANET_USERS_FILE: tiene gli account su un volume dati persistente
 // (es. /data/users.json in Docker); default invariato su bare-metal.
@@ -49,15 +50,41 @@ const SESSION_SECRET = process.env.SESSION_SECRET || _genSecret();
 
 // ---- Users storage ----------------------------------------------------------
 
+// Legge e parsa il file utenti distinguendo TRE esiti (serve a ensureDefaultAdmin
+// per non rigenerare l'admin sopra un DB corrotto → perdita silenziosa di account):
+//   { ok:true,  users:[...] }              file valido (anche vuoto), o recuperato dal .bak
+//   { ok:false, absent:true }              nessun file → primo avvio legittimo
+//   { ok:false, absent:false }             file PRESENTE ma illeggibile/corrotto (e .bak idem)
+function _readUsersFile() {
+  const bak = `${USERS_FILE}.bak`;
+  let mainErr = null;
+  if (fs.existsSync(USERS_FILE)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
+      if (Array.isArray(parsed)) return { ok: true, users: parsed };
+      mainErr = new Error('users.json non e\' un array');
+    } catch (e) { mainErr = e; }
+  }
+  // main assente o corrotto → prova il backup lasciato da atomicWriteFile
+  if (fs.existsSync(bak)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(bak, 'utf8'));
+      if (Array.isArray(parsed)) return { ok: true, users: parsed };
+    } catch (_) { /* nemmeno il backup e' valido */ }
+  }
+  if (mainErr) return { ok: false, absent: false };  // c'era ma e' corrotto/non-array
+  return { ok: false, absent: true };                 // davvero primo avvio
+}
+
 function loadUsers() {
-  try {
-    if (!fs.existsSync(USERS_FILE)) return [];
-    return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
-  } catch (_) { return []; }
+  const r = _readUsersFile();
+  return r.ok ? r.users : [];
 }
 
 function saveUsers(users) {
-  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf8');
+  // Scrittura atomica (temp + fsync + rename) con .bak, come i progetti: un crash a
+  // meta' scrittura lascia intatto il file precedente invece di troncarlo.
+  atomicWriteFile(USERS_FILE, JSON.stringify(users, null, 2));
 }
 
 function nextUserId(users) {
@@ -76,15 +103,30 @@ const _invalidatedUsers = new Set();
 // ---- Primo avvio: crea admin di default ------------------------------------
 
 function ensureDefaultAdmin() {
-  const users = loadUsers();
-  if (users.length > 0) return;
+  const r = _readUsersFile();
+
+  // File PRESENTE ma illeggibile/corrotto (e nessun .bak valido): NON rigenerare.
+  // Sovrascrivere qui con un admin fresco cancellerebbe in silenzio tutti gli
+  // account. Meglio fermare l'avvio e chiedere intervento umano (ripristino).
+  if (!r.ok && !r.absent) {
+    console.error('');
+    console.error('  ============================================================');
+    console.error('  FATAL - users.json presente ma ILLEGGIBILE/CORROTTO');
+    console.error(`         (${USERS_FILE})`);
+    console.error('         NON rigenero l\'admin per non cancellare gli account.');
+    console.error('         Ripristina il file (o il suo .bak) e riavvia.');
+    console.error('  ============================================================');
+    console.error('');
+    throw new Error('users.json corrupt - refusing to overwrite existing accounts');
+  }
+
+  if (r.ok && r.users.length > 0) return;   // gia' inizializzato
 
   const pwd  = _randomPassword();
   const hash = bcrypt.hashSync(pwd, BCRYPT_COST);
   const now  = new Date().toISOString().replace('T', ' ').substring(0, 19);
 
-  users.push({ id: 1, username: 'admin', passwordHash: hash, role: 'admin', createdAt: now });
-  saveUsers(users);
+  saveUsers([{ id: 1, username: 'admin', passwordHash: hash, role: 'admin', createdAt: now }]);
 
   console.log('');
   console.log('  ╔══════════════════════════════════════════════════╗');
@@ -326,4 +368,8 @@ function register(app) {
   app.delete('/api/auth/users/:id', requireAdmin, deleteUser);
 }
 
-module.exports = { register, requireAdmin };
+module.exports = {
+  register, requireAdmin,
+  // esposti per i test (F16): store utenti + inizializzazione admin
+  loadUsers, saveUsers, ensureDefaultAdmin, _readUsersFile,
+};
