@@ -89,6 +89,7 @@ function _renderPortProps(panel){
         // del bonding (porta corrente evidenziata), quando la porta e' in LAG.
         const _lagHead = (()=>{
             const gid = pi.lagGroup; if(!gid) return '';
+            const gname = escapeHTML(state.lagGroups && state.lagGroups[gid] ? state.lagGroups[gid] : 'LAG');
             const nodeId = getPortNodeId(pid);
             const nn = nodeById(nodeId);
             const pc = nn ? nn.ports || 0 : 0;
@@ -98,9 +99,14 @@ function _renderPortProps(panel){
                 if((state.ports[mpid]||{}).lagGroup===gid)
                     chips.push(`<span class="lag-chip${mpid===pid?' self':''}">P${i}</span>`);
             }
+            // Chip "Membro LAG" + porte del bonding + azione Rimuovi. L'ingresso
+            // LAG (aggiungi/rimuovi) vive QUI nel pannello Proprieta': il vecchio
+            // popup porta che lo ospitava non viene piu' aperto (click porta ->
+            // Proprieta), quindi era rimasto orfano.
             return `<div class="props-lag-head">
-                <span style="background:#a371f7;color:#fff;padding:2px 9px;border-radius:4px;font-weight:700;font-size:0.74rem">${t('pnl.dev.lagMember')}</span>
+                <span style="background:#a371f7;color:#fff;padding:2px 9px;border-radius:4px;font-weight:700;font-size:0.74rem" data-tip="${gname}">${t('pnl.dev.lagMember')}</span>
                 <span class="lag-chips">${chips.join('')}</span>
+                <button class="toolbar-btn danger" style="padding:3px 9px;font-size:0.72rem" onclick="removePortFromLag('${pid}');renderProps()">${t('pnl.misc.remove')}</button>
             </div>`;
         })();
         panel.innerHTML=`
@@ -230,9 +236,16 @@ function _renderPortProps(panel){
                   </div>`:''}`;
             })()}
             ${(()=>{
-                // Dispositivo ATTIVO in LAG: il bonding e' ora mostrato nell'header.
                 const portNode2=getNodeByPortId(pid);
-                if(portNode2&&TYPES[portNode2.type]?.isActive) return '';
+                // Switchport ATTIVO non ancora in un LAG: ingresso per crearlo /
+                // aggiungersi a uno (ex pulsante del popup porta, ora orfano). Se
+                // e' gia' in LAG, membership + Rimuovi sono nell'header (_lagHead).
+                if(portNode2&&TYPES[portNode2.type]?.isActive){
+                    if((state.ports[pid]||{}).lagGroup) return '';
+                    return `<div style="border-top:1px solid var(--panel-border);margin-top:8px;padding-top:8px">
+                  <button class="toolbar-btn" style="width:100%;padding:6px;font-size:0.8rem" onclick="startLagMode('${pid}')">⛓ ${t('pnl.misc.addToLag')}</button>
+                </div>`;
+                }
                 // Dispositivo passivo: info LAG traversal se presente.
                 const info=win.getPassivePortLagInfo(pid);
                 if(!info) return '';
