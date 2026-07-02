@@ -2,6 +2,14 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-02 — Discovery import keeps your hand-set identity (hostname, brand, type)
+
+Two manual-first fixes on the discovery **import** path onto an *existing* node, from the read-only app audit. The SNMP **Sync** already honoured these rules; the import did not, so a second scan could undo values you had pinned.
+
+### Fixed
+- **Re-importing a discovered device no longer overwrites a hostname or brand you set by hand** — the import now mirrors the Sync exactly (`src/app-snmp.js`): a hostname is refreshed only when it isn't locked (`hostnameManual`), and the brand is filled only when empty or still the type's default, so the OUI/SNMP vendor never clobbers a brand you typed. A genuine vendor shift on a strong-identity match is still surfaced as a `discoveryConflicts` / `possibleReplacement` entry for review, not applied silently. `src/app-discovery.js`. *Frontend: rebuild + hard-reload.*
+- **A device type you chose is now pinned against automatic re-typing** — discovery could re-type an existing node whenever it guessed a different type with ≥70 confidence, silently undoing a correction. A new manual-first `typeManual` flag is now respected: the heuristic auto-retype skips a pinned type, an explicit choice in the import dialog (a type different from the guess) wins and stays pinned, and editing a type through the standard node path also pins it. `src/app-discovery.js`, `src/app.js`. *Frontend: rebuild + hard-reload.*
+
 ## 2026-07-02 — Crash-safe user store (a corrupt file can no longer wipe accounts)
 
 ### Fixed
