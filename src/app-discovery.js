@@ -559,8 +559,13 @@ async function importDiscovered(){
         const idx=parseInt(chk.dataset.idx);
         const type=tr.querySelector('.disc-type')?.value||'switch';
         const base = store._discResults[idx]||{};
+        // Tipo scelto a mano = dropdown diverso dal tipo indovinato per quella riga
+        // (stesso calcolo del render, ~riga 438). Serve a pinnare node.typeManual
+        // (manual-first): le Verifiche/import futuri non lo ricambieranno da soli.
+        const guessed = base.deviceClass || (typeof _guessType==='function'
+            ? _guessType(base.descr, base.objectId, base.vendor, base.httpTitle||base.httpsTitle, base.hostname) : '');
         win._discRememberClassHint(base, type);
-        toImport.push({ ...base, type });
+        toImport.push({ ...base, type, _typeManual: !!guessed && type !== guessed });
     });
     if(!toImport.length){
         win._discImporting=false;
@@ -655,21 +660,34 @@ async function importDiscovered(){
                     });
                     if(foundExisting.discoveryConflicts.length > 20) foundExisting.discoveryConflicts.splice(0, foundExisting.discoveryConflicts.length - 20);
                 }
-                if(!foundExisting.hostname || shouldRefreshIdentity){
+                // Hostname manual-first come il Sync (app-snmp.js:453): mai sovrascrivere
+                // un hostname pinnato a mano (hostnameManual). Riempi se vuoto, o aggiorna
+                // su identita' forte solo quando NON e' bloccato.
+                if(!foundExisting.hostnameManual && (!foundExisting.hostname || shouldRefreshIdentity)){
                     foundExisting.hostname = d.hostname || foundExisting.hostname || '';
                 }
                 foundExisting.mac = foundExisting.mac || normalizeMacAddress(d.mac||'');
-                if(d.vendor && (!foundExisting.brand || shouldRefreshIdentity || score >= 70)){
-                    foundExisting.brand = d.vendor;
+                // Brand fill-if-empty (o se e' ancora il brand di default del tipo) come il
+                // Sync (app-snmp.js:457-458): il vendor OUI/SNMP non clobbera mai un brand
+                // scritto a mano. L'eventuale cambio vendor su identita' forte resta
+                // tracciato in discoveryConflicts/possibleReplacement (sopra), non applicato.
+                if(d.vendor){
+                    const _defBrand = TYPES[foundExisting.type]?.brand || '';
+                    const _brandNow = String(foundExisting.brand || '').trim();
+                    if(!_brandNow || _brandNow === _defBrand) foundExisting.brand = d.vendor;
                 }
                 foundExisting.netbiosName = foundExisting.netbiosName || d.netbiosName || '';
                 foundExisting.netbiosGroup = foundExisting.netbiosGroup || d.netbiosGroup || '';
                 if(!Array.isArray(foundExisting.smbShares) || !foundExisting.smbShares.length) foundExisting.smbShares = Array.isArray(d.smbShares) ? d.smbShares : [];
-                if(
-                    win._discCanAutoRetype(foundExisting.type, d.type) &&
-                    shouldRefreshIdentity &&
-                    score >= 70
-                ){
+                // Tipo: manual-first. Se l'utente ha scelto il tipo a mano nel dialogo
+                // (_typeManual) vince ed e' pinnato -> Verifiche/import futuri non lo
+                // ricambiano. Altrimenti l'auto-retype euristico agisce solo su un tipo
+                // NON pinnato (rispetta un typeManual gia' fissato).
+                const _applyRetype = d._typeManual
+                    ? (foundExisting.type !== d.type)
+                    : (win._discCanAutoRetype(foundExisting.type, d.type) &&
+                       shouldRefreshIdentity && score >= 70 && !foundExisting.typeManual);
+                if(_applyRetype){
                     const prevType = foundExisting.type;
                     foundExisting.type = d.type;
                     const prevDefaultPorts = TYPES[prevType]?.ports || 0;
@@ -678,6 +696,7 @@ async function importDiscovered(){
                         foundExisting.ports = nextDefaultPorts || foundExisting.ports;
                     }
                 }
+                if(d._typeManual) foundExisting.typeManual = true;
                 if(
                     !foundExisting.name ||
                     autoName === autoHost ||
@@ -746,6 +765,7 @@ async function importDiscovered(){
                     rackId, rackU, sizeU: sU, ports: def.ports||0, integration,
                 };
             }
+            if(d._typeManual) n.typeManual = true;   // tipo scelto a mano nel dialogo = pinnato
             win._discTouchNodeIdentity(n, d, match.matchedBy || 'new');
             if(match.conflict?.existing){
                 n.discoveryConflicts = [{

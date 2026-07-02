@@ -2002,6 +2002,8 @@ function updateN(k,v){
     } else {
         n[k]=v;
     }
+    // Tipo scelto a mano = pinnato (manual-first): Discovery/Verifica non lo ricambiano.
+    if(k==='type') n.typeManual = true;
     if(k==='name' && _auditOldName!=null && v && String(v)!==_auditOldName){
         logAudit('device-rename', { target:String(v), summary:_auditOldName?((typeof t==='function')?t('audit.wasNamed',{name:_auditOldName}):`era «${_auditOldName}»`):'' });
     }
