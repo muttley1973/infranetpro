@@ -2,6 +2,13 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-02 — Manual LAG entry restored in the port Properties panel
+
+The only way to start a manual LAG (LACP/bonding) used to live in the flying port popup, which the UI stopped opening a while ago — a port click now goes straight to the Properties panel. The action was left orphaned in that popup, so a LAG could no longer be created by hand. The entry now lives in the Properties panel, where the click actually lands.
+
+### Fixed
+- **You can create and dissolve a LAG by hand again, from the port Properties panel** — selecting an active switch port that isn't already in a LAG shows an **Add to LAG** button that enters LAG-selection mode (pick the sibling ports, then confirm); a port already in a LAG shows the **LAG member** badge with its bonded ports and a **Remove** button. Only active devices get the entry (a passive patch panel or wall port can't aggregate). The LAG engine itself is unchanged — only the missing entry point, put back where port clicks now go. `src/app-properties-port.js`. *Frontend: rebuild + hard-reload.*
+
 ## 2026-07-02 — LAG cable hygiene: no LAG on passive devices, one member per active port
 
 Reported as tangled/duplicate LAG cables in the rack. The root cause was mis-inferred LAG topology, not the rendering — so the fix is in the data, kept surgical (a new pure `lib/lag-reconcile.js`, applied on project load and inside the auto-linker). LAG member ports keep showing as cyan (and turn violet on a sibling when you select one) — that affordance was already there and is unchanged.
