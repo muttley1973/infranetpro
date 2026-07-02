@@ -268,6 +268,22 @@ is VPN/LAN.
   che resta sul ponte (`win.*`, ~1800 letture) sono funzioni non ancora ritirate
   (`selected`/`checked`/`_build*`).
 - **Commit only when asked.** Keep secrets and user data out of the repo.
+- **Discovery engine — two limits surfaced by live PnetLab validation (2026-07).**
+  - **The ping sweep trusts the `ping` exit code** (`netscan.js` → `_pingHost`). On
+    Windows, `ping` exits `0` even for a router's *"destination host unreachable"*
+    reply, so empty IPs **behind an L3 gateway** get counted as live hosts (the
+    gateway rate-limits the ICMP errors → a handful of scattered phantoms, not the
+    whole subnet). A real echo-reply must be required (`ttl=` / `bytes from`) **and**
+    unreachable replies excluded; the current text fallback (`'1 received'`) is
+    Linux-only, so on Windows the buggy exit-code path wins.
+  - **Access VLAN is read only from `dot1qPvid`** (`drivers/snmp.js`, Q-BRIDGE-MIB) —
+    no CISCO-VLAN-MEMBERSHIP-MIB (`vmVlan`, `9.9.68.1.2.2.1.2`) fallback. On Cisco
+    platforms that expose `vmVlan` but not `dot1qPvid`, access ports are reported as
+    VLAN 1. (Lab image `vios_l2` exposes **neither** → access VLANs are simply not
+    observable via SNMP there, while trunk VLANs come through fine via CISCO-VTP-MIB
+    `9.9.46`.) Manual-first means the documented VLAN still wins on the map; this only
+    bounds what discovery can *observe*, and shows up as apparent VLAN drift on
+    vios_l2 labs.
 
 ---
 
