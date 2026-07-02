@@ -229,9 +229,13 @@ admin/viewer roles, and **scan/poll routes gated to admin**. `execFile` is alway
 called with an argument array (no shell → no injection). The session secret and the
 first-run admin password are generated with a **CSPRNG** (`crypto.randomBytes` /
 `crypto.randomInt`), never `Math.random`. Every `projectId` reaching the filesystem
-is coerced to a positive integer (no path traversal). The data surfaces — AI context,
-REST DTOs, exports — are **allowlist-only**: secrets are structurally excluded and a
-build-failing guard test enforces it. Binds to `127.0.0.1`. `users.json`,
+is coerced to a positive integer (no path traversal). The user store is written
+**atomically** (temp + fsync + rename, with a `.bak`, via `atomicWriteFile`); a
+present-but-corrupt `users.json` recovers from the `.bak` and, failing that, **halts
+startup** instead of regenerating a default admin over existing accounts. The data
+surfaces — AI context, REST DTOs, exports — are **allowlist-only**: secrets are
+structurally excluded and a build-failing guard test enforces it. Binds to
+`127.0.0.1`. `users.json`,
 `.session-secret`, `api-tokens.json`, `data/ai-config.json`, `projects/` are
 git-ignored. A 2026-06 AppSec audit found **no critical issues**; the follow-up
 hardening is covered by regression tests (`test/ai-context.test.js`,

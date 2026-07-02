@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-02 — Crash-safe user store (a corrupt file can no longer wipe accounts)
+
+### Fixed
+- **`users.json` is now written atomically and a corrupt file never regenerates over your accounts** — the user store used a plain `writeFileSync`, so a crash mid-write could truncate it; worse, a truncated/corrupt file read back as "empty", and first-run bootstrap would then recreate a lone default `admin`, silently discarding every real account. Writes now go through the same atomic temp-file + fsync + rename (with a `.bak`) used for projects, `loadUsers` recovers from the `.bak`, and startup **refuses** to regenerate the admin over a present-but-unreadable file — it stops with a FATAL message so you can restore instead. `auth.js` (reuses `atomicWriteFile` from `server/projects-store.js`).
+
 ## 2026-07-01 — Client reads the shared OID table too (part 2)
 
 ### Changed
