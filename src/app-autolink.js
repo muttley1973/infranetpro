@@ -508,6 +508,12 @@ async function _autoDiscoverLinks(nodeIds){
         const d = _logicalRefByPort(cand.dst);
         const sn = _portNodeId(cand.src);
         const dn = _portNodeId(cand.dst);
+        // Un LAG (LACP/EtherChannel) aggrega su DUE apparati ATTIVI. Se un capo e'
+        // passivo o pass-through (patch panel, presa, VoIP, media converter) il link
+        // NON e' un membro LAG: al piu' trasporta un cavo-membro tra gli switch.
+        const _lagEnds = (typeof isLagEligibleType==='function')
+            ? (isLagEligibleType(TYPES[nodeById(sn)?.type]) && isLagEligibleType(TYPES[nodeById(dn)?.type]))
+            : true;
         let key;
         if(s.isLag && d.isLag) key = _pairSig(s.ref, d.ref);
         else if(s.isLag)       key = _pairSig(s.ref, `N:${dn}`);
@@ -515,7 +521,7 @@ async function _autoDiscoverLinks(nodeIds){
         else                   key = _pairSig(s.ref, d.ref);
         return {
             key,
-            lagLogical: !!(s.isLag || d.isLag),
+            lagLogical: !!(s.isLag || d.isLag) && _lagEnds,
         };
     };
     const _getNodeTrunkVlans = nodeId => {
@@ -1189,6 +1195,20 @@ async function _autoDiscoverLinks(nodeIds){
         if(!l.lagLogicalKey) continue;
         l.lagMembers = Array.from(membersByLagKey[l.lagLogicalKey] || []);
         if(!l.lagMemberPair) l.lagMemberPair = _pairSig(l.src,l.dst);
+    }
+
+    // Una porta ATTIVA termina UN solo membro LAG: se piu' cavi-membro AUTO se la
+    // contendono (tipico dell'inferenza FDB, il MAC del LAG appare su piu' porte),
+    // tieni il piu' affidabile (manuale > LLDP/CDP > MAC/FDB). Non tocca segmenti
+    // condivisi non-LAG ne' pass-through (lib/lag-reconcile.js, condivisa col load).
+    if(typeof reconcileLagMemberConflicts === 'function'){
+        const _lagType = pid => (TYPES[nodeById(getPortNodeId(pid))?.type] || null);
+        const _rec = reconcileLagMemberConflicts(cleanedLinks, { typeOfPort: _lagType });
+        if(_rec.dropped.length){
+            cleanedLinks.length = 0;
+            cleanedLinks.push(..._rec.keep);
+            pruned += _rec.dropped.length;
+        }
     }
 
     if(pruned > 0 || expanded > 0){

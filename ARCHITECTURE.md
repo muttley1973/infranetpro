@@ -75,6 +75,9 @@ lib/                   Shared browser + test modules (the heart of the app)
   lag-audit.js      checkLagMembers → LAG member consistency (speed/VLAN mismatch);
                     checkLagPair → LACP cross-end mode coherence (both-passive /
                     lacp-vs-static)  (pure)
+  lag-reconcile.js  isLagEligibleType (active-only, no passive/pass-through) +
+                    stripLagOnPassive + reconcileLagMemberConflicts (one member per
+                    active port, manual-first) — LAG data hygiene on load + auto-link  (pure)
   subbar-stats.js   computeSubbarStats → sub-header numbers: doc completeness
                     (withIp/addressable), device count (rooms excluded), SNMP health
                     (ok/err/warn/none) — same field defs as api-shape/app-drift  (pure)

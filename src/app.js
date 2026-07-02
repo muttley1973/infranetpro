@@ -1211,6 +1211,11 @@ function _normalizeProjectNodeIds(s){
 
 function _expandLagMemberLinks(s){
     if(!s || !Array.isArray(s.links)) return;
+    // Igiene LAG su load (lib/lag-reconcile.js): (1) un cavo verso un device PASSIVO
+    // o PASS-THROUGH (patch panel, presa, VoIP, media converter) non e' un LAG ->
+    // togli il tag spurio PRIMA dell'espansione, cosi' non viene trattato come membro.
+    const _lagTypeOfPort = pid => (TYPES[getNodeByPortId(pid)?.type] || null);
+    if(typeof stripLagOnPassive==='function') stripLagOnPassive(s.links, _lagTypeOfPort);
     const seen = Object.create(null);
     const out = [];
     const pairSig = (a,b) => [String(a||''), String(b||'')].sort().join('||');
@@ -1241,6 +1246,14 @@ function _expandLagMemberLinks(s){
         if(l?.lagLogicalKey && !l.lagMemberPair) l.lagMemberPair = pairSig(l.src,l.dst);
         add(l);
     }
+    // (2) Una porta ATTIVA termina UN solo membro LAG: se piu' cavi-membro AUTO se la
+    // contendono, tieni il piu' affidabile (manuale batte auto; LLDP/CDP > MAC/FDB).
+    // Non tocca segmenti condivisi non-LAG (piu' device a valle) ne' pass-through.
+    if(typeof reconcileLagMemberConflicts==='function'){
+        out.length && out.splice(0, out.length, ...reconcileLagMemberConflicts(out, { typeOfPort:_lagTypeOfPort }).keep);
+    }
+    // (3) Ricostruisci lagMembers[] dai soli cavi sopravvissuti (niente riferimenti stale).
+    if(typeof rebuildLagMembers==='function') rebuildLagMembers(out, pairSig);
     s.links = out;
 }
 
