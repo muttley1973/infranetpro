@@ -38,6 +38,7 @@
     "lib/ipam-audit.js",
     "lib/l3-gateway.js",
     "lib/lag-audit.js",
+    "lib/lag-reconcile.js",
     "lib/linkstate.js",
     "lib/link-model.js",
     "lib/mac-class.js",
