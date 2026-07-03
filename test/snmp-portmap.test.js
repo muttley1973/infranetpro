@@ -94,3 +94,48 @@ test('applyPollResult: segnala il conflitto sul nodo (porta manuale vs interfacc
   assert.equal(r.pid, 'sw1-3', 'il conflitto e sulla porta cablata a mano sw1-3');
   assert.equal(r.trunk, true, 'l interfaccia SNMP corrispondente e trunk');
 });
+
+test('applyPollResult: NON segnala conflitto su un membro LAG manuale (doc trunk = realta trunk)', () => {
+  // Refinement: l'avviso deve scattare SOLO sul mismatch access-vs-trunk. Un membro LAG
+  // documentato a mano (trunk) che collide posizionalmente con un'interfaccia trunk NON
+  // e' un conflitto (documento e realta' concordano) -> niente falso allarme.
+  const out = run(APP.ctx, `(() => {
+    state = _buildDefaultState(); state.ports = state.ports || {};
+    state.nodes.push(
+      { id:'sw1', type:'switch', name:'CORE', ports:8, ip:'10.0.0.1' },
+      { id:'sw2', type:'switch', name:'ACC',  ports:8, ip:'10.0.0.2' },
+      { id:'pc1', type:'pc', name:'PC', ports:1, ip:'10.0.0.100' }
+    );
+    // sw1-1: membro LAG DOCUMENTATO A MANO (trunk), no ifName -> idx0 (trunk) = concorde
+    state.ports['sw1-1'] = { status:'active', isTrunk:true, lagGroup:'lag-core-1' };
+    state.ports['sw2-1'] = { status:'active', isTrunk:true, lagGroup:'lag-acc-1' };
+    // sw1-2: endpoint ACCESS documentato a mano -> idx1 (trunk) = mismatch reale
+    state.ports['sw1-2'] = { status:'active', vlan:10 };
+    state.ports['pc1-1'] = { status:'active', vlan:10 };
+    state.links.push(
+      { id:'l1', src:'sw1-1', dst:'sw2-1' },   // cavo MANUALE (membro LAG)
+      { id:'l2', src:'pc1-1', dst:'sw1-2' }    // cavo MANUALE (endpoint)
+    );
+    if(typeof _invalidateIdx==='function') _invalidateIdx();
+    const data = { ok:true, interfaces:[
+      { name:'GigabitEthernet0/0', operStatus:1, isTrunk:true, trunkVlans:[10,20], lagId:1, speed:1000 }, // idx0 -> sw1-1
+      { name:'GigabitEthernet0/1', operStatus:1, isTrunk:true, trunkVlans:[10,20], lagId:1, speed:1000 }, // idx1 -> sw1-2
+    ], lags:[{ index:1, lagId:1, name:'Port-channel1', isTrunk:true, trunkVlans:[10,20] }], vlans:[1,10,20] };
+    applyPollResult('sw1', data, { noHistory:true });
+    const n = nodeById('sw1');
+    const c = (n.portReconcileConflicts || []);
+    const m = state.ports['sw1-1'] || {};
+    const e = state.ports['sw1-2'] || {};
+    return JSON.stringify({
+      count: c.length,
+      pids: c.map(x=>x.pid),
+      memberPreserved: (!!m.isTrunk && m.lagGroup==='lag-core-1'),
+      endpointStillAccess: (e.vlan===10 && !e.isTrunk && !e.lagGroup)
+    });
+  })()`);
+  const r = JSON.parse(out);
+  assert.equal(r.count, 1, 'un solo conflitto: solo l endpoint, non il membro LAG');
+  assert.deepEqual(r.pids, ['sw1-2'], 'conflitto SOLO su sw1-2 (endpoint access), non sw1-1 (membro LAG)');
+  assert.ok(r.memberPreserved, 'il membro LAG manuale resta preservato (trunk + lagGroup)');
+  assert.ok(r.endpointStillAccess, 'l endpoint resta access VLAN10, non trunk/LAG');
+});

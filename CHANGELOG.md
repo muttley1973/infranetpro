@@ -2,6 +2,13 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-03 — Reconcile warning only fires on a genuine access-vs-trunk mismatch
+
+Follow-up to the port-reconcile warning, from live re-validation on the multivendor lab: on a fully hand-documented switch it also fired on the manual LAG members (which are legitimately trunks), diluting the signal. Now it fires only where the document and reality actually disagree.
+
+### Fixed
+- **The "port to reconcile" warning no longer flags a manual port that is already documented as trunk/LAG** — the warning is meant to catch an access endpoint whose SNMP position is a trunk, but it also fired on hand-cabled LAG members that positionally line up with a trunk interface (the document says trunk, SNMP says trunk — no real conflict). It now fires only when the preserved manual port is NOT already a trunk/LAG, i.e. only on a genuine access-vs-trunk mismatch. Validated live: the warnings dropped from 8 (six of them legitimate trunk members) to the 2 real endpoint cases. `src/app-snmp.js` (+ test). *Frontend: rebuild + hard-reload.*
+
 ## 2026-07-03 — Modals moved out of `<header>`, and the browser can no longer serve a stale UI
 
 Two fixes that together close a bug that resurfaced three times (a reskin regression, then twice more). **Root of the recurrence:** the tool modals were DOM children of `<header>`, and any `backdrop-filter`/`transform`/`filter` on the header turns it into their containing block, so a `position:fixed` overlay anchors to the 56px header box instead of the viewport and gets clipped at the top — *and* the browser kept serving the already-fixed CSS/HTML from cache, so the fix looked like it hadn't landed. Verified live: with the modals moved out, `#disc-overlay` fills the viewport (rect = viewport, no ancestor is a containing block) and the modal card is centered, not clipped.
