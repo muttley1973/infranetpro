@@ -38,6 +38,31 @@ test('extractData: ENTITY-MIB popola inventario hardware primario', () => {
   assert.ok(r.inventory.entities.length >= 2);
 });
 
+test('extractData: vmVlan (CISCO-VLAN-MEMBERSHIP-MIB) come fallback VLAN access', () => {
+  // Alcune immagini (es. Cisco vIOS) non popolano dot1qPvid con la VLAN access reale;
+  // espongono pero' vmVlan (indicizzato per ifIndex). Standard-first: vmVlan riempie
+  // SOLO dove il PVID standard manca o resta 1, e solo se da' una VLAN reale (>1).
+  const vbs = {
+    [at(OID.sysName, 0)]: Buffer.from('sw-vm', 'utf8'),
+    [at(OID.ifDescr, 5)]: Buffer.from('GigabitEthernet0/5', 'utf8'),
+    [at(OID.ifType, 5)]: u32(6),
+    [at(OID.ifOperStatus, 5)]: u32(1),
+    [at(OID.vmVlan, 5)]: u32(30),           // VLAN access via CISCO-VLAN-MEMBERSHIP-MIB
+    // if 6: vmVlan=1 (default) -> NON deve forzare una VLAN (fallback solo per >1)
+    [at(OID.ifDescr, 6)]: Buffer.from('GigabitEthernet0/6', 'utf8'),
+    [at(OID.ifType, 6)]: u32(6),
+    [at(OID.ifOperStatus, 6)]: u32(1),
+    [at(OID.vmVlan, 6)]: u32(1),
+    // niente dot1qPvid -> la VLAN access di Gi0/5 viene dal fallback vmVlan
+  };
+  const r = extractData(vbs);
+  const gi5 = r.interfaces.find(i => i.name === 'GigabitEthernet0/5');
+  assert.ok(gi5, 'interfaccia Gi0/5 presente');
+  assert.equal(gi5.vlan, 30, 'la VLAN access viene da vmVlan quando dot1qPvid manca');
+  const gi6 = r.interfaces.find(i => i.name === 'GigabitEthernet0/6');
+  assert.notEqual(gi6 && gi6.vlan, 30, 'vmVlan=1 (default) non inventa una VLAN access');
+});
+
 test('extractData: switch base — hostname, porta fisica, LAG aggregatore', () => {
   const vbs = {
     [at(OID.sysName, 0)]: Buffer.from('sw-fixture', 'utf8'),

@@ -139,6 +139,7 @@ const OID = {
   dot1qVlanEgressPorts:  '1.3.6.1.2.1.17.7.1.4.2.1.4',   // per-VLAN egress portlist bitmap (tagged + untagged)
   dot1qVlanUntaggedPorts:'1.3.6.1.2.1.17.7.1.4.2.1.5',   // per-VLAN untagged portlist bitmap (access)
   dot1qVlanStaticName:   '1.3.6.1.2.1.17.7.1.4.3.1.1',   // Q-BRIDGE static VLAN name — indicizzato solo per VlanIndex
+  vmVlan:                '1.3.6.1.4.1.9.9.68.1.2.2.1.2',  // Cisco CISCO-VLAN-MEMBERSHIP-MIB: VLAN access per ifIndex — FALLBACK quando dot1qPvid non espone la VLAN access reale (es. Cisco vIOS: PVID resta 1)
   vtpVlanName:          '1.3.6.1.4.1.9.9.46.1.3.1.1.2', // Cisco VTP: VLAN name — indice {domainIdx}.{vlanId} (funziona senza @vlan community)
   vlanTrunkPortDynState:'1.3.6.1.4.1.9.9.46.1.6.1.1.14', // Cisco: trunk dynamic state (1=on, 2=off/access, 3=desirable, 4=auto, 5=onNoNegotiate)
   vlanTrunkPortStatus:  '1.3.6.1.4.1.9.9.46.1.6.1.1.15', // Cisco: trunk operational status (1=trunking, 2=notTrunking) — ATTENZIONE: su IOS virtuale può essere 1 anche su porte access
@@ -579,6 +580,9 @@ function extractData(vbs) {
   const portUntagged = {};
   // PVID raw: bridgePort → vlanId — risolto dopo che bpToIf è completo
   const rawPvid = {};
+  // vmVlan raw: ifIndex → vlanId (Cisco CISCO-VLAN-MEMBERSHIP-MIB) — fallback VLAN
+  // access dove dot1qPvid non espone la VLAN reale (es. vIOS). Indicizzato per ifIndex.
+  const rawVmVlan = {};
   // Tutti gli ID VLAN definiti sullo switch (da OID key dot1qVlanEgressPorts.{vlanId})
   // — include anche VLAN senza porte assegnate (bitmap vuota)
   const allVlanIds = new Set();
@@ -624,6 +628,12 @@ function extractData(vbs) {
     // PVID — raccolto raw, risolto dopo (bpToIf potrebbe non essere ancora completo)
     if (oid.startsWith(OID.dot1qPvid + '.')) {
       rawPvid[lastIdx(oid)] = bufToInt(val) || 1; continue;
+    }
+
+    // vmVlan (Cisco) — VLAN access indicizzata direttamente per ifIndex; raccolta raw,
+    // applicata dopo come FALLBACK dove il PVID standard non da' la VLAN reale.
+    if (oid.startsWith(OID.vmVlan + '.')) {
+      rawVmVlan[lastIdx(oid)] = bufToInt(val); continue;
     }
 
     // VLAN egress / untagged bitmaps (trunk detection)
@@ -717,6 +727,16 @@ function extractData(vbs) {
   for (const [bpStr, vlanId] of Object.entries(rawPvid)) {
     const ix = bpToIf[parseInt(bpStr, 10)];
     if (ix !== undefined) (ifaces[ix] ??= {}).vlan = vlanId;
+  }
+  // Fallback VLAN access via CISCO-VLAN-MEMBERSHIP-MIB (vmVlan, per ifIndex). STANDARD-
+  // FIRST: si usa vmVlan SOLO dove il PVID standard (dot1qPvid) e' assente o resta 1
+  // (default/native) e vmVlan da' una VLAN reale (>1). Chiude il caso in cui l'immagine
+  // (es. Cisco vIOS) non popola il PVID Q-BRIDGE con la VLAN access → prima leggeva 1.
+  // Vendor-neutral: sui device non-Cisco vmVlan e' vuoto → nessun effetto. Non tocca i
+  // trunk (isTrunk resta dai bitmap egress/VTP; su porta trunk vmVlan e' tipicamente vuoto).
+  for (const [ixStr, vlanId] of Object.entries(rawVmVlan)) {
+    const p = (ifaces[parseInt(ixStr, 10)] ??= {});
+    if (vlanId > 1 && (!p.vlan || p.vlan === 1)) p.vlan = vlanId;
   }
 
   // ifIndex → bridge port (reverse, needed for trunk detection)

@@ -139,3 +139,24 @@ test('applyPollResult: NON segnala conflitto su un membro LAG manuale (doc trunk
   assert.ok(r.memberPreserved, 'il membro LAG manuale resta preservato (trunk + lagGroup)');
   assert.ok(r.endpointStillAccess, 'l endpoint resta access VLAN10, non trunk/LAG');
 });
+
+test('applyPollResult: VLAN SNMP=1 non sovrascrive una VLAN documentata non-default (manual-first)', () => {
+  // Su certe immagini la VLAN access non e' leggibile via SNMP e torna 1 (default).
+  // Non deve clobberare una VLAN documentata a mano; una VLAN reale >1 invece aggiorna.
+  const out = run(APP.ctx, `(() => {
+    state = _buildDefaultState(); state.ports = state.ports || {};
+    state.nodes.push({ id:'sw1', type:'switch', name:'SW', ports:4, ip:'10.0.0.1' });
+    state.ports['sw1-1'] = { status:'active', ifName:'GigabitEthernet0/1', vlan:30 };
+    state.ports['sw1-2'] = { status:'active', ifName:'GigabitEthernet0/2', vlan:20 };
+    if(typeof _invalidateIdx==='function') _invalidateIdx();
+    const data = { ok:true, interfaces:[
+      { name:'GigabitEthernet0/1', operStatus:1, vlan:1,  speed:1000 },   // SNMP=1 (illeggibile) -> NON clobbera 30
+      { name:'GigabitEthernet0/2', operStatus:1, vlan:40, speed:1000 },   // SNMP=40 reale -> aggiorna
+    ], lags:[], vlans:[1,30,40] };
+    applyPollResult('sw1', data, { noHistory:true });
+    return JSON.stringify({ v1: state.ports['sw1-1'].vlan, v2: state.ports['sw1-2'].vlan });
+  })()`);
+  const r = JSON.parse(out);
+  assert.equal(r.v1, 30, 'SNMP=1 non sovrascrive la VLAN30 documentata (manual-first)');
+  assert.equal(r.v2, 40, 'una VLAN reale >1 letta da SNMP aggiorna il documento');
+});
