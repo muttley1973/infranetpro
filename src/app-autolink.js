@@ -918,12 +918,36 @@ async function _autoDiscoverLinks(nodeIds){
             if(!store.state.lagGroups[groupId]){
                 const [na, nb] = key.split('||');
                 const nA = nodeById(na), nB = nodeById(nb);
-                const pickAggName = node => {
-                    if(!node?.integration) return null;
-                    const agg = (node.integration.lags || []).find(l => l.name);
-                    return agg ? agg.name : null;
+                // Porte di QUESTA coppia su un dato nodo (per scegliere l'aggregatore GIUSTO,
+                // non il primo qualsiasi: uno switch puo' avere piu' Port-channel).
+                const portsOfNode = nid => pairs.map(p =>
+                    _portNodeId(p.src) === nid ? p.src : (_portNodeId(p.dst) === nid ? p.dst : null)
+                ).filter(Boolean);
+                const pickAggNameFor = (node, pids) => {
+                    const lags = (node && node.integration && node.integration.lags) || [];
+                    if(!lags.length) return null;
+                    const vlans = new Set(); let lagId = 0;
+                    for(const pid of pids){
+                        const pp = store.state.ports[pid]; if(!pp) continue;
+                        if(pp.lagId) lagId = pp.lagId;
+                        (pp.trunkVlans || []).forEach(v => vlans.add(v));
+                    }
+                    // 1) match preciso per lagId del bundle
+                    if(lagId){
+                        const byId = lags.find(l => l.name && (l.lagId === lagId || l.index === lagId));
+                        if(byId) return byId.name;
+                    }
+                    // 2) match per set esatto di VLAN trunk trasportate
+                    if(vlans.size){
+                        const byVlan = lags.find(l => l.name && Array.isArray(l.trunkVlans)
+                            && l.trunkVlans.length === vlans.size && l.trunkVlans.every(v => vlans.has(v)));
+                        if(byVlan) return byVlan.name;
+                    }
+                    // 3) fallback storico: primo aggregatore con nome
+                    const any = lags.find(l => l.name);
+                    return any ? any.name : null;
                 };
-                const autoName = pickAggName(nA) || pickAggName(nB);
+                const autoName = pickAggNameFor(nA, portsOfNode(na)) || pickAggNameFor(nB, portsOfNode(nb));
                 if(autoName) store.state.lagGroups[groupId] = autoName;
             }
 
