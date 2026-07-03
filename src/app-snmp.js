@@ -409,6 +409,11 @@ function _snmpSpeedToUi(v, prev){
 }
 function _snmpVlanToUi(v, prev){
     const n = Number(v);
+    // Manual-first: una lettura SNMP di VLAN 1 (default/native, o VLAN access NON
+    // leggibile via SNMP su certe immagini — es. Cisco vIOS senza dot1qPvid ne' vmVlan)
+    // NON deve sovrascrivere una VLAN documentata a mano non-default. Una VLAN reale >1
+    // letta da SNMP vince invece sempre (aggiorna il documento). Vale su QUALSIASI vendor.
+    if(n === 1 && Number.isFinite(prev) && prev > 1) return prev;
     if(Number.isFinite(n) && n > 0) return n;
     return prev ?? 1;
 }
