@@ -79,16 +79,24 @@ async function _pingHost(ip, timeoutMs = 800) {
   return out.includes('ttl=') || out.includes('bytes from') || out.includes('1 received');
 }
 
-// Ping con ritentativo: un host puo' perdere il PRIMO ICMP (VPCS, stack lenti, link
-// congestionati, host che risvegliano l'ARP del gateway) → il singolo ping darebbe un
-// FALSO negativo e l'host verrebbe mancato. Ritenta fino a `tries` volte, VIVO se ANCHE
+// Ping con ritentativo SPAZIATO: un host puo' perdere il PRIMO ICMP (VPCS, stack lenti,
+// link congestionati, host che risvegliano l'ARP del gateway) → il singolo ping darebbe
+// un FALSO negativo e l'host verrebbe mancato. Ritenta fino a `tries` volte, VIVO se ANCHE
 // UNO risponde. Vendor-neutral: non e' specifico di un device — chiude i falsi negativi
-// da perdita ICMP occasionale su qualunque host. Un host vivo di solito risponde al 1°
-// tentativo (costo minimo); uno realmente morto costa `tries` ping (bounded). Il param
-// `_ping` e' iniettabile per i test.
-async function _pingHostRetry(ip, timeoutMs = 800, tries = 2, _ping = _pingHost) {
+// da perdita ICMP su qualunque host.
+//
+// SPAZIATURA (`gapMs`): la perdita ICMP su path lenti/rate-limited arriva a RAFFICHE
+// (finestre di perdita correlate), quindi due ping ravvicinati cadono nella STESSA
+// finestra e falliscono INSIEME — un ritento back-to-back e' quasi inutile. Misurato
+// dal vivo: 2 ping immediati falliscono ENTRAMBI ~27% delle volte, ma spaziati di ~0.4s
+// rispondono sempre. Una piccola pausa fa cadere il ritento FUORI dalla finestra. Costo
+// SOLO sugli host che hanno gia' mancato il 1o tentativo (vivi flaky + morti), mai su un
+// host che risponde subito. `_ping` e `_sleep` sono iniettabili per i test.
+async function _pingHostRetry(ip, timeoutMs = 800, tries = 2, _ping = _pingHost, gapMs = 200, _sleep = (ms) => new Promise(r => setTimeout(r, ms))) {
   const n = Math.max(1, Math.min(parseInt(tries, 10) || 1, 5));
+  const gap = Math.max(0, Math.min(parseInt(gapMs, 10) || 0, 1000));
   for (let i = 0; i < n; i++) {
+    if (i > 0 && gap > 0) await _sleep(gap);   // spaziatura fuori dalla finestra di perdita a raffica
     if (await _ping(ip, timeoutMs).catch(() => false)) return true;
   }
   return false;
