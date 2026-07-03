@@ -2,6 +2,14 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-03 — Modals moved out of `<header>`, and the browser can no longer serve a stale UI
+
+Two fixes that together close a bug that resurfaced three times (a reskin regression, then twice more). **Root of the recurrence:** the tool modals were DOM children of `<header>`, and any `backdrop-filter`/`transform`/`filter` on the header turns it into their containing block, so a `position:fixed` overlay anchors to the 56px header box instead of the viewport and gets clipped at the top — *and* the browser kept serving the already-fixed CSS/HTML from cache, so the fix looked like it hadn't landed. Verified live: with the modals moved out, `#disc-overlay` fills the viewport (rect = viewport, no ancestor is a containing block) and the modal card is centered, not clipped.
+
+### Fixed
+- **The 10 tool modals now live in a `#modal-root` at the end of `<body>`, not inside `<header>`** — a modal can no longer inherit a containing block from the header, so no present or future header effect (glass/blur/transform) can clip or mis-anchor it, cache or reskin regardless. Pure markup move: the overlays still open/close by id (`getElementById('…-overlay')`), so the JS, CSS selectors and e2e are untouched. `netmapper.html` only. *HTML file — no rebuild, just a hard-reload.*
+- **The frontend assets are served with `Cache-Control: no-cache`, so a changed file is always delivered fresh** — HTML, CSS, the esbuild bundle and `lib/*.js` now force the browser to revalidate with the server before reusing a cached copy (a cheap `304` when unchanged, the new bytes when changed). This ends the "I fixed the CSS/HTML but the browser still shows the old version" class of confusion that made the modal bug look unfixed. Font Awesome web-fonts stay cacheable (they never change). `server.js`. *Server change — restart the server.*
+
 ## 2026-07-03 — Discovery: SNMP ports mapped by ifName, plus a "reconcile" warning (from live multivendor validation)
 
 Built a multivendor PnetLab lab and ran Scopri + drift against it live — **Cisco vIOS ×3, MikroTik RouterOS, VyOS and Ubuntu/net-snmp**, plus VPCS endpoints; two LACP bundles, four VLANs, L3-lite gateways. Recognition, HOST-RESOURCES, and the LAG/trunk/VLAN reads all checked out — and the run surfaced two real merge bugs when SNMP is synced onto a **hand-documented** project. Both fixed manual-first, and the mismatch is now **surfaced, not silenced**.
