@@ -294,15 +294,24 @@ is VPN/LAN.
     *and* different from net-snmp's own local engine — a signal only a real agent produces.
     Vendor- and library-version-neutral (no PEN/prefix hardcoded). Validated live: VPCS/PC/SRV
     → 0 false v3, Cisco/VyOS still detected. `_v3RemoteEngineDiscovered`, `drivers/snmp.js`.
-  - **Still open — a ping-only, off-segment host can be missed under sweep load.** On a path
-    that rate-limits ICMP, a full `/24` sweep saturates it and even the gateway is
-    intermittently lost (measured: a VPCS surfaced in 2 of 5 sweeps). A device that speaks
-    **neither SNMP nor LLDP/CDP** and is **off-segment** (no local ARP MAC) has ICMP as its
-    only signal, so retry-spacing alone can't guarantee it appears. The robust vendor-neutral
-    fix is to **surface the SNMP ARP table** (`ipNetToMediaTable`) of the crawled switches as
-    discovery candidates — `pollNeighbors` already returns `arpTable`, so the off-segment
-    host's IP+MAC (hence OUI vendor) is available with no ICMP. Planned; presentation and
-    noise-scoping are a design decision.
+  - **Off-segment, ping-only hosts surfaced via SNMP ARP (addressed).** On a path that
+    rate-limits ICMP, a full `/24` sweep saturates it and even the gateway is intermittently
+    lost (measured: a VPCS surfaced in 2 of 5 sweeps), and a device that speaks **neither SNMP
+    nor LLDP/CDP** and is **off-segment** (no local ARP MAC) has ICMP as its only signal — so
+    retry-spacing alone can't guarantee it appears. The **LLDP/CDP crawl** now also reads the
+    **SNMP ARP table** (`ipNetToMediaTable`, already returned by `pollNeighbors` — previously
+    discarded) of every crawled switch/router and proposes the hosts it sees at L2/L3: the
+    off-segment host's IP+MAC (hence OUI vendor) is known **with no ICMP**. Gated on the
+    existing *"Expand via LLDP/CDP"* toggle (no new switch); noise-bounded to the **scanned
+    subnet** (`scanCidr` → the client passes it, the route filters ARP IPs to it); MAC unicast
+    only, deduped, capped at 256 with a logged/emitted note (no silent truncation). Presented
+    as **observed, low-confidence, NOT pre-selected** (`snmpReachable:false, alive:false`),
+    with an "ARP (via <switch>)" badge; **refined by the already-imported DHCP leases**
+    (`store._dhcpLeases`): a MAC/IP match attaches the real hostname and lifts confidence
+    (seen in ARP *and* DHCP = a real host, not a stale ARP row). `buildArpCandidates`
+    (`lib/correlate.js`), `server/routes/discovery.js`, `_discArpRow` (`src/app-discovery.js`).
+    Validated live: the lab VPCS (`10.10.10.100`, missed 2–3/5 by the sweep) is proposed from
+    SW-CORE's ARP without any ping.
   - **Still open — the ping sweep trusts the `ping` exit code** (`_pingHost`). On Windows,
     `ping` exits `0` even for a router's *"destination host unreachable"* reply, so empty IPs
     **behind an L3 gateway** can be counted as live (the gateway rate-limits the ICMP errors
