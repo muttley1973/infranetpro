@@ -496,7 +496,13 @@ function applyPollResult(nodeId, data, opts={}){
         // Conflitto REALE da segnalare (non silenziare!): la porta cablata a mano viene
         // preservata, ma l'interfaccia SNMP che le corrisponderebbe risulta membro
         // trunk/LAG -> "realta' != documento" (cavo spostato? porta riconfigurata?).
-        if(skip && (iface.isTrunk || (iface.lagId || 0) > 0)){
+        // MA solo se il DOCUMENTO dice access: se la porta manuale e' GIA' trunk/LAG e
+        // l'SNMP conferma trunk/LAG, documento e realta' concordano -> nessun conflitto
+        // (niente falsi allarmi sui membri LAG manuali che collidono posizionalmente con
+        // un'interfaccia trunk). Scatta solo sul vero mismatch endpoint-access-vs-trunk.
+        const _mp = store.state.ports[pid] || {};
+        const _docTrunkLag = !!_mp.isTrunk || !!_mp.lagGroup || (parseInt(_mp.lagId || 0, 10) > 0);
+        if(skip && (iface.isTrunk || (iface.lagId || 0) > 0) && !_docTrunkLag){
             _portConflicts.push({ pid, ifName: String(iface.name || ''), trunk: !!iface.isTrunk, lagId: iface.lagId || 0 });
         }
     });
