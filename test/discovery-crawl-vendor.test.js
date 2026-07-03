@@ -42,3 +42,41 @@ test('crawl: viaProtocol dal device ha priorita sul protocol del wrapper', () =>
   assert.equal(r.viaProtocol, 'LLDP', 'viaProtocol gia presente sul device vince');
   assert.equal(r.vendor, 'Cisco');
 });
+
+// ---- ARP-SNMP: candidati off-segment (VPCS ecc.) via ipNetToMediaTable ------
+test('arp: _discArpRow marca _via:arp, osservato (non pre-selezionato), preserva vendor', () => {
+  run(APP.ctx, `window._dhcpLeases = [];`);
+  const r = JSON.parse(run(APP.ctx, `JSON.stringify(_discArpRow({
+    ip:'10.10.10.100', mac:'00:50:79:66:68:23', vendor:'ACME', deviceClass:'pc',
+    confidence:{score:14,level:'low'}, sources:[{id:'arp',label:'ARP',strength:'medium'}]
+  }))`));
+  assert.equal(r._via, 'arp');
+  assert.equal(r.snmpReachable, false);
+  assert.equal(r.alive, false, 'alive:false -> canImport false -> checkbox non spuntata di default');
+  assert.equal(r.vendor, 'ACME', 'vendor preservato (niente clobber)');
+  assert.equal(r.ip, '10.10.10.100');
+});
+
+test('arp: rifinitura DHCP — MAC nel lease -> hostname + confidenza + reason', () => {
+  run(APP.ctx, `window._dhcpLeases = [{ mac:'00:50:79:66:68:23', ip:'10.10.10.100', hostname:'PC1' }];`);
+  const r = JSON.parse(run(APP.ctx, `JSON.stringify(_discArpRow({
+    ip:'10.10.10.100', mac:'00:50:79:66:68:23', vendor:'', confidence:{score:25,level:'low'}
+  }))`));
+  assert.equal(r.hostname, 'PC1', 'hostname preso dal lease DHCP');
+  assert.equal(r._dhcpMatched, true);
+  assert.ok(r.confidence.score >= 40, 'confidenza alzata (visto in ARP E DHCP)');
+  assert.ok((r.reasonCodes||[]).includes('dhcp-lease'));
+});
+
+test('arp: match DHCP anche per IP quando il MAC non combacia', () => {
+  run(APP.ctx, `window._dhcpLeases = [{ mac:'aa:aa:aa:aa:aa:aa', ip:'10.10.10.100', hostname:'PC1-byip' }];`);
+  const r = JSON.parse(run(APP.ctx, `JSON.stringify(_discArpRow({ ip:'10.10.10.100', mac:'00:50:79:66:68:23' }))`));
+  assert.equal(r.hostname, 'PC1-byip', 'fallback su match per IP');
+});
+
+test('arp: nessun lease corrispondente -> nessun hostname inventato (no-invenzioni)', () => {
+  run(APP.ctx, `window._dhcpLeases = [{ mac:'ff:ee:dd:cc:bb:aa', ip:'10.10.10.9', hostname:'ALTRO' }];`);
+  const r = JSON.parse(run(APP.ctx, `JSON.stringify(_discArpRow({ ip:'10.10.10.100', mac:'00:50:79:66:68:23' }))`));
+  assert.ok(!r.hostname, 'nessun hostname (no match) — niente invenzioni');
+  assert.ok(!r._dhcpMatched);
+});

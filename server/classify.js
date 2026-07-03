@@ -422,9 +422,12 @@ function _buildDiscoveryMeta(row, extra = {}) {
     addReason('ping-reachable');
   }
   if (row.mac) {
-    addSource('arp', 'ARP', 'medium', 'MAC rilevato in cache ARP locale');
-    addEvidence('mac', row.mac, 12, 'MAC presente in ARP');
-    addReason('arp-seen');
+    // ARP-SNMP: MAC visto nella ipNetToMediaTable di uno switch/router (host
+    // off-segment), NON nella cache ARP locale — la sorgente lo dice esplicito.
+    const _arpSnmp = extra.viaProtocol === 'ARP';
+    addSource('arp', 'ARP', 'medium', _arpSnmp ? `Visto nell'ARP SNMP di ${extra.viaFrom || 'uno switch'}` : 'MAC rilevato in cache ARP locale');
+    addEvidence('mac', row.mac, 12, _arpSnmp ? 'MAC dalla ipNetToMediaTable di un device SNMP' : 'MAC presente in ARP');
+    addReason(_arpSnmp ? 'arp-snmp-seen' : 'arp-seen');
   }
   // Reuse engine results when the caller passed them in `extra` to avoid
   // re-running sysObjectID / OS fingerprint / OUI lookups during the

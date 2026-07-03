@@ -8,7 +8,7 @@ const dns = require('dns').promises;
 const os  = require('os');
 const auth = require('../../auth');
 const { DRIVERS } = require('../drivers');
-const { buildNeighborCandidates, buildPortIndex, buildMacIndex, buildPortMacIndex, buildFdbCandidates } = require('../../lib/correlate');
+const { buildNeighborCandidates, buildPortIndex, buildMacIndex, buildPortMacIndex, buildFdbCandidates, buildArpCandidates } = require('../../lib/correlate');
 const { expandSubnet, _execFileAsync, _pingHost, _pingHostRetry, _normMac, _parseArpTable, _readArpMap, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost } = require('../netscan');
 const { _cleanHostname, PEN_VENDOR, _penFromObjectId, _vendorByObjectId, _decodeSysServices, _classifyDiscoveredDevice, _buildDiscoveryMeta, _decorateDiscoveryRow } = require('../classify');
 const { OuiEngine } = require('../../engine');
@@ -430,7 +430,7 @@ router.post('/api/discover/topology', auth.requireAdmin, async (req, res) => {
   const {
     seed, seeds: seedsArr,
     driver = 'snmp-v2c', community = 'public',
-    port = 161, timeout = 3, maxDepth = 5, maxDevices = 100, ...v3
+    port = 161, timeout = 3, maxDepth = 5, maxDevices = 100, scanCidr, ...v3
   } = req.body ?? {};
 
   const drv = DRIVERS[(driver || 'snmp-v2c').toLowerCase()];
@@ -462,6 +462,15 @@ router.post('/api/discover/topology', auth.requireAdmin, async (req, res) => {
   const seenName = new Set();   // sysName già visti (deduplicazione per alias diversi)
   const discoveredBy = new Map(); // IP -> { protocol, from, port, name }
   const results  = [];
+  // ARP-SNMP: raccogliamo la ipNetToMediaTable di OGNI device SNMP del crawl per
+  // proporre gli host visti a L2/L3 ma MUTI a ping/SNMP/LLDP (VPCS, off-segment).
+  // Attivo SOLO se il client passa la subnet scansionata (`scanCidr`) → filtro
+  // anti-rumore: si propongono solo IP dentro quella subnet (niente dump ARP di
+  // un core-router). Vive dentro il crawl → gia' gated dal toggle "Espandi LLDP/CDP".
+  let scanSet = null;
+  try { if (scanCidr) scanSet = new Set(expandSubnet(scanCidr)); }
+  catch (_) { scanSet = null; }
+  const arpTables = [];   // [{ table:{mac->ip}, fromIp }] raccolte durante il BFS
   // Multi-source BFS: tutti i seme entrano in coda a profondità 0
   const queue    = seeds.map(ip => ({ ip, depth: 0 }));
 
@@ -518,7 +527,9 @@ router.post('/api/discover/topology', auth.requireAdmin, async (req, res) => {
 
       // Interroga LLDP/CDP per scoprire i vicini
       try {
-        const { neighbors } = await drv.pollNeighbors({ ...cfg, host: ip });
+        const { neighbors, arpTable } = await drv.pollNeighbors({ ...cfg, host: ip });
+        // ARP di questo device: la teniamo per proporre gli host off-segment a fine crawl.
+        if (scanSet && arpTable && typeof arpTable === 'object') arpTables.push({ table: arpTable, fromIp: ip });
         const seen = new Set();
 
         for (const n of neighbors) {
@@ -545,6 +556,38 @@ router.post('/api/discover/topology', auth.requireAdmin, async (req, res) => {
     }
   } finally {
     clearInterval(hb);
+  }
+
+  // --- ARP-SNMP: proponi gli host off-segment visti nelle ARP raccolte ---------
+  // Host presenti nell'ARP di uno switch/router SNMP ma non trovati via SNMP/LLDP:
+  // il loro IP+MAC (quindi il vendor OUI) e' noto senza ICMP. Bassa confidenza,
+  // osservati, mai pre-selezionati (lo decide il client). Dedup + cap anti-rumore.
+  if (scanSet && arpTables.length && !aborted) {
+    const knownIps = new Set(visited);
+    for (const r of results) { if (r && r.ip) knownIps.add(r.ip); }
+    const arpMap = new Map();   // ip -> { ip, mac, viaFrom } (dedup cross-device)
+    for (const { table, fromIp } of arpTables) {
+      for (const c of buildArpCandidates(table, { scanSet, knownIps, fromIp })) {
+        if (!arpMap.has(c.ip)) arpMap.set(c.ip, c);
+      }
+    }
+    const CAP = 256;
+    const total = arpMap.size;
+    let list = [...arpMap.values()];
+    const truncated = list.length > CAP;
+    if (truncated) list = list.slice(0, CAP);
+    for (const c of list) {
+      if (aborted) break;
+      const device = _decorateDiscoveryRow(
+        { ip: c.ip, mac: c.mac, snmpReachable: false, alive: false,
+          viaProtocol: 'ARP', viaFrom: c.viaFrom },
+        { viaProtocol: 'ARP', viaFrom: c.viaFrom }
+      );
+      results.push(device);
+      send({ type: 'arp', device, from: c.viaFrom });
+    }
+    console.log(`  [CRAWL] ARP-SNMP: ${total} candidati off-segment in ${scanCidr}${truncated ? ` (mostrati i primi ${CAP})` : ''}`);
+    if (truncated) send({ type: 'warn', message: `ARP: ${total} host visti, mostrati i primi ${CAP}` });
   }
 
   send({ type: 'done', total: results.length, results });
