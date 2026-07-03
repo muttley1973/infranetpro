@@ -667,6 +667,53 @@ async function _autoDiscoverLinks(nodeIds){
         }
         diag.arpEntries += Object.keys(arpTableRaw).length;
 
+        // Backfill ifName VENDOR-NEUTRAL (manual-first): allinea la porta DOCUMENTATA
+        // all'interfaccia reale usando il vicino LLDP/CDP come segnale AUTOREVOLE, non
+        // posizionale. Se con il nodo remoto esiste un UNICO cavo MANUALE su una porta di
+        // n SENZA ifName, quella porta E' <nb.localPort> → le assegna l'ifName reale e
+        // libera la porta che l'aveva preso per POSIZIONE (applyPollResult arricchisce le
+        // porte libere per indice; l'ifName vero puo' finire su quella sbagliata). Cosi' i
+        // Sync successivi combaciano per ifName → stato/porta autorevoli su QUALSIASI
+        // vendor (nessuna assunzione di lab/vendor: usa la normalizzazione nomi cross-
+        // vendor _ifNameMeta + LLDP/CDP standard). NON tocca la topologia (il cavo resta)
+        // ne' i campi manuali (vlan/status). Ambiguo (LAG/multi-cavo verso lo stesso nodo)
+        // o gia' allineato o senza prova → non tocca. Bare-global + typeof (ratchet).
+        if(typeof _ifNameMeta === 'function' && typeof _findPortByIfName === 'function'){
+            for(const nb of (data.neighbors || [])){
+                const rem = _matchNodeByIdent(nb.remoteDevice, nb.remoteIP);
+                if(!rem || !nb.localPort) continue;
+                const meta = _ifNameMeta(nb.localPort);
+                if(!meta || meta.isMac) continue;               // port-id MAC → non abbinabile
+                let pManual = null, manualCount = 0;
+                for(const l of (store.state.links || [])){
+                    if(!l || l.autoLinked || !l.src || !l.dst) continue;
+                    const sN = _portNodeId(l.src), dN = _portNodeId(l.dst);
+                    let myPort = null;
+                    if(sN === n.id && dN === rem.id) myPort = l.src;
+                    else if(dN === n.id && sN === rem.id) myPort = l.dst;
+                    if(!myPort) continue;
+                    const pi = store.state.ports[myPort];
+                    if(!pi || !String(pi.ifName || '').trim()){ pManual = myPort; manualCount++; }
+                }
+                if(manualCount !== 1) continue;                 // 0 o >1 → ambiguo, non toccare
+                const posPid = _findPortByIfName(n.id, nb.localPort);
+                if(posPid === pManual) continue;                // gia' allineato
+                // Usa l'ifName in FORMA SNMP: applyPollResult confronta gli ifName per
+                // match ESATTO (lowercase), non con la normalizzazione vendor-neutral, quindi
+                // il nome BREVE LLDP ("Gi1/1") non combacerebbe con quello SNMP
+                // ("GigabitEthernet1/1"). La porta posizionale (posPid) ha gia' la forma
+                // SNMP giusta → la si sposta; senza posPid si ripiega sul nome LLDP.
+                const realIfName = (posPid && store.state.ports[posPid] && store.state.ports[posPid].ifName) || nb.localPort;
+                if(posPid && store.state.ports[posPid]){        // libera la porta posizionale
+                    const pp = store.state.ports[posPid];
+                    for(const k of ['ifName','mac','isTrunk','trunkVlans','lagId','lagIfIndex','speed']) delete pp[k];
+                }
+                if(!store.state.ports[pManual]) store.state.ports[pManual] = {};
+                store.state.ports[pManual].ifName = realIfName;   // backfill autorevole (forma SNMP)
+                diag.ifNameBackfills = (diag.ifNameBackfills || 0) + 1;
+            }
+        }
+
         // Layer 1+2: LLDP/CDP — usa i candidati già calcolati dal server se disponibili,
         // altrimenti esegue il matching client-side (fallback, comportamento precedente).
         if(Array.isArray(data.suggestedLinks) && data.suggestedLinks.length > 0){
