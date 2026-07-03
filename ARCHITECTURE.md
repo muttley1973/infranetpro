@@ -284,6 +284,19 @@ is VPN/LAN.
     `9.9.46`.) Manual-first means the documented VLAN still wins on the map; this only
     bounds what discovery can *observe*, and shows up as apparent VLAN drift on
     vios_l2 labs.
+- **Discovery engine — SNMP port mapping is now ifName-anchored (2026-07).** A live
+  **multivendor** PnetLab run (Cisco vIOS ×3, MikroTik RouterOS, VyOS and Ubuntu/net-snmp
+  + VPCS; two LACP bundles, four VLANs, L3-lite) confirmed recognition / HOST-RESOURCES /
+  LAG-trunk-VLAN reads, and surfaced a merge bug: `applyPollResult` mapped SNMP interfaces
+  to ports **positionally** (`${nodeId}-${idx+1}`), so on a **hand-documented** switch whose
+  port order didn't match the device's ifIndex order, a trunk/Port-channel member's data was
+  written onto a port where an endpoint was cabled → the endpoint got pulled into the LAG.
+  Now interfaces are matched **by ifName** (stable re-syncs with `snmp-server ifindex persist`),
+  a hand-cabled port without an ifName is **preserved** (never clobbered), and a genuine
+  endpoint-vs-trunk conflict is **surfaced** (`portReconcileConflicts` → amber panel warning),
+  not silenced. The LLDP-LAG naming was also fixed to pick the aggregator that actually
+  connects the peer (by `lagId`/trunk VLANs). `src/app-snmp.js`, `src/app-autolink.js`,
+  `src/app-properties-node.js`. The two limits above (ping-sweep, `vmVlan`) remain open.
 
 ---
 

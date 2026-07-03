@@ -141,7 +141,8 @@ function _renderNodeProps(panel){
             const _idConf = String(n.identityConfidence || '').trim();
             const _idLabel = _discIdentityLabel(_idSrc);
             const _hintVendor = String(n.vendorHint || '').trim();
-            const _showIdentity = !!(_idSrc || _hintVendor || n.possibleReplacement);
+            const _pReconcile = Array.isArray(n.portReconcileConflicts) ? n.portReconcileConflicts.length : 0;
+            const _showIdentity = !!(_idSrc || _hintVendor || n.possibleReplacement || _pReconcile);
             const _idColor = _idConf === 'high' ? '#39d353' : _idConf === 'mid' ? '#d29922' : '#8b949e';
             const _identityBlock = _showIdentity ? `<div style="margin:8px 0 12px;padding:8px 10px;background:color-mix(in srgb, var(--accent) 7%, transparent);border:1px solid color-mix(in srgb, var(--accent) 20%, transparent);border-radius:6px;display:flex;flex-direction:column;gap:5px;font-size:0.74rem">
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -151,6 +152,7 @@ function _renderNodeProps(panel){
                     ${_hintVendor ? `<span style="color:var(--text-muted);opacity:.5">|</span><span style="color:var(--text-muted)">${t('pnl.node.vendorHintMacOui')} <strong style="color:var(--text-main)">${escapeHTML(_hintVendor)}</strong></span>` : ''}
                 </div>
                 ${n.possibleReplacement ? `<div style="color:#d29922"><i class="fas fa-triangle-exclamation" style="margin-right:4px"></i>${t('pnl.node.possibleReplacement')}</div>` : ''}
+                ${_pReconcile ? `<div style="color:#d29922"><i class="fas fa-triangle-exclamation" style="margin-right:4px"></i>${t('pnl.node.portReconcile', {n:_pReconcile})}</div>` : ''}
             </div>` : '';
             // Sezioni del pannello accumulate in variabili separate per poter
             // controllare l'ordine finale (Device-specifico in alto, poi Rete &

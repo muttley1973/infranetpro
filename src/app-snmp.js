@@ -460,9 +460,51 @@ function applyPollResult(nodeId, data, opts={}){
         if(inv.serialNumber && !String(n.serialNumber || '').trim()) n.serialNumber = inv.serialNumber;
         if(inv.firmwareVer && !String(n.firmwareVer || '').trim()) n.firmwareVer = inv.firmwareVer;
     }
-    if(data.interfaces && data.interfaces.length>0) n.ports=data.interfaces.length;
+    // --- Mappatura interfaccia SNMP -> porta del nodo (MANUAL-FIRST) -----------
+    // Storicamente POSIZIONALE (idx -> `${nodeId}-${idx+1}`). Se il layout delle
+    // porte e' stato documentato A MANO con un ordine != ifIndex reale del device,
+    // la sync riscriveva gli attributi sulle porte sbagliate: un cavo verso un
+    // endpoint (PC/server) finiva su una porta trunk/LAG. Ora:
+    //   1) match per ifName quando la porta esiste gia' con quel nome -> ri-sync
+    //      stabile e corretto (richiede ifIndex stabili: `snmp-server ifindex persist`);
+    //   2) una porta cablata A MANO e SENZA ifName pregresso NON viene riscritta
+    //      posizionalmente -> si preserva la topologia manuale (l'SNMP arricchisce
+    //      solo le porte libere). Il flusso discovery-first (porte con ifName + cavi
+    //      auto) resta invariato: match per ifName, nessuna porta "protetta".
+    const _normIf = s => String(s || '').trim().toLowerCase();
+    const _ifPidMap = {};
+    const _manualPids = new Set();
+    for(const pid of Object.keys(store.state.ports)){
+        if(pid.slice(0, pid.lastIndexOf('-')) !== nodeId) continue;
+        const k = _normIf(store.state.ports[pid].ifName);
+        if(k && !_ifPidMap[k]) _ifPidMap[k] = pid;
+    }
+    for(const l of (store.state.links || [])){
+        if(!l || l.autoLinked) continue;
+        if(l.src && l.src.slice(0, l.src.lastIndexOf('-')) === nodeId) _manualPids.add(l.src);
+        if(l.dst && l.dst.slice(0, l.dst.lastIndexOf('-')) === nodeId) _manualPids.add(l.dst);
+    }
+    const _pidByIdx = [], _skipByIdx = [], _portConflicts = [];
+    (data.interfaces || []).forEach((iface, idx) => {
+        const k = _normIf(iface.name);
+        const byIf = k && _ifPidMap[k];
+        const pid = byIf || `${nodeId}-${idx+1}`;
+        _pidByIdx[idx] = pid;
+        // Salta SOLO una porta posizionale cablata a mano e senza ifName pregresso.
+        const skip = !byIf && _manualPids.has(pid) && !(store.state.ports[pid] && store.state.ports[pid].ifName);
+        _skipByIdx[idx] = skip;
+        // Conflitto REALE da segnalare (non silenziare!): la porta cablata a mano viene
+        // preservata, ma l'interfaccia SNMP che le corrisponderebbe risulta membro
+        // trunk/LAG -> "realta' != documento" (cavo spostato? porta riconfigurata?).
+        if(skip && (iface.isTrunk || (iface.lagId || 0) > 0)){
+            _portConflicts.push({ pid, ifName: String(iface.name || ''), trunk: !!iface.isTrunk, lagId: iface.lagId || 0 });
+        }
+    });
+
+    if(data.interfaces && data.interfaces.length>0) n.ports = Math.max(n.ports || 0, data.interfaces.length);
     (data.interfaces||[]).forEach((iface,idx)=>{
-        const pid=`${nodeId}-${idx+1}`;
+        if(_skipByIdx[idx]) return; // porta manuale preservata (manual-first)
+        const pid = _pidByIdx[idx];
         if(!store.state.ports[pid]) store.state.ports[pid]={};
         // Aggiorna i campi SNMP senza azzerare valori validi precedenti
         // quando una risposta parziale non include tutti gli OID.
@@ -482,7 +524,8 @@ function applyPollResult(nodeId, data, opts={}){
         if(lag.index > 0 && lag.name) _lagNameById[lag.index] = lag.name;
     }
     (data.interfaces||[]).forEach((iface,idx)=>{
-        const pid = `${nodeId}-${idx+1}`;
+        if(_skipByIdx[idx]) return; // porta manuale preservata: mai in snmp-lag
+        const pid = _pidByIdx[idx];
         const lid = iface.lagId||0;
         if(lid > 0){
             if(!_snmpLagMap[lid]) _snmpLagMap[lid] = `snmp-lag-${nodeId}-${lid}`;
@@ -543,6 +586,13 @@ function applyPollResult(nodeId, data, opts={}){
     }
     if(n.snmpStatus === 'err') n.snmpError  = data.error || t('pnl.sys.unknownError');
     else delete n.snmpError;
+    // Riconciliazione porte (manual-first): porte cablate a mano che l'SNMP vede
+    // come trunk/LAG -> avviso sul nodo (banner pannello). Aggiorna solo su poll
+    // riuscito, cosi' un fail non alza/abbassa il segnale a sproposito.
+    if(data.ok !== false){
+        if(_portConflicts.length) n.portReconcileConflicts = _portConflicts;
+        else delete n.portReconcileConflicts;
+    }
     // Stacking auto-detection (P7.3): se il device e' stackEligible (switch) e
     // non gia' in stack, analizza i pattern ifDescr/ifName cercando il pattern
     // `<M>/<S>/<P>` con M>=1 su >=2 valori distinti — indicatore tipico di

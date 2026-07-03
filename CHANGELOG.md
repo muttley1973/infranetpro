@@ -2,6 +2,17 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-03 — Discovery: SNMP ports mapped by ifName, plus a "reconcile" warning (from live multivendor validation)
+
+Built a multivendor PnetLab lab and ran Scopri + drift against it live — **Cisco vIOS ×3, MikroTik RouterOS, VyOS and Ubuntu/net-snmp**, plus VPCS endpoints; two LACP bundles, four VLANs, L3-lite gateways. Recognition, HOST-RESOURCES, and the LAG/trunk/VLAN reads all checked out — and the run surfaced two real merge bugs when SNMP is synced onto a **hand-documented** project. Both fixed manual-first, and the mismatch is now **surfaced, not silenced**.
+
+### Fixed
+- **SNMP interfaces are matched to ports by name, not by position** — `applyPollResult` mapped the *n*-th SNMP interface to the *n*-th port (`${nodeId}-${idx+1}`). If a switch was documented by hand with a port order that doesn't match the device's ifIndex order (e.g. an unused `Gi0/0` omitted, so everything shifts by one), the Sync wrote a trunk/Port-channel member's data onto the port where you had cabled a PC — and the endpoint ended up on a LAG. Now each SNMP interface is matched to an existing port by **`ifName`** (stable re-syncs with `snmp-server ifindex persist`), and a **hand-cabled port without an ifName is preserved**, never overwritten positionally. The discovery-first flow (ports created from SNMP, auto cables) is unchanged. `src/app-snmp.js` (+ tests). *Frontend: rebuild + hard-reload.*
+- **An auto-derived LAG is named after the bundle that actually connects the peer** — an LLDP-inferred LAG (`lldp-lag-…`) took the node's *first* Port-channel name, so a core switch with two bundles labelled the second one "Port-channel1". It now picks the aggregator that matches the bundle (by `lagId`, then by the trunk VLANs it carries). `src/app-autolink.js`. *Frontend: rebuild + hard-reload.*
+
+### Added
+- **A "port to reconcile" warning instead of silent preservation** — when a hand-cabled port is preserved but SNMP sees that position as a trunk/LAG member, InfraNet doesn't hide it: the node records `portReconcileConflicts` and the Properties panel shows an amber warning (*"N port(s) to reconcile: SNMP sees them as trunk/LAG but they're cabled to an endpoint — check the cabling or re-discover"*). It fires only on a genuine endpoint-vs-trunk conflict and clears itself once the conflict is gone. On re-syncs (ports carry an ifName), the existing drift report and LLDP topology crawl already flag a moved cable or a reconfigured port — this fix makes those signals trustworthy again. `src/app-snmp.js`, `src/app-properties-node.js`, `lib/i18n.js` (it/en). *Frontend: rebuild + hard-reload.*
+
 ## 2026-07-02 — Manual LAG entry restored in the port Properties panel
 
 The only way to start a manual LAG (LACP/bonding) used to live in the flying port popup, which the UI stopped opening a while ago — a port click now goes straight to the Properties panel. The action was left orphaned in that popup, so a LAG could no longer be created by hand. The entry now lives in the Properties panel, where the click actually lands.
