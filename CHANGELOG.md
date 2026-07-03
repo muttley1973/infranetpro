@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-03 — Discovery finds off-segment hosts from the switches' SNMP ARP table
+
+### Added
+- **The LLDP/CDP topology expansion now also proposes hosts seen in the switches' SNMP ARP table** — a device that speaks neither SNMP nor LLDP/CDP and lives on a subnet InfraNet can't reach directly (off-segment, e.g. a VPCS or a mute IoT) was invisible to discovery: ICMP was its only signal and a busy `/24` sweep on a rate-limited path loses it. The crawl now reads each reachable switch/router's `ipNetToMediaTable` (its ARP) and surfaces the hosts it has talked to — their IP+MAC (and therefore the OUI vendor) are known **without any ping**. It rides the existing **"Expand via LLDP/CDP"** option (no new toggle), is bounded to the **scanned subnet** to avoid dumping a core router's whole ARP (deduped, capped, no silent truncation), and shows the candidates as **observed / low-confidence / not pre-selected** with an "ARP (via *switch*)" badge — you choose whether to import them. If you've imported **DHCP leases**, a matching lease attaches the real hostname and raises confidence (seen in ARP *and* DHCP = a real host). Vendor-neutral (standard SNMP `ipNetToMediaTable`). Validated live: the lab VPCS the ping-sweep kept missing is now proposed from the core switch's ARP. `lib/correlate.js`, `server/routes/discovery.js`, `src/app-discovery.js`. *Frontend: rebuild + hard-reload.*
+
 ## 2026-07-03 — No false SNMPv3 label on a PC/VPCS, and a crawled device keeps its vendor
 
 Three discovery fixes from a full multivendor lab smoke test (a live Scan + Sync on PnetLab), each vendor-neutral.
