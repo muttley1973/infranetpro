@@ -12,7 +12,7 @@
   <a href="https://ko-fi.com/infranetpro"><img height="36" src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Support InfraNet Pro on Ko-fi"></a>
 </p>
 
-> 📰 **What's new:** see [CHANGELOG.md](CHANGELOG.md) — latest: **AI assistant (advisory, bring‑your‑own‑key)**, per‑VLAN IPAM occupancy, management‑VLAN role, DHCP lease import, REST API v1.
+> 📰 **What's new:** see [CHANGELOG.md](CHANGELOG.md) — latest: **multivendor discovery hardening** (ifName‑anchored SNMP port mapping, `vmVlan` access‑VLAN fallback, ping‑sweep retry, LLDP‑neighbour port alignment), AI assistant (advisory, bring‑your‑own‑key), per‑VLAN IPAM occupancy, DHCP lease import, REST API v1.
 
 > 🔒 **Security-audited & hardened.** The codebase has undergone an application-security audit (no critical issues) and the follow-up fixes are covered by **automated security regression tests**: the data surfaces (AI context, REST DTOs, exports) are **allowlist-only** so secrets never leave the machine, OS commands run via `execFile` with no shell, project IDs are path-traversal-safe, and secrets use a CSPRNG. See [Authentication & Roles → Security hardening & audit](#authentication--roles).
 
