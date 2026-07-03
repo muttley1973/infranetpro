@@ -2,6 +2,14 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-03 — Access VLAN read from `vmVlan` when the standard PVID is blank, and a manual VLAN is never clobbered by the default
+
+Two manual-first VLAN fixes, from the multivendor lab: some images (Cisco vIOS) don't expose the access VLAN through the standard Q-BRIDGE PVID, so access ports were read as VLAN 1 — and a later Sync would overwrite a hand-documented VLAN with that 1. Both are vendor-neutral.
+
+### Fixed
+- **The access VLAN is now read from CISCO-VLAN-MEMBERSHIP-MIB (`vmVlan`) when the standard PVID (`dot1qPvid`) doesn't carry it** — `vmVlan` is indexed by ifIndex and exposes the access VLAN on Cisco images where `dot1qPvid` stays 1. Standard-first: it's used only where the standard PVID is missing or 1, and only when it gives a real VLAN (>1). Vendor-neutral — on non-Cisco devices the `vmVlan` subtree is empty, so nothing changes. `drivers/snmp.js` (+ test).
+- **An SNMP read of VLAN 1 no longer overwrites a hand-documented non-default VLAN** — when a device can't tell InfraNet the real access VLAN and returns 1 (default/native, or simply not exposed over SNMP on that image), InfraNet keeps the VLAN you documented instead of silently changing it to 1. A real VLAN (>1) read from SNMP still updates the document. Any vendor. `src/app-snmp.js` (+ test).
+
 ## 2026-07-03 — Ghost-cable check ignores hand-cabled ports without an ifName
 
 The "ghost cable" audit (a documented cable whose port has been link-down for N consecutive syncs) also counted the status of hand-cabled ports. A manual port that a pre-fix positional Sync had stamped `inactive` — because it lined up with a down interface such as `Gi0/0` — then stayed that way (the ifName fix preserves manual ports, so the stale status was never corrected), and the streak kept climbing into a false ghost cable.
