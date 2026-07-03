@@ -268,22 +268,27 @@ is VPN/LAN.
   che resta sul ponte (`win.*`, ~1800 letture) sono funzioni non ancora ritirate
   (`selected`/`checked`/`_build*`).
 - **Commit only when asked.** Keep secrets and user data out of the repo.
-- **Discovery engine — two limits surfaced by live PnetLab validation (2026-07).**
-  - **The ping sweep trusts the `ping` exit code** (`netscan.js` → `_pingHost`). On
-    Windows, `ping` exits `0` even for a router's *"destination host unreachable"*
-    reply, so empty IPs **behind an L3 gateway** get counted as live hosts (the
-    gateway rate-limits the ICMP errors → a handful of scattered phantoms, not the
-    whole subnet). A real echo-reply must be required (`ttl=` / `bytes from`) **and**
-    unreachable replies excluded; the current text fallback (`'1 received'`) is
-    Linux-only, so on Windows the buggy exit-code path wins.
-  - **Access VLAN is read only from `dot1qPvid`** (`drivers/snmp.js`, Q-BRIDGE-MIB) —
-    no CISCO-VLAN-MEMBERSHIP-MIB (`vmVlan`, `9.9.68.1.2.2.1.2`) fallback. On Cisco
-    platforms that expose `vmVlan` but not `dot1qPvid`, access ports are reported as
-    VLAN 1. (Lab image `vios_l2` exposes **neither** → access VLANs are simply not
-    observable via SNMP there, while trunk VLANs come through fine via CISCO-VTP-MIB
-    `9.9.46`.) Manual-first means the documented VLAN still wins on the map; this only
-    bounds what discovery can *observe*, and shows up as apparent VLAN drift on
-    vios_l2 labs.
+- **Discovery engine — hardened by live multivendor PnetLab validation (2026-07).**
+  - **Access VLAN — `vmVlan` fallback + a manual-first guard (addressed).** The access VLAN
+    is now read from CISCO-VLAN-MEMBERSHIP-MIB (`vmVlan`, `9.9.68.1.2.2.1.2`, per ifIndex)
+    when Q-BRIDGE `dot1qPvid` doesn't carry it — standard-first (used only where PVID is
+    missing/1 and `vmVlan` > 1), vendor-neutral (empty subtree on non-Cisco → no effect).
+    And an SNMP read of VLAN 1 (default/native, or simply not exposed on an image) never
+    overwrites a hand-documented non-default VLAN (`_snmpVlanToUi` guard). `drivers/snmp.js`,
+    `src/app-snmp.js`. *(Lab image `vios_l2` exposes **neither** `dot1qPvid`-real **nor**
+    `vmVlan`, so on that lab the manual-first guard is what protects the documented VLAN; a
+    real Cisco IOS/NX-OS reads it correctly via `vmVlan`. Trunk VLANs come through fine via
+    CISCO-VTP-MIB `9.9.46`.)*
+  - **The ping-sweep retries** (default 2, `pingRetries` 1–4) so a host that drops the first
+    ICMP (a VPCS, a slow stack, ARP-warmup behind a gateway) isn't missed — a single ping was
+    a silent false-negative. Applies to the reachability audit too. `_pingHostRetry`,
+    `server/netscan.js`, `server/routes/discovery.js`.
+  - **Still open — the ping sweep trusts the `ping` exit code** (`_pingHost`). On Windows,
+    `ping` exits `0` even for a router's *"destination host unreachable"* reply, so empty IPs
+    **behind an L3 gateway** can be counted as live (the gateway rate-limits the ICMP errors
+    → a handful of scattered phantoms, not the whole subnet). A real echo-reply must be
+    required (`ttl=` / `bytes from`) **and** unreachable replies excluded; the text fallback
+    (`'1 received'`) is Linux-only, so on Windows the buggy exit-code path still wins.
 - **Discovery engine — SNMP port mapping is now ifName-anchored (2026-07).** A live
   **multivendor** PnetLab run (Cisco vIOS ×3, MikroTik RouterOS, VyOS and Ubuntu/net-snmp
   + VPCS; two LACP bundles, four VLANs, L3-lite) confirmed recognition / HOST-RESOURCES /
@@ -296,7 +301,15 @@ is VPN/LAN.
   endpoint-vs-trunk conflict is **surfaced** (`portReconcileConflicts` → amber panel warning),
   not silenced. The LLDP-LAG naming was also fixed to pick the aggregator that actually
   connects the peer (by `lagId`/trunk VLANs). `src/app-snmp.js`, `src/app-autolink.js`,
-  `src/app-properties-node.js`. The two limits above (ping-sweep, `vmVlan`) remain open.
+  `src/app-properties-node.js`. Follow-ups from a live re-test: the reconcile warning now
+  fires **only** on a genuine access-vs-trunk mismatch (not on hand-documented trunk members);
+  the ghost-cable *"port down for N syncs"* check **ignores hand-cabled ports without an
+  ifName** (their status is stale/mis-mappable, `src/app-drift.js`); and when a single manual
+  cable to a confirmed LLDP/CDP neighbor sits on a port without an ifName, the **real interface
+  name is backfilled** onto that documented port (in SNMP form) and freed from the positional
+  one it had landed on, so future syncs match it by ifName (`src/app-autolink.js`). Manual-first
+  and vendor-neutral throughout. The one discovery item still open is the ping-sweep **exit-code
+  false-positive** noted above.
 
 ---
 
