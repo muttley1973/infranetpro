@@ -123,7 +123,7 @@ async function runDiscovery(){
                 `<span class="tm-ok">${_dt('disc.phase1','Fase 1 - Scansionati {total} IP · {n} trovati',{total:data.total,n:`<strong>${found1}</strong>`})}</span>` +
                 `<span style="color:var(--text-muted);margin-left:10px">${_dt('disc.phase2','Fase 2: espansione topologia LLDP/CDP…')}</span>${baseSummary}`;
 
-            await _runCrawlPhase(store._discResults.filter(d=>d.snmpReachable).map(d=>d.ip), driver, community, timeout);
+            await _runCrawlPhase(store._discResults.filter(d=>d.snmpReachable).map(d=>d.ip), driver, community, timeout, subnet);
 
             const total = store._discResults.length;
             const newViaLldp = total - found1;
@@ -274,6 +274,8 @@ function _discUpdateDest(sel){
 }
 
 function _discSourceInfo(d){
+    // Candidato ARP-SNMP: badge dedicato (host visto nell'ARP di uno switch, non locale).
+    if(d?._via === 'arp') return { label:'ARP', cls:'arp', title:_dt('disc.tip.arpSnmp','Visto nell\'ARP SNMP di uno switch/router — host off-segment, non confermato via ping/SNMP diretto') };
     const srcList = Array.isArray(d?.sources) ? d.sources : Array.isArray(d?.discovery?.sources) ? d.discovery.sources : [];
     const first = srcList[0] || null;
     const reasonCodes = Array.isArray(d?.reasonCodes) ? d.reasonCodes : Array.isArray(d?.discovery?.reasonCodes) ? d.discovery.reasonCodes : [];
@@ -322,6 +324,9 @@ function _discSourceInfo(d){
 function _discReachabilityInfo(d){
     if(d?.snmpReachable || d?.pingReachable){
         return { label:'On', cls:'on', title:d?.snmpReachable ? _dt('disc.tip.onSnmp','Online confermato da SNMP') : _dt('disc.tip.onPing','Online confermato da ping') };
+    }
+    if(d?._via === 'arp'){
+        return { label:_dt('disc.reach.observed','Osservato'), cls:'seen', title:_dt('disc.tip.arpObserved','Host presente nell\'ARP di uno switch/router SNMP; ping/SNMP diretti non confermati') };
     }
     if(d?.alive){
         return { label:_dt('disc.reach.observed','Osservato'), cls:'seen', title:_dt('disc.tip.observed','Rilevato tramite servizio, web, NetBIOS/SMB o altra evidenza; ping/SNMP non confermati') };
@@ -498,7 +503,35 @@ function _discCrawlRow(device, protocol){
     };
 }
 
-async function _runCrawlPhase(seeds, driver, community, timeout){
+// Riga-risultato per un candidato "solo ARP": host visto nella ipNetToMediaTable
+// di uno switch/router SNMP ma muto a ping/SNMP/LLDP (VPCS, off-segment). Il
+// backend l'ha gia' decorato (vendor OUI, tipo, sorgenti); qui lo marchiamo
+// _via:'arp', teniamo snmpReachable/alive a false (osservato, NON pre-selezionato)
+// e lo RIFINIAMO con i lease DHCP gia' importati (store._dhcpLeases): se il MAC/IP
+// e' in un lease -> hostname reale + un filo di confidenza in piu' (visto in ARP E
+// in DHCP = host vero, non voce ARP stantia). Puro, testabile.
+function _discArpRow(device){
+    const d = device || {};
+    const row = { ...d, _via:'arp', snmpReachable:false, alive:false };
+    const leases = Array.isArray(store._dhcpLeases) ? store._dhcpLeases : [];
+    if(leases.length){
+        const mac = String(row.mac||'').toLowerCase();
+        const ip  = String(row.ip||'');
+        const hit = leases.find(l => (mac && String(l.mac||'').toLowerCase()===mac) || (ip && String(l.ip||'')===ip));
+        if(hit){
+            if(!row.hostname && hit.hostname) row.hostname = hit.hostname;
+            row._dhcpMatched = true;
+            if(row.confidence && Number.isFinite(row.confidence.score)){
+                const score = Math.min(100, row.confidence.score + 15);
+                row.confidence = { score, level: score>=70?'high':score>=35?'mid':'low' };
+            }
+            row.reasonCodes = [...(Array.isArray(row.reasonCodes)?row.reasonCodes:[]), 'dhcp-lease'];
+        }
+    }
+    return _discEnsureMeta(row);
+}
+
+async function _runCrawlPhase(seeds, driver, community, timeout, scanCidr){
     if(!seeds.length) return;
     const knownIps = new Set(seeds);
     let crawlAbort = null;
@@ -509,7 +542,7 @@ async function _runCrawlPhase(seeds, driver, community, timeout){
 
         const resp = await fetch('/api/discover/topology',{
             method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({ seeds, driver, community, timeout, maxDepth:5 }),
+            body: JSON.stringify({ seeds, driver, community, timeout, maxDepth:5, scanCidr }),
             signal: crawlAbort.signal,
         });
         if(!resp.ok || !resp.headers.get('content-type')?.includes('text/event-stream')) return;
@@ -529,6 +562,11 @@ async function _runCrawlPhase(seeds, driver, community, timeout){
                 if(evt.type==='found' && !knownIps.has(evt.device.ip)){
                     knownIps.add(evt.device.ip);
                     store._discResults.push(_discEnsureMeta(_discCrawlRow(evt.device, evt.protocol)));
+                    _discRenderTable();
+                } else if(evt.type==='arp' && evt.device && !knownIps.has(evt.device.ip)){
+                    // Candidato off-segment dalla ARP-SNMP di uno switch (no ping/SNMP diretto).
+                    knownIps.add(evt.device.ip);
+                    store._discResults.push(_discArpRow(evt.device));
                     _discRenderTable();
                 }
             }
@@ -841,5 +879,5 @@ async function importDiscovered(){
 expose({
     openDiscovery, closeDiscovery, _closeDiscoveryOverlayClick, runDiscovery,
     discSelectAll, importDiscovered, _discOnRowToggle, _discOnTypeChange,
-    _discExistingNode, _discRenderTable, _discCrawlRow,
+    _discExistingNode, _discRenderTable, _discCrawlRow, _discArpRow,
 });
