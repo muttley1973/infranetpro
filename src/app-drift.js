@@ -71,6 +71,12 @@ function _driftUpdateStreaks(docSnap){
         const n = nodeById(nodeId);   // importato da app.js (guardia win.* ridondante rimossa)
         if(!n || n.snmpStatus !== 'ok') continue;           // device muto → non valutabile, non toccare
         const pi = state.ports[pid]; if(!pi) continue;
+        // Solo le porte SNMP-mappate (con ifName) hanno uno stato affidabile per-porta.
+        // Una porta cablata A MANO senza ifName NON e' verificabile per-porta (stesso
+        // principio dello skip manual-first in applyPollResult): il suo `status` puo'
+        // essere stantio o mis-mappato da un vecchio sync posizionale → NON deve
+        // alimentare il "cavo fantasma" (falsi allarmi). Streak azzerato e saltato.
+        if(!pi.ifName){ if(pi.downStreak) pi.downStreak = 0; continue; }
         if(pi.status === 'active') pi.downStreak = 0;
         else pi.downStreak = (pi.downStreak || 0) + 1;
     }

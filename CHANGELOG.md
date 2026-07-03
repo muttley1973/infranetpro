@@ -2,6 +2,13 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-03 — Ghost-cable check ignores hand-cabled ports without an ifName
+
+The "ghost cable" audit (a documented cable whose port has been link-down for N consecutive syncs) also counted the status of hand-cabled ports. A manual port that a pre-fix positional Sync had stamped `inactive` — because it lined up with a down interface such as `Gi0/0` — then stayed that way (the ifName fix preserves manual ports, so the stale status was never corrected), and the streak kept climbing into a false ghost cable.
+
+### Fixed
+- **A hand-cabled port without an ifName no longer feeds the "ghost cable" streak** — only SNMP-mapped ports (with an ifName) have a reliable per-port status; a manual port's status can be stale or mis-mapped by an old positional sync, so it must not accumulate a down-streak (the same manual-first principle as the port-skip in `applyPollResult`). Ghost-cable detection stays fully active for ifName-mapped ports, where the status is authoritative. Validated live: three false ghost cables (two LAG members and a server link, all on manual ports that positionally hit a down `Gi0/0`) dropped to zero. `src/app-drift.js` (+ test). *Frontend: rebuild + hard-reload.*
+
 ## 2026-07-03 — Reconcile warning only fires on a genuine access-vs-trunk mismatch
 
 Follow-up to the port-reconcile warning, from live re-validation on the multivendor lab: on a fully hand-documented switch it also fired on the manual LAG members (which are legitimately trunks), diluting the signal. Now it fires only where the document and reality actually disagree.
