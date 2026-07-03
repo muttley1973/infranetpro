@@ -37,12 +37,13 @@
 }
 
 /* ---- HEADER: un filo più alto, separatore hairline ---- */
-/* NIENTE backdrop-filter qui: i modali (#user-manager-overlay, #modal-overlay,
-   #disc-overlay...) sono figli DOM di <header>, e un backdrop-filter/transform/
-   filter sull'header lo renderebbe il BLOCCO CONTENITORE dei discendenti
-   position:fixed -> l'overlay si ancorerebbe al box dell'header (56px) invece che
-   al viewport e il modale verrebbe TAGLIATO in alto. Sfondo opaco: nel flex-column
-   non c'e' nulla dietro l'header da sfocare, quindi il vetro non serviva. */
+/* I modali NON sono piu' figli di <header>: spostati in #modal-root a fine <body>
+   (2026-07-03, netmapper.html). Prima erano figli DOM dell'header, quindi un
+   backdrop-filter/transform/filter qui lo rendeva il BLOCCO CONTENITORE dei
+   discendenti position:fixed -> gli overlay si ancoravano al box header (56px)
+   invece che al viewport -> modali TAGLIATI in alto. Ora l'header e' "libero":
+   un effetto qui non taglia piu' nessun overlay. Per ora resta piatto (sfondo
+   opaco); il vetro si puo' riabilitare in sicurezza se lo si desidera. */
 header {
     height: 56px;
     background: #10151c;
