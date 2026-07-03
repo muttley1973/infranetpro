@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-03 — A documented port is aligned to its real interface name using the LLDP/CDP neighbor
+
+### Added
+- **When a documented cable's neighbor is confirmed by LLDP/CDP on a real interface, that interface name is backfilled onto your hand-numbered port** — you number ports your own way (a router on "port 5"), but the device reports that neighbor on, say, `GigabitEthernet1/1`, and the SNMP poll had put that name on a positional free port instead. Now, when there is a single manual cable to the neighbor on a port without an ifName, the real interface name (in its SNMP form) is moved onto the documented port and freed from the positional one. From then on every Sync matches that port by name, so its live status becomes authoritative — which is what stops the stale-status and false "ghost cable" symptoms at the source. Manual-first: it only fills an empty ifName, only on an unambiguous single cable confirmed by LLDP/CDP, and never touches the topology or your documented VLAN. Vendor-neutral: cross-vendor interface-name normalization + standard LLDP/CDP, no device- or lab-specific assumptions. `src/app-autolink.js` (+ test).
+
 ## 2026-07-03 — Access VLAN read from `vmVlan` when the standard PVID is blank, and a manual VLAN is never clobbered by the default
 
 Two manual-first VLAN fixes, from the multivendor lab: some images (Cisco vIOS) don't expose the access VLAN through the standard Q-BRIDGE PVID, so access ports were read as VLAN 1 — and a later Sync would overwrite a hand-documented VLAN with that 1. Both are vendor-neutral.
