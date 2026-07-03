@@ -481,6 +481,23 @@ function _discRenderTable(){
     _discUpdateImportBtn();
 }
 
+// Riga-risultato per un device scoperto via CRAWL LLDP/CDP. Preserva i campi GIA'
+// risolti dal backend (vendor da sysObjectID, hostname, deviceClass, objectId...) e
+// mette a default SOLO i campi realmente assenti. Il BUG storico era `vendor:''`
+// (e `mac:''`) messi DOPO lo spread `...device`: azzeravano il vendor gia' dedotto
+// dal backend (es. Cisco da PEN 9) su OGNI vicino LLDP/CDP → colonna Vendor "—".
+// Puro e testabile (nessun IO/DOM); il chiamante lo passa a _discEnsureMeta.
+function _discCrawlRow(device, protocol){
+    const d = device || {};
+    return {
+        ...d, _via:'lldp',
+        viaProtocol: d.viaProtocol || protocol || '',
+        alive:true, status:'On', snmpReachable:true,
+        mac: d.mac || '', vendor: d.vendor || '',
+        httpTitle: d.httpTitle || '', httpsTitle: d.httpsTitle || '',
+    };
+}
+
 async function _runCrawlPhase(seeds, driver, community, timeout){
     if(!seeds.length) return;
     const knownIps = new Set(seeds);
@@ -511,11 +528,7 @@ async function _runCrawlPhase(seeds, driver, community, timeout){
                 let evt; try{ evt=JSON.parse(line.slice(6)); }catch(_){ continue; }
                 if(evt.type==='found' && !knownIps.has(evt.device.ip)){
                     knownIps.add(evt.device.ip);
-                    store._discResults.push(_discEnsureMeta({
-                        ...evt.device, _via:'lldp',
-                        viaProtocol: evt.device.viaProtocol || evt.protocol || '',
-                        alive:true, status:'On', snmpReachable:true, mac:'', vendor:'', httpTitle:'', httpsTitle:''
-                    }));
+                    store._discResults.push(_discEnsureMeta(_discCrawlRow(evt.device, evt.protocol)));
                     _discRenderTable();
                 }
             }
@@ -828,5 +841,5 @@ async function importDiscovered(){
 expose({
     openDiscovery, closeDiscovery, _closeDiscoveryOverlayClick, runDiscovery,
     discSelectAll, importDiscovered, _discOnRowToggle, _discOnTypeChange,
-    _discExistingNode, _discRenderTable,
+    _discExistingNode, _discRenderTable, _discCrawlRow,
 });
