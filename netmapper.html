@@ -88,6 +88,392 @@
 <!-- Tooltip topologia (compare vicino al cursore al hover sulle linee) -->
 <div id="topo-tip" onmouseenter="clearTimeout(_topoTipTimer)" onmouseleave="_hideTopoTip()"></div>
 
+<input type="file" id="map-upload"  accept="image/*,.svg" onchange="handleMapUpload(this)">
+    <input type="file" id="json-upload" accept=".json"        onchange="importJSON(this)">
+    <div class="header-right">
+        <button class="toolbar-btn" id="btn-discover" onclick="openDiscovery()"
+                data-i18n-tip="discover.tip"
+                data-tip="Scansiona la rete via SNMP, poi espande automaticamente via LLDP/CDP">
+            <i class="fas fa-satellite-dish"></i><span class="btn-label" data-i18n="discover.label"> Scopri</span>
+        </button>
+        <span style="width:1px;height:18px;background:var(--panel-border);opacity:.5;flex-shrink:0;align-self:center"></span>
+        <button class="toolbar-btn" id="btn-snmp-sync" onclick="pollAllSNMP()"
+                data-i18n-tip="sync.tip"
+                data-tip="Aggiorna porte, VLAN, stato e topologia da tutti i dispositivi SNMP del progetto">
+            <span id="snmp-sync-label"><i class="fas fa-network-wired"></i> Sync</span><span id="sync-fresh-badge" class="sync-fresh-badge" style="display:none"></span>
+        </button>
+        <button class="toolbar-btn primary" id="btn-drift" onclick="runDriftCheck()"
+                data-i18n-tip="verify.tip"
+                data-tip="Controllo del mattino: esegue il Sync e verifica la presenza reale (ping/ARP/TCP), evidenziando differenze e cambi IP">
+            <i class="fas fa-clipboard-check"></i><span class="btn-label" data-i18n="verify.label"> Verifica</span>
+        </button>
+        <div id="report-menu-wrap" style="position:relative">
+            <button class="toolbar-btn icon-only" id="btn-report" onclick="toggleReportMenu()" data-i18n-tip="report.tip" data-tip="Report e analisi: storia modifiche, porte libere, mappa L3, coerenza VLAN">
+                <i class="fas fa-chart-column"></i><span class="btn-label" data-i18n="report.label"> Report</span><i class="fas fa-chevron-down" style="font-size:0.6rem;margin-left:4px;opacity:.6"></i>
+            </button>
+            <div id="report-dropdown" class="header-menu-dropdown" style="display:none">
+                <button class="header-menu-item" id="btn-audit" onclick="openAuditLog();closeReportMenu()">
+                    <i class="fas fa-clock-rotate-left"></i> <span data-i18n="report.audit">Storia modifiche</span>
+                </button>
+                <button class="header-menu-item" id="btn-spare" onclick="openSpareReport();closeReportMenu()">
+                    <i class="fas fa-plug-circle-plus"></i> <span data-i18n="report.spare">Porte libere</span>
+                </button>
+                <button class="header-menu-item" id="btn-l3" onclick="openL3Report()">
+                    <i class="fas fa-route"></i> <span data-i18n="report.l3">Mappa L3 / Gateway</span>
+                </button>
+                <button class="header-menu-item" id="btn-wifivlan" onclick="openWifiVlanReport();closeReportMenu()">
+                    <i class="fas fa-wifi"></i> <span data-i18n="report.wifiVlan">Coerenza VLAN wireless</span>
+                </button>
+            </div>
+        </div>
+        <button class="toolbar-btn icon-only" id="btn-assistant" onclick="openAssistantOrSettings()"
+                data-i18n-tip="assistant.toolbarTip" data-tip="Impostazioni assistente (admin) · la chat si apre dalla tab «Assistente» o col tasto A">
+            <i class="fas fa-robot"></i><span class="btn-label" data-i18n="assistant.label"> Assistente</span>
+        </button>
+        <span style="width:1px;height:18px;background:var(--panel-border);opacity:.5;flex-shrink:0;align-self:center"></span>
+        <div id="automation-menu-wrap" style="position:relative">
+            <button class="toolbar-btn icon-only" id="btn-automation" onclick="toggleAutomationMenu()" data-i18n-tip="autom.tip" data-tip="Automazioni di rete: polling SNMP in background e rinnovo automatico IP (DHCP)">
+                <i class="fas fa-gear"></i><span class="btn-label" data-i18n="autom.label"> Automazioni</span><i class="fas fa-chevron-down" style="font-size:0.6rem;margin-left:4px;opacity:.6"></i>
+            </button>
+            <div id="automation-dropdown" class="header-menu-dropdown autom-pop" style="display:none"></div>
+        </div>
+        <div id="status-cluster" class="status-cluster">
+            <button class="status-chip s-warn" id="v3-pending-chip" onclick="_v3JumpNext()" data-tip="Device SNMPv3 da configurare — clic per saltare al prossimo"></button>
+            <button class="status-chip s-info" id="spare-active-badge" onclick="setSpareHighlight(false)" data-i18n-tip="spare.badgeTip" data-tip="Porte libere evidenziate nel rack — clicca per spegnere">
+                <i class="fas fa-plug-circle-plus"></i><span data-i18n="report.spare">Porte libere</span><i class="fas fa-times chip-x"></i>
+            </button>
+            <button class="status-chip s-ok" id="autopoll-badge" onclick="toggleAutomationMenu()" data-i18n-tip="autopoll.tip" data-tip="Polling automatico attivo — clic per le automazioni"></button>
+            <button class="status-chip s-info" id="vlan-filter-badge" onclick="setVlanFilter(null)" data-i18n-tip="vlanfilter.tip" data-tip="Filtro VLAN attivo — clicca per rimuovere">
+                <i class="fas fa-filter"></i><span></span><i class="fas fa-times chip-x"></i>
+            </button>
+        </div>
+        <div class="header-sep"></div>
+        <!-- Badge utente + menu (la lingua vive dentro questo menu) -->
+        <div id="user-menu-wrap" style="position:relative">
+            <button class="toolbar-btn" id="btn-user" onclick="toggleUserMenu()" data-i18n-tip="user.tipAccount" data-tip="Account">
+                <i class="fas fa-user-circle"></i>
+                <span id="user-label" style="margin-left:5px;font-size:0.8rem">…</span>
+                <i class="fas fa-chevron-down" style="font-size:0.65rem;margin-left:4px;opacity:.6"></i>
+            </button>
+            <div id="user-dropdown" style="display:none;position:absolute;right:0;top:calc(100% + 6px);background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:8px;min-width:180px;z-index:500;box-shadow:0 8px 24px rgba(0,0,0,.5);padding:6px 0;">
+                <div id="user-info-row" style="padding:8px 14px 6px;font-size:0.85rem;color:var(--text-muted);border-bottom:1px solid var(--panel-border);margin-bottom:4px;"></div>
+                <button class="user-menu-item admin-only" onclick="openUserManager();closeUserMenu()">
+                    <i class="fas fa-shield-halved"></i> <span data-i18n="user.manage">Utenti e accessi</span>
+                </button>
+                <button class="user-menu-item admin-only" onclick="openChangePassword();closeUserMenu()">
+                    <i class="fas fa-key"></i> <span data-i18n="user.changePw">Cambia password</span>
+                </button>
+                <button class="user-menu-item viewer-ok" onclick="openChangePassword();closeUserMenu()" style="display:none">
+                    <i class="fas fa-key"></i> <span data-i18n="user.changePw">Cambia password</span>
+                </button>
+                <div style="border-top:1px solid var(--panel-border);margin:4px 0"></div>
+                <div class="user-menu-lang">
+                    <span style="font-size:0.85rem;color:var(--text-muted)"><i class="fas fa-language" style="margin-right:6px;opacity:.8"></i><span data-i18n="user.language">Lingua</span></span>
+                    <span class="lang-opts">
+                        <button class="lang-opt" data-lang="it" onclick="switchLang('it')">IT</button>
+                        <button class="lang-opt" data-lang="en" onclick="switchLang('en')">EN</button>
+                    </span>
+                </div>
+                <div style="border-top:1px solid var(--panel-border);margin:4px 0"></div>
+                <button class="user-menu-item" onclick="doLogout()" style="color:#f85149">
+                    <i class="fas fa-sign-out-alt"></i> <span data-i18n="user.logout">Esci</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</header>
+
+<!-- Sotto-header: breadcrumb (sx) - suggerimento prossimo-passo (centro) -
+     statistiche progetto (dx). Contenuto reso da src/app-subbar.js (renderSubbar,
+     agganciato a renderAll). Fuori da #export-area -> non entra negli export. -->
+<div id="modern-subbar" aria-live="polite"></div>
+
+<div id="workspace">
+    <div id="export-area">
+        <aside id="sidebar-left">
+            <div class="sidebar-section" style="flex:1;overflow-y:auto">
+                <div class="sidebar-palette-head">
+                    <h3 class="sidebar-title" data-i18n="palette.title">Libreria elementi</h3>
+                    <div class="sidebar-palette-actions">
+                        <button type="button" class="sidebar-mini-btn" onclick="setPaletteGroupsExpanded(true)" data-i18n-tip="palette.expandAll" data-tip="Espandi tutte le sezioni"><i class="fas fa-angles-down"></i></button>
+                        <button type="button" class="sidebar-mini-btn" onclick="setPaletteGroupsExpanded(false)" data-i18n-tip="palette.collapseAll" data-tip="Comprimi tutte le sezioni"><i class="fas fa-angles-up"></i></button>
+                    </div>
+                </div>
+                <div class="sidebar-search-wrap">
+                    <i class="fas fa-magnifying-glass"></i>
+                    <input id="palette-search" type="text" data-i18n-ph="palette.search" placeholder="Cerca elemento..." oninput="filterPaletteItems(this.value)">
+                    <button id="palette-search-clear" type="button" class="sidebar-search-clear" onclick="clearPaletteFilter()" data-i18n-tip="palette.clearSearch" data-tip="Pulisci ricerca">
+                        <i class="fas fa-xmark"></i>
+                    </button>
+                </div>
+
+                <section class="palette-group" data-palette-group="ambienti">
+                    <button type="button" class="palette-group-head" onclick="togglePaletteGroup('ambienti')" aria-expanded="true">
+                        <span><i class="far fa-square"></i> <span data-i18n="pgroup.ambienti">Ambienti</span></span>
+                        <i class="fas fa-chevron-down palette-group-chevron"></i>
+                    </button>
+                    <div class="palette-group-body">
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="room"><i class="far fa-square"></i> <span data-i18n="dev.room">Stanza / Area</span></div>
+                    </div>
+                </section>
+
+                <section class="palette-group" data-palette-group="floor_net">
+                    <button type="button" class="palette-group-head" onclick="togglePaletteGroup('floor_net')" aria-expanded="true">
+                        <span><i class="fas fa-diagram-project"></i> <span data-i18n="pgroup.floor_net">Planimetria · Rete</span></span>
+                        <i class="fas fa-chevron-down palette-group-chevron"></i>
+                    </button>
+                    <div class="palette-group-body">
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="wallport"><i class="fas fa-ethernet"></i> <span data-i18n="dev.wallport">Presa a muro</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="ap"><i class="fas fa-wifi"></i> <span data-i18n="dev.ap">Access Point</span></div>
+                    </div>
+                </section>
+
+                <section class="palette-group" data-palette-group="floor_endpoints">
+                    <button type="button" class="palette-group-head" onclick="togglePaletteGroup('floor_endpoints')" aria-expanded="true">
+                        <span><i class="fas fa-laptop"></i> <span data-i18n="pgroup.floor_endpoints">Planimetria · Endpoint</span></span>
+                        <i class="fas fa-chevron-down palette-group-chevron"></i>
+                    </button>
+                    <div class="palette-group-body">
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="webcam"><i class="fas fa-video"></i> <span data-i18n="dev.webcam">Webcam / CCTV</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="printer"><i class="fas fa-print"></i> <span data-i18n="dev.printer">Stampante di rete</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="voip"><i class="fas fa-phone"></i> <span data-i18n="dev.voip">Telefono VoIP</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="badgereader"><i class="fas fa-id-card"></i> <span data-i18n="dev.badgereader">Lettore badge</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="pc"><i class="fas fa-desktop"></i> <span data-i18n="dev.pc">PC / Workstation</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="mobile"><i class="fas fa-mobile-screen-button"></i> <span data-i18n="dev.mobile">Smartphone / Tablet</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="iot"><i class="fas fa-microchip"></i> <span data-i18n="dev.iot">Dispositivo IoT</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="projector"><i class="fas fa-chalkboard"></i> <span data-i18n="dev.projector">Proiettore</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="tv"><i class="fas fa-tv"></i> <span data-i18n="dev.tv">Smart TV / Media Player</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="doorctrl"><i class="fas fa-door-open"></i> <span data-i18n="dev.doorctrl">Door Controller</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="panelboard"><i class="fas fa-bolt"></i> <span data-i18n="dev.panelboard">Quadro elettrico</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="homelab"><i class="fas fa-cubes"></i> <span data-i18n="dev.homelab">Mini-server</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="nasdesktop"><i class="fas fa-hard-drive"></i> <span data-i18n="dev.nasdesktop">NAS (desktop)</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="customfloor"><i class="fas fa-cube"></i> <span data-i18n="dev.customfloor">Endpoint personalizzato</span></div>
+                    </div>
+                </section>
+
+                <section class="palette-group" data-palette-group="rack_passive">
+                    <button type="button" class="palette-group-head" onclick="togglePaletteGroup('rack_passive')" aria-expanded="true">
+                        <span><i class="fas fa-layer-group"></i> <span data-i18n="pgroup.rack_passive">Rack · Passivi</span></span>
+                        <i class="fas fa-chevron-down palette-group-chevron"></i>
+                    </button>
+                    <div class="palette-group-body">
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="patchpanel"><i class="fas fa-bars"></i> <span data-i18n="dev.patchpanel">Patch Panel (2U)</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="blankpanel"><i class="fas fa-minus"></i> <span data-i18n="dev.blankpanel">Pannello vuoto (1U)</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="cablemanager"><i class="fas fa-grip-lines"></i> <span data-i18n="dev.cablemanager">Passacavo (1U)</span></div>
+                    </div>
+                </section>
+
+                <section class="palette-group" data-palette-group="rack_active">
+                    <button type="button" class="palette-group-head" onclick="togglePaletteGroup('rack_active')" aria-expanded="true">
+                        <span><i class="fas fa-server"></i> <span data-i18n="pgroup.rack_active">Rack · Attivi</span></span>
+                        <i class="fas fa-chevron-down palette-group-chevron"></i>
+                    </button>
+                    <div class="palette-group-body">
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="switch"><i class="fas fa-network-wired"></i> <span data-i18n="dev.switch">Switch</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="router"><i class="fas fa-route"></i> <span data-i18n="dev.router">Router</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="firewall"><i class="fas fa-shield-halved"></i> <span data-i18n="dev.firewall">Firewall</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="server"><i class="fas fa-server"></i> <span data-i18n="dev.server">Server</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="hypervisor"><i class="fas fa-layer-group"></i> <span data-i18n="dev.hypervisor">Hypervisor</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="nas"><i class="fas fa-database"></i> <span data-i18n="dev.nas">Storage (SAN / RAID)</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="kvm"><i class="fas fa-keyboard"></i> <span data-i18n="dev.kvm">KVM Switch</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="ups"><i class="fas fa-car-battery"></i> <span data-i18n="dev.ups">UPS</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="pdu"><i class="fas fa-plug"></i> <span data-i18n="dev.pdu">PDU</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="ats"><i class="fas fa-shuffle"></i> <span data-i18n="dev.ats">ATS — Transfer Switch</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="pbx"><i class="fas fa-phone-volume"></i> <span data-i18n="dev.pbx">Centralino VoIP</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="consolesvr"><i class="fas fa-terminal"></i> <span data-i18n="dev.consolesvr">Console Server</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="wlanctrl"><i class="fas fa-wifi"></i> <span data-i18n="dev.wlanctrl">WLAN Controller</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="mediaconv"><i class="fas fa-right-left"></i> <span data-i18n="dev.mediaconv">Media Converter</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="nvr"><i class="fas fa-record-vinyl"></i> <span data-i18n="dev.nvr">NVR / Videosorveglianza (2U)</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="sdwan"><i class="fas fa-cloud-bolt"></i> <span data-i18n="dev.sdwan">SD-WAN Edge</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="vpncon"><i class="fas fa-key"></i> <span data-i18n="dev.vpncon">VPN Concentrator</span></div>
+                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="customrack"><i class="fas fa-cube"></i> <span data-i18n="dev.customrack">Dispositivo rack generico</span></div>
+                    </div>
+                </section>
+            </div>
+        </aside>
+
+        <div id="sidebar-divider" data-tip="Trascina per ridimensionare · Clic per nascondere/mostrare palette">
+            <div id="sidebar-collapse-btn" onclick="toggleSidebarPanel()" data-tip="Nascondi/mostra palette">
+                <i class="fas fa-chevron-left" id="sidebar-collapse-icon"></i>
+            </div>
+        </div>
+
+        <main id="floorplan" ondragover="event.preventDefault();" ondrop="handleDrop(event,'floor')" onwheel="handleFloorZoom(event)">
+            <div class="zoom-controls" style="left:14px;right:auto">
+                <button class="zoom-btn" onclick="zoomFloor(-0.1)"><i class="fas fa-minus"></i></button>
+                <span class="zoom-label" id="floor-zoom-lbl">100%</span>
+                <button class="zoom-btn" onclick="zoomFloor(0.1)"><i class="fas fa-plus"></i></button>
+            </div>
+            <div id="floor-canvas">
+                <img id="floor-bg-img" src="" alt="mappa">
+                <div id="floorplan-grid"></div>
+                <div id="floor-structures"></div>
+                <div id="floor-items"></div>
+                <svg id="topo-floor-overlay" xmlns="http://www.w3.org/2000/svg"></svg>
+            </div>
+            <!-- Barra controlli-vista mappa: posizionata DIRETTAMENTE in #floorplan
+                 (viewport fissa) e NON in #floor-canvas (zoomato/trascinato).
+                 Raccoglie i controlli "come guardo la mappa": il toggle Topologia
+                 (#btn-topology, stato gestito da _setTopoBtn) e, separato da |, il
+                 Filtra VLAN (#topo-legend, contenuto da _renderTopoLegend). -->
+            <div id="map-view-bar">
+                <div id="topo-legend"></div>
+                <span id="map-view-sep"></span>
+                <button class="toolbar-btn" id="btn-topology" onclick="toggleTopology()" oncontextmenu="event.preventDefault();discoverTopology(true)"
+                        data-i18n-tip="topology.tip"
+                        data-tip="Vista: mostra i collegamenti LLDP/CDP sulla planimetria · tasto destro per aggiornare">
+                    <i class="fas fa-project-diagram"></i><span class="btn-label" data-i18n="topology.label"> Topologia</span>
+                </button>
+            </div>
+        </main>
+
+        <div id="floor-rack-divider" data-tip="Trascina per ridimensionare · Clic per nascondere/mostrare rack">
+            <div id="rack-collapse-btn" onclick="toggleRackPanel()" data-tip="Nascondi/mostra rack">
+                <i class="fas fa-chevron-right" id="rack-collapse-icon"></i>
+            </div>
+        </div>
+
+        <aside id="rack-view" ondragover="event.preventDefault();" ondrop="handleDrop(event,'rack')">
+            <!-- Tab bar: Rack / Proprietà / Assistente -->
+            <div id="right-tab-bar" role="tablist" data-i18n-aria="tab.barAria" aria-label="Pannello destro">
+                <div class="right-tab active" id="tab-rack" role="tab" aria-selected="true" aria-controls="rack-viewport" tabindex="0" onclick="switchRightTab('rack')">
+                    <i class="fas fa-server" style="font-size:0.75rem"></i> <span data-i18n="tab.rack">Rack</span>
+                </div>
+                <div class="right-tab" id="tab-props" role="tab" aria-selected="false" aria-controls="props-panel-wrap" tabindex="0" onclick="switchRightTab('props')">
+                    <i class="fas fa-sliders" style="font-size:0.75rem"></i> <span data-i18n="tab.props">Proprietà</span>
+                    <span class="tab-badge" id="props-tab-badge"></span>
+                </div>
+                <div class="right-tab" id="tab-ai" role="tab" aria-selected="false" aria-controls="ai-panel-wrap" tabindex="0" onclick="switchRightTab('ai')"
+                     data-i18n-tip="assistant.tabTip" data-tip="Assistente di rete — domande, diagnosi e bozze · scorciatoia: A">
+                    <i class="fas fa-robot" style="font-size:0.75rem"></i> <span data-i18n="tab.ai">Assistente</span>
+                    <span class="tab-badge" id="ai-tab-badge"></span>
+                </div>
+            </div>
+
+            <!-- Pannello Proprietà (nascosto di default) -->
+            <div id="props-panel-wrap">
+                <div id="props-panel"><p style="color:var(--text-muted);font-size:0.82rem">Seleziona un elemento per modificarne le proprietà.</p></div>
+            </div>
+
+            <!-- Pannello Assistente AI (nascosto di default). Due stati gestiti da
+                 app-ai.js: #ai-empty (non configurato, statico bilingue + ruolo via
+                 .admin-only/.viewer-ok) e #ai-chat (configurato → composer chat).
+                 La conversazione vive in sessione browser (project-global), non nel JSON. -->
+            <div id="ai-panel-wrap" role="tabpanel" aria-labelledby="tab-ai" data-i18n-aria="tab.ai" aria-label="Assistente">
+                <div id="ai-panel">
+                    <!-- Stato: NON configurato -->
+                    <div id="ai-empty">
+                        <div class="ai-head">
+                            <span class="ai-head-title"><i class="fas fa-robot"></i> <span data-i18n="assistant.title">Assistente</span></span>
+                            <span class="ai-chip ai-chip-off" data-i18n-tip="assistant.chipOffTip" data-tip="L'assistente non è ancora configurato"><i class="fas fa-circle-half-stroke"></i> <span data-i18n="assistant.chipOff">Non configurato</span></span>
+                        </div>
+                        <div class="ai-empty">
+                            <i class="fas fa-robot ai-empty-icon"></i>
+                            <p class="ai-empty-title" data-i18n="assistant.emptyTitle">L'assistente non è ancora configurato</p>
+                            <p class="ai-empty-sub" data-i18n="assistant.emptySub">Interroga la tua rete documentata in linguaggio naturale — presenze, VLAN, IP liberi, diagnosi e bozze di automazione — sempre citando i dati reali. I dati restano sul tuo server.</p>
+                            <button class="toolbar-btn primary admin-only" onclick="openAiSettings()"><i class="fas fa-gear"></i> <span data-i18n="assistant.configure">Configura l'assistente</span></button>
+                            <p class="ai-empty-hint viewer-ok" style="display:none" data-i18n="assistant.askAdmin">Chiedi a un amministratore di configurare l'assistente.</p>
+                        </div>
+                        <div class="ai-foot"><i class="fas fa-shield-halved"></i> <span data-i18n="assistant.footer">Advisory: propone, confermi tu. Esce solo l'inventario sanitizzato.</span></div>
+                    </div>
+                    <!-- Stato: configurato (chat) — mostrato da app-ai.js quando abilitato -->
+                    <div id="ai-chat" style="display:none">
+                        <div class="ai-head">
+                            <span class="ai-head-title"><i class="fas fa-robot"></i> <span data-i18n="assistant.title">Assistente</span></span>
+                            <span class="ai-head-actions">
+                                <span class="ai-chip" id="ai-chip-status"></span>
+                                <button type="button" id="ai-clear-btn" class="ai-gear danger" onclick="aiClearChat()" data-i18n-aria="assistant.clear" data-i18n-tip="assistant.clear" aria-label="Pulisci chat" style="display:none"><i class="fas fa-trash"></i></button>
+                            </span>
+                        </div>
+                        <div id="ai-messages" class="ai-messages" aria-live="polite"></div>
+                        <div class="ai-composer">
+                            <textarea id="ai-input" rows="2" data-i18n-ph="assistant.inputPh" placeholder="Chiedi qualcosa sulla tua rete…"></textarea>
+                            <button class="toolbar-btn primary" id="ai-send-btn" onclick="aiSend()" data-i18n-aria="assistant.send" aria-label="Invia"><i class="fas fa-paper-plane"></i></button>
+                        </div>
+                        <div class="ai-foot"><i class="fas fa-shield-halved"></i> <span data-i18n="assistant.footer">Advisory: propone, confermi tu. Esce solo l'inventario sanitizzato.</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="rack-viewport" onwheel="handleRackZoom(event)" onscroll="renderCables()">
+                <div class="rack-header rack-header-floating">
+                    <select id="rack-select" onchange="switchRack(this.value)"></select>
+                    <div id="rack-menu-wrap" style="position:relative">
+                        <button class="toolbar-btn" id="rack-menu-btn" style="margin:0;padding:3px 9px" onclick="toggleRackMenu()" data-tip="Gestione rack">
+                            <i class="fas fa-server"></i> Rack <i class="fas fa-chevron-down" style="font-size:0.62rem;opacity:.7;margin-left:4px"></i>
+                        </button>
+                        <div id="rack-menu-dropdown" class="rack-menu-dropdown" style="display:none">
+                            <button class="rack-menu-item" onclick="addRack();closeRackMenu()"><i class="fas fa-plus"></i> <span data-i18n="rack.new">Nuovo rack</span></button>
+                            <button class="rack-menu-item" onclick="renameRack();closeRackMenu()"><i class="fas fa-pen"></i> <span data-i18n="rack.rename">Rinomina rack</span></button>
+                            <div class="rack-menu-size-row">
+                                <span data-i18n="rack.size">Dimensione</span>
+                                <label class="rack-size-control">U <input id="rack-size-input" type="number" min="6" max="60" value="42" onchange="updateRackSize(this.value)"></label>
+                            </div>
+                            <button class="rack-menu-item" id="btn-rack-floor" onclick="toggleRackOnFloor();closeRackMenu()" data-i18n-tip="rack.onFloorTip" data-tip="Piazza/rimuovi questo rack dalla planimetria"><i class="fas fa-map-pin"></i> <span data-i18n="rack.onFloor">Piazza su planimetria</span></button>
+                            <button class="rack-menu-item" id="btn-rack-unum" onclick="toggleRackUNumbering();closeRackMenu()" data-i18n-tip="rack.uNumTip" data-tip="Inverte solo la visualizzazione: 1 in alto come nei rack telco/ETSI"><i class="fas fa-arrows-up-down"></i> <span id="btn-rack-unum-label" data-i18n="rack.uNumFromTop">Numerazione U dall'alto</span></button>
+                            <button class="rack-menu-item danger" onclick="deleteCurrentRack();closeRackMenu()"><i class="fas fa-trash"></i> <span data-i18n="rack.delete">Elimina rack</span></button>
+                        </div>
+                    </div>
+                </div>
+                <svg id="rack-cable-overlay"><path id="temp-link-rack" d=""></path></svg>
+                <div id="cross-rack-banner"></div>
+                <div id="lag-sel-banner"></div>
+                <div class="zoom-controls">
+                    <button class="zoom-btn" onclick="zoomRack(-0.1)"><i class="fas fa-minus"></i></button>
+                    <span class="zoom-label" id="rack-zoom-lbl">100%</span>
+                    <button class="zoom-btn" onclick="zoomRack(0.1)"><i class="fas fa-plus"></i></button>
+                </div>
+                <div id="rack-chassis-wrap">
+                    <div id="rack-ruler"></div>
+                    <div class="rack-chassis" id="rack-chassis"></div>
+                </div>
+            </div>
+        </aside>
+
+        <svg id="cable-overlay"><path id="temp-link" d=""></path></svg>
+    </div>
+</div>
+
+<div id="popup"></div>
+
+<!-- Modal -->
+<div id="modal-overlay">
+    <div id="modal-box">
+        <p id="modal-msg"></p>
+        <input id="modal-input" type="text" autocomplete="off">
+        <div id="modal-actions">
+            <button id="modal-cancel" class="toolbar-btn"         onclick="modalResolve(false)" data-i18n="common.cancel">Annulla</button>
+            <button id="modal-ok"     class="toolbar-btn primary" onclick="modalResolve(true)">OK</button>
+        </div>
+    </div>
+</div>
+
+<!-- VLAN membership modal -->
+<div id="vlan-members-overlay" class="tool-modal-overlay" onclick="if(event.target===this)closeVlanMembers()" style="display:none">
+  <div class="tool-modal" style="width:480px;max-height:80vh">
+    <div class="tool-modal-header um-header">
+      <h3 id="vm-title"><i class="fas fa-layer-group"></i>Membership VLAN</h3>
+      <button class="toolbar-btn" onclick="closeVlanMembers()" style="padding:4px 8px"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="vm-body" class="tool-modal-body"></div>
+    <div class="tool-modal-footer">
+      <button id="vm-btn-filter" class="um-btn primary"></button>
+      <button class="um-btn ghost" onclick="closeVlanMembers()"><i class="fas fa-times"></i> <span data-i18n="common.close">Chiudi</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- Server offline banner -->
+<div id="conn-banner">
+    <i class="fas fa-triangle-exclamation"></i>
+    Server non raggiungibile — avvia <code>avvia.bat</code> e ricarica la pagina.
+</div>
+
+<!-- ===== MODAL ROOT: tutti i modali (tool-modal-overlay) stanno QUI, fuori da <header>,
+     per non ereditarne il containing-block (un backdrop-filter/transform/filter
+     sull&#39;header ancorerebbe gli overlay position:fixed al box header -> tagliati). ===== -->
+<div id="modal-root">
+
 <!-- ===== MODAL GESTIONE UTENTI ===== -->
 <div id="user-manager-overlay" class="tool-modal-overlay" onclick="if(event.target===this)closeUserManager()">
   <div id="user-manager-modal" class="tool-modal" style="width:520px;max-height:85vh">
@@ -568,385 +954,6 @@
   </div>
 </div>
 
-<input type="file" id="map-upload"  accept="image/*,.svg" onchange="handleMapUpload(this)">
-    <input type="file" id="json-upload" accept=".json"        onchange="importJSON(this)">
-    <div class="header-right">
-        <button class="toolbar-btn" id="btn-discover" onclick="openDiscovery()"
-                data-i18n-tip="discover.tip"
-                data-tip="Scansiona la rete via SNMP, poi espande automaticamente via LLDP/CDP">
-            <i class="fas fa-satellite-dish"></i><span class="btn-label" data-i18n="discover.label"> Scopri</span>
-        </button>
-        <span style="width:1px;height:18px;background:var(--panel-border);opacity:.5;flex-shrink:0;align-self:center"></span>
-        <button class="toolbar-btn" id="btn-snmp-sync" onclick="pollAllSNMP()"
-                data-i18n-tip="sync.tip"
-                data-tip="Aggiorna porte, VLAN, stato e topologia da tutti i dispositivi SNMP del progetto">
-            <span id="snmp-sync-label"><i class="fas fa-network-wired"></i> Sync</span><span id="sync-fresh-badge" class="sync-fresh-badge" style="display:none"></span>
-        </button>
-        <button class="toolbar-btn primary" id="btn-drift" onclick="runDriftCheck()"
-                data-i18n-tip="verify.tip"
-                data-tip="Controllo del mattino: esegue il Sync e verifica la presenza reale (ping/ARP/TCP), evidenziando differenze e cambi IP">
-            <i class="fas fa-clipboard-check"></i><span class="btn-label" data-i18n="verify.label"> Verifica</span>
-        </button>
-        <div id="report-menu-wrap" style="position:relative">
-            <button class="toolbar-btn icon-only" id="btn-report" onclick="toggleReportMenu()" data-i18n-tip="report.tip" data-tip="Report e analisi: storia modifiche, porte libere, mappa L3, coerenza VLAN">
-                <i class="fas fa-chart-column"></i><span class="btn-label" data-i18n="report.label"> Report</span><i class="fas fa-chevron-down" style="font-size:0.6rem;margin-left:4px;opacity:.6"></i>
-            </button>
-            <div id="report-dropdown" class="header-menu-dropdown" style="display:none">
-                <button class="header-menu-item" id="btn-audit" onclick="openAuditLog();closeReportMenu()">
-                    <i class="fas fa-clock-rotate-left"></i> <span data-i18n="report.audit">Storia modifiche</span>
-                </button>
-                <button class="header-menu-item" id="btn-spare" onclick="openSpareReport();closeReportMenu()">
-                    <i class="fas fa-plug-circle-plus"></i> <span data-i18n="report.spare">Porte libere</span>
-                </button>
-                <button class="header-menu-item" id="btn-l3" onclick="openL3Report()">
-                    <i class="fas fa-route"></i> <span data-i18n="report.l3">Mappa L3 / Gateway</span>
-                </button>
-                <button class="header-menu-item" id="btn-wifivlan" onclick="openWifiVlanReport();closeReportMenu()">
-                    <i class="fas fa-wifi"></i> <span data-i18n="report.wifiVlan">Coerenza VLAN wireless</span>
-                </button>
-            </div>
-        </div>
-        <button class="toolbar-btn icon-only" id="btn-assistant" onclick="openAssistantOrSettings()"
-                data-i18n-tip="assistant.toolbarTip" data-tip="Impostazioni assistente (admin) · la chat si apre dalla tab «Assistente» o col tasto A">
-            <i class="fas fa-robot"></i><span class="btn-label" data-i18n="assistant.label"> Assistente</span>
-        </button>
-        <span style="width:1px;height:18px;background:var(--panel-border);opacity:.5;flex-shrink:0;align-self:center"></span>
-        <div id="automation-menu-wrap" style="position:relative">
-            <button class="toolbar-btn icon-only" id="btn-automation" onclick="toggleAutomationMenu()" data-i18n-tip="autom.tip" data-tip="Automazioni di rete: polling SNMP in background e rinnovo automatico IP (DHCP)">
-                <i class="fas fa-gear"></i><span class="btn-label" data-i18n="autom.label"> Automazioni</span><i class="fas fa-chevron-down" style="font-size:0.6rem;margin-left:4px;opacity:.6"></i>
-            </button>
-            <div id="automation-dropdown" class="header-menu-dropdown autom-pop" style="display:none"></div>
-        </div>
-        <div id="status-cluster" class="status-cluster">
-            <button class="status-chip s-warn" id="v3-pending-chip" onclick="_v3JumpNext()" data-tip="Device SNMPv3 da configurare — clic per saltare al prossimo"></button>
-            <button class="status-chip s-info" id="spare-active-badge" onclick="setSpareHighlight(false)" data-i18n-tip="spare.badgeTip" data-tip="Porte libere evidenziate nel rack — clicca per spegnere">
-                <i class="fas fa-plug-circle-plus"></i><span data-i18n="report.spare">Porte libere</span><i class="fas fa-times chip-x"></i>
-            </button>
-            <button class="status-chip s-ok" id="autopoll-badge" onclick="toggleAutomationMenu()" data-i18n-tip="autopoll.tip" data-tip="Polling automatico attivo — clic per le automazioni"></button>
-            <button class="status-chip s-info" id="vlan-filter-badge" onclick="setVlanFilter(null)" data-i18n-tip="vlanfilter.tip" data-tip="Filtro VLAN attivo — clicca per rimuovere">
-                <i class="fas fa-filter"></i><span></span><i class="fas fa-times chip-x"></i>
-            </button>
-        </div>
-        <div class="header-sep"></div>
-        <!-- Badge utente + menu (la lingua vive dentro questo menu) -->
-        <div id="user-menu-wrap" style="position:relative">
-            <button class="toolbar-btn" id="btn-user" onclick="toggleUserMenu()" data-i18n-tip="user.tipAccount" data-tip="Account">
-                <i class="fas fa-user-circle"></i>
-                <span id="user-label" style="margin-left:5px;font-size:0.8rem">…</span>
-                <i class="fas fa-chevron-down" style="font-size:0.65rem;margin-left:4px;opacity:.6"></i>
-            </button>
-            <div id="user-dropdown" style="display:none;position:absolute;right:0;top:calc(100% + 6px);background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:8px;min-width:180px;z-index:500;box-shadow:0 8px 24px rgba(0,0,0,.5);padding:6px 0;">
-                <div id="user-info-row" style="padding:8px 14px 6px;font-size:0.85rem;color:var(--text-muted);border-bottom:1px solid var(--panel-border);margin-bottom:4px;"></div>
-                <button class="user-menu-item admin-only" onclick="openUserManager();closeUserMenu()">
-                    <i class="fas fa-shield-halved"></i> <span data-i18n="user.manage">Utenti e accessi</span>
-                </button>
-                <button class="user-menu-item admin-only" onclick="openChangePassword();closeUserMenu()">
-                    <i class="fas fa-key"></i> <span data-i18n="user.changePw">Cambia password</span>
-                </button>
-                <button class="user-menu-item viewer-ok" onclick="openChangePassword();closeUserMenu()" style="display:none">
-                    <i class="fas fa-key"></i> <span data-i18n="user.changePw">Cambia password</span>
-                </button>
-                <div style="border-top:1px solid var(--panel-border);margin:4px 0"></div>
-                <div class="user-menu-lang">
-                    <span style="font-size:0.85rem;color:var(--text-muted)"><i class="fas fa-language" style="margin-right:6px;opacity:.8"></i><span data-i18n="user.language">Lingua</span></span>
-                    <span class="lang-opts">
-                        <button class="lang-opt" data-lang="it" onclick="switchLang('it')">IT</button>
-                        <button class="lang-opt" data-lang="en" onclick="switchLang('en')">EN</button>
-                    </span>
-                </div>
-                <div style="border-top:1px solid var(--panel-border);margin:4px 0"></div>
-                <button class="user-menu-item" onclick="doLogout()" style="color:#f85149">
-                    <i class="fas fa-sign-out-alt"></i> <span data-i18n="user.logout">Esci</span>
-                </button>
-            </div>
-        </div>
-    </div>
-</header>
-
-<!-- Sotto-header: breadcrumb (sx) - suggerimento prossimo-passo (centro) -
-     statistiche progetto (dx). Contenuto reso da src/app-subbar.js (renderSubbar,
-     agganciato a renderAll). Fuori da #export-area -> non entra negli export. -->
-<div id="modern-subbar" aria-live="polite"></div>
-
-<div id="workspace">
-    <div id="export-area">
-        <aside id="sidebar-left">
-            <div class="sidebar-section" style="flex:1;overflow-y:auto">
-                <div class="sidebar-palette-head">
-                    <h3 class="sidebar-title" data-i18n="palette.title">Libreria elementi</h3>
-                    <div class="sidebar-palette-actions">
-                        <button type="button" class="sidebar-mini-btn" onclick="setPaletteGroupsExpanded(true)" data-i18n-tip="palette.expandAll" data-tip="Espandi tutte le sezioni"><i class="fas fa-angles-down"></i></button>
-                        <button type="button" class="sidebar-mini-btn" onclick="setPaletteGroupsExpanded(false)" data-i18n-tip="palette.collapseAll" data-tip="Comprimi tutte le sezioni"><i class="fas fa-angles-up"></i></button>
-                    </div>
-                </div>
-                <div class="sidebar-search-wrap">
-                    <i class="fas fa-magnifying-glass"></i>
-                    <input id="palette-search" type="text" data-i18n-ph="palette.search" placeholder="Cerca elemento..." oninput="filterPaletteItems(this.value)">
-                    <button id="palette-search-clear" type="button" class="sidebar-search-clear" onclick="clearPaletteFilter()" data-i18n-tip="palette.clearSearch" data-tip="Pulisci ricerca">
-                        <i class="fas fa-xmark"></i>
-                    </button>
-                </div>
-
-                <section class="palette-group" data-palette-group="ambienti">
-                    <button type="button" class="palette-group-head" onclick="togglePaletteGroup('ambienti')" aria-expanded="true">
-                        <span><i class="far fa-square"></i> <span data-i18n="pgroup.ambienti">Ambienti</span></span>
-                        <i class="fas fa-chevron-down palette-group-chevron"></i>
-                    </button>
-                    <div class="palette-group-body">
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="room"><i class="far fa-square"></i> <span data-i18n="dev.room">Stanza / Area</span></div>
-                    </div>
-                </section>
-
-                <section class="palette-group" data-palette-group="floor_net">
-                    <button type="button" class="palette-group-head" onclick="togglePaletteGroup('floor_net')" aria-expanded="true">
-                        <span><i class="fas fa-diagram-project"></i> <span data-i18n="pgroup.floor_net">Planimetria · Rete</span></span>
-                        <i class="fas fa-chevron-down palette-group-chevron"></i>
-                    </button>
-                    <div class="palette-group-body">
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="wallport"><i class="fas fa-ethernet"></i> <span data-i18n="dev.wallport">Presa a muro</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="ap"><i class="fas fa-wifi"></i> <span data-i18n="dev.ap">Access Point</span></div>
-                    </div>
-                </section>
-
-                <section class="palette-group" data-palette-group="floor_endpoints">
-                    <button type="button" class="palette-group-head" onclick="togglePaletteGroup('floor_endpoints')" aria-expanded="true">
-                        <span><i class="fas fa-laptop"></i> <span data-i18n="pgroup.floor_endpoints">Planimetria · Endpoint</span></span>
-                        <i class="fas fa-chevron-down palette-group-chevron"></i>
-                    </button>
-                    <div class="palette-group-body">
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="webcam"><i class="fas fa-video"></i> <span data-i18n="dev.webcam">Webcam / CCTV</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="printer"><i class="fas fa-print"></i> <span data-i18n="dev.printer">Stampante di rete</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="voip"><i class="fas fa-phone"></i> <span data-i18n="dev.voip">Telefono VoIP</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="badgereader"><i class="fas fa-id-card"></i> <span data-i18n="dev.badgereader">Lettore badge</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="pc"><i class="fas fa-desktop"></i> <span data-i18n="dev.pc">PC / Workstation</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="mobile"><i class="fas fa-mobile-screen-button"></i> <span data-i18n="dev.mobile">Smartphone / Tablet</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="iot"><i class="fas fa-microchip"></i> <span data-i18n="dev.iot">Dispositivo IoT</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="projector"><i class="fas fa-chalkboard"></i> <span data-i18n="dev.projector">Proiettore</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="tv"><i class="fas fa-tv"></i> <span data-i18n="dev.tv">Smart TV / Media Player</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="doorctrl"><i class="fas fa-door-open"></i> <span data-i18n="dev.doorctrl">Door Controller</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="panelboard"><i class="fas fa-bolt"></i> <span data-i18n="dev.panelboard">Quadro elettrico</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="homelab"><i class="fas fa-cubes"></i> <span data-i18n="dev.homelab">Mini-server</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="nasdesktop"><i class="fas fa-hard-drive"></i> <span data-i18n="dev.nasdesktop">NAS (desktop)</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="customfloor"><i class="fas fa-cube"></i> <span data-i18n="dev.customfloor">Endpoint personalizzato</span></div>
-                    </div>
-                </section>
-
-                <section class="palette-group" data-palette-group="rack_passive">
-                    <button type="button" class="palette-group-head" onclick="togglePaletteGroup('rack_passive')" aria-expanded="true">
-                        <span><i class="fas fa-layer-group"></i> <span data-i18n="pgroup.rack_passive">Rack · Passivi</span></span>
-                        <i class="fas fa-chevron-down palette-group-chevron"></i>
-                    </button>
-                    <div class="palette-group-body">
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="patchpanel"><i class="fas fa-bars"></i> <span data-i18n="dev.patchpanel">Patch Panel (2U)</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="blankpanel"><i class="fas fa-minus"></i> <span data-i18n="dev.blankpanel">Pannello vuoto (1U)</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="cablemanager"><i class="fas fa-grip-lines"></i> <span data-i18n="dev.cablemanager">Passacavo (1U)</span></div>
-                    </div>
-                </section>
-
-                <section class="palette-group" data-palette-group="rack_active">
-                    <button type="button" class="palette-group-head" onclick="togglePaletteGroup('rack_active')" aria-expanded="true">
-                        <span><i class="fas fa-server"></i> <span data-i18n="pgroup.rack_active">Rack · Attivi</span></span>
-                        <i class="fas fa-chevron-down palette-group-chevron"></i>
-                    </button>
-                    <div class="palette-group-body">
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="switch"><i class="fas fa-network-wired"></i> <span data-i18n="dev.switch">Switch</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="router"><i class="fas fa-route"></i> <span data-i18n="dev.router">Router</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="firewall"><i class="fas fa-shield-halved"></i> <span data-i18n="dev.firewall">Firewall</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="server"><i class="fas fa-server"></i> <span data-i18n="dev.server">Server</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="hypervisor"><i class="fas fa-layer-group"></i> <span data-i18n="dev.hypervisor">Hypervisor</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="nas"><i class="fas fa-database"></i> <span data-i18n="dev.nas">Storage (SAN / RAID)</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="kvm"><i class="fas fa-keyboard"></i> <span data-i18n="dev.kvm">KVM Switch</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="ups"><i class="fas fa-car-battery"></i> <span data-i18n="dev.ups">UPS</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="pdu"><i class="fas fa-plug"></i> <span data-i18n="dev.pdu">PDU</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="ats"><i class="fas fa-shuffle"></i> <span data-i18n="dev.ats">ATS — Transfer Switch</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="pbx"><i class="fas fa-phone-volume"></i> <span data-i18n="dev.pbx">Centralino VoIP</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="consolesvr"><i class="fas fa-terminal"></i> <span data-i18n="dev.consolesvr">Console Server</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="wlanctrl"><i class="fas fa-wifi"></i> <span data-i18n="dev.wlanctrl">WLAN Controller</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="mediaconv"><i class="fas fa-right-left"></i> <span data-i18n="dev.mediaconv">Media Converter</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="nvr"><i class="fas fa-record-vinyl"></i> <span data-i18n="dev.nvr">NVR / Videosorveglianza (2U)</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="sdwan"><i class="fas fa-cloud-bolt"></i> <span data-i18n="dev.sdwan">SD-WAN Edge</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="vpncon"><i class="fas fa-key"></i> <span data-i18n="dev.vpncon">VPN Concentrator</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="customrack"><i class="fas fa-cube"></i> <span data-i18n="dev.customrack">Dispositivo rack generico</span></div>
-                    </div>
-                </section>
-            </div>
-        </aside>
-
-        <div id="sidebar-divider" data-tip="Trascina per ridimensionare · Clic per nascondere/mostrare palette">
-            <div id="sidebar-collapse-btn" onclick="toggleSidebarPanel()" data-tip="Nascondi/mostra palette">
-                <i class="fas fa-chevron-left" id="sidebar-collapse-icon"></i>
-            </div>
-        </div>
-
-        <main id="floorplan" ondragover="event.preventDefault();" ondrop="handleDrop(event,'floor')" onwheel="handleFloorZoom(event)">
-            <div class="zoom-controls" style="left:14px;right:auto">
-                <button class="zoom-btn" onclick="zoomFloor(-0.1)"><i class="fas fa-minus"></i></button>
-                <span class="zoom-label" id="floor-zoom-lbl">100%</span>
-                <button class="zoom-btn" onclick="zoomFloor(0.1)"><i class="fas fa-plus"></i></button>
-            </div>
-            <div id="floor-canvas">
-                <img id="floor-bg-img" src="" alt="mappa">
-                <div id="floorplan-grid"></div>
-                <div id="floor-structures"></div>
-                <div id="floor-items"></div>
-                <svg id="topo-floor-overlay" xmlns="http://www.w3.org/2000/svg"></svg>
-            </div>
-            <!-- Barra controlli-vista mappa: posizionata DIRETTAMENTE in #floorplan
-                 (viewport fissa) e NON in #floor-canvas (zoomato/trascinato).
-                 Raccoglie i controlli "come guardo la mappa": il toggle Topologia
-                 (#btn-topology, stato gestito da _setTopoBtn) e, separato da |, il
-                 Filtra VLAN (#topo-legend, contenuto da _renderTopoLegend). -->
-            <div id="map-view-bar">
-                <div id="topo-legend"></div>
-                <span id="map-view-sep"></span>
-                <button class="toolbar-btn" id="btn-topology" onclick="toggleTopology()" oncontextmenu="event.preventDefault();discoverTopology(true)"
-                        data-i18n-tip="topology.tip"
-                        data-tip="Vista: mostra i collegamenti LLDP/CDP sulla planimetria · tasto destro per aggiornare">
-                    <i class="fas fa-project-diagram"></i><span class="btn-label" data-i18n="topology.label"> Topologia</span>
-                </button>
-            </div>
-        </main>
-
-        <div id="floor-rack-divider" data-tip="Trascina per ridimensionare · Clic per nascondere/mostrare rack">
-            <div id="rack-collapse-btn" onclick="toggleRackPanel()" data-tip="Nascondi/mostra rack">
-                <i class="fas fa-chevron-right" id="rack-collapse-icon"></i>
-            </div>
-        </div>
-
-        <aside id="rack-view" ondragover="event.preventDefault();" ondrop="handleDrop(event,'rack')">
-            <!-- Tab bar: Rack / Proprietà / Assistente -->
-            <div id="right-tab-bar" role="tablist" data-i18n-aria="tab.barAria" aria-label="Pannello destro">
-                <div class="right-tab active" id="tab-rack" role="tab" aria-selected="true" aria-controls="rack-viewport" tabindex="0" onclick="switchRightTab('rack')">
-                    <i class="fas fa-server" style="font-size:0.75rem"></i> <span data-i18n="tab.rack">Rack</span>
-                </div>
-                <div class="right-tab" id="tab-props" role="tab" aria-selected="false" aria-controls="props-panel-wrap" tabindex="0" onclick="switchRightTab('props')">
-                    <i class="fas fa-sliders" style="font-size:0.75rem"></i> <span data-i18n="tab.props">Proprietà</span>
-                    <span class="tab-badge" id="props-tab-badge"></span>
-                </div>
-                <div class="right-tab" id="tab-ai" role="tab" aria-selected="false" aria-controls="ai-panel-wrap" tabindex="0" onclick="switchRightTab('ai')"
-                     data-i18n-tip="assistant.tabTip" data-tip="Assistente di rete — domande, diagnosi e bozze · scorciatoia: A">
-                    <i class="fas fa-robot" style="font-size:0.75rem"></i> <span data-i18n="tab.ai">Assistente</span>
-                    <span class="tab-badge" id="ai-tab-badge"></span>
-                </div>
-            </div>
-
-            <!-- Pannello Proprietà (nascosto di default) -->
-            <div id="props-panel-wrap">
-                <div id="props-panel"><p style="color:var(--text-muted);font-size:0.82rem">Seleziona un elemento per modificarne le proprietà.</p></div>
-            </div>
-
-            <!-- Pannello Assistente AI (nascosto di default). Due stati gestiti da
-                 app-ai.js: #ai-empty (non configurato, statico bilingue + ruolo via
-                 .admin-only/.viewer-ok) e #ai-chat (configurato → composer chat).
-                 La conversazione vive in sessione browser (project-global), non nel JSON. -->
-            <div id="ai-panel-wrap" role="tabpanel" aria-labelledby="tab-ai" data-i18n-aria="tab.ai" aria-label="Assistente">
-                <div id="ai-panel">
-                    <!-- Stato: NON configurato -->
-                    <div id="ai-empty">
-                        <div class="ai-head">
-                            <span class="ai-head-title"><i class="fas fa-robot"></i> <span data-i18n="assistant.title">Assistente</span></span>
-                            <span class="ai-chip ai-chip-off" data-i18n-tip="assistant.chipOffTip" data-tip="L'assistente non è ancora configurato"><i class="fas fa-circle-half-stroke"></i> <span data-i18n="assistant.chipOff">Non configurato</span></span>
-                        </div>
-                        <div class="ai-empty">
-                            <i class="fas fa-robot ai-empty-icon"></i>
-                            <p class="ai-empty-title" data-i18n="assistant.emptyTitle">L'assistente non è ancora configurato</p>
-                            <p class="ai-empty-sub" data-i18n="assistant.emptySub">Interroga la tua rete documentata in linguaggio naturale — presenze, VLAN, IP liberi, diagnosi e bozze di automazione — sempre citando i dati reali. I dati restano sul tuo server.</p>
-                            <button class="toolbar-btn primary admin-only" onclick="openAiSettings()"><i class="fas fa-gear"></i> <span data-i18n="assistant.configure">Configura l'assistente</span></button>
-                            <p class="ai-empty-hint viewer-ok" style="display:none" data-i18n="assistant.askAdmin">Chiedi a un amministratore di configurare l'assistente.</p>
-                        </div>
-                        <div class="ai-foot"><i class="fas fa-shield-halved"></i> <span data-i18n="assistant.footer">Advisory: propone, confermi tu. Esce solo l'inventario sanitizzato.</span></div>
-                    </div>
-                    <!-- Stato: configurato (chat) — mostrato da app-ai.js quando abilitato -->
-                    <div id="ai-chat" style="display:none">
-                        <div class="ai-head">
-                            <span class="ai-head-title"><i class="fas fa-robot"></i> <span data-i18n="assistant.title">Assistente</span></span>
-                            <span class="ai-head-actions">
-                                <span class="ai-chip" id="ai-chip-status"></span>
-                                <button type="button" id="ai-clear-btn" class="ai-gear danger" onclick="aiClearChat()" data-i18n-aria="assistant.clear" data-i18n-tip="assistant.clear" aria-label="Pulisci chat" style="display:none"><i class="fas fa-trash"></i></button>
-                            </span>
-                        </div>
-                        <div id="ai-messages" class="ai-messages" aria-live="polite"></div>
-                        <div class="ai-composer">
-                            <textarea id="ai-input" rows="2" data-i18n-ph="assistant.inputPh" placeholder="Chiedi qualcosa sulla tua rete…"></textarea>
-                            <button class="toolbar-btn primary" id="ai-send-btn" onclick="aiSend()" data-i18n-aria="assistant.send" aria-label="Invia"><i class="fas fa-paper-plane"></i></button>
-                        </div>
-                        <div class="ai-foot"><i class="fas fa-shield-halved"></i> <span data-i18n="assistant.footer">Advisory: propone, confermi tu. Esce solo l'inventario sanitizzato.</span></div>
-                    </div>
-                </div>
-            </div>
-
-            <div id="rack-viewport" onwheel="handleRackZoom(event)" onscroll="renderCables()">
-                <div class="rack-header rack-header-floating">
-                    <select id="rack-select" onchange="switchRack(this.value)"></select>
-                    <div id="rack-menu-wrap" style="position:relative">
-                        <button class="toolbar-btn" id="rack-menu-btn" style="margin:0;padding:3px 9px" onclick="toggleRackMenu()" data-tip="Gestione rack">
-                            <i class="fas fa-server"></i> Rack <i class="fas fa-chevron-down" style="font-size:0.62rem;opacity:.7;margin-left:4px"></i>
-                        </button>
-                        <div id="rack-menu-dropdown" class="rack-menu-dropdown" style="display:none">
-                            <button class="rack-menu-item" onclick="addRack();closeRackMenu()"><i class="fas fa-plus"></i> <span data-i18n="rack.new">Nuovo rack</span></button>
-                            <button class="rack-menu-item" onclick="renameRack();closeRackMenu()"><i class="fas fa-pen"></i> <span data-i18n="rack.rename">Rinomina rack</span></button>
-                            <div class="rack-menu-size-row">
-                                <span data-i18n="rack.size">Dimensione</span>
-                                <label class="rack-size-control">U <input id="rack-size-input" type="number" min="6" max="60" value="42" onchange="updateRackSize(this.value)"></label>
-                            </div>
-                            <button class="rack-menu-item" id="btn-rack-floor" onclick="toggleRackOnFloor();closeRackMenu()" data-i18n-tip="rack.onFloorTip" data-tip="Piazza/rimuovi questo rack dalla planimetria"><i class="fas fa-map-pin"></i> <span data-i18n="rack.onFloor">Piazza su planimetria</span></button>
-                            <button class="rack-menu-item" id="btn-rack-unum" onclick="toggleRackUNumbering();closeRackMenu()" data-i18n-tip="rack.uNumTip" data-tip="Inverte solo la visualizzazione: 1 in alto come nei rack telco/ETSI"><i class="fas fa-arrows-up-down"></i> <span id="btn-rack-unum-label" data-i18n="rack.uNumFromTop">Numerazione U dall'alto</span></button>
-                            <button class="rack-menu-item danger" onclick="deleteCurrentRack();closeRackMenu()"><i class="fas fa-trash"></i> <span data-i18n="rack.delete">Elimina rack</span></button>
-                        </div>
-                    </div>
-                </div>
-                <svg id="rack-cable-overlay"><path id="temp-link-rack" d=""></path></svg>
-                <div id="cross-rack-banner"></div>
-                <div id="lag-sel-banner"></div>
-                <div class="zoom-controls">
-                    <button class="zoom-btn" onclick="zoomRack(-0.1)"><i class="fas fa-minus"></i></button>
-                    <span class="zoom-label" id="rack-zoom-lbl">100%</span>
-                    <button class="zoom-btn" onclick="zoomRack(0.1)"><i class="fas fa-plus"></i></button>
-                </div>
-                <div id="rack-chassis-wrap">
-                    <div id="rack-ruler"></div>
-                    <div class="rack-chassis" id="rack-chassis"></div>
-                </div>
-            </div>
-        </aside>
-
-        <svg id="cable-overlay"><path id="temp-link" d=""></path></svg>
-    </div>
-</div>
-
-<div id="popup"></div>
-
-<!-- Modal -->
-<div id="modal-overlay">
-    <div id="modal-box">
-        <p id="modal-msg"></p>
-        <input id="modal-input" type="text" autocomplete="off">
-        <div id="modal-actions">
-            <button id="modal-cancel" class="toolbar-btn"         onclick="modalResolve(false)" data-i18n="common.cancel">Annulla</button>
-            <button id="modal-ok"     class="toolbar-btn primary" onclick="modalResolve(true)">OK</button>
-        </div>
-    </div>
-</div>
-
-<!-- VLAN membership modal -->
-<div id="vlan-members-overlay" class="tool-modal-overlay" onclick="if(event.target===this)closeVlanMembers()" style="display:none">
-  <div class="tool-modal" style="width:480px;max-height:80vh">
-    <div class="tool-modal-header um-header">
-      <h3 id="vm-title"><i class="fas fa-layer-group"></i>Membership VLAN</h3>
-      <button class="toolbar-btn" onclick="closeVlanMembers()" style="padding:4px 8px"><i class="fas fa-times"></i></button>
-    </div>
-    <div id="vm-body" class="tool-modal-body"></div>
-    <div class="tool-modal-footer">
-      <button id="vm-btn-filter" class="um-btn primary"></button>
-      <button class="um-btn ghost" onclick="closeVlanMembers()"><i class="fas fa-times"></i> <span data-i18n="common.close">Chiudi</span></button>
-    </div>
-  </div>
-</div>
-
-<!-- Server offline banner -->
-<div id="conn-banner">
-    <i class="fas fa-triangle-exclamation"></i>
-    Server non raggiungibile — avvia <code>avvia.bat</code> e ricarica la pagina.
 </div>
 
 <script src="/lib/i18n.js"></script>

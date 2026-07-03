@@ -51,6 +51,19 @@ app.use((req, res, next) => {
   next();
 });
 
+// no-cache sugli asset del frontend (HTML/CSS/JS/lib): il browser DEVE rivalidare
+// col server prima di riusare la copia in cache -> un file cambiato su disco viene
+// sempre riservito fresco (304 se invariato). Chiude la classe di bug "ho corretto
+// il CSS/HTML ma il browser mostra ancora la versione vecchia dalla cache" (modali
+// tagliati, reskin...). I woff2 di Font Awesome NON sono qui -> restano cacheabili.
+app.use((req, res, next) => {
+  if (req.method === 'GET' && (
+      req.path === '/' || req.path === '/app.js' || req.path === '/export.js' ||
+      req.path.startsWith('/styles/') || req.path.startsWith('/dist/') || req.path.startsWith('/lib/')
+  )) res.set('Cache-Control', 'no-cache');
+  next();
+});
+
 // ---- Frontend statico -------------------------------------------------------
 
 // CSS modularizzato (cartella styles/): partial ordinate, caricate via <link>
