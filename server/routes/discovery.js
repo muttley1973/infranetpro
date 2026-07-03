@@ -9,7 +9,7 @@ const os  = require('os');
 const auth = require('../../auth');
 const { DRIVERS } = require('../drivers');
 const { buildNeighborCandidates, buildPortIndex, buildMacIndex, buildPortMacIndex, buildFdbCandidates } = require('../../lib/correlate');
-const { expandSubnet, _execFileAsync, _pingHost, _normMac, _parseArpTable, _readArpMap, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost } = require('../netscan');
+const { expandSubnet, _execFileAsync, _pingHost, _pingHostRetry, _normMac, _parseArpTable, _readArpMap, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost } = require('../netscan');
 const { _cleanHostname, PEN_VENDOR, _penFromObjectId, _vendorByObjectId, _decodeSysServices, _classifyDiscoveredDevice, _buildDiscoveryMeta, _decorateDiscoveryRow } = require('../classify');
 const { OuiEngine } = require('../../engine');
 const dhcpDrivers = require('../dhcp-drivers');
@@ -107,8 +107,9 @@ router.post('/api/reachability', auth.requireAdmin, async (req, res) => {
     const checkOne = async (ip) => {
       // 1) ARP: già visto a L2 di recente → presente (anche se blocca ICMP)
       if (arp.has(ip)) return { ip, alive: true, via: 'arp' };
-      // 2) ICMP ping (popola anche l'ARP, riletto a fine sweep per il MAC)
-      if (await _pingHost(ip, pingMs)) return { ip, alive: true, via: 'ping' };
+      // 2) ICMP ping con ritentativo (popola anche l'ARP, riletto a fine sweep per il MAC).
+      // Ritenta: un device flaky che perde il 1° ICMP non deve risultare "assente".
+      if (await _pingHostRetry(ip, pingMs, 2)) return { ip, alive: true, via: 'ping' };
       // 3) Fallback TCP: device che bloccano ICMP ma hanno web/mgmt aperto
       for (const def of TCP_PORTS) {
         if (await _tcpProbe(ip, def, Math.min(pingMs, 800))) return { ip, alive: true, via: 'tcp:' + def.port };
@@ -182,6 +183,10 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
     const interBatchDelayMs = safe ? 40 : 0;
     const reqTimeoutMs = Math.max(500, Math.min(parseInt(timeout || 2, 10) * 1000, 4000));
     const pingTimeoutMs = safe ? Math.min(reqTimeoutMs, 700) : Math.min(reqTimeoutMs, 500);
+    // Ritentativi ping: un host flaky (VPCS, stack lento, host dietro un gateway che deve
+    // risvegliare l'ARP) puo' perdere il PRIMO ICMP → un singolo ping lo manca. Default 2
+    // (buon compromesso: i vivi rispondono al 1°, i morti costano `pingTries` ping).
+    const pingTries = Math.max(1, Math.min(parseInt(req.body?.pingRetries, 10) || 2, 4));
     const total = ips.length;
     const rows = ips.map(ip => ({
       ip,
@@ -208,7 +213,7 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
     // 1) Ping sweep
     for (let i = 0; i < total; i += CONC) {
       const batch = ips.slice(i, i + CONC);
-      const results = await Promise.all(batch.map(ip => _pingHost(ip, pingTimeoutMs).catch(() => false)));
+      const results = await Promise.all(batch.map(ip => _pingHostRetry(ip, pingTimeoutMs, pingTries).catch(() => false)));
       results.forEach((ok, idx) => {
         const ip = batch[idx];
         const row = rows.find(r => r.ip === ip);

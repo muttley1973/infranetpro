@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-03 — The subnet scan retries the ping, so a device that drops the first packet isn't missed
+
+### Fixed
+- **The discovery ping-sweep (and the reachability audit) retry the ping instead of trusting a single packet** — a host that occasionally drops the first ICMP (a VPCS, a slow stack, or a device behind a gateway that has to resolve ARP first) was pinged once and, if that one packet was lost, silently missed — so it never appeared in Scopri, or was flagged absent in Verifica. The ping now retries up to N times (default 2; `pingRetries`, 1–4, in the scan request) and treats the host as alive if any attempt answers. An alive host still answers on the first try, so only genuinely dead IPs pay the extra pings. Vendor-neutral. `server/netscan.js`, `server/routes/discovery.js` (+ test).
+
 ## 2026-07-03 — A documented port is aligned to its real interface name using the LLDP/CDP neighbor
 
 ### Added

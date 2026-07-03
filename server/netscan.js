@@ -79,6 +79,21 @@ async function _pingHost(ip, timeoutMs = 800) {
   return out.includes('ttl=') || out.includes('bytes from') || out.includes('1 received');
 }
 
+// Ping con ritentativo: un host puo' perdere il PRIMO ICMP (VPCS, stack lenti, link
+// congestionati, host che risvegliano l'ARP del gateway) → il singolo ping darebbe un
+// FALSO negativo e l'host verrebbe mancato. Ritenta fino a `tries` volte, VIVO se ANCHE
+// UNO risponde. Vendor-neutral: non e' specifico di un device — chiude i falsi negativi
+// da perdita ICMP occasionale su qualunque host. Un host vivo di solito risponde al 1°
+// tentativo (costo minimo); uno realmente morto costa `tries` ping (bounded). Il param
+// `_ping` e' iniettabile per i test.
+async function _pingHostRetry(ip, timeoutMs = 800, tries = 2, _ping = _pingHost) {
+  const n = Math.max(1, Math.min(parseInt(tries, 10) || 1, 5));
+  for (let i = 0; i < n; i++) {
+    if (await _ping(ip, timeoutMs).catch(() => false)) return true;
+  }
+  return false;
+}
+
 function _normMac(mac) {
   // Windows usa '-' come separatore. macOS/BSD `arp` invece stampa i MAC TOGLIENDO gli
   // zeri iniziali di ogni ottetto (es. "0:1c:42:8:b:9" per "00:1C:42:08:0B:09"): senza
@@ -360,4 +375,4 @@ async function _deepIdentityScanHost(ip, safe, timeoutMs) {
   return { services, netbios, smbShares };
 }
 
-module.exports = { expandSubnet, _execFileAsync, _pingHost, _normMac, _parseArpTable, _readArpMap, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost };
+module.exports = { expandSubnet, _execFileAsync, _pingHost, _pingHostRetry, _normMac, _parseArpTable, _readArpMap, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost };
