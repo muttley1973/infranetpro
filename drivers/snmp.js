@@ -1605,6 +1605,25 @@ async function pollNeighbors(cfg) {
   }
 }
 
+// Un agente SNMPv3 REALE fornisce il proprio engineID autorevole durante la USM
+// engine-discovery (RFC 3414); un host SENZA SNMP — o morto — non lo fa, e
+// net-snmp resta col PROPRIO engine LOCALE. Quindi "engine remoto scoperto" =
+// engineID autorevole presente E DIVERSO da quello locale. Vendor-neutral e
+// indipendente dalla versione della libreria: nessun PEN/prefisso hardcoded.
+// Chiude il FALSO positivo "v3 needs-credentials" sugli host vivi ma non-SNMP
+// (VPCS/PC/IoT): un ICMP port-unreachable produce un ResponseInvalidError — NON
+// un timeout — che prima veniva scambiato per "agente v3 vivo".
+function _v3RemoteEngineDiscovered(session) {
+  try {
+    const auth = session && session.msgSecurityParameters && session.msgSecurityParameters.msgAuthoritativeEngineID;
+    if (!auth || !auth.length) return false;
+    const local = session && session.engine && session.engine.engineID;
+    const authHex  = Buffer.from(auth).toString('hex');
+    const localHex = (local && local.length) ? Buffer.from(local).toString('hex') : '';
+    return authHex !== localHex;
+  } catch (_) { return false; }
+}
+
 // ---- public API: lightweight probe (per discovery subnet) -------------------
 // Esegue solo un GET su sysDescr/sysName/sysObjectID — nessuna walk completa.
 // Restituisce { reachable, hostname, descr, objectId } in max timeout secondi.
@@ -1654,16 +1673,19 @@ async function probe(cfg) {
       try {
         session.get(OIDS_PROBE, (err, vbs) => {
           if (err) {
-            // v3 detect: timeout = non v3; QUALSIASI altra risposta (report USM)
-            // = agente v3 vivo ma senza credenziali. v1/v2c: errore = non raggiungibile.
-            if (v3detect && !(err instanceof snmp.RequestTimedOutError))
+            // v3 detect: "agente v3 vivo senza credenziali" SOLO se net-snmp ha
+            // scoperto un engineID REMOTO reale (vedi _v3RemoteEngineDiscovered).
+            // Un errore != timeout da solo NON basta: un host non-SNMP risponde
+            // con ResponseInvalidError (ICMP port-unreachable) senza engine remoto.
+            if (v3detect && !(err instanceof snmp.RequestTimedOutError) && _v3RemoteEngineDiscovered(session))
               return done({ reachable: true, driverUsed: 'snmp-v3', needsCredentials: true });
             return done({ reachable: false, error: err.message });
           }
           const hasData = Array.isArray(vbs) && vbs.some(vb => !snmp.isVarbindError(vb));
           if (!hasData) {
-            // v3 detect: ha risposto ma senza dati leggibili (noAuthNoPriv) → v3 da configurare.
-            if (v3detect) return done({ reachable: true, driverUsed: 'snmp-v3', needsCredentials: true });
+            // v3 detect: ha risposto ma senza dati leggibili (noAuthNoPriv) → v3 da
+            // configurare, ma SOLO se l'engine remoto e' stato davvero scoperto.
+            if (v3detect && _v3RemoteEngineDiscovered(session)) return done({ reachable: true, driverUsed: 'snmp-v3', needsCredentials: true });
             return done({ reachable: false, error: 'No data' });
           }
           done({
@@ -1775,4 +1797,5 @@ module.exports._internals = {
   logicalLagIdFromName, lastIdx, extractData, extractEntityInventory,
   extractSystem, _formatUptime, extractPrinter, _supplyColorKey,
   extractHostResources, _isPathPrefix, OID, PRT_OID, HR_OID, _oidGt,
+  _v3RemoteEngineDiscovered,
 };
