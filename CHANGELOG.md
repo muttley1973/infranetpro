@@ -2,6 +2,15 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-03 — No false SNMPv3 label on a PC/VPCS, and a crawled device keeps its vendor
+
+Three discovery fixes from a full multivendor lab smoke test (a live Scan + Sync on PnetLab), each vendor-neutral.
+
+### Fixed
+- **A live host that speaks no SNMP is no longer mislabeled "SNMPv3 (to configure)"** — the credential-less v3 detection treated *any* non-timeout error as a live v3 agent, but an ICMP port-unreachable from a PC/VPCS/IoT raises a `ResponseInvalidError`, so those hosts intermittently showed up as SNMPv3. Detection now requires a genuine USM **remote engineID** — the authoritative engineID an agent supplies during engine discovery, and different from net-snmp's own local engine — which only a real SNMPv3 agent can produce. No PEN or library prefix is hardcoded, so it holds across vendors and net-snmp versions. Validated live: three non-SNMP hosts → zero false v3, while the Cisco and VyOS agents are still detected. `drivers/snmp.js` (+ test).
+- **A device discovered via LLDP/CDP crawl keeps the vendor InfraNet resolved for it** — the backend derives the vendor from the device's `sysObjectID` (e.g. Cisco from enterprise 9), but a leftover `vendor:''` default in the crawl-merge overwrote it *after* the spread, so every crawled neighbor showed Vendor "—" while a directly-scanned device kept it. The merge now preserves the resolved vendor. `src/app-discovery.js` (+ test). *Frontend: rebuild + hard-reload.*
+- **The ping-sweep retry is now spaced** — ICMP loss on a rate-limited path arrives in bursts, so two back-to-back retry pings tend to fail *together* (measured ~27% double-loss); the retry now waits ~200 ms between attempts to land outside the loss window. Only a host that already missed the first try pays the wait. `server/netscan.js` (+ test). *(Known limit: on a path that rate-limits ICMP a full `/24` sweep can still saturate it and miss an off-segment, ping-only host — the planned robust fix is to surface the switches' SNMP ARP table as discovery candidates.)*
+
 ## 2026-07-03 — The subnet scan retries the ping, so a device that drops the first packet isn't missed
 
 ### Fixed

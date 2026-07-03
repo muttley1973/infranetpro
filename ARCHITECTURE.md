@@ -279,10 +279,30 @@ is VPN/LAN.
     `vmVlan`, so on that lab the manual-first guard is what protects the documented VLAN; a
     real Cisco IOS/NX-OS reads it correctly via `vmVlan`. Trunk VLANs come through fine via
     CISCO-VTP-MIB `9.9.46`.)*
-  - **The ping-sweep retries** (default 2, `pingRetries` 1–4) so a host that drops the first
-    ICMP (a VPCS, a slow stack, ARP-warmup behind a gateway) isn't missed — a single ping was
-    a silent false-negative. Applies to the reachability audit too. `_pingHostRetry`,
-    `server/netscan.js`, `server/routes/discovery.js`.
+  - **The ping-sweep retries, now SPACED** (default 2, `pingRetries` 1–4; ~200 ms between
+    attempts) so a host that drops the first ICMP (a VPCS, a slow stack, ARP-warmup behind a
+    gateway) isn't missed. Live measurement showed the loss is **bursty/correlated**: two
+    back-to-back pings fail *together* ~27% of the time on a rate-limited path, so an unspaced
+    retry is nearly useless — a small gap drops the retry outside the loss window. Cost falls
+    only on hosts that already missed the first try. Applies to the reachability audit too.
+    `_pingHostRetry`, `server/netscan.js`.
+  - **No false SNMPv3 on non-SNMP hosts (addressed).** The v3 credential-less detection used
+    to treat *any* non-timeout error as "live v3 agent needing credentials"; an ICMP
+    port-unreachable from an alive host with no SNMP (VPCS/PC/IoT) raises a
+    `ResponseInvalidError`, so those hosts intermittently surfaced as SNMPv3 "to configure".
+    It now requires a genuine USM **remote engineID** — the authoritative engineID present
+    *and* different from net-snmp's own local engine — a signal only a real agent produces.
+    Vendor- and library-version-neutral (no PEN/prefix hardcoded). Validated live: VPCS/PC/SRV
+    → 0 false v3, Cisco/VyOS still detected. `_v3RemoteEngineDiscovered`, `drivers/snmp.js`.
+  - **Still open — a ping-only, off-segment host can be missed under sweep load.** On a path
+    that rate-limits ICMP, a full `/24` sweep saturates it and even the gateway is
+    intermittently lost (measured: a VPCS surfaced in 2 of 5 sweeps). A device that speaks
+    **neither SNMP nor LLDP/CDP** and is **off-segment** (no local ARP MAC) has ICMP as its
+    only signal, so retry-spacing alone can't guarantee it appears. The robust vendor-neutral
+    fix is to **surface the SNMP ARP table** (`ipNetToMediaTable`) of the crawled switches as
+    discovery candidates — `pollNeighbors` already returns `arpTable`, so the off-segment
+    host's IP+MAC (hence OUI vendor) is available with no ICMP. Planned; presentation and
+    noise-scoping are a design decision.
   - **Still open — the ping sweep trusts the `ping` exit code** (`_pingHost`). On Windows,
     `ping` exits `0` even for a router's *"destination host unreachable"* reply, so empty IPs
     **behind an L3 gateway** can be counted as live (the gateway rate-limits the ICMP errors
@@ -308,8 +328,13 @@ is VPN/LAN.
   cable to a confirmed LLDP/CDP neighbor sits on a port without an ifName, the **real interface
   name is backfilled** onto that documented port (in SNMP form) and freed from the positional
   one it had landed on, so future syncs match it by ifName (`src/app-autolink.js`). Manual-first
-  and vendor-neutral throughout. The one discovery item still open is the ping-sweep **exit-code
-  false-positive** noted above.
+  and vendor-neutral throughout. The Scopri **crawl** also no longer blanks the vendor of an
+  LLDP/CDP-discovered neighbor: the backend resolves it from `sysObjectID` (e.g. Cisco from
+  PEN 9), but a stale `vendor:''` default in the merge was overwriting it *after* the spread,
+  so crawled devices showed Vendor "—" while a directly-scanned device kept it. The merge now
+  preserves the resolved vendor (`_discCrawlRow`, `src/app-discovery.js`). The discovery items
+  still open are the ping-sweep **exit-code false-positive** and the **off-segment ping-only**
+  miss under sweep load (both above).
 
 ---
 
