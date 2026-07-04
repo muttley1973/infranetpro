@@ -2,6 +2,16 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-04 — Vendor recognition backed by the full IANA + IEEE registries
+
+An SNMP scan (or a MAC seen in ARP) now resolves the manufacturer for essentially any registered vendor, not just a hand-picked few — closing a whole class of "device shows no vendor" reports.
+
+### Added
+- **The full IANA Private Enterprise Numbers registry is now a bundled, refreshable vendor source** — `data/pen-db.json` (~66k organizations), regenerated with `npm run update-pen`. `_vendorByObjectId` resolves an SNMP `sysObjectID`'s enterprise number (the 7th arc of `1.3.6.1.4.1.<PEN>`) against it. This is the SNMP-side twin of the IEEE OUI database (`data/oui-db.json`, ~57k prefixes, `npm run update-oui`) that already backs MAC→vendor. A small curated table (`PEN_VENDOR`) still wins for clean short names ("Cisco", "Arista" instead of the registry's raw "ciscoSystems" / "Arista Networks, Inc."); the registry catches everyone else, so a new vendor no longer needs a code change. `scripts/update-pen-db.js`, `server/classify.js`.
+
+### Fixed
+- **Arista devices now show their vendor.** Arista was missing from the small hand-maintained PEN table, so an Arista switch answering SNMP — e.g. a vEOS whose virtual MAC has no IEEE OUI — showed a blank vendor. It now resolves to **Arista** via its enterprise number (PEN 30065), and `arista` in a `sysDescr` classifies the device as a switch. Validated live against a lab Arista (real `sysObjectID 1.3.6.1.4.1.30065.1.2759`, "Arista Networks EOS 4.14"), alongside Cisco / MikroTik / Zyxel on the same scan. `server/classify.js`.
+
 ## 2026-07-04 — Duplicate phantoms collapsed, and patient web fingerprinting in deep-scan
 
 More discovery hygiene, prompted by a side-by-side with Advanced IP Scanner on the same `/24` (which confirmed InfraNet already runs every probe it does — HTTP title, TCP services, NetBIOS, SMB shares — but surfaced two tuning gaps).

@@ -24,7 +24,18 @@ test('_penFromObjectId / _vendorByObjectId: PEN -> vendor', () => {
   assert.equal(_vendorByObjectId('1.3.6.1.4.1.890.1.5.8'), 'Zyxel');
   assert.equal(_vendorByObjectId('1.3.6.1.4.1.2636.1.1'), 'Juniper');
   assert.equal(_vendorByObjectId('1.3.6.1.4.1.12356.101'), 'Fortinet');
+  assert.equal(_vendorByObjectId('1.3.6.1.4.1.30065.1.1'), 'Arista'); // PEN Arista Networks
   assert.equal(_vendorByObjectId('1.3.6.1.4.1.99999.1'), ''); // sconosciuto
+});
+
+test('Arista EOS: PEN 30065 -> vendor + tipo switch (vEOS lab + hardware reale)', () => {
+  // Il vEOS del lab presenta un MAC finto PNETLab (nessun OUI Arista) -> il vendor arriva
+  // SOLO da SNMP (PEN 30065). Prima non usciva affatto: Arista era ignoto ovunque.
+  assert.equal(_vendorByObjectId('1.3.6.1.4.1.30065.1.3011'), 'Arista');
+  assert.equal(_classifyDiscoveredDevice({
+    descr: 'Arista Networks EOS version 4.28.3M running on an Arista Networks vEOS',
+    objectId: '1.3.6.1.4.1.30065.1.3011', snmpReachable: true, sysServices: 2, alive: true,
+  }), 'switch');
 });
 
 test('_resolveSysObject: catalogo plugin arricchisce vendor/type', () => {

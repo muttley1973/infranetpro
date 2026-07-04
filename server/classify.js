@@ -5,6 +5,7 @@
 //  Estratto da server.js senza modifiche di logica.
 // ============================================================
 const path = require('path');
+const fs = require('fs');
 const { _normMac } = require('./netscan');
 const { SysObjectEngine, OuiEngine, FusionScorer } = require('../engine');
 const { oidTypeVotes } = require('../lib/device-signatures');
@@ -47,6 +48,7 @@ const PEN_VENDOR = {
   25053: 'Ruckus',
   24681: 'QNAP',
   25461: 'Palo Alto Networks',
+  30065: 'Arista',
   37049: 'Yealink',
   39165: 'Hikvision',
   41112: 'Ubiquiti',
@@ -135,9 +137,31 @@ function _penFromObjectId(objectId) {
   return m ? parseInt(m[1], 10) : 0;
 }
 
+// Full IANA Private Enterprise Numbers registry (~60k orgs), shipped as
+// `data/pen-db.json` and refreshed via `npm run update-pen` (scripts/update-pen-db.js).
+// This is the SNMP-side twin of the IEEE `data/oui-db.json`: the tiny curated
+// `PEN_VENDOR` above wins for clean short names ("Cisco", "Arista"), the registry
+// catches every other vendor so a new device no longer needs a code change. Loaded
+// lazily; a missing/corrupt file degrades gracefully to the curated table only.
+const PEN_DB_PATH = path.resolve(__dirname, '..', 'data', 'pen-db.json');
+let _penDbCache = null;
+function _loadPenDb() {
+  if (_penDbCache !== null) return _penDbCache;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(PEN_DB_PATH, 'utf8'));
+    _penDbCache = parsed && parsed.entries && typeof parsed.entries === 'object' ? parsed.entries : {};
+  } catch (_) { _penDbCache = {}; }
+  return _penDbCache;
+}
+function _penDbLookup(pen) {
+  if (!pen) return '';
+  return _loadPenDb()[String(pen)] || '';
+}
+
 function _vendorByObjectId(objectId) {
   const pen = _penFromObjectId(objectId);
-  return PEN_VENDOR[pen] || '';
+  if (!pen) return '';
+  return PEN_VENDOR[pen] || _penDbLookup(pen) || '';
 }
 
 function _sysObjectContext(row) {
@@ -260,7 +284,7 @@ function _classifyDiscoveredDeviceLegacy(row) {
   const fullText = `${text} ${serviceText}`.toLowerCase();
   const macPrefix = _normMac(row?.mac).substring(0, 8);
   const isLikelyGatewayIp = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.1$/.test(ip);
-  const switchWords = /switch|gs\d{3,4}|xgs\d{3,4}|catalyst|nexus|procurve|comware|ios[_-]?l2|l2iol/.test(fullText);
+  const switchWords = /switch|gs\d{3,4}|xgs\d{3,4}|catalyst|nexus|procurve|comware|ios[_-]?l2|l2iol|arista/.test(fullText);
   const routerWords = /router|gateway|junos|mikrotik|vyos|openwrt|edgerouter|zywall|usg|fritz|web-based configurator/.test(fullText);
   const networkVendorGateway = isLikelyGatewayIp && /zyxel|tp-link|netgear|d-link|mikrotik|ubiquiti|huawei|avm|fritz/.test(text);
   const hasSnmpSignal = !!(row?.snmpReachable || String(row?.descr || '').trim() || String(row?.objectId || '').trim());
