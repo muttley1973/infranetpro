@@ -268,6 +268,34 @@ is VPN/LAN.
   che resta sul ponte (`win.*`, ~1800 letture) sono funzioni non ancora ritirate
   (`selected`/`checked`/`_build*`).
 - **Commit only when asked.** Keep secrets and user data out of the repo.
+- **Discovery engine — DHCP-as-source + macsuck device location (2026-07-04).**
+  Two "see it without a ping" additions, from live testing (Synology DHCP + a Zyxel GS1900):
+  - **DHCP leases as a discovery source.** The sweep route (`/api/discover`) accepts
+    `dhcpLeases` in the body (the frontend sends `store._dhcpLeases`). After the sweep it
+    appends a candidate row for every leased IP **inside the scanned subnet** that wasn't
+    already found — decorated by the same `_decorateDiscoveryRow` pipeline (OUI vendor,
+    hostname), `alive:false` (observed, **not** pre-selected — manual-first). The scorer
+    (`_buildDiscoveryMeta`) gains a `dhcp` evidence (weight 14, an authoritative IP-MAC
+    binding across all VLANs) that **replaces** the generic `mac` evidence for a lease row
+    (no double-count, honest source label). Works with **zero SNMP**. Frontend marks the row
+    `_via:'dhcp'` (source badge + "observed" state).
+  - **macsuck — `locateMacsOnEdge(fdbBySwitch, opts)` in `lib/correlate.js`.** The crawl
+    (`/api/discover/topology`) already got each switch's FDB from `pollNeighbors` (`fdbTable`)
+    and threw it away; it now collects it and, at end-of-crawl, locates every target MAC
+    (crawl results + `targetMacs` the frontend passes from the sweep) on its access port,
+    emitting a single `type:'located'` SSE event `{ edges:{ [macLower]: {switchIp, switchName,
+    ifName, macCount, edge, shared, ambiguous} } }`. The frontend `_discApplyEdges` matches by
+    lowercased MAC and renders `_discEdgeBadge`. Placement rule (netdisco-canonical): the
+    **edge** = the port with the fewest co-learned MACs (`<= edgeMax`, default 4 → direct
+    link); if none, the least-busy **non-LAG** port → **shared** ("behind *port*", an AP /
+    unmanaged switch); a MAC seen only on a busy **LAG uplink** is left unplaced. Virtual NICs
+    excluded. **Pure, vendor-neutral** (BRIDGE-MIB `dot1dTpFdb` / Q-BRIDGE `dot1qTpFdb`).
+    ⚠️ **Needs a switch that exposes the FDB over SNMP** (real Cisco/Aruba/HPE/Zyxel/Arista):
+    the lab's Cisco vIOS returns an empty bridge FDB (same limit family as `vmVlan`/`dot1qPvid`
+    — proven by escalating probes incl. ping-then-read and `community@vlan`), so macsuck is
+    unit-tested + validated on real hardware (Zyxel GS1900), not on vIOS. Manual-first: the
+    location is a badge hint, not an auto-created cable (auto-cable-on-import is a deliberate
+    follow-up).
 - **Discovery engine — scan speed, confidence pre-select, de-dup, BYOD vendor (2026-07-04).**
   From live testing on a real `/24`:
   - **Single-ping sweep + ARP-authoritative liveness.** The spaced double-ping retry (below)

@@ -2,6 +2,15 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-04 — DHCP leases become a discovery source, and Scopri locates devices on their switch port
+
+Two additions that make discovery see — and place — devices that never answer a ping. Built from live testing on a real network (Synology DHCP + a Zyxel GS1900 managed switch) and the multivendor lab.
+
+### Added
+- **Imported DHCP leases are now a first-class discovery source** — a sleeping phone, tablet or IoT device (Wi-Fi power-save) doesn't answer ICMP and drops out of the ARP cache, so a point-in-time scan misses it — but its DHCP lease is valid for days. If you've imported the leases (Automations -> DHCP leases, paste/file), the subnet scan now adds a candidate row for every leased IP in the scanned subnet that the sweep didn't already find: **IP + MAC + hostname + OUI vendor**, decorated identically to any other row, shown as **observed / not pre-selected** (manual-first - you decide). It works **with zero SNMP** (a network behind a Synology/home router). The confidence scorer gains a `dhcp` evidence (an authoritative IP-MAC binding across all VLANs). `server/routes/discovery.js`, `server/classify.js`, `src/app-discovery.js`, i18n.
+- **macsuck - the topology crawl locates each discovered MAC on its switch access port** — the LLDP/CDP expansion already collected every reachable switch's forwarding table (FDB); it now *uses* it. For every discovered MAC (swept hosts, ARP candidates, DHCP leases) InfraNet finds the port where it's learned and shows a **location badge**: a **direct edge** when the port carries few MACs (`SW-CORE . Gi0/5`), or **"behind *port*"** when the port carries many non-LAG MACs (a device hanging off an AP or unmanaged switch - an honest weaker hint, not a fabricated cable). A MAC seen only on a busy **LAG uplink** is left unplaced (it's simply upstream). The edge is the minimum co-learned-MAC port, the canonical *macsuck* approach. Manual-first: it's a hint, surfaced as a badge. Vendor-neutral (standard BRIDGE-MIB / Q-BRIDGE-MIB). Validated live on a Zyxel GS1900: 5 wired devices placed on their exact port, wireless clients placed behind the AP's port. `lib/correlate.js`, `server/routes/discovery.js`, `src/app-discovery.js`, i18n. *Frontend: rebuild + hard-reload.*
+- **Note on hardware support** — macsuck needs a switch that exposes its forwarding table over SNMP (real Cisco/Aruba/HPE/Zyxel/Arista). The lab's Cisco vIOS images don't populate the bridge FDB over SNMP (the same limitation family as `vmVlan`/`dot1qPvid`), so macsuck can't be exercised there - it's covered by unit tests and validated on real hardware instead.
+
 ## 2026-07-04 — Faster subnet scan, cleaner Scopri table, and a vendor for BYOD devices
 
 A round of discovery improvements from live testing on a real `/24`.
