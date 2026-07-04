@@ -268,6 +268,46 @@ is VPN/LAN.
   che resta sul ponte (`win.*`, ~1800 letture) sono funzioni non ancora ritirate
   (`selected`/`checked`/`_build*`).
 - **Commit only when asked.** Keep secrets and user data out of the repo.
+- **Discovery engine — scan speed, confidence pre-select, de-dup, BYOD vendor (2026-07-04).**
+  From live testing on a real `/24`:
+  - **Single-ping sweep + ARP-authoritative liveness.** The spaced double-ping retry (below)
+    doubled the time spent on every dead IP; on a full `/24` of empty addresses that pushed the
+    scan past the client timeout (~3× slower on dead IPs, measured). The sweep now sends **one**
+    ICMP probe by default (`pingRetries` still opt-in, 1–4). Reliability moves to **ARP**, the
+    authoritative liveness on a LAN (as nmap does): after the sweep, an on-segment host with a
+    **local ARP entry** is marked `alive` even if its ICMP reply was lost (`pingReachable` stays
+    false → it weighs as ARP in scoring, not a fake ping), so ICMP-filtered hosts appear too.
+    Cross-subnet is safe — the local ARP cache holds only the gateway for off-segment IPs, so no
+    false positives. `server/routes/discovery.js`.
+  - **Pre-selection gated on confidence (15%).** A ping-only phantom (the exit-code artifact
+    below) scores ~10% (only the `reachability` evidence); anything real starts at ~20% (a bare
+    ARP MAC is ≈22%, SNMP ≥57%) — the bands don't overlap, verified with the real scorer on the
+    lab. Discovery now pre-checks a row only if `alive && confidence ≥ 15`; the phantoms stay
+    visible (greyed `.disc-lowconf`, hand-selectable) but out of the default import
+    (`DISC_PRESELECT_MIN_CONF`, `src/app-discovery.js`).
+  - **De-dup across sweep and crawl.** The crawl/ARP-SNMP de-dup set (`knownIps`) now starts from
+    every swept IP (`store._discResults`), not just the seeds, so a host already found by the sweep
+    isn't proposed twice when it also appears in a switch's SNMP ARP table. MACs are normalized to
+    one canonical **uppercase** form for all sources (`_discEnsureMeta`), so the same device can't
+    slip a MAC-based de-dup (the sweep emitted uppercase, the ARP path lowercase).
+  - **Merge-guards on the render path (audit F4/F5).** The guard that stops a next-hop/gateway MAC
+    from collapsing remote hosts onto the gateway node ran only on import; it now also runs on the
+    preview/table index (`_discAttachMergeGuards`), so a remote host no longer inherits the gateway's
+    type and the New/Update badges match what import does. A blocked (next-hop) MAC is treated as
+    absent throughout `_discFindExistingDevice`, so it can't raise a false IP-vs-MAC conflict.
+    `src/app-discovery-classify.js`.
+  - **BYOD vendor from the device's own name.** A randomized/private Wi-Fi MAC has no OUI, so the
+    vendor was blank. The vendor resolution now falls back to a **hostname/mDNS brand** the device
+    announces (`iPhone-…`→Apple, `Galaxy…`→Samsung, …; `_vendorFromHostname`, conservative list, no
+    false positives), and where nothing is derivable the table shows an honest **"Private · random
+    MAC"** label instead of an empty cell (`_discVendorLabel` + `isRandomizedMac`). The IEEE
+    "Private" OUI value is left untouched. Vendor-neutral. `server/classify.js`, `src/app-discovery.js`.
+  - **Table + hidden-panel UX/perf.** The Scopri table uses a fixed column layout (`.disc-scan-table`,
+    `table-layout:fixed`) and the "SNMPv3 to configure" badge is shortened to "v3" next to the SNMP
+    source. And `renderProps()` is skipped in `_renderAllNow` when the panel is hidden and nothing is
+    selected (the floor branch scans every VLAN's IPAM), with the IPAM lookups memoized per render
+    frame — a speed-up on large projects (audit F6). `src/app-render-core.js`, `src/app.js`,
+    `src/app-properties-floor.js`.
 - **Discovery engine — hardened by live multivendor PnetLab validation (2026-07).**
   - **Access VLAN — `vmVlan` fallback + a manual-first guard (addressed).** The access VLAN
     is now read from CISCO-VLAN-MEMBERSHIP-MIB (`vmVlan`, `9.9.68.1.2.2.1.2`, per ifIndex)

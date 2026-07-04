@@ -2,6 +2,23 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-04 — Faster subnet scan, cleaner Scopri table, and a vendor for BYOD devices
+
+A round of discovery improvements from live testing on a real `/24`.
+
+### Changed
+- **The subnet scan is faster and no longer times out on a full `/24`** — the ping-sweep now sends a **single ICMP probe by default** instead of a spaced double-ping (the retry doubled the time spent on every dead IP, which on a `/24` full of empty addresses pushed the scan past the client timeout). Reliability now comes from **ARP, not from hammering ICMP**: an on-segment host that answers ARP is treated as alive even if its ICMP reply is lost — the authoritative liveness on a LAN, the same approach nmap takes — so hosts that filter ICMP now show up too. The spaced retry stays available opt-in (`pingRetries`, 1–4). Measured ~3× faster on dead IPs. `server/routes/discovery.js`.
+- **The Scopri table has fixed columns and tidier badges** — the results table now uses a **fixed column layout** (stable alignment, no columns jumping as content changes); the MAC stays on one line; long vendor names ellipsize; and the **destination (floor/rack) icon no longer wraps** under the type dropdown. The "SNMPv3 to configure" badge is shortened to **"v3"** (with the key icon) and moved right after the SNMP source badge. `netmapper.html`, `styles/07-modals.css`, `src/app-discovery.js`. *Frontend: hard-reload.*
+- **The properties panel is no longer rebuilt while it's hidden** — with the Rack or Assistant tab open and nothing selected, InfraNet no longer runs the per-VLAN IPAM scan behind the hidden panel, and the IPAM lookups are memoized per render frame — a real speed-up on large projects. `src/app-render-core.js`, `src/app.js`.
+
+### Added
+- **BYOD devices show a vendor even when the MAC hides it** — a phone with a randomized/private Wi-Fi MAC has no manufacturer OUI, so its vendor column was blank. InfraNet now derives the brand from the name the device itself announces over mDNS/DHCP (`iPhone-di-…` → Apple, `Galaxy-S23` → Samsung, `Pixel-7` → Google, …) — a real signal, not a guess. When nothing is derivable it shows an honest **"Private · random MAC"** label instead of an empty cell. The raw IEEE "Private" OUI value is left as-is. Vendor-neutral, conservative pattern list. `server/classify.js`, `src/app-discovery.js`, i18n.
+
+### Fixed
+- **Ping-only phantom IPs are no longer pre-selected for import** — an address that answers *only* ping (the ~10% artifact of a gateway that replies "host unreachable" with exit code 0) scored far below any real device (a bare ARP MAC is already ~22%, SNMP ≥57%). Discovery now pre-checks a row only if its confidence clears **15%**; the phantoms stay visible (greyed, selectable by hand) but out of the default import. Verified live against the real `/24`. `src/app-discovery.js`.
+- **The same host is no longer proposed twice in Scopri** — an IP already found by the sweep and then seen again in a switch's SNMP ARP table (or announced via LLDP/CDP) was added a second time, because the crawl's de-dup set started from the seeds only, not from the sweep results; it now knows every swept IP. MACs are also normalized to a single canonical **uppercase** form across all sources (the sweep produced uppercase, the ARP path lowercase — the same device slipping past a MAC-based de-dup). `src/app-discovery.js`.
+- **A remote host no longer inherits the gateway's device type, and the New/Update badges tell the truth** — the guard that stops a next-hop/gateway MAC from collapsing remote hosts onto the gateway node was applied only on import, not on the preview/table render, so the table could show a host as the gateway's type or mislabel New vs Update. The same guard now runs on the render path, and a blocked (next-hop) MAC is treated as absent throughout the match so it can't create a false IP-vs-MAC conflict. `src/app-discovery-classify.js`.
+
 ## 2026-07-03 — Discovery finds off-segment hosts from the switches' SNMP ARP table
 
 ### Added
