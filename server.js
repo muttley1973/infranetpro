@@ -58,7 +58,7 @@ app.use((req, res, next) => {
 // tagliati, reskin...). I woff2 di Font Awesome NON sono qui -> restano cacheabili.
 app.use((req, res, next) => {
   if (req.method === 'GET' && (
-      req.path === '/' || req.path === '/app.js' || req.path === '/export.js' ||
+      req.path === '/' || req.path === '/export.js' ||
       req.path.startsWith('/styles/') || req.path.startsWith('/dist/') || req.path.startsWith('/lib/')
   )) res.set('Cache-Control', 'no-cache');
   next();
@@ -72,7 +72,10 @@ app.get('/styles/:file', (req, res) => {
   if (!/^[a-zA-Z0-9_-]+\.css$/.test(req.params.file)) return res.status(404).end();
   res.sendFile(path.join(ROOT, 'styles', req.params.file));
 });
-app.get('/app.js', (_, res) => res.sendFile(path.join(ROOT, 'app.js')));
+// (route storica /app.js RIMOSSA: il monolite pre-ESM non esiste piu al root, il
+//  frontend carica /dist/app.bundle.js; una GET /app.js cadeva su un sendFile ENOENT
+//  che serviva la pagina d'errore HTML di Express col path assoluto del server nel
+//  body. Ora cade nel 404 catch-all JSON pulito, senza info-disclosure.)
 app.get('/export.js', (_, res) => res.sendFile(path.join(ROOT, 'export.js')));
 // Bundle esbuild del frontend (cartella dist/): solo .js + .map, niente traversal.
 app.get('/dist/:file', (req, res) => {

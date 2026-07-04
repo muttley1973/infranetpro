@@ -2,6 +2,17 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-04 — Security hardening: AI key file locked down, dead-route path leak closed
+
+Two small hardening fixes surfaced by a full stress test of the pure engines (a synthetic 500-device enterprise project — JSON durability, drift/IPAM/LAG/topology, simulated scan pipeline) and a live smoke test of every HTTP surface. Both passes came back clean apart from these.
+
+### Security
+- **The stored AI provider key is now written owner-only (`0o600`).** `data/ai-config.json` holds the bring-your-own key when it isn't supplied via `INFRANET_AI_KEY`; it was created with default permissions, so on a multi-user host another local user could read it. `setConfig` now writes it with `mode 0o600` and re-applies the mode on every overwrite (POSIX `writeFileSync({mode})` only sets permissions on creation, not on rewrite), and an existing loose file is tightened once at server start. Best-effort on filesystems without POSIX permissions (Windows). `server/ai-config.js`, guarded by `test/ai-config.test.js`.
+- **A dead `/app.js` route no longer leaks the server's absolute path.** The pre-ESM monolith `app.js` no longer exists at the repo root (the frontend loads `dist/app.bundle.js`), but the route survived and `sendFile`'d the missing file, so `GET /app.js` returned Express's default ENOENT HTML page with the absolute filesystem path in the body. The route is removed; `GET /app.js` now falls through to the clean `{"error":"Not found"}` catch-all. `server.js`, guarded by `test/static-routes.test.js`.
+
+### Fixed
+- **The e2e test harness now isolates the API-token and user stores.** `test/e2e/helpers/server.js` already redirected the projects / skins / AI-config stores to a temp dir, but not the token/user stores, so a token- or user-touching e2e test would have written the real (git-ignored) `api-tokens.json` / `users.json`. It now also points `INFRANET_API_TOKENS_FILE` and `INFRANET_USERS_FILE` into the same temp dir. Test-only.
+
 ## 2026-07-04 — macsuck no longer drops port badges under crawl load (adaptive SNMP walk retry)
 
 ### Fixed
