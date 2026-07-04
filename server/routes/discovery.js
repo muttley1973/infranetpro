@@ -9,7 +9,7 @@ const os  = require('os');
 const auth = require('../../auth');
 const { DRIVERS } = require('../drivers');
 const { buildNeighborCandidates, buildPortIndex, buildMacIndex, buildPortMacIndex, buildFdbCandidates, buildArpCandidates, locateMacsOnEdge } = require('../../lib/correlate');
-const { expandSubnet, _execFileAsync, _pingHost, _pingHostRetry, _normMac, _parseArpTable, _readArpMap, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost } = require('../netscan');
+const { expandSubnet, _execFileAsync, _pingHost, _pingHostRetry, _normMac, _parseArpTable, _readArpMap, _demoteStaleArpDup, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost } = require('../netscan');
 const { _cleanHostname, PEN_VENDOR, _penFromObjectId, _vendorByObjectId, _decodeSysServices, _classifyDiscoveredDevice, _buildDiscoveryMeta, _decorateDiscoveryRow } = require('../classify');
 const { OuiEngine } = require('../../engine');
 const dhcpDrivers = require('../dhcp-drivers');
@@ -355,6 +355,18 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
       }
     }
 
+    // Declassa i duplicati ARP stantii: una riga viva SOLO via ARP-autorevole il cui
+    // MAC e' gia' vivo (ping/snmp) o in un lease DHCP a un ALTRO IP e' lo stesso device
+    // visto a un IP vecchio (es. cambio IP DHCP) -> torna "Inattivo" (resta visibile,
+    // manual-first). Le voci morte senza MAC gia' non arrivano qui (netsh in _readArpMap).
+    const _dhcpStrong = new Map();
+    for (const l of (Array.isArray(req.body?.dhcpLeases) ? req.body.dhcpLeases : [])) {
+      const mac = _normMac(String(l?.mac || '')); const ip = String(l?.ip || '').trim();
+      if (mac && /^\d{1,3}(\.\d{1,3}){3}$/.test(ip) && !_dhcpStrong.has(mac)) _dhcpStrong.set(mac, ip);
+    }
+    const _staleDup = _demoteStaleArpDup(rows, _dhcpStrong);
+    if (_staleDup.length) console.log(`  [DISCOVER] ${subnet}: ${_staleDup.length} duplicati ARP stantii -> Inattivo`);
+
     const results = rows
       .filter(r => r.alive || r.mac || r.hostname || r.httpTitle || r.httpsTitle || r.snmpReachable || r.netbiosName || (r.services && r.services.length) || (r.smbShares && r.smbShares.length))
       .map(r => _decorateDiscoveryRow(r));
@@ -614,9 +626,22 @@ router.post('/api/discover/topology', auth.requireAdmin, async (req, res) => {
   if (scanSet && arpTables.length && !aborted) {
     const knownIps = new Set(visited);
     for (const r of results) { if (r && r.ip) knownIps.add(r.ip); }
+    // Subnet ON-SEGMENT del collector: li' la sua ARP LOCALE e' autorevole, quindi
+    // NON si resuscitano IP morti dall'ARP (spesso stantia) di un NAS/router on-segment
+    // (es. la ipNetToMediaTable di una Synology piena di voci dormienti). L'ARP-SNMP
+    // resta per gli host OFF-SEGMENT, il suo scopo.
+    let localSubnets = null;
+    try {
+      const loc = _readLocalInterfaceMap();
+      localSubnets = new Set();
+      for (const lip of loc.keys()) {
+        const m = /^(\d{1,3}\.\d{1,3}\.\d{1,3})\./.exec(lip);
+        if (m) localSubnets.add(m[1]);
+      }
+    } catch (_) { localSubnets = null; }
     const arpMap = new Map();   // ip -> { ip, mac, viaFrom } (dedup cross-device)
     for (const { table, fromIp } of arpTables) {
-      for (const c of buildArpCandidates(table, { scanSet, knownIps, fromIp })) {
+      for (const c of buildArpCandidates(table, { scanSet, knownIps, fromIp, localSubnets })) {
         if (!arpMap.has(c.ip)) arpMap.set(c.ip, c);
       }
     }
