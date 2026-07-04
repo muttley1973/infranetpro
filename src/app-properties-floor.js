@@ -134,6 +134,13 @@ function _renderFloorProps(panel){
                   <button class="toolbar-btn" style="padding:4px 10px;margin:0;font-size:0.74rem;background:var(--accent-soft);border-color:var(--accent);color:var(--text-main)" data-tip="${t('floor.clearAllVlansTip')}" onclick="clearAllVlans()"><i class="fas fa-trash-alt" style="margin-right:6px;color:var(--fault-color)"></i>${t('floor.clearAllVlans')}</button>
                 </div>
                 <div style="max-height:640px;overflow-y:auto;padding-right:4px">`;
+        // F6: memo IPAM per-frame — _l3Compute e OGNI card VLAN chiamano _ipamUsageForVlan/
+        // _vlanIpamSummary, e ciascuna ri-scandisce tutti i nodi + lease. Le accentro in
+        // 1 sola scansione per questa resa (sincrona) → poi il memo si azzera nel finally,
+        // niente staleness fuori. Bare + typeof guard: se assente, resa piu' lenta ma
+        // corretta.
+        if(typeof _ipamMemoBegin === 'function') _ipamMemoBegin();
+        try {
         // L3-lite: righe gateway calcolate UNA volta (non per card) per la
         // riga "Device gateway" dentro ogni IPAM aperta.
         const _l3rows = {};
@@ -186,6 +193,9 @@ function _renderFloorProps(panel){
                     </div>` : ''}
                 </div>`;
         });
+        } finally {
+            if(typeof _ipamMemoEnd === 'function') _ipamMemoEnd();
+        }
         h+=`</div>
                 <div style="display:flex;gap:5px;margin-top:12px;border-top:1px solid var(--panel-border);padding-top:10px">
                   <input type="number" id="new-vlan-id" placeholder="ID" style="width:55px">

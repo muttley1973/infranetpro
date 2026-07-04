@@ -421,7 +421,15 @@ function _renderAllNow(){
         fI.appendChild(el);
     });
 
-    renderProps();
+    // F6: la resa Proprieta' e' costosa SOLO nel ramo planimetria (nessuna selezione):
+    // _renderFloorProps scandisce ogni VLAN con _ipamUsageForVlan/_vlanIpamSummary,
+    // ognuna ri-scansiona TUTTI i nodi. Inutile quando il pannello e' NASCOSTO (tab
+    // Rack/Assistente) e non c'e' selezione. Con una selezione attiva la resa e'
+    // leggera (un solo nodo/porta/cavo) e va tenuta — _activatePropsTab (nei renderer
+    // di selezione) garantisce lo switch a 'props' anche dagli entry-point che non lo
+    // forzano gia'; il re-render al cambio tab c'e' comunque (renderScope('props')).
+    // _rightTab letto bare (var globale su window, vedi app.js) → 0 nuove letture win.*.
+    if(_rightTab === 'props' || (store.selType && store.selId)) renderProps();
     win._updateLagBanner();
     win._updateRackFloorBtn();
     // Legenda VLAN: visibile in entrambe le viste (Map=passiva, Topology=interattiva)
