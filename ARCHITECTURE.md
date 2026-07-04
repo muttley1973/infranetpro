@@ -286,8 +286,23 @@ is VPN/LAN.
     only rows whose physical-address column is a real MAC. "Unreachable"/"Incomplete"
     entries carry the localized *state* there (no MAC) → excluded by matching the MAC
     token, **not** the state string (robust across Windows locales; avoids the
-    `task_977d2930` trap). `_parseNeighbors` is pure + tested (IT/EN/any-locale). Plus
-    `_demoteStaleArpDup`: an ARP-only row whose MAC is live/DHCP at another IP → *Inactive*.
+    `task_977d2930` trap). `_parseNeighbors` is pure + tested (IT/EN/any-locale).
+  - **Stale-duplicate demote — `_demoteStaleArpDup`, two passes.** *Pass 1:* an ARP-only
+    row whose MAC is live/DHCP at **another** IP is a stale cache entry of the same device
+    → *Inactive*. *Pass 2 (double-phantom, 2026-07-04):* the **same** MAC on two-or-more
+    ARP-only rows with **no** strong anchor anywhere (no ping/SNMP/DHCP) is one device
+    caught mid DHCP-renewal in a stale cache (common with randomized/BYOD + mobile MACs) —
+    keep one representative (highest IP, deterministic via `_ipToNum`), demote the rest to
+    *Inactive*. Manual-first: demoted rows stay visible + re-selectable. Prompted by an
+    Advanced IP Scanner side-by-side that showed the same MAC at two IPs (a phone at `.180`
+    **and** `.240`; a randomized MAC at `.122` **and** `.234`). Pure + unit-tested.
+  - **Web fingerprint — fast base, patient deep-scan (2026-07-04).** The HTTP/HTTPS title
+    probe (feeds vendor + type from a banner like `GS1200-8` / `Keil-EWEB` / `lighttpd`)
+    stays **aggressive (450/650 ms) in the base scan** so a `/24` stays fast. Embedded web
+    UIs on UPSs / NAS / cheap switches answer slower and were missed; when **deep-scan** is
+    on, discovery re-probes them **patiently (900/1200 ms), in parallel** with the
+    NetBIOS/SMB/TCP identity scan, but only the rows still missing a title. The everyday
+    fast path is unchanged. `server/routes/discovery.js`.
   - **Crawl heartbeat (UX).** The LLDP/CDP expansion is long (SNMP poll per switch +
     macsuck at the end); the Scansiona button shows "Espansione…" + spinner and the
     progress line updates per probed device (+ located count) so it doesn't look frozen.
