@@ -319,6 +319,27 @@ test('_buildDiscoveryMeta: convergenza 3+ sorgenti -> bonus confidenza', () => {
   assert.ok(meta.confidence.score > 40, `score ${meta.confidence.score} deve superare 40 con 3+ sorgenti`);
 });
 
+test('_vendorFromHostname: brand BYOD dal nome host/mDNS (grounded, no falsi positivi)', () => {
+  const { _vendorFromHostname, _decorateDiscoveryRow } = require('../server/classify.js');
+  assert.equal(_vendorFromHostname('iPhone-di-Mario'), 'Apple');
+  assert.equal(_vendorFromHostname('Marys-iPad'), 'Apple');
+  assert.equal(_vendorFromHostname('Galaxy-S23'), 'Samsung');
+  assert.equal(_vendorFromHostname('Pixel-7'), 'Google');
+  assert.equal(_vendorFromHostname('HUAWEI-P30'), 'Huawei');
+  assert.equal(_vendorFromHostname('redmi-note-12'), 'Xiaomi');
+  // niente falsi positivi
+  assert.equal(_vendorFromHostname('DESKTOP-ABC123'), '');
+  assert.equal(_vendorFromHostname('sw-core'), '');
+  assert.equal(_vendorFromHostname('reddit'), '');   // NON deve matchare "redmi"
+  assert.equal(_vendorFromHostname(''), '');
+  // Un BYOD con MAC randomizzato ma hostname parlante ottiene il brand (prima: vuoto)
+  const d = _decorateDiscoveryRow({ ip: '192.168.1.50', alive: true, mac: '3A:42:5E:10:70:89', hostname: 'iPhone-di-Anna' });
+  assert.equal(d.vendor, 'Apple');
+  // Randomizzato SENZA altri segnali: nessuna invenzione lato server (resta vuoto)
+  const d2 = _decorateDiscoveryRow({ ip: '192.168.1.51', alive: true, mac: '2A:50:30:1F:8C:AB' });
+  assert.equal(d2.vendor || '', '');
+});
+
 test('_classifyDiscoveredDevice: IoT — Daikin condizionatore e lavatrice LG', () => {
   // Daikin/AzureWave condizionatore (keyword in smartHomePlatform)
   assert.equal(_classifyDiscoveredDevice({ hostname:'DaikinAP012345', vendor:'AzureWave Technology', alive:true }), 'iot');
