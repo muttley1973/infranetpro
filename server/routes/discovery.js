@@ -183,10 +183,14 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
     const interBatchDelayMs = safe ? 40 : 0;
     const reqTimeoutMs = Math.max(500, Math.min(parseInt(timeout || 2, 10) * 1000, 4000));
     const pingTimeoutMs = safe ? Math.min(reqTimeoutMs, 700) : Math.min(reqTimeoutMs, 500);
-    // Ritentativi ping: un host flaky (VPCS, stack lento, host dietro un gateway che deve
-    // risvegliare l'ARP) puo' perdere il PRIMO ICMP → un singolo ping lo manca. Default 2
-    // (buon compromesso: i vivi rispondono al 1°, i morti costano `pingTries` ping).
-    const pingTries = Math.max(1, Math.min(parseInt(req.body?.pingRetries, 10) || 2, 4));
+    // Ritentativi ping: DEFAULT 1 (ping singolo, come nmap/fping — 1 giro veloce).
+    // Il ping-multiplo spaziato costava ~pingTries×timeout su OGNI ip morto di una /24
+    // (≈2× lo sweep → timeout lato client) senza portare valore: su una LAN la presenza
+    // autorevole e' l'ARP (vedi passo 2, un host on-segment che perde l'ICMP viene
+    // comunque marcato alive dalla sua voce ARP), non il martellamento ICMP. Resta
+    // opt-in via `pingRetries` (1-4) per path patologici (es. lab cross-subnet
+    // rate-limited dove l'ARP-SNMP non copre).
+    const pingTries = Math.max(1, Math.min(parseInt(req.body?.pingRetries, 10) || 1, 4));
     const total = ips.length;
     const rows = ips.map(ip => ({
       ip,
@@ -238,6 +242,13 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
       if (mac) {
         r.mac = mac;
         r.vendor = _vendorByMac(mac);
+        // ARP autorevole (come nmap sulla LAN): un host on-segment con voce ARP locale
+        // HA risposto all'ARP → e' presente sul filo anche se ha perso l'ICMP (ping
+        // singolo, o host con ICMP filtrato/flaky). Lo marchiamo alive SENZA fingere un
+        // ping: `pingReachable` resta false → niente evidenza ICMP, la presenza pesa
+        // come ARP nello scoring. Cross-subnet la cache ARP locale contiene solo il
+        // gateway (non i singoli host) → nessun falso positivo off-segment.
+        if (!r.alive) { r.alive = true; r.status = 'On'; r.viaArp = true; }
       }
     });
 
