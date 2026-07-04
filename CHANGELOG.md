@@ -2,6 +2,18 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-04 — No more phantom low-confidence IPs in Scopri, and a live crawl heartbeat
+
+Discovery hygiene from live debugging on a real `/24`.
+
+### Fixed
+- **Phantom low-confidence "observed" IPs no longer clutter Scopri.** Two independent sources of dead/stale ARP rows were closed:
+  - **ARP-SNMP is now off-segment only.** The topology crawl harvests each SNMP switch/router's ARP table (`ipNetToMediaTable`) to surface off-segment hosts — but it was also surfacing **on-segment** dead IPs from a neighbour device's *stale* ARP cache (a NAS/router full of sleeping entries). For IPs in the collector's own subnet the local sweep/ARP is authoritative, so `buildArpCandidates` now **skips on-segment IPs** and keeps doing its real job (genuinely off-segment hosts). Root-caused live: the phantoms came from an on-segment Synology's `ipNetToMediaTable`. Verified in-browser — a full `/24` scan went from **7 phantoms to 0**. `lib/correlate.js`, `server/routes/discovery.js`.
+  - **Local ARP read is now state-aware (Windows).** `_readArpMap` uses `netsh interface ipv4 show neighbors` (which carries neighbour state) instead of `arp -a`, keeping only entries that currently resolve to a MAC — "Unreachable"/"Incomplete" neighbours have no MAC and are dropped **without** matching localized state strings (robust across Windows languages), so the collector's own stale ARP entries stop appearing as false "observed" hosts. Plus a stale-duplicate demote: an ARP-only row whose MAC is already live/DHCP at another IP falls back to *Inactive*. `server/netscan.js`, `server/routes/discovery.js`.
+
+### Added
+- **Live crawl heartbeat.** The LLDP/CDP expansion can take ~30s (an SNMP poll per switch, plus macsuck at the end). The **Scansiona** button now shows "Expanding…" with the spinner and the progress line updates live (the device being probed + how many located on a port), so it's obvious the scan is still working instead of looking finished. `src/app-discovery.js`, i18n. *Frontend: rebuild + hard-reload.*
+
 ## 2026-07-04 — DHCP leases become a discovery source, and Scopri locates devices on their switch port
 
 Two additions that make discovery see — and place — devices that never answer a ping. Built from live testing on a real network (Synology DHCP + a Zyxel GS1900 managed switch) and the multivendor lab.
