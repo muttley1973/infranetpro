@@ -273,6 +273,9 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
             })());
           }
           if (detectWeb) {
+            // Base = probe web AGGRESSIVO: lo scan normale resta veloce. I web server
+            // embedded lenti (UPS/NAS/switch) che qui rispondono oltre soglia vengono
+            // ri-provati con piu' pazienza in DEEP-SCAN (opt-in), non nel fast path.
             jobs.push(_httpProbe(row.ip, false, safe ? 650 : 450).then(v => { row.httpTitle = v; }).catch(() => {}));
             jobs.push(_httpProbe(row.ip, true, safe ? 650 : 450).then(v => { row.httpsTitle = v; }).catch(() => {}));
           }
@@ -325,7 +328,16 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
         const batch = scanRows.slice(i, i + deepConc);
         await Promise.all(batch.map(async row => {
           try {
-            const deep = await _deepIdentityScanHost(row.ip, safe, deepTimeoutMs);
+            // Ri-prova web PAZIENTE (solo qui, in deep-scan): i web server embedded
+            // (UPS Eaton, NAS LaCie, switch GS1200) rispondono lenti e il probe base
+            // aggressivo puo' averli mancati. Piu' tempo -> titolo -> vendor+tipo. Solo
+            // se il titolo manca ancora; gira in parallelo all'identity scan.
+            const patientMs = safe ? 1200 : 900;
+            const webJobs = [];
+            if (detectWeb && !row.httpTitle) webJobs.push(_httpProbe(row.ip, false, patientMs).then(v => { if (v) row.httpTitle = v; }).catch(() => {}));
+            if (detectWeb && !row.httpsTitle) webJobs.push(_httpProbe(row.ip, true, patientMs).then(v => { if (v) row.httpsTitle = v; }).catch(() => {}));
+            const [deep] = await Promise.all([_deepIdentityScanHost(row.ip, safe, deepTimeoutMs), ...webJobs]);
+            if (row.httpTitle || row.httpsTitle) { row.alive = true; row.status = 'On'; }
             const services = deep.services || [];
             if (services.length) {
               row.services = services;
