@@ -80,3 +80,29 @@ test('arp: nessun lease corrispondente -> nessun hostname inventato (no-invenzio
   assert.ok(!r.hostname, 'nessun hostname (no match) — niente invenzioni');
   assert.ok(!r._dhcpMatched);
 });
+
+// MAC in forma canonica (MAIUSCOLO con ':') in OGNI sorgente: senza, lo sweep dava
+// maiuscolo e l'ARP-SNMP minuscolo → case miste in tabella e lo STESSO device (stesso
+// IP/MAC) sfuggiva al dedup, comparendo due volte (es. .178 "HP" + .178 "Canon").
+test('arp: il MAC minuscolo viene normalizzato a MAIUSCOLO (coerenza con lo sweep + dedup)', () => {
+  run(APP.ctx, `window._dhcpLeases = [];`);
+  const r = JSON.parse(run(APP.ctx, `JSON.stringify(_discArpRow({ ip:'192.168.1.178', mac:'18:60:24:78:37:0b' }))`));
+  assert.equal(r.mac, '18:60:24:78:37:0B', 'MAC uppercased come normalizeMacAddress');
+});
+
+// Vendor BYOD: il MAC randomizzato non ha OUI reale → etichetta onesta invece di "—";
+// "Private" (OUI IEEE riservato) resta invariato; un vendor risolto vince sempre.
+test('vendor: etichetta onesta per MAC randomizzato; "Private" e vendor reali invariati', () => {
+  const r = JSON.parse(run(APP.ctx, `JSON.stringify({
+    apple: _discVendorLabel({ mac:'3A:42:5E:10:70:89', vendor:'Apple' }),
+    priv:  _discVendorLabel({ mac:'10:00:00:11:22:33', vendor:'Private' }),
+    rand:  _discVendorLabel({ mac:'3A:42:5E:10:70:89', vendor:'' }),
+    wired: _discVendorLabel({ mac:'D4:1A:D1:82:11:20', vendor:'' }),
+    none:  _discVendorLabel({ vendor:'' })
+  })`));
+  assert.equal(r.apple, 'Apple', 'vendor risolto mostrato invariato');
+  assert.equal(r.priv, 'Private', 'OUI IEEE riservato: Private resta invariato');
+  assert.ok(/casuale|random/i.test(r.rand), 'MAC randomizzato senza brand -> etichetta onesta');
+  assert.equal(r.wired, '—', 'MAC normale senza vendor -> trattino (non randomizzato)');
+  assert.equal(r.none, '—', 'nessun MAC -> trattino');
+});
