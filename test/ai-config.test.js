@@ -107,3 +107,20 @@ test('getConfigWithKey: include scope/features (server-side)', () => {
   assert.equal(typeof full.scope.ports, 'boolean');
   assert.equal(typeof full.features.ansible, 'boolean');
 });
+
+test('permessi file: la config e ristretta a 0o600 (chiave non leggibile da altri utenti)', () => {
+  ai.setConfig({ enabled: true, key: 'sk-PERM-TEST' });
+  assert.ok(fs.existsSync(CFG), 'il file di config esiste dopo setConfig');
+  if (process.platform === 'win32') {
+    // NTFS non ha permessi POSIX: chmod e un no-op → verifichiamo solo che il write
+    // sia andato a buon fine e che _hardenPerms non lanci (best-effort su Windows).
+    assert.doesNotThrow(() => ai._hardenPerms(CFG));
+  } else {
+    const mode = fs.statSync(CFG).mode & 0o777;
+    assert.equal(mode, 0o600, 'solo owner r/w (0o600): niente permessi per group/other');
+  }
+});
+
+test('_hardenPerms: best-effort, non lancia su file inesistente', () => {
+  assert.doesNotThrow(() => ai._hardenPerms(path.join(TMP, 'nope-non-esiste.json')));
+});

@@ -8,6 +8,8 @@
 //      (booleano). Il valore in chiaro lo usa solo il provider, lato server.
 //    • override via env INFRANET_AI_KEY (ha precedenza sul valore su disco) →
 //      i deployment possono NON scrivere la chiave su disco.
+//    • il file su disco è ristretto a 0o600 (solo owner r/w) così la chiave BYO
+//      non è leggibile da altri utenti del sistema (POSIX; best-effort altrove).
 //  «OFF di default»: enabled=false finché un admin non lo attiva.
 //
 //  Modulo CommonJS puro-di-IO: helper di merge/mask testabili a tavolino
@@ -110,6 +112,15 @@ function _isLocalEndpoint(endpoint) {
   return false;
 }
 
+// Permessi del file di config: 0o600 (solo owner r/w) — la chiave BYO non dev'essere
+// leggibile da altri utenti. `writeFileSync({mode})` applica i permessi solo alla
+// CREAZIONE, quindi in sovrascrittura un file preesistente resta coi permessi vecchi:
+// un chmod esplicito garantisce 0o600 comunque. Best-effort: su filesystem senza
+// permessi POSIX (Windows/FAT) chmodSync è un no-op o lancia → si ignora.
+function _hardenPerms(file) {
+  try { fs.chmodSync(file, 0o600); } catch (_) { /* best-effort (Windows/FAT) */ }
+}
+
 // API pubblica del modulo --------------------------------------------------
 
 // Config mascherata (per GET /api/ai/config e per la UI). MAI la chiave.
@@ -144,8 +155,17 @@ function setConfig(patch) {
   };
   const dir = path.dirname(CONFIG_FILE);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(next, null, 2), 'utf8');
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(next, null, 2), { encoding: 'utf8', mode: 0o600 });
+  _hardenPerms(CONFIG_FILE);   // garantisce 0o600 anche in sovrascrittura di un file preesistente
   return _mask(next);
+}
+
+// Retro-fix del residuo audit: un file di produzione già su disco può essere stato
+// scritto coi permessi di default (lassi) → chiave leggibile da altri utenti. Al
+// caricamento del modulo lo irrigidiamo a 0o600 (SOLO il file di produzione, mai un
+// path iniettato dai test via INFRANET_AI_CONFIG_FILE). Idempotente, best-effort.
+if (!process.env.INFRANET_AI_CONFIG_FILE) {
+  try { if (fs.existsSync(CONFIG_FILE)) _hardenPerms(CONFIG_FILE); } catch (_) { /* best-effort */ }
 }
 
 module.exports = {
@@ -154,6 +174,6 @@ module.exports = {
   setConfig,
   CONFIG_FILE,
   // esportati per i test puri
-  _normalize, _mask, _effectiveKey, _isLocalEndpoint, _normFlags, _mergeFlags,
+  _normalize, _mask, _effectiveKey, _isLocalEndpoint, _normFlags, _mergeFlags, _hardenPerms,
   DEFAULTS, SCOPE_KEYS, FEATURE_KEYS,
 };

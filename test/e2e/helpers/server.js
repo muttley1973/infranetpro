@@ -80,6 +80,11 @@ async function startServer(opts = {}) {
       // Config Assistente AI su file temporaneo: l'E2E può fare PUT senza toccare
       // (né committare) il data/ai-config.json reale. La chiave eventuale resta qui.
       INFRANET_AI_CONFIG_FILE: path.join(tmpDir, 'ai-config.json'),
+      // Store token API + utenti su file temporanei: un test che conia/revoca token
+      // o crea utenti NON deve scrivere l'api-tokens.json / users.json reale (stessa
+      // isolazione hermetica degli altri store).
+      INFRANET_API_TOKENS_FILE: path.join(tmpDir, 'api-tokens.json'),
+      INFRANET_USERS_FILE: path.join(tmpDir, 'users.json'),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });

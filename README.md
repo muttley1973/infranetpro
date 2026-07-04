@@ -817,6 +817,7 @@ The login endpoint is rate-limited to **10 attempts per 15 minutes** per IP.
 ### Security hardening & audit
 InfraNet Pro is designed for a **trusted LAN, behind login**, bound to `127.0.0.1` by default. The codebase has undergone an **application-security audit** (no critical findings) and the follow-up hardening is enforced by tests:
 - **Secrets never leave the machine on the data surfaces** — the AI context, the REST API v1 DTOs and the exports are built from an **explicit allowlist** (`lib/api-shape.js`, `server/ai/context.js`): SNMP communities, Wi-Fi passphrases/PSK, API keys and tokens are structurally excluded. A **build-failing guard test** (`test/ai-context.test.js`) fails the build if a secret-looking field ever reaches the AI context.
+- **The bring-your-own AI key is stored owner-only** — `data/ai-config.json` is written `0o600` (and re-tightened at startup) so a co-tenant on the host can't read the key; supply it via `INFRANET_AI_KEY` to keep it off disk entirely (`server/ai-config.js`, guarded by `test/ai-config.test.js`).
 - **No command injection** — every OS call (`ping`, `arp`, …) uses `execFile` with an argument array (no shell); scan inputs are regex-validated and capped.
 - **Path-traversal-safe project IDs** — every `projectId` is coerced to a positive integer before touching the filesystem (guarded by `test/ai-route-security.test.js`).
 - **CSPRNG secrets** — the session secret and the first-run admin password are generated with `crypto.randomBytes` / `crypto.randomInt`, never `Math.random`.
@@ -1209,7 +1210,7 @@ Coverage focuses on the pure, bug-prone logic that has historically broken:
 
 Current local quality baseline:
 - `npm run check` validates all project JS sources (~140 files)
-- `npm test` runs the full regression suite (currently 780+ unit tests, all passing) plus a real‑browser E2E suite (`RUN_E2E=1`, 60+ flows)
+- `npm test` runs the full regression suite (currently 1100+ unit tests, all passing) plus a real‑browser E2E suite (`RUN_E2E=1`, 68 flows)
 - final visual verification is still important for rack/front-panel refinements
 
 > Pure functions are exposed for tests via an additive `_internals` export on
