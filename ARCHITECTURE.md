@@ -268,6 +268,20 @@ is VPN/LAN.
   che resta sul ponte (`win.*`, ~1800 letture) sono funzioni non ancora ritirate
   (`selected`/`checked`/`_build*`).
 - **Commit only when asked.** Keep secrets and user data out of the repo.
+- **Vendor recognition — full IANA PEN + IEEE OUI registries (2026-07-04).** Two bundled,
+  refreshable datasets back vendor resolution, so a new device is recognized without a code
+  change (the fix to a recurring "vendor X is missing" class of reports):
+  - **MAC → vendor**: `data/oui-db.json` (~57k IEEE prefixes, MA-L/M/S + IAB), refreshed by
+    `npm run update-oui` (`scripts/update-oui-db.js`). Consumed by the priority-0 catch-all OUI
+    plugin; per-vendor plugins (Cisco/Apple/…) override it to add `deviceType`.
+  - **SNMP sysObjectID → vendor**: `data/pen-db.json` (~66k IANA Private Enterprise Numbers),
+    refreshed by `npm run update-pen` (`scripts/update-pen-db.js`, which parses IANA's flat
+    `enterprise-numbers` file). `_vendorByObjectId` maps the enterprise number (7th arc of
+    `1.3.6.1.4.1.<PEN>`) against it. The curated `PEN_VENDOR` (~50 entries) wins for clean short
+    names; the registry is the fallback (lazy-loaded, degrades to the curated table if the file
+    is missing). **Lab caveat**: virtual images (vEOS/vIOS) carry a hypervisor MAC with no IEEE
+    OUI, so their vendor comes from SNMP (PEN) — proven live: a lab Arista (`sysObjectID
+    …30065.1.2759`) resolves to **Arista** where the MAC path can't see it.
 - **Discovery engine — killing phantom ARP-observed rows (2026-07-04).** Live debugging
   of a real `/24` traced a swarm of low-confidence "observed" phantom IPs to TWO
   distinct ARP paths; both are now authoritative-source-aware:
