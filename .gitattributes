@@ -1,0 +1,4 @@
+# I PDF (e binari in genere) NON devono essere normalizzati (autocrlf): un PDF
+# con i fine-riga alterati si corrompe e GitHub non lo renderizza. "binary" =
+# -diff -merge -text.
+*.pdf binary
