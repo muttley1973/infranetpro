@@ -133,6 +133,11 @@ async function runDiscovery(){
                 `<span class="tm-ok">${_dt('disc.phase1','Fase 1 - Scansionati {total} IP · {n} trovati',{total:data.total,n:`<strong>${found1}</strong>`})}</span>` +
                 `<span style="color:var(--text-muted);margin-left:10px">${_dt('disc.phase2','Fase 2: espansione topologia LLDP/CDP…')}</span>${baseSummary}`;
 
+            // Il crawl LLDP/CDP puo' durare decine di secondi (poll SNMP per switch +
+            // macsuck a fine giro): il pulsante resta in "Espansione…" con la rotella e
+            // il progress fa da battito-cardiaco, cosi' NON sembra finito (l'utente stava
+            // per chiudere la finestra). La label distinta dalla "Scansione…" della fase 1.
+            btn.innerHTML=`<i class="fas fa-spinner fa-spin"></i> ${_dt('disc.expanding','Espansione…')}`;
             await _runCrawlPhase(store._discResults.filter(d=>d.snmpReachable).map(d=>d.ip), driver, community, timeout, subnet);
 
             const total = store._discResults.length;
@@ -622,6 +627,17 @@ async function _runCrawlPhase(seeds, driver, community, timeout, scanCidr){
         const m = String((d && d.mac) || '').trim().toLowerCase();
         if(m) targetMacs.push(m);
     }
+    // Battito-cardiaco fase 2: aggiorna il progress a ogni evento del crawl (device
+    // interrogato + quanti localizzati su porta) → attivita' VISIBILE per i ~30s del
+    // crawl, cosi' non sembra bloccato/finito.
+    let _foundN = 0, _locatedN = 0, _lastIp = '';
+    const _prog = document.getElementById('disc-progress');
+    const _hb = ip => {
+        if(ip) _lastIp = String(ip);
+        if(!_prog) return;
+        _prog.innerHTML = `<span class="tm-ok"><i class="fas fa-spinner fa-spin"></i> ` +
+            _dt('disc.expandingLive','Espansione LLDP/CDP… {ip} · {n} via LLDP/CDP · {m} localizzati su porta',{ip:_lastIp,n:_foundN,m:_locatedN}) + `</span>`;
+    };
     let crawlAbort = null;
 
     try{
@@ -651,16 +667,20 @@ async function _runCrawlPhase(seeds, driver, community, timeout, scanCidr){
                 if(evt.type==='found' && !knownIps.has(evt.device.ip)){
                     knownIps.add(evt.device.ip);
                     store._discResults.push(_discEnsureMeta(_discCrawlRow(evt.device, evt.protocol)));
-                    _discRenderTable();
+                    _foundN++; _discRenderTable(); _hb(evt.device.ip);
                 } else if(evt.type==='arp' && evt.device && !knownIps.has(evt.device.ip)){
                     // Candidato off-segment dalla ARP-SNMP di uno switch (no ping/SNMP diretto).
                     knownIps.add(evt.device.ip);
                     store._discResults.push(_discArpRow(evt.device));
-                    _discRenderTable();
+                    _foundN++; _discRenderTable(); _hb(evt.device.ip);
                 } else if(evt.type==='located' && evt.edges){
                     // macsuck: il server ha localizzato i MAC scoperti su porta switch.
                     _discApplyEdges(evt.edges);
-                    _discRenderTable();
+                    _locatedN = Object.keys(evt.edges).length;
+                    _discRenderTable(); _hb();
+                } else if(evt.type==='probing'){
+                    // Battito: mostra il device che sto interrogando (poll SNMP lento).
+                    _hb(evt.ip);
                 }
             }
         }
