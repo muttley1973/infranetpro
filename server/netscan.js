@@ -139,10 +139,71 @@ function _parseArpTable(text) {
   return map;
 }
 
+// Parsa "netsh interface ipv4 show neighbors" (Windows) tenendo SOLO le voci con un
+// MAC valido nella colonna indirizzo-fisico. Le voci "Non raggiungibile"/"Incompleto"
+// NON hanno un MAC (la colonna riporta lo stato localizzato) -> escluse SENZA matchare
+// stringhe di stato localizzate (robusto per ogni lingua di Windows). Cosi' l'ARP-
+// autorevole si fida solo delle presenze L2 REALI (Reachable/Stale), non delle voci
+// morte che 'arp -a' trascina ancora col MAC stantio (falsi "Osservato" nello Scopri).
+function _parseNeighbors(text) {
+  const map = new Map();
+  const MAC = /(?:[0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}/;
+  for (const line of String(text || '').split(/\r?\n/)) {
+    const ipM = line.match(/^\s*(\d{1,3}(?:\.\d{1,3}){3})\s/);
+    if (!ipM) continue;
+    const macM = line.match(MAC);
+    if (!macM) continue;                        // niente MAC = non raggiungibile/incompleta
+    const mac = _normMac(macM[0]);
+    if (!mac || mac === 'FF:FF:FF:FF:FF:FF' || mac === '00:00:00:00:00:00') continue;
+    const ip = ipM[1];
+    const first = parseInt(ip.split('.')[0], 10);
+    if (first === 0 || first >= 224) continue;   // 0.x, multicast/broadcast (224-239, 255)
+    if (ip.endsWith('.255')) continue;
+    if (!map.has(ip)) map.set(ip, mac);
+  }
+  return map;
+}
+
 async function _readArpMap() {
   const isWin = os.platform() === 'win32';
-  const r = await _execFileAsync(isWin ? 'arp' : 'arp', isWin ? ['-a'] : ['-an'], 2500);
+  if (isWin) {
+    // Preferisci 'netsh ... show neighbors' (ha lo STATO): scarta le voci morte che
+    // 'arp -a' elenca ancora col MAC stantio -> niente falsi "Osservato" per IP che
+    // non esistono piu'. Fallback a 'arp -a' solo se netsh manca/non da' nulla.
+    try {
+      const n = await _execFileAsync('netsh', ['interface', 'ipv4', 'show', 'neighbors'], 4000);
+      const map = _parseNeighbors(n.stdout);
+      if (map.size) return map;
+    } catch (_) { /* fallback sotto */ }
+    const r = await _execFileAsync('arp', ['-a'], 2500);
+    return _parseArpTable(r.stdout);
+  }
+  const r = await _execFileAsync('arp', ['-an'], 2500);
   return _parseArpTable(r.stdout);
+}
+
+// Declassa le righe vive SOLO via ARP-autorevole (viaArp, senza ping/snmp) il cui MAC
+// e' gia' presente su un'altra riga con presenza FORTE (ping/snmp) o in un lease DHCP,
+// a un IP DIVERSO: e' lo stesso device visto a un IP stantio (es. cambio IP DHCP) ->
+// il duplicato e' un fantasma. Puro: corregge solo i flag di presenza (alive/status),
+// non cancella la riga (manual-first: resta visibile, "Inattivo", non pre-selezionata).
+// `strongByMac` (opz.) = Map(macNormalizzato -> ip) da fonti forti esterne (lease DHCP).
+function _demoteStaleArpDup(rows, strongByMac) {
+  const strong = new Map(strongByMac || []);
+  for (const r of (rows || [])) {
+    if ((r.pingReachable || r.snmpReachable) && r.mac && !strong.has(r.mac)) strong.set(r.mac, r.ip);
+  }
+  const demoted = [];
+  for (const r of (rows || [])) {
+    if (r.viaArp && !r.pingReachable && !r.snmpReachable && r.mac) {
+      const strongIp = strong.get(r.mac);
+      if (strongIp && strongIp !== r.ip) {
+        r.alive = false; r.status = 'Inattivo'; r.staleArpDup = true;
+        demoted.push(r.ip);
+      }
+    }
+  }
+  return demoted;
 }
 
 function _readLocalInterfaceMap() {
@@ -383,4 +444,4 @@ async function _deepIdentityScanHost(ip, safe, timeoutMs) {
   return { services, netbios, smbShares };
 }
 
-module.exports = { expandSubnet, _execFileAsync, _pingHost, _pingHostRetry, _normMac, _parseArpTable, _readArpMap, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost };
+module.exports = { expandSubnet, _execFileAsync, _pingHost, _pingHostRetry, _normMac, _parseArpTable, _parseNeighbors, _readArpMap, _demoteStaleArpDup, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost };

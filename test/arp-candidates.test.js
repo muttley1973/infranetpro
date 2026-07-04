@@ -47,6 +47,24 @@ test('buildArpCandidates: gia noto (knownIps) -> non duplicato', () => {
   assert.equal(out.some(c => c.ip === '10.10.10.50'), true);
 });
 
+test('buildArpCandidates: ON-SEGMENT (subnet del collector) -> escluso (ARP locale autorevole)', () => {
+  // Scenario reale: una Synology on-segment ha nella sua ipNetToMediaTable voci STANTIE
+  // per host 10.10.10.x ormai morti. Il collector e' sulla stessa /24 -> la sua ARP
+  // locale e' autorevole, quindi quegli IP NON vanno resuscitati dall'ARP del NAS.
+  const localSubnets = new Set(['10.10.10']);
+  const out = buildArpCandidates(ARP, { scanSet, knownIps: new Set(), fromIp: '10.10.10.5', localSubnets });
+  assert.equal(out.length, 0, 'nessun candidato ARP-SNMP on-segment (il sweep locale li copre)');
+});
+
+test('buildArpCandidates: OFF-SEGMENT resta proposto anche con localSubnets (scopo della feature)', () => {
+  // Il collector e' su 192.168.1.x; scansiona 10.10.10.x via un router -> off-segment,
+  // che la sua ARP locale NON vede -> l'ARP dello switch e' preziosa, resta.
+  const localSubnets = new Set(['192.168.1']);
+  const out = buildArpCandidates(ARP, { scanSet, knownIps: new Set(), fromIp: '10.10.10.1', localSubnets });
+  const ips = out.map(c => c.ip).sort();
+  assert.deepEqual(ips, ['10.10.10.100', '10.10.10.50'], 'gli host off-segment restano proposti');
+});
+
 test('buildArpCandidates: senza scanSet non filtra per subnet (ma resta il filtro MAC)', () => {
   const out = buildArpCandidates(ARP, { knownIps: new Set() });
   assert.ok(out.some(c => c.ip === '10.10.99.1'), 'senza scanSet include anche altre subnet');
