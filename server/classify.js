@@ -448,7 +448,16 @@ function _buildDiscoveryMeta(row, extra = {}) {
     addEvidence('reachability', 'icmp', 10, 'Risposta al ping');
     addReason('ping-reachable');
   }
-  if (row.mac) {
+  // Lease DHCP come sorgente: il device ha CHIESTO un IP → esiste, e il binding
+  // IP<->MAC e' autorevole su TUTTE le VLAN (il pezzo che l'ARP locale non vede
+  // dietro un firewall L3). Non e' "vivo ora" (mobile/IoT in power-save) ma e'
+  // identita' forte. Rappresenta gia' il MAC → niente evidenza 'mac' separata.
+  const _dhcpLease = extra.viaProtocol === 'DHCP' || row.dhcpLease === true;
+  if (_dhcpLease) {
+    addSource('dhcp', 'DHCP', 'medium', `Lease DHCP${extra.viaFrom ? ' · ' + extra.viaFrom : ''}`);
+    addEvidence('dhcp', row.ip || row.mac || 'lease', 14, 'Lease DHCP: binding IP-MAC autorevole su tutte le VLAN');
+    addReason('dhcp-lease');
+  } else if (row.mac) {
     // ARP-SNMP: MAC visto nella ipNetToMediaTable di uno switch/router (host
     // off-segment), NON nella cache ARP locale — la sorgente lo dice esplicito.
     const _arpSnmp = extra.viaProtocol === 'ARP';

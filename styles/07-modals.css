@@ -163,6 +163,7 @@
         .disc-badge.src-web  { background:rgba(255,140,0,.12); color:#ffb35c; border-color:rgba(255,140,0,.25); }
         .disc-badge.src-deep { background:rgba(236,179,60,.12); color:#e3b341; border-color:rgba(236,179,60,.26); }
         .disc-badge.src-arp  { background:rgba(163,113,247,.12); color:#b995ff; border-color:rgba(163,113,247,.25); }
+        .disc-badge.src-dhcp { background:rgba(46,204,164,.13); color:#4fd1b5; border-color:rgba(46,204,164,.28); }
         .disc-badge.src-ping { background:rgba(139,148,158,.14); color:#b6beca; border-color:rgba(139,148,158,.25); }
         .disc-badge.src-seen { background:rgba(139,148,158,.08); color:var(--text-muted); border-color:rgba(139,148,158,.18); }
         .disc-badge.conf-high { background:rgba(57,211,83,.13); color:var(--active-color); border-color:rgba(57,211,83,.25); }
@@ -172,6 +173,12 @@
         .disc-badge.rec-update { background:rgba(227,179,65,.13); color:#e3b341; border-color:rgba(227,179,65,.25); }
         .disc-badge.rec-check  { background:rgba(0,170,255,.12); color:#4cc9ff; border-color:rgba(0,170,255,.25); }
         .disc-badge.rec-same   { background:rgba(139,148,158,.10); color:var(--text-muted); border-color:rgba(139,148,158,.20); }
+        /* macsuck: porta di accesso dedotta dalla MAC-table (FDB). loc-amb = MAC su piu' porte → da verificare. */
+        .disc-badge.loc     { background:rgba(88,166,255,.10); color:#79b8ff; border-color:rgba(88,166,255,.24); font-weight:700; }
+        .disc-badge.loc i   { margin-right:3px; opacity:.85; }
+        .disc-badge.loc-amb { background:rgba(227,179,65,.12); color:#e3b341; border-color:rgba(227,179,65,.26); }
+        /* shared: il MAC pende DIETRO la porta (AP/switch non gestito) — indizio tenue */
+        .disc-badge.loc-shared { background:rgba(139,148,158,.10); color:var(--text-muted); border-color:rgba(139,148,158,.22); font-weight:600; }
         .disc-summary-grid { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
         .disc-summary-grid span { display:inline-flex; align-items:center; gap:5px; background:rgba(255,255,255,.05); border:1px solid var(--panel-border); border-radius: var(--radius-pill); padding:3px 8px; color:var(--text-muted); font-size:var(--fs-sm); }
         .disc-summary-grid b { color:var(--text-main); font-size:var(--fs-sm); }

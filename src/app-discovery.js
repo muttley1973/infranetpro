@@ -107,7 +107,8 @@ async function runDiscovery(){
         window._discScanAbort = scanAbort;
         scanTimeout = setTimeout(()=>scanAbort.abort(), deepScan ? 180000 : 90000);
         const r = await fetch('/api/discover',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({ subnet, driver, community, timeout, safeMode, deepScan }),
+            body:JSON.stringify({ subnet, driver, community, timeout, safeMode, deepScan,
+                dhcpLeases: Array.isArray(store._dhcpLeases) ? store._dhcpLeases : [] }),
             signal:scanAbort.signal});
         clearTimeout(scanTimeout);
         window._discScanAbort = null;
@@ -178,6 +179,9 @@ function _discEnsureMeta(d){
     // dava gia' maiuscolo, l'ARP-SNMP/crawl minuscolo → in tabella si vedevano case
     // miste e (peggio) lo stesso device sfuggiva a un eventuale dedup per-MAC.
     if(row.mac) row.mac = normalizeMacAddress(row.mac) || row.mac;
+    // Sorgente DHCP (lease importato): il server marca dhcpLease/viaProtocol=DHCP.
+    // La marchiamo _via:'dhcp' per badge sorgente + stato "Osservato" coerenti.
+    if(!row._via && (row.dhcpLease === true || String(row.viaProtocol||'').toUpperCase()==='DHCP')) row._via = 'dhcp';
     const ouiVendor = win._discVendorFromMac(row.mac);
     if(!row.vendor) row.vendor = ouiVendor;
     row.vendorHint = row.vendorHint || ouiVendor || '';
@@ -301,6 +305,8 @@ function _discUpdateDest(sel){
 function _discSourceInfo(d){
     // Candidato ARP-SNMP: badge dedicato (host visto nell'ARP di uno switch, non locale).
     if(d?._via === 'arp') return { label:'ARP', cls:'arp', title:_dt('disc.tip.arpSnmp','Visto nell\'ARP SNMP di uno switch/router — host off-segment, non confermato via ping/SNMP diretto') };
+    // Candidato da lease DHCP importato: binding IP/MAC (+ hostname) su tutte le VLAN.
+    if(d?._via === 'dhcp') return { label:'DHCP', cls:'dhcp', title:_dt('disc.tip.dhcpSrc','Da un lease DHCP importato — binding IP/MAC autorevole su tutte le VLAN; host non confermato attivo ora (mobile/IoT che puo\' essere in standby)') };
     const srcList = Array.isArray(d?.sources) ? d.sources : Array.isArray(d?.discovery?.sources) ? d.discovery.sources : [];
     const first = srcList[0] || null;
     const reasonCodes = Array.isArray(d?.reasonCodes) ? d.reasonCodes : Array.isArray(d?.discovery?.reasonCodes) ? d.discovery.reasonCodes : [];
@@ -352,6 +358,9 @@ function _discReachabilityInfo(d){
     }
     if(d?._via === 'arp'){
         return { label:_dt('disc.reach.observed','Osservato'), cls:'seen', title:_dt('disc.tip.arpObserved','Host presente nell\'ARP di uno switch/router SNMP; ping/SNMP diretti non confermati') };
+    }
+    if(d?._via === 'dhcp'){
+        return { label:_dt('disc.reach.observed','Osservato'), cls:'seen', title:_dt('disc.tip.dhcpObserved','Presente in un lease DHCP; ping/SNMP diretti non confermati (host mobile/IoT che puo\' essere in standby)') };
     }
     if(d?.alive){
         return { label:_dt('disc.reach.observed','Osservato'), cls:'seen', title:_dt('disc.tip.observed','Rilevato tramite servizio, web, NetBIOS/SMB o altra evidenza; ping/SNMP non confermati') };
@@ -490,7 +499,8 @@ function _discRenderTable(){
         const badges = ` <span class="disc-badge src-${src.cls}" data-tip="${escapeHTML(src.title)}">${escapeHTML(src.label)}</span>`
             + _v3cred + _v3also
             + ` <span class="disc-badge conf-${conf.cls}" data-tip="${escapeHTML(conf.title)}">${escapeHTML(conf.label)} ${conf.score}%</span>`
-            + ` <span class="disc-badge rec-${rec.cls}" data-tip="${escapeHTML(rec.title)}">${escapeHTML(rec.label)}</span>`;
+            + ` <span class="disc-badge rec-${rec.cls}" data-tip="${escapeHTML(rec.title)}">${escapeHTML(rec.label)}</span>`
+            + _discEdgeBadge(d);
         const reach = _discReachabilityInfo(d);
         const displayName = d.displayName || d.hostname || d.ip;
         // Pre-selezione = vivo E confidenza sopra la soglia fantasmi (i solo-ping a
@@ -564,6 +574,38 @@ function _discArpRow(device){
     return _discEnsureMeta(row);
 }
 
+// macsuck: applica gli edge (MAC -> porta di accesso switch) alle righe scoperte,
+// match per MAC normalizzato lowercase. Indizio MANUAL-FIRST (reso come badge; su
+// import diventera' il suggerimento di cavo). Ritorna quante righe localizzate.
+function _discApplyEdges(edges){
+    if(!edges || typeof edges !== 'object') return 0;
+    let n = 0;
+    for(const d of (store._discResults || [])){
+        const m = String((d && d.mac) || '').trim().toLowerCase();
+        if(m && edges[m]){ d.edge = edges[m]; n++; }
+    }
+    return n;
+}
+
+// Badge "porta di accesso" dal macsuck (es. SW-CORE · Gi0/5). ambiguous → tinta
+// d'avviso. Il MAC compare su piu' porte allo stesso peso = da verificare.
+function _discEdgeBadge(d){
+    const e = d && d.edge;
+    if(!e || !e.ifName) return '';
+    const sw = e.switchName || e.switchIp || _dt('disc.edge.switch','switch');
+    // SHARED: il MAC pende DIETRO questa porta (AP/switch non gestito, molti MAC) →
+    // indizio piu' debole, badge "dietro …" tenue. Non e' un cavo diretto.
+    if(e.shared){
+        const tip = _dt('disc.tip.edgeShared','Visto DIETRO questa porta (segmento condiviso: {n} MAC, probabile AP o switch non gestito) — non un collegamento diretto',{n:e.macCount});
+        return ` <span class="disc-badge loc loc-shared" data-tip="${escapeHTML(tip)}"><i class="fas fa-diagram-project"></i> ${escapeHTML(_dt('disc.edge.behind','dietro') + ' ' + sw + ' · ' + e.ifName)}</span>`;
+    }
+    // EDGE: collegamento diretto (o quasi) a questa porta.
+    const tip = e.ambiguous
+        ? _dt('disc.tip.edgeAmb','Porta di accesso dedotta dalla MAC-table (FDB), ma il MAC compare su piu\' porte allo stesso peso — verifica')
+        : _dt('disc.tip.edge','Porta di accesso dedotta dalla MAC-table (FDB) dello switch');
+    return ` <span class="disc-badge loc${e.ambiguous?' loc-amb':''}" data-tip="${escapeHTML(tip)}"><i class="fas fa-location-dot"></i> ${escapeHTML(sw + ' · ' + e.ifName)}</span>`;
+}
+
 async function _runCrawlPhase(seeds, driver, community, timeout, scanCidr){
     if(!seeds.length) return;
     // Dedup: parti dagli IP GIA' presenti (semi + tutto lo sweep principale in
@@ -571,7 +613,15 @@ async function _runCrawlPhase(seeds, driver, community, timeout, scanCidr){
     // ripescato dalla ARP-SNMP di uno switch (o annunciato via LLDP/CDP) veniva
     // RI-proposto come riga duplicata (es. .178 sweep "HP" + .178 ARP-SNMP "Canon").
     const knownIps = new Set(seeds);
-    for(const d of (store._discResults || [])){ if(d && d.ip) knownIps.add(String(d.ip).trim()); }
+    // macsuck: passo al server i MAC gia' scoperti (sweep) come targetMacs → li
+    // localizza sulla porta switch e rimanda un evento 'located'. Lowercase per
+    // combaciare con le chiavi normalizzate del server.
+    const targetMacs = [];
+    for(const d of (store._discResults || [])){
+        if(d && d.ip) knownIps.add(String(d.ip).trim());
+        const m = String((d && d.mac) || '').trim().toLowerCase();
+        if(m) targetMacs.push(m);
+    }
     let crawlAbort = null;
 
     try{
@@ -580,7 +630,8 @@ async function _runCrawlPhase(seeds, driver, community, timeout, scanCidr){
 
         const resp = await fetch('/api/discover/topology',{
             method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({ seeds, driver, community, timeout, maxDepth:5, scanCidr }),
+            body: JSON.stringify({ seeds, driver, community, timeout, maxDepth:5, scanCidr,
+                targetMacs, dhcpLeases: Array.isArray(store._dhcpLeases) ? store._dhcpLeases : [] }),
             signal: crawlAbort.signal,
         });
         if(!resp.ok || !resp.headers.get('content-type')?.includes('text/event-stream')) return;
@@ -605,6 +656,10 @@ async function _runCrawlPhase(seeds, driver, community, timeout, scanCidr){
                     // Candidato off-segment dalla ARP-SNMP di uno switch (no ping/SNMP diretto).
                     knownIps.add(evt.device.ip);
                     store._discResults.push(_discArpRow(evt.device));
+                    _discRenderTable();
+                } else if(evt.type==='located' && evt.edges){
+                    // macsuck: il server ha localizzato i MAC scoperti su porta switch.
+                    _discApplyEdges(evt.edges);
                     _discRenderTable();
                 }
             }
@@ -915,4 +970,5 @@ expose({
     openDiscovery, closeDiscovery, _closeDiscoveryOverlayClick, runDiscovery,
     discSelectAll, importDiscovered, _discOnRowToggle, _discOnTypeChange,
     _discExistingNode, _discRenderTable, _discCrawlRow, _discArpRow, _discVendorLabel,
+    _discApplyEdges, _discEdgeBadge,
 });
