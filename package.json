@@ -16,7 +16,8 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p tsconfig.json",
-    "update-oui": "node scripts/update-oui-db.js"
+    "update-oui": "node scripts/update-oui-db.js",
+    "update-pen": "node scripts/update-pen-db.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
