@@ -8,7 +8,7 @@ const dns = require('dns').promises;
 const os  = require('os');
 const auth = require('../../auth');
 const { DRIVERS } = require('../drivers');
-const { buildNeighborCandidates, buildPortIndex, buildMacIndex, buildPortMacIndex, buildFdbCandidates, buildArpCandidates } = require('../../lib/correlate');
+const { buildNeighborCandidates, buildPortIndex, buildMacIndex, buildPortMacIndex, buildFdbCandidates, buildArpCandidates, locateMacsOnEdge } = require('../../lib/correlate');
 const { expandSubnet, _execFileAsync, _pingHost, _pingHostRetry, _normMac, _parseArpTable, _readArpMap, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost } = require('../netscan');
 const { _cleanHostname, PEN_VENDOR, _penFromObjectId, _vendorByObjectId, _decodeSysServices, _classifyDiscoveredDevice, _buildDiscoveryMeta, _decorateDiscoveryRow } = require('../classify');
 const { OuiEngine } = require('../../engine');
@@ -358,6 +358,36 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
     const results = rows
       .filter(r => r.alive || r.mac || r.hostname || r.httpTitle || r.httpsTitle || r.snmpReachable || r.netbiosName || (r.services && r.services.length) || (r.smbShares && r.smbShares.length))
       .map(r => _decorateDiscoveryRow(r));
+
+    // 4) DHCP come sorgente Scopri: i lease danno il binding IP<->MAC (+ hostname)
+    // anche per host DORMIENTI (mobile/IoT in power-save) che ora non rispondono a
+    // ping/ARP. Per ogni lease DENTRO la subnet scansionata e NON gia' trovato,
+    // aggiungiamo una riga candidata decorata IDENTICA alle altre (vendor via OUI):
+    // osservata, NON viva (manual-first, l'utente decide). Il frontend invia
+    // store._dhcpLeases (import gratis incolla/file o pull live pack). Funziona
+    // ANCHE a zero SNMP (rete dietro Synology/router). Vendor-neutral.
+    const dhcpLeases = Array.isArray(req.body?.dhcpLeases) ? req.body.dhcpLeases : [];
+    if (dhcpLeases.length) {
+      const ipSet = new Set(ips);
+      const haveIp = new Set(results.map(r => r.ip));
+      let addedDhcp = 0;
+      for (const lease of dhcpLeases) {
+        const ip = String(lease?.ip || '').trim();
+        const mac = String(lease?.mac || '').trim();
+        if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) continue;
+        if (!ipSet.has(ip) || haveIp.has(ip) || !mac) continue;
+        haveIp.add(ip);
+        results.push(_decorateDiscoveryRow(
+          { ip, mac, hostname: _cleanHostname(lease.hostname || ''),
+            alive: false, pingReachable: false, snmpReachable: false,
+            status: 'Inattivo', dhcpLease: true },
+          { viaProtocol: 'DHCP', viaFrom: lease.source || lease.subnet || '' }
+        ));
+        addedDhcp++;
+      }
+      if (addedDhcp) console.log(`  [DISCOVER] ${subnet}: +${addedDhcp} candidati da lease DHCP`);
+    }
+
     const found = results.filter(r => r.alive).length;
     console.log(`  [DISCOVER] ${subnet}: scansionati ${total}, candidati ${results.length}, attivi ${found}, safe=${safe}, conc=${CONC}`);
     res.json({ ok: true, total, found, seen: results.length, results, safeMode: safe, concurrencyUsed: CONC });
@@ -482,6 +512,10 @@ router.post('/api/discover/topology', auth.requireAdmin, async (req, res) => {
   try { if (scanCidr) scanSet = new Set(expandSubnet(scanCidr)); }
   catch (_) { scanSet = null; }
   const arpTables = [];   // [{ table:{mac->ip}, fromIp }] raccolte durante il BFS
+  // macsuck: FDB (MAC->porta) di ogni switch SNMP → localizza i MAC scoperti sulla
+  // loro porta di accesso a fine crawl. pollNeighbors la ritorna gia' (fdbTable),
+  // il crawl fin qui la scartava. Vendor-neutral (BRIDGE/Q-BRIDGE-MIB standard).
+  const fdbTables = [];   // [{ switchIp, switchName, fdbTable:{mac->ifName} }]
   // Multi-source BFS: tutti i seme entrano in coda a profondità 0
   const queue    = seeds.map(ip => ({ ip, depth: 0 }));
 
@@ -538,9 +572,13 @@ router.post('/api/discover/topology', auth.requireAdmin, async (req, res) => {
 
       // Interroga LLDP/CDP per scoprire i vicini
       try {
-        const { neighbors, arpTable } = await drv.pollNeighbors({ ...cfg, host: ip });
+        const { neighbors, arpTable, fdbTable } = await drv.pollNeighbors({ ...cfg, host: ip });
         // ARP di questo device: la teniamo per proporre gli host off-segment a fine crawl.
         if (scanSet && arpTable && typeof arpTable === 'object') arpTables.push({ table: arpTable, fromIp: ip });
+        // FDB di questo switch: la teniamo per il macsuck (MAC scoperto -> porta).
+        if (fdbTable && typeof fdbTable === 'object' && Object.keys(fdbTable).length) {
+          fdbTables.push({ switchIp: ip, switchName: sysN, fdbTable });
+        }
         const seen = new Set();
 
         for (const n of neighbors) {
@@ -599,6 +637,32 @@ router.post('/api/discover/topology', auth.requireAdmin, async (req, res) => {
     }
     console.log(`  [CRAWL] ARP-SNMP: ${total} candidati off-segment in ${scanCidr}${truncated ? ` (mostrati i primi ${CAP})` : ''}`);
     if (truncated) send({ type: 'warn', message: `ARP: ${total} host visti, mostrati i primi ${CAP}` });
+  }
+
+  // --- macsuck: localizza i MAC scoperti sulla loro porta di accesso -----------
+  // Dalla FDB raccolta: per ogni MAC noto (device del crawl + candidati ARP +
+  // gli host gia' scoperti dal client via sweep, passati come targetMacs) trova
+  // la porta edge (min MAC co-appresi = accesso; uplink/trunk scartati). UN solo
+  // evento 'located' → il client applica l'edge a TUTTE le sue righe, comprese
+  // quelle dello sweep on-segment. Manual-first: e' un indizio, non un cavo.
+  if (fdbTables.length && !aborted) {
+    const targets = new Set();
+    for (const r of results) {
+      const m = String((r && r.mac) || '').trim().toLowerCase();
+      if (m) targets.add(m);
+    }
+    const bodyMacs = Array.isArray(req.body?.targetMacs) ? req.body.targetMacs : [];
+    for (const m of bodyMacs) {
+      const mm = String(m || '').trim().toLowerCase();
+      if (mm) targets.add(mm);
+    }
+    const edges = locateMacsOnEdge(fdbTables, {
+      targets: targets.size ? targets : null,
+      isVirtualMac: _isVirtualMac,
+    });
+    const located = Object.keys(edges).length;
+    if (located) send({ type: 'located', edges });
+    console.log(`  [CRAWL] macsuck: ${located} MAC localizzati su porta da ${fdbTables.length} switch`);
   }
 
   send({ type: 'done', total: results.length, results });
