@@ -268,6 +268,29 @@ is VPN/LAN.
   che resta sul ponte (`win.*`, ~1800 letture) sono funzioni non ancora ritirate
   (`selected`/`checked`/`_build*`).
 - **Commit only when asked.** Keep secrets and user data out of the repo.
+- **Discovery engine — killing phantom ARP-observed rows (2026-07-04).** Live debugging
+  of a real `/24` traced a swarm of low-confidence "observed" phantom IPs to TWO
+  distinct ARP paths; both are now authoritative-source-aware:
+  - **ARP-SNMP is off-segment only.** The crawl harvests each SNMP device's
+    `ipNetToMediaTable` (`buildArpCandidates`, the `arpnip` step) to find hosts the
+    collector can't ICMP directly. But on the home LAN it was surfacing **on-segment**
+    dead IPs out of a neighbour's *stale* ARP cache — root cause: an on-segment Synology
+    (`.120`, SNMP public) whose ARP table was full of sleeping/departed entries. Fix:
+    `buildArpCandidates` takes `localSubnets` (the collector's own `/24`s from
+    `_readLocalInterfaceMap`) and **skips any candidate in a local subnet** — for
+    on-segment IPs the local sweep/ARP is authoritative, so a dead one isn't resurrected
+    from a remote device's stale table. Off-segment (the feature's real purpose) is
+    unaffected. Verified in-browser: full `/24` scan 7 phantoms → 0.
+  - **Local ARP read is state-aware on Windows.** `_readArpMap` now uses `netsh
+    interface ipv4 show neighbors` (has the neighbour state) instead of `arp -a`, keeping
+    only rows whose physical-address column is a real MAC. "Unreachable"/"Incomplete"
+    entries carry the localized *state* there (no MAC) → excluded by matching the MAC
+    token, **not** the state string (robust across Windows locales; avoids the
+    `task_977d2930` trap). `_parseNeighbors` is pure + tested (IT/EN/any-locale). Plus
+    `_demoteStaleArpDup`: an ARP-only row whose MAC is live/DHCP at another IP → *Inactive*.
+  - **Crawl heartbeat (UX).** The LLDP/CDP expansion is long (SNMP poll per switch +
+    macsuck at the end); the Scansiona button shows "Espansione…" + spinner and the
+    progress line updates per probed device (+ located count) so it doesn't look frozen.
 - **Discovery engine — DHCP-as-source + macsuck device location (2026-07-04).**
   Two "see it without a ping" additions, from live testing (Synology DHCP + a Zyxel GS1900):
   - **DHCP leases as a discovery source.** The sweep route (`/api/discover`) accepts
