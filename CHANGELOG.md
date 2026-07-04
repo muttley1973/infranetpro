@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-04 — macsuck no longer drops port badges under crawl load (adaptive SNMP walk retry)
+
+### Fixed
+- **macsuck occasionally returned zero port locations during a topology crawl.** The crawl's neighbour poll bundles the forwarding table (FDB) with LLDP/CDP and ARP into many concurrent SNMP walks on the same device; a small-business switch under that pressure drops UDP and a GETBULK times out, silently truncating the FDB walk to a partial/empty table — so some (or all) discovered MACs got no "on port X" badge. SNMP walks now **retry a timed-out walk with the GETBULK `max-repetitions` halved** (25 → 12 → 6) plus a short backoff — the same bulkwalk-retry strategy netdisco uses on problematic switches. Healthy devices pay nothing; slow ones degrade in speed instead of failing, and a deliberate loop/runaway abort is never retried. Tunable via `SNMP_WALK_RETRIES` (default 2). `drivers/snmp.js`.
+
 ## 2026-07-04 — Vendor recognition backed by the full IANA + IEEE registries
 
 An SNMP scan (or a MAC seen in ARP) now resolves the manufacturer for essentially any registered vendor, not just a hand-picked few — closing a whole class of "device shows no vendor" reports.

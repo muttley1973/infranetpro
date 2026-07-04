@@ -68,6 +68,18 @@ const WALK_MAX_REPS = Math.max(10, Math.min(parseInt(process.env.SNMP_MAX_REPS, 
 // timeout (ogni GETBULK risponde) → poll appeso. Oltre questa soglia si abortisce.
 // Generoso per non troncare FDB/ARP grandi su switch enterprise. Override via env.
 const WALK_MAX_VARBINDS = Math.max(2000, parseInt(process.env.SNMP_MAX_VARBINDS, 10) || 50000);
+//
+// RETRY ADATTIVO per singola walk (netdisco-canonico) — la cura del troncamento FDB:
+//   Durante il crawl, pollNeighbors bundla FDB+LLDP+ARP (molti OID base a concorrenza
+//   WALK_CONCURRENCY) sullo STESSO agente leggero: sotto quella pressione una GETBULK va
+//   in timeout e la subtree si tronca, restituendo una FDB PARZIALE/VUOTA senza errore a
+//   valle (il sintomo "a volte 0 badge macsuck"). Come netdisco (bulkwalk-retry che
+//   decrementa max-repetitions), si RI-PROVA la stessa base con max-reps DIMEZZATO
+//   (GETBULK piu' piccole = meno pressione sull'agente) + un piccolo backoff. I device
+//   sani non pagano nulla; quelli lenti degradano in velocita' invece di FALLIRE. Un abort
+//   deliberato (loop/runaway) NON si ritenta. Idempotente sul risultato (oid->value).
+const WALK_RETRIES  = Math.max(0, Math.min(parseInt(process.env.SNMP_WALK_RETRIES, 10) || 2, 5));
+const WALK_MIN_REPS = 5;
 
 // Confronto OID per archi NUMERICI: `a` strettamente maggiore di `b`?
 function _oidGt(a, b) {
@@ -88,9 +100,12 @@ function _oidGt(a, b) {
 //      endOfMibView). Senza, un singolo device guasto può appendere /api/poll.
 async function _runWalks(session, bases, result, label, concurrency = WALK_CONCURRENCY) {
   let errCount = 0;
-  const walkOne = base => new Promise(resolve => {
+  // Una singola passata di subtree su `base`. Ritorna { err, aborted, count };
+  // accumula i varbind validi in `result` (idempotente: oid→value → una ri-prova
+  // sovrascrive/completa i parziali della passata precedente senza duplicare).
+  const walkPass = (base, maxReps) => new Promise(resolve => {
     let count = 0, last = '', aborted = false;
-    session.subtree(base, WALK_MAX_REPS,
+    session.subtree(base, maxReps,
       vbs => {
         for (const vb of vbs) {
           // GUARD su OGNI varbind (anche di ERRORE: un agente guasto può ripetere
@@ -101,12 +116,26 @@ async function _runWalks(session, bases, result, label, concurrency = WALK_CONCU
           if (++count > WALK_MAX_VARBINDS) { aborted = true; break; }       // (b) runaway a OID crescenti
           if (!snmp.isVarbindError(vb)) result[vb.oid] = vbVal(vb);
         }
-        if (aborted) { snmpWarn(`  [${label}] subtree ${base}: walk interrotta (loop/runaway, ~${count} varbind)`); errCount++; }
         return aborted;   // truthy → net-snmp ferma la subtree e chiama doneCb
       },
-      err => { if (err) { snmpWarn(`  [${label}] subtree ${base}: ${err.message}`); errCount++; } resolve(); }
+      err => resolve({ err: err || null, aborted, count })
     );
   });
+  // Retry adattivo (vedi commento WALK_RETRIES): SOLO i timeout si ritentano, con
+  // max-reps dimezzato + backoff; un abort deliberato (loop/runaway) no.
+  const walkOne = async base => {
+    let maxReps = WALK_MAX_REPS;
+    for (let attempt = 0; ; attempt++) {
+      const { err, aborted, count } = await walkPass(base, maxReps);
+      if (aborted) { snmpWarn(`  [${label}] subtree ${base}: walk interrotta (loop/runaway, ~${count} varbind)`); errCount++; return; }
+      if (!err) return;                                    // completata
+      if (attempt >= WALK_RETRIES) { snmpWarn(`  [${label}] subtree ${base}: ${err.message} (${attempt + 1} tentativi falliti)`); errCount++; return; }
+      const next = Math.max(WALK_MIN_REPS, maxReps >> 1);
+      snmpWarn(`  [${label}] subtree ${base}: ${err.message} → retry ${attempt + 1}/${WALK_RETRIES} @ max-reps ${next}`);
+      maxReps = next;
+      await new Promise(r => setTimeout(r, 120 * (attempt + 1)));
+    }
+  };
   const conc = Math.max(1, concurrency);
   for (let i = 0; i < bases.length; i += conc) {
     await Promise.all(bases.slice(i, i + conc).map(walkOne));
@@ -1797,5 +1826,5 @@ module.exports._internals = {
   logicalLagIdFromName, lastIdx, extractData, extractEntityInventory,
   extractSystem, _formatUptime, extractPrinter, _supplyColorKey,
   extractHostResources, _isPathPrefix, OID, PRT_OID, HR_OID, _oidGt,
-  _v3RemoteEngineDiscovered,
+  _v3RemoteEngineDiscovered, _runWalks,
 };
