@@ -188,19 +188,51 @@ async function _readArpMap() {
 // il duplicato e' un fantasma. Puro: corregge solo i flag di presenza (alive/status),
 // non cancella la riga (manual-first: resta visibile, "Inattivo", non pre-selezionata).
 // `strongByMac` (opz.) = Map(macNormalizzato -> ip) da fonti forti esterne (lease DHCP).
+function _ipToNum(ip) {
+  const p = String(ip || '').split('.');
+  if (p.length !== 4) return -1;
+  let n = 0;
+  for (const o of p) { const v = parseInt(o, 10); if (!(v >= 0 && v <= 255)) return -1; n = n * 256 + v; }
+  return n;
+}
+
 function _demoteStaleArpDup(rows, strongByMac) {
   const strong = new Map(strongByMac || []);
   for (const r of (rows || [])) {
     if ((r.pingReachable || r.snmpReachable) && r.mac && !strong.has(r.mac)) strong.set(r.mac, r.ip);
   }
   const demoted = [];
+  const isArpOnly = r => r.viaArp && !r.pingReachable && !r.snmpReachable && r.mac;
+  // Pass 1 — ancoraggio forte: il MAC e' vivo (ping/snmp) o in un lease DHCP a un ALTRO
+  // IP -> la riga ARP-only e' una voce di cache stantia dello stesso device -> Inattivo.
   for (const r of (rows || [])) {
-    if (r.viaArp && !r.pingReachable && !r.snmpReachable && r.mac) {
+    if (isArpOnly(r)) {
       const strongIp = strong.get(r.mac);
       if (strongIp && strongIp !== r.ip) {
         r.alive = false; r.status = 'Inattivo'; r.staleArpDup = true;
         demoted.push(r.ip);
       }
+    }
+  }
+  // Pass 2 — doppio-fantasma: lo STESSO MAC compare su piu' righe ARP-only e NESSUN
+  // ancoraggio forte esiste (ne' ping/snmp ne' DHCP). E' la stessa scheda vista a IP
+  // diversi (tipico rinnovo DHCP con cache ARP stantia; frequente su MAC randomizzati/
+  // BYOD e mobile). Ne teniamo UNA (IP piu' alto = deterministico, tipico dell'ultima
+  // assegnazione) e declassiamo le altre a Inattivo -> niente doppioni "score basso".
+  // Manual-first: restano visibili, l'utente puo' riattivarle.
+  const groups = new Map();
+  for (const r of (rows || [])) {
+    if (!r.alive || r.staleArpDup || !isArpOnly(r) || strong.has(r.mac)) continue;
+    if (!groups.has(r.mac)) groups.set(r.mac, []);
+    groups.get(r.mac).push(r);
+  }
+  for (const grp of groups.values()) {
+    if (new Set(grp.map(r => r.ip)).size < 2) continue; // una sola riga (o stesso IP) -> lascia
+    const winner = grp.reduce((a, b) => (_ipToNum(b.ip) > _ipToNum(a.ip) ? b : a));
+    for (const r of grp) {
+      if (r === winner) continue;
+      r.alive = false; r.status = 'Inattivo'; r.staleArpDup = true;
+      demoted.push(r.ip);
     }
   }
   return demoted;
@@ -444,4 +476,4 @@ async function _deepIdentityScanHost(ip, safe, timeoutMs) {
   return { services, netbios, smbShares };
 }
 
-module.exports = { expandSubnet, _execFileAsync, _pingHost, _pingHostRetry, _normMac, _parseArpTable, _parseNeighbors, _readArpMap, _demoteStaleArpDup, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost };
+module.exports = { expandSubnet, _execFileAsync, _pingHost, _pingHostRetry, _normMac, _parseArpTable, _parseNeighbors, _readArpMap, _ipToNum, _demoteStaleArpDup, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost };

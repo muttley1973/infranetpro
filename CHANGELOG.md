@@ -2,6 +2,16 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-04 — Duplicate phantoms collapsed, and patient web fingerprinting in deep-scan
+
+More discovery hygiene, prompted by a side-by-side with Advanced IP Scanner on the same `/24` (which confirmed InfraNet already runs every probe it does — HTTP title, TCP services, NetBIOS, SMB shares — but surfaced two tuning gaps).
+
+### Fixed
+- **Two ARP-cache rows for the same device no longer show as two phantoms.** Yesterday's stale-duplicate demote handled a MAC that is live/DHCP at *another* IP; it now also handles the **double-phantom** case — the *same* MAC on two-or-more **ARP-only** rows with **no** strong anchor anywhere (no ping/SNMP/DHCP), which is one device caught mid DHCP-renewal in a stale ARP cache (common with randomized/BYOD and mobile MACs). Discovery keeps one representative (highest IP, deterministic) and demotes the rest to *Inactive* — manual-first, they stay visible and re-selectable. Validated against the scanner's own output (a phone at `.180` **and** `.240`; a randomized MAC at `.122` **and** `.234`). `server/netscan.js` (`_demoteStaleArpDup` + `_ipToNum`).
+
+### Changed
+- **Slow embedded web servers get a patient re-probe — in deep-scan only, so the everyday scan stays fast.** The HTTP/HTTPS title probe feeds vendor + device type from a page banner (`GS1200-8`, `Keil-EWEB`, `lighttpd`), and runs aggressively (450/650 ms) in the base scan to keep a `/24` fast. Embedded web UIs on UPSs, NAS and cheap switches often answer slower than that and were missed. Now, when **deep-scan** is enabled, discovery re-probes — with more patience (900/1200 ms), **in parallel** with the NetBIOS/SMB/TCP fingerprint — only the rows still missing a title. The fast path is unchanged. `server/routes/discovery.js`.
+
 ## 2026-07-04 — No more phantom low-confidence IPs in Scopri, and a live crawl heartbeat
 
 Discovery hygiene from live debugging on a real `/24`.

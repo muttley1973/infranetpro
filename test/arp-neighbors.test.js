@@ -7,7 +7,7 @@
 // stantio. + _demoteStaleArpDup declassa i duplicati ARP (stesso MAC vivo/DHCP altrove).
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { _parseNeighbors, _demoteStaleArpDup } = require('../server/netscan.js');
+const { _parseNeighbors, _demoteStaleArpDup, _ipToNum } = require('../server/netscan.js');
 
 // Output reale di netsh su Windows italiano (colonna fisica = MAC se risolto, altrimenti
 // riporta lo stato localizzato).
@@ -88,11 +88,58 @@ test('_demoteStaleArpDup: declassa anche se il MAC e\' in un lease DHCP a un alt
 
 test('_demoteStaleArpDup: NON tocca una riga ARP se il MAC non e\' forte altrove, o e\' lo stesso IP', () => {
   const rows = [
-    { ip: '192.168.1.77', mac: 'DE:AD:BE:EF:00:01', viaArp: true, pingReachable: false, snmpReachable: false, alive: true },  // nessun forte -> resta
+    { ip: '192.168.1.77', mac: 'DE:AD:BE:EF:00:01', viaArp: true, pingReachable: false, snmpReachable: false, alive: true },  // nessun forte, MAC unico -> resta
     { ip: '192.168.1.88', mac: 'DE:AD:BE:EF:00:02', pingReachable: true, alive: true },                                         // forte a se stesso
     { ip: '192.168.1.88', mac: 'DE:AD:BE:EF:00:02', viaArp: true, pingReachable: false, snmpReachable: false, alive: true },   // stesso IP -> non e' un duplicato
   ];
   const demoted = _demoteStaleArpDup(rows, null);
   assert.equal(demoted.length, 0, 'nessun declassamento');
   assert.equal(rows[0].alive, true, 'ARP osservato legittimo resta vivo');
+});
+
+test('_demoteStaleArpDup: doppio-fantasma - stesso MAC su 2 righe ARP-only senza ancoraggio -> tiene l\'IP piu\' alto', () => {
+  // Caso reale (Advanced IP Scanner): Xiaomi 88:46:04:EC:54:76 su .180 E .240, entrambi
+  // stantii (nessun ping/snmp/DHCP): stessa scheda, rinnovo DHCP -> un solo fantasma.
+  const rows = [
+    { ip: '192.168.1.180', mac: '88:46:04:EC:54:76', viaArp: true, pingReachable: false, snmpReachable: false, alive: true, status: 'On' },
+    { ip: '192.168.1.240', mac: '88:46:04:EC:54:76', viaArp: true, pingReachable: false, snmpReachable: false, alive: true, status: 'On' },
+  ];
+  const demoted = _demoteStaleArpDup(rows, null);
+  assert.deepEqual(demoted, ['192.168.1.180'], '.240 (IP piu\' alto) vince, .180 declassato');
+  const hi = rows.find(r => r.ip === '192.168.1.240');
+  const lo = rows.find(r => r.ip === '192.168.1.180');
+  assert.equal(hi.alive, true, 'il rappresentante resta vivo');
+  assert.equal(lo.alive, false);
+  assert.equal(lo.status, 'Inattivo');
+  assert.equal(lo.staleArpDup, true);
+});
+
+test('_demoteStaleArpDup: doppio-fantasma - MAC randomizzato (LAA) su 3 IP -> ne resta uno', () => {
+  const rows = [
+    { ip: '192.168.1.122', mac: '2A:50:30:1F:8C:AB', viaArp: true, pingReachable: false, snmpReachable: false, alive: true },
+    { ip: '192.168.1.200', mac: '2A:50:30:1F:8C:AB', viaArp: true, pingReachable: false, snmpReachable: false, alive: true },
+    { ip: '192.168.1.234', mac: '2A:50:30:1F:8C:AB', viaArp: true, pingReachable: false, snmpReachable: false, alive: true },
+  ];
+  const demoted = _demoteStaleArpDup(rows, null);
+  assert.deepEqual(demoted.sort(), ['192.168.1.122', '192.168.1.200'], 'restano declassati i due IP piu\' bassi');
+  assert.equal(rows.find(r => r.ip === '192.168.1.234').alive, true, '.234 (piu\' alto) e\' il rappresentante');
+});
+
+test('_demoteStaleArpDup: doppio-fantasma - se UN lato e\' forte (ping) vince quello, non l\'IP piu\' alto', () => {
+  // Il Pass 1 (ancoraggio forte) ha priorita': il device e\' DAVVERO a .180 (ping), quindi
+  // .240 e\' la voce stantia anche se ha l\'IP piu\' alto.
+  const rows = [
+    { ip: '192.168.1.180', mac: 'AA:BB:CC:DD:EE:01', viaArp: true, pingReachable: true, snmpReachable: false, alive: true },
+    { ip: '192.168.1.240', mac: 'AA:BB:CC:DD:EE:01', viaArp: true, pingReachable: false, snmpReachable: false, alive: true },
+  ];
+  const demoted = _demoteStaleArpDup(rows, null);
+  assert.deepEqual(demoted, ['192.168.1.240'], 'il lato ping vince sul tiebreak IP');
+  assert.equal(rows.find(r => r.ip === '192.168.1.180').alive, true);
+});
+
+test('_ipToNum: ordina gli IP e rifiuta input non validi', () => {
+  assert.ok(_ipToNum('192.168.1.240') > _ipToNum('192.168.1.180'));
+  assert.equal(_ipToNum('10.0.0.0'), 167772160);
+  assert.equal(_ipToNum('bad'), -1);
+  assert.equal(_ipToNum('1.2.3.999'), -1);
 });
