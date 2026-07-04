@@ -1466,7 +1466,19 @@ function _ipamEntry(vid, create=false){
 // _parseIpv4Int, _parseCidrInfo, _ipInCidr sono ora in /lib/cidr.js
 // (caricato come <script> prima di app.js, esposto come globali).
 
+// F6 — memo IPAM per-frame. _renderFloorProps chiama _ipamUsageForVlan/_vlanIpamSummary
+// per OGNI VLAN, e ognuna rifà _collectKnownIps()/_activeLeaseIps() (scan di TUTTI i nodi
+// + lease). Con V VLAN il costo era ~O(V·nodi) a ogni resa. Durante UNA singola resa
+// sincrona del pannello i nodi/lease non cambiano → si calcolano una volta sola. Il memo
+// vive SOLO tra _ipamMemoBegin() e _ipamMemoEnd() (chiamate sincrone da _renderFloorProps)
+// → nessuna staleness fuori dalla resa: le altre chiamate (Assistente AI, L3) girano con
+// memo nullo e ricalcolano fresco.
+let _ipamFrameMemo = null;
+function _ipamMemoBegin(){ _ipamFrameMemo = { known:null, leases:null }; }
+function _ipamMemoEnd(){ _ipamFrameMemo = null; }
+
 function _collectKnownIps(){
+    if(_ipamFrameMemo && _ipamFrameMemo.known) return _ipamFrameMemo.known;
     const seen = new Map();
     for(const n of state.nodes || []){
         const ips = [n.ip, n.integration?.host]
@@ -1478,13 +1490,16 @@ function _collectKnownIps(){
             seen.get(ip).nodes.push(getNodeDisplayName(n));
         }
     }
-    return [...seen.values()].sort((a,b)=>a.ip.localeCompare(b.ip, undefined, { numeric:true }));
+    const _res = [...seen.values()].sort((a,b)=>a.ip.localeCompare(b.ip, undefined, { numeric:true }));
+    if(_ipamFrameMemo) _ipamFrameMemo.known = _res;
+    return _res;
 }
 
 // IP dei lease DHCP ATTIVI in cache (store._dhcpLeases): scartati gli stale
 // (isLeaseStale = G2, stesso criterio del Drift) e i duplicati. Alimentano
 // l'occupazione IPAM (lib/ipam.js). Transitori, non persistiti.
 function _activeLeaseIps(){
+    if(_ipamFrameMemo && _ipamFrameMemo.leases) return _ipamFrameMemo.leases;
     const leases = Array.isArray(store._dhcpLeases) ? store._dhcpLeases : [];
     const out = [], seen = new Set();
     for(const l of leases){
@@ -1493,6 +1508,7 @@ function _activeLeaseIps(){
         seen.add(ip);
         out.push(ip);
     }
+    if(_ipamFrameMemo) _ipamFrameMemo.leases = out;
     return out;
 }
 
@@ -2343,7 +2359,7 @@ expose({
   _clampFloatingPanel, _clearDirty, _clearPropsTab, _collectKnownIps, _createLinkRecord,
   _deviceHasWifi, _dispName, _enableManualValueInProps, _endPopupDrag, _ensureIpamState, _expandLagMemberLinks,
   _getLinkPhysicalView, _getPassThroughMode, _getUiModeMeta,
-  _idPrefixForType, _invalidateIdx, _dhcpUndocumentedForVlan, _ipamEntry, _ipamUsageForVlan, _isInteractiveDragTarget, _isLinearPassThroughPort,
+  _idPrefixForType, _invalidateIdx, _dhcpUndocumentedForVlan, _ipamEntry, _ipamMemoBegin, _ipamMemoEnd, _ipamUsageForVlan, _isInteractiveDragTarget, _isLinearPassThroughPort,
   _isRadioPid, _isValidProjectPortId, _isWifiCapable,
   _linksForPort, _loadDefaultLocal, _makeFloatingPanel, _migrateState, _movePopupDrag,
   _nextNodeId, _nodeRadios, _normalizeProjectNodeIds,
