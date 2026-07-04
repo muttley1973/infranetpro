@@ -268,6 +268,16 @@ is VPN/LAN.
   che resta sul ponte (`win.*`, ~1800 letture) sono funzioni non ancora ritirate
   (`selected`/`checked`/`_build*`).
 - **Commit only when asked.** Keep secrets and user data out of the repo.
+- **SNMP walk — adaptive retry kills FDB truncation under crawl load (2026-07-04).** The crawl's
+  `pollNeighbors` walks the forwarding table (FDB) alongside LLDP/CDP and ARP — many single-column
+  GETBULK walks on the same agent (limited to `WALK_CONCURRENCY`, default 4). A small-business switch
+  under that pressure drops UDP; a GETBULK times out and net-snmp's `subtree` returns a **partial**
+  FDB with no downstream error → macsuck placed some/all MACs on no port ("sometimes 0 badges"). Fix
+  in `_runWalks` (`drivers/snmp.js`): a **timed-out** walk is retried on the same base with
+  `max-repetitions` **halved** (25 → 12 → 6, floor `WALK_MIN_REPS`) + backoff — the netdisco bulkwalk-retry
+  strategy. Idempotent (`oid→value`, a retry overwrites partials); healthy devices never retry; a
+  deliberate loop/runaway abort is not retried. `SNMP_WALK_RETRIES` (default 2). Pure-ish + unit-tested
+  with a mock session.
 - **Vendor recognition — full IANA PEN + IEEE OUI registries (2026-07-04).** Two bundled,
   refreshable datasets back vendor resolution, so a new device is recognized without a code
   change (the fix to a recurring "vendor X is missing" class of reports):
