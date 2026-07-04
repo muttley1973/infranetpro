@@ -130,7 +130,14 @@ function _discNodeMacs(n){
 let _discIdxCache = null;
 function _discInvalidateExistingIndexes(){ _discIdxCache = null; }
 function _discExistingIndexes(){
-    if(!_discIdxCache) _discIdxCache = _discBuildExistingIndexes();
+    if(!_discIdxCache){
+        _discIdxCache = _discBuildExistingIndexes();
+        // F5: attacca le guardie di merge ANCHE all'indice di preview/render, non solo
+        // a quello dell'import. Senza, _discExistingNode/_discReconcileInfo/_discSanitize-
+        // DeviceClass fondevano un host remoto sul nodo-gateway (stesso MAC next-hop) →
+        // tipo-del-gateway ereditato + badge Nuovo/Aggiorna che mentivano vs l'import.
+        _discAttachMergeGuards(_discIdxCache);
+    }
     return _discIdxCache;
 }
 
@@ -193,21 +200,42 @@ function _discGatewayMacs(){
     } catch(_){ return new Set(); }
 }
 
+// Attacca a un indice identita' le DUE guardie di merge lette da _discFindExistingDevice.
+// Un MAC "next-hop" (gateway o condiviso) non e' una chiave affidabile. Chiamata sia
+// dall'import sia dall'indice memoizzato di preview/render (F5) → i due percorsi decidono
+// il match in modo IDENTICO (niente tipo-del-gateway ereditato, badge veritieri).
+//   - gatewayMacs: DETERMINISTICO — MAC dei gateway L3-lite documentati.
+//   - sharedMacs : EURISTICO sull'INTERO batch di discovery (store._discResults, non i
+//                  soli selezionati): stesso MAC su piu' IP = next-hop. Sul batch pieno
+//                  cosi' un singolo host remoto non "perde" la condivisione del MAC.
+function _discAttachMergeGuards(idx){
+    if(!idx || typeof idx !== 'object') return idx;
+    idx.gatewayMacs = (typeof _discGatewayMacs === 'function') ? _discGatewayMacs() : null;
+    const batch = (store && Array.isArray(store._discResults)) ? store._discResults : [];
+    idx.sharedMacs = (batch.length && typeof sharedMacsInBatch === 'function')
+        ? sharedMacsInBatch(batch, normalizeMacAddress) : null;
+    return idx;
+}
+
 function _discFindExistingDevice(row, idx = _discExistingIndexes()){
-    const mac = normalizeMacAddress(row?.mac || '');
+    const rawMac = normalizeMacAddress(row?.mac || '');
     const ip = _discNorm(row?.ip);
     const host = _discNorm(row?.hostname || row?.netbiosName);
 
     // Un MAC che NON identifica un endpoint non e' una chiave di merge affidabile:
     //  - CONDIVISO nel batch (sharedMacsInBatch): stesso MAC su piu' IP remoti = next-hop;
     //  - GATEWAY documentato (idx.gatewayMacs, L3-lite): deterministico + manual-first.
-    // In entrambi i casi NON fondere per-MAC: lascia decidere hostname/IP sotto (il
-    // gateway stesso continua a matchare per il suo IP).
-    const _macBlocked = mac && (
-        (idx.sharedMacs instanceof Set && idx.sharedMacs.has(mac)) ||
-        (idx.gatewayMacs instanceof Set && idx.gatewayMacs.has(mac))
+    // In tal caso il MAC osservato e' quello del NEXT-HOP, non dell'host: non dice
+    // NULLA sull'identita' della riga -> trattalo come ASSENTE in TUTTA la funzione
+    // (F4). Cosi' non solo non si fonde per-MAC, ma il MAC del gateway (a) non fa piu'
+    // RIFIUTARE un match per hostname legittimo, e (b) non genera un FALSO conflitto
+    // ip-mac che duplicherebbe il nodo. Il gateway continua a matchare per il suo IP.
+    const _macBlocked = rawMac && (
+        (idx.sharedMacs instanceof Set && idx.sharedMacs.has(rawMac)) ||
+        (idx.gatewayMacs instanceof Set && idx.gatewayMacs.has(rawMac))
     );
-    if(mac && !_macBlocked && idx.byMac.has(mac)) return { node:idx.byMac.get(mac), matchedBy:'mac' };
+    const mac = _macBlocked ? '' : rawMac;
+    if(mac && idx.byMac.has(mac)) return { node:idx.byMac.get(mac), matchedBy:'mac' };
 
     if(host && idx.byHost.has(host)){
         const node = idx.byHost.get(host);
@@ -468,6 +496,7 @@ function _guessType(descr, objectId, vendor='', banner='', host=''){
 expose({
     _discVendorFromMac, _discRememberClassHint, _discInvalidateExistingIndexes,
     _discBuildExistingIndexes, _discIndexNode, _discFindExistingDevice, _discGatewayMacs,
+    _discAttachMergeGuards,
     _discMarkIpMacConflict, _discTouchNodeIdentity, _discIdentitySource,
     _discIdentityLabel, _discSanitizeDeviceClass, _discConfidenceScore,
     _discHasStrongIdentity, _discCanAutoRetype, _loadDeepScanPref,
