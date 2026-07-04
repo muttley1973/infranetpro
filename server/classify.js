@@ -385,6 +385,33 @@ function _classifyDiscoveredDeviceLegacy(row) {
   return hasSnmpSignal ? 'switch' : 'pc';
 }
 
+// Brand dal nome host/mDNS quando l'OUI non aiuta (MAC randomizzato/privato dei BYOD).
+// I nomi mDNS/DHCP dei device consumer sono indicativi del produttore e li annuncia il
+// device stesso ("iPhone-di-Mario", "Galaxy-S23", "Pixel-7") → NON e' un'invenzione, e'
+// un segnale reale. Lista conservativa (solo brand consumer/BYOD ben identificabili) per
+// evitare falsi positivi. Vendor-neutral: nessun lab, nessun cliente specifico.
+const _HOST_VENDOR = [
+  [/\b(iphone|ipad|ipod|macbook|imac|mac-?mini|mac-?pro|airpods|apple-?watch|apple-?tv)\b/i, 'Apple'],
+  [/\b(galaxy|samsung|sm-[a-z]?[0-9])\b/i, 'Samsung'],
+  [/\b(pixel|nexus|chromecast|google-?home|google-?nest|nest-?(mini|hub|audio))\b/i, 'Google'],
+  [/\b(huawei|honor)\b/i, 'Huawei'],
+  [/\b(xiaomi|redmi|poco|mi-?(band|phone|box|tv))\b/i, 'Xiaomi'],
+  [/\boneplus\b/i, 'OnePlus'],
+  [/\brealme\b/i, 'Realme'],
+  [/\boppo\b/i, 'Oppo'],
+  [/\b(xperia|sony)\b/i, 'Sony'],
+  [/\b(motorola|moto-?[ge][0-9])\b/i, 'Motorola'],
+  [/\bnokia\b/i, 'Nokia'],
+  [/\b(surface|lumia)\b/i, 'Microsoft'],
+  [/\b(kindle|echo-?(dot|show)?|alexa|fire-?(tv|tablet)|amazon)\b/i, 'Amazon'],
+];
+function _vendorFromHostname(host) {
+  const h = String(host || '').trim();
+  if (!h) return '';
+  for (const [re, brand] of _HOST_VENDOR) { if (re.test(h)) return brand; }
+  return '';
+}
+
 function _buildDiscoveryMeta(row, extra = {}) {
   const sources = [];
   const evidences = [];
@@ -442,17 +469,26 @@ function _buildDiscoveryMeta(row, extra = {}) {
   const ouiInfo = extra.ouiInfo !== undefined
     ? extra.ouiInfo
     : _resolveOui(row);
-  const vendor = row.vendor || sysObjectInfo?.vendor || osFingerprint?.vendor || ouiInfo?.vendor || _vendorByObjectId(row.objectId);
+  let vendor = row.vendor || sysObjectInfo?.vendor || osFingerprint?.vendor || ouiInfo?.vendor || _vendorByObjectId(row.objectId);
+  // Fallback BYOD: OUI assente/randomizzato (telefoni con MAC privato) → deduci il brand
+  // dal nome host/mDNS che il device stesso annuncia. Peso un filo minore dell'OUI.
+  let vendorFromHost = false;
+  if (!vendor) {
+    const hv = _vendorFromHostname(row.hostname || row.netbiosName);
+    if (hv) { vendor = hv; vendorFromHost = true; }
+  }
   if (vendor) {
-    const vendorNote = row.vendor ? 'Vendor da MAC/OUI'
+    const vendorNote = vendorFromHost ? 'Brand dedotto dal nome host/mDNS'
+      : row.vendor ? 'Vendor da MAC/OUI'
       : sysObjectInfo ? 'Vendor dedotto dal catalogo sysObjectID'
       : ouiInfo ? 'Vendor dedotto dal motore OUI plugin-based'
       : 'Vendor dedotto da sysObjectID/PEN';
-    const vendorReason = row.vendor ? 'mac-vendor'
+    const vendorReason = vendorFromHost ? 'hostname-vendor'
+      : row.vendor ? 'mac-vendor'
       : sysObjectInfo ? 'sysobject-vendor'
       : ouiInfo ? 'oui-plugin'
       : 'objectid-vendor';
-    addEvidence('vendor', vendor, 8, vendorNote);
+    addEvidence('vendor', vendor, vendorFromHost ? 6 : 8, vendorNote);
     addReason(vendorReason);
   }
   if (ouiInfo) {
@@ -609,7 +645,7 @@ function _decorateDiscoveryRow(row, extra = {}) {
   const sysObjectInfo = _resolveSysObject(merged);
   const osFingerprint = sysObjectInfo?.os ? null : _resolveOsFingerprint(merged);
   const ouiInfo = _resolveOui(merged);
-  if (!merged.vendor) merged.vendor = sysObjectInfo?.vendor || osFingerprint?.vendor || ouiInfo?.vendor || _vendorByObjectId(merged.objectId);
+  if (!merged.vendor) merged.vendor = sysObjectInfo?.vendor || osFingerprint?.vendor || ouiInfo?.vendor || _vendorByObjectId(merged.objectId) || _vendorFromHostname(merged.hostname || merged.netbiosName);
   // Structured classification (deviceType + numeric confidence + ranked
   // alternatives) is the modern surface that future UI badges read.
   // `meta.confidence` (display-level) remains an aggregate of source weights
@@ -639,4 +675,4 @@ function _decorateDiscoveryRow(row, extra = {}) {
   };
 }
 
-module.exports = { _cleanHostname, PEN_VENDOR, _penFromObjectId, _vendorByObjectId, _decodeSysServices, _resolveSysObject, _resolveOsFingerprint, _resolveOui, _createSysObjectEngine, _setSysObjectEngineForTests, _createOuiEngine, _setOuiEngineForTests, _createFusionScorer, _setFusionScorerForTests, _scoreDiscoveredDevice, _classifyDiscoveredDevice, _classifyDiscoveredDeviceLegacy, _buildDiscoveryMeta, _decorateDiscoveryRow };
+module.exports = { _cleanHostname, PEN_VENDOR, _penFromObjectId, _vendorByObjectId, _decodeSysServices, _resolveSysObject, _resolveOsFingerprint, _resolveOui, _createSysObjectEngine, _setSysObjectEngineForTests, _createOuiEngine, _setOuiEngineForTests, _createFusionScorer, _setFusionScorerForTests, _scoreDiscoveredDevice, _classifyDiscoveredDevice, _classifyDiscoveredDeviceLegacy, _buildDiscoveryMeta, _decorateDiscoveryRow, _vendorFromHostname };

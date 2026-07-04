@@ -118,14 +118,38 @@
         .disc-table td { padding:5px 7px; border-bottom:1px solid rgba(255,255,255,0.04); vertical-align:middle; }
         .disc-table tr:hover td { background:rgba(255,255,255,0.03); }
         .disc-table tr.disc-off td { opacity:.72; }
+        /* Bassa confidenza (fantasmi solo-ping < soglia): visibili ma in grigio e
+           non pre-selezionati. La spunta a mano resta possibile. */
+        .disc-table tr.disc-lowconf td { opacity:.55; }
         .disc-table input[type=checkbox] { cursor:pointer; accent-color:var(--accent); width:14px; height:14px; }
         .disc-table select { background:var(--bg-color); border:1px solid var(--panel-border); color:var(--text-main); padding:2px 5px; border-radius: var(--radius-sm); font-size:var(--fs-sm); font-family:inherit; }
         .disc-st { font-size:var(--fs-xs); border-radius: var(--radius-pill); padding:1px 7px; font-weight:700; display:inline-block; }
         .disc-st.on { background:#173a22; color:var(--active-color); }
         .disc-st.seen { background:rgba(236,179,60,.12); color:#e3b341; border:1px solid rgba(236,179,60,.25); }
         .disc-st.off { background:#2d3138; color:var(--text-muted); }
-        .disc-ip   { font-family:monospace; color:var(--accent); font-size:var(--fs-md); }
+        .disc-ip   { font-family:monospace; color:var(--accent); font-size:var(--fs-md); white-space:nowrap; }
         .disc-host { font-weight:600; }
+        /* MAC: i MAC normalizzati sono in MAIUSCOLO (glifi piu' larghi) → senza nowrap
+           la cella andava a capo. Monospace + nowrap + tracking negativo la tengono
+           su UNA riga senza allargare troppo la colonna. */
+        .disc-mac  { font-family:monospace; white-space:nowrap; color:var(--text-muted); font-size:var(--fs-sm); letter-spacing:-.02em; }
+        .disc-vendor { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        /* Tabella Scopri principale: colonne a larghezza FISSA → allineamento stabile,
+           niente colonne che ballano al variare del contenuto (MAC/vendor/badge). La
+           colonna Nome (3a, con i badge) prende lo spazio restante; il resto e' fisso. */
+        .disc-scan-table { table-layout:fixed; }
+        .disc-scan-table th, .disc-scan-table td { overflow:hidden; }
+        .disc-scan-table th:nth-child(1), .disc-scan-table td:nth-child(1) { width:34px; }   /* checkbox */
+        .disc-scan-table th:nth-child(2), .disc-scan-table td:nth-child(2) { width:92px; }   /* stato */
+        .disc-scan-table th:nth-child(4), .disc-scan-table td:nth-child(4) { width:118px; }  /* IP */
+        .disc-scan-table th:nth-child(5), .disc-scan-table td:nth-child(5) { width:160px; }  /* vendor */
+        .disc-scan-table th:nth-child(6), .disc-scan-table td:nth-child(6) { width:158px; }  /* MAC */
+        .disc-scan-table th:nth-child(7), .disc-scan-table td:nth-child(7) { width:210px; }  /* tipo (select + icona destinazione) */
+        /* Cella Tipo: select + icona destinazione (planimetria/rack) su UNA riga.
+           Il select riserva ~28px per l'icona così non va a capo sotto il dropdown. */
+        .disc-scan-table td:nth-child(7) { white-space:nowrap; }
+        .disc-scan-table td:nth-child(7) > select.disc-type { max-width:calc(100% - 28px); vertical-align:middle; }
+        .disc-scan-table .disc-dest { vertical-align:middle; }
         .disc-badge { display:inline-flex; align-items:center; margin-left:5px; border-radius: var(--radius-sm); padding:1px 5px; font-size:var(--fs-xs); font-weight:800; letter-spacing:.02em; vertical-align:middle; border:1px solid transparent; }
         .disc-badge.src-snmp { background:rgba(0,212,255,.12); color:var(--accent); border-color:rgba(0,212,255,.25); }
         .disc-badge.src-xd   { background:rgba(57,211,83,.14); color:var(--active-color); border-color:rgba(57,211,83,.28); }

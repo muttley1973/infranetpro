@@ -19,6 +19,15 @@ function _dt(key, fallback, vars){ return (typeof win.t === 'function') ? win.t(
 
 // Nome localizzato del tipo device: punto unico in app-types.js (`typeName`).
 
+// Pre-selezione: NON spuntare di default le righe a confidenza bassissima — i
+// "fantasmi" solo-ping (~10%) prodotti dall'artefatto ping-sweep quando il gateway
+// risponde "host unreachable" con exit-code 0 (task_977d2930). Restano VISIBILI (in
+// grigio) e selezionabili a mano, ma fuori dall'import di default. Verificato sul lab
+// con lo scorer reale: i device reali stanno >=20% (endpoint on-segment ~40%, SNMP
+// >=57%, off-segment ARP-SNMP ~20%), i fantasmi ping-only ESATTAMENTE a 10% → 15
+// separa senza falsi negativi. Un host con anche solo un MAC (ARP) parte da ~22%.
+const DISC_PRESELECT_MIN_CONF = 15;
+
 function openDiscovery(){
     // Il driver resta su 'auto' (rilevamento unificato v2c + v3): NON lo
     // sovrascriviamo col driver di un device esistente, altrimenti un solo
@@ -151,8 +160,24 @@ function _discKey(d){
     return String(d?.ip || d?.hostname || '').trim().toLowerCase();
 }
 
+// Etichetta Vendor per la tabella. Se il server ha risolto un vendor (incluso il
+// "Private" degli OUI IEEE riservati) lo mostra invariato. Se e' VUOTO ma il MAC e'
+// randomizzato (bit locally-administered 0x02, tipico dei BYOD/telefoni con privacy
+// MAC) mostra un'etichetta ONESTA invece di "—": non esiste un OUI reale, ma diciamo
+// perche'. isRandomizedMac = lib mac-class (window global, caricato prima del bundle).
+function _discVendorLabel(d){
+    if(d && d.vendor) return d.vendor;
+    if(d && d.mac && typeof isRandomizedMac === 'function' && isRandomizedMac(d.mac))
+        return _dt('disc.vendor.random','Privato · MAC casuale');
+    return '—';
+}
+
 function _discEnsureMeta(d){
     const row = { ...(d || {}) };
+    // MAC in forma canonica (MAIUSCOLO con ':') per TUTTE le sorgenti: lo sweep lo
+    // dava gia' maiuscolo, l'ARP-SNMP/crawl minuscolo → in tabella si vedevano case
+    // miste e (peggio) lo stesso device sfuggiva a un eventuale dedup per-MAC.
+    if(row.mac) row.mac = normalizeMacAddress(row.mac) || row.mac;
     const ouiVendor = win._discVendorFromMac(row.mac);
     if(!row.vendor) row.vendor = ouiVendor;
     row.vendorHint = row.vendorHint || ouiVendor || '';
@@ -451,28 +476,36 @@ function _discRenderTable(){
         const src = _discSourceInfo(d);
         const conf = _discConfidenceInfo(d);
         const rec = _discReconcileInfo(d, t);
+        // Flag SNMP-versione (🔑 v3 da configurare / +v3): breve e SUBITO dopo la
+        // sorgente SNMP (sono attributi della sorgente) → niente badge lungo che va a
+        // capo. Il testo esteso resta nel tooltip.
+        const _v3cred = d.needsCredentials
+            ? ` <span class="disc-badge v3-cred" data-tip="${escapeHTML(_dt('disc.tip.v3cred','SNMPv3 rilevato senza credenziali — dopo l\'import configura utente/password nel pannello Integrazione, poi fai Sync'))}"><i class="fas fa-key"></i> ${escapeHTML(_dt('disc.v3cred','v3'))}</span>`
+            : '';
+        // Dual-config: risponde a v2c (con dati) MA supporta anche v3 → lo segnalo
+        // (e implicitamente che v2c è esposto). Niente 🔑: via v2c funziona.
+        const _v3also = ((d.snmpVersions||[]).includes('snmp-v3') && d.snmpDriver!=='snmp-v3' && !d.needsCredentials)
+            ? ` <span class="disc-badge v3-also" data-tip="${escapeHTML(_dt('disc.tip.alsoV3','Supporta anche SNMPv3; interrogato via la versione con i dati. Attenzione: v2c è attivo/esposto — valuta di disattivarlo e passare a v3.'))}"><i class="fas fa-key"></i> ${escapeHTML(_dt('disc.alsoV3','+v3'))}</span>`
+            : '';
         const badges = ` <span class="disc-badge src-${src.cls}" data-tip="${escapeHTML(src.title)}">${escapeHTML(src.label)}</span>`
+            + _v3cred + _v3also
             + ` <span class="disc-badge conf-${conf.cls}" data-tip="${escapeHTML(conf.title)}">${escapeHTML(conf.label)} ${conf.score}%</span>`
-            + ` <span class="disc-badge rec-${rec.cls}" data-tip="${escapeHTML(rec.title)}">${escapeHTML(rec.label)}</span>`
-            + (d.needsCredentials
-                ? ` <span class="disc-badge v3-cred" data-tip="${escapeHTML(_dt('disc.tip.v3cred','SNMPv3 rilevato senza credenziali — dopo l\'import configura utente/password nel pannello Integrazione, poi fai Sync'))}"><i class="fas fa-key"></i> ${escapeHTML(_dt('disc.v3cred','v3 da configurare'))}</span>`
-                : '')
-            // Dual-config: risponde a v2c (con dati) MA supporta anche v3 → lo
-            // segnalo (e implicitamente che v2c è esposto). Niente 🔑: via v2c funziona.
-            + (((d.snmpVersions||[]).includes('snmp-v3') && d.snmpDriver!=='snmp-v3' && !d.needsCredentials)
-                ? ` <span class="disc-badge v3-also" data-tip="${escapeHTML(_dt('disc.tip.alsoV3','Supporta anche SNMPv3; interrogato via la versione con i dati. Attenzione: v2c è attivo/esposto — valuta di disattivarlo e passare a v3.'))}"><i class="fas fa-key"></i> ${escapeHTML(_dt('disc.alsoV3','+v3'))}</span>`
-                : '');
+            + ` <span class="disc-badge rec-${rec.cls}" data-tip="${escapeHTML(rec.title)}">${escapeHTML(rec.label)}</span>`;
         const reach = _discReachabilityInfo(d);
         const displayName = d.displayName || d.hostname || d.ip;
-        const canImport = !!d.alive;
+        // Pre-selezione = vivo E confidenza sopra la soglia fantasmi (i solo-ping a
+        // ~10% NON si spuntano di default). L'utente puo' sempre spuntarli a mano.
+        const _lowConf = !!d.alive && (conf.score || 0) < DISC_PRESELECT_MIN_CONF;
+        const canImport = !!d.alive && (conf.score || 0) >= DISC_PRESELECT_MIN_CONF;
         const checked = Object.prototype.hasOwnProperty.call(win._discSelMap,key) ? !!win._discSelMap[key] : canImport;
-        return `<tr class="${d.alive?'':'disc-off'}">
+        const _rowCls = [d.alive ? '' : 'disc-off', _lowConf ? 'disc-lowconf' : ''].filter(Boolean).join(' ');
+        return `<tr class="${_rowCls}">
           <td><input type="checkbox" class="disc-chk" data-idx="${i}" onchange="_discOnRowToggle(this)" ${checked?'checked':''}></td>
           <td><span class="disc-st ${reach.cls}" data-tip="${escapeHTML(reach.title)}">${escapeHTML(reach.label)}</span></td>
           <td class="disc-host">${escapeHTML(displayName)}${badges}</td>
           <td class="disc-ip">${escapeHTML(d.ip)}</td>
-          <td>${escapeHTML(d.vendor||'—')}</td>
-          <td>${escapeHTML(d.mac||'—')}</td>
+          <td class="disc-vendor">${escapeHTML(_discVendorLabel(d))}</td>
+          <td class="disc-mac">${escapeHTML(d.mac||'—')}</td>
           <td><select class="disc-type" data-idx="${i}" onchange="_discOnTypeChange(this)">${opts}</select> <span class="disc-dest" data-idx="${i}">${_discDestIcon(t)}</span></td>
         </tr>`;
     }).join('');
@@ -533,7 +566,12 @@ function _discArpRow(device){
 
 async function _runCrawlPhase(seeds, driver, community, timeout, scanCidr){
     if(!seeds.length) return;
+    // Dedup: parti dagli IP GIA' presenti (semi + tutto lo sweep principale in
+    // store._discResults). Senza gli IP dello sweep, un host gia' trovato e poi
+    // ripescato dalla ARP-SNMP di uno switch (o annunciato via LLDP/CDP) veniva
+    // RI-proposto come riga duplicata (es. .178 sweep "HP" + .178 ARP-SNMP "Canon").
     const knownIps = new Set(seeds);
+    for(const d of (store._discResults || [])){ if(d && d.ip) knownIps.add(String(d.ip).trim()); }
     let crawlAbort = null;
 
     try{
@@ -643,17 +681,14 @@ async function importDiscovered(){
         }
 
         const existingIdx = win._discBuildExistingIndexes();
-        // Non fondere per-MAC i device che condividono un MAC "next-hop/gateway"
-        // (stesso MAC su piu' IP remoti nello stesso Scopri, tipico del cross-subnet):
-        // senza questo, piu' host remoti collassano tutti sul nodo-gateway. Il match
-        // ripiega su hostname/IP (il gateway stesso continua a matchare per IP).
-        existingIdx.sharedMacs = (typeof sharedMacsInBatch === 'function')
-            ? sharedMacsInBatch(toImport, normalizeMacAddress) : null;
-        // Segnale DETERMINISTICO e manual-first complementare: i MAC dei gateway
-        // documentati (L3-lite VLAN->device). Se un MAC E' un gateway che hai scelto
-        // tu, non fondere per-MAC su di esso (vince sull'euristica batch).
-        existingIdx.gatewayMacs = (typeof _discGatewayMacs === 'function')
-            ? _discGatewayMacs() : null;
+        // Guardie di merge (F5): un MAC "next-hop" — gateway L3-lite documentato, oppure
+        // stesso MAC su piu' IP nel batch di Scopri (cross-subnet) — NON e' una chiave di
+        // identita' affidabile → non fondere per-MAC su di esso, ripiega su hostname/IP
+        // (il gateway stesso matcha per il suo IP). Sono le STESSE guardie del percorso di
+        // preview/render (_discAttachMergeGuards): sharedMacs e' calcolato sull'INTERO
+        // batch (store._discResults), cosi' un singolo host remoto non perde la
+        // condivisione del MAC-gateway e badge preview ↔ esito import coincidono.
+        if(typeof _discAttachMergeGuards === 'function') _discAttachMergeGuards(existingIdx);
 
         let imported=0, updated=0, floorCount=0, conflicts=0;
         const _importedEndpoints=[];
@@ -879,5 +914,5 @@ async function importDiscovered(){
 expose({
     openDiscovery, closeDiscovery, _closeDiscoveryOverlayClick, runDiscovery,
     discSelectAll, importDiscovered, _discOnRowToggle, _discOnTypeChange,
-    _discExistingNode, _discRenderTable, _discCrawlRow, _discArpRow,
+    _discExistingNode, _discRenderTable, _discCrawlRow, _discArpRow, _discVendorLabel,
 });
