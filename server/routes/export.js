@@ -4,13 +4,15 @@
 // ============================================================
 const express = require('express');
 const auth = require('../../auth');
-const { _loadPdfDeps, _addReportPages, _addCoverPage, _addNotesPages, _addChangelogPages, _addSparePages } = require('../pdf-report');
+const { _loadPdfDeps, _addReportPages, _addCoverPage, _addNotesPages, _addChangelogPages, _addSparePages, _addAssetRegisterPages } = require('../pdf-report');
 const { addLabelPages } = require('../label-sheet');
+const { loadProject } = require('../projects-store');
+const { projectToDevices } = require('../../lib/api-shape');
 
 const router = express.Router();
 
 router.post('/api/export-pdf', auth.requireAdmin, (req, res) => {
-  const { svg, projectName, bgImage, bgImageW, bgImageH, bgImageType, reportData, reportOptions } = req.body ?? {};
+  const { svg, projectName, bgImage, bgImageW, bgImageH, bgImageType, reportData, reportOptions, projectId, lang } = req.body ?? {};
   const opts = {
     includePlanimetria: true,
     includeBackground: true,
@@ -20,11 +22,12 @@ router.post('/api/export-pdf', auth.requireAdmin, (req, res) => {
     includePorts: true,
     includeVlans: true,
     includeTopology: true,
+    includeAssets: false,   // registro asset (per-device): opt-in dal client nuovo; default OFF = retrocompat coi client vecchi
     ...(reportOptions || {}),
   };
 
   const hasPlanSvg = typeof svg === 'string' && svg.length > 0;
-  const wantsReportPages = !!(opts.includeInventory || opts.includeAsBuilt || opts.includeRacks || opts.includePorts || opts.includeVlans || opts.includeTopology || opts.includeCover || opts.includeNotes || opts.includeChangelog || opts.includeSpare);
+  const wantsReportPages = !!(opts.includeInventory || opts.includeAsBuilt || opts.includeRacks || opts.includePorts || opts.includeVlans || opts.includeTopology || opts.includeCover || opts.includeNotes || opts.includeChangelog || opts.includeSpare || opts.includeAssets);
 
   if (!opts.includePlanimetria && !wantsReportPages) {
     return res.status(400).json({ error: 'Nessuna sezione selezionata per l\'export PDF' });
@@ -45,14 +48,31 @@ router.post('/api/export-pdf', auth.requireAdmin, (req, res) => {
 
   try {
     const hName = String(projectName || 'InfraNet Pro').substring(0, 100);
-    const hDate = new Date().toLocaleDateString('it-IT',
+    const _lang = (lang === 'en') ? 'en' : 'it';   // lingua del report (dal client getLang); default it
+    const hDate = new Date().toLocaleDateString(_lang === 'en' ? 'en-GB' : 'it-IT',
                     { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+    // Registro asset + timestamp "ultima revisione": caricati SERVER-SIDE dal
+    // progetto (per projectId), cosi' l'asset register riusa i DTO nodeToDevice
+    // (allowlist anti-leak) e il timestamp = project.updated_at AUTOREVOLE (il
+    // client non lo conosce). Solo interi positivi → loadProject fa path.join(id).
+    let _project = null, _lastRevised = null;
+    const _pid = Number(projectId);
+    if ((opts.includeAssets || opts.includeCover) && Number.isInteger(_pid) && _pid > 0) {
+      try { _project = loadProject(_pid); } catch (_) { _project = null; }
+      if (_project && _project.updated_at) _lastRevised = _project.updated_at;
+    }
 
     const doc = new PDFDocument({ size: [595, 842], margin: 0, autoFirstPage: false });
 
     // Dossier di consegna (N4): copertina come PRIMA pagina
     if (opts.includeCover && reportData && reportData.handoff && reportData.handoff.cover) {
-      _addCoverPage(doc, reportData.handoff.cover);
+      // Inietta "ultima revisione" (project.updated_at) nella copertina: il client
+      // costruisce la cover ma non conosce updated_at → lo aggiunge il server.
+      if (_lastRevised && reportData.handoff.cover.lastRevised == null) {
+        reportData.handoff.cover.lastRevised = _lastRevised;
+      }
+      _addCoverPage(doc, reportData.handoff.cover, _lang);
     }
 
     if (opts.includePlanimetria && hasPlanSvg) {
@@ -133,18 +153,24 @@ router.post('/api/export-pdf', auth.requireAdmin, (req, res) => {
     }
 
     if (wantsReportPages && reportData && typeof reportData === 'object') {
-      _addReportPages(doc, reportData, hName, hDate, SVGtoPDF, opts);
+      _addReportPages(doc, reportData, hName, hDate, SVGtoPDF, opts, _lang);
+    }
+    // Registro asset (per-device): riusa i DTO nodeToDevice del progetto caricato
+    // server-side. Se il progetto non e' caricabile, pagina con nota "nessun device".
+    if (opts.includeAssets) {
+      const assets = _project ? projectToDevices(_project) : [];
+      _addAssetRegisterPages(doc, assets, hName, hDate, _lastRevised, _lang);
     }
     // Dossier di consegna (N4): note e storia modifiche in coda
     if (opts.includeNotes && reportData && reportData.handoff) {
-      _addNotesPages(doc, reportData.handoff.notes, hName, hDate);
+      _addNotesPages(doc, reportData.handoff.notes, hName, hDate, _lang);
     }
     if (opts.includeChangelog && reportData && reportData.handoff) {
-      _addChangelogPages(doc, reportData.handoff.changelog, hName, hDate);
+      _addChangelogPages(doc, reportData.handoff.changelog, hName, hDate, _lang);
     }
     // Porte libere (capacità): pagina A4 opzionale.
     if (opts.includeSpare && reportData && reportData.spare) {
-      _addSparePages(doc, reportData.spare, hName, hDate);
+      _addSparePages(doc, reportData.spare, hName, hDate, _lang);
     }
 
     const chunks = [];
