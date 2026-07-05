@@ -4,7 +4,7 @@
 // ============================================================
 const express = require('express');
 const auth = require('../../auth');
-const { _loadPdfDeps, _addReportPages, _addCoverPage, _addNotesPages, _addChangelogPages, _addSparePages, _addAssetRegisterPages } = require('../pdf-report');
+const { _loadPdfDeps, _addReportPages, _addCoverPage, _addNotesPages, _addChangelogPages, _addSparePages, _addAssetRegisterPages, _rt } = require('../pdf-report');
 const { addLabelPages } = require('../label-sheet');
 const { loadProject } = require('../projects-store');
 const { projectToDevices } = require('../../lib/api-shape');
@@ -93,7 +93,7 @@ router.post('/api/export-pdf', auth.requireAdmin, (req, res) => {
 
       doc.addPage({ size: [pageW, pageH], margin: 0 });
       doc.font('Helvetica').fontSize(9).fillColor('#888888')
-         .text(`${hName}  -  Planimetria  -  ${hDate}`, MARGIN, 10, { lineBreak: false });
+         .text(`${hName}  -  ${_rt(_lang, 'title.floorplan')}  -  ${hDate}`, MARGIN, 10, { lineBreak: false });
       doc.moveTo(MARGIN, 22)
          .lineTo(pageW - MARGIN, 22)
          .strokeColor('#555555').lineWidth(0.5).stroke();

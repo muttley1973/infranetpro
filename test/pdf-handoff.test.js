@@ -87,6 +87,8 @@ test('copertina: "Ultima revisione" (project.updated_at) mostrata solo se presen
 test('_rt: EN + fallback IT su lingua ignota + chiave sconosciuta', { skip: !has }, () => {
   assert.equal(R._rt('en', 'title.assets'), 'Asset register');
   assert.equal(R._rt('it', 'title.assets'), 'Registro asset');
+  assert.equal(R._rt('en', 'title.floorplan'), 'Floor plan');   // header pagina planimetria (route)
+  assert.equal(R._rt('it', 'title.floorplan'), 'Planimetria');
   assert.equal(R._rt('xx', 'title.assets'), 'Registro asset');       // lingua ignota → it
   assert.equal(R._rt('en', 'chiave.inesistente'), 'chiave.inesistente'); // key passthrough
 });
