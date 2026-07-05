@@ -2476,6 +2476,64 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.tipHasLag, 'portTip riporta il LAG nella porta in gruppo');
     });
 
+    await t.test('rimuovere un LAG da Proprieta riporta porte E cavi allo stato normale (anche LAG da SNMP)', async () => {
+      // Regressione: un LAG derivato dall'SNMP marca la porta con lagGroup='snmp-lag-…'
+      // MA ANCHE con lagId (l'aggregatore). dissolveLag/removePortFromLag cancellavano
+      // solo lagGroup → _portLagGid() ricavava di nuovo il gruppo da lagId>0 e la porta
+      // restava viola/LAG a video; il cavo restava "bundle" (lagLogicalKey). Il fix
+      // pulisce lagGroup+lagId+lagIfIndex sulle porte e i marcatori LAG sui cavi.
+      const r = await page.evaluate(() => {
+        const exposed = ['dissolveLag', 'removePortFromLag', '_portLagGid']
+          .every((f) => typeof window[f] === 'function');
+        const mkSnmpLag = (gid, lid, a, b) => {
+          for (const pid of [a, b]) {
+            state.ports[pid] = Object.assign(state.ports[pid] || {}, { lagGroup: gid, lagId: lid, lagIfIndex: lid });
+          }
+          state.lagGroups = state.lagGroups || {}; state.lagGroups[gid] = `Po${lid}`;
+          state.links = state.links || [];
+          state.links.push({ id: `l_test_${lid}`, src: a, dst: 'sw2-1',
+            lagLogicalKey: 'L:test', lagMemberPair: `${a}|sw2-1`, lagMembers: [`${a}||sw2-1`] });
+        };
+
+        // --- Scenario A: dissolveLag (✕ sul gruppo nel pannello Proprieta) ---
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        const gidA = 'snmp-lag-sw1-3';
+        mkSnmpLag(gidA, 3, 'sw1-1', 'sw1-2');
+        const beforeA = _portLagGid('sw1-1') !== '';           // porta È in LAG prima
+        dissolveLag(gidA);
+        const linkA = state.links.find((l) => l.id === 'l_test_3') || {};
+        const afterA = {
+          gidEmpty: _portLagGid('sw1-1') === '' && _portLagGid('sw1-2') === '', // porte NORMALI
+          noLagId: !state.ports['sw1-1'].lagId && !state.ports['sw1-2'].lagId,
+          noGroup: !(state.lagGroups && state.lagGroups[gidA]),
+          cableNormal: !linkA.lagLogicalKey && !linkA.lagMemberPair && !linkA.lagMembers,
+        };
+
+        // --- Scenario B: removePortFromLag su gruppo a 2 membri → collassa ---
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        const gidB = 'snmp-lag-sw1-4';
+        mkSnmpLag(gidB, 4, 'sw1-1', 'sw1-2');
+        removePortFromLag('sw1-1');
+        const afterB = {
+          gidEmpty: _portLagGid('sw1-1') === '' && _portLagGid('sw1-2') === '',
+          groupGone: !(state.lagGroups && state.lagGroups[gidB]),
+        };
+
+        if (typeof selType !== 'undefined') { selType = null; selId = null; }
+        return { exposed, beforeA, afterA, afterB };
+      });
+      assert.ok(r.exposed, 'dissolveLag/removePortFromLag/_portLagGid pubblicate su window');
+      assert.ok(r.beforeA, 'precondizione: la porta risulta in LAG prima della rimozione');
+      assert.ok(r.afterA.gidEmpty, 'dissolveLag: le porte NON risultano piu in LAG (_portLagGid vuoto) — no residuo lagId');
+      assert.ok(r.afterA.noLagId, 'dissolveLag: lagId rimosso dalle porte del gruppo');
+      assert.ok(r.afterA.noGroup, 'dissolveLag: il nome gruppo e rimosso da state.lagGroups');
+      assert.ok(r.afterA.cableNormal, 'dissolveLag: il cavo torna normale (no lagLogicalKey/lagMemberPair/lagMembers)');
+      assert.ok(r.afterB.gidEmpty, 'removePortFromLag: gruppo a 2 membri collassa → entrambe le porte tornano normali');
+      assert.ok(r.afterB.groupGone, 'removePortFromLag: il gruppo collassato e rimosso da state.lagGroups');
+    });
+
     await t.test('drag rack: il device segue il cursore (px→U usa --ru-h, non 24 hardcoded)', async () => {
       // Regressione: il drag convertiva px→U con /24 hardcoded mentre l'altezza
       // 1U (--ru-h) è 29px dopo il "rack in scala". Trascinando di k×ruH px il

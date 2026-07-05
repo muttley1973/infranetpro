@@ -156,16 +156,46 @@ function cancelLag(){
     renderAll();
 }
 
+// Rimuove OGNI marcatore LAG da una porta. Non basta cancellare lagGroup: quando
+// il LAG arriva dall'SNMP la porta ha ANCHE lagId (l'aggregatore) e _portLagGid()
+// ricava il gruppo da lagId>0 → la porta resterebbe "LAG" a video pur avendo tolto
+// il gruppo. Puliamo quindi lagGroup + lagId + lagIfIndex. L'evidenza SNMP grezza
+// resta su node.integration.lags: un Sync futuro ri-deriva il LAG se esiste ancora.
+function _clearPortLagMarks(pid){
+    const pi = store.state.ports[pid];
+    if(!pi) return;
+    delete pi.lagGroup;
+    delete pi.lagId;
+    delete pi.lagIfIndex;
+}
+
+// Riporta a "cavo normale" i collegamenti che toccano una delle porte indicate,
+// togliendo i marcatori di bundle (lib/linkstate.js: un link è LAG se ha
+// lagLogicalKey o lagMemberPair). Non tocca gli altri cavi. Non si rigenerano dai
+// campi porta: la ricostruzione link in app.js parte solo da lagLogicalKey/lagMembers.
+function _stripLinkLagFor(pids){
+    for(const l of store.state.links || []){
+        if(pids.has(l.src) || pids.has(l.dst)){
+            delete l.lagLogicalKey;
+            delete l.lagMembers;
+            delete l.lagMemberPair;
+        }
+    }
+}
+
 function removePortFromLag(pid){
     const state = store.state;
     const pi = state.ports[pid] || {};
     const gid = pi.lagGroup;
     if(!gid) return;
     pushHistory();
-    delete state.ports[pid].lagGroup;
+    _clearPortLagMarks(pid);
+    _stripLinkLagFor(new Set([pid]));
     const remaining = Object.entries(state.ports).filter(([,f])=>f.lagGroup===gid);
     if(remaining.length < 2){
-        for(const [p] of remaining) delete state.ports[p].lagGroup;
+        const rest = new Set(remaining.map(([p])=>p));
+        for(const p of rest) _clearPortLagMarks(p);
+        _stripLinkLagFor(rest);
         if(state.lagGroups) delete state.lagGroups[gid];
         if(state.lagModes) delete state.lagModes[gid];
     }
@@ -177,9 +207,11 @@ function removePortFromLag(pid){
 function dissolveLag(gid){
     const state = store.state;
     pushHistory();
-    for(const pi of Object.values(state.ports)){
-        if(pi.lagGroup === gid) delete pi.lagGroup;
+    const affected = new Set();
+    for(const [pid, pi] of Object.entries(state.ports)){
+        if(pi.lagGroup === gid){ affected.add(pid); _clearPortLagMarks(pid); }
     }
+    _stripLinkLagFor(affected);
     if(state.lagGroups) delete state.lagGroups[gid];
     if(state.lagModes) delete state.lagModes[gid];
     markDirty();
