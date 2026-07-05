@@ -237,7 +237,10 @@ is coerced to a positive integer (no path traversal). The user store is written
 present-but-corrupt `users.json` recovers from the `.bak` and, failing that, **halts
 startup** instead of regenerating a default admin over existing accounts. The data
 surfaces — AI context, REST DTOs, exports — are **allowlist-only**: secrets are
-structurally excluded and a build-failing guard test enforces it. Binds to
+structurally excluded and a build-failing guard test enforces it. (The PDF
+report's per-device asset register is built from the same `nodeToDevice` DTO, so
+no SNMP community or credential can reach the exported document; report chrome is
+localized it/en server-side while device data is emitted verbatim.) Binds to
 `127.0.0.1`. `users.json`,
 `.session-secret`, `api-tokens.json`, `data/ai-config.json`, `projects/` are
 git-ignored. A 2026-06 AppSec audit found **no critical issues**; the follow-up

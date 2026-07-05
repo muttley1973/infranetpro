@@ -2,6 +2,20 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-05 — Audit-ready asset register in the PDF report, and the whole report goes bilingual
+
+The PDF export gains a per-device asset register aimed at NIS2 / ISO 27001 documentation, and every report page now follows the UI language instead of being Italian-only.
+
+### Added
+- **Per-device asset register in the PDF report.** A new report section lists every documented device in a table — name, type, brand, model, serial, IP, MAC, VLAN, rack/U — the columns an auditor's asset inventory expects (ISO/IEC 27001:2022 A.5.9). It is built **server-side from the same allowlist DTO as the REST API** (`projectToDevices` → `nodeToDevice`, `lib/api-shape.js`), so SNMP communities and other secrets are structurally excluded from the PDF. Opt-in via a new *Asset register* checkbox in the export dialog, and included in the one-click delivery dossier. `server/pdf-report.js`, `server/routes/export.js`.
+- **"Last revised" timestamp on the report cover.** The dossier cover now shows the project's `updated_at` (when the documentation itself last changed), distinct from the generation date — the "kept up to date after every change" evidence NIS2 and cyber-insurance questionnaires ask for. The server reads it by `projectId` (the client doesn't have it). `server/routes/export.js`, `server/pdf-report.js`.
+
+### Changed
+- **The PDF report is now bilingual (it / en).** Every page title, subtitle, column header, empty state and cover label follows the UI language, driven by a local it/en table in `server/pdf-report.js`; the language flows from the client (`getLang()`) via `/api/export-pdf`, defaulting to Italian so existing behaviour is unchanged. Dates render in the matching locale (it‑IT / en‑GB). Technical terms (VLAN, SFP, access, trunk, rack, uplink) stay unchanged in both languages. Change-history **action labels** are translated too (`auditActionLabel(action, lang)`, `lib/audit-log.js`).
+
+### Notes
+- Historical audit **values** in the change-history page (e.g. an SNMP-sync summary) are shown in the language they were recorded in — they are frozen records and are not rewritten, in line with audit-trail integrity. New entries recorded under an English UI are in English.
+
 ## 2026-07-04 — Security hardening: AI key file locked down, dead-route path leak closed
 
 Two small hardening fixes surfaced by a full stress test of the pure engines (a synthetic 500-device enterprise project — JSON durability, drift/IPAM/LAG/topology, simulated scan pipeline) and a live smoke test of every HTTP surface. Both passes came back clean apart from these.
