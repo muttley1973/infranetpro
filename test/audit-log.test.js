@@ -33,6 +33,13 @@ test('auditActionLabel: chiave nota → etichetta IT, ignota → fallback', () =
   assert.equal(auditActionLabel('roba-strana'), 'roba-strana');
 });
 
+test('auditActionLabel: lang=en → etichetta EN; default resta IT (retrocompat)', () => {
+  assert.equal(auditActionLabel('cable-add', 'en'), 'Cable created');
+  assert.equal(auditActionLabel('device-add', 'en'), 'Device added');
+  assert.equal(auditActionLabel('cable-add'), 'Cavo creato');       // nessun lang → IT
+  assert.equal(auditActionLabel('roba-strana', 'en'), 'roba-strana'); // fallback = azione grezza
+});
+
 test('formatAuditLine: include utente, azione, target e dettaglio', () => {
   const s = formatAuditLine({ ts: '2026-06-12T08:30:00.000Z', user: 'mario', action: 'device-add', target: 'Core-01', summary: 'switch' });
   assert.match(s, /mario/);

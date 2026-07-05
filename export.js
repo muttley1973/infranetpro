@@ -24,6 +24,7 @@ const PDF_EXPORT_DEFAULTS = {
     includeVlans:       true,
     includeTopology:    true,
     includeSpare:       true,
+    includeAssets:      true,   // registro asset per-device (NIS2/ISO): server-side da nodeToDevice
 };
 
 function exportJSON() {
@@ -320,13 +321,14 @@ function openPdfExportOptions(){
     document.getElementById('pdfopt-vlans').checked     = PDF_EXPORT_DEFAULTS.includeVlans;
     document.getElementById('pdfopt-topology').checked  = PDF_EXPORT_DEFAULTS.includeTopology;
     { const _s = document.getElementById('pdfopt-spare'); if(_s) _s.checked = PDF_EXPORT_DEFAULTS.includeSpare; }
+    { const _a = document.getElementById('pdfopt-assets'); if(_a) _a.checked = PDF_EXPORT_DEFAULTS.includeAssets; }
     syncPdfExportUi();
 }
 
 function closePdfExportOptions(){ document.getElementById('pdf-export-overlay').classList.remove('open'); }
 
 function setPdfExportAll(val){
-    ['pdfopt-plan','pdfopt-bg','pdfopt-inventory','pdfopt-asbuilt','pdfopt-racks','pdfopt-ports','pdfopt-vlans','pdfopt-topology','pdfopt-spare']
+    ['pdfopt-plan','pdfopt-bg','pdfopt-inventory','pdfopt-asbuilt','pdfopt-racks','pdfopt-ports','pdfopt-vlans','pdfopt-topology','pdfopt-spare','pdfopt-assets']
         .forEach(id=>{ const el=document.getElementById(id); if(el) el.checked=!!val; });
     if(!val){
         // Mantieni almeno una sezione attiva per evitare export vuoto.
@@ -362,6 +364,7 @@ function _getPdfExportOptionsFromUi(){
         includeVlans:       !!document.getElementById('pdfopt-vlans')?.checked,
         includeTopology:    !!document.getElementById('pdfopt-topology')?.checked,
         includeSpare:       !!document.getElementById('pdfopt-spare')?.checked,
+        includeAssets:      !!document.getElementById('pdfopt-assets')?.checked,
     };
 }
 
@@ -1188,10 +1191,11 @@ function _buildPdfReportData() {
         const _vs = new Set();
         for (const pid in state.ports) { const v = state.ports[pid]?.vlan; if (v && v > 1) _vs.add(v); }
         for (const l of state.links) { const v = _getLinkVlan(l); if (v > 1) _vs.add(v); }
+        const _lg = (typeof getLang === 'function' ? getLang() : 'it');
         handoff = buildHandoffSections({
-            title: 'Dossier di consegna',
+            title: (_lg === 'en' ? 'Handover dossier' : 'Dossier di consegna'),
             project: document.getElementById('header-proj-name')?.textContent?.trim() || 'InfraNet Pro',
-            date: new Date().toLocaleDateString('it-IT'),
+            date: new Date().toLocaleDateString(_lg === 'en' ? 'en-GB' : 'it-IT'),
             user: (typeof _currentUser === 'object' && _currentUser && _currentUser.username) || '',
             devices: state.nodes.map(n => ({
                 name: getNodeDisplayName(n) || n.name || n.id,
@@ -1247,6 +1251,12 @@ async function exportPDF(opts={}){
         const payload={
             svg:         _buildFloorSVG({ skipBgImage: true, pdfMode: true }),
             projectName: projName,
+            // projectId: il server carica il progetto per costruire il registro asset
+            // (riuso nodeToDevice) e leggere project.updated_at ("ultima revisione").
+            // currentProjectId e' un globale del ponte (store proxy → window).
+            projectId:   (typeof currentProjectId !== 'undefined' ? currentProjectId : null),
+            // lang: il server localizza il testo del report (it/en) sulla lingua UI corrente.
+            lang:        (typeof getLang === 'function' ? getLang() : 'it'),
             reportData:  _buildPdfReportData(),
             reportOptions: options,
         };
@@ -1303,7 +1313,7 @@ function exportDossier(){
         includeInventory:true, includeAsBuilt:true, includeRacks:true,
         includePorts:true, includeVlans:true, includeTopology:true,
         includeCover:true, includeNotes:true, includeChangelog:true,
-        includeSpare:true,
+        includeSpare:true, includeAssets:true,
         _dossier:true,
     });
 }
