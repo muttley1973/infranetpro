@@ -6,7 +6,7 @@
 // ping + sleep INIETTATI (nessuna rete reale, nessuna attesa vera).
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { _pingHostRetry } = require('../server/netscan.js');
+const { _pingHostRetry, _pingResultIsAlive } = require('../server/netscan.js');
 
 // sleep spy: registra le pause SENZA attendere davvero
 const spySleep = () => { const calls = []; return { calls, fn: async (ms) => { calls.push(ms); } }; };
@@ -68,4 +68,54 @@ test('_pingHostRetry: la pausa usa il valore gapMs passato', async () => {
   const ok = await _pingHostRetry('10.0.0.6', 200, 4, flaky, 150, s.fn);
   assert.equal(ok, true);
   assert.deepEqual(s.calls, [150, 150], 'due pause da 150ms prima del 2o e del 3o tentativo');
+});
+
+// ── _pingResultIsAlive: l'exit code di `ping` NON basta (task_977d2930) ──────────
+// Su Windows `ping.exe` esce con codice 0 anche quando un gateway risponde
+// "Destination host unreachable" al posto del target → falso POSITIVO nello sweep.
+// L'echo reply genuino contiene sempre "TTL=" (non localizzato); gli errori ICMP no.
+
+test('_pingResultIsAlive/win: reply genuino (TTL presente, IT) → vivo', () => {
+  const r = { ok: true, stdout: 'Esecuzione di Ping 192.168.1.50 con 32 byte di dati:\r\nRisposta da 192.168.1.50: byte=32 durata=1ms TTL=64', stderr: '' };
+  assert.equal(_pingResultIsAlive('win32', r), true);
+});
+
+test('_pingResultIsAlive/win: gateway "non raggiungibile" con EXIT 0 (IT) → MORTO (il bug)', () => {
+  // ping.exe esce 0 pur avendo solo un ICMP-unreachable dal gateway: senza TTL = non vivo.
+  const r = { ok: true, stdout: 'Esecuzione di Ping 10.10.30.99 con 32 byte di dati:\r\nRisposta da 192.168.1.1: Host di destinazione non raggiungibile.', stderr: '' };
+  assert.equal(_pingResultIsAlive('win32', r), false);
+});
+
+test('_pingResultIsAlive/win: gateway "Destination host unreachable" con EXIT 0 (EN) → MORTO', () => {
+  const r = { ok: true, stdout: 'Pinging 10.10.30.99 with 32 bytes of data:\r\nReply from 192.168.1.1: Destination host unreachable.', stderr: '' };
+  assert.equal(_pingResultIsAlive('win32', r), false);
+});
+
+test('_pingResultIsAlive/win: "TTL expired in transit" con EXIT 0 → MORTO (non matcha ttl=)', () => {
+  const r = { ok: true, stdout: 'Reply from 10.0.0.1: TTL expired in transit.', stderr: '' };
+  assert.equal(_pingResultIsAlive('win32', r), false);
+});
+
+test('_pingResultIsAlive/win: exit 0 ma output vuoto → MORTO (mai fidarsi dell exit code su Windows)', () => {
+  assert.equal(_pingResultIsAlive('win32', { ok: true, stdout: '', stderr: '' }), false);
+});
+
+test('_pingResultIsAlive/win: richiesta scaduta (exit != 0) → MORTO', () => {
+  assert.equal(_pingResultIsAlive('win32', { ok: false, stdout: 'Richiesta scaduta.', stderr: '' }), false);
+});
+
+test('_pingResultIsAlive/linux: reply genuino (exit 0) → vivo', () => {
+  const r = { ok: true, stdout: '64 bytes from 10.0.0.5: icmp_seq=1 ttl=64 time=0.30 ms', stderr: '' };
+  assert.equal(_pingResultIsAlive('linux', r), true);
+});
+
+test('_pingResultIsAlive/linux: unreachable (exit != 0) → MORTO', () => {
+  const r = { ok: false, stdout: 'From 10.0.0.1 icmp_seq=1 Destination Host Unreachable', stderr: '' };
+  assert.equal(_pingResultIsAlive('linux', r), false);
+});
+
+test('_pingResultIsAlive/linux: exit code AFFIDABILE → exit 0 resta vivo anche senza marker (comportamento storico invariato)', () => {
+  // Su Linux/macOS l'exit code e' attendibile (unreachable -> exit != 0): non lo tocchiamo.
+  assert.equal(_pingResultIsAlive('linux', { ok: true, stdout: '', stderr: '' }), true);
+  assert.equal(_pingResultIsAlive('darwin', { ok: true, stdout: '', stderr: '' }), true);
 });
