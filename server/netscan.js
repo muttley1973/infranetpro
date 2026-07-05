@@ -60,6 +60,26 @@ function _execFileAsync(cmd, args, timeoutMs = 2500) {
   });
 }
 
+// Decide se un risultato di `ping` indica un host DAVVERO vivo (task_977d2930).
+// PERCHE' l'exit code NON basta: su Windows `ping.exe` restituisce exit code 0 anche
+// quando un ROUTER intermedio risponde "Destination host unreachable" / "TTL expired"
+// al posto del target -> l'host e' morto ma `!error` direbbe vivo (FALSO POSITIVO nello
+// sweep, tipico scansionando una subnet instradata dietro un gateway). Un ECHO REPLY
+// genuino contiene SEMPRE il "TTL=" nel testo, su OGNI OS e lingua (NON localizzato
+// nemmeno su Windows IT: "byte=32 durata=1ms TTL=64"); gli errori ICMP intermedi NON
+// hanno il TTL ("Host di destinazione non raggiungibile", "Destination host unreachable").
+// Quindi:
+//  - Windows: ci fidiamo SOLO della presenza dell'echo reply (TTL), MAI dell'exit code.
+//  - Linux/macOS: l'exit code e' affidabile (unreachable -> exit != 0) -> lo teniamo,
+//    col marker del reply come fallback (comportamento storico invariato).
+function _pingResultIsAlive(platform, r) {
+  const out = (String((r && r.stdout) || '') + '\n' + String((r && r.stderr) || '')).toLowerCase();
+  const gotEcho = out.includes('ttl=') || out.includes('bytes from')
+    || out.includes('1 received') || out.includes('1 packets received');
+  if (platform === 'win32') return gotEcho;   // exit code inaffidabile su Windows
+  return !!(r && r.ok) || gotEcho;
+}
+
 async function _pingHost(ip, timeoutMs = 800) {
   const plat = os.platform();
   timeoutMs = Math.max(250, Math.min(parseInt(timeoutMs || 800, 10), 1500));
@@ -74,9 +94,7 @@ async function _pingHost(ip, timeoutMs = 800) {
   else if (plat === 'darwin')  args = ['-c', '1', '-W', String(timeoutMs), ip];
   else                         args = ['-c', '1', '-W', String(Math.max(1, Math.ceil(timeoutMs / 1000))), ip];
   const r = await _execFileAsync('ping', args, timeoutMs + 500);
-  if (r.ok) return true;
-  const out = (r.stdout + '\n' + r.stderr).toLowerCase();
-  return out.includes('ttl=') || out.includes('bytes from') || out.includes('1 received');
+  return _pingResultIsAlive(plat, r);
 }
 
 // Ping con ritentativo SPAZIATO: un host puo' perdere il PRIMO ICMP (VPCS, stack lenti,
@@ -476,4 +494,4 @@ async function _deepIdentityScanHost(ip, safe, timeoutMs) {
   return { services, netbios, smbShares };
 }
 
-module.exports = { expandSubnet, _execFileAsync, _pingHost, _pingHostRetry, _normMac, _parseArpTable, _parseNeighbors, _readArpMap, _ipToNum, _demoteStaleArpDup, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost };
+module.exports = { expandSubnet, _execFileAsync, _pingHost, _pingResultIsAlive, _pingHostRetry, _normMac, _parseArpTable, _parseNeighbors, _readArpMap, _ipToNum, _demoteStaleArpDup, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost };
