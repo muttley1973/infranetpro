@@ -15,6 +15,27 @@ import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (e
 import { escapeHTML } from './app-util.js';
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 
+// MAC da mostrare per un device: il MAC di device se c'e', altrimenti fallback
+// alla PORTA col suffisso numerico piu' basso (gli apparati SNMP — switch/router/
+// firewall — non hanno un MAC di device, i MAC stanno sulle porte). Stessa logica
+// del registro asset PDF (cf09509 / lib/api-shape applyPortMacFallback), qui per
+// il pannello Proprieta'. Solo DISPLAY: non scrive node.mac (resta il manuale).
+function _deviceMacOrPort(n) {
+    if (n && n.mac) return n.mac;
+    const ports = (store.state && store.state.ports) || {};
+    const prefix = String(n && n.id) + '-';
+    let best = null, bestN = Infinity;
+    for (const pid in ports) {
+        if (pid.slice(0, prefix.length) !== prefix) continue;
+        const m = ports[pid] && ports[pid].mac;
+        if (!m) continue;
+        const suf = parseInt(pid.slice(prefix.length), 10);
+        const nn = Number.isFinite(suf) ? suf : Infinity;
+        if (nn < bestN) { bestN = nn; best = String(m).toUpperCase(); }
+    }
+    return best || '';
+}
+
 // ---- Preferenze apertura sezioni (fisarmoniche) — estratte da app.js (R1) ----
 const _PROPS_SECTIONS_PREF_KEY = 'infranet.props.sections.v1';
 let _propsSectionsState = { integration:true };
@@ -196,6 +217,9 @@ function _buildNetAccessHtml(n, d, opts){
     const showMac          = opts.showMac !== false && (d.isActive || d.hasIP);
     const macLabel         = opts.macLabel || 'MAC address';
     const macPlaceholder   = opts.macPlaceholder || '00:11:22:33:44:55';
+    // MAC mostrato: device se c'e', altrimenti fallback alla porta base (infra SNMP).
+    const macVal           = showMac ? _deviceMacOrPort(n) : (n.mac || '');
+    const macDerived       = showMac && !n.mac && !!macVal;   // valore da porta, non da node.mac
     // Preview inline su summary chiuso: IP · MAC (o hostname se mancano)
     const _previewBits = [];
     if(n.ip)  _previewBits.push(escapeHTML(n.ip));
@@ -258,7 +282,7 @@ function _buildNetAccessHtml(n, d, opts){
         ${includeHostname ? `<div class="prop-group"><label>Hostname</label><div style="display:flex;gap:5px;align-items:center"><input style="flex:1" value="${escapeHTML(n.hostname||'')}" placeholder="${escapeHTML(d.brand||'')}" ${_ro} onchange="updateN('hostname',this.value);updateN('hostnameManual',!!this.value.trim())">${_ro?'':_lockBtn('hostname',!!n.hostnameManual)}</div></div>` : ''}
         <div class="prop-group"><label>${t('net.ip')}</label><div style="display:flex;gap:5px;align-items:center"><input style="flex:1" value="${escapeHTML(n.ip||'')}" placeholder="${escapeHTML(ipPlaceholder)}" ${_ro} onchange="updateN('ip',this.value);updateN('ipManual',!!this.value.trim())">${_ro?'':_lockBtn('ip',!!n.ipManual)}</div></div>
         ${win._mgmtRow(n.mgmtUrl||'', n.ip||'', n.id)}
-        ${showMac ? `<div class="prop-group"><label>${escapeHTML(macLabel)}</label><input value="${escapeHTML(n.mac||'')}" placeholder="${escapeHTML(macPlaceholder)}" ${_ro} onchange="updateN('mac',this.value)"></div>` : ''}
+        ${showMac ? `<div class="prop-group"><label>${escapeHTML(macLabel)}</label><input value="${escapeHTML(macVal)}"${macDerived?` title="${escapeHTML(t('mac.fromPort'))}"`:''} placeholder="${escapeHTML(macPlaceholder)}" ${_ro} onchange="updateN('mac',this.value)"></div>` : ''}
         ${_autoLinkBtn}
         ${_wifiToggle}
     </div></details>${_wirelessAccordion}`;
