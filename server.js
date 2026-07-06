@@ -138,6 +138,20 @@ app.use(require('./server/routes/discovery'));
 // ---- Export PDF (server/routes/export.js) -----------------------------------
 app.use(require('./server/routes/export'));
 
+// ---- Moduli a pagamento (modules/<name>/server) — plugin generico -----------
+// La cartella modules/ e' gitignored: presente solo nei deployment con moduli
+// licenziati. Ogni modulo esporta function(app, ctx) e monta le sue route
+// (auth.requireAdmin dove serve); via ctx dichiara una voce di menu e registra
+// la pulizia dei propri sidecar alla cancellazione di un progetto. Il core resta
+// ignaro del contenuto (contratto feature-agnostico, non "governance").
+const moduleRegistry = require('./server/module-registry');
+app.get('/api/modules', (_, res) => res.json(moduleRegistry.getNav()));
+moduleRegistry.loadModules(app, {
+  auth,
+  registerNav: moduleRegistry.registerNav,
+  onProjectDelete: moduleRegistry.registerProjectDeleteHook,
+}, path.join(ROOT, 'modules'));
+
 // ---- 404 catch-all ----------------------------------------------------------
 
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));

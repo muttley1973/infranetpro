@@ -56,6 +56,12 @@ server/ai/             AI assistant: context.js (sanitized §8b + ports/SNMP-hea
                        node:https, zero-dep). routes/ai.js derives the UI help catalog once
                        (lib/ui-catalog from netmapper.html+i18n) and returns an entities digest
                        (extractEntities) so the client can run the anti-invention check.
+server/module-registry.js  Generic paid-module plugin seam (feature-agnostic): loadModules
+                       mounts modules/<name>/server if present (modules/ gitignored, private
+                       repo, in-process so modules get req.session.user + auth.requireAdmin);
+                       getNav feeds GET /api/modules (header nav slot); onProjectDelete lets a
+                       module clean its own sidecars on project delete. The core knows no
+                       specific module.
 drivers/snmp.js        SNMP v1/v2c/v3 driver
 engine/                sysObjectID + OUI classification engines (plugin loaders)
 plugins/               Seed vendor catalogs (zero database)
