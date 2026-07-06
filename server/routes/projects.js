@@ -8,6 +8,7 @@ const path = require('path');
 const auth = require('../../auth');
 const { timestamp } = require('../../utils');
 const { PROJECTS_DIR, nextId, saveProject, loadProject, listProjects, removeBgAsset } = require('../projects-store');
+const { runProjectDeleteHooks } = require('../module-registry');
 
 const router = express.Router();
 
@@ -55,6 +56,7 @@ router.delete('/api/projects/:id', auth.requireAdmin, (req, res) => {
   fs.unlinkSync(file);
   try { fs.unlinkSync(file + '.bak'); } catch (_) { /* best-effort */ }
   removeBgAsset(id);                               // rimuovi l'asset bgImage (niente orfani)
+  runProjectDeleteHooks(id);                       // hook moduli: pulizia dei propri sidecar (es. governance)
   res.json({ ok: true, deleted_id: id });
 });
 

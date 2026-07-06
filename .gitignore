@@ -40,6 +40,12 @@ tools/_*.js
 # e si caricano a runtime da qui se installati. L'open ha solo file/incolla.
 server/dhcp-drivers/vendor/
 
+# Moduli a pagamento in-process (piattaforma plugin generica): il core espone il
+# seam (autoloader modules/*/server + GET /api/modules + onProjectDelete), i
+# moduli restano PRIVATI e si caricano a runtime da qui se installati.
+# Es. modules/governance/ (NIS2). Il repo pubblico non deve MAI contenerli.
+modules/
+
 # -------------------------------------------------------
 # Windows
 # -------------------------------------------------------

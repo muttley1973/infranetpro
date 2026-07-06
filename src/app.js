@@ -2334,6 +2334,34 @@ function switchLang(l){
     if(typeof renderCables==='function') renderCables();
 }
 
+// ============================================================
+// Moduli a pagamento (plugin generici): se il server ha caricato dei moduli,
+// ognuno dichiara una voce di menu via GET /api/modules. La mostriamo
+// nell'header. Il core resta ignaro di quale modulo sia (contratto neutro).
+// ============================================================
+function registerModuleNav(entry){
+    const slot = document.getElementById('modules-nav-slot');
+    if(!slot || !entry || !entry.path) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'toolbar-btn';
+    if(entry.icon){ const ic = document.createElement('i'); ic.className = entry.icon; btn.appendChild(ic); }
+    const span = document.createElement('span');
+    span.className = 'btn-label';
+    span.textContent = (entry.icon ? ' ' : '') + (entry.label || 'Module');
+    btn.appendChild(span);
+    btn.addEventListener('click', () => { window.location.href = entry.path; });
+    slot.appendChild(btn);   // append: piu' moduli convivono nella stessa slot
+}
+async function _loadModuleNav(){
+    try{
+        const r = await fetch('/api/modules', { headers: { Accept: 'application/json' } });
+        if(!r || !r.ok) return;
+        const list = await r.json();
+        if(Array.isArray(list)) list.forEach(registerModuleNav);
+    }catch(_){ /* nessun modulo / non raggiungibile: la slot resta vuota */ }
+}
+
 async function init(){
     await initAuth();
     _initApp();
@@ -2341,6 +2369,7 @@ async function init(){
     // le traduzioni all'HTML statico (header/menu/tab).
     _syncLangButtons();
     applyStaticI18n();
+    _loadModuleNav();   // moduli a pagamento: popola l'eventuale voce di menu (no-op se nessuno)
     _viewMode='map';
     _applyViewMode();
     // Aggiorna lo stato iniziale del pulsante Topologia (default: 'stale' = no cache)
@@ -2373,7 +2402,7 @@ expose({
   getRackById, getRackName, getRackSize, getWallPortLabel, importJSON,
   init, initDraggablePopups, isPortOnNode, isRackTopNumbered, logAudit, markDirty,
   nodeById, promoteLinkToManual, pushHistory,
-  rackUToVisible, redo, removeNodePorts, renderCables, selected, setCableLabel,
+  rackUToVisible, redo, registerModuleNav, removeNodePorts, renderCables, selected, setCableLabel,
   setDeviceWifi, setLinkProp, setLinkWireless, setNodeRadioCount, switchLang, switchRightTab,
   toggleAbbrevNames, toggleNodeLock, undo, updateFloorId, updateFrontPanel, updateN,
   updateP, updateWallPortId, visibleUToRackU,

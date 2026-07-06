@@ -10,7 +10,7 @@
     "postinstall": "node build.js",
     "build": "node build.js",
     "build:watch": "node build.js --watch",
-    "test": "node --test",
+    "test": "node --test \"test/**/*.js\" \"tests/**/*.js\"",
     "e2e": "node build.js && node --test test/e2e/critical-flows.test.js",
     "check": "node tools/check-syntax.js",
     "lint": "eslint .",
