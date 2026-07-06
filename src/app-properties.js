@@ -33,7 +33,7 @@ const _PROPS_DEFAULT_CLOSED = new Set([
     'lag-groups',
     'integration',
     'notes',
-    // Contesto planimetria: tieni aperte solo le 2 sezioni piu' usate
+    // Contesto progetto: tieni aperte solo le 2 sezioni piu' usate
     // (Immagine, VLAN). Colori si apre on-demand. (Auto-poll e rinnovo IP
     // sono usciti dal pannello → popover "Automazioni rete" in header.)
     'floor-colors',
@@ -327,7 +327,7 @@ export function renderProps(){
 //   app-properties-node.js   → _renderNodeProps   (dispositivo/struttura)
 //   app-properties-port.js   → _renderPortProps   (porta / radio)
 //   app-properties-link.js   → _renderLinkProps   (cavo / associazione)
-//   app-properties-floor.js  → _renderFloorProps  (contesto planimetria)
+//   app-properties-floor.js  → _renderFloorProps  (contesto progetto)
 // I builder condivisi (_buildNetAccessHtml, _buildInventoryFieldsHtml,
 // _powerLiveHtml, _propsIconForType, _buildPropsHeader…) restano QUI.
 // ─────────────────────────────────────────────────────────────

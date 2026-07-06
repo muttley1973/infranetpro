@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-05 — The "Floor plan context" panel is now "Project context"
+
+### Changed
+- **The right-hand context panel was renamed from "Floor plan context" to "Project context" (it: "Contesto planimetria" → "Contesto progetto").** The panel that opens when nothing is selected — map, VLANs, workspace colours, labels — holds project-level settings, so its name no longer implies it is only about the floor plan. Label only, in both languages; no behaviour change. `lib/i18n.js` (`floor.title`).
+
 ## 2026-07-05 — Audit-ready asset register in the PDF report, and the whole report goes bilingual
 
 The PDF export gains a per-device asset register aimed at NIS2 / ISO 27001 documentation, and every report page now follows the UI language instead of being Italian-only.
