@@ -56,7 +56,7 @@ router.delete('/api/projects/:id', auth.requireAdmin, (req, res) => {
   fs.unlinkSync(file);
   try { fs.unlinkSync(file + '.bak'); } catch (_) { /* best-effort */ }
   removeBgAsset(id);                               // rimuovi l'asset bgImage (niente orfani)
-  runProjectDeleteHooks(id);                       // hook moduli: pulizia dei propri sidecar (es. governance)
+  runProjectDeleteHooks(id);                       // hook moduli: ogni modulo pulisce i propri sidecar
   res.json({ ok: true, deleted_id: id });
 });
 
