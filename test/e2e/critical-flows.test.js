@@ -203,7 +203,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.reportClosed, '_closeWifiVlanReport chiude l’overlay');
     });
 
-    await t.test('app-properties-floor migrato: pannello contesto planimetria + IPAM cross-boundary (_vlanIpamOpen)', async () => {
+    await t.test('app-properties-floor migrato: pannello contesto progetto + IPAM cross-boundary (_vlanIpamOpen)', async () => {
       const r = await page.evaluate(() => {
         state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
         state.vlanColors['10'] = '#00d4ff';
@@ -224,7 +224,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         renderAutomationMenu();
         const pop = (document.getElementById('automation-dropdown') || {}).innerHTML || '';
         return {
-          hasHeader: closed.indexOf('Contesto planimetria') >= 0,
+          hasHeader: closed.indexOf('Contesto progetto') >= 0,
           pollingMovedOut: closed.indexOf('Polling automatico SNMP') < 0,
           hasColors: closed.indexOf('Colori workspace') >= 0,
           hasVlan10Card: closed.indexOf('VLAN 10') >= 0,
@@ -234,8 +234,8 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           popHasIpRenew: pop.indexOf('Rinnovo automatico IP') >= 0,
         };
       });
-      assert.ok(r.hasHeader, 'header "Contesto planimetria"');
-      assert.ok(r.pollingMovedOut, 'Polling NON è più nelle proprietà planimetria (spostato nel popover Automazioni)');
+      assert.ok(r.hasHeader, 'header "Contesto progetto"');
+      assert.ok(r.pollingMovedOut, 'Polling NON è più nel Contesto progetto (spostato nel popover Automazioni)');
       assert.ok(r.hasColors, 'sezione Colori workspace');
       assert.ok(r.hasVlan10Card, 'card VLAN 10 presente');
       assert.ok(r.ipamClosed, 'IPAM chiuso di default: niente campi Subnet');
@@ -506,7 +506,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         selType = null; selId = null;
         return {
           nodeDispatched: nodeHtml.indexOf('SRV') >= 0,
-          floorDispatched: floorHtml.indexOf('Contesto planimetria') >= 0,
+          floorDispatched: floorHtml.indexOf('Contesto progetto') >= 0,
           headerOk: header.indexOf('fa-server') >= 0 && header.indexOf('sub') >= 0,
           netHasIp: net.indexOf('10.0.0.5') >= 0 || /updateN\('ip'/.test(net),
           sectionRoundTrip: closedAfterSet && openAfterSet,
@@ -1758,7 +1758,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           state.vlanColors = { 1: '#888888', 10: '#ff0000', 99: '#00ff00' };
           delete state.nativeVlan;
           if (typeof _invalidateIdx === 'function') _invalidateIdx();
-          selType = null; selId = null;                       // contesto planimetria (no selezione)
+          selType = null; selId = null;                       // contesto progetto (no selezione)
           if (typeof switchRightTab === 'function') switchRightTab('props');
           if (typeof setPropsSectionState === 'function') setPropsSectionState('floor-vlan', true);
           renderProps();

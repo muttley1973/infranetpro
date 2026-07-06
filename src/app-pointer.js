@@ -839,7 +839,7 @@ function handleDoubleClick(e){
 
 // Doppio click su planimetria:
 //  - su un nodo floor (device/room/rack) → apre il pannello proprieta del nodo
-//  - su area vuota o sfondo immagine    → apre il pannello "Contesto planimetria"
+//  - su area vuota o sfondo immagine    → apre il pannello "Contesto progetto"
 // NOTA: le porte device floor sono gestite manualmente in handlePointerDown
 // con rilevamento dblclick via timestamp (il dblclick nativo non scatta
 // perche' il single click ridisegna il DOM tra i due click).
@@ -868,7 +868,7 @@ function handleFloorDoubleClick(e){
         return;
     }
     // Area vuota della planimetria (sfondo o canvas vuoto): apre il pannello
-    // "Contesto planimetria" a destra (Mappa + VLAN + IPAM + colori workspace
+    // "Contesto progetto" a destra (Mappa + VLAN + IPAM + colori workspace
     // + polling SNMP). Equivale a deselezionare e attivare la tab Proprieta.
     // Il menu dropdown "Planimetria" nell'header resta accessibile come prima.
     if(e.target.closest('#floorplan')){
