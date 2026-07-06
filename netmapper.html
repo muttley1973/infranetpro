@@ -137,6 +137,8 @@
             </button>
             <div id="automation-dropdown" class="header-menu-dropdown autom-pop" style="display:none"></div>
         </div>
+        <!-- Slot generico per le voci di menu dei moduli a pagamento (vuoto se nessun modulo). -->
+        <div id="modules-nav-slot" class="modules-nav-slot" style="display:flex;gap:6px;align-items:center"></div>
         <div id="status-cluster" class="status-cluster">
             <button class="status-chip s-warn" id="v3-pending-chip" onclick="_v3JumpNext()" data-tip="Device SNMPv3 da configurare — clic per saltare al prossimo"></button>
             <button class="status-chip s-info" id="spare-active-badge" onclick="setSpareHighlight(false)" data-i18n-tip="spare.badgeTip" data-tip="Porte libere evidenziate nel rack — clicca per spegnere">

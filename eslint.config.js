@@ -29,6 +29,7 @@ module.exports = [
       'node_modules/**', 'dist/**', 'projects/**', 'data/**',
       'backup_reset/**', 'vendor/**', 'docs/**', 'skins/**', 'coverage/**',
       'tools/snmp-sim/**', // regola di progetto: mai toccare
+      'modules/**',        // moduli a pagamento (privati, gitignored) — fuori dal gate pubblico
       '**/*.min.js',
     ],
   },
