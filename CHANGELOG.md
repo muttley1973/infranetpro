@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-06 — Device MAC shown for SNMP infrastructure in the Properties panel
+
+### Fixed
+- **The MAC field in a device's Properties panel was empty for switches, routers and firewalls.** As with the PDF asset register (which already falls back to a port MAC), SNMP-discovered infrastructure carries no device-level MAC — the MACs live on the individual **ports** — so the Properties field showed nothing for a firewall/switch even though the port MACs were present. The panel now displays a **representative port MAC** (the port with the lowest numeric suffix, ≈ the base/chassis MAC) when the device has no MAC of its own, with a tooltip explaining it is port-derived. It is **display-only**: `node.mac` is never written, so a manually-entered MAC stays authoritative (manual-first) and the REST API / exports are unchanged. Same convention as `applyPortMacFallback` (the report). New helper `_deviceMacOrPort` in `src/app-properties.js`; `lib/i18n.js` (`mac.fromPort`).
+
 ## 2026-07-06 — A WLAN controller no longer counts as a Wi-Fi radio device
 
 ### Fixed
