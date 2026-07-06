@@ -45,7 +45,7 @@ export const TYPES = {
     kvm:         { isRack:true,  isActive:true,   mgmtEligible:true, name:'KVM Switch',         icon:'fa-keyboard',        sizeU:1, ports:8,  brand:'ATEN'      },
     pbx:         { isRack:true,  isActive:true,   mgmtEligible:true, name:'Centralino VoIP',    icon:'fa-phone-volume',    sizeU:1, ports:4,  brand:'Sangoma'   },
     consolesvr:  { isRack:true,  isActive:true,   mgmtEligible:true, haEligible:true, name:'Console Server',     icon:'fa-terminal',        sizeU:1, ports:8,  brand:'Opengear'  },
-    wlanctrl:    { isRack:true,  isActive:true,   mgmtEligible:true, haEligible:true, wifiServe:true, name:'WLAN Controller',    icon:'fa-tower-broadcast', sizeU:1, ports:4,  brand:'Cisco'     },
+    wlanctrl:    { isRack:true,  isActive:true,   mgmtEligible:true, haEligible:true,                 name:'WLAN Controller',    icon:'fa-tower-broadcast', sizeU:1, ports:4,  brand:'Cisco'     },
     nvr:         { isRack:true,  isActive:true,   mgmtEligible:true, name:'NVR / Videosorveglianza', icon:'fa-record-vinyl', sizeU:2, ports:16, brand:'Hikvision' },
     sdwan:       { isRack:true,  isActive:true,   mgmtEligible:true, haEligible:true, wifiServe:true, name:'SD-WAN Edge',        icon:'fa-cloud-bolt',      sizeU:1, ports:8,  brand:'Meraki'    },
     vpncon:      { isRack:true,  isActive:true,   mgmtEligible:true, haEligible:true, name:'VPN Concentrator',   icon:'fa-user-shield',     sizeU:1, ports:4,  brand:'Cisco'     },
