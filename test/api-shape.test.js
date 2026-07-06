@@ -5,7 +5,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
-  projectToInventory, projectToDevices, toAnsibleInventory, nodeToDevice,
+  projectToInventory, projectToDevices, toAnsibleInventory, nodeToDevice, applyPortMacFallback,
 } = require('../lib/api-shape.js');
 
 // Progetto campione minimale ma realistico (modellato su projects/8.json).
@@ -183,4 +183,29 @@ test('nodeToDevice: funzione diretta con context vuoto', () => {
   assert.equal(d.vlan, null);  // nessun vlanIdx → null
   assert.equal(d.rack, null);
   assert.equal(d.snmp, false);
+});
+
+// ── applyPortMacFallback (registro asset: MAC infra dalle porte) ─────────────
+test('applyPortMacFallback: device senza MAC eredita il MAC della porta col suffisso piu basso (uppercase)', () => {
+  const devices = [
+    { id: 'sw1', name: 'SW-CORE', mac: null },                 // infra: no device-mac
+    { id: 'pc1', name: 'PC1', mac: 'AA:BB:CC:DD:EE:FF' },       // endpoint: device-mac gia presente
+    { id: 'fw1', name: 'FW', mac: null },                      // nessuna porta con mac
+  ];
+  const ports = {
+    'sw1-2': { mac: '50:25:c2:00:29:07' },
+    'sw1-1': { mac: '50:25:c2:00:29:00' },   // suffisso piu basso -> scelto
+    'sw1-radio': { mac: 'de:ad:be:ef:00:00' }, // pid non numerico -> scartato
+    'pc1-1': { mac: '11:22:33:44:55:66' },
+    'fw1-1': { status: 'active' },            // porta senza mac
+  };
+  applyPortMacFallback(devices, ports);
+  assert.equal(devices[0].mac, '50:25:C2:00:29:00', 'infra: MAC dalla porta -1, uppercase');
+  assert.equal(devices[1].mac, 'AA:BB:CC:DD:EE:FF', 'endpoint: device-mac non toccato');
+  assert.equal(devices[2].mac, null, 'nessuna porta con mac -> resta null');
+});
+
+test('applyPortMacFallback: difensivo su input mancanti', () => {
+  assert.deepEqual(applyPortMacFallback(null, null), []);
+  assert.deepEqual(applyPortMacFallback([{ id: 'a', mac: null }], undefined), [{ id: 'a', mac: null }]);
 });

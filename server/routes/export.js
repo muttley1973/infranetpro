@@ -7,7 +7,7 @@ const auth = require('../../auth');
 const { _loadPdfDeps, _addReportPages, _addCoverPage, _addNotesPages, _addChangelogPages, _addSparePages, _addAssetRegisterPages, _rt } = require('../pdf-report');
 const { addLabelPages } = require('../label-sheet');
 const { loadProject } = require('../projects-store');
-const { projectToDevices } = require('../../lib/api-shape');
+const { projectToDevices, applyPortMacFallback } = require('../../lib/api-shape');
 
 const router = express.Router();
 
@@ -159,6 +159,10 @@ router.post('/api/export-pdf', auth.requireAdmin, (req, res) => {
     // server-side. Se il progetto non e' caricabile, pagina con nota "nessun device".
     if (opts.includeAssets) {
       const assets = _project ? projectToDevices(_project) : [];
+      // Colonna MAC del registro: gli apparati SNMP non hanno un MAC di device (i loro
+      // MAC stanno sulle porte) -> fallback misurato al MAC della porta base, cosi'
+      // l'infrastruttura non esce con MAC vuoto. Solo qui (il DTO condiviso resta com'e').
+      if (_project && _project.state) applyPortMacFallback(assets, _project.state.ports);
       _addAssetRegisterPages(doc, assets, hName, hDate, _lastRevised, _lang);
     }
     // Dossier di consegna (N4): note e storia modifiche in coda

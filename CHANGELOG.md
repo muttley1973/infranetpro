@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-06 — Asset register: MAC column now covers SNMP infrastructure
+
+### Fixed
+- **The MAC column of the PDF asset register was empty for switches, routers and controllers.** Devices discovered via SNMP don't carry a device-level MAC — their MACs live on the individual **ports** — so only endpoints (whose MAC comes from ARP) showed a value; all the infrastructure came out with `-` even though the data was present. The asset register now falls back to a **representative port MAC** (the port with the lowest numeric suffix, ≈ the base/chassis MAC) when a device has no MAC of its own. It is **measured** (read from the ports, never invented) and applied **only to the documentation report**: the shared allowlist DTO used by the REST API v1 / Ansible inventory keeps the strictly device-level MAC. New pure helper `applyPortMacFallback(devices, ports)` in `lib/api-shape.js`, wired in `server/routes/export.js`; `test/api-shape.test.js`.
+
 ## 2026-07-05 — The "Floor plan context" panel is now "Project context"
 
 ### Changed
