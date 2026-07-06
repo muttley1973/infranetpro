@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-06 — A WLAN controller no longer counts as a Wi-Fi radio device
+
+### Fixed
+- **The `WLAN Controller` device type was flagged as Wi-Fi-serving (`wifiServe`), which is physically wrong.** A WLC is a wired controller: it *defines* the WLANs but has **no radios** — the SSIDs are broadcast by the access points it manages. The type catalog claimed the opposite while the property panel (correctly) never offered a Wi-Fi section for a controller (`_isWifiCapable` already excludes it), so the flag was an unreachable, self-contradicting leftover. Removed `wifiServe` from `wlanctrl` (`src/app-types.js`) so the data model agrees with the UI and with reality: **SSIDs live on the APs; the controller stays a wired appliance** (documented via its AP-count / capacity / platform fields). No behaviour change in the UI (the Wi-Fi section was already hidden for controllers); comment in `src/app-wifi.js` updated.
+
 ## 2026-07-06 — Asset register: MAC column now covers SNMP infrastructure
 
 ### Fixed

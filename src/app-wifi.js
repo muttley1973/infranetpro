@@ -27,9 +27,12 @@ const _WIFI_SEC_LABELS = {
     'wpa3-personal': 'WPA3-Personal', 'wpa3-ent': 'WPA3-Enterprise', 'owe': 'Enhanced Open (OWE)',
 };
 
-// Solo l'INFRASTRUTTURA wireless TRASMETTE SSID (flag TYPES.wifiServe: ap, router,
-// firewall, wlanctrl, sdwan). Gli altri device con radio sono CLIENT (station): si
-// associano a un SSID, non lo creano. Gate del modello + della UI.
+// Solo l'INFRASTRUTTURA wireless con RADIO PROPRIE trasmette SSID (flag
+// TYPES.wifiServe: ap, router, firewall, sdwan). Gli altri device con radio sono
+// CLIENT (station): si associano a un SSID, non lo creano. Gate del modello + UI.
+// NB: il `wlanctrl` (WLC) NON e' wifiServe: e' una centralina cablata, senza radio
+// — le SSID le definisce ma le IRRADIANO gli AP (che hanno le radio); vedi anche
+// _isWifiCapable, che non gli mostra la sezione Wi-Fi.
 function _canServeSsid(node){
     return !!(node && typeof TYPES !== 'undefined' && TYPES[node.type] && TYPES[node.type].wifiServe);
 }
