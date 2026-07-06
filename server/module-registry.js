@@ -7,7 +7,7 @@
 //  ogni modulo esporta function(app, ctx) e usa ctx per (a) dichiarare una
 //  voce di menu e (b) registrare una pulizia dei propri file alla
 //  cancellazione di un progetto. Il core NON sa cosa sia un modulo: qui non
-//  compare nessun riferimento a "governance" o ad altri moduli specifici.
+//  compare nessun riferimento ad alcun modulo specifico.
 // ============================================================
 const fs   = require('fs');
 const path = require('path');

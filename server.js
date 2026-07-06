@@ -143,11 +143,12 @@ app.use(require('./server/routes/export'));
 // licenziati. Ogni modulo esporta function(app, ctx) e monta le sue route
 // (auth.requireAdmin dove serve); via ctx dichiara una voce di menu e registra
 // la pulizia dei propri sidecar alla cancellazione di un progetto. Il core resta
-// ignaro del contenuto (contratto feature-agnostico, non "governance").
+// ignaro del contenuto (contratto feature-agnostico, non legato ad alcun modulo).
 const moduleRegistry = require('./server/module-registry');
 app.get('/api/modules', (_, res) => res.json(moduleRegistry.getNav()));
 moduleRegistry.loadModules(app, {
-  auth,
+  auth,                                  // sessione + requireAdmin (in-process, nativi)
+  projectsDir: PROJECTS_DIR,             // dove vivono i dati progetto: i moduli ci mettono i propri sidecar
   registerNav: moduleRegistry.registerNav,
   onProjectDelete: moduleRegistry.registerProjectDeleteHook,
 }, path.join(ROOT, 'modules'));
