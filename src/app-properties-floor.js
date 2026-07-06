@@ -38,11 +38,11 @@ function _ipamOccHtml(u, vid){
                       </div>`;
 }
 
-// Contesto planimetria / nessuna selezione (ramo else).
+// Contesto progetto / nessuna selezione (ramo else).
 function _renderFloorProps(panel){
         const state = store.state;
         // ─────────────────────────────────────────────────────────────
-        // Contesto planimetria — pannello a fisarmoniche.
+        // Contesto progetto — pannello a fisarmoniche.
         // Pattern uniforme con gli altri pannelli proprieta'.
         // Default open: Immagine, VLAN. Default closed: Colori, Etichette.
         // NB: auto-poll SNMP e rinnovo IP (DHCP) vivono ora nel popover
