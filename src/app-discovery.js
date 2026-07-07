@@ -85,7 +85,12 @@ async function runDiscovery(){
     const driver  = 'auto';
     const community = document.getElementById('disc-community').value.trim();
     const timeout = parseInt(document.getElementById('disc-timeout').value)||2;
-    const safeMode = !!document.getElementById('disc-safe-mode')?.checked;
+    // Cadenza scansione a 3 livelli: normal (veloce) · safe (throttle leggero, default) ·
+    // stealth (serializzata + jitter = anti-IDS vero, ma lenta). Mappa ai flag del backend:
+    // safe copre normal+stealth per i timeout gentili; stealth forza la serializzazione.
+    const scanMode = document.getElementById('disc-scan-mode')?.value || 'safe';
+    const safeMode = scanMode !== 'normal';
+    const stealth  = scanMode === 'stealth';
     const deepScan = !!document.getElementById('disc-deep-scan')?.checked;
     win._saveDeepScanPref(deepScan);
     const expandTopology = !!document.getElementById('disc-expand-topology')?.checked;
@@ -105,9 +110,11 @@ async function runDiscovery(){
     try{
         const scanAbort = new AbortController();
         window._discScanAbort = scanAbort;
-        scanTimeout = setTimeout(()=>scanAbort.abort(), deepScan ? 180000 : 90000);
+        // Furtiva = serializzata + pause: molto piu' lenta → timeout client generoso (10 min)
+        // altrimenti abortirebbe su subnet non piccole.
+        scanTimeout = setTimeout(()=>scanAbort.abort(), stealth ? 600000 : (deepScan ? 180000 : 90000));
         const r = await fetch('/api/discover',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({ subnet, driver, community, timeout, safeMode, deepScan,
+            body:JSON.stringify({ subnet, driver, community, timeout, safeMode, stealth, deepScan,
                 dhcpLeases: Array.isArray(store._dhcpLeases) ? store._dhcpLeases : [] }),
             signal:scanAbort.signal});
         clearTimeout(scanTimeout);

@@ -724,9 +724,13 @@
         </div>
       </div>
       <div class="disc-opt-row">
-        <label class="disc-opt">
-          <input id="disc-safe-mode" type="checkbox" checked>
-          <span data-i18n="disc.safeMode">Modalità sicura (throttling anti-IDS)</span>
+        <label class="disc-opt" data-i18n-tip="disc.scanModeTip" data-tip="Normale: veloce, in parallelo. Sicura: throttling leggero (concorrenza ridotta). Furtiva: serializzata + pause casuali (jitter) — non fa scattare l'IDS ma e' molto piu' lenta.">
+          <span data-i18n="disc.scanMode">Cadenza</span>
+          <select id="disc-scan-mode">
+            <option value="normal" data-i18n="disc.scanModeNormal">Normale (veloce)</option>
+            <option value="safe" selected data-i18n="disc.scanModeSafe">Sicura (anti-IDS leggero)</option>
+            <option value="stealth" data-i18n="disc.scanModeStealth">Furtiva (lenta, anti-IDS)</option>
+          </select>
         </label>
         <label class="disc-opt disc-opt-deep" data-i18n-tip="disc.deepTip" data-tip="Arricchisce solo gli host candidati con probe TCP su porte comuni. Più lento e più rumoroso.">
           <input id="disc-deep-scan" type="checkbox" onchange="_saveDeepScanPref(this.checked)">
