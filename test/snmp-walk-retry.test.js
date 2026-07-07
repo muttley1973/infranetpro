@@ -27,7 +27,8 @@ function mockSession(plan) {
 
 const VB = oid => ({ oid, value: Buffer.from('x') });
 const TIMEOUT = () => new Error('Request timed out');
-const FDB_BASE = '1.3.6.1.2.1.17.4.3.1.2';
+const FDB_BASE = '1.3.6.1.2.1.17.4.3.1.2';   // dot1dTpFdbPort — DENTRO FDB_RETRY_BASES
+const LLDP_BASE = '1.0.8802.1.1.2.1.4.1.1.7'; // lldpRemPortId — FUORI dal gruppo FDB
 
 test('retry: timeout al 1o giro, successo al retry con max-reps dimezzato', async () => {
   const sess = mockSession([
@@ -56,8 +57,8 @@ test('timeout persistente: esaurisce i retry (1 + WALK_RETRIES) con max-reps dec
   const result = {};
   const errs = await _runWalks(sess, [FDB_BASE], result, 'TEST');
   assert.equal(errs, 1, 'un errore finale dopo i retry esauriti');
-  assert.equal(sess.calls.length, 3, '1 + 2 retry (WALK_RETRIES=2 default)');
-  assert.deepEqual(sess.calls.map(c => c.maxReps), [25, 12, 6], 'max-reps 25→12→6');
+  assert.equal(sess.calls.length, 2, '1 + 1 retry (WALK_RETRIES=1 default)');
+  assert.deepEqual(sess.calls.map(c => c.maxReps), [25, 12], 'max-reps 25→12');
 });
 
 test('abort deliberato (OID non crescente) NON si ritenta', async () => {
@@ -66,4 +67,32 @@ test('abort deliberato (OID non crescente) NON si ritenta', async () => {
   const errs = await _runWalks(sess, [FDB_BASE], result, 'TEST');
   assert.equal(errs, 1, 'abort conta come errore');
   assert.equal(sess.calls.length, 1, 'nessun retry sull\'abort (loop/runaway)');
+});
+
+// --- Retry MIRATO al gruppo FDB (opts.retryBases): il crawl passa FDB_RETRY_BASES,
+//     cosi' LLDP/CDP/ARP che vanno in timeout falliscono subito (nessun timeout ripetuto),
+//     mentre le basi FDB continuano a ritentare (la cura del troncamento macsuck).
+test('retry mirato: con retryBases una base FDB ritenta ancora', async () => {
+  const { FDB_RETRY_BASES } = _internals;
+  assert.ok(FDB_RETRY_BASES.has(FDB_BASE), 'FDB_BASE deve stare nel gruppo FDB');
+  const sess = mockSession([{ feed: null, err: TIMEOUT() }]); // sempre timeout
+  const errs = await _runWalks(sess, [FDB_BASE], {}, 'TEST', 4, { retryBases: FDB_RETRY_BASES });
+  assert.equal(errs, 1);
+  assert.equal(sess.calls.length, 2, 'FDB dentro il set → 1 + 1 retry');
+});
+
+test('retry mirato: una base NON-FDB (LLDP) fallisce subito, zero retry', async () => {
+  const { FDB_RETRY_BASES } = _internals;
+  assert.ok(!FDB_RETRY_BASES.has(LLDP_BASE), 'LLDP deve stare FUORI dal gruppo FDB');
+  const sess = mockSession([{ feed: null, err: TIMEOUT() }]); // sempre timeout
+  const errs = await _runWalks(sess, [LLDP_BASE], {}, 'TEST', 4, { retryBases: FDB_RETRY_BASES });
+  assert.equal(errs, 1);
+  assert.equal(sess.calls.length, 1, 'LLDP fuori dal set → nessun retry, un solo timeout');
+});
+
+test('compat: senza retryBases ogni base ritenta (poll/printer/hostres invariati)', async () => {
+  const sess = mockSession([{ feed: null, err: TIMEOUT() }]); // sempre timeout
+  const errs = await _runWalks(sess, [LLDP_BASE], {}, 'TEST'); // niente opts → retryBases=null
+  assert.equal(errs, 1);
+  assert.equal(sess.calls.length, 2, 'default (nessun set) → anche una base non-FDB ritenta 1 volta');
 });
