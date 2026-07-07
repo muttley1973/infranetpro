@@ -624,14 +624,27 @@ async function _autoDiscoverLinks(nodeIds){
     const addCandidate = (srcPort, dstPort, conf, proto) => _cset.add(srcPort, dstPort, conf, proto);
 
     // ---- Layer 1+2: LLDP/CDP + Layer 3: MAC FDB ------------------------------
-    for(const n of targets){
+    // Le /api/topology sono I/O di RETE: girano in PARALLELO a blocchi (come la
+    // fase di poll) → un device SNMP lento non sequenzializza piu' l'intero Sync.
+    // Root cause storica: un firewall che risponde a sysName ma va in timeout su
+    // OGNI tabella costava da solo ~70s (ora cappato lato server a ~15-18s); in
+    // sequenza su N device bloccava la ricostruzione della topologia. L'ELABORAZIONE
+    // dei risultati resta SEQUENZIALE, in ordine di `targets`, cosi' le accumulazioni
+    // (candidati, backfill ifName, cache FDB) restano DETERMINISTICHE (golden invariato).
+    // AbortController: un endpoint appeso non puo' incollare il Sync all'infinito
+    // (il server ha il proprio deadline; qui c'e' la cintura lato client).
+    const _TOPO_BATCH = 5;
+    const _TOPO_FETCH_TIMEOUT_MS = 60000;
+    const _fetchTopoFor = async n => {
         const cfg  = n.integration || {};
         const host = (cfg.host || n.ip || '').trim();
-        let data;
+        const ctrl  = (typeof AbortController === 'function') ? new AbortController() : null;
+        const timer = ctrl ? setTimeout(() => { try{ ctrl.abort(); }catch(_){} }, _TOPO_FETCH_TIMEOUT_MS) : null;
         try{
             const r = await fetch('/api/topology', {
                 method:'POST',
                 headers:{'Content-Type':'application/json'},
+                signal: ctrl ? ctrl.signal : undefined,
                 body: JSON.stringify({
                     driver:  cfg.driver  || 'snmp-v2c',
                     host,
@@ -651,12 +664,22 @@ async function _autoDiscoverLinks(nodeIds){
                     projectLagGroups: _projCtxLagGroups,
                 })
             });
-            data = await r.json();
+            return { n, host, data: await r.json() };
         } catch(e) {
             console.warn(`[AutoLink] fetch ${n.name||host}: ${e.message}`);
-            continue;
+            return { n, host, data: null };
+        } finally {
+            if(timer) clearTimeout(timer);
         }
-        if(!data.ok) continue;
+    };
+    const _topoResults = [];
+    for(let _b=0; _b<targets.length; _b+=_TOPO_BATCH){
+        const _chunk = await Promise.all(targets.slice(_b, _b+_TOPO_BATCH).map(_fetchTopoFor));
+        for(const _res of _chunk) _topoResults.push(_res);
+    }
+
+    for(const { n, host, data } of _topoResults){
+        if(!data || !data.ok) continue;
         diag.topoOk++;
         diag.neighborsSeen += (data.neighbors || []).length;
         const arpTableRaw = win._normalizeFdbTable(data.arpTable || {});

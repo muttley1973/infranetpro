@@ -265,6 +265,11 @@ async function pollAllSNMP(opts){
     const saveBtn=document.getElementById('btn-save');
     if(saveBtn){ saveBtn.disabled=true; }
 
+    // try/finally: qualunque errore imprevisto nella raccolta o nell'auto-link NON
+    // deve lasciare il Sync "appeso". Prima, un throw dopo win._snmpSyncing=true
+    // lasciava il flag a true (ogni Sync successivo usciva subito) e il bottone
+    // bloccato su "Topology...". Il ripristino stato vive ora nel finally.
+    try{
     pushHistory(); // un solo punto di undo per tutto il sync
 
     // Snapshot del DOCUMENTATO prima del poll (i campi base verranno sovrascritti):
@@ -364,12 +369,6 @@ async function pollAllSNMP(opts){
         summary: err ? ((typeof t==='function') ? t('audit.snmpErrors',{n:err}) : `${err} in errore`)
                      : ((typeof t==='function') ? t('audit.snmpAllOk') : 'tutti raggiungibili')
     });
-    win._snmpSyncing=false;
-    if(saveBtn){ saveBtn.disabled=false; }
-
-    // Aggiorna stato pulsante Topologia: la cache neighbors e' ora fresca
-    // (se almeno un device ha risposto), quindi il bottone diventa cliccabile.
-    if(typeof win._refreshTopoBtnState === 'function') win._refreshTopoBtnState();
 
     if(syncBtn){
         if(err===0){
@@ -385,6 +384,15 @@ async function pollAllSNMP(opts){
             // Ripristina il timer dentro il bottone (ora "adesso").
             if(typeof _renderSyncFreshness === 'function') _renderSyncFreshness();
         }, 4000);
+    }
+    } finally {
+        // Ripristino stato SEMPRE eseguito (successo o errore): sblocca il flag di
+        // sync, riabilita il salvataggio e riallinea il bottone Topologia.
+        win._snmpSyncing=false;
+        if(saveBtn){ saveBtn.disabled=false; }
+        // Aggiorna stato pulsante Topologia: la cache neighbors e' ora fresca
+        // (se almeno un device ha risposto), quindi il bottone diventa cliccabile.
+        if(typeof win._refreshTopoBtnState === 'function') win._refreshTopoBtnState();
     }
 }
 
