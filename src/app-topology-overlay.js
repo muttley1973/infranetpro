@@ -188,25 +188,39 @@ function _renderTopoOverlayNow(){
     // attivo (scheletro), i rami isDark?: del rendering SVG passano al chiaro.
     const isDark = document.documentElement.dataset.theme !== 'light';
 
+    // PERF: indici DOM O(1) costruiti UNA sola volta per render e PASSATI ai draw come
+    // argomento (niente nuovi globali-ponte). Prima ogni coppia/fanout faceva 2x
+    // document.querySelector('.floor-node[data-id=...]') = O(DOM) ciascuno → migliaia di
+    // scansioni del documento su reti grandi. first-wins come querySelector.
+    const els = { nodes: new Map(), racks: new Map() };
+    for(const el of document.querySelectorAll('.floor-node[data-id]')){ const id=el.getAttribute('data-id'); if(!els.nodes.has(id)) els.nodes.set(id, el); }
+    for(const el of document.querySelectorAll('.floor-rack[data-rackid]')){ const id=el.getAttribute('data-rackid'); if(!els.racks.has(id)) els.racks.set(id, el); }
+
     const { pairs, fanout, rackAlerts } = win.buildTopoLines(_buildTopoModel());
-    for(const p of pairs) _drawTopoPair(p, svg, NS, isDark);
-    for(const f of fanout) win._drawFanoutLineDesc(f, svg, NS);
-    for(const a of rackAlerts) _drawRackAlert(a, svg, NS, isDark);
+    // PERF: si disegna in un DocumentFragment (STACCATO dal DOM live) e si appende UNA
+    // volta sola alla fine → niente layout-thrashing. Le letture offsetWidth nel loop NON
+    // forzano piu' un reflow a ogni append, perche' il DOM live non viene toccato fino
+    // all'append finale. Output SVG identico (stessi elementi, stesso ordine). web.dev.
+    const frag=document.createDocumentFragment();
+    for(const p of pairs) _drawTopoPair(p, frag, NS, isDark, els);
+    for(const f of fanout) win._drawFanoutLineDesc(f, frag, NS, els);
+    for(const a of rackAlerts) _drawRackAlert(a, frag, NS, isDark, els);
+    svg.appendChild(frag);
 }
 
 // ---- Disegno di una coppia aggregata (rack↔rack o floor↔floor) ----------------
-function _drawTopoPair(p, svg, NS, isDark){
+function _drawTopoPair(p, svg, NS, isDark, els){
     // Ancoraggio al bordo esterno dell'icona (non al centro): usa le dimensioni
     // DOM correnti (offsetWidth/offsetHeight) — l'unica informazione che la lib
     // pura non puo' conoscere.
     let [x1,y1]=[p.sx,p.sy], [x2,y2]=[p.dx,p.dy];
     const GAP=4; // pixel di margine oltre il bordo
     const elA = p.kind==='rack-rack'
-        ? document.querySelector(`.floor-rack[data-rackid="${p.rackAId}"]`)
-        : document.querySelector(`.floor-node[data-id="${p.nodeAId}"]`);
+        ? els?.racks.get(p.rackAId)
+        : els?.nodes.get(p.nodeAId);
     const elB = p.kind==='rack-rack'
-        ? document.querySelector(`.floor-rack[data-rackid="${p.rackBId}"]`)
-        : document.querySelector(`.floor-node[data-id="${p.nodeBId}"]`);
+        ? els?.racks.get(p.rackBId)
+        : els?.nodes.get(p.nodeBId);
     if(elA){
         const hw=elA.offsetWidth/2+GAP, hh=elA.offsetHeight/2+GAP;
         [x1,y1]=win._rectEdge(p.sx,p.sy,hw,hh,p.dx-p.sx,p.dy-p.sy);
@@ -338,8 +352,8 @@ function _drawTopoPair(p, svg, NS, isDark){
 // La topology mostra solo le connessioni inter-rack: i cavi inferiti dentro lo
 // stesso rack non avrebbero rappresentazione, quindi badge giallo "!" in alto a
 // destra → l'utente capisce di dover entrare nella rack view di quel rack.
-function _drawRackAlert(a, svg, NS, isDark){
-    const rackEl = document.querySelector(`.floor-rack[data-rackid="${a.rackId}"]`);
+function _drawRackAlert(a, svg, NS, isDark, els){
+    const rackEl = els?.racks.get(a.rackId);
     if(!rackEl) return;
     const hw = rackEl.offsetWidth / 2;
     const hh = rackEl.offsetHeight / 2;
