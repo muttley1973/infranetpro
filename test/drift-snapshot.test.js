@@ -184,6 +184,46 @@ test('round-trip: doc==realtà → 0 finding; cambio VLAN porta → stateDrift',
   assert.equal(r1.stateDrift[0].patch.vlan, 999);
 });
 
+// ── fdbSubnets: copertura L2 per subnet (fix falso "assente" multi-fabric) ────
+test('fdbSubnets: coperte le subnet del fabric osservato, NON la LAN reale dietro il router', () => {
+  const nodes = [
+    { id: 'sw', name: 'SW',     type: 'switch', mac: 'aa:aa:aa:00:00:01', ip: '10.10.99.1',  snmpStatus: 'ok', integration: { host: '10.10.99.1' } },
+    { id: 'ep', name: 'EP',     type: 'pc',     mac: 'bb:bb:bb:00:00:02', ip: '10.10.30.10' },
+    { id: 'pc', name: 'PC-LAN', type: 'pc',     mac: 'cc:cc:cc:00:00:03', ip: '192.168.1.101' },
+  ];
+  // La FDB dello switch del lab vede sw+ep (10.10.x), NON il PC della LAN reale.
+  const fdb = { sw: { 'aa:aa:aa:00:00:01': 'Gi0/0', 'bb:bb:bb:00:00:02': 'Gi0/2' } };
+  const s = buildSnmpSnapshot({
+    nodes, docPorts: {}, ports: {}, fdb, vlanCache: {}, reachable: null, arpTable: null,
+    leases: [], knownSigs: [], rejectedAutoLinks: [], normMac: lower,
+    isVirtualMac: () => false, isRandomizedMac: () => false, isLeaseStale: () => false, countMacsPerPort: () => ({}),
+  });
+  assert.equal(s.fdbObserved, true);
+  assert.deepEqual(s.fdbSubnets.sort(), ['10.10.30', '10.10.99'], 'coperte le subnet del lab, non la 192.168.1 reale');
+});
+
+test('round-trip Sync: LAN reale mischiata al lab → i 192.168.x restano unverified (non grigi)', () => {
+  const nodes = [
+    { id: 'sw',  name: 'SW-CORE', type: 'switch', mac: 'aa:aa:aa:00:00:01', ip: '10.10.99.1', snmpStatus: 'ok', integration: { host: '10.10.99.1' } },
+    { id: 'pc1', name: '192.168.1.101', type: 'pc', mac: 'cc:cc:cc:00:00:03', ip: '192.168.1.101' },
+    { id: 'pc2', name: '192.168.1.128', type: 'pc', mac: 'cc:cc:cc:00:00:04', ip: '192.168.1.128' },
+  ];
+  const model = {
+    nodes, links: [], ports: {}, portLabel: p => p, nodeLabel: n => n.name || n.id,
+    cableLabel: l => l.id, normMac: lower, isPassiveNoIp: () => false,
+  };
+  const doc = buildDocSnapshot(model);
+  const snmp = buildSnmpSnapshot({
+    nodes, docPorts: {}, ports: {}, fdb: { sw: { 'aa:aa:aa:00:00:01': 'Gi0/0' } }, vlanCache: {},
+    reachable: null, arpTable: null, leases: [], knownSigs: [], rejectedAutoLinks: [], normMac: lower,
+    isVirtualMac: () => false, isRandomizedMac: () => false, isLeaseStale: () => false, countMacsPerPort: () => ({}),
+  });
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.macOrphan, 0, 'nessun 192.168.x dichiarato assente: quella L2 non è mai stata osservata');
+  assert.equal(r.counts.unverified, 2, 'entrambi i PC della LAN reale sono non-verificabili');
+  assert.deepEqual(r.unverified.map(x => x.label).sort(), ['192.168.1.101', '192.168.1.128']);
+});
+
 // ── default robusti (nessun helper iniettato) ───────────────────────
 test('default: senza helper iniettati non lancia e produce strutture vuote sensate', () => {
   assert.doesNotThrow(() => buildDocSnapshot());
@@ -193,4 +233,5 @@ test('default: senza helper iniettati non lancia e produce strutture vuote sensa
   const s = buildSnmpSnapshot({});
   assert.equal(s.fdbObserved, false);
   assert.deepEqual(s.observedDevices, []);
+  assert.deepEqual(s.fdbSubnets, [], 'nessuna FDB → nessuna subnet coperta');
 });
