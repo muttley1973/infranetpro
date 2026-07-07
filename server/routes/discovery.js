@@ -523,7 +523,11 @@ router.post('/api/discover/topology', auth.requireAdmin, async (req, res) => {
   res.flushHeaders();
 
   let aborted = false;
-  req.on('close', () => { aborted = true; });
+  // Disconnessione del client → stop. Si ascolta su `res` (ciclo di vita della RISPOSTA
+  // SSE), NON su `req`: `req.on('close')` scatta gia' quando il body della richiesta e'
+  // stato consumato (client ancora connesso) → falso abort che troncava il crawl al 1o
+  // livello. `res.on('close')` scatta solo alla reale chiusura della connessione.
+  res.on('close', () => { aborted = true; });
 
   // Heartbeat ogni 15 s per evitare timeout di proxy intermedi
   const hb = setInterval(() => { if (!aborted) res.write(':hb\n\n'); }, 15000);
