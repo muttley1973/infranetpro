@@ -13,6 +13,14 @@ const { expandSubnet, _execFileAsync, _pingHost, _pingHostRetry, _normMac, _pars
 const { _cleanHostname, PEN_VENDOR, _penFromObjectId, _vendorByObjectId, _decodeSysServices, _classifyDiscoveredDevice, _buildDiscoveryMeta, _decorateDiscoveryRow } = require('../classify');
 const { OuiEngine } = require('../../engine');
 const dhcpDrivers = require('../dhcp-drivers');
+const { crawlNetwork } = require('../crawl-bfs');
+
+// Concorrenza della fase deep/neighbor del crawl (probe+pollNeighbors di device GIA'
+// scoperti e autenticati SNMP → non e' una firma di scansione). Default BASSO e Pi-safe:
+// il footprint di socket = pool, e i test sul lab mostrano il ginocchio dei rendimenti a
+// K~4-6 (oltre il guadagno e' nullo, il pavimento e' il device piu' lento). La scansione
+// BASE degli host resta fuori di qui (sequenziale/anti-IDS). Override via CRAWL_POOL (1-32).
+const CRAWL_POOL = Math.max(1, Math.min(parseInt(process.env.CRAWL_POOL, 10) || 4, 32));
 
 // Singleton OUI engine used by the route. Lazy-initialized so the import of
 // discovery.js does not cost the 57k IEEE entries parse at startup.
@@ -523,10 +531,6 @@ router.post('/api/discover/topology', auth.requireAdmin, async (req, res) => {
   const send = obj => { if (!aborted) res.write(`data: ${JSON.stringify(obj)}\n\n`); };
 
   const cfg      = { driver, community, port, timeout, ...v3 };
-  const visited  = new Set();   // IP già processati
-  const seenName = new Set();   // sysName già visti (deduplicazione per alias diversi)
-  const discoveredBy = new Map(); // IP -> { protocol, from, port, name }
-  const results  = [];
   // ARP-SNMP: raccogliamo la ipNetToMediaTable di OGNI device SNMP del crawl per
   // proporre gli host visti a L2/L3 ma MUTI a ping/SNMP/LLDP (VPCS, off-segment).
   // Attivo SOLO se il client passa la subnet scansionata (`scanCidr`) → filtro
@@ -535,101 +539,27 @@ router.post('/api/discover/topology', auth.requireAdmin, async (req, res) => {
   let scanSet = null;
   try { if (scanCidr) scanSet = new Set(expandSubnet(scanCidr)); }
   catch (_) { scanSet = null; }
-  const arpTables = [];   // [{ table:{mac->ip}, fromIp }] raccolte durante il BFS
-  // macsuck: FDB (MAC->porta) di ogni switch SNMP → localizza i MAC scoperti sulla
-  // loro porta di accesso a fine crawl. pollNeighbors la ritorna gia' (fdbTable),
-  // il crawl fin qui la scartava. Vendor-neutral (BRIDGE/Q-BRIDGE-MIB standard).
-  const fdbTables = [];   // [{ switchIp, switchName, fdbTable:{mac->ifName} }]
-  // Multi-source BFS: tutti i seme entrano in coda a profondità 0
-  const queue    = seeds.map(ip => ({ ip, depth: 0 }));
 
-  send({ type: 'start', seeds });
-
+  // Fase deep/neighbor: BFS livello-sincrono con pool bounded (server/crawl-bfs.js).
+  // La scansione BASE degli host resta altrove (sequenziale/anti-IDS); qui si
+  // interrogano SOLO device gia' scoperti e autenticati. Determinismo garantito
+  // (barriera + ordine IP): pool=1 e pool=N danno lo STESSO risultato (provato in
+  // test/crawl-bfs.test.js). Le fasi ARP-SNMP e macsuck qui sotto lavorano su cio'
+  // che crawlNetwork restituisce (results/arpTables/fdbTables/visited).
+  let crawlOut;
   try {
-    while (queue.length > 0 && results.length < maxDevices && !aborted) {
-      const { ip, depth } = queue.shift();
-
-      if (visited.has(ip)) continue;
-      visited.add(ip);
-
-      if (depth > maxDepth) {
-        send({ type: 'skip', ip, reason: 'maxDepth' });
-        continue;
-      }
-
-      send({ type: 'probing', ip, depth, queued: queue.length, found: results.length });
-
-      // Probe leggero - verifica raggiungibilità SNMP
-      let probe;
-      try { probe = await drv.probe({ ...cfg, host: ip }); }
-      catch(e) { probe = { reachable: false, error: e.message }; }
-
-      if (!probe.reachable) {
-        send({ type: 'miss', ip, error: probe.error || 'no response' });
-        continue;
-      }
-
-      // Deduplicazione per sysName (stesso device con IP diversi)
-      const sysN = (probe.hostname || '').trim();
-      if (sysN && seenName.has(sysN)) {
-        send({ type: 'dup', ip, name: sysN });
-        continue;
-      }
-      if (sysN) seenName.add(sysN);
-
-      const device = _decorateDiscoveryRow({
-        ip, hostname: probe.hostname, descr: probe.descr, objectId: probe.objectId, depth,
-        sysServices: parseInt(probe.sysServices || 0, 10) || 0,
-        snmpReachable: true,
-        alive: true,
-        status: 'On',
-        viaProtocol: discoveredBy.get(ip)?.protocol || '',
-        viaFrom: discoveredBy.get(ip)?.from || '',
-        viaPort: discoveredBy.get(ip)?.port || '',
-      }, {
-        viaProtocol: discoveredBy.get(ip)?.protocol || '',
-        viaFrom: discoveredBy.get(ip)?.from || '',
-        viaPort: discoveredBy.get(ip)?.port || '',
-      });
-      results.push(device);
-      send({ type: 'found', device, total: results.length });
-
-      // Interroga LLDP/CDP per scoprire i vicini
-      try {
-        const { neighbors, arpTable, fdbTable } = await drv.pollNeighbors({ ...cfg, host: ip });
-        // ARP di questo device: la teniamo per proporre gli host off-segment a fine crawl.
-        if (scanSet && arpTable && typeof arpTable === 'object') arpTables.push({ table: arpTable, fromIp: ip });
-        // FDB di questo switch: la teniamo per il macsuck (MAC scoperto -> porta).
-        if (fdbTable && typeof fdbTable === 'object' && Object.keys(fdbTable).length) {
-          fdbTables.push({ switchIp: ip, switchName: sysN, fdbTable });
-        }
-        const seen = new Set();
-
-        for (const n of neighbors) {
-          const nip = (n.remoteIP || '').trim();
-          if (!nip || seen.has(nip) || visited.has(nip)) continue;
-          seen.add(nip);
-
-          // Filtra IP non routabili / invalidi
-          const oct = nip.split('.').map(Number);
-          if (oct[0] === 0 || oct[0] === 127) continue;
-          if (oct[0] === 169 && oct[1] === 254) continue;
-
-          queue.push({ ip: nip, depth: depth + 1 });
-          if(!discoveredBy.has(nip)){
-            discoveredBy.set(nip, { protocol: n.protocol || '', from: ip, port: n.localPort || '', name: n.remoteDevice || '' });
-          }
-          send({ type: 'queued', from: ip, neighbor: nip,
-                 port: n.localPort, name: n.remoteDevice, protocol: n.protocol });
-        }
-      } catch(e) {
-        console.warn(`  [CRAWL] neighbors ${ip}: ${e.message}`);
-        send({ type: 'warn', ip, message: e.message });
-      }
-    }
+    crawlOut = await crawlNetwork({
+      seeds, maxDepth, maxDevices, pool: CRAWL_POOL, collectArp: !!scanSet,
+      probe: ip => drv.probe({ ...cfg, host: ip }),
+      pollNeighbors: ip => drv.pollNeighbors({ ...cfg, host: ip }),
+      decorate: _decorateDiscoveryRow,
+      emit: send,
+      isAborted: () => aborted,
+    });
   } finally {
     clearInterval(hb);
   }
+  const { results, arpTables, fdbTables, visited } = crawlOut;
 
   // --- ARP-SNMP: proponi gli host off-segment visti nelle ARP raccolte ---------
   // Host presenti nell'ARP di uno switch/router SNMP ma non trovati via SNMP/LLDP:
