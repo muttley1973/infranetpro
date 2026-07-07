@@ -596,12 +596,12 @@ function _getRackFloorLinks(rackId){
 // Il COSA (quali link, colore, enfasi, interattivita', filtro VLAN) e' deciso
 // da buildTopoLines (lib/topo-lines.js, pura/testata); qui solo ancoraggio
 // alle dimensioni DOM, SVG ed eventi.
-function _drawFanoutLineDesc(d, svg, NS){
-    const elR=document.querySelector(`.floor-rack[data-rackid="${d.rackId}"]`);
+function _drawFanoutLineDesc(d, svg, NS, els){
+    const elR=els?.racks.get(d.rackId);
     const hwR=elR?elR.offsetWidth/2+4:50, hhR=elR?elR.offsetHeight/2+4:35;
     const vx=d.fx-d.rx, vy=d.fy-d.ry;
     const [x1,y1]=_rectEdge(d.rx,d.ry,hwR,hhR,vx,vy);
-    const elF=document.querySelector(`.floor-node[data-id="${d.floorNodeId}"]`);
+    const elF=els?.nodes.get(d.floorNodeId);
     const hwF=elF?elF.offsetWidth/2+2:30, hhF=elF?elF.offsetHeight/2+2:30;
     let [x2,y2]=_rectEdge(d.fx,d.fy,hwF,hhF,-vx,-vy);
     // Wireless: l'estremo floor parte dall'ANCORA della radio associata (d.fPortId).
