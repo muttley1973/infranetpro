@@ -28,11 +28,19 @@ function _dt(key, fallback, vars){ return (typeof win.t === 'function') ? win.t(
 // separa senza falsi negativi. Un host con anche solo un MAC (ARP) parte da ~22%.
 const DISC_PRESELECT_MIN_CONF = 15;
 
-function openDiscovery(){
+function openDiscovery(prefillCidr){
     // Il driver resta su 'auto' (rilevamento unificato v2c + v3): NON lo
     // sovrascriviamo col driver di un device esistente, altrimenti un solo
     // device v2c già in mappa disabiliterebbe il rilevamento v3. Prefilliamo
     // solo la community (usata dal tentativo v2c).
+    // prefillCidr (opzionale): quando l'utente lancia "Scopri rete" dalla sezione
+    // "Reti del progetto" del report Verifica, la subnet arriva già compilata — resta
+    // comunque una scansione ESPLICITA (l'utente preme Scansiona, con la sua cadenza
+    // anti-IDS). Manual-first: nessuno scan parte da solo.
+    if(prefillCidr){
+        const sub = document.getElementById('disc-subnet');
+        if(sub) sub.value = String(prefillCidr).trim();
+    }
     const sample = store.state.nodes.find(n=>n.integration?.driver?.startsWith('snmp'));
     if(sample && sample.integration.community){
         document.getElementById('disc-community').value = sample.integration.community;
@@ -199,16 +207,25 @@ function _discEnsureMeta(d){
     row.vendorHint = row.vendorHint || ouiVendor || '';
     if(!row.hostname && row.netbiosName) row.hostname = row.netbiosName;
     if(!row.displayName) row.displayName = row.hostname || row.ip || '';
+    // CONSOLIDAZIONE — un solo classificatore autorevole. Il SERVER (FusionScorer +
+    // engine sysObjectID/OUI + guardrail vendor≠tipo) è ora il motore di riferimento:
+    // ci si fida della sua classe ogni volta che ha trovato un segnale REALE — SNMP/
+    // objectId, score meta alto, O una confidenza fusion SOPRA il floor dei fallback
+    // baseline (15/20/25 = "non so"). Il `_guessType` client resta SOLO come rete di
+    // sicurezza quando il server è a livello baseline (device muto/sconosciuto); la
+    // `_discSanitizeDeviceClass` resta un raffinamento manual-first (ramo AP, declass).
     const serverClass = row.deviceClass || row.discovery?.deviceClass || '';
     const serverScore = parseInt(row?.confidence?.score ?? row?.discovery?.confidence?.score ?? 0, 10) || 0;
-    const strongServerClass = !!(
+    const fusionConf  = parseInt(row?.classification?.confidence ?? row?.discovery?.classification?.confidence ?? 0, 10) || 0;
+    const serverAuthoritative = !!(
         serverClass && (
             row.snmpReachable ||
             row.objectId ||
-            serverScore >= 55
+            serverScore >= 55 ||
+            fusionConf > 25            // il server ha un segnale reale, non un fallback baseline
         )
     );
-    if(strongServerClass){
+    if(serverAuthoritative){
         row.deviceClass = serverClass;
     } else {
         if(!row.deviceClass) row.deviceClass = win._guessType(row.descr, row.objectId, row.vendor, row.httpTitle||row.httpsTitle, row.hostname);

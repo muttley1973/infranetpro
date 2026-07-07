@@ -28,6 +28,7 @@
     "lib/device-signatures.js",
     "lib/drift-report.js",
     "lib/drift-snapshot.js",
+    "lib/project-networks.js",
     "lib/frontpanel.js",
     "lib/ha-pair.js",
     "lib/handoff.js",
