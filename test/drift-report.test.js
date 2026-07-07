@@ -130,14 +130,42 @@ test('cross-subnet: device su subnet NON raggiunta dalla sweep → unverified, n
   assert.equal(r.unverified[0].ip, '10.20.0.5');
 });
 
-test('cross-subnet: FDB popolato copre il L2 → assenza affidabile anche fuori dalla subnet della sweep', () => {
+test('cross-subnet back-compat: FDB senza dettaglio subnet (fdbSubnets assente) → copre il L2 come prima', () => {
   const doc = { macs: [{ mac: 'AA:BB:CC:00:00:42', label: 'x', nodeId: 'x', ip: '10.20.0.9' }] };
-  // fdbObserved=true: gli switch vedono i MAC su tutte le VLAN → niente unverified
+  // fdbObserved=true SENZA fdbSubnets → comportamento storico (FDB copre tutte le VLAN)
   const snmp = { observedMacs: [], responded: {}, fdbObserved: true, reachabilityChecked: true,
                  presentNodeIds: {}, observedSubnets: ['192.168.1'] };
   const r = buildDriftReport(snmp, doc, [], {});
-  assert.equal(r.counts.unverified, 0, 'con FDB la visibilità L2 è trasversale alle VLAN');
+  assert.equal(r.counts.unverified, 0, 'senza fdbSubnets la visibilità L2 resta trasversale (back-compat)');
   assert.equal(r.counts.macOrphan, 1);
+});
+
+// ── Multi-fabric (fix falso "assente" della LAN reale mischiata col lab) ──────
+// La FDB bridge di UN fabric (es. gli switch del lab 10.10.x) NON vede i MAC di un
+// altro dominio L2 raggiungibile solo a L3 (es. la LAN reale 192.168.x dietro un
+// router). Con `fdbSubnets` la copertura FDB è limitata alle subnet viste a L2.
+test('multi-fabric: fdbObserved + fdbSubnets → device su subnet NON coperta a L2 → unverified (non grigio)', () => {
+  const doc = { macs: [
+    { mac: 'AA:AA:AA:00:00:01', label: 'sw-lab',  nodeId: 'sw', ip: '10.10.99.1' },
+    { mac: 'CC:CC:CC:00:00:03', label: 'pc-lan-reale', nodeId: 'pc', ip: '192.168.1.101' },
+  ] };
+  // FDB copre solo il lab (10.10.99); la LAN reale 192.168.1 NON è tra fdbSubnets.
+  const snmp = { observedMacs: ['aa:aa:aa:00:00:01'], responded: {}, fdbObserved: true,
+                 presentNodeIds: {}, observedSubnets: [], fdbSubnets: ['10.10.99'] };
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.macOrphan, 0, 'lo switch del lab è visto in FDB; il PC reale non è dichiarabile assente');
+  assert.equal(r.counts.unverified, 1, 'il PC della LAN reale (L2 mai osservata) è non-verificabile, non assente');
+  assert.equal(r.unverified[0].label, 'pc-lan-reale');
+  assert.equal(r.unverified[0].ip, '192.168.1.101');
+});
+
+test('multi-fabric: device ASSENTE su subnet COPERTA dalla FDB → macOrphan (grigio corretto)', () => {
+  const doc = { macs: [{ mac: 'DD:DD:DD:00:00:04', label: 'pc-lab-spento', nodeId: 'x', ip: '10.10.99.50' }] };
+  const snmp = { observedMacs: ['aa:aa:aa:00:00:01'], responded: {}, fdbObserved: true,
+                 presentNodeIds: {}, observedSubnets: [], fdbSubnets: ['10.10.99'] };
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.macOrphan, 1, 'la sua L2 è osservata (fdbSubnets) ma il MAC non c\'è → davvero assente');
+  assert.equal(r.counts.unverified, 0);
 });
 
 test('back-compat: reachabilityChecked senza observedSubnets → macOrphan come prima', () => {
