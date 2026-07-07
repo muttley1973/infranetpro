@@ -88,6 +88,23 @@ const _walkRetriesEnv = parseInt(process.env.SNMP_WALK_RETRIES, 10);
 const WALK_RETRIES  = Math.max(0, Math.min(Number.isFinite(_walkRetriesEnv) ? _walkRetriesEnv : 1, 5));
 const WALK_MIN_REPS = 5;
 
+// Tetto WALL-CLOCK sull'INTERA walk di un device. Un agente che risponde a
+// sysName ma va in timeout su OGNI subtree (visto dal vivo su un firewall che
+// espone i soli scalari di sistema: ifDescr/LLDP/FDB/ARP tutti in timeout) brucia
+// ~timeout×(numero di subtree) secondi — ~70s a timeout 5s — e, siccome la fase
+// topologia del Sync interroga i device in SEQUENZA, blocca l'intero Sync a
+// vuoto. Oltre questo budget la walk si ferma e ritorna i dati PARZIALI gia'
+// raccolti: la topologia e' un ARRICCHIMENTO (manual-first) — perderla su un
+// device lento significa meno link, MAI dati inventati. Il budget deriva dal
+// timeout (scala se l'utente lo alza per device lenti-ma-reali) con un pavimento
+// minimo; override secco via SNMP_WALK_DEADLINE_MS. Vendor-neutral: e' solo
+// tempo, nessun OID/PEN/quirk di vendor hardcoded (paletto vendor-neutral).
+const _walkDeadlineEnv = parseInt(process.env.SNMP_WALK_DEADLINE_MS, 10);
+function _walkDeadline(timeoutMs, mult, floorMs) {
+  if (Number.isFinite(_walkDeadlineEnv) && _walkDeadlineEnv > 0) return Date.now() + _walkDeadlineEnv;
+  return Date.now() + Math.max(floorMs, (timeoutMs || 3000) * mult);
+}
+
 // Confronto OID per archi NUMERICI: `a` strettamente maggiore di `b`?
 function _oidGt(a, b) {
   const A = String(a).split('.'), B = String(b).split('.');
@@ -113,6 +130,7 @@ async function _runWalks(session, bases, result, label, concurrency = WALK_CONCU
   // rompe la macsuck. LLDP/CDP/ARP troncati danno al piu' meno vicini/host, non il
   // bug dei badge → falliscono subito, senza pagare 2-3 timeout ciascuno nel crawl.
   const retryBases = opts.retryBases || null;
+  const deadline = opts.deadline || 0;   // epoch ms assoluto (0 = nessun tetto)
   // Una singola passata di subtree su `base`. Ritorna { err, aborted, count };
   // accumula i varbind validi in `result` (idempotente: oid→value → una ri-prova
   // sovrascrive/completa i parziali della passata precedente senza duplicare).
@@ -146,6 +164,9 @@ async function _runWalks(session, bases, result, label, concurrency = WALK_CONCU
       if (aborted) { snmpWarn(`  [${label}] subtree ${base}: walk interrotta (loop/runaway, ~${count} varbind)`); errCount++; return; }
       if (!err) return;                                    // completata
       if (attempt >= maxRetries) { snmpWarn(`  [${label}] subtree ${base}: ${err.message} (${attempt + 1} tentativi falliti)`); errCount++; return; }
+      // Niente retry se il budget wall-clock e' gia' esaurito: un timeout tardivo
+      // non deve pagare un altro timeout pieno (era la causa dell'overshoot ~5s).
+      if (deadline && Date.now() >= deadline) { snmpWarn(`  [${label}] subtree ${base}: ${err.message} (deadline: retry saltato)`); errCount++; return; }
       const next = Math.max(WALK_MIN_REPS, maxReps >> 1);
       snmpWarn(`  [${label}] subtree ${base}: ${err.message} → retry ${attempt + 1}/${maxRetries} @ max-reps ${next}`);
       maxReps = next;
@@ -153,7 +174,17 @@ async function _runWalks(session, bases, result, label, concurrency = WALK_CONCU
     }
   };
   const conc = Math.max(1, concurrency);
+  // Deadline wall-clock (opzionale): un device che va in timeout su ogni subtree
+  // non deve bruciare l'intero budget in sequenza. Il controllo e' TRA i gruppi di
+  // subtree (overshoot al piu' di un'ondata gia' in volo); i dati parziali gia'
+  // in `result` restano validi. `deadline` (epoch ms) e' definito sopra.
   for (let i = 0; i < bases.length; i += conc) {
+    if (deadline && Date.now() >= deadline) {
+      const remaining = bases.length - i;
+      snmpWarn(`  [${label}] deadline walk superata: ${remaining} subtree saltate (dati parziali conservati)`);
+      errCount += remaining;
+      break;
+    }
     await Promise.all(bases.slice(i, i + conc).map(walkOne));
   }
   return errCount;
@@ -583,7 +614,7 @@ const VIRTUAL_IF_RE = /^(docker|br-|veth|virbr|tun|tap|dummy|sit|ip6tnl|ovs|lxc|
 
 // ---- walk ------------------------------------------------------------------
 
-async function walkSession(session) {
+async function walkSession(session, opts = {}) {
   const result = {};
   // Fail-fast: interroga prima il solo sysName come test di raggiungibilità.
   // Se non risponde, il device è giù → esci subito (evita di attendere il
@@ -596,8 +627,10 @@ async function walkSession(session) {
   }
   // Device raggiungibile: interroga il resto degli OID a concorrenza limitata,
   // così non si sommerge l'agente SNMP (root-cause del troncamento delle walk).
+  // Deadline (opzionale): stesso guard-rail della walk vicini per un device che
+  // risponde a sysName ma poi va in timeout sulle tabelle — ritorna il parziale.
   const rest = BASE_OIDS.filter(b => b !== OID.sysName);
-  await _runWalks(session, rest, result, 'SNMP');
+  await _runWalks(session, rest, result, 'SNMP', WALK_CONCURRENCY, { deadline: opts.deadline });
   return result;
 }
 
@@ -1284,19 +1317,24 @@ async function poll(cfg) {
   let session;
   try {
     session = _createSnmpSession(driver, host, port, timeout, cfg);
-    const vbs = await walkSession(session);
+    // Budget piu' generoso della walk vicini (i dati d'inventario sono il dato
+    // PRIMARIO, non solo arricchimento): 5× il timeout, pavimento 25s. Un device
+    // sano risponde rapido e non lo tocca mai; solo chi va in timeout su tutto
+    // viene cappato. I passaggi isolati sotto ricevono un budget FRESCO ciascuno
+    // (le stampanti a concorrenza 1 sono lente per progetto, non vanno affamate).
+    const vbs = await walkSession(session, { deadline: _walkDeadline(timeout, 5, 25000) });
     // Stampanti: secondo passaggio in ISOLAMENTO (concorrenza 1) per il
     // Printer-MIB. Gli stack SNMP deboli (HP JetDirect) troncano i materiali
     // sotto la walk concorrente multi-OID; letti da soli e in sequenza tornano
     // completi. Gate su cfg.printer (la UI sa che è una stampante) → costo zero
     // sugli altri device. Sovrascrive eventuali dati parziali della walk.
     if (cfg.printer) {
-      await _runWalks(session, PRINTER_BASES, vbs, 'SNMP-PRT', 1);
+      await _runWalks(session, PRINTER_BASES, vbs, 'SNMP-PRT', 1, { deadline: _walkDeadline(timeout, 5, 25000) });
     }
     // Device "compute" (server/pc/nas/homelab): HOST-RESOURCES (CPU/RAM/dischi)
     // in un passaggio supplementare. Stack robusti → concorrenza di default ok.
     if (cfg.hostResources) {
-      await _runWalks(session, HOSTRES_BASES, vbs, 'SNMP-HR');
+      await _runWalks(session, HOSTRES_BASES, vbs, 'SNMP-HR', WALK_CONCURRENCY, { deadline: _walkDeadline(timeout, 5, 25000) });
     }
     return extractData(vbs);
   } finally {
@@ -1364,7 +1402,7 @@ const FDB_RETRY_BASES = new Set([
   N_OID.bridgePortIf, N_OID.fdbPort, N_OID.fdbStatus, N_OID.qfdbPort, N_OID.qfdbStatus,
 ]);
 
-async function walkNeighbors(session) {
+async function walkNeighbors(session, opts = {}) {
   const result = {};
   // Fail-fast sulla raggiungibilità (come walkSession): se sysName non
   // risponde, evita di attendere il timeout di tutte le altre walk.
@@ -1373,7 +1411,9 @@ async function walkNeighbors(session) {
   if (!hasSysName) return result; // device giù → nessun vicino (gestito a monte)
   const rest = NEIGHBOR_OIDS.filter(b => b !== N_OID.sysName);
   // Retry SOLO sul gruppo FDB: LLDP/CDP/ARP nel bundle non ritentano (vedi FDB_RETRY_BASES).
-  await _runWalks(session, rest, result, 'SNMP-NBR', WALK_CONCURRENCY, { retryBases: FDB_RETRY_BASES });
+  // Deadline: un device che risponde a sysName ma va in timeout sulle tabelle
+  // (visto su un firewall reale) non deve sequenzializzare il Sync su ~70s.
+  await _runWalks(session, rest, result, 'SNMP-NBR', WALK_CONCURRENCY, { retryBases: FDB_RETRY_BASES, deadline: opts.deadline });
   return result;
 }
 
@@ -1656,7 +1696,10 @@ async function pollNeighbors(cfg) {
   let session;
   try {
     session = _createSnmpSession(driver, host, port, timeout, cfg);
-    const vbs = await walkNeighbors(session);
+    // Budget stretto per la walk vicini (topologia = arricchimento): 3× il timeout,
+    // pavimento 15s. Cappa il caso "firewall che risponde solo a sysName" a ~15s
+    // invece dei ~70s misurati dal vivo (timeout su ogni subtree × #subtree).
+    const vbs = await walkNeighbors(session, { deadline: _walkDeadline(timeout, 3, 15000) });
     return extractNeighbors(vbs);
   } finally {
     try { session?.close(); } catch (_) { /* ignore */ }
@@ -1855,5 +1898,5 @@ module.exports._internals = {
   logicalLagIdFromName, lastIdx, extractData, extractEntityInventory,
   extractSystem, _formatUptime, extractPrinter, _supplyColorKey,
   extractHostResources, _isPathPrefix, OID, PRT_OID, HR_OID, _oidGt,
-  _v3RemoteEngineDiscovered, _runWalks, FDB_RETRY_BASES,
+  _v3RemoteEngineDiscovered, _runWalks, FDB_RETRY_BASES, _walkDeadline,
 };
