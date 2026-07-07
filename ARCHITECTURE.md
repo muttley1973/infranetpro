@@ -415,6 +415,16 @@ is VPN/LAN.
     isn't proposed twice when it also appears in a switch's SNMP ARP table. MACs are normalized to
     one canonical **uppercase** form for all sources (`_discEnsureMeta`), so the same device can't
     slip a MAC-based de-dup (the sweep emitted uppercase, the ARP path lowercase).
+  - **Vendor identity ≠ device type + one classifier.** The fusion scorer never keyword-matches the
+    vendor *company name* for the generic type nouns `gateway|switch|router|firewall` (those are
+    stripped before the vendor enters the type text) — so a "Gateway Inc." PC isn't a router; type
+    comes from behaviour/structure (sysObjectID map, `sysServices` bits, `sysDescr` product tokens,
+    TCP probes, SMB/NetBIOS role) and the vendor's real *brand* tokens still vote. NetBIOS is off by
+    default on modern Windows (nbtstat is silent) → the live "it's a Windows host" signal is **SMB**:
+    port 445 + enumerated shares (or RDP/WSD) and **no** print ports (9100/515/631) → `pc`, beating a
+    printer-vendor NIC. The Discover UI now treats this server engine as the single source of truth
+    (`serverAuthoritative` in `src/app-discovery.js`); the thin client `_guessType` only fills gaps.
+    `engine/fusion-scorer.js`, `server/classify.js` (legacy kept in parity).
   - **Merge-guards on the render path (audit F4/F5).** The guard that stops a next-hop/gateway MAC
     from collapsing remote hosts onto the gateway node ran only on import; it now also runs on the
     preview/table index (`_discAttachMergeGuards`), so a remote host no longer inherits the gateway's
