@@ -86,6 +86,82 @@ test('FusionScorer: fallback default → pc', () => {
   assert.equal(result.confidence, 15);
 });
 
+// --- Guardrail vendor≠tipo (Move 1): il NOME AZIENDA non decide il tipo ---------
+// Regressione IANA-PEN: un vendor la cui ragione sociale contiene un sostantivo-tipo
+// generico (gateway/switch/router/firewall) veniva tipizzato per quella parola.
+test('FusionScorer: a generic type-noun in the VENDOR company name does NOT set type', () => {
+  const scorer = makeScorer();
+  // "Gateway Inc." è un vero produttore di PC: un host (L4+L7) non deve diventare router.
+  const gw = scorer.classify({ vendor: 'Gateway Inc.', sysServices: 72, snmpReachable: true });
+  assert.notEqual(gw.deviceType, 'router', 'vendor-name "gateway" must not force router');
+  assert.equal(gw.deviceType, 'server');   // host via sysServices L4+L7
+  // org letteralmente chiamata "SWITCH".
+  const sw = scorer.classify({ vendor: 'SWITCH Communication', sysServices: 72, snmpReachable: true });
+  assert.notEqual(sw.deviceType, 'switch', 'vendor-name "switch" must not force switch');
+  // "Firewall Services".
+  const fw = scorer.classify({ vendor: 'Firewall Services', sysServices: 72, snmpReachable: true });
+  assert.notEqual(fw.deviceType, 'firewall', 'vendor-name "firewall" must not force firewall');
+});
+
+test('FusionScorer: real vendor BRAND tokens still drive type (guardrail keeps brands)', () => {
+  const scorer = makeScorer();
+  // Il brand reale sopravvive allo strip dei sostantivi generici.
+  assert.equal(scorer.classify({ vendor: 'MikroTik', descr: 'RouterOS', sysServices: 78, snmpReachable: true }).deviceType, 'router');
+  assert.equal(scorer.classify({ vendor: 'Fortinet', sysServices: 78, snmpReachable: true }).deviceType, 'firewall');
+});
+
+// --- Move 2: fallback MISURATO (sysServices) invece di indovinare 'switch' -------
+test('FusionScorer: measured fallback — SNMP host (L4+L7) → server, bare responder → switch', () => {
+  const scorer = makeScorer();
+  assert.equal(scorer.classify({ sysServices: 72, snmpReachable: true }).deviceType, 'server');
+  assert.equal(scorer.classify({ snmpReachable: true }).deviceType, 'switch'); // nessun layer → storico
+});
+
+// --- NetBIOS come segnale (deep-scan): host Windows = computer, mai apparato di rete --
+test('FusionScorer: NetBIOS host → pc/server, mai apparato di rete; NAS non declassato', () => {
+  const scorer = makeScorer();
+  // workstation (nome NetBIOS) → pc
+  assert.equal(scorer.classify({ netbiosName: 'DESKTOP-X', netbiosGroup: 'WORKGROUP', alive: true }).deviceType, 'pc');
+  // <20> Server-service (file/print sharing) → server
+  assert.equal(scorer.classify({ netbiosName: 'FILESRV', netbiosServer: true, alive: true }).deviceType, 'server');
+  // Domain Controller (<1B>/<1C>) → server
+  assert.equal(scorer.classify({ netbiosName: 'DC01', netbiosDomainCtrl: true, alive: true }).deviceType, 'server');
+  // un NAS che espone <20> NON deve diventare server (il segnale nas vince)
+  assert.equal(scorer.classify({ descr: 'Synology DiskStation', netbiosServer: true, sysServices: 72, snmpReachable: true }).deviceType, 'nas');
+});
+
+// --- SMB file-sharing host batte l'inferenza OUI-vendor (Canon/HP → printer) --------
+// NetBIOS è morto sul Windows moderno (nbtstat non risponde); l'SMB (445+share, senza
+// porte di stampa) è il segnale comportamentale reale che un PC Windows è un computer.
+test('FusionScorer: SMB file-sharing host beats OUI-printer; print ports and NAS are respected', () => {
+  const scorer = makeScorer();
+  const ouiPrinter = { vendor: 'Canon', deviceType: 'printer', confidence: 88, source: { priority: 100 } };
+  // OUI dice printer, ma 445 + WSD(5357) + share e NESSUNA porta di stampa → pc
+  const host = scorer.classify(
+    { services: [{ port: 443 }, { port: 445 }, { port: 5357 }], smbShares: [{ name: 'docs' }, { name: 'C$' }], alive: true },
+    { ouiInfo: ouiPrinter });
+  assert.equal(host.deviceType, 'pc');
+  // una VERA stampante (porte di stampa 9100/631) NON viene toccata → resta printer
+  const printer = scorer.classify(
+    { services: [{ port: 445 }, { port: 9100 }, { port: 631 }], smbShares: [{ name: 'scan' }], alive: true },
+    { ouiInfo: ouiPrinter });
+  assert.equal(printer.deviceType, 'printer');
+  // un NAS con condivisioni SMB resta NAS (il segnale nas vince, guard !score.nas)
+  const nas = scorer.classify({ descr: 'Synology DiskStation', services: [{ port: 445 }], smbShares: [{ name: 'vol1' }], sysServices: 72, snmpReachable: true });
+  assert.equal(nas.deviceType, 'nas');
+});
+
+// --- Move 3: sconto-per-contraddizione sulla confidenza -------------------------
+test('FusionScorer: contradiction discount lowers confidence when runner-up is close', () => {
+  const scorer = makeScorer();
+  const close = scorer.classify({ sysServices: 2 | 4 | 64, snmpReachable: true }); // L2+L3+L7 → switch 35 vs router 25 (vicini)
+  const clean = scorer.classify({ sysServices: 2, snmpReachable: true });          // L2 solo → switch 45, nessun rivale
+  assert.equal(close.deviceType, 'switch');
+  assert.equal(clean.deviceType, 'switch');
+  assert.ok(clean.confidence > close.confidence,
+    `runner-up vicino deve abbassare la confidenza: close=${close.confidence} clean=${clean.confidence}`);
+});
+
 test('FusionScorer: priority tie-break (firewall wins over router)', () => {
   const scorer = makeScorer({ priority: ['firewall', 'router'] });
   // Same score on firewall and router; firewall should win by priority

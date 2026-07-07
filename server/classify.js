@@ -278,7 +278,11 @@ function _classifyDiscoveredDeviceLegacy(row) {
   const shareText = (row?.smbShares || []).map(s => `${s.name || s} ${s.type || ''} ${s.comment || ''}`).join(' ').toLowerCase();
   const ip = String(row?.ip || '').trim();
   const svc = _decodeSysServices(row?.sysServices);
-  const text = `${descr} ${vendor} ${banner} ${host} ${netbiosName} ${netbiosGroup} ${shareText}`.toLowerCase();
+  // Guardrail vendor≠tipo (parità col FusionScorer): rimuovi i sostantivi-tipo
+  // generici (gateway/switch/router/firewall) dal NOME AZIENDA prima del testo di
+  // classificazione. Vedi engine/fusion-scorer.js VENDOR_TYPE_NOUN_RE.
+  const vendorForType = vendor.replace(/\b(?:gateway|router|switch|firewall)\b/gi, ' ');
+  const text = `${descr} ${vendorForType} ${banner} ${host} ${netbiosName} ${netbiosGroup} ${shareText}`.toLowerCase();
   const servicePorts = new Set((row?.services || []).map(s => parseInt(s.port, 10)).filter(Number.isFinite));
   const serviceText = (row?.services || []).map(s => `${s.service || ''} ${s.banner || ''}`).join(' ').toLowerCase();
   const fullText = `${text} ${serviceText}`.toLowerCase();
@@ -377,6 +381,22 @@ function _classifyDiscoveredDeviceLegacy(row) {
   if ((servicePorts.has(445) || servicePorts.has(3389)) && /windows server|vmware|esxi|nas|synology|qnap|truenas|freenas|samba server/.test(fullText)) bump('server', 45);
   else if (servicePorts.has(445) || servicePorts.has(3389)) bump('pc', 35);
 
+  // NetBIOS / SMB = host Windows → computer (pc/server), mai apparato di rete — parità
+  // col FusionScorer. Vedi engine/fusion-scorer.js.
+  const netbiosHost = !!(netbiosName || netbiosGroup || row?.netbiosServer || row?.netbiosDomainCtrl);
+  if (netbiosHost) {
+    if (row?.netbiosDomainCtrl) bump('server', 60);
+    else if ((row?.netbiosServer || (row?.smbShares || []).length) && !score.nas && !score.printer) bump('server', 45);
+    else bump('pc', 40);
+  }
+  // Host Windows di file-sharing (SMB 445 + share/RDP/WSD, senza porte di stampa) =
+  // computer, non stampante — parità col FusionScorer. Vedi engine/fusion-scorer.js.
+  const _hasPrintPorts = servicePorts.has(9100) || servicePorts.has(515) || servicePorts.has(631);
+  const _smbShareN = (row?.smbShares || []).length;
+  if (servicePorts.has(445) && (_smbShareN > 0 || servicePorts.has(3389) || servicePorts.has(5357)) && !_hasPrintPorts && !score.nas) {
+    bump('pc', 85);
+  }
+
   if (svc.l3 && !svc.l7 && !switchWords) bump('router', 45);
   if (svc.l2 && !svc.l3 && !svc.l7) bump('switch', 45);
   if (svc.l2 && svc.l3) {
@@ -406,7 +426,15 @@ function _classifyDiscoveredDeviceLegacy(row) {
   }
 
   if (row?.httpTitle || row?.httpsTitle) return 'iot';
-  return hasSnmpSignal ? 'switch' : 'pc';
+  // Fallback MISURATO (sysServices) invece di indovinare 'switch' — parità col
+  // FusionScorer. Vedi engine/fusion-scorer.js.
+  if (hasSnmpSignal) {
+    if (svc.l4 && svc.l7 && !svc.l2 && !svc.l3) return 'server';
+    if (svc.l2 && !svc.l3) return 'switch';
+    if (svc.l3) return 'router';
+    return 'switch';
+  }
+  return 'pc';
 }
 
 // Brand dal nome host/mDNS quando l'OUI non aiuta (MAC randomizzato/privato dei BYOD).

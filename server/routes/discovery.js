@@ -366,6 +366,14 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
             if (deep.netbios) {
               row.netbiosName = deep.netbios.name || row.netbiosName || '';
               row.netbiosGroup = deep.netbios.group || row.netbiosGroup || '';
+              // Segnale di RUOLO NetBIOS per la classificazione: <20> (Server service =
+              // file/print sharing attivo) e <1B>/<1C> (Domain (Controller)). Prima
+              // veniva parsato ma SCARTATO — ora arriva al classificatore per distinguere
+              // host Windows (pc/server) dagli apparati di rete. Vendor-neutral.
+              if (deep.netbios.smbServer) row.netbiosServer = true;
+              if (Array.isArray(deep.netbios.records) &&
+                  deep.netbios.records.some(r => r.suffix === '1B' || (r.suffix === '1C' && r.kind === 'group')))
+                row.netbiosDomainCtrl = true;
               if (!row.mac && deep.netbios.mac) row.mac = deep.netbios.mac;
               if (!row.hostname && deep.netbios.name) row.hostname = _cleanHostname(deep.netbios.name);
               row.alive = true;
