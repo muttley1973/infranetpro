@@ -398,6 +398,53 @@ function _driftRowHtml(cat, r){
     const acts = (cat === 'consistent') ? actions : actions + explBtn;
     return `<div class="drift-row">${main}<span class="drift-row-acts">${acts}</span></div>`;
 }
+
+// ── Sezione "Reti del progetto" (estratte da device + lease DHCP) ────────────
+// Risponde al workflow multi-subnet: "se ci sono device di subnet diverse, estrai
+// le network dai device presenti e dì cosa fare". Puramente INFORMATIVA + un'azione
+// esplicita per rete ("Scopri rete", che apre il modale Scopri pre-compilato con la
+// cadenza anti-IDS): manual-first, nessuno scan automatico. La classificazione
+// (covered/blocked/open) vive nella lib pura lib/project-networks.js.
+function _driftNetworksSection(){
+    // deriveProjectNetworks: lib UMD-lite (lib/project-networks.js), letta come
+    // bare-global (esposta su window dallo <script>), come gli altri motori puri —
+    // NON via win.* (tiene fermo il cricchetto del ponte).
+    if(typeof deriveProjectNetworks !== 'function') return '';
+    const esc = s => escapeHTML(String(s == null ? '' : s));
+    const leases = Array.isArray(store._dhcpLeases) ? store._dhcpLeases : [];
+    const { networks } = deriveProjectNetworks({ nodes: store.state.nodes, leases });
+    if(!networks.length) return '';
+    const META = {
+        covered: { c:'#3fb950', i:'fa-circle-check',       hint:()=>t('net.hintCovered') },
+        blocked: { c:'#d29922', i:'fa-triangle-exclamation', hint:(n)=>{ const sw=n.snmpSources.find(s=>s.type==='switch'&&!s.reachable); return t('net.hintBlocked',{ip: sw?sw.ip:'?'}); } },
+        open:    { c:'#6e7681', i:'fa-circle-question',     hint:()=>t('net.hintOpen') },
+    };
+    const rowsHtml = networks.map(n => {
+        const m = META[n.status] || META.open;
+        const meta = t('net.devices',{n:n.deviceCount}) + (n.leaseCount ? ' · ' + t('net.leases',{n:n.leaseCount}) : '');
+        const scanBtn = `<button class="toolbar-btn drift-net-scan" onclick="_driftScanNetwork('${esc(n.cidr)}')" data-tip="${t('net.scanTip')}"><i class="fas fa-satellite-dish"></i> ${t('net.scan')}</button>`;
+        return `<div class="drift-net-row">
+            <span class="drift-net-cidr"><i class="fas ${m.i}" style="color:${m.c}"></i> ${esc(n.cidr)}</span>
+            <span class="drift-net-meta">${esc(meta)}</span>
+            <span class="drift-net-hint">${esc(m.hint(n))}</span>
+            ${scanBtn}
+        </div>`;
+    }).join('');
+    // Aperta di default se c'è almeno una rete che richiede azione (blocked/open).
+    const needsAction = networks.some(n => n.status !== 'covered');
+    return `<details class="props-collapsible drift-sec"${needsAction ? ' open' : ''}>
+        <summary class="props-collapsible-head"><span><i class="fas fa-sitemap"></i> ${t('net.sectionTitle')}</span><span class="drift-count">${networks.length}</span></summary>
+        <div class="props-collapsible-body drift-sec-body">${rowsHtml}</div></details>`;
+}
+
+// Apre "Scopri" pre-compilato con la subnet scelta (chiude prima il report Verifica).
+// _closeDriftReport è locale a questo modulo; openDiscovery è bare-global (esposta
+// da src/app-discovery.js) — nessuna lettura via win.* (cricchetto invariato).
+function _driftScanNetwork(cidr){
+    _closeDriftReport();
+    if(typeof openDiscovery === 'function') openDiscovery(cidr);
+}
+
 function _renderDriftReport(){
     const rep = store._driftReport;
     const ov = _driftEnsureOverlay();
@@ -460,7 +507,7 @@ function _renderDriftReport(){
             <summary class="props-collapsible-head"><span><i class="fas ${c.i}" style="color:${c.c}"></i> ${t(c.tk)}</span><span class="drift-count" style="background:${c.c}22;color:${c.c}">${n}</span></summary>
             <div class="props-collapsible-body drift-sec-body">${secBody}</div></details>`;
     }).join('');
-    body.innerHTML = header + sections;
+    body.innerHTML = header + _driftNetworksSection() + sections;
 }
 
 // Superficie pubblica:
@@ -473,7 +520,7 @@ function _renderDriftReport(){
 expose({
     runDriftCheck, driftIgnore, driftApplyDoc, driftApplyIpChange, driftInvestigate,
     setAutoIpRenew, setDriftShowEndpoints, _driftAutoRenewIps,
-    _closeDriftReport, _renderDriftReport,
+    _closeDriftReport, _renderDriftReport, _driftScanNetwork,
     _driftBuildDocSnapshot, _driftBuildSnmpSnapshot, _driftComputeFromDoc,
     DRIFT_DOWN_STREAK_N,
 });

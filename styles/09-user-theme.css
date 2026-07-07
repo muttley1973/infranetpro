@@ -410,6 +410,13 @@ body.spare-mode .port-led.spare-suspect {
 
 /* ── Adotta i non documentati (schermata selezione stile Scopri) ─────── */
 .drift-adopt-bar { display: flex; justify-content: flex-end; margin: 2px 4px 8px; }
+/* Sezione "Reti del progetto" (estratte da device + lease) nel report Verifica */
+.drift-net-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; flex-wrap: wrap; }
+.drift-net-row:hover { background: var(--surface-hover); }
+.drift-net-cidr { font-weight: 600; color: var(--text-main); font-family: var(--font-mono, monospace); white-space: nowrap; }
+.drift-net-meta { color: var(--text-muted); font-size: .8rem; white-space: nowrap; }
+.drift-net-hint { color: var(--text-muted); font-size: .8rem; flex: 1 1 200px; min-width: 140px; }
+.drift-net-scan { margin-left: auto; flex-shrink: 0; }
 .adopt-modal { display: flex; flex-direction: column; max-height: 80vh; }
 .adopt-modal .drift-body { overflow: auto; flex: 1; }
 .adopt-intro { font-size: .9rem; color: var(--text-muted); margin: 2px 2px 10px; line-height: 1.4; }

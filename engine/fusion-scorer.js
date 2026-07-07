@@ -69,6 +69,18 @@ const PC_OS_RE = /vmware\s*esx|esxi|proxmox|hyper.?v|windows server|nas|synology
 const PC_HOSTNAME_RE = /^desktop-|^win[0-9-]|^win-|workstation|laptop|notebook/i;
 const PC_VENDOR_RE = /hewlett packard|dell|lenovo|intel|apple|parallels|microsoft|asus|acer|toshiba|pcs systemtechnik|vmware/;
 
+// Sostantivi-tipo GENERICI ("false friend") che NON devono decidere il tipo quando
+// compaiono nel NOME AZIENDA del vendor: es. "Gateway Inc." fa PC, l'org "SWITCH" e'
+// una rete accademica, "Firewall Services" e' un'azienda. Vengono rimossi dalla stringa
+// vendor PRIMA di comporre il testo di classificazione — i token di BRAND reali
+// (mikrotik, fortinet, catalyst, cisco...) restano e continuano a votare. Allineato allo
+// stato dell'arte (nmap/Fingerbank/netdisco/SNMP::Info/runZero): il vendor e' IDENTITA',
+// mai una keyword di tipo. Il nome PIENO resta comunque per la colonna vendor (display).
+// Solo i 4 sostantivi di infrastruttura di rete (i "false friend" piu' frequenti nei
+// registri IANA-PEN/IEEE-OUI) — nas/ups/pdu restano perche' li' il nome-azienda coincide
+// quasi sempre col tipo reale.
+const VENDOR_TYPE_NOUN_RE = /\b(?:gateway|router|switch|firewall)\b/gi;
+
 // ---------- Helpers ----------------------------------------------------------
 
 function _safeIntMax(value, min, max, fallback) {
@@ -149,6 +161,10 @@ class FusionScorer {
     const vendor = String(
       row?.vendor || sysObjectInfo?.vendor || osFingerprint?.vendor || ouiInfo?.vendor || vendorByObjectId(objectId) || ''
     ).toLowerCase();
+    // Vendor RIPULITO dai sostantivi-tipo generici prima di entrare nel testo di
+    // classificazione: "gateway"/"switch"/"router"/"firewall" dentro un NOME AZIENDA
+    // non devono decidere il tipo (guardrail vendor≠tipo). I brand reali restano.
+    const vendorForType = vendor.replace(VENDOR_TYPE_NOUN_RE, ' ');
     const banner = `${row?.httpTitle || ''} ${row?.httpsTitle || ''}`.toLowerCase();
     const host = String(row?.hostname || '').toLowerCase();
     const netbiosName = String(row?.netbiosName || row?.netbios?.name || '').toLowerCase();
@@ -156,7 +172,7 @@ class FusionScorer {
     const shareText = (row?.smbShares || []).map(s => `${s.name || s} ${s.type || ''} ${s.comment || ''}`).join(' ').toLowerCase();
     const ip = String(row?.ip || '').trim();
     const svc = decodeSysServices(row?.sysServices);
-    const text = `${descr} ${vendor} ${banner} ${host} ${netbiosName} ${netbiosGroup} ${shareText}`.toLowerCase();
+    const text = `${descr} ${vendorForType} ${banner} ${host} ${netbiosName} ${netbiosGroup} ${shareText}`.toLowerCase();
     const servicePorts = new Set((row?.services || []).map(s => parseInt(s.port, 10)).filter(Number.isFinite));
     const serviceText = (row?.services || []).map(s => `${s.service || ''} ${s.banner || ''}`).join(' ').toLowerCase();
     const fullText = `${text} ${serviceText}`.toLowerCase();
@@ -271,6 +287,28 @@ class FusionScorer {
       bump('pc', 35, 'tcp-smb-rdp-pc');
     }
 
+    // NetBIOS / SMB = host WINDOWS → un COMPUTER (pc/server), MAI un apparato di rete.
+    // <1B>/<1C> Domain Controller → server; <20> Server-service o share SMB → lean
+    // server (salvo NAS/stampante che gia' vincono col loro segnale); altrimenti
+    // workstation → pc. Segnale del deep-scan (nbtstat/SMB), vendor-neutral.
+    const netbiosHost = !!(netbiosName || netbiosGroup || row?.netbiosServer || row?.netbiosDomainCtrl);
+    if (netbiosHost) {
+      if (row?.netbiosDomainCtrl) bump('server', 60, 'netbios-domain-controller');
+      else if ((row?.netbiosServer || (row?.smbShares || []).length) && !score.nas && !score.printer) bump('server', 45, 'netbios-smb-server');
+      else bump('pc', 40, 'netbios-workstation');
+    }
+
+    // Host Windows di FILE-SHARING (SMB 445 + condivisioni enumerate / RDP / WSD) e
+    // SENZA porte di STAMPA (9100/515/631) = un COMPUTER, non una stampante — anche se
+    // l'OUI del vendor (es. Canon) suggerirebbe printer. NetBIOS è morto sul Windows
+    // moderno (nbtstat non risponde): l'SMB è il segnale comportamentale reale, e batte
+    // l'inferenza-vendor. Un NAS ha già un segnale nas più forte → non lo tocchiamo.
+    const _hasPrintPorts = servicePorts.has(9100) || servicePorts.has(515) || servicePorts.has(631);
+    const _smbShareN = (row?.smbShares || []).length;
+    if (servicePorts.has(445) && (_smbShareN > 0 || servicePorts.has(3389) || servicePorts.has(5357)) && !_hasPrintPorts && !score.nas) {
+      bump('pc', 85, 'smb-fileshare-host');
+    }
+
     // sysServices L2/L3 hints
     if (svc.l3 && !svc.l7 && !switchWords)       bump('router', 45, 'sysservices-l3');
     if (svc.l2 && !svc.l3 && !svc.l7)             bump('switch', 45, 'sysservices-l2');
@@ -313,13 +351,23 @@ class FusionScorer {
       const base = Math.min(95, bestPoints);
       const gapBonus = Math.min(15, Math.round(gap / 5));
       const multiSourceBonus = Math.min(8, (sources.size - 1) * 4);
-      confidence = Math.max(10, Math.min(99, base + gapBonus + multiSourceBonus));
+      // Sconto-per-contraddizione (Fingerbank): quando un tipo concorrente ha punteggio
+      // VICINO al vincitore, i segnali si contraddicono → confidenza piu' bassa (onesta,
+      // manual-first: l'utente rivede). Fino a -25 quando il runner-up eguaglia il best;
+      // ~0 quando e' lontano. NON cambia il TIPO scelto (solo la confidenza).
+      const contradiction = runnerUp[1] > 0 ? Math.round((runnerUp[1] / bestPoints) * 25) : 0;
+      confidence = Math.max(10, Math.min(99, base + gapBonus + multiSourceBonus - contradiction));
     } else if (row?.httpTitle || row?.httpsTitle) {
       deviceType = 'iot';
       confidence = 20;
     } else if (hasSnmpSignal) {
-      deviceType = 'switch';
-      confidence = 25;
+      // Fallback MISURATO invece di indovinare 'switch': un responder SNMP che espone
+      // L4+L7 e' un host, non uno switch. Dai layer OSI dichiarati (sysServices),
+      // vendor-neutral. Coarse ma onesto (manual-first): l'utente conferma/corregge.
+      if (svc.l4 && svc.l7 && !svc.l2 && !svc.l3) { deviceType = 'server'; confidence = 25; }
+      else if (svc.l2 && !svc.l3)                 { deviceType = 'switch'; confidence = 25; }
+      else if (svc.l3)                            { deviceType = 'router'; confidence = 25; }
+      else                                        { deviceType = 'switch'; confidence = 25; }   // nessun layer → storico
     } else {
       deviceType = 'pc';
       confidence = 15;
