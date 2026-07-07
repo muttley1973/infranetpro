@@ -6,7 +6,7 @@
 // ping + sleep INIETTATI (nessuna rete reale, nessuna attesa vera).
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { _pingHostRetry, _pingResultIsAlive } = require('../server/netscan.js');
+const { _pingHostRetry, _pingResultIsAlive, _stealthDelayMs } = require('../server/netscan.js');
 
 // sleep spy: registra le pause SENZA attendere davvero
 const spySleep = () => { const calls = []; return { calls, fn: async (ms) => { calls.push(ms); } }; };
@@ -118,4 +118,33 @@ test('_pingResultIsAlive/linux: exit code AFFIDABILE → exit 0 resta vivo anche
   // Su Linux/macOS l'exit code e' attendibile (unreachable -> exit != 0): non lo tocchiamo.
   assert.equal(_pingResultIsAlive('linux', { ok: true, stdout: '', stderr: '' }), true);
   assert.equal(_pingResultIsAlive('darwin', { ok: true, stdout: '', stderr: '' }), true);
+});
+
+// ── _stealthDelayMs: pacing anti-IDS con JITTER (rand INIETTABILE per determinismo) ──
+test('_stealthDelayMs: base<=0 → 0 (pacing OFF = comportamento veloce invariato)', () => {
+  assert.equal(_stealthDelayMs(0), 0);
+  assert.equal(_stealthDelayMs(undefined), 0);
+  assert.equal(_stealthDelayMs(-100), 0);
+});
+
+test('_stealthDelayMs: jitterPct=0 → esattamente base (nessuna variazione)', () => {
+  assert.equal(_stealthDelayMs(400, 0, () => 0), 400);
+  assert.equal(_stealthDelayMs(400, 0, () => 1), 400);
+});
+
+test('_stealthDelayMs: jitter simmetrico +/- attorno a base secondo rand', () => {
+  // rand=0.5 → delta 0 → base; rand=1 → +jitter; rand=0 → -jitter
+  assert.equal(_stealthDelayMs(400, 0.3, () => 0.5), 400, 'centro');
+  assert.equal(_stealthDelayMs(400, 0.3, () => 1), Math.round(400 + 400 * 0.3), 'estremo alto = base+30%');
+  assert.equal(_stealthDelayMs(400, 0.3, () => 0), Math.round(400 - 400 * 0.3), 'estremo basso = base-30%');
+});
+
+test('_stealthDelayMs: resta nella banda [base*(1-j), base*(1+j)] e mai negativo', () => {
+  for (const rnd of [0, 0.1, 0.37, 0.5, 0.83, 1]) {
+    const d = _stealthDelayMs(400, 0.3, () => rnd);
+    assert.ok(d >= 280 && d <= 520, `dentro banda (${d})`);
+    assert.ok(d >= 0);
+  }
+  // jitter alto non porta mai sotto zero
+  assert.ok(_stealthDelayMs(100, 1, () => 0) >= 0);
 });

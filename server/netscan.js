@@ -120,6 +120,20 @@ async function _pingHostRetry(ip, timeoutMs = 800, tries = 2, _ping = _pingHost,
   return false;
 }
 
+// Pacing "stealth" anti-IDS per la base sweep: ritardo tra i probe con JITTER. Un intervallo
+// FISSO e' esso stesso una firma rilevabile (cadenza regolare) → il jitter lo spezza. Usato
+// insieme alla SERIALIZZAZIONE (concorrenza 1): il packet-rate non spike, quindi le soglie
+// rate-based dell'IDS (sfPortscan/rate rule) non scattano — il profilo "polite"/T2 di nmap.
+//   base = ms del ritardo · jitterPct = frazione 0..1 (default 0.3 = +/-30%) · rand iniettabile.
+// Ritorna un intero >= 0 (0 se base<=0 → pacing disattivato = comportamento veloce invariato).
+function _stealthDelayMs(base, jitterPct = 0.3, rand = Math.random) {
+  const b = Math.max(0, parseInt(base, 10) || 0);
+  if (!b) return 0;
+  const j = Math.max(0, Math.min(Number.isFinite(+jitterPct) ? +jitterPct : 0.3, 1));
+  const delta = b * j * (rand() * 2 - 1);   // +/- jitterPct attorno a base
+  return Math.max(0, Math.round(b + delta));
+}
+
 function _normMac(mac) {
   // Windows usa '-' come separatore. macOS/BSD `arp` invece stampa i MAC TOGLIENDO gli
   // zeri iniziali di ogni ottetto (es. "0:1c:42:8:b:9" per "00:1C:42:08:0B:09"): senza
@@ -494,4 +508,4 @@ async function _deepIdentityScanHost(ip, safe, timeoutMs) {
   return { services, netbios, smbShares };
 }
 
-module.exports = { expandSubnet, _execFileAsync, _pingHost, _pingResultIsAlive, _pingHostRetry, _normMac, _parseArpTable, _parseNeighbors, _readArpMap, _ipToNum, _demoteStaleArpDup, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost };
+module.exports = { expandSubnet, _execFileAsync, _pingHost, _pingResultIsAlive, _pingHostRetry, _stealthDelayMs, _normMac, _parseArpTable, _parseNeighbors, _readArpMap, _ipToNum, _demoteStaleArpDup, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost };
