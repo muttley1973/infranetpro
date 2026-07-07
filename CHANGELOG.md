@@ -2,6 +2,21 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-07 — Topology crawl polls devices in parallel (IDS-aware), same result
+
+### Changed
+- **The LLDP/CDP topology crawl polled one device at a time**, so a single slow or unreachable device stalled the whole crawl and the wall-clock was the *sum* of every device's probe+poll time. The neighbour-expansion phase now runs as a **level-synchronised BFS with a bounded worker pool** (`server/crawl-bfs.js`, extracted from the SSE route and unit-tested): devices at the same BFS depth are probed/polled concurrently, then a barrier processes the results **in deterministic IP order** — so dedup-by-`sysName` and first-discoverer wins are stable and `pool=1` and `pool=N` produce **identical output** (proven by a unit test with skewed latencies and live on the lab: same device set at pool 1 vs 4). This is the *deep* phase only — polling of already-discovered, authenticated SNMP agents, which is not a scan signature; the base host-discovery sweep is unchanged and stays sequential/paced (**anti-IDS**). The pool is **`CRAWL_POOL` (default 4, 1-32)** — deliberately low so the socket footprint equals the pool (Raspberry-friendly) and because lab measurements show the returns knee at ~4-6 (the floor is the slowest single device). Measured ~1.3-4x faster depending on device count and how many are slow/dead. `server/crawl-bfs.js` (new, +11 tests), `server/routes/discovery.js`.
+
+## 2026-07-07 — Topology build is up to ~28x faster on large networks (no output change)
+
+### Changed
+- **Building the topology overlay was O(n^3) and became slow on large networks** (measured ~4 s per build at ~1900 nodes; it runs on every topology toggle/hover). `buildTopoLines` looked up nodes/racks/links with linear scans *inside* its loops, and the floor-to-rack fan-out filtered the whole node list once per rack — so cost grew with racks x links x nodes. It now builds O(1) index maps (`nodeById`/`rackById`/`linkById`), a per-rack node index reused by the fan-out and the rack-to-rack confirmation, and an index for the LLDP/CDP topo nodes. Same inputs -> **byte-identical output** (guarded by the golden render test + the `topo-lines` unit suite; `pairs`/`fanout` counts unchanged). Measured on synthetic networks: 480 nodes 60->10 ms, 960 nodes 578->38 ms, 1920 nodes 4066->145 ms (~28x). Pure refactor, no behavior/quality change. `lib/topo-lines.js`.
+
+## 2026-07-07 — Topology crawl is faster: SNMP walk retry scoped to the FDB, default lowered
+
+### Changed
+- **The topology-discovery crawl got noticeably slower after the adaptive walk-retry fix — this reins it back in without losing the macsuck cure.** The retry (which re-runs a timed-out SNMP walk with the GETBULK size halved) is what fixed macsuck dropping port badges, but it applied to *every* walk in the neighbour poll — FDB **and** LLDP/CDP/ARP — so on slow agents (typically the virtual lab devices) each timed-out base cost up to 3× its timeout. Two changes: (1) in the crawl the retry is now **restricted to the FDB group only** (`FDB_RETRY_BASES` — the dot1d/dot1q forwarding tables **and** the bridge-port→ifIndex map; these are the only walks whose truncation leaves MACs unplaced), so LLDP/CDP/ARP that time out now fail fast instead of retrying; (2) the default retry count is **lowered from 2 to 1** — the first halved-reps pass recovers nearly every truncation, while the second quartered pass added real crawl time for a marginal gain. Healthy devices still pay nothing. Also fixes a latent bug where `SNMP_WALK_RETRIES=0` did **not** disable retries (the old `|| 2` fallback treated `0` as unset); `0` now truly disables. Tunable via `SNMP_WALK_RETRIES` (`0`–`5`) and `SNMP_WALK_CONCURRENCY`. `drivers/snmp.js` (+3 unit tests).
+
 ## 2026-07-06 — Device MAC shown for SNMP infrastructure in the Properties panel
 
 ### Fixed

@@ -285,8 +285,14 @@ is VPN/LAN.
   in `_runWalks` (`drivers/snmp.js`): a **timed-out** walk is retried on the same base with
   `max-repetitions` **halved** (25 → 12 → 6, floor `WALK_MIN_REPS`) + backoff — the netdisco bulkwalk-retry
   strategy. Idempotent (`oid→value`, a retry overwrites partials); healthy devices never retry; a
-  deliberate loop/runaway abort is not retried. `SNMP_WALK_RETRIES` (default 2). Pure-ish + unit-tested
-  with a mock session.
+  deliberate loop/runaway abort is not retried. `SNMP_WALK_RETRIES` (default **1** — the first
+  halved-reps retry recovers nearly all truncations; a second quartered pass cost real crawl time
+  for a marginal gain; `0` truly disables). **Crawl scope (2026-07-07):** in `pollNeighbors` the retry
+  is restricted to the **FDB group** (`FDB_RETRY_BASES` — dot1d/dot1q FDB + the bridge-port→ifIndex
+  map), the only family whose truncation breaks macsuck; LLDP/CDP/ARP that time out fail immediately
+  instead of paying repeated timeouts (they only cost fewer neighbours/hosts, not a badge bug). Other
+  callers (`poll`/printer/host-resources/`walkSession`) pass no scope → every base still retries.
+  Pure-ish + unit-tested with a mock session.
 - **Vendor recognition — full IANA PEN + IEEE OUI registries (2026-07-04).** Two bundled,
   refreshable datasets back vendor resolution, so a new device is recognized without a code
   change (the fix to a recurring "vendor X is missing" class of reports):
@@ -339,6 +345,17 @@ is VPN/LAN.
   - **Crawl heartbeat (UX).** The LLDP/CDP expansion is long (SNMP poll per switch +
     macsuck at the end); the Scansiona button shows "Espansione…" + spinner and the
     progress line updates per probed device (+ located count) so it doesn't look frozen.
+  - **Crawl orchestration — level-synchronised parallel BFS (2026-07-07).** The
+    neighbour-expansion BFS was extracted from the SSE route into `server/crawl-bfs.js`
+    (`crawlNetwork`, probe/pollNeighbors **injected** → unit-tested with zero network).
+    It processes each BFS depth-level with a **bounded worker pool**, then a barrier
+    updates order-dependent state (`seenName` dedup, `discoveredBy`, `results`) iterating
+    the frontier **sorted by IP** → deterministic: `pool=1` and `pool=N` give identical
+    output (unit test with skewed latencies + live lab: same device set at pool 1 vs 4).
+    Only the *deep* phase parallelises (authenticated SNMP polling of discovered devices —
+    not a scan signature); the base host sweep stays sequential/paced (**anti-IDS**).
+    Pool = `CRAWL_POOL` (default **4**, clamp 1-32): low on purpose — socket footprint =
+    pool (Raspberry-friendly) and the lab returns-knee is ~4-6 (floor = slowest device).
 - **Discovery engine — DHCP-as-source + macsuck device location (2026-07-04).**
   Two "see it without a ping" additions, from live testing (Synology DHCP + a Zyxel GS1900):
   - **DHCP leases as a discovery source.** The sweep route (`/api/discover`) accepts
