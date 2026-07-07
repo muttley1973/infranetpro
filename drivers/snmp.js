@@ -78,7 +78,14 @@ const WALK_MAX_VARBINDS = Math.max(2000, parseInt(process.env.SNMP_MAX_VARBINDS,
 //   (GETBULK piu' piccole = meno pressione sull'agente) + un piccolo backoff. I device
 //   sani non pagano nulla; quelli lenti degradano in velocita' invece di FALLIRE. Un abort
 //   deliberato (loop/runaway) NON si ritenta. Idempotente sul risultato (oid->value).
-const WALK_RETRIES  = Math.max(0, Math.min(parseInt(process.env.SNMP_WALK_RETRIES, 10) || 2, 5));
+//   Default 1 (un solo retry a max-reps dimezzato: e' il tentativo che recupera la
+//   quasi-totalita' dei troncamenti; il 2o giro a max-reps quartato aggiungeva molto
+//   tempo per un guadagno marginale). Nel crawl il retry e' inoltre RISTRETTO al solo
+//   gruppo FDB (vedi FDB_RETRY_BASES) — la sola famiglia il cui troncamento rompe la
+//   macsuck. Manopola SNMP_WALK_RETRIES (0 = disabilita davvero; Number.isFinite cosi'
+//   che "0" non ricada sul default come faceva il vecchio `|| 2`).
+const _walkRetriesEnv = parseInt(process.env.SNMP_WALK_RETRIES, 10);
+const WALK_RETRIES  = Math.max(0, Math.min(Number.isFinite(_walkRetriesEnv) ? _walkRetriesEnv : 1, 5));
 const WALK_MIN_REPS = 5;
 
 // Confronto OID per archi NUMERICI: `a` strettamente maggiore di `b`?
@@ -98,8 +105,14 @@ function _oidGt(a, b) {
 //  (a) l'OID NON cresce strettamente → walk-loop classico (agente ripete un OID);
 //  (b) si superano WALK_MAX_VARBINDS → runaway a OID crescenti (es. agente senza
 //      endOfMibView). Senza, un singolo device guasto può appendere /api/poll.
-async function _runWalks(session, bases, result, label, concurrency = WALK_CONCURRENCY) {
+async function _runWalks(session, bases, result, label, concurrency = WALK_CONCURRENCY, opts = {}) {
   let errCount = 0;
+  // retryBases (Set|null): quali basi possono RITENTARE in timeout. null = TUTTE
+  // (compat storica: poll/printer/hostres/walkSession → invariati). Il crawl passa
+  // SOLO il gruppo FDB (FDB_RETRY_BASES): e' l'unica famiglia il cui troncamento
+  // rompe la macsuck. LLDP/CDP/ARP troncati danno al piu' meno vicini/host, non il
+  // bug dei badge → falliscono subito, senza pagare 2-3 timeout ciascuno nel crawl.
+  const retryBases = opts.retryBases || null;
   // Una singola passata di subtree su `base`. Ritorna { err, aborted, count };
   // accumula i varbind validi in `result` (idempotente: oid→value → una ri-prova
   // sovrascrive/completa i parziali della passata precedente senza duplicare).
@@ -124,14 +137,17 @@ async function _runWalks(session, bases, result, label, concurrency = WALK_CONCU
   // Retry adattivo (vedi commento WALK_RETRIES): SOLO i timeout si ritentano, con
   // max-reps dimezzato + backoff; un abort deliberato (loop/runaway) no.
   const walkOne = async base => {
+    // Cap retry PER-BASE: fuori dal set retryBases (quando fornito) → 0 = fallisce
+    // subito, nessun timeout ripetuto. Dentro il set (o retryBases=null) → WALK_RETRIES.
+    const maxRetries = (retryBases && !retryBases.has(base)) ? 0 : WALK_RETRIES;
     let maxReps = WALK_MAX_REPS;
     for (let attempt = 0; ; attempt++) {
       const { err, aborted, count } = await walkPass(base, maxReps);
       if (aborted) { snmpWarn(`  [${label}] subtree ${base}: walk interrotta (loop/runaway, ~${count} varbind)`); errCount++; return; }
       if (!err) return;                                    // completata
-      if (attempt >= WALK_RETRIES) { snmpWarn(`  [${label}] subtree ${base}: ${err.message} (${attempt + 1} tentativi falliti)`); errCount++; return; }
+      if (attempt >= maxRetries) { snmpWarn(`  [${label}] subtree ${base}: ${err.message} (${attempt + 1} tentativi falliti)`); errCount++; return; }
       const next = Math.max(WALK_MIN_REPS, maxReps >> 1);
-      snmpWarn(`  [${label}] subtree ${base}: ${err.message} → retry ${attempt + 1}/${WALK_RETRIES} @ max-reps ${next}`);
+      snmpWarn(`  [${label}] subtree ${base}: ${err.message} → retry ${attempt + 1}/${maxRetries} @ max-reps ${next}`);
       maxReps = next;
       await new Promise(r => setTimeout(r, 120 * (attempt + 1)));
     }
@@ -1336,6 +1352,18 @@ const N_OID = {
 
 const NEIGHBOR_OIDS = Object.values(N_OID);
 
+// Gruppo FDB/bridge: le UNICHE basi il cui troncamento sotto carico crawl rompe la
+// macsuck (MAC senza porta → il sintomo "0 badge"). Meritano il retry adattivo:
+//  - la tabella FDB dot1d (fdbPort/fdbStatus) e dot1q (qfdbPort/qfdbStatus): MAC→porta;
+//  - la mappa bridge-port→ifIndex (bridgePortIf): traduce la porta-bridge nell'interfaccia
+//    reale — se si tronca QUESTA, i MAC restano orfani anche con la FDB completa.
+// LLDP/CDP (vicini) e ARP, se si troncano, danno al piu' meno link/host off-segment,
+// NON il bug dei badge → restano FUORI dal retry (falliscono subito, senza moltiplicare
+// i timeout nel crawl). OID standard BRIDGE-MIB / Q-BRIDGE-MIB → vendor-neutral.
+const FDB_RETRY_BASES = new Set([
+  N_OID.bridgePortIf, N_OID.fdbPort, N_OID.fdbStatus, N_OID.qfdbPort, N_OID.qfdbStatus,
+]);
+
 async function walkNeighbors(session) {
   const result = {};
   // Fail-fast sulla raggiungibilità (come walkSession): se sysName non
@@ -1344,7 +1372,8 @@ async function walkNeighbors(session) {
   const hasSysName = Object.keys(result).some(oid => oid.startsWith(N_OID.sysName + '.'));
   if (!hasSysName) return result; // device giù → nessun vicino (gestito a monte)
   const rest = NEIGHBOR_OIDS.filter(b => b !== N_OID.sysName);
-  await _runWalks(session, rest, result, 'SNMP-NBR');
+  // Retry SOLO sul gruppo FDB: LLDP/CDP/ARP nel bundle non ritentano (vedi FDB_RETRY_BASES).
+  await _runWalks(session, rest, result, 'SNMP-NBR', WALK_CONCURRENCY, { retryBases: FDB_RETRY_BASES });
   return result;
 }
 
@@ -1826,5 +1855,5 @@ module.exports._internals = {
   logicalLagIdFromName, lastIdx, extractData, extractEntityInventory,
   extractSystem, _formatUptime, extractPrinter, _supplyColorKey,
   extractHostResources, _isPathPrefix, OID, PRT_OID, HR_OID, _oidGt,
-  _v3RemoteEngineDiscovered, _runWalks,
+  _v3RemoteEngineDiscovered, _runWalks, FDB_RETRY_BASES,
 };
