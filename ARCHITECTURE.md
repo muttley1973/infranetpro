@@ -395,6 +395,15 @@ is VPN/LAN.
     false → it weighs as ARP in scoring, not a fake ping), so ICMP-filtered hosts appear too.
     Cross-subnet is safe — the local ARP cache holds only the gateway for off-segment IPs, so no
     false positives. `server/routes/discovery.js`.
+  - **Stealth (anti-IDS) pacing — opt-in (2026-07-07).** The base sweep pings *unknown* IPs, the
+    one phase with a scan signature that can trip a rate-based IDS/IPS on the network being
+    documented. `POST /api/discover` with `stealth: true` (or `scanDelay: <ms>`) **serialises** the
+    sweep (concurrency 1) and spaces probes by a **jittered** delay (default 400 ms ±30% — a fixed
+    interval is itself a detectable cadence) — nmap's polite/T2 profile. Enrichment/deep are also
+    serialised. It covers **only** the base sweep; the deep/LLDP-CDP polling of already-known
+    authenticated devices stays parallel (`CRAWL_POOL`) as it isn't a scan signature. Default is
+    unchanged (fast/parallel). No hosts lost (same alive set on vs off, validated live). Pure
+    `_stealthDelayMs` (jitter, injectable rand) in `server/netscan.js` + unit tests.
   - **Pre-selection gated on confidence (15%).** A ping-only phantom (the exit-code artifact
     below) scores ~10% (only the `reachability` evidence); anything real starts at ~20% (a bare
     ARP MAC is ≈22%, SNMP ≥57%) — the bands don't overlap, verified with the real scorer on the

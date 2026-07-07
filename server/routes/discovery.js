@@ -9,7 +9,7 @@ const os  = require('os');
 const auth = require('../../auth');
 const { DRIVERS } = require('../drivers');
 const { buildNeighborCandidates, buildPortIndex, buildMacIndex, buildPortMacIndex, buildFdbCandidates, buildArpCandidates, locateMacsOnEdge } = require('../../lib/correlate');
-const { expandSubnet, _execFileAsync, _pingHost, _pingHostRetry, _normMac, _parseArpTable, _readArpMap, _demoteStaleArpDup, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost } = require('../netscan');
+const { expandSubnet, _execFileAsync, _pingHost, _pingHostRetry, _stealthDelayMs, _normMac, _parseArpTable, _readArpMap, _demoteStaleArpDup, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost } = require('../netscan');
 const { _cleanHostname, PEN_VENDOR, _penFromObjectId, _vendorByObjectId, _decodeSysServices, _classifyDiscoveredDevice, _buildDiscoveryMeta, _decorateDiscoveryRow } = require('../classify');
 const { OuiEngine } = require('../../engine');
 const dhcpDrivers = require('../dhcp-drivers');
@@ -199,6 +199,15 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
     // opt-in via `pingRetries` (1-4) per path patologici (es. lab cross-subnet
     // rate-limited dove l'ARP-SNMP non copre).
     const pingTries = Math.max(1, Math.min(parseInt(req.body?.pingRetries, 10) || 1, 4));
+    // Modalita' STEALTH (anti-IDS): OPT-IN, default OFF → comportamento veloce invariato.
+    // SERIALIZZA la base sweep (concorrenza 1) e distanzia i probe con JITTER, cosi' il
+    // packet-rate non fa un picco e non scattano le soglie rate-based dell'IDS (profilo
+    // "polite"/T2 di nmap). Vale SOLO per la base sweep di IP SCONOSCIUTI — la fase con
+    // firma di scansione; il crawl/deep su device gia' noti resta parallelo (CRAWL_POOL),
+    // che non e' una firma. Attivabile con { stealth:true } o { scanDelay:<ms> }.
+    const stealth = String(req.body?.stealth) === 'true' || parseInt(req.body?.scanDelay, 10) > 0;
+    const scanDelayMs = stealth ? Math.max(50, Math.min(parseInt(req.body?.scanDelay, 10) || 400, 5000)) : 0;
+    const sweepConc = stealth ? 1 : CONC;   // 1 = serializzato → uccide la firma di scan
     const total = ips.length;
     const rows = ips.map(ip => ({
       ip,
@@ -222,9 +231,9 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
       smbShares: [],
     }));
 
-    // 1) Ping sweep
-    for (let i = 0; i < total; i += CONC) {
-      const batch = ips.slice(i, i + CONC);
+    // 1) Ping sweep (stealth → serializzato + scan-delay con jitter; altrimenti a batch)
+    for (let i = 0; i < total; i += sweepConc) {
+      const batch = ips.slice(i, i + sweepConc);
       const results = await Promise.all(batch.map(ip => _pingHostRetry(ip, pingTimeoutMs, pingTries).catch(() => false)));
       results.forEach((ok, idx) => {
         const ip = batch[idx];
@@ -234,9 +243,11 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
         row.alive = !!ok;
         row.status = ok ? 'On' : 'Inattivo';
       });
-      if (interBatchDelayMs > 0 && i + CONC < total) {
-        const jitter = Math.floor(Math.random() * 60);
-        await new Promise(r => setTimeout(r, interBatchDelayMs + jitter));
+      if (i + sweepConc < total) {
+        const gap = stealth
+          ? _stealthDelayMs(scanDelayMs, 0.3)                                   // anti-IDS: ritardo jitterato
+          : (interBatchDelayMs > 0 ? interBatchDelayMs + Math.floor(Math.random() * 60) : 0);
+        if (gap > 0) await new Promise(r => setTimeout(r, gap));
       }
     }
 
@@ -263,7 +274,7 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
     // 3) Enrichment solo sui candidati: ping OK o MAC visto in ARP.
     // Questo evita che una /24 resti bloccata per minuti su IP inesistenti.
     const scanRows = rows.filter(r => r.alive || r.mac);
-    const enrichConc = safe ? 8 : 16;
+    const enrichConc = stealth ? 2 : (safe ? 8 : 16);   // stealth: enrichment gentile sui candidati
     for (let i = 0; i < scanRows.length; i += enrichConc) {
       const batch = scanRows.slice(i, i + enrichConc);
       await Promise.all(batch.map(async row => {
@@ -330,7 +341,7 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
 
     const useDeepScan = String(deepScan) === 'true' || deepScan === true;
     if (useDeepScan && scanRows.length) {
-      const deepConc = safe ? 3 : 6;
+      const deepConc = stealth ? 1 : (safe ? 3 : 6);   // stealth: deep-scan serializzato
       const deepTimeoutMs = safe ? 850 : 650;
       for (let i = 0; i < scanRows.length; i += deepConc) {
         const batch = scanRows.slice(i, i + deepConc);
@@ -422,7 +433,7 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
 
     const found = results.filter(r => r.alive).length;
     console.log(`  [DISCOVER] ${subnet}: scansionati ${total}, candidati ${results.length}, attivi ${found}, safe=${safe}, conc=${CONC}`);
-    res.json({ ok: true, total, found, seen: results.length, results, safeMode: safe, concurrencyUsed: CONC });
+    res.json({ ok: true, total, found, seen: results.length, results, safeMode: safe, concurrencyUsed: sweepConc, stealth, scanDelayMs });
   } catch (err) {
     const msg = err?.message || String(err);
     console.error(`  [DISCOVER] errore non fatale: ${msg}`);

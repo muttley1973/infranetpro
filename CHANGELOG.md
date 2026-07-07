@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-07 — Optional stealth (anti-IDS) pacing for the base subnet sweep
+
+### Added
+- **A stealth mode for the subnet scan that stays under an IDS's radar.** The base host-discovery sweep (pinging a whole subnet of *unknown* IPs) is the one phase with a scan signature: fired fast and in parallel it can trip a rate-based IDS/IPS on the very network you're documenting. Stealth mode (**opt-in**, `POST /api/discover` with `stealth: true` or `scanDelay: <ms>`) **serialises the sweep** (concurrency 1) and **spaces each probe by a jittered delay** (default 400 ms, ±30% — a *fixed* interval is itself a detectable cadence, so the jitter breaks it), the "polite"/T2 profile nmap uses to avoid tripping detectors. It applies **only** to the base sweep of unknown IPs; the deep/LLDP-CDP polling of already-discovered, authenticated SNMP devices stays parallel (`CRAWL_POOL`) since targeted polling of known hosts is not a scan signature. Default is unchanged (fast, parallel). No hosts are lost — validated live: same alive hosts found with stealth on vs off, only slower. New pure `_stealthDelayMs(base, jitterPct, rand)` in `server/netscan.js` (+4 unit tests); `server/routes/discovery.js`.
+
 ## 2026-07-07 — Topology crawl polls devices in parallel (IDS-aware), same result
 
 ### Changed
