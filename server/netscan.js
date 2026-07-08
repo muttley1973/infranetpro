@@ -624,7 +624,8 @@ async function _mdnsSsdpSweep(opts = {}) {
 
   await new Promise(resolve => {
     let settled = false;
-    const finish = () => { if (settled) return; settled = true; closeAll(); resolve(); };
+    let timer = null;
+    const finish = () => { if (settled) return; settled = true; if (timer) clearTimeout(timer); closeAll(); resolve(); };
     // mDNS: bind 5353 + join the group so multicast responses are received.
     try {
       const m = createSocket({ type: 'udp4', reuseAddr: true });
@@ -672,7 +673,13 @@ async function _mdnsSsdpSweep(opts = {}) {
         try { const q = buildWsDiscoveryProbe(opts.wsdMessageId); w.send(q, 0, q.length, WSD_PORT, WSD_ADDR); } catch (_) {}
       });
     } catch (_) {}
-    setTimeout(finish, deadlineMs).unref?.();
+    // Deadline: finestra di ascolto a tempo. NON usare .unref() qui: questo timer E'
+    // il meccanismo che risolve la Promise. Se fosse unref'd e restasse l'unico handle
+    // del loop (path a socket INIETTATI nei test: nessun handle reale), il loop
+    // uscirebbe senza attenderlo -> finish mai chiamato -> Promise mai risolta ->
+    // in node:test i test pendenti diventano "cancelled" (CI Node 18/20). In produzione
+    // i socket UDP reali tengono comunque vivo il loop, quindi non e' emerso finora.
+    timer = setTimeout(finish, deadlineMs);
   });
 
   // Best-effort: dereference SSDP LOCATIONs (unicast) for manufacturer/model.
