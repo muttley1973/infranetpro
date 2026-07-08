@@ -229,6 +229,7 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
       netbiosName: '',
       netbiosGroup: '',
       smbShares: [],
+      cast: false,
     }));
 
     // 1) Ping sweep (stealth → serializzato + scan-delay con jitter; altrimenti a batch)
@@ -381,6 +382,14 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
             }
             if (Array.isArray(deep.smbShares) && deep.smbShares.length) {
               row.smbShares = deep.smbShares;
+              row.alive = true;
+              row.status = 'On';
+            }
+            if (deep.cast && deep.cast.cast) {
+              // Confermato device Google Cast (protocollo, vendor-neutral): media
+              // player / TV. Il nome "friendly" del device diventa hostname se manca.
+              row.cast = true;
+              if (deep.cast.name && !row.hostname) row.hostname = _cleanHostname(deep.cast.name);
               row.alive = true;
               row.status = 'On';
             }

@@ -271,6 +271,13 @@ const PARITY_CASES = [
   { label: 'Daikin AzureWave IoT',              row: { vendor: 'AzureWave', mac: 'AC:83:F3:00:11:22', hostname: 'daikin-AP' } },
   { label: 'Chromecast',                        row: { vendor: 'Google', hostname: 'Chromecast' } },
   { label: 'ArubaCX switch',                    row: { descr: 'Aruba CX 6300', objectId: '1.3.6.1.4.1.14823.1.3', snmpReachable: true, sysServices: 2 } },
+  { label: 'Google Cast device (probe)',        row: { vendor: 'NVIDIA', hostname: 'SHIELD', cast: true, services: [{ port: 8008 }] } },
+  { label: 'Zyxel switch by banner (not OUI)',  row: { mac: 'bc:cf:4f:00:00:10', vendor: 'Zyxel', httpTitle: 'Intelligent Switch' } },
+  { label: 'Android tablet fingerprint',        row: { vendor: 'Huawei', mac: 'f4:bf:80:11:22:33' } },
+  { label: 'iPhone by hostname',                row: { hostname: 'iPhone-di-Anna', vendor: 'Apple' } },
+  { label: 'Arista L3 switch (sysObjectID)',    row: { objectId: '1.3.6.1.4.1.30065.1.2759', descr: 'Arista Networks EOS running on vEOS', sysServices: 2 | 4 | 8, snmpReachable: true, hostname: 'lab-switch' } },
+  { label: 'Cisco WLAN controller',             row: { objectId: '1.3.6.1.4.1.9.1.1631', descr: 'Cisco Controller', sysServices: 2, snmpReachable: true } },
+  { label: 'Cisco IOS switch (not Apple iOS)',  row: { descr: 'Cisco IOS Software, vios_l2', sysServices: 2, snmpReachable: true } },
 ];
 
 for (const { label, row } of PARITY_CASES) {
@@ -300,4 +307,76 @@ test('DEFAULT_PRIORITY is exported and stable', () => {
   assert.ok(Array.isArray(DEFAULT_PRIORITY));
   assert.equal(DEFAULT_PRIORITY[0], 'firewall');
   assert.equal(DEFAULT_PRIORITY[DEFAULT_PRIORITY.length - 1], 'pc');
+  assert.ok(DEFAULT_PRIORITY.includes('mobile'), 'mobile type registered in priority');
+});
+
+// -------- Vendor-neutral classification rules (driven by a real LAN scan) -----
+// The identity of the MAC vendor is a CANDIDATE, never the device type; the type is
+// decided by the strongest MEASURED signal. These lock in that method generally, so
+// no per-vendor hack can creep back in.
+
+test('G1: an OUI vendor deviceType never outranks a measured banner', () => {
+  // Zyxel OUI (plugin default = router) but the web banner reads "Intelligent
+  // Switch": the measured banner (78) must beat the vendor-identity (<=45).
+  const r = _scoreDiscoveredDevice({ mac: 'bc:cf:4f:00:00:10', vendor: 'Zyxel', httpTitle: 'Intelligent Switch', alive: true });
+  assert.equal(r.deviceType, 'switch');
+  // Zyxel gateway (banner names no model) stays router via the gateway-ip rule.
+  const gw = _scoreDiscoveredDevice({ ip: '192.168.1.1', mac: 'bc:cf:4f:00:00:01', vendor: 'Zyxel', httpTitle: 'Web-Based Configurator', alive: true });
+  assert.equal(gw.deviceType, 'router');
+});
+
+test('G2: Google Cast (probe or control ports) classifies as tv, vendor-neutral', () => {
+  assert.equal(_scoreDiscoveredDevice({ vendor: 'Google', cast: true, services: [{ port: 8008 }, { port: 8009 }], alive: true }).deviceType, 'tv');
+  assert.equal(_scoreDiscoveredDevice({ vendor: 'NVIDIA', cast: true, services: [{ port: 445 }, { port: 8008 }], alive: true }).deviceType, 'tv');
+  // cast control ports alone (no probe) still lean tv
+  assert.equal(_scoreDiscoveredDevice({ services: [{ port: 8008 }, { port: 8009 }], alive: true }).deviceType, 'tv');
+});
+
+test('G3: Android/iOS fingerprint classifies as mobile; a Mac stays pc', () => {
+  assert.equal(_scoreDiscoveredDevice({ hostname: 'iPhone-di-Mario', vendor: 'Apple', alive: true }).deviceType, 'mobile');
+  assert.equal(_scoreDiscoveredDevice({ vendor: 'Huawei', mac: 'f4:bf:80:11:22:33', alive: true }).deviceType, 'mobile');
+  assert.equal(_scoreDiscoveredDevice({ descr: 'Android', alive: true }).deviceType, 'mobile');
+  assert.equal(_scoreDiscoveredDevice({ hostname: 'MacBook-Pro', vendor: 'Apple', alive: true }).deviceType, 'pc');
+});
+
+test('G4: no measured signal caps confidence; a measured signal does not', () => {
+  const guess = _scoreDiscoveredDevice({ vendor: 'Huawei', mac: 'f4:bf:80:44:55:66', alive: true });
+  assert.ok(guess.confidence <= 60, `vendor/OS-only guess must be honest, got ${guess.confidence}`);
+  const measured = _scoreDiscoveredDevice({ vendor: 'Synology', httpTitle: 'Synology DiskStation', services: [{ port: 5000 }], alive: true });
+  assert.ok(measured.confidence > 60, `a measured signal must not be capped, got ${measured.confidence}`);
+});
+
+test('G5: L2+L3 is a multilayer switch, not a router (sysServices)', () => {
+  // Arista vEOS reports L2+L3(+L4); with an Arista sysObjectID plugin -> switch, high conf.
+  const arista = _scoreDiscoveredDevice({ objectId: '1.3.6.1.4.1.30065.1.2759', descr: 'Arista Networks EOS running on vEOS', sysServices: 2 | 4 | 8, snmpReachable: true, hostname: 'lab-switch' });
+  assert.equal(arista.deviceType, 'switch');
+  assert.ok(arista.confidence >= 90, `Arista should be confidently a switch, got ${arista.confidence}`);
+  // A PURE L3 device (no L2) is still a router.
+  assert.equal(_scoreDiscoveredDevice({ sysServices: 4, snmpReachable: true }).deviceType, 'router');
+});
+
+test('G6: a WLAN controller classifies as wlanctrl, not switch (vendor-neutral)', () => {
+  // Cisco AireOS: sysDescr "Cisco Controller", sysServices L2, Cisco OID.
+  assert.equal(_scoreDiscoveredDevice({ objectId: '1.3.6.1.4.1.9.1.1631', descr: 'Cisco Controller', sysServices: 2, snmpReachable: true }).deviceType, 'wlanctrl');
+  // Not brand-locked: an Aruba mobility controller too.
+  assert.equal(_scoreDiscoveredDevice({ descr: 'ArubaOS Mobility Controller', snmpReachable: true }).deviceType, 'wlanctrl');
+});
+
+test('G7: Cisco IOS is not mistaken for Apple iOS (mobile)', () => {
+  const r = _scoreDiscoveredDevice({ descr: 'Cisco IOS Software, vios_l2', sysServices: 2, snmpReachable: true });
+  assert.notEqual(r.deviceType, 'mobile');
+  assert.equal(r.deviceType, 'switch');
+});
+
+// SNMP::Info-derived sysObjectID coverage (canonical lib/device-signatures.js): a
+// single-purpose vendor with NO dedicated plugin is recognized from its sysObjectID.
+test('G8: SNMP::Info sysObjectID coverage for plugin-less vendors', () => {
+  assert.equal(_scoreDiscoveredDevice({ objectId: '1.3.6.1.4.1.2620.1.1', sysServices: 4, snmpReachable: true }).deviceType, 'firewall'); // Check Point
+  assert.equal(_scoreDiscoveredDevice({ objectId: '1.3.6.1.4.1.25506.1', sysServices: 2, snmpReachable: true }).deviceType, 'switch');   // H3C
+  assert.equal(_scoreDiscoveredDevice({ objectId: '1.3.6.1.4.1.14525.1', snmpReachable: true }).deviceType, 'wlanctrl');                  // Trapeze WLC
+  assert.equal(_scoreDiscoveredDevice({ objectId: '1.3.6.1.4.1.17163.1', snmpReachable: true }).deviceType, 'sdwan');                     // Steelhead
+  assert.equal(_scoreDiscoveredDevice({ objectId: '1.3.6.1.4.1.30803.1', sysServices: 4, snmpReachable: true }).deviceType, 'router');    // VyOS
+  assert.equal(_scoreDiscoveredDevice({ objectId: '1.3.6.1.4.1.476.1', snmpReachable: true }).deviceType, 'ups');                         // Liebert
+  // A measured banner still overrides the enterprise-level OID vote (vendor != type).
+  assert.equal(_scoreDiscoveredDevice({ objectId: '1.3.6.1.4.1.1916.2', descr: 'AXIS Network Camera', snmpReachable: true }).deviceType, 'webcam');
 });

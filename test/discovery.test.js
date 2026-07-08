@@ -359,6 +359,8 @@ test('_classifyDiscoveredDevice: IoT — Daikin condizionatore e lavatrice LG', 
   assert.equal(_classifyDiscoveredDevice({ descr:'LG ThinQ washer WM5000HVA', vendor:'LG Electronics', alive:true }), 'iot');
   // Variante con solo httpTitle ThinQ (caso reale: no SNMP, solo HTTP banner)
   assert.equal(_classifyDiscoveredDevice({ httpTitle:'LG ThinQ', vendor:'LG Electronics', alive:true }), 'iot');
-  // Chromecast
-  assert.equal(_classifyDiscoveredDevice({ hostname:'Chromecast-Audio', httpTitle:'Chromecast', vendor:'Google', alive:true }), 'iot');
+  // Chromecast / Google Cast -> media endpoint = tv (policy: ogni segnale Cast -> tv;
+  // il protocollo Cast e' vendor-neutral, come RTSP->camera). L'utente puo' correggere
+  // un cast audio-only a mano (manual-first).
+  assert.equal(_classifyDiscoveredDevice({ hostname:'Chromecast-Audio', httpTitle:'Chromecast', vendor:'Google', alive:true }), 'tv');
 });
