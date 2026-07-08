@@ -91,8 +91,8 @@ lib/                   Shared browser + test modules (the heart of the app)
                     ≥2 IPs = shared next-hop) + gatewayMacSet (documented L3 gateways)
                     → discovery skips by-MAC merge on those, no gateway collapse  (pure)
   device-signatures.js  canonical sysObjectID→type table (OID_TYPE_VOTES; oidTypeVotes/
-                    oidType/oidIsType) — single source read by the fusion scorer, the
-                    legacy classifier AND the client _guessType (no OID drift)  (pure)
+                    oidType/oidIsType) — single source read by the fusion scorer AND
+                    the client _guessType (no OID drift)  (pure)
   radio.js          radio interfaces: pid/anchor/linkKind/seeds       (pure)
   vlan-trunk.js     carriedVlans + effLinkVlans (trunk derivato)       (pure)  …
                        (PURE only — the ex-`lib/app-*.js` GLUE now lives in src/)
@@ -424,7 +424,9 @@ is VPN/LAN.
     port 445 + enumerated shares (or RDP/WSD) and **no** print ports (9100/515/631) → `pc`, beating a
     printer-vendor NIC. The Discover UI now treats this server engine as the single source of truth
     (`serverAuthoritative` in `src/app-discovery.js`); the thin client `_guessType` only fills gaps.
-    `engine/fusion-scorer.js`, `server/classify.js` (legacy kept in parity).
+    `engine/fusion-scorer.js` is the single authoritative classifier (`server/classify.js` wraps it);
+    the in-line "legacy twin" was removed once the fusion path was proven, with the 55-device
+    `tests/classify-golden.test.js` as the behaviour freeze.
   - **Signal tiering — a measured signal always beats a vendor-identity inference (2026-07-07).** A
     per-vendor MAC-OUI plugin proposes a device-type *candidate* (Zyxel→router, D-Link→router, …); that
     guess used to be scored high enough (≤80) to beat a real banner/model/port signal, so a Zyxel box

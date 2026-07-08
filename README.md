@@ -733,9 +733,11 @@ The legacy `_classifyDiscoveredDevice` was a ~250-line monolith inside
   the full `scores` map and the `evidences` / `reasons` trail
 - **Tunable**: priority order, decision threshold, and a future `storage` seam
   for learned weights / per-tenant rule overrides
-- **Behavioural parity**: the legacy classifier is preserved as
-  `_classifyDiscoveredDeviceLegacy` and exercised by 14 parity tests against the
-  new engine — same input, same output
+- **Single authoritative path**: the fusion scorer is now the only classifier.
+  The in-line "legacy twin" (kept during rollout to prove parity) was removed once
+  the fusion path was confirmed; behaviour is frozen by the 55-device
+  `tests/classify-golden.test.js` plus a representative freeze in
+  `tests/fusion-scorer.test.js` — same input, same output
 
 ### Public API
 
@@ -1154,7 +1156,7 @@ See [integrations/ansible/README.md](integrations/ansible/README.md) for the ful
   - **Door Controller** (floor): platform (HID/Axis/Suprema/ZKTeco/Genetec/Paxton/BFT), managed doors, reader technology (Mifare/Prox/NFC/biometric/PIN), PoE, access-control VLAN
   - **Quadro elettrico** (floor passive): supply type (1ph 230 / 3ph 400 / 3ph 690 / DC -48), nominal current, DIN modules, upstream source, RCD/SPD flags, feeds-UPS flag — completes the electrical chain panelboard → UPS/ATS → PDU
 - [x] OUI intelligence engine — plugin-based, hot-reload, longest-prefix-wins with priority tie-break, compact trie lookup (~10× faster than Map probing). 32 seed plugins (virtual NICs / network / endpoint / IoT / NAS / printer / security) plus full IEEE database snapshot (~57k entries, MA-L + MA-M + MA-S + IAB) regenerable via `npm run update-oui`
-- [x] Fusion Scoring Engine — pure module `engine/fusion-scorer.js` that fuses sysObjectID, OUI, sysServices, TCP ports and hostname/banner regex into `{deviceType, confidence 10-99, alternatives, scores, evidences, reasons}`. 14 parity tests vs the legacy classifier
+- [x] Fusion Scoring Engine — pure module `engine/fusion-scorer.js` that fuses sysObjectID, OUI, sysServices, TCP ports and hostname/banner regex into `{deviceType, confidence 10-99, alternatives, scores, evidences, reasons}`. The single authoritative classifier (the in-line legacy twin was removed); behaviour frozen by the 55-device classification golden
 - [x] Virtual MAC filter in auto-link: Docker / VMware / Hyper-V / Xen / KVM MACs detected via OUI engine and excluded from suggested links and shared-segment thresholds. Payload exposes `physicalMacCount` + `virtualMacCount` breakdown
 - [x] Discovery freeze fix on LLDP crawl: signature check opt-out and lookup dedup
 - [x] Front panel: unified `oneBottom` flag (refactor of legacy `numberTop` + `oddTop` which were conceptually the same thing)
@@ -1230,7 +1232,7 @@ Coverage focuses on the pure, bug-prone logic that has historically broken:
 | Correlation primitives | `test/correlate.test.js` | `pairSig`, `matchNodeByIdent`, `findPortByIfName`, `buildPortIndex`, `buildMacIndex`, `buildNeighborCandidates`, `buildFdbCandidates` with virtual-MAC filter |
 | sysObjectID engine | `tests/sysobject-engine.test.js` | isolated instances, hot-reload add/remove, plugin failure isolation, longest-prefix-wins, seed catalog, OS fingerprints |
 | OUI engine | `tests/oui-engine.test.js` | longest-prefix-wins, plugin priority tie-break, trie lookup, IEEE database fallback, virtual / locally-administered / multicast helpers |
-| Fusion scorer | `tests/fusion-scorer.test.js` | behavioural parity with the legacy classifier across 14 real-device cases, plus structured output (`deviceType`, `confidence`, `alternatives`, `scores`, `evidences`, `reasons`) |
+| Fusion scorer | `tests/fusion-scorer.test.js` | G1–G8 vendor-neutral rules + a representative device-type freeze (21 real-device cases), plus structured output (`deviceType`, `confidence`, `alternatives`, `scores`, `evidences`, `reasons`) |
 | Front-panel state | `test/frontpanel.test.js` | `frontPanelState`/`frontPanelLegacyState` derivation: `oneBottom` flag, SFP count + position, MGMT count (0..4) + position + label, eligibility filter, back-compat reads for legacy `mgmtPort` boolean and pre-`baseLayout` projects |
 | Cable validation | `test/cable-validate.test.js` | `validateCable` smart compatibility rules (medium/category/connector, copper speed vs TIA-568, length incl. **Cat8 30 m reach**, PoE-on-fiber, native-VLAN mismatch, SNMP cross-checks) |
 | IPAM hygiene | `test/ipam-audit.test.js` | `buildIpamAudit` duplicate-IP detection + subnet-overlap (containment/identical/disjoint, invalid CIDR skipped) |
