@@ -5,7 +5,7 @@
 [![CI](https://github.com/muttley1973/infranetpro/actions/workflows/ci.yml/badge.svg)](https://github.com/muttley1973/infranetpro/actions/workflows/ci.yml)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D16-brightgreen?logo=node.js)](https://nodejs.org/)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2.0.2-orange)]()
+[![Version](https://img.shields.io/badge/version-2.0.3-orange)]()
 
 <p align="center">
   <b>InfraNet Pro is free and open source.</b> If it helps your work, you can buy me a coffee — it funds new features. ☕<br>
