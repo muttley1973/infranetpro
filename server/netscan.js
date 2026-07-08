@@ -8,7 +8,13 @@ const os    = require('os');
 const http  = require('http');
 const https = require('https');
 const net   = require('net');
+const dgram = require('dgram');
 const { execFile } = require('child_process');
+const {
+  buildMdnsQuery, buildSsdpQuery, buildWsDiscoveryProbe, buildOnvifGetDeviceInfo,
+  aggregateSweep, parseSsdpResponse, parseWsDiscovery,
+  MDNS_ADDR, MDNS_PORT, SSDP_ADDR, SSDP_PORT, WSD_ADDR, WSD_PORT, MDNS_DEFAULT_QUERIES,
+} = require('../lib/discovery-mdns');
 
 // ---- Subnet expansion -------------------------------------------------------
 
@@ -544,4 +550,170 @@ async function _deepIdentityScanHost(ip, safe, timeoutMs) {
   return { services, netbios, smbShares, cast };
 }
 
-module.exports = { expandSubnet, _execFileAsync, _pingHost, _pingResultIsAlive, _pingHostRetry, _stealthDelayMs, _normMac, _parseArpTable, _parseNeighbors, _readArpMap, _ipToNum, _demoteStaleArpDup, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _castProbe, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost };
+// Fetch bounded UPnP description XML (unicast HTTP GET of an SSDP LOCATION) for
+// manufacturer/model. Best-effort like _castProbe: never throws, size+time capped.
+function _fetchUpnpXml(locationUrl, timeoutMs = 1200) {
+  return new Promise(resolve => {
+    let done = false;
+    const fin = v => { if (!done) { done = true; resolve(v); } };
+    let u;
+    try { u = new URL(locationUrl); } catch (_) { return fin(null); }
+    if (u.protocol !== 'http:') return fin(null);   // le descrizioni UPnP sono HTTP
+    let body = '';
+    const req = http.get({ host: u.hostname, port: u.port || 80, path: (u.pathname || '/') + (u.search || ''), timeout: timeoutMs }, res => {
+      res.on('data', d => { body += d; if (body.length > 65536) req.destroy(); });
+      res.on('end', () => fin({ ip: u.hostname, xml: body }));
+    });
+    req.on('timeout', () => { req.destroy(); fin(null); });
+    req.on('error', () => fin(null));
+  });
+}
+
+// ONVIF GetDeviceInformation (SOAP POST) al device service di una telecamera, per il
+// MODELLO COMMERCIALE ("RLC-810A") che lo scope WS-Discovery non porta. Best-effort come
+// _fetchUpnpXml (mai lancia, size/time cap); NON autenticato (molte cam lo permettono,
+// altre rispondono con un fault -> nessun modello, si ripiega sullo scope hardware).
+function _onvifGetDeviceInfo(xaddrUrl, timeoutMs = 1500) {
+  return new Promise(resolve => {
+    let done = false;
+    const fin = v => { if (!done) { done = true; resolve(v); } };
+    let u;
+    try { u = new URL(xaddrUrl); } catch (_) { return fin(null); }
+    if (u.protocol !== 'http:') return fin(null);
+    const body = buildOnvifGetDeviceInfo();
+    let resp = '';
+    const req = http.request({
+      host: u.hostname, port: u.port || 80, path: (u.pathname || '/') + (u.search || ''), method: 'POST',
+      timeout: timeoutMs, headers: { 'Content-Type': 'application/soap+xml; charset=utf-8', 'Content-Length': body.length },
+    }, res => {
+      res.on('data', d => { resp += d; if (resp.length > 65536) req.destroy(); });
+      res.on('end', () => fin({ ip: u.hostname, xml: resp }));
+    });
+    req.on('timeout', () => { req.destroy(); fin(null); });
+    req.on('error', () => fin(null));
+    req.write(body); req.end();
+  });
+}
+
+// Multicast discovery sweep of the LOCAL segment: sends one mDNS PTR query
+// (224.0.0.251:5353) and one SSDP M-SEARCH (239.255.255.250:1900), listens for a
+// wall-clock deadline, and returns Map<ip, identity> (identity = resolveDiscovery-
+// Identity: type/strength/points + model/manufacturer + services). Subnet-level,
+// NOT per-host: multicast is link-local (mDNS TTL 1) so only same-segment devices
+// answer — honest by design. Defensive: never throws; a bind/socket failure just
+// yields fewer results. `opts.createSocket` is injectable for tests (a fake socket
+// also disables the real UPnP XML fetch). opts: { deadlineMs, iface, mdnsQueries,
+// ssdpSt, fetchUpnpXml, createSocket }.
+async function _mdnsSsdpSweep(opts = {}) {
+  const deadlineMs = Math.max(50, Math.min(parseInt(opts.deadlineMs, 10) || 3000, 8000));
+  const iface = opts.iface || undefined;
+  const createSocket = opts.createSocket || dgram.createSocket;
+  const doFetchXml = opts.fetchUpnpXml !== false && !opts.createSocket;
+  const messages = [];
+  // Tetto anti-flood: un attaccante sullo stesso segmento potrebbe inondare il multicast
+  // per gonfiare la memoria durante la finestra. Cappiamo il NUMERO di datagrammi e la
+  // DIMENSIONE di ciascuno (coerente con i tetti 64KB/slice(24) gia' presenti nel file).
+  const MAX_SWEEP_MSGS = 5000;
+  const MAX_MSG_BYTES = 4096;   // mDNS/SSDP utili sono ben sotto; oltre = probabile abuso
+  const _push = (ip, kind, buf) => {
+    if (messages.length >= MAX_SWEEP_MSGS || !ip) return;
+    messages.push({ ip, kind, data: buf.length > MAX_MSG_BYTES ? Buffer.from(buf.subarray(0, MAX_MSG_BYTES)) : buf });
+  };
+  const socks = [];
+  const closeAll = () => { for (const s of socks) { try { s.close(); } catch (_) {} } };
+
+  await new Promise(resolve => {
+    let settled = false;
+    const finish = () => { if (settled) return; settled = true; closeAll(); resolve(); };
+    // mDNS: bind 5353 + join the group so multicast responses are received.
+    try {
+      const m = createSocket({ type: 'udp4', reuseAddr: true });
+      socks.push(m);
+      m.on('message', (buf, rinfo) => { if (rinfo && rinfo.address) _push(rinfo.address, 'mdns', buf); });
+      m.on('error', () => {});
+      m.bind(opts.mdnsBindPort != null ? opts.mdnsBindPort : MDNS_PORT, iface, () => {
+        try { m.addMembership(MDNS_ADDR, iface); } catch (_) {}
+        try { m.setMulticastTTL(1); } catch (_) {}
+        try { const q = buildMdnsQuery(opts.mdnsQueries || MDNS_DEFAULT_QUERIES); m.send(q, 0, q.length, MDNS_PORT, MDNS_ADDR); } catch (_) {}
+      });
+    } catch (_) {}
+    // mDNS via UNICAST-RESPONSE (QU): bind su porta EFFIMERA + chiedi risposta unicast, cosi'
+    // si ricevono le risposte anche quando la 5353 e' occupata (Windows: Bonjour) e il socket
+    // multicast sopra non riceve nulla. RFC 6762 §5.4 — cattura la gran parte dei device
+    // (Chromecast col suo `md`, stampanti, telefoni) senza dover vincere la porta 5353.
+    try {
+      const mu = createSocket({ type: 'udp4', reuseAddr: true });
+      socks.push(mu);
+      mu.on('message', (buf, rinfo) => { if (rinfo && rinfo.address) _push(rinfo.address, 'mdns', buf); });
+      mu.on('error', () => {});
+      mu.bind(0, iface, () => {
+        try { mu.setMulticastTTL(1); } catch (_) {}
+        try { const q = buildMdnsQuery(opts.mdnsQueries || MDNS_DEFAULT_QUERIES, true); mu.send(q, 0, q.length, MDNS_PORT, MDNS_ADDR); } catch (_) {}
+      });
+    } catch (_) {}
+    // SSDP: M-SEARCH replies come back UNICAST to our ephemeral port.
+    try {
+      const s = createSocket({ type: 'udp4', reuseAddr: true });
+      socks.push(s);
+      s.on('message', (buf, rinfo) => { if (rinfo && rinfo.address) _push(rinfo.address, 'ssdp', buf); });
+      s.on('error', () => {});
+      s.bind(0, iface, () => {
+        try { const q = buildSsdpQuery(opts.ssdpSt); s.send(q, 0, q.length, SSDP_PORT, SSDP_ADDR); } catch (_) {}
+      });
+    } catch (_) {}
+    // WS-Discovery (ONVIF): Probe SOAP multicast su :3702; i ProbeMatch tornano UNICAST alla
+    // porta effimera. Fa emergere il MODELLO delle IP-cam/NVR (scope onvif hardware/name).
+    try {
+      const w = createSocket({ type: 'udp4', reuseAddr: true });
+      socks.push(w);
+      w.on('message', (buf, rinfo) => { if (rinfo && rinfo.address) _push(rinfo.address, 'wsd', buf); });
+      w.on('error', () => {});
+      w.bind(0, iface, () => {
+        try { const q = buildWsDiscoveryProbe(opts.wsdMessageId); w.send(q, 0, q.length, WSD_PORT, WSD_ADDR); } catch (_) {}
+      });
+    } catch (_) {}
+    setTimeout(finish, deadlineMs).unref?.();
+  });
+
+  // Best-effort: dereference SSDP LOCATIONs (unicast) for manufacturer/model.
+  if (doFetchXml) {
+    const locByIp = new Map();
+    for (const msg of messages) {
+      if (msg.kind !== 'ssdp') continue;
+      try {
+        const p = parseSsdpResponse(msg.data.toString('utf8'));
+        if (!p || !p.location) continue;
+        // Guardia SSRF: la descrizione si recupera SOLO dal device che ha risposto —
+        // l'host della LOCATION deve coincidere con l'IP sorgente del responder. Cosi'
+        // un responder malevolo sul segmento non puo' dirottare la GET del server verso
+        // un host interno arbitrario (metadata cloud, servizi interni…). Un IP per volta.
+        let host = '';
+        try { host = new URL(p.location).hostname; } catch (_) {}
+        if (host && host === msg.ip && !locByIp.has(msg.ip)) locByIp.set(msg.ip, p.location);
+      } catch (_) {}
+    }
+    const entries = [...locByIp.values()].slice(0, 24);
+    const xmls = await Promise.all(entries.map(u => _fetchUpnpXml(u).catch(() => null)));
+    for (const r of xmls) if (r && r.ip && r.xml) messages.push({ ip: r.ip, kind: 'upnpxml', data: r.xml });
+
+    // ONVIF: per ogni ProbeMatch ONVIF (XAddrs verso il SUO stesso IP: guardia SSRF)
+    // chiedi GetDeviceInformation -> modello commerciale della telecamera.
+    const onvifByIp = new Map();
+    for (const msg of messages) {
+      if (msg.kind !== 'wsd') continue;
+      try {
+        const w = parseWsDiscovery(msg.data.toString('utf8'));
+        if (!w || !w.xaddrs || !(w.scopes || []).some(s => /onvif:/i.test(String(s)))) continue;
+        const xaddr = String(w.xaddrs).split(/\s+/)[0];
+        let host = ''; try { host = new URL(xaddr).hostname; } catch (_) {}
+        if (host && host === msg.ip && !onvifByIp.has(msg.ip)) onvifByIp.set(msg.ip, xaddr);
+      } catch (_) {}
+    }
+    const infos = await Promise.all([...onvifByIp.values()].slice(0, 24).map(x => _onvifGetDeviceInfo(x).catch(() => null)));
+    for (const r of infos) if (r && r.ip && r.xml) messages.push({ ip: r.ip, kind: 'onvifinfo', data: r.xml });
+  }
+
+  return aggregateSweep(messages);
+}
+
+module.exports = { expandSubnet, _execFileAsync, _pingHost, _pingResultIsAlive, _pingHostRetry, _stealthDelayMs, _normMac, _parseArpTable, _parseNeighbors, _readArpMap, _ipToNum, _demoteStaleArpDup, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _castProbe, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost, _mdnsSsdpSweep, _fetchUpnpXml };

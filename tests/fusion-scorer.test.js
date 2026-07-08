@@ -376,3 +376,31 @@ test('G8: SNMP::Info sysObjectID coverage for plugin-less vendors', () => {
   // A measured banner still overrides the enterprise-level OID vote (vendor != type).
   assert.equal(_scoreDiscoveredDevice({ objectId: '1.3.6.1.4.1.1916.2', descr: 'AXIS Network Camera', snmpReachable: true }).deviceType, 'webcam');
 });
+
+test('G9: mDNS/SSDP announce -> device type (vendor-neutral, measured, closed-port)', () => {
+  // Closed-port appliance known only by MAC/OUI + a HomeKit (weak iot) announce -> iot,
+  // and it counts as MEASURED (the device announced itself) so confidence is not capped.
+  const wm = _scoreDiscoveredDevice({ mac: 'aa:bb:cc:dd:ee:01', vendor: 'LG Electronics',
+    mdns: { type: 'iot', strength: 'weak', points: 55, model: '', manufacturer: '', host: '', services: ['hap'] } });
+  assert.equal(wm.deviceType, 'iot');
+  assert.ok(wm.confidence > 60, 'mDNS/SSDP is a measured signal -> confidence not capped');
+
+  // Phone via _apple-mobdev2 -> mobile (the hard case: randomized MAC, no open ports).
+  assert.equal(_scoreDiscoveredDevice({ mac: 'aa:bb:cc:dd:ee:02',
+    mdns: { type: 'mobile', strength: 'moderate', points: 70, services: ['apple-mobdev2'] } }).deviceType, 'mobile');
+
+  // Closed-port printer via _ipp -> printer.
+  assert.equal(_scoreDiscoveredDevice({ ip: '10.0.0.7',
+    mdns: { type: 'printer', strength: 'strong', points: 82, services: ['ipp'], model: 'HP OfficeJet' } }).deviceType, 'printer');
+
+  // Smart TV via SSDP MediaRenderer -> tv.
+  assert.equal(_scoreDiscoveredDevice({ mac: 'aa:bb:cc:dd:ee:03', vendor: 'Samsung',
+    mdns: { type: 'tv', strength: 'strong', points: 82, source: 'ssdp', services: [] } }).deviceType, 'tv');
+
+  // A strong SNMP switch is NOT overridden by a stray weak mDNS iot vote (weight ordering).
+  assert.equal(_scoreDiscoveredDevice({ descr: 'Cisco Catalyst 2960', objectId: '1.3.6.1.4.1.9.1.694', snmpReachable: true, sysServices: 2,
+    mdns: { type: 'iot', strength: 'weak', points: 55, services: ['hap'] } }).deviceType, 'switch');
+
+  // A row WITHOUT mdns is unchanged (additive signal; golden stays frozen).
+  assert.equal(_scoreDiscoveredDevice({ hostname: 'DESKTOP-ABC123', vendor: 'Microsoft' }).deviceType, 'pc');
+});

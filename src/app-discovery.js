@@ -5,6 +5,77 @@ import { markDirty, pushHistory, renderCables, _showToast } from './app.js';   /
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 
+// Nome DISPLAY per la tabella Scopri e per il nome del nodo importato. L'utente legge la
+// RIGA (Nome -> Vendor -> Tipo, gia' in colonne separate) e fa l'abbinamento da solo:
+// quindi il Nome deve essere l'IDENTIFICATIVO piu' specifico del device, e MAI il tipo
+// (ridondante) ne' il vendor (colonna Vendor). Il MODELLO ha PRIORITA' sull'hostname:
+// e' l'identita' di PRODOTTO (SHIELD, RLC-810A, Mediapad M5) mentre l'hostname e' spesso
+// un default generico (SRV mDNS "Android.local", name ONVIF "IPC-BO") che lo mascherava.
+//   1. MODELLO annunciato, ripulito (mDNS `md`/`ty`, UPnP modelName, ONVIF hardware):
+//      "SHIELD Android TV"->"Shield", "HUAWEI Mediapad M5"->"Mediapad M5", "RLC-810A".
+//   2. hostname REALE se leggibile (Sinology.local, GS1900) — non UUID/blob/auto-ID/generico
+//   3. l'IP come riferimento stabile e univoco quando non c'e' ne' modello ne' hostname.
+function _discIsJunkHost(h){
+    const s = String(h||'').trim().toLowerCase().replace(/\.local\.?$/,'').replace(/\.$/,'');
+    if(!s) return true;
+    if(/^[0-9a-f]{2,}(-[0-9a-f]{2,})+$/.test(s)) return true;   // UUID / gruppi esadecimali (mDNS)
+    if(/^[0-9a-f]{12,}$/.test(s)) return true;                  // blob esadecimale lungo
+    // Hostname AUTO-GENERATO dal device: codice-brand corto + seriale/MAC esadecimale, senza
+    // separatori/parole (HP "HPF4390962F234", Brother "BRW008077...", ESP, ...). Vendor-neutral:
+    // e' lo SCHEMA (poche lettere + molti hex) a non essere leggibile, non un marchio specifico.
+    // NB: "GS1900" (modello, 4 cifre) e "DESKTOP-ABC123" (separatore) NON matchano -> restano.
+    if(/^[a-z]{2,6}[0-9a-f]{8,}$/.test(s)) return true;
+    return false;
+}
+// Descrittori di CLASSE/SERVIZIO generici (UPnP/DLNA) — "WPS Access Point", "Internet Gateway
+// Device", "MediaRenderer": la funzione del device, NON la sua identita' -> non usarli come nome.
+// Vendor-neutral (termini standard). Tieni in sync con lib/discovery-mdns.js isGenericDeviceName.
+const _DISC_GENERIC_NAMES = new Set([
+    'accesspoint','wpsaccesspoint','ap','wirelessap','wirelessaccesspoint',
+    'gateway','gatewaydevice','internetgatewaydevice','residentialgateway','homegateway',
+    'broadbandgateway','router','wirelessrouter','broadbandrouter','wandevice','landevice',
+    'mediarenderer','mediaserver','digitalmediarenderer','digitalmediaserver','dmr','dms',
+    'dlna','dlnarenderer','dlnaserver','upnpdevice','upnprootdevice','rootdevice',
+    'basicdevice','wfadevice','device','unknown','generic','network','localhost',
+    'smarttv','tv','printer','scanner','camera','ipcamera',
+    'android','androidtv','raspberrypi','localdomain','esp','esp32','esp8266',
+    // valori-icona Bonjour `_device-info` (NON modelli reali; i Mac veri hanno il suffisso versione)
+    'xserve','rackmac','macpro','powermac','macmini','imac','macbook','appletv',
+]);
+function _discIsGenericName(s){
+    const x = String(s||'').toLowerCase().replace(/\.local\.?$/,'').replace(/[^a-z0-9]/g,'');
+    return !x || _DISC_GENERIC_NAMES.has(x);
+}
+// Ripulisce il modello per usarlo come NOME: toglie il vendor iniziale (gia' in colonna,
+// es. "NVIDIA SHIELD"->"SHIELD", "HUAWEI Mediapad M5"->"Mediapad M5") e i descrittori di
+// TIPO in coda (ridondanti con la colonna Tipo, es. "SHIELD Android TV"->"SHIELD").
+function _discCleanModel(model, vendor){
+    let m = String(model||'').trim();
+    if(!m) return '';
+    // Prefissi-vendor da togliere (il vendor e' gia' in colonna): la PRIMA parola del vendor
+    // ("Hewlett Packard"->"Hewlett") E l'ACRONIMO se multi-parola ("Hewlett Packard"->"HP").
+    // Derivati dalla stringa vendor -> vendor-neutral, nessun marchio hardcoded.
+    const _esc = s => s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    const vWords = String(vendor||'').trim().split(/\s+/).filter(Boolean);
+    const prefixes = [];
+    if(vWords[0]) prefixes.push(vWords[0]);
+    if(vWords.length >= 2) prefixes.push(vWords.map(w=>w[0]).join(''));
+    for(const p of prefixes){
+        if(p.length >= 2) m = m.replace(new RegExp('^\\s*'+_esc(p)+'\\b[\\s-]*', 'i'), '');
+    }
+    m = m.replace(/\s+(android\s*tv|google\s*tv|smart\s*tv|media\s*player|streaming\s*(?:stick|player|box)|network\s*camera|ip\s*camera|webcam|printer|scanner)\s*$/i, '');
+    return m.trim();
+}
+function _discDisplayName(d){
+    if(!d) return '';
+    // Modello ESATTO: SNMP ENTITY-MIB (switch/router/NAS che lo espongono) o mDNS/UPnP/ONVIF.
+    const model = _discCleanModel(d.snmpModel || (d.mdns && d.mdns.model) || '', d.vendor);
+    if(model && !_discIsGenericName(model)) return model;
+    const host = String(d.hostname || d.netbiosName || '').trim();
+    if(host && !_discIsJunkHost(host) && !_discIsGenericName(host)) return host;
+    return String(d.ip || '').trim();
+}
+
 // ============================================================
 // DISCOVERY FRONTEND
 // UI discovery, rendering risultati, crawl topology e import.
@@ -101,6 +172,8 @@ async function runDiscovery(){
     const stealth  = scanMode === 'stealth';
     const deepScan = !!document.getElementById('disc-deep-scan')?.checked;
     win._saveDeepScanPref(deepScan);
+    // mDNS/SSDP: ascolto multicast del segmento locale per i device a porte chiuse. Opt-in.
+    const mdns = !!document.getElementById('disc-mdns')?.checked;
     const expandTopology = !!document.getElementById('disc-expand-topology')?.checked;
     if(!subnet){ document.getElementById('disc-progress').innerHTML=`<span class="tm-err">${_dt('disc.enterRange','Inserisci un range di rete.')}</span>`; return; }
 
@@ -122,7 +195,7 @@ async function runDiscovery(){
         // altrimenti abortirebbe su subnet non piccole.
         scanTimeout = setTimeout(()=>scanAbort.abort(), stealth ? 600000 : (deepScan ? 180000 : 90000));
         const r = await fetch('/api/discover',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({ subnet, driver, community, timeout, safeMode, stealth, deepScan,
+            body:JSON.stringify({ subnet, driver, community, timeout, safeMode, stealth, deepScan, mdns,
                 dhcpLeases: Array.isArray(store._dhcpLeases) ? store._dhcpLeases : [] }),
             signal:scanAbort.signal});
         clearTimeout(scanTimeout);
@@ -534,7 +607,7 @@ function _discRenderTable(){
             + ` <span class="disc-badge rec-${rec.cls}" data-tip="${escapeHTML(rec.title)}">${escapeHTML(rec.label)}</span>`
             + _discEdgeBadge(d);
         const reach = _discReachabilityInfo(d);
-        const displayName = d.displayName || d.hostname || d.ip;
+        const displayName = _discDisplayName(d);
         // Pre-selezione = vivo E confidenza sopra la soglia fantasmi (i solo-ping a
         // ~10% NON si spuntano di default). L'utente puo' sempre spuntarli a mano.
         const _lowConf = !!d.alive && (conf.score || 0) < DISC_PRESELECT_MIN_CONF;
@@ -920,7 +993,7 @@ async function importDiscovered(){
                 const col = floorCount % 5, row = Math.floor(floorCount / 5);
                 n = {
                     id: win._nextNodeId(d.type, usedNodeIds), type: d.type,
-                    name: d.hostname||d.ip||d.type, hostname: d.hostname||'', ip: d.ip||'',
+                    name: _discDisplayName(d), hostname: d.hostname||'', ip: d.ip||'',
                     mac: normalizeMacAddress(d.mac||''),
                     brand: d.vendor || def.brand || '',
                     vendorHint: d.vendorHint || win._discVendorFromMac(d.mac) || '',
@@ -940,7 +1013,7 @@ async function importDiscovered(){
                 const rackU = win._findFreeU(rackId, sU);
                 n = {
                     id: win._nextNodeId(d.type, usedNodeIds), type: d.type,
-                    name: d.hostname||d.ip||d.type, hostname: d.hostname||'', ip: d.ip||'',
+                    name: _discDisplayName(d), hostname: d.hostname||'', ip: d.ip||'',
                     mac: normalizeMacAddress(d.mac||''),
                     brand: d.vendor || def.brand || '',
                     vendorHint: d.vendorHint || win._discVendorFromMac(d.mac) || '',
