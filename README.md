@@ -707,6 +707,19 @@ TCP ports, hostname/vendor/banner regexes) into a single classified device.
 > confidence is discounted rather than a confident‑wrong label emitted. The Discover
 > UI treats this server engine as the single source of truth; the thin client
 > `_guessType` only fills genuine gaps.
+>
+> The signals are **tiered**: a *measured* signal (SNMP, banner/model text, a probed
+> service port, NetBIOS/SMB, Google Cast) always outranks a *vendor‑identity*
+> inference. In particular a MAC‑OUI plugin's device‑type is only a **candidate** —
+> weighted like the other identity hints so it can never beat a measured signal:
+> a Zyxel‑branded box whose web page says *"Intelligent Switch"* is a switch even
+> though the OUI plugin's default guess for the vendor is "router" (Zyxel makes both).
+> Behavioural detection is done by **protocol, not brand**: Google Cast (the
+> `eureka_info` endpoint + ports 8008/8009) → a media `tv` for any make, exactly as
+> RTSP→camera and IPP→printer; and the **OS** decides `mobile` (Android/iOS phones and
+> tablets) vs `pc` (a desktop OS). When a device is known *only* by such an inference
+> — a MAC with no measured signal at all — its confidence is capped so a guess is
+> never shown as near‑certain (manual‑first).
 
 ### Why extract it
 
