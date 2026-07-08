@@ -9,9 +9,10 @@ const os  = require('os');
 const auth = require('../../auth');
 const { DRIVERS } = require('../drivers');
 const { buildNeighborCandidates, buildPortIndex, buildMacIndex, buildPortMacIndex, buildFdbCandidates, buildArpCandidates, locateMacsOnEdge } = require('../../lib/correlate');
-const { expandSubnet, _execFileAsync, _pingHost, _pingHostRetry, _stealthDelayMs, _normMac, _parseArpTable, _readArpMap, _demoteStaleArpDup, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost } = require('../netscan');
+const { expandSubnet, _execFileAsync, _pingHost, _pingHostRetry, _stealthDelayMs, _normMac, _parseArpTable, _readArpMap, _demoteStaleArpDup, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost, _mdnsSsdpSweep } = require('../netscan');
 const { _cleanHostname, PEN_VENDOR, _penFromObjectId, _vendorByObjectId, _decodeSysServices, _classifyDiscoveredDevice, _buildDiscoveryMeta, _decorateDiscoveryRow } = require('../classify');
 const { OuiEngine } = require('../../engine');
+const { publicMdns } = require('../../lib/discovery-mdns');
 const dhcpDrivers = require('../dhcp-drivers');
 const { crawlNetwork } = require('../crawl-bfs');
 
@@ -272,6 +273,33 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
       }
     });
 
+    // 2b) mDNS (DNS-SD) + SSDP (UPnP) — OPT-IN. Sweep multicast del SEGMENTO LOCALE che
+    // fa emergere i device a PORTE CHIUSE (telefoni, tablet, elettrodomestici smart, TV,
+    // speaker): ignorano ping/SNMP/porte di gestione ma si ANNUNCIANO in multicast. Il
+    // SERVIZIO pubblicato È il tipo (vendor-neutral) -> tipo+marca+modello MISURATI in
+    // row.mdns, letti dal classificatore. Solo IP nel range scansionato (il multicast è
+    // link-local: nessun risultato cross-subnet, onesto per design). Additivo, difensivo.
+    const useMdns = String(req.body?.mdns) === 'true' || req.body?.mdns === true;
+    if (useMdns) {
+      try {
+        const scannedSet = new Set(ips);
+        const mdnsDeadline = stealth ? 4000 : (safe ? 3000 : 2500);
+        const mdnsFound = await _mdnsSsdpSweep({ deadlineMs: mdnsDeadline });
+        let mdnsN = 0;
+        for (const [ip, identity] of mdnsFound) {
+          if (!scannedSet.has(ip)) continue;              // solo il range richiesto (link-local)
+          const row = rows.find(r => r.ip === ip);
+          if (!row) continue;
+          row.mdns = identity;
+          if (identity.host && !row.hostname) row.hostname = _cleanHostname(identity.host);
+          if (identity.manufacturer && !row.vendor) row.vendor = identity.manufacturer;
+          if (!row.alive) { row.alive = true; row.status = 'On'; row.viaMdns = true; }
+          mdnsN++;
+        }
+        if (mdnsN) console.log(`  [DISCOVER] ${subnet}: mDNS/SSDP ha annunciato ${mdnsN} device`);
+      } catch (e) { console.warn(`  [DISCOVER] mDNS/SSDP: ${e.message}`); }
+    }
+
     // 3) Enrichment solo sui candidati: ping OK o MAC visto in ARP.
     // Questo evita che una /24 resti bloccata per minuti su IP inesistenti.
     const scanRows = rows.filter(r => r.alive || r.mac);
@@ -315,6 +343,7 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
                   row.descr = sn.descr || row.descr;
                   row.objectId = sn.objectId || row.objectId;
                   row.sysServices = parseInt(sn.sysServices || 0, 10) || 0;
+                  if (sn.model) row.snmpModel = String(sn.model).trim();   // ENTITY-MIB modello esatto
                   row.snmpDriver = sn.driverUsed || row.snmpDriver;
                   row.snmpVersions = Array.isArray(sn.snmpVersions) ? sn.snmpVersions : (sn.driverUsed ? [sn.driverUsed] : []);
                   row.needsCredentials = !!sn.needsCredentials;
@@ -416,8 +445,17 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
     if (_staleDup.length) console.log(`  [DISCOVER] ${subnet}: ${_staleDup.length} duplicati ARP stantii -> Inattivo`);
 
     const results = rows
-      .filter(r => r.alive || r.mac || r.hostname || r.httpTitle || r.httpsTitle || r.snmpReachable || r.netbiosName || (r.services && r.services.length) || (r.smbShares && r.smbShares.length))
-      .map(r => _decorateDiscoveryRow(r));
+      .filter(r => r.alive || r.mac || r.hostname || r.httpTitle || r.httpsTitle || r.snmpReachable || r.netbiosName || (r.services && r.services.length) || (r.smbShares && r.smbShares.length) || r.mdns)
+      .map(r => {
+        const dec = _decorateDiscoveryRow(r);
+        // Privacy (misurato != dichiarato): il classificatore ha GIA' consumato l'identita'
+        // mDNS/SSDP completa DENTRO la decorazione, e host->hostname (ripulito) +
+        // manufacturer->vendor sono gia' nei campi normali. Verso il client teniamo solo la
+        // PROVENIENZA (tipo/servizi), non i NOMI dichiarati: un friendlyName UPnP o un TXT
+        // possono contenere dati personali ("iPhone di Mario"). Non li esponiamo/salviamo.
+        if (dec && dec.mdns) dec.mdns = publicMdns(dec.mdns);
+        return dec;
+      });
 
     // 4) DHCP come sorgente Scopri: i lease danno il binding IP<->MAC (+ hostname)
     // anche per host DORMIENTI (mobile/IoT in power-save) che ora non rispondono a
