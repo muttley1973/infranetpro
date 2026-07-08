@@ -736,6 +736,10 @@
           <input id="disc-deep-scan" type="checkbox" onchange="_saveDeepScanPref(this.checked)">
           <span data-i18n="disc.deepScan">Scansione profonda TCP</span>
         </label>
+        <label class="disc-opt disc-opt-mdns" data-i18n-tip="disc.mdnsTip" data-tip="Ascolta gli annunci mDNS/SSDP sul segmento locale: riconosce i device a porte chiuse (telefoni, TV, elettrodomestici smart) che ignorano ping/SNMP. Solo stessa sottorete (multicast link-local).">
+          <input id="disc-mdns" type="checkbox">
+          <span data-i18n="disc.mdns">Ascolto mDNS/SSDP (device a porte chiuse)</span>
+        </label>
         <label class="disc-opt">
           <input id="disc-expand-topology" type="checkbox">
           <span data-i18n="disc.expand">Espandi via LLDP/CDP (più rumoroso)</span>

@@ -322,6 +322,7 @@ function _discIdentitySource(row){
     if(proto === 'LLDP' || proto === 'CDP') return proto.toLowerCase();
     if(Array.isArray(row.services) && row.services.length) return 'services';
     if(row.httpTitle || row.httpsTitle) return 'web';
+    if(row.mdns && (row.mdns.type || (row.mdns.services||[]).length || row.mdns.model)) return 'mdns';
     if(row.netbiosName || row.netbiosGroup) return 'netbios';
     if(row.vendor && row.mac) return 'mac-oui';
     if(row.mac) return 'mac';
@@ -337,6 +338,7 @@ function _discIdentityLabel(src){
         cdp:'Neighbor CDP',
         services:'Servizi rilevati',
         web:'Banner web',
+        mdns:'mDNS/SSDP',
         netbios:'NetBIOS/SMB',
         'mac-oui':'MAC/OUI',
         mac:'MAC',

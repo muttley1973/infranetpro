@@ -1746,6 +1746,10 @@ async function probe(cfg) {
     '1.3.6.1.2.1.1.5.0', // sysName
     '1.3.6.1.2.1.1.2.0', // sysObjectID
     '1.3.6.1.2.1.1.7.0', // sysServices
+    // ENTITY-MIB entPhysicalModelName del chassis (indice 1): modello ESATTO standard e
+    // vendor-neutral ("DS918+", "GS1900-8", "C9300-24T") dove il device lo implementa.
+    // Un solo GET in piu'; se il device non ha ENTITY-MIB torna un varbind-error -> ignorato.
+    '1.3.6.1.2.1.47.1.1.1.1.13.1',
   ];
 
   // Ogni probe ritorna un handle { promise, close }. close() interrompe SUBITO
@@ -1795,6 +1799,8 @@ async function probe(cfg) {
             hostname: bufToStr(vbs[1]?.value || ''),
             objectId: String(vbs[2]?.value  || ''),
             sysServices: bufToInt(vbs[3]?.value || 0),
+            // ENTITY-MIB model (opzionale): solo se il varbind non e' un errore.
+            model: (vbs[4] && !snmp.isVarbindError(vbs[4])) ? bufToStr(vbs[4].value || '') : '',
           });
         });
       } catch (e) { done({ reachable: false, error: e.message }); }

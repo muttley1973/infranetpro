@@ -144,7 +144,13 @@ class FusionScorer {
     const text = `${descr} ${vendorForType} ${banner} ${host} ${netbiosName} ${netbiosGroup} ${shareText}`.toLowerCase();
     const servicePorts = new Set((row?.services || []).map(s => parseInt(s.port, 10)).filter(Number.isFinite));
     const serviceText = (row?.services || []).map(s => `${s.service || ''} ${s.banner || ''}`).join(' ').toLowerCase();
-    const fullText = `${text} ${serviceText}`.toLowerCase();
+    // mDNS/SSDP: modello, produttore e servizi ANNUNCIATI in multicast entrano nel testo
+    // di classificazione (marca/modello -> brand+tipo, es. "Chromecast"/"Daikin"/"LG").
+    // Additivo: row.mdns esiste solo se la sweep multicast ha trovato qualcosa.
+    const mdnsText = row?.mdns
+      ? `${row.mdns.model || ''} ${row.mdns.manufacturer || ''} ${row.mdns.host || ''} ${(row.mdns.services || []).join(' ')}`.toLowerCase()
+      : '';
+    const fullText = `${text} ${serviceText} ${mdnsText}`.toLowerCase();
     const macPrefix = normMac(row?.mac).substring(0, 8);
     const isLikelyGatewayIp = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.1$/.test(ip);
     const switchWords = SWITCH_WORDS_RE.test(fullText);
@@ -276,6 +282,14 @@ class FusionScorer {
     if (row?.cast) bump('tv', 85, 'cast-device');
     else if (servicePorts.has(8008) || servicePorts.has(8009)) bump('tv', 70, 'cast-ports');
 
+    // mDNS (DNS-SD) / SSDP (UPnP): il device si ANNUNCIA in multicast e il SERVIZIO
+    // pubblicato È il tipo (vendor-neutral: _ipp->printer, _googlecast->tv,
+    // MediaRenderer->tv, InternetGatewayDevice->router). Segnale MISURATO, ma solo sul
+    // segmento locale (multicast link-local). row.mdns = identità risolta da
+    // lib/discovery-mdns col peso già scelto (strong 82 / moderate 70 / weak 55) — così
+    // un sysObjectID/banner più forte lo scavalca (identità del servizio, non certezza).
+    if (row?.mdns?.type && row.mdns.points) bump(row.mdns.type, row.mdns.points, 'mdns-' + (row.mdns.source || 'ssdp'));
+
     // NetBIOS / SMB = host WINDOWS → un COMPUTER (pc/server), MAI un apparato di rete.
     // <1B>/<1C> Domain Controller → server; <20> Server-service o share SMB → lean
     // server (salvo NAS/stampante che gia' vincono col loro segnale); altrimenti
@@ -375,7 +389,8 @@ class FusionScorer {
       hasSnmpSignal ||                       // snmpReachable / sysDescr / sysObjectID
       row?.httpTitle || row?.httpsTitle ||   // web banner
       servicePorts.size || netbiosHost ||    // open ports / NetBIOS
-      (row?.smbShares || []).length || row?.cast
+      (row?.smbShares || []).length || row?.cast ||
+      (row?.mdns && (row.mdns.type || (row.mdns.services || []).length || row.mdns.model)) // mDNS/SSDP announce
     );
     if (!hasMeasuredSignal) confidence = Math.min(confidence, 60);
 
