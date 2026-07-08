@@ -214,23 +214,26 @@ function _discEnsureMeta(d){
     // baseline (15/20/25 = "non so"). Il `_guessType` client resta SOLO come rete di
     // sicurezza quando il server è a livello baseline (device muto/sconosciuto); la
     // `_discSanitizeDeviceClass` resta un raffinamento manual-first (ramo AP, declass).
+    // B3 — un SOLO classificatore autorevole: il SERVER. Il FusionScorer restituisce
+    // SEMPRE una classe (anche il fallback a bassa confidenza) usando TUTTI i segnali
+    // misurati + il guardrail vendor≠tipo; è per costruzione >= dell'euristica sottile
+    // del client. Quindi ci si fida della classe server ogni volta che c'è, e il client
+    // NON ri-classifica piu' con le sue tabelle regex (era la fonte della divergenza:
+    // es. una TV a bassa confidenza riscritta a "switch"). `_guessType` resta SOLO per
+    // il caso-limite in cui il server non produce alcuna classe. Gli override
+    // MANUAL-FIRST (nodo già nel progetto / hint salvato) vincono sempre, sopra tutto.
     const serverClass = row.deviceClass || row.discovery?.deviceClass || '';
-    const serverScore = parseInt(row?.confidence?.score ?? row?.discovery?.confidence?.score ?? 0, 10) || 0;
-    const fusionConf  = parseInt(row?.classification?.confidence ?? row?.discovery?.classification?.confidence ?? 0, 10) || 0;
-    const serverAuthoritative = !!(
-        serverClass && (
-            row.snmpReachable ||
-            row.objectId ||
-            serverScore >= 55 ||
-            fusionConf > 25            // il server ha un segnale reale, non un fallback baseline
-        )
-    );
-    if(serverAuthoritative){
+    if(serverClass){
         row.deviceClass = serverClass;
-    } else {
-        if(!row.deviceClass) row.deviceClass = win._guessType(row.descr, row.objectId, row.vendor, row.httpTitle||row.httpsTitle, row.hostname);
-        row.deviceClass = win._discSanitizeDeviceClass(row) || row.deviceClass;
+    } else if(!row.deviceClass){
+        row.deviceClass = win._guessType(row.descr, row.objectId, row.vendor, row.httpTitle||row.httpsTitle, row.hostname);
     }
+    // Override manual-first (tipo di un nodo già esistente / hint utente) — sempre,
+    // anche sopra la classe server. Se il server non era autorevole, applica anche il
+    // raffinamento regex (ramo AP/declass) come rete di sicurezza sui device muti.
+    const _srvSure = !!(row.snmpReachable || row.objectId || (parseInt(row?.classification?.confidence ?? 0,10)||0) > 25);
+    const _refined = win._discSanitizeDeviceClass(row, { manualOnly: _srvSure });
+    if(_refined) row.deviceClass = _refined;
     if(row.discovery) row.discovery.deviceClass = row.deviceClass;
     if(!row.manageability){
         row.manageability = row.snmpReachable ? 'snmp-managed'
