@@ -25,7 +25,7 @@
 const { oidTypeVotes } = require('../lib/device-signatures');
 
 // Tie-break order when two device types have identical raw scores: the one
-// listed first wins. Matches the legacy `_classifyDiscoveredDevice` priority.
+// listed first wins. This is the single authoritative type priority.
 const DEFAULT_PRIORITY = [
   'firewall', 'sdwan', 'router', 'switch', 'nas', 'hypervisor', 'server', 'printer',
   'webcam', 'wlanctrl', 'ap', 'ups', 'pdu', 'voip', 'tv', 'iot', 'mobile', 'pc',
@@ -161,7 +161,7 @@ class FusionScorer {
     const bump = (type, points, reasonId, evidence) => {
       // 'unknown' is the SysObjectEngine "matched-but-untyped" placeholder, not a
       // real app type: never let it score (it would win with high confidence and
-      // leak a non-type — no-invention rule). Same guard in the legacy classifier.
+      // leak a non-type — no-invention rule).
       if (!type || type === 'unknown' || !points) return;
       score[type] = (score[type] || 0) + points;
       if (reasonId) reasons.add(reasonId);
@@ -383,7 +383,6 @@ class FusionScorer {
     // quindi un host che vince come `server` ma porta evidenza hypervisor (sysDescr
     // ESXi/Proxmox/Hyper-V/XCP-ng/Nutanix o sysObjectID VMware) È un hypervisor. Il
     // segnale OS generico (linux/vmware→server) altrimenti maschererebbe l'host.
-    // Stessa identica regola nel classificatore legacy (parità).
     if (deviceType === 'server' &&
         (HYPERVISOR_RE.test(fullText) || oid('1.3.6.1.4.1.6876.') || sysObjectInfo?.deviceType === 'hypervisor')) {
       deviceType = 'hypervisor';

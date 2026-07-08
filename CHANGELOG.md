@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-08 — One classifier, for real: the duplicate "legacy twin" is gone
+
+### Changed
+- **The device classifier is now a single implementation.** During the fusion-scorer rollout a second, in-line copy of the classification logic (`_classifyDiscoveredDeviceLegacy`, ~190 lines in `server/classify.js`) was kept alongside the engine purely to cross-check that the two agreed. Production never called it — every discovery path already used the fusion scorer — but every classification tweak had to be written twice, in lock-step. Now that the 55-device classification golden (`tests/classify-golden.test.js`) freezes the engine's behaviour far more thoroughly than the old parity check ever did, the duplicate has been removed. The 21 representative rows that used to prove "fusion == legacy" are preserved as a golden-style freeze of the engine's output, so the regression coverage is unchanged. No production behaviour changes (byte-identical classification: golden + every discovery test green). `server/classify.js`, `tests/fusion-scorer.test.js`.
+
 ## 2026-07-07 — One classifier of record: the client stops re-typing, one shared regex table, and 40+ more vendors recognized by SNMP
 
 ### Changed

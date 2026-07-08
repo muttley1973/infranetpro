@@ -7,7 +7,6 @@ const { FusionScorer, DEFAULT_PRIORITY } = require('../engine/fusion-scorer');
 const {
   _scoreDiscoveredDevice,
   _classifyDiscoveredDevice,
-  _classifyDiscoveredDeviceLegacy,
 } = require('../server/classify');
 
 function makeScorer(options = {}) {
@@ -240,52 +239,49 @@ test('FusionScorer: LG webOS TV recognized by MAC prefix even with the default n
 test('shared OID table: server now recognizes vendors it previously missed (Lexmark, Grandstream)', () => {
   // Before the shared lib/device-signatures table, the server had no OID prefix
   // for Lexmark (641) or Grandstream VoIP (25858), so these fell to the 'switch'
-  // hasSnmpSignal fallback. Now BOTH server paths (fusion + legacy) vote them.
+  // hasSnmpSignal fallback. Now the canonical table votes them.
   const lex = { objectId: '1.3.6.1.4.1.641.1.1', snmpReachable: true };
   const gs  = { objectId: '1.3.6.1.4.1.25858.2', snmpReachable: true };
   assert.equal(_classifyDiscoveredDevice(lex), 'printer');
   assert.equal(_classifyDiscoveredDevice(gs), 'voip');
-  assert.equal(_classifyDiscoveredDeviceLegacy(lex), 'printer', 'legacy in parita\' (stessa tabella)');
-  assert.equal(_classifyDiscoveredDeviceLegacy(gs), 'voip', 'legacy in parita\' (stessa tabella)');
 });
 
-// -------- Behavioural parity with legacy classifier --------------------------
+// -------- Representative device-type freeze (authoritative classifier) --------
 //
-// The fusion scorer must produce identical device-type decisions to the
-// in-line legacy classifier on every row, so existing test/discovery.test.js
-// continues to pass. We sample a variety of representative rows here as a
-// regression net independent of the discovery suite.
+// The in-line "legacy twin" classifier was removed once the fusion scorer became
+// the single authoritative path (commit: one authoritative classifier). These
+// rows used to prove fusion == legacy; they are kept as a golden-style freeze of
+// the fusion scorer's decisions — a compact regression net alongside the broader
+// tests/classify-golden.test.js. A deliberate behaviour change updates the
+// expected type here in the same commit.
 
-const PARITY_CASES = [
-  { label: 'Cisco switch sysObjectID',         row: { descr: 'Cisco Catalyst 2960', objectId: '1.3.6.1.4.1.9.1.694', snmpReachable: true, sysServices: 2 } },
-  { label: 'Zyxel router gateway',              row: { ip: '192.168.1.1', vendor: 'Zyxel', httpTitle: 'Web Configurator' } },
-  { label: 'HP OfficeJet sysDescr',             row: { descr: 'HP OfficeJet Pro 9020 series', snmpReachable: true } },
-  { label: 'Reolink RTSP',                      row: { hostname: 'reolink-cam', services: [{ port: 554, service: 'rtsp' }] } },
-  { label: 'Sony Bravia',                       row: { hostname: 'KD-55X80J', vendor: 'Sony', httpTitle: 'BRAVIA' } },
-  { label: 'LG webOS TV',                       row: { hostname: 'lgwebostv', mac: '58:FD:B1:00:11:22' } },
-  { label: 'NVIDIA Shield media player',        row: { vendor: 'NVIDIA', hostname: 'Shield-TV' } },
-  { label: 'Synology DSM',                      row: { descr: 'Linux DSM7', objectId: '1.3.6.1.4.1.6574.1.0', hostname: 'nas-lab', snmpReachable: true } },
-  { label: 'Eaton UPS sysObjectID',             row: { objectId: '1.3.6.1.4.1.534.1', snmpReachable: true } },
-  { label: 'VMware ESXi server',                row: { objectId: '1.3.6.1.4.1.6876.1', descr: 'VMware ESXi 7.0', snmpReachable: true } },
-  { label: 'Windows desktop',                   row: { hostname: 'DESKTOP-ABC123', vendor: 'Microsoft' } },
-  { label: 'Daikin AzureWave IoT',              row: { vendor: 'AzureWave', mac: 'AC:83:F3:00:11:22', hostname: 'daikin-AP' } },
-  { label: 'Chromecast',                        row: { vendor: 'Google', hostname: 'Chromecast' } },
-  { label: 'ArubaCX switch',                    row: { descr: 'Aruba CX 6300', objectId: '1.3.6.1.4.1.14823.1.3', snmpReachable: true, sysServices: 2 } },
-  { label: 'Google Cast device (probe)',        row: { vendor: 'NVIDIA', hostname: 'SHIELD', cast: true, services: [{ port: 8008 }] } },
-  { label: 'Zyxel switch by banner (not OUI)',  row: { mac: 'bc:cf:4f:00:00:10', vendor: 'Zyxel', httpTitle: 'Intelligent Switch' } },
-  { label: 'Android tablet fingerprint',        row: { vendor: 'Huawei', mac: 'f4:bf:80:11:22:33' } },
-  { label: 'iPhone by hostname',                row: { hostname: 'iPhone-di-Anna', vendor: 'Apple' } },
-  { label: 'Arista L3 switch (sysObjectID)',    row: { objectId: '1.3.6.1.4.1.30065.1.2759', descr: 'Arista Networks EOS running on vEOS', sysServices: 2 | 4 | 8, snmpReachable: true, hostname: 'lab-switch' } },
-  { label: 'Cisco WLAN controller',             row: { objectId: '1.3.6.1.4.1.9.1.1631', descr: 'Cisco Controller', sysServices: 2, snmpReachable: true } },
-  { label: 'Cisco IOS switch (not Apple iOS)',  row: { descr: 'Cisco IOS Software, vios_l2', sysServices: 2, snmpReachable: true } },
+const FREEZE_CASES = [
+  { label: 'Cisco switch sysObjectID',         expect: 'switch',    row: { descr: 'Cisco Catalyst 2960', objectId: '1.3.6.1.4.1.9.1.694', snmpReachable: true, sysServices: 2 } },
+  { label: 'Zyxel router gateway',              expect: 'router',    row: { ip: '192.168.1.1', vendor: 'Zyxel', httpTitle: 'Web Configurator' } },
+  { label: 'HP OfficeJet sysDescr',             expect: 'printer',   row: { descr: 'HP OfficeJet Pro 9020 series', snmpReachable: true } },
+  { label: 'Reolink RTSP',                      expect: 'webcam',    row: { hostname: 'reolink-cam', services: [{ port: 554, service: 'rtsp' }] } },
+  { label: 'Sony Bravia',                       expect: 'tv',        row: { hostname: 'KD-55X80J', vendor: 'Sony', httpTitle: 'BRAVIA' } },
+  { label: 'LG webOS TV',                       expect: 'tv',        row: { hostname: 'lgwebostv', mac: '58:FD:B1:00:11:22' } },
+  { label: 'NVIDIA Shield media player',        expect: 'tv',        row: { vendor: 'NVIDIA', hostname: 'Shield-TV' } },
+  { label: 'Synology DSM',                      expect: 'nas',       row: { descr: 'Linux DSM7', objectId: '1.3.6.1.4.1.6574.1.0', hostname: 'nas-lab', snmpReachable: true } },
+  { label: 'Eaton UPS sysObjectID',             expect: 'ups',       row: { objectId: '1.3.6.1.4.1.534.1', snmpReachable: true } },
+  { label: 'VMware ESXi server',                expect: 'hypervisor', row: { objectId: '1.3.6.1.4.1.6876.1', descr: 'VMware ESXi 7.0', snmpReachable: true } },
+  { label: 'Windows desktop',                   expect: 'pc',        row: { hostname: 'DESKTOP-ABC123', vendor: 'Microsoft' } },
+  { label: 'Daikin AzureWave IoT',              expect: 'iot',       row: { vendor: 'AzureWave', mac: 'AC:83:F3:00:11:22', hostname: 'daikin-AP' } },
+  { label: 'Chromecast',                        expect: 'tv',        row: { vendor: 'Google', hostname: 'Chromecast' } },
+  { label: 'ArubaCX switch',                    expect: 'switch',    row: { descr: 'Aruba CX 6300', objectId: '1.3.6.1.4.1.14823.1.3', snmpReachable: true, sysServices: 2 } },
+  { label: 'Google Cast device (probe)',        expect: 'tv',        row: { vendor: 'NVIDIA', hostname: 'SHIELD', cast: true, services: [{ port: 8008 }] } },
+  { label: 'Zyxel switch by banner (not OUI)',  expect: 'switch',    row: { mac: 'bc:cf:4f:00:00:10', vendor: 'Zyxel', httpTitle: 'Intelligent Switch' } },
+  { label: 'Android tablet fingerprint',        expect: 'mobile',    row: { vendor: 'Huawei', mac: 'f4:bf:80:11:22:33' } },
+  { label: 'iPhone by hostname',                expect: 'mobile',    row: { hostname: 'iPhone-di-Anna', vendor: 'Apple' } },
+  { label: 'Arista L3 switch (sysObjectID)',    expect: 'switch',    row: { objectId: '1.3.6.1.4.1.30065.1.2759', descr: 'Arista Networks EOS running on vEOS', sysServices: 2 | 4 | 8, snmpReachable: true, hostname: 'lab-switch' } },
+  { label: 'Cisco WLAN controller',             expect: 'wlanctrl',  row: { objectId: '1.3.6.1.4.1.9.1.1631', descr: 'Cisco Controller', sysServices: 2, snmpReachable: true } },
+  { label: 'Cisco IOS switch (not Apple iOS)',  expect: 'switch',    row: { descr: 'Cisco IOS Software, vios_l2', sysServices: 2, snmpReachable: true } },
 ];
 
-for (const { label, row } of PARITY_CASES) {
-  test(`parity legacy vs fusion: ${label}`, () => {
-    const legacyType = _classifyDiscoveredDeviceLegacy(row);
-    const fusionType = _classifyDiscoveredDevice(row);
-    assert.equal(fusionType, legacyType,
-      `fusion (${fusionType}) diverges from legacy (${legacyType}) for ${label}`);
+for (const { label, expect, row } of FREEZE_CASES) {
+  test(`fusion freeze: ${label} -> ${expect}`, () => {
+    assert.equal(_classifyDiscoveredDevice(row), expect);
   });
 }
 
