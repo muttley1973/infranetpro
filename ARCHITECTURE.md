@@ -93,6 +93,9 @@ lib/                   Shared browser + test modules (the heart of the app)
   device-signatures.js  canonical sysObjectID→type table (OID_TYPE_VOTES; oidTypeVotes/
                     oidType/oidIsType) — single source read by the fusion scorer AND
                     the client _guessType (no OID drift)  (pure)
+  discovery-mdns.js canonical mDNS(DNS-SD)+SSDP(UPnP) helpers: query build, wire-format
+                    parse (DNS compression, SSDP headers, UPnP XML), service→type map
+                    (vendor-neutral) + aggregateSweep. Drives server _mdnsSsdpSweep  (pure)
   radio.js          radio interfaces: pid/anchor/linkKind/seeds       (pure)
   vlan-trunk.js     carriedVlans + effLinkVlans (trunk derivato)       (pure)  …
                        (PURE only — the ex-`lib/app-*.js` GLUE now lives in src/)
