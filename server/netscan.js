@@ -370,6 +370,8 @@ const DEEP_TCP_PORTS = [
   { port: 3389, service: 'rdp', banner: false },
   { port: 5357, service: 'wsdapi', banner: false },
   { port: 8000, service: 'http-alt', banner: false },
+  { port: 8008, service: 'googlecast', banner: false },
+  { port: 8009, service: 'googlecast-tls', banner: false },
   { port: 8080, service: 'http-alt', banner: false },
   { port: 8443, service: 'https-alt', banner: false },
   { port: 9100, service: 'jetdirect', banner: false },
@@ -495,17 +497,51 @@ async function _smbSharesProbe(ip, timeoutMs = 2500) {
   return _parseNetViewOutput(`${r.stdout}\n${r.stderr}`);
 }
 
+// Google Cast device-info probe. Cast (Chromecast, Nvidia Shield, Android TV, Nest,
+// cast-enabled TVs/speakers) answers a device-info request on :8008 regardless of
+// brand — a PROTOCOL signal, like RTSP for cameras or IPP for printers, so it stays
+// vendor-neutral. Returns { cast:true, name } only when the eureka_info payload is a
+// genuine Cast response (carries a cast/build revision), else null.
+function _castProbe(ip, timeoutMs = 900) {
+  return new Promise(resolve => {
+    let done = false;
+    const fin = v => { if (!done) { done = true; resolve(v); } };
+    let body = '';
+    const req = http.get({ host: ip, port: 8008, path: '/setup/eureka_info', timeout: timeoutMs }, res => {
+      res.on('data', d => { body += d; if (body.length > 16384) req.destroy(); });
+      res.on('end', () => {
+        try {
+          const j = JSON.parse(body);
+          if (j && (j.cast_build_revision || j.build_version || j.ssdp_udn)) {
+            fin({ cast: true, name: String(j.name || '').trim().slice(0, 64) });
+            return;
+          }
+        } catch (_) { /* not JSON / not cast */ }
+        fin(null);
+      });
+    });
+    req.on('timeout', () => { req.destroy(); fin(null); });
+    req.on('error', () => fin(null));
+  });
+}
+
 async function _deepIdentityScanHost(ip, safe, timeoutMs) {
   const services = await _deepScanHost(ip, safe, timeoutMs);
   const identityTimeout = safe ? 2200 : 1600;
   let netbios = null;
   let smbShares = [];
+  let cast = null;
+  // Confirm Cast only when a cast control port is open (avoids probing every host).
+  const hasCastPort = services.some(s => { const p = parseInt(s.port, 10); return p === 8008 || p === 8009; });
+  if (hasCastPort) {
+    try { cast = await _castProbe(ip, safe ? 1200 : 900); } catch (_) {}
+  }
   try { netbios = await _netbiosProbe(ip, identityTimeout); } catch (_) {}
   const hasSmb = services.some(s => parseInt(s.port, 10) === 445) || !!netbios?.smbServer;
   if (hasSmb) {
     try { smbShares = await _smbSharesProbe(ip, safe ? 2800 : 2000); } catch (_) {}
   }
-  return { services, netbios, smbShares };
+  return { services, netbios, smbShares, cast };
 }
 
-module.exports = { expandSubnet, _execFileAsync, _pingHost, _pingResultIsAlive, _pingHostRetry, _stealthDelayMs, _normMac, _parseArpTable, _parseNeighbors, _readArpMap, _ipToNum, _demoteStaleArpDup, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost };
+module.exports = { expandSubnet, _execFileAsync, _pingHost, _pingResultIsAlive, _pingHostRetry, _stealthDelayMs, _normMac, _parseArpTable, _parseNeighbors, _readArpMap, _ipToNum, _demoteStaleArpDup, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _castProbe, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost };

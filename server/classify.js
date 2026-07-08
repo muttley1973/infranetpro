@@ -309,11 +309,12 @@ function _classifyDiscoveredDeviceLegacy(row) {
   if (ouiInfo?.deviceType) {
     const ouiPriority = parseInt(ouiInfo?.source?.priority ?? 0, 10) || 0;
     const baseConfidence = parseInt(ouiInfo?.confidence || 0, 10) || 60;
-    // Specific vendor plugins (priority >= 90) score solidly; IEEE fallback
-    // doesn't carry deviceType so this branch is effectively skipped for it.
+    // OUI deviceType = vendor-IDENTITY inference, the weakest tier — weighted like
+    // the other identity signals so it can never outrank a MEASURED signal (>=78).
+    // Vendor-neutral core rule, parity col FusionScorer (engine/fusion-scorer.js).
     const points = ouiPriority >= 90
-      ? Math.max(40, Math.min(80, baseConfidence))
-      : Math.max(15, Math.min(45, baseConfidence));
+      ? Math.max(30, Math.min(45, baseConfidence))
+      : Math.max(15, Math.min(35, baseConfidence));
     bump(ouiInfo.deviceType, points);
   }
   if (osInfo?.family === 'windows' && /server/.test(String(osInfo.name || '').toLowerCase())) bump('server', 55);
@@ -326,7 +327,9 @@ function _classifyDiscoveredDeviceLegacy(row) {
   if (/reolink|hikvision|dahua|vivotek|hanwha|uniview|axis.*camera|bosch.*security|\bcctv\b|ip.?camera|\bnvr\b|\bdvr\b|onvif/.test(fullText)) bump('webcam', 90);
   if (/\bnas\b|synology|sinology|qnap|lacie|truenas|freenas|netapp|readynas|buffalo|drobo|iomega|wd\s*my\s*cloud|seagate\s*nas|asustor|terramaster|openmediavault/.test(fullText)) bump('nas', 90);
   if (/fortigate|fortinet|pfsense|opnsense|firewall|sonicwall|watchguard|checkpoint|palo\s?alto|pan-os|panorama|\basa\b|sophos.*utm|sophos.*firewall|stormshield|barracuda.*firewall/.test(fullText)) bump('firewall', 90);
-  if (/\baironet\b|air-ap[0-9]|unifi.*ap|\buap-|ruckus|zoneflex|unleashed|aruba.*iap|aruba.*rap|\biap-[0-9]|\brap-[0-9]|meraki\s*mr|access point|\bap\b|omada.*ap|eap[0-9]{3,4}|wlan controller/.test(fullText)) bump('ap', 80);
+  // WLC (funzione, non brand) prima dell'AP — parità col FusionScorer WLANCTRL_RE.
+  if (/wireless\s*lan\s*controller|wlan\s*controller|wireless\s*controller|mobility\s*controller|\bwlc\b|\bwism\b|air-?ct[0-9]|cisco\s*controller|aire-?os|catalyst\s*9800|\bc9800/.test(fullText)) bump('wlanctrl', 90);
+  else if (/\baironet\b|air-ap[0-9]|unifi.*ap|\buap-|ruckus|zoneflex|unleashed|aruba.*iap|aruba.*rap|\biap-[0-9]|\brap-[0-9]|meraki\s*mr|access point|\bap\b|omada.*ap|eap[0-9]{3,4}|wlan controller/.test(fullText)) bump('ap', 80);
   if (/\bpdu\b|power.?distribution|raritan|servertech|\bgeist\b/.test(fullText)) bump('pdu', 85);
   if (/\bups\b|\bapc\b|powerware|cyberpower|riello|liebert|vertiv/.test(fullText)) bump('ups', 85);
   if (/polycom|yealink|grandstream|\bsnom\b|\bmitel\b|\baastra\b|sip.*phone|voip.*phone/.test(fullText)) bump('voip', 80);
@@ -365,13 +368,13 @@ function _classifyDiscoveredDeviceLegacy(row) {
   if (smartHomePlatform.test(fullText) && !isTv) bump('iot', 80);
   if (isTv) bump('tv', 80);
   if (isMediaPlayer) bump('tv', 55); // media player puro: meno di una TV
-  if (/chromecast|google ?cast/.test(fullText) && !svc.l2 && !svc.l3 && !switchWords && !routerWords) bump('iot', 75);
+  if (/chromecast|google ?cast/.test(fullText) && !svc.l2 && !svc.l3 && !switchWords && !routerWords) bump('tv', 75);
   if (/sony|bravia/.test(fullText) && !svc.l2 && !svc.l3 && !switchWords && !routerWords && !/camera|cctv|nvr|dvr|projector/.test(fullText)) bump('tv', 58);
   if ((macPrefix === '58:FD:B1' || /lg ?webos|lgwebostv/.test(fullText)) && !svc.l2 && !svc.l3 && !switchWords && !routerWords) bump('tv', 82);
   if (/lg|lge|lg electronics|lg innotek/.test(vendor) && isAppliance) bump('iot', 88);
-  // Android/tablet/phone generico (senza segnale TV/elettrodomestico): endpoint.
+  // Android/tablet/phone generico (senza segnale TV/elettrodomestico): endpoint mobile.
   if (!svc.l2 && !svc.l3 && !switchWords && !routerWords &&
-      /\bandroid\b/.test(fullText) && !isTv && !isAppliance && !smartHomePlatform.test(fullText)) bump('pc', 25);
+      /\bandroid\b/.test(fullText) && !isTv && !isAppliance && !smartHomePlatform.test(fullText)) bump('mobile', 25);
 
   if (servicePorts.has(554)) bump('webcam', /rtsp|onvif|camera|reolink|hikvision|dahua|vivotek|axis/.test(fullText) ? 65 : 55);
   if (servicePorts.has(502) || servicePorts.has(1883)) bump('iot', 35);
@@ -380,6 +383,11 @@ function _classifyDiscoveredDeviceLegacy(row) {
   // SMB/RDP indicano "host Windows o file sharing", non necessariamente server.
   if ((servicePorts.has(445) || servicePorts.has(3389)) && /windows server|vmware|esxi|nas|synology|qnap|truenas|freenas|samba server/.test(fullText)) bump('server', 45);
   else if (servicePorts.has(445) || servicePorts.has(3389)) bump('pc', 35);
+
+  // Google Cast device (protocollo eureka_info su :8008, vendor-neutral) → media/tv.
+  // Segnale misurato forte; parità col FusionScorer (engine/fusion-scorer.js).
+  if (row?.cast) bump('tv', 85);
+  else if (servicePorts.has(8008) || servicePorts.has(8009)) bump('tv', 70);
 
   // NetBIOS / SMB = host Windows → computer (pc/server), mai apparato di rete — parità
   // col FusionScorer. Vedi engine/fusion-scorer.js.
@@ -397,7 +405,8 @@ function _classifyDiscoveredDeviceLegacy(row) {
     bump('pc', 85);
   }
 
-  if (svc.l3 && !svc.l7 && !switchWords) bump('router', 45);
+  // L3 SENZA L2 = router; L2+L3 = switch multilayer (parità col FusionScorer).
+  if (svc.l3 && !svc.l2 && !svc.l7 && !switchWords) bump('router', 45);
   if (svc.l2 && !svc.l3 && !svc.l7) bump('switch', 45);
   if (svc.l2 && svc.l3) {
     bump('switch', 35);
@@ -408,11 +417,11 @@ function _classifyDiscoveredDeviceLegacy(row) {
   if (!hasSnmpSignal && !switchWords && !routerWords) {
     if (/^desktop-|^win[0-9-]|^win-|workstation|laptop|notebook/i.test(String(row?.hostname || '').trim())) bump('pc', 55);
     if (/hewlett packard|dell|lenovo|intel|apple|parallels|microsoft|asus|acer|toshiba|pcs systemtechnik|vmware/.test(vendor) && !/officejet|laserjet|printer|aruba/.test(fullText)) bump('pc', 30);
-    if (!score.tv && !score.webcam && !score.nas && !score.printer && !score.iot && (row?.alive || row?.mac)) bump('pc', 15);
+    if (!score.tv && !score.webcam && !score.nas && !score.printer && !score.iot && !score.mobile && (row?.alive || row?.mac)) bump('pc', 15);
   }
   if ((row?.httpTitle || row?.httpsTitle) && !score.router && !score.switch && !score.server && !score.nas && !score.printer && !score.webcam && !score.tv) bump('iot', 20);
 
-  const priority = ['firewall', 'router', 'switch', 'nas', 'hypervisor', 'server', 'printer', 'webcam', 'ap', 'ups', 'pdu', 'voip', 'tv', 'iot', 'pc'];
+  const priority = ['firewall', 'sdwan', 'router', 'switch', 'nas', 'hypervisor', 'server', 'printer', 'webcam', 'wlanctrl', 'ap', 'ups', 'pdu', 'voip', 'tv', 'iot', 'mobile', 'pc'];
   const best = Object.entries(score).sort((a, b) => (b[1] - a[1]) || (priority.indexOf(a[0]) - priority.indexOf(b[0])))[0];
   if (best && best[1] >= 30) {
     // Promozione server→hypervisor (specializzazione): stessa regola del FusionScorer
@@ -652,7 +661,10 @@ function _buildDiscoveryMeta(row, extra = {}) {
       (deviceClass === 'firewall' && svcCtx.l3) ||
       (deviceClass === 'server'   && svcCtx.l7);
     if (classConfirmed) {
-      score += 15;
+      // SNMP reachable + sysServices OSI layers agree with the classified type is a
+      // STRONG, self-sufficient confirmation → it alone must reach 'high' (it no
+      // longer piggybacks on incidental evidence like a spurious OS fingerprint).
+      score += 25;
       addReason('snmp-class-confirmed');
     }
   }

@@ -32,6 +32,10 @@ function enrich(oid, context = {}) {
 
 function inferCiscoType(text, sysServices) {
   if (/asa|firepower|firewall|ftd/.test(text)) return 'firewall';
+  // WLAN Controller BEFORE the switch/ap fallbacks: a WLC ("Cisco Controller",
+  // AIR-CT, AireOS, Catalyst 9800/WISM) reports sysServices L2 and would otherwise
+  // fall through to 'switch'. It is a distinct role → `wlanctrl`.
+  if (/\bwlc\b|\bwism\b|air-?ct[0-9]|aire-?os|cisco controller|wireless\s*lan\s*controller|wlan\s*controller|catalyst\s*9800|\bc9800/.test(text)) return 'wlanctrl';
   if (/aironet|access point|\bap\b/.test(text)) return 'ap';
   if (/catalyst|nexus|switch|ios[_-]?l2/.test(text)) return 'switch';
   const svc = parseInt(sysServices || 0, 10) || 0;

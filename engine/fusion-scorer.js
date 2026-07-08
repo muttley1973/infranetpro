@@ -27,8 +27,8 @@ const { oidTypeVotes } = require('../lib/device-signatures');
 // Tie-break order when two device types have identical raw scores: the one
 // listed first wins. Matches the legacy `_classifyDiscoveredDevice` priority.
 const DEFAULT_PRIORITY = [
-  'firewall', 'router', 'switch', 'nas', 'hypervisor', 'server', 'printer',
-  'webcam', 'ap', 'ups', 'pdu', 'voip', 'tv', 'iot', 'pc',
+  'firewall', 'sdwan', 'router', 'switch', 'nas', 'hypervisor', 'server', 'printer',
+  'webcam', 'wlanctrl', 'ap', 'ups', 'pdu', 'voip', 'tv', 'iot', 'mobile', 'pc',
 ];
 
 // Minimum raw score required to commit to the best device-type guess.
@@ -38,48 +38,17 @@ const DEFAULT_DECISION_THRESHOLD = 30;
 // ---------- Pre-compiled regex tables ---------------------------------------
 // Kept as module-level constants so each `classify()` call doesn't recompile.
 
-const SWITCH_WORDS_RE = /switch|gs\d{3,4}|xgs\d{3,4}|catalyst|nexus|procurve|comware|ios[_-]?l2|l2iol/;
-const ROUTER_WORDS_RE = /router|gateway|junos|mikrotik|vyos|openwrt|edgerouter|zywall|usg|fritz|web-based configurator/;
-const NET_VENDOR_GW_RE = /zyxel|tp-link|netgear|d-link|mikrotik|ubiquiti|huawei|avm|fritz/;
-const PRINTER_RE = /officejet|laserjet|deskjet|pagewide|designjet|colorlaserjet|printer|printserver|\bhp.*print|print.*hp|epson|xerox|ricoh|kyocera|jetdirect|imagerunner|imageclass|ecosys|taskalfa|bizhub|lexmark|brother/;
-const WEBCAM_RE = /reolink|hikvision|dahua|vivotek|hanwha|uniview|axis.*camera|bosch.*security|\bcctv\b|ip.?camera|\bnvr\b|\bdvr\b|onvif/;
-const NAS_RE = /\bnas\b|synology|sinology|qnap|lacie|truenas|freenas|netapp|readynas|buffalo|drobo|iomega|wd\s*my\s*cloud|seagate\s*nas|asustor|terramaster|openmediavault/;
-const FIREWALL_RE = /fortigate|fortinet|pfsense|opnsense|firewall|sonicwall|watchguard|checkpoint|palo\s?alto|pan-os|panorama|\basa\b|sophos.*utm|sophos.*firewall|stormshield|barracuda.*firewall/;
-const AP_RE = /\baironet\b|air-ap[0-9]|unifi.*ap|\buap-|ruckus|zoneflex|unleashed|aruba.*iap|aruba.*rap|\biap-[0-9]|\brap-[0-9]|meraki\s*mr|access point|\bap\b|omada.*ap|eap[0-9]{3,4}|wlan controller/;
-const PDU_RE = /\bpdu\b|power.?distribution|raritan|servertech|\bgeist\b/;
-const UPS_RE = /\bups\b|\bapc\b|powerware|cyberpower|riello|liebert|vertiv/;
-const VOIP_RE = /polycom|yealink|grandstream|\bsnom\b|\bmitel\b|\baastra\b|sip.*phone|voip.*phone/;
-const IOT_EMBED_RE = /keil-eweb|embedded web|webrelay|modbus|plc|eaton corporation/;
-const ROUTER_VENDOR_RE = /mikrotik|routeros|edgerouter|edgeos|unifi gateway|\busg\b|\budm\b|dream machine|tp-link.*router|netgear.*router|d-link.*router|draytek|fritz!box|fritzbox|openwrt|vyos/;
-const SWITCH_VENDOR_RE = /aruba|comware|procurve|cx\s*[0-9]{4}|ex[0-9]{3,4}|qfx[0-9]{3,4}|nexus|catalyst|brocade|icx[0-9]{4}|extreme.*switch|dell.*powerconnect|dell.*n[0-9]{4}|d-link.*switch|tp-link.*switch|netgear.*switch/;
-const JUNIPER_FIREWALL_RE = /juniper.*srx|\bsrx[0-9]{3,4}\b/;
-const JUNIPER_ROUTER_RE = /juniper.*(?:mx|ptx|acx)|\bmx[0-9]{3,4}\b|\bptx[0-9]{3,4}\b|\bacx[0-9]{3,4}\b/;
-// Hypervisor BARE-METAL (l'host, non la VM): mappa al nuovo tipo `hypervisor`.
-// NB: niente bare 'kvm' qui — collide col tipo `kvm` (KVM switch keyboard/video).
-const HYPERVISOR_RE = /vmware\s*esx|esxi|proxmox|hyper.?v|xcp-ng|xenserver|nutanix|\bahv\b/;
-// Altri host di virtualizzazione/orchestrazione e server-OS → restano `server`.
-const SERVER_VIRT_RE = /windows server|truenas scale|pnetlab|eve-ng|unetlab|openstack|kubernetes|k8s|docker/;
-const SERVER_LINUX_RE = /ubuntu server|debian|centos|red\s?hat|fedora|suse|freebsd|rocky linux|alma linux|oracle linux/;
-
-const APPLIANCE_RE = /washing ?machine|\bwasher\b|tumble ?dryer|\bdryer\b|dishwasher|refrigerator|\bfridge\b|freezer|\boven\b|microwave|cooktop|range ?hood|cooker ?hood|air ?conditioner|air ?con\b|\bhvac\b|heat ?pump|thermostat|\bboiler\b|water ?heater|dehumidifier|humidifier|air ?purifier|robot ?vacuum|\bvacuum\b|coffee ?machine|lavatrice|asciugatrice|lavastoviglie|frigo(?:rifero)?|congelatore|\bforno\b|microonde|\bcappa\b|condizionatore|climatizzatore|caldaia|scaldabagno|scaldacqua|aspirapolvere|deumidificatore|umidificatore|purificatore|macchina ?caff/;
-const SMART_HOME_RE = /thinq|smartthings|smart ?life|\btuya\b|tasmota|sonoff|\bshelly\b|esphome|espressif|home ?assistant|homekit|\bmatter\b|zigbee|z-?wave|miele@?home|home ?connect|\bhon\b|electrolux|whirlpool|gorenje|miele|\bbeko\b|smart ?plug|smart ?bulb|smart ?(?:light )?switch|smart ?lock|doorbell|\bsensor\b|daikin|azurewave/;
-const TV_SIGNAL_RE = /lg ?webos|\bwebos\b|tizen|android ?tv|google ?tv|\btvos\b|fire ?tv|firetv|\broku\b|\bvidaa\b|netcast|\bbravia\b|\boled\b|\bqled\b|nanocell|the ?frame|smart ?tv|\btelevision\b|televisore/;
-const MEDIA_PLAYER_RE = /nvidia ?shield|\bshield\b|apple ?tv|mi ?box|fire ?stick|firestick|dlna ?renderer|miracast/;
-const PC_OS_RE = /vmware\s*esx|esxi|proxmox|hyper.?v|windows server|nas|synology|qnap|truenas|freenas|samba server/;
-const PC_HOSTNAME_RE = /^desktop-|^win[0-9-]|^win-|workstation|laptop|notebook/i;
-const PC_VENDOR_RE = /hewlett packard|dell|lenovo|intel|apple|parallels|microsoft|asus|acer|toshiba|pcs systemtechnik|vmware/;
-
-// Sostantivi-tipo GENERICI ("false friend") che NON devono decidere il tipo quando
-// compaiono nel NOME AZIENDA del vendor: es. "Gateway Inc." fa PC, l'org "SWITCH" e'
-// una rete accademica, "Firewall Services" e' un'azienda. Vengono rimossi dalla stringa
-// vendor PRIMA di comporre il testo di classificazione — i token di BRAND reali
-// (mikrotik, fortinet, catalyst, cisco...) restano e continuano a votare. Allineato allo
-// stato dell'arte (nmap/Fingerbank/netdisco/SNMP::Info/runZero): il vendor e' IDENTITA',
-// mai una keyword di tipo. Il nome PIENO resta comunque per la colonna vendor (display).
-// Solo i 4 sostantivi di infrastruttura di rete (i "false friend" piu' frequenti nei
-// registri IANA-PEN/IEEE-OUI) — nas/ups/pdu restano perche' li' il nome-azienda coincide
-// quasi sempre col tipo reale.
-const VENDOR_TYPE_NOUN_RE = /\b(?:gateway|router|switch|firewall)\b/gi;
+// Canonical, SHARED regex tables (lib/device-patterns.js) — single source consumed
+// here (weighted) and by the client fallback (first-match) so the two can't drift
+// (B3). Extraction is behavior-preserving; tests/classify-golden.test.js proves it.
+const {
+  SWITCH_WORDS_RE, ROUTER_WORDS_RE, NET_VENDOR_GW_RE, PRINTER_RE, WEBCAM_RE, NAS_RE,
+  FIREWALL_RE, AP_RE, WLANCTRL_RE, PDU_RE, UPS_RE, VOIP_RE, IOT_EMBED_RE,
+  ROUTER_VENDOR_RE, SWITCH_VENDOR_RE, JUNIPER_FIREWALL_RE, JUNIPER_ROUTER_RE,
+  HYPERVISOR_RE, SERVER_VIRT_RE, SERVER_LINUX_RE, APPLIANCE_RE, SMART_HOME_RE,
+  TV_SIGNAL_RE, MEDIA_PLAYER_RE, PC_OS_RE, PC_HOSTNAME_RE, PC_VENDOR_RE,
+  VENDOR_TYPE_NOUN_RE,
+} = require('../lib/device-patterns');
 
 // ---------- Helpers ----------------------------------------------------------
 
@@ -213,9 +182,18 @@ class FusionScorer {
     if (ouiInfo?.deviceType) {
       const ouiPriority = parseInt(ouiInfo?.source?.priority ?? 0, 10) || 0;
       const baseConfidence = parseInt(ouiInfo?.confidence || 0, 10) || 60;
+      // The OUI deviceType is a VENDOR-IDENTITY inference (derived from the MAC
+      // vendor) — the WEAKEST signal tier: a *candidate*, never a decision. It is
+      // weighted like the other identity signals (vendor-pc ~30, mac-oui ~45), so it
+      // can NEVER outrank a MEASURED behavioural / model / banner / SNMP signal
+      // (>=78). This is the vendor-neutral core rule, applied uniformly to EVERY OUI
+      // plugin (mono- and multi-product vendors alike): e.g. Zyxel makes routers AND
+      // switches — a web banner reading "Intelligent Switch" (78) must beat the OUI's
+      // vendor-default (was 80, now <=45). When the OUI type is the ONLY signal it
+      // still classifies (>= decisionThreshold), just at honest low confidence (F4).
       const points = ouiPriority >= 90
-        ? Math.max(40, Math.min(80, baseConfidence))
-        : Math.max(15, Math.min(45, baseConfidence));
+        ? Math.max(30, Math.min(45, baseConfidence))
+        : Math.max(15, Math.min(35, baseConfidence));
       bump(ouiInfo.deviceType, points, 'oui-plugin-type',
         { source: 'oui', label: [ouiInfo.vendor, ouiInfo.family].filter(Boolean).join(' / '), priority: ouiPriority });
     }
@@ -239,7 +217,8 @@ class FusionScorer {
     if (WEBCAM_RE.test(fullText))    bump('webcam', 90, 'regex-webcam');
     if (NAS_RE.test(fullText))       bump('nas', 90, 'regex-nas');
     if (FIREWALL_RE.test(fullText))  bump('firewall', 90, 'regex-firewall');
-    if (AP_RE.test(fullText))        bump('ap', 80, 'regex-ap');
+    if (WLANCTRL_RE.test(fullText))  bump('wlanctrl', 90, 'regex-wlanctrl');
+    else if (AP_RE.test(fullText))   bump('ap', 80, 'regex-ap');
     if (PDU_RE.test(fullText))       bump('pdu', 85, 'regex-pdu');
     if (UPS_RE.test(fullText))       bump('ups', 85, 'regex-ups');
     if (VOIP_RE.test(fullText))      bump('voip', 80, 'regex-voip');
@@ -266,12 +245,12 @@ class FusionScorer {
     if (SMART_HOME_RE.test(fullText) && !isTv) bump('iot', 80, 'regex-smarthome');
     if (isTv) bump('tv', 80, 'regex-tv');
     if (isMediaPlayer) bump('tv', 55, 'regex-media-player');
-    if (/chromecast|google ?cast/.test(fullText) && !svc.l2 && !svc.l3 && !switchWords && !routerWords) bump('iot', 75, 'regex-chromecast');
+    if (/chromecast|google ?cast/.test(fullText) && !svc.l2 && !svc.l3 && !switchWords && !routerWords) bump('tv', 75, 'regex-chromecast');
     if (/sony|bravia/.test(fullText) && !svc.l2 && !svc.l3 && !switchWords && !routerWords && !/camera|cctv|nvr|dvr|projector/.test(fullText)) bump('tv', 58, 'regex-sony-bravia');
     if ((macPrefix === '58:FD:B1' || /lg ?webos|lgwebostv/.test(fullText)) && !svc.l2 && !svc.l3 && !switchWords && !routerWords) bump('tv', 82, 'regex-lg-webos');
     if (/lg|lge|lg electronics|lg innotek/.test(vendor) && isAppliance) bump('iot', 88, 'regex-lg-appliance');
     if (!svc.l2 && !svc.l3 && !switchWords && !routerWords &&
-        /\bandroid\b/.test(fullText) && !isTv && !isAppliance && !SMART_HOME_RE.test(fullText)) bump('pc', 25, 'regex-android-generic');
+        /\bandroid\b/.test(fullText) && !isTv && !isAppliance && !SMART_HOME_RE.test(fullText)) bump('mobile', 25, 'regex-android-generic');
 
     // Service-port heuristics
     if (servicePorts.has(554)) {
@@ -286,6 +265,16 @@ class FusionScorer {
     } else if (servicePorts.has(445) || servicePorts.has(3389)) {
       bump('pc', 35, 'tcp-smb-rdp-pc');
     }
+
+    // Google Cast device (Chromecast, Nvidia Shield, Android TV, Nest, cast-enabled
+    // TV/speaker): row.cast is set by the eureka_info PROTOCOL probe; the cast control
+    // ports (8008/8009) are the fallback when the probe is blocked. Measured +
+    // vendor-neutral → a media endpoint (tv). The ports alone score decisively (70) so
+    // Cast wins over a vendor/OS guess (NVIDIA→pc, Google→mobile) even without the
+    // probe. One consistent policy: every Cast signal (probe, ports, or the text rule
+    // above) → tv.
+    if (row?.cast) bump('tv', 85, 'cast-device');
+    else if (servicePorts.has(8008) || servicePorts.has(8009)) bump('tv', 70, 'cast-ports');
 
     // NetBIOS / SMB = host WINDOWS → un COMPUTER (pc/server), MAI un apparato di rete.
     // <1B>/<1C> Domain Controller → server; <20> Server-service o share SMB → lean
@@ -310,7 +299,10 @@ class FusionScorer {
     }
 
     // sysServices L2/L3 hints
-    if (svc.l3 && !svc.l7 && !switchWords)       bump('router', 45, 'sysservices-l3');
+    // Pure L3 (no L2) = router; L2+L3 = a MULTILAYER SWITCH → handled by the l2-l3
+    // rule below (switch-leaning), NOT router. Without the `!svc.l2` guard an Arista/
+    // Catalyst L3 switch (sysServices L2+L3) was wrongly typed router. Vendor-neutral.
+    if (svc.l3 && !svc.l2 && !svc.l7 && !switchWords) bump('router', 45, 'sysservices-l3');
     if (svc.l2 && !svc.l3 && !svc.l7)             bump('switch', 45, 'sysservices-l2');
     if (svc.l2 && svc.l3)                         { bump('switch', 35, 'sysservices-l2-l3'); bump('router', 25, 'sysservices-l2-l3'); }
     if (svc.l4 && svc.l7 && !svc.l2 && !svc.l3 && !/printer|officejet|laserjet|camera|nas|ups|pdu|ap|iot|keil/.test(fullText)) {
@@ -321,7 +313,7 @@ class FusionScorer {
     if (!hasSnmpSignal && !switchWords && !routerWords) {
       if (PC_HOSTNAME_RE.test(String(row?.hostname || '').trim())) bump('pc', 55, 'hostname-pc');
       if (PC_VENDOR_RE.test(vendor) && !/officejet|laserjet|printer|aruba/.test(fullText)) bump('pc', 30, 'vendor-pc');
-      if (!score.tv && !score.webcam && !score.nas && !score.printer && !score.iot && (row?.alive || row?.mac)) {
+      if (!score.tv && !score.webcam && !score.nas && !score.printer && !score.iot && !score.mobile && (row?.alive || row?.mac)) {
         bump('pc', 15, 'pc-baseline');
       }
     }
@@ -372,6 +364,20 @@ class FusionScorer {
       deviceType = 'pc';
       confidence = 15;
     }
+
+    // Onesta della confidenza: senza un segnale MISURATO/comportamentale (SNMP,
+    // sysObjectID, banner web, porte, NetBIOS, share SMB, Cast) il tipo poggia solo
+    // su un'inferenza da vendor/OS (OUI, fingerprint) — un candidato, non una prova.
+    // Cappiamo la confidenza cosi' un tipo indovinato-dal-MAC non viene spacciato per
+    // certo (manual-first: l'utente conferma). Vendor-neutral, coerente col peso
+    // ridotto dell'OUI: identità != prova del tipo.
+    const hasMeasuredSignal = !!(
+      hasSnmpSignal ||                       // snmpReachable / sysDescr / sysObjectID
+      row?.httpTitle || row?.httpsTitle ||   // web banner
+      servicePorts.size || netbiosHost ||    // open ports / NetBIOS
+      (row?.smbShares || []).length || row?.cast
+    );
+    if (!hasMeasuredSignal) confidence = Math.min(confidence, 60);
 
     // Promozione server→hypervisor: l'hypervisor è una SPECIALIZZAZIONE del server,
     // quindi un host che vince come `server` ma porta evidenza hypervisor (sysDescr

@@ -4,7 +4,14 @@
 // (es. "0:1c:42:8:b:9") → vanno ri-paddati o il MAC (e quindi il vendor) si perde.
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { _parseArpTable, _normMac } = require('../server/netscan');
+const { _parseArpTable, _normMac, DEEP_TCP_PORTS, _castProbe } = require('../server/netscan');
+
+test('DEEP_TCP_PORTS: include le porte Google Cast (8008/8009) per il rilevamento media', () => {
+  const ports = DEEP_TCP_PORTS.map(p => p.port);
+  assert.ok(ports.includes(8008), '8008 (Cast) presente');
+  assert.ok(ports.includes(8009), '8009 (Cast TLS) presente');
+  assert.equal(typeof _castProbe, 'function', '_castProbe esportato');
+});
 
 test('_normMac: formato Windows con trattini', () => {
   assert.equal(_normMac('AA-BB-CC-DD-EE-FF'), 'AA:BB:CC:DD:EE:FF');
