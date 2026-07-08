@@ -347,7 +347,7 @@ function _discIdentityLabel(src){
     return map[src] || src || 'Osservato';
 }
 
-function _discSanitizeDeviceClass(row){
+function _discSanitizeDeviceClass(row, opts){
     const vendor = String(row?.vendor || '').toLowerCase();
     const host = String(row?.hostname || row?.netbiosName || '').toLowerCase();
     const banner = String(`${row?.httpTitle || ''} ${row?.httpsTitle || ''}`).toLowerCase();
@@ -358,21 +358,38 @@ function _discSanitizeDeviceClass(row){
     const conf = parseInt(row?.confidence?.score ?? row?.discovery?.confidence?.score ?? 0, 10) || 0;
     const weak = conf < 45 && !row?.snmpReachable && !row?.objectId;
 
-    if(/officejet|laserjet|printer|stampante/.test(text)) return 'printer';
-    if(/reolink|hikvision|dahua|axis|vivotek|camera|cctv|onvif|rtsp/.test(text)) return 'webcam';
-    if(/synology|sinology|qnap|lacie|nas/.test(text)) return 'nas';
-    if(/fortigate|fortinet|palo\s?alto|pan-os|sonicwall|watchguard|checkpoint|sophos.*firewall|pfsense|opnsense|firewall/.test(text)) return 'firewall';
-    if(/mikrotik|routeros|edgerouter|edgeos|unifi gateway|\busg\b|\budm\b|dream machine|tp-link.*router|netgear.*router|d-link.*router|junos|juniper.*(?:mx|ptx|acx)|fritzbox|openwrt|vyos/.test(text)) return 'router';
-    if(/zyxel|cisco|aruba|juniper.*(?:ex|qfx)|brocade|extreme|dell.*powerconnect|d-link.*switch|tp-link.*switch|netgear.*switch|switch|gs\d{3,4}|xgs\d{3,4}/.test(text)){
-        if(/gateway|router|zywall|web-based configurator/.test(text) && !/switch|gs\d{3,4}|xgs\d{3,4}/.test(text)) return 'router';
-        return 'switch';
+    // B3 — la ri-classificazione a regex del CLIENT gira SOLO quando il server non
+    // aveva una classe sicura (`manualOnly` falso). Con `manualOnly` si applicano
+    // solo gli override manual-first (nodo esistente / hint), MAI le regex, cosi' il
+    // client non scavalca piu' la classe autorevole del server (fonte della divergenza).
+    if(!opts || !opts.manualOnly){
+        // Pattern dalla lib CONDIVISA (device-patterns.js) = ESATTAMENTE la stessa
+        // tabella del FusionScorer server -> il fallback client non diverge piu' (B3).
+        // Segnali SPECIFICI (printer/webcam/nas/tv/elettrodomestico) PRIMA del check
+        // generico switch/gs\d: una TV/stampante col nome di uno switch vicino (es.
+        // "GS1900") NON deve diventare switch. L'ordine e' il fix del bug di ordinamento.
+        if(PRINTER_RE.test(text)) return 'printer';
+        if(WEBCAM_RE.test(text)) return 'webcam';
+        if(NAS_RE.test(text)) return 'nas';
+        if(APPLIANCE_RE.test(text) || SMART_HOME_RE.test(text)) return 'iot';
+        if(TV_SIGNAL_RE.test(text) || MEDIA_PLAYER_RE.test(text)) return 'tv';
+        if(FIREWALL_RE.test(text)) return 'firewall';
+        if(WLANCTRL_RE.test(text)) return 'wlanctrl';
+        if(AP_RE.test(text)) return 'ap';
+        if(VOIP_RE.test(text)) return 'voip';
+        if(PDU_RE.test(text)) return 'pdu';
+        if(UPS_RE.test(text)) return 'ups';
+        if(IOT_EMBED_RE.test(text) && !/\bups\b|\bpdu\b|power/.test(text)) return 'iot';
+        if(ROUTER_VENDOR_RE.test(text)) return 'router';
+        if(SWITCH_VENDOR_RE.test(text) || SWITCH_WORDS_RE.test(text)){
+            if(ROUTER_WORDS_RE.test(text) && !SWITCH_WORDS_RE.test(text)) return 'router';
+            return 'switch';
+        }
+        if(/google|chromecast/.test(text)) return 'iot';
+        if(/desktop-|^win|windows 10|workgroup|parallels|intel|pcs systemtechnik/.test(text)) return 'pc';
+        if(HYPERVISOR_RE.test(text)) return 'hypervisor';
+        if(SERVER_VIRT_RE.test(text)) return 'server';
     }
-    if(/washing ?machine|\bwasher\b|tumble ?dryer|\bdryer\b|dishwasher|refrigerator|\bfridge\b|freezer|air ?conditioner|air ?con\b|\bhvac\b|heat ?pump|thermostat|lavatrice|asciugatrice|lavastoviglie|frigo|condizionatore|climatizzatore|thinq|smartthings|smart ?life|\btuya\b|tasmota|sonoff|\bshelly\b|esphome/.test(text)) return 'iot';
-    if(/nvidia ?shield|\bshield\b|sony|bravia|lgwebos|webos|android tv|google tv|smart.?tv/.test(text)) return 'tv';
-    if(/google|chromecast|daikin|azurewave|keil-eweb|eaton corporation/.test(text)) return 'iot';
-    if(/desktop-|^win|windows 10|workgroup|parallels|intel|pcs systemtechnik/.test(text)) return 'pc';
-    if(/vmware esx|esxi|proxmox|hyper.?v|xcp-ng|xenserver|nutanix|\bahv\b/.test(text)) return 'hypervisor';
-    if(/pnetlab|eve-ng|unetlab|windows server/.test(text)) return 'server';
 
     const existing = win._discExistingNode(row);
     if(existing?.type && TYPES[existing.type]) return existing.type;
@@ -381,7 +398,7 @@ function _discSanitizeDeviceClass(row){
     if(hinted && (weak || row?.deviceClass === 'pc' || row?.deviceClass === 'server')) return hinted;
 
     if(weak && row?.deviceClass === 'server') return 'pc';
-    return row?.deviceClass || '';
+    return (opts && opts.manualOnly) ? '' : (row?.deviceClass || '');
 }
 
 function _discConfidenceScore(row){
@@ -431,10 +448,13 @@ function _guessType(descr, objectId, vendor='', banner='', host=''){
     if(/^hp[0-9a-f]{6}$/i.test(host || '') && /hewlett packard/i.test(vendor || '')) return 'printer';
     if(/keil-eweb|embedded web|webrelay|modbus|plc|eaton corporation|azurewave|daikin/.test(vhb) && !/\bups\b|\bpdu\b|power/.test(vhb)) return 'iot';
     if(/fortigate|fortinet|palo\s?alto|pan-os|sonicwall|watchguard|checkpoint|sophos.*firewall|pfsense|opnsense|firewall/.test(vhb)) return 'firewall';
+    if(/wireless\s*lan\s*controller|wlan\s*controller|mobility\s*controller|\bwlc\b|air-?ct[0-9]|cisco\s*controller|aire-?os|catalyst\s*9800|\bc9800/.test(vhb)) return 'wlanctrl';
+    // TV/media PRIMA del check generico switch/gs\d (evita che il nome di uno switch
+    // vicino — es. "GS1900" — riscriva una TV a "switch").
+    if(/lgwebos|webos|bravia|sony|google tv|chromecast|nvidia shield|\bshield\b|android tv|smart.?tv|television/.test(vhb)) return 'tv';
     if(/gateway|router|zywall|web-based configurator/.test(vhb) && !/switch|gs\d{3,4}|xgs\d{3,4}/.test(vhb)) return 'router';
     if(/mikrotik|routeros|edgerouter|edgeos|unifi gateway|\busg\b|\budm\b|dream machine|tp-link.*router|netgear.*router|d-link.*router|openwrt|vyos/.test(vhb)) return 'router';
     if(/aruba|cisco|juniper.*(?:ex|qfx)|brocade|extreme|dell.*powerconnect|switch|gs\d{3,4}|xgs\d{3,4}/.test(vhb)) return 'switch';
-    if(/lgwebos|webos|bravia|sony|google tv|chromecast|nvidia shield|\bshield\b|android tv|smart.?tv|television/.test(vhb)) return 'tv';
     if(/google|chromecast/.test(vhb) && !/server|workgroup|desktop|win/.test(vhb)) return 'iot';
     if(/ups|apc/.test(vhb)) return 'ups';
 
