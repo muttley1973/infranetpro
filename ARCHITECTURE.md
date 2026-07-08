@@ -425,6 +425,19 @@ is VPN/LAN.
     printer-vendor NIC. The Discover UI now treats this server engine as the single source of truth
     (`serverAuthoritative` in `src/app-discovery.js`); the thin client `_guessType` only fills gaps.
     `engine/fusion-scorer.js`, `server/classify.js` (legacy kept in parity).
+  - **Signal tiering — a measured signal always beats a vendor-identity inference (2026-07-07).** A
+    per-vendor MAC-OUI plugin proposes a device-type *candidate* (Zyxel→router, D-Link→router, …); that
+    guess used to be scored high enough (≤80) to beat a real banner/model/port signal, so a Zyxel box
+    whose web page reads *"Intelligent Switch"* was typed `router`. The OUI device-type is now weighted
+    like the other identity hints (~45), so **any** measured signal outranks it — one rule for every OUI
+    plugin, **no `plugins/oui/*` vendor file edited** (that would be the per-vendor hack the vendor-neutral
+    rule forbids). Behavioural detection is by **protocol, not brand**: Google Cast (`_castProbe` →
+    `/setup/eureka_info` + ports 8008/8009 in `DEEP_TCP_PORTS`) → `tv` for any make, like RTSP→camera; and
+    the **OS** fingerprint decides `mobile` (Android/iOS) vs `pc` (`plugins/os-fingerprint.js` emits the
+    type, not the brand). A device known *only* by a vendor/OS inference (a MAC with no measured signal)
+    has its confidence capped — honest, manual-first. `engine/fusion-scorer.js`, `server/classify.js`,
+    `plugins/os-fingerprint.js`, `server/netscan.js`, `server/routes/discovery.js`; validated by two live
+    LAN scans (Zyxel switch, Shield/Chromecast→tv, Huawei tablet→mobile; every correct device unchanged).
   - **Merge-guards on the render path (audit F4/F5).** The guard that stops a next-hop/gateway MAC
     from collapsing remote hosts onto the gateway node ran only on import; it now also runs on the
     preview/table index (`_discAttachMergeGuards`), so a remote host no longer inherits the gateway's
