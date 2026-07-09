@@ -330,8 +330,13 @@ function _propsIconForType(type){
     return TYPES[type]?.icon || 'fa-cube';
 }
 
-function _buildPropsHeader(title, subtitle, iconClass, actionsHtml=''){
-    return `<div class="props-selected-title"><span class="props-selected-main"><i class="fas ${escapeHTML(iconClass||'fa-cube')} props-selected-icon"></i><span class="props-selected-text">${escapeHTML(title||t('pnl.gen.element'))}<small class="props-selected-subtitle">${escapeHTML(subtitle||'')}</small></span></span>${actionsHtml}</div>`;
+function _buildPropsHeader(title, subtitle, iconClass, actionsHtml='', titleClass=''){
+    // titleClass (opzionale) = modificatore sul titolo. Applicato SOLO se passato, cosi'
+    // gli altri pannelli (nome device, porta, cavo) restano byte-identici. Il Contesto
+    // progetto passa 'props-title-upper' per il maiuscolo via CSS (il testo nel DOM resta
+    // in caso normale: a11y + i test che cercano la stringa esatta restano verdi).
+    const _tc = titleClass ? ' '+escapeHTML(titleClass) : '';
+    return `<div class="props-selected-title"><span class="props-selected-main"><i class="fas ${escapeHTML(iconClass||'fa-cube')} props-selected-icon"></i><span class="props-selected-text${_tc}">${escapeHTML(title||t('pnl.gen.element'))}<small class="props-selected-subtitle">${escapeHTML(subtitle||'')}</small></span></span>${actionsHtml}</div>`;
 }
 
 export function renderProps(){

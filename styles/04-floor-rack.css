@@ -187,6 +187,8 @@
         .props-selected-main { display:flex; align-items:center; gap:9px; flex:1; min-width:0; }
         .props-selected-icon { color:var(--accent); width:24px; text-align:center; font-size:var(--fs-2xl); line-height:1; flex-shrink:0; display:flex; align-items:center; justify-content:center; min-height:calc(1.02rem + 0.74rem + 4px); }
         .props-selected-text { display:flex; flex-direction:column; justify-content:center; min-width:0; line-height:1.15; }
+        /* Titolo Contesto progetto in MAIUSCOLO (coerente con le sezioni PLANIMETRIA/VLAN sotto). Solo dove passato titleClass='props-title-upper' (il testo nel DOM resta invariato). */
+        .props-selected-text.props-title-upper { text-transform:uppercase; letter-spacing:.02em; }
         .props-selected-subtitle { display:block; font-size:var(--fs-sm); font-weight:500; color:var(--text-main); text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
         /* Riga LAG sotto l'header porta: chip "Membro LAG" (viola) + chip porte
            del bonding (porta corrente evidenziata in ciano). */
