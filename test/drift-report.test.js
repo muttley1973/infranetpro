@@ -128,6 +128,9 @@ test('cross-subnet: device su subnet NON raggiunta dalla sweep → unverified, n
   assert.equal(r.counts.unverified, 1, 'il device cross-subnet non osservato è non-verificabile');
   assert.equal(r.unverified[0].label, 'cam-altra-vlan');
   assert.equal(r.unverified[0].ip, '10.20.0.5');
+  // Esposti per l'accorpamento in "Reti del progetto" (annota presenza per /24).
+  assert.equal(r.sweepRan, true, 'sweepRan esposto nell\'output');
+  assert.deepEqual(r.observedSubnets, ['192.168.1'], 'observedSubnets esposto nell\'output');
 });
 
 test('cross-subnet back-compat: FDB senza dettaglio subnet (fdbSubnets assente) → copre il L2 come prima', () => {

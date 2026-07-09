@@ -4,7 +4,7 @@
 // workflow (covered/blocked/open). Zero rete, zero DOM.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { deriveProjectNetworks } = require('../lib/project-networks.js');
+const { deriveProjectNetworks, annotateNetworksVerification } = require('../lib/project-networks.js');
 
 const node = (id, ip, extra = {}) => ({ id, ip, ...extra });
 
@@ -92,4 +92,50 @@ test('snmpSources riporta tipo/driver/raggiungibilità di ogni sorgente SNMP del
   const { networks } = deriveProjectNetworks({ nodes });
   assert.equal(networks[0].snmpSources.length, 1);
   assert.deepEqual(networks[0].snmpSources[0], { id: 'sw', ip: '10.10.99.1', type: 'switch', driver: 'snmp-v2c', reachable: true });
+});
+
+// ── annotateNetworksVerification: accorpa "Non verificabili" dentro "Reti del progetto" ──
+const sampleNets = () => deriveProjectNetworks({ nodes: [
+  node('sw', '192.168.1.1', { type: 'switch', snmpStatus: 'ok', integration: { driver: 'snmp-v2c', host: '192.168.1.1' } }),
+  node('pc', '192.168.1.10'),
+  node('cam', '10.0.5.20'),   // subnet off-segment (non raggiunta)
+] }).networks;
+
+test('annotate: senza sweep -> observed=null, nessun device annidato', () => {
+  const { networks, orphanUnverified } = annotateNetworksVerification(sampleNets(), { sweepRan: false });
+  assert.ok(networks.every(n => n.observed === null), 'presenza non ancora verificata');
+  assert.ok(networks.every(n => n.unverifiedCount === 0));
+  assert.deepEqual(orphanUnverified, []);
+});
+
+test('annotate: post-sweep -> osservata=verde, cieca=grigia + device non verificabili annidati sotto la /24', () => {
+  const verification = {
+    sweepRan: true,
+    observedSubnets: ['192.168.1'],                                   // solo la LAN locale è stata vista
+    unverified: [{ key: 'unver:aa', mac: 'AA', label: 'Cam', ip: '10.0.5.20' }],
+  };
+  const { networks, orphanUnverified } = annotateNetworksVerification(sampleNets(), verification);
+  const lan = networks.find(n => n.net === '192.168.1');
+  const off = networks.find(n => n.net === '10.0.5');
+  assert.equal(lan.observed, true, 'la LAN locale è stata osservata');
+  assert.equal(lan.unverifiedCount, 0, 'niente non-verificati sulla rete osservata');
+  assert.equal(off.observed, false, 'la subnet off-segment è cieca');
+  assert.equal(off.unverifiedCount, 1, 'la cam non verificabile è annidata sotto la SUA /24');
+  assert.equal(off.unverifiedDevices[0].mac, 'AA');
+  assert.deepEqual(orphanUnverified, [], 'nessun orfano: ogni non-verificabile ha la sua riga rete');
+});
+
+test('annotate: anti-perdita — un non-verificabile su /24 senza riga rete finisce negli orfani (mai perso)', () => {
+  const verification = {
+    sweepRan: true, observedSubnets: ['192.168.1'],
+    unverified: [{ key: 'unver:bb', mac: 'BB', label: 'Ghost', ip: '172.31.9.9' }],   // /24 assente dai networks
+  };
+  const { orphanUnverified } = annotateNetworksVerification(sampleNets(), verification);
+  assert.equal(orphanUnverified.length, 1);
+  assert.equal(orphanUnverified[0].mac, 'BB');
+});
+
+test('annotate: input difensivi non lanciano', () => {
+  assert.deepEqual(annotateNetworksVerification(), { networks: [], orphanUnverified: [] });
+  assert.deepEqual(annotateNetworksVerification([], {}), { networks: [], orphanUnverified: [] });
 });
