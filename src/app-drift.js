@@ -405,36 +405,59 @@ function _driftRowHtml(cat, r){
 // esplicita per rete ("Scopri rete", che apre il modale Scopri pre-compilato con la
 // cadenza anti-IDS): manual-first, nessuno scan automatico. La classificazione
 // (covered/blocked/open) vive nella lib pura lib/project-networks.js.
-function _driftNetworksSection(){
-    // deriveProjectNetworks: lib UMD-lite (lib/project-networks.js), letta come
-    // bare-global (esposta su window dallo <script>), come gli altri motori puri —
-    // NON via win.* (tiene fermo il cricchetto del ponte).
+function _driftNetworksSection(rep){
+    // deriveProjectNetworks + annotateNetworksVerification: lib UMD-lite
+    // (lib/project-networks.js), lette come bare-global (esposte su window dallo
+    // <script>), come gli altri motori puri — NON via win.* (cricchetto fermo).
     if(typeof deriveProjectNetworks !== 'function') return '';
     const esc = s => escapeHTML(String(s == null ? '' : s));
     const leases = Array.isArray(store._dhcpLeases) ? store._dhcpLeases : [];
     const { networks } = deriveProjectNetworks({ nodes: store.state.nodes, leases });
     if(!networks.length) return '';
+    // Accorpamento: il join annota ogni /24 con la PRESENZA (la sweep ha osservato la
+    // subnet?) e vi ANNIDA i device "non verificabili" → la sezione "Reti del progetto"
+    // assorbe il vecchio bucket "Non verificabili" (stesso fatto, una sola vista).
+    const joined = (rep && typeof annotateNetworksVerification === 'function')
+        ? annotateNetworksVerification(networks, { sweepRan: rep.sweepRan, observedSubnets: rep.observedSubnets, unverified: rep.unverified })
+        : { networks: networks.map(n => Object.assign({}, n, { observed:null, unverifiedDevices:[], unverifiedCount:0 })), orphanUnverified: [] };
+    const nets = joined.networks;
     const META = {
         covered: { c:'#3fb950', i:'fa-circle-check',       hint:()=>t('net.hintCovered') },
         blocked: { c:'#d29922', i:'fa-triangle-exclamation', hint:(n)=>{ const sw=n.snmpSources.find(s=>s.type==='switch'&&!s.reachable); return t('net.hintBlocked',{ip: sw?sw.ip:'?'}); } },
         open:    { c:'#6e7681', i:'fa-circle-question',     hint:()=>t('net.hintOpen') },
     };
-    const rowsHtml = networks.map(n => {
+    // Badge PRESENZA: solo dopo una sweep (observed !== null). Verde = subnet osservata;
+    // grigio = non raggiunta (i suoi device stanno nel drill-down qui sotto).
+    const presenceHtml = n =>
+        n.observed === true  ? `<span class="drift-net-presence ok"><i class="fas fa-circle-check"></i> ${t('net.presenceOk')}</span>` :
+        n.observed === false ? `<span class="drift-net-presence blind"><i class="fas fa-plug-circle-xmark"></i> ${t('net.presenceBlind')}</span>` : '';
+    // Drill-down: i device non verificabili RIUSANO la riga drift (azioni ignora/
+    // investiga/spiega intatte), ora sotto la loro rete invece che in una sezione a sé.
+    const unverHtml = n => n.unverifiedCount > 0
+        ? `<details class="drift-net-unver"><summary class="drift-net-unver-head"><i class="fas fa-plug-circle-xmark"></i> ${t('net.unverifiedGroup',{n:n.unverifiedCount})}</summary><div class="drift-net-unver-body">${n.unverifiedDevices.map(r => _driftRowHtml('unverified', r)).join('')}</div></details>`
+        : '';
+    const rowsHtml = nets.map(n => {
         const m = META[n.status] || META.open;
         const meta = t('net.devices',{n:n.deviceCount}) + (n.leaseCount ? ' · ' + t('net.leases',{n:n.leaseCount}) : '');
         const scanBtn = `<button class="toolbar-btn drift-net-scan" onclick="_driftScanNetwork('${esc(n.cidr)}')" data-tip="${t('net.scanTip')}"><i class="fas fa-satellite-dish"></i> ${t('net.scan')}</button>`;
-        return `<div class="drift-net-row">
+        return `<div class="drift-net-item"><div class="drift-net-row">
             <span class="drift-net-cidr"><i class="fas ${m.i}" style="color:${m.c}"></i> ${esc(n.cidr)}</span>
             <span class="drift-net-meta">${esc(meta)}</span>
             <span class="drift-net-hint">${esc(m.hint(n))}</span>
+            ${presenceHtml(n)}
             ${scanBtn}
-        </div>`;
+        </div>${unverHtml(n)}</div>`;
     }).join('');
-    // Aperta di default se c'è almeno una rete che richiede azione (blocked/open).
-    const needsAction = networks.some(n => n.status !== 'covered');
+    // Coda anti-perdita: eventuali non-verificabili su /24 senza riga rete (raro).
+    const orphan = joined.orphanUnverified || [];
+    const orphanHtml = orphan.length
+        ? `<div class="drift-net-orphan"><div class="drift-net-orphan-head"><i class="fas fa-plug-circle-xmark"></i> ${t('drift.catUnverified')}</div>${orphan.map(r => _driftRowHtml('unverified', r)).join('')}</div>`
+        : '';
+    // Aperta di default se c'è una rete che richiede azione (blocked/open o non verificati).
+    const needsAction = nets.some(n => n.status !== 'covered' || n.unverifiedCount > 0) || orphan.length > 0;
     return `<details class="props-collapsible drift-sec"${needsAction ? ' open' : ''}>
-        <summary class="props-collapsible-head"><span><i class="fas fa-sitemap"></i> ${t('net.sectionTitle')}</span><span class="drift-count">${networks.length}</span></summary>
-        <div class="props-collapsible-body drift-sec-body">${rowsHtml}</div></details>`;
+        <summary class="props-collapsible-head"><span><i class="fas fa-sitemap"></i> ${t('net.sectionTitle')}</span><span class="drift-count">${nets.length}</span></summary>
+        <div class="props-collapsible-body drift-sec-body">${rowsHtml}${orphanHtml}</div></details>`;
 }
 
 // Apre "Scopri" pre-compilato con la subnet scelta (chiude prima il report Verifica).
@@ -467,7 +490,9 @@ function _renderDriftReport(){
         const note = unver > 0 ? ` <span class="drift-allok-note">${t('drift.someUnverified',{n:unver})}</span>` : '';
         header = `<div class="drift-allok"><i class="fas fa-circle-check"></i> ${t('drift.allOk')}${note}</div>`;
     }
-    const sections = _DRIFT_CATS.map(c => {
+    // "unverified" NON è più una sezione a sé: è accorpato in "Reti del progetto"
+    // (annidato sotto la /24 non raggiunta). Il conteggio resta nel banner in alto.
+    const sections = _DRIFT_CATS.filter(c => c.k !== 'unverified').map(c => {
         const allRows = rep[c.k] || [];
         const n = rep.counts[c.k];
         let rows = allRows, extra = '', topBar = '', openWhen = (c.k !== 'consistent' && c.k !== 'unverified' && n > 0);
@@ -507,7 +532,7 @@ function _renderDriftReport(){
             <summary class="props-collapsible-head"><span><i class="fas ${c.i}" style="color:${c.c}"></i> ${t(c.tk)}</span><span class="drift-count" style="background:${c.c}22;color:${c.c}">${n}</span></summary>
             <div class="props-collapsible-body drift-sec-body">${secBody}</div></details>`;
     }).join('');
-    body.innerHTML = header + _driftNetworksSection() + sections;
+    body.innerHTML = header + _driftNetworksSection(rep) + sections;
 }
 
 // Superficie pubblica:
