@@ -58,7 +58,8 @@ function _renderFloorProps(panel){
             t('floor.title'),
             t('floor.subtitle'),
             'fa-map',
-            `<span class="props-toggles"><button class="props-toggle-btn" onclick="_propsExpandAll()" data-tip="${t('props.expandAll')}"><i class="fas fa-angles-down"></i></button><button class="props-toggle-btn" onclick="_propsCollapseAll()" data-tip="${t('props.collapseAll')}"><i class="fas fa-angles-up"></i></button><button class="props-toggle-btn" onclick="_propsResetSections()" data-tip="${t('props.resetSections')}"><i class="fas fa-rotate"></i></button></span>`
+            `<span class="props-toggles"><button class="props-toggle-btn" onclick="_propsExpandAll()" data-tip="${t('props.expandAll')}"><i class="fas fa-angles-down"></i></button><button class="props-toggle-btn" onclick="_propsCollapseAll()" data-tip="${t('props.collapseAll')}"><i class="fas fa-angles-up"></i></button><button class="props-toggle-btn" onclick="_propsResetSections()" data-tip="${t('props.resetSections')}"><i class="fas fa-rotate"></i></button></span>`,
+            'props-title-upper'
         );
         let h = `${_panelHeader}
             <details class="props-collapsible props-primary" ${_propsSectionIsOpen('floor-bgimage')?'open':''} ontoggle="setPropsSectionState('floor-bgimage',this.open)">
