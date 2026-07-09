@@ -417,6 +417,16 @@ body.spare-mode .port-led.spare-suspect {
 .drift-net-meta { color: var(--text-muted); font-size: .8rem; white-space: nowrap; }
 .drift-net-hint { color: var(--text-muted); font-size: .8rem; flex: 1 1 200px; min-width: 140px; }
 .drift-net-scan { margin-left: auto; flex-shrink: 0; }
+/* Badge presenza (dopo una Verifica) + device non verificabili annidati sotto la /24 */
+.drift-net-presence { font-size: .78rem; font-weight: 600; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.drift-net-presence.ok { color: #3fb950; }
+.drift-net-presence.blind { color: #8b949e; }
+.drift-net-unver { margin: 0 0 4px 22px; }
+.drift-net-unver-head { cursor: pointer; font-size: .8rem; color: #8b949e; padding: 3px 6px; display: inline-flex; align-items: center; gap: 6px; user-select: none; list-style: none; }
+.drift-net-unver-head::-webkit-details-marker { display: none; }
+.drift-net-unver-body { padding-left: 6px; }
+.drift-net-orphan { margin-top: 6px; }
+.drift-net-orphan-head { font-size: .8rem; color: #8b949e; padding: 4px 8px; display: flex; align-items: center; gap: 6px; }
 .adopt-modal { display: flex; flex-direction: column; max-height: 80vh; }
 .adopt-modal .drift-body { overflow: auto; flex: 1; }
 .adopt-intro { font-size: .9rem; color: var(--text-muted); margin: 2px 2px 10px; line-height: 1.4; }
