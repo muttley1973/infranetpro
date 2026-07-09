@@ -108,6 +108,15 @@
             font-size:var(--fs-sm); color:var(--text-muted); cursor:pointer;
         }
         .disc-opt input { margin:0; accent-color:var(--accent); }
+        /* Select "Cadenza": stesso look dei campi del modale (fondo scuro, bordo
+           hairline sottile, angoli leggermente arrotondati come il campo Subnet).
+           Padding compatto: le dimensioni del controllo restano quelle attuali. */
+        .disc-opt select {
+            background: var(--bg-color); color: var(--text-main);
+            border: 1px solid var(--hairline); border-radius: var(--radius-md);
+            padding: 2px 8px; font-family: inherit; font-size: var(--fs-sm); cursor: pointer;
+        }
+        .disc-opt select:focus { outline: none; border-color: var(--accent); }
         .tm-hint { font-size:var(--fs-sm); color:var(--text-muted); margin-bottom:10px; line-height:1.5; }
         .tm-progress { font-size:var(--fs-sm); color:var(--text-muted); margin-bottom:8px; min-height:20px; }
         .tm-progress .tm-ok { color:var(--active-color); font-weight:600; }
