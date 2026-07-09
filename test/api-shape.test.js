@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
 
 const {
   projectToInventory, projectToDevices, toAnsibleInventory, nodeToDevice, applyPortMacFallback,
+  isStructuralCabling,
 } = require('../lib/api-shape.js');
 
 // Progetto campione minimale ma realistico (modellato su projects/8.json).
@@ -87,6 +88,35 @@ test('projectToDevices: stessa lista, senza contorno', () => {
   const devs = projectToDevices(sampleProject());
   assert.equal(devs.length, 4);
   assert.ok(devs.every(d => d.type !== 'room'));
+});
+
+test('isStructuralCabling: cablaggio strutturale (wallport/panelboard) sì, il resto no', () => {
+  // presa a muro + quadro elettrico = infrastruttura, non asset IT
+  assert.equal(isStructuralCabling('wallport'), true);
+  assert.equal(isStructuralCabling('panelboard'), true);
+  // patch panel / passacavo / pannello cieco sono elementi RACK → restano asset
+  assert.equal(isStructuralCabling('patchpanel'), false);
+  assert.equal(isStructuralCabling('cablemanager'), false);
+  assert.equal(isStructuralCabling('blankpanel'), false);
+  // apparati attivi e endpoint → asset
+  assert.equal(isStructuralCabling('switch'), false);
+  assert.equal(isStructuralCabling('pc'), false);
+  // accetta sia una stringa sia un DTO { type }
+  assert.equal(isStructuralCabling({ type: 'wallport' }), true);
+  assert.equal(isStructuralCabling({ type: 'switch' }), false);
+  // input difensivi
+  assert.equal(isStructuralCabling(null), false);
+  assert.equal(isStructuralCabling({}), false);
+});
+
+test('Registro asset: il cablaggio strutturale è escluso, la REST inventory lo tiene', () => {
+  // REST API v1 (topologia): il wallport RESTA nell'inventario (contratto invariato)
+  const rest = projectToDevices(sampleProject());
+  assert.ok(rest.some(d => d.type === 'wallport'), 'REST inventory include ancora il wallport');
+  // Registro asset PDF: stessa lista, filtrata dal cablaggio strutturale
+  const assets = rest.filter(d => !isStructuralCabling(d));
+  assert.ok(!assets.some(d => d.type === 'wallport'), 'il wallport NON è nel registro asset');
+  assert.equal(assets.length, rest.length - 1); // rimosso solo wp1
 });
 
 test('toAnsibleInventory: _meta.hostvars + gruppi per tipo/VLAN/rack/brand', () => {
