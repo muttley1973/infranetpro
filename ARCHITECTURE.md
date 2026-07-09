@@ -71,6 +71,10 @@ lib/                   Shared browser + test modules (the heart of the app)
   cidr.js netnames.js linkstate.js correlate.js cabling.js
   topo-lines.js frontpanel.js stack.js ha-pair.js l3-gateway.js
   power-mib.js wifi-spec.js cable-labels.js drift-report.js
+  project-networks.js  deriveProjectNetworks (/24s from devices+leases →
+                    covered/blocked/open) + annotateNetworksVerification (join with
+                    the Verifica outcome: presence badge per subnet + non-verifiable
+                    devices nested under their /24, absorbing the old bucket)  (pure)
   ai-grounding.js   extractEntities + checkGrounding (citations + anti-invention)  (pure)
   ai-draft.js       splitDraftBlocks (segments AI reply → text + Ansible draft cards)  (pure)
   onboarding.js     nextStep(summary) → deterministic «next step» chip (onboarding §4d)  (pure)
@@ -247,8 +251,10 @@ present-but-corrupt `users.json` recovers from the `.bak` and, failing that, **h
 startup** instead of regenerating a default admin over existing accounts. The data
 surfaces — AI context, REST DTOs, exports — are **allowlist-only**: secrets are
 structurally excluded and a build-failing guard test enforces it. (The PDF
-report's per-device asset register is built from the same `nodeToDevice` DTO, so
-no SNMP community or credential can reach the exported document; report chrome is
+report's per-device asset register is built from the same `nodeToDevice` DTO
+(minus structural cabling — wall ports and electrical panels are not IT assets —
+via `isStructuralCabling`), so no SNMP community or credential can reach the
+exported document; report chrome is
 localized it/en server-side while device data is emitted verbatim.) Binds to
 `127.0.0.1`. `users.json`,
 `.session-secret`, `api-tokens.json`, `data/ai-config.json`, `projects/` are
