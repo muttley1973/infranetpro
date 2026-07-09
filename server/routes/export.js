@@ -7,7 +7,7 @@ const auth = require('../../auth');
 const { _loadPdfDeps, _addReportPages, _addCoverPage, _addNotesPages, _addChangelogPages, _addSparePages, _addAssetRegisterPages, _rt } = require('../pdf-report');
 const { addLabelPages } = require('../label-sheet');
 const { loadProject } = require('../projects-store');
-const { projectToDevices, applyPortMacFallback } = require('../../lib/api-shape');
+const { projectToDevices, applyPortMacFallback, isStructuralCabling } = require('../../lib/api-shape');
 
 const router = express.Router();
 
@@ -158,7 +158,10 @@ router.post('/api/export-pdf', auth.requireAdmin, (req, res) => {
     // Registro asset (per-device): riusa i DTO nodeToDevice del progetto caricato
     // server-side. Se il progetto non e' caricabile, pagina con nota "nessun device".
     if (opts.includeAssets) {
-      const assets = _project ? projectToDevices(_project) : [];
+      // Escludi il cablaggio strutturale (prese a muro, quadri elettrici): e'
+      // infrastruttura dell'edificio, non asset IT -> fuori dal Registro asset. Il
+      // conteggio "N dispositivi documentati" segue la lista filtrata.
+      const assets = _project ? projectToDevices(_project).filter(d => !isStructuralCabling(d)) : [];
       // Colonna MAC del registro: gli apparati SNMP non hanno un MAC di device (i loro
       // MAC stanno sulle porte) -> fallback misurato al MAC della porta base, cosi'
       // l'infrastruttura non esce con MAC vuoto. Solo qui (il DTO condiviso resta com'e').
