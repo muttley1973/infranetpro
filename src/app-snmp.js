@@ -9,7 +9,7 @@
 // ============================================================
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { nodeById, markDirty, pushHistory, renderCables, _showToast, switchRightTab } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, markDirty, pushHistory, renderCables, _showToast, switchRightTab, logAudit } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -364,7 +364,7 @@ async function pollAllSNMP(opts){
         setTimeout(()=>{ try{ _driftComputeFromDoc(_presenceDoc); renderAll(); }catch(_){} }, 0);
     }
 
-    win.logAudit('snmp-sync', {
+    logAudit('snmp-sync', {
         target: (typeof t==='function') ? t('audit.snmpDevices',{ok,total}) : `${ok}/${total} dispositivi`,
         summary: err ? ((typeof t==='function') ? t('audit.snmpErrors',{n:err}) : `${err} in errore`)
                      : ((typeof t==='function') ? t('audit.snmpAllOk') : 'tutti raggiungibili')
