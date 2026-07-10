@@ -14,6 +14,7 @@ import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (e
 import { escapeHTML } from './app-util.js';
 import { nodeById, getNodeDisplayName } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
+import { _propsSectionIsOpen, _buildNetAccessHtml } from './app-properties.js';   // ritiro ponte: builder pannello (ex win.*)
 
 // ============================================================
 // PROPERTIES PANEL — renderer NODO (dispositivo/struttura, selType===node)
@@ -59,7 +60,6 @@ function _renderNodeProps(panel){
             getHaPeer = win.getHaPeer, getHaPartners = win.getHaPartners,
             getHaSummary = win.getHaSummary, getAllHaGroupIds = win.getAllHaGroupIds,
             _buildPatchPanelPreview = win._buildPatchPanelPreview, selected = win.selected,
-            _buildNetAccessHtml = win._buildNetAccessHtml, _propsSectionIsOpen = win._propsSectionIsOpen,
             isRackTopNumbered = win.isRackTopNumbered, rackUToVisible = win.rackUToVisible,
             getLagGroupsForNode = win.getLagGroupsForNode, _enableManualValueInProps = win._enableManualValueInProps,
             _activatePropsTab = win._activatePropsTab, _nodeDeviceChainHtml = win._nodeDeviceChainHtml,

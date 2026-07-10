@@ -14,6 +14,7 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
 import { getNodeDisplayName } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte: builder pannello (ex win.*)
 
 // Tipi che possono fare da gateway L3 (per il dropdown di scelta).
 const _L3_GATEWAY_TYPES = ['router', 'firewall', 'switch'];
@@ -106,7 +107,7 @@ function _l3SviSectionHtml(nodeId){
                 <span class="l3-svi-gw">${esc(v.gateway || '—')}${r.subnet ? ` <span class="l3-svi-sub">${esc(r.subnet)}</span>` : ''}${oos ? ` <span class="l3-svi-warn" data-tip="${esc(t('pnl.feat.gwOutOfSubnet'))}">⚠</span>` : ''}</span>
               </div>`;
         }).join('');
-    return `<details class="props-collapsible props-secondary" ${win._propsSectionIsOpen('node-l3') ? 'open' : ''} ontoggle="setPropsSectionState('node-l3',this.open)">
+    return `<details class="props-collapsible props-secondary" ${_propsSectionIsOpen('node-l3') ? 'open' : ''} ontoggle="setPropsSectionState('node-l3',this.open)">
         <summary class="props-collapsible-head"><span><i class="fas fa-route"></i> ${t('l3.sviSection')}</span><span class="props-collapsible-preview">${dev.vlans.length} VLAN</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
         <div class="props-collapsible-body">
           <div class="l3-svi-intro">${t('l3.sviIntro')}</div>
