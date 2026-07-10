@@ -165,9 +165,9 @@ function updateTransforms(){
     // quindi le coordinate dei LED rack restano in movimento per ~100ms.
     // Il primo renderCables() ha disegnato i cavi alle coordinate iniziali
     // (sbagliate); rifa il render a transizione conclusa per riallineare i
-    // cavi alle nuove posizioni dei LED. Coalescing in win.renderCables: se nel
+    // cavi alle nuove posizioni dei LED. Coalescing in renderCables: se nel
     // frattempo c'e' gia' un rAF schedulato, questo non duplica.
-    setTimeout(win.renderCables, 140);
+    setTimeout(renderCables, 140);
 }
 function applyUiColors(){
     const c=store.state.uiColors||{};
@@ -210,7 +210,7 @@ function toggleRackPanel(){
     rv.classList.toggle('collapsed', store._rackCollapsed);
     if(ic) ic.className = store._rackCollapsed ? 'fas fa-chevron-left' : 'fas fa-chevron-right';
     if(dv) dv.title = store._rackCollapsed ? 'Clic per mostrare rack' : 'Trascina per ridimensionare · Clic per nascondere rack';
-    setTimeout(win.renderCables, 280); // dopo la transizione CSS
+    setTimeout(renderCables, 280); // dopo la transizione CSS
 }
 
 (function(){
@@ -260,7 +260,7 @@ function toggleSidebarPanel(){
     sb.classList.toggle('collapsed', _sidebarCollapsed);
     if(ic) ic.className = _sidebarCollapsed ? 'fas fa-chevron-right' : 'fas fa-chevron-left';
     if(dv) dv.title = _sidebarCollapsed ? 'Clic per mostrare palette' : 'Trascina per ridimensionare · Clic per nascondere palette';
-    setTimeout(win.renderCables, 280);
+    setTimeout(renderCables, 280);
 }
 
 (function(){
@@ -546,7 +546,7 @@ function moveNodeToRack(nodeId, newRackId){
     n.rackU  = freeU;
     markDirty();
     renderAll();
-    if(typeof win._showToast === 'function'){
+    if(typeof _showToast === 'function'){
         _showToast(t('msg.rack.movedTo',{name:destRack.name,u:freeU}), 'ok', 3500);
     }
     return true;

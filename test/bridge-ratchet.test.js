@@ -143,6 +143,22 @@ test('ponte: le funzioni del nucleo del 2º giro non sono più lette da win.*', 
   }
 });
 
+// ── 1h) Funzioni-nucleo della 9ª sessione: chiuse anche le letture-non-chiamata ─
+// Ritiro ponte 2026-07-10: le 10 funzioni ritirate come CHIAMATE nella 9ª (vedi
+// CALLS_RETIRED) avevano ancora letture-non-chiamata residue (guardie `typeof win.X`,
+// value-pass). Convertite tutte a bare (le import erano già presenti); ora il ponte è
+// a 0 anche per queste. `_bridge.js` è escluso (definizione del ponte).
+const RETIRED_CORE_FN0 = ['nodeById', 'markDirty', 'getNodeByPortId', 'getPortNodeId',
+  'getNodeDisplayName', 'pushHistory', 'renderCables', '_showToast', '_invalidateIdx',
+  'switchRightTab'];
+test('ponte: le funzioni-nucleo della 9ª non hanno più letture win.* (fuori da _bridge.js)', () => {
+  for (const sym of RETIRED_CORE_FN0) {
+    const viaWin = countInCode(new RegExp('\\bwin\\.' + sym + '\\b', 'g'), '_bridge.js');
+    assert.equal(viaWin, 0,
+      `win.${sym} fuori da _bridge.js: importa { ${sym} } from "./app.js"`);
+  }
+});
+
 // ── 2) Cricchetto sul totale: il ponte può solo restringersi ────────────────
 // Conteggio SOLO-CODICE (commenti esclusi) delle letture win.*. Tetto stretto al
 // valore reale corrente: abbassalo al numero che il test stampa ([ratchet] …)
@@ -252,7 +268,14 @@ test('ponte: le funzioni del nucleo del 2º giro non sono più lette da win.*', 
 // già in expose() e senza uso in handler inline → `export function` + merge negli
 // import `from './app.js'` dei 15 consumatori (convertite chiamate E guardie typeof).
 // Restano in expose() per i classic. Vedi RETIRED_CORE_FN sopra.
-const MAX_WIN_REFS = 1221;
+//
+// −55 (1221 → 1166, 2026-07-10): RITIRO PONTE — chiuse le letture-non-chiamata delle
+// 10 funzioni-nucleo della 9ª (nodeById, markDirty, getNodeByPortId, getPortNodeId,
+// getNodeDisplayName, pushHistory, renderCables, _showToast, _invalidateIdx,
+// switchRightTab): guardie `typeof win.X` e value-pass convertite a bare (import già
+// presenti), `_bridge.js` escluso. Vedi RETIRED_CORE_FN0. (Il transform ne toccò 62
+// ma 7 erano in commenti, esclusi dal conteggio.)
+const MAX_WIN_REFS = 1166;
 
 test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => {
   const total = countInCode(/\bwin\./g);

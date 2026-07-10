@@ -82,7 +82,7 @@ function updateBssCfg(nodeId, radioIdx, bssId, field, value){
     if(field === 'vlan'){
         const vi = parseInt(bss.vlan, 10);
         if(vi > 1 && typeof win._ensureVlanColor === 'function') win._ensureVlanColor(vi);
-        if(typeof win._invalidateIdx === 'function') _invalidateIdx();
+        if(typeof _invalidateIdx === 'function') _invalidateIdx();
         if(typeof win.propagateVlans === 'function') propagateVlans();
     }
     markDirty(); renderProps(); if(typeof win.renderAll === 'function') renderAll();
@@ -90,15 +90,15 @@ function updateBssCfg(nodeId, radioIdx, bssId, field, value){
 // Aggiunge un BSS vuoto (o con VLAN preimpostata) a una radio e lo lascia da nominare.
 function addBss(nodeId, radioIdx, vlan){
     const n = nodeById(nodeId); if(!n) return;
-    if(!_canServeSsid(n)){ if(typeof win._showToast==='function') _showToast(t('msg.ui.onlyApCanServeSsid'), 'warn', 3500); return; }
+    if(!_canServeSsid(n)){ if(typeof _showToast==='function') _showToast(t('msg.ui.onlyApCanServeSsid'), 'warn', 3500); return; }
     const radio = ((typeof _nodeRadios==='function')?_nodeRadios(n):(n.radios||[]))[radioIdx]; if(!radio) return;
-    if(typeof win.pushHistory === 'function') pushHistory();
+    if(typeof pushHistory === 'function') pushHistory();
     if(!Array.isArray(radio.ssids)) radio.ssids = [];
     const v = parseInt(vlan, 10);
     const id = (typeof win.newSsidId === 'function') ? win.newSsidId() : ('s' + Date.now().toString(36) + radio.ssids.length);
     radio.ssids.push((v >= 1 && v <= 4094) ? { id, vlan: v } : { id });
     if(v > 1 && typeof win._ensureVlanColor === 'function') win._ensureVlanColor(v);
-    if(typeof win._invalidateIdx === 'function') _invalidateIdx();
+    if(typeof _invalidateIdx === 'function') _invalidateIdx();
     if(typeof win.propagateVlans === 'function') propagateVlans();
     markDirty(); renderProps(); if(typeof win.renderAll === 'function') renderAll();
     return id;
@@ -108,11 +108,11 @@ function removeBss(nodeId, radioIdx, bssId){
     const n = nodeById(nodeId); if(!n) return;
     const radio = ((typeof _nodeRadios==='function')?_nodeRadios(n):(n.radios||[]))[radioIdx]; if(!radio || !Array.isArray(radio.ssids)) return;
     const i = radio.ssids.findIndex(s => s && s.id === bssId); if(i < 0) return;
-    if(typeof win.pushHistory === 'function') pushHistory();
+    if(typeof pushHistory === 'function') pushHistory();
     radio.ssids.splice(i, 1);
     const state = store.state;
     for(const l of (state.links || [])){ if(l && l.bss === bssId) delete l.bss; }
-    if(typeof win._invalidateIdx === 'function') _invalidateIdx();
+    if(typeof _invalidateIdx === 'function') _invalidateIdx();
     if(typeof win.propagateVlans === 'function') propagateVlans();
     markDirty(); renderProps(); if(typeof win.renderAll === 'function') renderAll();
 }
@@ -130,7 +130,7 @@ function selectRadioIface(nodeId, idx){
 // una radio nuova per ogni SSID: una radio fisica trasmette più SSID.
 function addSsidForVlan(nodeId, vlan){
     const n = nodeById(nodeId); if(!n) return;
-    if(!_canServeSsid(n)){ if(typeof win._showToast==='function') _showToast(t('msg.ui.deviceIsWirelessClient'), 'warn', 3500); return; }
+    if(!_canServeSsid(n)){ if(typeof _showToast==='function') _showToast(t('msg.ui.deviceIsWirelessClient'), 'warn', 3500); return; }
     if(!Array.isArray(n.radios) || !n.radios.length){
         if(typeof win.setRadioCount === 'function') win.setRadioCount(n, 1); else n.radios = [{}];
     }
@@ -263,7 +263,7 @@ function _radioIfacesHtml(n){
     const state = store.state;
     const _vc = (typeof state !== 'undefined' && state.vlanColors) ? state.vlanColors : {};
     let _trunkVlans = [];
-    if(typeof win._getLinkTrunk === 'function' && typeof win.getPortNodeId === 'function' && typeof _isRadioPid === 'function'){
+    if(typeof win._getLinkTrunk === 'function' && typeof getPortNodeId === 'function' && typeof _isRadioPid === 'function'){
         for(const l of (state.links || [])){
             if(!l || l.wireless) continue;
             const touches = (getPortNodeId(l.src) === n.id && !_isRadioPid(l.src)) || (getPortNodeId(l.dst) === n.id && !_isRadioPid(l.dst));
@@ -310,7 +310,7 @@ function _wifiInheritedRO(info){
     const esc = s => escapeHTML(String(s == null ? '' : s));
     const _t = t;
     const c = info.cfg || {};
-    const name = (typeof win.getNodeDisplayName === 'function' ? getNodeDisplayName(info.node) : '') || info.node.name || info.node.id;
+    const name = (typeof getNodeDisplayName === 'function' ? getNodeDisplayName(info.node) : '') || info.node.name || info.node.id;
     const ro = inner => `<div style="padding:5px 7px;background:var(--bg-color);border:1px solid var(--panel-border);border-radius:4px;font-size:var(--fs-lg);color:var(--text-main)">${inner}</div>`;
     const bits = [];
     if(c.band) bits.push(_WIFI_BAND_LABELS[c.band] || c.band);
@@ -356,10 +356,10 @@ function setClientAssoc(clientPid, bssId){
     const state = store.state;
     const l = (state.links || []).find(x => x && x.wireless && (x.src === clientPid || x.dst === clientPid));
     if(!l) return;
-    if(typeof win.pushHistory === 'function') pushHistory();
+    if(typeof pushHistory === 'function') pushHistory();
     if(bssId){
         const apPid = (l.src === clientPid) ? l.dst : l.src;
-        const ap = (typeof win.getPortNodeId === 'function') ? nodeById(getPortNodeId(apPid)) : null;
+        const ap = (typeof getPortNodeId === 'function') ? nodeById(getPortNodeId(apPid)) : null;
         const s = (ap && typeof win.ssidById === 'function') ? win.ssidById(ap, bssId) : null;
         if(s){
             const newApPid = (typeof win.radioPid === 'function') ? win.radioPid(ap.id, s.radioIdx) : apPid;
@@ -367,7 +367,7 @@ function setClientAssoc(clientPid, bssId){
             l.bss = bssId;
         }
     } else { delete l.bss; }
-    if(typeof win._invalidateIdx === 'function') _invalidateIdx();
+    if(typeof _invalidateIdx === 'function') _invalidateIdx();
     if(typeof win.propagateVlans === 'function') propagateVlans();
     markDirty();
     if(typeof win.renderAll === 'function') renderAll();
@@ -423,7 +423,7 @@ function _openBssMenu(linkId, node){
 function _pickBss(linkId, bssId){
     const state = store.state;
     const l = (state.links || []).find(x => x && x.id === linkId);
-    if(l){ l.bss = bssId; if(typeof win._invalidateIdx === 'function') _invalidateIdx(); if(typeof win.propagateVlans === 'function') propagateVlans(); markDirty(); if(typeof win.renderAll === 'function') renderAll(); }
+    if(l){ l.bss = bssId; if(typeof _invalidateIdx === 'function') _invalidateIdx(); if(typeof win.propagateVlans === 'function') propagateVlans(); markDirty(); if(typeof win.renderAll === 'function') renderAll(); }
     _closeBssMenu();
 }
 
@@ -436,14 +436,14 @@ function _renderRadioProps(panel, pid){
     const radios = (n && typeof _nodeRadios === 'function') ? _nodeRadios(n) : [];
     const cfg = (p && radios[p.idx]) ? radios[p.idx] : null;
     if(!n || !cfg){ store.selType = null; store.selId = null; renderProps(); return; }
-    const devName = (typeof win.getNodeDisplayName === 'function' ? getNodeDisplayName(n) : '') || n.name || n.id;
+    const devName = (typeof getNodeDisplayName === 'function' ? getNodeDisplayName(n) : '') || n.name || n.id;
     const lbl = cfg.label || `${_t('radio.iface')} ${p.idx + 1}`;
     // Associazioni/cavi su questa radio.
     const links = (typeof _linksForPort === 'function') ? _linksForPort(pid) : [];
     const assocRows = links.map(l => {
         const other = (l.src === pid) ? l.dst : l.src;
-        const on = (typeof win.getNodeByPortId === 'function') ? getNodeByPortId(other) : null;
-        const nm = on ? ((typeof win.getNodeDisplayName === 'function' ? getNodeDisplayName(on) : '') || on.name || on.id) : other;
+        const on = (typeof getNodeByPortId === 'function') ? getNodeByPortId(other) : null;
+        const nm = on ? ((typeof getNodeDisplayName === 'function' ? getNodeDisplayName(on) : '') || on.name || on.id) : other;
         const kind = l.wireless ? _t('cable.wirelessAssoc') : _t('cable.cable');
         const ico = l.wireless ? 'fa-wifi' : 'fa-ethernet';
         return `<div class="radio-assoc-row" onclick="selType='link';selId='${l.id}';renderAll();renderProps()">
@@ -538,7 +538,7 @@ function _wifiAssocHtml(l){
 function _buildWifiVlanInput(){
     const state = store.state;
     const aps = [], clients = [];
-    const _name = n => (typeof win.getNodeDisplayName==='function' ? getNodeDisplayName(n) : '') || n.name || n.id;
+    const _name = n => (typeof getNodeDisplayName==='function' ? getNodeDisplayName(n) : '') || n.name || n.id;
     for(const n of (state.nodes || [])){
         const pool = (typeof win.apSsidList==='function') ? win.apSsidList(n) : [];
         if(pool.length){
