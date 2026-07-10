@@ -18,7 +18,7 @@
 import { win, expose, t, buildSpareReport } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
-import { getNodeDisplayName } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { getNodeDisplayName, _linksForPort } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 
 // store._spareActive su window: lo legge BARE (guarded) app-render-core nel hook
@@ -46,7 +46,7 @@ function _spareBuildDevices(){
             const pid = `${n.id}-${i}`;
             const pi = store.state.ports[pid] || {};
             if(pi.hidden) continue;                                   // porte nascoste: non sono "spare"
-            const cabled = win._linksForPort(pid).length > 0;
+            const cabled = _linksForPort(pid).length > 0;
             const activeSnmp = responded && (pi.status === 'active');  // cross-check realtà↔doc
             ports.push({ pid, kind: sfpSet.has(i) ? 'sfp' : 'access', cabled, activeSnmp });
         }

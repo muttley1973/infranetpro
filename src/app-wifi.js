@@ -15,7 +15,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
-import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, _showToast, _invalidateIdx } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, _showToast, _invalidateIdx, _linksForPort, _nodeRadios, _isRadioPid } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { propagateVlans } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps, _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -40,7 +40,7 @@ function _canServeSsid(node){
 // ── Setter config Wi-Fi di UNA radio (per indice) ────────────────────
 function updateRadioCfg(nodeId, idx, field, value){
     const n = nodeById(nodeId); if(!n) return;
-    const radios = (typeof win._nodeRadios === 'function') ? win._nodeRadios(n) : (n.radios || []);
+    const radios = (typeof _nodeRadios === 'function') ? _nodeRadios(n) : (n.radios || []);
     const cfg = radios[idx]; if(!cfg) return;
     const v = String(value == null ? '' : value).trim();
     // Canale: 'auto' resta testuale; un numero diventa intero; vuoto cancella.
@@ -59,7 +59,7 @@ function updateRadioCfg(nodeId, idx, field, value){
 }
 function setRadioLabel(nodeId, idx, value){
     const n = nodeById(nodeId); if(!n) return;
-    const radios = (typeof win._nodeRadios === 'function') ? win._nodeRadios(n) : (n.radios || []);
+    const radios = (typeof _nodeRadios === 'function') ? _nodeRadios(n) : (n.radios || []);
     const cfg = radios[idx]; if(!cfg) return;
     const v = String(value == null ? '' : value).trim();
     if(v) cfg.label = v; else delete cfg.label;
@@ -70,7 +70,7 @@ function setRadioLabel(nodeId, idx, value){
 // Il BSS è il livello LOGICO (ssid/vlan/security); una radio fisica ne ospita molti.
 function _bssOf(nodeId, radioIdx, bssId){
     const n = nodeById(nodeId); if(!n) return null;
-    const radio = ((typeof win._nodeRadios==='function')?win._nodeRadios(n):(n.radios||[]))[radioIdx];
+    const radio = ((typeof _nodeRadios==='function')?_nodeRadios(n):(n.radios||[]))[radioIdx];
     const list = (typeof win.radioSsids==='function') ? win.radioSsids(radio) : (radio && radio.ssids || []);
     return list.find(s => s && s.id === bssId) || null;
 }
@@ -91,7 +91,7 @@ function updateBssCfg(nodeId, radioIdx, bssId, field, value){
 function addBss(nodeId, radioIdx, vlan){
     const n = nodeById(nodeId); if(!n) return;
     if(!_canServeSsid(n)){ if(typeof win._showToast==='function') _showToast(t('msg.ui.onlyApCanServeSsid'), 'warn', 3500); return; }
-    const radio = ((typeof win._nodeRadios==='function')?win._nodeRadios(n):(n.radios||[]))[radioIdx]; if(!radio) return;
+    const radio = ((typeof _nodeRadios==='function')?_nodeRadios(n):(n.radios||[]))[radioIdx]; if(!radio) return;
     if(typeof win.pushHistory === 'function') pushHistory();
     if(!Array.isArray(radio.ssids)) radio.ssids = [];
     const v = parseInt(vlan, 10);
@@ -106,7 +106,7 @@ function addBss(nodeId, radioIdx, vlan){
 // Rimuove un BSS; ripulisce i link wireless che lo referenziavano (l.bss).
 function removeBss(nodeId, radioIdx, bssId){
     const n = nodeById(nodeId); if(!n) return;
-    const radio = ((typeof win._nodeRadios==='function')?win._nodeRadios(n):(n.radios||[]))[radioIdx]; if(!radio || !Array.isArray(radio.ssids)) return;
+    const radio = ((typeof _nodeRadios==='function')?_nodeRadios(n):(n.radios||[]))[radioIdx]; if(!radio || !Array.isArray(radio.ssids)) return;
     const i = radio.ssids.findIndex(s => s && s.id === bssId); if(i < 0) return;
     if(typeof win.pushHistory === 'function') pushHistory();
     radio.ssids.splice(i, 1);
@@ -238,7 +238,7 @@ function _radioSsidsHtml(radio, nodeId, idx){
 function _radioIfacesHtml(n){
     const esc = s => escapeHTML(String(s == null ? '' : s));
     const _t = t;
-    const radios = (typeof win._nodeRadios === 'function') ? win._nodeRadios(n) : (n.radios || []);
+    const radios = (typeof _nodeRadios === 'function') ? _nodeRadios(n) : (n.radios || []);
     const rows = radios.map((r, i) => {
         const pid = (typeof win.radioPid === 'function') ? win.radioPid(n.id, i) : `${n.id}-radio${i? i+1 : ''}`;
         const sel = store.selType === 'port' && store.selId === pid;
@@ -246,7 +246,7 @@ function _radioIfacesHtml(n){
         const _ssN = (typeof win.radioSsids === 'function' ? win.radioSsids(r) : (r.ssids || [])).filter(s => s && s.ssid).length;
         const sub = [r.band ? (_WIFI_BAND_LABELS[r.band] || r.band) : '', r.channel && r.channel !== 'auto' ? `ch ${r.channel}` : '',
             _ssN ? `${_ssN} SSID` : ''].filter(Boolean).join(' · ');
-        const cnt = (typeof win._linksForPort === 'function') ? win._linksForPort(pid).length : 0;
+        const cnt = (typeof _linksForPort === 'function') ? _linksForPort(pid).length : 0;
         return `<div class="radio-iface-row${sel ? ' selected' : ''}" onclick="selectRadioIface('${n.id}',${i})">
             <i class="fas fa-wifi"></i>
             <span class="ri-name">${esc(lbl)}</span>
@@ -263,10 +263,10 @@ function _radioIfacesHtml(n){
     const state = store.state;
     const _vc = (typeof state !== 'undefined' && state.vlanColors) ? state.vlanColors : {};
     let _trunkVlans = [];
-    if(typeof win._getLinkTrunk === 'function' && typeof win.getPortNodeId === 'function' && typeof win._isRadioPid === 'function'){
+    if(typeof win._getLinkTrunk === 'function' && typeof win.getPortNodeId === 'function' && typeof _isRadioPid === 'function'){
         for(const l of (state.links || [])){
             if(!l || l.wireless) continue;
-            const touches = (getPortNodeId(l.src) === n.id && !win._isRadioPid(l.src)) || (getPortNodeId(l.dst) === n.id && !win._isRadioPid(l.dst));
+            const touches = (getPortNodeId(l.src) === n.id && !_isRadioPid(l.src)) || (getPortNodeId(l.dst) === n.id && !_isRadioPid(l.dst));
             if(!touches) continue;
             const tk = win._getLinkTrunk(l);
             // TUTTE le VLAN in arrivo, nativa COMPRESA: anche l'untagged può servire
@@ -335,10 +335,10 @@ function _radioServingSsid(pid, ownRadio, links){
     for(const l of (links || [])){
         if(!l.wireless) continue;
         const other = (l.src === pid) ? l.dst : l.src;
-        if(typeof win._isRadioPid === 'function' && win._isRadioPid(other) && typeof win.parseRadioPid === 'function'){
+        if(typeof _isRadioPid === 'function' && _isRadioPid(other) && typeof win.parseRadioPid === 'function'){
             const op = win.parseRadioPid(other);
             const on = op ? nodeById(op.nodeId) : null;
-            const oradio = (on && typeof win._nodeRadios === 'function') ? win._nodeRadios(on)[op.idx] : null;
+            const oradio = (on && typeof _nodeRadios === 'function') ? _nodeRadios(on)[op.idx] : null;
             const oHas = oradio && ((typeof win.radioSsids === 'function') ? win.radioSsids(oradio).length : (oradio.ssids || []).length);
             if(oHas){
                 const cfg = (typeof win.effBssCfg === 'function') ? win.effBssCfg(oradio, l.bss) : oradio;
@@ -382,7 +382,7 @@ function setClientAssoc(clientPid, bssId){
 function _assignWirelessBss(link){
     if(!link || !link.wireless) return;
     for(const pid of [link.src, link.dst]){
-        if(typeof win._isRadioPid !== 'function' || !win._isRadioPid(pid)) continue;
+        if(typeof _isRadioPid !== 'function' || !_isRadioPid(pid)) continue;
         const p = win.parseRadioPid(pid); const n = p ? nodeById(p.nodeId) : null;
         // SSID offerti dall'INTERO nodo servente (qualsiasi sua radio), non solo quella
         // fisicamente toccata: così l'associazione si aggancia a un BSS valido comunque.
@@ -433,13 +433,13 @@ function _renderRadioProps(panel, pid){
     const _t = t;
     const p = (typeof win.parseRadioPid === 'function') ? win.parseRadioPid(pid) : null;
     const n = p ? nodeById(p.nodeId) : null;
-    const radios = (n && typeof win._nodeRadios === 'function') ? win._nodeRadios(n) : [];
+    const radios = (n && typeof _nodeRadios === 'function') ? _nodeRadios(n) : [];
     const cfg = (p && radios[p.idx]) ? radios[p.idx] : null;
     if(!n || !cfg){ store.selType = null; store.selId = null; renderProps(); return; }
     const devName = (typeof win.getNodeDisplayName === 'function' ? getNodeDisplayName(n) : '') || n.name || n.id;
     const lbl = cfg.label || `${_t('radio.iface')} ${p.idx + 1}`;
     // Associazioni/cavi su questa radio.
-    const links = (typeof win._linksForPort === 'function') ? win._linksForPort(pid) : [];
+    const links = (typeof _linksForPort === 'function') ? _linksForPort(pid) : [];
     const assocRows = links.map(l => {
         const other = (l.src === pid) ? l.dst : l.src;
         const on = (typeof win.getNodeByPortId === 'function') ? getNodeByPortId(other) : null;
@@ -486,10 +486,10 @@ function _renderRadioProps(panel, pid){
 // mostra il Wi-Fi EREDITATO (read-only), più i campi propri (RSSI, distanza).
 function _wifiCfgForLink(l){
     const lookup = pid => {
-        if(typeof win._isRadioPid === 'function' && win._isRadioPid(pid)){
+        if(typeof _isRadioPid === 'function' && _isRadioPid(pid)){
             const p = (typeof win.parseRadioPid === 'function') ? win.parseRadioPid(pid) : null;
             const n = p ? nodeById(p.nodeId) : null;
-            const radios = (n && typeof win._nodeRadios === 'function') ? win._nodeRadios(n) : [];
+            const radios = (n && typeof _nodeRadios === 'function') ? _nodeRadios(n) : [];
             const radio = (p && radios[p.idx]) ? radios[p.idx] : {};
             if(n) return { node: n, radio };
         }
@@ -546,8 +546,8 @@ function _buildWifiVlanInput(){
             for(const l of (state.links || [])){
                 if(!l || l.wireless) continue;
                 let other = null;
-                if(getPortNodeId(l.src)===n.id && !win._isRadioPid(l.src)) other = l.dst;
-                else if(getPortNodeId(l.dst)===n.id && !win._isRadioPid(l.dst)) other = l.src;
+                if(getPortNodeId(l.src)===n.id && !_isRadioPid(l.src)) other = l.dst;
+                else if(getPortNodeId(l.dst)===n.id && !_isRadioPid(l.dst)) other = l.src;
                 if(!other) continue;
                 const op = state.ports[other] || {};
                 if(op.isTrunk && Array.isArray(op.trunkVlans)){ uplinkAllowed = op.trunkVlans.slice(); break; }

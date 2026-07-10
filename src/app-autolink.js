@@ -8,7 +8,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { uid } from './app-util.js';
-import { nodeById, markDirty, getNodeByPortId, getPortNodeId, renderCables, _showToast, _invalidateIdx } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, markDirty, getNodeByPortId, getPortNodeId, renderCables, _showToast, _invalidateIdx, _linksForPort } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 // ============================================================
@@ -339,7 +339,7 @@ function _findWallPortBehindInfrastructurePort(infraPid, epPid){
     const queue = [infraPid];
     while(queue.length){
         const curr = queue.shift();
-        for(const l of win._linksForPort(curr)){
+        for(const l of _linksForPort(curr)){
             for(const other of _linkAdjacentPorts(l, curr)){
                 if(!other || visited.has(other)) continue;
                 visited.add(other);

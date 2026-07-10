@@ -8,7 +8,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, normalizeStatus } from './app-util.js';
-import { nodeById, getNodeByPortId, getPortNodeId, renderCables, _showToast, switchRightTab } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, getNodeByPortId, getPortNodeId, renderCables, _showToast, switchRightTab, _linksForPort } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderTopoOverlay } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -463,7 +463,7 @@ function _floorNodeHiddenByVlan(nid){
         const eff=win._effPortVlan(pid);
         if(eff===store._filterVlan) return false;
         // Porta trunk: controlla se questa porta trasporta la VLAN filtro
-        if(win._linksForPort(pid).some(lk=>
+        if(_linksForPort(pid).some(lk=>
             lk.mode==='trunk'
             &&win._parseTrunkVlans(lk.trunkVlans||'').includes(store._filterVlan))) return false;
     }

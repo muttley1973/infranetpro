@@ -226,7 +226,7 @@ function driftApplyDoc(key){
     delete state.ports[pid].statusOvr;
     delete state.ports[pid].speedOvr;
     delete state.ports[pid].vlanOvr;
-    if(typeof win.logAudit === 'function') win.logAudit('drift-apply', { target: row.label, summary: (row.diffs || []).map(d => `${d.field}→${d.real}`).join(', ') });
+    if(typeof logAudit === 'function') logAudit('drift-apply', { target: row.label, summary: (row.diffs || []).map(d => `${d.field}→${d.real}`).join(', ') });
     markDirty(); renderAll();
     _driftDropRow(key);
     _renderDriftReport();
@@ -248,7 +248,7 @@ function driftApplyIpChange(key){
     if(!n.integration) n.integration = {};
     const ih = String(n.integration.host || '').trim();
     if(!ih || ih === oldIp) n.integration.host = row.newIp;
-    if(typeof win.logAudit === 'function') win.logAudit('drift-ipchange', { target: row.label || n.name || n.id, summary: `${oldIp || '?'} → ${row.newIp}` });
+    if(typeof logAudit === 'function') logAudit('drift-ipchange', { target: row.label || n.name || n.id, summary: `${oldIp || '?'} → ${row.newIp}` });
     markDirty(); renderAll();
     _driftDropRow(key);
     _renderDriftReport();

@@ -6,7 +6,7 @@
 // ============================================================
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { pushHistory, _invalidateIdx } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { pushHistory, _invalidateIdx, logAudit } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 
 const API = '/api/projects';
@@ -106,7 +106,7 @@ async function renameProject() {
         });
         await loadProjectList();
         document.title = `InfraNet Pro — ${name.trim()}`;
-        if(typeof win.logAudit === 'function') win.logAudit('project-rename', { target:name.trim(), summary:current?((typeof t==='function')?t('audit.wasNamed',{name:current}):`era «${current}»`):'' });
+        if(typeof logAudit === 'function') logAudit('project-rename', { target:name.trim(), summary:current?((typeof t==='function')?t('audit.wasNamed',{name:current}):`era «${current}»`):'' });
     });
 }
 

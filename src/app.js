@@ -80,7 +80,7 @@ export function nodeById(id) {
  * Restituisce i link che toccano la porta `pid` in O(1).
  * Sostituisce: state.links.filter(l => l.src===pid || l.dst===pid)
  */
-function _linksForPort(pid) {
+export function _linksForPort(pid) {
     if (_idxDirty) _rebuildIdx();
     return _linksByPortMap[pid] ?? [];
 }
@@ -1060,7 +1060,7 @@ function _idPrefixForType(type){
     return NODE_ID_PREFIX[type] || 'n';
 }
 
-function _nextNodeId(type, usedIds){
+export function _nextNodeId(type, usedIds){
     const used = usedIds || new Set((state.nodes || []).map(n => String(n.id || '')));
     const prefix = _idPrefixForType(type);
     let max = 0;
@@ -1325,7 +1325,7 @@ function _isWifiCapable(type){
 function _radioCountOf(n){
     return (typeof radioCount==='function') ? radioCount(n) : (Array.isArray(n && n.radios) ? Math.min(n.radios.length,8) : 0);
 }
-function _nodeRadios(n){ return (n && Array.isArray(n.radios)) ? n.radios : []; }
+export function _nodeRadios(n){ return (n && Array.isArray(n.radios)) ? n.radios : []; }
 // Il device espone almeno una radio? Sorgente di verità = n.radios.
 function _deviceHasWifi(n){ return _radioCountOf(n) > 0; }
 // Glue: imposta il numero di interfacce radio del device (0..8).
@@ -1339,7 +1339,7 @@ function setNodeRadioCount(id, k){
 // Compat: vecchio toggle "Wireless" → 0/1 radio.
 function setDeviceWifi(id, on){ setNodeRadioCount(id, on ? Math.max(1, _radioCountOf(nodeById(id))) : 0); }
 function _radioPid(nodeId, idx){ return (typeof radioPid==='function') ? radioPid(nodeId, idx) : `${nodeId}-radio`; }
-function _isRadioPid(pid){
+export function _isRadioPid(pid){
     const p = (typeof parseRadioPid==='function') ? parseRadioPid(pid) : null;
     if(!p) return false;
     return _radioCountOf(nodeById(p.nodeId)) > p.idx;   // solo pid entro le radio reali del nodo

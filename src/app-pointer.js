@@ -8,7 +8,7 @@
 // ============================================================
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _invalidateIdx, switchRightTab, _showToast } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _invalidateIdx, switchRightTab, _showToast, _linksForPort, _nextNodeId, _isRadioPid, logAudit } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { propagateVlans } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderTopoOverlay } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -142,7 +142,7 @@ function handleDrop(e,zone){
     const t=e.dataTransfer.getData('text/plain'); if(!t||!TYPES[t]) return;
     win._paletteDragType='';
     const d=TYPES[t];
-    const n={id:win._nextNodeId(t),type:t,name:d.name+' '+Math.floor(Math.random()*100),ports:d.ports};
+    const n={id:_nextNodeId(t),type:t,name:d.name+' '+Math.floor(Math.random()*100),ports:d.ports};
     const spec=win._ensureNodeSpec(n);
 
     if(zone==='floor'&&d.isFloor){
@@ -193,8 +193,8 @@ function handleDrop(e,zone){
     }
     // Evidenzia e inquadra il nodo appena inserito, così non sembra "sparito"
     // (specie se finisce in una zona del floor fuori dalla vista corrente).
-    if(store.state.nodes.indexOf(n) !== -1 && typeof win.logAudit === 'function'){
-        win.logAudit('device-add', { target:getNodeDisplayName(n)||n.name||n.id, summary:d.name });
+    if(store.state.nodes.indexOf(n) !== -1 && typeof logAudit === 'function'){
+        logAudit('device-add', { target:getNodeDisplayName(n)||n.name||n.id, summary:d.name });
     }
     store.selId=n.id; store.selType='node';
     renderAll(); markDirty();
@@ -649,8 +649,8 @@ function _tryFinishLink(tgt){
     // Tipo di connessione dagli estremi (lib/radio.js): una porta radio si
     // collega SOLO a un'altra porta radio (associazione wireless = tipologia a
     // sé). Mix radio↔porta-di-rete = non ammesso → blocca con messaggio.
-    const _srcRadio = typeof win._isRadioPid==='function' && win._isRadioPid(store.linkStart);
-    const _dstRadio = typeof win._isRadioPid==='function' && win._isRadioPid(tgt);
+    const _srcRadio = typeof _isRadioPid==='function' && _isRadioPid(store.linkStart);
+    const _dstRadio = typeof _isRadioPid==='function' && _isRadioPid(tgt);
     const _connKind = (typeof win.linkKind==='function')
         ? win.linkKind(_srcRadio, _dstRadio)
         : (_srcRadio && _dstRadio ? 'wireless' : (!_srcRadio && !_dstRadio ? 'cable' : 'invalid'));
@@ -663,7 +663,7 @@ function _tryFinishLink(tgt){
     // Wireless = connessione radio↔radio (tipologia distinta dal cavo fisico).
     if(_connKind==='wireless') _newLink.wireless=true;
     store.state.links.push(_newLink);
-    if(typeof win.logAudit==='function') win.logAudit('cable-add', { target:_newLink.label||win._cableAutoLabel(_newLink) });
+    if(typeof logAudit==='function') logAudit('cable-add', { target:_newLink.label||win._cableAutoLabel(_newLink) });
     if(!store.state.ports[store.linkStart]) store.state.ports[store.linkStart]={};
     if(!store.state.ports[tgt])      store.state.ports[tgt]={};
     store.state.ports[store.linkStart].status='active';
@@ -903,8 +903,8 @@ function trace(start){
         // finisce lì e NON prosegue verso gli altri client che condividono la
         // stessa radio. Eccezione: se parto PROPRIO dalla radio, mostro tutti i
         // suoi client (selezione della radio = tutte le associazioni).
-        if(curr!==start && typeof win._isRadioPid==='function' && win._isRadioPid(curr)) continue;
-        for(const l of win._linksForPort(curr)){
+        if(curr!==start && typeof _isRadioPid==='function' && _isRadioPid(curr)) continue;
+        for(const l of _linksForPort(curr)){
             const nextPorts = _linkAdjacentPorts(l, curr);
             if(!nextPorts.length) continue;
             store.highPath.add(l.id);

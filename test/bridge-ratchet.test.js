@@ -129,6 +129,20 @@ test('ponte: gli helper option-selected/checked non sono più letti da win.*', (
   }
 });
 
+// ── 1g) Funzioni del nucleo (app.js) ritirate del tutto (reads + calls) ──────
+// Ritiro ponte 2026-07-10 (binario funzioni, 2º giro): `_linksForPort`, `_nextNodeId`,
+// `_nodeRadios`, `_isRadioPid`, `logAudit` — `export function` in app.js + `import`
+// nei consumatori; convertite TUTTE le occorrenze `win.X` (chiamate E guardie typeof).
+// Restano in expose() per i classic. A differenza di CALLS_RETIRED qui il ponte è a 0.
+const RETIRED_CORE_FN = ['_linksForPort', '_nextNodeId', '_nodeRadios', '_isRadioPid', 'logAudit'];
+test('ponte: le funzioni del nucleo del 2º giro non sono più lette da win.*', () => {
+  for (const sym of RETIRED_CORE_FN) {
+    const viaWin = countInCode(new RegExp('\\bwin\\.' + sym + '\\b', 'g'));
+    assert.equal(viaWin, 0,
+      `win.${sym} è tornato: importa { ${sym} } from "./app.js"`);
+  }
+});
+
 // ── 2) Cricchetto sul totale: il ponte può solo restringersi ────────────────
 // Conteggio SOLO-CODICE (commenti esclusi) delle letture win.*. Tetto stretto al
 // valore reale corrente: abbassalo al numero che il test stampa ([ratchet] …)
@@ -232,7 +246,13 @@ test('ponte: gli helper option-selected/checked non sono più letti da win.*', (
 // (app-properties-node-devices 391+35 + un alias mid-list in app-properties-node) →
 // `import { selected, checked } from './app.js'`. Nessun handler inline li usa; restano
 // in expose() per i classic. Vedi RETIRED_HELPERS sopra.
-const MAX_WIN_REFS = 1298;
+//
+// −77 (1298 → 1221, 2026-07-10): RITIRO PONTE — 5 funzioni del nucleo app.js
+// (`_linksForPort`, `_nextNodeId`, `_nodeRadios`, `_isRadioPid`, `logAudit`), tutte
+// già in expose() e senza uso in handler inline → `export function` + merge negli
+// import `from './app.js'` dei 15 consumatori (convertite chiamate E guardie typeof).
+// Restano in expose() per i classic. Vedi RETIRED_CORE_FN sopra.
+const MAX_WIN_REFS = 1221;
 
 test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => {
   const total = countInCode(/\bwin\./g);

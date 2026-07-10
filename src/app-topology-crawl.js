@@ -13,7 +13,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, normalizeNumber, normalizeMacAddress } from './app-util.js';
-import { markDirty, pushHistory, renderCables, _showToast } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { markDirty, pushHistory, renderCables, _showToast, _nextNodeId } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 
@@ -291,7 +291,7 @@ function importTopoCrawl(){
             const col = floorCount % 5;
             const row = Math.floor(floorCount / 5);
             n = {
-                id: win._nextNodeId(d.type, usedNodeIds),
+                id: _nextNodeId(d.type, usedNodeIds),
                 type: d.type,
                 name: d.hostname || d.ip || d.type,
                 hostname: d.hostname || '',
@@ -307,7 +307,7 @@ function importTopoCrawl(){
             const sU = def.sizeU || 1;
             const rackU = _findFreeU(rackId, sU);
             n = {
-                id: win._nextNodeId(d.type, usedNodeIds),
+                id: _nextNodeId(d.type, usedNodeIds),
                 type: d.type,
                 name: d.hostname || d.ip || d.type,
                 hostname: d.hostname || '',

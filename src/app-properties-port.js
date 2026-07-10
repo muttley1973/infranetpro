@@ -12,7 +12,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, normalizeStatus } from './app-util.js';
-import { nodeById, getNodeByPortId, getPortNodeId } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, getNodeByPortId, getPortNodeId, _isRadioPid } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 // NB: renderProps() qui è chiamato SOLO da un onclick="" (bare-in-template, scope
 // pagina → window.renderProps via expose): nessun import ESM, sarebbe inutilizzato.
@@ -40,7 +40,7 @@ function _renderPortProps(panel){
         const state = store.state;
         const pid=store.selId;
         // Interfaccia radio selezionata → pannello dedicato (config per-radio).
-        if(typeof win._isRadioPid==='function' && win._isRadioPid(pid) && typeof win._renderRadioProps==='function'){
+        if(typeof _isRadioPid==='function' && _isRadioPid(pid) && typeof win._renderRadioProps==='function'){
             return win._renderRadioProps(panel, pid);
         }
         const pi=state.ports[pid]||{};

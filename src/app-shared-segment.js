@@ -12,7 +12,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid } from './app-util.js';
-import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _showToast, _invalidateIdx } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _showToast, _invalidateIdx, _linksForPort, _nextNodeId } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderProps, _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
@@ -208,7 +208,7 @@ function _sharedSegmentPortChoices(node, role, sourcePid){
     const out = [];
     for(let i=1;i<=count;i++){
         const pid = `${node.id}-${i}`;
-        const links = win._linksForPort(pid);
+        const links = _linksForPort(pid);
         const manualBusy = links.some(l=>!l.autoLinked && !_linkHasPair(l, sourcePid, pid));
         const conn = win.getPortConnectionCount(pid);
         const max = win.getPortMaxConnections(pid);
@@ -342,8 +342,8 @@ function _confirmSharedSegmentBind(nodeId, portId){
     const node = nodeById(nodeId);
     if(!info || !role || !srcPid || !node) return;
 
-    const srcManualConflict = win._linksForPort(srcPid).some(l=>!l.autoLinked && !_linkHasPair(l, srcPid, portId));
-    const dstManualConflict = win._linksForPort(portId).some(l=>!l.autoLinked && !_linkHasPair(l, srcPid, portId));
+    const srcManualConflict = _linksForPort(srcPid).some(l=>!l.autoLinked && !_linkHasPair(l, srcPid, portId));
+    const dstManualConflict = _linksForPort(portId).some(l=>!l.autoLinked && !_linkHasPair(l, srcPid, portId));
     if(srcManualConflict || dstManualConflict){
         _showToast(t('msg.rack.manualLinkExists'), 'warn', 4200);
         return;
@@ -650,7 +650,7 @@ function _clearSharedSegmentRole(pid){
 function _createSharedSegmentNode(pid, role){
     const info = _sharedSegmentInfoForPort(pid, {includeIgnored:true});
     if(!info) return;
-    const existingManual = win._linksForPort(pid).some(l=>!l.autoLinked);
+    const existingManual = _linksForPort(pid).some(l=>!l.autoLinked);
     if(existingManual){
         _showToast(t('msg.rack.portHasManualLink'), 'warn', 4500);
         return;
@@ -674,7 +674,7 @@ function _createSharedSegmentNode(pid, role){
     if(role === 'ap'){
         const pos = _findFreeFloorSpot();
         const c = store.state.nodes.filter(x=>x.type==='ap').length + 1;
-        n = { id:win._nextNodeId('ap', used), type:'ap', name:`AP-${String(c).padStart(2,'0')}`, ports:1, x:pos.x, y:pos.y, notes:_sharedSegmentNotes(info, role) };
+        n = { id:_nextNodeId('ap', used), type:'ap', name:`AP-${String(c).padStart(2,'0')}`, ports:1, x:pos.x, y:pos.y, notes:_sharedSegmentNotes(info, role) };
     } else {
         const type = role === 'gateway' ? 'router' : role === 'hypervisor' ? 'server' : 'switch';
         const def = TYPES[type];
@@ -688,7 +688,7 @@ function _createSharedSegmentNode(pid, role){
             ? Math.min(48, Math.max(8, epCount + 1))
             : Math.max(def.ports || 1, 1);
         n = {
-            id:win._nextNodeId(type, used),
+            id:_nextNodeId(type, used),
             type,
             name: role === 'switch' ? `Switch unmanaged ${info.ifName}` : _sharedSegmentRoleLabel(role),
             brand: role === 'switch' ? 'Unmanaged' : def.brand,
