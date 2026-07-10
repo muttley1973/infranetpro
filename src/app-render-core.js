@@ -42,7 +42,7 @@ export function renderAll(){
     // Guard sul flag: se nel frattempo e' passato un renderNow() (che azzera
     // _renderPending e renderizza subito), questo callback in coda e' stantio
     // e NON deve ri-renderizzare — un re-render postumo rieseguirebbe anche
-    // win.renderProps→_activatePropsTab, annullando es. uno switch a tab Rack.
+    // renderProps→_activatePropsTab, annullando es. uno switch a tab Rack.
     requestAnimationFrame(()=>{ if(!_renderPending) return; _renderPending = false; _renderAllNow(); });
 }
 function renderNow(){ _renderPending = false; _renderAllNow(); }
@@ -71,13 +71,13 @@ function renderNow(){ _renderPending = false; _renderAllNow(); }
 function renderScope(scope){
     switch(scope){
         case 'props':
-            if(typeof win.renderProps === 'function') renderProps();
+            if(typeof renderProps === 'function') renderProps();
             return;
         case 'cables':
             if(typeof renderCables === 'function') renderCables();
             return;
         case 'topology':
-            if(typeof win.renderTopoOverlay === 'function') renderTopoOverlay();
+            if(typeof renderTopoOverlay === 'function') renderTopoOverlay();
             return;
         case 'floor':
             if(typeof renderFloor === 'function') renderFloor();
@@ -434,9 +434,9 @@ function _renderAllNow(){
     win._updateRackFloorBtn();
     // Legenda VLAN: visibile in entrambe le viste (Map=passiva, Topology=interattiva)
     if(typeof win._renderTopoLegend === 'function') win._renderTopoLegend();
-    // win.renderTopoOverlay usa offsetWidth/offsetHeight delle icone rack:
+    // renderTopoOverlay usa offsetWidth/offsetHeight delle icone rack:
     // deve girare dopo che il browser ha fatto il layout dei nuovi div.
-    requestAnimationFrame(win.renderTopoOverlay);
+    requestAnimationFrame(renderTopoOverlay);
     renderCables();
     // Modalita' instradamento cavo (P1.5): ri-applica highlight/dim sulle
     // porte pass-through valide dopo ogni rebuild del DOM (sopravvive al
@@ -462,7 +462,7 @@ function _renderAllNow(){
 // del codice. Beneficio: rischio zero di rottura del path renderAll
 // esistente. Unificazione (DRY) in un Pezzo successivo se serve.
 //
-// Coalescing: come renderAll e win.renderTopoOverlay.
+// Coalescing: come renderAll e renderTopoOverlay.
 let _floorPending = false;
 function renderFloor(){
     if(_floorPending) return;
@@ -557,7 +557,7 @@ function _renderFloorNow(){
         fI.appendChild(el);
     });
     // Topology overlay deve girare DOPO layout (usa offsetWidth/Height)
-    requestAnimationFrame(win.renderTopoOverlay);
+    requestAnimationFrame(renderTopoOverlay);
     // Modalita' instradamento: ridipingi i target anche dopo un render
     // mirato della sola planimetria (prese a muro evidenziate).
     if(typeof win._paintRoutingTargets === 'function') win._paintRoutingTargets();
