@@ -102,7 +102,7 @@ function _v3JumpNext(){
     const next = pend[(cur + 1) % pend.length];
     if(typeof win.selectAndFocusNode === 'function') win.selectAndFocusNode(next);
     else { store.selType = 'node'; store.selId = next.id; renderAll(); }
-    if(typeof win.switchRightTab === 'function') switchRightTab('props');
+    if(typeof switchRightTab === 'function') switchRightTab('props');
     if(typeof win.renderProps === 'function') renderProps();
 }
 

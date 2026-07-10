@@ -55,7 +55,7 @@ function closeTopoCrawl(){
 // esplicitamente serve usare il bottone "Chiudi" o la X.
 function _closeTopoCrawlOverlayClick(){
     if(_tdAbort){
-        if(typeof win._showToast === 'function'){
+        if(typeof _showToast === 'function'){
             _showToast(t('msg.net.crawlInProgress'), 'warn', 3500);
         }
         return;

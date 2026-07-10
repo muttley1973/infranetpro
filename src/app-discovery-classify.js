@@ -162,7 +162,7 @@ function _discBuildExistingIndexes(){
     for(const pid in (store.state.ports || {})){
         const pm = normalizeMacAddress(store.state.ports[pid]?.mac || '');
         if(!pm || idx.byMac.has(pm)) continue;
-        const owner = (typeof win.getNodeByPortId === 'function') ? getNodeByPortId(pid) : null;
+        const owner = (typeof getNodeByPortId === 'function') ? getNodeByPortId(pid) : null;
         if(owner) idx.byMac.set(pm, owner);
     }
     return idx;

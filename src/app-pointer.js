@@ -671,7 +671,7 @@ function _tryFinishLink(tgt){
     // Associazione wireless: scegli il BSS (SSID) servito (auto se 1, menu se >1).
     if(_connKind==='wireless' && typeof win._assignWirelessBss==='function'){
         win._assignWirelessBss(_newLink);
-        if(typeof win._invalidateIdx==='function') _invalidateIdx();
+        if(typeof _invalidateIdx==='function') _invalidateIdx();
         if(typeof win.propagateVlans==='function') propagateVlans();
     }
     markDirty();
@@ -687,7 +687,7 @@ function handlePointerUp(e){
             if(fp) fp.style.cursor=win._spaceDown?'grab':'';
             win._renderModeIndicator();
         }
-        // Pan rack: lo scroll non e' stato persistito → niente win.markDirty.
+        // Pan rack: lo scroll non e' stato persistito → niente markDirty.
         if(win.isPanningRack){
             win.isPanningRack=false; markDirty();
             document.body.classList.remove('rack-panning');
@@ -696,7 +696,7 @@ function handlePointerUp(e){
         }
         // Drag rack icon:
         //  - se il drag e' stato armato (movimento > threshold) → commit
-        //    (win.markDirty) e basta, la posizione e' stata aggiornata in
+        //    (markDirty) e basta, la posizione e' stata aggiornata in
         //    handlePointerMove.
         //  - se NON armato (click puro senza trascinamento) → apri la rack
         //    window a destra. Comportamento uniforme con Topology, dove il
@@ -886,7 +886,7 @@ function handleFloorDoubleClick(e){
 // pass-through mostra il run completo come fanno gli endpoint (che colpiscono il
 // LED-porta). Strutture (stanze) escluse.
 function _traceNodeFloor(nodeId){
-    const n = (typeof win.nodeById==='function') ? nodeById(nodeId) : null;
+    const n = (typeof nodeById==='function') ? nodeById(nodeId) : null;
     const def = n ? TYPES[n.type] : null;
     if(!def || def.isStructural) return;
     const pc = n.ports!==undefined ? n.ports : (def.ports||0);

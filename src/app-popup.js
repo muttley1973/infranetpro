@@ -73,7 +73,7 @@ function _showPhysicalCablePath(linkId){
     // (tab + toolbar + render). UN SOLO win.renderAll finale per floor/rack/cables/
     // topo: niente render extra (era la causa del "doppio" sul cavo).
     if(typeof win.setPropsSectionState==='function') win.setPropsSectionState('link-physical-path', true);
-    if(typeof win.switchRightTab==='function') switchRightTab('props');
+    if(typeof switchRightTab==='function') switchRightTab('props');
     renderAll();
     _showToast(t('msg.ui.physicalPathHighlighted'), 'ok', 3500);
 }
@@ -102,9 +102,9 @@ function selectPathSegment(linkId){
     // (con win.renderAll coalescato il win.renderProps girerebbe nel rAF dopo lo switch
     // e lo annullerebbe — era il bug "apre Proprietà invece del Rack").
     win.renderNow();
-    if(_rackPid && typeof win.switchRightTab === 'function'){
+    if(_rackPid && typeof switchRightTab === 'function'){
         if(win._rightTab !== 'rack') switchRightTab('rack');
-        // win.switchRightTab azzera l'hold (decadimento su cambio tab esplicito):
+        // switchRightTab azzera l'hold (decadimento su cambio tab esplicito):
         // qui il cambio e' NOSTRO, quindi ri-armiamo. Decade quando l'utente
         // cambia selezione o clicca lui una tab.
         win._propsTabHold = linkId;

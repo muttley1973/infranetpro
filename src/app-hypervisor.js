@@ -62,7 +62,7 @@ function _nodeVms(n){ return (n && Array.isArray(n.vms)) ? n.vms : []; }
 // Aggiunge una VM vuota (running) all'host e ri-renderizza.
 function addVm(nodeId){
     const n = nodeById(nodeId); if(!n) return;
-    if(typeof win.pushHistory === 'function') pushHistory();
+    if(typeof pushHistory === 'function') pushHistory();
     if(!Array.isArray(n.vms)) n.vms = [];
     const id = _newVmId(n.vms.length);
     n.vms.push({ id, state: 'running' });
@@ -81,7 +81,7 @@ function updateVm(nodeId, vmId, field, value){
     if(field === 'vlan'){
         const list = (typeof win.parseVlanList === 'function') ? win.parseVlanList(vm.vlan) : [];
         if(typeof win._ensureVlanColor === 'function') list.forEach(x => { if(x > 1) win._ensureVlanColor(x); });
-        if(typeof win._invalidateIdx === 'function') _invalidateIdx();
+        if(typeof _invalidateIdx === 'function') _invalidateIdx();
         if(typeof win.propagateVlans === 'function') propagateVlans();
     }
     markDirty(); renderProps(); if(typeof win.renderAll === 'function') renderAll();
@@ -91,9 +91,9 @@ function updateVm(nodeId, vmId, field, value){
 function removeVm(nodeId, vmId){
     const n = nodeById(nodeId); if(!n || !Array.isArray(n.vms)) return;
     const i = n.vms.findIndex(v => v && v.id === vmId); if(i < 0) return;
-    if(typeof win.pushHistory === 'function') pushHistory();
+    if(typeof pushHistory === 'function') pushHistory();
     n.vms.splice(i, 1);
-    if(typeof win._invalidateIdx === 'function') _invalidateIdx();
+    if(typeof _invalidateIdx === 'function') _invalidateIdx();
     if(typeof win.propagateVlans === 'function') propagateVlans();
     markDirty(); renderProps(); if(typeof win.renderAll === 'function') renderAll();
 }

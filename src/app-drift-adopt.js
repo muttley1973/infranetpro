@@ -130,7 +130,7 @@ function adoptApply(){
 
     markDirty();
     if(typeof win.renderAll === 'function') renderAll();
-    if(typeof win.renderCables === 'function') renderCables();
+    if(typeof renderCables === 'function') renderCables();
     if(typeof renderProps === 'function') renderProps();   // rinfresca la card IPAM: l'ambra "solo DHCP" cala dopo l'adozione
     _closeAdoptModal();
     _adoptRecomputeDrift();   // le righe adottate spariscono dal Drift (feedback "si vede")
@@ -139,7 +139,7 @@ function adoptApply(){
     if(res.added) parts.push(`${res.added} aggiunt${res.added === 1 ? 'o' : 'i'}`);
     if(res.autoLinked) parts.push(`${res.autoLinked} collegat${res.autoLinked === 1 ? 'o' : 'i'} auto`);
     if(res.skipped) parts.push(`${res.skipped} già present${res.skipped === 1 ? 'e' : 'i'}`);
-    if(typeof win._showToast === 'function') _showToast(parts.join(' · ') || t('msg.net.noChanges'), res.added ? 'ok' : 'warn');
+    if(typeof _showToast === 'function') _showToast(parts.join(' · ') || t('msg.net.noChanges'), res.added ? 'ok' : 'warn');
 }
 
 // Crea i nodi dai pick espliciti (testabile senza DOM). picks = [{cand, type}].
@@ -205,7 +205,7 @@ function _adoptCreateNodes(picks, autoLink){
         added++;
     });
 
-    if(typeof win._invalidateIdx === 'function') _invalidateIdx();
+    if(typeof _invalidateIdx === 'function') _invalidateIdx();
 
     // Auto-link alla porta FDB (riusa la logica testata; salta trunk/uplink/ambigui).
     if(autoLink && typeof win._autoLinkEndpoint === 'function'){
