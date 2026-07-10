@@ -129,7 +129,7 @@ function adoptApply(){
     const res = _adoptCreateNodes(picks, autoLink);
 
     markDirty();
-    if(typeof win.renderAll === 'function') renderAll();
+    if(typeof renderAll === 'function') renderAll();
     if(typeof renderCables === 'function') renderCables();
     if(typeof renderProps === 'function') renderProps();   // rinfresca la card IPAM: l'ambra "solo DHCP" cala dopo l'adozione
     _closeAdoptModal();

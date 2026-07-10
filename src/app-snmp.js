@@ -103,7 +103,7 @@ function _v3JumpNext(){
     if(typeof win.selectAndFocusNode === 'function') win.selectAndFocusNode(next);
     else { store.selType = 'node'; store.selId = next.id; renderAll(); }
     if(typeof switchRightTab === 'function') switchRightTab('props');
-    if(typeof win.renderProps === 'function') renderProps();
+    if(typeof renderProps === 'function') renderProps();
 }
 
 function updateIntegration(nid, key, val){

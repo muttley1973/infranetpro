@@ -14,7 +14,7 @@ import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (e
 import { escapeHTML } from './app-util.js';
 import { nodeById, getNodeDisplayName, selected } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
-import { _propsSectionIsOpen, _buildNetAccessHtml } from './app-properties.js';   // ritiro ponte: builder pannello (ex win.*)
+import { _propsSectionIsOpen, _buildNetAccessHtml, renderProps } from './app-properties.js';   // ritiro ponte: builder pannello (ex win.*)
 
 // ============================================================
 // PROPERTIES PANEL — renderer NODO (dispositivo/struttura, selType===node)
@@ -63,7 +63,7 @@ function _renderNodeProps(panel){
             isRackTopNumbered = win.isRackTopNumbered, rackUToVisible = win.rackUToVisible,
             getLagGroupsForNode = win.getLagGroupsForNode, _enableManualValueInProps = win._enableManualValueInProps,
             _activatePropsTab = win._activatePropsTab, _nodeDeviceChainHtml = win._nodeDeviceChainHtml,
-            _propsExplicit = win._propsExplicit, renderProps = win.renderProps,
+            _propsExplicit = win._propsExplicit,
             _l3SviSectionHtml = win._l3SviSectionHtml, _panelSkinSectionHtml = win._panelSkinSectionHtml;
 
         const _rawNode=nodeById(store.selId); if(!_rawNode) return;
