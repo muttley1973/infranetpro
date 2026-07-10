@@ -2,6 +2,14 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-09 — Discover names Windows PCs, and Stealth mode randomizes its scan order
+
+### Added
+- **Windows PCs finally get a name in Discover.** A Windows host speaks no SNMP and rarely advertises its computer name over mDNS, so it used to fall back to just its IP. Discovery now resolves the name from **NetBIOS** — a single `nbtstat -A` (NBSTAT node-status) query per *alive, still-nameless* host — so a `DESKTOP-JH2S14O` shows by name. It runs on the **Normal and Safe** cadences (a single NBSTAT on a host you've already pinged is legitimate name resolution, within Safe's "light anti-IDS", with a gentler concurrency on Safe) and is **off on Stealth** — the true anti-IDS mode that must carry no extra NetBIOS footprint. The machine running InfraNet shows up in its own scan, but `nbtstat` cannot query its own IP ("host not found"), so the **local host is named from `os.hostname()`** — in every cadence, no network probe. Windows-only (nbtstat); a host with NetBT disabled but SMB open still relies on the existing SMB signal. `server/routes/discovery.js`, `lib/i18n.js`.
+
+### Changed
+- **Stealth mode now randomizes the scan order — it was still sweeping IPs in sequence.** The Stealth cadence already serialised the sweep and jittered the timing (a fixed interval is a detectable cadence), but it still probed `.1, .2, .3 …` in strict order — and a **sequential IP sweep is a scan signature just like a fixed interval**. Stealth now **shuffles the target order** (Fisher-Yates) on **both** phases that put packets on the wire — the base ping sweep **and** the SNMP/enrichment phase (each an independent shuffle) — and paces the enrichment phase with the same jittered delay, so neither carries a sequential pattern. New pure `_shuffled` (injectable rand, unit-tested) in `server/netscan.js`. Verified end-to-end against the real `/api/discover` route (ping + SNMP order sequential on Normal/Safe vs shuffled on Stealth; concurrency 64/32/1 and 16/8/1; NBSTAT on Normal+Safe only, local host named in every cadence). Normal and Safe are unchanged in ordering. `server/routes/discovery.js`.
+
 ## 2026-07-09 — The Verifica report stops repeating itself, and the asset register lists assets (not the cabling)
 
 ### Changed
