@@ -1395,7 +1395,7 @@ function removeNodePorts(nodeIds) {
 // normalizeNumber/normalizeStatus/normalizeMacAddress/hexToRgba/_shadeHex:
 // estratti nel modulo foglia ./app-util.js (importati sopra). selected() resta
 // qui: è l'helper option-selected, da non confondere con lo stato win.selected.
-function selected(v,o)  { return v===o?'selected':''; }
+export function selected(v,o)  { return v===o?'selected':''; }
 
 function _rackDeviceBg(value){
     if(!value || !/^#[0-9a-f]{6}$/i.test(value)) return '';
@@ -1410,7 +1410,7 @@ function _rackDeviceBg(value){
  */
 // Management protocols extracted in lib/app-management.js
 
-function checked(v)     { return v?'checked':''; }
+export function checked(v)     { return v?'checked':''; }
 
 function getWallPortLabel(n) { return n?.portId||n?.name||''; }
 function getRackName(rid)    { return state.racks.find(r=>r.id===rid)?.name||rid||''; }
