@@ -311,9 +311,13 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
     // 3) Enrichment solo sui candidati: ping OK o MAC visto in ARP.
     // Questo evita che una /24 resti bloccata per minuti su IP inesistenti.
     const scanRows = rows.filter(r => r.alive || r.mac);
-    const enrichConc = stealth ? 2 : (safe ? 8 : 16);   // stealth: enrichment gentile sui candidati
-    for (let i = 0; i < scanRows.length; i += enrichConc) {
-      const batch = scanRows.slice(i, i + enrichConc);
+    // Furtiva: stessa cura del ping sweep anche sull'arricchimento (una GET SNMP UDP 161
+    // + probe TCP/DNS per candidato = anch'esso uno sweep). Serializza (conc 1), ordine
+    // RANDOMIZZATO e pacing jitterato tra gli host -> niente seconda firma sequenziale.
+    const enrichConc = stealth ? 1 : (safe ? 8 : 16);
+    const enrichOrder = stealth ? _shuffled(scanRows) : scanRows;
+    for (let i = 0; i < enrichOrder.length; i += enrichConc) {
+      const batch = enrichOrder.slice(i, i + enrichConc);
       await Promise.all(batch.map(async row => {
         try {
           const jobs = [];
@@ -375,6 +379,10 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
           console.warn(`  [DISCOVER] enrichment ${row.ip}: ${e.message}`);
         }
       }));
+      if (stealth && i + enrichConc < enrichOrder.length) {
+        const gap = _stealthDelayMs(scanDelayMs, 0.3);   // anti-IDS: pacing jitterato tra host
+        if (gap > 0) await new Promise(r => setTimeout(r, gap));
+      }
     }
 
     const useDeepScan = String(deepScan) === 'true' || deepScan === true;
