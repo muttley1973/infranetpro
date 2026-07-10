@@ -387,6 +387,16 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
 
     const useDeepScan = String(deepScan) === 'true' || deepScan === true;
 
+    // Nome dell'HOST LOCALE (la macchina che esegue InfraNet): `nbtstat -A` sul PROPRIO
+    // IP fallisce ("Host non trovato") -> il nome del computer locale si prende da
+    // os.hostname(). Nessun probe di rete: vale in OGNI cadenza e su ogni OS.
+    {
+      const localName = _cleanHostname(os.hostname() || '');
+      if (localName) for (const r of rows) {
+        if (r.alive && !r.hostname && localIfaces.has(r.ip)) r.hostname = localName;
+      }
+    }
+
     // Risoluzione nomi NetBIOS — SOLO in modalita' NORMALE (veloce) e senza deep-scan
     // (il deep-scan fa gia' nbtstat). Un PC Windows non parla SNMP ne' quasi mai annuncia
     // il nome via mDNS: `nbtstat -A` e' l'unica fonte affidabile del nome. Aggiunge pero'
