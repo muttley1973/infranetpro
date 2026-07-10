@@ -13,7 +13,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
-import { _buildDeviceBrandModelPreview } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { _buildDeviceBrandModelPreview, _propsSectionIsOpen, _buildInventoryFieldsHtml, _buildNetAccessHtml } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 
 // ============================================================
@@ -94,8 +94,8 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
             if(n.type==='ap'){
                 h+=`${_identityBlock}
                     <div class="prop-group"><label>${t('f.apId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="AP-01" onchange="updateFloorId(this.value)"></div>
-                    ${(_floorNet = win._buildNetAccessHtml(n, d, {includeHostname:false, macLabel:'MAC / BSSID'}), '')}
-                    <details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-ap')?'open':''} ontoggle="setPropsSectionState('device-ap',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-wifi"></i> ${t('dev.ap')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false, macLabel:'MAC / BSSID'}), '')}
+                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-ap')?'open':''} ontoggle="setPropsSectionState('device-ap',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-wifi"></i> ${t('dev.ap')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <!-- Config Wi-Fi (SSID/banda/canale/standard/sicurezza/VLAN) unificata
                          con il router: vive nella fisarmonica WIRELESS (interfacce radio
                          n.radios[]). I campi legacy a singola radio sono stati rimossi. -->
@@ -131,8 +131,8 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
             }
             if(n.type==='webcam'){
                 h+=`<div class="prop-group"><label>${t('f.cameraId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="CAM-01" onchange="updateFloorId(this.value)"></div>
-                    ${(_floorNet = win._buildNetAccessHtml(n, d, {includeHostname:false, macLabel:'MAC'}), '')}
-                    <details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-webcam')?'open':''} ontoggle="setPropsSectionState('device-webcam',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-video"></i> ${t('dev.webcam')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false, macLabel:'MAC'}), '')}
+                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-webcam')?'open':''} ontoggle="setPropsSectionState('device-webcam',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-video"></i> ${t('dev.webcam')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('f.mounting')}</label><select onchange="updateN('mountType',this.value)">
                         <option value="ceiling" ${win.selected(n.mountType||'ceiling','ceiling')}>${t('o.ceiling')}</option>
                         <option value="wall"    ${win.selected(n.mountType,'wall')}>${t('o.wall')}</option>
@@ -167,14 +167,14 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
                 </div></details>`;
             }
             if(n.type==='wallport'){
-                h+=`<details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-wallport')?'open':''} ontoggle="setPropsSectionState('device-wallport',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-ethernet"></i> ${t('dev.wallport')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                h+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-wallport')?'open':''} ontoggle="setPropsSectionState('device-wallport',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-ethernet"></i> ${t('dev.wallport')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('f.socketId')}</label><input value="${escapeHTML(win.getWallPortLabel(n))}" placeholder="A-01" onchange="updateWallPortId(this.value)"></div>
                 </div></details>`;
             }
             if(n.type==='printer'){
                 h+=`<div class="prop-group"><label>${t('field.nameId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="PRN-01" onchange="updateFloorId(this.value)"></div>
-                    ${(_floorNet = win._buildNetAccessHtml(n, d, {includeHostname:false}), '')}
-                    <details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-printer')?'open':''} ontoggle="setPropsSectionState('device-printer',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-print"></i> ${t('dev.printer')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false}), '')}
+                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-printer')?'open':''} ontoggle="setPropsSectionState('device-printer',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-print"></i> ${t('dev.printer')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('field.brand')}</label><input value="${escapeHTML(n.brand||'')}" placeholder="HP, Canon, Epson, Ricoh…" onchange="updateN('brand',this.value)"></div>
                     <div class="prop-group"><label>${t('field.model')}</label><input value="${escapeHTML(n.model||'')}" placeholder="LaserJet Pro M404dn…" onchange="updateN('model',this.value)"></div>
                     <h4 style="margin:12px 0 8px;color:var(--text-main);border-bottom:1px solid var(--panel-border);padding-bottom:4px">${t('pnl.dev.networkPrint')}</h4>
@@ -195,8 +195,8 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
             if(n.type==='voip'){
                 h+=`<div class="prop-group"><label>${t('field.nameId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="TEL-01" onchange="updateFloorId(this.value)"></div>
                     <div class="prop-group"><label>${t('f.extNumber')}</label><input value="${escapeHTML(n.extension||'')}" placeholder="201" onchange="updateN('extension',this.value)"></div>
-                    ${(_floorNet = win._buildNetAccessHtml(n, d, {includeHostname:false}), '')}
-                    <details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-voip')?'open':''} ontoggle="setPropsSectionState('device-voip',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-phone"></i> ${t('dev.voip')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false}), '')}
+                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-voip')?'open':''} ontoggle="setPropsSectionState('device-voip',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-phone"></i> ${t('dev.voip')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('field.brand')}</label><select onchange="updateN('brand',this.value)">
                         <option value="Cisco"       ${win.selected(n.brand||'Cisco','Cisco')}>Cisco</option>
                         <option value="Yealink"     ${win.selected(n.brand,'Yealink')}>Yealink</option>
@@ -232,8 +232,8 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
             if(n.type==='badgereader'){
                 h+=`<div class="prop-group"><label>${t('field.nameId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="BADGE-01" onchange="updateFloorId(this.value)"></div>
                     <div class="prop-group"><label>${t('f.zonePort')}</label><input value="${escapeHTML(n.zone||'')}" placeholder="${t('pnl.dev.phZoneExample')}" onchange="updateN('zone',this.value)"></div>
-                    ${(_floorNet = win._buildNetAccessHtml(n, d, {includeHostname:false}), '')}
-                    <details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-badgereader')?'open':''} ontoggle="setPropsSectionState('device-badgereader',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-id-card"></i> ${t('dev.badgereader')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false}), '')}
+                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-badgereader')?'open':''} ontoggle="setPropsSectionState('device-badgereader',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-id-card"></i> ${t('dev.badgereader')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('field.brand')}</label><select onchange="updateN('brand',this.value)">
                         <option value="HID"     ${win.selected(n.brand||'HID','HID')}>HID Global</option>
                         <option value="Axis"    ${win.selected(n.brand,'Axis')}>Axis</option>
@@ -269,8 +269,8 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
             if(n.type==='pc'){
                 h+=`<div class="prop-group"><label>${t('field.nameId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="PC-MARIO, WS-01" onchange="updateFloorId(this.value)"></div>
                     <div class="prop-group"><label>${t('f.assignedUser')}</label><input value="${escapeHTML(n.assignedUser||'')}" placeholder="Mario Rossi" onchange="updateN('assignedUser',this.value)"></div>
-                    ${(_floorNet = win._buildNetAccessHtml(n, d, {includeHostname:false}), '')}
-                    <details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-pc')?'open':''} ontoggle="setPropsSectionState('device-pc',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-desktop"></i> ${t('dev.pc')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false}), '')}
+                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-pc')?'open':''} ontoggle="setPropsSectionState('device-pc',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-desktop"></i> ${t('dev.pc')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('field.brand')}</label><select onchange="updateN('brand',this.value)">
                         <option value="Dell"    ${win.selected(n.brand||'Dell','Dell')}>Dell</option>
                         <option value="HP"      ${win.selected(n.brand,'HP')}>HP</option>
@@ -300,8 +300,8 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
             if(n.type==='mobile'){
                 h+=`<div class="prop-group"><label>${t('field.nameId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="PHONE-MARIO, IPAD-01" onchange="updateFloorId(this.value)"></div>
                     <div class="prop-group"><label>${t('f.assignedUser')}</label><input value="${escapeHTML(n.assignedUser||'')}" placeholder="Mario Rossi" onchange="updateN('assignedUser',this.value)"></div>
-                    ${(_floorNet = win._buildNetAccessHtml(n, d, {includeHostname:false, ipPlaceholder:'192.168... (se IP)'}), '')}
-                    <details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-mobile')?'open':''} ontoggle="setPropsSectionState('device-mobile',this.open)"><summary class="props-collapsible-head"><span><i class="fas ${escapeHTML(d.icon)}"></i> ${t('dev.mobile')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false, ipPlaceholder:'192.168... (se IP)'}), '')}
+                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-mobile')?'open':''} ontoggle="setPropsSectionState('device-mobile',this.open)"><summary class="props-collapsible-head"><span><i class="fas ${escapeHTML(d.icon)}"></i> ${t('dev.mobile')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('f.formFactor')}</label><select onchange="updateN('formFactor',this.value)">
                         <option value="smartphone" ${win.selected(n.formFactor||'smartphone','smartphone')}>Smartphone</option>
                         <option value="tablet"     ${win.selected(n.formFactor,'tablet')}>Tablet</option>
@@ -346,9 +346,9 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
             if(n.type==='nasdesktop'){
                 const protos = Array.isArray(n.nasProtocols) ? n.nasProtocols : [];
                 h+=`<div class="prop-group"><label>${t('field.nameId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="NAS-01, DS920+" onchange="updateFloorId(this.value)"></div>
-                    ${(_floorNet = win._buildNetAccessHtml(n, d, {includeHostname:false}), '')}
-                    <details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-nasdesktop')?'open':''} ontoggle="setPropsSectionState('device-nasdesktop',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-hard-drive"></i> ${t('dev.nasdesktop')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
-                    ${win._buildInventoryFieldsHtml(n, d)}
+                    ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false}), '')}
+                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-nasdesktop')?'open':''} ontoggle="setPropsSectionState('device-nasdesktop',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-hard-drive"></i> ${t('dev.nasdesktop')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.swPlatform')}</label><select onchange="updateN('nasPlatform',this.value)">
                         <option value="dsm"     ${win.selected(n.nasPlatform||'dsm','dsm')}>DSM (Synology)</option>
                         <option value="qts"     ${win.selected(n.nasPlatform,'qts')}>QTS (QNAP)</option>
@@ -377,8 +377,8 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
             }
             if(n.type==='iot'){
                 h+=`<div class="prop-group"><label>${t('field.nameId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="IOT-01, SENSOR-TEMP-A" onchange="updateFloorId(this.value)"></div>
-                    ${(_floorNet = win._buildNetAccessHtml(n, d, {includeHostname:false, ipPlaceholder:'192.168... (se IP)'}), '')}
-                    <details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-iot')?'open':''} ontoggle="setPropsSectionState('device-iot',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-microchip"></i> ${t('dev.iot')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false, ipPlaceholder:'192.168... (se IP)'}), '')}
+                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-iot')?'open':''} ontoggle="setPropsSectionState('device-iot',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-microchip"></i> ${t('dev.iot')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('f.deviceType')}</label><select onchange="updateN('iotType',this.value)">
                         <option value="temp"      ${win.selected(n.iotType||'temp','temp')}>${t('o.iotTemp')}</option>
                         <option value="temp-hum"  ${win.selected(n.iotType,'temp-hum')}>${t('o.iotTempHum')}</option>
@@ -409,8 +409,8 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
             }
             if(n.type==='projector'){
                 h+=`<div class="prop-group"><label>${t('field.nameId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="${t('pnl.dev.phProjName')}" onchange="updateFloorId(this.value)"></div>
-                    ${(_floorNet = win._buildNetAccessHtml(n, d, {includeHostname:false}), '')}
-                    <details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-projector')?'open':''} ontoggle="setPropsSectionState('device-projector',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-chalkboard"></i> ${t('dev.projector')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false}), '')}
+                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-projector')?'open':''} ontoggle="setPropsSectionState('device-projector',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-chalkboard"></i> ${t('dev.projector')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('field.brand')}</label><select onchange="updateN('brand',this.value)">
                         <option value="Epson"    ${win.selected(n.brand||'Epson','Epson')}>Epson</option>
                         <option value="BenQ"     ${win.selected(n.brand,'BenQ')}>BenQ</option>
@@ -445,8 +445,8 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
                     </select></div>                </div></details>`;
             }
             if(n.type==='pbx'){
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-pbx')?'open':''} ontoggle="setPropsSectionState('device-pbx',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-phone-volume"></i> ${t('dev.pbx')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
-                    ${win._buildInventoryFieldsHtml(n, d)}
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-pbx')?'open':''} ontoggle="setPropsSectionState('device-pbx',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-phone-volume"></i> ${t('dev.pbx')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.trunkProto')}</label><select onchange="updateN('pbxTrunk',this.value)">
                         <option value="sip"       ${win.selected(n.pbxTrunk||'sip','sip')}>SIP Trunk</option>
                         <option value="isdn-pri"  ${win.selected(n.pbxTrunk,'isdn-pri')}>ISDN PRI (E1/T1)</option>
@@ -472,8 +472,8 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
                 </div></details>`;
             }
             if(n.type==='consolesvr'){
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-consolesvr')?'open':''} ontoggle="setPropsSectionState('device-consolesvr',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-terminal"></i> ${t('dev.consolesvr')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
-                    ${win._buildInventoryFieldsHtml(n, d)}
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-consolesvr')?'open':''} ontoggle="setPropsSectionState('device-consolesvr',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-terminal"></i> ${t('dev.consolesvr')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.oobIp')}</label>
                         <input value="${escapeHTML(n.oobIp||'')}" placeholder="${t('pnl.dev.phOobIp')}" onchange="updateN('oobIp',this.value)"></div>
                     <div class="prop-group"><label>${t('f.serialPorts')}</label>
@@ -495,8 +495,8 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
                 </div></details>`;
             }
             if(n.type==='wlanctrl'){
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-wlanctrl')?'open':''} ontoggle="setPropsSectionState('device-wlanctrl',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-wifi"></i> ${t('dev.wlanctrl')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
-                    ${win._buildInventoryFieldsHtml(n, d)}
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-wlanctrl')?'open':''} ontoggle="setPropsSectionState('device-wlanctrl',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-wifi"></i> ${t('dev.wlanctrl')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.apManagedCur')}</label>
                         <input type="number" min="0" max="10000" value="${n.apManaged||0}" onchange="updateN('apManaged',parseInt(this.value)||0)"></div>
                     <div class="prop-group"><label>${t('f.maxApCap')}</label>
@@ -515,8 +515,8 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
                 </div></details>`;
             }
             if(n.type==='mediaconv'){
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-mediaconv')?'open':''} ontoggle="setPropsSectionState('device-mediaconv',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-right-left"></i> ${t('dev.mediaconv')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
-                    ${win._buildInventoryFieldsHtml(n, d)}
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-mediaconv')?'open':''} ontoggle="setPropsSectionState('device-mediaconv',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-right-left"></i> ${t('dev.mediaconv')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.fiberType')}</label><select onchange="updateN('fiberType',this.value)">
                         <option value="sm"  ${win.selected(n.fiberType||'sm','sm')}>Single-mode (SM)</option>
                         <option value="mm"  ${win.selected(n.fiberType,'mm')}>Multi-mode (MM)</option>
@@ -545,8 +545,8 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
                 </div></details>`;
             }
             if(n.type==='nvr'){
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-nvr')?'open':''} ontoggle="setPropsSectionState('device-nvr',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-record-vinyl"></i> ${t('devh.nvr')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
-                    ${win._buildInventoryFieldsHtml(n, d)}
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-nvr')?'open':''} ontoggle="setPropsSectionState('device-nvr',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-record-vinyl"></i> ${t('devh.nvr')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.platform')}</label><select onchange="updateN('nvrPlatform',this.value)">
                         <option value="hikvision" ${win.selected(n.nvrPlatform||'hikvision','hikvision')}>Hikvision</option>
                         <option value="dahua"     ${win.selected(n.nvrPlatform,'dahua')}>Dahua</option>
@@ -573,8 +573,8 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
                     </select></div>                </div></details>`;
             }
             if(n.type==='sdwan'){
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-sdwan')?'open':''} ontoggle="setPropsSectionState('device-sdwan',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-cloud-bolt"></i> ${t('dev.sdwan')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
-                    ${win._buildInventoryFieldsHtml(n, d)}
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-sdwan')?'open':''} ontoggle="setPropsSectionState('device-sdwan',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-cloud-bolt"></i> ${t('dev.sdwan')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.platform')}</label><select onchange="updateN('sdwanPlatform',this.value)">
                         <option value="meraki"     ${win.selected(n.sdwanPlatform||'meraki','meraki')}>Cisco Meraki MX</option>
                         <option value="velocloud"  ${win.selected(n.sdwanPlatform,'velocloud')}>VMware VeloCloud</option>
@@ -600,8 +600,8 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
                 </div></details>`;
             }
             if(n.type==='vpncon'){
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-vpncon')?'open':''} ontoggle="setPropsSectionState('device-vpncon',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-key"></i> ${t('dev.vpncon')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
-                    ${win._buildInventoryFieldsHtml(n, d)}
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-vpncon')?'open':''} ontoggle="setPropsSectionState('device-vpncon',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-key"></i> ${t('dev.vpncon')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.platform')}</label><select onchange="updateN('vpnPlatform',this.value)">
                         <option value="cisco-asa"      ${win.selected(n.vpnPlatform||'cisco-asa','cisco-asa')}>Cisco ASA / Firepower</option>
                         <option value="cisco-anyconn"  ${win.selected(n.vpnPlatform,'cisco-anyconn')}>Cisco AnyConnect</option>
@@ -634,8 +634,8 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
             }
             if(n.type==='doorctrl'){
                 h+=`<div class="prop-group"><label>${t('field.nameId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="DOOR-ENTR-01, ACL-PIANO2" onchange="updateFloorId(this.value)"></div>
-                    ${(_floorNet = win._buildNetAccessHtml(n, d, {includeHostname:false}), '')}
-                    <details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-doorctrl')?'open':''} ontoggle="setPropsSectionState('device-doorctrl',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-door-open"></i> ${t('dev.doorctrl')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false}), '')}
+                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-doorctrl')?'open':''} ontoggle="setPropsSectionState('device-doorctrl',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-door-open"></i> ${t('dev.doorctrl')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('f.platform')}</label><select onchange="updateN('doorPlatform',this.value)">
                         <option value="hid"        ${win.selected(n.doorPlatform||'hid','hid')}>HID Global (VertX/Aero)</option>
                         <option value="axis"       ${win.selected(n.doorPlatform,'axis')}>Axis Communications</option>
@@ -660,7 +660,7 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
             }
             if(n.type==='panelboard'){
                 h+=`<div class="prop-group"><label>${t('field.nameId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="QE-CED, QE-PIANO2" onchange="updateFloorId(this.value)"></div>
-                    <details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-panelboard')?'open':''} ontoggle="setPropsSectionState('device-panelboard',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-bolt"></i> ${t('dev.panelboard')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-panelboard')?'open':''} ontoggle="setPropsSectionState('device-panelboard',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-bolt"></i> ${t('dev.panelboard')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('f.powerType')}</label><select onchange="updateN('panelPhase',this.value)">
                         <option value="single-230" ${win.selected(n.panelPhase||'single-230','single-230')}>${t('o.single230sp')}</option>
                         <option value="three-400"  ${win.selected(n.panelPhase,'three-400')}>${t('o.three400sp')}</option>
@@ -686,8 +686,8 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
             }
             if(n.type==='tv'){
                 h+=`<div class="prop-group"><label>${t('field.nameId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="TV-SALA-A, DISPLAY-01" onchange="updateFloorId(this.value)"></div>
-                    ${(_floorNet = win._buildNetAccessHtml(n, d, {includeHostname:false}), '')}
-                    <details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-tv')?'open':''} ontoggle="setPropsSectionState('device-tv',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-tv"></i> ${t('dev.tv')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false}), '')}
+                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-tv')?'open':''} ontoggle="setPropsSectionState('device-tv',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-tv"></i> ${t('dev.tv')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('f.usage')}</label><select onchange="updateN('tvUsage',this.value)">
                         <option value="meeting"   ${win.selected(n.tvUsage||'meeting','meeting')}>${t('o.meetingRoom')}</option>
                         <option value="signage"   ${win.selected(n.tvUsage,'signage')}>Digital signage</option>
@@ -726,8 +726,8 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
             if(n.type==='customfloor'){
                 h+=`<div class="prop-group"><label>${t('field.nameId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="Endpoint-01" onchange="updateFloorId(this.value)"></div>
                     <div class="prop-group"><label>${t('f.category')}</label><input value="${escapeHTML(n.customCategory||'')}" placeholder="${t('pnl.dev.phCustomCatFloor')}" onchange="updateN('customCategory',this.value)"></div>
-                    ${(_floorNet = win._buildNetAccessHtml(n, d, {includeHostname:false}), '')}
-                    <details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-customfloor')?'open':''} ontoggle="setPropsSectionState('device-customfloor',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-cube"></i> ${t('dev.customfloor')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false}), '')}
+                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-customfloor')?'open':''} ontoggle="setPropsSectionState('device-customfloor',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-cube"></i> ${t('dev.customfloor')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('field.brand')}</label><input value="${escapeHTML(n.brand||'')}" placeholder="NVIDIA, Google, Sony, custom..." onchange="updateN('brand',this.value)"></div>
                     <div class="prop-group"><label>${t('field.model')}</label><input value="${escapeHTML(n.model||'')}" placeholder="Shield TV, Chromecast, appliance..." onchange="updateN('model',this.value)"></div>
                     <div class="prop-group"><label>${t('field.connection')}</label><select onchange="updateN('connection',this.value)">
@@ -737,16 +737,16 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
                     </select></div>                </div></details>`;
             }
             if(n.type==='customrack'){
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-customrack')?'open':''} ontoggle="setPropsSectionState('device-customrack',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-cube"></i> ${t('dev.customrack')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
-                    ${win._buildInventoryFieldsHtml(n, d)}
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-customrack')?'open':''} ontoggle="setPropsSectionState('device-customrack',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-cube"></i> ${t('dev.customrack')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.category')}</label><input value="${escapeHTML(n.customCategory||'')}" placeholder="${t('pnl.dev.phCustomCatRack')}" onchange="updateN('customCategory',this.value)"></div>
                     <div class="prop-group"><label>${t('field.brand')}</label><input value="${escapeHTML(n.brand||'')}" placeholder="${t('pnl.dev.phVendorMaker')}" onchange="updateN('brand',this.value)"></div>
                     <div class="prop-group"><label>${t('field.model')}</label><input value="${escapeHTML(n.model||'')}" placeholder="${t('pnl.dev.phModelSku')}" onchange="updateN('model',this.value)"></div>
                 </div></details>`;
             }
             if(n.type==='switch'){
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-switch')?'open':''} ontoggle="setPropsSectionState('device-switch',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-network-wired"></i> Switch</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
-                    ${win._buildInventoryFieldsHtml(n, d)}
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-switch')?'open':''} ontoggle="setPropsSectionState('device-switch',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-network-wired"></i> Switch</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.mgmtType')}</label><select onchange="updateN('swMgmt',this.value)">
                         <option value="managed"   ${win.selected(n.swMgmt||'managed','managed')}>Managed</option>
                         <option value="smart"     ${win.selected(n.swMgmt,'smart')}>Smart-managed (Web UI)</option>
@@ -771,8 +771,8 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
             if(n.type==='router'){
                 const protos = Array.isArray(n.rtRoutingProtos) ? n.rtRoutingProtos : [];
                 const hasBgp = protos.includes('bgp');
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-router')?'open':''} ontoggle="setPropsSectionState('device-router',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-route"></i> Router</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
-                    ${win._buildInventoryFieldsHtml(n, d)}
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-router')?'open':''} ontoggle="setPropsSectionState('device-router',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-route"></i> Router</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.role')}</label><select onchange="updateN('rtRole',this.value)">
                         <option value="edge"       ${win.selected(n.rtRole||'edge','edge')}>Edge / WAN</option>
                         <option value="inter-vlan" ${win.selected(n.rtRole,'inter-vlan')}>Inter-VLAN</option>
@@ -802,8 +802,8 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
             }
             if(n.type==='firewall'){
                 const svcs = Array.isArray(n.fwServices) ? n.fwServices : [];
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-firewall')?'open':''} ontoggle="setPropsSectionState('device-firewall',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-shield-halved"></i> Firewall</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
-                    ${win._buildInventoryFieldsHtml(n, d)}
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-firewall')?'open':''} ontoggle="setPropsSectionState('device-firewall',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-shield-halved"></i> Firewall</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.deployMode')}</label><select onchange="updateN('fwDeployMode',this.value)">
                         <option value="routed"      ${win.selected(n.fwDeployMode||'routed','routed')}>Routed (L3)</option>
                         <option value="transparent" ${win.selected(n.fwDeployMode,'transparent')}>Transparent (bridge)</option>
@@ -828,8 +828,8 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
                 </div></details>`;
             }
             if(n.type==='server'){
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-server')?'open':''} ontoggle="setPropsSectionState('device-server',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-server"></i> Server</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
-                    ${win._buildInventoryFieldsHtml(n, d)}
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-server')?'open':''} ontoggle="setPropsSectionState('device-server',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-server"></i> Server</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.role')}</label><select onchange="updateN('srvRole',this.value)">
                         <option value="hypervisor"  ${win.selected(n.srvRole||'hypervisor','hypervisor')}>Hypervisor</option>
                         <option value="bare-metal"  ${win.selected(n.srvRole,'bare-metal')}>Bare-metal</option>
@@ -867,13 +867,13 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
             }
             if(n.type==='homelab' && typeof win._hvPanelHtml === 'function'){
                 h += `<div class="prop-group"><label>${t('field.nameId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="homelab-01" onchange="updateFloorId(this.value)"></div>
-                    ${(_floorNet = win._buildNetAccessHtml(n, d, {includeHostname:false}), '')}
+                    ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false}), '')}
                     ${win._hvPanelHtml(n, d)}`;
             }
             if(n.type==='nas'){
                 const protos = Array.isArray(n.nasProtocols) ? n.nasProtocols : [];
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-nas')?'open':''} ontoggle="setPropsSectionState('device-nas',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-database"></i> ${t('dev.nas')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
-                    ${win._buildInventoryFieldsHtml(n, d)}
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-nas')?'open':''} ontoggle="setPropsSectionState('device-nas',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-database"></i> ${t('dev.nas')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.typology')}</label><select onchange="updateN('nasType',this.value)">
                         <option value="file"    ${win.selected(n.nasType||'file','file')}>NAS — file storage</option>
                         <option value="block"   ${win.selected(n.nasType,'block')}>SAN — block storage</option>
@@ -915,8 +915,8 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
             }
             if(n.type==='kvm'){
                 const isIp = (n.kvmType||'analog')==='ip';
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-kvm')?'open':''} ontoggle="setPropsSectionState('device-kvm',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-keyboard"></i> ${t('dev.kvm')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
-                    ${win._buildInventoryFieldsHtml(n, d)}
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-kvm')?'open':''} ontoggle="setPropsSectionState('device-kvm',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-keyboard"></i> ${t('dev.kvm')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.type')}</label><select onchange="updateN('kvmType',this.value)">
                         <option value="analog"   ${win.selected(n.kvmType||'analog','analog')}>${t('o.analogVga')}</option>
                         <option value="digital"  ${win.selected(n.kvmType,'digital')}>${t('o.digitalCat')}</option>
@@ -933,8 +933,8 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
                 </div></details>`;
             }
             if(n.type==='ups'){
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-ups')?'open':''} ontoggle="setPropsSectionState('device-ups',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-car-battery"></i> UPS</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
-                    ${win._buildInventoryFieldsHtml(n, d)}
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-ups')?'open':''} ontoggle="setPropsSectionState('device-ups',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-car-battery"></i> UPS</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.topology')}</label><select onchange="updateN('upsTopology',this.value)">
                         <option value="standby"  ${win.selected(n.upsTopology||'line-interactive','standby')}>Standby (offline)</option>
                         <option value="line-interactive" ${win.selected(n.upsTopology||'line-interactive','line-interactive')}>Line-interactive</option>
@@ -951,8 +951,8 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
                 </div></details>`;
             }
             if(n.type==='pdu'){
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-pdu')?'open':''} ontoggle="setPropsSectionState('device-pdu',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-plug"></i> PDU</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
-                    ${win._buildInventoryFieldsHtml(n, d)}
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-pdu')?'open':''} ontoggle="setPropsSectionState('device-pdu',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-plug"></i> PDU</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.type')}</label><select onchange="updateN('pduType',this.value)">
                         <option value="basic"            ${win.selected(n.pduType||'basic','basic')}>${t('o.basicDistrib')}</option>
                         <option value="metered"          ${win.selected(n.pduType,'metered')}>${t('o.pduMetered')}</option>
@@ -977,8 +977,8 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
                 </div></details>`;
             }
             if(n.type==='ats'){
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${win._propsSectionIsOpen('device-ats')?'open':''} ontoggle="setPropsSectionState('device-ats',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-shuffle"></i> ATS — Transfer Switch</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
-                    ${win._buildInventoryFieldsHtml(n, d)}
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-ats')?'open':''} ontoggle="setPropsSectionState('device-ats',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-shuffle"></i> ATS — Transfer Switch</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.prefSource')}</label><select onchange="updateN('atsSourcePref',this.value)" data-tip="${t('pnl.dev.atsPrefSourceTip')}">
                         <option value="A" ${win.selected(n.atsSourcePref||'A','A')}>${t('o.sourceAprim')}</option>
                         <option value="B" ${win.selected(n.atsSourcePref,'B')}>${t('o.sourceBprim')}</option>

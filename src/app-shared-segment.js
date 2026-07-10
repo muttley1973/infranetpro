@@ -13,7 +13,7 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid } from './app-util.js';
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _showToast, _invalidateIdx } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
-import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { renderProps, _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 
@@ -393,7 +393,7 @@ function _sharedSegmentPropsWrapV2(previewHtml, bodyHtml){
     const preview = previewHtml
         ? `<span class="props-collapsible-preview">${previewHtml}</span>`
         : '';
-    return `<details id="props-shared-segment" class="props-collapsible props-secondary" ${win._propsSectionIsOpen('shared-segment')?'open':''} ontoggle="setPropsSectionState('shared-segment',this.open)" style="margin-top:14px">
+    return `<details id="props-shared-segment" class="props-collapsible props-secondary" ${_propsSectionIsOpen('shared-segment')?'open':''} ontoggle="setPropsSectionState('shared-segment',this.open)" style="margin-top:14px">
       <summary class="props-collapsible-head"><span><i class="fas fa-diagram-project"></i> ${t('pnl.seg.l2Shared')}</span>${preview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
       <div class="props-collapsible-body">${bodyHtml}</div>
     </details>`;

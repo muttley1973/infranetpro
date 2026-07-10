@@ -7,7 +7,7 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
 import { getNodeByPortId, getNodeDisplayName } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
-import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { renderProps, _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 
 // ============================================================
@@ -352,7 +352,7 @@ function _renderLinkProps(panel){
                     <div style="font-size:.88rem;color:var(--text-muted);line-height:1.45">
                       ${t('cable.directLinkDesc')}
                     </div>`;
-                return `<details class="props-collapsible props-secondary" ${win._propsSectionIsOpen('link-physical-path')?'open':''} ontoggle="setPropsSectionState('link-physical-path',this.open)" style="margin-top:14px">
+                return `<details class="props-collapsible props-secondary" ${_propsSectionIsOpen('link-physical-path')?'open':''} ontoggle="setPropsSectionState('link-physical-path',this.open)" style="margin-top:14px">
                   <summary class="props-collapsible-head"><span><i class="fas fa-route"></i> ${t('cable.physicalPath')}</span>${_chainWarnBadge}${_pathPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
                   <div class="props-collapsible-body">
                     <div class="prop-group" style="padding:10px 12px;border:1px solid var(--panel-border);border-radius:8px;background:rgba(255,255,255,.02)">
@@ -423,7 +423,7 @@ function _renderLinkProps(panel){
                 const _physPreview = _physPreviewBits.length
                     ? `<span class="props-collapsible-preview">${_physPreviewBits.join(' · ')}</span>`
                     : '';
-                return `<details class="props-collapsible props-secondary" ${(_cableIssues.length || win._propsSectionIsOpen('link-physical-specs'))?'open':''} ontoggle="setPropsSectionState('link-physical-specs',this.open)" style="margin-top:14px">
+                return `<details class="props-collapsible props-secondary" ${(_cableIssues.length || _propsSectionIsOpen('link-physical-specs'))?'open':''} ontoggle="setPropsSectionState('link-physical-specs',this.open)" style="margin-top:14px">
               <summary class="props-collapsible-head"><span><i class="fas fa-ethernet"></i> ${t('cable.physicalSpecs')}</span>${_cableBadge}${_physPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
               <div class="props-collapsible-body">
               ${_cableBanner}

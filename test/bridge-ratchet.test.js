@@ -100,6 +100,20 @@ test('ponte: lo stato condiviso è letto solo via store.js (non win.* nei consum
   }
 });
 
+// ── 1e) BUILDER del pannello proprietà ritirati (funzioni, import) ───────────
+// Ritiro ponte 2026-07-10 (binario funzioni): i builder condivisi definiti in
+// app-properties.js (`_propsSectionIsOpen`, `_buildInventoryFieldsHtml`,
+// `_buildNetAccessHtml`) sono `export function` + `import` negli 8 consumatori;
+// nessuno li chiama più via win.*. Restano in expose() per i classic (nessuno oggi).
+const RETIRED_BUILDERS = ['_propsSectionIsOpen', '_buildInventoryFieldsHtml', '_buildNetAccessHtml'];
+test('ponte: i builder del pannello proprietà non sono più letti da win.*', () => {
+  for (const sym of RETIRED_BUILDERS) {
+    const viaWin = countInCode(new RegExp('\\bwin\\.' + sym + '\\b', 'g'));
+    assert.equal(viaWin, 0,
+      `win.${sym} è tornato: importa { ${sym} } from "./app-properties.js"`);
+  }
+});
+
 // ── 2) Cricchetto sul totale: il ponte può solo restringersi ────────────────
 // Conteggio SOLO-CODICE (commenti esclusi) delle letture win.*. Tetto stretto al
 // valore reale corrente: abbassalo al numero che il test stampa ([ratchet] …)
@@ -189,7 +203,14 @@ test('ponte: lo stato condiviso è letto solo via store.js (non win.* nei consum
 // app-topology-discover 2, app-vlan-autopoll 2. Behavior-identical (golden invariato,
 // smoke + e2e 62/62 verdi). NB: win._linksForPort resta sul ponte (definita in app.js,
 // NON estratta perché legge state).
-const MAX_WIN_REFS = 1804;
+//
+// −79 (1804 → 1725, 2026-07-10): RITIRO PONTE — binario funzioni, batch builder del
+// pannello proprietà. `_propsSectionIsOpen`(44), `_buildInventoryFieldsHtml`(20),
+// `_buildNetAccessHtml`(15) da app-properties.js: `export function` + `import` negli 8
+// consumatori (win.X(→X(); restano in expose() per i classic. Trappola TDZ colta: un
+// alias-block mid-list in app-properties-node.js era diventato `X = X` (auto-ref, TDZ a
+// runtime) → rimosso il declaratore, l'import lo fornisce. Vedi RETIRED_BUILDERS sopra.
+const MAX_WIN_REFS = 1725;
 
 test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => {
   const total = countInCode(/\bwin\./g);

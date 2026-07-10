@@ -17,7 +17,7 @@ import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (e
 import { escapeHTML } from './app-util.js';
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, _showToast, _invalidateIdx } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { propagateVlans } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
-import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { renderProps, _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 
@@ -223,7 +223,7 @@ function _radioSsidsHtml(radio, nodeId, idx){
     // Fisarmonica coerente con le altre sezioni del pannello (details.props-collapsible):
     // header "SSID trasmessi" + anteprima col conteggio, corpo con i BSS e "Aggiungi SSID".
     const _ssN = list.filter(s => s && s.ssid).length;
-    const _open = (typeof win._propsSectionIsOpen === 'function') ? win._propsSectionIsOpen('radio-ssids') : true;
+    const _open = (typeof _propsSectionIsOpen === 'function') ? _propsSectionIsOpen('radio-ssids') : true;
     const _preview = _ssN ? `<span class="props-collapsible-preview">${_ssN} SSID</span>` : '';
     return `<details class="props-collapsible props-secondary" ${_open ? 'open' : ''} ontoggle="if(typeof setPropsSectionState==='function')setPropsSectionState('radio-ssids',this.open)">
         <summary class="props-collapsible-head"><span><i class="fas fa-broadcast-tower"></i> ${esc(_t('radio.ssidList') || 'SSID trasmessi')}</span>${_preview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
