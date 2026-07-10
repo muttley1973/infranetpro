@@ -14,7 +14,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, normalizeMacAddress } from './app-util.js';
-import { markDirty, pushHistory, renderCables, _showToast, _invalidateIdx } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { markDirty, pushHistory, renderCables, _showToast, _invalidateIdx, _nextNodeId } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 
@@ -177,7 +177,7 @@ function _adoptCreateNodes(picks, autoLink){
             if(match && match.node){ skipped++; return; }
         }
         const name = cand.hostname || cand.vendor || macN || def.name;   // il nome dal lease (se c'è) vince
-        const nid = (typeof win._nextNodeId === 'function') ? win._nextNodeId(type, usedNodeIds) : uid(type);
+        const nid = (typeof _nextNodeId === 'function') ? _nextNodeId(type, usedNodeIds) : uid(type);
         let n;
         if(def.isFloor){
             const col = floorCount % 5, row = Math.floor(floorCount / 5);

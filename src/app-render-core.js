@@ -9,7 +9,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, hexToRgba, normalizeStatus } from './app-util.js';
-import { nodeById, getNodeByPortId, getPortNodeId, renderCables } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, getNodeByPortId, getPortNodeId, renderCables, _linksForPort, _nodeRadios } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { propagateVlans, _linkIsTrunk } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderTopoOverlay } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -179,7 +179,7 @@ function _renderAllNow(){
                         const pid=`${n.id}-${i}`;
                         const eff=win._effPortVlan(pid);
                         if(eff===store._filterVlan) return false;
-                        if(win._linksForPort(pid).some(lk=>win._linkMatchesVlanFilter(lk))) return false;
+                        if(_linksForPort(pid).some(lk=>win._linkMatchesVlanFilter(lk))) return false;
                     }
                     return true;
                 })();
@@ -503,7 +503,7 @@ function _renderFloorNow(){
                     const pid = `${n.id}-${i}`;
                     const eff = win._effPortVlan(pid);
                     if(eff === store._filterVlan) return false;
-                    if(win._linksForPort(pid).some(lk=>win._linkMatchesVlanFilter(lk))) return false;
+                    if(_linksForPort(pid).some(lk=>win._linkMatchesVlanFilter(lk))) return false;
                 }
                 return true;
             })();
@@ -578,13 +578,13 @@ function getPortHTML(pid){
 // Porta radio Wi-Fi: target draggabile (data-pid → il pointer la tratta come
 // porta) sui device Wi-Fi. Ospita molti client wireless senza porta fisica.
 function _radioPortHtml(n){
-    const radios = (typeof win._nodeRadios === 'function') ? win._nodeRadios(n) : [];
+    const radios = (typeof _nodeRadios === 'function') ? _nodeRadios(n) : [];
     if(!radios.length) return '';
     const _t = (typeof t==='function') ? t : (k=>k);
     const isRack = !!(typeof TYPES!=='undefined' && TYPES[n.type] && TYPES[n.type].isRack);
     const _badge = (i, posCls) => {
         const pid = (typeof win.radioPid === 'function') ? win.radioPid(n.id, i) : `${n.id}-radio${i?i+1:''}`;
-        const cnt = (typeof win._linksForPort === 'function') ? win._linksForPort(pid).length : 0;
+        const cnt = (typeof _linksForPort === 'function') ? _linksForPort(pid).length : 0;
         const isSel = store.selType==='port' && store.selId===pid;
         const r = radios[i] || {};
         const lbl = r.label || (radios.length>1 ? `${_t('radio.iface')} ${i+1}` : _t('radio.single'));

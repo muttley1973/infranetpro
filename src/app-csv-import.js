@@ -1,7 +1,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid } from './app-util.js';
-import { markDirty, pushHistory, renderCables, _showToast } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { markDirty, pushHistory, renderCables, _showToast, _nextNodeId } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 
@@ -129,7 +129,7 @@ function importCsvNodes(){
             }
             const rackU = parseInt(r.rackU, 10) || win._findFreeU(rackId, sU);
             const n = {
-                id:win._nextNodeId(type, usedNodeIds),
+                id:_nextNodeId(type, usedNodeIds),
                 type,
                 name:r.name,
                 hostname:r.hostname || '',
@@ -144,7 +144,7 @@ function importCsvNodes(){
         } else {
             const placed = store.state.nodes.filter(n=>TYPES[n.type]?.isFloor && !TYPES[n.type]?.isStructural).length;
             const n = {
-                id:win._nextNodeId(type, usedNodeIds),
+                id:_nextNodeId(type, usedNodeIds),
                 type,
                 name:r.name,
                 hostname:r.hostname || '',

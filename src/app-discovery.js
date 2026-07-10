@@ -1,7 +1,7 @@
 import { win, expose } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, normalizeMacAddress } from './app-util.js';
-import { markDirty, pushHistory, renderCables, _showToast } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { markDirty, pushHistory, renderCables, _showToast, _nextNodeId } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 
@@ -992,7 +992,7 @@ async function importDiscovered(){
             if(def.isFloor){
                 const col = floorCount % 5, row = Math.floor(floorCount / 5);
                 n = {
-                    id: win._nextNodeId(d.type, usedNodeIds), type: d.type,
+                    id: _nextNodeId(d.type, usedNodeIds), type: d.type,
                     name: _discDisplayName(d), hostname: d.hostname||'', ip: d.ip||'',
                     mac: normalizeMacAddress(d.mac||''),
                     brand: d.vendor || def.brand || '',
@@ -1012,7 +1012,7 @@ async function importDiscovered(){
                 const sU   = def.sizeU||1;
                 const rackU = win._findFreeU(rackId, sU);
                 n = {
-                    id: win._nextNodeId(d.type, usedNodeIds), type: d.type,
+                    id: _nextNodeId(d.type, usedNodeIds), type: d.type,
                     name: _discDisplayName(d), hostname: d.hostname||'', ip: d.ip||'',
                     mac: normalizeMacAddress(d.mac||''),
                     brand: d.vendor || def.brand || '',
