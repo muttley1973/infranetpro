@@ -114,6 +114,21 @@ test('ponte: i builder del pannello proprietà non sono più letti da win.*', ()
   }
 });
 
+// ── 1f) HELPER option-selected/checked ritirati (funzioni, import) ────────────
+// Ritiro ponte 2026-07-10: `selected(v,o)` e `checked(v)` (helper che rendono
+// l'attributo selected/checked negli <option>/<input> generati) sono `export
+// function` in app.js + `import` nei builder dei pannelli device; usati solo in
+// interpolazioni build-time ${selected(...)}, mai negli handler inline. Restano in
+// expose() per i classic.
+const RETIRED_HELPERS = ['selected', 'checked'];
+test('ponte: gli helper option-selected/checked non sono più letti da win.*', () => {
+  for (const sym of RETIRED_HELPERS) {
+    const viaWin = countInCode(new RegExp('\\bwin\\.' + sym + '\\b', 'g'));
+    assert.equal(viaWin, 0,
+      `win.${sym} è tornato: importa { ${sym} } from "./app.js"`);
+  }
+});
+
 // ── 2) Cricchetto sul totale: il ponte può solo restringersi ────────────────
 // Conteggio SOLO-CODICE (commenti esclusi) delle letture win.*. Tetto stretto al
 // valore reale corrente: abbassalo al numero che il test stampa ([ratchet] …)
@@ -210,7 +225,14 @@ test('ponte: i builder del pannello proprietà non sono più letti da win.*', ()
 // consumatori (win.X(→X(); restano in expose() per i classic. Trappola TDZ colta: un
 // alias-block mid-list in app-properties-node.js era diventato `X = X` (auto-ref, TDZ a
 // runtime) → rimosso il declaratore, l'import lo fornisce. Vedi RETIRED_BUILDERS sopra.
-const MAX_WIN_REFS = 1725;
+//
+// −427 (1725 → 1298, 2026-07-10): RITIRO PONTE — helper option-selected/checked.
+// `selected`(392) e `checked`(35), `export function` in app.js, erano usati SOLO in
+// interpolazioni build-time ${win.selected(...)} nei builder dei pannelli device
+// (app-properties-node-devices 391+35 + un alias mid-list in app-properties-node) →
+// `import { selected, checked } from './app.js'`. Nessun handler inline li usa; restano
+// in expose() per i classic. Vedi RETIRED_HELPERS sopra.
+const MAX_WIN_REFS = 1298;
 
 test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => {
   const total = countInCode(/\bwin\./g);
