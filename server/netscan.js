@@ -473,11 +473,70 @@ function _parseNetbiosOutput(text) {
   return result.name || result.group || result.mac ? result : null;
 }
 
+// NBSTAT (NetBIOS Node Status) DIRETTO via UDP 137 — un pacchetto verso UN target, ~1s.
+// Perche': la CLI `nbtstat -A` interroga il target su OGNI interfaccia locale e aspetta il
+// timeout su quelle morte (VMnet/Bluetooth/…) → su una macchina con molte NIC virtuali
+// arriva a 10-30s, oltre ogni timeout ragionevole del probe. La query UDP diretta e'
+// **cross-platform** e non ha quel ritardo (verificato dal vivo: 38ms vs 10-30s).
+// Nome NetBIOS "wildcard": "*" + 15 null, first-level encoding (ogni byte -> 2 char A-P).
+function _buildNbstatQuery(txId = 0x1337) {
+  const header = Buffer.from([(txId >> 8) & 0xff, txId & 0xff, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+  const nb = Buffer.alloc(16); nb[0] = 0x2A;                 // '*' + 15 * 0x00
+  const enc = Buffer.alloc(32);
+  for (let i = 0; i < 16; i++) { enc[i * 2] = 0x41 + (nb[i] >> 4); enc[i * 2 + 1] = 0x41 + (nb[i] & 0x0F); }
+  const q = Buffer.concat([Buffer.from([0x20]), enc, Buffer.from([0x00, 0x00, 0x21, 0x00, 0x01])]);  // len + name + NUL + QTYPE NBSTAT + QCLASS IN
+  return Buffer.concat([header, q]);
+}
+// Parsa la risposta NBSTAT (binaria) nella STESSA forma di _parseNetbiosOutput:
+// { name, group, mac, smbServer, records:[{name,suffix(hex UPPER),kind}] } | null.
+function _parseNbstatResponse(buf) {
+  if (!Buffer.isBuffer(buf) || buf.length < 43) return null;
+  let off = 12;                                              // salta l'header
+  if ((buf[off] & 0xC0) === 0xC0) off += 2;                  // nome RR = puntatore
+  else if (buf[off] === 0x20) off += 34;                     // nome codificato (0x20 + 32 + NUL)
+  else { while (off < buf.length && buf[off] !== 0) off += 1 + buf[off]; off += 1; }
+  off += 10;                                                 // TYPE(2)+CLASS(2)+TTL(4)+RDLENGTH(2)
+  if (off >= buf.length) return null;
+  const num = buf[off]; off += 1;
+  const out = { name: '', group: '', mac: '', smbServer: false, records: [] };
+  for (let i = 0; i < num && off + 18 <= buf.length; i++) {
+    const nm = buf.slice(off, off + 15).toString('latin1').replace(/\0+$/, '').trimEnd();
+    const suffix = buf[off + 15];
+    const isGroup = !!(buf.readUInt16BE(off + 16) & 0x8000);
+    off += 18;
+    if (!nm || /^__MSBROWSE__/i.test(nm)) continue;
+    const sHex = suffix.toString(16).padStart(2, '0').toUpperCase();
+    out.records.push({ name: nm, suffix: sHex, kind: isGroup ? 'group' : 'unique' });
+    if (suffix === 0x20 && !isGroup) out.smbServer = true;
+    if (suffix === 0x00 && !isGroup && !out.name) out.name = nm;
+    if ((suffix === 0x00 || suffix === 0x1C || suffix === 0x1E) && isGroup && !out.group) out.group = nm;
+  }
+  if (!out.name) { const rec = out.records.find(r => r.kind === 'unique' && r.suffix === '20') || out.records.find(r => r.kind === 'unique'); if (rec) out.name = rec.name; }
+  if (off + 6 <= buf.length) { const m = buf.slice(off, off + 6); if (m.some(b => b)) out.mac = _normMac([...m].map(b => b.toString(16).padStart(2, '0')).join(':')); }
+  return (out.name || out.group || out.mac) ? out : null;
+}
+function _nbstatUdp(ip, timeoutMs = 1500, createSocket = dgram.createSocket) {
+  return new Promise(resolve => {
+    let done = false; let sock;
+    const fin = v => { if (done) return; done = true; try { sock && sock.close(); } catch (_) {} resolve(v); };
+    try { sock = createSocket({ type: 'udp4' }); } catch (_) { return fin(null); }
+    sock.on('message', msg => fin(_parseNbstatResponse(msg)));
+    sock.on('error', () => fin(null));
+    setTimeout(() => fin(null), Math.max(300, Math.min(parseInt(timeoutMs, 10) || 1500, 4000)));
+    try { const q = _buildNbstatQuery(); sock.send(q, 0, q.length, 137, ip, err => { if (err) fin(null); }); }
+    catch (_) { fin(null); }
+  });
+}
 async function _netbiosProbe(ip, timeoutMs = 1800) {
-  if (os.platform() !== 'win32') return null;
-  const r = await _execFileAsync('nbtstat', ['-A', ip], timeoutMs);
-  const parsed = _parseNetbiosOutput(`${r.stdout}\n${r.stderr}`);
-  return parsed && (parsed.name || parsed.group || parsed.mac) ? parsed : null;
+  // UDP NBSTAT prima (veloce, cross-platform, niente ritardo multi-interfaccia della CLI).
+  const udp = await _nbstatUdp(ip, Math.max(500, Math.min(timeoutMs, 1800))).catch(() => null);
+  if (udp && (udp.name || udp.group)) return udp;
+  if (os.platform() !== 'win32') return udp;                 // fuori da Windows: solo UDP, niente CLI
+  try {
+    const r = await _execFileAsync('nbtstat', ['-A', ip], timeoutMs);
+    const parsed = _parseNetbiosOutput(`${r.stdout}\n${r.stderr}`);
+    return parsed && (parsed.name || parsed.group || parsed.mac) ? parsed : udp;
+  } catch (_) { return udp; }
 }
 
 function _parseNetViewOutput(text) {
@@ -736,4 +795,4 @@ async function _mdnsSsdpSweep(opts = {}) {
   return aggregateSweep(messages);
 }
 
-module.exports = { expandSubnet, _execFileAsync, _pingHost, _pingResultIsAlive, _pingHostRetry, _stealthDelayMs, _normMac, _parseArpTable, _parseNeighbors, _readArpMap, _ipToNum, _demoteStaleArpDup, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _castProbe, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost, _mdnsSsdpSweep, _fetchUpnpXml, _shuffled };
+module.exports = { expandSubnet, _execFileAsync, _pingHost, _pingResultIsAlive, _pingHostRetry, _stealthDelayMs, _normMac, _parseArpTable, _parseNeighbors, _readArpMap, _ipToNum, _demoteStaleArpDup, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _castProbe, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost, _mdnsSsdpSweep, _fetchUpnpXml, _shuffled, _buildNbstatQuery, _parseNbstatResponse, _nbstatUdp };
