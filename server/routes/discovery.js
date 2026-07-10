@@ -9,7 +9,7 @@ const os  = require('os');
 const auth = require('../../auth');
 const { DRIVERS } = require('../drivers');
 const { buildNeighborCandidates, buildPortIndex, buildMacIndex, buildPortMacIndex, buildFdbCandidates, buildArpCandidates, locateMacsOnEdge } = require('../../lib/correlate');
-const { expandSubnet, _execFileAsync, _pingHost, _pingHostRetry, _stealthDelayMs, _normMac, _parseArpTable, _readArpMap, _demoteStaleArpDup, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost, _mdnsSsdpSweep } = require('../netscan');
+const { expandSubnet, _execFileAsync, _pingHost, _pingHostRetry, _stealthDelayMs, _normMac, _parseArpTable, _readArpMap, _demoteStaleArpDup, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost, _mdnsSsdpSweep, _shuffled } = require('../netscan');
 const { _cleanHostname, PEN_VENDOR, _penFromObjectId, _vendorByObjectId, _decodeSysServices, _classifyDiscoveredDevice, _buildDiscoveryMeta, _decorateDiscoveryRow } = require('../classify');
 const { OuiEngine } = require('../../engine');
 const { publicMdns } = require('../../lib/discovery-mdns');
@@ -208,8 +208,16 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
     // che non e' una firma. Attivabile con { stealth:true } o { scanDelay:<ms> }.
     const stealth = String(req.body?.stealth) === 'true' || parseInt(req.body?.scanDelay, 10) > 0;
     const scanDelayMs = stealth ? Math.max(50, Math.min(parseInt(req.body?.scanDelay, 10) || 400, 5000)) : 0;
-    const sweepConc = stealth ? 1 : CONC;   // 1 = serializzato → uccide la firma di scan
+    // Concorrenza del base sweep. Furtiva = 1 (serializzato, uccide la firma di rate).
+    // Normale/Sicura usano CONC, che e' GIA' scalato da `safe` (defaultConc 32 vs 64,
+    // maxConc 48 vs 96, + interBatchDelayMs 40) -> la "concorrenza ridotta" di Sicura e'
+    // gia' onorata a monte; NON ri-dimezzare qui (sarebbe over-throttle).
+    const sweepConc = stealth ? 1 : CONC;
     const total = ips.length;
+    // Furtiva: ordine di scansione RANDOMIZZATO. L'ordine sequenziale (.1,.2,.3...) e'
+    // una firma di sweep quanto il timing fisso -> lo mescoliamo. Le righe restano
+    // indicizzate per IP (output ordinato); cambia solo la SEQUENZA dei probe.
+    const sweepOrder = stealth ? _shuffled(ips) : ips;
     const rows = ips.map(ip => ({
       ip,
       alive: false,
@@ -235,7 +243,7 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
 
     // 1) Ping sweep (stealth → serializzato + scan-delay con jitter; altrimenti a batch)
     for (let i = 0; i < total; i += sweepConc) {
-      const batch = ips.slice(i, i + sweepConc);
+      const batch = sweepOrder.slice(i, i + sweepConc);
       const results = await Promise.all(batch.map(ip => _pingHostRetry(ip, pingTimeoutMs, pingTries).catch(() => false)));
       results.forEach((ok, idx) => {
         const ip = batch[idx];
@@ -370,6 +378,34 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
     }
 
     const useDeepScan = String(deepScan) === 'true' || deepScan === true;
+
+    // Risoluzione nomi NetBIOS — SOLO in modalita' NORMALE (veloce) e senza deep-scan
+    // (il deep-scan fa gia' nbtstat). Un PC Windows non parla SNMP ne' quasi mai annuncia
+    // il nome via mDNS: `nbtstat -A` e' l'unica fonte affidabile del nome. Aggiunge pero'
+    // una firma NetBIOS al footprint -> OFF nelle cadenze anti-IDS (Sicura/Furtiva).
+    // Solo host VIVI ancora SENZA nome; solo se il server e' Windows (nbtstat esiste li').
+    if (!safe && !useDeepScan && os.platform() === 'win32') {
+      const nameTargets = rows.filter(r => r.alive && !r.hostname);
+      const NBCONC = 12;   // veloce, in parallelo (coerente con "Normale")
+      for (let i = 0; i < nameTargets.length; i += NBCONC) {
+        await Promise.all(nameTargets.slice(i, i + NBCONC).map(async row => {
+          try {
+            const nb = await _netbiosProbe(row.ip);
+            if (nb && nb.name) {
+              row.netbiosName = nb.name;
+              row.hostname = _cleanHostname(nb.name);
+              if (nb.group) row.netbiosGroup = nb.group;
+              if (nb.smbServer) row.netbiosServer = true;
+              if (Array.isArray(nb.records) &&
+                  nb.records.some(rc => rc.suffix === '1B' || (rc.suffix === '1C' && rc.kind === 'group')))
+                row.netbiosDomainCtrl = true;
+              if (!row.mac && nb.mac) row.mac = nb.mac;
+            }
+          } catch (_) {}
+        }));
+      }
+    }
+
     if (useDeepScan && scanRows.length) {
       const deepConc = stealth ? 1 : (safe ? 3 : 6);   // stealth: deep-scan serializzato
       const deepTimeoutMs = safe ? 850 : 650;

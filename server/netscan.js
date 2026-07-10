@@ -140,6 +140,19 @@ function _stealthDelayMs(base, jitterPct = 0.3, rand = Math.random) {
   return Math.max(0, Math.round(b + delta));
 }
 
+// Ordine di scansione RANDOMIZZATO (Furtiva). Un ordine sequenziale (.1,.2,.3...) e'
+// esso stesso una firma di sweep, esattamente come un timing fisso: un IDS/analista
+// legge "scan" dal pattern di IP a prescindere dal jitter. Fisher-Yates; ritorna una
+// COPIA (non muta l'input); `rand` iniettabile per i test deterministici.
+function _shuffled(arr, rand = Math.random) {
+  const a = Array.isArray(arr) ? arr.slice() : [];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    const t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+
 function _normMac(mac) {
   // Windows usa '-' come separatore. macOS/BSD `arp` invece stampa i MAC TOGLIENDO gli
   // zeri iniziali di ogni ottetto (es. "0:1c:42:8:b:9" per "00:1C:42:08:0B:09"): senza
@@ -723,4 +736,4 @@ async function _mdnsSsdpSweep(opts = {}) {
   return aggregateSweep(messages);
 }
 
-module.exports = { expandSubnet, _execFileAsync, _pingHost, _pingResultIsAlive, _pingHostRetry, _stealthDelayMs, _normMac, _parseArpTable, _parseNeighbors, _readArpMap, _ipToNum, _demoteStaleArpDup, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _castProbe, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost, _mdnsSsdpSweep, _fetchUpnpXml };
+module.exports = { expandSubnet, _execFileAsync, _pingHost, _pingResultIsAlive, _pingHostRetry, _stealthDelayMs, _normMac, _parseArpTable, _parseNeighbors, _readArpMap, _ipToNum, _demoteStaleArpDup, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _castProbe, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost, _mdnsSsdpSweep, _fetchUpnpXml, _shuffled };
