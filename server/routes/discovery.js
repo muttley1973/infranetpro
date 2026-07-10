@@ -397,14 +397,16 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
       }
     }
 
-    // Risoluzione nomi NetBIOS — SOLO in modalita' NORMALE (veloce) e senza deep-scan
-    // (il deep-scan fa gia' nbtstat). Un PC Windows non parla SNMP ne' quasi mai annuncia
-    // il nome via mDNS: `nbtstat -A` e' l'unica fonte affidabile del nome. Aggiunge pero'
-    // una firma NetBIOS al footprint -> OFF nelle cadenze anti-IDS (Sicura/Furtiva).
-    // Solo host VIVI ancora SENZA nome; solo se il server e' Windows (nbtstat esiste li').
-    if (!safe && !useDeepScan && os.platform() === 'win32') {
+    // Risoluzione nomi NetBIOS — in Normale e Sicura (OFF solo su FURTIVA) e senza
+    // deep-scan (il deep-scan fa gia' nbtstat). Un PC Windows non parla SNMP ne' quasi
+    // mai annuncia il nome via mDNS: `nbtstat -A` (una singola query NBSTAT per host
+    // gia'-vivo) e' l'unica fonte affidabile del nome. Aggiunge una firma NetBIOS al
+    // footprint -> resta OFF solo sulla FURTIVA (stealth vero, zero firma NetBIOS); su
+    // Sicura e' entro l'"anti-IDS leggero", con concorrenza piu' gentile. Solo host VIVI
+    // ancora SENZA nome; solo se il server e' Windows (nbtstat esiste li').
+    if (!stealth && !useDeepScan && os.platform() === 'win32') {
       const nameTargets = rows.filter(r => r.alive && !r.hostname);
-      const NBCONC = 12;   // veloce, in parallelo (coerente con "Normale")
+      const NBCONC = safe ? 4 : 12;   // Sicura: piu' gentile · Normale: veloce/parallelo
       for (let i = 0; i < nameTargets.length; i += NBCONC) {
         await Promise.all(nameTargets.slice(i, i + NBCONC).map(async row => {
           try {
