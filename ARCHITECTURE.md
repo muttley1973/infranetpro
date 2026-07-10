@@ -413,6 +413,20 @@ is VPN/LAN.
     authenticated devices stays parallel (`CRAWL_POOL`) as it isn't a scan signature. Default is
     unchanged (fast/parallel). No hosts lost (same alive set on vs off, validated live). Pure
     `_stealthDelayMs` (jitter, injectable rand) in `server/netscan.js` + unit tests.
+    **Refined 2026-07-09:** Stealth also **randomizes the target order** — a sequential
+    `.1→.254` sweep is a scan signature just like a fixed interval — on *both* the ping sweep
+    **and** the SNMP/enrichment phase (each an independent shuffle; the enrichment phase also
+    inherits the jittered pacing). Pure `_shuffled` (Fisher-Yates, injectable rand) + unit tests;
+    verified end-to-end against the real `/api/discover` route (ping+SNMP sequential on
+    Normal/Safe vs shuffled on Stealth; concurrency 64/32/1 and 16/8/1).
+  - **Windows PC names via NetBIOS (2026-07-09).** A Windows host speaks no SNMP and rarely
+    advertises its name over mDNS, so it came out nameless. The base flow now resolves it with a
+    single `nbtstat -A` (NBSTAT) query per *alive, still-nameless* host — on the **Normal and
+    Safe** cadences (a single NBSTAT on a known-alive host is within Safe's light anti-IDS; gentler
+    concurrency on Safe), **off on Stealth** (no NetBIOS footprint). The box running InfraNet
+    appears in its own scan but `nbtstat` can't query its own IP, so the **local host is named from
+    `os.hostname()`** in every cadence (no network probe). Windows-only (nbtstat); a NetBT-disabled
+    host with SMB open still relies on the **SMB** identity signal. `server/routes/discovery.js`.
   - **Pre-selection gated on confidence (15%).** A ping-only phantom (the exit-code artifact
     below) scores ~10% (only the `reachability` evidence); anything real starts at ~20% (a bare
     ARP MAC is ≈22%, SNMP ≥57%) — the bands don't overlap, verified with the real scorer on the
