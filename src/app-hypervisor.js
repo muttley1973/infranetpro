@@ -66,7 +66,7 @@ function addVm(nodeId){
     if(!Array.isArray(n.vms)) n.vms = [];
     const id = _newVmId(n.vms.length);
     n.vms.push({ id, state: 'running' });
-    markDirty(); renderProps(); if(typeof win.renderAll === 'function') renderAll();
+    markDirty(); renderProps(); if(typeof renderAll === 'function') renderAll();
     return id;
 }
 
@@ -82,9 +82,9 @@ function updateVm(nodeId, vmId, field, value){
         const list = (typeof win.parseVlanList === 'function') ? win.parseVlanList(vm.vlan) : [];
         if(typeof win._ensureVlanColor === 'function') list.forEach(x => { if(x > 1) win._ensureVlanColor(x); });
         if(typeof _invalidateIdx === 'function') _invalidateIdx();
-        if(typeof win.propagateVlans === 'function') propagateVlans();
+        if(typeof propagateVlans === 'function') propagateVlans();
     }
-    markDirty(); renderProps(); if(typeof win.renderAll === 'function') renderAll();
+    markDirty(); renderProps(); if(typeof renderAll === 'function') renderAll();
 }
 
 // Rimuove una VM dall'host.
@@ -94,8 +94,8 @@ function removeVm(nodeId, vmId){
     if(typeof pushHistory === 'function') pushHistory();
     n.vms.splice(i, 1);
     if(typeof _invalidateIdx === 'function') _invalidateIdx();
-    if(typeof win.propagateVlans === 'function') propagateVlans();
-    markDirty(); renderProps(); if(typeof win.renderAll === 'function') renderAll();
+    if(typeof propagateVlans === 'function') propagateVlans();
+    markDirty(); renderProps(); if(typeof renderAll === 'function') renderAll();
 }
 
 // ── UI: una riga VM ──────────────────────────────────────────────────
@@ -141,7 +141,7 @@ function _hvPanelHtml(n, d){
     const vms = _nodeVms(n);
     const running = vms.filter(v => (v.state || 'running') === 'running').length;
     const inv = (typeof _buildInventoryFieldsHtml === 'function') ? _buildInventoryFieldsHtml(n, d) : '';
-    const preview = (typeof win._buildDeviceBrandModelPreview === 'function') ? _buildDeviceBrandModelPreview(n) : '';
+    const preview = (typeof _buildDeviceBrandModelPreview === 'function') ? _buildDeviceBrandModelPreview(n) : '';
     const vmRows = vms.length
         ? vms.map(vm => _vmRowHtml(vm, n.id)).join('')
         : `<div class="drift-empty" style="padding:8px 4px">${esc(t('hv.noVms'))}</div>`;

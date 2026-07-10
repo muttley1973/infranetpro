@@ -275,7 +275,14 @@ test('ponte: le funzioni-nucleo della 9ª non hanno più letture win.* (fuori da
 // switchRightTab): guardie `typeof win.X` e value-pass convertite a bare (import già
 // presenti), `_bridge.js` escluso. Vedi RETIRED_CORE_FN0. (Il transform ne toccò 62
 // ma 7 erano in commenti, esclusi dal conteggio.)
-const MAX_WIN_REFS = 1166;
+//
+// −32 (1166 → 1134, 2026-07-10): RITIRO PONTE — chiuse le letture-non-chiamata delle
+// funzioni ritirate della Fase 2 (renderAll, renderProps, _buildDeviceBrandModelPreview,
+// renderTopoOverlay, propagateVlans) dai rispettivi moduli-definitori (merger
+// multi-sorgente). Trappola alias-block ricorrente: `renderProps = win.renderProps` in
+// app-properties-node.js → `renderProps = renderProps` (auto-ref) → rimosso, import
+// da app-properties.js. Ora TUTTE le funzioni già in CALLS_RETIRED hanno ponte a 0.
+const MAX_WIN_REFS = 1134;
 
 test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => {
   const total = countInCode(/\bwin\./g);

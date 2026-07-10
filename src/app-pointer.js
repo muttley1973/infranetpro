@@ -672,7 +672,7 @@ function _tryFinishLink(tgt){
     if(_connKind==='wireless' && typeof win._assignWirelessBss==='function'){
         win._assignWirelessBss(_newLink);
         if(typeof _invalidateIdx==='function') _invalidateIdx();
-        if(typeof win.propagateVlans==='function') propagateVlans();
+        if(typeof propagateVlans==='function') propagateVlans();
     }
     markDirty();
     _cancelLink(); renderAll(); return true;

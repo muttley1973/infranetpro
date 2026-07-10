@@ -443,7 +443,7 @@ function setEndpointVlan(nodeId, pid, val){
 
 // VLAN VOCE di un telefono IP, impostata dal pannello PORTA/interfaccia (la voce è
 // una proprietà dell'interfaccia: il telefono la tagga sull'uplink). Scrive
-// node.voiceVlan e tiene selezionata la porta (win.renderProps ridisegna il pannello).
+// node.voiceVlan e tiene selezionata la porta (renderProps ridisegna il pannello).
 function setNodeVoiceVlan(nodeId, val){
     const n = (typeof nodeById==='function') ? nodeById(nodeId) : null; if(!n) return;
     const v = parseInt(val, 10);
@@ -558,7 +558,7 @@ function toggleGuestVlan(vid){
     if(i >= 0) store.state.guestVlans.splice(i, 1);
     else store.state.guestVlans.push(vid);
     markDirty();
-    if(typeof win.renderProps === 'function') renderProps();       // pannello VLAN: aggiorna il pulsante
+    if(typeof renderProps === 'function') renderProps();       // pannello VLAN: aggiorna il pulsante
     if(typeof win._renderTopoLegend === 'function') win._renderTopoLegend(); // barra: aggiorna il tratteggio
 }
 
@@ -593,7 +593,7 @@ function toggleVoiceVlan(vid){
     if(i >= 0) store.state.voiceVlans.splice(i, 1);
     else store.state.voiceVlans.push(vid);
     markDirty();
-    if(typeof win.renderProps === 'function') renderProps();
+    if(typeof renderProps === 'function') renderProps();
 }
 
 // Tutti i telefoni VoIP del progetto.
@@ -643,8 +643,8 @@ function applyVoiceVlanBulk(vid, scope, policy){
     if(typeof propagateVlans === 'function') propagateVlans();
     if(typeof _ensureVlanColor === 'function' && vid > 1) _ensureVlanColor(vid);
     markDirty();
-    if(typeof win.renderAll === 'function') renderAll();
-    if(typeof win.renderProps === 'function') renderProps();
+    if(typeof renderAll === 'function') renderAll();
+    if(typeof renderProps === 'function') renderProps();
     if(typeof _showToast === 'function') _showToast(_tV('voice.done','VLAN voce {vid} assegnata a {n} telefoni.', {vid, n:targets.length}), 'ok', 3500);
 }
 

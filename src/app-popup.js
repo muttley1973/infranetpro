@@ -70,7 +70,7 @@ function _showPhysicalCablePath(linkId){
     }
     document.body.classList.add('physical-trace-active');
     // Apri la fisarmonica "Percorso fisico" PRIMA, poi switchRightTab('props')
-    // (tab + toolbar + render). UN SOLO win.renderAll finale per floor/rack/cables/
+    // (tab + toolbar + render). UN SOLO renderAll finale per floor/rack/cables/
     // topo: niente render extra (era la causa del "doppio" sul cavo).
     if(typeof win.setPropsSectionState==='function') win.setPropsSectionState('link-physical-path', true);
     if(typeof switchRightTab==='function') switchRightTab('props');
@@ -92,14 +92,14 @@ function selectPathSegment(linkId){
         const _rn = getNodeByPortId(_rackPid);
         if(_rn && typeof win.ensureNodeRackVisible === 'function') win.ensureNodeRackVisible(_rn);
         // Arma l'hold SULLA SELEZIONE: finche' questo link resta selezionato,
-        // _activatePropsTab (richiamato da OGNI win.renderProps) non ri-forza la tab
+        // _activatePropsTab (richiamato da OGNI renderProps) non ri-forza la tab
         // 'props' — altrimenti la tab Rack si richiuderebbe al primo re-render.
         // L'hold a tempo non bastava: un render oltre la finestra riflippava.
         win._propsTabHold = linkId;
     }
-    // Render SINCRONO: include win.renderProps, che via _activatePropsTab forza la
+    // Render SINCRONO: include renderProps, che via _activatePropsTab forza la
     // tab 'props'. Per questo lo switch a 'rack' va fatto DOPO, come ULTIMA azione
-    // (con win.renderAll coalescato il win.renderProps girerebbe nel rAF dopo lo switch
+    // (con renderAll coalescato il renderProps girerebbe nel rAF dopo lo switch
     // e lo annullerebbe — era il bug "apre Proprietà invece del Rack").
     win.renderNow();
     if(_rackPid && typeof switchRightTab === 'function'){
@@ -126,7 +126,7 @@ function _clearLagFocus(){
 function closePop(){
     document.getElementById('popup').style.display='none';
     store._lastPopPid = null;
-    _clearLagFocus(); // pulisce highlight LAG e fa win.renderAll solo se necessario
+    _clearLagFocus(); // pulisce highlight LAG e fa renderAll solo se necessario
 }
 
 /**

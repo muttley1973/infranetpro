@@ -55,7 +55,7 @@ function updateRadioCfg(nodeId, idx, field, value){
     if(field === 'standard' && cfg.band && typeof win.standardSupportsBand === 'function'){
         if(!win.standardSupportsBand(cfg.standard, cfg.band)){ delete cfg.band; delete cfg.channel; }
     }
-    markDirty(); renderProps(); if(typeof win.renderAll === 'function') renderAll();
+    markDirty(); renderProps(); if(typeof renderAll === 'function') renderAll();
 }
 function setRadioLabel(nodeId, idx, value){
     const n = nodeById(nodeId); if(!n) return;
@@ -63,7 +63,7 @@ function setRadioLabel(nodeId, idx, value){
     const cfg = radios[idx]; if(!cfg) return;
     const v = String(value == null ? '' : value).trim();
     if(v) cfg.label = v; else delete cfg.label;
-    markDirty(); renderProps(); if(typeof win.renderAll === 'function') renderAll();
+    markDirty(); renderProps(); if(typeof renderAll === 'function') renderAll();
 }
 
 // ── Setter di UN BSS (SSID) dentro una radio: radios[idx].ssids[] ─────
@@ -83,9 +83,9 @@ function updateBssCfg(nodeId, radioIdx, bssId, field, value){
         const vi = parseInt(bss.vlan, 10);
         if(vi > 1 && typeof win._ensureVlanColor === 'function') win._ensureVlanColor(vi);
         if(typeof _invalidateIdx === 'function') _invalidateIdx();
-        if(typeof win.propagateVlans === 'function') propagateVlans();
+        if(typeof propagateVlans === 'function') propagateVlans();
     }
-    markDirty(); renderProps(); if(typeof win.renderAll === 'function') renderAll();
+    markDirty(); renderProps(); if(typeof renderAll === 'function') renderAll();
 }
 // Aggiunge un BSS vuoto (o con VLAN preimpostata) a una radio e lo lascia da nominare.
 function addBss(nodeId, radioIdx, vlan){
@@ -99,8 +99,8 @@ function addBss(nodeId, radioIdx, vlan){
     radio.ssids.push((v >= 1 && v <= 4094) ? { id, vlan: v } : { id });
     if(v > 1 && typeof win._ensureVlanColor === 'function') win._ensureVlanColor(v);
     if(typeof _invalidateIdx === 'function') _invalidateIdx();
-    if(typeof win.propagateVlans === 'function') propagateVlans();
-    markDirty(); renderProps(); if(typeof win.renderAll === 'function') renderAll();
+    if(typeof propagateVlans === 'function') propagateVlans();
+    markDirty(); renderProps(); if(typeof renderAll === 'function') renderAll();
     return id;
 }
 // Rimuove un BSS; ripulisce i link wireless che lo referenziavano (l.bss).
@@ -113,14 +113,14 @@ function removeBss(nodeId, radioIdx, bssId){
     const state = store.state;
     for(const l of (state.links || [])){ if(l && l.bss === bssId) delete l.bss; }
     if(typeof _invalidateIdx === 'function') _invalidateIdx();
-    if(typeof win.propagateVlans === 'function') propagateVlans();
-    markDirty(); renderProps(); if(typeof win.renderAll === 'function') renderAll();
+    if(typeof propagateVlans === 'function') propagateVlans();
+    markDirty(); renderProps(); if(typeof renderAll === 'function') renderAll();
 }
 // Seleziona un'interfaccia radio (apre il suo pannello a destra).
 function selectRadioIface(nodeId, idx){
     const pid = (typeof win.radioPid === 'function') ? win.radioPid(nodeId, idx) : `${nodeId}-radio${idx? idx+1 : ''}`;
     store.selType = 'port'; store.selId = pid;
-    if(typeof win.renderAll === 'function') renderAll();
+    if(typeof renderAll === 'function') renderAll();
     renderProps();
 }
 
@@ -136,7 +136,7 @@ function addSsidForVlan(nodeId, vlan){
     }
     addBss(nodeId, 0, vlan);
     store.selType = 'port'; store.selId = (typeof win.radioPid==='function') ? win.radioPid(nodeId, 0) : `${nodeId}-radio`;
-    if(typeof win.renderAll === 'function') renderAll();
+    if(typeof renderAll === 'function') renderAll();
     renderProps();
 }
 
@@ -368,9 +368,9 @@ function setClientAssoc(clientPid, bssId){
         }
     } else { delete l.bss; }
     if(typeof _invalidateIdx === 'function') _invalidateIdx();
-    if(typeof win.propagateVlans === 'function') propagateVlans();
+    if(typeof propagateVlans === 'function') propagateVlans();
     markDirty();
-    if(typeof win.renderAll === 'function') renderAll();
+    if(typeof renderAll === 'function') renderAll();
     renderProps();
 }
 
@@ -423,7 +423,7 @@ function _openBssMenu(linkId, node){
 function _pickBss(linkId, bssId){
     const state = store.state;
     const l = (state.links || []).find(x => x && x.id === linkId);
-    if(l){ l.bss = bssId; if(typeof _invalidateIdx === 'function') _invalidateIdx(); if(typeof win.propagateVlans === 'function') propagateVlans(); markDirty(); if(typeof win.renderAll === 'function') renderAll(); }
+    if(l){ l.bss = bssId; if(typeof _invalidateIdx === 'function') _invalidateIdx(); if(typeof propagateVlans === 'function') propagateVlans(); markDirty(); if(typeof renderAll === 'function') renderAll(); }
     _closeBssMenu();
 }
 
