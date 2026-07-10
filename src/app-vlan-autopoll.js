@@ -431,7 +431,7 @@ function setLinkNativeVlan(linkId, val){
 // questo run passivo, _effPortVlan la fa comunque prevalere sull'override locale
 // (per questo l'editor compare solo quando NESSUNO a monte la detta).
 function setEndpointVlan(nodeId, pid, val){
-    const n = (typeof win.nodeById==='function') ? nodeById(nodeId) : null; if(!n) return;
+    const n = (typeof nodeById==='function') ? nodeById(nodeId) : null; if(!n) return;
     if(!pid) pid = (typeof win._deviceAccessVlanPid==='function') ? win._deviceAccessVlanPid(n) : `${nodeId}-1`;
     if(!store.state.ports[pid]) store.state.ports[pid] = {};
     const v = parseInt(val, 10);
@@ -445,7 +445,7 @@ function setEndpointVlan(nodeId, pid, val){
 // una proprietà dell'interfaccia: il telefono la tagga sull'uplink). Scrive
 // node.voiceVlan e tiene selezionata la porta (win.renderProps ridisegna il pannello).
 function setNodeVoiceVlan(nodeId, val){
-    const n = (typeof win.nodeById==='function') ? nodeById(nodeId) : null; if(!n) return;
+    const n = (typeof nodeById==='function') ? nodeById(nodeId) : null; if(!n) return;
     const v = parseInt(val, 10);
     if(v>1 && v<=4094){
         // Fonte CANONICA: node.spec.voiceVlan (come updateN / assegnazione in blocco).
@@ -548,7 +548,7 @@ function setVlanFilter(vid){
 // Marca/smarca una VLAN come "guest". Classificazione PERSISTENTE (dato di
 // progetto, non un filtro di vista): i device visti solo su VLAN guest escono
 // dalla categoria "device non documentati" del Drift Report (rumore tipico:
-// telefoni/BYOD sulla guest WiFi). Toggle con win.markDirty come driftIgnore —
+// telefoni/BYOD sulla guest WiFi). Toggle con markDirty come driftIgnore —
 // non genera una voce di undo, ma viaggia negli snapshot successivi.
 function toggleGuestVlan(vid){
     vid = parseInt(vid, 10);
@@ -617,7 +617,7 @@ function _voiceAssignTargets(vid, scope, policy){
     vid = parseInt(vid, 10);
     let list = _voipNodes();
     if(scope === 'selected'){
-        const sel = (store.selType === 'node' && typeof win.nodeById === 'function') ? nodeById(store.selId) : null;
+        const sel = (store.selType === 'node' && typeof nodeById === 'function') ? nodeById(store.selId) : null;
         list = (sel && sel.type === 'voip') ? [sel] : [];
     }
     return list.filter(n => {
@@ -634,10 +634,10 @@ function applyVoiceVlanBulk(vid, scope, policy){
     if(!(vid >= 1 && vid <= 4094)) return;
     const targets = _voiceAssignTargets(vid, scope, policy);
     if(!targets.length){
-        if(typeof win._showToast === 'function') _showToast(_tV('voice.noPhones','Nessun telefono da modificare in questo ambito.'), 'warn', 3500);
+        if(typeof _showToast === 'function') _showToast(_tV('voice.noPhones','Nessun telefono da modificare in questo ambito.'), 'warn', 3500);
         return;
     }
-    if(typeof win.pushHistory === 'function') pushHistory();
+    if(typeof pushHistory === 'function') pushHistory();
     targets.forEach(n => _setVoipVoiceVlan(n, vid));
     if(!_isVoiceVlan(vid)) toggleVoiceVlan(vid);   // assegnare implica classificarla voce
     if(typeof propagateVlans === 'function') propagateVlans();
@@ -645,7 +645,7 @@ function applyVoiceVlanBulk(vid, scope, policy){
     markDirty();
     if(typeof win.renderAll === 'function') renderAll();
     if(typeof win.renderProps === 'function') renderProps();
-    if(typeof win._showToast === 'function') _showToast(_tV('voice.done','VLAN voce {vid} assegnata a {n} telefoni.', {vid, n:targets.length}), 'ok', 3500);
+    if(typeof _showToast === 'function') _showToast(_tV('voice.done','VLAN voce {vid} assegnata a {n} telefoni.', {vid, n:targets.length}), 'ok', 3500);
 }
 
 // i18n con fallback letterale (no shadowing in questo scope).
@@ -673,7 +673,7 @@ function _closeVoiceAssign(){ const ov = document.getElementById('voice-assign-o
 
 function _voiceAssignHtml(){
     const vid = _voiceAssignVid;
-    const selVoip = (store.selType === 'node' && typeof win.nodeById === 'function' && nodeById(store.selId) && nodeById(store.selId).type === 'voip') ? nodeById(store.selId) : null;
+    const selVoip = (store.selType === 'node' && typeof nodeById === 'function' && nodeById(store.selId) && nodeById(store.selId).type === 'voip') ? nodeById(store.selId) : null;
     const total = _voipNodes().length;
     return `<div class="drift-modal" style="max-width:440px">
       <div class="drift-head"><span><i class="fas fa-phone"></i> ${_tV('voice.assignTitle','Assegna VLAN voce {vid} ai telefoni',{vid})}</span>

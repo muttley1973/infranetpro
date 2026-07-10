@@ -374,8 +374,8 @@ function portTip(pid){
     // / Aruba CX / Juniper VC). Le porte MGMT (`mgmt1`...) e altre non
     // numeriche non vengono qualificate.
     let portLabel = portNum;
-    const _nid = (typeof win.getPortNodeId === 'function') ? getPortNodeId(pid) : null;
-    const _node = _nid && typeof win.nodeById === 'function' ? nodeById(_nid) : null;
+    const _nid = (typeof getPortNodeId === 'function') ? getPortNodeId(pid) : null;
+    const _node = _nid && typeof nodeById === 'function' ? nodeById(_nid) : null;
     if(_node && typeof win.isInStack === 'function' && win.isInStack(_node)){
         const numeric = parseInt(portNum, 10);
         if(Number.isFinite(numeric) && String(numeric) === portNum){
@@ -408,7 +408,7 @@ function portTip(pid){
         if(typeof win.getLagCrossMemberInfo === 'function'){
             const members = _getLagMembersOf(pid);
             if(members.size > 1){
-                const info = win.getLagCrossMemberInfo(state.nodes, Array.from(members), win.getPortNodeId);
+                const info = win.getLagCrossMemberInfo(state.nodes, Array.from(members), getPortNodeId);
                 if(info.isCross) lagStr += ' · cross-stack';
             }
         }

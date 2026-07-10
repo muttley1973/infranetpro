@@ -33,7 +33,7 @@ function rackUPx(){
 // Coalescing: i ~70 call-site continuano a chiamare renderAll(), ma N chiamate
 // ravvicinate (stesso frame) collassano in UN solo rebuild del DOM. Sicuro perché
 // renderAll non viene mai letto in modo sincrono subito dopo (focusNode usa solo
-// il container, e i win.renderCables ridondanti vengono comunque ricorretti dal flush).
+// il container, e i renderCables ridondanti vengono comunque ricorretti dal flush).
 // renderNow() forza il render immediato per i rari casi che lo richiedono.
 let _renderPending = false;
 export function renderAll(){
@@ -57,7 +57,7 @@ function renderNow(){ _renderPending = false; _renderAllNow(); }
 //
 // Scope supportati:
 //   'props'    → renderProps(pannello Proprieta')
-//   'cables'   → win.renderCables (cavi SVG)
+//   'cables'   → renderCables (cavi SVG)
 //   'topology' → renderTopoOverlay(overlay topologia, con coalescing)
 //   'floor'    → renderFloor (planimetria: structures + items + icone rack)
 //   'rack'     → fallback renderAll() — estrazione rack chassis NON fatta
@@ -74,7 +74,7 @@ function renderScope(scope){
             if(typeof win.renderProps === 'function') renderProps();
             return;
         case 'cables':
-            if(typeof win.renderCables === 'function') renderCables();
+            if(typeof renderCables === 'function') renderCables();
             return;
         case 'topology':
             if(typeof win.renderTopoOverlay === 'function') renderTopoOverlay();

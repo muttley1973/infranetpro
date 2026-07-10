@@ -135,7 +135,7 @@ function enterRoutingMode(linkId){
         if(typeof store._rackCollapsed !== 'undefined' && store._rackCollapsed &&
            typeof win.toggleRackPanel === 'function') win.toggleRackPanel();
         if(typeof win._rightTab !== 'undefined' && win._rightTab !== 'rack' &&
-           typeof win.switchRightTab === 'function') switchRightTab('rack');
+           typeof switchRightTab === 'function') switchRightTab('rack');
     }
     _renderRoutingHint(link);
     // pittura immediata (poi ri-applicata da _paintRoutingTargets ad ogni render)
@@ -235,13 +235,13 @@ function _routingPickPort(midPid){
         store.state.links = store.state.links.filter(l => l.id !== linkId);
         store.state.links.push(_normalizeLinkMetadata(newRec));
         _markPortActive(midPid); _markPortActive(otherEnd); _markPortActive(info.reuse);
-        if(typeof win._invalidateIdx === 'function') _invalidateIdx();
+        if(typeof _invalidateIdx === 'function') _invalidateIdx();
         store.selType = 'link'; store.selId = newRec.id;
         store.highPath.clear();
         const midNode0 = getNodeByPortId(midPid);
         _exitRoutingMode();
         // torna alle Proprietà del cavo per mostrare il percorso aggiornato
-        if(typeof win.switchRightTab === 'function') switchRightTab('props');
+        if(typeof switchRightTab === 'function') switchRightTab('props');
         markDirty(); renderAll(); renderProps();
         _showToast(t('msg.rack.routedReuse',{name:_routeNodeLabel(midNode0)}), 'ok', 3800);
         return;
@@ -266,7 +266,7 @@ function _routingPickPort(midPid){
         // include la porta pass-through intermedia che diventa "occupata".
         _markPortActive(rec.src); _markPortActive(rec.dst);
     }
-    if(typeof win._invalidateIdx === 'function') _invalidateIdx();
+    if(typeof _invalidateIdx === 'function') _invalidateIdx();
 
     // Seleziona il 1° tratto: l'utente vede il risultato e può re-instradare.
     store.selType = 'link'; store.selId = res.links[0].id;
@@ -275,7 +275,7 @@ function _routingPickPort(midPid){
     const midNode = getNodeByPortId(midPid);
     _exitRoutingMode();
     // torna alle Proprietà del cavo per mostrare il percorso aggiornato
-    if(typeof win.switchRightTab === 'function') switchRightTab('props');
+    if(typeof switchRightTab === 'function') switchRightTab('props');
     markDirty(); renderAll(); renderProps();
     _showToast(t('msg.rack.routed',{name:_routeNodeLabel(midNode)}), 'ok', 3500);
 }
@@ -299,7 +299,7 @@ function removeRouteHop(midPid){
     store.state.links.push(_normalizeLinkMetadata(res.link));
     _markPortActive(res.link.src); _markPortActive(res.link.dst);
     _refreshPortActiveState(midPid);   // tappa liberata → torna grigia
-    if(typeof win._invalidateIdx === 'function') _invalidateIdx();
+    if(typeof _invalidateIdx === 'function') _invalidateIdx();
 
     store.selType = 'link'; store.selId = res.link.id;
     store.highPath.clear();

@@ -158,7 +158,7 @@ function _buildTopoModel(){
         highPathIds: store.highPath,
         selectedLinkId: (store.selType === 'link') ? store.selId : null,
         helpers: {
-            portNodeId: win.getPortNodeId,
+            portNodeId: getPortNodeId,
             portDisplayName: win._portDisplayName,
             linkVlan: win._getLinkVlan,
             // Trunk EFFETTIVO (anche derivato da voce/SSID): i trunk derivati si
@@ -237,7 +237,7 @@ function _drawTopoPair(p, svg, NS, isDark, els){
         const _edge = (p.edges||[]).find(e=>e && (e.srcPid||e.dstPid)) || null;
         const _radioPt = (nodeId, el, cx, cy) => {
             if(!_edge || !el) return null;
-            const pid = [_edge.srcPid,_edge.dstPid].find(pp => pp && typeof win.getPortNodeId==='function' && getPortNodeId(pp)===nodeId);
+            const pid = [_edge.srcPid,_edge.dstPid].find(pp => pp && typeof getPortNodeId==='function' && getPortNodeId(pp)===nodeId);
             const pr = pid ? win.parseRadioPid(pid) : null;
             if(!pr) return null;
             const cnt = (typeof win.radioCount==='function') ? win.radioCount(nodeById(nodeId)) : 0;

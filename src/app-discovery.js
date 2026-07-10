@@ -147,7 +147,7 @@ function closeDiscovery(){
 // esplicitamente serve usare il bottone "Annulla" o la X.
 function _closeDiscoveryOverlayClick(){
     if(win._discRunning || win._discImporting){
-        if(typeof win._showToast === 'function'){
+        if(typeof _showToast === 'function'){
             _showToast(_dt('msg.ui.scanInProgress','Scansione in corso. Usa "Annulla" per interrompere.'), 'warn', 3500);
         }
         return;
