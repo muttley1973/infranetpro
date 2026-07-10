@@ -19,7 +19,7 @@ import { store } from './store.js';   // ritiro ponte fase 3: selId/selType dopo
 import { escapeHTML, normalizeMacAddress } from './app-util.js';
 import { nodeById, markDirty, pushHistory, _invalidateIdx, getNodeDisplayName, _showToast, _removeNodeById } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { propagateVlans } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
-import { renderProps, _buildDeviceBrandModelPreview } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { renderProps, _buildDeviceBrandModelPreview, _propsSectionIsOpen, _buildInventoryFieldsHtml } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // catalogo tipi (hostsVms/isPassive/hasIP) per l'assorbimento VM
 
@@ -133,14 +133,14 @@ function _hvPanelHtml(n, d){
     const isLab = n.type === 'homelab';
     const icon = isLab ? 'fa-cubes' : 'fa-layer-group';
     const secId = 'device-' + n.type;
-    const open = (typeof win._propsSectionIsOpen === 'function' && win._propsSectionIsOpen(secId)) ? 'open' : '';
+    const open = (typeof _propsSectionIsOpen === 'function' && _propsSectionIsOpen(secId)) ? 'open' : '';
     const title = esc(isLab ? t('dev.homelab') : t('dev.hypervisor'));
     const plats = isLab ? _LAB_PLATFORMS : _HV_PLATFORMS;
     const platDefault = isLab ? 'proxmox' : 'esxi';
     const platOpts = plats.map(p => `<option value="${esc(p[0])}"${String(n.hvPlatform || platDefault) === p[0] ? ' selected' : ''}>${esc(p[1])}</option>`).join('');
     const vms = _nodeVms(n);
     const running = vms.filter(v => (v.state || 'running') === 'running').length;
-    const inv = (typeof win._buildInventoryFieldsHtml === 'function') ? win._buildInventoryFieldsHtml(n, d) : '';
+    const inv = (typeof _buildInventoryFieldsHtml === 'function') ? _buildInventoryFieldsHtml(n, d) : '';
     const preview = (typeof win._buildDeviceBrandModelPreview === 'function') ? _buildDeviceBrandModelPreview(n) : '';
     const vmRows = vms.length
         ? vms.map(vm => _vmRowHtml(vm, n.id)).join('')
@@ -158,7 +158,7 @@ function _hvPanelHtml(n, d){
             <div class="prop-group"><label>Storage (TB)</label><input type="number" min="0" max="10000" step="0.5" value="${n.hvStorageTb || 1}" onchange="updateN('hvStorageTb',parseFloat(this.value)||0)"></div>
         </div>
         <div class="prop-group"><label>${t('hv.mgmtVlan')}</label><input type="number" min="1" max="4094" value="${n.mgmtVlan || 1}" data-tip="${esc(t('hv.mgmtVlanTip'))}" onchange="updateN('mgmtVlan',parseInt(this.value)||1)"></div>
-        <details class="props-collapsible props-secondary" ${(typeof win._propsSectionIsOpen==='function' && win._propsSectionIsOpen('hv-vms')) ? 'open' : ''} ontoggle="setPropsSectionState('hv-vms',this.open)">
+        <details class="props-collapsible props-secondary" ${(typeof _propsSectionIsOpen==='function' && _propsSectionIsOpen('hv-vms')) ? 'open' : ''} ontoggle="setPropsSectionState('hv-vms',this.open)">
             <summary class="props-collapsible-head"><span><i class="fas fa-display"></i> ${t('hv.section')}</span><span class="props-count-badge">${running}/${vms.length}</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
             <div class="props-collapsible-body">
                 ${vmRows}

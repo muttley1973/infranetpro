@@ -136,7 +136,7 @@ function _propsKebabClose(){
  *  Il placeholder degli input usa quello che ENTITY-MIB ha popolato in
  *  `n.integration.inventory` (se presente) cosi' l'utente vede il valore
  *  rilevato dall'SNMP anche quando non ha ancora confermato manualmente. */
-function _buildInventoryFieldsHtml(n, d){
+export function _buildInventoryFieldsHtml(n, d){
     const inventory = (n.integration && n.integration.inventory) || {};
     const placeholders = {
         brand:        escapeHTML(inventory.brand || (d && d.brand) || ''),
@@ -210,7 +210,7 @@ function _buildPatchPanelPreview(n){
     return `<span class="props-collapsible-preview">${escapeHTML(parts.join(' · '))}</span>`;
 }
 
-function _buildNetAccessHtml(n, d, opts){
+export function _buildNetAccessHtml(n, d, opts){
     opts = opts || {};
     const includeHostname  = opts.includeHostname !== false;
     const ipPlaceholder    = opts.ipPlaceholder || '192.168...';
