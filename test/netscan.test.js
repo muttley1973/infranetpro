@@ -4,7 +4,7 @@
 // (es. "0:1c:42:8:b:9") → vanno ri-paddati o il MAC (e quindi il vendor) si perde.
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { _parseArpTable, _normMac, DEEP_TCP_PORTS, _castProbe, _mdnsSsdpSweep } = require('../server/netscan');
+const { _parseArpTable, _normMac, DEEP_TCP_PORTS, _castProbe, _mdnsSsdpSweep, _shuffled } = require('../server/netscan');
 
 test('DEEP_TCP_PORTS: include le porte Google Cast (8008/8009) per il rilevamento media', () => {
   const ports = DEEP_TCP_PORTS.map(p => p.port);
@@ -124,4 +124,28 @@ test('_parseArpTable: Linux arp -an ([ether])', () => {
   const out = '? (10.0.0.5) at f4:39:09:00:00:01 [ether] on eth0';
   const m = _parseArpTable(out);
   assert.equal(m.get('10.0.0.5'), 'F4:39:09:00:00:01');
+});
+
+// ---- _shuffled: ordine di scansione randomizzato (Furtiva anti-IDS) ----
+test('_shuffled: permutazione (stessi elementi), ritorna una COPIA (non muta l\'input)', () => {
+  const input = [1, 2, 3, 4, 5, 6, 7, 8];
+  const out = _shuffled(input, () => 0.42);
+  assert.deepEqual([...out].sort((a, b) => a - b), [1, 2, 3, 4, 5, 6, 7, 8], 'stessi elementi');
+  assert.deepEqual(input, [1, 2, 3, 4, 5, 6, 7, 8], 'input NON mutato');
+  assert.notStrictEqual(out, input, 'ritorna un nuovo array');
+});
+
+test('_shuffled: deterministico con rand iniettato (Fisher-Yates, rand=0 -> j=0)', () => {
+  // [A,B,C,D]: i=3 swap(3,0)->[D,B,C,A]; i=2 swap(2,0)->[C,B,D,A]; i=1 swap(1,0)->[B,C,D,A]
+  assert.deepEqual(_shuffled(['A', 'B', 'C', 'D'], () => 0), ['B', 'C', 'D', 'A']);
+});
+
+test('_shuffled: rand vicino a 1 -> identita\' (nessuno swap effettivo)', () => {
+  assert.deepEqual(_shuffled([1, 2, 3], () => 0.999), [1, 2, 3]);
+});
+
+test('_shuffled: input difensivi non lanciano', () => {
+  assert.deepEqual(_shuffled([]), []);
+  assert.deepEqual(_shuffled(), []);
+  assert.deepEqual(_shuffled(null), []);
 });
