@@ -4,7 +4,7 @@
 // (es. "0:1c:42:8:b:9") → vanno ri-paddati o il MAC (e quindi il vendor) si perde.
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { _parseArpTable, _normMac, DEEP_TCP_PORTS, _castProbe, _mdnsSsdpSweep, _shuffled } = require('../server/netscan');
+const { _parseArpTable, _normMac, DEEP_TCP_PORTS, _castProbe, _mdnsSsdpSweep, _shuffled, _buildNbstatQuery, _parseNbstatResponse } = require('../server/netscan');
 
 test('DEEP_TCP_PORTS: include le porte Google Cast (8008/8009) per il rilevamento media', () => {
   const ports = DEEP_TCP_PORTS.map(p => p.port);
@@ -148,4 +148,50 @@ test('_shuffled: input difensivi non lanciano', () => {
   assert.deepEqual(_shuffled([]), []);
   assert.deepEqual(_shuffled(), []);
   assert.deepEqual(_shuffled(null), []);
+});
+
+// ---- NBSTAT diretto via UDP 137 (nome NetBIOS Windows, bypassa la CLI lenta) ----
+test('_buildNbstatQuery: pacchetto NBSTAT valido (50B, QTYPE 0x0021, nome "*" codificato)', () => {
+  const q = _buildNbstatQuery(0x1337);
+  assert.equal(q.length, 50, '12 header + 34 nome + 4 QTYPE/QCLASS');
+  assert.equal(q.readUInt16BE(0), 0x1337, 'transaction id');
+  assert.equal(q.readUInt16BE(4), 0x0001, 'QDCOUNT = 1');
+  assert.equal(q[12], 0x20, 'lunghezza nome codificato = 32');
+  assert.equal(q[13], 0x43, '"*" (0x2A) -> nibble alto 2 -> "C" (0x43)');
+  assert.equal(q[14], 0x4B, '"*" (0x2A) -> nibble basso A -> "K" (0x4B)');
+  assert.equal(q.readUInt16BE(46), 0x0021, 'QTYPE = NBSTAT');
+  assert.equal(q.readUInt16BE(48), 0x0001, 'QCLASS = IN');
+});
+
+function _nbEntry(name, suffix, group) {
+  const b = Buffer.alloc(18, 0x20);            // area nome riempita di spazi
+  b.write(name, 0, 'latin1');
+  b[15] = suffix;
+  b.writeUInt16BE(group ? 0x8000 : 0x0400, 16);  // bit 15 = GROUP
+  return b;
+}
+
+test('_parseNbstatResponse: estrae nome <00> unico + gruppo + MAC (forma = _parseNetbiosOutput)', () => {
+  const header = Buffer.alloc(12); header.writeUInt16BE(0x1337, 0); header.writeUInt16BE(0x8400, 2); header.writeUInt16BE(1, 6);
+  const rrName = Buffer.from([0xC0, 0x0C]);     // puntatore di compressione
+  const rrMeta = Buffer.alloc(10); rrMeta.writeUInt16BE(0x0021, 0); rrMeta.writeUInt16BE(0x0001, 2);
+  const num = Buffer.from([3]);
+  const e1 = _nbEntry('DESKTOP-JH2S14O', 0x00, false);   // workstation (unico)
+  const e2 = _nbEntry('DESKTOP-JH2S14O', 0x20, false);   // file server (unico) -> smbServer
+  const e3 = _nbEntry('WORKGROUP', 0x00, true);          // gruppo
+  const mac = Buffer.from([0x00, 0x23, 0x8b, 0x2e, 0x13, 0x03]);
+  const resp = Buffer.concat([header, rrName, rrMeta, num, e1, e2, e3, mac]);
+  const r = _parseNbstatResponse(resp);
+  assert.equal(r.name, 'DESKTOP-JH2S14O');
+  assert.equal(r.group, 'WORKGROUP');
+  assert.equal(r.smbServer, true, '<20> unico -> file/print sharing');
+  assert.equal(r.mac, '00:23:8B:2E:13:03');
+  assert.equal(r.records.length, 3);
+  assert.ok(r.records.some(x => x.suffix === '20' && x.kind === 'unique'));
+});
+
+test('_parseNbstatResponse: buffer troppo corto / spazzatura -> null (nessun crash)', () => {
+  assert.equal(_parseNbstatResponse(Buffer.alloc(10)), null);
+  assert.equal(_parseNbstatResponse(Buffer.from('non-una-risposta')), null);
+  assert.equal(_parseNbstatResponse(null), null);
 });
