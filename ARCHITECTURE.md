@@ -421,8 +421,10 @@ is VPN/LAN.
     Normal/Safe vs shuffled on Stealth; concurrency 64/32/1 and 16/8/1).
   - **Windows PC names via NetBIOS (2026-07-09).** A Windows host speaks no SNMP and rarely
     advertises its name over mDNS, so it came out nameless. The base flow now resolves it with a
-    single `nbtstat -A` (NBSTAT) query per *alive, still-nameless* host — on the **Normal and
-    Safe** cadences (a single NBSTAT on a known-alive host is within Safe's light anti-IDS; gentler
+    single **NBSTAT** (NetBIOS node-status) query sent **directly over UDP 137** per *alive,
+    still-nameless* host (~40 ms, cross-platform; the `nbtstat` CLI probes every local NIC and
+    waits out the dead ones — 10–30 s+ on multi-NIC hosts — kept only as a Windows fallback) — on
+    the **Normal and Safe** cadences (a single NBSTAT on a known-alive host is within Safe's light anti-IDS; gentler
     concurrency on Safe), **off on Stealth** (no NetBIOS footprint). The box running InfraNet
     appears in its own scan but `nbtstat` can't query its own IP, so the **local host is named from
     `os.hostname()`** in every cadence (no network probe). Windows-only (nbtstat); a NetBT-disabled
