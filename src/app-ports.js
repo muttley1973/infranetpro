@@ -108,7 +108,7 @@ function getLagGroupsForNode(nodeId){
 function startLagMode(pid){
     win.closePop();
     if(store.linkStart) win._cancelLink();
-    win.lagSelMode = true;
+    store.lagSelMode = true;
     store.lagSelPorts = new Set([pid]);
     store.selType = 'port';
     store.selId = pid;
@@ -116,7 +116,7 @@ function startLagMode(pid){
 }
 
 function _toggleLagPort(pid){
-    if(!win.lagSelMode) return;
+    if(!store.lagSelMode) return;
     const anchor = [...store.lagSelPorts][0];
     if(pid === anchor) return;
     if(store.lagSelPorts.has(pid)) store.lagSelPorts.delete(pid);
@@ -143,7 +143,7 @@ function confirmLag(){
         if(!state.ports[pid]) state.ports[pid] = {};
         state.ports[pid].lagGroup = gid;
     }
-    win.lagSelMode = false;
+    store.lagSelMode = false;
     store.lagSelPorts = new Set();
     markDirty();
     renderAll();
@@ -151,7 +151,7 @@ function confirmLag(){
 }
 
 function cancelLag(){
-    win.lagSelMode = false;
+    store.lagSelMode = false;
     store.lagSelPorts = new Set();
     renderAll();
 }
@@ -246,7 +246,7 @@ function setLagMode(gid, mode){
 
 function _updateLagBanner(){
     const b = document.getElementById('lag-sel-banner');
-    if(!win.lagSelMode){
+    if(!store.lagSelMode){
         b.classList.remove('show');
         return;
     }
