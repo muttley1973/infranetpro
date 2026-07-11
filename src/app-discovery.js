@@ -6,7 +6,7 @@ import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funz
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { focusNode, switchRack } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { _isLeafEndpoint, _autoLinkEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
-import { _discIndexNode, _discVendorFromMac, _discIdentitySource, _discFindExistingDevice } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { _discIndexNode, _discVendorFromMac, _discIdentitySource, _discFindExistingDevice, _discBuildExistingIndexes, _discTouchNodeIdentity } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { _findFreeU } from './app-topology-crawl.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
 
 // Nome DISPLAY per la tabella Scopri e per il nome del nodo importato. L'utente legge la
@@ -859,7 +859,7 @@ async function importDiscovered(){
             store.state.currentRack = rackId;
         }
 
-        const existingIdx = win._discBuildExistingIndexes();
+        const existingIdx = _discBuildExistingIndexes();
         // Guardie di merge (F5): un MAC "next-hop" — gateway L3-lite documentato, oppure
         // stesso MAC su piu' IP nel batch di Scopri (cross-subnet) — NON e' una chiave di
         // identita' affidabile → non fondere per-MAC su di esso, ripiega su hostname/IP
@@ -905,7 +905,7 @@ async function importDiscovered(){
                     win._discCanAutoRetype(foundExisting.type, d.type)
                 );
 
-                win._discTouchNodeIdentity(foundExisting, d, match.matchedBy);
+                _discTouchNodeIdentity(foundExisting, d, match.matchedBy);
                 foundExisting.vendorHint = d.vendorHint || _discVendorFromMac(d.mac) || foundExisting.vendorHint || '';
                 foundExisting.identitySource = _discIdentitySource(d);
                 foundExisting.identityConfidence = d.identityConfidence || d.confidence?.level || foundExisting.identityConfidence || 'low';
@@ -1031,7 +1031,7 @@ async function importDiscovered(){
                 };
             }
             if(d._typeManual) n.typeManual = true;   // tipo scelto a mano nel dialogo = pinnato
-            win._discTouchNodeIdentity(n, d, match.matchedBy || 'new');
+            _discTouchNodeIdentity(n, d, match.matchedBy || 'new');
             if(match.conflict?.existing){
                 n.discoveryConflicts = [{
                     type:'ip-mac',

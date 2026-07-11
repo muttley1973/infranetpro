@@ -23,7 +23,7 @@ import { nodeById, markDirty, getNodeByPortId, getNodeDisplayName, pushHistory, 
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAutomationMenu } from './app-vlan-autopoll.js';   // setAutoIpRenew aggiorna il popover Automazioni
-import { ensureNodeRackVisible, focusNode } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
+import { ensureNodeRackVisible, focusNode, selectAndFocusNode } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { trace } from './app-pointer.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 
 // _driftReport è stato condiviso cross-boundary (scritto anche da
@@ -313,7 +313,7 @@ function driftInvestigate(key){
     } else if(row.sig || row.mac){
         const sig = row.sig || _driftNorm(row.mac);
         const n = state.nodes.find(x => x.mac && _driftNorm(x.mac) === sig);
-        if(n && typeof win.selectAndFocusNode==='function') win.selectAndFocusNode(n);
+        if(n && typeof selectAndFocusNode==='function') selectAndFocusNode(n);
         else showAlert(t('msg.net.macSeenUnassociated',{mac:row.mac || sig}));
     }
 }
