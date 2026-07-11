@@ -1179,18 +1179,19 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           if (typeof _invalidateIdx === 'function') _invalidateIdx();
           renderRackTabs();
 
-          // 1) API esposte dal bundle
-          const fns = ['buildSearchResults','zoomFloor','zoomRack','switchRack','renderRackTabs',
-            'moveNodeToRack','filterPaletteItems','togglePaletteGroup','updateRackSize','toggleRackMenu'];
+          // 1) API esposte dal bundle. NB: zoomFloor/zoomRack/togglePaletteGroup/toggleRackMenu
+          //    NON sono più su window (ritiro ponte ASSE B: toolbar rack/zoom/palette → data-act).
+          const fns = ['buildSearchResults','switchRack','renderRackTabs',
+            'moveNodeToRack','filterPaletteItems','updateRackSize'];
           const allFns = fns.every(n => typeof window[n] === 'function');
 
           // 2) ricerca globale: trova il device per nome
           const res = buildSearchResults('coreswitch');
           const foundDevice = res.some(x => x.kind === 'device' && x.id === 'n1');
 
-          // 3) zoom floor: cambia lo stato e applica scale() al canvas (updateTransforms)
+          // 3) zoom floor via EVENT DELEGATION (data-act): cambia lo stato + scale() al canvas
           const z0 = state.floorView.zoom;
-          zoomFloor(0.1);
+          document.querySelector('[data-act="zoom-floor"][data-delta="0.1"]').click();
           const zoomed = state.floorView.zoom > z0;
           const transformApplied = /scale\(/.test(document.getElementById('floor-canvas').style.transform);
 
@@ -1205,11 +1206,18 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           const moved = moveNodeToRack('n1', 'rB');
           const nodeRack = nodeById('n1').rackId;
 
-          return { ok: true, allFns, foundDevice, zoomed, transformApplied, opts, switched, moved, nodeRack };
+          // 7) ASSE B: la superficie toolbar rack/zoom/palette è DELEGATA → non su window
+          const delegatedGone = ['clearSearch','zoomFloor','zoomRack','toggleRackPanel','toggleSidebarPanel',
+            'togglePaletteGroup','setPaletteGroupsExpanded','clearPaletteFilter','toggleRackMenu','closeRackMenu',
+            'toggleRackOnFloor','addRack','renameRack','toggleRackUNumbering','deleteCurrentRack']
+            .every(n => typeof window[n] === 'undefined');
+
+          return { ok: true, allFns, foundDevice, zoomed, transformApplied, opts, switched, moved, nodeRack, delegatedGone };
         } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
       });
       assert.ok(r.ok, 'nessun errore nel flusso search/zoom/rack: ' + r.err);
-      assert.ok(r.allFns, 'le funzioni search/zoom/rack sono esposte su window');
+      assert.ok(r.allFns, 'le funzioni search/zoom/rack (non-toolbar) sono esposte su window');
+      assert.ok(r.delegatedGone, 'ASSE B: le 15 funzioni toolbar rack/zoom/palette sono ritirate dal ponte (data-act)');
       assert.ok(r.foundDevice, 'buildSearchResults trova il device per nome');
       assert.ok(r.zoomed, 'zoomFloor aumenta lo zoom della planimetria');
       assert.ok(r.transformApplied, 'updateTransforms applica scale() al floor-canvas');
