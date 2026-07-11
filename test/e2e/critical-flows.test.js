@@ -1580,9 +1580,12 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
     await t.test('app-core migrato: modali (showConfirm/showPrompt/modalResolve) + apiFetch viewer-guard nel browser reale', async () => {
       const r = await page.evaluate(async () => {
         try {
-          const fns = ['apiFetch','loadProject','saveProject','switchProject','newProject',
+          const fns = ['apiFetch','loadProject','switchProject',
             'showAlert','showConfirm','showPrompt','modalResolve','_initApp']
             .every(n => typeof window[n] === 'function');
+          // ASSE B: i 5 bottoni progetto sono delegati (data-act) → ritirati dal ponte
+          const projGone = ['newProject','renameProject','duplicateProject','deleteProject','saveProject']
+            .every(n => typeof window[n] === 'undefined');
 
           // showConfirm apre il modal-overlay; modalResolve(true) → onOk + chiusura
           let confirmed = null;
@@ -1608,11 +1611,12 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           catch (e) { guardThrew = /visualizzatori|consentita/i.test(String(e.message)); }
           window._currentUser = prevUser;
 
-          return { ok: true, fns, overlayOpen, overlayClosed, confirmed, inpVisible, promptOk, guardThrew };
+          return { ok: true, fns, projGone, overlayOpen, overlayClosed, confirmed, inpVisible, promptOk, guardThrew };
         } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
       });
       assert.ok(r.ok, 'nessun errore nel flusso core: ' + r.err);
-      assert.ok(r.fns, 'le funzioni core (progetti/modali) sono esposte su window');
+      assert.ok(r.fns, 'le funzioni core (apiFetch/modali) ancora classiche sono esposte su window');
+      assert.ok(r.projGone, 'ASSE B: i 5 bottoni progetto (new/rename/duplicate/delete/save) ritirati dal ponte');
       assert.ok(r.overlayOpen, 'showConfirm apre il modal-overlay');
       assert.ok(r.overlayClosed, 'modalResolve chiude il modal-overlay');
       assert.equal(r.confirmed, true, 'modalResolve(true) invoca la callback onOk');
@@ -1822,6 +1826,33 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.wiredOk, 'i bottoni del menu account hanno i data-act attesi (no onclick)');
       assert.ok(r.opened, 'click delegato su #btn-user apre #user-dropdown');
       assert.ok(r.closed, 'secondo click delegato lo richiude (toggle)');
+    });
+
+    await t.test('ASSE B — event delegation: bottoni progetto della toolbar via data-act, non su window', async () => {
+      // Solo verifica STATICA (wiring + ritiro dal ponte): NON clicco new/save/delete
+      // perché mutano lo stato server reale. Il flusso funzionale è coperto altrove.
+      const r = await page.evaluate(() => {
+        try {
+          const map = {
+            'project-new': 'newProject', 'project-rename': 'renameProject',
+            'project-duplicate': 'duplicateProject', 'project-delete': 'deleteProject',
+            'project-save': 'saveProject',
+          };
+          let wiredOk = true;
+          for (const act of Object.keys(map)) {
+            const el = document.querySelector('[data-act="' + act + '"]');
+            if (!el || el.getAttribute('onclick')) wiredOk = false;
+          }
+          const btnSave = document.getElementById('btn-save');
+          const saveWired = btnSave && btnSave.getAttribute('data-act') === 'project-save';
+          const gone = Object.values(map).every(n => typeof window[n] === 'undefined');
+          return { ok: true, wiredOk, saveWired: !!saveWired, gone };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore: ' + r.err);
+      assert.ok(r.wiredOk, 'i 5 bottoni progetto hanno data-act (no onclick)');
+      assert.ok(r.saveWired, '#btn-save ha data-act="project-save"');
+      assert.ok(r.gone, 'newProject/renameProject/duplicateProject/deleteProject/saveProject ritirate dal ponte');
     });
 
     await t.test('VLAN nativa: toggle per-riga sul pannello VLAN imposta state.nativeVlan (stile guest/voce)', async () => {

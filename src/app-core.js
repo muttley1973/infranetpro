@@ -11,6 +11,7 @@ import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funz
 import { renderRackTabs, updateTransforms, _updateFloorToolbarVisibility, initPaletteUi } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { _restoreTopoSession } from './app-topology-discover.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { _startAutoPoll, _stopAutoPoll } from './app-vlan-autopoll.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
+import { registerClickActions } from './app-delegation.js';   // ASSE B: bottoni progetto della toolbar via data-act
 
 const API = '/api/projects';
 
@@ -146,7 +147,7 @@ async function deleteProject() {
     });
 }
 
-async function saveProject() {
+export async function saveProject() {   // ASSE B: importata da app.js (scorciatoia Ctrl+S), non più su window
     if (!store.currentProjectId) return;
     if (store._snmpSyncing) return;
     try {
@@ -218,7 +219,18 @@ export function showConfirm(msg, onOk, onCancel)  { _modalOk=onOk||null; _modalC
 export function showPrompt(msg,  def, onOk, onC)  { _modalOk=onOk||null; _modalCancel=onC||null;      _openModal('prompt',  msg, def); }
 
 expose({
-    apiFetch, loadProjectList, loadProject, switchProject, newProject, renameProject,
-    duplicateProject, deleteProject, saveProject, _initApp, modalResolve,
+    apiFetch, loadProjectList, loadProject, switchProject, _initApp, modalResolve,
     showAlert, showConfirm, showPrompt,
+});
+
+// ── ASSE B (ritiro onclick inline): superficie BOTTONI PROGETTO della toolbar ──
+// newProject/renameProject/duplicateProject/deleteProject/saveProject non sono più
+// su window: i bottoni della toolbar le chiamano via `data-act` (event delegation).
+// saveProject è anche importata da app.js per la scorciatoia Ctrl+S.
+registerClickActions({
+    'project-new':       () => newProject(),
+    'project-rename':    () => renameProject(),
+    'project-duplicate': () => duplicateProject(),
+    'project-delete':    () => deleteProject(),
+    'project-save':      () => saveProject(),
 });

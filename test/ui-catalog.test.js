@@ -36,6 +36,19 @@ test('estrae solo i bottoni con tooltip, dedup per handler', () => {
   assert.deepEqual(actions, ['openDiscovery', 'runDriftCheck'], 'closeModal escluso (no tooltip), openDiscovery una volta sola');
 });
 
+test('ASSE B: cattura i bottoni delegati (data-act) quando non c\'è onclick', () => {
+  const html = `
+    <button data-act="project-save" data-i18n-tip="save.tip" data-tip="Salva">
+      <i class="fas fa-save"></i><span data-i18n="save.label">Salva</span>
+    </button>
+    <button data-act="report-menu-toggle" data-tip="Report">Report</button>
+    <button data-act="noop">senza tooltip</button>`;
+  const cat = extractCatalog(html);
+  assert.deepEqual(cat.map(e => e.action), ['project-save', 'report-menu-toggle'],
+    'data-act è l\'azione citabile; il bottone senza tooltip resta escluso');
+  assert.equal(cat[0].labelKey, 'save.label', 'labelKey preso dallo span annidato anche coi bottoni delegati');
+});
+
 test('cattura labelKey (span annidato), tipKey e fallback testuali', () => {
   const cat = extractCatalog(SAMPLE);
   const disc = cat.find(e => e.action === 'openDiscovery');
