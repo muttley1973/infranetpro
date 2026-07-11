@@ -17,6 +17,7 @@
 import { expose, t, getLang } from './_bridge.js';
 import { store } from './store.js';
 import { switchRightTab, nodeById } from './app.js';
+import { registerClickActions } from './app-delegation.js';
 
 // Apre la tab «Assistente» (pulsante toolbar + shortcut «A»). Se il pannello
 // destro è collassato lo ri-espande PRIMA dello switch, altrimenti l'utente non
@@ -652,4 +653,16 @@ function _aiDriftQuestion(cat, row){
     return t('assistant.qGeneric', { name });
 }
 
-expose({ openAssistant, openAssistantOrSettings, openAiSettings, _aiCfgLoad, aiCfgSave, aiCfgPreview, _aiPanelOpen, aiSend, aiClearChat, aiExplain, aiExplainDrift, _aiBuildSummary });
+expose({ openAssistant, _aiCfgLoad, _aiPanelOpen, aiExplain, aiExplainDrift, _aiBuildSummary });
+
+// ASSE B — superficie assistente AI via event delegation (data-act) invece di
+// onclick inline. Queste 6 funzioni escono da expose(): non le legge nessun altro
+// modulo (chiamate interne restano in module-scope). Vedi [[frontend-architettura-stato]].
+registerClickActions({
+    'assistant-open':  () => openAssistantOrSettings(),
+    'ai-settings-open': () => openAiSettings(),
+    'ai-clear':        () => aiClearChat(),
+    'ai-send':         () => aiSend(),
+    'ai-cfg-save':     () => aiCfgSave(),
+    'ai-cfg-preview':  () => aiCfgPreview(),
+});

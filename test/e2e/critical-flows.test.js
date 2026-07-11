@@ -2734,9 +2734,19 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         if (typeof switchRightTab === 'function') switchRightTab('rack');
       });
 
-      // 1) API del modulo app-ai pubblicate dal bundle (expose())
-      const exposed = await page.evaluate(() => typeof openAssistant === 'function' && typeof openAiSettings === 'function');
-      assert.ok(exposed, 'openAssistant/openAiSettings pubblicate su window dal bundle');
+      // 1) ASSE B — app-ai: openAssistant resta pubblicata (shortcut «A» + entry
+      //    chiamano su window), ma le 6 superfici migrate a event delegation
+      //    (data-act) sono USCITE da window e sono cablate nel DOM.
+      const api = await page.evaluate(() => ({
+        openAssistant: typeof openAssistant,
+        gone: ['openAssistantOrSettings', 'openAiSettings', 'aiClearChat', 'aiSend', 'aiCfgSave', 'aiCfgPreview']
+          .filter((n) => typeof window[n] !== 'undefined'),
+        acts: ['assistant-open', 'ai-settings-open', 'ai-clear', 'ai-send', 'ai-cfg-save', 'ai-cfg-preview']
+          .filter((k) => !!document.querySelector('[data-act="' + k + '"]')),
+      }));
+      assert.equal(api.openAssistant, 'function', 'openAssistant resta pubblicata (shortcut «A» / entry toolbar)');
+      assert.deepEqual(api.gone, [], 'le 6 fn assistente migrate a data-act NON sono più su window: ' + api.gone.join(', '));
+      assert.equal(api.acts.length, 6, 'i 6 bottoni assistente sono cablati con data-act: ' + api.acts.join(', '));
 
       // 2) switchRightTab('ai') attiva tab+pannello, nasconde il rack, aggiorna aria-selected
       const sw = await page.evaluate(() => {
@@ -2769,7 +2779,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         return {
           hasRobot: !!p.querySelector('.ai-empty-icon'),
           title: (p.querySelector('.ai-empty-title')?.textContent || '').trim(),
-          hasConfigBtn: !!p.querySelector('button[onclick="openAiSettings()"]'),
+          hasConfigBtn: !!p.querySelector('button[data-act="ai-settings-open"]'),
           footer: (p.querySelector('.ai-foot')?.textContent || '').trim(),
         };
       });
@@ -2840,7 +2850,9 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       await page.evaluate(() => {
         document.getElementById('ai-cfg-enabled').checked = true;
         document.getElementById('ai-cfg-endpoint').value = 'http://127.0.0.1:11434/v1';   // LAN → chip «Locale»
-        if (typeof aiCfgSave === 'function') aiCfgSave();
+        // Salva via CLICK DELEGATO (data-act="ai-cfg-save") — prova end-to-end
+        // dell'harness ASSE B: aiCfgSave non è più su window.
+        document.getElementById('ai-cfg-save').click();
       });
       // SENZA cambiare tab: il pannello riflette subito enabled (chat) + endpoint (chip Locale).
       await page.waitForFunction(() => {
