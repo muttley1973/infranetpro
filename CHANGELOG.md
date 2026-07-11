@@ -2,6 +2,14 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-11 — The assistant's command catalog is complete again, and more toolbar wiring moves to event delegation
+
+### Fixed
+- **The AI assistant's on-screen command catalog was silently losing entries as the interface migrated off inline handlers.** The assistant answers "how do I do X in InfraNet" by grounding on the *real* toolbar buttons — their labels and tooltips, derived from `netmapper.html` (`lib/ui-catalog.js`) rather than the manual, so it never invents a command. That extraction read a button's action **only from its `onclick` attribute**, so every button rewired to the new `data-act` event-delegation scheme quietly dropped out of the catalogue (Save, the Report menu, rack management and others had already gone). `extractCatalog` now falls back to `data-act` as the citable action, so a delegated button is catalogued exactly like a classic one — the catalogue is back to its full size and the assistant cites the current buttons again. `lib/ui-catalog.js` (+1 unit test).
+
+### Changed
+- **The static header menus and project toolbar buttons now dispatch through event delegation instead of inline `onclick` — an internal refactor with no change in behaviour.** As part of retiring the frontend's transitional `window` bridge (see [Architecture §10](ARCHITECTURE.md)), the account menu, the Report menu and the New / Rename / Duplicate / Delete / Save toolbar buttons were rewired: the HTML carries a `data-act="…"` marker and a single delegated listener (`src/app-delegation.js`) routes the click to the imported module function, so those functions no longer need to be published on `window`. Each menu's items are registered by the module that owns them (the menu owner registers the toggle; `saveProject` is imported for the `Ctrl+S` shortcut). Every button behaves identically — verified live and by the real-Chrome E2E suite. `src/app-auth.js`, `src/app-core.js`, `src/app.js`, `src/app-audit.js`, `src/app-spare.js`, `src/app-l3.js`, `src/app-wifi.js`, `netmapper.html`.
+
 ## 2026-07-09 — Discover names Windows PCs, and Stealth mode randomizes its scan order
 
 ### Added
