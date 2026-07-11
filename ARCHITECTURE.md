@@ -166,6 +166,19 @@ Mutation → render → persist:
 `renderScope('props'|'cables'|'floor'|...)`) → `markDirty()` → `saveProject()`
 serializes `state` to JSON via `PUT /api/<projectId>`.
 
+Load path: `loadProject(id)` fetches the stored `state` and runs it through
+`_migrateState()` (`src/app.js`) before it becomes the live model. Migration is
+idempotent and mostly additive (defaults for new fields, legacy VLAN/radio/link
+repairs), with one structural step: `_normalizeProjectNodeIds` **canonicalizes
+device IDs** that don't already match the `<type-prefix><n>` scheme (an imported
+`core1` switch becomes `sw1`) and remaps every ID-embedding reference — link
+`src`/`dst`, `ports` keys, and LAG identifiers. **Invariant:** a reference that
+embeds a device ID must be remapped on *both* sides or it dangles — in particular
+the port-side `ports[].lagGroup` and the `state.lagGroups` map keys go through one
+shared `remapLagId` helper so they stay aligned across formats (`snmp-lag-…`,
+`lldp-lag-a||b`, `lag-<id>-poN`). App-created projects already use canonical IDs,
+so this is a no-op for them; it only reshapes imported/generated projects.
+
 `renderAll()` (rAF-coalesced) rebuilds the rack chassis, floor, cables overlay and
 the right panel. `renderProps()` dispatches by selection (`selType`/`selId`) to
 `_renderNodeProps` / `_renderLinkProps` / `_renderPortProps` / `_renderFloorProps`.
