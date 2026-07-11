@@ -126,7 +126,7 @@
                 </button>
             </div>
         </div>
-        <button class="toolbar-btn icon-only" id="btn-assistant" onclick="openAssistantOrSettings()"
+        <button class="toolbar-btn icon-only" id="btn-assistant" data-act="assistant-open"
                 data-i18n-tip="assistant.toolbarTip" data-tip="Impostazioni assistente (admin) · la chat si apre dalla tab «Assistente» o col tasto A">
             <i class="fas fa-robot"></i><span class="btn-label" data-i18n="assistant.label"> Assistente</span>
         </button>
@@ -373,7 +373,7 @@
                             <i class="fas fa-robot ai-empty-icon"></i>
                             <p class="ai-empty-title" data-i18n="assistant.emptyTitle">L'assistente non è ancora configurato</p>
                             <p class="ai-empty-sub" data-i18n="assistant.emptySub">Interroga la tua rete documentata in linguaggio naturale — presenze, VLAN, IP liberi, diagnosi e bozze di automazione — sempre citando i dati reali. I dati restano sul tuo server.</p>
-                            <button class="toolbar-btn primary admin-only" onclick="openAiSettings()"><i class="fas fa-gear"></i> <span data-i18n="assistant.configure">Configura l'assistente</span></button>
+                            <button class="toolbar-btn primary admin-only" data-act="ai-settings-open"><i class="fas fa-gear"></i> <span data-i18n="assistant.configure">Configura l'assistente</span></button>
                             <p class="ai-empty-hint viewer-ok" style="display:none" data-i18n="assistant.askAdmin">Chiedi a un amministratore di configurare l'assistente.</p>
                         </div>
                         <div class="ai-foot"><i class="fas fa-shield-halved"></i> <span data-i18n="assistant.footer">Advisory: propone, confermi tu. Esce solo l'inventario sanitizzato.</span></div>
@@ -384,13 +384,13 @@
                             <span class="ai-head-title"><i class="fas fa-robot"></i> <span data-i18n="assistant.title">Assistente</span></span>
                             <span class="ai-head-actions">
                                 <span class="ai-chip" id="ai-chip-status"></span>
-                                <button type="button" id="ai-clear-btn" class="ai-gear danger" onclick="aiClearChat()" data-i18n-aria="assistant.clear" data-i18n-tip="assistant.clear" aria-label="Pulisci chat" style="display:none"><i class="fas fa-trash"></i></button>
+                                <button type="button" id="ai-clear-btn" class="ai-gear danger" data-act="ai-clear" data-i18n-aria="assistant.clear" data-i18n-tip="assistant.clear" aria-label="Pulisci chat" style="display:none"><i class="fas fa-trash"></i></button>
                             </span>
                         </div>
                         <div id="ai-messages" class="ai-messages" aria-live="polite"></div>
                         <div class="ai-composer">
                             <textarea id="ai-input" rows="2" data-i18n-ph="assistant.inputPh" placeholder="Chiedi qualcosa sulla tua rete…"></textarea>
-                            <button class="toolbar-btn primary" id="ai-send-btn" onclick="aiSend()" data-i18n-aria="assistant.send" aria-label="Invia"><i class="fas fa-paper-plane"></i></button>
+                            <button class="toolbar-btn primary" id="ai-send-btn" data-act="ai-send" data-i18n-aria="assistant.send" aria-label="Invia"><i class="fas fa-paper-plane"></i></button>
                         </div>
                         <div class="ai-foot"><i class="fas fa-shield-halved"></i> <span data-i18n="assistant.footer">Advisory: propone, confermi tu. Esce solo l'inventario sanitizzato.</span></div>
                     </div>
@@ -579,8 +579,8 @@
             <label class="ai-cfg-check"><input type="checkbox" id="ai-feat-ansible"> <span data-i18n="ai.featAnsible">Bozza Ansible</span></label>
           </div>
           <div class="um-row" style="margin-top:10px">
-            <button class="um-btn primary admin-only" id="ai-cfg-save" onclick="aiCfgSave()"><i class="fas fa-floppy-disk"></i> <span data-i18n="ai.cfgSave">Salva</span></button>
-            <button class="um-btn ghost" id="ai-cfg-preview-btn" onclick="aiCfgPreview()"><i class="fas fa-eye"></i> <span data-i18n="ai.cfgPreview">Mostra cosa esce</span></button>
+            <button class="um-btn primary admin-only" id="ai-cfg-save" data-act="ai-cfg-save"><i class="fas fa-floppy-disk"></i> <span data-i18n="ai.cfgSave">Salva</span></button>
+            <button class="um-btn ghost" id="ai-cfg-preview-btn" data-act="ai-cfg-preview"><i class="fas fa-eye"></i> <span data-i18n="ai.cfgPreview">Mostra cosa esce</span></button>
           </div>
           <div class="um-msg" id="ai-cfg-msg"></div>
         </div>
