@@ -3,6 +3,8 @@ import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (e
 import { escapeHTML } from './app-util.js';
 import { nodeById, getPortNodeId, _showToast } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { _portDisplayName } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _getLinkTrunk } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 
 // ============================================================
 // TOPOLOGIA — OVERLAY SULLA PLANIMETRIA
@@ -159,12 +161,12 @@ function _buildTopoModel(){
         selectedLinkId: (store.selType === 'link') ? store.selId : null,
         helpers: {
             portNodeId: getPortNodeId,
-            portDisplayName: win._portDisplayName,
+            portDisplayName: _portDisplayName,
             linkVlan: win._getLinkVlan,
             // Trunk EFFETTIVO (anche derivato da voce/SSID): i trunk derivati si
             // comportano da trunk in topologia (pillola, toggle "solo trunk").
             linkIsTrunk: (typeof win._linkIsTrunk==='function') ? win._linkIsTrunk : null,
-            linkTrunkVlans: (typeof win._getLinkTrunk==='function') ? (l=>win._getLinkTrunk(l).vlans.join(',')) : null,
+            linkTrunkVlans: (typeof _getLinkTrunk==='function') ? (l=>_getLinkTrunk(l).vlans.join(',')) : null,
             linkMatchesVlanFilter: win._linkMatchesVlanFilter,
             rackPairMatchesVlan: win._rackPairMatchesVlan,
             isAmbiguousLink: l => typeof win.linkState === 'function' && win.linkState(l).key === 'ambiguous',
