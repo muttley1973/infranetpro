@@ -249,12 +249,12 @@ function redo() {
     _updateHistoryBtns();
 }
 
-function _updateHistoryBtns() {
+export function _updateHistoryBtns() {
     document.getElementById('btn-undo').disabled = _histIdx <= 0;
     document.getElementById('btn-redo').disabled = _histIdx >= _history.length-1;
 }
 
-function _resetSelection() { selId=null; selType=null; highPath.clear(); }
+export function _resetSelection() { selId=null; selType=null; highPath.clear(); }
 
 // ============================================================
 // DIRTY FLAG (sostituisce saveState)
@@ -296,7 +296,7 @@ export function logAudit(action, info){
 
 
 
-function _loadDefaultLocal() {
+export function _loadDefaultLocal() {
     state = _migrateState(_buildDefaultState());
     _restoreTopoSession();
     _vlanIpamOpen.clear();
@@ -304,7 +304,7 @@ function _loadDefaultLocal() {
         '<option value="0">— offline —</option>';
 }
 
-function _buildDefaultState() {
+export function _buildDefaultState() {
     return {
         vlanColors:{10:'#00d4ff',20:'#ff00d4',30:'#39d353',40:'#f1e05a',99:'#f85149'},
         ipam:{ vlans:{} },
@@ -357,12 +357,12 @@ function _wlRackIconAnchor(pid){
     return null;
 }
 
-function _getPassThroughMode(pid){
+export function _getPassThroughMode(pid){
     const t = getNodeByPortId(pid)?.type;
     return TYPES[t]?.passThrough || '';
 }
 
-function _isLinearPassThroughPort(pid){
+export function _isLinearPassThroughPort(pid){
     return !!_getPassThroughMode(pid);
 }
 
@@ -543,7 +543,7 @@ export function _dhcpSyncLeases() {
     store._dhcpLeases = _dhcpMergeSources(store.state && store.state.dhcpSources);
 }
 
-function _migrateState(s) {
+export function _migrateState(s) {
     if(!s || typeof s !== 'object') s = _buildDefaultState();
     _sanitizeProjectConnectivity(s);
     if (Array.isArray(s.nodes)) s.nodes.forEach(_compactNodeSpec);
@@ -642,7 +642,7 @@ function _migrateState(s) {
 // ============================================================
 // BIND EVENTI
 // ============================================================
-function bindEventsOnce() {
+export function bindEventsOnce() {
     if (eventsBound) return;
     eventsBound = true;
     window.addEventListener('pointerdown', handlePointerDown);
@@ -932,7 +932,7 @@ function _portNumForLabel(node, portNumStr){
 }
 // Nome per il DISPLAY: abbreviato se il toggle "Nomi abbreviati" e' attivo
 // (scope: planimetria + etichette cavi). SOLO display — non muta n.name.
-function _dispName(name){
+export function _dispName(name){
     return (state && state.abbrevNames && typeof abbreviateName==='function')
         ? abbreviateName(name) : (name==null ? '' : String(name));
 }
@@ -943,7 +943,7 @@ function toggleAbbrevNames(on){
     renderAll();
 }
 
-function _cableAutoLabel(l){
+export function _cableAutoLabel(l){
     const sn=getNodeByPortId(l.src), dn=getNodeByPortId(l.dst);
     const sp=_portNumForLabel(sn, l.src.split('-').slice(1).join('-'));
     const dp=_portNumForLabel(dn, l.dst.split('-').slice(1).join('-'));
@@ -1257,7 +1257,7 @@ function _expandLagMemberLinks(s){
     s.links = out;
 }
 
-function _repairRackPlacements(s){
+export function _repairRackPlacements(s){
     if(!s || !Array.isArray(s.nodes) || !Array.isArray(s.racks)) return;
     const rackById = Object.fromEntries(s.racks.map(r=>[r.id,r]));
     const byRack = {};
@@ -1306,7 +1306,7 @@ export function getPortNodeId(pid)          {
     const cut = p.lastIndexOf('-');
     return cut > 0 ? p.slice(0, cut) : p;
 }
-function isPortOnNode(pid,nodeId)    { return getPortNodeId(pid)===nodeId; }
+export function isPortOnNode(pid,nodeId)    { return getPortNodeId(pid)===nodeId; }
 export function getNodeByPortId(pid)        { return nodeById(getPortNodeId(pid)); }
 
 // ── Interfacce radio Wi-Fi (collegamenti wireless senza porta fisica) ──
@@ -1319,7 +1319,7 @@ export function getNodeByPortId(pid)        { return nodeById(getPortNodeId(pid)
 const _WIFI_TYPES = ['ap', 'router', 'firewall'];
 // Quali tipi possono ESPORRE interfacce radio (mostrano il controllo conteggio):
 // qualunque device floor + i classici AP/router/firewall (anche in rack).
-function _isWifiCapable(type){
+export function _isWifiCapable(type){
     return _WIFI_TYPES.includes(type) || !!(typeof TYPES!=='undefined' && TYPES[type] && TYPES[type].isFloor);
 }
 function _radioCountOf(n){
@@ -1327,7 +1327,7 @@ function _radioCountOf(n){
 }
 export function _nodeRadios(n){ return (n && Array.isArray(n.radios)) ? n.radios : []; }
 // Il device espone almeno una radio? Sorgente di verità = n.radios.
-function _deviceHasWifi(n){ return _radioCountOf(n) > 0; }
+export function _deviceHasWifi(n){ return _radioCountOf(n) > 0; }
 // Glue: imposta il numero di interfacce radio del device (0..8).
 function setNodeRadioCount(id, k){
     const n = nodeById(id); if(!n) return;
@@ -1353,7 +1353,7 @@ export function getPortMaxConnections(pid)  {
     // I 'device' (mediaconv: IN/OUT distinti) e gli endpoint restano a 1.
     return _getPassThroughMode(pid)==='port' ? 2 : 1;
 }
-function getPortConnectionCount(pid) { return _linksForPort(pid).length; }
+export function getPortConnectionCount(pid) { return _linksForPort(pid).length; }
 export function canAddConnection(pid)       { return getPortConnectionCount(pid)<getPortMaxConnections(pid); }
 
 function _wallPortConnectionRole(wpPid, otherPid){
@@ -1373,7 +1373,7 @@ function _wallPortHasRole(wpPid, role, ignoreLinkId=''){
     });
 }
 
-function _validateWallPortConnection(aPid, bPid, ignoreLinkId=''){
+export function _validateWallPortConnection(aPid, bPid, ignoreLinkId=''){
     for(const [wpPid, otherPid] of [[aPid,bPid],[bPid,aPid]]){
         if(getNodeByPortId(wpPid)?.type !== 'wallport') continue;
         const role = _wallPortConnectionRole(wpPid, otherPid);
@@ -1388,7 +1388,7 @@ function _validateWallPortConnection(aPid, bPid, ignoreLinkId=''){
     return {ok:true};
 }
 
-function removeNodePorts(nodeIds) {
+export function removeNodePorts(nodeIds) {
     Object.keys(state.ports).forEach(pid=>{ if(nodeIds.has(getPortNodeId(pid))) delete state.ports[pid]; });
 }
 
@@ -1397,7 +1397,7 @@ function removeNodePorts(nodeIds) {
 // qui: è l'helper option-selected, da non confondere con lo stato win.selected.
 export function selected(v,o)  { return v===o?'selected':''; }
 
-function _rackDeviceBg(value){
+export function _rackDeviceBg(value){
     if(!value || !/^#[0-9a-f]{6}$/i.test(value)) return '';
     const top = _shadeHex(value, 1.08) || value;
     const bottom = _shadeHex(value, 0.68) || value;
@@ -1415,7 +1415,7 @@ export function checked(v)     { return v?'checked':''; }
 export function getWallPortLabel(n) { return n?.portId||n?.name||''; }
 export function getRackName(rid)    { return state.racks.find(r=>r.id===rid)?.name||rid||''; }
 export function getRackById(rid)    { return state.racks.find(r=>r.id===rid); }
-function getRackSize(rid=state.currentRack) { return normalizeNumber(getRackById(rid)?.sizeU,42,6,60); }
+export function getRackSize(rid=state.currentRack) { return normalizeNumber(getRackById(rid)?.sizeU,42,6,60); }
 export function getNodeRackSize(n)  { return getRackSize(n?.rackId||state.currentRack); }
 // Numerazione U: internamente rackU=1 e' sempre la riga piu' in basso (EIA-310).
 // Quando rack.uNumberFromTop e' true (rack telco/ETSI) tutte le visualizzazioni
@@ -1435,13 +1435,13 @@ function visibleUToRackU(rid, visU, sizeU=1){
     return rs - visU - (sizeU - 1) + 1;
 }
 
-function clampRackDevice(n) {
+export function clampRackDevice(n) {
     if(!n||!TYPES[n.type]?.isRack) return;
     const rs=getNodeRackSize(n), su=normalizeNumber(n.sizeU,TYPES[n.type]?.sizeU||1,1,rs);
     n.sizeU=su; n.rackU=normalizeNumber(n.rackU,1,1,rs-su+1);
 }
 
-function getNodePortCount(n) {
+export function getNodePortCount(n) {
     if(n.type==='wallport') return 1;
     return n.ports!==undefined?n.ports:TYPES[n.type]?.ports||0;
 }
@@ -1450,13 +1450,13 @@ export function getNodeDisplayName(n) {
     return n.name||typeName(n.type)||n.id||'Unknown';
 }
 
-function _ensureIpamState(){
+export function _ensureIpamState(){
     if(!state.ipam) state.ipam = { vlans:{} };
     if(!state.ipam.vlans || typeof state.ipam.vlans !== 'object') state.ipam.vlans = {};
     return state.ipam.vlans;
 }
 
-function _ipamEntry(vid, create=false){
+export function _ipamEntry(vid, create=false){
     const vlans = _ensureIpamState();
     const key = String(vid);
     if(!vlans[key] && create) vlans[key] = {};
@@ -1512,7 +1512,7 @@ function _activeLeaseIps(){
     return out;
 }
 
-function _ipamUsageForVlan(vid){
+export function _ipamUsageForVlan(vid){
     const entry = _ipamEntry(vid);
     const gateway = String(entry?.gateway || '').trim();
     const known = _collectKnownIps();
@@ -1577,7 +1577,7 @@ function _dhcpUndocumentedForVlan(vid){
     return out;
 }
 
-function _vlanIpamSummary(vid){
+export function _vlanIpamSummary(vid){
     const entry = _ipamEntry(vid);
     const usage = _ipamUsageForVlan(vid);
     if(!entry && !usage.usedCount) return '';
@@ -1604,7 +1604,7 @@ function _vlanIpamSummary(vid){
 // è confermata (manuale). La logica di grafo è pura/testata in lib/cabling.js
 // (chainAmbiguousLinkIds); qui iniettiamo i predicati che dipendono da
 // TYPES/linkState. Calcolato 1 volta per render.
-function _chainAmbiguousLinkIds(){
+export function _chainAmbiguousLinkIds(){
     if(typeof linkState !== 'function' || typeof chainAmbiguousLinkIds !== 'function') return new Set();
     return chainAmbiguousLinkIds(
         state.links || [],
@@ -1614,7 +1614,7 @@ function _chainAmbiguousLinkIds(){
 
 // Colore VLAN ereditato lungo la catena fisica: un segmento untagged a valle
 // prende il colore VLAN del segmento che arriva dalla sorgente (P1.5-bis).
-function _chainVlanColors(){
+export function _chainVlanColors(){
     if(typeof chainVlanColorMap !== 'function') return new Map();
     return chainVlanColorMap(
         state.links || [],
@@ -1905,7 +1905,7 @@ export function _activatePropsTab(label){
     if(_rightTab !== 'props') switchRightTab('props');
 }
 
-function _clearPropsTab(){
+export function _clearPropsTab(){
 }
 
 function _resolveManualPropValue(sel){
@@ -2065,7 +2065,7 @@ function toggleNodeLock(field){
 // Stacking (P7.2): wrapper per updateIntegration / setter SNMP che propaga
 // ai membri quando si edita il master. Da chiamare dopo ogni mutazione di
 // integration.* sul master.
-function _propagateStackMasterIntegration(node){
+export function _propagateStackMasterIntegration(node){
     if(!node) return;
     if(!isInStack(node)) return;
     if(getEffectiveRole(state.nodes, node) !== 'master') return;

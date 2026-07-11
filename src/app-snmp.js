@@ -9,7 +9,7 @@
 // ============================================================
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { nodeById, markDirty, pushHistory, renderCables, _showToast, switchRightTab, logAudit } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, markDirty, pushHistory, renderCables, _showToast, switchRightTab, logAudit, _propagateStackMasterIntegration } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -18,6 +18,7 @@ import { _driftBuildDocSnapshot, _driftComputeFromDoc } from './app-drift.js';  
 import { _ensureVlanColor } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _autoLinkDiagText } from './app-autolink.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { selectAndFocusNode } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
+import { _refreshTopoBtnState } from './app-topology-discover.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 
 // Tipi per cui richiedere HOST-RESOURCES-MIB standard (CPU/RAM/dischi). Oltre agli
 // host generici, includiamo gli apparati di rete spesso Linux-based (MikroTik,
@@ -26,7 +27,7 @@ import { selectAndFocusNode } from './app-search-zoom-rack.js';   // ritiro pont
 // restano ai MIB del produttore (ENTITY-SENSOR/vendor → backlog).
 const _HOST_RES_TYPES = ['server', 'pc', 'nas', 'homelab', 'switch', 'router', 'firewall', 'sdwan'];
 
-function _hasSnmpIntegration(n){
+export function _hasSnmpIntegration(n){
     const drv=String(n?.integration?.driver||'').toLowerCase();
     return drv==='snmp-v1' || drv==='snmp-v2c' || drv==='snmp-v3';
 }
@@ -48,7 +49,7 @@ export function _snmpFreshness(ts){
 }
 // Timestamp dell'ultimo sync riuscito. Fallback per progetti pre-feature:
 // deriva dal neighbors cache (il dato che alimenta la topologia).
-function _lastSnmpSyncTs(){
+export function _lastSnmpSyncTs(){
     if(store.state.lastSnmpSyncAt) return store.state.lastSnmpSyncAt;
     const cache = (typeof store._topoNeighborsCache === 'object' && store._topoNeighborsCache) ? store._topoNeighborsCache : {};
     const tss = Object.values(cache).map(c => c && c.ts).filter(Boolean);
@@ -61,7 +62,7 @@ function _hasSnmpTargets(){
     });
 }
 // Chip "● Sync Xm fa" accanto al bottone Sync: età SEMPRE visibile, color-coded.
-function _renderSyncFreshness(){
+export function _renderSyncFreshness(){
     const el = document.getElementById('sync-fresh-badge');
     if(!el) return;
     if(!_hasSnmpTargets()){ el.style.display='none'; return; }   // niente SNMP → niente chip
@@ -79,7 +80,7 @@ function _renderSyncFreshness(){
 // Stato DERIVATO (niente flag da mantenere): device con driver snmp-v3 e utente
 // USM ancora vuoto = rilevato dalla discovery senza credenziali. Si azzera da sé
 // appena l'utente compila l'utente nel pannello Integrazione.
-function _v3NeedsCreds(n){
+export function _v3NeedsCreds(n){
     const intg = n && n.integration;
     return !!intg && intg.driver === 'snmp-v3' && !String(intg.v3user || '').trim();
 }
@@ -87,7 +88,7 @@ function _v3PendingNodes(){
     return (store.state.nodes || []).filter(_v3NeedsCreds);
 }
 // Chip-contatore accanto al Sync: quanti device v3 restano da configurare.
-function _renderV3PendingChip(){
+export function _renderV3PendingChip(){
     const el = document.getElementById('v3-pending-chip');
     if(!el) return;
     const n = _v3PendingNodes().length;
@@ -127,7 +128,7 @@ function updateIntegration(nid, key, val){
     }
     // Stacking (P7.2): se il nodo e' master di uno stack, propaga
     // l'integrazione SNMP ai membri (UN solo IP/community per stack).
-    win._propagateStackMasterIntegration(n);
+    _propagateStackMasterIntegration(n);
     markDirty();
 }
 
@@ -395,7 +396,7 @@ async function pollAllSNMP(opts){
         if(saveBtn){ saveBtn.disabled=false; }
         // Aggiorna stato pulsante Topologia: la cache neighbors e' ora fresca
         // (se almeno un device ha risposto), quindi il bottone diventa cliccabile.
-        if(typeof win._refreshTopoBtnState === 'function') win._refreshTopoBtnState();
+        if(typeof _refreshTopoBtnState === 'function') _refreshTopoBtnState();
     }
 }
 
@@ -462,7 +463,7 @@ function _applySnmpBasePortFields(pid, iface){
     }
 }
 
-function applyPollResult(nodeId, data, opts={}){
+export function applyPollResult(nodeId, data, opts={}){
     const n=nodeById(nodeId); if(!n) return;
     if(!opts.noHistory) pushHistory();
     // Hostname: aggiorna solo se l'utente non ha impostato un valore manuale.

@@ -8,8 +8,8 @@
 // ============================================================
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _invalidateIdx, switchRightTab, _showToast, _linksForPort, _nextNodeId, _isRadioPid, logAudit, _renderModeIndicator, _promoteLinkToManual, canAddConnection, _createLinkRecord, getPortMaxConnections, getNodeRackSize } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
-import { propagateVlans } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _invalidateIdx, switchRightTab, _showToast, _linksForPort, _nextNodeId, _isRadioPid, logAudit, _renderModeIndicator, _promoteLinkToManual, canAddConnection, _createLinkRecord, getPortMaxConnections, getNodeRackSize, getRackSize, _validateWallPortConnection, _cableAutoLabel } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { propagateVlans, setVlanFilter } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderTopoOverlay } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -21,6 +21,9 @@ import { closePop, _hideTopoTip } from './app-popup.js';   // ritiro ponte: funz
 import { _isLeafEndpoint, _autoLinkEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
 import { _routingPickPort } from './app-cabling-editor.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { _focusLagForPort, _toggleLagPort } from './app-ports.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
+import { _clearTopoHighlight, _highlightTopoLinks } from './app-topology-discover.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
+import { _assignWirelessBss } from './app-wifi.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
+import { _resolveRackOverlap } from './app-topology-crawl.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 
 // soglia drag/click (px): unico lettore era questo modulo → module-local
 const _DRAG_THRESHOLD_PX = 5;
@@ -173,7 +176,7 @@ function handleDrop(e,zone){
         const ch=document.getElementById('rack-chassis');
         const r=ch?ch.getBoundingClientRect():{top:0};
         // Subtract border-top (8px, scaled) so ry=0 is exactly the first inner grid row
-        const ry=(e.clientY-r.top)/store.state.rackView.zoom - 8, rs=win.getRackSize();
+        const ry=(e.clientY-r.top)/store.state.rackView.zoom - 8, rs=getRackSize();
         const u=rs-Math.floor(ry/rackUPx());
         n.sizeU=d.sizeU; n.rackU=Math.max(1,Math.min(rs-n.sizeU+1,u)); n.brand=d.brand; n.rackId=store.state.currentRack;
         if(t==='blankpanel'){
@@ -405,7 +408,7 @@ function handlePointerDown(e){
                         switchRightTab('props');
                         renderAll(); renderProps();
                     }
-                    win._highlightTopoLinks(getPortNodeId(_pid));
+                    _highlightTopoLinks(getPortNodeId(_pid));
                 }
             }
         }
@@ -509,15 +512,15 @@ function handlePointerDown(e){
             const rv=document.getElementById('rack-viewport'); if(rv) rv.style.cursor='grabbing';
         } else if(e.target.closest('#floorplan')){
             store.isPanningFloor=true; win.panStart={x:e.clientX-store.state.floorView.x,y:e.clientY-store.state.floorView.y};
-            store.selType=null; store.selId=null; win._clearTopoHighlight(); _hideTopoTip();
+            store.selType=null; store.selId=null; _clearTopoHighlight(); _hideTopoTip();
             // Click area vuota mappa: se c'e' un filtro VLAN attivo, rimuovilo
             // (UX coerente: click "fuori" = reset filtro/selezione).
-            if(store._filterVlan != null && typeof win.setVlanFilter === 'function') win.setVlanFilter(null);
+            if(store._filterVlan != null && typeof setVlanFilter === 'function') setVlanFilter(null);
             else renderAll();
         } else if(e.target.closest('#workspace')&&!e.target.closest('.cable-hit')){
             if(store.linkStart){ _cancelLink(); }
-            store.selType=null; store.selId=null; win._clearTopoHighlight(); _hideTopoTip();
-            if(store._filterVlan != null && typeof win.setVlanFilter === 'function') win.setVlanFilter(null);
+            store.selType=null; store.selId=null; _clearTopoHighlight(); _hideTopoTip();
+            if(store._filterVlan != null && typeof setVlanFilter === 'function') setVlanFilter(null);
             else renderAll();
         }
     }
@@ -641,7 +644,7 @@ function _tryFinishLink(tgt){
         store.state.links = store.state.links.filter(l => !_isConcurrentAuto(l));
         _invalidateIdx();
     }
-    const wpCheck = win._validateWallPortConnection(store.linkStart, tgt);
+    const wpCheck = _validateWallPortConnection(store.linkStart, tgt);
     if(!wpCheck.ok){
         showAlert(wpCheck.message);
         _cancelLink(); renderAll(); return true;
@@ -668,14 +671,14 @@ function _tryFinishLink(tgt){
     // Wireless = connessione radio↔radio (tipologia distinta dal cavo fisico).
     if(_connKind==='wireless') _newLink.wireless=true;
     store.state.links.push(_newLink);
-    if(typeof logAudit==='function') logAudit('cable-add', { target:_newLink.label||win._cableAutoLabel(_newLink) });
+    if(typeof logAudit==='function') logAudit('cable-add', { target:_newLink.label||_cableAutoLabel(_newLink) });
     if(!store.state.ports[store.linkStart]) store.state.ports[store.linkStart]={};
     if(!store.state.ports[tgt])      store.state.ports[tgt]={};
     store.state.ports[store.linkStart].status='active';
     store.state.ports[tgt].status='active';
     // Associazione wireless: scegli il BSS (SSID) servito (auto se 1, menu se >1).
-    if(_connKind==='wireless' && typeof win._assignWirelessBss==='function'){
-        win._assignWirelessBss(_newLink);
+    if(_connKind==='wireless' && typeof _assignWirelessBss==='function'){
+        _assignWirelessBss(_newLink);
         if(typeof _invalidateIdx==='function') _invalidateIdx();
         if(typeof propagateVlans==='function') propagateVlans();
     }
@@ -758,7 +761,7 @@ function handlePointerUp(e){
                 // solo se davvero ci si e' mossi oltre il threshold. Su un click
                 // breve evitiamo history entries vuoti e renderAll() inutili.
                 if(store._dragArmed){
-                    if(_wasRackDrag) win._resolveRackOverlap(_dn);
+                    if(_wasRackDrag) _resolveRackOverlap(_dn);
                     if(store.dragNode) pushHistory();
                     markDirty();
                 }

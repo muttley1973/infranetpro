@@ -9,17 +9,19 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, hexToRgba, normalizeStatus } from './app-util.js';
-import { nodeById, getNodeByPortId, getPortNodeId, renderCables, _linksForPort, _nodeRadios, _renderModeIndicator, getWallPortLabel, isRackTopNumbered } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, getNodeByPortId, getPortNodeId, renderCables, _linksForPort, _nodeRadios, _renderModeIndicator, getWallPortLabel, isRackTopNumbered, getRackSize, _dispName, clampRackDevice, _rackDeviceBg, isPortOnNode } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { propagateVlans, _linkIsTrunk, _effPortVlan } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderTopoOverlay, _renderTopoLegend } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
-import { TYPES, _frontPanelPortLabel, _fixedRackLabel, _frontPanelState } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { TYPES, _frontPanelPortLabel, _fixedRackLabel, _frontPanelState, _frontPanelRows, _frontPanelIsUplink, _frontPanelSfpPorts, _frontPanelSfpGroups } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { switchRack, toggleRackPanel, applyUiColors, _updateRackFloorBtn } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { portTip, _portLagGid, _isLagFocusedPort, _updateLagBanner } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _l3GatewayNodeIds } from './app-l3.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { _getRackFloorLinks, _linkMatchesVlanFilter } from './app-popup.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { _panelSkinRackHtml, _resolveNodeSkin } from './app-panel-skin.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { _paintRoutingTargets } from './app-cabling-editor.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
+import { _hasSnmpIntegration, _renderV3PendingChip, _v3NeedsCreds } from './app-snmp.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
+import { _applySpareHighlight } from './app-spare.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 
 // Altezza in px di una unità rack (1U). UNICO punto di verità: la CSS var
 // `--ru-h` (style.css :root), letta qui dal render JS che dimensiona chassis,
@@ -105,10 +107,10 @@ function _renderAllNow(){
        !(store.selType === 'link' && store.selId === store._propsTabHold)) store._propsTabHold = null;
     propagateVlans();   // propaga VLAN sui link prima di renderizzare
     _renderModeIndicator();
-    if(typeof win._renderV3PendingChip === 'function') win._renderV3PendingChip();
+    if(typeof _renderV3PendingChip === 'function') _renderV3PendingChip();
     const fS=document.getElementById('floor-structures'), fI=document.getElementById('floor-items');
     const ch=document.getElementById('rack-chassis'), bg=document.getElementById('floor-bg-img');
-    const rs=win.getRackSize();
+    const rs=getRackSize();
     applyUiColors();
     // Altezza U in scala (var --ru-h via rackUPx). border-top:8 + border-bottom:19 = 27px
     const _U = rackUPx();
@@ -151,7 +153,7 @@ function _renderAllNow(){
         const _absentCls = (_absentIds.has(n.id) && n.snmpStatus!=='ok') ? ' node-absent' : '';
         // Se SNMP non è attivo per questo nodo, elimina eventuale stato errore
         // residuo per evitare bordi rossi "bloccati" dopo disattivazione driver.
-        if(!win._hasSnmpIntegration(n)){
+        if(!_hasSnmpIntegration(n)){
             delete n.snmpStatus;
             delete n.snmpError;
             delete n.snmpLastOk;
@@ -202,22 +204,22 @@ function _renderAllNow(){
                 }
                 let pts='';
                 if(pc>1){pts='<div class="floor-ports">';for(let i=1;i<=pc;i++)pts+=getPortHTML(`${n.id}-${i}`);pts+='</div>';}
-                const _snmpOn=win._hasSnmpIntegration(n);
+                const _snmpOn=_hasSnmpIntegration(n);
                 const _ferr=_snmpOn&&n.snmpStatus==='err'?` style="outline:2px solid #f85149;outline-offset:2px;border-radius:3px"`:'';
-                const _v3BadgeF = (typeof win._v3NeedsCreds === 'function' && win._v3NeedsCreds(n))
+                const _v3BadgeF = (typeof _v3NeedsCreds === 'function' && _v3NeedsCreds(n))
                     ? `<span class="floor-v3-badge" title="${t('pnl.gen.v3MissingCreds')}"><i class="fas fa-key"></i></span>` : '';
-                el.innerHTML=`${icon}${_v3BadgeF}<div class="label" style="display:flex;align-items:center;justify-content:center"${_ferr}>${escapeHTML(n.type==='wallport'?getWallPortLabel(n):(typeof win._dispName==='function'?win._dispName(n.name):n.name))}</div>${pts}${_radioPortHtml(n)}`;
+                el.innerHTML=`${icon}${_v3BadgeF}<div class="label" style="display:flex;align-items:center;justify-content:center"${_ferr}>${escapeHTML(n.type==='wallport'?getWallPortLabel(n):(typeof _dispName==='function'?_dispName(n.name):n.name))}</div>${pts}${_radioPortHtml(n)}`;
                 fI.appendChild(el);
             }
         } else if(def.isRack&&n.rackId===store.state.currentRack){
-            win.clampRackDevice(n);
+            clampRackDevice(n);
             const el=document.createElement('div'); el.dataset.id=n.id;
             const _lldpDisc=store._topoVisible&&store._topoData&&store._topoData.nodes.some(tn=>tn.nodeId===n.id);
-            const _snmpOn=win._hasSnmpIntegration(n);
+            const _snmpOn=_hasSnmpIntegration(n);
             const _snmpStateCls = !_snmpOn ? ' snmp-na' : (n.snmpStatus==='ok' ? ' snmp-ok' : (n.snmpStatus==='err' ? ' snmp-err snmp-fault' : ' snmp-pending'));
             el.className=`rack-device type-${n.type} ${store.selId===n.id?'selected':''}${_lldpDisc?' lldp-discovered':''}${_snmpStateCls}${_absentCls}`;
             const sU=n.sizeU!==undefined?n.sizeU:def.sizeU;
-            const rackBg = win._rackDeviceBg(n.color);
+            const rackBg = _rackDeviceBg(n.color);
             el.style.gridRow=`${rs-n.rackU-sU+2}/span ${sU}`;
             if(rackBg) el.style.background = rackBg;
             const pc=n.ports!==undefined?n.ports:def.ports;
@@ -230,7 +232,7 @@ function _renderAllNow(){
                 const breathGap=(count)=> count>16 ? 1 : 2;
                 // Densita': switch con >16 porte per riga (es. 48 porte = 24/riga)
                 // usano classe dense-xl per font/spaziatura adattati.
-                const perRow = Math.max(...(win._frontPanelRows(n, pc).map(r=>r.length))) || pc;
+                const perRow = Math.max(...(_frontPanelRows(n, pc).map(r=>r.length))) || pc;
                 const densityCls = perRow > 16 ? ' dense-xl' : '';
                 const mkPort=(i)=>{
                     const pid=`${n.id}-${i}`;
@@ -242,7 +244,7 @@ function _renderAllNow(){
                     const lagMemCls=lagGid?' lag-member':'';
                     const lagFocCls=_isLagFocusedPort(pid)?' lag-focus':'';
                     const lagDataAttr=lagGid?` data-lag="${escapeHTML(lagGid)}"`:'';
-                    const isUplink=win._frontPanelIsUplink(n, i, pc);
+                    const isUplink=_frontPanelIsUplink(n, i, pc);
                     const uplinkCls=isUplink?' uplink sfp-slot':'';
                     const ledCls=isUplink?' port-led sfp-slot':'port-led';
                     const label=_frontPanelPortLabel(n, i, pc);
@@ -278,8 +280,8 @@ function _renderAllNow(){
                     }
                     return `<div class="rack-mgmt-side"><div class="rack-mgmt-grid">${cells}</div><span class="rack-mgmt-title" title="${escapeHTML(base)}">${escapeHTML(base)}</span></div>`;
                 };
-                const rows=win._frontPanelRows(n, pc);
-                const sideRows=win._frontPanelSfpPorts(n, pc);
+                const rows=_frontPanelRows(n, pc);
+                const sideRows=_frontPanelSfpPorts(n, pc);
                 if(sideRows.length || _fpState.mgmtPort){
                     const compactCls=sU===1?' compact-1u':'';
                     const maxRow=Math.max(...rows.map(r=>r.length)) || pc;
@@ -297,7 +299,7 @@ function _renderAllNow(){
                     // primo blocco e' piu' vicino ai dati).
                     let sideHtml='';
                     if(sideRows.length){
-                        const sfpGroups = win._frontPanelSfpGroups(n, pc);
+                        const sfpGroups = _frontPanelSfpGroups(n, pc);
                         sfpGroups.forEach(grp => {
                             sideHtml += '<div class="rack-sfp-side">';
                             grp.ports.forEach(i => { sideHtml += mkPort(i); });
@@ -372,7 +374,7 @@ function _renderAllNow(){
                 ? `<span class="rack-l3-badge" title="${t('pnl.gen.l3GatewayBadge')}">L3</span>` : '';
             // Pill "v3 da configurare" (come il badge L3): device SNMPv3 rilevato
             // dalla discovery senza credenziali. Stato derivato (vedi app-snmp).
-            const _v3Badge = (typeof win._v3NeedsCreds === 'function' && win._v3NeedsCreds(n))
+            const _v3Badge = (typeof _v3NeedsCreds === 'function' && _v3NeedsCreds(n))
                 ? `<span class="rack-v3-badge" title="${t('pnl.gen.v3MissingCreds')}"><i class="fas fa-key"></i></span>` : '';
             // Skin pannello custom: se presente e valida, sostituisce il layout
             // porte generato. Fallback TOTALE al generato se assente.
@@ -450,7 +452,7 @@ function _renderAllNow(){
     if(typeof _paintRoutingTargets === 'function') _paintRoutingTargets();
     // Highlight "porte libere" (decoupled): ri-applica le classi spare-free/
     // spare-suspect dopo ogni rebuild del DOM. No-op se il toggle e' off.
-    if(typeof win._applySpareHighlight === 'function' && typeof store._spareActive !== 'undefined' && store._spareActive) win._applySpareHighlight();
+    if(typeof _applySpareHighlight === 'function' && typeof store._spareActive !== 'undefined' && store._spareActive) _applySpareHighlight();
     // Sotto-header (breadcrumb + suggerimento + statistiche): sempre coerente col
     // progetto/stato correnti. Global bare (typeof-guard) -> nessun win.* nuovo.
     if(typeof renderSubbar === 'function') renderSubbar();
@@ -528,9 +530,9 @@ function _renderFloorNow(){
             }
             let pts = '';
             if(pc>1){ pts='<div class="floor-ports">'; for(let i=1;i<=pc;i++) pts += getPortHTML(`${n.id}-${i}`); pts += '</div>'; }
-            const _snmpOn = win._hasSnmpIntegration(n);
+            const _snmpOn = _hasSnmpIntegration(n);
             const _ferr = _snmpOn && n.snmpStatus==='err' ? ` style="outline:2px solid #f85149;outline-offset:2px;border-radius:3px"` : '';
-            el.innerHTML = `${icon}<div class="label" style="display:flex;align-items:center;justify-content:center"${_ferr}>${escapeHTML(n.type==='wallport'?getWallPortLabel(n):(typeof win._dispName==='function'?win._dispName(n.name):n.name))}</div>${pts}${_radioPortHtml(n)}`;
+            el.innerHTML = `${icon}<div class="label" style="display:flex;align-items:center;justify-content:center"${_ferr}>${escapeHTML(n.type==='wallport'?getWallPortLabel(n):(typeof _dispName==='function'?_dispName(n.name):n.name))}</div>${pts}${_radioPortHtml(n)}`;
             fI.appendChild(el);
         }
     });
@@ -569,7 +571,7 @@ function _renderFloorNow(){
     if(typeof _paintRoutingTargets === 'function') _paintRoutingTargets();
     // Highlight "porte libere" (decoupled): ri-applica le classi spare-free/
     // spare-suspect dopo ogni rebuild del DOM. No-op se il toggle e' off.
-    if(typeof win._applySpareHighlight === 'function' && typeof store._spareActive !== 'undefined' && store._spareActive) win._applySpareHighlight();
+    if(typeof _applySpareHighlight === 'function' && typeof store._spareActive !== 'undefined' && store._spareActive) _applySpareHighlight();
 }
 
 function getPortHTML(pid){
@@ -681,7 +683,7 @@ function shouldRenderLink(l){
         // (altrimenti si vedrebbero tutte bunchate sull'icona del rack).
         if(store.selType==='node' && store.selId){
             const _sn = nodeById(store.selId);
-            if(_sn && TYPES[_sn.type]?.isFloor) return win.isPortOnNode(l.src,store.selId)||win.isPortOnNode(l.dst,store.selId);
+            if(_sn && TYPES[_sn.type]?.isFloor) return isPortOnNode(l.src,store.selId)||isPortOnNode(l.dst,store.selId);
         }
     }
     if(store._rightTab==='props' && store.selType==='port' && store.selId && !isRackPort(store.selId)) return false;
@@ -696,7 +698,7 @@ function shouldRenderLink(l){
     if(store.selType==='node'&&store.selId){
         const n=nodeById(store.selId);
         if(TYPES[n?.type]?.isRack) return false;
-        return win.isPortOnNode(l.src,store.selId)||win.isPortOnNode(l.dst,store.selId);
+        return isPortOnNode(l.src,store.selId)||isPortOnNode(l.dst,store.selId);
     }
     return false;
 }

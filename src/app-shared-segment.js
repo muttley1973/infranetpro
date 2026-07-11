@@ -12,7 +12,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid } from './app-util.js';
-import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _showToast, _invalidateIdx, _linksForPort, _nextNodeId, getRackById, _promoteLinkToManual, canAddConnection, _createLinkRecord, getPortMaxConnections, _activatePropsTab } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _showToast, _invalidateIdx, _linksForPort, _nextNodeId, getRackById, _promoteLinkToManual, canAddConnection, _createLinkRecord, getPortMaxConnections, _activatePropsTab, getNodePortCount, getPortConnectionCount } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderProps, _propsSectionIsOpen, setPropsSectionState } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
@@ -20,7 +20,7 @@ import { focusNode, renderRackTabs } from './app-search-zoom-rack.js';   // riti
 import { closePop, showPop } from './app-popup.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _portDisplayName } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _isLeafEndpoint, _nodeByMacMap, _ensureDiscoveryHistory } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
-import { _findFreeU } from './app-topology-crawl.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
+import { _findFreeU, _resolveRackOverlap } from './app-topology-crawl.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
 
 let _sharedBindState = null; // stato wizard bind (module-local, nessun lettore esterno)
 function _macRowsForPort(pid, opts={}){
@@ -209,13 +209,13 @@ function _sharedSegmentPortHintScore(pi, role){
 }
 
 function _sharedSegmentPortChoices(node, role, sourcePid){
-    const count = win.getNodePortCount(node);
+    const count = getNodePortCount(node);
     const out = [];
     for(let i=1;i<=count;i++){
         const pid = `${node.id}-${i}`;
         const links = _linksForPort(pid);
         const manualBusy = links.some(l=>!l.autoLinked && !_linkHasPair(l, sourcePid, pid));
-        const conn = win.getPortConnectionCount(pid);
+        const conn = getPortConnectionCount(pid);
         const max = getPortMaxConnections(pid);
         if(manualBusy) continue;
         if(conn >= max && !links.some(l=>_linkHasPair(l, sourcePid, pid))) continue;
@@ -265,7 +265,7 @@ function _renderSharedSegmentBind(){
 
     if(_sharedBindState.step === 'nodes'){
         const cards = _sharedBindState.candidates.map(n=>{
-            const count = win.getNodePortCount(n);
+            const count = getNodePortCount(n);
             const location = _sharedSegmentNodeLocation(n);
             const score = _sharedSegmentNodeRoleScore(n, _sharedBindState.role);
             const badge = score > 0 ? `<span class="shared-bind-badge">${t('pnl.seg.strongCandidate')}</span>` : '';
@@ -421,7 +421,7 @@ function _openSharedSegmentProps(pid){
     }, 20);
 }
 
-function _sharedSegmentHtml(pid, context='popup'){
+export function _sharedSegmentHtml(pid, context='popup'){
     const portState = store.state.ports[pid] || {};
     const roleKey = String(portState.sharedSegmentRole || '').trim();
     const resolvedNode = nodeById(portState.sharedSegmentNodeId);
@@ -708,7 +708,7 @@ function _createSharedSegmentNode(pid, role){
     store.state.nodes.push(n);
     // Garantisce che il nuovo apparato non si sovrapponga ad altri nel rack
     // (il fallback di _findFreeU su rack pieno potrebbe restituire una U occupata).
-    if(TYPES[n.type]?.isRack) win._resolveRackOverlap(n);
+    if(TYPES[n.type]?.isRack) _resolveRackOverlap(n);
     _connectPortsSafe(pid, `${n.id}-1`, {autoLinked:true, confidence:0.7, protocol:'FDB-SEGMENT'});
 
     if(role === 'switch'){

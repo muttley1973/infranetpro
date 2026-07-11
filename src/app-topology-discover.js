@@ -7,7 +7,7 @@ import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funz
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { switchRack, updateTransforms } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { _applyViewMode, _hideTopoTip } from './app-popup.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
-import { _snmpFreshness } from './app-snmp.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { _snmpFreshness, _lastSnmpSyncTs, _renderSyncFreshness } from './app-snmp.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 
 // ============================================================
 // TOPOLOGIA — discovery e grafo (glue estratto da app.js, R7)
@@ -65,7 +65,7 @@ function _setTopoBtn(st, meta){
     // Pallino di stato = freschezza dei dati SNMP che alimentano la topologia
     // (verde fresco / giallo invecchiando / rosso vecchio / grigio assenti),
     // con l'eta' SEMPRE nel tooltip. Coerente col chip "Sync Xm fa" in toolbar.
-    const ts = (meta && meta.ts) || (typeof win._lastSnmpSyncTs === 'function' ? win._lastSnmpSyncTs() : 0);
+    const ts = (meta && meta.ts) || (typeof _lastSnmpSyncTs === 'function' ? _lastSnmpSyncTs() : 0);
     const f = (typeof _snmpFreshness === 'function') ? _snmpFreshness(ts) : { txt:'', color:'#8b949e', level:'none' };
     const dot = `<span class="topo-fresh-dot" style="background:${f.color}"></span>`;
     // La gestione visible/mode-interactive della legenda e' delegata a
@@ -102,8 +102,8 @@ function _setTopoBtn(st, meta){
 // - 'stale': dati SNMP assenti/vecchi — SOLO hint visivo (icona attenuata),
 //   il bottone resta cliccabile: la topologia si apre comunque dal cablaggio
 //   documentato (manual-first), il Sync serve ad aggiornare il layer LLDP/CDP.
-function _refreshTopoBtnState(){
-    if(typeof win._renderSyncFreshness === 'function') win._renderSyncFreshness();  // chip toolbar (#1)
+export function _refreshTopoBtnState(){
+    if(typeof _renderSyncFreshness === 'function') _renderSyncFreshness();  // chip toolbar (#1)
     if(store._topoVisible){ _setTopoBtn('on'); return; }
     const targets = store.state.nodes.filter(n => {
         const cfg = n.integration || {};
@@ -398,7 +398,7 @@ function _centerFloorOn(x,y){
 
 // ---- Highlight rack→planimetria ---------------------------------------------
 
-function _highlightTopoLinks(projNodeId){
+export function _highlightTopoLinks(projNodeId){
     const svg=document.getElementById('topo-floor-overlay');
     if(!svg||!store._topoData||!store._topoVisible) return;
     svg.querySelectorAll('.tfl').forEach(el=>el.classList.remove('tfl-hl'));
@@ -423,7 +423,7 @@ function _rackCenter(rIdA,rIdB){
     return [((rA.x||0)+(rB.x||rA.x||0))/2, ((rA.y||0)+(rB.y||rA.y||0))/2];
 }
 
-function _clearTopoHighlight(){
+export function _clearTopoHighlight(){
     const svg=document.getElementById('topo-floor-overlay');
     if(svg) svg.querySelectorAll('.tfl-hl').forEach(el=>el.classList.remove('tfl-hl'));
 }
