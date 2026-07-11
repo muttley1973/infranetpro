@@ -5,6 +5,7 @@ import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: cata
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: chiamate prima bare-global
 import { renderProps } from './app-properties.js';   // idem
 import { showAlert } from './app-core.js';           // idem
+import { registerClickActions, initDelegation } from './app-delegation.js';   // ASSE B: event delegation (ritiro onclick inline)
 // ============================================================
 // InfraNet Pro — app.js (core bootstrap + stato + eventi)
 // Catalogo TYPES e node-spec: src/app-types.js (R1)
@@ -225,7 +226,7 @@ export function pushHistory() {
     _updateHistoryBtns();
 }
 
-function undo() {
+export function undo() {
     if (_histIdx <= 0) return;
     const bg = state.bgImage;                  // preserva il background corrente
     const audit = state.auditLog;              // append-only: non si annulla
@@ -237,7 +238,7 @@ function undo() {
     _updateHistoryBtns();
 }
 
-function redo() {
+export function redo() {
     if (_histIdx >= _history.length-1) return;
     const bg = state.bgImage;                  // preserva il background corrente
     const audit = state.auditLog;              // append-only: non si annulla
@@ -645,6 +646,11 @@ export function _migrateState(s) {
 export function bindEventsOnce() {
     if (eventsBound) return;
     eventsBound = true;
+    // ASSE B (ritiro onclick inline): 1ª superficie migrata a event delegation =
+    // i bottoni Annulla/Ripeti della toolbar (data-act="undo"/"redo"). Le fn sono
+    // IMPORTATE, non più su window/expose. Le altre superfici seguiranno.
+    registerClickActions({ undo: () => undo(), redo: () => redo() });
+    initDelegation();
     window.addEventListener('pointerdown', handlePointerDown);
     window.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('pointerup',   handlePointerUp);
@@ -2402,9 +2408,9 @@ expose({
   getRackById, getRackName, getRackSize, getWallPortLabel, importJSON,
   init, initDraggablePopups, isPortOnNode, isRackTopNumbered, logAudit, markDirty,
   nodeById, promoteLinkToManual, pushHistory,
-  rackUToVisible, redo, registerModuleNav, removeNodePorts, renderCables, selected, setCableLabel,
+  rackUToVisible, registerModuleNav, removeNodePorts, renderCables, selected, setCableLabel,
   setDeviceWifi, setLinkProp, setLinkWireless, setNodeRadioCount, switchLang, switchRightTab,
-  toggleAbbrevNames, toggleNodeLock, undo, updateFloorId, updateFrontPanel, updateN,
+  toggleAbbrevNames, toggleNodeLock, updateFloorId, updateFrontPanel, updateN,
   updateP, updateWallPortId, visibleUToRackU,
 });
 
