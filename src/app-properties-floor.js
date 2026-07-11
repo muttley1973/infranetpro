@@ -6,7 +6,7 @@
 // Legge i builder condivisi del core (_buildPropsHeader/_propsSectionIsOpen) e i
 // global legacy (state/IPAM/VLAN/voce) via win.*; `t` dal ponte. I nomi dentro gli
 // onclick=""/ontoggle="" dell'HTML generato girano in scope PAGINA → restano bare.
-// `win._vlanIpamOpen` è il Set condiviso var-ificato in app.js (i writer classic lo
+// `store._vlanIpamOpen` è il Set condiviso var-ificato in app.js (i writer classic lo
 // mutano, qui si legge). NESSUN cambiamento di logica rispetto all'originale.
 
 import { win, expose, t } from './_bridge.js';
@@ -153,7 +153,7 @@ function _renderFloorProps(panel){
             const vname=escapeHTML(state.vlanNames?.[vid]||'');
             const usage=win._ipamUsageForVlan(vid);
             const ipam=win._ipamEntry(vid);
-            const ipamOpen=win._vlanIpamOpen.has(vid);
+            const ipamOpen=store._vlanIpamOpen.has(vid);
             const ipamSummary=escapeHTML(win._vlanIpamSummary(vid));
             const ipamWarn=(!usage.cidr && ipam?.subnet) || (usage.cidr && !usage.gatewayOk);
             const nearFull=!!(usage.cidr && usage.capacity && usage.pct>=90);   // subnet quasi piena → ambra a colpo d'occhio

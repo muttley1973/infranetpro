@@ -231,7 +231,7 @@ function _renderAllNow(){
                     const pi=store.state.ports[pid]||{};
                     if(pi.hidden) return ''; // interfaccia nascosta (virtuale)
                     const st=normalizeStatus(pi.statusOvr??pi.status);
-                    const lagSelCls=win.lagSelMode&&store.lagSelPorts.has(pid)?' lag-sel':'';
+                    const lagSelCls=store.lagSelMode&&store.lagSelPorts.has(pid)?' lag-sel':'';
                     const lagGid=win._portLagGid(pid);
                     const lagMemCls=lagGid?' lag-member':'';
                     const lagFocCls=win._isLagFocusedPort(pid)?' lag-focus':'';

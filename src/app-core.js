@@ -53,7 +53,7 @@ async function loadProject(id) {
     store.currentProjectId = proj.id;
     store.state = win._migrateState(proj.state);
     if(typeof win._restoreTopoSession === 'function') win._restoreTopoSession();
-    win._vlanIpamOpen.clear();
+    store._vlanIpamOpen.clear();
     _invalidateIdx();
     win._history=[]; win._histIdx=-1; win._updateHistoryBtns();
     win._clearDirty();
@@ -86,7 +86,7 @@ async function newProject() {
         store.currentProjectId = proj.id;
         store.state = win._migrateState(proj.state);
         if(typeof win._restoreTopoSession === 'function') win._restoreTopoSession();
-        win._vlanIpamOpen.clear();
+        store._vlanIpamOpen.clear();
         _invalidateIdx();
         win._history=[]; win._histIdx=-1; win._updateHistoryBtns();
         win._clearDirty();

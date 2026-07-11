@@ -493,8 +493,8 @@ function updateVlanName(v,name){
 }
 function toggleVlanIpam(v){
     const vid = +v;
-    if(win._vlanIpamOpen.has(vid)) win._vlanIpamOpen.delete(vid);
-    else win._vlanIpamOpen.add(vid);
+    if(store._vlanIpamOpen.has(vid)) store._vlanIpamOpen.delete(vid);
+    else store._vlanIpamOpen.add(vid);
     renderProps();
 }
 function updateVlanIpam(v, field, value){
@@ -512,7 +512,7 @@ function deleteVlanColor(v){
     delete store.state.vlanColors[v];
     if(store.state.vlanNames) delete store.state.vlanNames[v];
     if(store.state.ipam?.vlans) delete store.state.ipam.vlans[String(v)];
-    win._vlanIpamOpen.delete(+v);
+    store._vlanIpamOpen.delete(+v);
     if(store._filterVlan===+v) setVlanFilter(null);
     renderAll(); markDirty();
 }
@@ -524,7 +524,7 @@ function clearAllVlans(){
     store.state.vlanColors = {};
     store.state.vlanNames  = {};
     store.state.ipam = { vlans:{} };
-    win._vlanIpamOpen.clear();
+    store._vlanIpamOpen.clear();
     if(store._filterVlan && store._filterVlan !== 1) setVlanFilter(null);
     renderAll(); markDirty();
 }

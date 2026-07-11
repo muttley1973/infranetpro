@@ -40,4 +40,11 @@ export const store = proxy([
     '_rackCollapsed', '_spareActive', '_topoTrunkOnly',
     // ── popup / sessione UI ──────────────────────────────────────────────────
     '_lastPopPid', '_lastPopX', '_lastPopY', '_currentUser',
+    // ── coda-stato di INTERAZIONE (ritiro ponte 2026-07-11) ───────────────────
+    // Stato transitorio di gesture/modalità: drag device/rack, selezione LAG,
+    // discovery in corso/import, editor cavo-da-spezzare, IPAM-VLAN aperti. Tutti
+    // falsy/vuoti al render iniziale → golden invariante. La cella di verità resta
+    // window.X (per i bare-global self-ref in app.js e i writer classic).
+    'dragOffset', 'dragRack', '_dragArmed', 'lagSelMode',
+    '_discRunning', '_discImporting', '_discSelMap', '_routingLinkId', '_vlanIpamOpen',
 ]);
