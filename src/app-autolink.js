@@ -83,13 +83,13 @@ export function _isLeafEndpoint(type){
 // lib/discovery-history.js → letto dal ponte (win.pruneDiscoveryHistory /
 // win.normalizeFdbVlan / win.DISCOVERY_HISTORY_MAX). Qui restano solo i wrapper
 // che toccano lo stato (state.discoveryHistory).
-function _ensureDiscoveryHistory(){
+export function _ensureDiscoveryHistory(){
     if(!store.state.discoveryHistory) store.state.discoveryHistory = { observations:[] };
     if(!Array.isArray(store.state.discoveryHistory.observations)) store.state.discoveryHistory.observations = [];
     return store.state.discoveryHistory.observations;
 }
 
-function _recordDiscoveryObservation(obs){
+export function _recordDiscoveryObservation(obs){
     const mac = win._normMacKey(obs?.mac);
     const ip  = String(obs?.ip || '').trim();
     if(!mac && !ip) return false;
@@ -129,7 +129,7 @@ function _recordDiscoveryBatch(rows){
     return n;
 }
 
-function _nodeByMacMap(){
+export function _nodeByMacMap(){
     const out = new Map();
     for(const n of store.state.nodes || []){
         const mac = win._normMacKey(n.mac);

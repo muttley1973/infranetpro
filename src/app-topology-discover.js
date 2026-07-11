@@ -6,7 +6,7 @@ import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (e
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { switchRack, updateTransforms } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
-import { _applyViewMode } from './app-popup.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _applyViewMode, _hideTopoTip } from './app-popup.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _snmpFreshness } from './app-snmp.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 
 // ============================================================
@@ -358,7 +358,7 @@ export function _findPortByIfName(projNodeId, ifName){
 }
 
 function _createTopoLink(pairKey){
-    if(!store._topoData) return; win._hideTopoTip();
+    if(!store._topoData) return; _hideTopoTip();
     const [rAId,rBId]=pairKey.split('|');
     const rANodeIds=store.state.nodes.filter(n=>n.rackId===rAId).map(n=>n.id);
     const rBNodeIds=store.state.nodes.filter(n=>n.rackId===rBId).map(n=>n.id);
@@ -384,7 +384,7 @@ function _createTopoLink(pairKey){
 // ---- Navigazione ------------------------------------------------------------
 
 function navigateToRack(rackId){
-    win._hideTopoTip(); switchRack(rackId);
+    _hideTopoTip(); switchRack(rackId);
     const rack=store.state.racks.find(r=>r.id===rackId);
     if(rack&&rack.x!==undefined) _centerFloorOn(rack.x,rack.y);
 }
@@ -431,7 +431,7 @@ function _clearTopoHighlight(){
 // ---- Applica topologia (tutti i link) ---------------------------------------
 
 function applyTopologyToProject(){
-    if(!store._topoData) return; win._hideTopoTip();
+    if(!store._topoData) return; _hideTopoTip();
     const {nodes,edges}=store._topoData;
     let created=0,skipped=0; pushHistory();
     for(const e of edges){

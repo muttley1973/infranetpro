@@ -49,7 +49,7 @@ function _lagPeerMode(members){
 }
 
 // Proprieta' di un DISPOSITIVO/struttura selezionato (selType==='node').
-function _renderNodeProps(panel){
+export function _renderNodeProps(panel){
         // ── Alias verso lo scope legacy (build-time); gli onclick="" restano bare ──
         // TYPES non è più aliasato: arriva dall'import ESM in cima al modulo.
         // Alias RESIDUI = solo lib-script (stack/ha-pair, <script>: restano sul ponte)

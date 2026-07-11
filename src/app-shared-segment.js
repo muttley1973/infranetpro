@@ -13,13 +13,13 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid } from './app-util.js';
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _showToast, _invalidateIdx, _linksForPort, _nextNodeId, getRackById, _promoteLinkToManual, canAddConnection, _createLinkRecord, getPortMaxConnections, _activatePropsTab } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
-import { renderProps, _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
+import { renderProps, _propsSectionIsOpen, setPropsSectionState } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { focusNode, renderRackTabs } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { closePop, showPop } from './app-popup.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _portDisplayName } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
-import { _isLeafEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
+import { _isLeafEndpoint, _nodeByMacMap, _ensureDiscoveryHistory } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
 import { _findFreeU } from './app-topology-crawl.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
 
 let _sharedBindState = null; // stato wizard bind (module-local, nessun lettore esterno)
@@ -30,14 +30,14 @@ function _macRowsForPort(pid, opts={}){
     const names = [pi.ifName, pi.alias, pi.desc].map(x=>String(x||'').trim()).filter(Boolean);
     if(!names.length) return null;
     const nameSet = new Set(names.map(x=>x.toLowerCase()));
-    const byMac = win._nodeByMacMap();
+    const byMac = _nodeByMacMap();
     const byKey = new Map();
 
     const add = (row) => {
         const mac = win._normMacKey(row.mac);
         if(!mac) return;
         const ep = byMac.get(mac) || null;
-        const hist = win._ensureDiscoveryHistory()
+        const hist = _ensureDiscoveryHistory()
             .filter(x=>x.mac===mac)
             .sort((a,b)=>String(b.lastSeen||b.ts||'').localeCompare(String(a.lastSeen||a.ts||'')))[0] || null;
         const key = mac;
@@ -62,7 +62,7 @@ function _macRowsForPort(pid, opts={}){
         add({mac, ifName, source:'FDB'});
     }
 
-    for(const h of win._ensureDiscoveryHistory()){
+    for(const h of _ensureDiscoveryHistory()){
         if(h.switchId !== node.id) continue;
         if(h.portId && h.portId !== pid) continue;
         if(!h.portId && h.ifName && !nameSet.has(String(h.ifName).toLowerCase())) continue;
@@ -408,7 +408,7 @@ function _openSharedSegmentProps(pid){
     if(!pid) return;
     store.selType = 'port';
     store.selId = pid;
-    win.setPropsSectionState('shared-segment', true);
+    setPropsSectionState('shared-segment', true);
     renderProps();
     if(typeof _activatePropsTab === 'function') _activatePropsTab('Proprietà');
     if(typeof closePop === 'function') closePop();

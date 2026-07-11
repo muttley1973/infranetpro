@@ -10,14 +10,15 @@ import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (e
 import { escapeHTML, normalizeStatus } from './app-util.js';
 import { nodeById, getNodeByPortId, getPortNodeId, renderCables, _showToast, switchRightTab, _linksForPort, getRackById, _getLinkPhysicalView } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderTopoOverlay } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
-import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
-import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { renderProps, setPropsSectionState } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { renderAll, isRackPort, renderNow } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
-import { ensureNodeRackVisible, renderRackTabs } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
+import { ensureNodeRackVisible, renderRackTabs, _updateFloorToolbarVisibility } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { _effPortVlan, _parseTrunkVlans, _siteNativeVlan } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
-import { _portDisplayName } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _portDisplayName, _focusLagForPort, getPassivePortLagInfo } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _cancelLink } from './app-pointer.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 
-function _findProjectLinkByPorts(a,b){
+export function _findProjectLinkByPorts(a,b){
     if(!a||!b) return null;
     return store.state.links.find(l=>_linkHasPair(l, a, b))||null;
 }
@@ -45,7 +46,7 @@ function _selectProjectLink(linkId, opts={}){
     renderTopoOverlay();
 }
 
-function _showPhysicalCablePath(linkId){
+export function _showPhysicalCablePath(linkId){
     const l=store.state.links.find(x=>x.id===linkId);
     if(!l) return;
     closePop(); _hideTopoTip(); store.highPath.clear();
@@ -75,7 +76,7 @@ function _showPhysicalCablePath(linkId){
     // Apri la fisarmonica "Percorso fisico" PRIMA, poi switchRightTab('props')
     // (tab + toolbar + render). UN SOLO renderAll finale per floor/rack/cables/
     // topo: niente render extra (era la causa del "doppio" sul cavo).
-    if(typeof win.setPropsSectionState==='function') win.setPropsSectionState('link-physical-path', true);
+    if(typeof setPropsSectionState==='function') setPropsSectionState('link-physical-path', true);
     if(typeof switchRightTab==='function') switchRightTab('props');
     renderAll();
     _showToast(t('msg.ui.physicalPathHighlighted'), 'ok', 3500);
@@ -90,7 +91,7 @@ function selectPathSegment(linkId){
     store.selType='link'; store.selId=linkId;
     // Se il segmento tocca una porta rack, porta in vista quel rack PRIMA del
     // render (la chassis mostra il rack giusto).
-    const _rackPid = win.isRackPort(l.src) ? l.src : (win.isRackPort(l.dst) ? l.dst : null);
+    const _rackPid = isRackPort(l.src) ? l.src : (isRackPort(l.dst) ? l.dst : null);
     if(_rackPid){
         const _rn = getNodeByPortId(_rackPid);
         if(_rn && typeof ensureNodeRackVisible === 'function') ensureNodeRackVisible(_rn);
@@ -104,7 +105,7 @@ function selectPathSegment(linkId){
     // tab 'props'. Per questo lo switch a 'rack' va fatto DOPO, come ULTIMA azione
     // (con renderAll coalescato il renderProps girerebbe nel rAF dopo lo switch
     // e lo annullerebbe — era il bug "apre Proprietà invece del Rack").
-    win.renderNow();
+    renderNow();
     if(_rackPid && typeof switchRightTab === 'function'){
         if(store._rightTab !== 'rack') switchRightTab('rack');
         // switchRightTab azzera l'hold (decadimento su cambio tab esplicito):
@@ -179,7 +180,7 @@ function _lagRepresentativeConnection(pid){
 }
 
 export function showPop(e,pid){
-    if(store.linkStart) win._cancelLink();
+    if(store.linkStart) _cancelLink();
     const tempFloor = document.getElementById('temp-link');
     const tempRack = document.getElementById('temp-link-rack');
     if(tempFloor) tempFloor.setAttribute('d','');
@@ -189,7 +190,7 @@ export function showPop(e,pid){
     // Evidenzia tutte le porte fisiche del LAG locale/remoto.
     store._focusedLagGroup = null;
     store._focusedLagPorts = new Set();
-    win._focusLagForPort(pid);
+    _focusLagForPort(pid);
     const node=getNodeByPortId(pid);
     const isActiveNode = node && !!TYPES[node.type]?.isActive;
     const portNum=pid.split('-').slice(1).join('-');
@@ -348,7 +349,7 @@ ${(()=>{
         }
     } else {
         // dispositivo passivo — mostra info se il cavo trasporta un LAG
-        const info=win.getPassivePortLagInfo(pid);
+        const info=getPassivePortLagInfo(pid);
         if(info){
             return `<div style="border-top:1px solid #30363d;margin-top:6px;padding-top:6px;display:flex;align-items:center;gap:6px;font-size:0.72rem;color:#8b949e">
               <span style="color:#00d4ff">🔗</span>
@@ -401,7 +402,7 @@ store._topoHideWireless = false;  // toggle legenda: nasconde le connessioni wir
 
 // Toggle "Trunk" della legenda topologia: evidenzia le linee trunk attenuando
 // le altre (stesso modello interattivo del filtro VLAN, stato di sessione).
-function toggleTopoTrunkFilter(){
+export function toggleTopoTrunkFilter(){
     store._topoTrunkOnly = !store._topoTrunkOnly;
     renderTopoOverlay();   // ridisegna linee + legenda (la legenda e' dentro il render)
     renderCables();        // in topologia i cavi trunk compaiono/spariscono anche nel RACK (shouldRenderLink)
@@ -410,7 +411,7 @@ function toggleTopoTrunkFilter(){
 // Toggle "Endpoint" della legenda topologia: nasconde le linee verso gli
 // endpoint (fan-out floor↔rack + coppie floor↔floor) per ridurre la confusione,
 // lasciando il backbone rack↔rack. Stato di sessione.
-function toggleTopoEndpointFilter(){
+export function toggleTopoEndpointFilter(){
     store._topoHideEndpoints = !store._topoHideEndpoints;
     // I nodi endpoint si nascondono via CSS (la regola e' gia' gated su
     // .view-topology, quindi in mappa non ha effetto anche se la classe resta).
@@ -420,7 +421,7 @@ function toggleTopoEndpointFilter(){
 
 // Toggle "WLAN" della legenda topologia: nasconde tutte le connessioni wireless
 // (le onde) — pairs floor↔floor e fan-out marcati wireless. Stato di sessione.
-function toggleTopoWlanFilter(){
+export function toggleTopoWlanFilter(){
     store._topoHideWireless = !store._topoHideWireless;
     renderTopoOverlay();   // le onde le toglie buildTopoLines (filtro hideWireless)
 }
@@ -430,7 +431,7 @@ export function _applyViewMode(){
     document.body.classList.toggle('view-map', store._viewMode==='map');
     if(store._viewMode!=='topology') store._physicalTraceActive=false;
     document.body.classList.toggle('physical-trace-active', store._physicalTraceActive);
-    win._updateFloorToolbarVisibility();
+    _updateFloorToolbarVisibility();
     renderTopoOverlay();
     renderAll();
 }
@@ -443,7 +444,7 @@ export function _vlanLabel(id){ const n=store.state.vlanNames?.[id]; return n?`$
  * Usato per nascondere i cavi collegati a nodi non visibili.
  */
 /** True se esiste almeno un cavo tra i due rack che appartiene alla VLAN filtro. */
-function _rackPairMatchesVlan(rackAId, rackBId){
+export function _rackPairMatchesVlan(rackAId, rackBId){
     if(!store._filterVlan) return true;
     const rANids=new Set(store.state.nodes.filter(n=>n.rackId===rackAId&&TYPES[n.type]?.isRack).map(n=>n.id));
     const rBNids=new Set(store.state.nodes.filter(n=>n.rackId===rackBId&&TYPES[n.type]?.isRack).map(n=>n.id));
@@ -508,7 +509,7 @@ export function _getLinkVlan(l){
 }
 
 /** Restituisce true se il link appartiene alla VLAN filtro attiva. */
-function _linkMatchesVlanFilter(l){
+export function _linkMatchesVlanFilter(l){
     if(!store._filterVlan) return true;
     if(l.mode==='trunk'){
         return _parseTrunkVlans(l.trunkVlans||'').includes(store._filterVlan);
@@ -565,7 +566,7 @@ const _SVG_DEV = {
 
 // ---- Punto sul bordo rettangolare (ray-AABB) --------------------------------
 // cx,cy = centro; hw,hh = semi-dimensioni; vx,vy = direzione (non normalizzata)
-function _rectEdge(cx, cy, hw, hh, vx, vy){
+export function _rectEdge(cx, cy, hw, hh, vx, vy){
     if(!vx && !vy) return [cx, cy];
     const tx = vx ? hw/Math.abs(vx) : Infinity;
     const ty = vy ? hh/Math.abs(vy) : Infinity;
@@ -574,7 +575,7 @@ function _rectEdge(cx, cy, hw, hh, vx, vy){
 }
 
 // ---- Link tra un rack e i floor node sulla planimetria ----------------------
-function _getRackFloorLinks(rackId){
+export function _getRackFloorLinks(rackId){
     const result=[];
     const rackNids=new Set(store.state.nodes.filter(n=>n.rackId===rackId&&TYPES[n.type]?.isRack).map(n=>n.id));
     for(const link of store.state.links){
@@ -599,7 +600,7 @@ function _getRackFloorLinks(rackId){
 // Il COSA (quali link, colore, enfasi, interattivita', filtro VLAN) e' deciso
 // da buildTopoLines (lib/topo-lines.js, pura/testata); qui solo ancoraggio
 // alle dimensioni DOM, SVG ed eventi.
-function _drawFanoutLineDesc(d, svg, NS, els){
+export function _drawFanoutLineDesc(d, svg, NS, els){
     const elR=els?.racks.get(d.rackId);
     const hwR=elR?elR.offsetWidth/2+4:50, hhR=elR?elR.offsetHeight/2+4:35;
     const vx=d.fx-d.rx, vy=d.fy-d.ry;
@@ -720,7 +721,7 @@ function _showFloorLinkTip(ev,td){
     });
 }
 
-function _showTopoTip(ev,td){
+export function _showTopoTip(ev,td){
     const tip=document.getElementById('topo-tip'); if(!tip) return;
     // startsWith: copre anche le label fuse GAP1 ('CDP+MAC' resta arancio)
     const pc=String(td.protocol||'').startsWith('CDP')?'#ff8c00':td.protocol==='Manual'?'#39d353':'#00aaff';
@@ -747,7 +748,7 @@ function _showTopoTip(ev,td){
     });
 }
 
-function _hideTopoTip(){
+export function _hideTopoTip(){
     if(win._dragModalState?.panel?.id === 'topo-tip') return;
     const t=document.getElementById('topo-tip');
     if(t) t.style.display='none';

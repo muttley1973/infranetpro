@@ -14,8 +14,12 @@ import { propagateVlans, _linkIsTrunk, _effPortVlan } from './app-vlan-autopoll.
 import { renderTopoOverlay, _renderTopoLegend } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, _frontPanelPortLabel, _fixedRackLabel, _frontPanelState } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
-import { switchRack, toggleRackPanel } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
-import { portTip } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { switchRack, toggleRackPanel, applyUiColors, _updateRackFloorBtn } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
+import { portTip, _portLagGid, _isLagFocusedPort, _updateLagBanner } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _l3GatewayNodeIds } from './app-l3.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
+import { _getRackFloorLinks, _linkMatchesVlanFilter } from './app-popup.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
+import { _panelSkinRackHtml, _resolveNodeSkin } from './app-panel-skin.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
+import { _paintRoutingTargets } from './app-cabling-editor.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 
 // Altezza in px di una unità rack (1U). UNICO punto di verità: la CSS var
 // `--ru-h` (style.css :root), letta qui dal render JS che dimensiona chassis,
@@ -47,7 +51,7 @@ export function renderAll(){
     // renderProps→_activatePropsTab, annullando es. uno switch a tab Rack.
     requestAnimationFrame(()=>{ if(!_renderPending) return; _renderPending = false; _renderAllNow(); });
 }
-function renderNow(){ _renderPending = false; _renderAllNow(); }
+export function renderNow(){ _renderPending = false; _renderAllNow(); }
 
 // ─────────────────────────────────────────────────────────────────
 // renderScope(scope) — dispatcher di render incrementale (Fase 4 UX)
@@ -70,7 +74,7 @@ function renderNow(){ _renderPending = false; _renderAllNow(); }
 // REGOLA D'ORO: se in dubbio sull'impatto della mutazione, usa renderAll()
 // o 'all'. Sostituire renderAll() con uno scope mirato e' un'ottimizzazione
 // chirurgica: vale la pena solo dove sei sicuro al 100% dell'impatto.
-function renderScope(scope){
+export function renderScope(scope){
     switch(scope){
         case 'props':
             if(typeof renderProps === 'function') renderProps();
@@ -105,7 +109,7 @@ function _renderAllNow(){
     const fS=document.getElementById('floor-structures'), fI=document.getElementById('floor-items');
     const ch=document.getElementById('rack-chassis'), bg=document.getElementById('floor-bg-img');
     const rs=win.getRackSize();
-    win.applyUiColors();
+    applyUiColors();
     // Altezza U in scala (var --ru-h via rackUPx). border-top:8 + border-bottom:19 = 27px
     const _U = rackUPx();
     ch.style.height=`${rs*_U+27}px`; ch.style.gridTemplateRows=`repeat(${rs},${_U}px)`;
@@ -133,7 +137,7 @@ function _renderAllNow(){
 
     // L3-lite: insieme dei device che fanno da gateway L3 (badge "L3" sulla
     // rack-label). Calcolato UNA volta per render, non per device.
-    const _l3ids = (typeof win._l3GatewayNodeIds === 'function') ? win._l3GatewayNodeIds() : null;
+    const _l3ids = (typeof _l3GatewayNodeIds === 'function') ? _l3GatewayNodeIds() : null;
 
     // Presenza: i device risultati ASSENTI in rete nell'ultima Verifica
     // documentazione (bucket macOrphan del Drift) vengono attenuati ("grigio").
@@ -181,7 +185,7 @@ function _renderAllNow(){
                         const pid=`${n.id}-${i}`;
                         const eff=_effPortVlan(pid);
                         if(eff===store._filterVlan) return false;
-                        if(_linksForPort(pid).some(lk=>win._linkMatchesVlanFilter(lk))) return false;
+                        if(_linksForPort(pid).some(lk=>_linkMatchesVlanFilter(lk))) return false;
                     }
                     return true;
                 })();
@@ -234,9 +238,9 @@ function _renderAllNow(){
                     if(pi.hidden) return ''; // interfaccia nascosta (virtuale)
                     const st=normalizeStatus(pi.statusOvr??pi.status);
                     const lagSelCls=store.lagSelMode&&store.lagSelPorts.has(pid)?' lag-sel':'';
-                    const lagGid=win._portLagGid(pid);
+                    const lagGid=_portLagGid(pid);
                     const lagMemCls=lagGid?' lag-member':'';
-                    const lagFocCls=win._isLagFocusedPort(pid)?' lag-focus':'';
+                    const lagFocCls=_isLagFocusedPort(pid)?' lag-focus':'';
                     const lagDataAttr=lagGid?` data-lag="${escapeHTML(lagGid)}"`:'';
                     const isUplink=win._frontPanelIsUplink(n, i, pc);
                     const uplinkCls=isUplink?' uplink sfp-slot':'';
@@ -373,7 +377,7 @@ function _renderAllNow(){
             // Skin pannello custom: se presente e valida, sostituisce il layout
             // porte generato. Fallback TOTALE al generato se assente.
             let _hasSkin = false;
-            if(typeof win._panelSkinRackHtml==='function'){ const _skin=win._panelSkinRackHtml(n); if(_skin){ pts=_skin; _hasSkin=true; } }
+            if(typeof _panelSkinRackHtml==='function'){ const _skin=_panelSkinRackHtml(n); if(_skin){ pts=_skin; _hasSkin=true; } }
             // Con la skin: niente padding/bordo del device → l'artwork riempie tutto
             // il box (in scala 1U) e la cornice la disegna l'SVG stesso.
             if(_hasSkin) el.classList.add('has-skin');
@@ -403,7 +407,7 @@ function _renderAllNow(){
         const devCount=devs.length;
         const devNames=devs.slice(0,3).map(n=>escapeHTML(n.name||n.hostname||n.type)).join(' · ')+(devs.length>3?' …':'');
         // Badge connessioni verso floor node (visibile solo con overlay topologia attivo)
-        const floorLinkCount=store._topoVisible?win._getRackFloorLinks(rack.id).length:0;
+        const floorLinkCount=store._topoVisible?_getRackFloorLinks(rack.id).length:0;
         const floorBadge=floorLinkCount>0
             ?`<span class="floor-rack-floor-badge" data-tip="${t('pnl.gen.floorLinksTip',{n:floorLinkCount})}">${floorLinkCount}</span>`:'';
         el.innerHTML=`<div class="floor-rack-icon"><i class="fas fa-server"></i>${devCount>0?`<span class="floor-rack-badge">${devCount}</span>`:''}</div>`
@@ -432,8 +436,8 @@ function _renderAllNow(){
     // forzano gia'; il re-render al cambio tab c'e' comunque (renderScope('props')).
     // _rightTab letto bare (var globale su window, vedi app.js) → 0 nuove letture win.*.
     if(_rightTab === 'props' || (store.selType && store.selId)) renderProps();
-    win._updateLagBanner();
-    win._updateRackFloorBtn();
+    _updateLagBanner();
+    _updateRackFloorBtn();
     // Legenda VLAN: visibile in entrambe le viste (Map=passiva, Topology=interattiva)
     if(typeof _renderTopoLegend === 'function') _renderTopoLegend();
     // renderTopoOverlay usa offsetWidth/offsetHeight delle icone rack:
@@ -443,7 +447,7 @@ function _renderAllNow(){
     // Modalita' instradamento cavo (P1.5): ri-applica highlight/dim sulle
     // porte pass-through valide dopo ogni rebuild del DOM (sopravvive al
     // cambio rack durante il picking). No-op se la modalita' e' off.
-    if(typeof win._paintRoutingTargets === 'function') win._paintRoutingTargets();
+    if(typeof _paintRoutingTargets === 'function') _paintRoutingTargets();
     // Highlight "porte libere" (decoupled): ri-applica le classi spare-free/
     // spare-suspect dopo ogni rebuild del DOM. No-op se il toggle e' off.
     if(typeof win._applySpareHighlight === 'function' && typeof store._spareActive !== 'undefined' && store._spareActive) win._applySpareHighlight();
@@ -505,7 +509,7 @@ function _renderFloorNow(){
                     const pid = `${n.id}-${i}`;
                     const eff = _effPortVlan(pid);
                     if(eff === store._filterVlan) return false;
-                    if(_linksForPort(pid).some(lk=>win._linkMatchesVlanFilter(lk))) return false;
+                    if(_linksForPort(pid).some(lk=>_linkMatchesVlanFilter(lk))) return false;
                 }
                 return true;
             })();
@@ -541,7 +545,7 @@ function _renderFloorNow(){
         const devs = store.state.nodes.filter(n => TYPES[n.type]?.isRack && n.rackId===rack.id);
         const devCount = devs.length;
         const devNames = devs.slice(0,3).map(n => escapeHTML(n.name||n.hostname||n.type)).join(' · ') + (devs.length>3?' …':'');
-        const floorLinkCount = store._topoVisible ? win._getRackFloorLinks(rack.id).length : 0;
+        const floorLinkCount = store._topoVisible ? _getRackFloorLinks(rack.id).length : 0;
         const floorBadge = floorLinkCount>0
             ? `<span class="floor-rack-floor-badge" data-tip="${t('pnl.gen.floorLinksTip',{n:floorLinkCount})}">${floorLinkCount}</span>` : '';
         el.innerHTML = `<div class="floor-rack-icon"><i class="fas fa-server"></i>${devCount>0?`<span class="floor-rack-badge">${devCount}</span>`:''}</div>`
@@ -562,7 +566,7 @@ function _renderFloorNow(){
     requestAnimationFrame(renderTopoOverlay);
     // Modalita' instradamento: ridipingi i target anche dopo un render
     // mirato della sola planimetria (prese a muro evidenziate).
-    if(typeof win._paintRoutingTargets === 'function') win._paintRoutingTargets();
+    if(typeof _paintRoutingTargets === 'function') _paintRoutingTargets();
     // Highlight "porte libere" (decoupled): ri-applica le classi spare-free/
     // spare-suspect dopo ogni rebuild del DOM. No-op se il toggle e' off.
     if(typeof win._applySpareHighlight === 'function' && typeof store._spareActive !== 'undefined' && store._spareActive) win._applySpareHighlight();
@@ -601,7 +605,7 @@ function _radioPortHtml(n){
         // Solo con SKIN: i badge radio diventano riposizionabili (drag) sul box del
         // device, così l'utente li mette dove gli è comodo sull'artwork. La posizione
         // si salva su radio.bx/by (frazioni 0..1). Senza skin → fila fissa invariata.
-        const skinned = (typeof win._resolveNodeSkin === 'function') && !!win._resolveNodeSkin(n);
+        const skinned = (typeof _resolveNodeSkin === 'function') && !!_resolveNodeSkin(n);
         if(skinned){
             let out='';
             for(let i=0;i<radios.length;i++){
@@ -630,7 +634,7 @@ function _radioPortHtml(n){
     return out;
 }
 
-function getCablePath(x1,y1,x2,y2){
+export function getCablePath(x1,y1,x2,y2){
     // Innesto COERENTE con la PROVENIENZA: il control point esce SEMPRE verso l'altro
     // capo (segno di dx/dy), non in base alla posizione sullo schermo. Così una
     // connessione che arriva da sinistra si attacca a sinistra, da destra a destra
@@ -650,7 +654,7 @@ function getCablePath(x1,y1,x2,y2){
 // Il punto di controllo è sotto il porto più basso: il cavo scende, raggiunge il
 // punto più basso e risale verso la porta di destinazione.
 // Rimane sempre dentro la larghezza del rack (x vincolato tra x1 e x2).
-function getRackCablePath(x1,y1,x2,y2){
+export function getRackCablePath(x1,y1,x2,y2){
     const dist=Math.hypot(x2-x1, y2-y1);
     const sag=Math.min(Math.max(dist*0.38, 16), 52); // sag proporzionale, max 52px
     const botY=Math.max(y1,y2)+sag;                   // sotto il porto più in basso
@@ -697,7 +701,7 @@ function shouldRenderLink(l){
     return false;
 }
 
-function isRackPort(pid){ return !!TYPES[getNodeByPortId(pid)?.type]?.isRack; }
+export function isRackPort(pid){ return !!TYPES[getNodeByPortId(pid)?.type]?.isRack; }
 
 expose({
     rackUPx, renderAll, renderNow, renderScope, _renderAllNow, renderFloor, _renderFloorNow,
