@@ -282,6 +282,27 @@ test('ponte: le funzioni disc/props/vlan/hv non sono più lette da win.*', () =>
   }
 });
 
+// ── 1o) Alias-block di app-properties-node.js sciolto (15 fn) ────────────────
+// Ritiro ponte 2026-07-11: il grande alias-block `const X = win.X, …` in
+// _renderNodeProps aliasava 26 globali. Le 15 DEFINITE come function in src/ sono
+// passate a import ESM (getNodeRackSize/_patchPanelChainOptions/isRackTopNumbered/
+// rackUToVisible di app.js; _nodeSpecView/_fixedRackLabel/_frontPanelState di
+// app-types.js; _propsIconForType/_buildPatchPanelPreview di app-properties.js;
+// _discIdentityLabel, _defaultStackName, getLagGroupsForNode, _nodeDeviceChainHtml,
+// _l3SviSectionHtml, _panelSkinSectionHtml). Restano nel blocco SOLO i lib-script
+// stack/ha (win.X). Chiude la fonte ricorrente della trappola TDZ dell'epic.
+const RETIRED_ALIAS_FN = ['getNodeRackSize', '_patchPanelChainOptions', 'isRackTopNumbered',
+  'rackUToVisible', '_nodeSpecView', '_fixedRackLabel', '_frontPanelState', '_propsIconForType',
+  '_buildPatchPanelPreview', '_discIdentityLabel', '_defaultStackName', 'getLagGroupsForNode',
+  '_nodeDeviceChainHtml', '_l3SviSectionHtml', '_panelSkinSectionHtml'];
+test('ponte: le 15 funzioni dell\'alias-block props-node non sono più lette da win.*', () => {
+  for (const sym of RETIRED_ALIAS_FN) {
+    const viaWin = countInCode(new RegExp('\\bwin\\.' + sym + '\\b', 'g'));
+    assert.equal(viaWin, 0,
+      `win.${sym} è tornato: importa { ${sym} } dal suo modulo definitore`);
+  }
+});
+
 // ── 2) Cricchetto sul totale: il ponte può solo restringersi ────────────────
 // Conteggio SOLO-CODICE (commenti esclusi) delle letture win.*. Tetto stretto al
 // valore reale corrente: abbassalo al numero che il test stampa ([ratchet] …)
@@ -478,7 +499,14 @@ test('ponte: le funzioni disc/props/vlan/hv non sono più lette da win.*', () =>
 // _runActiveAnchor, _vlanLabel/_getLinkVlan, _hvPanelHtml, _powerLiveHtml). 53 win.X → bare.
 // 4ª ricorrenza alias-block (app-properties-node.js) pre-risolta a mano. Restano in expose()
 // (export.js legge _vlanLabel/_getLinkVlan). Golden invariante; e2e 69/69. Vedi RETIRED_MIX_FN.
-const MAX_WIN_REFS = 580;
+//
+// −23 (580 → 557, 2026-07-11): RITIRO PONTE — SCIOLTO l'alias-block di app-properties-node.js.
+// Il grande `const X = win.X, …` in _renderNodeProps aliasava 26 globali; le 15 def-function
+// in src/ → import ESM (rimossi i declaratori a mano + import; il merger ha convertito solo 8
+// win.X negli altri consumatori — il grosso era nel blocco). Restano nel blocco i soli
+// lib-script stack/ha. CHIUDE la fonte ricorrente della trappola TDZ. Golden invariante;
+// e2e 69/69. Vedi RETIRED_ALIAS_FN.
+const MAX_WIN_REFS = 557;
 
 test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => {
   const total = countInCode(/\bwin\./g);

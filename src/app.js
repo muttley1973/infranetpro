@@ -906,7 +906,7 @@ export function _patchPanelOffset(node){
 // Patch panel selezionabili come "continua da" per `node`: tutti gli altri patch
 // panel che NON sono a valle di node nella catena (selezionarli creerebbe un
 // ciclo). Usa panelChainReaches (lib/frontpanel.js).
-function _patchPanelChainOptions(node){
+export function _patchPanelChainOptions(node){
     if(!node) return [];
     const recs={};
     for(const n of state.nodes){
@@ -1416,14 +1416,14 @@ export function getWallPortLabel(n) { return n?.portId||n?.name||''; }
 export function getRackName(rid)    { return state.racks.find(r=>r.id===rid)?.name||rid||''; }
 export function getRackById(rid)    { return state.racks.find(r=>r.id===rid); }
 function getRackSize(rid=state.currentRack) { return normalizeNumber(getRackById(rid)?.sizeU,42,6,60); }
-function getNodeRackSize(n)  { return getRackSize(n?.rackId||state.currentRack); }
+export function getNodeRackSize(n)  { return getRackSize(n?.rackId||state.currentRack); }
 // Numerazione U: internamente rackU=1 e' sempre la riga piu' in basso (EIA-310).
 // Quando rack.uNumberFromTop e' true (rack telco/ETSI) tutte le visualizzazioni
 // mostrano i numeri invertiti (1 in alto). La conversione e' bidirezionale e
 // non tocca il dato persistito.
-function isRackTopNumbered(rid){ return !!getRackById(rid)?.uNumberFromTop; }
+export function isRackTopNumbered(rid){ return !!getRackById(rid)?.uNumberFromTop; }
 // Da rackU interno (1=basso) al numero da mostrare per la base del device.
-function rackUToVisible(rid, rackU, sizeU=1){
+export function rackUToVisible(rid, rackU, sizeU=1){
     const rs = getRackSize(rid);
     if(!isRackTopNumbered(rid)) return rackU;
     return rs - rackU - (sizeU - 1) + 1; // top edge of device when counting from top
