@@ -8,6 +8,8 @@ import { expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
 import { closeFloorMenu, closeRackMenu } from './app-search-zoom-rack.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
+import { switchLang } from './app.js';   // ASSE B: menu utente via data-act (ex win.switchLang)
+import { registerClickActions } from './app-delegation.js';   // ASSE B: event delegation (data-act) — menu utente
 
 // Stato condiviso: letto BARE da file ancora-legacy (app-core.js apiFetch,
 // app.js _auditActor, export.js) → deve vivere su window, non module-local.
@@ -310,12 +312,27 @@ async function tkRevokeToken(id, btn){
 }
 
 expose({
-    initAuth, doLogout,
-    toggleUserMenu, closeUserMenu,
+    initAuth,
     toggleImpExpMenu, closeImpExpMenu,
-    toggleReportMenu, closeReportMenu,
-    openUserManager, closeUserManager, umSwitchTab,
+    closeUserManager, umSwitchTab,
     umLoadUsers, umCreateUser, umToggleRole, umDeleteUser,
     tkLoadTokens, tkCreateToken, tkRevokeToken, tkCopyToken,
-    openChangePassword, closeChangePassword, umChangePassword,
+    closeChangePassword, umChangePassword,
+});
+
+// ── ASSE B (ritiro onclick inline): superfici MENU UTENTE + MENU REPORT ───────
+// I toggle dei due dropdown e le voci del menu utente non sono più su window: i
+// bottoni le chiamano via `data-act` (event delegation). doLogout chiude già il
+// menu da sé; switchLang è importata da app.js. Le VOCI del menu report sono
+// registrate ognuna nel MODULO che possiede la funzione (app-audit/spare/l3/wifi),
+// importando `closeReportMenu` da qui — quel modulo è il proprietario del report.
+// Il listener document di chiusura-fuori-click qui sopra resta valido (i bottoni
+// data-act sono DENTRO il rispettivo #*-menu-wrap → non lo attivano).
+registerClickActions({
+    'user-menu-toggle':  () => toggleUserMenu(),
+    'user-manager-open': () => { openUserManager(); closeUserMenu(); },
+    'change-password':   () => { openChangePassword(); closeUserMenu(); },
+    'lang-switch':       (el) => switchLang(el.dataset.lang),
+    'logout':            () => doLogout(),
+    'report-menu-toggle': () => toggleReportMenu(),
 });

@@ -16,6 +16,8 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, _showToast, _invalidateIdx, _linksForPort, _nodeRadios, _isRadioPid } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { registerClickActions } from './app-delegation.js';   // ASSE B: voce menu Report via data-act
+import { closeReportMenu } from './app-auth.js';   // ASSE B: chiude il dropdown Report (proprietario = app-auth)
 import { propagateVlans, _ensureVlanColor, _getLinkTrunk } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps, _propsSectionIsOpen, _buildPropsHeader } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -591,6 +593,9 @@ function openWifiVlanReport(){
 expose({
     updateRadioCfg, setRadioLabel, updateBssCfg, addBss, removeBss, selectRadioIface,
     addSsidForVlan, setClientAssoc, _pickBss, _closeBssMenu, _closeWifiVlanReport,
-    openWifiVlanReport, _assignWirelessBss, _renderRadioProps, _wifiAssocHtml,
+    _assignWirelessBss, _renderRadioProps, _wifiAssocHtml,
     _radioIfacesHtml, _wifiCfgHtml, _wifiVlanIssues,
 });
+
+// ASSE B: voce "VLAN Wi-Fi" del menu Report via data-act (ex win.openWifiVlanReport).
+registerClickActions({ 'report-wifi': () => { openWifiVlanReport(); closeReportMenu(); } });

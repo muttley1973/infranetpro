@@ -170,8 +170,10 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         // Pannello associazione: eredita il Wi-Fi dell'AP servente.
         const assoc = _wifiAssocHtml(wl);
 
-        // Report coerenza VLAN wireless: apre l'overlay, poi lo chiude.
-        openWifiVlanReport();
+        // Report coerenza VLAN wireless: apre l'overlay via event delegation (ASSE B:
+        // openWifiVlanReport è una voce del menu Report con data-act, non su window), poi lo chiude.
+        const reportDelegatedGone = typeof window.openWifiVlanReport === 'undefined';
+        document.querySelector('[data-act="report-wifi"]').click();
         const ov = document.getElementById('wifivlan-overlay');
         const reportOpen = !!ov && ov.style.display === 'flex';
         _closeWifiVlanReport();
@@ -189,7 +191,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           radioPanelHasAddBtn: /addBss\(/.test(radioPanelHtml),
           ssN, bidOk: !!bid,
           assocInherits: assoc.indexOf('Corp') >= 0,
-          reportOpen, reportClosed,
+          reportOpen, reportClosed, reportDelegatedGone,
         };
       });
       assert.equal(r.bss, 's1', 'associazione automatica al BSS unico (s1)');
@@ -199,7 +201,8 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.radioPanelHasAddBtn, 'il pannello radio offre "Aggiungi SSID" (addBss)');
       assert.equal(r.ssN, 2, 'addBss aggiunge un secondo SSID (Corp + Guest)');
       assert.ok(r.assocInherits, 'il pannello associazione eredita l’SSID Corp dall’AP');
-      assert.ok(r.reportOpen, 'openWifiVlanReport apre l’overlay');
+      assert.ok(r.reportDelegatedGone, 'ASSE B: openWifiVlanReport ritirata dal ponte (voce "VLAN Wi-Fi" del menu Report via data-act)');
+      assert.ok(r.reportOpen, 'la voce "VLAN Wi-Fi" del menu Report (data-act) apre l’overlay');
       assert.ok(r.reportClosed, '_closeWifiVlanReport chiude l’overlay');
     });
 
@@ -1126,25 +1129,30 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
     await t.test('app-auth migrato: API esposte + toggle menu/overlay (DOM, no backend) + var-ify _currentUser', async () => {
       const r = await page.evaluate(() => {
         try {
-          // 1) le funzioni pubbliche sono sul window (expose dal bundle)
-          const fns = ['initAuth','doLogout','toggleUserMenu','closeUserMenu',
-            'toggleImpExpMenu','closeImpExpMenu','toggleReportMenu','closeReportMenu',
-            'openUserManager','closeUserManager','umCreateUser','umToggleRole','umDeleteUser',
-            'openChangePassword','closeChangePassword','umChangePassword'];
+          // 1) le funzioni pubbliche ANCORA su window (expose dal bundle). ASSE B: i
+          // menu utente/report sono passati a event delegation → toggle+voci NON più su window.
+          const fns = ['initAuth','toggleImpExpMenu','closeImpExpMenu',
+            'closeUserManager','umCreateUser','umToggleRole','umDeleteUser',
+            'closeChangePassword','umChangePassword'];
           const allFns = fns.every(n => typeof window[n] === 'function');
+          // ASSE B: queste sono DELEGATE (data-act) → ritirate dal ponte
+          const delegatedGone = ['doLogout','toggleUserMenu','closeUserMenu','openUserManager',
+            'openChangePassword','toggleReportMenu','closeReportMenu']
+            .every(n => typeof window[n] === 'undefined');
           // _applyRoleUI è interno → NON deve essere esposto
           const internalHidden = typeof window._applyRoleUI === 'undefined';
 
-          // 2) toggle deterministico del menu utente (solo DOM)
-          closeUserMenu();
-          const closed = document.getElementById('user-dropdown').style.display === 'none';
-          toggleUserMenu();
-          const opened = document.getElementById('user-dropdown').style.display === 'block';
-          toggleUserMenu();
-          const reclosed = document.getElementById('user-dropdown').style.display === 'none';
+          // 2) toggle deterministico del menu utente via click DELEGATO su #btn-user (data-act)
+          const dd = document.getElementById('user-dropdown');
+          dd.style.display = 'none';
+          const closed = dd.style.display === 'none';
+          document.getElementById('btn-user').click();
+          const opened = dd.style.display === 'block';
+          document.getElementById('btn-user').click();
+          const reclosed = dd.style.display === 'none';
 
-          // 3) overlay cambio password apre/chiude (solo DOM)
-          openChangePassword();
+          // 3) overlay cambio password: apre via voce data-act, chiude via closeChangePassword (esposta)
+          document.querySelector('[data-act="change-password"]').click();
           const ovOpen = document.getElementById('chpwd-overlay').style.display === 'flex';
           closeChangePassword();
           const ovClosed = document.getElementById('chpwd-overlay').style.display === 'none';
@@ -1154,16 +1162,17 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           window._currentUser = { id: 7, username: 'tester', role: 'viewer' };
           const bareRead = _currentUser && _currentUser.username;
 
-          return { ok: true, allFns, internalHidden, closed, opened, reclosed, ovOpen, ovClosed, bareRead };
+          return { ok: true, allFns, delegatedGone, internalHidden, closed, opened, reclosed, ovOpen, ovClosed, bareRead };
         } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
       });
       assert.ok(r.ok, 'nessun errore nel flusso auth: ' + r.err);
-      assert.ok(r.allFns, 'tutte le funzioni auth sono esposte su window');
+      assert.ok(r.allFns, 'le funzioni auth ancora classiche sono esposte su window');
+      assert.ok(r.delegatedGone, 'ASSE B: toggle/voci menu utente+report ritirati dal ponte (data-act)');
       assert.ok(r.internalHidden, '_applyRoleUI resta interno (non esposto)');
-      assert.ok(r.closed, 'closeUserMenu chiude il dropdown');
-      assert.ok(r.opened, 'toggleUserMenu apre il dropdown');
-      assert.ok(r.reclosed, 'toggleUserMenu richiude il dropdown');
-      assert.ok(r.ovOpen, 'openChangePassword apre l\'overlay');
+      assert.ok(r.closed, 'stato iniziale: dropdown utente chiuso');
+      assert.ok(r.opened, 'click delegato su #btn-user apre il dropdown');
+      assert.ok(r.reclosed, 'secondo click delegato richiude il dropdown');
+      assert.ok(r.ovOpen, 'la voce "Cambia password" (data-act) apre l\'overlay');
       assert.ok(r.ovClosed, 'closeChangePassword chiude l\'overlay');
       assert.equal(r.bareRead, 'tester', '_currentUser leggibile BARE (var-ify su window) per i file legacy');
     });
@@ -1785,6 +1794,36 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.redoOk, 'click delegato su #btn-redo esegue redo() (import) → _histIdx risale');
     });
 
+    await t.test('ASSE B — event delegation: menu utente (toggle/account/lingua/logout) via data-act, non su window', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          const btn = document.getElementById('btn-user');
+          const dd = document.getElementById('user-dropdown');
+          // 1) le funzioni del menu utente NON sono più su window (ritiro ponte ASSE B)
+          const gone = ['toggleUserMenu', 'openUserManager', 'openChangePassword', 'doLogout', 'switchLang']
+            .every(n => typeof window[n] === 'undefined');
+          // 2) i bottoni portano data-act (no onclick)
+          const wiredOk = btn && btn.getAttribute('data-act') === 'user-menu-toggle' && !btn.getAttribute('onclick')
+            && document.querySelector('[data-act="user-manager-open"]')
+            && document.querySelector('[data-act="change-password"]')
+            && document.querySelector('[data-act="logout"]')
+            && document.querySelector('[data-act="lang-switch"][data-lang="it"]');
+          // 3) il toggle apre/chiude il dropdown via click DELEGATO (no logout/no cambio lingua = niente side-effect)
+          dd.style.display = 'none';
+          btn.click();
+          const opened = dd.style.display === 'block';
+          btn.click();
+          const closed = dd.style.display === 'none';
+          return { ok: true, gone, wiredOk: !!wiredOk, opened, closed };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso menu utente: ' + r.err);
+      assert.ok(r.gone, 'toggleUserMenu/openUserManager/openChangePassword/doLogout/switchLang ritirati dal ponte');
+      assert.ok(r.wiredOk, 'i bottoni del menu account hanno i data-act attesi (no onclick)');
+      assert.ok(r.opened, 'click delegato su #btn-user apre #user-dropdown');
+      assert.ok(r.closed, 'secondo click delegato lo richiude (toggle)');
+    });
+
     await t.test('VLAN nativa: toggle per-riga sul pannello VLAN imposta state.nativeVlan (stile guest/voce)', async () => {
       const r = await page.evaluate(() => {
         try {
@@ -2226,18 +2265,19 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
     await t.test('bundle esbuild: i moduli ESM migrati (app-audit, app-spare, app-management) girano nel browser reale', async () => {
       const r = await page.evaluate(() => {
         // Le funzioni provengono dal bundle (src/*.js → expose()).
-        const exposed = typeof openAuditLog === 'function' && typeof exportAuditCsv === 'function' &&
-          typeof openSpareReport === 'function' && typeof _applySpareHighlight === 'function' &&
+        const exposed = typeof exportAuditCsv === 'function' && typeof _applySpareHighlight === 'function' &&
           typeof _mgmtRow === 'function' && typeof _openMgmt === 'function';
+        // ASSE B: openAuditLog/openSpareReport sono DELEGATE (voci menu Report via data-act) → non su window
+        const delegatedGone = typeof window.openAuditLog === 'undefined' && typeof window.openSpareReport === 'undefined';
         state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
         if (typeof _invalidateIdx === 'function') _invalidateIdx();
         // app-audit: legge win.state.auditLog (ponte) + t()/getLang() importati dai puri
         state.auditLog = [{ ts: Date.now(), action: 'device-add', target: 'SW-Core', user: 'tester' }];
-        openAuditLog();
+        document.querySelector('[data-act="report-audit"]').click();   // apre l'overlay via event delegation
         const av = document.getElementById('audit-overlay');
         // app-spare: usa win.TYPES/_isLeafEndpoint/_frontPanelSfpGroups (ponte) +
         // buildSpareReport (import puro) sul default state (switch 24 porte).
-        openSpareReport();
+        document.querySelector('[data-act="report-spare"]').click();   // apre l'overlay via event delegation
         const sv = document.getElementById('spare-overlay');
         // app-management: _mgmtRow legge win.nodeById/win.escapeHTML (ponte) e
         // costruisce l'URL primario protocollo+IP (https di default).
@@ -2250,12 +2290,14 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           spareVisible: !!sv && sv.style.display === 'flex',
           spareHasRows: !!sv && sv.querySelectorAll('.spare-row').length > 0,
           mgmtHtml,
+          delegatedGone,
         };
       });
       assert.ok(r.exposed, 'le funzioni dei moduli migrati sono pubblicate su window dal bundle');
-      assert.ok(r.auditVisible, 'openAuditLog() apre l’overlay Storia (render reale)');
+      assert.ok(r.delegatedGone, 'ASSE B: openAuditLog/openSpareReport ritirate dal ponte (voci menu Report via data-act)');
+      assert.ok(r.auditVisible, 'la voce "Storia" del menu Report (data-act) apre l’overlay (render reale)');
       assert.match(r.auditRow, /SW-Core/, 'la riga audit legge state via il ponte e rende il target');
-      assert.ok(r.spareVisible, 'openSpareReport() apre l’overlay Porte libere');
+      assert.ok(r.spareVisible, 'la voce "Porte libere" del menu Report (data-act) apre l’overlay');
       assert.ok(r.spareHasRows, 'il report porte legge state+TYPES via il ponte e calcola le righe');
       assert.match(r.mgmtHtml, /mgmt-block/, '_mgmtRow rende il blocco Management');
       assert.match(r.mgmtHtml, /https:\/\/10\.0\.0\.9/, '_mgmtRow costruisce l’URL primario protocollo+IP via il ponte');
@@ -2321,8 +2363,10 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       // Copertura spostata qui dallo smoke (test/smoke-app.test.js) dopo la migrazione
       // di app-l3 al bundle: lo stub-DOM dello smoke non carica /dist/app.bundle.js.
       const r = await page.evaluate(() => {
-        const exposed = typeof openL3Report === 'function' && typeof _l3GatewayNodeIds === 'function' &&
+        const exposed = typeof _l3GatewayNodeIds === 'function' &&
           typeof _l3SviSectionHtml === 'function' && typeof l3ExportCsv === 'function';
+        // ASSE B: openL3Report è DELEGATA (voce "Mappa L3" del menu Report via data-act) → non su window
+        const delegatedGone = typeof window.openL3Report === 'undefined';
         state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
         const rt = { id: 'l3rt', type: 'router', name: 'GW', x: 0, y: 0, w: 60, h: 40, ip: '192.168.50.1', ports: 8 };
         state.nodes.push(rt); if (typeof _invalidateIdx === 'function') _invalidateIdx();
@@ -2331,10 +2375,11 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         state.ipam.vlans['50'] = { subnet: '192.168.50.0/24', gateway: '192.168.50.1' };  // → auto-match su rt.ip
         const ids = _l3GatewayNodeIds();                 // legge win.buildL3Report + win._parseCidrInfo via ponte
         const svi = _l3SviSectionHtml('l3rt');
-        openL3Report();                                  // overlay reale nel DOM
+        document.querySelector('[data-act="report-l3"]').click();   // overlay via event delegation
         const ov = document.getElementById('l3-overlay');
         const res = {
           exposed,
+          delegatedGone,
           isL3: ids.has('l3rt'),
           sviVlan: svi.indexOf('VLAN 50') >= 0,
           overlayVisible: !!ov && ov.style.display === 'flex',
@@ -2344,9 +2389,10 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         return res;
       });
       assert.ok(r.exposed, 'le funzioni L3 sono pubblicate su window dal bundle');
+      assert.ok(r.delegatedGone, 'ASSE B: openL3Report ritirata dal ponte (voce "Mappa L3" del menu Report via data-act)');
       assert.ok(r.isL3, '_l3GatewayNodeIds riconosce il router come gateway (auto per IP) via il ponte');
       assert.ok(r.sviVlan, '_l3SviSectionHtml elenca VLAN 50 nel pannello device');
-      assert.ok(r.overlayVisible, 'openL3Report apre l’overlay Mappa L3');
+      assert.ok(r.overlayVisible, 'la voce "Mappa L3" del menu Report (data-act) apre l’overlay');
       assert.ok(r.overlayHasVlan, 'l’overlay L3 rende la riga VLAN 50');
     });
 
