@@ -13,6 +13,7 @@
 import { expose, t, parseDhcpLeases } from './_bridge.js';
 import { store } from './store.js';
 import { _showToast, markDirty, _dhcpSyncLeases } from './app.js';
+import { registerChangeActions, registerInputActions } from './app-delegation.js';   // ASSE B: event delegation (change/input)
 
 // Etichette credenziali per-vendor (id → [campo, label]); combaciano coi driver
 // server/dhcp-drivers/vendor/*. Solo per la UI del pull live (pack a pagamento).
@@ -273,6 +274,16 @@ function renderDhcpSources() {
 
 // Handler inline dell'HTML (onclick="").
 expose({
-    openDhcpImport, closeDhcpImport, loadDhcpFile, previewDhcp, fetchDhcpLive, updateDhcpVendorFields,
+    openDhcpImport, closeDhcpImport, fetchDhcpLive,
     useDhcpLeases, refreshDhcpSource, removeDhcpSource, deleteDhcpLease, clearDhcpSources, dhcpVerifyNow,
+});
+
+// ASSE B — superficie change/input del modale DHCP (fuori da expose): file-input +
+// select vendor via data-change, textarea incolla-lease via data-input.
+registerChangeActions({
+    'dhcp-file':   (el) => loadDhcpFile(el),
+    'dhcp-vendor': () => updateDhcpVendorFields(),
+});
+registerInputActions({
+    'dhcp-preview': () => previewDhcp(),
 });

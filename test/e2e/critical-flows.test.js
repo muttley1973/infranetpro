@@ -993,8 +993,15 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
             ',no-name,10.0.0.3,switch,Rack1,3,1,8',
             'cam-c,,10.0.0.4,webcam,,,,',
           ].join('\n');
-          document.getElementById('csv-textarea').value = csv;
-          previewCsv();
+          const csvArea = document.getElementById('csv-textarea');
+          csvArea.value = csv;
+          // ASSE B change/input: la textarea porta data-input, il file-input data-change;
+          // previewCsv/loadCsvFile NON sono più su window.
+          const csvInputWired = csvArea.getAttribute('data-input') === 'csv-preview' && !csvArea.hasAttribute('oninput');
+          const csvFileEl = document.getElementById('csv-file');
+          const csvFileWired = csvFileEl.getAttribute('data-change') === 'csv-file' && !csvFileEl.hasAttribute('onchange');
+          const csvGone = ['previewCsv', 'loadCsvFile'].every(n => typeof window[n] === 'undefined');
+          csvArea.dispatchEvent(new Event('input', { bubbles: true }));   // input DELEGATO reale → previewCsv
           const previewVisible = document.getElementById('csv-preview').style.display !== 'none';
           const previewRows = document.querySelectorAll('#csv-preview-table tbody tr').length;
           const hasErrors = (document.getElementById('csv-errors').textContent || '').length > 0;
@@ -1005,13 +1012,16 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           const imported = state.nodes.length - before;
           const overlayClosed = !document.getElementById('csv-overlay').classList.contains('open');
 
-          return { ok: true, overlayOpen, btnDisabledInit, previewVisible, previewRows, hasErrors, btnEnabledAfter, imported, overlayClosed };
+          return { ok: true, overlayOpen, btnDisabledInit, previewVisible, previewRows, hasErrors, btnEnabledAfter, imported, overlayClosed, csvInputWired, csvFileWired, csvGone };
         } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
       });
       assert.ok(r.ok, 'nessun errore nel flusso CSV: ' + r.err);
       assert.ok(r.overlayOpen, 'openCsvImport apre l\'overlay');
       assert.ok(r.btnDisabledInit, 'import disabilitato all\'apertura');
-      assert.ok(r.previewVisible, 'previewCsv mostra l\'anteprima');
+      assert.ok(r.csvInputWired, 'ASSE B: csv-textarea ha data-input="csv-preview" e nessun oninput');
+      assert.ok(r.csvFileWired, 'ASSE B: csv-file ha data-change="csv-file" e nessun onchange');
+      assert.ok(r.csvGone, 'ASSE B: previewCsv/loadCsvFile ritirate dal ponte (data-input/data-change)');
+      assert.ok(r.previewVisible, 'l\'evento input delegato ha eseguito previewCsv (anteprima visibile)');
       assert.equal(r.previewRows, 4, 'anteprima rende 4 righe (inclusa quella con errore)');
       assert.ok(r.hasErrors, 'la riga senza name è segnalata come errore');
       assert.ok(r.btnEnabledAfter, 'import abilitato con righe valide');
@@ -1028,19 +1038,25 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           if (typeof _invalidateIdx === 'function') _invalidateIdx();
           window._dhcpLeases = null;
 
-          const exposed = ['openDhcpImport', 'previewDhcp', 'useDhcpLeases', 'loadDhcpFile'].every(f => typeof window[f] === 'function');
+          const exposed = ['openDhcpImport', 'useDhcpLeases'].every(f => typeof window[f] === 'function');
+          // ASSE B change/input: previewDhcp/loadDhcpFile fuori da window (data-input/data-change)
+          const dhcpGone = ['previewDhcp', 'loadDhcpFile'].every(f => typeof window[f] === 'undefined');
           openDhcpImport();
           const overlayOpen = document.getElementById('dhcp-overlay').classList.contains('open');
           const useDisabledInit = document.getElementById('dhcp-use-btn').disabled === true;
+          const dhcpFileEl = document.getElementById('dhcp-file');
+          const dhcpFileWired = dhcpFileEl.getAttribute('data-change') === 'dhcp-file' && !dhcpFileEl.hasAttribute('onchange');
 
           // Lease CSV: pcX a un IP nuovo + un MAC sconosciuto. Niente reconcile qui:
           // i lease vanno in store._dhcpLeases e li usa il motore Drift.
-          document.getElementById('dhcp-textarea').value = [
+          const dhcpArea = document.getElementById('dhcp-textarea');
+          dhcpArea.value = [
             'ip,mac,hostname',
             '10.0.0.80,AA:BB:CC:DD:EE:01,pc-x',
             '10.0.0.82,DE:AD:BE:EF:00:09,ignoto',
           ].join('\n');
-          previewDhcp();
+          const dhcpInputWired = dhcpArea.getAttribute('data-input') === 'dhcp-preview' && !dhcpArea.hasAttribute('oninput');
+          dhcpArea.dispatchEvent(new Event('input', { bubbles: true }));   // input DELEGATO reale → previewDhcp
           const useEnabled = document.getElementById('dhcp-use-btn').disabled === false;
           useDhcpLeases();
           const stored = Array.isArray(window._dhcpLeases) ? window._dhcpLeases.length : 0;
@@ -1054,7 +1070,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           const rep = buildDriftReport(snmp, doc, [], {});
           const ipchgX = (rep.ipChanged || []).find(x => x.nodeId === 'pcX');
           const udIgn = (rep.undocumented || []).find(x => String(x.mac || '').toUpperCase() === 'DE:AD:BE:EF:00:09');
-          const out = { ok: true, exposed, overlayOpen, useDisabledInit, useEnabled, stored, overlayStillOpen, sourcesCount,
+          const out = { ok: true, exposed, dhcpGone, dhcpFileWired, dhcpInputWired, overlayOpen, useDisabledInit, useEnabled, stored, overlayStillOpen, sourcesCount,
             macAtIpX: snmp.macAtIp['aa:bb:cc:dd:ee:01'], reachChecked: snmp.reachabilityChecked,
             ipchgX: ipchgX ? ipchgX.newIp : '',
             udLabel: udIgn ? udIgn.label : '' };
@@ -1065,10 +1081,13 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         } catch (e) { return { ok: false, err: String(e && e.message || e) }; }
       });
       assert.ok(r.ok, 'nessun errore: ' + r.err);
-      assert.ok(r.exposed, 'le funzioni DHCP loader sono esposte dal bundle');
+      assert.ok(r.exposed, 'openDhcpImport/useDhcpLeases esposte dal bundle');
+      assert.ok(r.dhcpGone, 'ASSE B: previewDhcp/loadDhcpFile ritirate dal ponte (data-input/data-change)');
+      assert.ok(r.dhcpFileWired, 'ASSE B: dhcp-file ha data-change="dhcp-file" e nessun onchange');
+      assert.ok(r.dhcpInputWired, 'ASSE B: dhcp-textarea ha data-input="dhcp-preview" e nessun oninput');
       assert.ok(r.overlayOpen, 'openDhcpImport apre l\'overlay');
       assert.ok(r.useDisabledInit, '"Aggiungi" disabilitato all\'apertura');
-      assert.ok(r.useEnabled, '"Aggiungi" abilitato dopo il parse');
+      assert.ok(r.useEnabled, 'l\'evento input delegato ha eseguito previewDhcp ("Aggiungi" abilitato)');
       assert.equal(r.stored, 2, 'Aggiungi accumula i lease nella cache store._dhcpLeases');
       assert.equal(r.sourcesCount, 1, 'Aggiungi crea una fonte persistita in state.dhcpSources');
       assert.ok(r.overlayStillOpen, 'Aggiungi NON chiude l\'overlay (si possono aggiungere altre fonti)');
@@ -1086,7 +1105,11 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           // openDhcpImport interroga /api/dhcp-drivers (server reale, pack presente in
           // vendor/) → la sezione live compare e i vendor sono popolati.
           await openDhcpImport();
-          const exposed = ['fetchDhcpLive', 'updateDhcpVendorFields'].every(f => typeof window[f] === 'function');
+          const exposed = ['fetchDhcpLive'].every(f => typeof window[f] === 'function');
+          // ASSE B change: il select vendor è delegato (data-change), updateDhcpVendorFields fuori da window
+          const vendorEl = document.getElementById('dhcp-live-vendor');
+          const vendorWired = vendorEl.getAttribute('data-change') === 'dhcp-vendor' && !vendorEl.hasAttribute('onchange');
+          const vendorGone = typeof window.updateDhcpVendorFields === 'undefined';
           const liveShown = document.getElementById('dhcp-live-section').style.display !== 'none';
           // Pack-aware (come test/dhcp-drivers.test.js): senza driver-pack
           // (server/dhcp-drivers/vendor/ è gitignored → assente in CI / repo pubblico)
@@ -1094,7 +1117,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           if (!liveShown) {
             if (typeof closeDhcpImport === 'function') closeDhcpImport();
             { const _ov = document.getElementById('dhcp-overlay'); if (_ov) _ov.classList.remove('open'); }
-            return { ok: true, exposed, liveShown: false, noPack: true };
+            return { ok: true, exposed, vendorWired, vendorGone, liveShown: false, noPack: true };
           }
           const vendorCount = document.getElementById('dhcp-live-vendor').options.length;
           const cred2hidden = document.getElementById('dhcp-cred2-wrap').style.display === 'none';
@@ -1112,11 +1135,13 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           state.dhcpSources = []; window._dhcpLeases = null;   // non lasciare fonti/lease ai test successivi
           if (typeof closeDhcpImport === 'function') closeDhcpImport();   // chiudi l'overlay: aperto intercetterebbe i click dei test a gesto reale
           { const _ov = document.getElementById('dhcp-overlay'); if (_ov) _ov.classList.remove('open'); }
-          return { ok: true, exposed, liveShown, vendorCount, cred2hidden, useEnabled, stored, storedIp };
+          return { ok: true, exposed, vendorWired, vendorGone, liveShown, vendorCount, cred2hidden, useEnabled, stored, storedIp };
         } catch (e) { return { ok: false, err: String(e && e.message || e) }; }
       });
       assert.ok(r.ok, 'nessun errore nel flusso live: ' + r.err);
-      assert.ok(r.exposed, 'fetchDhcpLive/updateDhcpVendorFields esposte dal bundle');
+      assert.ok(r.exposed, 'fetchDhcpLive esposta dal bundle');
+      assert.ok(r.vendorWired, 'ASSE B: dhcp-live-vendor ha data-change="dhcp-vendor" e nessun onchange');
+      assert.ok(r.vendorGone, 'ASSE B: updateDhcpVendorFields ritirata dal ponte (data-change)');
       if (r.noPack) return;   // CI/repo pubblico: nessun driver-pack → pull live non applicabile (degradazione: resta file/incolla)
       assert.ok(r.liveShown, 'la sezione live compare (driver-pack presente in vendor/)');
       assert.ok(r.vendorCount >= 1, 'vendor popolati dal server');

@@ -5,6 +5,7 @@ import { markDirty, pushHistory, renderCables, _showToast, _nextNodeId } from '.
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _findFreeU } from './app-topology-crawl.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
+import { registerChangeActions, registerInputActions } from './app-delegation.js';   // ASSE B: event delegation (change/input)
 
 // ============================================================
 // CSV IMPORT FRONTEND
@@ -167,4 +168,13 @@ function importCsvNodes(){
     _showToast(t('msg.ui.devicesImported',{imported}), 'ok');
 }
 
-expose({ openCsvImport, closeCsvImport, loadCsvFile, previewCsv, importCsvNodes });
+expose({ openCsvImport, closeCsvImport, importCsvNodes });
+
+// ASSE B — superficie change/input del modale CSV (fuori da expose): il file-input
+// e la textarea portano data-change/data-input; la fn legge l'elemento.
+registerChangeActions({
+    'csv-file': (el) => loadCsvFile(el),
+});
+registerInputActions({
+    'csv-preview': () => previewCsv(),
+});
