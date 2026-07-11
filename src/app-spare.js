@@ -19,6 +19,8 @@ import { expose, t, buildSpareReport } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
 import { getNodeDisplayName, _linksForPort } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { registerClickActions } from './app-delegation.js';   // ASSE B: voce menu Report via data-act
+import { closeReportMenu } from './app-auth.js';   // ASSE B: chiude il dropdown Report (proprietario = app-auth)
 import { TYPES, _frontPanelSfpGroups } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _isLeafEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
 
@@ -165,4 +167,7 @@ function spareExportCsv(){
 
 // Bridge legacy: hook di render (_applySpareHighlight da app-render-core) +
 // voci menu / handler inline dell'overlay.
-expose({ _applySpareHighlight, openSpareReport, setSpareHighlight, toggleSpareHighlight, spareExportCsv, _closeSpareReport });
+expose({ _applySpareHighlight, setSpareHighlight, toggleSpareHighlight, spareExportCsv, _closeSpareReport });
+
+// ASSE B: voce "Porte libere" del menu Report via data-act (ex win.openSpareReport).
+registerClickActions({ 'report-spare': () => { openSpareReport(); closeReportMenu(); } });

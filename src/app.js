@@ -2329,7 +2329,8 @@ function _syncLangButtons(){
 }
 // Cambio lingua UI: applica la lingua (i18n persiste in localStorage),
 // aggiorna l'HTML statico e ri-renderizza i pannelli traducibili.
-function switchLang(l){
+// ASSE B: importata da app-auth.js (menu utente via data-act), non più su window.
+export function switchLang(l){
     if(typeof setLang!=='function') return;
     setLang(l);
     _syncLangButtons();
@@ -2409,7 +2410,7 @@ expose({
   init, initDraggablePopups, isPortOnNode, isRackTopNumbered, logAudit, markDirty,
   nodeById, promoteLinkToManual, pushHistory,
   rackUToVisible, registerModuleNav, removeNodePorts, renderCables, selected, setCableLabel,
-  setDeviceWifi, setLinkProp, setLinkWireless, setNodeRadioCount, switchLang, switchRightTab,
+  setDeviceWifi, setLinkProp, setLinkWireless, setNodeRadioCount, switchRightTab,
   toggleAbbrevNames, toggleNodeLock, updateFloorId, updateFrontPanel, updateN,
   updateP, updateWallPortId, visibleUToRackU,
 });

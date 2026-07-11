@@ -16,6 +16,8 @@ import { expose, t, getLang, auditToCsv, auditActionLabel, ACTION_LABELS } from 
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
 import { nodeById, getNodeDisplayName } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { registerClickActions } from './app-delegation.js';   // ASSE B: voce menu Report via data-act
+import { closeReportMenu } from './app-auth.js';   // ASSE B: chiude il dropdown Report (proprietario = app-auth)
 
 let _auditFilter = '';
 
@@ -128,4 +130,7 @@ function exportAuditCsv(){
 // Bridge legacy: pubblica l'API pubblica su window per gli handler inline
 // dell'overlay (_closeAuditLog/setAuditFilter/exportAuditCsv) e per i chiamanti
 // ancora-classic (openAuditLog dal menu, openAuditForNode dal pannello device).
-expose({ openAuditLog, openAuditForNode, _closeAuditLog, setAuditFilter, exportAuditCsv });
+expose({ openAuditForNode, _closeAuditLog, setAuditFilter, exportAuditCsv });
+
+// ASSE B: voce "Storia modifiche" del menu Report via data-act (ex win.openAuditLog).
+registerClickActions({ 'report-audit': () => { openAuditLog(); closeReportMenu(); } });

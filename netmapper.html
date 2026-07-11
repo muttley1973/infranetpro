@@ -108,20 +108,20 @@
             <i class="fas fa-clipboard-check"></i><span class="btn-label" data-i18n="verify.label"> Verifica</span>
         </button>
         <div id="report-menu-wrap" style="position:relative">
-            <button class="toolbar-btn icon-only" id="btn-report" onclick="toggleReportMenu()" data-i18n-tip="report.tip" data-tip="Report e analisi: storia modifiche, porte libere, mappa L3, coerenza VLAN">
+            <button class="toolbar-btn icon-only" id="btn-report" data-act="report-menu-toggle" data-i18n-tip="report.tip" data-tip="Report e analisi: storia modifiche, porte libere, mappa L3, coerenza VLAN">
                 <i class="fas fa-chart-column"></i><span class="btn-label" data-i18n="report.label"> Report</span><i class="fas fa-chevron-down" style="font-size:0.6rem;margin-left:4px;opacity:.6"></i>
             </button>
             <div id="report-dropdown" class="header-menu-dropdown" style="display:none">
-                <button class="header-menu-item" id="btn-audit" onclick="openAuditLog();closeReportMenu()">
+                <button class="header-menu-item" id="btn-audit" data-act="report-audit">
                     <i class="fas fa-clock-rotate-left"></i> <span data-i18n="report.audit">Storia modifiche</span>
                 </button>
-                <button class="header-menu-item" id="btn-spare" onclick="openSpareReport();closeReportMenu()">
+                <button class="header-menu-item" id="btn-spare" data-act="report-spare">
                     <i class="fas fa-plug-circle-plus"></i> <span data-i18n="report.spare">Porte libere</span>
                 </button>
-                <button class="header-menu-item" id="btn-l3" onclick="openL3Report()">
+                <button class="header-menu-item" id="btn-l3" data-act="report-l3">
                     <i class="fas fa-route"></i> <span data-i18n="report.l3">Mappa L3 / Gateway</span>
                 </button>
-                <button class="header-menu-item" id="btn-wifivlan" onclick="openWifiVlanReport();closeReportMenu()">
+                <button class="header-menu-item" id="btn-wifivlan" data-act="report-wifi">
                     <i class="fas fa-wifi"></i> <span data-i18n="report.wifiVlan">Coerenza VLAN wireless</span>
                 </button>
             </div>
@@ -152,32 +152,32 @@
         <div class="header-sep"></div>
         <!-- Badge utente + menu (la lingua vive dentro questo menu) -->
         <div id="user-menu-wrap" style="position:relative">
-            <button class="toolbar-btn" id="btn-user" onclick="toggleUserMenu()" data-i18n-tip="user.tipAccount" data-tip="Account">
+            <button class="toolbar-btn" id="btn-user" data-act="user-menu-toggle" data-i18n-tip="user.tipAccount" data-tip="Account">
                 <i class="fas fa-user-circle"></i>
                 <span id="user-label" style="margin-left:5px;font-size:0.8rem">…</span>
                 <i class="fas fa-chevron-down" style="font-size:0.65rem;margin-left:4px;opacity:.6"></i>
             </button>
             <div id="user-dropdown" style="display:none;position:absolute;right:0;top:calc(100% + 6px);background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:8px;min-width:180px;z-index:500;box-shadow:0 8px 24px rgba(0,0,0,.5);padding:6px 0;">
                 <div id="user-info-row" style="padding:8px 14px 6px;font-size:0.85rem;color:var(--text-muted);border-bottom:1px solid var(--panel-border);margin-bottom:4px;"></div>
-                <button class="user-menu-item admin-only" onclick="openUserManager();closeUserMenu()">
+                <button class="user-menu-item admin-only" data-act="user-manager-open">
                     <i class="fas fa-shield-halved"></i> <span data-i18n="user.manage">Utenti e accessi</span>
                 </button>
-                <button class="user-menu-item admin-only" onclick="openChangePassword();closeUserMenu()">
+                <button class="user-menu-item admin-only" data-act="change-password">
                     <i class="fas fa-key"></i> <span data-i18n="user.changePw">Cambia password</span>
                 </button>
-                <button class="user-menu-item viewer-ok" onclick="openChangePassword();closeUserMenu()" style="display:none">
+                <button class="user-menu-item viewer-ok" data-act="change-password" style="display:none">
                     <i class="fas fa-key"></i> <span data-i18n="user.changePw">Cambia password</span>
                 </button>
                 <div style="border-top:1px solid var(--panel-border);margin:4px 0"></div>
                 <div class="user-menu-lang">
                     <span style="font-size:0.85rem;color:var(--text-muted)"><i class="fas fa-language" style="margin-right:6px;opacity:.8"></i><span data-i18n="user.language">Lingua</span></span>
                     <span class="lang-opts">
-                        <button class="lang-opt" data-lang="it" onclick="switchLang('it')">IT</button>
-                        <button class="lang-opt" data-lang="en" onclick="switchLang('en')">EN</button>
+                        <button class="lang-opt" data-lang="it" data-act="lang-switch">IT</button>
+                        <button class="lang-opt" data-lang="en" data-act="lang-switch">EN</button>
                     </span>
                 </div>
                 <div style="border-top:1px solid var(--panel-border);margin:4px 0"></div>
-                <button class="user-menu-item" onclick="doLogout()" style="color:#f85149">
+                <button class="user-menu-item" data-act="logout" style="color:#f85149">
                     <i class="fas fa-sign-out-alt"></i> <span data-i18n="user.logout">Esci</span>
                 </button>
             </div>
