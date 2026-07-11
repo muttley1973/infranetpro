@@ -286,7 +286,7 @@ function _drawTopoPair(p, svg, NS, isDark, els){
 
     // Event handlers sulla hit area
     hit.addEventListener('pointerenter', ev=>{
-        clearTimeout(win._topoTipTimer);
+        clearTimeout(store._topoTipTimer);
         _showTopoTip(ev, td);
         line.classList.add('tfl-hl');
     });
@@ -303,7 +303,7 @@ function _drawTopoPair(p, svg, NS, isDark, els){
         }
     });
     hit.addEventListener('pointerleave', ()=>{
-        win._topoTipTimer=setTimeout(_hideTopoTip, 300);
+        store._topoTipTimer=setTimeout(_hideTopoTip, 300);
         line.classList.remove('tfl-hl');
     });
     hit.addEventListener('pointerdown', ev=>{

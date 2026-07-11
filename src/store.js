@@ -57,4 +57,10 @@ export const store = proxy([
     '_physicalTraceActive', '_propsExplicit', '_rightTab', '_snmpSyncing',
     '_topoHideEndpoints', '_topoHideWireless', '_topoFdbVlanCache', '_discTypeMap',
     '_focusedLagGroup',
+    // ── coda-stato di INTERAZIONE, 3º giro (ritiro ponte 2026-07-11) ──────────
+    // Storia undo/redo, flag dirty, rilevamento doppio-click manuale (rack/floor/
+    // porta), drag/pan libreria, timer tooltip topo, link-appena-iniziato.
+    'panStart', '_linkJustStarted', '_topoTipTimer', '_history', '_histIdx',
+    '_rackPortDblPid', '_rackPortDblTime', '_rackFloorDblId', '_rackFloorDblTime',
+    '_rackDblId', '_rackDblTime', '_paletteDragType', '_isDirty', '_dragModalState',
 ]);

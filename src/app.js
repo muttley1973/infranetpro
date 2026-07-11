@@ -33,7 +33,7 @@ store.state = {
 };
 
 store.currentProjectId = null;   // var: letto/scritto dal bundle app-core (projects) via win.*
-win._isDirty = false;   // var: idem (switchProject guard)
+store._isDirty = false;   // var: idem (switchProject guard)
 
 // ============================================================
 // STATE LOOKUP INDEXES — O(1) per node e link lookup
@@ -92,15 +92,15 @@ store.selId=null; store.selType=null; store.highPath=new Set();
 // var (non let): linkStart è letto dal bundle (src/app-ports.js) via store.linkStart
 // → deve stare su window (REGOLA CRITICA). dragNode/resizeNode/
 // _linkJustStarted seguono per coerenza (bare-read dai classic, invariato).
-store.dragNode=null; store.resizeNode=null; store.linkStart=null; win._linkJustStarted=false;
+store.dragNode=null; store.resizeNode=null; store.linkStart=null; store._linkJustStarted=false;
 // Rilevamento manuale doppio click su porte device floor: { pid, t (timestamp), timer (handle setTimeout) }
 store._floorPortClick = null;   // var: stato input scritto dal bundle (app-pointer) via win.*
 // Rilevamento manuale doppio click su porte device RACK in tab Rack
 // (preventDefault del pointerdown blocca il dblclick nativo del browser).
-win._rackPortDblPid = null; win._rackPortDblTime = 0;
+store._rackPortDblPid = null; store._rackPortDblTime = 0;
 // Rilevamento doppio click sull'ICONA rack in topologia: single press = drag
 // (sposta il rack), doppio click = apri la rack window.
-win._rackFloorDblId = null; win._rackFloorDblTime = 0;
+store._rackFloorDblId = null; store._rackFloorDblTime = 0;
 store.dragRack=null;   // rack ID quando si trascina un'icona rack sulla planimetria (var: letto da app.js _renderModeIndicator + scritto dal bundle)
 // var (non let): lagSelMode/lagSelPorts sono scritti dal bundle (src/app-ports.js)
 // via win.* e bare-letti dai classic (app-pointer, app-render-core) → su window.
@@ -115,7 +115,7 @@ store._propsExplicit=false;
 // ^ var (non let): il modulo bundle app-properties-node.js lo legge via
 //   store._propsExplicit (guard render rack). I writer classic (app.js/app-pointer)
 //   fanno bare-assign → cadono sulla stessa var di window.
-win._rackDblTime=0; win._rackDblId=null;   // rilevazione manuale doppio click (dblclick non arriva con preventDefault)
+store._rackDblTime=0; store._rackDblId=null;   // rilevazione manuale doppio click (dblclick non arriva con preventDefault)
 store._vlanIpamOpen=new Set();   // VLAN con dettagli IPAM aperti nel pannello floor
 // ^ var (non let): il modulo bundle app-properties-floor.js lo legge via
 //   store._vlanIpamOpen (.has). Un let vivrebbe nel global lexical, invisibile al
@@ -128,9 +128,9 @@ store._discRunning=false;   // true mentre discovery/crawl è in corso   (var: i
 store._discImporting=false;   // true mentre importa i risultati selezionati   (var: idem)
 store._discSelMap={};   // chiave device -> checkbox selezionata   (var: idem)
 store._discTypeMap={};   // chiave device -> tipo scelto dall'utente   (var: idem)
-win._paletteDragType='';   // tipo trascinato dalla libreria elementi (var: letto da app.js _renderModeIndicator)
+store._paletteDragType='';   // tipo trascinato dalla libreria elementi (var: letto da app.js _renderModeIndicator)
 store.dragOffset={x:0,y:0};
-store.isPanningFloor=false; win.panStart={x:0,y:0};
+store.isPanningFloor=false; store.panStart={x:0,y:0};
 // Pan del rack con Space+trascinamento (come il floor): il rack però usa lo
 // SCROLL nativo del #rack-viewport, quindi qui memorizziamo scroll iniziale.
 store.isPanningRack=false; store.rackPanStart={x:0,y:0,sl:0,st:0};
@@ -205,7 +205,7 @@ export function _renderModeIndicator(){
 // ============================================================
 // UNDO / REDO
 // ============================================================
-win._history=[]; win._histIdx=-1;   // var: reset dal bundle app-core (loadProject) via win.*
+store._history=[]; store._histIdx=-1;   // var: reset dal bundle app-core (loadProject) via win.*
 
 export function pushHistory() {
     _history = _history.slice(0, _histIdx+1);
@@ -778,7 +778,7 @@ export function bindEventsOnce() {
 // ============================================================
 // POP-UP / MODAL TRASCINABILI
 // ============================================================
-win._dragModalState = null;   // var: letto dal bundle app-popup (_hideTopoTip guard) via win._dragModalState
+store._dragModalState = null;   // var: letto dal bundle app-popup (_hideTopoTip guard) via store._dragModalState
 
 function _isInteractiveDragTarget(el){
     return !!el?.closest?.('button,input,select,textarea,a,label,[contenteditable="true"]');

@@ -140,7 +140,7 @@ function _snapFloor(v){ return store.state.gridHidden ? Math.round(v) : Math.rou
 // DRAG & DROP
 // ============================================================
 function onDragStart(e){
-    win._paletteDragType=e.target.dataset.type||'';
+    store._paletteDragType=e.target.dataset.type||'';
     _renderModeIndicator();
     e.dataTransfer.setData('text/plain',e.target.dataset.type);
     e.dataTransfer.effectAllowed='copy';
@@ -148,7 +148,7 @@ function onDragStart(e){
 
 function handleDrop(e,zone){
     const t=e.dataTransfer.getData('text/plain'); if(!t||!TYPES[t]) return;
-    win._paletteDragType='';
+    store._paletteDragType='';
     const d=TYPES[t];
     const n={id:_nextNodeId(t),type:t,name:d.name+' '+Math.floor(Math.random()*100),ports:d.ports};
     const spec=_ensureNodeSpec(n);
@@ -251,7 +251,7 @@ function handlePointerDown(e){
     if(e.target.closest('#floorplan') && store._spaceDown && e.button===0){
         e.preventDefault();
         store.isPanningFloor=true;
-        win.panStart={x:e.clientX-store.state.floorView.x, y:e.clientY-store.state.floorView.y};
+        store.panStart={x:e.clientX-store.state.floorView.x, y:e.clientY-store.state.floorView.y};
         const fp=document.getElementById('floorplan');
         if(fp) fp.style.cursor='grabbing';
         return;
@@ -308,7 +308,7 @@ function handlePointerDown(e){
                 if(port.dataset.pid===store.linkStart){ _cancelLink(); renderAll(); }
                 // Porta diversa → handlePointerUp chiuderà il link
             } else {
-                store.linkStart=port.dataset.pid; win._linkJustStarted=true;
+                store.linkStart=port.dataset.pid; store._linkJustStarted=true;
                 document.body.classList.add('link-mode');
                 store.selType='port'; store.selId=store.linkStart;
                 trace(store.linkStart); renderAll();
@@ -394,14 +394,14 @@ function handlePointerDown(e){
                         // pointerdown). Soglia 350ms come gia' fatto per le
                         // porte floor.
                         const _now = Date.now();
-                        if (win._rackPortDblPid === _pid && (_now - win._rackPortDblTime) < 350) {
+                        if (store._rackPortDblPid === _pid && (_now - store._rackPortDblTime) < 350) {
                             // === DOPPIO CLICK === → switch a tab Proprieta'
-                            win._rackPortDblPid = null; win._rackPortDblTime = 0;
+                            store._rackPortDblPid = null; store._rackPortDblTime = 0;
                             switchRightTab('props');
                             renderAll(); renderProps();
                         } else {
                             // === SINGLE CLICK === → solo highlight cavo
-                            win._rackPortDblPid = _pid; win._rackPortDblTime = _now;
+                            store._rackPortDblPid = _pid; store._rackPortDblTime = _now;
                             renderAll();
                         }
                     } else {
@@ -429,8 +429,8 @@ function handlePointerDown(e){
                 // arma il drag (sposta il rack). Rilevamento dblclick manuale via
                 // timestamp (il dblclick nativo non scatta dopo preventDefault).
                 const _now=Date.now();
-                if(win._rackFloorDblId===rackId && (_now-win._rackFloorDblTime)<350){
-                    win._rackFloorDblId=null; win._rackFloorDblTime=0;
+                if(store._rackFloorDblId===rackId && (_now-store._rackFloorDblTime)<350){
+                    store._rackFloorDblId=null; store._rackFloorDblTime=0;
                     if(store._rackCollapsed) toggleRackPanel();
                     store._hoverRackId=null;
                     switchRack(rackId);
@@ -438,7 +438,7 @@ function handlePointerDown(e){
                     renderTopoOverlay();
                     return;
                 }
-                win._rackFloorDblId=rackId; win._rackFloorDblTime=_now;
+                store._rackFloorDblId=rackId; store._rackFloorDblTime=_now;
                 // (nessun ritorno: prosegue ad armare il drag come in map mode)
             }
             // Arma il potenziale drag senza switchare subito al rack.
@@ -484,15 +484,15 @@ function handlePointerDown(e){
             const _nid=rackEl.dataset.id;
             const _now=Date.now();
             // Rilevazione manuale doppio click (dblclick non arriva dopo preventDefault su pointerdown)
-            if(_nid===win._rackDblId && _now-win._rackDblTime<350){
-                win._rackDblTime=0; win._rackDblId=null;   // reset per il prossimo ciclo
+            if(_nid===store._rackDblId && _now-store._rackDblTime<350){
+                store._rackDblTime=0; store._rackDblId=null;   // reset per il prossimo ciclo
                 store.dragNode=null;
                 store.selId=_nid; store.selType='node';
                 store._propsExplicit=true;
                 renderProps();
                 return;
             }
-            win._rackDblTime=_now; win._rackDblId=_nid;
+            store._rackDblTime=_now; store._rackDblId=_nid;
             store._propsExplicit=false;
             store.dragNode=_nid; store.selType='node'; store.selId=store.dragNode;
             const r=rackEl.getBoundingClientRect();
@@ -511,7 +511,7 @@ function handlePointerDown(e){
             document.body.classList.add('rack-panning');
             const rv=document.getElementById('rack-viewport'); if(rv) rv.style.cursor='grabbing';
         } else if(e.target.closest('#floorplan')){
-            store.isPanningFloor=true; win.panStart={x:e.clientX-store.state.floorView.x,y:e.clientY-store.state.floorView.y};
+            store.isPanningFloor=true; store.panStart={x:e.clientX-store.state.floorView.x,y:e.clientY-store.state.floorView.y};
             store.selType=null; store.selId=null; _clearTopoHighlight(); _hideTopoTip();
             // Click area vuota mappa: se c'e' un filtro VLAN attivo, rimuovilo
             // (UX coerente: click "fuori" = reset filtro/selezione).
@@ -539,7 +539,7 @@ function handlePointerMove(e){
         _floorDblId = null; _floorDblTime = 0;   // un drag NON è la 1ª metà di un doppio click → invalida il timer del doppio click floor
     }
     if(store.isPanningFloor){
-        store.state.floorView.x=e.clientX-win.panStart.x; store.state.floorView.y=e.clientY-win.panStart.y;
+        store.state.floorView.x=e.clientX-store.panStart.x; store.state.floorView.y=e.clientY-store.panStart.y;
         updateTransforms();
     } else if(store.isPanningRack){
         // Pan via TRANSFORM translate sul wrap, come il floor: lo zoom del rack e'
@@ -623,7 +623,7 @@ function handlePointerMove(e){
 export function _cancelLink(){
     document.getElementById('temp-link').setAttribute('d','');
     document.getElementById('temp-link-rack').setAttribute('d','');
-    store.linkStart=null; win._linkJustStarted=false;
+    store.linkStart=null; store._linkJustStarted=false;
     document.body.classList.remove('link-mode');
     _renderModeIndicator();
 }
@@ -779,8 +779,8 @@ function handlePointerUp(e){
     // Completamento link: solo tasto destro
     if(e.button===2&&store.linkStart){
         const pel=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-pid]');
-        const justStarted=win._linkJustStarted;
-        win._linkJustStarted=false;
+        const justStarted=store._linkJustStarted;
+        store._linkJustStarted=false;
         if(pel&&pel.dataset.pid!==store.linkStart){
             _tryFinishLink(pel.dataset.pid);
         } else if(justStarted){
