@@ -8,7 +8,7 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { pushHistory, _invalidateIdx, logAudit, _clearDirty } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
-import { renderRackTabs, updateTransforms } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
+import { renderRackTabs, updateTransforms, _updateFloorToolbarVisibility } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { _restoreTopoSession } from './app-topology-discover.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 
 const API = '/api/projects';
@@ -170,7 +170,7 @@ async function saveProject() {
 async function _initApp() {
     win.bindEventsOnce();
     win.initPaletteUi();
-    win._updateFloorToolbarVisibility();
+    _updateFloorToolbarVisibility();
     try {
         let list = await apiFetch(API);
         if (list.length === 0) {
@@ -213,8 +213,8 @@ function modalResolve(ok) {
 }
 
 export function showAlert(msg,   cb)              { _modalOk=cb||null; _modalCancel=null; _openModal('alert',   msg); }
-function showConfirm(msg, onOk, onCancel)  { _modalOk=onOk||null; _modalCancel=onCancel||null; _openModal('confirm', msg); }
-function showPrompt(msg,  def, onOk, onC)  { _modalOk=onOk||null; _modalCancel=onC||null;      _openModal('prompt',  msg, def); }
+export function showConfirm(msg, onOk, onCancel)  { _modalOk=onOk||null; _modalCancel=onCancel||null; _openModal('confirm', msg); }
+export function showPrompt(msg,  def, onOk, onC)  { _modalOk=onOk||null; _modalCancel=onC||null;      _openModal('prompt',  msg, def); }
 
 expose({
     apiFetch, loadProjectList, loadProject, switchProject, newProject, renameProject,

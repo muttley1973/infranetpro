@@ -303,6 +303,31 @@ test('ponte: le 15 funzioni dell\'alias-block props-node non sono più lette da 
   }
 });
 
+// ── 1p) Coda funzioni A, batch 1/2 (62 fn) ───────────────────────────────────
+// Ritiro ponte 2026-07-11: passata grande su tutte le funzioni ritirabili residue
+// (def-once `function` in src/, escluso `_guessType` lasciato apposta), generata via
+// mappa auto-dedotta simbolo→modulo. Include dispatcher render (_renderNodeProps/
+// _renderPortProps/_renderLinkProps/_renderFloorProps) + fn inline (closeReportMenu/
+// _saveDeepScanPref/_hideTopoTip: la parte JS→import, il bare-inline resta + expose).
+const RETIRED_TAIL_FN1 = [
+  'closeReportMenu', '_ensureDiscoveryHistory', '_nodeByMacMap', '_recordDiscoveryObservation', '_paintRoutingTargets', '_routeHopRemovable',
+  '_routingPickPort', 'showConfirm', 'showPrompt', '_discCanAutoRetype', '_discConfidenceScore', '_discHasStrongIdentity',
+  '_discInvalidateExistingIndexes', '_discMarkIpMacConflict', '_discRememberClassHint', '_discSanitizeDeviceClass', '_loadDeepScanPref', '_saveDeepScanPref',
+  '_discExistingNode', '_driftBuildDocSnapshot', '_driftBuildSnmpSnapshot', '_renderDriftReport', '_l3Compute', '_l3GatewayBindingHtml',
+  '_l3GatewayNodeIds', '_mgmtRow', '_panelSkinRackHtml', '_resolveNodeSkin', '_cancelLink', '_drawFanoutLineDesc',
+  '_findProjectLinkByPorts', '_getRackFloorLinks', '_hideTopoTip', '_linkMatchesVlanFilter', '_rackPairMatchesVlan', '_rectEdge',
+  '_showPhysicalCablePath', '_showTopoTip', 'toggleTopoEndpointFilter', 'toggleTopoTrunkFilter', 'toggleTopoWlanFilter', '_focusLagForPort',
+  '_isLagFocusedPort', '_portLagGid', '_toggleLagPort', '_updateLagBanner', 'getPassivePortLagInfo', '_renderFloorProps',
+  '_renderLinkProps', '_deviceAccessVlanPid', '_floorAccessVlanRow', '_renderNodeProps', '_renderPortProps', 'setPropsSectionState',
+  'getCablePath', 'getRackCablePath', 'isRackPort', 'renderNow', 'renderScope', '_updateFloorToolbarVisibility',
+  '_updateRackFloorBtn', 'applyUiColors'];
+test('ponte: la coda funzioni A batch 1 non è più letta da win.*', () => {
+  for (const sym of RETIRED_TAIL_FN1) {
+    const viaWin = countInCode(new RegExp('\\bwin\\.' + sym + '\\b', 'g'));
+    assert.equal(viaWin, 0, `win.${sym} è tornato: importa { ${sym} } dal suo modulo definitore`);
+  }
+});
+
 // ── 2) Cricchetto sul totale: il ponte può solo restringersi ────────────────
 // Conteggio SOLO-CODICE (commenti esclusi) delle letture win.*. Tetto stretto al
 // valore reale corrente: abbassalo al numero che il test stampa ([ratchet] …)
@@ -506,7 +531,13 @@ test('ponte: le 15 funzioni dell\'alias-block props-node non sono più lette da 
 // win.X negli altri consumatori — il grosso era nel blocco). Restano nel blocco i soli
 // lib-script stack/ha. CHIUDE la fonte ricorrente della trappola TDZ. Golden invariante;
 // e2e 69/69. Vedi RETIRED_ALIAS_FN.
-const MAX_WIN_REFS = 557;
+//
+// −112 (557 → 445, 2026-07-11): RITIRO PONTE — coda funzioni A, batch 1/2 (62 fn).
+// Passata GRANDE su tutte le funzioni ritirabili residue (mappa auto-dedotta simbolo→modulo,
+// `xform-json.js`), sciolta la trappola alias-block → nessun abort. 112 win.X → bare in 19
+// file. Include dispatcher render + fn inline (JS→import, bare-inline resta). Golden
+// invariante; e2e 69/69. Vedi RETIRED_TAIL_FN1.
+const MAX_WIN_REFS = 445;
 
 test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => {
   const total = countInCode(/\bwin\./g);

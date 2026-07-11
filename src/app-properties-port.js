@@ -17,6 +17,8 @@ import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi 
 import { _effPortVlan, _getLinkTrunk, _parseTrunkVlans, _runActiveAnchor } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _buildPropsHeader } from './app-properties.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
 import { _vlanLabel } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
+import { _floorAccessVlanRow } from './app-properties-node-devices.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
+import { getPassivePortLagInfo } from './app-ports.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 // NB: renderProps() qui è chiamato SOLO da un onclick="" (bare-in-template, scope
 // pagina → window.renderProps via expose): nessun import ESM, sarebbe inutilizzato.
 
@@ -39,7 +41,7 @@ function _portInheritedLinkData(pid){
 }
 
 // Proprieta' di una PORTA selezionata (selType==='port').
-function _renderPortProps(panel){
+export function _renderPortProps(panel){
         const state = store.state;
         const pid=store.selId;
         // Interfaccia radio selezionata → pannello dedicato (config per-radio).
@@ -180,7 +182,7 @@ function _renderPortProps(panel){
                         })() : '';
                         return `<div class="prop-group"><label>VLAN</label>${_roBox(_inner)}</div>${_voiceRow}`;
                     }
-                    return `<div class="prop-group"><label>VLAN</label>${(typeof win._floorAccessVlanRow==='function')?win._floorAccessVlanRow(portNode,pid):_roBox('VLAN '+effVlan)}</div>`;
+                    return `<div class="prop-group"><label>VLAN</label>${(typeof _floorAccessVlanRow==='function')?_floorAccessVlanRow(portNode,pid):_roBox('VLAN '+effVlan)}</div>`;
                 }
                 // Campo VLAN/nativa editabile (scrive il PVID = vlanOvr). Riutilizzato
                 // sia dalle porte passive sia dallo switchport (con label diversa).
@@ -250,7 +252,7 @@ function _renderPortProps(panel){
                 </div>`;
                 }
                 // Dispositivo passivo: info LAG traversal se presente.
-                const info=win.getPassivePortLagInfo(pid);
+                const info=getPassivePortLagInfo(pid);
                 if(!info) return '';
                 return `<div style="border-top:1px solid var(--panel-border);margin-top:8px;padding-top:7px;font-size:0.72rem;color:var(--text-muted)">
                   <span style="color:var(--accent);margin-right:5px">🔗</span>

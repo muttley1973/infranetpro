@@ -13,12 +13,14 @@ import { propagateVlans } from './app-vlan-autopoll.js';   // ritiro ponte fase 
 import { renderTopoOverlay } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
-import { renderAll, rackUPx } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { renderAll, rackUPx, isRackPort, getRackCablePath, getCablePath, renderScope } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, _ensureNodeSpec } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { absorbNodeAsVm } from './app-hypervisor.js';   // import di un tile come VM (drop sulla zona nel pannello host)
 import { focusNode, renderRackTabs, switchRack, toggleRackPanel, updateTransforms } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
-import { closePop } from './app-popup.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { closePop, _hideTopoTip } from './app-popup.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _isLeafEndpoint, _autoLinkEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
+import { _routingPickPort } from './app-cabling-editor.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
+import { _focusLagForPort, _toggleLagPort } from './app-ports.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 
 // soglia drag/click (px): unico lettore era questo modulo → module-local
 const _DRAG_THRESHOLD_PX = 5;
@@ -220,7 +222,7 @@ function handlePointerDown(e){
         const _rp = e.target.closest('[data-pid]');
         if(_rp){
             e.preventDefault(); e.stopPropagation();
-            win._routingPickPort(_rp.dataset.pid);
+            _routingPickPort(_rp.dataset.pid);
             return;
         }
         // click non su porta → lascia passare (pan/navigazione), modalita' resta
@@ -311,7 +313,7 @@ function handlePointerDown(e){
         } else if(LMB){
             // ── TASTO SINISTRO: LAG mode o seleziona e mostra popup ──
             if(store.lagSelMode){
-                win._toggleLagPort(port.dataset.pid);
+                _toggleLagPort(port.dataset.pid);
             } else {
                 if(store.linkStart){ _cancelLink(); }
                 const _pid=port.dataset.pid;
@@ -325,7 +327,7 @@ function handlePointerDown(e){
                 // rimosso il popup sulle porte rack, il focus va attivato qui sul
                 // click, prima dei renderAll dei rami sotto. Su porta non-LAG la
                 // funzione azzera il set e non evidenzia nulla.
-                win._focusLagForPort(_pid);
+                _focusLagForPort(_pid);
                 if(_isFloor){
                     // Le porte floor hanno DUE comportamenti distinti:
                     //   single click  → tab Proprieta porta (immediato)
@@ -507,14 +509,14 @@ function handlePointerDown(e){
             const rv=document.getElementById('rack-viewport'); if(rv) rv.style.cursor='grabbing';
         } else if(e.target.closest('#floorplan')){
             store.isPanningFloor=true; win.panStart={x:e.clientX-store.state.floorView.x,y:e.clientY-store.state.floorView.y};
-            store.selType=null; store.selId=null; win._clearTopoHighlight(); win._hideTopoTip();
+            store.selType=null; store.selId=null; win._clearTopoHighlight(); _hideTopoTip();
             // Click area vuota mappa: se c'e' un filtro VLAN attivo, rimuovilo
             // (UX coerente: click "fuori" = reset filtro/selezione).
             if(store._filterVlan != null && typeof win.setVlanFilter === 'function') win.setVlanFilter(null);
             else renderAll();
         } else if(e.target.closest('#workspace')&&!e.target.closest('.cable-hit')){
             if(store.linkStart){ _cancelLink(); }
-            store.selType=null; store.selId=null; win._clearTopoHighlight(); win._hideTopoTip();
+            store.selType=null; store.selId=null; win._clearTopoHighlight(); _hideTopoTip();
             if(store._filterVlan != null && typeof win.setVlanFilter === 'function') win.setVlanFilter(null);
             else renderAll();
         }
@@ -596,18 +598,18 @@ function handlePointerMove(e){
         const color=store.state.vlanColors[_lsp.vlanOvr??_lsp.vlan??_lsp.vlanProp??1]||'#aaa';
         if(st){
             const sr=st.getBoundingClientRect();
-            if(win.isRackPort(store.linkStart)){
+            if(isRackPort(store.linkStart)){
                 const vp=document.getElementById('rack-viewport').getBoundingClientRect();
                 const x1=sr.left-vp.left+sr.width/2, y1=sr.top-vp.top+sr.height/2;
                 const tl=document.getElementById('temp-link-rack');
-                tl.setAttribute('d',win.getRackCablePath(x1,y1,e.clientX-vp.left,e.clientY-vp.top));
+                tl.setAttribute('d',getRackCablePath(x1,y1,e.clientX-vp.left,e.clientY-vp.top));
                 tl.setAttribute('stroke',color);
                 document.getElementById('temp-link').setAttribute('d','');
             } else {
                 const ea=document.getElementById('export-area').getBoundingClientRect();
                 const x1=sr.left-ea.left+sr.width/2, y1=sr.top-ea.top+sr.height/2;
                 const tl=document.getElementById('temp-link');
-                tl.setAttribute('d',win.getCablePath(x1,y1,e.clientX-ea.left,e.clientY-ea.top));
+                tl.setAttribute('d',getCablePath(x1,y1,e.clientX-ea.left,e.clientY-ea.top));
                 tl.setAttribute('stroke',color);
                 document.getElementById('temp-link-rack').setAttribute('d','');
             }
@@ -615,7 +617,7 @@ function handlePointerMove(e){
     }
 }
 
-function _cancelLink(){
+export function _cancelLink(){
     document.getElementById('temp-link').setAttribute('d','');
     document.getElementById('temp-link-rack').setAttribute('d','');
     store.linkStart=null; win._linkJustStarted=false;
@@ -764,7 +766,7 @@ function handlePointerUp(e){
                 store.dragNode=null; store.resizeNode=null;
                 // F4-P3: resize stanza → refresh planimetria; _wasRackDrag → renderAll.
                 if(store._dragArmed && _wasRackDrag) renderAll();
-                else if(store._dragArmed && wasResize) win.renderScope('floor');
+                else if(store._dragArmed && wasResize) renderScope('floor');
                 else { _renderModeIndicator(); renderCables(); }
             }
         }

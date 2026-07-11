@@ -6,7 +6,7 @@ import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi 
 import { _portDisplayName } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _getLinkTrunk } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _findPortByIfName } from './app-topology-discover.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
-import { _getLinkVlan } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
+import { _getLinkVlan, toggleTopoTrunkFilter, toggleTopoEndpointFilter, toggleTopoWlanFilter, _linkMatchesVlanFilter, _rackPairMatchesVlan, _findProjectLinkByPorts, _drawFanoutLineDesc, _rectEdge, _showTopoTip, _hideTopoTip, _showPhysicalCablePath } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
 
 // ============================================================
 // TOPOLOGIA — OVERLAY SULLA PLANIMETRIA
@@ -62,17 +62,17 @@ export function _renderTopoLegend(){
             if(!el.classList.contains('mode-interactive')) return;
             // Pillola TRUNK: evidenzia i collegamenti trunk (attenua il resto).
             if(e.target.closest('.topo-leg-trunk')){
-                if(typeof win.toggleTopoTrunkFilter === 'function') win.toggleTopoTrunkFilter();
+                if(typeof toggleTopoTrunkFilter === 'function') toggleTopoTrunkFilter();
                 return;
             }
             // Pillola ENDPOINT: nasconde le linee verso gli endpoint.
             if(e.target.closest('.topo-leg-endpoint')){
-                if(typeof win.toggleTopoEndpointFilter === 'function') win.toggleTopoEndpointFilter();
+                if(typeof toggleTopoEndpointFilter === 'function') toggleTopoEndpointFilter();
                 return;
             }
             // Pillola WLAN: nasconde tutte le connessioni wireless (onde).
             if(e.target.closest('.topo-leg-wlan')){
-                if(typeof win.toggleTopoWlanFilter === 'function') win.toggleTopoWlanFilter();
+                if(typeof toggleTopoWlanFilter === 'function') toggleTopoWlanFilter();
                 return;
             }
             const pill = e.target.closest('.topo-leg-vlan');
@@ -169,13 +169,13 @@ function _buildTopoModel(){
             // comportano da trunk in topologia (pillola, toggle "solo trunk").
             linkIsTrunk: (typeof win._linkIsTrunk==='function') ? win._linkIsTrunk : null,
             linkTrunkVlans: (typeof _getLinkTrunk==='function') ? (l=>_getLinkTrunk(l).vlans.join(',')) : null,
-            linkMatchesVlanFilter: win._linkMatchesVlanFilter,
-            rackPairMatchesVlan: win._rackPairMatchesVlan,
+            linkMatchesVlanFilter: _linkMatchesVlanFilter,
+            rackPairMatchesVlan: _rackPairMatchesVlan,
             isAmbiguousLink: l => typeof win.linkState === 'function' && win.linkState(l).key === 'ambiguous',
             chainAmbiguousIds: (typeof win._chainAmbiguousLinkIds === 'function') ? win._chainAmbiguousLinkIds() : null,
             chainColors: (typeof win._chainVlanColors === 'function') ? win._chainVlanColors() : null,
             findPortByIfName: _findPortByIfName,
-            findProjectLinkByPorts: win._findProjectLinkByPorts,
+            findProjectLinkByPorts: _findProjectLinkByPorts,
         }
     };
 }
@@ -207,7 +207,7 @@ function _renderTopoOverlayNow(){
     // all'append finale. Output SVG identico (stessi elementi, stesso ordine). web.dev.
     const frag=document.createDocumentFragment();
     for(const p of pairs) _drawTopoPair(p, frag, NS, isDark, els);
-    for(const f of fanout) win._drawFanoutLineDesc(f, frag, NS, els);
+    for(const f of fanout) _drawFanoutLineDesc(f, frag, NS, els);
     for(const a of rackAlerts) _drawRackAlert(a, frag, NS, isDark, els);
     svg.appendChild(frag);
 }
@@ -227,11 +227,11 @@ function _drawTopoPair(p, svg, NS, isDark, els){
         : els?.nodes.get(p.nodeBId);
     if(elA){
         const hw=elA.offsetWidth/2+GAP, hh=elA.offsetHeight/2+GAP;
-        [x1,y1]=win._rectEdge(p.sx,p.sy,hw,hh,p.dx-p.sx,p.dy-p.sy);
+        [x1,y1]=_rectEdge(p.sx,p.sy,hw,hh,p.dx-p.sx,p.dy-p.sy);
     }
     if(elB){
         const hw=elB.offsetWidth/2+GAP, hh=elB.offsetHeight/2+GAP;
-        [x2,y2]=win._rectEdge(p.dx,p.dy,hw,hh,p.sx-p.dx,p.sy-p.dy);
+        [x2,y2]=_rectEdge(p.dx,p.dy,hw,hh,p.sx-p.dx,p.sy-p.dy);
     }
 
     // Wireless floor↔floor: l'onda parte dall'ANCORA della radio associata (non
@@ -287,7 +287,7 @@ function _drawTopoPair(p, svg, NS, isDark, els){
     // Event handlers sulla hit area
     hit.addEventListener('pointerenter', ev=>{
         clearTimeout(win._topoTipTimer);
-        win._showTopoTip(ev, td);
+        _showTopoTip(ev, td);
         line.classList.add('tfl-hl');
     });
     hit.addEventListener('pointermove', ev=>{
@@ -303,7 +303,7 @@ function _drawTopoPair(p, svg, NS, isDark, els){
         }
     });
     hit.addEventListener('pointerleave', ()=>{
-        win._topoTipTimer=setTimeout(win._hideTopoTip, 300);
+        win._topoTipTimer=setTimeout(_hideTopoTip, 300);
         line.classList.remove('tfl-hl');
     });
     hit.addEventListener('pointerdown', ev=>{
@@ -311,7 +311,7 @@ function _drawTopoPair(p, svg, NS, isDark, els){
     });
     hit.addEventListener('click', ev=>{
         ev.stopPropagation();
-        win._showTopoTip(ev, td);
+        _showTopoTip(ev, td);
         // (niente glow persistente al click: il glow e' solo feedback di hover)
     });
     // Doppio click → percorso fisico del cavo (rack+floor+catena evidenziati);
@@ -319,7 +319,7 @@ function _drawTopoPair(p, svg, NS, isDark, els){
     hit.addEventListener('dblclick', ev=>{
         ev.stopPropagation(); ev.preventDefault();
         const lid = p.edges.find(e=>e.linkId)?.linkId;
-        if(lid && typeof win._showPhysicalCablePath==='function') win._showPhysicalCablePath(lid);
+        if(lid && typeof _showPhysicalCablePath==='function') _showPhysicalCablePath(lid);
         else _showToast(t('msg.ui.cableNotInProject'), 'warn', 3500);
     });
 

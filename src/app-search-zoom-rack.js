@@ -9,7 +9,7 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, hexToRgba, normalizeStatus, normalizeNumber } from './app-util.js';
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _showToast, getRackById, getRackName, getNodeRackSize } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
-import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { showAlert, showPrompt, showConfirm } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll, rackUPx } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName, _nodeSpecView } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
@@ -170,7 +170,7 @@ export function updateTransforms(){
     // frattempo c'e' gia' un rAF schedulato, questo non duplica.
     setTimeout(renderCables, 140);
 }
-function applyUiColors(){
+export function applyUiColors(){
     const c=store.state.uiColors||{};
     document.getElementById('floorplan').style.backgroundColor   = c.floorBg||'#0d1117';
     document.getElementById('rack-viewport').style.backgroundColor = c.rackBg||'#ffffff';
@@ -430,7 +430,7 @@ function _updateFloorMenuState(){
     _setMenuItemDisabled('floor-menu-reset-btn', !hasMap || !!store.state.bgImageLocked);
     _setMenuItemDisabled('floor-menu-clear-btn', !hasMap);
 }
-function _updateFloorToolbarVisibility(){
+export function _updateFloorToolbarVisibility(){
     const wrap=document.getElementById('floorplan-toolbar-wrap');
     if(!wrap) return;
     const show=store._viewMode==='map';
@@ -442,7 +442,7 @@ function _updateFloorToolbarVisibility(){
 // ============================================================
 // RACK MANAGEMENT
 // ============================================================
-function _updateRackFloorBtn(){
+export function _updateRackFloorBtn(){
     const btn=document.getElementById('btn-rack-floor'); if(!btn) return;
     const rack=store.state.racks.find(r=>r.id===store.state.currentRack);
     const onFloor=rack&&rack.x!==undefined;
@@ -489,7 +489,7 @@ export function switchRack(id){
     renderRackTabs(); renderAll(); markDirty();
 }
 function addRack(){
-    win.showPrompt('Nome del rack:','Rack '+(store.state.racks.length+1),name=>{
+    showPrompt('Nome del rack:','Rack '+(store.state.racks.length+1),name=>{
         if(!name||!name.trim()) return;
         pushHistory();
         store.state.racks.push({id:uid('rack'),name:name.trim(),sizeU:42});
@@ -499,7 +499,7 @@ function addRack(){
 }
 function renameRack(){
     const rack=getRackById(store.state.currentRack); if(!rack) return;
-    win.showPrompt('Rinomina rack:',rack.name,name=>{
+    showPrompt('Rinomina rack:',rack.name,name=>{
         if(!name||!name.trim()) return;
         pushHistory();
         rack.name=name.trim();
@@ -606,7 +606,7 @@ function _updateRackUNumLabel(){
 }
 function deleteCurrentRack(){
     if(store.state.racks.length<=1){showAlert(t('msg.rack.cannotDeleteOnly'));return;}
-    win.showConfirm('Eliminare questo rack e tutti i suoi apparati?',()=>{
+    showConfirm('Eliminare questo rack e tutti i suoi apparati?',()=>{
         pushHistory();
         const ids=new Set(store.state.nodes.filter(n=>TYPES[n.type]?.isRack&&n.rackId===store.state.currentRack).map(n=>n.id));
         store.state.nodes=store.state.nodes.filter(n=>!ids.has(n.id));

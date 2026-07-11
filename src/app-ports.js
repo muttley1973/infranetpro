@@ -24,7 +24,7 @@ import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: fun
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { closePop, showPop, _vlanLabel } from './app-popup.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
-import { trace } from './app-pointer.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { trace, _cancelLink } from './app-pointer.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 
 // Init dello stato condiviso su window (il bundle gira ULTIMO; i classic li
 // scrivono solo dentro handler, quindi qui sono ancora undefined → li seminiamo).
@@ -109,7 +109,7 @@ export function getLagGroupsForNode(nodeId){
 
 function startLagMode(pid){
     closePop();
-    if(store.linkStart) win._cancelLink();
+    if(store.linkStart) _cancelLink();
     store.lagSelMode = true;
     store.lagSelPorts = new Set([pid]);
     store.selType = 'port';
@@ -117,7 +117,7 @@ function startLagMode(pid){
     renderAll();
 }
 
-function _toggleLagPort(pid){
+export function _toggleLagPort(pid){
     if(!store.lagSelMode) return;
     const anchor = [...store.lagSelPorts][0];
     if(pid === anchor) return;
@@ -246,7 +246,7 @@ function setLagMode(gid, mode){
     renderProps();
 }
 
-function _updateLagBanner(){
+export function _updateLagBanner(){
     const b = document.getElementById('lag-sel-banner');
     if(!store.lagSelMode){
         b.classList.remove('show');
@@ -290,7 +290,7 @@ function computeLagCarrierPids(){
     return carriers;
 }
 
-function getPassivePortLagInfo(pid){
+export function getPassivePortLagInfo(pid){
     const state = store.state;
     const visited = new Set([pid]);
     const queue = [pid];
@@ -505,7 +505,7 @@ function setPortSpeed(pid, valStr){
     setPortField(pid, 'speedOvr', (!isNaN(mbps) && mbps>0) ? Math.round(mbps) : null);
 }
 
-function _portLagGid(pid){
+export function _portLagGid(pid){
     const pi = store.state.ports[pid] || {};
     const gid = String(pi.lagGroup || '').trim();
     if(gid) return gid;
@@ -569,7 +569,7 @@ function _collectLagMemberPortsFromLink(l, out){
     }
 }
 
-function _focusLagForPort(pid){
+export function _focusLagForPort(pid){
     const state = store.state;
     store._focusedLagPorts = new Set();
     const gid = _portLagGid(pid);
@@ -598,7 +598,7 @@ function _focusLagForPort(pid){
     }
 }
 
-function _isLagFocusedPort(pid){
+export function _isLagFocusedPort(pid){
     return store._focusedLagPorts.has(pid) || (!!store._focusedLagGroup && _samePortLag(pid,store._lastPopPid));
 }
 

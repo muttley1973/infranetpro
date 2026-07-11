@@ -20,6 +20,8 @@ import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: cata
 import { _isLeafEndpoint, _autoLinkEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
 import { _discIndexNode, _discVendorFromMac, _discFindExistingDevice, _discBuildExistingIndexes } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { _findFreeU } from './app-topology-crawl.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
+import { closeReportMenu } from './app-auth.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
+import { _driftBuildDocSnapshot, _driftBuildSnmpSnapshot, _renderDriftReport } from './app-drift.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 
 let _adoptRows = [];           // candidati attualmente mostrati nel modal
 
@@ -112,7 +114,7 @@ function _adoptShowModal(){
         <td><select class="adopt-type" data-idx="${i}">${_adoptTypeOptions(c.typeDefault)}</select></td>
     </tr>`).join('');
     const all = document.getElementById('adopt-all'); if(all) all.checked = true;
-    if(typeof win.closeReportMenu === 'function') win.closeReportMenu();
+    if(typeof closeReportMenu === 'function') closeReportMenu();
 }
 
 // ── Aggiunta ─────────────────────────────────────────────────────────
@@ -221,10 +223,10 @@ function _adoptCreateNodes(picks, autoLink){
 // device appena adottati diventano "documentati" → escono dai non documentati.
 function _adoptRecomputeDrift(){
     if(typeof store._driftReport === 'undefined' || !store._driftReport) return;
-    if(typeof win._driftBuildDocSnapshot !== 'function' || typeof win._driftBuildSnmpSnapshot !== 'function' || typeof win.buildDriftReport !== 'function') return;
+    if(typeof _driftBuildDocSnapshot !== 'function' || typeof _driftBuildSnmpSnapshot !== 'function' || typeof win.buildDriftReport !== 'function') return;
     try {
-        const docSnap = win._driftBuildDocSnapshot();
-        const snmpSnap = win._driftBuildSnmpSnapshot(docSnap);
+        const docSnap = _driftBuildDocSnapshot();
+        const snmpSnap = _driftBuildSnmpSnapshot(docSnap);
         if(!Array.isArray(store.state.driftIgnores)) store.state.driftIgnores = [];
         store._driftReport = win.buildDriftReport(snmpSnap, docSnap, store.state.driftIgnores, {
             downStreakN: (typeof win.DRIFT_DOWN_STREAK_N !== 'undefined') ? win.DRIFT_DOWN_STREAK_N : 3,
@@ -232,7 +234,7 @@ function _adoptRecomputeDrift(){
             mgmtVlans: store.state.mgmtVlans || [],
             endpointPortThreshold: 5,
         });
-        if(typeof win._renderDriftReport === 'function') win._renderDriftReport();
+        if(typeof _renderDriftReport === 'function') _renderDriftReport();
     } catch(_){}
 }
 

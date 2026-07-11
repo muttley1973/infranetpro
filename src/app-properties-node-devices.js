@@ -40,7 +40,7 @@ import { _hvPanelHtml } from './app-hypervisor.js';   // ritiro ponte: funzioni 
 // porte cablate e radio (preferenza alla cablata). Per un client SOLO-wireless è
 // la radio (la sua VLAN effettiva = SSID propagato da monte), non la porta cablata
 // inutilizzata. Per un device cablato resta la porta 1.
-function _deviceAccessVlanPid(n){
+export function _deviceAccessVlanPid(n){
     const cand = [];
     const pc = (n.ports !== undefined) ? n.ports : ((TYPES[n.type] && TYPES[n.type].ports) || 1);
     for(let i=1;i<=pc;i++) cand.push(`${n.id}-${i}`);
@@ -57,7 +57,7 @@ function _deviceAccessVlanPid(n){
 // = la realtà vince): mostriamo il badge in sola lettura con il rimando a monte,
 // così l'utente sa dove cambiarla. Sostituisce i vecchi campi vlanPc/vlanIot/…
 // (migrati in _migrateState verso il vlanOvr di porta).
-function _floorAccessVlanRow(n, pid){
+export function _floorAccessVlanRow(n, pid){
     pid = pid || _deviceAccessVlanPid(n);
     const pi  = (store.state.ports && store.state.ports[pid]) || {};
     const eff = (typeof _effPortVlan === 'function') ? _effPortVlan(pid) : 1;

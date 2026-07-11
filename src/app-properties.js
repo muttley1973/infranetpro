@@ -15,6 +15,12 @@ import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (e
 import { escapeHTML } from './app-util.js';
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _isLeafEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
+import { _mgmtRow } from './app-management.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
+import { _updateFloorToolbarVisibility } from './app-search-zoom-rack.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
+import { _renderNodeProps } from './app-properties-node.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
+import { _renderPortProps } from './app-properties-port.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
+import { _renderLinkProps } from './app-properties-link.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
+import { _renderFloorProps } from './app-properties-floor.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 
 // MAC da mostrare per un device: il MAC di device se c'e', altrimenti fallback
 // alla PORTA col suffisso numerico piu' basso (gli apparati SNMP — switch/router/
@@ -65,7 +71,7 @@ export function _propsSectionIsOpen(key){
     return !_PROPS_DEFAULT_CLOSED.has(key);
 }
 
-function setPropsSectionState(key, open){
+export function setPropsSectionState(key, open){
     _propsSectionsState[key] = !!open;
     try{ localStorage.setItem(_PROPS_SECTIONS_PREF_KEY, JSON.stringify(_propsSectionsState)); }catch(_){}
 }
@@ -282,7 +288,7 @@ export function _buildNetAccessHtml(n, d, opts){
         ${_stackHint}
         ${includeHostname ? `<div class="prop-group"><label>Hostname</label><div style="display:flex;gap:5px;align-items:center"><input style="flex:1" value="${escapeHTML(n.hostname||'')}" placeholder="${escapeHTML(d.brand||'')}" ${_ro} onchange="updateN('hostname',this.value);updateN('hostnameManual',!!this.value.trim())">${_ro?'':_lockBtn('hostname',!!n.hostnameManual)}</div></div>` : ''}
         <div class="prop-group"><label>${t('net.ip')}</label><div style="display:flex;gap:5px;align-items:center"><input style="flex:1" value="${escapeHTML(n.ip||'')}" placeholder="${escapeHTML(ipPlaceholder)}" ${_ro} onchange="updateN('ip',this.value);updateN('ipManual',!!this.value.trim())">${_ro?'':_lockBtn('ip',!!n.ipManual)}</div></div>
-        ${win._mgmtRow(n.mgmtUrl||'', n.ip||'', n.id)}
+        ${_mgmtRow(n.mgmtUrl||'', n.ip||'', n.id)}
         ${showMac ? `<div class="prop-group"><label>${escapeHTML(macLabel)}</label><input value="${escapeHTML(macVal)}"${macDerived?` title="${escapeHTML(t('mac.fromPort'))}"`:''} placeholder="${escapeHTML(macPlaceholder)}" ${_ro} onchange="updateN('mac',this.value)"></div>` : ''}
         ${_autoLinkBtn}
         ${_wifiToggle}
@@ -341,14 +347,14 @@ export function _buildPropsHeader(title, subtitle, iconClass, actionsHtml='', ti
 }
 
 export function renderProps(){
-    win._updateFloorToolbarVisibility();
+    _updateFloorToolbarVisibility();
     const panel=document.getElementById('props-panel');
     // R10: dispatcher. Ogni ramo (scope di selezione) e\u0027 un renderer dedicato,
     // move VERBATIM qui sotto; usano solo panel + globali (selId/selType/state/TYPES).
-    if(selType==='node'&&selId){ win._renderNodeProps(panel); }
-    else if(selType==='port'&&selId){ win._renderPortProps(panel); }
-    else if(selType==='link'&&selId){ win._renderLinkProps(panel); }
-    else { win._renderFloorProps(panel); }
+    if(selType==='node'&&selId){ _renderNodeProps(panel); }
+    else if(selType==='port'&&selId){ _renderPortProps(panel); }
+    else if(selType==='link'&&selId){ _renderLinkProps(panel); }
+    else { _renderFloorProps(panel); }
 }
 
 // ─────────────────────────────────────────────────────────────

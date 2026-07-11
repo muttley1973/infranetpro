@@ -15,6 +15,7 @@ import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (e
 import { escapeHTML } from './app-util.js';
 import { getNodeDisplayName } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte: builder pannello (ex win.*)
+import { closeReportMenu } from './app-auth.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 
 // Tipi che possono fare da gateway L3 (per il dropdown di scelta).
 const _L3_GATEWAY_TYPES = ['router', 'firewall', 'switch'];
@@ -36,11 +37,11 @@ function _l3BuildModel(withUsage){
     }
     return { vlans, ipamByVid, nodes, usageByVid, parseCidr: win._parseCidrInfo, ipInCidr: win._ipInCidr };
 }
-function _l3Compute(withUsage){ return win.buildL3Report(_l3BuildModel(withUsage)); }
+export function _l3Compute(withUsage){ return win.buildL3Report(_l3BuildModel(withUsage)); }
 
 // Set dei node-id che fanno da gateway L3 (per il badge). Senza usage → leggero.
 // Chiamato UNA volta per render (render-core lo calcola prima del loop nodi).
-function _l3GatewayNodeIds(){
+export function _l3GatewayNodeIds(){
     try { return new Set(_l3Compute(false).l3NodeIds.map(String)); }
     catch(_){ return new Set(); }
 }
@@ -65,7 +66,7 @@ function updateVlanGatewayNode(vid, nodeId){
 // ── UI: binding nella card IPAM (riga "Device gateway") ───────────────
 // row = riga gia' calcolata dal report (passata da renderProps per non
 // ricalcolare il report per ogni card).
-function _l3GatewayBindingHtml(vid, row){
+export function _l3GatewayBindingHtml(vid, row){
     const esc = s => escapeHTML(String(s == null ? '' : s));
     const cands = _l3CandidateNodes(row && row.status === 'bound' ? row.nodeId : null);
     const selId = (row && row.status === 'bound') ? String(row.nodeId) : '';
@@ -200,7 +201,7 @@ function openL3Report(){
         ? head + rep.rows.map(renderRow).join('')
         : `<div class="drift-empty">${t('l3.empty')}</div>`;
     document.getElementById('l3-body').innerHTML = header + `<div class="l3-table">${body}</div>` + _l3HygieneHtml(audit, esc);
-    if(typeof win.closeReportMenu === 'function') win.closeReportMenu();
+    if(typeof closeReportMenu === 'function') closeReportMenu();
 }
 
 // ── Export CSV ────────────────────────────────────────────────────────

@@ -5,8 +5,8 @@ import { markDirty, pushHistory, renderCables, _showToast, _nextNodeId } from '.
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { focusNode, switchRack } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
-import { _isLeafEndpoint, _autoLinkEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
-import { _discIndexNode, _discVendorFromMac, _discIdentitySource, _discFindExistingDevice, _discBuildExistingIndexes, _discTouchNodeIdentity } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { _isLeafEndpoint, _autoLinkEndpoint, _recordDiscoveryObservation } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
+import { _discIndexNode, _discVendorFromMac, _discIdentitySource, _discFindExistingDevice, _discBuildExistingIndexes, _discTouchNodeIdentity, _loadDeepScanPref, _saveDeepScanPref, _discSanitizeDeviceClass, _discRememberClassHint, _discHasStrongIdentity, _discCanAutoRetype, _discInvalidateExistingIndexes, _discMarkIpMacConflict, _discConfidenceScore } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { _findFreeU } from './app-topology-crawl.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
 
 // Nome DISPLAY per la tabella Scopri e per il nome del nodo importato. L'utente legge la
@@ -126,7 +126,7 @@ function openDiscovery(prefillCidr){
     document.getElementById('disc-results').style.display='none';
     document.getElementById('disc-scan-btn').style.display='';
     const deepOpt = document.getElementById('disc-deep-scan');
-    if(deepOpt) deepOpt.checked = win._loadDeepScanPref();
+    if(deepOpt) deepOpt.checked = _loadDeepScanPref();
     const ibtn = document.getElementById('disc-import-btn');
     if(ibtn) ibtn.disabled = true;
     store._discResults=[];
@@ -175,7 +175,7 @@ async function runDiscovery(){
     const safeMode = scanMode !== 'normal';
     const stealth  = scanMode === 'stealth';
     const deepScan = !!document.getElementById('disc-deep-scan')?.checked;
-    win._saveDeepScanPref(deepScan);
+    _saveDeepScanPref(deepScan);
     // mDNS/SSDP: ascolto multicast del segmento locale per i device a porte chiuse. Opt-in.
     const mdns = !!document.getElementById('disc-mdns')?.checked;
     const expandTopology = !!document.getElementById('disc-expand-topology')?.checked;
@@ -309,7 +309,7 @@ function _discEnsureMeta(d){
     // anche sopra la classe server. Se il server non era autorevole, applica anche il
     // raffinamento regex (ramo AP/declass) come rete di sicurezza sui device muti.
     const _srvSure = !!(row.snmpReachable || row.objectId || (parseInt(row?.classification?.confidence ?? 0,10)||0) > 25);
-    const _refined = win._discSanitizeDeviceClass(row, { manualOnly: _srvSure });
+    const _refined = _discSanitizeDeviceClass(row, { manualOnly: _srvSure });
     if(_refined) row.deviceClass = _refined;
     if(row.discovery) row.discovery.deviceClass = row.deviceClass;
     if(!row.manageability){
@@ -397,7 +397,7 @@ function _discOnTypeChange(sel){
     const row = store._discResults[idx];
     const key = _discKey(row);
     if(key) store._discTypeMap[key] = sel.value;
-    win._discRememberClassHint(row, sel.value);
+    _discRememberClassHint(row, sel.value);
 }
 
 function _discDestIcon(type){
@@ -549,7 +549,7 @@ function _discSummaryHtml(results, extra={}){
         .join('')}</div>`;
 }
 
-function _discExistingNode(d){
+export function _discExistingNode(d){
     return _discFindExistingDevice(d).node || null;
 }
 
@@ -557,9 +557,9 @@ function _discReconcileInfo(d, type){
     const existing = _discExistingNode(d);
     if(!existing) return { label:_dt('disc.rec.new','Nuovo'), cls:'new', title:_dt('disc.tip.willCreate','Verrà creato un nuovo dispositivo') };
     const changes = [];
-    const strongIdentity = win._discHasStrongIdentity(d);
+    const strongIdentity = _discHasStrongIdentity(d);
     const typeNote = existing.type !== type ? _dt('disc.tip.typeDiff','Tipo selezionato diverso ({type}): non viene cambiato automaticamente',{type:typeName(type)}) : '';
-    const autoRetypeNote = strongIdentity && win._discCanAutoRetype(existing.type, type)
+    const autoRetypeNote = strongIdentity && _discCanAutoRetype(existing.type, type)
         ? _dt('disc.tip.strongSignal','Segnale forte: tipo e identità possono essere aggiornati automaticamente')
         : '';
     if(!existing.ip && d.ip) changes.push(`IP: ${d.ip}`);
@@ -579,7 +579,7 @@ function _discRenderTable(){
     // Indice identita' fresco ma costruito UNA volta per render: senza questo,
     // win._guessType + _discReconcileInfo lo ricostruivano per OGNI riga (O(righe×porte),
     // secondi di UI bloccata su progetti grandi — regressione del fix sess.25).
-    if(typeof win._discInvalidateExistingIndexes === 'function') win._discInvalidateExistingIndexes();
+    if(typeof _discInvalidateExistingIndexes === 'function') _discInvalidateExistingIndexes();
     const tbody = document.getElementById('disc-tbody');
     tbody.innerHTML = store._discResults.map((d,i)=>{
         const key = _discKey(d);
@@ -832,7 +832,7 @@ async function importDiscovered(){
         // (manual-first): le Verifiche/import futuri non lo ricambieranno da soli.
         const guessed = base.deviceClass || (typeof _guessType==='function'
             ? _guessType(base.descr, base.objectId, base.vendor, base.httpTitle||base.httpsTitle, base.hostname) : '');
-        win._discRememberClassHint(base, type);
+        _discRememberClassHint(base, type);
         toImport.push({ ...base, type, _typeManual: !!guessed && type !== guessed });
     });
     if(!toImport.length){
@@ -888,13 +888,13 @@ async function importDiscovered(){
             const importDriver = d.snmpReachable ? (d.snmpDriver || driver) : '';
             const match = _discFindExistingDevice(d, existingIdx);
             if(match.conflict?.existing){
-                win._discMarkIpMacConflict(match.conflict.existing, d);
+                _discMarkIpMacConflict(match.conflict.existing, d);
                 conflicts++;
             }
             const foundExisting = match.node;
             if(foundExisting){
-                const strongIdentity = win._discHasStrongIdentity(d);
-                const score = win._discConfidenceScore(d);
+                const strongIdentity = _discHasStrongIdentity(d);
+                const score = _discConfidenceScore(d);
                 const autoName = String(foundExisting.name || '').trim().toLowerCase();
                 const autoHost = String(foundExisting.hostname || '').trim().toLowerCase();
                 const autoIp = String(foundExisting.ip || foundExisting.currentIp || foundExisting.integration?.host || '').trim().toLowerCase();
@@ -902,7 +902,7 @@ async function importDiscovered(){
                 const incomingReplacement = shouldRefreshIdentity && (
                     (!!d.vendor && !!foundExisting.brand && d.vendor !== foundExisting.brand) ||
                     (!!d.hostname && !!foundExisting.hostname && d.hostname !== foundExisting.hostname) ||
-                    win._discCanAutoRetype(foundExisting.type, d.type)
+                    _discCanAutoRetype(foundExisting.type, d.type)
                 );
 
                 _discTouchNodeIdentity(foundExisting, d, match.matchedBy);
@@ -950,7 +950,7 @@ async function importDiscovered(){
                 // NON pinnato (rispetta un typeManual gia' fissato).
                 const _applyRetype = d._typeManual
                     ? (foundExisting.type !== d.type)
-                    : (win._discCanAutoRetype(foundExisting.type, d.type) &&
+                    : (_discCanAutoRetype(foundExisting.type, d.type) &&
                        shouldRefreshIdentity && score >= 70 && !foundExisting.typeManual);
                 if(_applyRetype){
                     const prevType = foundExisting.type;
@@ -981,7 +981,7 @@ async function importDiscovered(){
                 }
                 foundExisting.integration.host   = foundExisting.integration.host   || d.ip || '';
                 _discIndexNode(existingIdx, foundExisting);
-                win._recordDiscoveryObservation({
+                _recordDiscoveryObservation({
                     mac:d.mac, ip:d.ip, switchId:'', portId:'', ifName:'',
                     source:_discSourceInfo(d).label, confidence:_discConfidenceInfo(d).score/100
                 });
@@ -1043,7 +1043,7 @@ async function importDiscovered(){
                 }];
             }
             store.state.nodes.push(n);
-            win._recordDiscoveryObservation({
+            _recordDiscoveryObservation({
                 mac:d.mac, ip:d.ip, switchId:'', portId:'', ifName:'',
                 source:_discSourceInfo(d).label, confidence:_discConfidenceInfo(d).score/100
             });

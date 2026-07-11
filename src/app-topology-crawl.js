@@ -17,7 +17,7 @@ import { markDirty, pushHistory, renderCables, _showToast, _nextNodeId } from '.
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { switchRack } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
-import { _discIndexNode, _discFindExistingDevice, _discBuildExistingIndexes, _discTouchNodeIdentity } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { _discIndexNode, _discFindExistingDevice, _discBuildExistingIndexes, _discTouchNodeIdentity, _discMarkIpMacConflict } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 
 // ============================================================
 // TOPOLOGY CRAWL FRONTEND
@@ -267,7 +267,7 @@ function importTopoCrawl(){
         if(!def) return;
         const match = _discFindExistingDevice(d, existingIdx);
         if(match.conflict?.existing){
-            win._discMarkIpMacConflict(match.conflict.existing, d);
+            _discMarkIpMacConflict(match.conflict.existing, d);
             conflicts++;
         }
         const existing = match.node;

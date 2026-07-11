@@ -91,7 +91,7 @@ function _openMgmt(url){
  *  url    = n.mgmtUrl
  *  autoIp = indirizzo IP del nodo (usato per costruire l'URL primario)
  *  nodeId = n.id per gli handler */
-function _mgmtRow(url, autoIp, nodeId){
+export function _mgmtRow(url, autoIp, nodeId){
     const n        = nodeById(nodeId);
     const proto    = n?.mgmtProto || 'https';
     const custom   = (url||'').trim();
