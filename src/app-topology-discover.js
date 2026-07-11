@@ -204,7 +204,7 @@ async function discoverTopology(force=false){
 
     // ---- force=true (tasto destro): refresh esplicito tramite Sync SNMP completo.
     _setTopoBtn('discovering');
-    if(typeof win.pollAllSNMP === 'function' && !win._snmpSyncing){
+    if(typeof win.pollAllSNMP === 'function' && !store._snmpSyncing){
         await win.pollAllSNMP();
     }
     const allResults = targets

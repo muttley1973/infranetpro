@@ -30,7 +30,7 @@ import { closePop, showPop } from './app-popup.js';   // ritiro ponte: funzioni 
 if(store._lastPopPid === undefined) store._lastPopPid = null;
 if(store._lastPopX  === undefined) store._lastPopX  = 0;
 if(store._lastPopY  === undefined) store._lastPopY  = 0;
-if(win._focusedLagGroup === undefined) win._focusedLagGroup = null;
+if(store._focusedLagGroup === undefined) store._focusedLagGroup = null;
 if(store._focusedLagPorts === undefined) store._focusedLagPorts = new Set();
 
 function renderPortsTable(n){
@@ -572,7 +572,7 @@ function _focusLagForPort(pid){
     const state = store.state;
     store._focusedLagPorts = new Set();
     const gid = _portLagGid(pid);
-    win._focusedLagGroup = gid || null;
+    store._focusedLagGroup = gid || null;
     if(!gid) return;
 
     const nodeId = getPortNodeId(pid);
@@ -598,7 +598,7 @@ function _focusLagForPort(pid){
 }
 
 function _isLagFocusedPort(pid){
-    return store._focusedLagPorts.has(pid) || (!!win._focusedLagGroup && _samePortLag(pid,store._lastPopPid));
+    return store._focusedLagPorts.has(pid) || (!!store._focusedLagGroup && _samePortLag(pid,store._lastPopPid));
 }
 
 // Lock manual-first VISIBILE sulla VLAN della porta. NON è un meccanismo nuovo:
