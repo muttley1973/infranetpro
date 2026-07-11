@@ -13,6 +13,7 @@
 // ============================================================
 import './app-types.js';   // FOUNDATION: definisce TYPES (export const + expose) — per PRIMO
 import './store.js';   // FOUNDATION: store dello stato condiviso (proxy window) — early
+import './app-delegation.js';   // ASSE B: harness event delegation (data-act) — infra
 import './app-util.js';    // FOGLIA: helper puri (escapeHTML/uid) — importati da app.js
 import './app.js';         // NUCLEO: stato (store.state) + core bootstrap — subito dopo i TYPES
 import './app-auth.js';
