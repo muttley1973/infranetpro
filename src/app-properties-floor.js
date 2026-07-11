@@ -15,6 +15,7 @@ import { escapeHTML, normalizeNumber } from './app-util.js';
 import { _propsSectionIsOpen, _buildPropsHeader } from './app-properties.js';   // ritiro ponte: lettura stato sezioni (ex win.*)
 import { _isVoiceVlan, _siteNativeVlan } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { _enableManualValueInProps } from './app.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
+import { _l3Compute, _l3GatewayBindingHtml } from './app-l3.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 
 // Blocco "Occupazione" della card IPAM aperta: barra di capacità + ripartizione
 // documentati / solo-DHCP / liberi (dati da _ipamUsageForVlan → lib/ipam.js,
@@ -41,7 +42,7 @@ function _ipamOccHtml(u, vid){
 }
 
 // Contesto progetto / nessuna selezione (ramo else).
-function _renderFloorProps(panel){
+export function _renderFloorProps(panel){
         const state = store.state;
         // ─────────────────────────────────────────────────────────────
         // Contesto progetto — pannello a fisarmoniche.
@@ -147,7 +148,7 @@ function _renderFloorProps(panel){
         // L3-lite: righe gateway calcolate UNA volta (non per card) per la
         // riga "Device gateway" dentro ogni IPAM aperta.
         const _l3rows = {};
-        try { if(typeof win._l3Compute === 'function') (win._l3Compute(false).rows || []).forEach(r => { _l3rows[r.vid] = r; }); } catch(_){}
+        try { if(typeof _l3Compute === 'function') (_l3Compute(false).rows || []).forEach(r => { _l3rows[r.vid] = r; }); } catch(_){}
         const _siteNat = (typeof _siteNativeVlan==='function') ? _siteNativeVlan() : 1;
         Object.keys(state.vlanColors).sort((a,b)=>+a-+b).forEach(v=>{
             const vid=normalizeNumber(v,1,1,4094);
@@ -189,7 +190,7 @@ function _renderFloorProps(panel){
                         <label>DNS</label>
                         <input value="${escapeHTML(ipam?.dns||'')}" placeholder="${t('floor.phDns')}" onchange="updateVlanIpam(${vid},'dns',this.value)">
                       </div>
-                      ${(typeof win._l3GatewayBindingHtml==='function') ? win._l3GatewayBindingHtml(vid, _l3rows[vid]) : ''}
+                      ${(typeof _l3GatewayBindingHtml==='function') ? _l3GatewayBindingHtml(vid, _l3rows[vid]) : ''}
                       ${!ipam?.subnet ? `<div class="vlan-ipam-hint">${t('floor.hintNoSubnet')}</div>`
                         : !usage.cidr ? `<div class="vlan-ipam-hint warn">${t('floor.hintBadCidr')}</div>`
                         : _ipamOccHtml(usage, vid)}

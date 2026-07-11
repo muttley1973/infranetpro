@@ -3,6 +3,7 @@ import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (e
 import { normalizeMacAddress } from './app-util.js';
 import { getNodeByPortId } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { _discExistingNode } from './app-discovery.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 
 // ============================================================
 // DISCOVERY CLASSIFICATION — OUI vendor map, identity matching,
@@ -82,7 +83,7 @@ function _discSaveClassHints(hints){
     catch(_){}
 }
 
-function _discRememberClassHint(row, type){
+export function _discRememberClassHint(row, type){
     if(!type || !TYPES[type]) return;
     const keys = _discClassHintKeys(row);
     if(!keys.length) return;
@@ -128,7 +129,7 @@ function _discNodeMacs(n){
 // Cache costruita on-demand, invalidata quando i nodi cambiano (_discIndexNode)
 // e a ogni render della tabella (_discRenderTable).
 let _discIdxCache = null;
-function _discInvalidateExistingIndexes(){ _discIdxCache = null; }
+export function _discInvalidateExistingIndexes(){ _discIdxCache = null; }
 function _discExistingIndexes(){
     if(!_discIdxCache){
         _discIdxCache = _discBuildExistingIndexes();
@@ -259,7 +260,7 @@ export function _discFindExistingDevice(row, idx = _discExistingIndexes()){
     return { node:null, matchedBy:'' };
 }
 
-function _discMarkIpMacConflict(existing, row){
+export function _discMarkIpMacConflict(existing, row){
     if(!existing) return;
     const now = new Date().toISOString();
     if(!Array.isArray(existing.discoveryConflicts)) existing.discoveryConflicts = [];
@@ -349,7 +350,7 @@ export function _discIdentityLabel(src){
     return map[src] || src || 'Osservato';
 }
 
-function _discSanitizeDeviceClass(row, opts){
+export function _discSanitizeDeviceClass(row, opts){
     const vendor = String(row?.vendor || '').toLowerCase();
     const host = String(row?.hostname || row?.netbiosName || '').toLowerCase();
     const banner = String(`${row?.httpTitle || ''} ${row?.httpsTitle || ''}`).toLowerCase();
@@ -393,7 +394,7 @@ function _discSanitizeDeviceClass(row, opts){
         if(SERVER_VIRT_RE.test(text)) return 'server';
     }
 
-    const existing = win._discExistingNode(row);
+    const existing = _discExistingNode(row);
     if(existing?.type && TYPES[existing.type]) return existing.type;
 
     const hinted = _discGetClassHint(row);
@@ -403,11 +404,11 @@ function _discSanitizeDeviceClass(row, opts){
     return (opts && opts.manualOnly) ? '' : (row?.deviceClass || '');
 }
 
-function _discConfidenceScore(row){
+export function _discConfidenceScore(row){
     return parseInt(row?.confidence?.score ?? row?.discovery?.confidence?.score ?? 0, 10) || 0;
 }
 
-function _discHasStrongIdentity(row){
+export function _discHasStrongIdentity(row){
     const score = _discConfidenceScore(row);
     return !!(
         row?.snmpReachable ||
@@ -417,7 +418,7 @@ function _discHasStrongIdentity(row){
     );
 }
 
-function _discCanAutoRetype(existingType, nextType){
+export function _discCanAutoRetype(existingType, nextType){
     if(!existingType || !nextType || existingType === nextType) return false;
     const prev = TYPES[existingType];
     const next = TYPES[nextType];
@@ -425,12 +426,12 @@ function _discCanAutoRetype(existingType, nextType){
     return !!prev.isRack === !!next.isRack && !!prev.isFloor === !!next.isFloor;
 }
 
-function _loadDeepScanPref(){
+export function _loadDeepScanPref(){
     try{ return localStorage.getItem(DISC_DEEP_SCAN_PREF_KEY) === '1'; }
     catch(_){ return false; }
 }
 
-function _saveDeepScanPref(enabled){
+export function _saveDeepScanPref(enabled){
     try{ localStorage.setItem(DISC_DEEP_SCAN_PREF_KEY, enabled ? '1' : '0'); }
     catch(_){}
 }

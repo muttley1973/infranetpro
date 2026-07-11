@@ -84,7 +84,7 @@ function toggleReportMenu(){
     const d=document.getElementById('report-dropdown');
     if(d) d.style.display=d.style.display==='none'?'block':'none';
 }
-function closeReportMenu(){
+export function closeReportMenu(){
     const d=document.getElementById('report-dropdown');
     if(d) d.style.display='none';
 }

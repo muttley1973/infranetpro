@@ -42,7 +42,7 @@ async function loadPanelSkinStore(){
 }
 
 /** Risolve la skin di un nodo: store (skinId) → inline legacy (panelSkin) → null. */
-function _resolveNodeSkin(n){
+export function _resolveNodeSkin(n){
     if(!n) return null;
     if(n.skinId && _skinById[n.skinId]) return _skinById[n.skinId];
     if(n.panelSkin && n.panelSkin.svg) return n.panelSkin;   // retro-compat prototipo
@@ -133,7 +133,7 @@ async function deleteLibrarySkin(skinId){
 
 /** SVG del pannello con data-pid + stato iniettati, pronto per il render del
  *  device rack. Ritorna '' se nessuna skin o SVG non parsabile (→ fallback). */
-function _panelSkinRackHtml(n){
+export function _panelSkinRackHtml(n){
     const sk = _resolveNodeSkin(n);
     if(!sk || !sk.svg) return '';
     if(typeof DOMParser === 'undefined') return '';

@@ -15,6 +15,8 @@ import { TYPES, _ensureNodeSpec } from './app-types.js';   // ritiro ponte fase 
 import { _isLeafEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
 import { _renderTopoLegend } from './app-topology-overlay.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { _getLinkVlan, _vlanLabel } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
+import { _deviceAccessVlanPid } from './app-properties-node-devices.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
+import { applyUiColors } from './app-search-zoom-rack.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 
 // Handle dei timer auto-poll: prima `let` in app.js, usati SOLO qui -> module-local.
 let _autoPollTimer = null;     // handle setInterval auto-poll
@@ -435,7 +437,7 @@ function setLinkNativeVlan(linkId, val){
 // (per questo l'editor compare solo quando NESSUNO a monte la detta).
 function setEndpointVlan(nodeId, pid, val){
     const n = (typeof nodeById==='function') ? nodeById(nodeId) : null; if(!n) return;
-    if(!pid) pid = (typeof win._deviceAccessVlanPid==='function') ? win._deviceAccessVlanPid(n) : `${nodeId}-1`;
+    if(!pid) pid = (typeof _deviceAccessVlanPid==='function') ? _deviceAccessVlanPid(n) : `${nodeId}-1`;
     if(!store.state.ports[pid]) store.state.ports[pid] = {};
     const v = parseInt(val, 10);
     if(v>=2 && v<=4094){ store.state.ports[pid].vlanOvr = v; if(typeof _ensureVlanColor==='function') _ensureVlanColor(v); }
@@ -953,7 +955,7 @@ function _vlansToRangeStr(sorted){
     return ranges.join(',');
 }
 
-function updateUiColor(k,c){if(!store.state.uiColors)store.state.uiColors={};store.state.uiColors[k]=c;win.applyUiColors();markDirty();}
+function updateUiColor(k,c){if(!store.state.uiColors)store.state.uiColors={};store.state.uiColors[k]=c;applyUiColors();markDirty();}
 function addVlanColor(){
     const v=normalizeNumber(document.getElementById('new-vlan-id').value,NaN,1,4094);
     const c=document.getElementById('new-vlan-color').value;

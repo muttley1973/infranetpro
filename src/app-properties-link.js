@@ -12,6 +12,7 @@ import { TYPES, _frontPanelPortLabel } from './app-types.js';   // ritiro ponte 
 import { _effPortVlan, _getLinkTrunk, _parseTrunkVlans, _runActiveAnchor } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _portDisplayName } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _getLinkVlan } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
+import { _routeHopRemovable } from './app-cabling-editor.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 
 // ============================================================
 // PROPERTIES PANEL — renderer CAVO/LINK (selType===link)
@@ -48,7 +49,7 @@ function _cablePortDesc(pid){
 }
 
 // Proprieta' di un CAVO/link selezionato (selType==='link').
-function _renderLinkProps(panel){
+export function _renderLinkProps(panel){
         const l=store.state.links.find(x=>x.id===store.selId);
         if(!l){store.selType=null;store.selId=null;renderProps();return;}
         const isAuto = !!l.autoLinked;
@@ -314,7 +315,7 @@ function _renderLinkProps(panel){
                     ? _pathHops.map((h, idx) => {
                         const isMid = idx > 0 && idx < _pathHops.length - 1;
                         const removable = isMid &&
-                            typeof win._routeHopRemovable === 'function' && win._routeHopRemovable(h.pid);
+                            typeof _routeHopRemovable === 'function' && _routeHopRemovable(h.pid);
                         const rm = removable
                             ? `<button class="toolbar-btn danger" style="padding:0 5px;margin:0 0 0 3px;font-size:.62rem;line-height:1.4;vertical-align:1px"
                                  data-tip="${t('pnl.gen.removeHopTip')}"

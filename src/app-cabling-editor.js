@@ -159,7 +159,7 @@ function _exitRoutingMode(){
 
 // Ri-applica le classi highlight sulle porte target. Chiamata dopo ogni
 // render (hook in _renderAllNow / _renderFloorNow). No-op se modalità off.
-function _paintRoutingTargets(){
+export function _paintRoutingTargets(){
     if(!store._routingLinkId) return;
     document.querySelectorAll('.routing-target').forEach(el => el.classList.remove('routing-target'));
     document.querySelectorAll('.floor-rack.routing-rack').forEach(el => el.classList.remove('routing-rack'));
@@ -193,7 +193,7 @@ function _renderRoutingHint(link){
 }
 
 // Click su una porta durante la modalità: se valida → split, altrimenti avvisa.
-function _routingPickPort(midPid){
+export function _routingPickPort(midPid){
     const info = _routingTargetPids.get(midPid);
     if(!info){
         const n = getNodeByPortId(midPid);
@@ -312,7 +312,7 @@ function removeRouteHop(midPid){
 
 // Una tappa intermedia del percorso è rimovibile se la porta è pass-through
 // 'port' e ha ESATTAMENTE 2 cavi (quelli che verranno fusi).
-function _routeHopRemovable(pid){
+export function _routeHopRemovable(pid){
     if(win._getPassThroughMode(pid) !== 'port') return false;
     return win.portConnectionCount(store.state.links || [], pid) === 2;
 }

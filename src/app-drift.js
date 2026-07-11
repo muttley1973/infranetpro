@@ -89,7 +89,7 @@ function _driftUpdateStreaks(docSnap){
 // regole (presenza multi-segnale, macAtIp da ARP, subnet osservate, classifica
 // non-documentati, merge lease G1/G2) vivono lì e sono testate a tavolino. Qui:
 // solo raccolta-dati da stato/cache + iniezione di etichette i18n e predicati MAC.
-function _driftBuildSnmpSnapshot(docSnap, reachable, arpTable){
+export function _driftBuildSnmpSnapshot(docSnap, reachable, arpTable){
     const state = store.state;
     const fdb = (typeof store._topoFdbCache === 'object' && store._topoFdbCache) ? store._topoFdbCache : {};
     const vlanCache = (typeof store._topoFdbVlanCache === 'object' && store._topoFdbVlanCache) ? store._topoFdbVlanCache : {};
@@ -470,7 +470,7 @@ function _driftScanNetwork(cidr){
     if(typeof openDiscovery === 'function') openDiscovery(cidr);
 }
 
-function _renderDriftReport(){
+export function _renderDriftReport(){
     const rep = store._driftReport;
     const ov = _driftEnsureOverlay();
     ov.style.display = 'flex';
