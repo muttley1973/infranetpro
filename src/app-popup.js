@@ -394,7 +394,7 @@ store._topoFdbVlanCache = {};
 // quando l'utente preme il pulsante Topologia dopo un Sync SNMP recente.
 // Invalidazione: tasto destro sul pulsante (force refresh).
 store._topoNeighborsCache = {};   // var: letto/scritto dal bundle src/app-topology-discover.js via win.*
-win._topoTipTimer= null;   // timer per nascondere il tooltip  (var: letto/scritto dal bundle src/app-topology-overlay.js via win.*)
+store._topoTipTimer= null;   // timer per nascondere il tooltip  (var: letto/scritto dal bundle src/app-topology-overlay.js via win.*)
 store._hoverRackId = null;   // rack ID in hover sulla planimetria (proposta C)  (var: letto dal bundle via win.*)
 store._filterVlan  = null;   // VLAN ID attivo come filtro visuale (null = nessun filtro)  (var: idem)
 store._topoTrunkOnly = false; // toggle legenda: evidenzia i TRUNK (attenua il resto)  (store: ex win.*)
@@ -661,7 +661,7 @@ export function _drawFanoutLineDesc(d, svg, NS, els){
         trunkVlans:d.trunkVlans
     };
     hit.addEventListener('pointerenter',ev=>{
-        clearTimeout(win._topoTipTimer);
+        clearTimeout(store._topoTipTimer);
         _showFloorLinkTip(ev,td);
         line.setAttribute('opacity','1');
         line.classList.add('tfl-hl');   // glow su hover (niente ingrossamento)
@@ -678,7 +678,7 @@ export function _drawFanoutLineDesc(d, svg, NS, els){
         }
     });
     hit.addEventListener('pointerleave',()=>{
-        win._topoTipTimer=setTimeout(_hideTopoTip,300);
+        store._topoTipTimer=setTimeout(_hideTopoTip,300);
         line.setAttribute('opacity',String(baseOp));
         line.classList.remove('tfl-hl');
     });
@@ -750,7 +750,7 @@ export function _showTopoTip(ev,td){
 }
 
 export function _hideTopoTip(){
-    if(win._dragModalState?.panel?.id === 'topo-tip') return;
+    if(store._dragModalState?.panel?.id === 'topo-tip') return;
     const t=document.getElementById('topo-tip');
     if(t) t.style.display='none';
 }
