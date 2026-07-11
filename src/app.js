@@ -4,7 +4,7 @@ import { escapeHTML, uid, normalizeNumber, normalizeStatus, normalizeMacAddress,
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (prima letto dal global implicito) + nome localizzato
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: chiamate prima bare-global
 import { renderProps } from './app-properties.js';   // idem
-import { showAlert } from './app-core.js';           // idem
+import { showAlert, saveProject } from './app-core.js';   // saveProject: ASSE B, scorciatoia Ctrl+S (ex win.saveProject)
 import { registerClickActions, initDelegation } from './app-delegation.js';   // ASSE B: event delegation (ritiro onclick inline)
 // ============================================================
 // InfraNet Pro — app.js (core bootstrap + stato + eventi)

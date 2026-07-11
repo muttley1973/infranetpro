@@ -28,10 +28,10 @@
     <!-- Project management -->
     <div class="project-bar">
         <select id="project-select" onchange="switchProject(parseInt(this.value))" data-i18n-tip="project.tipCurrent" data-tip="Progetto corrente"></select>
-        <button class="toolbar-btn" onclick="newProject()"       data-i18n-tip="project.tipNew"       data-tip="Nuovo progetto"><i class="fas fa-plus"></i></button>
-        <button class="toolbar-btn" onclick="renameProject()"    data-i18n-tip="project.tipRename"    data-tip="Rinomina"><i class="fas fa-pen"></i></button>
-        <button class="toolbar-btn" onclick="duplicateProject()" data-i18n-tip="project.tipDuplicate" data-tip="Duplica"><i class="fas fa-copy"></i></button>
-        <button class="toolbar-btn danger" onclick="deleteProject()" data-i18n-tip="project.tipDelete" data-tip="Elimina progetto"><i class="fas fa-trash"></i></button>
+        <button class="toolbar-btn" data-act="project-new"       data-i18n-tip="project.tipNew"       data-tip="Nuovo progetto"><i class="fas fa-plus"></i></button>
+        <button class="toolbar-btn" data-act="project-rename"    data-i18n-tip="project.tipRename"    data-tip="Rinomina"><i class="fas fa-pen"></i></button>
+        <button class="toolbar-btn" data-act="project-duplicate" data-i18n-tip="project.tipDuplicate" data-tip="Duplica"><i class="fas fa-copy"></i></button>
+        <button class="toolbar-btn danger" data-act="project-delete" data-i18n-tip="project.tipDelete" data-tip="Elimina progetto"><i class="fas fa-trash"></i></button>
     </div>
     <div class="header-sep"></div>
     <div id="impexp-menu-wrap" style="position:relative">
@@ -63,7 +63,7 @@
         </div>
     </div>
     <div class="header-sep"></div>
-    <button class="toolbar-btn primary" id="btn-save" onclick="saveProject()" data-i18n-tip="save.tip" data-tip="Salva (Ctrl+S)">
+    <button class="toolbar-btn primary" id="btn-save" data-act="project-save" data-i18n-tip="save.tip" data-tip="Salva (Ctrl+S)">
         <i id="save-icon" class="fas fa-floppy-disk"></i><span id="save-label" data-i18n="save.label"> Salva </span><span id="save-dot"></span>
     </button>
     <div class="header-sep"></div>
