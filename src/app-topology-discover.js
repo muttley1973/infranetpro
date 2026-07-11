@@ -6,6 +6,7 @@ import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (e
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { switchRack, updateTransforms } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
+import { _applyViewMode } from './app-popup.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 
 // ============================================================
 // TOPOLOGIA — discovery e grafo (glue estratto da app.js, R7)
@@ -31,7 +32,7 @@ function _restoreTopoSession(){
     if(store._topoVisible){
         store._topoVisible = false;
         store._viewMode = 'map';
-        if(typeof win._applyViewMode === 'function') win._applyViewMode();
+        if(typeof _applyViewMode === 'function') _applyViewMode();
     }
     if(typeof _refreshTopoBtnState === 'function') _refreshTopoBtnState();
 }
@@ -41,14 +42,14 @@ function toggleTopology(){
         store._topoVisible=false;
         store._viewMode='map';
         _setTopoBtn('off');
-        win._applyViewMode();
+        _applyViewMode();
         return;
     }
     if(store._topoData){
         store._topoVisible=true;
         store._viewMode='topology';
         _setTopoBtn('on');
-        win._applyViewMode();
+        _applyViewMode();
         return;
     }
     discoverTopology(false);
@@ -132,7 +133,7 @@ async function discoverTopology(force=false){
         store._topoVisible=!store._topoVisible;
         store._viewMode=store._topoVisible?'topology':'map';
         _setTopoBtn(store._topoVisible?'on':'off');
-        win._applyViewMode();
+        _applyViewMode();
         return;
     }
 
@@ -166,7 +167,7 @@ async function discoverTopology(force=false){
         store._topoVisible = true;
         store._viewMode = 'topology';
         _setTopoBtn('on');
-        win._applyViewMode();
+        _applyViewMode();
         if(!cached.length){
             _showToast(targets.length
                 ? t('topo.fromCabling')
@@ -223,7 +224,7 @@ async function discoverTopology(force=false){
     store._topoVisible=true;
     store._viewMode='topology';
     _setTopoBtn('on');
-    win._applyViewMode();
+    _applyViewMode();
     const ne=store._topoData.edges.length, nn=store._topoData.nodes.length;
     if(failedCount > 0){
         _showToast(t('msg.net.topoSummaryFailed',{nn,ne,failed:failedCount}),'warn',5000);

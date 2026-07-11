@@ -17,6 +17,7 @@ import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funz
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { absorbNodeAsVm } from './app-hypervisor.js';   // import di un tile come VM (drop sulla zona nel pannello host)
 import { focusNode, renderRackTabs, switchRack, toggleRackPanel, updateTransforms } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
+import { closePop } from './app-popup.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 
 // soglia drag/click (px): unico lettore era questo modulo → module-local
 const _DRAG_THRESHOLD_PX = 5;
@@ -285,7 +286,7 @@ function handlePointerDown(e){
         return;   // in ogni caso non azzerare store.highPath/popup: il cavo ha il suo onclick
     }
 
-    win.closePop(); store.highPath.clear(); win._physicalTraceActive=false;
+    closePop(); store.highPath.clear(); win._physicalTraceActive=false;
 
     const port=e.target.closest('[data-pid]');
     const rackFloorEl=e.target.closest('.floor-rack');
@@ -793,7 +794,7 @@ function handleDoubleClick(e){
     const port = e.target.closest('[data-pid]');
     if(port){
         e.stopPropagation();
-        win.closePop();
+        closePop();
         const _pid = port.dataset.pid;
         const _pNode = getNodeByPortId(_pid);
         const _isFloor = _pNode && TYPES[_pNode.type]?.isFloor;
@@ -874,7 +875,7 @@ function handleFloorDoubleClick(e){
     // Il menu dropdown "Planimetria" nell'header resta accessibile come prima.
     if(e.target.closest('#floorplan')){
         e.stopPropagation();
-        win.closePop();
+        closePop();
         store.selType = null; store.selId = null;
         win._renderModeIndicator();
         switchRightTab('props');

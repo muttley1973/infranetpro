@@ -16,7 +16,7 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, _showToast, _invalidateIdx, _linksForPort, _nodeRadios, _isRadioPid } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
-import { propagateVlans } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { propagateVlans, _ensureVlanColor, _getLinkTrunk } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps, _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
@@ -81,7 +81,7 @@ function updateBssCfg(nodeId, radioIdx, bssId, field, value){
     else delete bss[field];
     if(field === 'vlan'){
         const vi = parseInt(bss.vlan, 10);
-        if(vi > 1 && typeof win._ensureVlanColor === 'function') win._ensureVlanColor(vi);
+        if(vi > 1 && typeof _ensureVlanColor === 'function') _ensureVlanColor(vi);
         if(typeof _invalidateIdx === 'function') _invalidateIdx();
         if(typeof propagateVlans === 'function') propagateVlans();
     }
@@ -97,7 +97,7 @@ function addBss(nodeId, radioIdx, vlan){
     const v = parseInt(vlan, 10);
     const id = (typeof win.newSsidId === 'function') ? win.newSsidId() : ('s' + Date.now().toString(36) + radio.ssids.length);
     radio.ssids.push((v >= 1 && v <= 4094) ? { id, vlan: v } : { id });
-    if(v > 1 && typeof win._ensureVlanColor === 'function') win._ensureVlanColor(v);
+    if(v > 1 && typeof _ensureVlanColor === 'function') _ensureVlanColor(v);
     if(typeof _invalidateIdx === 'function') _invalidateIdx();
     if(typeof propagateVlans === 'function') propagateVlans();
     markDirty(); renderProps(); if(typeof renderAll === 'function') renderAll();
@@ -263,12 +263,12 @@ function _radioIfacesHtml(n){
     const state = store.state;
     const _vc = (typeof state !== 'undefined' && state.vlanColors) ? state.vlanColors : {};
     let _trunkVlans = [];
-    if(typeof win._getLinkTrunk === 'function' && typeof getPortNodeId === 'function' && typeof _isRadioPid === 'function'){
+    if(typeof _getLinkTrunk === 'function' && typeof getPortNodeId === 'function' && typeof _isRadioPid === 'function'){
         for(const l of (state.links || [])){
             if(!l || l.wireless) continue;
             const touches = (getPortNodeId(l.src) === n.id && !_isRadioPid(l.src)) || (getPortNodeId(l.dst) === n.id && !_isRadioPid(l.dst));
             if(!touches) continue;
-            const tk = win._getLinkTrunk(l);
+            const tk = _getLinkTrunk(l);
             // TUTTE le VLAN in arrivo, nativa COMPRESA: anche l'untagged può servire
             // (es. un PC dell'IT sulla VLAN 1). L'utente decide cosa mappare su SSID.
             if(tk && tk.mode === 'trunk' && Array.isArray(tk.vlans)){ _trunkVlans = tk.vlans.slice(); break; }

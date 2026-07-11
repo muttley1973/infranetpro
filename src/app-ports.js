@@ -19,10 +19,11 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, normalizeStatus } from './app-util.js';
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, pushHistory, renderCables } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
-import { propagateVlans } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { propagateVlans, _effPortVlan, _ensureVlanColor } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { closePop, showPop } from './app-popup.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 
 // Init dello stato condiviso su window (il bundle gira ULTIMO; i classic li
 // scrivono solo dentro handler, quindi qui sono ancora undefined → li seminiamo).
@@ -45,7 +46,7 @@ function renderPortsTable(n){
         const hidden = !!pi.hidden;
         if(!hidden) visibleCount++;
         const effStatus = pi.statusOvr ?? normalizeStatus(pi.status) ?? 'inactive';
-        const effVlan = win._effPortVlan(pid);
+        const effVlan = _effPortVlan(pid);
         const effSpeed = pi.speedOvr ?? pi.speed ?? null;
         const spdVal = effSpeed != null ? fmtSpd(effSpeed) : '';
         const spdPh = pi.speed ? fmtSpd(pi.speed) : '—';
@@ -106,7 +107,7 @@ function getLagGroupsForNode(nodeId){
 }
 
 function startLagMode(pid){
-    win.closePop();
+    closePop();
     if(store.linkStart) win._cancelLink();
     store.lagSelMode = true;
     store.lagSelPorts = new Set([pid]);
@@ -347,7 +348,7 @@ function clearAllPortOverrides(pid){
     markDirty();
     _refreshPortRow(pid);
     if(store._lastPopPid===pid && document.getElementById('popup').style.display!=='none'){
-        win.showPop({ clientX:store._lastPopX, clientY:store._lastPopY }, pid);
+        showPop({ clientX:store._lastPopX, clientY:store._lastPopY }, pid);
     }
 }
 
@@ -365,7 +366,7 @@ function _refreshPortRow(pid){
     if(rst) rst.className = `pt-rst${hasOvr?' has-ovr':''}`;
 }
 
-function portTip(pid){
+export function portTip(pid){
     const state = store.state;
     const pi = state.ports[pid] || {};
     const portNum = pid.split('-').slice(1).join('-');
@@ -398,7 +399,7 @@ function portTip(pid){
         const s = spd>=1000 ? `${(spd/1000).toFixed(spd%1000?1:0)}G` : `${spd}M`;
         parts.push(s);
     }
-    const vlan = win._effPortVlan(pid);
+    const vlan = _effPortVlan(pid);
     if(vlan && vlan>1) parts.push(`VLAN ${win._vlanLabel(vlan)}`);
     // LAG con hint cross-stack quando la LAG attraversa piu' membri dello
     // stesso stack (caso reale: Port-channel1 con Gi1/0/24 + Gi2/0/24).
@@ -417,7 +418,7 @@ function portTip(pid){
     return parts.join(' · ');
 }
 
-function _portDisplayName(pid){
+export function _portDisplayName(pid){
     const pi = store.state.ports[pid] || {};
     const raw = pid.split('-').slice(1).join('/');
     return pi.ifName || pi.alias || pi.desc || raw || '?';
@@ -430,7 +431,7 @@ function setPortField(pid, field, val){
     else state.ports[pid][field] = val;
     if(field==='vlanOvr'){
         const vid = parseInt(val, 10) || 1;
-        if(vid>1) win._ensureVlanColor(vid);
+        if(vid>1) _ensureVlanColor(vid);
         propagateVlans();
         store.highPath.clear();
         win.trace(pid);
@@ -439,7 +440,7 @@ function setPortField(pid, field, val){
         requestAnimationFrame(function(){
             renderCables();
             if(store._lastPopPid===pid && document.getElementById('popup').style.display!=='none'){
-                win.showPop({ clientX:store._lastPopX, clientY:store._lastPopY }, pid);
+                showPop({ clientX:store._lastPopX, clientY:store._lastPopY }, pid);
             }
         });
         _refreshPortRow(pid);
@@ -470,7 +471,7 @@ function clearPortField(pid, field){
         renderCables();
         _refreshPortRow(pid);
         if(store._lastPopPid===pid && document.getElementById('popup').style.display!=='none'){
-            win.showPop({ clientX:store._lastPopX, clientY:store._lastPopY }, pid);
+            showPop({ clientX:store._lastPopX, clientY:store._lastPopY }, pid);
         }
         markDirty();
         return;
@@ -486,7 +487,7 @@ function clearPortField(pid, field){
     renderCables();
     markDirty();
     if(store._lastPopPid===pid && document.getElementById('popup').style.display!=='none'){
-        win.showPop({ clientX:store._lastPopX, clientY:store._lastPopY }, pid);
+        showPop({ clientX:store._lastPopX, clientY:store._lastPopY }, pid);
     }
 }
 

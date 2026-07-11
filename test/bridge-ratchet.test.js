@@ -180,6 +180,23 @@ test('ponte: le funzioni rack/zoom/search non sono più lette da win.*', () => {
   }
 });
 
+// ── 1j) Funzioni foglia UI/vlan/popup ritirate del tutto (reads + calls) ─────
+// Ritiro ponte 2026-07-11: 8 helper foglia definiti in 3 moduli — VLAN
+// (`_effPortVlan`, `_getLinkTrunk`, `_ensureVlanColor` in app-vlan-autopoll.js),
+// porte (`_portDisplayName`, `portTip` in app-ports.js) e popup (`showPop`,
+// `closePop`, `_applyViewMode` in app-popup.js) — sono `export function` + `import`
+// nei 14 consumatori (merge negli import esistenti dove presenti). Convertite TUTTE
+// le win.X. Restano in expose() per i classic (export.js legge _effPortVlan/_getLinkTrunk).
+const RETIRED_LEAF_FN = ['_effPortVlan', '_getLinkTrunk', '_ensureVlanColor',
+  '_portDisplayName', 'portTip', 'showPop', 'closePop', '_applyViewMode'];
+test('ponte: gli helper foglia UI/vlan/popup non sono più letti da win.*', () => {
+  for (const sym of RETIRED_LEAF_FN) {
+    const viaWin = countInCode(new RegExp('\\bwin\\.' + sym + '\\b', 'g'));
+    assert.equal(viaWin, 0,
+      `win.${sym} è tornato: importa { ${sym} } dal suo modulo definitore`);
+  }
+});
+
 // ── 2) Cricchetto sul totale: il ponte può solo restringersi ────────────────
 // Conteggio SOLO-CODICE (commenti esclusi) delle letture win.*. Tetto stretto al
 // valore reale corrente: abbassalo al numero che il test stampa ([ratchet] …)
@@ -325,7 +342,16 @@ test('ponte: le funzioni rack/zoom/search non sono più lette da win.*', () => {
 // hoisted-safe: app-core↔ e app-render-core↔app-search-zoom-rack (fn chiamate a runtime).
 // Restano in expose() (inline toggleRackPanel/switchRack). Golden invariante; e2e 69/69.
 // Delta 51 non 52: 1 win.X era in commento. Vedi RETIRED_RACK_FN sopra.
-const MAX_WIN_REFS = 1000;
+//
+// −70 (1000 → 930, 2026-07-11): RITIRO PONTE — binario FUNZIONI, 8 helper foglia di 3
+// moduli: VLAN (_effPortVlan, _getLinkTrunk, _ensureVlanColor), porte (_portDisplayName,
+// portTip), popup (showPop, closePop, _applyViewMode). `export function` + `import` nei
+// 14 consumatori (merger table-driven con merge negli import esistenti); 72 win.X → bare.
+// app-ports e app-popup sono definitori-di-alcuni e consumatori-di-altri (self-import
+// escluso). Cicli hoisted-safe (app-ports↔app-popup, app-render-core↔app-vlan-autopoll).
+// Restano in expose() (export.js legge _effPortVlan/_getLinkTrunk bare→window). Golden
+// invariante; e2e 69/69. Delta 70 non 72: 2 win.X erano in commenti. Vedi RETIRED_LEAF_FN.
+const MAX_WIN_REFS = 930;
 
 test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => {
   const total = countInCode(/\bwin\./g);

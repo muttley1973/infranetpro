@@ -15,6 +15,7 @@ import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: fun
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _driftBuildDocSnapshot, _driftComputeFromDoc } from './app-drift.js';   // presenza→grigio: ricalcolo Drift dopo il Sync
+import { _ensureVlanColor } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 
 // Tipi per cui richiedere HOST-RESOURCES-MIB standard (CPU/RAM/dischi). Oltre agli
 // host generici, includiamo gli apparati di rete spesso Linux-based (MikroTik,
@@ -561,9 +562,9 @@ function applyPollResult(nodeId, data, opts={}){
     });
     // Auto-registra le VLAN SNMP nella palette colori:
     // 1) PVID di ogni interfaccia (access VLAN)
-    (data.interfaces||[]).forEach(iface=>win._ensureVlanColor(parseInt(iface.vlan)||1));
+    (data.interfaces||[]).forEach(iface=>_ensureVlanColor(parseInt(iface.vlan)||1));
     // 2) Tutte le VLAN definite nello switch (trunk-only, appena create, bitmap anche vuota)
-    (data.vlans||[]).forEach(vid=>win._ensureVlanColor(vid));
+    (data.vlans||[]).forEach(vid=>_ensureVlanColor(vid));
     if(!n.integration) n.integration={};
     n.integration.lags     = data.lags||[];
     n.integration.vlans    = data.vlans||[];   // tutte le VLAN definite (da dot1qVlanStaticName)

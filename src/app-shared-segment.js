@@ -17,6 +17,8 @@ import { renderProps, _propsSectionIsOpen } from './app-properties.js';   // rit
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { focusNode, renderRackTabs } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
+import { closePop, showPop } from './app-popup.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _portDisplayName } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 
 let _sharedBindState = null; // stato wizard bind (module-local, nessun lettore esterno)
 function _macRowsForPort(pid, opts={}){
@@ -148,7 +150,7 @@ function _sharedSegmentNodeOpen(pid){
     renderAll();
     renderProps();
     if(typeof focusNode === 'function') focusNode(n);
-    win.closePop();
+    closePop();
 }
 
 function _sharedSegmentNodeMatchesRole(n, role){
@@ -219,7 +221,7 @@ function _sharedSegmentPortChoices(node, role, sourcePid){
         const score = _sharedSegmentPortHintScore(pi, role) + (conn === 0 ? 15 : 0) + (conn < max ? 10 : 0);
         out.push({
             pid,
-            label: win._portDisplayName(pid),
+            label: _portDisplayName(pid),
             desc: pi.desc || pi.alias || '',
             conn,
             max,
@@ -377,7 +379,7 @@ function _confirmSharedSegmentBind(nodeId, portId){
     renderCables();
     renderProps();
     if(store._lastPopPid===srcPid && document.getElementById('popup').style.display!=='none'){
-        win.showPop({clientX:store._lastPopX, clientY:store._lastPopY}, srcPid);
+        showPop({clientX:store._lastPopX, clientY:store._lastPopY}, srcPid);
     }
     _closeSharedSegmentBind();
     _showToast(t('msg.rack.connectedTo',{name:getNodeDisplayName(node)}), 'ok', 3200);
@@ -407,7 +409,7 @@ function _openSharedSegmentProps(pid){
     win.setPropsSectionState('shared-segment', true);
     renderProps();
     if(typeof win._activatePropsTab === 'function') win._activatePropsTab('Proprietà');
-    if(typeof win.closePop === 'function') win.closePop();
+    if(typeof closePop === 'function') closePop();
     setTimeout(()=>{
         const section = document.getElementById('props-shared-segment');
         if(!section) return;
@@ -426,7 +428,7 @@ function _sharedSegmentHtml(pid, context='popup'){
     if(resolvedNode && roleKey && ['switch','ap','gateway','hypervisor'].includes(roleKey)){
         const resolvedLink = _sharedSegmentResolvedLink(pid, resolvedNode.id);
         const targetPid = resolvedLink ? _linkOtherPort(resolvedLink, pid) : '';
-        const targetPort = targetPid ? win._portDisplayName(targetPid) : '';
+        const targetPort = targetPid ? _portDisplayName(targetPid) : '';
         const targetLine = targetPort ? `${getNodeDisplayName(resolvedNode)} / ${targetPort}` : getNodeDisplayName(resolvedNode);
         if(compact){
             return `<div class="shared-seg-ignored">
@@ -604,7 +606,7 @@ function _markSharedSegmentRole(pid, role){
     }
     markDirty(); renderAll(); renderProps();
     if(store._lastPopPid===pid && document.getElementById('popup').style.display!=='none'){
-        win.showPop({clientX:store._lastPopX, clientY:store._lastPopY}, pid);
+        showPop({clientX:store._lastPopX, clientY:store._lastPopY}, pid);
     }
     _showToast(t('msg.rack.portClassified',{role:_sharedSegmentRoleLabel(role)}), 'ok');
 }
@@ -617,7 +619,7 @@ function _ignoreSharedSegment(pid){
     delete store.state.ports[pid].sharedSegmentNodeId;
     markDirty(); renderProps();
     if(store._lastPopPid===pid && document.getElementById('popup').style.display!=='none'){
-        win.showPop({clientX:store._lastPopX, clientY:store._lastPopY}, pid);
+        showPop({clientX:store._lastPopX, clientY:store._lastPopY}, pid);
     }
 }
 
@@ -626,7 +628,7 @@ function _restoreSharedSegment(pid){
     if(store.state.ports[pid]) delete store.state.ports[pid].sharedSegmentIgnored;
     markDirty(); renderProps();
     if(store._lastPopPid===pid && document.getElementById('popup').style.display!=='none'){
-        win.showPop({clientX:store._lastPopX, clientY:store._lastPopY}, pid);
+        showPop({clientX:store._lastPopX, clientY:store._lastPopY}, pid);
     }
 }
 
@@ -644,7 +646,7 @@ function _clearSharedSegmentRole(pid){
     }
     markDirty(); renderAll(); renderProps();
     if(store._lastPopPid===pid && document.getElementById('popup').style.display!=='none'){
-        win.showPop({clientX:store._lastPopX, clientY:store._lastPopY}, pid);
+        showPop({clientX:store._lastPopX, clientY:store._lastPopY}, pid);
     }
 }
 
@@ -727,7 +729,7 @@ function _createSharedSegmentNode(pid, role){
     store.selType = 'node'; store.selId = n.id;
     markDirty(); renderAll(); renderCables(); renderProps();
     if(TYPES[n.type]?.isFloor) focusNode(n);
-    win.closePop();
+    closePop();
     _showToast(t('msg.rack.intermediateCreated',{role:_sharedSegmentRoleLabel(role)}), 'ok', 4200);
 }
 

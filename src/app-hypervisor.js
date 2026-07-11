@@ -18,7 +18,7 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: selId/selType dopo l'assorbimento
 import { escapeHTML, normalizeMacAddress } from './app-util.js';
 import { nodeById, markDirty, pushHistory, _invalidateIdx, getNodeDisplayName, _showToast, _removeNodeById } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
-import { propagateVlans } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { propagateVlans, _ensureVlanColor } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps, _buildDeviceBrandModelPreview, _propsSectionIsOpen, _buildInventoryFieldsHtml } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // catalogo tipi (hostsVms/isPassive/hasIP) per l'assorbimento VM
@@ -80,7 +80,7 @@ function updateVm(nodeId, vmId, field, value){
     if(v) vm[field] = v; else delete vm[field];
     if(field === 'vlan'){
         const list = (typeof win.parseVlanList === 'function') ? win.parseVlanList(vm.vlan) : [];
-        if(typeof win._ensureVlanColor === 'function') list.forEach(x => { if(x > 1) win._ensureVlanColor(x); });
+        if(typeof _ensureVlanColor === 'function') list.forEach(x => { if(x > 1) _ensureVlanColor(x); });
         if(typeof _invalidateIdx === 'function') _invalidateIdx();
         if(typeof propagateVlans === 'function') propagateVlans();
     }

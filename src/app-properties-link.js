@@ -9,6 +9,8 @@ import { escapeHTML } from './app-util.js';
 import { getNodeByPortId, getNodeDisplayName } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderProps, _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { _effPortVlan, _getLinkTrunk } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _portDisplayName } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 
 // ============================================================
 // PROPERTIES PANEL — renderer CAVO/LINK (selType===link)
@@ -78,7 +80,7 @@ function _renderLinkProps(panel){
                 <button class="toolbar-btn primary" onclick="promoteLinkToManual('${l.id}')"><i class="fas fa-pen"></i> ${t('common.edit')}</button>
             </div>` : '';
         // Trunk EFFETTIVO (derivato dalle VLAN trasportate da voce/SSID, o manuale).
-        const tk = (typeof win._getLinkTrunk==='function') ? win._getLinkTrunk(l)
+        const tk = (typeof _getLinkTrunk==='function') ? _getLinkTrunk(l)
                  : { mode: l.mode==='trunk'?'trunk':'access', native: vl, vlans: (typeof win._parseTrunkVlans==='function'?win._parseTrunkVlans(l.trunkVlans||''):[]), carried:[], derived:false };
         const isTrunk = tk.mode === 'trunk';
         const trunkVlans = l.trunkVlans || '';
@@ -230,12 +232,12 @@ function _renderLinkProps(panel){
                 const _portPathLabel = (pid) => {
                     if(!pid) return '—';
                     const _node = getNodeByPortId(pid);
-                    if(!_node) return escapeHTML(typeof win._portDisplayName==='function' ? win._portDisplayName(pid) : String(pid));
+                    if(!_node) return escapeHTML(typeof _portDisplayName==='function' ? _portDisplayName(pid) : String(pid));
                     const _baseName = _node.type==='wallport'
                         ? (win.getWallPortLabel(_node) || getNodeDisplayName(_node) || _node.id)
                         : (getNodeDisplayName(_node) || _node.name || _node.id);
                     const _rawPort = String(pid).split('-').slice(1).join('/');
-                    const _portName = typeof win._portDisplayName==='function' ? win._portDisplayName(pid) : _rawPort;
+                    const _portName = typeof _portDisplayName==='function' ? _portDisplayName(pid) : _rawPort;
                     const _showPort = _node.type!=='wallport' && (
                         (Number(_node.ports || TYPES[_node.type]?.ports || 0) > 1) ||
                         TYPES[_node.type]?.isRack ||
@@ -391,8 +393,8 @@ function _renderLinkProps(panel){
                     ? win.validateCable(l, { snmpSpeedMbps: _vsp.speed || _vdp.speed || 0,
                                          snmpMedium: _vsp.snmpMedium || _vdp.snmpMedium || null,
                                          isTrunk: tk.mode === 'trunk',
-                                         srcNative: _bothActive ? win._effPortVlan(l.src) : null,
-                                         dstNative: _bothActive ? win._effPortVlan(l.dst) : null })
+                                         srcNative: _bothActive ? _effPortVlan(l.src) : null,
+                                         dstNative: _bothActive ? _effPortVlan(l.dst) : null })
                     : [];
                 // Wireless = connessione radio↔radio (tipologia a sé, non un flag
                 // attivabile su un cavo). Sezione dedicata, niente specifiche cavo.
