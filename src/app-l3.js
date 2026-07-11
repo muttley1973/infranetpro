@@ -14,6 +14,7 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
 import { getNodeDisplayName, _ipamUsageForVlan } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { registerClickActions } from './app-delegation.js';   // ASSE B: voce menu Report via data-act
 import { _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte: builder pannello (ex win.*)
 import { closeReportMenu } from './app-auth.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { updateVlanIpam } from './app-vlan-autopoll.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
@@ -231,6 +232,10 @@ function l3ExportCsv(){
 // _l3SviSectionHtml (app-properties-node.js) + handler inline onclick/onchange
 // (updateVlanGatewayNode, l3ExportCsv, _closeL3Report).
 expose({
-    openL3Report, l3ExportCsv, _closeL3Report, updateVlanGatewayNode,
+    l3ExportCsv, _closeL3Report, updateVlanGatewayNode,
     _l3GatewayNodeIds, _l3GatewayBindingHtml, _l3SviSectionHtml, _l3Compute,
 });
+
+// ASSE B: voce "Mappa L3" del menu Report via data-act (ex win.openL3Report).
+// Nota: l'onclick originale NON chiudeva il dropdown → comportamento preservato.
+registerClickActions({ 'report-l3': () => openL3Report() });
