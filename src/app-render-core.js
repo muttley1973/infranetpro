@@ -14,6 +14,7 @@ import { propagateVlans, _linkIsTrunk } from './app-vlan-autopoll.js';   // riti
 import { renderTopoOverlay } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { switchRack, toggleRackPanel } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 
 // Altezza in px di una unità rack (1U). UNICO punto di verità: la CSS var
 // `--ru-h` (style.css :root), letta qui dal render JS che dimensiona chassis,
@@ -415,8 +416,8 @@ function _renderAllNow(){
         // Doppio click: apre la vista del rack corrispondente (espande il pannello se nascosto)
         el.addEventListener('dblclick',e=>{
             e.stopPropagation();
-            if(store._rackCollapsed) win.toggleRackPanel();
-            win.switchRack(rack.id);
+            if(store._rackCollapsed) toggleRackPanel();
+            switchRack(rack.id);
         });
         fI.appendChild(el);
     });
@@ -551,8 +552,8 @@ function _renderFloorNow(){
         }
         el.addEventListener('dblclick', e => {
             e.stopPropagation();
-            if(store._rackCollapsed) win.toggleRackPanel();
-            win.switchRack(rack.id);
+            if(store._rackCollapsed) toggleRackPanel();
+            switchRack(rack.id);
         });
         fI.appendChild(el);
     });

@@ -163,6 +163,23 @@ test('ponte: le funzioni-nucleo della 9ª non hanno più letture win.* (fuori da
   }
 });
 
+// ── 1i) Funzioni rack/zoom/search ritirate del tutto (reads + calls) ─────────
+// Ritiro ponte 2026-07-11: le 6 funzioni definite in app-search-zoom-rack.js
+// (`toggleRackPanel`, `switchRack`, `renderRackTabs`, `focusNode`, `updateTransforms`,
+// `ensureNodeRackVisible`) sono `export function` + `import` nei 10 consumatori;
+// convertite TUTTE le occorrenze win.X (chiamate E guardie typeof). Restano in
+// expose() per i classic e per gli onclick inline (toggleRackPanel/switchRack bare
+// nell'HTML → risolvono su window, non contano nel cricchetto che scansiona solo src/).
+const RETIRED_RACK_FN = ['toggleRackPanel', 'switchRack', 'renderRackTabs',
+  'focusNode', 'updateTransforms', 'ensureNodeRackVisible'];
+test('ponte: le funzioni rack/zoom/search non sono più lette da win.*', () => {
+  for (const sym of RETIRED_RACK_FN) {
+    const viaWin = countInCode(new RegExp('\\bwin\\.' + sym + '\\b', 'g'));
+    assert.equal(viaWin, 0,
+      `win.${sym} è tornato: importa { ${sym} } from "./app-search-zoom-rack.js"`);
+  }
+});
+
 // ── 2) Cricchetto sul totale: il ponte può solo restringersi ────────────────
 // Conteggio SOLO-CODICE (commenti esclusi) delle letture win.*. Tetto stretto al
 // valore reale corrente: abbassalo al numero che il test stampa ([ratchet] …)
@@ -298,7 +315,17 @@ test('ponte: le funzioni-nucleo della 9ª non hanno più letture win.* (fuori da
 // Golden invariante (stato falsy/vuoto al render); e2e 69/69 (drag rack, pan rack,
 // flusso LAG cross-boundary). Il delta è 83 non 86: 3 win.X erano in commenti (già
 // esclusi dal cricchetto). Vedi RETIRED_STATE sopra + store.js.
-const MAX_WIN_REFS = 1051;
+//
+// −51 (1051 → 1000, 2026-07-11): RITIRO PONTE — binario FUNZIONI, cluster rack/zoom/
+// search di app-search-zoom-rack.js. 6 funzioni (toggleRackPanel, switchRack,
+// renderRackTabs, focusNode, updateTransforms, ensureNodeRackVisible): `export function`
+// + `import` nei 10 consumatori (app-pointer 17, app-core/app-drift 8, app-render-core/
+// app-popup/app-shared-segment 4, app-discovery/app-topology-discover/app-cabling-editor 2,
+// app-topology-crawl 1) = 52 win.X → bare (chiamate E guardie typeof). Due cicli
+// hoisted-safe: app-core↔ e app-render-core↔app-search-zoom-rack (fn chiamate a runtime).
+// Restano in expose() (inline toggleRackPanel/switchRack). Golden invariante; e2e 69/69.
+// Delta 51 non 52: 1 win.X era in commento. Vedi RETIRED_RACK_FN sopra.
+const MAX_WIN_REFS = 1000;
 
 test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => {
   const total = countInCode(/\bwin\./g);

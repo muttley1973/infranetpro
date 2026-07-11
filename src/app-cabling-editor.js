@@ -11,6 +11,7 @@ import { markDirty, getNodeByPortId, getNodeDisplayName, pushHistory, _showToast
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { toggleRackPanel } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 
 // Stato modalità (globali condivise con app-pointer.js / app-render-core.js
 // via global lexical scope, come tutti gli altri stati dell'app).
@@ -133,7 +134,7 @@ function enterRoutingMode(linkId){
         // Patch panel nel chassis (nascosto in tab Proprietà): espandi e passa
         // a tab Rack così l'utente vede subito le porte gialle.
         if(typeof store._rackCollapsed !== 'undefined' && store._rackCollapsed &&
-           typeof win.toggleRackPanel === 'function') win.toggleRackPanel();
+           typeof toggleRackPanel === 'function') toggleRackPanel();
         if(typeof win._rightTab !== 'undefined' && win._rightTab !== 'rack' &&
            typeof switchRightTab === 'function') switchRightTab('rack');
     }
