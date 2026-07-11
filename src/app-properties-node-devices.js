@@ -16,6 +16,7 @@ import { escapeHTML } from './app-util.js';
 import { _buildDeviceBrandModelPreview, _propsSectionIsOpen, _buildInventoryFieldsHtml, _buildNetAccessHtml } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { selected, checked } from './app.js';   // ritiro ponte: helper option-selected/checked (ex win.*)
+import { _effPortVlan } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 
 // ============================================================
 // PROPERTIES PANEL — catena device-specifica per-tipo (estratta da
@@ -30,7 +31,7 @@ import { selected, checked } from './app.js';   // ritiro ponte: helper option-s
 // Caricato in netmapper.html subito dopo app-properties-node.js.
 // ============================================================
 // VLAN access di un endpoint floor in SOLA LETTURA: è la VLAN EFFETTIVA della sua
-// porta (win._effPortVlan: propagata dallo switch a monte ?? override di porta ??
+// porta (_effPortVlan: propagata dallo switch a monte ?? override di porta ??
 // nativa di sito), l'unica che il motore rispetta. Sostituisce i vecchi campi
 // vlanPc/vlanIot/... scollegati dal modello. L'override si modifica sulla
 // porta/switch a monte (i valori legacy sono migrati in _migrateState).
@@ -58,7 +59,7 @@ function _deviceAccessVlanPid(n){
 function _floorAccessVlanRow(n, pid){
     pid = pid || _deviceAccessVlanPid(n);
     const pi  = (store.state.ports && store.state.ports[pid]) || {};
-    const eff = (typeof win._effPortVlan === 'function') ? win._effPortVlan(pid) : 1;
+    const eff = (typeof _effPortVlan === 'function') ? _effPortVlan(pid) : 1;
     const name = (store.state.vlanNames && store.state.vlanNames[eff]) ? escapeHTML(store.state.vlanNames[eff]) : '';
     const col  = (store.state.vlanColors && store.state.vlanColors[eff]) || '#6e7681';
     // VLAN dettata da monte (propagata su run passivo) → sola lettura + rimando.

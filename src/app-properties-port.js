@@ -14,6 +14,7 @@ import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (e
 import { escapeHTML, normalizeStatus } from './app-util.js';
 import { nodeById, getNodeByPortId, getPortNodeId, _isRadioPid } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { _effPortVlan, _getLinkTrunk } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 // NB: renderProps() qui è chiamato SOLO da un onclick="" (bare-in-template, scope
 // pagina → window.renderProps via expose): nessun import ESM, sarebbe inutilizzato.
 
@@ -73,7 +74,7 @@ function _renderPortProps(panel){
         const _leafSpd = _leafSpeedVal!=null ? (_leafSpeedVal>=1000?`${(_leafSpeedVal/1000).toFixed(_leafSpeedVal%1000?1:0)}G`:`${_leafSpeedVal}M`) : '';
         const portNum=pid.split('-').slice(1).join('-');
         const effStatus=pi.statusOvr??normalizeStatus(pi.status)??'inactive';
-        const effVlan=win._effPortVlan(pid);
+        const effVlan=_effPortVlan(pid);
         const effSpeed=pi.speedOvr??pi.speed??null;
         const spdDisplay=effSpeed!=null?(effSpeed>=1000?`${(effSpeed/1000).toFixed(effSpeed%1000?1:0)}G`:`${effSpeed}M`):'';
         const spdPh=pi.speed!=null?(pi.speed>=1000?`${(pi.speed/1000).toFixed(pi.speed%1000?1:0)}G`:`${pi.speed}M`):t('pnl.dev.phSpeedEg');
@@ -156,10 +157,10 @@ function _renderPortProps(panel){
                     // La porta può avere più link (es. VoIP passThrough: switch trunk
                     // + PC access). Preferisci il link in TRUNK per il display.
                     const _portLinks = (state.links||[]).filter(l => l && (l.src===pid || l.dst===pid));
-                    const _lk = (typeof win._getLinkTrunk==='function')
-                        ? (_portLinks.find(l => win._getLinkTrunk(l).mode==='trunk') || _portLinks[0])
+                    const _lk = (typeof _getLinkTrunk==='function')
+                        ? (_portLinks.find(l => _getLinkTrunk(l).mode==='trunk') || _portLinks[0])
                         : _portLinks[0];
-                    const _tk = (_lk && typeof win._getLinkTrunk==='function') ? win._getLinkTrunk(_lk) : null;
+                    const _tk = (_lk && typeof _getLinkTrunk==='function') ? _getLinkTrunk(_lk) : null;
                     if(_tk && _tk.mode==='trunk'){
                         const _tg = _tk.vlans.filter(v => v !== _tk.native);
                         const _inner = `<span style="background:#0e2233;border:1px solid #2d6a9f;border-radius:4px;padding:1px 8px;font-weight:700;color:#5ba3f5">TRUNK</span>`

@@ -21,7 +21,7 @@ let _autoPollNextAt = 0;       // timestamp prossimo ciclo (ms epoch)
 const _VPAL=['#00d4ff','#a371f7','#39d353','#f1e05a','#f85149','#ff9500','#ff6eb4','#00c8a0','#4fc3f7','#56b6c2','#e06c75','#e5c07b'];
 
 /** Aggiunge la VLAN alla palette colori se non già presente. */
-function _ensureVlanColor(vid){
+export function _ensureVlanColor(vid){
     if(vid>1&&!store.state.vlanColors[vid])
         store.state.vlanColors[vid]=_VPAL[(vid*7)%_VPAL.length];
 }
@@ -364,7 +364,7 @@ function _runActiveAnchor(link){
  *  Porta ATTIVA (switch/router): override manuale > vlan SNMP > propagata.
  *  Porta PASSIVA (patch panel, presa, AP): la VLAN propagata dallo switch a
  *  monte ha priorità sull'override locale — un patch panel non ha VLAN propria. */
-function _effPortVlan(pid){
+export function _effPortVlan(pid){
     const pi=store.state.ports[pid]||{};
     const active=!!TYPES[getNodeByPortId(pid)?.type]?.isActive;
     if(active) return pi.vlanOvr ?? (pi.vlan>=1?pi.vlan:undefined) ?? pi.vlanProp ?? _siteNativeVlan();
@@ -377,7 +377,7 @@ function _effPortVlan(pid){
 // l'ALTRO capo NON è un leaf endpoint (salgono verso lo switch, non scendono
 // verso il PC). Manual-first: un trunkVlans impostato a mano vince. Logica pura
 // in lib/vlan-trunk.js. Ritorna { mode, native, vlans[], carried[], derived }.
-function _getLinkTrunk(l){
+export function _getLinkTrunk(l){
     if(!l || typeof win.effLinkVlans!=='function') return { mode:'access', native:1, vlans:[1], carried:[], derived:true };
     const native = (typeof win._getLinkVlan==='function') ? win._getLinkVlan(l) : 1;
     const srcNode = getNodeByPortId(l.src), dstNode = getNodeByPortId(l.dst);

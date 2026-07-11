@@ -23,6 +23,7 @@ import { nodeById, markDirty } from './app.js';   // ritiro ponte: funzioni del 
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps, _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { portTip } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 
 // ---- Cache client dello skin store -----------------------------------------
 let _skinStore = [];   // [{id,name,brand,model,face,viewBox,ports,svg}]
@@ -163,7 +164,7 @@ function _panelSkinRackHtml(n){
             // stato lo da la CSS su .skin-port e .skin-port *
             const paintable = [el].concat(Array.prototype.slice.call(el.querySelectorAll('*')));
             paintable.forEach(function(g){ g.removeAttribute('fill'); if(g.style) g.style.removeProperty('fill'); });
-            const tip = (typeof win.portTip==='function') ? win.portTip(pid) : pid;
+            const tip = (typeof portTip==='function') ? portTip(pid) : pid;
             if(tip){
                 const tEl = doc.createElementNS('http://www.w3.org/2000/svg','title');
                 tEl.textContent = tip;

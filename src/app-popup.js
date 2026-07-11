@@ -14,6 +14,8 @@ import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: fun
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { ensureNodeRackVisible, renderRackTabs } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
+import { _effPortVlan } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _portDisplayName } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 
 function _findProjectLinkByPorts(a,b){
     if(!a||!b) return null;
@@ -124,7 +126,7 @@ function _clearLagFocus(){
         renderAll();
     }
 }
-function closePop(){
+export function closePop(){
     document.getElementById('popup').style.display='none';
     store._lastPopPid = null;
     _clearLagFocus(); // pulisce highlight LAG e fa renderAll solo se necessario
@@ -176,7 +178,7 @@ function _lagRepresentativeConnection(pid){
     return best;
 }
 
-function showPop(e,pid){
+export function showPop(e,pid){
     if(store.linkStart) win._cancelLink();
     const tempFloor = document.getElementById('temp-link');
     const tempRack = document.getElementById('temp-link-rack');
@@ -218,7 +220,7 @@ function showPop(e,pid){
 
     // Valori effettivi (override > SNMP > default)
     const effStatus = pi.statusOvr ?? normalizeStatus(pi.status) ?? 'inactive';
-    const effVlan   = win._effPortVlan(pid);
+    const effVlan   = _effPortVlan(pid);
     const effSpeed  = pi.speedOvr  ?? pi.speed  ?? null;
     const effDesc   = pi.desc      ?? '';
 
@@ -423,7 +425,7 @@ function toggleTopoWlanFilter(){
     renderTopoOverlay();   // le onde le toglie buildTopoLines (filtro hideWireless)
 }
 
-function _applyViewMode(){
+export function _applyViewMode(){
     document.body.classList.toggle('view-topology', store._viewMode==='topology');
     document.body.classList.toggle('view-map', store._viewMode==='map');
     if(store._viewMode!=='topology') win._physicalTraceActive=false;
@@ -461,7 +463,7 @@ function _floorNodeHiddenByVlan(nid){
     for(let i=1;i<=pc;i++){
         const pid=`${n.id}-${i}`;
         // Porta access: controlla la VLAN effettiva di questa porta (propagata dal BFS)
-        const eff=win._effPortVlan(pid);
+        const eff=_effPortVlan(pid);
         if(eff===store._filterVlan) return false;
         // Porta trunk: controlla se questa porta trasporta la VLAN filtro
         if(_linksForPort(pid).some(lk=>
@@ -586,8 +588,8 @@ function _getRackFloorLinks(rackId){
             rackNode=dn; floorNode=sn; rPortId=link.dst; fPortId=link.src;
         } else continue;
         if(floorNode.x===undefined||floorNode.y===undefined) continue;
-        const rPortName=win._portDisplayName(rPortId);
-        const fPortName=win._portDisplayName(fPortId)||floorNode.name||typeName(floorNode.type);
+        const rPortName=_portDisplayName(rPortId);
+        const fPortName=_portDisplayName(fPortId)||floorNode.name||typeName(floorNode.type);
         result.push({link,rackNode,floorNode,rPortId,fPortId,rPortName,fPortName});
     }
     return result;

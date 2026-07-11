@@ -10,11 +10,12 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, hexToRgba, normalizeStatus } from './app-util.js';
 import { nodeById, getNodeByPortId, getPortNodeId, renderCables, _linksForPort, _nodeRadios } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
-import { propagateVlans, _linkIsTrunk } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { propagateVlans, _linkIsTrunk, _effPortVlan } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderTopoOverlay } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { switchRack, toggleRackPanel } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
+import { portTip } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 
 // Altezza in px di una unità rack (1U). UNICO punto di verità: la CSS var
 // `--ru-h` (style.css :root), letta qui dal render JS che dimensiona chassis,
@@ -178,7 +179,7 @@ function _renderAllNow(){
                     const pc2=n.ports!==undefined?n.ports:def.ports;
                     for(let i=1;i<=pc2;i++){
                         const pid=`${n.id}-${i}`;
-                        const eff=win._effPortVlan(pid);
+                        const eff=_effPortVlan(pid);
                         if(eff===store._filterVlan) return false;
                         if(_linksForPort(pid).some(lk=>win._linkMatchesVlanFilter(lk))) return false;
                     }
@@ -193,7 +194,7 @@ function _renderAllNow(){
                 if(pc===1){
                     const pid=`${n.id}-1`,pi=store.state.ports[pid]||{},st=normalizeStatus(pi.statusOvr??pi.status);
                     const selectedPortCls = (store.selType==='port' && store.selId===pid) ? ' selected' : '';
-                    icon=`<i class="fas ${def.icon} icon port ${st}${selectedPortCls}" data-pid="${pid}" title="${escapeHTML(win.portTip(pid))}"></i>`;
+                    icon=`<i class="fas ${def.icon} icon port ${st}${selectedPortCls}" data-pid="${pid}" title="${escapeHTML(portTip(pid))}"></i>`;
                 }
                 let pts='';
                 if(pc>1){pts='<div class="floor-ports">';for(let i=1;i<=pc;i++)pts+=getPortHTML(`${n.id}-${i}`);pts+='</div>';}
@@ -243,7 +244,7 @@ function _renderAllNow(){
                     const label=win._frontPanelPortLabel(n, i, pc);
                     // title HTML nativo browser: appare sempre, anche dentro container
                     // con overflow:hidden (a differenza del tooltip CSS [data-tip]).
-                    const portTipText = win.portTip(pid);
+                    const portTipText = portTip(pid);
                     const numHtml=`<span class="port-num" title="${escapeHTML(label)}">${escapeHTML(label)}</span>`;
                     return `<div class="rack-port-unit${uplinkCls}"><div class="${ledCls} ${st}${lagSelCls}${lagMemCls}${lagFocCls}" data-pid="${pid}"${lagDataAttr} title="${escapeHTML(portTipText)}"></div>${numHtml}</div>`;
                 };
@@ -268,7 +269,7 @@ function _renderAllNow(){
                         const st=normalizeStatus(pi.statusOvr??pi.status);
                         const selectedCls=(store.selType==='port' && store.selId===pid)?' selected':'';
                         const cellName = mc===1 ? base : `${base}${i}`;
-                        const tip=win.portTip(pid) || cellName;
+                        const tip=portTip(pid) || cellName;
                         cells += `<div class="rack-port-unit mgmt-slot"><div class="port-led mgmt-slot ${st}${selectedCls}" data-pid="${pid}" title="${escapeHTML(tip)}"></div><span class="port-num mgmt-num" title="${escapeHTML(cellName)}">${i}</span></div>`;
                     }
                     return `<div class="rack-mgmt-side"><div class="rack-mgmt-grid">${cells}</div><span class="rack-mgmt-title" title="${escapeHTML(base)}">${escapeHTML(base)}</span></div>`;
@@ -502,7 +503,7 @@ function _renderFloorNow(){
                 const pc2 = n.ports!==undefined?n.ports:def.ports;
                 for(let i=1;i<=pc2;i++){
                     const pid = `${n.id}-${i}`;
-                    const eff = win._effPortVlan(pid);
+                    const eff = _effPortVlan(pid);
                     if(eff === store._filterVlan) return false;
                     if(_linksForPort(pid).some(lk=>win._linkMatchesVlanFilter(lk))) return false;
                 }
@@ -519,7 +520,7 @@ function _renderFloorNow(){
             if(pc===1){
                 const pid = `${n.id}-1`, pi = store.state.ports[pid]||{}, st = normalizeStatus(pi.statusOvr??pi.status);
                 const selectedPortCls = (store.selType==='port' && store.selId===pid) ? ' selected' : '';
-                icon = `<i class="fas ${def.icon} icon port ${st}${selectedPortCls}" data-pid="${pid}" title="${escapeHTML(win.portTip(pid))}"></i>`;
+                icon = `<i class="fas ${def.icon} icon port ${st}${selectedPortCls}" data-pid="${pid}" title="${escapeHTML(portTip(pid))}"></i>`;
             }
             let pts = '';
             if(pc>1){ pts='<div class="floor-ports">'; for(let i=1;i<=pc;i++) pts += getPortHTML(`${n.id}-${i}`); pts += '</div>'; }
@@ -572,8 +573,8 @@ function getPortHTML(pid){
     const st=normalizeStatus(pi.statusOvr??pi.status);
     const isSelected = store.selType==='port' && store.selId===pid;
     // Tooltip HTML nativo (title) per uniformita' con i LED del rack:
-    // stesso formato win.portTip e stesso comportamento browser nativo.
-    return `<i class="fas fa-ethernet port ${st}${isSelected?' selected':''}" data-pid="${pid}" title="${escapeHTML(win.portTip(pid))}"></i>`;
+    // stesso formato portTip e stesso comportamento browser nativo.
+    return `<i class="fas fa-ethernet port ${st}${isSelected?' selected':''}" data-pid="${pid}" title="${escapeHTML(portTip(pid))}"></i>`;
 }
 
 // Porta radio Wi-Fi: target draggabile (data-pid → il pointer la tratta come
