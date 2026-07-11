@@ -1703,9 +1703,11 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           // 1) stato core + funzioni core su window (come quando app.js era classic script)
           const stateOk = !!(window.state && Array.isArray(window.state.nodes)
             && Array.isArray(window.state.links) && window.state.ports && typeof window.state.ports === 'object');
+          // NB: undo/redo NON sono più su window (ritiro ponte ASSE B: 1ª superficie
+          // migrata a event delegation → data-act, funzioni IMPORTATE non esposte).
           const coreFns = ['nodeById','getNodeByPortId','getPortNodeId','escapeHTML','uid','normalizeNumber',
             'markDirty','pushHistory','renderCables','updateN','deleteNode','switchRightTab','_migrateState',
-            '_getLinkPhysicalView','_cableAutoLabel','_resetSelection','undo','redo','logAudit','_buildDefaultState'
+            '_getLinkPhysicalView','_cableAutoLabel','_resetSelection','logAudit','_buildDefaultState'
           ].every(n => typeof window[n] === 'function');
 
           // 2) utility pure: comportamento corretto
@@ -1748,6 +1750,31 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.portNodeOk, 'getNodeByPortId mappa il pid al nodo');
       assert.ok(r.physOk, '_getLinkPhysicalView ritorna almeno un segmento');
       assert.ok(r.ownedStateOk, 'owned-state: _resetSelection azzera window.selId/selType (sloppy bare→window)');
+    });
+
+    await t.test('ASSE B — event delegation: Annulla/Ripeti girano via data-act (funzioni IMPORTATE, non su window)', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          const u = document.getElementById('btn-undo'), rd = document.getElementById('btn-redo');
+          // 1) i bottoni non hanno più onclick, ma data-act; e undo/redo NON sono su window
+          const wiredOk = u && rd && u.getAttribute('data-act') === 'undo' && rd.getAttribute('data-act') === 'redo'
+            && !u.getAttribute('onclick') && !rd.getAttribute('onclick')
+            && typeof window.undo === 'undefined' && typeof window.redo === 'undefined';
+          // 2) storia undo sintetica a 2 stati (marker _mk) + click DELEGATO
+          const s = window.state;
+          window._history = [JSON.stringify(Object.assign({}, s, { _mk: 'A' })), JSON.stringify(Object.assign({}, s, { _mk: 'B' }))];
+          window._histIdx = 1; window.state._mk = 'B';
+          u.disabled = false; u.click();                 // scatta SOLO via delegation
+          const undoOk = window._histIdx === 0 && window.state._mk === 'A';
+          rd.disabled = false; rd.click();
+          const redoOk = window._histIdx === 1 && window.state._mk === 'B';
+          return { ok: true, wiredOk, undoOk, redoOk };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso delegation: ' + r.err);
+      assert.ok(r.wiredOk, 'i bottoni undo/redo hanno data-act (no onclick) e window.undo/redo sono ritirati dal ponte');
+      assert.ok(r.undoOk, 'click delegato su #btn-undo esegue undo() (import) → _histIdx cala, stato ripristinato');
+      assert.ok(r.redoOk, 'click delegato su #btn-redo esegue redo() (import) → _histIdx risale');
     });
 
     await t.test('VLAN nativa: toggle per-riga sul pannello VLAN imposta state.nativeVlan (stile guest/voce)', async () => {
