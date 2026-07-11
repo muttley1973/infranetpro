@@ -9,6 +9,7 @@ import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (e
 import { pushHistory, _invalidateIdx, logAudit } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderRackTabs, updateTransforms } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
+import { _restoreTopoSession } from './app-topology-discover.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 
 const API = '/api/projects';
 
@@ -53,7 +54,7 @@ async function loadProject(id) {
     const proj = await apiFetch(`${API}/${id}`);
     store.currentProjectId = proj.id;
     store.state = win._migrateState(proj.state);
-    if(typeof win._restoreTopoSession === 'function') win._restoreTopoSession();
+    if(typeof _restoreTopoSession === 'function') _restoreTopoSession();
     store._vlanIpamOpen.clear();
     _invalidateIdx();
     win._history=[]; win._histIdx=-1; win._updateHistoryBtns();
@@ -86,7 +87,7 @@ async function newProject() {
         });
         store.currentProjectId = proj.id;
         store.state = win._migrateState(proj.state);
-        if(typeof win._restoreTopoSession === 'function') win._restoreTopoSession();
+        if(typeof _restoreTopoSession === 'function') _restoreTopoSession();
         store._vlanIpamOpen.clear();
         _invalidateIdx();
         win._history=[]; win._histIdx=-1; win._updateHistoryBtns();
@@ -121,7 +122,7 @@ async function duplicateProject() {
         });
         store.currentProjectId = proj.id;
         store.state = win._migrateState(proj.state);
-        if(typeof win._restoreTopoSession === 'function') win._restoreTopoSession();
+        if(typeof _restoreTopoSession === 'function') _restoreTopoSession();
         _invalidateIdx();
         win._history=[]; win._histIdx=-1; win._updateHistoryBtns();
         win._clearDirty();

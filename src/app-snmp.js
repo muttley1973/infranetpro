@@ -16,6 +16,7 @@ import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funz
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _driftBuildDocSnapshot, _driftComputeFromDoc } from './app-drift.js';   // presenza→grigio: ricalcolo Drift dopo il Sync
 import { _ensureVlanColor } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _autoLinkDiagText } from './app-autolink.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 
 // Tipi per cui richiedere HOST-RESOURCES-MIB standard (CPU/RAM/dischi). Oltre agli
 // host generici, includiamo gli apparati di rete spesso Linux-based (MikroTik,
@@ -33,7 +34,7 @@ function _hasSnmpIntegration(n){
 // Soglie comuni a chip e bottone, cosi' i due indicatori "raccontano" la stessa
 // storia. fresh < 15m · aging < 6h · old oltre.
 const _SNMP_FRESH_COLOR = { fresh:'#3fb950', aging:'#d29922', old:'#f85149', none:'#8b949e' };
-function _snmpFreshness(ts){
+export function _snmpFreshness(ts){
     if(!ts) return { txt:t('snmp.fresh.never'), level:'none', color:_SNMP_FRESH_COLOR.none };
     const ms = Date.now() - ts;
     const m = Math.round(ms/60000);
@@ -209,15 +210,15 @@ async function pollSNMP(nodeId){
                 renderAll(); renderCables();
                 if(_ld.created>0){
                     const ps=_ld.protocols?.size>0?[..._ld.protocols].join('/'):'auto';
-                    const dx = win._autoLinkDiagText(_ld.diag);
+                    const dx = _autoLinkDiagText(_ld.diag);
                     _showToast(t('msg.net.autoLinkCreated',{n:_ld.created,proto:ps})+(dx?' - '+dx:''),'ok',6500);
                 } else if(_ld.pruned>0){
                     _showToast(t('msg.net.linkPruned',{n:_ld.pruned}),'ok',3500);
                 }
             } else if(Array.isArray(_ld.diag?.reasons) && _ld.diag.reasons.length){
-                _showToast(t('msg.net.noAutoLink')+win._autoLinkDiagText(_ld.diag),'warn',6500);
+                _showToast(t('msg.net.noAutoLink')+_autoLinkDiagText(_ld.diag),'warn',6500);
             } else {
-                const dx = win._autoLinkDiagText(_ld.diag);
+                const dx = _autoLinkDiagText(_ld.diag);
                 if(dx) _showToast(t('msg.net.autoLinkPrefix')+dx,'warn',6500);
             }
         } else {
@@ -343,15 +344,15 @@ async function pollAllSNMP(opts){
             renderAll(); renderCables();
             if(_ld.created>0){
                 const protoSet=_ld.protocols?.size>0?[..._ld.protocols].join('/'):'auto';
-                const dx = win._autoLinkDiagText(_ld.diag);
+                const dx = _autoLinkDiagText(_ld.diag);
                 _showToast(t('msg.net.autoLinkCreated',{n:_ld.created,proto:protoSet})+(dx?' - '+dx:''),'ok',6500);
             } else if(_ld.pruned>0){
                 _showToast(t('msg.net.linkPruned',{n:_ld.pruned}),'ok',3500);
             }
         } else if(Array.isArray(_ld.diag?.reasons) && _ld.diag.reasons.length){
-            _showToast(t('msg.net.noAutoLink')+win._autoLinkDiagText(_ld.diag),'warn',6500);
+            _showToast(t('msg.net.noAutoLink')+_autoLinkDiagText(_ld.diag),'warn',6500);
         } else {
-            const dx = win._autoLinkDiagText(_ld.diag);
+            const dx = _autoLinkDiagText(_ld.diag);
             if(dx) _showToast(t('msg.net.autoLinkPrefix')+dx,'warn',6500);
         }
     }

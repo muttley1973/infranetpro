@@ -11,6 +11,7 @@ import { uid } from './app-util.js';
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, renderCables, _showToast, _invalidateIdx, _linksForPort, canAddConnection, _createLinkRecord } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { _findPortByIfName } from './app-topology-discover.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 // ============================================================
 // AUTO-LINK DISCOVERY — algoritmo multi-layer trasparente
 //
@@ -293,7 +294,7 @@ function _resolveEndpointSwitchPort(node){
     const cands = [];
     let transit = null;   // primo hit scartato perche' su porta di transito
     for(const h of hits){
-        const swPid = win._findPortByIfName(h.swId, h.ifName);
+        const swPid = _findPortByIfName(h.swId, h.ifName);
         if(!swPid) continue;
         let macsOnPort = 0;
         for(const v of Object.values(store._topoFdbCache[h.swId] || {})) if(v===h.ifName) macsOnPort++;
@@ -430,7 +431,7 @@ async function _autoLinkEndpointUI(){
     _showToast(msg, r.reason==='manual-link' ? 'ok' : 'warn', 4000);
 }
 
-function _autoLinkDiagText(diag){
+export function _autoLinkDiagText(diag){
     if(!diag) return '';
     const parts = [];
     if(diag.candidatesTotal != null) parts.push(`${diag.candidatesOverThr||0}/${diag.candidatesTotal} candidati sopra soglia`);
@@ -760,8 +761,8 @@ async function _autoDiscoverLinks(nodeIds){
                     console.log(`[AutoLink] remoto non trovato "${nb.remoteDevice}" / "${nb.remoteIP}" / mac:"${nb.remoteMac||''}"`);
                     continue;
                 }
-                const lp = win._findPortByIfName(n.id, nb.localPort);
-                let rp = win._findPortByIfName(remNode.id, nb.remotePort);
+                const lp = _findPortByIfName(n.id, nb.localPort);
+                let rp = _findPortByIfName(remNode.id, nb.remotePort);
                 if(!rp){
                     const remPorts = remNode.ports !== undefined ? remNode.ports : (TYPES[remNode.type]?.ports || 0);
                     if(remPorts === 1 || _isLeafEndpoint(remNode.type)) rp = `${remNode.id}-1`;
@@ -793,7 +794,7 @@ async function _autoDiscoverLinks(nodeIds){
         for(const ifn of Object.values(fdbTable)) macsPerIf[ifn] = (macsPerIf[ifn]||0)+1;
         for(const [mac, ifNameOnSwitch] of Object.entries(fdbTable)){
             const remEntry = macMap[String(mac || '').toLowerCase()];
-            const lp = win._findPortByIfName(n.id, ifNameOnSwitch);
+            const lp = _findPortByIfName(n.id, ifNameOnSwitch);
             if(!lp) continue;
             const learnedOnPort = macsPerIf[ifNameOnSwitch] || 0;
             const ipFromArp = arpByMac[String(mac || '').toLowerCase()] || '';
@@ -951,7 +952,7 @@ async function _autoDiscoverLinks(nodeIds){
                 const Fby = portMacs[B][portY];
                 const overlap = [...portMacs[A][portX]].some(m => !exclude.has(m) && Fby.has(m));
                 if(overlap) continue;
-                const pa=win._findPortByIfName(A,portX), pb=win._findPortByIfName(B,portY);
+                const pa=_findPortByIfName(A,portX), pb=_findPortByIfName(B,portY);
                 if(pa && pb){ addCandidate(pa, pb, 0.85, 'FDB-DCT'); dctLinks++; }
             }
         }

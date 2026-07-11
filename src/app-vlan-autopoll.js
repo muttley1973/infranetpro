@@ -13,6 +13,7 @@ import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: fun
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, _ensureNodeSpec } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _isLeafEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
+import { _renderTopoLegend } from './app-topology-overlay.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 
 // Handle dei timer auto-poll: prima `let` in app.js, usati SOLO qui -> module-local.
 let _autoPollTimer = null;     // handle setInterval auto-poll
@@ -560,7 +561,7 @@ function toggleGuestVlan(vid){
     else store.state.guestVlans.push(vid);
     markDirty();
     if(typeof renderProps === 'function') renderProps();       // pannello VLAN: aggiorna il pulsante
-    if(typeof win._renderTopoLegend === 'function') win._renderTopoLegend(); // barra: aggiorna il tratteggio
+    if(typeof _renderTopoLegend === 'function') _renderTopoLegend(); // barra: aggiorna il tratteggio
 }
 
 // ---- VLAN di management (classificazione PERSISTENTE, come guestVlans) -------
@@ -584,7 +585,7 @@ function toggleMgmtVlan(vid){
 // pannello VLAN. NON cambia il modello (la voce resta per-device su node.spec.
 // voiceVlan): è metadato/intento + abilita l'assegnazione in blocco ai telefoni.
 // Più VLAN voce sono supportate (array).
-function _isVoiceVlan(vid){ return Array.isArray(store.state.voiceVlans) && store.state.voiceVlans.map(Number).includes(+vid); }
+export function _isVoiceVlan(vid){ return Array.isArray(store.state.voiceVlans) && store.state.voiceVlans.map(Number).includes(+vid); }
 
 function toggleVoiceVlan(vid){
     vid = parseInt(vid, 10);
@@ -931,7 +932,7 @@ function setPortTrunkVlans(pid, raw){
  * Parsa una stringa VLAN tipo "1,10,20,100-200,300" → array di numeri unici ordinati.
  * Supporta singoli ID e range (es. 100-200).
  */
-function _parseTrunkVlans(raw){
+export function _parseTrunkVlans(raw){
     // Parser canonico unico: lib/vlan-trunk.js (puro, testato). Niente duplicato.
     return (typeof win.parseVlanList === 'function') ? win.parseVlanList(raw) : [];
 }

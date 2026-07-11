@@ -11,7 +11,7 @@ import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (e
 import { escapeHTML, hexToRgba, normalizeStatus } from './app-util.js';
 import { nodeById, getNodeByPortId, getPortNodeId, renderCables, _linksForPort, _nodeRadios, _renderModeIndicator } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { propagateVlans, _linkIsTrunk, _effPortVlan } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
-import { renderTopoOverlay } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { renderTopoOverlay, _renderTopoLegend } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { switchRack, toggleRackPanel } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
@@ -435,7 +435,7 @@ function _renderAllNow(){
     win._updateLagBanner();
     win._updateRackFloorBtn();
     // Legenda VLAN: visibile in entrambe le viste (Map=passiva, Topology=interattiva)
-    if(typeof win._renderTopoLegend === 'function') win._renderTopoLegend();
+    if(typeof _renderTopoLegend === 'function') _renderTopoLegend();
     // renderTopoOverlay usa offsetWidth/offsetHeight delle icone rack:
     // deve girare dopo che il browser ha fatto il layout dei nuovi div.
     requestAnimationFrame(renderTopoOverlay);
