@@ -47,4 +47,14 @@ export const store = proxy([
     // window.X (per i bare-global self-ref in app.js e i writer classic).
     'dragOffset', 'dragRack', '_dragArmed', 'lagSelMode',
     '_discRunning', '_discImporting', '_discSelMap', '_routingLinkId', '_vlanIpamOpen',
+    // ── coda-stato di INTERAZIONE, 2º giro (ritiro ponte 2026-07-11) ──────────
+    // Altri flag/cache di gesture/vista: resize, pan floor/rack, spazio-premuto,
+    // punto-mouse-down, hover-rack, tab-hold props, click-porta-floor, traccia fisica,
+    // props-esplicito, tab destra, sync-SNMP in corso, toggle nascondi-topo,
+    // cache FDB-VLAN topo, mappa-tipo discovery, gruppo-LAG focalizzato.
+    'resizeNode', 'isPanningFloor', 'isPanningRack', 'rackPanStart', '_spaceDown',
+    '_dragDownPt', '_hoverRackId', '_propsTabHold', '_floorPortClick',
+    '_physicalTraceActive', '_propsExplicit', '_rightTab', '_snmpSyncing',
+    '_topoHideEndpoints', '_topoHideWireless', '_topoFdbVlanCache', '_discTypeMap',
+    '_focusedLagGroup',
 ]);

@@ -241,7 +241,7 @@ async function pollSNMP(nodeId){
 // leggero in background, niente scoperta cavi (quella resta sul bottone Sync /
 // Topologia, che fanno l'auto-link "al volo").
 async function pollAllSNMP(opts){
-    if(win._snmpSyncing) return;
+    if(store._snmpSyncing) return;
     const dataOnly = !!(opts && opts.dataOnly);
     // Raccoglie SOLO i nodi con driver SNMP (snmp-v1/v2c/v3) e host/IP configurato:
     // niente poll su device senza integrazione SNMP.
@@ -255,7 +255,7 @@ async function pollAllSNMP(opts){
         return;
     }
 
-    win._snmpSyncing=true;
+    store._snmpSyncing=true;
     const syncBtn=document.getElementById('btn-snmp-sync');
     // L'etichetta vive in uno span interno: gli stati transitori del sync
     // aggiornano SOLO questo, cosi' il timer (#sync-fresh-badge, anch'esso dentro
@@ -267,7 +267,7 @@ async function pollAllSNMP(opts){
     if(saveBtn){ saveBtn.disabled=true; }
 
     // try/finally: qualunque errore imprevisto nella raccolta o nell'auto-link NON
-    // deve lasciare il Sync "appeso". Prima, un throw dopo win._snmpSyncing=true
+    // deve lasciare il Sync "appeso". Prima, un throw dopo store._snmpSyncing=true
     // lasciava il flag a true (ogni Sync successivo usciva subito) e il bottone
     // bloccato su "Topology...". Il ripristino stato vive ora nel finally.
     try{
@@ -389,7 +389,7 @@ async function pollAllSNMP(opts){
     } finally {
         // Ripristino stato SEMPRE eseguito (successo o errore): sblocca il flag di
         // sync, riabilita il salvataggio e riallinea il bottone Topologia.
-        win._snmpSyncing=false;
+        store._snmpSyncing=false;
         if(saveBtn){ saveBtn.disabled=false; }
         // Aggiorna stato pulsante Topologia: la cache neighbors e' ora fresca
         // (se almeno un device ha risposto), quindi il bottone diventa cliccabile.

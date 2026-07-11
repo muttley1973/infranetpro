@@ -91,7 +91,7 @@ function _driftUpdateStreaks(docSnap){
 function _driftBuildSnmpSnapshot(docSnap, reachable, arpTable){
     const state = store.state;
     const fdb = (typeof store._topoFdbCache === 'object' && store._topoFdbCache) ? store._topoFdbCache : {};
-    const vlanCache = (typeof win._topoFdbVlanCache === 'object' && win._topoFdbVlanCache) ? win._topoFdbVlanCache : {};
+    const vlanCache = (typeof store._topoFdbVlanCache === 'object' && store._topoFdbVlanCache) ? store._topoFdbVlanCache : {};
     return buildSnmpSnapshot({
         nodes: state.nodes,
         docPorts: docSnap.ports,
@@ -155,7 +155,7 @@ async function _driftReachabilitySweep(){
 // ── Entry point: bottone "Verifica documentazione" ───────────────────
 async function runDriftCheck(){
     const state = store.state;
-    if(_driftRunning || win._snmpSyncing) return;
+    if(_driftRunning || store._snmpSyncing) return;
     const hasSnmp = state.nodes.some(n => String((n.integration||{}).driver||'').startsWith('snmp') && String((n.integration||{}).host||n.ip||'').trim());
     // I lease DHCP sono una fonte valida anche senza SNMP (rete dietro firewall):
     // se ce ne sono, la Verifica gira lo stesso (il poll SNMP viene saltato).

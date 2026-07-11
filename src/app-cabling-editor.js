@@ -135,7 +135,7 @@ function enterRoutingMode(linkId){
         // a tab Rack così l'utente vede subito le porte gialle.
         if(typeof store._rackCollapsed !== 'undefined' && store._rackCollapsed &&
            typeof toggleRackPanel === 'function') toggleRackPanel();
-        if(typeof win._rightTab !== 'undefined' && win._rightTab !== 'rack' &&
+        if(typeof store._rightTab !== 'undefined' && store._rightTab !== 'rack' &&
            typeof switchRightTab === 'function') switchRightTab('rack');
     }
     _renderRoutingHint(link);

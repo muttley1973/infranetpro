@@ -196,7 +196,7 @@ export function absorbNodeAsVm(srcId, hostId){
     propagateVlans();                            // l'uplink trunk dell'host assorbe la VLAN della VM
     _invalidateIdx();
     store.selId = host.id; store.selType = 'node';   // mostra l'host: la VM appena aggiunta è lì
-    win._propsExplicit = true;                        // intent esplicito → il pannello host si ri-renderizza (guardia uniforme floor/rack)
+    store._propsExplicit = true;                        // intent esplicito → il pannello host si ri-renderizza (guardia uniforme floor/rack)
     markDirty();
     renderAll();
     renderProps();

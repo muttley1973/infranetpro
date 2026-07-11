@@ -92,9 +92,9 @@ store.selId=null; store.selType=null; store.highPath=new Set();
 // var (non let): linkStart è letto dal bundle (src/app-ports.js) via store.linkStart
 // → deve stare su window (REGOLA CRITICA). dragNode/resizeNode/
 // _linkJustStarted seguono per coerenza (bare-read dai classic, invariato).
-store.dragNode=null; win.resizeNode=null; store.linkStart=null; win._linkJustStarted=false;
+store.dragNode=null; store.resizeNode=null; store.linkStart=null; win._linkJustStarted=false;
 // Rilevamento manuale doppio click su porte device floor: { pid, t (timestamp), timer (handle setTimeout) }
-win._floorPortClick = null;   // var: stato input scritto dal bundle (app-pointer) via win.*
+store._floorPortClick = null;   // var: stato input scritto dal bundle (app-pointer) via win.*
 // Rilevamento manuale doppio click su porte device RACK in tab Rack
 // (preventDefault del pointerdown blocca il dblclick nativo del browser).
 win._rackPortDblPid = null; win._rackPortDblTime = 0;
@@ -111,9 +111,9 @@ store.lagSelMode=false; store.lagSelPorts=new Set();   // modalità selezione mu
 //   singolo (UX scelta: troppo rumoroso aprirle ad ogni click).
 // - true: alzato quando l'utente fa un'azione intenzionale "voglio vedere"
 //   (doppio click, switchRightTab('props'), shortcut P, ecc.).
-win._propsExplicit=false;
+store._propsExplicit=false;
 // ^ var (non let): il modulo bundle app-properties-node.js lo legge via
-//   win._propsExplicit (guard render rack). I writer classic (app.js/app-pointer)
+//   store._propsExplicit (guard render rack). I writer classic (app.js/app-pointer)
 //   fanno bare-assign → cadono sulla stessa var di window.
 win._rackDblTime=0; win._rackDblId=null;   // rilevazione manuale doppio click (dblclick non arriva con preventDefault)
 store._vlanIpamOpen=new Set();   // VLAN con dettagli IPAM aperti nel pannello floor
@@ -121,25 +121,25 @@ store._vlanIpamOpen=new Set();   // VLAN con dettagli IPAM aperti nel pannello f
 //   store._vlanIpamOpen (.has). Un let vivrebbe nel global lexical, invisibile al
 //   bundle → .has di undefined. I writer classic (.add/.delete/.clear) mutano
 //   la stessa unica Set su window.
-win._snmpSyncing=false;   // true durante la sincronizzazione SNMP collettiva  (var: letto dal bundle src/app-topology-discover.js via win._snmpSyncing)
+store._snmpSyncing=false;   // true durante la sincronizzazione SNMP collettiva  (var: letto dal bundle src/app-topology-discover.js via store._snmpSyncing)
 // _autoPollTimer/_autoPollTickTimer/_autoPollNextAt spostati come module-local in src/app-vlan-autopoll.js
 store._discResults=[];   // risultati ultima discovery   (var: letto/scritto dal bundle src/app-discovery.js via win.*)
 store._discRunning=false;   // true mentre discovery/crawl è in corso   (var: idem)
 store._discImporting=false;   // true mentre importa i risultati selezionati   (var: idem)
 store._discSelMap={};   // chiave device -> checkbox selezionata   (var: idem)
-win._discTypeMap={};   // chiave device -> tipo scelto dall'utente   (var: idem)
+store._discTypeMap={};   // chiave device -> tipo scelto dall'utente   (var: idem)
 win._paletteDragType='';   // tipo trascinato dalla libreria elementi (var: letto da app.js _renderModeIndicator)
 store.dragOffset={x:0,y:0};
-win.isPanningFloor=false; win.panStart={x:0,y:0};
+store.isPanningFloor=false; win.panStart={x:0,y:0};
 // Pan del rack con Space+trascinamento (come il floor): il rack però usa lo
 // SCROLL nativo del #rack-viewport, quindi qui memorizziamo scroll iniziale.
-win.isPanningRack=false; win.rackPanStart={x:0,y:0,sl:0,st:0};
+store.isPanningRack=false; store.rackPanStart={x:0,y:0,sl:0,st:0};
 // Threshold drag/click: { x, y } posizione del pointerdown; _dragArmed=true
 // solo dopo che il puntatore si e' spostato > 5px (evita micro-drag
 // involontari su click brevi su rack/floor device).
-win._dragDownPt=null; store._dragArmed=false;
+store._dragDownPt=null; store._dragArmed=false;
 // _DRAG_THRESHOLD_PX spostato come module-local in src/app-pointer.js (unico lettore)
-win._spaceDown=false;   // Space tenuto → pan ovunque sulla mappa
+store._spaceDown=false;   // Space tenuto → pan ovunque sulla mappa
 let eventsBound=false;
 // searchResults/activeSearchIndex spostati come module-local in src/app-search-zoom-rack.js
 
@@ -1847,7 +1847,7 @@ function _renderCablesNow(){
 // PROPERTIES PANEL
 // ============================================================
 // ---- Tab destra: Rack / Proprietà ------------------------------------------
-win._rightTab = 'rack';   // 'rack' | 'props' (var: letto bare da app-pointer/app-popup/app-render-core/cabling-editor)
+store._rightTab = 'rack';   // 'rack' | 'props' (var: letto bare da app-pointer/app-popup/app-render-core/cabling-editor)
 
 export function switchRightTab(tab){
     _propsTabHold = null;   // cambio tab esplicito → decade l'hold di selectPathSegment
@@ -1898,7 +1898,7 @@ export function switchRightTab(tab){
 // 'props' — altrimenti la tab Rack si chiuderebbe da sola al primo re-render.
 // L'hold decade da solo: cambio selezione (selId diverso) o switch tab
 // esplicito (switchRightTab lo azzera).
-win._propsTabHold = null;   // var: scritto da app-popup (selectPathSegment) e dal bundle render-core via win.*; bare-letto dai classic
+store._propsTabHold = null;   // var: scritto da app-popup (selectPathSegment) e dal bundle render-core via win.*; bare-letto dai classic
 function _activatePropsTab(label){
     if(_propsTabHold && selType === 'link' && selId === _propsTabHold) return;
     _propsTabHold = null;   // selezione cambiata → l'hold decade
