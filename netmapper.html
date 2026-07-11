@@ -789,13 +789,13 @@
       </div>
       <div class="tm-row" style="gap:8px;margin-bottom:8px">
         <button class="toolbar-btn" onclick="document.getElementById('csv-file').click()"><i class="fas fa-folder-open"></i> Scegli file</button>
-        <input type="file" id="csv-file" accept=".csv,.txt" style="display:none" onchange="loadCsvFile(this)">
+        <input type="file" id="csv-file" accept=".csv,.txt" style="display:none" data-change="csv-file">
         <span style="font-size:0.75rem;color:var(--text-muted);align-self:center">oppure incolla il testo qui sotto</span>
       </div>
       <textarea id="csv-textarea" rows="7"
         placeholder="name,hostname,ip,type,rack,rackU,sizeU,ports&#10;Switch-01,,192.168.1.1,switch,Rack A,,,24&#10;Server-02,,192.168.1.10,server,Rack A,,,4"
         style="width:100%;background:#0d1117;border:1px solid var(--panel-border);color:var(--text-main);padding:8px;border-radius:5px;font-family:monospace;font-size:0.78rem;resize:vertical"
-        oninput="previewCsv()"></textarea>
+        data-input="csv-preview"></textarea>
       <div id="csv-preview" style="margin-top:10px;display:none">
         <div style="font-size:0.75rem;font-weight:600;margin-bottom:6px;color:var(--text-muted)">ANTEPRIMA</div>
         <div style="max-height:200px;overflow-y:auto">
@@ -823,7 +823,7 @@
       <div id="dhcp-live-section" style="border:1px solid var(--panel-border);border-radius:6px;padding:10px;margin-bottom:10px;display:none">
         <div style="font-size:0.75rem;font-weight:600;margin-bottom:8px;color:var(--text-muted)"><i class="fas fa-cloud-arrow-down"></i> <span data-i18n="dhcp.liveTitle">Recupero live dall'API del firewall</span></div>
         <div class="tm-row" style="gap:8px;flex-wrap:wrap;align-items:center;font-size:0.78rem">
-          <select id="dhcp-live-vendor" onchange="updateDhcpVendorFields()" style="background:#0d1117;border:1px solid var(--panel-border);color:var(--text-main);padding:5px 7px;border-radius:4px">
+          <select id="dhcp-live-vendor" data-change="dhcp-vendor" style="background:#0d1117;border:1px solid var(--panel-border);color:var(--text-main);padding:5px 7px;border-radius:4px">
             <option value="fortigate">Fortinet FortiGate</option>
             <option value="panos">Palo Alto PAN-OS</option>
             <option value="opnsense">OPNsense</option>
@@ -840,13 +840,13 @@
       </div>
       <div class="tm-row" style="gap:8px;margin-bottom:8px">
         <button class="toolbar-btn" onclick="document.getElementById('dhcp-file').click()"><i class="fas fa-folder-open"></i> <span data-i18n="dhcp.chooseFile">Scegli file</span></button>
-        <input type="file" id="dhcp-file" accept=".csv,.txt,.leases" style="display:none" onchange="loadDhcpFile(this)">
+        <input type="file" id="dhcp-file" accept=".csv,.txt,.leases" style="display:none" data-change="dhcp-file">
         <span style="font-size:0.75rem;color:var(--text-muted);align-self:center" data-i18n="dhcp.orPaste">oppure incolla il testo qui sotto</span>
       </div>
       <textarea id="dhcp-textarea" rows="8"
         placeholder="10.0.20.50  aa:bb:cc:dd:ee:ff  laptop-01&#10;ISC dhcpd / dnsmasq / Kea CSV / CSV (ip,mac,hostname)…"
         style="width:100%;background:#0d1117;border:1px solid var(--panel-border);color:var(--text-main);padding:8px;border-radius:5px;font-family:monospace;font-size:0.78rem;resize:vertical"
-        oninput="previewDhcp()"></textarea>
+        data-input="dhcp-preview"></textarea>
       <div class="tm-row" style="gap:10px;align-items:center;margin-top:10px">
         <button class="toolbar-btn primary" id="dhcp-use-btn" onclick="useDhcpLeases()" disabled><i class="fas fa-plus"></i> <span data-i18n="dhcp.add">Aggiungi</span></button>
         <div id="dhcp-summary" style="font-size:0.78rem;font-weight:600;color:var(--accent-color)"></div>
