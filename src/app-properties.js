@@ -191,7 +191,7 @@ const _PP_FIBER_CONN_LABEL = {
  *  + numero porte. La tipologia usa le sigle ISO/IEC standard (Cat 6A,
  *  U/UTP, OS2, OM4, MTP-12, ecc.) cosi' chi cabla riconosce il prodotto
  *  reale. Es: "Cat 6A · F/UTP · 24p", "OM4 LC duplex · 12p". */
-function _buildPatchPanelPreview(n){
+export function _buildPatchPanelPreview(n){
     if(!n) return '';
     const media = n.ppMedia || 'copper';
     const portCount = n.ports !== undefined ? n.ports : 24;
@@ -324,7 +324,7 @@ export function _powerLiveHtml(n){
     return `<div class="power-live"><div class="power-live-head"><i class="fas fa-bolt"></i> ${t('pwr.liveStatus')}${when ? `<span class="power-live-ts">${esc(when)}</span>` : ''}</div>${body}</div>`;
 }
 
-function _propsIconForType(type){
+export function _propsIconForType(type){
     // Fonte UNICA del glifo per-tipo: TYPES[type].icon (in app-types.js).
     // La vecchia mappa locale è stata rimossa per evitare divergenze (es. il
     // passacavo che mostrava grip-lines nell'export e ellipsis-h nel pannello).

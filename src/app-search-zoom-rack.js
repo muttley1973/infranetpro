@@ -8,11 +8,11 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, hexToRgba, normalizeStatus, normalizeNumber } from './app-util.js';
-import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _showToast, getRackById, getRackName } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _showToast, getRackById, getRackName, getNodeRackSize } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll, rackUPx } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
-import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
+import { TYPES, typeName, _nodeSpecView } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { trace } from './app-pointer.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 
 // Stato ricerca: module-local (prima era `let` in app.js, usato SOLO qui).
@@ -42,7 +42,7 @@ function buildSearchResults(query) {
     const results=[];
 
     store.state.nodes.forEach(node=>{
-        const view = typeof win._nodeSpecView==='function' ? win._nodeSpecView(node) : node;
+        const view = typeof _nodeSpecView==='function' ? _nodeSpecView(node) : node;
         const def=TYPES[node.type]; if(!def) return;
         const hay=[view.id,view.name,def.name,typeName(node.type),view.type,view.hostname,view.brand,view.model,view.ip,view.mac,
                    view.assignedUser,
@@ -143,7 +143,7 @@ export function focusNode(n){
         store.state.floorView.y=fp.height/2-ty*store.state.floorView.zoom;
         updateTransforms();
     } else if(def?.isRack){
-        const sU=n.sizeU!==undefined?n.sizeU:def.sizeU||1, rs=win.getNodeRackSize(n);
+        const sU=n.sizeU!==undefined?n.sizeU:def.sizeU||1, rs=getNodeRackSize(n);
         const _U=(typeof rackUPx==='function')?rackUPx():24;
         // Pan via translate (lo zoom è transform:scale): porta il device a ~120px
         // dall'alto del viewport. Vedi updateTransforms / handlePointerMove.

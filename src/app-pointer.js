@@ -8,7 +8,7 @@
 // ============================================================
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _invalidateIdx, switchRightTab, _showToast, _linksForPort, _nextNodeId, _isRadioPid, logAudit, _renderModeIndicator, _promoteLinkToManual, canAddConnection, _createLinkRecord, getPortMaxConnections } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _invalidateIdx, switchRightTab, _showToast, _linksForPort, _nextNodeId, _isRadioPid, logAudit, _renderModeIndicator, _promoteLinkToManual, canAddConnection, _createLinkRecord, getPortMaxConnections, getNodeRackSize } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { propagateVlans } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderTopoOverlay } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -563,7 +563,7 @@ function handlePointerMove(e){
             const ch=document.getElementById('rack-chassis').getBoundingClientRect();
             // Subtract border-top (8px) so ry is relative to the inner grid, not the chassis outer box
             const ry=(e.clientY-ch.top)/store.state.rackView.zoom - 8 - store.dragOffset.y;
-            const rs=win.getNodeRackSize(n),sU=n.sizeU!==undefined?n.sizeU:TYPES[n.type].sizeU;
+            const rs=getNodeRackSize(n),sU=n.sizeU!==undefined?n.sizeU:TYPES[n.type].sizeU;
             n.rackU=Math.max(1,Math.min(rs-sU+1,rs-sU+1-Math.round(ry/rackUPx())));
             const el=document.querySelector(`[data-id="${n.id}"]`);
             if(el)el.style.gridRow=`${rs-n.rackU-sU+2}/span ${sU}`;

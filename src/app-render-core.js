@@ -9,11 +9,11 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, hexToRgba, normalizeStatus } from './app-util.js';
-import { nodeById, getNodeByPortId, getPortNodeId, renderCables, _linksForPort, _nodeRadios, _renderModeIndicator, getWallPortLabel } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, getNodeByPortId, getPortNodeId, renderCables, _linksForPort, _nodeRadios, _renderModeIndicator, getWallPortLabel, isRackTopNumbered } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { propagateVlans, _linkIsTrunk, _effPortVlan } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderTopoOverlay, _renderTopoLegend } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
-import { TYPES, _frontPanelPortLabel } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { TYPES, _frontPanelPortLabel, _fixedRackLabel, _frontPanelState } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { switchRack, toggleRackPanel } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { portTip } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 
@@ -119,7 +119,7 @@ function _renderAllNow(){
     const ruler=document.getElementById('rack-ruler');
     ruler.style.height=`${rs*_U}px`;
     let ruHtml='';
-    const fromTop=win.isRackTopNumbered(store.state.currentRack);
+    const fromTop=isRackTopNumbered(store.state.currentRack);
     for(let row=rs;row>=1;row--){
         // row: posizione fisica nel ruler (rs in cima, 1 in fondo)
         // u: numero da stampare. Default: u=row (1 in fondo). Da-top: u=rs-row+1.
@@ -153,7 +153,7 @@ function _renderAllNow(){
             delete n.snmpLastOk;
             if(n.integration) delete n.integration.lastPoll;
         }
-        const fixedRackLabel = win._fixedRackLabel(n.type);
+        const fixedRackLabel = _fixedRackLabel(n.type);
         if(fixedRackLabel && n.name!==fixedRackLabel) n.name=fixedRackLabel;
         if(n.type==='wallport') n.ports=1;
 
@@ -219,7 +219,7 @@ function _renderAllNow(){
             const pc=n.ports!==undefined?n.ports:def.ports;
             let pts='';
             if(pc>0){
-                const _fpState=win._frontPanelState(n, pc);
+                const _fpState=_frontPanelState(n, pc);
                 // Gap unico per numeriche e logiche: stessa distribuzione delle porte
                 // in tutti i casi (le etichette logiche piu' lunghe vengono troncate
                 // via CSS senza modificare lo spazio fra le porte).
@@ -480,7 +480,7 @@ function _renderFloorNow(){
         const def = TYPES[n.type]; if(!def) return;
         if(!def.isFloor) return;
         // Stesse normalizzazioni di _renderAllNow per coerenza
-        const fixedRackLabel = win._fixedRackLabel(n.type);
+        const fixedRackLabel = _fixedRackLabel(n.type);
         if(fixedRackLabel && n.name !== fixedRackLabel) n.name = fixedRackLabel;
         if(n.type === 'wallport') n.ports = 1;
         const el = document.createElement('div'); el.dataset.id = n.id;

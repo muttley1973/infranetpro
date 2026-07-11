@@ -91,7 +91,7 @@ function renderPortsTable(n){
 </div>`;
 }
 
-function getLagGroupsForNode(nodeId){
+export function getLagGroupsForNode(nodeId){
     const state = store.state;
     const n = nodeById(nodeId);
     const pc = n ? n.ports || 0 : 0;
