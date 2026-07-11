@@ -1189,9 +1189,9 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           renderRackTabs();
 
           // 1) API esposte dal bundle. NB: zoomFloor/zoomRack/togglePaletteGroup/toggleRackMenu
-          //    NON sono più su window (ritiro ponte ASSE B: toolbar rack/zoom/palette → data-act).
-          const fns = ['buildSearchResults','switchRack','renderRackTabs',
-            'moveNodeToRack','filterPaletteItems','updateRackSize'];
+          //    NON sono più su window (ritiro ponte ASSE B: toolbar rack/zoom/palette → data-act);
+          //    filterPaletteItems/updateRackSize NEMMENO (superfici change/input → data-input/data-change).
+          const fns = ['buildSearchResults','switchRack','renderRackTabs','moveNodeToRack'];
           const allFns = fns.every(n => typeof window[n] === 'function');
 
           // 2) ricerca globale: trova il device per nome
@@ -1220,13 +1220,17 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
             'togglePaletteGroup','setPaletteGroupsExpanded','clearPaletteFilter','toggleRackMenu','closeRackMenu',
             'toggleRackOnFloor','addRack','renameRack','toggleRackUNumbering','deleteCurrentRack']
             .every(n => typeof window[n] === 'undefined');
+          // 7b) ASSE B change/input: anche filterPaletteItems/updateRackSize fuori da window
+          const changeInputGone = ['filterPaletteItems','updateRackSize']
+            .every(n => typeof window[n] === 'undefined');
 
-          return { ok: true, allFns, foundDevice, zoomed, transformApplied, opts, switched, moved, nodeRack, delegatedGone };
+          return { ok: true, allFns, foundDevice, zoomed, transformApplied, opts, switched, moved, nodeRack, delegatedGone, changeInputGone };
         } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
       });
       assert.ok(r.ok, 'nessun errore nel flusso search/zoom/rack: ' + r.err);
       assert.ok(r.allFns, 'le funzioni search/zoom/rack (non-toolbar) sono esposte su window');
       assert.ok(r.delegatedGone, 'ASSE B: le 15 funzioni toolbar rack/zoom/palette sono ritirate dal ponte (data-act)');
+      assert.ok(r.changeInputGone, 'ASSE B: filterPaletteItems/updateRackSize ritirate dal ponte (data-input/data-change)');
       assert.ok(r.foundDevice, 'buildSearchResults trova il device per nome');
       assert.ok(r.zoomed, 'zoomFloor aumenta lo zoom della planimetria');
       assert.ok(r.transformApplied, 'updateTransforms applica scale() al floor-canvas');
@@ -1234,6 +1238,57 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.switched, 'switchRack cambia il rack corrente');
       assert.ok(r.moved, 'moveNodeToRack riesce a spostare il device');
       assert.equal(r.nodeRack, 'rB', 'il device e ora nel rack B');
+    });
+
+    await t.test('ASSE B harness change/input: rack size (change) + palette filter (input) via evento reale delegato', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          // Setup rack pulito: currentRack rA (42U) + un device 1U (la riduzione a 30 passa la validazione)
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0;
+          state.racks = [{ id: 'rA', name: 'Rack A', sizeU: 42 }];
+          state.currentRack = 'rA';
+          state.nodes.push({ id: 'n1', type: 'switch', name: 'SW1', rackId: 'rA', rackU: 1, sizeU: 1, ports: 8 });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          renderRackTabs();
+
+          // --- CHANGE: #rack-size-input (data-change="rack-size") → updateRackSize(el.value) ---
+          const sizeInput = document.getElementById('rack-size-input');
+          const sizeWired = sizeInput.getAttribute('data-change') === 'rack-size' && !sizeInput.hasAttribute('onchange');
+          sizeInput.value = '30';
+          sizeInput.dispatchEvent(new Event('change', { bubbles: true }));   // evento REALE → listener delegato sul document
+          const rackAfterChange = state.racks.find(x => x.id === 'rA').sizeU;
+
+          // --- INPUT: #palette-search (data-input="palette-filter") → filterPaletteItems(el.value) ---
+          const paletteInput = document.getElementById('palette-search');
+          const paletteWired = paletteInput.getAttribute('data-input') === 'palette-filter' && !paletteInput.hasAttribute('oninput');
+          const totalItems = document.querySelectorAll('#sidebar-left .equip-item').length;
+          // query che non matcha nulla → filterPaletteItems nasconde TUTTE le voci
+          paletteInput.value = 'zzz-nessun-elemento-cosi';
+          paletteInput.dispatchEvent(new Event('input', { bubbles: true }));
+          const hiddenAfterInput = [...document.querySelectorAll('#sidebar-left .equip-item')]
+            .filter(it => it.style.display === 'none').length;
+          const clearBtn = document.getElementById('palette-search-clear');
+          const clearVisible = clearBtn ? getComputedStyle(clearBtn).visibility === 'visible' : null;
+          // ripristino (query vuota → tutte visibili di nuovo)
+          paletteInput.value = '';
+          paletteInput.dispatchEvent(new Event('input', { bubbles: true }));
+          const hiddenAfterReset = [...document.querySelectorAll('#sidebar-left .equip-item')]
+            .filter(it => it.style.display === 'none').length;
+
+          return { ok: true, sizeWired, rackAfterChange, paletteWired, totalItems, hiddenAfterInput, clearVisible, hiddenAfterReset };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso change/input: ' + r.err);
+      // change
+      assert.ok(r.sizeWired, '#rack-size-input ha data-change="rack-size" e nessun onchange inline');
+      assert.equal(r.rackAfterChange, 30, 'l\'evento change delegato ha eseguito updateRackSize (sizeU 42→30)');
+      // input
+      assert.ok(r.paletteWired, '#palette-search ha data-input="palette-filter" e nessun oninput inline');
+      assert.ok(r.totalItems > 0, 'la palette ha voci (equip-item) su cui filtrare');
+      assert.equal(r.hiddenAfterInput, r.totalItems, 'l\'evento input delegato ha eseguito filterPaletteItems (query no-match → tutte nascoste)');
+      if (r.clearVisible !== null) assert.ok(r.clearVisible, 'il pulsante clear della palette diventa visibile a query non vuota');
+      assert.equal(r.hiddenAfterReset, 0, 'query vuota → filterPaletteItems ripristina tutte le voci');
     });
 
     await t.test('app-shared-segment migrato: rilevazione segmento L2 multi-MAC (FDB) + HTML pannello nel browser reale', async () => {

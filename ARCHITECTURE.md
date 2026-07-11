@@ -112,7 +112,7 @@ src/                   GLUE migrated to ESM (bundled): _bridge, main, app-types 
                        imported first), + all ex-`lib/app-*.js`
 src/_bridge.js         Migration bridge: win.* read, expose() publish (sparirà a fine migrazione)
 src/store.js           Shared mutable view-state behind a proxy (state/selId/… ex-win.*)
-src/app-delegation.js  Single delegated click listener: data-act="key" → imported fn (retires onclick)
+src/app-delegation.js  Delegated click/change/input listeners: data-act/change/input="key" → imported fn
 test/                  node --test: pure-lib tests + smoke-app (vm + DOM stub)
 ```
 
@@ -583,18 +583,21 @@ is VPN/LAN.
     behind a proxy in `src/store.js`. The residue is the pure `lib/*.js` `<script>` globals and their
     `typeof` guards, which stay by design (importing them would re-bundle the UMD, clobbering the live
     `<script>` copy).
-  - **Axis B — inline `onclick=""` → event delegation.** Inline handlers are *why* the bridge still
-    exists (they resolve names in page lexical scope). `src/app-delegation.js` installs one delegated
-    `click` listener: a button carries `data-act="key"` (arguments in `data-*`), and the module that
-    **owns** the function registers `{ key: () => fn() }` at load — so the handler is an **imported**
-    function, off `window`. For a menu, the owner registers the toggle and each item is registered by
-    the module that owns that item (importing the owner's `close` helper). Migrated so far: undo/redo,
-    the rack/zoom/palette toolbar, the account + Report header menus, and the project toolbar
-    (`New/Rename/Duplicate/Delete/Save`). The bulk (~570 handlers in dynamically-rendered templates)
-    follows once the harness is extended to `change`/`input`. `_bridge.js` / `expose()` are deleted
-    only when Axis B is finished. *(Side note: the AI help catalog in `lib/ui-catalog.js`, which reads
-    the real button labels/tooltips, derives a button's action from `data-act` as well as `onclick`, so
-    delegated buttons stay in the assistant's catalog.)*
+  - **Axis B — inline handlers (`onclick`/`onchange`/`oninput`) → event delegation.** Inline handlers
+    are *why* the bridge still exists (they resolve names in page lexical scope). `src/app-delegation.js`
+    installs **one delegated listener per event type** on the document — `data-act` for `click`,
+    `data-change` for `change` (selects, checkboxes, file inputs, committed numbers), `data-input` for
+    live `input` (typing) — so an element carries `data-<type>="key"` (arguments read off the element via
+    `el.value`/`el.checked`/`data-*`), and the module that **owns** the function registers
+    `{ key: (el) => fn(el.value) }` at load: the handler is an **imported** function, off `window`. For a
+    menu, the owner registers the toggle and each item is registered by the module that owns that item
+    (importing the owner's `close` helper). Migrated so far: undo/redo, the rack/zoom/palette toolbar,
+    the account + Report header menus, the project toolbar (`New/Rename/Duplicate/Delete/Save`), the AI
+    assistant buttons, and the first non-click controls (rack-size `change`, palette-search `input`). The
+    bulk (~500 handlers in dynamically-rendered templates, click + change + input) now follows surface by
+    surface. `_bridge.js` / `expose()` are deleted only when Axis B is finished. *(Side note: the AI help
+    catalog in `lib/ui-catalog.js`, which reads the real button labels/tooltips, derives a button's action
+    from `data-act` as well as `onclick`, so delegated buttons stay in the assistant's catalog.)*
 - **ESLint gate (`eslint.config.js`, v9).** `no-undef` is enforced as a safety net where
   the module system is explicit (Node/CommonJS + UMD `lib/`) and is **off on `src/`** until
   the `window` bridge is retired (then it re-enables). Cosmetic rules are warnings, so the
