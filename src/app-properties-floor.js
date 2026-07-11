@@ -13,6 +13,7 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, normalizeNumber } from './app-util.js';
 import { _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte: lettura stato sezioni (ex win.*)
+import { _isVoiceVlan } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 
 // Blocco "Occupazione" della card IPAM aperta: barra di capacità + ripartizione
 // documentati / solo-DHCP / liberi (dati da _ipamUsageForVlan → lib/ipam.js,
@@ -169,8 +170,8 @@ function _renderFloorProps(panel){
                     <button class="toolbar-btn${(Array.isArray(state.guestVlans)&&state.guestVlans.map(Number).includes(vid))?' primary':''}" style="padding:3px 6px;margin:0" data-tip="${(Array.isArray(state.guestVlans)&&state.guestVlans.map(Number).includes(vid))?t('floor.guestOn'):t('floor.guestOff')}" onclick="toggleGuestVlan(${vid})"><i class="fas fa-user-group"></i></button>
                     <button class="toolbar-btn${(Array.isArray(state.mgmtVlans)&&state.mgmtVlans.map(Number).includes(vid))?' primary':''}" style="padding:3px 6px;margin:0" data-tip="${(Array.isArray(state.mgmtVlans)&&state.mgmtVlans.map(Number).includes(vid))?t('floor.mgmtOn'):t('floor.mgmtOff')}" onclick="toggleMgmtVlan(${vid})"><i class="fas fa-screwdriver-wrench"></i></button>
                     <button class="toolbar-btn${_isNative?' primary':''}" style="padding:3px 6px;margin:0" data-tip="${_isNative?t('vlan.nativeUnmark'):t('vlan.nativeMark')}" onclick="toggleSiteNativeVlan(${vid})"><i class="fas fa-house"></i></button>
-                    <button class="toolbar-btn${(typeof win._isVoiceVlan==='function'&&win._isVoiceVlan(vid))?' primary':''}" style="padding:3px 6px;margin:0" data-tip="${(typeof win._isVoiceVlan==='function'&&win._isVoiceVlan(vid))?t('voice.unmark'):t('voice.mark')}" onclick="toggleVoiceVlan(${vid})"><i class="fas fa-phone"></i></button>
-                    ${(typeof win._isVoiceVlan==='function'&&win._isVoiceVlan(vid))?`<button class="toolbar-btn" style="padding:3px 6px;margin:0" data-tip="${t('voice.assignTip')}" onclick="_openVoiceAssignDialog(${vid})"><i class="fas fa-arrow-right-to-bracket"></i></button>`:''}
+                    <button class="toolbar-btn${(typeof _isVoiceVlan==='function'&&_isVoiceVlan(vid))?' primary':''}" style="padding:3px 6px;margin:0" data-tip="${(typeof _isVoiceVlan==='function'&&_isVoiceVlan(vid))?t('voice.unmark'):t('voice.mark')}" onclick="toggleVoiceVlan(${vid})"><i class="fas fa-phone"></i></button>
+                    ${(typeof _isVoiceVlan==='function'&&_isVoiceVlan(vid))?`<button class="toolbar-btn" style="padding:3px 6px;margin:0" data-tip="${t('voice.assignTip')}" onclick="_openVoiceAssignDialog(${vid})"><i class="fas fa-arrow-right-to-bracket"></i></button>`:''}
                     <button class="toolbar-btn" style="padding:3px 6px;margin:0" onclick="deleteVlanColor(${vid})"><i class="fas fa-times"></i></button>
                   </div>
                   ${(ipamSummary || ipamOpen) ? `<div class="vlan-ipam-summary${summaryWarn?' warn':''}">${ipamSummary ? `${ipamSummary}${nearFull?` · ${usage.pct}% — ${t('floor.occNearFull')}`:''}` : t('floor.noNetInfo')}</div>` : ''}

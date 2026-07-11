@@ -5,6 +5,7 @@ import { nodeById, getPortNodeId, _showToast } from './app.js';   // ritiro pont
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _portDisplayName } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _getLinkTrunk } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _findPortByIfName } from './app-topology-discover.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 
 // ============================================================
 // TOPOLOGIA — OVERLAY SULLA PLANIMETRIA
@@ -43,7 +44,7 @@ export function renderTopoOverlay(){
 // per filtrare la mappa. Click su pillola = applica/rimuove filtro VLAN.
 // Doppio click = apre modal win.showVlanMembers (porte access + trunk link).
 let _topoLegendBound = false;
-function _renderTopoLegend(){
+export function _renderTopoLegend(){
     const el = document.getElementById('topo-legend');
     if(!el) return;
     // Visibile in entrambe le viste:
@@ -172,7 +173,7 @@ function _buildTopoModel(){
             isAmbiguousLink: l => typeof win.linkState === 'function' && win.linkState(l).key === 'ambiguous',
             chainAmbiguousIds: (typeof win._chainAmbiguousLinkIds === 'function') ? win._chainAmbiguousLinkIds() : null,
             chainColors: (typeof win._chainVlanColors === 'function') ? win._chainVlanColors() : null,
-            findPortByIfName: win._findPortByIfName,
+            findPortByIfName: _findPortByIfName,
             findProjectLinkByPorts: win._findProjectLinkByPorts,
         }
     };

@@ -6,6 +6,7 @@ import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funz
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { focusNode, switchRack } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { _isLeafEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
+import { _discIndexNode, _discVendorFromMac } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 
 // Nome DISPLAY per la tabella Scopri e per il nome del nodo importato. L'utente legge la
 // RIGA (Nome -> Vendor -> Tipo, gia' in colonne separate) e fa l'abbinamento da solo:
@@ -277,7 +278,7 @@ function _discEnsureMeta(d){
     // Sorgente DHCP (lease importato): il server marca dhcpLease/viaProtocol=DHCP.
     // La marchiamo _via:'dhcp' per badge sorgente + stato "Osservato" coerenti.
     if(!row._via && (row.dhcpLease === true || String(row.viaProtocol||'').toUpperCase()==='DHCP')) row._via = 'dhcp';
-    const ouiVendor = win._discVendorFromMac(row.mac);
+    const ouiVendor = _discVendorFromMac(row.mac);
     if(!row.vendor) row.vendor = ouiVendor;
     row.vendorHint = row.vendorHint || ouiVendor || '';
     if(!row.hostname && row.netbiosName) row.hostname = row.netbiosName;
@@ -904,7 +905,7 @@ async function importDiscovered(){
                 );
 
                 win._discTouchNodeIdentity(foundExisting, d, match.matchedBy);
-                foundExisting.vendorHint = d.vendorHint || win._discVendorFromMac(d.mac) || foundExisting.vendorHint || '';
+                foundExisting.vendorHint = d.vendorHint || _discVendorFromMac(d.mac) || foundExisting.vendorHint || '';
                 foundExisting.identitySource = win._discIdentitySource(d);
                 foundExisting.identityConfidence = d.identityConfidence || d.confidence?.level || foundExisting.identityConfidence || 'low';
                 if(incomingReplacement){
@@ -978,7 +979,7 @@ async function importDiscovered(){
                     foundExisting.integration.community = foundExisting.integration.community || community;
                 }
                 foundExisting.integration.host   = foundExisting.integration.host   || d.ip || '';
-                win._discIndexNode(existingIdx, foundExisting);
+                _discIndexNode(existingIdx, foundExisting);
                 win._recordDiscoveryObservation({
                     mac:d.mac, ip:d.ip, switchId:'', portId:'', ifName:'',
                     source:_discSourceInfo(d).label, confidence:_discConfidenceInfo(d).score/100
@@ -998,7 +999,7 @@ async function importDiscovered(){
                     name: _discDisplayName(d), hostname: d.hostname||'', ip: d.ip||'',
                     mac: normalizeMacAddress(d.mac||''),
                     brand: d.vendor || def.brand || '',
-                    vendorHint: d.vendorHint || win._discVendorFromMac(d.mac) || '',
+                    vendorHint: d.vendorHint || _discVendorFromMac(d.mac) || '',
                     identitySource: win._discIdentitySource(d),
                     identityConfidence: d.identityConfidence || d.confidence?.level || 'low',
                     possibleReplacement: !!d.possibleReplacement,
@@ -1018,7 +1019,7 @@ async function importDiscovered(){
                     name: _discDisplayName(d), hostname: d.hostname||'', ip: d.ip||'',
                     mac: normalizeMacAddress(d.mac||''),
                     brand: d.vendor || def.brand || '',
-                    vendorHint: d.vendorHint || win._discVendorFromMac(d.mac) || '',
+                    vendorHint: d.vendorHint || _discVendorFromMac(d.mac) || '',
                     identitySource: win._discIdentitySource(d),
                     identityConfidence: d.identityConfidence || d.confidence?.level || 'low',
                     possibleReplacement: !!d.possibleReplacement,
@@ -1045,7 +1046,7 @@ async function importDiscovered(){
                 mac:d.mac, ip:d.ip, switchId:'', portId:'', ifName:'',
                 source:_discSourceInfo(d).label, confidence:_discConfidenceInfo(d).score/100
             });
-            win._discIndexNode(existingIdx, n);
+            _discIndexNode(existingIdx, n);
             if(_isLeafEndpoint(d.type)) _importedEndpoints.push(n);
             imported++;
         });

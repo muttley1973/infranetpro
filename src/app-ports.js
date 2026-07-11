@@ -24,6 +24,7 @@ import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: fun
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { closePop, showPop } from './app-popup.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { trace } from './app-pointer.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 
 // Init dello stato condiviso su window (il bundle gira ULTIMO; i classic li
 // scrivono solo dentro handler, quindi qui sono ancora undefined → li seminiamo).
@@ -341,7 +342,7 @@ function clearAllPortOverrides(pid){
     }
     propagateVlans();
     store.highPath.clear();
-    win.trace(pid);
+    trace(pid);
     store.selType = null;
     store.selId = null;
     renderCables();
@@ -434,7 +435,7 @@ function setPortField(pid, field, val){
         if(vid>1) _ensureVlanColor(vid);
         propagateVlans();
         store.highPath.clear();
-        win.trace(pid);
+        trace(pid);
         store.selType = null;
         store.selId = null;
         requestAnimationFrame(function(){
@@ -465,7 +466,7 @@ function clearPortField(pid, field){
     if(field==='vlanOvr'){
         propagateVlans();
         store.highPath.clear();
-        win.trace(pid);
+        trace(pid);
         store.selType = null;
         store.selId = null;
         renderCables();

@@ -219,6 +219,26 @@ test('ponte: le funzioni nucleo/tipi/autolink non sono più lette da win.*', () 
   }
 });
 
+// ── 1l) Funzioni topo/discovery/vlan/snmp ritirate del tutto (reads + calls) ─
+// Ritiro ponte 2026-07-11: 10 funzioni di 6 moduli — topologia (`_findPortByIfName`,
+// `_restoreTopoSession` in app-topology-discover.js; `_renderTopoLegend` in
+// app-topology-overlay.js), discovery (`_discVendorFromMac`, `_discIndexNode` in
+// app-discovery-classify.js), interazione (`trace` in app-pointer.js), VLAN
+// (`_parseTrunkVlans`, `_isVoiceVlan` in app-vlan-autopoll.js), autolink
+// (`_autoLinkDiagText`) e SNMP (`_snmpFreshness`) — `export function` + `import` nei
+// consumatori; convertite TUTTE le win.X. Restano in expose() (export.js legge
+// _parseTrunkVlans). `trace` è nome corto ma senza binding locale in conflitto (verificato).
+const RETIRED_MISC_FN = ['_findPortByIfName', '_restoreTopoSession', '_discVendorFromMac',
+  '_discIndexNode', 'trace', '_parseTrunkVlans', '_isVoiceVlan', '_renderTopoLegend',
+  '_autoLinkDiagText', '_snmpFreshness'];
+test('ponte: le funzioni topo/discovery/vlan/snmp non sono più lette da win.*', () => {
+  for (const sym of RETIRED_MISC_FN) {
+    const viaWin = countInCode(new RegExp('\\bwin\\.' + sym + '\\b', 'g'));
+    assert.equal(viaWin, 0,
+      `win.${sym} è tornato: importa { ${sym} } dal suo modulo definitore`);
+  }
+});
+
 // ── 2) Cricchetto sul totale: il ponte può solo restringersi ────────────────
 // Conteggio SOLO-CODICE (commenti esclusi) delle letture win.*. Tetto stretto al
 // valore reale corrente: abbassalo al numero che il test stampa ([ratchet] …)
@@ -391,7 +411,16 @@ test('ponte: le funzioni nucleo/tipi/autolink non sono più lette da win.*', () 
 // 131 win.X → store.X su tutto src/. Escluse le 4 funzioni-lib guardate da
 // `typeof win.X === 'function'` (isInStack/isInHaGroup/linkState/carriedVlans → restano).
 // Golden invariante; e2e 69/69 (drag/pan/hover). Delta 125 non 131: 6 win.X in commenti.
-const MAX_WIN_REFS = 744;
+//
+// −61 (744 → 683, 2026-07-11): RITIRO PONTE — binario FUNZIONI, topo/discovery/vlan/snmp.
+// 10 funzioni di 6 moduli (_findPortByIfName/_restoreTopoSession/_renderTopoLegend topo,
+// _discVendorFromMac/_discIndexNode discovery, trace pointer, _parseTrunkVlans/_isVoiceVlan
+// vlan, _autoLinkDiagText autolink, _snmpFreshness snmp): `export function` + `import` merge
+// nei consumatori; 63 win.X → bare. Vari file definitori-di-uno e consumatori-di-altri
+// (cicli hoisted-safe). `trace` (nome corto) verificato senza binding locale in conflitto.
+// Restano in expose() (export.js legge _parseTrunkVlans). Golden invariante; e2e 69/69.
+// Delta 61 non 63: 2 win.X in commenti. Vedi RETIRED_MISC_FN.
+const MAX_WIN_REFS = 683;
 
 test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => {
   const total = countInCode(/\bwin\./g);
