@@ -197,6 +197,22 @@ test('ponte: gli helper foglia UI/vlan/popup non sono più letti da win.*', () =
   }
 });
 
+// ── 1k) Funzioni nucleo/tipi/autolink ritirate del tutto (reads + calls) ─────
+// Ritiro ponte 2026-07-11: 5 funzioni del nucleo (`_renderModeIndicator`,
+// `_promoteLinkToManual`, `_createLinkRecord`, `getRackById`, `canAddConnection` in
+// app.js) + `_ensureNodeSpec` (app-types.js) + `_isLeafEndpoint` (app-autolink.js)
+// sono `export function` + `import` nei consumatori; convertite TUTTE le win.X.
+// Restano in expose() per i classic (export.js legge getRackById).
+const RETIRED_CORE_FN2 = ['_renderModeIndicator', '_promoteLinkToManual',
+  '_createLinkRecord', 'getRackById', 'canAddConnection', '_ensureNodeSpec', '_isLeafEndpoint'];
+test('ponte: le funzioni nucleo/tipi/autolink non sono più lette da win.*', () => {
+  for (const sym of RETIRED_CORE_FN2) {
+    const viaWin = countInCode(new RegExp('\\bwin\\.' + sym + '\\b', 'g'));
+    assert.equal(viaWin, 0,
+      `win.${sym} è tornato: importa { ${sym} } dal suo modulo definitore`);
+  }
+});
+
 // ── 2) Cricchetto sul totale: il ponte può solo restringersi ────────────────
 // Conteggio SOLO-CODICE (commenti esclusi) delle letture win.*. Tetto stretto al
 // valore reale corrente: abbassalo al numero che il test stampa ([ratchet] …)
@@ -351,7 +367,16 @@ test('ponte: gli helper foglia UI/vlan/popup non sono più letti da win.*', () =
 // escluso). Cicli hoisted-safe (app-ports↔app-popup, app-render-core↔app-vlan-autopoll).
 // Restano in expose() (export.js legge _effPortVlan/_getLinkTrunk bare→window). Golden
 // invariante; e2e 69/69. Delta 70 non 72: 2 win.X erano in commenti. Vedi RETIRED_LEAF_FN.
-const MAX_WIN_REFS = 930;
+//
+// −61 (930 → 869, 2026-07-11): RITIRO PONTE — binario FUNZIONI, nucleo/tipi/autolink.
+// 5 fn di app.js (_renderModeIndicator, _promoteLinkToManual, _createLinkRecord,
+// getRackById, canAddConnection) + _ensureNodeSpec (app-types.js) + _isLeafEndpoint
+// (app-autolink.js): `export function` + `import` merge nei consumatori (app-pointer 17,
+// app-shared-segment/app-stack-ha/app-vlan-autopoll 8/10, …); 61 win.X → bare.
+// app-autolink è definitore-di-uno e consumatore-di-altri (self-import escluso). Cicli
+// hoisted-safe. Restano in expose() (export.js legge getRackById). Golden invariante;
+// e2e 69/69. Delta = 61 (nessun win.X in commento stavolta). Vedi RETIRED_CORE_FN2.
+const MAX_WIN_REFS = 869;
 
 test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => {
   const total = countInCode(/\bwin\./g);

@@ -8,10 +8,11 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, normalizeNumber } from './app-util.js';
-import { nodeById, markDirty, getNodeByPortId, getPortNodeId, pushHistory, renderCables, _showToast } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, markDirty, getNodeByPortId, getPortNodeId, pushHistory, renderCables, _showToast, _promoteLinkToManual } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
-import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { TYPES, _ensureNodeSpec } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { _isLeafEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
 
 // Handle dei timer auto-poll: prima `let` in app.js, usati SOLO qui -> module-local.
 let _autoPollTimer = null;     // handle setInterval auto-poll
@@ -381,7 +382,7 @@ export function _getLinkTrunk(l){
     if(!l || typeof win.effLinkVlans!=='function') return { mode:'access', native:1, vlans:[1], carried:[], derived:true };
     const native = (typeof win._getLinkVlan==='function') ? win._getLinkVlan(l) : 1;
     const srcNode = getNodeByPortId(l.src), dstNode = getNodeByPortId(l.dst);
-    const _isLeaf = n => !!(n && typeof win._isLeafEndpoint==='function' && win._isLeafEndpoint(n.type));
+    const _isLeaf = n => !!(n && typeof _isLeafEndpoint==='function' && _isLeafEndpoint(n.type));
     let carried = [];
     if(srcNode && !_isLeaf(dstNode) && typeof win.carriedVlans==='function') carried = carried.concat(win.carriedVlans(srcNode));
     if(dstNode && !_isLeaf(srcNode) && typeof win.carriedVlans==='function') carried = carried.concat(win.carriedVlans(dstNode));
@@ -606,7 +607,7 @@ function _voipVoiceVlan(n){
 }
 // Scrive la voce sul telefono come fa updateN (spec field, top-level rimosso).
 function _setVoipVoiceVlan(n, vid){
-    const spec = (typeof win._ensureNodeSpec === 'function') ? win._ensureNodeSpec(n) : (n.spec || (n.spec = {}));
+    const spec = (typeof _ensureNodeSpec === 'function') ? _ensureNodeSpec(n) : (n.spec || (n.spec = {}));
     spec.voiceVlan = vid;
     delete n.voiceVlan;
 }
@@ -833,7 +834,7 @@ function setLinkColor(id,color){
     const same = color===null ? !('colorOvr' in l) && !l.autoLinked : l.colorOvr===color && !l.autoLinked;
     if(same) return;
     pushHistory();
-    if(typeof win._promoteLinkToManual==='function') win._promoteLinkToManual(l);
+    if(typeof _promoteLinkToManual==='function') _promoteLinkToManual(l);
     if(color===null){ delete l.colorOvr; delete l.color; }
     else { l.colorOvr=color; l.color=color; }
     if(typeof _normalizeLinkMetadata==='function') _normalizeLinkMetadata(l);
@@ -868,7 +869,7 @@ function setLinkMode(id, mode){
     // Fallback legacy: run di soli passivi → override sul cavo.
     if(l.mode===mode && !l.autoLinked) return;
     pushHistory();
-    if(typeof win._promoteLinkToManual==='function') win._promoteLinkToManual(l);
+    if(typeof _promoteLinkToManual==='function') _promoteLinkToManual(l);
     l.mode = mode;
     if(mode==='access') delete l.trunkVlans;
     renderProps(); markDirty();
@@ -890,7 +891,7 @@ function setLinkTrunkVlans(id, raw){
     }
     if((l.trunkVlans||'')===next && !l.autoLinked) return;
     pushHistory();
-    if(typeof win._promoteLinkToManual==='function') win._promoteLinkToManual(l);
+    if(typeof _promoteLinkToManual==='function') _promoteLinkToManual(l);
     l.trunkVlans = next;
     renderProps(); markDirty();
 }

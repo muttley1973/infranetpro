@@ -20,6 +20,7 @@ import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (e
 import { escapeHTML } from './app-util.js';
 import { getNodeDisplayName, _linksForPort } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { _isLeafEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
 
 // store._spareActive su window: lo legge BARE (guarded) app-render-core nel hook
 // post-render _renderAllNow; module-local resterebbe nascosto nell'IIFE del
@@ -34,7 +35,7 @@ function _spareBuildDevices(){
     for(const n of (store.state.nodes || [])){
         // Solo infrastruttura con porte (switch/router/firewall/patch panel…),
         // NON gli endpoint (un PC/AP non e' "capacita' libera" per nuovi device).
-        if(win._isLeafEndpoint(n.type)) continue;
+        if(_isLeafEndpoint(n.type)) continue;
         const pc = (n.ports !== undefined) ? n.ports : (TYPES[n.type]?.ports || 0);
         if(!pc) continue;
         // Indici porta che sono SFP/uplink (il resto e' access). mgmt sta fuori da 1..pc.

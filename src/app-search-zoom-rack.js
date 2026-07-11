@@ -8,7 +8,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, hexToRgba, normalizeStatus, normalizeNumber } from './app-util.js';
-import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _showToast } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _showToast, getRackById } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -497,7 +497,7 @@ function addRack(){
     });
 }
 function renameRack(){
-    const rack=win.getRackById(store.state.currentRack); if(!rack) return;
+    const rack=getRackById(store.state.currentRack); if(!rack) return;
     win.showPrompt('Rinomina rack:',rack.name,name=>{
         if(!name||!name.trim()) return;
         pushHistory();
@@ -512,7 +512,7 @@ function moveNodeToRack(nodeId, newRackId){
     const n = nodeById(nodeId);
     if(!n || !TYPES[n.type]?.isRack) return false;
     if(n.rackId === newRackId) return false;            // nessun cambio
-    const destRack = win.getRackById(newRackId);
+    const destRack = getRackById(newRackId);
     if(!destRack){ showAlert(t('msg.rack.destNotFound')); return false; }
 
     const sU = normalizeNumber(n.sizeU, TYPES[n.type]?.sizeU || 1, 1, 60);
@@ -553,7 +553,7 @@ function moveNodeToRack(nodeId, newRackId){
 }
 
 function updateRackSize(value){
-    const rack=win.getRackById(store.state.currentRack); if(!rack) return;
+    const rack=getRackById(store.state.currentRack); if(!rack) return;
     const newSize = normalizeNumber(value, 42, 6, 60);
     const oldSize = rack.sizeU || 42;
 
@@ -590,7 +590,7 @@ function updateRackSize(value){
     renderRackTabs(); renderAll(); markDirty();
 }
 function toggleRackUNumbering(){
-    const rack = win.getRackById(store.state.currentRack); if(!rack) return;
+    const rack = getRackById(store.state.currentRack); if(!rack) return;
     pushHistory();
     rack.uNumberFromTop = !rack.uNumberFromTop;
     renderAll(); markDirty();
@@ -599,7 +599,7 @@ function toggleRackUNumbering(){
 function _updateRackUNumLabel(){
     const lbl = document.getElementById('btn-rack-unum-label');
     if(!lbl) return;
-    const r = win.getRackById(store.state.currentRack);
+    const r = getRackById(store.state.currentRack);
     const _t = (typeof t==='function') ? t : (k=>k);
     lbl.textContent = r?.uNumberFromTop ? _t('rack.uNumFromBottom') : _t('rack.uNumFromTop');
 }

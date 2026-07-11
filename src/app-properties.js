@@ -14,6 +14,7 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { _isLeafEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
 
 // MAC da mostrare per un device: il MAC di device se c'e', altrimenti fallback
 // alla PORTA col suffisso numerico piu' basso (gli apparati SNMP — switch/router/
@@ -246,8 +247,8 @@ export function _buildNetAccessHtml(n, d, opts){
     // Nascosto per stack member (campi readonly: il link e' gestito dal master).
     const _showAutoLink = showMac
         && !_isStackMember
-        && typeof win._isLeafEndpoint === 'function'
-        && win._isLeafEndpoint(n.type);
+        && typeof _isLeafEndpoint === 'function'
+        && _isLeafEndpoint(n.type);
     const _autoLinkBtn = _showAutoLink
         ? `<div class="prop-group" style="margin-top:8px"><button class="toolbar-btn" style="width:100%" onclick="_autoLinkEndpointUI()" data-tip="${t('autolink.tip')}"><i class="fas fa-wand-magic-sparkles"></i> ${t('autolink.btn')}</button></div>`
         : '';

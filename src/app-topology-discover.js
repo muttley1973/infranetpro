@@ -1,6 +1,6 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { nodeById, markDirty, getPortNodeId, pushHistory, renderCables, _showToast } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, markDirty, getPortNodeId, pushHistory, renderCables, _showToast, _createLinkRecord } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderTopoOverlay } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -371,7 +371,7 @@ function _createTopoLink(pairKey){
         const sp=_findPortByIfName(sT.nodeId,e.srcPort),dp=_findPortByIfName(dT.nodeId,e.dstPort);
         if(!sp||!dp){skipped++;continue;}
         if(store.state.links.some(l=>_linkHasPair(l, sp, dp))){skipped++;continue;}
-        store.state.links.push(win._createLinkRecord(sp,dp)); created++;
+        store.state.links.push(_createLinkRecord(sp,dp)); created++;
     }
     markDirty(); renderAll(); renderCables(); renderTopoOverlay();
     _showToast(created?t('msg.net.cablesCreated',{n:created}):t('msg.net.noCablesCreated'),created?'ok':'warn');
@@ -440,7 +440,7 @@ function applyTopologyToProject(){
         const sp=_findPortByIfName(sN.nodeId,e.srcPort),dp=_findPortByIfName(dN.nodeId,e.dstPort);
         if(!sp||!dp){skipped++;continue;}
         if(store.state.links.some(l=>_linkHasPair(l, sp, dp))){skipped++;continue;}
-        store.state.links.push(win._createLinkRecord(sp,dp)); created++;
+        store.state.links.push(_createLinkRecord(sp,dp)); created++;
     }
     markDirty(); renderAll(); renderCables(); renderTopoOverlay();
     showAlert(t('msg.net.topoApplied',{created,skipped}));

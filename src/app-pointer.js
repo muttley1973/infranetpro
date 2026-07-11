@@ -8,16 +8,17 @@
 // ============================================================
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _invalidateIdx, switchRightTab, _showToast, _linksForPort, _nextNodeId, _isRadioPid, logAudit } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _invalidateIdx, switchRightTab, _showToast, _linksForPort, _nextNodeId, _isRadioPid, logAudit, _renderModeIndicator, _promoteLinkToManual, canAddConnection, _createLinkRecord } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { propagateVlans } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderTopoOverlay } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
-import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { TYPES, _ensureNodeSpec } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { absorbNodeAsVm } from './app-hypervisor.js';   // import di un tile come VM (drop sulla zona nel pannello host)
 import { focusNode, renderRackTabs, switchRack, toggleRackPanel, updateTransforms } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { closePop } from './app-popup.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _isLeafEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
 
 // soglia drag/click (px): unico lettore era questo modulo → module-local
 const _DRAG_THRESHOLD_PX = 5;
@@ -41,7 +42,7 @@ function _openFloorNodeProps(id){
     store.dragNode = null;
     store.selType = 'node'; store.selId = id;
     store.highPath.clear(); _traceNodeFloor(id);   // evidenzia il run alla selezione nodo
-    win._renderModeIndicator();
+    _renderModeIndicator();
     win._propsExplicit = true;
     switchRightTab('props');
     renderProps();
@@ -135,7 +136,7 @@ function _snapFloor(v){ return store.state.gridHidden ? Math.round(v) : Math.rou
 // ============================================================
 function onDragStart(e){
     win._paletteDragType=e.target.dataset.type||'';
-    win._renderModeIndicator();
+    _renderModeIndicator();
     e.dataTransfer.setData('text/plain',e.target.dataset.type);
     e.dataTransfer.effectAllowed='copy';
 }
@@ -145,7 +146,7 @@ function handleDrop(e,zone){
     win._paletteDragType='';
     const d=TYPES[t];
     const n={id:_nextNodeId(t),type:t,name:d.name+' '+Math.floor(Math.random()*100),ports:d.ports};
-    const spec=win._ensureNodeSpec(n);
+    const spec=_ensureNodeSpec(n);
 
     if(zone==='floor'&&d.isFloor){
         const r=document.getElementById('floorplan').getBoundingClientRect();
@@ -164,7 +165,7 @@ function handleDrop(e,zone){
         pushHistory(); store.state.nodes.push(n);
         // Endpoint trascinato: tenta l'auto-link (di norma vuoto → nessun link finché
         // non si compila il MAC; scatta poi da updateN). Innocuo se la cache è vuota.
-        if(win._isLeafEndpoint(t)) win._autoLinkEndpoint(n.id);
+        if(_isLeafEndpoint(t)) win._autoLinkEndpoint(n.id);
     } else if(zone==='rack'&&d.isRack){
         if(!store.state.currentRack||!store.state.racks.length) return; // nessun rack presente
         const ch=document.getElementById('rack-chassis');
@@ -191,7 +192,7 @@ function handleDrop(e,zone){
         pushHistory(); store.state.nodes.push(n);
         // UPS/PDU managed sono endpoint foglia: tenta l'auto-link (vuoto al drop,
         // scatta quando si compila il MAC). Innocuo se la cache FDB è vuota.
-        if(win._isLeafEndpoint(t)) win._autoLinkEndpoint(n.id);
+        if(_isLeafEndpoint(t)) win._autoLinkEndpoint(n.id);
     }
     // Evidenzia e inquadra il nodo appena inserito, così non sembra "sparito"
     // (specie se finisce in una zona del floor fuori dalla vista corrente).
@@ -619,7 +620,7 @@ function _cancelLink(){
     document.getElementById('temp-link-rack').setAttribute('d','');
     store.linkStart=null; win._linkJustStarted=false;
     document.body.classList.remove('link-mode');
-    win._renderModeIndicator();
+    _renderModeIndicator();
 }
 
 function _tryFinishLink(tgt){
@@ -628,7 +629,7 @@ function _tryFinishLink(tgt){
     if(ext){
         // Stesso collegamento già presente: se era automatico, la conferma manuale
         // lo "promuove" a manuale (così non verrà più toccato dall'auto-discovery).
-        if(ext.autoLinked){ pushHistory(); win._promoteLinkToManual(ext); markDirty(); }
+        if(ext.autoLinked){ pushHistory(); _promoteLinkToManual(ext); markDirty(); }
         _cancelLink(); renderAll(); return true;
     }
     // Priorità al collegamento MANUALE: rimuovi eventuali auto-link concorrenti
@@ -643,8 +644,8 @@ function _tryFinishLink(tgt){
         showAlert(wpCheck.message);
         _cancelLink(); renderAll(); return true;
     }
-    if(!win.canAddConnection(store.linkStart)||!win.canAddConnection(tgt)){
-        const bp=!win.canAddConnection(store.linkStart)?store.linkStart:tgt;
+    if(!canAddConnection(store.linkStart)||!canAddConnection(tgt)){
+        const bp=!canAddConnection(store.linkStart)?store.linkStart:tgt;
         showAlert(t('msg.rack.portMaxConnections',{port:bp,max:win.getPortMaxConnections(bp)}));
         _cancelLink(); renderAll(); return true;
     }
@@ -661,7 +662,7 @@ function _tryFinishLink(tgt){
         _cancelLink(); renderAll(); return true;
     }
     pushHistory();
-    const _newLink=win._createLinkRecord(store.linkStart,tgt);
+    const _newLink=_createLinkRecord(store.linkStart,tgt);
     // Wireless = connessione radio↔radio (tipologia distinta dal cavo fisico).
     if(_connKind==='wireless') _newLink.wireless=true;
     store.state.links.push(_newLink);
@@ -687,7 +688,7 @@ function handlePointerUp(e){
             win.isPanningFloor=false; markDirty();
             const fp=document.getElementById('floorplan');
             if(fp) fp.style.cursor=win._spaceDown?'grab':'';
-            win._renderModeIndicator();
+            _renderModeIndicator();
         }
         // Pan rack: lo scroll non e' stato persistito → niente markDirty.
         if(win.isPanningRack){
@@ -722,7 +723,7 @@ function handlePointerUp(e){
                 // device selezionati). Il single press resta libero per il drag.
                 if(store.dragRack !== store.state.currentRack && typeof switchRack === 'function') switchRack(store.dragRack);
             }
-            store.dragRack=null; win._renderModeIndicator();
+            store.dragRack=null; _renderModeIndicator();
         }
         if(store.dragNode||win.resizeNode){
             const _dn=store.dragNode?nodeById(store.dragNode):null;
@@ -764,7 +765,7 @@ function handlePointerUp(e){
                 // F4-P3: resize stanza → refresh planimetria; _wasRackDrag → renderAll.
                 if(store._dragArmed && _wasRackDrag) renderAll();
                 else if(store._dragArmed && wasResize) win.renderScope('floor');
-                else { win._renderModeIndicator(); renderCables(); }
+                else { _renderModeIndicator(); renderCables(); }
             }
         }
         // Reset stato threshold per il prossimo ciclo
@@ -800,7 +801,7 @@ function handleDoubleClick(e){
         const _isFloor = _pNode && TYPES[_pNode.type]?.isFloor;
         store.selType='port'; store.selId=_pid;
         trace(_pid);
-        win._renderModeIndicator();
+        _renderModeIndicator();
         if(_isFloor){
             // Trova il rack collegato dalla store.highPath e ci salta sopra
             let _tgtRack=null;
@@ -833,7 +834,7 @@ function handleDoubleClick(e){
     if(el){
         store.selId = el.dataset.id; store.selType = 'node';
         win._propsExplicit = true;
-        win._renderModeIndicator();
+        _renderModeIndicator();
         switchRightTab('props');
         renderProps();
     }
@@ -877,7 +878,7 @@ function handleFloorDoubleClick(e){
         e.stopPropagation();
         closePop();
         store.selType = null; store.selId = null;
-        win._renderModeIndicator();
+        _renderModeIndicator();
         switchRightTab('props');
         renderProps();
     }

@@ -12,13 +12,14 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid } from './app-util.js';
-import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _showToast, _invalidateIdx, _linksForPort, _nextNodeId } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _showToast, _invalidateIdx, _linksForPort, _nextNodeId, getRackById, _promoteLinkToManual, canAddConnection, _createLinkRecord } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderProps, _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { focusNode, renderRackTabs } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { closePop, showPop } from './app-popup.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _portDisplayName } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _isLeafEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
 
 let _sharedBindState = null; // stato wizard bind (module-local, nessun lettore esterno)
 function _macRowsForPort(pid, opts={}){
@@ -187,7 +188,7 @@ function _sharedSegmentNodeRoleScore(n, role){
 function _sharedSegmentNodeLocation(n){
     if(!n) return '';
     if(TYPES[n.type]?.isRack){
-        const rack = win.getRackById(n.rackId);
+        const rack = getRackById(n.rackId);
         return `${rack?.name || 'Rack'} · U${n.rackU || '?'}`;
     }
     if(TYPES[n.type]?.isFloor) return t('pnl.seg.floorPlan');
@@ -355,11 +356,11 @@ function _confirmSharedSegmentBind(nodeId, portId){
     const existing = store.state.links.find(l=>_linkHasPair(l, srcPid, portId));
     pushHistory();
     if(existing){
-        if(existing.autoLinked && typeof win._promoteLinkToManual === 'function') win._promoteLinkToManual(existing);
+        if(existing.autoLinked && typeof _promoteLinkToManual === 'function') _promoteLinkToManual(existing);
     } else {
         store.state.links = store.state.links.filter(l => !(l.autoLinked && (_linkTouchesPort(l, srcPid) || _linkTouchesPort(l, portId))));
         _invalidateIdx();
-        if(!win.canAddConnection(srcPid) || !win.canAddConnection(portId)){
+        if(!canAddConnection(srcPid) || !canAddConnection(portId)){
             _showToast(t('msg.rack.portUnavailable'), 'warn', 3800);
             return;
         }
@@ -583,8 +584,8 @@ function _connectPortsSafe(src, dst, meta={}){
     if(!src || !dst) return false;
     const exists = store.state.links.some(l=>_linkHasPair(l, src, dst));
     if(exists) return false;
-    store.state.links.push(typeof win._createLinkRecord === 'function'
-        ? win._createLinkRecord(src, dst, meta)
+    store.state.links.push(typeof _createLinkRecord === 'function'
+        ? _createLinkRecord(src, dst, meta)
         : { id:uid('l'), src, dst, ...meta });
     if(!store.state.ports[src]) store.state.ports[src] = {};
     if(!store.state.ports[dst]) store.state.ports[dst] = {};
@@ -713,7 +714,7 @@ function _createSharedSegmentNode(pid, role){
         let idx = 2;
         for(const item of info.endpoints){
             const ep = item.node;
-            if(!ep || !win._isLeafEndpoint(ep.type)) continue;
+            if(!ep || !_isLeafEndpoint(ep.type)) continue;
             const epPid = `${ep.id}-1`;
             const existing = store.state.links.find(l=>_linkTouchesPort(l, epPid));
             if(existing && !existing.autoLinked) continue;

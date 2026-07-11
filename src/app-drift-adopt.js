@@ -17,6 +17,7 @@ import { escapeHTML, uid, normalizeMacAddress } from './app-util.js';
 import { markDirty, pushHistory, renderCables, _showToast, _invalidateIdx, _nextNodeId } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
+import { _isLeafEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
 
 let _adoptRows = [];           // candidati attualmente mostrati nel modal
 
@@ -201,7 +202,7 @@ function _adoptCreateNodes(picks, autoLink){
         }
         store.state.nodes.push(n);
         if(existingIdx && typeof win._discIndexNode === 'function') win._discIndexNode(existingIdx, n);
-        if(typeof win._isLeafEndpoint === 'function' && win._isLeafEndpoint(type)) newEndpoints.push(n);
+        if(typeof _isLeafEndpoint === 'function' && _isLeafEndpoint(type)) newEndpoints.push(n);
         added++;
     });
 
