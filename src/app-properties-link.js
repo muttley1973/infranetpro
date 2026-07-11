@@ -6,11 +6,12 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
-import { getNodeByPortId, getNodeDisplayName, getWallPortLabel } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { getNodeByPortId, getNodeDisplayName, getWallPortLabel, _getLinkPhysicalView, _enableManualValueInProps, _activatePropsTab } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderProps, _propsSectionIsOpen, _buildPropsHeader } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { TYPES, _frontPanelPortLabel } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
-import { _effPortVlan, _getLinkTrunk, _parseTrunkVlans } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _effPortVlan, _getLinkTrunk, _parseTrunkVlans, _runActiveAnchor } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _portDisplayName } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _getLinkVlan } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
 
 // ============================================================
 // PROPERTIES PANEL — renderer CAVO/LINK (selType===link)
@@ -52,7 +53,7 @@ function _renderLinkProps(panel){
         if(!l){store.selType=null;store.selId=null;renderProps();return;}
         const isAuto = !!l.autoLinked;
         const lockAttr = isAuto ? ' disabled' : '';
-        const vl=win._getLinkVlan(l);
+        const vl=_getLinkVlan(l);
         const autoColor=store.state.vlanColors[vl]||'#6e7681';
         const srcNode=getNodeByPortId(l.src), dstNode=getNodeByPortId(l.dst);
         const srcLbl=(srcNode?.name||'?')+' · '+_cablePortDesc(l.src);
@@ -224,7 +225,7 @@ function _renderLinkProps(panel){
                 // Wireless: nessun percorso FISICO (è un'associazione radio).
                 // L'eventuale percorso via repeater/mesh è un concetto diverso (da fare).
                 if(l.wireless) return '';
-                const _physicalPath = typeof win._getLinkPhysicalView === 'function' ? win._getLinkPhysicalView(l) : null;
+                const _physicalPath = typeof _getLinkPhysicalView === 'function' ? _getLinkPhysicalView(l) : null;
                 const _segments = Array.isArray(_physicalPath?.segments) && _physicalPath.segments.length
                     ? _physicalPath.segments
                     : (Array.isArray(l.segments) ? l.segments.filter(s=>s && (s.from || s.to)) : []);
@@ -437,10 +438,10 @@ function _renderLinkProps(panel){
                 const _sp=store.state.ports[l.src]||{}, _dp=store.state.ports[l.dst]||{};
                 // Velocità e PoE sono proprietà END-TO-END del run (uguali su tutta la
                 // tratta): se i capi diretti sono passanti senza dati, eredita dalla
-                // porta ATTIVA a monte (win._runActiveAnchor) — coerente con la porta
+                // porta ATTIVA a monte (_runActiveAnchor) — coerente con la porta
                 // endpoint. Il MEZZO invece resta per-segmento (può cambiare: dorsale
                 // fibra + bretella rame), quindi NON eredita dall'ancora.
-                const _anchorPid = (typeof win._runActiveAnchor==='function') ? win._runActiveAnchor(l) : null;
+                const _anchorPid = (typeof _runActiveAnchor==='function') ? _runActiveAnchor(l) : null;
                 const _ap = _anchorPid ? (store.state.ports[_anchorPid]||{}) : {};
                 // Mezzo fisico: primo port che ha dato SNMP (per-segmento)
                 const _snmpMedRaw = _sp.snmpMedium || _dp.snmpMedium || null;
@@ -614,8 +615,8 @@ function _renderLinkProps(panel){
             })()}
 
             `;
-        win._enableManualValueInProps(panel);
-        win._activatePropsTab('Cavo');
+        _enableManualValueInProps(panel);
+        _activatePropsTab('Cavo');
         return;
 }
 

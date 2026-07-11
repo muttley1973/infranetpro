@@ -11,7 +11,7 @@ import { escapeHTML, uid, hexToRgba, normalizeStatus, normalizeNumber } from './
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _showToast, getRackById, getRackName } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
-import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { renderAll, rackUPx } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { trace } from './app-pointer.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 
@@ -132,7 +132,7 @@ export function ensureNodeRackVisible(n){
         store.state.currentRack=n.rackId; renderRackTabs();
     }
 }
-function selectAndFocusNode(n){ensureNodeRackVisible(n);store.selType='node';store.selId=n.id;renderAll();focusNode(n);}
+export function selectAndFocusNode(n){ensureNodeRackVisible(n);store.selType='node';store.selId=n.id;renderAll();focusNode(n);}
 export function focusNode(n){
     if(!n) return;
     const def=TYPES[n.type];
@@ -144,7 +144,7 @@ export function focusNode(n){
         updateTransforms();
     } else if(def?.isRack){
         const sU=n.sizeU!==undefined?n.sizeU:def.sizeU||1, rs=win.getNodeRackSize(n);
-        const _U=(typeof win.rackUPx==='function')?win.rackUPx():24;
+        const _U=(typeof rackUPx==='function')?rackUPx():24;
         // Pan via translate (lo zoom è transform:scale): porta il device a ~120px
         // dall'alto del viewport. Vedi updateTransforms / handlePointerMove.
         store.state.rackView.x=0;

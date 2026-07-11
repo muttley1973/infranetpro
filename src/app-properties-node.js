@@ -12,7 +12,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
-import { nodeById, getNodeDisplayName, selected, _patchPanelOffset } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, getNodeDisplayName, selected, _patchPanelOffset, _enableManualValueInProps, _activatePropsTab } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { _propsSectionIsOpen, _buildNetAccessHtml, renderProps, _buildPropsHeader } from './app-properties.js';   // ritiro ponte: builder pannello (ex win.*)
 
@@ -60,8 +60,8 @@ function _renderNodeProps(panel){
             getHaSummary = win.getHaSummary, getAllHaGroupIds = win.getAllHaGroupIds,
             _buildPatchPanelPreview = win._buildPatchPanelPreview,
             isRackTopNumbered = win.isRackTopNumbered, rackUToVisible = win.rackUToVisible,
-            getLagGroupsForNode = win.getLagGroupsForNode, _enableManualValueInProps = win._enableManualValueInProps,
-            _activatePropsTab = win._activatePropsTab, _nodeDeviceChainHtml = win._nodeDeviceChainHtml,
+            getLagGroupsForNode = win.getLagGroupsForNode,
+            _nodeDeviceChainHtml = win._nodeDeviceChainHtml,
             _propsExplicit = store._propsExplicit,
             _l3SviSectionHtml = win._l3SviSectionHtml, _panelSkinSectionHtml = win._panelSkinSectionHtml;
 

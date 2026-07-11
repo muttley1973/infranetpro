@@ -23,7 +23,7 @@ import { propagateVlans, _effPortVlan, _ensureVlanColor } from './app-vlan-autop
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
-import { closePop, showPop } from './app-popup.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { closePop, showPop, _vlanLabel } from './app-popup.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { trace } from './app-pointer.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 
 // Init dello stato condiviso su window (il bundle gira ULTIMO; i classic li
@@ -401,7 +401,7 @@ export function portTip(pid){
         parts.push(s);
     }
     const vlan = _effPortVlan(pid);
-    if(vlan && vlan>1) parts.push(`VLAN ${win._vlanLabel(vlan)}`);
+    if(vlan && vlan>1) parts.push(`VLAN ${_vlanLabel(vlan)}`);
     // LAG con hint cross-stack quando la LAG attraversa piu' membri dello
     // stesso stack (caso reale: Port-channel1 con Gi1/0/24 + Gi2/0/24).
     const _hasLag = (pi.lagId && pi.lagId>0) || !!_portLagGid(pid);

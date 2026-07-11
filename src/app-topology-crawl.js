@@ -17,7 +17,7 @@ import { markDirty, pushHistory, renderCables, _showToast, _nextNodeId } from '.
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { switchRack } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
-import { _discIndexNode, _discFindExistingDevice } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { _discIndexNode, _discFindExistingDevice, _discBuildExistingIndexes, _discTouchNodeIdentity } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 
 // ============================================================
 // TOPOLOGY CRAWL FRONTEND
@@ -249,7 +249,7 @@ function importTopoCrawl(){
         store.state.currentRack = rackId;
     }
 
-    const existingIdx = win._discBuildExistingIndexes();
+    const existingIdx = _discBuildExistingIndexes();
 
     let imported = 0;
     let updated = 0;
@@ -272,7 +272,7 @@ function importTopoCrawl(){
         }
         const existing = match.node;
         if(existing){
-            win._discTouchNodeIdentity(existing, d, match.matchedBy);
+            _discTouchNodeIdentity(existing, d, match.matchedBy);
             existing.hostname = existing.hostname || d.hostname || '';
             existing.mac = existing.mac || normalizeMacAddress(d.mac || '');
             if(!existing.name || existing.name === existing.type) existing.name = d.hostname || d.ip || existing.name;
@@ -322,7 +322,7 @@ function importTopoCrawl(){
                 integration,
             };
         }
-        win._discTouchNodeIdentity(n, d, match.matchedBy || 'new');
+        _discTouchNodeIdentity(n, d, match.matchedBy || 'new');
         if(match.conflict?.existing){
             n.discoveryConflicts = [{
                 type:'ip-mac',

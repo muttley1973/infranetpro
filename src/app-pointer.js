@@ -13,7 +13,7 @@ import { propagateVlans } from './app-vlan-autopoll.js';   // ritiro ponte fase 
 import { renderTopoOverlay } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
-import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { renderAll, rackUPx } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, _ensureNodeSpec } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { absorbNodeAsVm } from './app-hypervisor.js';   // import di un tile come VM (drop sulla zona nel pannello host)
 import { focusNode, renderRackTabs, switchRack, toggleRackPanel, updateTransforms } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
@@ -172,7 +172,7 @@ function handleDrop(e,zone){
         const r=ch?ch.getBoundingClientRect():{top:0};
         // Subtract border-top (8px, scaled) so ry=0 is exactly the first inner grid row
         const ry=(e.clientY-r.top)/store.state.rackView.zoom - 8, rs=win.getRackSize();
-        const u=rs-Math.floor(ry/win.rackUPx());
+        const u=rs-Math.floor(ry/rackUPx());
         n.sizeU=d.sizeU; n.rackU=Math.max(1,Math.min(rs-n.sizeU+1,u)); n.brand=d.brand; n.rackId=store.state.currentRack;
         if(t==='blankpanel'){
             n.name='Pannello vuoto';
@@ -564,7 +564,7 @@ function handlePointerMove(e){
             // Subtract border-top (8px) so ry is relative to the inner grid, not the chassis outer box
             const ry=(e.clientY-ch.top)/store.state.rackView.zoom - 8 - store.dragOffset.y;
             const rs=win.getNodeRackSize(n),sU=n.sizeU!==undefined?n.sizeU:TYPES[n.type].sizeU;
-            n.rackU=Math.max(1,Math.min(rs-sU+1,rs-sU+1-Math.round(ry/win.rackUPx())));
+            n.rackU=Math.max(1,Math.min(rs-sU+1,rs-sU+1-Math.round(ry/rackUPx())));
             const el=document.querySelector(`[data-id="${n.id}"]`);
             if(el)el.style.gridRow=`${rs-n.rackU-sU+2}/span ${sU}`;
             renderCables();

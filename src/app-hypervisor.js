@@ -128,7 +128,7 @@ function _vmRowHtml(vm, nodeId){
 
 // ── UI: pannello completo dell'host (inventario + host fields + lista VM) ──
 // Chiamato dallo switch del pannello device per i tipi con TYPES.hostsVms.
-function _hvPanelHtml(n, d){
+export function _hvPanelHtml(n, d){
     const esc = s => escapeHTML(String(s == null ? '' : s));
     const isLab = n.type === 'homelab';
     const icon = isLab ? 'fa-cubes' : 'fa-layer-group';

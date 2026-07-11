@@ -18,7 +18,7 @@ import { markDirty, pushHistory, renderCables, _showToast, _invalidateIdx, _next
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { _isLeafEndpoint, _autoLinkEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
-import { _discIndexNode, _discVendorFromMac, _discFindExistingDevice } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { _discIndexNode, _discVendorFromMac, _discFindExistingDevice, _discBuildExistingIndexes } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { _findFreeU } from './app-topology-crawl.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
 
 let _adoptRows = [];           // candidati attualmente mostrati nel modal
@@ -152,7 +152,7 @@ function _adoptCreateNodes(picks, autoLink){
     pushHistory();
 
     const usedNodeIds = new Set((store.state.nodes || []).map(n => String(n.id || '')));
-    const existingIdx = (typeof win._discBuildExistingIndexes === 'function') ? win._discBuildExistingIndexes() : null;
+    const existingIdx = (typeof _discBuildExistingIndexes === 'function') ? _discBuildExistingIndexes() : null;
 
     // Placement: rack corrente (creane uno se serve) per gli infra; floor centrato per gli endpoint.
     let rackId = store.state.currentRack;

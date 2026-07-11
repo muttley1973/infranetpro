@@ -13,7 +13,8 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, normalizeNumber } from './app-util.js';
 import { _propsSectionIsOpen, _buildPropsHeader } from './app-properties.js';   // ritiro ponte: lettura stato sezioni (ex win.*)
-import { _isVoiceVlan } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { _isVoiceVlan, _siteNativeVlan } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { _enableManualValueInProps } from './app.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
 
 // Blocco "Occupazione" della card IPAM aperta: barra di capacità + ripartizione
 // documentati / solo-DHCP / liberi (dati da _ipamUsageForVlan → lib/ipam.js,
@@ -147,7 +148,7 @@ function _renderFloorProps(panel){
         // riga "Device gateway" dentro ogni IPAM aperta.
         const _l3rows = {};
         try { if(typeof win._l3Compute === 'function') (win._l3Compute(false).rows || []).forEach(r => { _l3rows[r.vid] = r; }); } catch(_){}
-        const _siteNat = (typeof win._siteNativeVlan==='function') ? win._siteNativeVlan() : 1;
+        const _siteNat = (typeof _siteNativeVlan==='function') ? _siteNativeVlan() : 1;
         Object.keys(state.vlanColors).sort((a,b)=>+a-+b).forEach(v=>{
             const vid=normalizeNumber(v,1,1,4094);
             const _isNative = _siteNat === vid;
@@ -207,7 +208,7 @@ function _renderFloorProps(panel){
               </div>
             </details>`;
         panel.innerHTML=h;
-        win._enableManualValueInProps(panel);
+        _enableManualValueInProps(panel);
         win._clearPropsTab();
 }
 

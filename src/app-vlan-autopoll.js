@@ -14,6 +14,7 @@ import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funz
 import { TYPES, _ensureNodeSpec } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _isLeafEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
 import { _renderTopoLegend } from './app-topology-overlay.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { _getLinkVlan, _vlanLabel } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
 
 // Handle dei timer auto-poll: prima `let` in app.js, usati SOLO qui -> module-local.
 let _autoPollTimer = null;     // handle setInterval auto-poll
@@ -341,7 +342,7 @@ function _propagateTrunkMembership(adj){
 // attraversata la catena di passanti L1. È l'ancora del trunk: la modalità
 // access/trunk vive lì (come una rete reale), non sul singolo cavo. null se il
 // run non tocca alcuna interfaccia attiva (catena di soli passivi/foglie).
-function _runActiveAnchor(link){
+export function _runActiveAnchor(link){
     if(!link) return null;
     const _isActive = pid => !!TYPES[getNodeByPortId(pid)?.type]?.isActive;
     if(_isActive(link.src)) return link.src;
@@ -375,13 +376,13 @@ export function _effPortVlan(pid){
 
 // Trunk EFFETTIVO di un link, derivato dalle "VLAN trasportate" dei device agli
 // estremi (voce per il VoIP, VLAN-per-SSID per l'AP). Nativa = VLAN access già
-// propagata (win._getLinkVlan). Le VLAN trasportate da un capo valgono solo se
+// propagata (_getLinkVlan). Le VLAN trasportate da un capo valgono solo se
 // l'ALTRO capo NON è un leaf endpoint (salgono verso lo switch, non scendono
 // verso il PC). Manual-first: un trunkVlans impostato a mano vince. Logica pura
 // in lib/vlan-trunk.js. Ritorna { mode, native, vlans[], carried[], derived }.
 export function _getLinkTrunk(l){
     if(!l || typeof win.effLinkVlans!=='function') return { mode:'access', native:1, vlans:[1], carried:[], derived:true };
-    const native = (typeof win._getLinkVlan==='function') ? win._getLinkVlan(l) : 1;
+    const native = (typeof _getLinkVlan==='function') ? _getLinkVlan(l) : 1;
     const srcNode = getNodeByPortId(l.src), dstNode = getNodeByPortId(l.dst);
     const _isLeaf = n => !!(n && typeof _isLeafEndpoint==='function' && _isLeafEndpoint(n.type));
     let carried = [];
@@ -467,7 +468,7 @@ function setNodeVoiceVlan(nodeId, val){
 // nativa/untagged quando nessuna porta la specifica. Cambiarla (es. 1→99) sposta
 // l'untagged di default ovunque non sia documentato esplicitamente (come il
 // "native vlan" di sito su un device reale). Override per-porta/-trunk vincono.
-function _siteNativeVlan(){
+export function _siteNativeVlan(){
     const v = parseInt(store.state && store.state.nativeVlan, 10);
     return (v>=1 && v<=4094) ? v : 1;
 }
@@ -538,7 +539,7 @@ function setVlanFilter(vid){
     const badge=document.getElementById('vlan-filter-badge');
     if(badge){
         if(vid){
-            badge.querySelector('span').textContent='VLAN '+win._vlanLabel(vid);
+            badge.querySelector('span').textContent='VLAN '+_vlanLabel(vid);
             badge.style.display='inline-flex';
         } else {
             badge.style.display='none';
@@ -782,7 +783,7 @@ function showVlanMembers(vid){
     }
 
     const color=store.state.vlanColors[vid]||'#8b949e';
-    const label=win._vlanLabel(vid);
+    const label=_vlanLabel(vid);
     const isFiltered=store._filterVlan===vid;
 
     const _devCount=srcDevices.length;

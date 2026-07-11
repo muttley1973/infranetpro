@@ -22,7 +22,7 @@ import { portTip } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/
 // griglia e righello. Scelta in scala reale (19" : 1.75" ≈ 10.86:1) così le skin
 // del pannello entrano con proporzioni corrette. Fallback 24 se la var non c'è
 // (es. ambiente di test senza CSS).
-function rackUPx(){
+export function rackUPx(){
     try {
         const v = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--ru-h'), 10);
         return v > 0 ? v : 24;

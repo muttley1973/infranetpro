@@ -292,7 +292,7 @@ export function _buildNetAccessHtml(n, d, opts){
 // Blocco read-only "Stato live (SNMP)" per UPS/ATS. Popolato da n.powerLive
 // (dal poll /api/poll-power). Vuoto finché non c'è un poll: i campi di
 // documentazione manuali restano indipendenti (manual-first).
-function _powerLiveHtml(n){
+export function _powerLiveHtml(n){
     const live = n && n.powerLive;
     if(!live) return '';
     const esc = s => escapeHTML(String(s == null ? '' : s));

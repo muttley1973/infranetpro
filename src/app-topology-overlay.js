@@ -6,6 +6,7 @@ import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi 
 import { _portDisplayName } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _getLinkTrunk } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _findPortByIfName } from './app-topology-discover.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { _getLinkVlan } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
 
 // ============================================================
 // TOPOLOGIA — OVERLAY SULLA PLANIMETRIA
@@ -163,7 +164,7 @@ function _buildTopoModel(){
         helpers: {
             portNodeId: getPortNodeId,
             portDisplayName: _portDisplayName,
-            linkVlan: win._getLinkVlan,
+            linkVlan: _getLinkVlan,
             // Trunk EFFETTIVO (anche derivato da voce/SSID): i trunk derivati si
             // comportano da trunk in topologia (pillola, toggle "solo trunk").
             linkIsTrunk: (typeof win._linkIsTrunk==='function') ? win._linkIsTrunk : null,
