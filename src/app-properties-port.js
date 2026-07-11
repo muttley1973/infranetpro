@@ -14,7 +14,7 @@ import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (e
 import { escapeHTML, normalizeStatus } from './app-util.js';
 import { nodeById, getNodeByPortId, getPortNodeId, _isRadioPid } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
-import { _effPortVlan, _getLinkTrunk } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _effPortVlan, _getLinkTrunk, _parseTrunkVlans } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 // NB: renderProps() qui è chiamato SOLO da un onclick="" (bare-in-template, scope
 // pagina → window.renderProps via expose): nessun import ESM, sarebbe inutilizzato.
 
@@ -198,7 +198,7 @@ function _renderPortProps(panel){
                 // badge TRUNK/access · nativa · trasportate → Modalità porta →
                 // VLAN nativa (untagged/PVID) → VLAN trasportate. La nativa È il PVID.
                 const _isTrunk = (typeof win._portEffTrunk==='function') ? win._portEffTrunk(pi) : (pi.mode==='trunk');
-                const _tvArr   = win._parseTrunkVlans(pi.trunkVlans||[]);
+                const _tvArr   = _parseTrunkVlans(pi.trunkVlans||[]);
                 const _tagged  = _tvArr.filter(v=>v!==effVlan);
                 const _tvStr   = Array.isArray(pi.trunkVlans) ? pi.trunkVlans.join(',') : (pi.trunkVlans || '');
                 const _fromSnmp= _isTrunk && pi.mode!=='trunk' && pi.isTrunk;

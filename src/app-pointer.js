@@ -898,7 +898,7 @@ function _traceNodeFloor(nodeId){
         n.radios.forEach((r, idx) => trace(win.radioPid(nodeId, idx)));
 }
 
-function trace(start){
+export function trace(start){
     const q=[start],vis=new Set();
     while(q.length){
         const curr=q.shift(); if(vis.has(curr))continue; vis.add(curr);

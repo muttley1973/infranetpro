@@ -9,7 +9,7 @@ import { escapeHTML } from './app-util.js';
 import { getNodeByPortId, getNodeDisplayName } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderProps, _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
-import { _effPortVlan, _getLinkTrunk } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _effPortVlan, _getLinkTrunk, _parseTrunkVlans } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _portDisplayName } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 
 // ============================================================
@@ -81,7 +81,7 @@ function _renderLinkProps(panel){
             </div>` : '';
         // Trunk EFFETTIVO (derivato dalle VLAN trasportate da voce/SSID, o manuale).
         const tk = (typeof _getLinkTrunk==='function') ? _getLinkTrunk(l)
-                 : { mode: l.mode==='trunk'?'trunk':'access', native: vl, vlans: (typeof win._parseTrunkVlans==='function'?win._parseTrunkVlans(l.trunkVlans||''):[]), carried:[], derived:false };
+                 : { mode: l.mode==='trunk'?'trunk':'access', native: vl, vlans: (typeof _parseTrunkVlans==='function'?_parseTrunkVlans(l.trunkVlans||''):[]), carried:[], derived:false };
         const isTrunk = tk.mode === 'trunk';
         const trunkVlans = l.trunkVlans || '';
         // Capo ATTIVO del trunk: la nativa è il PVID (vlanOvr) di quella porta →
@@ -207,7 +207,7 @@ function _renderLinkProps(panel){
                 onchange="setLinkTrunkVlans('${l.id}',this.value)"
                 onblur="setLinkTrunkVlans('${l.id}',this.value)">
               <div style="font-size:0.7rem;color:var(--text-muted);margin-top:3px">
-                ${t('cable.vlansConfigured',{n:win._parseTrunkVlans(trunkVlans).length})}
+                ${t('cable.vlansConfigured',{n:_parseTrunkVlans(trunkVlans).length})}
               </div>`}
             </div>` : ''}
 

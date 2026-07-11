@@ -24,6 +24,7 @@ import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (e
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAutomationMenu } from './app-vlan-autopoll.js';   // setAutoIpRenew aggiorna il popover Automazioni
 import { ensureNodeRackVisible, focusNode } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
+import { trace } from './app-pointer.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 
 // _driftReport è stato condiviso cross-boundary (scritto anche da
 // app-drift-adopt.js) → vive su window, mai come binding di modulo.
@@ -305,7 +306,7 @@ function driftInvestigate(key){
     _closeDriftReport();
     if(row.pid){
         const n = getNodeByPortId(row.pid);
-        if(n){ if(typeof ensureNodeRackVisible==='function') ensureNodeRackVisible(n); store.selType='port'; store.selId=row.pid; if(typeof win.trace==='function') win.trace(row.pid); renderAll(); if(typeof focusNode==='function') focusNode(n); }
+        if(n){ if(typeof ensureNodeRackVisible==='function') ensureNodeRackVisible(n); store.selType='port'; store.selId=row.pid; if(typeof trace==='function') trace(row.pid); renderAll(); if(typeof focusNode==='function') focusNode(n); }
     } else if(row.id){
         const l = state.links.find(x => x.id === row.id);
         if(l){ const n = getNodeByPortId(l.src) || getNodeByPortId(l.dst); if(typeof store.highPath!=='undefined' && store.highPath.add) store.highPath.add(row.id); store.selType=null; store.selId=null; if(n && typeof ensureNodeRackVisible==='function') ensureNodeRackVisible(n); renderAll(); if(n && typeof focusNode==='function') focusNode(n); }

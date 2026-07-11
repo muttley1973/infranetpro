@@ -1,12 +1,13 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { nodeById, markDirty, getPortNodeId, pushHistory, renderCables, _showToast, _createLinkRecord } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
-import { renderTopoOverlay } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { renderTopoOverlay, _renderTopoLegend } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { switchRack, updateTransforms } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { _applyViewMode } from './app-popup.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _snmpFreshness } from './app-snmp.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 
 // ============================================================
 // TOPOLOGIA — discovery e grafo (glue estratto da app.js, R7)
@@ -25,7 +26,7 @@ import { _applyViewMode } from './app-popup.js';   // ritiro ponte: funzioni fog
 //   riapertura la topologia e' subito disponibile (eta' dichiarata nel toast).
 // - grafo e visibilita' vengono azzerati: appartenevano al progetto precedente.
 // Chiamata dopo ogni assegnazione di `state` (load/new/duplicate/import).
-function _restoreTopoSession(){
+export function _restoreTopoSession(){
     if(!store.state.topoCache || typeof store.state.topoCache !== 'object' || Array.isArray(store.state.topoCache)) store.state.topoCache = {};
     store._topoNeighborsCache = store.state.topoCache;
     store._topoData = null;
@@ -65,10 +66,10 @@ function _setTopoBtn(st, meta){
     // (verde fresco / giallo invecchiando / rosso vecchio / grigio assenti),
     // con l'eta' SEMPRE nel tooltip. Coerente col chip "Sync Xm fa" in toolbar.
     const ts = (meta && meta.ts) || (typeof win._lastSnmpSyncTs === 'function' ? win._lastSnmpSyncTs() : 0);
-    const f = (typeof win._snmpFreshness === 'function') ? win._snmpFreshness(ts) : { txt:'', color:'#8b949e', level:'none' };
+    const f = (typeof _snmpFreshness === 'function') ? _snmpFreshness(ts) : { txt:'', color:'#8b949e', level:'none' };
     const dot = `<span class="topo-fresh-dot" style="background:${f.color}"></span>`;
     // La gestione visible/mode-interactive della legenda e' delegata a
-    // win._renderTopoLegend (chiamato da _renderAllNow). Qui forziamo un re-render
+    // _renderTopoLegend (chiamato da _renderAllNow). Qui forziamo un re-render
     // quando lo stato del bottone cambia, cosi' titolo/interattivita' si allineano.
     // Label/titoli via i18n: _setTopoBtn riscrive innerHTML (cancella il
     // data-i18n statico), quindi qui DEVE usare t() per restare bilingue.
@@ -92,7 +93,7 @@ function _setTopoBtn(st, meta){
         btn.innerHTML=`<i class="fas fa-project-diagram"></i>${_lbl} ${dot}`;
         btn.setAttribute('data-tip', _T('topology.titleDefault',{f:f.txt}));
     }
-    if(typeof win._renderTopoLegend === 'function') win._renderTopoLegend();
+    if(typeof _renderTopoLegend === 'function') _renderTopoLegend();
 }
 
 // Decide lo stato del pulsante topologia in base alla cache neighbors:
@@ -178,10 +179,10 @@ async function discoverTopology(force=false){
         // Freschezza per-device: invece di dichiarare l'eta' del piu' vecchio
         // (basta un device fermo per leggere "28h fa"), mostra l'eta' del dato
         // PIU' RECENTE e NOMINA i ritardatari (oltre il TTL) cosi' sai chi
-        // rinfrescare. Soglie/format condivisi col chip toolbar (win._snmpFreshness).
+        // rinfrescare. Soglie/format condivisi col chip toolbar (_snmpFreshness).
         const ages = cached.map(n => ({ n, ts: store._topoNeighborsCache[n.id].ts }));
         const newestTs = Math.max(...ages.map(a => a.ts));
-        const _fresh = (typeof win._snmpFreshness === 'function') ? win._snmpFreshness(newestTs).txt : '';
+        const _fresh = (typeof _snmpFreshness === 'function') ? _snmpFreshness(newestTs).txt : '';
         const stale = ages.filter(a => (now - a.ts) >= _TOPO_CACHE_TTL_MS).sort((a,b) => a.ts - b.ts);
         const missing = targets.length - cached.length;
         let msg = t('topo.msgBase', {n:nn, e:ne});
@@ -189,7 +190,7 @@ async function discoverTopology(force=false){
         if(stale.length){
             type = 'warn';
             const names = stale.slice(0,2).map(a => a.n.name || a.n.hostname || a.n.id);
-            const worst = (typeof win._snmpFreshness === 'function') ? win._snmpFreshness(stale[0].ts).txt : '';
+            const worst = (typeof _snmpFreshness === 'function') ? _snmpFreshness(stale[0].ts).txt : '';
             const extra = stale.length > 2 ? ` +${stale.length-2}` : '';
             msg += ` · ${t('topo.msgStale', {n:stale.length, age:worst, names:names.join(', '), extra})}`;
         } else {
@@ -298,7 +299,7 @@ function _buildTopoGraph(allResults){
  *   3. Numeric-only fallback — solo cifre+slash, SOLO se il match è univoco
  *      (evita falsi positivi: porta "1" non può matchare sia Gi0/1 che Te0/1)
  */
-function _findPortByIfName(projNodeId, ifName){
+export function _findPortByIfName(projNodeId, ifName){
     if(!ifName) return null;
     const q = win._ifNameMeta(ifName);
     if(q.isMac) return null; // LLDP port-id subtype MAC → non abbinabile direttamente

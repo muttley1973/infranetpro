@@ -52,7 +52,7 @@ const DISC_OUI_VENDOR = {
     '58:FD:B1': 'LG',
 };
 
-function _discVendorFromMac(mac){
+export function _discVendorFromMac(mac){
     const m = normalizeMacAddress(mac || '');
     if(!m) return '';
     return DISC_OUI_VENDOR[m.substring(0, 8)] || '';
@@ -168,7 +168,7 @@ function _discBuildExistingIndexes(){
     return idx;
 }
 
-function _discIndexNode(idx, n){
+export function _discIndexNode(idx, n){
     if(!idx || !n) return;
     _discInvalidateExistingIndexes(); // i nodi sono cambiati → il memo non e' piu' valido
     const mac = _discNodeMac(n);

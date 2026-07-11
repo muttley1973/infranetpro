@@ -18,6 +18,7 @@ import { markDirty, pushHistory, renderCables, _showToast, _invalidateIdx, _next
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { _isLeafEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
+import { _discIndexNode, _discVendorFromMac } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 
 let _adoptRows = [];           // candidati attualmente mostrati nel modal
 
@@ -34,7 +35,7 @@ function _adoptCandidates(filterKey){
 // (riusato da _adoptCandidates e openAdoptFromLeases).
 function _adoptBuild(rows){
     return win.buildAdoptCandidates(rows, {
-        vendorOf: m => (typeof win._discVendorFromMac === 'function' ? win._discVendorFromMac(m) : ''),
+        vendorOf: m => (typeof _discVendorFromMac === 'function' ? _discVendorFromMac(m) : ''),
         guessType: v => (typeof win._guessType === 'function' ? win._guessType('', '', v, '', '') : ''),
     });
 }
@@ -201,7 +202,7 @@ function _adoptCreateNodes(picks, autoLink){
             };
         }
         store.state.nodes.push(n);
-        if(existingIdx && typeof win._discIndexNode === 'function') win._discIndexNode(existingIdx, n);
+        if(existingIdx && typeof _discIndexNode === 'function') _discIndexNode(existingIdx, n);
         if(typeof _isLeafEndpoint === 'function' && _isLeafEndpoint(type)) newEndpoints.push(n);
         added++;
     });

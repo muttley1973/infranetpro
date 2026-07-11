@@ -17,6 +17,7 @@ import { markDirty, pushHistory, renderCables, _showToast, _nextNodeId } from '.
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { switchRack } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
+import { _discIndexNode } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 
 // ============================================================
 // TOPOLOGY CRAWL FRONTEND
@@ -282,7 +283,7 @@ function importTopoCrawl(){
             }
             existing.integration.host = existing.integration.host || d.ip || '';
             existing.integration.community = existing.integration.community || community;
-            win._discIndexNode(existingIdx, existing);
+            _discIndexNode(existingIdx, existing);
             updated++;
             return;
         }
@@ -333,7 +334,7 @@ function importTopoCrawl(){
             }];
         }
         store.state.nodes.push(n);
-        win._discIndexNode(existingIdx, n);
+        _discIndexNode(existingIdx, n);
         imported++;
     });
 

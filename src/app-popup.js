@@ -14,7 +14,7 @@ import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: fun
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { ensureNodeRackVisible, renderRackTabs } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
-import { _effPortVlan } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _effPortVlan, _parseTrunkVlans } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _portDisplayName } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 
 function _findProjectLinkByPorts(a,b){
@@ -468,7 +468,7 @@ function _floorNodeHiddenByVlan(nid){
         // Porta trunk: controlla se questa porta trasporta la VLAN filtro
         if(_linksForPort(pid).some(lk=>
             lk.mode==='trunk'
-            &&win._parseTrunkVlans(lk.trunkVlans||'').includes(store._filterVlan))) return false;
+            &&_parseTrunkVlans(lk.trunkVlans||'').includes(store._filterVlan))) return false;
     }
     return true; // nessuna porta del nodo è in questa VLAN → nasconde nodo e suoi cavi
 }
@@ -511,7 +511,7 @@ function _getLinkVlan(l){
 function _linkMatchesVlanFilter(l){
     if(!store._filterVlan) return true;
     if(l.mode==='trunk'){
-        return win._parseTrunkVlans(l.trunkVlans||'').includes(store._filterVlan);
+        return _parseTrunkVlans(l.trunkVlans||'').includes(store._filterVlan);
     }
     // Usa _getLinkVlan — stessa funzione che colora i cavi, già gestisce
     // vlan=0 (salta valori non positivi), gerarchia attivo > propagato > passivo.

@@ -13,6 +13,7 @@ import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (e
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
+import { trace } from './app-pointer.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 
 // Stato ricerca: module-local (prima era `let` in app.js, usato SOLO qui).
 let searchResults = [], activeSearchIndex = -1;
@@ -117,7 +118,7 @@ function selectSearchResult(index) {
     } else if(r.kind==='port'){
         const n=getNodeByPortId(r.id); if(!n) return;
         ensureNodeRackVisible(n); store.selType='port'; store.selId=r.id;
-        win.trace(r.id); renderAll(); focusNode(n);
+        trace(r.id); renderAll(); focusNode(n);
     } else if(r.kind==='link'){
         const link=store.state.links.find(l=>l.id===r.id); if(!link) return;
         const sn=getNodeByPortId(link.src), dn=getNodeByPortId(link.dst);
