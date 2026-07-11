@@ -91,7 +91,11 @@ const RETIRED_STATE = ['state', 'selId', 'selType', 'dragNode', 'currentProjectI
   'linkStart', 'highPath', 'lagSelPorts', '_focusedLagPorts', '_viewMode',
   '_topoData', '_topoVisible', '_topoNeighborsCache', '_topoFdbCache',
   '_discResults', '_driftReport', '_dhcpLeases', '_filterVlan', '_rackCollapsed', '_spareActive',
-  '_topoTrunkOnly', '_lastPopPid', '_lastPopX', '_lastPopY', '_currentUser'];
+  '_topoTrunkOnly', '_lastPopPid', '_lastPopX', '_lastPopY', '_currentUser',
+  // Coda-stato di INTERAZIONE (ritiro ponte 2026-07-11): stato transitorio di
+  // gesture/modalità, ora proxato da store.js come gli altri. Vedi store.js.
+  'dragOffset', 'dragRack', '_dragArmed', 'lagSelMode',
+  '_discRunning', '_discImporting', '_discSelMap', '_routingLinkId', '_vlanIpamOpen'];
 test('ponte: lo stato condiviso è letto solo via store.js (non win.* nei consumatori)', () => {
   for (const sym of RETIRED_STATE) {
     const viaWin = countInCode(new RegExp('\\bwin\\.' + sym + '\\b', 'g'), 'store.js');
@@ -282,7 +286,19 @@ test('ponte: le funzioni-nucleo della 9ª non hanno più letture win.* (fuori da
 // multi-sorgente). Trappola alias-block ricorrente: `renderProps = win.renderProps` in
 // app-properties-node.js → `renderProps = renderProps` (auto-ref) → rimosso, import
 // da app-properties.js. Ora TUTTE le funzioni già in CALLS_RETIRED hanno ponte a 0.
-const MAX_WIN_REFS = 1134;
+//
+// −83 (1134 → 1051, 2026-07-11): RITIRO PONTE — binario STATO, coda-stato di
+// INTERAZIONE. 9 globali di gesture/modalità (dragOffset, dragRack, _dragArmed,
+// lagSelMode, _discRunning, _discImporting, _discSelMap, _routingLinkId,
+// _vlanIpamOpen) spostati in src/store.js come coppie getter/setter; 86 `win.X`
+// convertiti a `store.X` in 9 file (app-pointer 31, app-discovery 24, app.js 9,
+// app-cabling-editor 7, app-ports/app-vlan-autopoll 5, app-core/app-properties-floor 2,
+// app-render-core 1). I bare-global self-ref in app.js (`if(lagSelMode)`,
+// `_vlanIpamOpen.clear()`) restano bare — leggono window.X, tenuto vivo dal setter.
+// Golden invariante (stato falsy/vuoto al render); e2e 69/69 (drag rack, pan rack,
+// flusso LAG cross-boundary). Il delta è 83 non 86: 3 win.X erano in commenti (già
+// esclusi dal cricchetto). Vedi RETIRED_STATE sopra + store.js.
+const MAX_WIN_REFS = 1051;
 
 test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => {
   const total = countInCode(/\bwin\./g);

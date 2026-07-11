@@ -126,10 +126,10 @@ function openDiscovery(prefillCidr){
     const ibtn = document.getElementById('disc-import-btn');
     if(ibtn) ibtn.disabled = true;
     store._discResults=[];
-    win._discSelMap={};
+    store._discSelMap={};
     win._discTypeMap={};
-    win._discRunning=false;
-    win._discImporting=false;
+    store._discRunning=false;
+    store._discImporting=false;
     document.getElementById('disc-overlay').classList.add('open');
 }
 
@@ -137,8 +137,8 @@ function closeDiscovery(){
     document.getElementById('disc-overlay').classList.remove('open');
     if(window._discScanAbort){ window._discScanAbort.abort(); window._discScanAbort=null; }
     if(window._discCrawlAbort){ window._discCrawlAbort.abort(); window._discCrawlAbort=null; }
-    win._discRunning = false;
-    win._discImporting = false;
+    store._discRunning = false;
+    store._discImporting = false;
 }
 
 // Wrapper chiamato dal click sull'overlay scuro (sfondo del modal).
@@ -146,7 +146,7 @@ function closeDiscovery(){
 // l'utente puo' aver cliccato fuori per sbaglio. Per interrompere
 // esplicitamente serve usare il bottone "Annulla" o la X.
 function _closeDiscoveryOverlayClick(){
-    if(win._discRunning || win._discImporting){
+    if(store._discRunning || store._discImporting){
         if(typeof _showToast === 'function'){
             _showToast(_dt('msg.ui.scanInProgress','Scansione in corso. Usa "Annulla" per interrompere.'), 'warn', 3500);
         }
@@ -156,7 +156,7 @@ function _closeDiscoveryOverlayClick(){
 }
 
 async function runDiscovery(){
-    if(win._discRunning) return;
+    if(store._discRunning) return;
     const subnet  = document.getElementById('disc-subnet').value.trim();
     // Scan universale: il motore prova v1/v2c/v3 e tiene chi risponde (i v3 senza
     // credenziali vengono rilevati e marcati "da configurare"). Niente selettore
@@ -183,8 +183,8 @@ async function runDiscovery(){
     document.getElementById('disc-results').style.display='none';
     const ibtn = document.getElementById('disc-import-btn');
     if(ibtn) ibtn.disabled = true;
-    win._discRunning = true;
-    win._discSelMap = {};
+    store._discRunning = true;
+    store._discSelMap = {};
     win._discTypeMap = {};
 
     let scanTimeout=null;
@@ -244,7 +244,7 @@ async function runDiscovery(){
     }finally{
         if(scanTimeout) clearTimeout(scanTimeout);
         window._discScanAbort = null;
-        win._discRunning = false;
+        store._discRunning = false;
         btn.disabled=false; btn.innerHTML=`<i class="fas fa-search"></i> ${_dt('disc.scan','Scansiona')}`;
         _discUpdateImportBtn();
     }
@@ -363,7 +363,7 @@ function _discCaptureUiState(){
         const row = store._discResults[idx];
         const key = _discKey(row);
         if(!key) return;
-        win._discSelMap[key] = !!chk.checked;
+        store._discSelMap[key] = !!chk.checked;
         const sel = tr.querySelector('.disc-type');
         if(sel) win._discTypeMap[key] = sel.value;
     });
@@ -373,14 +373,14 @@ function _discUpdateImportBtn(){
     const ibtn = document.getElementById('disc-import-btn');
     if(!ibtn) return;
     const selected = document.querySelectorAll('.disc-chk:checked').length;
-    ibtn.disabled = selected===0 || win._discRunning || win._discImporting;
+    ibtn.disabled = selected===0 || store._discRunning || store._discImporting;
 }
 
 function _discOnRowToggle(chk){
     const idx = parseInt(chk?.dataset?.idx,10);
     const row = store._discResults[idx];
     const key = _discKey(row);
-    if(key) win._discSelMap[key] = !!chk.checked;
+    if(key) store._discSelMap[key] = !!chk.checked;
     const all = document.querySelectorAll('.disc-chk');
     const selAll = document.getElementById('disc-selall');
     if(selAll) selAll.checked = all.length>0 && [...all].every(c=>c.checked);
@@ -612,7 +612,7 @@ function _discRenderTable(){
         // ~10% NON si spuntano di default). L'utente puo' sempre spuntarli a mano.
         const _lowConf = !!d.alive && (conf.score || 0) < DISC_PRESELECT_MIN_CONF;
         const canImport = !!d.alive && (conf.score || 0) >= DISC_PRESELECT_MIN_CONF;
-        const checked = Object.prototype.hasOwnProperty.call(win._discSelMap,key) ? !!win._discSelMap[key] : canImport;
+        const checked = Object.prototype.hasOwnProperty.call(store._discSelMap,key) ? !!store._discSelMap[key] : canImport;
         const _rowCls = [d.alive ? '' : 'disc-off', _lowConf ? 'disc-lowconf' : ''].filter(Boolean).join(' ');
         return `<tr class="${_rowCls}">
           <td><input type="checkbox" class="disc-chk" data-idx="${i}" onchange="_discOnRowToggle(this)" ${checked?'checked':''}></td>
@@ -796,14 +796,14 @@ function discSelectAll(val){
         cb.checked = val;
         const idx = parseInt(cb.dataset.idx,10);
         const key = _discKey(store._discResults[idx]);
-        if(key) win._discSelMap[key] = !!val;
+        if(key) store._discSelMap[key] = !!val;
     });
     _discUpdateImportBtn();
 }
 
 async function importDiscovered(){
-    if(win._discRunning || win._discImporting) return;
-    win._discImporting = true;
+    if(store._discRunning || store._discImporting) return;
+    store._discImporting = true;
     _discUpdateImportBtn();
     const ibtn = document.getElementById('disc-import-btn');
     const sbtn = document.getElementById('disc-scan-btn');
@@ -811,7 +811,7 @@ async function importDiscovered(){
     if(sbtn) sbtn.disabled = true;
     const rows = document.querySelectorAll('#disc-tbody tr');
     if(!rows.length){
-        win._discImporting=false;
+        store._discImporting=false;
         if(ibtn) ibtn.innerHTML = `<i class="fas fa-file-import"></i> ${_dt('pnl.disc.addSelected','Aggiungi selezionati')}`;
         if(sbtn) sbtn.disabled = false;
         _discUpdateImportBtn();
@@ -832,7 +832,7 @@ async function importDiscovered(){
         toImport.push({ ...base, type, _typeManual: !!guessed && type !== guessed });
     });
     if(!toImport.length){
-        win._discImporting=false;
+        store._discImporting=false;
         if(ibtn) ibtn.innerHTML = `<i class="fas fa-file-import"></i> ${_dt('pnl.disc.addSelected','Aggiungi selezionati')}`;
         if(sbtn) sbtn.disabled = false;
         _discUpdateImportBtn();
@@ -1079,7 +1079,7 @@ async function importDiscovered(){
         }
         _showToast(parts.join(' · ') || _dt('msg.ui.nothingNew','Nessuna novità'), imported||updated ? 'ok' : 'warn');
     } finally {
-        win._discImporting=false;
+        store._discImporting=false;
         if(ibtn) ibtn.innerHTML = `<i class="fas fa-file-import"></i> ${_dt('pnl.disc.addSelected','Aggiungi selezionati')}`;
         if(sbtn) sbtn.disabled = false;
         _discUpdateImportBtn();

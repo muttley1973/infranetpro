@@ -101,10 +101,10 @@ win._rackPortDblPid = null; win._rackPortDblTime = 0;
 // Rilevamento doppio click sull'ICONA rack in topologia: single press = drag
 // (sposta il rack), doppio click = apri la rack window.
 win._rackFloorDblId = null; win._rackFloorDblTime = 0;
-win.dragRack=null;   // rack ID quando si trascina un'icona rack sulla planimetria (var: letto da app.js _renderModeIndicator + scritto dal bundle)
+store.dragRack=null;   // rack ID quando si trascina un'icona rack sulla planimetria (var: letto da app.js _renderModeIndicator + scritto dal bundle)
 // var (non let): lagSelMode/lagSelPorts sono scritti dal bundle (src/app-ports.js)
 // via win.* e bare-letti dai classic (app-pointer, app-render-core) → su window.
-win.lagSelMode=false; store.lagSelPorts=new Set();   // modalità selezione multipla LAG
+store.lagSelMode=false; store.lagSelPorts=new Set();   // modalità selezione multipla LAG
 // INT-5: intent semantico "voglio vedere/editare le props" vs "ho solo
 // selezionato/draggato". Sostituisce _rackPropsExplicitId (flag per-id).
 // - false (default): le props dei device rack restano chiuse al click
@@ -116,20 +116,20 @@ win._propsExplicit=false;
 //   win._propsExplicit (guard render rack). I writer classic (app.js/app-pointer)
 //   fanno bare-assign → cadono sulla stessa var di window.
 win._rackDblTime=0; win._rackDblId=null;   // rilevazione manuale doppio click (dblclick non arriva con preventDefault)
-win._vlanIpamOpen=new Set();   // VLAN con dettagli IPAM aperti nel pannello floor
+store._vlanIpamOpen=new Set();   // VLAN con dettagli IPAM aperti nel pannello floor
 // ^ var (non let): il modulo bundle app-properties-floor.js lo legge via
-//   win._vlanIpamOpen (.has). Un let vivrebbe nel global lexical, invisibile al
+//   store._vlanIpamOpen (.has). Un let vivrebbe nel global lexical, invisibile al
 //   bundle → .has di undefined. I writer classic (.add/.delete/.clear) mutano
 //   la stessa unica Set su window.
 win._snmpSyncing=false;   // true durante la sincronizzazione SNMP collettiva  (var: letto dal bundle src/app-topology-discover.js via win._snmpSyncing)
 // _autoPollTimer/_autoPollTickTimer/_autoPollNextAt spostati come module-local in src/app-vlan-autopoll.js
 store._discResults=[];   // risultati ultima discovery   (var: letto/scritto dal bundle src/app-discovery.js via win.*)
-win._discRunning=false;   // true mentre discovery/crawl è in corso   (var: idem)
-win._discImporting=false;   // true mentre importa i risultati selezionati   (var: idem)
-win._discSelMap={};   // chiave device -> checkbox selezionata   (var: idem)
+store._discRunning=false;   // true mentre discovery/crawl è in corso   (var: idem)
+store._discImporting=false;   // true mentre importa i risultati selezionati   (var: idem)
+store._discSelMap={};   // chiave device -> checkbox selezionata   (var: idem)
 win._discTypeMap={};   // chiave device -> tipo scelto dall'utente   (var: idem)
 win._paletteDragType='';   // tipo trascinato dalla libreria elementi (var: letto da app.js _renderModeIndicator)
-win.dragOffset={x:0,y:0};
+store.dragOffset={x:0,y:0};
 win.isPanningFloor=false; win.panStart={x:0,y:0};
 // Pan del rack con Space+trascinamento (come il floor): il rack però usa lo
 // SCROLL nativo del #rack-viewport, quindi qui memorizziamo scroll iniziale.
@@ -137,7 +137,7 @@ win.isPanningRack=false; win.rackPanStart={x:0,y:0,sl:0,st:0};
 // Threshold drag/click: { x, y } posizione del pointerdown; _dragArmed=true
 // solo dopo che il puntatore si e' spostato > 5px (evita micro-drag
 // involontari su click brevi su rack/floor device).
-win._dragDownPt=null; win._dragArmed=false;
+win._dragDownPt=null; store._dragArmed=false;
 // _DRAG_THRESHOLD_PX spostato come module-local in src/app-pointer.js (unico lettore)
 win._spaceDown=false;   // Space tenuto → pan ovunque sulla mappa
 let eventsBound=false;

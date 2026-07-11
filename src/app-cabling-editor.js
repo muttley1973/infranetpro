@@ -14,7 +14,7 @@ import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi 
 
 // Stato modalità (globali condivise con app-pointer.js / app-render-core.js
 // via global lexical scope, come tutti gli altri stati dell'app).
-win._routingLinkId = null;          // id del cavo da spezzare (null = off · var: letto dal bundle app-pointer via win._routingLinkId)
+store._routingLinkId = null;          // id del cavo da spezzare (null = off · var: letto dal bundle app-pointer via store._routingLinkId)
 let _routingTargetPids = new Map(); // pid porta valida → { reuse: estremoGiaCollegato|null }
 
 function _routeNodeLabel(n){
@@ -118,7 +118,7 @@ function enterRoutingMode(linkId){
         _showToast(msg, 'warn', 6500);
         return;
     }
-    win._routingLinkId = linkId;
+    store._routingLinkId = linkId;
     document.body.classList.add('routing-mode');
     // Dove sono le porte valide? La gerarchia TIA-568 (win.canRouteThrough) decide:
     // es. switch↔presa → solo patch panel (rack); PC↔switch → anche prese (floor).
@@ -147,7 +147,7 @@ function enterRoutingMode(linkId){
 }
 
 function _exitRoutingMode(){
-    win._routingLinkId = null;
+    store._routingLinkId = null;
     _routingTargetPids = new Map();
     document.body.classList.remove('routing-mode');
     document.querySelectorAll('.routing-target').forEach(el => el.classList.remove('routing-target'));
@@ -159,7 +159,7 @@ function _exitRoutingMode(){
 // Ri-applica le classi highlight sulle porte target. Chiamata dopo ogni
 // render (hook in _renderAllNow / _renderFloorNow). No-op se modalità off.
 function _paintRoutingTargets(){
-    if(!win._routingLinkId) return;
+    if(!store._routingLinkId) return;
     document.querySelectorAll('.routing-target').forEach(el => el.classList.remove('routing-target'));
     document.querySelectorAll('.floor-rack.routing-rack').forEach(el => el.classList.remove('routing-rack'));
     const _rackIds = new Set();
@@ -196,7 +196,7 @@ function _routingPickPort(midPid){
     const info = _routingTargetPids.get(midPid);
     if(!info){
         const n = getNodeByPortId(midPid);
-        const link0 = (store.state.links || []).find(l => l.id === win._routingLinkId);
+        const link0 = (store.state.links || []).find(l => l.id === store._routingLinkId);
         const epTypes = link0 ? [link0.src, link0.dst].map(p => getNodeByPortId(p)?.type) : [];
         let why;
         if(!n || TYPES[n.type]?.passThrough !== 'port'){
@@ -211,7 +211,7 @@ function _routingPickPort(midPid){
         _showToast(t('msg.rack.portInvalid',{why:why}), 'warn', 4000);
         return;
     }
-    const linkId = win._routingLinkId;
+    const linkId = store._routingLinkId;
     const link = (store.state.links || []).find(l => l.id === linkId);
     if(!link){ _exitRoutingMode(); return; }
 
