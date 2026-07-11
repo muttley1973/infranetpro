@@ -8,7 +8,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, normalizeNumber } from './app-util.js';
-import { nodeById, markDirty, getNodeByPortId, getPortNodeId, pushHistory, renderCables, _showToast, _promoteLinkToManual } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, markDirty, getNodeByPortId, getPortNodeId, pushHistory, renderCables, _showToast, _promoteLinkToManual, _ipamEntry, _ensureIpamState } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, _ensureNodeSpec } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
@@ -95,7 +95,7 @@ export function renderAutomationMenu(){
       </div>`;
 }
 
-function _startAutoPoll(){
+export function _startAutoPoll(){
     _stopAutoPoll();
     const mins = store.state.autoPoll?.interval || 5;
     _autoPollNextAt = Date.now() + mins * 60000;
@@ -108,7 +108,7 @@ function _startAutoPoll(){
     _updateAutoPollBadge();
 }
 
-function _stopAutoPoll(){
+export function _stopAutoPoll(){
     if(_autoPollTimer){ clearInterval(_autoPollTimer); _autoPollTimer=null; }
     if(_autoPollTickTimer){ clearInterval(_autoPollTickTimer); _autoPollTickTimer=null; }
     _autoPollNextAt=0;
@@ -275,7 +275,7 @@ function _isVlanConduit(pid){
 // (access/trunk), altrimenti vale il trunk rilevato da SNMP (`isTrunk`). Unico
 // punto di verità usato da UI (pannello porta), toggle e motore: così una porta
 // vista trunk dallo SNMP appare e si comporta da trunk anche senza mode manuale.
-function _portEffTrunk(pi){
+export function _portEffTrunk(pi){
     pi = pi || {};
     if(pi.mode==='trunk') return true;
     if(pi.mode==='access') return false;   // override manuale ad access vince sullo SNMP
@@ -502,13 +502,13 @@ function toggleVlanIpam(v){
     else store._vlanIpamOpen.add(vid);
     renderProps();
 }
-function updateVlanIpam(v, field, value){
+export function updateVlanIpam(v, field, value){
     const vid = +v;
-    const entry = win._ipamEntry(vid, true);
+    const entry = _ipamEntry(vid, true);
     const val = String(value||'').trim();
     if(val) entry[field] = val;
     else delete entry[field];
-    if(!Object.keys(entry).length) delete win._ensureIpamState()[String(vid)];
+    if(!Object.keys(entry).length) delete _ensureIpamState()[String(vid)];
     markDirty();
     renderProps();
 }
@@ -536,7 +536,7 @@ function clearAllVlans(){
 
 // ---- Filtro VLAN sulla planimetria -----------------------------------------
 
-function setVlanFilter(vid){
+export function setVlanFilter(vid){
     store._filterVlan = vid;
     const badge=document.getElementById('vlan-filter-badge');
     if(badge){
@@ -604,7 +604,7 @@ function toggleVoiceVlan(vid){
 // Tutti i telefoni VoIP del progetto.
 function _voipNodes(){ return (store.state.nodes || []).filter(n => n.type === 'voip'); }
 // Voce EFFETTIVA di un telefono: top-level o spec (updateN scrive in spec).
-function _voipVoiceVlan(n){
+export function _voipVoiceVlan(n){
     const v = (n && n.voiceVlan != null) ? n.voiceVlan : (n && n.spec ? n.spec.voiceVlan : undefined);
     const x = parseInt(v, 10);
     return (x >= 1 && x <= 4094) ? x : null;
@@ -735,7 +735,7 @@ const _VLAN_TAG_ROLE = {
 };
 function _vlanTagRole(type){ return _VLAN_TAG_ROLE[type] || 'access'; }
 
-function showVlanMembers(vid){
+export function showVlanMembers(vid){
     // Raccoglie porte con questo VLAN ID (access) — letta dall'interfaccia
     const accessPorts=[];
     for(const [pid, pi] of Object.entries(store.state.ports)){
@@ -944,7 +944,7 @@ export function _parseTrunkVlans(raw){
  * Converte un array ordinato di VLAN ID in stringa compatta con range.
  * Es. [1,10,11,12,20,100,101] → "1,10-12,20,100-101"
  */
-function _vlansToRangeStr(sorted){
+export function _vlansToRangeStr(sorted){
     if(!sorted||!sorted.length) return '';
     const ranges=[];
     let s=sorted[0], e=sorted[0];

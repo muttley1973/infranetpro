@@ -373,7 +373,7 @@ export function _findFreeU(rackId, sizeU){
     return 1;
 }
 
-function _resolveRackOverlap(node){
+export function _resolveRackOverlap(node){
     if(!node || !TYPES[node.type]?.isRack || !node.rackId) return;
     const rack = store.state.racks.find(r=>r.id===node.rackId);
     if(!rack) return;

@@ -3,22 +3,24 @@
 // ============================================================
 // MODULO ESM (migrato da lib/app-properties-port.js): foglia del dispatcher
 // renderProps() (classic in app-properties.js, che lo chiama via window). Porta
-// fisica o, se pid radio, delega a win._renderRadioProps (app-wifi, già nel bundle).
+// fisica o, se pid radio, delega a _renderRadioProps (app-wifi, già nel bundle).
 // Builder condivisi del core (_buildPropsHeader) e i global legacy (state/TYPES/
 // selId/porte/VLAN/LAG/segmento) via win.*; `t` dal ponte. I nomi dentro gli
 // onclick=""/onchange="" dell'HTML generato girano in scope PAGINA → restano bare.
 // NESSUN cambiamento di logica rispetto all'originale.
 
-import { win, expose, t } from './_bridge.js';
+import { expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, normalizeStatus } from './app-util.js';
 import { nodeById, getNodeByPortId, getPortNodeId, _isRadioPid, _enableManualValueInProps } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
-import { _effPortVlan, _getLinkTrunk, _parseTrunkVlans, _runActiveAnchor } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _effPortVlan, _getLinkTrunk, _parseTrunkVlans, _runActiveAnchor, _voipVoiceVlan, _portEffTrunk } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _buildPropsHeader } from './app-properties.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
 import { _vlanLabel } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
 import { _floorAccessVlanRow } from './app-properties-node-devices.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { getPassivePortLagInfo } from './app-ports.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
+import { _renderRadioProps } from './app-wifi.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
+import { _sharedSegmentHtml } from './app-shared-segment.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 // NB: renderProps() qui è chiamato SOLO da un onclick="" (bare-in-template, scope
 // pagina → window.renderProps via expose): nessun import ESM, sarebbe inutilizzato.
 
@@ -45,8 +47,8 @@ export function _renderPortProps(panel){
         const state = store.state;
         const pid=store.selId;
         // Interfaccia radio selezionata → pannello dedicato (config per-radio).
-        if(typeof _isRadioPid==='function' && _isRadioPid(pid) && typeof win._renderRadioProps==='function'){
-            return win._renderRadioProps(panel, pid);
+        if(typeof _isRadioPid==='function' && _isRadioPid(pid) && typeof _renderRadioProps==='function'){
+            return _renderRadioProps(panel, pid);
         }
         const pi=state.ports[pid]||{};
         const portNode=getNodeByPortId(pid);
@@ -174,7 +176,7 @@ export function _renderPortProps(panel){
                         // la nativa/dati arriva dallo switch a monte (resta nel badge read-only sopra).
                         const _voiceRow = (portNode && portNode.type==='voip') ? (()=>{
                             // Lettura CANONICA (stessa fonte di carriedVlans/propagazione): node.spec.voiceVlan
-                            const _vv = (typeof win._voipVoiceVlan==='function') ? (win._voipVoiceVlan(portNode) || 1)
+                            const _vv = (typeof _voipVoiceVlan==='function') ? (_voipVoiceVlan(portNode) || 1)
                                       : ((portNode.voiceVlan!=null) ? portNode.voiceVlan : ((portNode.spec&&portNode.spec.voiceVlan)||1));
                             return `<div class="prop-group" style="margin-top:6px"><label>${t('f.vlanVoice')}</label>
                                 <input type="number" min="1" max="4094" value="${_vv}" class="${_vv>1?'ovr':''}" style="flex:1"
@@ -201,7 +203,7 @@ export function _renderPortProps(panel){
                 // Switchport (interfaccia ATTIVA): GUI UNIFORME al pannello cavo —
                 // badge TRUNK/access · nativa · trasportate → Modalità porta →
                 // VLAN nativa (untagged/PVID) → VLAN trasportate. La nativa È il PVID.
-                const _isTrunk = (typeof win._portEffTrunk==='function') ? win._portEffTrunk(pi) : (pi.mode==='trunk');
+                const _isTrunk = (typeof _portEffTrunk==='function') ? _portEffTrunk(pi) : (pi.mode==='trunk');
                 const _tvArr   = _parseTrunkVlans(pi.trunkVlans||[]);
                 const _tagged  = _tvArr.filter(v=>v!==effVlan);
                 const _tvStr   = Array.isArray(pi.trunkVlans) ? pi.trunkVlans.join(',') : (pi.trunkVlans || '');
@@ -261,7 +263,7 @@ export function _renderPortProps(panel){
             })()}`;
         // I MAC visti sulla porta vengono ora elencati interamente dentro il
         // blocco "Segmento L2 condiviso" (non piu' duplicati in due box adiacenti).
-        panel.innerHTML += win._sharedSegmentHtml(pid,'props');
+        panel.innerHTML += _sharedSegmentHtml(pid,'props');
         _enableManualValueInProps(panel);
 }
 

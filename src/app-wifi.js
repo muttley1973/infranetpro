@@ -235,7 +235,7 @@ function _radioSsidsHtml(radio, nodeId, idx){
 
 // ── Gestore delle interfacce radio (nel pannello del device) ─────────
 // Controllo conteggio 0..8 + elenco delle radio (click → apre il pannello).
-function _radioIfacesHtml(n){
+export function _radioIfacesHtml(n){
     const esc = s => escapeHTML(String(s == null ? '' : s));
     const _t = t;
     const radios = (typeof _nodeRadios === 'function') ? _nodeRadios(n) : (n.radios || []);
@@ -379,7 +379,7 @@ function setClientAssoc(clientPid, bssId){
 // lo assegna in automatico (link.bss); se ne ha PIÙ d'uno apre un menu colorato
 // per VLAN per scegliere. Se non ha SSID nominati, link.bss resta vuoto (si sceglie
 // poi dal pannello del client). Chiamato dal pointer alla fine di _tryFinishLink.
-function _assignWirelessBss(link){
+export function _assignWirelessBss(link){
     if(!link || !link.wireless) return;
     for(const pid of [link.src, link.dst]){
         if(typeof _isRadioPid !== 'function' || !_isRadioPid(pid)) continue;
@@ -428,7 +428,7 @@ function _pickBss(linkId, bssId){
 }
 
 // ── Pannello di UNA radio selezionata (selType==='port', pid radio) ───
-function _renderRadioProps(panel, pid){
+export function _renderRadioProps(panel, pid){
     const esc = s => escapeHTML(String(s == null ? '' : s));
     const _t = t;
     const p = (typeof win.parseRadioPid === 'function') ? win.parseRadioPid(pid) : null;
@@ -504,7 +504,7 @@ function _wifiCfgForLink(l){
     return null;
 }
 
-function _wifiAssocHtml(l){
+export function _wifiAssocHtml(l){
     const esc = s => escapeHTML(String(s == null ? '' : s));
     const info = _wifiCfgForLink(l);
     let inh = '';

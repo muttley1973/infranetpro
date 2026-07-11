@@ -9,12 +9,12 @@
 // `store._vlanIpamOpen` è il Set condiviso var-ificato in app.js (i writer classic lo
 // mutano, qui si legge). NESSUN cambiamento di logica rispetto all'originale.
 
-import { win, expose, t } from './_bridge.js';
+import { expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, normalizeNumber } from './app-util.js';
 import { _propsSectionIsOpen, _buildPropsHeader } from './app-properties.js';   // ritiro ponte: lettura stato sezioni (ex win.*)
 import { _isVoiceVlan, _siteNativeVlan } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
-import { _enableManualValueInProps } from './app.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
+import { _enableManualValueInProps, _ipamUsageForVlan, _ipamEntry, _vlanIpamSummary, _clearPropsTab } from './app.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
 import { _l3Compute, _l3GatewayBindingHtml } from './app-l3.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 
 // Blocco "Occupazione" della card IPAM aperta: barra di capacità + ripartizione
@@ -154,10 +154,10 @@ export function _renderFloorProps(panel){
             const vid=normalizeNumber(v,1,1,4094);
             const _isNative = _siteNat === vid;
             const vname=escapeHTML(state.vlanNames?.[vid]||'');
-            const usage=win._ipamUsageForVlan(vid);
-            const ipam=win._ipamEntry(vid);
+            const usage=_ipamUsageForVlan(vid);
+            const ipam=_ipamEntry(vid);
             const ipamOpen=store._vlanIpamOpen.has(vid);
-            const ipamSummary=escapeHTML(win._vlanIpamSummary(vid));
+            const ipamSummary=escapeHTML(_vlanIpamSummary(vid));
             const ipamWarn=(!usage.cidr && ipam?.subnet) || (usage.cidr && !usage.gatewayOk);
             const nearFull=!!(usage.cidr && usage.capacity && usage.pct>=90);   // subnet quasi piena → ambra a colpo d'occhio
             const summaryWarn=ipamWarn || nearFull;
@@ -210,7 +210,7 @@ export function _renderFloorProps(panel){
             </details>`;
         panel.innerHTML=h;
         _enableManualValueInProps(panel);
-        win._clearPropsTab();
+        _clearPropsTab();
 }
 
 // Chiamato dal dispatcher renderProps() (app-properties.js, ancora classic).

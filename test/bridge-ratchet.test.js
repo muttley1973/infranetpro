@@ -328,6 +328,31 @@ test('ponte: la coda funzioni A batch 1 non è più letta da win.*', () => {
   }
 });
 
+// ── 1q) Coda funzioni A, batch 2/2 (61 fn) ───────────────────────────────────
+// Ritiro ponte 2026-07-11: seconda metà della passata grande. Include il grosso dei
+// getter/helper di app.js + wifi/vlan/snmp/topo/types. Con questo ASSE A ha ritirato
+// TUTTE le funzioni ritirabili (def-once function in src/) tranne `_guessType`. Dopo
+// la conversione, 6 moduli hanno perso del tutto l'import `win` (app-auth/
+// app-properties-floor/app-properties-port/app-search-zoom-rack/app-spare/app-csv-import).
+const RETIRED_TAIL_FN2 = [
+  'closeFloorMenu', 'closeRackMenu', 'initPaletteUi', '_sharedSegmentHtml', '_hasSnmpIntegration', '_lastSnmpSyncTs',
+  '_renderSyncFreshness', '_renderV3PendingChip', '_v3NeedsCreds', 'applyPollResult', '_applySpareHighlight', '_resolveRackOverlap',
+  '_clearTopoHighlight', '_highlightTopoLinks', '_refreshTopoBtnState', '_frontPanelIsUplink', '_frontPanelRows', '_frontPanelSfpGroups',
+  '_frontPanelSfpPorts', '_linkIsTrunk', '_portEffTrunk', '_startAutoPoll', '_stopAutoPoll', '_vlansToRangeStr',
+  '_voipVoiceVlan', 'setVlanFilter', 'showVlanMembers', 'updateVlanIpam', '_assignWirelessBss', '_radioIfacesHtml',
+  '_renderRadioProps', '_wifiAssocHtml', '_buildDefaultState', '_cableAutoLabel', '_chainAmbiguousLinkIds', '_chainVlanColors',
+  '_clearPropsTab', '_deviceHasWifi', '_dispName', '_ensureIpamState', '_getPassThroughMode', '_ipamEntry',
+  '_ipamUsageForVlan', '_isLinearPassThroughPort', '_isWifiCapable', '_loadDefaultLocal', '_migrateState', '_propagateStackMasterIntegration',
+  '_rackDeviceBg', '_repairRackPlacements', '_resetSelection', '_updateHistoryBtns', '_validateWallPortConnection', '_vlanIpamSummary',
+  'bindEventsOnce', 'clampRackDevice', 'getNodePortCount', 'getPortConnectionCount', 'getRackSize', 'isPortOnNode',
+  'removeNodePorts'];
+test('ponte: la coda funzioni A batch 2 non è più letta da win.*', () => {
+  for (const sym of RETIRED_TAIL_FN2) {
+    const viaWin = countInCode(new RegExp('\\bwin\\.' + sym + '\\b', 'g'));
+    assert.equal(viaWin, 0, `win.${sym} è tornato: importa { ${sym} } dal suo modulo definitore`);
+  }
+});
+
 // ── 2) Cricchetto sul totale: il ponte può solo restringersi ────────────────
 // Conteggio SOLO-CODICE (commenti esclusi) delle letture win.*. Tetto stretto al
 // valore reale corrente: abbassalo al numero che il test stampa ([ratchet] …)
@@ -537,7 +562,15 @@ test('ponte: la coda funzioni A batch 1 non è più letta da win.*', () => {
 // `xform-json.js`), sciolta la trappola alias-block → nessun abort. 112 win.X → bare in 19
 // file. Include dispatcher render + fn inline (JS→import, bare-inline resta). Golden
 // invariante; e2e 69/69. Vedi RETIRED_TAIL_FN1.
-const MAX_WIN_REFS = 445;
+//
+// −123 (445 → 322, 2026-07-11): RITIRO PONTE — coda funzioni A, batch 2/2 (61 fn).
+// Seconda metà: getter/helper di app.js + wifi/vlan/snmp/topo/types. 126 win.X → bare in
+// 20 file. **ASSE A: ritirate TUTTE le funzioni ritirabili (def-once in src/) tranne
+// `_guessType`.** 6 moduli hanno perso l'import `win` (app-auth/app-properties-floor/-port/
+// app-search-zoom-rack/app-spare, +app-csv-import già dalla 47ª). Il residuo ~322 = lib-script
+// + guardie typeof di lib-fn + stato residuo + inline non ritirabili. Golden invariante;
+// e2e 69/69. Vedi RETIRED_TAIL_FN2.
+const MAX_WIN_REFS = 322;
 
 test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => {
   const total = countInCode(/\bwin\./g);

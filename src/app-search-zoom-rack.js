@@ -5,10 +5,10 @@
 // Estratto da app.js — migrato a modulo ESM (src/).
 // I globali legacy si leggono via win.*; t (i18n) dal ponte.
 // ============================================================
-import { win, expose, t } from './_bridge.js';
+import { expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, hexToRgba, normalizeStatus, normalizeNumber } from './app-util.js';
-import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _showToast, getRackById, getRackName, getNodeRackSize } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _showToast, getRackById, getRackName, getNodeRackSize, getPortConnectionCount, getNodePortCount, getRackSize, _repairRackPlacements, removeNodePorts, _resetSelection } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { showAlert, showPrompt, showConfirm } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll, rackUPx } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -28,7 +28,7 @@ function getSearchIcon(kind,type='') {
 function getPortSummary(pid) {
     const p=store.state.ports[pid]||{}, n=getNodeByPortId(pid);
     const parts=[getNodeDisplayName(n),pid,`status:${normalizeStatus(p.status)}`,
-                 `vlan:${p.vlan||1}`,`speed:${p.speed||'1G'}`,`connections:${win.getPortConnectionCount(pid)}`];
+                 `vlan:${p.vlan||1}`,`speed:${p.speed||'1G'}`,`connections:${getPortConnectionCount(pid)}`];
     if(n?.rackId) parts.push(`rack:${getRackName(n.rackId)}`);
     return parts.join(' ');
 }
@@ -54,15 +54,15 @@ function buildSearchResults(query) {
             const userTag = view.assignedUser ? ` - 👤 ${view.assignedUser}` : '';
             results.push({kind:'device',id:node.id,icon:getSearchIcon('device',node.type),
                 title:`${getNodeDisplayName(node)} (${typeName(node.type)})`,
-                meta:`${loc} - ${win.getNodePortCount(node)} porte${userTag}`});
+                meta:`${loc} - ${getNodePortCount(node)} porte${userTag}`});
         }
-        const pCount=win.getNodePortCount(node);
+        const pCount=getNodePortCount(node);
         for(let i=1;i<=pCount;i++){
             const pid=`${node.id}-${i}`;
             if(getPortSummary(pid).toLowerCase().includes(q))
                 results.push({kind:'port',id:pid,icon:getSearchIcon('port'),
                     title:`${getNodeDisplayName(node)} - Porta ${i}`,
-                    meta:`ID ${pid} - VLAN ${(store.state.ports[pid]||{}).vlan||1} - ${win.getPortConnectionCount(pid)} conn.`});
+                    meta:`ID ${pid} - VLAN ${(store.state.ports[pid]||{}).vlan||1} - ${getPortConnectionCount(pid)} conn.`});
         }
     });
 
@@ -379,7 +379,7 @@ function clearPaletteFilter(){
     filterPaletteItems('');
 }
 
-function initPaletteUi(){
+export function initPaletteUi(){
     _loadPaletteGroupPrefs();
     _syncPaletteGroupUi();
     filterPaletteItems('');
@@ -394,7 +394,7 @@ function toggleRackMenu(){
     d.style.display=d.style.display==='none'?'block':'none';
     if(d.style.display==='block' && typeof _updateRackUNumLabel==='function') _updateRackUNumLabel();
 }
-function closeRackMenu(){
+export function closeRackMenu(){
     const d=document.getElementById('rack-menu-dropdown');
     if(d) d.style.display='none';
 }
@@ -403,7 +403,7 @@ function toggleFloorMenu(){
     if(!d) return;
     d.style.display=d.style.display==='none'?'block':'none';
 }
-function closeFloorMenu(){
+export function closeFloorMenu(){
     const d=document.getElementById('floor-menu-dropdown');
     if(d) d.style.display='none';
 }
@@ -478,7 +478,7 @@ export function renderRackTabs(){
         if(r.id===store.state.currentRack)opt.selected=true;
         sel.appendChild(opt);
     });
-    document.getElementById('rack-size-input').value=win.getRackSize();
+    document.getElementById('rack-size-input').value=getRackSize();
     _updateRackFloorBtn();
 }
 export function switchRack(id){
@@ -585,9 +585,9 @@ function updateRackSize(value){
 
     pushHistory();
     rack.sizeU = newSize;
-    // win._repairRackPlacements ridistribuisce con algoritmo no-overlap:
+    // _repairRackPlacements ridistribuisce con algoritmo no-overlap:
     // sostituisce il vecchio clampRackDevice che causava sovrapposizioni.
-    win._repairRackPlacements(store.state);
+    _repairRackPlacements(store.state);
     renderRackTabs(); renderAll(); markDirty();
 }
 function toggleRackUNumbering(){
@@ -611,10 +611,10 @@ function deleteCurrentRack(){
         const ids=new Set(store.state.nodes.filter(n=>TYPES[n.type]?.isRack&&n.rackId===store.state.currentRack).map(n=>n.id));
         store.state.nodes=store.state.nodes.filter(n=>!ids.has(n.id));
         store.state.links=store.state.links.filter(l=>!ids.has(getPortNodeId(l.src))&&!ids.has(getPortNodeId(l.dst)));
-        win.removeNodePorts(ids);
+        removeNodePorts(ids);
         store.state.racks=store.state.racks.filter(r=>r.id!==store.state.currentRack);
         store.state.currentRack=store.state.racks[0].id;
-        win._resetSelection(); renderRackTabs();renderAll();markDirty();
+        _resetSelection(); renderRackTabs();renderAll();markDirty();
     });
 }
 

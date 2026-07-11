@@ -203,7 +203,7 @@ export function _frontPanelState(node, portCount){
     return win.frontPanelState(node, portCount, mgmtEligible);
 }
 
-function _frontPanelSfpPorts(node, portCount){
+export function _frontPanelSfpPorts(node, portCount){
     // Include porte di ENTRAMBI i blocchi SFP (sfp1 + sfp2) come array piatto.
     // Usato dal data-port row filter per escluderle dal grid principale.
     const mgmtEligible = !!(node && TYPES[node.type] && TYPES[node.type].mgmtEligible);
@@ -212,12 +212,12 @@ function _frontPanelSfpPorts(node, portCount){
     for(const g of groups) out.push(...g.ports);
     return out;
 }
-function _frontPanelSfpGroups(node, portCount){
+export function _frontPanelSfpGroups(node, portCount){
     const mgmtEligible = !!(node && TYPES[node.type] && TYPES[node.type].mgmtEligible);
     return win.frontPanelSfpGroups(node, portCount, mgmtEligible);
 }
 
-function _frontPanelRows(node, portCount){
+export function _frontPanelRows(node, portCount){
     const fp = _frontPanelState(node, portCount);
     const pc = fp.portCount;
     if(pc <= 0) return [];
@@ -246,7 +246,7 @@ function _frontPanelRows(node, portCount){
     return [list];
 }
 
-function _frontPanelIsUplink(node, portNum, portCount){
+export function _frontPanelIsUplink(node, portNum, portCount){
     return _frontPanelSfpPorts(node, portCount).includes(portNum);
 }
 

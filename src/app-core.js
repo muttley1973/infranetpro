@@ -6,10 +6,11 @@
 // ============================================================
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { pushHistory, _invalidateIdx, logAudit, _clearDirty } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { pushHistory, _invalidateIdx, logAudit, _clearDirty, _migrateState, _updateHistoryBtns, _buildDefaultState, bindEventsOnce, _loadDefaultLocal } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
-import { renderRackTabs, updateTransforms, _updateFloorToolbarVisibility } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
+import { renderRackTabs, updateTransforms, _updateFloorToolbarVisibility, initPaletteUi } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { _restoreTopoSession } from './app-topology-discover.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { _startAutoPoll, _stopAutoPoll } from './app-vlan-autopoll.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 
 const API = '/api/projects';
 
@@ -53,14 +54,14 @@ async function loadProjectList() {
 async function loadProject(id) {
     const proj = await apiFetch(`${API}/${id}`);
     store.currentProjectId = proj.id;
-    store.state = win._migrateState(proj.state);
+    store.state = _migrateState(proj.state);
     if(typeof _restoreTopoSession === 'function') _restoreTopoSession();
     store._vlanIpamOpen.clear();
     _invalidateIdx();
-    win._history=[]; win._histIdx=-1; win._updateHistoryBtns();
+    win._history=[]; win._histIdx=-1; _updateHistoryBtns();
     _clearDirty();
-    win._stopAutoPoll();
-    if(store.state.autoPoll?.enabled) win._startAutoPoll();
+    _stopAutoPoll();
+    if(store.state.autoPoll?.enabled) _startAutoPoll();
     renderRackTabs(); updateTransforms(); renderAll();
     document.title = `InfraNet Pro — ${proj.name}`;
 }
@@ -80,17 +81,17 @@ async function switchProject(id) {
 async function newProject() {
     showPrompt(t('pnl.seg.newProjectName'), t('pnl.seg.newProjectDefault'), async name => {
         if (!name || !name.trim()) return;
-        const defaultState = win._buildDefaultState();
+        const defaultState = _buildDefaultState();
         const proj = await apiFetch(API, {
             method:'POST',
             body: JSON.stringify({name: name.trim(), state: defaultState})
         });
         store.currentProjectId = proj.id;
-        store.state = win._migrateState(proj.state);
+        store.state = _migrateState(proj.state);
         if(typeof _restoreTopoSession === 'function') _restoreTopoSession();
         store._vlanIpamOpen.clear();
         _invalidateIdx();
-        win._history=[]; win._histIdx=-1; win._updateHistoryBtns();
+        win._history=[]; win._histIdx=-1; _updateHistoryBtns();
         _clearDirty();
         await loadProjectList();
         renderRackTabs(); updateTransforms(); renderAll();
@@ -121,10 +122,10 @@ async function duplicateProject() {
             body: JSON.stringify({name: name.trim()})
         });
         store.currentProjectId = proj.id;
-        store.state = win._migrateState(proj.state);
+        store.state = _migrateState(proj.state);
         if(typeof _restoreTopoSession === 'function') _restoreTopoSession();
         _invalidateIdx();
-        win._history=[]; win._histIdx=-1; win._updateHistoryBtns();
+        win._history=[]; win._histIdx=-1; _updateHistoryBtns();
         _clearDirty();
         await loadProjectList();
         renderRackTabs(); updateTransforms(); renderAll();
@@ -168,15 +169,15 @@ async function saveProject() {
 }
 
 async function _initApp() {
-    win.bindEventsOnce();
-    win.initPaletteUi();
+    bindEventsOnce();
+    initPaletteUi();
     _updateFloorToolbarVisibility();
     try {
         let list = await apiFetch(API);
         if (list.length === 0) {
             const proj = await apiFetch(API, {
                 method:'POST',
-                body: JSON.stringify({name:'Demo', state: win._buildDefaultState()})
+                body: JSON.stringify({name:'Demo', state: _buildDefaultState()})
             });
             list = [proj];
         }
@@ -186,7 +187,7 @@ async function _initApp() {
         await loadProjectList();
     } catch(e) {
         console.warn('Server non disponibile:', e.message);
-        win._loadDefaultLocal();
+        _loadDefaultLocal();
         pushHistory();
         renderRackTabs(); updateTransforms(); renderAll();
     }

@@ -19,7 +19,7 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { TYPES, _frontPanelPortLabel } from './app-types.js';   // catalogo tipi: distingue gli elementi passivi dall'audit di presenza
 import { escapeHTML, normalizeMacAddress } from './app-util.js';
-import { nodeById, markDirty, getNodeByPortId, getNodeDisplayName, pushHistory, logAudit } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, markDirty, getNodeByPortId, getNodeDisplayName, pushHistory, logAudit, _cableAutoLabel } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAutomationMenu } from './app-vlan-autopoll.js';   // setAutoIpRenew aggiorna il popover Automazioni
@@ -55,7 +55,7 @@ export function _driftBuildDocSnapshot(){
         nodes: state.nodes, links: state.links, ports: state.ports,
         portLabel: _driftPortLabel,
         nodeLabel: n => getNodeDisplayName(n) || n.name || n.id,
-        cableLabel: l => l.label || win._cableAutoLabel(l),
+        cableLabel: l => l.label || _cableAutoLabel(l),
         normMac: _driftNorm,
         // Passivo SENZA IP proprio (presa a muro / patch panel / passacavi / quadro):
         // il MAC eventualmente stampato su di loro è del device a VALLE → fuori

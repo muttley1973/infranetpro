@@ -8,10 +8,12 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { uid } from './app-util.js';
-import { nodeById, markDirty, getNodeByPortId, getPortNodeId, renderCables, _showToast, _invalidateIdx, _linksForPort, canAddConnection, _createLinkRecord } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, markDirty, getNodeByPortId, getPortNodeId, renderCables, _showToast, _invalidateIdx, _linksForPort, canAddConnection, _createLinkRecord, _validateWallPortConnection } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _findPortByIfName } from './app-topology-discover.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { applyPollResult } from './app-snmp.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
+import { _vlansToRangeStr } from './app-vlan-autopoll.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 // ============================================================
 // AUTO-LINK DISCOVERY — algoritmo multi-layer trasparente
 //
@@ -232,7 +234,7 @@ async function _refreshSnmpPortInventory(force=false){
             });
             const data = await r.json();
             if(!data.ok) return;
-            win.applyPollResult(n.id, data, { noHistory:true, noRender:true });
+            applyPollResult(n.id, data, { noHistory:true, noRender:true });
             refreshed++;
         }catch(_){}
     };
@@ -347,7 +349,7 @@ function _findWallPortBehindInfrastructurePort(infraPid, epPid){
                 const n = getNodeByPortId(other);
                 if(!n) continue;
                 if(n.type === 'wallport'){
-                    const chk = epPid ? win._validateWallPortConnection(other, epPid) : {ok:true};
+                    const chk = epPid ? _validateWallPortConnection(other, epPid) : {ok:true};
                     if(chk.ok && canAddConnection(other)) return other;
                     continue;
                 }
@@ -556,7 +558,7 @@ async function _autoDiscoverLinks(nodeIds){
             ...(dstPi.trunkVlans || []),
             ...fromLag,
         ])].sort((a,b)=>a-b);
-        if(allV.length) linkObj.trunkVlans = win._vlansToRangeStr(allV);
+        if(allV.length) linkObj.trunkVlans = _vlansToRangeStr(allV);
     };
 
     let _skippedDown = 0;

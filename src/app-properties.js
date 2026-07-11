@@ -21,6 +21,8 @@ import { _renderNodeProps } from './app-properties-node.js';   // ritiro ponte: 
 import { _renderPortProps } from './app-properties-port.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { _renderLinkProps } from './app-properties-link.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { _renderFloorProps } from './app-properties-floor.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
+import { _deviceHasWifi, _isWifiCapable } from './app.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
+import { _radioIfacesHtml } from './app-wifi.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 
 // MAC da mostrare per un device: il MAC di device se c'e', altrimenti fallback
 // alla PORTA col suffisso numerico piu' basso (gli apparati SNMP — switch/router/
@@ -264,11 +266,11 @@ export function _buildNetAccessHtml(n, d, opts){
     // In Rete & Accesso resta SOLO il toggle "Dotato di connessione wireless".
     // Le interfacce radio vivono nella fisarmonica dedicata WIRELESS (sotto),
     // visibile solo quando il toggle è attivo.
-    const _wifiCapable = (typeof win._isWifiCapable === 'function' && win._isWifiCapable(n.type));
+    const _wifiCapable = (typeof _isWifiCapable === 'function' && _isWifiCapable(n.type));
     // L'AP è wireless PER DEFINIZIONE: niente toggle (non è un'opzione attivabile),
     // la fisarmonica WIRELESS è sempre presente. Per gli altri capaci resta il toggle.
     const _wifiMandatory = (n.type === 'ap');
-    const _wifiOn = _wifiCapable && (_wifiMandatory || (typeof win._deviceHasWifi==='function' && win._deviceHasWifi(n)));
+    const _wifiOn = _wifiCapable && (_wifiMandatory || (typeof _deviceHasWifi==='function' && _deviceHasWifi(n)));
     const _wifiToggle = (_wifiCapable && !_wifiMandatory)
         ? `<div class="netaccess-wifi">
              <label class="link-wireless-toggle"><input type="checkbox" ${_wifiOn?'checked':''} onchange="setDeviceWifi('${n.id}',this.checked)"> <i class="fas fa-wifi"></i> ${t('wifi.capable')}</label>
@@ -278,7 +280,7 @@ export function _buildNetAccessHtml(n, d, opts){
     // altrimenti solo col toggle attivo.
     const _wirelessAccordion = _wifiOn
         ? `<details class="props-collapsible props-primary" ${_propsSectionIsOpen('wireless')?'open':''} ontoggle="setPropsSectionState('wireless',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-wifi"></i> ${t('sec.wireless')}</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
-             ${(typeof win._radioIfacesHtml==='function') ? win._radioIfacesHtml(n) : ''}
+             ${(typeof _radioIfacesHtml==='function') ? _radioIfacesHtml(n) : ''}
            </div></details>`
         : '';
     // Lucchetto manual-first VISIBILE: riflette/commuta il flag *Manual del campo

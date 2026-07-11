@@ -4,9 +4,10 @@
 // Estratto da app.js come secondo passo di modularizzazione.
 // Migrato a modulo ESM (src/).
 // ============================================================
-import { win, expose, t } from './_bridge.js';
+import { expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
+import { closeFloorMenu, closeRackMenu } from './app-search-zoom-rack.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 
 // Stato condiviso: letto BARE da file ancora-legacy (app-core.js apiFetch,
 // app.js _auditActor, export.js) → deve vivere su window, non module-local.
@@ -98,8 +99,8 @@ document.addEventListener('click', e=>{
     if(!e.target.closest('#automation-menu-wrap') && !e.target.closest('#autopoll-badge')){
         const a=document.getElementById('automation-dropdown'); if(a) a.style.display='none';
     }
-    if(!e.target.closest('#rack-menu-wrap')) win.closeRackMenu();
-    if(!e.target.closest('#floor-menu-wrap')) win.closeFloorMenu();
+    if(!e.target.closest('#rack-menu-wrap')) closeRackMenu();
+    if(!e.target.closest('#floor-menu-wrap')) closeFloorMenu();
 });
 
 function openUserManager(){

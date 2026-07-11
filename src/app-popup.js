@@ -14,9 +14,10 @@ import { renderProps, setPropsSectionState } from './app-properties.js';   // ri
 import { renderAll, isRackPort, renderNow } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { ensureNodeRackVisible, renderRackTabs, _updateFloorToolbarVisibility } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
-import { _effPortVlan, _parseTrunkVlans, _siteNativeVlan } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _effPortVlan, _parseTrunkVlans, _siteNativeVlan, _vlansToRangeStr } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _portDisplayName, _focusLagForPort, getPassivePortLagInfo } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _cancelLink } from './app-pointer.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
+import { _sharedSegmentHtml } from './app-shared-segment.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 
 export function _findProjectLinkByPorts(a,b){
     if(!a||!b) return null;
@@ -277,7 +278,7 @@ ${(()=>{
     const tLink = store.state.links.find(l=>_linkTouchesPort(l, pid) && l.mode==='trunk');
     const isTrunk = pi.isTrunk || !!tLink;
     if(isTrunk){
-        const vlanStr = tLink?.trunkVlans || (pi.trunkVlans&&pi.trunkVlans.length?win._vlansToRangeStr(pi.trunkVlans):'');
+        const vlanStr = tLink?.trunkVlans || (pi.trunkVlans&&pi.trunkVlans.length?_vlansToRangeStr(pi.trunkVlans):'');
         const vlanNativaRow = isActiveNode
             ? `<div class="port-row">
   <label>${t('pnl.misc.nativeVlan')}</label>
@@ -330,7 +331,7 @@ ${vlanNativaRow}
     }
 })()}
 <div class="pop-conn">${t('pnl.misc.connectedTo')} ${connText}</div>
-${win._sharedSegmentHtml(pid,'popup')}
+${_sharedSegmentHtml(pid,'popup')}
 ${(()=>{
     const portNode=getNodeByPortId(pid);
     const isActive=portNode&&TYPES[portNode.type]?.isActive;
