@@ -16,6 +16,7 @@ import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: fun
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { absorbNodeAsVm } from './app-hypervisor.js';   // import di un tile come VM (drop sulla zona nel pannello host)
+import { focusNode, renderRackTabs, switchRack, toggleRackPanel, updateTransforms } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 
 // soglia drag/click (px): unico lettore era questo modulo → module-local
 const _DRAG_THRESHOLD_PX = 5;
@@ -198,7 +199,7 @@ function handleDrop(e,zone){
     }
     store.selId=n.id; store.selType='node';
     renderAll(); markDirty();
-    if(TYPES[n.type]?.isFloor && !TYPES[n.type]?.isStructural) win.focusNode(n);
+    if(TYPES[n.type]?.isFloor && !TYPES[n.type]?.isStructural) focusNode(n);
 }
 
 // ============================================================
@@ -351,10 +352,10 @@ function handlePointerDown(e){
                         }
                         if(_tgtRack){
                             if(typeof store._rackCollapsed !== 'undefined' && store._rackCollapsed &&
-                               typeof win.toggleRackPanel === 'function') win.toggleRackPanel();
+                               typeof toggleRackPanel === 'function') toggleRackPanel();
                             if(_tgtRack !== store.state.currentRack){
                                 store.state.currentRack = _tgtRack;
-                                win.renderRackTabs();
+                                renderRackTabs();
                             }
                         }
                         switchRightTab('rack');
@@ -423,9 +424,9 @@ function handlePointerDown(e){
                 const _now=Date.now();
                 if(win._rackFloorDblId===rackId && (_now-win._rackFloorDblTime)<350){
                     win._rackFloorDblId=null; win._rackFloorDblTime=0;
-                    if(store._rackCollapsed) win.toggleRackPanel();
+                    if(store._rackCollapsed) toggleRackPanel();
                     win._hoverRackId=null;
-                    win.switchRack(rackId);
+                    switchRack(rackId);
                     switchRightTab('rack');
                     renderTopoOverlay();
                     return;
@@ -434,7 +435,7 @@ function handlePointerDown(e){
                 // (nessun ritorno: prosegue ad armare il drag come in map mode)
             }
             // Arma il potenziale drag senza switchare subito al rack.
-            // Lo win.switchRack + apertura tab Rack sara' fatta in pointerup SOLO
+            // Lo switchRack + apertura tab Rack sara' fatta in pointerup SOLO
             // se non c'e' stato trascinamento (threshold 5px). Cosi' il click
             // puro e' uniforme a Topology, e il drag continua a funzionare.
             store.dragRack=rackId;
@@ -532,7 +533,7 @@ function handlePointerMove(e){
     }
     if(win.isPanningFloor){
         store.state.floorView.x=e.clientX-win.panStart.x; store.state.floorView.y=e.clientY-win.panStart.y;
-        win.updateTransforms();
+        updateTransforms();
     } else if(win.isPanningRack){
         // Pan via TRANSFORM translate sul wrap, come il floor: lo zoom del rack e'
         // un transform:scale, quindi lo SCROLL non potrebbe muovere il contenuto
@@ -708,9 +709,9 @@ function handlePointerUp(e){
                 // Map: single click puro apre la rack window.
                 const _rid = store.dragRack;
                 if(typeof store._rackCollapsed !== 'undefined' && store._rackCollapsed &&
-                   typeof win.toggleRackPanel === 'function') win.toggleRackPanel();
-                if(_rid !== store.state.currentRack && typeof win.switchRack === 'function'){
-                    win.switchRack(_rid);
+                   typeof toggleRackPanel === 'function') toggleRackPanel();
+                if(_rid !== store.state.currentRack && typeof switchRack === 'function'){
+                    switchRack(_rid);
                 }
                 switchRightTab('rack');
                 renderAll();
@@ -718,7 +719,7 @@ function handlePointerUp(e){
                 // Topologia: single click NON apre (apre il doppio click), ma
                 // SELEZIONA il rack → diventa attivo e fa glow (come gli altri
                 // device selezionati). Il single press resta libero per il drag.
-                if(store.dragRack !== store.state.currentRack && typeof win.switchRack === 'function') win.switchRack(store.dragRack);
+                if(store.dragRack !== store.state.currentRack && typeof switchRack === 'function') switchRack(store.dragRack);
             }
             store.dragRack=null; win._renderModeIndicator();
         }
@@ -811,10 +812,10 @@ function handleDoubleClick(e){
             }
             if(_tgtRack){
                 if(typeof store._rackCollapsed !== 'undefined' && store._rackCollapsed &&
-                   typeof win.toggleRackPanel === 'function') win.toggleRackPanel();
+                   typeof toggleRackPanel === 'function') toggleRackPanel();
                 if(_tgtRack !== store.state.currentRack){
                     store.state.currentRack = _tgtRack;
-                    win.renderRackTabs();
+                    renderRackTabs();
                 }
             }
             switchRightTab('rack');

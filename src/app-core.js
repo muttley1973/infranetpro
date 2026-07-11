@@ -8,6 +8,7 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { pushHistory, _invalidateIdx, logAudit } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { renderRackTabs, updateTransforms } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 
 const API = '/api/projects';
 
@@ -59,7 +60,7 @@ async function loadProject(id) {
     win._clearDirty();
     win._stopAutoPoll();
     if(store.state.autoPoll?.enabled) win._startAutoPoll();
-    win.renderRackTabs(); win.updateTransforms(); renderAll();
+    renderRackTabs(); updateTransforms(); renderAll();
     document.title = `InfraNet Pro — ${proj.name}`;
 }
 
@@ -91,7 +92,7 @@ async function newProject() {
         win._history=[]; win._histIdx=-1; win._updateHistoryBtns();
         win._clearDirty();
         await loadProjectList();
-        win.renderRackTabs(); win.updateTransforms(); renderAll();
+        renderRackTabs(); updateTransforms(); renderAll();
         document.title = `InfraNet Pro — ${proj.name}`;
     });
 }
@@ -125,7 +126,7 @@ async function duplicateProject() {
         win._history=[]; win._histIdx=-1; win._updateHistoryBtns();
         win._clearDirty();
         await loadProjectList();
-        win.renderRackTabs(); win.updateTransforms(); renderAll();
+        renderRackTabs(); updateTransforms(); renderAll();
         document.title = `InfraNet Pro — ${proj.name}`;
     });
 }
@@ -186,7 +187,7 @@ async function _initApp() {
         console.warn('Server non disponibile:', e.message);
         win._loadDefaultLocal();
         pushHistory();
-        win.renderRackTabs(); win.updateTransforms(); renderAll();
+        renderRackTabs(); updateTransforms(); renderAll();
     }
 }
 

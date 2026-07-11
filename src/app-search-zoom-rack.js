@@ -126,13 +126,13 @@ function selectSearchResult(index) {
         renderAll(); focusNode(rn||sn||dn);
     }
 }
-function ensureNodeRackVisible(n){
+export function ensureNodeRackVisible(n){
     if(n&&TYPES[n.type]?.isRack&&n.rackId&&n.rackId!==store.state.currentRack){
         store.state.currentRack=n.rackId; renderRackTabs();
     }
 }
 function selectAndFocusNode(n){ensureNodeRackVisible(n);store.selType='node';store.selId=n.id;renderAll();focusNode(n);}
-function focusNode(n){
+export function focusNode(n){
     if(!n) return;
     const def=TYPES[n.type];
     if(def?.isFloor){
@@ -155,7 +155,7 @@ function focusNode(n){
 // ============================================================
 // ZOOM & PAN
 // ============================================================
-function updateTransforms(){
+export function updateTransforms(){
     document.getElementById('floor-canvas').style.transform=`translate(${store.state.floorView.x}px,${store.state.floorView.y}px) scale(${store.state.floorView.zoom})`;
     document.getElementById('floor-zoom-lbl').innerText=Math.round(store.state.floorView.zoom*100)+'%';
     document.getElementById('rack-chassis-wrap').style.transform=`translate(${store.state.rackView.x||0}px,${store.state.rackView.y||0}px) scale(${store.state.rackView.zoom})`;
@@ -202,7 +202,7 @@ function handleRackZoom(e){e.preventDefault();zoomRack(e.deltaY>0?-0.1:0.1);}
 // module-local `let` lo nasconderebbe nell'IIFE del bundle → ReferenceError.
 store._rackCollapsed = store._rackCollapsed || false;
 
-function toggleRackPanel(){
+export function toggleRackPanel(){
     const rv = document.getElementById('rack-view');
     const ic = document.getElementById('rack-collapse-icon');
     const dv = document.getElementById('floor-rack-divider');
@@ -468,7 +468,7 @@ function toggleRackOnFloor(){
     renderAll(); markDirty();
 }
 
-function renderRackTabs(){
+export function renderRackTabs(){
     const sel=document.getElementById('rack-select'); sel.innerHTML='';
     store.state.racks.forEach(r=>{
         if(!r.sizeU)r.sizeU=42;
@@ -480,7 +480,7 @@ function renderRackTabs(){
     document.getElementById('rack-size-input').value=win.getRackSize();
     _updateRackFloorBtn();
 }
-function switchRack(id){
+export function switchRack(id){
     store.state.currentRack=id;
     // Non azzeriamo store.linkStart: consente di completare un collegamento cross-rack
     // cambiando rack e cliccando la porta destinazione
