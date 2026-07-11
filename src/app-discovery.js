@@ -4,6 +4,7 @@ import { escapeHTML, uid, normalizeMacAddress } from './app-util.js';
 import { markDirty, pushHistory, renderCables, _showToast, _nextNodeId } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
+import { focusNode, switchRack } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 
 // Nome DISPLAY per la tabella Scopri e per il nome del nodo importato. L'utente legge la
 // RIGA (Nome -> Vendor -> Tipo, gia' in colonne separate) e fa l'abbinamento da solo:
@@ -1062,9 +1063,9 @@ async function importDiscovered(){
             const first=_importedEndpoints[0];
             selId=first.id; selType='node';
             renderAll();
-            win.focusNode(first);
+            focusNode(first);
         } else if(imported - floorCount > 0){
-            win.switchRack(rackId);
+            switchRack(rackId);
         }
         const parts = [];
         if(imported - floorCount > 0) parts.push(_dt('disc.imp.inRack','{n} in rack',{n:imported - floorCount}));

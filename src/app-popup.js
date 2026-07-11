@@ -13,6 +13,7 @@ import { renderTopoOverlay } from './app-topology-overlay.js';   // ritiro ponte
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
+import { ensureNodeRackVisible, renderRackTabs } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 
 function _findProjectLinkByPorts(a,b){
     if(!a||!b) return null;
@@ -34,7 +35,7 @@ function _selectProjectLink(linkId, opts={}){
     const rackId=TYPES[sn?.type]?.isRack?sn.rackId:(TYPES[dn?.type]?.isRack?dn.rackId:null);
     if(rackId&&rackId!==store.state.currentRack){
         store.state.currentRack=rackId;
-        win.renderRackTabs();
+        renderRackTabs();
     }
     renderAll();
     renderCables();
@@ -66,7 +67,7 @@ function _showPhysicalCablePath(linkId){
     const rackId=TYPES[sn?.type]?.isRack?sn.rackId:(TYPES[dn?.type]?.isRack?dn.rackId:null);
     if(rackId&&rackId!==store.state.currentRack){
         store.state.currentRack=rackId;
-        win.renderRackTabs();
+        renderRackTabs();
     }
     document.body.classList.add('physical-trace-active');
     // Apri la fisarmonica "Percorso fisico" PRIMA, poi switchRightTab('props')
@@ -90,7 +91,7 @@ function selectPathSegment(linkId){
     const _rackPid = win.isRackPort(l.src) ? l.src : (win.isRackPort(l.dst) ? l.dst : null);
     if(_rackPid){
         const _rn = getNodeByPortId(_rackPid);
-        if(_rn && typeof win.ensureNodeRackVisible === 'function') win.ensureNodeRackVisible(_rn);
+        if(_rn && typeof ensureNodeRackVisible === 'function') ensureNodeRackVisible(_rn);
         // Arma l'hold SULLA SELEZIONE: finche' questo link resta selezionato,
         // _activatePropsTab (richiamato da OGNI renderProps) non ri-forza la tab
         // 'props' — altrimenti la tab Rack si richiuderebbe al primo re-render.

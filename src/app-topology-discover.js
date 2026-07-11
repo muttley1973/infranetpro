@@ -5,6 +5,7 @@ import { renderTopoOverlay } from './app-topology-overlay.js';   // ritiro ponte
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { switchRack, updateTransforms } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 
 // ============================================================
 // TOPOLOGIA — discovery e grafo (glue estratto da app.js, R7)
@@ -381,7 +382,7 @@ function _createTopoLink(pairKey){
 // ---- Navigazione ------------------------------------------------------------
 
 function navigateToRack(rackId){
-    win._hideTopoTip(); win.switchRack(rackId);
+    win._hideTopoTip(); switchRack(rackId);
     const rack=store.state.racks.find(r=>r.id===rackId);
     if(rack&&rack.x!==undefined) _centerFloorOn(rack.x,rack.y);
 }
@@ -390,7 +391,7 @@ function _centerFloorOn(x,y){
     const fp=document.getElementById('floorplan');
     store.state.floorView.x=fp.clientWidth /2-x*store.state.floorView.zoom;
     store.state.floorView.y=fp.clientHeight/2-y*store.state.floorView.zoom;
-    win.updateTransforms();
+    updateTransforms();
 }
 
 // ---- Highlight rack→planimetria ---------------------------------------------

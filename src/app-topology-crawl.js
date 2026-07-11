@@ -16,6 +16,7 @@ import { escapeHTML, uid, normalizeNumber, normalizeMacAddress } from './app-uti
 import { markDirty, pushHistory, renderCables, _showToast, _nextNodeId } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
+import { switchRack } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 
 // ============================================================
 // TOPOLOGY CRAWL FRONTEND
@@ -340,7 +341,7 @@ function importTopoCrawl(){
     renderAll();
     renderCables();
     closeTopoCrawl();
-    if(imported - floorCount > 0) win.switchRack(rackId);
+    if(imported - floorCount > 0) switchRack(rackId);
     const parts = [];
     if(imported - floorCount > 0) parts.push(`${imported - floorCount} in rack`);
     if(floorCount > 0) parts.push(`${floorCount} in planimetria`);

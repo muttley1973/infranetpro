@@ -16,6 +16,7 @@ import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName
 import { renderProps, _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
+import { focusNode, renderRackTabs } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 
 let _sharedBindState = null; // stato wizard bind (module-local, nessun lettore esterno)
 function _macRowsForPort(pid, opts={}){
@@ -140,13 +141,13 @@ function _sharedSegmentNodeOpen(pid){
     if(!n) return;
     if(TYPES[n.type]?.isRack && n.rackId && n.rackId !== store.state.currentRack){
         store.state.currentRack = n.rackId;
-        win.renderRackTabs();
+        renderRackTabs();
     }
     store.selType = 'node';
     store.selId = n.id;
     renderAll();
     renderProps();
-    if(typeof win.focusNode === 'function') win.focusNode(n);
+    if(typeof focusNode === 'function') focusNode(n);
     win.closePop();
 }
 
@@ -725,7 +726,7 @@ function _createSharedSegmentNode(pid, role){
     store.state.ports[pid].sharedSegmentNodeId = n.id;
     store.selType = 'node'; store.selId = n.id;
     markDirty(); renderAll(); renderCables(); renderProps();
-    if(TYPES[n.type]?.isFloor) win.focusNode(n);
+    if(TYPES[n.type]?.isFloor) focusNode(n);
     win.closePop();
     _showToast(t('msg.rack.intermediateCreated',{role:_sharedSegmentRoleLabel(role)}), 'ok', 4200);
 }
