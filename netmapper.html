@@ -79,7 +79,7 @@
             <i class="fas fa-search"></i>
             <input id="global-search" type="search" data-i18n-ph="search.ph" placeholder="Cerca dispositivi, porte, link…" autocomplete="off"
                    oninput="handleSearchInput(this.value)" onfocus="handleSearchInput(this.value)" onkeydown="handleSearchKey(event)">
-            <button id="global-search-clear" data-i18n-tip="search.clearTip" data-tip="Cancella" onclick="clearSearch()"><i class="fas fa-times"></i></button>
+            <button id="global-search-clear" data-i18n-tip="search.clearTip" data-tip="Cancella" data-act="search-clear"><i class="fas fa-times"></i></button>
         </div>
         <div id="search-results"></div>
     </div>
@@ -197,20 +197,20 @@
                 <div class="sidebar-palette-head">
                     <h3 class="sidebar-title" data-i18n="palette.title">Libreria elementi</h3>
                     <div class="sidebar-palette-actions">
-                        <button type="button" class="sidebar-mini-btn" onclick="setPaletteGroupsExpanded(true)" data-i18n-tip="palette.expandAll" data-tip="Espandi tutte le sezioni"><i class="fas fa-angles-down"></i></button>
-                        <button type="button" class="sidebar-mini-btn" onclick="setPaletteGroupsExpanded(false)" data-i18n-tip="palette.collapseAll" data-tip="Comprimi tutte le sezioni"><i class="fas fa-angles-up"></i></button>
+                        <button type="button" class="sidebar-mini-btn" data-act="palette-expand" data-val="1" data-i18n-tip="palette.expandAll" data-tip="Espandi tutte le sezioni"><i class="fas fa-angles-down"></i></button>
+                        <button type="button" class="sidebar-mini-btn" data-act="palette-expand" data-val="0" data-i18n-tip="palette.collapseAll" data-tip="Comprimi tutte le sezioni"><i class="fas fa-angles-up"></i></button>
                     </div>
                 </div>
                 <div class="sidebar-search-wrap">
                     <i class="fas fa-magnifying-glass"></i>
                     <input id="palette-search" type="text" data-i18n-ph="palette.search" placeholder="Cerca elemento..." oninput="filterPaletteItems(this.value)">
-                    <button id="palette-search-clear" type="button" class="sidebar-search-clear" onclick="clearPaletteFilter()" data-i18n-tip="palette.clearSearch" data-tip="Pulisci ricerca">
+                    <button id="palette-search-clear" type="button" class="sidebar-search-clear" data-act="palette-filter-clear" data-i18n-tip="palette.clearSearch" data-tip="Pulisci ricerca">
                         <i class="fas fa-xmark"></i>
                     </button>
                 </div>
 
                 <section class="palette-group" data-palette-group="ambienti">
-                    <button type="button" class="palette-group-head" onclick="togglePaletteGroup('ambienti')" aria-expanded="true">
+                    <button type="button" class="palette-group-head" data-act="palette-group" data-group="ambienti" aria-expanded="true">
                         <span><i class="far fa-square"></i> <span data-i18n="pgroup.ambienti">Ambienti</span></span>
                         <i class="fas fa-chevron-down palette-group-chevron"></i>
                     </button>
@@ -220,7 +220,7 @@
                 </section>
 
                 <section class="palette-group" data-palette-group="floor_net">
-                    <button type="button" class="palette-group-head" onclick="togglePaletteGroup('floor_net')" aria-expanded="true">
+                    <button type="button" class="palette-group-head" data-act="palette-group" data-group="floor_net" aria-expanded="true">
                         <span><i class="fas fa-diagram-project"></i> <span data-i18n="pgroup.floor_net">Planimetria · Rete</span></span>
                         <i class="fas fa-chevron-down palette-group-chevron"></i>
                     </button>
@@ -231,7 +231,7 @@
                 </section>
 
                 <section class="palette-group" data-palette-group="floor_endpoints">
-                    <button type="button" class="palette-group-head" onclick="togglePaletteGroup('floor_endpoints')" aria-expanded="true">
+                    <button type="button" class="palette-group-head" data-act="palette-group" data-group="floor_endpoints" aria-expanded="true">
                         <span><i class="fas fa-laptop"></i> <span data-i18n="pgroup.floor_endpoints">Planimetria · Endpoint</span></span>
                         <i class="fas fa-chevron-down palette-group-chevron"></i>
                     </button>
@@ -254,7 +254,7 @@
                 </section>
 
                 <section class="palette-group" data-palette-group="rack_passive">
-                    <button type="button" class="palette-group-head" onclick="togglePaletteGroup('rack_passive')" aria-expanded="true">
+                    <button type="button" class="palette-group-head" data-act="palette-group" data-group="rack_passive" aria-expanded="true">
                         <span><i class="fas fa-layer-group"></i> <span data-i18n="pgroup.rack_passive">Rack · Passivi</span></span>
                         <i class="fas fa-chevron-down palette-group-chevron"></i>
                     </button>
@@ -266,7 +266,7 @@
                 </section>
 
                 <section class="palette-group" data-palette-group="rack_active">
-                    <button type="button" class="palette-group-head" onclick="togglePaletteGroup('rack_active')" aria-expanded="true">
+                    <button type="button" class="palette-group-head" data-act="palette-group" data-group="rack_active" aria-expanded="true">
                         <span><i class="fas fa-server"></i> <span data-i18n="pgroup.rack_active">Rack · Attivi</span></span>
                         <i class="fas fa-chevron-down palette-group-chevron"></i>
                     </button>
@@ -295,16 +295,16 @@
         </aside>
 
         <div id="sidebar-divider" data-tip="Trascina per ridimensionare · Clic per nascondere/mostrare palette">
-            <div id="sidebar-collapse-btn" onclick="toggleSidebarPanel()" data-tip="Nascondi/mostra palette">
+            <div id="sidebar-collapse-btn" data-act="sidebar-toggle" data-tip="Nascondi/mostra palette">
                 <i class="fas fa-chevron-left" id="sidebar-collapse-icon"></i>
             </div>
         </div>
 
         <main id="floorplan" ondragover="event.preventDefault();" ondrop="handleDrop(event,'floor')" onwheel="handleFloorZoom(event)">
             <div class="zoom-controls" style="left:14px;right:auto">
-                <button class="zoom-btn" onclick="zoomFloor(-0.1)"><i class="fas fa-minus"></i></button>
+                <button class="zoom-btn" data-act="zoom-floor" data-delta="-0.1"><i class="fas fa-minus"></i></button>
                 <span class="zoom-label" id="floor-zoom-lbl">100%</span>
-                <button class="zoom-btn" onclick="zoomFloor(0.1)"><i class="fas fa-plus"></i></button>
+                <button class="zoom-btn" data-act="zoom-floor" data-delta="0.1"><i class="fas fa-plus"></i></button>
             </div>
             <div id="floor-canvas">
                 <img id="floor-bg-img" src="" alt="mappa">
@@ -330,7 +330,7 @@
         </main>
 
         <div id="floor-rack-divider" data-tip="Trascina per ridimensionare · Clic per nascondere/mostrare rack">
-            <div id="rack-collapse-btn" onclick="toggleRackPanel()" data-tip="Nascondi/mostra rack">
+            <div id="rack-collapse-btn" data-act="rack-panel-toggle" data-tip="Nascondi/mostra rack">
                 <i class="fas fa-chevron-right" id="rack-collapse-icon"></i>
             </div>
         </div>
@@ -401,19 +401,19 @@
                 <div class="rack-header rack-header-floating">
                     <select id="rack-select" onchange="switchRack(this.value)"></select>
                     <div id="rack-menu-wrap" style="position:relative">
-                        <button class="toolbar-btn" id="rack-menu-btn" style="margin:0;padding:3px 9px" onclick="toggleRackMenu()" data-tip="Gestione rack">
+                        <button class="toolbar-btn" id="rack-menu-btn" style="margin:0;padding:3px 9px" data-act="rack-menu-toggle" data-tip="Gestione rack">
                             <i class="fas fa-server"></i> Rack <i class="fas fa-chevron-down" style="font-size:0.62rem;opacity:.7;margin-left:4px"></i>
                         </button>
                         <div id="rack-menu-dropdown" class="rack-menu-dropdown" style="display:none">
-                            <button class="rack-menu-item" onclick="addRack();closeRackMenu()"><i class="fas fa-plus"></i> <span data-i18n="rack.new">Nuovo rack</span></button>
-                            <button class="rack-menu-item" onclick="renameRack();closeRackMenu()"><i class="fas fa-pen"></i> <span data-i18n="rack.rename">Rinomina rack</span></button>
+                            <button class="rack-menu-item" data-act="rack-add"><i class="fas fa-plus"></i> <span data-i18n="rack.new">Nuovo rack</span></button>
+                            <button class="rack-menu-item" data-act="rack-rename"><i class="fas fa-pen"></i> <span data-i18n="rack.rename">Rinomina rack</span></button>
                             <div class="rack-menu-size-row">
                                 <span data-i18n="rack.size">Dimensione</span>
                                 <label class="rack-size-control">U <input id="rack-size-input" type="number" min="6" max="60" value="42" onchange="updateRackSize(this.value)"></label>
                             </div>
-                            <button class="rack-menu-item" id="btn-rack-floor" onclick="toggleRackOnFloor();closeRackMenu()" data-i18n-tip="rack.onFloorTip" data-tip="Piazza/rimuovi questo rack dalla planimetria"><i class="fas fa-map-pin"></i> <span data-i18n="rack.onFloor">Piazza su planimetria</span></button>
-                            <button class="rack-menu-item" id="btn-rack-unum" onclick="toggleRackUNumbering();closeRackMenu()" data-i18n-tip="rack.uNumTip" data-tip="Inverte solo la visualizzazione: 1 in alto come nei rack telco/ETSI"><i class="fas fa-arrows-up-down"></i> <span id="btn-rack-unum-label" data-i18n="rack.uNumFromTop">Numerazione U dall'alto</span></button>
-                            <button class="rack-menu-item danger" onclick="deleteCurrentRack();closeRackMenu()"><i class="fas fa-trash"></i> <span data-i18n="rack.delete">Elimina rack</span></button>
+                            <button class="rack-menu-item" id="btn-rack-floor" data-act="rack-on-floor" data-i18n-tip="rack.onFloorTip" data-tip="Piazza/rimuovi questo rack dalla planimetria"><i class="fas fa-map-pin"></i> <span data-i18n="rack.onFloor">Piazza su planimetria</span></button>
+                            <button class="rack-menu-item" id="btn-rack-unum" data-act="rack-unumber" data-i18n-tip="rack.uNumTip" data-tip="Inverte solo la visualizzazione: 1 in alto come nei rack telco/ETSI"><i class="fas fa-arrows-up-down"></i> <span id="btn-rack-unum-label" data-i18n="rack.uNumFromTop">Numerazione U dall'alto</span></button>
+                            <button class="rack-menu-item danger" data-act="rack-delete"><i class="fas fa-trash"></i> <span data-i18n="rack.delete">Elimina rack</span></button>
                         </div>
                     </div>
                 </div>
@@ -421,9 +421,9 @@
                 <div id="cross-rack-banner"></div>
                 <div id="lag-sel-banner"></div>
                 <div class="zoom-controls">
-                    <button class="zoom-btn" onclick="zoomRack(-0.1)"><i class="fas fa-minus"></i></button>
+                    <button class="zoom-btn" data-act="zoom-rack" data-delta="-0.1"><i class="fas fa-minus"></i></button>
                     <span class="zoom-label" id="rack-zoom-lbl">100%</span>
-                    <button class="zoom-btn" onclick="zoomRack(0.1)"><i class="fas fa-plus"></i></button>
+                    <button class="zoom-btn" data-act="zoom-rack" data-delta="0.1"><i class="fas fa-plus"></i></button>
                 </div>
                 <div id="rack-chassis-wrap">
                     <div id="rack-ruler"></div>

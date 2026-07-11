@@ -6,6 +6,7 @@
 // I globali legacy si leggono via win.*; t (i18n) dal ponte.
 // ============================================================
 import { expose, t } from './_bridge.js';
+import { registerClickActions } from './app-delegation.js';   // ASSE B: event delegation (data-act) — toolbar rack/zoom/palette
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, hexToRgba, normalizeStatus, normalizeNumber } from './app-util.js';
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _showToast, getRackById, getRackName, getNodeRackSize, getPortConnectionCount, getNodePortCount, getRackSize, _repairRackPlacements, removeNodePorts, _resetSelection } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
@@ -712,25 +713,42 @@ function fitBgImageToCanvas(){
 expose({
     // search
     getSearchIcon, getPortSummary, buildSearchResults,
-    handleSearchInput, handleSearchKey, renderSearchResults, clearSearch,
+    handleSearchInput, handleSearchKey, renderSearchResults,
     selectSearchResult, ensureNodeRackVisible, selectAndFocusNode, focusNode,
     // zoom & pan
-    updateTransforms, applyUiColors, zoomFloor, zoomRack,
+    updateTransforms, applyUiColors,
     handleFloorZoom, handleRackZoom,
-    // divider
-    toggleRackPanel, toggleSidebarPanel,
     // palette
-    togglePaletteGroup, setPaletteGroupsExpanded, filterPaletteItems,
-    clearPaletteFilter, initPaletteUi,
+    filterPaletteItems, initPaletteUi,
     // menu rack/floor
-    toggleRackMenu, closeRackMenu, toggleFloorMenu, closeFloorMenu,
+    toggleFloorMenu, closeFloorMenu,
     _updateFloorMenuState, _updateFloorToolbarVisibility,
     // rack management
-    _updateRackFloorBtn, toggleRackOnFloor, renderRackTabs, switchRack,
-    addRack, renameRack, moveNodeToRack, updateRackSize,
-    toggleRackUNumbering, _updateRackUNumLabel, deleteCurrentRack,
+    _updateRackFloorBtn, renderRackTabs, switchRack,
+    moveNodeToRack, updateRackSize, _updateRackUNumLabel,
     // map import
     handleMapUpload, clearMap, scaleBgImageTo, scaleBgImage, setBgImageOpacity, toggleFloorGrid,
     toggleBgImageLock, toggleRoomLock, _liveStructColor, _liveStructOpacity,
     fitBgImageToCanvas,
+});
+
+// ── ASSE B (ritiro onclick inline): superficie TOOLBAR rack/zoom/palette ──────
+// Queste 15 funzioni NON sono più su window/expose: i bottoni della toolbar le
+// chiamano via `data-act` (event delegation). Gli argomenti stanno in data-*.
+// Registrate qui (module-load) — sono in scope; initDelegation() è in bindEventsOnce.
+registerClickActions({
+    'search-clear':        () => clearSearch(),
+    'palette-expand':      (el) => setPaletteGroupsExpanded(el.dataset.val === '1'),
+    'palette-filter-clear': () => clearPaletteFilter(),
+    'palette-group':       (el) => togglePaletteGroup(el.dataset.group),
+    'sidebar-toggle':      () => toggleSidebarPanel(),
+    'zoom-floor':          (el) => zoomFloor(parseFloat(el.dataset.delta)),
+    'zoom-rack':           (el) => zoomRack(parseFloat(el.dataset.delta)),
+    'rack-panel-toggle':   () => toggleRackPanel(),
+    'rack-menu-toggle':    () => toggleRackMenu(),
+    'rack-add':            () => { addRack(); closeRackMenu(); },
+    'rack-rename':         () => { renameRack(); closeRackMenu(); },
+    'rack-on-floor':       () => { toggleRackOnFloor(); closeRackMenu(); },
+    'rack-unumber':        () => { toggleRackUNumbering(); closeRackMenu(); },
+    'rack-delete':         () => { deleteCurrentRack(); closeRackMenu(); },
 });
