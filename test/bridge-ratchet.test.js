@@ -239,6 +239,28 @@ test('ponte: le funzioni topo/discovery/vlan/snmp non sono più lette da win.*',
   }
 });
 
+// ── 1m) Funzioni getter/label/props/disc ritirate del tutto (reads + calls) ──
+// Ritiro ponte 2026-07-11: 11 funzioni — getter di app.js (`getWallPortLabel`,
+// `getRackName`, `getPortMaxConnections`, `_clearDirty`, `_patchPanelOffset`),
+// `_findFreeU` (app-topology-crawl.js), `_autoLinkEndpoint` (app-autolink.js),
+// `_frontPanelPortLabel` (app-types.js), `_buildPropsHeader` (app-properties.js),
+// `_discIdentitySource`/`_discFindExistingDevice` (app-discovery-classify.js). `export
+// function` + `import` nei consumatori. Trappola alias-block (app-properties-node.js:
+// `_buildPropsHeader = win._buildPropsHeader`/`_patchPanelOffset = win._patchPanelOffset`)
+// risolta rimuovendo i declaratori e importando (3ª ricorrenza dell'epic). Restano in
+// expose() (export.js legge _autoLinkEndpoint via lib/drift-adopt). app-csv-import.js ha
+// perso l'ultimo win → PRIMO modulo senza import `win` dal ponte.
+const RETIRED_GETTER_FN = ['getWallPortLabel', 'getRackName', 'getPortMaxConnections',
+  '_clearDirty', '_patchPanelOffset', '_findFreeU', '_autoLinkEndpoint',
+  '_frontPanelPortLabel', '_buildPropsHeader', '_discIdentitySource', '_discFindExistingDevice'];
+test('ponte: le funzioni getter/label/props/disc non sono più lette da win.*', () => {
+  for (const sym of RETIRED_GETTER_FN) {
+    const viaWin = countInCode(new RegExp('\\bwin\\.' + sym + '\\b', 'g'));
+    assert.equal(viaWin, 0,
+      `win.${sym} è tornato: importa { ${sym} } dal suo modulo definitore`);
+  }
+});
+
 // ── 2) Cricchetto sul totale: il ponte può solo restringersi ────────────────
 // Conteggio SOLO-CODICE (commenti esclusi) delle letture win.*. Tetto stretto al
 // valore reale corrente: abbassalo al numero che il test stampa ([ratchet] …)
@@ -420,7 +442,15 @@ test('ponte: le funzioni topo/discovery/vlan/snmp non sono più lette da win.*',
 // (cicli hoisted-safe). `trace` (nome corto) verificato senza binding locale in conflitto.
 // Restano in expose() (export.js legge _parseTrunkVlans). Golden invariante; e2e 69/69.
 // Delta 61 non 63: 2 win.X in commenti. Vedi RETIRED_MISC_FN.
-const MAX_WIN_REFS = 683;
+//
+// −51 (683 → 632, 2026-07-11): RITIRO PONTE — binario FUNZIONI, getter/label/props/disc.
+// 11 funzioni (5 getter di app.js + _findFreeU/_autoLinkEndpoint/_frontPanelPortLabel/
+// _buildPropsHeader/_discIdentitySource/_discFindExistingDevice). `export function` +
+// `import` merge; 52 win.X via merger + 2 via fix alias-block manuale (app-properties-node.js:
+// declaratori `X = win.X` rimossi + import — 3ª ricorrenza della trappola TDZ). Rimosso
+// l'import `win` ora inutilizzato da app-csv-import.js (PRIMO modulo senza ponte). Golden
+// invariante (tocca _buildPropsHeader/_frontPanelPortLabel); e2e 69/69. Vedi RETIRED_GETTER_FN.
+const MAX_WIN_REFS = 632;
 
 test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => {
   const total = countInCode(/\bwin\./g);

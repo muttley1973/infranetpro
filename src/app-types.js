@@ -7,6 +7,7 @@
 // NODE_ID_PREFIX esposto (lo legge _nextNodeId in app.js); il resto è module-local.
 // ============================================================
 import { win, expose, t } from './_bridge.js';
+import { _patchPanelOffset } from './app.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
 
 // Catalogo immutabile dei tipi di dispositivo. Costante: definita una volta,
 // mai riassegnata → esportata come `const` (RITIRO PONTE fase 1, 2026-06-21).
@@ -276,16 +277,16 @@ function _frontPanelShortIfName(v){
     return compact;
 }
 
-function _frontPanelPortLabel(node, portNum, portCount){
+export function _frontPanelPortLabel(node, portNum, portCount){
     // Delega a win.frontPanelPortLabel (lib/frontpanel.js) che gestisce la
     // numerazione SFP custom (sfpStartNum + sfpPrefix). Aggiungiamo il
     // lookup mgmtEligible da TYPES come per _frontPanelState.
     const mgmtEligible = !!(node && TYPES[node.type] && TYPES[node.type].mgmtEligible);
     // Patch panel: applica l'offset di numerazione progressiva (catena
-    // ppContinueFrom / startNum manuale). win._patchPanelOffset vive in app.js e
+    // ppContinueFrom / startNum manuale). _patchPanelOffset vive in app.js e
     // conosce lo state globale; la logica di calcolo e' pura (panelNumberOffset).
-    if(node && node.type==='patchpanel' && typeof win._patchPanelOffset==='function'){
-        const off = win._patchPanelOffset(node);
+    if(node && node.type==='patchpanel' && typeof _patchPanelOffset==='function'){
+        const off = _patchPanelOffset(node);
         const num = parseInt(portNum, 10);
         if(off && Number.isFinite(num) && String(num)===String(portNum)) return String(num + off);
     }

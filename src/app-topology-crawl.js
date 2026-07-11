@@ -17,7 +17,7 @@ import { markDirty, pushHistory, renderCables, _showToast, _nextNodeId } from '.
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { switchRack } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
-import { _discIndexNode } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { _discIndexNode, _discFindExistingDevice } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 
 // ============================================================
 // TOPOLOGY CRAWL FRONTEND
@@ -265,7 +265,7 @@ function importTopoCrawl(){
     toImport.forEach(d=>{
         const def = TYPES[d.type];
         if(!def) return;
-        const match = win._discFindExistingDevice(d, existingIdx);
+        const match = _discFindExistingDevice(d, existingIdx);
         if(match.conflict?.existing){
             win._discMarkIpMacConflict(match.conflict.existing, d);
             conflicts++;
@@ -351,7 +351,7 @@ function importTopoCrawl(){
     _showToast(parts.join(' · ') || t('msg.net.noChanges'), imported || updated ? 'ok' : 'warn');
 }
 
-function _findFreeU(rackId, sizeU){
+export function _findFreeU(rackId, sizeU){
     const rack = store.state.racks.find(r=>r.id===rackId);
     if(!rack) return 1;
     const rs = rack.sizeU || 42;

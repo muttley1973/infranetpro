@@ -368,7 +368,7 @@ function _findWallPortBehindInfrastructurePort(infraPid, epPid){
  * è il chiamante a decidere (così è componibile in batch all'import).
  * @returns {ok:bool, reason?, swId?, ifName?, created?:bool}
  */
-function _autoLinkEndpoint(nodeId){
+export function _autoLinkEndpoint(nodeId){
     const node = nodeById(nodeId);
     if(!node) return { ok:false, reason:'no-node' };
     // Solo endpoint foglia a porta singola (printer/AP/PC/webcam/voip/…/UPS/PDU).

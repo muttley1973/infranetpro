@@ -217,7 +217,7 @@ function _discAttachMergeGuards(idx){
     return idx;
 }
 
-function _discFindExistingDevice(row, idx = _discExistingIndexes()){
+export function _discFindExistingDevice(row, idx = _discExistingIndexes()){
     const rawMac = normalizeMacAddress(row?.mac || '');
     const ip = _discNorm(row?.ip);
     const host = _discNorm(row?.hostname || row?.netbiosName);
@@ -315,7 +315,7 @@ function _discTouchNodeIdentity(node, row, matchedBy=''){
     }
 }
 
-function _discIdentitySource(row){
+export function _discIdentitySource(row){
     if(!row) return 'observed';
     if(row.snmpReachable || row.objectId) return 'snmp';
     const proto = String(row.viaProtocol || row.protocol || '').toUpperCase();

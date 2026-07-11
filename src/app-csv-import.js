@@ -1,9 +1,10 @@
-import { win, expose, t } from './_bridge.js';
+import { expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid } from './app-util.js';
 import { markDirty, pushHistory, renderCables, _showToast, _nextNodeId } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { _findFreeU } from './app-topology-crawl.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
 
 // ============================================================
 // CSV IMPORT FRONTEND
@@ -127,7 +128,7 @@ function importCsvNodes(){
                 console.warn('[CSV] Nessun rack disponibile per:', r.name);
                 return;
             }
-            const rackU = parseInt(r.rackU, 10) || win._findFreeU(rackId, sU);
+            const rackU = parseInt(r.rackU, 10) || _findFreeU(rackId, sU);
             const n = {
                 id:_nextNodeId(type, usedNodeIds),
                 type,

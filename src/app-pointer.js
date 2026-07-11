@@ -8,7 +8,7 @@
 // ============================================================
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _invalidateIdx, switchRightTab, _showToast, _linksForPort, _nextNodeId, _isRadioPid, logAudit, _renderModeIndicator, _promoteLinkToManual, canAddConnection, _createLinkRecord } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _invalidateIdx, switchRightTab, _showToast, _linksForPort, _nextNodeId, _isRadioPid, logAudit, _renderModeIndicator, _promoteLinkToManual, canAddConnection, _createLinkRecord, getPortMaxConnections } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { propagateVlans } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderTopoOverlay } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -18,7 +18,7 @@ import { TYPES, _ensureNodeSpec } from './app-types.js';   // ritiro ponte fase 
 import { absorbNodeAsVm } from './app-hypervisor.js';   // import di un tile come VM (drop sulla zona nel pannello host)
 import { focusNode, renderRackTabs, switchRack, toggleRackPanel, updateTransforms } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { closePop } from './app-popup.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
-import { _isLeafEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
+import { _isLeafEndpoint, _autoLinkEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
 
 // soglia drag/click (px): unico lettore era questo modulo → module-local
 const _DRAG_THRESHOLD_PX = 5;
@@ -165,7 +165,7 @@ function handleDrop(e,zone){
         pushHistory(); store.state.nodes.push(n);
         // Endpoint trascinato: tenta l'auto-link (di norma vuoto → nessun link finché
         // non si compila il MAC; scatta poi da updateN). Innocuo se la cache è vuota.
-        if(_isLeafEndpoint(t)) win._autoLinkEndpoint(n.id);
+        if(_isLeafEndpoint(t)) _autoLinkEndpoint(n.id);
     } else if(zone==='rack'&&d.isRack){
         if(!store.state.currentRack||!store.state.racks.length) return; // nessun rack presente
         const ch=document.getElementById('rack-chassis');
@@ -192,7 +192,7 @@ function handleDrop(e,zone){
         pushHistory(); store.state.nodes.push(n);
         // UPS/PDU managed sono endpoint foglia: tenta l'auto-link (vuoto al drop,
         // scatta quando si compila il MAC). Innocuo se la cache FDB è vuota.
-        if(_isLeafEndpoint(t)) win._autoLinkEndpoint(n.id);
+        if(_isLeafEndpoint(t)) _autoLinkEndpoint(n.id);
     }
     // Evidenzia e inquadra il nodo appena inserito, così non sembra "sparito"
     // (specie se finisce in una zona del floor fuori dalla vista corrente).
@@ -646,7 +646,7 @@ function _tryFinishLink(tgt){
     }
     if(!canAddConnection(store.linkStart)||!canAddConnection(tgt)){
         const bp=!canAddConnection(store.linkStart)?store.linkStart:tgt;
-        showAlert(t('msg.rack.portMaxConnections',{port:bp,max:win.getPortMaxConnections(bp)}));
+        showAlert(t('msg.rack.portMaxConnections',{port:bp,max:getPortMaxConnections(bp)}));
         _cancelLink(); renderAll(); return true;
     }
     // Tipo di connessione dagli estremi (lib/radio.js): una porta radio si

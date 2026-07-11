@@ -331,7 +331,7 @@ function _propsIconForType(type){
     return TYPES[type]?.icon || 'fa-cube';
 }
 
-function _buildPropsHeader(title, subtitle, iconClass, actionsHtml='', titleClass=''){
+export function _buildPropsHeader(title, subtitle, iconClass, actionsHtml='', titleClass=''){
     // titleClass (opzionale) = modificatore sul titolo. Applicato SOLO se passato, cosi'
     // gli altri pannelli (nome device, porta, cavo) restano byte-identici. Il Contesto
     // progetto passa 'props-title-upper' per il maiuscolo via CSS (il testo nel DOM resta
