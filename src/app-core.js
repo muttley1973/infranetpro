@@ -58,7 +58,7 @@ async function loadProject(id) {
     if(typeof _restoreTopoSession === 'function') _restoreTopoSession();
     store._vlanIpamOpen.clear();
     _invalidateIdx();
-    win._history=[]; win._histIdx=-1; _updateHistoryBtns();
+    store._history=[]; store._histIdx=-1; _updateHistoryBtns();
     _clearDirty();
     _stopAutoPoll();
     if(store.state.autoPoll?.enabled) _startAutoPoll();
@@ -67,7 +67,7 @@ async function loadProject(id) {
 }
 
 async function switchProject(id) {
-    if (win._isDirty) {
+    if (store._isDirty) {
         showConfirm(t('pnl.seg.unsavedChanges'),
             async () => { await loadProject(id); await loadProjectList(); },
             () => { document.getElementById('project-select').value = store.currentProjectId; }
@@ -91,7 +91,7 @@ async function newProject() {
         if(typeof _restoreTopoSession === 'function') _restoreTopoSession();
         store._vlanIpamOpen.clear();
         _invalidateIdx();
-        win._history=[]; win._histIdx=-1; _updateHistoryBtns();
+        store._history=[]; store._histIdx=-1; _updateHistoryBtns();
         _clearDirty();
         await loadProjectList();
         renderRackTabs(); updateTransforms(); renderAll();
@@ -125,7 +125,7 @@ async function duplicateProject() {
         store.state = _migrateState(proj.state);
         if(typeof _restoreTopoSession === 'function') _restoreTopoSession();
         _invalidateIdx();
-        win._history=[]; win._histIdx=-1; _updateHistoryBtns();
+        store._history=[]; store._histIdx=-1; _updateHistoryBtns();
         _clearDirty();
         await loadProjectList();
         renderRackTabs(); updateTransforms(); renderAll();

@@ -101,7 +101,11 @@ const RETIRED_STATE = ['state', 'selId', 'selType', 'dragNode', 'currentProjectI
   '_dragDownPt', '_hoverRackId', '_propsTabHold', '_floorPortClick',
   '_physicalTraceActive', '_propsExplicit', '_rightTab', '_snmpSyncing',
   '_topoHideEndpoints', '_topoHideWireless', '_topoFdbVlanCache', '_discTypeMap',
-  '_focusedLagGroup'];
+  '_focusedLagGroup',
+  // Coda-stato di INTERAZIONE, 3º giro (ritiro ponte 2026-07-11).
+  'panStart', '_linkJustStarted', '_topoTipTimer', '_history', '_histIdx',
+  '_rackPortDblPid', '_rackPortDblTime', '_rackFloorDblId', '_rackFloorDblTime',
+  '_rackDblId', '_rackDblTime', '_paletteDragType', '_isDirty', '_dragModalState'];
 test('ponte: lo stato condiviso è letto solo via store.js (non win.* nei consumatori)', () => {
   for (const sym of RETIRED_STATE) {
     const viaWin = countInCode(new RegExp('\\bwin\\.' + sym + '\\b', 'g'), 'store.js');
@@ -570,7 +574,13 @@ test('ponte: la coda funzioni A batch 2 non è più letta da win.*', () => {
 // app-search-zoom-rack/app-spare, +app-csv-import già dalla 47ª). Il residuo ~322 = lib-script
 // + guardie typeof di lib-fn + stato residuo + inline non ritirabili. Golden invariante;
 // e2e 69/69. Vedi RETIRED_TAIL_FN2.
-const MAX_WIN_REFS = 322;
+//
+// −54 (322 → 268, 2026-07-11): RITIRO PONTE — binario STATO, 3º giro. 14 celle residue
+// (panStart, _linkJustStarted, _topoTipTimer, _history/_histIdx undo-redo, rilevamento
+// doppio-click _rack{,Floor,Port}Dbl{Id,Time,Pid}, _paletteDragType, _isDirty,
+// _dragModalState) → store.js; 55 win.X → store.X in 5 file. store.js proxa ora 64 celle.
+// Golden invariante; e2e 69/69 (drag/pan/dblclick/undo). Vedi RETIRED_STATE (3º giro).
+const MAX_WIN_REFS = 268;
 
 test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => {
   const total = countInCode(/\bwin\./g);
