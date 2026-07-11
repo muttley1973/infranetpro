@@ -9,11 +9,11 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, hexToRgba, normalizeStatus } from './app-util.js';
-import { nodeById, getNodeByPortId, getPortNodeId, renderCables, _linksForPort, _nodeRadios, _renderModeIndicator } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, getNodeByPortId, getPortNodeId, renderCables, _linksForPort, _nodeRadios, _renderModeIndicator, getWallPortLabel } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { propagateVlans, _linkIsTrunk, _effPortVlan } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderTopoOverlay, _renderTopoLegend } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
-import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { TYPES, _frontPanelPortLabel } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { switchRack, toggleRackPanel } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { portTip } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 
@@ -202,7 +202,7 @@ function _renderAllNow(){
                 const _ferr=_snmpOn&&n.snmpStatus==='err'?` style="outline:2px solid #f85149;outline-offset:2px;border-radius:3px"`:'';
                 const _v3BadgeF = (typeof win._v3NeedsCreds === 'function' && win._v3NeedsCreds(n))
                     ? `<span class="floor-v3-badge" title="${t('pnl.gen.v3MissingCreds')}"><i class="fas fa-key"></i></span>` : '';
-                el.innerHTML=`${icon}${_v3BadgeF}<div class="label" style="display:flex;align-items:center;justify-content:center"${_ferr}>${escapeHTML(n.type==='wallport'?win.getWallPortLabel(n):(typeof win._dispName==='function'?win._dispName(n.name):n.name))}</div>${pts}${_radioPortHtml(n)}`;
+                el.innerHTML=`${icon}${_v3BadgeF}<div class="label" style="display:flex;align-items:center;justify-content:center"${_ferr}>${escapeHTML(n.type==='wallport'?getWallPortLabel(n):(typeof win._dispName==='function'?win._dispName(n.name):n.name))}</div>${pts}${_radioPortHtml(n)}`;
                 fI.appendChild(el);
             }
         } else if(def.isRack&&n.rackId===store.state.currentRack){
@@ -241,7 +241,7 @@ function _renderAllNow(){
                     const isUplink=win._frontPanelIsUplink(n, i, pc);
                     const uplinkCls=isUplink?' uplink sfp-slot':'';
                     const ledCls=isUplink?' port-led sfp-slot':'port-led';
-                    const label=win._frontPanelPortLabel(n, i, pc);
+                    const label=_frontPanelPortLabel(n, i, pc);
                     // title HTML nativo browser: appare sempre, anche dentro container
                     // con overflow:hidden (a differenza del tooltip CSS [data-tip]).
                     const portTipText = portTip(pid);
@@ -526,7 +526,7 @@ function _renderFloorNow(){
             if(pc>1){ pts='<div class="floor-ports">'; for(let i=1;i<=pc;i++) pts += getPortHTML(`${n.id}-${i}`); pts += '</div>'; }
             const _snmpOn = win._hasSnmpIntegration(n);
             const _ferr = _snmpOn && n.snmpStatus==='err' ? ` style="outline:2px solid #f85149;outline-offset:2px;border-radius:3px"` : '';
-            el.innerHTML = `${icon}<div class="label" style="display:flex;align-items:center;justify-content:center"${_ferr}>${escapeHTML(n.type==='wallport'?win.getWallPortLabel(n):(typeof win._dispName==='function'?win._dispName(n.name):n.name))}</div>${pts}${_radioPortHtml(n)}`;
+            el.innerHTML = `${icon}<div class="label" style="display:flex;align-items:center;justify-content:center"${_ferr}>${escapeHTML(n.type==='wallport'?getWallPortLabel(n):(typeof win._dispName==='function'?win._dispName(n.name):n.name))}</div>${pts}${_radioPortHtml(n)}`;
             fI.appendChild(el);
         }
     });

@@ -268,7 +268,7 @@ export function markDirty() {
     if (btn) { btn.classList.add('save-dirty'); btn.classList.remove('primary'); }
 }
 
-function _clearDirty() {
+export function _clearDirty() {
     _isDirty = false;
     const dot = document.getElementById('save-dot');
     const btn = document.getElementById('btn-save');
@@ -889,7 +889,7 @@ function initDraggablePopups(){
 // Offset di numerazione progressiva di un patch panel (catena ppContinueFrom /
 // startNum manuale). Ricostruisce i record dai patch panel del progetto e delega
 // all'helper puro panelNumberOffset (lib/frontpanel.js). 0 = indipendente (1..N).
-function _patchPanelOffset(node){
+export function _patchPanelOffset(node){
     if(!node || node.type!=='patchpanel' || typeof panelNumberOffset!=='function') return 0;
     const recs={};
     for(const n of state.nodes){
@@ -1345,7 +1345,7 @@ export function _isRadioPid(pid){
     return _radioCountOf(nodeById(p.nodeId)) > p.idx;   // solo pid entro le radio reali del nodo
 }
 
-function getPortMaxConnections(pid)  {
+export function getPortMaxConnections(pid)  {
     // Radio Wi-Fi: associazioni praticamente illimitate, nessuna porta fisica.
     if(_isRadioPid(pid)) return 9999;
     // Le porte pass-through 'port' (patch panel, presa a muro, telefono VoIP
@@ -1412,8 +1412,8 @@ function _rackDeviceBg(value){
 
 export function checked(v)     { return v?'checked':''; }
 
-function getWallPortLabel(n) { return n?.portId||n?.name||''; }
-function getRackName(rid)    { return state.racks.find(r=>r.id===rid)?.name||rid||''; }
+export function getWallPortLabel(n) { return n?.portId||n?.name||''; }
+export function getRackName(rid)    { return state.racks.find(r=>r.id===rid)?.name||rid||''; }
 export function getRackById(rid)    { return state.racks.find(r=>r.id===rid); }
 function getRackSize(rid=state.currentRack) { return normalizeNumber(getRackById(rid)?.sizeU,42,6,60); }
 function getNodeRackSize(n)  { return getRackSize(n?.rackId||state.currentRack); }

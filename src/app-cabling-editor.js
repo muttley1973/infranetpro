@@ -7,7 +7,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { uid } from './app-util.js';
-import { markDirty, getNodeByPortId, getNodeDisplayName, pushHistory, _showToast, _invalidateIdx, switchRightTab } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { markDirty, getNodeByPortId, getNodeDisplayName, pushHistory, _showToast, _invalidateIdx, switchRightTab, getWallPortLabel, getPortMaxConnections } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
@@ -20,7 +20,7 @@ let _routingTargetPids = new Map(); // pid porta valida → { reuse: estremoGiaC
 
 function _routeNodeLabel(n){
     if(!n) return '?';
-    if(n.type === 'wallport') return win.getWallPortLabel(n) || n.name || n.id;
+    if(n.type === 'wallport') return getWallPortLabel(n) || n.name || n.id;
     return getNodeDisplayName(n) || n.name || n.id;
 }
 
@@ -73,7 +73,7 @@ function _computeRoutingTargets(excludeLinkId){
         for(let i = 1; i <= pc; i++){
             const pid = `${n.id}-${i}`;
             if(endpoints.includes(pid)) continue;            // già estremo del cavo
-            const max = win.getPortMaxConnections(pid);
+            const max = getPortMaxConnections(pid);
             const free = max - win.portConnectionCount(linksForCount, pid);
             if(free >= 2){
                 // split A↔M + M↔B: la tappa M deve stare gerarchicamente
@@ -252,7 +252,7 @@ function _routingPickPort(midPid){
         uid: uid,
         isPassThrough: win._isLinearPassThroughPort,
         linksForCapacity: store.state.links.filter(l => l.id !== linkId),
-        maxConn: win.getPortMaxConnections(midPid),
+        maxConn: getPortMaxConnections(midPid),
     });
     if(!res.ok){
         _showToast(t('msg.rack.routingNotPossible',{reason:res.reason}), 'warn', 4000);

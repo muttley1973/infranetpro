@@ -12,9 +12,9 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
-import { nodeById, getNodeDisplayName, selected } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, getNodeDisplayName, selected, _patchPanelOffset } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
-import { _propsSectionIsOpen, _buildNetAccessHtml, renderProps } from './app-properties.js';   // ritiro ponte: builder pannello (ex win.*)
+import { _propsSectionIsOpen, _buildNetAccessHtml, renderProps, _buildPropsHeader } from './app-properties.js';   // ritiro ponte: builder pannello (ex win.*)
 
 // ============================================================
 // PROPERTIES PANEL — renderer NODO (dispositivo/struttura, selType===node)
@@ -48,11 +48,10 @@ function _renderNodeProps(panel){
         // TYPES non è più aliasato: arriva dall'import ESM in cima al modulo.
         const state = store.state,
             _nodeSpecView = win._nodeSpecView,
-            _buildPropsHeader = win._buildPropsHeader, _propsIconForType = win._propsIconForType,
+            _propsIconForType = win._propsIconForType,
             _discIdentityLabel = win._discIdentityLabel,
             getNodeRackSize = win.getNodeRackSize, _fixedRackLabel = win._fixedRackLabel,
             _frontPanelState = win._frontPanelState, _patchPanelChainOptions = win._patchPanelChainOptions,
-            _patchPanelOffset = win._patchPanelOffset,
             isInStack = win.isInStack, getStackMembers = win.getStackMembers,
             getStackSummary = win.getStackSummary, getAllStackIds = win.getAllStackIds,
             getEffectiveRole = win.getEffectiveRole, _defaultStackName = win._defaultStackName,

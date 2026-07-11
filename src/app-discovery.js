@@ -5,8 +5,9 @@ import { markDirty, pushHistory, renderCables, _showToast, _nextNodeId } from '.
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { focusNode, switchRack } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
-import { _isLeafEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
-import { _discIndexNode, _discVendorFromMac } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { _isLeafEndpoint, _autoLinkEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
+import { _discIndexNode, _discVendorFromMac, _discIdentitySource, _discFindExistingDevice } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { _findFreeU } from './app-topology-crawl.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
 
 // Nome DISPLAY per la tabella Scopri e per il nome del nodo importato. L'utente legge la
 // RIGA (Nome -> Vendor -> Tipo, gia' in colonne separate) e fa l'abbinamento da solo:
@@ -338,7 +339,7 @@ function _discEnsureMeta(d){
         row.confidence = { score: ci.score, level: ci.cls === 'high' ? 'high' : ci.cls === 'mid' ? 'mid' : 'low' };
     }
     row.identityConfidence = row.identityConfidence || row.confidence?.level || 'low';
-    row.identitySource = row.identitySource || win._discIdentitySource(row);
+    row.identitySource = row.identitySource || _discIdentitySource(row);
     if(typeof row.possibleReplacement !== 'boolean') row.possibleReplacement = false;
     if(!Array.isArray(row.notes)) row.notes = [];
     if(!row.discovery) row.discovery = {
@@ -549,7 +550,7 @@ function _discSummaryHtml(results, extra={}){
 }
 
 function _discExistingNode(d){
-    return win._discFindExistingDevice(d).node || null;
+    return _discFindExistingDevice(d).node || null;
 }
 
 function _discReconcileInfo(d, type){
@@ -885,7 +886,7 @@ async function importDiscovered(){
             // abilitabile a mano dal pannello Proprieta'. Chi risponde usa il driver
             // concreto rilevato (v1/v2c/v3); v2c solo come ripiego se la versione manca.
             const importDriver = d.snmpReachable ? (d.snmpDriver || driver) : '';
-            const match = win._discFindExistingDevice(d, existingIdx);
+            const match = _discFindExistingDevice(d, existingIdx);
             if(match.conflict?.existing){
                 win._discMarkIpMacConflict(match.conflict.existing, d);
                 conflicts++;
@@ -906,7 +907,7 @@ async function importDiscovered(){
 
                 win._discTouchNodeIdentity(foundExisting, d, match.matchedBy);
                 foundExisting.vendorHint = d.vendorHint || _discVendorFromMac(d.mac) || foundExisting.vendorHint || '';
-                foundExisting.identitySource = win._discIdentitySource(d);
+                foundExisting.identitySource = _discIdentitySource(d);
                 foundExisting.identityConfidence = d.identityConfidence || d.confidence?.level || foundExisting.identityConfidence || 'low';
                 if(incomingReplacement){
                     foundExisting.possibleReplacement = true;
@@ -1000,7 +1001,7 @@ async function importDiscovered(){
                     mac: normalizeMacAddress(d.mac||''),
                     brand: d.vendor || def.brand || '',
                     vendorHint: d.vendorHint || _discVendorFromMac(d.mac) || '',
-                    identitySource: win._discIdentitySource(d),
+                    identitySource: _discIdentitySource(d),
                     identityConfidence: d.identityConfidence || d.confidence?.level || 'low',
                     possibleReplacement: !!d.possibleReplacement,
                     netbiosName: d.netbiosName || '',
@@ -1013,14 +1014,14 @@ async function importDiscovered(){
                 floorCount++;
             } else {
                 const sU   = def.sizeU||1;
-                const rackU = win._findFreeU(rackId, sU);
+                const rackU = _findFreeU(rackId, sU);
                 n = {
                     id: _nextNodeId(d.type, usedNodeIds), type: d.type,
                     name: _discDisplayName(d), hostname: d.hostname||'', ip: d.ip||'',
                     mac: normalizeMacAddress(d.mac||''),
                     brand: d.vendor || def.brand || '',
                     vendorHint: d.vendorHint || _discVendorFromMac(d.mac) || '',
-                    identitySource: win._discIdentitySource(d),
+                    identitySource: _discIdentitySource(d),
                     identityConfidence: d.identityConfidence || d.confidence?.level || 'low',
                     possibleReplacement: !!d.possibleReplacement,
                     netbiosName: d.netbiosName || '',
@@ -1055,7 +1056,7 @@ async function importDiscovered(){
         const hasFdbCache = Object.values(store._topoFdbCache || {}).some(fdb => Object.keys(fdb || {}).length > 0);
         if(hasFdbCache){
             for(const ep of _importedEndpoints){
-                if(win._autoLinkEndpoint(ep.id).ok) autoLinked++;
+                if(_autoLinkEndpoint(ep.id).ok) autoLinked++;
             }
         }
 

@@ -18,7 +18,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, normalizeStatus } from './app-util.js';
-import { nodeById, markDirty, getNodeByPortId, getPortNodeId, pushHistory, renderCables } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, markDirty, getNodeByPortId, getPortNodeId, pushHistory, renderCables, _patchPanelOffset } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { propagateVlans, _effPortVlan, _ensureVlanColor } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -386,10 +386,10 @@ export function portTip(pid){
     }
     // Patch panel con numerazione progressiva (catena ppContinueFrom / startNum):
     // il tooltip mostra lo stesso numero del frontale e dell'etichetta cavo.
-    if(_node && _node.type==='patchpanel' && typeof win._patchPanelOffset==='function'){
+    if(_node && _node.type==='patchpanel' && typeof _patchPanelOffset==='function'){
         const numeric = parseInt(portNum, 10);
         if(Number.isFinite(numeric) && String(numeric) === portNum){
-            portLabel = String(numeric + win._patchPanelOffset(_node));
+            portLabel = String(numeric + _patchPanelOffset(_node));
         }
     }
     const parts = [t('pnl.dev.portN',{n:portLabel})];

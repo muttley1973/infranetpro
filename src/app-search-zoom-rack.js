@@ -8,7 +8,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, hexToRgba, normalizeStatus, normalizeNumber } from './app-util.js';
-import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _showToast, getRackById } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _showToast, getRackById, getRackName } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -29,7 +29,7 @@ function getPortSummary(pid) {
     const p=store.state.ports[pid]||{}, n=getNodeByPortId(pid);
     const parts=[getNodeDisplayName(n),pid,`status:${normalizeStatus(p.status)}`,
                  `vlan:${p.vlan||1}`,`speed:${p.speed||'1G'}`,`connections:${win.getPortConnectionCount(pid)}`];
-    if(n?.rackId) parts.push(`rack:${win.getRackName(n.rackId)}`);
+    if(n?.rackId) parts.push(`rack:${getRackName(n.rackId)}`);
     return parts.join(' ');
 }
 
@@ -46,10 +46,10 @@ function buildSearchResults(query) {
         const def=TYPES[node.type]; if(!def) return;
         const hay=[view.id,view.name,def.name,typeName(node.type),view.type,view.hostname,view.brand,view.model,view.ip,view.mac,
                    view.assignedUser,
-                   view.rackId,win.getRackName(view.rackId),view.notes]
+                   view.rackId,getRackName(view.rackId),view.notes]
                   .filter(Boolean).join(' ').toLowerCase();
         if(hay.includes(q)){
-            const loc=def.isRack?`${win.getRackName(node.rackId)} - U${node.rackU||'?'}`
+            const loc=def.isRack?`${getRackName(node.rackId)} - U${node.rackU||'?'}`
                                  :`Floor ${Math.round(node.x||0)}, ${Math.round(node.y||0)}`;
             const userTag = view.assignedUser ? ` - 👤 ${view.assignedUser}` : '';
             results.push({kind:'device',id:node.id,icon:getSearchIcon('device',node.type),
@@ -69,7 +69,7 @@ function buildSearchResults(query) {
     store.state.links.forEach(link=>{
         const sn=getNodeByPortId(link.src), dn=getNodeByPortId(link.dst);
         const hay=[link.id,link.src,link.dst,getNodeDisplayName(sn),getNodeDisplayName(dn),
-                   win.getRackName(sn?.rackId),win.getRackName(dn?.rackId),
+                   getRackName(sn?.rackId),getRackName(dn?.rackId),
                    `vlan:${(store.state.ports[link.src]||{}).vlan||1}`].filter(Boolean).join(' ').toLowerCase();
         if(hay.includes(q))
             results.push({kind:'link',id:link.id,icon:getSearchIcon('link'),

@@ -17,7 +17,7 @@ import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (e
 import { escapeHTML } from './app-util.js';
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, _showToast, _invalidateIdx, _linksForPort, _nodeRadios, _isRadioPid } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { propagateVlans, _ensureVlanColor, _getLinkTrunk } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
-import { renderProps, _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
+import { renderProps, _propsSectionIsOpen, _buildPropsHeader } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 
@@ -453,7 +453,7 @@ function _renderRadioProps(panel, pid){
         ? `<div class="radio-assocs"><div class="prop-subhead">${esc(_t('radio.assocList'))}</div>${assocRows}</div>`
         : `<div class="radio-assoc-empty">${esc(_t('radio.noAssoc'))}</div>`;
     panel.innerHTML = `
-        ${win._buildPropsHeader(devName, lbl, 'fa-wifi')}
+        ${_buildPropsHeader(devName, lbl, 'fa-wifi')}
         <div class="prop-group"><label>${esc(_t('radio.label'))}</label>
           <input value="${esc(cfg.label || '')}" placeholder="${esc(_t('radio.iface'))} ${p.idx + 1}" onchange="setRadioLabel('${p.nodeId}',${p.idx},this.value)"></div>
         ${(() => {

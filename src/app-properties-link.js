@@ -6,9 +6,9 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
-import { getNodeByPortId, getNodeDisplayName } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
-import { renderProps, _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
-import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { getNodeByPortId, getNodeDisplayName, getWallPortLabel } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { renderProps, _propsSectionIsOpen, _buildPropsHeader } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
+import { TYPES, _frontPanelPortLabel } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _effPortVlan, _getLinkTrunk, _parseTrunkVlans } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _portDisplayName } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 
@@ -23,7 +23,7 @@ import { _portDisplayName } from './app-ports.js';   // ritiro ponte: funzioni f
 // ============================================================
 
 // Descrittore leggibile dell'endpoint di un cavo per l'etichetta "Da/A".
-// Usa la label SFP-aware del front panel (win._frontPanelPortLabel: numerazione +
+// Usa la label SFP-aware del front panel (_frontPanelPortLabel: numerazione +
 // prefisso) e indica esplicitamente SFP/MGMT — prima mostrava il numero grezzo
 // del pid (es. "porta 1" anche su una SFP).
 function _cablePortDesc(pid){
@@ -36,7 +36,7 @@ function _cablePortDesc(pid){
     const num = parseInt(suffix, 10);
     if(num >= 1 && String(num) === suffix){
         const pc = node.ports !== undefined ? node.ports : ((TYPES[node.type] && TYPES[node.type].ports) || 1);
-        const lbl = (typeof win._frontPanelPortLabel === 'function') ? win._frontPanelPortLabel(node, num, pc) : suffix;
+        const lbl = (typeof _frontPanelPortLabel === 'function') ? _frontPanelPortLabel(node, num, pc) : suffix;
         const isSfp = (typeof win._frontPanelIsUplink === 'function') && win._frontPanelIsUplink(node, num, pc);
         // SFP: se la label e' numerica pura prepende "SFP "; se ha gia' un prefisso
         // (es. "SFP1", "Te1") lo lascia com'e' (niente doppione "SFP SFP1").
@@ -128,7 +128,7 @@ function _renderLinkProps(panel){
 
         const _linkDeleteTip = l.autoLinked ? t('cable.delTipAuto') : t('cable.delTip');
         panel.innerHTML=`
-            ${win._buildPropsHeader(
+            ${_buildPropsHeader(
                 linkHeaderTitle,
                 linkHeaderSubtitle,
                 'fa-link',
@@ -234,7 +234,7 @@ function _renderLinkProps(panel){
                     const _node = getNodeByPortId(pid);
                     if(!_node) return escapeHTML(typeof _portDisplayName==='function' ? _portDisplayName(pid) : String(pid));
                     const _baseName = _node.type==='wallport'
-                        ? (win.getWallPortLabel(_node) || getNodeDisplayName(_node) || _node.id)
+                        ? (getWallPortLabel(_node) || getNodeDisplayName(_node) || _node.id)
                         : (getNodeDisplayName(_node) || _node.name || _node.id);
                     const _rawPort = String(pid).split('-').slice(1).join('/');
                     const _portName = typeof _portDisplayName==='function' ? _portDisplayName(pid) : _rawPort;

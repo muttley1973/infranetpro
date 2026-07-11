@@ -6,7 +6,7 @@
 // ============================================================
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { pushHistory, _invalidateIdx, logAudit } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { pushHistory, _invalidateIdx, logAudit, _clearDirty } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderRackTabs, updateTransforms } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { _restoreTopoSession } from './app-topology-discover.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
@@ -58,7 +58,7 @@ async function loadProject(id) {
     store._vlanIpamOpen.clear();
     _invalidateIdx();
     win._history=[]; win._histIdx=-1; win._updateHistoryBtns();
-    win._clearDirty();
+    _clearDirty();
     win._stopAutoPoll();
     if(store.state.autoPoll?.enabled) win._startAutoPoll();
     renderRackTabs(); updateTransforms(); renderAll();
@@ -91,7 +91,7 @@ async function newProject() {
         store._vlanIpamOpen.clear();
         _invalidateIdx();
         win._history=[]; win._histIdx=-1; win._updateHistoryBtns();
-        win._clearDirty();
+        _clearDirty();
         await loadProjectList();
         renderRackTabs(); updateTransforms(); renderAll();
         document.title = `InfraNet Pro — ${proj.name}`;
@@ -125,7 +125,7 @@ async function duplicateProject() {
         if(typeof _restoreTopoSession === 'function') _restoreTopoSession();
         _invalidateIdx();
         win._history=[]; win._histIdx=-1; win._updateHistoryBtns();
-        win._clearDirty();
+        _clearDirty();
         await loadProjectList();
         renderRackTabs(); updateTransforms(); renderAll();
         document.title = `InfraNet Pro — ${proj.name}`;
@@ -153,7 +153,7 @@ async function saveProject() {
             method:'PUT',
             body: JSON.stringify({state: store.state})
         });
-        win._clearDirty();
+        _clearDirty();
         const icon  = document.getElementById('save-icon');
         const label = document.getElementById('save-label');
         if (icon)  icon.className  = 'fas fa-check';

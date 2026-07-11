@@ -12,7 +12,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid } from './app-util.js';
-import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _showToast, _invalidateIdx, _linksForPort, _nextNodeId, getRackById, _promoteLinkToManual, canAddConnection, _createLinkRecord } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _showToast, _invalidateIdx, _linksForPort, _nextNodeId, getRackById, _promoteLinkToManual, canAddConnection, _createLinkRecord, getPortMaxConnections } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderProps, _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
@@ -20,6 +20,7 @@ import { focusNode, renderRackTabs } from './app-search-zoom-rack.js';   // riti
 import { closePop, showPop } from './app-popup.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _portDisplayName } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _isLeafEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
+import { _findFreeU } from './app-topology-crawl.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
 
 let _sharedBindState = null; // stato wizard bind (module-local, nessun lettore esterno)
 function _macRowsForPort(pid, opts={}){
@@ -215,7 +216,7 @@ function _sharedSegmentPortChoices(node, role, sourcePid){
         const links = _linksForPort(pid);
         const manualBusy = links.some(l=>!l.autoLinked && !_linkHasPair(l, sourcePid, pid));
         const conn = win.getPortConnectionCount(pid);
-        const max = win.getPortMaxConnections(pid);
+        const max = getPortMaxConnections(pid);
         if(manualBusy) continue;
         if(conn >= max && !links.some(l=>_linkHasPair(l, sourcePid, pid))) continue;
         const pi = store.state.ports[pid] || {};
@@ -699,14 +700,14 @@ function _createSharedSegmentNode(pid, role){
             ports,
             sizeU:def.sizeU || 1,
             rackId,
-            rackU:win._findFreeU(rackId, def.sizeU || 1),
+            rackU:_findFreeU(rackId, def.sizeU || 1),
             notes:_sharedSegmentNotes(info, role)
         };
     }
 
     store.state.nodes.push(n);
     // Garantisce che il nuovo apparato non si sovrapponga ad altri nel rack
-    // (il fallback di win._findFreeU su rack pieno potrebbe restituire una U occupata).
+    // (il fallback di _findFreeU su rack pieno potrebbe restituire una U occupata).
     if(TYPES[n.type]?.isRack) win._resolveRackOverlap(n);
     _connectPortsSafe(pid, `${n.id}-1`, {autoLinked:true, confidence:0.7, protocol:'FDB-SEGMENT'});
 

@@ -12,7 +12,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, normalizeNumber } from './app-util.js';
-import { _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte: lettura stato sezioni (ex win.*)
+import { _propsSectionIsOpen, _buildPropsHeader } from './app-properties.js';   // ritiro ponte: lettura stato sezioni (ex win.*)
 import { _isVoiceVlan } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 
 // Blocco "Occupazione" della card IPAM aperta: barra di capacità + ripartizione
@@ -55,7 +55,7 @@ function _renderFloorProps(panel){
             ? `<span class="props-collapsible-preview" style="color:var(--active-color)">${t('floor.mapLoaded')}${state.bgImageLocked?' · 🔒':''}</span>`
             : `<span class="props-collapsible-preview" style="color:var(--text-muted)">${t('floor.noMap')}</span>`;
         const _vlanPreview = `<span class="props-collapsible-preview">${t('floor.vlanCount',{n:_vlanCount})}</span>`;
-        const _panelHeader = win._buildPropsHeader(
+        const _panelHeader = _buildPropsHeader(
             t('floor.title'),
             t('floor.subtitle'),
             'fa-map',
