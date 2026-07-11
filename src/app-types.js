@@ -155,7 +155,7 @@ function _isNodeSpecField(key){
     return NODE_SPEC_FIELDS.has(String(key || ''));
 }
 
-function _ensureNodeSpec(node){
+export function _ensureNodeSpec(node){
     if(!node || typeof node !== 'object') return {};
     if(!node.spec || typeof node.spec !== 'object' || Array.isArray(node.spec)) node.spec = {};
     return node.spec;

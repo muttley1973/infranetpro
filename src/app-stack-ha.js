@@ -12,7 +12,7 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { nodeById, markDirty, pushHistory } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
-import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { TYPES, _ensureNodeSpec } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 
 // ============================================================
 // STACKING (P7.1 — modello tag-based su node.spec)
@@ -27,7 +27,7 @@ function setNodeStack(stackId, memberId){
     const id = String(stackId || '').trim();
     if(!id) return;
     pushHistory();
-    const spec = win._ensureNodeSpec(n);
+    const spec = _ensureNodeSpec(n);
     spec.stackId = id;
     const mid = parseInt(memberId, 10);
     spec.stackMemberId = Number.isFinite(mid) && mid > 0
@@ -48,7 +48,7 @@ function setNodeStackMemberId(newId){
         return;
     }
     pushHistory();
-    win._ensureNodeSpec(n).stackMemberId = mid;
+    _ensureNodeSpec(n).stackMemberId = mid;
     renderAll(); markDirty();
 }
 function removeNodeFromStack(){
@@ -80,7 +80,7 @@ function acceptStackHint(){
     if(!TYPES[n.type]?.stackEligible) return;
     pushHistory();
     const stackId = _defaultStackName(n);
-    const spec = win._ensureNodeSpec(n);
+    const spec = _ensureNodeSpec(n);
     spec.stackId = stackId;
     spec.stackMemberId = 1;
     delete spec.stackRole;
@@ -115,7 +115,7 @@ function setNodeHaPair(peerId, role, mode){
     }
     if(peer.id === n.id){ alert(t('msg.ui.selfPeer')); return; }
     pushHistory();
-    const spec = win._ensureNodeSpec(n);
+    const spec = _ensureNodeSpec(n);
     // Pulisce eventuale stato cluster precedente (mutuamente esclusivo)
     delete spec.haGroupId;
     spec.haPeer = peer.id;
@@ -133,7 +133,7 @@ function setNodeHaCluster(groupId, role, mode){
     const gid = String(groupId || '').trim();
     if(!gid) return;
     pushHistory();
-    const spec = win._ensureNodeSpec(n);
+    const spec = _ensureNodeSpec(n);
     // Pulisce eventuale stato pair precedente (mutuamente esclusivo)
     if(spec.haPeer){
         const oldPeer = nodeById(spec.haPeer);
@@ -156,7 +156,7 @@ function setNodeHaRole(newRole){
     if(!win.isInHaGroup(n)) return;
     if(!['active','standby','member'].includes(newRole)) return;
     pushHistory();
-    win._ensureNodeSpec(n).haRole = newRole;
+    _ensureNodeSpec(n).haRole = newRole;
     // Su pair, propaga ruolo complementare al peer
     if(win.isInHaPair(n)) win.propagateHaSymmetry(store.state.nodes, n);
     renderAll(); markDirty();
@@ -166,7 +166,7 @@ function setNodeHaMode(newMode){
     if(!win.isInHaGroup(n)) return;
     if(!['active-passive','active-active','cluster-N'].includes(newMode)) return;
     pushHistory();
-    win._ensureNodeSpec(n).haMode = newMode;
+    _ensureNodeSpec(n).haMode = newMode;
     if(win.isInHaPair(n)) win.propagateHaSymmetry(store.state.nodes, n);
     renderAll(); markDirty();
 }
@@ -175,7 +175,7 @@ function setNodeHaSync(newSync){
     if(!win.isInHaGroup(n)) return;
     if(!['state-full','config-only','failover-only'].includes(newSync)) return;
     pushHistory();
-    win._ensureNodeSpec(n).haSync = newSync;
+    _ensureNodeSpec(n).haSync = newSync;
     if(win.isInHaPair(n)) win.propagateHaSymmetry(store.state.nodes, n);
     renderAll(); markDirty();
 }

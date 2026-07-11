@@ -8,7 +8,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, normalizeStatus } from './app-util.js';
-import { nodeById, getNodeByPortId, getPortNodeId, renderCables, _showToast, switchRightTab, _linksForPort } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, getNodeByPortId, getPortNodeId, renderCables, _showToast, switchRightTab, _linksForPort, getRackById } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderTopoOverlay } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -207,7 +207,7 @@ export function showPop(e,pid){
     })();
     const fmtConnPid = p => {
         const pn=getNodeByPortId(p);
-        const rk=win.getRackById(pn?.rackId);
+        const rk=getRackById(pn?.rackId);
         const base=pn?`${escapeHTML(pn.name)} / P${escapeHTML(p.split('-').slice(1).join('-'))}`:escapeHTML(p);
         const xr=pn&&pn.rackId&&pn.rackId!==store.state.currentRack?` <span style="color:var(--accent)">→ ${escapeHTML(rk?.name||'?')}</span>`:'';
         return base+xr;

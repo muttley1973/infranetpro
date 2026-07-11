@@ -9,7 +9,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, hexToRgba, normalizeStatus } from './app-util.js';
-import { nodeById, getNodeByPortId, getPortNodeId, renderCables, _linksForPort, _nodeRadios } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, getNodeByPortId, getPortNodeId, renderCables, _linksForPort, _nodeRadios, _renderModeIndicator } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { propagateVlans, _linkIsTrunk, _effPortVlan } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderTopoOverlay } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -100,7 +100,7 @@ function _renderAllNow(){
     if(typeof win._propsTabHold !== 'undefined' && win._propsTabHold &&
        !(store.selType === 'link' && store.selId === win._propsTabHold)) win._propsTabHold = null;
     propagateVlans();   // propaga VLAN sui link prima di renderizzare
-    win._renderModeIndicator();
+    _renderModeIndicator();
     if(typeof win._renderV3PendingChip === 'function') win._renderV3PendingChip();
     const fS=document.getElementById('floor-structures'), fI=document.getElementById('floor-items');
     const ch=document.getElementById('rack-chassis'), bg=document.getElementById('floor-bg-img');
