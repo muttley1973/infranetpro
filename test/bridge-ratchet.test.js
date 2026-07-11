@@ -95,7 +95,13 @@ const RETIRED_STATE = ['state', 'selId', 'selType', 'dragNode', 'currentProjectI
   // Coda-stato di INTERAZIONE (ritiro ponte 2026-07-11): stato transitorio di
   // gesture/modalità, ora proxato da store.js come gli altri. Vedi store.js.
   'dragOffset', 'dragRack', '_dragArmed', 'lagSelMode',
-  '_discRunning', '_discImporting', '_discSelMap', '_routingLinkId', '_vlanIpamOpen'];
+  '_discRunning', '_discImporting', '_discSelMap', '_routingLinkId', '_vlanIpamOpen',
+  // Coda-stato di INTERAZIONE, 2º giro (ritiro ponte 2026-07-11).
+  'resizeNode', 'isPanningFloor', 'isPanningRack', 'rackPanStart', '_spaceDown',
+  '_dragDownPt', '_hoverRackId', '_propsTabHold', '_floorPortClick',
+  '_physicalTraceActive', '_propsExplicit', '_rightTab', '_snmpSyncing',
+  '_topoHideEndpoints', '_topoHideWireless', '_topoFdbVlanCache', '_discTypeMap',
+  '_focusedLagGroup'];
 test('ponte: lo stato condiviso è letto solo via store.js (non win.* nei consumatori)', () => {
   for (const sym of RETIRED_STATE) {
     const viaWin = countInCode(new RegExp('\\bwin\\.' + sym + '\\b', 'g'), 'store.js');
@@ -376,7 +382,16 @@ test('ponte: le funzioni nucleo/tipi/autolink non sono più lette da win.*', () 
 // app-autolink è definitore-di-uno e consumatore-di-altri (self-import escluso). Cicli
 // hoisted-safe. Restano in expose() (export.js legge getRackById). Golden invariante;
 // e2e 69/69. Delta = 61 (nessun win.X in commento stavolta). Vedi RETIRED_CORE_FN2.
-const MAX_WIN_REFS = 869;
+//
+// −125 (869 → 744, 2026-07-11): RITIRO PONTE — binario STATO, 2º giro coda-interazione.
+// 18 celle di stato di gesture/vista (resizeNode, isPanningFloor/Rack, rackPanStart,
+// _spaceDown, _dragDownPt, _hoverRackId, _propsTabHold, _floorPortClick,
+// _physicalTraceActive, _propsExplicit, _rightTab, _snmpSyncing, _topoHideEndpoints/
+// Wireless, _topoFdbVlanCache, _discTypeMap, _focusedLagGroup) spostate in store.js;
+// 131 win.X → store.X su tutto src/. Escluse le 4 funzioni-lib guardate da
+// `typeof win.X === 'function'` (isInStack/isInHaGroup/linkState/carriedVlans → restano).
+// Golden invariante; e2e 69/69 (drag/pan/hover). Delta 125 non 131: 6 win.X in commenti.
+const MAX_WIN_REFS = 744;
 
 test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => {
   const total = countInCode(/\bwin\./g);

@@ -129,7 +129,7 @@ function openDiscovery(prefillCidr){
     if(ibtn) ibtn.disabled = true;
     store._discResults=[];
     store._discSelMap={};
-    win._discTypeMap={};
+    store._discTypeMap={};
     store._discRunning=false;
     store._discImporting=false;
     document.getElementById('disc-overlay').classList.add('open');
@@ -187,7 +187,7 @@ async function runDiscovery(){
     if(ibtn) ibtn.disabled = true;
     store._discRunning = true;
     store._discSelMap = {};
-    win._discTypeMap = {};
+    store._discTypeMap = {};
 
     let scanTimeout=null;
     try{
@@ -367,7 +367,7 @@ function _discCaptureUiState(){
         if(!key) return;
         store._discSelMap[key] = !!chk.checked;
         const sel = tr.querySelector('.disc-type');
-        if(sel) win._discTypeMap[key] = sel.value;
+        if(sel) store._discTypeMap[key] = sel.value;
     });
 }
 
@@ -394,7 +394,7 @@ function _discOnTypeChange(sel){
     const idx = parseInt(sel?.dataset?.idx,10);
     const row = store._discResults[idx];
     const key = _discKey(row);
-    if(key) win._discTypeMap[key] = sel.value;
+    if(key) store._discTypeMap[key] = sel.value;
     win._discRememberClassHint(row, sel.value);
 }
 
@@ -582,7 +582,7 @@ function _discRenderTable(){
     tbody.innerHTML = store._discResults.map((d,i)=>{
         const key = _discKey(d);
         const guessed = d.deviceClass || win._guessType(d.descr, d.objectId, d.vendor, d.httpTitle||d.httpsTitle, d.hostname);
-        const t = win._discTypeMap[key] || guessed;
+        const t = store._discTypeMap[key] || guessed;
         const opts = Object.entries(TYPES)
             .filter(([,v])=>v.isActive || v.hasIP)
             .map(([k])=>[k, typeName(k)])

@@ -63,7 +63,7 @@ function _renderNodeProps(panel){
             isRackTopNumbered = win.isRackTopNumbered, rackUToVisible = win.rackUToVisible,
             getLagGroupsForNode = win.getLagGroupsForNode, _enableManualValueInProps = win._enableManualValueInProps,
             _activatePropsTab = win._activatePropsTab, _nodeDeviceChainHtml = win._nodeDeviceChainHtml,
-            _propsExplicit = win._propsExplicit,
+            _propsExplicit = store._propsExplicit,
             _l3SviSectionHtml = win._l3SviSectionHtml, _panelSkinSectionHtml = win._panelSkinSectionHtml;
 
         const _rawNode=nodeById(store.selId); if(!_rawNode) return;

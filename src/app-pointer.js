@@ -37,13 +37,13 @@ let _floorDragOrigin = null;
 // Apre le Proprieta' di un nodo floor (doppio click): seleziona, evidenzia il run,
 // intent esplicito (uniforme col rack) → switcha al pannello Proprieta'. Condiviso
 // dal doppio click manuale (pointerdown) e da handleFloorDoubleClick (fallback) →
-// l'unico `win._propsExplicit=true` del floor vive qui (niente +1 sul ponte).
+// l'unico `store._propsExplicit=true` del floor vive qui (niente +1 sul ponte).
 function _openFloorNodeProps(id){
     store.dragNode = null;
     store.selType = 'node'; store.selId = id;
     store.highPath.clear(); _traceNodeFloor(id);   // evidenzia il run alla selezione nodo
     _renderModeIndicator();
-    win._propsExplicit = true;
+    store._propsExplicit = true;
     switchRightTab('props');
     renderProps();
 }
@@ -239,13 +239,13 @@ function handlePointerDown(e){
     // Threshold drag/click: memorizziamo la posizione del pointerdown e
     // marchiamo il drag come "non ancora armato". Sara' handlePointerMove
     // a sganciare il drag solo dopo > 5px di movimento.
-    win._dragDownPt = { x: e.clientX, y: e.clientY };
+    store._dragDownPt = { x: e.clientX, y: e.clientY };
     store._dragArmed = false;
 
     // Space + click sinistro → pan ovunque sulla mappa
-    if(e.target.closest('#floorplan') && win._spaceDown && e.button===0){
+    if(e.target.closest('#floorplan') && store._spaceDown && e.button===0){
         e.preventDefault();
-        win.isPanningFloor=true;
+        store.isPanningFloor=true;
         win.panStart={x:e.clientX-store.state.floorView.x, y:e.clientY-store.state.floorView.y};
         const fp=document.getElementById('floorplan');
         if(fp) fp.style.cursor='grabbing';
@@ -255,10 +255,10 @@ function handlePointerDown(e){
     // Space + click sinistro sul rack → pan come il floor, ma via SCROLL nativo
     // del #rack-viewport (il rack non usa un transform translate). Lo Space ha la
     // precedenza sul pickup device, coerente col floor.
-    if(e.target.closest('#rack-viewport') && win._spaceDown && e.button===0){
+    if(e.target.closest('#rack-viewport') && store._spaceDown && e.button===0){
         e.preventDefault();
-        win.isPanningRack=true;
-        win.rackPanStart={x:e.clientX, y:e.clientY, x0:store.state.rackView.x||0, y0:store.state.rackView.y||0};
+        store.isPanningRack=true;
+        store.rackPanStart={x:e.clientX, y:e.clientY, x0:store.state.rackView.x||0, y0:store.state.rackView.y||0};
         document.body.classList.add('rack-panning');   // disattiva la transition durante il pan
         const rv=document.getElementById('rack-viewport'); if(rv) rv.style.cursor='grabbing';
         return;
@@ -276,18 +276,18 @@ function handlePointerDown(e){
     // dall'onclick del cavo → seleziona). Senza questo, con cavi visibili il pan senza-Space
     // sembrava bloccato perche' non si trovava area "pulita" da cui partire.
     if(e.target.closest('.cable-hit')){
-        if(LMB && !win._spaceDown && !store.linkStart && e.target.closest('#rack-viewport')
+        if(LMB && !store._spaceDown && !store.linkStart && e.target.closest('#rack-viewport')
            && !e.target.closest('[data-pid]') && !e.target.closest('.rack-device') && !e.target.closest('.rack-header')){
             e.preventDefault();
-            win.isPanningRack=true;
-            win.rackPanStart={x:e.clientX, y:e.clientY, x0:store.state.rackView.x||0, y0:store.state.rackView.y||0};
+            store.isPanningRack=true;
+            store.rackPanStart={x:e.clientX, y:e.clientY, x0:store.state.rackView.x||0, y0:store.state.rackView.y||0};
             document.body.classList.add('rack-panning');
             const rv=document.getElementById('rack-viewport'); if(rv) rv.style.cursor='grabbing';
         }
         return;   // in ogni caso non azzerare store.highPath/popup: il cavo ha il suo onclick
     }
 
-    closePop(); store.highPath.clear(); win._physicalTraceActive=false;
+    closePop(); store.highPath.clear(); store._physicalTraceActive=false;
 
     const port=e.target.closest('[data-pid]');
     const rackFloorEl=e.target.closest('.floor-rack');
@@ -339,10 +339,10 @@ function handlePointerDown(e){
                     // durante un vero doppio click vedi un breve "flash"
                     // del pannello Proprieta prima che subentri il Rack.
                     const _now = Date.now();
-                    if(win._floorPortClick && win._floorPortClick.pid === _pid &&
-                       (_now - win._floorPortClick.t) < 350){
+                    if(store._floorPortClick && store._floorPortClick.pid === _pid &&
+                       (_now - store._floorPortClick.t) < 350){
                         // === DOPPIO CLICK === — override del single click
-                        win._floorPortClick = null;
+                        store._floorPortClick = null;
                         // Trova rack del cavo collegato dalla store.highPath
                         let _tgtRack=null;
                         for(const _lid of store.highPath){
@@ -364,7 +364,7 @@ function handlePointerDown(e){
                         renderAll();
                     } else {
                         // === SINGLE CLICK === — esecuzione immediata
-                        win._floorPortClick = { pid: _pid, t: _now };
+                        store._floorPortClick = { pid: _pid, t: _now };
                         switchRightTab('props');
                         renderAll();
                         renderProps();
@@ -383,7 +383,7 @@ function handlePointerDown(e){
                     // Specularita' UX:
                     //   floor : single=props · doppio=switch al rack
                     //   rack  : single=highlight · doppio=switch a props
-                    if (win._rightTab === 'rack') {
+                    if (store._rightTab === 'rack') {
                         // Rilevamento manuale doppio click via timestamp (il
                         // dblclick nativo non scatta dopo preventDefault del
                         // pointerdown). Soglia 350ms come gia' fatto per le
@@ -413,7 +413,7 @@ function handlePointerDown(e){
             e.stopPropagation(); e.preventDefault();
             const _rn=nodeById(e.target.parentElement.dataset.id);
             if(_rn?.locked) return; // stanza bloccata: ignora resize
-            win.resizeNode=e.target.parentElement.dataset.id;
+            store.resizeNode=e.target.parentElement.dataset.id;
         } else if(rackFloorEl){
             e.preventDefault();
             const rackId=rackFloorEl.dataset.rackid;
@@ -427,7 +427,7 @@ function handlePointerDown(e){
                 if(win._rackFloorDblId===rackId && (_now-win._rackFloorDblTime)<350){
                     win._rackFloorDblId=null; win._rackFloorDblTime=0;
                     if(store._rackCollapsed) toggleRackPanel();
-                    win._hoverRackId=null;
+                    store._hoverRackId=null;
                     switchRack(rackId);
                     switchRightTab('rack');
                     renderTopoOverlay();
@@ -461,7 +461,7 @@ function handlePointerDown(e){
                 return;
             }
             _floorDblId=_fid; _floorDblTime=_nowF;
-            win._propsExplicit=false;   // single-click/drag = SOLO selezione; le proprietà si aprono col doppio click (uniforme col rack)
+            store._propsExplicit=false;   // single-click/drag = SOLO selezione; le proprietà si aprono col doppio click (uniforme col rack)
             // Stanza bloccata: seleziona ma non avvia drag
             if(TYPES[dn.type].isStructural && dn.locked){
                 store.selType='node'; store.selId=_fid; renderAll(); return;
@@ -483,17 +483,17 @@ function handlePointerDown(e){
                 win._rackDblTime=0; win._rackDblId=null;   // reset per il prossimo ciclo
                 store.dragNode=null;
                 store.selId=_nid; store.selType='node';
-                win._propsExplicit=true;
+                store._propsExplicit=true;
                 renderProps();
                 return;
             }
             win._rackDblTime=_now; win._rackDblId=_nid;
-            win._propsExplicit=false;
+            store._propsExplicit=false;
             store.dragNode=_nid; store.selType='node'; store.selId=store.dragNode;
             const r=rackEl.getBoundingClientRect();
             store.dragOffset={x:(e.clientX-r.left)/store.state.rackView.zoom,y:(e.clientY-r.top)/store.state.rackView.zoom};
             // Le props del device rack restano chiuse al click singolo grazie al
-            // guard !win._propsExplicit in renderProps() (si aprono solo con intent
+            // guard !store._propsExplicit in renderProps() (si aprono solo con intent
             // esplicito: doppio click, tasto P, oppure switchRightTab('props')).
             renderAll();
         } else if(e.target.closest('#rack-viewport') && !e.target.closest('.rack-header') && e.button===0 && !store.linkStart){
@@ -501,12 +501,12 @@ function handlePointerDown(e){
             // → pan come il floor, senza Space (il rack non ha piu' scrollbar: il
             // drag E' la navigazione). Scroll programmatico anche con overflow:hidden.
             e.preventDefault();
-            win.isPanningRack=true;
-            win.rackPanStart={x:e.clientX, y:e.clientY, x0:store.state.rackView.x||0, y0:store.state.rackView.y||0};
+            store.isPanningRack=true;
+            store.rackPanStart={x:e.clientX, y:e.clientY, x0:store.state.rackView.x||0, y0:store.state.rackView.y||0};
             document.body.classList.add('rack-panning');
             const rv=document.getElementById('rack-viewport'); if(rv) rv.style.cursor='grabbing';
         } else if(e.target.closest('#floorplan')){
-            win.isPanningFloor=true; win.panStart={x:e.clientX-store.state.floorView.x,y:e.clientY-store.state.floorView.y};
+            store.isPanningFloor=true; win.panStart={x:e.clientX-store.state.floorView.x,y:e.clientY-store.state.floorView.y};
             store.selType=null; store.selId=null; win._clearTopoHighlight(); win._hideTopoTip();
             // Click area vuota mappa: se c'e' un filtro VLAN attivo, rimuovilo
             // (UX coerente: click "fuori" = reset filtro/selezione).
@@ -526,22 +526,22 @@ function handlePointerMove(e){
     // dal pointerdown, blocchiamo l'avanzamento dei drag attivi (rack
     // device, floor node, rack icon, resize). Pan e link-trace non sono
     // soggetti al threshold (richiedono tracking immediato).
-    if(!store._dragArmed && win._dragDownPt && (store.dragNode || store.dragRack || win.resizeNode)){
-        const _dx = e.clientX - win._dragDownPt.x;
-        const _dy = e.clientY - win._dragDownPt.y;
+    if(!store._dragArmed && store._dragDownPt && (store.dragNode || store.dragRack || store.resizeNode)){
+        const _dx = e.clientX - store._dragDownPt.x;
+        const _dy = e.clientY - store._dragDownPt.y;
         if((_dx*_dx + _dy*_dy) < (_DRAG_THRESHOLD_PX * _DRAG_THRESHOLD_PX)) return;
         store._dragArmed = true;
         _floorDblId = null; _floorDblTime = 0;   // un drag NON è la 1ª metà di un doppio click → invalida il timer del doppio click floor
     }
-    if(win.isPanningFloor){
+    if(store.isPanningFloor){
         store.state.floorView.x=e.clientX-win.panStart.x; store.state.floorView.y=e.clientY-win.panStart.y;
         updateTransforms();
-    } else if(win.isPanningRack){
+    } else if(store.isPanningRack){
         // Pan via TRANSFORM translate sul wrap, come il floor: lo zoom del rack e'
         // un transform:scale, quindi lo SCROLL non potrebbe muovere il contenuto
         // zoomato (ne' lateralmente ne' fino in fondo). Il contenuto segue il cursore.
-        store.state.rackView.x=(win.rackPanStart.x0||0)+(e.clientX-win.rackPanStart.x);
-        store.state.rackView.y=(win.rackPanStart.y0||0)+(e.clientY-win.rackPanStart.y);
+        store.state.rackView.x=(store.rackPanStart.x0||0)+(e.clientX-store.rackPanStart.x);
+        store.state.rackView.y=(store.rackPanStart.y0||0)+(e.clientY-store.rackPanStart.y);
         const wrap=document.getElementById('rack-chassis-wrap');
         if(wrap) wrap.style.transform=`translate(${store.state.rackView.x}px,${store.state.rackView.y}px) scale(${store.state.rackView.zoom})`;
         renderCables();
@@ -578,8 +578,8 @@ function handlePointerMove(e){
         const el=document.querySelector(`.floor-rack[data-rackid="${store.dragRack}"]`);
         if(el){el.style.left=rack.x+'px';el.style.top=rack.y+'px';}
         renderTopoOverlay();
-    } else if(win.resizeNode){
-        const n=nodeById(win.resizeNode); if(!n) return;
+    } else if(store.resizeNode){
+        const n=nodeById(store.resizeNode); if(!n) return;
         const fp=document.getElementById('floorplan').getBoundingClientRect();
         const rx=(e.clientX-fp.left-store.state.floorView.x)/store.state.floorView.zoom;
         const ry=(e.clientY-fp.top -store.state.floorView.y)/store.state.floorView.zoom;
@@ -684,18 +684,18 @@ function _tryFinishLink(tgt){
 function handlePointerUp(e){
     // Drag/resize: solo tasto sinistro
     if(e.button===0){
-        if(win.isPanningFloor){
-            win.isPanningFloor=false; markDirty();
+        if(store.isPanningFloor){
+            store.isPanningFloor=false; markDirty();
             const fp=document.getElementById('floorplan');
-            if(fp) fp.style.cursor=win._spaceDown?'grab':'';
+            if(fp) fp.style.cursor=store._spaceDown?'grab':'';
             _renderModeIndicator();
         }
         // Pan rack: lo scroll non e' stato persistito → niente markDirty.
-        if(win.isPanningRack){
-            win.isPanningRack=false; markDirty();
+        if(store.isPanningRack){
+            store.isPanningRack=false; markDirty();
             document.body.classList.remove('rack-panning');
             const rv=document.getElementById('rack-viewport');
-            if(rv) rv.style.cursor=win._spaceDown?'grab':'';
+            if(rv) rv.style.cursor=store._spaceDown?'grab':'';
         }
         // Drag rack icon:
         //  - se il drag e' stato armato (movimento > threshold) → commit
@@ -725,7 +725,7 @@ function handlePointerUp(e){
             }
             store.dragRack=null; _renderModeIndicator();
         }
-        if(store.dragNode||win.resizeNode){
+        if(store.dragNode||store.resizeNode){
             const _dn=store.dragNode?nodeById(store.dragNode):null;
             // Esito del drag deciso dal PUNTO DI RILASCIO (non dallo stato dei move, che su
             // un drag veloce può restare "dentro la zona" anche se rilasci fuori):
@@ -760,8 +760,8 @@ function handlePointerUp(e){
                     if(store.dragNode) pushHistory();
                     markDirty();
                 }
-                const wasResize=!!win.resizeNode;
-                store.dragNode=null; win.resizeNode=null;
+                const wasResize=!!store.resizeNode;
+                store.dragNode=null; store.resizeNode=null;
                 // F4-P3: resize stanza → refresh planimetria; _wasRackDrag → renderAll.
                 if(store._dragArmed && _wasRackDrag) renderAll();
                 else if(store._dragArmed && wasResize) win.renderScope('floor');
@@ -769,7 +769,7 @@ function handlePointerUp(e){
             }
         }
         // Reset stato threshold per il prossimo ciclo
-        store._dragArmed=false; win._dragDownPt=null;
+        store._dragArmed=false; store._dragDownPt=null;
     }
     // Completamento link: solo tasto destro
     if(e.button===2&&store.linkStart){
@@ -833,7 +833,7 @@ function handleDoubleClick(e){
     const el = e.target.closest('.rack-device');
     if(el){
         store.selId = el.dataset.id; store.selType = 'node';
-        win._propsExplicit = true;
+        store._propsExplicit = true;
         _renderModeIndicator();
         switchRightTab('props');
         renderProps();

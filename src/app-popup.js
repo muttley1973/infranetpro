@@ -26,7 +26,7 @@ function _selectProjectLink(linkId, opts={}){
     const l=store.state.links.find(x=>x.id===linkId);
     if(!l) return;
     closePop(); _hideTopoTip(); store.highPath.clear();
-    win._physicalTraceActive=false;
+    store._physicalTraceActive=false;
     if(opts.trace !== false) store.highPath.add(linkId);
     if(opts.showProps){
         store.selType='link'; store.selId=linkId;
@@ -57,7 +57,7 @@ function _showPhysicalCablePath(linkId){
     } else {
         store.highPath.add(linkId);
     }
-    win._physicalTraceActive=true;
+    store._physicalTraceActive=true;
     // Seleziona il cavo e apri le Proprietà: il percorso resta evidenziato
     // (store.highPath vince in shouldRenderLink) E l'utente ha la fisarmonica
     // "Percorso fisico" con l'elenco dei segmenti CLICCABILI — target affidabile
@@ -83,7 +83,7 @@ function _showPhysicalCablePath(linkId){
 
 // Selezione di un segmento dalla fisarmonica "Percorso fisico" (pannello cavo):
 // seleziona il link del segmento MANTENENDO l'evidenziazione del percorso
-// (non azzera store.highPath/win._physicalTraceActive). Cosi' l'utente naviga i tratti
+// (non azzera store.highPath/store._physicalTraceActive). Cosi' l'utente naviga i tratti
 // dal pannello mentre il percorso resta illuminato su rack+floor.
 function selectPathSegment(linkId){
     const l=store.state.links.find(x=>x.id===linkId); if(!l) return;
@@ -98,7 +98,7 @@ function selectPathSegment(linkId){
         // _activatePropsTab (richiamato da OGNI renderProps) non ri-forza la tab
         // 'props' — altrimenti la tab Rack si richiuderebbe al primo re-render.
         // L'hold a tempo non bastava: un render oltre la finestra riflippava.
-        win._propsTabHold = linkId;
+        store._propsTabHold = linkId;
     }
     // Render SINCRONO: include renderProps, che via _activatePropsTab forza la
     // tab 'props'. Per questo lo switch a 'rack' va fatto DOPO, come ULTIMA azione
@@ -106,11 +106,11 @@ function selectPathSegment(linkId){
     // e lo annullerebbe — era il bug "apre Proprietà invece del Rack").
     win.renderNow();
     if(_rackPid && typeof switchRightTab === 'function'){
-        if(win._rightTab !== 'rack') switchRightTab('rack');
+        if(store._rightTab !== 'rack') switchRightTab('rack');
         // switchRightTab azzera l'hold (decadimento su cambio tab esplicito):
         // qui il cambio e' NOSTRO, quindi ri-armiamo. Decade quando l'utente
         // cambia selezione o clicca lui una tab.
-        win._propsTabHold = linkId;
+        store._propsTabHold = linkId;
     }
 }
 
@@ -120,8 +120,8 @@ function selectPathSegment(linkId){
 // handler xrHit.onclick).
 
 function _clearLagFocus(){
-    if(win._focusedLagGroup||store._focusedLagPorts.size){
-        win._focusedLagGroup=null;
+    if(store._focusedLagGroup||store._focusedLagPorts.size){
+        store._focusedLagGroup=null;
         store._focusedLagPorts=new Set();
         renderAll();
     }
@@ -187,7 +187,7 @@ export function showPop(e,pid){
     store._lastPopPid=pid; store._lastPopX=e.clientX; store._lastPopY=e.clientY;
     const pi=store.state.ports[pid]||{};
     // Evidenzia tutte le porte fisiche del LAG locale/remoto.
-    win._focusedLagGroup = null;
+    store._focusedLagGroup = null;
     store._focusedLagPorts = new Set();
     win._focusLagForPort(pid);
     const node=getNodeByPortId(pid);
@@ -376,7 +376,7 @@ ${(()=>{
 store._topoData    = null;   // { nodes[], edges[] } — ultimo grafo rilevato  (var: letto/scritto dal bundle src/app-topology-discover.js via win.*)
 store._topoVisible = false;  // overlay attivo sulla planimetria              (var: idem)
 store._viewMode    = 'map';  // 'map' | 'topology'                           (var: idem)
-win._physicalTraceActive = false; // in topologia mostra il cablaggio fisico solo su richiesta  (var: letto dal bundle src/app-topology-overlay.js via win.*)
+store._physicalTraceActive = false; // in topologia mostra il cablaggio fisico solo su richiesta  (var: letto dal bundle src/app-topology-overlay.js via win.*)
 // Cache FDB (MAC table) degli switch, popolata durante poll/topology.
 // { switchNodeId: { "aa:bb:cc:dd:ee:ff": "GigabitEthernet1", ... } }
 // Usata da _autoLinkEndpoint per collegare un endpoint senza ri-pollare gli switch.
@@ -385,7 +385,7 @@ store._topoFdbCache = {};   // var: letto dal bundle src/app-discovery.js via st
 // { [nodeId]: { [normMac]: vlanId } }. Riempita dal poll quando lo switch
 // restituisce la Q-BRIDGE FDB VLAN-aware. Consumata dal Drift Report per
 // classificare i device su VLAN guest (best-effort, degrada se assente).
-win._topoFdbVlanCache = {};
+store._topoFdbVlanCache = {};
 // Cache neighbors LLDP/CDP per switch, popolata in _autoDiscoverLinks durante sync.
 // { switchNodeId: { ts, deviceHostname, deviceIP, neighbors[] } }
 // Usata da discoverTopology per evitare di rifare le chiamate /api/topology
@@ -393,11 +393,11 @@ win._topoFdbVlanCache = {};
 // Invalidazione: tasto destro sul pulsante (force refresh).
 store._topoNeighborsCache = {};   // var: letto/scritto dal bundle src/app-topology-discover.js via win.*
 win._topoTipTimer= null;   // timer per nascondere il tooltip  (var: letto/scritto dal bundle src/app-topology-overlay.js via win.*)
-win._hoverRackId = null;   // rack ID in hover sulla planimetria (proposta C)  (var: letto dal bundle via win.*)
+store._hoverRackId = null;   // rack ID in hover sulla planimetria (proposta C)  (var: letto dal bundle via win.*)
 store._filterVlan  = null;   // VLAN ID attivo come filtro visuale (null = nessun filtro)  (var: idem)
 store._topoTrunkOnly = false; // toggle legenda: evidenzia i TRUNK (attenua il resto)  (store: ex win.*)
-win._topoHideEndpoints = false; // toggle legenda: nasconde le linee verso gli endpoint  (var: idem)
-win._topoHideWireless = false;  // toggle legenda: nasconde le connessioni wireless (onde)  (var: idem)
+store._topoHideEndpoints = false; // toggle legenda: nasconde le linee verso gli endpoint  (var: idem)
+store._topoHideWireless = false;  // toggle legenda: nasconde le connessioni wireless (onde)  (var: idem)
 
 // Toggle "Trunk" della legenda topologia: evidenzia le linee trunk attenuando
 // le altre (stesso modello interattivo del filtro VLAN, stato di sessione).
@@ -411,25 +411,25 @@ function toggleTopoTrunkFilter(){
 // endpoint (fan-out floor↔rack + coppie floor↔floor) per ridurre la confusione,
 // lasciando il backbone rack↔rack. Stato di sessione.
 function toggleTopoEndpointFilter(){
-    win._topoHideEndpoints = !win._topoHideEndpoints;
+    store._topoHideEndpoints = !store._topoHideEndpoints;
     // I nodi endpoint si nascondono via CSS (la regola e' gia' gated su
     // .view-topology, quindi in mappa non ha effetto anche se la classe resta).
-    document.body.classList.toggle('topo-hide-endpoints', win._topoHideEndpoints);
+    document.body.classList.toggle('topo-hide-endpoints', store._topoHideEndpoints);
     renderTopoOverlay();   // le linee verso gli endpoint le toglie buildTopoLines
 }
 
 // Toggle "WLAN" della legenda topologia: nasconde tutte le connessioni wireless
 // (le onde) — pairs floor↔floor e fan-out marcati wireless. Stato di sessione.
 function toggleTopoWlanFilter(){
-    win._topoHideWireless = !win._topoHideWireless;
+    store._topoHideWireless = !store._topoHideWireless;
     renderTopoOverlay();   // le onde le toglie buildTopoLines (filtro hideWireless)
 }
 
 export function _applyViewMode(){
     document.body.classList.toggle('view-topology', store._viewMode==='topology');
     document.body.classList.toggle('view-map', store._viewMode==='map');
-    if(store._viewMode!=='topology') win._physicalTraceActive=false;
-    document.body.classList.toggle('physical-trace-active', win._physicalTraceActive);
+    if(store._viewMode!=='topology') store._physicalTraceActive=false;
+    document.body.classList.toggle('physical-trace-active', store._physicalTraceActive);
     win._updateFloorToolbarVisibility();
     renderTopoOverlay();
     renderAll();

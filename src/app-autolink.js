@@ -184,7 +184,7 @@ async function _refreshTopoFdbCache(force=false){
             refreshed++;
             const norm = win._normalizeFdbTable(data.fdbTable || {});
             store._topoFdbCache[n.id] = norm;
-            win._topoFdbVlanCache[n.id] = win.normalizeFdbVlan(data.fdbVlan || {}, win._normMacKey);
+            store._topoFdbVlanCache[n.id] = win.normalizeFdbVlan(data.fdbVlan || {}, win._normMacKey);
             if(Object.keys(norm).length) withFdb++;
         }catch(_){}
     };
@@ -773,7 +773,7 @@ async function _autoDiscoverLinks(nodeIds){
 
         const fdbTable = win._normalizeFdbTable(data.fdbTable || {});
         store._topoFdbCache[n.id] = fdbTable; // cache per auto-link endpoint on-demand (senza ri-poll)
-        win._topoFdbVlanCache[n.id] = win.normalizeFdbVlan(data.fdbVlan || {}, win._normMacKey); // VLAN-per-MAC (Drift guest)
+        store._topoFdbVlanCache[n.id] = win.normalizeFdbVlan(data.fdbVlan || {}, win._normMacKey); // VLAN-per-MAC (Drift guest)
         // Cache neighbors LLDP/CDP: il pulsante Topologia la riuserà senza rifare le chiamate
         store._topoNeighborsCache[n.id] = {
             ts: Date.now(),

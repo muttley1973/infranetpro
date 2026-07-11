@@ -128,10 +128,10 @@ function _renderTopoLegend(){
             // ENDPOINT e WLAN sono "mostra/nascondi": ACCESI di default (tutto mostrato),
             // grigi quando il filtro nasconde.
             html += `<span class="topo-leg-sep"></span>`;
-            const epOff = (typeof win._topoHideEndpoints !== 'undefined') && win._topoHideEndpoints;
+            const epOff = (typeof store._topoHideEndpoints !== 'undefined') && store._topoHideEndpoints;
             html += `<span class="topo-leg-endpoint${!epOff?' active':''}" data-tip="${t('pnl.disc.tipEndpoint')}" data-tip-pos="bottom"><i class="fas fa-circle-nodes"></i>ENDPOINT</span>`;
             html += `<span class="topo-leg-sep"></span>`;
-            const wlOff = (typeof win._topoHideWireless !== 'undefined') && win._topoHideWireless;
+            const wlOff = (typeof store._topoHideWireless !== 'undefined') && store._topoHideWireless;
             html += `<span class="topo-leg-wlan${!wlOff?' active':''}" data-tip="${t('pnl.disc.tipWlan')}" data-tip-pos="bottom"><i class="fas fa-wifi"></i>WLAN</span>`;
         }
     }
@@ -150,12 +150,12 @@ function _buildTopoModel(){
         types: TYPES,
         topoData: store._topoData,
         currentRack: store.state.currentRack,
-        hoverRackId: win._hoverRackId,
+        hoverRackId: store._hoverRackId,
         filterVlan: store._filterVlan,
         trunkOnly: (typeof store._topoTrunkOnly !== 'undefined') && store._topoTrunkOnly,
-        hideEndpoints: (typeof win._topoHideEndpoints !== 'undefined') && win._topoHideEndpoints,
-        hideWireless: (typeof win._topoHideWireless !== 'undefined') && win._topoHideWireless,
-        physicalTrace: (typeof win._physicalTraceActive !== 'undefined') && win._physicalTraceActive,
+        hideEndpoints: (typeof store._topoHideEndpoints !== 'undefined') && store._topoHideEndpoints,
+        hideWireless: (typeof store._topoHideWireless !== 'undefined') && store._topoHideWireless,
+        physicalTrace: (typeof store._physicalTraceActive !== 'undefined') && store._physicalTraceActive,
         vlanColors: store.state.vlanColors || {},
         highPathIds: store.highPath,
         selectedLinkId: (store.selType === 'link') ? store.selId : null,

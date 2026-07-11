@@ -146,7 +146,7 @@ async function deleteProject() {
 
 async function saveProject() {
     if (!store.currentProjectId) return;
-    if (win._snmpSyncing) return;
+    if (store._snmpSyncing) return;
     try {
         await apiFetch(`${API}/${store.currentProjectId}`, {
             method:'PUT',

@@ -97,8 +97,8 @@ function _renderAllNow(){
     // sono sparsi (Esc, click su vuoto, delete, undo/redo) ma passano tutti da
     // un render — senza questo, dopo una deselezione l'hold resterebbe stantio
     // e ri-selezionare lo STESSO cavo dalla mappa non aprirebbe le Proprieta'.
-    if(typeof win._propsTabHold !== 'undefined' && win._propsTabHold &&
-       !(store.selType === 'link' && store.selId === win._propsTabHold)) win._propsTabHold = null;
+    if(typeof store._propsTabHold !== 'undefined' && store._propsTabHold &&
+       !(store.selType === 'link' && store.selId === store._propsTabHold)) store._propsTabHold = null;
     propagateVlans();   // propaga VLAN sui link prima di renderizzare
     _renderModeIndicator();
     if(typeof win._renderV3PendingChip === 'function') win._renderV3PendingChip();
@@ -411,8 +411,8 @@ function _renderAllNow(){
             +(devNames?`<div class="floor-rack-devs">${devNames}</div>`:'');
         // Hover per rack non corrente: mostra anteprima connessioni (Proposta C)
         if(!isActive&&store._topoVisible){
-            el.addEventListener('mouseenter',()=>{ win._hoverRackId=rack.id; renderTopoOverlay(); });
-            el.addEventListener('mouseleave',()=>{ win._hoverRackId=null; renderTopoOverlay(); });
+            el.addEventListener('mouseenter',()=>{ store._hoverRackId=rack.id; renderTopoOverlay(); });
+            el.addEventListener('mouseleave',()=>{ store._hoverRackId=null; renderTopoOverlay(); });
         }
         // Doppio click: apre la vista del rack corrispondente (espande il pannello se nascosto)
         el.addEventListener('dblclick',e=>{
@@ -548,8 +548,8 @@ function _renderFloorNow(){
             + `<div class="floor-rack-name">${escapeHTML(rack.name)}${floorBadge}</div>`
             + (devNames ? `<div class="floor-rack-devs">${devNames}</div>` : '');
         if(!isActive && store._topoVisible){
-            el.addEventListener('mouseenter', ()=>{ win._hoverRackId=rack.id; renderTopoOverlay(); });
-            el.addEventListener('mouseleave', ()=>{ win._hoverRackId=null; renderTopoOverlay(); });
+            el.addEventListener('mouseenter', ()=>{ store._hoverRackId=rack.id; renderTopoOverlay(); });
+            el.addEventListener('mouseleave', ()=>{ store._hoverRackId=null; renderTopoOverlay(); });
         }
         el.addEventListener('dblclick', e => {
             e.stopPropagation();
@@ -680,8 +680,8 @@ function shouldRenderLink(l){
             if(_sn && TYPES[_sn.type]?.isFloor) return win.isPortOnNode(l.src,store.selId)||win.isPortOnNode(l.dst,store.selId);
         }
     }
-    if(win._rightTab==='props' && store.selType==='port' && store.selId && !isRackPort(store.selId)) return false;
-    if(win._rightTab==='props' && store.selType==='node' && store.selId){
+    if(store._rightTab==='props' && store.selType==='port' && store.selId && !isRackPort(store.selId)) return false;
+    if(store._rightTab==='props' && store.selType==='node' && store.selId){
         const n=nodeById(store.selId);
         if(n && TYPES[n.type]?.isFloor) return false;
     }
