@@ -2668,6 +2668,51 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.tipHasLag, 'portTip riporta il LAG nella porta in gruppo');
     });
 
+    await t.test('REGRESSIONE (tenuta JSON): _migrateState non spezza i LAG rinumerando ID non-canonici', async () => {
+      // Scoperto nello smoke test enterprise-500: caricando un progetto con node ID
+      // NON canonici (es. "core1") + LAG in formato lag-<nodeId>-poN, la rinumerazione
+      // (_normalizeProjectNodeIds) rimappava le CHIAVI di state.lagGroups ma NON i
+      // riferimenti ports[].lagGroup (gestiva solo snmp-lag-*) → tutti i LAG orfani.
+      // Fix: remapLagId applicata SIMMETRICAMENTE a chiavi mappa e riferimenti porta.
+      const r = await page.evaluate(() => {
+        const st = {
+          nodes: [
+            { id: 'core1', type: 'switch', name: 'CORE-1', ports: 8, rackId: 'r1', rackU: 1 },
+            { id: 'dist1', type: 'switch', name: 'DIST-1', ports: 8, rackId: 'r1', rackU: 2 },
+          ],
+          links: [ { id: 'L1', src: 'core1-1', dst: 'dist1-1' }, { id: 'L2', src: 'core1-2', dst: 'dist1-2' } ],
+          ports: {
+            'core1-1': { lagGroup: 'lag-core1-po1', lagId: 1, status: 'active' },
+            'core1-2': { lagGroup: 'lag-core1-po1', lagId: 1, status: 'active' },
+            'dist1-1': { lagGroup: 'lag-dist1-po1', lagId: 1, status: 'active' },
+            'dist1-2': { lagGroup: 'lag-dist1-po1', lagId: 1, status: 'active' },
+          },
+          lagGroups: { 'lag-core1-po1': 'Po1', 'lag-dist1-po1': 'Po1' },
+          racks: [ { id: 'r1', name: 'R1', sizeU: 42 } ], currentRack: 'r1',
+        };
+        const m = _migrateState(JSON.parse(JSON.stringify(st)));
+        // 1) ID canonicalizzati (core1/dist1 → sw*)
+        const idsCanonical = m.nodes.every(n => /^sw\d+$/.test(n.id)) && !m.nodes.some(n => n.id === 'core1');
+        // 2) TENUTA LAG: ogni ports[].lagGroup è una chiave presente in state.lagGroups
+        const lagKeys = new Set(Object.keys(m.lagGroups));
+        const refs = new Set();
+        for (const p of Object.values(m.ports)) if (p && p.lagGroup) refs.add(p.lagGroup);
+        const dangling = [...refs].filter(x => !lagKeys.has(x));
+        const orphan = [...lagKeys].filter(k => !refs.has(k));
+        // 3) idempotenza: un secondo migrate resta allineato
+        const m2 = _migrateState(JSON.parse(JSON.stringify(m)));
+        const keys2 = new Set(Object.keys(m2.lagGroups));
+        const refs2 = new Set(); for (const p of Object.values(m2.ports)) if (p && p.lagGroup) refs2.add(p.lagGroup);
+        const stillAligned = [...refs2].every(x => keys2.has(x)) && refs2.size === keys2.size;
+        return { idsCanonical, lagKeys: lagKeys.size, refs: refs.size, dangling, orphan, stillAligned };
+      });
+      assert.ok(r.idsCanonical, 'gli ID non-canonici sono stati rinumerati (core1→sw*)');
+      assert.equal(r.dangling.length, 0, 'nessun ports[].lagGroup dangling dopo la rinumerazione: ' + r.dangling.join(', '));
+      assert.equal(r.orphan.length, 0, 'nessun LAG orfano (chiave senza porte) dopo la rinumerazione: ' + r.orphan.join(', '));
+      assert.equal(r.refs, r.lagKeys, 'riferimenti LAG delle porte e chiavi mappa in corrispondenza 1:1');
+      assert.ok(r.stillAligned, 'idempotenza: un secondo _migrateState non rispezza i LAG');
+    });
+
     await t.test('rimuovere un LAG da Proprieta riporta porte E cavi allo stato normale (anche LAG da SNMP)', async () => {
       // Regressione: un LAG derivato dall'SNMP marca la porta con lagGroup='snmp-lag-…'
       // MA ANCHE con lagId (l'aggregatore). dissolveLag/removePortFromLag cancellavano

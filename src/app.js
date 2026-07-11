@@ -1150,6 +1150,22 @@ function _normalizeProjectNodeIds(s){
         }
         return out;
     };
+    // Rimappa un identificatore di LAG group con UNA sola logica, usata SIA per le
+    // chiavi di state.lagGroups SIA per i riferimenti ports[].lagGroup: i due lati
+    // devono restare allineati dopo la rinumerazione degli ID, altrimenti il LAG si
+    // perde (porta con ref dangling / gruppo orfano). Il formato SNMP tiene il nodeId
+    // in posizione nota; ogni altro formato (`lag-<nodeId>-poN`, `lldp-lag-a||b`,
+    // `lg-<uid>`) passa dal remap per-token (no-op se non contiene un id rinominato).
+    const remapLagId = (gid) => {
+        if (typeof gid === 'string' && gid.startsWith('snmp-lag-')) {
+            const m = gid.match(/^snmp-lag-(.+)-(\d+)$/);
+            if (m) {
+                const mapped = idMap[m[1]];
+                return remapIdTokens(mapped ? `snmp-lag-${mapped}-${m[2]}` : gid);
+            }
+        }
+        return remapIdTokens(gid);
+    };
 
     // 3) remap link endpoints
     if (Array.isArray(s.links)) {
@@ -1181,35 +1197,22 @@ function _normalizeProjectNodeIds(s){
     }
     s.ports = newPorts;
 
-    // 5) riallinea lagGroup auto SNMP che includono nodeId nel nome
-    // formato: snmp-lag-<nodeId>-<lagId>
-    for (const [pid, pi] of Object.entries(s.ports)) {
-        const g = pi?.lagGroup;
-        if (!g || !g.startsWith('snmp-lag-')) continue;
-        const m = g.match(/^snmp-lag-(.+)-(\d+)$/);
-        if (!m) continue;
-        const oldNodeId = m[1];
-        const lagId = m[2];
-        const mapped = idMap[oldNodeId];
-        if (mapped) pi.lagGroup = `snmp-lag-${mapped}-${lagId}`;
+    // 5) riallinea i riferimenti lagGroup SULLE PORTE con la STESSA fn delle chiavi
+    // mappa (step 6). Qualunque formato che incorpora un nodeId rinominato
+    // (`lag-<nodeId>-poN`, `snmp-lag-…`, `lldp-lag-a||b`) va rimappato: se qui si
+    // trattasse solo `snmp-lag-` mentre lo step 6 rimappa tutto, i due lati
+    // divergerebbero e il LAG andrebbe perso al caricamento.
+    for (const pi of Object.values(s.ports)) {
+        if (pi && pi.lagGroup) pi.lagGroup = remapLagId(pi.lagGroup);
     }
 
-    // 6) riallinea anche le chiavi in state.lagGroups (etichette LAG)
+    // 6) riallinea le CHIAVI di state.lagGroups (etichette LAG) con la STESSA fn
+    // usata sulle porte (step 5): applicando `remapLagId` a entrambi i lati, chiave
+    // e riferimento restano per costruzione allineati.
     if (s.lagGroups && typeof s.lagGroups === 'object') {
         const remappedLagGroups = {};
         for (const [gid, gname] of Object.entries(s.lagGroups)) {
-            if (typeof gid === 'string' && gid.startsWith('snmp-lag-')) {
-                const m = gid.match(/^snmp-lag-(.+)-(\d+)$/);
-                if (m) {
-                    const oldNodeId = m[1];
-                    const lagId = m[2];
-                    const mapped = idMap[oldNodeId];
-                    const newGid = mapped ? `snmp-lag-${mapped}-${lagId}` : gid;
-                    remappedLagGroups[remapIdTokens(newGid)] = gname;
-                    continue;
-                }
-            }
-            remappedLagGroups[remapIdTokens(gid)] = gname;
+            remappedLagGroups[remapLagId(gid)] = gname;
         }
         s.lagGroups = remappedLagGroups;
     }
