@@ -1,10 +1,10 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
-import { nodeById, getPortNodeId, _showToast } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, getPortNodeId, _showToast, _chainAmbiguousLinkIds, _chainVlanColors } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _portDisplayName } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
-import { _getLinkTrunk } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _getLinkTrunk, showVlanMembers, setVlanFilter, _linkIsTrunk } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _findPortByIfName } from './app-topology-discover.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { _getLinkVlan, toggleTopoTrunkFilter, toggleTopoEndpointFilter, toggleTopoWlanFilter, _linkMatchesVlanFilter, _rackPairMatchesVlan, _findProjectLinkByPorts, _drawFanoutLineDesc, _rectEdge, _showTopoTip, _hideTopoTip, _showPhysicalCablePath } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
 
@@ -43,7 +43,7 @@ export function renderTopoOverlay(){
 }
 // Legenda dinamica della vista topologia. Mostra pillole VLAN cliccabili
 // per filtrare la mappa. Click su pillola = applica/rimuove filtro VLAN.
-// Doppio click = apre modal win.showVlanMembers (porte access + trunk link).
+// Doppio click = apre modal showVlanMembers (porte access + trunk link).
 let _topoLegendBound = false;
 export function _renderTopoLegend(){
     const el = document.getElementById('topo-legend');
@@ -79,8 +79,8 @@ export function _renderTopoLegend(){
             if(!pill) return;
             const vid = parseInt(pill.dataset.vid, 10);
             if(isNaN(vid)) return;
-            if(typeof win.setVlanFilter !== 'function') return;
-            win.setVlanFilter(store._filterVlan === vid ? null : vid);
+            if(typeof setVlanFilter !== 'function') return;
+            setVlanFilter(store._filterVlan === vid ? null : vid);
         });
         el.addEventListener('dblclick', e => {
             if(!el.classList.contains('mode-interactive')) return;
@@ -89,7 +89,7 @@ export function _renderTopoLegend(){
             e.stopPropagation();
             const vid = parseInt(pill.dataset.vid, 10);
             if(isNaN(vid)) return;
-            if(typeof win.showVlanMembers === 'function') win.showVlanMembers(vid);
+            if(typeof showVlanMembers === 'function') showVlanMembers(vid);
         });
         _topoLegendBound = true;
     }
@@ -167,13 +167,13 @@ function _buildTopoModel(){
             linkVlan: _getLinkVlan,
             // Trunk EFFETTIVO (anche derivato da voce/SSID): i trunk derivati si
             // comportano da trunk in topologia (pillola, toggle "solo trunk").
-            linkIsTrunk: (typeof win._linkIsTrunk==='function') ? win._linkIsTrunk : null,
+            linkIsTrunk: (typeof _linkIsTrunk==='function') ? _linkIsTrunk : null,
             linkTrunkVlans: (typeof _getLinkTrunk==='function') ? (l=>_getLinkTrunk(l).vlans.join(',')) : null,
             linkMatchesVlanFilter: _linkMatchesVlanFilter,
             rackPairMatchesVlan: _rackPairMatchesVlan,
             isAmbiguousLink: l => typeof win.linkState === 'function' && win.linkState(l).key === 'ambiguous',
-            chainAmbiguousIds: (typeof win._chainAmbiguousLinkIds === 'function') ? win._chainAmbiguousLinkIds() : null,
-            chainColors: (typeof win._chainVlanColors === 'function') ? win._chainVlanColors() : null,
+            chainAmbiguousIds: (typeof _chainAmbiguousLinkIds === 'function') ? _chainAmbiguousLinkIds() : null,
+            chainColors: (typeof _chainVlanColors === 'function') ? _chainVlanColors() : null,
             findPortByIfName: _findPortByIfName,
             findProjectLinkByPorts: _findProjectLinkByPorts,
         }

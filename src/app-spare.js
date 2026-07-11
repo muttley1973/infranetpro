@@ -15,11 +15,11 @@
 //   • dal ponte:      buildSpareReport (spare-ports) · t (i18n)
 //   • legacy (win.*): state, TYPES, _isLeafEndpoint, _frontPanelSfpGroups,
 //                     _linksForPort, getNodeDisplayName, escapeHTML
-import { win, expose, t, buildSpareReport } from './_bridge.js';
+import { expose, t, buildSpareReport } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
 import { getNodeDisplayName, _linksForPort } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
-import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { TYPES, _frontPanelSfpGroups } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _isLeafEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
 
 // store._spareActive su window: lo legge BARE (guarded) app-render-core nel hook
@@ -40,7 +40,7 @@ function _spareBuildDevices(){
         if(!pc) continue;
         // Indici porta che sono SFP/uplink (il resto e' access). mgmt sta fuori da 1..pc.
         const sfpSet = new Set();
-        for(const g of win._frontPanelSfpGroups(n, pc)) for(const p of (g.ports||[])) sfpSet.add(p);
+        for(const g of _frontPanelSfpGroups(n, pc)) for(const p of (g.ports||[])) sfpSet.add(p);
         const responded = n.snmpStatus === 'ok';
         const ports = [];
         for(let i = 1; i <= pc; i++){
@@ -66,7 +66,7 @@ function _spareClearHighlight(){
 }
 // Riapplica le classi alle porte libere/sospette. Chiamato dal toggle e dopo
 // ogni render (hook in _renderAllNow) finche' store._spareActive.
-function _applySpareHighlight(){
+export function _applySpareHighlight(){
     if(!store._spareActive){ _spareClearHighlight(); return; }
     const rep = _spareCompute();
     const free = new Set(rep.freePids), susp = new Set(rep.suspectPids);

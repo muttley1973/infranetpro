@@ -13,9 +13,10 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
-import { getNodeDisplayName } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { getNodeDisplayName, _ipamUsageForVlan } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte: builder pannello (ex win.*)
 import { closeReportMenu } from './app-auth.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
+import { updateVlanIpam } from './app-vlan-autopoll.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 
 // Tipi che possono fare da gateway L3 (per il dropdown di scelta).
 const _L3_GATEWAY_TYPES = ['router', 'firewall', 'switch'];
@@ -32,8 +33,8 @@ function _l3BuildModel(withUsage){
         id: n.id, name: getNodeDisplayName(n) || n.name || n.id, ip: n.ip, type: n.type,
     }));
     const usageByVid = {};
-    if(withUsage && typeof win._ipamUsageForVlan === 'function'){
-        for(const v of vlans){ try { usageByVid[String(v.vid)] = win._ipamUsageForVlan(v.vid).usedCount; } catch(_){} }
+    if(withUsage && typeof _ipamUsageForVlan === 'function'){
+        for(const v of vlans){ try { usageByVid[String(v.vid)] = _ipamUsageForVlan(v.vid).usedCount; } catch(_){} }
     }
     return { vlans, ipamByVid, nodes, usageByVid, parseCidr: win._parseCidrInfo, ipInCidr: win._ipInCidr };
 }
@@ -60,7 +61,7 @@ function _l3CandidateNodes(currentId){
 // ── Setter binding (manual-first) ────────────────────────────────────
 function updateVlanGatewayNode(vid, nodeId){
     // Riusa updateVlanIpam: stringa vuota → cancella il campo.
-    win.updateVlanIpam(+vid, 'gatewayNodeId', nodeId || '');
+    updateVlanIpam(+vid, 'gatewayNodeId', nodeId || '');
 }
 
 // ── UI: binding nella card IPAM (riga "Device gateway") ───────────────

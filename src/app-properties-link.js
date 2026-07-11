@@ -6,13 +6,14 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
-import { getNodeByPortId, getNodeDisplayName, getWallPortLabel, _getLinkPhysicalView, _enableManualValueInProps, _activatePropsTab } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { getNodeByPortId, getNodeDisplayName, getWallPortLabel, _getLinkPhysicalView, _enableManualValueInProps, _activatePropsTab, _cableAutoLabel } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderProps, _propsSectionIsOpen, _buildPropsHeader } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
-import { TYPES, _frontPanelPortLabel } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { TYPES, _frontPanelPortLabel, _frontPanelIsUplink } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _effPortVlan, _getLinkTrunk, _parseTrunkVlans, _runActiveAnchor } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _portDisplayName } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _getLinkVlan } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
 import { _routeHopRemovable } from './app-cabling-editor.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
+import { _wifiAssocHtml } from './app-wifi.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 
 // ============================================================
 // PROPERTIES PANEL — renderer CAVO/LINK (selType===link)
@@ -39,7 +40,7 @@ function _cablePortDesc(pid){
     if(num >= 1 && String(num) === suffix){
         const pc = node.ports !== undefined ? node.ports : ((TYPES[node.type] && TYPES[node.type].ports) || 1);
         const lbl = (typeof _frontPanelPortLabel === 'function') ? _frontPanelPortLabel(node, num, pc) : suffix;
-        const isSfp = (typeof win._frontPanelIsUplink === 'function') && win._frontPanelIsUplink(node, num, pc);
+        const isSfp = (typeof _frontPanelIsUplink === 'function') && _frontPanelIsUplink(node, num, pc);
         // SFP: se la label e' numerica pura prepende "SFP "; se ha gia' un prefisso
         // (es. "SFP1", "Te1") lo lascia com'e' (niente doppione "SFP SFP1").
         if(isSfp) return /^\d/.test(lbl) ? ('SFP ' + lbl) : lbl;
@@ -105,7 +106,7 @@ export function _renderLinkProps(panel){
                  <b>VLAN ${vl}</b>${vlanName?`<span style="color:var(--text-muted)">— ${vlanName}</span>`:''}
                </span>`;
 
-        const autoLbl = win._cableAutoLabel(l);
+        const autoLbl = _cableAutoLabel(l);
         const hasManualLbl = !!l.label;
         const linkHeaderTitle = l.label || autoLbl || l.id || (l.wireless ? 'Wireless' : t('cable.cable'));
         const linkHeaderSubtitle = l.wireless ? t('cable.wirelessAssoc') : (l.autoLinked ? t('cable.autoCable') : t('cable.cable'));
@@ -404,7 +405,7 @@ export function _renderLinkProps(panel){
                     return `<details class="props-collapsible props-secondary" open style="margin-top:14px">
               <summary class="props-collapsible-head"><span><i class="fas fa-wifi"></i> ${t('cable.wirelessAssoc')}</span><span class="props-collapsible-preview">${t('radio.single')}</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
               <div class="props-collapsible-body">
-                ${typeof win._wifiAssocHtml==='function' ? win._wifiAssocHtml(l) : ''}
+                ${typeof _wifiAssocHtml==='function' ? _wifiAssocHtml(l) : ''}
                 <div class="link-wireless-note"><i class="fas fa-circle-info"></i> ${t('pnl.gen.wifiInheritNote')}</div>
               </div></details>`;
                 }

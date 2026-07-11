@@ -7,7 +7,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { uid } from './app-util.js';
-import { markDirty, getNodeByPortId, getNodeDisplayName, pushHistory, _showToast, _invalidateIdx, switchRightTab, getWallPortLabel, getPortMaxConnections } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { markDirty, getNodeByPortId, getNodeDisplayName, pushHistory, _showToast, _invalidateIdx, switchRightTab, getWallPortLabel, getPortMaxConnections, _isLinearPassThroughPort, _getPassThroughMode } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
@@ -250,7 +250,7 @@ export function _routingPickPort(midPid){
 
     const res = win.splitLinkThrough(link, midPid, {
         uid: uid,
-        isPassThrough: win._isLinearPassThroughPort,
+        isPassThrough: _isLinearPassThroughPort,
         linksForCapacity: store.state.links.filter(l => l.id !== linkId),
         maxConn: getPortMaxConnections(midPid),
     });
@@ -313,7 +313,7 @@ function removeRouteHop(midPid){
 // Una tappa intermedia del percorso è rimovibile se la porta è pass-through
 // 'port' e ha ESATTAMENTE 2 cavi (quelli che verranno fusi).
 export function _routeHopRemovable(pid){
-    if(win._getPassThroughMode(pid) !== 'port') return false;
+    if(_getPassThroughMode(pid) !== 'port') return false;
     return win.portConnectionCount(store.state.links || [], pid) === 2;
 }
 
