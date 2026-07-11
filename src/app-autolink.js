@@ -8,7 +8,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { uid } from './app-util.js';
-import { nodeById, markDirty, getNodeByPortId, getPortNodeId, renderCables, _showToast, _invalidateIdx, _linksForPort } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, markDirty, getNodeByPortId, getPortNodeId, renderCables, _showToast, _invalidateIdx, _linksForPort, canAddConnection, _createLinkRecord } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 // ============================================================
@@ -72,7 +72,7 @@ function _matchNodeByIdent(hostname, ip){
 //          + UPS/PDU managed (rack, porta di management).
 // Esclude: switch/router/server/nas… (isActive), media converter (2 porte,
 //          dispositivo di passaggio), patch panel/prese (no IP).
-function _isLeafEndpoint(type){
+export function _isLeafEndpoint(type){
     const d = TYPES[type];
     return !!(d && d.hasIP && !d.isActive && (d.ports === 1));
 }
@@ -347,7 +347,7 @@ function _findWallPortBehindInfrastructurePort(infraPid, epPid){
                 if(!n) continue;
                 if(n.type === 'wallport'){
                     const chk = epPid ? win._validateWallPortConnection(other, epPid) : {ok:true};
-                    if(chk.ok && win.canAddConnection(other)) return other;
+                    if(chk.ok && canAddConnection(other)) return other;
                     continue;
                 }
                 if(TYPES[n.type]?.isPassive && !_isLeafEndpoint(n.type)){
@@ -386,8 +386,8 @@ function _autoLinkEndpoint(nodeId){
         _invalidateIdx();
         return { ok:true, swId:res.swId, ifName:res.ifName, wallPort:wallPid, created:false };
     }
-    store.state.links.push(typeof win._createLinkRecord === 'function'
-        ? win._createLinkRecord(attachPid, epPid, { autoLinked:true, confidence:res.confidence, protocol:wallPid ? 'MAC-WALLPORT' : 'MAC' })
+    store.state.links.push(typeof _createLinkRecord === 'function'
+        ? _createLinkRecord(attachPid, epPid, { autoLinked:true, confidence:res.confidence, protocol:wallPid ? 'MAC-WALLPORT' : 'MAC' })
         : { id:uid('l'), src:attachPid, dst:epPid, autoLinked:true, confidence:res.confidence, protocol:wallPid ? 'MAC-WALLPORT' : 'MAC' });
     _invalidateIdx();
     if(!store.state.ports[attachPid]) store.state.ports[attachPid] = {};

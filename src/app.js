@@ -185,7 +185,7 @@ function _getUiModeMeta(){
     }
     return { icon:'fa-arrow-pointer', tone:'', label:t('mode.selection'), hint:t('mode.selectionHint') };
 }
-function _renderModeIndicator(){
+export function _renderModeIndicator(){
     const wrap=document.getElementById('ui-mode-indicator');
     const labelEl=document.getElementById('ui-mode-label');
     const hintEl=document.getElementById('ui-mode-hint');
@@ -492,7 +492,7 @@ function _getLinkPhysicalView(linkOrId){
     };
 }
 
-function _createLinkRecord(src, dst, extra={}){
+export function _createLinkRecord(src, dst, extra={}){
     return _normalizeLinkMetadata({ id:uid('l'), src, dst, ...extra });
 }
 
@@ -950,7 +950,7 @@ function _cableAutoLabel(l){
     return `${_dispName(sn?.name||l.src)} P${sp} → ${_dispName(dn?.name||l.dst)} P${dp}`;
 }
 
-function _promoteLinkToManual(link){
+export function _promoteLinkToManual(link){
     if(!link?.autoLinked) return false;
     delete link.autoLinked;
     delete link.confidence;
@@ -1354,7 +1354,7 @@ function getPortMaxConnections(pid)  {
     return _getPassThroughMode(pid)==='port' ? 2 : 1;
 }
 function getPortConnectionCount(pid) { return _linksForPort(pid).length; }
-function canAddConnection(pid)       { return getPortConnectionCount(pid)<getPortMaxConnections(pid); }
+export function canAddConnection(pid)       { return getPortConnectionCount(pid)<getPortMaxConnections(pid); }
 
 function _wallPortConnectionRole(wpPid, otherPid){
     const wp = getNodeByPortId(wpPid);
@@ -1414,7 +1414,7 @@ export function checked(v)     { return v?'checked':''; }
 
 function getWallPortLabel(n) { return n?.portId||n?.name||''; }
 function getRackName(rid)    { return state.racks.find(r=>r.id===rid)?.name||rid||''; }
-function getRackById(rid)    { return state.racks.find(r=>r.id===rid); }
+export function getRackById(rid)    { return state.racks.find(r=>r.id===rid); }
 function getRackSize(rid=state.currentRack) { return normalizeNumber(getRackById(rid)?.sizeU,42,6,60); }
 function getNodeRackSize(n)  { return getRackSize(n?.rackId||state.currentRack); }
 // Numerazione U: internamente rackU=1 e' sempre la riga piu' in basso (EIA-310).
