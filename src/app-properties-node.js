@@ -12,9 +12,15 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
-import { nodeById, getNodeDisplayName, selected, _patchPanelOffset, _enableManualValueInProps, _activatePropsTab } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
-import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
-import { _propsSectionIsOpen, _buildNetAccessHtml, renderProps, _buildPropsHeader } from './app-properties.js';   // ritiro ponte: builder pannello (ex win.*)
+import { nodeById, getNodeDisplayName, selected, _patchPanelOffset, _enableManualValueInProps, _activatePropsTab, getNodeRackSize, _patchPanelChainOptions, isRackTopNumbered, rackUToVisible } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { TYPES, typeName, _nodeSpecView, _fixedRackLabel, _frontPanelState } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
+import { _propsSectionIsOpen, _buildNetAccessHtml, renderProps, _buildPropsHeader, _propsIconForType, _buildPatchPanelPreview } from './app-properties.js';   // ritiro ponte: builder pannello (ex win.*)
+import { _discIdentityLabel } from './app-discovery-classify.js';   // ritiro ponte: alias-block sciolto (ex win.*)
+import { _defaultStackName } from './app-stack-ha.js';   // ritiro ponte: alias-block sciolto (ex win.*)
+import { getLagGroupsForNode } from './app-ports.js';   // ritiro ponte: alias-block sciolto (ex win.*)
+import { _nodeDeviceChainHtml } from './app-properties-node-devices.js';   // ritiro ponte: alias-block sciolto (ex win.*)
+import { _l3SviSectionHtml } from './app-l3.js';   // ritiro ponte: alias-block sciolto (ex win.*)
+import { _panelSkinSectionHtml } from './app-panel-skin.js';   // ritiro ponte: alias-block sciolto (ex win.*)
 
 // ============================================================
 // PROPERTIES PANEL — renderer NODO (dispositivo/struttura, selType===node)
@@ -46,24 +52,16 @@ function _lagPeerMode(members){
 function _renderNodeProps(panel){
         // ── Alias verso lo scope legacy (build-time); gli onclick="" restano bare ──
         // TYPES non è più aliasato: arriva dall'import ESM in cima al modulo.
+        // Alias RESIDUI = solo lib-script (stack/ha-pair, <script>: restano sul ponte)
+        // + stato via store. Le funzioni definite in src/ arrivano dagli import ESM in cima.
         const state = store.state,
-            _nodeSpecView = win._nodeSpecView,
-            _propsIconForType = win._propsIconForType,
-            _discIdentityLabel = win._discIdentityLabel,
-            getNodeRackSize = win.getNodeRackSize, _fixedRackLabel = win._fixedRackLabel,
-            _frontPanelState = win._frontPanelState, _patchPanelChainOptions = win._patchPanelChainOptions,
             isInStack = win.isInStack, getStackMembers = win.getStackMembers,
             getStackSummary = win.getStackSummary, getAllStackIds = win.getAllStackIds,
-            getEffectiveRole = win.getEffectiveRole, _defaultStackName = win._defaultStackName,
+            getEffectiveRole = win.getEffectiveRole,
             isInHaPair = win.isInHaPair, isInHaCluster = win.isInHaCluster,
             getHaPeer = win.getHaPeer, getHaPartners = win.getHaPartners,
             getHaSummary = win.getHaSummary, getAllHaGroupIds = win.getAllHaGroupIds,
-            _buildPatchPanelPreview = win._buildPatchPanelPreview,
-            isRackTopNumbered = win.isRackTopNumbered, rackUToVisible = win.rackUToVisible,
-            getLagGroupsForNode = win.getLagGroupsForNode,
-            _nodeDeviceChainHtml = win._nodeDeviceChainHtml,
-            _propsExplicit = store._propsExplicit,
-            _l3SviSectionHtml = win._l3SviSectionHtml, _panelSkinSectionHtml = win._panelSkinSectionHtml;
+            _propsExplicit = store._propsExplicit;
 
         const _rawNode=nodeById(store.selId); if(!_rawNode) return;
         const n=_nodeSpecView(_rawNode);

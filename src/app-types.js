@@ -106,7 +106,7 @@ const FIXED_RACK_LABELS = {
     cablemanager: 'Passacavo',
 };
 
-function _fixedRackLabel(type){
+export function _fixedRackLabel(type){
     return FIXED_RACK_LABELS[type] || '';
 }
 
@@ -173,7 +173,7 @@ function _compactNodeSpec(node){
     if(!Object.keys(spec).length) delete node.spec;
 }
 
-function _nodeSpecView(node){
+export function _nodeSpecView(node){
     if(!node || typeof node !== 'object') return node;
     return new Proxy(node, {
         get(target, prop, receiver){
@@ -198,7 +198,7 @@ function _frontPanelLegacyState(fp = {}, portCount = 0){
     return win.frontPanelLegacyState(fp, portCount);
 }
 
-function _frontPanelState(node, portCount){
+export function _frontPanelState(node, portCount){
     const mgmtEligible = !!(node && TYPES[node.type] && TYPES[node.type].mgmtEligible);
     return win.frontPanelState(node, portCount, mgmtEligible);
 }

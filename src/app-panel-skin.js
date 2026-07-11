@@ -50,7 +50,7 @@ function _resolveNodeSkin(n){
 }
 
 // ---- Sezione "Skin pannello" nel pannello Proprieta -------------------------
-function _panelSkinSectionHtml(n){
+export function _panelSkinSectionHtml(n){
     const cur = _resolveNodeSkin(n);
     const curId = (n && n.skinId) || '';
     const brand = ((n && n.brand) || '').toString().toLowerCase();

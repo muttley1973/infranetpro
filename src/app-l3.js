@@ -88,7 +88,7 @@ function _l3GatewayBindingHtml(vid, row){
 
 // ── UI: sezione "Gateway L3 / SVI" nel pannello del device ────────────
 // Mostrata solo se il device instrada ≥1 VLAN. Read-only: deriva dal binding.
-function _l3SviSectionHtml(nodeId){
+export function _l3SviSectionHtml(nodeId){
     const esc = s => escapeHTML(String(s == null ? '' : s));
     let rep; try { rep = _l3Compute(true); } catch(_){ return ''; }
     const dev = (rep.l3Devices || []).find(d => String(d.id) === String(nodeId));

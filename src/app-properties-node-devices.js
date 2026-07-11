@@ -84,7 +84,7 @@ function _floorAccessVlanRow(n, pid){
       </div>`;
 }
 
-function _nodeDeviceChainHtml(n, d, _identityBlock){
+export function _nodeDeviceChainHtml(n, d, _identityBlock){
     let h = '';
     let _devSpecHtml = '';
     // Le fisarmoniche FLOOR mettono la device-specifica PRIMA di "Rete & Accesso"

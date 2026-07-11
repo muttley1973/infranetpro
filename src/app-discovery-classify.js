@@ -331,7 +331,7 @@ export function _discIdentitySource(row){
     return 'observed';
 }
 
-function _discIdentityLabel(src){
+export function _discIdentityLabel(src){
     const map = {
         snmp:'SNMP confermato',
         lldp:'Neighbor LLDP',

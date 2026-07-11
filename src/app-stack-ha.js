@@ -220,7 +220,7 @@ function _defaultHaGroupName(node){
 // significativi del nodo. Priorita: hostname (senza dominio) > name > id.
 // Sanitizza in slug ASCII lowercase con dash (es. "Core Switch" -> "core-switch",
 // "core01.lan" -> "core01"). Prefisso "stk-" sempre presente.
-function _defaultStackName(node){
+export function _defaultStackName(node){
     if(!node) return 'stk-stack';
     const raw = String(node.hostname || node.name || node.id || 'stack').trim();
     // Prendi solo la prima parte prima del primo punto (strip dominio DNS)
