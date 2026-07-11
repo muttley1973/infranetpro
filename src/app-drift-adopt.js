@@ -17,8 +17,9 @@ import { escapeHTML, uid, normalizeMacAddress } from './app-util.js';
 import { markDirty, pushHistory, renderCables, _showToast, _invalidateIdx, _nextNodeId } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
-import { _isLeafEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
-import { _discIndexNode, _discVendorFromMac } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { _isLeafEndpoint, _autoLinkEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
+import { _discIndexNode, _discVendorFromMac, _discFindExistingDevice } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { _findFreeU } from './app-topology-crawl.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
 
 let _adoptRows = [];           // candidati attualmente mostrati nel modal
 
@@ -175,7 +176,7 @@ function _adoptCreateNodes(picks, autoLink){
         const macN = (typeof normalizeMacAddress === 'function') ? normalizeMacAddress(cand.mac || '') : (cand.mac || '');
         // Dedup: se il MAC è già documentato, non duplicare.
         if(existingIdx){
-            const match = win._discFindExistingDevice({ mac: macN }, existingIdx);
+            const match = _discFindExistingDevice({ mac: macN }, existingIdx);
             if(match && match.node){ skipped++; return; }
         }
         const name = cand.hostname || cand.vendor || macN || def.name;   // il nome dal lease (se c'è) vince
@@ -193,7 +194,7 @@ function _adoptCreateNodes(picks, autoLink){
             floorCount++;
         } else {
             const sU = def.sizeU || 1;
-            const rackU = (typeof win._findFreeU === 'function') ? win._findFreeU(rackId, sU) : 1;
+            const rackU = (typeof _findFreeU === 'function') ? _findFreeU(rackId, sU) : 1;
             n = {
                 id: nid, type, name, hostname: cand.hostname || '', ip: cand.ip || '', mac: macN,
                 brand: cand.vendor || def.brand || '', vendorHint: cand.vendor || '',
@@ -210,8 +211,8 @@ function _adoptCreateNodes(picks, autoLink){
     if(typeof _invalidateIdx === 'function') _invalidateIdx();
 
     // Auto-link alla porta FDB (riusa la logica testata; salta trunk/uplink/ambigui).
-    if(autoLink && typeof win._autoLinkEndpoint === 'function'){
-        for(const ep of newEndpoints){ try { if(win._autoLinkEndpoint(ep.id).ok) autoLinked++; } catch(_){} }
+    if(autoLink && typeof _autoLinkEndpoint === 'function'){
+        for(const ep of newEndpoints){ try { if(_autoLinkEndpoint(ep.id).ok) autoLinked++; } catch(_){} }
     }
     return { added, skipped, floorCount, autoLinked };
 }

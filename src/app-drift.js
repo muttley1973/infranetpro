@@ -17,7 +17,7 @@
 // anche da src/app-drift-adopt.js, quindi NON è una variabile di modulo.
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { TYPES } from './app-types.js';   // catalogo tipi: distingue gli elementi passivi dall'audit di presenza
+import { TYPES, _frontPanelPortLabel } from './app-types.js';   // catalogo tipi: distingue gli elementi passivi dall'audit di presenza
 import { escapeHTML, normalizeMacAddress } from './app-util.js';
 import { nodeById, markDirty, getNodeByPortId, getNodeDisplayName, pushHistory, logAudit } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -41,7 +41,7 @@ function _driftNorm(mac){
 function _driftPortLabel(pid){
     const n = getNodeByPortId(pid);   // importato da app.js (guardia win.* ridondante rimossa)
     const num = String(pid).slice(String(pid).lastIndexOf('-') + 1);
-    const pn = (n && typeof win._frontPanelPortLabel === 'function') ? win._frontPanelPortLabel(n, num, n.ports || 0) : num;
+    const pn = (n && typeof _frontPanelPortLabel === 'function') ? _frontPanelPortLabel(n, num, n.ports || 0) : num;
     const nm = n ? (getNodeDisplayName(n) || n.name || n.id) : pid;
     return `${nm} / P${pn}`;
 }

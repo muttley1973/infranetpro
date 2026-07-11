@@ -15,6 +15,7 @@ import { escapeHTML, normalizeStatus } from './app-util.js';
 import { nodeById, getNodeByPortId, getPortNodeId, _isRadioPid } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _effPortVlan, _getLinkTrunk, _parseTrunkVlans } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _buildPropsHeader } from './app-properties.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
 // NB: renderProps() qui è chiamato SOLO da un onclick="" (bare-in-template, scope
 // pagina → window.renderProps via expose): nessun import ESM, sarebbe inutilizzato.
 
@@ -111,7 +112,7 @@ function _renderPortProps(panel){
             </div>`;
         })();
         panel.innerHTML=`
-            ${win._buildPropsHeader(
+            ${_buildPropsHeader(
                 (portNode?.name || portNode?.hostname || portNode?.ip || pid),
                 t('pnl.dev.portN',{n:portNum}),
                 'fa-ethernet'
