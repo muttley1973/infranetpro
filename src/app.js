@@ -366,7 +366,7 @@ function _isLinearPassThroughPort(pid){
     return !!_getPassThroughMode(pid);
 }
 
-function _getLinkPhysicalView(linkOrId){
+export function _getLinkPhysicalView(linkOrId){
     const selected = typeof linkOrId === 'string'
         ? state.links.find(l=>l.id===linkOrId)
         : linkOrId;
@@ -1899,7 +1899,7 @@ export function switchRightTab(tab){
 // L'hold decade da solo: cambio selezione (selId diverso) o switch tab
 // esplicito (switchRightTab lo azzera).
 store._propsTabHold = null;   // var: scritto da app-popup (selectPathSegment) e dal bundle render-core via win.*; bare-letto dai classic
-function _activatePropsTab(label){
+export function _activatePropsTab(label){
     if(_propsTabHold && selType === 'link' && selId === _propsTabHold) return;
     _propsTabHold = null;   // selezione cambiata → l'hold decade
     if(_rightTab !== 'props') switchRightTab('props');
@@ -1950,7 +1950,7 @@ function _runInlineOnChange(el, inlineCode){
     catch(err){ console.warn('[props-manual]', err?.message || err); }
 }
 
-function _enableManualValueInProps(panel){
+export function _enableManualValueInProps(panel){
     if(!panel) return;
     const selects = [...panel.querySelectorAll('select')];
     selects.forEach(sel=>{

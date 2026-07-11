@@ -8,13 +8,13 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, normalizeStatus } from './app-util.js';
-import { nodeById, getNodeByPortId, getPortNodeId, renderCables, _showToast, switchRightTab, _linksForPort, getRackById } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, getNodeByPortId, getPortNodeId, renderCables, _showToast, switchRightTab, _linksForPort, getRackById, _getLinkPhysicalView } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderTopoOverlay } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { ensureNodeRackVisible, renderRackTabs } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
-import { _effPortVlan, _parseTrunkVlans } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _effPortVlan, _parseTrunkVlans, _siteNativeVlan } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _portDisplayName } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 
 function _findProjectLinkByPorts(a,b){
@@ -49,7 +49,7 @@ function _showPhysicalCablePath(linkId){
     const l=store.state.links.find(x=>x.id===linkId);
     if(!l) return;
     closePop(); _hideTopoTip(); store.highPath.clear();
-    const physicalView = (typeof win._getLinkPhysicalView === 'function') ? win._getLinkPhysicalView(l) : null;
+    const physicalView = (typeof _getLinkPhysicalView === 'function') ? _getLinkPhysicalView(l) : null;
     if(Array.isArray(physicalView?.segments) && physicalView.segments.length){
         physicalView.segments.forEach(segment=>{
             if(segment?.linkId) store.highPath.add(segment.linkId);
@@ -436,7 +436,7 @@ export function _applyViewMode(){
 }
 
 /** Restituisce "ID – Nome" se la VLAN ha un nome, altrimenti solo "ID". */
-function _vlanLabel(id){ const n=store.state.vlanNames?.[id]; return n?`${id} – ${n}`:`${id}`; }
+export function _vlanLabel(id){ const n=store.state.vlanNames?.[id]; return n?`${id} – ${n}`:`${id}`; }
 
 /**
  * Restituisce true se il nodo floor sarebbe nascosto dal filtro VLAN attivo.
@@ -481,7 +481,7 @@ function _floorNodeHiddenByVlan(nid){
  * (es. patch-panel→switch o switch→patch-panel) — la VLAN autorevole
  * sta sempre sullo switch, non sulla porta sorgente del link.
  */
-function _getLinkVlan(l){
+export function _getLinkVlan(l){
     const sp=store.state.ports[l.src]||{};
     const dp=store.state.ports[l.dst]||{};
     const sActive=!!TYPES[getNodeByPortId(l.src)?.type]?.isActive;
@@ -504,7 +504,7 @@ function _getLinkVlan(l){
     if(sp.vlan>0) return sp.vlan;
     if(dp.vlan>0) return dp.vlan;
     // 6. nessuna VLAN documentata → nativa predefinita di sito (default 1)
-    return (typeof win._siteNativeVlan==='function') ? win._siteNativeVlan() : 1;
+    return (typeof _siteNativeVlan==='function') ? _siteNativeVlan() : 1;
 }
 
 /** Restituisce true se il link appartiene alla VLAN filtro attiva. */

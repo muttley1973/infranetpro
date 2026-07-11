@@ -12,10 +12,11 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, normalizeStatus } from './app-util.js';
-import { nodeById, getNodeByPortId, getPortNodeId, _isRadioPid } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, getNodeByPortId, getPortNodeId, _isRadioPid, _enableManualValueInProps } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
-import { _effPortVlan, _getLinkTrunk, _parseTrunkVlans } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _effPortVlan, _getLinkTrunk, _parseTrunkVlans, _runActiveAnchor } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _buildPropsHeader } from './app-properties.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
+import { _vlanLabel } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
 // NB: renderProps() qui è chiamato SOLO da un onclick="" (bare-in-template, scope
 // pagina → window.renderProps via expose): nessun import ESM, sarebbe inutilizzato.
 
@@ -23,11 +24,11 @@ import { _buildPropsHeader } from './app-properties.js';   // ritiro ponte: funz
 // Una porta senza dati propri (endpoint floor, passivo) li EREDITA dalla porta
 // ATTIVA a monte (lo switch) della tratta, attraversando gli eventuali passanti.
 function _portInheritedLinkData(pid){
-    if(typeof win._runActiveAnchor !== 'function') return {};
+    if(typeof _runActiveAnchor !== 'function') return {};
     const state = store.state;
     const links = (state.links || []).filter(l => l && (l.src === pid || l.dst === pid));
     for(const l of links){
-        const anchor = win._runActiveAnchor(l);
+        const anchor = _runActiveAnchor(l);
         if(anchor && anchor !== pid){
             const ap = state.ports[anchor] || {};
             return { status: ap.statusOvr != null ? ap.statusOvr : ap.status,
@@ -83,7 +84,7 @@ function _renderPortProps(panel){
         if(pi.ifName) snmpParts.push(pi.ifName);
         if(pi.alias&&pi.alias!==pi.ifName) snmpParts.push(pi.alias);
         if(pi.speed) snmpParts.push(pi.speed>=1000?`${(pi.speed/1000).toFixed(pi.speed%1000?1:0)}G`:`${pi.speed}M`);
-        if(pi.vlan&&pi.vlan>1) snmpParts.push(`VLAN ${win._vlanLabel(pi.vlan)}`);
+        if(pi.vlan&&pi.vlan>1) snmpParts.push(`VLAN ${_vlanLabel(pi.vlan)}`);
         if(pi.lagId&&pi.lagId>0) snmpParts.push(`LAG ${pi.lagId}`);
         const snmpBar=snmpParts.length?`<div class="snmp-bar" style="margin:0 0 10px"><span class="sb">SNMP</span>${escapeHTML(snmpParts.join(' · '))}</div>`:'';
         const rst=(f,lbl)=>pi[f]!=null?`<button class="toolbar-btn" style="padding:2px 6px;margin:0;font-size:0.7rem" data-tip="${t('pnl.dev.restoreField',{field:lbl})}" onclick="clearPortField('${pid}','${f}');renderProps()">↺</button>`:'';
@@ -259,7 +260,7 @@ function _renderPortProps(panel){
         // I MAC visti sulla porta vengono ora elencati interamente dentro il
         // blocco "Segmento L2 condiviso" (non piu' duplicati in due box adiacenti).
         panel.innerHTML += win._sharedSegmentHtml(pid,'props');
-        win._enableManualValueInProps(panel);
+        _enableManualValueInProps(panel);
 }
 
 // Chiamato dal dispatcher renderProps() (app-properties.js, classic);

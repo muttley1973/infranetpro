@@ -261,6 +261,27 @@ test('ponte: le funzioni getter/label/props/disc non sono più lette da win.*', 
   }
 });
 
+// ── 1n) Funzioni disc/props/vlan/hv ritirate del tutto (reads + calls) ───────
+// Ritiro ponte 2026-07-11: 13 funzioni — discovery-index (`_discBuildExistingIndexes`,
+// `_discTouchNodeIdentity`), `selectAndFocusNode` (app-search-zoom-rack.js), `rackUPx`
+// (app-render-core.js), core-props (`_getLinkPhysicalView`, `_enableManualValueInProps`,
+// `_activatePropsTab` in app.js), VLAN (`_siteNativeVlan`, `_runActiveAnchor`),
+// popup-VLAN (`_vlanLabel`, `_getLinkVlan`), `_hvPanelHtml` (app-hypervisor.js),
+// `_powerLiveHtml` (app-properties.js). `export function` + `import`. 4ª ricorrenza
+// alias-block (app-properties-node.js: _enableManualValueInProps/_activatePropsTab)
+// pre-risolta a mano. Restano in expose() (export.js legge _vlanLabel/_getLinkVlan).
+const RETIRED_MIX_FN = ['_discBuildExistingIndexes', '_discTouchNodeIdentity',
+  'selectAndFocusNode', 'rackUPx', '_getLinkPhysicalView', '_enableManualValueInProps',
+  '_activatePropsTab', '_siteNativeVlan', '_runActiveAnchor', '_vlanLabel', '_getLinkVlan',
+  '_hvPanelHtml', '_powerLiveHtml'];
+test('ponte: le funzioni disc/props/vlan/hv non sono più lette da win.*', () => {
+  for (const sym of RETIRED_MIX_FN) {
+    const viaWin = countInCode(new RegExp('\\bwin\\.' + sym + '\\b', 'g'));
+    assert.equal(viaWin, 0,
+      `win.${sym} è tornato: importa { ${sym} } dal suo modulo definitore`);
+  }
+});
+
 // ── 2) Cricchetto sul totale: il ponte può solo restringersi ────────────────
 // Conteggio SOLO-CODICE (commenti esclusi) delle letture win.*. Tetto stretto al
 // valore reale corrente: abbassalo al numero che il test stampa ([ratchet] …)
@@ -450,7 +471,14 @@ test('ponte: le funzioni getter/label/props/disc non sono più lette da win.*', 
 // declaratori `X = win.X` rimossi + import — 3ª ricorrenza della trappola TDZ). Rimosso
 // l'import `win` ora inutilizzato da app-csv-import.js (PRIMO modulo senza ponte). Golden
 // invariante (tocca _buildPropsHeader/_frontPanelPortLabel); e2e 69/69. Vedi RETIRED_GETTER_FN.
-const MAX_WIN_REFS = 632;
+//
+// −52 (632 → 580, 2026-07-11): RITIRO PONTE — binario FUNZIONI, disc/props/vlan/hv.
+// 13 funzioni (_discBuildExistingIndexes/_discTouchNodeIdentity, selectAndFocusNode, rackUPx,
+// _getLinkPhysicalView/_enableManualValueInProps/_activatePropsTab, _siteNativeVlan/
+// _runActiveAnchor, _vlanLabel/_getLinkVlan, _hvPanelHtml, _powerLiveHtml). 53 win.X → bare.
+// 4ª ricorrenza alias-block (app-properties-node.js) pre-risolta a mano. Restano in expose()
+// (export.js legge _vlanLabel/_getLinkVlan). Golden invariante; e2e 69/69. Vedi RETIRED_MIX_FN.
+const MAX_WIN_REFS = 580;
 
 test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => {
   const total = countInCode(/\bwin\./g);

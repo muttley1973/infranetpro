@@ -13,10 +13,11 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
-import { _buildDeviceBrandModelPreview, _propsSectionIsOpen, _buildInventoryFieldsHtml, _buildNetAccessHtml } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
+import { _buildDeviceBrandModelPreview, _propsSectionIsOpen, _buildInventoryFieldsHtml, _buildNetAccessHtml, _powerLiveHtml } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { selected, checked, getWallPortLabel } from './app.js';   // ritiro ponte: helper option-selected/checked (ex win.*)
 import { _effPortVlan } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _hvPanelHtml } from './app-hypervisor.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
 
 // ============================================================
 // PROPERTIES PANEL — catena device-specifica per-tipo (estratta da
@@ -27,7 +28,7 @@ import { _effPortVlan } from './app-vlan-autopoll.js';   // ritiro ponte: funzio
 //             _devSpecHtml+=), poi cucito nellassemblaggio rack del chiamante.
 // Sequenza piatta di blocchi indipendenti if(n.type===...): un solo blocco
 // scatta per render. Usa solo n, d, _identityBlock + helper globali
-// (selected, t, escapeHTML, _build*Html, win._powerLiveHtml, updateN, ...).
+// (selected, t, escapeHTML, _build*Html, _powerLiveHtml, updateN, ...).
 // Caricato in netmapper.html subito dopo app-properties-node.js.
 // ============================================================
 // VLAN access di un endpoint floor in SOLA LETTURA: è la VLAN EFFETTIVA della sua
@@ -864,13 +865,13 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
             // collocazione: rack → _devSpecHtml (cucito nel ramo rack del chiamante); floor →
             // flusso inline `h` come gli altri device floor (nome + Rete&Accesso + pannello),
             // altrimenti per il floor il device-spec verrebbe calcolato ma mai concatenato.
-            if(n.type==='hypervisor' && typeof win._hvPanelHtml === 'function'){
-                _devSpecHtml += win._hvPanelHtml(n, d);
+            if(n.type==='hypervisor' && typeof _hvPanelHtml === 'function'){
+                _devSpecHtml += _hvPanelHtml(n, d);
             }
-            if(n.type==='homelab' && typeof win._hvPanelHtml === 'function'){
+            if(n.type==='homelab' && typeof _hvPanelHtml === 'function'){
                 h += `<div class="prop-group"><label>${t('field.nameId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="homelab-01" onchange="updateFloorId(this.value)"></div>
                     ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false}), '')}
-                    ${win._hvPanelHtml(n, d)}`;
+                    ${_hvPanelHtml(n, d)}`;
             }
             if(n.type==='nas'){
                 const protos = Array.isArray(n.nasProtocols) ? n.nasProtocols : [];
@@ -949,7 +950,7 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
                     <div class="prop-group"><label>${t('f.estRuntime')}</label>
                         <input type="number" min="1" max="600" value="${n.upsAutonomyMin||10}" onchange="updateN('upsAutonomyMin',parseInt(this.value)||10)"></div>
                     <label class="prop-check"><input type="checkbox" ${checked(n.upsHotSwap)} onchange="updateN('upsHotSwap',this.checked)" style="width:auto;margin-right:6px">${t('pnl.dev.hotSwapBatteries')}</label>
-                    ${typeof win._powerLiveHtml==='function' ? win._powerLiveHtml(n) : ''}
+                    ${typeof _powerLiveHtml==='function' ? _powerLiveHtml(n) : ''}
                 </div></details>`;
             }
             if(n.type==='pdu'){
@@ -998,7 +999,7 @@ function _nodeDeviceChainHtml(n, d, _identityBlock){
                     </select></div>
                     <div class="prop-group"><label>${t('f.outputSockets')}</label>
                         <input type="number" min="1" max="48" value="${n.atsOutletCount||9}" onchange="updateN('atsOutletCount',parseInt(this.value)||9)"></div>
-                    ${typeof win._powerLiveHtml==='function' ? win._powerLiveHtml(n) : ''}
+                    ${typeof _powerLiveHtml==='function' ? _powerLiveHtml(n) : ''}
                 </div></details>`;
             }
     return { h: h, devSpec: _devSpecHtml, net: _floorNet };

@@ -17,6 +17,7 @@ import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi 
 import { _driftBuildDocSnapshot, _driftComputeFromDoc } from './app-drift.js';   // presenza→grigio: ricalcolo Drift dopo il Sync
 import { _ensureVlanColor } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _autoLinkDiagText } from './app-autolink.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { selectAndFocusNode } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
 
 // Tipi per cui richiedere HOST-RESOURCES-MIB standard (CPU/RAM/dischi). Oltre agli
 // host generici, includiamo gli apparati di rete spesso Linux-based (MikroTik,
@@ -102,7 +103,7 @@ function _v3JumpNext(){
     if(!pend.length) return;
     const cur = pend.findIndex(n => n.id === store.selId);
     const next = pend[(cur + 1) % pend.length];
-    if(typeof win.selectAndFocusNode === 'function') win.selectAndFocusNode(next);
+    if(typeof selectAndFocusNode === 'function') selectAndFocusNode(next);
     else { store.selType = 'node'; store.selId = next.id; renderAll(); }
     if(typeof switchRightTab === 'function') switchRightTab('props');
     if(typeof renderProps === 'function') renderProps();

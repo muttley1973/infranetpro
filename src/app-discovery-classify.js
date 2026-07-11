@@ -141,7 +141,7 @@ function _discExistingIndexes(){
     return _discIdxCache;
 }
 
-function _discBuildExistingIndexes(){
+export function _discBuildExistingIndexes(){
     const idx = { byMac:new Map(), byIp:new Map(), byHost:new Map() };
     (store.state.nodes || []).forEach(n => {
         const mac = _discNodeMac(n);
@@ -274,7 +274,7 @@ function _discMarkIpMacConflict(existing, row){
     if(existing.discoveryConflicts.length > 20) existing.discoveryConflicts.splice(0, existing.discoveryConflicts.length - 20);
 }
 
-function _discTouchNodeIdentity(node, row, matchedBy=''){
+export function _discTouchNodeIdentity(node, row, matchedBy=''){
     if(!node) return;
     const now = new Date().toISOString();
     const seenIp = String(row?.ip || '').trim();
