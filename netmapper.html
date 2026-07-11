@@ -203,7 +203,7 @@
                 </div>
                 <div class="sidebar-search-wrap">
                     <i class="fas fa-magnifying-glass"></i>
-                    <input id="palette-search" type="text" data-i18n-ph="palette.search" placeholder="Cerca elemento..." oninput="filterPaletteItems(this.value)">
+                    <input id="palette-search" type="text" data-i18n-ph="palette.search" placeholder="Cerca elemento..." data-input="palette-filter">
                     <button id="palette-search-clear" type="button" class="sidebar-search-clear" data-act="palette-filter-clear" data-i18n-tip="palette.clearSearch" data-tip="Pulisci ricerca">
                         <i class="fas fa-xmark"></i>
                     </button>
@@ -409,7 +409,7 @@
                             <button class="rack-menu-item" data-act="rack-rename"><i class="fas fa-pen"></i> <span data-i18n="rack.rename">Rinomina rack</span></button>
                             <div class="rack-menu-size-row">
                                 <span data-i18n="rack.size">Dimensione</span>
-                                <label class="rack-size-control">U <input id="rack-size-input" type="number" min="6" max="60" value="42" onchange="updateRackSize(this.value)"></label>
+                                <label class="rack-size-control">U <input id="rack-size-input" type="number" min="6" max="60" value="42" data-change="rack-size"></label>
                             </div>
                             <button class="rack-menu-item" id="btn-rack-floor" data-act="rack-on-floor" data-i18n-tip="rack.onFloorTip" data-tip="Piazza/rimuovi questo rack dalla planimetria"><i class="fas fa-map-pin"></i> <span data-i18n="rack.onFloor">Piazza su planimetria</span></button>
                             <button class="rack-menu-item" id="btn-rack-unum" data-act="rack-unumber" data-i18n-tip="rack.uNumTip" data-tip="Inverte solo la visualizzazione: 1 in alto come nei rack telco/ETSI"><i class="fas fa-arrows-up-down"></i> <span id="btn-rack-unum-label" data-i18n="rack.uNumFromTop">Numerazione U dall'alto</span></button>

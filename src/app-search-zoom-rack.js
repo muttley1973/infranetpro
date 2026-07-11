@@ -6,7 +6,7 @@
 // I globali legacy si leggono via win.*; t (i18n) dal ponte.
 // ============================================================
 import { expose, t } from './_bridge.js';
-import { registerClickActions } from './app-delegation.js';   // ASSE B: event delegation (data-act) — toolbar rack/zoom/palette
+import { registerClickActions, registerChangeActions, registerInputActions } from './app-delegation.js';   // ASSE B: event delegation (data-act/change/input) — toolbar rack/zoom/palette
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, hexToRgba, normalizeStatus, normalizeNumber } from './app-util.js';
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _showToast, getRackById, getRackName, getNodeRackSize, getPortConnectionCount, getNodePortCount, getRackSize, _repairRackPlacements, removeNodePorts, _resetSelection } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
@@ -719,13 +719,13 @@ expose({
     updateTransforms, applyUiColors,
     handleFloorZoom, handleRackZoom,
     // palette
-    filterPaletteItems, initPaletteUi,
+    initPaletteUi,
     // menu rack/floor
     toggleFloorMenu, closeFloorMenu,
     _updateFloorMenuState, _updateFloorToolbarVisibility,
     // rack management
     _updateRackFloorBtn, renderRackTabs, switchRack,
-    moveNodeToRack, updateRackSize, _updateRackUNumLabel,
+    moveNodeToRack, _updateRackUNumLabel,
     // map import
     handleMapUpload, clearMap, scaleBgImageTo, scaleBgImage, setBgImageOpacity, toggleFloorGrid,
     toggleBgImageLock, toggleRoomLock, _liveStructColor, _liveStructOpacity,
@@ -751,4 +751,13 @@ registerClickActions({
     'rack-on-floor':       () => { toggleRackOnFloor(); closeRackMenu(); },
     'rack-unumber':        () => { toggleRackUNumbering(); closeRackMenu(); },
     'rack-delete':         () => { deleteCurrentRack(); closeRackMenu(); },
+});
+
+// ASSE B — prime superfici NON-click (harness esteso a change/input). Le due fn
+// escono da expose(): l'elemento porta data-change/data-input, la fn legge el.value.
+registerChangeActions({
+    'rack-size': (el) => updateRackSize(el.value),
+});
+registerInputActions({
+    'palette-filter': (el) => filterPaletteItems(el.value),
 });
