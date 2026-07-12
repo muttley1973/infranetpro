@@ -12,6 +12,7 @@ import { expose, t } from './_bridge.js';   // (win non più necessario: ultima 
 import { escapeHTML } from './app-util.js';
 import { nodeById } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { registerClickActions, registerInputActions } from './app-delegation.js';   // ASSE B: editor protocolli (modale) via data-act/data-input
 
 /** Lista default di fabbrica — usata come fallback e per il reset.
  *  Modificarla in codice e' valido per i nuovi utenti; chi ha gia'
@@ -141,10 +142,10 @@ function _renderMgmtProtoEditor(){
     if(!tb) return;
     tb.innerHTML = MGMT_PROTOCOLS.map((p,i) => `
         <tr>
-            <td><input value="${escapeHTML(p.label)}" oninput="_updateMgmtProtoField(${i},'label',this.value)"></td>
-            <td><input value="${escapeHTML(p.scheme)}" oninput="_updateMgmtProtoField(${i},'scheme',this.value)" placeholder="es. winbox://"></td>
+            <td><input value="${escapeHTML(p.label)}" data-input="mgmt-proto-field" data-idx="${i}" data-field="label"></td>
+            <td><input value="${escapeHTML(p.scheme)}" data-input="mgmt-proto-field" data-idx="${i}" data-field="scheme" placeholder="es. winbox://"></td>
             <td><code style="font-size:0.7rem;color:var(--text-muted)">${escapeHTML(p.id)}</code></td>
-            <td><button class="toolbar-btn" onclick="_deleteMgmtProto(${i})" data-tip="${t('pnl.misc.remove')}" style="padding:2px 7px"><i class="fas fa-trash"></i></button></td>
+            <td><button class="toolbar-btn" data-act="mgmt-proto-del" data-idx="${i}" data-tip="${t('pnl.misc.remove')}" style="padding:2px 7px"><i class="fas fa-trash"></i></button></td>
         </tr>
     `).join('');
 }
@@ -184,10 +185,27 @@ function _updateMgmtRow(nodeId, val){
     else       { a.removeAttribute('href'); a.style.opacity='.35'; a.style.pointerEvents='none'; }
 }
 
-// Esposti su window: _mgmtRow (chiamato da app-properties.js) + tutti gli
-// handler inline onclick/oninput delle HTML generate e dei pulsanti overlay.
+// Ancora su window: gli handler del pannello PROPRIETÀ (GOLDEN) — `_mgmtRow`
+// (chiamato da app-properties.js), `_openMgmt` (link Apri), `_openMgmtProtoEditor`
+// (ingranaggio) e `_updateMgmtRow`. ASSE B: gli handler del MODALE editor
+// (statici + righe generate) sono delegati qui sotto → fuori da expose().
 expose({
-    _mgmtRow, _openMgmt, _openMgmtProtoEditor, _closeMgmtProtoEditor,
-    _updateMgmtRow, _updateMgmtProtoField, _addMgmtProto, _deleteMgmtProto,
-    _resetMgmtProtoEditor,
+    _mgmtRow, _openMgmt, _openMgmtProtoEditor, _updateMgmtRow,
+});
+
+// ── ASSE B (ritiro onclick inline): MODALE «Protocolli di management» ──────────
+// Il modale è separato dal pannello proprietà (non-golden). Statici (chiusura/
+// backdrop con guardia ev.target===el, reset, aggiungi) + righe generate a runtime
+// da `_renderMgmtProtoEditor` (input label/scheme via data-input con idx+field,
+// cestino via data-act). `_openMgmtProtoEditor` RESTA su window (lo apre il bottone
+// nel pannello proprietà, che è golden).
+registerClickActions({
+    'mgmt-proto-backdrop': (el, ev) => { if (ev.target === el) _closeMgmtProtoEditor(); },
+    'mgmt-proto-close':    () => _closeMgmtProtoEditor(),
+    'mgmt-proto-reset':    () => _resetMgmtProtoEditor(),
+    'mgmt-proto-add':      () => _addMgmtProto(),
+    'mgmt-proto-del':      (el) => _deleteMgmtProto(Number(el.dataset.idx)),
+});
+registerInputActions({
+    'mgmt-proto-field': (el) => _updateMgmtProtoField(Number(el.dataset.idx), el.dataset.field, el.value),
 });

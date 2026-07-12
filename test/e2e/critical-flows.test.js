@@ -1241,6 +1241,88 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(r.bareRead, 'tester', '_currentUser leggibile BARE (var-ify su window) per i file legacy');
     });
 
+    await t.test('ASSE B: modale editor protocolli + modale topo-crawl + tooltip topologia via event delegation', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          // 1) le fn dei DUE modali + del tooltip sono fuori da window (delegate);
+          //    restano gli ENTRY (_openMgmtProtoEditor dal pannello golden, openTopoCrawl)
+          //    e gli handler del pannello proprieta (golden: _mgmtRow/_openMgmt/_updateMgmtRow).
+          const gone = ['_closeMgmtProtoEditor','_resetMgmtProtoEditor','_addMgmtProto',
+            '_deleteMgmtProto','_updateMgmtProtoField','closeTopoCrawl','_closeTopoCrawlOverlayClick',
+            'runTopoCrawl','importTopoCrawl','_createTopoLink','navigateToRack']
+            .every(n => typeof window[n] === 'undefined');
+          const entriesKept = ['_openMgmtProtoEditor','openTopoCrawl','_mgmtRow','_openMgmt','_updateMgmtRow']
+            .every(n => typeof window[n] === 'function');
+
+          // 2) EDITOR PROTOCOLLI (modale non-golden): apri via entry su window.
+          _openMgmtProtoEditor();
+          const ov = document.getElementById('mgmt-proto-overlay');
+          const opened = ov.style.display === 'flex';
+          const tb = document.getElementById('mgmt-proto-tbody');
+          const n0 = tb.querySelectorAll('tr').length;
+          // add (click delegato)
+          ov.querySelector('[data-act="mgmt-proto-add"]').click();
+          const nAfterAdd = tb.querySelectorAll('tr').length;
+          // input delegato: modifica la label dell'ULTIMA riga
+          const lastLabel = tb.querySelector('tr:last-child input[data-field="label"]');
+          lastLabel.value = 'ZTEST';
+          lastLabel.dispatchEvent(new Event('input', { bubbles: true }));
+          // re-render (add) e verifica che 'ZTEST' sia sopravvissuto → l'input handler ha scritto in MGMT_PROTOCOLS
+          ov.querySelector('[data-act="mgmt-proto-add"]').click();
+          const rows = tb.querySelectorAll('tr');
+          const persisted = rows[rows.length - 2].querySelector('input[data-field="label"]').value === 'ZTEST';
+          // delete (click delegato) x2 → torna a n0 (ripristina stato/localStorage)
+          tb.querySelector('tr:last-child [data-act="mgmt-proto-del"]').click();
+          tb.querySelector('tr:last-child [data-act="mgmt-proto-del"]').click();
+          const nRestored = tb.querySelectorAll('tr').length;
+          // close (click delegato)
+          ov.querySelector('[data-act="mgmt-proto-close"]').click();
+          const mgmtClosed = ov.style.display === 'none';
+
+          // 3) MODALE TOPO-CRAWL: apri via entry, guardia backdrop.
+          openTopoCrawl();
+          const tov = document.getElementById('topodisc-overlay');
+          const tOpen = tov.classList.contains('open');
+          // click DENTRO (input seme) → NON chiude (ev.target !== overlay)
+          document.getElementById('td-seed').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+          const stillOpenInner = tov.classList.contains('open');
+          // click sull'overlay stesso → chiude (nessun crawl in corso)
+          tov.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+          const tClosedBackdrop = !tov.classList.contains('open');
+
+          // 4) TOOLTIP topologia (#topo-tip, reso da _showTopoTip): i bottoni portano data-act
+          //    e l'id in data-pairkey/data-rack (nessun onclick inline).
+          const tip = document.getElementById('topo-tip');
+          if (typeof _showTopoTip === 'function') {
+            _showTopoTip({ clientX: 100, clientY: 100 },
+              { protocol: 'Manual', confirmed: false, srcName: 'A', dstName: 'B',
+                edges: [], pairKey: 'pk|1', rackAId: 'rA', rackBId: 'rB' });
+          }
+          const createBtn = tip.querySelector('[data-act="topo-create-link"]');
+          const navBtns = tip.querySelectorAll('[data-act="topo-nav-rack"]');
+          const tipWired = !!createBtn && createBtn.dataset.pairkey === 'pk|1'
+            && navBtns.length === 2 && navBtns[0].dataset.rack === 'rA'
+            && !createBtn.getAttribute('onclick');
+          if (typeof _hideTopoTip === 'function') _hideTopoTip();
+
+          return { ok: true, gone, entriesKept, opened, n0, nAfterAdd, persisted, nRestored,
+            mgmtClosed, tOpen, stillOpenInner, tClosedBackdrop, tipWired };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso modali topologia/management: ' + r.err);
+      assert.ok(r.gone, 'ASSE B: 11 fn dei modali/tooltip ritirate dal ponte');
+      assert.ok(r.entriesKept, 'entry (_openMgmtProtoEditor/openTopoCrawl) + handler golden proprieta restano su window');
+      assert.ok(r.opened, '_openMgmtProtoEditor apre il modale editor');
+      assert.equal(r.nAfterAdd, r.n0 + 1, 'click delegato "aggiungi" crea una riga');
+      assert.ok(r.persisted, 'input delegato scrive in MGMT_PROTOCOLS (la label sopravvive al re-render)');
+      assert.equal(r.nRestored, r.n0, 'due click delegati "elimina" ripristinano il conteggio');
+      assert.ok(r.mgmtClosed, 'click delegato "chiudi" chiude il modale editor');
+      assert.ok(r.tOpen, 'openTopoCrawl apre il modale');
+      assert.ok(r.stillOpenInner, 'guardia backdrop: click DENTRO il modale non chiude');
+      assert.ok(r.tClosedBackdrop, 'guardia backdrop: click sull\'overlay chiude (nessun crawl in corso)');
+      assert.ok(r.tipWired, 'tooltip topologia: bottoni con data-act + id in data-pairkey/data-rack, nessun onclick');
+    });
+
     await t.test('app-search-zoom-rack migrato: search globale + zoom + gestione rack (switch/move) nel browser reale', async () => {
       const r = await page.evaluate(() => {
         try {

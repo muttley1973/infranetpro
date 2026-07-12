@@ -618,11 +618,11 @@
 
 <!-- ===== MODAL TOPOLOGY CRAWL ===== -->
 <!-- ===== MODAL EDITOR PROTOCOLLI MANAGEMENT ===== -->
-<div id="mgmt-proto-overlay" class="tool-modal-overlay" style="display:none" onclick="if(event.target===this)_closeMgmtProtoEditor()">
+<div id="mgmt-proto-overlay" class="tool-modal-overlay" style="display:none" data-act="mgmt-proto-backdrop">
   <div class="tool-modal">
     <div class="tool-modal-header">
       <h3><i class="fas fa-cog"></i> <span data-i18n="mgmt.title">Protocolli di management</span></h3>
-      <button class="toolbar-btn" onclick="_closeMgmtProtoEditor()" style="padding:4px 8px"><i class="fas fa-times"></i></button>
+      <button class="toolbar-btn" data-act="mgmt-proto-close" style="padding:4px 8px"><i class="fas fa-times"></i></button>
     </div>
     <div class="tool-modal-body">
       <div class="tm-hint" data-i18n-html="mgmt.hint">
@@ -636,18 +636,18 @@
       </table>
     </div>
     <div class="tool-modal-footer">
-      <button class="toolbar-btn" onclick="_closeMgmtProtoEditor()" data-i18n="common.close">Chiudi</button>
-      <button class="toolbar-btn" onclick="_resetMgmtProtoEditor()"><i class="fas fa-rotate-left"></i> <span data-i18n="mgmt.resetDefault">Ripristina default</span></button>
-      <button class="toolbar-btn primary" onclick="_addMgmtProto()"><i class="fas fa-plus"></i> <span data-i18n="common.add">Aggiungi</span></button>
+      <button class="toolbar-btn" data-act="mgmt-proto-close" data-i18n="common.close">Chiudi</button>
+      <button class="toolbar-btn" data-act="mgmt-proto-reset"><i class="fas fa-rotate-left"></i> <span data-i18n="mgmt.resetDefault">Ripristina default</span></button>
+      <button class="toolbar-btn primary" data-act="mgmt-proto-add"><i class="fas fa-plus"></i> <span data-i18n="common.add">Aggiungi</span></button>
     </div>
   </div>
 </div>
 
-<div id="topodisc-overlay" class="tool-modal-overlay" onclick="if(event.target===this)_closeTopoCrawlOverlayClick()">
+<div id="topodisc-overlay" class="tool-modal-overlay" data-act="topo-crawl-backdrop">
   <div class="tool-modal wide">
     <div class="tool-modal-header">
       <h3><i class="fas fa-project-diagram"></i> <span data-i18n="topocrawl.title">Scopri rete da topologia</span></h3>
-      <button class="toolbar-btn" onclick="closeTopoCrawl()" style="padding:4px 8px"><i class="fas fa-times"></i></button>
+      <button class="toolbar-btn" data-act="topo-crawl-close" style="padding:4px 8px"><i class="fas fa-times"></i></button>
     </div>
     <div class="tool-modal-body">
       <div class="tm-hint" data-i18n="topocrawl.hint">Inserisci un dispositivo di partenza raggiungibile via SNMP. L'app seguirà i collegamenti LLDP/CDP e mapperà automaticamente tutta la rete connessa.</div>
@@ -693,9 +693,9 @@
       </div>
     </div>
     <div class="tool-modal-footer">
-      <button class="toolbar-btn" onclick="closeTopoCrawl()" data-i18n="common.cancel">Annulla</button>
-      <button class="toolbar-btn" id="td-scan-btn" onclick="runTopoCrawl()"><i class="fas fa-satellite-dish"></i> <span data-i18n="topocrawl.scan">Scopri rete</span></button>
-      <button class="toolbar-btn primary" id="td-import-btn" onclick="importTopoCrawl()" style="display:none"><i class="fas fa-file-import"></i> <span data-i18n="common.importSelected">Importa selezionati</span></button>
+      <button class="toolbar-btn" data-act="topo-crawl-close" data-i18n="common.cancel">Annulla</button>
+      <button class="toolbar-btn" id="td-scan-btn" data-act="topo-crawl-run"><i class="fas fa-satellite-dish"></i> <span data-i18n="topocrawl.scan">Scopri rete</span></button>
+      <button class="toolbar-btn primary" id="td-import-btn" data-act="topo-crawl-import" style="display:none"><i class="fas fa-file-import"></i> <span data-i18n="common.importSelected">Importa selezionati</span></button>
     </div>
   </div>
 </div>
