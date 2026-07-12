@@ -3285,8 +3285,8 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         assert.match(draft.code, /hosts: all/, 'il codice della bozza è preservato');
 
         // L4: aiExplain semina la domanda e la invia (loop «Spiega» dal Drift).
-        const explainExposed = await page.evaluate(() => typeof aiExplainDrift === 'function');
-        assert.ok(explainExposed, 'aiExplainDrift è esposto per il bottone «Spiega» del Drift');
+        const explainOffWin = await page.evaluate(() => typeof aiExplainDrift === 'undefined');
+        assert.ok(explainOffWin, 'ASSE B: aiExplainDrift ritirata da window (bottone «Spiega» del Drift via data-act="drift-explain")');
         await page.evaluate(() => { if (typeof aiExplain === 'function') aiExplain('DOMANDA-L4'); });
         await page.waitForFunction(
           () => /DOMANDA-L4/.test((document.getElementById('ai-messages') || {}).textContent || ''),

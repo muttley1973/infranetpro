@@ -631,7 +631,7 @@ function aiExplain(question){
 
 // Costruisce la domanda dalla riga del Drift (store._driftReport) e la inoltra.
 // Le risposte sono GROUNDED: i fatti del Drift sono già nel contesto (liveFacts).
-function aiExplainDrift(cat, key){
+export function aiExplainDrift(cat, key){   // ASSE B: importata da app-drift.js (data-act="drift-explain"), non più su window
     let row = null;
     try {
         const rep = store._driftReport;
@@ -653,7 +653,7 @@ function _aiDriftQuestion(cat, row){
     return t('assistant.qGeneric', { name });
 }
 
-expose({ openAssistant, _aiCfgLoad, _aiPanelOpen, aiExplain, aiExplainDrift, _aiBuildSummary });
+expose({ openAssistant, _aiCfgLoad, _aiPanelOpen, aiExplain, _aiBuildSummary });   // aiExplainDrift: ASSE B, delegata dal template Drift (data-act="drift-explain")
 
 // ASSE B — superficie assistente AI via event delegation (data-act) invece di
 // onclick inline. Queste 6 funzioni escono da expose(): non le legge nessun altro
