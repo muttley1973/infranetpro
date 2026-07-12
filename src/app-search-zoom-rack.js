@@ -98,7 +98,7 @@ function renderSearchResults(query) {
     panel.style.display='block';
     if(!searchResults.length){panel.innerHTML=`<div class="search-empty">${t('pnl.sys.noResults')}</div>`;return;}
     panel.innerHTML=searchResults.map((r,i)=>`
-        <button class="search-result ${i===activeSearchIndex?'active':''}" onclick="selectSearchResult(${i})">
+        <button class="search-result ${i===activeSearchIndex?'active':''}" data-act="search-pick" data-idx="${i}">
             <i class="fas ${escapeHTML(r.icon)}"></i>
             <span><span class="search-title">${escapeHTML(r.title)}</span><br><span class="search-meta">${escapeHTML(r.meta)}</span></span>
             <span class="search-kind">${escapeHTML(r.kind)}</span>
@@ -714,7 +714,7 @@ expose({
     // search
     getSearchIcon, getPortSummary, buildSearchResults,
     renderSearchResults,
-    selectSearchResult, ensureNodeRackVisible, selectAndFocusNode, focusNode,
+    ensureNodeRackVisible, selectAndFocusNode, focusNode,
     // zoom & pan
     updateTransforms, applyUiColors,
     handleFloorZoom, handleRackZoom,
@@ -738,6 +738,8 @@ expose({
 // Registrate qui (module-load) — sono in scope; initDelegation() è in bindEventsOnce.
 registerClickActions({
     'search-clear':        () => clearSearch(),
+    'search-pick':         (el) => selectSearchResult(parseInt(el.dataset.idx, 10)),   // riga dinamica dei risultati
+
     'palette-expand':      (el) => setPaletteGroupsExpanded(el.dataset.val === '1'),
     'palette-filter-clear': () => clearPaletteFilter(),
     'palette-group':       (el) => togglePaletteGroup(el.dataset.group),

@@ -716,10 +716,11 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           const firstRowExisting = recCls.length > 0 && !recCls[0].includes('rec-new');
 
           const exposed = ['openDiscovery', 'closeDiscovery', 'runDiscovery', 'importDiscovered',
-            '_discOnRowToggle', '_discOnTypeChange', '_discExistingNode', '_discRenderTable']
+            '_discExistingNode', '_discRenderTable']
             .filter(f => typeof window[f] === 'function');
-          // ASSE B: discSelectAll ritirata da window (delegation via data-change="disc-selall")
+          // ASSE B: discSelectAll + i due handler DINAMICI di riga ritirati da window
           const discSelallOffWin = typeof window.discSelectAll === 'undefined';
+          const rowFnsOffWin = ['_discOnRowToggle', '_discOnTypeChange'].every(n => typeof window[n] === 'undefined');
           // Pilota "seleziona tutti" con un vero evento change (delegazione)
           const selall = document.getElementById('disc-selall');
           selall.checked = true;
@@ -727,24 +728,47 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           const allChecked = [...document.querySelectorAll('#disc-tbody input.disc-chk')].length > 0 &&
             [...document.querySelectorAll('#disc-tbody input.disc-chk')].every(cb => cb.checked);
 
+          // ASSE B superficie DINAMICA: la riga (creata da _discRenderTable dopo il load)
+          // porta data-change="disc-row"/"disc-type". Un vero change su una riga passa
+          // per il listener delegato sul document e chiama _discOnRowToggle/_discOnTypeChange.
+          const chk0 = document.querySelector('#disc-tbody input.disc-chk');
+          const rowWired = chk0.getAttribute('data-change') === 'disc-row' && !chk0.hasAttribute('onchange');
+          chk0.checked = false;
+          chk0.dispatchEvent(new Event('change', { bubbles: true }));   // -> _discOnRowToggle ricalcola "seleziona tutti"
+          const selallUnsetByRow = document.getElementById('disc-selall').checked === false;
+          const sel0 = document.querySelector('#disc-tbody select.disc-type');
+          const typeWired = sel0.getAttribute('data-change') === 'disc-type' && !sel0.hasAttribute('onchange');
+          let typeNoThrow = true;
+          try {
+            const opts = [...sel0.options].map(o => o.value);
+            sel0.value = opts.find(v => v !== sel0.value) || sel0.value;
+            sel0.dispatchEvent(new Event('change', { bubbles: true }));   // -> _discOnTypeChange
+          } catch (e) { typeNoThrow = false; }
+
           const matched = window._discExistingNode({ mac: 'aa:bb:cc:dd:ee:ff' });
 
           closeDiscovery();
           const overlayClosed = !document.getElementById('disc-overlay').classList.contains('open');
 
           return { ok: true, overlayOpen, stateReset, rows, hasTypeSelect, hasChk, firstRowExisting,
-            exposedCount: exposed.length, discSelallOffWin, allChecked, matchedId: matched && matched.id, overlayClosed };
+            exposedCount: exposed.length, discSelallOffWin, rowFnsOffWin, allChecked,
+            rowWired, selallUnsetByRow, typeWired, typeNoThrow, matchedId: matched && matched.id, overlayClosed };
         } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
       });
       assert.ok(r.ok, 'nessun errore nel flusso discovery: ' + r.err);
       assert.ok(r.overlayOpen, 'openDiscovery apre l\'overlay');
       assert.ok(r.stateReset, 'openDiscovery azzera lo stato condiviso (_discResults/_discRunning var su window)');
       assert.equal(r.rows, 2, '_discRenderTable rende 2 righe');
-      assert.ok(r.hasTypeSelect && r.hasChk, 'ogni riga ha select-tipo + checkbox (onchange bare risolti su window)');
+      assert.ok(r.hasTypeSelect && r.hasChk, 'ogni riga ha select-tipo + checkbox (data-change delegati)');
       assert.ok(r.firstRowExisting, 'il device già in progetto NON è marcato "Nuovo" (reconcile via _discFindExistingDevice del bundle)');
-      assert.equal(r.exposedCount, 8, 'le 8 funzioni discovery restanti sono esposte su window (discSelectAll ora delegata)');
+      assert.equal(r.exposedCount, 6, 'le 6 funzioni discovery restanti sono esposte su window (selall + i due handler di riga ora delegati)');
       assert.ok(r.discSelallOffWin, 'ASSE B: discSelectAll ritirata da window (data-change="disc-selall")');
+      assert.ok(r.rowFnsOffWin, 'ASSE B: _discOnRowToggle/_discOnTypeChange ritirati da window (superficie dinamica delegata)');
       assert.ok(r.allChecked, 'change su #disc-selall (delegation) seleziona tutte le righe della tabella Scopri');
+      assert.ok(r.rowWired, 'la riga (dinamica) ha data-change="disc-row" e nessun onchange inline');
+      assert.ok(r.selallUnsetByRow, 'change su una riga (delegation) → _discOnRowToggle ricalcola "seleziona tutti"');
+      assert.ok(r.typeWired, 'il select-tipo (dinamico) ha data-change="disc-type" e nessun onchange inline');
+      assert.ok(r.typeNoThrow, 'change sul select-tipo (delegation) esegue _discOnTypeChange senza errori');
       assert.equal(r.matchedId, 'exist1', '_discExistingNode abbina il device esistente per MAC');
       assert.ok(r.overlayClosed, 'closeDiscovery chiude l\'overlay');
     });
@@ -1369,10 +1393,21 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
           const clearedAfterEsc = box.value === '' && getComputedStyle(panel).display === 'none';
 
-          // le due fn ritirate dal ponte
+          // ASSE B superficie DINAMICA: le righe risultato (create da renderSearchResults)
+          // portano data-act="search-pick" data-idx; un vero CLICK passa per la delegation.
+          box.value = 'core';
+          box.dispatchEvent(new Event('input', { bubbles: true }));
+          const pick0 = panel.querySelector('.search-result');
+          const pickWired = !!pick0 && pick0.getAttribute('data-act') === 'search-pick'
+            && pick0.hasAttribute('data-idx') && !pick0.hasAttribute('onclick');
+          pick0.click();   // click reale → delegation → selectSearchResult(idx)
+          const pickSelected = window.selId === 'n1' && box.value === '';   // seleziona il device e pulisce
+          const pickGone = typeof window.selectSearchResult === 'undefined';
+
+          // le fn ritirate dal ponte
           const gone = typeof window.handleSearchInput === 'undefined' && typeof window.handleSearchKey === 'undefined';
 
-          return { ok: true, wired, shownAfterInput, hiddenAfterEmpty, shownAfterFocus, clearedAfterEsc, gone };
+          return { ok: true, wired, shownAfterInput, hiddenAfterEmpty, shownAfterFocus, clearedAfterEsc, pickWired, pickSelected, pickGone, gone };
         } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
       });
       assert.ok(r.ok, 'nessun errore nel flusso search box: ' + r.err);
@@ -1381,6 +1416,9 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.hiddenAfterEmpty, 'input con query vuota → pannello nascosto');
       assert.ok(r.shownAfterFocus, 'focusin delegato → handleSearchInput ri-mostra i risultati (focus non fa bubbling → agganciato focusin)');
       assert.ok(r.clearedAfterEsc, 'keydown Escape delegato → handleSearchKey esegue clearSearch');
+      assert.ok(r.pickWired, 'la riga risultato (dinamica) ha data-act="search-pick" data-idx, nessun onclick inline');
+      assert.ok(r.pickSelected, 'click delegato su una riga risultato → selectSearchResult seleziona il device e pulisce la ricerca');
+      assert.ok(r.pickGone, 'ASSE B: selectSearchResult ritirata da window (delegation)');
       assert.ok(r.gone, 'ASSE B: handleSearchInput/handleSearchKey ritirate da window (delegation)');
     });
 
