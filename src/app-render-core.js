@@ -97,6 +97,62 @@ export function renderScope(scope){
             return;
     }
 }
+
+// ─────────────────────────────────────────────────────────────────
+// _buildFloorNodeEl — UNICA sorgente di verità del nodo-floor (strutturale o
+// device). Condivisa da _renderAllNow e _renderFloorNow: prima erano DUE copie
+// che DERIVAVANO (bug twin-renderer: topo-endpoint su un renderer, node-absent +
+// badge v3 sull'altro). `absentCls` è pre-calcolato dal chiamante (come la riga di
+// _renderAllNow, PRIMA della pulizia snmpStatus, per non alterarne l'ordine).
+// Ritorna { el, structural } oppure null se il nodo è nascosto in topologia.
+// ─────────────────────────────────────────────────────────────────
+function _buildFloorNodeEl(n, def, absentCls){
+    const el = document.createElement('div'); el.dataset.id = n.id;
+    if(def.isStructural){
+        el.className = `floor-${n.type}${store.selId===n.id?' selected':''}${n.locked?' locked':''}`;
+        const _sCol = n.color || def.defaultColor;
+        const _sAlpha = n.opacity !== undefined ? n.opacity : 1;
+        const _sBg = _sAlpha < 1 ? hexToRgba(_sCol, _sAlpha) : _sCol;
+        const _w = n.w || 200, _h = n.h || 200;
+        const _autoFs = Math.max(10, Math.min(Math.min(_w, _h) * 0.1, 36));
+        const _fontSize = n.fontSize !== undefined ? n.fontSize : _autoFs;
+        el.style.cssText = `left:${n.x}px;top:${n.y}px;width:${_w}px;height:${_h}px;background-color:${_sBg}`;
+        const _lockIcon = `<i class="fas ${n.locked?'fa-lock':'fa-lock-open'} room-lock-icon"></i>`;
+        const _resizeHandle = n.locked ? '' : `<div class="resize-handle"></div>`;
+        el.innerHTML = `<span style="font-size:${_fontSize}px">${escapeHTML(n.name)}</span>${_lockIcon}${_resizeHandle}`;
+        return { el, structural: true };
+    }
+    const _selectedPortOnNode = store.selType==='port' && store.selId && getPortNodeId(store.selId)===n.id;
+    const _nodeDim = store._filterVlan && (()=>{
+        const pc2 = n.ports!==undefined?n.ports:def.ports;
+        for(let i=1;i<=pc2;i++){
+            const pid = `${n.id}-${i}`;
+            const eff = _effPortVlan(pid);
+            if(eff === store._filterVlan) return false;
+            if(_linksForPort(pid).some(lk=>_linkMatchesVlanFilter(lk))) return false;
+        }
+        return true;
+    })();
+    if(_nodeDim && store._topoVisible) return null;   // nascosto in topologia → salta
+    const _epCls = def.passThrough ? '' : ' topo-endpoint';
+    el.className = `floor-node ${store.selId===n.id?'selected':''}${_selectedPortOnNode?' port-selected':''}${_nodeDim?' vlan-dim':''}${_epCls}${absentCls}`;
+    el.style.cssText = `left:${n.x}px;top:${n.y}px`;
+    const pc = n.ports!==undefined?n.ports:def.ports;
+    let icon = `<i class="fas ${def.icon} icon"></i>`;
+    if(pc===1){
+        const pid = `${n.id}-1`, pi = store.state.ports[pid]||{}, st = normalizeStatus(pi.statusOvr??pi.status);
+        const selectedPortCls = (store.selType==='port' && store.selId===pid) ? ' selected' : '';
+        icon = `<i class="fas ${def.icon} icon port ${st}${selectedPortCls}" data-pid="${pid}" title="${escapeHTML(portTip(pid))}"></i>`;
+    }
+    let pts = '';
+    if(pc>1){ pts='<div class="floor-ports">'; for(let i=1;i<=pc;i++) pts += getPortHTML(`${n.id}-${i}`); pts += '</div>'; }
+    const _snmpOn = _hasSnmpIntegration(n);
+    const _ferr = _snmpOn && n.snmpStatus==='err' ? ` style="outline:2px solid #f85149;outline-offset:2px;border-radius:3px"` : '';
+    const _v3BadgeF = (typeof _v3NeedsCreds === 'function' && _v3NeedsCreds(n))
+        ? `<span class="floor-v3-badge" title="${t('pnl.gen.v3MissingCreds')}"><i class="fas fa-key"></i></span>` : '';
+    el.innerHTML = `${icon}${_v3BadgeF}<div class="label" style="display:flex;align-items:center;justify-content:center"${_ferr}>${escapeHTML(n.type==='wallport'?getWallPortLabel(n):(typeof _dispName==='function'?_dispName(n.name):n.name))}</div>${pts}${_radioPortHtml(n)}`;
+    return { el, structural: false };
+}
 function _renderAllNow(){
     // Hold tab-Rack (selectPathSegment): decade appena il segmento non e' piu'
     // la selezione corrente. Centralizzato qui perche' i punti di DESELEZIONE
@@ -164,53 +220,13 @@ function _renderAllNow(){
         if(n.type==='wallport') n.ports=1;
 
         if(def.isFloor){
-            const el=document.createElement('div'); el.dataset.id=n.id;
-            if(def.isStructural){
-                el.className=`floor-${n.type}${store.selId===n.id?' selected':''}${n.locked?' locked':''}`;
-                const _sCol = n.color||def.defaultColor;
-                const _sAlpha = n.opacity !== undefined ? n.opacity : 1;
-                const _sBg = _sAlpha < 1 ? hexToRgba(_sCol, _sAlpha) : _sCol;
-                const _w=n.w||200, _h=n.h||200;
-                const _autoFs=Math.max(10, Math.min(Math.min(_w,_h)*0.1, 36));
-                const _fontSize=n.fontSize!==undefined ? n.fontSize : _autoFs;
-                el.style.cssText=`left:${n.x}px;top:${n.y}px;width:${_w}px;height:${_h}px;background-color:${_sBg}`;
-                const _lockIcon=`<i class="fas ${n.locked?'fa-lock':'fa-lock-open'} room-lock-icon"></i>`;
-                const _resizeHandle=n.locked?'':`<div class="resize-handle"></div>`;
-                el.innerHTML=`<span style="font-size:${_fontSize}px">${escapeHTML(n.name)}</span>${_lockIcon}${_resizeHandle}`;
-                fS.appendChild(el);
-            } else {
-                // Controlla se il nodo ha almeno una porta/cavo nella VLAN filtro
-                const _selectedPortOnNode = store.selType==='port' && store.selId && getPortNodeId(store.selId)===n.id;
-                const _nodeDim=store._filterVlan&&(()=>{
-                    const pc2=n.ports!==undefined?n.ports:def.ports;
-                    for(let i=1;i<=pc2;i++){
-                        const pid=`${n.id}-${i}`;
-                        const eff=_effPortVlan(pid);
-                        if(eff===store._filterVlan) return false;
-                        if(_linksForPort(pid).some(lk=>_linkMatchesVlanFilter(lk))) return false;
-                    }
-                    return true;
-                })();
-                // In modalità topologia: nascondi completamente i nodi non in VLAN
-                if(_nodeDim && store._topoVisible) return;
-                el.className=`floor-node ${store.selId===n.id?'selected':''}${_selectedPortOnNode?' port-selected':''}${_nodeDim?' vlan-dim':''}${def.passThrough?'':' topo-endpoint'}${_absentCls}`;
-                el.style.cssText=`left:${n.x}px;top:${n.y}px`;
-                const pc=n.ports!==undefined?n.ports:def.ports;
-                let icon=`<i class="fas ${def.icon} icon"></i>`;
-                if(pc===1){
-                    const pid=`${n.id}-1`,pi=store.state.ports[pid]||{},st=normalizeStatus(pi.statusOvr??pi.status);
-                    const selectedPortCls = (store.selType==='port' && store.selId===pid) ? ' selected' : '';
-                    icon=`<i class="fas ${def.icon} icon port ${st}${selectedPortCls}" data-pid="${pid}" title="${escapeHTML(portTip(pid))}"></i>`;
-                }
-                let pts='';
-                if(pc>1){pts='<div class="floor-ports">';for(let i=1;i<=pc;i++)pts+=getPortHTML(`${n.id}-${i}`);pts+='</div>';}
-                const _snmpOn=_hasSnmpIntegration(n);
-                const _ferr=_snmpOn&&n.snmpStatus==='err'?` style="outline:2px solid #f85149;outline-offset:2px;border-radius:3px"`:'';
-                const _v3BadgeF = (typeof _v3NeedsCreds === 'function' && _v3NeedsCreds(n))
-                    ? `<span class="floor-v3-badge" title="${t('pnl.gen.v3MissingCreds')}"><i class="fas fa-key"></i></span>` : '';
-                el.innerHTML=`${icon}${_v3BadgeF}<div class="label" style="display:flex;align-items:center;justify-content:center"${_ferr}>${escapeHTML(n.type==='wallport'?getWallPortLabel(n):(typeof _dispName==='function'?_dispName(n.name):n.name))}</div>${pts}${_radioPortHtml(n)}`;
-                fI.appendChild(el);
-            }
+            // Costruzione via helper CONDIVISO (_buildFloorNodeEl): unica sorgente per
+            // _renderAllNow e _renderFloorNow → niente più deriva. `if(!built) return` =
+            // identico all'originale (nodo nascosto in topologia → salta il resto). Passo
+            // `_absentCls` (calcolato sopra, PRIMA della pulizia snmpStatus).
+            const built = _buildFloorNodeEl(n, def, _absentCls);
+            if(!built) return;
+            (built.structural ? fS : fI).appendChild(built.el);
         } else if(def.isRack&&n.rackId===store.state.currentRack){
             clampRackDevice(n);
             const el=document.createElement('div'); el.dataset.id=n.id;
@@ -465,10 +481,9 @@ function _renderAllNow(){
 // (device floor) e le icone rack sulla planimetria. NON tocca il rack
 // chassis interno, il pannello props, i cavi.
 //
-// Conservativo: duplica la logica di _renderAllNow per la parte floor
-// invece di estrarre un helper condiviso. Costo: ~2x memory footprint
-// del codice. Beneficio: rischio zero di rottura del path renderAll
-// esistente. Unificazione (DRY) in un Pezzo successivo se serve.
+// UNIFICATO: il nodo-floor lo costruisce l'helper condiviso `_buildFloorNodeEl`,
+// usato ANCHE da _renderAllNow → una sola sorgente di verità, i due render non
+// possono più derivare (prima erano due copie divergenti: bug twin-renderer).
 //
 // Coalescing: come renderAll e renderTopoOverlay.
 let _floorPending = false;
@@ -494,55 +509,14 @@ function _renderFloorNow(){
         const fixedRackLabel = _fixedRackLabel(n.type);
         if(fixedRackLabel && n.name !== fixedRackLabel) n.name = fixedRackLabel;
         if(n.type === 'wallport') n.ports = 1;
-        const el = document.createElement('div'); el.dataset.id = n.id;
-        if(def.isStructural){
-            el.className = `floor-${n.type}${store.selId===n.id?' selected':''}${n.locked?' locked':''}`;
-            const _sCol = n.color || def.defaultColor;
-            const _sAlpha = n.opacity !== undefined ? n.opacity : 1;
-            const _sBg = _sAlpha < 1 ? hexToRgba(_sCol, _sAlpha) : _sCol;
-            const _w = n.w || 200, _h = n.h || 200;
-            const _autoFs = Math.max(10, Math.min(Math.min(_w, _h) * 0.1, 36));
-            const _fontSize = n.fontSize !== undefined ? n.fontSize : _autoFs;
-            el.style.cssText = `left:${n.x}px;top:${n.y}px;width:${_w}px;height:${_h}px;background-color:${_sBg}`;
-            const _lockIcon = `<i class="fas ${n.locked?'fa-lock':'fa-lock-open'} room-lock-icon"></i>`;
-            const _resizeHandle = n.locked ? '' : `<div class="resize-handle"></div>`;
-            el.innerHTML = `<span style="font-size:${_fontSize}px">${escapeHTML(n.name)}</span>${_lockIcon}${_resizeHandle}`;
-            fS.appendChild(el);
-        } else {
-            const _selectedPortOnNode = store.selType==='port' && store.selId && getPortNodeId(store.selId)===n.id;
-            const _nodeDim = store._filterVlan && (()=>{
-                const pc2 = n.ports!==undefined?n.ports:def.ports;
-                for(let i=1;i<=pc2;i++){
-                    const pid = `${n.id}-${i}`;
-                    const eff = _effPortVlan(pid);
-                    if(eff === store._filterVlan) return false;
-                    if(_linksForPort(pid).some(lk=>_linkMatchesVlanFilter(lk))) return false;
-                }
-                return true;
-            })();
-            if(_nodeDim && store._topoVisible) return;
-            // Endpoint foglia (non pass-through): marcato per il toggle ENDPOINT
-            // della topologia, che li nasconde via CSS (body.topo-hide-endpoints).
-            const _epCls = def.passThrough ? '' : ' topo-endpoint';
-            const _absentCls = (_absentIds.has(n.id) && n.snmpStatus!=='ok') ? ' node-absent' : '';
-            el.className = `floor-node ${store.selId===n.id?'selected':''}${_selectedPortOnNode?' port-selected':''}${_nodeDim?' vlan-dim':''}${_epCls}${_absentCls}`;
-            el.style.cssText = `left:${n.x}px;top:${n.y}px`;
-            const pc = n.ports!==undefined?n.ports:def.ports;
-            let icon = `<i class="fas ${def.icon} icon"></i>`;
-            if(pc===1){
-                const pid = `${n.id}-1`, pi = store.state.ports[pid]||{}, st = normalizeStatus(pi.statusOvr??pi.status);
-                const selectedPortCls = (store.selType==='port' && store.selId===pid) ? ' selected' : '';
-                icon = `<i class="fas ${def.icon} icon port ${st}${selectedPortCls}" data-pid="${pid}" title="${escapeHTML(portTip(pid))}"></i>`;
-            }
-            let pts = '';
-            if(pc>1){ pts='<div class="floor-ports">'; for(let i=1;i<=pc;i++) pts += getPortHTML(`${n.id}-${i}`); pts += '</div>'; }
-            const _snmpOn = _hasSnmpIntegration(n);
-            const _ferr = _snmpOn && n.snmpStatus==='err' ? ` style="outline:2px solid #f85149;outline-offset:2px;border-radius:3px"` : '';
-            const _v3BadgeF = (typeof _v3NeedsCreds === 'function' && _v3NeedsCreds(n))
-                ? `<span class="floor-v3-badge" title="${t('pnl.gen.v3MissingCreds')}"><i class="fas fa-key"></i></span>` : '';
-            el.innerHTML = `${icon}${_v3BadgeF}<div class="label" style="display:flex;align-items:center;justify-content:center"${_ferr}>${escapeHTML(n.type==='wallport'?getWallPortLabel(n):(typeof _dispName==='function'?_dispName(n.name):n.name))}</div>${pts}${_radioPortHtml(n)}`;
-            fI.appendChild(el);
-        }
+        // Costruzione via helper CONDIVISO (_buildFloorNodeEl): stessa sorgente di
+        // _renderAllNow → i due render non possono più derivare. `_absentCls` calcolato
+        // qui (come in _renderAllNow); `if(!built) return` salta il nodo nascosto in
+        // topologia (identico all'originale).
+        const _absentCls = (_absentIds.has(n.id) && n.snmpStatus!=='ok') ? ' node-absent' : '';
+        const built = _buildFloorNodeEl(n, def, _absentCls);
+        if(!built) return;
+        (built.structural ? fS : fI).appendChild(built.el);
     });
     // Icone rack sulla planimetria
     store.state.racks.forEach(rack => {
