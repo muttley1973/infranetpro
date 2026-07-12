@@ -1332,6 +1332,58 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(r.hiddenAfterReset, 0, 'query vuota → filterPaletteItems ripristina tutte le voci');
     });
 
+    await t.test('ASSE B harness focus/keydown: search box (input+focus+keydown) via eventi reali delegati', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0;
+          state.nodes.push({ id: 'n1', type: 'switch', name: 'CoreSwitch01', ports: 8 });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+
+          const box = document.getElementById('global-search');
+          const panel = document.getElementById('search-results');
+          // wiring: 3 attributi delegati, nessun handler inline
+          const wired = box.getAttribute('data-input') === 'global-search'
+            && box.getAttribute('data-focus') === 'global-search'
+            && box.getAttribute('data-keydown') === 'global-search'
+            && !box.hasAttribute('oninput') && !box.hasAttribute('onfocus') && !box.hasAttribute('onkeydown');
+
+          // INPUT reale → handleSearchInput costruisce+mostra i risultati
+          box.value = 'core';
+          box.dispatchEvent(new Event('input', { bubbles: true }));
+          const shownAfterInput = getComputedStyle(panel).display !== 'none'
+            && panel.querySelectorAll('.search-result').length > 0;
+
+          // reset: query vuota via input → pannello nascosto
+          box.value = '';
+          box.dispatchEvent(new Event('input', { bubbles: true }));
+          const hiddenAfterEmpty = getComputedStyle(panel).display === 'none';
+
+          // FOCUS reale (focusin, che fa bubbling): con value pre-impostato ri-mostra i risultati
+          box.value = 'core';
+          box.dispatchEvent(new Event('focusin', { bubbles: true }));
+          const shownAfterFocus = getComputedStyle(panel).display !== 'none'
+            && panel.querySelectorAll('.search-result').length > 0;
+
+          // KEYDOWN reale Escape → handleSearchKey → clearSearch (svuota + nasconde)
+          box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+          const clearedAfterEsc = box.value === '' && getComputedStyle(panel).display === 'none';
+
+          // le due fn ritirate dal ponte
+          const gone = typeof window.handleSearchInput === 'undefined' && typeof window.handleSearchKey === 'undefined';
+
+          return { ok: true, wired, shownAfterInput, hiddenAfterEmpty, shownAfterFocus, clearedAfterEsc, gone };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso search box: ' + r.err);
+      assert.ok(r.wired, '#global-search cablato via data-input/data-focus/data-keydown, nessun handler inline');
+      assert.ok(r.shownAfterInput, 'input delegato → handleSearchInput mostra i risultati');
+      assert.ok(r.hiddenAfterEmpty, 'input con query vuota → pannello nascosto');
+      assert.ok(r.shownAfterFocus, 'focusin delegato → handleSearchInput ri-mostra i risultati (focus non fa bubbling → agganciato focusin)');
+      assert.ok(r.clearedAfterEsc, 'keydown Escape delegato → handleSearchKey esegue clearSearch');
+      assert.ok(r.gone, 'ASSE B: handleSearchInput/handleSearchKey ritirate da window (delegation)');
+    });
+
     await t.test('app-shared-segment migrato: rilevazione segmento L2 multi-MAC (FDB) + HTML pannello nel browser reale', async () => {
       const r = await page.evaluate(() => {
         try {
