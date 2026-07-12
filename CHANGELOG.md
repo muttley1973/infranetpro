@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-12 — Project and rack selectors, and the Discover/Topology "select all" checkboxes, move to event delegation
+
+### Changed
+- **Five more static form controls dropped their inline `onchange` for event delegation — the project and rack selectors and three checkboxes.** Continuing the retirement of the frontend's transitional `window` bridge (see [Architecture §10](ARCHITECTURE.md)), the project selector (`switchProject`), the rack selector (`switchRack`), the "select all" checkboxes of the Discover and Topology-crawl tables (`discSelectAll`, `tdSelectAll`) and the "deep TCP scan" preference checkbox (`_saveDeepScanPref`) now carry a `data-change="…"` marker routed by the single delegated `change` listener, so their functions are no longer published on `window`. `switchRack` and `_saveDeepScanPref` stay ESM `export`s because other modules import them; the other three are fully local. This takes `netmapper.html` from 10 inline `onchange` handlers to 5 — the residual being the two file pickers (map image, JSON import) and the export-panel controls that still live in the classic `export.js`. No change in behaviour — verified live on the dev server (a delegated `change` on the deep-scan checkbox still persists the preference even though the function is off `window`) and by the real-Chrome E2E suite, which drives real `change` events on the rack selector and the Discover "select all" and asserts the functions are gone from `window`. `src/app-core.js`, `src/app-search-zoom-rack.js`, `src/app-topology-crawl.js`, `src/app-discovery.js`, `src/app-discovery-classify.js`, `netmapper.html`.
+
 ## 2026-07-11 — The assistant's command catalog is complete again, and more toolbar wiring moves to event delegation
 
 ### Fixed

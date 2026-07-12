@@ -606,9 +606,11 @@ is VPN/LAN.
     menu, the owner registers the toggle and each item is registered by the module that owns that item
     (importing the owner's `close` helper). Migrated so far: undo/redo, the rack/zoom/palette toolbar,
     the account + Report header menus, the project toolbar (`New/Rename/Duplicate/Delete/Save`), the AI
-    assistant buttons, and the non-click controls of the rack size (`change`), the palette search
+    assistant buttons, the non-click controls of the rack size (`change`), the palette search
     (`input`) and the CSV/DHCP import dialogs (file pickers, live-lease vendor selector, paste-area
-    previews). The bulk (~500 handlers in dynamically-rendered templates, click + change + input) now
+    previews), and the project + rack selectors plus the Discover/Topology "select all" and the
+    deep-TCP-scan preference checkboxes (`change`). The bulk (~500 handlers in dynamically-rendered
+    templates, click + change + input) now
     follows surface by surface. `_bridge.js` / `expose()` are deleted only when Axis B is finished. *(Side note: the AI help
     catalog in `lib/ui-catalog.js`, which reads the real button labels/tooltips, derives a button's action
     from `data-act` as well as `onclick`, so delegated buttons stay in the assistant's catalog.)*
