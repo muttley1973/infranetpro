@@ -595,3 +595,60 @@ test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => 
     console.log(`[ratchet] win.* = ${total} < tetto ${MAX_WIN_REFS}: abbassa MAX_WIN_REFS a ${total}.`);
   }
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// ASSE B — CRICCHETTO SUGLI HANDLER INLINE (on*="…")
+// ════════════════════════════════════════════════════════════════════════════
+// Il ritiro del ponte ha DUE assi (vedi ARCHITECTURE.md §10):
+//   • ASSE A = letture win.* → import ESM      (MAX_WIN_REFS sopra, pavimento 268)
+//   • ASSE B = handler inline (onclick/onchange/oninput/ontoggle/ondragstart/…)
+//     → event delegation (data-act/data-change/data-input/… in app-delegation.js)
+// Gli handler inline sono IL motivo per cui il ponte esiste ancora: risolvono i
+// nomi nello scope lessicale di pagina (window via expose()). Finché l'ASSE B non
+// è finito, `_bridge.js`/`expose()` non si possono cancellare.
+//
+// Questo guard rende l'ASSE B MISURATO e MONOTONO come MAX_WIN_REFS ha fatto per
+// l'ASSE A: il conteggio può solo CALARE. È la differenza tra un grind senza fine
+// e una migrazione che CONVERGE.
+//
+// TRAGUARDO: il PAVIMENTO STRUTTURALE, non necessariamente 0. Alcuni handler
+// restano inline per scelta (es. l'ingranaggio che apre l'editor protocolli VIVE
+// nel pannello proprietà GOLDEN → migrarlo cambierebbe lo snapshot; i classic
+// export.js sono fuori-ASSE per design). Quando il pavimento vero emergerà lo si
+// fissa qui, come MAX_WIN_REFS=268.
+//
+// RICETTA: quando migri un cluster (on*="key" → data-act/data-change="key" +
+// register*Actions nel modulo che POSSIEDE la funzione) il conteggio cala →
+// abbassa MAX_INLINE_HANDLERS al numero stampato da [ratchet-B].
+//
+// AMBITO: src/*.js (handler nei template runtime) + netmapper.html (statici).
+// export.js (classic, 1 handler) è ESCLUSO per design. Le assegnazioni JS di
+// proprietà (`el.onload = fn`, `reader.onload=ev=>…`) NON contano: il pattern
+// richiede un apice dopo `=` (`on*="` / `on*='`), che solo l'attributo inline ha.
+const INLINE_HANDLER_RE = /\bon[a-z]+=["']/g;
+function stripHtmlComments(s) { return s.replace(/<!--[\s\S]*?-->/g, ''); }
+function countInlineHandlers() {
+  let n = 0;
+  // handler nei template runtime dei moduli ESM (stesso strip-commenti di countInCode)
+  for (const f of files) {
+    const raw = fs.readFileSync(path.join(SRC, f), 'utf8');
+    const code = raw.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+    n += (code.match(INLINE_HANDLER_RE) || []).length;
+  }
+  // shell statico
+  const html = stripHtmlComments(fs.readFileSync(path.join(__dirname, '..', 'netmapper.html'), 'utf8'));
+  n += (html.match(INLINE_HANDLER_RE) || []).length;
+  return n;
+}
+const MAX_INLINE_HANDLERS = 627;
+test('ponte ASSE B: gli handler inline on*= non superano il tetto a cricchetto', () => {
+  const total = countInlineHandlers();
+  assert.ok(total <= MAX_INLINE_HANDLERS,
+    `handler inline on*= = ${total} > tetto ${MAX_INLINE_HANDLERS}: l'ASSE B è ` +
+    `CRESCIUTO. Usa data-act/data-change + event delegation (app-delegation.js), ` +
+    `non un nuovo onclick="". Se invece è CALATO, abbassa MAX_INLINE_HANDLERS a ` +
+    `${total} per fissare il progresso.`);
+  if (total < MAX_INLINE_HANDLERS) {
+    console.log(`[ratchet-B] handler inline = ${total} < tetto ${MAX_INLINE_HANDLERS}: abbassa MAX_INLINE_HANDLERS a ${total}.`);
+  }
+});

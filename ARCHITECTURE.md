@@ -607,7 +607,11 @@ is VPN/LAN.
     `typeof` guards, which stay by design (importing them would re-bundle the UMD, clobbering the live
     `<script>` copy).
   - **Axis B — inline handlers (`onclick`/`onchange`/`oninput`/…) → event delegation.** Inline handlers
-    are *why* the bridge still exists (they resolve names in page lexical scope). `src/app-delegation.js`
+    are *why* the bridge still exists (they resolve names in page lexical scope). **A monotonic ratchet
+    (`MAX_INLINE_HANDLERS` in `test/bridge-ratchet.test.js`, may only decrease) now caps their count —
+    currently 627 across `src/*.js` templates + `netmapper.html` static — so Axis B is measured and
+    converges like Axis A; the target is the structural floor (a few stay inline by design, e.g. the
+    gear inside the golden properties panel).** `src/app-delegation.js`
     installs **one delegated listener per event type** on the document — `data-act` for `click`,
     `data-change` for `change` (selects, checkboxes, file inputs, committed numbers), `data-input` for
     live `input` (typing), `data-focus` for `focus` (attached as `focusin`, which bubbles — plain
