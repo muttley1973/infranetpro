@@ -27,7 +27,7 @@
 
     <!-- Project management -->
     <div class="project-bar">
-        <select id="project-select" onchange="switchProject(parseInt(this.value))" data-i18n-tip="project.tipCurrent" data-tip="Progetto corrente"></select>
+        <select id="project-select" data-change="project-select" data-i18n-tip="project.tipCurrent" data-tip="Progetto corrente"></select>
         <button class="toolbar-btn" data-act="project-new"       data-i18n-tip="project.tipNew"       data-tip="Nuovo progetto"><i class="fas fa-plus"></i></button>
         <button class="toolbar-btn" data-act="project-rename"    data-i18n-tip="project.tipRename"    data-tip="Rinomina"><i class="fas fa-pen"></i></button>
         <button class="toolbar-btn" data-act="project-duplicate" data-i18n-tip="project.tipDuplicate" data-tip="Duplica"><i class="fas fa-copy"></i></button>
@@ -399,7 +399,7 @@
 
             <div id="rack-viewport" onwheel="handleRackZoom(event)" onscroll="renderCables()">
                 <div class="rack-header rack-header-floating">
-                    <select id="rack-select" onchange="switchRack(this.value)"></select>
+                    <select id="rack-select" data-change="rack-select"></select>
                     <div id="rack-menu-wrap" style="position:relative">
                         <button class="toolbar-btn" id="rack-menu-btn" style="margin:0;padding:3px 9px" data-act="rack-menu-toggle" data-tip="Gestione rack">
                             <i class="fas fa-server"></i> Rack <i class="fas fa-chevron-down" style="font-size:0.62rem;opacity:.7;margin-left:4px"></i>
@@ -681,7 +681,7 @@
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
           <span id="td-summary" style="font-size:0.8rem;font-weight:600"></span>
           <label style="font-size:0.75rem;color:var(--text-muted);cursor:pointer">
-            <input type="checkbox" id="td-selall" onchange="tdSelectAll(this.checked)" style="margin-right:4px;accent-color:var(--accent)"><span data-i18n="common.selectAllPl">Seleziona tutti</span>
+            <input type="checkbox" id="td-selall" data-change="td-selall" style="margin-right:4px;accent-color:var(--accent)"><span data-i18n="common.selectAllPl">Seleziona tutti</span>
           </label>
         </div>
         <div style="max-height:260px;overflow-y:auto">
@@ -733,7 +733,7 @@
           </select>
         </label>
         <label class="disc-opt disc-opt-deep" data-i18n-tip="disc.deepTip" data-tip="Arricchisce solo gli host candidati con probe TCP su porte comuni. Più lento e più rumoroso.">
-          <input id="disc-deep-scan" type="checkbox" onchange="_saveDeepScanPref(this.checked)">
+          <input id="disc-deep-scan" type="checkbox" data-change="disc-deep-scan">
           <span data-i18n="disc.deepScan">Scansione profonda TCP</span>
         </label>
         <label class="disc-opt disc-opt-mdns" data-i18n-tip="disc.mdnsTip" data-tip="Ascolta gli annunci mDNS/SSDP sul segmento locale: riconosce i device a porte chiuse (telefoni, TV, elettrodomestici smart) che ignorano ping/SNMP. Solo stessa sottorete (multicast link-local).">
@@ -750,7 +750,7 @@
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
           <span id="disc-summary" style="font-size:0.8rem;font-weight:600"></span>
           <label style="font-size:0.75rem;color:var(--text-muted);cursor:pointer">
-            <input type="checkbox" id="disc-selall" onchange="discSelectAll(this.checked)" style="margin-right:4px;accent-color:var(--accent)"><span data-i18n="common.selectAllPl">Seleziona tutti</span>
+            <input type="checkbox" id="disc-selall" data-change="disc-selall" style="margin-right:4px;accent-color:var(--accent)"><span data-i18n="common.selectAllPl">Seleziona tutti</span>
           </label>
         </div>
         <div id="disc-results-table-wrap">

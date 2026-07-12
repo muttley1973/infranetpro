@@ -4,6 +4,7 @@ import { normalizeMacAddress } from './app-util.js';
 import { getNodeByPortId } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _discExistingNode } from './app-discovery.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
+import { registerChangeActions } from './app-delegation.js';   // ASSE B: checkbox scansione profonda via data-change
 
 // ============================================================
 // DISCOVERY CLASSIFICATION — OUI vendor map, identity matching,
@@ -523,5 +524,11 @@ expose({
     _discMarkIpMacConflict, _discTouchNodeIdentity, _discIdentitySource,
     _discIdentityLabel, _discSanitizeDeviceClass, _discConfidenceScore,
     _discHasStrongIdentity, _discCanAutoRetype, _loadDeepScanPref,
-    _saveDeepScanPref, _guessType,
+    _guessType,
+});
+
+// ASSE B — checkbox "Scansione profonda TCP": onchange inline -> data-change.
+// _saveDeepScanPref resta export (import ESM da app-discovery.js), esce da expose().
+registerChangeActions({
+    'disc-deep-scan': (el) => _saveDeepScanPref(el.checked),
 });

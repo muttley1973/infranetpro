@@ -715,9 +715,17 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           const recCls = [...document.querySelectorAll('#disc-tbody .disc-badge[class*="rec-"]')].map(b => b.className);
           const firstRowExisting = recCls.length > 0 && !recCls[0].includes('rec-new');
 
-          const exposed = ['openDiscovery', 'closeDiscovery', 'runDiscovery', 'importDiscovered', 'discSelectAll',
+          const exposed = ['openDiscovery', 'closeDiscovery', 'runDiscovery', 'importDiscovered',
             '_discOnRowToggle', '_discOnTypeChange', '_discExistingNode', '_discRenderTable']
             .filter(f => typeof window[f] === 'function');
+          // ASSE B: discSelectAll ritirata da window (delegation via data-change="disc-selall")
+          const discSelallOffWin = typeof window.discSelectAll === 'undefined';
+          // Pilota "seleziona tutti" con un vero evento change (delegazione)
+          const selall = document.getElementById('disc-selall');
+          selall.checked = true;
+          selall.dispatchEvent(new Event('change', { bubbles: true }));
+          const allChecked = [...document.querySelectorAll('#disc-tbody input.disc-chk')].length > 0 &&
+            [...document.querySelectorAll('#disc-tbody input.disc-chk')].every(cb => cb.checked);
 
           const matched = window._discExistingNode({ mac: 'aa:bb:cc:dd:ee:ff' });
 
@@ -725,7 +733,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           const overlayClosed = !document.getElementById('disc-overlay').classList.contains('open');
 
           return { ok: true, overlayOpen, stateReset, rows, hasTypeSelect, hasChk, firstRowExisting,
-            exposedCount: exposed.length, matchedId: matched && matched.id, overlayClosed };
+            exposedCount: exposed.length, discSelallOffWin, allChecked, matchedId: matched && matched.id, overlayClosed };
         } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
       });
       assert.ok(r.ok, 'nessun errore nel flusso discovery: ' + r.err);
@@ -734,7 +742,9 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(r.rows, 2, '_discRenderTable rende 2 righe');
       assert.ok(r.hasTypeSelect && r.hasChk, 'ogni riga ha select-tipo + checkbox (onchange bare risolti su window)');
       assert.ok(r.firstRowExisting, 'il device già in progetto NON è marcato "Nuovo" (reconcile via _discFindExistingDevice del bundle)');
-      assert.equal(r.exposedCount, 9, 'le 9 funzioni discovery sono esposte su window');
+      assert.equal(r.exposedCount, 8, 'le 8 funzioni discovery restanti sono esposte su window (discSelectAll ora delegata)');
+      assert.ok(r.discSelallOffWin, 'ASSE B: discSelectAll ritirata da window (data-change="disc-selall")');
+      assert.ok(r.allChecked, 'change su #disc-selall (delegation) seleziona tutte le righe della tabella Scopri');
       assert.equal(r.matchedId, 'exist1', '_discExistingNode abbina il device esistente per MAC');
       assert.ok(r.overlayClosed, 'closeDiscovery chiude l\'overlay');
     });
@@ -1215,8 +1225,9 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
 
           // 1) API esposte dal bundle. NB: zoomFloor/zoomRack/togglePaletteGroup/toggleRackMenu
           //    NON sono più su window (ritiro ponte ASSE B: toolbar rack/zoom/palette → data-act);
-          //    filterPaletteItems/updateRackSize NEMMENO (superfici change/input → data-input/data-change).
-          const fns = ['buildSearchResults','switchRack','renderRackTabs','moveNodeToRack'];
+          //    filterPaletteItems/updateRackSize NEMMENO (change/input → data-input/data-change);
+          //    switchRack NEMMENO (selettore rack → data-change="rack-select"; resta export ESM).
+          const fns = ['buildSearchResults','renderRackTabs','moveNodeToRack'];
           const allFns = fns.every(n => typeof window[n] === 'function');
 
           // 2) ricerca globale: trova il device per nome
@@ -1232,8 +1243,10 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           // 4) renderRackTabs popola il <select> dei rack
           const opts = document.getElementById('rack-select').options.length;
 
-          // 5) switchRack cambia il rack corrente
-          switchRack('rB');
+          // 5) selettore rack via EVENT DELEGATION (data-change="rack-select") → switchRack(el.value)
+          const rackSel = document.getElementById('rack-select');
+          rackSel.value = 'rB';
+          rackSel.dispatchEvent(new Event('change', { bubbles: true }));
           const switched = state.currentRack === 'rB';
 
           // 6) moveNodeToRack sposta il device (era in rA) nel rack libero rB
@@ -1245,8 +1258,8 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
             'togglePaletteGroup','setPaletteGroupsExpanded','clearPaletteFilter','toggleRackMenu','closeRackMenu',
             'toggleRackOnFloor','addRack','renameRack','toggleRackUNumbering','deleteCurrentRack']
             .every(n => typeof window[n] === 'undefined');
-          // 7b) ASSE B change/input: anche filterPaletteItems/updateRackSize fuori da window
-          const changeInputGone = ['filterPaletteItems','updateRackSize']
+          // 7b) ASSE B change/input: filterPaletteItems/updateRackSize/switchRack fuori da window
+          const changeInputGone = ['filterPaletteItems','updateRackSize','switchRack']
             .every(n => typeof window[n] === 'undefined');
 
           return { ok: true, allFns, foundDevice, zoomed, transformApplied, opts, switched, moved, nodeRack, delegatedGone, changeInputGone };
@@ -1255,12 +1268,12 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.ok, 'nessun errore nel flusso search/zoom/rack: ' + r.err);
       assert.ok(r.allFns, 'le funzioni search/zoom/rack (non-toolbar) sono esposte su window');
       assert.ok(r.delegatedGone, 'ASSE B: le 15 funzioni toolbar rack/zoom/palette sono ritirate dal ponte (data-act)');
-      assert.ok(r.changeInputGone, 'ASSE B: filterPaletteItems/updateRackSize ritirate dal ponte (data-input/data-change)');
+      assert.ok(r.changeInputGone, 'ASSE B: filterPaletteItems/updateRackSize/switchRack ritirate dal ponte (data-input/data-change)');
       assert.ok(r.foundDevice, 'buildSearchResults trova il device per nome');
       assert.ok(r.zoomed, 'zoomFloor aumenta lo zoom della planimetria');
       assert.ok(r.transformApplied, 'updateTransforms applica scale() al floor-canvas');
       assert.equal(r.opts, 2, 'renderRackTabs popola il select con 2 rack');
-      assert.ok(r.switched, 'switchRack cambia il rack corrente');
+      assert.ok(r.switched, 'change su #rack-select (delegation) cambia il rack corrente via switchRack');
       assert.ok(r.moved, 'moveNodeToRack riesce a spostare il device');
       assert.equal(r.nodeRack, 'rB', 'il device e ora nel rack B');
     });
@@ -1660,12 +1673,15 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
     await t.test('app-core migrato: modali (showConfirm/showPrompt/modalResolve) + apiFetch viewer-guard nel browser reale', async () => {
       const r = await page.evaluate(async () => {
         try {
-          const fns = ['apiFetch','loadProject','switchProject',
+          const fns = ['apiFetch','loadProject',
             'showAlert','showConfirm','showPrompt','modalResolve','_initApp']
             .every(n => typeof window[n] === 'function');
-          // ASSE B: i 5 bottoni progetto sono delegati (data-act) → ritirati dal ponte
-          const projGone = ['newProject','renameProject','duplicateProject','deleteProject','saveProject']
+          // ASSE B: i 5 bottoni progetto (data-act) + il selettore progetto (data-change)
+          // sono delegati → ritirati dal ponte; switchProject non è più su window.
+          const projGone = ['newProject','renameProject','duplicateProject','deleteProject','saveProject','switchProject']
             .every(n => typeof window[n] === 'undefined');
+          // il selettore progetto è cablato via delegation (data-change="project-select")
+          const projSelectWired = document.getElementById('project-select').getAttribute('data-change') === 'project-select';
 
           // showConfirm apre il modal-overlay; modalResolve(true) → onOk + chiusura
           let confirmed = null;
@@ -1691,12 +1707,13 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           catch (e) { guardThrew = /visualizzatori|consentita/i.test(String(e.message)); }
           window._currentUser = prevUser;
 
-          return { ok: true, fns, projGone, overlayOpen, overlayClosed, confirmed, inpVisible, promptOk, guardThrew };
+          return { ok: true, fns, projGone, projSelectWired, overlayOpen, overlayClosed, confirmed, inpVisible, promptOk, guardThrew };
         } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
       });
       assert.ok(r.ok, 'nessun errore nel flusso core: ' + r.err);
       assert.ok(r.fns, 'le funzioni core (apiFetch/modali) ancora classiche sono esposte su window');
-      assert.ok(r.projGone, 'ASSE B: i 5 bottoni progetto (new/rename/duplicate/delete/save) ritirati dal ponte');
+      assert.ok(r.projGone, 'ASSE B: i 5 bottoni progetto + switchProject (selettore) ritirati dal ponte');
+      assert.ok(r.projSelectWired, 'ASSE B: #project-select cablato via data-change="project-select" (delegation)');
       assert.ok(r.overlayOpen, 'showConfirm apre il modal-overlay');
       assert.ok(r.overlayClosed, 'modalResolve chiude il modal-overlay');
       assert.equal(r.confirmed, true, 'modalResolve(true) invoca la callback onOk');
