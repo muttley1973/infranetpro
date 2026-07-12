@@ -141,9 +141,29 @@ function confirmLag(){
         const n = Object.keys(state.lagGroups).length + 1;
         state.lagGroups[gid] = `LAG ${n}`;
     }
+    // Manual-first: se un membro selezionato veniva da un ALTRO LAG, "rubarlo" senza
+    // staccarlo lascerebbe il vecchio gruppo orfano (1 solo membro + voce lagGroups
+    // stantia). Annota i gid derubati PRIMA della riassegnazione.
+    const _stolenFrom = new Set();
+    for(const pid of store.lagSelPorts){
+        const old = (state.ports[pid] || {}).lagGroup;
+        if(old && old !== gid) _stolenFrom.add(old);
+    }
     for(const pid of store.lagSelPorts){
         if(!state.ports[pid]) state.ports[pid] = {};
         state.ports[pid].lagGroup = gid;
+    }
+    // Sciogli i vecchi gruppi scesi sotto 2 membri (un LAG < 2 non esiste) — stessa
+    // logica di dissoluzione di removePortFromLag.
+    for(const g of _stolenFrom){
+        const members = Object.entries(state.ports).filter(([,f]) => f.lagGroup === g);
+        if(members.length < 2){
+            const rest = new Set(members.map(([p]) => p));
+            for(const p of rest) _clearPortLagMarks(p);
+            _stripLinkLagFor(rest);
+            delete state.lagGroups[g];
+            if(state.lagModes) delete state.lagModes[g];
+        }
     }
     store.lagSelMode = false;
     store.lagSelPorts = new Set();
