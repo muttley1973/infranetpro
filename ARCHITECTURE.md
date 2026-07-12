@@ -614,9 +614,9 @@ is VPN/LAN.
     deep-TCP-scan preference checkboxes (`change`), the map-image + JSON-import file pickers
     (`change`), and the global search box (`input` + `focus` + `keydown`). Of the static HTML the
     change/input/focus/keydown surfaces are done — only the export panel's remain (`export.js` classic)
-    — but **~65 `onclick` handlers are still inline** there (modal open/close, report/discovery/import
+    — but **~55 `onclick` handlers are still inline** there (report/discovery/import/PDF-export
     actions, status chips: a mix of clean-but-deferred and genuinely blocked).
-    The migration then moves into the **~530 handlers inside dynamically-rendered templates** (rows/cards built by `innerHTML`
+    The migration then moves into the **~535 handlers inside dynamically-rendered templates** (rows/cards built by `innerHTML`
     at runtime) — these migrate identically, because a document-level delegated listener also catches
     events from elements created *after* load. Dynamic clusters done so far: the Discover table rows
     (`disc-row`/`disc-type`), the search-results dropdown (`search-pick`), the Drift panel's seven
@@ -629,7 +629,14 @@ is VPN/LAN.
     `um-*`/`tk-*`/`chpwd-*`, ids in `data-id`), which retired twelve functions from the bridge and
     made `openUserManager`/`umSwitchTab` proper ESM exports imported by `app-ai.js` — fixing a latent
     bug where the admin "AI settings" entry never opened the modal because `openUserManager` was read
-    as an (unexposed, undefined) `window` global. The rest follows surface by surface. `_bridge.js` / `expose()` are deleted only when Axis B is finished. *(Side note: the AI help
+    as an (unexposed, undefined) `window` global — and three topology/management surfaces: the
+    **management-protocols editor modal** (`mgmt-proto-*`; only the modal migrates — its static
+    buttons plus the dynamically-rendered proto rows via `data-input`/`data-act` — while the gear that
+    opens it stays inline because it lives in the golden properties panel), the **topology-crawl
+    modal** (`topo-crawl-*`, the backdrop keeps its "don't close mid-crawl" wrapper behind the
+    `ev.target === el` guard), and the **topology hover-tooltip** (`#topo-tip`, rendered by
+    `_showTopoTip` in `app-popup.js`: `topo-create-link`/`topo-nav-rack` with the pair-key/rack-id in
+    `data-*`). The rest follows surface by surface. `_bridge.js` / `expose()` are deleted only when Axis B is finished. *(Side note: the AI help
     catalog in `lib/ui-catalog.js`, which reads the real button labels/tooltips, derives a button's action
     from `data-act` as well as `onclick`, so delegated buttons stay in the assistant's catalog.)*
 - **ESLint gate (`eslint.config.js`, v9).** `no-undef` is enforced as a safety net where

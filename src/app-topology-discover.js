@@ -8,6 +8,7 @@ import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi 
 import { switchRack, updateTransforms } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { _applyViewMode, _hideTopoTip } from './app-popup.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _snmpFreshness, _lastSnmpSyncTs, _renderSyncFreshness } from './app-snmp.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { registerClickActions } from './app-delegation.js';   // ASSE B: bottoni del tooltip topologia (#topo-tip) via data-act
 
 // ============================================================
 // TOPOLOGIA — discovery e grafo (glue estratto da app.js, R7)
@@ -449,6 +450,14 @@ function applyTopologyToProject(){
 
 expose({
     _restoreTopoSession, toggleTopology, _setTopoBtn, _refreshTopoBtnState,
-    discoverTopology, _findPortByIfName, _createTopoLink, navigateToRack,
+    discoverTopology, _findPortByIfName,
     _highlightTopoLinks, _clearTopoHighlight, applyTopologyToProject,
+});
+
+// ASSE B — bottoni del tooltip topologia (`#topo-tip`, reso da `_showTopoTip` in
+// app-popup.js): "Crea cavo" (pairKey in data-pairkey) e "vai al rack" (rackId in
+// data-rack). Le due fn escono da expose(); erano chiamate SOLO da quel tooltip.
+registerClickActions({
+    'topo-create-link': (el) => _createTopoLink(el.dataset.pairkey),
+    'topo-nav-rack':    (el) => navigateToRack(el.dataset.rack),
 });
