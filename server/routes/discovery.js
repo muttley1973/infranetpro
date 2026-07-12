@@ -114,16 +114,22 @@ router.post('/api/reachability', auth.requireAdmin, async (req, res) => {
                        { port: 22, service: 'ssh' }, { port: 23, service: 'telnet' }];
 
     const checkOne = async (ip) => {
-      // 1) ARP: già visto a L2 di recente → presente (anche se blocca ICMP)
-      if (arp.has(ip)) return { ip, alive: true, via: 'arp' };
-      // 2) ICMP ping con ritentativo (popola anche l'ARP, riletto a fine sweep per il MAC).
-      // Ritenta: un device flaky che perde il 1° ICMP non deve risultare "assente".
-      if (await _pingHostRetry(ip, pingMs, 2)) return { ip, alive: true, via: 'ping' };
-      // 3) Fallback TCP: device che bloccano ICMP ma hanno web/mgmt aperto
-      for (const def of TCP_PORTS) {
-        if (await _tcpProbe(ip, def, Math.min(pingMs, 800))) return { ip, alive: true, via: 'tcp:' + def.port };
+      try {
+        // 1) ARP: già visto a L2 di recente → presente (anche se blocca ICMP)
+        if (arp.has(ip)) return { ip, alive: true, via: 'arp' };
+        // 2) ICMP ping con ritentativo (popola anche l'ARP, riletto a fine sweep per il MAC).
+        // Ritenta: un device flaky che perde il 1° ICMP non deve risultare "assente".
+        if (await _pingHostRetry(ip, pingMs, 2)) return { ip, alive: true, via: 'ping' };
+        // 3) Fallback TCP: device che bloccano ICMP ma hanno web/mgmt aperto
+        for (const def of TCP_PORTS) {
+          if (await _tcpProbe(ip, def, Math.min(pingMs, 800))) return { ip, alive: true, via: 'tcp:' + def.port };
+        }
+        return { ip, alive: false, via: '' };
+      } catch (_) {
+        // Una probe che RIGETTA (es. EMFILE/ENOBUFS sotto carico) non deve far cadere
+        // l'intero Promise.all e azzerare TUTTO l'audit: quell'host risulta non-alive.
+        return { ip, alive: false, via: '' };
       }
-      return { ip, alive: false, via: '' };
     };
 
     const results = {};
@@ -179,7 +185,12 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
       safeMode = true, detectWeb = true, detectDns = true, detectSnmp = true,
       deepScan = false, ...v3
     } = req.body ?? {};
-    const drv = DRIVERS[(driver || 'snmp-v2c').toLowerCase()];
+    const drvKey = (driver || 'snmp-v2c').toLowerCase();
+    const drv = DRIVERS[drvKey];
+    // Driver ignoto (es. typo "snmpv2"): senza guardia `drv` resta undefined e la fase
+    // SNMP verrebbe saltata IN SILENZIO restituendo comunque {ok:true} -> l'utente crede
+    // che l'SNMP sia stato interrogato. Come /api/crawl e /api/poll: rifiuta esplicito.
+    if (!drv) return res.json({ ok: false, error: 'Driver non supportato: ' + drvKey });
 
     let ips;
     try { ips = expandSubnet(subnet); }
@@ -240,6 +251,9 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
       smbShares: [],
       cast: false,
     }));
+    // Indice ip -> riga: lo sweep e la fase mDNS risolvono la riga per IP molte volte;
+    // con rows.find() sarebbe O(n^2) su una /24 (fino a ~1M scansioni lineari). O(1).
+    const rowByIp = new Map(rows.map(r => [r.ip, r]));
 
     // 1) Ping sweep (stealth → serializzato + scan-delay con jitter; altrimenti a batch)
     for (let i = 0; i < total; i += sweepConc) {
@@ -247,7 +261,7 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
       const results = await Promise.all(batch.map(ip => _pingHostRetry(ip, pingTimeoutMs, pingTries).catch(() => false)));
       results.forEach((ok, idx) => {
         const ip = batch[idx];
-        const row = rows.find(r => r.ip === ip);
+        const row = rowByIp.get(ip);
         if (!row) return;
         row.pingReachable = !!ok;
         row.alive = !!ok;
@@ -296,7 +310,7 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
         let mdnsN = 0;
         for (const [ip, identity] of mdnsFound) {
           if (!scannedSet.has(ip)) continue;              // solo il range richiesto (link-local)
-          const row = rows.find(r => r.ip === ip);
+          const row = rowByIp.get(ip);
           if (!row) continue;
           row.mdns = identity;
           if (identity.host && !row.hostname) row.hostname = _cleanHostname(identity.host);
@@ -323,13 +337,14 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
           const jobs = [];
           if (detectDns) {
             jobs.push((async () => {
+              let dnsTo;
               try {
                 const names = await Promise.race([
                   dns.reverse(row.ip),
-                  new Promise((_, rej) => setTimeout(() => rej(new Error('dns-timeout')), 700)),
+                  new Promise((_, rej) => { dnsTo = setTimeout(() => rej(new Error('dns-timeout')), 700); }),
                 ]);
                 if (Array.isArray(names) && names[0]) row.hostname = _cleanHostname(names[0]);
-              } catch (_) {}
+              } catch (_) {} finally { clearTimeout(dnsTo); }
             })());
           }
           if (detectWeb) {
@@ -672,9 +687,8 @@ router.post('/api/discover/topology', auth.requireAdmin, async (req, res) => {
   // (barriera + ordine IP): pool=1 e pool=N danno lo STESSO risultato (provato in
   // test/crawl-bfs.test.js). Le fasi ARP-SNMP e macsuck qui sotto lavorano su cio'
   // che crawlNetwork restituisce (results/arpTables/fdbTables/visited).
-  let crawlOut;
   try {
-    crawlOut = await crawlNetwork({
+    const crawlOut = await crawlNetwork({
       seeds, maxDepth, maxDevices, pool: CRAWL_POOL, collectArp: !!scanSet,
       probe: ip => drv.probe({ ...cfg, host: ip }),
       pollNeighbors: ip => drv.pollNeighbors({ ...cfg, host: ip }),
@@ -682,10 +696,7 @@ router.post('/api/discover/topology', auth.requireAdmin, async (req, res) => {
       emit: send,
       isAborted: () => aborted,
     });
-  } finally {
-    clearInterval(hb);
-  }
-  const { results, arpTables, fdbTables, visited } = crawlOut;
+    const { results, arpTables, fdbTables, visited } = crawlOut;
 
   // --- ARP-SNMP: proponi gli host off-segment visti nelle ARP raccolte ---------
   // Host presenti nell'ARP di uno switch/router SNMP ma non trovati via SNMP/LLDP:
@@ -758,8 +769,16 @@ router.post('/api/discover/topology', auth.requireAdmin, async (req, res) => {
     console.log(`  [CRAWL] macsuck: ${located} MAC localizzati su porta da ${fdbTables.length} switch`);
   }
 
-  send({ type: 'done', total: results.length, results });
-  res.end();
+    send({ type: 'done', total: results.length, results });
+  } catch (err) {
+    // Qualsiasi eccezione (crawlNetwork, ARP-SNMP, macsuck, decorate) NON deve lasciare
+    // aperta la connessione SSE (client appeso) ne' diventare un unhandledRejection:
+    // segnala l'errore al client e chiudi SEMPRE nel finally.
+    try { send({ type: 'error', message: err?.message || String(err) }); } catch (_) {}
+  } finally {
+    clearInterval(hb);
+    try { res.end(); } catch (_) {}
+  }
 });
 
 module.exports = router;

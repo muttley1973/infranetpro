@@ -67,11 +67,15 @@ async function crawlNetwork(opts) {
   const {
     seeds = [], maxDepth = 5, maxDevices = 100, pool = 4, collectArp = false,
     probe, pollNeighbors, decorate,
-    emit = () => {}, isAborted = () => false,
+    emit: rawEmit = () => {}, isAborted = () => false,
   } = opts || {};
   if (typeof probe !== 'function' || typeof pollNeighbors !== 'function' || typeof decorate !== 'function') {
     throw new Error('crawlNetwork: probe, pollNeighbors e decorate sono obbligatori');
   }
+  // emit e' "opzionale" e best-effort: un handler che lancia (es. SSE res.write DOPO
+  // che il client ha chiuso) NON deve rigettare il worker -> abortire tutto il crawl e
+  // perdere i risultati parziali. Lo isoliamo qui una volta sola.
+  const emit = (e) => { try { rawEmit(e); } catch (_) { /* best-effort */ } };
 
   const visited = new Set();
   const seenName = new Set();
@@ -88,9 +92,16 @@ async function crawlNetwork(opts) {
   for (const ip of seeds) { const s = String(ip || '').trim(); if (s && !seedSeen.has(s)) { seedSeen.add(s); frontier.push({ ip: s, depth: 0 }); } }
 
   while (frontier.length && results.length < maxDevices && !isAborted()) {
-    // Livello corrente: scarta i gia' visitati, ordina per IP (determinismo),
-    // e MARCA visitato PRIMA di processare (evita ri-accodamenti cross-livello).
-    const level = frontier.filter(f => !visited.has(f.ip)).sort((a, b) => cmpIp(a.ip, b.ip));
+    // Livello corrente: scarta i gia' visitati, DEDUP per IP (due genitori dello
+    // STESSO livello possono accodare lo stesso vicino prima che venga marcato
+    // visitato -> senza dedup verrebbe sondato due volte e, se sysName vuoto,
+    // finirebbe due volte in results), ordina per IP (determinismo), e MARCA
+    // visitato PRIMA di processare (evita ri-accodamenti cross-livello).
+    const seenIp = new Set();
+    const level = frontier.filter(f => {
+      if (visited.has(f.ip) || seenIp.has(f.ip)) return false;
+      seenIp.add(f.ip); return true;
+    }).sort((a, b) => cmpIp(a.ip, b.ip));
     for (const f of level) visited.add(f.ip);
     frontier = [];
     if (!level.length) break;
