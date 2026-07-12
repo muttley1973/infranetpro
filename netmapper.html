@@ -215,7 +215,7 @@
                         <i class="fas fa-chevron-down palette-group-chevron"></i>
                     </button>
                     <div class="palette-group-body">
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="room"><i class="far fa-square"></i> <span data-i18n="dev.room">Stanza / Area</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="room"><i class="far fa-square"></i> <span data-i18n="dev.room">Stanza / Area</span></div>
                     </div>
                 </section>
 
@@ -225,8 +225,8 @@
                         <i class="fas fa-chevron-down palette-group-chevron"></i>
                     </button>
                     <div class="palette-group-body">
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="wallport"><i class="fas fa-ethernet"></i> <span data-i18n="dev.wallport">Presa a muro</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="ap"><i class="fas fa-wifi"></i> <span data-i18n="dev.ap">Access Point</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="wallport"><i class="fas fa-ethernet"></i> <span data-i18n="dev.wallport">Presa a muro</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="ap"><i class="fas fa-wifi"></i> <span data-i18n="dev.ap">Access Point</span></div>
                     </div>
                 </section>
 
@@ -236,20 +236,20 @@
                         <i class="fas fa-chevron-down palette-group-chevron"></i>
                     </button>
                     <div class="palette-group-body">
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="webcam"><i class="fas fa-video"></i> <span data-i18n="dev.webcam">Webcam / CCTV</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="printer"><i class="fas fa-print"></i> <span data-i18n="dev.printer">Stampante di rete</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="voip"><i class="fas fa-phone"></i> <span data-i18n="dev.voip">Telefono VoIP</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="badgereader"><i class="fas fa-id-card"></i> <span data-i18n="dev.badgereader">Lettore badge</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="pc"><i class="fas fa-desktop"></i> <span data-i18n="dev.pc">PC / Workstation</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="mobile"><i class="fas fa-mobile-screen-button"></i> <span data-i18n="dev.mobile">Smartphone / Tablet</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="iot"><i class="fas fa-microchip"></i> <span data-i18n="dev.iot">Dispositivo IoT</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="projector"><i class="fas fa-chalkboard"></i> <span data-i18n="dev.projector">Proiettore</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="tv"><i class="fas fa-tv"></i> <span data-i18n="dev.tv">Smart TV / Media Player</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="doorctrl"><i class="fas fa-door-open"></i> <span data-i18n="dev.doorctrl">Door Controller</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="panelboard"><i class="fas fa-bolt"></i> <span data-i18n="dev.panelboard">Quadro elettrico</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="homelab"><i class="fas fa-cubes"></i> <span data-i18n="dev.homelab">Mini-server</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="nasdesktop"><i class="fas fa-hard-drive"></i> <span data-i18n="dev.nasdesktop">NAS (desktop)</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="customfloor"><i class="fas fa-cube"></i> <span data-i18n="dev.customfloor">Endpoint personalizzato</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="webcam"><i class="fas fa-video"></i> <span data-i18n="dev.webcam">Webcam / CCTV</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="printer"><i class="fas fa-print"></i> <span data-i18n="dev.printer">Stampante di rete</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="voip"><i class="fas fa-phone"></i> <span data-i18n="dev.voip">Telefono VoIP</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="badgereader"><i class="fas fa-id-card"></i> <span data-i18n="dev.badgereader">Lettore badge</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="pc"><i class="fas fa-desktop"></i> <span data-i18n="dev.pc">PC / Workstation</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="mobile"><i class="fas fa-mobile-screen-button"></i> <span data-i18n="dev.mobile">Smartphone / Tablet</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="iot"><i class="fas fa-microchip"></i> <span data-i18n="dev.iot">Dispositivo IoT</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="projector"><i class="fas fa-chalkboard"></i> <span data-i18n="dev.projector">Proiettore</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="tv"><i class="fas fa-tv"></i> <span data-i18n="dev.tv">Smart TV / Media Player</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="doorctrl"><i class="fas fa-door-open"></i> <span data-i18n="dev.doorctrl">Door Controller</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="panelboard"><i class="fas fa-bolt"></i> <span data-i18n="dev.panelboard">Quadro elettrico</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="homelab"><i class="fas fa-cubes"></i> <span data-i18n="dev.homelab">Mini-server</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="nasdesktop"><i class="fas fa-hard-drive"></i> <span data-i18n="dev.nasdesktop">NAS (desktop)</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="customfloor"><i class="fas fa-cube"></i> <span data-i18n="dev.customfloor">Endpoint personalizzato</span></div>
                     </div>
                 </section>
 
@@ -259,9 +259,9 @@
                         <i class="fas fa-chevron-down palette-group-chevron"></i>
                     </button>
                     <div class="palette-group-body">
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="patchpanel"><i class="fas fa-bars"></i> <span data-i18n="dev.patchpanel">Patch Panel (2U)</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="blankpanel"><i class="fas fa-minus"></i> <span data-i18n="dev.blankpanel">Pannello vuoto (1U)</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="cablemanager"><i class="fas fa-grip-lines"></i> <span data-i18n="dev.cablemanager">Passacavo (1U)</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="patchpanel"><i class="fas fa-bars"></i> <span data-i18n="dev.patchpanel">Patch Panel (2U)</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="blankpanel"><i class="fas fa-minus"></i> <span data-i18n="dev.blankpanel">Pannello vuoto (1U)</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="cablemanager"><i class="fas fa-grip-lines"></i> <span data-i18n="dev.cablemanager">Passacavo (1U)</span></div>
                     </div>
                 </section>
 
@@ -271,24 +271,24 @@
                         <i class="fas fa-chevron-down palette-group-chevron"></i>
                     </button>
                     <div class="palette-group-body">
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="switch"><i class="fas fa-network-wired"></i> <span data-i18n="dev.switch">Switch</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="router"><i class="fas fa-route"></i> <span data-i18n="dev.router">Router</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="firewall"><i class="fas fa-shield-halved"></i> <span data-i18n="dev.firewall">Firewall</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="server"><i class="fas fa-server"></i> <span data-i18n="dev.server">Server</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="hypervisor"><i class="fas fa-layer-group"></i> <span data-i18n="dev.hypervisor">Hypervisor</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="nas"><i class="fas fa-database"></i> <span data-i18n="dev.nas">Storage (SAN / RAID)</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="kvm"><i class="fas fa-keyboard"></i> <span data-i18n="dev.kvm">KVM Switch</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="ups"><i class="fas fa-car-battery"></i> <span data-i18n="dev.ups">UPS</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="pdu"><i class="fas fa-plug"></i> <span data-i18n="dev.pdu">PDU</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="ats"><i class="fas fa-shuffle"></i> <span data-i18n="dev.ats">ATS — Transfer Switch</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="pbx"><i class="fas fa-phone-volume"></i> <span data-i18n="dev.pbx">Centralino VoIP</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="consolesvr"><i class="fas fa-terminal"></i> <span data-i18n="dev.consolesvr">Console Server</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="wlanctrl"><i class="fas fa-wifi"></i> <span data-i18n="dev.wlanctrl">WLAN Controller</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="mediaconv"><i class="fas fa-right-left"></i> <span data-i18n="dev.mediaconv">Media Converter</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="nvr"><i class="fas fa-record-vinyl"></i> <span data-i18n="dev.nvr">NVR / Videosorveglianza (2U)</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="sdwan"><i class="fas fa-cloud-bolt"></i> <span data-i18n="dev.sdwan">SD-WAN Edge</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="vpncon"><i class="fas fa-key"></i> <span data-i18n="dev.vpncon">VPN Concentrator</span></div>
-                        <div class="equip-item" draggable="true" ondragstart="onDragStart(event)" data-type="customrack"><i class="fas fa-cube"></i> <span data-i18n="dev.customrack">Dispositivo rack generico</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="switch"><i class="fas fa-network-wired"></i> <span data-i18n="dev.switch">Switch</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="router"><i class="fas fa-route"></i> <span data-i18n="dev.router">Router</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="firewall"><i class="fas fa-shield-halved"></i> <span data-i18n="dev.firewall">Firewall</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="server"><i class="fas fa-server"></i> <span data-i18n="dev.server">Server</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="hypervisor"><i class="fas fa-layer-group"></i> <span data-i18n="dev.hypervisor">Hypervisor</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="nas"><i class="fas fa-database"></i> <span data-i18n="dev.nas">Storage (SAN / RAID)</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="kvm"><i class="fas fa-keyboard"></i> <span data-i18n="dev.kvm">KVM Switch</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="ups"><i class="fas fa-car-battery"></i> <span data-i18n="dev.ups">UPS</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="pdu"><i class="fas fa-plug"></i> <span data-i18n="dev.pdu">PDU</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="ats"><i class="fas fa-shuffle"></i> <span data-i18n="dev.ats">ATS — Transfer Switch</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="pbx"><i class="fas fa-phone-volume"></i> <span data-i18n="dev.pbx">Centralino VoIP</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="consolesvr"><i class="fas fa-terminal"></i> <span data-i18n="dev.consolesvr">Console Server</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="wlanctrl"><i class="fas fa-wifi"></i> <span data-i18n="dev.wlanctrl">WLAN Controller</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="mediaconv"><i class="fas fa-right-left"></i> <span data-i18n="dev.mediaconv">Media Converter</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="nvr"><i class="fas fa-record-vinyl"></i> <span data-i18n="dev.nvr">NVR / Videosorveglianza (2U)</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="sdwan"><i class="fas fa-cloud-bolt"></i> <span data-i18n="dev.sdwan">SD-WAN Edge</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="vpncon"><i class="fas fa-key"></i> <span data-i18n="dev.vpncon">VPN Concentrator</span></div>
+                        <div class="equip-item" draggable="true" data-dragstart="equip" data-type="customrack"><i class="fas fa-cube"></i> <span data-i18n="dev.customrack">Dispositivo rack generico</span></div>
                     </div>
                 </section>
             </div>
@@ -774,11 +774,11 @@
 </div>
 
 <!-- ===== MODAL IMPORTA CSV ===== -->
-<div id="csv-overlay" class="tool-modal-overlay" onclick="if(event.target===this)closeCsvImport()">
+<div id="csv-overlay" class="tool-modal-overlay" data-act="csv-backdrop">
   <div class="tool-modal wide">
     <div class="tool-modal-header">
       <h3><i class="fas fa-file-csv"></i> <span data-i18n="impexp.importCsv">Importa dispositivi da CSV</span></h3>
-      <button class="toolbar-btn" onclick="closeCsvImport()" style="padding:4px 8px"><i class="fas fa-times"></i></button>
+      <button class="toolbar-btn" data-act="csv-close" style="padding:4px 8px"><i class="fas fa-times"></i></button>
     </div>
     <div class="tool-modal-body">
       <div class="tm-hint">
@@ -788,7 +788,7 @@
         Tipi validi: switch · router · firewall · server · nas · kvm · ups · pdu · ats · patchpanel · ap · wallport · webcam · tv · iot · pc · customfloor · customrack
       </div>
       <div class="tm-row" style="gap:8px;margin-bottom:8px">
-        <button class="toolbar-btn" onclick="document.getElementById('csv-file').click()"><i class="fas fa-folder-open"></i> Scegli file</button>
+        <button class="toolbar-btn" data-act="csv-file-pick"><i class="fas fa-folder-open"></i> Scegli file</button>
         <input type="file" id="csv-file" accept=".csv,.txt" style="display:none" data-change="csv-file">
         <span style="font-size:0.75rem;color:var(--text-muted);align-self:center">oppure incolla il testo qui sotto</span>
       </div>
@@ -805,18 +805,18 @@
       </div>
     </div>
     <div class="tool-modal-footer">
-      <button class="toolbar-btn" onclick="closeCsvImport()" data-i18n="common.cancel">Annulla</button>
-      <button class="toolbar-btn primary" id="csv-import-btn" onclick="importCsvNodes()" disabled><i class="fas fa-file-import"></i> <span data-i18n="common.import">Importa</span></button>
+      <button class="toolbar-btn" data-act="csv-close" data-i18n="common.cancel">Annulla</button>
+      <button class="toolbar-btn primary" id="csv-import-btn" data-act="csv-import" disabled><i class="fas fa-file-import"></i> <span data-i18n="common.import">Importa</span></button>
     </div>
   </div>
 </div>
 
 <!-- ===== MODAL IMPORTA LEASE DHCP ===== -->
-<div id="dhcp-overlay" class="tool-modal-overlay" onclick="if(event.target===this)closeDhcpImport()">
+<div id="dhcp-overlay" class="tool-modal-overlay" data-act="dhcp-backdrop">
   <div class="tool-modal wide">
     <div class="tool-modal-header">
       <h3><i class="fas fa-table-list"></i> <span data-i18n="dhcp.title">Lease DHCP</span></h3>
-      <button class="toolbar-btn" onclick="closeDhcpImport()" style="padding:4px 8px"><i class="fas fa-times"></i></button>
+      <button class="toolbar-btn" data-act="dhcp-close" style="padding:4px 8px"><i class="fas fa-times"></i></button>
     </div>
     <div class="tool-modal-body">
       <div class="tm-hint" data-i18n="dhcp.hint">Incolla o carica la tabella dei lease DHCP. Formati riconosciuti in automatico: ISC dhcpd, dnsmasq, Kea (CSV) e CSV generico.</div>
@@ -834,12 +834,12 @@
           <span style="display:inline-flex;align-items:center;gap:5px;flex:1 1 180px;min-width:0"><label id="dhcp-cred1-label" style="color:var(--text-muted)">API token</label><input id="dhcp-live-cred1" type="password" autocomplete="off" style="background:#0d1117;border:1px solid var(--panel-border);color:var(--text-main);padding:5px 7px;border-radius:4px;flex:1;min-width:0"></span>
           <span id="dhcp-cred2-wrap" style="display:none;align-items:center;gap:5px"><label id="dhcp-cred2-label" style="color:var(--text-muted)"></label><input id="dhcp-live-cred2" type="password" autocomplete="off" style="background:#0d1117;border:1px solid var(--panel-border);color:var(--text-main);padding:5px 7px;border-radius:4px;width:150px"></span>
           <label style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted)"><input type="checkbox" id="dhcp-live-insecure" style="width:auto"> <span data-i18n="dhcp.insecureTls">Salta verifica TLS (cert self-signed)</span></label>
-          <button class="toolbar-btn" id="dhcp-live-fetch" onclick="fetchDhcpLive()" style="margin-left:auto"><i class="fas fa-cloud-arrow-down"></i> <span data-i18n="dhcp.fetch">Recupera</span></button>
+          <button class="toolbar-btn" id="dhcp-live-fetch" data-act="dhcp-fetch-live" style="margin-left:auto"><i class="fas fa-cloud-arrow-down"></i> <span data-i18n="dhcp.fetch">Recupera</span></button>
         </div>
         <div style="font-size:.68rem;color:var(--text-muted);margin-top:6px" data-i18n="dhcp.liveNote">Le credenziali servono solo per questo recupero e non vengono salvate.</div>
       </div>
       <div class="tm-row" style="gap:8px;margin-bottom:8px">
-        <button class="toolbar-btn" onclick="document.getElementById('dhcp-file').click()"><i class="fas fa-folder-open"></i> <span data-i18n="dhcp.chooseFile">Scegli file</span></button>
+        <button class="toolbar-btn" data-act="dhcp-file-pick"><i class="fas fa-folder-open"></i> <span data-i18n="dhcp.chooseFile">Scegli file</span></button>
         <input type="file" id="dhcp-file" accept=".csv,.txt,.leases" style="display:none" data-change="dhcp-file">
         <span style="font-size:0.75rem;color:var(--text-muted);align-self:center" data-i18n="dhcp.orPaste">oppure incolla il testo qui sotto</span>
       </div>
@@ -848,7 +848,7 @@
         style="width:100%;background:#0d1117;border:1px solid var(--panel-border);color:var(--text-main);padding:8px;border-radius:5px;font-family:monospace;font-size:0.78rem;resize:vertical"
         data-input="dhcp-preview"></textarea>
       <div class="tm-row" style="gap:10px;align-items:center;margin-top:10px">
-        <button class="toolbar-btn primary" id="dhcp-use-btn" onclick="useDhcpLeases()" disabled><i class="fas fa-plus"></i> <span data-i18n="dhcp.add">Aggiungi</span></button>
+        <button class="toolbar-btn primary" id="dhcp-use-btn" data-act="dhcp-use" disabled><i class="fas fa-plus"></i> <span data-i18n="dhcp.add">Aggiungi</span></button>
         <div id="dhcp-summary" style="font-size:0.78rem;font-weight:600;color:var(--accent-color)"></div>
       </div>
       <div id="dhcp-errors" style="margin-top:6px;font-size:0.75rem;color:var(--fault-color)"></div>
@@ -856,8 +856,8 @@
       <div id="dhcp-sources" style="margin-top:14px"></div>
     </div>
     <div class="tool-modal-footer" style="justify-content:space-between">
-      <button class="toolbar-btn" id="dhcp-clear-btn" onclick="clearDhcpSources()"><i class="fas fa-trash"></i> <span data-i18n="dhcp.clearAll">Svuota tutto</span></button>
-      <button class="toolbar-btn primary" id="dhcp-verify-btn" onclick="dhcpVerifyNow()"><i class="fas fa-clipboard-check"></i> <span data-i18n="dhcp.verifyNow">Verifica ora</span></button>
+      <button class="toolbar-btn" id="dhcp-clear-btn" data-act="dhcp-clear"><i class="fas fa-trash"></i> <span data-i18n="dhcp.clearAll">Svuota tutto</span></button>
+      <button class="toolbar-btn primary" id="dhcp-verify-btn" data-act="dhcp-verify"><i class="fas fa-clipboard-check"></i> <span data-i18n="dhcp.verifyNow">Verifica ora</span></button>
     </div>
   </div>
 </div>
