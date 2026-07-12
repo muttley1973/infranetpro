@@ -18,6 +18,7 @@ import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funz
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { switchRack } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { _discIndexNode, _discFindExistingDevice, _discBuildExistingIndexes, _discTouchNodeIdentity, _discMarkIpMacConflict } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { registerChangeActions } from './app-delegation.js';   // ASSE B: checkbox "seleziona tutti" via data-change
 
 // ============================================================
 // TOPOLOGY CRAWL FRONTEND
@@ -412,5 +413,11 @@ export function _resolveRackOverlap(node){
 // Handler inline (netmapper.html) + utility rack condivise da altri file.
 expose({
     openTopoCrawl, closeTopoCrawl, _closeTopoCrawlOverlayClick, runTopoCrawl,
-    tdSelectAll, importTopoCrawl, _findFreeU, _resolveRackOverlap,
+    importTopoCrawl, _findFreeU, _resolveRackOverlap,
+});
+
+// ASSE B — checkbox "seleziona tutti" della tabella Topologia: onchange inline
+// -> data-change. tdSelectAll esce da expose(); la fn legge el.checked.
+registerChangeActions({
+    'td-selall': (el) => tdSelectAll(el.checked),
 });

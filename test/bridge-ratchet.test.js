@@ -177,9 +177,10 @@ test('ponte: le funzioni-nucleo della 9ª non hanno più letture win.* (fuori da
 // Ritiro ponte 2026-07-11: le 6 funzioni definite in app-search-zoom-rack.js
 // (`toggleRackPanel`, `switchRack`, `renderRackTabs`, `focusNode`, `updateTransforms`,
 // `ensureNodeRackVisible`) sono `export function` + `import` nei 10 consumatori;
-// convertite TUTTE le occorrenze win.X (chiamate E guardie typeof). Restano in
-// expose() per i classic e per gli onclick inline (toggleRackPanel/switchRack bare
-// nell'HTML → risolvono su window, non contano nel cricchetto che scansiona solo src/).
+// convertite TUTTE le occorrenze win.X (chiamate E guardie typeof). ASSE B ha poi
+// ritirato del tutto toggleRackPanel/switchRack anche dagli handler inline (→ data-act/
+// data-change, event delegation): non più in expose() né bare nell'HTML. Questo test
+// resta valido: verifica solo che nessun win.X sia tornato nei sorgenti src/.
 const RETIRED_RACK_FN = ['toggleRackPanel', 'switchRack', 'renderRackTabs',
   'focusNode', 'updateTransforms', 'ensureNodeRackVisible'];
 test('ponte: le funzioni rack/zoom/search non sono più lette da win.*', () => {
@@ -312,7 +313,8 @@ test('ponte: le 15 funzioni dell\'alias-block props-node non sono più lette da 
 // (def-once `function` in src/, escluso `_guessType` lasciato apposta), generata via
 // mappa auto-dedotta simbolo→modulo. Include dispatcher render (_renderNodeProps/
 // _renderPortProps/_renderLinkProps/_renderFloorProps) + fn inline (closeReportMenu/
-// _saveDeepScanPref/_hideTopoTip: la parte JS→import, il bare-inline resta + expose).
+// _saveDeepScanPref/_hideTopoTip: JS→import; _saveDeepScanPref poi migrata anche
+// nell'handler inline via ASSE B (data-change="disc-deep-scan"), fuori da expose).
 const RETIRED_TAIL_FN1 = [
   'closeReportMenu', '_ensureDiscoveryHistory', '_nodeByMacMap', '_recordDiscoveryObservation', '_paintRoutingTargets', '_routeHopRemovable',
   '_routingPickPort', 'showConfirm', 'showPrompt', '_discCanAutoRetype', '_discConfidenceScore', '_discHasStrongIdentity',

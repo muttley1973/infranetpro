@@ -8,6 +8,7 @@ import { focusNode, switchRack } from './app-search-zoom-rack.js';   // ritiro p
 import { _isLeafEndpoint, _autoLinkEndpoint, _recordDiscoveryObservation } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
 import { _discIndexNode, _discVendorFromMac, _discIdentitySource, _discFindExistingDevice, _discBuildExistingIndexes, _discTouchNodeIdentity, _loadDeepScanPref, _saveDeepScanPref, _discSanitizeDeviceClass, _discRememberClassHint, _discHasStrongIdentity, _discCanAutoRetype, _discInvalidateExistingIndexes, _discMarkIpMacConflict, _discConfidenceScore } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { _findFreeU } from './app-topology-crawl.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
+import { registerChangeActions } from './app-delegation.js';   // ASSE B: checkbox "seleziona tutti" Scopri via data-change
 
 // Nome DISPLAY per la tabella Scopri e per il nome del nodo importato. L'utente legge la
 // RIGA (Nome -> Vendor -> Tipo, gia' in colonne separate) e fa l'abbinamento da solo:
@@ -1092,7 +1093,13 @@ async function importDiscovered(){
 
 expose({
     openDiscovery, closeDiscovery, _closeDiscoveryOverlayClick, runDiscovery,
-    discSelectAll, importDiscovered, _discOnRowToggle, _discOnTypeChange,
+    importDiscovered, _discOnRowToggle, _discOnTypeChange,
     _discExistingNode, _discRenderTable, _discCrawlRow, _discArpRow, _discVendorLabel,
     _discApplyEdges, _discEdgeBadge,
+});
+
+// ASSE B — checkbox "seleziona tutti" della tabella Scopri: onchange inline
+// -> data-change. discSelectAll esce da expose(); la fn legge el.checked.
+registerChangeActions({
+    'disc-selall': (el) => discSelectAll(el.checked),
 });
