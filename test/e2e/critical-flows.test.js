@@ -889,11 +889,11 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
               { mac: 'AA:BB:CC:00:00:31', nodeId: 'pc',  ip: '192.168.1.70', label: 'pc'  },  // stesso IP
             ] }, [], {});
           return { ok: true, ipChanged: rep.counts.ipChanged, macOrphan: rep.counts.macOrphan,
-            row: (rep.ipChanged[0] || null), applyFn: typeof window.driftApplyIpChange };
+            row: (rep.ipChanged[0] || null), applyOffWin: typeof window.driftApplyIpChange === 'undefined' };
         } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
       });
       assert.ok(r.ok, 'nessun errore: ' + r.err);
-      assert.equal(r.applyFn, 'function', 'driftApplyIpChange è esposta su window');
+      assert.ok(r.applyOffWin, 'ASSE B: driftApplyIpChange ritirata da window (data-act="drift-apply-ip", delegation)');
       assert.equal(r.ipChanged, 1, 'rilevato 1 cambio IP (srv .50→.60); il pc allo stesso IP non conta');
       assert.equal(r.macOrphan, 0, 'nessun assente: i MAC sono vivi in ARP');
       assert.equal(r.row && r.row.oldIp, '192.168.1.50', 'oldIp = IP documentato');
@@ -2669,8 +2669,13 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       //  • _closeDriftReport (overlay nascosto → non copre i test rack seguenti).
       const r = await page.evaluate(() => {
         const exposed = ['runDriftCheck', '_driftBuildDocSnapshot', '_driftBuildSnmpSnapshot',
-          '_renderDriftReport', 'driftIgnore', 'driftApplyDoc', 'driftInvestigate', '_closeDriftReport']
+          '_renderDriftReport']
           .every((f) => typeof window[f] === 'function');
+        // ASSE B: le 7 azioni 1-click del pannello Drift sono ritirate da window
+        // (template dinamico → data-act/data-change, event delegation).
+        const driftFnsOffWin = ['driftIgnore', 'driftApplyDoc', 'driftInvestigate', 'driftApplyIpChange',
+          '_driftScanNetwork', '_closeDriftReport', 'setDriftShowEndpoints']
+          .every((n) => typeof window[n] === 'undefined');
         state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
         // Elementi PASSIVI senza IP (es. presa a muro) con un MAC stampato a valle
         // dal Sync NON sono verificabili → fuori dall'audit di presenza (doc.macs):
@@ -2699,18 +2704,22 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         _renderDriftReport();
         const ov = document.getElementById('drift-overlay');
         const rowsRendered = ov ? ov.querySelectorAll('.drift-row').length : 0;
-        // ignora il MAC orfano → esce dal report + finisce in state.driftIgnores
-        driftIgnore('mo:1');
+        // ignora il MAC orfano via CLICK REALE delegato (data-act="drift-ignore")
+        // → esce dal report + finisce in state.driftIgnores
+        const ignBtn = ov.querySelector('[data-act="drift-ignore"][data-key="mo:1"]');
+        const ignWired = !!ignBtn && !ignBtn.hasAttribute('onclick');
+        ignBtn.click();
         const ignored = Array.isArray(state.driftIgnores) && state.driftIgnores.includes('mo:1');
         const macOrphanLeft = _driftReport.macOrphan.length;
-        // applica la doc sullo state drift → allinea state.ports['sw1-1'] alla realtà
-        driftApplyDoc('sd:1');
+        // applica la doc via CLICK REALE delegato (data-act="drift-apply-doc")
+        ov.querySelector('[data-act="drift-apply-doc"][data-key="sd:1"]').click();
         const applied = state.ports['sw1-1'] && state.ports['sw1-1'].status === 'active' && !('statusOvr' in state.ports['sw1-1']);
         const stateDriftLeft = _driftReport.stateDrift.length;
-        _closeDriftReport();
+        // chiudi via CLICK REALE delegato (data-act="drift-close")
+        ov.querySelector('[data-act="drift-close"]').click();
         const closed = !!ov && ov.style.display === 'none';
         return {
-          exposed,
+          exposed, driftFnsOffWin, ignWired,
           docStatus: doc.ports['sw1-1'] && doc.ports['sw1-1'].status,
           docVlan: doc.ports['sw1-1'] && doc.ports['sw1-1'].vlan,
           snmpOk: !!snmp && typeof snmp === 'object',
@@ -2718,7 +2727,9 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           wallportExcluded, activeMacIncluded,
         };
       });
-      assert.ok(r.exposed, 'le funzioni Drift sono pubblicate su window dal bundle');
+      assert.ok(r.exposed, 'le funzioni Drift NON-di-riga (runDriftCheck/snapshot/render) restano su window');
+      assert.ok(r.driftFnsOffWin, 'ASSE B: le 7 azioni 1-click del Drift sono ritirate da window (data-act/data-change)');
+      assert.ok(r.ignWired, 'il bottone "ignora" (dinamico) ha data-act="drift-ignore", nessun onclick inline');
       assert.equal(r.docStatus, 'active', '_driftBuildDocSnapshot usa statusOvr (override) sopra status base');
       assert.equal(r.docVlan, 99, '_driftBuildDocSnapshot usa vlanOvr (override) sopra vlan base');
       assert.ok(r.snmpOk, '_driftBuildSnmpSnapshot non lancia con FDB vuota');
