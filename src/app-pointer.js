@@ -13,6 +13,7 @@ import { propagateVlans, setVlanFilter } from './app-vlan-autopoll.js';   // rit
 import { renderTopoOverlay } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { registerDragstartActions } from './app-delegation.js';   // ASSE B: palette drag via event delegation
 import { renderAll, rackUPx, isRackPort, getRackCablePath, getCablePath, renderScope } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, _ensureNodeSpec } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { absorbNodeAsVm } from './app-hypervisor.js';   // import di un tile come VM (drop sulla zona nel pannello host)
@@ -926,3 +927,8 @@ expose({
     handleDoubleClick, handleFloorDoubleClick, _cancelLink, _tryFinishLink, trace,
     _traceNodeFloor,
 });
+
+// ASSE B — drag della palette (ex ondragstart="onDragStart(event)" inline): ogni
+// .equip-item porta data-dragstart="equip" e il listener delegato chiama onDragStart(ev).
+// L'attributo draggable="true" resta sull'elemento (necessario per il drag HTML5).
+registerDragstartActions({ equip: (el, ev) => onDragStart(ev) });

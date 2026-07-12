@@ -640,7 +640,15 @@ function countInlineHandlers() {
   n += (html.match(INLINE_HANDLER_RE) || []).length;
   return n;
 }
-const MAX_INLINE_HANDLERS = 627;
+// −50 (627 → 577, 2026-07-12): ASSE B — cluster statico netmapper.html, giro 1.
+// 38 ondragstart="onDragStart(event)" IDENTICI della palette → data-dragstart="equip"
+// (harness esteso col tipo `dragstart`, che fa bubbling; register in app-pointer.js) +
+// i modali IMPORTA CSV (5) e LEASE DHCP (7): backdrop/chiudi/scegli-file/azioni → data-act,
+// register nei moduli proprietari (app-csv-import.js / app-dhcp-import.js, già con blocco).
+// Restano statici: menu header import/export + automazioni, toolbar, dialoghi discovery/
+// export-PDF/label/vlan-members/shared-segment, e gli handler canvas (wheel/drop/scroll/
+// mouse/contextmenu → servono nuovi tipi harness). Golden invariato (chrome, non #props-panel).
+const MAX_INLINE_HANDLERS = 577;
 test('ponte ASSE B: gli handler inline on*= non superano il tetto a cricchetto', () => {
   const total = countInlineHandlers();
   assert.ok(total <= MAX_INLINE_HANDLERS,
