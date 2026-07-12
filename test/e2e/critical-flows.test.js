@@ -322,10 +322,10 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         const tb = document.getElementById('adopt-tbody').innerHTML;
         const rowCount = document.querySelectorAll('#adopt-tbody tr').length;
 
-        // 3) adotta (flusso completo)
+        // 3) adotta (flusso completo) — ASSE B: via CLICK REALE delegato sul bottone Applica
         selType = null; selId = null;   // contesto floor per il renderProps post-adozione
         const before = state.nodes.length;
-        adoptApply();
+        document.querySelector('#adopt-overlay [data-act="adopt-apply"]').click();
         const after = state.nodes.length;
         const adopted = state.nodes.find(n => n.ip === '192.168.20.45') || {};
 
@@ -2664,6 +2664,15 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         const cands = _adoptCandidates();                 // legge win._driftReport + win.buildAdoptCandidates
         openAdoptModal();                                 // costruisce overlay + tabella
         const ov = document.getElementById('adopt-overlay');
+        // ASSE B: modale Adotta cablato via delegation; le 3 azioni interne fuori da window
+        const adoptWired = !!ov && !!ov.querySelector('[data-act="adopt-close"]')
+          && !!ov.querySelector('[data-act="adopt-apply"]') && !!ov.querySelector('[data-change="adopt-selall"]');
+        const adoptFnsOffWin = ['_closeAdoptModal', '_adoptToggleAll', 'adoptApply'].every((n) => typeof window[n] === 'undefined');
+        // "seleziona tutti" via evento change REALE delegato → _adoptToggleAll spunta le righe
+        const selAll = ov && ov.querySelector('#adopt-all');
+        if (selAll) { selAll.checked = true; selAll.dispatchEvent(new Event('change', { bubbles: true })); }
+        const allRowsChecked = !!ov && [...ov.querySelectorAll('#adopt-tbody .adopt-chk')].length > 0
+          && [...ov.querySelectorAll('#adopt-tbody .adopt-chk')].every((c) => c.checked);
         const before = state.nodes.length;
         const res = _adoptCreateNodes([
           { cand: cands[0], type: 'switch' },
@@ -2675,9 +2684,13 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         return {
           exposed, cands: cands.length, added: res.added, delta: after - before,
           dedup: res2.skipped, overlayRendered: !!ov && ov.querySelectorAll('.adopt-row').length === 2,
+          adoptWired, adoptFnsOffWin, allRowsChecked,
         };
       });
-      assert.ok(r.exposed, 'le funzioni adopt sono pubblicate su window dal bundle');
+      assert.ok(r.exposed, 'le funzioni adopt (openAdoptModal/_adoptCandidates/_adoptCreateNodes) sono su window');
+      assert.ok(r.adoptWired, 'ASSE B: modale Adotta cablato via data-act/data-change (close/apply/selall)');
+      assert.ok(r.adoptFnsOffWin, 'ASSE B: _closeAdoptModal/_adoptToggleAll/adoptApply ritirate da window (delegation)');
+      assert.ok(r.allRowsChecked, 'change reale su #adopt-all (delegation) → _adoptToggleAll spunta tutte le righe');
       assert.equal(r.cands, 2, '_adoptCandidates legge win._driftReport (var-ify) → 2 candidati');
       assert.equal(r.added, 2, '_adoptCreateNodes aggiunge 2 nodi via il ponte');
       assert.equal(r.delta, 2, 'state.nodes cresce di 2');
