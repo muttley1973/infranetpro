@@ -620,13 +620,13 @@ function _discRenderTable(){
         const checked = Object.prototype.hasOwnProperty.call(store._discSelMap,key) ? !!store._discSelMap[key] : canImport;
         const _rowCls = [d.alive ? '' : 'disc-off', _lowConf ? 'disc-lowconf' : ''].filter(Boolean).join(' ');
         return `<tr class="${_rowCls}">
-          <td><input type="checkbox" class="disc-chk" data-idx="${i}" onchange="_discOnRowToggle(this)" ${checked?'checked':''}></td>
+          <td><input type="checkbox" class="disc-chk" data-idx="${i}" data-change="disc-row" ${checked?'checked':''}></td>
           <td><span class="disc-st ${reach.cls}" data-tip="${escapeHTML(reach.title)}">${escapeHTML(reach.label)}</span></td>
           <td class="disc-host">${escapeHTML(displayName)}${badges}</td>
           <td class="disc-ip">${escapeHTML(d.ip)}</td>
           <td class="disc-vendor">${escapeHTML(_discVendorLabel(d))}</td>
           <td class="disc-mac">${escapeHTML(d.mac||'—')}</td>
-          <td><select class="disc-type" data-idx="${i}" onchange="_discOnTypeChange(this)">${opts}</select> <span class="disc-dest" data-idx="${i}">${_discDestIcon(t)}</span></td>
+          <td><select class="disc-type" data-idx="${i}" data-change="disc-type">${opts}</select> <span class="disc-dest" data-idx="${i}">${_discDestIcon(t)}</span></td>
         </tr>`;
     }).join('');
     const on = store._discResults.filter(d=>_discReachabilityInfo(d).cls === 'on').length;
@@ -1093,13 +1093,18 @@ async function importDiscovered(){
 
 expose({
     openDiscovery, closeDiscovery, _closeDiscoveryOverlayClick, runDiscovery,
-    importDiscovered, _discOnRowToggle, _discOnTypeChange,
+    importDiscovered,
     _discExistingNode, _discRenderTable, _discCrawlRow, _discArpRow, _discVendorLabel,
     _discApplyEdges, _discEdgeBadge,
 });
 
-// ASSE B — checkbox "seleziona tutti" della tabella Scopri: onchange inline
-// -> data-change. discSelectAll esce da expose(); la fn legge el.checked.
+// ASSE B — superficie DINAMICA tabella Scopri (righe rese da _discRenderTable):
+// checkbox "seleziona tutti" (statico) + per-riga toggle/tipo (dinamici) via
+// data-change. Le fn escono da expose(); ricevono l'elemento (che porta data-idx).
+// L'event delegation funziona anche sugli elementi creati dopo il load: il listener
+// vive sul document, non sul singolo <tr>.
 registerChangeActions({
     'disc-selall': (el) => discSelectAll(el.checked),
+    'disc-row':    (el) => _discOnRowToggle(el),
+    'disc-type':   (el) => _discOnTypeChange(el),
 });
