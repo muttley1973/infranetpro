@@ -193,7 +193,7 @@ function _renderAllNow(){
                 })();
                 // In modalità topologia: nascondi completamente i nodi non in VLAN
                 if(_nodeDim && store._topoVisible) return;
-                el.className=`floor-node ${store.selId===n.id?'selected':''}${_selectedPortOnNode?' port-selected':''}${_nodeDim?' vlan-dim':''}${_absentCls}`;
+                el.className=`floor-node ${store.selId===n.id?'selected':''}${_selectedPortOnNode?' port-selected':''}${_nodeDim?' vlan-dim':''}${def.passThrough?'':' topo-endpoint'}${_absentCls}`;
                 el.style.cssText=`left:${n.x}px;top:${n.y}px`;
                 const pc=n.ports!==undefined?n.ports:def.ports;
                 let icon=`<i class="fas ${def.icon} icon"></i>`;
@@ -482,6 +482,11 @@ function _renderFloorNow(){
     const fI = document.getElementById('floor-items');
     if(!fS || !fI) return;
     fS.innerHTML = ''; fI.innerHTML = '';
+    // Stessa guardia presenza di _renderAllNow: i device assenti dall'ultima Verifica
+    // (macOrphan) restano grigi ANCHE su un render mirato del solo floor (es. resize
+    // struttura) — senza questo, un renderScope('floor') tornava a colorarli.
+    const _absentIds = new Set(((store._driftReport && store._driftReport.macOrphan) || [])
+        .map(r => r.nodeId).filter(Boolean));
     store.state.nodes.forEach(n => {
         const def = TYPES[n.type]; if(!def) return;
         if(!def.isFloor) return;
@@ -519,7 +524,8 @@ function _renderFloorNow(){
             // Endpoint foglia (non pass-through): marcato per il toggle ENDPOINT
             // della topologia, che li nasconde via CSS (body.topo-hide-endpoints).
             const _epCls = def.passThrough ? '' : ' topo-endpoint';
-            el.className = `floor-node ${store.selId===n.id?'selected':''}${_selectedPortOnNode?' port-selected':''}${_nodeDim?' vlan-dim':''}${_epCls}`;
+            const _absentCls = (_absentIds.has(n.id) && n.snmpStatus!=='ok') ? ' node-absent' : '';
+            el.className = `floor-node ${store.selId===n.id?'selected':''}${_selectedPortOnNode?' port-selected':''}${_nodeDim?' vlan-dim':''}${_epCls}${_absentCls}`;
             el.style.cssText = `left:${n.x}px;top:${n.y}px`;
             const pc = n.ports!==undefined?n.ports:def.ports;
             let icon = `<i class="fas ${def.icon} icon"></i>`;
@@ -532,7 +538,9 @@ function _renderFloorNow(){
             if(pc>1){ pts='<div class="floor-ports">'; for(let i=1;i<=pc;i++) pts += getPortHTML(`${n.id}-${i}`); pts += '</div>'; }
             const _snmpOn = _hasSnmpIntegration(n);
             const _ferr = _snmpOn && n.snmpStatus==='err' ? ` style="outline:2px solid #f85149;outline-offset:2px;border-radius:3px"` : '';
-            el.innerHTML = `${icon}<div class="label" style="display:flex;align-items:center;justify-content:center"${_ferr}>${escapeHTML(n.type==='wallport'?getWallPortLabel(n):(typeof _dispName==='function'?_dispName(n.name):n.name))}</div>${pts}${_radioPortHtml(n)}`;
+            const _v3BadgeF = (typeof _v3NeedsCreds === 'function' && _v3NeedsCreds(n))
+                ? `<span class="floor-v3-badge" title="${t('pnl.gen.v3MissingCreds')}"><i class="fas fa-key"></i></span>` : '';
+            el.innerHTML = `${icon}${_v3BadgeF}<div class="label" style="display:flex;align-items:center;justify-content:center"${_ferr}>${escapeHTML(n.type==='wallport'?getWallPortLabel(n):(typeof _dispName==='function'?_dispName(n.name):n.name))}</div>${pts}${_radioPortHtml(n)}`;
             fI.appendChild(el);
         }
     });

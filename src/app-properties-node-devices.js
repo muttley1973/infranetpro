@@ -857,7 +857,7 @@ export function _nodeDeviceChainHtml(n, d, _identityBlock){
                         <option value="altro"    ${selected(n.srvOs,'altro')}>${t('o.other')}</option>
                     </select></div>
                     <div class="prop-group"><label>${t('f.localStorage')}</label>
-                        <input type="number" min="0" max="10000" step="0.5" value="${n.srvStorageTb||2}" onchange="updateN('srvStorageTb',parseFloat(this.value)||0)"></div>
+                        <input type="number" min="0" max="10000" step="0.5" value="${n.srvStorageTb ?? 2}" onchange="updateN('srvStorageTb',parseFloat(this.value)||0)"></div>
                 </div></details>`;
             }
             // Hypervisor (rack) + Homelab (floor): motore VM condiviso (src/app-hypervisor.js).
@@ -886,8 +886,8 @@ export function _nodeDeviceChainHtml(n, d, _identityBlock){
                     <div class="prop-group"><label>${t('f.usableCap')}</label>
                         <input type="number" min="0.1" max="100000" step="0.1" value="${n.nasCapacityTb||10}" onchange="updateN('nasCapacityTb',parseFloat(this.value)||10)"></div>
                     <div class="prop-group"><label>RAID level</label><select onchange="updateN('nasRaid',this.value)">
-                        <option value="raid1"   ${selected(n.nasRaid||'raid5','raid1')}>RAID 1 (mirror)</option>
-                        <option value="raid5"   ${selected(n.nasRaid,'raid5')}>RAID 5</option>
+                        <option value="raid1"   ${selected(n.nasRaid,'raid1')}>RAID 1 (mirror)</option>
+                        <option value="raid5"   ${selected(n.nasRaid||'raid5','raid5')}>RAID 5</option>
                         <option value="raid6"   ${selected(n.nasRaid,'raid6')}>RAID 6</option>
                         <option value="raid10"  ${selected(n.nasRaid,'raid10')}>RAID 10</option>
                         <option value="raidz1"  ${selected(n.nasRaid,'raidz1')}>RAIDZ1 (ZFS)</option>
