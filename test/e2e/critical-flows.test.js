@@ -1189,14 +1189,17 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       const r = await page.evaluate(() => {
         try {
           // 1) le funzioni pubbliche ANCORA su window (expose dal bundle). ASSE B: i
-          // menu utente/report sono passati a event delegation → toggle+voci NON più su window.
-          const fns = ['initAuth','toggleImpExpMenu','closeImpExpMenu',
-            'closeUserManager','umCreateUser','umToggleRole','umDeleteUser',
-            'closeChangePassword','umChangePassword'];
+          // menu utente/report + l'INTERO modale «Utenti e accessi»/«Cambia password»
+          // sono passati a event delegation → NON più su window.
+          const fns = ['initAuth','toggleImpExpMenu','closeImpExpMenu'];
           const allFns = fns.every(n => typeof window[n] === 'function');
-          // ASSE B: queste sono DELEGATE (data-act) → ritirate dal ponte
+          // ASSE B: queste sono DELEGATE (data-act) o interne → ritirate dal ponte.
+          // Include il cluster modale utenti/token/password migrato in questo giro.
           const delegatedGone = ['doLogout','toggleUserMenu','closeUserMenu','openUserManager',
-            'openChangePassword','toggleReportMenu','closeReportMenu']
+            'openChangePassword','toggleReportMenu','closeReportMenu',
+            'closeUserManager','umSwitchTab','umLoadUsers','umCreateUser','umToggleRole',
+            'umDeleteUser','tkLoadTokens','tkCreateToken','tkRevokeToken','tkCopyToken',
+            'closeChangePassword','umChangePassword']
             .every(n => typeof window[n] === 'undefined');
           // _applyRoleUI è interno → NON deve essere esposto
           const internalHidden = typeof window._applyRoleUI === 'undefined';
@@ -1210,10 +1213,12 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           document.getElementById('btn-user').click();
           const reclosed = dd.style.display === 'none';
 
-          // 3) overlay cambio password: apre via voce data-act, chiude via closeChangePassword (esposta)
+          // 3) overlay cambio password: apre via voce data-act, chiude via click
+          // DELEGATO sul bottone «X» (data-act="chpwd-close") — tutto il modale è
+          // ora delegato, closeChangePassword non è più su window.
           document.querySelector('[data-act="change-password"]').click();
           const ovOpen = document.getElementById('chpwd-overlay').style.display === 'flex';
-          closeChangePassword();
+          document.querySelector('[data-act="chpwd-close"]').click();
           const ovClosed = document.getElementById('chpwd-overlay').style.display === 'none';
 
           // 4) var-ify: _currentUser è una proprietà globale leggibile BARE dai file legacy
@@ -3099,9 +3104,10 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       const viaKey = await page.evaluate(() => _rightTab);
       assert.equal(viaKey, 'ai', 'il tasto «A» apre la tab Assistente');
 
-      // 6) scheda AI nel modale «Utenti e accessi» (umSwitchTab('ai')): _aiCfgLoad
-      //    popola i campi via fetch (async) → aspetta che l'endpoint compaia.
-      await page.evaluate(() => { if (typeof umSwitchTab === 'function') umSwitchTab('ai'); });
+      // 6) scheda AI nel modale «Utenti e accessi»: click DELEGATO sulla tab
+      //    (data-act="um-switch-tab" data-tab="ai") → _aiCfgLoad popola i campi via
+      //    fetch (async). ASSE B: umSwitchTab non è più su window.
+      await page.evaluate(() => { document.getElementById('um-tab-ai').click(); });
       await page.waitForFunction(() => {
         const el = document.getElementById('ai-cfg-endpoint');
         return !!(el && el.value && el.value.length > 0);
@@ -3133,7 +3139,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       }, null, { timeout: 5000 });
 
       // Compila il form della scheda AI e SALVA (gesto = aiCfgSave) restando sulla tab Assistente.
-      await page.evaluate(() => { if (typeof umSwitchTab === 'function') umSwitchTab('ai'); });
+      await page.evaluate(() => { document.getElementById('um-tab-ai').click(); });
       await page.waitForFunction(() => {
         const el = document.getElementById('ai-cfg-endpoint');
         return !!(el && el.value && el.value.length > 0);

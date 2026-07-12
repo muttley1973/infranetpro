@@ -105,7 +105,11 @@ document.addEventListener('click', e=>{
     if(!e.target.closest('#floor-menu-wrap')) closeFloorMenu();
 });
 
-function openUserManager(){
+// ASSE B: aperta/switch-tab del modale «Utenti e accessi» sono chiamate cross-modulo
+// da app-ai.js (empty-state «Configura») → export ESM diretto invece del vecchio
+// bareword-su-window (che, non essendo openUserManager mai in expose(), falliva la
+// guardia `typeof` e non apriva il modale). Vedi [[frontend-architettura-stato]].
+export function openUserManager(){
     document.getElementById('user-manager-overlay').classList.add('open');
     // Reset allo stato iniziale: tab Utenti, reveal token nascosto.
     _tokensLoaded = false;
@@ -116,7 +120,7 @@ function openUserManager(){
 
 // Tab del modale "Utenti e accessi": Utenti ↔ Token API. I token si caricano
 // pigramente alla prima apertura del tab (una volta per apertura del modale).
-function umSwitchTab(name){
+export function umSwitchTab(name){
     const tabs = ['users', 'tokens', 'ai'];   // ai = scheletro (scheda Assistente)
     if(!tabs.includes(name)) name = 'users';
     for(const tn of tabs){
@@ -151,11 +155,11 @@ async function umLoadUsers(){
                 <span class="um-user-date">${u.createdAt?.substring(0,10)||''}</span>
                 ${u.id!==store._currentUser?.id?`
                 <button class="um-btn ghost" style="padding:3px 8px;font-size:.75rem"
-                    onclick="umToggleRole(${u.id},'${u.role==='admin'?'viewer':'admin'}',this)">
+                    data-act="um-toggle-role" data-id="${u.id}" data-newrole="${u.role==='admin'?'viewer':'admin'}">
                     <i class="fas fa-exchange-alt"></i> ${u.role==='admin'?'-> Viewer':'-> Admin'}
                 </button>
                 <button class="um-btn danger" style="padding:3px 8px;font-size:.75rem"
-                    onclick="umDeleteUser(${u.id},this)">
+                    data-act="um-del-user" data-id="${u.id}">
                     <i class="fas fa-trash"></i>
                 </button>`:'<span style="width:100px"></span>'}
             </div>`).join('');
@@ -263,7 +267,7 @@ async function tkLoadTokens(){
                         : `<div style="opacity:.7">${t('tk.never')}</div>`}
                 </div>
                 <button class="um-btn danger" style="padding:5px 9px;font-size:.75rem"
-                    onclick="tkRevokeToken(${tk.id},this)" title="${escapeHTML(t('tk.revoke'))}">
+                    data-act="tk-revoke" data-id="${tk.id}" title="${escapeHTML(t('tk.revoke'))}">
                     <i class="fas fa-trash"></i>
                 </button>
             </div>`).join('');
@@ -314,10 +318,6 @@ async function tkRevokeToken(id, btn){
 expose({
     initAuth,
     toggleImpExpMenu, closeImpExpMenu,
-    closeUserManager, umSwitchTab,
-    umLoadUsers, umCreateUser, umToggleRole, umDeleteUser,
-    tkLoadTokens, tkCreateToken, tkRevokeToken, tkCopyToken,
-    closeChangePassword, umChangePassword,
 });
 
 // ── ASSE B (ritiro onclick inline): superfici MENU UTENTE + MENU REPORT ───────
@@ -328,6 +328,14 @@ expose({
 // importando `closeReportMenu` da qui — quel modulo è il proprietario del report.
 // Il listener document di chiusura-fuori-click qui sopra resta valido (i bottoni
 // data-act sono DENTRO il rispettivo #*-menu-wrap → non lo attivano).
+//
+// MODALE «Utenti e accessi» + «Cambia password»: tutta la superficie è ora
+// delegata (statici in netmapper.html + righe utente/token generate qui via
+// template). I bottoni «X»/«Chiudi» chiudono sempre; il backdrop chiude SOLO se il
+// click è sull'overlay stesso (guardia ev.target===el, ex `if(event.target===this)`).
+// Le righe dinamiche passano l'id via data-id e l'elemento-bottone come `btn` (per
+// disabilitarlo). openUserManager/openChangePassword restano funzioni-modulo
+// (chiamate dalle voci del menu utente); umLoadUsers/tkLoadTokens sono interne.
 registerClickActions({
     'user-menu-toggle':  () => toggleUserMenu(),
     'user-manager-open': () => { openUserManager(); closeUserMenu(); },
@@ -335,4 +343,18 @@ registerClickActions({
     'lang-switch':       (el) => switchLang(el.dataset.lang),
     'logout':            () => doLogout(),
     'report-menu-toggle': () => toggleReportMenu(),
+    // Modale utenti/accessi
+    'um-backdrop':   (el, ev) => { if (ev.target === el) closeUserManager(); },
+    'um-close':      () => closeUserManager(),
+    'um-switch-tab': (el) => umSwitchTab(el.dataset.tab),
+    'um-create-user':() => umCreateUser(),
+    'um-toggle-role':(el) => umToggleRole(Number(el.dataset.id), el.dataset.newrole, el),
+    'um-del-user':   (el) => umDeleteUser(Number(el.dataset.id), el),
+    'tk-create':     () => tkCreateToken(),
+    'tk-copy':       () => tkCopyToken(),
+    'tk-revoke':     (el) => tkRevokeToken(Number(el.dataset.id), el),
+    // Modale cambio password
+    'chpwd-backdrop':(el, ev) => { if (ev.target === el) closeChangePassword(); },
+    'chpwd-close':   () => closeChangePassword(),
+    'chpwd-submit':  () => umChangePassword(),
 });
