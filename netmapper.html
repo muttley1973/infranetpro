@@ -78,7 +78,7 @@
         <div class="search-input-wrap">
             <i class="fas fa-search"></i>
             <input id="global-search" type="search" data-i18n-ph="search.ph" placeholder="Cerca dispositivi, porte, link…" autocomplete="off"
-                   oninput="handleSearchInput(this.value)" onfocus="handleSearchInput(this.value)" onkeydown="handleSearchKey(event)">
+                   data-input="global-search" data-focus="global-search" data-keydown="global-search">
             <button id="global-search-clear" data-i18n-tip="search.clearTip" data-tip="Cancella" data-act="search-clear"><i class="fas fa-times"></i></button>
         </div>
         <div id="search-results"></div>

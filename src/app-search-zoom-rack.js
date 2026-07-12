@@ -6,7 +6,7 @@
 // I globali legacy si leggono via win.*; t (i18n) dal ponte.
 // ============================================================
 import { expose, t } from './_bridge.js';
-import { registerClickActions, registerChangeActions, registerInputActions } from './app-delegation.js';   // ASSE B: event delegation (data-act/change/input) — toolbar rack/zoom/palette
+import { registerClickActions, registerChangeActions, registerInputActions, registerFocusActions, registerKeydownActions } from './app-delegation.js';   // ASSE B: event delegation (data-act/change/input/focus/keydown) — toolbar rack/zoom/palette + search box
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, hexToRgba, normalizeStatus, normalizeNumber } from './app-util.js';
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _showToast, getRackById, getRackName, getNodeRackSize, getPortConnectionCount, getNodePortCount, getRackSize, _repairRackPlacements, removeNodePorts, _resetSelection } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
@@ -713,7 +713,7 @@ function fitBgImageToCanvas(){
 expose({
     // search
     getSearchIcon, getPortSummary, buildSearchResults,
-    handleSearchInput, handleSearchKey, renderSearchResults,
+    renderSearchResults,
     selectSearchResult, ensureNodeRackVisible, selectAndFocusNode, focusNode,
     // zoom & pan
     updateTransforms, applyUiColors,
@@ -762,4 +762,13 @@ registerChangeActions({
 });
 registerInputActions({
     'palette-filter': (el) => filterPaletteItems(el.value),
+    'global-search':  (el) => handleSearchInput(el.value),   // ricerca globale (typing live)
+});
+// ASSE B — la search box porta 3 eventi: input (sopra) + focus (ri-mostra i risultati)
+// + keydown (navigazione frecce/Invio/Esc). focus e keydown ora coperti dall'harness.
+registerFocusActions({
+    'global-search': (el) => handleSearchInput(el.value),
+});
+registerKeydownActions({
+    'global-search': (el, ev) => handleSearchKey(ev),
 });
