@@ -194,6 +194,17 @@ test('colore porta: stato + LAG (ciano)', () => {
   assert.match(cellOf(xml, 'sw1-4'), /fillColor=#f5a623/);
 });
 
+test('porte compatte: gap limitato + blocco centrato (non spalmate su tutta la larghezza)', () => {
+  // 4 porte su un device largo devono stare in un blocco compatto (come InfraNet),
+  // NON sparse su ~192px. Regressione: prima usavo pitch=w/n (spalmava).
+  const xml = build({ nodes: [{ id: 'sw1', type: 'switch', rackId: 'r1', rackU: 12, sizeU: 1, ports: 4, name: 'A' }] });
+  const xs = [1, 2, 3, 4].map(i => +(cellOf(xml, 'sw1-' + i).match(/<mxGeometry x="([\d.]+)"/)[1]));
+  const span = Math.max(...xs) - Math.min(...xs);
+  assert.ok(span > 0 && span < 60, 'porte compatte, span=' + span);
+  // numero DENTRO il LED (value = numero) quando il LED e' abbastanza grande
+  assert.match(cellOf(xml, 'sw1-1'), /value="1"/);
+});
+
 test('porta nascosta (hidden) non viene emessa', () => {
   const xml = build({ ports: { 'sw1-5': { hidden: true } } });
   assert.equal(cellOf(xml, 'sw1-5'), null);
