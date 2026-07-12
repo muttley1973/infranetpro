@@ -613,9 +613,12 @@ is VPN/LAN.
     previews), the project + rack selectors plus the Discover/Topology "select all" and the
     deep-TCP-scan preference checkboxes (`change`), the map-image + JSON-import file pickers
     (`change`), and the global search box (`input` + `focus` + `keydown`). The only inline handlers
-    left in the *static* HTML are the export panel's (`export.js` classic). The bulk (~500 handlers
-    in dynamically-rendered templates, click + change + input) now
-    follows surface by surface. `_bridge.js` / `expose()` are deleted only when Axis B is finished. *(Side note: the AI help
+    left in the *static* HTML are the export panel's (`export.js` classic). The migration then moves
+    into the ~500 handlers inside **dynamically-rendered templates** (rows/cards built by `innerHTML`
+    at runtime) — these migrate identically, because a document-level delegated listener also catches
+    events from elements created *after* load. First dynamic cluster done: the Discover table rows
+    (`disc-row`/`disc-type`) and the search-results dropdown (`search-pick`); the rest follows surface
+    by surface. `_bridge.js` / `expose()` are deleted only when Axis B is finished. *(Side note: the AI help
     catalog in `lib/ui-catalog.js`, which reads the real button labels/tooltips, derives a button's action
     from `data-act` as well as `onclick`, so delegated buttons stay in the assistant's catalog.)*
 - **ESLint gate (`eslint.config.js`, v9).** `no-undef` is enforced as a safety net where
