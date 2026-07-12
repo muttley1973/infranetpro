@@ -618,8 +618,9 @@ is VPN/LAN.
     at runtime) — these migrate identically, because a document-level delegated listener also catches
     events from elements created *after* load. Dynamic clusters done so far: the Discover table rows
     (`disc-row`/`disc-type`), the search-results dropdown (`search-pick`), the Drift panel's seven
-    one-click actions (`drift-*`, with row keys/CIDRs in `data-key`/`data-cidr`), and the three report
-    overlays — Audit log, Spare ports and L3 (`audit-*`/`spare-*`/`l3-*`, VLAN id in `data-vid`); the
+    one-click actions (`drift-*`, with row keys/CIDRs in `data-key`/`data-cidr`), the three report
+    overlays — Audit log, Spare ports and L3 (`audit-*`/`spare-*`/`l3-*`, VLAN id in `data-vid`), and
+    the Adopt modal (`adopt-close`/`adopt-apply`/`adopt-selall`; its entry points stay exposed); the
     rest follows surface by surface. `_bridge.js` / `expose()` are deleted only when Axis B is finished. *(Side note: the AI help
     catalog in `lib/ui-catalog.js`, which reads the real button labels/tooltips, derives a button's action
     from `data-act` as well as `onclick`, so delegated buttons stay in the assistant's catalog.)*
