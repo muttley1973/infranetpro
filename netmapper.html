@@ -60,6 +60,11 @@
             <button class="header-menu-item" onclick="openLabelExportOptions();closeImpExpMenu()">
                 <i class="fas fa-tags"></i> <span data-i18n="impexp.labels">Esporta etichette…</span>
             </button>
+            <!-- ASSE B-safe: nessun onclick inline (gonfierebbe il cricchetto handler-inline);
+                 il click e' agganciato in export.js via addEventListener su #btn-export-drawio. -->
+            <button class="header-menu-item" id="btn-export-drawio">
+                <i class="fas fa-project-diagram"></i> <span data-i18n="impexp.exportDrawio">Esporta per draw.io</span>
+            </button>
         </div>
     </div>
     <div class="header-sep"></div>
@@ -1011,6 +1016,7 @@
 <script src="/lib/drift-adopt.js"></script>
 <script src="/lib/audit-log.js"></script>
 <script src="/lib/handoff.js"></script>
+<script src="/lib/drawio-export.js"></script>
 <script src="/export.js"></script>
 <!-- Bundle esbuild dei moduli glue migrati a ESM (vedi build.js / src/main.js).
      Caricato per ULTIMO: i globali legacy esistono già; i moduli convertiti li

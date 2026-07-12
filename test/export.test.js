@@ -25,6 +25,22 @@ test('export: gli script caricano e _exportInternals è esposto', () => {
   assert.equal(ok, true, 'export.js deve esporre i builder interni per i test');
 });
 
+test('export: _ensureSvgXmlns → SVG-immagine valido (fix placeholder skin draw.io)', () => {
+  // Un SVG usato come IMMAGINE (data URI) e' un documento standalone: senza xmlns
+  // NON carica → draw.io mostra un placeholder. Regressione dell'export skin.
+  const noNs = run(APP.ctx, `_exportInternals._ensureSvgXmlns('<svg viewBox="0 0 100 20"><rect/></svg>')`);
+  assert.ok(/<svg[^>]*xmlns="http:\/\/www\.w3\.org\/2000\/svg"/.test(noNs), 'xmlns iniettato');
+  // idempotente: se gia' presente non lo duplica
+  const withNs = run(APP.ctx, `_exportInternals._ensureSvgXmlns('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>')`);
+  assert.equal((withNs.match(/xmlns="http/g) || []).length, 1, 'xmlns non duplicato');
+  // xlink dichiarato se usato
+  const xlink = run(APP.ctx, `_exportInternals._ensureSvgXmlns('<svg viewBox="0 0 1 1"><use xlink:href="#a"/></svg>')`);
+  assert.ok(/xmlns:xlink="http:\/\/www\.w3\.org\/1999\/xlink"/.test(xlink), 'xmlns:xlink iniettato');
+  // data URI = image/svg+xml url-encoded (vettoriale, non base64)
+  const uri = run(APP.ctx, `_exportInternals._svgDataUri('<svg xmlns="http://www.w3.org/2000/svg"></svg>')`);
+  assert.ok(uri.indexOf('data:image/svg+xml,') === 0, 'data URI SVG url-encoded');
+});
+
 // Costruttore di uno stato realistico condiviso dai test: un rack con device
 // attivi + passivi (incluso il cablemanager, storicamente problematico), un run
 // strutturato switch→patch→presa→PC, un ramo VoIP, un trunk, VLAN con nomi e
