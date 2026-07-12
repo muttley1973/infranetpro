@@ -10,13 +10,16 @@
 // Prossimi: L2 trova-buchi/suggerisci · L3 bozza Ansible · L4 «Spiega» sul Drift.
 // Vedi _local/notes/AI_ASSISTANT_SPEC_2026-06-29.md.
 //
-// Igiene ponte (ratchet 1804, può solo scendere): NESSUN nuovo win.*. Le funzioni
-// glue legacy (toggleRackPanel, openUserManager, umSwitchTab) e la var
-// _rackCollapsed si chiamano come GLOBALI BARE con guardia typeof — stesso idioma
-// degli shortcut R/P in app.js. switchRightTab arriva via import ESM dal nucleo.
+// Igiene ponte (ratchet 1804, può solo scendere): NESSUN nuovo win.*. La glue
+// legacy rimasta (toggleRackPanel + var _rackCollapsed, del pannello destro) si
+// chiama come GLOBALE BARE con guardia typeof — stesso idioma degli shortcut R/P
+// in app.js. switchRightTab arriva via import ESM dal nucleo; openUserManager/
+// umSwitchTab sono ora import ESM da app-auth (ASSE B: erano bareword-su-window,
+// ma openUserManager non era mai in expose() → apertura modale non partiva).
 import { expose, t, getLang } from './_bridge.js';
 import { store } from './store.js';
 import { switchRightTab, nodeById } from './app.js';
+import { openUserManager, umSwitchTab } from './app-auth.js';
 import { registerClickActions } from './app-delegation.js';
 
 // Apre la tab «Assistente» (pulsante toolbar + shortcut «A»). Se il pannello
@@ -31,8 +34,8 @@ function openAssistant(){
 // Dal pulsante «Configura» dell'empty-state: apre «Utenti e accessi» sulla
 // scheda AI. Il pulsante è .admin-only → mostrato solo agli amministratori.
 function openAiSettings(){
-    if (typeof openUserManager === 'function') openUserManager();
-    if (typeof umSwitchTab === 'function') umSwitchTab('ai');
+    openUserManager();
+    umSwitchTab('ai');
 }
 
 // Pulsante robot in toolbar (a destra di «Report»). Per gli ADMIN è l'accesso
