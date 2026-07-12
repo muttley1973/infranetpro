@@ -477,20 +477,20 @@
 <div id="modal-root">
 
 <!-- ===== MODAL GESTIONE UTENTI ===== -->
-<div id="user-manager-overlay" class="tool-modal-overlay" onclick="if(event.target===this)closeUserManager()">
+<div id="user-manager-overlay" class="tool-modal-overlay" data-act="um-backdrop">
   <div id="user-manager-modal" class="tool-modal" style="width:520px;max-height:85vh">
     <div class="tool-modal-header um-header">
       <h3><i class="fas fa-shield-halved"></i><span data-i18n="um.title">Utenti e accessi</span></h3>
-      <button class="toolbar-btn" onclick="closeUserManager()" style="padding:4px 8px"><i class="fas fa-times"></i></button>
+      <button class="toolbar-btn" data-act="um-close" style="padding:4px 8px"><i class="fas fa-times"></i></button>
     </div>
     <div class="um-tabs">
-      <button class="um-tab active" id="um-tab-users" onclick="umSwitchTab('users')">
+      <button class="um-tab active" id="um-tab-users" data-act="um-switch-tab" data-tab="users">
         <i class="fas fa-users-cog"></i> <span data-i18n="um.tabUsers">Utenti</span>
       </button>
-      <button class="um-tab" id="um-tab-tokens" onclick="umSwitchTab('tokens')">
+      <button class="um-tab" id="um-tab-tokens" data-act="um-switch-tab" data-tab="tokens">
         <i class="fas fa-key"></i> <span data-i18n="um.tabTokens">Token API</span>
       </button>
-      <button class="um-tab" id="um-tab-ai" onclick="umSwitchTab('ai')">
+      <button class="um-tab" id="um-tab-ai" data-act="um-switch-tab" data-tab="ai">
         <i class="fas fa-robot"></i> <span data-i18n="um.tabAi">Assistente AI</span>
       </button>
     </div>
@@ -509,7 +509,7 @@
               <option value="viewer" data-i18n="um.roleViewer">Viewer — solo lettura</option>
               <option value="admin" data-i18n="um.roleAdmin">Admin — accesso completo</option>
             </select>
-            <button class="um-btn primary" onclick="umCreateUser()">
+            <button class="um-btn primary" data-act="um-create-user">
               <i class="fas fa-plus"></i> <span data-i18n="um.create">Crea</span>
             </button>
           </div>
@@ -525,7 +525,7 @@
           <h3><i class="fas fa-key"></i> <span data-i18n="tk.new">Nuovo token</span></h3>
           <div class="um-row">
             <input type="text" id="tk-new-label" data-i18n-ph="tk.phLabel" placeholder="Etichetta — es. ansible, dashboard" autocomplete="off">
-            <button class="um-btn primary" onclick="tkCreateToken()">
+            <button class="um-btn primary" data-act="tk-create">
               <i class="fas fa-plus"></i> <span data-i18n="tk.generate">Genera token</span>
             </button>
           </div>
@@ -536,7 +536,7 @@
           <div class="tk-reveal-note"><i class="fas fa-triangle-exclamation"></i> <span data-i18n="tk.created">Token generato — copialo ora, non sarà più visibile.</span></div>
           <div class="tk-reveal-row">
             <code class="tk-code" id="tk-reveal-code"></code>
-            <button class="um-btn ghost" id="tk-copy-btn" onclick="tkCopyToken()"><i class="fas fa-copy"></i> <span data-i18n="tk.copy">Copia</span></button>
+            <button class="um-btn ghost" id="tk-copy-btn" data-act="tk-copy"><i class="fas fa-copy"></i> <span data-i18n="tk.copy">Copia</span></button>
           </div>
         </div>
         <!-- Lista token attivi -->
@@ -591,17 +591,17 @@
       </div>
     </div>
     <div class="tool-modal-footer">
-      <button class="um-btn ghost" onclick="closeUserManager()"><i class="fas fa-times"></i> <span data-i18n="common.close">Chiudi</span></button>
+      <button class="um-btn ghost" data-act="um-close"><i class="fas fa-times"></i> <span data-i18n="common.close">Chiudi</span></button>
     </div>
   </div>
 </div>
 
 <!-- ===== MODAL CAMBIO PASSWORD ===== -->
-<div id="chpwd-overlay" class="tool-modal-overlay" onclick="if(event.target===this)closeChangePassword()" style="display:none">
+<div id="chpwd-overlay" class="tool-modal-overlay" data-act="chpwd-backdrop" style="display:none">
   <div class="tool-modal" style="width:380px">
     <div class="tool-modal-header um-header">
       <h3><i class="fas fa-key"></i><span data-i18n="chpwd.title">Cambia Password</span></h3>
-      <button class="toolbar-btn" onclick="closeChangePassword()" style="padding:4px 8px"><i class="fas fa-times"></i></button>
+      <button class="toolbar-btn" data-act="chpwd-close" style="padding:4px 8px"><i class="fas fa-times"></i></button>
     </div>
     <div class="tool-modal-body">
       <div class="um-row"><input type="password" id="chpwd-old" data-i18n-ph="chpwd.phOld" placeholder="Password attuale" autocomplete="current-password"></div>
@@ -610,8 +610,8 @@
       <div class="um-msg" id="chpwd-msg"></div>
     </div>
     <div class="tool-modal-footer">
-      <button class="um-btn ghost" onclick="closeChangePassword()" data-i18n="common.cancel">Annulla</button>
-      <button class="um-btn primary" onclick="umChangePassword()"><i class="fas fa-check"></i> <span data-i18n="chpwd.update">Aggiorna</span></button>
+      <button class="um-btn ghost" data-act="chpwd-close" data-i18n="common.cancel">Annulla</button>
+      <button class="um-btn primary" data-act="chpwd-submit"><i class="fas fa-check"></i> <span data-i18n="chpwd.update">Aggiorna</span></button>
     </div>
   </div>
 </div>
