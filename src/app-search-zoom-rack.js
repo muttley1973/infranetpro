@@ -724,7 +724,7 @@ expose({
     toggleFloorMenu, closeFloorMenu,
     _updateFloorMenuState, _updateFloorToolbarVisibility,
     // rack management
-    _updateRackFloorBtn, renderRackTabs, switchRack,
+    _updateRackFloorBtn, renderRackTabs,
     moveNodeToRack, _updateRackUNumLabel,
     // map import
     handleMapUpload, clearMap, scaleBgImageTo, scaleBgImage, setBgImageOpacity, toggleFloorGrid,
@@ -756,7 +756,8 @@ registerClickActions({
 // ASSE B — prime superfici NON-click (harness esteso a change/input). Le due fn
 // escono da expose(): l'elemento porta data-change/data-input, la fn legge el.value.
 registerChangeActions({
-    'rack-size': (el) => updateRackSize(el.value),
+    'rack-size':   (el) => updateRackSize(el.value),
+    'rack-select': (el) => switchRack(el.value),   // switchRack resta export (import ESM), esce da expose
 });
 registerInputActions({
     'palette-filter': (el) => filterPaletteItems(el.value),
