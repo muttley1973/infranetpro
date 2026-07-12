@@ -18,7 +18,7 @@ import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funz
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { switchRack } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { _discIndexNode, _discFindExistingDevice, _discBuildExistingIndexes, _discTouchNodeIdentity, _discMarkIpMacConflict } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
-import { registerChangeActions } from './app-delegation.js';   // ASSE B: checkbox "seleziona tutti" via data-change
+import { registerChangeActions, registerClickActions } from './app-delegation.js';   // ASSE B: checkbox "seleziona tutti" + bottoni modale via data-change/data-act
 
 // ============================================================
 // TOPOLOGY CRAWL FRONTEND
@@ -411,13 +411,24 @@ export function _resolveRackOverlap(node){
 }
 
 // Handler inline (netmapper.html) + utility rack condivise da altri file.
+// `openTopoCrawl` resta su window (entry del modale); `_findFreeU`/`_resolveRackOverlap`
+// sono importate via ESM da altri moduli (import/pointer/shared-segment) → restano.
+// ASSE B: i bottoni del MODALE (chiudi/backdrop/scan/importa) sono delegati sotto.
 expose({
-    openTopoCrawl, closeTopoCrawl, _closeTopoCrawlOverlayClick, runTopoCrawl,
-    importTopoCrawl, _findFreeU, _resolveRackOverlap,
+    openTopoCrawl, _findFreeU, _resolveRackOverlap,
 });
 
 // ASSE B — checkbox "seleziona tutti" della tabella Topologia: onchange inline
 // -> data-change. tdSelectAll esce da expose(); la fn legge el.checked.
 registerChangeActions({
     'td-selall': (el) => tdSelectAll(el.checked),
+});
+// ASSE B — bottoni del modale Topologia (statici in netmapper.html). Il backdrop
+// chiude via `_closeTopoCrawlOverlayClick` (che NON chiude durante un crawl) SOLO
+// se il click è sull'overlay stesso (guardia ev.target===el, ex if(event.target===this)).
+registerClickActions({
+    'topo-crawl-backdrop': (el, ev) => { if (ev.target === el) _closeTopoCrawlOverlayClick(); },
+    'topo-crawl-close':    () => closeTopoCrawl(),
+    'topo-crawl-run':      () => runTopoCrawl(),
+    'topo-crawl-import':   () => importTopoCrawl(),
 });

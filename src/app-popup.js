@@ -736,9 +736,9 @@ export function _showTopoTip(ev,td){
     const firstLink=td.edges.find(e=>e.linkId)?.linkId||'';
     if(firstLink) h+=`<div class="topotip-hint"><i class="fas fa-route"></i> ${t('pnl.misc.dblClickPhysicalPath')}</div>`;
     h+=`<div class="topotip-btns">`;
-    if(!td.confirmed) h+=`<button class="toolbar-btn" onclick="_createTopoLink('${td.pairKey}')"><i class="fas fa-plug"></i> ${t('pnl.misc.createCable')}</button>`;
-    if(td.rackAId) h+=`<button class="toolbar-btn" onclick="navigateToRack('${td.rackAId}')">&rarr; ${escapeHTML(td.srcName)}</button>`;
-    if(td.rackBId) h+=`<button class="toolbar-btn" onclick="navigateToRack('${td.rackBId}')">&rarr; ${escapeHTML(td.dstName)}</button>`;
+    if(!td.confirmed) h+=`<button class="toolbar-btn" data-act="topo-create-link" data-pairkey="${escapeHTML(td.pairKey)}"><i class="fas fa-plug"></i> ${t('pnl.misc.createCable')}</button>`;
+    if(td.rackAId) h+=`<button class="toolbar-btn" data-act="topo-nav-rack" data-rack="${escapeHTML(td.rackAId)}">&rarr; ${escapeHTML(td.srcName)}</button>`;
+    if(td.rackBId) h+=`<button class="toolbar-btn" data-act="topo-nav-rack" data-rack="${escapeHTML(td.rackBId)}">&rarr; ${escapeHTML(td.dstName)}</button>`;
     h+=`</div>`;
     tip.innerHTML=h; tip.style.display='block'; tip.dataset.userPlaced='0';
     tip.style.left=(ev.clientX+14)+'px'; tip.style.top=(ev.clientY-10)+'px';
