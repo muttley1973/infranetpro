@@ -29,10 +29,20 @@ These are deliberate. Don't "fix" them without understanding why:
 3. **`lib/` pure + glue.** Reusable logic lives in pure, testable modules in
    `lib/`. The glue (now ESM modules in `src/app-*.js`, bundled by esbuild) wires
    that logic to the DOM. (See §3.)
-4. **Manual-first.** User-entered data always wins; SNMP/discovery never silently
-   overwrites a manual value.
+4. **Manual-first** ([ADR](docs/adr/manual-first.md)). User-entered data always
+   wins; SNMP/discovery never silently overwrites a manual value.
 5. **Localhost-bound.** The server binds `127.0.0.1` only. It is a LAN tool that
    runs *inside* the network it documents, not a public service.
+
+> **Why these exist — decision records.** The *why* behind the rules that make the
+> tool trustworthy lives in **[`docs/adr/`](docs/adr/)**: the data-integrity
+> principles [manual-first](docs/adr/manual-first.md),
+> [no-invention](docs/adr/no-invention.md) ("InfraNet computes, the AI narrates"),
+> [vendor-neutral](docs/adr/vendor-neutral.md) ("build for every vendor, the lab
+> only validates") and [measured-not-declared](docs/adr/measured-not-declared.md),
+> plus architectural decisions such as [pure `lib/` modules](docs/adr/pure-lib-modules.md)
+> (ADR D4). Code comments cite these by tag (`paletto #2`, `ADR D4`, …); every tag
+> resolves from [`docs/adr/README.md`](docs/adr/README.md).
 
 ---
 
@@ -217,7 +227,7 @@ so language changes apply when reopened.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. ~840 tests. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. ~1370 tests. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing).
 - **Golden-master render** (`test/golden-render.test.js`): snapshots the rendered
