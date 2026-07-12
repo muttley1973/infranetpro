@@ -1258,17 +1258,20 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
             'togglePaletteGroup','setPaletteGroupsExpanded','clearPaletteFilter','toggleRackMenu','closeRackMenu',
             'toggleRackOnFloor','addRack','renameRack','toggleRackUNumbering','deleteCurrentRack']
             .every(n => typeof window[n] === 'undefined');
-          // 7b) ASSE B change/input: filterPaletteItems/updateRackSize/switchRack fuori da window
-          const changeInputGone = ['filterPaletteItems','updateRackSize','switchRack']
+          // 7b) ASSE B change/input: filterPaletteItems/updateRackSize/switchRack/handleMapUpload fuori da window
+          const changeInputGone = ['filterPaletteItems','updateRackSize','switchRack','handleMapUpload']
             .every(n => typeof window[n] === 'undefined');
+          // 7c) file-input immagine planimetria cablato via delegation (data-change="map-upload")
+          const mapUploadWired = document.getElementById('map-upload').getAttribute('data-change') === 'map-upload';
 
-          return { ok: true, allFns, foundDevice, zoomed, transformApplied, opts, switched, moved, nodeRack, delegatedGone, changeInputGone };
+          return { ok: true, allFns, foundDevice, zoomed, transformApplied, opts, switched, moved, nodeRack, delegatedGone, changeInputGone, mapUploadWired };
         } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
       });
       assert.ok(r.ok, 'nessun errore nel flusso search/zoom/rack: ' + r.err);
       assert.ok(r.allFns, 'le funzioni search/zoom/rack (non-toolbar) sono esposte su window');
       assert.ok(r.delegatedGone, 'ASSE B: le 15 funzioni toolbar rack/zoom/palette sono ritirate dal ponte (data-act)');
-      assert.ok(r.changeInputGone, 'ASSE B: filterPaletteItems/updateRackSize/switchRack ritirate dal ponte (data-input/data-change)');
+      assert.ok(r.changeInputGone, 'ASSE B: filterPaletteItems/updateRackSize/switchRack/handleMapUpload ritirate dal ponte (data-input/data-change)');
+      assert.ok(r.mapUploadWired, 'ASSE B: #map-upload cablato via data-change="map-upload" (delegation)');
       assert.ok(r.foundDevice, 'buildSearchResults trova il device per nome');
       assert.ok(r.zoomed, 'zoomFloor aumenta lo zoom della planimetria');
       assert.ok(r.transformApplied, 'updateTransforms applica scale() al floor-canvas');
@@ -1827,6 +1830,10 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
             'markDirty','pushHistory','renderCables','updateN','deleteNode','switchRightTab','_migrateState',
             '_getLinkPhysicalView','_cableAutoLabel','_resetSelection','logAudit','_buildDefaultState'
           ].every(n => typeof window[n] === 'function');
+          // ASSE B: importJSON (file-input JSON) migrata a event delegation → fuori da window,
+          // #json-upload cablato via data-change="json-upload".
+          const importJsonGone = typeof window.importJSON === 'undefined';
+          const jsonUploadWired = document.getElementById('json-upload').getAttribute('data-change') === 'json-upload';
 
           // 2) utility pure: comportamento corretto
           const esc = escapeHTML('<a>&"') === '&lt;a&gt;&amp;&quot;';
@@ -1854,12 +1861,14 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           const ownedStateOk = window.selId === null && window.selType === null;
           window.selId = prevSel; window.selType = prevType;
 
-          return { ok: true, stateOk, coreFns, esc, num, idp, uidUnique, lookupOk, portNodeOk, physOk, ownedStateOk };
+          return { ok: true, stateOk, coreFns, importJsonGone, jsonUploadWired, esc, num, idp, uidUnique, lookupOk, portNodeOk, physOk, ownedStateOk };
         } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
       });
       assert.ok(r.ok, 'nessun errore nel flusso app.js nucleo: ' + r.err);
       assert.ok(r.stateOk, 'window.state (nodes/links/ports) esiste sul nucleo bundlato');
       assert.ok(r.coreFns, 'le funzioni core del nucleo sono esposte su window');
+      assert.ok(r.importJsonGone, 'ASSE B: importJSON ritirata dal ponte (data-change="json-upload")');
+      assert.ok(r.jsonUploadWired, 'ASSE B: #json-upload cablato via data-change="json-upload" (delegation)');
       assert.ok(r.esc, 'escapeHTML neutralizza i metacaratteri HTML');
       assert.ok(r.num, 'normalizeNumber applica fallback e clamp');
       assert.ok(r.idp, '_idPrefixForType(switch) === sw');

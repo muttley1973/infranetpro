@@ -88,8 +88,8 @@
 <!-- Tooltip topologia (compare vicino al cursore al hover sulle linee) -->
 <div id="topo-tip" onmouseenter="clearTimeout(_topoTipTimer)" onmouseleave="_hideTopoTip()"></div>
 
-<input type="file" id="map-upload"  accept="image/*,.svg" onchange="handleMapUpload(this)">
-    <input type="file" id="json-upload" accept=".json"        onchange="importJSON(this)">
+<input type="file" id="map-upload"  accept="image/*,.svg" data-change="map-upload">
+    <input type="file" id="json-upload" accept=".json"        data-change="json-upload">
     <div class="header-right">
         <button class="toolbar-btn" id="btn-discover" onclick="openDiscovery()"
                 data-i18n-tip="discover.tip"

@@ -5,7 +5,7 @@ import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: cata
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: chiamate prima bare-global
 import { renderProps } from './app-properties.js';   // idem
 import { showAlert, saveProject } from './app-core.js';   // saveProject: ASSE B, scorciatoia Ctrl+S (ex win.saveProject)
-import { registerClickActions, initDelegation } from './app-delegation.js';   // ASSE B: event delegation (ritiro onclick inline)
+import { registerClickActions, registerChangeActions, initDelegation } from './app-delegation.js';   // ASSE B: event delegation (ritiro onclick/onchange inline)
 // ============================================================
 // InfraNet Pro — app.js (core bootstrap + stato + eventi)
 // Catalogo TYPES e node-spec: src/app-types.js (R1)
@@ -650,6 +650,9 @@ export function bindEventsOnce() {
     // i bottoni Annulla/Ripeti della toolbar (data-act="undo"/"redo"). Le fn sono
     // IMPORTATE, non più su window/expose. Le altre superfici seguiranno.
     registerClickActions({ undo: () => undo(), redo: () => redo() });
+    // ASSE B: import JSON via file-input delegato (data-change="json-upload"); importJSON
+    // esce da expose(), l'handler riceve l'elemento <input type=file>.
+    registerChangeActions({ 'json-upload': (el) => importJSON(el) });
     initDelegation();
     window.addEventListener('pointerdown', handlePointerDown);
     window.addEventListener('pointermove', handlePointerMove);
@@ -2409,7 +2412,7 @@ expose({
   _wallPortConnectionRole, _wallPortHasRole, _wlRackIconAnchor, applyStaticI18n, bindEventsOnce, canAddConnection,
   checked, clampRackDevice, deleteLink, deleteNode, getNodeByPortId,
   getNodeDisplayName, getNodePortCount, getNodeRackSize, getPortConnectionCount, getPortMaxConnections, getPortNodeId,
-  getRackById, getRackName, getRackSize, getWallPortLabel, importJSON,
+  getRackById, getRackName, getRackSize, getWallPortLabel,
   init, initDraggablePopups, isPortOnNode, isRackTopNumbered, logAudit, markDirty,
   nodeById, promoteLinkToManual, pushHistory,
   rackUToVisible, registerModuleNav, removeNodePorts, renderCables, selected, setCableLabel,
