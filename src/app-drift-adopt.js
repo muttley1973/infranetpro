@@ -21,6 +21,7 @@ import { _isLeafEndpoint, _autoLinkEndpoint } from './app-autolink.js';   // rit
 import { _discIndexNode, _discVendorFromMac, _discFindExistingDevice, _discBuildExistingIndexes } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { _findFreeU } from './app-topology-crawl.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
 import { closeReportMenu } from './app-auth.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
+import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: modale Adotta (template dinamico) via event delegation
 import { _driftBuildDocSnapshot, _driftBuildSnmpSnapshot, _renderDriftReport } from './app-drift.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 
 let _adoptRows = [];           // candidati attualmente mostrati nel modal
@@ -59,18 +60,18 @@ function _adoptEnsureOverlay(){
         ov.className = 'drift-overlay';
         ov.innerHTML = `<div class="drift-modal adopt-modal">
             <div class="drift-head"><span><i class="fas fa-plus-circle"></i> ${t('pnl.disc.addToMap')}</span>
-                <button class="toolbar-btn" onclick="_closeAdoptModal()" data-tip="${t('pnl.disc.close')}"><i class="fas fa-times"></i></button></div>
+                <button class="toolbar-btn" data-act="adopt-close" data-tip="${t('pnl.disc.close')}"><i class="fas fa-times"></i></button></div>
             <div class="drift-body">
                 <div class="adopt-intro">${t('pnl.disc.adoptIntro')}</div>
                 <table class="adopt-table"><thead><tr>
-                    <th><input type="checkbox" id="adopt-all" onchange="_adoptToggleAll(this.checked)" data-tip="${t('pnl.disc.selectAll')}"></th>
+                    <th><input type="checkbox" id="adopt-all" data-change="adopt-selall" data-tip="${t('pnl.disc.selectAll')}"></th>
                     <th>MAC</th><th>Vendor</th><th>VLAN</th><th>${t('pnl.disc.seenOn')}</th><th>${t('pnl.disc.type')}</th>
                 </tr></thead><tbody id="adopt-tbody"></tbody></table>
             </div>
             <div class="adopt-foot">
                 <label class="adopt-autolink"><input type="checkbox" id="adopt-autolink" checked>
                     <i class="fas fa-link"></i> ${t('pnl.disc.linkToSeenPort')}</label>
-                <button class="toolbar-btn primary" onclick="adoptApply()"><i class="fas fa-plus"></i> ${t('pnl.disc.addSelected')}</button>
+                <button class="toolbar-btn primary" data-act="adopt-apply"><i class="fas fa-plus"></i> ${t('pnl.disc.addSelected')}</button>
             </div>
         </div>`;
         document.body.appendChild(ov);
@@ -238,10 +239,22 @@ function _adoptRecomputeDrift(){
     } catch(_){}
 }
 
-// Superficie pubblica: openAdoptModal (chiamato da app-drift.js) + handler inline
-// onclick/onchange (_closeAdoptModal, _adoptToggleAll, adoptApply) + le funzioni
-// "testabili" esercitate dall'E2E (_adoptCandidates, _adoptCreateNodes).
+// Superficie pubblica: openAdoptModal (chiamato da app-drift.js) + openAdoptFromLeases
+// (da app-properties-floor.js) + le funzioni "testabili" esercitate dall'E2E
+// (_adoptCandidates, _adoptCreateNodes). ASSE B: chiudi/seleziona-tutti/applica del
+// modale sono DELEGATE (data-act/data-change) → non più su window.
 expose({
-    openAdoptModal, openAdoptFromLeases, adoptApply, _closeAdoptModal, _adoptToggleAll,
+    openAdoptModal, openAdoptFromLeases,
     _adoptCandidates, _adoptCreateNodes,
+});
+
+// ASSE B — modale Adotta: chiudi/seleziona-tutti/applica via event delegation.
+// Le 3 fn escono da expose(); openAdoptModal/openAdoptFromLeases (entry, chiamate
+// da app-drift.js/app-properties-floor.js) restano su window per ora.
+registerClickActions({
+    'adopt-close': () => _closeAdoptModal(),
+    'adopt-apply': () => adoptApply(),
+});
+registerChangeActions({
+    'adopt-selall': (el) => _adoptToggleAll(el.checked),
 });
