@@ -13,7 +13,7 @@
 import { expose, t, parseDhcpLeases } from './_bridge.js';
 import { store } from './store.js';
 import { _showToast, markDirty, _dhcpSyncLeases } from './app.js';
-import { registerChangeActions, registerInputActions } from './app-delegation.js';   // ASSE B: event delegation (change/input)
+import { registerClickActions, registerChangeActions, registerInputActions } from './app-delegation.js';   // ASSE B: event delegation (click/change/input)
 
 // Etichette credenziali per-vendor (id → [campo, label]); combaciano coi driver
 // server/dhcp-drivers/vendor/*. Solo per la UI del pull live (pack a pagamento).
@@ -286,4 +286,14 @@ registerChangeActions({
 });
 registerInputActions({
     'dhcp-preview': () => previewDhcp(),
+});
+// ASSE B — bottoni del modale DHCP (ex onclick inline) via data-act.
+registerClickActions({
+    'dhcp-backdrop':   (el, ev) => { if (ev.target === el) closeDhcpImport(); },
+    'dhcp-close':      () => closeDhcpImport(),
+    'dhcp-fetch-live': () => fetchDhcpLive(),
+    'dhcp-file-pick':  () => document.getElementById('dhcp-file').click(),
+    'dhcp-use':        () => useDhcpLeases(),
+    'dhcp-clear':      () => clearDhcpSources(),
+    'dhcp-verify':     () => dhcpVerifyNow(),
 });

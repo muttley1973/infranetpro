@@ -37,26 +37,30 @@
 
 // Un registro per tipo di evento + l'attributo HTML che ne porta la chiave.
 const _reg = {
-    click:   new Map(),
-    change:  new Map(),
-    input:   new Map(),
-    focus:   new Map(),
-    keydown: new Map(),
+    click:     new Map(),
+    change:    new Map(),
+    input:     new Map(),
+    focus:     new Map(),
+    keydown:   new Map(),
+    dragstart: new Map(),
 };
 const _attr = {
-    click:   'data-act',
-    change:  'data-change',
-    input:   'data-input',
-    focus:   'data-focus',
-    keydown: 'data-keydown',
+    click:     'data-act',
+    change:    'data-change',
+    input:     'data-input',
+    focus:     'data-focus',
+    keydown:   'data-keydown',
+    dragstart: 'data-dragstart',
 };
-// Nome dell'evento DOM realmente agganciato per tipo (focus -> focusin, che fa bubbling).
+// Nome dell'evento DOM realmente agganciato per tipo (focus -> focusin, che fa bubbling;
+// dragstart fa bubbling nativamente -> delega sul document).
 const _domEvent = {
-    click:   'click',
-    change:  'change',
-    input:   'input',
-    focus:   'focusin',
-    keydown: 'keydown',
+    click:     'click',
+    change:    'change',
+    input:     'input',
+    focus:     'focusin',
+    keydown:   'keydown',
+    dragstart: 'dragstart',
 };
 
 function _add(type, map) {
@@ -77,6 +81,8 @@ export function registerInputActions(map)  { _add('input', map); }
 export function registerFocusActions(map)  { _add('focus', map); }
 /** Registra azioni keydown (navigazione tastiera; la fn riceve l'evento). Attributo data-keydown. */
 export function registerKeydownActions(map){ _add('keydown', map); }
+/** Registra azioni dragstart (item della palette; la fn riceve l'evento drag). Attributo data-dragstart. */
+export function registerDragstartActions(map){ _add('dragstart', map); }
 
 // Dispatch PURO per tipo: risale da `target` al primo [attr] del tipo, guarda il
 // registro, invoca fn(el, ev). Ritorna true se ha gestito.
@@ -96,6 +102,7 @@ export function dispatchChange(target, ev)  { return _dispatch('change', target,
 export function dispatchInput(target, ev)   { return _dispatch('input', target, ev); }
 export function dispatchFocus(target, ev)   { return _dispatch('focus', target, ev); }
 export function dispatchKeydown(target, ev) { return _dispatch('keydown', target, ev); }
+export function dispatchDragstart(target, ev){ return _dispatch('dragstart', target, ev); }
 
 let _inited = false;
 /** Aggancia UNA sola volta i listener delegati sul document (idempotente). */
