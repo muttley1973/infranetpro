@@ -14,7 +14,7 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
 import { getNodeDisplayName, _ipamUsageForVlan } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
-import { registerClickActions } from './app-delegation.js';   // ASSE B: voce menu Report via data-act
+import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: voce menu Report + report L3 (template dinamico) via event delegation
 import { _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte: builder pannello (ex win.*)
 import { closeReportMenu } from './app-auth.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { updateVlanIpam } from './app-vlan-autopoll.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
@@ -78,13 +78,13 @@ export function _l3GatewayBindingHtml(vid, row){
     let hint = '', warn = false;
     if(row){
         if(row.status === 'bound') hint = `<i class="fas fa-check"></i> ${t('l3.hintBound',{name:`<b>${esc(row.nodeName)}</b>`})}`;
-        else if(row.status === 'auto') hint = `<i class="fas fa-wand-magic-sparkles"></i> ${t('l3.hintAuto',{name:`<b>${esc(row.nodeName)}</b>`})} <button class="toolbar-btn" style="padding:1px 6px;margin:0 0 0 4px;font-size:0.7rem" onclick="updateVlanGatewayNode(${+vid},'${esc(row.nodeId)}')">${t('common.confirm')}</button>`;
+        else if(row.status === 'auto') hint = `<i class="fas fa-wand-magic-sparkles"></i> ${t('l3.hintAuto',{name:`<b>${esc(row.nodeName)}</b>`})} <button class="toolbar-btn" style="padding:1px 6px;margin:0 0 0 4px;font-size:0.7rem" data-act="l3-gw-confirm" data-vid="${+vid}" data-node="${esc(row.nodeId)}">${t('common.confirm')}</button>`;
         else if(row.warnings && row.warnings.includes('staleBinding')){ warn = true; hint = `<i class="fas fa-triangle-exclamation"></i> ${t('l3.hintStale')}`; }
         else if(row.status === 'orphan'){ warn = true; hint = `<i class="fas fa-triangle-exclamation"></i> ${t('l3.hintOrphan',{gw:esc(row.gateway)})}`; }
     }
     return `<div class="prop-group" style="grid-column:1/-1">
         <label>${t('l3.gwDevice')} <span style="font-weight:400;color:var(--text-muted)">${t('l3.gwDeviceSub')}</span></label>
-        <select onchange="updateVlanGatewayNode(${+vid}, this.value)">${opts}</select>
+        <select data-change="l3-gw-select" data-vid="${+vid}">${opts}</select>
         ${hint ? `<div class="vlan-l3-hint${warn ? ' warn' : ''}">${hint}</div>` : ''}
       </div>`;
 }
@@ -129,7 +129,7 @@ function _l3EnsureOverlay(){
         ov.className = 'drift-overlay';   // riusa il guscio modale del Drift
         const _ttl = t('report.l3');
         const _cls = t('common.close');
-        ov.innerHTML = `<div class="drift-modal"><div class="drift-head"><span><i class="fas fa-route"></i> <span id="l3-title">${_ttl}</span></span><button class="toolbar-btn" onclick="_closeL3Report()" data-tip="${_cls}"><i class="fas fa-times"></i></button></div><div class="drift-body" id="l3-body"></div></div>`;
+        ov.innerHTML = `<div class="drift-modal"><div class="drift-head"><span><i class="fas fa-route"></i> <span id="l3-title">${_ttl}</span></span><button class="toolbar-btn" data-act="l3-close" data-tip="${_cls}"><i class="fas fa-times"></i></button></div><div class="drift-body" id="l3-body"></div></div>`;
         document.body.appendChild(ov);
         ov.addEventListener('mousedown', e => { if(e.target === ov) _closeL3Report(); });
     }
@@ -183,7 +183,7 @@ function openL3Report(){
     const header = `<div class="spare-summary">
         <div class="spare-summary-hdr">
             <div class="spare-summary-big">${t('l3.summary',{dev:`<b>${tot.l3Devices}</b>`,gw:`<b>${tot.withGateway}</b>`,vlans:tot.vlans})}</div>
-            <button class="toolbar-btn" style="margin-left:auto" onclick="l3ExportCsv()" data-tip="${t('l3.csvTip')}"><i class="fas fa-file-csv"></i> CSV</button>
+            <button class="toolbar-btn" style="margin-left:auto" data-act="l3-export" data-tip="${t('l3.csvTip')}"><i class="fas fa-file-csv"></i> CSV</button>
         </div>
         <div class="spare-summary-sub">${warnBits.length ? warnBits.join(' · ') : t('l3.noIssues')}</div>
     </div>`;
@@ -232,8 +232,19 @@ function l3ExportCsv(){
 // _l3SviSectionHtml (app-properties-node.js) + handler inline onclick/onchange
 // (updateVlanGatewayNode, l3ExportCsv, _closeL3Report).
 expose({
-    l3ExportCsv, _closeL3Report, updateVlanGatewayNode,
     _l3GatewayNodeIds, _l3GatewayBindingHtml, _l3SviSectionHtml, _l3Compute,
+});
+
+// ASSE B — report L3 (overlay + righe VLAN dinamiche): chiudi/export + scelta
+// gateway VLAN via event delegation. Le 3 fn escono da expose(); vid/nodeId
+// viaggiano in data-vid/data-node, il select legge el.value.
+registerClickActions({
+    'l3-close':      () => _closeL3Report(),
+    'l3-export':     () => l3ExportCsv(),
+    'l3-gw-confirm': (el) => updateVlanGatewayNode(+el.dataset.vid, el.dataset.node),
+});
+registerChangeActions({
+    'l3-gw-select':  (el) => updateVlanGatewayNode(+el.dataset.vid, el.value),
 });
 
 // ASSE B: voce "Mappa L3" del menu Report via data-act (ex win.openL3Report).

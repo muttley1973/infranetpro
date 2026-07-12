@@ -19,7 +19,7 @@ import { expose, t, buildSpareReport } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
 import { getNodeDisplayName, _linksForPort } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
-import { registerClickActions } from './app-delegation.js';   // ASSE B: voce menu Report via data-act
+import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: voce menu Report + overlay Porte libere (template dinamico) via event delegation
 import { closeReportMenu } from './app-auth.js';   // ASSE B: chiude il dropdown Report (proprietario = app-auth)
 import { TYPES, _frontPanelSfpGroups } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _isLeafEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
@@ -102,7 +102,7 @@ function _spareEnsureOverlay(){
         ov.className = 'drift-overlay';   // riusa il guscio modale del Drift
         const _ttl = t('report.spareTitle');
         const _cls = t('common.close');
-        ov.innerHTML = `<div class="drift-modal"><div class="drift-head"><span><i class="fas fa-plug-circle-plus"></i> <span id="spare-title">${_ttl}</span></span><button class="toolbar-btn" onclick="_closeSpareReport()" data-tip="${_cls}"><i class="fas fa-times"></i></button></div><div class="drift-body" id="spare-body"></div></div>`;
+        ov.innerHTML = `<div class="drift-modal"><div class="drift-head"><span><i class="fas fa-plug-circle-plus"></i> <span id="spare-title">${_ttl}</span></span><button class="toolbar-btn" data-act="spare-close" data-tip="${_cls}"><i class="fas fa-times"></i></button></div><div class="drift-body" id="spare-body"></div></div>`;
         document.body.appendChild(ov);
         ov.addEventListener('mousedown', e => { if(e.target === ov) _closeSpareReport(); });
     }
@@ -125,8 +125,8 @@ function openSpareReport(){
     const header = `<div class="spare-summary">
         <div class="spare-summary-hdr">
             <div class="spare-summary-big">${t('spare.freePortsOf',{free:`<b>${tot.free}</b>`,ports:tot.ports})}</div>
-            <label class="spare-hl" id="spare-hl-toggle"><input type="checkbox" ${store._spareActive?'checked':''} onchange="setSpareHighlight(this.checked)"> <i class="fas fa-highlighter"></i> ${t('spare.highlight')}</label>
-            <button class="toolbar-btn" onclick="spareExportCsv()" data-tip="${t('spare.csvTip')}"><i class="fas fa-file-csv"></i> CSV</button>
+            <label class="spare-hl" id="spare-hl-toggle"><input type="checkbox" ${store._spareActive?'checked':''} data-change="spare-highlight"> <i class="fas fa-highlighter"></i> ${t('spare.highlight')}</label>
+            <button class="toolbar-btn" data-act="spare-export" data-tip="${t('spare.csvTip')}"><i class="fas fa-file-csv"></i> CSV</button>
         </div>
         <div class="spare-summary-sub">${tot.freeAccess} access · ${tot.freeSfp} SFP/uplink${tot.suspect?` · <span class="spare-susp-pill">⚠ ${t('spare.maybeInUse',{n:tot.suspect})}</span>`:''}</div>
     </div>`;
@@ -167,7 +167,18 @@ function spareExportCsv(){
 
 // Bridge legacy: hook di render (_applySpareHighlight da app-render-core) +
 // voci menu / handler inline dell'overlay.
-expose({ _applySpareHighlight, setSpareHighlight, toggleSpareHighlight, spareExportCsv, _closeSpareReport });
+expose({ _applySpareHighlight, toggleSpareHighlight });
+
+// ASSE B — overlay Porte libere: chiudi/highlight/export via event delegation.
+// Le 3 fn escono da expose(); _applySpareHighlight/toggleSpareHighlight restano
+// (chiamate da altri moduli/menu).
+registerClickActions({
+    'spare-close':  () => _closeSpareReport(),
+    'spare-export': () => spareExportCsv(),
+});
+registerChangeActions({
+    'spare-highlight': (el) => setSpareHighlight(el.checked),
+});
 
 // ASSE B: voce "Porte libere" del menu Report via data-act (ex win.openSpareReport).
 registerClickActions({ 'report-spare': () => { openSpareReport(); closeReportMenu(); } });

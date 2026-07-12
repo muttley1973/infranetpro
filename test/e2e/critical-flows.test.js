@@ -2492,10 +2492,13 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
     await t.test('bundle esbuild: i moduli ESM migrati (app-audit, app-spare, app-management) girano nel browser reale', async () => {
       const r = await page.evaluate(() => {
         // Le funzioni provengono dal bundle (src/*.js → expose()).
-        const exposed = typeof exportAuditCsv === 'function' && typeof _applySpareHighlight === 'function' &&
+        const exposed = typeof _applySpareHighlight === 'function' &&
           typeof _mgmtRow === 'function' && typeof _openMgmt === 'function';
         // ASSE B: openAuditLog/openSpareReport sono DELEGATE (voci menu Report via data-act) → non su window
         const delegatedGone = typeof window.openAuditLog === 'undefined' && typeof window.openSpareReport === 'undefined';
+        // ASSE B: le azioni interne agli overlay Storia/Porte-libere sono delegate → fuori da window
+        const reportFnsOffWin = ['exportAuditCsv', '_closeAuditLog', 'setAuditFilter',
+          'spareExportCsv', '_closeSpareReport', 'setSpareHighlight'].every((n) => typeof window[n] === 'undefined');
         state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
         if (typeof _invalidateIdx === 'function') _invalidateIdx();
         // app-audit: legge win.state.auditLog (ponte) + t()/getLang() importati dai puri
@@ -2506,6 +2509,17 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         // buildSpareReport (import puro) sul default state (switch 24 porte).
         document.querySelector('[data-act="report-spare"]').click();   // apre l'overlay via event delegation
         const sv = document.getElementById('spare-overlay');
+        // ASSE B: wiring delegato degli overlay + drive di eventi REALI (se un handler
+        // lancia, l'evaluate rigetta e il test fallisce → prova che la route delegata gira).
+        const auditWired = !!av.querySelector('[data-act="audit-close"]') && !!av.querySelector('[data-act="audit-export"]')
+          && !!av.querySelector('[data-input="audit-filter"]');
+        const spareWired = !!sv.querySelector('[data-act="spare-close"]') && !!sv.querySelector('[data-act="spare-export"]')
+          && !!sv.querySelector('[data-change="spare-highlight"]');
+        const filt = av.querySelector('[data-input="audit-filter"]');
+        filt.value = 'SW'; filt.dispatchEvent(new Event('input', { bubbles: true }));   // -> setAuditFilter
+        const hl = sv.querySelector('[data-change="spare-highlight"]');
+        hl.checked = true; hl.dispatchEvent(new Event('change', { bubbles: true }));      // -> setSpareHighlight
+        hl.checked = false; hl.dispatchEvent(new Event('change', { bubbles: true }));     // ripristino
         // app-management: _mgmtRow legge win.nodeById/win.escapeHTML (ponte) e
         // costruisce l'URL primario protocollo+IP (https di default).
         const firstNode = (state.nodes || [])[0];
@@ -2517,11 +2531,14 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           spareVisible: !!sv && sv.style.display === 'flex',
           spareHasRows: !!sv && sv.querySelectorAll('.spare-row').length > 0,
           mgmtHtml,
-          delegatedGone,
+          delegatedGone, reportFnsOffWin, auditWired, spareWired,
         };
       });
       assert.ok(r.exposed, 'le funzioni dei moduli migrati sono pubblicate su window dal bundle');
       assert.ok(r.delegatedGone, 'ASSE B: openAuditLog/openSpareReport ritirate dal ponte (voci menu Report via data-act)');
+      assert.ok(r.reportFnsOffWin, 'ASSE B: azioni interne agli overlay Storia/Porte-libere ritirate da window (delegation)');
+      assert.ok(r.auditWired, 'overlay Storia cablato via data-act/data-input (close/export/filter)');
+      assert.ok(r.spareWired, 'overlay Porte-libere cablato via data-act/data-change (close/export/highlight)');
       assert.ok(r.auditVisible, 'la voce "Storia" del menu Report (data-act) apre l’overlay (render reale)');
       assert.match(r.auditRow, /SW-Core/, 'la riga audit legge state via il ponte e rende il target');
       assert.ok(r.spareVisible, 'la voce "Porte libere" del menu Report (data-act) apre l’overlay');
@@ -2591,9 +2608,11 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       // di app-l3 al bundle: lo stub-DOM dello smoke non carica /dist/app.bundle.js.
       const r = await page.evaluate(() => {
         const exposed = typeof _l3GatewayNodeIds === 'function' &&
-          typeof _l3SviSectionHtml === 'function' && typeof l3ExportCsv === 'function';
+          typeof _l3SviSectionHtml === 'function';
         // ASSE B: openL3Report è DELEGATA (voce "Mappa L3" del menu Report via data-act) → non su window
         const delegatedGone = typeof window.openL3Report === 'undefined';
+        // ASSE B: le azioni interne al report L3 (chiudi/export/scelta gateway) sono delegate → fuori da window
+        const l3FnsOffWin = ['l3ExportCsv', '_closeL3Report', 'updateVlanGatewayNode'].every((n) => typeof window[n] === 'undefined');
         state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
         const rt = { id: 'l3rt', type: 'router', name: 'GW', x: 0, y: 0, w: 60, h: 40, ip: '192.168.50.1', ports: 8 };
         state.nodes.push(rt); if (typeof _invalidateIdx === 'function') _invalidateIdx();
@@ -2604,19 +2623,26 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         const svi = _l3SviSectionHtml('l3rt');
         document.querySelector('[data-act="report-l3"]').click();   // overlay via event delegation
         const ov = document.getElementById('l3-overlay');
+        const l3Wired = !!ov && !!ov.querySelector('[data-act="l3-close"]') && !!ov.querySelector('[data-act="l3-export"]');
         const res = {
           exposed,
-          delegatedGone,
+          delegatedGone, l3FnsOffWin, l3Wired,
           isL3: ids.has('l3rt'),
           sviVlan: svi.indexOf('VLAN 50') >= 0,
           overlayVisible: !!ov && ov.style.display === 'flex',
           overlayHasVlan: !!ov && ov.textContent.indexOf('VLAN 50') >= 0,
         };
-        if (typeof _closeL3Report === 'function') _closeL3Report();  // pulizia: non coprire il rack ai test successivi
+        // pulizia via CLICK REALE delegato (data-act="l3-close"): non coprire il rack ai test successivi
+        const clBtn = ov && ov.querySelector('[data-act="l3-close"]');
+        if (clBtn) clBtn.click();
+        res.closedByClick = !!ov && ov.style.display === 'none';
         return res;
       });
       assert.ok(r.exposed, 'le funzioni L3 sono pubblicate su window dal bundle');
       assert.ok(r.delegatedGone, 'ASSE B: openL3Report ritirata dal ponte (voce "Mappa L3" del menu Report via data-act)');
+      assert.ok(r.l3FnsOffWin, 'ASSE B: chiudi/export/gateway del report L3 ritirati da window (delegation)');
+      assert.ok(r.l3Wired, 'report L3 cablato via data-act (close/export)');
+      assert.ok(r.closedByClick, 'click delegato su "chiudi" (data-act="l3-close") nasconde l’overlay L3');
       assert.ok(r.isL3, '_l3GatewayNodeIds riconosce il router come gateway (auto per IP) via il ponte');
       assert.ok(r.sviVlan, '_l3SviSectionHtml elenca VLAN 50 nel pannello device');
       assert.ok(r.overlayVisible, 'la voce "Mappa L3" del menu Report (data-act) apre l’overlay');

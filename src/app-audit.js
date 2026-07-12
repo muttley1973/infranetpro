@@ -16,7 +16,7 @@ import { expose, t, getLang, auditToCsv, auditActionLabel, ACTION_LABELS } from 
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
 import { nodeById, getNodeDisplayName } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
-import { registerClickActions } from './app-delegation.js';   // ASSE B: voce menu Report via data-act
+import { registerClickActions, registerInputActions } from './app-delegation.js';   // ASSE B: voce menu Report + overlay Storia (template dinamico) via event delegation
 import { closeReportMenu } from './app-auth.js';   // ASSE B: chiude il dropdown Report (proprietario = app-auth)
 
 let _auditFilter = '';
@@ -33,10 +33,10 @@ function _auditEnsureOverlay(){
         ov.innerHTML =
             '<div class="drift-modal">' +
               '<div class="drift-head"><span><i class="fas fa-clock-rotate-left"></i> <span id="audit-title"></span></span>' +
-                '<button class="toolbar-btn" onclick="_closeAuditLog()" data-tip="' + _tA('common.close','Chiudi') + '"><i class="fas fa-times"></i></button></div>' +
+                '<button class="toolbar-btn" data-act="audit-close" data-tip="' + _tA('common.close','Chiudi') + '"><i class="fas fa-times"></i></button></div>' +
               '<div class="audit-toolbar">' +
-                '<input id="audit-filter" type="text" oninput="setAuditFilter(this.value)">' +
-                '<button id="audit-export" class="toolbar-btn soft" onclick="exportAuditCsv()"><i class="fas fa-file-csv"></i> <span id="audit-export-lbl"></span></button>' +
+                '<input id="audit-filter" type="text" data-input="audit-filter">' +
+                '<button id="audit-export" class="toolbar-btn soft" data-act="audit-export"><i class="fas fa-file-csv"></i> <span id="audit-export-lbl"></span></button>' +
               '</div>' +
               '<div class="drift-body"><div id="audit-list"></div></div>' +
             '</div>';
@@ -130,7 +130,17 @@ function exportAuditCsv(){
 // Bridge legacy: pubblica l'API pubblica su window per gli handler inline
 // dell'overlay (_closeAuditLog/setAuditFilter/exportAuditCsv) e per i chiamanti
 // ancora-classic (openAuditLog dal menu, openAuditForNode dal pannello device).
-expose({ openAuditForNode, _closeAuditLog, setAuditFilter, exportAuditCsv });
+expose({ openAuditForNode });
+
+// ASSE B — overlay Storia (audit log): chiudi/filtro/export via event delegation.
+// Le 3 fn escono da expose(); il filtro legge el.value.
+registerClickActions({
+    'audit-close':  () => _closeAuditLog(),
+    'audit-export': () => exportAuditCsv(),
+});
+registerInputActions({
+    'audit-filter': (el) => setAuditFilter(el.value),
+});
 
 // ASSE B: voce "Storia modifiche" del menu Report via data-act (ex win.openAuditLog).
 registerClickActions({ 'report-audit': () => { openAuditLog(); closeReportMenu(); } });
