@@ -25,6 +25,7 @@ import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funz
 import { renderAutomationMenu } from './app-vlan-autopoll.js';   // setAutoIpRenew aggiorna il popover Automazioni
 import { ensureNodeRackVisible, focusNode, selectAndFocusNode } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { trace } from './app-pointer.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: pannello Drift (template dinamico) via event delegation
 
 // _driftReport è stato condiviso cross-boundary (scritto anche da
 // app-drift-adopt.js) → vive su window, mai come binding di modulo.
@@ -338,7 +339,7 @@ function _driftEnsureOverlay(){
         ov.className = 'drift-overlay';
         const _ttl = t('report.drift');
         const _cls = t('common.close');
-        ov.innerHTML = `<div class="drift-modal"><div class="drift-head"><span><i class="fas fa-clipboard-check"></i> <span id="drift-title">${_ttl}</span></span><button class="toolbar-btn" onclick="_closeDriftReport()" data-tip="${_cls}"><i class="fas fa-times"></i></button></div><div class="drift-body" id="drift-body"></div></div>`;
+        ov.innerHTML = `<div class="drift-modal"><div class="drift-head"><span><i class="fas fa-clipboard-check"></i> <span id="drift-title">${_ttl}</span></span><button class="toolbar-btn" data-act="drift-close" data-tip="${_cls}"><i class="fas fa-times"></i></button></div><div class="drift-body" id="drift-body"></div></div>`;
         document.body.appendChild(ov);
         ov.addEventListener('mousedown', e => { if(e.target === ov) _closeDriftReport(); });
     }
@@ -348,14 +349,14 @@ function _closeDriftReport(){ const ov = document.getElementById('drift-overlay'
 function _driftRowHtml(cat, r){
     const esc = s => escapeHTML(String(s == null ? '' : s));
     let main = '', actions = '';
-    const invBtn = `<button class="drift-act" onclick="driftInvestigate('${esc(r.key)}')" data-tip="${t('drift.tipOpen')}"><i class="fas fa-magnifying-glass"></i></button>`;
-    const ignBtn = `<button class="drift-act" onclick="driftIgnore('${esc(r.key)}')" data-tip="${t('drift.tipIgnore')}"><i class="fas fa-eye-slash"></i></button>`;
+    const invBtn = `<button class="drift-act" data-act="drift-investigate" data-key="${esc(r.key)}" data-tip="${t('drift.tipOpen')}"><i class="fas fa-magnifying-glass"></i></button>`;
+    const ignBtn = `<button class="drift-act" data-act="drift-ignore" data-key="${esc(r.key)}" data-tip="${t('drift.tipIgnore')}"><i class="fas fa-eye-slash"></i></button>`;
     // L4: «Spiega» con l'Assistente AI (semina la domanda sul caso → loop Verifica→capisci→agisci).
     const explBtn = `<button class="drift-act" onclick="aiExplainDrift('${esc(cat)}','${esc(r.key)}')" data-tip="${t('assistant.explain')}"><i class="fas fa-robot"></i></button>`;
     if(cat === 'stateDrift'){
         const diffs = (r.diffs || []).map(d => `${esc(d.field)}: <s>${esc(d.doc)}</s> → <b>${esc(d.real)}</b>`).join(' · ');
         main = `<span class="drift-row-main">${esc(r.label)}</span><span class="drift-row-sub">${diffs}</span>`;
-        actions = `<button class="drift-act apply" onclick="driftApplyDoc('${esc(r.key)}')" data-tip="${t('drift.tipApply')}"><i class="fas fa-arrows-rotate"></i></button>${ignBtn}${invBtn}`;
+        actions = `<button class="drift-act apply" data-act="drift-apply-doc" data-key="${esc(r.key)}" data-tip="${t('drift.tipApply')}"><i class="fas fa-arrows-rotate"></i></button>${ignBtn}${invBtn}`;
     } else if(cat === 'macOrphan'){
         main = `<span class="drift-row-main">${esc(r.label || r.mac)}</span><span class="drift-row-sub">${esc(r.mac)} — ${t('drift.notSeen')}</span>`;
         actions = `${ignBtn}${invBtn}`;
@@ -387,7 +388,7 @@ function _driftRowHtml(cat, r){
         // G3: segnala se l'IP era fissato a mano → applicarlo sblocca il pin.
         const manualTag = r.manual ? `<span class="drift-why"><span class="drift-why-tag" title="${t('drift.ipManualTip')}">${t('drift.ipManualBadge')}</span></span>` : '';
         main = `<span class="drift-row-main">${esc(r.label || r.mac)}</span><span class="drift-row-sub">${esc(r.mac)} · <s>${esc(r.oldIp)}</s> → <b>${esc(r.newIp)}</b></span>${manualTag}`;
-        const upBtn = `<button class="drift-act apply" onclick="driftApplyIpChange('${esc(r.key)}')" data-tip="${t('drift.tipUpdateIp')}"><i class="fas fa-arrows-rotate"></i></button>`;
+        const upBtn = `<button class="drift-act apply" data-act="drift-apply-ip" data-key="${esc(r.key)}" data-tip="${t('drift.tipUpdateIp')}"><i class="fas fa-arrows-rotate"></i></button>`;
         actions = `${upBtn}${ignBtn}${invBtn}`;
     } else if(cat === 'unverified'){
         const ipStr = r.ip ? ` · ${esc(r.ip)}` : '';
@@ -441,7 +442,7 @@ function _driftNetworksSection(rep){
     const rowsHtml = nets.map(n => {
         const m = META[n.status] || META.open;
         const meta = t('net.devices',{n:n.deviceCount}) + (n.leaseCount ? ' · ' + t('net.leases',{n:n.leaseCount}) : '');
-        const scanBtn = `<button class="toolbar-btn drift-net-scan" onclick="_driftScanNetwork('${esc(n.cidr)}')" data-tip="${t('net.scanTip')}"><i class="fas fa-satellite-dish"></i> ${t('net.scan')}</button>`;
+        const scanBtn = `<button class="toolbar-btn drift-net-scan" data-act="drift-scan-net" data-cidr="${esc(n.cidr)}" data-tip="${t('net.scanTip')}"><i class="fas fa-satellite-dish"></i> ${t('net.scan')}</button>`;
         return `<div class="drift-net-item"><div class="drift-net-row">
             <span class="drift-net-cidr"><i class="fas ${m.i}" style="color:${m.c}"></i> ${esc(n.cidr)}</span>
             <span class="drift-net-meta">${esc(meta)}</span>
@@ -522,7 +523,7 @@ export function _renderDriftReport(){
                 // Toggle trasparenza (mostra utente/BYOD in chiaro) + scorciatoia
                 // "Chiudi il cerchio": dal gap all'azione (schermata Adotta).
                 const epToggle = epN
-                    ? `<label class="drift-ep-toggle" data-tip="${t('drift.showEndpointsTip')}"><input type="checkbox" onchange="setDriftShowEndpoints(this.checked)"${showEp ? ' checked' : ''}> ${t('drift.showEndpoints')}</label>`
+                    ? `<label class="drift-ep-toggle" data-tip="${t('drift.showEndpointsTip')}"><input type="checkbox" data-change="drift-show-endpoints"${showEp ? ' checked' : ''}> ${t('drift.showEndpoints')}</label>`
                     : '';
                 topBar = `<div class="drift-adopt-bar">${epToggle}<button class="toolbar-btn" onclick="openAdoptModal()" data-tip="${t('drift.addMapTip')}"><i class="fas fa-plus-circle"></i> ${t('drift.addMap')}</button></div>`;
             }
@@ -538,16 +539,35 @@ export function _renderDriftReport(){
 }
 
 // Superficie pubblica:
-//   • handler inline HTML: runDriftCheck (btn-drift), _closeDriftReport,
-//     driftInvestigate, driftIgnore, driftApplyDoc (onclick="" generati);
+//   • ASSE B: le 7 azioni 1-click del pannello Drift (close/investigate/ignore/
+//     apply-doc/apply-ip/scan-net/show-endpoints) sono DELEGATE (data-act/data-change,
+//     vedi registerClick/ChangeActions sopra) → non più su window. runDriftCheck
+//     resta esposta (bottone Verifica statico);
 //   • lette da src/app-drift-adopt.js via win.*: _driftBuildDocSnapshot,
 //     _driftBuildSnmpSnapshot, _renderDriftReport, DRIFT_DOWN_STREAK_N;
 //   • esercitate dall'E2E (copertura spostata dallo smoke).
 // Lo stato `_driftReport` NON è qui: vive direttamente su window (store._driftReport).
 expose({
-    runDriftCheck, driftIgnore, driftApplyDoc, driftApplyIpChange, driftInvestigate,
-    setAutoIpRenew, setDriftShowEndpoints, _driftAutoRenewIps,
-    _closeDriftReport, _renderDriftReport, _driftScanNetwork,
+    runDriftCheck,
+    setAutoIpRenew, _driftAutoRenewIps,
+    _renderDriftReport,
     _driftBuildDocSnapshot, _driftBuildSnmpSnapshot, _driftComputeFromDoc,
     DRIFT_DOWN_STREAK_N,
+});
+
+// ASSE B — superficie DINAMICA del pannello Drift (righe/bottoni resi da
+// _renderDriftReport a runtime). onclick/onchange inline -> data-act/data-change:
+// le 7 fn locali escono da expose(); gli argomenti (chiave riga, CIDR) viaggiano in
+// data-key/data-cidr. Restano inline (cross-module, migrati coi loro cluster):
+// aiExplainDrift (app-ai) e openAdoptModal (app-drift-adopt).
+registerClickActions({
+    'drift-close':       () => _closeDriftReport(),
+    'drift-investigate': (el) => driftInvestigate(el.dataset.key),
+    'drift-ignore':      (el) => driftIgnore(el.dataset.key),
+    'drift-apply-doc':   (el) => driftApplyDoc(el.dataset.key),
+    'drift-apply-ip':    (el) => driftApplyIpChange(el.dataset.key),
+    'drift-scan-net':    (el) => _driftScanNetwork(el.dataset.cidr),
+});
+registerChangeActions({
+    'drift-show-endpoints': (el) => setDriftShowEndpoints(el.checked),
 });
