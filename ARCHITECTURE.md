@@ -612,9 +612,11 @@ is VPN/LAN.
     (`input`) and the CSV/DHCP import dialogs (file pickers, live-lease vendor selector, paste-area
     previews), the project + rack selectors plus the Discover/Topology "select all" and the
     deep-TCP-scan preference checkboxes (`change`), the map-image + JSON-import file pickers
-    (`change`), and the global search box (`input` + `focus` + `keydown`). The only inline handlers
-    left in the *static* HTML are the export panel's (`export.js` classic). The migration then moves
-    into the ~500 handlers inside **dynamically-rendered templates** (rows/cards built by `innerHTML`
+    (`change`), and the global search box (`input` + `focus` + `keydown`). Of the static HTML the
+    change/input/focus/keydown surfaces are done — only the export panel's remain (`export.js` classic)
+    — but **~78 `onclick` handlers are still inline** there (modal open/close, report/discovery/import
+    actions, status chips, user/token management: a mix of clean-but-deferred and genuinely blocked).
+    The migration then moves into the **~540 handlers inside dynamically-rendered templates** (rows/cards built by `innerHTML`
     at runtime) — these migrate identically, because a document-level delegated listener also catches
     events from elements created *after* load. Dynamic clusters done so far: the Discover table rows
     (`disc-row`/`disc-type`), the search-results dropdown (`search-pick`), the Drift panel's seven
