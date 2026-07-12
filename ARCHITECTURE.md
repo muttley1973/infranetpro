@@ -608,9 +608,11 @@ is VPN/LAN.
     the account + Report header menus, the project toolbar (`New/Rename/Duplicate/Delete/Save`), the AI
     assistant buttons, the non-click controls of the rack size (`change`), the palette search
     (`input`) and the CSV/DHCP import dialogs (file pickers, live-lease vendor selector, paste-area
-    previews), and the project + rack selectors plus the Discover/Topology "select all" and the
-    deep-TCP-scan preference checkboxes (`change`). The bulk (~500 handlers in dynamically-rendered
-    templates, click + change + input) now
+    previews), the project + rack selectors plus the Discover/Topology "select all" and the
+    deep-TCP-scan preference checkboxes (`change`), and the map-image + JSON-import file pickers
+    (`change`). What remains inline is the export panel (`export.js` classic) and the global search
+    box (`input`/`focus`/`keydown` — the last two await a harness extension). The bulk (~500 handlers
+    in dynamically-rendered templates, click + change + input) now
     follows surface by surface. `_bridge.js` / `expose()` are deleted only when Axis B is finished. *(Side note: the AI help
     catalog in `lib/ui-catalog.js`, which reads the real button labels/tooltips, derives a button's action
     from `data-act` as well as `onclick`, so delegated buttons stay in the assistant's catalog.)*
