@@ -727,7 +727,7 @@ expose({
     _updateRackFloorBtn, renderRackTabs,
     moveNodeToRack, _updateRackUNumLabel,
     // map import
-    handleMapUpload, clearMap, scaleBgImageTo, scaleBgImage, setBgImageOpacity, toggleFloorGrid,
+    clearMap, scaleBgImageTo, scaleBgImage, setBgImageOpacity, toggleFloorGrid,
     toggleBgImageLock, toggleRoomLock, _liveStructColor, _liveStructOpacity,
     fitBgImageToCanvas,
 });
@@ -758,6 +758,7 @@ registerClickActions({
 registerChangeActions({
     'rack-size':   (el) => updateRackSize(el.value),
     'rack-select': (el) => switchRack(el.value),   // switchRack resta export (import ESM), esce da expose
+    'map-upload':  (el) => handleMapUpload(el),     // file-input immagine planimetria (riceve l'elemento)
 });
 registerInputActions({
     'palette-filter': (el) => filterPaletteItems(el.value),
