@@ -630,6 +630,133 @@ function exportFloorSVG(){
     setTimeout(()=>URL.revokeObjectURL(url),2000);
 }
 
+// Un SVG usato come IMMAGINE (data URI) e' un documento standalone: RICHIEDE
+// xmlns sul root (inline nell'HTML no, come immagine SI'). Senza, l'immagine e'
+// rotta → draw.io mostra un placeholder. Alcune skin (hand-authored / inline
+// legacy) non ce l'hanno: lo iniettiamo. + xmlns:xlink se usa xlink: senza dichiararlo.
+function _ensureSvgXmlns(svg){
+    let s = String(svg == null ? '' : svg);
+    if(!/<svg\b[^>]*\bxmlns\s*=/.test(s)) {
+        s = s.replace(/<svg\b/i, '<svg xmlns="http://www.w3.org/2000/svg"');
+    }
+    if(/\bxlink:/.test(s) && !/\bxmlns:xlink\s*=/.test(s)) {
+        s = s.replace(/<svg\b/i, '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
+    }
+    return s;
+}
+
+// Data URI SVG per l'immagine faceplate skin. URL-encoded (NON base64): il prefisso
+// "data:image/svg+xml;base64," conterrebbe un ';' che il parser di stile mxGraph
+// tratterebbe da separatore-chiave, rompendo lo stile. encodeURIComponent scappa
+// ';' '=' ',' '#' → l'unico ',' e' quello del prefisso data:.
+function _svgDataUri(svg){
+    return 'data:image/svg+xml,' + encodeURIComponent(String(svg == null ? '' : svg));
+}
+
+// Per un device con skin: immagine faceplate (data URI) + porte come frazioni del
+// viewBox (posizioni reali via getBBox, misurate off-screen nel DOM). Ritorna null
+// se il device non ha skin. _resolveNodeSkin (bundle) e parseViewBox/extractSkinPorts/
+// skinPortPid (lib panel-skin.js <script>) esistono a click-time.
+function _drawioSkinFor(n){
+    if(typeof _resolveNodeSkin !== 'function') return null;
+    const sk = _resolveNodeSkin(n);
+    if(!sk || !sk.svg || typeof document === 'undefined') return null;
+    // Difesa in profondita': ri-sanitizza (le skin dello store lo sono gia'; le
+    // inline legacy potrebbero non esserlo) prima di iniettarle nel DOM.
+    const clean = (typeof sanitizeSvg === 'function') ? (sanitizeSvg(sk.svg).svg || sk.svg) : sk.svg;
+    const ready = _ensureSvgXmlns(clean);   // xmlns obbligatorio per l'SVG-immagine (data URI)
+    const vb = (typeof parseViewBox === 'function') ? parseViewBox(ready) : null;
+    const image = _svgDataUri(ready);
+    const aspect = (vb && vb.height > 0) ? vb.width / vb.height : 0;
+    const portsMeta = (sk.ports && sk.ports.length) ? sk.ports
+        : ((typeof extractSkinPorts === 'function') ? extractSkinPorts(ready) : []);
+    if(!vb || !portsMeta.length) return { image, aspect, ports: [] };
+    let host = null;
+    const located = [];
+    try {
+        // innerHTML (NON DOMParser+importNode): il parser HTML crea veri
+        // SVGGraphicsElement → getBBox disponibile. (importNode da un doc
+        // image/svg+xml lascia elementi senza getBBox.)
+        host = document.createElement('div');
+        host.setAttribute('aria-hidden', 'true');
+        host.style.cssText = 'position:absolute;left:-99999px;top:0;opacity:0;pointer-events:none;width:800px;height:200px';
+        host.innerHTML = ready;
+        document.body.appendChild(host);
+        const svgEl = host.querySelector('svg');
+        if(svgEl){
+            portsMeta.forEach(function(p){
+                let el = svgEl.querySelector('[id="' + String(p.id).replace(/"/g, '') + '"]');
+                if(!el) el = svgEl.querySelector('[data-' + (p.kind === 'mgmt' ? 'mgmt' : 'port') + '="' + p.num + '"]');
+                if(!el || typeof el.getBBox !== 'function') return;
+                let bb; try { bb = el.getBBox(); } catch(_) { return; }
+                if(!bb || !(bb.width > 0) || !(bb.height > 0)) return;
+                const pid = (typeof skinPortPid === 'function') ? skinPortPid(n.id, p)
+                    : (p.kind === 'mgmt' ? `${n.id}-mgmt${p.num}` : `${n.id}-${p.num}`);
+                located.push({
+                    pid,
+                    xf: (bb.x - vb.x) / vb.width,
+                    yf: (bb.y - vb.y) / vb.height,
+                    wf: bb.width / vb.width,
+                    hf: bb.height / vb.height,
+                });
+            });
+        }
+    } catch(_){ /* faccia senza porte localizzate: mostro comunque l'immagine */ }
+    finally { if(host && host.parentNode) host.parentNode.removeChild(host); }
+    return { image, aspect, ports: located };
+}
+
+// Export draw.io / diagrams.net: l'elevazione dei rack come veri mxCell nativi
+// (editabili, zero artefatti — niente immagine incollata). La costruzione e' PURA
+// in lib/drawio-export.js (buildDrawioXml, <script> caricato prima); qui iniettiamo
+// lo stato e gli helper dell'app, stessa convenzione di _cableLabelRows.
+function exportDrawio(){
+    if(typeof buildDrawioXml !== 'function') return;
+    if(!(state.racks && state.racks.length)){
+        if(typeof _showToast === 'function')
+            _showToast((typeof t==='function' ? t('impexp.drawioNoRacks') : 'No racks to export'), 'warn');
+        return;
+    }
+    // Device assenti all'ultima Verifica (bucket macOrphan del Drift) → attenuati,
+    // come nella vista rack (.node-absent). Guardia snmpStatus!='ok' (un device
+    // riacceso+sincronizzato torna vivo). _driftReport puo' non esistere.
+    const _absentIds = new Set(
+        (((typeof _driftReport !== 'undefined' && _driftReport && _driftReport.macOrphan) || [])
+            .map(r => r.nodeId).filter(Boolean)));
+
+    // Device con skin custom: faccia = immagine + porte native (getBBox). Salta i
+    // nodi senza skin. Solo device rack (gli unici disegnati nell'export).
+    const _skins = {};
+    (state.nodes || []).forEach(n => {
+        if(!(TYPES[n.type] && TYPES[n.type].isRack)) return;
+        const s = _drawioSkinFor(n);
+        if(s && s.image) _skins[n.id] = s;
+    });
+
+    const xml = buildDrawioXml({
+        racks: state.racks || [],
+        nodes: state.nodes || [],
+        ports: state.ports || {},
+        skins: _skins,
+        opts: { rackUnitSize: 20 },
+        helpers: {
+            types: TYPES,
+            getRackSize:        (typeof getRackSize === 'function')        ? getRackSize        : null,
+            normalizeStatus:    (typeof normalizeStatus === 'function')    ? normalizeStatus    : undefined,
+            normalizeNumber:    (typeof normalizeNumber === 'function')    ? normalizeNumber    : undefined,
+            hasSnmpIntegration: (typeof _hasSnmpIntegration === 'function') ? _hasSnmpIntegration : undefined,
+            typeName:           _typeName,
+            isAbsent:           n => _absentIds.has(n.id) && n.snmpStatus !== 'ok',
+        },
+    });
+    const blob=new Blob([xml],{type:'application/xml;charset=utf-8'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=`${(state.projectName||'infranet').replace(/[^a-z0-9_-]/gi,'_')}_rack.drawio`;
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+}
+
 function _buildRackSVG(rackId, opts){
     opts = opts || {};
     const rack = state.racks.find(r=>r.id===rackId);
@@ -1332,6 +1459,20 @@ window.confirmPdfExport = confirmPdfExport;
 window.exportFloorSVG = exportFloorSVG;
 window.exportPDF = exportPDF;
 window.exportDossier = exportDossier;
+window.exportDrawio = exportDrawio;
+
+// La voce di menu "Esporta draw.io" NON usa onclick inline (che gonfierebbe il
+// cricchetto ASSE B degli handler inline in netmapper.html). export.js e' classic
+// ed escluso dai ratchet: agganciamo il click qui. Il bottone e' HTML statico (gia'
+// nel DOM quando export.js gira); closeImpExpMenu e' esposto dal bundle (caricato
+// dopo) ma serve solo a click-time, quando esiste.
+(function(){
+    const b = document.getElementById('btn-export-drawio');
+    if(b) b.addEventListener('click', ()=>{
+        exportDrawio();
+        if(typeof closeImpExpMenu === 'function') closeImpExpMenu();
+    });
+})();
 
 // Hook di debug/test: espone i builder puri interni all'IIFE (SVG floor/rack e
 // dati del report PDF) così che lo smoke E2E possa esercitarli con uno stato
@@ -1340,5 +1481,6 @@ window.exportDossier = exportDossier;
 window._exportInternals = {
     _buildFloorSVG, _buildRackSVG, _buildRackSvgs, _buildPdfReportData,
     _cableLabelRows, _nodeRoomName, _csvColumnsFor, _parseSvgSize, _genericGridFromUi,
+    _ensureSvgXmlns, _svgDataUri,
 };
 })();
