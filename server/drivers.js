@@ -4,7 +4,13 @@
 // ============================================================
 function loadDriver(name) {
   try { return require(`../drivers/${name}`); }
-  catch (_) { return null; }
+  catch (e) {
+    // Un errore di caricamento (sintassi/dipendenza nel driver) NON deve restare muto:
+    // altrimenti ogni voce DRIVERS diventa null e i chiamanti riportano il generico
+    // "Driver non supportato", nascondendo la causa vera. Lo rendiamo visibile.
+    console.error(`[drivers] impossibile caricare '${name}': ${(e && e.message) || e}`);
+    return null;
+  }
 }
 
 const DRIVERS = {
