@@ -26,6 +26,7 @@ import { renderAutomationMenu } from './app-vlan-autopoll.js';   // setAutoIpRen
 import { ensureNodeRackVisible, focusNode, selectAndFocusNode } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { trace } from './app-pointer.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: pannello Drift (template dinamico) via event delegation
+import { aiExplainDrift } from './app-ai.js';   // ASSE B: bottone «Spiega» del Drift (delegato qui, definito in app-ai)
 
 // _driftReport è stato condiviso cross-boundary (scritto anche da
 // app-drift-adopt.js) → vive su window, mai come binding di modulo.
@@ -352,7 +353,7 @@ function _driftRowHtml(cat, r){
     const invBtn = `<button class="drift-act" data-act="drift-investigate" data-key="${esc(r.key)}" data-tip="${t('drift.tipOpen')}"><i class="fas fa-magnifying-glass"></i></button>`;
     const ignBtn = `<button class="drift-act" data-act="drift-ignore" data-key="${esc(r.key)}" data-tip="${t('drift.tipIgnore')}"><i class="fas fa-eye-slash"></i></button>`;
     // L4: «Spiega» con l'Assistente AI (semina la domanda sul caso → loop Verifica→capisci→agisci).
-    const explBtn = `<button class="drift-act" onclick="aiExplainDrift('${esc(cat)}','${esc(r.key)}')" data-tip="${t('assistant.explain')}"><i class="fas fa-robot"></i></button>`;
+    const explBtn = `<button class="drift-act" data-act="drift-explain" data-cat="${esc(cat)}" data-key="${esc(r.key)}" data-tip="${t('assistant.explain')}"><i class="fas fa-robot"></i></button>`;
     if(cat === 'stateDrift'){
         const diffs = (r.diffs || []).map(d => `${esc(d.field)}: <s>${esc(d.doc)}</s> → <b>${esc(d.real)}</b>`).join(' · ');
         main = `<span class="drift-row-main">${esc(r.label)}</span><span class="drift-row-sub">${diffs}</span>`;
@@ -567,6 +568,7 @@ registerClickActions({
     'drift-apply-doc':   (el) => driftApplyDoc(el.dataset.key),
     'drift-apply-ip':    (el) => driftApplyIpChange(el.dataset.key),
     'drift-scan-net':    (el) => _driftScanNetwork(el.dataset.cidr),
+    'drift-explain':     (el) => aiExplainDrift(el.dataset.cat, el.dataset.key),   // «Spiega» con l'assistente AI
 });
 registerChangeActions({
     'drift-show-endpoints': (el) => setDriftShowEndpoints(el.checked),
