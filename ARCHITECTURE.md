@@ -596,11 +596,13 @@ is VPN/LAN.
     behind a proxy in `src/store.js`. The residue is the pure `lib/*.js` `<script>` globals and their
     `typeof` guards, which stay by design (importing them would re-bundle the UMD, clobbering the live
     `<script>` copy).
-  - **Axis B — inline handlers (`onclick`/`onchange`/`oninput`) → event delegation.** Inline handlers
+  - **Axis B — inline handlers (`onclick`/`onchange`/`oninput`/…) → event delegation.** Inline handlers
     are *why* the bridge still exists (they resolve names in page lexical scope). `src/app-delegation.js`
     installs **one delegated listener per event type** on the document — `data-act` for `click`,
     `data-change` for `change` (selects, checkboxes, file inputs, committed numbers), `data-input` for
-    live `input` (typing) — so an element carries `data-<type>="key"` (arguments read off the element via
+    live `input` (typing), `data-focus` for `focus` (attached as `focusin`, which bubbles — plain
+    `focus` does not), and `data-keydown` for `keydown` (the handler receives the event) — so an element
+    carries `data-<type>="key"` (arguments read off the element via
     `el.value`/`el.checked`/`data-*`), and the module that **owns** the function registers
     `{ key: (el) => fn(el.value) }` at load: the handler is an **imported** function, off `window`. For a
     menu, the owner registers the toggle and each item is registered by the module that owns that item
@@ -609,9 +611,9 @@ is VPN/LAN.
     assistant buttons, the non-click controls of the rack size (`change`), the palette search
     (`input`) and the CSV/DHCP import dialogs (file pickers, live-lease vendor selector, paste-area
     previews), the project + rack selectors plus the Discover/Topology "select all" and the
-    deep-TCP-scan preference checkboxes (`change`), and the map-image + JSON-import file pickers
-    (`change`). What remains inline is the export panel (`export.js` classic) and the global search
-    box (`input`/`focus`/`keydown` — the last two await a harness extension). The bulk (~500 handlers
+    deep-TCP-scan preference checkboxes (`change`), the map-image + JSON-import file pickers
+    (`change`), and the global search box (`input` + `focus` + `keydown`). The only inline handlers
+    left in the *static* HTML are the export panel's (`export.js` classic). The bulk (~500 handlers
     in dynamically-rendered templates, click + change + input) now
     follows surface by surface. `_bridge.js` / `expose()` are deleted only when Axis B is finished. *(Side note: the AI help
     catalog in `lib/ui-catalog.js`, which reads the real button labels/tooltips, derives a button's action
