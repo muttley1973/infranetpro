@@ -12,6 +12,9 @@ What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://k
 - **Clearing the SNMP UDP-port or timeout field stored 0 and broke the next poll.** Both inputs saved via `+this.value`, so clearing the field stored `0` while the panel still displayed `intg.port||161` / `intg.timeout||3` (shown ≠ stored), and a 0 port/timeout made the next SNMP poll fail. The handlers now fall back to the default (`+this.value||161` / `||3`). `src/app-properties-node.js`.
 - **The SNMP error-status card could show "Invalid Date".** The error branch formatted `new Date(intg.lastPoll).toLocaleString(...)` without the guard the OK branch has, so a node that errored before its first successful poll (no `lastPoll`) rendered a literal "Invalid Date". Guarded to `—`. `src/app-properties-node.js`.
 
+### Changed
+- **The two floor-plan renderers now share one source of truth, so they can no longer drift.** The floor-node fix above aligned `_renderAllNow` and `_renderFloorNow` by patching each — but they remained two separate copies of the node-building logic, which is exactly what let them diverge in the first place. Both now build the floor node through a single shared `_buildFloorNodeEl(n, def, absentCls)` helper (the caller passes the pre-computed absent class so the render order is byte-preserved), removing the duplication and making a future divergence structurally impossible. No change in behaviour — verified live that both render paths produce byte-for-byte identical markup for a diverse set of nodes (structural rooms, absent/v3 endpoints, wallports, multi-port and radio devices), plus the full e2e suite including the presence-graying test. Net −26 lines. `src/app-render-core.js`.
+
 
 
 ### Fixed
