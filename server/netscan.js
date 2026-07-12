@@ -44,6 +44,7 @@ function expandSubnet(input) {
   // Range semplice: 192.168.1.1-254
   const range = str.match(/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.)(\d{1,3})-(\d{1,3})$/);
   if (range) {
+    if (range[1].split('.').some(p => p !== '' && parseInt(p, 10) > 255)) throw new Error('IP non valido');
     const from = parseInt(range[2]), to = parseInt(range[3]);
     if (from > to || to > 254) throw new Error('Range non valido');
     if (to - from + 1 > 1024)  throw new Error('Massimo 1024 host per scansione');
@@ -517,12 +518,12 @@ function _parseNbstatResponse(buf) {
 }
 function _nbstatUdp(ip, timeoutMs = 1500, createSocket = dgram.createSocket) {
   return new Promise(resolve => {
-    let done = false; let sock;
-    const fin = v => { if (done) return; done = true; try { sock && sock.close(); } catch (_) {} resolve(v); };
+    let done = false; let sock; let to;
+    const fin = v => { if (done) return; done = true; clearTimeout(to); try { sock && sock.close(); } catch (_) {} resolve(v); };
     try { sock = createSocket({ type: 'udp4' }); } catch (_) { return fin(null); }
     sock.on('message', msg => fin(_parseNbstatResponse(msg)));
     sock.on('error', () => fin(null));
-    setTimeout(() => fin(null), Math.max(300, Math.min(parseInt(timeoutMs, 10) || 1500, 4000)));
+    to = setTimeout(() => fin(null), Math.max(300, Math.min(parseInt(timeoutMs, 10) || 1500, 4000)));
     try { const q = _buildNbstatQuery(); sock.send(q, 0, q.length, 137, ip, err => { if (err) fin(null); }); }
     catch (_) { fin(null); }
   });
@@ -586,7 +587,7 @@ function _castProbe(ip, timeoutMs = 900) {
     const fin = v => { if (!done) { done = true; resolve(v); } };
     let body = '';
     const req = http.get({ host: ip, port: 8008, path: '/setup/eureka_info', timeout: timeoutMs }, res => {
-      res.on('data', d => { body += d; if (body.length > 16384) req.destroy(); });
+      res.on('data', d => { body += d; if (body.length > 16384) { req.destroy(); fin(null); } });
       res.on('end', () => {
         try {
           const j = JSON.parse(body);
@@ -633,7 +634,7 @@ function _fetchUpnpXml(locationUrl, timeoutMs = 1200) {
     if (u.protocol !== 'http:') return fin(null);   // le descrizioni UPnP sono HTTP
     let body = '';
     const req = http.get({ host: u.hostname, port: u.port || 80, path: (u.pathname || '/') + (u.search || ''), timeout: timeoutMs }, res => {
-      res.on('data', d => { body += d; if (body.length > 65536) req.destroy(); });
+      res.on('data', d => { body += d; if (body.length > 65536) { req.destroy(); fin({ ip: u.hostname, xml: body }); } });
       res.on('end', () => fin({ ip: u.hostname, xml: body }));
     });
     req.on('timeout', () => { req.destroy(); fin(null); });
@@ -656,9 +657,9 @@ function _onvifGetDeviceInfo(xaddrUrl, timeoutMs = 1500) {
     let resp = '';
     const req = http.request({
       host: u.hostname, port: u.port || 80, path: (u.pathname || '/') + (u.search || ''), method: 'POST',
-      timeout: timeoutMs, headers: { 'Content-Type': 'application/soap+xml; charset=utf-8', 'Content-Length': body.length },
+      timeout: timeoutMs, headers: { 'Content-Type': 'application/soap+xml; charset=utf-8', 'Content-Length': Buffer.byteLength(body) },
     }, res => {
-      res.on('data', d => { resp += d; if (resp.length > 65536) req.destroy(); });
+      res.on('data', d => { resp += d; if (resp.length > 65536) { req.destroy(); fin({ ip: u.hostname, xml: resp }); } });
       res.on('end', () => fin({ ip: u.hostname, xml: resp }));
     });
     req.on('timeout', () => { req.destroy(); fin(null); });
