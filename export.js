@@ -738,7 +738,11 @@ function exportDrawio(){
         nodes: state.nodes || [],
         ports: state.ports || {},
         skins: _skins,
-        opts: { rackUnitSize: 20 },
+        links: state.links || [],
+        opts: {
+            rackUnitSize: 20,
+            cablesLayerName: (typeof t === 'function' ? t('impexp.drawioCablesLayer') : 'Cavi'),
+        },
         helpers: {
             types: TYPES,
             getRackSize:        (typeof getRackSize === 'function')        ? getRackSize        : null,
@@ -747,6 +751,14 @@ function exportDrawio(){
             hasSnmpIntegration: (typeof _hasSnmpIntegration === 'function') ? _hasSnmpIntegration : undefined,
             typeName:           _typeName,
             isAbsent:           n => _absentIds.has(n.id) && n.snmpStatus !== 'ok',
+            // Colore cavo = stessa convenzione della vista live (topologia/fanout):
+            // override manuale, poi colore VLAN; null -> il builder usa il default.
+            linkColor:          l => (l && l.colorOvr)
+                || ((typeof _getLinkVlan === 'function' && state.vlanColors) ? state.vlanColors[_getLinkVlan(l)] : null)
+                || null,
+            // VLAN del cavo + nome VLAN -> un layer draw.io per VLAN, nominato col nome.
+            linkVlan:           (typeof _getLinkVlan === 'function') ? (l => _getLinkVlan(l)) : undefined,
+            vlanName:           vid => (state.vlanNames && state.vlanNames[vid]) || '',
         },
     });
     const blob=new Blob([xml],{type:'application/xml;charset=utf-8'});
