@@ -101,17 +101,17 @@ test('una cella-porta per porta dati (id = pid), figlia del device', () => {
   assert.match(xml, /<mxCell id="sw1-1"[^>]*parent="sw1"/);
 });
 
-test('tacca SNMP: colore da snmpStatus', () => {
+test('nessuna tacca di stato SNMP: e un indicatore LIVE, l export e STATICO', () => {
   const xml = build({
     nodes: [
       { id: 'sw1', type: 'switch', rackId: 'r1', rackU: 12, ports: 24, name: 'A', snmpStatus: 'ok' },
       { id: 'sw2', type: 'switch', rackId: 'r1', rackU: 8, ports: 24, name: 'B', snmpStatus: 'err' },
-      { id: 'sw3', type: 'switch', rackId: 'r1', rackU: 4, ports: 24, name: 'C' }, // no snmp -> grigio
+      { id: 'sw3', type: 'switch', rackId: 'r1', rackU: 4, ports: 24, name: 'C' },
     ],
   });
-  assert.match(cellOf(xml, 'sw1__snmp'), /fillColor=#39d353/);
-  assert.match(cellOf(xml, 'sw2__snmp'), /fillColor=#f85149/);
-  assert.match(cellOf(xml, 'sw3__snmp'), /fillColor=#6e7681/);
+  assert.equal(cellOf(xml, 'sw1__snmp'), null);
+  assert.equal(cellOf(xml, 'sw2__snmp'), null);
+  assert.equal((xml.match(/__snmp"/g) || []).length, 0, 'nessuna cella __snmp emessa');
 });
 
 test('node.color: gradiente metallo ombreggiato (fill chiaro + grad scuro)', () => {
@@ -154,9 +154,9 @@ test('skin: faccia = immagine + porte native, niente grid generato, nome omesso'
   assert.match(cellOf(xml, 'sw1-2'), /<mxGeometry x="52" y="8" width="13" height="4"/);
   // NIENTE grid generato: solo le 2 porte skin (non 24)
   assert.equal((xml.match(/id="sw1-\d+"/g) || []).length, 2);
-  // nome omesso (device value vuoto) + tacca SNMP mantenuta
+  // nome interno omesso (device value vuoto), nessuna tacca SNMP
   assert.match(cellOf(xml, 'sw1'), /id="sw1" value=""/);
-  assert.ok(cellOf(xml, 'sw1__snmp'));
+  assert.equal(cellOf(xml, 'sw1__snmp'), null);
 });
 
 test('skin con letterbox: porte scalate e centrate sull\'aspetto', () => {
@@ -226,12 +226,13 @@ test('SFP: le porte piu alte vanno nel blocco laterale; MGMT ha pid -mgmtN', () 
   assert.equal((xml.match(/id="sw1-\d+"/g) || []).length, 24);
 });
 
-test('cablemanager e ports=0: nessuna porta, solo faccia + tacca', () => {
+test('cablemanager e ports=0: nessuna porta, solo faccia + nome esterno', () => {
   const xml = build({
     nodes: [{ id: 'cm1', type: 'cablemanager', rackId: 'r1', rackU: 6, sizeU: 1, name: 'CM' }],
   });
   assert.ok(cellOf(xml, 'cm1'), 'faccia presente');
-  assert.ok(cellOf(xml, 'cm1__snmp'), 'tacca presente');
+  assert.ok(cellOf(xml, 'cm1__name'), 'nome esterno presente');
+  assert.equal(cellOf(xml, 'cm1__snmp'), null, 'nessuna tacca SNMP');
   assert.equal((xml.match(/id="cm1-\d+"/g) || []).length, 0);
 });
 
@@ -246,9 +247,160 @@ test('escaping XML nei valori (nome rack/device)', () => {
     nodes: [{ id: 'sw1', type: 'switch', rackId: 'r1', rackU: 12, ports: 24, name: 'Nod&e' }],
   });
   assert.match(xml, /value="A&amp;B &lt;&quot;x&quot;&gt; \(12U\)"/);
-  assert.match(cellOf(xml, 'sw1'), /value="Nod&amp;e"/);
+  // il nome vive ora nell'etichetta ESTERNA (device interno senza nome)
+  assert.match(cellOf(xml, 'sw1__name'), /value="Nod&amp;e"/);
   // niente < o & grezzi dentro un value
   assert.doesNotMatch(xml, /value="[^"]*A&B/);
+});
+
+test('nome device: etichetta ESTERNA a destra del cabinet, device interno senza nome', () => {
+  const xml = build();
+  // device interno: value vuoto -> la faccia resta libera per le porte
+  assert.match(cellOf(xml, 'sw1'), /id="sw1" value=""/);
+  // etichetta-nome esterna, figlia del layer root '1' (NON del cabinet)
+  const lbl = cellOf(xml, 'sw1__name');
+  assert.ok(lbl, 'etichetta nome presente');
+  assert.match(lbl, /value="Core-01"/);
+  assert.match(lbl, /parent="1"/);
+  assert.match(lbl, /text;html=0/);   // <text> puro: niente artefatti
+  assert.match(lbl, /fontColor=#f8fafc/);   // BIANCO (dark-only, come la vista live)
+  assert.match(lbl, /labelBackgroundColor=#0d1117/);   // sfondo dietro al testo: leggibile su ogni tema
+  // X oltre il bordo destro del cabinet: 40 + (33+260+9) + 10 = 352
+  assert.match(lbl, /<mxGeometry x="352"/);
+  // Y allineata al device sw1 (in cima): 40 + 21 = 61
+  assert.match(lbl, /y="61"/);
+  // srv1 (rackU=1, sizeU=2): y interno 221 -> assoluto 261, altezza 40
+  assert.match(cellOf(xml, 'srv1__name'), /<mxGeometry x="352" y="261" width="170" height="40"/);
+});
+
+test('porte INVARIATE dopo lo spostamento del nome (namePad preservato)', () => {
+  // Regressione: spostare il nome fuori NON deve muovere le porte. namePad resta
+  // 56, quindi l'area dati e lo span delle porte sono identici a prima.
+  const xml = build({ nodes: [{ id: 'sw1', type: 'switch', rackId: 'r1', rackU: 12, sizeU: 1, ports: 4, name: 'A' }] });
+  const xs = [1, 2, 3, 4].map(i => +(cellOf(xml, 'sw1-' + i).match(/<mxGeometry x="([\d.]+)"/)[1]));
+  const span = Math.max(...xs) - Math.min(...xs);
+  assert.ok(span > 0 && span < 60, 'porte compatte, span=' + span);
+});
+
+test('cavi: link intra-rack -> archi nativi su layer separato attivabile (nascosto)', () => {
+  const xml = build({
+    links: [
+      { id: 'L1', src: 'sw1-1', dst: 'srv1-2' },
+      { id: 'L2', src: 'sw1-3', dst: 'srv1-4', color: '#39d353' },
+    ],
+  });
+  // layer cavi: figlio della root '0', inizialmente NASCOSTO (visible=0), nome "Cavi"
+  assert.match(xml, /<mxCell id="cbl_layer_r1" value="Cavi" parent="0" visible="0"\/>/);
+  // arco L1: edge, parent = layer cavi, source/target = celle-porta, nessuna freccia
+  const e1 = cellOf(xml, 'cbl_L1');
+  assert.ok(e1, 'arco L1 presente');
+  assert.match(e1, /edge="1"/);
+  assert.match(e1, /parent="cbl_layer_r1"/);
+  assert.match(e1, /source="sw1-1"/);
+  assert.match(e1, /target="srv1-2"/);
+  assert.match(e1, /endArrow=none/);            // un cavo non ha verso
+  assert.match(e1, /strokeColor=#9aa5b1/);      // default argento (nessun colore sul link)
+  // colore ESPLICITO del link rispettato (niente colori inventati)
+  assert.match(cellOf(xml, 'cbl_L2'), /strokeColor=#39d353/);
+});
+
+test('cavi: colore VLAN iniettato (glue) + fallback argento', () => {
+  const xml = build({
+    links: [
+      { id: 'La', src: 'sw1-1', dst: 'srv1-1' },
+      { id: 'Lb', src: 'sw1-3', dst: 'srv1-2' },
+    ],
+    helpers: { types: TYPES, linkColor: l => (l.id === 'La' ? '#ff0000' : null) },
+  });
+  assert.match(cellOf(xml, 'cbl_La'), /strokeColor=#ff0000/);   // colore VLAN/override iniettato
+  assert.match(cellOf(xml, 'cbl_Lb'), /strokeColor=#9aa5b1/);   // linkColor null -> default
+});
+
+test('cavi: anti-sovrapposizione = corsia dedicata (2 waypoint, exit/entry sinistra, corsie X distinte)', () => {
+  const xml = build({
+    nodes: [
+      { id: 'sw1', type: 'switch', rackId: 'r1', rackU: 12, sizeU: 1, ports: 24, name: 'A' },
+      { id: 'sw2', type: 'switch', rackId: 'r1', rackU: 6, sizeU: 1, ports: 24, name: 'B' },
+      { id: 'srv1', type: 'server', rackId: 'r1', rackU: 1, sizeU: 2, name: 'S' },
+    ],
+    links: [
+      { id: 'La', src: 'sw1-1', dst: 'srv1-1' },   // range Y alto..basso
+      { id: 'Lb', src: 'sw2-1', dst: 'srv1-2' },   // range Y sovrapposto ad La (condividono srv1)
+    ],
+  });
+  const eA = cellOf(xml, 'cbl_La');
+  // 2 waypoint a X di corsia (instradato a corsia, non porta-porta diretto)
+  assert.match(eA, /<Array as="points"><mxPoint x="[\d.-]+" y="[\d.-]+"\/><mxPoint x="[\d.-]+" y="[\d.-]+"\/><\/Array>/);
+  assert.match(eA, /exitX=0;exitY=0.5/);        // esce dal lato sinistro della porta
+  assert.match(eA, /entryX=0;entryY=0.5/);
+  // corsie: cavi con Y sovrapposti -> X di corsia DIVERSE (nessuna sovrapposizione)
+  const laneX = id => +(cellOf(xml, id).match(/<mxPoint x="([\d.-]+)"/)[1]);
+  assert.notEqual(laneX('cbl_La'), laneX('cbl_Lb'));
+  // le corsie stanno a SINISTRA del cabinet (x < CABINET_X=40)
+  assert.ok(laneX('cbl_La') < 40 && laneX('cbl_Lb') < 40);
+  // SFALSAMENTO orizzontale: La e Lb toccano lo STESSO device (srv1) -> entryDy diversi
+  const entryDy = id => +(cellOf(xml, id).match(/entryDy=([\d.-]+)/)[1]);
+  assert.notEqual(entryDy('cbl_La'), entryDy('cbl_Lb'));
+});
+
+test('cavi: un layer per VLAN nominato col nome VLAN; ogni cavo sul suo layer', () => {
+  const xml = build({
+    links: [
+      { id: 'La', src: 'sw1-1', dst: 'srv1-1', vlan: 10 },
+      { id: 'Lb', src: 'sw1-2', dst: 'srv1-2', vlan: 20 },
+      { id: 'Lc', src: 'sw1-3', dst: 'srv1-3', vlan: 10 },
+    ],
+    helpers: {
+      types: TYPES,
+      linkVlan: l => l.vlan,
+      vlanName: vid => ({ 10: 'Voce', 20: 'Dati' }[vid] || ''),
+    },
+  });
+  // un layer per VLAN, figlio della root '0', nascosto, nominato col NOME VLAN
+  assert.match(xml, /<mxCell id="cbl_v10_r1" value="Voce" parent="0" visible="0"\/>/);
+  assert.match(xml, /<mxCell id="cbl_v20_r1" value="Dati" parent="0" visible="0"\/>/);
+  assert.doesNotMatch(xml, /value="Cavi"/);   // niente layer generico quando c'e' la VLAN
+  // ogni cavo sul layer della sua VLAN
+  assert.match(cellOf(xml, 'cbl_La'), /parent="cbl_v10_r1"/);
+  assert.match(cellOf(xml, 'cbl_Lb'), /parent="cbl_v20_r1"/);
+  assert.match(cellOf(xml, 'cbl_Lc'), /parent="cbl_v10_r1"/);
+});
+
+test('cavi: VLAN senza nome -> layer "VLAN <id>"', () => {
+  const xml = build({
+    links: [{ id: 'Lx', src: 'sw1-1', dst: 'srv1-1', vlan: 99 }],
+    helpers: { types: TYPES, linkVlan: l => l.vlan, vlanName: () => '' },
+  });
+  assert.match(xml, /<mxCell id="cbl_v99_r1" value="VLAN 99" parent="0" visible="0"\/>/);
+  assert.match(cellOf(xml, 'cbl_Lx'), /parent="cbl_v99_r1"/);
+});
+
+test('cavi: capo fuori pagina o su altro rack NON disegnato (niente archi penzolanti)', () => {
+  const xml = build({
+    links: [
+      { id: 'Lx', src: 'sw1-1', dst: 'ZZZ-9' },   // dst inesistente
+      { id: 'Ly', src: 'sw9-1', dst: 'srv1-1' },  // src su un device di un altro rack
+    ],
+  });
+  assert.equal(cellOf(xml, 'cbl_Lx'), null);
+  assert.equal(cellOf(xml, 'cbl_Ly'), null);
+  assert.doesNotMatch(xml, /cbl_layer_/);        // nessun link valido -> nessun layer
+});
+
+test('cavi: link verso una porta NASCOSTA non produce arco', () => {
+  const xml = build({
+    ports: { 'sw1-5': { hidden: true } },
+    links: [{ id: 'Lh', src: 'sw1-5', dst: 'srv1-1' }],
+  });
+  assert.equal(cellOf(xml, 'cbl_Lh'), null);
+  assert.doesNotMatch(xml, /cbl_layer_/);
+});
+
+test('cavi: nessun link -> nessun layer, base 0/1 invariata', () => {
+  const xml = build();
+  assert.doesNotMatch(xml, /cbl_layer_/);
+  assert.doesNotMatch(xml, /edge="1"/);
+  assert.match(xml, /<mxCell id="0"\/><mxCell id="1" parent="0"\/>/);
 });
 
 test('ZERO artefatti: niente image/foreignObject/whiteSpace=wrap/html=1', () => {
