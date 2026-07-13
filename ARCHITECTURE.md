@@ -156,7 +156,12 @@ diagrams.net); its glue `exportDrawio()` and the menu wiring live in the classic
 `export.js`, which is outside **both** bridge ratchets (§10) — so the new menu item is
 wired with `addEventListener`, never an inline `onclick` (which would push the Axis-B
 `MAX_INLINE_HANDLERS` ratchet), and reads the pure lib as a bare global (no `win.*`,
-which would push the Axis-A `MAX_WIN_REFS` ratchet).
+which would push the Axis-A `MAX_WIN_REFS` ratchet). The same lib also emits the
+intra-rack cabling as native edges on one activatable draw.io layer **per VLAN** (named
+with the VLAN name), routed in per-cable lanes + stagger so nothing overlaps — and it
+stays pure: the VLAN number/name and the per-cable colour arrive as **injected helpers**
+from the glue (`linkVlan`/`vlanName`/`linkColor`, mirroring the live view's resolution),
+never read from globals.
 
 The glue is now **ESM** (`src/`, bundled by esbuild) with explicit `import`/`export`
 where ritirato, plus the transitional `window` bridge (`src/_bridge.js`) for what's
