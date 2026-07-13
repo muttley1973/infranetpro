@@ -2,6 +2,15 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-13 — draw.io rack export: names outside the rack, per-VLAN cable layers, cleaner routing
+
+### Added
+- **The draw.io rack export gains an activatable cable layer, split per VLAN.** Alongside the rack elevation, the intra-rack cables (from `state.links`, only those with both ends on the same page) are now emitted as **native mxGraph edges** on **separate, initially-hidden layers — one draw.io layer per VLAN, each named with the VLAN's name** (falling back to `VLAN <id>` when unnamed). In diagrams.net's *Edit → Layers* panel you toggle each VLAN's cabling on and off independently. Cables are **coloured by VLAN** using the same resolution as the live topology view (manual override, then the VLAN colour, then a neutral default), and each edge's `source`/`target` are the real port cells — move a device and its cables follow. The routing is engineered to avoid overlaps: each cable runs in its **own vertical lane** to the left of the rack (lanes assigned by interval-partitioning the cables' Y-ranges, so only cables that actually overlap in Y take separate lanes), and the cables leaving a shared device are **staggered vertically** (`exitDy`/`entryDy`) so their horizontal runs don't stack on top of each other. Lanes and stagger are computed globally per rack, so nothing overlaps even with several VLAN layers shown at once. `lib/drawio-export.js`, `export.js`, `lib/i18n.js`, `test/drawio-export.test.js`.
+
+### Changed
+- **Device names moved outside the rack, freeing the device face for its interfaces.** The device label used to sit *inside* the device (right-aligned), eating into the port area; it is now a separate `text` cell on the root layer, just to the right of the cabinet and vertically aligned to its device — leaving the whole device face for the ports. The port layout is byte-for-byte unchanged. The name is drawn **white on a dark label background** (`labelBackgroundColor`) so it reads on both a dark and a light diagrams.net canvas.
+- **The left SNMP status stripe is no longer exported.** It is a *live* indicator (its colour comes from the current SNMP poll), whereas a `.drawio` file is a *static* snapshot — freezing a momentary status into it would be misleading. The stripe stays in the live rack view only.
+
 ## 2026-07-12 — draw.io (diagrams.net) rack export
 
 ### Added
