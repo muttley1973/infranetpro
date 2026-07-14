@@ -21,9 +21,11 @@ function countPages(fn) {
   return pages;
 }
 
-// Estrae il testo mostrato da un PDF pdfkit: decomprime gli stream FlateDecode e
-// concatena i letterali "(..)" + le stringhe esadecimali <..> degli array TJ,
-// ignorando i numeri di kerning. Prova che il testo (tradotto) ESCE nel PDF.
+// Estrae il testo mostrato da un PDF pdfkit: taglia ogni stream con la LUNGHEZZA
+// ESATTA del dizionario (/Length N) — NON indovinando il confine "endstream", che
+// sui byte binari FlateDecode puo' comparire per caso e troncare l'estrazione — poi
+// decomprime e concatena i letterali "(..)" + le esadecimali <..> degli array TJ
+// (ignorando i numeri di kerning). Prova che il testo (tradotto) ESCE nel PDF.
 const zlib = require('node:zlib');
 function pdfText(fn) {
   const doc = new PDFDocument({ autoFirstPage: false });
@@ -32,15 +34,20 @@ function pdfText(fn) {
   fn(doc);
   return new Promise(res => {
     doc.on('end', () => {
-      const raw = Buffer.concat(chunks).toString('latin1');
-      let streams = '';
-      const re = /stream\r?\n([\s\S]*?)\r?\nendstream/g; let m;
-      while ((m = re.exec(raw))) { try { streams += '\n' + zlib.inflateSync(Buffer.from(m[1], 'latin1')).toString('latin1'); } catch (_) {} }
+      const raw = Buffer.concat(chunks);
+      const s = raw.toString('latin1');   // latin1 = 1 byte/char -> indice stringa == offset byte
       let words = '';
-      const tok = /\(((?:\\.|[^\\()])*)\)|<([0-9A-Fa-f\s]*)>/g; let t;
-      while ((t = tok.exec(streams))) {
-        if (t[1] != null) words += t[1].replace(/\\([()\\])/g, '$1');
-        else if (t[2] != null) { const h = t[2].replace(/\s+/g, ''); if (h.length && h.length % 2 === 0) words += Buffer.from(h, 'hex').toString('latin1'); }
+      const re = /\/Length (\d+)\b[^>]*>>\s*stream\r?\n/g; let m;
+      while ((m = re.exec(s))) {
+        const start = m.index + m[0].length;
+        let body = raw.subarray(start, start + parseInt(m[1], 10));
+        try { body = zlib.inflateSync(body); } catch (_) { /* non compresso: uso i byte grezzi */ }
+        const txt = body.toString('latin1');
+        const tok = /\(((?:\\.|[^\\()])*)\)|<([0-9A-Fa-f\s]*)>/g; let t;
+        while ((t = tok.exec(txt))) {
+          if (t[1] != null) words += t[1].replace(/\\([()\\])/g, '$1');
+          else if (t[2] != null) { const h = t[2].replace(/\s+/g, ''); if (h.length && h.length % 2 === 0) words += Buffer.from(h, 'hex').toString('latin1'); }
+        }
       }
       res(words);
     });
