@@ -1,16 +1,17 @@
-# Import public-domain device-type data → skin InfraNet
+# Import device-type YAML → InfraNet catalog / skins
 
-`import-device-types.js` trasforma i **dati** della
-[public-domain device-type library](https://github.com/public-domain device-type library)
-in **skin di pannello native InfraNet**: SVG vettoriali con porte *vive*
-(`id="port-N"`) + un catalogo modelli.
+`import-device-types.js` trasforma **dati YAML pubblici di device-type** (formato
+`device-types/<Vendor>/<model>.yaml`, licenza **CC0-1.0** / pubblico dominio) in:
+
+- un **catalogo di template nativi** InfraNet (`ports` + `frontPanel`), e/o
+- **skin di pannello native**: SVG vettoriali con porte *vive* (`id="port-N"`).
 
 ## Perché così (licenza)
-- La devicetype-library è **CC0-1.0** (pubblico dominio): i suoi **dati** (marca,
-  modello, u_height, elenco porte) sono riusabili liberamente, anche in commercio.
-- **NON** usiamo le sue *immagini* di elevazione: sono raster, **senza id-porta**
-  (non diventerebbero LED vivi) e con provenienza incerta. Prendiamo solo il dato
-  e **ridisegniamo l'artwork da zero**, così le porte restano interattive e nostre.
+- I dati usati sono **CC0-1.0** (pubblico dominio): marca, modello, `u_height` ed
+  elenco porte sono riusabili liberamente, anche in commercio, senza attribuzione.
+- **NON** usiamo immagini di elevazione raster: sono senza id-porta (non
+  diventerebbero LED vivi) e con provenienza incerta. Prendiamo solo il dato e
+  **ridisegniamo l'artwork da zero**, così le porte restano interattive e nostre.
 
 ## Due modi d'uso
 
@@ -21,6 +22,10 @@ porte/SFP/MGMT esatte. È la strada giusta: nessun SVG, riusa il render nativo.
 ```bash
 node tools/import-device-types.js <inputDir> <outDir> --catalog=data/device-types.json
 ```
+Filtri utili: `--vendors=A,B` (limita alle cartelle-vendor indicate) e `--roles`
+(tiene solo apparati di rete: switch/router/AP/firewall/UPS-PDU/NAS/console;
+scarta endpoint, server/blade e accessori, con report per-vendor tenuti/scartati).
+
 Il file `data/device-types.json` è servito da `GET /api/device-types`; nell'app,
 device → Proprietà → **Layout porte → "Applica modello"** (cerca marca/modello) setta
 `ports`+`frontPanel` → il device si disegna esatto. Merge idempotente per slug (piu'
@@ -50,10 +55,11 @@ Output senza `--seed`: `<outDir>/<slug>.svg` (una per modello) + `<outDir>/catal
   console/power/interfacce virtuali/wireless vengono **scartate**.
 - Ogni skin è validata con `lib/panel-skin.js` (`parsePanelSkin`) prima di salvarla.
 
-## Limiti noti (PoC)
+## Limiti noti
 - Layout **generico** a 2 righe: leggibile ma non 1:1 col pannello fisico reale
   (con l'ancoraggio SNMP all'`ifName`, il numero disegnato è comunque cosmetico).
-- Gestisce `interfaces`; **`rear-ports` / `module-bays` / faccia retro** non ancora.
+- Gestisce `interfaces`; **`rear-ports` / faccia retro** non ancora (i `module-bays`
+  dei chassis modulari sono riconosciuti dal filtro ruolo, ma non disegnati).
 - `u_height` 0 o frazionario (AP/antenne) forzato a 1U.
 
 > Nota: `skins/` è gitignored. Le skin generate restano locali; questo strumento

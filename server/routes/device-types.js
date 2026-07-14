@@ -1,7 +1,7 @@
 'use strict';
 // ============================================================
 //  Router catalogo device-type — template NATIVI (ports + frontPanel) generati
-//  dai dati public-domain (CC0) device-type data via tools/import-device-types.js
+//  da dati device-type pubblici (CC0) via tools/import-device-types.js
 //  (--catalog). Serve SOLO questo file (mai la dir data/, che contiene segreti).
 //  GET pubblica in sola lettura: e' un catalogo, non dati utente.
 // ============================================================

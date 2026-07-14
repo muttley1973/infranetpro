@@ -54,8 +54,8 @@ auth.js                Sessions, bcrypt login, roles (admin/viewer), user CRUD
 server/                Backend (CommonJS): projects-store, netscan, classify,
                        pdf-report, label-sheet, routes/{projects,discovery,export,ai,skins,device-types}
 server/routes/device-types.js  GET /api/device-types -> data/device-types.json: native
-                       device templates (ports + frontPanel) generated from the device-type
-                       devicetype-library (CC0) by tools/import-device-types.js --catalog.
+                       device templates (ports + frontPanel) generated from public-domain
+                       (CC0) device-type data by tools/import-device-types.js --catalog.
                        "Apply model" (src/app-device-types.js, Properties -> Port layout) applies
                        a template's ports+frontPanel -> the DEFAULT rack renderer draws the exact
                        faceplate (SFP/QSFP/MGMT), reusing the native render 100% (no new drawing).

@@ -2,11 +2,22 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
-## 2026-07-14 — Apply real device models from device-type data (native ports + front panel)
+## 2026-07-14 — Device-type catalog expanded to 52 vendors (~4,100 models) with a network-role filter
+
+### Added
+- **The bundled catalog grows from 110 (MikroTik only) to 4,070 models across 52 vendors**, all from public-domain (CC0) device-type data; network infrastructure only (switch / router / AP / firewall / UPS-PDU / NAS / console-server). By role:
+  - *Switch / router / AP*: Cisco, HPE/Aruba, Juniper, Arista, Extreme, Huawei, Nokia, Alcatel-Lucent, Brocade, LANCOM, Allied Telesis, Ubiquiti, MikroTik, TP-Link, Netgear, Zyxel, D-Link, FS, Ruckus, CommScope, Edgecore, TrendNet, EnGenius, ZTE, Ruijie, Raisecom, Tenda, Grandstream, Dell.
+  - *Firewall*: Fortinet, Palo Alto, Check Point, SonicWall, Sophos, Stormshield, WatchGuard, Barracuda, OPNsense.
+  - *UPS / PDU*: APC, Eaton, Raritan, Vertiv, CyberPower, Riello, Server Technology.
+  - *NAS*: Synology, QNAP, NetApp. *Console / OOB*: WTI, Opengear, Avocent. *Camera/NVR*: Hikvision (network appliances only).
+  - `data/device-types.json` (~1.3 MB; served compact via `GET /api/device-types`).
+- **Importer gains recursive vendor discovery, `--vendors=`, and a `--roles` filter.** `tools/import-device-types.js` now walks `device-types/<Vendor>/*.yaml`, can restrict to named vendors, and (with `--roles`) keeps only network-infra roles — dropping endpoints (IP phones, workstations), servers/blades and accessories (PSUs, rack kits/trays/mounts, transceivers), with a transparent per-vendor *kept / dropped* report. Modular chassis (line cards in `module-bays`) and multi-vendor AP families (Catalyst 91xx, Aruba (I)AP, FortiAP, Ubiquiti air\*, TP-Link WA/CPE) are recognised and kept. The native catalog no longer depends on skin validity, so 0-data-port UPS/PDU/NAS keep their template (identity + rack height).
+
+## 2026-07-14 — Apply real device models (native ports + front panel)
 
 ### Added
 - **"Apply model" in device Properties → Port layout.** Search a real switch/router model and one click sets `ports` + `frontPanel` (SFP/QSFP/MGMT counts and numbering); the built-in renderer then draws the exact port faceplate — same LEDs, SFP/MGMT cages and numbers as any native device, because it *is* the native renderer. Catalog served from `data/device-types.json` via `GET /api/device-types`. New `src/app-device-types.js`, `server/routes/device-types.js`, `test/device-types-native.test.js`; wired via event delegation (no new `window.*` / inline handlers).
-- **Device-type catalog generator from the public-domain (CC0) device-type data.** `tools/import-device-types.js` turns the community CC0 YAML into native templates (`--catalog`) and, optionally, editable SVG panel skins (`--seed`). 110 MikroTik models bundled to start; other vendors accumulate with the same command. Only the *data* is reused — the artwork is drawn from scratch, so ports stay live.
+- **Device-type catalog generator.** `tools/import-device-types.js` turns public-domain (CC0) device-type YAML into native templates (`--catalog`) and, optionally, editable SVG panel skins (`--seed`). MikroTik models bundled to start; expanded to 20 vendors the same day (see the section above). Only the *data* is reused — the artwork is drawn from scratch, so ports stay live.
 
 ### Changed
 - **SFP block cap raised from 8 to 24 per block** (`sfpCount` / `sfp2Count`), so high-density fibre switches (e.g. MikroTik CRS518, 16×SFP+ + 2×QSFP+) model correctly instead of clamping to 8. `lib/frontpanel.js`, Properties UI, importer, bundled catalog; golden baseline updated (SFP input `max` now `min(24, portCount)`).
