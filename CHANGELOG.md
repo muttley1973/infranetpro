@@ -2,6 +2,15 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-14 — Fix: fibre ports mis-rendered as copper; SFP blocks split by type; cap 24→48
+
+### Fixed
+- **Fibre ports no longer render as copper.** For all-fibre / high-density switches the importer built a front panel whose *implied* copper (`ports − sfpCount − sfp2Count`) didn't match the real copper count, so the renderer drew phantom copper LEDs — e.g. **Aruba 6300M-24SFPP-4SFP56** showed *4 copper + 24 SFP* instead of *24× SFP+ (block 1) + 4× SFP56 (block 2), 0 copper*. `ports` is now capped in lock-step with the renderer's block clamp, so implied copper always equals real copper. This affected **~553 of 4,070** catalog models; a new invariant test asserts **zero** phantom copper across the whole catalog. `tools/import-device-types.js`, `test/device-types-native.test.js`.
+- **SFP blocks now split by interface type, not just "QSFP/40G+".** SFP56 (50G), SFP28 (25G) and other higher-speed uplinks go to **SFP block 2** when they form a distinct group after the main SFP bank (previously lumped into block 1). Split happens at the first interface-type change in physical order.
+
+### Changed
+- **SFP block cap raised 24 → 48 per block** (`lib/frontpanel.js`, Properties UI, importer), so 48-port fibre banks (e.g. Juniper QFX5120-48Y: 48×SFP28 + 8×QSFP28) model in full instead of capping at 24. 86 extreme datacentre switches (96–128 ports) still cap at 48/block — shown, never mis-rendered as copper.
+
 ## 2026-07-14 — Device-type catalog expanded to 52 vendors (~4,100 models) with a network-role filter
 
 ### Added
