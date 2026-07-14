@@ -6,6 +6,7 @@
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D16-brightgreen?logo=node.js)](https://nodejs.org/)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-2.0.5-orange)]()
+[![Lingua: Italiano · English](https://img.shields.io/badge/lang-Italiano%20%C2%B7%20English-00b3d6)]()
 
 <p align="center">
   <b>InfraNet Pro is free and open source.</b> If it helps your work, you can buy me a coffee — it funds new features. ☕<br>
@@ -16,6 +17,8 @@
   <img src="GitHub%20Images/demo.gif" alt="InfraNet Pro — a quick tour: topology, live racks, VLAN isolation, SNMP discovery and the AI assistant" width="900"><br>
   <em>A quick tour — auto-discovered topology, live 19″ racks, one-click VLAN isolation, SNMP discovery and the grounded AI assistant. <a href="#screenshots">More screenshots ↓</a></em>
 </p>
+
+> 🌍 **Bilingue · Bilingual — 🇮🇹 Italiano & 🇬🇧 English.** Interfaccia, onboarding e manuale tecnico completi in entrambe le lingue, con selettore IT/EN nell'app. · Fully bilingual UI, onboarding and technical manual, with an in-app IT/EN switcher. 📖 [Manuale IT](MANUALE_TECNICO_IT.pdf) · [Manual EN](TECHNICAL_MANUAL_EN.pdf)
 
 > 📰 **What's new:** see [CHANGELOG.md](CHANGELOG.md). Latest: **draw.io rack export - per-VLAN cable tables with click-to-highlight and automatic A4/A3 page sizing** (plus a PDF inventory-table column-fit fix).
 
