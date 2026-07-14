@@ -97,13 +97,14 @@ test('frontPanelState: mgmtLabel trim + fallback MGMT su empty/whitespace', () =
 // SFP block
 // ============================================================================
 
-test('frontPanelState: sfpCount clamp 0..24', () => {
-    const make = (v, sep=true) => frontPanelState({ type: 'switch', frontPanel: { separateSfp: sep, sfpCount: v } }, 48, true);
+test('frontPanelState: sfpCount clamp 0..48', () => {
+    const make = (v, sep=true) => frontPanelState({ type: 'switch', frontPanel: { separateSfp: sep, sfpCount: v } }, 96, true);
     assert.equal(make(-2).sfpCount, 0);
     assert.equal(make(0).sfpCount, 0);
     assert.equal(make(4).sfpCount, 4);
     assert.equal(make(24).sfpCount, 24);
-    assert.equal(make(99).sfpCount, 24);
+    assert.equal(make(48).sfpCount, 48);
+    assert.equal(make(99).sfpCount, 48);
     assert.equal(make('6').sfpCount, 6);
 });
 
@@ -466,13 +467,14 @@ test('frontPanelState: sfp2Count default 0', () => {
     assert.equal(s.sfp2Prefix, '');
 });
 
-test('frontPanelState: sfp2Count clamp 0..24', () => {
-    const make = (v) => frontPanelState({ type: 'switch', frontPanel: { separateSfp: true, sfpCount: 4, sfp2Count: v } }, 60, true);
+test('frontPanelState: sfp2Count clamp 0..48', () => {
+    const make = (v) => frontPanelState({ type: 'switch', frontPanel: { separateSfp: true, sfpCount: 4, sfp2Count: v } }, 100, true);
     assert.equal(make(-5).sfp2Count, 0);
     assert.equal(make(0).sfp2Count, 0);
     assert.equal(make(4).sfp2Count, 4);
     assert.equal(make(24).sfp2Count, 24);
-    assert.equal(make(99).sfp2Count, 24);
+    assert.equal(make(48).sfp2Count, 48);
+    assert.equal(make(99).sfp2Count, 48);
 });
 
 test('frontPanelState: sfp2 startNum + prefix paralleli a sfp1', () => {

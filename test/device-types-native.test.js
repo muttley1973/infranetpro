@@ -26,10 +26,32 @@ test('device-types.json: catalogo ben formato', () => {
 test('frontPanel deriva lo split SFP/MGMT dai campi template (tutti i modelli)', () => {
   for (const c of catalog) {
     const s = frontPanelState({ type: 'switch', ports: c.ports, frontPanel: c.frontPanel }, c.ports, true);
-    assert.equal(s.sfpCount, Math.min(24, c.counts.sfp), c.model + ' sfp');
-    assert.equal(s.sfp2Count || 0, Math.min(24, c.counts.qsfp), c.model + ' sfp2');
+    assert.equal(s.sfpCount, Math.min(48, c.counts.sfp), c.model + ' sfp');
+    assert.equal(s.sfp2Count || 0, Math.min(48, c.counts.qsfp), c.model + ' sfp2');
     assert.equal(s.mgmtCount || 0, Math.min(4, c.counts.mgmt), c.model + ' mgmt');
   }
+});
+
+// INVARIANTE CARDINE: il rame IMPLICITO dal renderer (ports - sfpBlocchi) deve
+// combaciare col rame REALE. Se no, una porta fibra verrebbe disegnata come rame
+// (bug segnalato: Aruba 6300M-24SFPP-4SFP56 rendeva 4 rame + 24 SFP).
+test('nessuna fibra resa come rame (rame implicito == rame reale, tutti i modelli)', () => {
+  for (const c of catalog) {
+    const s = frontPanelState({ type: 'switch', ports: c.ports, frontPanel: c.frontPanel }, c.ports, true);
+    const impliedCopper = c.ports - s.sfpCount - (s.sfp2Count || 0);
+    assert.equal(impliedCopper, c.counts.copper, c.model + ' rame implicito != reale');
+  }
+});
+
+// Caso del bug: 24x SFP+ (blocco1) + 4x SFP56 (blocco2), ZERO rame.
+test('Aruba 6300M-24SFPP-4SFP56: 24 SFP (blk1) + 4 SFP56 (blk2), 0 rame', () => {
+  const c = catalog.find(x => /6300M-24SFPP-4SFP56/.test(x.model));
+  if (!c) return;
+  assert.equal(c.counts.copper, 0, 'zero rame');
+  const s = frontPanelState({ type: 'switch', ports: c.ports, frontPanel: c.frontPanel }, c.ports, true);
+  assert.equal(s.sfpCount, 24, 'blocco1 = 24 SFP+');
+  assert.equal(s.sfp2Count, 4, 'blocco2 = 4 SFP56');
+  assert.equal(c.ports - s.sfpCount - (s.sfp2Count || 0), 0, '0 rame implicito');
 });
 
 test('CRS354-48G-4S+2Q+RM: 48 rame + 4 SFP + 2 QSFP + 1 MGMT', () => {

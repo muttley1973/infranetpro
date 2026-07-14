@@ -175,7 +175,7 @@ export function _renderNodeProps(panel){
                     const fp = _frontPanelState(n, n.ports!==undefined ? n.ports : d.ports || 0);
                     const layout = fp.baseLayout || 'auto';
                     const sfpCount = Number.isFinite(fp.sfpCount) ? fp.sfpCount : (fp.separateSfp ? 4 : 0);
-                    const maxSfp = Math.min(24, Math.max(0, fp.portCount));
+                    const maxSfp = Math.min(48, Math.max(0, fp.portCount));
                     const isPatch = n.type==='patchpanel';
                     const _portTot = n.ports!==undefined ? n.ports : (d.ports || 0);
                     const _sfpShown = fp.separateSfp && sfpCount > 0 ? sfpCount : 0;

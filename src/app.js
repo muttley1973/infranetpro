@@ -2132,7 +2132,7 @@ function updateFrontPanel(k,v){
     }
     // sfp2Count: 0..24, 0 rimuove anche sfp2StartNum/sfp2Prefix per cleanup
     if(k==='sfp2Count'){
-        const cnt = Math.max(0, Math.min(24, parseInt(v, 10) || 0));
+        const cnt = Math.max(0, Math.min(48, parseInt(v, 10) || 0));
         n.frontPanel.sfp2Count = cnt;
         if(cnt === 0){
             delete n.frontPanel.sfp2StartNum;

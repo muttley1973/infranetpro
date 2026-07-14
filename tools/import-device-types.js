@@ -76,38 +76,60 @@ function classify(iface) {
   return 'copper'; // fallback: porta dati generica
 }
 
+// Cap per blocco SFP: DEVE combaciare col clamp del renderer (lib/frontpanel.js
+// `Math.min(SFP_BLOCK_MAX, ...)`). Se il tool capa a un valore e il renderer a un
+// altro, le porte oltre il clamp del renderer diventano "rame fantasma".
+const SFP_BLOCK_MAX = 48;
+
 // ---- template NATIVO (ports + frontPanel) per il renderer di DEFAULT --------
 // E' la strada per il look ESATTO: non una skin, ma i campi del nodo che il
 // renderer nativo usa per disegnare copper/SFP/MGMT con le loro gabbie e numeri.
-// Split fiber in SFP (1o blocco) e QSFP/40G+ (2o blocco); ports = totale dati
-// (copper+sfp+qsfp) ordinati copper->sfp->qsfp (il frontpanel tratta la CODA come
-// blocchi SFP). sfpStartNum/sfp2StartNum = numero iniziale REALE letto dal nome
-// interfaccia (es. "sfp-sfpplus1" -> 1 = numerazione che riparte).
-// NB: frontpanel clampa sfpCount/sfp2Count a 24 e mgmtCount a 4.
+// Il renderer dispone: RAME in testa -> SFP blocco1 -> SFP blocco2 (in coda), con
+// copper = ports - sfpCount - sfp2Count. Quindi:
+//  (a) split fibra in DUE blocchi al PRIMO cambio di TIPO in ordine fisico
+//      (block1 = corsa iniziale stesso tipo, es. 24xSFP+; block2 = resto, es. 4xSFP56).
+//      Cosi' SFP+/SFP28/SFP56/QSFP finiscono nel blocco giusto (prima solo QSFP/40G+
+//      andavano nel blocco2, e SFP56/25G/50G restavano erroneamente nel blocco1).
+//  (b) ports MOSTRATE = rame + min(cap,block1) + min(cap,block2): coerente col clamp
+//      del renderer -> rame_implicito == rame reale, MAI fibra resa come rame.
+// sfpStartNum/sfp2StartNum = numero iniziale REALE dal nome interfaccia solo se la
+// numerazione RIPARTE (≠ continuata), altrimenti omesso.
 function buildTemplate(dt) {
-  let copper = 0, sfp = 0, qsfp = 0, mgmt = 0, sfp1st = null, qsfp1st = null;
+  let copper = 0, mgmt = 0;
+  const fiber = [];   // { type, name } in ORDINE fisico
   for (const it of (dt.interfaces || [])) {
     const k = classify(it);
     if (!k) continue;
     if (k === 'mgmt') { mgmt++; continue; }
-    if (k === 'fiber') {
-      const s = (String(it.type || '') + ' ' + String(it.name || '')).toLowerCase();
-      if (/qsfp|40gbase|100gbase|200gbase|400gbase/.test(s)) { qsfp++; if (!qsfp1st) qsfp1st = it.name; }
-      else { sfp++; if (!sfp1st) sfp1st = it.name; }
-    } else copper++;
+    if (k === 'fiber') fiber.push({ type: String(it.type || '').toLowerCase(), name: it.name });
+    else copper++;
   }
-  const ports = copper + sfp + qsfp;
+  // split al primo cambio di tipo: block1 = corsa iniziale, block2 = tutto il resto
+  let b1 = 0, b2 = 0, b1first = null, b2first = null;
+  if (fiber.length) {
+    const t0 = fiber[0].type; b1first = fiber[0].name;
+    let i = 0;
+    while (i < fiber.length && fiber[i].type === t0) { b1++; i++; }
+    if (i < fiber.length) { b2first = fiber[i].name; b2 = fiber.length - i; }
+  }
   const trail = s => { const m = String(s || '').match(/(\d+)\s*$/); return m ? parseInt(m[1], 10) : null; };
+  const sfp1 = Math.min(SFP_BLOCK_MAX, b1);
+  const sfp2 = Math.min(SFP_BLOCK_MAX, b2);
+  const ports = copper + sfp1 + sfp2;   // coerente col clamp del renderer
   const fp = {};
-  if (sfp + qsfp > 0) {
+  if (sfp1 + sfp2 > 0) {
     fp.separateSfp = true;
-    fp.sfpCount = Math.min(24, sfp);
-    if (qsfp > 0) fp.sfp2Count = Math.min(24, qsfp);
-    const ss = trail(sfp1st); if (ss && ss !== copper + 1) fp.sfpStartNum = ss;   // riparte (≠ continuata)
-    const qs = trail(qsfp1st); if (qs) fp.sfp2StartNum = qs;
+    fp.sfpCount = sfp1;
+    if (sfp2 > 0) fp.sfp2Count = sfp2;
+    const ss = trail(b1first); if (ss && ss !== copper + 1) fp.sfpStartNum = ss;          // riparte
+    if (sfp2 > 0) { const qs = trail(b2first); if (qs && qs !== copper + b1 + 1) fp.sfp2StartNum = qs; }
   }
   if (mgmt > 0) fp.mgmtCount = Math.min(4, mgmt);
-  return { ports, rackU: Math.max(1, parseInt(dt.u_height, 10) || 1), counts: { copper, sfp, qsfp, mgmt }, frontPanel: fp };
+  return {
+    ports, rackU: Math.max(1, parseInt(dt.u_height, 10) || 1),
+    counts: { copper, sfp: b1, qsfp: b2, mgmt, fiberDropped: (b1 - sfp1) + (b2 - sfp2) },
+    frontPanel: fp,
+  };
 }
 
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -328,7 +350,7 @@ function main() {
   let vOk = 0, vBad = 0;
   for (const c of catalog) {
     const s = frontPanelState({ type: 'switch', ports: c.ports, frontPanel: c.frontPanel }, c.ports, true);
-    const eSfp = Math.min(24, c.counts.sfp), eSfp2 = Math.min(24, c.counts.qsfp), eMg = Math.min(4, c.counts.mgmt);
+    const eSfp = Math.min(48, c.counts.sfp), eSfp2 = Math.min(48, c.counts.qsfp), eMg = Math.min(4, c.counts.mgmt);
     if (s.sfpCount === eSfp && (s.sfp2Count || 0) === eSfp2 && (s.mgmtCount || 0) === eMg) vOk++;
     else { vBad++; if (vBad <= 6) console.log('  ! mismatch', c.model, '| sfp', s.sfpCount + '/' + eSfp, 'sfp2', (s.sfp2Count || 0) + '/' + eSfp2, 'mgmt', (s.mgmtCount || 0) + '/' + eMg); }
   }
