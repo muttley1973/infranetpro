@@ -10,7 +10,7 @@
 import { t } from './_bridge.js';
 import { store } from './store.js';
 import { escapeHTML } from './app-util.js';
-import { nodeById, markDirty } from './app.js';
+import { nodeById, markDirty, getNodeRackSize } from './app.js';
 import { showAlert } from './app-core.js';
 import { renderAll } from './app-render-core.js';
 import { renderProps } from './app-properties.js';
@@ -35,13 +35,19 @@ export async function loadDeviceTypes() {
 /** PURA: applica un template ai campi NATIVI del nodo. Ritorna true se applicato.
  *  Sostituisce ports + frontPanel (reset al layout del modello) e aggiorna
  *  brand/model/altezza-U. Non tocca porte/VLAN gia' configurate a valle. */
-export function applyTemplateToNode(node, tmpl) {
+export function applyTemplateToNode(node, tmpl, rackTotalU) {
     if (!node || !tmpl) return false;
     node.ports = tmpl.ports;
     node.frontPanel = Object.assign({}, tmpl.frontPanel || {});
     if (tmpl.brand) node.brand = tmpl.brand;
     if (tmpl.model) node.model = tmpl.model;
-    if (tmpl.rackU) node.rackU = tmpl.rackU;
+    // ALTEZZA del device = node.sizeU. NON node.rackU (che e' la POSIZIONE nel rack:
+    // sovrascriverla lo faceva sparire). Dopo un cambio altezza ri-clampo la posizione
+    // perche' il device resti dentro il rack (mirror di updateN('sizeU') in app.js).
+    if (tmpl.rackU) {
+        node.sizeU = tmpl.rackU;
+        if (rackTotalU) node.rackU = Math.max(1, Math.min(node.rackU || 1, rackTotalU - node.sizeU + 1));
+    }
     return true;
 }
 
@@ -61,7 +67,7 @@ function applyDeviceType(value) {
     const tmpl = _byKey[String(value || '').trim().toLowerCase()];
     const n = nodeById(store.selId);
     if (!tmpl || !n) return;
-    applyTemplateToNode(n, tmpl);
+    applyTemplateToNode(n, tmpl, getNodeRackSize(n));
     renderAll(); markDirty(); renderProps();
     showAlert(t('devtype.applied', { model: tmpl.brand + ' ' + tmpl.model }));
 }
