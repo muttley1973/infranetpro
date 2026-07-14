@@ -12,6 +12,7 @@ import { renderRackTabs, updateTransforms, _updateFloorToolbarVisibility, initPa
 import { _restoreTopoSession } from './app-topology-discover.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { _startAutoPoll, _stopAutoPoll } from './app-vlan-autopoll.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: bottoni progetto (data-act) + selettore progetto (data-change)
+import { loadDeviceTypes } from './app-device-types.js';   // boot catalogo device-type (import diretto: no win.*)
 
 const API = '/api/projects';
 
@@ -184,7 +185,7 @@ async function _initApp() {
         }
         store.currentProjectId = list[0].id;
         if (typeof win.loadPanelSkinStore === 'function') await win.loadPanelSkinStore();
-        if (typeof win.loadDeviceTypes === 'function') await win.loadDeviceTypes();
+        await loadDeviceTypes();   // import diretto (no win.*): catalogo device-type
         await loadProject(store.currentProjectId);
         await loadProjectList();
     } catch(e) {

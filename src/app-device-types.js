@@ -5,14 +5,16 @@
 // devicetype-library (CC0) e serviti da GET /api/device-types. Applicare un
 // modello setta i campi nativi del nodo -> il renderer di default disegna
 // porte/SFP/MGMT ESATTE (numeri + gabbie), niente skin/approssimazioni.
-// Pattern gemello di app-panel-skin.js (cache al boot + expose handler inline).
-import { win, expose, t } from './_bridge.js';
+// NB ratchet ponte: niente win.* (fetch diretto sul route pubblico) e niente
+// on*= inline (event delegation via data-change) -> non fa crescere l'ASSE B.
+import { t } from './_bridge.js';
 import { store } from './store.js';
 import { escapeHTML } from './app-util.js';
 import { nodeById, markDirty } from './app.js';
 import { showAlert } from './app-core.js';
 import { renderAll } from './app-render-core.js';
 import { renderProps } from './app-properties.js';
+import { registerChangeActions } from './app-delegation.js';
 
 let _catalog = [];
 let _byKey = {};   // "brand model" (lower) -> template
@@ -20,7 +22,8 @@ let _byKey = {};   // "brand model" (lower) -> template
 /** Carica il catalogo device-type dal server nella cache (chiamata al boot). */
 export async function loadDeviceTypes() {
     try {
-        const list = await win.apiFetch('/api/device-types');
+        const r = await fetch('/api/device-types');   // route pubblica, sola lettura
+        const list = r.ok ? await r.json() : [];
         _catalog = Array.isArray(list) ? list : [];
     } catch (_) {
         _catalog = [];   // catalogo assente -> il control non compare
@@ -48,12 +51,12 @@ export function _deviceTypeApplyHtml() {
     if (!_catalog.length) return '';
     const opts = _catalog.map(function (c) { return `<option value="${escapeHTML(c.brand + ' ' + c.model)}">`; }).join('');
     return `<div class="prop-group" style="margin-top:6px"><label>${t('devtype.apply')}</label>
-      <input type="text" list="devtype-options" placeholder="${escapeHTML(t('devtype.placeholder'))}" onchange="applyDeviceType(this.value)" data-tip="${escapeHTML(t('devtype.tip'))}">
+      <input type="text" list="devtype-options" placeholder="${escapeHTML(t('devtype.placeholder'))}" data-change="apply-device-type" data-tip="${escapeHTML(t('devtype.tip'))}">
       <datalist id="devtype-options">${opts}</datalist>
     </div>`;
 }
 
-/** Handler inline: risolve "Brand Model" -> template -> applica al device selezionato. */
+/** Risolve "Brand Model" -> template -> applica al device selezionato. */
 function applyDeviceType(value) {
     const tmpl = _byKey[String(value || '').trim().toLowerCase()];
     const n = nodeById(store.selId);
@@ -63,6 +66,5 @@ function applyDeviceType(value) {
     showAlert(t('devtype.applied', { model: tmpl.brand + ' ' + tmpl.model }));
 }
 
-// boot (loadDeviceTypes), render sezione (_deviceTypeApplyHtml da app-properties-node.js),
-// handler inline (applyDeviceType).
-expose({ loadDeviceTypes, applyDeviceType });
+// Delega: il change sull'input "Applica modello" (data-change) chiama l'handler.
+registerChangeActions({ 'apply-device-type': (el) => applyDeviceType(el.value) });
