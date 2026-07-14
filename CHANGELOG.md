@@ -2,6 +2,18 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-14 — draw.io cables: per-VLAN tables with click-to-highlight, A4/A3 auto page; PDF table-fit fix
+
+### Added
+- **Each VLAN cable layer now carries a clickable cable table, and clicking a row highlights that cable.** On the same draw.io layer as its cables, every VLAN gets a compact table — one row per cable, `DeviceA/port -> DeviceB/port` — so the "which cable is which" reading moves off the lines and into a list (the device-type/structured-cabling way). Each row is a native `data:action/json` **custom action link**: clicking it (in diagrams.net's *View*/lightbox mode) makes that cable **thick and it stays that way** — a persistent **Set Style** on `strokeWidth`, "radio-style" (it first resets every cable of the VLAN, then thickens the chosen one, so exactly one stays highlighted) — plus an amber flash and a scroll onto the cable. **Clicking the table header resets/deselects.** draw.io has no native "clear the highlight when you start editing the cell" (the `select` effect that would do it can't fire from a link), so deselection is manual (another row, or the header). `lib/drawio-export.js`, `test/drawio-export.test.js`.
+- **The draw.io page auto-fits the paper size: A4 portrait by default, switching to A3 when the content doesn't fit.** The choice is made **per rack/page** from the real content bounds — a tall rack or a long cable table that would overflow A4 (827×1169) gets an A3 page (1169×1654) instead. Width always fits A4 (names are width-capped and the table is fixed-width), so the switch is driven by height. `lib/drawio-export.js`.
+
+### Changed
+- **Cable vertical spacing is more generous, and the per-VLAN tables share one anchor so everything stays within the A4 width.** The horizontal-stagger of cables leaving a shared device now has a **guaranteed minimum gap** (so a densely-cabled device no longer collapses its cables into a solid block — the fan spills beyond the device height rather than overlapping) and a larger maximum; and the VLAN tables, which are shown one layer at a time, are all placed at the **same right-side anchor** instead of side-by-side columns, keeping the page content inside A4. `lib/drawio-export.js`.
+
+### Fixed
+- **The delivery-dossier cable-inventory table no longer overflows between columns.** The column text was truncated/shrunk using an *estimated* width (`fontSize × 0.5` per character), which under-measures upper-case, symbol-heavy device names (e.g. `CORE-SW-2 (MLAG) P1`) — so the *Label / From / To* text bled into the next column. It now measures the **real** width via `doc.widthOfString`: `_fit`/`_wrapFit` truncate/wrap to the true column width (word-aware wrapping, hard-splitting only over-long tokens), and the arrow-aligned label column and the shrink columns reduce the font by real width and then truncate at the minimum size — so text can never spill past its column. Verified by instrumenting the render over real projects (~9,500 table cells, zero overflow). `server/pdf-report.js`, new `test/pdf-report.test.js`. Along the way, a fragile PDF-text test helper that guessed stream boundaries on binary `FlateDecode` data was hardened to slice each stream by its exact `/Length`. `test/pdf-handoff.test.js`.
+
 ## 2026-07-13 — draw.io rack export: names outside the rack, per-VLAN cable layers, cleaner routing
 
 ### Added
