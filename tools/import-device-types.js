@@ -132,10 +132,15 @@ function buildSkin(dt) {
   }
 
   const title = esc(`${dt.manufacturer || ''} ${dt.model || ''}`.trim());
+  // Chassis = STESSO gradiente metallico del device di default (--rack-metal
+  // #4a4a4a->#2b2b2b): la skin non e' piu' "nera" ma grigia come un device senza
+  // skin. id gradiente UNIVOCO per modello (niente collisioni con piu' skin nel rack).
+  const gradId = 'ch-' + String(dt.slug || dt.model || 'x').replace(/[^\w-]/g, '').slice(0, 28);
   const svg =
 `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
-  <rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="6" fill="#141a22" stroke="#0b0f14" stroke-width="2"/>
-  <text x="${padX}" y="${titleH - 6}" fill="#8b95a1" font-family="Segoe UI, Arial, sans-serif" font-size="${Math.round(titleH * 0.62)}" font-weight="600">${title}</text>
+  <defs><linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a4a4a"/><stop offset="1" stop-color="#2b2b2b"/></linearGradient></defs>
+  <rect x="0" y="0" width="${W}" height="${H}" fill="url(#${gradId})"/>
+  <text x="${padX}" y="${titleH - 6}" fill="#d8dce0" font-family="Segoe UI, Arial, sans-serif" font-size="${Math.round(titleH * 0.62)}" font-weight="600" opacity="0.85">${title}</text>
 ${rects.join('\n')}
 </svg>`;
 
