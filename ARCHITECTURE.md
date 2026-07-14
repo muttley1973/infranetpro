@@ -52,7 +52,13 @@ These are deliberate. Don't "fix" them without understanding why:
 server.js              Express bootstrap: static files, auth, routers, listen (127.0.0.1)
 auth.js                Sessions, bcrypt login, roles (admin/viewer), user CRUD
 server/                Backend (CommonJS): projects-store, netscan, classify,
-                       pdf-report, label-sheet, routes/{projects,discovery,export,ai}
+                       pdf-report, label-sheet, routes/{projects,discovery,export,ai,skins,device-types}
+server/routes/device-types.js  GET /api/device-types -> data/device-types.json: native
+                       device templates (ports + frontPanel) generated from the device-type
+                       devicetype-library (CC0) by tools/import-device-types.js --catalog.
+                       "Apply model" (src/app-device-types.js, Properties -> Port layout) applies
+                       a template's ports+frontPanel -> the DEFAULT rack renderer draws the exact
+                       faceplate (SFP/QSFP/MGMT), reusing the native render 100% (no new drawing).
 server/ai-config.js    AI assistant config: enabled/endpoint/model/key + scope/features
                        (data/ai-config.json git-ignored; key server-side only, env INFRANET_AI_KEY)
 server/ai/             AI assistant: context.js (sanitized §8b + ports/SNMP-health/topology +

@@ -20,7 +20,7 @@
 
 > 🌍 **Bilingue · Bilingual — 🇮🇹 Italiano & 🇬🇧 English.** Interfaccia, onboarding e manuale tecnico completi in entrambe le lingue, con selettore IT/EN nell'app. · Fully bilingual UI, onboarding and technical manual, with an in-app IT/EN switcher. 📖 [Manuale IT](MANUALE_TECNICO_IT.pdf) · [Manual EN](TECHNICAL_MANUAL_EN.pdf)
 
-> 📰 **What's new:** see [CHANGELOG.md](CHANGELOG.md). Latest: **draw.io rack export - per-VLAN cable tables with click-to-highlight and automatic A4/A3 page sizing** (plus a PDF inventory-table column-fit fix).
+> 📰 **What's new:** see [CHANGELOG.md](CHANGELOG.md). Latest: **"Apply model" — set a device's ports, SFP/QSFP and MGMT from a real switch/router model in one click** (catalog generated from the public-domain device-type data, CC0; SFP block cap raised to 24).
 
 > 🔒 **Security-audited & hardened.** The codebase has undergone an application-security audit (no critical issues) and the follow-up fixes are covered by **automated security regression tests**: the data surfaces (AI context, REST DTOs, exports) are **allowlist-only** so secrets never leave the machine, OS commands run via `execFile` with no shell, project IDs are path-traversal-safe, and secrets use a CSPRNG. See [Authentication & Roles → Security hardening & audit](#authentication--roles).
 
@@ -93,6 +93,7 @@ Current product direction: InfraNet Pro keeps discovery and classification insid
 
 ### Diagramming
 - **Rack view** — drag-and-drop 19″ rack units (1U–8U) with colour-coded port LEDs
+- **Apply model** — in a device's *Port layout*, search a real switch/router model and apply it in one click: it sets the port count and the SFP/QSFP/MGMT front-panel exactly, then the built-in renderer draws the correct faceplate. The catalog is generated from the community **public-domain device-type data** (CC0) with `tools/import-device-types.js`; only the data is reused, so ports stay live. Up to **24 SFP per block**
 - **Front-panel controls** — per-device port-count/layout options for compact home-lab and SMB rack fronts. Visual radio-button thumbnails for the 4 base layouts (Auto / Linear / Sequential / Cisco-alternating). Optional separate SFP block and dedicated MGMT (management) block with their own count + position controls
 - **Dedicated MGMT ports** — up to 4 cyan-bordered cells outside the regular `1..N` port numbering, on `mgmtEligible` device types (switch, router, firewall, server, NAS, KVM, PBX, console server, WLAN controller, NVR, SD-WAN edge, VPN concentrator). Editable base label (MGMT, iLO, iDRAC, me, fxp0, …). Excluded from VLAN/LAG/FDB data-plane logic
 - **SFP block** — silver-metal anodised border (Cisco/Aruba-style), separate cell group at left/right of the main port grid
