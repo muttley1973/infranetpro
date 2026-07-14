@@ -96,29 +96,40 @@ function buildSkin(dt) {
   const ROWS = (copper.length + fiber.length) > 6 ? 2 : 1;
   const padX = 16, titleH = Math.min(22, Math.round(H * 0.26)), padB = 8;
   const gridY0 = titleH, gridH = H - titleH - padB, rowH = gridH / ROWS;
-  const groups = [copper, fiber, mgmt].filter(g => g.length);
-  const colsOf = g => Math.ceil(g.length / ROWS);
-  const GAP = 0.6;
-  const totalCols = groups.reduce((a, g) => a + colsOf(g), 0) + GAP * Math.max(0, groups.length - 1);
   const usableW = W - 2 * padX;
-  const colW = usableW / Math.max(1, totalCols);
+
+  // Porte a PROPORZIONE FISSA e uniformi tra tutti i modelli: RJ45 ~quadrata (1.05:1),
+  // SFP ~slot 1.9:1. La densita' cambia la SPAZIATURA, non la forma. Il blocco porte
+  // e' centrato; shrink UNIFORME (aspetto preservato) solo se non entra in larghezza.
+  const blocks = [];
+  if (copper.length) blocks.push({ g: copper, k: 'cu' });
+  if (fiber.length)  blocks.push({ g: fiber,  k: 'fib' });
+  if (mgmt.length)   blocks.push({ g: mgmt,   k: 'mg' });
+  const dims = ph => ({ ph, cu: ph * 1.05, fib: ph * 1.9, mg: ph * 1.05, gap: ph * 0.42, ggap: ph * 1.0 });
+  const pwOf = (d, k) => (k === 'fib' ? d.fib : k === 'mg' ? d.mg : d.cu);
+  const contentW = d => blocks.reduce((a, b, i) => a + (i ? d.ggap : 0) + Math.ceil(b.g.length / ROWS) * (pwOf(d, b.k) + d.gap) - d.gap, 0);
+  let d = dims(Math.min(rowH * 0.6, 24));            // cap altezza porta (jack non giganti in 1 riga)
+  const cw0 = contentW(d);
+  if (cw0 > usableW) d = dims(d.ph * usableW / cw0);  // troppo densa: rimpicciolisci tutto uguale
+  let cx = padX + Math.max(0, (usableW - contentW(d)) / 2);   // blocco porte centrato
 
   const rects = [];
-  let cx = padX;
-  groups.forEach((g, gi) => {
-    if (gi > 0) cx += GAP * colW;
-    g.forEach((p, i) => {
+  for (let bi = 0; bi < blocks.length; bi++) {
+    if (bi > 0) cx += d.ggap;
+    const b = blocks[bi], pw = pwOf(d, b.k);
+    b.g.forEach((p, i) => {
       const col = Math.floor(i / ROWS), row = i % ROWS;
-      const x = cx + col * colW, y = gridY0 + row * rowH;
+      const x = cx + col * (pw + d.gap);
+      const y = gridY0 + row * rowH + (rowH - d.ph) / 2;
       const isFib = p.kind === 'fiber';
-      const pw = colW * (isFib ? 0.84 : 0.72), ph = rowH * 0.66;
-      const px = +(x + (colW - pw) / 2).toFixed(1), py = +(y + (rowH - ph) / 2).toFixed(1);
       const cls = p.kind === 'mgmt' ? 'p-mgmt' : isFib ? 'p-fib' : 'p-cu';
-      const stroke = p.kind === 'mgmt' ? '#f5a623' : isFib ? '#2f6d86' : '#2a3440';
-      rects.push(`  <rect id="${p.id}" class="${cls}" x="${px}" y="${py}" width="${pw.toFixed(1)}" height="${ph.toFixed(1)}" rx="${isFib ? 3 : 2}" fill="#0d1117" stroke="${stroke}" stroke-width="1"/>`);
+      // Placeholder = grigio "porta a riposo" del default (--inactive-color #6e7681):
+      // nel rack il fill viene comunque stripato e ricolorato dallo stato SNMP; questo
+      // rende l'ANTEPRIMA e la vista a riposo identiche a un device senza skin.
+      rects.push(`  <rect id="${p.id}" class="${cls}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${pw.toFixed(1)}" height="${d.ph.toFixed(1)}" rx="${isFib ? 3 : 2}" fill="#6e7681" stroke="#3a4048" stroke-width="1"/>`);
     });
-    cx += colsOf(g) * colW;
-  });
+    cx += Math.ceil(b.g.length / ROWS) * (pw + d.gap) - d.gap;
+  }
 
   const title = esc(`${dt.manufacturer || ''} ${dt.model || ''}`.trim());
   const svg =
