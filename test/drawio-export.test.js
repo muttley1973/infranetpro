@@ -33,6 +33,13 @@ function cellOf(xml, id) {
   return m ? m[0] : null;
 }
 
+// Estrae il blocco <UserObject ... id="...">...</UserObject> (archi bundle dei cavi).
+function uobjOf(xml, id) {
+  const re = new RegExp(`<UserObject\\b[^>]*\\bid="${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[\\s\\S]*?</UserObject>`);
+  const m = xml.match(re);
+  return m ? m[0] : null;
+}
+
 test('root: <mxfile> con host', () => {
   const xml = build();
   assert.match(xml, /^<mxfile host="InfraNetPro">/);
@@ -282,7 +289,7 @@ test('porte INVARIATE dopo lo spostamento del nome (namePad preservato)', () => 
   assert.ok(span > 0 && span < 60, 'porte compatte, span=' + span);
 });
 
-test('cavi: link intra-rack -> archi nativi su layer separato attivabile (nascosto)', () => {
+test('cavi: un arco per cavo su layer attivabile; porta<->porta; colore rispettato', () => {
   const xml = build({
     links: [
       { id: 'L1', src: 'sw1-1', dst: 'srv1-2' },
@@ -291,29 +298,116 @@ test('cavi: link intra-rack -> archi nativi su layer separato attivabile (nascos
   });
   // layer cavi: figlio della root '0', inizialmente NASCOSTO (visible=0), nome "Cavi"
   assert.match(xml, /<mxCell id="cbl_layer_r1" value="Cavi" parent="0" visible="0"\/>/);
-  // arco L1: edge, parent = layer cavi, source/target = celle-porta, nessuna freccia
+  // un arco per cavo (2 link -> 2 archi, niente bundle)
+  assert.equal((xml.match(/edge="1"/g) || []).length, 2);
   const e1 = cellOf(xml, 'cbl_L1');
   assert.ok(e1, 'arco L1 presente');
   assert.match(e1, /edge="1"/);
   assert.match(e1, /parent="cbl_layer_r1"/);
-  assert.match(e1, /source="sw1-1"/);
+  assert.match(e1, /source="sw1-1"/);           // porta<->porta (precisione per cavo)
   assert.match(e1, /target="srv1-2"/);
   assert.match(e1, /endArrow=none/);            // un cavo non ha verso
-  assert.match(e1, /strokeColor=#9aa5b1/);      // default argento (nessun colore sul link)
-  // colore ESPLICITO del link rispettato (niente colori inventati)
-  assert.match(cellOf(xml, 'cbl_L2'), /strokeColor=#39d353/);
+  assert.match(e1, /strokeColor=#9aa5b1/);      // default argento
+  assert.match(cellOf(xml, 'cbl_L2'), /strokeColor=#39d353/);   // colore esplicito rispettato
 });
 
-test('cavi: colore VLAN iniettato (glue) + fallback argento', () => {
+test('cavi: tabella per VLAN + click-riga evidenzia il cavo (custom action link)', () => {
+  const xml = build({
+    links: [
+      { id: 'La', src: 'sw1-1', dst: 'srv1-1', vlan: 10 },
+      { id: 'Lb', src: 'sw1-2', dst: 'srv1-2', vlan: 20 },
+    ],
+    helpers: { types: TYPES, linkVlan: l => l.vlan, vlanName: vid => ({ 10: 'Voce', 20: 'Dati' }[vid] || '') },
+  });
+  // header tabella = UserObject sul layer della VLAN, col nome VLAN; click header = AZZERA
+  // (Set Style strokeWidth base su tutti i cavi della VLAN)
+  const t10 = uobjOf(xml, 'cbltbl_cbl_v10_r1');
+  assert.ok(t10, 'header tabella VLAN 10');
+  assert.match(t10, /label="Voce"/);
+  assert.match(t10, /parent="cbl_v10_r1"/);
+  assert.match(t10, /link="data:action\/json/);
+  assert.match(t10, /strokeWidth/);                       // reset spessore
+  // riga La: custom action link -> evidenzia PERSISTENTE (Set Style spessore) + lampeggio + scroll
+  const rowLa = uobjOf(xml, 'cblrow_cbl_La');
+  assert.ok(rowLa, 'riga La');
+  assert.match(rowLa, /link="data:action\/json/);
+  assert.match(rowLa, /style/);                           // Set Style = evidenziazione persistente
+  assert.match(rowLa, /strokeWidth/);
+  assert.match(rowLa, /highlight/);                       // lampeggio di conferma
+  assert.match(rowLa, /cbl_La/);                          // bersaglio dell'azione = il cavo
+  assert.match(rowLa, /scroll/);
+  assert.match(rowLa, /Core-01/);                         // etichetta far-end: nome/porta sorgente
+  assert.match(rowLa, /ESX-01/);                          // ... e destinazione
+  assert.match(rowLa, /parent="cbl_v10_r1"/);             // riga sul layer della sua VLAN
+  // la riga della VLAN 20 sta sul layer VLAN 20
+  assert.match(uobjOf(xml, 'cblrow_cbl_Lb'), /parent="cbl_v20_r1"/);
+});
+
+test('cavi: evidenziazione PERSISTENTE a radio (riga ingrossa a 5, azzera tutti a 1.5; header solo reset)', () => {
   const xml = build({
     links: [
       { id: 'La', src: 'sw1-1', dst: 'srv1-1' },
-      { id: 'Lb', src: 'sw1-3', dst: 'srv1-2' },
+      { id: 'Lb', src: 'sw1-2', dst: 'srv1-2' },
     ],
-    helpers: { types: TYPES, linkColor: l => (l.id === 'La' ? '#ff0000' : null) },
   });
-  assert.match(cellOf(xml, 'cbl_La'), /strokeColor=#ff0000/);   // colore VLAN/override iniettato
-  assert.match(cellOf(xml, 'cbl_Lb'), /strokeColor=#9aa5b1/);   // linkColor null -> default
+  const decode = s => s.replace(/&quot;/g, '"');
+  const rowLa = decode(uobjOf(xml, 'cblrow_cbl_La'));
+  // radio: prima azzera lo spessore di TUTTI i cavi (cbl_La e cbl_Lb) a base 1.5...
+  assert.match(rowLa, /"style":\{"cells":\["cbl_La","cbl_Lb"\],"key":"strokeWidth","value":"1.5"\}/);
+  // ...poi ingrossa SOLO cbl_La a 5 (persistente)
+  assert.match(rowLa, /"style":\{"cells":\["cbl_La"\],"key":"strokeWidth","value":"5"\}/);
+  // header: SOLO reset (azzera), niente ingrossamento
+  const hdr = decode(uobjOf(xml, 'cbltbl_cbl_layer_r1'));
+  assert.match(hdr, /"value":"1.5"/);
+  assert.doesNotMatch(hdr, /"value":"5"/);
+});
+
+test('A4: pagina 827x1169 e TUTTO il contenuto entro la larghezza A4 (anche con tabelle VLAN)', () => {
+  const xml = build({
+    links: [
+      { id: 'La', src: 'sw1-1', dst: 'srv1-1', vlan: 10 },
+      { id: 'Lb', src: 'sw1-2', dst: 'srv1-2', vlan: 20 },
+      { id: 'Lc', src: 'sw1-3', dst: 'srv1-3', vlan: 30 },
+    ],
+    helpers: { types: TYPES, linkVlan: l => l.vlan, vlanName: () => '' },
+  });
+  // pagina A4 verticale
+  assert.match(xml, /pageWidth="827" pageHeight="1169"/);
+  // ogni geometria (vertici) sta entro la larghezza A4: x + width <= 827
+  const geos = [...xml.matchAll(/<mxGeometry x="([\d.-]+)" y="[\d.-]+" width="([\d.]+)"/g)];
+  assert.ok(geos.length > 3, 'ci sono geometrie da controllare');
+  geos.forEach(m => {
+    const right = parseFloat(m[1]) + parseFloat(m[2]);
+    assert.ok(right <= 827, 'contenuto entro A4: right=' + right);
+  });
+  // 3 tabelle VLAN, tutte allo STESSO x (non affiancate) -> ancora entro A4
+  const hdrX = [...xml.matchAll(/id="cbltbl_[^"]+">[\s\S]*?<mxGeometry x="([\d.]+)"/g)].map(m => +m[1]);
+  assert.equal(hdrX.length, 3);
+  assert.equal(new Set(hdrX).size, 1, 'tutte le tabelle allo stesso ancoraggio');
+});
+
+test('A3: se il contenuto non entra in A4 la pagina passa ad A3 (rack alto)', () => {
+  const tall = build({
+    racks: [{ id: 'r1', name: 'R', sizeU: 60 }],
+    nodes: [{ id: 'sw1', type: 'switch', rackId: 'r1', rackU: 1, sizeU: 1, ports: 4, name: 'A' }],
+  });
+  assert.match(tall, /pageWidth="1169" pageHeight="1654"/);   // A3 verticale
+  // rack basso -> resta A4
+  const small = build({ racks: [{ id: 'r1', name: 'R', sizeU: 12 }], nodes: [] });
+  assert.match(small, /pageWidth="827" pageHeight="1169"/);
+});
+
+test('A3: VLAN con moltissimi cavi (tabella lunga oltre A4) -> pagina A3', () => {
+  // 80 cavi su una sola VLAN -> tabella alta ~ 40+20+80*16 = 1340 > 1169 -> A3
+  const nodes = [
+    { id: 'sw1', type: 'switch', rackId: 'r1', rackU: 20, sizeU: 1, ports: 96, name: 'Core' },
+    { id: 'pp1', type: 'patchpanel', rackId: 'r1', rackU: 1, sizeU: 4, ports: 96, name: 'PP' },
+  ];
+  const links = [];
+  for (let i = 1; i <= 80; i++) links.push({ id: 'c' + i, src: 'sw1-' + i, dst: 'pp1-' + i, vlan: 10 });
+  const xml = build({ racks: [{ id: 'r1', name: 'R', sizeU: 24 }], nodes, links,
+    helpers: { types: TYPES, linkVlan: l => l.vlan, vlanName: () => '' } });
+  assert.match(xml, /pageWidth="1169" pageHeight="1654"/);
 });
 
 test('cavi: anti-sovrapposizione = corsia dedicata (2 waypoint, exit/entry sinistra, corsie X distinte)', () => {
@@ -328,19 +422,41 @@ test('cavi: anti-sovrapposizione = corsia dedicata (2 waypoint, exit/entry sinis
       { id: 'Lb', src: 'sw2-1', dst: 'srv1-2' },   // range Y sovrapposto ad La (condividono srv1)
     ],
   });
-  const eA = cellOf(xml, 'cbl_La');
+  const eA = cellOf(xml, 'cbl_La'), eB = cellOf(xml, 'cbl_Lb');
   // 2 waypoint a X di corsia (instradato a corsia, non porta-porta diretto)
   assert.match(eA, /<Array as="points"><mxPoint x="[\d.-]+" y="[\d.-]+"\/><mxPoint x="[\d.-]+" y="[\d.-]+"\/><\/Array>/);
   assert.match(eA, /exitX=0;exitY=0.5/);        // esce dal lato sinistro della porta
   assert.match(eA, /entryX=0;entryY=0.5/);
   // corsie: cavi con Y sovrapposti -> X di corsia DIVERSE (nessuna sovrapposizione)
-  const laneX = id => +(cellOf(xml, id).match(/<mxPoint x="([\d.-]+)"/)[1]);
-  assert.notEqual(laneX('cbl_La'), laneX('cbl_Lb'));
-  // le corsie stanno a SINISTRA del cabinet (x < CABINET_X=40)
-  assert.ok(laneX('cbl_La') < 40 && laneX('cbl_Lb') < 40);
-  // SFALSAMENTO orizzontale: La e Lb toccano lo STESSO device (srv1) -> entryDy diversi
-  const entryDy = id => +(cellOf(xml, id).match(/entryDy=([\d.-]+)/)[1]);
-  assert.notEqual(entryDy('cbl_La'), entryDy('cbl_Lb'));
+  const laneX = e => +(e.match(/<mxPoint x="([\d.-]+)"/)[1]);
+  assert.notEqual(laneX(eA), laneX(eB));
+  assert.ok(laneX(eA) < 40 && laneX(eB) < 40);
+  // SFALSAMENTO: entrambi i cavi toccano srv1 sul lato dst -> entryDy diversi
+  const entryDy = e => +(e.match(/entryDy=([\d.-]+)/)[1]);
+  assert.notEqual(entryDy(eA), entryDy(eB));
+});
+
+test('cavi: device DENSO -> passo verticale MIN garantito (niente blocco compatto, sfora l\'altezza)', () => {
+  // sw1 sorgente di 12 cavi (4 -> srv1, 8 -> pp1): dentro 1U (h=29) non ci stanno con
+  // gap decente -> il passo scende al MIN garantito e il ventaglio esce dai bordi.
+  const links = [];
+  for (let i = 1; i <= 4; i++) links.push({ id: 'cA' + i, src: 'sw1-' + i, dst: 'srv1-' + i });
+  for (let i = 1; i <= 8; i++) links.push({ id: 'cB' + i, src: 'sw1-' + (i + 4), dst: 'pp1-' + i });
+  const xml = build({
+    nodes: [
+      { id: 'sw1',  type: 'switch',     rackId: 'r1', rackU: 12, sizeU: 1, ports: 24, name: 'Core' },
+      { id: 'srv1', type: 'server',     rackId: 'r1', rackU: 1,  sizeU: 2, ports: 4,  name: 'ESX' },
+      { id: 'pp1',  type: 'patchpanel', rackId: 'r1', rackU: 4,  sizeU: 2, ports: 24, name: 'PP' },
+    ],
+    links,
+  });
+  assert.equal((xml.match(/edge="1"/g) || []).length, 12);   // un arco per cavo
+  const dys = links
+    .map(l => cellOf(xml, 'cbl_' + l.id).match(/exitDy=([\d.-]+)/)[1])
+    .map(Number).sort((a, b) => a - b);
+  assert.equal(new Set(dys).size, dys.length);               // ogni cavo a Y di uscita distinta
+  for (let i = 1; i < dys.length; i++) assert.ok(dys[i] - dys[i - 1] >= 4 - 1e-6, 'gap >= H_STAGGER_MIN');
+  assert.ok(dys[dys.length - 1] - dys[0] > 25, 'spread oltre l\'altezza device');
 });
 
 test('cavi: un layer per VLAN nominato col nome VLAN; ogni cavo sul suo layer', () => {
@@ -356,11 +472,9 @@ test('cavi: un layer per VLAN nominato col nome VLAN; ogni cavo sul suo layer', 
       vlanName: vid => ({ 10: 'Voce', 20: 'Dati' }[vid] || ''),
     },
   });
-  // un layer per VLAN, figlio della root '0', nascosto, nominato col NOME VLAN
   assert.match(xml, /<mxCell id="cbl_v10_r1" value="Voce" parent="0" visible="0"\/>/);
   assert.match(xml, /<mxCell id="cbl_v20_r1" value="Dati" parent="0" visible="0"\/>/);
   assert.doesNotMatch(xml, /value="Cavi"/);   // niente layer generico quando c'e' la VLAN
-  // ogni cavo sul layer della sua VLAN
   assert.match(cellOf(xml, 'cbl_La'), /parent="cbl_v10_r1"/);
   assert.match(cellOf(xml, 'cbl_Lb'), /parent="cbl_v20_r1"/);
   assert.match(cellOf(xml, 'cbl_Lc'), /parent="cbl_v10_r1"/);
@@ -375,15 +489,15 @@ test('cavi: VLAN senza nome -> layer "VLAN <id>"', () => {
   assert.match(cellOf(xml, 'cbl_Lx'), /parent="cbl_v99_r1"/);
 });
 
-test('cavi: capo fuori pagina o su altro rack NON disegnato (niente archi penzolanti)', () => {
+test('cavi: capo fuori pagina o su altro rack NON disegnato (niente archi penzolanti ne tabella)', () => {
   const xml = build({
     links: [
       { id: 'Lx', src: 'sw1-1', dst: 'ZZZ-9' },   // dst inesistente
       { id: 'Ly', src: 'sw9-1', dst: 'srv1-1' },  // src su un device di un altro rack
     ],
   });
-  assert.equal(cellOf(xml, 'cbl_Lx'), null);
-  assert.equal(cellOf(xml, 'cbl_Ly'), null);
+  assert.doesNotMatch(xml, /edge="1"/);          // nessun cavo
+  assert.doesNotMatch(xml, /<UserObject/);       // nessuna riga tabella
   assert.doesNotMatch(xml, /cbl_layer_/);        // nessun link valido -> nessun layer
 });
 
@@ -392,7 +506,7 @@ test('cavi: link verso una porta NASCOSTA non produce arco', () => {
     ports: { 'sw1-5': { hidden: true } },
     links: [{ id: 'Lh', src: 'sw1-5', dst: 'srv1-1' }],
   });
-  assert.equal(cellOf(xml, 'cbl_Lh'), null);
+  assert.doesNotMatch(xml, /edge="1"/);
   assert.doesNotMatch(xml, /cbl_layer_/);
 });
 
@@ -414,6 +528,20 @@ test('ZERO artefatti: niente image/foreignObject/whiteSpace=wrap/html=1', () => 
   const containers = xml.match(/container=1[^"]*/g) || [];
   assert.ok(containers.length >= 3, 'almeno cabinet + 2 device sono container');
   containers.forEach(s => assert.match(s, /collapsible=0/));
+});
+
+test('ZERO artefatti anche con cavi + TABELLE per VLAN (righe = UserObject html=0)', () => {
+  const xml = build({
+    links: [
+      { id: 'La', src: 'sw1-1', dst: 'srv1-1', vlan: 10 },
+      { id: 'Lb', src: 'sw1-2', dst: 'srv1-2', vlan: 20 },
+    ],
+    helpers: { types: TYPES, linkVlan: l => l.vlan, vlanName: vid => ({ 10: 'Voce', 20: 'Dati' }[vid] || '') },
+  });
+  assert.doesNotMatch(xml, /foreignObject/i);
+  assert.doesNotMatch(xml, /whiteSpace=wrap/);
+  assert.doesNotMatch(xml, /html=1/);
+  assert.doesNotMatch(xml, /<image\b/);
 });
 
 test('base cells 0 e 1 presenti per ogni pagina', () => {
