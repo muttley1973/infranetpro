@@ -9,6 +9,13 @@
 //   2) il numero totale di letture win.* può solo CALARE (cap a cricchetto).
 // Quando converti altri simboli a import ESM, abbassa MAX_WIN_REFS al nuovo
 // valore stampato dal test (ricetta di ritiro del ponte).
+//
+// ── ⏸️ MIGRAZIONE SOSPESA (decisione 2026-07-14) ─────────────────────────────
+// Il ritiro del ponte è PARCHEGGIATO come task "a tempo perso" (NON abbandonato).
+// Questi cricchetti RESTANO come guardia ANTI-REGRESSIONE (il conteggio può solo
+// TENERE o CALARE, mai crescere), ma ABBASSARLI NON è più un obiettivo attivo:
+// abbassa un cap solo OPPORTUNISTICAMENTE, se tocchi comunque quel modulo. Un
+// cricchetto fermo al valore attuale è ATTESO e OK. Vedi ARCHITECTURE.md §10.
 const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
