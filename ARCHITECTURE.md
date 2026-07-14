@@ -161,7 +161,13 @@ intra-rack cabling as native edges on one activatable draw.io layer **per VLAN**
 with the VLAN name), routed in per-cable lanes + stagger so nothing overlaps — and it
 stays pure: the VLAN number/name and the per-cable colour arrive as **injected helpers**
 from the glue (`linkVlan`/`vlanName`/`linkColor`, mirroring the live view's resolution),
-never read from globals.
+never read from globals. On the same layer it also emits a **cable table** (one row per
+cable); each row carries a native draw.io **custom action link** (`data:action/json`)
+that, in View/lightbox mode, persistently highlights the matching edge (a *Set Style* on
+`strokeWidth`, radio-style, with the header as reset) and scrolls to it — the readable
+way to isolate one cable without tracing lines. The page format is chosen **per rack**
+from the content bounds: A4 portrait, auto-switching to A3 when a tall rack or long table
+overflows A4.
 
 The glue is now **ESM** (`src/`, bundled by esbuild) with explicit `import`/`export`
 where ritirato, plus the transitional `window` bridge (`src/_bridge.js`) for what's
