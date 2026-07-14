@@ -2,6 +2,15 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-14 — Apply real device models from device-type data (native ports + front panel)
+
+### Added
+- **"Apply model" in device Properties → Port layout.** Search a real switch/router model and one click sets `ports` + `frontPanel` (SFP/QSFP/MGMT counts and numbering); the built-in renderer then draws the exact port faceplate — same LEDs, SFP/MGMT cages and numbers as any native device, because it *is* the native renderer. Catalog served from `data/device-types.json` via `GET /api/device-types`. New `src/app-device-types.js`, `server/routes/device-types.js`, `test/device-types-native.test.js`; wired via event delegation (no new `window.*` / inline handlers).
+- **Device-type catalog generator from the public-domain (CC0) device-type data.** `tools/import-device-types.js` turns the community CC0 YAML into native templates (`--catalog`) and, optionally, editable SVG panel skins (`--seed`). 110 MikroTik models bundled to start; other vendors accumulate with the same command. Only the *data* is reused — the artwork is drawn from scratch, so ports stay live.
+
+### Changed
+- **SFP block cap raised from 8 to 24 per block** (`sfpCount` / `sfp2Count`), so high-density fibre switches (e.g. MikroTik CRS518, 16×SFP+ + 2×QSFP+) model correctly instead of clamping to 8. `lib/frontpanel.js`, Properties UI, importer, bundled catalog; golden baseline updated (SFP input `max` now `min(24, portCount)`).
+
 ## 2026-07-14 — draw.io cables: per-VLAN tables with click-to-highlight, A4/A3 auto page; PDF table-fit fix
 
 ### Added
