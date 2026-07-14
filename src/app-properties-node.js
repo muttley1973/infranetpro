@@ -21,6 +21,7 @@ import { getLagGroupsForNode } from './app-ports.js';   // ritiro ponte: alias-b
 import { _nodeDeviceChainHtml } from './app-properties-node-devices.js';   // ritiro ponte: alias-block sciolto (ex win.*)
 import { _l3SviSectionHtml } from './app-l3.js';   // ritiro ponte: alias-block sciolto (ex win.*)
 import { _panelSkinSectionHtml } from './app-panel-skin.js';   // ritiro ponte: alias-block sciolto (ex win.*)
+import { _deviceTypeApplyHtml } from './app-device-types.js';   // "Applica modello" (catalogo device-type)
 
 // ============================================================
 // PROPERTIES PANEL — renderer NODO (dispositivo/struttura, selType===node)
@@ -181,7 +182,7 @@ export function _renderNodeProps(panel){
                     const _lpPreview = _portTot
                         ? `<span class="props-collapsible-preview">${t('common.portsCount',{n:_portTot})}${_sfpShown?` · ${_sfpShown} SFP`:''}</span>`
                         : '';
-                    _layoutPortsHtml = `<details class="props-collapsible" ${_propsSectionIsOpen('layout-ports')?'open':''} ontoggle="setPropsSectionState('layout-ports',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-grip-vertical"></i> ${t('sec.portLayout')}</span>${_lpPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    _layoutPortsHtml = `<details class="props-collapsible" ${_propsSectionIsOpen('layout-ports')?'open':''} ontoggle="setPropsSectionState('layout-ports',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-grip-vertical"></i> ${t('sec.portLayout')}</span>${_lpPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">${(typeof _deviceTypeApplyHtml==='function' && !isPatch) ? _deviceTypeApplyHtml() : ''}
 <div class="prop-row2">
   <div class="prop-group" style="grid-column:1/-1"><label>${t('field.portCount')}</label>
     <input type="number" min="0" max="96" value="${n.ports!==undefined?n.ports:d.ports}" onchange="updateN('ports',normalizeNumber(this.value,${d.ports},0,96))">

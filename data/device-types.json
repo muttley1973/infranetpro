@@ -1,0 +1,1944 @@
+[
+  {
+    "slug": "mikrotik-atlgm",
+    "brand": "MikroTik",
+    "model": "ATLGM",
+    "partNumber": "ATLGM&RG520F-EU",
+    "ports": 2,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 2,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-c52ig-5haxd2haxd-tc",
+    "brand": "MikroTik",
+    "model": "C52iG-5HaxD2HaxD-TC",
+    "partNumber": "",
+    "ports": 5,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 5,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-c53uig-plus-5hpaxd2hpaxd",
+    "brand": "MikroTik",
+    "model": "C53UiG+5HPaxD2HPaxD",
+    "partNumber": "",
+    "ports": 5,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 5,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-cap-ac",
+    "brand": "MikroTik",
+    "model": "cAP ac",
+    "partNumber": "RBcAPGi-5acD2nD",
+    "ports": 2,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 2,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-cap-ax",
+    "brand": "MikroTik",
+    "model": "cAP ax",
+    "partNumber": "cAPGi-5HaxD2HaxD",
+    "ports": 2,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 2,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-cap-rbcap2nd",
+    "brand": "MikroTik",
+    "model": "cAP RBcAP2nD",
+    "partNumber": "RBcAP2nD",
+    "ports": 1,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-cap-xl-ac",
+    "brand": "MikroTik",
+    "model": "cAP XL ac",
+    "partNumber": "RBcAPGi-5acD2nD-XL",
+    "ports": 2,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 2,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-ccr1009-7g-1c-1s-plus",
+    "brand": "MikroTik",
+    "model": "CCR1009-7G-1C-1S+",
+    "partNumber": "",
+    "ports": 9,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 7,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-ccr1009-7g-1c-1s-plus-pc",
+    "brand": "MikroTik",
+    "model": "CCR1009-7G-1C-1S+PC",
+    "partNumber": "",
+    "ports": 9,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 7,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-ccr1009-7g-1c-pc",
+    "brand": "MikroTik",
+    "model": "CCR1009-7G-1C-PC",
+    "partNumber": "",
+    "ports": 8,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 1,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 7,
+      "sfp": 1,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-ccr1009-8g-1s-1s-plus",
+    "brand": "MikroTik",
+    "model": "CCR1009-8G-1S-1S+",
+    "partNumber": "",
+    "ports": 10,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 8,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-ccr1016-12g",
+    "brand": "MikroTik",
+    "model": "CCR1016-12G",
+    "partNumber": "",
+    "ports": 12,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 12,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-ccr1016-12s-1s-plus",
+    "brand": "MikroTik",
+    "model": "CCR1016-12S-1S+",
+    "partNumber": "CCR1016-12S-1S+",
+    "ports": 13,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 8
+    },
+    "counts": {
+      "copper": 0,
+      "sfp": 13,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-ccr1016-12s-1s-plus-r2",
+    "brand": "MikroTik",
+    "model": "CCR1016-12S-1S+-r2",
+    "partNumber": "CCR1016-12S-1S+r2",
+    "ports": 13,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 8
+    },
+    "counts": {
+      "copper": 0,
+      "sfp": 13,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-ccr1036-12g-4s",
+    "brand": "MikroTik",
+    "model": "CCR1036-12G-4S",
+    "partNumber": "",
+    "ports": 16,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 12,
+      "sfp": 4,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-ccr1036-12g-4s-em",
+    "brand": "MikroTik",
+    "model": "CCR1036-12G-4S-EM",
+    "partNumber": "",
+    "ports": 16,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 12,
+      "sfp": 4,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-ccr1036-8g-2s-plus",
+    "brand": "MikroTik",
+    "model": "CCR1036-8G-2S+",
+    "partNumber": "",
+    "ports": 10,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 8,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-ccr1036-8g-2s-plus-em",
+    "brand": "MikroTik",
+    "model": "CCR1036-8G-2S+EM",
+    "partNumber": "",
+    "ports": 10,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 8,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-ccr1072-1g-8s-plus",
+    "brand": "MikroTik",
+    "model": "CCR1072-1G-8S+",
+    "partNumber": "",
+    "ports": 9,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 8,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 1,
+      "sfp": 8,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-ccr2004-16g-2s-plus",
+    "brand": "MikroTik",
+    "model": "CCR2004-16G-2S+",
+    "partNumber": "CCR2004-16G-2S+",
+    "ports": 18,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 16,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-ccr2004-1g-12s-plus-2xs",
+    "brand": "MikroTik",
+    "model": "CCR2004-1G-12S+2XS",
+    "partNumber": "CCR2004-1G-12S+2XS",
+    "ports": 15,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 8,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 1,
+      "sfp": 14,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-ccr2116-12g-4s-plus",
+    "brand": "MikroTik",
+    "model": "CCR2116-12G-4S+",
+    "partNumber": "CCR2116-12G-4S+",
+    "ports": 17,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 13,
+      "sfp": 4,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-ccr2216-1g-12xs-2xq",
+    "brand": "MikroTik",
+    "model": "CCR2216-1G-12XS-2XQ",
+    "partNumber": "CCR2216-1G-12XS-2XQ",
+    "ports": 15,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 8,
+      "sfp2Count": 2,
+      "sfpStartNum": 1,
+      "sfp2StartNum": 1
+    },
+    "counts": {
+      "copper": 1,
+      "sfp": 12,
+      "qsfp": 2,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-chateau-5g-ax",
+    "brand": "MikroTik",
+    "model": "Chateau 5G ax",
+    "partNumber": "S53UG+M-5HaxD2HaxD-TC&RG502Q-EA",
+    "ports": 6,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 6,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-crs106-1c-5s",
+    "brand": "MikroTik",
+    "model": "CRS106-1C-5S",
+    "partNumber": "",
+    "ports": 6,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 6
+    },
+    "counts": {
+      "copper": 0,
+      "sfp": 6,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-crs109-8g-1s-2hnd-in",
+    "brand": "MikroTik",
+    "model": "CRS109-8G-1S-2HnD-IN",
+    "partNumber": "CRS109-8G-1S-2HnD-IN",
+    "ports": 9,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 1,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 8,
+      "sfp": 1,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-crs112-8g-4s-in",
+    "brand": "MikroTik",
+    "model": "CRS112-8G-4S-IN",
+    "partNumber": "",
+    "ports": 12,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 8,
+      "sfp": 4,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-crs112-8p-4s-in",
+    "brand": "MikroTik",
+    "model": "CRS112-8P-4S-IN",
+    "partNumber": "CRS112-8P-4S",
+    "ports": 12,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 8,
+      "sfp": 4,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-crs125-24g-1s-2hnd-in",
+    "brand": "MikroTik",
+    "model": "CRS125-24G-1S-2HnD-IN",
+    "partNumber": "",
+    "ports": 25,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 1,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 24,
+      "sfp": 1,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-crs125-24g-1s-in",
+    "brand": "MikroTik",
+    "model": "CRS125-24G-1S-IN",
+    "partNumber": "",
+    "ports": 25,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 1,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 24,
+      "sfp": 1,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-crs125-24g-1s-rm",
+    "brand": "MikroTik",
+    "model": "CRS125-24G-1S-RM",
+    "partNumber": "",
+    "ports": 25,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 1,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 24,
+      "sfp": 1,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-crs212-1g-10s-1s-plus-in",
+    "brand": "MikroTik",
+    "model": "CRS212-1G-10S-1S+IN",
+    "partNumber": "CRS212-1G-10S-1S+",
+    "ports": 12,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 8,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 1,
+      "sfp": 11,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-crs226-24g-2s-plus-rm",
+    "brand": "MikroTik",
+    "model": "CRS226-24G-2S+RM",
+    "partNumber": "",
+    "ports": 26,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 24,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-crs304-4xg-in",
+    "brand": "MikroTik",
+    "model": "CRS304-4XG-IN",
+    "partNumber": "CRS304-4XG",
+    "ports": 4,
+    "rackU": 1,
+    "frontPanel": {
+      "mgmtCount": 1
+    },
+    "counts": {
+      "copper": 4,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 1
+    }
+  },
+  {
+    "slug": "mikrotik-crs305-1g-4s-plus-in",
+    "brand": "MikroTik",
+    "model": "CRS305-1G-4S+IN",
+    "partNumber": "CRS305-1G-4S+",
+    "ports": 5,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 1,
+      "sfp": 4,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-crs309-1g-8s-plus-in",
+    "brand": "MikroTik",
+    "model": "CRS309-1G-8S+IN",
+    "partNumber": "CRS309-1G-8S+",
+    "ports": 9,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 8,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 1,
+      "sfp": 8,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-crs310-1g-5s-4s-plus-in",
+    "brand": "MikroTik",
+    "model": "CRS310-1G-5S-4S+IN",
+    "partNumber": "CRS310-1G-5S-4S+",
+    "ports": 10,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 8,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 1,
+      "sfp": 9,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-crs310-8g-plus-2s-plus-in",
+    "brand": "MikroTik",
+    "model": "CRS310-8G+2S+IN",
+    "partNumber": "CRS310-8G+2S+",
+    "ports": 10,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 8,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-crs312-4c-plus-8xg-rm",
+    "brand": "MikroTik",
+    "model": "CRS312-4C+8XG-RM",
+    "partNumber": "",
+    "ports": 16,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4,
+      "sfpStartNum": 1,
+      "mgmtCount": 1
+    },
+    "counts": {
+      "copper": 12,
+      "sfp": 4,
+      "qsfp": 0,
+      "mgmt": 1
+    }
+  },
+  {
+    "slug": "mikrotik-crs317-1g-16s-plus-rm",
+    "brand": "MikroTik",
+    "model": "CRS317-1G-16S+RM",
+    "partNumber": "CRS317-1G-16S+",
+    "ports": 17,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 8,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 1,
+      "sfp": 16,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-crs320-8p-8b-4s-plus-rm",
+    "brand": "MikroTik",
+    "model": "CRS320-8P-8B-4S+RM",
+    "partNumber": "CRS320-8P-8B-4S+RM",
+    "ports": 20,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4,
+      "sfpStartNum": 1,
+      "mgmtCount": 1
+    },
+    "counts": {
+      "copper": 16,
+      "sfp": 4,
+      "qsfp": 0,
+      "mgmt": 1
+    }
+  },
+  {
+    "slug": "mikrotik-crs326-24g-2s-plus-rm",
+    "brand": "MikroTik",
+    "model": "CRS326-24G-2S+RM",
+    "partNumber": "CRS326-24G-2S+RM",
+    "ports": 26,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 24,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-crs326-24s-plus-2q-plus-rm",
+    "brand": "MikroTik",
+    "model": "CRS326-24S+2Q+RM",
+    "partNumber": "",
+    "ports": 26,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 8,
+      "sfp2Count": 2,
+      "sfp2StartNum": 1,
+      "mgmtCount": 1
+    },
+    "counts": {
+      "copper": 0,
+      "sfp": 24,
+      "qsfp": 2,
+      "mgmt": 1
+    }
+  },
+  {
+    "slug": "mikrotik-crs326-4c-plus-20g-plus-2q-plus-rm",
+    "brand": "MikroTik",
+    "model": "CRS326-4C+20G+2Q+RM",
+    "partNumber": "CRS326-4C+20G+2Q+RM",
+    "ports": 26,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4,
+      "sfp2Count": 2,
+      "sfpStartNum": 1,
+      "sfp2StartNum": 1,
+      "mgmtCount": 1
+    },
+    "counts": {
+      "copper": 20,
+      "sfp": 4,
+      "qsfp": 2,
+      "mgmt": 1
+    }
+  },
+  {
+    "slug": "mikrotik-crs328-24p-4s-plus-rm",
+    "brand": "MikroTik",
+    "model": "CRS328-24P-4S+RM",
+    "partNumber": "",
+    "ports": 28,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 24,
+      "sfp": 4,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-crs328-4c-20s-4s-plus-rm",
+    "brand": "MikroTik",
+    "model": "CRS328-4C-20S-4S+RM",
+    "partNumber": "",
+    "ports": 28,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 8
+    },
+    "counts": {
+      "copper": 0,
+      "sfp": 28,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-crs354-48g-4s-plus-2q-plus-rm",
+    "brand": "MikroTik",
+    "model": "CRS354-48G-4S+2Q+RM",
+    "partNumber": "",
+    "ports": 54,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4,
+      "sfp2Count": 2,
+      "sfpStartNum": 1,
+      "sfp2StartNum": 1,
+      "mgmtCount": 1
+    },
+    "counts": {
+      "copper": 48,
+      "sfp": 4,
+      "qsfp": 2,
+      "mgmt": 1
+    }
+  },
+  {
+    "slug": "mikrotik-crs354-48p-4s-plus-2q-plus-rm",
+    "brand": "MikroTik",
+    "model": "CRS354-48P-4S+2Q+RM",
+    "partNumber": "CRS354-48P-4S+2Q+RM",
+    "ports": 54,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4,
+      "sfp2Count": 2,
+      "sfpStartNum": 1,
+      "sfp2StartNum": 1,
+      "mgmtCount": 1
+    },
+    "counts": {
+      "copper": 48,
+      "sfp": 4,
+      "qsfp": 2,
+      "mgmt": 1
+    }
+  },
+  {
+    "slug": "mikrotik-crs418-8p-8g-2s-plus-rm",
+    "brand": "MikroTik",
+    "model": "CRS418-8P-8G-2S+RM",
+    "partNumber": "CRS418-8P-8G-2S+RM",
+    "ports": 18,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2,
+      "sfpStartNum": 1,
+      "mgmtCount": 1
+    },
+    "counts": {
+      "copper": 16,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 1
+    }
+  },
+  {
+    "slug": "mikrotik-crs504-4xq-in",
+    "brand": "MikroTik",
+    "model": "CRS504-4XQ-IN",
+    "partNumber": "CRS504-4XQ-IN",
+    "ports": 4,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 0,
+      "sfp2Count": 4,
+      "sfp2StartNum": 1,
+      "mgmtCount": 1
+    },
+    "counts": {
+      "copper": 0,
+      "sfp": 0,
+      "qsfp": 4,
+      "mgmt": 1
+    }
+  },
+  {
+    "slug": "mikrotik-crs510-8xs-2xq-in",
+    "brand": "MikroTik",
+    "model": "CRS510-8XS-2XQ-IN",
+    "partNumber": "CRS510-8XS-2XQ-IN",
+    "ports": 10,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 8,
+      "sfp2Count": 2,
+      "sfp2StartNum": 1,
+      "mgmtCount": 1
+    },
+    "counts": {
+      "copper": 0,
+      "sfp": 8,
+      "qsfp": 2,
+      "mgmt": 1
+    }
+  },
+  {
+    "slug": "mikrotik-crs518-16xs-2xq",
+    "brand": "MikroTik",
+    "model": "CRS518-16XS-2XQ",
+    "partNumber": "CRS518-16XS-2XQ",
+    "ports": 18,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 8,
+      "sfp2Count": 2,
+      "sfp2StartNum": 1,
+      "mgmtCount": 1
+    },
+    "counts": {
+      "copper": 0,
+      "sfp": 16,
+      "qsfp": 2,
+      "mgmt": 1
+    }
+  },
+  {
+    "slug": "mikrotik-crs520-4xs-16xq",
+    "brand": "MikroTik",
+    "model": "CRS520-4XS-16XQ",
+    "partNumber": "CRS520-4XS-16XQ",
+    "ports": 20,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4,
+      "sfp2Count": 8,
+      "sfp2StartNum": 1,
+      "mgmtCount": 2
+    },
+    "counts": {
+      "copper": 0,
+      "sfp": 4,
+      "qsfp": 16,
+      "mgmt": 2
+    }
+  },
+  {
+    "slug": "mikrotik-css318-16g-2s-plus-in",
+    "brand": "MikroTik",
+    "model": "CSS318-16G-2S+IN",
+    "partNumber": "CSS318-16G-2S+IN",
+    "ports": 18,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 16,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-css326-24g-2s-plus-rm",
+    "brand": "MikroTik",
+    "model": "CSS326-24G-2S+RM",
+    "partNumber": "",
+    "ports": 26,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 24,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-css610-8g-2s-plus-in",
+    "brand": "MikroTik",
+    "model": "CSS610-8G-2S+IN",
+    "partNumber": "CSS610-8G-2S+IN",
+    "ports": 10,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 8,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-e50ug",
+    "brand": "MikroTik",
+    "model": "E50UG",
+    "partNumber": "E50UG",
+    "ports": 5,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 5,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-e60iugs",
+    "brand": "MikroTik",
+    "model": "E60iUGS",
+    "partNumber": "E60iUGS",
+    "ports": 6,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 1,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 5,
+      "sfp": 1,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-hap",
+    "brand": "MikroTik",
+    "model": "hAP",
+    "partNumber": "RB951Ui-2nD",
+    "ports": 5,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 5,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-hap-ac",
+    "brand": "MikroTik",
+    "model": "hAP ac",
+    "partNumber": "RB962UiGS",
+    "ports": 6,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 1,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 5,
+      "sfp": 1,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-hap-ac-lite",
+    "brand": "MikroTik",
+    "model": "hAP ac lite",
+    "partNumber": "RB952Ui-5ac2nD",
+    "ports": 5,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 5,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-hap-ac-lite-tc",
+    "brand": "MikroTik",
+    "model": "hAP ac lite TC",
+    "partNumber": "RB952Ui-5ac2nD-TC",
+    "ports": 5,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 5,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-hap-ac2",
+    "brand": "MikroTik",
+    "model": "hAP ac2",
+    "partNumber": "RBD52G-5HacD2HnD-TC",
+    "ports": 5,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 5,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-hap-ac3-lte6-kit",
+    "brand": "MikroTik",
+    "model": "hAP ac3 LTE6 kit",
+    "partNumber": "RBD53GR-5HacD2HnD&R11e-LTE6",
+    "ports": 5,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 5,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-hap-ax-lite-lte6",
+    "brand": "MikroTik",
+    "model": "hAP ax lite LTE6",
+    "partNumber": "L41G-2axD&FG621-EA",
+    "ports": 4,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 4,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-hap-ax-s",
+    "brand": "MikroTik",
+    "model": "hAP ax S",
+    "partNumber": "E62iUGS-2axD5axT",
+    "ports": 6,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 1,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 5,
+      "sfp": 1,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-hap-lite",
+    "brand": "MikroTik",
+    "model": "hAP lite",
+    "partNumber": "RB941-2nD",
+    "ports": 4,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 4,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-hap-lite-tc",
+    "brand": "MikroTik",
+    "model": "hAP lite TC",
+    "partNumber": "RB941-2nD-TC",
+    "ports": 4,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 4,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-hex",
+    "brand": "MikroTik",
+    "model": "hEX",
+    "partNumber": "RB750Gr3",
+    "ports": 5,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 5,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-hex-poe-rb960pgs",
+    "brand": "MikroTik",
+    "model": "hEX PoE",
+    "partNumber": "RB960PGS",
+    "ports": 6,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 1,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 5,
+      "sfp": 1,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-hex-s",
+    "brand": "MikroTik",
+    "model": "hEX S",
+    "partNumber": "RB760iGS",
+    "ports": 6,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 1,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 5,
+      "sfp": 1,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-l009uigs-rm",
+    "brand": "MikroTik",
+    "model": "L009UiGS-RM",
+    "partNumber": "",
+    "ports": 9,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 1,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 8,
+      "sfp": 1,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-mantbox-ax-15s",
+    "brand": "MikroTik",
+    "model": "mANTBox ax 15s",
+    "partNumber": "L22UGS-5HaxD2HaxD-15S",
+    "ports": 2,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 1,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 1,
+      "sfp": 1,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-netmetal-5shp",
+    "brand": "MikroTik",
+    "model": "NetMetal 5SHP",
+    "partNumber": "RB921UAGS-5SHPacD-NM",
+    "ports": 2,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 1,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 1,
+      "sfp": 1,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-crs318-16p-2s-plus-out",
+    "brand": "MikroTik",
+    "model": "netPower 16P",
+    "partNumber": "CRS318-16P-2S+OUT",
+    "ports": 18,
+    "rackU": 2,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 16,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-netpower-lite-8p",
+    "brand": "MikroTik",
+    "model": "netPower Lite 8P",
+    "partNumber": "CSS610-8P-2S+OUT",
+    "ports": 10,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 8,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-omnitik-5",
+    "brand": "MikroTik",
+    "model": "OmniTIK 5",
+    "partNumber": "RBOmniTikU-5HnD",
+    "ports": 5,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 5,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-powerbox-pro-rb960pgs-pb",
+    "brand": "MikroTik",
+    "model": "PowerBox Pro",
+    "partNumber": "RB960PGS-PB",
+    "ports": 5,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 5,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-rb1100ahx2",
+    "brand": "MikroTik",
+    "model": "RB1100AHx2",
+    "partNumber": "",
+    "ports": 13,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 13,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-rb1100ahx4",
+    "brand": "MikroTik",
+    "model": "RB1100AHx4",
+    "partNumber": "",
+    "ports": 13,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 13,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-rb1100ahx4-dude-edition",
+    "brand": "MikroTik",
+    "model": "RB1100AHx4 Dude Edition",
+    "partNumber": "",
+    "ports": 13,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 13,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-rb1200",
+    "brand": "MikroTik",
+    "model": "RB1200",
+    "partNumber": "RB1200",
+    "ports": 10,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 10,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-rb2011il-in",
+    "brand": "MikroTik",
+    "model": "RB2011iL-IN",
+    "partNumber": "RB2011iL-IN",
+    "ports": 10,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 10,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-rb2011il-rm",
+    "brand": "MikroTik",
+    "model": "RB2011iL-RM",
+    "partNumber": "RB2011iL-RM",
+    "ports": 10,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 10,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-rb2011ils-in",
+    "brand": "MikroTik",
+    "model": "RB2011iLS-IN",
+    "partNumber": "",
+    "ports": 11,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 1,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 10,
+      "sfp": 1,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-rb2011uias-2hnd",
+    "brand": "MikroTik",
+    "model": "RB2011UiAS-2HnD",
+    "partNumber": "",
+    "ports": 11,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 1,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 10,
+      "sfp": 1,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-rb2011uias-in",
+    "brand": "MikroTik",
+    "model": "RB2011UiAS-IN",
+    "partNumber": "RB2011UiAS-2HnD-IN",
+    "ports": 11,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 1,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 10,
+      "sfp": 1,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-rb2011uias-rm",
+    "brand": "MikroTik",
+    "model": "RB2011UiAS-RM",
+    "partNumber": "",
+    "ports": 11,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 1,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 10,
+      "sfp": 1,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-rb260gs",
+    "brand": "MikroTik",
+    "model": "RB260GS",
+    "partNumber": "",
+    "ports": 6,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 1
+    },
+    "counts": {
+      "copper": 5,
+      "sfp": 1,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-rb260gsp",
+    "brand": "MikroTik",
+    "model": "RB260GSP",
+    "partNumber": "",
+    "ports": 6,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 1,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 5,
+      "sfp": 1,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-rb3011uias-rm",
+    "brand": "MikroTik",
+    "model": "RB3011UiAS-RM",
+    "partNumber": "",
+    "ports": 11,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 1,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 10,
+      "sfp": 1,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-rb4011igs-plus-rm",
+    "brand": "MikroTik",
+    "model": "RB4011iGS+RM",
+    "partNumber": "RB4011iGS+RM",
+    "ports": 11,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 1,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 10,
+      "sfp": 1,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-rb5009ug-plus-s-plus-in",
+    "brand": "MikroTik",
+    "model": "RB5009UG+S+IN",
+    "partNumber": "",
+    "ports": 9,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 1,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 8,
+      "sfp": 1,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-rb5009upr-plus-s-plus-in",
+    "brand": "MikroTik",
+    "model": "RB5009UPr+S+IN",
+    "partNumber": "",
+    "ports": 9,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 1,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 8,
+      "sfp": 1,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-rb750r2",
+    "brand": "MikroTik",
+    "model": "RB750r2",
+    "partNumber": "",
+    "ports": 5,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 5,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-rb750r3",
+    "brand": "MikroTik",
+    "model": "RB750r3",
+    "partNumber": "",
+    "ports": 5,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 5,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-rb951g-2hnd",
+    "brand": "MikroTik",
+    "model": "RB951G-2HnD",
+    "partNumber": "",
+    "ports": 5,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 5,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-rb951ui-2hnd",
+    "brand": "MikroTik",
+    "model": "RB951Ui-2HnD",
+    "partNumber": "RB951Ui-2HnD",
+    "ports": 5,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 5,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-rblhgr-and-r11e-lte-us",
+    "brand": "MikroTik",
+    "model": "RBLHGR&R11e-LTE-US",
+    "partNumber": "RBLHGR&R11e-LTE-US",
+    "ports": 1,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-rblhgr-and-r11e-lte6",
+    "brand": "MikroTik",
+    "model": "RBLHGR&R11e-LTE6",
+    "partNumber": "RBLHGR&R11e-LTE6",
+    "ports": 1,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-rbltap-2hnd",
+    "brand": "MikroTik",
+    "model": "RBLtAP-2HnD",
+    "partNumber": "RBLtAP-2HnD",
+    "ports": 1,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-rbsxtr-and-r11e-lte6",
+    "brand": "MikroTik",
+    "model": "RBSXTR&R11e-LTE6",
+    "partNumber": "RBSXTR&R11e-LTE6",
+    "ports": 2,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 2,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-rds2216-2xg-4s-plus-4xs-2xq",
+    "brand": "MikroTik",
+    "model": "RDS2216-2XG-4S+4XS-2XQ",
+    "partNumber": "RDS2216-2XG-4S+4XS-2XQ",
+    "ports": 12,
+    "rackU": 1,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 8,
+      "sfp2Count": 2,
+      "sfpStartNum": 1,
+      "sfp2StartNum": 1,
+      "mgmtCount": 1
+    },
+    "counts": {
+      "copper": 2,
+      "sfp": 8,
+      "qsfp": 2,
+      "mgmt": 1
+    }
+  },
+  {
+    "slug": "mikrotik-sxt-lite5",
+    "brand": "MikroTik",
+    "model": "SXT Lite5",
+    "partNumber": "RBSXT5nDr2",
+    "ports": 1,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-sxt-lte-kit",
+    "brand": "MikroTik",
+    "model": "SXT LTE kit",
+    "partNumber": "RBSXTR&R11e-LTE",
+    "ports": 2,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 2,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-sxtsq-5-ac",
+    "brand": "MikroTik",
+    "model": "SXTsq 5 ac",
+    "partNumber": "RBSXTsqG-5acD",
+    "ports": 1,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-wap-60g",
+    "brand": "MikroTik",
+    "model": "wAP 60G",
+    "partNumber": "RBwAPG-60ad",
+    "ports": 1,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-rbwapr-2nd-and-r11e-lr8g",
+    "brand": "MikroTik",
+    "model": "wAP LR8G kit",
+    "partNumber": "RBwAPR-2nD&R11e-LR8G",
+    "ports": 1,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-wap-lte-kit",
+    "brand": "MikroTik",
+    "model": "wAP LTE kit",
+    "partNumber": "RBwAPR-2nD&R11e-LTE",
+    "ports": 1,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  },
+  {
+    "slug": "mikrotik-wap-r-ac",
+    "brand": "MikroTik",
+    "model": "wAP R ac",
+    "partNumber": "RBwAPGR-5HacD2HnD",
+    "ports": 2,
+    "rackU": 1,
+    "frontPanel": {},
+    "counts": {
+      "copper": 2,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0
+    }
+  }
+]

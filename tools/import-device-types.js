@@ -76,6 +76,40 @@ function classify(iface) {
   return 'copper'; // fallback: porta dati generica
 }
 
+// ---- template NATIVO (ports + frontPanel) per il renderer di DEFAULT --------
+// E' la strada per il look ESATTO: non una skin, ma i campi del nodo che il
+// renderer nativo usa per disegnare copper/SFP/MGMT con le loro gabbie e numeri.
+// Split fiber in SFP (1o blocco) e QSFP/40G+ (2o blocco); ports = totale dati
+// (copper+sfp+qsfp) ordinati copper->sfp->qsfp (il frontpanel tratta la CODA come
+// blocchi SFP). sfpStartNum/sfp2StartNum = numero iniziale REALE letto dal nome
+// interfaccia device-type (es. "sfp-sfpplus1" -> 1 = numerazione che riparte).
+// NB: frontpanel clampa sfpCount/sfp2Count a 8 e mgmtCount a 4.
+function buildTemplate(dt) {
+  let copper = 0, sfp = 0, qsfp = 0, mgmt = 0, sfp1st = null, qsfp1st = null;
+  for (const it of (dt.interfaces || [])) {
+    const k = classify(it);
+    if (!k) continue;
+    if (k === 'mgmt') { mgmt++; continue; }
+    if (k === 'fiber') {
+      const s = (String(it.type || '') + ' ' + String(it.name || '')).toLowerCase();
+      if (/qsfp|40gbase|100gbase|200gbase|400gbase/.test(s)) { qsfp++; if (!qsfp1st) qsfp1st = it.name; }
+      else { sfp++; if (!sfp1st) sfp1st = it.name; }
+    } else copper++;
+  }
+  const ports = copper + sfp + qsfp;
+  const trail = s => { const m = String(s || '').match(/(\d+)\s*$/); return m ? parseInt(m[1], 10) : null; };
+  const fp = {};
+  if (sfp + qsfp > 0) {
+    fp.separateSfp = true;
+    fp.sfpCount = Math.min(8, sfp);
+    if (qsfp > 0) fp.sfp2Count = Math.min(8, qsfp);
+    const ss = trail(sfp1st); if (ss && ss !== copper + 1) fp.sfpStartNum = ss;   // riparte (≠ continuata)
+    const qs = trail(qsfp1st); if (qs) fp.sfp2StartNum = qs;
+  }
+  if (mgmt > 0) fp.mgmtCount = Math.min(4, mgmt);
+  return { ports, rackU: Math.max(1, parseInt(dt.u_height, 10) || 1), counts: { copper, sfp, qsfp, mgmt }, frontPanel: fp };
+}
+
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 // ---- costruzione skin SVG --------------------------------------------------
@@ -151,6 +185,8 @@ ${rects.join('\n')}
 function main() {
   const args = process.argv.slice(2);
   const SEED = args.includes('--seed');   // scrive le skin nello skin store (server/skins-store)
+  const catFlag = args.find(a => a.startsWith('--catalog='));   // --catalog=data/device-types.json
+  const catalogPath = catFlag ? catFlag.slice('--catalog='.length) : null;
   const pos = args.filter(a => !a.startsWith('--'));
   const inDir = pos[0] || path.join(__dirname, '..', 'skins-src', 'device-type-samples');
   const outDir = pos[1] || path.join(__dirname, '..', 'skins-src', 'generated');
@@ -180,12 +216,14 @@ function main() {
     // coerenza: le porte estratte dalla skin combaciano coi conteggi attesi?
     const okCounts = parsed.counts.data === built.dataCount && parsed.counts.mgmt === built.mgmtCount;
     fs.writeFileSync(path.join(outDir, slug + '.svg'), built.svg, 'utf8');
+    // TEMPLATE NATIVO (ports + frontPanel) = look esatto via renderer di default.
+    const tmpl = buildTemplate(dt);
     catalog.push({
       slug, brand: dt.manufacturer || '', model: dt.model || '',
-      partNumber: dt.part_number || '', uHeight: parseInt(dt.u_height, 10) || 1,
-      isFullDepth: dt.is_full_depth === 'true', face: 'front',
-      ports: { data: built.dataCount, copper: built.copper, fiber: built.fiber, mgmt: built.mgmtCount },
-      skin: slug + '.svg'
+      partNumber: dt.part_number || '', rackU: tmpl.rackU,
+      isFullDepth: dt.is_full_depth === 'true',
+      ports: tmpl.ports, frontPanel: tmpl.frontPanel, counts: tmpl.counts,
+      skin: slug + '.svg'   // opzionale: artwork custom (non serve per il look default)
     });
     seedBatch.push({ name: `${dt.manufacturer} ${dt.model}`, brand: dt.manufacturer || '', model: dt.model || '', face: parsed.face, viewBox: parsed.viewBox, ports: parsed.ports, svg: parsed.svg });
     okN++;
@@ -198,6 +236,32 @@ function main() {
   fs.writeFileSync(path.join(outDir, 'catalog.json'), JSON.stringify(catalog, null, 2), 'utf8');
   console.log('-'.repeat(72));
   console.log(`\nOK: ${okN}  FAIL: ${failN}  ->  ${path.join(outDir, 'catalog.json')} (${catalog.length} voci)\n`);
+
+  // VERIFICA NATIVA: il frontpanel PURO (lo stesso del renderer default) deriva
+  // dai campi template gli stessi conteggi SFP/MGMT? Prova che il look sara' esatto.
+  const { frontPanelState } = require('../lib/frontpanel');
+  let vOk = 0, vBad = 0;
+  for (const c of catalog) {
+    const s = frontPanelState({ type: 'switch', ports: c.ports, frontPanel: c.frontPanel }, c.ports, true);
+    const eSfp = Math.min(8, c.counts.sfp), eSfp2 = Math.min(8, c.counts.qsfp), eMg = Math.min(4, c.counts.mgmt);
+    if (s.sfpCount === eSfp && (s.sfp2Count || 0) === eSfp2 && (s.mgmtCount || 0) === eMg) vOk++;
+    else { vBad++; if (vBad <= 6) console.log('  ! mismatch', c.model, '| sfp', s.sfpCount + '/' + eSfp, 'sfp2', (s.sfp2Count || 0) + '/' + eSfp2, 'mgmt', (s.mgmtCount || 0) + '/' + eMg); }
+  }
+  console.log(`Verifica frontpanel (puro): ${vOk} OK, ${vBad} mismatch\n`);
+
+  // --catalog=<path>: installa/merge i template NATIVI nel catalogo servito
+  // dall'app (GET /api/device-types). Campi essenziali; merge per slug.
+  if (catalogPath) {
+    let existing = [];
+    try { const j = JSON.parse(fs.readFileSync(catalogPath, 'utf8')); if (Array.isArray(j)) existing = j; } catch (_) { /* file nuovo */ }
+    const lean = catalog.map(c => ({ slug: c.slug, brand: c.brand, model: c.model, partNumber: c.partNumber, ports: c.ports, rackU: c.rackU, frontPanel: c.frontPanel, counts: c.counts }));
+    const bySlug = new Map(existing.map(e => [e.slug, e]));
+    for (const c of lean) bySlug.set(c.slug, c);
+    const merged = [...bySlug.values()].sort((a, b) => (a.brand + a.model).localeCompare(b.brand + b.model));
+    fs.mkdirSync(path.dirname(catalogPath), { recursive: true });
+    fs.writeFileSync(catalogPath, JSON.stringify(merged, null, 2), 'utf8');
+    console.log(`CATALOG -> ${catalogPath}: ${merged.length} modelli totali (${lean.length} da questo run)\n`);
+  }
 
   // --seed: installa le skin nello skin store del server (skins/<id>.svg + index.json).
   // Idempotente: rimuove prima le skin preesistenti con stessa (brand, model, face).

@@ -121,6 +121,9 @@ app.use(require('./server/routes/projects'));
 // ---- Skin store (server/routes/skins.js) ------------------------------------
 app.use(require('./server/routes/skins'));
 
+// ---- Catalogo device-type (server/routes/device-types.js) -------------------
+app.use(require('./server/routes/device-types'));
+
 // ---- Assistente AI (server/routes/ai.js) ------------------------------------
 // Config (GET mascherato / PUT admin) + preview del contesto sanitizzato.
 // Session-gated (montata dopo auth.register). La chiave resta server-side.
