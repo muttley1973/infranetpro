@@ -214,7 +214,7 @@ infranetpro/
 ```
 
 **Design principles:**
-- **Minimal-tooling frontend** — the only build step is a lightweight esbuild bundle of the `src/` ESM modules; the pure `lib/*.js` and `export.js` stay classic static assets *by design*. The strangler migration to ESM is complete; retiring the transitional `window` bridge (`win.*` reads → `import`, inline handlers → event delegation) is tracked in [ARCHITECTURE.md](ARCHITECTURE.md) §10.
+- **Minimal-tooling frontend** — the only build step is a lightweight esbuild bundle of the `src/` ESM modules; the pure `lib/*.js` and `export.js` stay classic static assets *by design*. The strangler migration to ESM is complete; retiring the transitional `window` bridge (`win.*` reads → `import`, inline handlers → event delegation) is **suspended — a low-priority, spare-time task** (the state is stable; monotonic ratchets prevent regression). See [ARCHITECTURE.md](ARCHITECTURE.md) §10.
 - **File-based storage** — each project is a plain JSON file (easy to back up / version-control); the floor-plan image is kept out of the JSON as a sidecar asset and re-attached as a data-URL on load, so saves stay fast even with large maps.
 - **Internal plugin model** — discovery intelligence is extended with local SNMP/sysObjectID/OUI plugins and self-contained drivers, never external discovery platforms.
 - **Tested core** — bug-prone parsing/normalization logic is covered by a dependency-free regression suite (`npm test`); CI also runs a syntax check, an ESLint gate, a `tsc` JSDoc type check and a real-browser e2e suite.

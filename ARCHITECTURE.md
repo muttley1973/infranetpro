@@ -616,7 +616,16 @@ is VPN/LAN.
   merged to `main` (`8b77e63`)** — all `lib/app-*.js` glue **and** the nucleus (`src/app.js`)
   are ESM in the bundle. The only remaining classic `<script>`s are the pure `lib/*.js` and
   `export.js` (by design).
-- **Retiring the `window` bridge (in progress).** `src/_bridge.js` still lets not-yet-retired
+- **Retiring the `window` bridge — SUSPENDED (low-priority, resume opportunistically).**
+  > **Decision (2026-07-14): the bridge-retirement effort (both axes below) is parked as a spare-time
+  > task, not abandoned.** The half-migrated state is stable and correct; further reduction isn't worth
+  > prioritising over higher-value work (e.g. closing the presentation-layer test gap). **The two ratchets
+  > STAY as regression guards** — the counts may only *hold or shrink*, never grow (no new `win.*` reads,
+  > no new inline handlers) — but *driving them down is no longer an active goal*: lower a ratchet only
+  > opportunistically, when a module is being touched for other reasons. Resume the migration deliberately
+  > when there's slack.
+
+  `src/_bridge.js` still lets not-yet-retired
   code reach globals (`win.*` read, `expose()` publish). Removing it has **two independent axes**,
   each tracked so it can only move forward:
   - **Axis A — `win.*` → real `import`.** A monotonic ratchet (`test/bridge-ratchet.test.js`,
