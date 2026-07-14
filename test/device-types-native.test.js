@@ -26,8 +26,8 @@ test('device-types.json: catalogo ben formato', () => {
 test('frontPanel deriva lo split SFP/MGMT dai campi template (tutti i modelli)', () => {
   for (const c of catalog) {
     const s = frontPanelState({ type: 'switch', ports: c.ports, frontPanel: c.frontPanel }, c.ports, true);
-    assert.equal(s.sfpCount, Math.min(8, c.counts.sfp), c.model + ' sfp');
-    assert.equal(s.sfp2Count || 0, Math.min(8, c.counts.qsfp), c.model + ' sfp2');
+    assert.equal(s.sfpCount, Math.min(24, c.counts.sfp), c.model + ' sfp');
+    assert.equal(s.sfp2Count || 0, Math.min(24, c.counts.qsfp), c.model + ' sfp2');
     assert.equal(s.mgmtCount || 0, Math.min(4, c.counts.mgmt), c.model + ' mgmt');
   }
 });
