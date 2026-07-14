@@ -1,8 +1,8 @@
 // ============================================================
 // DEVICE-TYPE CATALOG — "Applica modello" (look ESATTO via renderer di default)
 // ============================================================
-// Catalogo di template NATIVI (ports + frontPanel) generati dai dati device-type
-// devicetype-library (CC0) e serviti da GET /api/device-types. Applicare un
+// Catalogo di template NATIVI (ports + frontPanel) generati da dati device-type
+// pubblici (CC0) e serviti da GET /api/device-types. Applicare un
 // modello setta i campi nativi del nodo -> il renderer di default disegna
 // porte/SFP/MGMT ESATTE (numeri + gabbie), niente skin/approssimazioni.
 // NB ratchet ponte: niente win.* (fetch diretto sul route pubblico) e niente

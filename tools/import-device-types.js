@@ -1,20 +1,20 @@
 #!/usr/bin/env node
 'use strict';
 // ============================================================================
-//  import-device-types.js  —  public-domain (CC0) device-type data  ->  InfraNet
+//  import-device-types.js  —  YAML device-type (CC0 / pubblico dominio)  ->  InfraNet
 //
-//  Usa i DATI YAML (CC0, riusabili anche commercialmente) della
-//  public-domain device-type library per generare:
+//  Usa DATI YAML pubblici (CC0, riusabili anche commercialmente) di device-type
+//  per generare:
 //    (a) un CATALOGO modelli JSON (brand/model/u_height/conteggi porte)
 //    (b) SKIN SVG NATIVE InfraNet, VETTORIALI e con porte VIVE (id="port-N"),
 //        validate con lib/panel-skin.js.
 //
-//  NON usa le immagini di elevazione di device-type: sono raster, senza id-porta
-//  (non diventerebbero LED vivi nel rack) e con provenienza incerta. Qui si
-//  prende solo il dato strutturato e si disegna artwork NOSTRO.
+//  NON usa immagini di elevazione raster: senza id-porta (non diventerebbero LED
+//  vivi nel rack) e con provenienza incerta. Qui si prende solo il dato
+//  strutturato e si disegna artwork NOSTRO.
 //
 //  Uso:  node tools/import-device-types.js [inputDir] [outDir]
-//        inputDir = cartella con file .yaml della devicetype-library
+//        inputDir = cartella con file .yaml dei device-type
 //        outDir   = dove scrivere le skin .svg + catalog.json
 // ============================================================================
 const fs = require('fs');
@@ -82,7 +82,7 @@ function classify(iface) {
 // Split fiber in SFP (1o blocco) e QSFP/40G+ (2o blocco); ports = totale dati
 // (copper+sfp+qsfp) ordinati copper->sfp->qsfp (il frontpanel tratta la CODA come
 // blocchi SFP). sfpStartNum/sfp2StartNum = numero iniziale REALE letto dal nome
-// interfaccia device-type (es. "sfp-sfpplus1" -> 1 = numerazione che riparte).
+// interfaccia (es. "sfp-sfpplus1" -> 1 = numerazione che riparte).
 // NB: frontpanel clampa sfpCount/sfp2Count a 24 e mgmtCount a 4.
 function buildTemplate(dt) {
   let copper = 0, sfp = 0, qsfp = 0, mgmt = 0, sfp1st = null, qsfp1st = null;
@@ -181,6 +181,62 @@ ${rects.join('\n')}
   return { svg, copper: copper.length, fiber: fiber.length, mgmt: mgmt.length, dataCount: dnum, mgmtCount: mnum };
 }
 
+// ---- discovery ricorsiva (device-types/<Vendor>/<model>.yaml) ---------------
+function walk(dir) {
+  const out = [];
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const fp = path.join(dir, e.name);
+    if (e.isDirectory()) out.push(...walk(fp));
+    else if (/\.ya?ml$/i.test(e.name)) out.push(fp);
+  }
+  return out;
+}
+
+// ---- filtro RUOLO (--roles) ------------------------------------------------
+// InfraNet documenta INFRASTRUTTURA di rete: teniamo switch/router/AP/firewall
+// + UPS/PDU/ATS + NAS; scartiamo endpoint (telefoni/workstation/camere), server/
+// blade e accessori/moduli. Nessuna dipendenza dal singolo vendor (Regola ③):
+// la decisione nasce dai DATI (porte, prese elettriche) + pattern di modello
+// generici. Ritorna { role, keep } — bias a TENERE gli apparati di rete.
+function roleOf(dt, c) {
+  const brand = String(dt.manufacturer || '').toLowerCase();
+  const model = String(dt.model || '').toLowerCase();
+  const nm = brand + ' ' + model;
+  const rx = re => re.test(nm);
+  const data = c.copper + c.sfp + c.qsfp;                 // porte dati totali
+  const outlets = (dt['power-outlets'] || []).length;     // prese = PDU/UPS
+  const bays = (dt['module-bays'] || []).length;          // schede -> chassis modulare
+  const csPorts = (dt['console-server-ports'] || []).length; // porte seriali gestite -> console server (OOB)
+  // 1) Alimentazione: UPS / PDU / ATS (prese elettriche o nome inequivocabile)
+  if (outlets >= 1 || rx(/\b(ups|pdu|ats|rack ?pdu|transfer switch|automatic transfer|smart-?ups|symmetra|maintenance bypass|inrow)\b/))
+    return { role: 'power', keep: true };
+  // 2) NAS / storage appliance
+  if (/(synology|qnap)/.test(brand) || rx(/\b(nas|diskstation|rackstation|powervault|nimble)\b/))
+    return { role: 'nas', keep: true };
+  // 2b) Console server / OOB (gestisce >=4 porte seriali) -> TIENI. Segnale data-driven
+  // (non per-vendor): distingue un console server da un endpoint mono-porta ethernet.
+  if (csPorts >= 4) return { role: 'console', keep: true };
+  // 3) Endpoint / periferica / ACCESSORIO -> SCARTA (anche se ha porte, es. IP phone)
+  if (rx(/\b(ip ?phone|phone|handset|voip|conference|deskphone|workstation|desktop|laptop|notebook|thin ?client|monitor|display|projector|webcam|camera|ipcam|nvr|dvr|doorbell|sensor|speaker|soundbar|headset|tablet|printer|scanner|kvm|dock|injector|media converter|transceiver|\bpsu\b|power supply|fan ?tray|rack ?(kit|mount|tray)|rail ?kit|slide ?rail|\d-?post|mounting|bracket|blank(ing)?|shelf)\b/))
+    return { role: 'endpoint', keep: false };
+  // 4) Access point / bridge wireless -> TIENI (anche con 0-2 porte). Famiglie AP note
+  // di piu' vendor: Cisco Catalyst 91xx/Aironet, Aruba (I)AP, FortiAP, Ubiquiti air*, TP-Link WA/CPE.
+  if (rx(/wireless|wi-?fi|access ?point|\bap-?\d|\bap\b|\buap\b|\biap-?\d|aironet|catalyst ?91\d\d|fortiap|airengine|\bapx\d|air-?(fiber|max|cube|grid|gateway)|nanostation|nanobeam|litebeam|powerbeam|\brocket\b|\bbullet\b|meraki mr|aruba ?ap|instant ?on|\bomada\b|\beap-?\d|\bwap-?\d|\bwax-?\d|\bews\d|tl-?wa\d|\bcpe-?\d|\bgwn7[6-9]\d\d/))
+    return { role: 'ap', keep: true };
+  // 5) Chassis modulare (porte fornite da line-card negli module-bays)
+  if (bays >= 2 && data < 4 && !rx(/\b(server|blade|enclosure|poweredge|proliant|synergy)\b/))
+    return { role: 'chassis', keep: true };
+  // 6) Server / blade / compute -> SCARTA (fuori dalla lista scelta) se poche porte
+  if (rx(/\b(server|poweredge|proliant|synergy|blade|apollo|superserver|ucs [cbxs]\d|thinksystem|primergy|cloudline|edgeline)\b/) && data < 6)
+    return { role: 'server', keep: false };
+  // 7) Apparato di rete per densita' di porte (switch/router/firewall)
+  if (data >= 2) return { role: 'network', keep: true };
+  // 8) Router/gateway mono-porta dichiarato -> TIENI
+  if (data >= 1 && rx(/router|gateway|\bisr\b|\bvedge\b|\bsd-?wan\b/)) return { role: 'router', keep: true };
+  // 9) Residuo -> SCARTA
+  return { role: 'other', keep: false };
+}
+
 // ---- main ------------------------------------------------------------------
 function main() {
   const args = process.argv.slice(2);
@@ -188,54 +244,83 @@ function main() {
   const catFlag = args.find(a => a.startsWith('--catalog='));   // --catalog=data/device-types.json
   const catalogPath = catFlag ? catFlag.slice('--catalog='.length) : null;
   const pos = args.filter(a => !a.startsWith('--'));
-  const inDir = pos[0] || path.join(__dirname, '..', 'skins-src', 'device-type-samples');
+  const inDir = pos[0] || path.join(__dirname, '..', 'skins-src', 'devicetype-samples');
   const outDir = pos[1] || path.join(__dirname, '..', 'skins-src', 'generated');
   if (!fs.existsSync(inDir)) { console.error('Input dir non trovata:', inDir); process.exit(1); }
   fs.mkdirSync(outDir, { recursive: true });
 
-  const files = fs.readdirSync(inDir).filter(f => /\.ya?ml$/i.test(f));
-  const catalog = [], seedBatch = [];
-  let okN = 0, failN = 0;
-  console.log(`\nInput: ${inDir}\nOutput: ${outDir}\nModelli: ${files.length}\n`);
-  console.log('MODELLO'.padEnd(26), 'U', 'DATI', 'SFP', 'MGMT', 'VALIDAZIONE');
-  console.log('-'.repeat(72));
+  // --vendors=A,B : limita alle cartelle-vendor indicate (segmento subito sotto inDir)
+  const vendFlag = args.find(a => a.startsWith('--vendors='));
+  const vendSet = vendFlag ? new Set(vendFlag.slice('--vendors='.length).split(',').map(s => s.trim().toLowerCase()).filter(Boolean)) : null;
+  const ROLES = args.includes('--roles');   // tieni solo switch/router/AP/firewall/UPS/NAS
+  const vendorOf = fp => { const rel = path.relative(inDir, fp).split(/[\\/]/); return rel.length > 1 ? rel[0] : (path.basename(path.dirname(fp))); };
 
-  for (const f of files) {
-    const dt = parseDeviceType(fs.readFileSync(path.join(inDir, f), 'utf8'));
-    const built = buildSkin(dt);
-    const parsed = parsePanelSkin(built.svg, {
-      name: `${dt.manufacturer} ${dt.model}`, brand: dt.manufacturer, model: dt.model, face: 'front'
-    });
-    const slug = dt.slug || f.replace(/\.ya?ml$/i, '').toLowerCase();
+  let files = walk(inDir);                                            // ricorsivo (sottocartelle vendor)
+  if (vendSet) files = files.filter(fp => vendSet.has(vendorOf(fp).toLowerCase()));
+
+  const catalog = [], seedBatch = [];
+  let okN = 0, skinFailN = 0, dropN = 0;
+  const perVendor = {};   // vendor -> { total, kept, byRole:{}, samples:[] }
+  console.log(`\nInput: ${inDir}\nOutput: ${outDir}\nFile: ${files.length}${vendSet ? '  vendors=' + [...vendSet].join(',') : ''}${ROLES ? '  [filtro ruolo ON]' : ''}\n`);
+
+  for (const fp of files) {
+    const dt = parseDeviceType(fs.readFileSync(fp, 'utf8'));
+    const vend = vendorOf(fp) || dt.manufacturer || '?';
+    const st = perVendor[vend] || (perVendor[vend] = { total: 0, kept: 0, byRole: {}, samples: [] });
+    st.total++;
+    const slug = dt.slug || path.basename(fp).replace(/\.ya?ml$/i, '').toLowerCase();
     const model = `${dt.manufacturer || '?'} ${dt.model || slug}`;
-    if (!parsed.ok) {
-      failN++;
-      console.log(model.slice(0, 25).padEnd(26), String(dt.u_height || 1).padEnd(1), '', '', '', 'X ' + parsed.errorCode + ': ' + parsed.error);
-      continue;
+    const tmpl = buildTemplate(dt);                                   // conteggi + template nativo
+    if (ROLES) {
+      const r = roleOf(dt, tmpl.counts);
+      if (!r.keep) {
+        dropN++; st.byRole[r.role] = (st.byRole[r.role] || 0) + 1;
+        if (st.samples.length < 5) st.samples.push(`${dt.model || slug} [${r.role}]`);
+        continue;
+      }
     }
-    // coerenza: le porte estratte dalla skin combaciano coi conteggi attesi?
-    const okCounts = parsed.counts.data === built.dataCount && parsed.counts.mgmt === built.mgmtCount;
-    fs.writeFileSync(path.join(outDir, slug + '.svg'), built.svg, 'utf8');
+    st.kept++; okN++;
     // TEMPLATE NATIVO (ports + frontPanel) = look esatto via renderer di default.
-    const tmpl = buildTemplate(dt);
-    catalog.push({
+    // Il catalogo nativo NON dipende dalla skin: UPS/PDU/NAS con 0 porte dati
+    // restano validi (identita' + altezza-U). La skin sotto e' solo per --seed.
+    const entry = {
       slug, brand: dt.manufacturer || '', model: dt.model || '',
       partNumber: dt.part_number || '', rackU: tmpl.rackU,
       isFullDepth: dt.is_full_depth === 'true',
-      ports: tmpl.ports, frontPanel: tmpl.frontPanel, counts: tmpl.counts,
-      skin: slug + '.svg'   // opzionale: artwork custom (non serve per il look default)
-    });
-    seedBatch.push({ name: `${dt.manufacturer} ${dt.model}`, brand: dt.manufacturer || '', model: dt.model || '', face: parsed.face, viewBox: parsed.viewBox, ports: parsed.ports, svg: parsed.svg });
-    okN++;
-    const warn = parsed.warnings.length ? '  ! ' + parsed.warnings.length + ' warn' : '';
-    console.log(model.slice(0, 25).padEnd(26), String(dt.u_height || 1).padEnd(1),
-      String(built.dataCount).padEnd(4), String(built.fiber).padEnd(3), String(built.mgmt).padEnd(4),
-      (parsed.ok ? 'OK' : 'X') + (okCounts ? '' : ' [counts?]') + warn);
+      ports: tmpl.ports, frontPanel: tmpl.frontPanel, counts: tmpl.counts
+    };
+    catalog.push(entry);
+    // SKIN (best-effort): solo se ci sono porte da disegnare; il fallito non esclude.
+    const built = buildSkin(dt);
+    if (built.dataCount + built.mgmtCount > 0) {
+      const parsed = parsePanelSkin(built.svg, {
+        name: `${dt.manufacturer} ${dt.model}`, brand: dt.manufacturer, model: dt.model, face: 'front'
+      });
+      if (parsed.ok) {
+        fs.writeFileSync(path.join(outDir, slug + '.svg'), built.svg, 'utf8');
+        entry.skin = slug + '.svg';   // opzionale: artwork custom (non serve al look default)
+        seedBatch.push({ name: `${dt.manufacturer} ${dt.model}`, brand: dt.manufacturer || '', model: dt.model || '', face: parsed.face, viewBox: parsed.viewBox, ports: parsed.ports, svg: parsed.svg });
+        const okCounts = parsed.counts.data === built.dataCount && parsed.counts.mgmt === built.mgmtCount;
+        if (!okCounts) console.log('  ! counts?', model.slice(0, 40));
+      } else { skinFailN++; }
+    }
+  }
+
+  // Report per vendor: tenuti vs scartati (con motivo + esempi) — trasparenza filtro
+  if (ROLES) {
+    console.log('\nVENDOR'.padEnd(22), 'TOT', 'TIENI', 'SCARTA (per ruolo)   | esempi scarto');
+    console.log('-'.repeat(96));
+    for (const [v, s] of Object.entries(perVendor).sort((a, b) => b[1].kept - a[1].kept)) {
+      const roles = Object.entries(s.byRole).map(([r, n]) => `${r}:${n}`).join(' ');
+      console.log(v.slice(0, 21).padEnd(22), String(s.total).padEnd(4), String(s.kept).padEnd(6),
+        (roles || '-').padEnd(20), '| ' + (s.samples.slice(0, 3).join(' · ') || ''));
+    }
+    console.log('-'.repeat(96));
   }
 
   fs.writeFileSync(path.join(outDir, 'catalog.json'), JSON.stringify(catalog, null, 2), 'utf8');
   console.log('-'.repeat(72));
-  console.log(`\nOK: ${okN}  FAIL: ${failN}  ->  ${path.join(outDir, 'catalog.json')} (${catalog.length} voci)\n`);
+  console.log(`\nTIENI: ${okN}  SCARTA: ${dropN}  (skin non generata: ${skinFailN})  ->  ${path.join(outDir, 'catalog.json')} (${catalog.length} voci)\n`);
 
   // VERIFICA NATIVA: il frontpanel PURO (lo stesso del renderer default) deriva
   // dai campi template gli stessi conteggi SFP/MGMT? Prova che il look sara' esatto.

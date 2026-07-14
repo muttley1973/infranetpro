@@ -1,7 +1,7 @@
 // ============================================================
 // WI-FI — orchestratore + UI (interfacce radio per-device, documentazione-grade)
 // ============================================================
-// Modello "ibrido" (come device-type): gli attributi Wi-Fi (SSID/banda/canale/
+// Modello "ibrido": gli attributi Wi-Fi (SSID/banda/canale/
 // sicurezza) vivono sulla singola RADIO del device (una voce di node.radios[]);
 // l'associazione (l'onda / link) li EREDITA in sola lettura dalla radio a cui è
 // collegata e aggiunge i suoi (segnale RSSI, distanza). Un device può avere fino
