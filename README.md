@@ -12,6 +12,11 @@
   <a href="https://ko-fi.com/infranetpro"><img height="36" src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Support InfraNet Pro on Ko-fi"></a>
 </p>
 
+<p align="center">
+  <img src="GitHub%20Images/demo.gif" alt="InfraNet Pro — a quick tour: topology, live racks, VLAN isolation, SNMP discovery and the AI assistant" width="900"><br>
+  <em>A quick tour — auto-discovered topology, live 19″ racks, one-click VLAN isolation, SNMP discovery and the grounded AI assistant. <a href="#screenshots">More screenshots ↓</a></em>
+</p>
+
 > 📰 **What's new:** see [CHANGELOG.md](CHANGELOG.md). Latest: **draw.io rack export - per-VLAN cable tables with click-to-highlight and automatic A4/A3 page sizing** (plus a PDF inventory-table column-fit fix).
 
 > 🔒 **Security-audited & hardened.** The codebase has undergone an application-security audit (no critical issues) and the follow-up fixes are covered by **automated security regression tests**: the data surfaces (AI context, REST DTOs, exports) are **allowlist-only** so secrets never leave the machine, OS commands run via `execFile` with no shell, project IDs are path-traversal-safe, and secrets use a CSPRNG. See [Authentication & Roles → Security hardening & audit](#authentication--roles).
