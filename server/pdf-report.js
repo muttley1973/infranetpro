@@ -113,22 +113,53 @@ function _rSub(doc, text, y) {
   return y + 13;
 }
 
-// Tronca il testo al numero di caratteri che entrano nella colonna.
-// Helvetica 7pt: larghezza media per carattere ≈ fontSize * 0.5 pt
-function _fit(str, widthPt, fs = 7) {
+// Tronca il testo alla larghezza REALE della colonna (doc.widthOfString col font
+// corrente). La vecchia stima `fontSize*0.5/char` sottostimava i nomi in maiuscolo/
+// simboli (es. "CORE-SW-2 (MLAG) P1") -> il testo sforava nella colonna accanto.
+// Misura al `fs` dato e RIPRISTINA il fontSize del chiamante (niente effetti collaterali).
+function _fit(doc, str, widthPt, fs = 7) {
   str = String(str ?? '');
-  const max = Math.floor(widthPt / (fs * 0.50));
-  if (!str || str.length <= max) return str;
-  return str.substring(0, max - 3) + '...';
+  if (!str) return str;
+  const prev = doc._fontSize;
+  doc.fontSize(fs);
+  let r = str;
+  if (doc.widthOfString(str) > widthPt) {
+    while (r.length > 1 && doc.widthOfString(r + '...') > widthPt) r = r.slice(0, -1);
+    r += '...';
+  }
+  doc.fontSize(prev);
+  return r;
 }
 
-function _wrapFit(str, widthPt, fs = 7) {
+// Manda a capo alla larghezza REALE, preferendo gli spazi (word-aware); i token piu'
+// lunghi della colonna vengono spezzati sul punto esatto che entra. Ripristina il fontSize.
+function _wrapFit(doc, str, widthPt, fs = 7) {
   const s = String(str ?? '');
-  const max = Math.max(1, Math.floor(widthPt / (fs * 0.50)));
   if (!s.length) return [''];
+  const prev = doc._fontSize;
+  doc.fontSize(fs);
+  const fits = t => doc.widthOfString(t) <= widthPt;
   const out = [];
-  for (let i = 0; i < s.length; i += max) out.push(s.substring(i, i + max));
-  return out;
+  const hardSplit = (tok) => {                       // token senza spazi piu' largo della colonna
+    let t = tok;
+    while (t.length && !fits(t)) {
+      let lo = 1, hi = t.length, cut = 1;
+      while (lo <= hi) { const mid = (lo + hi) >> 1; if (fits(t.slice(0, mid))) { cut = mid; lo = mid + 1; } else hi = mid - 1; }
+      out.push(t.slice(0, cut));
+      t = t.slice(cut);
+    }
+    return t;                                        // resto che entra
+  };
+  let line = '';
+  s.split(/\s+/).filter(Boolean).forEach(w => {
+    const cand = line ? line + ' ' + w : w;
+    if (fits(cand)) { line = cand; return; }
+    if (line) { out.push(line); line = ''; }
+    line = fits(w) ? w : hardSplit(w);
+  });
+  if (line) out.push(line);
+  doc.fontSize(prev);
+  return out.length ? out : [''];
 }
 
 function _rTable(doc, cols, rows, y0, title, projName, date) {
@@ -141,7 +172,7 @@ function _rTable(doc, cols, rows, y0, title, projName, date) {
     doc.rect(M, y, TW, HH).fill('#1e3a5f');
     doc.font('Helvetica-Bold').fontSize(FS).fillColor('#ffffff');
     cols.forEach(c => {
-      doc.text(_fit(c.label, c.w - 6, FS), x + 3, y + 4, { lineBreak: false });
+      doc.text(_fit(doc, c.label, c.w - 6, FS), x + 3, y + 4, { lineBreak: false });
       x += c.w;
     });
     y += HH;
@@ -150,11 +181,12 @@ function _rTable(doc, cols, rows, y0, title, projName, date) {
   drawHdr();
 
   rows.forEach((row, ri) => {
+    doc.font('Helvetica').fontSize(FS);                 // misura le celle col font di disegno (non il Bold dell'header)
     const cellLines = cols.map((c, ci) => {
       const raw = String(row[ci] ?? '');
-      if (c.wrap) return _wrapFit(raw, c.w - 6, FS);
+      if (c.wrap) return _wrapFit(doc, raw, c.w - 6, FS);
       if (c.shrink) return [raw];
-      return [_fit(raw, c.w - 6, FS)];
+      return [_fit(doc, raw, c.w - 6, FS)];
     });
     const rowLines = Math.max(...cellLines.map(lines => lines.length));
     const rowH = Math.max(RH, 4 + rowLines * 9);
@@ -175,26 +207,33 @@ function _rTable(doc, cols, rows, y0, title, projName, date) {
 
       if (c.arrowAlign && lines.length && /\s*->\s*/.test(baseText)) {
         const m = baseText.match(/^(.*?)\s*->\s*(.*)$/);
-        const leftRaw  = String(m?.[1] ?? '').trim();
-        const rightRaw = String(m?.[2] ?? '').trim();
+        let leftRaw  = String(m?.[1] ?? '').trim();
+        let rightRaw = String(m?.[2] ?? '').trim();
         const cellL = x + 3;
         const cellR = x + c.w - 3;
         const mid   = (cellL + cellR) / 2;
-        const arrow = '->';
-        const gap   = 10;
+        const gap   = 6;
         const leftW  = Math.max(10, (mid - gap) - cellL);
         const rightW = Math.max(10, cellR - (mid + gap));
 
-        // Riduce il font solo quanto basta per mantenere tutto in monoriga.
-        const fsLeftNeed  = leftRaw.length  ? (leftW  / (leftRaw.length  * 0.50)) : FS;
-        const fsRightNeed = rightRaw.length ? (rightW / (rightRaw.length * 0.50)) : FS;
-        const fs = Math.max(5, Math.min(FS, fsLeftNeed, fsRightNeed));
-        const arrowW = fs * 1.2;
+        // Riduce il font (misura REALE) finche' entrambe le meta' entrano; sotto il
+        // minimo leggibile (5pt) tronca con ellissi -> mai overflow nella colonna accanto.
+        doc.font('Helvetica');
+        const needFs = (txt, w) => {
+          if (!txt) return FS;
+          let f = FS; doc.fontSize(f);
+          while (f > 5 && doc.widthOfString(txt) > w) { f -= 0.25; doc.fontSize(f); }
+          return f;
+        };
+        const fs = Math.max(5, Math.min(FS, needFs(leftRaw, leftW), needFs(rightRaw, rightW)));
+        leftRaw  = _fit(doc, leftRaw,  leftW,  fs);
+        rightRaw = _fit(doc, rightRaw, rightW, fs);
+        const arrowW = doc.fontSize(fs).widthOfString('->');
 
         doc.font('Helvetica').fontSize(fs).fillColor(color)
            .text(leftRaw, cellL, y + 3, { width: leftW, align: 'right', lineBreak: false });
         doc.font('Helvetica').fontSize(fs).fillColor(color)
-           .text(arrow, mid - (arrowW / 2), y + 3, { lineBreak: false });
+           .text('->', mid - (arrowW / 2), y + 3, { lineBreak: false });
         doc.font('Helvetica').fontSize(fs).fillColor(color)
            .text(rightRaw, mid + gap, y + 3, { width: rightW, align: 'left', lineBreak: false });
         x += c.w;
@@ -205,11 +244,12 @@ function _rTable(doc, cols, rows, y0, title, projName, date) {
         let fs = FS;
         let txt = line;
         if (c.shrink && li === 0) {
-          // Monoriga senza ellissi: riduce il font solo per questa cella fino a un minimo leggibile.
+          // Monoriga: riduce il font (misura REALE) fino a un minimo leggibile; se al
+          // minimo non entra ancora, tronca con ellissi -> mai overflow.
           const targetW = c.w - 6;
-          const neededFs = baseText.length > 0 ? (targetW / (baseText.length * 0.50)) : FS;
-          fs = Math.max(5, Math.min(FS, neededFs));
-          txt = baseText;
+          doc.font('Helvetica'); fs = FS; doc.fontSize(fs);
+          while (fs > 5 && doc.widthOfString(baseText) > targetW) { fs -= 0.25; doc.fontSize(fs); }
+          txt = doc.widthOfString(baseText) > targetW ? _fit(doc, baseText, targetW, fs) : baseText;
         }
         doc.font('Helvetica').fontSize(fs).fillColor(color)
            .text(txt, x + 3, y + 3 + (li * 9), { lineBreak: false });
@@ -385,16 +425,17 @@ function _addReportPages(doc, report, projName, date, SVGtoPDF, options = {}, la
         // Ricalcola altezza card tenendo conto del wrapping reale.
         const DNAME_W = 140;  // larghezza colonna nome device
         const PORTS_W = CW - DNAME_W - 6;
+        doc.font('Helvetica');                      // misura il wrapping col font di disegno
         const agRows = ag.reduce((s, g) => {
           const portsStr = (g.ports || []).map(p => `P${p}`).join('  ');
-          return s + _wrapFit(portsStr, PORTS_W, 6).length;
+          return s + _wrapFit(doc, portsStr, PORTS_W, 6).length;
         }, 0);
         const tlRows = tl2.reduce((s, link) => {
           const txt = typeof link === 'string'
             ? link
             : `${link?.src || '?'} P${link?.srcPort || '?'} -> ${link?.dst || '?'} P${link?.dstPort || '?'}`
               + (link?.vlans ? ` [${link.vlans}]` : '');
-          return s + _wrapFit(txt, CW - 6, 6).length;
+          return s + _wrapFit(doc, txt, CW - 6, 6).length;
         }, 0);
         const realCardH = 18
           + (ag.length  ? 10 + agRows * 9 + 2 : 0)
@@ -418,7 +459,7 @@ function _addReportPages(doc, report, projName, date, SVGtoPDF, options = {}, la
         const maxName = CW - 110;
         doc.font('Helvetica-Bold').fontSize(8).fillColor('#ffffff');
         const nameW = Math.min(doc.widthOfString(hdr), maxName);
-        doc.text(_fit(hdr, maxName, 8), M + 18, y + 5, { lineBreak: false });
+        doc.text(_fit(doc, hdr, maxName, 8), M + 18, y + 5, { lineBreak: false });
         // IPAM inline nella fascia blu, dopo il nome, separato da " | "
         if (ipamParts.length) {
           const ipamStr = '|  ' + ipamParts.join('  |  ');
@@ -426,7 +467,7 @@ function _addReportPages(doc, report, projName, date, SVGtoPDF, options = {}, la
           const availW = (M + CW - countsW - 10) - startX;
           if (availW > 30) {
             doc.font('Helvetica').fontSize(6.5).fillColor('#ffffff')
-               .text(_fit(ipamStr, availW, 6.5), startX, y + 6.5, { lineBreak: false });
+               .text(_fit(doc, ipamStr, availW, 6.5), startX, y + 6.5, { lineBreak: false });
           }
         }
         // Conteggi access/trunk (a destra)
@@ -442,9 +483,10 @@ function _addReportPages(doc, report, projName, date, SVGtoPDF, options = {}, la
           ag.forEach(grp => {
             const portsStr = (grp.ports || []).map(p => `P${p}`).join('  ');
             const devLabel = `${String(grp.device ?? '')}:`;
-            const portLines = _wrapFit(portsStr, PORTS_W, 6);
+            doc.font('Helvetica');                  // stesso font del pre-calcolo altezza
+            const portLines = _wrapFit(doc, portsStr, PORTS_W, 6);
             doc.font('Helvetica-Bold').fontSize(6).fillColor('#334155')
-               .text(_fit(devLabel, DNAME_W - 6, 6), M + 3, y, { lineBreak: false });
+               .text(_fit(doc, devLabel, DNAME_W - 6, 6), M + 3, y, { lineBreak: false });
             portLines.forEach((line, i) => {
               doc.font('Helvetica').fontSize(6).fillColor('#1e293b')
                  .text(line, M + 3 + DNAME_W, y + (i * 9), { lineBreak: false });
@@ -464,7 +506,8 @@ function _addReportPages(doc, report, projName, date, SVGtoPDF, options = {}, la
               ? link
               : `${link?.src || '?'} P${link?.srcPort || '?'} -> ${link?.dst || '?'} P${link?.dstPort || '?'}`
                 + (link?.vlans ? ` [${link.vlans}]` : '');
-            _wrapFit(txt, CW - 6, 6).forEach(line => {
+            doc.font('Helvetica');                  // stesso font del pre-calcolo altezza
+            _wrapFit(doc, txt, CW - 6, 6).forEach(line => {
               doc.font('Helvetica').fontSize(6).fillColor('#1e293b')
                  .text(line, M + 3, y, { lineBreak: false });
               y += 9;
@@ -680,4 +723,4 @@ function _addAssetRegisterPages(doc, assets, projName, date, lastRevised, lang =
   _rTable(doc, cols, rows, y, T, projName, date);
 }
 
-module.exports = { _loadPdfDeps, _addReportPages, _addCoverPage, _addNotesPages, _addChangelogPages, _addSparePages, _addAssetRegisterPages, _fmtRevised, _rt };
+module.exports = { _loadPdfDeps, _addReportPages, _addCoverPage, _addNotesPages, _addChangelogPages, _addSparePages, _addAssetRegisterPages, _fmtRevised, _rt, _fit, _wrapFit };
