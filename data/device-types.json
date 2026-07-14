@@ -204,7 +204,7 @@
     "rackU": 1,
     "frontPanel": {
       "separateSfp": true,
-      "sfpCount": 8
+      "sfpCount": 13
     },
     "counts": {
       "copper": 0,
@@ -222,7 +222,7 @@
     "rackU": 1,
     "frontPanel": {
       "separateSfp": true,
-      "sfpCount": 8
+      "sfpCount": 13
     },
     "counts": {
       "copper": 0,
@@ -354,7 +354,7 @@
     "rackU": 1,
     "frontPanel": {
       "separateSfp": true,
-      "sfpCount": 8,
+      "sfpCount": 14,
       "sfpStartNum": 1
     },
     "counts": {
@@ -392,7 +392,7 @@
     "rackU": 1,
     "frontPanel": {
       "separateSfp": true,
-      "sfpCount": 8,
+      "sfpCount": 12,
       "sfp2Count": 2,
       "sfpStartNum": 1,
       "sfp2StartNum": 1
@@ -560,7 +560,7 @@
     "rackU": 1,
     "frontPanel": {
       "separateSfp": true,
-      "sfpCount": 8,
+      "sfpCount": 11,
       "sfpStartNum": 1
     },
     "counts": {
@@ -653,7 +653,7 @@
     "rackU": 1,
     "frontPanel": {
       "separateSfp": true,
-      "sfpCount": 8,
+      "sfpCount": 9,
       "sfpStartNum": 1
     },
     "counts": {
@@ -711,7 +711,7 @@
     "rackU": 1,
     "frontPanel": {
       "separateSfp": true,
-      "sfpCount": 8,
+      "sfpCount": 16,
       "sfpStartNum": 1
     },
     "counts": {
@@ -769,7 +769,7 @@
     "rackU": 1,
     "frontPanel": {
       "separateSfp": true,
-      "sfpCount": 8,
+      "sfpCount": 24,
       "sfp2Count": 2,
       "sfp2StartNum": 1,
       "mgmtCount": 1
@@ -831,7 +831,7 @@
     "rackU": 1,
     "frontPanel": {
       "separateSfp": true,
-      "sfpCount": 8
+      "sfpCount": 24
     },
     "counts": {
       "copper": 0,
@@ -955,7 +955,7 @@
     "rackU": 1,
     "frontPanel": {
       "separateSfp": true,
-      "sfpCount": 8,
+      "sfpCount": 16,
       "sfp2Count": 2,
       "sfp2StartNum": 1,
       "mgmtCount": 1
@@ -977,7 +977,7 @@
     "frontPanel": {
       "separateSfp": true,
       "sfpCount": 4,
-      "sfp2Count": 8,
+      "sfp2Count": 16,
       "sfp2StartNum": 1,
       "mgmtCount": 2
     },

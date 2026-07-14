@@ -83,7 +83,7 @@ function classify(iface) {
 // (copper+sfp+qsfp) ordinati copper->sfp->qsfp (il frontpanel tratta la CODA come
 // blocchi SFP). sfpStartNum/sfp2StartNum = numero iniziale REALE letto dal nome
 // interfaccia device-type (es. "sfp-sfpplus1" -> 1 = numerazione che riparte).
-// NB: frontpanel clampa sfpCount/sfp2Count a 8 e mgmtCount a 4.
+// NB: frontpanel clampa sfpCount/sfp2Count a 24 e mgmtCount a 4.
 function buildTemplate(dt) {
   let copper = 0, sfp = 0, qsfp = 0, mgmt = 0, sfp1st = null, qsfp1st = null;
   for (const it of (dt.interfaces || [])) {
@@ -101,8 +101,8 @@ function buildTemplate(dt) {
   const fp = {};
   if (sfp + qsfp > 0) {
     fp.separateSfp = true;
-    fp.sfpCount = Math.min(8, sfp);
-    if (qsfp > 0) fp.sfp2Count = Math.min(8, qsfp);
+    fp.sfpCount = Math.min(24, sfp);
+    if (qsfp > 0) fp.sfp2Count = Math.min(24, qsfp);
     const ss = trail(sfp1st); if (ss && ss !== copper + 1) fp.sfpStartNum = ss;   // riparte (≠ continuata)
     const qs = trail(qsfp1st); if (qs) fp.sfp2StartNum = qs;
   }
@@ -243,7 +243,7 @@ function main() {
   let vOk = 0, vBad = 0;
   for (const c of catalog) {
     const s = frontPanelState({ type: 'switch', ports: c.ports, frontPanel: c.frontPanel }, c.ports, true);
-    const eSfp = Math.min(8, c.counts.sfp), eSfp2 = Math.min(8, c.counts.qsfp), eMg = Math.min(4, c.counts.mgmt);
+    const eSfp = Math.min(24, c.counts.sfp), eSfp2 = Math.min(24, c.counts.qsfp), eMg = Math.min(4, c.counts.mgmt);
     if (s.sfpCount === eSfp && (s.sfp2Count || 0) === eSfp2 && (s.mgmtCount || 0) === eMg) vOk++;
     else { vBad++; if (vBad <= 6) console.log('  ! mismatch', c.model, '| sfp', s.sfpCount + '/' + eSfp, 'sfp2', (s.sfp2Count || 0) + '/' + eSfp2, 'mgmt', (s.mgmtCount || 0) + '/' + eMg); }
   }
