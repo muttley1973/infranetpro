@@ -12,17 +12,29 @@ in **skin di pannello native InfraNet**: SVG vettoriali con porte *vive*
   (non diventerebbero LED vivi) e con provenienza incerta. Prendiamo solo il dato
   e **ridisegniamo l'artwork da zero**, così le porte restano interattive e nostre.
 
-## Uso
+## Due modi d'uso
+
+### A) Template NATIVI → "Applica modello" (CONSIGLIATO, look ESATTO)
+Genera un **catalogo** di template nativi (`ports` + `frontPanel`: sfpCount/sfp2Count/
+sfpStartNum/mgmtCount) che il **renderer di default** dell'app usa per disegnare
+porte/SFP/MGMT esatte. È la strada giusta: nessun SVG, riusa il render nativo.
 ```bash
-# 1. procurati gli YAML di un produttore (repo pubblico CC0), es. MikroTik:
-#    (una cartella con i file .yaml di device-types/<Vendor>/)
+node tools/import-device-types.js <inputDir> <outDir> --catalog=data/device-types.json
+```
+Il file `data/device-types.json` è servito da `GET /api/device-types`; nell'app,
+device → Proprietà → **Layout porte → "Applica modello"** (cerca marca/modello) setta
+`ports`+`frontPanel` → il device si disegna esatto. Merge idempotente per slug (piu'
+vendor si accumulano).
 
-# 2. genera skin + catalogo in una cartella di output:
+### B) Skin SVG custom (faceplate su misura)
+```bash
+# genera skin .svg + catalogo:
 node tools/import-device-types.js <inputDir> <outDir>
-
-# 3. ...oppure genera E installa direttamente nello skin store del server:
+# ...oppure installa le skin nello skin store del server:
 node tools/import-device-types.js <inputDir> <outDir> --seed
 ```
+Nota: la skin **non** riproduce le gabbie SFP/MGMT trasparenti del default (il render
+skin forza il `fill`). Per il look esatto usa la strada A.
 Con `--seed` le skin finiscono in `skins/<slug>.svg` + `skins/index.json` (lo skin
 store letto da `GET /api/skins`): compaiono nel dropdown **Skin pannello** e col
 match brand/model (il ✓). Il seed è **idempotente**: ri-eseguendolo rimuove prima

@@ -184,6 +184,7 @@ async function _initApp() {
         }
         store.currentProjectId = list[0].id;
         if (typeof win.loadPanelSkinStore === 'function') await win.loadPanelSkinStore();
+        if (typeof win.loadDeviceTypes === 'function') await win.loadDeviceTypes();
         await loadProject(store.currentProjectId);
         await loadProjectList();
     } catch(e) {
