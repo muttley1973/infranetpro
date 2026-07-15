@@ -9,13 +9,13 @@
 // ============================================================
 const test = require('node:test');
 const assert = require('node:assert');
-const { computeSubbarStats, _hasSnmp } = require('../lib/subbar-stats.js');
+const { computeSubbarStats, computeTopoHiddenCables, _hasSnmp } = require('../lib/subbar-stats.js');
 
 // Mini-catalogo TYPES sufficiente ai test (struttura come src/app-types.js).
 const TYPES = {
-  switch: { hasIP: true },
-  pc:     { hasIP: true },
-  ups:    { hasIP: true },
+  switch: { hasIP: true, isRack: true },
+  pc:     { hasIP: true, isFloor: true },
+  ups:    { hasIP: true, isRack: true },
   wallport:  { isPassive: true },          // niente hasIP -> non indirizzabile
   patchpanel:{ isPassive: true },
   room:   { isStructural: true },          // strutturale -> non e' un device
@@ -97,4 +97,56 @@ test('catalogo TYPES assente -> difensivo (nessun crash, niente indirizzabili)',
   assert.equal(s.devices, 1);
   assert.equal(s.addressable, 0, 'senza TYPES non sappiamo chi e\' indirizzabile');
   assert.equal(s.docPct, null);
+});
+
+// ── computeTopoHiddenCables ─────────────────────────────────────────────────
+// Cavi che la Topologia non mostra perche' il rack non e' sulla planimetria.
+const NODES2 = [
+  { id: 'sw1', type: 'switch', rackId: 'ra' },
+  { id: 'sw2', type: 'switch', rackId: 'rb' },
+  { id: 'sw3', type: 'switch', rackId: 'ra' },
+  { id: 'pc1', type: 'pc' },
+  { id: 'pc2', type: 'pc' },
+];
+const rackPlaced   = [{ id: 'ra', name: 'Rack A', x: 100, y: 50 }, { id: 'rb', name: 'Rack B', x: 400, y: 50 }];
+const rackUnplaced = [{ id: 'ra', name: 'Rack A' },                { id: 'rb', name: 'Rack B', x: 400, y: 50 }];
+
+test('cross-rack con ENTRAMBI i rack piazzati -> nessun cavo nascosto (null)', () => {
+  const links = [{ src: 'sw1-1', dst: 'sw2-1' }];
+  assert.equal(computeTopoHiddenCables(NODES2, links, rackPlaced, TYPES), null);
+});
+
+test('cross-rack con UN rack non piazzato -> 1 nascosto, nomina + id del rack da piazzare', () => {
+  const links = [{ src: 'sw1-1', dst: 'sw2-1' }];   // sw1 in ra (NON piazzato)
+  const r = computeTopoHiddenCables(NODES2, links, rackUnplaced, TYPES);
+  assert.equal(r.hidden, 1);
+  assert.deepEqual(r.racks, ['Rack A']);
+  assert.deepEqual(r.rackIds, ['ra'], 'espone gli ID per il click "piazza"');
+});
+
+test('intra-rack con rack PIAZZATO -> mostrato come badge, NON nascosto (null)', () => {
+  const links = [{ src: 'sw1-1', dst: 'sw3-1' }];   // stesso rack ra, piazzato
+  assert.equal(computeTopoHiddenCables(NODES2, links, rackPlaced, TYPES), null);
+});
+
+test('intra-rack con rack NON piazzato -> nascosto (niente linea ne\' badge)', () => {
+  const links = [{ src: 'sw1-1', dst: 'sw3-1' }];   // stesso rack ra, NON piazzato
+  const r = computeTopoHiddenCables(NODES2, links, rackUnplaced, TYPES);
+  assert.equal(r.hidden, 1);
+  assert.deepEqual(r.racks, ['Rack A']);
+});
+
+test('cavi floor↔floor e misti floor↔rack non sono mai "nascosti dal rack"', () => {
+  const links = [
+    { src: 'pc1-1', dst: 'pc2-1' },   // floor↔floor
+    { src: 'pc1-1', dst: 'sw1-1' },   // misto (pc floor + sw rack non piazzato)
+  ];
+  assert.equal(computeTopoHiddenCables(NODES2, links, rackUnplaced, TYPES), null);
+});
+
+test('input vuoto/assurdo -> null, mai throw', () => {
+  for (const bad of [undefined, null, 42, 'x']) {
+    assert.equal(computeTopoHiddenCables(bad, bad, bad, TYPES), null);
+  }
+  assert.equal(computeTopoHiddenCables(NODES2, [], rackPlaced, TYPES), null);
 });

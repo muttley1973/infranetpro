@@ -976,6 +976,65 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(r.exposed, 2, 'renderTopoOverlay e _renderTopoLegend esposti su window');
     });
 
+    await t.test('sotto-header: avviso "cavi non mostrati" (rack non piazzato) + click che piazza il rack e rivela la linea', async () => {
+      const setup = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          // rA piazzato, rB NON piazzato (niente x/y) -> il cavo cross-rack non ha linea.
+          state.racks = [{ id: 'rA', name: 'A', sizeU: 42, x: 120, y: 120 }, { id: 'rB', name: 'Sala CED', sizeU: 42 }];
+          state.currentRack = 'rA';
+          state.nodes = [
+            { id: 'sA', type: 'switch', name: 'swA', rackId: 'rA', rackU: 1, sizeU: 1, ports: 8 },
+            { id: 'sB', type: 'switch', name: 'swB', rackId: 'rB', rackU: 1, sizeU: 1, ports: 8 },
+          ];
+          state.ports = { 'sA-1': {}, 'sB-1': {} };
+          state.links = [window._createLinkRecord ? window._createLinkRecord('sA-1', 'sB-1') : { id: 'l1', src: 'sA-1', dst: 'sB-1' }];
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          window._topoData = null; window._topoVisible = true; window._viewMode = 'topology';
+          renderAll();
+          if (typeof renderSubbar === 'function') renderSubbar();   // sotto-header sincrono (renderAll è rAF-coalesced)
+          // Ripulisci l'overlay dai residui del test precedente: con rB non piazzato
+          // nessuna coppia rack↔rack può formarsi, quindi resta a 0 linee.
+          const ov = document.getElementById('topo-floor-overlay'); if (ov) ov.innerHTML = '';
+          return { ok: true };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(setup.ok, 'setup senza errori: ' + setup.err);
+
+      const before = await page.evaluate(() => {
+        const pill = document.querySelector('#modern-subbar .msb-warn');
+        return {
+          pillText: pill ? (pill.textContent || '').trim() : null,
+          pillKids: pill ? pill.children.length : 0,
+          clickable: pill ? pill.getAttribute('role') : null,
+          tflLines: document.querySelectorAll('#topo-floor-overlay .tfl').length,
+          rBplaced: state.racks.find(r => r.id === 'rB').x !== undefined,
+        };
+      });
+      assert.ok(before.pillKids > 0, 'il pill di avviso è presente (rack non piazzato)');
+      assert.match(before.pillText, /cav/i, 'il pill nomina i cavi non mostrati');
+      assert.equal(before.clickable, 'button', 'il pill è cliccabile (role=button)');
+      assert.equal(before.tflLines, 0, 'nessuna linea topologia finché il rack non è sul piano');
+      assert.equal(before.rBplaced, false, 'rB parte NON piazzato');
+
+      // click reale sul pill -> _placeHiddenRacks piazza rB
+      await page.evaluate(() => document.querySelector('#modern-subbar .msb-warn').click());
+      await page.waitForFunction(() => document.querySelectorAll('#topo-floor-overlay .tfl').length > 0, { timeout: 5000 });
+
+      const after = await page.evaluate(() => {
+        const pill = document.querySelector('#modern-subbar .msb-warn');
+        const rB = state.racks.find(r => r.id === 'rB');
+        return {
+          rBplaced: rB.x !== undefined && rB.y !== undefined,
+          pillKids: pill ? pill.children.length : 0,
+          tflLines: document.querySelectorAll('#topo-floor-overlay .tfl').length,
+        };
+      });
+      assert.ok(after.rBplaced, 'dopo il click rB ha coordinate (piazzato sul piano)');
+      assert.equal(after.pillKids, 0, 'il pill si svuota/collassa (niente più cavi nascosti)');
+      assert.ok(after.tflLines >= 1, 'la linea topologia ora compare (rack piazzato)');
+    });
+
     await t.test('presenza: i device ASSENTI (macOrphan del Drift) sono attenuati in planimetria (.node-absent)', async () => {
       const r = await page.evaluate(async () => {
         const raf = () => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));

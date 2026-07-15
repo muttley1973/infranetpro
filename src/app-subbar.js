@@ -117,6 +117,68 @@ function _statEl(icon, value, label, tip) {
   return s;
 }
 
+// Avviso contestuale alla vista Topologia: cavi documentati che NON compaiono
+// perche' il rack coinvolto non e' sulla planimetria (diagnosi 61ª: "ci sono i
+// cavi ma la topologia e' vuota"). Calcolo puro in lib/subbar-stats.js. Vuoto
+// (elemento :empty -> display:none) quando non siamo in Topologia o non c'e'
+// nulla di nascosto -> nessun impatto sulle altre viste.
+function _topoWarn() {
+  if (store._viewMode !== 'topology') return null;
+  if (typeof computeTopoHiddenCables !== 'function') return null;
+  const st = store.state || {};
+  try { return computeTopoHiddenCables(st.nodes, st.links, st.racks, TYPES); }
+  catch (_) { return null; }
+}
+
+// Click sul pill: piazza sulla planimetria i rack coinvolti (stessa operazione di
+// "Piazza su planimetria"), sfalsati per non sovrapporsi, in UN'UNICA mossa
+// annullabile (pushHistory) -> le linee compaiono subito e il pill sparisce.
+// Non tocca dati documentati (solo la posizione del rack sul piano): manual-first.
+function _placeHiddenRacks(rackIds) {
+  const st = store.state || {};
+  const racks = Array.isArray(st.racks) ? st.racks : [];
+  const ids = Array.isArray(rackIds) ? rackIds : [];
+  const todo = ids.map((id) => racks.find((r) => r && r.id === id)).filter((r) => r && r.x === undefined);
+  if (!todo.length) return;
+  if (typeof pushHistory === 'function') pushHistory();
+  // Centro della viewport planimetria, come toggleRackOnFloor (snap 20px).
+  const fv = st.floorView || { x: 0, y: 0, zoom: 1 };
+  const zoom = fv.zoom || 1;
+  const fp = document.getElementById('floorplan');
+  let cx = 200, cy = 200;
+  if (fp) { cx = (fp.clientWidth / 2 - (fv.x || 0)) / zoom; cy = (fp.clientHeight / 2 - (fv.y || 0)) / zoom; }
+  const snap = (v) => Math.round(v / 20) * 20;
+  // Sfalsa a destra dei rack GIA' piazzati, cosi' i nuovi non si accavallano.
+  const base = racks.filter((r) => r && r.x !== undefined).length;
+  const GAP = 200;
+  todo.forEach((r, i) => { r.x = snap(cx + (base + i) * GAP); r.y = snap(cy); });
+  if (typeof markDirty === 'function') markDirty();
+  if (typeof renderAll === 'function') renderAll();   // ridisegna floor + overlay -> linee visibili
+  if (typeof _showToast === 'function') _showToast(t('subbar.topoPlaced', { n: todo.length }), 'ok', 3500);
+}
+
+function _topoWarnEl(info) {
+  const wrap = document.createElement('div');
+  wrap.className = 'msb-warn';
+  if (!info || !info.hidden) return wrap;   // :empty -> nascosto via CSS
+  const ico = document.createElement('i'); ico.className = 'fas fa-triangle-exclamation'; wrap.appendChild(ico);
+  const n = info.hidden;
+  const txt = document.createElement('span'); txt.className = 'msb-warn-txt';
+  txt.textContent = t(n === 1 ? 'subbar.topoHidden1' : 'subbar.topoHiddenN', { n });
+  wrap.appendChild(txt);
+  const racks = Array.isArray(info.racks) ? info.racks : [];
+  const names = racks.slice(0, 3).join(', ') + (racks.length > 3 ? '…' : '');
+  wrap.title = t('subbar.topoHiddenTip', { racks: names });
+  // Cliccabile: piazza i rack coinvolti in un colpo solo (accessibile da tastiera).
+  wrap.classList.add('msb-warn-btn');
+  wrap.setAttribute('role', 'button');
+  wrap.setAttribute('tabindex', '0');
+  const act = () => _placeHiddenRacks(info.rackIds || []);
+  wrap.addEventListener('click', act);
+  wrap.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); act(); } });
+  return wrap;
+}
+
 function _statsEl(stats) {
   const wrap = document.createElement('div');
   wrap.className = 'msb-stats';
@@ -153,6 +215,7 @@ export function renderSubbar() {
   bar.innerHTML = '';
   bar.appendChild(_crumbEl());
   bar.appendChild(_suggestEl(_suggest()));
+  bar.appendChild(_topoWarnEl(_topoWarn()));
   bar.appendChild(_statsEl(stats));
 }
 

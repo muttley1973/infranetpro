@@ -445,6 +445,15 @@ header {
 #modern-subbar .msb-dot-err  { background:#f85149; box-shadow:0 0 6px rgba(248,81,73,.7); }
 #modern-subbar .msb-dot-none { background:#3d444d; }
 
+/* Avviso Topologia "cavi non mostrati" (rack non piazzato): pill ambra, appare
+   solo in vista Topologia quando c'e' qualcosa di nascosto; :empty -> collassa. */
+#modern-subbar .msb-warn { flex:0 0 auto; display:inline-flex; align-items:center; gap:7px; padding:3px 10px; border-radius:6px; font-size:12px; font-weight:600; white-space:nowrap; cursor:default; background:rgba(240,180,41,.12); color:#f0b429; border:1px solid rgba(240,180,41,.32); }
+#modern-subbar .msb-warn:empty { display:none; }
+#modern-subbar .msb-warn > i { font-size:11px; flex-shrink:0; }
+#modern-subbar .msb-warn-btn { cursor:pointer; transition:background .12s, border-color .12s; }
+#modern-subbar .msb-warn-btn:hover { background:rgba(240,180,41,.2); border-color:rgba(240,180,41,.55); }
+#modern-subbar .msb-warn-btn:focus-visible { outline:2px solid rgba(240,180,41,.7); outline-offset:1px; }
+
 /* Stretto: nascondi il breadcrumb e le etichette-parola delle statistiche (restano
    icone + valori + pulsante del suggerimento). */
 @media (max-width:1200px){
@@ -453,6 +462,7 @@ header {
 }
 @media (max-width:820px){
     #modern-subbar .msb-txt { display:none; }
+    #modern-subbar .msb-warn-txt { display:none; }
 }
 
 /* ---- SCROLLBAR sottili e discrete (WebKit) ---- */
