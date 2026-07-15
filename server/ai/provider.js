@@ -75,9 +75,20 @@ function chatCompletion(opts, deps) {
       timeout: d.timeoutMs || 60000,
     }, (res) => {
       let body = '';
+      let aborted = false;
+      const MAX_BODY = 8 * 1024 * 1024;   // 8 MB: le risposte AI reali sono KB; oltre = endpoint ostile/mal-configurato
       res.setEncoding('utf8');
-      res.on('data', (c) => { body += c; });
+      res.on('data', (c) => {
+        if (aborted) return;
+        body += c;
+        if (body.length > MAX_BODY) {       // tronca invece di gonfiare la memoria del server
+          aborted = true;
+          req.destroy();
+          reject(new Error('Provider AI: risposta troppo grande (>8 MB)'));
+        }
+      });
       res.on('end', () => {
+        if (aborted) return;
         if (res.statusCode < 200 || res.statusCode >= 300) {
           return reject(new Error('Provider AI: HTTP ' + res.statusCode +
             (_briefError(body) ? ' — ' + _briefError(body) : '')));

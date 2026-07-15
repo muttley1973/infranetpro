@@ -17,6 +17,7 @@
 // ============================================================
 const fs = require('fs');
 const path = require('path');
+const { atomicWriteFile } = require('./projects-store');   // scrittura atomica (+ mode)
 
 const CONFIG_FILE = process.env.INFRANET_AI_CONFIG_FILE ||
   path.join(__dirname, '..', 'data', 'ai-config.json');
@@ -155,8 +156,11 @@ function setConfig(patch) {
   };
   const dir = path.dirname(CONFIG_FILE);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(next, null, 2), { encoding: 'utf8', mode: 0o600 });
-  _hardenPerms(CONFIG_FILE);   // garantisce 0o600 anche in sovrascrittura di un file preesistente
+  // Scrittura ATOMICA (temp+fsync+rename) con permessi 0o600 dal principio: un
+  // crash a metà scrittura non tronca il file (→ chiave persa, AI disattivata) e
+  // il segreto non resta mai world-readable. _hardenPerms come cintura+bretelle.
+  atomicWriteFile(CONFIG_FILE, JSON.stringify(next, null, 2), 0o600);
+  _hardenPerms(CONFIG_FILE);
   return _mask(next);
 }
 

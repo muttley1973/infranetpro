@@ -460,7 +460,10 @@ function _guessType(descr, objectId, vendor='', banner='', host=''){
     if(/mikrotik|routeros|edgerouter|edgeos|unifi gateway|\busg\b|\budm\b|dream machine|tp-link.*router|netgear.*router|d-link.*router|openwrt|vyos/.test(vhb)) return 'router';
     if(/aruba|cisco|juniper.*(?:ex|qfx)|brocade|extreme|dell.*powerconnect|switch|gs\d{3,4}|xgs\d{3,4}/.test(vhb)) return 'switch';
     if(/google|chromecast/.test(vhb) && !/server|workgroup|desktop|win/.test(vhb)) return 'iot';
-    if(/ups|apc/.test(vhb)) return 'ups';
+    // UPS/PDU: niente falsi positivi (backups, groups, startups) MA senza perdere i
+    // veri — "back-ups" col trattino = linea APC, "backups" senza = altro; SmartUPS
+    // e UPS-1500 restano coperti. Vendor-neutral (rule ③), vhb è già minuscolo.
+    if(/\bups\b|\bapc\b|smart-?ups|back-ups|ups-?\d/.test(vhb)) return 'ups';
 
     // --- Stampanti di rete (prima di server: HP/Ricoh/Xerox spesso riportano Linux) ---
     if(/jetdirect|laserjet|officejet|deskjet|pagewide|designjet|colorlaserjet|printserver|hp.*print|print.*hp|ricoh\b|aficio|nashuatec|\bxerox\b|phaser|workcentre|versalink|altalink|\bcanon\b.*print|imagerunner|imageclass|kyocera|ecosys|taskalfa|konica.?minolta|bizhub|\blexmark\b|\bbrother\b.*mfc|\bmfc-[0-9]|\bdcp-[0-9]|\bhl-[0-9]|workforce.*epson|epson.*print|\bsharp\b.*mx|\bsharp\b.*ar|oc[eé]\b|develop.*ineo/.test(d)) return 'printer';

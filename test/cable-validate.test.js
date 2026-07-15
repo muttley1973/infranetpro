@@ -47,6 +47,21 @@ test('1G su Cat5e → nessun warn velocità', () => {
   assert.equal(has(validateCable({ medium:'copper', cableCategory:'Cat5e', maxSpeed:'1G' }), 'speed-cat'), false);
 });
 
+test('100G su Cat8 → messaggio con reach 30m, MAI "40G a 100m"', () => {
+  // Cat8 è specificato a 30m per 25/40GBASE-T, non 100m: il messaggio speed-cat
+  // non deve più dire "a 100m" per una categoria a corto raggio.
+  const w = validateCable({ medium:'copper', cableCategory:'Cat8', maxSpeed:'100G' }).find(x=>x.code==='speed-cat');
+  assert.ok(w);
+  assert.match(w.why, /a 30m/);
+  assert.doesNotMatch(w.why, /40G a 100m/);
+});
+
+test('25G su Cat6 → consiglia Cat8 alla sua reach reale (30m)', () => {
+  const w = validateCable({ medium:'copper', cableCategory:'Cat6', maxSpeed:'25G' }).find(x=>x.code==='speed-cat');
+  assert.ok(w);
+  assert.match(w.why, /a 30m serve Cat8/);
+});
+
 test('rame > 100m → warn copper-length (TIA-568)', () => {
   const w = validateCable({ medium:'copper', cableCategory:'Cat6', length:130 }).find(x=>x.code==='copper-length');
   assert.ok(w && w.level==='warn');
