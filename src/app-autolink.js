@@ -14,6 +14,7 @@ import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi 
 import { _findPortByIfName } from './app-topology-discover.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { applyPollResult } from './app-snmp.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { _vlansToRangeStr } from './app-vlan-autopoll.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
+import { materializeTopologyNodes } from './app-topology-rebuild.js';   // materializza i nodi mancanti (gateway annunciato + switch inferito) col poll già raccolto
 // ============================================================
 // AUTO-LINK DISCOVERY — algoritmo multi-layer trasparente
 //
@@ -1327,6 +1328,26 @@ async function _autoDiscoverLinks(nodeIds){
         }
         if(pruned > 0) console.log(`[AutoLink] duplicati porta-porta rimossi: ${pruned}`);
     }
+
+    // ---- Materializzazione nodi mancanti (gateway annunciato + switch inferito) ----
+    // Unico gap che il Sync non copriva: creare i NODI che prima nessuno creava.
+    // Riusa i pollResults GIÀ raccolti (_topoResults) → nessun doppio poll. Le hint
+    // di segmento condiviso e il self-heal sono già fatti sopra: qui NON si ripetono.
+    try {
+        if(typeof materializeTopologyNodes === 'function'){
+            const _pollForMat = _topoResults
+                .filter(r => r && r.data && r.data.ok)
+                .map(r => ({ nodeId: r.n.id, fdbTable: r.data.fdbTable || {},
+                             neighbors: r.data.neighbors || [], suggestedSharedSegments: r.data.suggestedSharedSegments || [] }));
+            const _mat = materializeTopologyNodes(_pollForMat);
+            if(_mat.nodes || _mat.links){
+                created += _mat.links;
+                pruned  += _mat.pruned;
+                diag.materializedNodes = (diag.materializedNodes || 0) + _mat.nodes;
+                console.log(`[AutoLink] materializzati ${_mat.nodes} nodi (gateway/switch inferiti) + ${_mat.links} cavi`);
+            }
+        }
+    } catch(e){ console.warn(`[AutoLink] materializzazione: ${e.message}`); }
 
     if(created > 0 || updated > 0 || lagGroups > 0 || pruned > 0 || historyAdded > 0) markDirty();
     if(created===0 && updated===0){

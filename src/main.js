@@ -49,7 +49,6 @@ import './app-discovery-classify.js';
 import './app-topology-discover.js';
 import './app-discovery.js';
 import './app-topology-overlay.js';
-import './app-topology-rebuild.js';
 import './app-csv-import.js';
 import './app-dhcp-import.js';
 import './app-ai.js';

@@ -339,6 +339,48 @@ test('buildNeighborCandidates: endpoint a porta singola -> fallback ${id}-1', ()
   assert.ok(c.src === 'pc1-1' || c.dst === 'pc1-1', 'fallback porta singola deve usare pc1-1');
 });
 
+test('buildNeighborCandidates: gateway MULTI-PORTA con chassis-id MAC -> agganciato lo stesso (fix)', () => {
+  // Caso reale: il router/gateway ha 5 porte e l'LLDP lo annuncia col chassis-MAC
+  // (porta remota non risolvibile). Prima veniva SCARTATO (fallback solo a 1 porta);
+  // ora si aggancia alla prima porta libera del nodo remoto (router-1).
+  const GW_MAC = 'd4:1a:d1:82:11:20';
+  const nodes = [
+    { id: 'gs', hostname: 'GS1900', name: 'GS1900', ip: '192.168.1.100', ports: 24 },
+    { id: 'router', hostname: '', name: '', ip: '', ports: 5, mac: GW_MAC }, // gateway documentato, 5 porte
+  ];
+  const ports = { 'gs-23': { ifName: 'GigabitEthernet23' } };
+  const idx = buildPortIndex(ports);
+  const macIndex = buildMacIndex(nodes, {});
+  const neighbors = [
+    { protocol: 'LLDP', remoteDevice: GW_MAC, remoteMac: GW_MAC, remoteIP: '',
+      localPort: 'GigabitEthernet23', remotePort: GW_MAC.toUpperCase() }, // porta remota = MAC → irrisolvibile
+  ];
+  const cset = buildNeighborCandidates('gs', neighbors, nodes, idx, macIndex);
+  assert.equal(cset.size(), 1, 'il gateway multi-porta NON deve più essere scartato');
+  const c = cset.values()[0];
+  assert.ok((c.src === 'gs-23' && c.dst === 'router-1') || (c.src === 'router-1' && c.dst === 'gs-23'),
+    'cavo GS1900 porta 23 ↔ router porta 1');
+  assert.ok(c.confidence >= 0.9, 'link LLDP autorevole');
+});
+
+test('buildNeighborCandidates: due vicini multi-porta sullo stesso nodo -> porte remote distinte (no collisione)', () => {
+  const R_MAC = 'aa:bb:cc:00:00:99';
+  const nodes = [
+    { id: 'sw', hostname: 'SW', name: 'SW', ip: '10.0.0.1', ports: 24 },
+    { id: 'rt', hostname: '', name: '', ip: '', ports: 8, mac: R_MAC },
+  ];
+  const ports = { 'sw-1': { ifName: 'Gi1' }, 'sw-2': { ifName: 'Gi2' } };
+  const idx = buildPortIndex(ports);
+  const macIndex = buildMacIndex(nodes, {});
+  const neighbors = [
+    { protocol: 'LLDP', remoteDevice: R_MAC, remoteMac: R_MAC, remoteIP: '', localPort: 'Gi1', remotePort: R_MAC.toUpperCase() },
+    { protocol: 'LLDP', remoteDevice: R_MAC, remoteMac: R_MAC, remoteIP: '', localPort: 'Gi2', remotePort: R_MAC.toUpperCase() },
+  ];
+  const cset = buildNeighborCandidates('sw', neighbors, nodes, idx, macIndex);
+  const dsts = cset.values().map(c => (c.src.indexOf('rt-') === 0 ? c.src : c.dst)).sort();
+  assert.deepEqual(dsts, ['rt-1', 'rt-2'], 'le due porte remote di fallback sono distinte');
+});
+
 test('buildNeighborCandidates: fallback MAC per nodo senza hostname/IP', () => {
   const nodes = [
     { id:'sw1', hostname:'sw1', name:'SW1', ip:'10.0.0.1', ports:24 },
@@ -483,6 +525,49 @@ test('buildFdbCandidates GAP3: porta shared-segment (>4 MAC) -> ZERO candidati p
   assert.equal(res.cset.size(), 0, 'nessun candidato da porta shared-segment');
   assert.equal(res.sharedSegments.length, 1, 'evidenza shared-segment preservata');
   assert.equal(res.sharedSegments[0].portId, 'sw1-10');
+});
+
+test('buildFdbCandidates UPLINK: router documentato su porta affollata -> cablato (target uplink, no LLDP)', () => {
+  // Caso reale: il router (trovato in scansione, aggiunto come router, MAC noto)
+  // ha il suo MAC appreso su una porta con TANTI MAC (l'uplink). Prima: scartato
+  // (>4 = shared-segment). Ora: è il device diretto (target dell'uplink).
+  const GW = 'd4:1a:d1:82:11:20';
+  const nodes = [
+    { id:'gs', type:'switch', hostname:'GS1900', ip:'192.168.1.100', ports:24, isActive:true },
+    { id:'router', type:'router', hostname:'router', ip:'192.168.1.1', ports:5, mac:GW }, // documentato
+  ];
+  const ports = { 'gs-23': { ifName:'GigabitEthernet23' } };
+  const idx = buildPortIndex(ports);
+  const portMacIdx = buildPortMacIndex(ports);
+  // 8 MAC sulla porta 23: il router + 7 device OLTRE di lui (transito).
+  const fdb = {
+    [GW]: 'GigabitEthernet23',
+    '40:9f:38:6e:0f:99':'GigabitEthernet23', '4c:bc:e9:aa:e5:ca':'GigabitEthernet23',
+    'f0:03:8c:d5:88:14':'GigabitEthernet23', 'f4:39:09:62:f2:46':'GigabitEthernet23',
+    'f4:bf:80:da:ed:dc':'GigabitEthernet23', 'f4:f5:e8:50:32:32':'GigabitEthernet23',
+    '00:04:4b:b4:b0:d4':'GigabitEthernet23',
+  };
+  const res = buildFdbCandidates('gs', fdb, {}, nodes, idx, portMacIdx);
+  assert.equal(res.cset.size(), 1, 'esattamente 1 candidato: il router (gli altri 7 sono transito)');
+  const c = res.cset.values()[0];
+  assert.ok((c.src === 'gs-23' && c.dst === 'router-1') || (c.src === 'router-1' && c.dst === 'gs-23'),
+    'router cablato alla porta uplink 23');
+  assert.equal(c.protocol, 'MAC-UPLINK');
+  assert.equal(res.sharedSegments.length, 1, 'la porta resta segnalata come segmento (7 MAC oltre)');
+});
+
+test('buildFdbCandidates UPLINK: DUE infra documentati sulla stessa porta -> ambiguo, nessun cavo', () => {
+  const A = 'aa:aa:aa:00:00:01', B = 'bb:bb:bb:00:00:02';
+  const nodes = [
+    { id:'gs', type:'switch', hostname:'GS', ip:'10.0.0.1', ports:24, isActive:true },
+    { id:'r1', type:'router', hostname:'r1', ip:'10.0.0.2', ports:5, mac:A },
+    { id:'sw2', type:'switch', hostname:'sw2', ip:'10.0.0.3', ports:24, mac:B, isActive:true },
+  ];
+  const ports = { 'gs-5': { ifName:'Gi5' } };
+  const idx = buildPortIndex(ports);
+  const fdb = { [A]:'Gi5', [B]:'Gi5', '00:00:00:00:00:03':'Gi5', '00:00:00:00:00:04':'Gi5', '00:00:00:00:00:05':'Gi5' };
+  const res = buildFdbCandidates('gs', fdb, {}, nodes, idx, buildPortMacIndex(ports));
+  assert.equal(res.cset.size(), 0, 'due infra sulla porta = ambiguo → non si indovina, resta segmento');
 });
 
 test('buildFdbCandidates: ARP+FDB verso endpoint a porta singola', () => {
