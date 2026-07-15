@@ -296,10 +296,21 @@ function _resolveEndpointSwitchPort(node){
     const cands = [];
     let transit = null;   // primo hit scartato perche' su porta di transito
     for(const h of hits){
-        const swPid = _findPortByIfName(h.swId, h.ifName);
-        if(!swPid) continue;
         let macsOnPort = 0;
         for(const v of Object.values(store._topoFdbCache[h.swId] || {})) if(v===h.ifName) macsOnPort++;
+        // ESCLUSIONE DURA #0: un MAC appreso su un'interfaccia AGGREGATA
+        // (LAG/Po/ae/Eth-Trunk/bond…) arriva DA un uplink — è dietro il
+        // collegamento, MAI attaccato direttamente qui, a prescindere dal
+        // conteggio MAC e ANCHE se il LAG non è modellato (swPid null). Cattura
+        // il caso reale "Zyxel impara i MAC su LAG1": senza questo, con ≤4 MAC il
+        // candidato passava. Vendor-neutral via _ifNameMeta.lagToken.
+        const isLagUplink = (typeof _ifNameMeta === 'function') && !!_ifNameMeta(h.ifName).lagToken;
+        const swPid = _findPortByIfName(h.swId, h.ifName);
+        if(isLagUplink){
+            if(!transit) transit = { swId:h.swId, ifName:h.ifName, swPid:swPid||null, macsOnPort };
+            continue;
+        }
+        if(!swPid) continue;
         // ESCLUSIONE DURA: porta di transito (trunk/LAG/uplink) → il MAC e'
         // trasportato dal collegamento, l'endpoint non e' qui. Prima era solo
         // una penalita' di score: con pochi MAC dietro il trunk il candidato
