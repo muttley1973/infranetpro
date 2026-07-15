@@ -253,12 +253,14 @@ test('inferUnmanagedNodes: 2 PC (nessun pass-through) → inferisce', () => {
   assert.equal(inferUnmanagedNodes(pe).length, 1);
 });
 
-test('inferUnmanagedNodes: confidenza sale col numero di endpoint', () => {
+test('inferUnmanagedNodes: confidenza per endpoint + cap >4 = segmento condiviso', () => {
   const mk = (n) => ({ portId: 'sw-1', hasLldpNeighbor: false,
     macs: Array.from({ length: n }, (_, i) => ({ mac: `aa:aa:aa:00:00:0${i}`, type: 'pc' })) });
   assert.equal(inferUnmanagedNodes([mk(2)])[0].confidence, 0.82);
   assert.equal(inferUnmanagedNodes([mk(3)])[0].confidence, 0.88);
-  assert.equal(inferUnmanagedNodes([mk(6)])[0].confidence, 0.92);
+  assert.equal(inferUnmanagedNodes([mk(4)])[0].confidence, 0.88);
+  assert.equal(inferUnmanagedNodes([mk(5)]).length, 0, '>4 MAC = segmento L2 condiviso, niente inferenza');
+  assert.equal(inferUnmanagedNodes([mk(8)]).length, 0);
 });
 
 test('inferUnmanagedNodes: vicino LLDP presente → NON inferisce (apparato gestito)', () => {
@@ -502,4 +504,58 @@ test('buildApplyOps: self-heal transit — auto-link il cui MAC risolve a uplink
   });
   assert.ok(ops.pruneLinkIds.includes('L2'), 'auto-link transit → prune (self-heal sw3-1)');
   assert.ok(!ops.pruneLinkIds.includes('M2'), 'il cavo MANUALE non viene mai rimosso');
+});
+
+// ============================================================
+// FASE 5b — materializzazione vicini LLDP (il gateway)
+// ============================================================
+
+test('assemblePlanInputs: vicino LLDP non documentato → neighborNodes (gateway materializzabile)', () => {
+  const ports = { 'gs-23': { ifName: 'GigabitEthernet23' } };
+  const portIndex = buildPortIndex(ports, {});
+  const pollResults = [{ nodeId: 'gs', fdbTable: {}, neighbors: [
+    { localPort: 'GigabitEthernet23', remoteDevice: 'd4:1a:d1:82:11:20', remoteMac: 'd4:1a:d1:82:11:20', remoteIP: '', protocol: 'LLDP' },
+  ] }];
+  const inp = assemblePlanInputs(pollResults, { findPort: (nid, ifn) => findPortByIfName(nid, ifn, portIndex) });
+  assert.equal(inp.neighborNodes.length, 1);
+  assert.equal(inp.neighborNodes[0].onLocalPid, 'gs-23');
+  assert.equal(inp.neighborNodes[0].mac, 'd4:1a:d1:82:11:20');
+  assert.equal(inp.neighborNodes[0].hostname, '', 'un chassis-id MAC non è un hostname');
+  assert.ok(inp.neighborNodes[0].confidence >= 0.9, 'T1 alta confidenza');
+});
+
+test('assemblePlanInputs: vicino LLDP GIÀ documentato → nessuna materializzazione (sarà un cavo)', () => {
+  const ports = { 'gs-23': { ifName: 'GigabitEthernet23' } };
+  const portIndex = buildPortIndex(ports, {});
+  const pollResults = [{ nodeId: 'gs', fdbTable: {}, neighbors: [
+    { localPort: 'GigabitEthernet23', remoteMac: 'd4:1a:d1:82:11:20', protocol: 'LLDP' },
+  ] }];
+  const inp = assemblePlanInputs(pollResults, {
+    findPort: (nid, ifn) => findPortByIfName(nid, ifn, portIndex),
+    matchNeighbor: () => 'rt',   // il gateway È già nel progetto
+  });
+  assert.equal(inp.neighborNodes.length, 0);
+});
+
+test('buildTopologyPlan: neighborNodes → stato exists se la porta locale ha già un cavo', () => {
+  const plan = buildTopologyPlan({
+    candidates: [], portIndex: pIndex({}),
+    neighborNodes: [{ onLocalPid: 'gs-23', mac: 'd4:1a:d1:82:11:20', protocol: 'LLDP', confidence: 0.97 }],
+    existingLinks: [{ id: 'l1', src: 'gs-23', dst: 'x-1', autoLinked: true }],
+  });
+  assert.equal(plan.neighborNodes.length, 1);
+  assert.equal(plan.neighborNodes[0].status, 'exists');
+  assert.equal(plan.summary.neighbors, 0, 'exists non conta come nuovo');
+});
+
+test('buildApplyOps: materializeNeighbors gated dal tier lldp + salta gli exists', () => {
+  const plan = { links: [], inferredNodes: [], neighborNodes: [
+    { onLocalPid: 'gs-23', mac: 'd4:1a:d1:82:11:20', protocol: 'LLDP', confidence: 0.97, status: 'new' },
+    { onLocalPid: 'gs-1', mac: 'aa:bb:cc:dd:ee:01', protocol: 'LLDP', confidence: 0.97, status: 'exists' },
+  ] };
+  const ops = buildApplyOps(plan, { existingLinks: [], portIndex: pIndex({}) });
+  assert.equal(ops.materializeNeighbors.length, 1, 'solo il new');
+  assert.equal(ops.materializeNeighbors[0].onLocalPid, 'gs-23');
+  const ops2 = buildApplyOps(plan, { existingLinks: [], portIndex: pIndex({}), tiers: { lldp: false, fdb: true, arp: true, inferred: true } });
+  assert.equal(ops2.materializeNeighbors.length, 0, 'tier lldp OFF → niente vicini');
 });

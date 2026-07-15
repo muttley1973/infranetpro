@@ -92,14 +92,6 @@ export function renderAutomationMenu(){
           <button class="toolbar-btn" style="padding:3px 9px;font-size:0.75rem" onclick="openDhcpImport()"><i class="fas fa-folder-open"></i> ${escapeHTML(t('dhcp.load'))}</button>
         </div>
         <div class="autom-desc">${escapeHTML(dl.length ? t('dhcp.inMemory',{n:dl.length}) : t('dhcp.loadDesc'))}</div>
-      </div>
-      <div class="autom-sec">
-        <div class="autom-grouphd"><i class="fas fa-diagram-project"></i>${escapeHTML(t('toporebuild.title'))}</div>
-        <div class="autom-row" style="margin-top:4px">
-          <span class="autom-title"><i class="fas fa-wand-magic-sparkles"></i>${escapeHTML(t('toporebuild.menu'))}</span>
-          <button class="toolbar-btn" style="padding:3px 9px;font-size:0.75rem" data-act="toporebuild-open"><i class="fas fa-eye"></i> ${escapeHTML(t('toporebuild.generate'))}</button>
-        </div>
-        <div class="autom-desc">${escapeHTML(t('toporebuild.menuDesc'))}</div>
       </div>`;
 }
 
