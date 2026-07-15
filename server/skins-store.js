@@ -91,7 +91,7 @@ function saveSkin(meta, svg) {
     ports: meta.ports || [],
     createdAt: now, updatedAt: now
   };
-  fs.writeFileSync(svgPath(id), String(svg || ''), 'utf8');
+  atomicWriteFile(svgPath(id), String(svg || ''));   // scrittura atomica: mai un SVG troncato da un crash
   writeIndex(addToIndex(idx, rec));
   return rec;
 }

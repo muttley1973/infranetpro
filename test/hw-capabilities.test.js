@@ -24,7 +24,9 @@ test('velocità: numero Mbps + stringhe 1G/10G/100M/nudo', () => {
   assert.equal(_speedLabel(1000), '1G');
   assert.equal(_speedLabel(10000), '10G');
   assert.equal(_speedLabel(100), '100M');
-  assert.equal(_speedLabel(2500), '2500M');
+  assert.equal(_speedLabel(2500), '2.5G');   // 802.3bz NBASE-T, non '2500M'
+  assert.equal(_speedLabel(5000), '5G');
+  assert.equal(_speedLabel(25000), '25G');
 });
 
 test('PoE: budget + caso peggiore per classe + headroom', () => {

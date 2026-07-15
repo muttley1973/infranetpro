@@ -152,7 +152,10 @@ class FusionScorer {
       : '';
     const fullText = `${text} ${serviceText} ${mdnsText}`.toLowerCase();
     const macPrefix = normMac(row?.mac).substring(0, 8);
-    const isLikelyGatewayIp = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.1$/.test(ip);
+    // .1 e .254 = le due convenzioni di default-gateway di gran lunga più comuni.
+    // Un device di rete su questi IP riceve un voto router IN PIÙ (segnale additivo:
+    // non causa mai un tipo sbagliato, migliora solo il recall sui gateway .254).
+    const isLikelyGatewayIp = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.(?:1|254)$/.test(ip);
     const switchWords = SWITCH_WORDS_RE.test(fullText);
     const routerWords = ROUTER_WORDS_RE.test(fullText);
     const networkVendorGateway = isLikelyGatewayIp && NET_VENDOR_GW_RE.test(text);

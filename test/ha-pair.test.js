@@ -289,6 +289,17 @@ test('validateHaSymmetry: cluster active-passive con 2 active -> errore', () => 
     assert.ok(res.errors.some(e => /active-passive/.test(e)));
 });
 
+test('validateHaSymmetry: cluster LEGACY (haMode top-level) con 2 active -> errore', () => {
+    // Progetto legacy (pre-P0.1): ha* al top-level del nodo, non in spec. La
+    // validazione deve leggerli comunque — prima rileggeva solo `?.spec?.haMode`
+    // e saltava in silenzio il controllo "max 1 active" (ha-pair:215).
+    const w1 = { id: 'w1', haGroupId: 'ha-legacy', haRole: 'active', haMode: 'active-passive' };
+    const w2 = { id: 'w2', haGroupId: 'ha-legacy', haRole: 'active', haMode: 'active-passive' };
+    const res = validateHaSymmetry([w1, w2]);
+    assert.equal(res.valid, false);
+    assert.ok(res.errors.some(e => /active-passive/.test(e)));
+});
+
 test('validateHaSymmetry: cluster active-active multi-active -> valid', () => {
     const w1 = cluster('w1', 'ha-edge', 'active', 'active-active');
     const w2 = cluster('w2', 'ha-edge', 'active', 'active-active');

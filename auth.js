@@ -17,6 +17,10 @@ const { atomicWriteFile } = require('./server/projects-store');
 // (es. /data/users.json in Docker); default invariato su bare-metal.
 const USERS_FILE  = process.env.INFRANET_USERS_FILE || path.join(__dirname, 'users.json');
 const BCRYPT_COST = 12;
+// Hash fittizio (stesso costo di quelli reali) contro cui confrontare la password
+// quando lo username NON esiste: equipara il tempo di risposta del login e nega
+// l'enumerazione degli utenti validi via timing. Calcolato una volta al boot.
+const _DUMMY_HASH = bcrypt.hashSync('infranet-dummy', BCRYPT_COST);
 
 // ---- Bypass auth SOLO per sviluppo (off di default) -------------------------
 // Attivabile con INFRANET_DEV_NO_AUTH=1: inietta una sessione admin fittizia così
@@ -37,12 +41,17 @@ const SECRET_FILE = path.join(__dirname, '.session-secret');
 
 function _genSecret() {
   if (fs.existsSync(SECRET_FILE)) {
+    // Retrofit permessi: un file preesistente poteva essere stato scritto coi
+    // permessi di default (world-readable) → il secret firma TUTTI i cookie di
+    // sessione, quindi chi lo legge forgia sessioni admin. Lo irrigidiamo a 0o600.
+    try { fs.chmodSync(SECRET_FILE, 0o600); } catch (_) { /* best-effort (no-op su Windows) */ }
     return fs.readFileSync(SECRET_FILE, 'utf8').trim();
   }
   // CSPRNG (NON Math.random): il secret firma i cookie di sessione → deve essere
-  // imprevedibile. 48 byte casuali → ~64 char base64 ad alta entropia.
+  // imprevedibile. 48 byte casuali → ~64 char base64 ad alta entropia. 0o600:
+  // leggibile solo dal proprietario (mai da altri utenti dell'host).
   const s = crypto.randomBytes(48).toString('base64');
-  fs.writeFileSync(SECRET_FILE, s, 'utf8');
+  fs.writeFileSync(SECRET_FILE, s, { encoding: 'utf8', mode: 0o600 });
   return s;
 }
 
@@ -222,7 +231,11 @@ function loginApi(req, res) {
   const users = loadUsers();
   const user  = users.find(u => u.username.toLowerCase() === username.toLowerCase());
 
-  if (!user || !bcrypt.compareSync(password, user.passwordHash)) {
+  // Anti user-enumeration: esegui SEMPRE un compare bcrypt (contro l'hash fittizio
+  // se l'utente non esiste) così il tempo di risposta non distingue "username
+  // sconosciuto" da "password errata".
+  const okPw = bcrypt.compareSync(password, user ? user.passwordHash : _DUMMY_HASH);
+  if (!user || !okPw) {
     return res.status(401).json({ ok: false, error: 'Credenziali non valide' });
   }
 

@@ -22,6 +22,17 @@ Follows a full read-only audit of the app. All gates green: 1440 unit tests / 0 
 
 ### Changed / Performance
 - **Apply-model surfaces truncated fibre ports** — for the ~86 extreme datacentre switches whose fibre banks exceed the 48-per-block panel cap, applying the model now reports how many ports aren't shown instead of dropping them silently. `src/app-device-types.js`.
+
+### Hardening (low-severity batch, senior-reviewed)
+- **Secrets are owner-only (`0o600`) and crash-safe.** `.session-secret` is written `0o600` with a load-time retrofit; `ai-config.json` (holds the BYO API key) and skin SVGs are written atomically (the shared `atomicWriteFile` gained an optional `mode` so the temp file is never briefly world-readable). `auth.js`, `server/ai-config.js`, `server/skins-store.js`, `server/projects-store.js`.
+- **Login no longer leaks valid usernames via timing** — a dummy bcrypt compare (same cost) runs when the username is unknown, equalising response time. `auth.js`.
+- **AI provider response capped at 8 MB** — a hostile/misconfigured endpoint can't exhaust server memory. `server/ai/provider.js`.
+- **Cabling advice reach corrected** — the speed-vs-category message uses each category's real reach (Cat8 = 30 m for 25/40GBASE-T, not 100 m). `lib/cable-validate.js`.
+- **2.5G/5G link speeds label correctly** (`2500` → `2.5G`, not `2500M`). `lib/hw-capabilities.js`.
+- **IPAM utilisation clamped to 100 %** even if the network/broadcast addresses get documented by mistake. `lib/ipam.js`.
+- **`.254` recognised as a likely gateway** alongside `.1` for the router-vote heuristic. `engine/fusion-scorer.js`.
+- **HA active-passive validation reads legacy top-level `haMode`** (not only `spec.haMode`), so older projects still get the "max 1 active" check. `lib/ha-pair.js`.
+- **UPS keyword matching tightened** — `backups`/`groups`/`startups` no longer misclassify as UPS, while `Back-UPS`/`SmartUPS`/`UPS-1500` still match. `src/app-discovery-classify.js`.
 - **`GET /api/device-types` cached in-memory** (keyed on file mtime+size) instead of reading + parsing the ~1.4 MB catalog on every request — the event loop no longer stalls when the catalog is opened. `server/routes/device-types.js`.
 - **The device-type `<datalist>` (~4,071 options) is built once at boot** instead of being regenerated on every Properties render, removing input latency when editing a device. `src/app-device-types.js`.
 

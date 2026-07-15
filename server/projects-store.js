@@ -20,9 +20,12 @@ if (!fs.existsSync(PROJECTS_DIR)) fs.mkdirSync(PROJECTS_DIR, { recursive: true }
 // JSON troncato. Prima del rename conserva l'ultima versione valida come `.bak`
 // (best-effort), da cui loadProject sa recuperare.
 // Helper puro nel path: accetta un percorso esplicito → testabile su dir temp.
-function atomicWriteFile(file, data) {
+// `mode` opzionale: crea il file temporaneo con quei permessi FIN DALL'INIZIO
+// (es. 0o600 per un file con segreti) → nessuna finestra world-readable fra
+// scrittura e chmod. Omesso → permessi di default (comportamento invariato).
+function atomicWriteFile(file, data, mode) {
   const tmp = `${file}.${process.pid}.tmp`;
-  const fd  = fs.openSync(tmp, 'w');
+  const fd  = (mode !== undefined) ? fs.openSync(tmp, 'w', mode) : fs.openSync(tmp, 'w');
   try {
     fs.writeSync(fd, data, 0, 'utf8');
     fs.fsyncSync(fd);

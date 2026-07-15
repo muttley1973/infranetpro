@@ -123,6 +123,19 @@ test('computeIpamUsage: /31 punto-punto pieno → 100% e 0 liberi', () => {
   assert.equal(u.pct, 100);
 });
 
+test('computeIpamUsage: usati > capacità (rete+broadcast documentati) → pct clamp a 100', () => {
+  // /30: 2 host assegnabili; documentando anche rete(.0) e broadcast(.3) gli usati
+  // superano la capacità host → la percentuale prima poteva superare il 100%.
+  const u = usage('10.0.0.0/30', {
+    documentedIps: ['10.0.0.0', '10.0.0.1', '10.0.0.2', '10.0.0.3'],
+    leaseIps: [],
+  });
+  assert.equal(u.capacity, 2);
+  assert.ok(u.usedCount > u.capacity, 'usati oltre la capacità host');
+  assert.equal(u.pct, 100, 'clampato a 100, non 200');
+  assert.equal(u.freeCount, 0);
+});
+
 test('computeIpamUsage: subnet assente o CIDR non valido → tutto a zero', () => {
   for (const bad of ['', '   ', 'non-un-cidr', '999.1.1.0/24']) {
     const u = usage(bad, { documentedIps: ['1.2.3.4'], leaseIps: ['1.2.3.5'] });
