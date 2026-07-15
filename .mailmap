@@ -1,0 +1,9 @@
+# .mailmap — canonical contributor identities for InfraNet Pro.
+#
+# GitHub builds the repository "Contributors" list from commit history
+# (authors + Co-authored-by trailers). This file coalesces auxiliary
+# identities onto the single canonical maintainer so the Contributors
+# graph shows one author instead of several — without rewriting history.
+#
+# Format: <canonical name> <canonical email> <email to remap>
+muttley1973 <muttley1973@users.noreply.github.com> <noreply@anthropic.com>
