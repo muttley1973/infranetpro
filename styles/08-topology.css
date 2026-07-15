@@ -234,4 +234,30 @@
             cursor:pointer; font-size:1rem; padding:2px 6px; border-radius:5px;
         }
         #routing-hint button:hover { background:var(--panel-border); color:var(--text-main); }
+
+        /* ── Ricostruisci topologia — anteprima piano (read-only) ───────────── */
+        #toporebuild-overlay .tr-bar { display:flex; align-items:center; gap:12px; margin:4px 0 12px; }
+        #toporebuild-overlay .tr-status { font-size:.8rem; color:var(--text-muted); }
+        #toporebuild-overlay .tr-filters { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:12px; font-size:.78rem; color:var(--text-main); }
+        #toporebuild-overlay .tr-filters label { display:inline-flex; align-items:center; gap:5px; cursor:pointer; }
+        #toporebuild-overlay .tr-filters input { accent-color:var(--accent); }
+        #toporebuild-overlay .tr-readonly { flex:1; font-size:.72rem; color:var(--text-muted); }
+        #tr-plan .tr-summary { font-size:.82rem; font-weight:600; margin-bottom:10px; color:var(--text-main); }
+        #tr-plan .tr-empty { font-size:.82rem; color:var(--text-muted); padding:16px 0; text-align:center; }
+        #tr-plan .tr-sec { margin-bottom:14px; }
+        #tr-plan .tr-sec-hd { font-size:.72rem; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); margin:0 0 6px; display:flex; align-items:center; gap:6px; }
+        #tr-plan .tr-sec-hd .tr-count { background:var(--panel-border); border-radius:10px; padding:0 7px; font-size:.7rem; }
+        #tr-plan .tr-row { display:flex; align-items:center; gap:10px; padding:6px 8px; border:1px solid var(--panel-border); border-radius:var(--radius-sm); margin-bottom:5px; font-size:.8rem; }
+        #tr-plan .tr-row .tr-main { flex:1; min-width:0; }
+        #tr-plan .tr-row .tr-ends { color:var(--text-main); }
+        #tr-plan .tr-row .tr-reason { color:var(--text-muted); font-size:.72rem; margin-top:2px; }
+        #tr-plan .tr-conf { width:52px; height:6px; border-radius:3px; background:var(--panel-border); overflow:hidden; flex:0 0 auto; }
+        #tr-plan .tr-conf-fill { height:100%; background:var(--accent); }
+        #tr-plan .tr-badge { flex:0 0 auto; font-size:.68rem; padding:1px 7px; border-radius:9px; border:1px solid transparent; white-space:nowrap; }
+        #tr-plan .tr-badge.new { color:#16a34a; border-color:rgba(22,163,74,.4); }
+        #tr-plan .tr-badge.exists { color:var(--text-muted); border-color:var(--panel-border); }
+        #tr-plan .tr-badge.conflict { color:#dc2626; border-color:rgba(220,38,38,.4); }
+        #tr-plan .tr-inferred { border-left:3px solid var(--accent); background:rgba(127,127,127,.06); }
+        #tr-plan .tr-inferred .tr-kind { font-weight:600; color:var(--text-main); }
+        #tr-plan .tr-inferred .tr-behind { color:var(--text-muted); font-size:.72rem; margin-top:2px; word-break:break-all; }
 
