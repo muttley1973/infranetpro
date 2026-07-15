@@ -252,9 +252,15 @@ so language changes apply when reopened.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. ~1370 tests. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. ~1460 tests. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
-  field can ever reach the AI context (data-security paletto, build-failing).
+  field can ever reach the AI context (data-security paletto, build-failing). Also
+  covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`
+  mounts `auth.register` on a throwaway Express app — real login/logout, RBAC,
+  self-guards, last-admin protection, session-invalidation, login rate-limiter; plus
+  `test/auth-store.test.js` for the user store and the corrupt-file guard) and the
+  **panel-skin sanitizer** against a battery of `on*`/`<script>` bypass payloads
+  (`test/panel-skin.test.js`).
 - **Golden-master render** (`test/golden-render.test.js`): snapshots the rendered
   `innerHTML` of every device's Properties panel + the 4 scopes + the generated
   rack render vs `test/golden/render-golden.json`, to catch unintended UI changes.
@@ -298,7 +304,15 @@ first-run admin password are generated with a **CSPRNG** (`crypto.randomBytes` /
 is coerced to a positive integer (no path traversal). The user store is written
 **atomically** (temp + fsync + rename, with a `.bak`, via `atomicWriteFile`); a
 present-but-corrupt `users.json` recovers from the `.bak` and, failing that, **halts
-startup** instead of regenerating a default admin over existing accounts. The data
+startup** instead of regenerating a default admin over existing accounts. The same
+atomic write (owner-only `0o600` where a secret is involved) protects
+`api-tokens.json`, `data/ai-config.json` and the shared skin SVGs. **Uploaded skin
+SVGs are sanitized** (regex on the server, a real DOM parse on the client for both
+preview and rack) so an event handler / `<script>` in a shared skin-pack cannot run
+in another user's Properties panel. **Login runs a constant bcrypt compare** (dummy
+hash for unknown usernames) to deny user-enumeration by timing, and a **global
+Express error handler** returns JSON — never an HTML stack trace — for
+malformed/oversized bodies or thrown route errors. The data
 surfaces — AI context, REST DTOs, exports — are **allowlist-only**: secrets are
 structurally excluded and a build-failing guard test enforces it. (The PDF
 report's per-device asset register is built from the same `nodeToDevice` DTO
@@ -308,9 +322,11 @@ exported document; report chrome is
 localized it/en server-side while device data is emitted verbatim.) Binds to
 `127.0.0.1`. `users.json`,
 `.session-secret`, `api-tokens.json`, `data/ai-config.json`, `projects/` are
-git-ignored. A 2026-06 AppSec audit found **no critical issues**; the follow-up
-hardening is covered by regression tests (`test/ai-context.test.js`,
-`test/ai-route-security.test.js`). Do **not** expose the instance to the public
+git-ignored. A 2026-06 AppSec audit found **no critical issues**; a
+2026-07 follow-up audit (again no critical findings) closed the remaining highs
+(panel-skin XSS, auth test coverage, project-list robustness) and the whole surface —
+including the auth flow — is covered by regression tests (`test/ai-context.test.js`,
+`test/ai-route-security.test.js`, `test/auth-api.test.js`, `test/panel-skin.test.js`). Do **not** expose the instance to the public
 internet — it is a network scanner with command execution; the right access model
 is VPN/LAN.
 
