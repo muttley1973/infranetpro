@@ -30,6 +30,25 @@ export async function loadDeviceTypes() {
     }
     _byKey = {};
     _catalog.forEach(function (c) { _byKey[(c.brand + ' ' + c.model).toLowerCase()] = c; });
+    _ensureDeviceTypeDatalist();
+}
+
+/** Costruisce UNA SOLA VOLTA (al boot) il <datalist> con le ~4000 opzioni del
+ *  catalogo, come elemento condiviso in document.body. Prima veniva rigenerato
+ *  (map di 4071 <option> + escapeHTML, ~200 KB di HTML) a OGNI renderProps del
+ *  device selezionato — latenza a ogni tasto nel pannello Proprietà. Ora l'input
+ *  "Applica modello" punta a questo datalist statico via `list=`. */
+function _ensureDeviceTypeDatalist() {
+    if (typeof document === 'undefined' || !document.body) return;
+    let dl = document.getElementById('devtype-options');
+    if (!dl) {
+        dl = document.createElement('datalist');
+        dl.id = 'devtype-options';
+        document.body.appendChild(dl);
+    }
+    dl.innerHTML = _catalog.map(function (c) {
+        return `<option value="${escapeHTML(c.brand + ' ' + c.model)}"></option>`;
+    }).join('');
 }
 
 /** PURA: applica un template ai campi NATIVI del nodo. Ritorna true se applicato.
@@ -55,10 +74,12 @@ export function applyTemplateToNode(node, tmpl, rackTotalU) {
  *  catalogo non e' caricato (es. ambiente test/golden senza fetch). */
 export function _deviceTypeApplyHtml() {
     if (!_catalog.length) return '';
-    const opts = _catalog.map(function (c) { return `<option value="${escapeHTML(c.brand + ' ' + c.model)}">`; }).join('');
+    // Il <datalist id="devtype-options"> e' costruito UNA volta al boot in
+    // document.body (vedi _ensureDeviceTypeDatalist): qui solo l'input che lo
+    // referenzia via `list=`, cosi' il pannello non ri-emette 4071 <option> a
+    // ogni render.
     return `<div class="prop-group" style="margin-top:6px"><label>${t('devtype.apply')}</label>
       <input type="text" list="devtype-options" placeholder="${escapeHTML(t('devtype.placeholder'))}" data-change="apply-device-type" data-tip="${escapeHTML(t('devtype.tip'))}">
-      <datalist id="devtype-options">${opts}</datalist>
     </div>`;
 }
 

@@ -58,6 +58,52 @@ test('sanitize: SVG pulito non viene toccato', () => {
   assert.equal(r.svg, OK_SVG);
 });
 
+// ---- sanitize: vettori di bypass che PRIMA passavano (A1) ---------------
+
+test('sanitize: handler on* NON quotato (onerror=alert(1))', () => {
+  const r = PS.sanitizeSvg(`<svg><image href="x" onerror=alert(1)/><rect id="port-1"/></svg>`);
+  assert.ok(!/onerror/i.test(r.svg), 'handler non quotato rimosso');
+  assert.ok(r.removed.includes('event-handlers'));
+});
+
+test('sanitize: handler on* con backtick', () => {
+  const r = PS.sanitizeSvg('<svg><rect id="port-1" onclick=`steal()`/></svg>');
+  assert.ok(!/onclick/i.test(r.svg), 'handler backtick rimosso');
+  assert.ok(r.removed.includes('event-handlers'));
+});
+
+test('sanitize: handler on* separato da slash (id="x"/onmouseover=…)', () => {
+  const r = PS.sanitizeSvg(`<svg><rect id="port-1"/onmouseover="steal()"/></svg>`);
+  assert.ok(!/onmouseover/i.test(r.svg), 'niente handler dopo lo slash');
+  assert.ok(r.removed.includes('event-handlers'));
+});
+
+test('sanitize: <script> NON chiuso (bypass della regex di coppia)', () => {
+  const r = PS.sanitizeSvg(`<svg><script>alert(document.cookie)<rect id="port-1"/></svg>`);
+  assert.ok(!/<script/i.test(r.svg), 'niente tag <script>, anche orfano');
+  assert.ok(r.removed.includes('script'));
+  assert.ok(/id="port-1"/.test(r.svg), 'la forma-porta resta');
+});
+
+test('sanitize: <foreignObject> NON chiuso rimosso', () => {
+  const r = PS.sanitizeSvg(`<svg><foreignObject><rect id="port-1"/></svg>`);
+  assert.ok(!/foreignObject/i.test(r.svg));
+  assert.ok(r.removed.includes('foreignObject'));
+});
+
+test('sanitize: riferimento esterno NON quotato (href=//evil)', () => {
+  const r = PS.sanitizeSvg(`<svg><image href=//evil.example/x.png /><rect id="port-1"/></svg>`);
+  assert.ok(!/evil\.example/.test(r.svg), 'href esterno non quotato rimosso');
+  assert.ok(r.removed.includes('external-ref'));
+});
+
+test('sanitize: NON tocca i ref locali #… ne\' le forme valide (regressione)', () => {
+  const clean = `<svg viewBox="0 0 10 10"><use xlink:href="#grad"/><rect id="port-1"/></svg>`;
+  const r = PS.sanitizeSvg(clean);
+  assert.equal(r.removed.length, 0);
+  assert.ok(/xlink:href="#grad"/.test(r.svg), 'ref locale preservato');
+});
+
 // ---- extractSkinPorts ---------------------------------------------------
 
 test('extract: trova port-/mgmt- e ordina (dati poi mgmt, per numero)', () => {

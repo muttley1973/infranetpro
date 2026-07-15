@@ -2677,17 +2677,36 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         const sectionHtml = _panelSkinSectionHtml(sw);
         const rackHtml = _panelSkinRackHtml(sw);
         const resolved = _resolveNodeSkin(sw);
+
+        // A1 (XSS stored): skin con handler on* BEN FORMATO (valido come XML, quindi
+        // supera DOMParser). Non deve sopravvivere ne' all'anteprima (era innerHTML
+        // grezzo) ne' al rack (ri-serializzava senza strip). Skin inline retro-compat.
+        const swMal = { id: 'swMal', type: 'switch', name: 'SW-2',
+          panelSkin: { face: 'front', viewBox: '0 0 10 10',
+            ports: [{ id: 'port-1', kind: 'port', num: 1 }],
+            svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">'
+               + '<rect id="port-1" onload="window.__xss=1" width="10" height="10"/></svg>' } };
+        state.nodes.push(swMal);
+        const malSection = _panelSkinSectionHtml(swMal);
+        const malRack = _panelSkinRackHtml(swMal);
+
         return {
           exposed,
           sectionHasSelect: sectionHtml.indexOf('assignNodeSkin') >= 0 && sectionHtml.indexOf('skin') >= 0,
           rackFallback: rackHtml === '',          // niente skin → fallback al layout generato
           resolvedNull: resolved === null,
+          malPreviewClean: malSection.indexOf('onload') === -1 && malSection.indexOf('__xss') === -1,
+          malRackClean: malRack.indexOf('onload') === -1 && malRack.indexOf('__xss') === -1,
+          malRackRendered: malRack.indexOf('port-1') !== -1,   // la skin rende comunque, sanitizzata
         };
       });
       assert.ok(r.exposed, 'le funzioni panel-skin sono pubblicate su window dal bundle');
       assert.ok(r.sectionHasSelect, '_panelSkinSectionHtml rende il dropdown (legge t + win.escapeHTML via ponte)');
       assert.ok(r.rackFallback, '_panelSkinRackHtml ritorna \'\' senza skin (fallback al layout generato)');
       assert.ok(r.resolvedNull, '_resolveNodeSkin → null per nodo senza skin');
+      assert.ok(r.malPreviewClean, 'A1: l\'anteprima skin NON contiene handler on* (sink XSS stored chiuso)');
+      assert.ok(r.malRackClean, 'A1: il rack NON re-serializza handler on* dalla skin');
+      assert.ok(r.malRackRendered, 'A1: la skin viene comunque resa (sanitizzata, non svuotata)');
     });
 
     await t.test('app-l3 migrato: report L3 + badge gateway + SVI nel browser reale', async () => {

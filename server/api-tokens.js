@@ -14,6 +14,7 @@ const fs     = require('fs');
 const path   = require('path');
 const crypto = require('crypto');
 const { timestamp } = require('../utils');
+const { atomicWriteFile } = require('./projects-store');   // scrittura atomica + .bak
 
 const TOKENS_FILE = process.env.INFRANET_API_TOKENS_FILE || path.join(__dirname, '..', 'api-tokens.json');
 
@@ -34,7 +35,12 @@ function loadTokens() {
 }
 
 function saveTokens(tokens) {
-  fs.writeFileSync(TOKENS_FILE, JSON.stringify(tokens, null, 2), 'utf8');
+  // Scrittura ATOMICA (tmp+fsync+rename) con `.bak`: `verifyToken` riscrive questo
+  // file ~1/min per aggiornare lastUsedAt, quindi un crash a meta' scrittura era
+  // molto piu' probabile qui che altrove. Con la write raw un file troncato ->
+  // loadTokens degradava a [] -> TUTTI i token API invalidati in silenzio (nessun
+  // .bak da cui recuperare). Ora e' durevole come lo store progetti/utenti.
+  atomicWriteFile(TOKENS_FILE, JSON.stringify(tokens, null, 2));
 }
 
 function nextTokenId(tokens) {

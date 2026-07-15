@@ -160,6 +160,21 @@ moduleRegistry.loadModules(app, {
 
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));
 
+// ---- Error handler (JSON, niente stack in chiaro) ---------------------------
+// Cattura gli errori del body-parser (JSON malformato -> 400, payload >20mb ->
+// 413) e QUALUNQUE throw sincrono nelle route. Senza questo middleware a 4
+// argomenti Express usava il proprio finalhandler di default: pagina HTML con lo
+// STACK e i path assoluti del server (info-disclosure) invece del JSON atteso
+// dai consumer dell'API. La firma DEVE avere 4 parametri per essere riconosciuta
+// come error-handler; `next` viene usato nel ramo headersSent.
+app.use((err, req, res, next) => {
+  const status = err.status || err.statusCode || 500;
+  if (status >= 500) console.error(`  [ERR] ${req.method} ${req.path}: ${err.message}`);
+  if (res.headersSent) return next(err);                      // risposta gia' iniziata -> delega a Express
+  const msg = status >= 500 ? 'Internal server error' : (err.message || 'Bad request');
+  res.status(status).json({ error: msg });
+});
+
 // ---- Start ------------------------------------------------------------------
 
 // Avvia il listen SOLO se eseguito direttamente (node server.js).
