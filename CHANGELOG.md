@@ -2,6 +2,26 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-15 — Security & robustness hardening (post-audit sprint)
+
+Follows a full read-only audit of the app. All gates green: 1440 unit tests / 0 fail, e2e 76/76, ESLint 0 errors, `tsc` 0.
+
+### Security
+- **Panel-skin importer stored-XSS closed.** The SVG sanitizer only stripped *quoted* `on*` handlers preceded by whitespace, so `onload=alert(1)` (unquoted), backtick handlers, slash-separated handlers (`id="x"/onmouseover=…`) and unclosed `<script>`/`<foreignObject>` survived — and executed when *any* user (including a read-only viewer) opened the Properties panel of a device using that skin. The sanitizer now strips handlers in every form plus orphan executable tags and unquoted `javascript:`/external refs. In addition, the skin **preview** and **rack render** now sanitize through a real DOM parse instead of injecting raw SVG markup — defence in depth that also cleans skins stored before this fix. `lib/panel-skin.js`, `src/app-panel-skin.js`.
+
+### Fixed
+- **Project list no longer 500s** on a legacy/hand-copied project JSON missing `updated_at` (the sort threw and took down the whole list). `server/projects-store.js`.
+- **Express error handler added** — malformed or oversized request bodies, and any synchronous route throw, now return a clean JSON error instead of an HTML page leaking the stack trace and absolute server paths. `server.js`.
+- **API tokens written atomically** — `api-tokens.json` (rewritten ~1/min to bump `lastUsedAt`) now uses the atomic write + `.bak` path, so a crash mid-write can no longer silently invalidate every API token. `server/api-tokens.js`.
+- **AI chat no longer hangs** on a context-build error — context/prompt assembly moved inside the request `try` → clean 500 instead of a hung request. `server/routes/ai.js`.
+- **LAG audit: a down member (speed 0) is treated as unknown**, not a distinct value — no more false "heterogeneous speeds 0M, 1G". `lib/lag-audit.js`.
+- **L3 / IPAM audit read `ip || integration.host`** (uniform with the rest of the app) — an SNMP-only device whose IP lives in `integration.host` is no longer flagged as an orphan gateway, and its duplicate IPs are caught. `src/app-l3.js`.
+- **Front-panel port labels stay consistent with the rendered block** when the two SFP counts exceed the port count. `lib/frontpanel.js`.
+
+### Changed / Performance
+- **`GET /api/device-types` cached in-memory** (keyed on file mtime+size) instead of reading + parsing the ~1.4 MB catalog on every request — the event loop no longer stalls when the catalog is opened. `server/routes/device-types.js`.
+- **The device-type `<datalist>` (~4,071 options) is built once at boot** instead of being regenerated on every Properties render, removing input latency when editing a device. `src/app-device-types.js`.
+
 ## 2026-07-14 — Fix: fibre ports mis-rendered as copper; SFP blocks split by type; cap 24→48
 
 ### Fixed

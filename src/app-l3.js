@@ -30,8 +30,13 @@ function _l3BuildModel(withUsage){
         return { vid, name: store.state.vlanNames?.[vid] || '', color: vlanColors[v] || '' };
     });
     const ipamByVid = (store.state.ipam && store.state.ipam.vlans) ? store.state.ipam.vlans : {};
+    // «IP del device» = campo manuale n.ip OPPURE l'host di integrazione (SNMP).
+    // Definizione uniforme al resto dei motori (lib/api-shape.js, drift-snapshot,
+    // _collectKnownIps): senza questo un device SNMP-only (ip in integration.host)
+    // risultava «gateway orfano» e i suoi IP duplicati sfuggivano all'audit IPAM.
     const nodes = (store.state.nodes || []).map(n => ({
-        id: n.id, name: getNodeDisplayName(n) || n.name || n.id, ip: n.ip, type: n.type,
+        id: n.id, name: getNodeDisplayName(n) || n.name || n.id,
+        ip: n.ip || (n.integration && n.integration.host) || '', type: n.type,
     }));
     const usageByVid = {};
     if(withUsage && typeof _ipamUsageForVlan === 'function'){

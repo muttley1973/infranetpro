@@ -95,10 +95,6 @@ router.post('/api/ai/chat', async (req, res) => {
   if (!project) return res.status(404).json({ error: 'Progetto non trovato' });
 
   const lang = (body.lang === 'en') ? 'en' : 'it';
-  // scope = ambito dati (cosa esce) · features = capacità abilitate (cosa fa).
-  const context = buildAiContext(project, body.liveFacts, cfg.scope);
-  // system = grounding + capacità + AIUTO §4c (catalogo UI) + contesto del progetto.
-  const system = buildSystemPrompt(lang, cfg.features, _helpLines(lang)) + '\n\ncontext:\n' + JSON.stringify(context);
 
   // Solo i turni user/assistant con testo (niente system/altro dal client).
   const history = Array.isArray(body.messages) ? body.messages : [];
@@ -106,6 +102,20 @@ router.post('/api/ai/chat', async (req, res) => {
     .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
     .map(m => ({ role: m.role, content: String(m.content) }));
   if (!turns.length) return res.status(400).json({ error: 'Nessun messaggio' });
+
+  // Handler async: la costruzione di contesto/prompt e JSON.stringify va DENTRO un
+  // try. Un throw qui, restando fuori, diventava una unhandledRejection (Express 4
+  // non la cattura) -> nessuna risposta -> la richiesta del client restava appesa
+  // fino al timeout del socket. Ora un errore di contesto -> 500 pulito.
+  let context, system;
+  try {
+    // scope = ambito dati (cosa esce) · features = capacità abilitate (cosa fa).
+    context = buildAiContext(project, body.liveFacts, cfg.scope);
+    // system = grounding + capacità + AIUTO §4c (catalogo UI) + contesto del progetto.
+    system = buildSystemPrompt(lang, cfg.features, _helpLines(lang)) + '\n\ncontext:\n' + JSON.stringify(context);
+  } catch (e) {
+    return res.status(500).json({ error: 'ai_context', detail: String((e && e.message) || e) });
+  }
 
   try {
     const out = await chatCompletion({

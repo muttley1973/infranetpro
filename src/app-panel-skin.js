@@ -49,6 +49,52 @@ export function _resolveNodeSkin(n){
     return null;
 }
 
+// ---- Sanitizzazione DOM (barriera autorevole lato render) -------------------
+// lib/panel-skin.js sanitizza su STRINGA (difesa in profondita', gira anche in
+// Node). Qui, dove il DOM c'e', ripuliamo l'SVG parsandolo DAVVERO prima di
+// inserirlo: via elementi eseguibili e attributi handler/ref esterni. Cosi'
+// nessun on*/script sopravvive al render, a prescindere da quoting/formattazione
+// o da una skin gia' salvata prima dell'hardening del sanitizzatore.
+const _SVG_BANNED_EL = { script: 1, foreignobject: 1, iframe: 1 };
+
+function _svgSanitizeInPlace(el){
+    if(!el || el.nodeType !== 1) return;
+    const attrs = el.attributes;
+    if(attrs){
+        for(let i = attrs.length - 1; i >= 0; i--){
+            const name = (attrs[i].name || '').toLowerCase();
+            const val  = attrs[i].value || '';
+            if(name.indexOf('on') === 0){ el.removeAttribute(attrs[i].name); continue; }   // handler evento
+            if(name === 'href' || name === 'src' || name === 'xlink:href' || /(^|:)href$/.test(name)){
+                if(!/^\s*#/.test(val)){ el.removeAttribute(attrs[i].name); continue; }      // solo ref locali #…
+            }
+            if(/javascript:/i.test(val)) el.removeAttribute(attrs[i].name);
+        }
+    }
+    Array.prototype.slice.call(el.childNodes || []).forEach(function(k){
+        if(k.nodeType !== 1) return;
+        if(_SVG_BANNED_EL[String(k.localName || k.nodeName || '').toLowerCase()]){
+            if(k.parentNode) k.parentNode.removeChild(k);
+            return;
+        }
+        _svgSanitizeInPlace(k);
+    });
+}
+
+/** Ripulisce un SVG (stringa) via DOM → markup sicuro, o '' se non parsabile /
+ *  DOM assente (il chiamante fa fallback). */
+function _sanitizeSvgMarkup(svgText){
+    if(typeof DOMParser === 'undefined') return '';
+    try {
+        const doc = new DOMParser().parseFromString(String(svgText || ''), 'image/svg+xml');
+        if(doc.getElementsByTagName('parsererror').length) return '';
+        const svg = doc.documentElement;
+        if(!svg || String(svg.localName).toLowerCase() !== 'svg') return '';
+        _svgSanitizeInPlace(svg);
+        return new XMLSerializer().serializeToString(svg);
+    } catch(_){ return ''; }
+}
+
 // ---- Sezione "Skin pannello" nel pannello Proprieta -------------------------
 export function _panelSkinSectionHtml(n){
     const cur = _resolveNodeSkin(n);
@@ -63,7 +109,11 @@ export function _panelSkinSectionHtml(n){
             return `<option value="${escapeHTML(s.id)}" ${s.id===curId?'selected':''}>`
                  + `${escapeHTML(s.name||s.id)}${s.face==='rear'?t('skin.rear'):''}${isMatch(s)?' ✓':''}</option>`;
         }));
-    const preview = (cur && cur.svg) ? `<div class="panel-skin-preview">${cur.svg}</div>` : '';
+    // Anteprima: MAI l'svg grezzo in innerHTML. Passa dalla sanitizzazione DOM
+    // (rimuove handler/script anche da skin salvate prima dell'hardening) → era
+    // il sink della XSS stored (skin importata → pannello Proprieta di chiunque).
+    const safePreview = (cur && cur.svg) ? _sanitizeSvgMarkup(cur.svg) : '';
+    const preview = safePreview ? `<div class="panel-skin-preview">${safePreview}</div>` : '';
     const legacyNote = (cur && n && cur===n.panelSkin)
         ? `<p class="panel-skin-meta">${t('skin.legacyNote')}</p>` : '';
     const body = `${preview}${legacyNote}
@@ -142,6 +192,10 @@ export function _panelSkinRackHtml(n){
         if(doc.getElementsByTagName('parsererror').length) return '';
         const svg = doc.documentElement;
         if(!svg || String(svg.tagName).toLowerCase() !== 'svg') return '';
+        // Difesa in profondita': via handler/script/ref-esterni dal DOM parsato
+        // PRIMA di ri-serializzarlo nel rack (un handler ben formato sopravvivrebbe
+        // al parse XML e verrebbe reinserito via innerHTML del render).
+        _svgSanitizeInPlace(svg);
         svg.setAttribute('class', ((svg.getAttribute('class')||'') + ' panel-skin-svg').trim());
         // meet = mantieni le proporzioni reali senza mai ritagliare l'artwork. Il
         // rack ora e' in scala reale (var --ru-h), quindi una skin disegnata a 1U

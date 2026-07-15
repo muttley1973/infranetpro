@@ -543,6 +543,29 @@ test('frontPanelPortLabel: 2 blocchi con numerazione continuata (default)', () =
     assert.equal(frontPanelPortLabel(n, 32, 32, true), '32');
 });
 
+test('frontPanelPortLabel: etichetta coerente col blocco reso quando sfp1+sfp2 > porte', () => {
+    // sfp1=24 + sfp2=8 = 32 > portCount 28: frontPanelSfpGroups clampa sfp2 a
+    // min(8, 28-24)=4, quindi il blocco 1 = porte 1..24 e il blocco 2 = 25..28.
+    // L'etichetta DEVE usare gli stessi conteggi clampati: senza il fix usava sfp2=8
+    // -> il blocco 2 partiva da porta 21, quindi le porte 21..24 (RESE nel blocco 1)
+    // ricevevano il prefisso del blocco 2 ("Hu21").
+    const n = { type: 'switch', frontPanel: {
+        separateSfp: true, sfpCount: 24, sfp2Count: 8,
+        sfpPrefix: 'Te', sfp2Prefix: 'Hu',
+    } };
+    const groups = frontPanelSfpGroups(n, 28, true);
+    assert.equal(groups[0].ports.length, 24);              // blocco 1: porte 1..24
+    assert.equal(groups[0].ports[0], 1);
+    assert.equal(groups[0].ports[23], 24);
+    assert.deepEqual(groups[1].ports, [25, 26, 27, 28]);   // blocco 2 clampato a 4
+    // porta 21 e 24 -> blocco 1 -> prefisso Te (senza il fix erano "Hu21"/"Hu24")
+    assert.equal(frontPanelPortLabel(n, 21, 28, true), 'Te21');
+    assert.equal(frontPanelPortLabel(n, 24, 28, true), 'Te24');
+    // porta 25..28 -> blocco 2 -> prefisso Hu
+    assert.equal(frontPanelPortLabel(n, 25, 28, true), 'Hu25');
+    assert.equal(frontPanelPortLabel(n, 28, 28, true), 'Hu28');
+});
+
 // ============================================================================
 // Scenari realistici 2 blocchi enterprise
 // ============================================================================

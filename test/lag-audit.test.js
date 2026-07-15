@@ -45,6 +45,20 @@ test('velocità ignota (null) non conta come mismatch', () => {
   assert.deepEqual(c.speeds, [10000]);
 });
 
+test('velocità 0 (membro DOWN / ifSpeed non riportato) = ignota, non un valore', () => {
+  // Un membro con link down riporta speed 0: NON deve generare un falso
+  // «velocità eterogenee 0M, 1G». Va trattato come ignoto (come speed null).
+  const c = checkLagMembers([
+    { num: 1, speed: 1000, vlan: 1 },
+    { num: 2, speed: 0, vlan: 1 },
+  ]);
+  assert.equal(c.speedMismatch, false);
+  assert.deepEqual(c.speeds, [1000]);
+  // Anche i negativi (dato sporco) sono ignoti.
+  const c2 = checkLagMembers([{ num: 1, speed: 1000 }, { num: 2, speed: -1 }]);
+  assert.deepEqual(c2.speeds, [1000]);
+});
+
 test('mismatch su entrambi gli assi', () => {
   const c = checkLagMembers([
     { num: 1, speed: 1000, vlan: 10 },

@@ -173,7 +173,11 @@ function listProjects() {
       } catch (_) { return null; }
     })
     .filter(Boolean)
-    .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+    // Fallback su stringa vuota: un JSON progetto valido ma privo di `updated_at`
+    // (importato da una versione vecchia o copiato a mano) faceva throw su
+    // `undefined.localeCompare` -> 500 sull'INTERA lista progetti (utente bloccato
+    // su ogni progetto). Ora quel record finisce in coda, la lista regge.
+    .sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
 }
 
 module.exports = {
