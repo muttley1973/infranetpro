@@ -208,6 +208,33 @@ test('findPortByIfName: LAG logico (Port-channel1 / po1)', () => {
   assert.equal(findPortByIfName('sw1', 'Po1',           idx), 'sw1-3');
 });
 
+// REGRESSIONE (uplink reale, es. Zyxel GS1900): la FDB impara i MAC sull'aggregato
+// "LAG1"; un aggregato NON deve risolversi alla porta FISICA che condivide il numero
+// (porta 1) via il fallback numerico. Vendor-neutral: vale per Po/ae/Eth-Trunk/bond…
+const PORTS_PHYS_ONLY = {
+  'sw3-1': { ifName:'GigabitEthernet1', alias:'' },   // porta FISICA n.1
+  'sw3-3': { ifName:'GigabitEthernet3', alias:'' },
+  'sw3-6': { ifName:'GigabitEthernet6', alias:'' },
+};
+test('findPortByIfName: un aggregato (LAG1/Po1/ae1) NON cade sulla porta fisica 1', () => {
+  const idx = buildPortIndex(PORTS_PHYS_ONLY);
+  // Nessun LAG modellato → non risolto (mai la porta fisica 1, che è down/altro).
+  assert.equal(findPortByIfName('sw3', 'LAG1', idx), null);
+  assert.equal(findPortByIfName('sw3', 'Po1',  idx), null);
+  assert.equal(findPortByIfName('sw3', 'ae1',  idx), null);
+  // Controprova: una porta fisica normale continua a risolversi.
+  assert.equal(findPortByIfName('sw3', 'Gi3', idx), 'sw3-3');
+});
+
+test('findPortByIfName: LAG con porte-membro (lagId) → prima porta membro, non la fisica 1', () => {
+  const idx = buildPortIndex({
+    'sw3-1': { ifName:'GigabitEthernet1' },              // fisica 1 (trappola)
+    'sw3-3': { ifName:'GigabitEthernet3', lagId:1 },     // membro LAG1
+    'sw3-6': { ifName:'GigabitEthernet6', lagId:1 },     // membro LAG1
+  });
+  assert.equal(findPortByIfName('sw3', 'LAG1', idx), 'sw3-3');   // uplink reale, membro più basso
+});
+
 // ---- buildMacIndex ----------------------------------------------------------
 
 test('buildMacIndex: nodi e porte', () => {
