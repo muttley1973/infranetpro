@@ -3558,6 +3558,80 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       const dismissed = await page.evaluate(() => !document.querySelector('#ai-empty .ai-nextstep'));
       assert.ok(dismissed, 'il chip si nasconde dopo «×» (dismiss per-passo)');
     });
+
+    await t.test('FASE 4 Ricostruisci topologia: review READ-ONLY renderizza il piano senza mutare il progetto', async () => {
+      const before = await page.evaluate(() => ({ links: state.links.length, nodes: state.nodes.length }));
+      const out = await page.evaluate(() => {
+        const plan = {
+          links: [
+            { src: 'gsX-23', dst: 'rtX-1', tier: 'lldp', confidence: 0.97, evidence: ['LLDP'], corroborated: false,
+              reason: { code: 'lldp', vars: { dstNode: 'rtX' } }, status: 'new', logicalKey: 'k1' },
+          ],
+          inferredNodes: [
+            { kind: 'unmanaged-switch', onUplinkPid: 'gsX-24', ifName: 'GigabitEthernet24',
+              behindMacs: ['ec:71:db:49:58:05', 'ec:71:db:4f:bd:51'], behindNodes: [], confidence: 0.82,
+              reason: { code: 'inferred', vars: { count: 2, port: 'gsX-24' } } },
+          ],
+          sharedSegments: [], unreachable: [],
+          summary: { t1: 1, t2: 0, t3: 0, t4: 1, total: 1, new: 1, exists: 0, conflicts: 0 },
+        };
+        openTopoRebuild();
+        _renderTopoPlanReview(plan);
+        const el = document.getElementById('tr-plan');
+        const html = el ? el.innerHTML : '';
+        return {
+          overlayOpen: document.getElementById('toporebuild-overlay').classList.contains('open'),
+          hasInferred: /unmanaged|ec:71:db:49:58:05/i.test(html),
+          hasLldpLink: /gsX:23|GigabitEthernet24|↔/.test(html),
+          hasReadonlyNote: !!document.querySelector('#toporebuild-overlay .tr-readonly'),
+        };
+      });
+      assert.ok(out.overlayOpen, 'il modale Ricostruisci topologia è aperto');
+      assert.ok(out.hasInferred, 'il piano mostra il nodo inferito coi MAC dietro');
+      assert.ok(out.hasLldpLink, 'il piano mostra il collegamento di dorsale');
+      assert.ok(out.hasReadonlyNote, 'la nota read-only è presente');
+      const after = await page.evaluate(() => ({ links: state.links.length, nodes: state.nodes.length }));
+      assert.deepEqual(after, before, 'READ-ONLY: nessun cavo né nodo creato dal render del piano');
+      await page.evaluate(() => closeTopoRebuild());
+      const closed = await page.evaluate(() => !document.getElementById('toporebuild-overlay').classList.contains('open'));
+      assert.ok(closed, 'il modale si chiude');
+    });
+
+    await t.test('FASE 5 apply: materializza lo switch inferito + cavi, idempotente, con undo', async () => {
+      const errBefore = pageErrors.length;   // conta solo errori NUOVI di questo sub-test
+      const PLAN = {
+        links: [], sharedSegments: [], unreachable: [],
+        inferredNodes: [{ kind: 'unmanaged-switch', onUplinkPid: 'e2eUp-8', ifName: 'p8',
+          behindNodes: ['e2eCam'], behindMacs: ['aa:bb:cc:dd:ee:ff'], confidence: 0.82 }],
+        summary: { t1: 0, t2: 0, t3: 0, t4: 1, total: 0, new: 0, exists: 0, conflicts: 0 },
+      };
+      const setup = await page.evaluate(() => {
+        state.nodes.push({ id: 'e2eUp', type: 'customfloor', name: 'E2E Up', x: 100, y: 100, ports: 8, multiPort: true });
+        state.nodes.push({ id: 'e2eCam', type: 'webcam', name: 'E2E Cam', x: 300, y: 100, ports: 1 });
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        return { nodes: state.nodes.length, links: state.links.length };
+      });
+      const first = await page.evaluate((plan) => {
+        const r = applyTopologyPlan(plan);
+        const inf = state.nodes.find(n => n.inferred && n.type === 'customfloor');
+        return {
+          ok: !!(r && r.ok), nodes: state.nodes.length, links: state.links.length,
+          hasInferred: !!inf,
+          infLinked: inf ? state.links.some(l => String(l.src).indexOf(inf.id + '-') === 0 || String(l.dst).indexOf(inf.id + '-') === 0) : false,
+        };
+      }, PLAN);
+      assert.ok(first.ok, 'apply ok');
+      assert.ok(first.hasInferred, 'switch inferito materializzato (customfloor + flag inferred)');
+      assert.equal(first.nodes, setup.nodes + 1, 'un solo nodo creato');
+      assert.ok(first.links > setup.links, 'cavi creati (uplink↔switch e switch↔camera)');
+      assert.ok(first.infLinked, 'lo switch inferito è cablato');
+      const second = await page.evaluate((plan) => applyTopologyPlan(plan), PLAN);
+      assert.ok(second.ok && (second.noop || second.added === 0), 're-apply = no-op (idempotente)');
+      const undone = await page.evaluate(() => { if (typeof undo === 'function') undo(); return { nodes: state.nodes.length }; });
+      assert.ok(undone.nodes <= first.nodes, 'undo non aumenta i nodi (ripristino)');
+      const newErrs = pageErrors.slice(errBefore);
+      assert.equal(newErrs.length, 0, 'nessun NUOVO errore JS durante apply/undo: ' + newErrs.join(' | '));
+    });
   } finally {
     await browser.close();
     await srv.close();

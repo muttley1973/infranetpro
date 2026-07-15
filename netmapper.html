@@ -705,6 +705,35 @@
   </div>
 </div>
 
+<!-- ===== MODAL RICOSTRUISCI TOPOLOGIA (anteprima read-only) ===== -->
+<div id="toporebuild-overlay" class="tool-modal-overlay" data-act="toporebuild-backdrop">
+  <div class="tool-modal wide">
+    <div class="tool-modal-header">
+      <h3><i class="fas fa-diagram-project"></i> <span data-i18n="toporebuild.title">Ricostruisci topologia</span></h3>
+      <button class="toolbar-btn" data-act="toporebuild-close" style="padding:4px 8px"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="tool-modal-body">
+      <div class="tm-hint" data-i18n="toporebuild.hint">Interroga i dispositivi SNMP (LLDP/FDB/ARP) e propone un piano di collegamenti e di apparati inferiti. È solo un'anteprima: nessuna modifica viene applicata al progetto.</div>
+      <div class="tr-bar">
+        <button class="toolbar-btn primary" id="tr-run-btn" data-act="toporebuild-run"><i class="fas fa-wand-magic-sparkles"></i> <span data-i18n="toporebuild.generate">Genera piano</span></button>
+        <span id="tr-status" class="tr-status"></span>
+      </div>
+      <div id="tr-filters" class="tr-filters" style="display:none">
+        <label><input type="checkbox" data-change="toporebuild-tier" data-tier="lldp" checked> <span data-i18n="toporebuild.tierLldp">Dorsale (LLDP/CDP)</span></label>
+        <label><input type="checkbox" data-change="toporebuild-tier" data-tier="fdb" checked> <span data-i18n="toporebuild.tierFdb">Edge (FDB)</span></label>
+        <label><input type="checkbox" data-change="toporebuild-tier" data-tier="arp" checked> <span data-i18n="toporebuild.tierArp">ARP</span></label>
+        <label><input type="checkbox" data-change="toporebuild-tier" data-tier="inferred" checked> <span data-i18n="toporebuild.tierInferred">Inferiti</span></label>
+      </div>
+      <div id="tr-plan"></div>
+    </div>
+    <div class="tool-modal-footer">
+      <span class="tr-readonly"><i class="fas fa-eye"></i> <span data-i18n="toporebuild.readonly">Anteprima: «Applica» crea cavi e apparati (annullabile con Ctrl+Z)</span></span>
+      <button class="toolbar-btn" data-act="toporebuild-close" data-i18n="common.close">Chiudi</button>
+      <button class="toolbar-btn primary" id="tr-apply-btn" data-act="toporebuild-apply" style="display:none"><i class="fas fa-check"></i> <span data-i18n="toporebuild.apply">Applica piano</span></button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== MODAL DISCOVERY RETE ===== -->
 <div id="disc-overlay" class="tool-modal-overlay" onclick="if(event.target===this)_closeDiscoveryOverlayClick()">
   <div class="tool-modal wide">
@@ -987,6 +1016,7 @@
 <script src="/lib/cable-labels.js"></script>
 <script src="/lib/cable-validate.js"></script>
 <script src="/lib/correlate.js"></script>
+<script src="/lib/topology-plan.js"></script>
 <script src="/lib/discovery-history.js"></script>
 <script src="/lib/frontpanel.js"></script>
 <script src="/lib/stack.js"></script>

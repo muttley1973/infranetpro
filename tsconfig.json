@@ -54,6 +54,7 @@
     "lib/stack.js",
     "lib/subbar-stats.js",
     "lib/topo-lines.js",
+    "lib/topology-plan.js",
     "lib/ui-catalog.js",
     "lib/vlan-trunk.js",
     "lib/wave-path.js",
