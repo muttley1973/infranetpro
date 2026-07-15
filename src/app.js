@@ -1920,11 +1920,37 @@ export function _activatePropsTab(label){
 export function _clearPropsTab(){
 }
 
+// Legge il valore corrente di un campo manuale dato un RIFERIMENTO esplicito
+// (kind + nodeId + field), senza parsare codice. È il percorso robusto usato
+// quando la select porta data-mkind/data-mnode/data-mfield; rispecchia i 4
+// pattern storici (node.spec/node · integration · port · link).
+function _readManualByRef(kind, nodeId, field){
+    if(!kind || !field) return undefined;
+    if(kind === 'node'){
+        const n = nodeById(nodeId || selId);
+        return n ? ((n.spec && n.spec[field] !== undefined) ? n.spec[field] : n[field]) : undefined;
+    }
+    if(kind === 'integration'){ const n = nodeById(nodeId); return n?.integration?.[field]; }
+    if(kind === 'port'){ return state.ports?.[nodeId]?.[field]; }
+    if(kind === 'link'){ const l = (state.links || []).find(x=>x.id===nodeId); return l ? l[field] : undefined; }
+    return undefined;
+}
+
 function _resolveManualPropValue(sel){
     try{
+        // Percorso ROBUSTO (preferito): se la select dichiara data-mkind/-mnode/
+        // -mfield, risolvi da quelli — nessun parsing di codice, nessun
+        // accoppiamento alla firma inline. I nuovi builder possono optare per
+        // questa via; i 221 handler inline storici restano gestiti sotto.
+        if(sel.dataset && sel.dataset.mkind){
+            const v = _readManualByRef(sel.dataset.mkind, sel.dataset.mnode, sel.dataset.mfield);
+            if(v !== undefined && v !== null) return String(v);
+        }
         const oc = String(sel.getAttribute('onchange') || '');
+        let matched = false;
         let m = oc.match(/updateN\('([^']+)',\s*this\.value\)/);
         if(m){
+            matched = true;
             const n = nodeById(selId);
             const key = m[1];
             // I campi device-specifici vivono in n.spec[key]: updateN ci salva il
@@ -1936,20 +1962,30 @@ function _resolveManualPropValue(sel){
         }
         m = oc.match(/updateIntegration\('([^']+)','([^']+)',\s*this\.value\)/);
         if(m){
+            matched = true;
             const n = nodeById(m[1]);
             const v = n?.integration?.[m[2]];
             if(v !== undefined && v !== null) return String(v);
         }
         m = oc.match(/setPortField\('([^']+)','([^']+)',\s*this\.value\)/);
         if(m){
+            matched = true;
             const v = state.ports?.[m[1]]?.[m[2]];
             if(v !== undefined && v !== null) return String(v);
         }
         m = oc.match(/setLinkProp\('([^']+)','([^']+)',\s*this\.value(?:\.trim\(\))?\)/);
         if(m){
+            matched = true;
             const l = (state.links || []).find(x=>x.id===m[1]);
             const v = l ? l[m[2]] : undefined;
             if(v !== undefined && v !== null) return String(v);
+        }
+        // Mutator NOTO presente ma NESSUN pattern combacia → la firma inline è
+        // cambiata (era il ceppo del bug fba8d48): segnala RUMOROSAMENTE invece di
+        // far tornare la select al default in silenzio. Un campo semplicemente
+        // vuoto (pattern ok, valore assente) NON scatta il warn (matched=true).
+        if(!matched && /\b(?:updateN|updateIntegration|setPortField|setLinkProp)\s*\(/.test(oc)){
+            console.warn('[props-manual] onchange non riconosciuto dal resolver (firma inline cambiata?):', oc);
         }
     }catch(_){}
     return String(sel.value ?? '');
