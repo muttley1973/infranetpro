@@ -2,6 +2,14 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-15 — Topology accuracy: LAG uplinks + "cables not shown" hint
+
+### Fixed
+- **Aggregate (LAG) interface names no longer resolve to a physical port.** When a switch's FDB learns MACs on an aggregate interface (`LAG1` / `Po1` / `ae1` / `Eth-Trunk1` …), the port resolver's weak numeric fallback matched it to the physical port sharing the same number (e.g. `LAG1` → physical port 1). Result: devices behind an unmanaged switch on the aggregate uplink were wired to the wrong — often shut — port. An aggregate now resolves only to a port that *is* that LAG, or to its member ports (`lagId` / `lagGroup`); a MAC learned on a LAG interface is treated as transit (behind the uplink), never a direct attachment — regardless of MAC count. Vendor-neutral across all aggregate naming families. `lib/correlate.js`, `src/app-topology-discover.js`, `src/app-autolink.js`.
+
+### Added
+- **"Cables not shown" hint in the workspace sub-bar.** In the Topology view, an amber pill flags documented cables that don't appear because the rack they belong to isn't placed on the floor plan; clicking it places the rack(s) in one undoable step so the links appear. Pure engine `computeTopoHiddenCables` in `lib/subbar-stats.js`. `src/app-subbar.js`, `lib/i18n.js`, `styles/10-modern.css`.
+
 ## 2026-07-15 — Security & robustness hardening (post-audit sprint)
 
 Follows a full read-only audit of the app. All gates green: 1440 unit tests / 0 fail, e2e 76/76, ESLint 0 errors, `tsc` 0.
@@ -526,7 +534,7 @@ Follows a full read-only audit of the app. All gates green: 1440 unit tests / 0 
 ## 2026-06-30 — AI assistant UI refinements
 
 ### Changed
-- **Chat typography like Claude Code.** Larger body text (15px), relaxed line-height, system font stack with anti-aliasing, tuned from one `#ai-panel-wrap` variable. `styles/04-floor-rack.css`.
+- **Refined chat typography.** Larger body text (15px), relaxed line-height, system font stack with anti-aliasing, tuned from one `#ai-panel-wrap` variable. `styles/04-floor-rack.css`.
 - **Assistant settings moved out of the chat.** The gear left the chat header (Clear stays); the toolbar robot button opens Settings for admins; the chat still opens from the Assistant tab or the A shortcut. `src/app-ai.js`, `netmapper.html`, `lib/i18n.js`.
 
 ## 2026-06-30 — Security hardening (audit follow-up)
