@@ -64,7 +64,10 @@ export function applyTemplateToNode(node, tmpl, rackTotalU) {
     // sovrascriverla lo faceva sparire). Dopo un cambio altezza ri-clampo la posizione
     // perche' il device resti dentro il rack (mirror di updateN('sizeU') in app.js).
     if (tmpl.rackU) {
-        node.sizeU = tmpl.rackU;
+        // Clampa l'ALTEZZA al rack, come il percorso canonico updateN('sizeU'): un
+        // modello 50U applicato a un rack 42U non deve traboccare (senza clamp la
+        // posizione rackU crollava a 1 e il device usciva dal telaio).
+        node.sizeU = rackTotalU ? Math.max(1, Math.min(tmpl.rackU, rackTotalU)) : Math.max(1, tmpl.rackU);
         if (rackTotalU) node.rackU = Math.max(1, Math.min(node.rackU || 1, rackTotalU - node.sizeU + 1));
     }
     return true;
@@ -90,7 +93,12 @@ function applyDeviceType(value) {
     if (!tmpl || !n) return;
     applyTemplateToNode(n, tmpl, getNodeRackSize(n));
     renderAll(); markDirty(); renderProps();
-    showAlert(t('devtype.applied', { model: tmpl.brand + ' ' + tmpl.model }));
+    // Modelli DC ad altissima densità: le porte in fibra oltre il cap 48/blocco
+    // vengono troncate dal generatore (counts.fiberDropped). Prima sparivano in
+    // silenzio: ora l'utente sa che quelle porte non sono cablabili sul pannello.
+    const dropped = (tmpl.counts && tmpl.counts.fiberDropped > 0) ? tmpl.counts.fiberDropped : 0;
+    showAlert(t('devtype.applied', { model: tmpl.brand + ' ' + tmpl.model })
+        + (dropped ? ' ' + t('devtype.fiberDropped', { n: dropped }) : ''));
 }
 
 // Delega: il change sull'input "Applica modello" (data-change) chiama l'handler.

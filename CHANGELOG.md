@@ -17,8 +17,11 @@ Follows a full read-only audit of the app. All gates green: 1440 unit tests / 0 
 - **LAG audit: a down member (speed 0) is treated as unknown**, not a distinct value — no more false "heterogeneous speeds 0M, 1G". `lib/lag-audit.js`.
 - **L3 / IPAM audit read `ip || integration.host`** (uniform with the rest of the app) — an SNMP-only device whose IP lives in `integration.host` is no longer flagged as an orphan gateway, and its duplicate IPs are caught. `src/app-l3.js`.
 - **Front-panel port labels stay consistent with the rendered block** when the two SFP counts exceed the port count. `lib/frontpanel.js`.
+- **Apply-model clamps the device height to the rack** — applying a tall model (e.g. 50U) to a device in a smaller rack (e.g. 42U) no longer overflows the frame (the position silently collapsed to U1). `src/app-device-types.js`.
+- **Manual-value dropdown resolver hardened** — the resolver that pre-selects a custom value in Properties dropdowns no longer fails *silently* if an inline handler signature changes (it now logs a clear warning) and supports an explicit `data-*` reference path. `src/app.js`.
 
 ### Changed / Performance
+- **Apply-model surfaces truncated fibre ports** — for the ~86 extreme datacentre switches whose fibre banks exceed the 48-per-block panel cap, applying the model now reports how many ports aren't shown instead of dropping them silently. `src/app-device-types.js`.
 - **`GET /api/device-types` cached in-memory** (keyed on file mtime+size) instead of reading + parsing the ~1.4 MB catalog on every request — the event loop no longer stalls when the catalog is opened. `server/routes/device-types.js`.
 - **The device-type `<datalist>` (~4,071 options) is built once at boot** instead of being regenerated on every Properties render, removing input latency when editing a device. `src/app-device-types.js`.
 
