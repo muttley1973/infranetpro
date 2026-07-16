@@ -1337,7 +1337,7 @@ async function _autoDiscoverLinks(nodeIds){
         if(typeof materializeTopologyNodes === 'function'){
             const _pollForMat = _topoResults
                 .filter(r => r && r.data && r.data.ok)
-                .map(r => ({ nodeId: r.n.id, fdbTable: r.data.fdbTable || {},
+                .map(r => ({ nodeId: r.n.id, srcIp: (r.n && r.n.ip) || '', fdbTable: r.data.fdbTable || {},
                              neighbors: r.data.neighbors || [], suggestedSharedSegments: r.data.suggestedSharedSegments || [] }));
             const _mat = materializeTopologyNodes(_pollForMat);
             if(_mat.nodes || _mat.links){

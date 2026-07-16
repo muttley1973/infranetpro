@@ -6,6 +6,7 @@ const {
   matchNodeByIdent, buildPortIndex, buildMacIndex, collectNodeMacs,
   buildPortMacIndex, findPortByIfName, buildNeighborCandidates, buildFdbCandidates,
 } = require('../lib/correlate.js');
+const { linkState } = require('../lib/linkstate.js');
 
 test('collectNodeMacs: chassis + MAC interfacce, deduplicati', () => {
   const node = { id: 'sw1', mac: 'AA:BB:CC:00:00:01' };
@@ -339,10 +340,12 @@ test('buildNeighborCandidates: endpoint a porta singola -> fallback ${id}-1', ()
   assert.ok(c.src === 'pc1-1' || c.dst === 'pc1-1', 'fallback porta singola deve usare pc1-1');
 });
 
-test('buildNeighborCandidates: gateway MULTI-PORTA con chassis-id MAC -> agganciato lo stesso (fix)', () => {
+test('buildNeighborCandidates: gateway MULTI-PORTA con chassis-id MAC -> agganciato ma DEDOTTO (da confermare)', () => {
   // Caso reale: il router/gateway ha 5 porte e l'LLDP lo annuncia col chassis-MAC
   // (porta remota non risolvibile). Prima veniva SCARTATO (fallback solo a 1 porta);
-  // ora si aggancia alla prima porta libera del nodo remoto (router-1).
+  // ora si aggancia alla prima porta libera del nodo remoto (router-1) MA la porta
+  // remota è una NOSTRA inferenza → il link NON è LLDP autorevole: nasce dedotto
+  // ('INFERRED', conf < 0.90) così linkState() lo mostra "da confermare".
   const GW_MAC = 'd4:1a:d1:82:11:20';
   const nodes = [
     { id: 'gs', hostname: 'GS1900', name: 'GS1900', ip: '192.168.1.100', ports: 24 },
@@ -360,7 +363,10 @@ test('buildNeighborCandidates: gateway MULTI-PORTA con chassis-id MAC -> agganci
   const c = cset.values()[0];
   assert.ok((c.src === 'gs-23' && c.dst === 'router-1') || (c.src === 'router-1' && c.dst === 'gs-23'),
     'cavo GS1900 porta 23 ↔ router porta 1');
-  assert.ok(c.confidence >= 0.9, 'link LLDP autorevole');
+  assert.equal(c.protocol, 'INFERRED', 'porta remota dedotta → NON etichettato LLDP');
+  assert.ok(c.confidence >= 0.80 && c.confidence < 0.90, 'sopra soglia auto (0.80), sotto trusted (0.90)');
+  // Il link risultante deve classificarsi "da confermare" (banner giallo).
+  assert.equal(linkState({ autoLinked: true, confidence: c.confidence, protocol: c.protocol }).key, 'ambiguous');
 });
 
 test('buildNeighborCandidates: due vicini multi-porta sullo stesso nodo -> porte remote distinte (no collisione)', () => {
@@ -568,6 +574,33 @@ test('buildFdbCandidates UPLINK: DUE infra documentati sulla stessa porta -> amb
   const fdb = { [A]:'Gi5', [B]:'Gi5', '00:00:00:00:00:03':'Gi5', '00:00:00:00:00:04':'Gi5', '00:00:00:00:00:05':'Gi5' };
   const res = buildFdbCandidates('gs', fdb, {}, nodes, idx, buildPortMacIndex(ports));
   assert.equal(res.cset.size(), 0, 'due infra sulla porta = ambiguo → non si indovina, resta segmento');
+});
+
+test('buildFdbCandidates UPLINK: endpoint multi-porta (NAS 2 porte) sul LAG NON crea falsa ambiguità → switch agganciato', () => {
+  // Caso reale GS1900/LAG1: sull'interfaccia aggregata LAG1 sono appresi il MAC del
+  // GS1200 (switch, infra) + un NAS Synology a 2 porte + una stampante. Il NAS NON
+  // deve contare come "infra" (host terminale, anche se multi-porta per NIC teaming):
+  // solo lo switch inoltra → nessuna ambiguità, il GS1200 si aggancia come uplink sulla
+  // prima porta membro. Prima: isLeafEndpointNode(NAS 2 porte)=false → il NAS contava
+  // come infra → set.size=2 → ambiguo → nessun cavo (bug).
+  const SW = 'aa:aa:aa:00:00:01', NAS = '00:11:32:8f:53:51', PRN = '18:60:24:78:37:0b';
+  const nodes = [
+    { id:'gs', type:'switch', hostname:'GS1900', ip:'192.168.1.100', ports:26, isActive:true },
+    { id:'gs1200', type:'switch', hostname:'GS1200', ip:'192.168.1.98', ports:8, mac:SW, isActive:true },
+    { id:'nas', type:'nas', hostname:'NAS', ip:'192.168.1.120', ports:2, mac:NAS, isActive:true },
+    { id:'prn', type:'printer', hostname:'PRN', ip:'192.168.1.178', ports:1, mac:PRN, isLeafEndpoint:true },
+  ];
+  const ports = { 'gs-3': { ifName:'GigabitEthernet3', lagId:1, lagGroup:'snmp-lag-gs-1' } };
+  const idx = buildPortIndex(ports, { 'snmp-lag-gs-1':'LAG1' });
+  const fdb = { [SW]:'LAG1', [NAS]:'LAG1', [PRN]:'LAG1' };   // MAC appresi sull'aggregato
+  const res = buildFdbCandidates('gs', fdb, {}, nodes, idx, buildPortMacIndex(ports));
+  const cands = res.cset.values();
+  assert.equal(cands.length, 1, 'un solo candidato: il GS1200 (NAS/stampante = host, non infra)');
+  const c = cands[0];
+  assert.ok((c.src === 'gs-3' && c.dst === 'gs1200-1') || (c.src === 'gs1200-1' && c.dst === 'gs-3'),
+    'GS1200 agganciato alla prima porta membro del LAG (gs-3)');
+  assert.equal(c.protocol, 'MAC-UPLINK');
+  assert.equal(linkState({ autoLinked:true, confidence:c.confidence, protocol:c.protocol }).key, 'ambiguous', 'link "da confermare"');
 });
 
 test('buildFdbCandidates: ARP+FDB verso endpoint a porta singola', () => {

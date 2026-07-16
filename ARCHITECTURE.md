@@ -86,6 +86,12 @@ lib/                   Shared browser + test modules (the heart of the app)
   i18n.js              t(key,vars), it/en dictionaries, glossary  (pure)
   cidr.js netnames.js linkstate.js correlate.js cabling.js
   topo-lines.js frontpanel.js stack.js ha-pair.js l3-gateway.js
+  topology-plan.js  buildTopologyPlan / inferUnmanagedNodes / classifyIntermediary:
+                    assemble tiered links from a Sync poll + infer a hidden multi-port
+                    intermediary behind a 2–4-MAC access port and suggest its role
+                    (subnet → gateway · virtual OUI → hypervisor · randomised MAC → AP ·
+                    else switch) — the Sync flags the port as a shared L2 segment with
+                    that suggestion; the user materialises it from the Shared L2 panel  (pure)
   power-mib.js wifi-spec.js cable-labels.js drift-report.js
   project-networks.js  deriveProjectNetworks (/24s from devices+leases →
                     covered/blocked/open) + annotateNetworksVerification (join with

@@ -164,6 +164,9 @@
         .ss-chip:hover { background:var(--surface-hover); }
         .ss-radio:checked + .ss-chip { border-color:var(--accent); background:var(--accent-soft); color:var(--accent); }
         .ss-radio:focus-visible + .ss-chip { outline:2px solid var(--accent); outline-offset:1px; }
+        /* Badge "consigliato" sul chip del ruolo dedotto dal Sync (classificatore). */
+        .ss-chip-suggested { font-size:0.6rem; font-weight:700; text-transform:uppercase; letter-spacing:.02em;
+                   background:var(--accent); color:#fff; padding:1px 5px; border-radius:6px; margin-left:2px; }
         .ss-acts .ss-act { display:none; flex-wrap:wrap; gap:6px; }
         .ss-routing:has(.ss-radio[value="switch"]:checked)     .ss-act[data-for="switch"],
         .ss-routing:has(.ss-radio[value="ap"]:checked)         .ss-act[data-for="ap"],
