@@ -1095,6 +1095,16 @@ async function _autoDiscoverLinks(nodeIds){
         console.error('[AutoLink] LAG inference errore:', lagErr);
     }
 
+    // Un UPLINK dedotto dalla sola FDB (MAC-UPLINK) ha la porta remota messa a DEFAULT
+    // (`<node>-1`, cfr. lib/correlate.js): il capo remoto e la sua eventuale aggregazione
+    // NON sono osservati — tipicamente un apparato CIECO senza SNMP (es. Zyxel GS1200) di
+    // cui NON conosciamo la porta. Anche se la porta LOCALE e' un membro LAG, non deve
+    // diventare un membro LAG "confermato": resta UN solo cavo "Inferito · da verificare"
+    // (protocol → linkState 'ambiguous'), che l'utente conferma e completa. Senza
+    // lagLogicalKey linkState() non lo promuove a 'lag'. Vendor-neutral: chiave sul
+    // protocollo, non sul vendor.
+    const _isInferredUplinkProto = p => String(p || '').toUpperCase() === 'MAC-UPLINK';
+
     // ---- Candidati fisici: ogni membro LAG resta un cavo porta-porta ----------
     const physicalCandidates = {};
     for(const cand of _cset.values()){
@@ -1103,6 +1113,7 @@ async function _autoDiscoverLinks(nodeIds){
         const pair = _pairSig(cand.src, cand.dst);
         const key = pair;
         const proto = cand.protocol || 'AUTO';
+        const lagLogical = meta.lagLogical && !_isInferredUplinkProto(proto);
         const ex = physicalCandidates[key];
         if(!ex){
             physicalCandidates[key] = {
@@ -1110,8 +1121,8 @@ async function _autoDiscoverLinks(nodeIds){
                 dst: cand.dst,
                 confidence: cand.confidence,
                 protocol: proto,
-                logicalKey: meta.lagLogical ? meta.key : '',
-                lagLogical: meta.lagLogical,
+                logicalKey: lagLogical ? meta.key : '',
+                lagLogical: lagLogical,
                 memberPairs: new Set([pair]),
                 protocols: new Set([proto]),
                 _repPair: pair,
@@ -1252,7 +1263,9 @@ async function _autoDiscoverLinks(nodeIds){
     };
     const _refreshLagMeta = l => {
         const meta = _logicalMetaFromLink(l);
-        if(meta.lagLogical){
+        // Stessa regola della creazione: un uplink FDB inferito (MAC-UPLINK) non viene
+        // ri-promosso a LAG durante il dedup, altrimenti linkState() lo mostrerebbe "LAG".
+        if(meta.lagLogical && !_isInferredUplinkProto(l.protocol)){
             l.lagLogicalKey = meta.key;
             l.lagMemberPair = _pairSig(l.src,l.dst);
         } else {
