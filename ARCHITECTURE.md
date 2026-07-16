@@ -623,7 +623,14 @@ is VPN/LAN.
   ifName** (their status is stale/mis-mappable, `src/app-drift.js`); and when a single manual
   cable to a confirmed LLDP/CDP neighbor sits on a port without an ifName, the **real interface
   name is backfilled** onto that documented port (in SNMP form) and freed from the positional
-  one it had landed on, so future syncs match it by ifName (`src/app-autolink.js`). Manual-first
+  one it had landed on, so future syncs match it by ifName (`src/app-autolink.js`). A related
+  guard: an **FDB uplink-resolution cable** (`MAC-UPLINK`) — where a documented switch's MAC is
+  learned on a *local* LAG port but the *remote* end (often an SNMP-blind switch) and its port
+  are only guessed (`<node>-1`) — is **never promoted to a LAG member**. Even though the local
+  port is a LAG member and both ends are switches (which would otherwise stamp `lagLogicalKey`),
+  the link stays a single *"Inferred · to verify"* cable so `linkState()` doesn't mislabel it
+  "LAG"; the guard runs at both the candidate-build and the dedup (`_refreshLagMeta`) passes, the
+  latter also self-healing any link previously mislabelled (`src/app-autolink.js`). Manual-first
   and vendor-neutral throughout. The Scopri **crawl** also no longer blanks the vendor of an
   LLDP/CDP-discovered neighbor: the backend resolves it from `sysObjectID` (e.g. Cisco from
   PEN 9), but a stale `vendor:''` default in the merge was overwriting it *after* the spread,
