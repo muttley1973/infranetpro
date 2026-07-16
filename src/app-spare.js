@@ -175,6 +175,10 @@ expose({ _applySpareHighlight, toggleSpareHighlight });
 registerClickActions({
     'spare-close':  () => _closeSpareReport(),
     'spare-export': () => spareExportCsv(),
+    // Chip di stato in header: spegne l'evidenziazione porte libere (× del badge).
+    // Migrato da onclick="setSpareHighlight(false)" — la fn è module-scoped, non
+    // esposta su window, quindi l'inline andava in ReferenceError (badge morto).
+    'spare-highlight-off': () => setSpareHighlight(false),
 });
 registerChangeActions({
     'spare-highlight': (el) => setSpareHighlight(el.checked),

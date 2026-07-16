@@ -146,7 +146,7 @@
         <div id="modules-nav-slot" class="modules-nav-slot" style="display:flex;gap:6px;align-items:center"></div>
         <div id="status-cluster" class="status-cluster">
             <button class="status-chip s-warn" id="v3-pending-chip" onclick="_v3JumpNext()" data-tip="Device SNMPv3 da configurare — clic per saltare al prossimo"></button>
-            <button class="status-chip s-info" id="spare-active-badge" onclick="setSpareHighlight(false)" data-i18n-tip="spare.badgeTip" data-tip="Porte libere evidenziate nel rack — clicca per spegnere">
+            <button class="status-chip s-info" id="spare-active-badge" data-act="spare-highlight-off" data-i18n-tip="spare.badgeTip" data-tip="Porte libere evidenziate nel rack — clicca per spegnere">
                 <i class="fas fa-plug-circle-plus"></i><span data-i18n="report.spare">Porte libere</span><i class="fas fa-times chip-x"></i>
             </button>
             <button class="status-chip s-ok" id="autopoll-badge" onclick="toggleAutomationMenu()" data-i18n-tip="autopoll.tip" data-tip="Polling automatico attivo — clic per le automazioni"></button>
