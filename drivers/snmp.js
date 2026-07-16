@@ -27,10 +27,14 @@
 //       Anti-falso-positivo Zyxel: se >90% delle porte fisiche riporta
 //       lo stesso lagId, il firmware pre-assegna tutti → ignorato.
 //
-//  Nota Zyxel GS1900 LAG statico: nessuno dei tre livelli funziona
-//  (firmware non implementa 802.3ad MIB correttamente, ifStackTable assente).
-//  In tal caso lags[] contiene l'interfaccia aggregatore (ifType=161)
-//  ma nessuna porta fisica viene marcata come membro.
+//  Nota Zyxel GS1900 (LAG statico) — VERIFICATO DAL VIVO su firmware recente:
+//  L0 ifStackTable è ASSENTE (0 righe), ma il MIB 802.3ad È esposto e corretto.
+//    L1 dot3adAggMemberPorts bitmap → membri giusti (es. LAG1 = porte 3+6) e
+//       VINCE per primo → le porte fisiche vengono marcate membro.
+//    L2 AttachedAggID risponde ma con la quirk del pre-assign (ogni porta → il
+//       proprio ifIndex) → neutralizzata dall'anti-falso-positivo qui sopra.
+//  Su firmware più vecchi il 802.3ad poteva non rispondere: in quel caso lags[]
+//  contiene solo l'aggregatore (ifType=161) senza membri.
 // ============================================================
 
 const snmp = require('net-snmp');

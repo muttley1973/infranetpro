@@ -661,6 +661,7 @@ Full release notes live in [CHANGELOG.md](CHANGELOG.md). Highlights of what has 
 - [x] **Discovery** — deep scan (TCP/NetBIOS/SMB) + confidence scoring, reachability states, off-segment SNMP-ARP (`arpnip`), switch-port mapping (FDB `macsuck`), DHCP-as-source, mDNS/SSDP/ONVIF listen
 - [x] **Device catalog** — NVR, SD-WAN edge, VPN concentrator, door controller, panelboard; dedicated MGMT + SFP (×2) blocks; stacking (StackWise/VSF/Virtual Chassis/IRF); HA pair/cluster modeling; management-protocol launcher
 - [x] **Multi-vendor LAG detection** — four-level cascade (ifStack / 802.3ad / ActorOperState / LLDP-inferred), logical id, LACP mode coherence
+- [x] **Topology "to confirm" states** — deduced infra/uplink cables (guessed remote port, materialised gateway, FDB uplink-resolution of a documented device) are born *Inferred · to verify* (amber Confirm/Delete, dashed on the map), never mislabelled `LLDP`; a hidden multi-port intermediary behind a 2–4-MAC access port is surfaced as a shared L2 segment with a role **suggested** from the endpoints (other subnet → gateway · virtual OUI → hypervisor · randomised MAC → AP · else switch) and materialised from the Shared L2 panel
 - [x] **Engineering** — zero-dep regression suite + CI, server modularization, frontend ESM/esbuild migration, correlation primitives (`lib/correlate.js`), ENTITY-MIB inventory, `node.spec` refactor
 
 **Planned:**

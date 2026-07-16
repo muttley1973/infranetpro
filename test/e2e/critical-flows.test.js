@@ -3559,7 +3559,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(dismissed, 'il chip si nasconde dopo «×» (dismiss per-passo)');
     });
 
-    await t.test('Sync materializza gateway annunciato + switch inferito in rack (idempotente)', async () => {
+    await t.test('Sync: materializza gateway annunciato; intermediario inferito → segmento L2 (ruolo suggerito)', async () => {
       const errBefore = pageErrors.length;
       await page.evaluate(() => {
         state.nodes.push({ id: 'e2eGs', type: 'switch', name: 'E2E GS', rackId: null, ports: 24 });
@@ -3577,18 +3577,27 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         const r = materializeTopologyNodes(poll);
         const gw = state.nodes.find(n => n.identitySource === 'lldp' && n.mac === 'd4:1a:d1:82:11:20');
         const inf = state.nodes.find(n => n.identitySource === 'inferred' && n.type === 'switch');
+        const gwLink = gw ? state.links.find(l => String(l.src).indexOf(gw.id + '-') === 0 || String(l.dst).indexOf(gw.id + '-') === 0) : null;
+        const seg = state.ports['e2eGs-24'] || {};
         return {
-          nodes: r.nodes, hasGateway: !!gw, gwRack: gw ? !!gw.rackId : false,
-          gwLinked: gw ? state.links.some(l => String(l.src).indexOf(gw.id + '-') === 0 || String(l.dst).indexOf(gw.id + '-') === 0) : false,
-          hasInferred: !!inf, infRack: inf ? !!inf.rackId : false,
+          nodes: r.nodes, segments: r.segments, hasGateway: !!gw, gwRack: gw ? !!gw.rackId : false,
+          gwLinked: !!gwLink,
+          gwLinkProto: gwLink ? gwLink.protocol : null,
+          gwLinkState: (gwLink && typeof linkState === 'function') ? linkState(gwLink).key : null,
+          hasInferredNode: !!inf,
+          segHint: !!seg.sharedSegmentHint, segRole: seg.sharedSegmentRoleSuggested || null,
         };
       }, POLL);
       assert.ok(first.hasGateway, 'gateway annunciato materializzato (identitySource lldp)');
       assert.ok(first.gwRack, 'il gateway è in un RACK');
       assert.ok(first.gwLinked, 'il gateway è cablato alla porta 23 annunciata');
-      assert.ok(first.hasInferred, 'switch inferito materializzato (porta 24, 2 webcam)');
-      assert.ok(first.infRack, 'lo switch inferito è in un RACK');
-      assert.equal(first.nodes, 2, 'due nodi materializzati (gateway + switch inferito)');
+      assert.notEqual(first.gwLinkProto, 'LLDP', 'il cavo del gateway materializzato NON è etichettato LLDP');
+      assert.equal(first.gwLinkState, 'ambiguous', 'il cavo del gateway nasce "da confermare"');
+      assert.ok(!first.hasInferredNode, 'NESSUN nodo switch inferito auto-creato (lo gestisce il pannello Segmento L2)');
+      assert.equal(first.nodes, 1, 'un solo nodo materializzato: il gateway');
+      assert.ok(first.segments >= 1, 'almeno un segmento L2 segnalato (porta 24)');
+      assert.ok(first.segHint, 'la porta 24 è marcata come segmento condiviso (hint)');
+      assert.equal(first.segRole, 'switch', '2 webcam wired → ruolo suggerito = switch');
       const second = await page.evaluate((poll) => materializeTopologyNodes(poll), POLL);
       assert.equal(second.nodes, 0, 're-run = 0 nodi (idempotente)');
       const errs = pageErrors.slice(errBefore);

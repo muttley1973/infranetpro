@@ -6,7 +6,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
-  buildTopologyPlan, inferUnmanagedNodes, assemblePlanInputs, buildApplyOps,
+  buildTopologyPlan, inferUnmanagedNodes, classifyIntermediary, assemblePlanInputs, buildApplyOps,
   _logicalPairKey, _tierFromEvidence, _nodeIdOfPort,
 } = require('../lib/topology-plan.js');
 const {
@@ -267,6 +267,41 @@ test('inferUnmanagedNodes: vicino LLDP presente → NON inferisce (apparato gest
   const pe = [{ portId: 'gs-23', hasLldpNeighbor: true,
     macs: [{ mac: 'aa:aa:aa:00:00:01' }, { mac: 'bb:bb:bb:00:00:02' }, { mac: 'cc:cc:cc:00:00:03' }] }];
   assert.equal(inferUnmanagedNodes(pe).length, 0);
+});
+
+// ── classifyIntermediary — il TIPO proposto dai segnali (paletto ②: da confermare)
+test('classifyIntermediary: MAC wired universali, stessa subnet → switch (default)', () => {
+  const macs = [{ mac: 'ec:71:db:49:58:05', ip: '10.0.0.5' }, { mac: 'f4:39:09:62:f2:46', ip: '10.0.0.6' }];
+  assert.deepEqual(classifyIntermediary(macs, '10.0.0.1'), { type: 'switch', signal: 'default' });
+});
+
+test('classifyIntermediary: maggioranza MAC randomizzati (locally-administered) → ap', () => {
+  const macs = [{ mac: '02:11:22:33:44:55' }, { mac: 'aa:bb:cc:dd:ee:ff' }];  // bit 0x02 settato
+  assert.deepEqual(classifyIntermediary(macs, '10.0.0.1'), { type: 'ap', signal: 'randomized-mac' });
+});
+
+test('classifyIntermediary: maggioranza OUI virtuale (VMware/KVM) → hypervisor', () => {
+  const macs = [{ mac: '00:0c:29:aa:bb:cc' }, { mac: '52:54:00:11:22:33' }, { mac: 'ec:71:db:00:00:01' }];
+  assert.deepEqual(classifyIntermediary(macs, '10.0.0.1'), { type: 'hypervisor', signal: 'virtual-oui' });
+});
+
+test('classifyIntermediary: endpoint in subnet diversa → router (priorità su tutto)', () => {
+  // MAC virtuale MA IP cross-subnet: il confine L3 vince.
+  const macs = [{ mac: '00:0c:29:aa:bb:cc', ip: '192.168.9.7' }, { mac: 'ec:71:db:00:00:01', ip: '10.0.0.6' }];
+  assert.deepEqual(classifyIntermediary(macs, '10.0.0.1'), { type: 'router', signal: 'cross-subnet' });
+});
+
+test('inferUnmanagedNodes: propaga inferredType dai segnali (ap) e default (switch)', () => {
+  const apPe = [{ portId: 'sw-7', hasLldpNeighbor: false,
+    macs: [{ mac: '02:11:22:33:44:55', type: 'mobile' }, { mac: '06:aa:bb:cc:dd:ee', type: 'mobile' }] }];
+  const apInf = inferUnmanagedNodes(apPe);
+  assert.equal(apInf.length, 1);
+  assert.equal(apInf[0].inferredType, 'ap');
+  assert.equal(apInf[0].typeSignal, 'randomized-mac');
+
+  const swPe = [{ portId: 'gs-24', hasLldpNeighbor: false,
+    macs: [{ mac: 'ec:71:db:49:58:05', type: 'webcam' }, { mac: 'ec:71:db:4f:bd:51', type: 'webcam' }] }];
+  assert.equal(inferUnmanagedNodes(swPe)[0].inferredType, 'switch');
 });
 
 test('inferUnmanagedNodes: porta già occupata da un nodo reale → skip', () => {

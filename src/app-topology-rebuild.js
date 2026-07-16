@@ -29,14 +29,14 @@ function _macInfoMap() {
   const idx = {};
   for (const n of store.state.nodes) {
     const m = _norm(n.mac);
-    if (m && !idx[m]) idx[m] = { nodeId: n.id, type: n.type || null };
+    if (m && !idx[m]) idx[m] = { nodeId: n.id, type: n.type || null, ip: n.ip || null };
   }
   for (const [pid, pi] of Object.entries(store.state.ports)) {
     const m = _norm(pi.mac);
     if (!m || idx[m]) continue;
     const nid = getPortNodeId(pid);
     const nd = nodeById(nid);
-    idx[m] = { nodeId: nid, type: nd ? (nd.type || null) : null };
+    idx[m] = { nodeId: nid, type: nd ? (nd.type || null) : null, ip: nd ? (nd.ip || null) : null };
   }
   return idx;
 }
@@ -51,22 +51,6 @@ function _ensureRack() {
     store.state.currentRack = rackId;
   }
   return rackId;
-}
-
-// Switch/AP non gestito inferito → SWITCH in RACK (infra, non su floor).
-function _createInferredSwitch(m) {
-  const behind = (m.behindNodeIds || []).length;
-  const usedIds = new Set(store.state.nodes.map(n => String(n.id || '')));
-  const id = (typeof _nextNodeId === 'function') ? _nextNodeId('switch', usedIds) : ('sw_' + store.state.nodes.length);
-  const rackId = _ensureRack();
-  const rackU = (typeof _findFreeU === 'function') ? _findFreeU(rackId, 1) : 1;
-  const n = {
-    id, type: 'switch', name: t('toporebuild.unmanagedSwitch'),
-    rackId, rackU, sizeU: 1, ports: Math.max(2, behind + 1),
-    inferred: true, identitySource: 'inferred', identityConfidence: 'low',
-  };
-  store.state.nodes.push(n);
-  return n;
 }
 
 // Vicino LLDP/CDP annunciato non documentato (es. gateway) → SWITCH in RACK con
@@ -144,25 +128,22 @@ export function materializeTopologyNodes(pollResults) {
     // Il self-heal transit lo fa già _autoDiscoverLinks: qui NON si ripete.
   });
 
-  let nodes = 0, links = 0, pruned = 0;
-  const pruneSet = new Set(ops.pruneLinkIds);
-  if (pruneSet.size) { store.state.links = store.state.links.filter(l => !pruneSet.has(l.id)); pruned = pruneSet.size; }
-
+  let nodes = 0, links = 0;
+  // Intermediario inferito (2-4 endpoint, no LLDP): verità fisica NOTA (dietro c'è un
+  // apparato multi-porta) ma TIPO incerto → NON si crea il nodo qui. La porta ha già
+  // ≥2 MAC = SEGMENTO L2 CONDIVISO: la si marca con hint + il RUOLO SUGGERITO dai
+  // segnali, così l'utente materializza l'apparato dal pannello «Segmento L2»
+  // ([Crea Switch/AP/Gateway…] o [Lega a esistente]). Coerente col caso >4 MAC.
+  // Niente prune: senza il nodo sostitutivo, i device dietro NON vanno reindirizzati.
+  let segments = 0;
+  const _ROLE_OF = { switch: 'switch', router: 'gateway', ap: 'ap', hypervisor: 'hypervisor' };
   for (const m of ops.materialize) {
-    const sw = _createInferredSwitch(m); nodes++;
-    const upPid = `${sw.id}-1`;
-    if (!store.state.ports[upPid]) store.state.ports[upPid] = {};
-    if (!store.state.ports[m.onUplinkPid]) store.state.ports[m.onUplinkPid] = {};
-    store.state.links.push(_mkLink(m.onUplinkPid, upPid, { autoLinked: true, confidence: m.confidence, protocol: 'INFERRED' })); links++;
-    let pn = 2;
-    for (const nid of (m.behindNodeIds || [])) {
-      const epPid = `${nid}-1`;
-      if (store.state.links.some(l => !l.autoLinked && (l.src === epPid || l.dst === epPid))) continue; // manual-first
-      const swPid = `${sw.id}-${pn++}`;
-      if (!store.state.ports[swPid]) store.state.ports[swPid] = {};
-      if (!store.state.ports[epPid]) store.state.ports[epPid] = {};
-      store.state.links.push(_mkLink(swPid, epPid, { autoLinked: true, confidence: m.confidence, protocol: 'INFERRED' })); links++;
-    }
+    const pid = m.onUplinkPid; if (!pid) continue;
+    const pi = store.state.ports[pid] = store.state.ports[pid] || {};
+    pi.sharedSegmentHint = true;
+    if (!pi.sharedSegmentMacCount) pi.sharedSegmentMacCount = (m.behindMacs || []).length;
+    if (!pi.sharedSegmentRole && !pi.sharedSegmentRoleSuggested) pi.sharedSegmentRoleSuggested = _ROLE_OF[m.inferredType] || 'switch';
+    segments++;
   }
 
   for (const nn of (ops.materializeNeighbors || [])) {
@@ -170,11 +151,15 @@ export function materializeTopologyNodes(pollResults) {
     const p1 = `${node.id}-1`;
     if (!store.state.ports[p1]) store.state.ports[p1] = {};
     if (!store.state.ports[nn.onLocalPid]) store.state.ports[nn.onLocalPid] = {};
-    store.state.links.push(_mkLink(nn.onLocalPid, p1, { autoLinked: true, confidence: nn.confidence, protocol: nn.protocol || 'LLDP' })); links++;
+    // Il nodo è MATERIALIZZATO (dedotto): il cavo nasce "da confermare", non
+    // affidabile. Protocollo INFERRED + conf < 0.90 → linkState() lo classifica
+    // 'ambiguous' ("Inferito · da verificare"), NON LLDP: l'annuncio LLDP ci ha
+    // dato il vicino, non la conferma della porta/identità dell'apparato creato.
+    store.state.links.push(_mkLink(nn.onLocalPid, p1, { autoLinked: true, confidence: 0.82, protocol: 'INFERRED' })); links++;
   }
 
   if (nodes && typeof _invalidateIdx === 'function') _invalidateIdx();
-  return { nodes, links, pruned };
+  return { nodes, links, pruned: 0, segments };
 }
 
 // Esposto per test e2e (page.evaluate); il Sync la importa via ESM.

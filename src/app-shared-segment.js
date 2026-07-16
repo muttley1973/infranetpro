@@ -104,6 +104,7 @@ function _sharedSegmentInfoForPort(pid, opts={}){
         unknownCount:macs.filter(x=>!x.node).length,
         threshold,
         role,
+        roleSuggested: String(pi.sharedSegmentRoleSuggested || '').trim(),   // ruolo dedotto dal Sync (classificatore), non ancora scelto
         ignored:!!pi.sharedSegmentIgnored,
         serverHint,
         serverMacCount: pi.sharedSegmentMacCount || 0,
@@ -522,12 +523,19 @@ export function _sharedSegmentHtml(pid, context='popup'){
     // ---- UI semplificata: prima il TIPO (chip), poi solo le azioni pertinenti.
     // Le 2 dimensioni (cosa c'e' dietro × cosa farne) erano appiattite in 10
     // tasti; ora chip-tipo + azioni contestuali (mostra/nascondi via :has CSS).
-    // Smart-default: pre-seleziona il tipo gia' suggerito (o 'switch').
-    const _ssSuggest = (info.role === 'ap' || info.role === 'gateway' || info.role === 'hypervisor')
-        ? info.role : (info.role === 'rackuplink' ? 'uplink' : 'switch');
+    // Smart-default: pre-seleziona il tipo scelto o, se non ancora scelto, quello
+    // SUGGERITO dal Sync (classificatore: cross-subnet→gateway, virtuali→hypervisor,
+    // randomizzati→ap, altrimenti switch). 'switch' come ultimo fallback.
+    const _roleToChip = (r) => (r === 'ap' || r === 'gateway' || r === 'hypervisor') ? r
+        : (r === 'rackuplink' ? 'uplink' : (r === 'switch' ? 'switch' : ''));
+    const _ssSuggest = _roleToChip(info.role) || _roleToChip(info.roleSuggested) || 'switch';
+    // Badge "consigliato" SOLO su un suggerimento fresco (nessun ruolo ancora scelto).
+    const _suggBadgeChip = (!info.role && info.roleSuggested) ? _roleToChip(info.roleSuggested) : '';
     const _ssChip = (type, icon, label) =>
         `<input type="radio" name="ss-${pid}" id="ss-${pid}-${type}" value="${type}" class="ss-radio"${_ssSuggest===type?' checked':''}>`
-      + `<label for="ss-${pid}-${type}" class="ss-chip"><i class="fas ${icon}"></i> ${label}</label>`;
+      + `<label for="ss-${pid}-${type}" class="ss-chip"><i class="fas ${icon}"></i> ${label}`
+      + (_suggBadgeChip === type ? `<span class="ss-chip-suggested" data-tip="${t('pnl.seg.suggestedTip')}">${t('pnl.seg.suggested')}</span>` : '')
+      + `</label>`;
     const _ssRouting = `<div class="ss-routing">
         <div class="ss-q">${t('pnl.seg.whatBehindPort')}</div>
         <div class="ss-chips">

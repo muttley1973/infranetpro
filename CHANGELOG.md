@@ -2,6 +2,20 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-16 — Topology: infra links "to confirm" + inferred intermediary → Shared L2 Segment
+
+All gates green: 1526 unit tests / 0 fail (4 skipped), e2e 78/78, ESLint 0 errors, `tsc` 0. Live-verified against a real home network (Zyxel GS1900 SNMP + LLDP + FDB).
+
+### Fixed
+- **Infra auto-links are now born "to confirm", not authoritative LLDP.** When the Sync attaches a documented multi-port infrastructure device whose LLDP neighbour announces only a chassis-MAC (so the *remote* port is a guess), or materialises an announced-but-undocumented gateway, the cable is no longer labelled `LLDP` (which reads as protocol-confirmed). It is created as a deduced link (`INFERRED`, confidence < 0.90) so `linkState()` classifies it *"Inferred · to verify"* — amber banner with **Confirm / Delete** on the cable panel, dashed on the topology map. A genuine LLDP/CDP backbone with an exact remote port stays authoritative; a single-port device (only one possible port) also stays authoritative. This also stops the LLDP+MAC corroboration from silently re-promoting a guessed-port link back to trusted. `lib/correlate.js` (`buildNeighborCandidates`), `src/app-topology-rebuild.js`.
+- **FDB uplink-resolution no longer blocked by a multi-port host.** The rule that cables a documented infrastructure device (router/switch/AP/firewall) to the switch port where its MAC is learned used a port-count proxy to decide what counts as "infra", so a 2-port NAS (dual-NIC) or any multi-port *host* was mistaken for infrastructure and created a false ambiguity that dropped the legitimate uplink. The guard is now **type-based** — only traffic-forwarding types (switch/router/firewall/gateway/AP/WLC/SD-WAN/VPN-concentrator/bridge/media-converter/hypervisor). Live-verified: a Zyxel GS1200 sharing a LAG uplink with a Synology NAS and a printer now attaches as `MAC-UPLINK` (to confirm), where before nothing did. `lib/correlate.js` (`buildFdbCandidates`).
+
+### Changed
+- **Inferred multi-port intermediary → Shared L2 Segment panel (no auto-invented switch).** When a switch access port has 2–4 distinct endpoint MACs and no LLDP neighbour, physical truth says a hidden multi-port device sits behind it — but its *type* is genuinely unknown. Instead of auto-materialising a switch (a forced guess with no easy correction), the Sync now flags the port as a **shared L2 segment** with a **suggested role** derived from the endpoints behind it — endpoints in another subnet → *gateway*, virtual-NIC OUIs → *hypervisor*, randomised/locally-administered MACs → *AP*, otherwise *switch*. You materialise the real device from the existing **Shared L2 Segment** panel: its **Create switch / AP / gateway** buttons place the node in the right home (rack or floor) and attach the devices behind it — with the suggested role **pre-selected and badged "suggested"**. This unifies the 2–4-MAC case with the existing >4-MAC ("shared segment") case. `lib/topology-plan.js` (`classifyIntermediary`), `src/app-topology-rebuild.js`, `src/app-shared-segment.js`, `styles/06-panels.css`, `lib/i18n.js`.
+
+### Docs
+- **Driver note corrected.** The Zyxel GS1900 comment claiming none of the three LAG-member detection levels work is outdated: on current firmware the 802.3ad MIB (`dot3adAggMemberPorts` bitmap) exposes the members correctly — verified live (`LAG1` = physical ports 3 + 6). `drivers/snmp.js`.
+
 ## 2026-07-15 — Topology accuracy: LAG uplinks + "cables not shown" hint
 
 ### Fixed
