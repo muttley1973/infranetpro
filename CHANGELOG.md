@@ -2,6 +2,15 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-17 — IPv6: address field + neighbor discovery (Scope A)
+
+All gates green: 1553 unit tests / 0 fail (4 skipped, +17), e2e 78/78, ESLint 0 errors, `tsc` 0. `win.*` ratchet held at 268. Verified end-to-end with a headless proof on the real engines.
+
+### Added
+- **IPv6 address field in device Properties.** Every device with a "Network & Access" block now has an *IPv6 address* field beside the IPv4 one, wired through event delegation (`data-change`, no inline `onclick`) and validated/canonicalised (RFC 5952) by a new pure library `lib/ipv6.js`. Manual-first: a valid address is normalised in place, an invalid one is kept as typed. Stored as a **distinct** `ip6` field — it never leaks into `ip`, the IPv4-only IPAM math, or the Ansible `ansible_host`. `lib/ipv6.js`, `src/app-properties.js`, `src/app.js`, `lib/api-shape.js`, `lib/correlate.js` (node index), `lib/i18n.js`.
+- **IPv6 Neighbor Discovery over SNMP.** The SNMP driver now walks the address-family-aware `ipNetToPhysicalTable` (IP-MIB, RFC 4293) **alongside** the deprecated IPv4-only `ipNetToMediaTable`, so one walk yields both the ARP (IPv4) and the ND/NDP (IPv6) neighbours. IPv4 rows gap-fill the existing `arpTable` (byte-identical when the physical table is absent); IPv6 rows populate a new `ndTable`. The crawl collects these, `buildNdCandidates` turns them into routable-only (global/ULA) candidates, and a discovery `nd` event attaches the discovered IPv6 to already-found devices by MAC — a **proposed** value the user confirms on import (manual-first). The active IPv6 sweep (`ping ff02::1`) stays parked. Vendor-neutral (standard MIB); degrades to today's behaviour with no IPv6 present. `drivers/snmp.js`, `lib/correlate.js`, `server/crawl-bfs.js`, `server/routes/discovery.js`, `src/app-discovery.js`.
+- **Sharper endpoint discrimination from IPv6.** `lib/ipv6.js` recovers a MAC (and thus vendor OUI) from an EUI-64 interface identifier — never inventing one for a privacy/random IID — and flags privacy IIDs (RFC 4941/7217). In the discovery table a device with no real OUI now reads "Private" when its MAC is randomised **or** its IPv6 is a privacy address, next to the existing randomised-MAC signal. `lib/ipv6.js`, `src/app-discovery.js`.
+
 ## 2026-07-17 — Escape works again + accessible modals
 
 All gates green: 1536 unit tests / 0 fail (4 skipped, +6), e2e 78/78, ESLint 0 errors, `tsc` 0. Verified live in a real browser.

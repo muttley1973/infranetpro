@@ -39,6 +39,7 @@
     "lib/i18n.js",
     "lib/ipam.js",
     "lib/ipam-audit.js",
+    "lib/ipv6.js",
     "lib/l3-gateway.js",
     "lib/lag-audit.js",
     "lib/lag-reconcile.js",

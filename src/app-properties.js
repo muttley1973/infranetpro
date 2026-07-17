@@ -290,6 +290,7 @@ export function _buildNetAccessHtml(n, d, opts){
         ${_stackHint}
         ${includeHostname ? `<div class="prop-group"><label>Hostname</label><div style="display:flex;gap:5px;align-items:center"><input style="flex:1" value="${escapeHTML(n.hostname||'')}" placeholder="${escapeHTML(d.brand||'')}" ${_ro} onchange="updateN('hostname',this.value);updateN('hostnameManual',!!this.value.trim())">${_ro?'':_lockBtn('hostname',!!n.hostnameManual)}</div></div>` : ''}
         <div class="prop-group"><label>${t('net.ip')}</label><div style="display:flex;gap:5px;align-items:center"><input style="flex:1" value="${escapeHTML(n.ip||'')}" placeholder="${escapeHTML(ipPlaceholder)}" ${_ro} onchange="updateN('ip',this.value);updateN('ipManual',!!this.value.trim())">${_ro?'':_lockBtn('ip',!!n.ipManual)}</div></div>
+        <div class="prop-group"><label>${t('net.ip6')}</label><input value="${escapeHTML(n.ip6||'')}" placeholder="2001:db8::1" ${_ro} data-change="node-ip6"></div>
         ${_mgmtRow(n.mgmtUrl||'', n.ip||'', n.id)}
         ${showMac ? `<div class="prop-group"><label>${escapeHTML(macLabel)}</label><input value="${escapeHTML(macVal)}"${macDerived?` title="${escapeHTML(t('mac.fromPort'))}"`:''} placeholder="${escapeHTML(macPlaceholder)}" ${_ro} onchange="updateN('mac',this.value)"></div>` : ''}
         ${_autoLinkBtn}

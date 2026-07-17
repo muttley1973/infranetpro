@@ -1,4 +1,10 @@
 import { win, expose, t } from './_bridge.js';
+// lib PURA e STATELESS: import ESM diretto (meta ASSE A) invece di win.* (il ponte
+// è al floor 268). Non è registrata come <script>, quindi la regola "non importare
+// un lib-<script>" (motivata dallo STATO, es. i18n) non si applica: qui è tutto
+// funzioni pure → nessuno snapshot congelato possibile. Il bundle la pubblica
+// comunque su window (UMD) per eventuali consumatori classic.
+import { canonicalizeIpv6 } from '../lib/ipv6.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, normalizeNumber, normalizeStatus, normalizeMacAddress, _shadeHex } from './app-util.js';   // helper puri estratti dal god-file
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (prima letto dal global implicito) + nome localizzato
@@ -654,7 +660,20 @@ export function bindEventsOnce() {
     registerClickActions({ undo: () => undo(), redo: () => redo() });
     // ASSE B: import JSON via file-input delegato (data-change="json-upload"); importJSON
     // esce da expose(), l'handler riceve l'elemento <input type=file>.
-    registerChangeActions({ 'json-upload': (el) => importJSON(el) });
+    registerChangeActions({
+        'json-upload': (el) => importJSON(el),
+        // Campo IPv6 nel pannello Proprietà (event delegation, non onclick inline).
+        // Manual-first: se l'indirizzo è valido lo canonicalizza (RFC 5952) e lo
+        // riflette nel campo; se non è un IPv6 valido conserva ciò che l'utente ha
+        // scritto (non distruggo l'input). `updateN` è locale qui in app.js.
+        'node-ip6': (el) => {
+            const raw = (el.value || '').trim();
+            if (!raw) { updateN('ip6', ''); return; }
+            const canon = canonicalizeIpv6(raw);
+            if (canon) { el.value = canon; updateN('ip6', canon); }
+            else { updateN('ip6', raw); }
+        },
+    });
     initDelegation();
     initModalA11y();   // M9: focus-trap + focus iniziale/ripristino sui tool-modal
     window.addEventListener('pointerdown', handlePointerDown);

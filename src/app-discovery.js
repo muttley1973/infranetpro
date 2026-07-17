@@ -266,7 +266,12 @@ function _discKey(d){
 // perche'. isRandomizedMac = lib mac-class (window global, caricato prima del bundle).
 function _discVendorLabel(d){
     if(d && d.vendor) return d.vendor;
-    if(d && d.mac && typeof isRandomizedMac === 'function' && isRandomizedMac(d.mac))
+    // Segnale "device personale/BYOD" quando non c'è un OUI reale: MAC randomizzato
+    // (bit 0x02) OPPURE IID IPv6 privacy (RFC 4941/7217, da lib/ipv6.js). Etichetta
+    // ONESTA invece di "—". Entrambe le fn sono pubblicate su window dal bundle.
+    const randMac = d && d.mac && typeof isRandomizedMac === 'function' && isRandomizedMac(d.mac);
+    const privIp6 = d && d.ip6 && typeof isPrivacyIid === 'function' && isPrivacyIid(d.ip6);
+    if(randMac || privIp6)
         return _dt('disc.vendor.random','Privato · MAC casuale');
     return '—';
 }
@@ -697,6 +702,20 @@ function _discApplyEdges(edges){
     return n;
 }
 
+// ND-SNMP: il server manda { macHex -> ip6 } (ipNetToPhysicalTable). Attacca l'IPv6
+// PROPOSTO alle righe per MAC (hex normalizzato: il server strippa i separatori).
+// Manual-first: riempi solo se la riga non ha già un ip6. L'utente conferma in import.
+function _discApplyNd6(nd6){
+    if(!nd6 || typeof nd6 !== 'object') return 0;
+    const hex = m => String(m || '').toLowerCase().replace(/[^0-9a-f]/g, '');
+    let n = 0;
+    for(const d of (store._discResults || [])){
+        const ip6 = nd6[hex(d.mac)];
+        if(ip6 && !d.ip6){ d.ip6 = ip6; n++; }
+    }
+    return n;
+}
+
 // Badge "porta di accesso" dal macsuck (es. SW-CORE · Gi0/5). ambiguous → tinta
 // d'avviso. Il MAC compare su piu' porte allo stesso peso = da verificare.
 function _discEdgeBadge(d){
@@ -782,6 +801,10 @@ async function _runCrawlPhase(seeds, driver, community, timeout, scanCidr){
                     // macsuck: il server ha localizzato i MAC scoperti su porta switch.
                     _discApplyEdges(evt.edges);
                     _locatedN = Object.keys(evt.edges).length;
+                    _discRenderTable(); _hb();
+                } else if(evt.type==='nd' && evt.nd6){
+                    // ND-SNMP: il server ha trovato l'IPv6 (ipNetToPhysicalTable) dei MAC.
+                    _discApplyNd6(evt.nd6);
                     _discRenderTable(); _hb();
                 } else if(evt.type==='probing'){
                     // Battito: mostra il device che sto interrogando (poll SNMP lento).
@@ -932,6 +955,8 @@ async function importDiscovered(){
                 if(!foundExisting.hostnameManual && (!foundExisting.hostname || shouldRefreshIdentity)){
                     foundExisting.hostname = d.hostname || foundExisting.hostname || '';
                 }
+                // IPv6 proposto dall'ND: riempi se vuoto (manual-first, non sovrascrive).
+                if(!foundExisting.ip6 && d.ip6) foundExisting.ip6 = d.ip6;
                 foundExisting.mac = foundExisting.mac || normalizeMacAddress(d.mac||'');
                 // Brand fill-if-empty (o se e' ancora il brand di default del tipo) come il
                 // Sync (app-snmp.js:457-458): il vendor OUI/SNMP non clobbera mai un brand
@@ -998,7 +1023,7 @@ async function importDiscovered(){
                 const col = floorCount % 5, row = Math.floor(floorCount / 5);
                 n = {
                     id: _nextNodeId(d.type, usedNodeIds), type: d.type,
-                    name: _discDisplayName(d), hostname: d.hostname||'', ip: d.ip||'',
+                    name: _discDisplayName(d), hostname: d.hostname||'', ip: d.ip||'', ip6: d.ip6||'',
                     mac: normalizeMacAddress(d.mac||''),
                     brand: d.vendor || def.brand || '',
                     vendorHint: d.vendorHint || _discVendorFromMac(d.mac) || '',
@@ -1018,7 +1043,7 @@ async function importDiscovered(){
                 const rackU = _findFreeU(rackId, sU);
                 n = {
                     id: _nextNodeId(d.type, usedNodeIds), type: d.type,
-                    name: _discDisplayName(d), hostname: d.hostname||'', ip: d.ip||'',
+                    name: _discDisplayName(d), hostname: d.hostname||'', ip: d.ip||'', ip6: d.ip6||'',
                     mac: normalizeMacAddress(d.mac||''),
                     brand: d.vendor || def.brand || '',
                     vendorHint: d.vendorHint || _discVendorFromMac(d.mac) || '',
