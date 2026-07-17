@@ -104,7 +104,9 @@ function renderSearchResults(query) {
             <span class="search-kind">${escapeHTML(r.kind)}</span>
         </button>`).join('');
 }
-function clearSearch() {
+// Esportata: il ramo Escape in app.js la chiama. Era module-local e la chiamata
+// bare lanciava ReferenceError, uccidendo TUTTO il ramo Escape (vedi app.js).
+export function clearSearch() {
     document.getElementById('global-search').value=''; searchResults=[]; activeSearchIndex=-1;
     document.getElementById('global-search-clear').style.display='none';
     document.getElementById('search-results').style.display='none';

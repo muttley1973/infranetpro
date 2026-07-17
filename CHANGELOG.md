@@ -2,6 +2,16 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-17 — Escape works again + accessible modals
+
+All gates green: 1536 unit tests / 0 fail (4 skipped, +6), e2e 78/78, ESLint 0 errors, `tsc` 0. Verified live in a real browser.
+
+### Fixed
+- **Escape does something again.** `clearSearch()` was called bare from the Escape branch but the function had become module-local during the ESM migration (not exported, not bridged) — so **every Escape threw a ReferenceError on the branch's first line, making everything after it dead code**: leaving cable-routing mode, `cancelLag()`, `_cancelLink()`, and deselecting the current node/port/link/rack. Not "Escape doesn't clear the search box" — *Escape did nothing at all*. It is now imported properly; live-verified that the branch deselects again. Same bug class as the dead "Free ports" chip: an inline/bare call to a function the migration made module-scoped. `src/app.js`, `src/app-search-zoom-rack.js`.
+
+### Added
+- **The 11 tool modals are now accessible (M9).** They had no `role="dialog"`, no `aria-modal`, no focus trap, and **Escape did not close them** (it deselected the node behind instead). Now: each modal is a labelled dialog (`role="dialog"` + `aria-modal="true"` + a resolving `aria-labelledby`); **Escape closes the topmost one and nothing else** (a second Escape then deselects, and stacked modals close one at a time); Tab/Shift+Tab stay inside the open modal; focus moves into the dialog on open and returns where it was on close. Implemented as an outside observer (`src/app-modal-a11y.js`) rather than by rewiring the ~11 open/close pairs scattered across 8 modules: Escape clicks the modal's **real** close button, so each modal's own cleanup still runs — same outcome, no behaviour change to existing flows. `netmapper.html`, `src/app.js`, `src/main.js`.
+
 ## 2026-07-16 — Topology: infra links "to confirm" + inferred intermediary → Shared L2 Segment
 
 All gates green: 1528 unit tests / 0 fail (4 skipped), e2e 78/78, ESLint 0 errors, `tsc` 0. Live-verified against a real home network (Zyxel GS1900 SNMP + LLDP + FDB).

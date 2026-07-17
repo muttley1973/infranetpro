@@ -6,6 +6,8 @@ import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: chia
 import { renderProps } from './app-properties.js';   // idem
 import { showAlert, saveProject } from './app-core.js';   // saveProject: ASSE B, scorciatoia Ctrl+S (ex win.saveProject)
 import { registerClickActions, registerChangeActions, initDelegation } from './app-delegation.js';   // ASSE B: event delegation (ritiro onclick/onchange inline)
+import { clearSearch } from './app-search-zoom-rack.js';   // ramo Escape: era una chiamata bare a una fn module-local → ReferenceError
+import { closeTopToolModal, initModalA11y } from './app-modal-a11y.js';   // M9: a11y dei tool-modal (Esc chiude, focus-trap)
 // ============================================================
 // InfraNet Pro — app.js (core bootstrap + stato + eventi)
 // Catalogo TYPES e node-spec: src/app-types.js (R1)
@@ -654,6 +656,7 @@ export function bindEventsOnce() {
     // esce da expose(), l'handler riceve l'elemento <input type=file>.
     registerChangeActions({ 'json-upload': (el) => importJSON(el) });
     initDelegation();
+    initModalA11y();   // M9: focus-trap + focus iniziale/ripristino sui tool-modal
     window.addEventListener('pointerdown', handlePointerDown);
     window.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('pointerup',   handlePointerUp);
@@ -744,6 +747,10 @@ export function bindEventsOnce() {
             }
         }
         if (e.key==='Escape') {
+            // M9: un tool-modal aperto cattura Escape e NIENT'ALTRO (convenzione dialog:
+            // Esc chiude il livello in cima, non tocca ciò che sta sotto). Chiude via la
+            // X reale del modale → gira il suo cleanup, non un mero hide.
+            if (closeTopToolModal()) return;
             clearSearch();
             // P1.5: Esc esce dalla modalita' instradamento cavo (ha priorita').
             if (typeof _routingLinkId !== 'undefined' && _routingLinkId &&
