@@ -15,6 +15,7 @@ const {
   aggregateSweep, parseSsdpResponse, parseWsDiscovery,
   MDNS_ADDR, MDNS_PORT, SSDP_ADDR, SSDP_PORT, WSD_ADDR, WSD_PORT, MDNS_DEFAULT_QUERIES,
 } = require('../lib/discovery-mdns');
+const { parseTtl } = require('../lib/os-hint');   // TTL dell'echo-reply → hint OS (a costo zero)
 
 // ---- Subnet expansion -------------------------------------------------------
 
@@ -101,7 +102,10 @@ async function _pingHost(ip, timeoutMs = 800) {
   else if (plat === 'darwin')  args = ['-c', '1', '-W', String(timeoutMs), ip];
   else                         args = ['-c', '1', '-W', String(Math.max(1, Math.ceil(timeoutMs / 1000))), ip];
   const r = await _execFileAsync('ping', args, timeoutMs + 500);
-  return _pingResultIsAlive(plat, r);
+  const alive = _pingResultIsAlive(plat, r);
+  // Cattura il TTL dell'echo-reply (già nell'output) SOLO se vivo: un errore ICMP
+  // intermedio riporta il TTL del router, non del target → fuorviante. { alive, ttl }.
+  return { alive, ttl: alive ? parseTtl(r.stdout) : null };
 }
 
 // Ping con ritentativo SPAZIATO: un host puo' perdere il PRIMO ICMP (VPCS, stack lenti,
@@ -122,9 +126,13 @@ async function _pingHostRetry(ip, timeoutMs = 800, tries = 2, _ping = _pingHost,
   const gap = Math.max(0, Math.min(parseInt(gapMs, 10) || 0, 1000));
   for (let i = 0; i < n; i++) {
     if (i > 0 && gap > 0) await _sleep(gap);   // spaziatura fuori dalla finestra di perdita a raffica
-    if (await _ping(ip, timeoutMs).catch(() => false)) return true;
+    const r = await _ping(ip, timeoutMs).catch(() => false);
+    // Normalizza: _pingHost torna { alive, ttl }; nei test un _ping iniettato può
+    // tornare un booleano → entrambe le forme diventano { alive, ttl }.
+    const res = (r && typeof r === 'object') ? { alive: !!r.alive, ttl: r.ttl != null ? r.ttl : null } : { alive: !!r, ttl: null };
+    if (res.alive) return res;
   }
-  return false;
+  return { alive: false, ttl: null };
 }
 
 // Pacing "stealth" anti-IDS per la base sweep: ritardo tra i probe con JITTER. Un intervallo

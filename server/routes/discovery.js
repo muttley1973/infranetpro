@@ -119,7 +119,7 @@ router.post('/api/reachability', auth.requireAdmin, async (req, res) => {
         if (arp.has(ip)) return { ip, alive: true, via: 'arp' };
         // 2) ICMP ping con ritentativo (popola anche l'ARP, riletto a fine sweep per il MAC).
         // Ritenta: un device flaky che perde il 1° ICMP non deve risultare "assente".
-        if (await _pingHostRetry(ip, pingMs, 2)) return { ip, alive: true, via: 'ping' };
+        { const _pr = await _pingHostRetry(ip, pingMs, 2); if (_pr.alive) return { ip, alive: true, via: 'ping' }; }
         // 3) Fallback TCP: device che bloccano ICMP ma hanno web/mgmt aperto
         for (const def of TCP_PORTS) {
           if (await _tcpProbe(ip, def, Math.min(pingMs, 800))) return { ip, alive: true, via: 'tcp:' + def.port };
@@ -258,14 +258,15 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
     // 1) Ping sweep (stealth → serializzato + scan-delay con jitter; altrimenti a batch)
     for (let i = 0; i < total; i += sweepConc) {
       const batch = sweepOrder.slice(i, i + sweepConc);
-      const results = await Promise.all(batch.map(ip => _pingHostRetry(ip, pingTimeoutMs, pingTries).catch(() => false)));
-      results.forEach((ok, idx) => {
+      const results = await Promise.all(batch.map(ip => _pingHostRetry(ip, pingTimeoutMs, pingTries).catch(() => ({ alive: false, ttl: null }))));
+      results.forEach((res, idx) => {
         const ip = batch[idx];
         const row = rowByIp.get(ip);
         if (!row) return;
-        row.pingReachable = !!ok;
-        row.alive = !!ok;
-        row.status = ok ? 'On' : 'Inattivo';
+        row.pingReachable = !!res.alive;
+        row.alive = !!res.alive;
+        row.status = res.alive ? 'On' : 'Inattivo';
+        if (res.ttl != null) row.ttl = res.ttl;   // hint OS dal TTL (os-hint) → consumato da classify
       });
       if (i + sweepConc < total) {
         const gap = stealth

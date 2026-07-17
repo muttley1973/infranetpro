@@ -48,6 +48,7 @@
     "lib/mac-class.js",
     "lib/netnames.js",
     "lib/onboarding.js",
+    "lib/os-hint.js",
     "lib/panel-skin.js",
     "lib/power-mib.js",
     "lib/radio.js",

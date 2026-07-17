@@ -2,6 +2,13 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-17 — OS hint from ping TTL (nmap-style, zero-cost)
+
+All gates green: 1562 unit tests / 0 fail (4 skipped, +5), e2e 78/78, ESLint 0 errors, `tsc` 0. Verified live on 192.168.1.0/24: OS coverage went from 4/20 to 10/20 hosts, all plausible.
+
+### Added
+- **A device's OS family is now inferred from the ping TTL — for free.** The initial TTL of an IP packet differs by OS family (64 = Linux/Unix/macOS/Android/iOS, 128 = Windows, 255 = network gear/embedded); the value is already in the echo-reply the sweep parses for liveness, so a new pure library `lib/os-hint.js` turns it into an OS-family hint at **zero extra probes**. Wired into the classifier as a **low-weight, never-authoritative** signal (manual-first), gated on the TTL actually being captured — so existing fixtures/tests are byte-identical. On a real /24 this filled the OS column for most general-purpose hosts (switch → Linux/Unix, PC → Windows, NAS → Unix, phone → Android) that previously showed nothing. It **never overrides** a stronger OS signal (SNMP sysObjectID, mDNS, NetBIOS) and **never changes the device type**. Deliberately **suppressed for dedicated appliances** (printers, UPS, cameras, IoT…): their embedded stacks use varied TTLs, so a TTL-derived OS there would be noise (a printer with TTL 128 is not "Windows"). The hint feeds the classifier's OS field and score but is **not shown in the Discovery table** (kept internal — it corroborates confidence without cluttering the scan view). `lib/os-hint.js`, `server/netscan.js` (`_pingHost`/`_pingHostRetry` now return `{alive, ttl}`), `server/routes/discovery.js`, `server/classify.js`.
+
 ## 2026-07-17 — IPv6: address field + neighbor discovery (Scope A)
 
 All gates green: 1553 unit tests / 0 fail (4 skipped, +17), e2e 78/78, ESLint 0 errors, `tsc` 0. `win.*` ratchet held at 268. Verified end-to-end with a headless proof on the real engines.
