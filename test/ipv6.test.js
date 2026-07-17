@@ -2,7 +2,24 @@
 // Test degli helper puri IPv6 (lib/ipv6.js).
 const test = require('node:test');
 const assert = require('node:assert');
-const { isValidIpv6, canonicalizeIpv6, bytesToIpv6, macFromEui64, ipv6Class, isPrivacyIid } = require('../lib/ipv6.js');
+const { isValidIpv6, canonicalizeIpv6, bytesToIpv6, macFromEui64, ipv6Class, isPrivacyIid, pickBestIp6 } = require('../lib/ipv6.js');
+
+test('pickBestIp6: scarta link-local, preferisce stabile su privacy e global su ULA', () => {
+  // link-local scartato; tra ULA-stabile e global-privacy vince lo STABILE (persistente).
+  assert.equal(
+    pickBestIp6(['fe80::1', 'fd12:3456:789a:0:211:32ff:fe8f:5351', '2001:db8::dead:beef:cafe:1']),
+    'fd12:3456:789a:0:211:32ff:fe8f:5351');
+  // a parità di stabilità, global batte ULA
+  assert.equal(
+    pickBestIp6(['fd00::211:22ff:fe33:4455', '2001:db8::211:22ff:fe33:4455']),
+    '2001:db8::211:22ff:fe33:4455');
+  // solo link-local/multicast → null
+  assert.equal(pickBestIp6(['fe80::1', 'ff02::1', '::1']), null);
+  assert.equal(pickBestIp6([]), null);
+  assert.equal(pickBestIp6(null), null);
+  // canonicalizza l'output
+  assert.equal(pickBestIp6(['2001:0db8:0000::0001']), '2001:db8::1');
+});
 
 test('isValidIpv6: forme valide', () => {
   assert.equal(isValidIpv6('fe80::1'), true);

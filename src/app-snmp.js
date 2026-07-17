@@ -468,6 +468,16 @@ export function applyPollResult(nodeId, data, opts={}){
     if(!opts.noHistory) pushHistory();
     // Hostname: aggiorna solo se l'utente non ha impostato un valore manuale.
     if(data.hostname && data.hostname.trim() && !n.hostnameManual) n.hostname=data.hostname.trim();
+    // IPv6 PROPRIO del device (ipAddressTable) → node.ip6, come l'hostname (manual-first):
+    //  • lucchetto APERTO → auto-allinea alla realtà (e nessun avviso);
+    //  • lucchetto CHIUSO (ip6Manual) e realtà DIVERSA → non tocca, ma segna n.ip6Real
+    //    = l'IPv6 reale, così la Verifica lo mostra come avviso nel pannello Proprietà;
+    //  • coincide o device senza ip6 → pulisce l'eventuale avviso.
+    if(data.ip6){
+        if(!n.ip6Manual){ if(n.ip6 !== data.ip6) n.ip6 = data.ip6; if(n.ip6Real) delete n.ip6Real; }
+        else if(n.ip6 && n.ip6 !== data.ip6){ n.ip6Real = data.ip6; }
+        else if(n.ip6Real){ delete n.ip6Real; }
+    }
     const inv = data.inventory || null;
     if(inv && typeof inv === 'object'){
         const defBrand = TYPES[n.type]?.brand || '';

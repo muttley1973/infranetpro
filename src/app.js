@@ -668,10 +668,11 @@ export function bindEventsOnce() {
         // scritto (non distruggo l'input). `updateN` è locale qui in app.js.
         'node-ip6': (el) => {
             const raw = (el.value || '').trim();
-            if (!raw) { updateN('ip6', ''); return; }
+            if (!raw) { updateN('ip6', ''); updateN('ip6Manual', false); return; }
             const canon = canonicalizeIpv6(raw);
-            if (canon) { el.value = canon; updateN('ip6', canon); }
-            else { updateN('ip6', raw); }
+            if (canon) el.value = canon;
+            updateN('ip6', canon || raw);
+            updateN('ip6Manual', true);   // editato a mano → bloccato (come ipManual)
         },
     });
     initDelegation();

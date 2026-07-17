@@ -206,6 +206,10 @@ const OID = {
   sysUpTime:      '1.3.6.1.2.1.1.3',  // TimeTicks (centesimi di secondo)
   sysContact:     '1.3.6.1.2.1.1.4',  // referente amministrativo
   sysLocation:    '1.3.6.1.2.1.1.6',  // posizione fisica dichiarata
+  // ---- Indirizzi IP PROPRI del device (IP-MIB ipAddressTable, RFC 4293) --------
+  // L'indirizzo è nell'INDICE OID: addrType.addrLen.byte…  (addrType 1=IPv4, 2=IPv6).
+  // Serve a leggere l'IPv6 PROPRIO del device (non i vicini). Standard, vendor-neutral.
+  ipAddrIfIndex:  '1.3.6.1.2.1.4.34.1.3', // ipAddressIfIndex
   ifDescr:        '1.3.6.1.2.1.2.2.1.2',
   ifType:         '1.3.6.1.2.1.2.2.1.3',
   ifPhysAddress:  '1.3.6.1.2.1.2.2.1.6',  // MAC address — discriminatore fisico/virtuale
@@ -639,6 +643,25 @@ async function walkSession(session, opts = {}) {
 }
 
 // ---- data extraction -------------------------------------------------------
+
+// IPv6 PROPRIO del device dalla ipAddressTable (IP-MIB 4.34): l'indirizzo è nell'
+// INDICE OID {addrType, addrLen, byte…}. Raccoglie i soli IPv6 (addrType=2, len=16)
+// e lascia a pickBestIp6 la scelta (no link-local, stabile > privacy, global > ULA).
+// Condiviso da extractData (poll) ed extractNeighbors (crawl). Vendor-neutral.
+function _ownIp6FromVbs(vbs) {
+  const own = [];
+  for (const oid of Object.keys(vbs || {})) {
+    if (!oid.startsWith(OID.ipAddrIfIndex + '.')) continue;
+    const parts = oid.slice(OID.ipAddrIfIndex.length + 1).split('.');
+    if (parts.length < 2) continue;
+    if (parseInt(parts[0], 10) !== 2 || parseInt(parts[1], 10) !== 16) continue; // solo IPv6
+    const bytes = parts.slice(2, 2 + 16).map(n => parseInt(n, 10));
+    if (bytes.length !== 16 || bytes.some(b => !Number.isFinite(b) || b < 0 || b > 255)) continue;
+    const ip6 = bytesToIpv6(bytes);
+    if (ip6) own.push(ip6);
+  }
+  return pickBestIp6(own);
+}
 
 function extractData(vbs) {
   const ifaces = {};
@@ -1244,8 +1267,11 @@ function extractData(vbs) {
   const system = extractSystem(vbs);
   const printer = extractPrinter(vbs);
   const hostResources = extractHostResources(vbs);
+
+  const ip6 = _ownIp6FromVbs(vbs);
+
   snmpDebug(`  [VLANS] ${hostname||'?'}: ${vlansOut.length} VLAN rilevate (PVID+egress+trunk): [${vlansOut.join(',')}]`);
-  return { hostname, interfaces: physical, lags, vlans: vlansOut, inventory, system, printer, hostResources };
+  return { hostname, interfaces: physical, lags, vlans: vlansOut, inventory, system, printer, hostResources, ip6 };
 }
 
 // ---- Session factory -------------------------------------------------------
@@ -1398,8 +1424,9 @@ const N_OID = {
   physType:       '1.3.6.1.2.1.4.35.1.6', // ipNetToPhysicalType (2=invalid)
 };
 
-// Decodifica dei 16 byte dell'indice IPv6 della ipNetToPhysicalTable (lib pura).
-const { bytesToIpv6 } = require('../lib/ipv6.js');
+// Decodifica dei 16 byte dell'indice IPv6 (ipNetToPhysical/ipAddress) + scelta
+// dell'IPv6 di gestione proprio del device (lib pura).
+const { bytesToIpv6, pickBestIp6 } = require('../lib/ipv6.js');
 
 const NEIGHBOR_OIDS = Object.values(N_OID);
 
