@@ -671,7 +671,9 @@ Full release notes live in [CHANGELOG.md](CHANGELOG.md). Highlights of what has 
 - [ ] SQLite-backed storage for discovery/IP history, FDB cache and audit log
 - [ ] Internal discovery/classification hardening (richer local plugins, more real-device tests)
 - [ ] Topology multi-source fusion (LLDP + FDB agreement boost; stricter unmanaged-switch detection)
-- [ ] IPv6 Neighbour Discovery (`ipNetToPhysicalTable`), discovered-device de-duplication, shadow/rogue-device signal
+- [x] **IPv6 (Scope A):** address field in device Properties + Neighbour Discovery from `ipNetToPhysicalTable` (surfaces routable global/ULA neighbours only), EUI-64 → vendor hint, privacy-IID → BYOD signal. Active IPv6 sweep (`ping ff02::1`) stays parked.
+- [x] **OS-family hint from ping TTL** (nmap-style, zero-cost, low-weight, embedded-appliance-suppressed; internal — not shown in the scan table)
+- [ ] Discovered-device de-duplication, shadow/rogue-device signal
 - [ ] Keep discovery propose-and-reconcile, never overwrite (the *"discovered ≠ intent"* model)
 
 **Out of scope** (parked): WebSocket multi-user live push, SNMP trap receiver, temporal confidence on links, per-VLAN community auto-config wizard, BGP4 / POWER-ETHERNET / Print MIBs, conduit/cable-tray modeling, fiber loss-budget math, HA Tappe B+C.
