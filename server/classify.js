@@ -7,6 +7,7 @@
 const path = require('path');
 const fs = require('fs');
 const { _normMac } = require('./netscan');
+const { ttlOsHint } = require('../lib/os-hint');   // TTL → famiglia OS (hint peso basso)
 const { SysObjectEngine, OuiEngine, FusionScorer } = require('../engine');
 
 let _defaultSysObjectEngine = null;
@@ -390,6 +391,26 @@ function _buildDiscoveryMeta(row, extra = {}) {
     addEvidence('os', label || osInfo.family, sysObjectInfo?.os ? 16 : 10, sysObjectInfo?.os ? 'OS dedotto dal plugin sysObjectID' : 'OS dedotto da fingerprint discovery');
     addReason(sysObjectInfo?.os ? 'sysobject-os' : 'os-fingerprint');
   }
+  // deviceClass serve sia allo score contestuale (sotto) sia al gate dell'hint TTL.
+  const deviceClass = _classifyDiscoveredDevice(row);
+  // Fallback OS a COSTO ZERO (nmap-style): il TTL dell'echo-reply dà una FAMIGLIA OS.
+  // Peso basso, mai autorevole (manual-first), GATED su row.ttl presente → i fixture/
+  // test senza ttl restano identici. NON si applica ai tipi "appliance" (stampanti/
+  // UPS/cam/IoT…): il loro stack embedded ha TTL variabile → un OS da TTL sarebbe
+  // RUMORE (es. stampante con TTL 128 → "Windows"). Vale per host general-purpose,
+  // apparati di rete e ignoti, dove 64/128/255 mappa in modo affidabile.
+  const _TTL_OS_SKIP = new Set(['printer', 'webcam', 'nvr', 'voip', 'badgereader', 'ups', 'pdu', 'ats', 'projector', 'tv', 'mediaconv', 'doorctrl', 'iot']);
+  let _ttlOs = null;
+  if (!osInfo && row.ttl != null && !_TTL_OS_SKIP.has(deviceClass)) {
+    const hint = ttlOsHint(row.ttl);
+    if (hint) {
+      const _nameByFam = { unix: 'Linux/Unix', windows: 'Windows', netdev: 'Apparato di rete' };
+      _ttlOs = { family: hint.osFamily, name: _nameByFam[hint.osFamily] || hint.label, source: 'ttl', approx: true };
+      addSource('ttl', 'TTL', 'low', `TTL≈${hint.initialTtl} (~${hint.hops} hop) → ${hint.label}`);
+      addEvidence('os', _ttlOs.name, 6, `Famiglia OS dedotta dal TTL dell'echo-reply (${hint.osFamily})`);
+      addReason('ttl-os');
+    }
+  }
   if (row.hostname) {
     addSource('dns', 'DNS', 'medium', 'Hostname risolto');
     addEvidence('hostname', row.hostname, 12, 'Reverse DNS o SNMP sysName');
@@ -442,9 +463,6 @@ function _buildDiscoveryMeta(row, extra = {}) {
     addEvidence('neighbor', `${extra.viaFrom || ''} -> ${extra.viaPort || ''}`.trim(), 45, 'Vicino annunciato via CDP');
     addReason('neighbor-cdp');
   }
-
-  // Classificazione necessaria prima del calcolo contestuale dello score.
-  const deviceClass = _classifyDiscoveredDevice(row);
 
   let score = evidences.reduce((sum, e) => sum + (e.weight || 0), 0);
   if (row.snmpReachable && row.mac && row.hostname) score += 8;
@@ -504,7 +522,7 @@ function _buildDiscoveryMeta(row, extra = {}) {
     notes,
     reasonCodes,
     sysObject: sysObjectInfo,
-    os: osInfo,
+    os: osInfo || _ttlOs,
   };
 }
 

@@ -16,7 +16,7 @@ test('_pingHostRetry: VIVO se anche un solo tentativo risponde (falso negativo d
   const flaky = async () => { calls++; return calls >= 2; };   // 1o fallisce, 2o risponde
   const s = spySleep();
   const ok = await _pingHostRetry('10.0.0.1', 200, 3, flaky, 200, s.fn);
-  assert.equal(ok, true, 'vivo appena un tentativo risponde');
+  assert.equal(ok.alive, true, 'vivo appena un tentativo risponde');
   assert.equal(calls, 2, 'si ferma al primo successo (non spreca tentativi)');
   assert.deepEqual(s.calls, [200], 'una sola pausa, TRA il 1o (fallito) e il 2o (riuscito)');
 });
@@ -26,7 +26,7 @@ test('_pingHostRetry: MORTO dopo esattamente tries tentativi falliti', async () 
   const dead = async () => { calls++; return false; };
   const s = spySleep();
   const ok = await _pingHostRetry('10.0.0.2', 200, 3, dead, 200, s.fn);
-  assert.equal(ok, false);
+  assert.equal(ok.alive, false);
   assert.equal(calls, 3, 'prova esattamente tries volte');
   assert.deepEqual(s.calls, [200, 200], 'pausa TRA i tentativi: tries-1 pause');
 });
@@ -36,7 +36,7 @@ test('_pingHostRetry: tries clampato a >=1 e un ping che throwa non fa crashare'
   const boom = async () => { calls++; throw new Error('spawn fail'); };
   const s = spySleep();
   const ok = await _pingHostRetry('10.0.0.3', 200, 0, boom, 200, s.fn);   // 0 -> clamp a 1
-  assert.equal(ok, false);
+  assert.equal(ok.alive, false);
   assert.equal(calls, 1, 'clamp a 1 tentativo; l errore del ping e catturato');
   assert.deepEqual(s.calls, [], 'un solo tentativo -> nessuna pausa');
 });
@@ -46,7 +46,7 @@ test('_pingHostRetry: NESSUNA pausa se il 1o tentativo risponde subito (costo mi
   const alive = async () => { calls++; return true; };
   const s = spySleep();
   const ok = await _pingHostRetry('10.0.0.4', 200, 3, alive, 200, s.fn);
-  assert.equal(ok, true);
+  assert.equal(ok.alive, true);
   assert.equal(calls, 1, 'risponde al 1o → non ritenta');
   assert.deepEqual(s.calls, [], 'nessun ritento → nessuna pausa');
 });
@@ -56,7 +56,7 @@ test('_pingHostRetry: gapMs=0 disabilita la spaziatura (ritenti back-to-back)', 
   const dead = async () => { calls++; return false; };
   const s = spySleep();
   const ok = await _pingHostRetry('10.0.0.5', 200, 3, dead, 0, s.fn);
-  assert.equal(ok, false);
+  assert.equal(ok.alive, false);
   assert.equal(calls, 3);
   assert.deepEqual(s.calls, [], 'gap=0 → nessuna pausa anche con ritenti');
 });
@@ -66,8 +66,20 @@ test('_pingHostRetry: la pausa usa il valore gapMs passato', async () => {
   const flaky = async () => { calls++; return calls >= 3; };  // riesce al 3o
   const s = spySleep();
   const ok = await _pingHostRetry('10.0.0.6', 200, 4, flaky, 150, s.fn);
-  assert.equal(ok, true);
+  assert.equal(ok.alive, true);
   assert.deepEqual(s.calls, [150, 150], 'due pause da 150ms prima del 2o e del 3o tentativo');
+});
+
+test('_pingHostRetry: propaga il TTL dal ping vivo; booleano iniettato → ttl null', async () => {
+  const s = spySleep();
+  // _ping che torna la forma nuova { alive, ttl }
+  const withTtl = async () => ({ alive: true, ttl: 64 });
+  const r1 = await _pingHostRetry('10.0.0.7', 200, 2, withTtl, 200, s.fn);
+  assert.deepEqual(r1, { alive: true, ttl: 64 }, 'ttl propagato dall\'echo-reply');
+  // _ping che torna un booleano (compat retro) → normalizzato a { alive, ttl:null }
+  const boolAlive = async () => true;
+  const r2 = await _pingHostRetry('10.0.0.8', 200, 2, boolAlive, 200, s.fn);
+  assert.deepEqual(r2, { alive: true, ttl: null });
 });
 
 // ── _pingResultIsAlive: l'exit code di `ping` NON basta (task_977d2930) ──────────
