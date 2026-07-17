@@ -239,3 +239,11 @@ test('applyPortMacFallback: difensivo su input mancanti', () => {
   assert.deepEqual(applyPortMacFallback(null, null), []);
   assert.deepEqual(applyPortMacFallback([{ id: 'a', mac: null }], undefined), [{ id: 'a', mac: null }]);
 });
+
+test('nodeToDevice: ip6 e\' un campo DISTINTO (non finisce in ip; ansible resta IPv4)', () => {
+  const d = nodeToDevice({ id: 'v6', type: 'server', name: 'SRV6', ip: '10.0.0.9', ip6: 'fe80::0211:22ff:fe33:4455' }, {});
+  assert.equal(d.ip, '10.0.0.9', 'ip resta l\'IPv4');
+  assert.equal(d.ip6, 'fe80::0211:22ff:fe33:4455', 'ip6 esposto come campo a se\'');
+  const d2 = nodeToDevice({ id: 'x', type: 'pc', name: 'PC', ip: '1.2.3.4' }, {});
+  assert.equal(d2.ip6, null, 'ip6 assente -> null');
+});

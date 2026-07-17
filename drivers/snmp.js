@@ -1390,7 +1390,16 @@ const N_OID = {
   arpPhys:        '1.3.6.1.2.1.4.22.1.2', // ipNetToMediaPhysAddress
   arpIp:          '1.3.6.1.2.1.4.22.1.3', // ipNetToMediaNetAddress
   arpType:        '1.3.6.1.2.1.4.22.1.4', // ipNetToMediaType (3=dynamic,4=static)
+  // IP-MIB ipNetToPhysicalTable (RFC 4293) — successore address-family-aware della
+  // ipNetToMediaTable: la stessa walk restituisce sia i vicini ARP (IPv4) sia i
+  // vicini ND/NDP (IPv6). Indice OID: ifIndex.addrType.addrLen.<byte indirizzo…>
+  // (addrType 1=IPv4, 2=IPv6). Il valore della colonna .4 è il MAC. Vendor-neutral.
+  physPhys:       '1.3.6.1.2.1.4.35.1.4', // ipNetToPhysicalPhysAddress (valore = MAC)
+  physType:       '1.3.6.1.2.1.4.35.1.6', // ipNetToPhysicalType (2=invalid)
 };
+
+// Decodifica dei 16 byte dell'indice IPv6 della ipNetToPhysicalTable (lib pura).
+const { bytesToIpv6 } = require('../lib/ipv6.js');
 
 const NEIGHBOR_OIDS = Object.values(N_OID);
 
@@ -1684,7 +1693,40 @@ function extractNeighbors(vbs) {
     if (!arpTable[mac]) arpTable[mac] = ip;
   }
 
-  return { hostname, neighbors, fdbTable, fdbVlan, arpTable };
+  // ---- Neighbor cache unificata (IP-MIB ipNetToPhysicalTable) ----------------
+  // ADDITIVA rispetto all'ARP legacy sopra: le righe IPv4 CONFLUISCONO nell'arpTable
+  // esistente (superset, solo gap-fill → arpTable resta BYTE-IDENTICA se la tabella
+  // fisica è assente); le righe IPv6 (vicini ND) vanno in ndTable { mac -> [ip6…] }.
+  const ndTable = {};
+  const _physType = {};
+  for (const [oid, val] of Object.entries(vbs)) {
+    if (oid.startsWith(N_OID.physType + '.')) _physType[oid.slice(N_OID.physType.length + 1)] = bufToInt(val);
+  }
+  for (const [oid, val] of Object.entries(vbs)) {
+    if (!oid.startsWith(N_OID.physPhys + '.')) continue;
+    const parts = oid.slice(N_OID.physPhys.length + 1).split('.');
+    if (parts.length < 3) continue;                       // ifIndex + addrType + addrLen minimo
+    const addrType = parseInt(parts[1], 10);
+    const addrLen  = parseInt(parts[2], 10);
+    if (!Number.isFinite(addrType) || !Number.isFinite(addrLen)) continue;
+    const bytes = parts.slice(3, 3 + addrLen).map(n => parseInt(n, 10));
+    if (bytes.length !== addrLen || bytes.some(b => !Number.isFinite(b) || b < 0 || b > 255)) continue;
+    const mac = macToStr(Buffer.isBuffer(val) ? val : Buffer.alloc(0));
+    if (!mac) continue;                                   // physaddr vuoto = entry incomplete → salta
+    if (_physType[parts.join('.')] === 2) continue;       // ipNetToPhysicalType invalid(2) → salta
+    if (addrType === 1 && addrLen === 4) {
+      const ip = bytes.join('.');
+      if (/^\d{1,3}(\.\d{1,3}){3}$/.test(ip) && !arpTable[mac]) arpTable[mac] = ip;   // gap-fill IPv4
+    } else if (addrType === 2 && addrLen === 16) {
+      const ip6 = bytesToIpv6(bytes);
+      if (ip6) {
+        if (!ndTable[mac]) ndTable[mac] = [];
+        if (!ndTable[mac].includes(ip6)) ndTable[mac].push(ip6);
+      }
+    }
+  }
+
+  return { hostname, neighbors, fdbTable, fdbVlan, arpTable, ndTable };
 }
 
 // ---- public API: neighbour discovery ----------------------------------------
@@ -1904,6 +1946,7 @@ module.exports = { poll, pollNeighbors, probe, pollPower };
 // Funzioni pure interne esposte SOLO per i test di regressione (node --test).
 // Additivo: non altera il comportamento runtime del driver.
 module.exports._internals = {
+  extractNeighbors, N_OID,
   bufToStr, bufToInt, decodePortList, isRealMac, macToStr,
   logicalLagIdFromName, lastIdx, extractData, extractEntityInventory,
   extractSystem, _formatUptime, extractPrinter, _supplyColorKey,

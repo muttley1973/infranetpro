@@ -82,6 +82,7 @@ async function crawlNetwork(opts) {
   const discoveredBy = new Map();
   const results = [];
   const arpTables = [];
+  const ndTables = [];
   const fdbTables = [];
 
   emit({ type: 'start', seeds });
@@ -146,6 +147,7 @@ async function crawlNetwork(opts) {
       const nb = p.nb;
       if (nb && !nb.error) {
         if (collectArp && nb.arpTable && typeof nb.arpTable === 'object') arpTables.push({ table: nb.arpTable, fromIp: f.ip });
+        if (collectArp && nb.ndTable && typeof nb.ndTable === 'object') ndTables.push({ table: nb.ndTable, fromIp: f.ip });
         if (nb.fdbTable && typeof nb.fdbTable === 'object' && Object.keys(nb.fdbTable).length) {
           fdbTables.push({ switchIp: f.ip, switchName: sysN, fdbTable: nb.fdbTable });
         }
@@ -168,7 +170,7 @@ async function crawlNetwork(opts) {
     }
   }
 
-  return { results, arpTables, fdbTables, visited };
+  return { results, arpTables, ndTables, fdbTables, visited };
 }
 
 module.exports = { crawlNetwork, cmpIp, runPool, _ipNum, _skipNeighborIp };

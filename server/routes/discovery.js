@@ -8,7 +8,7 @@ const dns = require('dns').promises;
 const os  = require('os');
 const auth = require('../../auth');
 const { DRIVERS } = require('../drivers');
-const { buildNeighborCandidates, buildPortIndex, buildMacIndex, buildPortMacIndex, buildFdbCandidates, buildArpCandidates, locateMacsOnEdge } = require('../../lib/correlate');
+const { buildNeighborCandidates, buildPortIndex, buildMacIndex, buildPortMacIndex, buildFdbCandidates, buildArpCandidates, buildNdCandidates, locateMacsOnEdge } = require('../../lib/correlate');
 const { expandSubnet, _execFileAsync, _pingHost, _pingHostRetry, _stealthDelayMs, _normMac, _parseArpTable, _readArpMap, _demoteStaleArpDup, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost, _mdnsSsdpSweep, _shuffled } = require('../netscan');
 const { _cleanHostname, PEN_VENDOR, _penFromObjectId, _vendorByObjectId, _decodeSysServices, _classifyDiscoveredDevice, _buildDiscoveryMeta, _decorateDiscoveryRow } = require('../classify');
 const { OuiEngine } = require('../../engine');
@@ -696,7 +696,7 @@ router.post('/api/discover/topology', auth.requireAdmin, async (req, res) => {
       emit: send,
       isAborted: () => aborted,
     });
-    const { results, arpTables, fdbTables, visited } = crawlOut;
+    const { results, arpTables, ndTables, fdbTables, visited } = crawlOut;
 
   // --- ARP-SNMP: proponi gli host off-segment visti nelle ARP raccolte ---------
   // Host presenti nell'ARP di uno switch/router SNMP ma non trovati via SNMP/LLDP:
@@ -741,6 +741,34 @@ router.post('/api/discover/topology', auth.requireAdmin, async (req, res) => {
     }
     console.log(`  [CRAWL] ARP-SNMP: ${total} candidati off-segment in ${scanCidr}${truncated ? ` (mostrati i primi ${CAP})` : ''}`);
     if (truncated) send({ type: 'warn', message: `ARP: ${total} host visti, mostrati i primi ${CAP}` });
+  }
+
+  // --- ND-SNMP: arricchisci i device col loro IPv6 (ipNetToPhysicalTable) --------
+  // Simmetrico all'ARP-SNMP ma per IPv6. In v1 NON crea righe ip6-only (la tabella
+  // Scopri è IPv4-centrica): usa i vicini ND per ATTACCARE l'IPv6 (global/ULA) ai
+  // device già scoperti, per MAC. Manual-first: popola l'ip6 PROPOSTO sulla riga,
+  // l'utente lo conferma in import. Dedup cross-device per ip6. Non gate su scanSet
+  // (IPv4): l'ND è IPv6, basta avere raccolto le tabelle.
+  if (ndTables.length && !aborted) {
+    const _macHex = m => String(m || '').toLowerCase().replace(/[^0-9a-f]/g, '');
+    const nd6 = {};            // macHex -> primo ip6 global/ULA (mappa per il client)
+    const byMac = new Map();   // macHex -> prima riga device con quel MAC
+    for (const r of results) { const m = _macHex(r && r.mac); if (m && !byMac.has(m)) byMac.set(m, r); }
+    const seen6 = new Set();
+    for (const { table, fromIp } of ndTables) {
+      for (const c of buildNdCandidates(table, { fromIp })) {
+        const mh = _macHex(c.mac);
+        if (nd6[mh] || seen6.has(c.ip6)) continue;   // un solo ip6 per MAC (primo global/ULA)
+        nd6[mh] = c.ip6;
+        seen6.add(c.ip6);
+        const row = byMac.get(mh);
+        if (row && !row.ip6) row.ip6 = c.ip6;        // arricchimento server-side (payload 'done')
+      }
+    }
+    const n6 = Object.keys(nd6).length;
+    // Un solo evento 'nd' (come 'located' del macsuck): il client attacca l'ip6 alle
+    // sue righe per MAC. Manual-first: è un IPv6 PROPOSTO, l'utente lo conferma in import.
+    if (n6) { send({ type: 'nd', nd6 }); console.log(`  [CRAWL] ND-SNMP: ${n6} IPv6 (ipNetToPhysicalTable)`); }
   }
 
   // --- macsuck: localizza i MAC scoperti sulla loro porta di accesso -----------
