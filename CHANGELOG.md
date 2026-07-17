@@ -2,6 +2,17 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO‑8601. The full historical log lives in the [Roadmap](README.md#roadmap).
 
+## 2026-07-17 — IPv6: the device's own address over SNMP, treated like IPv4 (lock + Sync + Verify)
+
+All gates green: 1562 unit tests / 0 fail (4 skipped, +4), e2e 78/78, ESLint 0 errors, `tsc` 0. Verified live against a real Synology NAS (its own ULA read over SNMP) plus a headless render of the Verify warning.
+
+### Added
+- **A device's own IPv6 is now read over SNMP and behaves exactly like its IPv4.** The SNMP poll walks the `ipAddressTable` (IP-MIB 4.34, RFC 4293) and picks the best management address (`pickBestIp6`: routable **global/ULA only** — link-local skipped — preferring a **stable** EUI-64 over a temporary/privacy address). This gives `ip6` the full IPv4 semantics:
+  - **Auto-populate on Sync.** `applyPollResult` fills `node.ip6` from the device's own address, manual-first — like the hostname.
+  - **Lock.** The IPv6 field gains the same padlock as IPv4 (`ip6Manual`): closed = your value (the Sync won't touch it); open = follows the network.
+  - **Verify.** When a **locked** `ip6` diverges from what the device reports, Properties shows a ⚠ warning with the real address (mirroring the padlock's promise); an unlocked `ip6` simply re-aligns to reality.
+  Note: this reads the *polled device's own* address — a neighbour's IPv6 still comes from the earlier Neighbour-Discovery path. `lib/ipv6.js` (`pickBestIp6`), `drivers/snmp.js` (`ipAddressTable`), `src/app-snmp.js`, `src/app-properties.js`, `src/app.js`, `lib/i18n.js`.
+
 ## 2026-07-17 — OS hint from ping TTL (nmap-style, zero-cost)
 
 All gates green: 1562 unit tests / 0 fail (4 skipped, +5), e2e 78/78, ESLint 0 errors, `tsc` 0. Verified live on 192.168.1.0/24: OS coverage went from 4/20 to 10/20 hosts, all plausible.
