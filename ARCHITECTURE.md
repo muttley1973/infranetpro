@@ -198,7 +198,7 @@ state = { racks[], currentRack, nodes[], links[], ports{}, vlanColors{},
           vlanNames{}, ipam{vlans{}}, lagGroups{}, lagModes{}, guestVlans[], … }
 ```
 
-- **node**: `{ id, type, name, rackU, sizeU, ports, rackId, ip, ip6, … }` — `ip6` is a **distinct** IPv6 field (manual-first; auto-proposed by SNMP Neighbour Discovery, never merged into `ip`, the IPv4 IPAM, or the Ansible host)
+- **node**: `{ id, type, name, rackU, sizeU, ports, rackId, ip, ip6, ip6Manual, … }` — `ip6` is a **distinct** IPv6 field with the same manual-first padlock as `ip` (`ip6Manual`): the Sync auto-populates it from the device's own SNMP address (`ipAddressTable`), or Neighbour Discovery proposes it; never merged into `ip`, the IPv4 IPAM, or the Ansible host
 - **link**: `{ id, src:'nodeId-portN', dst:'nodeId-portN', … }`
 - **port**: `state.ports['nodeId-N'] = { status, speed, vlan, … }`
 
