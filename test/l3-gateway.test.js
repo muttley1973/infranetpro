@@ -118,3 +118,35 @@ test('usageByVid passa attraverso come usedCount', () => {
   });
   assert.equal(r2.rows[0].usedCount, 7);
 });
+
+// ── S2.3 (audit 2026-07-20): gateway = network/broadcast address ────────────
+// Usa il parser CIDR REALE (lib/cidr.js): il check legge network/broadcast/prefix.
+const { _parseCidrInfo, _ipInCidr } = require('../lib/cidr.js');
+function runReal(ipamByVid) {
+  return buildL3Report({
+    vlans: [{ vid: 10, name: 'Server' }],
+    ipamByVid, nodes: NODES,
+    parseCidr: _parseCidrInfo, ipInCidr: _ipInCidr,
+  });
+}
+
+test('gatewayReserved: gateway = network address (.0 su /24) → warning', () => {
+  const row = runReal({ 10: { subnet: '192.168.10.0/24', gateway: '192.168.10.0' } }).rows[0];
+  assert.ok(row.warnings.includes('gatewayReserved'), '.0 non è un host valido');
+  assert.ok(!row.warnings.includes('gatewayOutOfSubnet'), 'è comunque dentro la subnet');
+});
+
+test('gatewayReserved: gateway = broadcast address (.255 su /24) → warning', () => {
+  const row = runReal({ 10: { subnet: '192.168.10.0/24', gateway: '192.168.10.255' } }).rows[0];
+  assert.ok(row.warnings.includes('gatewayReserved'), '.255 non è un host valido');
+});
+
+test('gatewayReserved: /31 (RFC 3021) — gli estremi SONO host validi, nessun warning', () => {
+  const row = runReal({ 10: { subnet: '10.0.0.0/31', gateway: '10.0.0.0' } }).rows[0];
+  assert.ok(!row.warnings.includes('gatewayReserved'), 'su /31 network address = host valido');
+});
+
+test('gatewayReserved: gateway normale (.1) → nessun warning', () => {
+  const row = runReal({ 10: { subnet: '192.168.10.0/24', gateway: '192.168.10.1' } }).rows[0];
+  assert.ok(!row.warnings.includes('gatewayReserved'));
+});

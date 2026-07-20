@@ -52,20 +52,23 @@ function _matchNodeByIdent(hostname, ip){
     // Singolo passo su store.state.nodes (era 4 find() sequenziali).
     // Priorità: exact hostname > exact name > short-name > IP.
     // I match a priorità bassa vengono salvati e restituiti solo se non si trova niente di meglio.
-    let byShortName = null, byIp = null;
+    let byShortName = null, shortAmbiguous = false, byIp = null;
     for(const x of store.state.nodes){
         const nh = (x.hostname||'').toLowerCase();
         const nn = (x.name||'').toLowerCase();
         if(h && nh === h) return x;                          // P1 exact hostname
         if(h && nn === h) return x;                          // P2 exact name
-        if(sH && !byShortName &&
-           (nh.split('.')[0]===sH || nn.split('.')[0]===sH))
-            byShortName = x;                                 // P3 short name
+        if(sH && (nh.split('.')[0]===sH || nn.split('.')[0]===sH)){
+            if(!byShortName) byShortName = x;                // P3 short name
+            else if(x !== byShortName) shortAmbiguous = true; // ≥2 nodi stesso short-name
+        }
         if(ip4 && !byIp &&
            ((x.ip||'').trim()===ip4 || (x.integration?.host||'').trim()===ip4))
             byIp = x;                                        // P4 IP match
     }
-    return byShortName || byIp || null;
+    // Short-name ambiguo (es. "gw" con gw.siteA E gw.siteB): nessun aggancio è
+    // meglio del primo dell'array a confidenza LLDP (gemello di lib/correlate.js).
+    return (shortAmbiguous ? null : byShortName) || byIp || null;
 }
 
 // Endpoint foglia auto-collegabile via MAC table:
@@ -1215,6 +1218,22 @@ async function _autoDiscoverLinks(nodeIds){
         existingByPair[_pairSig(linkObj.src, linkObj.dst)] = linkObj;
         for(const p of cand.protocols) protocols.add(p);
         created++;
+    }
+
+    // ---- A2 (audit 2026-07-20): un'adiacenza = un solo cavo ------------------
+    // Sopprime i link AUTO non-trusted (INFERRED/MAC/…) la cui porta fisica ha
+    // GIÀ un link trusted (manuale o LLDP/CDP) verso lo stesso nodo remoto: era
+    // il "doppio cavo + porta fantasma" col port-id annunciato come MAC. Pure
+    // (lib/correlate.js), consumata come global bare con typeof-guard.
+    if(typeof suppressInferredDuplicates === 'function'){
+        const supp = suppressInferredDuplicates(store.state.links, _portNodeId);
+        if(supp.removed.length){
+            store.state.links = supp.links;
+            for(const rl of supp.removed){
+                delete existingByPair[_pairSig(rl.src, rl.dst)];
+                console.log(`[AutoLink] soppresso duplicato inferito ${rl.src} <-> ${rl.dst} (adiacenza già coperta da un link trusted)`);
+            }
+        }
     }
 
     // Pulizia duplicati residui: conserva un solo link per coppia porta-porta.

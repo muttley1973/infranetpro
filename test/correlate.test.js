@@ -729,3 +729,68 @@ test('buildFdbCandidates: shared-segment expone physicalMacCount/virtualMacCount
   assert.equal(seg.virtualMacCount, 10);
   assert.equal(seg.physicalMacCount, 10);
 });
+
+// ── S2.4 (audit 2026-07-20): short-name ambiguo → nessun match ──────────────
+test('matchNodeByIdent: short-name ambiguo (2+ nodi) → null, non first-wins', () => {
+  const nodes = [
+    { id: 'a', name: 'gw.siteA', hostname: 'gw.sitea.lan', ip: '10.1.0.1' },
+    { id: 'b', name: 'gw.siteB', hostname: 'gw.siteb.lan', ip: '10.2.0.1' },
+  ];
+  // Il vicino annuncia solo "gw": due candidati → nessun aggancio a 0.97.
+  assert.equal(matchNodeByIdent('gw', '', nodes), null, 'ambiguo → null');
+  // Con l'IP l'ambiguità short-name si risolve via P4.
+  assert.equal(matchNodeByIdent('gw', '10.2.0.1', nodes).id, 'b', 'IP scioglie il tie');
+  // Exact match vince sempre, anche con short-name ambiguo.
+  assert.equal(matchNodeByIdent('gw.sitea.lan', '', nodes).id, 'a');
+  // Short-name UNICO continua a funzionare.
+  assert.equal(matchNodeByIdent('gw', '', [nodes[0]]).id, 'a');
+  // Stesso nodo che matcha sia per hostname che per name NON è "ambiguo".
+  const one = [{ id: 'x', name: 'core', hostname: 'core.lan', ip: '10.0.0.2' }];
+  assert.equal(matchNodeByIdent('core', '', one).id, 'x');
+});
+
+// ── S2.6 / A2 (audit 2026-07-20): un'adiacenza = un solo cavo ───────────────
+const { suppressInferredDuplicates } = require('../lib/correlate.js');
+const _pn = pid => pid.replace(/-\d+$/, '');
+
+test('A2: doppio cavo + porta fantasma — INFERRED soppresso dal trusted sulla stessa porta', () => {
+  // Vista di A: (swA-1 ↔ swB-1) INFERRED 0.82 (porta remota inventata).
+  // Vista di B: (swB-3 ↔ swA-1) LLDP 0.97 (adiacenza dichiarata).
+  // Stessa adiacenza, pair diversi → prima del fix restavano DUE cavi su swA-1.
+  const links = [
+    { id: 'l1', src: 'swA-1', dst: 'swB-1', autoLinked: true, protocol: 'INFERRED', confidence: 0.82 },
+    { id: 'l2', src: 'swB-3', dst: 'swA-1', autoLinked: true, protocol: 'LLDP', confidence: 0.97 },
+  ];
+  const r = suppressInferredDuplicates(links, _pn);
+  assert.deepEqual(r.removed.map(l => l.id), ['l1'], 'l\'inferito duplicato va rimosso');
+  assert.deepEqual(r.links.map(l => l.id), ['l2'], 'il trusted resta');
+});
+
+test('A2: anche un link MANUALE copre l\'adiacenza (manual-first), e non è mai rimosso', () => {
+  const links = [
+    { id: 'm1', src: 'swA-1', dst: 'swB-3' },  // manuale (autoLinked falsy)
+    { id: 'l1', src: 'swA-1', dst: 'swB-1', autoLinked: true, protocol: 'INFERRED', confidence: 0.82 },
+  ];
+  const r = suppressInferredDuplicates(links, _pn);
+  assert.deepEqual(r.removed.map(l => l.id), ['l1']);
+  assert.deepEqual(r.links.map(l => l.id), ['m1']);
+});
+
+test('A2: porte DIVERSE verso lo stesso nodo = link paralleli legittimi, nessuna soppressione', () => {
+  // Due cavi reali tra gli stessi switch (ridondanza/LAG): porte locali diverse.
+  const links = [
+    { id: 'l1', src: 'swA-1', dst: 'swB-3', autoLinked: true, protocol: 'LLDP', confidence: 0.97 },
+    { id: 'l2', src: 'swA-2', dst: 'swB-4', autoLinked: true, protocol: 'INFERRED', confidence: 0.82 },
+  ];
+  const r = suppressInferredDuplicates(links, _pn);
+  assert.equal(r.removed.length, 0, 'porta diversa → adiacenza distinta, si conserva');
+});
+
+test('A2: inferito SENZA copertura trusted resta (unica evidenza dell\'adiacenza)', () => {
+  const links = [
+    { id: 'l1', src: 'swA-1', dst: 'swB-1', autoLinked: true, protocol: 'INFERRED', confidence: 0.82 },
+    { id: 'l2', src: 'swA-2', dst: 'swC-1', autoLinked: true, protocol: 'LLDP', confidence: 0.97 },  // altro nodo
+  ];
+  const r = suppressInferredDuplicates(links, _pn);
+  assert.equal(r.removed.length, 0);
+});
