@@ -107,6 +107,7 @@
                 data-tip="Aggiorna porte, VLAN, stato e topologia da tutti i dispositivi SNMP del progetto">
             <span id="snmp-sync-label"><i class="fas fa-network-wired"></i> Sync</span><span id="sync-fresh-badge" class="sync-fresh-badge" style="display:none"></span>
         </button>
+        <button class="status-chip s-warn" id="v3-pending-chip" onclick="_v3JumpNext()" data-tip="Device SNMPv3 da configurare — clic per saltare al prossimo"></button>
         <button class="toolbar-btn primary" id="btn-drift" onclick="runDriftCheck()"
                 data-i18n-tip="verify.tip"
                 data-tip="Controllo del mattino: esegue il Sync e verifica la presenza reale (ping/ARP/TCP), evidenziando differenze e cambi IP">
@@ -145,7 +146,6 @@
         <!-- Slot generico per le voci di menu dei moduli a pagamento (vuoto se nessun modulo). -->
         <div id="modules-nav-slot" class="modules-nav-slot" style="display:flex;gap:6px;align-items:center"></div>
         <div id="status-cluster" class="status-cluster">
-            <button class="status-chip s-warn" id="v3-pending-chip" onclick="_v3JumpNext()" data-tip="Device SNMPv3 da configurare — clic per saltare al prossimo"></button>
             <button class="status-chip s-info" id="spare-active-badge" data-act="spare-highlight-off" data-i18n-tip="spare.badgeTip" data-tip="Porte libere evidenziate nel rack — clicca per spegnere">
                 <i class="fas fa-plug-circle-plus"></i><span data-i18n="report.spare">Porte libere</span><i class="fas fa-times chip-x"></i>
             </button>

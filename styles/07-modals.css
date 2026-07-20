@@ -229,8 +229,10 @@
         .vlan-ipam-adopt-btn:hover { background:rgba(0,212,255,.2); }
         @media (max-width: 1280px) { .vlan-ipam-fields { grid-template-columns:1fr; } }
         /* ── Area di stato unificata in header ──────────────────────────────
-           Una sola grammatica per i chip "fluttuanti" v3-da-configurare /
-           porte-libere / auto-poll / filtro-VLAN, raccolti in #status-cluster.
+           Una sola grammatica per i chip "fluttuanti": porte-libere /
+           auto-poll / filtro-VLAN raccolti in #status-cluster; il chip
+           v3-da-configurare usa la stessa classe ma vive accanto al bottone
+           Sync (è un to-do del Sync, non uno stato ambientale).
            La VISIBILITÀ resta guidata dal JS proprietario (style.display
            inline-flex|none); la classe dà solo forma e tono. */
         .status-cluster { display:flex; align-items:center; gap:6px; }
