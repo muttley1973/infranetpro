@@ -702,7 +702,7 @@ Coverage focuses on the pure, bug-prone logic that has historically broken: SNMP
 
 Current local quality baseline:
 - `npm run check` validates all project JS sources (~140 files)
-- `npm test` runs the full regression suite (currently 1100+ unit tests, all passing) plus a real‑browser E2E suite (`RUN_E2E=1`, 68 flows)
+- `npm test` runs the full regression suite (currently 1580+ unit tests, all passing) plus a real‑browser E2E suite (`RUN_E2E=1`, 78 flows)
 - final visual verification is still important for rack/front-panel refinements
 
 > Pure functions are exposed for tests via an additive `_internals` export on
