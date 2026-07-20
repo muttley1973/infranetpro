@@ -74,6 +74,59 @@ test('cambi IP (nient\'altro aperto) → semina domanda cambio IP', () => {
   assert.equal(s.data.n, 1);
 });
 
+test('device SNMP in errore → snmpDown (solo informativo, niente bottone) + conteggio', () => {
+  const s = nextStep({ devices: 11, verified: true, snmpDown: 8 });
+  assert.equal(s.id, 'snmpDown');
+  assert.equal(s.target, null, 'niente bottone: il testo dice già cosa fare');
+  assert.equal(s.askKey, null);
+  assert.equal(s.data.n, 8);
+});
+
+test('priorità: mai-verificata vince su snmpDown (prima la Verifica)', () => {
+  const s = nextStep({ devices: 11, verified: false, snmpDown: 8 });
+  assert.equal(s.id, 'verify');
+});
+
+test('priorità: snmpDown vince su buchi VLAN e drift (prima la realtà operativa)', () => {
+  const s = nextStep({
+    devices: 11, verified: true, snmpDown: 3,
+    gaps: { noSubnet: 2, noGateway: 1 },
+    drift: { undocumented: 4, absent: 2, ipChanged: 1 },
+  });
+  assert.equal(s.id, 'snmpDown');
+});
+
+test('device su subnet non raggiunte → unverified (semina domanda)', () => {
+  const s = nextStep({ devices: 10, verified: true, drift: { unverified: 4 } });
+  assert.equal(s.id, 'unverified');
+  assert.equal(s.target, null);
+  assert.equal(s.askKey, 'onboard.askUnverified');
+  assert.equal(s.data.n, 4);
+});
+
+test('priorità: snmpDown vince su unverified; unverified vince sui buchi VLAN', () => {
+  assert.equal(nextStep({ devices: 10, verified: true, snmpDown: 2, drift: { unverified: 4 } }).id, 'snmpDown');
+  assert.equal(nextStep({ devices: 10, verified: true, drift: { unverified: 4 }, gaps: { noSubnet: 1 } }).id, 'unverified');
+});
+
+test('porte doc ≠ realtà SNMP → portConflicts (ultima prima di allGood)', () => {
+  const s = nextStep({ devices: 10, verified: true, portConflicts: 3 });
+  assert.equal(s.id, 'portConflicts');
+  assert.equal(s.askKey, 'onboard.askPortConflicts');
+  assert.equal(s.data.n, 3);
+});
+
+test('priorità: cambi IP vincono su portConflicts; senza conflitti → allGood', () => {
+  assert.equal(nextStep({ devices: 10, verified: true, portConflicts: 3, drift: { ipChanged: 1 } }).id, 'ipChanged');
+  assert.equal(nextStep({ devices: 10, verified: true, portConflicts: 0 }).id, 'allGood');
+});
+
+test('snmpDown assurdo/zero → non scatta (robustezza)', () => {
+  assert.equal(nextStep({ devices: 5, verified: true, snmpDown: 0 }).id, 'allGood');
+  assert.equal(nextStep({ devices: 5, verified: true, snmpDown: 'x' }).id, 'allGood');
+  assert.equal(nextStep({ devices: 5, verified: true, snmpDown: -2 }).id, 'allGood');
+});
+
 test('tutto a posto → allGood (nessuna azione)', () => {
   const s = nextStep({ devices: 30, verified: true, drift: { absent: 0, undocumented: 0, ipChanged: 0 }, gaps: {} });
   assert.equal(s.id, 'allGood');

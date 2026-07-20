@@ -21,6 +21,7 @@ import { store } from './store.js';
 import { switchRightTab, nodeById } from './app.js';
 import { openUserManager, umSwitchTab } from './app-auth.js';
 import { registerClickActions } from './app-delegation.js';
+import { TYPES } from './app-types.js';   // catalogo tipi per computeSubbarStats (snmpDown)
 
 // Apre la tab «Assistente» (pulsante toolbar + shortcut «A»). Se il pannello
 // destro è collassato lo ri-espande PRIMA dello switch, altrimenti l'utente non
@@ -253,10 +254,26 @@ function _aiBuildSummary(){
         if(x && x.kind === 'vlan_no_subnet') noSubnet++;
         else if(x && x.kind === 'vlan_no_gateway') noGateway++;
     }
+    // Salute SNMP: device monitorati in errore all'ultimo Sync (stessa definizione
+    // della statistica subbar). Lib UMD-lite consumata come GLOBALE BARE
+    // (typeof-guard, come nextStep): nessun win.* nuovo.
+    let snmpDown = 0;
+    if (typeof computeSubbarStats === 'function') {
+        try { snmpDown = computeSubbarStats(nodes, TYPES).snmpDown || 0; } catch(_){}
+    }
+    // unverified: dal report Drift DIRETTO (non dai liveFacts: quelli viaggiano
+    // verso l'assistente e restano sull'allowlist attuale). portConflicts:
+    // banner di riconciliazione porte doc↔SNMP aggregato su tutti i device.
+    const rep = (store._driftReport && typeof store._driftReport === 'object') ? store._driftReport : {};
+    let portConflicts = 0;
+    for(const n of nodes) portConflicts += Array.isArray(n && n.portReconcileConflicts) ? n.portReconcileConflicts.length : 0;
     return {
         devices: nodes.length,
         verified: !!store._driftReport,
-        drift: { absent: len(d.absent), undocumented: len(d.undocumented), ipChanged: len(d.ipChanged) },
+        snmpDown,
+        portConflicts,
+        drift: { absent: len(d.absent), undocumented: len(d.undocumented), ipChanged: len(d.ipChanged),
+                 unverified: len(rep.unverified) },
         gaps: { noSubnet, noGateway },
     };
 }
