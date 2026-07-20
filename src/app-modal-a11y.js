@@ -1,8 +1,11 @@
 // ============================================================
-// A11Y DEI TOOL-MODAL (M9)
+// A11Y DEI TOOL-MODAL (M9) + FAMIGLIA DINAMICA `.drift-overlay`
 // ------------------------------------------------------------
-// Rende accessibili gli overlay `.tool-modal-overlay` SENZA riscrivere le ~11
-// coppie apri/chiudi sparse nei moduli (che restano la fonte di verità):
+// Rende accessibili gli overlay `.tool-modal-overlay` (statici in netmapper.html)
+// E gli overlay dinamici `.drift-overlay` (Verifica/Drift, Storia modifiche,
+// Adotta, Mappa L3, Porte libere, WiFi…, creati lazy dai loro moduli e appesi a
+// document.body) SENZA riscrivere le coppie apri/chiudi sparse nei moduli
+// (che restano la fonte di verità):
 //
 //   • focus-trap  — Tab/Shift+Tab restano dentro il modale aperto. Listener
 //                   delegato sul document: nessun hook sulle open() esistenti.
@@ -14,17 +17,19 @@
 //                   logica di chiusura (cleanup dei campi), non un mero hide.
 //
 // Perché così e non un helper `openToolModal/closeToolModal` da cablare ovunque:
-// le 11 open/close vivono in 8 moduli diversi e fanno cleanup specifici. Un
+// le open/close vivono in molti moduli diversi e fanno cleanup specifici. Un
 // osservatore esterno ottiene lo STESSO risultato a rischio molto minore, senza
 // behavior-change su nessun flusso esistente. Vale finché la convenzione regge:
-// overlay `.tool-modal-overlay` > `.tool-modal` > `.tool-modal-header` > X (fa-times).
+// overlay > box (`.tool-modal`/`.drift-modal`) > header (`.tool-modal-header`/
+// `.drift-head`) > X (fa-times).
 //
-// Gli attributi ARIA (role=dialog / aria-modal / aria-labelledby) sono STATICI in
-// netmapper.html: qui non si tocca il DOM se non per spostare il focus.
+// ARIA: per i tool-modal statici gli attributi stanno in netmapper.html; per la
+// famiglia dinamica `.drift-overlay` vengono STAMPATI qui alla registrazione
+// (`_ensureAria`, skip se già presenti) — un punto solo invece di 8 builder.
 // ============================================================
 import { expose } from './_bridge.js';
 
-const SEL_OVERLAY = '.tool-modal-overlay';
+const SEL_OVERLAY = '.tool-modal-overlay, .drift-overlay';
 const SEL_FOCUSABLE = [
     'a[href]', 'button:not([disabled])', 'input:not([disabled])',
     'select:not([disabled])', 'textarea:not([disabled])', '[tabindex]:not([tabindex="-1"])',
@@ -49,9 +54,27 @@ function _focusables(root) {
 
 // Pulsante di chiusura: convenzione = il bottone dell'header con l'icona fa-times.
 function _closeBtn(ov) {
-    const hdr = ov.querySelector('.tool-modal-header');
+    const hdr = ov.querySelector('.tool-modal-header, .drift-head');
     if (!hdr) return null;
     return Array.from(hdr.querySelectorAll('button')).find(b => b.querySelector('.fa-times')) || null;
+}
+
+// ARIA per gli overlay dinamici (`.drift-overlay`): role/aria-modal sul box,
+// aria-labelledby sul primo id "*-title" disponibile, aria-label sulla X dal suo
+// data-tip (già i18n al momento della build del markup). Skip se già presenti,
+// così i tool-modal statici (ARIA in netmapper.html) non vengono toccati.
+function _ensureAria(ov) {
+    const box = ov.querySelector('.tool-modal, .drift-modal');
+    if (box && !box.getAttribute('role')) {
+        box.setAttribute('role', 'dialog');
+        box.setAttribute('aria-modal', 'true');
+        const title = box.querySelector('[id$="-title"]');
+        if (title && !box.getAttribute('aria-labelledby')) box.setAttribute('aria-labelledby', title.id);
+    }
+    const x = _closeBtn(ov);
+    if (x && !x.getAttribute('aria-label')) {
+        x.setAttribute('aria-label', x.getAttribute('data-tip') || x.getAttribute('title') || 'Chiudi');
+    }
 }
 
 /**
@@ -121,10 +144,26 @@ export function initModalA11y() {
             _syncFocus(ov);
         }
     });
-    for (const ov of document.querySelectorAll(SEL_OVERLAY)) {
+    // assumeClosed: gli overlay lazy arrivano dal body-observer GIÀ visibili —
+    // partire da "chiuso" fa scattare il focus-init di _syncFocus alla prima apertura.
+    const reg = (ov, assumeClosed) => {
         obs.observe(ov, { attributes: true, attributeFilter: ['class', 'style'] });
-        ov._a11yOpen = _visible(ov);
-    }
+        ov._a11yOpen = assumeClosed ? false : _visible(ov);
+        _ensureAria(ov);
+    };
+    for (const ov of document.querySelectorAll(SEL_OVERLAY)) reg(ov, false);
+    // Gli overlay `.drift-overlay` sono creati LAZY (appesi a document.body alla
+    // prima apertura): un secondo observer li registra appena compaiono, così
+    // ricevono ARIA + focus-init/restore senza toccare i builder.
+    const bodyObs = new MutationObserver(muts => {
+        for (const m of muts) {
+            for (const n of m.addedNodes) {
+                if (n.nodeType !== 1 || typeof n.matches !== 'function') continue;
+                if (n.matches(SEL_OVERLAY)) { reg(n, true); _syncFocus(n); }
+            }
+        }
+    });
+    bodyObs.observe(document.body, { childList: true });
 }
 
 // Esposti per i test e2e (page.evaluate); app.js li importa via ESM.
