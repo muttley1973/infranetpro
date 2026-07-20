@@ -249,6 +249,15 @@ creates the modal **once**, a render function fills it on each open. Because the
 shell is created once, **the title is given an `id` and refreshed on every render**
 so language changes apply when reopened.
 
+A11y for this dynamic `.drift-overlay` family is provided by the same outside
+observer that covers the static tool modals (`src/app-modal-a11y.js`): overlays
+appended to `document.body` are auto-registered, get `role="dialog"` /
+`aria-modal` / `aria-labelledby` stamped once, and receive the shared focus-trap,
+focus-restore and Escape handling (Esc closes the topmost dialog via its real X —
+never acting on what's behind it; the base alert/confirm cancels on Esc). New
+overlays only need the conventions: `.drift-overlay > .drift-modal > .drift-head`
+with an X button and a `*-title` id.
+
 **Golden rule for i18n / dynamic text:** elements that JS rewrites via
 `innerHTML` / `textContent` / `.title` **ignore `data-i18n`** — translate them with
 `t()` at the JS source, or the translation gets overwritten. See the PDF manual (i18n chapter).
@@ -258,7 +267,7 @@ so language changes apply when reopened.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. ~1460 tests. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. ~1580 tests. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`
