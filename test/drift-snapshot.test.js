@@ -55,6 +55,26 @@ test('docSnap: passivo senza IP fuori da macs ma in deviceSigs; VM solo in devic
   assert.equal(d.macs.find(x => x.nodeId === 'host').ip, '10.0.0.9');
 });
 
+test('docSnap: nodi CON IP ma SENZA MAC → ipOnly (con hasSnmp); senza IP → ignorati; passivi esclusi', () => {
+  const m = {
+    nodes: [
+      { id: 'kvm', ip: '10.10.30.10', integration: { driver: 'snmp-v2c' } },   // SNMP, no MAC → ipOnly hasSnmp:true
+      { id: 'pc6', ip: '10.10.30.100' },                                        // no MAC, no SNMP → ipOnly hasSnmp:false
+      { id: 'sw',  mac: 'AA:AA:AA:00:00:01', ip: '10.0.0.2' },                  // con MAC → macs, NON ipOnly
+      { id: 'noip' },                                                            // né MAC né IP → ignorato ovunque
+      { id: 'wall', ip: '10.0.0.9', type: 'wallport' },                          // passivo senza IP proprio → escluso
+    ],
+    links: [], ports: {}, normMac: lower,
+    isPassiveNoIp: n => n.type === 'wallport',
+  };
+  const d = buildDocSnapshot(m);
+  assert.deepEqual(d.ipOnly.map(x => x.nodeId).sort(), ['kvm', 'pc6'], 'solo i no-MAC con IP e non-passivi');
+  assert.equal(d.ipOnly.find(x => x.nodeId === 'kvm').hasSnmp, true);
+  assert.equal(d.ipOnly.find(x => x.nodeId === 'pc6').hasSnmp, false);
+  assert.equal(d.ipOnly.find(x => x.nodeId === 'kvm').ip, '10.10.30.10');
+  assert.ok(!d.macs.some(x => x.nodeId === 'kvm'), 'un no-MAC non finisce anche in macs');
+});
+
 test('docSnap: MAC stampati sulle porte entrano in deviceSigs; cavi con etichetta iniettata', () => {
   const m = {
     nodes: [],
@@ -229,7 +249,7 @@ test('default: senza helper iniettati non lancia e produce strutture vuote sensa
   assert.doesNotThrow(() => buildDocSnapshot());
   assert.doesNotThrow(() => buildSnmpSnapshot());
   const d = buildDocSnapshot({});
-  assert.deepEqual(d, { ports: {}, macs: [], deviceSigs: [], cables: [] });
+  assert.deepEqual(d, { ports: {}, macs: [], ipOnly: [], deviceSigs: [], cables: [] });
   const s = buildSnmpSnapshot({});
   assert.equal(s.fdbObserved, false);
   assert.deepEqual(s.observedDevices, []);

@@ -1068,6 +1068,33 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(r.absentAfterClear, 0, 'senza Drift report nessun device è attenuato');
     });
 
+    await t.test('presenza: i device NON verificabili (unverified del Drift) sono marcati .node-unverified, non .node-absent', async () => {
+      const r = await page.evaluate(async () => {
+        const raf = () => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          const id = 'unver-test-pc';
+          state.nodes.push({ id, type: 'pc', name: 'PC unver', x: 60, y: 60, mac: 'aa:bb:cc:dd:ee:02' });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          // Esito Verifica: subnet non raggiunta → presenza NON confermabile (bucket unverified).
+          window._driftReport = { macOrphan: [], unverified: [{ key: 'unver:x', nodeId: id }] };
+          renderAll(); await raf();
+          const sel = `.floor-node[data-id="${id}"]`;
+          const el = document.querySelector(sel);
+          const unverifiedMarked = !!el?.classList.contains('node-unverified');
+          const notAbsent = !el?.classList.contains('node-absent');   // il rosso "assente" NON deve scattare
+          window._driftReport = null;
+          renderAll(); await raf();
+          const clearedAfter = document.querySelectorAll('.node-unverified').length;
+          return { ok: true, unverifiedMarked, notAbsent, clearedAfter };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso presenza→unverified: ' + r.err);
+      assert.ok(r.unverifiedMarked, 'il device su subnet non raggiunta riceve la classe .node-unverified');
+      assert.ok(r.notAbsent, 'un device unverified NON riceve .node-absent (grigio, non rosso)');
+      assert.equal(r.clearedAfter, 0, 'senza Drift report nessun device è marcato non-verificabile');
+    });
+
     await t.test('app-csv-import migrato: openCsvImport + previewCsv (con errore) + importCsvNodes nel browser reale', async () => {
       const r = await page.evaluate(() => {
         try {

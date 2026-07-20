@@ -171,6 +171,61 @@ test('multi-fabric: device ASSENTE su subnet COPERTA dalla FDB → macOrphan (gr
   assert.equal(r.counts.unverified, 0);
 });
 
+// ── Documentati CON IP ma SENZA MAC (doc.ipOnly): infra/endpoint mai sincronizzati ──
+// L'audit per-MAC non li vede; presenza per-nodeId (SNMP responded / sweep). È il
+// caso degli switch/kvm/pc lab con mac vuoto che restavano a colori pieni.
+test('ipOnly: SNMP device senza MAC, muto, subnet NON osservabile → unverified (grigio)', () => {
+  const doc = { ipOnly: [{ nodeId: 'kvm', label: 'kvm', ip: '10.10.30.10', hasSnmp: true }] };
+  const snmp = { observedMacs: [], responded: {}, presentNodeIds: {}, fdbObserved: true,
+                 observedSubnets: [], fdbSubnets: ['192.168.1'] };   // 10.10.30 fuori copertura
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.unverified, 1, 'device SNMP senza MAC su subnet non coperta → non verificabile');
+  assert.equal(r.unverified[0].nodeId, 'kvm');
+  assert.equal(r.unverified[0].mac, '', 'entry senza MAC');
+  assert.equal(r.counts.macOrphan, 0);
+});
+
+test('ipOnly: SNMP device senza MAC, muto, subnet OSSERVABILE → macOrphan (rosso: interrogato e assente)', () => {
+  const doc = { ipOnly: [{ nodeId: 'sw', label: 'sw-casa', ip: '192.168.1.9', hasSnmp: true }] };
+  const snmp = { observedMacs: [], responded: {}, presentNodeIds: {}, fdbObserved: true,
+                 observedSubnets: [], fdbSubnets: ['192.168.1'] };
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.macOrphan, 1, 'SNMP su subnet osservata + muto → assente');
+  assert.equal(r.macOrphan[0].nodeId, 'sw');
+  assert.equal(r.counts.unverified, 0);
+});
+
+test('ipOnly: device senza MAC e senza SNMP, subnet NON osservabile → unverified (grigio)', () => {
+  const doc = { ipOnly: [{ nodeId: 'pc6', label: 'pc6', ip: '10.10.30.100', hasSnmp: false }] };
+  const snmp = { observedMacs: [], responded: {}, presentNodeIds: {}, fdbObserved: true,
+                 observedSubnets: [], fdbSubnets: ['192.168.1'] };
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.unverified, 1, 'endpoint senza MAC/SNMP su subnet non coperta → non verificabile');
+  assert.equal(r.unverified[0].nodeId, 'pc6');
+});
+
+test('ipOnly: device senza MAC e senza SNMP, subnet OSSERVABILE → NESSUNA marcatura (no-invenzioni)', () => {
+  // Non lo si è sondato attivamente: non si può dire assente né presente → lasciarlo com'è.
+  const doc = { ipOnly: [{ nodeId: 'prn', label: 'stampante', ip: '192.168.1.50', hasSnmp: false }] };
+  const snmp = { observedMacs: [], responded: {}, presentNodeIds: {}, fdbObserved: true,
+                 observedSubnets: [], fdbSubnets: ['192.168.1'] };
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.macOrphan, 0, 'niente rosso: non lo abbiamo sondato');
+  assert.equal(r.counts.unverified, 0, 'niente grigio: la subnet è osservabile');
+});
+
+test('ipOnly: device senza MAC che HA risposto (responded/present) → presente, nessuna marcatura', () => {
+  const doc = { ipOnly: [
+    { nodeId: 'a', label: 'snmp-ok', ip: '10.10.30.10', hasSnmp: true },
+    { nodeId: 'b', label: 'ping-ok', ip: '10.10.30.11', hasSnmp: false },
+  ] };
+  const snmp = { observedMacs: [], responded: { a: true }, presentNodeIds: { b: true }, fdbObserved: true,
+                 observedSubnets: [], fdbSubnets: ['192.168.1'] };
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.unverified, 0, 'entrambi hanno un segnale di presenza');
+  assert.equal(r.counts.macOrphan, 0);
+});
+
 test('back-compat: reachabilityChecked senza observedSubnets → macOrphan come prima', () => {
   const doc = { macs: [{ mac: 'AA:BB:CC:00:00:43', label: 'x', nodeId: 'x', ip: '10.20.0.1' }] };
   const snmp = { observedMacs: [], responded: {}, fdbObserved: false, reachabilityChecked: true, presentNodeIds: {} };
