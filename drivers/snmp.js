@@ -8,7 +8,7 @@
 //  Rilevazione LAG — strategia a tre livelli (il primo che trova dati vince):
 //
 //  L0 — ifStackTable (IF-MIB RFC 2863)
-//       OID 1.3.6.1.2.1.31.1.2.1.2.{H}.{L} → RowStatus
+//       OID 1.3.6.1.2.1.31.1.2.1.3.{H}.{L} → RowStatus (ifStackStatus)
 //       H=aggregatore (ifType=161), L=porta fisica membro.
 //       Funziona per LAG statico e LACP, tutto in spazio ifIndex.
 //       Supportato da: Cisco IOS/NX-OS, Juniper, HP/Aruba, Dell...
@@ -217,7 +217,7 @@ const OID = {
   ifSpeed:        '1.3.6.1.2.1.2.2.1.5',
   ifHighSpeed:    '1.3.6.1.2.1.31.1.1.1.15',
   ifAlias:        '1.3.6.1.2.1.31.1.1.1.18',
-  ifStackStatus:  '1.3.6.1.2.1.31.1.2.1.2',        // L0: H.L → RowStatus
+  ifStackStatus:  '1.3.6.1.2.1.31.1.2.1.3',        // L0: H.L → RowStatus (colonna .3; la .2 è ifStackLowerLayer, not-accessible)
   bridgePortIf:   '1.3.6.1.2.1.17.1.4.1.2',
   dot1qPvid:             '1.3.6.1.2.1.17.7.1.4.5.1.1',
   dot1qVlanEgressPorts:  '1.3.6.1.2.1.17.7.1.4.2.1.4',   // per-VLAN egress portlist bitmap (tagged + untagged)
@@ -821,9 +821,11 @@ function extractData(vbs) {
     }
 
     // PoE — pethPsePortPowerClassifications indexed by grp.portIdx
+    // RFC 3621: enum class0(1)…class4(5) → la CLASSE reale è raw−1.
     if (oid.startsWith(OID.pethClass + '.')) {
       const sfx = oid.slice(OID.pethClass.length + 1);
-      (poeMap[sfx] ??= {}).class = bufToInt(val);
+      const rawClass = bufToInt(val);
+      if (rawClass > 0) (poeMap[sfx] ??= {}).class = rawClass - 1;
       continue;
     }
   }

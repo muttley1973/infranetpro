@@ -343,3 +343,69 @@ test('_isPathPrefix: bind-mount sì, root "/" non assorbe, percorsi distinti no'
   assert.equal(_isPathPrefix('/', '/volume1'), false);   // root non è prefisso-assorbente
   assert.equal(_isPathPrefix('/data', '/datastore'), false); // non è confine di path
 });
+
+// ── Fix audit 2026-07-20 ─────────────────────────────────────────────────────
+// ① RFC 3621: pethPsePortPowerClassifications è un ENUM class0(1)…class4(5):
+//    il valore raw è classe+1. Prima del fix il raw era trattato come classe →
+//    ogni PD saliva di uno standard (Class 3 af → etichettato at, ecc.).
+// ② IF-MIB: ifStackStatus è la colonna .3 (la .2 è ifStackLowerLayer, indice
+//    not-accessible: il subtree non restituiva MAI righe → L0 LAG morto).
+
+test('PoE RFC 3621: enum class0(1)…class4(5) → standard af/at/bt corretti', () => {
+  const mkIf = (idx, name) => ({
+    [at(OID.ifDescr, idx)]: Buffer.from(name, 'utf8'),
+    [at(OID.ifType, idx)]: u32(6),
+    [at(OID.ifOperStatus, idx)]: u32(1),
+  });
+  const vbs = {
+    [at(OID.sysName, 0)]: Buffer.from('sw-poe', 'utf8'),
+    ...mkIf(1, 'GigabitEthernet0/1'),
+    ...mkIf(2, 'GigabitEthernet0/2'),
+    ...mkIf(3, 'GigabitEthernet0/3'),
+    ...mkIf(4, 'GigabitEthernet0/4'),
+    // pethPsePortDetectionStatus .grp.port: 3 = deliveringPower
+    [at(OID.pethDetect, '1.1')]: u32(3),
+    [at(OID.pethClass,  '1.1')]: u32(4),   // enum class3(4) → Class 3 = 802.3af (15.4 W)
+    [at(OID.pethDetect, '1.2')]: u32(3),
+    [at(OID.pethClass,  '1.2')]: u32(5),   // enum class4(5) → Class 4 = 802.3at (30 W)
+    [at(OID.pethDetect, '1.3')]: u32(3),
+    [at(OID.pethClass,  '1.3')]: u32(6),   // estensioni bt: Class 5+ → 802.3bt
+    [at(OID.pethDetect, '1.4')]: u32(2),   // 2 = searching: nessun PD alimentato
+    [at(OID.pethClass,  '1.4')]: u32(5),
+  };
+  const r = extractData(vbs);
+  const poe = Object.fromEntries(r.interfaces.map(i => [i.name, i.snmpPoe]));
+  assert.equal(poe['GigabitEthernet0/1'], '802.3af', 'raw 4 = Class 3 → af (era il caso gonfiato ad at)');
+  assert.equal(poe['GigabitEthernet0/2'], '802.3at', 'raw 5 = Class 4 → at (era il caso gonfiato a bt)');
+  assert.equal(poe['GigabitEthernet0/3'], '802.3bt', 'raw 6 = Class 5 → bt');
+  assert.equal(poe['GigabitEthernet0/4'], 'none',    'searching → nessuna erogazione');
+});
+
+test('LAG L0 ifStackTable: OID colonna .3 (ifStackStatus) e membri assegnati', () => {
+  assert.equal(OID.ifStackStatus, '1.3.6.1.2.1.31.1.2.1.3',
+    'ifStackStatus è la colonna .3 — la .2 (ifStackLowerLayer) è not-accessible e il walk tornava vuoto');
+  const vbs = {
+    [at(OID.sysName, 0)]: Buffer.from('sw-stack', 'utf8'),
+    // aggregatore: ifType 161 (ieee8023adLag)
+    [at(OID.ifDescr, 10)]: Buffer.from('Port-channel1', 'utf8'),
+    [at(OID.ifType, 10)]: u32(161),
+    [at(OID.ifOperStatus, 10)]: u32(1),
+    // membri fisici
+    [at(OID.ifDescr, 1)]: Buffer.from('GigabitEthernet0/1', 'utf8'),
+    [at(OID.ifType, 1)]: u32(6),
+    [at(OID.ifOperStatus, 1)]: u32(1),
+    [at(OID.ifDescr, 2)]: Buffer.from('GigabitEthernet0/2', 'utf8'),
+    [at(OID.ifType, 2)]: u32(6),
+    [at(OID.ifOperStatus, 2)]: u32(1),
+    // ifStackStatus.{H}.{L} = active(1): Po1 sopra Gi0/1 e Gi0/2
+    [at(OID.ifStackStatus, '10.1')]: u32(1),
+    [at(OID.ifStackStatus, '10.2')]: u32(1),
+    [at(OID.ifStackStatus, '10.0')]: u32(1),  // L=0 ("none") va ignorato
+  };
+  const r = extractData(vbs);
+  const gi1 = r.interfaces.find(i => i.name === 'GigabitEthernet0/1');
+  const gi2 = r.interfaces.find(i => i.name === 'GigabitEthernet0/2');
+  assert.ok(gi1 && gi2, 'interfacce fisiche presenti');
+  assert.equal(gi1.lagId, 1, 'Gi0/1 membro del LAG logico 1 (via ifStackTable)');
+  assert.equal(gi2.lagId, 1, 'Gi0/2 membro del LAG logico 1 (via ifStackTable)');
+});
