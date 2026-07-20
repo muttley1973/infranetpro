@@ -196,7 +196,7 @@ function openL3Report(){
         <span class="l3-row-vlan" style="color:${esc(r.color || '#8b949e')}">VLAN ${r.vid}</span>
         <span class="l3-row-name">${esc(r.name || '')}</span>
         <span class="l3-row-sub">${esc(r.subnet || '—')}${!r.cidrValid && r.subnet ? ` <span class="l3-svi-warn" data-tip="${esc(t('pnl.feat.invalidCidr'))}">⚠</span>` : ''}</span>
-        <span class="l3-row-gw">${esc(r.gateway || '—')}${r.warnings.includes('gatewayOutOfSubnet') ? ` <span class="l3-svi-warn" data-tip="${esc(t('pnl.feat.outOfSubnet'))}">⚠</span>` : ''}</span>
+        <span class="l3-row-gw">${esc(r.gateway || '—')}${r.warnings.includes('gatewayOutOfSubnet') ? ` <span class="l3-svi-warn" data-tip="${esc(t('pnl.feat.outOfSubnet'))}">⚠</span>` : r.warnings.includes('gatewayReserved') ? ` <span class="l3-svi-warn" data-tip="${esc(t('pnl.feat.gwReserved'))}">⚠</span>` : ''}</span>
         <span class="l3-row-dev">${r.nodeName ? esc(r.nodeName) : '<span class="l3-st-none">—</span>'}</span>
         <span class="l3-row-st">${_l3StatusBadge(r)}</span>
       </div>`;
@@ -218,6 +218,7 @@ function l3ExportCsv(){
     const noteOf = r => r.warnings.map(w => ({
         noGateway: 'manca gateway', invalidCidr: 'CIDR non valido', orphanGateway: 'gateway orfano',
         staleBinding: 'device cancellato', gatewayOutOfSubnet: 'gateway fuori subnet',
+        gatewayReserved: 'gateway = network/broadcast address',
     }[w] || w)).join(', ');
     rep.rows.forEach(r => rows.push([
         r.vid, r.name, r.subnet, r.gateway, r.nodeName || '', r.status, r.usedCount, r.dns, noteOf(r),

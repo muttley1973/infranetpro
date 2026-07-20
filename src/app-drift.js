@@ -172,9 +172,11 @@ async function runDriftCheck(){
         if(hasSnmp) await win.pollAllSNMP();             // riuso, immutato; saltato se solo-lease
         const sweep = await _driftReachabilitySweep();  // presenza multi-segnale (ping/ARP/TCP) + tabella ARP
         _driftComputeFromDoc(docSnap, sweep || {});     // streaks + snapshot realtà + buildDriftReport
-        const _renewed = _driftAutoRenewIps();          // opt-in: rinnova IP dei MAC noti (DHCP)
+        _driftAutoRenewIps();                           // opt-in: rinnova IP dei MAC noti (DHCP)
         markDirty();
-        if(_renewed) renderAll();                        // riflette i nuovi IP su floor/rack
+        // renderAll SEMPRE (rAF-coalescato): subbar/nextStep e ingrigimento assenti
+        // devono riflettere l'esito appena calcolato, non solo i rinnovi IP.
+        renderAll();
         _renderDriftReport();
     } catch(e){
         showAlert(t('msg.net.docCheckFailed') + (e && e.message || e));
@@ -427,7 +429,11 @@ function _driftNetworksSection(rep){
     const nets = joined.networks;
     const META = {
         covered: { c:'#3fb950', i:'fa-circle-check',       hint:()=>t('net.hintCovered') },
-        blocked: { c:'#d29922', i:'fa-triangle-exclamation', hint:(n)=>{ const sw=n.snmpSources.find(s=>s.type==='switch'&&!s.reachable); return t('net.hintBlocked',{ip: sw?sw.ip:'?'}); } },
+        // "blocked" copre DUE realtà: switch vivo ma SNMP non autenticato vs switch
+        // proprio non raggiunto. `snmpReachable` è lo stato dell'ULTIMO Sync (stantio):
+        // affermare "raggiungibile" è onesto solo se la sweep ha osservato la subnet
+        // (n.observed === true); altrimenti la copy dice che non è stato raggiunto.
+        blocked: { c:'#d29922', i:'fa-triangle-exclamation', hint:(n)=>{ const sw=n.snmpSources.find(s=>s.type==='switch'&&!s.reachable); const ip = sw?sw.ip:'?'; return n.observed === true ? t('net.hintBlocked',{ip}) : t('net.hintBlockedUnreached',{ip}); } },
         open:    { c:'#6e7681', i:'fa-circle-question',     hint:()=>t('net.hintOpen') },
     };
     // Badge PRESENZA: solo dopo una sweep (observed !== null). Verde = subnet osservata;

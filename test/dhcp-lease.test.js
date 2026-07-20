@@ -204,3 +204,53 @@ test('reconcile: input vuoti → tutte liste vuote, nessun crash', () => {
   const r = reconcileDhcpLeases([], []);
   assert.deepEqual(r, { updates: [], manualHold: [], confirmed: [], unmatched: [] });
 });
+
+// ── S2.2 (audit 2026-07-20): i lease INFINITI sono i più autorevoli ─────────
+test('dedup: lease infinito attivo (ends never) VINCE sul lease storico scaduto datato', () => {
+  // Riproduzione del bug: file ISC con un lease storico del 2017 (expired) e la
+  // riserva corrente `ends never` per lo stesso MAC. Prima del fix il null
+  // valeva epoch 0 → sopravviveva il 2017 → isLeaseStale=true → il device con
+  // lease statico perdeva presenza e IP corrente.
+  const ISC = [
+    'lease 10.0.50.99 {',
+    '  starts 3 2017/01/04 10:00:00;',
+    '  ends 3 2017/01/04 22:00:00;',
+    '  binding state expired;',
+    '  hardware ethernet aa:bb:cc:dd:ee:99;',
+    '}',
+    'lease 10.0.50.10 {',
+    '  starts 3 2026/07/01 10:00:00;',
+    '  ends never;',
+    '  binding state active;',
+    '  hardware ethernet aa:bb:cc:dd:ee:99;',
+    '  client-hostname "nas-static";',
+    '}',
+  ].join('\n');
+  const res = parseDhcpLeases(ISC, 'isc');
+  assert.equal(res.count, 1, 'dedup per MAC');
+  const l = res.leases[0];
+  assert.equal(l.ip, '10.0.50.10', 'sopravvive il lease corrente, non lo storico 2017');
+  assert.equal(l.state, 'active');
+  assert.equal(l.expiry, null, 'ends never → expiry infinita (null)');
+  const { isLeaseStale } = require('../lib/dhcp-lease.js');
+  assert.equal(isLeaseStale(l), false, 'lease infinito attivo = presenza valida');
+});
+
+test('dedup: lease morto senza expiry NON vince su un lease attivo datato futuro', () => {
+  const { parseDhcpLeases: p } = require('../lib/dhcp-lease.js');
+  const ISC = [
+    'lease 10.0.50.20 {',
+    '  ends 3 2099/01/04 22:00:00;',
+    '  binding state active;',
+    '  hardware ethernet aa:bb:cc:dd:ee:98;',
+    '}',
+    'lease 10.0.50.21 {',
+    '  ends never;',
+    '  binding state released;',
+    '  hardware ethernet aa:bb:cc:dd:ee:98;',
+    '}',
+  ].join('\n');
+  const res = p(ISC, 'isc');
+  assert.equal(res.count, 1);
+  assert.equal(res.leases[0].ip, '10.0.50.20', 'lo stato morto (released) non è autorevole anche se senza scadenza');
+});

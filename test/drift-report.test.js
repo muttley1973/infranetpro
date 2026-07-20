@@ -207,6 +207,28 @@ test('cambio IP: MAC vivo allo STESSO IP documentato → presente, niente ipChan
   assert.equal(r.counts.ipChanged, 0);
 });
 
+test('multihoming: MAC vivo su 2 IP di cui uno È il documentato → niente ipChanged (S2.1)', () => {
+  // Alias eth0:1 / dual-IP di NAS e stampanti: il primo IP enumerato dall'ARP
+  // può essere l'alias — il documentato resta vivo sull'altro. Prima del fix
+  // (macAtIp first-wins) usciva un falso "Cambio IP" persistente a ogni Verifica.
+  const doc = { macs: [{ mac: 'AA:BB:CC:00:00:32', label: 'nas', nodeId: 'nas', ip: '192.168.1.50' }] };
+  const snmp = { observedMacs: [], reachabilityChecked: true, fdbObserved: false, presentNodeIds: {},
+                 macAtIp: { 'aa:bb:cc:00:00:32': '192.168.1.99' },                       // legacy: primo visto = l'alias
+                 macAtIps: { 'aa:bb:cc:00:00:32': ['192.168.1.99', '192.168.1.50'] } };  // ma il doc-IP è vivo anche lui
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.ipChanged, 0, 'doc-IP tra gli IP vivi del MAC → nessun cambio IP');
+  assert.equal(r.counts.macOrphan, 0, 'e il device è presente');
+});
+
+test('multihoming: MAC vivo su 2 IP, NESSUNO è il documentato → ipChanged col primo vivo (S2.1)', () => {
+  const doc = { macs: [{ mac: 'AA:BB:CC:00:00:33', label: 'srv', nodeId: 'srv', ip: '192.168.1.50' }] };
+  const snmp = { observedMacs: [], reachabilityChecked: true, fdbObserved: false, presentNodeIds: {},
+                 macAtIps: { 'aa:bb:cc:00:00:33': ['192.168.1.60', '192.168.1.61'] } };
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.ipChanged, 1);
+  assert.equal(r.ipChanged[0].newIp, '192.168.1.60');
+});
+
 test('device ignoto non documentato → undocumented; se in rejectedSigs → escluso', () => {
   const doc = { deviceSigs: ['known-1'] };
   const snmp = {

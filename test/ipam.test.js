@@ -168,3 +168,12 @@ test('isLeaseStale: stati terminali e expiry passata', () => {
   assert.equal(isLeaseStale({ expiry: 'non-una-data' }, NOW), false);          // non parsabile → non stale
   assert.equal(isLeaseStale({ state: 'active', expiry: '2026-06-28T12:01:00Z' }, NOW), false);
 });
+
+// ── S2.3 (audit 2026-07-20): flag gatewayIsReserved ─────────────────────────
+test('computeIpamUsage: gateway = network/broadcast address → gatewayIsReserved', () => {
+  assert.equal(usage('192.168.5.0/24', { gateway: '192.168.5.0' }).gatewayIsReserved, true, 'network address');
+  assert.equal(usage('192.168.5.0/24', { gateway: '192.168.5.255' }).gatewayIsReserved, true, 'broadcast address');
+  assert.equal(usage('192.168.5.0/24', { gateway: '192.168.5.1' }).gatewayIsReserved, false, 'host normale');
+  assert.equal(usage('10.0.0.0/31', { gateway: '10.0.0.0' }).gatewayIsReserved, false, '/31: estremi = host validi (RFC 3021)');
+  assert.equal(usage('10.0.0.5/32', { gateway: '10.0.0.5' }).gatewayIsReserved, false, '/32: host singolo');
+});
