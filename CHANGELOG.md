@@ -2,6 +2,20 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-20 — Presence honesty on the floor + Sync result you can trust
+
+Follow-up UX round after the audit, live-verified on a real network (home /24 + a powered-off lab). Gates: 1594 unit / 0 fail, ESLint 0, `tsc` 0.
+
+### Added
+- **Presence colours on the floor plan.** A floor node is now **red** when it is confirmed absent (bucket `macOrphan`: its subnet was observed and nothing answered) and **grey** when its presence is simply **not verifiable** (bucket `unverified`: the check never reached its subnet). Rack devices keep their SNMP LED instead of an overlay. `src/app-render-core.js`, `styles/04-floor-rack.css`.
+- **Devices with an IP but no documented MAC are audited too.** Infra/endpoints never synced successfully (switches, KVM, cross-subnet PCs) used to stay full-colour because the presence audit was MAC-only; now they are checked per-node (SNMP answered / sweep) — grey when their subnet is unreachable, red when it is observable and an SNMP device stays mute, untouched when non-SNMP on an observable subnet (no invented absence). New `doc.ipOnly`. `lib/drift-snapshot.js`, `lib/drift-report.js`.
+- **The Sync result is now persistent and honest.** The badge next to Sync shows `| ok/total · age` (green all-ok / amber mixed / red none) — stored with the project, no longer evaporating after 4 s next to a stale age. `src/app-snmp.js`, `src/app.js`.
+- **The workspace sub-bar surfaces three states it used to hide:** SNMP devices that did not answer the last Sync (no more "all good" next to a red dot), documented devices on subnets the check could not reach, and ports documented differently from SNMP reality. Plus a persistent auto-link result line (links created/removed, with the "why not" diagnostics in the tooltip). `lib/onboarding.js`, `src/app-subbar.js`, `src/app-ai.js`, `styles/10-modern.css`, `lib/i18n.js`.
+- **The SNMPv3-to-configure chip sits next to Sync** (it is a Sync to-do, not an ambient status). `netmapper.html`.
+
+### Changed
+- Auto-link toast lifetime raised to 10 s so the diagnostics are readable. `src/app-snmp.js`.
+
 ## 2026-07-20 — Full networking audit + fix sprints (SNMP driver, L2/L3 engines, a11y)
 
 Follows a senior-network-engineer audit of the whole app (protocol correctness, L2/L3 semantics, physical model, UX). Gates: 1580 unit / 0 fail, e2e 78/78, ESLint 0, `tsc` 0; live-verified on a real network.

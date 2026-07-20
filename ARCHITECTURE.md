@@ -227,6 +227,14 @@ At the tail of each rebuild it also refreshes the sub-header (`src/app-subbar.js
 `renderSubbar` → `#modern-subbar`: breadcrumb · next-step suggestion · project
 stats) — a bare-global typeof-guarded call, so no new `win.*` reference.
 
+Floor nodes also carry a **presence overlay** derived from the last Drift report:
+**red** (`.node-absent`, bucket `macOrphan`) when confirmed absent, **grey**
+(`.node-unverified`, bucket `unverified`) when the check never reached its subnet.
+Rack devices keep their SNMP LED instead. The buckets now also cover documented
+devices that have an IP but no MAC (`doc.ipOnly`), checked per-node (SNMP answered /
+sweep) rather than per-MAC — with the same no-invention rule: never "absent" for a
+subnet that was not observed, never for a non-SNMP device that was not actively probed.
+
 ---
 
 ## 5. Recipe: add a new device type
@@ -267,7 +275,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. ~1580 tests. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. ~1594 tests. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`
