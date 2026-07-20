@@ -61,19 +61,54 @@ function _hasSnmpTargets(){
         return (cfg.driver||'').startsWith('snmp') && !!((cfg.host||n.ip||'').trim());
     });
 }
-// Chip "● Sync Xm fa" accanto al bottone Sync: età SEMPRE visibile, color-coded.
+// Chip "| ok/tot · età" accanto al bottone Sync: ESITO dell'ultimo Sync
+// (persistito col progetto in state.lastSnmpSyncResult) + età dell'ultimo
+// tentativo, color-coded. L'esito NON evapora più coi 4s del flash: resta sul
+// bottone finché un nuovo Sync non lo sostituisce, e sopravvive a salva/riapri.
+// Nascosto durante il sync e durante il flash del risultato sull'etichetta
+// (prima il ripristino immediato del badge affiancava l'età STANTIA al
+// risultato fresco: era lo stato confondente "0/11 (11 err) | 13 gg").
+let _syncFlashUntil = 0;
 export function _renderSyncFreshness(){
     const el = document.getElementById('sync-fresh-badge');
     if(!el) return;
     if(!_hasSnmpTargets()){ el.style.display='none'; return; }   // niente SNMP → niente chip
-    const f = _snmpFreshness(_lastSnmpSyncTs());
+    if(store._snmpSyncing || Date.now() < _syncFlashUntil){ el.style.display='none'; return; }
+    const res = store.state.lastSnmpSyncResult;
+    // Età: del tentativo se registrato (anche 0 ok), altrimenti dell'ultimo dato buono.
+    const f = _snmpFreshness(res && res.at ? res.at : _lastSnmpSyncTs());
     el.style.display='inline-flex';
-    // Tutt'uno col bottone Sync, diviso da un | : niente pallino né parola "Sync",
-    // resta solo il tempo (color-coded per freschezza).
+    if(res && res.total > 0){
+        // Esito (verde tutti ok / ambra misto / rosso zero ok) + età del tentativo.
+        const cCol = res.err === 0 ? _SNMP_FRESH_COLOR.fresh
+                   : res.ok === 0 ? _SNMP_FRESH_COLOR.old : _SNMP_FRESH_COLOR.aging;
+        el.innerHTML = `<span class="sync-fresh-sep">|</span>`
+            + `<span style="color:${cCol}">${res.ok}/${res.total}</span>`
+            + `<span style="opacity:.55"> · </span><span style="color:${f.color}">${f.txt}</span>`;
+        el.setAttribute('data-tip', t('snmp.tip.result', {age: f.txt, ok: res.ok, total: res.total}));
+        return;
+    }
+    // Nessun esito registrato (progetti pre-feature): solo l'età, come prima.
     el.innerHTML = `<span class="sync-fresh-sep">|</span><span style="color:${f.color}">${f.txt}</span>`;
     el.setAttribute('data-tip', f.level==='none'
         ? t('snmp.tip.never')
         : t('snmp.tip.ago', {age: f.txt}));
+}
+
+// Esito PERSISTITO dell'ultimo auto-link (Sync o import singolo): alimenta la
+// riga informativa della subbar (che non evapora come il toast). La diagnostica
+// «perché niente link» è testo già reso da _autoLinkDiagText → tooltip.
+function _recordAutoLink(ld){
+    const protoSet = ld && ld.protocols && ld.protocols.size > 0 ? [...ld.protocols].join('/') : 'auto';
+    const dx = (typeof _autoLinkDiagText === 'function') ? _autoLinkDiagText(ld && ld.diag) : '';
+    store.state.lastAutoLinkResult = {
+        created: (ld && ld.created) || 0,
+        updated: (ld && ld.updated) || 0,
+        pruned:  (ld && ld.pruned)  || 0,
+        protocols: protoSet,
+        reasons: dx || null,
+        at: Date.now(),
+    };
 }
 
 // ---- Finder "v3 da configurare" -------------------------------------------
@@ -208,20 +243,21 @@ async function pollSNMP(nodeId){
                 btn.innerHTML=`<i class="fas fa-network-wired"></i> ${(typeof t==='function'?t('snmp.import'):'Importa SNMP')}`; } },3000);
             // Auto-link discovery dopo import singolo
             const _ld=await win._autoDiscoverLinks([nodeId]);
+            _recordAutoLink(_ld);
             if(_ld.created>0 || _ld.updated>0 || _ld.lagGroups>0 || _ld.pruned>0){
                 renderAll(); renderCables();
                 if(_ld.created>0){
                     const ps=_ld.protocols?.size>0?[..._ld.protocols].join('/'):'auto';
                     const dx = _autoLinkDiagText(_ld.diag);
-                    _showToast(t('msg.net.autoLinkCreated',{n:_ld.created,proto:ps})+(dx?' - '+dx:''),'ok',6500);
+                    _showToast(t('msg.net.autoLinkCreated',{n:_ld.created,proto:ps})+(dx?' - '+dx:''),'ok',10000);
                 } else if(_ld.pruned>0){
-                    _showToast(t('msg.net.linkPruned',{n:_ld.pruned}),'ok',3500);
+                    _showToast(t('msg.net.linkPruned',{n:_ld.pruned}),'ok',10000);
                 }
             } else if(Array.isArray(_ld.diag?.reasons) && _ld.diag.reasons.length){
-                _showToast(t('msg.net.noAutoLink')+_autoLinkDiagText(_ld.diag),'warn',6500);
+                _showToast(t('msg.net.noAutoLink')+_autoLinkDiagText(_ld.diag),'warn',10000);
             } else {
                 const dx = _autoLinkDiagText(_ld.diag);
-                if(dx) _showToast(t('msg.net.autoLinkPrefix')+dx,'warn',6500);
+                if(dx) _showToast(t('msg.net.autoLinkPrefix')+dx,'warn',10000);
             }
         } else {
             showAlert(t('msg.net.errSnmp')+(data.error||t('msg.net.errUnknown')));
@@ -342,20 +378,21 @@ async function pollAllSNMP(opts){
     if(ok > 0 && !dataOnly){
         if(syncLbl) syncLbl.innerHTML=`<i class="fas fa-spinner fa-spin"></i> Topology…`;
         const _ld = await win._autoDiscoverLinks(null);
+        _recordAutoLink(_ld);
         if(_ld.created>0 || _ld.updated>0 || _ld.lagGroups>0 || _ld.pruned>0){
             renderAll(); renderCables();
             if(_ld.created>0){
                 const protoSet=_ld.protocols?.size>0?[..._ld.protocols].join('/'):'auto';
                 const dx = _autoLinkDiagText(_ld.diag);
-                _showToast(t('msg.net.autoLinkCreated',{n:_ld.created,proto:protoSet})+(dx?' - '+dx:''),'ok',6500);
+                _showToast(t('msg.net.autoLinkCreated',{n:_ld.created,proto:protoSet})+(dx?' - '+dx:''),'ok',10000);
             } else if(_ld.pruned>0){
-                _showToast(t('msg.net.linkPruned',{n:_ld.pruned}),'ok',3500);
+                _showToast(t('msg.net.linkPruned',{n:_ld.pruned}),'ok',10000);
             }
         } else if(Array.isArray(_ld.diag?.reasons) && _ld.diag.reasons.length){
-            _showToast(t('msg.net.noAutoLink')+_autoLinkDiagText(_ld.diag),'warn',6500);
+            _showToast(t('msg.net.noAutoLink')+_autoLinkDiagText(_ld.diag),'warn',10000);
         } else {
             const dx = _autoLinkDiagText(_ld.diag);
-            if(dx) _showToast(t('msg.net.autoLinkPrefix')+dx,'warn',6500);
+            if(dx) _showToast(t('msg.net.autoLinkPrefix')+dx,'warn',10000);
         }
     }
 
@@ -374,6 +411,11 @@ async function pollAllSNMP(opts){
                      : ((typeof t==='function') ? t('audit.snmpAllOk') : 'tutti raggiungibili')
     });
 
+    // Esito PERSISTITO dell'ultimo tentativo di Sync (anche 0 ok): alimenta il
+    // chip "| ok/tot · età" e la regola snmpDown del «prossimo passo». Nello
+    // state → si salva col progetto e resta veritiero alla riapertura.
+    store.state.lastSnmpSyncResult = { ok, err, total, at: Date.now() };
+
     if(syncBtn){
         if(err===0){
             syncBtn.className='toolbar-btn poll-btn-ok';
@@ -382,10 +424,15 @@ async function pollAllSNMP(opts){
             syncBtn.className='toolbar-btn poll-btn-err';
             syncLbl.innerHTML=`<i class="fas fa-exclamation-triangle"></i> Sync ${ok}/${total} (${err} err)`;
         }
+        // Finestra flash: finché il risultato è sull'etichetta, il badge resta
+        // nascosto (il ripristino via _refreshTopoBtnState nel finally non deve
+        // rimostrarlo in anticipo).
+        _syncFlashUntil = Date.now() + 4000;
         setTimeout(()=>{
+            _syncFlashUntil = 0;
             syncBtn.className='toolbar-btn';
             syncLbl.innerHTML=`<i class="fas fa-network-wired"></i> Sync`;
-            // Ripristina il timer dentro il bottone (ora "adesso").
+            // Ripristina il chip dentro il bottone: ora porta l'esito appena registrato.
             if(typeof _renderSyncFreshness === 'function') _renderSyncFreshness();
         }, 4000);
     }

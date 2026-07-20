@@ -17,6 +17,7 @@
 import { expose, t } from './_bridge.js';
 import { store } from './store.js';
 import { TYPES } from './app-types.js';
+import { _snmpFreshness } from './app-snmp.js';   // età "adesso/min/h/gg" per l'esito auto-link
 
 // Nome progetto: la fonte viva e' la <select> dell'header (si aggiorna al cambio
 // progetto); fallback al nome nello store, poi a un segnaposto i18n.
@@ -40,7 +41,17 @@ function _summary() {
   }
   const st = store.state || {};
   const nodes = Array.isArray(st.nodes) ? st.nodes : [];
-  return { devices: nodes.length, verified: !!store._driftReport, drift: {}, gaps: {} };
+  let snmpDown = 0;
+  if (typeof computeSubbarStats === 'function') {
+    try { snmpDown = computeSubbarStats(nodes, TYPES).snmpDown || 0; } catch (_) {}
+  }
+  let portConflicts = 0;
+  for (const n of nodes) portConflicts += Array.isArray(n && n.portReconcileConflicts) ? n.portReconcileConflicts.length : 0;
+  const rep = (store._driftReport && typeof store._driftReport === 'object') ? store._driftReport : {};
+  return {
+    devices: nodes.length, verified: !!store._driftReport, snmpDown, portConflicts,
+    drift: { unverified: Array.isArray(rep.unverified) ? rep.unverified.length : 0 }, gaps: {},
+  };
 }
 
 // I due soli step "a bottone reale" mappano a un'etichetta d'azione dedicata;
@@ -106,6 +117,26 @@ function _suggestEl(sug) {
     b.addEventListener('click', sug.onClick);
     wrap.appendChild(b);
   }
+  return wrap;
+}
+
+// Esito dell'ultimo auto-link (persistito dal Sync in state.lastAutoLinkResult):
+// riga informativa che NON evapora come il toast. Vuota (:empty → nascosta via
+// CSS) finché un Sync/import non registra un esito. La diagnostica «perché
+// niente link» vive nel tooltip (testo già reso al momento del Sync).
+function _autoLinkEl() {
+  const wrap = document.createElement('div');
+  wrap.className = 'msb-autolink';
+  const res = (store.state || {}).lastAutoLinkResult;
+  if (!res || !res.at) return wrap;
+  const age = _snmpFreshness(res.at).txt;
+  const ico = document.createElement('i'); ico.className = 'fas fa-diagram-project'; wrap.appendChild(ico);
+  const txt = document.createElement('span'); txt.className = 'msb-autolink-txt';
+  if (res.created > 0) txt.textContent = t('subbar.autoLinkOk', { n: res.created, proto: res.protocols || 'auto', age });
+  else if (res.pruned > 0) txt.textContent = t('subbar.autoLinkPruned', { n: res.pruned, age });
+  else txt.textContent = t('subbar.autoLinkNone', { age });
+  wrap.appendChild(txt);
+  if (res.reasons) wrap.title = res.reasons;
   return wrap;
 }
 
@@ -215,6 +246,7 @@ export function renderSubbar() {
   bar.innerHTML = '';
   bar.appendChild(_crumbEl());
   bar.appendChild(_suggestEl(_suggest()));
+  bar.appendChild(_autoLinkEl());
   bar.appendChild(_topoWarnEl(_topoWarn()));
   bar.appendChild(_statsEl(stats));
 }

@@ -37,6 +37,8 @@ store.state = {
     guestVlans:[],          // VLAN "ospiti": i loro device escono dai "non documentati" (drift)
     mgmtVlans:[],           // VLAN di management: i non-documentati lì sono infra (mai BYOD) + segnale sicurezza
     lastSnmpSyncAt:0,       // timestamp ultimo Sync SNMP riuscito (chip freschezza toolbar)
+    lastSnmpSyncResult:null, // esito ultimo TENTATIVO di Sync {ok,err,total,at} (chip + regola snmpDown)
+    lastAutoLinkResult:null, // esito ultimo auto-link {created,updated,pruned,protocols,reasons,at} (riga subbar)
     nodes:[], links:[], ports:{},
     dhcpSources:[]   // lease DHCP persistiti per-fonte (multi-server) → set unito in store._dhcpLeases
 };
