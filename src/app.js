@@ -767,9 +767,15 @@ export function bindEventsOnce() {
             }
         }
         if (e.key==='Escape') {
-            // M9: un tool-modal aperto cattura Escape e NIENT'ALTRO (convenzione dialog:
-            // Esc chiude il livello in cima, non tocca ciò che sta sotto). Chiude via la
-            // X reale del modale → gira il suo cleanup, non un mero hide.
+            // Il modale base alert/confirm/prompt è SEMPRE il livello più in alto
+            // (può stare sopra un tool-modal, es. conferma "Elimina progetto"):
+            // Esc = Annulla, e NIENT'ALTRO sotto viene toccato.
+            const _mo = document.getElementById('modal-overlay');
+            if (_mo && _mo.classList.contains('open')) { modalResolve(false); return; }
+            // M9: un tool-modal (o un overlay dinamico .drift-overlay: Verifica,
+            // Storia, Adotta, L3, Porte libere…) aperto cattura Escape e NIENT'ALTRO
+            // (convenzione dialog: Esc chiude il livello in cima, non tocca ciò che
+            // sta sotto). Chiude via la X reale del modale → gira il suo cleanup.
             if (closeTopToolModal()) return;
             clearSearch();
             // P1.5: Esc esce dalla modalita' instradamento cavo (ha priorita').
@@ -803,8 +809,10 @@ export function bindEventsOnce() {
     });
 
     document.getElementById('modal-input').addEventListener('keydown', e => {
-        if (e.key==='Enter')  { e.preventDefault(); modalResolve(true); }
-        if (e.key==='Escape') { e.preventDefault(); modalResolve(false); }
+        // stopPropagation: il keydown NON deve risalire al listener globale del
+        // document (chiuderebbe/agirebbe DIETRO il modale dopo il resolve).
+        if (e.key==='Enter')  { e.preventDefault(); e.stopPropagation(); modalResolve(true); }
+        if (e.key==='Escape') { e.preventDefault(); e.stopPropagation(); modalResolve(false); }
     });
     document.getElementById('modal-overlay').addEventListener('click', e => {
         if (e.target===document.getElementById('modal-overlay')) modalResolve(false);

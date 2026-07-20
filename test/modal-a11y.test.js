@@ -27,11 +27,32 @@ const ids = new Set([...HTML.matchAll(/\bid="([^"]+)"/g)].map(m => m[1]));
 test('M9: ogni tool-modal ha role=dialog + aria-modal', () => {
   const overlays = [...HTML.matchAll(/<div id="([\w-]+)-overlay"[^>]*\bclass="tool-modal-overlay"/g)];
   assert.ok(overlays.length >= 11, `attesi >=11 tool-modal, trovati ${overlays.length}`);
+  // +1: il modale base alert/confirm (#modal-box) è anch'esso un dialog ARIA.
   const dialogs = [...HTML.matchAll(/role="dialog"/g)];
-  assert.equal(dialogs.length, overlays.length,
-    'ogni overlay deve avere il suo [role="dialog"] (aggiunto un modale senza ARIA?)');
-  assert.equal([...HTML.matchAll(/aria-modal="true"/g)].length, overlays.length,
+  assert.equal(dialogs.length, overlays.length + 1,
+    'ogni overlay (+ #modal-box) deve avere il suo [role="dialog"] (aggiunto un modale senza ARIA?)');
+  assert.equal([...HTML.matchAll(/aria-modal="true"/g)].length, overlays.length + 1,
     'ogni dialog deve avere aria-modal="true"');
+});
+
+test('M9-esteso: la famiglia dinamica .drift-overlay è coperta dal modulo a11y', () => {
+  const A11Y = fs.readFileSync(path.join(ROOT, 'src', 'app-modal-a11y.js'), 'utf8');
+  assert.match(A11Y, /SEL_OVERLAY\s*=\s*'\.tool-modal-overlay,\s*\.drift-overlay'/,
+    'SEL_OVERLAY deve includere .drift-overlay (Verifica/Storia/Adotta/L3/Porte libere…)');
+  assert.match(A11Y, /\.tool-modal-header,\s*\.drift-head/,
+    'la ricerca della X deve coprire anche .drift-head');
+  assert.match(A11Y, /_ensureAria/,
+    'gli ARIA degli overlay dinamici vengono stampati alla registrazione');
+  assert.match(A11Y, /childList:\s*true/,
+    'serve il body-observer: i .drift-overlay sono creati lazy dopo initModalA11y');
+});
+
+test('Escape: il modale base alert/confirm ha priorità (modalResolve prima di closeTopToolModal)', () => {
+  const esc = APP.slice(APP.indexOf("if (e.key==='Escape')"));
+  const iResolve = esc.indexOf('modalResolve(false)');
+  const iClose = esc.indexOf('closeTopToolModal');
+  assert.ok(iResolve > -1 && iResolve < iClose,
+    'Esc con #modal-overlay.open deve fare modalResolve(false) PRIMA di closeTopToolModal');
 });
 
 test('M9: ogni aria-labelledby risolve a un id esistente', () => {
