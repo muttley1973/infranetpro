@@ -197,16 +197,26 @@ function _renderAllNow(){
     // rack-label). Calcolato UNA volta per render, non per device.
     const _l3ids = (typeof _l3GatewayNodeIds === 'function') ? _l3GatewayNodeIds() : null;
 
-    // Presenza: i device risultati ASSENTI in rete nell'ultima Verifica
-    // documentazione (bucket macOrphan del Drift) vengono attenuati ("grigio").
-    // Calcolato UNA volta per render. Guardia: chi ha poi risposto allo SNMP
-    // (snmpStatus 'ok') NON resta grigio — un device riacceso+sincronizzato torna vivo.
+    // Presenza dopo la Verifica: i device ASSENTI confermati (bucket macOrphan:
+    // subnet sondata, nessun segnale) sono evidenziati in ROSSO. Calcolato UNA
+    // volta per render. Guardia: chi ha poi risposto allo SNMP (snmpStatus 'ok')
+    // torna a colori pieni — un device riacceso+sincronizzato è di nuovo vivo.
     const _absentIds = new Set(((store._driftReport && store._driftReport.macOrphan) || [])
+        .map(r => r.nodeId).filter(Boolean));
+    // Presenza NON verificabile (subnet non raggiunta dalla Verifica): grigio "incerto",
+    // distinto dal rosso "assente confermato" (macOrphan). Bucket unverified del Drift.
+    const _unverifiedIds = new Set(((store._driftReport && store._driftReport.unverified) || [])
         .map(r => r.nodeId).filter(Boolean));
 
     store.state.nodes.forEach(n=>{
         const def=TYPES[n.type]; if(!def) return;
-        const _absentCls = (_absentIds.has(n.id) && n.snmpStatus!=='ok') ? ' node-absent' : '';
+        // Overlay presenza SOLO per i floor node (i rack device hanno già il LED SNMP):
+        // rosso = assente CONFERMATO (macOrphan, subnet sondata); grigio = NON
+        // verificabile (unverified, subnet non raggiunta). Chi ha poi risposto al
+        // Sync (snmpStatus 'ok') torna a colori pieni.
+        const _absentCls = n.snmpStatus==='ok' ? ''
+            : _absentIds.has(n.id) ? ' node-absent'
+            : _unverifiedIds.has(n.id) ? ' node-unverified' : '';
         // Se SNMP non è attivo per questo nodo, elimina eventuale stato errore
         // residuo per evitare bordi rossi "bloccati" dopo disattivazione driver.
         if(!_hasSnmpIntegration(n)){
@@ -233,7 +243,10 @@ function _renderAllNow(){
             const _lldpDisc=store._topoVisible&&store._topoData&&store._topoData.nodes.some(tn=>tn.nodeId===n.id);
             const _snmpOn=_hasSnmpIntegration(n);
             const _snmpStateCls = !_snmpOn ? ' snmp-na' : (n.snmpStatus==='ok' ? ' snmp-ok' : (n.snmpStatus==='err' ? ' snmp-err snmp-fault' : ' snmp-pending'));
-            el.className=`rack-device type-${n.type} ${store.selId===n.id?'selected':''}${_lldpDisc?' lldp-discovered':''}${_snmpStateCls}${_absentCls}`;
+            // NIENTE overlay presenza (rosso/grigio) sui rack device: nel rack lo stato
+            // è già dato dal LED SNMP (snmp-ok/err/pending). L'overlay assente/non-verificabile
+            // vive solo sui floor node, che il LED non ce l'hanno.
+            el.className=`rack-device type-${n.type} ${store.selId===n.id?'selected':''}${_lldpDisc?' lldp-discovered':''}${_snmpStateCls}`;
             const sU=n.sizeU!==undefined?n.sizeU:def.sizeU;
             const rackBg = _rackDeviceBg(n.color);
             el.style.gridRow=`${rs-n.rackU-sU+2}/span ${sU}`;
@@ -497,10 +510,15 @@ function _renderFloorNow(){
     const fI = document.getElementById('floor-items');
     if(!fS || !fI) return;
     fS.innerHTML = ''; fI.innerHTML = '';
-    // Stessa guardia presenza di _renderAllNow: i device assenti dall'ultima Verifica
-    // (macOrphan) restano grigi ANCHE su un render mirato del solo floor (es. resize
-    // struttura) — senza questo, un renderScope('floor') tornava a colorarli.
+    // Stessa guardia presenza di _renderAllNow: i device assenti (macOrphan → rosso)
+    // e non verificabili (unverified → grigio) restano evidenziati ANCHE su un render
+    // mirato del solo floor (es. resize struttura) — senza questo, un
+    // renderScope('floor') tornava a colorarli.
     const _absentIds = new Set(((store._driftReport && store._driftReport.macOrphan) || [])
+        .map(r => r.nodeId).filter(Boolean));
+    // Presenza NON verificabile (subnet non raggiunta dalla Verifica): grigio "incerto",
+    // distinto dal rosso "assente confermato" (macOrphan). Bucket unverified del Drift.
+    const _unverifiedIds = new Set(((store._driftReport && store._driftReport.unverified) || [])
         .map(r => r.nodeId).filter(Boolean));
     store.state.nodes.forEach(n => {
         const def = TYPES[n.type]; if(!def) return;
@@ -513,7 +531,13 @@ function _renderFloorNow(){
         // _renderAllNow → i due render non possono più derivare. `_absentCls` calcolato
         // qui (come in _renderAllNow); `if(!built) return` salta il nodo nascosto in
         // topologia (identico all'originale).
-        const _absentCls = (_absentIds.has(n.id) && n.snmpStatus!=='ok') ? ' node-absent' : '';
+        // Overlay presenza SOLO per i floor node (i rack device hanno già il LED SNMP):
+        // rosso = assente CONFERMATO (macOrphan, subnet sondata); grigio = NON
+        // verificabile (unverified, subnet non raggiunta). Chi ha poi risposto al
+        // Sync (snmpStatus 'ok') torna a colori pieni.
+        const _absentCls = n.snmpStatus==='ok' ? ''
+            : _absentIds.has(n.id) ? ' node-absent'
+            : _unverifiedIds.has(n.id) ? ' node-unverified' : '';
         const built = _buildFloorNodeEl(n, def, _absentCls);
         if(!built) return;
         (built.structural ? fS : fI).appendChild(built.el);

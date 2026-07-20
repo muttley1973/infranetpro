@@ -305,12 +305,13 @@
         .rack-device.snmp-pending { border-left-color:#d29922; }
         .rack-device.snmp-na { border-left-color:var(--inactive-color); }
         .rack-device.snmp-fault .rack-label { color:#f8a09a; }
-        /* Presenza: device risultati ASSENTI in rete nell'ultima Verifica
-           documentazione (bucket macOrphan del Drift) → attenuati ("grigio").
-           Restano cliccabili (per aprirli e correggere IP/stato). */
-        .floor-node.node-absent { opacity:0.4; filter:grayscale(0.9); }
-        .floor-node.node-absent.selected { opacity:0.72; }
-        .rack-device.node-absent { opacity:0.5; filter:grayscale(0.85); }
+        /* Presenza dopo la Verifica — SOLO floor node (i rack device hanno già il LED
+           SNMP snmp-ok/err). Entrambi restano cliccabili per correggere IP/stato:
+           - node-absent    = ASSENTE confermato (subnet sondata, nessun segnale) → ROSSO d'allerta;
+           - node-unverified = presenza NON verificabile (subnet non raggiunta)     → grigio "incerto". */
+        .floor-node.node-absent { box-shadow:0 0 0 2px var(--fault-color), 0 0 9px rgba(248,81,73,.55); }
+        .floor-node.node-unverified { opacity:0.4; filter:grayscale(0.9); }
+        .floor-node.node-unverified.selected { opacity:0.72; }
         /* Brand visibile solo per dispositivi a bassa densità (=8 porte) */
         /* .rack-brand rimosso: l'hostname e' ora un title HTML sul .rack-device
            (tooltip browser nativo al hover) e non occupa piu' spazio fisso a
