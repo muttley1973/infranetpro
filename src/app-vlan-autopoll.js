@@ -61,6 +61,7 @@ export function renderAutomationMenu(){
     const st=store.state;
     const ap=st.autoPoll||{enabled:false,interval:5};
     const ipr=!!st.autoIpRenew;
+    const lrh=!!st.leaseReleasedHint;   // opt-in: lease rilasciato → sfumatura "probabilmente scollegato"
     const dl=Array.isArray(store._dhcpLeases)?store._dhcpLeases:[];   // lease DHCP transitori in memoria
     const ivl=ap.interval||5;
     d.innerHTML = `
@@ -87,6 +88,14 @@ export function renderAutomationMenu(){
           </label>
         </div>
         <div class="autom-desc">${escapeHTML(t('autom.ipRenewDesc'))}</div>
+        <div class="autom-row" style="margin-top:11px">
+          <span class="autom-title"><i class="fas fa-plug-circle-xmark"></i>${escapeHTML(t('autom.leaseReleased'))}</span>
+          <label class="toggle-sw" data-tip="${escapeHTML(t('autom.leaseReleasedTip'))}">
+            <input type="checkbox" ${lrh?'checked':''} onchange="setLeaseReleasedHint(this.checked)">
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+        <div class="autom-desc">${escapeHTML(t('autom.leaseReleasedDesc'))}</div>
         <div class="autom-row" style="margin-top:11px">
           <span class="autom-title"><i class="fas fa-table-list"></i>${escapeHTML(t('dhcp.title'))}</span>
           <button class="toolbar-btn" style="padding:3px 9px;font-size:0.75rem" onclick="openDhcpImport()"><i class="fas fa-folder-open"></i> ${escapeHTML(t('dhcp.load'))}</button>

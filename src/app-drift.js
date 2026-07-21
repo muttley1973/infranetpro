@@ -123,6 +123,8 @@ export function _driftBuildSnmpSnapshot(docSnap, reachable, arpTable){
         reachable, arpTable, snmpArp, snmpNd,
         // Lease DHCP: fonte MAC→IP cross-VLAN (transitorio, store._dhcpLeases).
         leases: Array.isArray(store._dhcpLeases) ? store._dhcpLeases : [],
+        // Opt-in: un lease RILASCIATO annota la voce unverified "probabilmente scollegato" (mai rosso).
+        leaseReleasedHint: !!store.state.leaseReleasedHint,
         knownSigs: docSnap.deviceSigs,
         rejectedAutoLinks: state.rejectedAutoLinks || [],
         normMac: _driftNorm,
@@ -316,6 +318,15 @@ function setAutoIpRenew(on){
     markDirty();
     renderAutomationMenu();
 }
+// Toggle per-progetto (opt-in, OFF di default): un lease DHCP RILASCIATO annota il device
+// grigio come "probabilmente scollegato" (segnale debole, mai rosso — vedi lib/drift-snapshot
+// `leaseReleasedHint`). Come autoIpRenew, si applica alla PROSSIMA Verifica/Sync (il report
+// grezzo non viene ri-costruito qui: cambierebbe solo l'annotazione, non la classifica).
+function setLeaseReleasedHint(on){
+    store.state.leaseReleasedHint = !!on;
+    markDirty();
+    renderAutomationMenu();
+}
 // Toggle per-progetto: mostra i dispositivi utente/BYOD in chiaro invece di
 // collassarli nel gruppo grigio (controllo manuale puro). Default OFF = storico.
 function setDriftShowEndpoints(on){
@@ -415,7 +426,9 @@ function _driftRowHtml(cat, r){
         actions = `${upBtn}${ignBtn}${invBtn}`;
     } else if(cat === 'unverified'){
         const ipStr = r.ip ? ` · ${esc(r.ip)}` : '';
-        main = `<span class="drift-row-main">${esc(r.label || r.mac)}</span><span class="drift-row-sub">${esc(r.mac)}${ipStr} — ${t('drift.unverifiedSub')}</span>`;
+        // Sfumatura debole (opt-in): lease rilasciato → sotto-testo "probabilmente scollegato".
+        const subTxt = r.reason === 'leaseReleased' ? t('drift.unverifiedReleased') : t('drift.unverifiedSub');
+        main = `<span class="drift-row-main">${esc(r.label || r.mac)}</span><span class="drift-row-sub">${esc(r.mac)}${ipStr} — ${subTxt}</span>`;
         actions = `${ignBtn}${invBtn}`;
     } else { // consistent
         main = `<span class="drift-row-main">${esc(r.label)}</span>`;
@@ -576,7 +589,7 @@ export function _renderDriftReport(){
 // Lo stato `_driftReport` NON è qui: vive direttamente su window (store._driftReport).
 expose({
     runDriftCheck,
-    setAutoIpRenew, _driftAutoRenewIps,
+    setAutoIpRenew, setLeaseReleasedHint, _driftAutoRenewIps,
     _renderDriftReport,
     _driftBuildDocSnapshot, _driftBuildSnmpSnapshot, _driftComputeFromDoc,
     DRIFT_DOWN_STREAK_N,
