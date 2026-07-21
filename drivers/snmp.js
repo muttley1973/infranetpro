@@ -1178,8 +1178,16 @@ function extractData(vbs) {
       const st = ifaces[m.index] ? ifaces[m.index].lacpActorState : undefined;
       if (st == null) continue;
       const e = _lagLacp[li] || (_lagLacp[li] = { lacp: false, active: false });
-      if (st & 0x04) e.lacp = true;      // Aggregation → LACP in gestione
-      if (st & 0x01) e.active = true;    // Activity   → attivo
+      // SNMP-M1 (audit 2026-07-21, VERIFICATO dal vivo su Zyxel GS1900): etichetta la
+      // modalità LACP solo se LACP è davvero OPERATIVO — Aggregation(0x04) set E NON
+      // Defaulted(0x40) NÉ Expired(0x80). Una LAG STATICA (mode on) espone Aggregation ma
+      // con Defaulted+Expired perché LACP non negozia (il GS1900 ritorna 0xc4 su OGNI
+      // porta): senza queste guardie veniva etichettata "passive" a torto. Bit-order
+      // confermato LSB (0x01=Activity, 0x04=Aggregation): la decodifica MSB di 0xc4 è
+      // incoerente (distributing senza aggregation/sync). La MEMBERSHIP resta invariata
+      // (usa AttachedAggID .13, non questo byte).
+      if ((st & 0x04) && !(st & 0x40) && !(st & 0x80)) e.lacp = true;
+      if (st & 0x01) e.active = true;    // Activity → attivo (solo se LACP operativo, sopra)
     }
     for (const lag of lags) {
       const e = _lagLacp[lag.index];
