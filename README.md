@@ -538,6 +538,10 @@ InfraNet Pro is designed for a **trusted LAN, behind login**, bound to `127.0.0.
 - **Path-traversal-safe project IDs** — every `projectId` is coerced to a positive integer before touching the filesystem (guarded by `test/ai-route-security.test.js`).
 - **CSPRNG secrets** — the session secret and the first-run admin password are generated with `crypto.randomBytes` / `crypto.randomInt`, never `Math.random`.
 - **Cookies** — session cookies are `httpOnly` + `sameSite=strict`; set `INFRANET_TRUST_PROXY=1` behind a TLS reverse proxy to also flag them `secure` (HTTPS-only).
+- **SNMP secrets never reach a read-only viewer** — `GET /api/projects/:id` strips the community and v3 auth/priv passphrases from the project for any non-admin (viewers can't save, so the redaction is loss-free), so a read-only account can't lift the credentials to the backbone (`server/routes/projects.js`, guarded by `test/security-hardening.test.js`).
+- **The dev auth-bypass is fail-closed** — `INFRANET_DEV_NO_AUTH=1` (a preview convenience) is honoured **only** when the server is bound to loopback and `NODE_ENV` is not `production`; on a network-reachable bind it is ignored with a loud warning, so it can never silently disable auth in production (`auth.js`, guarded by `test/security-hardening.test.js`).
+- **Baseline HTTP security headers on every response** — `Content-Security-Policy` (self-hosted assets → `default-src 'self'` with `object-src 'none'`, `base-uri 'self'`, `frame-ancestors 'none'`; inline kept because the UI needs it), `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` (`server.js`).
+- **Skin CSS sanitized too** — beyond `<script>` / event handlers / external refs, `<style>` and `style=""` are stripped of external / `data:` / `javascript:` `url()` (local `url(#id)` kept), `expression()` and `@import`, and `vbscript:` is neutralised like `javascript:` (`lib/panel-skin.js`).
 
 > 🔐 Found a vulnerability? Please report it **privately** to the maintainer instead of opening a public issue.
 

@@ -48,8 +48,9 @@ Legend: ✅ verified on real hardware · 🧪 covered by a replay fixture ·
 | `SNMPv2-MIB` sys* | hostname, descr, location, contact, uptime | ✅🧪 | HP, Synology, Net-SNMP |
 | `IF-MIB` / `ifXTable` | interfaces (name, MAC, speed, status) | ✅ | many switches (real) |
 | `BRIDGE` / `Q-BRIDGE` | bridge ports, VLAN egress/untagged | ✅ | Cisco, Zyxel, Aruba (real) |
-| `IEEE 802.3ad` LAG | aggregators / member ports | ✅ | 3-level detection (real) |
-| `LLDP-MIB` / `CISCO-CDP` | neighbour topology | ✅ | real + sim |
+| `IEEE 802.3ad` LAG | aggregators / member ports | ✅ | 3-level detection (real); LACP mode labelled only when operational (not a static LAG) |
+| `LLDP-MIB` / `CISCO-CDP` | neighbour topology | ✅ | real + sim; local port name from `lldpLocPortDesc` (col `.4`) |
+| `MAU-MIB` (RFC 4836) | physical medium (copper/fibre/DAC) | 📐 | IANA `dot3MauType` registry; unknown code → `null` (no invented medium); no lab device exposed it yet |
 | `ENTITY-MIB` | hardware inventory (vendor/model/serial/fw) | ✅ | real |
 | `Printer-MIB` (RFC 3805) | toner/ink %, page count, status | ✅🧪 | HP OfficeJet (real); isolated read |
 | `HOST-RESOURCES` (RFC 2790) | CPU / RAM / disk | ✅🧪 | Synology (real); pseudo-fs filtered |
@@ -61,8 +62,12 @@ Legend: ✅ verified on real hardware · 🧪 covered by a replay fixture ·
 
 - **HP OfficeJet Pro 8715** — Printer-MIB (CMYK ink, 2939 pages, status). Captured →
   `test/fixtures/snmprec/hp-officejet-8715.snmprec`.
-- **Synology DSM (NAS)** — HOST-RESOURCES (4 cores, RAM 99%, /volume1, /). Captured →
-  `test/fixtures/snmprec/synology-dsm.snmprec`.
+- **Synology DSM (NAS)** — HOST-RESOURCES (4 cores, RAM 99%, /volume1, /); ND (IPv6) + ARP
+  neighbour tables. Captured → `test/fixtures/snmprec/synology-dsm.snmprec`.
+- **Zyxel GS1900-24** (2026-07-21, live) — IF-MIB, Q-BRIDGE, LLDP (clean local port
+  `GigabitEthernet23` via `.4`), IEEE 802.3ad LAG (static LAG1 = Gi3+Gi6, correctly *not*
+  labelled "passive" — see quirks below).
+- **MikroTik RouterOS CHR** (2026-07-21, live) — IF-MIB, LLDP (local port `ether2` → SW-CORE).
 - **Net-SNMP / Linux** — system group (public BSD snapshot).
 - Simulated profiles (Cisco/Juniper/Fortinet/Aruba/APC) via `tools/snmp-sim/network-sim.js`.
 
@@ -80,6 +85,12 @@ Legend: ✅ verified on real hardware · 🧪 covered by a replay fixture ·
   bind-mounts/subvolumes → filtered + de-duplicated.
 - **SNMPv3 without credentials**: a v3 agent answers a report on the engineID/USM
   handshake even with an empty user → used to *detect* v3 in discovery.
+- **Static LAG reports a bogus ActorState**: the Zyxel GS1900 returns
+  `dot3adAggPortActorOperState = 0xc4` (Aggregation **+ Defaulted + Expired**) on *every*
+  port, even for a non-LACP static LAG. We label the LACP mode (active/passive) only when
+  LACP is genuinely operational — Aggregation set **and** not Defaulted/Expired — so a
+  static LAG stays unlabelled instead of a false "passive". (The byte also confirmed the
+  bit-order is LSB per IEEE 802.1AX: the MSB decode of `0xc4` is incoherent.)
 
 ## Growing the corpus
 

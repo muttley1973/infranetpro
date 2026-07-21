@@ -365,13 +365,21 @@ report's per-device asset register is built from the same `nodeToDevice` DTO
 via `isStructuralCabling`), so no SNMP community or credential can reach the
 exported document; report chrome is
 localized it/en server-side while device data is emitted verbatim.) Binds to
-`127.0.0.1`. `users.json`,
+`127.0.0.1`. Every response carries **baseline security headers** — a `Content-Security-Policy`
+(self-hosted assets: `default-src 'self'`, `object-src 'none'`, `base-uri 'self'`,
+`frame-ancestors 'none'`; inline kept, since the UI needs it), `nosniff`, `X-Frame-Options: DENY`,
+`Referrer-Policy: no-referrer`. `GET /api/projects/:id` **redacts SNMP secrets** (community + v3
+passphrases) for a non-admin reader (viewers can't save → loss-free), and the
+`INFRANET_DEV_NO_AUTH` bypass is **fail-closed** (honoured only on a loopback bind, non-production).
+`users.json`,
 `.session-secret`, `api-tokens.json`, `data/ai-config.json`, `projects/` are
 git-ignored. A 2026-06 AppSec audit found **no critical issues**; a
-2026-07 follow-up audit (again no critical findings) closed the remaining highs
-(panel-skin XSS, auth test coverage, project-list robustness) and the whole surface —
-including the auth flow — is covered by regression tests (`test/ai-context.test.js`,
-`test/ai-route-security.test.js`, `test/auth-api.test.js`, `test/panel-skin.test.js`). Do **not** expose the instance to the public
+2026-07 follow-up (again no critical) closed the remaining highs (panel-skin XSS, auth
+test coverage, project-list robustness); a third **2026-07-21 six-domain audit** (zero
+critical, avg 7.8/10) closed 8 highs (all ② no-invention) + 15 mediums, the SNMP layer
+live-verified on real hardware. The whole surface — including the auth flow — is covered
+by regression tests (`test/ai-context.test.js`,
+`test/ai-route-security.test.js`, `test/auth-api.test.js`, `test/panel-skin.test.js`, `test/security-hardening.test.js`). Do **not** expose the instance to the public
 internet — it is a network scanner with command execution; the right access model
 is VPN/LAN.
 
