@@ -15,6 +15,7 @@ import { _findPortByIfName } from './app-topology-discover.js';   // ritiro pont
 import { applyPollResult } from './app-snmp.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { _vlansToRangeStr } from './app-vlan-autopoll.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { materializeTopologyNodes } from './app-topology-rebuild.js';   // materializza i nodi mancanti (gateway annunciato + switch inferito) col poll già raccolto
+import { pickBestIp6, canonicalizeIpv6 } from '../lib/ipv6.js';   // ND discovery: scelta ip6 rappresentativo (bundlato ESM, come app.js — NON un globale su window)
 // ============================================================
 // AUTO-LINK DISCOVERY — algoritmo multi-layer trasparente
 //
@@ -715,6 +716,22 @@ async function _autoDiscoverLinks(nodeIds){
         }
         store._topoArpCache[n.id] = arpDev;
         diag.arpEntries += Object.keys(arpTableRaw).length;
+
+        // ND discovery (presenza onesta cross-subnet, gemella dell'ARP sopra ma IPv6):
+        // i vicini ND di questo router/switch L3 (ipNetToPhysicalTable, data.ndTable
+        // = { mac -> [ip6…] }) provano che quei MAC sono VIVI dietro di lui → verdi
+        // cross-subnet SENZA pingarli, anche IPv6-only. Riduco a MAC→ip6 rappresentativo
+        // (pickBestIp6 = preferisci global/ULA; fallback al 1° canonico così un vicino
+        // solo link-local conta comunque come "MAC vivo") e normalizzo le chiavi MAC
+        // con lo STESSO _normalizeFdbTable del ramo ARP, così combaciano coi MAC
+        // documentati. La passata di presenza consuma questo SOLO come observedMacs.
+        const ndDev = {};
+        for(const [mac, list] of Object.entries((data.ndTable && typeof data.ndTable === 'object') ? data.ndTable : {})){
+            if(!Array.isArray(list) || !list.length) continue;
+            ndDev[mac] = pickBestIp6(list) || canonicalizeIpv6(list[0]) || '';
+        }
+        store._topoNdCache[n.id] = win._normalizeFdbTable(ndDev);
+        diag.ndEntries = (diag.ndEntries || 0) + Object.keys(ndDev).length;
 
         // Backfill ifName VENDOR-NEUTRAL (manual-first): allinea la porta DOCUMENTATA
         // all'interfaccia reale usando il vicino LLDP/CDP come segnale AUTOREVOLE, non

@@ -270,6 +270,56 @@ test('round-trip Fase 2: router ARP con IP DIVERSO dal documentato → ipChanged
   assert.equal(r.ipChanged[0].newIp, '10.20.0.77');
 });
 
+// ── ND discovery: Neighbor Discovery IPv6 (snmpNd) come presenza VIVA cross-subnet ──
+test('snmpSnap: snmpNd → SOLO observedMacs (presenza); NON macAtIp, NON observedSubnets', () => {
+  const s = buildSnmpSnapshot({
+    nodes: [],
+    snmpNd: { 'aa:aa:aa:00:00:01': '2001:db8:20::5', 'bb:bb:bb:00:00:02': 'fd00:9::9' },
+  });
+  assert.ok(s.observedMacs.includes('aa:aa:aa:00:00:01'), 'il vicino ND è "visto in rete" → presente');
+  assert.ok(s.observedMacs.includes('bb:bb:bb:00:00:02'));
+  assert.ok(!s.macAtIp['aa:aa:aa:00:00:01'], 'ND presence-only: NON alimenta macAtIp (no cambio-IP cross-family)');
+  assert.deepEqual(s.macAtIps['aa:aa:aa:00:00:01'] || null, null, 'ND NON alimenta macAtIps');
+  assert.deepEqual(s.observedSubnets, [], 'un /64 IPv6 non è una /24 → observedSubnets resta inerte');
+});
+
+test('round-trip ND: device cross-subnet visto SOLO dal Neighbor Discovery del router → VERDE', () => {
+  const nodes = [
+    { id: 'core', name: 'CORE', type: 'router', mac: 'aa:aa:aa:00:00:01', ip: '10.0.0.1', snmpStatus: 'ok', integration: { host: '10.0.0.1' } },
+    { id: 'srv6', name: 'SRV-V6', type: 'server', mac: 'ee:ee:ee:00:00:05', ip6: '2001:db8:20::50' },  // dietro il router, IPv6, mai in ARP/FDB
+  ];
+  const model = { nodes, links: [], ports: {}, portLabel: p => p, nodeLabel: n => n.name || n.id, cableLabel: l => l.id, normMac: lower, isPassiveNoIp: () => false };
+  const doc = buildDocSnapshot(model);
+  const snmp = buildSnmpSnapshot({
+    nodes, docPorts: {}, ports: {}, fdb: { core: { 'aa:aa:aa:00:00:01': 'Gi0/0' } }, vlanCache: {},
+    reachable: null, arpTable: null, leases: [], knownSigs: [], rejectedAutoLinks: [], normMac: lower,
+    isVirtualMac: () => false, isRandomizedMac: () => false, isLeaseStale: () => false, countMacsPerPort: () => ({}),
+    snmpNd: { 'ee:ee:ee:00:00:05': '2001:db8:20::50' },   // il server IPv6 è visto SOLO dall'ND del router
+  });
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.macOrphan, 0, 'il vicino ND NON è assente');
+  assert.equal(r.counts.unverified, 0, 'e NON è "non-verificabile": l\'ND prova che è vivo');
+});
+
+test('round-trip ND: nodo IPv4-documentato con MAC visto SOLO nell\'ND → NIENTE falso ipChanged (cross-family)', () => {
+  const nodes = [
+    { id: 'core', name: 'CORE', type: 'router', mac: 'aa:aa:aa:00:00:01', ip: '10.0.0.1', snmpStatus: 'ok', integration: { host: '10.0.0.1' } },
+    { id: 'nas',  name: 'NAS', type: 'nas', mac: 'ff:ff:ff:00:00:06', ip: '10.20.0.60' },  // documentato con IPv4
+  ];
+  const model = { nodes, links: [], ports: {}, portLabel: p => p, nodeLabel: n => n.name || n.id, cableLabel: l => l.id, normMac: lower, isPassiveNoIp: () => false };
+  const doc = buildDocSnapshot(model);
+  const snmp = buildSnmpSnapshot({
+    nodes, docPorts: {}, ports: {}, fdb: { core: { 'aa:aa:aa:00:00:01': 'Gi0/0' } }, vlanCache: {},
+    reachable: null, arpTable: null, leases: [], knownSigs: [], rejectedAutoLinks: [], normMac: lower,
+    isVirtualMac: () => false, isRandomizedMac: () => false, isLeaseStale: () => false, countMacsPerPort: () => ({}),
+    snmpNd: { 'ff:ff:ff:00:00:06': '2001:db8:20::60' },   // stesso MAC visto dall'ND a un IPv6 (≠ IPv4 documentato)
+  });
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.ipChanged, 0, 'l\'IPv6 di ND NON deve marcare "cambio IP" contro un IPv4 documentato');
+  assert.equal(r.counts.macOrphan, 0, 'ed è comunque presente (verde) via observedMacs');
+  assert.equal(r.counts.unverified, 0);
+});
+
 // ── round-trip: snapshot puri → buildDriftReport ────────────────────
 test('round-trip: doc==realtà → 0 finding; cambio VLAN porta → stateDrift', () => {
   const nodes = [
