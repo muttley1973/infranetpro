@@ -59,6 +59,9 @@ Where the line is actually held (not exhaustive — grep `manual-first`):
   over any classifier output.
 - **IP auto-renew is opt-in** — `state.autoIpRenew` defaults OFF; even when on it
   only changes IPs whose `ipManual` is falsy.
+- **Released-lease hint is opt-in** — `state.leaseReleasedHint` defaults OFF; even when
+  on, a released DHCP lease only *annotates* a grey device as "likely disconnected"
+  (never promotes it to red), and only from `released` state, never from lease expiry.
 - **macsuck edge is a hint, not a cable** — a located MAC renders a badge; it does
   not auto-create a link.
 
