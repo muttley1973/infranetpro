@@ -68,10 +68,16 @@ test('arp: rifinitura DHCP — MAC nel lease -> hostname + confidenza + reason',
   assert.ok((r.reasonCodes||[]).includes('dhcp-lease'));
 });
 
-test('arp: match DHCP anche per IP quando il MAC non combacia', () => {
+test('arp: match DHCP per IP SOLO se il MAC non contraddice (DISC-M1)', () => {
+  // Stesso IP ma MAC DIVERSO fra ARP osservato e lease → device diverso (lease stantio
+  // o di un altro host): NON adottare l'hostname del lease (② no-invenzioni).
   run(APP.ctx, `window._dhcpLeases = [{ mac:'aa:aa:aa:aa:aa:aa', ip:'10.10.10.100', hostname:'PC1-byip' }];`);
-  const r = JSON.parse(run(APP.ctx, `JSON.stringify(_discArpRow({ ip:'10.10.10.100', mac:'00:50:79:66:68:23' }))`));
-  assert.equal(r.hostname, 'PC1-byip', 'fallback su match per IP');
+  const mismatch = JSON.parse(run(APP.ctx, `JSON.stringify(_discArpRow({ ip:'10.10.10.100', mac:'00:50:79:66:68:23' }))`));
+  assert.ok(!mismatch.hostname, 'MAC discordante sullo stesso IP → nessun hostname adottato');
+  assert.ok(!mismatch._dhcpMatched);
+  // Riga SENZA MAC osservato (solo ping/IP): il match per IP resta lecito.
+  const noMac = JSON.parse(run(APP.ctx, `JSON.stringify(_discArpRow({ ip:'10.10.10.100' }))`));
+  assert.equal(noMac.hostname, 'PC1-byip', 'senza MAC osservato il match per IP è ammesso');
 });
 
 test('arp: nessun lease corrispondente -> nessun hostname inventato (no-invenzioni)', () => {

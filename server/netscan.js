@@ -369,12 +369,20 @@ function _httpProbe(ip, secure, timeoutMs) {
       timeout: timeoutMs,
       headers: { 'User-Agent': 'InfranetPro/1.0' },
     }, res => {
-      let raw = '';
-      res.on('data', d => { if (raw.length < 4096) raw += d.toString('utf8'); });
-      res.on('end', () => {
+      let raw = '', done = false;
+      // DISC-M3 (audit 2026-07-21): il <title> è in <head>, entro i primi 4KB. Alla
+      // soglia CHIUDI la connessione (req.destroy) invece di continuare a scaricare
+      // (e scartare) tutto il body — evita di drenare risposte grandi per niente.
+      const settle = () => {
+        if (done) return; done = true;
         const title = _extractTitle(raw) || String(res.headers.server || '').trim();
         resolve(title || '');
+      };
+      res.on('data', d => {
+        if (raw.length < 4096) raw += d.toString('utf8');
+        if (raw.length >= 4096) { req.destroy(); settle(); }
       });
+      res.on('end', settle);
     });
     req.on('timeout', () => { req.destroy(); resolve(''); });
     req.on('error', () => resolve(''));

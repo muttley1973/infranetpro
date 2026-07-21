@@ -58,6 +58,35 @@ test('sanitize: SVG pulito non viene toccato', () => {
   assert.equal(r.svg, OK_SVG);
 });
 
+// ---- sanitize: CSS injection (SEC-M4, audit 2026-07-21) -----------------
+
+test('sanitize: url() esterno / data: in <style> viene neutralizzato, url(#local) resta', () => {
+  const r = PS.sanitizeSvg(`<svg><style>.p{fill:url(#grad);background:url(http://evil/x.png)}</style><rect id="port-1"/></svg>`);
+  assert.ok(r.removed.includes('css-url'), 'url() esterno segnalato');
+  assert.ok(!/url\(\s*http/i.test(r.svg), 'url(http://…) rimosso');
+  assert.ok(/url\(#grad\)/.test(r.svg), 'url(#grad) locale preservato (gradient SVG lecito)');
+});
+
+test('sanitize: url(javascript:) in style="" neutralizzato', () => {
+  const r = PS.sanitizeSvg(`<svg><rect id="port-1" style="fill:url(javascript:alert(1))"/></svg>`);
+  assert.ok(r.removed.includes('css-url'));
+  assert.ok(!/javascript:/i.test(r.svg));
+});
+
+test('sanitize: expression() e @import CSS neutralizzati', () => {
+  const r = PS.sanitizeSvg(`<svg><style>@import "http://evil/x.css"; .p{width:expression(alert(1))}</style><rect id="port-1"/></svg>`);
+  assert.ok(r.removed.includes('css-import'));
+  assert.ok(r.removed.includes('css-expression'));
+  assert.ok(!/@import/i.test(r.svg));
+  assert.ok(!/expression\s*\(/i.test(r.svg));
+});
+
+test('sanitize: vbscript: URI neutralizzato (parallelo a javascript:)', () => {
+  const r = PS.sanitizeSvg(`<svg><a href="vbscript:msgbox(1)"><rect id="port-1"/></a></svg>`);
+  assert.ok(r.removed.includes('vbscript-uri'));
+  assert.ok(!/vbscript:/i.test(r.svg));
+});
+
 // ---- sanitize: vettori di bypass che PRIMA passavano (A1) ---------------
 
 test('sanitize: handler on* NON quotato (onerror=alert(1))', () => {
