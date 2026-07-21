@@ -252,8 +252,8 @@ The signals are assembled in `lib/drift-snapshot.js` (`buildSnmpSnapshot`: `pres
 `trustAbsentNodeIds`, `macAtIp`, `snmpArp`, `snmpNd`) and decided in `lib/drift-report.js`;
 a stale DHCP lease is deliberately never a red signal (imported old files would mass-flag),
 and `snmpNd` is presence-only (never IP-change, to avoid a cross-family false positive). An
-**opt-in** setting (off by default, in Network automations) additionally annotates a grey
-device whose DHCP lease is **released** (the device sent DHCPRELEASE) as "likely disconnected"
+**opt-in** setting (off by default, in the DHCP lease import panel) additionally annotates
+a grey device whose DHCP lease is **released** (the device sent DHCPRELEASE) as "likely disconnected"
 (`releasedMacs`) — a weak hint that stays grey, never red, and only from `released` state
 (never from lease expiry).
 
