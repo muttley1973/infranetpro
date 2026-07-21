@@ -320,6 +320,57 @@ test('round-trip ND: nodo IPv4-documentato con MAC visto SOLO nell\'ND → NIENT
   assert.equal(r.counts.unverified, 0);
 });
 
+// ── Lease RILASCIATO (opt-in) come sfumatura DEBOLE — mai rosso, mai da expiry ──
+test('snmpSnap: leaseReleasedHint → releasedMacs SOLO per state=released (mai expired), vuoto se opt-in OFF', () => {
+  const leases = [
+    { mac: 'AA:AA:AA:00:00:01', ip: '10.0.0.5', state: 'released', hostname: 'pc1' },
+    { mac: 'BB:BB:BB:00:00:02', ip: '10.0.0.6', state: 'expired' },   // scaduto (timer): MAI sfumatura
+    { mac: 'CC:CC:CC:00:00:03', ip: '10.0.0.7', state: 'active' },     // vivo
+  ];
+  const base = { nodes: [], leases, normMac: lower, isLeaseStale: l => l.state === 'released' || l.state === 'expired', leaseSeenLabel: (ip, hn) => `${ip} ${hn || ''}`.trim() };
+  const off = buildSnmpSnapshot(base);
+  assert.deepEqual(off.releasedMacs, {}, 'opt-in OFF → nessuna sfumatura');
+  const on = buildSnmpSnapshot(Object.assign({}, base, { leaseReleasedHint: true }));
+  assert.deepEqual(Object.keys(on.releasedMacs), ['aa:aa:aa:00:00:01'], 'SOLO il lease rilasciato (non lo scaduto né l\'attivo)');
+  assert.equal(on.releasedMacs['aa:aa:aa:00:00:01'].ip, '10.0.0.5');
+  assert.equal(on.releasedMacs['aa:aa:aa:00:00:01'].hostname, 'pc1');
+  assert.ok(!on.macAtIp['aa:aa:aa:00:00:01'], 'il rilasciato NON dà presenza (resta fuori da macAtIp)');
+  assert.ok(on.macAtIp['cc:cc:cc:00:00:03'], 'l\'attivo sì');
+});
+
+test('round-trip released: device grigio con lease rilasciato → unverified reason=leaseReleased, MAI rosso', () => {
+  const nodes = [{ id: 'pc1', name: 'PC1', type: 'pc', mac: 'aa:aa:aa:00:00:01', ip: '10.0.0.5' }];
+  const model = { nodes, links: [], ports: {}, portLabel: p => p, nodeLabel: n => n.name || n.id, cableLabel: l => l.id, normMac: lower, isPassiveNoIp: () => false };
+  const doc = buildDocSnapshot(model);
+  const snmp = buildSnmpSnapshot({
+    nodes, docPorts: {}, ports: {}, fdb: { sw: { 'zz:zz:zz:00:00:09': 'Gi0/0' } }, vlanCache: {},  // osservabilità presente
+    reachable: null, arpTable: null, normMac: lower,
+    isVirtualMac: () => false, isRandomizedMac: () => false, isLeaseStale: l => l.state === 'released', countMacsPerPort: () => ({}),
+    leases: [{ mac: 'AA:AA:AA:00:00:01', ip: '10.0.0.5', state: 'released', hostname: 'pc1' }],
+    leaseReleasedHint: true, leaseSeenLabel: (ip) => `${ip}`,
+  });
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.macOrphan, 0, 'MAI rosso: il rilascio è un indizio, non una prova');
+  assert.equal(r.counts.unverified, 1, 'resta grigio "non verificabile"');
+  assert.equal(r.unverified[0].reason, 'leaseReleased', 'con la sfumatura "probabilmente scollegato"');
+});
+
+test('round-trip released: un segnale positivo (FDB) VINCE sul lease rilasciato → verde, niente sfumatura', () => {
+  const nodes = [{ id: 'pc1', name: 'PC1', type: 'pc', mac: 'aa:aa:aa:00:00:01', ip: '10.0.0.5' }];
+  const model = { nodes, links: [], ports: {}, portLabel: p => p, nodeLabel: n => n.name || n.id, cableLabel: l => l.id, normMac: lower, isPassiveNoIp: () => false };
+  const doc = buildDocSnapshot(model);
+  const snmp = buildSnmpSnapshot({
+    nodes, docPorts: {}, ports: {}, fdb: { sw: { 'aa:aa:aa:00:00:01': 'Gi0/1' } }, vlanCache: {},  // il PC è vivo nell'FDB
+    reachable: null, arpTable: null, normMac: lower,
+    isVirtualMac: () => false, isRandomizedMac: () => false, isLeaseStale: l => l.state === 'released', countMacsPerPort: () => ({}),
+    leases: [{ mac: 'AA:AA:AA:00:00:01', ip: '10.0.0.5', state: 'released', hostname: 'pc1' }],
+    leaseReleasedHint: true, leaseSeenLabel: (ip) => `${ip}`,
+  });
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.unverified, 0, 'visto vivo nell\'FDB → verde, il lease rilasciato è irrilevante');
+  assert.equal(r.counts.macOrphan, 0);
+});
+
 // ── round-trip: snapshot puri → buildDriftReport ────────────────────
 test('round-trip: doc==realtà → 0 finding; cambio VLAN porta → stateDrift', () => {
   const nodes = [
