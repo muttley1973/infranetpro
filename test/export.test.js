@@ -158,6 +158,34 @@ test('export: _buildFloorSVG — SVG valido con i device del floor', () => {
   assert.ok(r.noCdnImport, 'in pdfMode niente @import CDN (rompe il parser CSS di svg-to-pdfkit)');
 });
 
+test('export: _buildFloorSVG — colore per PRESENZA come a schermo (FE-M1)', () => {
+  const out = run(APP.ctx, `(() => {
+    try {
+      ${SETUP}
+      nodeById('tel').snmpStatus = 'ok';   // in macOrphan MA vivo → present (guardia)
+      window._driftReport = { macOrphan:[{nodeId:'pc'},{nodeId:'tel'}], unverified:[{nodeId:'ap'}],
+                              undocumented:[], stateDrift:[], ghostCable:[] };
+      const svg = _exportInternals._buildFloorSVG({ pdfMode:true });
+      const info = (x,y) => { const i = svg.indexOf('translate('+x+','+y+')'); if(i<0) return null;
+        const seg = svg.slice(i, i+400);
+        return { op:(seg.match(/opacity="([\\d.]+)"/)||[])[1], stroke:(seg.match(/stroke="(#[0-9a-fA-F]+)"/)||[])[1] }; };
+      return JSON.stringify({ ok:true,
+        pc: info(200,200),   // assente (macOrphan) → rosso
+        ap: info(400,100),   // non verificabile (unverified) → grigio + attenuato
+        tel: info(300,100),  // snmpStatus ok anche se in macOrphan → present
+      });
+    } catch(e){ return JSON.stringify({ ok:false, err:String(e&&e.stack||e) }); }
+  })()`);
+  const r = JSON.parse(out);
+  assert.ok(r.ok, 'FE-M1 lancia: ' + r.err);
+  assert.equal(r.pc.stroke, '#f85149', 'device ASSENTE (macOrphan) → bordo rosso, come "assente" a schermo');
+  assert.equal(r.pc.op, '1', 'assente resta pieno (anello rosso di allerta)');
+  assert.equal(r.ap.stroke, '#6e7681', 'device NON verificabile (unverified) → bordo grigio');
+  assert.equal(r.ap.op, '0.45', 'non verificabile attenuato (come .node-unverified)');
+  assert.equal(r.tel.op, '1', 'snmpStatus ok → present (guardia): pieno');
+  assert.notEqual(r.tel.stroke, '#f85149', 'un device risincronizzato NON è rosso anche se era in macOrphan');
+});
+
 test('export: _buildRackSVG — rack con device attivi E passivi (cablemanager incluso)', () => {
   const out = run(APP.ctx, `(() => {
     try {
