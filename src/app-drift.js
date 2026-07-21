@@ -191,7 +191,7 @@ async function runDriftCheck(){
     if(btn){ btn.disabled = true; btn.dataset._lbl = btn.innerHTML; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
     try {
         const docSnap = _driftBuildDocSnapshot();      // PRIMA del sync (i campi base verranno sovrascritti)
-        if(hasSnmp) await win.pollAllSNMP();             // riuso, immutato; saltato se solo-lease
+        if(hasSnmp) await win.pollAllSNMP({ deferPresence:false }); // no ricalcolo presenza differito: la Verifica fa già il compute completo con sweep (evita doppio streak — DRIFT-A1)
         const sweep = await _driftReachabilitySweep();  // presenza multi-segnale (ping/ARP/TCP) + tabella ARP
         _driftComputeFromDoc(docSnap, sweep || {});     // streaks + snapshot realtà + buildDriftReport
         _driftAutoRenewIps();                           // opt-in: rinnova IP dei MAC noti (DHCP)

@@ -135,3 +135,42 @@ test('F5: il gateway stesso continua a matchare per il suo IP (non lo perdiamo)'
   })()`);
   assert.equal(nodeId, 'gw', 'il gateway matcha per il proprio IP (il suo MAC bloccato non lo esclude)');
 });
+
+// ── DISC-A1 — la guardia copre la SCRITTURA di node.mac, non solo il match ─────
+// Un MAC di next-hop (gateway/proxy-ARP/VRRP) non deve MAI diventare l'identità di
+// un endpoint: prima la guardia agiva solo in _discFindExistingDevice (match), ma
+// _discTouchNodeIdentity + la creazione del nodo lo scrivevano comunque su node.mac.
+
+test('DISC-A1: _discTouchNodeIdentity NON adotta un MAC di next-hop come node.mac', () => {
+  const r = JSON.parse(run(APP.ctx, `(() => {
+    const idx = { gatewayMacs:new Set(['AA:BB:CC:00:00:99']), sharedMacs:null };
+    const endpoint = { id:'pc1', type:'pc', ip:'10.2.0.50' };   // senza mac
+    // L'ARP dell'endpoint remoto ha risposto col MAC del firewall (proxy-ARP).
+    _discTouchNodeIdentity(endpoint, { ip:'10.2.0.50', mac:'aa:bb:cc:00:00:99' }, 'ip', idx);
+    return JSON.stringify({ mac: endpoint.mac || '' });
+  })()`));
+  assert.equal(r.mac, '', 'il MAC del gateway non viene scritto come identità dell\'endpoint');
+});
+
+test('DISC-A1: _discTouchNodeIdentity adotta un MAC endpoint reale (nessuna regressione)', () => {
+  const r = JSON.parse(run(APP.ctx, `(() => {
+    const idx = { gatewayMacs:new Set(['AA:BB:CC:00:00:99']), sharedMacs:null };
+    const endpoint = { id:'pc2', type:'pc', ip:'10.2.0.51' };
+    _discTouchNodeIdentity(endpoint, { ip:'10.2.0.51', mac:'de:ad:be:ef:00:51' }, 'ip', idx);
+    return JSON.stringify({ mac: endpoint.mac || '' });
+  })()`));
+  assert.equal(r.mac, 'DE:AD:BE:EF:00:51', 'un MAC reale non-gateway resta l\'identità del nodo');
+});
+
+test('DISC-A1: _discMacIsNextHop riconosce gateway e condivisi; falso senza idx', () => {
+  const r = JSON.parse(run(APP.ctx, `JSON.stringify({
+    gw:     _discMacIsNextHop('aa:bb:cc:00:00:99', { gatewayMacs:new Set(['AA:BB:CC:00:00:99']) }),
+    shared: _discMacIsNextHop('aa:bb:cc:00:00:01', { sharedMacs:new Set(['AA:BB:CC:00:00:01']) }),
+    normal: _discMacIsNextHop('de:ad:be:ef:00:51', { gatewayMacs:new Set(['AA:BB:CC:00:00:99']) }),
+    noIdx:  _discMacIsNextHop('aa:bb:cc:00:00:99', null),
+  })`));
+  assert.equal(r.gw, true);
+  assert.equal(r.shared, true);
+  assert.equal(r.normal, false);
+  assert.equal(r.noIdx, false, 'senza guardie attaccate nessun MAC è bloccato (comportamento invariato)');
+});

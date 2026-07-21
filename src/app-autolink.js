@@ -349,7 +349,14 @@ function _resolveEndpointSwitchPort(node){
         return { ok:false, reason:'port-uplink', swId:best.swId, ifName:best.ifName, swPid:best.swPid, macsOnPort:best.macsOnPort };
     }
 
-    const conf = best.score >= 6 ? 0.92 : best.score >= 4 ? 0.88 : 0.84;
+    // Confidence GRADUATA per MAC sulla porta, allineata a correlate.js e a
+    // _buildFdbCandidates (1→0.85, 2→0.80 daisy-chain, 3-4→0.68 "sospetto mini-switch",
+    // sotto la soglia auto-crea 0.80). Prima era 0.92 piatto: una porta con 3-4 MAC
+    // (possibile mini-switch/hub/segmento condiviso) veniva auto-collegata ad alta
+    // confidenza e — nel candidate-set a max-confidence — scavalcava il ramo server più
+    // prudente, vincendo la dedup. L2L3-A2, audit 2026-07-21. Lo `score` resta per il
+    // ranking/ambiguità fra candidati (sopra); qui esce solo la confidenza onesta.
+    const conf = best.macsOnPort <= 1 ? 0.85 : best.macsOnPort === 2 ? 0.80 : 0.68;
     return { ok:true, swId:best.swId, ifName:best.ifName, swPid:best.swPid, confidence:conf };
 }
 
@@ -783,7 +790,29 @@ async function _autoDiscoverLinks(nodeIds){
         // Layer 1+2: LLDP/CDP — usa i candidati già calcolati dal server se disponibili,
         // altrimenti esegue il matching client-side (fallback, comportamento precedente).
         if(Array.isArray(data.suggestedLinks) && data.suggestedLinks.length > 0){
+            // L2L3-A1: i candidati ENDPOINT via FDB/ARP calcolati dal server non conoscono
+            // le porte di transito (il server non riceve isTrunk/sharedSegmentRole/lagGroup
+            // né i link documentati). Applica QUI la stessa esclusione del resolver client
+            // (_isTransitPort): un endpoint/VM non sta MAI su una porta trunk/uplink/LAG.
+            // I link INFRASTRUTTURALI (LLDP/CDP/MAC-UPLINK) restano intatti: un uplink STA
+            // sul trunk. Senza questo filtro un endpoint finiva cablato su un trunk
+            // "tranquillo" e generava churn prune/ricrea nello stesso Sync. Audit 2026-07-21.
+            const _epProto = p => (p === 'MAC' || p === 'ARP-MAC' || p === 'MAC+ARP');
+            const _slHitsTransit = sl => {
+                if(!_epProto(String(sl.protocol || ''))) return false;
+                for(const pid of [sl.src, sl.dst]){
+                    if(!pid) continue;
+                    const nid = _portNodeId(pid);
+                    const nd = nid ? nodeById(nid) : null;
+                    if(nd && !_isLeafEndpoint(nd.type) && _isTransitPort(pid, nid)) return true;
+                }
+                return false;
+            };
             for(const sl of data.suggestedLinks){
+                if(_slHitsTransit(sl)){
+                    diag.endpointReasons['port-trunk'] = (diag.endpointReasons['port-trunk'] || 0) + 1;
+                    continue;
+                }
                 addCandidate(sl.src, sl.dst, sl.confidence, sl.protocol);
             }
         } else {

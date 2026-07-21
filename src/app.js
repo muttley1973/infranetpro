@@ -1,4 +1,4 @@
-import { win, expose, t } from './_bridge.js';
+import { win, expose, t, mergeLeaseSources } from './_bridge.js';
 // lib PURA e STATELESS: import ESM diretto (meta ASSE A) invece di win.* (il ponte
 // è al floor 268). Non è registrata come <script>, quindi la regola "non importare
 // un lib-<script>" (motivata dallo STATO, es. i18n) non si applica: qui è tutto
@@ -532,21 +532,13 @@ function _sanitizeProjectConnectivity(s){
 
 // ── Lease DHCP: unione delle FONTI persistite → set unico per il motore ──────
 // Le fonti (state.dhcpSources, una per DHCP server) sono la verità persistita; il
-// motore Verifica legge un set UNITO e dedup per-MAC (scadenza più recente vince)
-// tramite store._dhcpLeases, cache derivata. Identità = MAC (come lib/dhcp-lease.js).
+// motore Verifica legge un set UNITO e dedup per-MAC tramite store._dhcpLeases (cache
+// derivata). Delega a mergeLeaseSources (lib/dhcp-lease.js): UN'UNICA autorità di
+// ranking (_leaseRank) condivisa col dedup intra-fonte. Prima questa copia usava
+// `expiry?Date.parse:0` e reintroduceva cross-fonte il bug S2.2 (la riserva statica a
+// expiry infinito perdeva contro un lease datato/scaduto) — DRIFT-A3, audit 2026-07-21.
 export function _dhcpMergeSources(sources) {
-    const byMac = new Map();
-    for (const src of (Array.isArray(sources) ? sources : [])) {
-        for (const l of ((src && Array.isArray(src.leases)) ? src.leases : [])) {
-            if (!l || !l.mac) continue;
-            const prev = byMac.get(l.mac);
-            if (!prev) { byMac.set(l.mac, l); continue; }
-            const a = prev.expiry ? Date.parse(prev.expiry) : 0;
-            const b = l.expiry ? Date.parse(l.expiry) : 0;
-            if (b >= a) byMac.set(l.mac, l);
-        }
-    }
-    return [...byMac.values()];
+    return mergeLeaseSources(sources);
 }
 // Ricalcola la cache derivata dal valore CORRENTE di store.state.dhcpSources.
 // La chiamano l'overlay «Lease DHCP» dopo ogni mutazione (_migrateState lo fa al load).

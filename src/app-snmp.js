@@ -282,6 +282,12 @@ async function pollSNMP(nodeId){
 async function pollAllSNMP(opts){
     if(store._snmpSyncing) return;
     const dataOnly = !!(opts && opts.dataOnly);
+    // deferPresence: schedula il ricalcolo presenza differito (grigio device assenti)
+    // dopo il Sync standalone. La Verifica (runDriftCheck) lo DISATTIVA perché fa già
+    // un compute completo CON sweep subito dopo: senza questa guardia i due compute
+    // girano entrambi e _driftUpdateStreaks incrementa downStreak di +2 per Verifica
+    // (soglia rosso di fatto dimezzata) — DRIFT-A1, audit 2026-07-21.
+    const deferPresence = !(opts && opts.deferPresence === false);
     // Raccoglie SOLO i nodi con driver SNMP (snmp-v1/v2c/v3) e host/IP configurato:
     // niente poll su device senza integrazione SNMP.
     const targets=store.state.nodes.filter(n=>{
@@ -401,7 +407,7 @@ async function pollAllSNMP(opts){
     // serve solo a far ingrigire i device assenti (.node-absent) anche dopo un Sync.
     // Deferito (off critical-path) + render per applicare il grigio. La guardia
     // observability in buildDriftReport evita falsi "assenti" se manca l'FDB.
-    if(_presenceDoc){
+    if(_presenceDoc && deferPresence){
         setTimeout(()=>{ try{ _driftComputeFromDoc(_presenceDoc); renderAll(); }catch(_){} }, 0);
     }
 

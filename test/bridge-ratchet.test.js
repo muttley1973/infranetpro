@@ -596,7 +596,14 @@ test('ponte: la coda funzioni A batch 2 non è più letta da win.*', () => {
 // forma-MAC per combaciare coi documentati). Gli helper ip6 (pickBestIp6/canonicalizeIpv6)
 // sono import ESM (0 letture ponte). Aumento MOTIVATO di 1 lib-script read (categoria
 // "resta per design", ASSE A sospeso §2.2). Nessuna funzione/stato nuovo sul ponte.
-const MAX_WIN_REFS = 269;
+// +1 (269 → 270, 2026-07-21): DRIFT-A3 (audit 72ª) — la fusione multi-fonte dei lease
+// DHCP delega a `mergeLeaseSources` di lib/dhcp-lease.js (caricato come <script>), per
+// avere UN'UNICA autorità di ranking (_leaseRank) condivisa col dedup intra-fonte ed
+// evitare la ricomparsa cross-fonte del bug S2.2. Il forward in _bridge.js
+// (`win.mergeLeaseSources`) è un lib-script read, STESSA categoria di parseDhcpLeases/
+// reconcileDhcpLeases/buildSpareReport (legge l'unica istanza viva, niente ri-bundle).
+// Aumento MOTIVATO di 1; nessuna funzione/stato nuovo sul ponte (ASSE A sospeso §2.2).
+const MAX_WIN_REFS = 270;
 
 test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => {
   const total = countInCode(/\bwin\./g);
