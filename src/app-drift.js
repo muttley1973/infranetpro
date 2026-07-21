@@ -318,15 +318,6 @@ function setAutoIpRenew(on){
     markDirty();
     renderAutomationMenu();
 }
-// Toggle per-progetto (opt-in, OFF di default): un lease DHCP RILASCIATO annota il device
-// grigio come "probabilmente scollegato" (segnale debole, mai rosso — vedi lib/drift-snapshot
-// `leaseReleasedHint`). Come autoIpRenew, si applica alla PROSSIMA Verifica/Sync (il report
-// grezzo non viene ri-costruito qui: cambierebbe solo l'annotazione, non la classifica).
-function setLeaseReleasedHint(on){
-    store.state.leaseReleasedHint = !!on;
-    markDirty();
-    renderAutomationMenu();
-}
 // Toggle per-progetto: mostra i dispositivi utente/BYOD in chiaro invece di
 // collassarli nel gruppo grigio (controllo manuale puro). Default OFF = storico.
 function setDriftShowEndpoints(on){
@@ -589,7 +580,7 @@ export function _renderDriftReport(){
 // Lo stato `_driftReport` NON è qui: vive direttamente su window (store._driftReport).
 expose({
     runDriftCheck,
-    setAutoIpRenew, setLeaseReleasedHint, _driftAutoRenewIps,
+    setAutoIpRenew, _driftAutoRenewIps,
     _renderDriftReport,
     _driftBuildDocSnapshot, _driftBuildSnmpSnapshot, _driftComputeFromDoc,
     DRIFT_DOWN_STREAK_N,
