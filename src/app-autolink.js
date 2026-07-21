@@ -288,6 +288,41 @@ function _isTransitPort(swPid, swId){
     return false;
 }
 
+// L2L3-M3 (audit 2026-07-21): risolve le trunkVlans dell'aggregatore GIUSTO per la
+// porta LAG di un link. Uno switch puo' avere PIU' Port-channel (Po1, Po2…): un link
+// su Po2 NON deve ereditare le VLAN di Po1. La porta dichiara il suo aggregatore in
+// `lagId` (= ifIndex dell'aggregatore, cfr. drivers/snmp.js: port.lagId === agg.index).
+// Se la porta conosce il suo Po ci si fida SOLO di quello (trunk→sue VLAN, access→[]);
+// altrimenti fallback storico = primo trunk-agg, poi le VLAN del nodo. Puro: niente
+// DOM/store/globali → (integration, portLagId) → number[].
+function _lagTrunkVlansForPortLag(integration, portLagId){
+    const lags = (integration && Array.isArray(integration.lags)) ? integration.lags : [];
+    const lid = parseInt(portLagId || 0, 10);
+    if(lid){
+        const own = lags.find(a => a && (a.index === lid || a.lagId === lid));
+        if(own){
+            return (own.isTrunk && Array.isArray(own.trunkVlans) && own.trunkVlans.length)
+                ? own.trunkVlans : [];
+        }
+        // lagId senza match in lags[] → cade al fallback storico sotto.
+    }
+    const agg = lags.find(a => a && a.isTrunk && Array.isArray(a.trunkVlans) && a.trunkVlans.length);
+    if(agg) return agg.trunkVlans;
+    return (integration && Array.isArray(integration.vlans)) ? integration.vlans : [];
+}
+
+// L2L3-M4 (audit 2026-07-21): protocolli di adiacenza DEDOTTI (non dichiarati da
+// LLDP/CDP) che NON devono promuovere un cavo a LAG "confermato" — resta "Inferito ·
+// da verificare" (linkState 'ambiguous') finche' l'utente non conferma. Coerente con
+// lib/linkstate.js (solo LLDP/CDP sono fidati; ogni correlazione FDB/MAC, anche a
+// score alto, e' un'inferenza dell'app, non una conferma di vicinato):
+//  • MAC-UPLINK — FDB verso switch cieco, porta remota indovinata (task #114);
+//  • FDB-DCT    — correlazione FDB diretta switch↔switch (adiacenza inferita);
+//  • INFERRED   — intermediario/porta remota materializzata per inferenza.
+// Vendor-neutral: chiave sul protocollo, non sul vendor.
+const _INFERRED_UPLINK_PROTOS = new Set(['MAC-UPLINK', 'FDB-DCT', 'INFERRED']);
+function _isInferredUplinkProto(p){ return _INFERRED_UPLINK_PROTOS.has(String(p || '').toUpperCase()); }
+
 function _resolveEndpointSwitchPort(node){
     const mac = win._normMacKey(node?.mac);
     if(!mac) return { ok:false, reason:'no-mac' };
@@ -550,12 +585,14 @@ async function _autoDiscoverLinks(nodeIds){
             lagLogical: !!(s.isLag || d.isLag) && _lagEnds,
         };
     };
-    const _getNodeTrunkVlans = nodeId => {
+    // L2L3-M3: risolve le trunkVlans per la PORTA specifica del link (il suo Po),
+    // non il primo trunk qualsiasi (multi-Po). La parte impura (lookup porta) sta qui;
+    // la scelta dell'aggregatore e' nel puro _lagTrunkVlansForPortLag.
+    const _getNodeTrunkVlans = (nodeId, pid) => {
         const n = nodeById(nodeId);
         if(!n || !n.integration) return [];
-        const agg = (n.integration.lags || []).find(a => a.isTrunk && a.trunkVlans && a.trunkVlans.length);
-        if(agg) return agg.trunkVlans;
-        return n.integration.vlans || [];
+        const pp = pid ? store.state.ports[pid] : null;
+        return _lagTrunkVlansForPortLag(n.integration, pp && pp.lagId);
     };
     const _applyLinkTrunkMeta = (linkObj, srcPid, dstPid) => {
         const srcPi = store.state.ports[srcPid] || {};
@@ -566,8 +603,8 @@ async function _autoDiscoverLinks(nodeIds){
         const srcLag = _lagRefByPort(srcPid);
         const dstLag = _lagRefByPort(dstPid);
         if(srcLag || dstLag){
-            const vSrc = _getNodeTrunkVlans(_portNodeId(srcPid));
-            const vDst = _getNodeTrunkVlans(_portNodeId(dstPid));
+            const vSrc = _getNodeTrunkVlans(_portNodeId(srcPid), srcPid);
+            const vDst = _getNodeTrunkVlans(_portNodeId(dstPid), dstPid);
             if(vSrc.length || vDst.length){
                 autoTrunk = true;
                 fromLag = [...new Set([ ...vSrc, ...vDst ])].sort((a,b)=>a-b);
@@ -1152,15 +1189,10 @@ async function _autoDiscoverLinks(nodeIds){
         console.error('[AutoLink] LAG inference errore:', lagErr);
     }
 
-    // Un UPLINK dedotto dalla sola FDB (MAC-UPLINK) ha la porta remota messa a DEFAULT
-    // (`<node>-1`, cfr. lib/correlate.js): il capo remoto e la sua eventuale aggregazione
-    // NON sono osservati — tipicamente un apparato CIECO senza SNMP (es. Zyxel GS1200) di
-    // cui NON conosciamo la porta. Anche se la porta LOCALE e' un membro LAG, non deve
-    // diventare un membro LAG "confermato": resta UN solo cavo "Inferito · da verificare"
-    // (protocol → linkState 'ambiguous'), che l'utente conferma e completa. Senza
-    // lagLogicalKey linkState() non lo promuove a 'lag'. Vendor-neutral: chiave sul
-    // protocollo, non sul vendor.
-    const _isInferredUplinkProto = p => String(p || '').toUpperCase() === 'MAC-UPLINK';
+    // Un uplink/adiacenza DEDOTTO (MAC-UPLINK/FDB-DCT/INFERRED) non promuove il cavo a
+    // LAG "confermato": senza lagLogicalKey linkState() lo lascia "Inferito · da
+    // verificare", che l'utente conferma e completa. Predicato + rationale (L2L3-M4) in
+    // _isInferredUplinkProto (module-scoped, sopra).
 
     // ---- Candidati fisici: ogni membro LAG resta un cavo porta-porta ----------
     const physicalCandidates = {};
@@ -1450,7 +1482,8 @@ async function _autoDiscoverLinks(nodeIds){
 expose({
     _matchNodeByIdent, _isLeafEndpoint, _ensureDiscoveryHistory,
     _recordDiscoveryObservation, _recordDiscoveryBatch, _nodeByMacMap,
-    _refreshTopoFdbCache, _refreshSnmpPortInventory, _isTransitPort,
+    _refreshTopoFdbCache, _refreshSnmpPortInventory, _isTransitPort, _lagTrunkVlansForPortLag,
+    _isInferredUplinkProto,
     _resolveEndpointSwitchPort, _findWallPortBehindInfrastructurePort, _autoLinkEndpoint,
     _autoLinkEndpointUI, _autoLinkDiagText, _autoDiscoverLinks,
     // pruneDiscoveryHistory / normalizeFdbVlan / DISCOVERY_HISTORY_MAX* → lib/discovery-history.js

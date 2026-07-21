@@ -2,6 +2,17 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-21 — Audit 72ª follow-up: two deferred L2/L3 mediums + presence-doc accuracy
+
+Follow-up to the 72ª audit. Two of the deferred L2/L3 Mediums are now fixed, and the "a plain **Sync** never turns anything red" invariant is realigned across the docs to match the code. Gates: 1645 unit / 0 fail, ESLint 0, `tsc` 0.
+
+### Fixed — Medium (L2/L3)
+- **Trunk VLANs follow the port's own Port-channel (L2L3-M3).** A switch with several Port-channels no longer copies the *first* trunk Po's VLANs onto a link that lives on a different Po; the aggregator is resolved by the port's `lagId` (= the aggregator's ifIndex, as `drivers/snmp.js` already pairs them). A port on an *access* Po no longer borrows an unrelated trunk Po's VLANs either (that was an invented trunk). New pure `_lagTrunkVlansForPortLag`. `src/app-autolink.js`.
+- **An FDB-inferred switch↔switch adjacency stays "inferred", not a confirmed LAG (L2L3-M4).** A LAG bundle whose peer is only correlated by the forwarding table (`FDB-DCT` / `INFERRED`) is shown as *"inferred · to confirm"*, not `LAG` — matching `lib/linkstate.js` (only LLDP/CDP are trusted; any FDB/MAC correlation, however high its score, is the app's inference, not a neighbour's confirmation). The LAG-suppression that already covered `MAC-UPLINK` now covers the other inferred-adjacency protocols; the user confirms it to promote it to a real LAG (manual-first). `src/app-autolink.js` (`_isInferredUplinkProto`).
+
+### Docs
+- **"A plain Sync never turns anything red" corrected (B9).** The invariant was imprecise: the authoritative *switch access port down ≥ N syncs* signal needs no sweep, so a plain **Sync** *can* turn a node red once its down-streak matures — only a *merely silent* node (mute SNMP / aged FDB / filtered ICMP / remote subnet) stays grey. Corrected across `ARCHITECTURE.md`, `README.md` and the `lib/drift-report.js` / `lib/drift-snapshot.js` comments (the historical 2026-07-20 entry below, which claimed the two-source red yet then described the port-down red, is now self-consistent).
+
 ## 2026-07-21 — Audit 72ª: 8 High + 15 Medium findings fixed (② no-invention + security)
 
 Sixth multi-agent audit (6 domains, senior network-engineer / architect lens, principles P0–P8 + the cardinal rules ①manual-first ②no-invention ③vendor-neutral): average 7.8/10, **zero critical**. All 8 Highs were ② no-invention violations (the app asserting something it hadn't observed); 15 of ~22 Mediums fixed, the rest deferred with a written rationale. The SNMP-layer fixes are **live-verified against real hardware** (Zyxel GS1900-24, MikroTik RouterOS, Synology) on a real /24. Gates: 1633 unit / 0 fail, e2e 79/79, ESLint 0, `tsc` 0.
@@ -23,7 +34,7 @@ Sixth multi-agent audit (6 domains, senior network-engineer / architect lens, pr
 - **Drift.** ISC `backup` / `abandoned` leases are treated as non-live (no false green); a documented IP that answers the sweep is no longer a false "IP change" even when ARP didn't resolve its MAC (so `autoIpRenew` can't auto-apply it on a dual-homed host); a muted switch resets its ports' down-streak instead of freezing it, so a red from a downed port never eternalises once the switch is unverifiable. `lib/dhcp-lease.js`, `lib/drift-snapshot.js`, `lib/drift-report.js`, `src/app-drift.js`.
 - **Exports now colour floor nodes by presence, like the screen (FE-M1).** The SVG/PDF/print export coloured a floor device by its **port status** — so a red meant "port fault", clashing with the on-screen red that means "absent", and the grey "not verifiable" state was missing entirely. The export now uses the **same presence source and guard as the live view** (the last Verify's drift report): the type colour when present, a **red ring when confirmed absent** (`macOrphan`), **grey + dimmed when not verifiable** (`unverified`), and a device that has since answered SNMP (`snmpStatus==='ok'`) is full-colour again — so a printed floor plan tells the same story as the screen. `export.js` (also retires the dead `_floorNodeColor` call, now used as the base colour).
 
-> **Deferred (with rationale, tracked in the audit memo):** the PoE positional fallback (load-bearing where the PoE index ≠ ifIndex), per-run cache invalidation (needs a generational design so a muted device's topology isn't dropped), a few L2/L3 label/multi-Po nuances, and the authenticated-SMB-in-stealth scan-policy decision.
+> **Deferred (with rationale, tracked in the audit memo):** the PoE positional fallback (load-bearing where the PoE index ≠ ifIndex, needs live validation), per-run cache invalidation (needs a generational design so a muted device's topology isn't dropped), the VoIP daisy-chain (two cables on one access port — a modelling choice), and the authenticated-SMB-in-stealth scan-policy decision. *(The multi-Po and inferred-LAG-label nuances — L2L3-M3/M4 — are fixed in the follow-up above.)*
 
 ## 2026-07-21 — Released DHCP lease as an opt-in "likely disconnected" hint
 
@@ -46,7 +57,7 @@ Extends the honest-presence "green across subnets" signal to IPv6, the twin of t
 Refines the floor presence model so a **red** node is always trustworthy. Principle (senior-network-engineer): *"no answer" is not "dead"* — red must come from a signal a live host cannot suppress. Live-verified on a real network (home /24 + a powered-off lab). Gates: 1605 unit / 0 fail, e2e 79/79, ESLint 0, `tsc` 0.
 
 ### Changed
-- **Red now requires trustworthy absence.** "documented-but-absent" (red) fires only from a **local ARP-miss** — the presence sweep returns `absent:true` only for an IP on the server's *own* segment (computed from the real netmask) that never appears in ARP after the ping — or a **switch access port down for ≥ N syncs**. FDB ageing, host-filtered ICMP, a mute SNMP agent, or a remote/unreached subnet are now **grey ("not verified"), never red**. A plain **Sync** (no active sweep) never turns anything red. `server/routes/discovery.js`, `lib/drift-snapshot.js`, `lib/drift-report.js`.
+- **Red now requires trustworthy absence.** "documented-but-absent" (red) fires only from a **local ARP-miss** — the presence sweep returns `absent:true` only for an IP on the server's *own* segment (computed from the real netmask) that never appears in ARP after the ping — or a **switch access port down for ≥ N syncs**. FDB ageing, host-filtered ICMP, a mute SNMP agent, or a remote/unreached subnet are now **grey ("not verified"), never red**. A plain **Sync** (no active sweep) never reds a *silent* node; the one exception is the authoritative switch-port-down signal below, which needs no sweep. `server/routes/discovery.js`, `lib/drift-snapshot.js`, `lib/drift-report.js`.
 - **ARP-during-ping is no longer discarded.** A local host that blocks ICMP but answers ARP while being pinged is now **green** (the ARP reply is a positive signal), instead of being reported falsely absent. `server/routes/discovery.js`.
 
 ### Added
