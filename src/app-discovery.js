@@ -6,7 +6,7 @@ import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funz
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { focusNode, switchRack } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { _isLeafEndpoint, _autoLinkEndpoint, _recordDiscoveryObservation } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
-import { _discIndexNode, _discVendorFromMac, _discIdentitySource, _discFindExistingDevice, _discBuildExistingIndexes, _discTouchNodeIdentity, _loadDeepScanPref, _saveDeepScanPref, _discSanitizeDeviceClass, _discRememberClassHint, _discHasStrongIdentity, _discCanAutoRetype, _discInvalidateExistingIndexes, _discMarkIpMacConflict, _discConfidenceScore } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { _discIndexNode, _discVendorFromMac, _discIdentitySource, _discFindExistingDevice, _discBuildExistingIndexes, _discTouchNodeIdentity, _discMacIsNextHop, _loadDeepScanPref, _saveDeepScanPref, _discSanitizeDeviceClass, _discRememberClassHint, _discHasStrongIdentity, _discCanAutoRetype, _discInvalidateExistingIndexes, _discMarkIpMacConflict, _discConfidenceScore } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { _findFreeU } from './app-topology-crawl.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
 import { registerChangeActions } from './app-delegation.js';   // ASSE B: checkbox "seleziona tutti" Scopri via data-change
 
@@ -911,6 +911,10 @@ async function importDiscovered(){
             // concreto rilevato (v1/v2c/v3); v2c solo come ripiego se la versione manca.
             const importDriver = d.snmpReachable ? (d.snmpDriver || driver) : '';
             const match = _discFindExistingDevice(d, existingIdx);
+            // MAC da SCRIVERE come identità del nodo: '' se è un MAC di next-hop
+            // (gateway/proxy-ARP/VRRP) — non è l'identità dell'host (DISC-A1). Stesso
+            // predicato del match (F4/F5): coerenza fra chi trova e chi scrive.
+            const safeMac = _discMacIsNextHop(d.mac, existingIdx) ? '' : normalizeMacAddress(d.mac||'');
             if(match.conflict?.existing){
                 _discMarkIpMacConflict(match.conflict.existing, d);
                 conflicts++;
@@ -929,7 +933,7 @@ async function importDiscovered(){
                     _discCanAutoRetype(foundExisting.type, d.type)
                 );
 
-                _discTouchNodeIdentity(foundExisting, d, match.matchedBy);
+                _discTouchNodeIdentity(foundExisting, d, match.matchedBy, existingIdx);
                 foundExisting.vendorHint = d.vendorHint || _discVendorFromMac(d.mac) || foundExisting.vendorHint || '';
                 foundExisting.identitySource = _discIdentitySource(d);
                 foundExisting.identityConfidence = d.identityConfidence || d.confidence?.level || foundExisting.identityConfidence || 'low';
@@ -957,7 +961,7 @@ async function importDiscovered(){
                 }
                 // IPv6 proposto dall'ND: riempi se vuoto (manual-first, non sovrascrive).
                 if(!foundExisting.ip6 && d.ip6) foundExisting.ip6 = d.ip6;
-                foundExisting.mac = foundExisting.mac || normalizeMacAddress(d.mac||'');
+                foundExisting.mac = foundExisting.mac || safeMac;
                 // Brand fill-if-empty (o se e' ancora il brand di default del tipo) come il
                 // Sync (app-snmp.js:457-458): il vendor OUI/SNMP non clobbera mai un brand
                 // scritto a mano. L'eventuale cambio vendor su identita' forte resta
@@ -1024,7 +1028,7 @@ async function importDiscovered(){
                 n = {
                     id: _nextNodeId(d.type, usedNodeIds), type: d.type,
                     name: _discDisplayName(d), hostname: d.hostname||'', ip: d.ip||'', ip6: d.ip6||'',
-                    mac: normalizeMacAddress(d.mac||''),
+                    mac: safeMac,
                     brand: d.vendor || def.brand || '',
                     vendorHint: d.vendorHint || _discVendorFromMac(d.mac) || '',
                     identitySource: _discIdentitySource(d),
@@ -1044,7 +1048,7 @@ async function importDiscovered(){
                 n = {
                     id: _nextNodeId(d.type, usedNodeIds), type: d.type,
                     name: _discDisplayName(d), hostname: d.hostname||'', ip: d.ip||'', ip6: d.ip6||'',
-                    mac: normalizeMacAddress(d.mac||''),
+                    mac: safeMac,
                     brand: d.vendor || def.brand || '',
                     vendorHint: d.vendorHint || _discVendorFromMac(d.mac) || '',
                     identitySource: _discIdentitySource(d),
@@ -1057,7 +1061,7 @@ async function importDiscovered(){
                 };
             }
             if(d._typeManual) n.typeManual = true;   // tipo scelto a mano nel dialogo = pinnato
-            _discTouchNodeIdentity(n, d, match.matchedBy || 'new');
+            _discTouchNodeIdentity(n, d, match.matchedBy || 'new', existingIdx);
             if(match.conflict?.existing){
                 n.discoveryConflicts = [{
                     type:'ip-mac',

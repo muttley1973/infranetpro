@@ -188,6 +188,21 @@ test('snmpSnap: rejectedSigs (split ||) e portDownStreak dalle porte', () => {
   assert.deepEqual(s.rejectedSigs.sort(), [lower('11:11:11:00:00:01'), lower('22:22:22:00:00:02')]);
 });
 
+// ── DRIFT-A2: i MAC di porta persistiti valgono solo se il device ha risposto ──
+test('snmpSnap: state.ports[pid].mac conta come osservato SOLO se il device ha risposto (DRIFT-A2)', () => {
+  const model = snmpStatus => ({
+    nodes: [{ id: 'nasd1', mac: 'de:ad:be:ef:00:01', ip: '10.0.0.9', snmpStatus }],
+    ports: { 'nasd1-1': { mac: 'de:ad:be:ef:00:01' } },   // MAC salvato nel JSON dall'ultimo poll
+    normMac: lower,
+  });
+  const alive = buildSnmpSnapshot(model('ok'));
+  assert.ok(alive.observedMacs.includes('de:ad:be:ef:00:01'),
+    'device che risponde: il MAC di porta rispecchia una realtà appena letta → osservato');
+  const off = buildSnmpSnapshot(model('fail'));
+  assert.ok(!off.observedMacs.includes('de:ad:be:ef:00:01'),
+    'device spento: il MAC di porta è stantio nel JSON → NON osservato (niente verde eterno)');
+});
+
 test('snmpSnap: lease attivo = identità cross-VLAN (G1: NON marca la subnet osservata); lease stale ignorato (G2)', () => {
   const m = {
     nodes: [],

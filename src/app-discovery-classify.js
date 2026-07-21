@@ -219,6 +219,18 @@ function _discAttachMergeGuards(idx){
     return idx;
 }
 
+// Un MAC è "next-hop" (gateway L3-lite documentato o condiviso su più IP nel batch =
+// proxy-ARP/VRRP/router) → NON identifica la riga: è il MAC dell'apparato di transito.
+// Predicato UNICO condiviso dal match (F4/F5) e dalla SCRITTURA di node.mac (DISC-A1):
+// senza guardia in scrittura, l'import salvava il MAC del firewall su tutti gli endpoint.
+// Richiede un idx con guardie attaccate (_discAttachMergeGuards); senza → mai bloccato.
+export function _discMacIsNextHop(rawMac, idx){
+    const m = normalizeMacAddress(rawMac || '');
+    if(!m || !idx) return false;
+    return (idx.sharedMacs instanceof Set && idx.sharedMacs.has(m)) ||
+           (idx.gatewayMacs instanceof Set && idx.gatewayMacs.has(m));
+}
+
 export function _discFindExistingDevice(row, idx = _discExistingIndexes()){
     const rawMac = normalizeMacAddress(row?.mac || '');
     const ip = _discNorm(row?.ip);
@@ -232,10 +244,7 @@ export function _discFindExistingDevice(row, idx = _discExistingIndexes()){
     // (F4). Cosi' non solo non si fonde per-MAC, ma il MAC del gateway (a) non fa piu'
     // RIFIUTARE un match per hostname legittimo, e (b) non genera un FALSO conflitto
     // ip-mac che duplicherebbe il nodo. Il gateway continua a matchare per il suo IP.
-    const _macBlocked = rawMac && (
-        (idx.sharedMacs instanceof Set && idx.sharedMacs.has(rawMac)) ||
-        (idx.gatewayMacs instanceof Set && idx.gatewayMacs.has(rawMac))
-    );
+    const _macBlocked = _discMacIsNextHop(rawMac, idx);
     const mac = _macBlocked ? '' : rawMac;
     if(mac && idx.byMac.has(mac)) return { node:idx.byMac.get(mac), matchedBy:'mac' };
 
@@ -276,7 +285,7 @@ export function _discMarkIpMacConflict(existing, row){
     if(existing.discoveryConflicts.length > 20) existing.discoveryConflicts.splice(0, existing.discoveryConflicts.length - 20);
 }
 
-export function _discTouchNodeIdentity(node, row, matchedBy=''){
+export function _discTouchNodeIdentity(node, row, matchedBy='', idx=null){
     if(!node) return;
     const now = new Date().toISOString();
     const seenIp = String(row?.ip || '').trim();
@@ -288,7 +297,10 @@ export function _discTouchNodeIdentity(node, row, matchedBy=''){
     node.currentIp = seenIp || node.currentIp || oldIp || '';
     node.lastDiscoveryMatch = matchedBy || node.lastDiscoveryMatch || '';
 
-    if(seenMac && !node.mac) node.mac = seenMac;
+    // Non adottare come identità un MAC di next-hop (gateway/proxy-ARP/VRRP): sarebbe
+    // il MAC dell'apparato di transito, non del device (DISC-A1). Con idx guardato,
+    // _discMacIsNextHop lo riconosce; senza idx il comportamento resta invariato.
+    if(seenMac && !node.mac && !_discMacIsNextHop(seenMac, idx)) node.mac = seenMac;
 
     if(seenIp){
         if(!Array.isArray(node.ipHistory)) node.ipHistory = [];
@@ -523,7 +535,7 @@ function _guessType(descr, objectId, vendor='', banner='', host=''){
 expose({
     _discVendorFromMac, _discRememberClassHint, _discInvalidateExistingIndexes,
     _discBuildExistingIndexes, _discIndexNode, _discFindExistingDevice, _discGatewayMacs,
-    _discAttachMergeGuards,
+    _discAttachMergeGuards, _discMacIsNextHop,
     _discMarkIpMacConflict, _discTouchNodeIdentity, _discIdentitySource,
     _discIdentityLabel, _discSanitizeDeviceClass, _discConfidenceScore,
     _discHasStrongIdentity, _discCanAutoRetype, _loadDeepScanPref,

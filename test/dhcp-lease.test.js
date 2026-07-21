@@ -254,3 +254,27 @@ test('dedup: lease morto senza expiry NON vince su un lease attivo datato futuro
   assert.equal(res.count, 1);
   assert.equal(res.leases[0].ip, '10.0.50.20', 'lo stato morto (released) non è autorevole anche se senza scadenza');
 });
+
+// ── DRIFT-A3: la fusione multi-fonte usa lo stesso ranking del dedup intra-fonte ──
+test('mergeLeaseSources: riserva statica (∞) di una fonte VINCE su un released datato di un\'altra', () => {
+  const { mergeLeaseSources } = require('../lib/dhcp-lease.js');
+  const sources = [
+    // Server A: riserva statica corrente per il MAC (expiry infinito = null)
+    { name: 'srvA', leases: [{ mac: 'AA:BB:CC:00:00:01', ip: '10.0.0.9', state: 'active', expiry: null }] },
+    // Server B: vecchio lease released datato per lo STESSO MAC
+    { name: 'srvB', leases: [{ mac: 'AA:BB:CC:00:00:01', ip: '10.9.9.9', state: 'released', expiry: '2023-01-01T00:00:00Z' }] },
+  ];
+  const merged = mergeLeaseSources(sources);
+  assert.equal(merged.length, 1, 'un solo lease per MAC dopo la fusione');
+  assert.equal(merged[0].ip, '10.0.0.9', 'vince la riserva statica infinita, non il released datato (no bug S2.2 cross-fonte)');
+});
+
+test('mergeLeaseSources: fra due datati per lo stesso MAC vince il più recente', () => {
+  const { mergeLeaseSources } = require('../lib/dhcp-lease.js');
+  const merged = mergeLeaseSources([
+    { leases: [{ mac: 'AA:BB:CC:00:00:02', ip: '10.0.0.1', state: 'active', expiry: '2026-01-01T00:00:00Z' }] },
+    { leases: [{ mac: 'AA:BB:CC:00:00:02', ip: '10.0.0.2', state: 'active', expiry: '2026-06-01T00:00:00Z' }] },
+  ]);
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].ip, '10.0.0.2', 'expiry più recente vince');
+});

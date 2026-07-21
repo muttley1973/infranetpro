@@ -225,8 +225,8 @@ const OID = {
   dot1qVlanStaticName:   '1.3.6.1.2.1.17.7.1.4.3.1.1',   // Q-BRIDGE static VLAN name — indicizzato solo per VlanIndex
   vmVlan:                '1.3.6.1.4.1.9.9.68.1.2.2.1.2',  // Cisco CISCO-VLAN-MEMBERSHIP-MIB: VLAN access per ifIndex — FALLBACK quando dot1qPvid non espone la VLAN access reale (es. Cisco vIOS: PVID resta 1)
   vtpVlanName:          '1.3.6.1.4.1.9.9.46.1.3.1.1.2', // Cisco VTP: VLAN name — indice {domainIdx}.{vlanId} (funziona senza @vlan community)
-  vlanTrunkPortDynState:'1.3.6.1.4.1.9.9.46.1.6.1.1.14', // Cisco: trunk dynamic state (1=on, 2=off/access, 3=desirable, 4=auto, 5=onNoNegotiate)
-  vlanTrunkPortStatus:  '1.3.6.1.4.1.9.9.46.1.6.1.1.15', // Cisco: trunk operational status (1=trunking, 2=notTrunking) — ATTENZIONE: su IOS virtuale può essere 1 anche su porte access
+  vlanTrunkPortDynState:'1.3.6.1.4.1.9.9.46.1.6.1.1.13', // Cisco vlanTrunkPortDynamicState (col .13): stato CONFIGURATO del trunk (1=on, 2=off/access, 3=desirable, 4=auto, 5=onNoNegotiate)
+  vlanTrunkPortStatus:  '1.3.6.1.4.1.9.9.46.1.6.1.1.14', // Cisco vlanTrunkPortDynamicStatus (col .14): stato OPERATIVO trunking (1=trunking, 2=notTrunking) — ATTENZIONE: su IOS virtuale può essere 1 anche su porte access
   vlanTrunkPortVlans:   '1.3.6.1.4.1.9.9.46.1.6.1.1.4',  // Cisco: bitmap VLAN 0-1023 abilitate sul trunk per ifIndex — senza @vlan community
   // IEEE8023-LAG-MIB (corretto):
   //  dot3adAggPortListPorts     .1.2.840.10006.300.43.1.1.2.1.1
@@ -804,12 +804,16 @@ function extractData(vbs) {
     }
 
     // MAU type — ifMauType OID value returned as an OID string "1.3.6.1.2.1.26.4.X"
-    // Last suffix integer encodes the physical medium type (RFC 4836 §4)
+    // Last suffix integer of the VALUE encodes the physical medium type (RFC 4836 §4).
+    // ifMauTable è indicizzata { ifMauIfIndex, ifMauIndex } → il suffisso dell'OID è
+    // "<ifIndex>.<mauIndex>": la chiave giusta è ifIndex (PRIMO dei due), non l'ultimo
+    // (= ifMauIndex, quasi sempre 1 → tutte le porte collassavano sull'indice 1).
     if (oid.startsWith(OID.mauType + '.')) {
-      const ifIdx   = lastIdx(oid);
+      const ifIdx   = parseInt(oid.slice(OID.mauType.length + 1).split('.')[0], 10) || 0;
       const valStr  = Buffer.isBuffer(val) ? val.toString('ascii') : String(val ?? '');
       const mauCode = parseInt(valStr.split('.').pop()) || 0;
-      if (mauCode > 0) mauTypes[ifIdx] = mauCode;
+      // first-wins: su porte con più MAU si tiene il primo (ifMauIndex=1, ordine di walk)
+      if (mauCode > 0 && ifIdx > 0 && mauTypes[ifIdx] === undefined) mauTypes[ifIdx] = mauCode;
       continue;
     }
 
@@ -1040,12 +1044,20 @@ function extractData(vbs) {
   }
   // ----------------------------------------------------------------------------
 
-  // MAU-MIB physical medium lookup (RFC 4836 §4 type codes):
-  // Copper (twisted pair / coax) suffixes:
-  const _MAU_COPPER = new Set([1,2,3,7,8,9,12,13,14,17,18,25,26,27,28,40,41,52,55,95,100]);
-  // DAC / Twinax suffixes:
-  const _MAU_DAC    = new Set([39,96,101]);
-  // All other known suffixes are treated as fiber (SX/LX/ZX/ER/SR/LR/…)
+  // MAU-MIB physical medium lookup — codici dot3MauType del registro IANA-MAU-MIB
+  // (RFC 4836/errata). Classificati per DESCRIPTION ufficiale del tipo; un codice
+  // NON elencato (o PMD "unknown"/backplane) resta null → NESSUN mezzo dichiarato e
+  // NESSUN falso avviso "mezzo diverso da SNMP" (② no-invenzioni: mai contraddire la
+  // documentazione manuale su una classificazione incerta).
+  // Copper — twisted-pair (UTP) + coax:
+  //  2=10Base5coax 4=10Base2coax 5=10BaseT 9=10Broad36coax 10/11=10BaseT 14=100BaseT4
+  //  15/16=100BaseTX 19/20=100BaseT2 29/30=1000BaseT 42=2BaseTL 43=10PassTS 54=10GBase-T
+  const _MAU_COPPER = new Set([2,4,5,9,10,11,14,15,16,19,20,29,30,42,43,54]);
+  // DAC / twinax — rame bilanciato "direct attach": 27/28=1000BaseCX 41=10GBase-CX4
+  const _MAU_DAC    = new Set([27,28,41]);
+  // Fiber — FOIRL/FP/FB/FL, FX, LX/SX, 10G X/LX4/ER/LR/SR/W/EW/LW/SW, BX/LX10/PX (PON), LRM:
+  const _MAU_FIBER  = new Set([3,6,7,8,12,13,17,18,23,24,25,26,32,34,35,36,38,39,40,44,45,46,47,48,49,50,51,52,53,55,59,60]);
+  // Non classificati (null): 1=AUI · 21/22=1000BaseX-unknownPMD · 31/33/37=10G-unknownPMD · 56/57/58=backplane KX/KR
 
   const physical = [], lags = [];
   const _classify = []; // diagnostica: decisione di classificazione per ogni ifIndex
@@ -1100,7 +1112,7 @@ function extractData(vbs) {
     // SNMP-detected physical medium (MAU-MIB RFC 4836)
     const _mauSuf    = mauTypes[idx] || 0;
     const snmpMedium = _mauSuf
-      ? (_MAU_DAC.has(_mauSuf) ? 'dac' : _MAU_COPPER.has(_mauSuf) ? 'copper' : 'fiber')
+      ? (_MAU_DAC.has(_mauSuf) ? 'dac' : _MAU_COPPER.has(_mauSuf) ? 'copper' : _MAU_FIBER.has(_mauSuf) ? 'fiber' : null)
       : null;
 
     // SNMP-detected PoE standard (POWER-ETHERNET-MIB RFC 3621)
