@@ -73,7 +73,16 @@ function _driftUpdateStreaks(docSnap){
     for(const pid of Object.keys(docSnap.ports)){
         const nodeId = String(pid).slice(0, String(pid).lastIndexOf('-'));
         const n = nodeById(nodeId);   // importato da app.js (guardia win.* ridondante rimossa)
-        if(!n || n.snmpStatus !== 'ok') continue;           // device muto → non valutabile, non toccare
+        // DRIFT-M7 (audit 2026-07-21): switch MUTO → non verificabile in QUESTO ciclo.
+        // Prima si faceva `continue` lasciando lo streak CONGELATO: una porta arrivata a
+        // ≥N restava "assente" (rosso via trustAbsent) per sempre, anche senza più prova.
+        // Coerente con la presenza onesta ("mai rosso senza prova affidabile"): azzera lo
+        // streak finché il device tace, così il rosso-da-porta-down non si eterna.
+        if(!n || n.snmpStatus !== 'ok'){
+            const pm = state.ports[pid];
+            if(pm && pm.downStreak) pm.downStreak = 0;
+            continue;
+        }
         const pi = state.ports[pid]; if(!pi) continue;
         // Solo le porte SNMP-mappate (con ifName) hanno uno stato affidabile per-porta.
         // Una porta cablata A MANO senza ifName NON e' verificabile per-porta (stesso

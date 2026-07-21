@@ -44,6 +44,34 @@ const app = express();
 
 app.use(express.json({ limit: '20mb' }));
 
+// SEC-M3 (audit 2026-07-21): header di sicurezza di base su OGNI risposta.
+// - nosniff: niente MIME-sniffing (blocca alcuni XSS via content-type confuso).
+// - frame-ancestors 'none' + X-Frame-Options DENY: niente framing → anti-clickjacking.
+// - CSP: default-src 'self' con object-src/base-uri stretti. script/style tengono
+//   'unsafe-inline' PERCHÉ l'app usa handler ed elementi inline (ASSE B non chiuso) e
+//   stili inline nei template; 'unsafe-eval' per librerie che compilano a runtime. Tutte
+//   le risorse sono self-hosted (Font Awesome locale, nessun CDN) e le chiamate LLM sono
+//   server-side → connect-src 'self'. img data:/blob: per bgImage base64 e SVG skin.
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self'",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join('; ');
+app.use((_, res, next) => {
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('X-Frame-Options', 'DENY');
+  res.set('Referrer-Policy', 'no-referrer');
+  res.set('Content-Security-Policy', CSP);
+  next();
+});
+
 // Logging
 app.use((req, res, next) => {
   const ts = new Date().toTimeString().substring(0, 8);

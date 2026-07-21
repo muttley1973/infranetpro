@@ -1128,8 +1128,12 @@ function extractData(vbs) {
         : 'none';
     }
 
+    // SNMP-M2 (audit 2026-07-21): un ifOperStatus ASSENTE (walk troncata) NON è "down".
+    // Prima `f.oper || 2` lo forzava a 2=down → la porta risultava inattiva → accumulava
+    // downStreak → falso rosso via trustAbsent. Emettendo 0 (ignoto), il mapping client
+    // (_snmpOperToUiStatus) cade nel ramo "mantieni lo stato precedente" invece di down.
     const obj = { index: idx, name: f.name || `if${idx}`, alias: f.alias || '',
-                  operStatus: f.oper || 2, speed, vlan: f.vlan || 1, lagId: lagLogicalId, lagIfIndex, mac,
+                  operStatus: f.oper || 0, speed, vlan: f.vlan || 1, lagId: lagLogicalId, lagIfIndex, mac,
                   isTrunk, trunkVlans };
     if (snmpMedium)    obj.snmpMedium = snmpMedium;
     if (snmpPoe !== null) obj.snmpPoe = snmpPoe;
@@ -1405,7 +1409,11 @@ async function poll(cfg) {
 const N_OID = {
   sysName:        '1.3.6.1.2.1.1.5',
   ifDescr:        '1.3.6.1.2.1.2.2.1.2',
-  lldpLocPortDesc:'1.0.8802.1.1.2.1.3.7.1.3',
+  // SNMP-M4 (audit 2026-07-21): lldpLocPortEntry col .4 = lldpLocPortDesc (DisplayString,
+  // nome porta leggibile). Prima era `.3` = lldpLocPortId, il cui valore col subtype
+  // macAddress è un MAC binario → bufToStr produceva mojibake come nome porta. Il .4 è
+  // sempre testuale; dove assente resta il fallback a ifDescr (ifName[lpn]).
+  lldpLocPortDesc:'1.0.8802.1.1.2.1.3.7.1.4',
   // LLDP-MIB lldpRemEntry (1.0.8802.1.1.2.1.4.1.1.N) — colonne corrette:
   //   .5 ChassisId · .7 PortId · .8 PortDesc · .9 SysName
   lldpRemChassisId:'1.0.8802.1.1.2.1.4.1.1.5', // chassis-id (spesso MAC) → match-by-MAC
@@ -1436,6 +1444,7 @@ const N_OID = {
   // (addrType 1=IPv4, 2=IPv6). Il valore della colonna .4 è il MAC. Vendor-neutral.
   physPhys:       '1.3.6.1.2.1.4.35.1.4', // ipNetToPhysicalPhysAddress (valore = MAC)
   physType:       '1.3.6.1.2.1.4.35.1.6', // ipNetToPhysicalType (2=invalid)
+  physState:      '1.3.6.1.2.1.4.35.1.7', // ipNetToPhysicalState (1=reachable…5=invalid,7=incomplete)
 };
 
 // Decodifica dei 16 byte dell'indice IPv6 (ipNetToPhysical/ipAddress) + scelta
@@ -1740,8 +1749,10 @@ function extractNeighbors(vbs) {
   // fisica è assente); le righe IPv6 (vicini ND) vanno in ndTable { mac -> [ip6…] }.
   const ndTable = {};
   const _physType = {};
+  const _physState = {};
   for (const [oid, val] of Object.entries(vbs)) {
-    if (oid.startsWith(N_OID.physType + '.')) _physType[oid.slice(N_OID.physType.length + 1)] = bufToInt(val);
+    if (oid.startsWith(N_OID.physType + '.'))  _physType[oid.slice(N_OID.physType.length + 1)]   = bufToInt(val);
+    else if (oid.startsWith(N_OID.physState + '.')) _physState[oid.slice(N_OID.physState.length + 1)] = bufToInt(val);
   }
   for (const [oid, val] of Object.entries(vbs)) {
     if (!oid.startsWith(N_OID.physPhys + '.')) continue;
@@ -1754,7 +1765,13 @@ function extractNeighbors(vbs) {
     if (bytes.length !== addrLen || bytes.some(b => !Number.isFinite(b) || b < 0 || b > 255)) continue;
     const mac = macToStr(Buffer.isBuffer(val) ? val : Buffer.alloc(0));
     if (!mac) continue;                                   // physaddr vuoto = entry incomplete → salta
-    if (_physType[parts.join('.')] === 2) continue;       // ipNetToPhysicalType invalid(2) → salta
+    const _key = parts.join('.');
+    if (_physType[_key] === 2) continue;                  // ipNetToPhysicalType invalid(2) → salta
+    // SNMP-M3 (audit 2026-07-21): ipNetToPhysicalState invalid(5) → la mappatura IP→MAC
+    // non è (più) valida, non prova un vicino VIVO. La ND alimenta la presenza VERDE
+    // cross-subnet: una entry invalid non deve inventare presenza. incomplete(7) è già
+    // esclusa dal MAC vuoto sopra; reachable/stale/delay/probe restano (osservazione recente).
+    if (_physState[_key] === 5) continue;
     if (addrType === 1 && addrLen === 4) {
       const ip = bytes.join('.');
       if (/^\d{1,3}(\.\d{1,3}){3}$/.test(ip) && !arpTable[mac]) arpTable[mac] = ip;   // gap-fill IPv4

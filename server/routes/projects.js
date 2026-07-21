@@ -12,6 +12,24 @@ const { runProjectDeleteHooks } = require('../module-registry');
 
 const router = express.Router();
 
+// SEC-M1 (audit 2026-07-21): il progetto grezzo contiene i segreti SNMP
+// (community v1/v2c + passphrase v3) in node.integration. Un lettore NON-admin
+// (ruolo viewer) non deve riceverli. loadProject ritorna un parse FRESCO → si può
+// azzerare in-place sulla risposta senza toccare il disco né altre richieste. Il
+// viewer non salva (PUT/copy sono admin-only) → nessuna perdita nel round-trip.
+const SNMP_SECRET_KEYS = ['community', 'v3authPass', 'v3privPass'];
+function _redactSnmpSecrets(project) {
+  const nodes = project && project.state && project.state.nodes;
+  if (!Array.isArray(nodes)) return project;
+  for (const n of nodes) {
+    const ig = n && n.integration;
+    if (ig && typeof ig === 'object') {
+      for (const k of SNMP_SECRET_KEYS) if (ig[k]) ig[k] = '';
+    }
+  }
+  return project;
+}
+
 // Lista (solo metadati, senza state)
 router.get('/api/projects', (_, res) => {
   res.json(listProjects());
@@ -30,7 +48,9 @@ router.post('/api/projects', auth.requireAdmin, (req, res) => {
 // Leggi
 router.get('/api/projects/:id', (req, res) => {
   const p = loadProject(+req.params.id);
-  return p ? res.json(p) : res.status(404).json({ error: 'Project not found' });
+  if (!p) return res.status(404).json({ error: 'Project not found' });
+  if (req.session?.user?.role !== 'admin') _redactSnmpSecrets(p);   // SEC-M1
+  return res.json(p);
 });
 
 // Aggiorna - solo admin
@@ -74,3 +94,5 @@ router.post('/api/projects/:id/copy', auth.requireAdmin, (req, res) => {
 });
 
 module.exports = router;
+// Esposto per i test (SEC-M1): redazione dei segreti SNMP per lettori non-admin.
+module.exports._redactSnmpSecrets = _redactSnmpSecrets;

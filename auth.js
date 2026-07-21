@@ -24,9 +24,22 @@ const _DUMMY_HASH = bcrypt.hashSync('infranet-dummy', BCRYPT_COST);
 
 // ---- Bypass auth SOLO per sviluppo (off di default) -------------------------
 // Attivabile con INFRANET_DEV_NO_AUTH=1: inietta una sessione admin fittizia così
-// gli strumenti di preview/anteprima possono vedere la UI senza login. NON usare
-// in produzione: il server è già localhost-bound, ma questo disattiva l'auth.
-const DEV_NO_AUTH = process.env.INFRANET_DEV_NO_AUTH === '1';
+// gli strumenti di preview/anteprima possono vedere la UI senza login.
+// SEC-M2 (audit 2026-07-21): fail-closed. Il bypass è onorato SOLO se il server è
+// legato al loopback (dev locale) e NON è in produzione. Con un HOST di rete
+// (0.0.0.0/::/IP) o NODE_ENV=production il flag viene IGNORATO: un no-auth su
+// un'interfaccia raggiungibile darebbe accesso admin a chiunque la contatti.
+function _computeDevNoAuth(env) {
+  env = env || {};
+  if (env.INFRANET_DEV_NO_AUTH !== '1') return { requested: false, enabled: false, reason: '' };
+  if (env.NODE_ENV === 'production') return { requested: true, enabled: false, reason: 'NODE_ENV=production' };
+  const host = String(env.HOST || '127.0.0.1').trim().toLowerCase();
+  const loopback = host === '127.0.0.1' || host === '::1' || host === 'localhost';
+  if (!loopback) return { requested: true, enabled: false, reason: `HOST=${env.HOST} non è loopback` };
+  return { requested: true, enabled: true, reason: '' };
+}
+const _DEV_NO_AUTH = _computeDevNoAuth(process.env);
+const DEV_NO_AUTH = _DEV_NO_AUTH.enabled;
 const DEV_USER = { id: 0, username: 'dev', role: 'admin' };
 
 // ---- Reverse-proxy TLS ------------------------------------------------------
@@ -357,6 +370,12 @@ function register(app) {
     console.warn('  ⚠️  INFRANET_DEV_NO_AUTH=1 — AUTENTICAZIONE DISABILITATA (solo sviluppo)');
     console.warn('      Chiunque raggiunga il server entra come admin. NON usare in produzione.');
     console.warn('');
+  } else if (_DEV_NO_AUTH.requested) {
+    // Richiesto ma RIFIUTATO (fail-closed, SEC-M2): l'auth resta attiva.
+    console.warn('');
+    console.warn('  🔒 INFRANET_DEV_NO_AUTH=1 IGNORATO — auth ATTIVA.');
+    console.warn(`      Motivo: ${_DEV_NO_AUTH.reason}. Il bypass è ammesso solo su loopback e fuori produzione.`);
+    console.warn('');
   }
 
   app.use(sessionMiddleware());
@@ -385,4 +404,6 @@ module.exports = {
   register, requireAdmin,
   // esposti per i test (F16): store utenti + inizializzazione admin
   loadUsers, saveUsers, ensureDefaultAdmin, _readUsersFile,
+  // SEC-M2: guardia pura del bypass auth (loopback + non-produzione)
+  _computeDevNoAuth,
 };

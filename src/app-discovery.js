@@ -675,7 +675,16 @@ function _discArpRow(device){
     if(leases.length){
         const mac = String(row.mac||'').toLowerCase();
         const ip  = String(row.ip||'');
-        const hit = leases.find(l => (mac && String(l.mac||'').toLowerCase()===mac) || (ip && String(l.ip||'')===ip));
+        // DISC-M1 (audit 2026-07-21): il match forte è per MAC. Il match per solo-IP vale
+        // SOLO se i MAC non si CONTRADDICONO (uno assente o uguali): stesso IP ma MAC
+        // diverso = il lease è di un ALTRO device che aveva quell'IP → non adottarne
+        // l'hostname (② no-invenzioni: niente hostname altrui su una voce ARP).
+        const hit = leases.find(l => {
+            const lmac = String(l.mac||'').toLowerCase();
+            if(mac && lmac === mac) return true;
+            if(ip && String(l.ip||'')===ip && (!mac || !lmac || lmac === mac)) return true;
+            return false;
+        });
         if(hit){
             if(!row.hostname && hit.hostname) row.hostname = hit.hostname;
             row._dhcpMatched = true;
