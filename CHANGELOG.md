@@ -2,6 +2,20 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-20 — Honest presence: red only from proof, green across subnets
+
+Refines the floor presence model so a **red** node is always trustworthy. Principle (senior-network-engineer): *"no answer" is not "dead"* — red must come from a signal a live host cannot suppress. Live-verified on a real network (home /24 + a powered-off lab). Gates: 1605 unit / 0 fail, e2e 79/79, ESLint 0, `tsc` 0.
+
+### Changed
+- **Red now requires trustworthy absence.** "documented-but-absent" (red) fires only from a **local ARP-miss** — the presence sweep returns `absent:true` only for an IP on the server's *own* segment (computed from the real netmask) that never appears in ARP after the ping — or a **switch access port down for ≥ N syncs**. FDB ageing, host-filtered ICMP, a mute SNMP agent, or a remote/unreached subnet are now **grey ("not verified"), never red**. A plain **Sync** (no active sweep) never turns anything red. `server/routes/discovery.js`, `lib/drift-snapshot.js`, `lib/drift-report.js`.
+- **ARP-during-ping is no longer discarded.** A local host that blocks ICMP but answers ARP while being pinged is now **green** (the ARP reply is a positive signal), instead of being reported falsely absent. `server/routes/discovery.js`.
+
+### Added
+- **Green across subnets via the router's ARP.** Each router/switch's SNMP ARP table (`ipNetToMediaTable` / `ipNetToPhysicalTable`), already collected on Sync, now feeds presence: a documented device *behind* a router is **green** because the router proves it is alive on its VLAN — no ping from the server needed. This answers "how do I verify devices on other subnets/VLANs": give SNMP to the backbone. `src/app-autolink.js`, `src/app-popup.js`, `src/store.js`, `src/app-drift.js`, `lib/drift-snapshot.js`.
+- **Authoritative red from a downed access port.** A documented device cabled to a switch port that is operationally down for ≥ N consecutive syncs is marked absent — the switch is authoritative on its own port's link and a live host cannot keep it down; the streak is the anti-flap, and any positive signal elsewhere still wins. `lib/drift-report.js`.
+
+> A stale/expired DHCP lease is deliberately **not** used as a red signal (an imported old lease file would mark every device absent, and a static-IP host has no lease at all): an *active* lease still proves presence, a stale one does not prove absence.
+
 ## 2026-07-20 — Presence honesty on the floor + Sync result you can trust
 
 Follow-up UX round after the audit, live-verified on a real network (home /24 + a powered-off lab). Gates: 1594 unit / 0 fail, ESLint 0, `tsc` 0.

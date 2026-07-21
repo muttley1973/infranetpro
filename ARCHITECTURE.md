@@ -227,13 +227,28 @@ At the tail of each rebuild it also refreshes the sub-header (`src/app-subbar.js
 `renderSubbar` → `#modern-subbar`: breadcrumb · next-step suggestion · project
 stats) — a bare-global typeof-guarded call, so no new `win.*` reference.
 
-Floor nodes also carry a **presence overlay** derived from the last Drift report:
-**red** (`.node-absent`, bucket `macOrphan`) when confirmed absent, **grey**
-(`.node-unverified`, bucket `unverified`) when the check never reached its subnet.
-Rack devices keep their SNMP LED instead. The buckets now also cover documented
-devices that have an IP but no MAC (`doc.ipOnly`), checked per-node (SNMP answered /
-sweep) rather than per-MAC — with the same no-invention rule: never "absent" for a
-subnet that was not observed, never for a non-SNMP device that was not actively probed.
+Floor nodes also carry a **presence overlay** derived from the last Drift report,
+built on an **honest presence** model — *"no answer" is not "dead"*, so **red**
+requires a signal a live host cannot suppress:
+- **green** (no overlay) — any positive signal: SNMP answered, MAC in a switch FDB,
+  an active DHCP lease, an ARP reply during the sweep, or the **router's ARP table**
+  (`ipNetToMediaTable`/`ipNetToPhysicalTable`, `snmpArp`) proving a device alive on a
+  VLAN *behind* a router (green **across subnets**, no ping from the server needed).
+  A positive signal always wins over any absence hint.
+- **red** (`.node-absent`, bucket `macOrphan`) — only from `trustAbsentNodeIds`: a
+  **local ARP-miss** (the `/api/reachability` sweep returns `absent:true` only for an
+  IP on the server's own segment, by real netmask, that never appears in ARP after the
+  ping) or a **switch access port down for ≥ N syncs** (the switch is authoritative on
+  its own port's link; the down-streak is the anti-flap). A plain **Sync** has no
+  sweep → `trustAbsentNodeIds` is empty → **never red**.
+- **grey** (`.node-unverified`, bucket `unverified`) — everything else: FDB ageing,
+  host-filtered ICMP, a mute SNMP agent, a remote/unreached subnet. Honest "don't know".
+
+Rack devices keep their SNMP LED instead of an overlay. The buckets cover documented
+devices with an IP but no MAC too (`doc.ipOnly`), checked per-node rather than per-MAC.
+The signals are assembled in `lib/drift-snapshot.js` (`buildSnmpSnapshot`: `presentNodeIds`,
+`trustAbsentNodeIds`, `macAtIp`, `snmpArp`) and decided in `lib/drift-report.js`; a
+stale DHCP lease is deliberately never a red signal (imported old files would mass-flag).
 
 ---
 
