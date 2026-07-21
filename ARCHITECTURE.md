@@ -241,8 +241,11 @@ requires a signal a live host cannot suppress:
   **local ARP-miss** (the `/api/reachability` sweep returns `absent:true` only for an
   IP on the server's own segment, by real netmask, that never appears in ARP after the
   ping) or a **switch access port down for ≥ N syncs** (the switch is authoritative on
-  its own port's link; the down-streak is the anti-flap). A plain **Sync** has no
-  sweep → `trustAbsentNodeIds` is empty → **never red**.
+  its own port's link; the down-streak is the anti-flap). Of these two, only the
+  **local ARP-miss** needs the sweep, so it fires solely on **Verifica**; the
+  **switch-port-down** signal needs no sweep, so a plain **Sync** *can* turn a node red
+  once its down-streak matures (`portDownStreak` accumulates sync after sync). What a
+  plain Sync never does is red a node that is merely **silent** — that stays grey.
 - **grey** (`.node-unverified`, bucket `unverified`) — everything else: FDB ageing,
   host-filtered ICMP, a mute SNMP agent, a remote/unreached subnet. Honest "don't know".
 
