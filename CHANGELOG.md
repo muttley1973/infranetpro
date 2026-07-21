@@ -2,6 +2,15 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-21 — ND discovery: green across subnets via the router's IPv6 neighbours
+
+Extends the honest-presence "green across subnets" signal to IPv6, the twin of the router-ARP path. Gates: 1607 unit / 0 fail, e2e 79/79, ESLint 0, `tsc` 0.
+
+### Added
+- **Green across subnets via IPv6 Neighbor Discovery.** Each router/switch's SNMP neighbour cache (`ipNetToPhysicalTable`, IPv6 rows — already walked on Sync as `ndTable`) now feeds presence: a documented device *behind* a router is **green** because the router's ND cache proves it is a live neighbour — even if it is **IPv6-only** or its IPv4 ARP entry has aged out (cases the router-ARP path misses). `src/app-autolink.js` (`store._topoNdCache`), `src/app-drift.js`, `src/store.js`, `src/app-popup.js`, `lib/drift-snapshot.js` (`snmpNd`).
+
+> The router's ND cache is consumed as a **presence-only** signal (it only lightens a node to green): it deliberately does **not** feed IP-change detection — an ND IPv6 must never flag a device documented with an IPv4 as "IP changed" (cross-family), and the device's *own* IPv6 change is already tracked authoritatively via its `ipAddressTable` with the manual padlock.
+
 ## 2026-07-20 — Honest presence: red only from proof, green across subnets
 
 Refines the floor presence model so a **red** node is always trustworthy. Principle (senior-network-engineer): *"no answer" is not "dead"* — red must come from a signal a live host cannot suppress. Live-verified on a real network (home /24 + a powered-off lab). Gates: 1605 unit / 0 fail, e2e 79/79, ESLint 0, `tsc` 0.

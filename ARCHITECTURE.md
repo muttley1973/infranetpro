@@ -231,9 +231,11 @@ Floor nodes also carry a **presence overlay** derived from the last Drift report
 built on an **honest presence** model — *"no answer" is not "dead"*, so **red**
 requires a signal a live host cannot suppress:
 - **green** (no overlay) — any positive signal: SNMP answered, MAC in a switch FDB,
-  an active DHCP lease, an ARP reply during the sweep, or the **router's ARP table**
-  (`ipNetToMediaTable`/`ipNetToPhysicalTable`, `snmpArp`) proving a device alive on a
-  VLAN *behind* a router (green **across subnets**, no ping from the server needed).
+  an active DHCP lease, an ARP reply during the sweep, or the **router's neighbour
+  tables** — the IPv4 ARP table (`ipNetToMediaTable`/`ipNetToPhysicalTable`, `snmpArp`)
+  or the IPv6 Neighbor Discovery cache (`ipNetToPhysicalTable` IPv6 rows, `snmpNd`) —
+  proving a device alive on a VLAN *behind* a router (green **across subnets**, no ping
+  from the server needed; ND catches IPv6-only or ARP-aged hosts the ARP path misses).
   A positive signal always wins over any absence hint.
 - **red** (`.node-absent`, bucket `macOrphan`) — only from `trustAbsentNodeIds`: a
   **local ARP-miss** (the `/api/reachability` sweep returns `absent:true` only for an
@@ -247,8 +249,9 @@ requires a signal a live host cannot suppress:
 Rack devices keep their SNMP LED instead of an overlay. The buckets cover documented
 devices with an IP but no MAC too (`doc.ipOnly`), checked per-node rather than per-MAC.
 The signals are assembled in `lib/drift-snapshot.js` (`buildSnmpSnapshot`: `presentNodeIds`,
-`trustAbsentNodeIds`, `macAtIp`, `snmpArp`) and decided in `lib/drift-report.js`; a
-stale DHCP lease is deliberately never a red signal (imported old files would mass-flag).
+`trustAbsentNodeIds`, `macAtIp`, `snmpArp`, `snmpNd`) and decided in `lib/drift-report.js`;
+a stale DHCP lease is deliberately never a red signal (imported old files would mass-flag),
+and `snmpNd` is presence-only (never IP-change, to avoid a cross-family false positive).
 
 ---
 
