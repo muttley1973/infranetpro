@@ -2,6 +2,13 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-21 — Released DHCP lease as an opt-in "likely disconnected" hint
+
+Gates: 1610 unit / 0 fail, e2e 79/79, ESLint 0, `tsc` 0.
+
+### Added
+- **Released-lease presence hint (opt-in, off by default).** A new toggle in **Network automations** treats a **released** DHCP lease (`binding state released` — the device deliberately sent DHCPRELEASE) as a *weak* signal: a documented device with no positive signal and a released lease is annotated **"likely disconnected"** in the drift report — but it stays **grey** ("not verifiable"), never red. It is only ever a hint (many devices leave without releasing), only from **released** state (never from lease **expiry** — an imported old file would mass-flag), and any positive signal still wins (green). `lib/drift-snapshot.js` (`leaseReleasedHint` → `releasedMacs`), `lib/drift-report.js`, `src/app-drift.js`, `src/app-vlan-autopoll.js`.
+
 ## 2026-07-21 — ND discovery: green across subnets via the router's IPv6 neighbours
 
 Extends the honest-presence "green across subnets" signal to IPv6, the twin of the router-ARP path. Gates: 1607 unit / 0 fail, e2e 79/79, ESLint 0, `tsc` 0.
