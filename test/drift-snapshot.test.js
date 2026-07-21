@@ -107,6 +107,34 @@ test('snmpSnap: responded + presenza multi-segnale (SNMP o sweep)', () => {
   assert.equal(s.reachabilityChecked, true);
 });
 
+test('snmpSnap: trustAbsentNodeIds SOLO da reach[ip].absent===true (assenza affidabile per-nodeId)', () => {
+  const m = {
+    nodes: [
+      { id: 'loc-off', ip: '192.168.1.140' },                              // locale, assente PROVATO (ARP-miss)
+      { id: 'loc-fw',  ip: '192.168.1.10' },                               // locale, vivo via ARP-during-ping
+      { id: 'remote',  ip: '10.20.0.5' },                                  // remoto muto (mai "assente")
+      { id: 'host',    ip: '10.0.0.9', integration: { host: '10.0.0.9' } },// presente via ping
+    ],
+    reachable: {
+      '192.168.1.140': { alive: false, via: '', mac: '', absent: true },
+      '192.168.1.10':  { alive: true, via: 'arp', mac: 'AA:BB:CC:00:00:10', absent: false },
+      '10.20.0.5':     { alive: false, via: '', mac: '', absent: false },
+      '10.0.0.9':      { alive: true, via: 'ping', mac: '', absent: false },
+    },
+  };
+  const s = buildSnmpSnapshot(m);
+  assert.deepEqual(Object.keys(s.trustAbsentNodeIds).sort(), ['loc-off'], 'solo l\'assente-provato on-segment');
+  assert.ok(!s.trustAbsentNodeIds.remote, 'un remoto muto NON è assenza affidabile');
+  assert.ok(!s.trustAbsentNodeIds['loc-fw'], 'un host vivo via ARP-during-ping NON è assente');
+  assert.equal(s.presentNodeIds['loc-fw'], true, 'ARP-during-ping → presente (alive dallo sweep)');
+  assert.equal(s.presentNodeIds.host, true);
+});
+
+test('snmpSnap: senza sweep (reach null) trustAbsentNodeIds è vuoto (Sync mai rosso)', () => {
+  const s = buildSnmpSnapshot({ nodes: [{ id: 'x', ip: '192.168.1.5', snmpStatus: 'fail' }] });
+  assert.deepEqual(s.trustAbsentNodeIds, {}, 'nessuna sweep → nessuna prova di assenza → mai rosso');
+});
+
 test('snmpSnap: macAtIp da ARP (priorità) + subnet osservate; fallback a reach.mac senza ARP', () => {
   const withArp = buildSnmpSnapshot({
     nodes: [],
@@ -179,6 +207,67 @@ test('snmpSnap: lease attivo = identità cross-VLAN (G1: NON marca la subnet oss
   assert.equal(s.observedDevices.length, 1, 'solo il lease attivo diventa un non-documentato');
   assert.equal(s.reachabilityChecked, true, 'un lease valido conta come osservabilità (per-MAC)');
   assert.deepEqual(s.observedSubnets, [], 'G1: il lease NON marca la subnet come osservata (no falsi assenti)');
+});
+
+// ── Fase 2: ARP dei router/switch L3 (snmpArp) come presenza VIVA cross-subnet ──
+test('snmpSnap: snmpArp → macAtIp/observedMacs/observedSubnets (presenza cross-subnet)', () => {
+  const s = buildSnmpSnapshot({
+    nodes: [],
+    snmpArp: { 'aa:aa:aa:00:00:01': '10.20.30.5', 'bb:bb:bb:00:00:02': '172.16.9.9' },
+  });
+  assert.equal(s.macAtIp['aa:aa:aa:00:00:01'], '10.20.30.5', 'MAC→IP dal router');
+  assert.deepEqual(s.macAtIps['aa:aa:aa:00:00:01'], ['10.20.30.5']);
+  assert.ok(s.observedMacs.includes('aa:aa:aa:00:00:01'), 'il MAC è "visto in rete" → presente');
+  assert.deepEqual(s.observedSubnets.sort(), ['10.20.30', '172.16.9'], 'le VLAN dietro il router sono osservate');
+  assert.notEqual(s.reachabilityChecked, true, 'l\'ARP router NON è una probe attiva → non marca reachabilityChecked');
+});
+
+test('snmpSnap: sweep ARP vivo ha priorità sul router ARP per lo slot legacy (gap-fill)', () => {
+  const s = buildSnmpSnapshot({
+    nodes: [],
+    arpTable: { '10.20.30.5': 'AA:AA:AA:00:00:01' },   // sweep: MAC vivo a .5 (fresco)
+    snmpArp: { 'aa:aa:aa:00:00:01': '10.20.30.9' },     // router: stesso MAC visto a .9 (più vecchio)
+  });
+  assert.equal(s.macAtIp['aa:aa:aa:00:00:01'], '10.20.30.5', 'lo sweep vivo tiene lo slot legacy');
+  assert.deepEqual(s.macAtIps['aa:aa:aa:00:00:01'].sort(), ['10.20.30.5', '10.20.30.9'], 'entrambi gli IP nel multihoming');
+});
+
+test('round-trip Fase 2: device cross-subnet visto SOLO dall\'ARP del router → VERDE (non unverified né assente)', () => {
+  const nodes = [
+    { id: 'core', name: 'CORE', type: 'router', mac: 'aa:aa:aa:00:00:01', ip: '10.0.0.1', snmpStatus: 'ok', integration: { host: '10.0.0.1' } },
+    { id: 'cam',  name: 'CAM-VLAN20', type: 'ipcam', mac: 'cc:cc:cc:00:00:03', ip: '10.20.0.50' },  // dietro il router, mai pingata né in FDB
+  ];
+  const model = { nodes, links: [], ports: {}, portLabel: p => p, nodeLabel: n => n.name || n.id, cableLabel: l => l.id, normMac: lower, isPassiveNoIp: () => false };
+  const doc = buildDocSnapshot(model);
+  const snmp = buildSnmpSnapshot({
+    nodes, docPorts: {}, ports: {}, fdb: { core: { 'aa:aa:aa:00:00:01': 'Gi0/0' } }, vlanCache: {},  // osservabilità presente (uno switch)
+    reachable: null, arpTable: null, leases: [], knownSigs: [], rejectedAutoLinks: [], normMac: lower,
+    isVirtualMac: () => false, isRandomizedMac: () => false, isLeaseStale: () => false, countMacsPerPort: () => ({}),
+    snmpArp: { 'cc:cc:cc:00:00:03': '10.20.0.50' },   // la cam è vista SOLO dall'ARP del router
+  });
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.macOrphan, 0, 'la cam vista dal router NON è assente');
+  assert.equal(r.counts.unverified, 0, 'e NON è "non-verificabile": il router prova che è viva');
+  assert.equal(r.counts.ipChanged, 0, 'IP del router == documentato → nessun cambio IP');
+});
+
+test('round-trip Fase 2: router ARP con IP DIVERSO dal documentato → ipChanged (cross-subnet)', () => {
+  const nodes = [
+    { id: 'sw',  name: 'SW', type: 'switch', mac: 'aa:aa:aa:00:00:01', ip: '10.0.0.1', snmpStatus: 'ok', integration: { host: '10.0.0.1' } },
+    { id: 'srv', name: 'SRV', type: 'server', mac: 'dd:dd:dd:00:00:04', ip: '10.20.0.50' },   // doc a .50
+  ];
+  const model = { nodes, links: [], ports: {}, portLabel: p => p, nodeLabel: n => n.name || n.id, cableLabel: l => l.id, normMac: lower, isPassiveNoIp: () => false };
+  const doc = buildDocSnapshot(model);
+  const snmp = buildSnmpSnapshot({
+    nodes, docPorts: {}, ports: {}, fdb: { sw: { 'aa:aa:aa:00:00:01': 'Gi0/0' } }, vlanCache: {},
+    reachable: null, arpTable: null, leases: [], knownSigs: [], rejectedAutoLinks: [], normMac: lower,
+    isVirtualMac: () => false, isRandomizedMac: () => false, isLeaseStale: () => false, countMacsPerPort: () => ({}),
+    snmpArp: { 'dd:dd:dd:00:00:04': '10.20.0.77' },   // il router lo vede a .77 (≠ documentato)
+  });
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.macOrphan, 0, 'non assente: il router prova che è vivo');
+  assert.equal(r.counts.ipChanged, 1, 'IP del router ≠ documentato → cambio IP');
+  assert.equal(r.ipChanged[0].newIp, '10.20.0.77');
 });
 
 // ── round-trip: snapshot puri → buildDriftReport ────────────────────

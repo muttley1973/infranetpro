@@ -51,6 +51,39 @@ function _isVirtualMac(mac) {
   catch (_) { return false; }
 }
 
+// IPv4 dotted → intero unsigned 32-bit (null se non valido).
+function _ipToInt(ip) {
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(String(ip || ''));
+  if (!m) return null;
+  const a = +m[1], b = +m[2], c = +m[3], d = +m[4];
+  if (a > 255 || b > 255 || c > 255 || d > 255) return null;
+  return ((a << 24) | (b << 16) | (c << 8) | d) >>> 0;
+}
+// Reti IPv4 LOCALI del server (address & netmask di ogni interfaccia non-interna).
+// Distinguono un IP sul FILO del server — dove il silenzio ARP dopo il ping È una
+// prova di assenza (l'ARP non si firewalla) — da un IP REMOTO dietro un router,
+// dove il silenzio può essere solo filtraggio e NON prova nulla. Usa la netmask
+// reale (non assume /24) per essere onesto su reti /16, /23, ecc.
+function _localIpv4Networks() {
+  const nets = [];
+  const ifaces = os.networkInterfaces?.() || {};
+  for (const entries of Object.values(ifaces)) {
+    for (const it of entries || []) {
+      if (!it || it.family !== 'IPv4' || it.internal) continue;
+      const addr = _ipToInt(it.address), mask = _ipToInt(it.netmask);
+      if (addr == null || mask == null) continue;
+      nets.push({ net: (addr & mask) >>> 0, mask });
+    }
+  }
+  return nets;
+}
+function _ipInLocalNets(ip, nets) {
+  const v = _ipToInt(ip);
+  if (v == null) return false;
+  for (const n of nets) { if (((v & n.mask) >>> 0) === n.net) return true; }
+  return false;
+}
+
 const router = express.Router();
 
 // ---- Poll / integrazione dispositivi ----------------------------------------
@@ -100,6 +133,10 @@ router.post('/api/poll-power', auth.requireAdmin, async (req, res) => {
 // poche porte di management. Serve a stabilire la PRESENZA dei device che non
 // parlano SNMP (PC, IoT, UPS, webcam…): presenti se rispondono a uno qualsiasi
 // di questi segnali. Leggero e parallelo; nessuna walk.
+// Per host → { alive, via, mac, absent }: `absent:true` SOLO per un IP sul
+// segmento LOCALE del server che, dopo il ping, non compare in ARP (assenza
+// affidabile). È l'unico segnale che autorizza il "rosso" nella presenza onesta;
+// un IP remoto muto resta alive:false/absent:false (non-verificabile, grigio).
 router.post('/api/reachability', auth.requireAdmin, async (req, res) => {
   try {
     const { ips = [], timeout } = req.body ?? {};
@@ -136,14 +173,30 @@ router.post('/api/reachability', auth.requireAdmin, async (req, res) => {
     const CONC = 24;
     for (let i = 0; i < list.length; i += CONC) {
       const part = await Promise.all(list.slice(i, i + CONC).map(checkOne));
-      for (const r of part) results[r.ip] = { alive: r.alive, via: r.via, mac: '' };
+      for (const r of part) results[r.ip] = { alive: r.alive, via: r.via, mac: '', absent: false };
     }
     // Ri-leggo l'ARP DOPO la sweep: ping/TCP hanno popolato la cache, così ho il
     // MAC anche dei device appena raggiunti. Serve all'audit per riconoscere un
     // device che ha cambiato IP (stesso MAC) e per la presenza per-MAC.
     const arp2 = await _readArpMap().catch(() => arp);
+    // Reti locali del server: solo sul FILO un ARP-miss dopo il ping è una prova
+    // affidabile di assenza (presenza "onesta"); un remoto muto può essere filtrato.
+    const localNets = _localIpv4Networks();
     for (const ip of Object.keys(results)) {
-      if (results[ip].alive) results[ip].mac = arp2.get(ip) || arp.get(ip) || '';
+      const r = results[ip];
+      // Fix ARP-durante-il-ping: l'OS risolve l'ARP dell'host PRIMA dell'ICMP; se
+      // l'IP è comparso in ARP durante la sweep È VIVO sul filo, anche con ICMP/TCP
+      // falliti (ICMP filtrato, nessuna porta di mgmt). Prima questo segnale veniva
+      // buttato (arp2 letto solo per il MAC) → falso "assente" su host locali vivi.
+      if (!r.alive && arp2.has(ip)) { r.alive = true; r.via = 'arp'; }
+      if (r.alive) {
+        r.mac = arp2.get(ip) || arp.get(ip) || '';
+      } else {
+        // Assenza AFFIDABILE (un host vivo non può sopprimerla) SOLO on-segment: un
+        // IP sul nostro filo che non risponde nemmeno all'ARP dopo il ping non c'è
+        // davvero. Un IP remoto muto → alive:false ma absent:false (grigio, non rosso).
+        r.absent = _ipInLocalNets(ip, localNets) && !arp2.has(ip);
+      }
     }
     // Tabella ARP COMPLETA del segmento (tutti gli ip→mac noti all'OS): serve a
     // riconoscere un device che ha CAMBIATO IP (stesso MAC ora a un IP NUOVO,

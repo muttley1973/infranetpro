@@ -701,11 +701,19 @@ async function _autoDiscoverLinks(nodeIds){
         diag.topoOk++;
         diag.neighborsSeen += (data.neighbors || []).length;
         const arpTableRaw = win._normalizeFdbTable(data.arpTable || {});
+        // Fase 2 (presenza onesta cross-subnet): l'ARP di questo router/switch L3
+        // (ipNetToMedia/ipNetToPhysicalTable) prova che gli host sulle SUE VLAN sono
+        // VIVI (adiacenza L3) → li rende verdi anche cross-subnet SENZA pingarli. Lo
+        // persistiamo per-device in store._topoArpCache (come _topoFdbCache) così la
+        // passata di presenza (buildSnmpSnapshot) può consumarlo senza ri-pollare.
+        const arpDev = {};
         for(const [mac, ip] of Object.entries(arpTableRaw)){
             const ip4 = String(ip || '').trim();
             if(!_isIPv4(ip4)) continue;
             if(!arpByMac[mac]) arpByMac[mac] = ip4;
+            arpDev[mac] = ip4;
         }
+        store._topoArpCache[n.id] = arpDev;
         diag.arpEntries += Object.keys(arpTableRaw).length;
 
         // Backfill ifName VENDOR-NEUTRAL (manual-first): allinea la porta DOCUMENTATA

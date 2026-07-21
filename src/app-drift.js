@@ -95,12 +95,22 @@ export function _driftBuildSnmpSnapshot(docSnap, reachable, arpTable){
     const state = store.state;
     const fdb = (typeof store._topoFdbCache === 'object' && store._topoFdbCache) ? store._topoFdbCache : {};
     const vlanCache = (typeof store._topoFdbVlanCache === 'object' && store._topoFdbVlanCache) ? store._topoFdbVlanCache : {};
+    // Fase 2 — ARP dei router/switch L3 raccolto al Sync (store._topoArpCache, per-device):
+    // appiattito in MAC→IP (first-wins) come fonte di presenza VIVA cross-subnet. Prova
+    // che gli host sulle VLAN dietro il router sono vivi (adiacenza L3) → verde senza
+    // pingarli. Sync-derivato → disponibile ANCHE nel Sync (non solo alla Verifica).
+    const arpCache = (typeof store._topoArpCache === 'object' && store._topoArpCache) ? store._topoArpCache : {};
+    const snmpArp = {};
+    for(const dev of Object.values(arpCache)){
+        if(!dev) continue;
+        for(const [mac, ip] of Object.entries(dev)){ if(!snmpArp[mac]) snmpArp[mac] = ip; }
+    }
     return buildSnmpSnapshot({
         nodes: state.nodes,
         docPorts: docSnap.ports,
         ports: state.ports,
         fdb, vlanCache,
-        reachable, arpTable,
+        reachable, arpTable, snmpArp,
         // Lease DHCP: fonte MAC→IP cross-VLAN (transitorio, store._dhcpLeases).
         leases: Array.isArray(store._dhcpLeases) ? store._dhcpLeases : [],
         knownSigs: docSnap.deviceSigs,
