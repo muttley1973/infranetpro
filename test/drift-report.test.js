@@ -162,21 +162,22 @@ test('presenza onesta: FDB popolato ma MAC non visto e nessuna prova → grigio 
   assert.equal(r.counts.unverified, 1);
 });
 
-// ── Multi-fabric (fix falso "assente" della LAN reale mischiata col lab) ──────
-// La FDB bridge di UN fabric (es. gli switch del lab 10.10.x) NON vede i MAC di un
-// altro dominio L2 raggiungibile solo a L3 (es. la LAN reale 192.168.x dietro un
-// router). Con `fdbSubnets` la copertura FDB è limitata alle subnet viste a L2.
-test('multi-fabric: fdbObserved + fdbSubnets → device su subnet NON coperta a L2 → unverified (non grigio)', () => {
+// ── Multi-fabric (presenza onesta): la LAN reale mischiata al lab ─────────────
+// Uno switch del lab (10.10.x) vede in FDB solo i propri MAC; il PC della LAN reale
+// (192.168.x, dietro un router) non è visto da nessuno. Dopo Fase 1 non serve più la
+// copertura FDB per-subnet (il vecchio `fdbSubnets`, ora rimosso): chi non ha alcun
+// segnale positivo né una prova di assenza resta "non verificabile", mai assente.
+test('multi-fabric: device di una LAN mai osservata → unverified (non assente)', () => {
   const doc = { macs: [
     { mac: 'AA:AA:AA:00:00:01', label: 'sw-lab',  nodeId: 'sw', ip: '10.10.99.1' },
     { mac: 'CC:CC:CC:00:00:03', label: 'pc-lan-reale', nodeId: 'pc', ip: '192.168.1.101' },
   ] };
-  // FDB copre solo il lab (10.10.99); la LAN reale 192.168.1 NON è tra fdbSubnets.
+  // sw è visto in FDB (presente); il PC reale non è visto da nessuno.
   const snmp = { observedMacs: ['aa:aa:aa:00:00:01'], responded: {}, fdbObserved: true,
-                 presentNodeIds: {}, observedSubnets: [], fdbSubnets: ['10.10.99'] };
+                 presentNodeIds: {}, observedSubnets: [] };
   const r = buildDriftReport(snmp, doc, [], {});
   assert.equal(r.counts.macOrphan, 0, 'lo switch del lab è visto in FDB; il PC reale non è dichiarabile assente');
-  assert.equal(r.counts.unverified, 1, 'il PC della LAN reale (L2 mai osservata) è non-verificabile, non assente');
+  assert.equal(r.counts.unverified, 1, 'il PC della LAN reale (mai visto) è non-verificabile, non assente');
   assert.equal(r.unverified[0].label, 'pc-lan-reale');
   assert.equal(r.unverified[0].ip, '192.168.1.101');
 });

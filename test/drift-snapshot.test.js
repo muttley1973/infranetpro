@@ -293,24 +293,11 @@ test('round-trip: doc==realtà → 0 finding; cambio VLAN porta → stateDrift',
   assert.equal(r1.stateDrift[0].patch.vlan, 999);
 });
 
-// ── fdbSubnets: copertura L2 per subnet (fix falso "assente" multi-fabric) ────
-test('fdbSubnets: coperte le subnet del fabric osservato, NON la LAN reale dietro il router', () => {
-  const nodes = [
-    { id: 'sw', name: 'SW',     type: 'switch', mac: 'aa:aa:aa:00:00:01', ip: '10.10.99.1',  snmpStatus: 'ok', integration: { host: '10.10.99.1' } },
-    { id: 'ep', name: 'EP',     type: 'pc',     mac: 'bb:bb:bb:00:00:02', ip: '10.10.30.10' },
-    { id: 'pc', name: 'PC-LAN', type: 'pc',     mac: 'cc:cc:cc:00:00:03', ip: '192.168.1.101' },
-  ];
-  // La FDB dello switch del lab vede sw+ep (10.10.x), NON il PC della LAN reale.
-  const fdb = { sw: { 'aa:aa:aa:00:00:01': 'Gi0/0', 'bb:bb:bb:00:00:02': 'Gi0/2' } };
-  const s = buildSnmpSnapshot({
-    nodes, docPorts: {}, ports: {}, fdb, vlanCache: {}, reachable: null, arpTable: null,
-    leases: [], knownSigs: [], rejectedAutoLinks: [], normMac: lower,
-    isVirtualMac: () => false, isRandomizedMac: () => false, isLeaseStale: () => false, countMacsPerPort: () => ({}),
-  });
-  assert.equal(s.fdbObserved, true);
-  assert.deepEqual(s.fdbSubnets.sort(), ['10.10.30', '10.10.99'], 'coperte le subnet del lab, non la 192.168.1 reale');
-});
-
+// ── Multi-fabric (presenza onesta): LAN reale mischiata al lab → i 192.168.x non
+// sono dichiarati assenti, restano "non verificabili" (nessun segnale positivo, nessuna
+// prova di assenza). Dopo Fase 1 la copertura FDB per-subnet non serve più a decidere
+// rosso/grigio (era il vecchio `fdbSubnets`, ora rimosso): un device che nessuno vede
+// resta grigio a prescindere.
 test('round-trip Sync: LAN reale mischiata al lab → i 192.168.x restano unverified (non grigi)', () => {
   const nodes = [
     { id: 'sw',  name: 'SW-CORE', type: 'switch', mac: 'aa:aa:aa:00:00:01', ip: '10.10.99.1', snmpStatus: 'ok', integration: { host: '10.10.99.1' } },
@@ -342,5 +329,4 @@ test('default: senza helper iniettati non lancia e produce strutture vuote sensa
   const s = buildSnmpSnapshot({});
   assert.equal(s.fdbObserved, false);
   assert.deepEqual(s.observedDevices, []);
-  assert.deepEqual(s.fdbSubnets, [], 'nessuna FDB → nessuna subnet coperta');
 });
