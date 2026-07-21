@@ -589,7 +589,14 @@ test('ponte: la coda funzioni A batch 2 non è più letta da win.*', () => {
 // doppio-click _rack{,Floor,Port}Dbl{Id,Time,Pid}, _paletteDragType, _isDirty,
 // _dragModalState) → store.js; 55 win.X → store.X in 5 file. store.js proxa ora 64 celle.
 // Golden invariante; e2e 69/69 (drag/pan/dblclick/undo). Vedi RETIRED_STATE (3º giro).
-const MAX_WIN_REFS = 268;
+//
+// +1 (268 → 269, 2026-07-21): ND DISCOVERY — src/app-autolink.js normalizza le chiavi
+// MAC dei vicini Neighbor Discovery IPv6 del router (store._topoNdCache) col GLOBALE
+// win._normalizeFdbTable, identico al ramo ARP 6 righe sopra (deve produrre la STESSA
+// forma-MAC per combaciare coi documentati). Gli helper ip6 (pickBestIp6/canonicalizeIpv6)
+// sono import ESM (0 letture ponte). Aumento MOTIVATO di 1 lib-script read (categoria
+// "resta per design", ASSE A sospeso §2.2). Nessuna funzione/stato nuovo sul ponte.
+const MAX_WIN_REFS = 269;
 
 test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => {
   const total = countInCode(/\bwin\./g);

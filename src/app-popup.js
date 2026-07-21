@@ -394,6 +394,11 @@ store._topoFdbVlanCache = {};
 // Fase 2) → consumata da buildSnmpSnapshot come fonte MAC→IP aggiuntiva. Cache di
 // sessione (rebuilt a ogni Sync), non persistita — come _topoFdbCache.
 store._topoArpCache = {};
+// Cache Neighbor Discovery IPv6 dei router/switch L3 (SNMP ipNetToPhysicalTable, righe
+// IPv6), popolata in _autoDiscoverLinks durante il Sync. { [nodeId]: { [normMac]: ip6 } }.
+// Prova la presenza VIVA dei vicini IPv6 dietro il router (verde cross-subnet, ND
+// discovery) → consumata da buildSnmpSnapshot SOLO come observedMacs. Cache di sessione.
+store._topoNdCache = {};
 // Cache neighbors LLDP/CDP per switch, popolata in _autoDiscoverLinks durante sync.
 // { switchNodeId: { ts, deviceHostname, deviceIP, neighbors[] } }
 // Usata da discoverTopology per evitare di rifare le chiamate /api/topology

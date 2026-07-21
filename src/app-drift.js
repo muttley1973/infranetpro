@@ -105,12 +105,22 @@ export function _driftBuildSnmpSnapshot(docSnap, reachable, arpTable){
         if(!dev) continue;
         for(const [mac, ip] of Object.entries(dev)){ if(!snmpArp[mac]) snmpArp[mac] = ip; }
     }
+    // ND discovery — Neighbor Discovery IPv6 dei router/switch L3 raccolta al Sync
+    // (store._topoNdCache, per-device): appiattita in MAC→IPv6 (first-wins). Gemella di
+    // snmpArp ma consumata SOLO come presenza VIVA cross-subnet (verde per-MAC): coglie
+    // gli host IPv6-only/ARP-invecchiato che l'ARP IPv4 non vede. Sync-derivato.
+    const ndCache = (typeof store._topoNdCache === 'object' && store._topoNdCache) ? store._topoNdCache : {};
+    const snmpNd = {};
+    for(const dev of Object.values(ndCache)){
+        if(!dev) continue;
+        for(const [mac, ip] of Object.entries(dev)){ if(!snmpNd[mac]) snmpNd[mac] = ip; }
+    }
     return buildSnmpSnapshot({
         nodes: state.nodes,
         docPorts: docSnap.ports,
         ports: state.ports,
         fdb, vlanCache,
-        reachable, arpTable, snmpArp,
+        reachable, arpTable, snmpArp, snmpNd,
         // Lease DHCP: fonte MAC→IP cross-VLAN (transitorio, store._dhcpLeases).
         leases: Array.isArray(store._dhcpLeases) ? store._dhcpLeases : [],
         knownSigs: docSnap.deviceSigs,
