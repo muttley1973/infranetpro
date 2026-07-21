@@ -57,6 +57,7 @@ async function openDhcpImport() {
     _refreshId = null;
     _clearStaging();
     const err = document.getElementById('dhcp-errors'); if (err) err.textContent = '';
+    const rh = document.getElementById('dhcp-released-hint'); if (rh) rh.checked = !!(store.state && store.state.leaseReleasedHint);
     document.getElementById('dhcp-overlay').classList.add('open');
     await _populateDhcpVendors();   // i vendor live arrivano dal server (pack o no)
     renderDhcpSources();
@@ -283,6 +284,10 @@ expose({
 registerChangeActions({
     'dhcp-file':   (el) => loadDhcpFile(el),
     'dhcp-vendor': () => updateDhcpVendorFields(),
+    // Opt-in per-progetto: un lease RILASCIATO annota il device grigio "probabilmente
+    // scollegato" (segnale debole, mai rosso — lib/drift-snapshot `leaseReleasedHint`).
+    // Applica alla prossima Verifica (il pulsante «Verifica ora» è qui accanto).
+    'dhcp-released-hint': (el) => { if (store.state) { store.state.leaseReleasedHint = !!el.checked; markDirty(); } },
 });
 registerInputActions({
     'dhcp-preview': () => previewDhcp(),

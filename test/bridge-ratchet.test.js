@@ -662,7 +662,11 @@ function countInlineHandlers() {
 // Restano statici: menu header import/export + automazioni, toolbar, dialoghi discovery/
 // export-PDF/label/vlan-members/shared-segment, e gli handler canvas (wheel/drop/scroll/
 // mouse/contextmenu → servono nuovi tipi harness). Golden invariato (chrome, non #props-panel).
-const MAX_INLINE_HANDLERS = 577;
+//
+// −1 (577 → 576, 2026-07-21): il toggle «Lease rilasciato» spostato da «Automazioni rete»
+// (onchange inline) alla modale Import DHCP (data-change delegation, app-dhcp-import.js) →
+// un inline handler in meno, allineato ad ASSE B.
+const MAX_INLINE_HANDLERS = 576;
 test('ponte ASSE B: gli handler inline on*= non superano il tetto a cricchetto', () => {
   const total = countInlineHandlers();
   assert.ok(total <= MAX_INLINE_HANDLERS,
