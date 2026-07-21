@@ -56,7 +56,7 @@ export const store = proxy([
     '_dragDownPt', '_hoverRackId', '_propsTabHold', '_floorPortClick',
     '_physicalTraceActive', '_propsExplicit', '_rightTab', '_snmpSyncing',
     '_topoHideEndpoints', '_topoHideWireless', '_topoFdbVlanCache', '_discTypeMap',
-    '_focusedLagGroup',
+    '_focusedLagGroup', '_topoArpCache',
     // ── coda-stato di INTERAZIONE, 3º giro (ritiro ponte 2026-07-11) ──────────
     // Storia undo/redo, flag dirty, rilevamento doppio-click manuale (rack/floor/
     // porta), drag/pan libreria, timer tooltip topo, link-appena-iniziato.

@@ -388,6 +388,12 @@ store._topoFdbCache = {};   // var: letto dal bundle src/app-discovery.js via st
 // restituisce la Q-BRIDGE FDB VLAN-aware. Consumata dal Drift Report per
 // classificare i device su VLAN guest (best-effort, degrada se assente).
 store._topoFdbVlanCache = {};
+// Cache ARP dei router/switch L3 (SNMP ipNetToMedia/ipNetToPhysicalTable), popolata
+// in _autoDiscoverLinks durante il Sync. { [nodeId]: { [normMac]: ip4 } }. Prova la
+// presenza VIVA degli host sulle VLAN del router (verde cross-subnet, presenza onesta
+// Fase 2) → consumata da buildSnmpSnapshot come fonte MAC→IP aggiuntiva. Cache di
+// sessione (rebuilt a ogni Sync), non persistita — come _topoFdbCache.
+store._topoArpCache = {};
 // Cache neighbors LLDP/CDP per switch, popolata in _autoDiscoverLinks durante sync.
 // { switchNodeId: { ts, deviceHostname, deviceIP, neighbors[] } }
 // Usata da discoverTopology per evitare di rifare le chiamate /api/topology

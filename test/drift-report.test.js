@@ -53,12 +53,16 @@ test('device muto (non risponde) → porta non valutata', () => {
   assert.equal(r.counts.stateDrift, 0);
 });
 
-test('MAC documentato mai visto → macOrphan; MAC visto → niente', () => {
-  const doc = { macs: [{ mac: 'AA:BB:CC:00:00:01', label: 'srv1' }, { mac: 'AA:BB:CC:00:00:02', label: 'srv2' }] };
+test('MAC visto in rete → presente; mai visto SENZA prova di assenza → grigio (non rosso)', () => {
+  const doc = { macs: [
+    { mac: 'AA:BB:CC:00:00:01', label: 'srv1', nodeId: 'srv1' },
+    { mac: 'AA:BB:CC:00:00:02', label: 'srv2', nodeId: 'srv2' },
+  ] };
   const snmp = { observedMacs: ['aa:bb:cc:00:00:02'] };  // solo srv2 visto (case-insensitive)
   const r = buildDriftReport(snmp, doc, [], {});
-  assert.equal(r.counts.macOrphan, 1);
-  assert.equal(r.macOrphan[0].label, 'srv1');
+  assert.equal(r.counts.macOrphan, 0, 'un MAC mai visto NON è "assente" senza prova affidabile');
+  assert.equal(r.counts.unverified, 1);
+  assert.equal(r.unverified[0].label, 'srv1', 'srv1 non visto → non-verificabile (grigio)');
 });
 
 test('fdbObserved=false (nessuna osservabilità) → ZERO macOrphan, anche con MAC documentati non visti', () => {
@@ -73,59 +77,74 @@ test('fdbObserved=false (nessuna osservabilità) → ZERO macOrphan, anche con M
   assert.equal(r.counts.macOrphan, 0, 'FDB vuoto → nessuna affermazione di assenza');
 });
 
-test('fdbObserved=true ma MAC non visto + nodo muto → macOrphan (osservabilità presente)', () => {
+test('fdbObserved=true, MAC non visto, nodo muto CON prova di assenza (trustAbsent) → macOrphan', () => {
+  const doc = { macs: [{ mac: 'AA:BB:CC:00:00:09', label: 'old', nodeId: 'old' }] };
+  const snmp = { observedMacs: ['aa:bb:cc:00:00:77'], fdbObserved: true, responded: {}, trustAbsentNodeIds: { old: true } };
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.macOrphan, 1, 'FDB popolato + device muto + assenza PROVATA → davvero assente');
+});
+
+test('fdbObserved=true, MAC non visto, nodo muto SENZA prova → unverified (grigio, non rosso)', () => {
+  // FDB-miss da solo NON è morte: la MAC-table invecchia (~300s), un host acceso
+  // ma silenzioso ne esce. Senza prova affidabile → grigio, non rosso.
   const doc = { macs: [{ mac: 'AA:BB:CC:00:00:09', label: 'old', nodeId: 'old' }] };
   const snmp = { observedMacs: ['aa:bb:cc:00:00:77'], fdbObserved: true, responded: {} };
   const r = buildDriftReport(snmp, doc, [], {});
-  assert.equal(r.counts.macOrphan, 1, 'con FDB popolato e device muto non visto → davvero assente');
+  assert.equal(r.counts.macOrphan, 0, 'FDB-miss senza prova → mai rosso');
+  assert.equal(r.counts.unverified, 1);
 });
 
-test('device che HA RISPOSTO al sync NON è macOrphan, anche se il MAC non è in alcun FDB', () => {
+test('device che HA RISPOSTO al sync NON è assente; il muto con prova di assenza → macOrphan', () => {
   // sw1: ha risposto (responded), MAC NON osservato in FDB → NON deve essere "assente"
-  // sw2: NON ha risposto, MAC non osservato → resta macOrphan (forse davvero rimosso)
+  // sw2: NON ha risposto E c'è una prova di assenza affidabile (trustAbsent) → assente
   const doc = { macs: [
     { mac: 'AA:BB:CC:00:00:01', label: 'sw1', nodeId: 'sw1' },
     { mac: 'AA:BB:CC:00:00:02', label: 'sw2', nodeId: 'sw2' },
   ] };
-  const snmp = { observedMacs: [], responded: { sw1: true } };
+  const snmp = { observedMacs: [], responded: { sw1: true }, trustAbsentNodeIds: { sw2: true } };
   const r = buildDriftReport(snmp, doc, [], {});
-  assert.equal(r.counts.macOrphan, 1, 'solo sw2 (muto) è assente; sw1 ha risposto → presente');
+  assert.equal(r.counts.macOrphan, 1, 'sw1 ha risposto → presente; sw2 muto + assenza provata → assente');
   assert.equal(r.macOrphan[0].label, 'sw2');
 });
 
-test('presence-aware: device RAGGIUNGIBILE ma non-SNMP (ping/ARP/TCP) NON è macOrphan', () => {
+test('presence-aware: device RAGGIUNGIBILE (ping/ARP/TCP) NON è assente; l\'assente-provato sì', () => {
   const doc = { macs: [
     { mac: 'AA:BB:CC:00:00:10', label: 'pc-vivo', nodeId: 'pc1' },
     { mac: 'AA:BB:CC:00:00:11', label: 'pc-morto', nodeId: 'pc2' },
   ] };
-  // FDB vuoto, nessuna risposta SNMP, ma la sweep ha girato: pc1 vivo, pc2 no
-  const snmp = { observedMacs: [], responded: {}, fdbObserved: false, reachabilityChecked: true, presentNodeIds: { pc1: true } };
+  // FDB vuoto, nessuna risposta SNMP, sweep girata: pc1 vivo, pc2 assente PROVATO (ARP-miss locale)
+  const snmp = { observedMacs: [], responded: {}, fdbObserved: false, reachabilityChecked: true,
+                 presentNodeIds: { pc1: true }, trustAbsentNodeIds: { pc2: true } };
   const r = buildDriftReport(snmp, doc, [], {});
-  assert.equal(r.counts.macOrphan, 1, 'solo pc2 (non raggiungibile) è assente; pc1 è presente via ping');
+  assert.equal(r.counts.macOrphan, 1, 'solo pc2 (assenza provata) è assente; pc1 è presente via ping');
   assert.equal(r.macOrphan[0].label, 'pc-morto');
 });
 
-test('osservabilità: la sweep eseguita abilita il giudizio di assenza anche con FDB vuoto', () => {
+test('osservabilità: sweep + prova di assenza → macOrphan; sweep SENZA prova → grigio', () => {
   const doc = { macs: [{ mac: 'AA:BB:CC:00:00:20', label: 'x', nodeId: 'x' }] };
-  // né sweep né FDB → nessuna osservabilità → 0 (non si afferma assenza)
+  // né sweep né FDB → nessuna osservabilità → 0 (non si valuta)
   assert.equal(buildDriftReport({ observedMacs: [], fdbObserved: false }, doc, [], {}).counts.macOrphan, 0);
-  // sweep eseguita (qualcuno vivo) e x non presente → assente
-  const snmp = { observedMacs: [], fdbObserved: false, reachabilityChecked: true, presentNodeIds: {} };
-  assert.equal(buildDriftReport(snmp, doc, [], {}).counts.macOrphan, 1);
+  // sweep eseguita ma NESSUNA prova di assenza per x → grigio, NON rosso
+  const grey = { observedMacs: [], fdbObserved: false, reachabilityChecked: true, presentNodeIds: {} };
+  assert.equal(buildDriftReport(grey, doc, [], {}).counts.macOrphan, 0, '"non risponde" non è "morto"');
+  assert.equal(buildDriftReport(grey, doc, [], {}).counts.unverified, 1);
+  // sweep + prova di assenza affidabile (ARP-miss locale) → assente
+  const red = { observedMacs: [], fdbObserved: false, reachabilityChecked: true, presentNodeIds: {}, trustAbsentNodeIds: { x: true } };
+  assert.equal(buildDriftReport(red, doc, [], {}).counts.macOrphan, 1);
 });
 
-test('cross-subnet: device su subnet NON raggiunta dalla sweep → unverified, non macOrphan', () => {
+test('cross-subnet: solo il device con prova di assenza è rosso; il cross-subnet muto → grigio', () => {
   const doc = { macs: [
     { mac: 'AA:BB:CC:00:00:40', label: 'cam-altra-vlan', nodeId: 'cam1', ip: '10.20.0.5' },
     { mac: 'AA:BB:CC:00:00:41', label: 'pc-stessa-subnet', nodeId: 'pc1', ip: '192.168.1.30' },
   ] };
-  // La sweep ha visto solo 192.168.1.x (subnet del server). 10.20.0.x mai raggiunta.
+  // pc1 on-segment e assente-provato (ARP-miss locale); cam1 su subnet remota non raggiunta.
   const snmp = { observedMacs: [], responded: {}, fdbObserved: false, reachabilityChecked: true,
-                 presentNodeIds: {}, observedSubnets: ['192.168.1'] };
+                 presentNodeIds: {}, observedSubnets: ['192.168.1'], trustAbsentNodeIds: { pc1: true } };
   const r = buildDriftReport(snmp, doc, [], {});
-  assert.equal(r.counts.macOrphan, 1, 'solo il device nella subnet osservata può dirsi assente');
+  assert.equal(r.counts.macOrphan, 1, 'solo il device con assenza PROVATA è rosso');
   assert.equal(r.macOrphan[0].label, 'pc-stessa-subnet');
-  assert.equal(r.counts.unverified, 1, 'il device cross-subnet non osservato è non-verificabile');
+  assert.equal(r.counts.unverified, 1, 'il cross-subnet non provato assente è non-verificabile');
   assert.equal(r.unverified[0].label, 'cam-altra-vlan');
   assert.equal(r.unverified[0].ip, '10.20.0.5');
   // Esposti per l'accorpamento in "Reti del progetto" (annota presenza per /24).
@@ -133,14 +152,14 @@ test('cross-subnet: device su subnet NON raggiunta dalla sweep → unverified, n
   assert.deepEqual(r.observedSubnets, ['192.168.1'], 'observedSubnets esposto nell\'output');
 });
 
-test('cross-subnet back-compat: FDB senza dettaglio subnet (fdbSubnets assente) → copre il L2 come prima', () => {
+test('presenza onesta: FDB popolato ma MAC non visto e nessuna prova → grigio (mai rosso da solo)', () => {
   const doc = { macs: [{ mac: 'AA:BB:CC:00:00:42', label: 'x', nodeId: 'x', ip: '10.20.0.9' }] };
-  // fdbObserved=true SENZA fdbSubnets → comportamento storico (FDB copre tutte le VLAN)
+  // fdbObserved=true (osservabilità) ma il MAC non c'è e nessuna prova di assenza → grigio
   const snmp = { observedMacs: [], responded: {}, fdbObserved: true, reachabilityChecked: true,
                  presentNodeIds: {}, observedSubnets: ['192.168.1'] };
   const r = buildDriftReport(snmp, doc, [], {});
-  assert.equal(r.counts.unverified, 0, 'senza fdbSubnets la visibilità L2 resta trasversale (back-compat)');
-  assert.equal(r.counts.macOrphan, 1);
+  assert.equal(r.counts.macOrphan, 0, 'FDB-miss senza prova di assenza NON è rosso');
+  assert.equal(r.counts.unverified, 1);
 });
 
 // ── Multi-fabric (fix falso "assente" della LAN reale mischiata col lab) ──────
@@ -162,12 +181,14 @@ test('multi-fabric: fdbObserved + fdbSubnets → device su subnet NON coperta a 
   assert.equal(r.unverified[0].ip, '192.168.1.101');
 });
 
-test('multi-fabric: device ASSENTE su subnet COPERTA dalla FDB → macOrphan (grigio corretto)', () => {
+test('multi-fabric: device su subnet coperta dalla FDB, assenza PROVATA → macOrphan', () => {
+  // Anche sulla L2 osservata, un FDB-miss da solo NON basta (la MAC-table invecchia):
+  // serve una prova affidabile (trustAbsent, es. ARP-miss locale sul suo IP).
   const doc = { macs: [{ mac: 'DD:DD:DD:00:00:04', label: 'pc-lab-spento', nodeId: 'x', ip: '10.10.99.50' }] };
   const snmp = { observedMacs: ['aa:aa:aa:00:00:01'], responded: {}, fdbObserved: true,
-                 presentNodeIds: {}, observedSubnets: [], fdbSubnets: ['10.10.99'] };
+                 presentNodeIds: {}, observedSubnets: [], fdbSubnets: ['10.10.99'], trustAbsentNodeIds: { x: true } };
   const r = buildDriftReport(snmp, doc, [], {});
-  assert.equal(r.counts.macOrphan, 1, 'la sua L2 è osservata (fdbSubnets) ma il MAC non c\'è → davvero assente');
+  assert.equal(r.counts.macOrphan, 1, 'MAC assente dalla sua L2 + assenza PROVATA → davvero assente');
   assert.equal(r.counts.unverified, 0);
 });
 
@@ -185,12 +206,24 @@ test('ipOnly: SNMP device senza MAC, muto, subnet NON osservabile → unverified
   assert.equal(r.counts.macOrphan, 0);
 });
 
-test('ipOnly: SNMP device senza MAC, muto, subnet OSSERVABILE → macOrphan (rosso: interrogato e assente)', () => {
+test('ipOnly: device SNMP muto su subnet osservabile SENZA prova → grigio (SNMP-muto ≠ morte)', () => {
+  // SNMP che non risponde può essere filtrato/riavviato/credenziali cambiate: non
+  // è una prova di morte. Senza trustAbsent → grigio, non rosso.
   const doc = { ipOnly: [{ nodeId: 'sw', label: 'sw-casa', ip: '192.168.1.9', hasSnmp: true }] };
   const snmp = { observedMacs: [], responded: {}, presentNodeIds: {}, fdbObserved: true,
                  observedSubnets: [], fdbSubnets: ['192.168.1'] };
   const r = buildDriftReport(snmp, doc, [], {});
-  assert.equal(r.counts.macOrphan, 1, 'SNMP su subnet osservata + muto → assente');
+  assert.equal(r.counts.macOrphan, 0, 'SNMP muto da solo NON è rosso');
+  assert.equal(r.counts.unverified, 1);
+  assert.equal(r.unverified[0].nodeId, 'sw');
+});
+
+test('ipOnly: device muto CON prova di assenza (trustAbsent) → macOrphan', () => {
+  const doc = { ipOnly: [{ nodeId: 'sw', label: 'sw-casa', ip: '192.168.1.9', hasSnmp: true }] };
+  const snmp = { observedMacs: [], responded: {}, presentNodeIds: {}, fdbObserved: true,
+                 reachabilityChecked: true, trustAbsentNodeIds: { sw: true } };
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.macOrphan, 1, 'ARP-miss locale sul suo IP → davvero assente');
   assert.equal(r.macOrphan[0].nodeId, 'sw');
   assert.equal(r.counts.unverified, 0);
 });
@@ -204,14 +237,16 @@ test('ipOnly: device senza MAC e senza SNMP, subnet NON osservabile → unverifi
   assert.equal(r.unverified[0].nodeId, 'pc6');
 });
 
-test('ipOnly: device senza MAC e senza SNMP, subnet OSSERVABILE → NESSUNA marcatura (no-invenzioni)', () => {
-  // Non lo si è sondato attivamente: non si può dire assente né presente → lasciarlo com'è.
+test('ipOnly: device senza MAC/SNMP, subnet osservabile, nessuna prova → grigio (non-verificato)', () => {
+  // Non lo si è sondato attivamente e non c'è prova di assenza → onestamente "non so"
+  // (grigio). Prima restava a colori pieni; ora "non verificato" è più onesto.
   const doc = { ipOnly: [{ nodeId: 'prn', label: 'stampante', ip: '192.168.1.50', hasSnmp: false }] };
   const snmp = { observedMacs: [], responded: {}, presentNodeIds: {}, fdbObserved: true,
                  observedSubnets: [], fdbSubnets: ['192.168.1'] };
   const r = buildDriftReport(snmp, doc, [], {});
-  assert.equal(r.counts.macOrphan, 0, 'niente rosso: non lo abbiamo sondato');
-  assert.equal(r.counts.unverified, 0, 'niente grigio: la subnet è osservabile');
+  assert.equal(r.counts.macOrphan, 0, 'niente rosso: nessuna prova di assenza');
+  assert.equal(r.counts.unverified, 1, 'grigio: non verificato');
+  assert.equal(r.unverified[0].nodeId, 'prn');
 });
 
 test('ipOnly: device senza MAC che HA risposto (responded/present) → presente, nessuna marcatura', () => {
@@ -226,12 +261,12 @@ test('ipOnly: device senza MAC che HA risposto (responded/present) → presente,
   assert.equal(r.counts.macOrphan, 0);
 });
 
-test('back-compat: reachabilityChecked senza observedSubnets → macOrphan come prima', () => {
+test('presenza onesta: reachabilityChecked ma nessuna prova di assenza → grigio (non rosso)', () => {
   const doc = { macs: [{ mac: 'AA:BB:CC:00:00:43', label: 'x', nodeId: 'x', ip: '10.20.0.1' }] };
   const snmp = { observedMacs: [], responded: {}, fdbObserved: false, reachabilityChecked: true, presentNodeIds: {} };
   const r = buildDriftReport(snmp, doc, [], {});
-  assert.equal(r.counts.macOrphan, 1, 'senza info per-subnet si mantiene il comportamento storico');
-  assert.equal(r.counts.unverified, 0);
+  assert.equal(r.counts.macOrphan, 0, 'sweep senza prova di assenza per x → non-verificabile');
+  assert.equal(r.counts.unverified, 1);
 });
 
 test('unverified ignorabile: la key unver: rispetta la lista ignores', () => {
@@ -409,6 +444,44 @@ test('robustezza: doc.macs con entry nulle/malformate non fa lanciare (R1)', () 
   let r;
   assert.doesNotThrow(() => { r = buildDriftReport(snmp, doc, [], {}); });
   assert.ok(r && r.counts, 'ritorna un report valido nonostante le entry malformate');
+});
+
+// ── Fase 3: porta di accesso switch DOWN da >= N sync → rosso AUTORITATIVO ──
+test('Fase 3: device cablato a porta switch DOWN da >= N sync → macOrphan (assenza autoritativa)', () => {
+  // pc cablato a sw1-1; la porta sw1-1 è down da 3 sync (portDownStreak). pc non ha
+  // alcun segnale positivo → assente: lo switch è autorevole sul link della sua porta.
+  const doc = {
+    macs: [{ mac: 'AA:BB:CC:00:00:50', label: 'pc-cablato', nodeId: 'pc', ip: '192.168.1.60' }],
+    cables: [{ id: 'c1', label: 'pc→sw1', src: 'pc-1', dst: 'sw1-1' }],
+  };
+  const snmp = { observedMacs: [], responded: {}, fdbObserved: true, portDownStreak: { 'sw1-1': 3 } };
+  const r = buildDriftReport(snmp, doc, [], { downStreakN: 3 });
+  assert.equal(r.counts.macOrphan, 1, 'porta di accesso down da >= N → device assente');
+  assert.equal(r.macOrphan[0].nodeId, 'pc');
+  assert.equal(r.counts.unverified, 0);
+});
+
+test('Fase 3: porta down SOTTO soglia (streak < N) → NON assente (anti-flap dello streak)', () => {
+  const doc = {
+    macs: [{ mac: 'AA:BB:CC:00:00:51', label: 'pc', nodeId: 'pc', ip: '192.168.1.61' }],
+    cables: [{ id: 'c1', src: 'pc-1', dst: 'sw1-1' }],
+  };
+  const snmp = { observedMacs: [], responded: {}, fdbObserved: true, portDownStreak: { 'sw1-1': 1 } };
+  const r = buildDriftReport(snmp, doc, [], { downStreakN: 3 });
+  assert.equal(r.counts.macOrphan, 0, 'un blip (streak<N) NON è ancora rosso');
+  assert.equal(r.counts.unverified, 1, 'resta non-verificabile finché lo streak non matura');
+});
+
+test('Fase 3: device VISTO (segnale positivo) con porta down → resta VERDE (positive-first)', () => {
+  const doc = {
+    macs: [{ mac: 'AA:BB:CC:00:00:52', label: 'pc', nodeId: 'pc', ip: '192.168.1.62' }],
+    cables: [{ id: 'c1', src: 'pc-1', dst: 'sw1-1' }],
+  };
+  // porta down MA il MAC è visto in FDB (es. altro uplink/LAG) → presente
+  const snmp = { observedMacs: ['aa:bb:cc:00:00:52'], responded: {}, fdbObserved: true, portDownStreak: { 'sw1-1': 5 } };
+  const r = buildDriftReport(snmp, doc, [], { downStreakN: 3 });
+  assert.equal(r.counts.macOrphan, 0, 'un segnale positivo batte la porta down');
+  assert.equal(r.counts.unverified, 0);
 });
 
 test('cavo fantasma: porta down da >= N sync → ghostCable; sotto soglia → no', () => {
