@@ -557,24 +557,36 @@ function _buildFloorSVG(opts){
     });
 
     // --- Dispositivi floor (AP, wallport, webcam — filtrati per VLAN se attivo) ---
+    // FE-M1 (audit 2026-07-21): i floor node si colorano per PRESENZA, la STESSA verità
+    // dello schermo (src/app-render-core.js), non per stato-porta. Fonte: il drift report
+    // dell'ultima Verifica — macOrphan → ROSSO "assente confermato", unverified → GRIGIO
+    // "non verificabile" (attenuato). Guardia snmpStatus==='ok' come a schermo (un device
+    // risincronizzato torna vivo). Nessun _driftReport (nessuna Verifica) → set vuoti →
+    // colori pieni per TIPO. Prima l'export usava lo stato-porta: rosso=guasto-porta ≠
+    // rosso=assente a schermo, e il grigio "incerto" mancava del tutto.
+    const _floorAbsentIds = new Set((((typeof _driftReport!=='undefined' && _driftReport && _driftReport.macOrphan)||[]).map(r=>r.nodeId).filter(Boolean)));
+    const _floorUnverifiedIds = new Set((((typeof _driftReport!=='undefined' && _driftReport && _driftReport.unverified)||[]).map(r=>r.nodeId).filter(Boolean)));
     floorNodes.filter(n=>!TYPES[n.type]?.isStructural).forEach(n=>{
         if(_filterVlan&&_floorNodeHiddenByVlan(n.id)) return;
         const def=TYPES[n.type]; if(!def) return;
-        const col=_floorNodeColor(n.type);
+        const col=_floorNodeColor(n.type);                 // colore base per TIPO (come a schermo)
         const devInfo=_SVG_DEV[n.type]||{ ab:(def.name||n.type).replace(/[^a-zA-Z]/g,'').substring(0,3).toUpperCase(), fa:null };
         const ab=devInfo.ab;
         const label=escapeHTML((typeof _dispName==='function'?_dispName(n.name):n.name)||_typeName(n.type));
-        // LED stato porta principale
-        const pid=`${n.id}-1`,pi=state.ports[pid]||{};
-        const eff=pi.statusOvr??normalizeStatus(pi.status)??'inactive';
-        // Colore stato: usato per bordo, icona e abbreviazione (nessun led separato)
-        const statCol=eff==='active'?'#39d353':eff==='fault'?'#f85149':eff==='idle'?'#f5a623':'#6e7681';
+        // Presenza (stessa logica di _buildFloorNodeEl): present=colore tipo · absent=anello
+        // rosso d'allerta (icona resta del tipo) · unverified=grigio + attenuato (opacità).
+        const presence = n.snmpStatus==='ok' ? 'present'
+            : _floorAbsentIds.has(n.id) ? 'absent'
+            : _floorUnverifiedIds.has(n.id) ? 'unverified' : 'present';
+        const borderCol = presence==='absent' ? '#f85149' : presence==='unverified' ? '#6e7681' : col;
+        const iconCol   = presence==='unverified' ? '#6e7681' : col;
+        const nodeOp    = presence==='unverified' ? 0.45 : 1;   // .node-unverified: opacity 0.4 + greyscale
         const faChar=devInfo.fa ? String.fromCodePoint(devInfo.fa) : null;
-        const lblCol = P.devLabel || statCol;
-        s+=`<g transform="translate(${n.x},${n.y})">`
+        const lblCol = P.devLabel || iconCol;
+        s+=`<g transform="translate(${n.x},${n.y})" opacity="${nodeOp}">`
           +`<title>${label}</title>`
-          // Bordo esterno colore stato
-          +`<rect x="-23" y="-28" width="46" height="56" rx="7" fill="none" stroke="${statCol}" stroke-width="${P.devOutSW}"/>`
+          // Bordo esterno = colore PRESENZA (rosso=assente · grigio=incerto · tipo=presente)
+          +`<rect x="-23" y="-28" width="46" height="56" rx="7" fill="none" stroke="${borderCol}" stroke-width="${P.devOutSW}"/>`
           // Box interno
           +`<rect x="-22" y="-27" width="44" height="54" rx="6" fill="${P.devFill}" stroke="${P.devBorder}" stroke-width="${P.devInSW}"/>`
           // Separatore
@@ -584,12 +596,12 @@ function _buildFloorSVG(opts){
           // PDF:    abbreviazione bold grande (font Helvetica garantito in PDF)
           +(pdf
             ? `<text x="0" y="-11" text-anchor="middle" dominant-baseline="middle"`
-              +` font-family="system-ui,sans-serif" font-size="${P.iconSz}" font-weight="${P.iconW}" fill="${statCol}">${ab}</text>`
+              +` font-family="system-ui,sans-serif" font-size="${P.iconSz}" font-weight="${P.iconW}" fill="${iconCol}">${ab}</text>`
             : (faChar
                ? `<text x="0" y="-11" text-anchor="middle" dominant-baseline="middle"`
-                 +` font-family="'Font Awesome 6 Free'" font-weight="900" font-size="${P.iconSz}" fill="${statCol}">${faChar}</text>`
+                 +` font-family="'Font Awesome 6 Free'" font-weight="900" font-size="${P.iconSz}" fill="${iconCol}">${faChar}</text>`
                : `<text x="0" y="-11" text-anchor="middle" dominant-baseline="middle"`
-                 +` font-family="system-ui,sans-serif" font-size="${P.iconSz}" font-weight="${P.iconW}" fill="${statCol}">${ab}</text>`)
+                 +` font-family="system-ui,sans-serif" font-size="${P.iconSz}" font-weight="${P.iconW}" fill="${iconCol}">${ab}</text>`)
           )
           // Label dispositivo sezione inferiore
           +`<text x="0" y="16" text-anchor="middle" dominant-baseline="middle"`
