@@ -2,6 +2,17 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-22 — Discover modal redesign: two phases, plainer terms, compact setup
+
+Senior UX/UI pass on the "Discover devices" modal. The scan options were a flat wrapping row of engineer jargon; setup and results were shown together in one 1180px panel.
+
+### Changed
+- **Two distinct phases in one modal.** Setup (form + options) and results (device table) are now separate screens: when a scan completes the form disappears and only the results table shows, with a **‹ New search** button that returns to the form with the entered range preserved. No more setup + results shown together. `src/app-discovery.js` (`_discShowSetupPhase`/`_discShowResultsPhase`), `netmapper.html` (`#disc-setup` wrapper).
+- **Plain-language terminology** (it/en). "Cadence/anti-IDS" → **Speed: Fast / Balanced / Careful**; "Deep TCP scan" → **Recognise devices better**; "mDNS/SSDP listen" → **Also find quiet devices**; "Ignore ping (SNMP-probe range)" → **Include hosts that ignore ping**; "Expand LLDP/CDP" → **Follow the links between switches** — each with a one-line plain description. "Timeout" → **Wait**, "Subnet/Range" → **Network range**. `lib/i18n.js`.
+- **Grouped, two-column options.** The four "search deeper" toggles are collected in a **Search deeper** fieldset (kept opt-in individually — footprint stays honest) laid out in two columns with a continuous vertical divider; collapses to one column below 640px. `styles/07-modals.css`.
+- **Compact setup, wide results.** The range field is capped at ~360px (fits an IPv4 subnet or a full IPv6 CIDR — no half-modal-wide field); the modal is 640px in setup and widens to 1080px only when the 7-column results table appears. `styles/07-modals.css`.
+- **New-search button uses event delegation** (`data-act`, `app-delegation.js`), not a new inline `onclick` — keeping the ASSE B inline-handler ratchet at its ceiling. `src/app-discovery.js`.
+
 ## 2026-07-22 — Discover: "Ignore ping" option (SNMP-probe hosts that filter ICMP)
 
 On real networks a firewall or CoPP often filters or deprioritizes ICMP while the device still answers SNMP from the management station — so ping-gated discovery silently skipped them. New opt-in **"Ignore ping"** checkbox probes the whole requested range via SNMP; an SNMP responder is marked alive (measured proof of life, not invented). Default off = identical behaviour. The deep TCP scan still runs only on hosts with a sign of life (no 254-IP TCP sweep), and stealth pacing is preserved. Live-verified on the lab: a mgmt /24 went from 2 devices found (ICMP flapping under the emulated slow-path) to all 7 (SW-ACC1/2, Arista, VyOS, vSRX, vWLC). `server/routes/discovery.js`, `src/app-discovery.js`, `netmapper.html`, `lib/i18n.js` (it/en).

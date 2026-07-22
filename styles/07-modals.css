@@ -83,10 +83,16 @@
         /* Discovery modal: layout robusto anche su larghezze ridotte */
         #disc-overlay .tm-row { flex-wrap:wrap; align-items:flex-end; }
         #disc-overlay .tm-field { min-width:0; }
-        #disc-overlay .tm-field.grow { flex:1 1 240px; }
+        /* Campo intervallo: cresce ma si ferma a ~360px = quanto basta per una
+           subnet IPv4 o un CIDR IPv6 completo. Niente campo lungo mezzo modale. */
+        #disc-overlay .tm-field.grow { flex:1 1 220px; max-width:360px; }
         #disc-overlay .tm-field.compact { width:110px; }
         #disc-overlay .tm-field.timeout { width:84px; }
-        #disc-overlay .tool-modal { width:min(1180px,96vw); max-height:94vh; }
+        /* Modale a DUE larghezze: compatta nel setup (basta il form); larga solo
+           quando compare la tabella risultati a 7 colonne (~772px di sole colonne
+           fisse). La classe .disc-has-results la mette il frontend al render tabella. */
+        #disc-overlay .tool-modal { width:min(640px,96vw); max-height:94vh; transition:width .18s ease; }
+        #disc-overlay.disc-has-results .tool-modal { width:min(1080px,96vw); }
         #disc-overlay .tool-modal-body {
             overflow-y:auto;
             min-height:0;
@@ -102,21 +108,62 @@
             max-height:calc(94vh - 320px);
             overflow:auto;
         }
-        .disc-opt-row { display:flex; flex-wrap:wrap; gap:14px 20px; margin-top:2px; }
-        .disc-opt {
-            display:flex; align-items:center; gap:8px;
-            font-size:var(--fs-sm); color:var(--text-muted); cursor:pointer;
-        }
-        .disc-opt input { margin:0; accent-color:var(--accent); }
-        /* Select "Cadenza": stesso look dei campi del modale (fondo scuro, bordo
-           hairline sottile, angoli leggermente arrotondati come il campo Subnet).
-           Padding compatto: le dimensioni del controllo restano quelle attuali. */
-        .disc-opt select {
+        /* Opzioni scansione: due gruppi impilati (velocità + "cerca più a fondo")
+           invece di una riga unica che va a capo in modo disordinato. */
+        .disc-opt-row { display:flex; flex-direction:column; gap:12px; margin-top:2px; }
+        /* Riga "Velocità": etichetta + select inline, stesso look dei campi del modale. */
+        .disc-speed { display:flex; align-items:center; gap:10px; font-size:var(--fs-sm); color:var(--text-muted); cursor:pointer; }
+        .disc-speed > span { min-width:64px; }
+        .disc-speed select {
+            flex:1; max-width:320px;
             background: var(--bg-color); color: var(--text-main);
             border: 1px solid var(--hairline); border-radius: var(--radius-md);
-            padding: 2px 8px; font-family: inherit; font-size: var(--fs-sm); cursor: pointer;
+            padding: 4px 8px; font-family: inherit; font-size: var(--fs-sm); cursor: pointer;
         }
-        .disc-opt select:focus { outline: none; border-color: var(--accent); }
+        .disc-speed select:focus { outline: none; border-color: var(--accent); }
+        /* Riquadro "Cerca più a fondo": raccoglie le 4 opzioni di profondità. */
+        .disc-scan-group {
+            border: 1px solid var(--hairline); border-radius: var(--radius-md);
+            padding: 10px 12px 8px; margin:0; min-width:0;
+        }
+        .disc-scan-group legend {
+            padding: 0 6px; font-size:var(--fs-sm); color:var(--text-muted);
+            display:flex; align-items:center; gap:6px;
+        }
+        .disc-scan-group legend i { font-size:0.85em; opacity:.8; }
+        .disc-group-hint { color:var(--text-faint,var(--text-muted)); opacity:.75; }
+        /* Due colonne per recuperare spazio verticale, separate da UN divisore
+           verticale continuo (pseudo-elemento centrale, non bordi spezzati sui
+           singoli item — quelli lascerebbero gap in corrispondenza del row-gap). */
+        .disc-opt-grid {
+            position:relative;
+            display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+            column-gap:0; row-gap:4px;
+        }
+        .disc-opt-grid::after {
+            content:''; position:absolute; top:6px; bottom:6px; left:50%;
+            width:1px; background:var(--panel-border); transform:translateX(-0.5px);
+            pointer-events:none;
+        }
+        .disc-opt-grid > .disc-opt-item:nth-child(odd)  { padding-right:20px; }
+        .disc-opt-grid > .disc-opt-item:nth-child(even) { padding-left:20px; }
+        .disc-opt-item {
+            display:flex; align-items:flex-start; gap:10px; cursor:pointer;
+            padding:6px 4px; border-radius:var(--radius-sm,4px);
+        }
+        .disc-opt-item:hover { background:rgba(255,255,255,0.03); }
+        /* Schermi stretti (modale a tutta larghezza su mobile): torna a 1 colonna
+           e nascondi il divisore, così le descrizioni non si stringono. */
+        @media (max-width:640px) {
+            .disc-opt-grid { grid-template-columns:1fr; }
+            .disc-opt-grid::after { display:none; }
+            .disc-opt-grid > .disc-opt-item:nth-child(odd),
+            .disc-opt-grid > .disc-opt-item:nth-child(even) { padding-left:4px; padding-right:4px; }
+        }
+        .disc-opt-item input { margin:2px 0 0; accent-color:var(--accent); flex:none; }
+        .disc-opt-text { display:flex; flex-direction:column; gap:1px; min-width:0; }
+        .disc-opt-title { font-size:var(--fs-md); color:var(--text-main); line-height:1.35; }
+        .disc-opt-desc { font-size:var(--fs-xs); color:var(--text-muted); line-height:1.4; }
         .tm-hint { font-size:var(--fs-sm); color:var(--text-muted); margin-bottom:10px; line-height:1.5; }
         .tm-progress { font-size:var(--fs-sm); color:var(--text-muted); margin-bottom:8px; min-height:20px; }
         .tm-progress .tm-ok { color:var(--active-color); font-weight:600; }

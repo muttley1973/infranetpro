@@ -713,47 +713,54 @@
       <button class="toolbar-btn" onclick="closeDiscovery()" style="padding:4px 8px"><i class="fas fa-times"></i></button>
     </div>
     <div class="tool-modal-body">
-      <div class="tm-hint" data-i18n="disc.hint">Inserisci un range di rete. Verranno contattati via SNMP tutti gli IP del range e importati quelli che rispondono.</div>
+      <div id="disc-setup">
+      <div class="tm-hint" data-i18n="disc.hint">Indica un intervallo di rete: ogni indirizzo viene interrogato via SNMP e quelli che rispondono vengono importati.</div>
       <div class="tm-row">
         <div class="tm-field grow">
-          <label>Subnet / Range</label>
+          <label data-i18n="disc.fieldRange">Intervallo di rete</label>
           <input id="disc-subnet" placeholder="192.168.1.0/24  oppure  192.168.1.1-254" style="width:100%">
         </div>
-        <div class="tm-field" style="width:120px;min-width:120px">
-          <label>Community</label>
+        <div class="tm-field" style="width:140px;min-width:140px">
+          <label data-i18n="disc.fieldCommunity">Community SNMP</label>
           <input id="disc-community" value="public">
         </div>
         <div class="tm-field timeout">
-          <label>Timeout (s)</label>
+          <label data-i18n="disc.fieldTimeout">Attesa (s)</label>
           <input id="disc-timeout" type="number" value="2" min="1" max="10">
         </div>
       </div>
       <div class="disc-opt-row">
-        <label class="disc-opt" data-i18n-tip="disc.scanModeTip" data-tip="Normale: veloce, in parallelo. Sicura: throttling leggero (concorrenza ridotta). Furtiva: serializzata + pause casuali (jitter) — non fa scattare l'IDS ma e' molto piu' lenta.">
-          <span data-i18n="disc.scanMode">Cadenza</span>
+        <label class="disc-speed" data-i18n-tip="disc.speedTip" data-tip="Bilanciata: consigliata, ritmo gentile. Veloce: in parallelo, più rapida. Prudente: serializzata con pause casuali per non farsi notare da un IDS — più lenta.">
+          <span data-i18n="disc.speed">Velocità</span>
           <select id="disc-scan-mode">
-            <option value="normal" data-i18n="disc.scanModeNormal">Normale (veloce)</option>
-            <option value="safe" selected data-i18n="disc.scanModeSafe">Sicura (anti-IDS leggero)</option>
-            <option value="stealth" data-i18n="disc.scanModeStealth">Furtiva (lenta, anti-IDS)</option>
+            <option value="normal" data-i18n="disc.speedFast">Veloce</option>
+            <option value="safe" selected data-i18n="disc.speedBalanced">Bilanciata (consigliata)</option>
+            <option value="stealth" data-i18n="disc.speedCareful">Prudente (reti monitorate)</option>
           </select>
         </label>
-        <label class="disc-opt disc-opt-deep" data-i18n-tip="disc.deepTip" data-tip="Arricchisce solo gli host candidati con probe TCP su porte comuni. Più lento e più rumoroso.">
-          <input id="disc-deep-scan" type="checkbox" data-change="disc-deep-scan">
-          <span data-i18n="disc.deepScan">Scansione profonda TCP</span>
-        </label>
-        <label class="disc-opt disc-opt-mdns" data-i18n-tip="disc.mdnsTip" data-tip="Ascolta gli annunci mDNS/SSDP sul segmento locale: riconosce i device a porte chiuse (telefoni, TV, elettrodomestici smart) che ignorano ping/SNMP. Solo stessa sottorete (multicast link-local).">
-          <input id="disc-mdns" type="checkbox">
-          <span data-i18n="disc.mdns">Ascolto mDNS/SSDP (device a porte chiuse)</span>
-        </label>
-        <label class="disc-opt disc-opt-ignoreping" data-i18n-tip="disc.ignorePingTip" data-tip="Interroga via SNMP anche gli host che non rispondono al ping. Utile quando firewall o CoPP filtrano l'ICMP ma il device risponde a SNMP. Più lento (sonda ogni IP del range).">
-          <input id="disc-ignore-ping" type="checkbox">
-          <span data-i18n="disc.ignorePing">Ignora ping (sonda SNMP tutto il range)</span>
-        </label>
-        <label class="disc-opt">
-          <input id="disc-expand-topology" type="checkbox">
-          <span data-i18n="disc.expand">Espandi via LLDP/CDP (più rumoroso)</span>
-        </label>
+        <fieldset class="disc-scan-group">
+          <legend><i class="fas fa-sliders-h" aria-hidden="true"></i> <span data-i18n="disc.moreGroup">Cerca più a fondo</span> <span class="disc-group-hint" data-i18n="disc.moreGroupHint">— trova di più, impiega più tempo</span></legend>
+          <div class="disc-opt-grid">
+            <label class="disc-opt-item disc-opt-deep">
+              <input id="disc-deep-scan" type="checkbox" data-change="disc-deep-scan">
+              <span class="disc-opt-text"><span class="disc-opt-title" data-i18n="disc.deepScan">Riconosci meglio i dispositivi</span><span class="disc-opt-desc" data-i18n="disc.deepScanDesc">prova le porte più comuni per capire cos'è ogni apparato</span></span>
+            </label>
+            <label class="disc-opt-item disc-opt-mdns">
+              <input id="disc-mdns" type="checkbox">
+              <span class="disc-opt-text"><span class="disc-opt-title" data-i18n="disc.mdns">Trova anche i dispositivi silenziosi</span><span class="disc-opt-desc" data-i18n="disc.mdnsDesc">telefoni, TV, stampanti ed elettrodomestici smart (solo stessa sottorete)</span></span>
+            </label>
+            <label class="disc-opt-item disc-opt-ignoreping">
+              <input id="disc-ignore-ping" type="checkbox">
+              <span class="disc-opt-text"><span class="disc-opt-title" data-i18n="disc.ignorePing">Includi chi non risponde al ping</span><span class="disc-opt-desc" data-i18n="disc.ignorePingDesc">utile dietro firewall che bloccano il ping ma lasciano passare SNMP</span></span>
+            </label>
+            <label class="disc-opt-item">
+              <input id="disc-expand-topology" type="checkbox">
+              <span class="disc-opt-text"><span class="disc-opt-title" data-i18n="disc.expand">Segui i collegamenti tra gli switch</span><span class="disc-opt-desc" data-i18n="disc.expandDesc">estende la ricerca oltre l'intervallo indicato, apparato per apparato</span></span>
+            </label>
+          </div>
+        </fieldset>
       </div>
+      </div><!-- /#disc-setup -->
       <div id="disc-progress" class="tm-progress"></div>
       <div id="disc-results" style="display:none">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
@@ -775,6 +782,7 @@
       </div>
     </div>
     <div class="tool-modal-footer">
+      <button class="toolbar-btn" id="disc-new-search" data-act="disc-new-search" style="margin-right:auto;display:none"><i class="fas fa-arrow-left"></i> <span data-i18n="disc.newSearch">Nuova ricerca</span></button>
       <button class="toolbar-btn" onclick="closeDiscovery()" data-i18n="common.cancel">Annulla</button>
       <button class="toolbar-btn" id="disc-scan-btn" onclick="runDiscovery()"><i class="fas fa-search"></i> <span data-i18n="disc.scan">Scansiona</span></button>
       <button class="toolbar-btn primary" id="disc-import-btn" onclick="importDiscovered()" disabled><i class="fas fa-file-import"></i> <span data-i18n="common.addSelected">Aggiungi selezionati</span></button>

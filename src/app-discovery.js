@@ -8,7 +8,7 @@ import { focusNode, switchRack } from './app-search-zoom-rack.js';   // ritiro p
 import { _isLeafEndpoint, _autoLinkEndpoint, _recordDiscoveryObservation } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
 import { _discIndexNode, _discVendorFromMac, _discIdentitySource, _discFindExistingDevice, _discBuildExistingIndexes, _discTouchNodeIdentity, _discMacIsNextHop, _loadDeepScanPref, _saveDeepScanPref, _discSanitizeDeviceClass, _discRememberClassHint, _discHasStrongIdentity, _discCanAutoRetype, _discInvalidateExistingIndexes, _discMarkIpMacConflict, _discConfidenceScore } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { _findFreeU } from './app-topology-crawl.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
-import { registerChangeActions } from './app-delegation.js';   // ASSE B: checkbox "seleziona tutti" Scopri via data-change
+import { registerChangeActions, registerClickActions } from './app-delegation.js';   // ASSE B: checkbox "seleziona tutti" Scopri via data-change; bottone "Nuova ricerca" via data-act
 
 // Nome DISPLAY per la tabella Scopri e per il nome del nodo importato. L'utente legge la
 // RIGA (Nome -> Vendor -> Tipo, gia' in colonne separate) e fa l'abbinamento da solo:
@@ -124,8 +124,7 @@ function openDiscovery(prefillCidr){
     const rack = store.state.racks.find(r=>r.id===store.state.currentRack);
     document.getElementById('disc-rack-name').textContent = rack?.name || _dt('pnl.disc.noRackSelected','(nessun rack selezionato)');
     document.getElementById('disc-progress').innerHTML='';
-    document.getElementById('disc-results').style.display='none';
-    document.getElementById('disc-scan-btn').style.display='';
+    _discShowSetupPhase();   // apre sempre in fase SETUP (form visibile, tabella nascosta)
     const deepOpt = document.getElementById('disc-deep-scan');
     if(deepOpt) deepOpt.checked = _loadDeepScanPref();
     const ibtn = document.getElementById('disc-import-btn');
@@ -144,6 +143,29 @@ function closeDiscovery(){
     if(window._discCrawlAbort){ window._discCrawlAbort.abort(); window._discCrawlAbort=null; }
     store._discRunning = false;
     store._discImporting = false;
+}
+
+// DUE FASI nello stesso modale (decisione utente: scan e risultati SEPARATI, non
+// accorpati): SETUP = form + opzioni (modale stretto, bottone "Scansiona");
+// RISULTATI = solo la tabella (modale largo, bottoni "Nuova ricerca" + "Aggiungi").
+// Il form sparisce quando arrivano i risultati; "Nuova ricerca" ci riporta.
+function _discShowSetupPhase(){
+    const ov = document.getElementById('disc-overlay');
+    const setup = document.getElementById('disc-setup');   if(setup) setup.style.display='';
+    document.getElementById('disc-results').style.display='none';
+    ov.classList.remove('disc-has-results');   // modale compatta
+    document.getElementById('disc-scan-btn').style.display='';
+    const nb=document.getElementById('disc-new-search'); if(nb) nb.style.display='none';
+    const ib=document.getElementById('disc-import-btn'); if(ib) ib.style.display='none';
+}
+function _discShowResultsPhase(){
+    const ov = document.getElementById('disc-overlay');
+    const setup = document.getElementById('disc-setup');   if(setup) setup.style.display='none';
+    document.getElementById('disc-results').style.display='';
+    ov.classList.add('disc-has-results');       // modale larga per la tabella
+    document.getElementById('disc-scan-btn').style.display='none';
+    const nb=document.getElementById('disc-new-search'); if(nb) nb.style.display='';
+    const ib=document.getElementById('disc-import-btn'); if(ib) ib.style.display='';
 }
 
 // Wrapper chiamato dal click sull'overlay scuro (sfondo del modal).
@@ -189,6 +211,7 @@ async function runDiscovery(){
     btn.disabled=true; btn.innerHTML=`<i class="fas fa-spinner fa-spin"></i> ${_dt('disc.scanning','Scansione…')}`;
     document.getElementById('disc-progress').innerHTML=_dt('pnl.disc.scanInProgress','Scansione in corso...');
     document.getElementById('disc-results').style.display='none';
+    document.getElementById('disc-overlay').classList.remove('disc-has-results');   // modale compatta in setup
     const ibtn = document.getElementById('disc-import-btn');
     if(ibtn) ibtn.disabled = true;
     store._discRunning = true;
@@ -643,7 +666,7 @@ function _discRenderTable(){
     document.getElementById('disc-summary').textContent=_dt('disc.summaryLine','{on} online · {observed} osservati · {off} inattivi',{on,observed,off});
     const all = document.querySelectorAll('.disc-chk');
     document.getElementById('disc-selall').checked = all.length>0 && [...all].every(c=>c.checked);
-    document.getElementById('disc-results').style.display='';
+    _discShowResultsPhase();   // fase RISULTATI: form via, resta la tabella (modale largo)
     _discUpdateImportBtn();
 }
 
@@ -1148,4 +1171,9 @@ registerChangeActions({
     'disc-selall': (el) => discSelectAll(el.checked),
     'disc-row':    (el) => _discOnRowToggle(el),
     'disc-type':   (el) => _discOnTypeChange(el),
+});
+// ASSE B: bottone "Nuova ricerca" (fase RISULTATI → torna al SETUP) via data-act,
+// non onclick inline (tetto a cricchetto handler inline).
+registerClickActions({
+    'disc-new-search': () => _discShowSetupPhase(),
 });
