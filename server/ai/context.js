@@ -61,12 +61,34 @@ function _normScope(scope) {
 // ── Risoluzione porta→nodo + indice dei vicini (cablaggio) ───────────────────
 // pid = `${nodeId}-${num}`; gli id nodo possono contenere trattini → match per
 // PREFISSO PIÙ LUNGO sull'insieme degli id noti (deterministico).
+// pid → nodeId, a PREFISSO PIÙ LUNGO: gli id dei nodi possono contenere '-'
+// (`rack_default`, id importati), quindi `a-b-1` va risolto su `a-b` se quel
+// nodo esiste, non su `a`.
+//
+// ⚠️ PERFORMANCE (misurata): la versione precedente scorreva l'INTERO elenco dei
+// nodi per ogni pid. Dentro _devicePorts — che a sua volta girava su tutte le
+// porte per ogni device — il costo diventava device × porte × nodi: su 500 nodi
+// e 910 porte ≈ 2·10⁸ confronti di stringa, cioè 4,4 s per UNA costruzione del
+// contesto (ogni altro motore del progetto sta sotto i 30 ms).
+// Ora i candidati si generano DAL pid — i suoi prefissi tagliati su ogni '-',
+// dal più lungo al più corto — e si cercano in un Set: il costo dipende dal
+// numero di trattini nel pid (1-3 nella pratica), non dalla dimensione del
+// progetto. Il memo copre i pid richiesti più volte nella stessa costruzione.
+// Il risultato è identico a prima, incluso il tie-break sul prefisso più lungo.
 function _buildPortNodeResolver(nodeIds) {
-  const ids = [...nodeIds].sort((a, b) => b.length - a.length);
+  const set = new Set(nodeIds);
+  const memo = new Map();
   return (pid) => {
     if (!pid) return null;
-    for (const id of ids) if (pid === id || pid.startsWith(id + '-')) return id;
-    return null;
+    if (memo.has(pid)) return memo.get(pid);
+    let out = null;
+    if (set.has(pid)) out = pid;                       // il pid È l'id di un nodo
+    else for (let i = pid.lastIndexOf('-'); i > 0; i = pid.lastIndexOf('-', i - 1)) {
+      const cand = pid.slice(0, i);                    // prefissi dal più LUNGO
+      if (set.has(cand)) { out = cand; break; }
+    }
+    memo.set(pid, out);
+    return out;
   };
 }
 function _portNum(pid, nodeId) {
@@ -120,12 +142,15 @@ function _safeScalars(obj, depth) {
 }
 
 // ── Porte di un device (compatte). Salta le vuote; cap per device. ───────────
-function _devicePorts(node, state, resolveNode, neighborIndex, nameById) {
+// `pids` = le porte GIÀ attribuite a questo nodo (indice costruito una volta in
+// buildAiContext). Se manca si ricade sulla scansione completa, così la firma
+// resta compatibile per chi chiama la funzione da fuori.
+function _devicePorts(node, state, resolveNode, neighborIndex, nameById, pids) {
   const ports = (state && state.ports) || {};
+  const pidList = Array.isArray(pids) ? pids : Object.keys(ports).filter(pid => resolveNode(pid) === node.id);
   const entries = [];
   let total = 0, used = 0;
-  for (const pid of Object.keys(ports)) {
-    if (resolveNode(pid) !== node.id) continue;
+  for (const pid of pidList) {
     total++;
     const p = ports[pid] || {};
     const neigh = neighborIndex[pid] ? [...neighborIndex[pid]] : [];
@@ -164,12 +189,12 @@ function _devicePorts(node, state, resolveNode, neighborIndex, nameById) {
 // A differenza di _devicePorts (che filtra/cappa la lista mostrata all'AI), qui
 // raccogliamo TUTTE le porte del nodo con i soli campi utili al calcolo (velocità/
 // stato/LAG/PoE) + il conteggio total/used/free dal cablaggio. Cap alto di sicurezza.
-function _collectPorts(node, state, resolveNode, neighborIndex) {
+function _collectPorts(node, state, resolveNode, neighborIndex, pids) {
   const ports = (state && state.ports) || {};
+  const pidList = Array.isArray(pids) ? pids : Object.keys(ports).filter(pid => resolveNode(pid) === node.id);
   const list = [];
   let total = 0, used = 0;
-  for (const pid of Object.keys(ports)) {
-    if (resolveNode(pid) !== node.id) continue;
+  for (const pid of pidList) {
     total++;
     const p = ports[pid] || {};
     if (neighborIndex[pid] && neighborIndex[pid].size) used++;
@@ -314,18 +339,29 @@ function buildAiContext(project, liveFacts, scope) {
   for (const d of inv.devices) nameById[d.id] = d.name || d.id;
   const resolveNode = _buildPortNodeResolver(Object.keys(rawById));
   const neighborIndex = (sc.ports || sc.topology) ? _buildNeighborIndex(state.links) : {};
+  // Indice porte→nodo costruito UNA volta: prima ogni device ri-scorreva TUTTE
+  // le porte del progetto (device × porte). L'ordine è quello di
+  // Object.keys(state.ports), lo stesso di prima, così le liste emesse e i cap
+  // per-device (64 / 512) restano identici.
+  const pidsByNode = {};
+  if (sc.ports) {
+    for (const pid of Object.keys(state.ports || {})) {
+      const nid = resolveNode(pid);
+      if (nid) (pidsByNode[nid] || (pidsByNode[nid] = [])).push(pid);
+    }
+  }
 
   const devices = (sc.devices ? inv.devices : []).map((d) => {
     const out = _device(d);
     const raw = rawById[d.id];
-    if (sc.ports && raw) { const pr = _devicePorts(raw, state, resolveNode, neighborIndex, nameById); if (pr) out.ports = pr; }
+    if (sc.ports && raw) { const pr = _devicePorts(raw, state, resolveNode, neighborIndex, nameById, pidsByNode[d.id] || []); if (pr) out.ports = pr; }
     if (sc.snmpHealth && raw) { const hl = _deviceHealth(raw); if (hl) out.health = hl; }
     if (raw) { const ss = _wirelessSsids(raw); if (ss) out.ssids = ss; }   // inventario SSID (AP)
     // Capacità hardware DOCUMENTATE (lib/hw-capabilities): «InfraNet calcola».
     // Allowlist per costruzione (legge solo chiavi spec note). I sotto-blocchi
     // derivati dalle porte arrivano solo se anche lo scope Porte è ON.
     if (raw) {
-      const portsCap = sc.ports ? _collectPorts(raw, state, resolveNode, neighborIndex) : undefined;
+      const portsCap = sc.ports ? _collectPorts(raw, state, resolveNode, neighborIndex, pidsByNode[d.id] || []) : undefined;
       const cap = computeDeviceCapabilities({
         type: raw.type, spec: raw.spec, radios: raw.radios,
         vmsCount: Array.isArray(raw.vms) ? raw.vms.length : 0,
