@@ -16,6 +16,7 @@ The UI type catalog was richer than what the classifier could emit: 11 active/IP
 - **11 additive golden cases + 2 fusion tests (G10/G11)** freeze the new paths (KVM/ATS not switch, ASA stays firewall, UCM→pbx vs Yealink→voip, Epson projector vs printer tie). `tests/classify-golden.test.js`, `tests/fusion-scorer.test.js`.
 
 ### Changed
+- **`junos` removed from the router word-list** — it names an OS (identity), not a function, so a Juniper firewall whose sysDescr declares "firewall" was typed `router`. Real Juniper routers are unaffected: their sysDescr says "internet router" (the `router` token) and MX/PTX/ACX keep their dedicated regex; the frozen `juniper-srx` golden case stays `router`. `lib/device-patterns.js`.
 - **Altiga OID `1.3.6.1.4.1.3076.` retyped `firewall`→`vpncon`** — the product literally is the Cisco VPN 3000 Concentrator; no golden case covered it. `lib/device-signatures.js`.
 - **`DEFAULT_PRIORITY` extended with the 8 types** (insert-only, existing order untouched — affects ties only): vpncon after firewall, kvm/consolesvr after switch, pbx after server but before voip, projector before printer, nvr before webcam, ats before ups, doorctrl before iot. `engine/fusion-scorer.js`.
 
