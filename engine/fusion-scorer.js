@@ -26,9 +26,16 @@ const { oidTypeVotes } = require('../lib/device-signatures');
 
 // Tie-break order when two device types have identical raw scores: the one
 // listed first wins. This is the single authoritative type priority.
+// Inserimenti 2026-07-22 (solo ai TIE, mai a punteggi diversi): vpncon dopo
+// firewall (appliance sicurezza specifica > router) · kvm/consolesvr dopo switch
+// (appliance rack specifiche > compute generico) · pbx dopo server (Windows
+// Server con 3CX resta server: il PBX e' software) ma prima di voip (tie UCM) ·
+// projector prima di printer (tie sul token vendor "epson") · nvr prima di
+// webcam (aggregatore > endpoint) · ats prima di ups · doorctrl prima di iot.
 const DEFAULT_PRIORITY = [
-  'firewall', 'sdwan', 'router', 'switch', 'nas', 'hypervisor', 'server', 'printer',
-  'webcam', 'wlanctrl', 'ap', 'ups', 'pdu', 'voip', 'tv', 'iot', 'mobile', 'pc',
+  'firewall', 'vpncon', 'sdwan', 'router', 'switch', 'kvm', 'consolesvr',
+  'nas', 'hypervisor', 'server', 'pbx', 'projector', 'printer', 'nvr', 'webcam',
+  'wlanctrl', 'ap', 'ats', 'ups', 'pdu', 'voip', 'tv', 'doorctrl', 'iot', 'mobile', 'pc',
 ];
 
 // Minimum raw score required to commit to the best device-type guess.
@@ -42,8 +49,9 @@ const DEFAULT_DECISION_THRESHOLD = 30;
 // here (weighted) and by the client fallback (first-match) so the two can't drift
 // (B3). Extraction is behavior-preserving; tests/classify-golden.test.js proves it.
 const {
-  SWITCH_WORDS_RE, ROUTER_WORDS_RE, NET_VENDOR_GW_RE, PRINTER_RE, WEBCAM_RE, NAS_RE,
+  SWITCH_WORDS_RE, NOT_A_NET_SWITCH_RE, ROUTER_WORDS_RE, NET_VENDOR_GW_RE, PRINTER_RE, WEBCAM_RE, NAS_RE,
   FIREWALL_RE, AP_RE, WLANCTRL_RE, PDU_RE, UPS_RE, VOIP_RE, IOT_EMBED_RE,
+  ATS_RE, NVR_RE, VPNCON_RE, PBX_RE, CONSOLESVR_RE, PROJECTOR_RE, KVM_RE, DOORCTRL_RE,
   ROUTER_VENDOR_RE, SWITCH_VENDOR_RE, JUNIPER_FIREWALL_RE, JUNIPER_ROUTER_RE,
   HYPERVISOR_RE, SERVER_VIRT_RE, SERVER_LINUX_RE, APPLIANCE_RE, SMART_HOME_RE,
   TV_SIGNAL_RE, MEDIA_PLAYER_RE, PC_OS_RE, PC_HOSTNAME_RE, PC_VENDOR_RE,
@@ -156,7 +164,11 @@ class FusionScorer {
     // Un device di rete su questi IP riceve un voto router IN PIÙ (segnale additivo:
     // non causa mai un tipo sbagliato, migliora solo il recall sui gateway .254).
     const isLikelyGatewayIp = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.(?:1|254)$/.test(ip);
-    const switchWords = SWITCH_WORDS_RE.test(fullText);
+    // Guard falsi positivi: "KVM switch" / "transfer switch" (ATS) contengono la
+    // parola "switch" ma NON sono switch di rete → il voto switch viene soppresso
+    // (i tipi veri votano con regex-kvm / regex-ats piu' sotto).
+    const notNetSwitch = NOT_A_NET_SWITCH_RE.test(fullText);
+    const switchWords = SWITCH_WORDS_RE.test(fullText) && !notNetSwitch;
     const routerWords = ROUTER_WORDS_RE.test(fullText);
     const networkVendorGateway = isLikelyGatewayIp && NET_VENDOR_GW_RE.test(text);
     const hasSnmpSignal = !!(row?.snmpReachable || String(row?.descr || '').trim() || String(row?.objectId || '').trim());
@@ -223,20 +235,37 @@ class FusionScorer {
     if (PRINTER_RE.test(fullText))   bump('printer', 90, 'regex-printer');
     if (/^hp[0-9a-f]{6}$/i.test(String(row?.hostname || '').trim()) && /hewlett packard/.test(vendor))
                                      bump('printer', 65, 'hostname-hp-printer');
-    if (WEBCAM_RE.test(fullText))    bump('webcam', 90, 'regex-webcam');
+    // NVR prima di webcam (pattern wlanctrl/ap): l'aggregatore che si dichiara
+    // "NVR/DVR" sopprime il gemello endpoint — WEBCAM_RE contiene gia' \bnvr\b.
+    if (NVR_RE.test(fullText))       bump('nvr', 90, 'regex-nvr');
+    else if (WEBCAM_RE.test(fullText)) bump('webcam', 90, 'regex-webcam');
     if (NAS_RE.test(fullText))       bump('nas', 90, 'regex-nas');
     if (FIREWALL_RE.test(fullText))  bump('firewall', 90, 'regex-firewall');
     if (WLANCTRL_RE.test(fullText))  bump('wlanctrl', 90, 'regex-wlanctrl');
     else if (AP_RE.test(fullText))   bump('ap', 80, 'regex-ap');
     if (PDU_RE.test(fullText))       bump('pdu', 85, 'regex-pdu');
     if (UPS_RE.test(fullText))       bump('ups', 85, 'regex-ups');
-    if (VOIP_RE.test(fullText))      bump('voip', 80, 'regex-voip');
+    // PBX prima di voip (stesso pattern): il centralino non e' un telefono. Un
+    // UCM con SNMP prende comunque voip 90 dal voto OID vendor-level 25858 → il
+    // tie 90/90 lo risolve la priority (pbx prima di voip).
+    if (PBX_RE.test(fullText))       bump('pbx', 90, 'regex-pbx');
+    else if (VOIP_RE.test(fullText)) bump('voip', 80, 'regex-voip');
     if (IOT_EMBED_RE.test(fullText) && !/\bups\b|\bpdu\b|power/.test(fullText)) bump('iot', 80, 'regex-iot-embedded');
+    // Nuovi apparati distinti (funzione dichiarata nel testo misurato; i pesi
+    // 85-90 battono l'identita' OUI (<=45) e il voto OID vendor-level (60-85) ma
+    // restano sotto/pari al plugin sysObjectID. ats 88 > ups 85 (voto OID 318.)
+    // cosi' un APC ATS che si dichiara vince senza dipendere dal tie-break.
+    if (ATS_RE.test(fullText))        bump('ats', 88, 'regex-ats');
+    if (KVM_RE.test(fullText))        bump('kvm', 85, 'regex-kvm');
+    if (VPNCON_RE.test(fullText))     bump('vpncon', 88, 'regex-vpncon');
+    if (CONSOLESVR_RE.test(fullText)) bump('consolesvr', 88, 'regex-consolesvr');
+    if (PROJECTOR_RE.test(fullText))  bump('projector', 90, 'regex-projector');
+    if (DOORCTRL_RE.test(fullText))   bump('doorctrl', 85, 'regex-doorctrl');
 
     if (routerWords && !switchWords)            bump('router', 80, 'word-router');
     if (networkVendorGateway && !switchWords)    bump('router', 75, 'gateway-ip-vendor');
     if (ROUTER_VENDOR_RE.test(fullText))         bump('router', 82, 'regex-router-vendor');
-    if (switchWords || SWITCH_VENDOR_RE.test(fullText)) bump('switch', 78, 'regex-switch-vendor');
+    if (switchWords || (SWITCH_VENDOR_RE.test(fullText) && !notNetSwitch)) bump('switch', 78, 'regex-switch-vendor');
     if (JUNIPER_FIREWALL_RE.test(fullText))      bump('firewall', 86, 'regex-juniper-srx');
     if (JUNIPER_ROUTER_RE.test(fullText))        bump('router', 82, 'regex-juniper-mx');
     if (macPrefix === '08:00:09' && !/officejet|laserjet|printer|desktop|win|workstation|laptop|notebook/.test(fullText))
@@ -271,7 +300,12 @@ class FusionScorer {
     }
     if ((servicePorts.has(445) || servicePorts.has(3389)) && PC_OS_RE.test(fullText)) {
       bump('server', 45, 'tcp-smb-rdp-server');
-    } else if (servicePorts.has(445) || servicePorts.has(3389)) {
+    } else if ((servicePorts.has(445) || servicePorts.has(3389)) && !score.nas) {
+      // !score.nas: SMB aperto e' ESATTAMENTE il comportamento di un NAS — su un
+      // device gia' riconosciuto nas (brand single-purpose/OID/\bnas\b) non e' un
+      // voto pc ma una conferma. Stessa guardia del ramo netbios-smb-server;
+      // senza, il profilo "host SMB" sommava piu' del brand (LaCie D2 dal vivo:
+      // pc 143 vs nas 90 → pc). Vendor-neutral: vale per tutti i brand NAS_RE.
       bump('pc', 35, 'tcp-smb-rdp-pc');
     }
 
@@ -301,7 +335,9 @@ class FusionScorer {
     if (netbiosHost) {
       if (row?.netbiosDomainCtrl) bump('server', 60, 'netbios-domain-controller');
       else if ((row?.netbiosServer || (row?.smbShares || []).length) && !score.nas && !score.printer) bump('server', 45, 'netbios-smb-server');
-      else bump('pc', 40, 'netbios-workstation');
+      // !score.nas: ogni NAS annuncia un nome NetBIOS — su un device gia'
+      // riconosciuto nas il nome non e' evidenza di workstation (vedi sopra).
+      else if (!score.nas) bump('pc', 40, 'netbios-workstation');
     }
 
     // Host Windows di FILE-SHARING (SMB 445 + condivisioni enumerate / RDP / WSD) e
@@ -406,6 +442,15 @@ class FusionScorer {
       deviceType = 'hypervisor';
     }
 
+    // Capability, non tipo: uno switch MULTILAYER (sysServices dichiara L2+L3,
+    // misurato RFC 1213) resta 'switch' (regola G5 — mai bump a router); la
+    // capacita' di routing e' esposta come flag additivo per il badge L3.
+    const capabilities = {};
+    if (deviceType === 'switch' && svc.l2 && svc.l3) {
+      capabilities.l3 = true;
+      reasons.add('capability-l3');
+    }
+
     const alternatives = sortedEntries
       .filter(([t]) => t !== deviceType)
       .slice(0, 4)
@@ -418,6 +463,9 @@ class FusionScorer {
       scores: { ...score },
       evidences,
       reasons: Array.from(reasons),
+      // Additivo: presente solo quando c'e' almeno una capability (i consumatori
+      // esistenti che destrutturano i campi storici restano identici).
+      ...(Object.keys(capabilities).length ? { capabilities } : {}),
     };
   }
 }

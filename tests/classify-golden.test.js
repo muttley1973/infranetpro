@@ -76,6 +76,26 @@ const CORPUS = {
   'samsung-tizen-tv': [{ descr: 'Samsung Smart TV', httpTitle: 'Tizen', alive: true }, 'tv'],
   'bare-ping-only': [{ ip: '10.0.0.9', alive: true }, 'pc'],
   'bare-mac-only': [{ mac: 'aa:bb:cc:dd:ee:ff', alive: true }, 'pc'],
+  // --- nuovi tipi (riconciliazione tassonomia 2026-07-22) — casi ADDITIVI, le
+  // aspettative sopra sono INVARIATE. Coprono i 2 falsi positivi (KVM/ATS non
+  // piu' 'switch') e i nuovi percorsi ats/nvr/vpncon/pbx/consolesvr/projector/
+  // kvm/doorctrl; ASA resta firewall (deliberato: un ASA E' un firewall).
+  'aten-kvm': [{ vendor: 'ATEN', httpTitle: 'KVM over IP Switch', alive: true }, 'kvm'],
+  'apc-ats': [{ descr: 'APC Automatic Transfer Switch AP4423', snmpReachable: true }, 'ats'],
+  'hikvision-nvr': [{ vendor: 'Hikvision', httpTitle: 'DS-7608NI NVR', services: [{ port: 554 }], alive: true }, 'nvr'],
+  'grandstream-ucm-pbx': [{ objectId: '1.3.6.1.4.1.25858.1', descr: 'Grandstream UCM6302', snmpReachable: true }, 'pbx'],
+  'freepbx-server': [{ hostname: 'centralino', httpTitle: 'FreePBX Administration', alive: true }, 'pbx'],
+  'opengear-console': [{ descr: 'Opengear IM7200 console server', snmpReachable: true }, 'consolesvr'],
+  'epson-projector': [{ vendor: 'Epson', httpTitle: 'EPSON Projector Web Control', alive: true }, 'projector'],
+  'anyconnect-vpncon': [{ httpsTitle: 'AnyConnect Secure Mobility', alive: true }, 'vpncon'],
+  'altiga-vpncon-oid': [{ objectId: '1.3.6.1.4.1.3076.1.1', snmpReachable: true }, 'vpncon'],
+  'cisco-asa-firewall': [{ descr: 'Cisco Adaptive Security Appliance ASA 5516', snmpReachable: true }, 'firewall'],
+  'axis-a1001-doorctrl': [{ descr: 'AXIS A1001 Network Door Controller', snmpReachable: true }, 'doorctrl'],
+  // Forma REALE dal vivo (LaCie D2 sulla /24 di casa, 2026-07-22): un NAS che si
+  // presenta da host SMB (445 + nome NetBIOS, zero SNMP) restava pc perche' i voti
+  // SMB/NetBIOS sommavano piu' del brand; ora sono guardati da !score.nas (SMB e'
+  // il comportamento di un NAS, non una contraddizione).
+  'lacie-d2-smb-nas': [{ hostname: 'LACIED2', vendor: 'LaCie', netbiosName: 'LACIED2', services: [{ port: 21 }, { port: 80 }, { port: 443 }, { port: 445 }], alive: true }, 'nas'],
 };
 
 for (const [label, [row, expected]] of Object.entries(CORPUS)) {

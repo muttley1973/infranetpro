@@ -564,6 +564,8 @@ function _decorateDiscoveryRow(row, extra = {}) {
       alternatives: classification.alternatives,
       scores: classification.scores,
       reasons: classification.reasons,
+      // Capability additive (es. l3 = switch multilayer, da sysServices L2+L3).
+      ...(classification.capabilities ? { capabilities: classification.capabilities } : {}),
     },
   };
 }
