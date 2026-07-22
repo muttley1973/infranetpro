@@ -59,6 +59,7 @@
     "lib/topology-plan.js",
     "lib/ui-catalog.js",
     "lib/vlan-trunk.js",
+    "lib/vm-nics.js",
     "lib/wave-path.js",
     "lib/wifi-spec.js",
     "lib/wifi-vlan-check.js"
