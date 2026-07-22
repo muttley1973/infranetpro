@@ -18,6 +18,7 @@ import { registerClickActions, registerChangeActions } from './app-delegation.js
 import { _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte: builder pannello (ex win.*)
 import { closeReportMenu } from './app-auth.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { updateVlanIpam } from './app-vlan-autopoll.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
+import { vmIps } from '../lib/vm-nics.js';   // lib pura importata ESM (come lib/ipv6.js): NON un globale su window
 
 // Tipi che possono fare da gateway L3 (per il dropdown di scelta).
 const _L3_GATEWAY_TYPES = ['router', 'firewall', 'switch'];
@@ -28,17 +29,27 @@ const _L3_GATEWAY_TYPES = ['router', 'firewall', 'switch'];
 // device fisico sfuggiva all'audit. Tutti i DCIM di riferimento tengono gli IP
 // delle VM nello STESSO IPAM dei device fisici, e questo È il caso d'uso reale
 // (un host ospita più VM sulla stessa subnet di management).
-// L'id `vm:<host>:<vm>` NON è un nodo del progetto: serve solo a dare identità
-// stabile alla riga nel report duplicati.
+// L'id `vm:<host>:<vm>:<nic>` NON è un nodo del progetto: serve solo a dare
+// identità stabile alla riga nel report duplicati.
+// Una riga PER vNIC (78ª): una VM multi-homed ha un indirizzo per scheda, e un
+// duplicato sulla seconda gamba è un conflitto vero quanto uno sulla prima.
+// L'etichetta nomina la scheda solo quando ce n'è più d'una — con una sola
+// vNIC (il caso normale) la riga resta identica a prima.
 function _vmIpNodes(){
     const out = [];
     for(const n of (store.state.nodes || [])){
         if(!Array.isArray(n.vms)) continue;
         const hostName = getNodeDisplayName(n) || n.name || n.id;
         for(const vm of n.vms){
-            const ip = (vm && typeof vm.ip === 'string') ? vm.ip.trim() : '';
-            if(!ip) continue;
-            out.push({ id: `vm:${n.id}:${vm.id}`, name: `${vm.name || 'VM'} (VM · ${hostName})`, ip, type: 'vm' });
+            const ips = vmIps(vm);
+            for(const e of ips){
+                const nicLabel = (ips.length > 1) ? ` · ${e.name || e.nicId}` : '';
+                out.push({
+                    id: `vm:${n.id}:${vm.id}:${e.nicId}`,
+                    name: `${vm.name || 'VM'}${nicLabel} (VM · ${hostName})`,
+                    ip: e.ip, type: 'vm',
+                });
+            }
         }
     }
     return out;

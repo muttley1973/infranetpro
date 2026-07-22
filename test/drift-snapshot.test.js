@@ -55,6 +55,28 @@ test('docSnap: passivo senza IP fuori da macs ma in deviceSigs; VM solo in devic
   assert.equal(d.macs.find(x => x.nodeId === 'host').ip, '10.0.0.9');
 });
 
+test('docSnap: VM multi-vNIC → TUTTI i MAC delle schede fra i documentati', () => {
+  // Un firewall virtuale si presenta in rete con un MAC per gamba: se ne
+  // riconoscessimo uno solo, le altre due gambe tornerebbero a comparire fra i
+  // "non documentati" a ogni Verifica.
+  const m = {
+    nodes: [{ id: 'host', mac: 'AA:AA:AA:00:00:03', ip: '10.0.0.5', vms: [
+      { id: 'vm1', nics: [
+        { id: 'nic1', mac: 'BB:BB:BB:00:00:01' },
+        { id: 'nic2', mac: 'BB:BB:BB:00:00:02' },
+        { id: 'nic3', ip: '172.16.0.1' },              // scheda senza MAC: nessuna firma inventata
+      ] },
+      { id: 'vm2', mac: 'CC:CC:CC:00:00:01' },          // progetto non migrato: forma piatta
+    ] }],
+    links: [], ports: {}, normMac: lower, isPassiveNoIp: () => false,
+  };
+  const d = buildDocSnapshot(m);
+  for (const mac of ['BB:BB:BB:00:00:01', 'BB:BB:BB:00:00:02', 'CC:CC:CC:00:00:01'])
+    assert.ok(d.deviceSigs.includes(lower(mac)), `MAC ${mac} deve risultare documentato`);
+  // e nessuna VM entra nell'audit di presenza (una VM spenta non è un'assenza)
+  assert.deepEqual(d.macs.map(x => x.nodeId), ['host']);
+});
+
 test('docSnap: nodi CON IP ma SENZA MAC → ipOnly (con hasSnmp); senza IP → ignorati; passivi esclusi', () => {
   const m = {
     nodes: [

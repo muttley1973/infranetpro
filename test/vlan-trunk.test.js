@@ -51,12 +51,34 @@ test('carriedVlans: hypervisor/homelab → VLAN delle VM (node.vms[].vlan)', () 
   const vms = [{ name: 'dc01', vlan: 10 }, { name: 'web01', vlan: 20 }, { name: 'app01', vlan: 20 }];
   assert.deepEqual(V.carriedVlans({ type: 'hypervisor', vms }), [10, 20]);   // dedup
   assert.deepEqual(V.carriedVlans({ type: 'homelab', vms }), [10, 20]);      // stesso motore
-  // VM appliance multi-vNIC: vlan come lista tollerante "20,30".
+  // VM appliance multi-vNIC nella vecchia forma: vlan come lista tollerante.
   assert.deepEqual(V.carriedVlans({ type: 'hypervisor', vms: [{ name: 'fw', vlan: '20,30' }] }), [20, 30]);
   // VM senza vlan / lista vuota → nessuna VLAN trasportata.
   assert.deepEqual(V.carriedVlans({ type: 'hypervisor', vms: [{ name: 'x' }] }), []);
   assert.deepEqual(V.carriedVlans({ type: 'hypervisor', vms: [] }), []);
   assert.deepEqual(V.carriedVlans({ type: 'hypervisor' }), []);
+});
+
+test('carriedVlans: VM multi-vNIC (nics[]) → una VLAN per scheda', () => {
+  // Firewall virtuale a tre gambe: ogni vNIC sta su un port-group diverso, e
+  // l'uplink dell'host deve trasportarle TUTTE. Prima della 78ª le tre VLAN
+  // stavano in un solo campo separate da virgole.
+  const fw = { name: 'opnsense', nics: [
+    { id: 'nic1', name: 'WAN', vlan: 10 },
+    { id: 'nic2', name: 'LAN', vlan: 20 },
+    { id: 'nic3', name: 'DMZ', vlan: '30' },
+  ] };
+  assert.deepEqual(V.carriedVlans({ type: 'hypervisor', vms: [fw] }), [10, 20, 30]);
+  // Una singola vNIC su un trunk può a sua volta portarne più d'una.
+  assert.deepEqual(V.carriedVlans({ type: 'hypervisor',
+    vms: [{ nics: [{ id: 'nic1', vlan: '40,50' }] }] }), [40, 50]);
+  // nics[] esplicito VINCE sul residuo piatto non ancora migrato: mai la somma
+  // delle due forme (produrrebbe VLAN fantasma sull'uplink).
+  assert.deepEqual(V.carriedVlans({ type: 'hypervisor',
+    vms: [{ vlan: 99, nics: [{ id: 'nic1', vlan: 20 }] }] }), [20]);
+  // Schede senza VLAN dichiarata: nessuna invenzione (niente VLAN 1 d'ufficio).
+  assert.deepEqual(V.carriedVlans({ type: 'hypervisor',
+    vms: [{ nics: [{ id: 'nic1', ip: '10.0.0.1' }] }] }), []);
 });
 
 test('effLinkVlans: derivato — 1 sola VLAN = access, ≥2 = trunk', () => {
