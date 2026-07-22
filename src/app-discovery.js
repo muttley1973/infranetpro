@@ -653,7 +653,7 @@ function _discRenderTable(){
         return `<tr class="${_rowCls}">
           <td><input type="checkbox" class="disc-chk" data-idx="${i}" data-change="disc-row" ${checked?'checked':''}></td>
           <td><span class="disc-st ${reach.cls}" data-tip="${escapeHTML(reach.title)}">${escapeHTML(reach.label)}</span></td>
-          <td class="disc-host">${escapeHTML(displayName)}${badges}</td>
+          <td class="disc-host"><span class="disc-name">${escapeHTML(displayName)}</span>${badges}</td>
           <td class="disc-ip">${escapeHTML(d.ip)}</td>
           <td class="disc-vendor">${escapeHTML(_discVendorLabel(d))}</td>
           <td class="disc-mac">${escapeHTML(d.mac||'—')}</td>

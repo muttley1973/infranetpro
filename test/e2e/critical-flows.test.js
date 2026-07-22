@@ -2593,6 +2593,150 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.dblOpens, 'con intent esplicito (= doppio click) le proprietà del device floor si aprono (VM-Web)');
     });
 
+    await t.test('VM: import RIPETUTO (76ª) — la zona resta raggiungibile a ogni giro, non scivola fuori dallo scrollport', async () => {
+      // BUG storico: la drop-zone stava in FONDO alla lista VM; ogni import ri-renderizzava
+      // il pannello (scroll azzerato) spingendola sotto la piega → dal 2° drop in poi
+      // elementFromPoint non la vedeva più e l'import moriva. Ora il bersaglio è TUTTA
+      // la sezione (data-vm-dropzone sul <details>) e l'invito visivo sta SOPRA la lista
+      // (posizione stabile). Qui si assorbe 4 volte di fila col gesto reale.
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = {};
+          state.nodes.push({ id: 'lab', type: 'homelab', name: 'NUC-01', x: 600, y: 350, ports: 1, mac: 'AA:BB:CC:00:00:01' });
+          for (let i = 1; i <= 4; i++) {
+            state.nodes.push({ id: 'pcr' + i, type: 'pc', name: 'PC-R' + i, x: 60 + i * 70, y: 80,
+              ports: 1, mac: 'AA:BB:CC:00:11:0' + i, ip: '10.0.1.' + (10 + i) });
+          }
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          _renderAllNow();
+          if (typeof switchRightTab === 'function') switchRightTab('props');
+          if (typeof setPropsSectionState === 'function') { setPropsSectionState('device-homelab', true); setPropsSectionState('hv-vms', true); }
+          window._propsExplicit = true; selType = 'node'; selId = 'lab'; renderProps();
+          const scroller = document.getElementById('props-panel-wrap');
+          const rounds = [];
+          for (let i = 1; i <= 4; i++) {
+            const dz = document.querySelector('[data-vm-dropzone][data-host-id="lab"]');
+            // l'utente mira all'INVITO visivo (zona tratteggiata sopra la lista)
+            const aff = dz ? dz.querySelector('.vm-import-dz') : null;
+            if (!dz || !aff) { rounds.push({ i, noDz: true }); break; }
+            const aR = aff.getBoundingClientRect(), sR = scroller.getBoundingClientRect();
+            const visible = aR.top >= sR.top && aR.bottom <= sR.bottom && aR.width > 0;
+            const pcEl = document.querySelector('[data-id="pcr' + i + '"]');
+            const pR = pcEl.getBoundingClientRect();
+            const ax = aR.left + aR.width / 2, ay = aR.top + aR.height / 2;
+            pcEl.dispatchEvent(new PointerEvent('pointerdown', { clientX: pR.left + pR.width / 2, clientY: pR.top + pR.height / 2, button: 0, bubbles: true }));
+            window.dispatchEvent(new PointerEvent('pointermove', { clientX: ax, clientY: ay, button: 0, bubbles: true }));
+            window.dispatchEvent(new PointerEvent('pointerup', { clientX: ax, clientY: ay, button: 0, bubbles: true }));
+            rounds.push({ i, visible, vmCount: (nodeById('lab').vms || []).length });
+          }
+          return { rounds, vmCount: (nodeById('lab').vms || []).length };
+        } catch (e) { return { err: String(e && e.stack || e) }; }
+      });
+      assert.ok(!r.err, 'nessun errore nel giro di import ripetuti: ' + r.err);
+      for (const g of r.rounds) {
+        assert.ok(g.visible, `giro ${g.i}: l'invito visivo è dentro lo scrollport (non scivola sotto la piega)`);
+        assert.equal(g.vmCount, g.i, `giro ${g.i}: la VM è stata assorbita`);
+      }
+      assert.equal(r.vmCount, 4, 'tutti e 4 gli import ripetuti sono andati a segno');
+    });
+
+    await t.test('VM: elimina/aggiungi dopo un single-click floor (76ª) — il pannello si aggiorna SUBITO, niente riga stantia', async () => {
+      // BUG storico: il single-click sul floor mette _propsExplicit=false; il click sul
+      // cestino di una riga VM mutava i dati ma renderProps veniva bloccato dalla guardia
+      // → la riga restava a schermo fino al refresh. Ora add/update/removeVm allineano
+      // selezione+intent sull'host (pattern absorbNodeAsVm) prima del re-render.
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = {};
+          state.nodes.push({ id: 'lab', type: 'homelab', name: 'NUC-01', x: 600, y: 350, ports: 1, mac: 'AA:BB:CC:00:00:01' });
+          state.nodes.push({ id: 'pcq', type: 'pc', name: 'PC-Q', x: 120, y: 80, ports: 1, mac: 'AA:BB:CC:00:22:01' });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          _renderAllNow();
+          if (typeof switchRightTab === 'function') switchRightTab('props');
+          if (typeof setPropsSectionState === 'function') { setPropsSectionState('device-homelab', true); setPropsSectionState('hv-vms', true); }
+          window._propsExplicit = true; selType = 'node'; selId = 'lab'; renderProps();
+          addVm('lab'); addVm('lab');
+          // single-click reale su un tile floor → _propsExplicit=false (solo selezione)
+          const el = document.querySelector('[data-id="pcq"]');
+          const rc = el.getBoundingClientRect();
+          el.dispatchEvent(new PointerEvent('pointerdown', { clientX: rc.left + rc.width / 2, clientY: rc.top + rc.height / 2, button: 0, bubbles: true }));
+          window.dispatchEvent(new PointerEvent('pointerup', { clientX: rc.left + rc.width / 2, clientY: rc.top + rc.height / 2, button: 0, bubbles: true }));
+          const explicitAfterClick = !!window._propsExplicit;
+          // = click sul cestino della riga VM (il pannello host è ancora a schermo)
+          const vmId = nodeById('lab').vms[0].id;
+          const rowsBefore = document.querySelectorAll('#props-panel .vm-row').length;
+          removeVm('lab', vmId);
+          const rowsAfter = document.querySelectorAll('#props-panel .vm-row').length;
+          return { explicitAfterClick, rowsBefore, rowsAfter,
+            dataCount: (nodeById('lab').vms || []).length,
+            selBack: (typeof selId !== 'undefined') ? selId : null };
+        } catch (e) { return { err: String(e && e.stack || e) }; }
+      });
+      assert.ok(!r.err, 'nessun errore nel delete post single-click: ' + r.err);
+      assert.ok(!r.explicitAfterClick, 'setup: il single-click floor ha messo _propsExplicit=false (scenario del bug)');
+      assert.equal(r.rowsBefore, 2, 'setup: 2 righe VM a schermo');
+      assert.equal(r.dataCount, 1, 'removeVm ha eliminato la VM nei dati');
+      assert.equal(r.rowsAfter, 1, 'la riga eliminata SPARISCE subito dal pannello (niente refresh necessario)');
+      assert.equal(r.selBack, 'lab', 'il click su un controllo della sezione VM riallinea la selezione all\'host');
+    });
+
+    await t.test('VM: import di un device SENZA MAC ma con IP/SNMP (cross-subnet, 76ª) → assorbito; senza identità → rifiuto spiegato', async () => {
+      // Caso reale (progetto Rete+Lab): pc monitorato solo-SNMP su un'altra subnet →
+      // niente MAC (l'ARP non attraversa il router). La vecchia eligibility richiedeva
+      // n.mac e rifiutava IN SILENZIO. Ora basta un'identità di rete (MAC o IP/host
+      // SNMP); un tile senza nessuna identità resta rifiutato ma con toast che spiega.
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = {};
+          state.nodes.push({ id: 'lab', type: 'homelab', name: 'NUC-01', x: 600, y: 350, ports: 1, mac: 'AA:BB:CC:00:00:01' });
+          // il "kvm" del lab: pc con IP+SNMP ma SENZA MAC (import cross-subnet)
+          state.nodes.push({ id: 'pcnm', type: 'pc', name: 'kvm', x: 100, y: 80, ports: 1,
+            ip: '10.10.30.10', integration: { host: '10.10.30.10', community: 'public', ver: '2c' } });
+          // tile senza NESSUNA identità (né MAC né IP): resta non idoneo
+          state.nodes.push({ id: 'pcanon', type: 'pc', name: 'PC-Anon', x: 220, y: 80, ports: 1 });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          _renderAllNow();
+          if (typeof switchRightTab === 'function') switchRightTab('props');
+          if (typeof setPropsSectionState === 'function') { setPropsSectionState('device-homelab', true); setPropsSectionState('hv-vms', true); }
+          window._propsExplicit = true; selType = 'node'; selId = 'lab'; renderProps();
+          const gestureDropOn = (srcId) => {
+            const dz = document.querySelector('[data-vm-dropzone][data-host-id="lab"]');
+            const aff = dz.querySelector('.vm-import-dz') || dz;
+            const aR = aff.getBoundingClientRect();
+            const el = document.querySelector('[data-id="' + srcId + '"]');
+            const rc = el.getBoundingClientRect();
+            const ax = aR.left + aR.width / 2, ay = aR.top + aR.height / 2;
+            el.dispatchEvent(new PointerEvent('pointerdown', { clientX: rc.left + rc.width / 2, clientY: rc.top + rc.height / 2, button: 0, bubbles: true }));
+            window.dispatchEvent(new PointerEvent('pointermove', { clientX: ax, clientY: ay, button: 0, bubbles: true }));
+            window.dispatchEvent(new PointerEvent('pointerup', { clientX: ax, clientY: ay, button: 0, bubbles: true }));
+          };
+          // 1) pc senza MAC ma con IP/SNMP → assorbito
+          gestureDropOn('pcnm');
+          const lab = nodeById('lab'); const vm = (lab.vms || [])[0] || {};
+          const absorbedNoMac = { count: (lab.vms || []).length, name: vm.name || '', ip: vm.ip || '', mac: vm.mac || '', tileGone: !nodeById('pcnm') };
+          // 2) pc senza alcuna identità → rifiutato, torna a casa, toast che spiega
+          const ox = nodeById('pcanon').x, oy = nodeById('pcanon').y;
+          gestureDropOn('pcanon');
+          const anon = nodeById('pcanon');
+          const toastText = (document.getElementById('topo-toast') || {}).textContent || '';
+          return { absorbedNoMac, anonAlive: !!anon, anonBackX: anon ? anon.x === ox : null, anonBackY: anon ? anon.y === oy : null,
+            anonCount: (lab.vms || []).length, toastText };
+        } catch (e) { return { err: String(e && e.stack || e) }; }
+      });
+      assert.ok(!r.err, 'nessun errore: ' + r.err);
+      assert.equal(r.absorbedNoMac.count, 1, 'il pc SENZA MAC (IP/SNMP cross-subnet) viene assorbito come VM');
+      assert.equal(r.absorbedNoMac.name, 'kvm', 'la VM eredita il nome');
+      assert.equal(r.absorbedNoMac.ip, '10.10.30.10', 'la VM eredita l\'IP');
+      assert.equal(r.absorbedNoMac.mac, '', 'nessun MAC inventato (② no-invenzioni): il campo resta vuoto');
+      assert.ok(r.absorbedNoMac.tileGone, 'il tile sciolto sparisce dal floor');
+      assert.equal(r.anonCount, 1, 'il tile senza identità NON viene assorbito');
+      assert.ok(r.anonAlive && r.anonBackX && r.anonBackY, 'il tile senza identità torna alla posizione di partenza');
+      assert.match(r.toastText, /identità|identity/i, 'il rifiuto è SPIEGATO (toast), non silenzioso');
+    });
+
     await t.test('gesto reale DOPPIO click su device floor → apre le Proprietà (regressione: dblclick nativo non scatta, il DOM si ricostruisce tra i click)', async () => {
       const r = await page.evaluate(() => {
         try {

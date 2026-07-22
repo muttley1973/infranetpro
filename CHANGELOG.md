@@ -2,6 +2,20 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-22 — VM import drop area: reachable at any list size, works without a MAC, honest refusals
+
+Three real-use bugs in the hypervisor/homelab "Virtual machines" section, all reproduced with real pointer gestures in headless Chrome before fixing.
+
+### Fixed
+- **Importing VMs stopped working after the first few drops.** The drop area sat at the *bottom* of the VM list; every import re-rendered the panel (scroll reset to top) and pushed it one row further down — below the panel fold, where `elementFromPoint` can't see it, so every following drop silently bounced back. Now the **whole "Virtual machines" section is the drop target** (`data-vm-dropzone` on the section, summary included when collapsed) and the dashed invite sits **above the list** at a stable, always-visible position. Regression e2e: 4 consecutive real-gesture imports. `src/app-hypervisor.js`, `src/app-pointer.js`, `styles/07-modals.css`.
+- **Deleting a VM didn't remove the row until a refresh.** After a single-click on the floor (`_propsExplicit=false`) the trash button mutated the data but the panel re-render was blocked by the explicit-intent guard. Clicking any control in the VM section now realigns selection+intent on that host before re-rendering (same pattern as `absorbNodeAsVm`) — add/toggle/edit had the same latent bug. `src/app-hypervisor.js` (`_propsIntentOnHost`).
+- **Devices monitored via SNMP across a subnet couldn't become VMs.** Drag eligibility required a MAC, but cross-subnet imports never have one (ARP doesn't cross the router) — the refusal was silent. Eligibility now accepts any network identity (**MAC or IP/SNMP host**); the VM inherits name+IP and the MAC field stays empty (nothing invented). A tile with no identity at all is still refused — but with an explanatory toast instead of a mute bounce-back (`hv.vmNotEligible`, it/en). `src/app-pointer.js`, `lib/i18n.js`.
+- **VM power button: green when running, red when stopped.** It referenced the non-existent `--ok-color` token, so the "running" state inherited plain white; now it uses the semantic tokens (`--active-color`/`--fault-color`), defined in both themes. `src/app-hypervisor.js`.
+
+## 2026-07-22 — Discover results: every device on a single row
+
+The results table wrapped the name+badges cell onto two lines as soon as a device had a long hostname plus 3-4 badges (source · confidence · New · +v3), making the list ragged and half as dense. The name cell is now a flex row where the **name yields first with an ellipsis** while the status badges never wrap (`.disc-name` + `flex:none` badges); fixed columns were trimmed (Status/IP/Vendor/MAC/Type) to give the name column ~358px at the 1080px reference width, and badges got 1-2px tighter padding. Result: 36px single-line rows at any width, badges always intact, no horizontal scroll. `src/app-discovery.js`, `styles/07-modals.css`.
+
 ## 2026-07-22 — Discover modal redesign: two phases, plainer terms, compact setup
 
 Senior UX/UI pass on the "Discover devices" modal. The scan options were a flat wrapping row of engineer jargon; setup and results were shown together in one 1180px panel.

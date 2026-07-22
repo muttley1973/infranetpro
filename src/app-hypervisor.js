@@ -59,6 +59,15 @@ const _VM_GUEST_OS = [
 function _newVmId(seed){ return 'vm' + Date.now().toString(36) + (seed || 0); }
 function _nodeVms(n){ return (n && Array.isArray(n.vms)) ? n.vms : []; }
 
+// I bottoni/campi della sezione VM vivono NEL pannello dell'host: un click lì È
+// intent esplicito su quell'host. Senza questo allineamento, dopo un single-click
+// sul floor (che mette _propsExplicit=false) la guardia di _renderNodeProps
+// bloccava il re-render → la VM eliminata restava a schermo fino al refresh.
+// Stesso pattern di absorbNodeAsVm (guardia uniforme floor/rack).
+function _propsIntentOnHost(nodeId){
+    store.selId = nodeId; store.selType = 'node'; store._propsExplicit = true;
+}
+
 // Aggiunge una VM vuota (running) all'host e ri-renderizza.
 function addVm(nodeId){
     const n = nodeById(nodeId); if(!n) return;
@@ -66,6 +75,7 @@ function addVm(nodeId){
     if(!Array.isArray(n.vms)) n.vms = [];
     const id = _newVmId(n.vms.length);
     n.vms.push({ id, state: 'running' });
+    _propsIntentOnHost(nodeId);
     markDirty(); renderProps(); if(typeof renderAll === 'function') renderAll();
     return id;
 }
@@ -84,6 +94,7 @@ function updateVm(nodeId, vmId, field, value){
         if(typeof _invalidateIdx === 'function') _invalidateIdx();
         if(typeof propagateVlans === 'function') propagateVlans();
     }
+    _propsIntentOnHost(nodeId);
     markDirty(); renderProps(); if(typeof renderAll === 'function') renderAll();
 }
 
@@ -95,6 +106,7 @@ function removeVm(nodeId, vmId){
     n.vms.splice(i, 1);
     if(typeof _invalidateIdx === 'function') _invalidateIdx();
     if(typeof propagateVlans === 'function') propagateVlans();
+    _propsIntentOnHost(nodeId);
     markDirty(); renderProps(); if(typeof renderAll === 'function') renderAll();
 }
 
@@ -105,8 +117,11 @@ function _vmRowHtml(vm, nodeId){
     const opt = (val, sel, label) => `<option value="${esc(val)}"${String(sel) === String(val) ? ' selected' : ''}>${esc(label)}</option>`;
     const osOpts = ['<option value="">—</option>'].concat(_VM_GUEST_OS.map(o => opt(o[0], vm.guestOs, o[1]))).join('');
     const running = (vm.state || 'running') === 'running';
+    // Verde = accesa · rosso = spenta (decisione utente 76ª). NB: niente --ok-color,
+    // il token non esiste (il fallback ereditato rendeva il bottone bianco):
+    // si usano i token semantici definiti in ENTRAMBI i temi.
     const stateBtn = `<button type="button" class="toolbar-btn" onclick="updateVm(${u},'state','${running ? 'stopped' : 'running'}')" `
-        + `data-tip="${esc(running ? t('hv.running') : t('hv.stopped'))}" style="color:${running ? 'var(--ok-color)' : 'var(--text-soft)'}">`
+        + `data-tip="${esc(running ? t('hv.running') : t('hv.stopped'))}" style="color:${running ? 'var(--active-color)' : 'var(--fault-color)'}">`
         + `<i class="fas ${running ? 'fa-circle-play' : 'fa-circle-stop'}"></i></button>`;
     return `<div class="vm-row" style="border:1px solid var(--border);border-radius:6px;padding:8px;margin-bottom:8px">
         <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
@@ -158,12 +173,17 @@ export function _hvPanelHtml(n, d){
             <div class="prop-group"><label>Storage (TB)</label><input type="number" min="0" max="10000" step="0.5" value="${n.hvStorageTb || 1}" onchange="updateN('hvStorageTb',parseFloat(this.value)||0)"></div>
         </div>
         <div class="prop-group"><label>${t('hv.mgmtVlan')}</label><input type="number" min="1" max="4094" value="${n.mgmtVlan || 1}" data-tip="${esc(t('hv.mgmtVlanTip'))}" onchange="updateN('mgmtVlan',parseInt(this.value)||1)"></div>
-        <details class="props-collapsible props-secondary" ${(typeof _propsSectionIsOpen==='function' && _propsSectionIsOpen('hv-vms')) ? 'open' : ''} ontoggle="setPropsSectionState('hv-vms',this.open)">
+        ${''/* Drop-zone VM: il bersaglio (data-vm-dropzone) è TUTTA la sezione — con
+             tante VM la vecchia zona in fondo alla lista usciva dallo scrollport del
+             pannello dopo ogni re-render (scroll azzerato) e i drop morivano. La zona
+             tratteggiata resta come invito visivo ma SOPRA la lista: posizione stabile
+             (non scende di una riga a ogni import), visibile a pannello appena aperto. */}
+        <details class="props-collapsible props-secondary" data-vm-dropzone data-host-id="${esc(n.id)}" ${(typeof _propsSectionIsOpen==='function' && _propsSectionIsOpen('hv-vms')) ? 'open' : ''} ontoggle="setPropsSectionState('hv-vms',this.open)">
             <summary class="props-collapsible-head"><span><i class="fas fa-display"></i> ${t('hv.section')}</span><span class="props-count-badge">${running}/${vms.length}</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
             <div class="props-collapsible-body">
+                <div class="vm-import-dz"><i class="fas fa-arrow-down-to-bracket"></i> ${esc(t('hv.vmImportHint'))}</div>
                 ${vmRows}
                 <button type="button" class="toolbar-btn" style="width:100%;justify-content:center;margin-top:4px" onclick="addVm('${n.id}')"><i class="fas fa-plus"></i> ${t('hv.addVm')}</button>
-                <div class="vm-import-dz" data-vm-dropzone data-host-id="${esc(n.id)}"><i class="fas fa-arrow-down-to-bracket"></i> ${esc(t('hv.vmImportHint'))}</div>
             </div>
         </details>
     </div></details>`;

@@ -103,13 +103,17 @@ function _updateVmDropTarget(e, n, el){
     _setVmDropTarget(dz ? dz.getAttribute('data-host-id') : null);
     if(overPanel) _vmShowGhost(e, n); else _vmHideGhost();
 }
-// Una sorgente è "assorbibile" come VM solo se è un tile FLOOR con un MAC e NON è essa
-// stessa un host né un passivo senza IP (no host-in-host, no patch panel/passacavo). Il
-// vincolo isFloor preserva la semantica originaria (il rilevamento girava solo nel ramo
+// Una sorgente è "assorbibile" come VM solo se è un tile FLOOR con un'IDENTITÀ di
+// rete — MAC oppure IP/host SNMP: i device importati cross-subnet via SNMP non hanno
+// MAC (l'ARP non attraversa il router) ma sono device reali e documentati; il MAC
+// nella VM resta facoltativo come nell'editor. E NON dev'essere essa stessa un host
+// né un passivo senza IP (no host-in-host, no patch panel/passacavo). Il vincolo
+// isFloor preserva la semantica originaria (il rilevamento girava solo nel ramo
 // floor del move) ora che il check di rilascio vale per qualunque drag.
 function _vmAbsorbEligible(n){
     const def = n && TYPES[n.type];
-    return !!(n && n.mac && def && def.isFloor && !def.hostsVms && !(def.isPassive && !def.hasIP));
+    const identity = !!(n && (n.mac || n.ip || (n.integration && n.integration.host)));
+    return !!(identity && def && def.isFloor && !def.hostsVms && !(def.isPassive && !def.hasIP));
 }
 // Hit-test AUTORITATIVO al pointerup. Nasconde un attimo il tile trascinato e il fantasma
 // (entrambi sotto/vicino al cursore) e ispeziona il PUNTO DI RILASCIO. Ritorna:
@@ -128,7 +132,9 @@ function _vmDropTargetAtPoint(x, y, dragId){
     const dz = under && under.closest ? under.closest('[data-vm-dropzone]') : null;
     const onFloor = !!(under && under.closest && under.closest('#floorplan'));
     const host = (dz && _vmAbsorbEligible(nodeById(dragId))) ? dz.getAttribute('data-host-id') : null;
-    return { host, onFloor };
+    // onDz = rilasciato sulla zona ma sorgente NON idonea → il chiamante spiega il
+    // perché con un toast (prima il rifiuto era silenzioso: tile a casa e basta).
+    return { host, onFloor, onDz: !!dz };
 }
 
 // Snap-to-grid planimetria: aggancia alla griglia 20px SOLO se la griglia è
@@ -751,11 +757,13 @@ function handlePointerUp(e){
                 // Device floor rilasciato FUORI dalla planimetria e NON sulla zona import
                 // → torna alla posizione di partenza + avviso (niente tile "perso" sotto
                 // il pannello, niente riposizionamento accidentale fuori scena).
+                // Se il rilascio ERA sulla zona ma il device non è idoneo (host, passivo,
+                // o senza identità di rete) → spiega il PERCHÉ invece del rifiuto muto.
                 const _n=nodeById(store.dragNode);
                 if(_n){ _n.x=_floorDragOrigin.x; _n.y=_floorDragOrigin.y; }
                 store.dragNode=null;   // (resizeNode è già null in un node-drag)
                 renderAll();
-                _showToast(t('hv.vmImportMissed'), 'info', 4000);
+                _showToast(t(_drop.onDz ? 'hv.vmNotEligible' : 'hv.vmImportMissed'), _drop.onDz ? 'warn' : 'info', 4500);
             } else {
                 const _wasRackDrag=!!(_dn&&TYPES[_dn.type]?.isRack);
                 // Commit del drag (resolveOverlap, pushHistory, markDirty, rerender)
