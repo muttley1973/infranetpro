@@ -745,6 +745,10 @@
           <input id="disc-mdns" type="checkbox">
           <span data-i18n="disc.mdns">Ascolto mDNS/SSDP (device a porte chiuse)</span>
         </label>
+        <label class="disc-opt disc-opt-ignoreping" data-i18n-tip="disc.ignorePingTip" data-tip="Interroga via SNMP anche gli host che non rispondono al ping. Utile quando firewall o CoPP filtrano l'ICMP ma il device risponde a SNMP. Più lento (sonda ogni IP del range).">
+          <input id="disc-ignore-ping" type="checkbox">
+          <span data-i18n="disc.ignorePing">Ignora ping (sonda SNMP tutto il range)</span>
+        </label>
         <label class="disc-opt">
           <input id="disc-expand-topology" type="checkbox">
           <span data-i18n="disc.expand">Espandi via LLDP/CDP (più rumoroso)</span>

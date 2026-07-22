@@ -236,7 +236,7 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
     const {
       subnet, driver, community, port, timeout, concurrency,
       safeMode = true, detectWeb = true, detectDns = true, detectSnmp = true,
-      deepScan = false, ...v3
+      deepScan = false, ignorePing = false, ...v3
     } = req.body ?? {};
     const drvKey = (driver || 'snmp-v2c').toLowerCase();
     const drv = DRIVERS[drvKey];
@@ -378,7 +378,13 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
 
     // 3) Enrichment solo sui candidati: ping OK o MAC visto in ARP.
     // Questo evita che una /24 resti bloccata per minuti su IP inesistenti.
-    const scanRows = rows.filter(r => r.alive || r.mac);
+    // «Ignora ping» (OPT-IN, default off = identico a prima): sonda ANCHE gli IP
+    // muti all'ICMP — sulle reti reali firewall/CoPP filtrano o deprioritizzano il
+    // ping, ma il device risponde a SNMP dalla mgmt station. Un responder SNMP
+    // viene marcato vivo piu' sotto (prova di vita misurata, non inventata). In
+    // Furtiva l'enrichment resta serializzato+shuffle → nessuna firma di rate.
+    const ignorePingOn = String(ignorePing) === 'true' || ignorePing === true;
+    const scanRows = ignorePingOn ? rows.slice() : rows.filter(r => r.alive || r.mac);
     // Furtiva: stessa cura del ping sweep anche sull'arricchimento (una GET SNMP UDP 161
     // + probe TCP/DNS per candidato = anch'esso uno sweep). Serializza (conc 1), ordine
     // RANDOMIZZATO e pacing jitterato tra gli host -> niente seconda firma sequenziale.
@@ -421,6 +427,9 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
                 });
                 if (sn?.reachable) {
                   row.snmpReachable = true;
+                  // Con «ignora ping» l'host puo' non aver mai risposto all'ICMP:
+                  // la risposta SNMP E' la prova di vita (misurata).
+                  if (!row.alive) { row.alive = true; row.status = 'On'; }
                   row.descr = sn.descr || row.descr;
                   row.objectId = sn.objectId || row.objectId;
                   row.sysServices = parseInt(sn.sysServices || 0, 10) || 0;
@@ -495,11 +504,14 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
       }
     }
 
-    if (useDeepScan && scanRows.length) {
+    // Con «ignora ping» il deep-scan TCP resta sui SOLI host con un segno di vita
+    // (ping/ARP/SNMP appena marcato/web): niente sweep TCP su 250 IP morti.
+    const deepRows = ignorePingOn ? scanRows.filter(r => r.alive || r.mac) : scanRows;
+    if (useDeepScan && deepRows.length) {
       const deepConc = stealth ? 1 : (safe ? 3 : 6);   // stealth: deep-scan serializzato
       const deepTimeoutMs = safe ? 850 : 650;
-      for (let i = 0; i < scanRows.length; i += deepConc) {
-        const batch = scanRows.slice(i, i + deepConc);
+      for (let i = 0; i < deepRows.length; i += deepConc) {
+        const batch = deepRows.slice(i, i + deepConc);
         await Promise.all(batch.map(async row => {
           try {
             // Ri-prova web PAZIENTE (solo qui, in deep-scan): i web server embedded
@@ -551,7 +563,7 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
             console.warn(`  [DISCOVER] deep ${row.ip}: ${e.message}`);
           }
         }));
-        if (safe && i + deepConc < scanRows.length) {
+        if (safe && i + deepConc < deepRows.length) {
           await new Promise(r => setTimeout(r, 80 + Math.floor(Math.random() * 80)));
         }
       }
