@@ -1351,14 +1351,21 @@ function _buildPdfReportData() {
             const hostName = getNodeDisplayName(h) || h.name || h.id;
             h.vms.forEach(vm => {
                 if (!vm) return;
+                // Una VM può avere più vNIC (firewall virtuale WAN/LAN/DMZ): il
+                // dossier resta a UNA riga per macchina — è l'inventario delle
+                // VM, non delle interfacce — e nelle colonne di rete elenca i
+                // valori di tutte le schede separati da «·».
+                const _nics = (typeof vmNics === 'function') ? vmNics(vm) : [];
+                const _join = f => _nics.map(n => n[f]).filter(Boolean).join(' · ');
                 vms.push({
                     host:  hostName,
                     name:  vm.name || '',
                     role:  vm.role || '',
                     state: (vm.state || 'running') === 'running' ? 'running' : 'stopped',
-                    vlan:  vm.vlan != null ? String(vm.vlan) : '',
-                    ip:    vm.ip  || '',
-                    mac:   vm.mac || '',
+                    vlan:  _join('vlan'),
+                    ip:    _join('ip'),
+                    mac:   _join('mac'),
+                    nics:  _nics.length,
                     vcpu:  _vmNum(vm.vcpu),
                     ramGb: _vmNum(vm.ramGb),
                     diskGb:_vmNum(vm.diskGb),

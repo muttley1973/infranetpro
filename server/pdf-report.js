@@ -574,16 +574,19 @@ function _addReportPages(doc, report, projName, date, SVGtoPDF, options = {}, la
     // documento di consegna conta cosa fa la VM, chi la gestisce e quanto pesa,
     // non l'indirizzo della sua vNIC — che resta comunque nel progetto JSON,
     // nell'API e nel confronto col Drift.
+    // VLAN e IP vanno A CAPO: una VM multi-vNIC (firewall virtuale WAN/LAN/DMZ)
+    // porta più valori nella stessa cella, e troncarli nasconderebbe proprio la
+    // gamba che manca al lettore. Larghezze ribilanciate a somma invariata.
     const cols = [
       { label: _rt(L, 'col.num'),    w: 14 },
-      { label: _rt(L, 'col.host'),   w: 60, wrap: true },
-      { label: _rt(L, 'col.vm'),     w: 68, wrap: true },
-      { label: _rt(L, 'col.role'),   w: 86, wrap: true },
-      { label: _rt(L, 'col.status'), w: 42 },
-      { label: 'VLAN',               w: 28 },
-      { label: 'IP',                 w: 66 },
+      { label: _rt(L, 'col.host'),   w: 56, wrap: true },
+      { label: _rt(L, 'col.vm'),     w: 64, wrap: true },
+      { label: _rt(L, 'col.role'),   w: 76, wrap: true },
+      { label: _rt(L, 'col.status'), w: 40 },
+      { label: 'VLAN',               w: 36, wrap: true },
+      { label: 'IP',                 w: 82, wrap: true },
       { label: _rt(L, 'col.res'),    w: 85, shrink: true },
-      { label: _rt(L, 'col.owner'),  w: 56, wrap: true },
+      { label: _rt(L, 'col.owner'),  w: 52, wrap: true },
       { label: _rt(L, 'col.crit'),   w: 34, shrink: true },
     ]; // 539
     const rows = list.map((vm, i) => {
