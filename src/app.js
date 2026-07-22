@@ -1960,6 +1960,14 @@ function _readManualByRef(kind, nodeId, field){
         return n ? ((n.spec && n.spec[field] !== undefined) ? n.spec[field] : n[field]) : undefined;
     }
     if(kind === 'integration'){ const n = nodeById(nodeId); return n?.integration?.[field]; }
+    // Una VM non e' un nodo: vive in host.vms[]. Il riferimento e' "<hostId>:<vmId>"
+    // perche' servono entrambi per raggiungerla.
+    if(kind === 'vm'){
+        const [hostId, vmId] = String(nodeId || '').split(':');
+        const h = nodeById(hostId);
+        const vm = (h && Array.isArray(h.vms)) ? h.vms.find(v => v && v.id === vmId) : null;
+        return vm ? vm[field] : undefined;
+    }
     if(kind === 'port'){ return state.ports?.[nodeId]?.[field]; }
     if(kind === 'link'){ const l = (state.links || []).find(x=>x.id===nodeId); return l ? l[field] : undefined; }
     return undefined;
@@ -2082,7 +2090,12 @@ export function _enableManualValueInProps(panel){
                 }
                 sel.value = manual;
                 sel.dataset.prevValue = manual;
-                _runInlineOnChange(sel, originalChange);
+                // Le select migrate a event delegation (data-change) non hanno un
+                // onchange da eseguire: l'assegnazione programmatica di .value NON
+                // emette 'change', quindi il valore custom non arriverebbe mai al
+                // modello. Si emette l'evento vero, che risale al listener delegato.
+                if(originalChange) _runInlineOnChange(sel, originalChange);
+                else sel.dispatchEvent(new Event('change', { bubbles: true }));
             }, ()=>{
                 sel.value = prev;
             });

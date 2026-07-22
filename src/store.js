@@ -31,7 +31,10 @@ function proxy(names) {
 
 export const store = proxy([
     // ── selezione + documento ────────────────────────────────────────────────
-    'state', 'selId', 'selType', 'dragNode', 'currentProjectId',
+    // selVmId: 2o livello di selezione per lo scope 'vm' (la VM non e' un nodo del
+    // progetto — vive in host.vms[]). selId resta l'HOST, cosi' l'evidenziazione a
+    // schermo e tutto cio' che risolve nodeById(selId) continuano a funzionare.
+    'state', 'selId', 'selType', 'selVmId', 'dragNode', 'currentProjectId',
     // ── interazioni canvas / cablaggio ───────────────────────────────────────
     'linkStart', 'highPath', 'lagSelPorts', '_focusedLagPorts',
     // ── viste topologia / discovery ──────────────────────────────────────────

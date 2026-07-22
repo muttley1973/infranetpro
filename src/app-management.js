@@ -58,6 +58,16 @@ function _mgmtBuildUrl(protoId, ip){
     return _mgmtProtoDef(protoId).scheme + ip;
 }
 
+// Riuso per superfici che NON sono un nodo del progetto (oggi: la scheda di una
+// macchina virtuale). La lista protocolli e' personalizzabile dall'utente e vive
+// qui: esportare i tre pezzi evita di duplicarla — chi la ridefinisse a mano si
+// perderebbe le personalizzazioni fatte nell'editor «Protocolli di management».
+export { _mgmtBuildUrl, _mgmtProtoDef };
+export function _mgmtProtoOptionsHtml(selectedId){
+    return MGMT_PROTOCOLS.map(p =>
+        `<option value="${p.id}" ${p.id === selectedId ? 'selected' : ''}>${p.label}</option>`).join('');
+}
+
 /** Apre un URL di management. Strategia per protocollo:
  *   - http(s):// → nuova tab (browser)
  *   - tutti gli altri scheme (ssh/telnet/rdp/vnc/...) → iframe nascosto:
@@ -67,7 +77,7 @@ function _mgmtBuildUrl(protoId, ip){
  *     zero download, niente tab bianche.
  *  Chiamata dai pulsanti generati in _mgmtRow. Ritorna false così
  *  l'<a> non fa il navigate di default. */
-function _openMgmt(url){
+export function _openMgmt(url){
     if(!url) return false;
     if(/^https?:\/\//i.test(url)){
         window.open(url, '_blank', 'noopener');
