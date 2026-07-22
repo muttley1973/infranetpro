@@ -377,6 +377,56 @@ test('G8: SNMP::Info sysObjectID coverage for plugin-less vendors', () => {
   assert.equal(_scoreDiscoveredDevice({ objectId: '1.3.6.1.4.1.1916.2', descr: 'AXIS Network Camera', snmpReachable: true }).deviceType, 'webcam');
 });
 
+// --- Riconciliazione tassonomia (2026-07-22): capability e guard ---------------
+
+test('G12: i segnali SMB/NetBIOS non votano pc CONTRO un NAS riconosciuto', () => {
+  // NAS brand + profilo host SMB (445 + NetBIOS, no SNMP) -> nas, non pc.
+  const nas = _scoreDiscoveredDevice({ hostname: 'LACIED2', vendor: 'LaCie', netbiosName: 'LACIED2',
+    services: [{ port: 21 }, { port: 80 }, { port: 443 }, { port: 445 }], alive: true });
+  assert.equal(nas.deviceType, 'nas');
+  assert.ok(!nas.reasons.includes('tcp-smb-rdp-pc'), 'SMB non vota pc su un nas');
+  assert.ok(!nas.reasons.includes('netbios-workstation'), 'NetBIOS non vota pc su un nas');
+  // Una VERA workstation (nessun segnale nas) conserva entrambi i voti pc.
+  const pc = _scoreDiscoveredDevice({ netbiosName: 'DESKTOP-X', netbiosGroup: 'WORKGROUP',
+    services: [{ port: 445 }], alive: true });
+  assert.equal(pc.deviceType, 'pc');
+  assert.ok(pc.reasons.includes('tcp-smb-rdp-pc'));
+  assert.ok(pc.reasons.includes('netbios-workstation'));
+});
+
+test('G10: multilayer switch (L2+L3) exposes capabilities.l3, type stays switch', () => {
+  // Arista vEOS: sysServices L2+L3 -> tipo 'switch' (G5) + capability l3 additiva.
+  const arista = _scoreDiscoveredDevice({ objectId: '1.3.6.1.4.1.30065.1.2759', descr: 'Arista Networks EOS running on vEOS', sysServices: 2 | 4 | 8, snmpReachable: true, hostname: 'lab-switch' });
+  assert.equal(arista.deviceType, 'switch');
+  assert.equal(arista.capabilities?.l3, true);
+  assert.ok(arista.reasons.includes('capability-l3'), 'capability tracciabile in reasons');
+  // Uno switch L2 puro NON ha la capability (campo omesso, consumatori storici intatti).
+  const l2 = _scoreDiscoveredDevice({ sysServices: 2, snmpReachable: true });
+  assert.equal(l2.deviceType, 'switch');
+  assert.equal(l2.capabilities, undefined);
+  // Un router L3 puro resta router e non espone la capability (e' del multilayer switch).
+  const rt = _scoreDiscoveredDevice({ sysServices: 4, snmpReachable: true });
+  assert.equal(rt.deviceType, 'router');
+  assert.equal(rt.capabilities, undefined);
+});
+
+test('G11: KVM e ATS non votano mai switch (guard NOT_A_NET_SWITCH, falsi positivi)', () => {
+  // "KVM over IP Switch": la parola "switch" c'e' ma il voto switch e' soppresso.
+  const kvm = _scoreDiscoveredDevice({ vendor: 'ATEN', httpTitle: 'KVM over IP Switch', alive: true });
+  assert.equal(kvm.deviceType, 'kvm');
+  assert.ok(!Object.keys(kvm.scores).includes('switch'),
+    `switch non deve nemmeno votare: ${JSON.stringify(kvm.scores)}`);
+  assert.ok(kvm.reasons.includes('regex-kvm'), 'voto kvm tracciabile');
+  // ATS: "transfer switch" sopprime switch; ats 88 batte il voto testo APC->ups 85.
+  const ats = _scoreDiscoveredDevice({ descr: 'APC Automatic Transfer Switch', snmpReachable: true });
+  assert.equal(ats.deviceType, 'ats');
+  assert.ok(!Object.keys(ats.scores).includes('switch'));
+  assert.ok(ats.reasons.includes('regex-ats'));
+  // Il guard NON tocca uno switch vero (nessun token kvm/transfer nel testo).
+  const sw = _scoreDiscoveredDevice({ httpTitle: 'Intelligent Switch', vendor: 'Zyxel', alive: true });
+  assert.equal(sw.deviceType, 'switch');
+});
+
 test('G9: mDNS/SSDP announce -> device type (vendor-neutral, measured, closed-port)', () => {
   // Closed-port appliance known only by MAC/OUI + a HomeKit (weak iot) announce -> iot,
   // and it counts as MEASURED (the device announced itself) so confidence is not capped.

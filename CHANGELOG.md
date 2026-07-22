@@ -2,6 +2,25 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-22 — Classifier taxonomy reconciled with the UI catalog (8 new types + L3 capability)
+
+The UI type catalog was richer than what the classifier could emit: 11 active/IP-bearing types had no classification path, and KVM/ATS devices fell into `switch`. The gap is closed function-first (vendor-neutral: brand tokens only as additive recall on measured text), scoring architecture untouched, golden corpus frozen (new cases are additive).
+
+### Fixed
+- **A KVM switch or an ATS is never classified `switch` anymore.** New negative guard (`NOT_A_NET_SWITCH_RE`, function words only) suppresses the switch vote when the text says "KVM"/"transfer switch"; the real types vote via their own regexes. `lib/device-patterns.js`, `engine/fusion-scorer.js`.
+- **SMB/NetBIOS signals no longer vote `pc` against a recognized NAS.** Open SMB (445) and a NetBIOS name are exactly what a NAS does — on a device that already scored `nas` (brand/OID/"nas" token) they are confirmation, not contradiction; the `tcp-smb-rdp-pc` and `netbios-workstation` bumps now carry the same `!score.nas` guard their `netbios-smb-server` sibling always had (live LaCie D2: was `pc` 143 vs `nas` 90 → now `nas`; a Synology's confidence also rises since the fake pc contradiction is gone). Vendor-neutral: applies to every NAS brand. `engine/fusion-scorer.js`.
+
+### Added
+- **8 new classifiable types with traceable votes** (each has a `reasonId` in `reasons`/`evidences`): `ats` (88, beats the APC-OID `ups` 85 when the device declares itself), `nvr` (90, suppresses the `webcam` twin like wlanctrl/ap), `pbx` (90, suppresses the `voip` endpoint twin; UCM OID tie resolved by priority), `vpncon` (88; bare "vpn"/"asa" deliberately excluded — an ASA stays `firewall`), `consolesvr` (88, product-line tokens only for multi-product vendors), `projector` (90, function/PJLink tokens only), `kvm` (85, no bare "kvm" — it collides with QEMU/KVM hypervisors), `doorctrl` (85, strict model tokens; "access controller" excluded — it names Huawei WLCs). `lib/device-patterns.js`, `engine/fusion-scorer.js`.
+- **`capabilities.l3` on multilayer switches.** sysServices L2+L3 keeps the type `switch` (rule G5, never `router`) and now exposes an additive `capabilities: { l3: true }` in the classification result (reason `capability-l3`). `engine/fusion-scorer.js`, `server/classify.js`.
+- **11 additive golden cases + 2 fusion tests (G10/G11)** freeze the new paths (KVM/ATS not switch, ASA stays firewall, UCM→pbx vs Yealink→voip, Epson projector vs printer tie). `tests/classify-golden.test.js`, `tests/fusion-scorer.test.js`.
+
+### Changed
+- **Altiga OID `1.3.6.1.4.1.3076.` retyped `firewall`→`vpncon`** — the product literally is the Cisco VPN 3000 Concentrator; no golden case covered it. `lib/device-signatures.js`.
+- **`DEFAULT_PRIORITY` extended with the 8 types** (insert-only, existing order untouched — affects ties only): vpncon after firewall, kvm/consolesvr after switch, pbx after server but before voip, projector before printer, nvr before webcam, ats before ups, doorctrl before iot. `engine/fusion-scorer.js`.
+
+> **Not added, with rationale:** `badgereader` (no distinguishable network signal — IP readers present as door controllers; manual-first covers the rest); port-based signals for PJLink 4352 / SIP 5060 / IKE 500-4500 (not in the deep-scan port list — separate decision); `ipForwarding` OID (not collected today — separate decision); `homelab`/`nasdesktop` stay auto-classified as `hypervisor`/`server`/`nas` (form factor is placement, not classification).
+
 ## 2026-07-21 — Audit 72ª follow-up: two deferred L2/L3 mediums + presence-doc accuracy
 
 Follow-up to the 72ª audit. Two of the deferred L2/L3 Mediums are now fixed, and the "a plain **Sync** never turns anything red" invariant is realigned across the docs to match the code. Gates: 1645 unit / 0 fail, ESLint 0, `tsc` 0.
