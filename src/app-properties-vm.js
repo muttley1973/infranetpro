@@ -30,6 +30,7 @@ import { nodeById, getNodeDisplayName, _enableManualValueInProps } from './app.j
 import { _buildPropsHeader } from './app-properties.js';
 import { _nodeVms, _vmIntg } from './app-hypervisor.js';
 import { _mgmtBuildUrl, _mgmtProtoDef, _mgmtProtoOptionsHtml } from './app-management.js';
+import { vmNics, vmPrimaryIp } from '../lib/vm-nics.js';   // lib pura importata ESM (come lib/ipv6.js)
 
 // Sistemi guest: stessa lista dell'host (un guest e' un OS, non una piattaforma).
 const _VM_GUEST_OS = [
@@ -99,11 +100,13 @@ function _sel(ref, field, label, value, pairs, extra){
 }
 
 // Riga «Management»: stessa della scheda device (protocollo + URL + apri), ma
-// scritta sulla VM. L'URL vuoto NON e' un buco: si costruisce da protocollo+IP,
-// e il campo serve solo a chi ha una porta o un percorso fuori standard.
+// scritta sulla VM. L'URL vuoto NON e' un buco: si costruisce da protocollo+IP
+// della PRIMA vNIC con indirizzo, e il campo serve a chi ha una porta, un
+// percorso fuori standard o la console su una scheda diversa dalla prima.
 function _mgmtRowVm(vm, ref){
     const proto   = vm.mgmtProto || 'https';
-    const autoUrl = _mgmtBuildUrl(proto, vm.ip || '');
+    const vmIp    = vmPrimaryIp(vm);
+    const autoUrl = _mgmtBuildUrl(proto, vmIp);
     const primary = String(vm.mgmtUrl || '').trim() || autoUrl;
     const def     = _mgmtProtoDef(proto);
     const off     = primary ? '' : 'opacity:.35;pointer-events:none';
@@ -111,7 +114,7 @@ function _mgmtRowVm(vm, ref){
       <label style="display:flex;align-items:center;justify-content:space-between">
         <span>Management</span>
         <a href="${_esc(primary)}" ${ref} data-act="vm-mgmt-open" class="mgmt-open-btn" style="${off}"
-           data-tip="${_esc(t('pnl.misc.openOn', { label: def.label, ip: vm.ip || '?' }))}">
+           data-tip="${_esc(t('pnl.misc.openOn', { label: def.label, ip: vmIp || '?' }))}">
           <i class="fas fa-external-link-alt" style="font-size:0.65rem;margin-right:3px"></i>${t('pnl.misc.open', { label: def.label })}
         </a>
       </label>
@@ -121,6 +124,57 @@ function _mgmtRowVm(vm, ref){
                ${ref} data-vm-field="mgmtUrl" data-change="vm-field"
                data-tip="${_esc(t('pnl.misc.urlOptionalOverride'))}">
       </div>
+    </div>`;
+}
+
+// ── Interfacce di rete virtuali (vNIC) ───────────────────────────────
+// Una VM può avere più schede: un firewall virtuale ha WAN + LAN + DMZ, un
+// server la NIC di produzione e quella di backup. Ogni scheda è una riga
+// editabile; l'ordine è quello in cui le hai dichiarate.
+//
+// ⚠️ Qui NON c'è nulla che assomigli alle «Porte di rete» di un PC: quelle
+// generano LED collegabili a un cavo, una vNIC no. Una scheda virtuale si
+// innesta su un port-group del vSwitch, il cui uplink è la NIC fisica dell'host
+// — già documentata e già cablata. E da quale NIC fisica esca il traffico, con
+// gli uplink in teaming, lo decide la policy di bilanciamento: non è sapibile,
+// quindi non si dichiara (② no-invenzioni).
+//
+// Il campo «Port-group / vSwitch» è testo dichiarato ed è ANCHE il punto di
+// aggancio di una futura integrazione con le API dell'hypervisor: è il nome che
+// vSphere (port group) e Proxmox (bridge) restituiscono per ogni adattatore.
+function _nicCardHtml(nic, i, total, ref){
+    const r = `${ref} data-vm-nic="${_esc(nic.id)}"`;
+    const fld = (field, label, value, opts) => {
+        opts = opts || {};
+        const attrs = opts.inputmode ? `inputmode="${_esc(opts.inputmode)}"` : '';
+        return `<div class="prop-group"><label>${label}</label>`
+            + `<input ${attrs} value="${_esc(value == null ? '' : value)}" placeholder="${_esc(opts.ph || '')}" `
+            + `${r} data-vm-field="${_esc(field)}" data-change="vm-nic"></div>`;
+    };
+    // L'ultima scheda non si elimina dalla riga: si svuotano i campi. Un bottone
+    // che toglie l'unica interfaccia lascerebbe la VM senza posto dove scrivere
+    // un indirizzo.
+    const del = total > 1
+        ? `<button type="button" class="toolbar-btn vm-row-btn" ${r} data-act="vm-nic-del" `
+          + `data-tip="${_esc(t('hv.vmNicRemove'))}" aria-label="${_esc(t('hv.vmNicRemove'))}" `
+          + `style="color:var(--fault-color)"><i class="fas fa-trash-alt"></i></button>`
+        : '';
+    return `<div class="vnic-card">
+        <div class="vnic-head">
+          <i class="fas fa-ethernet"></i>
+          <input class="vnic-name" value="${_esc(nic.name || '')}" placeholder="${_esc(t('hv.vmNicNamePh', { n: i + 1 }))}"
+                 ${r} data-vm-field="name" data-change="vm-nic" aria-label="${_esc(t('hv.vmNicName'))}">
+          ${del}
+        </div>
+        <div class="prop-grid2">
+          ${fld('ip', t('net.ip'), nic.ip, { ph: '192.168...' })}
+          ${fld('vlan', 'VLAN', nic.vlan, { ph: t('pnl.feat.vlanPh'), inputmode: 'numeric' })}
+        </div>
+        <div class="prop-grid2">
+          ${fld('mac', 'MAC', nic.mac, { ph: '00:11:22:33:44:55' })}
+          ${fld('portGroup', t('hv.vmNicPortGroup'), nic.portGroup, { ph: t('hv.vmNicPortGroupPh') })}
+        </div>
+        ${fld('ip6', t('net.ip6'), nic.ip6, { ph: '2001:db8::1' })}
     </div>`;
 }
 
@@ -149,7 +203,7 @@ function _snmpSectionHtml(vm, ref){
 
     // Senza indirizzo non c'e' nulla da interrogare: si dice perche', invece di
     // offrire un bottone che fallirebbe.
-    if(!String(cfg.host || vm.ip || '').trim())
+    if(!String(cfg.host || vmPrimaryIp(vm) || '').trim())
         return _section('fa-plug', t('sec.integration'),
             `<div class="vm-hint"><i class="fas fa-circle-info"></i> ${t('hv.vmSnmpNoIp')}</div>`);
 
@@ -159,14 +213,20 @@ function _snmpSectionHtml(vm, ref){
         const when = (() => { try { return new Date(seen.at).toLocaleString(); } catch(_){ return seen.at || ''; } })();
         const add = (k, v) => { if(v != null && v !== '') rows.push(`<div class="power-live-row"><span>${k}</span><span>${_esc(v)}</span></div>`); };
         add(t('hv.vmSnmpName'), seen.sysName);
-        add('MAC', seen.mac);
         add(t('hv.vmSnmpUptime'), seen.uptime);
         add('vCPU', seen.cpuCores);
         add('RAM (GB)', seen.ramGb);
         add(t('hv.vmDisk'), seen.diskGb);
-        // Piu' schede di rete: il MAC non e' univoco e non viene scelto per te.
-        if(seen.macCount > 1)
-            rows.push(`<div class="power-live-row vm-snmp-descr"><span>${t('hv.vmSnmpMacMulti', { n: seen.macCount })}</span></div>`);
+        // MAC MISURATI, tutti. Il poll non trasporta gli IP delle interfacce,
+        // quindi non si puo' sapere quale MAC appartenga a quale vNIC
+        // dichiarata: si mostrano e li si copia sulla scheda giusta. Solo il
+        // caso senza ambiguita' (una misura, una scheda) viene compilato dal
+        // bottone «Usa questi valori».
+        const _seenMacs = Array.isArray(seen.macs) ? seen.macs : (seen.mac ? [seen.mac] : []);
+        _seenMacs.forEach((m, i) => rows.push(
+            `<div class="power-live-row"><span>MAC ${_seenMacs.length > 1 ? i + 1 : ''}</span><span>${_esc(m)}</span></div>`));
+        if(_seenMacs.length > 1)
+            rows.push(`<div class="power-live-row vm-snmp-descr"><span>${t('hv.vmSnmpMacMulti', { n: _seenMacs.length })}</span></div>`);
         if(seen.sysDescr) rows.push(`<div class="power-live-row vm-snmp-descr"><span>${_esc(seen.sysDescr)}</span></div>`);
         rows.unshift(`<div class="power-live-head"><i class="fas fa-circle-check"></i> ${t('hv.vmSnmpSeenAt', { when: _esc(when) })}</div>`);
     }
@@ -207,9 +267,9 @@ function _snmpSectionHtml(vm, ref){
         + `<div class="vm-hint"><i class="fas fa-circle-info"></i> ${t('hv.vmSnmpHint')}</div>`);
 }
 
-function _section(icon, title, bodyHtml){
+function _section(icon, title, bodyHtml, badgeHtml){
     return `<details class="props-collapsible props-primary" open><summary class="props-collapsible-head">`
-        + `<span><i class="fas ${_esc(icon)}"></i> ${title}</span>`
+        + `<span><i class="fas ${_esc(icon)}"></i> ${title}</span>${badgeHtml || ''}`
         + `<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>`
         + `<div class="props-collapsible-body">${bodyHtml}</div></details>`;
 }
@@ -245,19 +305,28 @@ export function _renderVmProps(panel){
         + _f(ref, 'role', t('hv.vmRole'), vm.role, { ph: t('hv.vmRolePh') })
         + _sel(ref, 'guestOs', t('f.os'), vm.guestOs, _VM_GUEST_OS, osRef));
 
-    // Rete & accesso: stessi campi di gestione di un PC (la VM e' vista in rete
-    // come un endpoint a se'). La VLAN e' quella del port-group della vNIC ed e'
-    // cio' che alimenta il trunk derivato dell'uplink dell'host (lib/vlan-trunk).
+    // Rete & accesso: COME si raggiunge la macchina (il nome con cui si presenta
+    // e la console di gestione). Gli INDIRIZZI non stanno piu' qui: vivono sulle
+    // singole vNIC, nella fisarmonica «Porte vNIC» sotto — una VM multi-homed ne
+    // ha uno per scheda, e tenerne una copia anche qui creerebbe due verita' per
+    // lo stesso dato. La riga Management costruisce l'URL dall'indirizzo della
+    // prima scheda che ne ha uno.
     const network = _section('fa-link', t('sec.netAccess'),
         _f(ref, 'hostname', 'Hostname', vm.hostname, { ph: 'dc01.local' })
-        + `<div class="prop-grid2">`
-        + _f(ref, 'ip', t('net.ip'), vm.ip, { ph: '192.168...' })
-        + _f(ref, 'vlan', 'VLAN', vm.vlan, { ph: t('pnl.feat.vlanPh'), inputmode: 'numeric' })
-        + `</div>`
-        + _f(ref, 'ip6', t('net.ip6'), vm.ip6, { ph: '2001:db8::1' })
-        + _mgmtRowVm(vm, ref)
-        + _f(ref, 'mac', 'MAC address', vm.mac, { ph: '00:11:22:33:44:55' })
-        + `<div class="vm-hint"><i class="fas fa-info-circle"></i> ${t('hv.vmVlanHint')}</div>`);
+        + _mgmtRowVm(vm, ref));
+
+    // Porte vNIC: l'elenco delle interfacce di rete virtuali. Mostra sempre
+    // almeno una scheda — digitare nella prima riga E' il gesto che la crea, cosi'
+    // una VM appena aggiunta non costringe a premere «aggiungi» per il caso
+    // normale (una sola scheda).
+    const nics = vmNics(vm);
+    const shown = nics.length ? nics : [{ id: 'nic1' }];
+    const vnics = _section('fa-ethernet', t('hv.vmSecNics'),
+        shown.map((nic, i) => _nicCardHtml(nic, i, shown.length, ref)).join('')
+        + `<button type="button" class="toolbar-btn" style="width:100%;justify-content:center;margin-top:4px" `
+        + `${ref} data-act="vm-nic-add"><i class="fas fa-plus"></i> ${t('hv.vmNicAdd')}</button>`
+        + `<div class="vm-hint"><i class="fas fa-info-circle"></i> ${t('hv.vmNicsHint')}</div>`,
+        shown.length > 1 ? `<span class="props-count-badge">${shown.length}</span>` : '');
 
     const resources = _section('fa-microchip', t('hv.vmSecResources'),
         `<div class="prop-grid3">`
@@ -279,8 +348,9 @@ export function _renderVmProps(panel){
         + `<textarea rows="3" placeholder="${_esc(t('hv.vmNotesPh'))}" ${ref} data-vm-field="notes" data-change="vm-field">${_esc(vm.notes || '')}</textarea></div>`);
 
     // Ordine: chi e' (identita') → quanto pesa (risorse) → come la raggiungi
-    // (rete, poi integrazione) → chi risponde e come si consegna.
-    panel.innerHTML = header + identity + resources + network + _snmpSectionHtml(vm, ref) + handover;
+    // (rete, poi le sue porte vNIC, poi l'integrazione) → chi risponde e come si
+    // consegna.
+    panel.innerHTML = header + identity + resources + network + vnics + _snmpSectionHtml(vm, ref) + handover;
     // Stesso harness del pannello device: aggiunge «Personalizzato…» alle select
     // che non dichiarano data-no-manual, cosi' il sistema operativo non e' limitato
     // alla lista (una VM puo' ospitare qualsiasi cosa) senza inventare un secondo
