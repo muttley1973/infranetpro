@@ -2,6 +2,10 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-22 — Discover: "Ignore ping" option (SNMP-probe hosts that filter ICMP)
+
+On real networks a firewall or CoPP often filters or deprioritizes ICMP while the device still answers SNMP from the management station — so ping-gated discovery silently skipped them. New opt-in **"Ignore ping"** checkbox probes the whole requested range via SNMP; an SNMP responder is marked alive (measured proof of life, not invented). Default off = identical behaviour. The deep TCP scan still runs only on hosts with a sign of life (no 254-IP TCP sweep), and stealth pacing is preserved. Live-verified on the lab: a mgmt /24 went from 2 devices found (ICMP flapping under the emulated slow-path) to all 7 (SW-ACC1/2, Arista, VyOS, vSRX, vWLC). `server/routes/discovery.js`, `src/app-discovery.js`, `netmapper.html`, `lib/i18n.js` (it/en).
+
 ## 2026-07-22 — Classifier taxonomy reconciled with the UI catalog (8 new types + L3 capability)
 
 The UI type catalog was richer than what the classifier could emit: 11 active/IP-bearing types had no classification path, and KVM/ATS devices fell into `switch`. The gap is closed function-first (vendor-neutral: brand tokens only as additive recall on measured text), scoring architecture untouched, golden corpus frozen (new cases are additive).

@@ -179,6 +179,9 @@ async function runDiscovery(){
     _saveDeepScanPref(deepScan);
     // mDNS/SSDP: ascolto multicast del segmento locale per i device a porte chiuse. Opt-in.
     const mdns = !!document.getElementById('disc-mdns')?.checked;
+    // «Ignora ping»: sonda SNMP anche gli host muti all'ICMP (firewall/CoPP che filtrano
+    // il ping ma rispondono a SNMP). Opt-in, default OFF = comportamento invariato.
+    const ignorePing = !!document.getElementById('disc-ignore-ping')?.checked;
     const expandTopology = !!document.getElementById('disc-expand-topology')?.checked;
     if(!subnet){ document.getElementById('disc-progress').innerHTML=`<span class="tm-err">${_dt('disc.enterRange','Inserisci un range di rete.')}</span>`; return; }
 
@@ -200,7 +203,7 @@ async function runDiscovery(){
         // altrimenti abortirebbe su subnet non piccole.
         scanTimeout = setTimeout(()=>scanAbort.abort(), stealth ? 600000 : (deepScan ? 180000 : 90000));
         const r = await fetch('/api/discover',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({ subnet, driver, community, timeout, safeMode, stealth, deepScan, mdns,
+            body:JSON.stringify({ subnet, driver, community, timeout, safeMode, stealth, deepScan, mdns, ignorePing,
                 dhcpLeases: Array.isArray(store._dhcpLeases) ? store._dhcpLeases : [] }),
             signal:scanAbort.signal});
         clearTimeout(scanTimeout);
