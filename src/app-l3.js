@@ -23,7 +23,28 @@ import { updateVlanIpam } from './app-vlan-autopoll.js';   // ritiro ponte: coda
 const _L3_GATEWAY_TYPES = ['router', 'firewall', 'switch'];
 
 // ── Modello per il modulo puro ───────────────────────────────────────
-function _l3BuildModel(withUsage){
+// Pseudo-nodi «IP di una VM»: le VM dichiarate sugli host (node.vms[]) hanno IP
+// propri che finora NESSUN motore vedeva → un IP assegnato sia a una VM sia a un
+// device fisico sfuggiva all'audit. Tutti i DCIM di riferimento tengono gli IP
+// delle VM nello STESSO IPAM dei device fisici, e questo È il caso d'uso reale
+// (un host ospita più VM sulla stessa subnet di management).
+// L'id `vm:<host>:<vm>` NON è un nodo del progetto: serve solo a dare identità
+// stabile alla riga nel report duplicati.
+function _vmIpNodes(){
+    const out = [];
+    for(const n of (store.state.nodes || [])){
+        if(!Array.isArray(n.vms)) continue;
+        const hostName = getNodeDisplayName(n) || n.name || n.id;
+        for(const vm of n.vms){
+            const ip = (vm && typeof vm.ip === 'string') ? vm.ip.trim() : '';
+            if(!ip) continue;
+            out.push({ id: `vm:${n.id}:${vm.id}`, name: `${vm.name || 'VM'} (VM · ${hostName})`, ip, type: 'vm' });
+        }
+    }
+    return out;
+}
+
+function _l3BuildModel(withUsage, opts){
     const vlanColors = store.state.vlanColors || {};
     const vlans = Object.keys(vlanColors).map(v => {
         const vid = +v;
@@ -38,6 +59,11 @@ function _l3BuildModel(withUsage){
         id: n.id, name: getNodeDisplayName(n) || n.name || n.id,
         ip: n.ip || (n.integration && n.integration.host) || '', type: n.type,
     }));
+    // Gli IP delle VM entrano SOLO nell'audit igiene (duplicati), non nella
+    // risoluzione del gateway: quel binding pilota badge e tendine sui nodi VERI
+    // del progetto, e una VM non è un nodo. In coda alla lista, così un device
+    // fisico con lo stesso IP resta comunque il primo match del gateway.
+    if(opts && opts.withVmIps) nodes.push(..._vmIpNodes());
     const usageByVid = {};
     if(withUsage && typeof _ipamUsageForVlan === 'function'){
         for(const v of vlans){ try { usageByVid[String(v.vid)] = _ipamUsageForVlan(v.vid).usedCount; } catch(_){} }
@@ -173,7 +199,7 @@ function openL3Report(){
     // Global bare (risolve a window via la lib UMD-lite ipam-audit.js): non passa
     // dal ponte win.* (cricchetto invariato). Ripiego "rete pulita" se non caricata.
     let audit = { duplicateIps: [], subnetOverlaps: [] };
-    try { if(typeof buildIpamAudit === 'function') audit = buildIpamAudit(_l3BuildModel(false)); } catch(_){ /* ripiego */ }
+    try { if(typeof buildIpamAudit === 'function') audit = buildIpamAudit(_l3BuildModel(false, { withVmIps: true })); } catch(_){ /* ripiego */ }
     const ov = _l3EnsureOverlay();
     ov.style.display = 'flex';
     const esc = s => escapeHTML(String(s == null ? '' : s));
