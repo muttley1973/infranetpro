@@ -32,6 +32,7 @@
         /* Pannello Wi-Fi (config radio AP + associazione) */
         .wifi-cfg { margin-top:8px; }
         .prop-grid2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+        .prop-grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
         .wifi-inherited { font-size:var(--fs-xs); color:var(--text-main); background:color-mix(in srgb, var(--accent) 7%, transparent); border:1px solid color-mix(in srgb, var(--accent) 22%, transparent); border-radius: var(--radius-md); padding:6px 9px; margin:2px 0 8px; line-height:1.4; }
         .wifi-inherited i { color:var(--accent); margin-right:5px; }
         /* Blocco Wi-Fi in fondo a "Rete & Accesso": divisore sottile sopra */

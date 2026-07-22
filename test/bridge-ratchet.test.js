@@ -673,7 +673,13 @@ function countInlineHandlers() {
 // −1 (577 → 576, 2026-07-21): il toggle «Lease rilasciato» spostato da «Automazioni rete»
 // (onchange inline) alla modale Import DHCP (data-change delegation, app-dhcp-import.js) →
 // un inline handler in meno, allineato ad ASSE B.
-const MAX_INLINE_HANDLERS = 576;
+//
+// −8 (576 → 568, 2026-07-22): la lista VM dell'host è passata dal blocco espanso
+// (8 handler inline per riga: nome/stato/elimina/OS/VLAN/IP/MAC/ruolo) alla riga
+// COMPATTA + scheda VM dedicata (5° scope del pannello, app-properties-vm.js).
+// Entrambe nate senza on*=: data-act="vm-open|vm-remove|vm-state|vm-back" e
+// data-change="vm-field" + data-vm-host/-id/-field, registrati in app-hypervisor.js.
+const MAX_INLINE_HANDLERS = 568;
 test('ponte ASSE B: gli handler inline on*= non superano il tetto a cricchetto', () => {
   const total = countInlineHandlers();
   assert.ok(total <= MAX_INLINE_HANDLERS,

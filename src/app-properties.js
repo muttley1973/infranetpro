@@ -21,6 +21,7 @@ import { _renderNodeProps } from './app-properties-node.js';   // ritiro ponte: 
 import { _renderPortProps } from './app-properties-port.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { _renderLinkProps } from './app-properties-link.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { _renderFloorProps } from './app-properties-floor.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
+import { _renderVmProps } from './app-properties-vm.js';   // 5o scope: scheda macchina virtuale (selType==='vm')
 import { _deviceHasWifi, _isWifiCapable } from './app.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { _radioIfacesHtml } from './app-wifi.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 
@@ -357,6 +358,9 @@ export function renderProps(){
     if(selType==='node'&&selId){ _renderNodeProps(panel); }
     else if(selType==='port'&&selId){ _renderPortProps(panel); }
     else if(selType==='link'&&selId){ _renderLinkProps(panel); }
+    // 5o scope: la scheda di una VM (host in selId, VM in selVmId). Il renderer
+    // ripiega da solo se la selezione e' stantia (host o VM cancellati).
+    else if(selType==='vm'&&selId){ _renderVmProps(panel); }
     else { _renderFloorProps(panel); }
 }
 

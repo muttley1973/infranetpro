@@ -280,6 +280,65 @@
         [data-vm-dropzone].active .vm-import-dz { border-style:solid; background:rgba(0,212,255,.18); }
         details[data-vm-dropzone].active > .props-collapsible-head { color:var(--accent); }
         details[data-vm-dropzone].active { outline:1px dashed var(--accent); outline-offset:3px; border-radius:var(--radius-sm); }
+        /* ── Riga VM compatta (lista nel pannello dell'host) ────────────────
+           Una VM = una riga: pallino stato · nome · riepilogo · modifica/elimina.
+           Il nome cede per primo (ellissi) e il riepilogo si nasconde sotto i
+           360px, così la riga non va MAI a capo nemmeno col pannello stretto.
+           L'editing completo sta nella scheda dedicata (scope 'vm'). */
+        .vm-row { display:flex; align-items:center; gap:8px; min-width:0; padding:6px 8px; margin-bottom:4px;
+                  border:1px solid var(--border); border-radius:var(--radius-md); cursor:pointer;
+                  transition:border-color .12s, background .12s; }
+        .vm-row:hover { border-color:var(--accent); background:var(--accent-soft); }
+        .vm-row:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+        .vm-row-dot { flex:none; font-size:0.6rem; }
+        .vm-row-name { flex:0 1 auto; min-width:0; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .vm-row-sum { flex:1 1 auto; min-width:0; font-size:var(--fs-xs); color:var(--text-muted);
+                      overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:right; }
+        .vm-row-btn { flex:none; padding:2px 7px; margin:0; }
+        /* Parabola accanto alle risorse: quel gruppo viene da una LETTURA SNMP,
+           non da quello che hai digitato. Distinguere misura e dichiarazione a
+           colpo d'occhio è il paletto ② no-invenzioni applicato alla lista. */
+        .vm-row-measured { color:var(--accent); font-size:0.62rem; }
+        @media (max-width: 360px) { .vm-row-sum { display:none; } }
+        /* Chip di stato nell'INTESTAZIONE della scheda VM: e' il fatto che si
+           guarda per primo, quindi sta accanto al titolo (a sinistra del ritorno
+           all'host) invece di essere un campo in mezzo al modulo. Cliccabile per
+           commutare. Stessa grammatica dei chip del pannello (.lag-chip) e stessi
+           token semantici dei LED e del pallino in lista. */
+        .vm-state-chip { display:inline-flex; align-items:center; gap:5px; flex-shrink:0;
+                         font-size:var(--fs-xs); font-weight:700; line-height:1; cursor:pointer;
+                         padding:4px 9px; border-radius:999px; border:1px solid var(--panel-border);
+                         background:var(--bg-color); color:var(--text-main);
+                         transition:border-color .12s, background .12s, color .12s; }
+        .vm-state-chip i { font-size:0.72rem; }
+        .vm-state-chip.is-running { color:var(--active-color); border-color:color-mix(in srgb, var(--active-color) 45%, transparent);
+                                    background:color-mix(in srgb, var(--active-color) 12%, transparent); }
+        .vm-state-chip.is-stopped { color:var(--fault-color); border-color:color-mix(in srgb, var(--fault-color) 45%, transparent);
+                                    background:color-mix(in srgb, var(--fault-color) 12%, transparent); }
+        .vm-state-chip:hover { filter:brightness(1.15); }
+        /* Il chip resta CENTRATO nello spazio fra il nome della VM e il ritorno
+           all'host, non incollato al bottone: il titolo smette di prendersi tutto
+           lo spazio (flex:1 → 0 1 auto), il blocco azioni si espande al suo posto
+           e i margini automatici attorno al chip lo tengono al centro del vuoto —
+           a qualsiasi lunghezza del nome. Lo scope :has() serve perché
+           .props-selected-main è condiviso da TUTTI i pannelli (device, porta,
+           cavo, progetto), che devono restare invariati. */
+        .props-selected-title:has(.vm-head-actions) > span:first-child { flex:0 1 auto; }
+        .vm-head-actions { flex:1 1 auto; align-items:center; gap:6px; }
+        .vm-head-actions .vm-state-chip { margin-left:auto; margin-right:auto; flex:none; }
+        .vm-head-actions .toolbar-btn { flex:none; }
+        /* Nota esplicativa dentro la scheda (stessa grammatica di .wifi-inherited). */
+        .vm-hint { font-size:var(--fs-xs); color:var(--text-main); background:var(--accent-soft);
+                   border:1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+                   border-radius:var(--radius-md); padding:6px 9px; margin-top:6px; line-height:1.4; }
+        .vm-hint i { color:var(--accent); margin-right:5px; }
+        /* Esito negativo di una lettura SNMP: ambra, non rosso — un timeout NON
+           prova che la VM sia spenta, quindi non deve avere il peso di un errore. */
+        .vm-hint-warn { background:rgba(227,179,65,.08); border-color:rgba(227,179,65,.35); }
+        .vm-hint-warn i { color:#e3b341; }
+        /* sysDescr: riga a tutta larghezza sotto i valori, testo che va a capo. */
+        .vm-snmp-descr { display:block; font-family:monospace; font-size:0.7rem;
+                         color:var(--text-muted); white-space:normal; word-break:break-word; }
         /* Fantasma del device mentre lo trascini sul pannello (il tile sul floor è
            clippato e non può salire sopra il pannello → mostriamo cosa stai portando). */
         .vm-drag-ghost { position:fixed; z-index:9999; pointer-events:none; transform:translate(10px,10px); display:none; align-items:center; gap:6px; background:var(--accent-soft); border:1px solid var(--accent); color:var(--accent); border-radius:var(--radius-md); padding:4px 9px; font-size:var(--fs-xs); white-space:nowrap; box-shadow:0 4px 14px rgba(0,0,0,.45); }

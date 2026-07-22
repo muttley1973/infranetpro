@@ -2413,13 +2413,16 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           const guardHostInHost = absorbNodeAsVm('lab2', 'lab');  // un host non si assorbe in un host
           const guardSameNode  = absorbNodeAsVm('pc2', 'pc2');    // stesso nodo / bersaglio non-host
 
-          // editor VM: campo MAC presente + updateVm normalizza
-          selType = 'node'; selId = 'lab'; renderProps();
-          const panelHasMac = (document.getElementById('props-panel').innerHTML || '').includes("updateVm('lab','" + vmId + "','mac'");
+          // scheda VM (5° scope del pannello): campo MAC presente + updateVm normalizza.
+          // Dalla 77ª i campi NON stanno piu' nella lista dell'host ma nella scheda
+          // dedicata, che si apre con openVmProps (data-act="vm-open" sulla riga).
+          openVmProps('lab', vmId);
+          const cardScope = (typeof selType !== 'undefined') ? selType : null;
+          const panelHasMac = (document.getElementById('props-panel').innerHTML || '').includes('data-vm-field="mac"');
           updateVm('lab', vmId, 'mac', 'aabbcc009900');
           const macNorm = nodeById('lab').vms[0].mac;
 
-          return { ok, vmName: vmNameI, vmIp: vmIpI, vmMac: vmMacI, tileGone, vmKnown, inPresence, guardHostInHost, guardSameNode, panelHasMac, macNorm };
+          return { ok, vmName: vmNameI, vmIp: vmIpI, vmMac: vmMacI, tileGone, vmKnown, inPresence, guardHostInHost, guardSameNode, panelHasMac, macNorm, cardScope };
         } catch (e) { return { err: String(e && e.stack || e) }; }
       });
       assert.ok(!r.err, 'nessun errore nel flusso assorbimento VM: ' + r.err);
@@ -2432,7 +2435,8 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(!r.inPresence, 'la VM NON entra nell\'audit di presenza (doc.macs): una VM spenta non risulta assente');
       assert.equal(r.guardHostInHost, false, 'guardia: un host non si assorbe dentro un host');
       assert.equal(r.guardSameNode, false, 'guardia: stesso nodo / bersaglio non-host rifiutato');
-      assert.ok(r.panelHasMac, 'l\'editor VM mostra il campo MAC (updateVm …,\'mac\')');
+      assert.equal(r.cardScope, 'vm', 'openVmProps porta il pannello nello scope \'vm\' (scheda della VM)');
+      assert.ok(r.panelHasMac, 'la scheda VM mostra il campo MAC (data-vm-field="mac")');
       assert.equal(r.macNorm, 'AA:BB:CC:00:99:00', 'updateVm normalizza il MAC della VM');
     });
 
@@ -2657,7 +2661,9 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           if (typeof switchRightTab === 'function') switchRightTab('props');
           if (typeof setPropsSectionState === 'function') { setPropsSectionState('device-homelab', true); setPropsSectionState('hv-vms', true); }
           window._propsExplicit = true; selType = 'node'; selId = 'lab'; renderProps();
-          addVm('lab'); addVm('lab');
+          // addVm apre la scheda della VM appena creata (77ª): si torna all'host col
+          // breadcrumb, che e' il percorso reale dell'utente prima di guardare la lista.
+          addVm('lab'); addVm('lab'); closeVmProps();
           // single-click reale su un tile floor → _propsExplicit=false (solo selezione)
           const el = document.querySelector('[data-id="pcq"]');
           const rc = el.getBoundingClientRect();
@@ -2680,6 +2686,306 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(r.dataCount, 1, 'removeVm ha eliminato la VM nei dati');
       assert.equal(r.rowsAfter, 1, 'la riga eliminata SPARISCE subito dal pannello (niente refresh necessario)');
       assert.equal(r.selBack, 'lab', 'il click su un controllo della sezione VM riallinea la selezione all\'host');
+    });
+
+    await t.test('VM (77ª): lista compatta → scheda → indietro, tutto a GESTI REALI (delegation, non onclick inline)', async () => {
+      // La riga VM e la scheda sono nate SENZA handler inline: i controlli passano da
+      // data-act/data-change + event delegation. Se la registrazione non fosse agganciata
+      // i bottoni sarebbero MORTI in silenzio (classe di bug nota del progetto) e un test
+      // che chiama openVmProps()/updateVm() a mano NON se ne accorgerebbe. Qui si clicca
+      // e si digita davvero, come l'utente.
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = {};
+          state.nodes.push({ id: 'lab', type: 'homelab', name: 'NUC-01', x: 600, y: 350, ports: 1, mac: 'AA:BB:CC:00:00:01' });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          _renderAllNow();
+          if (typeof switchRightTab === 'function') switchRightTab('props');
+          if (typeof setPropsSectionState === 'function') { setPropsSectionState('device-homelab', true); setPropsSectionState('hv-vms', true); }
+          window._propsExplicit = true; selType = 'node'; selId = 'lab'; renderProps();
+          const vmId = addVm('lab');            // apre gia' la scheda della nuova VM
+          updateVm('lab', vmId, 'name', 'DC01');
+          closeVmProps();                        // torna alla lista dell'host
+
+          // 1) la lista mostra UNA riga compatta col nome
+          const row = document.querySelector('#props-panel .vm-row');
+          const rowHasName = !!row && row.textContent.includes('DC01');
+
+          // 2) CLIC REALE sulla riga → si apre la scheda (data-act="vm-open")
+          row.click();
+          const scopeAfterOpen = selType;
+          const cardHasRole = !!document.querySelector('#props-panel [data-vm-field="role"]');
+
+          // 3) DIGITAZIONE REALE in un campo della scheda → data-change scrive nel modello
+          const roleEl = document.querySelector('#props-panel [data-vm-field="role"]');
+          roleEl.value = 'Domain Controller';
+          roleEl.dispatchEvent(new Event('change', { bubbles: true }));
+          const roleSaved = (nodeById('lab').vms[0] || {}).role;
+
+          // 4) campo NUMERICO: "8" deve entrare come numero, non come stringa
+          const ramEl = document.querySelector('#props-panel [data-vm-field="ramGb"]');
+          ramEl.value = '8';
+          ramEl.dispatchEvent(new Event('change', { bubbles: true }));
+          const ramSaved = (nodeById('lab').vms[0] || {}).ramGb;
+          const ramIsNumber = typeof ramSaved === 'number';
+
+          // 5) CLIC REALE su "indietro" → torna all'host (data-act="vm-back")
+          document.querySelector('#props-panel [data-act="vm-back"]').click();
+          const scopeAfterBack = selType;
+          const rowSum = (document.querySelector('#props-panel .vm-row-sum') || {}).textContent || '';
+
+          // 6) CLIC REALE sul cestino della riga → la VM sparisce (data-act="vm-remove")
+          document.querySelector('#props-panel .vm-row [data-act="vm-remove"]').click();
+          const vmsLeft = (nodeById('lab').vms || []).length;
+          const rowsLeft = document.querySelectorAll('#props-panel .vm-row').length;
+
+          return { rowHasName, scopeAfterOpen, cardHasRole, roleSaved, ramSaved, ramIsNumber,
+                   scopeAfterBack, rowSum, vmsLeft, rowsLeft };
+        } catch (e) { return { err: String(e && e.stack || e) }; }
+      });
+      assert.ok(!r.err, 'nessun errore nel giro lista→scheda→indietro: ' + r.err);
+      assert.ok(r.rowHasName, 'la lista dell\'host mostra la riga compatta col nome della VM');
+      assert.equal(r.scopeAfterOpen, 'vm', 'CLIC sulla riga → il pannello passa allo scope \'vm\' (delegation viva)');
+      assert.ok(r.cardHasRole, 'la scheda VM contiene il campo Ruolo');
+      assert.equal(r.roleSaved, 'Domain Controller', 'un change su un campo della scheda scrive nel modello (data-change="vm-field")');
+      assert.equal(r.ramSaved, 8, 'il campo RAM salva il valore digitato');
+      assert.ok(r.ramIsNumber, 'i campi risorsa entrano come NUMERO, non come stringa');
+      assert.equal(r.scopeAfterBack, 'node', 'CLIC su indietro → si torna al pannello dell\'host');
+      assert.ok(/Domain Controller/.test(r.rowSum), 'tornati alla lista, il riepilogo della riga mostra il ruolo appena scritto');
+      assert.ok(/8 GB/.test(r.rowSum), 'e le RISORSE riempiono lo spazio accanto al nome');
+      assert.equal(r.vmsLeft, 0, 'CLIC sul cestino della riga elimina la VM dal modello');
+      assert.equal(r.rowsLeft, 0, 'e la riga sparisce subito dal pannello');
+    });
+
+    await t.test('VM (77ª): sistema operativo PERSONALIZZATO + stato nell\'intestazione', async () => {
+      // La lista guest OS copre i casi comuni ma una VM può ospitare qualsiasi cosa:
+      // la scheda si appoggia all'harness «Personalizzato…» già usato dal pannello
+      // device. Il pezzo nuovo e fragile è che quella select usa data-change
+      // (delegation) e non un onchange inline: assegnare .value da codice NON emette
+      // 'change', quindi senza il dispatch esplicito il valore digitato non
+      // arriverebbe mai al modello. Qui si verifica proprio quel giro.
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = {};
+          state.nodes.push({ id: 'lab', type: 'homelab', name: 'NUC-01', x: 600, y: 350, ports: 1 });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          _renderAllNow();
+          if (typeof switchRightTab === 'function') switchRightTab('props');
+          window._propsExplicit = true; selType = 'node'; selId = 'lab'; renderProps();
+          const id = addVm('lab');
+          updateVm('lab', id, 'name', 'NAS01');
+          updateVm('lab', id, 'ip', '10.10.30.50');            // così l'Integrazione si apre tutta
+          updateVmIntegration('lab', id, 'driver', 'snmp-v3'); // e mostra anche i campi v3
+          openVmProps('lab', id);
+
+          // Nessuna etichetta deve essere una CHIAVE i18n stampata grezza
+          // («pnl.gen.notes» invece di «Note»): il golden non copre questo pannello,
+          // quindi un refuso nel nome della chiave passerebbe inosservato.
+          const rawKeys = [...document.querySelectorAll('#props-panel label, #props-panel .props-collapsible-head span')]
+            .map(e => (e.textContent || '').trim())
+            .filter(txt => /^[a-z][a-zA-Z0-9]*(\.[a-zA-Z0-9]+)+$/.test(txt));
+
+          const osSel = document.querySelector('#props-panel [data-vm-field="guestOs"]');
+          const critSel = document.querySelector('#props-panel [data-vm-field="criticality"]');
+          const hasCustomOpt = [...osSel.options].some(o => o.value === '__custom_manual__');
+          const critHasCustom = [...critSel.options].some(o => o.value === '__custom_manual__');
+
+          // Il prompt vero è un MODALE: non risponde nello stesso tick, l'utente
+          // digita e conferma dopo. Lo stub deve comportarsi così, altrimenti il
+          // test è un falso verde (era il caso: rispondendo subito mascherava il
+          // fatto che il pannello veniva ri-renderizzato e la select distrutta
+          // prima della conferma).
+          let promptOk = null;
+          window.showPrompt = (_msg, _def, ok) => { promptOk = ok; };
+          osSel.value = '__custom_manual__';
+          osSel.dispatchEvent(new Event('change', { bubbles: true }));
+
+          // …mentre il prompt è aperto: nessuna scrittura del token nel modello e
+          // la select deve essere ANCORA nel DOM (nessun re-render distruttivo).
+          const midValue = nodeById('lab').vms[0].guestOs;
+          const selAlive = document.body.contains(osSel);
+
+          promptOk('TrueNAS SCALE 24.04');           // l'utente conferma
+          const saved = nodeById('lab').vms[0].guestOs;
+
+          // re-render: il valore custom deve essere RILETTO dal modello (data-mkind)
+          openVmProps('lab', id);
+          const sel2 = document.querySelector('#props-panel [data-vm-field="guestOs"]');
+          const stillThere = sel2.value;
+
+          // stato: chip nell'intestazione, cliccabile
+          const chip = document.querySelector('#props-panel .vm-state-chip');
+          const chipRunning = !!chip && chip.className.includes('is-running');
+          const inHeader = !!document.querySelector('#props-panel .props-selected-title .vm-state-chip');
+          chip.click();
+          const afterToggle = nodeById('lab').vms[0].state;
+          return { hasCustomOpt, critHasCustom, saved, stillThere, chipRunning, inHeader, afterToggle, rawKeys,
+                   midValue, selAlive };
+        } catch (e) { return { err: String(e && e.stack || e) }; }
+      });
+      assert.ok(!r.err, 'nessun errore nel giro OS personalizzato: ' + r.err);
+      assert.deepEqual(r.rawKeys, [], 'nessuna etichetta è una chiave i18n stampata grezza: ' + JSON.stringify(r.rawKeys));
+      assert.ok(r.hasCustomOpt, 'la select Sistema operativo offre «Personalizzato…»');
+      assert.ok(!r.critHasCustom, 'la Criticità NO: è una scala chiusa (data-no-manual)');
+      assert.equal(r.midValue, undefined, 'col prompt APERTO il token «Personalizzato…» non viene scritto nel modello');
+      assert.ok(r.selAlive, 'e la select è ancora nel DOM: nessun re-render la distrugge mentre digiti');
+      assert.equal(r.saved, 'TrueNAS SCALE 24.04', 'il valore digitato a mano finisce nel modello');
+      assert.equal(r.stillThere, 'TrueNAS SCALE 24.04', 'e viene riletto al re-render (non torna al default)');
+      assert.ok(r.inHeader, 'lo stato è un chip NELL\'INTESTAZIONE, accanto al titolo');
+      assert.ok(r.chipRunning, 'il chip parte verde (in esecuzione)');
+      assert.equal(r.afterToggle, 'stopped', 'e cliccarlo commuta lo stato');
+    });
+
+    await t.test('VM (77ª): lettura SNMP della VM — misurato distinto dal dichiarato, e il silenzio non la dichiara spenta', async () => {
+      // La VM espone un agente SNMP sul PROPRIO IP: si interroga come qualunque
+      // host riusando /api/poll. Qui la rotta è stubbata (nessun device reale in
+      // CI) ma il percorso client è quello vero: data-act → pollVmSnmp → fetch →
+      // vm.snmpSeen → blocco misurato → travaso esplicito nei campi dichiarati.
+      await page.evaluate(() => {
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes.length = 0; state.links.length = 0; state.ports = {};
+        state.nodes.push({ id: 'lab', type: 'homelab', name: 'NUC-01', x: 600, y: 350, ports: 1 });
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        _renderAllNow();
+        if (typeof switchRightTab === 'function') switchRightTab('props');
+        window._propsExplicit = true; selType = 'node'; selId = 'lab'; renderProps();
+        const id = addVm('lab');
+        updateVm('lab', id, 'name', 'DC01');
+        updateVm('lab', id, 'ip', '10.10.30.100');
+        window.__vmId = id;
+        // Stub SOLO di /api/poll: tutto il resto (salvataggi inclusi) resta reale.
+        window.__origFetch = window.fetch;
+        window.__pollBody = null;
+        window.fetch = (url, opts) => {
+          if (String(url).includes('/api/poll')) {
+            window.__pollBody = JSON.parse(opts.body);
+            return Promise.resolve({ json: () => Promise.resolve({
+              ok: true, hostname: 'dc01',
+              system: { sysDescr: 'Windows Server 2022 Standard', sysUpTimeText: '12 g 4 h' },
+              // una sola vNIC con MAC reale → il MAC è univoco e viene accettato
+              interfaces: [{ index: 1, name: 'Ethernet0', mac: '00:50:56:8A:1F:22' }],
+              hostResources: { cpuCores: 4, ram: { totalBytes: 8589934592 },
+                               volumes: [{ totalBytes: 107374182400 }] },
+            }) });
+          }
+          return window.__origFetch(url, opts);
+        };
+        openVmProps('lab', id);
+        document.querySelector('#props-panel [data-act="vm-snmp-read"]').click();
+      });
+      // La lettura è asincrona: si aspetta che compaia il blocco misurato.
+      await page.waitForFunction(() => !!document.querySelector('#props-panel [data-act="vm-snmp-apply"]'), { timeout: 5000 });
+
+      const r = await page.evaluate(() => {
+        const vm = nodeById('lab').vms[0];
+        const panel = document.getElementById('props-panel').innerHTML;
+        const before = { vcpu: vm.vcpu, ramGb: vm.ramGb, diskGb: vm.diskGb };
+        document.querySelector('#props-panel [data-act="vm-snmp-apply"]').click();
+        const after = nodeById('lab').vms[0];
+        return {
+          pollHost: window.__pollBody && window.__pollBody.host,
+          pollHostRes: window.__pollBody && window.__pollBody.hostResources,
+          seen: vm.snmpSeen, state: vm.state, before,
+          panelShowsDescr: panel.includes('Windows Server 2022'),
+          after: { vcpu: after.vcpu, ramGb: after.ramGb, diskGb: after.diskGb, hostname: after.hostname },
+        };
+      });
+      assert.equal(r.pollHost, '10.10.30.100', 'la VM viene interrogata sul PROPRIO IP');
+      assert.equal(r.pollHostRes, true, 'la lettura chiede HOST-RESOURCES (CPU/RAM/dischi: è il senso di interrogare una VM)');
+      assert.ok(r.seen && r.seen.at, 'la lettura riuscita lascia un timestamp misurato');
+      assert.equal(r.seen.sysName, 'dc01', 'nome di sistema misurato');
+      assert.equal(r.seen.cpuCores, 4, 'core misurati');
+      assert.equal(r.seen.ramGb, 8, 'RAM misurata convertita in GB');
+      assert.equal(r.seen.diskGb, 100, 'disco misurato convertito in GB');
+      assert.equal(r.state, 'running', 'ha risposto → la VM è accesa (prova misurata, non dichiarata)');
+      assert.ok(r.panelShowsDescr, 'la scheda mostra il sysDescr letto');
+      assert.deepEqual(r.before, { vcpu: undefined, ramGb: undefined, diskGb: undefined },
+        'la misura NON tocca i campi dichiarati finché non lo chiedi');
+      assert.equal(r.after.vcpu, 4, 'dopo «Usa questi valori» il vCPU dichiarato è quello misurato');
+      assert.equal(r.after.ramGb, 8, 'idem la RAM');
+      assert.equal(r.after.hostname, 'dc01', 'e l\'hostname vuoto viene compilato');
+
+      // MAC: chiude il cerchio col Drift sulle VM che un MAC non ce l'hanno (import
+      // cross-subnet). Univoco → si accetta; già presente → non si sovrascrive;
+      // più schede → non si indovina.
+      const mac = await page.evaluate(async () => {
+        const id = window.__vmId;
+        const vm0 = nodeById('lab').vms[0];
+        const dopoUnaNic = vm0.snmpSeen.mac;                    // dalla lettura precedente
+        const macDichiarato = vm0.mac;                          // travasato da «Usa questi valori»
+        // 2ª lettura con DUE schede: il MAC non è univoco
+        window.fetch = (url, opts) => String(url).includes('/api/poll')
+          ? Promise.resolve({ json: () => Promise.resolve({ ok: true, hostname: 'dc01',
+              interfaces: [{ mac: '00:50:56:8A:1F:22' }, { mac: '00:50:56:8A:1F:23' },
+                           { mac: '00:00:00:00:00:00' }] }) })
+          : window.__origFetch(url, opts);
+        await pollVmSnmp('lab', id);
+        const s2 = nodeById('lab').vms[0].snmpSeen;
+        // 3ª lettura, una sola scheda ma MAC diverso: il campo già compilato resta
+        window.fetch = (url, opts) => String(url).includes('/api/poll')
+          ? Promise.resolve({ json: () => Promise.resolve({ ok: true, hostname: 'dc01',
+              interfaces: [{ mac: 'AA:BB:CC:DD:EE:FF' }] }) })
+          : window.__origFetch(url, opts);
+        await pollVmSnmp('lab', id);
+        applyVmSnmpValues('lab', id);
+        window.fetch = window.__origFetch;
+        return { dopoUnaNic, macDichiarato, ambiguo: s2.mac, quante: s2.macCount,
+                 macFinale: nodeById('lab').vms[0].mac };
+      });
+      assert.equal(mac.dopoUnaNic, '00:50:56:8A:1F:22', 'una sola vNIC → il MAC è misurato');
+      assert.equal(mac.macDichiarato, '00:50:56:8A:1F:22', 'e «Usa questi valori» lo scrive nel campo vuoto');
+      assert.equal(mac.ambiguo, undefined, 'con DUE schede il MAC non viene scelto a caso');
+      assert.equal(mac.quante, 2, 'ma si annota quante sono (lo zero-MAC non conta)');
+      assert.equal(mac.macFinale, '00:50:56:8A:1F:22', 'un MAC già documentato NON viene sovrascritto da una lettura successiva');
+
+      // Silenzio SNMP: non prova nulla → lo stato NON diventa "spenta".
+      const f = await page.evaluate(async () => {
+        const id = window.__vmId;
+        updateVm('lab', id, 'state', 'running');
+        window.fetch = (url, opts) => String(url).includes('/api/poll')
+          ? Promise.resolve({ json: () => Promise.resolve({ ok: false, error: 'timeout' }) })
+          : window.__origFetch(url, opts);
+        await pollVmSnmp('lab', id);
+        const vm = nodeById('lab').vms[0];
+        window.fetch = window.__origFetch;
+        return { state: vm.state, err: vm.snmpError, seenKept: !!vm.snmpSeen };
+      });
+      assert.equal(f.state, 'running', 'un timeout NON dichiara la VM spenta (il silenzio non è una prova)');
+      assert.equal(f.err, 'timeout', 'ma l\'errore viene annotato e mostrato');
+      assert.ok(f.seenKept, 'e l\'ultima misura riuscita resta visibile');
+
+      // La config vive in vm.integration con gli STESSI nomi campo dei device
+      // (niente secondo vocabolario) e l'host override vince sull'IP, come sui nodi.
+      const g = await page.evaluate(async () => {
+        const id = window.__vmId;
+        updateVmIntegration('lab', id, 'driver', 'snmp-v3');
+        updateVmIntegration('lab', id, 'v3user', 'monitor');
+        updateVmIntegration('lab', id, 'v3secLevel', 'authNoPriv');
+        updateVmIntegration('lab', id, 'host', '10.10.30.200');   // override
+        updateVmIntegration('lab', id, 'port', '1161');
+        window.fetch = (url, opts) => {
+          if (String(url).includes('/api/poll')) {
+            window.__pollBody = JSON.parse(opts.body);
+            return Promise.resolve({ json: () => Promise.resolve({ ok: true, hostname: 'x' }) });
+          }
+          return window.__origFetch(url, opts);
+        };
+        await pollVmSnmp('lab', id);
+        window.fetch = window.__origFetch;
+        const vm = nodeById('lab').vms[0];
+        return { intg: vm.integration, legacy: vm.snmp, body: window.__pollBody };
+      });
+      assert.ok(g.intg, 'la config sta in vm.integration (stesso contenitore dei device)');
+      assert.equal(g.legacy, undefined, 'e NON in un secondo campo parallelo');
+      assert.equal(g.intg.driver, 'snmp-v3', 'nomi campo identici a node.integration: driver…');
+      assert.equal(g.intg.v3user, 'monitor', '…v3user…');
+      assert.equal(g.intg.v3secLevel, 'authNoPriv', '…v3secLevel (il set v3 completo, non un sottoinsieme)');
+      assert.equal(g.intg.port, 1161, 'la porta è salvata come numero');
+      assert.equal(g.body.host, '10.10.30.200', 'l\'host override vince sull\'IP della VM (come sui device)');
+      assert.equal(g.body.port, 1161, 'e porta/timeout finiscono nel poll');
+      assert.equal(g.body.v3secLevel, 'authNoPriv', 'il security level v3 arriva al driver');
     });
 
     await t.test('VM: import di un device SENZA MAC ma con IP/SNMP (cross-subnet, 76ª) → assorbito; senza identità → rifiuto spiegato', async () => {
