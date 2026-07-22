@@ -96,6 +96,11 @@ const CORPUS = {
   // SMB/NetBIOS sommavano piu' del brand; ora sono guardati da !score.nas (SMB e'
   // il comportamento di un NAS, non una contraddizione).
   'lacie-d2-smb-nas': [{ hostname: 'LACIED2', vendor: 'LaCie', netbiosName: 'LACIED2', services: [{ port: 21 }, { port: 80 }, { port: 443 }, { port: 445 }], alive: true }, 'nas'],
+  // Forma REALE dal lab (vSRX, 2026-07-22): `junos` e' un OS, non una funzione —
+  // un firewall Juniper che SI DICHIARA "firewall" (senza la parola "router" nel
+  // descr) deve essere firewall. Il caso 'juniper-srx' sopra resta router: il suo
+  // descr dice "internet router" (token funzione, non OS).
+  'junos-declared-firewall': [{ descr: 'Junos Firewall', objectId: '1.3.6.1.4.1.2636.1.1.1.2.96', sysServices: 4, snmpReachable: true }, 'firewall'],
 };
 
 for (const [label, [row, expected]] of Object.entries(CORPUS)) {
