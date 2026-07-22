@@ -23,6 +23,7 @@ const PDF_EXPORT_DEFAULTS = {
     includePorts:       true,
     includeVlans:       true,
     includeTopology:    true,
+    includeVms:         true,   // capitolo "Macchine virtuali": catalogo delle VM per host
     includeSpare:       true,
     includeAssets:      true,   // registro asset per-device (NIS2/ISO): server-side da nodeToDevice
 };
@@ -320,6 +321,7 @@ function openPdfExportOptions(){
     document.getElementById('pdfopt-ports').checked     = PDF_EXPORT_DEFAULTS.includePorts;
     document.getElementById('pdfopt-vlans').checked     = PDF_EXPORT_DEFAULTS.includeVlans;
     document.getElementById('pdfopt-topology').checked  = PDF_EXPORT_DEFAULTS.includeTopology;
+    { const _v = document.getElementById('pdfopt-vms'); if(_v) _v.checked = PDF_EXPORT_DEFAULTS.includeVms; }
     { const _s = document.getElementById('pdfopt-spare'); if(_s) _s.checked = PDF_EXPORT_DEFAULTS.includeSpare; }
     { const _a = document.getElementById('pdfopt-assets'); if(_a) _a.checked = PDF_EXPORT_DEFAULTS.includeAssets; }
     syncPdfExportUi();
@@ -328,7 +330,7 @@ function openPdfExportOptions(){
 function closePdfExportOptions(){ document.getElementById('pdf-export-overlay').classList.remove('open'); }
 
 function setPdfExportAll(val){
-    ['pdfopt-plan','pdfopt-bg','pdfopt-inventory','pdfopt-asbuilt','pdfopt-racks','pdfopt-ports','pdfopt-vlans','pdfopt-topology','pdfopt-spare','pdfopt-assets']
+    ['pdfopt-plan','pdfopt-bg','pdfopt-inventory','pdfopt-asbuilt','pdfopt-racks','pdfopt-ports','pdfopt-vlans','pdfopt-topology','pdfopt-vms','pdfopt-spare','pdfopt-assets']
         .forEach(id=>{ const el=document.getElementById(id); if(el) el.checked=!!val; });
     if(!val){
         // Mantieni almeno una sezione attiva per evitare export vuoto.
@@ -363,6 +365,7 @@ function _getPdfExportOptionsFromUi(){
         includePorts:       !!document.getElementById('pdfopt-ports')?.checked,
         includeVlans:       !!document.getElementById('pdfopt-vlans')?.checked,
         includeTopology:    !!document.getElementById('pdfopt-topology')?.checked,
+        includeVms:         !!document.getElementById('pdfopt-vms')?.checked,
         includeSpare:       !!document.getElementById('pdfopt-spare')?.checked,
         includeAssets:      !!document.getElementById('pdfopt-assets')?.checked,
     };
@@ -1335,6 +1338,37 @@ function _buildPdfReportData() {
 
     const rackSvgs = _buildRackSvgs();
 
+    // ── Macchine virtuali: catalogo per il dossier ────────────────────────
+    // Le VM vivono annidate in node.vms[] (l'host resta l'apparato documentato):
+    // qui vengono APPIATTITE in righe host+VM per il capitolo del report. Tutto
+    // dichiarato a mano — nessuna misura sui guest: i campi assenti restano
+    // assenti e il PDF stampa '-' (② no-invenzioni). Ordine host, poi nome VM.
+    const _vmNum = x => { const v = typeof x === 'number' ? x : parseFloat(x); return Number.isFinite(v) && v > 0 ? v : null; };
+    const vms = [];
+    state.nodes
+        .filter(n => TYPES[n.type]?.hostsVms && Array.isArray(n.vms))
+        .forEach(h => {
+            const hostName = getNodeDisplayName(h) || h.name || h.id;
+            h.vms.forEach(vm => {
+                if (!vm) return;
+                vms.push({
+                    host:  hostName,
+                    name:  vm.name || '',
+                    role:  vm.role || '',
+                    state: (vm.state || 'running') === 'running' ? 'running' : 'stopped',
+                    vlan:  vm.vlan != null ? String(vm.vlan) : '',
+                    ip:    vm.ip  || '',
+                    mac:   vm.mac || '',
+                    vcpu:  _vmNum(vm.vcpu),
+                    ramGb: _vmNum(vm.ramGb),
+                    diskGb:_vmNum(vm.diskGb),
+                    owner: vm.owner || '',
+                    criticality: vm.criticality || '',
+                });
+            });
+        });
+    vms.sort((a, b) => String(a.host).localeCompare(String(b.host)) || String(a.name).localeCompare(String(b.name)));
+
     // ── Dossier di consegna (N4): copertina + note + changelog ────────────
     // Sezioni opzionali assemblate dalla logica pura buildHandoffSections.
     let handoff = null;
@@ -1356,6 +1390,7 @@ function _buildPdfReportData() {
             })),
             cableCount: state.links.length,
             vlanCount: _vs.size,
+            vmCount: vms.length,          // contatore a se': mai sommato ai dispositivi
             auditLog: state.auditLog || [],
             changelogLimit: 50,
         });
@@ -1367,7 +1402,7 @@ function _buildPdfReportData() {
         try { spare = buildSpareReport(_spareBuildDevices()); } catch (_) {}
     }
 
-    return { cables, asBuilt, portAssignment, vlans, rackSvgs, topoSvg, handoff, spare };
+    return { cables, asBuilt, portAssignment, vlans, rackSvgs, topoSvg, handoff, spare, vms };
 }
 
 async function exportPDF(opts={}){
@@ -1463,6 +1498,7 @@ function exportDossier(){
         includePlanimetria:true, includeBackground:true,
         includeInventory:true, includeAsBuilt:true, includeRacks:true,
         includePorts:true, includeVlans:true, includeTopology:true,
+        includeVms:true,
         includeCover:true, includeNotes:true, includeChangelog:true,
         includeSpare:true, includeAssets:true,
         _dossier:true,

@@ -106,7 +106,7 @@ test('export: _buildPdfReportData — forma completa del report senza crash', ()
   })()`);
   const r = JSON.parse(out);
   assert.ok(r.ok, '_buildPdfReportData lancia: ' + r.err);
-  assert.deepEqual(r.keys, ['asBuilt','cables','handoff','portAssignment','rackSvgs','spare','topoSvg','vlans'],
+  assert.deepEqual(r.keys, ['asBuilt','cables','handoff','portAssignment','rackSvgs','spare','topoSvg','vlans','vms'],
     'il report deve avere tutte le sezioni attese');
   assert.equal(r.cables, 6, 'una riga inventario per ogni link (6)');
   assert.ok(r.vlanIds.includes(10) && r.vlanIds.includes(20) && r.vlanIds.includes(30),
