@@ -5,6 +5,7 @@ import { win, expose, t, mergeLeaseSources } from './_bridge.js';
 // funzioni pure → nessuno snapshot congelato possibile. Il bundle la pubblica
 // comunque su window (UMD) per eventuali consumatori classic.
 import { canonicalizeIpv6 } from '../lib/ipv6.js';
+import { migrateVmNics, VM_FLAT_NET_FIELDS } from '../lib/vm-nics.js';   // migrazione vm.ip/mac/vlan → vm.nics[]
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, normalizeNumber, normalizeStatus, normalizeMacAddress, _shadeHex } from './app-util.js';   // helper puri estratti dal god-file
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (prima letto dal global implicito) + nome localizzato
@@ -580,6 +581,22 @@ export function _migrateState(s) {
         if(n && n.type==='ap' && typeof setRadioCount==='function' && (!Array.isArray(n.radios) || n.radios.length===0)) setRadioCount(n, 1);
         // Modello a due livelli: ssid/vlan/security della radio scendono in ssids[].
         if(n && typeof migrateRadioSsids==='function') migrateRadioSsids(n);
+    });
+    // Migrazione interfacce delle VM: dai campi piatti (vm.ip/ip6/mac/vlan) al
+    // nuovo vm.nics[] (lib/vm-nics.js). Stessa classe della migrazione radio qui
+    // sopra: da "un solo esemplare" a "un elenco". Idempotente — una VM già in
+    // forma nuova (anche con nics[] VUOTO, che significa "nessuna scheda") non
+    // viene toccata. I campi piatti si cancellano SOLO dopo aver scritto le
+    // schede, così un'interruzione non può perdere l'indirizzo.
+    if (Array.isArray(s.nodes)) s.nodes.forEach(n => {
+        if(!n || !Array.isArray(n.vms)) return;
+        n.vms.forEach(vm => {
+            if(!vm) return;
+            const nics = migrateVmNics(vm);
+            if(!nics) return;
+            vm.nics = nics;
+            VM_FLAT_NET_FIELDS.forEach(f => { delete vm[f]; });
+        });
     });
     // Pulizia: un link wireless con bss orfano (BSS rimosso) torna a derivare dal
     // primo SSID del lato servente (niente riferimenti pendenti nel modello).

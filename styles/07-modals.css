@@ -336,6 +336,23 @@
            prova che la VM sia spenta, quindi non deve avere il peso di un errore. */
         .vm-hint-warn { background:rgba(227,179,65,.08); border-color:rgba(227,179,65,.35); }
         .vm-hint-warn i { color:#e3b341; }
+        /* ── Porte vNIC: una card per interfaccia virtuale ──────────────────
+           Un riquadro leggero raggruppa i campi di UNA scheda, così con tre
+           vNIC si vede subito dove finisce una e comincia l'altra. Il nome sta
+           nell'intestazione (è l'etichetta della card, non un campo come gli
+           altri) e si edita in posto, come il nome di un SSID. */
+        .vnic-card { border:1px solid var(--border-soft, rgba(255,255,255,.08));
+                     border-radius:var(--radius-md); padding:7px 8px 4px; margin-bottom:7px;
+                     background:rgba(255,255,255,.015); }
+        .vnic-head { display:flex; align-items:center; gap:6px; margin-bottom:5px; }
+        .vnic-head > i { color:var(--text-muted); font-size:0.72rem; flex:none; }
+        .vnic-head .vnic-name { flex:1 1 auto; min-width:0; background:transparent;
+                                border:1px solid transparent; border-radius:var(--radius-sm);
+                                color:var(--text-main); font-weight:600; font-size:var(--fs-xs);
+                                padding:3px 5px; }
+        .vnic-head .vnic-name:hover { border-color:rgba(255,255,255,.10); }
+        .vnic-head .vnic-name:focus { border-color:var(--accent); background:var(--bg-input, rgba(0,0,0,.2)); outline:none; }
+        .vnic-card .prop-group { margin-bottom:5px; }
         /* sysDescr: riga a tutta larghezza sotto i valori, testo che va a capo. */
         .vm-snmp-descr { display:block; font-family:monospace; font-size:0.7rem;
                          color:var(--text-muted); white-space:normal; word-break:break-word; }

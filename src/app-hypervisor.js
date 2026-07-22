@@ -24,6 +24,7 @@ import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funz
 import { TYPES } from './app-types.js';   // catalogo tipi (hostsVms/isPassive/hasIP) per l'assorbimento VM
 import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: lista VM + scheda VM senza handler inline
 import { _openMgmt } from './app-management.js';   // apertura console di management (stessa strategia dei device)
+import { vmNics, vmPrimaryIp, migrateVmNics, nextVmNicId, VM_FLAT_NET_FIELDS, VM_NIC_FIELDS } from '../lib/vm-nics.js';   // vNIC: lib pura importata ESM (come lib/ipv6.js)
 
 // Piattaforme datacenter (hypervisor) e homelab: liste diverse, stesso campo
 // `hvPlatform`. Tutte on-prem (il cloud pubblico è un modello a sé, fuori scope).
@@ -86,24 +87,17 @@ function addVm(nodeId){
     return id;
 }
 
-// Aggiorna un campo di una VM; se è la VLAN, garantisce i colori e ripropaga
-// (l'uplink trunk derivato si aggiorna da solo via carriedVlans).
+// Aggiorna un campo di una VM (identità, risorse, consegna: NON la rete, che
+// vive nelle vNIC — vedi updateVmNic).
 function updateVm(nodeId, vmId, field, value){
     const n = nodeById(nodeId); if(!n || !Array.isArray(n.vms)) return;
     const vm = n.vms.find(v => v && v.id === vmId); if(!vm) return;
-    let v = String(value == null ? '' : value).trim();
-    if(field === 'mac' && v) v = normalizeMacAddress(v);   // identità di rete della VM (vNIC)
+    const v = String(value == null ? '' : value).trim();
     if(_VM_NUM_FIELDS[field]){
         const num = _VM_NUM_FIELDS[field] === 'int' ? parseInt(v, 10) : parseFloat(v);
         if(Number.isFinite(num) && num > 0) vm[field] = num; else delete vm[field];
     }
     else if(v) vm[field] = v; else delete vm[field];
-    if(field === 'vlan'){
-        const list = (typeof win.parseVlanList === 'function') ? win.parseVlanList(vm.vlan) : [];
-        if(typeof _ensureVlanColor === 'function') list.forEach(x => { if(x > 1) _ensureVlanColor(x); });
-        if(typeof _invalidateIdx === 'function') _invalidateIdx();
-        if(typeof propagateVlans === 'function') propagateVlans();
-    }
     // Da DOVE stai editando cambia dove deve restare il pannello:
     //  · dalla SCHEDA della VM → si resta sulla scheda (realinearla all'host la
     //    chiuderebbe a ogni campo committato: si compilava un campo e si veniva
@@ -113,6 +107,89 @@ function updateVm(nodeId, vmId, field, value){
     if(store.selType === 'vm' && store.selVmId === vmId && store.selId === nodeId) store._propsExplicit = true;
     else _propsIntentOnHost(nodeId);
     markDirty(); renderProps(); if(typeof renderAll === 'function') renderAll();
+}
+
+// ── vNIC: le interfacce di rete virtuali della VM ────────────────────
+// Una VM può averne più d'una (firewall virtuale WAN/LAN/DMZ, server con NIC di
+// produzione + backup). Il modello sta in vm.nics[] (lib/vm-nics.js).
+//
+// ⚠️ Una vNIC NON è una porta fisica: non ha un cavo e non compare in
+// state.ports. Non si dichiara nemmeno da quale NIC fisica dell'host esca il
+// traffico — con un vSwitch in teaming lo decide la policy di bilanciamento, e
+// scriverlo sarebbe un'invenzione. Il legame col resto della rete passa dai tre
+// agganci che il progetto già ha: VLAN → trunk derivato dell'uplink dell'host ·
+// MAC → device documentato nel Drift · IP → audit IPAM.
+//
+// Garantisce la forma nuova PRIMA di scrivere: una VM ancora coi campi piatti
+// (progetto aperto e non ancora ri-salvato) viene migrata qui, non a metà.
+function _ensureVmNics(vm){
+    if(!Array.isArray(vm.nics)){
+        vm.nics = migrateVmNics(vm) || [];
+        VM_FLAT_NET_FIELDS.forEach(f => { delete vm[f]; });
+    }
+    return vm.nics;
+}
+
+function _findVm(nodeId, vmId){
+    const n = nodeById(nodeId); if(!n || !Array.isArray(n.vms)) return null;
+    const vm = n.vms.find(v => v && v.id === vmId);
+    return vm ? { n, vm } : null;
+}
+
+// Ri-render + intent: identico a updateVm (si resta sulla scheda se e' da lì
+// che stai editando, altrimenti vale l'intento sull'host).
+function _afterVmWrite(nodeId, vmId, alsoRenderAll){
+    if(store.selType === 'vm' && store.selVmId === vmId && store.selId === nodeId) store._propsExplicit = true;
+    else _propsIntentOnHost(nodeId);
+    markDirty(); renderProps();
+    if(alsoRenderAll && typeof renderAll === 'function') renderAll();
+}
+
+// Scrive un campo di UNA vNIC. Se l'id non esiste ancora la scheda viene creata:
+// la scheda VM mostra sempre una prima riga vuota, e digitarci dentro È il gesto
+// che la crea (senza costringere a premere "aggiungi" per la prima).
+export function updateVmNic(nodeId, vmId, nicId, field, value){
+    const found = _findVm(nodeId, vmId); if(!found) return;
+    if(VM_NIC_FIELDS.indexOf(field) < 0) return;      // catalogo chiuso: nessun campo fantasma
+    const { vm } = found;
+    const nics = _ensureVmNics(vm);
+    let v = String(value == null ? '' : value).trim();
+    if(field === 'mac' && v) v = normalizeMacAddress(v);
+    let nic = nics.find(x => x && x.id === nicId);
+    if(!nic){
+        if(!v) return;                                // niente da salvare: non creare una scheda vuota
+        nic = { id: nicId || nextVmNicId(vm) };
+        nics.push(nic);
+    }
+    if(v) nic[field] = v; else delete nic[field];
+    if(field === 'vlan'){
+        const list = (typeof win.parseVlanList === 'function') ? win.parseVlanList(nic.vlan) : [];
+        if(typeof _ensureVlanColor === 'function') list.forEach(x => { if(x > 1) _ensureVlanColor(x); });
+        if(typeof _invalidateIdx === 'function') _invalidateIdx();
+        if(typeof propagateVlans === 'function') propagateVlans();
+    }
+    _afterVmWrite(nodeId, vmId, field === 'vlan' || field === 'ip' || field === 'mac');
+}
+
+export function addVmNic(nodeId, vmId){
+    const found = _findVm(nodeId, vmId); if(!found) return;
+    if(typeof pushHistory === 'function') pushHistory();
+    const nics = _ensureVmNics(found.vm);
+    nics.push({ id: nextVmNicId(found.vm) });
+    _afterVmWrite(nodeId, vmId, false);
+}
+
+export function removeVmNic(nodeId, vmId, nicId){
+    const found = _findVm(nodeId, vmId); if(!found) return;
+    const nics = _ensureVmNics(found.vm);
+    const i = nics.findIndex(x => x && x.id === nicId); if(i < 0) return;
+    if(typeof pushHistory === 'function') pushHistory();
+    nics.splice(i, 1);
+    // Via una scheda spariscono il suo IP dall'IPAM, il suo MAC dai documentati
+    // e la sua VLAN dal trunk derivato: si ripropaga.
+    if(typeof _invalidateIdx === 'function') _invalidateIdx();
+    if(typeof propagateVlans === 'function') propagateVlans();
+    _afterVmWrite(nodeId, vmId, true);
 }
 
 // Integrazione della VM: STESSO contenitore e STESSI nomi campo dei device
@@ -188,8 +265,13 @@ function _vmSummaryHtml(vm, displayName){
     if(res) bits.push((fromSnmp
         ? `<i class="fas fa-satellite-dish vm-row-measured" title="${esc(t('hv.vmSnmpMeasured'))}"></i> `
         : '') + esc(res));
-    const ip = String(vm.ip || '').trim();
+    // Indirizzo: quello della prima vNIC. Con più schede si dice QUANTE sono
+    // invece di elencarle — in una riga sola non ci starebbero, e il conteggio
+    // e' l'informazione che fa aprire la scheda.
+    const nics = vmNics(vm);
+    const ip = vmPrimaryIp(vm);
     if(ip && ip !== String(displayName || '').trim()) bits.push(esc(ip));
+    if(nics.length > 1) bits.push(esc(t('hv.vmNicCount', { n: nics.length })));
     return bits.join(' · ');
 }
 
@@ -300,8 +382,11 @@ export async function pollVmSnmp(hostId, vmId){
     const n = nodeById(hostId); if(!n) return false;
     const vm = _nodeVms(n).find(v => v && v.id === vmId); if(!vm) return false;
     const cfg = _vmIntg(vm);
-    // Stessa regola dei device: l'host override vince, altrimenti si usa l'IP.
-    const host = String(cfg.host || vm.ip || '').trim();
+    // Stessa regola dei device: l'host override vince, altrimenti l'indirizzo
+    // della prima vNIC che ne ha uno. Con più schede l'agente SNMP risponde su
+    // una sola di esse: se non è la prima, si usa l'host override — non si
+    // tentano tutte a raffica (sarebbe rumore verso la rete del cliente).
+    const host = String(cfg.host || vmPrimaryIp(vm) || '').trim();
     if(!host){ _showToast(t('hv.vmSnmpNoIp'), 'warn', 5000); return false; }
     const body = JSON.stringify({
         driver: cfg.driver || 'snmp-v2c',
@@ -336,20 +421,23 @@ export async function pollVmSnmp(hostId, vmId){
         const tot = hr.volumes.reduce((a, v) => a + (Number.isFinite(v.totalBytes) ? v.totalBytes : 0), 0);
         const gb = _bytesToGb(tot); if(gb) seen.diskGb = gb;
     }
-    // MAC della vNIC (ifPhysAddress). E' il dato che CHIUDE IL CERCHIO col Drift:
+    // MAC delle vNIC (ifPhysAddress). E' il dato che CHIUDE IL CERCHIO col Drift:
     // il MAC di una VM entra in deviceSigs, quindi la macchina non riappare come
     // "non documentata" nella Verifica. Conta soprattutto per le VM assorbite
     // CROSS-SUBNET, che un MAC non ce l'hanno mai (l'ARP si ferma al router).
-    // ⚠️ Le interfacce del poll NON trasportano gli indirizzi IP, quindi non si
-    // puo' appaiare la scheda all'host interrogato: si accetta il MAC solo se e'
-    // UNIVOCO (una sola vNIC con MAC reale — il caso normale). Con piu' schede si
-    // annota quante sono e si lascia vuoto, invece di indovinare quale sia quella
-    // "giusta" (② no-invenzioni).
-    const _macs = [...new Set((data.interfaces || [])
+    //
+    // Si tengono TUTTI i MAC misurati, in ordine di interfaccia: sono la misura,
+    // e nasconderli quando sono più d'uno (com'era fino alla 77ª) buttava via
+    // l'unico dato che permette di compilare una VM multi-scheda.
+    // ⚠️ Le interfacce del poll NON trasportano gli indirizzi IP, quindi NON si
+    // può sapere quale MAC appartenga a quale vNIC dichiarata: l'appaiamento
+    // resta un gesto dell'utente (② no-invenzioni). L'unico caso automatico è
+    // quello senza ambiguità — una misura, una scheda — gestito in
+    // applyVmSnmpValues.
+    seen.macs = [...new Set((data.interfaces || [])
         .map(i => String((i && i.mac) || '').trim().toUpperCase())
         .filter(m => m && !/^(?:00[:-]){5}00$/.test(m)))];
-    if(_macs.length === 1) seen.mac = _macs[0];
-    else if(_macs.length > 1) seen.macCount = _macs.length;
+    if(!seen.macs.length) delete seen.macs;
     vm.snmpSeen = seen;
     delete vm.snmpError;
     vm.state = 'running';             // ha risposto: prova che e' accesa (misurata)
@@ -366,9 +454,18 @@ export function applyVmSnmpValues(hostId, vmId){
     const s = vm.snmpSeen;
     if(typeof pushHistory === 'function') pushHistory();
     if(s.sysName && !vm.hostname) vm.hostname = s.sysName;
-    // Il MAC entra SOLO se il campo e' vuoto: un MAC gia' documentato e' una
-    // scelta tua (o l'eredita' dell'assorbimento) e non si sovrascrive.
-    if(s.mac && !vm.mac) vm.mac = normalizeMacAddress(s.mac);
+    // Il MAC entra SOLO nel caso SENZA ambiguità: una sola scheda misurata, una
+    // sola vNIC dichiarata, e quella vNIC ancora senza MAC (un MAC già scritto è
+    // una scelta tua, o l'eredità dell'assorbimento, e non si sovrascrive).
+    // Con più misure o più schede l'appaiamento non è deducibile — le interfacce
+    // del poll non portano gli IP — e i MAC misurati restano elencati nella
+    // sezione, da copiare sulla scheda giusta.
+    const _seenMacs = Array.isArray(s.macs) ? s.macs : (s.mac ? [s.mac] : []);
+    const _nics = _ensureVmNics(vm);
+    if(_seenMacs.length === 1){
+        if(!_nics.length) _nics.push({ id: nextVmNicId(vm), mac: normalizeMacAddress(_seenMacs[0]) });
+        else if(_nics.length === 1 && !_nics[0].mac) _nics[0].mac = normalizeMacAddress(_seenMacs[0]);
+    }
     if(Number.isFinite(s.cpuCores)) vm.vcpu   = s.cpuCores;
     if(Number.isFinite(s.ramGb))    vm.ramGb  = s.ramGb;
     if(Number.isFinite(s.diskGb))   vm.diskGb = s.diskGb;
@@ -396,8 +493,17 @@ export function absorbNodeAsVm(srcId, hostId){
     const mac = normalizeMacAddress(String(src.mac || ''));
     const vm = { id: _newVmId(host.vms.length), state: 'running' };
     if(name) vm.name = name;
-    if(ip) vm.ip = ip;
-    if(mac) vm.mac = mac;                         // identità → chiude il cerchio col Drift
+    // L'identità di rete ereditata dal tile diventa la PRIMA vNIC (il MAC chiude
+    // il cerchio col Drift). Se ne aveva altre, si aggiungono a mano: qui si
+    // sa solo quello che il tile portava.
+    const ip6 = String(src.ip6 || '').trim();
+    if(ip || mac || ip6){
+        const nic = { id: 'nic1' };
+        if(ip)  nic.ip  = ip;
+        if(ip6) nic.ip6 = ip6;
+        if(mac) nic.mac = mac;
+        vm.nics = [nic];
+    }
     host.vms.push(vm);
     _removeNodeById(src.id);                      // via il tile sciolto + il suo cavo di discovery
     propagateVlans();                            // l'uplink trunk dell'host assorbe la VLAN della VM
@@ -422,6 +528,8 @@ registerClickActions({
     'vm-state':  (el) => updateVm(el.dataset.vmHost, el.dataset.vmId, 'state', el.dataset.vmNext),
     'vm-snmp-read':  (el) => pollVmSnmp(el.dataset.vmHost, el.dataset.vmId),
     'vm-snmp-apply': (el) => applyVmSnmpValues(el.dataset.vmHost, el.dataset.vmId),
+    'vm-nic-add':    (el) => addVmNic(el.dataset.vmHost, el.dataset.vmId),
+    'vm-nic-del':    (el) => removeVmNic(el.dataset.vmHost, el.dataset.vmId, el.dataset.vmNic),
     // Apertura console di management: stessa strategia per-protocollo dei device
     // (http/https in tab, ssh/rdp/vnc all'handler del sistema operativo).
     'vm-mgmt-open':  (el, ev) => { if(ev) ev.preventDefault(); _openMgmt(el.getAttribute('href')); },
@@ -444,8 +552,12 @@ registerChangeActions({
     // Integrazione della VM: vive in vm.integration{}, non fra i campi piatti.
     'vm-intg': (el) => { if(el.value === _CUSTOM_TOKEN) return;
         updateVmIntegration(el.dataset.vmHost, el.dataset.vmId, el.dataset.vmField, el.value); },
+    // Campo di UNA vNIC: il riferimento alla scheda viaggia in data-vm-nic.
+    'vm-nic': (el) => { if(el.value === _CUSTOM_TOKEN) return;
+        updateVmNic(el.dataset.vmHost, el.dataset.vmId, el.dataset.vmNic, el.dataset.vmField, el.value); },
 });
 
 // ── Pubblicazione sul ponte ──────────────────────────────────────────
 expose({ addVm, updateVm, removeVm, _hvPanelHtml, _vmRowHtml, _nodeVms, absorbNodeAsVm,
-         openVmProps, closeVmProps, updateVmIntegration, pollVmSnmp, applyVmSnmpValues });
+         openVmProps, closeVmProps, updateVmIntegration, pollVmSnmp, applyVmSnmpValues,
+         updateVmNic, addVmNic, removeVmNic });

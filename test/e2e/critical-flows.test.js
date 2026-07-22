@@ -2399,7 +2399,10 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           const ok = absorbNodeAsVm('pcvm', 'lab');
           const lab = nodeById('lab');
           const vm = (lab.vms || [])[0] || {};
-          const vmNameI = vm.name || '', vmIpI = vm.ip || '', vmMacI = vm.mac || '', vmId = vm.id;
+          // 78ª: l'identità di rete ereditata sta sulla PRIMA vNIC, non più in
+          // campi piatti sulla VM.
+          const nic0 = ((vm.nics || [])[0]) || {};
+          const vmNameI = vm.name || '', vmIpI = nic0.ip || '', vmMacI = nic0.mac || '', vmId = vm.id;
           const tileGone = !nodeById('pcvm');
 
           // cerchio: il MAC della VM è "noto" nei deviceSigs → non più non-documentato;
@@ -2413,14 +2416,16 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           const guardHostInHost = absorbNodeAsVm('lab2', 'lab');  // un host non si assorbe in un host
           const guardSameNode  = absorbNodeAsVm('pc2', 'pc2');    // stesso nodo / bersaglio non-host
 
-          // scheda VM (5° scope del pannello): campo MAC presente + updateVm normalizza.
+          // scheda VM (5° scope del pannello): campo MAC presente nella
+          // fisarmonica «Porte vNIC» + updateVmNic normalizza.
           // Dalla 77ª i campi NON stanno piu' nella lista dell'host ma nella scheda
           // dedicata, che si apre con openVmProps (data-act="vm-open" sulla riga).
           openVmProps('lab', vmId);
           const cardScope = (typeof selType !== 'undefined') ? selType : null;
-          const panelHasMac = (document.getElementById('props-panel').innerHTML || '').includes('data-vm-field="mac"');
-          updateVm('lab', vmId, 'mac', 'aabbcc009900');
-          const macNorm = nodeById('lab').vms[0].mac;
+          const _html = document.getElementById('props-panel').innerHTML || '';
+          const panelHasMac = _html.includes('data-vm-field="mac"') && _html.includes('data-change="vm-nic"');
+          updateVmNic('lab', vmId, 'nic1', 'mac', 'aabbcc009900');
+          const macNorm = (nodeById('lab').vms[0].nics[0] || {}).mac;
 
           return { ok, vmName: vmNameI, vmIp: vmIpI, vmMac: vmMacI, tileGone, vmKnown, inPresence, guardHostInHost, guardSameNode, panelHasMac, macNorm, cardScope };
         } catch (e) { return { err: String(e && e.stack || e) }; }
@@ -2468,8 +2473,9 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           const ghostShown = !!ghost && ghost.style.display !== 'none' && (ghost.textContent || '').indexOf('VM-App') >= 0;
           window.dispatchEvent(new PointerEvent('pointerup', { clientX: dx, clientY: dy, button: 0, bubbles: true }));
           const lab = nodeById('lab'); const vm = (lab.vms || [])[0] || {};
+          const nic0 = ((vm.nics || [])[0]) || {};   // 78ª: identità sulla prima vNIC
           return { dzPresent, dzText, dzW: Math.round(dzR.width), dzActiveMidDrag, ghostShown,
-            vmCount: (lab.vms || []).length, vmName: vm.name || '', vmMac: vm.mac || '', vmIp: vm.ip || '', tileGone: !nodeById('pcvm') };
+            vmCount: (lab.vms || []).length, vmName: vm.name || '', vmMac: nic0.mac || '', vmIp: nic0.ip || '', tileGone: !nodeById('pcvm') };
         } catch (e) { return { err: String(e && e.stack || e) }; }
       });
       assert.ok(!r.err, 'nessun errore nel gesto import VM: ' + r.err);
@@ -2758,6 +2764,138 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(r.rowsLeft, 0, 'e la riga sparisce subito dal pannello');
     });
 
+    await t.test('VM (78ª): fisarmonica «Porte vNIC» — più schede a gesti reali, e NESSUN cavo', async () => {
+      // Una VM multi-homed (firewall virtuale WAN/LAN/DMZ) si documenta scheda per
+      // scheda. Il test verifica anche cio' che NON deve esserci: la fisarmonica
+      // «Porte di rete» del PC genera LED collegabili a un cavo (n.ports 1-8), e
+      // una vNIC non ha un cavo — se qualcuno riportasse quel campo qui, il
+      // modello direbbe una cosa falsa.
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = {};
+          state.nodes.push({ id: 'lab', type: 'homelab', name: 'NUC-01', x: 600, y: 350, ports: 1, mac: 'AA:BB:CC:00:00:01' });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          _renderAllNow();
+          if (typeof switchRightTab === 'function') switchRightTab('props');
+          if (typeof setPropsSectionState === 'function') { setPropsSectionState('device-homelab', true); setPropsSectionState('hv-vms', true); }
+          window._propsExplicit = true; selType = 'node'; selId = 'lab'; renderProps();
+          const vmId = addVm('lab');                 // apre gia' la scheda
+          const P = () => document.getElementById('props-panel');
+          const type = (sel, val) => { const el = P().querySelector(sel); el.value = val;
+                                       el.dispatchEvent(new Event('change', { bubbles: true })); };
+
+          // 1) la scheda nasce con UNA card vNIC vuota, e la sezione non ha nulla
+          //    che assomigli al contatore-porte del PC
+          const cards0 = P().querySelectorAll('.vnic-card').length;
+          const hasPortCount = !!P().querySelector('[onchange*="updateN(\'ports\'"]');
+          const nicsBefore = (nodeById('lab').vms[0].nics || []).length;
+
+          // 2) DIGITAZIONE REALE nella prima card → la scheda viene CREATA
+          type('.vnic-card [data-vm-field="ip"]', '192.168.1.10');
+          type('.vnic-card [data-vm-field="vlan"]', '20');
+          const nic1 = (nodeById('lab').vms[0].nics || [])[0] || {};
+
+          // 3) CLIC REALE su «Aggiungi interfaccia» → seconda card
+          P().querySelector('[data-act="vm-nic-add"]').click();
+          const cards2 = P().querySelectorAll('.vnic-card').length;
+          const cardsEls = P().querySelectorAll('.vnic-card');
+          const nic2Id = cardsEls[1].querySelector('[data-vm-field="ip"]').dataset.vmNic;
+          // si compila la SECONDA (il MAC entra normalizzato)
+          const el2ip = cardsEls[1].querySelector('[data-vm-field="ip"]');
+          el2ip.value = '10.0.0.1'; el2ip.dispatchEvent(new Event('change', { bubbles: true }));
+          const c2 = P().querySelectorAll('.vnic-card')[1];
+          const el2v = c2.querySelector('[data-vm-field="vlan"]');
+          el2v.value = '30'; el2v.dispatchEvent(new Event('change', { bubbles: true }));
+          const c2b = P().querySelectorAll('.vnic-card')[1];
+          const el2m = c2b.querySelector('[data-vm-field="mac"]');
+          el2m.value = 'aabbcc112233'; el2m.dispatchEvent(new Event('change', { bubbles: true }));
+          // COPIA, non riferimento: la cancellazione al punto 5 fa splice su
+          // QUESTO stesso array, e la serializzazione di page.evaluate avviene
+          // alla fine — leggeremmo lo stato post-cancellazione.
+          const nics = JSON.parse(JSON.stringify(nodeById('lab').vms[0].nics || []));
+
+          // 4) gli AGGANCI col resto della rete: trunk derivato · Drift · IPAM
+          const carried = (typeof carriedVlans === 'function') ? carriedVlans(nodeById('lab')) : [];
+          const sigs = (_driftBuildDocSnapshot().deviceSigs || [])
+            .map(s => String(s).toUpperCase().replace(/[^0-9A-F]/g, ''));
+          const ipamIps = (typeof vmIps === 'function') ? vmIps(nodeById('lab').vms[0]).map(x => x.ip) : [];
+
+          // 5) CLIC REALE sul cestino della seconda → sparisce (e la VLAN col trunk)
+          const delBtn = P().querySelectorAll('.vnic-card')[1].querySelector('[data-act="vm-nic-del"]');
+          delBtn.click();
+          const cardsAfterDel = P().querySelectorAll('.vnic-card').length;
+          const carriedAfter = (typeof carriedVlans === 'function') ? carriedVlans(nodeById('lab')) : [];
+          // con UNA sola scheda il cestino non c'è: non si toglie l'ultima interfaccia
+          const delOnLast = !!P().querySelector('.vnic-card [data-act="vm-nic-del"]');
+
+          return { cards0, hasPortCount, nicsBefore, nic1, cards2, nic2Id, nics,
+                   carried, hasMac: sigs.includes('AABBCC112233'), ipamIps,
+                   cardsAfterDel, carriedAfter, delOnLast, vmId };
+        } catch (e) { return { err: String(e && e.stack || e) }; }
+      });
+      assert.ok(!r.err, 'nessun errore nel giro vNIC: ' + r.err);
+      assert.equal(r.cards0, 1, 'la scheda VM nasce con UNA card vNIC pronta da compilare');
+      assert.equal(r.nicsBefore, 0, 'ma il modello resta vuoto finché non scrivi (nessuna scheda inventata)');
+      assert.ok(!r.hasPortCount, 'NIENTE contatore-porte in stile PC: una vNIC non ha un cavo');
+      assert.equal(r.nic1.ip, '192.168.1.10', 'digitare nella prima card CREA la vNIC e ne salva l\'IP');
+      assert.equal(r.nic1.vlan, '20', 'e la sua VLAN');
+      assert.equal(r.cards2, 2, 'CLIC su «Aggiungi interfaccia» → seconda card a schermo');
+      assert.equal(r.nic2Id, 'nic2', 'la seconda scheda ha un id proprio');
+      assert.equal(r.nics.length, 2, 'due vNIC nel modello');
+      assert.equal(r.nics[1].ip, '10.0.0.1', 'la seconda card scrive sulla SUA scheda, non sulla prima');
+      assert.equal(r.nics[0].ip, '192.168.1.10', 'e la prima resta intatta');
+      assert.equal(r.nics[1].mac, 'AA:BB:CC:11:22:33', 'il MAC entra normalizzato');
+      assert.deepEqual(r.carried, [20, 30], 'AGGANCIO 1: le VLAN di TUTTE le vNIC alimentano il trunk derivato dell\'uplink dell\'host');
+      assert.ok(r.hasMac, 'AGGANCIO 2: il MAC della vNIC è fra i documentati del Drift');
+      assert.deepEqual(r.ipamIps, ['192.168.1.10', '10.0.0.1'], 'AGGANCIO 3: entrambi gli indirizzi entrano nel controllo IPAM');
+      assert.equal(r.cardsAfterDel, 1, 'CLIC sul cestino → la scheda sparisce dal pannello');
+      assert.deepEqual(r.carriedAfter, [20], 'e la sua VLAN esce dal trunk derivato');
+      assert.ok(!r.delOnLast, 'con una sola interfaccia il cestino non c\'è: si svuotano i campi, non si resta senza scheda');
+    });
+
+    await t.test('VM (78ª): progetto vecchio coi campi piatti → migrato a vNIC senza perdere nulla', async () => {
+      // I progetti salvati prima della 78ª hanno vm.ip/mac/vlan come campi della
+      // VM. _migrateState li porta sulla prima vNIC: se si perdesse un indirizzo,
+      // la macchina tornerebbe "non documentata" alla Verifica.
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState();
+          state.nodes.length = 0; state.links.length = 0; state.ports = {};
+          state.nodes.push({ id: 'lab', type: 'homelab', name: 'NUC-01', x: 600, y: 350, ports: 1,
+            vms: [
+              { id: 'vmOld', name: 'dc01', state: 'running', ip: '192.168.1.10', mac: 'AA:BB:CC:99:99:01', vlan: '20', ip6: '2001:db8::5' },
+              { id: 'vmNoNet', name: 'vuota', state: 'running' },
+              { id: 'vmNew', name: 'gia-migrata', nics: [{ id: 'nic1', ip: '10.0.0.9' }] },
+            ] });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          _renderAllNow();
+          _migrateState(state);
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          // si legge dallo STATO, non da nodeById: _migrateState può riassegnare
+          // gli id dei nodi (gotcha noto, quello che ruppe i LAG) e l'id 'lab'
+          // potrebbe non esistere più.
+          const host = state.nodes[0];
+          const vms = host.vms;
+          return {
+            old: vms[0], noNet: vms[1], neu: vms[2],
+            noNetKey: Object.prototype.hasOwnProperty.call(vms[1], 'nics'),
+            noNetRead: vmNics(vms[1]),
+            carried: (typeof carriedVlans === 'function') ? carriedVlans(host) : [],
+          };
+        } catch (e) { return { err: String(e && e.stack || e) }; }
+      });
+      assert.ok(!r.err, 'nessun errore nella migrazione: ' + r.err);
+      assert.deepEqual(r.old.nics, [{ id: 'nic1', ip: '192.168.1.10', ip6: '2001:db8::5', mac: 'AA:BB:CC:99:99:01', vlan: '20' }],
+        'i campi piatti diventano la prima vNIC, tutti e quattro');
+      assert.equal(r.old.ip, undefined, 'e i campi piatti spariscono: una sola verità per lo stesso dato');
+      assert.equal(r.old.mac, undefined);
+      assert.ok(!r.noNetKey, 'una VM senza dati di rete non si porta a casa nemmeno un campo nics vuoto');
+      assert.deepEqual(r.noNetRead, [], 'e chi la legge vede zero schede, non una inventata');
+      assert.deepEqual(r.neu.nics, [{ id: 'nic1', ip: '10.0.0.9' }], 'una VM già migrata non viene ri-toccata (idempotente)');
+      assert.deepEqual(r.carried, [20], 'e la VLAN migrata alimenta ancora il trunk derivato');
+    });
+
     await t.test('VM (77ª): sistema operativo PERSONALIZZATO + stato nell\'intestazione', async () => {
       // La lista guest OS copre i casi comuni ma una VM può ospitare qualsiasi cosa:
       // la scheda si appoggia all'harness «Personalizzato…» già usato dal pannello
@@ -2908,13 +3046,14 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(r.after.hostname, 'dc01', 'e l\'hostname vuoto viene compilato');
 
       // MAC: chiude il cerchio col Drift sulle VM che un MAC non ce l'hanno (import
-      // cross-subnet). Univoco → si accetta; già presente → non si sovrascrive;
-      // più schede → non si indovina.
+      // cross-subnet). Univoco → si accetta sulla vNIC; già presente → non si
+      // sovrascrive; più schede misurate → si mostrano tutte ma non si indovina
+      // quale sia quale (le interfacce del poll non portano gli IP).
       const mac = await page.evaluate(async () => {
         const id = window.__vmId;
         const vm0 = nodeById('lab').vms[0];
-        const dopoUnaNic = vm0.snmpSeen.mac;                    // dalla lettura precedente
-        const macDichiarato = vm0.mac;                          // travasato da «Usa questi valori»
+        const dopoUnaNic = (vm0.snmpSeen.macs || [])[0];         // dalla lettura precedente
+        const macDichiarato = ((vm0.nics || [])[0] || {}).mac;   // travasato da «Usa questi valori»
         // 2ª lettura con DUE schede: il MAC non è univoco
         window.fetch = (url, opts) => String(url).includes('/api/poll')
           ? Promise.resolve({ json: () => Promise.resolve({ ok: true, hostname: 'dc01',
@@ -2923,6 +3062,8 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           : window.__origFetch(url, opts);
         await pollVmSnmp('lab', id);
         const s2 = nodeById('lab').vms[0].snmpSeen;
+        // il pannello va letto ORA: la lettura successiva lo ri-renderizza
+        const panel2 = document.getElementById('props-panel').innerHTML || '';
         // 3ª lettura, una sola scheda ma MAC diverso: il campo già compilato resta
         window.fetch = (url, opts) => String(url).includes('/api/poll')
           ? Promise.resolve({ json: () => Promise.resolve({ ok: true, hostname: 'dc01',
@@ -2931,13 +3072,15 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         await pollVmSnmp('lab', id);
         applyVmSnmpValues('lab', id);
         window.fetch = window.__origFetch;
-        return { dopoUnaNic, macDichiarato, ambiguo: s2.mac, quante: s2.macCount,
-                 macFinale: nodeById('lab').vms[0].mac };
+        return { dopoUnaNic, macDichiarato, misurati2: s2.macs, panel2,
+                 macFinale: ((nodeById('lab').vms[0].nics || [])[0] || {}).mac };
       });
       assert.equal(mac.dopoUnaNic, '00:50:56:8A:1F:22', 'una sola vNIC → il MAC è misurato');
-      assert.equal(mac.macDichiarato, '00:50:56:8A:1F:22', 'e «Usa questi valori» lo scrive nel campo vuoto');
-      assert.equal(mac.ambiguo, undefined, 'con DUE schede il MAC non viene scelto a caso');
-      assert.equal(mac.quante, 2, 'ma si annota quante sono (lo zero-MAC non conta)');
+      assert.equal(mac.macDichiarato, '00:50:56:8A:1F:22', 'e «Usa questi valori» lo scrive sulla vNIC senza MAC');
+      assert.deepEqual(mac.misurati2, ['00:50:56:8A:1F:22', '00:50:56:8A:1F:23'],
+        'con DUE schede si conservano ENTRAMBI i MAC misurati (lo zero-MAC non conta)');
+      assert.ok(mac.panel2.includes('00:50:56:8A:1F:23'),
+        'e la scheda li mostra tutti, invece di nascondere la misura');
       assert.equal(mac.macFinale, '00:50:56:8A:1F:22', 'un MAC già documentato NON viene sovrascritto da una lettura successiva');
 
       // Silenzio SNMP: non prova nulla → lo stato NON diventa "spenta".
@@ -3022,7 +3165,8 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           // 1) pc senza MAC ma con IP/SNMP → assorbito
           gestureDropOn('pcnm');
           const lab = nodeById('lab'); const vm = (lab.vms || [])[0] || {};
-          const absorbedNoMac = { count: (lab.vms || []).length, name: vm.name || '', ip: vm.ip || '', mac: vm.mac || '', tileGone: !nodeById('pcnm') };
+          const nic0 = ((vm.nics || [])[0]) || {};   // 78ª: identità sulla prima vNIC
+          const absorbedNoMac = { count: (lab.vms || []).length, name: vm.name || '', ip: nic0.ip || '', mac: nic0.mac || '', tileGone: !nodeById('pcnm') };
           // 2) pc senza alcuna identità → rifiutato, torna a casa, toast che spiega
           const ox = nodeById('pcanon').x, oy = nodeById('pcanon').y;
           gestureDropOn('pcanon');
