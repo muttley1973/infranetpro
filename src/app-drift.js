@@ -522,13 +522,17 @@ export function _renderDriftReport(){
     const total = _DRIFT_CATS.reduce((a, c) => a + ((c.k === 'consistent' || c.k === 'unverified') ? 0 : rep.counts[c.k]), 0);
     // Banner a 3 vie: anomalie · "cieca" (niente verificato) · allineata. Niente
     // falso "tutto a posto" quando in realtà non si è potuto verificare nulla.
-    const kind = (typeof driftBannerKind === 'function') ? driftBannerKind(rep.counts) : (total > 0 ? 'discrepancies' : 'aligned');
+    const kind = (typeof driftBannerKind === 'function') ? driftBannerKind(rep.counts, rep) : (total > 0 ? 'discrepancies' : 'aligned');
     const unver = rep.counts.unverified || 0;
     let header;
     if(kind === 'discrepancies'){
         header = `<div class="drift-summary">${t('drift.toVerify',{n:total})}</div>`;
     } else if(kind === 'blind'){
-        header = `<div class="drift-blind"><i class="fas fa-plug-circle-xmark"></i> ${t('drift.allUnverified',{n:unver})}</div>`;
+        // Caso (b) — audit cieco/mai girato: i device documentati non finiscono in
+        // unverified (blocco presenza saltato), quindi `unver` sarebbe 0; il numero
+        // onesto e' quanti NON si sono potuti valutare (docCount).
+        const blindN = unver || rep.docCount || 0;
+        header = `<div class="drift-blind"><i class="fas fa-plug-circle-xmark"></i> ${t('drift.allUnverified',{n:blindN})}</div>`;
     } else {
         const note = unver > 0 ? ` <span class="drift-allok-note">${t('drift.someUnverified',{n:unver})}</span>` : '';
         header = `<div class="drift-allok"><i class="fas fa-circle-check"></i> ${t('drift.allOk')}${note}</div>`;
