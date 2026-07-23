@@ -2,6 +2,13 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-23 — A blind Check no longer reports "documentation aligned"
+
+The Verify banner has three outcomes: anomalies to act on, *blind* (nothing could be verified), and *aligned* (reality was compared and matched). The middle one was unreachable exactly when it mattered. When a Check observed nothing at all — no switch returned a forwarding table, no reachability sweep ran — the presence audit was skipped wholesale, so the documented devices landed in neither the "unverified" bucket nor anywhere else. The counts read `{consistent:0, unverified:0}`, indistinguishable from an empty project, and the banner declared **"Documentazione allineata"** over devices it had never looked at. On the 500-device bench that is **487 devices** reported as fine by a Check that saw none of them.
+
+### Fixed
+- **"Aligned" now requires that something was actually verified.** `buildDriftReport` already knew the honest fact (`sweepRan`) but did not pass it on; it now also exposes `evaluated` — whether there was any observability — and `docCount` — how many documented devices a Check *should* have reached. `driftBannerKind` reads the report alongside the counts and returns *blind*, not *aligned*, when zero devices were compared on a non-empty project. A genuinely empty project (`docCount:0`) stays *aligned* — there is nothing to alarm. Called with counts only it behaves as before, so nothing else moves. `lib/drift-report.js`, `src/app-drift.js`, +2 regression tests measuring the 487-device case end to end.
+
 ## 2026-07-23 — The "documented" percentage was counting the wrong devices
 
 The sub-header reports how much of the addressing is documented. On a real project it read **19/19 · 100%** — while twelve switches, routers, an hypervisor, a server and a WLAN controller, all carrying an IP, were not in the denominator at all. The percentage happened to be right; the population it described was not.

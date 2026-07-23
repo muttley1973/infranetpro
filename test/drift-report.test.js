@@ -24,6 +24,35 @@ test('driftBannerKind: input mancante → "aligned" (mai throw)', () => {
   assert.equal(driftBannerKind(), 'aligned');
   assert.equal(driftBannerKind(null), 'aligned');
 });
+test('driftBannerKind: audit CIECO (osservabilità assente) su progetto POPOLATO → "blind", non "aligned"', () => {
+  // Il bug misurato (audit 2026-07-23): Sync fallito su tutto (fdbObserved:false,
+  // niente sweep) → il blocco presenza è saltato in blocco, i device documentati
+  // non finiscono in `unverified` → i soli counts dicono {consistent:0,unverified:0}
+  // e il banner diceva "Documentazione allineata" su 487 device MAI valutati.
+  // Il report porta evaluated:false + docCount>0 → ora è "blind".
+  const counts = { consistent: 0, unverified: 0, stateDrift: 0, macOrphan: 0, undocumented: 0, ipChanged: 0, ghostCable: 0 };
+  assert.equal(driftBannerKind(counts, { evaluated: false, docCount: 487 }), 'blind', 'audit cieco su rete popolata ≠ allineata');
+  assert.equal(driftBannerKind(counts, { evaluated: false, docCount: 0 }), 'aligned', 'progetto GENUINAMENTE vuoto → resta allineata');
+  assert.equal(driftBannerKind(counts, { evaluated: true, docCount: 487 }), 'aligned', 'osservabilità presente, 0 anomalie, 0 non-verif. → davvero allineato');
+  // Retro-compatibile: senza report (1 solo argomento) la via (b) resta silente.
+  assert.equal(driftBannerKind(counts), 'aligned');
+});
+test('buildDriftReport espone evaluated/docCount: il caso cieco NON è più indistinguibile dal vuoto', () => {
+  const doc = { macs: [
+    { mac: 'AA:BB:CC:00:00:01', label: 'sw1', nodeId: 'sw1' },
+    { mac: 'AA:BB:CC:00:00:02', label: 'sw2', nodeId: 'sw2' },
+  ], ipOnly: [{ nodeId: 'kvm', label: 'kvm', ip: '10.0.0.9' }] };
+  // Snapshot cieco: nessun FDB, nessuna sweep (== Sync fallito su tutto).
+  const blind = buildDriftReport({ observedMacs: [], responded: {}, fdbObserved: false, reachabilityChecked: false }, doc, [], {});
+  assert.equal(blind.evaluated, false, 'nessuna osservabilità');
+  assert.equal(blind.docCount, 3, '2 MAC + 1 ipOnly documentati, che sarebbero dovuti essere valutati');
+  assert.equal(blind.counts.unverified, 0, 'il blocco presenza è saltato: 0 in unverified (ecco perché servono i due segnali)');
+  assert.equal(driftBannerKind(blind.counts, blind), 'blind', 'end-to-end: report cieco → banner cieco');
+  // Progetto vuoto: docCount 0 → aligned (niente da allarmare).
+  const empty = buildDriftReport({ fdbObserved: false }, {}, [], {});
+  assert.equal(empty.docCount, 0);
+  assert.equal(driftBannerKind(empty.counts, empty), 'aligned');
+});
 
 test('porta coerente → categoria consistent, nessun drift', () => {
   const doc = { ports: { 'sw1-1': { label: 'SW1 / P1', status: 'active', speed: 1000, vlan: 10 } } };
