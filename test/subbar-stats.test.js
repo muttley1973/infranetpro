@@ -9,13 +9,18 @@
 // ============================================================
 const test = require('node:test');
 const assert = require('node:assert');
-const { computeSubbarStats, computeTopoHiddenCables, _hasSnmp } = require('../lib/subbar-stats.js');
+const { computeSubbarStats, computeTopoHiddenCables, _hasSnmp, _isAddressable } = require('../lib/subbar-stats.js');
 
-// Mini-catalogo TYPES sufficiente ai test (struttura come src/app-types.js).
+// Mini-catalogo TYPES sufficiente ai test. DEVE rispecchiare src/app-types.js:
+// sugli attivi (switch/router/…) il flag `hasIP` NON c'e', l'indirizzo e'
+// implicito in `isActive`. Questa fixture prima scriveva `switch:{hasIP:true}` —
+// un catalogo che non esiste — e per questo i test passavano mentre in produzione
+// l'infrastruttura restava fuori dal conteggio degli indirizzabili.
 const TYPES = {
-  switch: { hasIP: true, isRack: true },
+  switch: { isActive: true, isRack: true },   // attivo: niente hasIP, IP implicito
+  router: { isActive: true, isRack: true },
   pc:     { hasIP: true, isFloor: true },
-  ups:    { hasIP: true, isRack: true },
+  ups:    { hasIP: true, isPassive: true, isRack: true },   // passivo MA indirizzabile
   wallport:  { isPassive: true },          // niente hasIP -> non indirizzabile
   patchpanel:{ isPassive: true },
   room:   { isStructural: true },          // strutturale -> non e' un device
@@ -52,6 +57,28 @@ test('documentazione % = withIp / indirizzabili (passivi esclusi dal denominator
   assert.equal(s.addressable, 4, 'switch+pc+pc+ups');
   assert.equal(s.withIp, 2);
   assert.equal(s.docPct, 50, '2/4 = 50%');
+});
+
+test('REGRESSIONE: gli apparati ATTIVI sono indirizzabili anche senza il flag hasIP', () => {
+  // Nel catalogo reale switch/router/firewall/hypervisor/WLC NON hanno `hasIP`:
+  // l'indirizzo e' implicito in `isActive`. Contando il solo `hasIP`, su un
+  // progetto vero (Rete+Lab) la barra dichiarava «19/19 · 100%» lasciando fuori
+  // 12 apparati — una percentuale giusta per caso, su un denominatore sbagliato.
+  assert.equal(_isAddressable({ isActive: true }), true, 'attivo -> indirizzabile');
+  assert.equal(_isAddressable({ hasIP: true }), true, 'endpoint con hasIP -> indirizzabile');
+  assert.equal(_isAddressable({ isPassive: true }), false, 'passivo senza IP -> no');
+  assert.equal(_isAddressable(undefined), false, 'tipo sconosciuto -> no, mai throw');
+
+  const nodes = [
+    { type: 'switch', ip: '10.0.0.1' },
+    { type: 'router' },                    // attivo SENZA IP: e' una lacuna, va contata
+    { type: 'pc', ip: '10.0.0.2' },
+    { type: 'wallport' },
+  ];
+  const s = computeSubbarStats(nodes, TYPES);
+  assert.equal(s.addressable, 3, 'switch + router + pc (la presa a muro no)');
+  assert.equal(s.withIp, 2);
+  assert.equal(s.docPct, 67, '2/3 — il router senza IP abbassa la percentuale, come deve');
 });
 
 test('nessun device indirizzabile -> docPct null (niente 0% fuorviante)', () => {

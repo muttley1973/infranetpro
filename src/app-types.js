@@ -36,7 +36,12 @@ export const TYPES = {
     patchpanel:  { isRack:true,  isPassive:true,  passThrough:'port', name:'Patch Panel',        icon:'fa-grip',          sizeU:2, ports:24, brand:'CommScope' },
     blankpanel:  { isRack:true,  isPassive:true,  name:'Pannello vuoto',     icon:'fa-minus',         sizeU:1, ports:0,  brand:''          },
     cablemanager:{ isRack:true,  isPassive:true,  name:'Passacavo',          icon:'fa-grip-lines',    sizeU:1, ports:0,  brand:''          },
-    // ── Rack attivi (sempre hasIP) ────────────────────────────────────────────
+    // ── Rack attivi ───────────────────────────────────────────────────────────
+    // ⚠️ Su questi l'indirizzo IP e' IMPLICITO e il flag `hasIP` NON c'e': marca
+    // solo i tipi NON attivi che possono comunque avere un IP (UPS/PDU/ATS/media
+    // converter + endpoint di pavimento). Chi deve sapere "puo' avere un IP?"
+    // scrive quindi `def.isActive || def.hasIP` — il solo `hasIP` esclude tutta
+    // l'infrastruttura (bug trovato il 2026-07-23 in lib/subbar-stats.js).
     switch:      { isRack:true,  isActive:true,   mgmtEligible:true, stackEligible:true, name:'Switch',             icon:'fa-network-wired',   sizeU:1, ports:24, brand:'Cisco'     },
     router:      { isRack:true,  isActive:true,   mgmtEligible:true, haEligible:true, wifiServe:true, name:'Router',             icon:'fa-route',           sizeU:1, ports:8,  brand:'Juniper'   },
     firewall:    { isRack:true,  isActive:true,   mgmtEligible:true, haEligible:true, wifiServe:true, name:'Firewall',           icon:'fa-shield-halved',   sizeU:1, ports:4,  brand:'Fortinet'  },

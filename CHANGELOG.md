@@ -2,6 +2,14 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-23 — The "documented" percentage was counting the wrong devices
+
+The sub-header reports how much of the addressing is documented. On a real project it read **19/19 · 100%** — while twelve switches, routers, an hypervisor, a server and a WLAN controller, all carrying an IP, were not in the denominator at all. The percentage happened to be right; the population it described was not.
+
+### Fixed
+- **An active device is addressable even without the `hasIP` flag.** In the type catalogue `hasIP` marks only the *non-active* types that can still hold an address — UPS, PDU, ATS, media converter, and the floor endpoints; on switches, routers, firewalls, hypervisors and controllers the address is implicit in `isActive`, which is why the rest of the codebase asks `isActive || hasIP` in six places. The statistics engine asked for `hasIP` alone. On *Rete+Lab* the count goes from 19 to **31 addressable devices**; on the 500-device bench the documented share becomes 99% of 490 instead of a subset. `lib/subbar-stats.js`.
+- **The test fixture described a catalogue that does not exist** — it declared `switch: { hasIP: true }`, so the suite was green while production was wrong. It now mirrors `src/app-types.js`, plus a regression test pinning that an active type with no `hasIP` counts, and that an active device *without* an address lowers the percentage instead of vanishing from it. The catalogue itself now states the rule where the flag is missing, rather than implying it in a section heading. `test/subbar-stats.test.js`, `src/app-types.js`.
+
 ## 2026-07-23 — Looking is not editing: the Topology view no longer marks the project as unsaved
 
 Switching to the Topology view turned the Save button amber. Nothing had been edited — and an unsaved-changes indicator that fires when you merely *look* at something is worse than no indicator: it teaches you to ignore the one signal that tells you whether your documentation is safe on disk.
