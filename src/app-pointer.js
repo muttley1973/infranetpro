@@ -220,7 +220,7 @@ function handleDrop(e,zone){
 // POINTER EVENTS
 // ============================================================
 function handlePointerDown(e){
-    if(e.target.closest('header')||e.target.closest('#sidebar-left')||e.target.closest('#sidebar-divider')||e.target.closest('#props-panel-wrap')||e.target.closest('#right-tab-bar')||e.target.closest('.zoom-controls')||e.target.closest('#modal-overlay')||e.target.closest('.tool-modal-overlay')||e.target.closest('#user-manager-overlay')||e.target.closest('#chpwd-overlay')||e.target.closest('#vlan-members-overlay')||e.target.closest('.rack-header')||e.target.closest('#popup')||e.target.closest('#lag-sel-banner')||e.target.closest('#topo-tip')||e.target.closest('#topo-legend')) return;
+    if(e.target.closest('header')||e.target.closest('#sidebar-left')||e.target.closest('#sidebar-divider')||e.target.closest('#props-panel-wrap')||e.target.closest('#right-tab-bar')||e.target.closest('.zoom-controls')||e.target.closest('#map-view-bar')||e.target.closest('#modal-overlay')||e.target.closest('.tool-modal-overlay')||e.target.closest('#user-manager-overlay')||e.target.closest('#chpwd-overlay')||e.target.closest('#vlan-members-overlay')||e.target.closest('.rack-header')||e.target.closest('#popup')||e.target.closest('#lag-sel-banner')||e.target.closest('#topo-tip')||e.target.closest('#topo-legend')) return;
     // P1.5 — Modalita' instradamento cavo (editor segmenti, Opzione A):
     // SOLO il click su una porta agisce (spezza il cavo se la porta e'
     // evidenziata, avvisa altrimenti). Ogni altro click — area vuota mappa,
@@ -693,18 +693,32 @@ function _tryFinishLink(tgt){
     _cancelLink(); renderAll(); return true;
 }
 
+// Il puntatore si e' MOSSO davvero fra pointerdown e pointerup? Stessa soglia del
+// drag (5px). Serve ai pan: un pan che non ha spostato nulla NON e' una modifica
+// del documento — senza questo un semplice click sulla mappa accendeva il pallino
+// "non salvato", e l'indicatore di modifica diventa rumore che si impara a ignorare.
+function _pointerMoved(e){
+    const p = store._dragDownPt;
+    if(!p) return true;   // origine sconosciuta → non azzardare, tratta come movimento
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    return (dx*dx + dy*dy) >= (_DRAG_THRESHOLD_PX * _DRAG_THRESHOLD_PX);
+}
+
 function handlePointerUp(e){
     // Drag/resize: solo tasto sinistro
     if(e.button===0){
         if(store.isPanningFloor){
-            store.isPanningFloor=false; markDirty();
+            store.isPanningFloor=false;
+            if(_pointerMoved(e)) markDirty();
             const fp=document.getElementById('floorplan');
             if(fp) fp.style.cursor=store._spaceDown?'grab':'';
             _renderModeIndicator();
         }
-        // Pan rack: lo scroll non e' stato persistito → niente markDirty.
+        // Pan rack: la posizione della vista (state.rackView) VIAGGIA col progetto
+        // → un pan vero e' una modifica; un click fermo no (stessa regola del floor).
         if(store.isPanningRack){
-            store.isPanningRack=false; markDirty();
+            store.isPanningRack=false;
+            if(_pointerMoved(e)) markDirty();
             document.body.classList.remove('rack-panning');
             const rv=document.getElementById('rack-viewport');
             if(rv) rv.style.cursor=store._spaceDown?'grab':'';
