@@ -162,6 +162,18 @@ The **glue** (`src/app-*.js`, ESM) calls `buildSomething(...)` and turns the res
 HTML/DOM. **Logic is unit-tested in `lib/`; presentation is not.** When adding a
 feature: put the *decision* logic in a pure lib with tests, keep the glue thin.
 
+A **display** decision can be a pure lib too, and `lib/node-label.js` is the case worth
+copying: it answers "how does this device read" — a readable part plus an address —
+without ever touching `node.name`, which is a *declared* field. It exists because the
+Discover import stores the IP as the name when no hostname is found, so the honest fix
+was to derive the label from what is already measured (classified type + OUI vendor),
+never to write a guess into the document. The point of putting it in `lib/` is that a
+single implementation then serves **every** surface — floor plan, drift report, audit
+log, L3 map, cable labels, dossier — through one glue function (`getNodeDisplayName`),
+instead of each surface reinventing the fallback. Server-side consumers (`server/pdf-report.js`)
+require it directly; `src/` modules import it as ESM (like `lib/ipv6.js`), which keeps
+it off the Axis-A `win.*` ratchet entirely.
+
 Recent example: `lib/drawio-export.js` (`buildDrawioXml`) builds the draw.io / mxGraph
 rack export as pure data-in → data-out (native `mxCell`s, calibrated against
 diagrams.net); its glue `exportDrawio()` and the menu wiring live in the classic

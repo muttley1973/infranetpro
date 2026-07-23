@@ -13,7 +13,8 @@ import { nodeById, getNodeByPortId, getPortNodeId, renderCables, _linksForPort, 
 import { propagateVlans, _linkIsTrunk, _effPortVlan } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderTopoOverlay, _renderTopoLegend } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
-import { TYPES, _frontPanelPortLabel, _fixedRackLabel, _frontPanelState, _frontPanelRows, _frontPanelIsUplink, _frontPanelSfpPorts, _frontPanelSfpGroups } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { TYPES, typeShort, _frontPanelPortLabel, _fixedRackLabel, _frontPanelState, _frontPanelRows, _frontPanelIsUplink, _frontPanelSfpPorts, _frontPanelSfpGroups } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { nodeLabelParts } from '../lib/node-label.js';   // lib pura importata ESM (come lib/ipv6.js): NON un globale su window
 import { switchRack, toggleRackPanel, applyUiColors, _updateRackFloorBtn } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { portTip, _portLagGid, _isLagFocusedPort, _updateLagBanner } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _l3GatewayNodeIds } from './app-l3.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
@@ -150,8 +151,28 @@ function _buildFloorNodeEl(n, def, absentCls){
     const _ferr = _snmpOn && n.snmpStatus==='err' ? ` style="outline:2px solid #f85149;outline-offset:2px;border-radius:3px"` : '';
     const _v3BadgeF = (typeof _v3NeedsCreds === 'function' && _v3NeedsCreds(n))
         ? `<span class="floor-v3-badge" title="${t('pnl.gen.v3MissingCreds')}"><i class="fas fa-key"></i></span>` : '';
-    el.innerHTML = `${icon}${_v3BadgeF}<div class="label" style="display:flex;align-items:center;justify-content:center"${_ferr}>${escapeHTML(n.type==='wallport'?getWallPortLabel(n):(typeof _dispName==='function'?_dispName(n.name):n.name))}</div>${pts}${_radioPortHtml(n)}`;
+    el.innerHTML = `${icon}${_v3BadgeF}<div class="label"${_ferr}>${_floorLabelHtml(n)}</div>${pts}${_radioPortHtml(n)}`;
     return { el, structural: false };
+}
+// _floorLabelHtml — etichetta del nodo in planimetria: PRIMA la parte leggibile,
+// POI l'indirizzo (piu' tenue). Vedi lib/node-label.js per il perche': quando lo
+// Scopri non trova un hostname, `node.name` FINISCE PER ESSERE L'IP, e una mappa
+// di soli numeri non e' documentazione. La riga leggibile derivata (tipo+vendor,
+// entrambi MISURATI) e' solo display: `node.name` non viene mai riscritto.
+function _floorLabelHtml(n){
+    // La presa a muro ha un'etichetta sua (codice della presa) e non ha indirizzi.
+    if(n.type === 'wallport') return `<span class="nl-name">${escapeHTML(getWallPortLabel(n))}</span>`;
+    // Etichetta BREVE del tipo (typeShort): "Dispositivo IoT" non dice nulla —
+    // sono tutti dispositivi. Resta il token che distingue, piu' la marca:
+    // "IoT-AzureWave".
+    const p = nodeLabelParts(n, { typeName: typeShort(n.type) });
+    // Il toggle "Nomi abbreviati" (lib/name-abbrev.js) vale su TUTTE le righe
+    // leggibili, derivate incluse: abbrevia la prima parola solo se e' un tipo
+    // noto, quindi sui nomi liberi e' un no-op — escluderle sarebbe arbitrario.
+    const primary = (typeof _dispName === 'function') ? _dispName(p.primary) : p.primary;
+    const nameCls = p.derived ? 'nl-name nl-derived' : 'nl-name';
+    const addr = p.secondary ? `<span class="nl-addr">${escapeHTML(p.secondary)}</span>` : '';
+    return `<span class="${nameCls}">${escapeHTML(primary)}</span>${addr}`;
 }
 function _renderAllNow(){
     // Hold tab-Rack (selectPathSegment): decade appena il segmento non e' piu'

@@ -575,7 +575,8 @@ function _buildFloorSVG(opts){
         const col=_floorNodeColor(n.type);                 // colore base per TIPO (come a schermo)
         const devInfo=_SVG_DEV[n.type]||{ ab:(def.name||n.type).replace(/[^a-zA-Z]/g,'').substring(0,3).toUpperCase(), fa:null };
         const ab=devInfo.ab;
-        const label=escapeHTML((typeof _dispName==='function'?_dispName(n.name):n.name)||_typeName(n.type));
+        const _nm=(typeof getNodeDisplayName==='function'?getNodeDisplayName(n):n.name)||_typeName(n.type);
+        const label=escapeHTML((typeof _dispName==='function'?_dispName(_nm):_nm));
         // Presenza (stessa logica di _buildFloorNodeEl): present=colore tipo · absent=anello
         // rosso d'allerta (icona resta del tipo) · unverified=grigio + attenuato (opacità).
         const presence = n.snmpStatus==='ok' ? 'present'
@@ -1183,7 +1184,7 @@ function _buildPdfReportData() {
             for (let i = 1; i <= pc; i++) {
                 const startPid = `${fn.id}-${i}`;
                 if (!_linksForPort(startPid).length) continue;
-                const steps = [`${fn.name || _typeName(fn.type)} P${i}`];
+                const steps = [`${getNodeDisplayName(fn) || _typeName(fn.type)} P${i}`];
                 let cur = startPid;
                 const vis = new Set([startPid]);
                 for (let h = 0; h < 12; h++) {
@@ -1194,7 +1195,7 @@ function _buildPdfReportData() {
                     if (vis.has(nxt)) break;
                     vis.add(nxt);
                     const nn = getNodeByPortId(nxt); if (!nn) break;
-                    steps.push(`${nn.name || _typeName(nn.type)} P${nxt.split('-').slice(1).join('-')}`);
+                    steps.push(`${getNodeDisplayName(nn) || _typeName(nn.type)} P${nxt.split('-').slice(1).join('-')}`);
                     if (TYPES[nn.type]?.isActive) break;
                     cur = nxt;
                 }
@@ -1290,7 +1291,7 @@ function _buildPdfReportData() {
             // Escludi dispositivi passivi (patch panel, passacavo, presa a muro, ecc.)
             // e strutturali (stanze): non generano VLAN proprie
             if (def?.isPassive || def?.isStructural) continue;
-            const devName = n.name || n.hostname || def?.name || n.type;
+            const devName = getNodeDisplayName(n) || n.hostname || def?.name || n.type;
             const portNum = parseInt(pid.split('-').pop(), 10) || 0;
             if (!byDevice[devName]) byDevice[devName] = [];
             byDevice[devName].push(portNum);

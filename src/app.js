@@ -8,7 +8,8 @@ import { canonicalizeIpv6 } from '../lib/ipv6.js';
 import { migrateVmNics, VM_FLAT_NET_FIELDS } from '../lib/vm-nics.js';   // migrazione vm.ip/mac/vlan → vm.nics[]
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, normalizeNumber, normalizeStatus, normalizeMacAddress, _shadeHex } from './app-util.js';   // helper puri estratti dal god-file
-import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (prima letto dal global implicito) + nome localizzato
+import { TYPES, typeName, typeShort } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (prima letto dal global implicito) + nome localizzato
+import { nodeLabelParts } from '../lib/node-label.js';   // lib pura importata ESM: come si LEGGE il nome di un device
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: chiamate prima bare-global
 import { renderProps } from './app-properties.js';   // idem
 import { showAlert, saveProject } from './app-core.js';   // saveProject: ASSE B, scorciatoia Ctrl+S (ex win.saveProject)
@@ -1002,7 +1003,7 @@ export function _cableAutoLabel(l){
     const sn=getNodeByPortId(l.src), dn=getNodeByPortId(l.dst);
     const sp=_portNumForLabel(sn, l.src.split('-').slice(1).join('-'));
     const dp=_portNumForLabel(dn, l.dst.split('-').slice(1).join('-'));
-    return `${_dispName(sn?.name||l.src)} P${sp} → ${_dispName(dn?.name||l.dst)} P${dp}`;
+    return `${_dispName(sn ? getNodeDisplayName(sn) : l.src)} P${sp} → ${_dispName(dn ? getNodeDisplayName(dn) : l.dst)} P${dp}`;
 }
 
 export function _promoteLinkToManual(link){
@@ -1503,9 +1504,17 @@ export function getNodePortCount(n) {
     if(n.type==='wallport') return 1;
     return n.ports!==undefined?n.ports:TYPES[n.type]?.ports||0;
 }
+// Nome LEGGIBILE del device, unico per tutte le superfici (drift, audit, mappa
+// L3, cablaggio, dossier, ricerca…). L'intento era gia' "nome, altrimenti il
+// tipo", ma il ramo di fallback non scattava MAI: l'import dello Scopri, senza
+// hostname, scrive l'IP dentro `n.name` (`_discDisplayName`), quindi il nome
+// c'era sempre — ed era un numero. Ora la scelta la fa lib/node-label.js, che
+// riconosce il nome-uguale-all-indirizzo e compone tipo+marca dal MISURATO.
+// Resta di solo DISPLAY: `n.name` non viene mai riscritto.
 export function getNodeDisplayName(n) {
     if(!n) return 'Unknown';
-    return n.name||typeName(n.type)||n.id||'Unknown';
+    const p = nodeLabelParts(n, { typeName: typeShort(n.type) });
+    return p.primary || n.id || 'Unknown';
 }
 
 export function _ensureIpamState(){

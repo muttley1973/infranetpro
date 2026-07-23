@@ -4,6 +4,11 @@
 //  Estratto da server.js senza modifiche di logica.
 // ============================================================
 
+// Lib PURE del core (nessun IO, nessuna dipendenza esterna): si caricano subito,
+// a differenza di pdfkit che resta lazy.
+const { nodeLabelParts } = require('../lib/node-label.js');
+const { _i18nDict: _I18N_DICT } = require('../lib/i18n.js');   // dizionario indicizzabile per lingua, senza cambiare quella globale
+
 let _pdfkitMod = null, _svgToPdfMod = null;
 function _loadPdfDeps() {
   if (!_pdfkitMod) {
@@ -770,6 +775,20 @@ function _fmtRevised(v, lang) {
 // puo' finire nel PDF. `lastRevised` = project.updated_at (ultima modifica del
 // documento), distinta dalla data di generazione. Requisito documentale NIS2/ISO
 // 27001 (A.5.9): register di asset con owner/ubicazione/identita + data revisione.
+// Colonna «Dispositivo»: la domanda e' QUALE apparato e', non quale indirizzo
+// ha (l'IP ha una colonna sua). Quando l'import dello Scopri non ha trovato un
+// hostname, `name` E' l'indirizzo (_discDisplayName) e ripeterlo qui non dice
+// nulla: si compone allora tipo + marca, entrambi MISURATI. Il DTO resta
+// intatto — e' contratto della REST API v1, qui si cambia solo la stampa.
+function _assetDeviceLabel(d, lang) {
+  if (!d) return '';
+  const dict = (_I18N_DICT && _I18N_DICT[lang === 'en' ? 'en' : 'it']) || null;
+  const typeLabel = dict
+    ? (dict['type.short.' + d.type] || dict['type.' + d.type] || String(d.type || ''))
+    : String(d.type || '');
+  return nodeLabelParts(d, { typeName: typeLabel }).primary || d.name || '';
+}
+
 function _addAssetRegisterPages(doc, assets, projName, date, lastRevised, lang = 'it') {
   const list = Array.isArray(assets) ? assets : [];
   const L = _rlang(lang);
@@ -799,7 +818,7 @@ function _addAssetRegisterPages(doc, assets, projName, date, lastRevised, lang =
   ]; // 539
   const rows = list.map((d, i) => [
     i + 1,
-    d.name || '-', d.type || '-', d.brand || '-', d.model || '-',
+    _assetDeviceLabel(d, lang) || '-', d.type || '-', d.brand || '-', d.model || '-',
     d.serial || '-', d.ip || '-', d.mac || '-',
     (d.vlan != null ? String(d.vlan) : '-'),
     d.rack ? (String(d.rack.name || d.rack.id || '') + (d.rack.u != null ? ` U${d.rack.u}` : '')) : '-',
@@ -807,4 +826,4 @@ function _addAssetRegisterPages(doc, assets, projName, date, lastRevised, lang =
   _rTable(doc, cols, rows, y, T, projName, date);
 }
 
-module.exports = { _loadPdfDeps, _addReportPages, _addCoverPage, _addNotesPages, _addChangelogPages, _addSparePages, _addAssetRegisterPages, _fmtRevised, _rt, _fit, _wrapFit };
+module.exports = { _loadPdfDeps, _addReportPages, _addCoverPage, _addNotesPages, _addChangelogPages, _addSparePages, _addAssetRegisterPages, _assetDeviceLabel, _fmtRevised, _rt, _fit, _wrapFit };
