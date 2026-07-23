@@ -246,7 +246,13 @@
         /* Icona centrale wireless (AP) un po' più piccola delle altre */
         .floor-node i.icon.fa-wifi { font-size:var(--fs-xl); }
         .floor-node i.icon.port { pointer-events:auto; }
-        .floor-node .label { font-size:var(--fs-xs); color:var(--text-muted); pointer-events:none; white-space:nowrap; }
+        .floor-node .label { font-size:var(--fs-xs); color:var(--text-muted); pointer-events:none; white-space:nowrap; display:flex; flex-direction:column; align-items:center; justify-content:center; line-height:1.25; }
+        /* Etichetta a due righe: PRIMA cosa e', POI dove sta. L'indirizzo resta
+           sempre visibile ma piu' tenue — vedi lib/node-label.js. */
+        .floor-node .label .nl-name { color:var(--text-main); font-weight:550; max-width:118px; overflow:hidden; text-overflow:ellipsis; }
+        .floor-node .label .nl-name.nl-derived { font-weight:450; color:var(--text-muted); }
+        .floor-node .label .nl-addr { font-size:.68rem; color:var(--text-muted); opacity:.85; font-variant-numeric:tabular-nums; }
+        .floor-node.port-selected .label .nl-name { color:#d7f7ff; }
         .floor-node.vlan-dim { opacity:0.18; pointer-events:none; }
         /* VLAN membership modal */
         .vm-section { margin-bottom:18px; }

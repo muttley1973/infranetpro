@@ -9,7 +9,7 @@ let deps;
 try { deps = require('../server/pdf-report.js')._loadPdfDeps(); }
 catch { /* pdfkit non installato: salto sotto */ }
 
-const { _fit, _wrapFit, _addReportPages } = require('../server/pdf-report.js');
+const { _fit, _wrapFit, _addReportPages, _assetDeviceLabel } = require('../server/pdf-report.js');
 
 function newDoc() {
   const doc = new deps.PDFDocument({ size: [595, 842], margins: { top: 0, bottom: 0, left: 0, right: 0 } });
@@ -72,4 +72,31 @@ test('report inventario: etichette lunghe -> render senza eccezioni, PDF non vuo
   const buf = Buffer.concat(chunks);
   assert.ok(buf.length > 500, 'PDF prodotto (' + buf.length + ' byte)');
   assert.equal(buf.slice(0, 4).toString(), '%PDF');
+});
+
+// ── Colonna «Dispositivo» del registro asset ─────────────────────────
+// Quando lo Scopri non trova un hostname mette l'IP in `name`: ripeterlo in una
+// colonna che chiede QUALE apparato sia, accanto a una colonna IP, non informa.
+// Il DTO NON viene toccato: `name` resta contratto della REST API v1.
+test('registro asset: senza nome documentato la colonna Dispositivo dice tipo+marca', () => {
+  const d = { name: '192.168.1.101', ip: '192.168.1.101', type: 'iot', brand: 'Eaton' };
+  assert.strictEqual(_assetDeviceLabel(d, 'it'), 'IoT-Eaton');
+  assert.strictEqual(_assetDeviceLabel(d, 'en'), 'IoT-Eaton');
+  assert.strictEqual(d.name, '192.168.1.101', 'il DTO non viene mutato');
+});
+
+test('registro asset: un nome vero resta intatto', () => {
+  const d = { name: 'SW-CORE', ip: '10.10.30.1', type: 'switch', brand: 'Cisco' };
+  assert.strictEqual(_assetDeviceLabel(d, 'it'), 'SW-CORE');
+});
+
+test('registro asset: il tipo segue la lingua del dossier', () => {
+  const d = { name: '10.0.0.7', ip: '10.0.0.7', type: 'printer', brand: 'HP' };
+  assert.strictEqual(_assetDeviceLabel(d, 'it'), 'Stampante-HP');
+  assert.strictEqual(_assetDeviceLabel(d, 'en'), 'Printer-HP');
+});
+
+test('registro asset: senza tipo ne marca resta l indirizzo, mai vuoto', () => {
+  assert.strictEqual(_assetDeviceLabel({ name: '10.0.0.9', ip: '10.0.0.9' }, 'it'), '10.0.0.9');
+  assert.strictEqual(_assetDeviceLabel(null, 'it'), '');
 });

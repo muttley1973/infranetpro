@@ -302,9 +302,18 @@ export function typeName(k){
     const s = t(key);
     return (s === key) ? ((TYPES[k] && TYPES[k].name) || k) : s;
 }
+// Etichetta BREVE del tipo, per gli spazi stretti (nodo di planimetria ~60px).
+// Esiste solo per i tipi il cui nome di catalogo e' prosa senza separatore
+// ("Dispositivo IoT" → "IoT"): dove manca si ricade sul nome lungo, che il
+// chiamante accorcia comunque al primo separatore (lib/node-label.js).
+export function typeShort(k){
+    const key = 'type.short.' + k;
+    const s = t(key);
+    return (s === key) ? typeName(k) : s;
+}
 
 expose({
-    TYPES, typeName,
+    TYPES, typeName, typeShort,
     NODE_ID_PREFIX,
     _fixedRackLabel, _isNodeSpecField, _ensureNodeSpec, _compactNodeSpec, _nodeSpecView,
     _frontPanelLegacyState, _frontPanelState, _frontPanelSfpPorts, _frontPanelSfpGroups,

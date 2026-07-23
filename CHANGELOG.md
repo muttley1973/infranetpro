@@ -2,6 +2,22 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-23 — Name first: a floor plan made of IP addresses is a dump, not documentation
+
+Half the devices on a real map read `192.168.1.133`. Not because the renderer preferred the address — it already asked for `n.name` — but because **the name *was* the address**: when Discover finds no usable hostname, `_discDisplayName` falls back to the IP and that is what lands in `node.name`. On the sample project it happens to **19 devices out of 34**. The same value then repeated itself in the asset register, one column away from the IP column.
+
+Writing a made-up name into the document was not an option: `node.name` is a declared field and no engine gets to guess it. So the label is **derived for display only**, from what is already measured — the type (classifier) and the vendor (OUI) — and `node.name` is never rewritten.
+
+### Added
+- **`lib/node-label.js` (new, pure + 24 unit tests)** — `nodeLabelParts()` splits a device into a readable part and an address, recognising the name-equals-address case; `normalizeVendor()` turns the IEEE company name into a brand (`Cisco Systems, Inc.` → `Cisco`, `Hangzhou Hikvision Digital Technology Co.,Ltd.` → `Hikvision`) by stripping generic corporate suffixes, always slicing the original string so internal capitals survive (`MikroTik`, `LaCie`, `AzureWave`). OUI placeholders for randomised MACs (`Private`, `Unknown`, `n/a`…) are **not** brands and never printed as one. `tsconfig.json`.
+- **Short type labels, translated** — `type.short.*` (17 keys × it/en) plus `typeShort()` in `src/app-types.js`. Catalogue names are written for a dropdown: on a 60px node "Dispositivo IoT" says nothing (everything is a device) and "Smart TV / Media Player" overflows. Names with a separator are cut mechanically at the first `/`, `(` or em dash; the ones that are prose get an explicit short form. `lib/i18n.js`.
+- **The floor label became two lines** — what it is on top, where it is underneath, in a lighter tone. A declared name is rendered at full weight, a derived one lighter, so the two are never confused. `src/app-render-core.js`, `styles/04-floor-rack.css`, +1 e2e asserting `node.name` is not rewritten.
+
+### Changed
+- **`getNodeDisplayName()` finally does what it always said it did.** Its fallback (`n.name || typeName(n.type)`) had never once fired, because a name was always present. Routing it through the new lib fixes **59 call sites at once**: drift report, audit log, L3 map, cabling editor, L2 segment panel, hypervisor toasts, search. `src/app.js`.
+- **Cable labels and the dossier read the same way** — automatic cable label, node text in the exported floor SVG, as-built cable paths, VLAN-by-device. `src/app.js`, `export.js`.
+- **The asset register answers "which device", not "which address".** The *Device* column repeated the IP column for those 19 rows; it now carries the derived label, following the dossier's language. The DTO is untouched: those objects are the **REST API v1 contract**, so the change lives in the renderer and a test pins that `d.name` is not mutated. `server/pdf-report.js`, `test/pdf-report.test.js`.
+
 ## 2026-07-22 — vNIC ports: a VM can finally have more than one network card
 
 A VM record held **one** address (`vm.ip/ip6/mac/vlan`), so a virtual firewall with WAN + LAN + DMZ could be documented for a third of what it is. The gap was already leaking into the code in two places: `lib/vlan-trunk.js` carried a comment about squeezing multi-vNIC appliances into a comma-separated `vm.vlan`, and the SNMP read gave up whenever it measured more than one MAC, because there was only one field to write it into.

@@ -4224,6 +4224,53 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       const errs = pageErrors.slice(errBefore);
       assert.equal(errs.length, 0, 'nessun errore JS: ' + errs.join(' | '));
     });
+
+    // Etichetta di planimetria: PRIMA cosa e', POI dove sta. Lo Scopri, senza
+    // hostname, mette l'IP in `node.name` (app-discovery.js `_discDisplayName`):
+    // la riga leggibile va DERIVATA dal misurato, senza riscrivere il documento.
+    await t.test('Planimetria: etichetta nome-primo — nome vero, riga derivata, e `node.name` mai riscritto', async () => {
+      const errBefore = pageErrors.length;
+      await page.evaluate(() => {
+        state.nodes.push(
+          { id: 'e2eLblA', type: 'nasdesktop', name: 'NAS-Backup', ip: '10.9.0.10', brand: 'Synology', x: 40, y: 40 },
+          { id: 'e2eLblB', type: 'webcam', name: '10.9.0.20',     ip: '10.9.0.20', brand: 'Reolink',  x: 40, y: 140 },
+          { id: 'e2eLblC', type: 'pc',     name: '10.9.0.30',     ip: '10.9.0.30', brand: 'Private',  x: 40, y: 240 },
+        );
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        renderAll();
+      });
+      // renderAll e' coalescato su requestAnimationFrame: dentro un evaluate
+      // sincrono il DOM non e' ancora riscritto. Serve un'attesa VERA.
+      await page.waitForSelector('#floor-items [data-id="e2eLblC"] .label', { timeout: 5000 });
+      const r = await page.evaluate(() => {
+        const read = id => {
+          const el = document.querySelector(`#floor-items [data-id="${id}"] .label`);
+          return el ? {
+            name: el.querySelector('.nl-name')?.textContent || '',
+            addr: el.querySelector('.nl-addr')?.textContent || '',
+            derived: !!el.querySelector('.nl-derived'),
+          } : null;
+        };
+        const stored = id => (state.nodes.find(n => n.id === id) || {}).name;
+        return {
+          a: read('e2eLblA'), b: read('e2eLblB'), c: read('e2eLblC'),
+          storedB: stored('e2eLblB'), storedC: stored('e2eLblC'),
+        };
+      });
+      // Nome dichiarato: vince, e l'IP scende in seconda riga.
+      assert.deepEqual(r.a, { name: 'NAS-Backup', addr: '10.9.0.10', derived: false });
+      // Nome = IP: riga leggibile derivata da tipo + vendor MISURATI, con il
+      // tipo ridotto al token che distingue («Dispositivo IoT» → «IoT»).
+      assert.equal(r.b.name, 'Webcam-Reolink', 'tipo breve + vendor OUI');
+      assert.equal(r.b.addr, '10.9.0.20', 'l’indirizzo resta sempre visibile');
+      assert.ok(r.b.derived, 'la riga derivata è marcata (resa più tenue)');
+      assert.equal(r.c.name, 'PC', 'tipo composto «PC / Workstation» ridotto alla prima voce');
+      // Il paletto: si cambia il DISPLAY, mai il dato dichiarato.
+      assert.equal(r.storedB, '10.9.0.20', 'node.name NON riscritto');
+      assert.equal(r.storedC, '10.9.0.30', 'node.name NON riscritto');
+      const errs = pageErrors.slice(errBefore);
+      assert.equal(errs.length, 0, 'nessun errore JS: ' + errs.join(' | '));
+    });
   } finally {
     await browser.close();
     await srv.close();
