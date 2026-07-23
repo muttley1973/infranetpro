@@ -2,6 +2,14 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-23 — Looking is not editing: the Topology view no longer marks the project as unsaved
+
+Switching to the Topology view turned the Save button amber. Nothing had been edited — and an unsaved-changes indicator that fires when you merely *look* at something is worse than no indicator: it teaches you to ignore the one signal that tells you whether your documentation is safe on disk.
+
+### Fixed
+- **The view controls are chrome, not canvas.** `#map-view-bar` (the Topology toggle and the VLAN filter) is positioned inside `<main id="floorplan">` so it stays fixed while the map pans and zooms. `handlePointerDown` reads that as a click on the empty map: it cleared the selection and opened a pan, and the matching `pointerup` called `markDirty()`. The bar now sits in the same exclusion list that already covered the zoom controls — which also means clicking it no longer deselects what you had selected. `src/app-pointer.js`.
+- **A pan that moved nothing is not a change.** Floor and rack pans marked the document dirty on every `pointerup`, including a plain click that never moved the pointer. Both now use the same 5px threshold as a drag, so only a real pan counts. The view *is* saved with the project, so a genuine pan still marks it dirty — that part was correct. `src/app-pointer.js`, +1 e2e covering both views and the real-pan case.
+
 ## 2026-07-23 — Name first: a floor plan made of IP addresses is a dump, not documentation
 
 Half the devices on a real map read `192.168.1.133`. Not because the renderer preferred the address — it already asked for `n.name` — but because **the name *was* the address**: when Discover finds no usable hostname, `_discDisplayName` falls back to the IP and that is what lands in `node.name`. On the sample project it happens to **19 devices out of 34**. The same value then repeated itself in the asset register, one column away from the IP column.

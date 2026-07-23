@@ -4271,6 +4271,53 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       const errs = pageErrors.slice(errBefore);
       assert.equal(errs.length, 0, 'nessun errore JS: ' + errs.join(' | '));
     });
+
+    await t.test('Cambiare VISTA non sporca il DOCUMENTO (Topologia, click fermo) — un pan vero sì', async () => {
+      // Regressione 2026-07-23: il bottone Topologia vive DENTRO #floorplan
+      // (#map-view-bar e' chrome a viewport fissa). Il pointerdown finiva nel
+      // ramo "click su area vuota della mappa" → apriva un pan, e il pointerup
+      // chiamava markDirty(): guardare la topologia marcava il progetto come
+      // non salvato. Un indicatore di modifica che mente si impara a ignorare.
+      const dirty = () => page.evaluate(() => !!document.getElementById('btn-save')?.classList.contains('save-dirty'));
+      const clean = () => page.evaluate(() => { if (typeof _clearDirty === 'function') _clearDirty(); });
+      const box = await page.locator('#floorplan').boundingBox();
+      // angolo in basso a destra della mappa: area vuota (i nodi stanno in alto a sinistra)
+      const ex = box.x + box.width - 40, ey = box.y + box.height - 40;
+
+      // Parti da uno stato noto: i test precedenti possono aver lasciato la
+      // topologia accesa (il click sarebbe uno SPEGNIMENTO).
+      await page.evaluate(() => { if (window._topoVisible && typeof toggleTopology === 'function') toggleTopology(); });
+      await page.waitForFunction(() => window._viewMode !== 'topology', null, { timeout: 5000 });
+
+      await clean();
+      await page.click('#btn-topology');
+      await page.waitForFunction(() => window._viewMode === 'topology', null, { timeout: 5000 });
+      assert.equal(await dirty(), false, 'attivare la vista Topologia non sporca il progetto');
+
+      await page.click('#btn-topology');
+      await page.waitForFunction(() => window._viewMode === 'map', null, { timeout: 5000 });
+      assert.equal(await dirty(), false, 'nemmeno tornare alla mappa');
+
+      // Stessa classe di difetto: un click FERMO sulla mappa apre e chiude un pan
+      // che non ha spostato nulla → niente da salvare.
+      await clean();
+      await page.mouse.click(ex, ey);
+      assert.equal(await dirty(), false, 'un click fermo sulla mappa non è una modifica');
+
+      // Ma la vista (state.floorView) VIAGGIA col progetto: un pan vero è una modifica.
+      const fvBefore = await page.evaluate(() => ({ x: state.floorView.x, y: state.floorView.y }));
+      await page.mouse.move(ex, ey);
+      await page.mouse.down();
+      await page.mouse.move(ex - 120, ey - 80, { steps: 6 });
+      await page.mouse.up();
+      const fvAfter = await page.evaluate(() => ({ x: state.floorView.x, y: state.floorView.y }));
+      assert.equal(fvAfter.x - fvBefore.x, -120, 'il pan ha davvero spostato la vista');
+      assert.equal(await dirty(), true, 'un pan vero sporca il progetto (la vista è salvata)');
+
+      // Ripristina la vista per i test successivi.
+      await page.evaluate((fv) => { state.floorView.x = fv.x; state.floorView.y = fv.y; updateTransforms(); }, fvBefore);
+      await clean();
+    });
   } finally {
     await browser.close();
     await srv.close();
