@@ -137,6 +137,29 @@ test('export: trunk nel sommario VLAN (VLAN voce 20 sul trunk switch↔telefono)
   assert.ok(r.carries20, 'il trunk del sommario trasporta la VLAN voce (20)');
 });
 
+test('export: senza Verifica la planimetria NON dichiara «presenti» i device (schema ②)', () => {
+  // Un documento di consegna esportato SENZA Verifica mostrava tutti i device a
+  // colore pieno = «presenti», senza averli mai controllati. Ora, senza _driftReport,
+  // i floor non SNMP-ok sono «non verificati» (grigio #6e7681); DOPO una Verifica il
+  // default torna «present» (il grigio arriva solo dai bucket assente/unverified).
+  const out = run(APP.ctx, `(() => {
+    try {
+      ${SETUP}
+      const cnt = s => (s.match(/#6e7681/g) || []).length;
+      _driftReport = null;                                   // nessuna Verifica
+      const noVerify = cnt(_exportInternals._buildFloorSVG({ pdfMode:false }));
+      _driftReport = { macOrphan: [], unverified: [] };      // Verifica: nessun assente/unverified
+      const verified = cnt(_exportInternals._buildFloorSVG({ pdfMode:false }));
+      _driftReport = null;
+      return JSON.stringify({ ok:true, noVerify, verified });
+    } catch(e){ return JSON.stringify({ ok:false, err:String(e&&e.stack||e) }); }
+  })()`);
+  const r = JSON.parse(out);
+  assert.ok(r.ok, 'lancia: ' + r.err);
+  assert.ok(r.noVerify > 0, 'senza Verifica almeno un floor è «non verificato» (grigio)');
+  assert.ok(r.noVerify > r.verified, 'senza Verifica ci sono più «non verificati» che dopo una Verifica pulita');
+});
+
 test('export: _buildFloorSVG — SVG valido con i device del floor', () => {
   const out = run(APP.ctx, `(() => {
     try {
