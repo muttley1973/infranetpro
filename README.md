@@ -5,7 +5,7 @@
 [![CI](https://github.com/muttley1973/infranetpro/actions/workflows/ci.yml/badge.svg)](https://github.com/muttley1973/infranetpro/actions/workflows/ci.yml)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D16-brightgreen?logo=node.js)](https://nodejs.org/)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2.0.5-orange)]()
+[![Version](https://img.shields.io/badge/version-2.1.0-orange)]()
 [![Lingua: Italiano · English](https://img.shields.io/badge/lang-Italiano%20%C2%B7%20English-00b3d6)]()
 
 <p align="center">

@@ -2,6 +2,38 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-24 — An exported floor plan doesn't claim presence without a Verify (v2.1.0)
+
+The exported planimetria coloured every device in its full type colour — reading as "present/healthy" — even when no Verify had ever run. The `else → present` default is load-bearing *after* a Verify (it covers devices confirmed by other means, e.g. ARP, that land in no drift bucket), but with no drift report the empty buckets made **all** devices look present. On the sample projects, a floor plan exported before any Check showed 18/21, 184/184 and 450/450 devices as verified-present when none had been checked.
+
+### Fixed
+- **No Verify → "unverified", not "present".** With no drift report, a floor device that has not answered SNMP now renders *unverified* rather than present — a static export must not freeze an unchecked state (the same reasoning that makes the draw.io export omit the live SNMP mark). The rendering is deliberately light: the device keeps its type colour, a grey border ring carries the "unverified" cue, and the fade is a gentle `0.7` — legible, not washed out. The on-screen view (which has live context) is unchanged. `export.js`, +2 regression tests.
+
+## 2026-07-24 — "Configured for SNMP" is not "responding"; a wireless problem is one problem
+
+Two counts overstated. The AI context reported `summary.snmp` as the number of "monitored" devices, but it counted devices merely *configured* with a driver — "61 monitored via SNMP" was sayable with zero responders. The wireless-VLAN report listed one row per **radio**: an SSID broadcast on 2.4/5/6 GHz turned 8 real problems into 16 or 24 rows.
+
+### Fixed
+- **`summary.snmpResponding` sits beside `summary.snmp`.** The context now carries how many devices answered "ok" at the last Verify, and the assistant prompt spells out configured ≠ responding (it + en). `server/ai/context.js`, `server/ai/prompt.js`, +test.
+- **The wireless-VLAN check de-duplicates by (AP, SSID, VLAN).** One logical problem is one row, regardless of how many radios broadcast the SSID. `lib/wifi-vlan-check.js`, +test.
+
+## 2026-07-24 — Measures now say when they were taken; devices are counted once
+
+Two families of over-claim. Measured facts — SNMP health, alerts, a UPS on battery — were narrated to the assistant in the present tense with no date, so a reading 50 hours old read as live. And the same word "device" carried two populations on one bar: the onboarding text said "35 devices" (all nodes, rooms included) while the statistic beside it said "34".
+
+### Fixed
+- **The AI context carries `asOf` and `summary.measuredAt`.** The documentation's last-save time and the last SNMP sync are exposed, and the prompt attributes every measured fact to that moment ("as of the last check on …") instead of the present. The sub-header tooltip likewise says SNMP devices "responded at the last check", not "responding". `server/ai/context.js`, `server/ai/prompt.js`, `lib/i18n.js`, +tests.
+- **Onboarding and the statistic count the same population.** Both now count non-structural nodes (34, not the raw 35 that includes a room); the devices tooltip discloses passives — "of which 73 passive: jacks, panels" — so a count of documented elements no longer reads as 73 more active devices than exist. `src/app-ai.js`, `src/app-subbar.js`, `lib/subbar-stats.js`, `lib/i18n.js`, +test.
+
+## 2026-07-24 — The report stops inventing facts the data doesn't support
+
+Four places asserted what nobody had recorded. The delivery dossier's "Virtual machines" chapter filtered hosts on a catalogue flag (`hostsVms`) that the `server` type lacks, so **32 VMs** documented on server nodes vanished (0 shown of 32) and the PDF still read a VM's absent power state as "running". The IPAM "next free IP" was blind to VM addresses — all **32 VM IPs** on the 500-device bench were invisible, so a suggested address could collide with a running VM. And the hardware-capability roll-up summed each inter-switch LAG at **both ends** (664 000 vs 332 000 Mbps) and called the total "uplink" even for downlinks.
+
+### Fixed
+- **The dossier enumerates any `node.vms`, not a catalogue privilege.** VM data is written data, not a type flag; the chapter (and the cover counter) now show every documented VM, and the PDF reads the power state literally (absent → "unspecified"). `export.js`.
+- **IPAM's known-IP set includes every vNIC address.** A VM occupies a real address in its VLAN; "next free" no longer hands one out. `src/app.js`.
+- **No fleet "uplink" sum; an honest per-device LAG figure.** `computeFleetCapabilities` drops the double-counting fleet total in favour of `maxLagAggregateMbps` (a MAX never doubles the two ends); the per-device field is renamed `lagAggregateMbps` — total LAG member bandwidth, direction unknown, not "uplink". `lib/hw-capabilities.js`, +tests; the AI context and prompt follow the rename.
+
 ## 2026-07-24 — An unset HA role is not "Active"; an unmeasured PVID is not "VLAN 1"
 
 The HA panel showed every member as **Active** when its role was not declared — so an active-passive pair imported without roles read as two Actives, a state that cannot exist. The port panel pre-filled the VLAN field with **1** whenever the PVID had never been set or measured, asserting a native VLAN it had only defaulted to. On *Rete+Lab*: **148 of 232 port rows** carried a "VLAN 1" no one had observed.
