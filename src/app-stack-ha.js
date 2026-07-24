@@ -120,7 +120,7 @@ function setNodeHaPair(peerId, role, mode){
     delete spec.haGroupId;
     spec.haPeer = peer.id;
     if(role === 'active' || role === 'standby') spec.haRole = role;
-    else spec.haRole = 'active';
+    else delete spec.haRole;   // ruolo non dichiarato: resta "non specificato", non forzato ad "active"
     if(mode === 'active-passive' || mode === 'active-active') spec.haMode = mode;
     else spec.haMode = 'active-passive';
     // Propaga simmetria al peer (B.peer = A automaticamente, ruolo complementare)
@@ -146,7 +146,7 @@ function setNodeHaCluster(groupId, role, mode){
     }
     spec.haGroupId = gid;
     if(role === 'active' || role === 'standby' || role === 'member') spec.haRole = role;
-    else spec.haRole = 'member';
+    else delete spec.haRole;   // ruolo non dichiarato: resta "non specificato", non forzato a "member"
     if(mode === 'active-passive' || mode === 'active-active' || mode === 'cluster-N') spec.haMode = mode;
     else spec.haMode = 'cluster-N';
     renderAll(); markDirty();

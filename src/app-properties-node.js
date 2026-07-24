@@ -403,7 +403,7 @@ ${_renderMembersList()}
                     const _haPairOn    = isInHaPair(n);
                     const _haClusterOn = isInHaCluster(n);
                     const _haOn        = _haPairOn || _haClusterOn;
-                    const _haRole      = n.spec?.haRole || n.haRole || 'active';
+                    const _haRole      = n.spec?.haRole || n.haRole || '';   // ruolo NON dichiarato ≠ "active" (schema ①): una coppia A-P mostrerebbe 2 Active
                     const _haMode      = n.spec?.haMode || n.haMode || 'active-passive';
                     const _haSync      = n.spec?.haSync || n.haSync || 'state-full';
                     const _haPeerObj   = _haPairOn ? getHaPeer(state.nodes, n) : null;
@@ -424,8 +424,8 @@ ${_renderMembersList()}
                     const _renderHaPartnersList = () => {
                         if(!_haPartners.length) return `<div style="font-size:0.7rem;color:var(--text-muted);padding:4px 0">${t('pnl.node.noPeerConfigured')}</div>`;
                         return `<div class="ha-partners-list">${_haPartners.map(p => {
-                            const _pRole = p.spec?.haRole || p.haRole || 'active';
-                            const _pLabel = `${escapeHTML(p.name || p.hostname || p.id)} · ${escapeHTML(_pRole)}`;
+                            const _pRole = p.spec?.haRole || p.haRole || '';
+                            const _pLabel = `${escapeHTML(p.name || p.hostname || p.id)} · ${escapeHTML(_pRole || t('common.unspecifiedM'))}`;
                             return `<div class="ha-partner-row">${_pLabel}</div>`;
                         }).join('')}</div>`;
                     };
@@ -443,6 +443,7 @@ ${_haPairOn ? `<div class="prop-row2">
   </div>
   <div class="prop-group"><label>${t('f.role')}</label>
     <select onchange="setNodeHaRole(this.value)" data-tip="${t('pnl.node.haRolePairTip')}">
+      <option value=""        ${_haRole===''?'selected':''}>${t('common.unspecifiedM')}</option>
       <option value="active"  ${_haRole==='active'?'selected':''}>Active</option>
       <option value="standby" ${_haRole==='standby'?'selected':''}>Standby</option>
     </select>
@@ -470,6 +471,7 @@ ${_haClusterOn ? `<div class="prop-row2">
   </div>
   <div class="prop-group"><label>${t('f.role')}</label>
     <select onchange="setNodeHaRole(this.value)" data-tip="${t('pnl.node.haRoleClusterTip')}">
+      <option value=""        ${_haRole===''?'selected':''}>${t('common.unspecifiedM')}</option>
       <option value="active"  ${_haRole==='active'?'selected':''}>Active</option>
       <option value="standby" ${_haRole==='standby'?'selected':''}>Standby</option>
       <option value="member"  ${_haRole==='member' ?'selected':''}>Member</option>
