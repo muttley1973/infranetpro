@@ -32,6 +32,18 @@ test('wifiVlanIssues: client con VLAN non distribuita dall’AP', () => {
   assert.equal(out[0].vlan, 99);
 });
 
+test('wifiVlanIssues: lo STESSO SSID su più radio = UN problema, non uno per radio (schema ④)', () => {
+  // apSsidList elenca lo stesso SSID una volta per radio (2.4/5/6 GHz): senza
+  // dedup «8 problemi» diventavano 16/24. Qui 3 radio × lo stesso SSID/VLAN.
+  const out = W.wifiVlanIssues({
+    aps: [{ id:'ap', name:'AP-Corp', uplinkAllowed:[10],
+      ssids:[{ssid:'Corp',vlan:20},{ssid:'Corp',vlan:20},{ssid:'Corp',vlan:20}] }],
+    clients: [],
+  });
+  assert.equal(out.length, 1, 'un solo problema per (AP, SSID, VLAN), non 3');
+  assert.equal(out[0].vlan, 20);
+});
+
 test('wifiVlanIssues: tutto coerente → nessun problema', () => {
   const out = W.wifiVlanIssues({
     aps: [{ id:'ap', name:'AP', ssids:[{ssid:'A',vlan:30}], uplinkAllowed:[10,30] }],

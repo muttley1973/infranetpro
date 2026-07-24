@@ -396,6 +396,15 @@ function buildAiContext(project, liveFacts, scope) {
   if (_asOf) ctx.asOf = _asOf;
   const _snmpAt = Number(state.lastSnmpSyncAt);
   if (Number.isFinite(_snmpAt) && _snmpAt > 0) ctx.summary.measuredAt = new Date(_snmpAt).toISOString();
+  // summary.snmp conta i device CONFIGURATI con un driver (integration.driver),
+  // non quelli che RISPONDONO: «61 monitorati SNMP» con 0 risposte è un inganno
+  // (schema ②/③). Affianchiamo `snmpResponding` = quanti hanno risposto «ok»
+  // all'ultima Verifica → l'assistente distingue «configurati» da «raggiungibili».
+  if (sc.snmpHealth) {
+    let snmpResponding = 0;
+    for (const n of Object.values(rawById)) if (n && n.snmpStatus === 'ok') snmpResponding++;
+    ctx.summary.snmpResponding = snmpResponding;
+  }
   // Riepilogo capacità di FLOTTA (totali utili: porte libere, headroom PoE, banda
   // uplink, AP/SSID) — solo se almeno un device porta capacità.
   const fleetCap = computeFleetCapabilities(devices.map(d => d.capabilities));
