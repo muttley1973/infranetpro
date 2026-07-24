@@ -188,9 +188,14 @@ export function _renderPortProps(panel){
                 }
                 // Campo VLAN/nativa editabile (scrive il PVID = vlanOvr). Riutilizzato
                 // sia dalle porte passive sia dallo switchport (con label diversa).
+                // Onesto: mostra un VALORE solo se la VLAN è DETERMINATA (override
+                // manuale, misurata via SNMP, o propagata da monte); altrimenti il
+                // campo è vuoto con la nativa di sito come placeholder — non afferma
+                // "VLAN 1" su una porta il cui PVID non è mai stato osservato (schema ①).
+                const _vlanDet = pi.vlanOvr != null || (pi.vlan >= 1) || pi.vlanProp != null;
                 const _vlanField = (label) => `<div class="prop-group"><label>${label}</label>
                     <div style="display:flex;gap:5px">
-                      <input type="number" min="1" max="4094" value="${effVlan}" class="${pi.vlanOvr!=null?'ovr':''}" style="flex:1"
+                      <input type="number" min="1" max="4094" value="${_vlanDet ? effVlan : ''}" placeholder="${effVlan}" class="${pi.vlanOvr!=null?'ovr':''}" style="flex:1"
                              onchange="setPortField('${pid}','vlanOvr',+this.value||1)">
                       <button type="button" class="toolbar-btn" style="padding:2px 7px;margin:0;font-size:0.78rem;line-height:1${pi.vlanOvr!=null?';color:var(--accent);border-color:var(--accent)':''}" data-tip="${t(pi.vlanOvr!=null?'lock.locked':'lock.unlocked')}" aria-label="${t(pi.vlanOvr!=null?'lock.locked':'lock.unlocked')}" aria-pressed="${pi.vlanOvr!=null?'true':'false'}" onclick="togglePortVlanLock('${pid}')"><i class="fas fa-lock${pi.vlanOvr!=null?'':'-open'}"></i></button>
                     </div>

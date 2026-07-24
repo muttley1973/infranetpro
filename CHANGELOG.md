@@ -2,6 +2,14 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-24 — An unset HA role is not "Active"; an unmeasured PVID is not "VLAN 1"
+
+The HA panel showed every member as **Active** when its role was not declared — so an active-passive pair imported without roles read as two Actives, a state that cannot exist. The port panel pre-filled the VLAN field with **1** whenever the PVID had never been set or measured, asserting a native VLAN it had only defaulted to. On *Rete+Lab*: **148 of 232 port rows** carried a "VLAN 1" no one had observed.
+
+### Fixed
+- **An HA role defaults to nothing, not "Active".** `haRole` absent now renders "— non specificato —" (a placeholder option in the role selects, and in the partner list); `setNodeHaPair`/`setNodeHaCluster` delete the role instead of forcing `'active'`/`'member'` when it is not one of the valid values. `propagateHaSymmetry` still derives the complement at pairing time (active → standby), so a freshly-formed pair stays correct; the fix protects imports and legacy projects where only one side carries a role. `src/app-properties-node.js`, `src/app-stack-ha.js`.
+- **The PVID field is empty (placeholder = site native) unless the VLAN was determined.** A port shows a VLAN value only when it has a manual override, an SNMP reading, or a VLAN propagated from upstream; otherwise the field is blank with the site-native VLAN as placeholder — the same pattern `_floorAccessVlanRow` already uses. The effective-VLAN badge is unchanged (that is a computed fact, not an assertion of a value the user set). `src/app-properties-port.js`.
+
 ## 2026-07-24 — Absent status no longer reads as "off": ports and VMs
 
 The device dossier and the VM cards asserted a state nobody had observed. A port with no SNMP reading and no manual override rendered as **"inactive"** — `normalizeStatus(undefined)` returns `'inactive'`, a deliberate default for the live UI, but on the printed dossier it claims "off/free" about ports never looked at. A VM with no declared power state read as **"running"** (`vm.state || 'running'`). On the sample projects: **138 of 206 port rows** on *Rete+Lab*, and **all 32 VMs** on the 500-device bench, stated as fact something that was only a default.
