@@ -20,7 +20,7 @@
 
 > 🌍 **Bilingue · Bilingual — 🇮🇹 Italiano & 🇬🇧 English.** Interfaccia, onboarding e manuale tecnico completi in entrambe le lingue, con selettore IT/EN nell'app. · Fully bilingual UI, onboarding and technical manual, with an in-app IT/EN switcher. 📖 [Manuale IT](MANUALE_TECNICO_IT.pdf) · [Manual EN](TECHNICAL_MANUAL_EN.pdf)
 
-> 📰 **What's new:** see [CHANGELOG.md](CHANGELOG.md). Latest: **"Apply model" — set a device's ports, SFP/QSFP and MGMT from a real switch/router model in one click**, now covering **~4,100 models across 52 vendors** (Cisco, HPE/Aruba, Juniper, Arista, Huawei, Fortinet, Sophos, Ubiquiti, LANCOM, Allied Telesis, APC/Eaton/Vertiv, Synology/QNAP, …) generated from public-domain (CC0) device-type data; SFP block cap 48, fibre never mis-rendered as copper.
+> 📰 **What's new:** see [CHANGELOG.md](CHANGELOG.md). Latest: a read-only **Overview** — three columns (**Document · Conformance · Expansion**) that answer *is the doc complete, does it still match reality, how much room is left*, with the **provenance** of every number (declared / from scan / derived / not declared), an at-a-glance health-dot verdict per column and a **since-last-read delta**. Before that: **"Apply model"** — set a device's ports, SFP/QSFP and MGMT from a real switch/router model in one click, now **~4,100 models across 52 vendors** generated from public-domain (CC0) device-type data.
 
 > 🔒 **Security-audited & hardened.** The codebase has undergone an application-security audit (no critical issues) and the follow-up fixes are covered by **automated security regression tests**: the data surfaces (AI context, REST DTOs, exports) are **allowlist-only** so secrets never leave the machine, OS commands run via `execFile` with no shell, project IDs are path-traversal-safe, and secrets use a CSPRNG. See [Authentication & Roles → Security hardening & audit](#authentication--roles).
 
@@ -60,7 +60,7 @@ Current product direction: InfraNet Pro keeps discovery and classification insid
 
 ## Screenshots
 
-> 📖 **Full feature manual (PDF):** [🇮🇹 Italiano](MANUALE_TECNICO_IT.pdf) · [🇬🇧 English](TECHNICAL_MANUAL_EN.pdf) — dark cover, white printable interior, 17 illustrated chapters.
+> 📖 **Full feature manual (PDF):** [🇮🇹 Italiano](MANUALE_TECNICO_IT.pdf) · [🇬🇧 English](TECHNICAL_MANUAL_EN.pdf) — dark cover, white printable interior, 19 illustrated chapters.
 
 <p align="center">
   <img src="GitHub%20Images/Topologia.png" alt="InfraNet Pro — topology view" width="900"><br>
@@ -648,6 +648,7 @@ See [integrations/ansible/README.md](integrations/ansible/README.md) for the ful
 Full release notes live in [CHANGELOG.md](CHANGELOG.md). Highlights of what has shipped:
 
 **Done:**
+- [x] **Overview (summary view)** — a read-only view (like Topology; it never touches the document) in three columns — **Document / Conformance / Expansion** — each cell a number *and* a plain-word verdict declaring the **provenance** of every figure (declared / from scan / derived / not declared, a missing datum shown dashed, never a zero); an at-a-glance **health dot + verdict** per column, a severity-coloured **entry-point accent** on the most urgent tile, and a **since-last-read delta** (−N / +N, baseline in `localStorage`, never in the document). Every row **drills down in place**. Composes existing engines only — no new measurement (`lib/overview.js`, pure + tests)
 - [x] **AI assistant** — advisory, bring-your-own-key, OpenAI-compatible (local Ollama by default); server-side key, allowlist context + a build-failing anti-leak guard test; scope/capability toggles; never auto-applies
 - [x] **REST API v1 + Ansible dynamic inventory** — read-only, bearer-token, sanitized `/api/v1/*`; token UI; stdlib-only `infranet_inventory.py` with rich host-vars (VLAN/subnet/gateway, serial/firmware, rack, mgmt)
 - [x] **DHCP lease import** — cross-VLAN authoritative MAC ↔ IP for the documentation check; multi-server persisted sources; treated as an identity map, never a false *absent*
@@ -671,7 +672,6 @@ Full release notes live in [CHANGELOG.md](CHANGELOG.md). Highlights of what has 
 - [x] **Engineering** — zero-dep regression suite + CI, server modularization, frontend ESM/esbuild migration, correlation primitives (`lib/correlate.js`), ENTITY-MIB inventory, `node.spec` refactor
 
 **Planned:**
-- [ ] Full segment-editing UI (read-only `Physical Path` is shipped; the editor is the missing piece)
 - [ ] `ENTITY-SENSOR-MIB` (temperatures/fans/PSU) + real PoE wattage per switch
 - [ ] Explicit topology states in the UI (`exact / probable / ambiguous / shared-segment / uplink-to-unknown`)
 - [ ] SQLite-backed storage for discovery/IP history, FDB cache and audit log
@@ -708,7 +708,7 @@ Coverage focuses on the pure, bug-prone logic that has historically broken: SNMP
 
 Current local quality baseline:
 - `npm run check` validates all project JS sources (~140 files)
-- `npm test` runs the full regression suite (currently 1590+ unit tests, all passing) plus a real‑browser E2E suite (`RUN_E2E=1`, 79 flows)
+- `npm test` runs the full regression suite (currently 1590+ unit tests, all passing) plus a real‑browser E2E suite (`RUN_E2E=1`, 90 flows)
 - final visual verification is still important for rack/front-panel refinements
 
 > Pure functions are exposed for tests via an additive `_internals` export on
