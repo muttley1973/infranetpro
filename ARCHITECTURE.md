@@ -97,6 +97,13 @@ lib/                   Shared browser + test modules (the heart of the app)
                     covered/blocked/open) + annotateNetworksVerification (join with
                     the Verifica outcome: presence badge per subnet + non-verifiable
                     devices nested under their /24, absorbing the old bucket)  (pure)
+  overview.js       buildOverview → the read-only Overview view's facts in three
+                    columns (Document · Conformance · Expansion). Each row = number +
+                    provenance (declared/measured/derived/none) + optional drill-down
+                    items (with peer/tag/group/of for the glue to render as name/word/
+                    tabs). Pure COMPOSITION of spare-ports/project-networks/hw-
+                    capabilities/TYPES — no new measurement; every word lives in the
+                    glue (src/app-overview.js), never in the lib  (pure)
   ai-grounding.js   extractEntities + checkGrounding (citations + anti-invention)  (pure)
   ai-draft.js       splitDraftBlocks (segments AI reply → text + Ansible draft cards)  (pure)
   onboarding.js     nextStep(summary) → deterministic «next step» chip (onboarding §4d)  (pure)
