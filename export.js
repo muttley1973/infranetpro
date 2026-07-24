@@ -579,9 +579,17 @@ function _buildFloorSVG(opts){
         const label=escapeHTML((typeof _dispName==='function'?_dispName(_nm):_nm));
         // Presenza (stessa logica di _buildFloorNodeEl): present=colore tipo · absent=anello
         // rosso d'allerta (icona resta del tipo) · unverified=grigio + attenuato (opacità).
+        // ⚠️ Schema ②: il default «present» è load-bearing DOPO una Verifica (copre i
+        // device confermati per altra via — es. ARP — che non finiscono in nessun bucket).
+        // Ma SENZA Verifica (nessun _driftReport → set vuoti) faceva sembrare «presenti»
+        // TUTTI i device senza mai averli controllati: in un documento di consegna è un
+        // falso «tutto a posto». Un export statico non congela uno stato non verificato
+        // (stessa scelta del draw.io che omette la tacca SNMP) → senza Verifica: «non verificato».
+        const _hasVerify = typeof _driftReport!=='undefined' && !!_driftReport;
         const presence = n.snmpStatus==='ok' ? 'present'
             : _floorAbsentIds.has(n.id) ? 'absent'
-            : _floorUnverifiedIds.has(n.id) ? 'unverified' : 'present';
+            : _floorUnverifiedIds.has(n.id) ? 'unverified'
+            : _hasVerify ? 'present' : 'unverified';
         const borderCol = presence==='absent' ? '#f85149' : presence==='unverified' ? '#6e7681' : col;
         const iconCol   = presence==='unverified' ? '#6e7681' : col;
         const nodeOp    = presence==='unverified' ? 0.45 : 1;   // .node-unverified: opacity 0.4 + greyscale
