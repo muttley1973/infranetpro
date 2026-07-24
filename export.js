@@ -1230,7 +1230,13 @@ function _buildPdfReportData() {
                     const on = getNodeByPortId(op);
                     return `${on?.name || '?'} P${op.split('-').slice(1).join('-')}`;
                 }).join(', ') || '—';
-                const st = normalizeStatus(pi.statusOvr ?? pi.status);
+                // Onesto: una porta senza stato misurato (SNMP) NÉ override manuale
+                // non è "inactive" — è NON DETERMINATA. normalizeStatus(undefined)
+                // ritorna 'inactive' (default deliberato per la UI), ma nel dossier
+                // affermerebbe "spenta/libera" su porte mai osservate (schema ①). Stessa
+                // guardia del rack SVG poco sopra (statusOvr||status ? colore : trasparente).
+                const _hasStatus = pi.statusOvr != null || pi.status != null;
+                const st = _hasStatus ? normalizeStatus(pi.statusOvr ?? pi.status) : '';
                 const spd = pi.speedOvr ?? pi.speed;
                 let spdStr = '';
                 if(typeof spd === 'number' && Number.isFinite(spd) && spd > 0){

@@ -2,6 +2,14 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-24 — Absent status no longer reads as "off": ports and VMs
+
+The device dossier and the VM cards asserted a state nobody had observed. A port with no SNMP reading and no manual override rendered as **"inactive"** — `normalizeStatus(undefined)` returns `'inactive'`, a deliberate default for the live UI, but on the printed dossier it claims "off/free" about ports never looked at. A VM with no declared power state read as **"running"** (`vm.state || 'running'`). On the sample projects: **138 of 206 port rows** on *Rete+Lab*, and **all 32 VMs** on the 500-device bench, stated as fact something that was only a default.
+
+### Fixed
+- **A port is "—" (undetermined) unless its status was measured or set.** In `export.js` the dossier's port table now applies the same guard the rack SVG already uses (`statusOvr || status ? … : neutral`): only a real SNMP reading or a manual override produces a status; otherwise the cell is a dash, and the PDF renders `p.status || '—'`. A port genuinely measured down still reads "inactive". `export.js`, `server/pdf-report.js`.
+- **VM power state is tri-state: running / stopped / unspecified.** `vm.state` absent no longer means "running". The list dot (grey when unspecified), the header chip (cycles unspecified → running → stopped), the "N running" counter, and the dossier row all read the state literally; a VM is no longer born "running" — it starts unspecified until the user or an SNMP probe determines it (SNMP-measured stays authoritative). `src/app-hypervisor.js`, `src/app-properties-vm.js`, `server/pdf-report.js`, i18n, CSS, +e2e for the full cycle.
+
 ## 2026-07-24 — An absent field no longer states an invented default
 
 Open a device with no brand recorded and the properties panel pre-selected **"Dell"** — and "Windows 11", "Cisco", "Hikvision", "patch cord". None of it was in the data: the `<select>` defaulted its first option with `n.field || 'Dell'`, painting a confident identity the system had never observed. On the sample projects that is **81 false assertions across 30 of 35 nodes** for brand alone, and every one of **17/17 cables** labelled "patch cord" without anyone saying so. A code audit sees a correct default; only the output, read against real data, shows the label lying. (Schema ① of the semantic audit: absent → strong claim.)
