@@ -590,9 +590,13 @@ function _buildFloorSVG(opts){
             : _floorAbsentIds.has(n.id) ? 'absent'
             : _floorUnverifiedIds.has(n.id) ? 'unverified'
             : _hasVerify ? 'present' : 'unverified';
+        // «Non verificato»: resa LEGGERA — il device resta identificabile nel suo
+        // colore-tipo (icona + etichetta), il segnale è il solo ANELLO grigio +
+        // un'attenuazione lieve (0.7). Senza Verifica l'intera planimetria sarebbe
+        // altrimenti grigia e lavata (0.45 + icona grigia): onesto ma illeggibile.
         const borderCol = presence==='absent' ? '#f85149' : presence==='unverified' ? '#6e7681' : col;
-        const iconCol   = presence==='unverified' ? '#6e7681' : col;
-        const nodeOp    = presence==='unverified' ? 0.45 : 1;   // .node-unverified: opacity 0.4 + greyscale
+        const iconCol   = col;                                  // colore-tipo anche per «non verificato» (identificabile)
+        const nodeOp    = presence==='unverified' ? 0.7 : 1;    // attenuazione lieve, non un lavaggio
         const faChar=devInfo.fa ? String.fromCodePoint(devInfo.fa) : null;
         const lblCol = P.devLabel || iconCol;
         s+=`<g transform="translate(${n.x},${n.y})" opacity="${nodeOp}">`

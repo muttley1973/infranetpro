@@ -203,8 +203,8 @@ test('export: _buildFloorSVG — colore per PRESENZA come a schermo (FE-M1)', ()
   assert.ok(r.ok, 'FE-M1 lancia: ' + r.err);
   assert.equal(r.pc.stroke, '#f85149', 'device ASSENTE (macOrphan) → bordo rosso, come "assente" a schermo');
   assert.equal(r.pc.op, '1', 'assente resta pieno (anello rosso di allerta)');
-  assert.equal(r.ap.stroke, '#6e7681', 'device NON verificabile (unverified) → bordo grigio');
-  assert.equal(r.ap.op, '0.45', 'non verificabile attenuato (come .node-unverified)');
+  assert.equal(r.ap.stroke, '#6e7681', 'device NON verificabile (unverified) → bordo grigio (segnale)');
+  assert.equal(r.ap.op, '0.7', 'non verificabile: attenuazione LIEVE (0.7), non un lavaggio — resta leggibile');
   assert.equal(r.tel.op, '1', 'snmpStatus ok → present (guardia): pieno');
   assert.notEqual(r.tel.stroke, '#f85149', 'un device risincronizzato NON è rosso anche se era in macOrphan');
 });
