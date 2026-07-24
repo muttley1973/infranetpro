@@ -288,11 +288,11 @@ export function _renderLinkProps(panel){
                     : Number(l.length ?? l.lengthM);
                 const _hasTotalLength = Number.isFinite(_totalLength) && _totalLength > 0;
                 const _permanentCount = _isSegmented
-                    ? _segments.filter(s=>!!(s.isPermanent || s.permanent)).length
-                    : (l.isPermanent ? 1 : 0);
+                    ? _segments.filter(s=>s.isPermanent===true || s.permanent===true).length
+                    : (l.isPermanent===true ? 1 : 0);
                 const _patchCount = _isSegmented
-                    ? Math.max(0, _segments.length - _permanentCount)
-                    : (l.isPermanent ? 0 : 1);
+                    ? _segments.filter(s=>s.isPermanent===false || s.permanent===false).length
+                    : (l.isPermanent===false ? 1 : 0);
                 const _selectedSegmentIndex = _physicalPath?.selectedSegmentIndex || _segments.findIndex(s=>s.isSelected) + 1 || null;
                 const _pathPreviewBits = [];
                 if(_isSegmented) _pathPreviewBits.push(t('cable.segmentsN',{n:_segments.length}));
@@ -333,7 +333,7 @@ export function _renderLinkProps(panel){
                     else if(s.type) _segBits.push(escapeHTML(String(s.type)));
                     const _segLen = Number(s.length ?? s.lengthM);
                     if(Number.isFinite(_segLen) && _segLen > 0) _segBits.push(`${String(_segLen).replace(/\\.0$/,'')} m`);
-                    _segBits.push((s.isPermanent || s.permanent) ? 'Permanent link' : 'Patch cord');
+                    _segBits.push((s.isPermanent===true || s.permanent===true) ? 'Permanent link' : (s.isPermanent===false || s.permanent===false) ? 'Patch cord' : t('common.unspecifiedM'));
                     const _selBadge = s.isSelected ? `<span style="font-size:.64rem;color:var(--active-color);font-weight:700">${t('cable.selected')}</span>` : '';
                     // Segmento selezionato: verde "OK" ben visibile sul fondo scuro
                     // (bordo verde pieno + sfondo verde tenue).
@@ -419,8 +419,8 @@ export function _renderLinkProps(panel){
                       <div class="cable-validate-txt"><b>${escapeHTML(i.title)}</b><span>${escapeHTML(i.why)}</span></div>
                     </div>`).join('')}</div>` : '';
                 const _physPreviewBits = [];
-                if(l.isPermanent) _physPreviewBits.push('Permanent');
-                else _physPreviewBits.push('Patch');
+                if(l.isPermanent===true) _physPreviewBits.push('Permanent');
+                else if(l.isPermanent===false) _physPreviewBits.push('Patch');
                 if(l.cableType) _physPreviewBits.push(escapeHTML(String(l.cableType)));
                 if(l.medium) _physPreviewBits.push(escapeHTML(l.medium==='fiber' ? t('cable.fiber') : l.medium==='dac' ? 'DAC' : t('cable.copper')));
                 if(l.length!=null && l.length!=='') _physPreviewBits.push(`${escapeHTML(String(l.length))} m`);
@@ -489,9 +489,10 @@ export function _renderLinkProps(panel){
 
               <div class="prop-group">
                 <label>${t('cable.segmentType')}</label>
-                <select class="${ovr('isPermanent')}" ${lockAttr} onchange="setLinkProp('${l.id}','isPermanent',this.value==='permanent')">
-                  <option value="patch" ${!l.isPermanent?'selected':''}>${t('cable.patchCord')}</option>
-                  <option value="permanent" ${l.isPermanent?'selected':''}>Permanent link</option>
+                <select class="${ovr('isPermanent')}" ${lockAttr} onchange="setLinkProp('${l.id}','isPermanent',this.value)">
+                  <option value="" ${l.isPermanent==null?'selected':''}>${t('common.unspecifiedM')}</option>
+                  <option value="patch" ${l.isPermanent===false?'selected':''}>${t('cable.patchCord')}</option>
+                  <option value="permanent" ${l.isPermanent===true?'selected':''}>Permanent link</option>
                 </select>
               </div>
 

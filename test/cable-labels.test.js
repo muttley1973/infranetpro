@@ -103,6 +103,7 @@ test('campi cabling: cableType (fallback categoria), isPermanent, installedAt/By
     { id: 'a', src: 'x-1', dst: 'y-1', cableType: 'cat6a-ftp', isPermanent: true,
       installedAt: '2024-03-15', installedBy: 'Mario', notes: 'dorsale' },
     { id: 'b', src: 'x-2', dst: 'y-2', cableCategory: 'om4' },
+    { id: 'c', src: 'x-3', dst: 'y-3', isPermanent: false },
   ]));
   assert.equal(rows[0].cableType, 'cat6a-ftp');
   assert.equal(rows[0].isPermanent, true);
@@ -110,7 +111,8 @@ test('campi cabling: cableType (fallback categoria), isPermanent, installedAt/By
   assert.equal(rows[0].installedBy, 'Mario');
   assert.equal(rows[0].notes, 'dorsale');
   assert.equal(rows[1].cableType, 'om4');     // fallback su cableCategory
-  assert.equal(rows[1].isPermanent, false);
+  assert.equal(rows[1].isPermanent, null);    // nessun isPermanent → "non specificato" (non piu' forzato a "patch")
+  assert.equal(rows[2].isPermanent, false);   // "patch cord" ESPLICITO preservato (tri-stato)
 });
 
 test('puro: non muta il model ne i link', () => {

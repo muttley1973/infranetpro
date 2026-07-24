@@ -24,10 +24,14 @@ test('_normalizeLinkMetadata: cableType vuoto viene rimosso, valido viene trimma
   assert.equal(lm._normalizeLinkMetadata({ cableType: '  utp  ' }).cableType, 'utp');
 });
 
-test('_normalizeLinkMetadata: isPermanent coercito a true o eliminato', () => {
+test('_normalizeLinkMetadata: isPermanent tri-stato (true / false esplicito / eliminato)', () => {
   assert.equal(lm._normalizeLinkMetadata({ isPermanent: 'true' }).isPermanent, true);
   assert.equal(lm._normalizeLinkMetadata({ isPermanent: 1 }).isPermanent, true);
-  assert.ok(!('isPermanent' in lm._normalizeLinkMetadata({ isPermanent: false })));
+  // "patch cord" ESPLICITO (false) e' preservato, non piu' collassato su "assente"
+  assert.equal(lm._normalizeLinkMetadata({ isPermanent: false }).isPermanent, false);
+  assert.equal(lm._normalizeLinkMetadata({ isPermanent: '0' }).isPermanent, false);
+  // valore non booleano/ignoto → eliminato (= "non specificato")
+  assert.ok(!('isPermanent' in lm._normalizeLinkMetadata({ isPermanent: 'boh' })));
 });
 
 test('_normalizeLinkMetadata: tollera input non-oggetto', () => {

@@ -201,7 +201,8 @@ export function _nodeDeviceChainHtml(n, d, _identityBlock){
                     ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false}), '')}
                     <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-voip')?'open':''} ontoggle="setPropsSectionState('device-voip',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-phone"></i> ${t('dev.voip')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('field.brand')}</label><select onchange="updateN('brand',this.value)">
-                        <option value="Cisco"       ${selected(n.brand||'Cisco','Cisco')}>Cisco</option>
+                        <option value=""            ${selected(n.brand||'','')}>${t('common.unspecifiedM')}</option>
+                        <option value="Cisco"       ${selected(n.brand,'Cisco')}>Cisco</option>
                         <option value="Yealink"     ${selected(n.brand,'Yealink')}>Yealink</option>
                         <option value="Snom"        ${selected(n.brand,'Snom')}>Snom</option>
                         <option value="Grandstream" ${selected(n.brand,'Grandstream')}>Grandstream</option>
@@ -238,7 +239,8 @@ export function _nodeDeviceChainHtml(n, d, _identityBlock){
                     ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false}), '')}
                     <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-badgereader')?'open':''} ontoggle="setPropsSectionState('device-badgereader',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-id-card"></i> ${t('dev.badgereader')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('field.brand')}</label><select onchange="updateN('brand',this.value)">
-                        <option value="HID"     ${selected(n.brand||'HID','HID')}>HID Global</option>
+                        <option value=""        ${selected(n.brand||'','')}>${t('common.unspecifiedM')}</option>
+                        <option value="HID"     ${selected(n.brand,'HID')}>HID Global</option>
                         <option value="Axis"    ${selected(n.brand,'Axis')}>Axis</option>
                         <option value="Lenel"   ${selected(n.brand,'Lenel')}>Lenel / Carrier</option>
                         <option value="Bosch"   ${selected(n.brand,'Bosch')}>Bosch</option>
@@ -275,7 +277,8 @@ export function _nodeDeviceChainHtml(n, d, _identityBlock){
                     ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false}), '')}
                     <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-pc')?'open':''} ontoggle="setPropsSectionState('device-pc',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-desktop"></i> ${t('dev.pc')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('field.brand')}</label><select onchange="updateN('brand',this.value)">
-                        <option value="Dell"    ${selected(n.brand||'Dell','Dell')}>Dell</option>
+                        <option value=""        ${selected(n.brand||'','')}>${t('common.unspecifiedM')}</option>
+                        <option value="Dell"    ${selected(n.brand,'Dell')}>Dell</option>
                         <option value="HP"      ${selected(n.brand,'HP')}>HP</option>
                         <option value="Lenovo"  ${selected(n.brand,'Lenovo')}>Lenovo</option>
                         <option value="Apple"   ${selected(n.brand,'Apple')}>Apple</option>
@@ -286,7 +289,8 @@ export function _nodeDeviceChainHtml(n, d, _identityBlock){
                     </select></div>
                     <div class="prop-group"><label>${t('field.model')}</label><input value="${escapeHTML(n.model||'')}" placeholder="OptiPlex 7090, ThinkCentre…" onchange="updateN('model',this.value)"></div>
                     <div class="prop-group"><label>${t('f.os')}</label><select onchange="updateN('osType',this.value)">
-                        <option value="win11"   ${selected(n.osType||'win11','win11')}>Windows 11</option>
+                        <option value=""        ${selected(n.osType||'','')}>${t('common.unspecifiedM')}</option>
+                        <option value="win11"   ${selected(n.osType,'win11')}>Windows 11</option>
                         <option value="win10"   ${selected(n.osType,'win10')}>Windows 10</option>
                         <option value="win-srv" ${selected(n.osType,'win-srv')}>Windows Server</option>
                         <option value="ubuntu"  ${selected(n.osType,'ubuntu')}>Ubuntu / Debian</option>
@@ -310,7 +314,8 @@ export function _nodeDeviceChainHtml(n, d, _identityBlock){
                         <option value="tablet"     ${selected(n.formFactor,'tablet')}>Tablet</option>
                     </select></div>
                     <div class="prop-group"><label>${t('field.brand')}</label><select onchange="updateN('brand',this.value)">
-                        <option value="Apple"     ${selected(n.brand||'Apple','Apple')}>Apple</option>
+                        <option value=""          ${selected(n.brand||'','')}>${t('common.unspecifiedM')}</option>
+                        <option value="Apple"     ${selected(n.brand,'Apple')}>Apple</option>
                         <option value="Samsung"   ${selected(n.brand,'Samsung')}>Samsung</option>
                         <option value="Google"    ${selected(n.brand,'Google')}>Google</option>
                         <option value="Xiaomi"    ${selected(n.brand,'Xiaomi')}>Xiaomi</option>
@@ -321,7 +326,8 @@ export function _nodeDeviceChainHtml(n, d, _identityBlock){
                     </select></div>
                     <div class="prop-group"><label>${t('field.model')}</label><input value="${escapeHTML(n.model||'')}" placeholder="iPhone 15, iPad Air, Galaxy…" onchange="updateN('model',this.value)"></div>
                     <div class="prop-group"><label>${t('f.os')}</label><select onchange="updateN('osType',this.value)">
-                        <option value="ios"     ${selected(n.osType||'ios','ios')}>iOS</option>
+                        <option value=""        ${selected(n.osType||'','')}>${t('common.unspecifiedM')}</option>
+                        <option value="ios"     ${selected(n.osType,'ios')}>iOS</option>
                         <option value="ipados"  ${selected(n.osType,'ipados')}>iPadOS</option>
                         <option value="android" ${selected(n.osType,'android')}>Android</option>
                         <option value="windows" ${selected(n.osType,'windows')}>Windows</option>
@@ -353,7 +359,8 @@ export function _nodeDeviceChainHtml(n, d, _identityBlock){
                     <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-nasdesktop')?'open':''} ontoggle="setPropsSectionState('device-nasdesktop',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-hard-drive"></i> ${t('dev.nasdesktop')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.swPlatform')}</label><select onchange="updateN('nasPlatform',this.value)">
-                        <option value="dsm"     ${selected(n.nasPlatform||'dsm','dsm')}>DSM (Synology)</option>
+                        <option value=""        ${selected(n.nasPlatform||'','')}>${t('common.unspecifiedM')}</option>
+                        <option value="dsm"     ${selected(n.nasPlatform,'dsm')}>DSM (Synology)</option>
                         <option value="qts"     ${selected(n.nasPlatform,'qts')}>QTS (QNAP)</option>
                         <option value="truenas" ${selected(n.nasPlatform,'truenas')}>TrueNAS Core/Scale</option>
                         <option value="unraid"  ${selected(n.nasPlatform,'unraid')}>Unraid</option>
@@ -415,7 +422,8 @@ export function _nodeDeviceChainHtml(n, d, _identityBlock){
                     ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false}), '')}
                     <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-projector')?'open':''} ontoggle="setPropsSectionState('device-projector',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-chalkboard"></i> ${t('dev.projector')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('field.brand')}</label><select onchange="updateN('brand',this.value)">
-                        <option value="Epson"    ${selected(n.brand||'Epson','Epson')}>Epson</option>
+                        <option value=""         ${selected(n.brand||'','')}>${t('common.unspecifiedM')}</option>
+                        <option value="Epson"    ${selected(n.brand,'Epson')}>Epson</option>
                         <option value="BenQ"     ${selected(n.brand,'BenQ')}>BenQ</option>
                         <option value="Sony"     ${selected(n.brand,'Sony')}>Sony</option>
                         <option value="Panasonic"${selected(n.brand,'Panasonic')}>Panasonic</option>
@@ -464,7 +472,8 @@ export function _nodeDeviceChainHtml(n, d, _identityBlock){
                     <div class="prop-group"><label>${t('f.externalLines')}</label>
                         <input type="number" min="1" max="1000" value="${n.pbxTrunkLines||8}" onchange="updateN('pbxTrunkLines',parseInt(this.value)||8)"></div>
                     <div class="prop-group"><label>${t('f.software')}</label><select onchange="updateN('pbxSoftware',this.value)">
-                        <option value="3cx"        ${selected(n.pbxSoftware||'3cx','3cx')}>3CX</option>
+                        <option value=""           ${selected(n.pbxSoftware||'','')}>${t('common.unspecifiedM')}</option>
+                        <option value="3cx"        ${selected(n.pbxSoftware,'3cx')}>3CX</option>
                         <option value="asterisk"   ${selected(n.pbxSoftware,'asterisk')}>Asterisk / FreePBX</option>
                         <option value="sangoma"    ${selected(n.pbxSoftware,'sangoma')}>Sangoma</option>
                         <option value="audiocodes" ${selected(n.pbxSoftware,'audiocodes')}>AudioCodes</option>
@@ -507,7 +516,8 @@ export function _nodeDeviceChainHtml(n, d, _identityBlock){
                     <div class="prop-group"><label>${t('f.licenses')}</label>
                         <input value="${escapeHTML(n.wlcLicenses||'')}" placeholder="${t('pnl.dev.phWlcLicenses')}" onchange="updateN('wlcLicenses',this.value)"></div>
                     <div class="prop-group"><label>${t('f.platform')}</label><select onchange="updateN('wlcPlatform',this.value)">
-                        <option value="cisco-wlc"  ${selected(n.wlcPlatform||'cisco-wlc','cisco-wlc')}>Cisco WLC / DNA Center</option>
+                        <option value=""           ${selected(n.wlcPlatform||'','')}>${t('common.unspecifiedM')}</option>
+                        <option value="cisco-wlc"  ${selected(n.wlcPlatform,'cisco-wlc')}>Cisco WLC / DNA Center</option>
                         <option value="aruba"      ${selected(n.wlcPlatform,'aruba')}>Aruba Mobility Controller</option>
                         <option value="unifi"      ${selected(n.wlcPlatform,'unifi')}>Ubiquiti UniFi</option>
                         <option value="ruckus"     ${selected(n.wlcPlatform,'ruckus')}>Ruckus SmartZone</option>
@@ -551,7 +561,8 @@ export function _nodeDeviceChainHtml(n, d, _identityBlock){
                 _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-nvr')?'open':''} ontoggle="setPropsSectionState('device-nvr',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-record-vinyl"></i> ${t('devh.nvr')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.platform')}</label><select onchange="updateN('nvrPlatform',this.value)">
-                        <option value="hikvision" ${selected(n.nvrPlatform||'hikvision','hikvision')}>Hikvision</option>
+                        <option value=""          ${selected(n.nvrPlatform||'','')}>${t('common.unspecifiedM')}</option>
+                        <option value="hikvision" ${selected(n.nvrPlatform,'hikvision')}>Hikvision</option>
                         <option value="dahua"     ${selected(n.nvrPlatform,'dahua')}>Dahua</option>
                         <option value="axis"      ${selected(n.nvrPlatform,'axis')}>Axis Camera Station</option>
                         <option value="milestone" ${selected(n.nvrPlatform,'milestone')}>Milestone XProtect</option>
@@ -579,7 +590,8 @@ export function _nodeDeviceChainHtml(n, d, _identityBlock){
                 _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-sdwan')?'open':''} ontoggle="setPropsSectionState('device-sdwan',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-cloud-bolt"></i> ${t('dev.sdwan')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.platform')}</label><select onchange="updateN('sdwanPlatform',this.value)">
-                        <option value="meraki"     ${selected(n.sdwanPlatform||'meraki','meraki')}>Cisco Meraki MX</option>
+                        <option value=""           ${selected(n.sdwanPlatform||'','')}>${t('common.unspecifiedM')}</option>
+                        <option value="meraki"     ${selected(n.sdwanPlatform,'meraki')}>Cisco Meraki MX</option>
                         <option value="velocloud"  ${selected(n.sdwanPlatform,'velocloud')}>VMware VeloCloud</option>
                         <option value="versa"      ${selected(n.sdwanPlatform,'versa')}>Versa Networks</option>
                         <option value="fortinet"   ${selected(n.sdwanPlatform,'fortinet')}>Fortinet Secure SD-WAN</option>
@@ -606,7 +618,8 @@ export function _nodeDeviceChainHtml(n, d, _identityBlock){
                 _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-vpncon')?'open':''} ontoggle="setPropsSectionState('device-vpncon',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-key"></i> ${t('dev.vpncon')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.platform')}</label><select onchange="updateN('vpnPlatform',this.value)">
-                        <option value="cisco-asa"      ${selected(n.vpnPlatform||'cisco-asa','cisco-asa')}>Cisco ASA / Firepower</option>
+                        <option value=""               ${selected(n.vpnPlatform||'','')}>${t('common.unspecifiedM')}</option>
+                        <option value="cisco-asa"      ${selected(n.vpnPlatform,'cisco-asa')}>Cisco ASA / Firepower</option>
                         <option value="cisco-anyconn"  ${selected(n.vpnPlatform,'cisco-anyconn')}>Cisco AnyConnect</option>
                         <option value="fortigate"      ${selected(n.vpnPlatform,'fortigate')}>FortiGate SSL/IPsec</option>
                         <option value="paloalto-gp"    ${selected(n.vpnPlatform,'paloalto-gp')}>Palo Alto GlobalProtect</option>
@@ -640,7 +653,8 @@ export function _nodeDeviceChainHtml(n, d, _identityBlock){
                     ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false}), '')}
                     <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-doorctrl')?'open':''} ontoggle="setPropsSectionState('device-doorctrl',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-door-open"></i> ${t('dev.doorctrl')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('f.platform')}</label><select onchange="updateN('doorPlatform',this.value)">
-                        <option value="hid"        ${selected(n.doorPlatform||'hid','hid')}>HID Global (VertX/Aero)</option>
+                        <option value=""           ${selected(n.doorPlatform||'','')}>${t('common.unspecifiedM')}</option>
+                        <option value="hid"        ${selected(n.doorPlatform,'hid')}>HID Global (VertX/Aero)</option>
                         <option value="axis"       ${selected(n.doorPlatform,'axis')}>Axis Communications</option>
                         <option value="suprema"    ${selected(n.doorPlatform,'suprema')}>Suprema</option>
                         <option value="zkteco"     ${selected(n.doorPlatform,'zkteco')}>ZKTeco</option>
@@ -699,7 +713,8 @@ export function _nodeDeviceChainHtml(n, d, _identityBlock){
                         <option value="monitor"   ${selected(n.tvUsage,'monitor')}>${t('o.netMonitor')}</option>
                     </select></div>
                     <div class="prop-group"><label>${t('field.brand')}</label><select onchange="updateN('brand',this.value)">
-                        <option value="Samsung"  ${selected(n.brand||'Samsung','Samsung')}>Samsung</option>
+                        <option value=""         ${selected(n.brand||'','')}>${t('common.unspecifiedM')}</option>
+                        <option value="Samsung"  ${selected(n.brand,'Samsung')}>Samsung</option>
                         <option value="LG"       ${selected(n.brand,'LG')}>LG</option>
                         <option value="Sony"     ${selected(n.brand,'Sony')}>Sony</option>
                         <option value="Philips"  ${selected(n.brand,'Philips')}>Philips</option>
@@ -714,7 +729,8 @@ export function _nodeDeviceChainHtml(n, d, _identityBlock){
                         <option value="8k"    ${selected(n.resolution,'8k')}>8K</option>
                     </select></div>
                     <div class="prop-group"><label>${t('f.os')}</label><select onchange="updateN('tvOs',this.value)">
-                        <option value="tizen"      ${selected(n.tvOs||'tizen','tizen')}>Tizen (Samsung)</option>
+                        <option value=""           ${selected(n.tvOs||'','')}>${t('common.unspecifiedM')}</option>
+                        <option value="tizen"      ${selected(n.tvOs,'tizen')}>Tizen (Samsung)</option>
                         <option value="webos"      ${selected(n.tvOs,'webos')}>webOS (LG)</option>
                         <option value="android-tv" ${selected(n.tvOs,'android-tv')}>Android TV</option>
                         <option value="google-tv"  ${selected(n.tvOs,'google-tv')}>Google TV</option>
@@ -848,7 +864,8 @@ export function _nodeDeviceChainHtml(n, d, _identityBlock){
                     <div class="prop-group"><label>RAM (GB)</label>
                         <input type="number" min="1" max="65536" value="${n.srvRamGb||64}" onchange="updateN('srvRamGb',parseInt(this.value)||64)"></div>
                     <div class="prop-group"><label>${t('f.os')}</label><select onchange="updateN('srvOs',this.value)">
-                        <option value="win-srv"  ${selected(n.srvOs||'win-srv','win-srv')}>Windows Server</option>
+                        <option value=""         ${selected(n.srvOs||'','')}>${t('common.unspecifiedM')}</option>
+                        <option value="win-srv"  ${selected(n.srvOs,'win-srv')}>Windows Server</option>
                         <option value="rhel"     ${selected(n.srvOs,'rhel')}>RHEL / Rocky / Alma</option>
                         <option value="ubuntu"   ${selected(n.srvOs,'ubuntu')}>Ubuntu / Debian</option>
                         <option value="proxmox"  ${selected(n.srvOs,'proxmox')}>Proxmox VE</option>
@@ -905,7 +922,8 @@ export function _nodeDeviceChainHtml(n, d, _identityBlock){
                         </div>
                     </div>
                     <div class="prop-group"><label>${t('f.swPlatform')}</label><select onchange="updateN('nasPlatform',this.value)">
-                        <option value="dsm"      ${selected(n.nasPlatform||'dsm','dsm')}>DSM (Synology)</option>
+                        <option value=""         ${selected(n.nasPlatform||'','')}>${t('common.unspecifiedM')}</option>
+                        <option value="dsm"      ${selected(n.nasPlatform,'dsm')}>DSM (Synology)</option>
                         <option value="truenas"  ${selected(n.nasPlatform,'truenas')}>TrueNAS Core/Scale</option>
                         <option value="unraid"   ${selected(n.nasPlatform,'unraid')}>Unraid</option>
                         <option value="qts"      ${selected(n.nasPlatform,'qts')}>QTS (QNAP)</option>

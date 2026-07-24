@@ -1048,7 +1048,7 @@ function setCableLabel(id, val){
 function setLinkProp(id, key, val){
     const l=state.links.find(x=>x.id===id); if(!l) return;
     let v=typeof val==='string'?val.trim():val;
-    if(key==='isPermanent') v = v ? true : null;
+    if(key==='isPermanent') v = (v==='permanent') ? true : (v==='patch') ? false : null;
     if(key==='installedAt' || key==='installedBy') v = typeof v==='string' ? v.trim() : v;
     const same = (v===''||v===null||v===undefined)
         ? !(key in l) && !l.autoLinked
