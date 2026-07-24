@@ -1353,7 +1353,11 @@ function _buildPdfReportData() {
     const _vmNum = x => { const v = typeof x === 'number' ? x : parseFloat(x); return Number.isFinite(v) && v > 0 ? v : null; };
     const vms = [];
     state.nodes
-        .filter(n => TYPES[n.type]?.hostsVms && Array.isArray(n.vms))
+        // Enumeriamo QUALSIASI nodo con VM documentate: `node.vms` è dato scritto
+        // (import/migrazione/JSON), non un privilegio del catalogo. Filtrare su
+        // TYPES.hostsVms — flag che `server` non ha — cancellava dal dossier VM
+        // reali (schema ③: flag-di-catalogo usato come predicato sul dato).
+        .filter(n => Array.isArray(n.vms) && n.vms.length)
         .forEach(h => {
             const hostName = getNodeDisplayName(h) || h.name || h.id;
             h.vms.forEach(vm => {
@@ -1368,7 +1372,11 @@ function _buildPdfReportData() {
                     host:  hostName,
                     name:  vm.name || '',
                     role:  vm.role || '',
-                    state: (vm.state || 'running') === 'running' ? 'running' : 'stopped',
+                    // Tri-stato ONESTO: uno stato assente NON è «accesa» (schema ①).
+                    // Passa il valore grezzo; il renderer PDF distingue running/
+                    // stopped/non-spec (pdf-report.js). Solo lo stato SNMP-misurato
+                    // o dichiarato a mano dice «accesa».
+                    state: vm.state === 'running' ? 'running' : vm.state === 'stopped' ? 'stopped' : '',
                     vlan:  _join('vlan'),
                     ip:    _join('ip'),
                     mac:   _join('mac'),

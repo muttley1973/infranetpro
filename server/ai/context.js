@@ -386,6 +386,16 @@ function buildAiContext(project, liveFacts, scope) {
     vlans,
   };
   if (devices.length) ctx.devices = devices;
+  // FRESCHEZZA dei dati (schema ②: «il tempo non entra mai»). Le misure — salute
+  // SNMP, alert, UPS/batteria — sono una FOTO al momento della Verifica, non uno
+  // stato live: senza dire QUANDO, l'assistente le racconta al presente («⚠ UPS
+  // sotto batteria») come se fossero adesso. Esponiamo i due timestamp onesti:
+  //   asOf            = ultimo salvataggio della documentazione (project.updated_at)
+  //   summary.measuredAt = ultima Verifica/poll SNMP (state.lastSnmpSyncAt)
+  const _asOf = _str(p.updated_at);
+  if (_asOf) ctx.asOf = _asOf;
+  const _snmpAt = Number(state.lastSnmpSyncAt);
+  if (Number.isFinite(_snmpAt) && _snmpAt > 0) ctx.summary.measuredAt = new Date(_snmpAt).toISOString();
   // Riepilogo capacità di FLOTTA (totali utili: porte libere, headroom PoE, banda
   // uplink, AP/SSID) — solo se almeno un device porta capacità.
   const fleetCap = computeFleetCapabilities(devices.map(d => d.capabilities));

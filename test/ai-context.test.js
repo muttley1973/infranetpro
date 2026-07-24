@@ -269,7 +269,7 @@ test('capacità switch: PoE (budget+headroom) + porte (free/mix/LAG)', () => {
   assert.equal(sw.capabilities.poe.worstCaseW, 45.4);          // 30 (at) + 15.4 (af)
   assert.equal(sw.capabilities.poe.headroomW, 324.6);
   assert.equal(sw.capabilities.ports.free, 3);                 // 4 porte − 1 usata
-  assert.equal(sw.capabilities.ports.uplinkAggregateMbps, 20000);
+  assert.equal(sw.capabilities.ports.lagAggregateMbps, 20000);
   assert.equal(sw.capabilities.ports.lags[0].name, 'Port-channel1');
   assert.deepEqual(sw.capabilities.ports.speeds, { '10G': 2, '1G': 2 });
 });
@@ -289,8 +289,23 @@ test('capacità flotta: summary.capabilities con totali utili', () => {
   const ctx = buildAiContext(projWithCaps(), null);
   assert.ok(ctx.summary.capabilities, 'riepilogo capacità di flotta presente');
   assert.equal(ctx.summary.capabilities.poeHeadroomW, 324.6);
-  assert.equal(ctx.summary.capabilities.uplinkAggregateMbps, 20000);
+  assert.equal(ctx.summary.capabilities.maxLagAggregateMbps, 20000);
   assert.equal(ctx.summary.capabilities.freePorts, 3);
+});
+
+test('② freschezza: asOf (updated_at) + summary.measuredAt (lastSnmpSyncAt) nel contesto', () => {
+  const p = projWithCaps();
+  p.updated_at = '2026-07-20T09:00:00.000Z';
+  p.state.lastSnmpSyncAt = Date.UTC(2026, 6, 22, 8, 0, 0);      // 2026-07-22T08:00Z
+  const ctx = buildAiContext(p, null);
+  assert.equal(ctx.asOf, '2026-07-20T09:00:00.000Z', 'asOf = ultimo salvataggio della documentazione');
+  assert.equal(ctx.summary.measuredAt, '2026-07-22T08:00:00.000Z', 'measuredAt = ultima Verifica/poll SNMP');
+});
+
+test('② freschezza: senza timestamp niente campo inventato (compact, no-invenzioni)', () => {
+  const ctx = buildAiContext(projWithCaps(), null);            // niente updated_at né lastSnmpSyncAt
+  assert.ok(!('asOf' in ctx), 'nessun asOf inventato');
+  assert.ok(!('measuredAt' in ctx.summary), 'nessun measuredAt inventato');
 });
 
 test('scope.ports=false → capacità SENZA il blocco porte (gating)', () => {
