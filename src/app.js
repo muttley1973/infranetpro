@@ -5,7 +5,7 @@ import { win, expose, t, mergeLeaseSources } from './_bridge.js';
 // funzioni pure → nessuno snapshot congelato possibile. Il bundle la pubblica
 // comunque su window (UMD) per eventuali consumatori classic.
 import { canonicalizeIpv6 } from '../lib/ipv6.js';
-import { migrateVmNics, VM_FLAT_NET_FIELDS } from '../lib/vm-nics.js';   // migrazione vm.ip/mac/vlan → vm.nics[]
+import { migrateVmNics, VM_FLAT_NET_FIELDS, vmIps } from '../lib/vm-nics.js';   // migrazione vm.ip/mac/vlan → vm.nics[]; vmIps = IPv4 di tutte le vNIC
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, normalizeNumber, normalizeStatus, normalizeMacAddress, _shadeHex } from './app-util.js';   // helper puri estratti dal god-file
 import { TYPES, typeName, typeShort } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (prima letto dal global implicito) + nome localizzato
@@ -1547,14 +1547,22 @@ function _ipamMemoEnd(){ _ipamFrameMemo = null; }
 function _collectKnownIps(){
     if(_ipamFrameMemo && _ipamFrameMemo.known) return _ipamFrameMemo.known;
     const seen = new Map();
+    const _add = (ip, label) => {
+        const s = String(ip||'').trim();
+        if(!s || _parseIpv4Int(s) == null) return;
+        if(!seen.has(s)) seen.set(s, { ip:s, nodes:[] });
+        seen.get(s).nodes.push(label);
+    };
     for(const n of state.nodes || []){
-        const ips = [n.ip, n.integration?.host]
-            .map(x => String(x||'').trim())
-            .filter(Boolean);
-        for(const ip of ips){
-            if(_parseIpv4Int(ip) == null) continue;
-            if(!seen.has(ip)) seen.set(ip, { ip, nodes:[] });
-            seen.get(ip).nodes.push(getNodeDisplayName(n));
+        _add(n.ip, getNodeDisplayName(n));
+        _add(n.integration?.host, getNodeDisplayName(n));
+        // Le VM occupano indirizzi REALI nella loro VLAN: senza contarle, il
+        // «prossimo IP libero» (nextFree) le proponeva come libere → collisione
+        // (schema ①/cecità: 32/32 IP di VM invisibili su progetto 9). Ogni IPv4
+        // di ogni vNIC entra fra i «noti», etichettato host / nome-VM.
+        for(const vm of (n.vms || [])){
+            const label = `${getNodeDisplayName(n)} / ${vm && vm.name ? vm.name : 'VM'}`;
+            for(const rec of vmIps(vm)) _add(rec && rec.ip, label);  // vmIps → [{nicId,name,ip}]
         }
     }
     const _res = [...seen.values()].sort((a,b)=>a.ip.localeCompare(b.ip, undefined, { numeric:true }));

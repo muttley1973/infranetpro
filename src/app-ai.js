@@ -257,9 +257,13 @@ function _aiBuildSummary(){
     // Salute SNMP: device monitorati in errore all'ultimo Sync (stessa definizione
     // della statistica subbar). Lib UMD-lite consumata come GLOBALE BARE
     // (typeof-guard, come nextStep): nessun win.* nuovo.
-    let snmpDown = 0;
+    // devices: STESSA popolazione della statistica subbar (non-strutturali) — non
+    // nodes.length (che conta anche le stanze). Altrimenti l'onboarding diceva «35
+    // dispositivi» e la stat «34 Device» sulla stessa barra (schema ⑤: popolazioni
+    // diverse, stessa parola).
+    let snmpDown = 0, deviceCount = nodes.length;
     if (typeof computeSubbarStats === 'function') {
-        try { snmpDown = computeSubbarStats(nodes, TYPES).snmpDown || 0; } catch(_){}
+        try { const _ss = computeSubbarStats(nodes, TYPES); snmpDown = _ss.snmpDown || 0; deviceCount = _ss.devices; } catch(_){}
     }
     // unverified: dal report Drift DIRETTO (non dai liveFacts: quelli viaggiano
     // verso l'assistente e restano sull'allowlist attuale). portConflicts:
@@ -268,7 +272,7 @@ function _aiBuildSummary(){
     let portConflicts = 0;
     for(const n of nodes) portConflicts += Array.isArray(n && n.portReconcileConflicts) ? n.portReconcileConflicts.length : 0;
     return {
-        devices: nodes.length,
+        devices: deviceCount,
         verified: !!store._driftReport,
         snmpDown,
         portConflicts,

@@ -57,6 +57,7 @@ test('documentazione % = withIp / indirizzabili (passivi esclusi dal denominator
   assert.equal(s.addressable, 4, 'switch+pc+pc+ups');
   assert.equal(s.withIp, 2);
   assert.equal(s.docPct, 50, '2/4 = 50%');
+  assert.equal(s.passive, 2, 'presa a muro + patch panel contati a parte (per il tooltip «di cui N passivi»)');
 });
 
 test('REGRESSIONE: gli apparati ATTIVI sono indirizzabili anche senza il flag hasIP', () => {

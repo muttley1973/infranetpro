@@ -113,7 +113,7 @@ test('porte: porte libere + mix velocità + banda LAG aggregata', () => {
   });
   assert.equal(caps.ports.free, 44);
   assert.deepEqual(caps.ports.speeds, { '10G': 2, '1G': 3 });
-  assert.equal(caps.ports.uplinkAggregateMbps, 20000);
+  assert.equal(caps.ports.lagAggregateMbps, 20000);
   assert.equal(caps.ports.lags.length, 1);
   assert.equal(caps.ports.lags[0].name, 'Port-channel1');
   assert.equal(caps.ports.lags[0].members, 2);
@@ -146,15 +146,24 @@ test('allowlist: chiavi spec ignote/segrete non finiscono nelle capacità', () =
   assert.equal(caps.poe.budgetW, 200);
 });
 
-test('flotta: somma porte libere + headroom PoE + uplink + AP/SSID', () => {
+test('flotta: somma porte libere + headroom PoE + LAG più capiente (MAX, non somma) + AP/SSID', () => {
   const a = computeDeviceCapabilities({ type: 'switch', spec: { swPoeBudgetW: 370 }, ports: { free: 36, list: [{ poe: '802.3at' }, { speed: 10000, lagGroup: 'g1' }, { speed: 10000, lagGroup: 'g1' }] }, lagNames: { g1: 'Po1' } });
   const b = computeDeviceCapabilities({ type: 'ap', radios: [{ band: '5', ssids: [{ ssid: 'X', vlan: 10 }] }] });
   const fleet = computeFleetCapabilities([a, b, undefined]);
   assert.equal(fleet.freePorts, 36);
-  assert.equal(fleet.uplinkAggregateMbps, 20000);
+  assert.equal(fleet.maxLagAggregateMbps, 20000);
   assert.equal(fleet.aps, 1);
   assert.equal(fleet.ssids, 1);
   assert.equal(fleet.poeHeadroomW, 370 - 30);   // 1 porta at = 30W
+});
+
+test('flotta: la banda LAG NON si somma sui due capi (schema ④: MAX, non ×2)', () => {
+  // Lo STESSO Port-channel fra due switch appare su entrambi i capi a 20G.
+  const end1 = computeDeviceCapabilities({ type: 'switch', spec: {}, ports: { list: [{ speed: 10000, lagGroup: 'p1' }, { speed: 10000, lagGroup: 'p1' }] }, lagNames: { p1: 'Po1' } });
+  const end2 = computeDeviceCapabilities({ type: 'switch', spec: {}, ports: { list: [{ speed: 10000, lagGroup: 'p1' }, { speed: 10000, lagGroup: 'p1' }] }, lagNames: { p1: 'Po1' } });
+  const fleet = computeFleetCapabilities([end1, end2]);
+  assert.equal(fleet.maxLagAggregateMbps, 20000, 'MAX dei due capi = 20G, non 40G');
+  assert.ok(!('uplinkAggregateMbps' in fleet), 'niente più totale-flotta che raddoppia i LAG');
 });
 
 test('flotta vuota → undefined', () => {

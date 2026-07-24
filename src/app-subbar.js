@@ -41,15 +41,17 @@ function _summary() {
   }
   const st = store.state || {};
   const nodes = Array.isArray(st.nodes) ? st.nodes : [];
-  let snmpDown = 0;
+  // devices: non-strutturali (come la stat subbar), non nodes.length → coerenza
+  // «dispositivi documentati» fra onboarding e statistica (schema ⑤).
+  let snmpDown = 0, deviceCount = nodes.length;
   if (typeof computeSubbarStats === 'function') {
-    try { snmpDown = computeSubbarStats(nodes, TYPES).snmpDown || 0; } catch (_) {}
+    try { const _ss = computeSubbarStats(nodes, TYPES); snmpDown = _ss.snmpDown || 0; deviceCount = _ss.devices; } catch (_) {}
   }
   let portConflicts = 0;
   for (const n of nodes) portConflicts += Array.isArray(n && n.portReconcileConflicts) ? n.portReconcileConflicts.length : 0;
   const rep = (store._driftReport && typeof store._driftReport === 'object') ? store._driftReport : {};
   return {
-    devices: nodes.length, verified: !!store._driftReport, snmpDown, portConflicts,
+    devices: deviceCount, verified: !!store._driftReport, snmpDown, portConflicts,
     drift: { unverified: Array.isArray(rep.unverified) ? rep.unverified.length : 0 }, gaps: {},
   };
 }
@@ -221,8 +223,11 @@ function _statsEl(stats) {
     t('subbar.doc'),
     stats.docPct == null ? t('subbar.docNone') : t('subbar.docTip', { withIp: stats.withIp, addr: stats.addressable }),
   ));
-  // Device totali
-  wrap.appendChild(_statEl('fa-network-wired', String(stats.devices), t('subbar.devices'), t('subbar.devicesTip', { n: stats.devices })));
+  // Device totali (il tooltip dichiara i passivi quando ci sono: schema ⑤)
+  wrap.appendChild(_statEl('fa-network-wired', String(stats.devices), t('subbar.devices'),
+    stats.passive > 0
+      ? t('subbar.devicesTipMixed', { n: stats.devices, passive: stats.passive })
+      : t('subbar.devicesTip', { n: stats.devices })));
   // Salute SNMP (pallino colorato + ok/totale)
   const snmp = _statEl(
     null,
