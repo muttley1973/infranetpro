@@ -101,7 +101,13 @@ function _crumbEl() {
   wrap.appendChild(_sep());
   const proj = document.createElement('b'); proj.className = 'msb-proj'; proj.textContent = _projectName(); wrap.appendChild(proj);
   wrap.appendChild(_sep());
-  const view = document.createElement('span'); view.textContent = t('subbar.floor'); wrap.appendChild(view);
+  // Il terzo segmento segue la VISTA attiva, non e' fisso su "Planimetria":
+  // map → Planimetria · topology → Topologia · overview → Panoramica. Riusa le
+  // etichette gia' esistenti (ov.label = bottone Panoramica, f.topology).
+  const viewLabel = store._viewMode === 'overview' ? t('ov.label').trim()
+    : store._viewMode === 'topology' ? t('f.topology')
+    : t('subbar.floor');
+  const view = document.createElement('span'); view.textContent = viewLabel; wrap.appendChild(view);
   return wrap;
 }
 

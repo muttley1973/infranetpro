@@ -334,6 +334,34 @@ test('③ la banda uplink è il LAG PIÙ CAPIENTE, non la somma (un LAG ha due c
   assert.deepEqual(up.items.map((i) => i.id), ['sw3', 'sw1', 'sw2'], 'più capiente in cima');
 });
 
+test('④ SALUTE colonna (strato colpo d\'occhio): ok/warn/bad + conteggio dai segnali che ESISTONO', () => {
+  const nodes = [
+    { id: 'sw1', type: 'switch', name: 'SW-CORE', ip: '10.0.0.1', mac: 'aa:bb:cc:00:00:01' },
+    { id: 'sw2', type: 'switch', name: '10.0.0.2', ip: '10.0.0.2', mac: 'aa:bb:cc:00:00:02' }, // nome = IP → lacuna
+  ];
+  // Nessun Sync (lastSyncAt assente) → Conformità vola alla cieca (rosso). Nessuna
+  // subnet dichiarata → una lacuna in Documento oltre al nome. Margine intatto.
+  const blind = buildOverview({ types: TYPES, nodes, spare: { totals: { free: 5, ports: 10 } } });
+  assert.equal(blind.complete.health.level, 'warn', 'lacune di documentazione = giallo, mai rosso');
+  assert.ok(blind.complete.health.issues >= 2, 'almeno nome + subnet non dichiarate');
+  assert.equal(blind.truth.health.level, 'bad', 'mai letto → si vola alla cieca (rosso)');
+  assert.equal(blind.margin.health.level, 'ok', 'porte libere disponibili → verde');
+
+  // Letto di recente MA con discrepanze/non-verificabili → giallo «da riverificare»,
+  // NON rosso: il rosso e' riservato al non-letto (la riga «Verifica completa» e'
+  // un segnaposto di Fase 2, sempre 'none', e non deve tingere di rosso ogni progetto).
+  const synced = buildOverview({ types: TYPES, nodes,
+    lastSyncAt: 1000, now: 2000, lastSyncResult: { at: 1000, ok: 2, total: 2 },
+    spare: { totals: { free: 5, ports: 10, suspect: 3 } } });
+  assert.equal(synced.truth.health.level, 'warn', 'letto ma con discrepanze = giallo, non rosso');
+
+  // Rack pieno + zero porte libere → Espansione giallo (risorsa chiave esaurita).
+  const full = buildOverview({ types: TYPES, nodes: [{ id: 'sw1', type: 'switch', rackId: 'r1' }],
+    rackFill: [{ id: 'r1', sizeU: 10, used: 10, free: 0 }],
+    spare: { totals: { free: 0, ports: 24 } } });
+  assert.equal(full.margin.health.level, 'warn', '0 porte libere o rack pieno → giallo');
+});
+
 test('nessuna riga contiene stringhe di interfaccia (le parole le mette il renderer)', () => {
   const o = buildOverview({
     types: TYPES, nodes: [{ id: 'sw1', type: 'switch', ip: '10.0.0.1' }],

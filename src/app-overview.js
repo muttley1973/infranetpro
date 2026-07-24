@@ -47,6 +47,39 @@ function _saveView(v) {
     try { localStorage.setItem(VIEW_KEY, v || ''); } catch (_) { /* storage negato: pazienza */ }
 }
 
+// Delta «dall'ultima lettura»: la baseline vive in localStorage (per progetto),
+// MAI in state — guardare non deve sporcare il documento (stesso paletto della
+// vista). Ancorata a lastSyncAt: cosi' il delta riflette il cambio fra DUE Sync,
+// non il rumore dei re-render (a syncAt invariato si ripresenta il delta salvato).
+const SNAP_KEY = 'infranet.ov.snap';
+function _loadSnap(pid) {
+    try { return JSON.parse(localStorage.getItem(SNAP_KEY + '.' + pid) || 'null'); } catch (_) { return null; }
+}
+function _saveSnap(pid, obj) {
+    try { localStorage.setItem(SNAP_KEY + '.' + pid, JSON.stringify(obj)); } catch (_) { /* storage negato: pazienza */ }
+}
+// Metrica confrontabile per colonna = health.issues (piu' basso = meglio, uniforme
+// per le tre sezioni). Ritorna { complete, truth, margin } (differenze; negativo =
+// migliorato) o null se manca una lettura o una baseline con cui confrontare.
+function _overviewDelta(pid, o, syncAt) {
+    if (!syncAt) return null;                       // mai letto → niente da confrontare
+    const cur = {
+        complete: (o.complete.health && o.complete.health.issues) || 0,
+        truth: (o.truth.health && o.truth.health.issues) || 0,
+        margin: (o.margin.health && o.margin.health.issues) || 0,
+    };
+    const snap = _loadSnap(pid);
+    if (!snap || !snap.counts) { _saveSnap(pid, { syncAt, counts: cur, delta: null }); return null; }
+    if (snap.syncAt === syncAt) return snap.delta || null;   // stessa lettura → delta persistito
+    const delta = {
+        complete: cur.complete - (Number(snap.counts.complete) || 0),
+        truth: cur.truth - (Number(snap.counts.truth) || 0),
+        margin: cur.margin - (Number(snap.counts.margin) || 0),
+    };
+    _saveSnap(pid, { syncAt, counts: cur, delta });          // ri-ancora alla lettura nuova
+    return delta;
+}
+
 // ── Modello per la lib ───────────────────────────────────────────────────────
 // Un solo giro sui nodi: costruisce insieme i device per il report porte libere,
 // il conteggio delle porte in fibra e le capacita' hardware per apparato.
@@ -192,10 +225,13 @@ function _tileValue(r) {
 function _tileStatus(r) {
     const e = r.extra || {};
     const gap = (r.total != null && r.value != null) ? r.total - r.value : null;
-    const gapStatus = () => (r.prov === 'none' ? { w: t('ov.st.none'), tone: 'none' }
-        : (gap === 0 ? { w: t('ov.st.complete'), tone: 'ok' } : { w: t('ov.st.missing', { n: gap }), tone: 'warn' }));
+    const gapStatus = (missKey = 'ov.st.missing') => (r.prov === 'none' ? { w: t('ov.st.none'), tone: 'none' }
+        : (gap === 0 ? { w: t('ov.st.complete'), tone: 'ok' } : { w: t(missKey, { n: gap }), tone: 'warn' }));
     switch (r.key) {
-        case 'addr': case 'name': case 'vlanNames': return gapStatus();
+        case 'addr': case 'vlanNames': return gapStatus();
+        // I nomi «mancanti» sono in realta' «da confermare»: il device c'e', gli
+        // manca solo un nome proprio (spesso si chiama ancora come il suo IP).
+        case 'name': return gapStatus('ov.st.missingNames');
         // Il MAC e' completo anche quando arriva dalle interfacce: dirlo evita
         // la domanda «ma il MAC c'e', perche' me lo dai per mancante?».
         case 'mac': return (gap === 0 && e.fromPorts)
@@ -429,7 +465,27 @@ function _metaStripEl(sec, keys) {
     return strip;
 }
 
-function _sectionEl(secKey, num, sec) {
+// Verdetto di sintesi della colonna: pallino colorato (salute ok/warn/bad) + una
+// frase sobria. Il COLORE da' il colpo d'occhio, le parole restano pacate (scelta
+// utente «via di mezzo»). Livello e conteggio arrivano dalla lib; qui solo la resa.
+function _verdictEl(secKey, health, deltaN) {
+    const lvl = (health && health.level) || 'ok';
+    const el = _el('div', 'ov-verdict v-' + lvl);
+    el.appendChild(_el('span', 'ov-vdot'));
+    el.appendChild(_el('span', 'ov-vtxt', t('ov.health.' + secKey + '.' + lvl, { n: (health && health.issues) || 0 })));
+    // Delta dall'ultima lettura: segno esplicito (−N meno · +N piu'), colore
+    // ridondante col segno (verde meglio · rosso peggio). Solo se != 0.
+    if (deltaN) {
+        const better = deltaN < 0;
+        const chip = _el('span', 'ov-delta ' + (better ? 'd-better' : 'd-worse'),
+            (deltaN > 0 ? '+' : '−') + Math.abs(deltaN));
+        chip.title = t(better ? 'ov.deltaBetter' : 'ov.deltaWorse', { n: Math.abs(deltaN) });
+        el.appendChild(chip);
+    }
+    return el;
+}
+
+function _sectionEl(secKey, num, sec, deltaN) {
     const col = _el('section', 'ov-col');
     col.dataset.sec = secKey;
     const h2 = document.createElement('h2');
@@ -437,6 +493,10 @@ function _sectionEl(secKey, num, sec) {
     h2.appendChild(document.createTextNode(t('ov.sec.' + secKey)));
     col.appendChild(h2);
     col.appendChild(_el('p', 'ov-ask', t('ov.sec.' + secKey + 'Q')));
+
+    // Strato colpo d'occhio: la RISPOSTA alla domanda, con pallino di salute e
+    // il delta dall'ultima lettura.
+    if (sec.health) col.appendChild(_verdictEl(secKey, sec.health, deltaN));
 
     // Il «quando» del dato in cima, fuori dalla griglia dei risultati.
     const metaKeys = _META_ROWS[secKey] || [];
@@ -451,10 +511,15 @@ function _sectionEl(secKey, num, sec) {
     for (const r of sec.rows) {
         if (metaKeys.indexOf(r.key) !== -1) continue;   // gia' in cima alla colonna
         const el = _rowEl(secKey, r);
-        // Evidenzia il punto d'ingresso SOLO se e' davvero un problema: la lib
-        // ripiega sulla prima voce quando non c'e' nulla che non va, e mettere
-        // l'anello su «166 porte libere» direbbe una cosa falsa.
-        if (r.key === urgent && el.classList.contains('s-warn')) el.classList.add('is-urgent');
+        // Evidenzia il punto d'ingresso SOLO se e' davvero un problema — warn o
+        // «non dichiarato» (s-none): la lib ripiega sulla prima voce quando non
+        // c'e' nulla che non va, e mettere la barra su «166 porte libere» direbbe
+        // una cosa falsa. Il colore della barra segue il verdetto di colonna:
+        // ambra per warn, rosso per bad (coerente col pallino in cima).
+        if (r.key === urgent && (el.classList.contains('s-warn') || el.classList.contains('s-none'))) {
+            el.classList.add('is-urgent');
+            if (sec.health && sec.health.level === 'bad') el.classList.add('u-bad');
+        }
         rows.appendChild(el);
     }
     col.appendChild(rows);
@@ -472,13 +537,18 @@ export function renderOverview() {
     const root = document.getElementById('overview');
     if (!root || store._viewMode !== 'overview') return;
 
-    const o = buildOverview(_buildModel());
+    const model = _buildModel();
+    const o = buildOverview(model);
     root.textContent = '';
 
+    // Delta «dall'ultima lettura» (baseline in localStorage, per progetto): quante
+    // lacune/discrepanze in meno o in più rispetto al Sync precedente.
+    const dl = _overviewDelta(store.currentProjectId, o, Number(model.lastSyncAt) || 0);
+
     const cols = _el('div', 'ov-cols');
-    cols.appendChild(_sectionEl('complete', 1, o.complete));
-    cols.appendChild(_sectionEl('truth', 2, o.truth));
-    cols.appendChild(_sectionEl('margin', 3, o.margin));
+    cols.appendChild(_sectionEl('complete', 1, o.complete, dl && dl.complete));
+    cols.appendChild(_sectionEl('truth', 2, o.truth, dl && dl.truth));
+    cols.appendChild(_sectionEl('margin', 3, o.margin, dl && dl.margin));
     root.appendChild(cols);
 
     const foot = _el('div', 'ov-foot');
