@@ -35,6 +35,11 @@ const VIEW_KEY = 'infranet.view';
 // dettaglio che si richiude da solo mentre lo stai leggendo e' inaccettabile.
 const _open = new Map();
 
+// Scheda attiva PER DETTAGLIO raggruppato (sec:key -> group). Come `_open`, vive
+// fuori dal DOM cosi' la scelta della scheda («In rack»/«Fuori rack») sopravvive
+// ai re-render di background.
+const _grpTab = new Map();
+
 function _savedView() {
     try { return localStorage.getItem(VIEW_KEY) || ''; } catch (_) { return ''; }
 }
@@ -54,11 +59,18 @@ function _buildModel() {
     const spareDevices = [];
     const caps = [];
     const portMacNodeIds = new Set();
+    // MAC→id nodo (chiave esadecimale, STESSA norm della lib _macKey): serve a
+    // risolvere a nome i vicini LLDP/CDP che si annunciano solo col chassis-id
+    // MAC. Copre node.mac + MAC di porta + MAC di LAG (primo che vince).
+    const macToNode = {};
+    const _macKey = (v) => { const h = String(v || '').toLowerCase().replace(/[^0-9a-f]/g, ''); return h.length === 12 ? h : ''; };
+    const _rememberMac = (mac, id) => { const k = _macKey(mac); if (k && !(k in macToNode)) macToNode[k] = id; };
     let sfpTotal = 0;
     for (const n of nodes) {
         if (!n) continue;
         const def = TYPES[n.type] || {};
         const pc = (n.ports !== undefined) ? n.ports : (def.ports || 0);
+        _rememberMac(n.mac, n.id);
 
         // Capacita' HW: lo spec e' la fonte, le porte servono a PoE/LAG/banda.
         // ⚠️ `ports` vuole la forma { list, total, free } — un array nudo fa
@@ -75,7 +87,7 @@ function _buildModel() {
             // Su un apparato SNMP il MAC arriva per INTERFACCIA: `node.mac` resta
             // vuoto mentre le porte hanno il loro ifPhysAddress. Vale come identita'
             // L2 documentata quanto il MAC di chassis.
-            if (String(p.mac || '').trim()) portMacNodeIds.add(n.id);
+            if (String(p.mac || '').trim()) { portMacNodeIds.add(n.id); _rememberMac(p.mac, n.id); }
             cabled[i] = _linksForPort(pid).length > 0;
             if (!cabled[i]) freePorts++;
             capPorts.push({
@@ -86,7 +98,7 @@ function _buildModel() {
             });
         }
         for (const l of ((n.integration && n.integration.lags) || [])) {
-            if (l && String(l.mac || '').trim()) portMacNodeIds.add(n.id);
+            if (l && String(l.mac || '').trim()) { portMacNodeIds.add(n.id); _rememberMac(l.mac, n.id); }
         }
         const c = computeDeviceCapabilities({
             type: n.type, spec: n.spec, radios: n.radios, vmsCount: (n.vms || []).length,
@@ -130,7 +142,7 @@ function _buildModel() {
     try { networks = (deriveProjectNetworks({ nodes, types: TYPES }) || {}).networks || []; } catch (_) { networks = []; }
 
     return {
-        nodes, types: TYPES, links: Array.isArray(st.links) ? st.links : [], portMacNodeIds,
+        nodes, types: TYPES, links: Array.isArray(st.links) ? st.links : [], portMacNodeIds, macToNode,
         ipamVlans: (st.ipam && st.ipam.vlans) ? st.ipam.vlans : {},
         vlanIdsInUse, vlanNames: st.vlanNames || {},
         spare: buildSpareReport(spareDevices), sfpTotal, rackFill, networks,
@@ -170,7 +182,7 @@ function _tileValue(r) {
         case 'rackU':        return r.prov === 'none' ? [t('ov.none'), ''] : [r.value + 'U', t('ov.of', { n: r.total })];
         case 'poe':          return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), t('ov.of', { n: r.total })];
         case 'uplink':       return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), 'Mbps'];
-        case 'ipFree':       return [t('ov.none'), ''];
+        case 'ipFree':       return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), ''];
         default:             return [_n(r.value), r.total != null ? t('ov.of', { n: r.total }) : ''];
     }
 }
@@ -194,8 +206,12 @@ function _tileStatus(r) {
         case 'cables':       return e.auto
             ? { w: t('ov.st.cableSplit', { m: e.manual, a: e.auto }), tone: 'info' }
             : { w: t('ov.st.documented'), tone: 'info' };
+        // Nella colonna «il documento è completo?» la lacuna è il punto: la
+        // subnet c'è nella rete ma NON è dichiarata nel progetto. «non dichiarate»
+        // (col conteggio delle osservate) lo dice meglio di «osservate», che
+        // suonava come un dato a posto.
         case 'subnets':      return r.prov === 'none'
-            ? { w: t('ov.observedNets', { n: e.observed || 0 }), tone: 'none' }
+            ? { w: t('ov.subnetsUndeclared', { n: e.observed || 0 }), tone: 'none' }
             : { w: t('ov.st.declared'), tone: 'ok' };
         case 'lastSync':     return r.prov === 'none'
             ? { w: t('ov.st.never'), tone: 'none' }
@@ -223,9 +239,11 @@ function _tileStatus(r) {
         case 'uplink':       return r.prov === 'none'
             ? { w: t('ov.st.noSpeeds'), tone: 'none' }
             : { w: t('ov.st.widestLag', { n: e.devices || 0 }), tone: 'info' };
+        // Liberi DEDOTTI assumendo /24 (come deriveProjectNetworks): il verdetto
+        // dichiara l'assunzione, cosi' il numero non si spaccia per certo.
         case 'ipFree':       return r.prov === 'none'
             ? { w: t('ov.st.needSubnet'), tone: 'none' }
-            : { w: t('ov.observedNets', { n: e.observedNets || 0 }), tone: 'info' };
+            : { w: t('ov.freeAssumed24', { n: e.observedNets || 0 }), tone: 'info' };
         default:             return { w: '', tone: 'info' };
     }
 }
@@ -281,12 +299,44 @@ function _rowEl(secKey, r) {
     return el;
 }
 
+// Costruisce la riga <li> di UNA voce del dettaglio (device / rete / porta).
+function _itemLi(it) {
+    const li = document.createElement('li');
+    // id e (opzionale) peer = i due capi di un LAG o di un cavo dedotto. Se il
+    // primario non si risolve a nodo ma il peer si', il peer diventa primario.
+    let aId = it.id || null, bId = it.peer || null;
+    let aN = aId ? nodeById(aId) : null;
+    if (!aN && bId) { aId = bId; bId = null; aN = nodeById(aId); }
+    // Un elemento del progetto si apre; una rete o una porta e' solo testo.
+    const inner = aN ? _el('button', 'ov-go') : _el('span', 'ov-go');
+    if (aN) { inner.type = 'button'; inner.dataset.act = 'overview-goto'; inner.dataset.id = aId; }
+    inner.appendChild(_el('span', null, aN ? (getNodeDisplayName(aN) || aId) : String(aId != null ? aId : '')));
+    // Il secondo capo, risolto a nome (l'altro estremo di un LAG/cavo dedotto).
+    if (bId) {
+        const bN = nodeById(bId);
+        inner.appendChild(_el('span', 'ov-peer', '↔ ' + (bN ? (getNodeDisplayName(bN) || bId) : String(bId))));
+    }
+    // Provenienza per-voce (misurato/dedotto): la lib da' il token, la parola
+    // la mette qui — mai stringhe di interfaccia dentro la lib.
+    if (it.tag) inner.appendChild(_el('span', 'ov-tag p-' + it.tag, t('ov.prov.' + it.tag)));
+    const metaTxt = it.addr || (it.meta != null ? String(it.meta) : '');
+    if (metaTxt || it.of != null) {
+        const m = _el('span', 'ov-meta');
+        if (metaTxt) m.appendChild(_el('span', null, metaTxt));
+        // «di {of}» attenuato: il contesto (es. utilizzabili del CIDR) accanto
+        // al valore principale, senza rubargli peso.
+        if (it.of != null) m.appendChild(_el('span', 'ov-meta-of', ' ' + t('ov.of', { n: it.of })));
+        inner.appendChild(m);
+    }
+    li.appendChild(inner);
+    return li;
+}
+
 function _detailEl(secKey, r) {
     const d = _el('div', 'ov-detail');
     d.dataset.for = secKey + ':' + r.key;
     const h = _el('div', 'ov-dh');
-    const b = _el('b', null, String(r.items.length));
-    h.appendChild(b);
+    h.appendChild(_el('b', null, String(r.items.length)));
     h.appendChild(document.createTextNode(' ' + t('ov.row.' + r.key)));
     const x = _el('button', 'ov-x', t('ov.close') + ' ✕');
     x.type = 'button';
@@ -294,21 +344,61 @@ function _detailEl(secKey, r) {
     h.appendChild(x);
     d.appendChild(h);
 
-    const ul = document.createElement('ul');
-    for (const it of r.items) {
-        const li = document.createElement('li');
-        const n = it.id ? nodeById(it.id) : null;
-        // Un elemento del progetto si apre; una rete o una porta e' solo testo.
-        const inner = n ? _el('button', 'ov-go') : _el('span', 'ov-go');
-        if (n) { inner.type = 'button'; inner.dataset.act = 'overview-goto'; inner.dataset.id = it.id; }
-        inner.appendChild(_el('span', null, n ? (getNodeDisplayName(n) || it.id) : String(it.id)));
-        const meta = it.addr || (it.meta != null ? String(it.meta) : '');
-        if (meta) inner.appendChild(_el('span', 'ov-meta', meta));
-        li.appendChild(inner);
-        ul.appendChild(li);
+    // Item con `group` → dettaglio a SCHEDE: le sub-header in testa dividono lo
+    // spazio in due e commutano la lista mostrata (una alla volta). Senza `group`
+    // → lista piatta.
+    if (r.items.some((it) => it.group)) {
+        const forKey = secKey + ':' + r.key;
+        const groups = [];
+        const byGroup = new Map();
+        for (const it of r.items) {
+            const gk = it.group || '';
+            if (!byGroup.has(gk)) { byGroup.set(gk, []); groups.push(gk); }
+            byGroup.get(gk).push(it);
+        }
+        // Scheda attiva: quella salvata (se esiste ancora), altrimenti la prima.
+        const active = (_grpTab.has(forKey) && byGroup.has(_grpTab.get(forKey))) ? _grpTab.get(forKey) : groups[0];
+
+        const tabs = _el('div', 'ov-tabs');
+        for (const gk of groups) {
+            const tab = _el('button', 'ov-tab' + (gk === active ? ' is-active' : ''), gk ? t('ov.grp.' + gk) : '');
+            tab.type = 'button';
+            tab.dataset.act = 'overview-grp-tab';
+            tab.dataset.for = forKey;
+            tab.dataset.grp = gk;
+            tabs.appendChild(tab);
+        }
+        d.appendChild(tabs);
+
+        for (const gk of groups) {
+            const panel = _el('div', 'ov-tab-panel');
+            panel.dataset.for = forKey;
+            panel.dataset.grp = gk;
+            if (gk !== active) panel.hidden = true;
+            const ul = document.createElement('ul');
+            for (const it of byGroup.get(gk)) ul.appendChild(_itemLi(it));
+            panel.appendChild(ul);
+            d.appendChild(panel);
+        }
+    } else {
+        const ul = document.createElement('ul');
+        for (const it of r.items) ul.appendChild(_itemLi(it));
+        d.appendChild(ul);
     }
-    d.appendChild(ul);
     return d;
+}
+
+// Commuta la scheda attiva di un dettaglio raggruppato: salva la scelta (fuori
+// dal DOM, sopravvive ai re-render) e mostra solo la lista corrispondente.
+function _switchGrpTab(el) {
+    const forKey = el.dataset.for;
+    const grp = el.dataset.grp;
+    if (forKey == null) return;
+    _grpTab.set(forKey, grp);
+    const det = el.closest('.ov-detail');
+    if (!det) return;
+    det.querySelectorAll('.ov-tab').forEach((tb) => tb.classList.toggle('is-active', tb.dataset.grp === grp));
+    det.querySelectorAll('.ov-tab-panel').forEach((p) => { p.hidden = (p.dataset.grp !== grp); });
 }
 
 // Voci che NON sono constatazioni sulla rete ma il «quando» del dato: l'ultima
@@ -484,4 +574,5 @@ registerClickActions({
     'overview-row': (el) => _toggleRow(el),
     'overview-detail-close': (el) => { const c = el.closest('.ov-col'); if (c) _closeIn(c); },
     'overview-goto': (el) => _gotoNode(el.dataset.id),
+    'overview-grp-tab': (el) => _switchGrpTab(el),
 });

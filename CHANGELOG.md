@@ -8,6 +8,7 @@ The workspace showed its statistics as text chips. The data to answer three stan
 
 ### Added
 - **Overview view (`lib/overview.js`, pure + 15 tests).** Composes existing engines (`spare-ports`, `project-networks`, `hw-capabilities`, `TYPES`) — no new measurement — into Complete · True · Margin. A missing datum is shown, not hidden: an undeclared PoE budget or VLAN name renders as a dashed "not declared" cell — the honesty rule made visible rather than left blank. The chosen view lives in `localStorage`, never in `state`, so looking at the summary does not dirty the project (pinned by e2e). `src/app-overview.js`, `styles/11-overview.css`, `lib/i18n.js` (it/en), and the view-switch wiring in `src/`.
+- **Refinements (same release, pre-publish).** Columns renamed Document · Conformance · Expansion; typography raised one token step. Every detail is now a drill-down — click a row to list what's behind it: LLDP/CDP neighbours resolve a bare chassis-MAC to the project device's name; the free-address row shows free *of usable* per subnet (/24 assumed, marked derived, no longer the used count under a "free" label); free ports split into **In rack / Outside rack** tabs. A manually-pinned hostname counts as a proper name even when the display still shows the IP, and the free-ports verdict says ports are "to verify", not "to clarify". `lib/overview.js`, `src/app-overview.js`, `lib/i18n.js`, `styles/11-overview.css`, +tests.
 
 ## 2026-07-24 — An exported floor plan doesn't claim presence without a Verify (v2.1.0)
 

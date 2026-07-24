@@ -42,13 +42,16 @@ body.view-overview #export-area { display: none; }
     display: flex; flex-direction: column; min-height: 0;
     box-shadow: var(--shadow-sm);
 }
+/* Tipografia +~120%: si sale di una fascia sui token gia' definiti (01-tokens.css),
+   la scelta piu' vicina al +20% richiesto — xs(0.75)→md(0.9), sm(0.82)→lg(1.0).
+   Nessun valore inventato: si riusano le classi di scala esistenti. */
 .ov-col h2 {
-    margin: 0; font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted);
+    margin: 0; font-size: var(--fs-lg); font-weight: 600; color: var(--text-muted);
     letter-spacing: .6px; text-transform: uppercase;
     display: flex; align-items: baseline; gap: 8px;
 }
-.ov-col h2 .ov-n { color: var(--inactive-color); font-size: var(--fs-md); }
-.ov-ask { font-size: var(--fs-xs); color: var(--inactive-color); margin: 3px 0 0; }
+.ov-col h2 .ov-n { color: var(--inactive-color); font-size: var(--fs-xl); }
+.ov-ask { font-size: var(--fs-md); color: var(--inactive-color); margin: 3px 0 0; }
 
 /* ── il «quando» del dato, in cima alla colonna ─────────────────
    Ultima lettura SNMP e ultima Verifica non sono risultati: sono la DATA a cui
@@ -57,7 +60,7 @@ body.view-overview #export-area { display: none; }
 .ov-meta-strip {
     display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px;
     padding-bottom: 9px; border-bottom: 1px solid var(--hairline);
-    font-size: var(--fs-xs);
+    font-size: var(--fs-md);
 }
 .ov-meta-item { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); }
 .ov-meta-k { color: var(--text-muted); }
@@ -87,17 +90,17 @@ button.ov-r:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 /* punto d'ingresso della sezione: la voce piu' urgente, senza gridare */
 .ov-r.is-urgent { box-shadow: inset 0 0 0 1px var(--idle-color); }
 
-.ov-k { font-size: var(--fs-xs); color: var(--text-muted); display: flex; align-items: center; gap: 6px; min-width: 0; }
+.ov-k { font-size: var(--fs-md); color: var(--text-muted); display: flex; align-items: center; gap: 6px; min-width: 0; }
 .ov-k .ov-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .ov-val { display: flex; align-items: baseline; gap: 5px; font-variant-numeric: tabular-nums; }
 .ov-val .ov-num { font-size: 1.9rem; font-weight: 600; line-height: 1; letter-spacing: -.5px; }
-.ov-val .ov-sub { font-size: var(--fs-xs); color: var(--text-muted); }
+.ov-val .ov-sub { font-size: var(--fs-md); color: var(--text-muted); }
 .ov-r.is-missing .ov-val .ov-num { color: var(--inactive-color); font-size: 1.5rem; }
 
 /* il VERDETTO: colore + PAROLA, mai il colore da solo (deuteranopia) */
 .ov-foot-row { display: flex; align-items: center; gap: 8px; }
-.ov-st { font-size: var(--fs-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ov-st { font-size: var(--fs-md); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ov-r.s-ok   .ov-st { color: var(--active-color); }
 .ov-r.s-warn .ov-st { color: var(--idle-color); }
 .ov-r.s-none .ov-st { color: var(--inactive-color); }
@@ -130,37 +133,71 @@ button.ov-r:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
     display: none; flex-direction: column; min-height: 0; flex: 1 1 auto;
 }
 .ov-detail.is-open { display: flex; }
-.ov-dh { display: flex; align-items: center; gap: 8px; font-size: var(--fs-xs); color: var(--text-muted); margin-bottom: 6px; }
+.ov-dh { display: flex; align-items: center; gap: 8px; font-size: var(--fs-md); color: var(--text-muted); margin-bottom: 6px; }
 .ov-dh b { color: var(--text-main); font-weight: 600; }
 .ov-dh .ov-x {
-    margin-left: auto; cursor: pointer; font: inherit; font-size: var(--fs-xs);
+    margin-left: auto; cursor: pointer; font: inherit; font-size: var(--fs-md);
     color: var(--text-muted); border: 1px solid var(--panel-border);
     border-radius: var(--radius-sm); padding: 1px 7px; background: var(--surface-2);
 }
 .ov-dh .ov-x:hover { color: var(--text-main); border-color: var(--accent); }
-.ov-detail ul { list-style: none; margin: 0; padding: 0; overflow-y: auto; overflow-x: hidden; min-height: 0; flex: 1 1 auto; }
+/* lista piatta (dettagli senza gruppi): scorre lei */
+.ov-detail > ul { list-style: none; margin: 0; padding: 0; overflow-y: auto; overflow-x: hidden; min-height: 0; flex: 1 1 auto; }
 .ov-detail li {
     display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap;
-    padding: 4px 6px; border-radius: var(--radius-sm); font-size: var(--fs-sm);
+    padding: 4px 6px; border-radius: var(--radius-sm); font-size: var(--fs-lg);
 }
 .ov-detail li .ov-meta {
-    margin-left: auto; color: var(--text-muted); font-size: var(--fs-xs);
+    margin-left: auto; padding-left: 20px;   /* respiro fra nome (CIDR) e valore */
+    color: var(--text-muted); font-size: var(--fs-md);
     font-variant-numeric: tabular-nums; min-width: 0;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+/* contesto attenuato accanto al valore (es. «di 254» utilizzabili del CIDR) */
+.ov-detail li .ov-meta-of { color: var(--inactive-color); }
+/* dettaglio a SCHEDE (es. «In rack» / «Fuori rack»): le sub-header in testa
+   dividono lo spazio in due; cliccandone una si vede la sua lista. */
+.ov-detail .ov-tabs { display: flex; gap: 6px; flex: 0 0 auto; margin-bottom: 8px; }
+.ov-detail .ov-tab {
+    flex: 1 1 0; min-width: 0; cursor: pointer; font: inherit;
+    font-size: var(--fs-sm); font-weight: 600; letter-spacing: .5px; text-transform: uppercase;
+    color: var(--text-muted); background: var(--surface-2);
+    border: 1px solid var(--panel-border); border-radius: var(--radius-md);
+    padding: 5px 8px; text-align: center;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ov-detail .ov-tab:hover { border-color: var(--accent); }
+.ov-detail .ov-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ov-detail .ov-tab.is-active { color: var(--accent); border-color: var(--accent); background: var(--surface-hover); }
+.ov-detail .ov-tab-panel { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; overflow: hidden; }
+.ov-detail .ov-tab-panel[hidden] { display: none; }
+.ov-detail .ov-tab-panel > ul {
+    list-style: none; margin: 0; padding: 0;
+    overflow-y: auto; overflow-x: hidden; min-height: 0; flex: 1 1 auto;
+}
+/* Il secondo capo (l'altro estremo di un LAG o di un cavo dedotto). */
+.ov-detail li .ov-peer { color: var(--text-muted); }
+/* Provenienza per-voce (misurato/dedotto): pastiglia piccola, colore = pallino. */
+.ov-detail li .ov-tag {
+    font-size: var(--fs-xs); line-height: 1.5; padding: 0 6px;
+    border: 1px solid var(--hairline); border-radius: var(--radius-pill);
+    color: var(--text-muted);
+}
+.ov-detail li .ov-tag.p-measured { color: var(--active-color); border-color: var(--active-color); }
+.ov-detail li .ov-tag.p-derived  { color: #a371f7; border-color: #a371f7; }
 .ov-detail li button.ov-go {
     all: unset; cursor: pointer; padding: 2px 4px; border-radius: var(--radius-sm);
     display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; width: 100%;
 }
 .ov-detail li button.ov-go:hover { background: var(--surface-hover); }
 .ov-detail li button.ov-go:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.ov-empty { font-size: var(--fs-xs); color: var(--inactive-color); padding: 6px; }
+.ov-empty { font-size: var(--fs-md); color: var(--inactive-color); padding: 6px; }
 
 /* ── legenda a piè di pagina ───────────────────────────────── */
 .ov-foot {
     flex: 0 0 auto; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
     padding: 7px 16px; border-top: 1px solid var(--hairline);
-    background: var(--surface-1); font-size: var(--fs-xs); color: var(--text-muted);
+    background: var(--surface-1); font-size: var(--fs-md); color: var(--text-muted);
 }
 .ov-lg { display: inline-flex; align-items: center; gap: 6px; }
 .ov-foot .ov-hint { margin-left: auto; }

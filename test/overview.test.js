@@ -57,7 +57,9 @@ test('① COMPLETO: struttura e passivi fuori dal denominatore, le lacune escono
     { id: 'pc1', type: 'pc', ip: '10.0.0.50', mac: 'aa:bb:cc:00:00:02' },  // nessun nome
     { id: 'ups1', type: 'ups' },                                           // indirizzabile SENZA IP
   ];
-  const o = buildOverview({ types: TYPES, nodes, links: [{}, { autoLinked: true }], spare: { totals: { used: 4 } } });
+  const o = buildOverview({ types: TYPES, nodes,
+    links: [{ src: 'sw1-1', dst: 'rt1-1' }, { autoLinked: true, src: 'sw1-2', dst: 'pc1-1' }],
+    spare: { totals: { used: 4 } } });
   const c = o.complete;
   assert.equal(rowOf(c, 'addr').total, 4, 'switch+router+pc+ups (stanza e presa fuori)');
   assert.equal(rowOf(c, 'addr').value, 3, 'l\'UPS non ha indirizzo');
@@ -70,6 +72,8 @@ test('① COMPLETO: struttura e passivi fuori dal denominatore, le lacune escono
   // Un cavo dedotto dall'auto-link NON è un cavo dichiarato: la sezione che
   // chiede «il documento descrive tutto?» deve tenerli separati.
   assert.deepEqual(rowOf(c, 'cables').extra, { portsUsed: 4, auto: 1, manual: 1 });
+  // Il click sui Cavi mostra i DEDOTTI (i «da verificare»), coi due capi come nodo.
+  assert.deepEqual(rowOf(c, 'cables').items, [{ id: 'sw1', peer: 'pc1' }]);
   assert.equal(rowOf(c, 'addr').pct, 75, 'la percentuale la calcola la lib, non il renderer');
 });
 
@@ -92,6 +96,26 @@ test('① REGRESSIONE: su un apparato SNMP il MAC sta sulle INTERFACCE, non su n
   const o2 = buildOverview({ types: TYPES, nodes, portMacNodeIds: ['sw1', 'sw2'] });
   assert.equal(rowOf(o2.complete, 'mac').value, 3);
   assert.equal(rowOf(o2.complete, 'mac').extra.fromPorts, 2);
+});
+
+test('① un hostname PINNATO A MANO vale come nome proprio anche se node.name resta l\'IP', () => {
+  // Il campo Hostname (app-properties.js) aggiorna hostname+hostnameManual ma NON
+  // node.name: un device puo' avere un nome dato a mano e mostrarsi ancora come IP.
+  // Quello e' un nome vero; il node.hostname AUTO (grezzo, blob) invece no.
+  const nodes = [
+    { id: 'a', type: 'pc', ip: '10.0.0.1', name: 'PC-Uff' },                                            // nome vero classico
+    { id: 'b', type: 'pc', ip: '10.0.0.2', name: '10.0.0.2', hostname: 'SRV-DB', hostnameManual: true },// name=IP, hostname MANUALE → conta
+    { id: 'c', type: 'pc', ip: '10.0.0.3', name: '10.0.0.3', hostname: 'DESKTOP-9F2A1' },               // hostname AUTO (non manuale) → NON conta
+    { id: 'd', type: 'pc', ip: '10.0.0.4', name: '10.0.0.4', hostname: '10.0.0.4', hostnameManual: true },// hostname manuale = IP → NON conta
+    { id: 'e', type: 'pc', ip: '10.0.0.5', name: '10.0.0.5', hostnameManual: true },                    // manuale ma hostname vuoto → NON conta
+  ];
+  const name = rowOf(buildOverview({ types: TYPES, nodes }).complete, 'name');
+  assert.equal(name.value, 2, 'a (nome vero) + b (hostname manuale)');
+  assert.deepEqual(name.items.map((i) => i.id).sort(), ['c', 'd', 'e'], 'restano senza nome solo c/d/e');
+  // e la funzione pura, i casi limite:
+  assert.equal(_hasRealName({ name: '10.0.0.2', ip: '10.0.0.2', hostname: 'SRV-DB', hostnameManual: true }), true);
+  assert.equal(_hasRealName({ name: '10.0.0.3', ip: '10.0.0.3', hostname: 'DESKTOP-X' }), false, 'auto (non manuale) non conta');
+  assert.equal(_hasRealName({ name: '10.0.0.5', ip: '10.0.0.5', hostnameManual: true }), false, 'manuale ma vuoto non conta');
 });
 
 test('① il titolo grande e\' la lacuna piu\' grave presente, in ordine fisso', () => {
@@ -132,7 +156,11 @@ test('② VERO: verificabili, porte sospette ordinate per gravita, chi non ha ma
   ];
   const o = buildOverview({
     types: TYPES, nodes, now: 5000, lastSyncAt: 2000, lastSyncResult: { ok: 2, total: 2, at: 2000 },
-    topoCache: { sw1: { ts: 1900, neighbors: [{}, {}, {}] } },   // sw2: mai risposto
+    topoCache: { sw1: { ts: 1900, neighbors: [
+      { remoteDevice: 'R-EDGE', remotePort: 'e2' }, { remoteDevice: 'AP-1' }, { remoteIP: '10.0.0.9' },
+      { remoteDevice: 'AA:BB:CC:DD:EE:FF', remotePort: 'eth0' },   // vicino annunciato SOLO col MAC
+    ] } },   // sw2: mai risposto
+    macToNode: { aabbccddeeff: 'pc1' },   // quel MAC e' di pc1 (formato diverso: risolve lo stesso)
     lagGroups: { 'snmp-lag-sw1-1': 'LAG1', 'lldp-lag-sw1||sw2': 'Po1' },
     spare: { totals: { free: 40, suspect: 5, ports: 48, freeSfp: 0 },
       racks: [{ devices: [{ id: 'sw1', suspect: 2 }, { id: 'sw2', suspect: 3 }] }], unracked: [] },
@@ -145,10 +173,27 @@ test('② VERO: verificabili, porte sospette ordinate per gravita, chi non ha ma
   assert.deepEqual(rowOf(t, 'suspectPorts').items, [{ id: 'sw2', meta: 3 }, { id: 'sw1', meta: 2 }],
     'peggiore in cima: si ordina per cio\' su cui si agisce');
   assert.equal(rowOf(t, 'suspectPorts').tone, 'alert');
-  assert.equal(rowOf(t, 'neighbors').value, 3);
-  assert.equal(rowOf(t, 'neighbors').extra.neverAnswered, 1);
-  assert.deepEqual(rowOf(t, 'neighbors').items.map((i) => i.id), ['sw2']);
-  assert.deepEqual(rowOf(t, 'lags').extra, { measured: 1, derived: 1 }, 'la chiave dice da dove viene');
+  const nb = rowOf(t, 'neighbors');
+  assert.equal(nb.value, 4);
+  assert.equal(nb.extra.neverAnswered, 1, 'sw2 non ha mai risposto: resta in extra');
+  // Il click mostra le ADIACENZE (numero grande e lista coincidono), NON i mai-risposto:
+  // era il bug «mi dice 15 poi ne esce 1» (2026-07-24).
+  assert.equal(nb.items.length, 4, 'quattro adiacenze, come il numero in cima');
+  assert.deepEqual(nb.items.map((i) => i.id), ['sw1', 'sw1', 'sw1', 'sw1']);
+  // I primi tre non risolvono a un device del progetto: restano testo.
+  assert.deepEqual(nb.items.slice(0, 3).map((i) => i.meta), ['R-EDGE · e2', 'AP-1', '10.0.0.9']);
+  assert.ok(nb.items.slice(0, 3).every((i) => !i.peer), 'nessun peer per i vicini non risolti');
+  // Il quarto: chassis-id MAC che corrisponde a un device → risolto a peer (nome),
+  // la porta remota resta come meta. Formato MAC diverso, stessa chiave esadecimale.
+  assert.equal(nb.items[3].peer, 'pc1', 'MAC del vicino risolto al device');
+  assert.equal(nb.items[3].meta, 'eth0');
+  const lg = rowOf(t, 'lags');
+  assert.deepEqual(lg.extra, { measured: 1, derived: 1 }, 'la chiave dice da dove viene');
+  // Cliccabile: i LAG coi due capi risolti e la provenienza per-voce (misurato/dedotto).
+  assert.deepEqual(lg.items.map((i) => i.id), ['sw1', 'sw1']);
+  assert.deepEqual(lg.items.map((i) => i.peer), [null, 'sw2'], 'lldp-lag-<a>||<b>: il secondo capo');
+  assert.deepEqual(lg.items.map((i) => i.tag), ['measured', 'derived']);
+  assert.deepEqual(lg.items.map((i) => i.meta), ['LAG1', 'Po1']);
   assert.equal(rowOf(t, 'verify').prov, 'none', 'fase 1: la Verifica non e\' ancora stato salvato');
   assert.equal(t.headline.key, 'suspectPorts', 'il colpo d\'occhio e\' la cosa da guardare');
 });
@@ -166,15 +211,43 @@ test('② senza porte sospette il titolo scende alla copertura della verifica', 
 test('③ MARGINE: il margine e\' quello ONESTO (libere meno sospette)', () => {
   const o = buildOverview({
     types: TYPES, nodes: [{ id: 'sw1', type: 'switch' }],
-    spare: { totals: { free: 181, suspect: 15, ports: 208, freeSfp: 0 } },
+    spare: { totals: { free: 181, suspect: 15, ports: 208, freeSfp: 0 },
+      racks: [{ devices: [{ id: 'sw2', total: 24, free: 4 }, { id: 'sw1', total: 48, free: 40 }] }],
+      unracked: [{ id: 'rt1', total: 8, free: 2 }] },
     sfpTotal: 0,
     rackFill: [{ sizeU: 42, free: 26 }],
   });
   const g = o.margin;
   assert.equal(rowOf(g, 'freePorts').value, 166, '181 libere − 15 viste attive');
   assert.deepEqual(rowOf(g, 'freePorts').extra, { raw: 181, suspect: 15 }, 'il numero grezzo resta leggibile');
+  // Il click mostra, per ogni device, le libere sul totale, DISTINTI in rack e
+  // fuori rack (prima i device in rack, piu' libere in cima, poi i liberi).
+  assert.deepEqual(rowOf(g, 'freePorts').items.map((i) => [i.id, i.meta, i.of, i.group]),
+    [['sw1', 40, 48, 'rack'], ['sw2', 4, 24, 'rack'], ['rt1', 2, 8, 'loose']]);
   assert.equal(rowOf(g, 'rackU').value, 26);
   assert.equal(g.headline.key, 'freePorts');
+});
+
+test('③ Indirizzi liberi: mostra i LIBERI (host del /24 meno gli usati), non gli usati', () => {
+  // Prima la riga mostrava deviceCount (gli USATI) sotto l'etichetta «liberi»:
+  // misura giusta, etichetta sbagliata (2026-07-24). Ora calcola i liberi dal CIDR.
+  const o = buildOverview({
+    types: TYPES, nodes: [{ id: 'sw1', type: 'switch' }],
+    networks: [
+      { cidr: '192.168.1.0/24', deviceCount: 20, ips: Array.from({ length: 20 }, (_, i) => '192.168.1.' + (i + 1)) },
+      { cidr: '10.0.0.0/24', deviceCount: 3, ips: ['10.0.0.1', '10.0.0.2', '10.0.0.3'] },
+    ],
+    spare: { totals: { free: 1, ports: 24 } },
+  });
+  const ip = rowOf(o.margin, 'ipFree');
+  assert.equal(ip.prov, 'derived', 'assume /24 → dedotto, non dichiarato');
+  assert.equal(ip.value, (254 - 20) + (254 - 3), 'liberi TOTALI = host /24 meno usati');
+  assert.deepEqual(ip.items.map((i) => i.meta), [254 - 20, 254 - 3], 'per subnet: i LIBERI, non i device');
+  assert.deepEqual(ip.items.map((i) => i.of), [254, 254], 'e gli utilizzabili del /24 accanto');
+  // senza reti osservate → «non dichiarato», mai un numero
+  const none = buildOverview({ types: TYPES, nodes: [], spare: { totals: { free: 0, ports: 0 } } });
+  assert.equal(rowOf(none.margin, 'ipFree').prov, 'none');
+  assert.equal(rowOf(none.margin, 'ipFree').value, null);
 });
 
 test('③ REGRESSIONE denominatore rack: il totale U viene da `sizeU`, non da un campo inventato', () => {
