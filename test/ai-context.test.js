@@ -308,6 +308,17 @@ test('② freschezza: senza timestamp niente campo inventato (compact, no-invenz
   assert.ok(!('measuredAt' in ctx.summary), 'nessun measuredAt inventato');
 });
 
+test('②/③ SNMP configurato ≠ risponde: summary.snmp (configurati) vs snmpResponding (risposti «ok»)', () => {
+  const p = { id: 1, name: 'X', state: { nodes: [
+    { id: 'a', type: 'switch', name: 'A', ip: '10.0.0.1', integration: { driver: 'snmp' }, snmpStatus: 'ok' },
+    { id: 'b', type: 'switch', name: 'B', ip: '10.0.0.2', integration: { driver: 'snmp' }, snmpStatus: 'err' },
+    { id: 'c', type: 'switch', name: 'C', ip: '10.0.0.3', integration: { driver: 'snmp' } },  // configurato, mai risposto
+  ] } };
+  const ctx = buildAiContext(p, null, { devices: true, snmpHealth: true });
+  assert.equal(ctx.summary.snmp, 3, '3 device configurati con un driver SNMP');
+  assert.equal(ctx.summary.snmpResponding, 1, 'solo A ha risposto «ok» — mai «3 monitorati»');
+});
+
 test('scope.ports=false → capacità SENZA il blocco porte (gating)', () => {
   const ctx = buildAiContext(projWithCaps(), null, { ports: false });
   const sw = ctx.devices.find(d => d.id === 'sw1');
