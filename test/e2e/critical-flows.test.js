@@ -4324,6 +4324,114 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       await page.evaluate((fv) => { state.floorView.x = fv.x; state.floorView.y = fv.y; updateTransforms(); }, fvBefore);
       await clean();
     });
+
+    await t.test('Panoramica: tre sezioni con provenienza, dettaglio in loco, e il documento resta pulito', async () => {
+      const errBefore = pageErrors.length;
+      const dirty = () => page.evaluate(() => !!document.getElementById('btn-save')?.classList.contains('save-dirty'));
+      await page.evaluate(() => {
+        state = _buildDefaultState();
+        if (typeof _migrateState === 'function') _migrateState(state);
+        // Due lacune deliberate: un device senza nome proprio (si chiama come il
+        // suo IP) e uno senza MAC. La Panoramica deve VEDERLE, non arrotondarle.
+        state.nodes.push(
+          { id: 'ovA', type: 'pc', name: '10.7.0.11', ip: '10.7.0.11', mac: 'aa:bb:cc:07:00:11', x: 60, y: 60 },
+          { id: 'ovB', type: 'printer', name: 'Stampante-Rossi', ip: '10.7.0.12', x: 60, y: 160 },
+        );
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        if (typeof _clearDirty === 'function') _clearDirty();
+        renderAll();
+      });
+      await page.click('#btn-overview');
+      await page.waitForSelector('#overview .ov-col', { timeout: 8000 });
+
+      const v = await page.evaluate(() => {
+        const cols = [...document.querySelectorAll('.ov-col')];
+        const row = (sec, key) => document.querySelector(`.ov-col[data-sec="${sec}"] .ov-r[data-key="${key}"]`)
+          || [...document.querySelectorAll(`.ov-col[data-sec="${sec}"] .ov-r`)]
+            .find((r) => r.dataset.key === key) || null;
+        const rowsOf = (sec) => [...document.querySelectorAll(`.ov-col[data-sec="${sec}"] .ov-r`)];
+        const provOf = (el) => (el && (el.querySelector('.ov-d')?.className.match(/p-(\w+)/) || [])[1]) || null;
+        return {
+          sections: cols.map((c) => c.dataset.sec),
+          // OGNI voce ha il suo numero grande e il suo verdetto: nessun titolo
+          // unico che parli per tutta la sezione (correzione del 2026-07-23).
+          tilesWithNumber: [...document.querySelectorAll('.ov-r')].filter((r) => (r.querySelector('.ov-num')?.textContent || '').trim()).length,
+          tilesWithVerdict: [...document.querySelectorAll('.ov-r')].filter((r) => (r.querySelector('.ov-st')?.textContent || '').trim()).length,
+          hasSingleHeadline: !!document.querySelector('.ov-head'),
+          metaItems: document.querySelectorAll('.ov-col[data-sec="truth"] .ov-meta-item').length,
+          metaText: (document.querySelector('.ov-col[data-sec="truth"] .ov-meta-strip')?.textContent || '').replace(/\s+/g, ' ').trim(),
+          floorHidden: getComputedStyle(document.getElementById('export-area')).display === 'none',
+          viewMode: window._viewMode,
+          storedView: localStorage.getItem('infranet.view'),
+          stateHasView: JSON.stringify(state).indexOf('overview') !== -1,
+          // ogni riga dichiara la provenienza; nessuna riga senza pallino
+          allHaveProv: [...document.querySelectorAll('.ov-r')].every((r) => !!provOf(r)),
+          // il dato mancante NON è uno zero: subnet non dichiarate → 'none' + trattino
+          subnetsProv: provOf(row('complete', 'subnets')),
+          subnetsTxt: row('complete', 'subnets')?.querySelector('.ov-val')?.textContent.trim().charAt(0),
+          nameClickable: rowsOf('complete').find((r) => r.dataset.key === 'name')?.tagName,
+          rowsPerSection: ['complete', 'truth', 'margin'].map((s) => rowsOf(s).length),
+        };
+      });
+      assert.deepEqual(v.sections, ['complete', 'truth', 'margin'], 'le tre domande, in ordine');
+      // Colonna 2: «Ultima lettura» e «Verifica completa» non sono risultati ma
+      // la DATA del capitolo → stanno nella striscia in cima, non fra i riquadri.
+      assert.deepEqual(v.rowsPerSection, [6, 4, 6], 'sei · quattro (+2 in cima) · sei');
+      assert.equal(v.tilesWithNumber, 16, 'ogni riquadro ha il SUO numero grande');
+      assert.equal(v.tilesWithVerdict, 16, '…e il suo verdetto in parole: un numero solo non dice se va bene');
+      assert.ok(!v.hasSingleHeadline, 'nessun titolo unico che parli per tutta la sezione');
+      assert.equal(v.metaItems, 2, 'lettura e Verifica sono la data del capitolo, in cima alla colonna');
+      assert.ok(/mai/i.test(v.metaText), 'e dichiarano quando: ' + v.metaText);
+      assert.ok(v.floorHidden, 'la planimetria lascia il posto alla Panoramica');
+      assert.equal(v.viewMode, 'overview');
+      assert.ok(v.allHaveProv, 'ogni numero dichiara da dove viene (paletto ②)');
+      assert.equal(v.subnetsProv, 'none', 'nessuna subnet dichiarata → «non dichiarato»');
+      assert.equal(v.subnetsTxt, '—', 'il dato che manca è un trattino, mai uno zero');
+      assert.equal(v.nameClickable, 'BUTTON', 'una riga con lacune si apre');
+      // La vista è una preferenza LOCALE: nel progetto non deve finirci.
+      assert.equal(v.storedView, 'overview', 'la scelta vive in localStorage');
+      assert.ok(!v.stateHasView, 'nessuna traccia della vista dentro state');
+      assert.equal(await dirty(), false, 'guardare la Panoramica non sporca il documento');
+
+      // Dettaglio IN LOCO: si apre nella colonna e la panoramica resta tutta lì.
+      await page.click('.ov-col[data-sec="complete"] .ov-r[data-key="name"]');
+      const d = await page.evaluate(() => {
+        const col = document.querySelector('.ov-col[data-sec="complete"]');
+        const det = col.querySelector('.ov-detail.is-open');
+        const box = col.getBoundingClientRect();
+        return {
+          open: !!det,
+          items: det ? [...det.querySelectorAll('li')].map((li) => li.textContent) : [],
+          // Il dettaglio si apre DENTRO la colonna: tutte le altre voci restano
+          // a schermo. Un overlay coprirebbe il contesto, che è la schermata stessa.
+          numbersVisible: [...document.querySelectorAll('.ov-r .ov-num')]
+            .filter((n) => n.getBoundingClientRect().height > 0).length,
+          rowsVisible: [...col.querySelectorAll('.ov-r')].filter((r) => r.getBoundingClientRect().bottom <= box.bottom).length,
+          rowsTotal: col.querySelectorAll('.ov-r').length,
+          bodyScrolls: document.body.scrollHeight > window.innerHeight,
+        };
+      });
+      assert.ok(d.open, 'il dettaglio si apre');
+      assert.ok(d.items.some((x) => /10\.7\.0\.11/.test(x)), 'elenca il device che si chiama come il suo IP');
+      assert.equal(d.numbersVisible, 16, 'tutti i numeri restano visibili: mai un overlay');
+      assert.equal(d.rowsVisible, d.rowsTotal, 'nessuna riga viene nascosta per far posto');
+      assert.ok(!d.bodyScrolls, 'tutto in una schermata');
+
+      // Dal dettaglio al dispositivo: qui si ESCE dalla vista, di proposito.
+      await page.click('.ov-col[data-sec="complete"] .ov-detail.is-open li button.ov-go');
+      const after = await page.evaluate(() => ({
+        inOverview: document.body.classList.contains('view-overview'),
+        sel: window.selId, tab: window._rightTab,
+      }));
+      assert.equal(after.inOverview, false, 'agire porta fuori dalla Panoramica');
+      assert.ok(after.sel, 'il dispositivo è selezionato: ' + after.sel);
+      assert.equal(after.tab, 'props', 'e il pannello si apre dove il dato si corregge');
+      assert.equal(await dirty(), false, 'nemmeno il salto al dispositivo sporca il documento');
+
+      await page.evaluate(() => { localStorage.removeItem('infranet.view'); });
+      const errs = pageErrors.slice(errBefore);
+      assert.equal(errs.length, 0, 'nessun errore JS: ' + errs.join(' | '));
+    });
   } finally {
     await browser.close();
     await srv.close();

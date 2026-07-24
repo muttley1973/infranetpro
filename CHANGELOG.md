@@ -2,6 +2,13 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-24 — A read-only Overview: what's missing, what no longer matches, how much room is left
+
+The workspace showed its statistics as text chips. The data to answer three standing questions — is the document complete, does it still match reality, how much can I still grow — already existed across the engines, but had no single surface. A new **Overview** view (a view switch, like Topology — it never touches the document) composes them into three columns, each cell carrying its own number *and* a plain-word verdict, and declaring the provenance of every figure (declared / measured + date / derived / not declared). On *Rete+Lab* it reads, among sixteen cells: "Proper name 12 of 31 · 19 missing", "Ports to check 15 of 181 · don't match", "PoE budget — across 6 switches".
+
+### Added
+- **Overview view (`lib/overview.js`, pure + 15 tests).** Composes existing engines (`spare-ports`, `project-networks`, `hw-capabilities`, `TYPES`) — no new measurement — into Complete · True · Margin. A missing datum is shown, not hidden: an undeclared PoE budget or VLAN name renders as a dashed "not declared" cell — the honesty rule made visible rather than left blank. The chosen view lives in `localStorage`, never in `state`, so looking at the summary does not dirty the project (pinned by e2e). `src/app-overview.js`, `styles/11-overview.css`, `lib/i18n.js` (it/en), and the view-switch wiring in `src/`.
+
 ## 2026-07-24 — An exported floor plan doesn't claim presence without a Verify (v2.1.0)
 
 The exported planimetria coloured every device in its full type colour — reading as "present/healthy" — even when no Verify had ever run. The `else → present` default is load-bearing *after* a Verify (it covers devices confirmed by other means, e.g. ARP, that land in no drift bucket), but with no drift report the empty buckets made **all** devices look present. On the sample projects, a floor plan exported before any Check showed 18/21, 184/184 and 450/450 devices as verified-present when none had been checked.

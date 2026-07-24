@@ -603,7 +603,16 @@ test('ponte: la coda funzioni A batch 2 non è più letta da win.*', () => {
 // (`win.mergeLeaseSources`) è un lib-script read, STESSA categoria di parseDhcpLeases/
 // reconcileDhcpLeases/buildSpareReport (legge l'unica istanza viva, niente ri-bundle).
 // Aumento MOTIVATO di 1; nessuna funzione/stato nuovo sul ponte (ASSE A sospeso §2.2).
-const MAX_WIN_REFS = 270;
+// +3 (270 → 273, 2026-07-23): PANORAMICA fase 1 — la vista di sintesi COMPONE motori
+// che sono gia' <script> in netmapper.html: `deriveProjectNetworks` (lib/project-networks.js)
+// e `computeDeviceCapabilities`/`computeFleetCapabilities` (lib/hw-capabilities.js).
+// I 3 forward in `_bridge.js` sono lib-script reads, STESSA categoria di
+// buildSpareReport/parseDhcpLeases: leggono l'unica istanza viva e non ri-bundlano
+// nulla (importarli da ../lib congelerebbe uno snapshot al build — bug del 2026-06-16).
+// Il glue src/app-overview.js NON usa win.* e il motore nuovo (lib/overview.js) e'
+// importato via ESM, come node-label.js. Aumento MOTIVATO di 3, nessuno stato nuovo
+// sul ponte (ASSE A resta sospeso, §2.2).
+const MAX_WIN_REFS = 273;
 
 test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => {
   const total = countInCode(/\bwin\./g);

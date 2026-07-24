@@ -35,3 +35,9 @@ export const ACTION_LABELS    = win.ACTION_LABELS;                          // l
 export const parseDhcpLeases     = (...a) => win.parseDhcpLeases(...a);      // lib/dhcp-lease.js
 export const reconcileDhcpLeases = (...a) => win.reconcileDhcpLeases(...a);  // lib/dhcp-lease.js
 export const mergeLeaseSources   = (...a) => win.mergeLeaseSources(...a);    // lib/dhcp-lease.js (dedup multi-fonte, _leaseRank unico)
+// Panoramica (src/app-overview.js): compone motori gia' caricati come <script>.
+// Letti dal ponte per la stessa ragione di buildSpareReport — importarli da
+// ../lib li ri-bundlerebbe e congelerebbe uno snapshot al build.
+export const deriveProjectNetworks      = (...a) => win.deriveProjectNetworks(...a);      // lib/project-networks.js
+export const computeDeviceCapabilities  = (...a) => win.computeDeviceCapabilities(...a);  // lib/hw-capabilities.js
+export const computeFleetCapabilities   = (...a) => win.computeFleetCapabilities(...a);   // lib/hw-capabilities.js

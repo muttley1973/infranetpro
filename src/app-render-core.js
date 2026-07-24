@@ -506,6 +506,10 @@ function _renderAllNow(){
     // Sotto-header (breadcrumb + suggerimento + statistiche): sempre coerente col
     // progetto/stato correnti. Global bare (typeof-guard) -> nessun win.* nuovo.
     if(typeof renderSubbar === 'function') renderSubbar();
+    // Panoramica: si ridisegna SOLO se la vista e' attiva (la funzione esce
+    // subito altrimenti). Il suo modello gira su tutti i nodi e tutte le porte:
+    // spenderlo mentre si guarda la planimetria sarebbe lavoro buttato.
+    if(typeof renderOverview === 'function') renderOverview();
 }
 
 // ─────────────────────────────────────────────────────────────────

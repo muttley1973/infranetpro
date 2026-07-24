@@ -2497,6 +2497,10 @@ async function init(){
     _loadModuleNav();   // moduli a pagamento: popola l'eventuale voce di menu (no-op se nessuno)
     _viewMode='map';
     _applyViewMode();
+    // Vista di sintesi: si riapre se l'utente l'aveva lasciata attiva. La
+    // preferenza vive in localStorage, NON nel progetto — cambiare vista non
+    // deve sporcare il documento (vedi src/app-overview.js).
+    if(typeof restoreOverviewView === 'function') restoreOverviewView();
     // Aggiorna lo stato iniziale del pulsante Topologia (default: 'stale' = no cache)
     _refreshTopoBtnState();
     // Check periodico ogni 60s per disabilitare il pulsante quando la cache scade

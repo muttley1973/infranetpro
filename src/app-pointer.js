@@ -220,7 +220,7 @@ function handleDrop(e,zone){
 // POINTER EVENTS
 // ============================================================
 function handlePointerDown(e){
-    if(e.target.closest('header')||e.target.closest('#sidebar-left')||e.target.closest('#sidebar-divider')||e.target.closest('#props-panel-wrap')||e.target.closest('#right-tab-bar')||e.target.closest('.zoom-controls')||e.target.closest('#map-view-bar')||e.target.closest('#modal-overlay')||e.target.closest('.tool-modal-overlay')||e.target.closest('#user-manager-overlay')||e.target.closest('#chpwd-overlay')||e.target.closest('#vlan-members-overlay')||e.target.closest('.rack-header')||e.target.closest('#popup')||e.target.closest('#lag-sel-banner')||e.target.closest('#topo-tip')||e.target.closest('#topo-legend')) return;
+    if(e.target.closest('header')||e.target.closest('#sidebar-left')||e.target.closest('#sidebar-divider')||e.target.closest('#props-panel-wrap')||e.target.closest('#right-tab-bar')||e.target.closest('.zoom-controls')||e.target.closest('#map-view-bar')||e.target.closest('#overview')||e.target.closest('#modal-overlay')||e.target.closest('.tool-modal-overlay')||e.target.closest('#user-manager-overlay')||e.target.closest('#chpwd-overlay')||e.target.closest('#vlan-members-overlay')||e.target.closest('.rack-header')||e.target.closest('#popup')||e.target.closest('#lag-sel-banner')||e.target.closest('#topo-tip')||e.target.closest('#topo-legend')) return;
     // P1.5 — Modalita' instradamento cavo (editor segmenti, Opzione A):
     // SOLO il click su una porta agisce (spezza il cavo se la porta e'
     // evidenziata, avvisa altrimenti). Ogni altro click — area vuota mappa,

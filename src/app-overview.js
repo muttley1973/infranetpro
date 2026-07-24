@@ -1,0 +1,487 @@
+// ============================================================
+// PANORAMICA — vista di sintesi (Completo · Vero · Margine)   [modulo ESM]
+// ------------------------------------------------------------
+// Glue fra lo stato del progetto e lib/overview.js: costruisce il modello,
+// chiede i FATTI alla lib pura e li rende in tre colonne che stanno in UNA
+// schermata. Sola lettura: non modifica nulla, non chiama mai markDirty.
+//
+// Divisione dei compiti ("InfraNet calcola, l'app racconta"):
+//   • lib/overview.js  → numeri, elenchi, provenienza. Nessuna stringa UI.
+//   • questo modulo    → parole (i18n), DOM, interazione.
+// Cosi' la stessa lib serve it/en e i test non dipendono dalla lingua.
+//
+// Dipendenze: i motori sono gia' <script> in netmapper.html → si leggono dal
+// PONTE (buildSpareReport, deriveProjectNetworks, computeDeviceCapabilities…).
+// Importarli da ../lib li ri-bundlerebbe congelando uno snapshot al build.
+// lib/overview.js NON e' uno <script>: quello si importa via ESM (come node-label).
+// ============================================================
+import { t, expose, buildSpareReport, deriveProjectNetworks, computeDeviceCapabilities, computeFleetCapabilities } from './_bridge.js';
+import { store } from './store.js';
+import { TYPES, _frontPanelSfpGroups } from './app-types.js';
+import { _isLeafEndpoint } from './app-autolink.js';
+import { nodeById, getNodeDisplayName, _linksForPort, switchRightTab } from './app.js';
+import { focusNode } from './app-search-zoom-rack.js';
+import { _snmpFreshness } from './app-snmp.js';
+import { registerClickActions } from './app-delegation.js';
+import { buildOverview, _rackFill } from '../lib/overview.js';
+
+// La vista corrente e' una preferenza DELL'UTENTE su QUESTA macchina, non un
+// dato del progetto: se vivesse in `state` riaprirebbe il bug chiuso il
+// 2026-07-23 (guardare la topologia marcava il documento come non salvato).
+const VIEW_KEY = 'infranet.view';
+
+// Riga aperta PER SEZIONE (sec -> key). Vive fuori dal DOM perche' deve
+// sopravvivere ai re-render: un poll SNMP in background chiama renderAll, e un
+// dettaglio che si richiude da solo mentre lo stai leggendo e' inaccettabile.
+const _open = new Map();
+
+function _savedView() {
+    try { return localStorage.getItem(VIEW_KEY) || ''; } catch (_) { return ''; }
+}
+function _saveView(v) {
+    try { localStorage.setItem(VIEW_KEY, v || ''); } catch (_) { /* storage negato: pazienza */ }
+}
+
+// ── Modello per la lib ───────────────────────────────────────────────────────
+// Un solo giro sui nodi: costruisce insieme i device per il report porte libere,
+// il conteggio delle porte in fibra e le capacita' hardware per apparato.
+function _buildModel() {
+    const st = store.state || {};
+    const nodes = Array.isArray(st.nodes) ? st.nodes : [];
+    const ports = st.ports || {};
+    const rackName = (id) => { const r = (st.racks || []).find((x) => x && x.id === id); return r ? (r.name || id) : id; };
+
+    const spareDevices = [];
+    const caps = [];
+    const portMacNodeIds = new Set();
+    let sfpTotal = 0;
+    for (const n of nodes) {
+        if (!n) continue;
+        const def = TYPES[n.type] || {};
+        const pc = (n.ports !== undefined) ? n.ports : (def.ports || 0);
+
+        // Capacita' HW: lo spec e' la fonte, le porte servono a PoE/LAG/banda.
+        // ⚠️ `ports` vuole la forma { list, total, free } — un array nudo fa
+        // ritornare null a `_portsCap` e la banda uplink sparisce in silenzio
+        // (era il caso fino al 2026-07-23: il riquadro diceva «velocità assenti»
+        // mentre 76 porte su 84 avevano la velocità MISURATA dal Sync).
+        // Stessa forma del chiamante canonico, server/ai/context.js:_collectPorts.
+        const capPorts = [];
+        const cabled = [];
+        let freePorts = 0;
+        for (let i = 1; i <= pc; i++) {
+            const pid = n.id + '-' + i;
+            const p = ports[pid] || {};
+            // Su un apparato SNMP il MAC arriva per INTERFACCIA: `node.mac` resta
+            // vuoto mentre le porte hanno il loro ifPhysAddress. Vale come identita'
+            // L2 documentata quanto il MAC di chassis.
+            if (String(p.mac || '').trim()) portMacNodeIds.add(n.id);
+            cabled[i] = _linksForPort(pid).length > 0;
+            if (!cabled[i]) freePorts++;
+            capPorts.push({
+                speed: (p.speedOvr != null) ? p.speedOvr : (p.speed != null ? p.speed : null),
+                status: p.statusOvr || p.status || null,
+                lagGroup: p.lagGroup || null,
+                poe: (p.snmpPoe != null) ? p.snmpPoe : null,
+            });
+        }
+        for (const l of ((n.integration && n.integration.lags) || [])) {
+            if (l && String(l.mac || '').trim()) portMacNodeIds.add(n.id);
+        }
+        const c = computeDeviceCapabilities({
+            type: n.type, spec: n.spec, radios: n.radios, vmsCount: (n.vms || []).length,
+            ports: pc ? { list: capPorts, total: pc, free: freePorts } : undefined,
+            lagNames: st.lagGroups || {}, lagModes: st.lagModes || {},
+        });
+        if (c) caps.push({ id: n.id, caps: c });
+
+        // Porte libere: solo infrastruttura (un PC non e' capacita' disponibile).
+        if (_isLeafEndpoint(n.type) || !pc) continue;
+        const sfp = new Set();
+        for (const g of _frontPanelSfpGroups(n, pc)) for (const p of (g.ports || [])) sfp.add(p);
+        const responded = n.snmpStatus === 'ok';
+        const list = [];
+        for (let i = 1; i <= pc; i++) {
+            const pid = n.id + '-' + i;
+            const pi = ports[pid] || {};
+            if (pi.hidden) continue;
+            const kind = sfp.has(i) ? 'sfp' : 'access';
+            if (kind === 'sfp') sfpTotal++;
+            // `cabled[i]` è già stato risolto nel giro sopra: `_linksForPort` costa
+            // una scansione dei link, chiederla due volte per porta si sente a 500 nodi.
+            list.push({ pid, kind, cabled: !!cabled[i], activeSnmp: responded && pi.status === 'active' });
+        }
+        if (list.length) {
+            spareDevices.push({ id: n.id, name: getNodeDisplayName(n) || n.id, rackId: n.rackId || null, rackName: rackName(n.rackId), ports: list });
+        }
+    }
+
+    const vlanIdsInUse = [...new Set(Object.keys(ports).map((k) => (ports[k] || {}).vlan).filter(Boolean))];
+    // Il riempimento rack lo calcola la lib PURA (_rackFill), non questo glue: era
+    // una cucitura non testata, e li' viveva il bug del denominatore — leggeva
+    // `r.units || r.u`, campi che sul rack non esistono (il vero e' `sizeU`), quindi
+    // il totale cadeva SEMPRE a 42. Ora la funzione pura, coperta da test, legge sizeU.
+    const rackFill = _rackFill(st.racks, nodes, TYPES);
+
+    // Le reti /24 OSSERVATE dagli indirizzi documentati (l'IPAM dichiarato può
+    // essere vuoto). Se il motore non c'è o inciampa, la riga resta "non
+    // dichiarato": mai un elenco inventato al suo posto.
+    let networks;
+    try { networks = (deriveProjectNetworks({ nodes, types: TYPES }) || {}).networks || []; } catch (_) { networks = []; }
+
+    return {
+        nodes, types: TYPES, links: Array.isArray(st.links) ? st.links : [], portMacNodeIds,
+        ipamVlans: (st.ipam && st.ipam.vlans) ? st.ipam.vlans : {},
+        vlanIdsInUse, vlanNames: st.vlanNames || {},
+        spare: buildSpareReport(spareDevices), sfpTotal, rackFill, networks,
+        caps, fleet: computeFleetCapabilities(caps.map((x) => x.caps)),
+        topoCache: st.topoCache || {}, lagGroups: st.lagGroups || {},
+        lastSyncAt: st.lastSnmpSyncAt || 0, lastSyncResult: st.lastSnmpSyncResult || {},
+        now: Date.now(),
+    };
+}
+
+// ── Parole: la lib da' chiavi e numeri, qui diventano testo ──────────────────
+const _n = (v) => (v == null ? t('ov.none') : String(v));
+
+function _age(ms, at) {
+    if (!at) return t('ov.never');
+    const f = (typeof _snmpFreshness === 'function') ? _snmpFreshness(at) : null;
+    return (f && f.txt) ? f.txt : '';
+}
+
+// OGNI voce ha il suo numero grande e il suo verdetto. Un titolo unico per
+// sezione era fuorviante: diceva «19» parlando di UNA riga su sei, e faceva
+// sembrare le altre cinque un contorno (rilevato provando la vista, 2026-07-23).
+//
+// _tileValue → [numero grande, spalla piccola]. Quando il dato NON c'e' il
+// numero e' un trattino: mai uno zero al posto di "non lo sappiamo".
+function _tileValue(r) {
+    switch (r.key) {
+        case 'cables':       return [_n(r.value), ''];
+        case 'subnets':      return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), ''];
+        case 'lastSync':     return r.prov === 'none' ? [t('ov.none'), ''] : [r.value + '/' + r.total, ''];
+        case 'suspectPorts': return [_n(r.value), r.total ? t('ov.of', { n: r.total }) : ''];
+        case 'neighbors':    return [_n(r.value), ''];
+        case 'lags':         return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), ''];
+        case 'verify':       return [t('ov.none'), ''];
+        case 'freePorts':    return [_n(r.value), t('ov.of', { n: r.total })];
+        case 'freeSfp':      return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), t('ov.of', { n: r.total })];
+        case 'rackU':        return r.prov === 'none' ? [t('ov.none'), ''] : [r.value + 'U', t('ov.of', { n: r.total })];
+        case 'poe':          return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), t('ov.of', { n: r.total })];
+        case 'uplink':       return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), 'Mbps'];
+        case 'ipFree':       return [t('ov.none'), ''];
+        default:             return [_n(r.value), r.total != null ? t('ov.of', { n: r.total }) : ''];
+    }
+}
+
+// Il VERDETTO: due parole che dicono se quel numero va bene. Senza, «25» non
+// significa niente. Tono: ok / warn / none — mai il colore da solo.
+function _tileStatus(r) {
+    const e = r.extra || {};
+    const gap = (r.total != null && r.value != null) ? r.total - r.value : null;
+    const gapStatus = () => (r.prov === 'none' ? { w: t('ov.st.none'), tone: 'none' }
+        : (gap === 0 ? { w: t('ov.st.complete'), tone: 'ok' } : { w: t('ov.st.missing', { n: gap }), tone: 'warn' }));
+    switch (r.key) {
+        case 'addr': case 'name': case 'vlanNames': return gapStatus();
+        // Il MAC e' completo anche quando arriva dalle interfacce: dirlo evita
+        // la domanda «ma il MAC c'e', perche' me lo dai per mancante?».
+        case 'mac': return (gap === 0 && e.fromPorts)
+            ? { w: t('ov.st.completeVia', { n: e.fromPorts }), tone: 'ok' }
+            : gapStatus();
+        // «17 documentati» era vago proprio dove serviva precisione: un cavo
+        // dedotto dall'auto-link non e' un cavo dichiarato.
+        case 'cables':       return e.auto
+            ? { w: t('ov.st.cableSplit', { m: e.manual, a: e.auto }), tone: 'info' }
+            : { w: t('ov.st.documented'), tone: 'info' };
+        case 'subnets':      return r.prov === 'none'
+            ? { w: t('ov.observedNets', { n: e.observed || 0 }), tone: 'none' }
+            : { w: t('ov.st.declared'), tone: 'ok' };
+        case 'lastSync':     return r.prov === 'none'
+            ? { w: t('ov.st.never'), tone: 'none' }
+            : { w: t('ov.st.read', { age: _age(e.ageMs, e.at) }), tone: 'info' };
+        case 'verifiable':   return gap ? { w: t('ov.st.unverifiable', { n: gap }), tone: 'warn' }
+            : { w: t('ov.st.verifiedAll'), tone: 'ok' };
+        case 'suspectPorts': return r.value > 0
+            ? { w: t('ov.st.mismatch'), tone: 'warn' }
+            : { w: t('ov.st.coherent'), tone: 'ok' };
+        case 'neighbors':    return { w: t('ov.neighborsFrom', { n: e.fromDevices || 0 }), tone: 'info' };
+        case 'lags':         return r.prov === 'none'
+            ? { w: t('ov.st.none'), tone: 'none' }
+            : { w: t('ov.lagSplit', { m: e.measured, d: e.derived }), tone: 'info' };
+        case 'verify':       return { w: t('ov.st.never'), tone: 'none' };
+        case 'freePorts':    return e.suspect
+            ? { w: t('ov.rawMinusSuspect', { raw: e.raw, suspect: e.suspect }), tone: 'info' }
+            : { w: t('ov.st.available'), tone: 'ok' };
+        case 'freeSfp':      return r.prov === 'none' ? { w: t('ov.st.none'), tone: 'none' }
+            : (r.value === 0 ? { w: t('ov.st.noneFree'), tone: 'warn' } : { w: t('ov.st.available'), tone: 'ok' });
+        case 'rackU':        return r.prov === 'none' ? { w: t('ov.st.none'), tone: 'none' }
+            : (r.value === 0 ? { w: t('ov.st.rackFull'), tone: 'warn' } : { w: t('ov.st.free'), tone: 'ok' });
+        case 'poe':          return r.prov === 'none'
+            ? { w: t('ov.ofSwitches', { n: r.total || 0 }), tone: 'none' }
+            : { w: e.headroomW != null ? t('ov.headroomW', { n: e.headroomW }) : t('ov.st.declared'), tone: 'ok' };
+        case 'uplink':       return r.prov === 'none'
+            ? { w: t('ov.st.noSpeeds'), tone: 'none' }
+            : { w: t('ov.st.widestLag', { n: e.devices || 0 }), tone: 'info' };
+        case 'ipFree':       return r.prov === 'none'
+            ? { w: t('ov.st.needSubnet'), tone: 'none' }
+            : { w: t('ov.observedNets', { n: e.observedNets || 0 }), tone: 'info' };
+        default:             return { w: '', tone: 'info' };
+    }
+}
+
+function _el(tag, cls, txt) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (txt != null) e.textContent = txt;
+    return e;
+}
+
+function _meter(r) {
+    const m = _el('div', 'ov-meter' + (r.prov === 'none' ? ' is-none' : ''));
+    if (r.prov !== 'none' && r.pct != null) {
+        const i = document.createElement('i');
+        i.style.width = Math.max(0, Math.min(100, r.pct)) + '%';
+        m.appendChild(i);
+    }
+    return m;
+}
+
+function _rowEl(secKey, r) {
+    const clickable = Array.isArray(r.items) && r.items.length > 0;
+    const el = document.createElement(clickable ? 'button' : 'div');
+    const st = _tileStatus(r);
+    el.className = 'ov-r s-' + st.tone + (r.prov === 'none' ? ' is-missing' : '');
+    if (clickable) {
+        el.type = 'button';
+        el.dataset.act = 'overview-row';
+        el.dataset.sec = secKey;
+        el.dataset.key = r.key;
+    }
+    // 1) etichetta + pallino di provenienza
+    const k = _el('div', 'ov-k');
+    const dot = _el('span', 'ov-d p-' + r.prov);
+    dot.title = t('ov.prov.' + r.prov) + ' — ' + t('ov.provHint.' + r.prov);
+    k.appendChild(dot);
+    k.appendChild(_el('span', 'ov-t', t('ov.row.' + r.key)));
+    el.appendChild(k);
+
+    // 2) il numero grande di QUESTA voce
+    const [val, sub] = _tileValue(r);
+    const v = _el('div', 'ov-val');
+    v.appendChild(_el('span', 'ov-num', val));
+    if (sub) v.appendChild(_el('span', 'ov-sub', sub));
+    el.appendChild(v);
+
+    // 3) il verdetto in parole + il meter, che e' solo un rinforzo del numero
+    const f = _el('div', 'ov-foot-row');
+    f.appendChild(_el('span', 'ov-st', st.w));
+    f.appendChild(_meter(r));
+    el.appendChild(f);
+    return el;
+}
+
+function _detailEl(secKey, r) {
+    const d = _el('div', 'ov-detail');
+    d.dataset.for = secKey + ':' + r.key;
+    const h = _el('div', 'ov-dh');
+    const b = _el('b', null, String(r.items.length));
+    h.appendChild(b);
+    h.appendChild(document.createTextNode(' ' + t('ov.row.' + r.key)));
+    const x = _el('button', 'ov-x', t('ov.close') + ' ✕');
+    x.type = 'button';
+    x.dataset.act = 'overview-detail-close';
+    h.appendChild(x);
+    d.appendChild(h);
+
+    const ul = document.createElement('ul');
+    for (const it of r.items) {
+        const li = document.createElement('li');
+        const n = it.id ? nodeById(it.id) : null;
+        // Un elemento del progetto si apre; una rete o una porta e' solo testo.
+        const inner = n ? _el('button', 'ov-go') : _el('span', 'ov-go');
+        if (n) { inner.type = 'button'; inner.dataset.act = 'overview-goto'; inner.dataset.id = it.id; }
+        inner.appendChild(_el('span', null, n ? (getNodeDisplayName(n) || it.id) : String(it.id)));
+        const meta = it.addr || (it.meta != null ? String(it.meta) : '');
+        if (meta) inner.appendChild(_el('span', 'ov-meta', meta));
+        li.appendChild(inner);
+        ul.appendChild(li);
+    }
+    d.appendChild(ul);
+    return d;
+}
+
+// Voci che NON sono constatazioni sulla rete ma il «quando» del dato: l'ultima
+// lettura SNMP e l'ultima Verifica. Come riquadri fra i risultati erano
+// fuorvianti — occupavano lo stesso peso di «15 porte non corrispondono» pur
+// non essendo un problema da guardare. Vanno in cima alla colonna, come data
+// del capitolo: tutto quello che c'e' sotto vale a quella data.
+const _META_ROWS = { truth: ['lastSync', 'verify'] };
+
+function _metaStripEl(sec, keys) {
+    const strip = _el('div', 'ov-meta-strip');
+    for (const key of keys) {
+        const r = sec.rows.find((x) => x.key === key);
+        if (!r) continue;
+        const st = _tileStatus(r);
+        const item = _el('span', 'ov-meta-item s-' + st.tone);
+        const dot = _el('span', 'ov-d p-' + r.prov);
+        dot.title = t('ov.prov.' + r.prov) + ' — ' + t('ov.provHint.' + r.prov);
+        item.appendChild(dot);
+        item.appendChild(_el('span', 'ov-meta-k', t('ov.row.' + r.key)));
+        const [val] = _tileValue(r);
+        // Il numero (12/12) resta solo se e' un dato, non un trattino: davanti a
+        // «mai eseguita» un «—» sarebbe rumore.
+        if (val && val !== t('ov.none')) item.appendChild(_el('span', 'ov-meta-v', val));
+        item.appendChild(_el('span', 'ov-meta-s', st.w));
+        strip.appendChild(item);
+    }
+    return strip;
+}
+
+function _sectionEl(secKey, num, sec) {
+    const col = _el('section', 'ov-col');
+    col.dataset.sec = secKey;
+    const h2 = document.createElement('h2');
+    h2.appendChild(_el('span', 'ov-n', String(num)));
+    h2.appendChild(document.createTextNode(t('ov.sec.' + secKey)));
+    col.appendChild(h2);
+    col.appendChild(_el('p', 'ov-ask', t('ov.sec.' + secKey + 'Q')));
+
+    // Il «quando» del dato in cima, fuori dalla griglia dei risultati.
+    const metaKeys = _META_ROWS[secKey] || [];
+    if (metaKeys.length) col.appendChild(_metaStripEl(sec, metaKeys));
+
+    // Niente titolo unico di sezione: ogni voce porta il proprio numero. La
+    // sezione ha pero' un PUNTO D'INGRESSO — il riquadro piu' urgente prende un
+    // bordo d'accento, cosi' l'occhio sa da dove partire senza che un numero
+    // solo si spacci per il riassunto di tutti gli altri.
+    const rows = _el('div', 'ov-rows');
+    const urgent = sec.headline ? sec.headline.key : null;
+    for (const r of sec.rows) {
+        if (metaKeys.indexOf(r.key) !== -1) continue;   // gia' in cima alla colonna
+        const el = _rowEl(secKey, r);
+        // Evidenzia il punto d'ingresso SOLO se e' davvero un problema: la lib
+        // ripiega sulla prima voce quando non c'e' nulla che non va, e mettere
+        // l'anello su «166 porte libere» direbbe una cosa falsa.
+        if (r.key === urgent && el.classList.contains('s-warn')) el.classList.add('is-urgent');
+        rows.appendChild(el);
+    }
+    col.appendChild(rows);
+    for (const r of sec.rows) if (r.items && r.items.length) col.appendChild(_detailEl(secKey, r));
+    return col;
+}
+
+/**
+ * Ridisegna la Panoramica. Chiamata da renderAll SOLO quando la vista e' attiva:
+ * fuori dalla vista non si spende un ciclo (il modello gira su tutti i nodi e
+ * tutte le porte). Nessuna memoizzazione: la vista e' di sola lettura e si
+ * ridisegna raramente — meglio un dato sempre fresco che una cache da invalidare.
+ */
+export function renderOverview() {
+    const root = document.getElementById('overview');
+    if (!root || store._viewMode !== 'overview') return;
+
+    const o = buildOverview(_buildModel());
+    root.textContent = '';
+
+    const cols = _el('div', 'ov-cols');
+    cols.appendChild(_sectionEl('complete', 1, o.complete));
+    cols.appendChild(_sectionEl('truth', 2, o.truth));
+    cols.appendChild(_sectionEl('margin', 3, o.margin));
+    root.appendChild(cols);
+
+    const foot = _el('div', 'ov-foot');
+    for (const p of ['declared', 'measured', 'derived', 'none']) {
+        const lg = _el('span', 'ov-lg');
+        lg.appendChild(_el('span', 'ov-d p-' + p));
+        lg.appendChild(document.createTextNode(t('ov.prov.' + p)));
+        foot.appendChild(lg);
+    }
+    foot.appendChild(_el('span', 'ov-hint', t('ov.clickHint')));
+    root.appendChild(foot);
+
+    // Ri-applica i dettagli che erano aperti: il DOM e' nuovo, l'intenzione no.
+    for (const [sec, key] of _open) {
+        const col = root.querySelector('.ov-col[data-sec="' + sec + '"]');
+        if (!col) continue;
+        const row = col.querySelector('.ov-r[data-key="' + key + '"]');
+        const det = col.querySelector('.ov-detail[data-for="' + sec + ':' + key + '"]');
+        if (row && det) { row.classList.add('is-open'); det.classList.add('is-open'); }
+        else _open.delete(sec);   // la lacuna e' stata colmata: la riga non e' piu' cliccabile
+    }
+}
+
+// ── Interazione: il dettaglio si apre DENTRO la colonna ──────────────────────
+// Mai un overlay: coprirebbe il contesto, e questa schermata E' il contesto.
+// Una riga aperta per colonna — due colonne aperte insieme sono utili, due
+// dettagli nella stessa no.
+function _closeIn(col) {
+    col.querySelectorAll('.ov-detail.is-open').forEach((d) => d.classList.remove('is-open'));
+    col.querySelectorAll('.ov-r.is-open').forEach((r) => r.classList.remove('is-open'));
+    if (col.dataset.sec) _open.delete(col.dataset.sec);
+}
+
+function _toggleRow(el) {
+    const col = el.closest('.ov-col');
+    if (!col) return;
+    const wasOpen = el.classList.contains('is-open');
+    _closeIn(col);
+    if (wasOpen) return;                         // secondo clic = chiude
+    el.classList.add('is-open');
+    const d = col.querySelector('.ov-detail[data-for="' + el.dataset.sec + ':' + el.dataset.key + '"]');
+    if (d) d.classList.add('is-open');
+    _open.set(el.dataset.sec, el.dataset.key);
+}
+
+// Dall'elenco al dispositivo: qui l'intenzione cambia da "consultare" a "agire",
+// quindi si esce dalla Panoramica e si va dove il dato si corregge.
+function _gotoNode(id) {
+    const n = nodeById(id);
+    if (!n) return;
+    setOverview(false);
+    store.selType = 'node';
+    store.selId = id;
+    store._propsExplicit = true;                 // intent esplicito: il pannello si apre
+    if (typeof switchRightTab === 'function') switchRightTab('props');
+    if (typeof focusNode === 'function') focusNode(n);
+}
+
+/**
+ * Accende/spegne la vista. NON tocca `state`: la scelta e' una preferenza
+ * locale (localStorage) e cambiare vista non deve mai sporcare il documento.
+ */
+export function setOverview(on) {
+    const want = !!on;
+    if (want) {
+        store._viewMode = 'overview';
+        document.body.classList.add('view-overview');
+        _saveView('overview');
+        renderOverview();
+    } else {
+        document.body.classList.remove('view-overview');
+        if (store._viewMode === 'overview') store._viewMode = store._topoVisible ? 'topology' : 'map';
+        _saveView('');
+    }
+    const btn = document.getElementById('btn-overview');
+    if (btn) btn.setAttribute('aria-pressed', want ? 'true' : 'false');
+}
+
+export function toggleOverview() { setOverview(!document.body.classList.contains('view-overview')); }
+
+/** Ripristina la vista salvata all'avvio (dopo il primo render dello stato). */
+export function restoreOverviewView() {
+    if (_savedView() === 'overview') setOverview(true);
+}
+
+// renderOverview e' chiamata BARE (typeof-guard) dalla coda di renderAll in
+// app-render-core.js — stesso schema di renderSubbar: evita un import circolare
+// fra render-core e questo modulo, che importa gia' il nucleo.
+expose({ renderOverview, toggleOverview, setOverview, restoreOverviewView });
+
+registerClickActions({
+    'overview-toggle': () => toggleOverview(),
+    'overview-row': (el) => _toggleRow(el),
+    'overview-detail-close': (el) => { const c = el.closest('.ov-col'); if (c) _closeIn(c); },
+    'overview-goto': (el) => _gotoNode(el.dataset.id),
+});

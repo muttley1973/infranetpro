@@ -1,0 +1,169 @@
+/* ============================================================
+   InfraNet Pro — styles/11-overview.css
+   Vista PANORAMICA: tre colonne (Completo · Vero · Margine) che stanno in UNA
+   schermata, senza scorrimento verticale della pagina.
+
+   REGOLE DI RESA decise col prototipo — non ri-litigarle senza motivo:
+   • Un colore solo per i dati (--accent). Verde/ambra/rosso sono RISERVATI agli
+     stati, e mai da soli: sempre con una parola accanto. Motivo misurato: verde
+     #39d353 e ambra #f5a623 distano ΔE 5.6 in deuteranopia, indistinguibili.
+   • Rapporti contro un limite → meter, mai torte.
+   • Il dato che MANCA si vede: riquadro/riga tratteggiata, non uno zero. Zero è
+     un'affermazione, tratteggiato è una domanda.
+   • Il dettaglio si apre DENTRO la colonna: la panoramica non sparisce mai.
+   ============================================================ */
+
+#overview {
+    display: none;                       /* acceso da body.view-overview */
+    position: absolute; inset: 0;
+    flex-direction: column; min-height: 0;
+    background: var(--bg-color);
+    overflow: hidden;                    /* lo scorrimento vive nelle liste */
+}
+body.view-overview #overview { display: flex; }
+body.view-overview #export-area { display: none; }
+
+/* ── griglia delle tre colonne ─────────────────────────────── */
+.ov-cols {
+    flex: 1 1 auto; min-height: 0;
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-6, 12px); padding: var(--space-6, 12px) var(--space-7, 16px);
+}
+/* Sotto i 1100px tre colonne diventano illeggibili: si impilano e la pagina
+   torna a scorrere. Meglio scorrere che comprimere fino all'inutilizzabile. */
+@media (max-width: 1100px) {
+    #overview { overflow: auto; }
+    .ov-cols { grid-template-columns: 1fr; }
+}
+
+.ov-col {
+    background: var(--panel-bg); border: 1px solid var(--panel-border);
+    border-radius: var(--radius-xl); padding: 14px 16px;
+    display: flex; flex-direction: column; min-height: 0;
+    box-shadow: var(--shadow-sm);
+}
+.ov-col h2 {
+    margin: 0; font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted);
+    letter-spacing: .6px; text-transform: uppercase;
+    display: flex; align-items: baseline; gap: 8px;
+}
+.ov-col h2 .ov-n { color: var(--inactive-color); font-size: var(--fs-md); }
+.ov-ask { font-size: var(--fs-xs); color: var(--inactive-color); margin: 3px 0 0; }
+
+/* ── il «quando» del dato, in cima alla colonna ─────────────────
+   Ultima lettura SNMP e ultima Verifica non sono risultati: sono la DATA a cui
+   vale tutto quello che sta sotto. Come riquadri pesavano quanto «15 porte non
+   corrispondono» pur non essendo qualcosa da guardare. */
+.ov-meta-strip {
+    display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px;
+    padding-bottom: 9px; border-bottom: 1px solid var(--hairline);
+    font-size: var(--fs-xs);
+}
+.ov-meta-item { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); }
+.ov-meta-k { color: var(--text-muted); }
+.ov-meta-v { color: var(--text-main); font-weight: 600; font-variant-numeric: tabular-nums; }
+.ov-meta-item.s-ok   .ov-meta-s { color: var(--active-color); }
+.ov-meta-item.s-warn .ov-meta-s { color: var(--idle-color); }
+.ov-meta-item.s-none .ov-meta-s { color: var(--inactive-color); }
+
+/* ── i riquadri: OGNI voce ha il suo numero grande ──────────────
+   Un titolo unico per sezione era fuorviante — parlava di una riga sola e
+   declassava le altre cinque. Qui ogni voce si spiega da sola: etichetta,
+   numero, verdetto in parole. Il meter e' solo un rinforzo, mai l'unico dato. */
+.ov-rows {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    flex: 0 0 auto; margin-top: 12px;
+}
+.ov-r {
+    display: flex; flex-direction: column; gap: 6px;
+    padding: 10px 11px; text-align: left; width: 100%;
+    background: var(--surface-2); border: 1px solid var(--panel-border);
+    border-radius: var(--radius-lg); color: inherit; font: inherit;
+}
+.ov-r.is-missing { background: transparent; border-style: dashed; border-color: var(--inactive-color); }
+button.ov-r { cursor: pointer; }
+button.ov-r:hover { border-color: var(--accent); background: var(--surface-hover); }
+button.ov-r:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* punto d'ingresso della sezione: la voce piu' urgente, senza gridare */
+.ov-r.is-urgent { box-shadow: inset 0 0 0 1px var(--idle-color); }
+
+.ov-k { font-size: var(--fs-xs); color: var(--text-muted); display: flex; align-items: center; gap: 6px; min-width: 0; }
+.ov-k .ov-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.ov-val { display: flex; align-items: baseline; gap: 5px; font-variant-numeric: tabular-nums; }
+.ov-val .ov-num { font-size: 1.9rem; font-weight: 600; line-height: 1; letter-spacing: -.5px; }
+.ov-val .ov-sub { font-size: var(--fs-xs); color: var(--text-muted); }
+.ov-r.is-missing .ov-val .ov-num { color: var(--inactive-color); font-size: 1.5rem; }
+
+/* il VERDETTO: colore + PAROLA, mai il colore da solo (deuteranopia) */
+.ov-foot-row { display: flex; align-items: center; gap: 8px; }
+.ov-st { font-size: var(--fs-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ov-r.s-ok   .ov-st { color: var(--active-color); }
+.ov-r.s-warn .ov-st { color: var(--idle-color); }
+.ov-r.s-none .ov-st { color: var(--inactive-color); }
+.ov-r.s-info .ov-st { color: var(--text-muted); }
+.ov-r.s-warn .ov-val .ov-num { color: var(--idle-color); }
+.ov-foot-row .ov-meter { flex: 1 1 auto; min-width: 24px; }
+
+.ov-r.is-open { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+
+/* pallino di PROVENIENZA: ogni numero dichiara da dove viene (paletto ②) */
+.ov-d { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; background: var(--inactive-color); }
+.ov-d.p-declared { background: var(--accent); }
+.ov-d.p-measured { background: var(--active-color); }
+.ov-d.p-derived  { background: #a371f7; }
+.ov-d.p-none     { background: transparent; box-shadow: inset 0 0 0 1px var(--inactive-color); }
+
+.ov-meter {
+    height: 5px; background: var(--surface-2); border: 1px solid var(--hairline);
+    border-radius: var(--radius-pill); position: relative; overflow: hidden;
+}
+.ov-meter > i {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    background: var(--accent); border-radius: var(--radius-pill);
+}
+.ov-meter.is-none { border-style: dashed; background: transparent; }
+
+/* ── dettaglio IN LOCO: si apre nella colonna, non copre nulla ── */
+.ov-detail {
+    margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--hairline);
+    display: none; flex-direction: column; min-height: 0; flex: 1 1 auto;
+}
+.ov-detail.is-open { display: flex; }
+.ov-dh { display: flex; align-items: center; gap: 8px; font-size: var(--fs-xs); color: var(--text-muted); margin-bottom: 6px; }
+.ov-dh b { color: var(--text-main); font-weight: 600; }
+.ov-dh .ov-x {
+    margin-left: auto; cursor: pointer; font: inherit; font-size: var(--fs-xs);
+    color: var(--text-muted); border: 1px solid var(--panel-border);
+    border-radius: var(--radius-sm); padding: 1px 7px; background: var(--surface-2);
+}
+.ov-dh .ov-x:hover { color: var(--text-main); border-color: var(--accent); }
+.ov-detail ul { list-style: none; margin: 0; padding: 0; overflow-y: auto; overflow-x: hidden; min-height: 0; flex: 1 1 auto; }
+.ov-detail li {
+    display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap;
+    padding: 4px 6px; border-radius: var(--radius-sm); font-size: var(--fs-sm);
+}
+.ov-detail li .ov-meta {
+    margin-left: auto; color: var(--text-muted); font-size: var(--fs-xs);
+    font-variant-numeric: tabular-nums; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ov-detail li button.ov-go {
+    all: unset; cursor: pointer; padding: 2px 4px; border-radius: var(--radius-sm);
+    display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; width: 100%;
+}
+.ov-detail li button.ov-go:hover { background: var(--surface-hover); }
+.ov-detail li button.ov-go:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ov-empty { font-size: var(--fs-xs); color: var(--inactive-color); padding: 6px; }
+
+/* ── legenda a piè di pagina ───────────────────────────────── */
+.ov-foot {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    padding: 7px 16px; border-top: 1px solid var(--hairline);
+    background: var(--surface-1); font-size: var(--fs-xs); color: var(--text-muted);
+}
+.ov-lg { display: inline-flex; align-items: center; gap: 6px; }
+.ov-foot .ov-hint { margin-left: auto; }
+
+/* Il bottone di vista si accende come gli altri toggle della barra. */
+body.view-overview #btn-overview { color: var(--accent); border-color: var(--accent); }

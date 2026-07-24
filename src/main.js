@@ -54,3 +54,4 @@ import './app-csv-import.js';
 import './app-dhcp-import.js';
 import './app-ai.js';
 import './app-subbar.js';
+import './app-overview.js';   // vista di sintesi (Completo · Vero · Margine) — dopo il nucleo
