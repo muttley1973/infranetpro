@@ -103,7 +103,10 @@ lib/                   Shared browser + test modules (the heart of the app)
                     items (with peer/tag/group/of for the glue to render as name/word/
                     tabs). Pure COMPOSITION of spare-ports/project-networks/hw-
                     capabilities/TYPES — no new measurement; every word lives in the
-                    glue (src/app-overview.js), never in the lib  (pure)
+                    glue (src/app-overview.js), never in the lib. Each section also
+                    carries a health rollup (ok/warn/bad + issue count) that drives
+                    the at-a-glance verdict; the since-last-read delta is glue-side
+                    (localStorage, per project — viewing never dirties state)  (pure)
   ai-grounding.js   extractEntities + checkGrounding (citations + anti-invention)  (pure)
   ai-draft.js       splitDraftBlocks (segments AI reply → text + Ansible draft cards)  (pure)
   onboarding.js     nextStep(summary) → deterministic «next step» chip (onboarding §4d)  (pure)
