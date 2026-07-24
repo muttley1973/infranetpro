@@ -118,7 +118,7 @@ function _cellLines(row, fields) {
   if (fields.has('vlan') && row.vlan != null) chips.push('V' + row.vlan + (row.vlanName ? ' ' + row.vlanName : ''));
   if (fields.has('tipo_cavo') && row.cableType) chips.push(row.cableType);
   if (fields.has('lunghezza') && row.lengthM != null) chips.push(row.lengthM + 'm');
-  if (fields.has('permanente')) chips.push(row.isPermanent ? 'permanente' : 'bretella');
+  if (fields.has('permanente') && row.isPermanent != null) chips.push(row.isPermanent ? 'permanente' : 'bretella');
   if (chips.length) lines.push({ t: chips.join('  ·  '), role: 'meta' });
 
   const inst = [];
