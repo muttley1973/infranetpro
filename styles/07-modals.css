@@ -315,6 +315,8 @@
                                     background:color-mix(in srgb, var(--active-color) 12%, transparent); }
         .vm-state-chip.is-stopped { color:var(--fault-color); border-color:color-mix(in srgb, var(--fault-color) 45%, transparent);
                                     background:color-mix(in srgb, var(--fault-color) 12%, transparent); }
+        .vm-state-chip.is-unknown { color:var(--text-muted); border-color:color-mix(in srgb, var(--text-muted) 45%, transparent);
+                                    background:color-mix(in srgb, var(--text-muted) 12%, transparent); }
         .vm-state-chip:hover { filter:brightness(1.15); }
         /* Il chip resta CENTRATO nello spazio fra il nome della VM e il ritorno
            all'host, non incollato al bottone: il titolo smette di prendersi tutto

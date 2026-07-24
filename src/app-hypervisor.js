@@ -78,7 +78,7 @@ function addVm(nodeId){
     if(typeof pushHistory === 'function') pushHistory();
     if(!Array.isArray(n.vms)) n.vms = [];
     const id = _newVmId(n.vms.length);
-    n.vms.push({ id, state: 'running' });
+    n.vms.push({ id });   // stato NON dichiarato alla creazione: "non specificato" finché l'utente o SNMP lo determina
     markDirty(); if(typeof renderAll === 'function') renderAll();
     // Una VM appena creata e' vuota: si apre subito la sua scheda, dove c'e' il
     // nome (nella lista comparirebbe come "(senza nome)"). openVmProps allinea
@@ -283,15 +283,19 @@ function _vmSummaryHtml(vm, displayName){
 // espanso rendeva la lista impraticabile.
 function _vmRowHtml(vm, nodeId){
     const esc = s => escapeHTML(String(s == null ? '' : s));
-    const running = (vm.state || 'running') === 'running';
-    // Verde = accesa · rosso = spenta (decisione utente 76ª). NB: niente --ok-color,
-    // il token non esiste (il fallback ereditato rendeva il bottone bianco):
-    // si usano i token semantici definiti in ENTRAMBI i temi.
-    const dotColor = running ? 'var(--active-color)' : 'var(--fault-color)';
+    // Tri-stato onesto: acceso / spento / non specificato (assente). Uno stato
+    // "acceso" NON si assume da un campo vuoto (schema ① dell'audit) — verde =
+    // running dichiarato/misurato · rosso = stopped dichiarato · grigio = non so.
+    // NB: niente --ok-color, il token non esiste; si usano i token semantici
+    // definiti in ENTRAMBI i temi.
+    const running = vm.state === 'running';
+    const stopped = vm.state === 'stopped';
+    const dotColor = running ? 'var(--active-color)' : stopped ? 'var(--fault-color)' : 'var(--text-muted)';
+    const stateTitle = running ? t('hv.running') : stopped ? t('hv.stopped') : t('hv.vmUnknown');
     const ref = `data-vm-host="${esc(nodeId)}" data-vm-id="${esc(vm.id)}"`;
     const displayName = vm.name || t('hv.vmUnnamed');
     return `<div class="vm-row" ${ref} data-act="vm-open" role="button" tabindex="0" data-tip="${esc(t('hv.vmEdit'))}">
-        <i class="fas fa-circle vm-row-dot" style="color:${dotColor}" title="${esc(running ? t('hv.running') : t('hv.stopped'))}"></i>
+        <i class="fas fa-circle vm-row-dot" style="color:${dotColor}" title="${esc(stateTitle)}"></i>
         <span class="vm-row-name">${esc(displayName)}</span>
         <span class="vm-row-sum">${_vmSummaryHtml(vm, displayName)}</span>
         <button type="button" class="toolbar-btn vm-row-btn" ${ref} data-act="vm-open" data-tip="${esc(t('hv.vmEdit'))}" aria-label="${esc(t('hv.vmEdit'))}"><i class="fas fa-pen"></i></button>
@@ -330,7 +334,7 @@ export function _hvPanelHtml(n, d){
     const platDefault = isLab ? 'proxmox' : 'esxi';
     const platOpts = plats.map(p => `<option value="${esc(p[0])}"${String(n.hvPlatform || platDefault) === p[0] ? ' selected' : ''}>${esc(p[1])}</option>`).join('');
     const vms = _nodeVms(n);
-    const running = vms.filter(v => (v.state || 'running') === 'running').length;
+    const running = vms.filter(v => v.state === 'running').length;   // solo le accese DICHIARATE (assente = non specificato, non "accesa")
     const inv = (typeof _buildInventoryFieldsHtml === 'function') ? _buildInventoryFieldsHtml(n, d) : '';
     const preview = (typeof _buildDeviceBrandModelPreview === 'function') ? _buildDeviceBrandModelPreview(n) : '';
     const vmRows = vms.length
@@ -491,7 +495,7 @@ export function absorbNodeAsVm(srcId, hostId){
     const name = getNodeDisplayName(src) || src.name || '';
     const ip = ((src.integration && src.integration.host) || src.ip || '').trim();
     const mac = normalizeMacAddress(String(src.mac || ''));
-    const vm = { id: _newVmId(host.vms.length), state: 'running' };
+    const vm = { id: _newVmId(host.vms.length) };   // stato non dichiarato: "non specificato" (assente) finché non determinato
     if(name) vm.name = name;
     // L'identità di rete ereditata dal tile diventa la PRIMA vNIC (il MAC chiude
     // il cerchio col Drift). Se ne aveva altre, si aggiungono a mano: qui si

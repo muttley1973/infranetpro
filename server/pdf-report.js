@@ -48,7 +48,7 @@ const _RL = {
     'empty.vms': 'Nessuna VM documentata sugli host di virtualizzazione.',
     'col.host': 'Host', 'col.vm': 'VM', 'col.role': 'Ruolo', 'col.res': 'Risorse',
     'col.owner': 'Responsabile', 'col.crit': 'Criticità',
-    'vm.running': 'Accesa', 'vm.stopped': 'Spenta',
+    'vm.running': 'Accesa', 'vm.stopped': 'Spenta', 'vm.unknown': 'Non spec.',
     'vm.crit.low': 'Bassa', 'vm.crit.medium': 'Media', 'vm.crit.high': 'Alta', 'vm.crit.critical': 'Critica',
     'sub.cables': 'cavi documentati nel progetto', 'sub.routes': 'percorsi tracciati',
     'sub.vlans': 'VLAN configurate', 'sub.assets': 'dispositivi documentati',
@@ -85,7 +85,7 @@ const _RL = {
     'empty.vms': 'No VMs documented on the virtualization hosts.',
     'col.host': 'Host', 'col.vm': 'VM', 'col.role': 'Role', 'col.res': 'Resources',
     'col.owner': 'Owner', 'col.crit': 'Criticality',
-    'vm.running': 'Running', 'vm.stopped': 'Stopped',
+    'vm.running': 'Running', 'vm.stopped': 'Stopped', 'vm.unknown': 'Unknown',
     'vm.crit.low': 'Low', 'vm.crit.medium': 'Medium', 'vm.crit.high': 'High', 'vm.crit.critical': 'Critical',
     'sub.cables': 'cables documented in the project', 'sub.routes': 'traced routes',
     'sub.vlans': 'VLANs configured', 'sub.assets': 'devices documented',
@@ -399,7 +399,7 @@ function _addReportPages(doc, report, projName, date, SVGtoPDF, options = {}, la
     (report.portAssignment || []).forEach(dev =>
       (dev.ports || []).forEach(p =>
         allRows.push([dev.rack, dev.device, p.num, p.alias || '-',
-                      p.status, p.speed || '-', p.vlan || '-', p.connectedTo || '-'])
+                      p.status || '—', p.speed || '-', p.vlan || '-', p.connectedTo || '-'])
       )
     );
     y = _rSub(doc, `${allRows.length} ${_rt(L, 'sub.portsA')} ${(report.portAssignment || []).length} ${_rt(L, 'sub.portsB')}`, y);
@@ -609,7 +609,7 @@ function _addReportPages(doc, report, projName, date, SVGtoPDF, options = {}, la
         : '';
       return [
         i + 1, vm.host || '-', vm.name || '-', vm.role || '-',
-        _rt(L, vm.state === 'stopped' ? 'vm.stopped' : 'vm.running'),
+        _rt(L, vm.state === 'running' ? 'vm.running' : vm.state === 'stopped' ? 'vm.stopped' : 'vm.unknown'),
         vm.vlan || '-', vm.ip || '-', res || '-',
         vm.owner || '-', crit || '-',
       ];

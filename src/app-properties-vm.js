@@ -280,18 +280,25 @@ export function _renderVmProps(panel){
     const { host, vm } = sel;
     const hostName = getNodeDisplayName(host) || host.name || host.id;
     const ref = `data-vm-host="${_esc(host.id)}" data-vm-id="${_esc(vm.id)}"`;
-    const running = (vm.state || 'running') === 'running';
+    // Tri-stato onesto: acceso / spento / non specificato (assente). Il click
+    // cicla non-spec → running → stopped → non-spec (data-vm-next='' → updateVm
+    // elimina il campo). Uno stato "acceso" NON si assume da un campo vuoto.
+    const _vst = vm.state === 'running' ? 'running' : vm.state === 'stopped' ? 'stopped' : 'unknown';
+    const _vnext = _vst === 'unknown' ? 'running' : _vst === 'running' ? 'stopped' : '';
+    const _vcls = _vst === 'running' ? 'is-running' : _vst === 'stopped' ? 'is-stopped' : 'is-unknown';
+    const _vico = _vst === 'running' ? 'fa-circle-play' : _vst === 'stopped' ? 'fa-circle-stop' : 'fa-circle-question';
+    const _vlbl = _vst === 'running' ? t('hv.running') : _vst === 'stopped' ? t('hv.stopped') : t('hv.vmUnknown');
 
     // Intestazione: lo STATO e' il fatto che si guarda per primo, quindi vive
-    // accanto al titolo come chip (verde accesa / rosso spenta) — cliccabile per
-    // commutare — subito a sinistra del ritorno all'host. Stessa grammatica dei
-    // chip del pannello (.lag-chip) e stessi token semantici usati dai LED e dalla
-    // riga in lista: --ok-color NON esiste.
-    const stateChip = `<button type="button" class="vm-state-chip ${running ? 'is-running' : 'is-stopped'}" `
-        + `${ref} data-act="vm-state" data-vm-next="${running ? 'stopped' : 'running'}" `
+    // accanto al titolo come chip (verde accesa / rosso spenta / grigio non spec.)
+    // — cliccabile per commutare — subito a sinistra del ritorno all'host. Stessa
+    // grammatica dei chip del pannello (.lag-chip) e stessi token semantici usati
+    // dai LED e dalla riga in lista: --ok-color NON esiste.
+    const stateChip = `<button type="button" class="vm-state-chip ${_vcls}" `
+        + `${ref} data-act="vm-state" data-vm-next="${_vnext}" `
         + `data-tip="${_esc(t('hv.vmStateToggle'))}" aria-label="${_esc(t('hv.vmState'))}">`
-        + `<i class="fas ${running ? 'fa-circle-play' : 'fa-circle-stop'}"></i>`
-        + `<span>${running ? t('hv.running') : t('hv.stopped')}</span></button>`;
+        + `<i class="fas ${_vico}"></i>`
+        + `<span>${_vlbl}</span></button>`;
     const back = `<button type="button" class="toolbar-btn" data-act="vm-back" data-tip="${_esc(t('hv.vmBack', { host: hostName }))}" aria-label="${_esc(t('hv.vmBack', { host: hostName }))}"><i class="fas fa-arrow-left"></i></button>`;
     const header = _buildPropsHeader(vm.name || t('hv.vmUnnamed'), t('hv.vmOnHost', { host: hostName }), 'fa-display',
         `<span class="props-toggles vm-head-actions">${stateChip}${back}</span>`);

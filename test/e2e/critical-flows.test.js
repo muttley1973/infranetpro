@@ -2953,13 +2953,18 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           const sel2 = document.querySelector('#props-panel [data-vm-field="guestOs"]');
           const stillThere = sel2.value;
 
-          // stato: chip nell'intestazione, cliccabile
+          // stato: chip nell'intestazione, TRI-STATO onesto. Una VM appena creata
+          // NON si assume accesa: parte «non specificato» (grigio). Il click la
+          // DICHIARA, ciclando non-spec → acceso → spento.
           const chip = document.querySelector('#props-panel .vm-state-chip');
-          const chipRunning = !!chip && chip.className.includes('is-running');
+          const chipUnknown = !!chip && chip.className.includes('is-unknown');
           const inHeader = !!document.querySelector('#props-panel .props-selected-title .vm-state-chip');
-          chip.click();
+          chip.click();                                        // non-spec → acceso
           const afterToggle = nodeById('lab').vms[0].state;
-          return { hasCustomOpt, critHasCustom, saved, stillThere, chipRunning, inHeader, afterToggle, rawKeys,
+          const chip2 = document.querySelector('#props-panel .vm-state-chip');
+          chip2.click();                                       // acceso → spento
+          const afterToggle2 = nodeById('lab').vms[0].state;
+          return { hasCustomOpt, critHasCustom, saved, stillThere, chipUnknown, inHeader, afterToggle, afterToggle2, rawKeys,
                    midValue, selAlive };
         } catch (e) { return { err: String(e && e.stack || e) }; }
       });
@@ -2972,8 +2977,9 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(r.saved, 'TrueNAS SCALE 24.04', 'il valore digitato a mano finisce nel modello');
       assert.equal(r.stillThere, 'TrueNAS SCALE 24.04', 'e viene riletto al re-render (non torna al default)');
       assert.ok(r.inHeader, 'lo stato è un chip NELL\'INTESTAZIONE, accanto al titolo');
-      assert.ok(r.chipRunning, 'il chip parte verde (in esecuzione)');
-      assert.equal(r.afterToggle, 'stopped', 'e cliccarlo commuta lo stato');
+      assert.ok(r.chipUnknown, 'il chip parte grigio: una VM nuova NON si assume accesa (stato non specificato)');
+      assert.equal(r.afterToggle, 'running', 'un click DICHIARA lo stato: non-spec → acceso');
+      assert.equal(r.afterToggle2, 'stopped', 'un altro click cicla: acceso → spento');
     });
 
     await t.test('VM (77ª): lettura SNMP della VM — misurato distinto dal dichiarato, e il silenzio non la dichiara spenta', async () => {
