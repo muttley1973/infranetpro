@@ -112,3 +112,25 @@ test('collectWirelessClients: solo vicini L3 (FDB vuota) → tutti source neighb
   assert.ok(out.every(x => x.source === 'neighbor'));
   assert.equal(out.find(x => x.mac === 'de:ad:00:00:00:02').vlan, 20);
 });
+
+test('isUnicastMac: unicast sì; broadcast/multicast/null no', () => {
+  assert.equal(W.isUnicastMac('2e:f5:0b:aa:cd:4a'), true);   // client reale (randomizzato ma unicast)
+  assert.equal(W.isUnicastMac('aa:bb:cc:dd:ee:ff'), true);
+  assert.equal(W.isUnicastMac('ff:ff:ff:ff:ff:ff'), false);  // broadcast
+  assert.equal(W.isUnicastMac('01:00:5e:00:00:16'), false);  // multicast IPv4
+  assert.equal(W.isUnicastMac('33:33:00:00:00:01'), false);  // multicast IPv6
+  assert.equal(W.isUnicastMac('00:00:00:00:00:00'), false);  // nullo (ARP incompleto)
+  assert.equal(W.isUnicastMac(''), false);
+  assert.equal(W.isUnicastMac('non-un-mac'), false);
+});
+
+test('collectWirelessClients: i vicini L3 broadcast/multicast/null sono scartati (rumore ARP reale)', () => {
+  // MAC misurati dal vivo su un hotspot Windows: solo il client unicast deve restare.
+  const out = W.collectWirelessClients({
+    fdb: {}, wifiIfs: [],
+    wifiNeighborMacs: ['2e:f5:0b:aa:cd:4a', 'ff:ff:ff:ff:ff:ff', '01:00:5e:00:00:16', '00:00:00:00:00:00'],
+  });
+  assert.equal(out.length, 1, 'resta solo il client unicast reale');
+  assert.equal(out[0].mac, '2e:f5:0b:aa:cd:4a');
+  assert.equal(out[0].source, 'neighbor');
+});
