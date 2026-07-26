@@ -140,7 +140,7 @@ function _autoLinkEl() {
   const age = _snmpFreshness(res.at).txt;
   const ico = document.createElement('i'); ico.className = 'fas fa-diagram-project'; wrap.appendChild(ico);
   const txt = document.createElement('span'); txt.className = 'msb-autolink-txt';
-  if (res.created > 0) txt.textContent = t('subbar.autoLinkOk', { n: res.created, proto: res.protocols || 'auto', age });
+  if (res.created > 0) txt.textContent = t('subbar.autoLinkOk', { n: res.created, age });
   else if (res.pruned > 0) txt.textContent = t('subbar.autoLinkPruned', { n: res.pruned, age });
   else txt.textContent = t('subbar.autoLinkNone', { age });
   wrap.appendChild(txt);

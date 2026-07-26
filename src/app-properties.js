@@ -276,11 +276,11 @@ export function _buildNetAccessHtml(n, d, opts){
     // da hotspot può trasmettere SSID senza cambiare tipo. Off di default; sblocca l'editor SSID.
     const _nativeServe = !!(TYPES[n.type] && TYPES[n.type].wifiServe);
     const _apModeToggle = (_wifiCapable && !_nativeServe && _wifiOn)
-        ? `<label class="link-wireless-toggle" style="margin-left:14px"><input type="checkbox" ${n.apMode?'checked':''} onchange="setDeviceApMode('${n.id}',this.checked)"> <i class="fas fa-tower-broadcast"></i> ${t('wifi.apMode')}</label>`
+        ? `<label class="link-wireless-toggle" data-tip="${t('wifi.apMode')}"><input type="checkbox" ${n.apMode?'checked':''} onchange="setDeviceApMode('${n.id}',this.checked)"> <i class="fas fa-tower-broadcast"></i> <span class="lwt-txt">${t('wifi.apModeShort')}</span></label>`
         : '';
     const _wifiToggle = (_wifiCapable && !_wifiMandatory)
         ? `<div class="netaccess-wifi">
-             <label class="link-wireless-toggle"><input type="checkbox" ${_wifiOn?'checked':''} onchange="setDeviceWifi('${n.id}',this.checked)"> <i class="fas fa-wifi"></i> ${t('wifi.capable')}</label>${_apModeToggle}
+             <label class="link-wireless-toggle" data-tip="${t('wifi.capable')}"><input type="checkbox" ${_wifiOn?'checked':''} onchange="setDeviceWifi('${n.id}',this.checked)"> <i class="fas fa-wifi"></i> <span class="lwt-txt">${t('wifi.capableShort')}</span></label>${_apModeToggle}
            </div>`
         : '';
     // Fisarmonica WIRELESS separata (fuori da Rete & Accesso): sempre per l'AP,

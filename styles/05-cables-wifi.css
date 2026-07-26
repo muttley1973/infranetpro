@@ -35,16 +35,19 @@
         .prop-grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
         .wifi-inherited { font-size:var(--fs-xs); color:var(--text-main); background:color-mix(in srgb, var(--accent) 7%, transparent); border:1px solid color-mix(in srgb, var(--accent) 22%, transparent); border-radius: var(--radius-md); padding:6px 9px; margin:2px 0 8px; line-height:1.4; }
         .wifi-inherited i { color:var(--accent); margin-right:5px; }
-        /* Blocco Wi-Fi in fondo a "Rete & Accesso": divisore sottile sopra */
-        .netaccess-wifi { margin-top:10px; padding-top:10px; border-top:1px solid var(--hairline); }
-        /* Riga "Dotato di Wi-Fi": box a larghezza piena fino a fine blocco */
+        /* Blocco Wi-Fi in fondo a "Rete & Accesso": divisore sottile sopra.
+           Riga FLEX: "Dotato di Wi-Fi" e "Modalità AP" affiancati, spazio diviso a metà
+           (flex:1 ciascuno). Con un solo toggle (AP nativo / Wi-Fi off) resta a piena larghezza. */
+        .netaccess-wifi { margin-top:10px; padding-top:10px; border-top:1px solid var(--hairline); display:flex; gap:8px; }
         .netaccess-wifi > .link-wireless-toggle {
-            width:100%; box-sizing:border-box; padding:8px 10px; border-radius: var(--radius-md);
-            font-weight:600; gap:8px; font-size:.98rem; justify-content:center;   /* +120% vs .82rem, centrato */
+            flex:1 1 0; min-width:0; box-sizing:border-box; padding:8px 8px; border-radius: var(--radius-md);
+            font-weight:600; gap:6px; font-size:.88rem; justify-content:center; white-space:nowrap;
             background:color-mix(in srgb, var(--accent) 7%, transparent);
             border:1px solid color-mix(in srgb, var(--accent) 20%, transparent);
         }
-        .netaccess-wifi > .link-wireless-toggle i { font-size:1.1em; }
+        .netaccess-wifi > .link-wireless-toggle i { font-size:1.05em; flex:none; }
+        /* Testo etichetta: cede con ellissi se la metà-riga è stretta (tooltip completo) */
+        .netaccess-wifi > .link-wireless-toggle .lwt-txt { min-width:0; overflow:hidden; text-overflow:ellipsis; }
         /* Stato live UPS/ATS (read-only, popolato da SNMP) */
         .power-live { margin-top:10px; padding:8px 10px; border-radius: var(--radius-md); background:color-mix(in srgb, var(--accent) 6%, transparent); border:1px solid color-mix(in srgb, var(--accent) 18%, transparent); }
         .power-live-head { display:flex; align-items:center; gap:6px; font-size:var(--fs-xs); font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:var(--text-muted); margin-bottom:6px; }
