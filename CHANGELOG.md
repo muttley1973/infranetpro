@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-26 — The toolbar fits any screen; tooltips wrap instead of clipping
+
+- **Fixed** — the top toolbar no longer runs off the edge on common screens (it needed ~2000px): action buttons collapse to **icon-only** (label in the tooltip) at ≤1920px, the left-hand fields tighten at ≤1500px, and — as a structural safety net — the header now **wraps to a second row** instead of cutting buttons off-screen (dropdowns are never clipped). Verified at 1280/1366/1920: one row, nothing cut.
+- **Fixed** — **tooltips are now standardised app-wide**: they were `white-space: nowrap`, so a long tooltip became one over-wide line that clipped. Now every `data-tip` tooltip **wraps** (short ones stay narrow via `max-content`, long ones wrap within a **280px** cap, long tokens break) — never truncated, consistent size and style everywhere from a single rule.
+
 ## 2026-07-26 — Discovery window & Wi-Fi panel: nothing truncated, less noise
 
 - **Changed** — the **Discovery ("Scopri")** result rows never truncate a device **name** anymore: the name takes priority and the status badges yield instead (rightmost first — the weakest hint, its full text kept in the tooltip). Confidence shows just the **number** (the level is already the badge colour); the reconcile status (New / Update / Verify / Already present) is now an **icon** with the word in the tooltip; the access-port badge drops the "behind" word and abbreviates the interface name (`GigabitEthernet0/23` → `Gi0/23`).
