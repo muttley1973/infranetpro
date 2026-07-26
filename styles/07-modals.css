@@ -183,13 +183,14 @@
         .disc-st.on { background:#173a22; color:var(--active-color); }
         .disc-st.seen { background:rgba(236,179,60,.12); color:#e3b341; border:1px solid rgba(236,179,60,.25); }
         .disc-st.off { background:#2d3138; color:var(--text-muted); }
-        .disc-ip   { font-family:monospace; color:var(--accent); font-size:var(--fs-md); white-space:nowrap; }
-        /* Nome + badge SEMPRE su UNA riga: la cella è flex, il NOME (.disc-name) cede
-           per primo con ellissi mentre i badge (sorgente/confidenza/Nuovo/…) restano
-           interi e non vanno mai a capo (flex:none). Così ogni device sta su una riga
-           sola anche con nome lungo + 4 badge, senza righe alte a due livelli. */
+        .disc-ip   { font-family:monospace; color:var(--accent); font-size:var(--fs-sm); letter-spacing:-.02em; white-space:nowrap; }
+        /* Nome + badge SEMPRE su UNA riga. REQUISITO: il NOME non si tronca mai → è
+           flex:none (mostra intero). Sono i BADGE a cedere: raccolti in .disc-badges
+           (flex:0 1 auto, overflow hidden) che si restringe da DESTRA, clippando prima
+           l'ultimo badge (la posizione — il segnale più debole, con tooltip completo). */
         .disc-host { font-weight:600; display:flex; align-items:center; min-width:0; overflow:hidden; white-space:nowrap; }
-        .disc-host .disc-name { min-width:0; flex:0 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .disc-host .disc-name { flex:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .disc-host .disc-badges { display:flex; align-items:center; min-width:0; flex:0 1 auto; overflow:hidden; white-space:nowrap; }
         .disc-host .disc-badge { flex:none; }
         /* MAC: i MAC normalizzati sono in MAIUSCOLO (glifi piu' larghi) → senza nowrap
            la cella andava a capo. Monospace + nowrap + tracking negativo la tengono
@@ -203,16 +204,18 @@
         .disc-scan-table th, .disc-scan-table td { overflow:hidden; }
         .disc-scan-table th:nth-child(1), .disc-scan-table td:nth-child(1) { width:34px; }   /* checkbox */
         .disc-scan-table th:nth-child(2), .disc-scan-table td:nth-child(2) { width:80px; }   /* stato */
-        .disc-scan-table th:nth-child(4), .disc-scan-table td:nth-child(4) { width:104px; }  /* IP */
-        .disc-scan-table th:nth-child(5), .disc-scan-table td:nth-child(5) { width:132px; }  /* vendor */
-        .disc-scan-table th:nth-child(6), .disc-scan-table td:nth-child(6) { width:144px; }  /* MAC */
-        .disc-scan-table th:nth-child(7), .disc-scan-table td:nth-child(7) { width:190px; }  /* tipo (select + icona destinazione) */
+        .disc-scan-table th:nth-child(4), .disc-scan-table td:nth-child(4) { width:112px; }  /* IP (fs-sm: ci sta anche .100) */
+        .disc-scan-table th:nth-child(5), .disc-scan-table td:nth-child(5) { width:122px; }  /* vendor */
+        .disc-scan-table th:nth-child(6), .disc-scan-table td:nth-child(6) { width:140px; }  /* MAC */
+        .disc-scan-table th:nth-child(7), .disc-scan-table td:nth-child(7) { width:196px; }  /* tipo (select + icona destinazione) */
         /* Cella Tipo: select + icona destinazione (planimetria/rack) su UNA riga.
            Il select riserva ~28px per l'icona così non va a capo sotto il dropdown. */
         .disc-scan-table td:nth-child(7) { white-space:nowrap; }
-        .disc-scan-table td:nth-child(7) > select.disc-type { max-width:calc(100% - 28px); vertical-align:middle; }
+        .disc-scan-table td:nth-child(7) > select.disc-type { max-width:calc(100% - 28px); vertical-align:middle; font-size:var(--fs-xs); }
         .disc-scan-table .disc-dest { vertical-align:middle; }
-        .disc-badge { display:inline-flex; align-items:center; margin-left:4px; border-radius: var(--radius-sm); padding:1px 4px; font-size:var(--fs-xs); font-weight:800; letter-spacing:.02em; vertical-align:middle; border:1px solid transparent; }
+        .disc-badge { display:inline-flex; align-items:center; margin-left:3px; border-radius: var(--radius-sm); padding:1px 4px; font-size:var(--fs-xs); font-weight:800; letter-spacing:0; vertical-align:middle; border:1px solid transparent; }
+        /* reconcile ora icona-sola: nessun margine interno, resta un quadratino pulito */
+        .disc-badge[class*="rec-"] i { margin:0; }
         .disc-badge.src-snmp { background:rgba(0,212,255,.12); color:var(--accent); border-color:rgba(0,212,255,.25); }
         .disc-badge.src-xd   { background:rgba(57,211,83,.14); color:var(--active-color); border-color:rgba(57,211,83,.28); }
         .disc-badge.v3-cred  { background:rgba(210,153,34,.14); color:#d29922; border-color:rgba(210,153,34,.32); }
@@ -236,7 +239,10 @@
         .disc-badge.rec-check  { background:rgba(0,170,255,.12); color:#4cc9ff; border-color:rgba(0,170,255,.25); }
         .disc-badge.rec-same   { background:rgba(139,148,158,.10); color:var(--text-muted); border-color:rgba(139,148,158,.20); }
         /* macsuck: porta di accesso dedotta dalla MAC-table (FDB). loc-amb = MAC su piu' porte → da verificare. */
-        .disc-badge.loc     { background:rgba(88,166,255,.10); color:#79b8ff; border-color:rgba(88,166,255,.24); font-weight:700; }
+        /* Badge posizione: nome interfaccia già abbreviato (Gi0/1); qui la rete di
+           sicurezza — se lo switchName è lungo, tronca con ellissi (nome pieno nel tooltip)
+           invece di spingere la riga. inline-block per far funzionare text-overflow. */
+        .disc-badge.loc     { background:rgba(88,166,255,.10); color:#79b8ff; border-color:rgba(88,166,255,.24); font-weight:700; display:inline-block; max-width:158px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         .disc-badge.loc i   { margin-right:3px; opacity:.85; }
         .disc-badge.loc-amb { background:rgba(227,179,65,.12); color:#e3b341; border-color:rgba(227,179,65,.26); }
         /* shared: il MAC pende DIETRO la porta (AP/switch non gestito) — indizio tenue */
