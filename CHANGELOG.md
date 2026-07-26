@@ -2,9 +2,17 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-26 — Discovery window & Wi-Fi panel: nothing truncated, less noise
+
+- **Changed** — the **Discovery ("Scopri")** result rows never truncate a device **name** anymore: the name takes priority and the status badges yield instead (rightmost first — the weakest hint, its full text kept in the tooltip). Confidence shows just the **number** (the level is already the badge colour); the reconcile status (New / Update / Verify / Already present) is now an **icon** with the word in the tooltip; the access-port badge drops the "behind" word and abbreviates the interface name (`GigabitEthernet0/23` → `Gi0/23`).
+- **Changed** — in *Network & Access* the **"Wi-Fi" and "AP mode" toggles now share one row** (space split in half) instead of stacking; compact labels with the full wording in the tooltip.
+- **Changed** — the auto-link sub-header line drops the protocol breakdown — `Auto-link: N links created — <age>`.
+
 ## 2026-07-26 — Discovery now sees wireless clients — even on an all-in-one router/AP/switch
 
 - **Added** — the Sync auto-link now recognises **wireless associations** from two SNMP signals and draws them as **over-the-air associations** (radio↔radio) instead of cables: **(1) the bridge FDB** — a client MAC learned on a device's **radio interface** (IF-MIB `ifType ieee80211`, or a vendor-neutral interface-name fallback); **(2) the L3 neighbour table** (`ipNetToMedia` / `ipNetToPhysical`) — a MAC whose ARP/ND entry sits on a radio interface, which is **universally implemented** (works where a device doesn't expose the bridge FDB — including PC/SoftAP hotspots and L3 APs/routers). The discovered client gets a station radio and attaches to the AP's radio, with the **BSS/SSID chosen by VLAN match** (ambiguous → left for you to pick, no guessing). Works out of the box for the common **all-in-one** box (router + AP + switch in one). The L3 path fires **only for devices that broadcast an SSID**, so a station radio is never mistaken for an AP (no feedback loop). Manual-first (never touches a hand-drawn association) with symmetric pruning; new pure engine `lib/wifi-assoc.js`.
+- **Added** — opt-in **"AP mode"** (per device, in *Network & Access*): a Wi-Fi-capable device that isn't natively an access point (a PC/server acting as a hotspot) can **broadcast an SSID without changing its type** — the SSID editor unlocks on its radio and it becomes eligible for the L3 wireless-association path. Capability, not role: the PC stays a PC.
+- **Fixed** — the L3-neighbour signal now keeps **unicast MACs only**, dropping the broadcast / multicast / null entries a real ARP/ND table carries on a radio interface (measured live: 270 of 271 neighbours on a Windows hotspot's radio were noise — the one survivor was the genuine client).
 
 ## 2026-07-24 — Overview: a read-only summary of what's missing, stale, or spare
 
