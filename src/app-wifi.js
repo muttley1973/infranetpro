@@ -35,8 +35,12 @@ const _WIFI_SEC_LABELS = {
 // NB: il `wlanctrl` (WLC) NON e' wifiServe: e' una centralina cablata, senza radio
 // — le SSID le definisce ma le IRRADIANO gli AP (che hanno le radio); vedi anche
 // _isWifiCapable, che non gli mostra la sezione Wi-Fi.
+// Un device può TRASMETTERE SSID (editor SSID abilitato) se il suo TIPO è nativamente
+// un AP (`wifiServe`: ap/router/firewall/sdwan) OPPURE se è stato dichiarato in
+// «modalità AP» (`node.apMode`, opt-in per pc/server/… che fanno da hotspot — capacità
+// ≠ ruolo: il tipo resta quello vero). Vedi setDeviceApMode.
 function _canServeSsid(node){
-    return !!(node && typeof TYPES !== 'undefined' && TYPES[node.type] && TYPES[node.type].wifiServe);
+    return !!(node && (node.apMode || (typeof TYPES !== 'undefined' && TYPES[node.type] && TYPES[node.type].wifiServe)));
 }
 
 // ── Setter config Wi-Fi di UNA radio (per indice) ────────────────────

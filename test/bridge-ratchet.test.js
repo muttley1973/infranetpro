@@ -688,7 +688,12 @@ function countInlineHandlers() {
 // COMPATTA + scheda VM dedicata (5° scope del pannello, app-properties-vm.js).
 // Entrambe nate senza on*=: data-act="vm-open|vm-remove|vm-state|vm-back" e
 // data-change="vm-field" + data-vm-host/-id/-field, registrati in app-hypervisor.js.
-const MAX_INLINE_HANDLERS = 568;
+// +1 (568 → 569, 2026-07-26) — RIALZO CONSAPEVOLE: toggle «Modalità AP» (opt-in) nel
+// pannello proprietà per i device wifi-capable non-nativamente-AP (pc/server hotspot).
+// È il GEMELLO inline di `setDeviceWifi` (onchange="setDeviceApMode(...)"), gli sta
+// letteralmente accanto: migrarne uno solo a data-change sarebbe incoerente. ASSE B
+// resta sospeso (§2.1) → crescita coerente col pattern locale, non un nuovo debito.
+const MAX_INLINE_HANDLERS = 569;
 test('ponte ASSE B: gli handler inline on*= non superano il tetto a cricchetto', () => {
   const total = countInlineHandlers();
   assert.ok(total <= MAX_INLINE_HANDLERS,

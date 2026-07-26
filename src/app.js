@@ -1397,6 +1397,16 @@ function setNodeRadioCount(id, k){
 }
 // Compat: vecchio toggle "Wireless" → 0/1 radio.
 function setDeviceWifi(id, on){ setNodeRadioCount(id, on ? Math.max(1, _radioCountOf(nodeById(id))) : 0); }
+// Modalità AP opt-in: un device wifi-capable NON nativamente AP (pc/server/…) che fa da
+// hotspot può TRASMETTERE SSID senza cambiare tipo → sblocca l'editor SSID (_canServeSsid).
+// Spegnendola cancella i BSS orfani (niente "SSID fantasma" su un client); undoable via pushHistory.
+function setDeviceApMode(id, on){
+    const n = nodeById(id); if(!n) return;
+    if(typeof pushHistory === 'function') pushHistory();
+    if(on){ n.apMode = true; }
+    else { delete n.apMode; if(Array.isArray(n.radios)) n.radios.forEach(r => { if(r) delete r.ssids; }); }
+    markDirty(); renderAll(); renderProps();
+}
 function _radioPid(nodeId, idx){ return (typeof radioPid==='function') ? radioPid(nodeId, idx) : `${nodeId}-radio`; }
 export function _isRadioPid(pid){
     const p = (typeof parseRadioPid==='function') ? parseRadioPid(pid) : null;
@@ -2532,7 +2542,7 @@ expose({
   init, initDraggablePopups, isPortOnNode, isRackTopNumbered, logAudit, markDirty,
   nodeById, promoteLinkToManual, pushHistory,
   rackUToVisible, registerModuleNav, removeNodePorts, renderCables, selected, setCableLabel,
-  setDeviceWifi, setLinkProp, setLinkWireless, setNodeRadioCount, switchRightTab,
+  setDeviceApMode, setDeviceWifi, setLinkProp, setLinkWireless, setNodeRadioCount, switchRightTab,
   toggleAbbrevNames, toggleNodeLock, updateFloorId, updateFrontPanel, updateN,
   updateP, updateWallPortId, visibleUToRackU,
 });
