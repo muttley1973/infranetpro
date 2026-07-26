@@ -45,7 +45,12 @@
    un effetto qui non taglia piu' nessun overlay. Per ora resta piatto (sfondo
    opaco); il vetro si puo' riabilitare in sicurezza se lo si desidera. */
 header {
-    height: 56px;
+    /* min-height (non height fissa) + wrap: se la barra non ci sta in larghezza
+       VA A CAPO invece di tagliare i pulsanti fuori schermo. Su schermi larghi
+       resta una riga da 56px; cresce solo quando serve. */
+    min-height: 56px;
+    flex-wrap: wrap;
+    row-gap: 5px;
     background: #10151c;
     border-bottom: 1px solid var(--hairline);
 }

@@ -119,6 +119,40 @@
         .td-log-info { color:var(--accent); }
         .td-log-dup  { color:#7a8a9e; }
 
+        /* ---- Header responsive (tier alto): sotto ~1500px i pulsanti-azione
+           diventano SOLO-ICONA (etichetta nel tooltip) e i campi di sinistra si
+           stringono. La barra a etichette piene chiede ~2000px: su laptop/monitor
+           comuni così nulla viene tagliato fuori schermo. Report/Assistente/
+           Automazioni sono già icon-only per classe. Il blocco ≤1100 sotto aggiunge
+           la compattazione estrema. ---- */
+        /* ≤1920px: i pulsanti-azione diventano SOLO-ICONA (etichetta nel tooltip) →
+           la barra sta su UNA riga sui monitor comuni. Sopra ~1920 (2K/4K) tornano le
+           etichette. Report/Assistente/Automazioni sono già icon-only per classe.
+           Il wrap (rete di sicurezza) è strutturale sull'header, non serve qui. */
+        @media (max-width: 1920px) {
+            #btn-overview .btn-label,
+            #btn-discover .btn-label,
+            #btn-drift .btn-label,
+            #btn-export-drawio .btn-label,
+            #btn-save #save-label,
+            #btn-user #user-label,
+            #modules-nav-slot .btn-label {
+                position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+                overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
+            }
+            header .toolbar-btn { padding: 5px 8px; }
+        }
+        /* ≤1500px (laptop): stringi i campi di sinistra e togli il badge freshness,
+           così la barra resta su UNA riga fin verso ~1400px (più stretta → va a capo). */
+        @media (max-width: 1500px) {
+            header { gap: 6px; }
+            .header-title { font-size: var(--fs-lg); }
+            #project-select { max-width: 130px; }
+            .project-bar { gap: 4px; }
+            .search-panel { flex: 0 1 160px; min-width: 120px; }
+            #sync-fresh-badge { display: none; }
+        }
+
         /* ---- Header fallback B ---- */
         @media (max-width: 1100px) {
             header { padding: 0 10px; gap: 8px; }
@@ -161,22 +195,27 @@
     background: var(--popup-bg, #1a232c);
     color: var(--popup-fg, #f0f6fc);
     border: 1px solid var(--popup-border, var(--panel-border));
-    padding: 5px 9px;
+    padding: 6px 10px;
     border-radius: var(--radius-sm);
-    font-size:var(--fs-sm);
-    line-height: 1.25;
-    white-space: nowrap;
+    font-size: var(--fs-sm);
+    line-height: 1.35;
+    text-align: left;
+    /* STANDARD: i tooltip VANNO A CAPO (mai troncati). width:max-content tiene
+       stretti i corti; max-width fa andare a capo i lunghi entro un limite fisso.
+       overflow-wrap spezza anche i token lunghissimi (OID/URL/MAC). */
+    white-space: normal;
+    overflow-wrap: break-word;
+    width: max-content;
+    max-width: 280px;
     pointer-events: none;
     opacity: 0;
     transition: opacity 0.15s ease, transform 0.15s ease;
     z-index: 10000;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    max-width: 280px;
-    /* Il testo NON ha white-space:nowrap se lungo */
 }
+/* Variante "largo" (opt-in) per i pochi testi molto lunghi: alza solo il tetto. */
 [data-tip][data-tip-wrap]::after {
-    white-space: normal;
-    width: 240px;
+    max-width: 360px;
 }
 [data-tip]:hover::after,
 [data-tip]:focus-visible::after {
