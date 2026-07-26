@@ -133,6 +133,11 @@ lib/                   Shared browser + test modules (the heart of the app)
                     parse (DNS compression, SSDP headers, UPnP XML), service→type map
                     (vendor-neutral) + aggregateSweep. Drives server _mdnsSsdpSweep  (pure)
   radio.js          radio interfaces: pid/anchor/linkKind/seeds       (pure)
+  wifi-assoc.js     isWirelessInterface (ifType ieee80211 / name) + classifyFdbAssociations
+                    (FDB → wireless vs wired) + collectWirelessClients (unifies FDB-L2 and
+                    ARP/ND-L3 neighbour signals, FDB wins) + resolveClientAssoc (BSS by VLAN)
+                    — drives the auto-link's Layer 4c wireless associations (all-in-one,
+                    L3 APs/routers and PC/SoftAP hotspots)  (pure)
   vlan-trunk.js     carriedVlans + effLinkVlans (trunk derivato)       (pure)  …
                        (PURE only — the ex-`lib/app-*.js` GLUE now lives in src/)
 src/app.js             Core glue/nucleus: state, escapeHTML, init(), renderAll dispatch

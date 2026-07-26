@@ -16,6 +16,10 @@ import { applyPollResult } from './app-snmp.js';   // ritiro ponte: coda funzion
 import { _vlansToRangeStr } from './app-vlan-autopoll.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { materializeTopologyNodes } from './app-topology-rebuild.js';   // materializza i nodi mancanti (gateway annunciato + switch inferito) col poll già raccolto
 import { pickBestIp6, canonicalizeIpv6 } from '../lib/ipv6.js';   // ND discovery: scelta ip6 rappresentativo (bundlato ESM, come app.js — NON un globale su window)
+import { collectWirelessClients, resolveClientAssoc } from '../lib/wifi-assoc.js';   // Layer 4c: associazioni wireless da FDB (L2) + vicini ARP/ND su radio (L3)
+import { radioPid, setRadioCount, apSsidList } from '../lib/radio.js';   // Layer 4c: pid/gestione radio + BSS serviti (import ESM → niente crescita del ponte win.*)
+import { pairSig } from '../lib/correlate.js';   // Layer 4c: firma-coppia canonica (stesso formato di _pairSig usato per rejectedAutoLinks)
+import { _normMacKey } from '../lib/netnames.js';   // Layer 4c: normalizzazione MAC (stessa del resto del motore)
 // ============================================================
 // AUTO-LINK DISCOVERY — algoritmo multi-layer trasparente
 //
@@ -456,6 +460,101 @@ export function _autoLinkEndpoint(nodeId){
     return { ok:true, swId:res.swId, ifName:res.ifName, wallPort:wallPid, created:true };
 }
 
+// Layer 4c dell'auto-link — ASSOCIAZIONI WIRELESS dalla FDB. Un MAC endpoint appreso
+// nella FDB di un apparato su una sua interfaccia WIRELESS (ieee80211/nome-radio) =
+// client ASSOCIATO via onda a quell'apparato. Vendor-neutral, e valido soprattutto per
+// l'apparato TUTT'UNO (router+AP+switch): la sua FDB contiene già i client wireless,
+// appresi sulle radio invece che sulle porte ethernet. Crea l'onda radio↔radio (scelta
+// utente A): il client scoperto riceve una radio-stazione e si aggancia alla radio
+// dell'AP; il BSS si sceglie per MATCH VLAN (no-invenzioni: se non disambigua, nessun BSS
+// → l'utente lo sceglie dal pannello). Manual-first: non tocca i link manuali, gestisce
+// SOLO i propri (protocol 'WIFI-FDB'). Legge le cache di sessione popolate dal Sync
+// (store._topoWifiIfsCache / _topoFdbCache / _topoFdbVlanCache). Muta store.state.links.
+// @returns {{created:number, updated:number, pruned:number}}
+export function _autoLinkWirelessAssoc(){
+    const CONF_WIFI_FDB = 0.85;   // MAC appreso su radio nella FDB bridge (L2, diretto)
+    const CONF_WIFI_NBR = 0.80;   // vicino ARP/ND su radio (L3, un filo meno diretto)
+    const WIFI_PROTOS = new Set(['WIFI-FDB', 'WIFI-NBR']);
+    const out = { created:0, updated:0, pruned:0, protocols:new Set() };
+    if(typeof radioPid !== 'function') return out;   // libreria radio non caricata → no-op
+    const _radiosLen = nd => (nd && Array.isArray(nd.radios)) ? nd.radios.length : 0;
+    const _rejectedW = Array.isArray(store.state.rejectedAutoLinks) ? store.state.rejectedAutoLinks : [];
+    const macToNode = _nodeByMacMap();
+    const wifiAffirmed = new Set();   // client-radio-pid (ri)confermati questo giro
+    const wifiApsSeen  = new Set();    // AP con evidenza fresca → pruning consentito solo lì
+    for(const dev of store.state.nodes){
+        if(_radiosLen(dev) < 1) continue;                                    // solo device che TRASMETTONO onda
+        const wifiIfs = (store._topoWifiIfsCache && store._topoWifiIfsCache[dev.id]) || [];
+        const wifiNbr = (store._topoWifiNbrCache && store._topoWifiNbrCache[dev.id]) || [];
+        const fdb     = (store._topoFdbCache && store._topoFdbCache[dev.id]) || {};
+        const apList  = apSsidList(dev);
+        // Segnale L3 (vicino su radio) SOLO se il device TRASMETTE un SSID: distingue un AP
+        // da una stazione (che vedrebbe l'AP fra i propri vicini su wlan → direzione invertita).
+        // Chiude anche il loop di feedback: la radio-stazione che aggiungiamo al client NON ha
+        // SSID → al Sync successivo il client non viene mai scambiato per un AP.
+        const nbrMacs = apList.length ? wifiNbr : [];
+        const hasSignal = (wifiIfs.length && Object.keys(fdb).length) || nbrMacs.length;
+        if(!hasSignal) continue;                                             // nessun segnale wireless su questo dev
+        wifiApsSeen.add(dev.id);
+        const fdbVlan = (store._topoFdbVlanCache && store._topoFdbVlanCache[dev.id]) || {};
+        const clients = collectWirelessClients({ fdb, wifiIfs, wifiNeighborMacs: nbrMacs, fdbVlan });
+        for(const w of clients){
+            const client = macToNode.get(_normMacKey(w.mac));
+            if(!client || client.id === dev.id) continue;
+            if(!_isLeafEndpoint(client.type)) continue;                      // solo endpoint foglia (PC/telefono/…)
+            // Assicura una radio-stazione sul client (idx 0), come nel modello manuale.
+            if(_radiosLen(client) < 1) setRadioCount(client, 1);
+            if(_radiosLen(client) < 1) continue;                             // radio non creabile → salta
+            const clientPid = radioPid(client.id, 0);
+            const { radioIdx, bssId } = resolveClientAssoc({ apSsidList: apList, vlan: w.vlan });
+            const apPid = radioPid(dev.id, radioIdx);
+            const pairKey = pairSig(apPid, clientPid);
+            if(_rejectedW.includes(pairKey)) continue;                       // coppia rifiutata dall'utente
+            const existing = store.state.links.find(l => _linkTouchesPort(l, clientPid));
+            if(existing && !existing.autoLinked) continue;                   // link manuale sul client → non toccare
+            const proto = (w.source === 'neighbor') ? 'WIFI-NBR' : 'WIFI-FDB';
+            const conf  = (w.source === 'neighbor') ? CONF_WIFI_NBR : CONF_WIFI_FDB;
+            wifiAffirmed.add(clientPid);
+            out.protocols.add(proto);
+            if(existing){
+                existing.src = apPid; existing.dst = clientPid;
+                existing.wireless = true; existing.autoLinked = true;
+                existing.confidence = conf; existing.protocol = proto;
+                if(bssId) existing.bss = bssId; else delete existing.bss;
+                out.updated++;
+            } else {
+                const rec = (typeof _createLinkRecord === 'function')
+                    ? _createLinkRecord(apPid, clientPid, { wireless:true, autoLinked:true, confidence:conf, protocol:proto })
+                    : { id:uid('l'), src:apPid, dst:clientPid, wireless:true, autoLinked:true, confidence:conf, protocol:proto };
+                if(bssId) rec.bss = bssId;
+                store.state.links.push(rec);
+                out.created++;
+            }
+        }
+    }
+    // Prune manual-first: un'onda WIFI-FDB AUTO il cui AP è stato ri-scansionato ORA ma il
+    // client non è più fra gli associati (spostato su ethernet o sparito) va rimossa. Solo
+    // i nostri auto-link, solo dove c'è evidenza fresca sull'AP (niente falso-prune se
+    // l'AP non è stato interrogato questo giro).
+    if(wifiApsSeen.size){
+        const before = store.state.links.length;
+        store.state.links = store.state.links.filter(l => {
+            if(!l || !WIFI_PROTOS.has(l.protocol) || !l.autoLinked) return true;
+            const nA = getPortNodeId(l.src), nB = getPortNodeId(l.dst);
+            const apId = (nA && wifiApsSeen.has(nA)) ? nA : ((nB && wifiApsSeen.has(nB)) ? nB : null);
+            if(!apId) return true;                                           // nessuna evidenza fresca sull'AP → non toccare
+            const clientPid = (apId === nA) ? l.dst : l.src;
+            return wifiAffirmed.has(clientPid);                             // confermato ORA? tieni : scarta
+        });
+        out.pruned = before - store.state.links.length;
+    }
+    if(out.created || out.updated || out.pruned){
+        _invalidateIdx();
+        console.log(`[AutoLink] associazioni wireless (FDB su radio): +${out.created} · agg ${out.updated} · rimosse ${out.pruned}`);
+    }
+    return out;
+}
+
 // Handler del pulsante "Tenta collegamento automatico" (pannello proprietà endpoint).
 // Esito esplicito via toast; aggiorna la vista solo se ha creato/modificato un link.
 async function _autoLinkEndpointUI(){
@@ -883,6 +982,8 @@ async function _autoDiscoverLinks(nodeIds){
         const fdbTable = win._normalizeFdbTable(data.fdbTable || {});
         store._topoFdbCache[n.id] = fdbTable; // cache per auto-link endpoint on-demand (senza ri-poll)
         store._topoFdbVlanCache[n.id] = win.normalizeFdbVlan(data.fdbVlan || {}, win._normMacKey); // VLAN-per-MAC (Drift guest)
+        store._topoWifiIfsCache[n.id] = Array.isArray(data.wifiIfs) ? data.wifiIfs.slice() : []; // ifName wireless (Layer 4c: assoc. da FDB su radio)
+        store._topoWifiNbrCache[n.id] = Array.isArray(data.wifiNeighborMacs) ? data.wifiNeighborMacs.map(m => _normMacKey(m)).filter(Boolean) : []; // MAC-vicini su radio (Layer 4c L3)
         // Cache neighbors LLDP/CDP: il pulsante Topologia la riuserà senza rifare le chiamate
         store._topoNeighborsCache[n.id] = {
             ts: Date.now(),
@@ -1467,6 +1568,19 @@ async function _autoDiscoverLinks(nodeIds){
         }
     } catch(e){ console.warn(`[AutoLink] materializzazione: ${e.message}`); }
 
+    // ---- Layer 4c: associazioni WIRELESS via FDB (client su interfaccia radio) --------
+    // Delegato a _autoLinkWirelessAssoc (testabile in isolamento): legge le cache di
+    // sessione popolate sopra (wifiIfs/FDB/VLAN) e crea le onde radio↔radio. Muta
+    // store.state.links; qui si folda solo il conteggio nel risultato del Sync.
+    try {
+        const _w = _autoLinkWirelessAssoc();
+        if(_w.created || _w.updated || _w.pruned){
+            created += _w.created; updated += _w.updated; pruned += _w.pruned;
+            for(const p of (_w.protocols || [])) protocols.add(p);
+            diag.wifiAssoc = { created:_w.created, updated:_w.updated, pruned:_w.pruned };
+        }
+    } catch(e){ console.warn(`[AutoLink] wireless-assoc: ${e.message}`); }
+
     if(created > 0 || updated > 0 || lagGroups > 0 || pruned > 0 || historyAdded > 0) markDirty();
     if(created===0 && updated===0){
         if(diag.topoOk===0) diag.reasons.push(t('pnl.sys.diagNoTopoResp'));
@@ -1485,6 +1599,7 @@ expose({
     _refreshTopoFdbCache, _refreshSnmpPortInventory, _isTransitPort, _lagTrunkVlansForPortLag,
     _isInferredUplinkProto,
     _resolveEndpointSwitchPort, _findWallPortBehindInfrastructurePort, _autoLinkEndpoint,
+    _autoLinkWirelessAssoc,
     _autoLinkEndpointUI, _autoLinkDiagText, _autoDiscoverLinks,
     // pruneDiscoveryHistory / normalizeFdbVlan / DISCOVERY_HISTORY_MAX* → lib/discovery-history.js
 });

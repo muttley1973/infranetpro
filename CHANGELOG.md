@@ -2,6 +2,10 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-26 — Discovery now sees wireless clients — even on an all-in-one router/AP/switch
+
+- **Added** — the Sync auto-link now recognises **wireless associations** from two SNMP signals and draws them as **over-the-air associations** (radio↔radio) instead of cables: **(1) the bridge FDB** — a client MAC learned on a device's **radio interface** (IF-MIB `ifType ieee80211`, or a vendor-neutral interface-name fallback); **(2) the L3 neighbour table** (`ipNetToMedia` / `ipNetToPhysical`) — a MAC whose ARP/ND entry sits on a radio interface, which is **universally implemented** (works where a device doesn't expose the bridge FDB — including PC/SoftAP hotspots and L3 APs/routers). The discovered client gets a station radio and attaches to the AP's radio, with the **BSS/SSID chosen by VLAN match** (ambiguous → left for you to pick, no guessing). Works out of the box for the common **all-in-one** box (router + AP + switch in one). The L3 path fires **only for devices that broadcast an SSID**, so a station radio is never mistaken for an AP (no feedback loop). Manual-first (never touches a hand-drawn association) with symmetric pruning; new pure engine `lib/wifi-assoc.js`.
+
 ## 2026-07-24 — Overview: a read-only summary of what's missing, stale, or spare
 
 - **Added** — a new **Overview** view (a view switch like Topology, it never touches the document): three columns — **Document · Conformance · Expansion** — each cell a number *and* a plain-word verdict, declaring the **provenance** of every figure (declared / from scan / derived / not declared); a missing datum shows dashed, never a zero. Composes existing engines only, no new measurement; the chosen view lives in `localStorage`, never in the project.

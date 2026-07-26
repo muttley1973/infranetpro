@@ -1417,6 +1417,7 @@ async function poll(cfg) {
 const N_OID = {
   sysName:        '1.3.6.1.2.1.1.5',
   ifDescr:        '1.3.6.1.2.1.2.2.1.2',
+  ifType:         '1.3.6.1.2.1.2.2.1.3',  // IF-MIB: riconoscere le interfacce wireless (ieee80211=71)
   // SNMP-M4 (audit 2026-07-21): lldpLocPortEntry col .4 = lldpLocPortDesc (DisplayString,
   // nome porta leggibile). Prima era `.3` = lldpLocPortId, il cui valore col subtype
   // macAddress è un MAC binario → bufToStr produceva mojibake come nome porta. Il .4 è
@@ -1458,6 +1459,9 @@ const N_OID = {
 // Decodifica dei 16 byte dell'indice IPv6 (ipNetToPhysical/ipAddress) + scelta
 // dell'IPv6 di gestione proprio del device (lib pura).
 const { bytesToIpv6, pickBestIp6 } = require('../lib/ipv6.js');
+// Predicato PURO "interfaccia wireless" (ieee80211/nome) — stessa fonte di verità
+// del fallback client, per emettere `wifiIfs` nella risposta topologia (vendor-neutral).
+const { wirelessIfNames, isWirelessInterface } = require('../lib/wifi-assoc.js');
 
 const NEIGHBOR_OIDS = Object.values(N_OID);
 
@@ -1502,6 +1506,13 @@ function extractNeighbors(vbs) {
   for (const [oid, val] of Object.entries(vbs)) {
     if (!oid.startsWith(N_OID.ifDescr + '.')) continue;
     ifName[lastIdx(oid)] = bufToStr(val);
+  }
+
+  // --- ifType: ifIndex → IF-MIB type (per distinguere le interfacce WIRELESS) ---
+  const ifType = {};
+  for (const [oid, val] of Object.entries(vbs)) {
+    if (!oid.startsWith(N_OID.ifType + '.')) continue;
+    ifType[lastIdx(oid)] = bufToInt(val);
   }
 
   // --- LLDP local port descriptions: localPortNum → portName ---
@@ -1741,6 +1752,11 @@ function extractNeighbors(vbs) {
     }
   }
 
+  // wifiNbr: MAC di vicini L3 (ARP/ND) appresi su un'interfaccia WIRELESS del device.
+  // Segnale di associazione wireless UNIVERSALE — la tabella vicini è implementata
+  // ovunque (Windows/Linux/SoftAP inclusi), a differenza della FDB bridge che i PC non
+  // espongono. L'ifIndex è il primo elemento dell'indice OID in entrambe le tabelle.
+  const wifiNbr = new Set();
   const arpTable = {};
   for (const [key, ip] of Object.entries(arpIpByKey)) {
     const mac = arpMacByKey[key];
@@ -1749,6 +1765,8 @@ function extractNeighbors(vbs) {
     // Preferisci entry dinamiche, ma accetta statiche se non c'è alternativa.
     if (!(t === 3 || t === 4 || t === 0)) continue;
     if (!arpTable[mac]) arpTable[mac] = ip;
+    const nbrIf = ifName[key.split('.')[0]];              // ipNetToMedia index = ifIndex.ip
+    if (isWirelessInterface(nbrIf, ifType[key.split('.')[0]])) wifiNbr.add(mac);
   }
 
   // ---- Neighbor cache unificata (IP-MIB ipNetToPhysicalTable) ----------------
@@ -1780,6 +1798,9 @@ function extractNeighbors(vbs) {
     // cross-subnet: una entry invalid non deve inventare presenza. incomplete(7) è già
     // esclusa dal MAC vuoto sopra; reachable/stale/delay/probe restano (osservazione recente).
     if (_physState[_key] === 5) continue;
+    // ipNetToPhysical index = ifIndex.addrType.addrLen.<addr…> → parts[0] = ifIndex.
+    // Un vicino (v4 o v6) su interfaccia radio = associazione wireless (come l'ARP legacy).
+    if (isWirelessInterface(ifName[parts[0]], ifType[parts[0]])) wifiNbr.add(mac);
     if (addrType === 1 && addrLen === 4) {
       const ip = bytes.join('.');
       if (/^\d{1,3}(\.\d{1,3}){3}$/.test(ip) && !arpTable[mac]) arpTable[mac] = ip;   // gap-fill IPv4
@@ -1792,7 +1813,18 @@ function extractNeighbors(vbs) {
     }
   }
 
-  return { hostname, neighbors, fdbTable, fdbVlan, arpTable, ndTable };
+  // ---- wifiIfs: nomi delle interfacce WIRELESS del device (ieee80211 o nome-radio) ----
+  // La FDB indicizza per ifName; l'auto-link userà questo set per capire quali MAC
+  // sono appresi via RADIO (associazione wireless) invece che su porta ethernet — la
+  // chiave dell'apparato tutt'uno (router+AP+switch), la cui FDB contiene già i client
+  // wireless. Predicato PURO condiviso col fallback client (lib/wifi-assoc.js).
+  const ifTypeByName = {};
+  for (const [idx, name] of Object.entries(ifName)) {
+    if (name != null && name !== '') ifTypeByName[name] = ifType[idx];
+  }
+  const wifiIfs = wirelessIfNames(ifTypeByName);
+
+  return { hostname, neighbors, fdbTable, fdbVlan, arpTable, ndTable, wifiIfs, wifiNeighborMacs: Array.from(wifiNbr) };
 }
 
 // ---- public API: neighbour discovery ----------------------------------------

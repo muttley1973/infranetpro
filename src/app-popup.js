@@ -399,6 +399,16 @@ store._topoArpCache = {};
 // Prova la presenza VIVA dei vicini IPv6 dietro il router (verde cross-subnet, ND
 // discovery) → consumata da buildSnmpSnapshot SOLO come observedMacs. Cache di sessione.
 store._topoNdCache = {};
+// Cache degli ifName WIRELESS per device (SNMP ifType ieee80211 / nome-radio), popolata
+// in _autoDiscoverLinks durante il Sync. { [nodeId]: [ifName…] }. Distingue nella FDB i
+// MAC appresi via RADIO (= associazioni wireless) da quelli su porta ethernet → Layer 4c
+// dell'auto-link (associazioni wireless dall'apparato, anche tutt'uno). Cache di sessione.
+store._topoWifiIfsCache = {};
+// Cache dei MAC-vicini L3 (ARP/ND) appresi su interfaccia WIRELESS, per device.
+// { [nodeId]: [normMac…] }. Segnale wireless universale (tabella vicini implementata
+// ovunque, Windows/Linux/SoftAP inclusi) — complementare alla FDB bridge che i PC non
+// espongono. Consumata dal Layer 4c dell'auto-link. Cache di sessione (ricostruita al Sync).
+store._topoWifiNbrCache = {};
 // Cache neighbors LLDP/CDP per switch, popolata in _autoDiscoverLinks durante sync.
 // { switchNodeId: { ts, deviceHostname, deviceIP, neighbors[] } }
 // Usata da discoverTopology per evitare di rifare le chiamate /api/topology
