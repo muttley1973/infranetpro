@@ -15,6 +15,7 @@ import { escapeHTML } from './app-util.js';
 import { nodeById, getNodeDisplayName, selected, _patchPanelOffset, _enableManualValueInProps, _activatePropsTab, getNodeRackSize, _patchPanelChainOptions, isRackTopNumbered, rackUToVisible } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { TYPES, typeName, _nodeSpecView, _fixedRackLabel, _frontPanelState } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { _propsSectionIsOpen, _buildNetAccessHtml, renderProps, _buildPropsHeader, _propsIconForType, _buildPatchPanelPreview } from './app-properties.js';   // ritiro ponte: builder pannello (ex win.*)
+import { osIconHtmlFor } from '../lib/os-icon.js';   // icona OS (accento colorato nell'intestazione device)
 import { _discIdentityLabel } from './app-discovery-classify.js';   // ritiro ponte: alias-block sciolto (ex win.*)
 import { _defaultStackName } from './app-stack-ha.js';   // ritiro ponte: alias-block sciolto (ex win.*)
 import { getLagGroupsForNode } from './app-ports.js';   // ritiro ponte: alias-block sciolto (ex win.*)
@@ -73,11 +74,17 @@ export function _renderNodeProps(panel){
         // click, rubando il pannello durante il drag-import VM. Ora come il rack.)
         if((d.isRack || d.isFloor) && !_propsExplicit) return;
         const _delTip = d.isStructural ? t('pnl.node.delObject') : t('pnl.node.delDevice');
+        // Accento colorato: logo OS dal campo dichiarato — server/pc/mobile/tv
+        // (srvOs/osType/tvOs) oppure la PIATTAFORMA di un hypervisor/homelab
+        // (hvPlatform: ESXi→VMware, Proxmox, Docker, TrueNAS). Vuoto sui nodi
+        // strutturali (rack/floor/room: nessun campo OS) → nessuna icona.
+        const _osIco = osIconHtmlFor({ nodeOs: n.srvOs || n.osType || n.tvOs, hvPlatform: n.hvPlatform }, { accent: true, size: 20 });
         const _panelHeader = _buildPropsHeader(
             n.name || n.hostname || n.ip || d.name,
             d.name,
             _propsIconForType(n.type),
-            `<span class="props-toggles"><button class="props-toggle-btn" onclick="_propsExpandAll()" data-tip="${t('pnl.node.expandAll')}"><i class="fas fa-angles-down"></i></button><button class="props-toggle-btn" onclick="_propsCollapseAll()" data-tip="${t('pnl.node.collapseAll')}"><i class="fas fa-angles-up"></i></button><button class="props-toggle-btn" onclick="_propsResetSections()" data-tip="${t('pnl.node.resetSections')}"><i class="fas fa-rotate"></i></button><button class="props-toggle-btn danger" onclick="deleteNode()" data-tip="${_delTip}"><i class="fas fa-trash"></i></button></span>`
+            `<span class="props-toggles"><button class="props-toggle-btn" onclick="_propsExpandAll()" data-tip="${t('pnl.node.expandAll')}"><i class="fas fa-angles-down"></i></button><button class="props-toggle-btn" onclick="_propsCollapseAll()" data-tip="${t('pnl.node.collapseAll')}"><i class="fas fa-angles-up"></i></button><button class="props-toggle-btn" onclick="_propsResetSections()" data-tip="${t('pnl.node.resetSections')}"><i class="fas fa-rotate"></i></button><button class="props-toggle-btn danger" onclick="deleteNode()" data-tip="${_delTip}"><i class="fas fa-trash"></i></button></span>`,
+            '', _osIco
         );
         let h=`${_panelHeader}`;
         if(d.isStructural){

@@ -50,6 +50,8 @@
     "lib/netnames.js",
     "lib/onboarding.js",
     "lib/os-hint.js",
+    "lib/os-icon.js",
+    "lib/os-icon-sprite.js",
     "lib/overview.js",
     "lib/panel-skin.js",
     "lib/power-mib.js",

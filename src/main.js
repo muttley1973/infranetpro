@@ -16,6 +16,7 @@ import './store.js';   // FOUNDATION: store dello stato condiviso (proxy window)
 import './app-delegation.js';   // ASSE B: harness event delegation (data-act) — infra
 import './app-modal-a11y.js';   // M9: a11y tool-modal (focus-trap + Esc) — infra, prima del nucleo
 import './app-util.js';    // FOGLIA: helper puri (escapeHTML/uid) — importati da app.js
+import './app-os-icons.js';   // inietta lo sprite icone-OS (<symbol>) nel DOM — prima dei render
 import './app.js';         // NUCLEO: stato (store.state) + core bootstrap — subito dopo i TYPES
 import './app-auth.js';
 import './app-search-zoom-rack.js';

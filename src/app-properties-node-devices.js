@@ -293,8 +293,12 @@ export function _nodeDeviceChainHtml(n, d, _identityBlock){
                         <option value="win11"   ${selected(n.osType,'win11')}>Windows 11</option>
                         <option value="win10"   ${selected(n.osType,'win10')}>Windows 10</option>
                         <option value="win-srv" ${selected(n.osType,'win-srv')}>Windows Server</option>
-                        <option value="ubuntu"  ${selected(n.osType,'ubuntu')}>Ubuntu / Debian</option>
+                        <option value="ubuntu"  ${selected(n.osType,'ubuntu')}>Ubuntu</option>
+                        <option value="debian"  ${selected(n.osType,'debian')}>Debian</option>
+                        <option value="fedora"  ${selected(n.osType,'fedora')}>Fedora</option>
                         <option value="rhel"    ${selected(n.osType,'rhel')}>RHEL / CentOS</option>
+                        <option value="suse"    ${selected(n.osType,'suse')}>openSUSE</option>
+                        <option value="linux"   ${selected(n.osType,'linux')}>Linux (altro)</option>
                         <option value="macos"   ${selected(n.osType,'macos')}>macOS</option>
                         <option value="altro"   ${selected(n.osType,'altro')}>${t('o.other')}</option>
                     </select></div>
@@ -866,8 +870,12 @@ export function _nodeDeviceChainHtml(n, d, _identityBlock){
                     <div class="prop-group"><label>${t('f.os')}</label><select onchange="updateN('srvOs',this.value)">
                         <option value=""         ${selected(n.srvOs||'','')}>${t('common.unspecifiedM')}</option>
                         <option value="win-srv"  ${selected(n.srvOs,'win-srv')}>Windows Server</option>
+                        <option value="ubuntu"   ${selected(n.srvOs,'ubuntu')}>Ubuntu</option>
+                        <option value="debian"   ${selected(n.srvOs,'debian')}>Debian</option>
                         <option value="rhel"     ${selected(n.srvOs,'rhel')}>RHEL / Rocky / Alma</option>
-                        <option value="ubuntu"   ${selected(n.srvOs,'ubuntu')}>Ubuntu / Debian</option>
+                        <option value="fedora"   ${selected(n.srvOs,'fedora')}>Fedora</option>
+                        <option value="suse"     ${selected(n.srvOs,'suse')}>openSUSE / SLES</option>
+                        <option value="bsd"      ${selected(n.srvOs,'bsd')}>FreeBSD / TrueNAS</option>
                         <option value="proxmox"  ${selected(n.srvOs,'proxmox')}>Proxmox VE</option>
                         <option value="esxi"     ${selected(n.srvOs,'esxi')}>VMware ESXi</option>
                         <option value="hyperv"   ${selected(n.srvOs,'hyperv')}>Hyper-V</option>

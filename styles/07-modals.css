@@ -301,6 +301,13 @@
         .vm-row-sum { flex:1 1 auto; min-width:0; font-size:var(--fs-xs); color:var(--text-muted);
                       overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:right; }
         .vm-row-btn { flex:none; padding:2px 7px; margin:0; }
+        /* Icone OS (loghi Simple Icons CC0 + glifi originali, sprite <use>). Il colore
+           lo decide il contesto: eredita currentColor nelle liste (mono), colore del
+           brand inline nei punti d'accento. .os-muted = ipotesi (solo TTL) → grigio. */
+        .os-ico { width:1.15em; height:1.15em; flex:0 0 auto; display:inline-block; vertical-align:-0.16em; color:inherit; }
+        .os-ico use { pointer-events:none; }
+        .os-muted { filter:grayscale(1) brightness(1.2); opacity:.5; }
+        .vm-row-os { font-size:0.95rem; }
         /* Parabola accanto alle risorse: quel gruppo viene da una LETTURA SNMP,
            non da quello che hai digitato. Distinguere misura e dichiarazione a
            colpo d'occhio è il paletto ② no-invenzioni applicato alla lista. */

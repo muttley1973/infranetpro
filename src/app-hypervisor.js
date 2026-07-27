@@ -25,6 +25,7 @@ import { TYPES } from './app-types.js';   // catalogo tipi (hostsVms/isPassive/h
 import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: lista VM + scheda VM senza handler inline
 import { _openMgmt } from './app-management.js';   // apertura console di management (stessa strategia dei device)
 import { vmNics, vmPrimaryIp, migrateVmNics, nextVmNicId, VM_FLAT_NET_FIELDS, VM_NIC_FIELDS } from '../lib/vm-nics.js';   // vNIC: lib pura importata ESM (come lib/ipv6.js)
+import { osIconHtmlFor } from '../lib/os-icon.js';   // icona OS dal guest-OS della VM (lib pura)
 
 // Piattaforme datacenter (hypervisor) e homelab: liste diverse, stesso campo
 // `hvPlatform`. Tutte on-prem (il cloud pubblico è un modello a sé, fuori scope).
@@ -294,9 +295,12 @@ function _vmRowHtml(vm, nodeId){
     const stateTitle = running ? t('hv.running') : stopped ? t('hv.stopped') : t('hv.vmUnknown');
     const ref = `data-vm-host="${esc(nodeId)}" data-vm-id="${esc(vm.id)}"`;
     const displayName = vm.name || t('hv.vmUnnamed');
+    // Icona OS dal guest-OS dichiarato (mono nella lista: eredita currentColor).
+    // Vuoto/appliance/altro → nessuna icona (schema ①: niente logo inventato).
+    const osIco = osIconHtmlFor({ vmGuest: vm.guestOs }, { cls: 'vm-row-os' });
     return `<div class="vm-row" ${ref} data-act="vm-open" role="button" tabindex="0" data-tip="${esc(t('hv.vmEdit'))}">
         <i class="fas fa-circle vm-row-dot" style="color:${dotColor}" title="${esc(stateTitle)}"></i>
-        <span class="vm-row-name">${esc(displayName)}</span>
+        ${osIco}<span class="vm-row-name">${esc(displayName)}</span>
         <span class="vm-row-sum">${_vmSummaryHtml(vm, displayName)}</span>
         <button type="button" class="toolbar-btn vm-row-btn" ${ref} data-act="vm-open" data-tip="${esc(t('hv.vmEdit'))}" aria-label="${esc(t('hv.vmEdit'))}"><i class="fas fa-pen"></i></button>
         <button type="button" class="toolbar-btn vm-row-btn" ${ref} data-act="vm-remove" data-tip="${esc(t('common.delete'))}" aria-label="${esc(t('common.delete'))}" style="color:var(--fault-color)"><i class="fas fa-trash-alt"></i></button>

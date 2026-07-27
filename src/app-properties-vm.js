@@ -31,15 +31,22 @@ import { _buildPropsHeader } from './app-properties.js';
 import { _nodeVms, _vmIntg } from './app-hypervisor.js';
 import { _mgmtBuildUrl, _mgmtProtoDef, _mgmtProtoOptionsHtml } from './app-management.js';
 import { vmNics, vmPrimaryIp } from '../lib/vm-nics.js';   // lib pura importata ESM (come lib/ipv6.js)
+import { osIconHtmlFor } from '../lib/os-icon.js';   // icona OS (accento colorato nell'intestazione)
 
 // Sistemi guest: stessa lista dell'host (un guest e' un OS, non una piattaforma).
 const _VM_GUEST_OS = [
     ['win-srv',   'Windows Server'],
     ['win',       'Windows (client)'],
-    ['linux',     'Linux'],
+    ['ubuntu',    'Ubuntu'],
+    ['debian',    'Debian'],
+    ['rhel',      'RHEL / Rocky / Alma'],
+    ['fedora',    'Fedora'],
+    ['suse',      'openSUSE / SLES'],
+    ['linux',     'Linux (generico)'],
     ['bsd',       'BSD / pfSense / OPNsense'],
-    ['appliance', 'Appliance (virtual)'],
+    ['macos',     'macOS'],
     ['container', 'Container / Docker'],
+    ['appliance', 'Appliance (virtual)'],
     ['altro',     '—'],
 ];
 
@@ -300,8 +307,10 @@ export function _renderVmProps(panel){
         + `<i class="fas ${_vico}"></i>`
         + `<span>${_vlbl}</span></button>`;
     const back = `<button type="button" class="toolbar-btn" data-act="vm-back" data-tip="${_esc(t('hv.vmBack', { host: hostName }))}" aria-label="${_esc(t('hv.vmBack', { host: hostName }))}"><i class="fas fa-arrow-left"></i></button>`;
+    // Accento colorato nell'intestazione: logo OS dal guest-OS dichiarato.
+    const osIco = osIconHtmlFor({ vmGuest: vm.guestOs }, { accent: true, size: 20 });
     const header = _buildPropsHeader(vm.name || t('hv.vmUnnamed'), t('hv.vmOnHost', { host: hostName }), 'fa-display',
-        `<span class="props-toggles vm-head-actions">${stateChip}${back}</span>`);
+        `<span class="props-toggles vm-head-actions">${stateChip}${back}</span>`, '', osIco);
 
     // Sistema operativo: la lista copre i casi comuni, ma l'harness
     // «Personalizzato…» del pannello permette di digitarne uno qualsiasi — per
