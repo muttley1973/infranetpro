@@ -124,9 +124,9 @@ test('osIconFromHvPlatform: piattaforma hypervisor/homelab → logo dedicato', (
   assert.equal(osIconFromHvPlatform('nutanix').key, 'nutanix');
   assert.equal(osIconFromHvPlatform('unraid').key, 'unraid');
   assert.equal(osIconFromHvPlatform('kvm').key, 'qemu');       // KVM → stack QEMU/KVM
-  assert.equal(osIconFromHvPlatform('hyperv').key, 'windows');     // Hyper-V → Windows (Microsoft)
-  assert.equal(osIconFromHvPlatform('azurelocal').key, 'windows'); // Azure Local (Stack HCI) → Windows
-  // senza logo dedicato su Simple Icons → nessuna icona
+  assert.equal(osIconFromHvPlatform('hyperv').key, 'windows');   // Hyper-V → Windows (Microsoft)
+  assert.equal(osIconFromHvPlatform('azurelocal').key, 'azure'); // Azure Local → logo Azure a colori (CC0 VLZ)
+  // senza logo dedicato in nessuna raccolta CC0 → nessuna icona
   assert.equal(osIconFromHvPlatform('xcpng'), null);
   assert.equal(osIconFromHvPlatform('altro'), null);
   // precedenza nel resolver
@@ -189,4 +189,11 @@ test('integrità sprite: ogni chiave prodotta ha un <symbol> e viceversa', () =>
     assert.ok(sprite.includes('id="os-' + k + '"'), `sprite senza os-${k}`);
   }
   assert.match(sprite, /fill="currentColor"/);
+  // i monocromatici hanno viewBox 24x24 + fill=currentColor; azure è a COLORI:
+  // viewBox proprio e NESSUN currentColor sul suo <symbol> (colori/gradienti propri).
+  assert.equal(OS_ICON_SYMBOLS.linux.mono, true);
+  assert.equal(OS_ICON_SYMBOLS.azure.mono, false);
+  const azureSym = sprite.match(/<symbol id="os-azure"[^>]*>/)[0];
+  assert.match(azureSym, /viewBox="0 0 256 242"/);
+  assert.doesNotMatch(azureSym, /fill="currentColor"/);
 });
