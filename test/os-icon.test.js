@@ -193,7 +193,11 @@ test('integrità sprite: ogni chiave prodotta ha un <symbol> e viceversa', () =>
   // viewBox proprio e NESSUN currentColor sul suo <symbol> (colori/gradienti propri).
   assert.equal(OS_ICON_SYMBOLS.linux.mono, true);
   assert.equal(OS_ICON_SYMBOLS.azure.mono, false);
+  assert.equal(OS_ICON_SYMBOLS.vmware.mono, false);   // VMware = logo a colori (dashboard-icons)
   const azureSym = sprite.match(/<symbol id="os-azure"[^>]*>/)[0];
   assert.match(azureSym, /viewBox="0 0 256 242"/);
   assert.doesNotMatch(azureSym, /fill="currentColor"/);
+  const vmwareSym = sprite.match(/<symbol id="os-vmware"[^>]*>/)[0];
+  assert.match(vmwareSym, /viewBox="0 0 605 604"/);
+  assert.doesNotMatch(vmwareSym, /fill="currentColor"/);
 });
