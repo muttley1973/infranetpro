@@ -22,6 +22,7 @@ grouped automatically:
 | `brand_*` | `brand_cisco`, `brand_fortinet` | by vendor |
 | `wireless` | `wireless` | devices with radios (APs) |
 | `snmp_managed` | `snmp_managed` | devices with SNMP configured |
+| `backup_missing` | `backup_missing` | devices without a recorded config-backup pointer |
 
 Each host carries rich vars (from `_meta.hostvars`), organized by concern:
 
@@ -30,10 +31,21 @@ Each host carries rich vars (from `_meta.hostvars`), organized by concern:
 - **Network** (from the device's VLAN) — `vlan`, `vlan_name`, `subnet`, `gateway`, `dns`
 - **Location** — `rack`, `rack_id`, `rack_unit`
 - **Management** — `snmp` (bool), `wireless` (bool), `mgmt_protocol`, `mgmt_url`
+- **Automation** — `ansible_network_os` (derived from the documented vendor + `sysDescr` —
+  `cisco.ios.ios`/`cisco.nxos.nxos`/`arista.eos.eos`/`junipernetworks.junos.junos`/`vyos.vyos.vyos`/
+  `community.routeros.routeros`/`fortinet.fortios.fortios`; **omitted, never guessed, for unknown
+  vendors**), and the config-backup **pointer** `config_backup_ref` / `config_backup_method` /
+  `config_backup_at`
 - plus `ansible_host` = the device IP
 
+A backup playbook needs no hand-editing: target `snmp_managed`, key the module on
+`{{ ansible_network_os }}`, and write to `{{ config_backup_ref }}`. The AI assistant can draft it.
+
 > Secrets are **never** exposed: `snmp` is just a boolean, `mgmt_url` is IP-only
-> (no credentials), and SNMP community strings never leave InfraNet.
+> (no credentials), and SNMP community strings never leave InfraNet. `config_backup_ref`
+> is a **pointer** to where the backup lives — never the config itself (which holds secrets) —
+> and is credential-stripped; the path reaches this token-gated inventory but is never sent to
+> the AI model (which only sees the network OS and a "backup missing" flag).
 
 ## Requirements
 
