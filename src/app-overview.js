@@ -182,6 +182,7 @@ function _buildModel() {
         caps, fleet: computeFleetCapabilities(caps.map((x) => x.caps)),
         topoCache: st.topoCache || {}, lagGroups: st.lagGroups || {},
         lastSyncAt: st.lastSnmpSyncAt || 0, lastSyncResult: st.lastSnmpSyncResult || {},
+        lastVerify: st.lastVerify || null,   // Fase 2: l'ultima Verifica come stato (riga «Vero»)
         now: Date.now(),
     };
 }
@@ -209,7 +210,7 @@ function _tileValue(r) {
         case 'suspectPorts': return [_n(r.value), r.total ? t('ov.of', { n: r.total }) : ''];
         case 'neighbors':    return [_n(r.value), ''];
         case 'lags':         return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), ''];
-        case 'verify':       return [t('ov.none'), ''];
+        case 'verify':       return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), ''];
         case 'freePorts':    return [_n(r.value), t('ov.of', { n: r.total })];
         case 'freeSfp':      return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), t('ov.of', { n: r.total })];
         case 'rackU':        return r.prov === 'none' ? [t('ov.none'), ''] : [r.value + 'U', t('ov.of', { n: r.total })];
@@ -261,7 +262,15 @@ function _tileStatus(r) {
         case 'lags':         return r.prov === 'none'
             ? { w: t('ov.st.none'), tone: 'none' }
             : { w: t('ov.lagSplit', { m: e.measured, d: e.derived }), tone: 'info' };
-        case 'verify':       return { w: t('ov.st.never'), tone: 'none' };
+        case 'verify': {
+            if (r.prov === 'none') return { w: t('ov.st.never'), tone: 'none' };
+            const when = _age(e.ageMs, e.at);
+            // Ordine onesto: prima il residuo da decidere; poi il caso "cieco"
+            // (verifica girata ma nulla di verificabile); infine allineato.
+            if (r.value > 0) return { w: t('ov.verify.diffs', { n: r.value, age: when }), tone: 'warn' };
+            if (e.banner === 'blind') return { w: t('ov.verify.blind', { age: when }), tone: 'warn' };
+            return { w: t('ov.verify.aligned', { age: when }), tone: 'ok' };
+        }
         case 'freePorts':    return e.suspect
             ? { w: t('ov.rawMinusSuspect', { raw: e.raw, suspect: e.suspect }), tone: 'info' }
             : { w: t('ov.st.available'), tone: 'ok' };

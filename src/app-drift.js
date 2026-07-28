@@ -165,6 +165,28 @@ export function _driftComputeFromDoc(docSnap, opts){
     return store._driftReport;
 }
 
+// ── B1: la Verifica diventa STATO (Panoramica «Vero», Fase 2) ────────
+// Persiste un'ISTANTANEA COMPATTA dell'ultima Verifica nel documento: solo i
+// conteggi (chiavi fisse, piccolo), l'esito del banner e il timestamp — MAI il
+// dump completo delle righe (endpoint inclusi: può essere grande). La Panoramica
+// «Vero» la legge come stato persistente; la governance NIS2 vuole la stessa
+// traccia nel tempo. Chiamata SOLO da runDriftCheck (l'evento Verifica reale):
+// il ricalcolo dopo il Sync veloce (app-snmp.js) NON persiste — non ha fatto lo
+// sweep di presenza multi-segnale, quindi non è una Verifica completa.
+function _driftPersistSnapshot(){
+    const rep = store._driftReport;
+    if(!rep || !rep.counts) return;
+    // driftBannerKind è un bare-global (lib/drift-report.js via <script>), come già
+    // usato in _renderDriftReport: nessuna nuova lettura dal ponte win.*.
+    const kind = (typeof driftBannerKind === 'function') ? driftBannerKind(rep.counts, rep) : null;
+    store.state.lastVerify = {
+        at: Date.now(),
+        counts: Object.assign({}, rep.counts),   // conteggi a chiavi note (dimensione fissa)
+        banner: kind,                            // 'discrepancies' | 'blind' | 'aligned'
+        docCount: rep.docCount || 0,             // per il caso "cieco" (nulla verificabile)
+    };
+}
+
 // ── Sweep di raggiungibilità (audit presenza multi-segnale) ──────────
 // Interroga il server (ping ICMP / ARP / TCP) sugli IP documentati: stabilisce
 // la PRESENZA dei device che NON parlano SNMP. Ritorna { ip: { alive, via } } o
@@ -210,6 +232,7 @@ async function runDriftCheck(){
         const sweep = await _driftReachabilitySweep();  // presenza multi-segnale (ping/ARP/TCP) + tabella ARP
         _driftComputeFromDoc(docSnap, sweep || {});     // streaks + snapshot realtà + buildDriftReport
         _driftAutoRenewIps();                           // opt-in: rinnova IP dei MAC noti (DHCP)
+        _driftPersistSnapshot();                        // B1: la Verifica resta come stato (Panoramica «Vero»)
         markDirty();
         // renderAll SEMPRE (rAF-coalescato): subbar/nextStep e ingrigimento assenti
         // devono riflettere l'esito appena calcolato, non solo i rinnovi IP.
@@ -250,6 +273,13 @@ function _driftDropRow(key){
             rep.counts[cat] = rep[cat].length;
         }
     }
+    // Tieni l'istantanea persistita coerente con le righe risolte a mano: dopo una
+    // decisione 1-click i conteggi del report calano, e la Panoramica «Vero» non
+    // deve mostrare un numero più alto del reale. Il chiamante (driftIgnore /
+    // driftApply*) fa già markDirty → lo specchio viene salvato con l'azione. `at`
+    // e `banner` restano quelli della Verifica: cambia solo il residuo da decidere.
+    const _lv = store.state && store.state.lastVerify;
+    if(_lv && rep.counts) _lv.counts = Object.assign({}, rep.counts);
 }
 function driftIgnore(key){
     const state = store.state;

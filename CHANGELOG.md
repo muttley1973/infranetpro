@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-28 — The Verify result stops being a flash: it lands in the Overview as saved state
+
+- **Added** — the outcome of **"Verify"** is now **persisted with the project** (a compact snapshot: counts + verdict + timestamp, never the full row dump), so it survives a reload instead of vanishing with the overlay. The **Overview's "True" column** grows a live **"Verify" row**: *"{n} to review · checked 2 d ago"* when differences remain, *"matches reality"* when aligned, *"nothing verifiable"* when the audit was blind — and a dash (never a misleading 0) when Verify has **never** run, so a brand-new project isn't painted red. This also gives NIS2 governance the drift trace over time it needs.
+- **Changed** — resolving a difference with a one-click action (document / ignore / adopt / update address / accept identity) now keeps the saved snapshot **in step**, so the Overview never shows a higher outstanding count than reality.
+
 ## 2026-07-28 — One primary action: the toolbar "Sync" folds into "Verify"
 
 - **Changed** — the toolbar now has a **single primary action, "Verify"**. The separate **"Sync" button was retired**: Verify already ran the SNMP poll internally (Verify ⊇ Sync), so two side-by-side buttons — one a subset of the other — was redundant. The poll's **live progress** ("Reading 1–5/13…", "Topology…", the result flash) now animates the **Verify** button (before, curiously, pressing Verify animated the *Sync* button). Nothing about what Verify does changed; it just no longer competes with a second button.

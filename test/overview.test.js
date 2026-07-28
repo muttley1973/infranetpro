@@ -194,8 +194,39 @@ test('② VERO: verificabili, porte sospette ordinate per gravita, chi non ha ma
   assert.deepEqual(lg.items.map((i) => i.peer), [null, 'sw2'], 'lldp-lag-<a>||<b>: il secondo capo');
   assert.deepEqual(lg.items.map((i) => i.tag), ['measured', 'derived']);
   assert.deepEqual(lg.items.map((i) => i.meta), ['LAG1', 'Po1']);
-  assert.equal(rowOf(t, 'verify').prov, 'none', 'fase 1: la Verifica non e\' ancora stato salvato');
+  assert.equal(rowOf(t, 'verify').prov, 'none', 'mai verificato -> riga \'none\' (tratteggiata), non 0');
   assert.equal(t.headline.key, 'suspectPorts', 'il colpo d\'occhio e\' la cosa da guardare');
+});
+
+test('② VERO: la Verifica persistita diventa STATO (riga misurata + salute warn)', () => {
+  const model = {
+    types: TYPES,
+    nodes: [{ id: 'sw1', type: 'switch', ip: '10.0.0.1', integration: { driver: 'snmp-v2c', host: '10.0.0.1' } }],
+    spare: { totals: { free: 10, suspect: 0, ports: 24 } },
+    lastSyncAt: 1000, now: 1000 + 3000,
+    // conteggi come da buildDriftReport: azionabili = stato+MAC+non-doc+cavi+IP+identità.
+    // undocumentedEndpoint e identityFirmware NON entrano (rumore/informativo).
+    lastVerify: { at: 1000, banner: 'discrepancies', docCount: 5, counts: {
+      stateDrift: 2, macOrphan: 1, undocumented: 1, undocumentedEndpoint: 9,
+      ghostCable: 0, ipChanged: 1, identityDrift: 0, identityFirmware: 3, unverified: 0, consistent: 4,
+    } },
+  };
+  const t = buildOverview(model).truth;
+  const v = rowOf(t, 'verify');
+  assert.equal(v.prov, 'measured', 'verificato almeno una volta -> stato reale, non piu\' \'none\'');
+  assert.equal(v.value, 5, '2 stato + 1 MAC + 1 non-doc + 0 cavi + 1 IP + 0 identita\' = 5 (no endpoint/firmware)');
+  assert.equal(v.extra.ageMs, 3000, 'eta\' del dato dalla Verifica, non un timestamp crudo');
+  assert.equal(v.extra.banner, 'discrepancies');
+  assert.equal(t.health.level, 'warn', 'differenze da decidere -> sezione in avviso');
+  assert.equal(t.health.issues, 5, 'gli issues includono le differenze (il delta migliora risolvendole)');
+
+  // Allineato: girata ma zero azionabili -> riga misurata a 0 (affermazione), salute ok.
+  const aligned = buildOverview(Object.assign({}, model, {
+    lastVerify: { at: 1000, banner: 'aligned', docCount: 5, counts: { stateDrift: 0, macOrphan: 0, undocumented: 0, ghostCable: 0, ipChanged: 0, identityDrift: 0, unverified: 0, consistent: 5 } },
+  })).truth;
+  assert.equal(rowOf(aligned, 'verify').value, 0, 'zero differenze = 0 (non \'none\': la Verifica c\'e\' stata)');
+  assert.equal(rowOf(aligned, 'verify').prov, 'measured');
+  assert.equal(aligned.health.level, 'ok', 'nessuna anomalia e coerente -> ok');
 });
 
 test('② senza porte sospette il titolo scende alla copertura della verifica', () => {
