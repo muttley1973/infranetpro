@@ -220,3 +220,12 @@ button.ov-r:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 
 /* Il bottone di vista si accende come gli altri toggle della barra. */
 body.view-overview #btn-overview { color: var(--accent); border-color: var(--accent); }
+
+/* B3 — le righe del Drift (riusate dalla stessa _driftRowHtml dell'overlay) vivono
+   nel drill-down della «Vero», una colonna più stretta dell'overlay: scorrono in
+   verticale e vanno a capo invece di sbordare (una scrollbar orizzontale in un
+   pannello di sintesi = qualcosa è già fuori posto). Le azioni 1-clic restano a destra. */
+.ov-drift-rows { overflow-y: auto; overflow-x: hidden; min-height: 0; flex: 1 1 auto; }
+.ov-drift-rows .drift-row { flex-wrap: wrap; }
+.ov-drift-rows .drift-row-sub { margin-left: 0; }
+.ov-drift-rows .drift-row-acts { margin-left: auto; }

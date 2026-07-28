@@ -445,7 +445,10 @@ function _driftEnsureOverlay(){
     return ov;
 }
 function _closeDriftReport(){ const ov = document.getElementById('drift-overlay'); if(ov) ov.style.display = 'none'; }
-function _driftRowHtml(cat, r){
+// Esportata (B3): la Panoramica «Vero» riusa QUESTA stessa riga+azioni nel suo
+// drill-down inline — nessuna logica d'azione duplicata, i data-act restano quelli
+// delegati globalmente (funzionano da qualunque punto del documento).
+export function _driftRowHtml(cat, r){
     const esc = s => escapeHTML(String(s == null ? '' : s));
     let main = '', actions = '';
     const invBtn = `<button class="drift-act" data-act="drift-investigate" data-key="${esc(r.key)}" data-tip="${t('drift.tipOpen')}"><i class="fas fa-magnifying-glass"></i></button>`;
@@ -592,9 +595,14 @@ function _driftScanNetwork(cidr){
 export function _renderDriftReport(){
     const rep = store._driftReport;
     const ov = _driftEnsureOverlay();
-    ov.style.display = 'flex';
+    // B3 — coesistenza con la Panoramica: NON forzare l'apertura dell'overlay se si
+    // sta guardando la «Vero» (vista overview). Lì il risultato vive nella colonna e
+    // le stesse azioni 1-clic sono inline; un overlay coprirebbe il contesto. Se era
+    // già aperto resta aperto; da qualsiasi altra vista si apre come prima.
+    const _wasOpen = ov.style.display && ov.style.display !== 'none';
+    if(_wasOpen || store._viewMode !== 'overview') ov.style.display = 'flex';
     const body = document.getElementById('drift-body');
-    if(!rep){ body.innerHTML = `<div class="drift-empty">${t('common.noData')}</div>`; return; }
+    if(!rep){ body.innerHTML = `<div class="drift-empty">${t('common.noData')}</div>`; _driftMirrorOverview(); return; }
     // Header overlay reattivo al cambio lingua (l'overlay è creato una volta).
     const _ttl = document.getElementById('drift-title'); if(_ttl) _ttl.textContent = t('report.drift');
     const total = _DRIFT_CATS.reduce((a, c) => a + ((c.k === 'consistent' || c.k === 'unverified') ? 0 : rep.counts[c.k]), 0);
@@ -673,6 +681,15 @@ export function _renderDriftReport(){
             <div class="props-collapsible-body drift-sec-body">${secBody}</div></details>`;
     }).join('');
     body.innerHTML = header + _driftNetworksSection(rep) + sections;
+    _driftMirrorOverview();
+}
+
+// B3 — rispecchia il risultato del Drift nella Panoramica «Vero» se è la vista
+// attiva (renderOverview esce subito altrimenti: costo nullo fuori dalla vista).
+// Così le righe-categoria e il loro drill-down inline restano allineati dopo ogni
+// azione 1-clic. Bare-global con typeof-guard (come app-render-core), niente win.*.
+function _driftMirrorOverview(){
+    if(typeof renderOverview === 'function') renderOverview();
 }
 
 // Superficie pubblica:

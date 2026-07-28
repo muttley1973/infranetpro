@@ -229,6 +229,30 @@ test('② VERO: la Verifica persistita diventa STATO (riga misurata + salute war
   assert.equal(aligned.health.level, 'ok', 'nessuna anomalia e coerente -> ok');
 });
 
+test('② VERO B3: il report VIVO aggiunge righe-categoria navigabili (drill), non al reload', () => {
+  const model = {
+    types: TYPES,
+    nodes: [{ id: 'sw1', type: 'switch', ip: '10.0.0.1', integration: { driver: 'snmp-v2c', host: '10.0.0.1' } }],
+    spare: { totals: { free: 10, suspect: 0, ports: 24 } },
+    lastSyncAt: 1000, now: 4000,
+    // solo le categorie >0 compaiono; endpoint/firmware NON diventano righe.
+    driftLive: { counts: { stateDrift: 2, ipChanged: 1, undocumented: 1, undocumentedEndpoint: 5,
+      macOrphan: 0, ghostCable: 0, identityDrift: 0, identityFirmware: 3, unverified: 0, consistent: 20 } },
+  };
+  const t = buildOverview(model).truth;
+  const drill = t.rows.filter((r) => r.drill);
+  assert.deepEqual(drill.map((r) => [r.key, r.drill, r.value]),
+    [['driftState', 'stateDrift', 2], ['driftIp', 'ipChanged', 1], ['driftUndoc', 'undocumented', 1]],
+    'una riga per categoria >0, ordine fisso, col marcatore drill = categoria del report');
+  assert.ok(drill.every((r) => r.prov === 'measured'), 'misurate dal report vivo');
+  const keys = t.rows.map((r) => r.key);
+  assert.ok(keys.indexOf('driftState') > keys.indexOf('suspectPorts'), 'le differenze vanno dopo le porte sospette');
+  assert.ok(keys.indexOf('driftState') < keys.indexOf('neighbors'), 'e prima dei vicini');
+  // Al reload (nessun report vivo) NON compaiono: resta il solo conteggio persistito (B2).
+  const noLive = buildOverview(Object.assign({}, model, { driftLive: null })).truth;
+  assert.equal(noLive.rows.filter((r) => r.drill).length, 0, 'niente report vivo -> niente righe drill');
+});
+
 test('② senza porte sospette il titolo scende alla copertura della verifica', () => {
   const o = buildOverview({
     types: TYPES,

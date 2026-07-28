@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-28 — The Verify differences are now navigable — and fixable — right inside the Overview
+
+- **Added** — after a Verify, the Overview's **"True" column** lists the differences **one row per category** (ports changed state, addresses changed, unknown on the network, ghost cables, hardware identity, absent) — only the non-empty ones. **Click a category to drill in**, and act on each item **one at a time** (Document / Ignore / Update address / Adopt…) — the very same one-click actions as the Verify panel, reused as-is, so behaviour is identical. Manual-first: a decision per row, never in bulk. The result stops being a flash you have to catch: *it stays here.*
+- **Changed** — while you're looking at the Overview, running Verify (or resolving a difference) now **lands in the "True" column instead of popping the Verify overlay** over it — the column *is* the context, an overlay would cover it. From any other view the overlay still opens as before.
+
 ## 2026-07-28 — The Verify result stops being a flash: it lands in the Overview as saved state
 
 - **Added** — the outcome of **"Verify"** is now **persisted with the project** (a compact snapshot: counts + verdict + timestamp, never the full row dump), so it survives a reload instead of vanishing with the overlay. The **Overview's "True" column** grows a live **"Verify" row**: *"{n} to review · checked 2 d ago"* when differences remain, *"matches reality"* when aligned, *"nothing verifiable"* when the audit was blind — and a dash (never a misleading 0) when Verify has **never** run, so a brand-new project isn't painted red. This also gives NIS2 governance the drift trace over time it needs.

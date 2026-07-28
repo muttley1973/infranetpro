@@ -22,6 +22,7 @@ import { _isLeafEndpoint } from './app-autolink.js';
 import { nodeById, getNodeDisplayName, _linksForPort, switchRightTab } from './app.js';
 import { focusNode } from './app-search-zoom-rack.js';
 import { _snmpFreshness } from './app-snmp.js';
+import { _driftRowHtml } from './app-drift.js';   // B3: drill-down inline «Vero» riusa la riga+azioni del Drift (data-act delegati)
 import { registerClickActions } from './app-delegation.js';
 import { buildOverview, _rackFill } from '../lib/overview.js';
 
@@ -183,6 +184,10 @@ function _buildModel() {
         topoCache: st.topoCache || {}, lagGroups: st.lagGroups || {},
         lastSyncAt: st.lastSnmpSyncAt || 0, lastSyncResult: st.lastSnmpSyncResult || {},
         lastVerify: st.lastVerify || null,   // Fase 2: l'ultima Verifica come stato (riga «Vero»)
+        // B3: il report VIVO (in-sessione) alimenta le righe-categoria navigabili
+        // della «Vero». Al reload è null → restano solo i conteggi persistiti (B2).
+        // La lib legge solo `.counts`; il drill-down inline rende le righe da qui.
+        driftLive: store._driftReport || null,
         now: Date.now(),
     };
 }
@@ -228,6 +233,8 @@ function _tileStatus(r) {
     const gap = (r.total != null && r.value != null) ? r.total - r.value : null;
     const gapStatus = (missKey = 'ov.st.missing') => (r.prov === 'none' ? { w: t('ov.st.none'), tone: 'none' }
         : (gap === 0 ? { w: t('ov.st.complete'), tone: 'ok' } : { w: t(missKey, { n: gap }), tone: 'warn' }));
+    // B3 — righe-categoria del Drift: verdetto uniforme «da decidere» (una per riga).
+    if (r.drill) return { w: t('ov.driftAction'), tone: r.value > 0 ? 'warn' : 'ok' };
     switch (r.key) {
         case 'addr': case 'vlanNames': return gapStatus();
         // I nomi «mancanti» sono in realta' «da confermare»: il device c'e', gli
@@ -311,7 +318,9 @@ function _meter(r) {
 }
 
 function _rowEl(secKey, r) {
-    const clickable = Array.isArray(r.items) && r.items.length > 0;
+    // Cliccabile se ha un elenco (drill-down nativo) OPPURE è una riga-categoria del
+    // Drift (B3): il suo dettaglio riusa le righe+azioni dell'overlay (store._driftReport).
+    const clickable = (Array.isArray(r.items) && r.items.length > 0) || !!r.drill;
     const el = document.createElement(clickable ? 'button' : 'div');
     const st = _tileStatus(r);
     el.className = 'ov-r s-' + st.tone + (r.prov === 'none' ? ' is-missing' : '');
@@ -380,6 +389,36 @@ function _itemLi(it) {
 function _detailEl(secKey, r) {
     const d = _el('div', 'ov-detail');
     d.dataset.for = secKey + ':' + r.key;
+
+    // B3 — dettaglio di una riga-categoria del Drift: riusa ESATTAMENTE le righe e le
+    // azioni 1-clic dell'overlay (_driftRowHtml). I data-act sono già delegati
+    // globalmente, quindi Documenta/Ignora/Aggiorna/Adotta funzionano identici qui;
+    // dopo l'azione, _renderDriftReport → _driftMirrorOverview ridisegna la Panoramica.
+    // Le righe vivono nel report VIVO (store._driftReport): presenti dopo una Verifica
+    // in-sessione. Una decisione per riga, mai in blocco (manual-first).
+    if (r.drill) {
+        const rep = store._driftReport;
+        const cat = r.drill;
+        let rows = (rep && Array.isArray(rep[cat])) ? rep[cat] : [];
+        // I non-documentati "endpoint" (telefoni/BYOD) restano fuori: nella «Vero» si
+        // mostra solo l'infrastruttura azionabile, come il conteggio counts.undocumented.
+        if (cat === 'undocumented') rows = rows.filter((x) => x && x.cls !== 'endpoint');
+        const h = _el('div', 'ov-dh');
+        h.appendChild(_el('b', null, String(rows.length)));
+        h.appendChild(document.createTextNode(' ' + t('ov.row.' + r.key)));
+        const x = _el('button', 'ov-x', t('ov.close') + ' ✕');
+        x.type = 'button';
+        x.dataset.act = 'overview-detail-close';
+        h.appendChild(x);
+        d.appendChild(h);
+        const box = _el('div', 'ov-drift-rows');
+        box.innerHTML = rows.length
+            ? rows.map((x) => _driftRowHtml(cat, x)).join('')
+            : `<div class="drift-empty">${t('ov.driftGone')}</div>`;
+        d.appendChild(box);
+        return d;
+    }
+
     const h = _el('div', 'ov-dh');
     h.appendChild(_el('b', null, String(r.items.length)));
     h.appendChild(document.createTextNode(' ' + t('ov.row.' + r.key)));
@@ -532,7 +571,9 @@ function _sectionEl(secKey, num, sec, deltaN) {
         rows.appendChild(el);
     }
     col.appendChild(rows);
-    for (const r of sec.rows) if (r.items && r.items.length) col.appendChild(_detailEl(secKey, r));
+    // Un dettaglio per riga con elenco (drill-down nativo) o per riga-categoria del
+    // Drift (B3: il suo drill-down riusa le righe+azioni dell'overlay).
+    for (const r of sec.rows) if ((r.items && r.items.length) || r.drill) col.appendChild(_detailEl(secKey, r));
     return col;
 }
 
