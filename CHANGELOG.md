@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-28 — The Verify overlay is retired: the result lives only in the Overview
+
+- **Changed** — pressing **Verify** no longer pops a separate overlay: it **takes you to the Overview's "True" column** and the result stays there — differences, one-click actions and all — because the result *is* project state, not a modal that flashes and vanishes. (From any view, Verify now lands you on the Overview.)
+- **Added** — the overlay's **"Project networks"** view (per-subnet coverage after the audit, with a one-click **"Discover network"** for any subnet no reachable switch could map) is **preserved inside the "True" column** as its own row — so retiring the overlay loses nothing: the multi-subnet workflow moved, it didn't disappear.
+
 ## 2026-07-28 — The Verify differences are now navigable — and fixable — right inside the Overview
 
 - **Added** — after a Verify, the Overview's **"True" column** lists the differences **one row per category** (ports changed state, addresses changed, unknown on the network, ghost cables, hardware identity, absent) — only the non-empty ones. **Click a category to drill in**, and act on each item **one at a time** (Document / Ignore / Update address / Adopt…) — the very same one-click actions as the Verify panel, reused as-is, so behaviour is identical. Manual-first: a decision per row, never in bulk. The result stops being a flash you have to catch: *it stays here.*

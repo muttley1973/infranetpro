@@ -22,7 +22,7 @@ import { _isLeafEndpoint } from './app-autolink.js';
 import { nodeById, getNodeDisplayName, _linksForPort, switchRightTab } from './app.js';
 import { focusNode } from './app-search-zoom-rack.js';
 import { _snmpFreshness } from './app-snmp.js';
-import { _driftRowHtml } from './app-drift.js';   // B3: drill-down inline «Vero» riusa la riga+azioni del Drift (data-act delegati)
+import { _driftRowHtml, _driftNetworksSection } from './app-drift.js';   // B3/B4: drill-down inline «Vero» riusa righe+azioni e la sezione «Reti» del Drift
 import { registerClickActions } from './app-delegation.js';
 import { buildOverview, _rackFill } from '../lib/overview.js';
 
@@ -233,6 +233,8 @@ function _tileStatus(r) {
     const gap = (r.total != null && r.value != null) ? r.total - r.value : null;
     const gapStatus = (missKey = 'ov.st.missing') => (r.prov === 'none' ? { w: t('ov.st.none'), tone: 'none' }
         : (gap === 0 ? { w: t('ov.st.complete'), tone: 'ok' } : { w: t(missKey, { n: gap }), tone: 'warn' }));
+    // B4/B5 — «Reti del progetto»: informativa (copertura per subnet), non una decisione.
+    if (r.drill === '__networks') return { w: t('ov.driftNetworks'), tone: 'info' };
     // B3 — righe-categoria del Drift: verdetto uniforme «da decidere» (una per riga).
     if (r.drill) return { w: t('ov.driftAction'), tone: r.value > 0 ? 'warn' : 'ok' };
     switch (r.key) {
@@ -398,6 +400,23 @@ function _detailEl(secKey, r) {
     // in-sessione. Una decisione per riga, mai in blocco (manual-first).
     if (r.drill) {
         const rep = store._driftReport;
+        // B4/B5 — «Reti del progetto»: riusa la STESSA sezione dell'overlay (copertura
+        // per /24 + azione «Scopri rete»), così il workflow multi-subnet non si perde
+        // col ritiro dell'overlay. I suoi bottoni sono già delegati/bare come nell'overlay.
+        if (r.drill === '__networks') {
+            const h = _el('div', 'ov-dh');
+            h.appendChild(_el('b', null, String(r.value)));
+            h.appendChild(document.createTextNode(' ' + t('ov.row.' + r.key)));
+            const x = _el('button', 'ov-x', t('ov.close') + ' ✕');
+            x.type = 'button';
+            x.dataset.act = 'overview-detail-close';
+            h.appendChild(x);
+            d.appendChild(h);
+            const box = _el('div', 'ov-drift-rows');
+            box.innerHTML = (rep && typeof _driftNetworksSection === 'function') ? _driftNetworksSection(rep) : '';
+            d.appendChild(box);
+            return d;
+        }
         const cat = r.drill;
         let rows = (rep && Array.isArray(rep[cat])) ? rep[cat] : [];
         // I non-documentati "endpoint" (telefoni/BYOD) restano fuori: nella «Vero» si

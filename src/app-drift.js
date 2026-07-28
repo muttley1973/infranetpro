@@ -234,10 +234,14 @@ async function runDriftCheck(){
         _driftAutoRenewIps();                           // opt-in: rinnova IP dei MAC noti (DHCP)
         _driftPersistSnapshot();                        // B1: la Verifica resta come stato (Panoramica «Vero»)
         markDirty();
+        // B4 — il risultato ATTERRA nella Panoramica «Vero» (overlay ritirato): se non
+        // sei già lì, ti ci porta, così la Verifica "resta" invece di lampeggiare in un
+        // overlay. setOverview è bare-global (expose di app-overview), typeof-guard.
+        if(typeof setOverview === 'function' && store._viewMode !== 'overview') setOverview(true);
         // renderAll SEMPRE (rAF-coalescato): subbar/nextStep e ingrigimento assenti
         // devono riflettere l'esito appena calcolato, non solo i rinnovi IP.
         renderAll();
-        _renderDriftReport();
+        _renderDriftReport();   // overlay dormiente: rispecchia solo nella Panoramica «Vero»
     } catch(e){
         showAlert(t('msg.net.docCheckFailed') + (e && e.message || e));
     } finally {
@@ -525,7 +529,10 @@ export function _driftRowHtml(cat, r){
 // esplicita per rete ("Scopri rete", che apre il modale Scopri pre-compilato con la
 // cadenza anti-IDS): manual-first, nessuno scan automatico. La classificazione
 // (covered/blocked/open) vive nella lib pura lib/project-networks.js.
-function _driftNetworksSection(rep){
+// Esportata (B4/B5): la Panoramica «Vero» riusa QUESTA sezione «Reti del progetto»
+// nel suo drill-down, così il workflow multi-subnet (copertura + «Scopri rete») non
+// si perde col ritiro dell'overlay.
+export function _driftNetworksSection(rep){
     // deriveProjectNetworks + annotateNetworksVerification: lib UMD-lite
     // (lib/project-networks.js), lette come bare-global (esposte su window dallo
     // <script>), come gli altri motori puri — NON via win.* (cricchetto fermo).
@@ -595,12 +602,11 @@ function _driftScanNetwork(cidr){
 export function _renderDriftReport(){
     const rep = store._driftReport;
     const ov = _driftEnsureOverlay();
-    // B3 — coesistenza con la Panoramica: NON forzare l'apertura dell'overlay se si
-    // sta guardando la «Vero» (vista overview). Lì il risultato vive nella colonna e
-    // le stesse azioni 1-clic sono inline; un overlay coprirebbe il contesto. Se era
-    // già aperto resta aperto; da qualsiasi altra vista si apre come prima.
+    // B4 — overlay RITIRATO: non si apre più da solo. Il risultato della Verifica (e le
+    // sue azioni 1-clic) vivono nella Panoramica «Vero»; l'overlay resta come corpo
+    // dormiente per compatibilità dei flussi legacy che lo avessero già aperto.
     const _wasOpen = ov.style.display && ov.style.display !== 'none';
-    if(_wasOpen || store._viewMode !== 'overview') ov.style.display = 'flex';
+    if(_wasOpen) ov.style.display = 'flex';
     const body = document.getElementById('drift-body');
     if(!rep){ body.innerHTML = `<div class="drift-empty">${t('common.noData')}</div>`; _driftMirrorOverview(); return; }
     // Header overlay reattivo al cambio lingua (l'overlay è creato una volta).
