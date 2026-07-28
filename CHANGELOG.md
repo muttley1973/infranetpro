@@ -2,6 +2,13 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-28 — Hardening: the Overview's "True" column stays coherent when a Sync intervenes
+
+- **Fixed** — a background or manual **Sync** no longer makes the Overview's "True" column contradict itself: the navigable difference-rows now appear **only for an actual Verify result**, never for a Sync's presence refresh — so you never see "never verified" above a live list of differences, nor a persisted count that disagrees with the rows. Resolving a difference after a Sync no longer overwrites the saved Verify snapshot with the Sync's counts.
+- **Fixed** — "Investigate" (the magnifier) in the "True" drill-down now **leaves the Overview** to show the device on the map (it was a dead click while the Overview still covered the map).
+- **Changed** — each difference drill-down is now built **lazily** (only when opened), avoiding needless HTML work on every render at scale.
+- **Fixed** (engine hardening, surfaced by the enterprise-500 smoke test): two documented devices that share a MAC (VRRP/HSRP) now get distinct keys, so ignoring one no longer hides both; a documented IP that answers the sweep directly counts as present, not absent; the ghost-cable streak threshold is clamped to ≥1; temporal confidence honours its "0 sightings = 0" invariant.
+
 ## 2026-07-28 — The Verify overlay is retired: the result lives only in the Overview
 
 - **Changed** — pressing **Verify** no longer pops a separate overlay: it **takes you to the Overview's "True" column** and the result stays there — differences, one-click actions and all — because the result *is* project state, not a modal that flashes and vanishes. (From any view, Verify now lands you on the Overview.)

@@ -303,8 +303,44 @@ test('unverified ignorabile: la key unver: rispetta la lista ignores', () => {
   const doc = { macs: [{ mac: 'AA:BB:CC:00:00:44', label: 'y', nodeId: 'y', ip: '10.30.0.7' }] };
   const snmp = { observedMacs: [], responded: {}, fdbObserved: false, reachabilityChecked: true,
                  presentNodeIds: {}, observedSubnets: ['192.168.1'] };
-  const r = buildDriftReport(snmp, doc, ['unver:aa:bb:cc:00:00:44'], {});
+  // key = `unver:<nodeId>:<mac>` (il nodeId disambigua i MAC condivisi VRRP/HSRP).
+  const r = buildDriftReport(snmp, doc, ['unver:y:aa:bb:cc:00:00:44'], {});
   assert.equal(r.counts.unverified, 0, 'riga unverified soppressa via ignores');
+});
+
+test('macOrphan/unverified: chiave con nodeId → due nodi con lo STESSO MAC non collidono', () => {
+  // due device documentati che condividono lo stesso MAC (VRRP/HSRP virtuale o errore doc)
+  const doc = { macs: [
+    { mac: 'AA:BB:CC:00:00:99', label: 'rtr-a', nodeId: 'rtrA', ip: '10.0.0.1' },
+    { mac: 'AA:BB:CC:00:00:99', label: 'rtr-b', nodeId: 'rtrB', ip: '10.0.0.2' },
+  ] };
+  const snmp = { observedMacs: [], responded: {}, fdbObserved: false, reachabilityChecked: true, presentNodeIds: {} };
+  const r = buildDriftReport(snmp, doc, [], {});
+  const keys = r.unverified.map((x) => x.key);
+  assert.equal(r.counts.unverified, 2, 'entrambi i nodi non-verificabili, contati separatamente');
+  assert.notEqual(keys[0], keys[1], 'chiavi distinte: ignorarne uno non nasconde l\'altro');
+  // ignorandone UNO, l\'altro resta
+  const r2 = buildDriftReport(snmp, doc, [keys[0]], {});
+  assert.equal(r2.counts.unverified, 1, 'ignorata una riga, l\'altra (stesso MAC, altro nodo) resta visibile');
+});
+
+test('presenza: doc-IP direttamente VIVO alla sweep (aliveIps) → presente, non assente nonostante la porta-down', () => {
+  const doc = {
+    macs: [{ mac: 'AA:BB:CC:00:00:77', label: 'srv', nodeId: 'srv', ip: '10.0.0.9' }],
+    cables: [{ id: 'c1', src: 'sw-1', dst: 'srv-1' }],
+  };
+  // porta switch giù da >=N → trustAbsent su srv; MA il suo doc-IP pinga (aliveIps) → presente.
+  const snmp = { observedMacs: [], responded: { sw: true }, presentNodeIds: {}, fdbObserved: true,
+                 reachabilityChecked: true, portDownStreak: { 'sw-1': 3 }, aliveIps: ['10.0.0.9'], macAtIps: {} };
+  const r = buildDriftReport(snmp, doc, [], { downStreakN: 3 });
+  assert.equal(r.counts.macOrphan, 0, 'il doc-IP risponde alla sweep → presente, non assente (DRIFT-M6 simmetrico)');
+});
+
+test('cavo-fantasma: downStreakN=0 è clampato a 1 (uno streak 0 non fa maturare TUTTI i cavi)', () => {
+  const doc = { cables: [{ id: 'c1', src: 'sw-1', dst: 'sw-2', label: 'A↔B' }], macs: [] };
+  const snmp = { responded: {}, portDownStreak: {}, fdbObserved: true, reachabilityChecked: true };
+  const r = buildDriftReport(snmp, doc, [], { downStreakN: 0 });
+  assert.equal(r.counts.ghostCable, 0, 'con N clampato a 1, uno streak 0 NON è cavo fantasma');
 });
 
 test('cambio IP: MAC documentato VIVO a un IP diverso → ipChanged, NON macOrphan', () => {

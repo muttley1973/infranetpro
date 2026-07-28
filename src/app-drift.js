@@ -185,6 +185,12 @@ function _driftPersistSnapshot(){
         banner: kind,                            // 'discrepancies' | 'blind' | 'aligned'
         docCount: rep.docCount || 0,             // per il caso "cieco" (nulla verificabile)
     };
+    // Marchia QUESTO report come «esito di una Verifica»: solo un report così alimenta
+    // le righe-categoria navigabili della Panoramica «Vero» e lo specchio dei conteggi.
+    // Un Sync (app-snmp.js:421) ricalcola store._driftReport per l'ingrigimento presenza
+    // creando un NUOVO oggetto SENZA questo flag → non si spaccia per Verifica (evita la
+    // desync «mai eseguita» + differenze vive, e la contaminazione di lastVerify.counts).
+    rep._fromVerify = true;
 }
 
 // ── Sweep di raggiungibilità (audit presenza multi-segnale) ──────────
@@ -282,8 +288,11 @@ function _driftDropRow(key){
     // deve mostrare un numero più alto del reale. Il chiamante (driftIgnore /
     // driftApply*) fa già markDirty → lo specchio viene salvato con l'azione. `at`
     // e `banner` restano quelli della Verifica: cambia solo il residuo da decidere.
+    // GATE su `_fromVerify`: rispecchia SOLO se `rep` è l'esito di una Verifica — se
+    // un Sync ha sostituito store._driftReport nel frattempo, i suoi conteggi NON
+    // devono contaminare la snapshot della Verifica (che tiene `at`/`banner` propri).
     const _lv = store.state && store.state.lastVerify;
-    if(_lv && rep.counts) _lv.counts = Object.assign({}, rep.counts);
+    if(_lv && rep && rep._fromVerify && rep.counts) _lv.counts = Object.assign({}, rep.counts);
 }
 function driftIgnore(key){
     const state = store.state;
@@ -403,6 +412,10 @@ function driftInvestigate(key){
     const row = _driftFindRow(key);
     if(!row) return;
     _closeDriftReport();
+    // B3/B4: «Investiga» è riusato nel drill-down «Vero». Se siamo nella Panoramica
+    // bisogna USCIRE alla mappa (come _gotoNode), altrimenti il nodo si focalizza
+    // dietro la vista overview e il clic sembra morto (nessun feedback).
+    if(store._viewMode === 'overview' && typeof setOverview === 'function') setOverview(false);
     if(row.pid){
         const n = getNodeByPortId(row.pid);
         if(n){ if(typeof ensureNodeRackVisible==='function') ensureNodeRackVisible(n); store.selType='port'; store.selId=row.pid; if(typeof trace==='function') trace(row.pid); renderAll(); if(typeof focusNode==='function') focusNode(n); }

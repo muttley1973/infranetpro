@@ -184,10 +184,13 @@ function _buildModel() {
         topoCache: st.topoCache || {}, lagGroups: st.lagGroups || {},
         lastSyncAt: st.lastSnmpSyncAt || 0, lastSyncResult: st.lastSnmpSyncResult || {},
         lastVerify: st.lastVerify || null,   // Fase 2: l'ultima Verifica come stato (riga «Vero»)
-        // B3: il report VIVO (in-sessione) alimenta le righe-categoria navigabili
-        // della «Vero». Al reload è null → restano solo i conteggi persistiti (B2).
-        // La lib legge solo `.counts`; il drill-down inline rende le righe da qui.
-        driftLive: store._driftReport || null,
+        // B3: le righe-categoria navigabili della «Vero» escono dal report VIVO, ma
+        // SOLO se è l'esito di una VERIFICA (`_fromVerify`). Un Sync (app-snmp.js:421)
+        // ricalcola store._driftReport per l'ingrigimento presenza senza persistere
+        // lastVerify: mostrarlo qui contraddirebbe la meta-riga «verify». Senza flag →
+        // null → restano i soli conteggi persistiti (B2). Il drill-down resta coerente
+        // con la Verifica (per rivederlo dopo un Sync si ri-esegue la Verifica).
+        driftLive: (store._driftReport && store._driftReport._fromVerify) ? store._driftReport : null,
         now: Date.now(),
     };
 }
@@ -388,6 +391,22 @@ function _itemLi(it) {
     return li;
 }
 
+// Contenuto (HTML) del drill-down di una riga-categoria del Drift o di «Reti del
+// progetto», dal report VIVO (store._driftReport). Serializzato LAZY (all'apertura),
+// riusando ESATTAMENTE le righe+azioni dell'overlay (_driftRowHtml) e la sezione reti
+// (_driftNetworksSection) — così i data-act restano quelli delegati globalmente. (D4)
+function _driftDetailHtml(cat) {
+    const rep = store._driftReport;
+    if (cat === '__networks') return (rep && typeof _driftNetworksSection === 'function') ? _driftNetworksSection(rep) : '';
+    let rows = (rep && Array.isArray(rep[cat])) ? rep[cat] : [];
+    // I non-documentati "endpoint" (telefoni/BYOD) restano fuori: nella «Vero» si mostra
+    // solo l'infrastruttura azionabile, come il conteggio counts.undocumented.
+    if (cat === 'undocumented') rows = rows.filter((x) => x && x.cls !== 'endpoint');
+    return rows.length
+        ? rows.map((x) => _driftRowHtml(cat, x)).join('')
+        : `<div class="drift-empty">${t('ov.driftGone')}</div>`;
+}
+
 function _detailEl(secKey, r) {
     const d = _el('div', 'ov-detail');
     d.dataset.for = secKey + ':' + r.key;
@@ -399,31 +418,13 @@ function _detailEl(secKey, r) {
     // Le righe vivono nel report VIVO (store._driftReport): presenti dopo una Verifica
     // in-sessione. Una decisione per riga, mai in blocco (manual-first).
     if (r.drill) {
-        const rep = store._driftReport;
-        // B4/B5 — «Reti del progetto»: riusa la STESSA sezione dell'overlay (copertura
-        // per /24 + azione «Scopri rete»), così il workflow multi-subnet non si perde
-        // col ritiro dell'overlay. I suoi bottoni sono già delegati/bare come nell'overlay.
-        if (r.drill === '__networks') {
-            const h = _el('div', 'ov-dh');
-            h.appendChild(_el('b', null, String(r.value)));
-            h.appendChild(document.createTextNode(' ' + t('ov.row.' + r.key)));
-            const x = _el('button', 'ov-x', t('ov.close') + ' ✕');
-            x.type = 'button';
-            x.dataset.act = 'overview-detail-close';
-            h.appendChild(x);
-            d.appendChild(h);
-            const box = _el('div', 'ov-drift-rows');
-            box.innerHTML = (rep && typeof _driftNetworksSection === 'function') ? _driftNetworksSection(rep) : '';
-            d.appendChild(box);
-            return d;
-        }
-        const cat = r.drill;
-        let rows = (rep && Array.isArray(rep[cat])) ? rep[cat] : [];
-        // I non-documentati "endpoint" (telefoni/BYOD) restano fuori: nella «Vero» si
-        // mostra solo l'infrastruttura azionabile, come il conteggio counts.undocumented.
-        if (cat === 'undocumented') rows = rows.filter((x) => x && x.cls !== 'endpoint');
+        // Categorie drift (riusa righe+azioni dell'overlay via _driftRowHtml) e «Reti del
+        // progetto» (riusa _driftNetworksSection). Header uniforme: il conteggio è r.value
+        // (= counts[cat] o n. reti). La lista PESANTE si serializza LAZY — solo se la riga è
+        // GIÀ aperta a render-time, altrimenti all'apertura in _toggleRow — per non ricostruire
+        // HTML inutile a ogni renderOverview (poll SNMP, mirror post-azione). (D4)
         const h = _el('div', 'ov-dh');
-        h.appendChild(_el('b', null, String(rows.length)));
+        h.appendChild(_el('b', null, String(r.value)));
         h.appendChild(document.createTextNode(' ' + t('ov.row.' + r.key)));
         const x = _el('button', 'ov-x', t('ov.close') + ' ✕');
         x.type = 'button';
@@ -431,9 +432,8 @@ function _detailEl(secKey, r) {
         h.appendChild(x);
         d.appendChild(h);
         const box = _el('div', 'ov-drift-rows');
-        box.innerHTML = rows.length
-            ? rows.map((x) => _driftRowHtml(cat, x)).join('')
-            : `<div class="drift-empty">${t('ov.driftGone')}</div>`;
+        box.dataset.drill = r.drill;                                  // marca il popolamento lazy
+        if (_open.get(secKey) === r.key) box.innerHTML = _driftDetailHtml(r.drill);
         d.appendChild(box);
         return d;
     }
@@ -659,7 +659,14 @@ function _toggleRow(el) {
     if (wasOpen) return;                         // secondo clic = chiude
     el.classList.add('is-open');
     const d = col.querySelector('.ov-detail[data-for="' + el.dataset.sec + ':' + el.dataset.key + '"]');
-    if (d) d.classList.add('is-open');
+    if (d) {
+        d.classList.add('is-open');
+        // D4 — popolamento LAZY del dettaglio drift: la lista si serializza qui, all'apertura,
+        // non a ogni renderOverview. `data-drill` marca i soli dettagli drift (le righe native
+        // sono già nel DOM). Vuoto = mai popolato → riempilo ora dal report vivo.
+        const box = d.querySelector('.ov-drift-rows[data-drill]');
+        if (box && !box.innerHTML) box.innerHTML = _driftDetailHtml(box.dataset.drill);
+    }
     _open.set(el.dataset.sec, el.dataset.key);
 }
 

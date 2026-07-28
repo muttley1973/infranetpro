@@ -4437,6 +4437,87 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       const errs = pageErrors.slice(errBefore);
       assert.equal(errs.length, 0, 'nessun errore JS: ' + errs.join(' | '));
     });
+
+    await t.test('Stage B «Vero»: categorie drill SOLO dopo una Verifica (non un Sync), Investiga esce, mirror non contaminato', async () => {
+      const errBefore = pageErrors.length;
+      await page.evaluate(() => {
+        // builder inline (niente eval: evita ogni attrito con la CSP della pagina)
+        window.__C = (sd, cons) => ({ stateDrift: sd, macOrphan: 0, undocumented: 0, undocumentedEndpoint: 0, ghostCable: 0, ipChanged: 0, unverified: 0, identityDrift: 0, identityFirmware: 0, consistent: cons });
+        window.__mk = (counts, key) => ({
+          stateDrift: [{ key, pid: 'swX-1', label: 'SW-X p1', diffs: [{ field: 'status', doc: 'active', real: 'down' }], patch: { pid: 'swX-1', status: 'down' } }],
+          macOrphan: [], undocumented: [], ghostCable: [], ipChanged: [], unverified: [], identityDrift: [], consistent: [],
+          counts, docCount: 2, evaluated: true,
+        });
+        state = _buildDefaultState();
+        if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes.push(
+          { id: 'swX', type: 'switch', name: 'SW-X', ip: '10.9.0.1', ports: 8, integration: { driver: 'snmp-v2c', host: '10.9.0.1', community: 'public' } },
+          { id: 'pcX', type: 'pc', name: 'PC-X', ip: '10.9.0.50', mac: 'aa:bb:cc:09:00:50', x: 80, y: 80 },
+        );
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        if (typeof _clearDirty === 'function') _clearDirty();
+        renderAll();
+        // report "da SYNC": popolato ma SENZA _fromVerify e SENZA lastVerify persistito.
+        window._driftReport = window.__mk(window.__C(1, 5), 'drift:swX-1');
+        delete state.lastVerify;
+      });
+      await page.click('#btn-overview');
+      await page.waitForSelector('#overview .ov-col', { timeout: 8000 });
+
+      // D1 — report da Sync (no _fromVerify): NIENTE righe-categoria; verify NON contraddice.
+      const sync = await page.evaluate(() => {
+        renderOverview();
+        return {
+          drill: [...document.querySelectorAll('#overview .ov-col[data-sec="truth"] .ov-r')].filter(r => /^drift/.test(r.dataset.key || '')).length,
+          meta: (document.querySelector('.ov-col[data-sec="truth"] .ov-meta-strip')?.textContent || '').replace(/\s+/g, ' ').trim(),
+        };
+      });
+      assert.equal(sync.drill, 0, 'D1: un report da Sync (senza _fromVerify) NON mostra righe-categoria nella «Vero»');
+      assert.ok(/mai/i.test(sync.meta), 'D1: nessuna contraddizione — la meta-riga verify resta «mai eseguita», non elenca differenze vive');
+
+      // …ora una VERIFICA: stesso report marcato _fromVerify + lastVerify persistito → categorie compaiono.
+      const verified = await page.evaluate(() => {
+        window._driftReport._fromVerify = true;
+        state.lastVerify = { at: 1700000000000, banner: 'discrepancies', docCount: 2, counts: Object.assign({}, window._driftReport.counts) };
+        renderOverview();
+        return [...document.querySelectorAll('#overview .ov-col[data-sec="truth"] .ov-r')].filter(r => /^drift/.test(r.dataset.key || '')).map(r => r.dataset.key);
+      });
+      assert.ok(verified.includes('driftState'), 'D1: dopo una Verifica (con _fromVerify) la riga-categoria «Porte cambiate» compare');
+
+      // D3 — «Investiga» dal drill-down «Vero» deve USCIRE dalla Panoramica (come _gotoNode).
+      const inv = await page.evaluate(() => {
+        const row = [...document.querySelectorAll('#overview .ov-col[data-sec="truth"] .ov-r')].find(r => r.dataset.key === 'driftState');
+        row.click();
+        const b = document.querySelector('#overview .ov-detail[data-for="truth:driftState"] [data-act="drift-investigate"]');
+        const had = !!b; if (b) b.click();
+        return { had, inOverview: document.body.classList.contains('view-overview') };
+      });
+      assert.ok(inv.had, 'il drill-down «Vero» include il bottone Investiga');
+      assert.equal(inv.inOverview, false, 'D3: Investiga porta FUORI dalla Panoramica (mappa in primo piano)');
+
+      // D2 — un Sync rimpiazza store._driftReport (nuovo oggetto, no _fromVerify) mentre il
+      // bottone Ignora stantìo è ancora nel DOM; il clic risolve la riga sul report da-Sync
+      // ma NON deve contaminare lastVerify.counts (il mirror è gated su _fromVerify).
+      const mirror = await page.evaluate(() => {
+        if (typeof setOverview === 'function') setOverview(true);
+        state.lastVerify = { at: 1700000000000, banner: 'discrepancies', docCount: 2, counts: window.__C(1, 5) };
+        renderOverview();
+        const row = [...document.querySelectorAll('#overview .ov-col[data-sec="truth"] .ov-r')].find(r => r.dataset.key === 'driftState');
+        row.click();   // apre il drill-down (bottone Ignora reso)
+        const before = JSON.parse(JSON.stringify(state.lastVerify.counts));
+        // SYNC: rimpiazza il report con un nuovo oggetto SENZA _fromVerify, stessa chiave, conteggi diversi
+        window._driftReport = window.__mk(window.__C(1, 9), 'drift:swX-1');
+        const ign = document.querySelector('#overview .ov-detail[data-for="truth:driftState"] [data-act="drift-ignore"]');
+        if (ign) ign.click();   // → driftIgnore → _driftDropRow: mirror SKIPPATO (report da-Sync)
+        return { before, after: state.lastVerify.counts, ignoredKey: (state.driftIgnores || []).includes('drift:swX-1') };
+      });
+      assert.ok(mirror.ignoredKey, 'l\'azione Ignora è scattata sul report corrente');
+      assert.deepEqual(mirror.after, mirror.before, 'D2: risolvere una riga dopo un Sync intercorso NON contamina lastVerify.counts (mirror gated su _fromVerify)');
+
+      await page.evaluate(() => { window._driftReport = null; delete state.lastVerify; delete window.__mk; delete window.__C; localStorage.removeItem('infranet.view'); if (typeof setOverview === 'function') setOverview(false); });
+      const e = pageErrors.slice(errBefore);
+      assert.equal(e.length, 0, 'nessun errore JS: ' + e.join(' | '));
+    });
   } finally {
     await browser.close();
     await srv.close();
