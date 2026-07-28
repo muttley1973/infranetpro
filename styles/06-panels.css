@@ -141,12 +141,24 @@
         .shared-seg-desc { margin-top:5px; color:var(--text-muted); font-size:var(--fs-sm); line-height:1.35; }
         .shared-seg-role { display:inline-flex; margin-left:4px; color:#ffd36a; font-weight:700; }
         .shared-seg-list { margin-top:7px; display:flex; flex-direction:column; gap:4px; max-height:150px; overflow:auto; }
-        .shared-seg-row { display:grid; grid-template-columns:16px minmax(0,1fr) auto; gap:5px; align-items:center; padding:3px 4px; border-radius: var(--radius-sm); background:rgba(13,17,23,.55); }
+        .shared-seg-row { display:grid; grid-template-columns:16px minmax(0,1fr) auto auto; gap:5px; align-items:center; padding:3px 4px; border-radius: var(--radius-sm); background:rgba(13,17,23,.55); }
         .shared-seg-row i { color:var(--accent); font-size:var(--fs-sm); text-align:center; }
         .shared-seg-row > div { min-width:0; display:flex; flex-direction:column; gap:1px; }
         .shared-seg-row b { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:var(--fs-sm); color:var(--text-main); }
         .shared-seg-row span { color:var(--text-muted); font-size:var(--fs-xs); }
         .shared-seg-row code { color:#ffd36a; font-size:var(--fs-xs); font-family:ui-monospace, SFMono-Regular, Consolas, monospace; }
+        /* Confidence temporale ("visto N volte"): chip per-tier accanto al MAC.
+           Advisory (manual-first): dà colore al "quanto è consolidato" senza decidere. */
+        /* Scoped sotto .shared-seg-list (3 classi) per battere la regola generica
+           `.props-collapsible-body .shared-seg-row span` (--fs-sm, specificità 0,0,2,1)
+           che altrimenti gonfia il font del chip; e per far vincere i colori per-tier
+           (che 2 classi non basterebbero a imporre in ogni contesto). */
+        .shared-seg-list .shared-seg-row .seg-temporal { display:inline-flex; align-items:center; gap:2px; white-space:nowrap; font-size:.66rem; line-height:1.45; padding:0 4px; border-radius:999px; border:1px solid transparent; color:var(--text-muted); background:var(--surface-hover); }
+        .shared-seg-list .shared-seg-row .seg-temporal i { font-size:.55rem; color:inherit; }
+        .shared-seg-list .shared-seg-row .seg-temporal-recurring { color:#58a6ff; background:rgba(88,166,255,.12); border-color:rgba(88,166,255,.3); }
+        .shared-seg-list .shared-seg-row .seg-temporal-established { color:#3fb950; background:rgba(63,185,80,.12); border-color:rgba(63,185,80,.3); }
+        .shared-seg-list .shared-seg-row .seg-temporal-stable { color:#3fb950; background:rgba(63,185,80,.18); border-color:rgba(63,185,80,.5); font-weight:600; }
+        .shared-seg-list .shared-seg-row .seg-temporal-stale { color:#d29922; background:rgba(210,153,34,.12); border-color:rgba(210,153,34,.35); }
         .shared-seg-more { color:var(--text-muted); font-size:var(--fs-xs); padding:2px 4px; }
         .shared-seg-actions { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
         .shared-seg-actions .toolbar-btn { padding:3px 7px; font-size:var(--fs-xs); margin:0; }

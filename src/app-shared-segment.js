@@ -37,9 +37,18 @@ function _macRowsForPort(pid, opts={}){
         const mac = win._normMacKey(row.mac);
         if(!mac) return;
         const ep = byMac.get(mac) || null;
-        const hist = _ensureDiscoveryHistory()
-            .filter(x=>x.mac===mac)
+        // Tutta la storia di QUESTO MAC: il record più recente alimenta i campi di
+        // display, l'intero insieme alimenta la confidence temporale (visto N volte).
+        const histAll = _ensureDiscoveryHistory().filter(x=>x.mac===mac);
+        const hist = histAll
+            .slice()
             .sort((a,b)=>String(b.lastSeen||b.ts||'').localeCompare(String(a.lastSeen||a.ts||'')))[0] || null;
+        // Confidence temporale: lib-script puro letto dal ponte (golden-rule: NON nel
+        // bundle). Catturo le 2 fn una volta sola per non gonfiare il ratchet win.*.
+        const _tc = win.temporalConfidence, _agg = win.aggregateObservations;
+        const temporal = (histAll.length && typeof _tc === 'function' && typeof _agg === 'function')
+            ? _tc(_agg(histAll))
+            : null;
         const key = mac;
         const prev = byKey.get(key);
         const next = {
@@ -50,7 +59,8 @@ function _macRowsForPort(pid, opts={}){
             ip: ep?.ip || ep?.integration?.host || hist?.ip || row.ip || '',
             source: row.source || hist?.source || 'FDB',
             lastSeen: hist?.lastSeen || hist?.ts || '',
-            count: hist?.count || 1
+            count: hist?.count || 1,
+            temporal
         };
         if(!prev || next.node || next.ip) byKey.set(key, next);
     };
@@ -73,6 +83,10 @@ function _macRowsForPort(pid, opts={}){
     if(!macs.length) return null;
     macs.sort((a,b)=>{
         if(!!a.node !== !!b.node) return a.node ? -1 : 1;
+        // A parità di "nodo noto", i MAC con confidence temporale più alta
+        // (visti più a lungo/spesso) salgono: il segnale informa la lettura.
+        const sa = a.temporal?.score || 0, sb = b.temporal?.score || 0;
+        if(sa !== sb) return sb - sa;
         return String(a.label).localeCompare(String(b.label));
     });
     return macs;
@@ -120,6 +134,20 @@ function _sharedSegmentRoleLabel(role){
         hypervisor:t('pnl.seg.roleHypervisor'),
         ignore:t('pnl.seg.roleIgnored')
     })[role] || t('pnl.seg.roleShared');
+}
+
+// Chip "confidence temporale" per una riga MAC del segmento: tier + "visto N×",
+// tooltip con arco e ultima vista. Advisory (manual-first): dice da quanto/quante
+// volte quel MAC è dietro la porta, così l'utente distingue un host reale da un
+// MAC di passaggio. Vuoto se il MAC non ha storia (temporal null o seen 0).
+function _temporalChip(temp){
+    if(!temp || !temp.seen) return '';
+    const tierLabel = t('temporal.' + temp.tier);
+    const tipParts = [ t('temporal.seenTimes', { n: temp.seen }) ];
+    if(temp.spanDays >= 1) tipParts.push(t('temporal.overDays', { n: Math.round(temp.spanDays) }));
+    if(temp.ageDays != null && temp.ageDays >= 1) tipParts.push(t('temporal.lastSeenDays', { n: Math.round(temp.ageDays) }));
+    return `<span class="seg-temporal seg-temporal-${temp.tier}" data-tip="${escapeHTML(tipParts.join(' · '))}">`
+        + `<i class="fas fa-clock-rotate-left"></i> ${escapeHTML(tierLabel)} · ${temp.seen}×</span>`;
 }
 
 
@@ -488,6 +516,7 @@ export function _sharedSegmentHtml(pid, context='popup'){
         return `<div class="shared-seg-row">
             <i class="fas ${icon}"></i>
             <div><b>${escapeHTML(x.label)}</b>${ip}</div>
+            ${_temporalChip(x.temporal)}
             <code>${escapeHTML(x.mac)}</code>
         </div>`;
     }).join('');

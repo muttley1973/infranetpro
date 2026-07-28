@@ -612,7 +612,14 @@ test('ponte: la coda funzioni A batch 2 non è più letta da win.*', () => {
 // Il glue src/app-overview.js NON usa win.* e il motore nuovo (lib/overview.js) e'
 // importato via ESM, come node-label.js. Aumento MOTIVATO di 3, nessuno stato nuovo
 // sul ponte (ASSE A resta sospeso, §2.2).
-const MAX_WIN_REFS = 273;
+// +2 (273 → 275, 2026-07-28): CONFIDENCE TEMPORALE — il pannello Segmento L2 consuma
+// il nuovo lib-script puro lib/temporal-confidence.js (visto N volte → score/tier),
+// gia' <script> in netmapper.html accanto a discovery-history.js. Le 2 letture
+// (`win.temporalConfidence`/`win.aggregateObservations`, catturate una volta sola in
+// _macRowsForPort) sono lib-script reads, STESSA categoria di normalizeFdbVlan/
+// pruneDiscoveryHistory: leggono l'unica istanza viva, niente ri-bundle. Nessuna
+// funzione/stato NUOVO sul ponte (ASSE A resta sospeso, §2.2).
+const MAX_WIN_REFS = 275;
 
 test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => {
   const total = countInCode(/\bwin\./g);
