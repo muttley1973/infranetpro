@@ -221,19 +221,24 @@ async function runDriftCheck(){
 function _driftAllRows(){
     const rep = store._driftReport;
     if(!rep) return [];
-    return [].concat(rep.stateDrift, rep.macOrphan, rep.undocumented, rep.ghostCable, rep.ipChanged || [], rep.unverified || []);
+    return [].concat(rep.stateDrift, rep.macOrphan, rep.undocumented, rep.ghostCable, rep.ipChanged || [], rep.unverified || [], rep.identityDrift || []);
 }
 function _driftFindRow(key){ return _driftAllRows().find(r => r.key === key) || null; }
 function _driftDropRow(key){
     const rep = store._driftReport;
     if(!rep) return;
-    for(const cat of ['stateDrift','macOrphan','undocumented','ghostCable','ipChanged','unverified']){
+    for(const cat of ['stateDrift','macOrphan','undocumented','ghostCable','ipChanged','unverified','identityDrift']){
         if(!Array.isArray(rep[cat])) continue;
         rep[cat] = rep[cat].filter(r => r.key !== key);
         if(cat === 'undocumented'){
             // counts.undocumented resta "solo infra"; gli endpoint hanno il loro conteggio.
             rep.counts.undocumented = rep.undocumented.filter(r => r.cls !== 'endpoint').length;
             rep.counts.undocumentedEndpoint = rep.undocumented.filter(r => r.cls === 'endpoint').length;
+        } else if(cat === 'identityDrift'){
+            // counts.identityDrift = solo serial/model (azionabile); il solo-firmware
+            // (informativo) è contato a parte, come infra/endpoint per i non-documentati.
+            rep.counts.identityDrift = rep.identityDrift.filter(r => r.identity).length;
+            rep.counts.identityFirmware = rep.identityDrift.filter(r => !r.identity).length;
         } else {
             rep.counts[cat] = rep[cat].length;
         }
@@ -286,6 +291,24 @@ function driftApplyIpChange(key){
     const ih = String(n.integration.host || '').trim();
     if(!ih || ih === oldIp) n.integration.host = row.newIp;
     if(typeof logAudit === 'function') logAudit('drift-ipchange', { target: row.label || n.name || n.id, summary: `${oldIp || '?'} → ${row.newIp}` });
+    markDirty(); renderAll();
+    _driftDropRow(key);
+    _renderDriftReport();
+}
+// Adotta l'identità hardware rilevata: allinea i campi DICHIARATI (serial/model/
+// firmware) del nodo a quelli MISURATI via ENTITY-MIB. È la conferma esplicita
+// "sì, l'apparato è stato sostituito (o aggiornato): aggiorna la mia doc".
+function driftApplyIdentity(key){
+    const row = (store._driftReport && store._driftReport.identityDrift || []).find(r => r.key === key);
+    if(!row || !row.patch) return;
+    const n = row.nodeId ? nodeById(row.nodeId) : null;
+    if(!n) return;
+    pushHistory();
+    const p = row.patch;
+    if(p.serialNumber != null) n.serialNumber = p.serialNumber;
+    if(p.model       != null) n.model        = p.model;
+    if(p.firmwareVer != null) n.firmwareVer  = p.firmwareVer;
+    if(typeof logAudit === 'function') logAudit('drift-identity', { target: row.label || n.name || n.id, summary: (row.diffs || []).map(d => `${d.field}→${d.real}`).join(', ') });
     markDirty(); renderAll();
     _driftDropRow(key);
     _renderDriftReport();
@@ -350,6 +373,10 @@ function driftInvestigate(key){
         const n = state.nodes.find(x => x.mac && _driftNorm(x.mac) === sig);
         if(n && typeof selectAndFocusNode==='function') selectAndFocusNode(n);
         else showAlert(t('msg.net.macSeenUnassociated',{mac:row.mac || sig}));
+    } else if(row.nodeId){
+        // Righe identità hardware: solo nodeId → apri il device nella mappa.
+        const n = nodeById(row.nodeId);
+        if(n && typeof selectAndFocusNode==='function') selectAndFocusNode(n);
     }
 }
 
@@ -359,6 +386,7 @@ function driftInvestigate(key){
 const _DRIFT_CATS = [
     { k:'consistent',   tk:'drift.catConsistent',   i:'fa-circle-check',         c:'#39d353', collapsed:true },
     { k:'stateDrift',   tk:'drift.catStateDrift',   i:'fa-triangle-exclamation', c:'#d29922' },
+    { k:'identityDrift',tk:'drift.catIdentity',     i:'fa-fingerprint',          c:'#db61a2' },
     { k:'ipChanged',    tk:'drift.catIpChanged',    i:'fa-right-left',           c:'#39c5ff' },
     { k:'macOrphan',    tk:'drift.catMacOrphan',    i:'fa-ghost',                c:'#8b949e' },
     { k:'unverified',   tk:'drift.catUnverified',   i:'fa-plug-circle-xmark',    c:'#6e7681' },
@@ -391,6 +419,19 @@ function _driftRowHtml(cat, r){
         const diffs = (r.diffs || []).map(d => `${esc(d.field)}: <s>${esc(d.doc)}</s> → <b>${esc(d.real)}</b>`).join(' · ');
         main = `<span class="drift-row-main">${esc(r.label)}</span><span class="drift-row-sub">${diffs}</span>`;
         actions = `<button class="drift-act apply" data-act="drift-apply-doc" data-key="${esc(r.key)}" data-tip="${t('drift.tipApply')}"><i class="fas fa-arrows-rotate"></i></button>${ignBtn}${invBtn}`;
+    } else if(cat === 'identityDrift'){
+        const FLD = { serialNumber: t('drift.idSerial'), model: t('drift.idModel'), firmwareVer: t('drift.idFirmware') };
+        // serial/model in evidenza; firmware attenuato (versione, non identità).
+        const diffs = (r.diffs || []).map(d => {
+            const cls = d.kind === 'firmware' ? ' drift-id-fw' : '';
+            return `<span class="drift-id-diff${cls}">${esc(FLD[d.field] || d.field)}: <s>${esc(d.doc)}</s> → <b>${esc(d.real)}</b></span>`;
+        }).join(' · ');
+        const badge = r.identity
+            ? `<span class="drift-why"><span class="drift-why-tag drift-id-swap" title="${esc(t('drift.idSwapTip'))}"><i class="fas fa-triangle-exclamation"></i> ${esc(t('drift.idSwap'))}</span></span>`
+            : `<span class="drift-why"><span class="drift-why-tag" title="${esc(t('drift.idFwTip'))}">${esc(t('drift.idFwOnly'))}</span></span>`;
+        main = `<span class="drift-row-main">${esc(r.label)}</span><span class="drift-row-sub">${diffs}</span>${badge}`;
+        const applyBtn = `<button class="drift-act apply" data-act="drift-apply-identity" data-key="${esc(r.key)}" data-tip="${t('drift.tipApplyIdentity')}"><i class="fas fa-arrows-rotate"></i></button>`;
+        actions = `${applyBtn}${ignBtn}${invBtn}`;
     } else if(cat === 'macOrphan'){
         main = `<span class="drift-row-main">${esc(r.label || r.mac)}</span><span class="drift-row-sub">${esc(r.mac)} — ${t('drift.notSeen')}</span>`;
         actions = `${ignBtn}${invBtn}`;
@@ -572,6 +613,21 @@ export function _renderDriftReport(){
                 topBar = `<div class="drift-adopt-bar">${epToggle}<button class="toolbar-btn" onclick="openAdoptModal()" data-tip="${t('drift.addMapTip')}"><i class="fas fa-plus-circle"></i> ${t('drift.addMap')}</button></div>`;
             }
         }
+        if(c.k === 'identityDrift'){
+            // Righe azionabili (serial/model = apparato sostituito) in chiaro; le
+            // solo-firmware (informative) collassate in un sotto-gruppo, come gli
+            // endpoint. Il badge mostra counts.identityDrift (le sole azionabili).
+            const idRows = allRows.filter(r => r.identity);
+            const fwRows = allRows.filter(r => !r.identity);
+            rows = idRows;
+            if(fwRows.length){
+                const fwBody = fwRows.map(r => _driftRowHtml('identityDrift', r)).join('');
+                extra = `<details class="drift-endpoint-group">
+                    <summary class="drift-endpoint-head"><i class="fas fa-microchip"></i> ${t('drift.firmwareChanged',{n:fwRows.length})}</summary>
+                    <div class="drift-endpoint-body">${fwBody}</div></details>`;
+            }
+            openWhen = (idRows.length + fwRows.length) > 0;
+        }
         const open = openWhen ? ' open' : '';
         const rowsHtml = rows.length ? rows.map(r => _driftRowHtml(c.k, r)).join('') : '';
         const secBody = (rowsHtml || extra) ? (topBar + rowsHtml + extra) : '<div class="drift-empty">—</div>';
@@ -610,6 +666,7 @@ registerClickActions({
     'drift-ignore':      (el) => driftIgnore(el.dataset.key),
     'drift-apply-doc':   (el) => driftApplyDoc(el.dataset.key),
     'drift-apply-ip':    (el) => driftApplyIpChange(el.dataset.key),
+    'drift-apply-identity': (el) => driftApplyIdentity(el.dataset.key),
     'drift-scan-net':    (el) => _driftScanNetwork(el.dataset.cidr),
     'drift-explain':     (el) => aiExplainDrift(el.dataset.cat, el.dataset.key),   // «Spiega» con l'assistente AI
 });

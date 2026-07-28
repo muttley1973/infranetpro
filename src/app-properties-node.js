@@ -170,6 +170,7 @@ export function _renderNodeProps(panel){
             let _lagHtml           = '';
             let _inventoryHtml     = '';
             let _integrationHtml   = '';
+            let _backupHtml        = '';
             let _stackingHtml      = '';
             let _haHtml            = '';
             if(d.isRack){
@@ -757,6 +758,27 @@ ${showFiber ? `<div class="prop-row2">
                 // primi campi dentro la fisarmonica device-specifica via
                 // _buildInventoryFieldsHtml(n, d).
                 _inventoryHtml = '';
+                // ---- Backup configurazione (puntatore, NON il config) ----
+                // Campo DR: DOVE vive il backup della running-config + metodo + data.
+                // 🔒 Il ref è validato (niente credenziali) dal setter; qui è solo input.
+                {
+                    const _bk = (n.backup && typeof n.backup === 'object') ? n.backup : {};
+                    const _bMethod = _bk.method || '';
+                    const _bAtMs = _bk.at ? Date.parse(_bk.at) : NaN;
+                    const _bAtOk = !isNaN(_bAtMs);
+                    const _bAge = _bAtOk ? (Date.now() - _bAtMs) / 86400000 : Infinity;
+                    const _bColor = !_bAtOk ? '#6e7681' : (_bAge <= 30 ? '#3fb950' : '#d29922');
+                    const _bAtLabel = _bAtOk ? new Date(_bAtMs).toLocaleDateString() : t('backup.never');
+                    const _bPreview = _bk.ref
+                        ? `<span class="props-collapsible-preview">${_bAtOk ? escapeHTML(_bAtLabel) : t('backup.set')}</span>`
+                        : `<span class="props-collapsible-preview muted">${t('backup.none')}</span>`;
+                    const _mOpt = (v, lbl) => `<option value="${v}" ${selected(_bMethod, v)}>${lbl}</option>`;
+                    _backupHtml = `<details class="props-collapsible props-secondary" ${_propsSectionIsOpen('backup') ? 'open' : ''} ontoggle="setPropsSectionState('backup',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-database"></i> ${t('sec.backup')}</span>${_bPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">`
+                        + `<div class="prop-group"><label>${t('backup.ref')}</label><input value="${escapeHTML(_bk.ref || '')}" placeholder="${t('backup.refPlaceholder')}" data-tip="${t('backup.refTip')}" data-change="backup-ref" data-node="${n.id}"></div>`
+                        + `<div class="prop-group"><label>${t('backup.method')}</label><select data-change="backup-method" data-node="${n.id}">${_mOpt('', t('o.sepNone'))}${_mOpt('ansible', 'Ansible')}${_mOpt('rancid', 'RANCID')}${_mOpt('oxidized', 'Oxidized')}${_mOpt('git', 'Git')}${_mOpt('manual', t('backup.methodManual'))}</select></div>`
+                        + `<div class="prop-group"><label>${t('backup.last')}</label><div style="display:flex;align-items:center;gap:8px"><span style="color:${_bColor};font-size:0.78rem;font-weight:600">${escapeHTML(_bAtLabel)}</span><button type="button" class="toolbar-btn" style="font-size:0.72rem;padding:3px 8px" data-act="backup-mark-now" data-node="${n.id}" data-tip="${t('backup.markNowTip')}"><i class="fas fa-check"></i> ${t('backup.markNow')}</button></div></div>`
+                        + `</div></details>`;
+                }
                 } // fine Integrazione SNMP (rack attivi/power + floor con IP)
             // ---- Blocchi device-specifici per tipo (estratti) ----
             // La lunga catena if(n.type===...) vive in app-properties-node-devices.js.
@@ -788,7 +810,8 @@ ${showFiber ? `<div class="prop-row2">
                    + _stackingHtml
                    + _haHtml
                    + _lagHtml
-                   + _integrationHtml;
+                   + _integrationHtml
+                   + _backupHtml;
             }
             // ---- Porte di rete (floor multi-porta) ----
             // PC dual-NIC, AP dual-uplink, stampante con NIC+mgmt, endpoint custom:
@@ -816,7 +839,7 @@ ${showFiber ? `<div class="prop-row2">
             // Integrazione SNMP per i floor con IP (stampante/AP/webcam/NAS…):
             // stesso pannello dei rack, montato qui nel flusso lineare dei floor
             // (per i rack è già cucito nell'assemblaggio sopra).
-            if(!d.isRack) h += _integrationHtml;
+            if(!d.isRack) h += _integrationHtml + _backupHtml;
             if(typeof _l3SviSectionHtml === 'function') h += _l3SviSectionHtml(n.id);
             // Skin pannello custom (prototipo): solo device rack (hanno un frontale).
             if(d.isRack && typeof _panelSkinSectionHtml === 'function') h += _panelSkinSectionHtml(n);

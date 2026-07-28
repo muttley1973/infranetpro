@@ -186,9 +186,14 @@ function _aiCollectLiveFacts(){
                 const n = byId(r.nodeId);
                 return _aiCompact({ id: r.nodeId, name: r.label || (n && n.name), mac: r.mac, from: r.oldIp, to: r.newIp });
             }).filter(e => Object.keys(e).length);
+            // Identità hardware: serial/model/firmware dichiarati vs misurati (ENTITY-MIB).
+            const iddrift = (Array.isArray(rep.identityDrift) ? rep.identityDrift : []).map(r =>
+                _aiCompact({ id: r.nodeId, name: r.label, swapped: !!r.identity, changes: (r.diffs || []).map(d => `${d.field}: ${d.doc}→${d.real}`) })
+            ).filter(e => Object.keys(e).length);
             if(absent.length) drift.absent = absent;
             if(undoc.length) drift.undocumented = undoc;
             if(ipch.length) drift.ipChanged = ipch;
+            if(iddrift.length) drift.identityChanged = iddrift;
             if(Object.keys(drift).length) facts.drift = drift;
         }
     } catch(_){}
@@ -672,6 +677,7 @@ function _aiDriftQuestion(cat, row){
     if(cat === 'macOrphan' || cat === 'unverified') return t('assistant.qAbsent', { name });
     if(cat === 'ipChanged') return t('assistant.qIpChange', { name: name || (r.mac || ''), from: r.oldIp || '?', to: r.newIp || '?' });
     if(cat === 'stateDrift') return t('assistant.qDrift', { name });
+    if(cat === 'identityDrift') return t('assistant.qIdentity', { name });
     if(cat === 'undocumented' || cat === 'undocumentedEndpoint') return t('assistant.qUndoc', { mac: r.mac || name, vlan });
     if(cat === 'ghostCable') return t('assistant.qGhost', { name });
     return t('assistant.qGeneric', { name });

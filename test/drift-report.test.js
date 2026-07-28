@@ -547,3 +547,67 @@ test('ignore segue la condizione: se la realta cambia, la riga riappare', () => 
   const r = buildDriftReport(snmpB, doc, [keyA], {});      // keyA non copre la nuova condizione
   assert.equal(r.counts.stateDrift, 1);
 });
+
+// ── IDENTITÀ HARDWARE (serial/model = apparato sostituito; firmware = informativo) ──
+test('identità: serial dichiarato ≠ misurato → identityDrift azionabile (apparato sostituito)', () => {
+  const doc = { identities: [{ nodeId: 'sw1', label: 'Core SW1', serialNumber: 'ABC123', model: 'C9300-24T' }] };
+  const snmp = { responded: { 'sw1': true }, measuredIds: { 'sw1': { serialNumber: 'XYZ999', model: 'C9300-24T' } } };
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.identityDrift, 1, 'serial diverso = 1 azionabile');
+  assert.equal(r.counts.identityFirmware, 0);
+  const row = r.identityDrift[0];
+  assert.equal(row.identity, true);
+  assert.equal(row.nodeId, 'sw1');
+  const serial = row.diffs.find(d => d.field === 'serialNumber');
+  assert.equal(serial.kind, 'identity');
+  assert.equal(serial.doc, 'ABC123');
+  assert.equal(serial.real, 'XYZ999');
+  assert.equal(row.patch.serialNumber, 'XYZ999', 'il patch adotta il misurato');
+  // Entra nel banner come anomalia azionabile.
+  assert.equal(driftBannerKind(r.counts, r), 'discrepancies');
+});
+
+test('identità: solo firmware diverso → riga informativa, NON azionabile, NON nel banner', () => {
+  const doc = { identities: [{ nodeId: 'sw1', label: 'Core SW1', serialNumber: 'ABC123', firmwareVer: '16.12.01' }] };
+  const snmp = { responded: { 'sw1': true }, measuredIds: { 'sw1': { serialNumber: 'ABC123', firmwareVer: '17.03.04' } } };
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.identityDrift, 0, 'nessuna anomalia azionabile');
+  assert.equal(r.counts.identityFirmware, 1, 'una riga solo-firmware (informativa)');
+  assert.equal(r.identityDrift[0].identity, false);
+  assert.equal(r.identityDrift[0].diffs[0].kind, 'firmware');
+  assert.equal(driftBannerKind(r.counts, r), 'aligned', 'il solo firmware NON allarma il banner');
+});
+
+test('identità: confronto solo se ENTRAMBI i lati non-vuoti + gate su responded', () => {
+  // serial dichiarato ma non misurato (ENTITY-MIB muta su quel campo) → niente confronto
+  const docNoReal = { identities: [{ nodeId: 'sw1', label: 'SW1', serialNumber: 'ABC123' }] };
+  const snmpNoReal = { responded: { 'sw1': true }, measuredIds: { 'sw1': { serialNumber: '' } } };
+  assert.equal(buildDriftReport(snmpNoReal, docNoReal, [], {}).counts.identityDrift, 0, 'misurato vuoto → non si smentisce');
+  // device MUTO (non risponde): inventory stantìa → non valutato anche se diverso
+  const snmpMuted = { responded: {}, measuredIds: { 'sw1': { serialNumber: 'XYZ999' } } };
+  assert.equal(buildDriftReport(snmpMuted, docNoReal, [], {}).counts.identityDrift, 0, 'device muto → identità non valutata');
+  // serial uguale (case/spazi diversi) → nessun falso positivo
+  const docEq = { identities: [{ nodeId: 'sw1', label: 'SW1', serialNumber: ' abc123 ' }] };
+  const snmpEq = { responded: { 'sw1': true }, measuredIds: { 'sw1': { serialNumber: 'ABC123' } } };
+  assert.equal(buildDriftReport(snmpEq, docEq, [], {}).counts.identityDrift, 0, 'trim+case-insensitive: stesso serial');
+});
+
+test('identità: serial + firmware insieme (RMA) → un ROW azionabile con entrambi i diff', () => {
+  const doc = { identities: [{ nodeId: 'fw1', label: 'FW1', serialNumber: 'OLD1', firmwareVer: '7.0' }] };
+  const snmp = { responded: { 'fw1': true }, measuredIds: { 'fw1': { serialNumber: 'NEW2', firmwareVer: '7.4' } } };
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.identityDrift, 1, 'un solo device = una riga');
+  assert.equal(r.counts.identityFirmware, 0, 'ha un diff identity → non conta come solo-firmware');
+  const row = r.identityDrift[0];
+  assert.equal(row.identity, true);
+  assert.deepEqual(row.diffs.map(d => d.field).sort(), ['firmwareVer', 'serialNumber']);
+});
+
+test('identità: la riga ignorata segue la condizione (fingerprint sul valore reale)', () => {
+  const doc = { identities: [{ nodeId: 'sw1', label: 'SW1', serialNumber: 'ABC' }] };
+  const snmpA = { responded: { 'sw1': true }, measuredIds: { 'sw1': { serialNumber: 'X1' } } };
+  const keyA = buildDriftReport(snmpA, doc, [], {}).identityDrift[0].key;
+  assert.equal(buildDriftReport(snmpA, doc, [keyA], {}).counts.identityDrift, 0, 'stessa condizione → ignorata');
+  const snmpB = { responded: { 'sw1': true }, measuredIds: { 'sw1': { serialNumber: 'X2' } } };
+  assert.equal(buildDriftReport(snmpB, doc, [keyA], {}).counts.identityDrift, 1, 'realtà diversa → nuova key → riappare');
+});

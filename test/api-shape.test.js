@@ -187,6 +187,38 @@ test('toAnsibleInventory: hostvars arricchite (contesto rete + asset + mgmt) e g
   assert.ok(!/community|SECRET/i.test(JSON.stringify(inv._meta)));
 });
 
+test('toAnsibleInventory: ansible_network_os dal vendor noto + puntatore backup + gruppo backup_missing', () => {
+  const proj = sampleProject();
+  // sw1 (Cisco) senza backup: network_os derivato, ref null, ∈ backup_missing.
+  const inv = toAnsibleInventory(proj);
+  const sw = inv._meta.hostvars['CORE-SW-1'];
+  assert.equal(sw.ansible_network_os, 'cisco.ios.ios');
+  assert.equal(sw.config_backup_ref, null);
+  assert.ok(inv.backup_missing.hosts.includes('CORE-SW-1'), 'senza ref → backup_missing');
+  // vendor ignoto (pc/ap) → network_os OMESSO (mai null, romperebbe la connessione).
+  assert.ok(!('ansible_network_os' in inv._meta.hostvars['PC-Ufficio']), 'vendor ignoto → nessun network_os');
+
+  // con backup dichiarato → ref esposto, fuori da backup_missing.
+  proj.state.nodes[0].backup = { ref: 'smb://nas/configs/sw-core', method: 'ansible', at: '2026-07-20', by: 'user:1' };
+  const inv2 = toAnsibleInventory(proj);
+  const sw2 = inv2._meta.hostvars['CORE-SW-1'];
+  assert.equal(sw2.config_backup_ref, 'smb://nas/configs/sw-core');
+  assert.equal(sw2.config_backup_method, 'ansible');
+  assert.ok(!(inv2.backup_missing && inv2.backup_missing.hosts.includes('CORE-SW-1')), 'con ref → fuori da backup_missing');
+  // 🔒 `by` (metadato d'audit) NON trapela nell'inventory pubblico.
+  assert.ok(!/user:1/.test(JSON.stringify(inv2._meta)), 'by non esposto');
+  assert.ok(!/community|SECRET/i.test(JSON.stringify(inv2._meta)), 'ancora nessun segreto');
+});
+
+test('nodeToDevice: 🔒 ref backup cred-strippato nel DTO (difesa in profondità)', () => {
+  const proj = sampleProject();
+  proj.state.nodes[0].backup = { ref: 'ftp://admin:s3cr3t@nas/configs' };
+  const inv = projectToInventory(proj);
+  const sw = inv.devices.find(d => d.id === 'sw1');
+  assert.ok(sw.backup && sw.backup.ref, 'ref presente');
+  assert.ok(!/s3cr3t|admin:/.test(JSON.stringify(sw)), 'credenziali strippate dal DTO');
+});
+
 test('toAnsibleInventory: hostname deduplicato su collisione di nome', () => {
   const proj = { id: 1, name: 'x', state: { nodes: [
     { id: 'a', type: 'pc', name: 'NODO', ip: '1.1.1.1' },

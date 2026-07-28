@@ -2184,6 +2184,47 @@ function updateN(k,v){
     renderAll(); markDirty();
 }
 
+// ── Backup configurazione (node.backup = { ref, method, at, by }) ────────────
+// Puntatore a DOVE vive il backup della running-config (NON il config: InfraNet
+// resta un registro). 🔒 Il `ref` è validato da lib/backup-ref.js: un valore con
+// credenziali embedded è RIFIUTATO (mai persistito). `by` = tracciamento d'audit.
+function setNodeBackup(nid, key, val){
+    const n = nodeById(nid); if(!n) return;
+    if(!n.backup) n.backup = {};
+    if(key === 'ref'){
+        const v = (typeof validateBackupRef === 'function') ? validateBackupRef(val) : { ok:true, value:String(val==null?'':val).trim() };
+        if(!v.ok && v.reason === 'credentials'){
+            if(typeof showAlert === 'function') showAlert(t('backup.credWarn'));
+            renderAll();                       // rifiutato → il campo torna al valore salvato
+            return;
+        }
+        n.backup.ref = v.value;
+    } else if(key === 'method'){
+        n.backup.method = String(val==null?'':val).trim();
+    } else { return; }
+    n.backup.by = 'user';
+    // Audit SENZA il valore del path (potrebbe essere sensibile): solo l'esito.
+    if(typeof logAudit === 'function') logAudit('backup-ref', { target: n.name||n.id, summary: key==='ref' ? (n.backup.ref ? 'ref set' : 'ref cleared') : ('method: '+(n.backup.method||'—')) });
+    if(!n.backup.ref && !n.backup.method && !n.backup.at) delete n.backup;   // tutto vuoto → niente oggetto
+    markDirty(); renderAll();
+}
+// Segna «backup fatto ora» (finché non arriva l'auto-update dall'API premium).
+function markNodeBackupNow(nid){
+    const n = nodeById(nid); if(!n) return;
+    if(!n.backup) n.backup = {};
+    n.backup.at = new Date().toISOString();
+    n.backup.by = 'user';
+    if(typeof logAudit === 'function') logAudit('backup-mark', { target: n.name||n.id, summary: n.backup.at });
+    markDirty(); renderAll();
+}
+registerChangeActions({
+    'backup-ref':    (el) => setNodeBackup(el.dataset.node, 'ref', el.value),
+    'backup-method': (el) => setNodeBackup(el.dataset.node, 'method', el.value),
+});
+registerClickActions({
+    'backup-mark-now': (el) => markNodeBackupNow(el.dataset.node),
+});
+
 // Lock manual-first VISIBILE: fissa/sblocca un campo identità del device (IP /
 // hostname). NON è un meccanismo nuovo: commuta i flag *Manual già esistenti che
 // Sync e Discovery rispettano (app-snmp.js / app-discovery-classify.js) e che il

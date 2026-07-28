@@ -463,8 +463,51 @@ test('default: senza helper iniettati non lancia e produce strutture vuote sensa
   assert.doesNotThrow(() => buildDocSnapshot());
   assert.doesNotThrow(() => buildSnmpSnapshot());
   const d = buildDocSnapshot({});
-  assert.deepEqual(d, { ports: {}, macs: [], ipOnly: [], deviceSigs: [], cables: [] });
+  assert.deepEqual(d, { ports: {}, macs: [], ipOnly: [], deviceSigs: [], cables: [], identities: [] });
   const s = buildSnmpSnapshot({});
   assert.equal(s.fdbObserved, false);
   assert.deepEqual(s.observedDevices, []);
+  assert.deepEqual(s.measuredIds, {}, 'nessun nodo → nessuna identità misurata');
+});
+
+// ── Identità hardware (serial/model/firmware): dichiarata vs misurata ────────
+test('docSnap: identities dai campi dichiarati; solo se almeno un campo valorizzato', () => {
+  const m = {
+    nodes: [
+      { id: 'sw1', mac: 'AA:AA:AA:00:00:01', ip: '10.0.0.2', serialNumber: 'ABC123', model: 'C9300-24T', firmwareVer: '17.3' },
+      { id: 'rt1', ip: '10.0.0.1', serialNumber: ' ', model: '' },   // tutti vuoti/spazi → escluso
+      { id: 'sw2', mac: 'AA:AA:AA:00:00:02', ip: '10.0.0.3', model: 'GS1900' },   // solo model → incluso
+    ],
+    links: [], ports: {}, normMac: lower, nodeLabel: n => n.id.toUpperCase(),
+  };
+  const d = buildDocSnapshot(m);
+  const ids = d.identities.map(x => x.nodeId).sort();
+  assert.deepEqual(ids, ['sw1', 'sw2'], 'rt1 (tutti vuoti) escluso; uno switch senza n.mac ma con model incluso');
+  const sw1 = d.identities.find(x => x.nodeId === 'sw1');
+  assert.equal(sw1.label, 'SW1', 'usa nodeLabel iniettato');
+  assert.equal(sw1.serialNumber, 'ABC123');
+});
+
+test('snmpSnap: measuredIds solo dai device che HANNO risposto (inventory persistita non stantìa)', () => {
+  const m = {
+    nodes: [
+      { id: 'sw1', snmpStatus: 'ok', integration: { inventory: { serialNumber: 'ABC123', model: 'C9300', firmwareVer: '17.3' } } },
+      { id: 'sw2', snmpStatus: 'timeout', integration: { inventory: { serialNumber: 'STALE' } } },  // muto → escluso
+      { id: 'sw3', snmpStatus: 'ok', integration: {} },  // risponde ma niente inventory → escluso
+    ],
+  };
+  const s = buildSnmpSnapshot(m);
+  assert.deepEqual(Object.keys(s.measuredIds), ['sw1'], 'solo sw1: sw2 muto, sw3 senza inventory');
+  assert.equal(s.measuredIds.sw1.serialNumber, 'ABC123');
+});
+
+test('round-trip: swap del serial → identityDrift azionabile dallo snapshot al report', () => {
+  const nodes = [{ id: 'sw1', mac: 'AA:AA:AA:00:00:01', ip: '10.0.0.2', snmpStatus: 'ok',
+    serialNumber: 'ABC123', model: 'C9300', firmwareVer: '17.3',
+    integration: { host: '10.0.0.2', inventory: { serialNumber: 'XYZ999', model: 'C9300', firmwareVer: '17.3' } } }];
+  const doc = buildDocSnapshot({ nodes, links: [], ports: {}, normMac: lower, nodeLabel: n => n.id });
+  const snmp = buildSnmpSnapshot({ nodes, docPorts: doc.ports, ports: {} });
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.identityDrift, 1);
+  assert.equal(r.identityDrift[0].diffs.find(x => x.field === 'serialNumber').real, 'XYZ999');
 });

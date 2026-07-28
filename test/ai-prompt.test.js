@@ -31,6 +31,28 @@ test('lingua sconosciuta → ricade su it', () => {
   assert.equal(buildSystemPrompt('xx'), buildSystemPrompt('it'));
 });
 
+test('it: playbook di backup config + regole di sicurezza (no-cred, no_log, quoting, vendor-ignoto)', () => {
+  const p = buildSystemPrompt('it');
+  assert.match(p, /config_backup_ref/);            // usa la var dell'inventory (non il path a memoria)
+  assert.match(p, /ansible_network_os/);           // modulo giusto dal vendor
+  assert.match(p, /backup_missing/);               // segnala chi non ha backup
+  assert.match(p, /NON indovinare/i);              // vendor ignoto → non inventare il modulo
+  assert.match(p, /Vault|--ask-pass/);             // mai credenziali in chiaro
+  assert.match(p, /no_log/);                       // no_log sui task sensibili
+  assert.match(p, /cifratura a riposo/i);          // nota hardening destinazione
+});
+
+test('en: config backup playbook + security rules', () => {
+  const p = buildSystemPrompt('en');
+  assert.match(p, /config_backup_ref/);
+  assert.match(p, /ansible_network_os/);
+  assert.match(p, /backup_missing/);
+  assert.match(p, /do NOT guess/i);
+  assert.match(p, /Vault|--ask-pass/);
+  assert.match(p, /no_log/);
+  assert.match(p, /encryption at rest/i);
+});
+
 test('it: capacità hardware + soluzioni + consigli per-modello', () => {
   const p = buildSystemPrompt('it');
   assert.match(p, /CAPACITÀ HARDWARE/);

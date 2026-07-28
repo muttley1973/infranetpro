@@ -693,7 +693,13 @@ function countInlineHandlers() {
 // È il GEMELLO inline di `setDeviceWifi` (onchange="setDeviceApMode(...)"), gli sta
 // letteralmente accanto: migrarne uno solo a data-change sarebbe incoerente. ASSE B
 // resta sospeso (§2.1) → crescita coerente col pattern locale, non un nuovo debito.
-const MAX_INLINE_HANDLERS = 569;
+// +1 (569 → 570, 2026-07-28) — RIALZO CONSAPEVOLE: la sezione «Backup configurazione»
+// nel pannello proprietà usa `ontoggle="setPropsSectionState('backup',…)"` come OGNI
+// altra fisarmonica del pannello (integration/lag/ha/stacking): è l'UNICO handler
+// inline della sezione — i campi (ref/method) e il bottone «Segna ora» sono già
+// data-change/data-act (event delegation). Migrare solo questo ontoggle sarebbe
+// incoerente col resto del pannello GOLDEN → crescita coerente, non nuovo debito.
+const MAX_INLINE_HANDLERS = 570;
 test('ponte ASSE B: gli handler inline on*= non superano il tetto a cricchetto', () => {
   const total = countInlineHandlers();
   assert.ok(total <= MAX_INLINE_HANDLERS,

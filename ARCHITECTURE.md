@@ -93,6 +93,10 @@ lib/                   Shared browser + test modules (the heart of the app)
                     else switch) — the Sync flags the port as a shared L2 segment with
                     that suggestion; the user materialises it from the Shared L2 panel  (pure)
   power-mib.js wifi-spec.js cable-labels.js drift-report.js
+  ansible-netos.js  vendorToNetworkOs → ansible_network_os from the documented
+                    vendor + measured sysDescr (conservative; null on unknown)  (pure)
+  backup-ref.js     validateBackupRef → the config-backup POINTER (never the
+                    config); rejects embedded credentials + control chars  (pure)
   project-networks.js  deriveProjectNetworks (/24s from devices+leases →
                     covered/blocked/open) + annotateNetworksVerification (join with
                     the Verifica outcome: presence badge per subnet + non-verifiable

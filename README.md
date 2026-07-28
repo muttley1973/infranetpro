@@ -621,7 +621,7 @@ Each device exposes `id, name, type, brand, model, ip, mac, vlan` (derived from 
 
 ### Ansible dynamic inventory
 
-`integrations/ansible/` ships a ready-made dynamic inventory (`infranet_inventory.py`, Python standard library only): every device with an IP becomes a host (`ansible_host` = its IP), grouped automatically by `type_*`, `vlan_*`, `rack_*` and `brand_*`. InfraNet stays the source of truth; Ansible executes. Set `INFRANET_URL`, `INFRANET_TOKEN` and `INFRANET_PROJECT`, then:
+`integrations/ansible/` ships a ready-made dynamic inventory (`infranet_inventory.py`, Python standard library only): every device with an IP becomes a host (`ansible_host` = its IP), grouped automatically by `type_*`, `vlan_*`, `rack_*`, `brand_*` and `backup_missing`. Each host also carries **`ansible_network_os`** (derived from the documented vendor + `sysDescr` — Cisco IOS/NX-OS/ASA, Arista, Juniper, VyOS, MikroTik, Fortinet; omitted, never guessed, for unknown vendors) and a **config-backup pointer** (`config_backup_ref`/`_method`/`_at`) — so a generated backup playbook targets the right module and destination with no hand-editing. InfraNet documents *where* the backup lives, never the config itself, and never a credential. InfraNet stays the source of truth; Ansible executes. Set `INFRANET_URL`, `INFRANET_TOKEN` and `INFRANET_PROJECT`, then:
 
 ```bash
 ansible-inventory -i infranet_inventory.py --graph
@@ -652,10 +652,10 @@ Full release notes live in [CHANGELOG.md](CHANGELOG.md). Highlights of what has 
 **Done:**
 - [x] **Overview (summary view)** — a read-only view (like Topology; it never touches the document) in three columns — **Document / Conformance / Expansion** — each cell a number *and* a plain-word verdict declaring the **provenance** of every figure (declared / from scan / derived / not declared, a missing datum shown dashed, never a zero); an at-a-glance **health dot + verdict** per column, a severity-coloured **entry-point accent** on the most urgent tile, and a **since-last-read delta** (−N / +N, baseline in `localStorage`, never in the document). Every row **drills down in place**. Composes existing engines only — no new measurement (`lib/overview.js`, pure + tests)
 - [x] **AI assistant** — advisory, bring-your-own-key, OpenAI-compatible (local Ollama by default); server-side key, allowlist context + a build-failing anti-leak guard test; scope/capability toggles; never auto-applies
-- [x] **REST API v1 + Ansible dynamic inventory** — read-only, bearer-token, sanitized `/api/v1/*`; token UI; stdlib-only `infranet_inventory.py` with rich host-vars (VLAN/subnet/gateway, serial/firmware, rack, mgmt)
+- [x] **REST API v1 + Ansible dynamic inventory** — read-only, bearer-token, sanitized `/api/v1/*`; token UI; stdlib-only `infranet_inventory.py` with rich host-vars (VLAN/subnet/gateway, serial/firmware, rack, mgmt, **`ansible_network_os`**, **config-backup pointer**) and a **`backup_missing`** group
 - [x] **DHCP lease import** — cross-VLAN authoritative MAC ↔ IP for the documentation check; multi-server persisted sources; treated as an identity map, never a false *absent*
 - [x] **IPAM occupancy · management-VLAN role · VM import** — real per-VLAN address usage (documented / DHCP-only / free); anti-guest management VLAN; absorb a discovered floor tile as a host VM
-- [x] **Reality Check / Drift Report + Adopt** — doc-vs-network diff in 6 categories with per-row update/ignore/investigate and a multi-signal ping/ARP/TCP presence sweep; one-click Adopt of undocumented devices
+- [x] **Reality Check / Drift Report + Adopt** — doc-vs-network diff in 7 categories (state, IP change, **hardware identity — a swapped serial/model vs ENTITY-MIB**, absent, undocumented, ghost cable, unverifiable) with per-row update/ignore/investigate and a multi-signal ping/ARP/TCP presence sweep; one-click Adopt of undocumented devices
 - [x] **Handoff Dossier + Audit Trail** — one-click handover PDF; append-only project changelog with CSV export
 - [x] **Visible locks for documented values** — one-click freeze on IP / hostname / port-VLAN (surfaces the existing manual-first pins)
 - [x] **Wireless** — Packet-Tracer sine-wave links, up to 8 radios/device (SSID/band/channel/security/VLAN), SSID-VLAN trunk derivation

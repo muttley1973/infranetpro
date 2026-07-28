@@ -48,6 +48,11 @@ function _device(d) {
     rack: d.rack ? _compact({ name: d.rack.name, u: d.rack.u }) : undefined,
     snmp: d.snmp || undefined, wireless: d.wireless || undefined,
     mgmtProtocol: d.mgmtProtocol, mgmtUrl: d.mgmtUrl,
+    // ansible_network_os (per scegliere il modulo del playbook) + segnale DR "manca
+    // il backup". 🔒 NON esponiamo il PATH del backup all'LLM (solo un booleano):
+    // il playbook lo referenzia via {{ config_backup_ref }} dall'inventory, non serve.
+    networkOs: d.networkOs || undefined,
+    backupMissing: (d.snmp && !(d.backup && d.backup.ref)) ? true : undefined,
   });
 }
 

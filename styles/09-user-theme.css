@@ -432,6 +432,16 @@ body.spare-mode .port-led.spare-suspect {
     border: 1px solid rgba(248,81,73,.35);
 }
 .drift-why-tag.drift-mgmt i { margin-right: 3px; }
+/* Identità hardware: badge "apparato sostituito" (serial/model), colore categoria. */
+.drift-why-tag.drift-id-swap {
+    color: #db61a2; background: rgba(219,97,162,.12);
+    border: 1px solid rgba(219,97,162,.35);
+}
+.drift-why-tag.drift-id-swap i { margin-right: 3px; }
+/* Ogni campo divergente inline; il firmware (informativo) è attenuato. */
+.drift-id-diff { white-space: nowrap; }
+.drift-id-diff + .drift-id-diff { margin-left: 2px; }
+.drift-id-diff.drift-id-fw { opacity: .6; }
 /* Toggle "mostra utente/BYOD in chiaro": spinto a sinistra, Adotta resta a destra. */
 .drift-ep-toggle {
     margin-right: auto; display: inline-flex; align-items: center; gap: 5px;

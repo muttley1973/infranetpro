@@ -23,6 +23,21 @@ test('summarizeDriftReport: primaryCount = nuovi + cambiati (no assenti/ghost)',
   assert.equal(s.secondaryCount, 5);          // 4 assenti + 1 ghost — NON nell'headline
 });
 
+test('summarizeDriftReport: apparato sostituito (identityDrift) è PRIMARY; il solo-firmware NON conta', () => {
+  const s = summarizeDriftReport(rep({ identityDrift: 2, identityFirmware: 5, stateDrift: 1 }));
+  assert.equal(s.identityCount, 2);
+  assert.equal(s.primaryCount, 3);            // 2 sostituiti + 1 cambiato; i 5 firmware NON contano
+  assert.equal(s.secondaryCount, 0);
+  assert.equal(s.hasChanges, true);
+});
+
+test('summarizeDriftReport: solo firmware cambiato → allClear (informativo, non allarma)', () => {
+  const s = summarizeDriftReport(rep({ identityFirmware: 4 }));
+  assert.equal(s.identityCount, 0);
+  assert.equal(s.primaryCount, 0);
+  assert.equal(s.allClear, true);
+});
+
 test('summarizeDriftReport: macOrphan resta secondario, mai nel primary', () => {
   const s = summarizeDriftReport(rep({ macOrphan: 10 }));
   assert.equal(s.primaryCount, 0);
