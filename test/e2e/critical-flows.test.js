@@ -811,29 +811,34 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(r.pcHost, '10.9.9.2', 'il non-responder mantiene comunque host=IP (SNMP abilitabile a mano dal pannello)');
     });
 
-    await t.test('Sync: bottone rinominato "Sync", chip drift rimosso (le differenze si vedono in Verifica doc)', async () => {
+    await t.test('Toolbar Stage A: Sync ritirato, freschezza in chip autonomo, poll ancora esposto', async () => {
       const r = await page.evaluate(() => {
         try {
           const scopri = !!document.getElementById('btn-discover');
-          const syncBtn = document.getElementById('btn-snmp-sync');
-          const syncOnclick = syncBtn ? syncBtn.getAttribute('onclick') : null;
-          const syncLabel = (document.getElementById('snmp-sync-label')?.textContent || '').trim();
-          // Il chip drift è stato rimosso: niente badge, niente funzioni esposte.
+          // Il bottone Sync è stato ritirato dalla toolbar (Verifica ⊇ Sync).
+          const syncBtnGone = !document.getElementById('btn-snmp-sync');
+          const syncLabelGone = !document.getElementById('snmp-sync-label');
+          // La freschezza vive ora in un chip di stato autonomo, clic → Panoramica.
+          const freshChip = document.getElementById('sync-fresh-chip');
+          const freshChipAct = freshChip ? freshChip.getAttribute('data-act') : null;
+          // Verifica resta l'azione primaria.
+          const verify = !!document.getElementById('btn-drift');
+          // Il chip drift (vecchio) resta rimosso.
           const hasBadge = !!document.getElementById('sync-summary-badge');
-          const chipFns = ['syncSNMP', '_renderSyncSummaryBadge', '_syncOpenReport']
-            .filter(f => typeof window[f] === 'function').length;
-          // Il Sync mantiene l'auto-link: pollAllSNMP è l'handler diretto del bottone.
+          // pollAllSNMP resta esposto: lo chiamano Verifica, il menu Automazioni e la Topologia.
           const hasPoll = typeof window.pollAllSNMP === 'function';
-          return { ok: true, scopri, syncOnclick, syncLabel, hasBadge, chipFns, hasPoll };
+          return { ok: true, scopri, syncBtnGone, syncLabelGone, hasFreshChip: !!freshChip, freshChipAct, verify, hasBadge, hasPoll };
         } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
       });
-      assert.ok(r.ok, 'nessun errore nel flusso sync: ' + r.err);
+      assert.ok(r.ok, 'nessun errore nel flusso toolbar: ' + r.err);
       assert.ok(r.scopri, 'il bottone Scopri (btn-discover) resta invariato nell\'header');
-      assert.equal(r.syncOnclick, 'pollAllSNMP()', 'il bottone Sync chiama il poll (che fa anche l\'auto-link)');
-      assert.equal(r.syncLabel, 'Sync', 'il bottone è rinominato "Sync" (non più "Sync SNMP")');
-      assert.equal(r.hasBadge, false, 'il chip drift #sync-summary-badge è stato rimosso');
-      assert.equal(r.chipFns, 0, 'le funzioni del chip non sono più esposte su window');
-      assert.ok(r.hasPoll, 'pollAllSNMP è esposto (handler del bottone Sync)');
+      assert.ok(r.syncBtnGone, 'il bottone Sync (#btn-snmp-sync) è stato ritirato dalla toolbar');
+      assert.ok(r.syncLabelGone, '#snmp-sync-label non esiste più');
+      assert.ok(r.hasFreshChip, 'il chip freschezza (#sync-fresh-chip) è presente in toolbar');
+      assert.equal(r.freshChipAct, 'overview-toggle', 'il chip freschezza apre la Panoramica');
+      assert.ok(r.verify, 'la Verifica (#btn-drift) resta l\'azione primaria');
+      assert.equal(r.hasBadge, false, 'il chip drift #sync-summary-badge resta rimosso');
+      assert.ok(r.hasPoll, 'pollAllSNMP resta esposto (Verifica / Automazioni / Topologia)');
     });
 
     await t.test('lock manual-first: toggleNodeLock (IP/hostname) e togglePortVlanLock fissano/sbloccano il valore', async () => {

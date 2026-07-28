@@ -45,7 +45,9 @@ function _applyRoleUI(){
     }
     if(store._currentUser.role === 'viewer'){
         document.body.classList.add('viewer-mode');
-        ['btn-save','btn-snmp-sync','btn-topology'].forEach(id=>{
+        // Verifica (btn-drift) rileva + scrive nel documento (markDirty): come l'ex Sync,
+        // è privilegiata → disabilitata per i viewer. btn-topology resta cliccabile.
+        ['btn-save','btn-drift','btn-topology'].forEach(id=>{
             const el=document.getElementById(id);
             if(id==='btn-topology') return;
             if(el){ el.disabled=true; el.title='Richiede privilegi amministratore'; }

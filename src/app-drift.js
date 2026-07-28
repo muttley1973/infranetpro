@@ -196,8 +196,14 @@ async function runDriftCheck(){
     const hasLeases = Array.isArray(store._dhcpLeases) && store._dhcpLeases.length > 0;
     if(!hasSnmp && !hasLeases){ showAlert(t('msg.net.noSnmpDevicesDoc')); return; }
     _driftRunning = true;
+    // Segnale cross-modulo: pollAllSNMP (app-snmp.js) lo legge per sapere che è la
+    // Verifica a possedere il bottone #btn-drift (scrive il progresso ma NON fa flash
+    // né ripristino: lo fa runDriftCheck a fine controllo).
+    store._driftRunning = true;
     const btn = document.getElementById('btn-drift');
-    if(btn){ btn.disabled = true; btn.dataset._lbl = btn.innerHTML; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+    // Salvataggio idempotente: se un flash di Sync standalone ha già messo qui
+    // l'etichetta originale, NON sovrascriverla col testo del flash.
+    if(btn){ btn.disabled = true; if(btn.dataset._lbl == null) btn.dataset._lbl = btn.innerHTML; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
     try {
         const docSnap = _driftBuildDocSnapshot();      // PRIMA del sync (i campi base verranno sovrascritti)
         if(hasSnmp) await win.pollAllSNMP({ deferPresence:false }); // no ricalcolo presenza differito: la Verifica fa già il compute completo con sweep (evita doppio streak — DRIFT-A1)
@@ -213,6 +219,7 @@ async function runDriftCheck(){
         showAlert(t('msg.net.docCheckFailed') + (e && e.message || e));
     } finally {
         _driftRunning = false;
+        store._driftRunning = false;
         if(btn){ btn.disabled = false; if(btn.dataset._lbl){ btn.innerHTML = btn.dataset._lbl; delete btn.dataset._lbl; } }
     }
 }

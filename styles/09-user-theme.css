@@ -150,7 +150,7 @@
             #project-select { max-width: 130px; }
             .project-bar { gap: 4px; }
             .search-panel { flex: 0 1 160px; min-width: 120px; }
-            #sync-fresh-badge { display: none; }
+            #sync-fresh-chip { display: none; }
         }
 
         /* ---- Header fallback B ---- */
@@ -167,11 +167,9 @@
             #btn-impexp .btn-label,
             #btn-discover .btn-label,
             #btn-topology .btn-label,
-            #snmp-sync-label,
             #btn-user span { display: none; }
             #btn-impexp,
             #btn-discover,
-            #btn-snmp-sync,
             #btn-topology,
             #btn-user { padding: 5px 8px; }
             #btn-user i:last-child { display: none; }

@@ -66,6 +66,13 @@ export function renderAutomationMenu(){
     d.innerHTML = `
       <div class="autom-sec">
         <div class="autom-row">
+          <span class="autom-title"><i class="fas fa-network-wired"></i>${escapeHTML(t('autom.syncNow'))}</span>
+          <button class="toolbar-btn" style="padding:3px 9px;font-size:0.75rem" onclick="pollAllSNMP();toggleAutomationMenu()" data-tip="${escapeHTML(t('autom.syncNowTip'))}"><i class="fas fa-rotate"></i> ${escapeHTML(t('autom.syncNowBtn'))}</button>
+        </div>
+        <div class="autom-desc">${escapeHTML(t('autom.syncNowDesc'))}</div>
+      </div>
+      <div class="autom-sec">
+        <div class="autom-row">
           <span class="autom-title"><i class="fas fa-clock"></i>${escapeHTML(t('autom.poll'))}</span>
           <label class="toggle-sw" data-tip="${escapeHTML(t('autopoll.tip'))}">
             <input type="checkbox" ${ap.enabled?'checked':''} onchange="setAutoPoll(this.checked,null)">

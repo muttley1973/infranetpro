@@ -111,17 +111,16 @@
             <i class="fas fa-satellite-dish"></i><span class="btn-label" data-i18n="discover.label"> Scopri</span>
         </button>
         <span style="width:1px;height:18px;background:var(--panel-border);opacity:.5;flex-shrink:0;align-self:center"></span>
-        <button class="toolbar-btn" id="btn-snmp-sync" onclick="pollAllSNMP()"
-                data-i18n-tip="sync.tip"
-                data-tip="Aggiorna porte, VLAN, stato e topologia da tutti i dispositivi SNMP del progetto">
-            <span id="snmp-sync-label"><i class="fas fa-network-wired"></i> Sync</span><span id="sync-fresh-badge" class="sync-fresh-badge" style="display:none"></span>
-        </button>
         <button class="status-chip s-warn" id="v3-pending-chip" onclick="_v3JumpNext()" data-tip="Device SNMPv3 da configurare — clic per saltare al prossimo"></button>
         <button class="toolbar-btn primary" id="btn-drift" onclick="runDriftCheck()"
                 data-i18n-tip="verify.tip"
-                data-tip="Controllo del mattino: esegue il Sync e verifica la presenza reale (ping/ARP/TCP), evidenziando differenze e cambi IP">
+                data-tip="Controllo completo: rilegge i dati SNMP, ricostruisce la topologia e verifica la presenza reale (ping/ARP/TCP), evidenziando differenze e cambi IP">
             <i class="fas fa-clipboard-check"></i><span class="btn-label" data-i18n="verify.label"> Verifica</span>
         </button>
+        <!-- Chip freschezza del progetto (ex badge dentro il bottone Sync, ora ritirato):
+             indicatore di stato autonomo, visibile in OGNI vista e all'apertura (lo alimenta
+             _renderSyncFreshness in app-snmp.js). Clic → apre la Panoramica. -->
+        <button class="status-chip sync-fresh-chip" id="sync-fresh-chip" data-act="overview-toggle" style="display:none" data-i18n-tip="sync.freshChipTip" data-tip="Freschezza dati del progetto · clic per la Panoramica"></button>
         <div id="report-menu-wrap" style="position:relative">
             <button class="toolbar-btn icon-only" id="btn-report" data-act="report-menu-toggle" data-i18n-tip="report.tip" data-tip="Report e analisi: storia modifiche, porte libere, mappa L3, coerenza VLAN">
                 <i class="fas fa-chart-column"></i><span class="btn-label" data-i18n="report.label"> Report</span><i class="fas fa-chevron-down" style="font-size:0.6rem;margin-left:4px;opacity:.6"></i>

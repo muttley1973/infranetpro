@@ -407,13 +407,11 @@
         .autom-desc { font-size:var(--fs-xs); color:var(--text-muted); margin-top:7px; line-height:1.45; }
         .autom-grouphd { font-size:var(--fs-xs); font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; display:flex; align-items:center; gap:6px; margin-bottom:9px; }
         .autom-grouphd i { color:var(--accent); width:15px; text-align:center; }
-        /* Età dell'ultimo Sync: tutt'uno col bottone Sync, diviso da un |.
-           Niente pillola/pallino: solo il tempo (color-coded), attaccato al bottone. */
-        .sync-fresh-badge { display:none; align-items:center; font-size:var(--fs-xs); font-weight:600;
-            white-space:nowrap; cursor:pointer; user-select:none; flex-shrink:0;
-            padding:0; transition:filter .12s; }
-        .sync-fresh-badge:hover { filter:brightness(1.25); }
-        .sync-fresh-sep { color:var(--text-muted); opacity:.45; font-weight:400; margin:0 7px 0 5px; }
+        /* Chip freschezza del progetto (ex badge dentro il bottone Sync, ritirato):
+           indicatore di stato autonomo accanto a Verifica, color-coded, clic → Panoramica.
+           Base .status-chip; qui solo icona/gap. Contenuto e colori: _renderSyncFreshness. */
+        .sync-fresh-chip { gap:5px; font-weight:600; white-space:nowrap; }
+        .sync-fresh-chip .sync-fresh-ico { color:var(--text-muted); opacity:.75; font-size:.72rem; }
         /* Pallino di freschezza dentro il pulsante Topologia (stesso linguaggio del chip). */
         .topo-fresh-dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-left:4px; vertical-align:middle; flex-shrink:0; }
         /* Toggle switch */

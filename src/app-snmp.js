@@ -61,16 +61,18 @@ function _hasSnmpTargets(){
         return (cfg.driver||'').startsWith('snmp') && !!((cfg.host||n.ip||'').trim());
     });
 }
-// Chip "| ok/tot · età" accanto al bottone Sync: ESITO dell'ultimo Sync
-// (persistito col progetto in state.lastSnmpSyncResult) + età dell'ultimo
-// tentativo, color-coded. L'esito NON evapora più coi 4s del flash: resta sul
-// bottone finché un nuovo Sync non lo sostituisce, e sopravvive a salva/riapri.
-// Nascosto durante il sync e durante il flash del risultato sull'etichetta
-// (prima il ripristino immediato del badge affiancava l'età STANTIA al
-// risultato fresco: era lo stato confondente "0/11 (11 err) | 13 gg").
+// Chip di stato freschezza "ok/tot · età" (#sync-fresh-chip), autonomo nella toolbar
+// accanto a Verifica: ESITO dell'ultimo Sync (persistito col progetto in
+// state.lastSnmpSyncResult) + età dell'ultimo tentativo, color-coded. Prima viveva
+// DENTRO il bottone Sync; da quando il Sync è stato ritirato (Verifica ⊇ Sync) è un
+// indicatore a sé, visibile in ogni vista e all'apertura, cliccabile → Panoramica.
+// L'esito NON evapora coi 4s del flash: resta finché un nuovo Sync non lo sostituisce,
+// e sopravvive a salva/riapri. Nascosto durante il sync e durante il flash del
+// risultato sul bottone Verifica (prima il ripristino immediato affiancava l'età
+// STANTIA al risultato fresco: era lo stato confondente "0/11 (11 err) · 13 gg").
 let _syncFlashUntil = 0;
 export function _renderSyncFreshness(){
-    const el = document.getElementById('sync-fresh-badge');
+    const el = document.getElementById('sync-fresh-chip');
     if(!el) return;
     if(!_hasSnmpTargets()){ el.style.display='none'; return; }   // niente SNMP → niente chip
     if(store._snmpSyncing || Date.now() < _syncFlashUntil){ el.style.display='none'; return; }
@@ -78,18 +80,19 @@ export function _renderSyncFreshness(){
     // Età: del tentativo se registrato (anche 0 ok), altrimenti dell'ultimo dato buono.
     const f = _snmpFreshness(res && res.at ? res.at : _lastSnmpSyncTs());
     el.style.display='inline-flex';
+    const ico = `<i class="fas fa-network-wired sync-fresh-ico"></i>`;
     if(res && res.total > 0){
         // Esito (verde tutti ok / ambra misto / rosso zero ok) + età del tentativo.
         const cCol = res.err === 0 ? _SNMP_FRESH_COLOR.fresh
                    : res.ok === 0 ? _SNMP_FRESH_COLOR.old : _SNMP_FRESH_COLOR.aging;
-        el.innerHTML = `<span class="sync-fresh-sep">|</span>`
+        el.innerHTML = ico
             + `<span style="color:${cCol}">${res.ok}/${res.total}</span>`
             + `<span style="opacity:.55"> · </span><span style="color:${f.color}">${f.txt}</span>`;
         el.setAttribute('data-tip', t('snmp.tip.result', {age: f.txt, ok: res.ok, total: res.total}));
         return;
     }
     // Nessun esito registrato (progetti pre-feature): solo l'età, come prima.
-    el.innerHTML = `<span class="sync-fresh-sep">|</span><span style="color:${f.color}">${f.txt}</span>`;
+    el.innerHTML = ico + `<span style="color:${f.color}">${f.txt}</span>`;
     el.setAttribute('data-tip', f.level==='none'
         ? t('snmp.tip.never')
         : t('snmp.tip.ago', {age: f.txt}));
@@ -301,13 +304,21 @@ async function pollAllSNMP(opts){
     }
 
     store._snmpSyncing=true;
-    const syncBtn=document.getElementById('btn-snmp-sync');
-    // L'etichetta vive in uno span interno: gli stati transitori del sync
-    // aggiornano SOLO questo, cosi' il timer (#sync-fresh-badge, anch'esso dentro
-    // il bottone) sopravvive. Durante il sync il timer e' nascosto.
-    const syncLbl=document.getElementById('snmp-sync-label')||syncBtn;
-    const syncBadge=document.getElementById('sync-fresh-badge');
-    if(syncBadge) syncBadge.style.display='none';
+    // "Bottone attività" = Verifica (#btn-drift): il progresso del poll vive lì (il
+    // bottone Sync è stato ritirato, Verifica ⊇ Sync). Quando pollAllSNMP gira DENTRO
+    // runDriftCheck la Verifica possiede già il bottone (store._driftRunning) e ne
+    // ripristinerà l'etichetta a fine controllo: in quel caso qui si scrive SOLO il
+    // progresso (più informativo dello spinner nudo), niente flash/restore. Standalone
+    // (Automazioni / Topologia force) invece salviamo l'etichetta, mostriamo il flash
+    // del risultato e la ripristiniamo dopo 4s.
+    const actBtn=document.getElementById('btn-drift');
+    const ownsBtn=!store._driftRunning;
+    if(actBtn && ownsBtn && actBtn.dataset._lbl==null) actBtn.dataset._lbl=actBtn.innerHTML;
+    const setActLbl=(html)=>{ if(actBtn) actBtn.innerHTML=html; };
+    // Il chip freschezza si nasconde durante il sync (gate _snmpSyncing in
+    // _renderSyncFreshness); lo nascondiamo subito per non mostrare l'età stantia.
+    const freshChip=document.getElementById('sync-fresh-chip');
+    if(freshChip) freshChip.style.display='none';
     const saveBtn=document.getElementById('btn-save');
     if(saveBtn){ saveBtn.disabled=true; }
 
@@ -372,7 +383,7 @@ async function pollAllSNMP(opts){
     for(let b=0;b<total;b+=BATCH){
         const slice=targets.slice(b, b+BATCH);
         const bEnd=Math.min(b+BATCH, total);
-        if(syncLbl) syncLbl.innerHTML=`<i class="fas fa-spinner fa-spin"></i> Sync ${b+1}–${bEnd}/${total}…`;
+        setActLbl(`<i class="fas fa-spinner fa-spin"></i> ${t('sync.progress.reading',{a:b+1,b:bEnd,n:total})}`);
         await Promise.all(slice.map(_pollOne));
     }
 
@@ -382,7 +393,7 @@ async function pollAllSNMP(opts){
     // ---- Auto-link discovery: LLDP / CDP / MAC FDB -------------------------
     // Saltato in dataOnly (polling automatico): solo refresh dati, niente topologia.
     if(ok > 0 && !dataOnly){
-        if(syncLbl) syncLbl.innerHTML=`<i class="fas fa-spinner fa-spin"></i> Topology…`;
+        setActLbl(`<i class="fas fa-spinner fa-spin"></i> ${t('sync.progress.topology')}`);
         const _ld = await win._autoDiscoverLinks(null);
         _recordAutoLink(_ld);
         if(_ld.created>0 || _ld.updated>0 || _ld.lagGroups>0 || _ld.pruned>0){
@@ -422,23 +433,30 @@ async function pollAllSNMP(opts){
     // state → si salva col progetto e resta veritiero alla riapertura.
     store.state.lastSnmpSyncResult = { ok, err, total, at: Date.now() };
 
-    if(syncBtn){
+    // Flash del risultato SOLO se possediamo il bottone (Sync standalone). Dentro la
+    // Verifica il poll è la fase 1: NON lampeggiamo "OK" mentre la Verifica prosegue
+    // con la sweep — sarà runDriftCheck a ripristinare l'etichetta a fine controllo.
+    if(actBtn && ownsBtn){
         if(err===0){
-            syncBtn.className='toolbar-btn poll-btn-ok';
-            syncLbl.innerHTML=`<i class="fas fa-check"></i> Sync OK ${ok}/${total}`;
+            actBtn.className='toolbar-btn primary poll-btn-ok';
+            setActLbl(`<i class="fas fa-check"></i> ${t('sync.progress.ok',{ok,total})}`);
         } else {
-            syncBtn.className='toolbar-btn poll-btn-err';
-            syncLbl.innerHTML=`<i class="fas fa-exclamation-triangle"></i> Sync ${ok}/${total} (${err} err)`;
+            actBtn.className='toolbar-btn primary poll-btn-err';
+            setActLbl(`<i class="fas fa-exclamation-triangle"></i> ${t('sync.progress.partial',{ok,total,err})}`);
         }
-        // Finestra flash: finché il risultato è sull'etichetta, il badge resta
+        // Finestra flash: finché il risultato è sul bottone, il chip freschezza resta
         // nascosto (il ripristino via _refreshTopoBtnState nel finally non deve
-        // rimostrarlo in anticipo).
+        // rimostrarlo in anticipo). L'etichetta originale ("Verifica") è in dataset._lbl.
         _syncFlashUntil = Date.now() + 4000;
+        const _lbl = actBtn.dataset._lbl;
         setTimeout(()=>{
             _syncFlashUntil = 0;
-            syncBtn.className='toolbar-btn';
-            syncLbl.innerHTML=`<i class="fas fa-network-wired"></i> Sync`;
-            // Ripristina il chip dentro il bottone: ora porta l'esito appena registrato.
+            // Se nel frattempo è partita una Verifica, il bottone è suo: la ripristina
+            // lei (il suo salvataggio dataset._lbl è idempotente) — non interferiamo.
+            if(store._driftRunning) return;
+            actBtn.className='toolbar-btn primary';
+            if(_lbl != null) actBtn.innerHTML = _lbl;
+            delete actBtn.dataset._lbl;
             if(typeof _renderSyncFreshness === 'function') _renderSyncFreshness();
         }, 4000);
     }
