@@ -79,8 +79,9 @@
     <button class="toolbar-btn" id="btn-redo" data-act="redo" data-i18n-tip="redo.tip" data-tip="Ripeti (Ctrl+Y)"  disabled><i class="fas fa-rotate-right"></i></button>
     <div class="header-sep"></div>
 
-    <!-- Search — centrata nella barra -->
-    <div class="search-panel" style="margin:0 auto;">
+    <!-- Search + chip freschezza — centrati nella barra come UNITÀ (search margin-left:auto,
+         header-right margin-left:auto → i due auto dividono a metà lo spazio libero). -->
+    <div class="search-panel" style="margin-left:auto;">
         <div class="search-input-wrap">
             <i class="fas fa-search"></i>
             <input id="global-search" type="search" data-i18n-ph="search.ph" placeholder="Cerca dispositivi, porte, link…" autocomplete="off"
@@ -89,6 +90,10 @@
         </div>
         <div id="search-results"></div>
     </div>
+    <!-- Chip freschezza del progetto (ex badge dentro il bottone Sync, ritirato): indicatore
+         di stato autonomo SUBITO DOPO la ricerca, visibile in OGNI vista e all'apertura
+         (lo alimenta _renderSyncFreshness in app-snmp.js). Clic → apre la Panoramica. -->
+    <button class="status-chip sync-fresh-chip" id="sync-fresh-chip" data-act="overview-toggle" style="display:none" data-i18n-tip="sync.freshChipTip" data-tip="Freschezza dati del progetto · clic per la Panoramica"></button>
 
     <!-- Actions — allineati a destra -->
 <!-- Tooltip topologia (compare vicino al cursore al hover sulle linee) -->
@@ -103,7 +108,7 @@
         <button class="toolbar-btn" id="btn-overview" data-act="overview-toggle"
                 data-i18n-tip="ov.tip"
                 data-tip="Vista di sintesi: cosa manca al documento, cosa non torna con la realtà, quanto margine resta">
-            <i class="fas fa-gauge-high"></i><span class="btn-label" data-i18n="ov.label"> Panoramica</span>
+            <i class="fas fa-circle-info"></i><span class="btn-label" data-i18n="ov.label"> Panoramica</span>
         </button>
         <button class="toolbar-btn" id="btn-discover" onclick="openDiscovery()"
                 data-i18n-tip="discover.tip"
@@ -117,10 +122,6 @@
                 data-tip="Controllo completo: rilegge i dati SNMP, ricostruisce la topologia e verifica la presenza reale (ping/ARP/TCP), evidenziando differenze e cambi IP">
             <i class="fas fa-clipboard-check"></i><span class="btn-label" data-i18n="verify.label"> Verifica</span>
         </button>
-        <!-- Chip freschezza del progetto (ex badge dentro il bottone Sync, ora ritirato):
-             indicatore di stato autonomo, visibile in OGNI vista e all'apertura (lo alimenta
-             _renderSyncFreshness in app-snmp.js). Clic → apre la Panoramica. -->
-        <button class="status-chip sync-fresh-chip" id="sync-fresh-chip" data-act="overview-toggle" style="display:none" data-i18n-tip="sync.freshChipTip" data-tip="Freschezza dati del progetto · clic per la Panoramica"></button>
         <div id="report-menu-wrap" style="position:relative">
             <button class="toolbar-btn icon-only" id="btn-report" data-act="report-menu-toggle" data-i18n-tip="report.tip" data-tip="Report e analisi: storia modifiche, porte libere, mappa L3, coerenza VLAN">
                 <i class="fas fa-chart-column"></i><span class="btn-label" data-i18n="report.label"> Report</span><i class="fas fa-chevron-down" style="font-size:0.6rem;margin-left:4px;opacity:.6"></i>

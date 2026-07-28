@@ -7,7 +7,10 @@
         body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg-color); color: var(--text-main); overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
 
         /* ---- HEADER ---- */
-        header { background: var(--panel-bg); border-bottom: 1px solid var(--panel-border); padding: 0 16px; display: flex; align-items: center; gap: 12px; height: 52px; position: relative; z-index: 100; flex-shrink: 0; }
+        /* min-height (non height fissa): con flex-wrap, se la toolbar è più larga dello
+           schermo va a capo e l'header CRESCE, spingendo giù la sotto-barra invece di
+           farsela coprire (era la causa dell'overlap header↔subbar su schermi &lt;~1738px). */
+        header { background: var(--panel-bg); border-bottom: 1px solid var(--panel-border); padding: 4px 16px; display: flex; align-items: center; gap: 12px; min-height: 52px; position: relative; z-index: 100; flex-shrink: 0; }
         .header-right { display:flex; align-items:center; gap:8px; margin-left:auto; flex-shrink:0; }
         .header-title { font-weight: bold; font-size:var(--fs-xl); display: flex; align-items: center; gap: 8px; white-space: nowrap; flex-shrink: 0; }
         .header-title i { color: var(--accent); }
@@ -59,6 +62,9 @@
            tooltip. Le 3 azioni "del giorno" (Salva, Sync, Verifica) tengono il
            testo. La label resta nel DOM per gli screen reader. */
         .toolbar-btn.icon-only .btn-label { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+        /* Panoramica è solo-icona sui monitor comuni: la «i» un filo più grande così il
+           pulsante è alto quanto quelli con etichetta (Scopri/Verifica), non più basso. */
+        #btn-overview i { font-size: 1rem; }
         /* Stato "soft cyan": alternativa morbida a .primary — sfondo tint accent
            + bordo/testo accent. Riusabile (toggle attivo, azioni evidenziate). */
         .toolbar-btn.soft { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }

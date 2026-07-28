@@ -410,8 +410,9 @@
         /* Chip freschezza del progetto (ex badge dentro il bottone Sync, ritirato):
            indicatore di stato autonomo accanto a Verifica, color-coded, clic → Panoramica.
            Base .status-chip; qui solo icona/gap. Contenuto e colori: _renderSyncFreshness. */
-        .sync-fresh-chip { gap:5px; font-weight:600; white-space:nowrap; }
-        .sync-fresh-chip .sync-fresh-ico { color:var(--text-muted); opacity:.75; font-size:.72rem; }
+        .sync-fresh-chip { gap:6px; font-weight:600; white-space:nowrap;
+            font-size:var(--fs-md); padding:5px 12px; }   /* un po' più grande, accanto alla ricerca */
+        .sync-fresh-chip .sync-fresh-ico { color:var(--text-muted); opacity:.75; font-size:.85rem; }
         /* Pallino di freschezza dentro il pulsante Topologia (stesso linguaggio del chip). */
         .topo-fresh-dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-left:4px; vertical-align:middle; flex-shrink:0; }
         /* Toggle switch */

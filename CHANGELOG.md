@@ -2,6 +2,14 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-28 — Toolbar polish: one compact row, clearer labels and icons
+
+- **Fixed** — the toolbar no longer **wraps and overlaps the sub-bar** on screens narrower than ~1738px (it had a fixed height, so the wrapped row spilled over the breadcrumb/stats — visible after building the topology and switching to the Overview). The header now grows gracefully if it ever wraps, and — more importantly — a new compaction keeps it on **a single row down to ~1440px**: the app title collapses to just its logo and the search / project fields tighten, while the freshness chip and the "Discover"/"Verify" labels stay visible.
+- **Changed** — the project **data-freshness chip** ("13/13 · just now") now sits **right after the search field** (was tucked among the right-hand actions) and is a touch larger.
+- **Changed** — **"Discover"** and **"Verify"** keep their **text labels** on common monitors (≤1920px), not just their icons — they're the two primary network actions.
+- **Changed** — the **Overview** toolbar button now uses an **info "ⓘ" icon** (was a dashboard gauge), sized to match the labelled buttons.
+- **Changed** — the manual-refresh entry in the **Automation** menu is relabelled **"SNMP Sync:"** (was "Like the old Sync:").
+
 ## 2026-07-28 — Hardening: the Overview's "True" column stays coherent when a Sync intervenes
 
 - **Fixed** — a background or manual **Sync** no longer makes the Overview's "True" column contradict itself: the navigable difference-rows now appear **only for an actual Verify result**, never for a Sync's presence refresh — so you never see "never verified" above a live list of differences, nor a persisted count that disagrees with the rows. Resolving a difference after a Sync no longer overwrites the saved Verify snapshot with the Sync's counts.

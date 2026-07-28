@@ -130,9 +130,10 @@
            etichette. Report/Assistente/Automazioni sono già icon-only per classe.
            Il wrap (rete di sicurezza) è strutturale sull'header, non serve qui. */
         @media (max-width: 1920px) {
+            /* Scopri (#btn-discover) e Verifica (#btn-drift) TENGONO l'etichetta anche
+               sui monitor comuni: sono le due azioni di rete primarie, meglio con testo
+               (UX). Panoramica resta solo-icona (la nuova «i» informativa parla da sé). */
             #btn-overview .btn-label,
-            #btn-discover .btn-label,
-            #btn-drift .btn-label,
             #btn-export-drawio .btn-label,
             #btn-save #save-label,
             #btn-user #user-label,
@@ -142,15 +143,17 @@
             }
             header .toolbar-btn { padding: 5px 8px; }
         }
-        /* ≤1500px (laptop): stringi i campi di sinistra e togli il badge freshness,
-           così la barra resta su UNA riga fin verso ~1400px (più stretta → va a capo). */
-        @media (max-width: 1500px) {
+        /* ≤1737px: sopra ~1738px la barra sta su UNA riga con TUTTO esteso; sotto,
+           COMPATTIAMO per tenerla comunque su una riga (niente wrap/overlap): il titolo
+           resta il solo LOGO (il testo «InfraNet Pro» si nasconde, ~100px liberati), i
+           campi di sinistra si stringono, la ricerca si riduce. Il chip freschezza e le
+           etichette Scopri/Verifica RESTANO visibili (richiesta utente). */
+        @media (max-width: 1737px) {
             header { gap: 6px; }
-            .header-title { font-size: var(--fs-lg); }
+            .header-title span { display: none; }   /* solo il logo a rete */
             #project-select { max-width: 130px; }
             .project-bar { gap: 4px; }
-            .search-panel { flex: 0 1 160px; min-width: 120px; }
-            #sync-fresh-chip { display: none; }
+            .search-panel { flex: 0 1 190px; min-width: 130px; }
         }
 
         /* ---- Header fallback B ---- */
