@@ -107,6 +107,15 @@ lib/                   Shared browser + test modules (the heart of the app)
                     carries a health rollup (ok/warn/bad + issue count) that drives
                     the at-a-glance verdict; the since-last-read delta is glue-side
                     (localStorage, per project — viewing never dirties state)  (pure)
+  os-icon.js        resolveOsIcon → OS string / family / TTL / VM-guest / node-OS /
+                    hypervisor-platform → which logo + brand colour, with a CONFIDENCE
+                    gate: a specific logo only from an authoritative source (sysDescr /
+                    manual / guest-OS / platform), a grey family glyph from a TTL hint,
+                    nothing when unknown. Emits <use href="#os-…">  (pure)
+  os-icon-sprite.js AUTO-GENERATED inline <symbol> sprite (20 logos): Simple Icons
+                    (CC0, mono, currentColor) + VectorLogoZone (CC0) & dashboard-icons
+                    (Apache-2.0) COLOUR marks (own viewBox/colours) + 3 original glyphs
+                    (windows/hypervisor/netdev). Injected once by src/app-os-icons.js  (data)
   ai-grounding.js   extractEntities + checkGrounding (citations + anti-invention)  (pure)
   ai-draft.js       splitDraftBlocks (segments AI reply → text + Ansible draft cards)  (pure)
   onboarding.js     nextStep(summary) → deterministic «next step» chip (onboarding §4d)  (pure)
