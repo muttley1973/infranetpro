@@ -2,6 +2,10 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-28 — API token: the "Copy" button works over plain HTTP, no more false "Copied!"
+
+- **Fixed** — copying a freshly-minted **API token** no longer silently fails on an **insecure origin** (the app served over plain HTTP on a LAN IP, not `localhost`/HTTPS). There the browser leaves `navigator.clipboard` **undefined**, so the old code threw and its `catch` still flashed **"Copied!"** while the clipboard stayed empty — and because the token is shown **once**, it was then lost (only its SHA-256 is kept). Now the copy is a real chain: Clipboard API when available → **`document.execCommand('copy')`** fallback (which *does* work over HTTP) → and if even that is blocked, the token is **selected** with a "Select, then Ctrl+C" hint. Never a false success. The token record was always saved (it shows in the list by label/`inp_…` prefix); only the one-time secret was being lost. For the native Clipboard API and other secure-context features, serve InfraNet behind HTTPS.
+
 ## 2026-07-27 — Operating-system logos in the property panels
 
 - **Added** — the device and VM property-panel **headers**, and the **VM list rows**, now show an **operating-system icon**: official brand logos from **Simple Icons** (CC0 / public domain) for Linux, Ubuntu, Debian, RHEL/CentOS, Fedora, openSUSE, FreeBSD, macOS, Android, Docker, VMware, Proxmox and Raspberry Pi — plus original in-house glyphs for Windows (which Simple Icons no longer ships), a generic hypervisor and network gear. Hybrid treatment: **monochrome in dense lists**, the **brand colour only at accent points** (the header). Honesty gate (schema ①): a specific logo appears **only from an authoritative source** (SNMP `sysDescr`, manual entry, VM guest-OS), a **grey family glyph** when it's only a TTL hint, and **no icon at all** when the OS is unknown — never a guessed default. New pure engine `lib/os-icon.js` + inline `<symbol>` sprite `lib/os-icon-sprite.js`.

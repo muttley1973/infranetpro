@@ -298,10 +298,36 @@ async function tkCreateToken(){
 
 function tkCopyToken(){
     const btn = document.getElementById('tk-copy-btn');
-    const done = ()=>{ if(btn){ btn.innerHTML=`<i class="fas fa-check"></i> ${escapeHTML(t('tk.copied'))}`;
+    const ok = ()=>{ if(btn){ btn.innerHTML=`<i class="fas fa-check"></i> ${escapeHTML(t('tk.copied'))}`;
         setTimeout(()=>{ btn.innerHTML=`<i class="fas fa-copy"></i> ${escapeHTML(t('tk.copy'))}`; },1500); } };
-    try { const p = navigator.clipboard.writeText(_lastToken); if(p&&p.then) p.then(done,done); else done(); }
-    catch(_){ done(); }
+    // La Clipboard API (navigator.clipboard) esiste SOLO in contesto sicuro: HTTPS
+    // oppure http://localhost. Servito su un IP in HTTP (es. LAN) è `undefined`:
+    // prima si tentava lì e il catch mostrava comunque "Copiato!" -> FALSO successo,
+    // e col token show-once l'utente lo perdeva. Ora: Clipboard API se c'è, poi il
+    // fallback execCommand (che su HTTP funziona), infine selezione per Ctrl+C manuale
+    // -> mai un falso positivo.
+    const selectManual = ()=>{
+        const code = document.getElementById('tk-reveal-code');
+        try { const rng=document.createRange(); rng.selectNodeContents(code);
+              const sel=window.getSelection(); sel.removeAllRanges(); sel.addRange(rng); } catch(_){}
+        if(btn){ btn.innerHTML=`<i class="fas fa-hand-pointer"></i> ${escapeHTML(t('tk.copyManual'))}`; }
+    };
+    const legacyCopy = ()=>{
+        try {
+            const ta=document.createElement('textarea'); ta.value=_lastToken;
+            ta.setAttribute('readonly',''); ta.style.position='fixed'; ta.style.top='-1000px'; ta.style.opacity='0';
+            document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, _lastToken.length);
+            const copied = !!(document.execCommand && document.execCommand('copy'));
+            document.body.removeChild(ta);
+            if(copied){ ok(); return; }
+        } catch(_){}
+        selectManual();
+    };
+    if(navigator.clipboard && typeof navigator.clipboard.writeText==='function'){
+        navigator.clipboard.writeText(_lastToken).then(ok, legacyCopy);
+    } else {
+        legacyCopy();
+    }
 }
 
 async function tkRevokeToken(id, btn){
