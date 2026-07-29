@@ -2,6 +2,11 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-29 — Overview layout: denser tiles, the fill bar on the side
+
+- **Changed** — the Overview now packs **3 tiles per row** in each column (was 2), so the whole picture stays on one screen with room to spare; the big number is a touch smaller and, when the verdict phrase doesn't fit, the full text is reachable on hover.
+- **Changed** — each tile's **fill bar is now a vertical gauge on the right** — it fills from the bottom, like a test tube — instead of a horizontal bar underneath. Applies to every column and to the Recoverability lens.
+
 ## 2026-07-29 — Overview audit follow-up (round 1): honest verdicts + gateway coverage
 
 - **Changed** — the **"True"** column no longer stays green when the data is old: if the most recent contact with reality (a Sync *or* a Verify) is more than **7 days** old, the verdict turns amber with **"read N days ago — re-verify"**. Hourly freshness still lives on the toolbar chip; this catches documentation that has quietly gone stale.

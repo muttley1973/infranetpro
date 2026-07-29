@@ -388,9 +388,10 @@ function _el(tag, cls, txt) {
 function _meter(r) {
     const m = _el('div', 'ov-meter' + (r.prov === 'none' ? ' is-none' : ''));
     if (r.prov !== 'none' && r.pct != null) {
-        const i = document.createElement('i');
-        i.style.width = Math.max(0, Math.min(100, r.pct)) + '%';
-        m.appendChild(i);
+        // La percentuale viaggia come custom property: il CSS decide se riempie in
+        // orizzontale (larghezza, default) o in verticale (altezza, colonna ①).
+        m.style.setProperty('--pct', Math.max(0, Math.min(100, r.pct)) + '%');
+        m.appendChild(document.createElement('i'));
     }
     return m;
 }
@@ -423,9 +424,13 @@ function _rowEl(secKey, r) {
     if (sub) v.appendChild(_el('span', 'ov-sub', sub));
     el.appendChild(v);
 
-    // 3) il verdetto in parole + il meter, che e' solo un rinforzo del numero
+    // 3) il verdetto in parole + il meter, che e' solo un rinforzo del numero.
+    // A 3 tile per riga la frase puo' andare a ellissi: il testo pieno resta
+    // raggiungibile in hover (title), cosi' la PAROLA non si perde mai davvero.
     const f = _el('div', 'ov-foot-row');
-    f.appendChild(_el('span', 'ov-st', st.w));
+    const stEl = _el('span', 'ov-st', st.w);
+    if (st.w) stEl.title = st.w;
+    f.appendChild(stEl);
     f.appendChild(_meter(r));
     el.appendChild(f);
     return el;
