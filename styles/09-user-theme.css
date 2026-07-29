@@ -464,6 +464,10 @@ body.spare-mode .port-led.spare-suspect {
 .drift-net-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; flex-wrap: wrap; }
 .drift-net-row:hover { background: var(--surface-hover); }
 .drift-net-cidr { font-weight: 600; color: var(--text-main); font-family: var(--font-mono, monospace); white-space: nowrap; }
+/* Badge provenienza subnet: dichiarata (accento) vs /24 di default (tratteggiato, muto). */
+.drift-net-tag { font-size: var(--fs-xs); line-height: 1.5; padding: 0 6px; border-radius: var(--radius-pill); border: 1px solid var(--hairline); color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+.drift-net-tag.is-decl { color: var(--accent); border-color: var(--accent); }
+.drift-net-tag.is-default { color: var(--inactive-color); border-style: dashed; }
 .drift-net-meta { color: var(--text-muted); font-size: .8rem; white-space: nowrap; }
 .drift-net-hint { color: var(--text-muted); font-size: .8rem; flex: 1 1 200px; min-width: 140px; }
 .drift-net-scan { margin-left: auto; flex-shrink: 0; }

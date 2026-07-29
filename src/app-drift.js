@@ -561,6 +561,21 @@ export function _driftNetworksSection(rep){
         ? annotateNetworksVerification(networks, { sweepRan: rep.sweepRan, observedSubnets: rep.observedSubnets, unverified: rep.unverified })
         : { networks: networks.map(n => Object.assign({}, n, { observed:null, unverifiedDevices:[], unverifiedCount:0 })), orphanUnverified: [] };
     const nets = joined.networks;
+    // ① "sempre sul dichiarato": marca ogni /24 come DENTRO una subnet IPAM DICHIARATA
+    // (badge "dichiarata /N", messe PRIMA) oppure assunta di DEFAULT (badge "default /24").
+    // deriveProjectNetworks resta /24 (lo scan è per segmento): qui solo etichetta + ordine.
+    // Helper CIDR LOCALI (niente bare-global → cricchetto A/B invariato).
+    const _ipInt = ip => { const p = String(ip == null ? '' : ip).split('.'); if (p.length !== 4) return null; let v = 0; for (let i = 0; i < 4; i++) { const x = Number(p[i]); if (!Number.isInteger(x) || x < 0 || x > 255) return null; v = v * 256 + x; } return v >>> 0; };
+    const _subInfo = c => { const mm = /^(\d{1,3}(?:\.\d{1,3}){3})\s*\/\s*(\d{1,2})$/.exec(String(c == null ? '' : c)); if (!mm) return null; const b = _ipInt(mm[1]); const p = Number(mm[2]); if (b == null || p < 0 || p > 32) return null; const mask = p === 0 ? 0 : ((0xffffffff << (32 - p)) >>> 0); return { network: (b & mask) >>> 0, mask, prefix: p }; };
+    const _ipamV = (store.state.ipam && store.state.ipam.vlans) ? store.state.ipam.vlans : {};
+    const _declSubs = []; const _seenSub = new Set();
+    for (const k of Object.keys(_ipamV)) { const info = _subInfo((_ipamV[k] || {}).subnet); if (!info) continue; const key = info.network + '/' + info.prefix; if (_seenSub.has(key)) continue; _seenSub.add(key); _declSubs.push(info); }
+    _declSubs.sort((a, b) => b.prefix - a.prefix);   // più specifica prima
+    // Una /24 è "dichiarata" se cade in una subnet IPAM larga ≤ /24 (una /16, /8, /23…, o la /24 stessa).
+    const _declOf = n => { const base = _ipInt((n.net || '') + '.0'); if (base == null) return null; for (const d of _declSubs) if (d.prefix <= 24 && ((base & d.mask) >>> 0) === d.network) return d; return null; };
+    // dichiarate PRIMA, poi default; dentro ciascun gruppo si conserva l'ordine esistente (stabile).
+    const _rowInfo = nets.map((n, i) => ({ n, decl: _declOf(n), i }));
+    _rowInfo.sort((a, b) => ((b.decl ? 1 : 0) - (a.decl ? 1 : 0)) || (a.i - b.i));
     const META = {
         covered: { c:'#3fb950', i:'fa-circle-check',       hint:()=>t('net.hintCovered') },
         // "blocked" copre DUE realtà: switch vivo ma SNMP non autenticato vs switch
@@ -580,12 +595,17 @@ export function _driftNetworksSection(rep){
     const unverHtml = n => n.unverifiedCount > 0
         ? `<details class="drift-net-unver"><summary class="drift-net-unver-head"><i class="fas fa-plug-circle-xmark"></i> ${t('net.unverifiedGroup',{n:n.unverifiedCount})}</summary><div class="drift-net-unver-body">${n.unverifiedDevices.map(r => _driftRowHtml('unverified', r)).join('')}</div></details>`
         : '';
-    const rowsHtml = nets.map(n => {
+    const rowsHtml = _rowInfo.map(({ n, decl }) => {
         const m = META[n.status] || META.open;
         const meta = t('net.devices',{n:n.deviceCount}) + (n.leaseCount ? ' · ' + t('net.leases',{n:n.leaseCount}) : '');
         const scanBtn = `<button class="toolbar-btn drift-net-scan" data-act="drift-scan-net" data-cidr="${esc(n.cidr)}" data-tip="${t('net.scanTip')}"><i class="fas fa-satellite-dish"></i> ${t('net.scan')}</button>`;
+        // Badge provenienza subnet: dichiarata (col prefisso reale) o /24 di default.
+        const tag = decl
+            ? `<span class="drift-net-tag is-decl" data-tip="${esc(t('net.tagDeclaredTip',{p:decl.prefix}))}">${esc(t('net.tagDeclared',{p:decl.prefix}))}</span>`
+            : `<span class="drift-net-tag is-default" data-tip="${esc(t('net.tagDefaultTip'))}">${esc(t('net.tagDefault'))}</span>`;
         return `<div class="drift-net-item"><div class="drift-net-row">
             <span class="drift-net-cidr"><i class="fas ${m.i}" style="color:${m.c}"></i> ${esc(n.cidr)}</span>
+            ${tag}
             <span class="drift-net-meta">${esc(meta)}</span>
             <span class="drift-net-hint">${esc(m.hint(n))}</span>
             ${presenceHtml(n)}
