@@ -4,7 +4,7 @@
 // ============================================================
 const express = require('express');
 const auth = require('../../auth');
-const { _loadPdfDeps, _addReportPages, _addCoverPage, _addNotesPages, _addChangelogPages, _addSparePages, _addAssetRegisterPages, _rt } = require('../pdf-report');
+const { _loadPdfDeps, _addReportPages, _addCoverPage, _addNotesPages, _addChangelogPages, _addSparePages, _addAssetRegisterPages, _addRecoveryPages, _rt } = require('../pdf-report');
 const { addLabelPages } = require('../label-sheet');
 const { loadProject } = require('../projects-store');
 const { projectToDevices, applyPortMacFallback, isStructuralCabling } = require('../../lib/api-shape');
@@ -23,11 +23,12 @@ router.post('/api/export-pdf', auth.requireAdmin, (req, res) => {
     includeVlans: true,
     includeTopology: true,
     includeAssets: false,   // registro asset (per-device): opt-in dal client nuovo; default OFF = retrocompat coi client vecchi
+    includeRecovery: false, // sezione Ripristinabilità (DR): opt-in; backup pointer + serial/firmware + posizione
     ...(reportOptions || {}),
   };
 
   const hasPlanSvg = typeof svg === 'string' && svg.length > 0;
-  const wantsReportPages = !!(opts.includeInventory || opts.includeAsBuilt || opts.includeRacks || opts.includePorts || opts.includeVlans || opts.includeTopology || opts.includeCover || opts.includeNotes || opts.includeChangelog || opts.includeSpare || opts.includeAssets);
+  const wantsReportPages = !!(opts.includeInventory || opts.includeAsBuilt || opts.includeRacks || opts.includePorts || opts.includeVlans || opts.includeTopology || opts.includeCover || opts.includeNotes || opts.includeChangelog || opts.includeSpare || opts.includeAssets || opts.includeRecovery);
 
   if (!opts.includePlanimetria && !wantsReportPages) {
     return res.status(400).json({ error: 'Nessuna sezione selezionata per l\'export PDF' });
@@ -178,6 +179,12 @@ router.post('/api/export-pdf', auth.requireAdmin, (req, res) => {
     // Porte libere (capacità): pagina A4 opzionale.
     if (opts.includeSpare && reportData && reportData.spare) {
       _addSparePages(doc, reportData.spare, hName, hDate, _lang);
+    }
+    // Ripristinabilità (DR): DOVE vive il backup + serial/firmware + posizione. Il
+    // cuore della runbook — dati client-built (reportData.recovery), puntatore backup
+    // credential-free, MAI il config né la community.
+    if (opts.includeRecovery && reportData && reportData.recovery) {
+      _addRecoveryPages(doc, reportData.recovery, hName, hDate, _lang);
     }
 
     const chunks = [];

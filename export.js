@@ -26,6 +26,7 @@ const PDF_EXPORT_DEFAULTS = {
     includeVms:         true,   // capitolo "Macchine virtuali": catalogo delle VM per host
     includeSpare:       true,
     includeAssets:      true,   // registro asset per-device (NIS2/ISO): server-side da nodeToDevice
+    includeRecovery:    true,   // sezione Ripristinabilità (DR): backup pointer + serial/firmware + posizione
 };
 
 function exportJSON() {
@@ -324,13 +325,14 @@ function openPdfExportOptions(){
     { const _v = document.getElementById('pdfopt-vms'); if(_v) _v.checked = PDF_EXPORT_DEFAULTS.includeVms; }
     { const _s = document.getElementById('pdfopt-spare'); if(_s) _s.checked = PDF_EXPORT_DEFAULTS.includeSpare; }
     { const _a = document.getElementById('pdfopt-assets'); if(_a) _a.checked = PDF_EXPORT_DEFAULTS.includeAssets; }
+    { const _r = document.getElementById('pdfopt-recovery'); if(_r) _r.checked = PDF_EXPORT_DEFAULTS.includeRecovery; }
     syncPdfExportUi();
 }
 
 function closePdfExportOptions(){ document.getElementById('pdf-export-overlay').classList.remove('open'); }
 
 function setPdfExportAll(val){
-    ['pdfopt-plan','pdfopt-bg','pdfopt-inventory','pdfopt-asbuilt','pdfopt-racks','pdfopt-ports','pdfopt-vlans','pdfopt-topology','pdfopt-vms','pdfopt-spare','pdfopt-assets']
+    ['pdfopt-plan','pdfopt-bg','pdfopt-inventory','pdfopt-asbuilt','pdfopt-racks','pdfopt-ports','pdfopt-vlans','pdfopt-topology','pdfopt-vms','pdfopt-spare','pdfopt-assets','pdfopt-recovery']
         .forEach(id=>{ const el=document.getElementById(id); if(el) el.checked=!!val; });
     if(!val){
         // Mantieni almeno una sezione attiva per evitare export vuoto.
@@ -368,6 +370,7 @@ function _getPdfExportOptionsFromUi(){
         includeVms:         !!document.getElementById('pdfopt-vms')?.checked,
         includeSpare:       !!document.getElementById('pdfopt-spare')?.checked,
         includeAssets:      !!document.getElementById('pdfopt-assets')?.checked,
+        includeRecovery:    !!document.getElementById('pdfopt-recovery')?.checked,
     };
 }
 
@@ -1436,7 +1439,28 @@ function _buildPdfReportData() {
         try { spare = buildSpareReport(_spareBuildDevices()); } catch (_) {}
     }
 
-    return { cables, asBuilt, portAssignment, vlans, rackSvgs, topoSvg, handoff, spare, vms };
+    // ── Ripristinabilità (DR): puntatore backup + identità + posizione ────────
+    // Apparati GESTITI (isActive): quelli con un config da rimettere in piedi. Il
+    // puntatore backup dice DOVE vive il config (MAI il config né credenziali: `ref`
+    // le rifiuta per contratto). Serial/firmware = cosa procurare/riflashare; rack =
+    // dove va. È il cuore della runbook: nessun segreto, stesso confine del registro asset.
+    const recovery = {
+        devices: state.nodes.filter(n => TYPES[n.type]?.isActive).map(n => {
+            const b = n.backup || {};
+            const inv = (n.integration && n.integration.inventory) || {};
+            const rk = (state.racks || []).find(r => r.id === n.rackId);
+            return {
+                name: getNodeDisplayName(n) || n.name || n.id,
+                backupRef: b.ref || '', backupMethod: b.method || '', backupAt: b.at || '',
+                serial: n.serialNumber || inv.serialNumber || '',
+                firmware: n.firmwareVer || inv.firmwareVer || '',
+                model: n.model || inv.model || '',
+                rack: rk ? (rk.name || rk.id) : '',
+            };
+        }),
+    };
+
+    return { cables, asBuilt, portAssignment, vlans, rackSvgs, topoSvg, handoff, spare, vms, recovery };
 }
 
 async function exportPDF(opts={}){

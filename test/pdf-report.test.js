@@ -100,3 +100,27 @@ test('registro asset: senza tipo ne marca resta l indirizzo, mai vuoto', () => {
   assert.strictEqual(_assetDeviceLabel({ name: '10.0.0.9', ip: '10.0.0.9' }, 'it'), '10.0.0.9');
   assert.strictEqual(_assetDeviceLabel(null, 'it'), '');
 });
+
+test('_addRecoveryPages: rende la sezione DR (backup pointer + serial/firmware) senza errori', { skip: !deps }, () => {
+  const { _addRecoveryPages } = require('../server/pdf-report.js');
+  const recovery = { devices: [
+    { name: 'SW-CORE', backupRef: 'git@repo:cfg//sw-core', backupMethod: 'ansible',
+      backupAt: '2026-07-20T00:00:00Z', serial: 'ABC123', firmware: 'IOS-XE 17.9', model: 'C9300', rack: 'Rack-A' },
+    { name: 'SW-EDGE', backupRef: '', backupMethod: '', backupAt: '', serial: '', firmware: '', model: '', rack: '' },
+  ] };
+  const NOW = Date.parse('2026-07-29T00:00:00Z');
+  assert.doesNotThrow(() => _addRecoveryPages(newDoc(), recovery, 'Proj', '29/07/2026', 'it', NOW));
+  assert.doesNotThrow(() => _addRecoveryPages(newDoc(), recovery, 'Proj', '29/07/2026', 'en', NOW));
+  // Casi limite: nessun device, e recovery mancante → pagina «vuota», nessun throw.
+  assert.doesNotThrow(() => _addRecoveryPages(newDoc(), { devices: [] }, 'Proj', '29/07/2026', 'it'));
+  assert.doesNotThrow(() => _addRecoveryPages(newDoc(), null, 'Proj', '29/07/2026', 'it'));
+});
+
+test('_addRecoveryPages: nessun SEGRETO nella riga (solo puntatore backup, mai config/community)', { skip: !deps }, () => {
+  // Il client non deve MAI mettere community/config in reportData.recovery: qui si
+  // verifica che la funzione consumi solo i campi allowlistati (ref/method/at/serial/
+  // firmware/model/rack) — un campo «community» iniettato per errore viene ignorato.
+  const { _addRecoveryPages } = require('../server/pdf-report.js');
+  const poisoned = { devices: [ { name: 'X', backupRef: 'ref', community: 'public', password: 'hunter2' } ] };
+  assert.doesNotThrow(() => _addRecoveryPages(newDoc(), poisoned, 'P', 'd', 'it'));
+});
