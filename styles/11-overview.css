@@ -283,6 +283,32 @@ button.ov-r:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 .ov-lg { display: inline-flex; align-items: center; gap: 6px; }
 .ov-foot .ov-hint { margin-left: auto; }
 
+/* ── perimetro esplicito: «cosa non sto guardando» ─────────── */
+/* Nota sobria fra i risultati e la legenda: dichiara le dimensioni di rete che la
+   Panoramica NON valuta, così l'assenza di un allarme non si legge come «tutto ok».
+   Peso visivo volutamente basso (è un piè-di-pagina, non un risultato), ma sempre
+   presente e a ogni lente. */
+.ov-perimeter {
+    flex: 0 0 auto; display: flex; align-items: baseline; gap: 6px 10px; flex-wrap: wrap;
+    padding: 8px 16px; border-top: 1px dashed var(--hairline);
+    background: var(--surface-1); font-size: var(--fs-md); color: var(--text-muted);
+}
+.ov-perim-title { font-weight: 600; color: var(--text-main); }
+.ov-perim-lead { flex: 1 1 220px; min-width: 0; }
+.ov-perim-chips { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ov-perim-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 1px 8px; border: 1px dashed var(--inactive-color); border-radius: var(--radius-pill);
+    color: var(--text-muted); white-space: nowrap; cursor: help;
+}
+/* tier 'elsewhere' = misurato altrove ma non in un verdetto qui: bordo pieno + un
+   puntino lo distinguono dai 'unmodeled' (dimensioni non modellate affatto). */
+.ov-perim-chip.t-elsewhere { border-style: solid; }
+.ov-perim-chip.t-elsewhere::before {
+    content: ""; width: 5px; height: 5px; border-radius: 50%;
+    background: var(--idle-color); flex: 0 0 auto;
+}
+
 /* Il bottone di vista si accende come gli altri toggle della barra. */
 body.view-overview #btn-overview { color: var(--accent); border-color: var(--accent); }
 

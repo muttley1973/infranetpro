@@ -754,6 +754,28 @@ function _sectionEl(secKey, num, sec, deltaN) {
     return col;
 }
 
+// «Cosa non sto guardando»: il PERIMETRO reso esplicito. La lib dà le dimensioni
+// fuori-scope (blindSpots = chiavi + tier); qui diventano parole. Sempre in fondo, a
+// OGNI lente: il perimetro vale per tutta la Panoramica, non per una colonna. È
+// onestà del perimetro — l'assenza di un allarme non è la promessa che «va tutto
+// bene». Sola lettura, nessuna interazione: il testo pieno è nel title (hover).
+function _perimeterEl(blindSpots) {
+    const box = _el('section', 'ov-perimeter');
+    box.appendChild(_el('span', 'ov-perim-title', t('ov.perimeter.title')));
+    box.appendChild(_el('span', 'ov-perim-lead', t('ov.perimeter.lead')));
+    const chips = _el('span', 'ov-perim-chips');
+    for (const b of blindSpots) {
+        // tier 'elsewhere' = misurato altrove ma non in un verdetto qui: chip marcata
+        // (un puntino) e il perché aggiunto all'hint, così la distinzione è onesta.
+        const chip = _el('span', 'ov-perim-chip t-' + b.tier, t('ov.blind.' + b.key));
+        chip.title = t('ov.blindHint.' + b.key)
+            + (b.tier === 'elsewhere' ? ' — ' + t('ov.perimeter.elsewhere') : '');
+        chips.appendChild(chip);
+    }
+    box.appendChild(chips);
+    return box;
+}
+
 // Selettore di LENTE (opt-in): [Sintesi] [Ripristinabilità] [Sicurezza]. La scelta
 // è una preferenza locale (localStorage), non tocca `state`. Sintesi resta il
 // default così la schermata a 3 colonne — il paletto «una schermata» — non si affolla.
@@ -877,6 +899,10 @@ export function renderOverview() {
         cols.appendChild(_sectionEl('margin', 3, o.margin, dl && dl.margin));
         root.appendChild(cols);
     }
+
+    // Il perimetro esplicito («cosa non sto guardando»), sotto i risultati e prima
+    // della legenda: vale per tutta la Panoramica, quindi fuori dalla logica di lente.
+    if (Array.isArray(o.blindSpots) && o.blindSpots.length) root.appendChild(_perimeterEl(o.blindSpots));
 
     const foot = _el('div', 'ov-foot');
     for (const p of ['declared', 'measured', 'derived', 'none']) {

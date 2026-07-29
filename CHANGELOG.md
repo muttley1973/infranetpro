@@ -2,6 +2,10 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## Unreleased
+
+- **Added** — the Overview now ends with a quiet footnote, **"What I'm not looking at"**, that names the network dimensions this summary does **not** judge — so the absence of an alarm is never mistaken for *all clear*. Two honest tiers, each chip carrying its full explanation on hover: **not modelled** (WAN/circuits, L3 routing, spanning-tree, firewall/ACL, AAA/syslog/NTP, warranty/EOL, backup-restore proof) and **measured elsewhere but not in a verdict here** (UPS power, live health), the latter marked with a dot. It shows under every lens — the perimeter belongs to the whole Overview, not one column. The list is data in the pure engine (`lib/overview.js` → `blindSpots`), so retiring an item once a dimension gets modelled is a one-line change: a living TODO, not fixed prose.
+
 ## v2.2.0 — 2026-07-29 — the Overview grows up: five lenses and an offline DR runbook
 
 Follow-through on a network-architect audit of the Overview, turning it into a document you can actually **restore a LAN from**: honest verdicts (staleness gate, gateway coverage), **IPAM conflicts** surfaced in the "True" column, the **Recoverability lens** now knowing what to re-buy (make/model + firmware), a new fifth **"Security & Services"** lens (SNMP posture, default communities, management-VLAN segmentation), **VLAN names read over SNMP** (the declared name stays law), and — the keystone — a **"Recoverability (DR)"** section in the PDF report: where each config backup lives, what to procure, kept off-site so it survives the LAN it rebuilds. Denser 3-per-row tiles with a side gauge round out the look. The dated entries below detail each change.

@@ -12,7 +12,7 @@
 // ============================================================
 const test = require('node:test');
 const assert = require('node:assert');
-const { buildOverview, _isAddressable, _hasRealName, _rackFill } = require('../lib/overview.js');
+const { buildOverview, _isAddressable, _hasRealName, _rackFill, _BLIND_SPOTS } = require('../lib/overview.js');
 
 const TYPES = {
   switch: { isActive: true, isRack: true },      // attivo: hasIP implicito
@@ -856,4 +856,24 @@ test('nessuna riga contiene stringhe di interfaccia (le parole le mette il rende
     assert.ok(['declared', 'measured', 'derived', 'none'].includes(r.prov), 'provenienza dichiarata: ' + r.key);
     assert.ok(!('label' in r) && !('text' in r), 'la lib non scrive testo: ' + r.key);
   }
+});
+
+test('perimetro esplicito: buildOverview dichiara «cosa non sto guardando» (chiavi + tier, nessuna parola)', () => {
+  const o = buildOverview({ types: TYPES, nodes: [{ id: 'sw1', type: 'switch', ip: '10.0.0.1' }] });
+  assert.ok(Array.isArray(o.blindSpots) && o.blindSpots.length > 0, 'il perimetro non e\' vuoto');
+  // Ogni voce = una CHIAVE + un tier valido; MAI una stringa d\'interfaccia (le parole
+  // le mette il renderer via i18n, come per le righe).
+  for (const b of o.blindSpots) {
+    assert.equal(typeof b.key, 'string');
+    assert.ok(b.key.length > 0);
+    assert.ok(['unmodeled', 'elsewhere'].includes(b.tier), 'tier valido: ' + b.key);
+    assert.ok(!('label' in b) && !('text' in b) && !('title' in b), 'nessun testo nel dato: ' + b.key);
+  }
+  // Le dimensioni-chiave che il giudizio da senior aveva chiamato buchi sono dichiarate.
+  const keys = o.blindSpots.map((b) => b.key);
+  for (const must of ['wan', 'stp', 'firewall', 'lifecycle', 'restore', 'power']) {
+    assert.ok(keys.includes(must), 'perimetro dichiara: ' + must);
+  }
+  // Il perimetro e\' una COPIA difensiva della costante (mutarlo non tocca la lib).
+  assert.notStrictEqual(o.blindSpots, _BLIND_SPOTS);
 });
