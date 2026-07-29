@@ -210,6 +210,15 @@ button.ov-r:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 }
 .ov-detail li button.ov-go:hover { background: var(--surface-hover); }
 .ov-detail li button.ov-go:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* Ponte al pannello VLAN: azione, non elenco → fuori dallo scroll, in coda al dettaglio. */
+.ov-cta {
+    flex: 0 0 auto; align-self: flex-start; margin-top: 8px; cursor: pointer;
+    font: inherit; font-size: var(--fs-md); font-weight: 600; color: var(--accent);
+    background: var(--surface-2); border: 1px solid var(--accent);
+    border-radius: var(--radius-sm); padding: 5px 12px;
+}
+.ov-cta:hover { background: var(--surface-hover); }
+.ov-cta:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .ov-empty { font-size: var(--fs-md); color: var(--inactive-color); padding: 6px; }
 
 /* ── legenda a piè di pagina ───────────────────────────────── */

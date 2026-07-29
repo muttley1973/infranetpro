@@ -24,6 +24,7 @@ import { focusNode } from './app-search-zoom-rack.js';
 import { _snmpFreshness } from './app-snmp.js';
 import { _driftRowHtml, _driftNetworksSection } from './app-drift.js';   // B3/B4: drill-down inline «Vero» riusa righe+azioni e la sezione «Reti» del Drift
 import { registerClickActions } from './app-delegation.js';
+import { setPropsSectionState } from './app-properties.js';   // click «Subnet»/«Indirizzi liberi» → pannello VLAN (dove le reti si DICHIARANO)
 import { buildOverview, _rackFill } from '../lib/overview.js';
 
 // La vista corrente e' una preferenza DELL'UTENTE su QUESTA macchina, non un
@@ -411,6 +412,14 @@ function _driftDetailHtml(cat) {
         : `<div class="drift-empty">${t('ov.driftGone')}</div>`;
 }
 
+// «Subnet» (Completo) e «Indirizzi liberi» (Margine) misurano sulle reti del
+// progetto: il loro dettaglio elenca le subnet dichiarate e le «non dichiarate».
+// Da lì un ponte al pannello dove le reti si DICHIARANO chiude il cerchio —
+// vedo la lacuna, la correggo dove è nata. → [[declare-first-workflow]]
+function _wantsVlanCta(secKey, key) {
+    return (secKey === 'complete' && key === 'subnets') || (secKey === 'margin' && key === 'ipFree');
+}
+
 function _detailEl(secKey, r) {
     const d = _el('div', 'ov-detail');
     d.dataset.for = secKey + ':' + r.key;
@@ -491,6 +500,15 @@ function _detailEl(secKey, r) {
         const ul = document.createElement('ul');
         for (const it of r.items) ul.appendChild(_itemLi(it));
         d.appendChild(ul);
+    }
+    // Ponte alla dichiarazione: dal dettaglio subnet/indirizzi al pannello VLAN
+    // (dove subnet e VLAN si dichiarano). Sempre presente su queste due righe:
+    // serve a colmare le «non dichiarate» e anche solo ad aggiungere una rete.
+    if (_wantsVlanCta(secKey, r.key)) {
+        const cta = _el('button', 'ov-cta', t('ov.goVlanPanel'));
+        cta.type = 'button';
+        cta.dataset.act = 'overview-vlan-panel';
+        d.appendChild(cta);
     }
     return d;
 }
@@ -687,6 +705,21 @@ function _gotoNode(id) {
     if (typeof focusNode === 'function') focusNode(n);
 }
 
+// Dalla lacuna alla dichiarazione: «Subnet» e «Indirizzi liberi» portano al
+// pannello dove le reti si DICHIARANO (contesto progetto → sezione «VLAN»),
+// con la sezione già aperta. Stesso cambio d'intento di _gotoNode — da
+// "consultare" ad "agire" — quindi si esce dalla Panoramica. Deseleziona
+// (selType/selId a null) così renderProps rende il pannello progetto
+// (_renderFloorProps), non l'ultimo device. → [[declare-first-workflow]]
+function _gotoVlanPanel() {
+    setOverview(false);
+    store.selType = null;
+    store.selId = null;
+    store._propsExplicit = true;                 // intent esplicito: il pannello si apre
+    if (typeof setPropsSectionState === 'function') setPropsSectionState('floor-vlan', true);
+    if (typeof switchRightTab === 'function') switchRightTab('props');
+}
+
 /**
  * Accende/spegne la vista. NON tocca `state`: la scelta e' una preferenza
  * locale (localStorage) e cambiare vista non deve mai sporcare il documento.
@@ -724,5 +757,6 @@ registerClickActions({
     'overview-row': (el) => _toggleRow(el),
     'overview-detail-close': (el) => { const c = el.closest('.ov-col'); if (c) _closeIn(c); },
     'overview-goto': (el) => _gotoNode(el.dataset.id),
+    'overview-vlan-panel': () => _gotoVlanPanel(),
     'overview-grp-tab': (el) => _switchGrpTab(el),
 });
