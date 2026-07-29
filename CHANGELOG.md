@@ -2,6 +2,10 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## v2.2.0 — 2026-07-29 — the Overview grows up: five lenses and an offline DR runbook
+
+Follow-through on a network-architect audit of the Overview, turning it into a document you can actually **restore a LAN from**: honest verdicts (staleness gate, gateway coverage), **IPAM conflicts** surfaced in the "True" column, the **Recoverability lens** now knowing what to re-buy (make/model + firmware), a new fifth **"Security & Services"** lens (SNMP posture, default communities, management-VLAN segmentation), **VLAN names read over SNMP** (the declared name stays law), and — the keystone — a **"Recoverability (DR)"** section in the PDF report: where each config backup lives, what to procure, kept off-site so it survives the LAN it rebuilds. Denser 3-per-row tiles with a side gauge round out the look. The dated entries below detail each change.
+
 ## 2026-07-29 — PDF report gains a "Recoverability (DR)" section — the runbook to rebuild from
 
 - **Added** — the PDF export has a new opt-in **"Recoverability (DR)"** section (one page, per managed device): **where each device's config backup lives** (the pointer and method, never the config or credentials), the **date and time** it was last taken, the **serial and firmware** you'd need to procure and reflash, and the **rack** it goes back into — with a header verdict (**"X/Y recoverable · N without a backup · N without a location"**). Recoverable means a backup fresh within 30 days **and** a known identity **and** a known location, matching the Overview's Recoverability lens. Saved off-site, this page is the runbook to rebuild the LAN even with InfraNet down. Same secret-free boundary as the asset register: the backup pointer is credential-free by contract, and nothing else leaves the allowlist.
