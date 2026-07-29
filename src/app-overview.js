@@ -259,9 +259,11 @@ function _tileStatus(r) {
         // subnet c'è nella rete ma NON è dichiarata nel progetto. «non dichiarate»
         // (col conteggio delle osservate) lo dice meglio di «osservate», che
         // suonava come un dato a posto.
+        // Con dichiarazioni presenti ma segmenti in uso NON dichiarati, il verdetto
+        // spinge all'azione: «N da dichiarare» (② il dichiarato è legge).
         case 'subnets':      return r.prov === 'none'
             ? { w: t('ov.subnetsUndeclared', { n: e.observed || 0 }), tone: 'none' }
-            : { w: t('ov.st.declared'), tone: 'ok' };
+            : (e.undeclared > 0 ? { w: t('ov.subnetsToDeclare', { n: e.undeclared }), tone: 'warn' } : { w: t('ov.st.declared'), tone: 'ok' });
         case 'lastSync':     return r.prov === 'none'
             ? { w: t('ov.st.never'), tone: 'none' }
             : { w: t('ov.st.read', { age: _age(e.ageMs, e.at) }), tone: 'info' };
@@ -298,9 +300,11 @@ function _tileStatus(r) {
             : { w: t('ov.st.widestLag', { n: e.devices || 0 }), tone: 'info' };
         // Liberi DEDOTTI assumendo /24 (come deriveProjectNetworks): il verdetto
         // dichiara l'assunzione, cosi' il numero non si spaccia per certo.
+        // ① "sempre sul dichiarato": se la capacità è misurata su subnet DICHIARATE
+        // il verdetto lo dice (niente «/24 assunto»); altrimenti resta l'assunzione /24.
         case 'ipFree':       return r.prov === 'none'
             ? { w: t('ov.st.needSubnet'), tone: 'none' }
-            : { w: t('ov.freeAssumed24', { n: e.observedNets || 0 }), tone: 'info' };
+            : { w: t(e.declared ? 'ov.freeDeclared' : 'ov.freeAssumed24', { n: e.subnets || 0 }), tone: 'info' };
         default:             return { w: '', tone: 'info' };
     }
 }

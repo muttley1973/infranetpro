@@ -201,6 +201,9 @@ button.ov-r:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 }
 .ov-detail li .ov-tag.p-measured { color: var(--active-color); border-color: var(--active-color); }
 .ov-detail li .ov-tag.p-derived  { color: #a371f7; border-color: #a371f7; }
+/* ② il dichiarato è legge: subnet DICHIARATA (accento) vs «non dichiarata» (tratteggiata, muta). */
+.ov-detail li .ov-tag.p-declared   { color: var(--accent); border-color: var(--accent); }
+.ov-detail li .ov-tag.p-undeclared { color: var(--inactive-color); border-style: dashed; }
 .ov-detail li button.ov-go {
     all: unset; cursor: pointer; padding: 2px 4px; border-radius: var(--radius-sm);
     display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; width: 100%;

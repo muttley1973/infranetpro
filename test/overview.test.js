@@ -142,7 +142,7 @@ test('① subnet e nomi VLAN assenti escono come «non dichiarato», non come ze
   const sub = rowOf(o.complete, 'subnets');
   assert.equal(sub.prov, 'none', 'nessuna subnet dichiarata');
   assert.equal(sub.extra.observed, 1, 'ma una rete e\' OSSERVATA dagli indirizzi');
-  assert.deepEqual(sub.items[0], { id: '10.0.0.0/24', meta: 7 });
+  assert.deepEqual(sub.items[0], { id: '10.0.0.0/24', meta: 7, tag: 'undeclared' });
   assert.equal(rowOf(o.complete, 'vlanNames').prov, 'none');
   assert.equal(rowOf(o.complete, 'vlanNames').total, 3, '3 VLAN in uso, 0 con un nome');
 });
@@ -303,6 +303,72 @@ test('③ Indirizzi liberi: mostra i LIBERI (host del /24 meno gli usati), non g
   const none = buildOverview({ types: TYPES, nodes: [], spare: { totals: { free: 0, ports: 0 } } });
   assert.equal(rowOf(none.margin, 'ipFree').prov, 'none');
   assert.equal(rowOf(none.margin, 'ipFree').value, null);
+});
+
+test('③ Indirizzi liberi: PALETTO «sempre sul dichiarato» — usa il prefisso IPAM DICHIARATO, non il /24 assunto', () => {
+  // L'utente dichiara una /16: la capacità va misurata su 65.534 host, NON su 254.
+  // deriveProjectNetworks resta /24 (serve al workflow «Reti del progetto»), ma qui i
+  // /24 osservati si ri-raggruppano sotto la subnet dichiarata che li contiene.
+  const o = buildOverview({
+    types: TYPES, nodes: [{ id: 'sw1', type: 'switch' }],
+    ipamVlans: { 10: { subnet: '10.20.0.0/16' } },
+    networks: [
+      { net: '10.20.30', cidr: '10.20.30.0/24', deviceCount: 2, ips: ['10.20.30.1', '10.20.30.2'] },
+      { net: '10.20.40', cidr: '10.20.40.0/24', deviceCount: 1, ips: ['10.20.40.5'] },
+      { net: '192.168.1', cidr: '192.168.1.0/24', deviceCount: 3, ips: ['192.168.1.1', '192.168.1.2', '192.168.1.3'] },
+    ],
+    spare: { totals: { free: 1, ports: 24 } },
+  });
+  const ip = rowOf(o.margin, 'ipFree');
+  assert.equal(ip.prov, 'declared', 'con una subnet dichiarata che contiene IP → dichiarato, non dedotto');
+  // la /16 assorbe i due /24 (3 IP usati su 65.534); la 192.168.1.0/24 resta /24 assunto (3 su 254)
+  assert.equal(ip.value, (65534 - 3) + (254 - 3), 'liberi = (host /16 − usati) + (host /24 − usati)');
+  assert.deepEqual(ip.items.map((i) => i.id), ['10.20.0.0/16', '192.168.1.0/24'], 'una riga per la /16, non due /24');
+  assert.deepEqual(ip.items.map((i) => i.of), [65534, 254], 'utilizzabili: prima /16 dichiarata, poi /24 assunta');
+  assert.equal(ip.items[0].meta, 65534 - 3, 'liberi della /16 sul suo prefisso reale');
+  assert.deepEqual(ip.items.map((i) => i.tag), ['declared', 'undeclared'], 'la /16 è dichiarata, la 192.168.1 no');
+  assert.equal(ip.extra.declared, true);
+  assert.equal(ip.extra.subnets, 2);
+
+  // Forma HOST del CIDR dichiarato ("10.0.0.1/8") e nessun IP dentro → si ignora,
+  // resta il /24 assunto (nessuna regressione sul comportamento precedente).
+  const o2 = buildOverview({
+    types: TYPES, nodes: [{ id: 'sw1', type: 'switch' }],
+    ipamVlans: { 5: { subnet: '172.16.0.0/12' } },   // dichiarata ma nessun IP osservato vi cade
+    networks: [{ net: '192.168.9', cidr: '192.168.9.0/24', deviceCount: 4, ips: ['192.168.9.1', '192.168.9.2', '192.168.9.3', '192.168.9.4'] }],
+    spare: { totals: { free: 1, ports: 24 } },
+  });
+  const ip2 = rowOf(o2.margin, 'ipFree');
+  assert.equal(ip2.prov, 'derived', 'subnet dichiarata SENZA IP dentro → non pesa, resta il /24 assunto');
+  assert.equal(ip2.value, 254 - 4);
+});
+
+test('②③ /28 dichiarata DENTRO una /24: split per-IP, i device FUORI dalla dichiarazione NON si perdono', () => {
+  // ② "il dichiarato è legge": una /28 (14 host, .1–.14) dichiarata dentro una /24
+  // osservata prende i suoi host; il resto della /24 resta «non dichiarata» → i device
+  // oltre la /28 EMERGONO invece di sparire. Niente doppio conteggio dello spazio.
+  const o = buildOverview({
+    types: TYPES, nodes: [{ id: 'sw1', type: 'switch' }],
+    ipamVlans: { 1: { subnet: '192.168.1.0/28' } },
+    networks: [{
+      net: '192.168.1', cidr: '192.168.1.0/24', deviceCount: 5,
+      ips: ['192.168.1.1', '192.168.1.10', '192.168.1.100', '192.168.1.150', '192.168.1.200'],
+    }],
+    spare: { totals: { free: 1, ports: 24 } },
+  });
+  // Indirizzi liberi: /28 (usable 14, used 2 → 12); residuo /24 (usable 254−14=240, used 3 → 237)
+  const ip = rowOf(o.margin, 'ipFree');
+  assert.deepEqual(ip.items.map((i) => i.id), ['192.168.1.0/28', '192.168.1.0/24']);
+  assert.deepEqual(ip.items.map((i) => i.of), [14, 240], 'la /24 residua toglie i 14 host della /28: niente doppio conteggio');
+  assert.deepEqual(ip.items.map((i) => i.meta), [14 - 2, 240 - 3]);
+  assert.deepEqual(ip.items.map((i) => i.tag), ['declared', 'undeclared']);
+  assert.equal(ip.value, (14 - 2) + (240 - 3));
+  // Subnet di progetto: stessa ripartizione, meta = device (2 dentro, 3 fuori: nessuno perso)
+  const sub = rowOf(o.complete, 'subnets');
+  assert.deepEqual(sub.items.map((i) => i.id), ['192.168.1.0/28', '192.168.1.0/24']);
+  assert.deepEqual(sub.items.map((i) => i.meta), [2, 3], '2 device nella /28, 3 fuori — tutti presenti');
+  assert.deepEqual(sub.items.map((i) => i.tag), ['declared', 'undeclared']);
+  assert.equal(sub.extra.undeclared, 1, 'la /24 residua è una subnet «da dichiarare»');
 });
 
 test('③ REGRESSIONE denominatore rack: il totale U viene da `sizeU`, non da un campo inventato', () => {
