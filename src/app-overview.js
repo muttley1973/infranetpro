@@ -25,6 +25,7 @@ import { _snmpFreshness } from './app-snmp.js';
 import { _driftRowHtml, _driftNetworksSection } from './app-drift.js';   // B3/B4: drill-down inline «Vero» riusa righe+azioni e la sezione «Reti» del Drift
 import { registerClickActions } from './app-delegation.js';
 import { setPropsSectionState } from './app-properties.js';   // click «Subnet»/«Indirizzi liberi» → pannello VLAN (dove le reti si DICHIARANO)
+import { _ipamAuditReport } from './app-l3.js';   // ② «Vero»: igiene IPAM (IP duplicati + overlap subnet), stesso modello dell'overlay L3 (include gli IP VM)
 import { buildOverview, _rackFill } from '../lib/overview.js';
 
 // La vista corrente e' una preferenza DELL'UTENTE su QUESTA macchina, non un
@@ -189,6 +190,12 @@ function _buildModel() {
     let networks;
     try { networks = (deriveProjectNetworks({ nodes, types: TYPES }) || {}).networks || []; } catch (_) { networks = []; }
 
+    // Igiene IPAM (doc↔doc, non doc↔realtà): IP duplicati + subnet che si
+    // sovrappongono. Calcolata dal motore L3 (stesso modello dell'overlay, con gli
+    // IP delle VM) e passata alla lib: la Panoramica la RACCONTA, non la ricalcola.
+    let ipamAudit;
+    try { ipamAudit = _ipamAuditReport(); } catch (_) { ipamAudit = { duplicateIps: [], subnetOverlaps: [] }; }
+
     // Presenza per apparato (advisory, lente «Ripristinabilità»): piega le observation
     // di discovery sul nodo — via MAC noto o IP — e ne ricava «visto di recente» vs
     // «stantìo» dall'ultimo avvistamento. INLINE di proposito: temporal-confidence.js è
@@ -218,7 +225,7 @@ function _buildModel() {
         nodes, types: TYPES, links: Array.isArray(st.links) ? st.links : [], portMacNodeIds, macToNode, presence,
         ipamVlans: (st.ipam && st.ipam.vlans) ? st.ipam.vlans : {},
         vlanIdsInUse, vlanNames: st.vlanNames || {},
-        spare: buildSpareReport(spareDevices), sfpTotal, rackFill, networks,
+        spare: buildSpareReport(spareDevices), sfpTotal, rackFill, networks, ipamAudit,
         caps, fleet: computeFleetCapabilities(caps.map((x) => x.caps)),
         topoCache: st.topoCache || {}, lagGroups: st.lagGroups || {},
         lastSyncAt: st.lastSnmpSyncAt || 0, lastSyncResult: st.lastSnmpSyncResult || {},
@@ -256,6 +263,7 @@ function _tileValue(r) {
         case 'gateways':     return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), t('ov.of', { n: r.total })];
         case 'lastSync':     return r.prov === 'none' ? [t('ov.none'), ''] : [r.value + '/' + r.total, ''];
         case 'suspectPorts': return [_n(r.value), r.total ? t('ov.of', { n: r.total }) : ''];
+        case 'conflicts':    return [_n(r.value), ''];
         case 'neighbors':    return [_n(r.value), ''];
         case 'lags':         return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), ''];
         case 'verify':       return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), ''];
@@ -317,6 +325,12 @@ function _tileStatus(r) {
         case 'suspectPorts': return r.value > 0
             ? { w: t('ov.st.mismatch'), tone: 'warn' }
             : { w: t('ov.st.coherent'), tone: 'ok' };
+        // Conflitti IPAM: 0 = piano pulito (verde); >0 = da risolvere (ambra). Il
+        // verdetto distingue duplicati e overlap così l'utente sa cosa aprire.
+        case 'conflicts':    return r.value > 0
+            ? { w: t(e.dup && e.overlap ? 'ov.confBoth' : (e.overlap ? 'ov.confOverlap' : 'ov.confDup'),
+                     { d: e.dup || 0, o: e.overlap || 0 }), tone: 'warn' }
+            : { w: t('ov.confClean'), tone: 'ok' };
         case 'neighbors':    return { w: t('ov.neighborsFrom', { n: e.fromDevices || 0 }), tone: 'info' };
         case 'lags':         return r.prov === 'none'
             ? { w: t('ov.st.none'), tone: 'none' }

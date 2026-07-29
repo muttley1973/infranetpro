@@ -83,6 +83,17 @@ function _l3BuildModel(withUsage, opts){
 }
 export function _l3Compute(withUsage){ return win.buildL3Report(_l3BuildModel(withUsage)); }
 
+// Igiene IPAM (doc↔doc) per la Panoramica ② «Vero»: IP duplicati + overlap di
+// subnet. Riusa QUESTO modello (stesso dell'overlay L3), che include gli IP delle
+// VM dichiarate — così un IP condiviso VM↔fisico non sfugge come «0 duplicati».
+// `buildIpamAudit` è il <script> lib/ipam-audit.js (globale, non ri-bundlato).
+export function _ipamAuditReport(){
+    try {
+        if(typeof buildIpamAudit === 'function') return buildIpamAudit(_l3BuildModel(false, { withVmIps: true }));
+    } catch(_){ /* ripiego: rete pulita, mai un errore in Panoramica */ }
+    return { duplicateIps: [], subnetOverlaps: [] };
+}
+
 // Set dei node-id che fanno da gateway L3 (per il badge). Senza usage → leggero.
 // Chiamato UNA volta per render (render-core lo calcola prima del loop nodi).
 export function _l3GatewayNodeIds(){

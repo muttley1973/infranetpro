@@ -2,6 +2,10 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-29 — Overview: IPAM conflicts surface in the "True" column
+
+- **Added** — the **"True"** column has an **"IPAM conflicts"** row: the **same IP on two documented devices** (VM IPs included, so a VM-vs-physical clash is caught) or **two VLANs whose subnets overlap** — the kind of misconfiguration a real IPAM catches. Clean plans read **"no conflicts"** (green); otherwise the count turns the verdict amber and the drill-down lists each clash (the two devices and the shared address, or the overlapping subnets and their VLANs). Doc-vs-doc consistency, computed from what you already declared — nothing new is collected.
+
 ## 2026-07-29 — Overview layout: denser tiles, the fill bar on the side
 
 - **Changed** — the Overview now packs **3 tiles per row** in each column (was 2), so the whole picture stays on one screen with room to spare; the big number is a touch smaller and, when the verdict phrase doesn't fit, the full text is reachable on hover.

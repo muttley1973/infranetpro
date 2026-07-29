@@ -252,6 +252,50 @@ test('② VERO: la Verifica persistita diventa STATO (riga misurata + salute war
   assert.equal(aligned.health.level, 'ok', 'nessuna anomalia e coerente -> ok');
 });
 
+test('② VERO: i conflitti IPAM (IP duplicati + overlap subnet) emergono come riga e ingialliscono il verdetto', () => {
+  const base = {
+    types: TYPES,
+    nodes: [{ id: 'sw1', type: 'switch', ip: '10.0.0.1', integration: { driver: 'snmp-v2c', host: '10.0.0.1' } }],
+    spare: { totals: { free: 10, suspect: 0, ports: 24 } },
+    lastSyncAt: 1000, now: 2000, lastSyncResult: { at: 1000, ok: 1, total: 1 },
+  };
+  // Rete pulita: la riga c'e' comunque, a 0, e non abbassa la salute.
+  const clean = buildOverview(base).truth;
+  const cr = rowOf(clean, 'conflicts');
+  assert.ok(cr, 'la riga conflicts e\' sempre presente');
+  assert.equal(cr.value, 0);
+  assert.equal(cr.prov, 'derived');
+  assert.equal(clean.health.level, 'ok', 'nessun conflitto -> verde');
+
+  // Un IP duplicato + un overlap di subnet: value = somma, verdetto warn.
+  const dirty = buildOverview(Object.assign({}, base, {
+    ipamAudit: {
+      duplicateIps: [{ ip: '10.0.0.9', nodes: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }] }],
+      subnetOverlaps: [{ vidA: 10, vidB: 20, subnetA: '10.0.0.0/24', subnetB: '10.0.0.0/25', identical: false }],
+    },
+  })).truth;
+  const dr = rowOf(dirty, 'conflicts');
+  assert.equal(dr.value, 2, 'un duplicato + un overlap = 2 conflitti');
+  assert.equal(dr.extra.dup, 1);
+  assert.equal(dr.extra.overlap, 1);
+  assert.equal(dr.tone, 'alert');
+  // Il duplicato a 2 nodi e' cliccabile su entrambi i capi; l'IP nel meta.
+  assert.deepEqual(dr.items[0], { id: 'a', peer: 'b', meta: '10.0.0.9' });
+  // L'overlap: ancora testuale + VLAN nel meta (nessun nodo da risolvere).
+  assert.equal(dr.items[1].id, '10.0.0.0/24 ⇄ 10.0.0.0/25');
+  assert.equal(dr.items[1].meta, 'VLAN 10/20');
+  assert.equal(dirty.health.level, 'warn', 'un conflitto IPAM ingiallisce la «Vero»');
+  assert.equal(dirty.health.issues, 2, 'i conflitti contano fra gli issues');
+
+  // Un duplicato con >2 nodi: l'IP fa da ancora, i nomi nel meta.
+  const many = buildOverview(Object.assign({}, base, {
+    ipamAudit: { duplicateIps: [{ ip: '10.0.0.9', nodes: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }, { id: 'c', name: 'C' }] }], subnetOverlaps: [] },
+  })).truth;
+  const mr = rowOf(many, 'conflicts');
+  assert.equal(mr.items[0].id, '10.0.0.9');
+  assert.equal(mr.items[0].meta, 'A, B, C');
+});
+
 test('② VERO B3: il report VIVO aggiunge righe-categoria navigabili (drill), non al reload', () => {
   const model = {
     types: TYPES,
