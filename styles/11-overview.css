@@ -214,6 +214,10 @@ button.ov-r:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
     font-variant-numeric: tabular-nums; min-width: 0;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+/* Lenti Ripristinabilità/Sicurezza (data-sec recovery/security, entrambe .ov-col-recovery):
+   liste di solo nome+IP → l'IP sta SUBITO DOPO il device con un respiro, non spinto al
+   bordo destro (che lasciava un vuoto enorme). Annulla la spinta `margin-left:auto`. */
+.ov-col-recovery .ov-detail li .ov-meta { margin-left: 0; padding-left: 14px; }
 /* contesto attenuato accanto al valore (es. «di 254» utilizzabili del CIDR) */
 .ov-detail li .ov-meta-of { color: var(--inactive-color); }
 /* dettaglio a SCHEDE (es. «In rack» / «Fuori rack»): le sub-header in testa
