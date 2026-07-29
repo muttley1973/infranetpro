@@ -2,6 +2,14 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-29 — The declared addressing plan is law: the Overview measures subnets on their real prefix
+
+- **Changed** — the Overview now treats what you declare in the **VLAN/subnet panel as authoritative**. "Free addresses" (Expansion) and "Project subnets" (Document) measure on the **declared subnet prefix** — a declared /16 counts ~65,000 usable addresses, not 254 — with declared subnets listed **first** and each row tagged *declared* / *undeclared*. A /24 is only the fallback when nothing is declared.
+- **Added** — networks you **use but haven't declared** now surface as **"undeclared"** and the "Project subnets" verdict becomes **"N to declare"** — a nudge to complete the plan (the Document column's health reflects it too).
+- **Fixed** — devices that fall **outside** a declared subnet (e.g. a /28 declared for a segment that has more devices than it can hold) no longer vanish from the counts: the ones outside surface as the residual **undeclared /24**, with no address double-counted — the discrepancy is shown, not hidden.
+- **Changed** — "Project networks" (in the Conformance drill-down) now tags each subnet **"declared /N"** or **"undeclared"** and lists declared ones first; the scan itself still runs per /24 (a large subnet is scanned segment by segment).
+- **Fixed** — the toolbar's single-row layout now holds **down to ~1175px** (was ~1440): the search box gives up width first, so the action cluster no longer drops to a second row — covering a 1600px screen up to ~135% browser zoom.
+
 ## 2026-07-28 — Toolbar polish: one compact row, clearer labels and icons
 
 - **Fixed** — the toolbar no longer **wraps and overlaps the sub-bar** on screens narrower than ~1738px (it had a fixed height, so the wrapped row spilled over the breadcrumb/stats — visible after building the topology and switching to the Overview). The header now grows gracefully if it ever wraps, and — more importantly — a new compaction keeps it on **a single row down to ~1440px**: the app title collapses to just its logo and the search / project fields tighten, while the freshness chip and the "Discover"/"Verify" labels stay visible.
