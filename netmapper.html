@@ -469,21 +469,6 @@
     </div>
 </div>
 
-<!-- VLAN membership modal -->
-<div id="vlan-members-overlay" class="tool-modal-overlay" onclick="if(event.target===this)closeVlanMembers()" style="display:none">
-  <div class="tool-modal" style="width:480px;max-height:80vh" role="dialog" aria-modal="true" aria-labelledby="vm-title">
-    <div class="tool-modal-header um-header">
-      <h3 id="vm-title"><i class="fas fa-layer-group"></i>Membership VLAN</h3>
-      <button class="toolbar-btn" onclick="closeVlanMembers()" style="padding:4px 8px"><i class="fas fa-times"></i></button>
-    </div>
-    <div id="vm-body" class="tool-modal-body"></div>
-    <div class="tool-modal-footer">
-      <button id="vm-btn-filter" class="um-btn primary"></button>
-      <button class="um-btn ghost" onclick="closeVlanMembers()"><i class="fas fa-times"></i> <span data-i18n="common.close">Chiudi</span></button>
-    </div>
-  </div>
-</div>
-
 <!-- Server offline banner -->
 <div id="conn-banner">
     <i class="fas fa-triangle-exclamation"></i>
@@ -494,6 +479,21 @@
      per non ereditarne il containing-block (un backdrop-filter/transform/filter
      sull&#39;header ancorerebbe gli overlay position:fixed al box header -> tagliati). ===== -->
 <div id="modal-root">
+
+<!-- VLAN membership modal -->
+<div id="vlan-members-overlay" class="tool-modal-overlay" data-act="vm-backdrop" style="display:none">
+  <div class="tool-modal" style="width:480px;max-height:80vh" role="dialog" aria-modal="true" aria-labelledby="vm-title">
+    <div class="tool-modal-header um-header">
+      <h3 id="vm-title"><i class="fas fa-layer-group"></i>Membership VLAN</h3>
+      <button class="toolbar-btn" data-act="vm-close" style="padding:4px 8px"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="vm-body" class="tool-modal-body"></div>
+    <div class="tool-modal-footer">
+      <button id="vm-btn-filter" class="um-btn primary"></button>
+      <button class="um-btn ghost" data-act="vm-close"><i class="fas fa-times"></i> <span data-i18n="common.close">Chiudi</span></button>
+    </div>
+  </div>
+</div>
 
 <!-- ===== MODAL GESTIONE UTENTI ===== -->
 <div id="user-manager-overlay" class="tool-modal-overlay" data-act="um-backdrop">

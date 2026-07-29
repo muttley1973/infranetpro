@@ -706,7 +706,7 @@ function countInlineHandlers() {
 // inline della sezione — i campi (ref/method) e il bottone «Segna ora» sono già
 // data-change/data-act (event delegation). Migrare solo questo ontoggle sarebbe
 // incoerente col resto del pannello GOLDEN → crescita coerente, non nuovo debito.
-const MAX_INLINE_HANDLERS = 570;
+const MAX_INLINE_HANDLERS = 567;
 test('ponte ASSE B: gli handler inline on*= non superano il tetto a cricchetto', () => {
   const total = countInlineHandlers();
   assert.ok(total <= MAX_INLINE_HANDLERS,

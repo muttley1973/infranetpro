@@ -17,6 +17,7 @@ import { _renderTopoLegend } from './app-topology-overlay.js';   // ritiro ponte
 import { _getLinkVlan, _vlanLabel } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
 import { _deviceAccessVlanPid } from './app-properties-node-devices.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { applyUiColors } from './app-search-zoom-rack.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
+import { registerClickActions } from './app-delegation.js';   // ASSE B: backdrop/chiudi del modale «Membership VLAN» via data-act (coerente con gli altri overlay in #modal-root)
 
 // Handle dei timer auto-poll: prima `let` in app.js, usati SOLO qui -> module-local.
 let _autoPollTimer = null;     // handle setInterval auto-poll
@@ -840,6 +841,12 @@ export function showVlanMembers(vid){
 function closeVlanMembers(){
     document.getElementById('vlan-members-overlay').style.display='none';
 }
+// Backdrop e bottoni «chiudi» del modale Membership VLAN via event delegation
+// (data-act), come tutti gli overlay in #modal-root — niente più onclick inline.
+registerClickActions({
+    'vm-backdrop': (el, ev) => { if (ev.target === el) closeVlanMembers(); },
+    'vm-close':    () => closeVlanMembers(),
+});
 function setLinkColor(id,color){
     const l=store.state.links.find(x=>x.id===id); if(!l) return;
     const same = color===null ? !('colorOvr' in l) && !l.autoLinked : l.colorOvr===color && !l.autoLinked;
