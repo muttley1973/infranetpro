@@ -253,6 +253,7 @@ function _tileValue(r) {
     switch (r.key) {
         case 'cables':       return [_n(r.value), ''];
         case 'subnets':      return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), ''];
+        case 'gateways':     return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), t('ov.of', { n: r.total })];
         case 'lastSync':     return r.prov === 'none' ? [t('ov.none'), ''] : [r.value + '/' + r.total, ''];
         case 'suspectPorts': return [_n(r.value), r.total ? t('ov.of', { n: r.total }) : ''];
         case 'neighbors':    return [_n(r.value), ''];
@@ -264,6 +265,7 @@ function _tileValue(r) {
         case 'poe':          return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), t('ov.of', { n: r.total })];
         case 'uplink':       return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), 'Mbps'];
         case 'ipFree':       return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), ''];
+        case 'drRedundancy': return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), t('ov.of', { n: r.total })];
         default:             return [_n(r.value), r.total != null ? t('ov.of', { n: r.total }) : ''];
     }
 }
@@ -303,6 +305,10 @@ function _tileStatus(r) {
         case 'subnets':      return r.prov === 'none'
             ? { w: t('ov.subnetsUndeclared', { n: e.observed || 0 }), tone: 'none' }
             : (e.undeclared > 0 ? { w: t('ov.subnetsToDeclare', { n: e.undeclared }), tone: 'warn' } : { w: t('ov.st.declared'), tone: 'ok' });
+        // Gateway per subnet: senza gateway non sai instradare la subnet (buco DR).
+        case 'gateways':     return r.prov === 'none'
+            ? { w: t('ov.gwNoSubnet'), tone: 'none' }
+            : (gap === 0 ? { w: t('ov.gwAll'), tone: 'ok' } : { w: t('ov.gwMissing', { n: gap }), tone: 'warn' });
         case 'lastSync':     return r.prov === 'none'
             ? { w: t('ov.st.never'), tone: 'none' }
             : { w: t('ov.st.read', { age: _age(e.ageMs, e.at) }), tone: 'info' };
@@ -365,6 +371,9 @@ function _tileStatus(r) {
         case 'drPresence':   return r.prov === 'none'
             ? { w: t('ov.dr.presNone'), tone: 'none' }
             : (e.stale > 0 ? { w: t('ov.dr.presStale', { n: e.stale }), tone: 'warn' } : { w: t('ov.dr.presLive'), tone: 'info' });
+        case 'drRedundancy': return r.prov === 'none'
+            ? { w: t('ov.dr.redNone'), tone: 'none' }
+            : { w: t('ov.dr.redProtected', { n: r.value }), tone: 'info' };
         default:             return { w: '', tone: 'info' };
     }
 }
@@ -620,7 +629,12 @@ function _verdictEl(secKey, health, deltaN) {
     const lvl = (health && health.level) || 'ok';
     const el = _el('div', 'ov-verdict v-' + lvl);
     el.appendChild(_el('span', 'ov-vdot'));
-    el.appendChild(_el('span', 'ov-vtxt', t('ov.health.' + secKey + '.' + lvl, { n: (health && health.issues) || 0 })));
+    // «Vero» stantìo: se il verdetto è warn per sola vecchiaia del dato (nessuna
+    // differenza da decidere), il messaggio lo dice invece di «0 da decidere».
+    const vtxt = (secKey === 'truth' && health && health.stale)
+        ? t('ov.truthStale', { n: health.staleDays || 0 })
+        : t('ov.health.' + secKey + '.' + lvl, { n: (health && health.issues) || 0 });
+    el.appendChild(_el('span', 'ov-vtxt', vtxt));
     // Delta dall'ultima lettura: segno esplicito (−N meno · +N piu'), colore
     // ridondante col segno (verde meglio · rosso peggio). Solo se != 0.
     if (deltaN) {

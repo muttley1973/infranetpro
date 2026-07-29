@@ -147,6 +147,29 @@ test('① subnet e nomi VLAN assenti escono come «non dichiarato», non come ze
   assert.equal(rowOf(o.complete, 'vlanNames').total, 3, '3 VLAN in uso, 0 con un nome');
 });
 
+test('① Gateway per subnet: le dichiarate SENZA gateway emergono come lacuna (dato dal pannello VLAN)', () => {
+  const o = buildOverview({
+    types: TYPES, nodes: [{ id: 'sw1', type: 'switch', ip: '10.0.0.1' }],
+    ipamVlans: {
+      10: { subnet: '10.0.0.0/24', gateway: '10.0.0.1' },   // completa
+      20: { subnet: '10.0.20.0/24' },                        // subnet senza gateway
+      30: { subnet: '', gateway: '' },                       // niente CIDR → non conta
+    },
+  });
+  const gw = rowOf(o.complete, 'gateways');
+  assert.equal(gw.total, 2, 'solo le VLAN con un CIDR (10 e 20)');
+  assert.equal(gw.value, 1, 'solo la 10 ha il gateway');
+  assert.deepEqual(gw.items.map((i) => i.id), ['10.0.20.0/24'], 'il click elenca le subnet SENZA gateway');
+  assert.equal(gw.prov, 'declared');
+  assert.ok(o.complete.health.issues >= 1, 'un gateway mancante pesa sulla salute di Documento');
+
+  // Nessuna subnet dichiarata → prov 'none' e NON conta come lacuna gateway
+  // (la mancanza di subnet è già detta dalla riga subnets).
+  const noIpam = buildOverview({ types: TYPES, nodes: [{ id: 'sw1', type: 'switch', ip: '10.0.0.1' }] });
+  assert.equal(rowOf(noIpam.complete, 'gateways').prov, 'none');
+  assert.equal(rowOf(noIpam.complete, 'gateways').total, 0);
+});
+
 test('② VERO: verificabili, porte sospette ordinate per gravita, chi non ha mai risposto', () => {
   const nodes = [
     { id: 'sw1', type: 'switch', ip: '10.0.0.1', integration: { driver: 'snmp-v2c', host: '10.0.0.1' } },
@@ -261,6 +284,35 @@ test('② senza porte sospette il titolo scende alla copertura della verifica', 
     spare: { totals: { free: 10, suspect: 0, ports: 24 } },
   });
   assert.equal(o.truth.headline.key, 'verifiable');
+});
+
+test('② VERO: il verdetto degrada a «warn» quando il dato è vecchio di GIORNI (staleness)', () => {
+  const day = 86400000;
+  const now = 1000 * day;
+  const base = {
+    types: TYPES,
+    nodes: [{ id: 'sw1', type: 'switch', ip: '10.0.0.1', integration: { driver: 'snmp-v2c', host: '10.0.0.1' } }],
+    spare: { totals: { free: 10, suspect: 0, ports: 24 } },
+    lastSyncResult: { ok: 1, total: 1 },
+  };
+  // 3 giorni: ancora verde (sotto la soglia)
+  const fresh = buildOverview(Object.assign({}, base, { lastSyncAt: now - 3 * day, now })).truth;
+  assert.equal(fresh.health.level, 'ok', '3 giorni: ancora fresco');
+  assert.ok(!fresh.health.stale);
+  // 20 giorni: warn per SOLA vecchiaia (nessuna differenza da decidere)
+  const old = buildOverview(Object.assign({}, base, { lastSyncAt: now - 20 * day, now })).truth;
+  assert.equal(old.health.level, 'warn', '20 giorni: il verdetto non può restare verde');
+  assert.equal(old.health.stale, true);
+  assert.equal(old.health.staleDays, 20);
+  // una Verifica recente ripristina la freschezza pur con Sync vecchio
+  const reVerified = buildOverview(Object.assign({}, base, {
+    lastSyncAt: now - 20 * day, now, lastVerify: { at: now - 1 * day, banner: 'aligned', counts: {} },
+  })).truth;
+  assert.ok(!reVerified.health.stale, 'la Verifica di ieri conta come contatto fresco');
+  // mai letto → resta «bad» (il gate staleness non lo tocca)
+  const never = buildOverview(Object.assign({}, base, { now })).truth;
+  assert.equal(never.health.level, 'bad');
+  assert.ok(!never.health.stale, 'niente lettura → non è "stantìo", è "mai letto"');
 });
 
 test('③ MARGINE: il margine e\' quello ONESTO (libere meno sospette)', () => {
@@ -611,6 +663,39 @@ test('④ DR: flotta intera non ripristinabile → salute «bad»', () => {
   ] }).recovery;
   assert.equal(r.recoverable, 0);
   assert.equal(r.health.level, 'bad', 'zero ripristinabili su una flotta non vuota = rosso');
+});
+
+test('④ DR: soglia backup ALLINEATA al pannello device (fresco ≤ 30 giorni, non 90)', () => {
+  const now = Date.parse('2026-07-29T00:00:00Z');
+  const day = 86400000;
+  const mk = (ageDays) => buildOverview({ types: DR_TYPES, now, nodes: [
+    { id: 'sw1', type: 'switch', rackId: 'r1', serialNumber: 'A', backup: { ref: 'x', at: new Date(now - ageDays * day).toISOString() } },
+  ] }).recovery;
+  assert.equal(rowOf(mk(20), 'drBackup').value, 1, '20 giorni: fresco');
+  assert.equal(rowOf(mk(45), 'drBackup').value, 0, '45 giorni: oltre 30 → non più fresco (col 90 era ancora verde)');
+  assert.equal(rowOf(mk(45), 'drBackup').extra.stale, 1, 'e conta come «datato»');
+});
+
+test('④ DR: ridondanza HA — advisory, conta gli apparati con gemello/cluster dichiarato', () => {
+  const now = Date.parse('2026-07-29T00:00:00Z');
+  const at = '2026-07-20T00:00:00Z';
+  const r = buildOverview({ types: DR_TYPES, now, nodes: [
+    { id: 'fw1', type: 'router', rackId: 'r1', backup: { ref: 'x', at }, spec: { haPeer: 'fw2' } },
+    { id: 'fw2', type: 'router', rackId: 'r1', backup: { ref: 'x', at }, spec: { haPeer: 'fw1' } },
+    { id: 'sw1', type: 'switch', rackId: 'r1', spec: { haGroupId: 'core-cluster' } },   // cluster N>2
+    { id: 'sw2', type: 'switch', rackId: 'r1' },                                        // nessuna ridondanza
+  ] }).recovery;
+  const red = rowOf(r, 'drRedundancy');
+  assert.equal(red.value, 3, 'fw1+fw2 (pair) + sw1 (cluster)');
+  assert.equal(red.total, 4);
+  assert.equal(red.prov, 'declared');
+  assert.deepEqual(red.items.map((i) => i.id).sort(), ['fw1', 'fw2', 'sw1']);
+  // La ridondanza NON gioca sul verdetto «ripristinabile»: è resilienza, non ricostruzione.
+  assert.equal(r.recoverable, 0, 'nessuno ha backup+identità+posizione completi qui');
+  // Nessuna ridondanza dichiarata → prov 'none' (tratteggiato «nessuna ridondanza»).
+  const none = buildOverview({ types: DR_TYPES, now, nodes: [{ id: 'sw1', type: 'switch', rackId: 'r1' }] }).recovery;
+  assert.equal(rowOf(none, 'drRedundancy').prov, 'none');
+  assert.equal(rowOf(none, 'drRedundancy').value, 0);
 });
 
 test('nessuna riga contiene stringhe di interfaccia (le parole le mette il renderer)', () => {

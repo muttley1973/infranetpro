@@ -2,6 +2,13 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-29 — Overview audit follow-up (round 1): honest verdicts + gateway coverage
+
+- **Changed** — the **"True"** column no longer stays green when the data is old: if the most recent contact with reality (a Sync *or* a Verify) is more than **7 days** old, the verdict turns amber with **"read N days ago — re-verify"**. Hourly freshness still lives on the toolbar chip; this catches documentation that has quietly gone stale.
+- **Changed** — the **Recoverability** lens now treats a backup as *fresh* within **30 days** (matching the device panel), not 90 — so a backup shown green in the panel is no longer counted "dated" in the DR verdict.
+- **Added** — the Recoverability lens has a **"Redundancy"** row: how many managed devices declare a hot **HA twin** (pair or cluster). Advisory — redundancy is resilience, not rebuild, so it never gates the "X of Y recoverable" verdict — but it surfaces single points of failure.
+- **Added** — the **"Project"** column has a **"Gateway"** row: declared subnets **without a gateway** now surface as a gap (you cannot route a subnet you cannot reach), reading the gateway you already entered in the VLAN panel; the drill-down lists the subnets missing one.
+
 ## 2026-07-29 — Recoverability lens: "if it falls tonight, can you bring it back up?"
 
 - **Added** — the Overview has a new opt-in **"Recoverability"** lens (a **Summary / Recoverability** toggle) that answers *"if it falls tonight, can you bring it back up?"* for your **managed** devices. It shows an **"X of Y recoverable"** verdict plus four dimensions, each drilling down to the exact devices that fall short: **config backup** (registered and fresh, under 90 days), **hardware identity** (a known serial, not a swapped-in unit), **location** (assigned to a rack), and **presence** (seen recently vs. not). A device counts as recoverable only with a fresh backup **and** a known identity **and** a known location; presence is advisory and never gates the verdict. Nothing new is collected — the lens reads the config-backup pointer, the declared-vs-measured serial, the rack assignment and the discovery history you already have.
