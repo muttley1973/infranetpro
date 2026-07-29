@@ -50,15 +50,19 @@ function _saveView(v) {
     try { localStorage.setItem(VIEW_KEY, v || ''); } catch (_) { /* storage negato: pazienza */ }
 }
 
-// La LENTE della Panoramica: '' = Sintesi (le 3 colonne) · 'recovery' =
-// «Ripristinabilità». Come la vista, è una preferenza LOCALE (localStorage per
-// macchina), MAI in `state`: cambiare lente non deve sporcare il documento.
+// La LENTE della Panoramica: 'summary' = Sintesi (le 3 colonne) · 'recovery' =
+// «Ripristinabilità» · 'security' = «Sicurezza & Servizi». Come la vista, è una
+// preferenza LOCALE (localStorage per macchina), MAI in `state`: cambiare lente
+// non deve sporcare il documento.
 const LENS_KEY = 'infranet.ov.lens';
+const _LENSES = ['summary', 'recovery', 'security'];
+// Le lenti a colonna singola (non le 3 colonne della Sintesi).
+const _SINGLE_LENSES = ['recovery', 'security'];
 function _savedLens() {
-    try { return localStorage.getItem(LENS_KEY) === 'recovery' ? 'recovery' : 'summary'; } catch (_) { return 'summary'; }
+    try { const v = localStorage.getItem(LENS_KEY); return _LENSES.indexOf(v) !== -1 ? v : 'summary'; } catch (_) { return 'summary'; }
 }
 function _saveLens(v) {
-    try { localStorage.setItem(LENS_KEY, v === 'recovery' ? 'recovery' : ''); } catch (_) { /* storage negato: pazienza */ }
+    try { localStorage.setItem(LENS_KEY, _LENSES.indexOf(v) !== -1 ? v : 'summary'); } catch (_) { /* storage negato: pazienza */ }
 }
 
 // Delta «dall'ultima lettura»: la baseline vive in localStorage (per progetto),
@@ -221,10 +225,24 @@ function _buildModel() {
         presence[id] = { tier: ageDays > PRESENCE_STALE_DAYS ? 'stale' : 'live', ageDays };
     }
 
+    // Nomi VLAN MISURATI (SNMP), aggregati sui nodi. Se due switch danno nomi diversi
+    // per lo stesso VID è una discordanza del fabric (conflict): la Panoramica la
+    // segnala, non sceglie un vincitore (paletto ② no-invenzioni). Solo VLAN reali.
+    const measuredVlanNames = {};
+    for (const n of nodes) {
+        const mv = (n.integration && n.integration.vlanNames) || {};
+        for (const vid in mv) {
+            const nm = String(mv[vid] || '').trim();
+            if (!nm) continue;
+            if (!(vid in measuredVlanNames)) measuredVlanNames[vid] = { name: nm, conflict: false };
+            else if (measuredVlanNames[vid].name !== nm) measuredVlanNames[vid].conflict = true;
+        }
+    }
+
     return {
         nodes, types: TYPES, links: Array.isArray(st.links) ? st.links : [], portMacNodeIds, macToNode, presence,
         ipamVlans: (st.ipam && st.ipam.vlans) ? st.ipam.vlans : {},
-        vlanIdsInUse, vlanNames: st.vlanNames || {},
+        vlanIdsInUse, vlanNames: st.vlanNames || {}, measuredVlanNames,
         spare: buildSpareReport(spareDevices), sfpTotal, rackFill, networks, ipamAudit,
         caps, fleet: computeFleetCapabilities(caps.map((x) => x.caps)),
         topoCache: st.topoCache || {}, lagGroups: st.lagGroups || {},
@@ -237,6 +255,7 @@ function _buildModel() {
         // null → restano i soli conteggi persistiti (B2). Il drill-down resta coerente
         // con la Verifica (per rivederlo dopo un Sync si ri-esegue la Verifica).
         driftLive: (store._driftReport && store._driftReport._fromVerify) ? store._driftReport : null,
+        mgmtVlans: Array.isArray(st.mgmtVlans) ? st.mgmtVlans : [],   // ⑤ Sicurezza: VLAN marcate «di gestione» (segmentazione)
         now: Date.now(),
     };
 }
@@ -264,6 +283,9 @@ function _tileValue(r) {
         case 'lastSync':     return r.prov === 'none' ? [t('ov.none'), ''] : [r.value + '/' + r.total, ''];
         case 'suspectPorts': return [_n(r.value), r.total ? t('ov.of', { n: r.total }) : ''];
         case 'conflicts':    return [_n(r.value), ''];
+        case 'secSnmp':      return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), t('ov.of', { n: r.total })];
+        case 'secCommunity': return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), ''];
+        case 'secMgmtVlan':  return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), ''];
         case 'neighbors':    return [_n(r.value), ''];
         case 'lags':         return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), ''];
         case 'verify':       return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), ''];
@@ -290,7 +312,14 @@ function _tileStatus(r) {
     // B3 — righe-categoria del Drift: verdetto uniforme «da decidere» (una per riga).
     if (r.drill) return { w: t('ov.driftAction'), tone: r.value > 0 ? 'warn' : 'ok' };
     switch (r.key) {
-        case 'addr': case 'vlanNames': return gapStatus();
+        case 'addr': return gapStatus();
+        // Nomi VLAN: il dichiarato è legge, ma SNMP colma le lacune e segnala i conflitti.
+        // Priorità: conflitto (decisione umana) > lacuna colmabile da SNMP > gap semplice.
+        case 'vlanNames':
+            if (e.conflict > 0 && e.fromSnmp > 0) return { w: t('ov.vlanMixed', { f: e.fromSnmp, c: e.conflict }), tone: 'warn' };
+            if (e.conflict > 0) return { w: t('ov.vlanConflict', { n: e.conflict }), tone: 'warn' };
+            if (e.fromSnmp > 0) return { w: t('ov.vlanFromSnmp', { n: e.fromSnmp }), tone: 'warn' };
+            return gapStatus();
         // I nomi «mancanti» sono in realta' «da confermare»: il device c'e', gli
         // manca solo un nome proprio (spesso si chiama ancora come il suo IP).
         case 'name': return gapStatus('ov.st.missingNames');
@@ -374,8 +403,11 @@ function _tileStatus(r) {
         case 'drIdentity': {
             if (r.prov === 'none') return { w: t('ov.dr.na'), tone: 'none' };
             const miss = (r.total || 0) - (r.value || 0);
-            if (miss === 0) return { w: t('ov.dr.idAll'), tone: 'ok' };
-            return { w: e.mismatch > 0 ? t('ov.dr.idMismatch', { n: e.mismatch }) : t('ov.dr.idGap', { n: miss }), tone: 'warn' };
+            if (e.mismatch > 0) return { w: t('ov.dr.idMismatch', { n: e.mismatch }), tone: 'warn' };
+            if (miss > 0) return { w: t('ov.dr.idGap', { n: miss }), tone: 'warn' };
+            // Tutti identificabili: il firmware ignoto è un avviso LIEVE (non blocca il
+            // ripristino, ma serve la versione giusta per un config compatibile).
+            return e.noFirmware > 0 ? { w: t('ov.dr.fwGap', { n: e.noFirmware }), tone: 'info' } : { w: t('ov.dr.idAll'), tone: 'ok' };
         }
         case 'drLocation': {
             if (r.prov === 'none') return { w: t('ov.dr.na'), tone: 'none' };
@@ -388,6 +420,18 @@ function _tileStatus(r) {
         case 'drRedundancy': return r.prov === 'none'
             ? { w: t('ov.dr.redNone'), tone: 'none' }
             : { w: t('ov.dr.redProtected', { n: r.value }), tone: 'info' };
+        // ⑤ SICUREZZA — esposizione della gestione (SNMP · community · segmentazione).
+        case 'secSnmp': {
+            if (r.prov === 'none') return { w: t('ov.sx.snmpNone'), tone: 'none' };
+            const weak = (r.total || 0) - (r.value || 0);
+            return weak > 0 ? { w: t('ov.sx.snmpWeak', { n: weak }), tone: 'warn' } : { w: t('ov.sx.snmpAll'), tone: 'ok' };
+        }
+        case 'secCommunity': return r.prov === 'none'
+            ? { w: t('ov.sx.commNa'), tone: 'none' }
+            : (r.value > 0 ? { w: t('ov.sx.commDefault', { n: r.value }), tone: 'warn' } : { w: t('ov.sx.commClean'), tone: 'ok' });
+        case 'secMgmtVlan':  return r.prov === 'none'
+            ? { w: t('ov.sx.vlanNone'), tone: 'none' }
+            : { w: t('ov.sx.vlanSep', { n: r.value }), tone: 'info' };
         default:             return { w: '', tone: 'info' };
     }
 }
@@ -504,7 +548,7 @@ function _driftDetailHtml(cat) {
 // Da lì un ponte al pannello dove le reti si DICHIARANO chiude il cerchio —
 // vedo la lacuna, la correggo dove è nata. → [[declare-first-workflow]]
 function _wantsVlanCta(secKey, key) {
-    return (secKey === 'complete' && key === 'subnets') || (secKey === 'margin' && key === 'ipFree');
+    return (secKey === 'complete' && (key === 'subnets' || key === 'vlanNames')) || (secKey === 'margin' && key === 'ipFree');
 }
 
 function _detailEl(secKey, r) {
@@ -710,12 +754,12 @@ function _sectionEl(secKey, num, sec, deltaN) {
     return col;
 }
 
-// Selettore di LENTE (opt-in): [Sintesi] [Ripristinabilità]. La scelta è una
-// preferenza locale (localStorage), non tocca `state`. Sintesi resta il default
-// così la schermata a 3 colonne — il paletto «una schermata» — non si affolla.
+// Selettore di LENTE (opt-in): [Sintesi] [Ripristinabilità] [Sicurezza]. La scelta
+// è una preferenza locale (localStorage), non tocca `state`. Sintesi resta il
+// default così la schermata a 3 colonne — il paletto «una schermata» — non si affolla.
 function _lensSwitchEl(active) {
     const s = _el('div', 'ov-lens-switch');
-    for (const key of ['summary', 'recovery']) {
+    for (const key of _LENSES) {
         const b = _el('button', 'ov-lens-btn' + (key === active ? ' is-active' : ''), t('ov.lens.' + key));
         b.type = 'button';
         b.dataset.act = 'overview-lens';
@@ -763,6 +807,43 @@ function _recoveryEl(secKey, sec) {
     return col;
 }
 
+// ⑤ SICUREZZA & SERVIZI a tutta larghezza: verdetto «X di Y accessi SNMP cifrati»
+// + le dimensioni (SNMP · community · VLAN di gestione). Riusa la STESSA macchina
+// delle colonne (_rowEl/_detailEl via data-sec="security") e lo stile del verdetto DR.
+function _securityEl(secKey, sec) {
+    const col = _el('section', 'ov-col ov-col-recovery');
+    col.dataset.sec = secKey;
+    const h2 = document.createElement('h2');
+    h2.appendChild(document.createTextNode(t('ov.sec.security')));
+    col.appendChild(h2);
+    col.appendChild(_el('p', 'ov-ask', t('ov.sec.securityQ')));
+
+    // Verdetto: «quanti accessi di gestione sono cifrati?». Colore dalla salute.
+    const lvl = (sec.health && sec.health.level) || 'ok';
+    const verdict = _el('div', 'ov-dr-verdict v-' + lvl);
+    verdict.appendChild(_el('span', 'ov-vdot'));
+    if (sec.managed > 0 && sec.snmpTotal > 0) {
+        const big = _el('span', 'ov-dr-big');
+        big.appendChild(_el('b', null, String(sec.secured)));
+        big.appendChild(_el('span', 'ov-dr-of', ' ' + t('ov.of', { n: sec.snmpTotal })));
+        verdict.appendChild(big);
+        verdict.appendChild(_el('span', 'ov-dr-lbl', t('ov.sx.secured')));
+    } else {
+        verdict.appendChild(_el('span', 'ov-dr-lbl', t(sec.managed > 0 ? 'ov.sx.noSnmp' : 'ov.sx.empty')));
+    }
+    col.appendChild(verdict);
+
+    // Con apparati gestiti mostriamo le righe (anche senza SNMP: la VLAN di gestione
+    // resta un segnale). Progetto senza apparati gestiti → solo il verdetto vuoto.
+    if (sec.managed > 0) {
+        const rows = _el('div', 'ov-rows');
+        for (const r of sec.rows) rows.appendChild(_rowEl(secKey, r));
+        col.appendChild(rows);
+        for (const r of sec.rows) if ((r.items && r.items.length) || r.drill) col.appendChild(_detailEl(secKey, r));
+    }
+    return col;
+}
+
 /**
  * Ridisegna la Panoramica. Chiamata da renderAll SOLO quando la vista e' attiva:
  * fuori dalla vista non si spende un ciclo (il modello gira su tutti i nodi e
@@ -785,9 +866,9 @@ export function renderOverview() {
     const lens = _savedLens();
     root.appendChild(_lensSwitchEl(lens));
 
-    if (lens === 'recovery') {
+    if (lens === 'recovery' || lens === 'security') {
         const wrap = _el('div', 'ov-cols ov-cols-single');
-        wrap.appendChild(_recoveryEl('recovery', o.recovery));
+        wrap.appendChild(lens === 'security' ? _securityEl('security', o.security) : _recoveryEl('recovery', o.recovery));
         root.appendChild(wrap);
     } else {
         const cols = _el('div', 'ov-cols');
@@ -900,7 +981,7 @@ export function toggleOverview() { setOverview(!document.body.classList.contains
 // Commuta la lente (Sintesi ⇄ Ripristinabilità): salva la preferenza locale e
 // ridisegna. Niente markDirty: cambiare lente non sporca il documento.
 function _setLens(v) {
-    _saveLens(v === 'recovery' ? 'recovery' : 'summary');
+    _saveLens(v);   // _saveLens valida contro _LENSES (summary/recovery/security)
     renderOverview();
 }
 

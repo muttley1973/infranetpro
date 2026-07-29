@@ -74,3 +74,19 @@ test('SNMP-A2: trunk Cisco VTP letto dalle colonne .13/.14 (DynamicState/Status)
   assert.deepEqual(byIdx[11].trunkVlans, [10, 20], 'VLAN del trunk decodificate dalla bitmap');
   assert.equal(byIdx[12].isTrunk, false, 'desirable ma notTrunking (.14) → NON trunk');
 });
+
+test('nomi VLAN: catturati SOLO per le VLAN reali (in uso), mai le pre-create del dominio VTP', () => {
+  const vbs = {};
+  // Due VLAN REALI: l'egress bitmap le mette in vlansOut (allVlanIds).
+  vbs[`${OID.dot1qVlanEgressPorts}.10`] = Buffer.from([0x80]);
+  vbs[`${OID.dot1qVlanEgressPorts}.20`] = Buffer.from([0x80]);
+  // Nomi: dot1qVlanStaticName (standard) per la 10, vtpVlanName (Cisco, indice {dom}.{vid}) per la 20.
+  vbs[`${OID.dot1qVlanStaticName}.10`] = 'Voice';
+  vbs[`${OID.vtpVlanName}.1.20`]       = 'Guest';
+  // Nome di una VLAN NON in uso (pre-create dal dominio VTP): NON deve uscire.
+  vbs[`${OID.dot1qVlanStaticName}.999`] = 'default-999';
+
+  const out = extractData(vbs);
+  assert.deepEqual(out.vlanNames, { 10: 'Voice', 20: 'Guest' }, 'nome per ogni VLAN reale, da entrambe le MIB');
+  assert.ok(!('999' in out.vlanNames), 'le VLAN pre-create (non in uso) restano fuori — motivo per cui il driver le scartava');
+});

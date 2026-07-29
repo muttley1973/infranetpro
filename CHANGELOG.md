@@ -2,6 +2,20 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-29 — VLAN names read over SNMP surface in the Overview (declared stays law)
+
+- **Added** — the SNMP driver now keeps the **VLAN names** it reads (`dot1qVlanStaticName` / Cisco `vtpVlanName`) — but only for the **VLANs actually in use**, never the 1023 pre-created by a Cisco VTP domain (the reason the names were dropped until now).
+- **Added** — the Overview's **"VLAN names"** row (① Project) compares those measured names against what you declared: it counts names you can **fill in from SNMP** (a VLAN in use with no declared name, but the network knows one) and **conflicts** (your declared name differs from the network's, or two switches disagree with each other). The declared name is never overwritten — same manual-first rule as the measured-vs-declared hardware serial; the drill-down lists each gap and clash, and the "Declare in the VLAN panel →" button takes you where names are set.
+
+## 2026-07-29 — Overview: a fifth lens — "Security & Services" (management-plane exposure)
+
+- **Added** — the Overview toggle gains a third opt-in lens, **"Security & Services"**, answering *how exposed is network management?* for your managed devices. It reads only what is already measured/declared — no new probes: **SNMP transport** (how many management accesses run encrypted **v3** vs cleartext **v1/v2c**, with the weak ones listed), **default community** (how many v1/v2c devices use a guessable community like *public* — counted and named, but **the community value never leaves the engine**), and **management-VLAN segmentation** (how many VLANs you've marked as management). The verdict turns **red** when a guessable community is reachable, **amber** for cleartext SNMP or no management VLAN, **green** when management is hardened. Detected cleartext services (telnet/ftp) are intentionally out of scope until they live on the documented node, not just the discovery scan.
+
+## 2026-07-29 — Overview: the Recoverability lens knows what to re-buy (make/model + firmware)
+
+- **Changed** — the **Recoverability** lens's **"Hardware identity"** dimension now asks the question a restore actually needs: *do you know what to procure?* A device counts as identifiable when you know its **make/model** (declared or read over SNMP) **or** its serial (from which the vendor gives you the model) — previously only a serial counted, so a device with a model but no serial was wrongly marked unknown. The serial declared-vs-measured **"swapped unit"** flag stays.
+- **Added** — once every managed device is identifiable, the same row flags, at **info** level (never blocking the verdict), how many have **no known firmware/OS version** — you can restore without it, but you want the version to match for a byte-identical config.
+
 ## 2026-07-29 — Overview: IPAM conflicts surface in the "True" column
 
 - **Added** — the **"True"** column has an **"IPAM conflicts"** row: the **same IP on two documented devices** (VM IPs included, so a VM-vs-physical clash is caught) or **two VLANs whose subnets overlap** — the kind of misconfiguration a real IPAM catches. Clean plans read **"no conflicts"** (green); otherwise the count turns the verdict amber and the drill-down lists each clash (the two devices and the shared address, or the overlapping subnets and their VLANs). Doc-vs-doc consistency, computed from what you already declared — nothing new is collected.

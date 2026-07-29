@@ -651,7 +651,11 @@ export function applyPollResult(nodeId, data, opts={}){
     (data.vlans||[]).forEach(vid=>_ensureVlanColor(vid));
     if(!n.integration) n.integration={};
     n.integration.lags     = data.lags||[];
-    n.integration.vlans    = data.vlans||[];   // tutte le VLAN definite (da dot1qVlanStaticName)
+    n.integration.vlans    = data.vlans||[];   // VLAN reali (PVID+egress+trunk)
+    // Nomi VLAN MISURATI (dot1qVlanStaticName/vtpVlanName, solo VLAN reali). Sola
+    // lettura: NON toccano state.vlanNames (dichiarato = legge, manual-first). La
+    // Panoramica li confronta col dichiarato e segnala lacune colmabili e conflitti.
+    n.integration.vlanNames = (data.vlanNames && typeof data.vlanNames === 'object') ? data.vlanNames : {};
     n.integration.inventory = inv || null;
     // Info di sistema live (sysLocation/sysContact/sysUpTime/sysDescr): SOLA
     // LETTURA, mostrate nel pannello Integrazione. Non toccano alcun campo

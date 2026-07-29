@@ -700,6 +700,10 @@ function extractData(vbs) {
   const mauTypes = {}; // e.g. mauTypes[3] = 14 → dot3MauType100BaseTX
   // PoE (RFC 3621): "grp.portIdx" suffix → { status, class }
   const poeMap   = {};
+  // Nomi VLAN grezzi (dot1qVlanStaticName + vtpVlanName) indicizzati per VlanIndex.
+  // Tenuti a parte: si emettono SOLO per le VLAN REALI (in vlansOut), MAI le 1023
+  // pre-create dal dominio VTP Cisco — stessa ragione per cui non entrano in allVlanIds.
+  const vlanNameByVid = {};
 
   // ---- Singolo passo su tutti i VarBind -------------------------------------
   // Sostituisce 11 iterazioni separate:
@@ -761,6 +765,9 @@ function extractData(vbs) {
     // predefinite del dominio VTP, gonfiando l'elenco con VLAN inutilizzate.
     // Le VLAN reali vengono raccolte dai PVID delle porte e dai trunk VLAN.
     if (oid.startsWith(OID.dot1qVlanStaticName + '.')) {
+      // Catturiamo il NOME (non l'ID): filtrato dopo alle sole VLAN reali (vlansOut).
+      const vid = lastIdx(oid), nm = bufToStr(val).trim();
+      if (vid >= 1 && vid <= 4094 && nm && vlanNameByVid[vid] == null) vlanNameByVid[vid] = nm;
       continue;
     }
 
@@ -769,6 +776,8 @@ function extractData(vbs) {
     // di default → si ritroverebbero VLAN 1-1023 nell'elenco anche se inutilizzate.
     // Le VLAN reali vengono raccolte dai PVID delle porte e dai trunk VLAN.
     if (oid.startsWith(OID.vtpVlanName + '.')) {
+      const vid = lastIdx(oid), nm = bufToStr(val).trim();
+      if (vid >= 1 && vid <= 4094 && nm && vlanNameByVid[vid] == null) vlanNameByVid[vid] = nm;
       continue;
     }
 
@@ -1289,6 +1298,9 @@ function extractData(vbs) {
   // ---------------------------------------------------------------------------
 
   const vlansOut = [...allVlanIds].sort((a, b) => a - b);
+  // Nomi VLAN SOLO per le VLAN reali (in vlansOut): mai le 1023 pre-create dal VTP.
+  const vlanNames = {};
+  for (const vid of vlansOut) { if (vlanNameByVid[vid]) vlanNames[vid] = vlanNameByVid[vid]; }
   const inventory = extractEntityInventory(vbs);
   const system = extractSystem(vbs);
   const printer = extractPrinter(vbs);
@@ -1297,7 +1309,7 @@ function extractData(vbs) {
   const ip6 = _ownIp6FromVbs(vbs);
 
   snmpDebug(`  [VLANS] ${hostname||'?'}: ${vlansOut.length} VLAN rilevate (PVID+egress+trunk): [${vlansOut.join(',')}]`);
-  return { hostname, interfaces: physical, lags, vlans: vlansOut, inventory, system, printer, hostResources, ip6 };
+  return { hostname, interfaces: physical, lags, vlans: vlansOut, vlanNames, inventory, system, printer, hostResources, ip6 };
 }
 
 // ---- Session factory -------------------------------------------------------

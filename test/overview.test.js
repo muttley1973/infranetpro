@@ -147,6 +147,39 @@ test('① subnet e nomi VLAN assenti escono come «non dichiarato», non come ze
   assert.equal(rowOf(o.complete, 'vlanNames').total, 3, '3 VLAN in uso, 0 con un nome');
 });
 
+test('① Nomi VLAN via SNMP: colma le lacune e segnala i conflitti; il dichiarato non viene mai riscritto', () => {
+  const o = buildOverview({
+    types: TYPES, nodes: [{ id: 'sw1', type: 'switch', ip: '10.0.0.1' }],
+    vlanIdsInUse: [10, 20, 30, 40],
+    vlanNames: { 10: 'Voice', 20: 'Guest' },            // dichiarate: 10 e 20
+    measuredVlanNames: {
+      10: { name: 'Voice', conflict: false },           // dichiarato = misurato → ok
+      20: { name: 'VOIP', conflict: false },            // dichiarato ≠ misurato → conflitto
+      30: { name: 'Servers', conflict: false },         // non dichiarato, ma la rete lo sa → colmabile
+      // 40: nessun nome da nessuna parte → gap semplice (né colmabile né conflitto)
+    },
+  });
+  const vn = rowOf(o.complete, 'vlanNames');
+  assert.equal(vn.value, 2, 'due nomi DICHIARATI (10, 20) — SNMP non li conta come suoi');
+  assert.equal(vn.total, 4);
+  assert.equal(vn.extra.fromSnmp, 1, 'VLAN 30 colmabile da SNMP');
+  assert.equal(vn.extra.conflict, 1, 'VLAN 20 in conflitto (Guest ↔ VOIP)');
+  // drill-down: prima i conflitti (decisione umana), poi le lacune colmabili.
+  assert.deepEqual(vn.items, [
+    { id: 'VLAN 20', meta: 'Guest ↔ VOIP' },
+    { id: 'VLAN 30', meta: 'Servers', tag: 'measured' },
+  ]);
+});
+
+test('① Nomi VLAN: due switch che discordano tra loro = conflitto (paletto ② no vincitore arbitrario)', () => {
+  const vn = rowOf(buildOverview({
+    types: TYPES, nodes: [],
+    vlanIdsInUse: [100], vlanNames: { 100: 'Voice' },
+    measuredVlanNames: { 100: { name: 'Voice', conflict: true } },   // sw1:Voice · sw2:Telefoni
+  }).complete, 'vlanNames');
+  assert.equal(vn.extra.conflict, 1, 'gli switch discordano → conflitto, anche se il dichiarato combacia con uno');
+});
+
 test('① Gateway per subnet: le dichiarate SENZA gateway emergono come lacuna (dato dal pannello VLAN)', () => {
   const o = buildOverview({
     types: TYPES, nodes: [{ id: 'sw1', type: 'switch', ip: '10.0.0.1' }],
@@ -653,6 +686,26 @@ test('④ DR: un serial DICHIARATO ma mai misurato conta come noto (sai cosa rim
   assert.equal(r.recoverable, 2, 'sw1+sw2 pieni (backup+identità+rack); sw3 senza identità no');
 });
 
+test('④ DR: il MODELLO basta a identificare (anche senza serial) e il firmware ignoto è advisory', () => {
+  const now = Date.parse('2026-07-29T00:00:00Z');
+  const at = '2026-07-20T00:00:00Z';   // backup fresco (9 giorni)
+  const r = buildOverview({ types: DR_TYPES, now, nodes: [
+    // modello DICHIARATO, nessun serial → identificabile (sai cosa ricomprare); firmware noto
+    { id: 'sw1', type: 'switch', rackId: 'r1', model: 'C9300-48P', firmwareVer: 'IOS-XE 17.9', backup: { ref: 'x', at } },
+    // modello MISURATO (ENTITY-MIB), nessun serial, firmware IGNOTO → identificabile + fw gap
+    { id: 'sw2', type: 'switch', rackId: 'r1', backup: { ref: 'x', at },
+      integration: { inventory: { model: 'EX2300-24T' } } },
+    // né modello né serial → da identificare
+    { id: 'sw3', type: 'switch', rackId: 'r1', backup: { ref: 'x', at } },
+  ] }).recovery;
+  const idr = rowOf(r, 'drIdentity');
+  assert.equal(idr.value, 2, 'modello dichiarato e modello misurato contano; sw3 no');
+  assert.deepEqual(idr.items.map((i) => i.id), ['sw3'], 'solo sw3 (senza identità) nel drill-down');
+  assert.equal(idr.extra.mismatch, 0);
+  assert.equal(idr.extra.noFirmware, 1, 'fra gli identificabili solo sw2 non ha un firmware noto');
+  assert.equal(r.recoverable, 2, 'sw1+sw2 ripristinabili; il firmware ignoto NON abbassa il conto');
+});
+
 test('④ DR: presenza temporale è ADVISORY (denominatore = solo chi ha storia) e non fa da gate', () => {
   const now = Date.parse('2026-07-29T00:00:00Z');
   const at = '2026-07-20T00:00:00Z';
@@ -742,12 +795,62 @@ test('④ DR: ridondanza HA — advisory, conta gli apparati con gemello/cluster
   assert.equal(rowOf(none, 'drRedundancy').value, 0);
 });
 
+test('⑤ Sicurezza: SNMP v3 cifrato vs v1/v2c in chiaro; la community di default emerge, il suo VALORE mai', () => {
+  const s = buildOverview({
+    types: DR_TYPES, mgmtVlans: [99],
+    nodes: [
+      { id: 'sw1', type: 'switch', integration: { driver: 'snmp-v3', v3user: 'admin' } },       // cifrato
+      { id: 'sw2', type: 'switch', integration: { driver: 'snmp-v2c', community: 'public' } },   // in chiaro + default
+      { id: 'sw3', type: 'switch', integration: { driver: 'snmp-v2c', community: 'S3cr3t!' } },  // in chiaro, community custom
+      { id: 'sw4', type: 'switch' },                                                             // nessun SNMP
+    ],
+  }).security;
+  const snmp = rowOf(s, 'secSnmp');
+  assert.equal(snmp.total, 3, 'sw1/sw2/sw3 hanno un accesso SNMP; sw4 no');
+  assert.equal(snmp.value, 1, 'solo sw1 è v3 (cifrato)');
+  assert.deepEqual(snmp.items.map((i) => i.id), ['sw2', 'sw3'], 'i v1/v2c nel drill-down');
+  assert.equal(s.secured, 1);
+  assert.equal(s.snmpTotal, 3);
+
+  const comm = rowOf(s, 'secCommunity');
+  assert.equal(comm.value, 1, 'solo sw2 usa una community di default (public)');
+  assert.deepEqual(comm.items.map((i) => i.id), ['sw2']);
+  // ANTI-LEAK: la community NON esce MAI dal motore, solo il conteggio+nome device.
+  const dump = JSON.stringify(s);
+  assert.ok(!dump.includes('public') && !dump.includes('S3cr3t'), 'nessun valore di community nel report');
+
+  assert.equal(rowOf(s, 'secMgmtVlan').value, 1, 'una VLAN di gestione dichiarata');
+  assert.equal(rowOf(s, 'secMgmtVlan').prov, 'declared');
+  assert.equal(s.health.level, 'bad', 'una community indovinabile = porta aperta (rosso)');
+});
+
+test('⑤ Sicurezza: tutto v3 con VLAN di gestione → verde; senza VLAN di gestione → giallo', () => {
+  const base = { types: DR_TYPES, nodes: [
+    { id: 'sw1', type: 'switch', integration: { driver: 'snmp-v3', v3user: 'u' } },
+    { id: 'sw2', type: 'switch', integration: { driver: 'snmp-v3', v3user: 'u' } },
+  ] };
+  const ok = buildOverview(Object.assign({}, base, { mgmtVlans: [10] })).security;
+  assert.equal(rowOf(ok, 'secSnmp').value, 2);
+  assert.equal(ok.health.level, 'ok', 'tutti cifrati + VLAN di gestione = a norma');
+  const noVlan = buildOverview(base).security;
+  assert.equal(noVlan.health.level, 'warn', 'gestione non segmentata = giallo');
+  assert.equal(rowOf(noVlan, 'secMgmtVlan').prov, 'none');
+});
+
+test('⑤ Sicurezza: progetto senza apparati gestiti → lente vuota (managed 0), salute ok, nessun throw', () => {
+  const s = buildOverview({ types: DR_TYPES, nodes: [{ id: 'pc1', type: 'pc', ip: '10.0.0.5' }] }).security;
+  assert.equal(s.managed, 0);
+  assert.equal(s.snmpTotal, 0);
+  assert.equal(s.health.level, 'ok');
+  assert.equal(rowOf(s, 'secSnmp').prov, 'none');
+});
+
 test('nessuna riga contiene stringhe di interfaccia (le parole le mette il renderer)', () => {
   const o = buildOverview({
     types: TYPES, nodes: [{ id: 'sw1', type: 'switch', ip: '10.0.0.1' }],
     spare: { totals: { free: 1, ports: 24 } },
   });
-  const all = [...o.complete.rows, ...o.truth.rows, ...o.margin.rows, ...o.recovery.rows];
+  const all = [...o.complete.rows, ...o.truth.rows, ...o.margin.rows, ...o.recovery.rows, ...o.security.rows];
   for (const r of all) {
     assert.equal(typeof r.key, 'string');
     assert.ok(['declared', 'measured', 'derived', 'none'].includes(r.prov), 'provenienza dichiarata: ' + r.key);
