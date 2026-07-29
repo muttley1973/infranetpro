@@ -326,7 +326,7 @@ test('③ Indirizzi liberi: PALETTO «sempre sul dichiarato» — usa il prefiss
   assert.deepEqual(ip.items.map((i) => i.id), ['10.20.0.0/16', '192.168.1.0/24'], 'una riga per la /16, non due /24');
   assert.deepEqual(ip.items.map((i) => i.of), [65534, 254], 'utilizzabili: prima /16 dichiarata, poi /24 assunta');
   assert.equal(ip.items[0].meta, 65534 - 3, 'liberi della /16 sul suo prefisso reale');
-  assert.deepEqual(ip.items.map((i) => i.tag), ['declared', 'undeclared'], 'la /16 è dichiarata, la 192.168.1 no');
+  assert.deepEqual(ip.items.map((i) => i.tag), ['declaredNet', 'undeclared'], 'la /16 è dichiarata, la 192.168.1 no');
   assert.equal(ip.extra.declared, true);
   assert.equal(ip.extra.subnets, 2);
 
@@ -361,13 +361,13 @@ test('②③ /28 dichiarata DENTRO una /24: split per-IP, i device FUORI dalla d
   assert.deepEqual(ip.items.map((i) => i.id), ['192.168.1.0/28', '192.168.1.0/24']);
   assert.deepEqual(ip.items.map((i) => i.of), [14, 240], 'la /24 residua toglie i 14 host della /28: niente doppio conteggio');
   assert.deepEqual(ip.items.map((i) => i.meta), [14 - 2, 240 - 3]);
-  assert.deepEqual(ip.items.map((i) => i.tag), ['declared', 'undeclared']);
+  assert.deepEqual(ip.items.map((i) => i.tag), ['declaredNet', 'undeclared']);
   assert.equal(ip.value, (14 - 2) + (240 - 3));
   // Subnet di progetto: stessa ripartizione, meta = device (2 dentro, 3 fuori: nessuno perso)
   const sub = rowOf(o.complete, 'subnets');
   assert.deepEqual(sub.items.map((i) => i.id), ['192.168.1.0/28', '192.168.1.0/24']);
   assert.deepEqual(sub.items.map((i) => i.meta), [2, 3], '2 device nella /28, 3 fuori — tutti presenti');
-  assert.deepEqual(sub.items.map((i) => i.tag), ['declared', 'undeclared']);
+  assert.deepEqual(sub.items.map((i) => i.tag), ['declaredNet', 'undeclared']);
   assert.equal(sub.extra.undeclared, 1, 'la /24 residua è una subnet «da dichiarare»');
 });
 
