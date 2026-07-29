@@ -49,6 +49,17 @@ function _saveView(v) {
     try { localStorage.setItem(VIEW_KEY, v || ''); } catch (_) { /* storage negato: pazienza */ }
 }
 
+// La LENTE della Panoramica: '' = Sintesi (le 3 colonne) · 'recovery' =
+// «Ripristinabilità». Come la vista, è una preferenza LOCALE (localStorage per
+// macchina), MAI in `state`: cambiare lente non deve sporcare il documento.
+const LENS_KEY = 'infranet.ov.lens';
+function _savedLens() {
+    try { return localStorage.getItem(LENS_KEY) === 'recovery' ? 'recovery' : 'summary'; } catch (_) { return 'summary'; }
+}
+function _saveLens(v) {
+    try { localStorage.setItem(LENS_KEY, v === 'recovery' ? 'recovery' : ''); } catch (_) { /* storage negato: pazienza */ }
+}
+
 // Delta «dall'ultima lettura»: la baseline vive in localStorage (per progetto),
 // MAI in state — guardare non deve sporcare il documento (stesso paletto della
 // vista). Ancorata a lastSyncAt: cosi' il delta riflette il cambio fra DUE Sync,
@@ -98,6 +109,7 @@ function _buildModel() {
     // risolvere a nome i vicini LLDP/CDP che si annunciano solo col chassis-id
     // MAC. Copre node.mac + MAC di porta + MAC di LAG (primo che vince).
     const macToNode = {};
+    const ipToNode = {};   // IP→id nodo (primo che vince): risolve le observation di discovery al nodo per la presenza temporale (lente DR)
     const _macKey = (v) => { const h = String(v || '').toLowerCase().replace(/[^0-9a-f]/g, ''); return h.length === 12 ? h : ''; };
     const _rememberMac = (mac, id) => { const k = _macKey(mac); if (k && !(k in macToNode)) macToNode[k] = id; };
     let sfpTotal = 0;
@@ -106,6 +118,7 @@ function _buildModel() {
         const def = TYPES[n.type] || {};
         const pc = (n.ports !== undefined) ? n.ports : (def.ports || 0);
         _rememberMac(n.mac, n.id);
+        { const _ipv = String(n.ip || '').trim(); if (_ipv && !(_ipv in ipToNode)) ipToNode[_ipv] = n.id; }
 
         // Capacita' HW: lo spec e' la fonte, le porte servono a PoE/LAG/banda.
         // ⚠️ `ports` vuole la forma { list, total, free } — un array nudo fa
@@ -176,8 +189,33 @@ function _buildModel() {
     let networks;
     try { networks = (deriveProjectNetworks({ nodes, types: TYPES }) || {}).networks || []; } catch (_) { networks = []; }
 
+    // Presenza per apparato (advisory, lente «Ripristinabilità»): piega le observation
+    // di discovery sul nodo — via MAC noto o IP — e ne ricava «visto di recente» vs
+    // «stantìo» dall'ultimo avvistamento. INLINE di proposito: temporal-confidence.js è
+    // un <script> (regola del ponte: non ri-bundlarlo via ESM), e alla lente DR basta il
+    // fatto binario live/stale, non lo score pieno. Soglia = STALE_DAYS del lib (30gg).
+    const PRESENCE_STALE_DAYS = 30;
+    const _obs = (st.discoveryHistory && Array.isArray(st.discoveryHistory.observations)) ? st.discoveryHistory.observations : [];
+    const _lastSeenByNode = {};
+    for (const o of _obs) {
+        if (!o) continue;
+        const k = _macKey(o.mac);
+        let id = k ? macToNode[k] : null;
+        if (!id) { const ipv = String(o.ip || '').trim(); if (ipv) id = ipToNode[ipv]; }
+        if (!id) continue;
+        const ms = Date.parse(o.lastSeen || o.ts || '');
+        if (!Number.isFinite(ms)) continue;
+        if (!(id in _lastSeenByNode) || ms > _lastSeenByNode[id]) _lastSeenByNode[id] = ms;
+    }
+    const presence = {};
+    const _nowMs = Date.now();
+    for (const id in _lastSeenByNode) {
+        const ageDays = Math.max(0, (_nowMs - _lastSeenByNode[id]) / 864e5);
+        presence[id] = { tier: ageDays > PRESENCE_STALE_DAYS ? 'stale' : 'live', ageDays };
+    }
+
     return {
-        nodes, types: TYPES, links: Array.isArray(st.links) ? st.links : [], portMacNodeIds, macToNode,
+        nodes, types: TYPES, links: Array.isArray(st.links) ? st.links : [], portMacNodeIds, macToNode, presence,
         ipamVlans: (st.ipam && st.ipam.vlans) ? st.ipam.vlans : {},
         vlanIdsInUse, vlanNames: st.vlanNames || {},
         spare: buildSpareReport(spareDevices), sfpTotal, rackFill, networks,
@@ -306,6 +344,27 @@ function _tileStatus(r) {
         case 'ipFree':       return r.prov === 'none'
             ? { w: t('ov.st.needSubnet'), tone: 'none' }
             : { w: t(e.declared ? 'ov.freeDeclared' : 'ov.freeAssumed24', { n: e.subnets || 0 }), tone: 'info' };
+        // ④ RIPRISTINABILITÀ — ogni dimensione dice quanti apparati mancano di quel
+        // pezzo per essere rimessi in piedi (backup fresco · identità nota · posizione).
+        case 'drBackup': {
+            if (r.prov === 'none') return { w: t('ov.dr.na'), tone: 'none' };
+            const miss = (r.total || 0) - (r.value || 0);
+            return miss === 0 ? { w: t('ov.dr.backupAll'), tone: 'ok' } : { w: t('ov.dr.backupGap', { n: miss }), tone: 'warn' };
+        }
+        case 'drIdentity': {
+            if (r.prov === 'none') return { w: t('ov.dr.na'), tone: 'none' };
+            const miss = (r.total || 0) - (r.value || 0);
+            if (miss === 0) return { w: t('ov.dr.idAll'), tone: 'ok' };
+            return { w: e.mismatch > 0 ? t('ov.dr.idMismatch', { n: e.mismatch }) : t('ov.dr.idGap', { n: miss }), tone: 'warn' };
+        }
+        case 'drLocation': {
+            if (r.prov === 'none') return { w: t('ov.dr.na'), tone: 'none' };
+            const miss = (r.total || 0) - (r.value || 0);
+            return miss === 0 ? { w: t('ov.dr.locAll'), tone: 'ok' } : { w: t('ov.dr.locGap', { n: miss }), tone: 'warn' };
+        }
+        case 'drPresence':   return r.prov === 'none'
+            ? { w: t('ov.dr.presNone'), tone: 'none' }
+            : (e.stale > 0 ? { w: t('ov.dr.presStale', { n: e.stale }), tone: 'warn' } : { w: t('ov.dr.presLive'), tone: 'info' });
         default:             return { w: '', tone: 'info' };
     }
 }
@@ -618,6 +677,59 @@ function _sectionEl(secKey, num, sec, deltaN) {
     return col;
 }
 
+// Selettore di LENTE (opt-in): [Sintesi] [Ripristinabilità]. La scelta è una
+// preferenza locale (localStorage), non tocca `state`. Sintesi resta il default
+// così la schermata a 3 colonne — il paletto «una schermata» — non si affolla.
+function _lensSwitchEl(active) {
+    const s = _el('div', 'ov-lens-switch');
+    for (const key of ['summary', 'recovery']) {
+        const b = _el('button', 'ov-lens-btn' + (key === active ? ' is-active' : ''), t('ov.lens.' + key));
+        b.type = 'button';
+        b.dataset.act = 'overview-lens';
+        b.dataset.lens = key;
+        b.setAttribute('aria-pressed', key === active ? 'true' : 'false');
+        s.appendChild(b);
+    }
+    return s;
+}
+
+// ④ RIPRISTINABILITÀ (DR-readiness) a tutta larghezza: verdetto grande «X di Y in
+// piedi» + le dimensioni (backup/identità/posizione/presenza) come righe. Riusa la
+// STESSA macchina delle colonne (_rowEl/_detailEl/_toggleRow via data-sec="recovery"),
+// così i drill-down e la navigazione al device funzionano identici.
+function _recoveryEl(secKey, sec) {
+    const col = _el('section', 'ov-col ov-col-recovery');
+    col.dataset.sec = secKey;
+    const h2 = document.createElement('h2');
+    h2.appendChild(document.createTextNode(t('ov.sec.recovery')));
+    col.appendChild(h2);
+    col.appendChild(_el('p', 'ov-ask', t('ov.sec.recoveryQ')));
+
+    // Verdetto: «se cade stanotte, quanti rimetti in piedi?». Colore dalla salute.
+    const lvl = (sec.health && sec.health.level) || 'ok';
+    const verdict = _el('div', 'ov-dr-verdict v-' + lvl);
+    verdict.appendChild(_el('span', 'ov-vdot'));
+    if (sec.total > 0) {
+        const big = _el('span', 'ov-dr-big');
+        big.appendChild(_el('b', null, String(sec.recoverable)));
+        big.appendChild(_el('span', 'ov-dr-of', ' ' + t('ov.of', { n: sec.total })));
+        verdict.appendChild(big);
+        verdict.appendChild(_el('span', 'ov-dr-lbl', t('ov.dr.recoverable')));
+    } else {
+        verdict.appendChild(_el('span', 'ov-dr-lbl', t('ov.dr.empty')));
+    }
+    col.appendChild(verdict);
+
+    // Nessun apparato gestito → solo il verdetto vuoto (righe a «0 di 0» sarebbero rumore).
+    if (sec.total > 0) {
+        const rows = _el('div', 'ov-rows');
+        for (const r of sec.rows) rows.appendChild(_rowEl(secKey, r));
+        col.appendChild(rows);
+        for (const r of sec.rows) if ((r.items && r.items.length) || r.drill) col.appendChild(_detailEl(secKey, r));
+    }
+    return col;
+}
+
 /**
  * Ridisegna la Panoramica. Chiamata da renderAll SOLO quando la vista e' attiva:
  * fuori dalla vista non si spende un ciclo (il modello gira su tutti i nodi e
@@ -636,11 +748,21 @@ export function renderOverview() {
     // lacune/discrepanze in meno o in più rispetto al Sync precedente.
     const dl = _overviewDelta(store.currentProjectId, o, Number(model.lastSyncAt) || 0);
 
-    const cols = _el('div', 'ov-cols');
-    cols.appendChild(_sectionEl('complete', 1, o.complete, dl && dl.complete));
-    cols.appendChild(_sectionEl('truth', 2, o.truth, dl && dl.truth));
-    cols.appendChild(_sectionEl('margin', 3, o.margin, dl && dl.margin));
-    root.appendChild(cols);
+    // Selettore di LENTE: Sintesi (le 3 colonne) · Ripristinabilità (DR-readiness).
+    const lens = _savedLens();
+    root.appendChild(_lensSwitchEl(lens));
+
+    if (lens === 'recovery') {
+        const wrap = _el('div', 'ov-cols ov-cols-single');
+        wrap.appendChild(_recoveryEl('recovery', o.recovery));
+        root.appendChild(wrap);
+    } else {
+        const cols = _el('div', 'ov-cols');
+        cols.appendChild(_sectionEl('complete', 1, o.complete, dl && dl.complete));
+        cols.appendChild(_sectionEl('truth', 2, o.truth, dl && dl.truth));
+        cols.appendChild(_sectionEl('margin', 3, o.margin, dl && dl.margin));
+        root.appendChild(cols);
+    }
 
     const foot = _el('div', 'ov-foot');
     for (const p of ['declared', 'measured', 'derived', 'none']) {
@@ -742,6 +864,13 @@ export function setOverview(on) {
 
 export function toggleOverview() { setOverview(!document.body.classList.contains('view-overview')); }
 
+// Commuta la lente (Sintesi ⇄ Ripristinabilità): salva la preferenza locale e
+// ridisegna. Niente markDirty: cambiare lente non sporca il documento.
+function _setLens(v) {
+    _saveLens(v === 'recovery' ? 'recovery' : 'summary');
+    renderOverview();
+}
+
 /** Ripristina la vista salvata all'avvio (dopo il primo render dello stato). */
 export function restoreOverviewView() {
     if (_savedView() === 'overview') setOverview(true);
@@ -758,5 +887,6 @@ registerClickActions({
     'overview-detail-close': (el) => { const c = el.closest('.ov-col'); if (c) _closeIn(c); },
     'overview-goto': (el) => _gotoNode(el.dataset.id),
     'overview-vlan-panel': () => _gotoVlanPanel(),
+    'overview-lens': (el) => _setLens(el.dataset.lens),
     'overview-grp-tab': (el) => _switchGrpTab(el),
 });

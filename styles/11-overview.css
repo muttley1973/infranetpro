@@ -35,6 +35,36 @@ body.view-overview #export-area { display: none; }
     #overview { overflow: auto; }
     .ov-cols { grid-template-columns: 1fr; }
 }
+/* Lente «Ripristinabilità»: una sola colonna a tutta larghezza. */
+.ov-cols-single { grid-template-columns: 1fr; }
+
+/* ── Selettore di lente (Sintesi ⇄ Ripristinabilità) ─────────────
+   Controllo segmentato sobrio, in cima alla Panoramica. Non compete con la
+   toolbar: è una scelta di VISTA locale, non un'azione. */
+.ov-lens-switch {
+    flex: 0 0 auto; display: inline-flex; gap: 2px; align-self: flex-start;
+    margin: var(--space-6, 12px) var(--space-7, 16px) 0; padding: 2px;
+    border: 1px solid var(--panel-border); border-radius: var(--radius-md, 8px);
+    background: var(--surface-1);
+}
+.ov-lens-btn {
+    cursor: pointer; font: inherit; font-size: var(--fs-md); font-weight: 500;
+    color: var(--text-muted); background: transparent; border: 0;
+    border-radius: var(--radius-sm); padding: 4px 14px;
+}
+.ov-lens-btn:hover { color: var(--text-main); }
+.ov-lens-btn.is-active { color: var(--text-main); background: var(--surface-hover); font-weight: 600; }
+.ov-lens-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ── Verdetto grande della lente DR: «X di Y in piedi» ───────────── */
+.ov-dr-verdict { display: flex; align-items: baseline; gap: 10px; margin: 6px 0 10px; flex-wrap: wrap; }
+.ov-dr-verdict .ov-vdot { align-self: center; }
+.ov-dr-verdict.v-ok   .ov-vdot { background: var(--active-color); }
+.ov-dr-verdict.v-warn .ov-vdot { background: var(--idle-color); }
+.ov-dr-verdict.v-bad  .ov-vdot { background: var(--fault-color); }
+.ov-dr-big { font-size: var(--fs-xl); font-weight: 700; color: var(--text-main); }
+.ov-dr-big .ov-dr-of { font-size: var(--fs-md); font-weight: 400; color: var(--inactive-color); }
+.ov-dr-lbl { font-size: var(--fs-md); color: var(--text-muted); }
 
 .ov-col {
     background: var(--panel-bg); border: 1px solid var(--panel-border);
@@ -204,6 +234,10 @@ button.ov-r:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 /* ② il dichiarato è legge: subnet DICHIARATA (accento) vs «non dichiarata» (tratteggiata, muta). */
 .ov-detail li .ov-tag.p-declaredNet { color: var(--accent); border-color: var(--accent); }
 .ov-detail li .ov-tag.p-undeclared  { color: var(--inactive-color); border-style: dashed; }
+/* Lente DR: un backup datato / una presenza stantìa (ambra) · un apparato sostituito (rosso). */
+.ov-detail li .ov-tag.p-stale    { color: var(--idle-color); border-color: var(--idle-color); }
+.ov-detail li .ov-tag.p-dated    { color: var(--idle-color); border-color: var(--idle-color); }
+.ov-detail li .ov-tag.p-mismatch { color: var(--fault-color); border-color: var(--fault-color); }
 .ov-detail li button.ov-go {
     all: unset; cursor: pointer; padding: 2px 4px; border-radius: var(--radius-sm);
     display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; width: 100%;

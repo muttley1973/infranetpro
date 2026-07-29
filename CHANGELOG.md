@@ -2,6 +2,10 @@
 
 What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601, newest first. One line per change — the reasoning behind each fix lives in the commit history.
 
+## 2026-07-29 — Recoverability lens: "if it falls tonight, can you bring it back up?"
+
+- **Added** — the Overview has a new opt-in **"Recoverability"** lens (a **Summary / Recoverability** toggle) that answers *"if it falls tonight, can you bring it back up?"* for your **managed** devices. It shows an **"X of Y recoverable"** verdict plus four dimensions, each drilling down to the exact devices that fall short: **config backup** (registered and fresh, under 90 days), **hardware identity** (a known serial, not a swapped-in unit), **location** (assigned to a rack), and **presence** (seen recently vs. not). A device counts as recoverable only with a fresh backup **and** a known identity **and** a known location; presence is advisory and never gates the verdict. Nothing new is collected — the lens reads the config-backup pointer, the declared-vs-measured serial, the rack assignment and the discovery history you already have.
+
 ## 2026-07-29 — The declared addressing plan is law: the Overview measures subnets on their real prefix
 
 - **Changed** — the Overview now treats what you declare in the **VLAN/subnet panel as authoritative**. "Free addresses" (Expansion) and "Project subnets" (Document) measure on the **declared subnet prefix** — a declared /16 counts ~65,000 usable addresses, not 254 — with declared subnets listed **first** and each row tagged *declared* / *undeclared*. A /24 is only the fallback when nothing is declared.

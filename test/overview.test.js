@@ -483,12 +483,142 @@ test('④ SALUTE colonna (strato colpo d\'occhio): ok/warn/bad + conteggio dai s
   assert.equal(full.margin.health.level, 'warn', '0 porte libere o rack pieno → giallo');
 });
 
+// ── ④ RIPRISTINABILITÀ (DR-readiness) ────────────────────────────────────────
+// La lente non deve MENTIRE sul "se cade stanotte, lo rimetti in piedi?": conta
+// come ripristinabile SOLO chi ha backup fresco + identità nota + posizione; un
+// backup vecchio, un serial diverso (apparato sostituito) o un apparato senza
+// rack NON valgono. La presenza è advisory (non fa da gate).
+const DR_TYPES = {
+  switch: { isActive: true, isRack: true },
+  router: { isActive: true, isRack: true },
+  pc:     { hasIP: true, isFloor: true },      // endpoint: FUORI dalla popolazione DR
+  room:   { isStructural: true },
+};
+
+test('④ DR: popolazione = apparati gestiti (isActive); endpoint e strutturali fuori', () => {
+  const o = buildOverview({ types: DR_TYPES, now: 1e12, nodes: [
+    { id: 'sw1', type: 'switch' }, { id: 'rt1', type: 'router' },
+    { id: 'pc1', type: 'pc', ip: '10.0.0.5' }, { id: 'room1', type: 'room' },
+  ] });
+  const r = o.recovery;
+  assert.equal(rowOf(r, 'drBackup').total, 2, 'solo switch+router: il PC endpoint non è un concern DR');
+  assert.equal(r.total, 2);
+  assert.equal(r.recoverable, 0, 'niente backup/identità/posizione → 0 ripristinabili');
+});
+
+test('④ DR: ripristinabile = backup FRESCO + identità nota + posizione; nessuna scorciatoia', () => {
+  const now = Date.parse('2026-07-29T00:00:00Z');
+  const fresh = '2026-07-01T00:00:00Z';        // 28 giorni fa → fresco (<90)
+  const old = '2025-01-01T00:00:00Z';          // >1 anno → stantìo
+  const nodes = [
+    // pieno: backup fresco + serial + rack → ripristinabile
+    { id: 'sw1', type: 'switch', rackId: 'r1', serialNumber: 'ABC123', backup: { ref: 'git@x/sw1', at: fresh } },
+    // backup vecchio → NON ripristinabile, va nel drill backup taggato 'stale'
+    { id: 'sw2', type: 'switch', rackId: 'r1', serialNumber: 'DEF456', backup: { ref: 'git@x/sw2', at: old } },
+    // serial dichiarato ≠ misurato (apparato sostituito) → identità 'mismatch', NON ripristinabile
+    { id: 'sw3', type: 'switch', rackId: 'r1', serialNumber: 'OLD999',
+      integration: { inventory: { serialNumber: 'NEW111' } }, backup: { ref: 'git@x/sw3', at: fresh } },
+    // senza rack → posizione ignota, NON ripristinabile
+    { id: 'sw4', type: 'switch', serialNumber: 'GHI789', backup: { ref: 'git@x/sw4', at: fresh } },
+  ];
+  const r = buildOverview({ types: DR_TYPES, nodes, now }).recovery;
+  assert.equal(r.total, 4);
+  assert.equal(r.recoverable, 1, 'solo sw1 è pieno; backup vecchio/serial diverso/senza rack NON contano');
+
+  const bk = rowOf(r, 'drBackup');
+  assert.equal(bk.value, 3, 'sw1/sw3/sw4 hanno backup fresco; sw2 è vecchio');
+  assert.equal(bk.extra.stale, 1);
+  assert.deepEqual(bk.items.map((i) => [i.id, i.tag]), [['sw2', 'dated']], 'il vecchio esce taggato «backup datato» (≠ presenza stantìa)');
+
+  const idr = rowOf(r, 'drIdentity');
+  assert.equal(idr.value, 3, 'sw1/sw2/sw4 hanno un serial noto; sw3 è divergente');
+  assert.equal(idr.extra.mismatch, 1);
+  assert.deepEqual(idr.items.map((i) => [i.id, i.tag]), [['sw3', 'mismatch']], 'apparato sostituito → mismatch');
+
+  const loc = rowOf(r, 'drLocation');
+  assert.equal(loc.value, 3, 'sw4 non è in nessun rack');
+  assert.deepEqual(loc.items.map((i) => i.id), ['sw4']);
+
+  assert.equal(r.health.level, 'warn', 'ci sono lacune ma non tutto perso');
+  assert.equal(r.health.issues, 3, 'non ripristinabili = total − recoverable');
+});
+
+test('④ DR: un serial DICHIARATO ma mai misurato conta come noto (sai cosa rimpiazzare)', () => {
+  const now = Date.parse('2026-07-29T00:00:00Z');
+  const at = '2026-07-20T00:00:00Z';
+  const r = buildOverview({ types: DR_TYPES, now, nodes: [
+    { id: 'sw1', type: 'switch', rackId: 'r1', serialNumber: 'DECL-ONLY', backup: { ref: 'x', at } },
+    { id: 'sw2', type: 'switch', rackId: 'r1', backup: { ref: 'x', at },
+      integration: { inventory: { serialNumber: 'MEAS-ONLY' } } },        // solo misurato
+    { id: 'sw3', type: 'switch', rackId: 'r1', backup: { ref: 'x', at } },  // nessun serial → unknown
+  ] }).recovery;
+  assert.equal(rowOf(r, 'drIdentity').value, 2, 'dichiarato-solo e misurato-solo contano; sw3 no');
+  assert.deepEqual(rowOf(r, 'drIdentity').items.map((i) => i.id), ['sw3']);
+  assert.equal(r.recoverable, 2, 'sw1+sw2 pieni (backup+identità+rack); sw3 senza identità no');
+});
+
+test('④ DR: presenza temporale è ADVISORY (denominatore = solo chi ha storia) e non fa da gate', () => {
+  const now = Date.parse('2026-07-29T00:00:00Z');
+  const at = '2026-07-20T00:00:00Z';
+  // sw1 pieno e visto di recente; sw2 pieno ma STALE (non fa da gate: resta ripristinabile);
+  // sw3 pieno senza storia di discovery (non entra nel denominatore presenza).
+  const nodes = [
+    { id: 'sw1', type: 'switch', rackId: 'r1', serialNumber: 'A', backup: { ref: 'x', at } },
+    { id: 'sw2', type: 'switch', rackId: 'r1', serialNumber: 'B', backup: { ref: 'x', at } },
+    { id: 'sw3', type: 'switch', rackId: 'r1', serialNumber: 'C', backup: { ref: 'x', at } },
+  ];
+  const presence = {
+    sw1: { tier: 'stable', ageDays: 1 },
+    sw2: { tier: 'stale', ageDays: 120 },
+    // sw3: nessuna voce → nessuna storia
+  };
+  const r = buildOverview({ types: DR_TYPES, nodes, now, presence }).recovery;
+  const pr = rowOf(r, 'drPresence');
+  assert.equal(pr.total, 2, 'solo sw1+sw2 hanno storia: sw3 non è "non visto", è "mai scansionato"');
+  assert.equal(pr.value, 1, 'uno visto di recente, uno stantìo');
+  assert.equal(pr.extra.stale, 1);
+  assert.deepEqual(pr.items.map((i) => [i.id, i.tag, i.meta]), [['sw2', 'stale', '120gg']]);
+  assert.equal(r.recoverable, 3, 'la presenza NON abbassa i ripristinabili: sw2 stantìo resta ripristinabile');
+});
+
+test('④ DR: senza dati di presenza la riga è «non dichiarato», mai uno zero', () => {
+  const now = Date.parse('2026-07-29T00:00:00Z');
+  const r = buildOverview({ types: DR_TYPES, now, nodes: [
+    { id: 'sw1', type: 'switch', rackId: 'r1', serialNumber: 'A', backup: { ref: 'x', at: '2026-07-20T00:00:00Z' } },
+  ] }).recovery;
+  const pr = rowOf(r, 'drPresence');
+  assert.equal(pr.prov, 'none', 'nessuna observation → non dichiarato');
+  assert.equal(pr.value, null);
+  assert.equal(pr.total, null);
+});
+
+test('④ DR: progetto senza apparati gestiti → lente vuota, salute ok, nessun throw', () => {
+  const r = buildOverview({ types: DR_TYPES, now: 1e12, nodes: [
+    { id: 'pc1', type: 'pc', ip: '10.0.0.5' }, { id: 'room1', type: 'room' },
+  ] }).recovery;
+  assert.equal(r.total, 0);
+  assert.equal(r.recoverable, 0);
+  assert.equal(r.health.level, 'ok', 'niente da ripristinare → non è un allarme');
+  assert.equal(r.health.issues, 0);
+  assert.equal(rowOf(r, 'drBackup').prov, 'none');
+});
+
+test('④ DR: flotta intera non ripristinabile → salute «bad»', () => {
+  const now = Date.parse('2026-07-29T00:00:00Z');
+  const r = buildOverview({ types: DR_TYPES, now, nodes: [
+    { id: 'sw1', type: 'switch', rackId: 'r1' },   // niente backup né serial
+    { id: 'sw2', type: 'switch' },
+  ] }).recovery;
+  assert.equal(r.recoverable, 0);
+  assert.equal(r.health.level, 'bad', 'zero ripristinabili su una flotta non vuota = rosso');
+});
+
 test('nessuna riga contiene stringhe di interfaccia (le parole le mette il renderer)', () => {
   const o = buildOverview({
     types: TYPES, nodes: [{ id: 'sw1', type: 'switch', ip: '10.0.0.1' }],
     spare: { totals: { free: 1, ports: 24 } },
   });
-  const all = [...o.complete.rows, ...o.truth.rows, ...o.margin.rows];
+  const all = [...o.complete.rows, ...o.truth.rows, ...o.margin.rows, ...o.recovery.rows];
   for (const r of all) {
     assert.equal(typeof r.key, 'string');
     assert.ok(['declared', 'measured', 'derived', 'none'].includes(r.prov), 'provenienza dichiarata: ' + r.key);
