@@ -149,11 +149,33 @@
            campi di sinistra si stringono, la ricerca si riduce. Il chip freschezza e le
            etichette Scopri/Verifica RESTANO visibili (richiesta utente). */
         @media (max-width: 1737px) {
-            header { gap: 6px; }
+            header { gap: 5px; }
             .header-title span { display: none; }   /* solo il logo a rete */
-            #project-select { max-width: 130px; }
+            #project-select { max-width: 112px; }
             .project-bar { gap: 4px; }
-            .search-panel { flex: 0 1 190px; min-width: 130px; }
+            /* La ricerca è l'AMMORTIZZATORE: con flex-wrap la decisione di andare a capo
+               usa il flex-BASIS (non il min-width), quindi abbassare il basis è ciò che
+               tiene il cluster destro sulla stessa riga. Basis piccolo + min-width piccolo
+               → la barra sta su UNA riga fino a ~1420px con chip ed etichette intatti. */
+            .search-panel { flex: 0 1 158px; min-width: 78px; }
+        }
+        /* ≤1420px (portatili comuni / finestra non massimizzata): stringiamo ANCORA la
+           ricerca e i campi progetto, e compattiamo un filo il chip, per restare su UNA
+           riga fino a ~1200px — senza mai togliere il chip né le etichette Scopri/Verifica. */
+        @media (max-width: 1420px) {
+            header { gap: 4px; }
+            #project-select { max-width: 92px; }
+            .search-panel { flex: 0 1 96px; min-width: 60px; }
+            .sync-fresh-chip { padding: 4px 9px; font-size: var(--fs-sm); }
+            .sync-fresh-chip .sync-fresh-ico { font-size: .78rem; }
+        }
+        /* ≤1280px (schermi 1280/1152 o zoom del browser su monitor più grandi):
+           ultimo giro di compattazione — padding ridotto, ricerca e selettore progetto
+           minimi — per restare su UNA riga fino a ~1170px. Chip ed etichette restano. */
+        @media (max-width: 1280px) {
+            header { padding: 4px 10px; }
+            #project-select { max-width: 80px; }
+            .search-panel { flex: 0 1 64px; min-width: 48px; }
         }
 
         /* ---- Header fallback B ---- */
