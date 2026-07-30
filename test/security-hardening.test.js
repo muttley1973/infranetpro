@@ -26,6 +26,27 @@ test('SEC-M1: _redactSnmpSecrets azzera community/v3authPass/v3privPass, tiene i
   assert.equal(ig.v3user, 'admin', 'username v3 (non segreto) preservato');
 });
 
+test('SEC-M1: _redactSnmpSecrets copre anche le VM (vm.integration + legacy vm.snmp)', () => {
+  const project = { id: 2, name: 'p', state: { nodes: [
+    { id: 'hv1', integration: { driver: 'snmp-v2c', community: 'node-secret' }, vms: [
+      { id: 'vm1', name: 'web', integration: { driver: 'snmp-v2c', host: '10.0.0.5', community: 'vm-secret',
+                                               v3user: 'mon', v3authPass: 'VMAUTH', v3privPass: 'VMPRIV' } },
+      { id: 'vm2', name: 'db', snmp: { community: 'legacy-secret' } },   // contenitore legacy
+      { id: 'vm3', name: 'bare' },                                       // VM senza integrazione → intatta
+    ] },
+  ] } };
+  _redactSnmpSecrets(project);
+  const vms = project.state.nodes[0].vms;
+  assert.equal(project.state.nodes[0].integration.community, '', 'community del nodo azzerata');
+  assert.equal(vms[0].integration.community, '', 'community della VM azzerata');
+  assert.equal(vms[0].integration.v3authPass, '', 'passphrase auth v3 della VM azzerata');
+  assert.equal(vms[0].integration.v3privPass, '', 'passphrase priv v3 della VM azzerata');
+  assert.equal(vms[0].integration.host, '10.0.0.5', 'host della VM preservato');
+  assert.equal(vms[0].integration.v3user, 'mon', 'username v3 della VM preservato');
+  assert.equal(vms[1].snmp.community, '', 'community nel contenitore legacy vm.snmp azzerata');
+  assert.equal(vms[2].name, 'bare', 'VM senza integrazione intatta');
+});
+
 // ── SEC-M2: guardia del bypass auth ────────────────────────────────────────
 const { _computeDevNoAuth } = require('../auth');
 

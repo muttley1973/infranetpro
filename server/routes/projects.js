@@ -18,13 +18,25 @@ const router = express.Router();
 // azzerare in-place sulla risposta senza toccare il disco né altre richieste. Il
 // viewer non salva (PUT/copy sono admin-only) → nessuna perdita nel round-trip.
 const SNMP_SECRET_KEYS = ['community', 'v3authPass', 'v3privPass'];
+function _redactBag(bag) {
+  if (bag && typeof bag === 'object') {
+    for (const k of SNMP_SECRET_KEYS) if (bag[k]) bag[k] = '';
+  }
+}
 function _redactSnmpSecrets(project) {
   const nodes = project && project.state && project.state.nodes;
   if (!Array.isArray(nodes)) return project;
   for (const n of nodes) {
-    const ig = n && n.integration;
-    if (ig && typeof ig === 'object') {
-      for (const k of SNMP_SECRET_KEYS) if (ig[k]) ig[k] = '';
+    if (!n) continue;
+    _redactBag(n.integration);
+    // Le VM usano lo stesso contenitore dei device (`vm.integration`, più il
+    // legacy `vm.snmp` dei progetti vecchi): stessi segreti, stessa redazione.
+    if (Array.isArray(n.vms)) {
+      for (const vm of n.vms) {
+        if (!vm) continue;
+        _redactBag(vm.integration);
+        _redactBag(vm.snmp);
+      }
     }
   }
   return project;
