@@ -511,16 +511,22 @@ ${_renderHaPartnersList()}
 
                 // ---- Patch Panel typology (PRIMARY device-specific per patchpanel) ----
                 if(n.type==='patchpanel'){
-                    const media = n.ppMedia || 'copper';
-                    const cat = n.ppCopperCat || 'cat6';
-                    const shield = n.ppCopperShield || 'utp';
-                    const conn = n.ppFiberConnector || 'lc-duplex';
-                    const mode = n.ppFiberMode || 'mm-om4';
+                    // Manual-first: nessun default preselezionato. Un pannello mai
+                    // compilato mostra «non dichiarato», non «Cat 6 · U/UTP»: la
+                    // tendina che si apre gia' su un valore lo fa diventare un dato
+                    // del documento senza che nessuno l'abbia scelto.
+                    const media = n.ppMedia || '';
+                    const cat = n.ppCopperCat || '';
+                    const shield = n.ppCopperShield || '';
+                    const conn = n.ppFiberConnector || '';
+                    const mode = n.ppFiberMode || '';
                     const showCopper = (media==='copper' || media==='mixed');
                     const showFiber  = (media==='fiber'  || media==='mixed');
+                    const _ppUnset = `<option value="" ${selected(media,'')}>${t('o.notDeclared')}</option>`;
                     _patchPanelHtml = `<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-patchpanel')?'open':''} ontoggle="setPropsSectionState('device-patchpanel',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-bars"></i> Patch Panel</span>${_buildPatchPanelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
 <div class="prop-group"><label>${t('f.ppCategory')}</label>
   <select onchange="updateN('ppMedia',this.value)">
+    ${_ppUnset}
     <option value="copper" ${selected(media,'copper')}>${t('o.copperRj45')}</option>
     <option value="fiber"  ${selected(media,'fiber')}>${t('o.fiberOdf')}</option>
     <option value="mixed"  ${selected(media,'mixed')}>${t('o.mixedModular')}</option>
@@ -529,6 +535,7 @@ ${_renderHaPartnersList()}
 ${showCopper ? `<div class="prop-row2">
   <div class="prop-group"><label>${t('f.copperStd')}</label>
     <select onchange="updateN('ppCopperCat',this.value)">
+      <option value="" ${selected(cat,'')}>${t('o.notDeclared')}</option>
       <option value="cat5e" ${selected(cat,'cat5e')}>Cat 5e</option>
       <option value="cat6"  ${selected(cat,'cat6')}>Cat 6</option>
       <option value="cat6a" ${selected(cat,'cat6a')}>Cat 6A</option>
@@ -538,6 +545,7 @@ ${showCopper ? `<div class="prop-row2">
   </div>
   <div class="prop-group"><label>${t('f.shielding')}</label>
     <select onchange="updateN('ppCopperShield',this.value)">
+      <option value="" ${selected(shield,'')}>${t('o.notDeclared')}</option>
       <option value="utp" ${selected(shield,'utp')}>${t('pnl.node.shieldUtp')}</option>
       <option value="ftp" ${selected(shield,'ftp')}>${t('pnl.node.shieldFtp')}</option>
       <option value="stp" ${selected(shield,'stp')}>${t('pnl.node.shieldStp')}</option>
@@ -547,6 +555,7 @@ ${showCopper ? `<div class="prop-row2">
 ${showFiber ? `<div class="prop-row2">
   <div class="prop-group"><label>${t('f.fiberConn')}</label>
     <select onchange="updateN('ppFiberConnector',this.value)">
+      <option value="" ${selected(conn,'')}>${t('o.notDeclared')}</option>
       <option value="lc-simplex" ${selected(conn,'lc-simplex')}>LC simplex</option>
       <option value="lc-duplex"  ${selected(conn,'lc-duplex')}>LC duplex</option>
       <option value="sc"         ${selected(conn,'sc')}>SC</option>
@@ -558,6 +567,7 @@ ${showFiber ? `<div class="prop-row2">
   </div>
   <div class="prop-group"><label>${t('f.fiberMode')}</label>
     <select onchange="updateN('ppFiberMode',this.value)">
+      <option value="" ${selected(mode,'')}>${t('o.notDeclared')}</option>
       <option value="sm-os1" ${selected(mode,'sm-os1')}>SM — OS1</option>
       <option value="sm-os2" ${selected(mode,'sm-os2')}>SM — OS2</option>
       <option value="mm-om1" ${selected(mode,'mm-om1')}>MM — OM1</option>

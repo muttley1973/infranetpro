@@ -207,24 +207,30 @@ const _PP_FIBER_CONN_LABEL = {
 /** Genera la preview per la fisarmonica device-patchpanel: tipologia fisica
  *  + numero porte. La tipologia usa le sigle ISO/IEC standard (Cat 6A,
  *  U/UTP, OS2, OM4, MTP-12, ecc.) cosi' chi cabla riconosce il prodotto
- *  reale. Es: "Cat 6A · F/UTP · 24p", "OM4 LC duplex · 12p". */
+ *  reale. Es: "Cat 6A · F/UTP · 24p", "OM4 LC duplex · 12p".
+ *  SOLO IL DICHIARATO: nessun `|| 'cat6'`. Un pannello mai compilato non ha
+ *  preview (come il gemello brand/modello sopra) invece di annunciare
+ *  "Cat 6 · U/UTP · 24p" — indistinguibile, per chi legge, da una tipologia
+ *  scelta davvero. Stessa correzione gia' fatta sui 42U dei rack. */
 export function _buildPatchPanelPreview(n){
     if(!n) return '';
-    const media = n.ppMedia || 'copper';
-    const portCount = n.ports !== undefined ? n.ports : 24;
+    const media = n.ppMedia || '';
     const parts = [];
     if(media === 'copper'){
-        const cat = _PP_COPPER_CAT_LABEL[n.ppCopperCat || 'cat6'] || 'Cat 6';
-        const shield = _PP_COPPER_SHIELD_ISO[n.ppCopperShield || 'utp'] || 'U/UTP';
-        parts.push(cat, shield);
+        const cat = _PP_COPPER_CAT_LABEL[n.ppCopperCat];
+        const shield = _PP_COPPER_SHIELD_ISO[n.ppCopperShield];
+        if(cat) parts.push(cat);
+        if(shield) parts.push(shield);
     } else if(media === 'fiber'){
-        const mode = _PP_FIBER_MODE_LABEL[n.ppFiberMode || 'mm-om4'] || 'OM4';
-        const conn = _PP_FIBER_CONN_LABEL[n.ppFiberConnector || 'lc-duplex'] || 'LC duplex';
-        parts.push(`${mode} ${conn}`);
-    } else { // mixed
+        const mode = _PP_FIBER_MODE_LABEL[n.ppFiberMode];
+        const conn = _PP_FIBER_CONN_LABEL[n.ppFiberConnector];
+        const fiber = [mode, conn].filter(Boolean).join(' ');
+        if(fiber) parts.push(fiber);
+    } else if(media === 'mixed'){
         parts.push(t('pnl.gen.copperFiber'));
     }
-    if(portCount) parts.push(`${portCount}p`);
+    if(n.ports) parts.push(`${n.ports}p`);
+    if(!parts.length) return '';
     return `<span class="props-collapsible-preview">${escapeHTML(parts.join(' · '))}</span>`;
 }
 
