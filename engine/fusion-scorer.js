@@ -52,7 +52,7 @@ const {
   SWITCH_WORDS_RE, NOT_A_NET_SWITCH_RE, ROUTER_WORDS_RE, NET_VENDOR_GW_RE, PRINTER_RE, WEBCAM_RE, NAS_RE,
   FIREWALL_RE, AP_RE, WLANCTRL_RE, PDU_RE, UPS_RE, VOIP_RE, IOT_EMBED_RE,
   ATS_RE, NVR_RE, VPNCON_RE, PBX_RE, CONSOLESVR_RE, PROJECTOR_RE, KVM_RE, DOORCTRL_RE,
-  ROUTER_VENDOR_RE, SWITCH_VENDOR_RE, JUNIPER_FIREWALL_RE, JUNIPER_ROUTER_RE,
+  ROUTER_VENDOR_RE, SWITCH_VENDOR_RE, SRX_FIREWALL_RE, CARRIER_ROUTER_RE,
   HYPERVISOR_RE, SERVER_VIRT_RE, SERVER_LINUX_RE, APPLIANCE_RE, SMART_HOME_RE,
   TV_SIGNAL_RE, MEDIA_PLAYER_RE, PC_OS_RE, PC_HOSTNAME_RE, PC_VENDOR_RE,
   VENDOR_TYPE_NOUN_RE,
@@ -221,9 +221,17 @@ class FusionScorer {
     if (osInfo?.family === 'windows' && /server/.test(String(osInfo.name || '').toLowerCase())) {
       bump('server', 55, 'os-windows-server', { source: 'os', label: 'Windows Server' });
     }
-    if ((osInfo?.family === 'linux' || osInfo?.family === 'bsd' || osInfo?.family === 'vmware') && !/android/.test(fullText)) {
-      bump(osFingerprint?.deviceType || 'server', 45, 'os-unix-server',
-        { source: 'os', label: osInfo?.name || osInfo?.family });
+    // Un solo voto per una sola evidenza. `os-fingerprint` sopra e questo ramo
+    // guardano LA STESSA COSA — il sistema operativo — e sommandosi facevano 115:
+    // un «Linux Synology» usciva `server` (70+45) contro i 90 di NAS_RE, cioe' la
+    // funzione DICHIARATA perdeva contro l'OS contato due volte. Un NAS gira Linux
+    // per costruzione, come un firewall e un access point: l'OS dice con cosa e'
+    // fatto, non che cosa fa. Se il fingerprint ha gia' votato quel tipo, qui non
+    // si aggiunge nulla; il ramo resta per il caso in cui non abbia votato affatto.
+    const _osAlreadyVoted = !!osFingerprint?.deviceType;
+    if ((osInfo?.family === 'linux' || osInfo?.family === 'bsd' || osInfo?.family === 'vmware')
+        && !/android/.test(fullText) && !_osAlreadyVoted) {
+      bump('server', 45, 'os-unix-server', { source: 'os', label: osInfo?.name || osInfo?.family });
     }
 
     // OID prefix votes — dalla tabella CANONICA condivisa (lib/device-signatures).
@@ -233,8 +241,13 @@ class FusionScorer {
 
     // Vendor / model regex votes from descr/banner/host
     if (PRINTER_RE.test(fullText))   bump('printer', 90, 'regex-printer');
+    // Hostname di fabbrica "HP" + suffisso MAC: e' la convenzione delle schede
+    // JetDirect, quindi un'INFERENZA DA IDENTITA' (chi l'ha fatto), non una misura
+    // di cosa fa. Sta un gradino sopra l'OUI nudo (il device annuncia lui la
+    // stringa) e sotto qualunque segnale comportamentale (>=78): a 65 scavalcava
+    // la misura sysServices, che e' la stessa inversione di `cisco-ios-text`.
     if (/^hp[0-9a-f]{6}$/i.test(String(row?.hostname || '').trim()) && /hewlett packard/.test(vendor))
-                                     bump('printer', 65, 'hostname-hp-printer');
+                                     bump('printer', 50, 'hostname-hp-printer');
     // NVR prima di webcam (pattern wlanctrl/ap): l'aggregatore che si dichiara
     // "NVR/DVR" sopprime il gemello endpoint — WEBCAM_RE contiene gia' \bnvr\b.
     if (NVR_RE.test(fullText))       bump('nvr', 90, 'regex-nvr');
@@ -266,11 +279,19 @@ class FusionScorer {
     if (networkVendorGateway && !switchWords)    bump('router', 75, 'gateway-ip-vendor');
     if (ROUTER_VENDOR_RE.test(fullText))         bump('router', 82, 'regex-router-vendor');
     if (switchWords || (SWITCH_VENDOR_RE.test(fullText) && !notNetSwitch)) bump('switch', 78, 'regex-switch-vendor');
-    if (JUNIPER_FIREWALL_RE.test(fullText))      bump('firewall', 86, 'regex-juniper-srx');
-    if (JUNIPER_ROUTER_RE.test(fullText))        bump('router', 82, 'regex-juniper-mx');
+    if (SRX_FIREWALL_RE.test(fullText))          bump('firewall', 86, 'regex-srx-firewall');
+    if (CARRIER_ROUTER_RE.test(fullText))        bump('router', 82, 'regex-carrier-router');
     if (macPrefix === '08:00:09' && !/officejet|laserjet|printer|desktop|win|workstation|laptop|notebook/.test(fullText))
                                                   bump('switch', 45, 'mac-oui-hp-net');
-    if (/\bios\b/.test(fullText) && !/switch|catalyst/.test(fullText)) bump('router', 55, 'cisco-ios-text');
+    // `ios` nel testo = una PAROLA in una descrizione, non una misura: dice quale
+    // sistema operativo gira, non che funzione svolge l'apparato (IOS gira su
+    // switch, router, AP e controller wireless allo stesso modo). Valeva 55 e
+    // quindi BATTEVA il segnale MISURATO `sysservices-l3`/`-l2` (45, RFC 1213,
+    // dichiarato dall'apparato stesso): un Catalyst con "IOS XE" nel sysDescr e
+    // sysServices che misura solo L2 usciva ROUTER. Ora sta sotto la misura — con
+    // una misura concorde la somma classifica lo stesso, senza misura il testo
+    // classifica ancora ma a confidenza onesta. Vale per ogni OS-nel-testo.
+    if (/\bios\b/.test(fullText) && !/switch|catalyst/.test(fullText)) bump('router', 40, 'cisco-ios-text');
     if (HYPERVISOR_RE.test(fullText))           bump('hypervisor', 90, 'regex-hypervisor');
     if (SERVER_VIRT_RE.test(fullText))          bump('server', 90, 'regex-server-virt');
     if (SERVER_LINUX_RE.test(fullText))         bump('server', 55, 'regex-linux-distro');
@@ -284,7 +305,13 @@ class FusionScorer {
     if (isTv) bump('tv', 80, 'regex-tv');
     if (isMediaPlayer) bump('tv', 55, 'regex-media-player');
     if (/chromecast|google ?cast/.test(fullText) && !svc.l2 && !svc.l3 && !switchWords && !routerWords) bump('tv', 75, 'regex-chromecast');
-    if (/sony|bravia/.test(fullText) && !svc.l2 && !svc.l3 && !switchWords && !routerWords && !/camera|cctv|nvr|dvr|projector/.test(fullText)) bump('tv', 58, 'regex-sony-bravia');
+    // `bravia` e' la LINEA TV; `sony` da solo era la marca, e Sony fa anche
+    // telecamere professionali, proiettori e sensori — un suo apparato qualsiasi
+    // usciva `tv` a 58, sopra la misura sysServices. Il guard `!camera|projector`
+    // che tamponava la cosa e' la prova che il token era troppo largo: adesso non
+    // serve piu' per il ramo marca, resta per il resto della riga. `bravia` e'
+    // gia' in TV_SIGNAL_RE (80): questo ramo copre le forme che quella non prende.
+    if (/\bbravia\b/.test(fullText) && !svc.l2 && !svc.l3 && !switchWords && !routerWords && !/camera|cctv|nvr|dvr|projector/.test(fullText)) bump('tv', 58, 'regex-bravia');
     // webOS nel testo = stringa di PRODOTTO (segnale forte, 82). L'OUI da solo è il
     // segnale più DEBOLE e resta sotto il tetto OUI≤45 dichiarato sopra: lo stesso
     // MAC sta su monitor, soundbar e moduli di terzi, non solo su un televisore.
@@ -418,7 +445,15 @@ class FusionScorer {
       if (svc.l4 && svc.l7 && !svc.l2 && !svc.l3) { deviceType = 'server'; confidence = 25; }
       else if (svc.l2 && !svc.l3)                 { deviceType = 'switch'; confidence = 25; }
       else if (svc.l3)                            { deviceType = 'router'; confidence = 25; }
-      else                                        { deviceType = 'switch'; confidence = 25; }   // nessun layer → storico
+      // NESSUN layer dichiarato e nessuna regola che risponde: qui non si sa, e
+      // fino a ieri si diceva 'switch' (il ramo era commentato «storico»). Era la
+      // risposta di default del prodotto per tutto cio' che non conosce — una
+      // affermazione senza uno straccio di prova, sul campo che RINOMINA la cosa
+      // sullo schermo. Ora esce il tipo GENERICO: resta un apparato gestito e
+      // piazzabile in rack, ma non gli si attribuisce una funzione che nessuno ha
+      // misurato. La confidenza era gia' 25, cioe' «non so»: adesso lo dice anche
+      // il tipo. (Un responder SNMP che pubblica i layer finisce nei rami sopra.)
+      else                                        { deviceType = 'customrack'; confidence = 25; }
     } else {
       deviceType = 'pc';
       confidence = 15;

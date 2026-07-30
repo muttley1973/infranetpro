@@ -55,10 +55,19 @@ function infer(context = {}) {
   if (/chromecast|google cast/.test(text)) {
     return osRecord('Google', 'tv', 'Cast OS', 'castos', 'Google', 70, ['cast', 'media']);
   }
-  if (/android/.test(text) || /google|samsung|xiaomi|oneplus|huawei|oppo|vivo/.test(vendor)) {
-    // Android phone/tablet → `mobile` (OS-driven, not brand-driven). Android TV and
-    // Cast devices are caught above (→ tv).
+  if (/android/.test(text)) {
+    // Android phone/tablet → `mobile`. Qui l'OS e' ANNUNCIATO dal device: e' una
+    // misura, e vale piena confidenza. Android TV e Cast sono presi sopra (→ tv).
     return osRecord('Android', 'mobile', 'Android', 'android', 'Google', 62, ['android', 'mobile']);
+  }
+  if (/google|samsung|xiaomi|oneplus|huawei|oppo|vivo/.test(vendor)) {
+    // Stessa conclusione, PROVA DIVERSA: qui non c'e' nessun Android annunciato,
+    // solo il nome del produttore. E' un'inferenza da IDENTITA' — la piu' debole —
+    // e queste marche fanno molto altro: Huawei switch/router/AP, Samsung TV e
+    // stampanti, Google Nest e Chromecast, Xiaomi qualsiasi cosa. Stava a 62 e
+    // batteva la misura sysServices (45), la stessa inversione corretta altrove.
+    // Sotto il tetto dell'inferenza-da-vendor: se un segnale di funzione parla, vince lui.
+    return osRecord('Android', 'mobile', 'Android', 'android', 'Google', 40, ['android', 'mobile', 'vendor-inference']);
   }
   if (mac.startsWith('00:05:02') || mac.startsWith('00:03:93') || /apple/.test(vendor)) {
     return osRecord('Apple', 'pc', 'Apple OS', 'apple', 'Apple', 55, ['apple']);

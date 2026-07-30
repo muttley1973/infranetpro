@@ -535,6 +535,44 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.sectionRoundTrip, 'setPropsSectionState↔_propsSectionIsOpen round-trip (stato module-private)');
     });
 
+    await t.test('patch panel: la tipologia non dichiarata resta non dichiarata (niente «Cat 6 · U/UTP» inventato)', async () => {
+      const r = await page.evaluate(() => {
+        // 1) Funzione pura: preview solo sul DICHIARATO.
+        const vuoto      = _buildPatchPanelPreview({ type: 'patchpanel' });
+        const soloPorte  = _buildPatchPanelPreview({ type: 'patchpanel', ports: 24 });
+        const dichiarato = _buildPatchPanelPreview({
+          type: 'patchpanel', ports: 24, ppMedia: 'copper', ppCopperCat: 'cat6a', ppCopperShield: 'ftp',
+        });
+        const fibra = _buildPatchPanelPreview({
+          type: 'patchpanel', ports: 12, ppMedia: 'fiber', ppFiberMode: 'mm-om4', ppFiberConnector: 'lc-duplex',
+        });
+
+        // 2) Il pannello: le tendine non si aprono gia' su un valore.
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        const rackId = (state.racks[0] && state.racks[0].id) || state.currentRack;
+        state.nodes.push({ id: 'pp1', type: 'patchpanel', name: 'PP-1', ports: 24, rackId, rackU: 1, sizeU: 1 });
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        const panel = document.getElementById('props-panel');
+        selType = 'node'; selId = 'pp1'; window._propsExplicit = true;
+        renderProps();
+        const selMedia = panel.querySelector('select[onchange*="ppMedia"]');
+        const mediaValue = selMedia ? selMedia.value : '(assente)';
+        // Nessun blocco rame/fibra finche' il supporto non e' dichiarato.
+        const catShown = !!panel.querySelector('select[onchange*="ppCopperCat"]');
+
+        window._propsExplicit = false; selType = null; selId = null;
+        return { vuoto, soloPorte, dichiarato, fibra, mediaValue, catShown };
+      });
+      assert.equal(r.vuoto, '', 'pannello senza alcun dato: nessuna preview, come per marca/modello');
+      assert.ok(/24p/.test(r.soloPorte) && !/Cat|UTP/.test(r.soloPorte),
+        'con le sole porte la preview dice «24p» e NON inventa categoria/schermatura');
+      assert.ok(/Cat 6A/.test(r.dichiarato) && /F\/UTP/.test(r.dichiarato) && /24p/.test(r.dichiarato),
+        'quando la tipologia e\' dichiarata la preview la mostra per intero');
+      assert.ok(/OM4 LC duplex/.test(r.fibra) && /12p/.test(r.fibra), 'ramo fibra: modo + connettore dichiarati');
+      assert.equal(r.mediaValue, '', 'la tendina «tipologia» si apre su «non dichiarato», non su Rame');
+      assert.equal(r.catShown, false, 'senza supporto dichiarato non si mostra un blocco rame che nessuno ha scelto');
+    });
+
     await t.test('app-properties-node-devices migrato: catena device-spec FLOOR/RACK + _floorAccessVlanRow', async () => {
       const r = await page.evaluate(() => {
         state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
@@ -593,6 +631,46 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.blockedWhenImplicit, 'rack senza _propsExplicit: il dispatcher non apre le proprietà (guard via win._propsExplicit)');
       assert.ok(r.rendersWhenExplicit, 'rack con _propsExplicit=true: _renderNodeProps rende il nodo (SW-K)');
       assert.ok(r.hasSwitchSpec, 'rende la sezione device-spec switch (integra la catena node-devices)');
+    });
+
+    await t.test('golden del classificatore CLIENT: `_guessType` sul corpus condiviso', async () => {
+      // Gemello di test/classify-golden.test.js (che copre il motore server). Lo
+      // stesso corpus passa nei DUE classificatori: e' l'unico modo di vedere le
+      // divergenze fra loro — il reperto V5 — e di accorgersi quando un fix su un
+      // lato lascia l'altro indietro. `_guessType` vive nel browser, quindi il suo
+      // golden si puo' prendere solo da qui.
+      const fs = require('node:fs');
+      const path = require('node:path');
+      const { CORPUS } = require('../fixtures/classify-corpus.js');
+      const GOLDEN = path.join(__dirname, '..', 'golden', 'classify-golden-client.json');
+
+      const cur = await page.evaluate((corpus) => {
+        const out = {};
+        for (const c of corpus) {
+          const r = c.row || {};
+          try {
+            out[c.id] = _guessType(r.descr || '', r.objectId || '', r.vendor || '',
+              r.httpTitle || r.httpsTitle || '', r.hostname || '') || '';
+          } catch (e) { out[c.id] = '__ERR__ ' + (e && e.message); }
+        }
+        return out;
+      }, CORPUS.map(c => ({ id: c.id, row: c.row })));
+
+      const errs = Object.keys(cur).filter(k => String(cur[k]).startsWith('__ERR__'));
+      assert.equal(errs.length, 0, 'righe in errore: ' + errs.map(k => `${k}=${cur[k]}`).join(', '));
+
+      if (process.env.UPDATE_CLASSIFY_GOLDEN || !fs.existsSync(GOLDEN)) {
+        fs.writeFileSync(GOLDEN, JSON.stringify(cur, null, 1) + '\n');
+        return;
+      }
+      const golden = JSON.parse(fs.readFileSync(GOLDEN, 'utf8'));
+      assert.deepEqual(Object.keys(cur).sort(), Object.keys(golden).sort(),
+        'il set di righe del corpus è cambiato: UPDATE_CLASSIFY_GOLDEN=1 per rigenerare');
+      const byId = new Map(CORPUS.map(c => [c.id, c]));
+      const diffs = Object.keys(cur).filter(k => cur[k] !== golden[k]).map(k =>
+        `  ${k}: golden «${golden[k] || '(nessuno)'}» → ora «${cur[k] || '(nessuno)'}» — ${(byId.get(k) || {}).note || ''}`);
+      assert.equal(diffs.length, 0,
+        `\n${diffs.length} righe cambiano tipo lato CLIENT.\nSe il movimento è quello voluto: UPDATE_CLASSIFY_GOLDEN=1 RUN_E2E=1 npm run e2e\n` + diffs.join('\n'));
     });
 
     await t.test('app-topology-crawl migrato: utility rack condivise _findFreeU / _resolveRackOverlap', async () => {

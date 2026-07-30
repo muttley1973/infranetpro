@@ -477,88 +477,115 @@ export function _saveDeepScanPref(enabled){
 }
 
 
+// ============================================================
+//  _guessType — RETE DI SICUREZZA, non un secondo classificatore
+// ============================================================
+//  Il classificatore autorevole e' il FusionScorer lato server: vede tutti i
+//  segnali misurati (sysServices, porte, banner, mDNS, SMB) e pesa ciascuno.
+//  Questa funzione gira SOLO quando il server non produce alcuna classe — un
+//  device muto, o un MAC preso dall'FDB senza una riga di scansione.
+//
+//  Aveva una PROPRIA scala di regex, divergente dalla tabella che l'header di
+//  lib/device-patterns.js dichiara «unica fonte»: `cisco` nudo -> switch,
+//  `sony` -> tv, `apc` -> ups, `daikin` -> iot, `huawei` -> pc. Sullo stesso
+//  apparato server e browser rispondevano diverso (17 righe su 53 del corpus),
+//  e correggere una regola in un posto lasciava l'altro sbagliato.
+//
+//  Ora legge la STESSA tabella, nello stesso ordine di specificita' del
+//  FusionScorer: prima la funzione dichiarata nel testo misurato, poi le firme
+//  sysObjectID, poi i segnali deboli, e in fondo la catena endpoint. Le
+//  divergenze che restano sono solo quelle STRUTTURALI (il server pesa e somma,
+//  qui si prende il primo che matcha) — non piu' due tabelle diverse.
+// ============================================================
 function _guessType(descr, objectId, vendor='', banner='', host=''){
     const d=(descr||'').toLowerCase();
     const oid=(objectId||'');
     const vhb = `${vendor||''} ${banner||''} ${host||''}`.toLowerCase();
+    // Un testo solo, come `fullText` del FusionScorer: separare descr da
+    // vendor/banner/host obbligava a duplicare ogni regola su due scale, ed e'
+    // esattamente da li' che nasceva la divergenza.
+    const text = `${d} ${vhb}`;
     // Firme OID dalla tabella CONDIVISA (lib/device-signatures): stessa priorita'
     // di prima (chiesta a posizione), ma senza ripetere qui la lista dei prefissi.
     const _oidIs = (type) => typeof oidIsType === 'function' && oidIsType(oid, type);
+    const _has = (re) => !!(re && re.test && re.test(text));
 
-    if(/reolink|hikvision|dahua|vivotek|camera|cctv/.test(vhb)) return 'webcam';
-    if(/synology|sinology|qnap|nas|lacie/.test(vhb)) return 'nas';
-    if(/officejet|laserjet|printer|epson|xerox|ricoh|kyocera/.test(vhb)) return 'printer';
-    if(/^hp[0-9a-f]{6}$/i.test(host || '') && /hewlett packard/i.test(vendor || '')) return 'printer';
-    if(/keil-eweb|embedded web|webrelay|modbus|plc|eaton corporation|azurewave|daikin/.test(vhb) && !/\bups\b|\bpdu\b|power/.test(vhb)) return 'iot';
-    if(/fortigate|fortinet|palo\s?alto|pan-os|sonicwall|watchguard|checkpoint|sophos.*firewall|pfsense|opnsense|firewall/.test(vhb)) return 'firewall';
-    if(/wireless\s*lan\s*controller|wlan\s*controller|mobility\s*controller|\bwlc\b|air-?ct[0-9]|cisco\s*controller|aire-?os|catalyst\s*9800|\bc9800/.test(vhb)) return 'wlanctrl';
-    // TV/media PRIMA del check generico switch/gs\d (evita che il nome di uno switch
-    // vicino — es. "GS1900" — riscriva una TV a "switch").
-    if(/lgwebos|webos|bravia|sony|google tv|chromecast|nvidia shield|\bshield\b|android tv|smart.?tv|television/.test(vhb)) return 'tv';
-    if(/gateway|router|zywall|web-based configurator/.test(vhb) && !/switch|gs\d{3,4}|xgs\d{3,4}/.test(vhb)) return 'router';
-    if(/mikrotik|routeros|edgerouter|edgeos|unifi gateway|\busg\b|\budm\b|dream machine|tp-link.*router|netgear.*router|d-link.*router|openwrt|vyos/.test(vhb)) return 'router';
-    if(/aruba|cisco|juniper.*(?:ex|qfx)|brocade|extreme|dell.*powerconnect|switch|gs\d{3,4}|xgs\d{3,4}/.test(vhb)) return 'switch';
-    if(/google|chromecast/.test(vhb) && !/server|workgroup|desktop|win/.test(vhb)) return 'iot';
-    // UPS/PDU: niente falsi positivi (backups, groups, startups) MA senza perdere i
-    // veri — "back-ups" col trattino = linea APC, "backups" senza = altro; SmartUPS
-    // e UPS-1500 restano coperti. Vendor-neutral (rule ③), vhb è già minuscolo.
-    if(/\bups\b|\bapc\b|smart-?ups|back-ups|ups-?\d/.test(vhb)) return 'ups';
+    // ── 1. Funzione DICHIARATA nel testo misurato (i voti 85-90 del server) ──
+    if(_has(PRINTER_RE) || _oidIs('printer')) return 'printer';
+    // NVR prima di webcam: l'aggregatore che si dichiara NVR sopprime il gemello
+    // endpoint (WEBCAM_RE contiene gia' \bnvr\b), come fa il server.
+    if(_has(NVR_RE)) return 'nvr';
+    if(_has(WEBCAM_RE) || _oidIs('webcam')) return 'webcam';
+    if(_has(NAS_RE) || _oidIs('nas')) return 'nas';
+    if(_has(APPLIANCE_RE)) return 'iot';
+    if(_has(FIREWALL_RE) || _has(SRX_FIREWALL_RE)) return 'firewall';
+    if(_has(WLANCTRL_RE)) return 'wlanctrl';
+    if(_has(AP_RE) || _oidIs('ap')) return 'ap';
+    if(_has(PROJECTOR_RE)) return 'projector';
+    // ATS prima di UPS (il transfer switch APC diceva "ups" per via del marchio,
+    // ora che il marchio e' uscito da UPS_RE conta la funzione) e PDU prima
+    // ancora, perche' APC numera i due tipi diversamente.
+    if(_has(ATS_RE)) return 'ats';
+    if(_has(PDU_RE) || _oidIs('pdu')) return 'pdu';
+    if(_has(UPS_RE) || _oidIs('ups')) return 'ups';
+    if(_has(VPNCON_RE)) return 'vpncon';
+    if(_has(CONSOLESVR_RE)) return 'consolesvr';
+    if(_has(KVM_RE)) return 'kvm';
+    if(_has(DOORCTRL_RE)) return 'doorctrl';
+    // PBX prima di voip: il centralino non e' un telefono.
+    if(_has(PBX_RE)) return 'pbx';
+    if(_has(VOIP_RE) || _oidIs('voip')) return 'voip';
+    if(_has(IOT_EMBED_RE) && !/\bups\b|\bpdu\b|power/.test(text)) return 'iot';
 
-    // --- Stampanti di rete (prima di server: HP/Ricoh/Xerox spesso riportano Linux) ---
-    if(/jetdirect|laserjet|officejet|deskjet|pagewide|designjet|colorlaserjet|printserver|hp.*print|print.*hp|ricoh\b|aficio|nashuatec|\bxerox\b|phaser|workcentre|versalink|altalink|\bcanon\b.*print|imagerunner|imageclass|kyocera|ecosys|taskalfa|konica.?minolta|bizhub|\blexmark\b|\bbrother\b.*mfc|\bmfc-[0-9]|\bdcp-[0-9]|\bhl-[0-9]|workforce.*epson|epson.*print|\bsharp\b.*mx|\bsharp\b.*ar|oc[eé]\b|develop.*ineo/.test(d)) return 'printer';
-    if(_oidIs('printer')) return 'printer'; // HP/Epson/Canon/Ricoh/Xerox/Kyocera/Brother/Konica/Lexmark
+    // ── 1-bis. sysObjectID per i tipi che NON hanno una regex sopra ─────────
+    // La firma OID e' un'identita' ANNUNCIATA dall'apparato: piu' forte di
+    // qualunque parola nel testo. Sopra e' gia' stata chiesta tipo per tipo, in
+    // posizione; qui si prende quel che resta (firewall, switch, router, sdwan,
+    // hypervisor, server…), che prima il client ignorava del tutto — un Fortinet
+    // riconosciuto dal suo sysObjectID usciva «switch» dal ripiego finale.
+    const _oidBest = (typeof oidType === 'function') ? (oidType(oid) || '') : '';
+    if(_oidBest && TYPES[_oidBest]) return _oidBest;
 
-    // --- IP Camera / CCTV ---
-    if(/hikvision|dahua\b|hanwha|vivotek|uniview|reolink|\bcctv\b|ip.?camera|\bnvr\b|\bdvr\b|bosch.*security|axis.*camera|camera.*axis/.test(d)) return 'webcam';
-    if(_oidIs('webcam')) return 'webcam'; // Hikvision / Axis
+    // ── 2. TV / media / domotica ────────────────────────────────────────────
+    // Prima del check switch/router: il nome di uno switch vicino ("GS1900")
+    // finito nel testo non deve riscrivere una TV a switch. Il guard nega i
+    // segnali di rete, come il server.
+    const _netish = _has(SWITCH_WORDS_RE) || _has(ROUTER_WORDS_RE);
+    if(!_netish && (_has(TV_SIGNAL_RE) || _has(MEDIA_PLAYER_RE) || /chromecast|google ?cast/.test(text))) return 'tv';
+    if(!_netish && _has(SMART_HOME_RE)) return 'iot';
 
-    // --- Telefoni VoIP / SIP ---
-    if(/cisco.*phone|ip.?phone.*cisco|polycom|yealink|grandstream|\bsnom\b|\bmitel\b|\baastra\b|\bhtek\b|\bfanvil\b|gigaset.*sip|sip.*phone|voip.*phone/.test(d)) return 'voip';
-    if(_oidIs('voip')) return 'voip'; // Yealink / Grandstream
+    // ── 3. Virtualizzazione e server ────────────────────────────────────────
+    if(_has(HYPERVISOR_RE)) return 'hypervisor';
+    if(_has(SERVER_VIRT_RE)) return 'server';
 
-    // --- Access Point (pattern specifici prima del check generico "aruba" in switch) ---
-    if(/\baironet\b|air-ap[0-9]|unifi.*ap|\buap-|airmax|nanostation|litebeam|nanobeam|ruckus\b|zoneflex|unleashed|aruba.*iap|aruba.*rap|\biap-[0-9]|\brap-[0-9]|meraki\s*mr|omada.*ap|eap[0-9]{3,4}|wlan controller/.test(d)) return 'ap';
-    if(_oidIs('ap')) return 'ap'; // Ubiquiti UniFi / Cisco Aironet / Ruckus
+    // ── 4. Apparati di rete: modello/linea prima, parole generiche poi ──────
+    const _notNetSwitch = _has(NOT_A_NET_SWITCH_RE);
+    const _switchWords = _has(SWITCH_WORDS_RE) && !_notNetSwitch;
+    if(_has(CARRIER_ROUTER_RE)) return 'router';
+    if(_has(ROUTER_VENDOR_RE) && !_switchWords) return 'router';
+    if(_switchWords || (_has(SWITCH_VENDOR_RE) && !_notNetSwitch)) return 'switch';
+    if(_has(ROUTER_WORDS_RE)) return 'router';
+    if(_has(SERVER_LINUX_RE)) return 'server';
 
-    // --- PDU (prima di UPS: APC numera i due tipi diversamente) ---
-    if(/\bpdu\b|power.?distribution|metered.*outlet|switched.*outlet|raritan|servertech|\bgeist\b|power.?iq/.test(d)) return 'pdu';
-    if(_oidIs('pdu')) return 'pdu'; // Raritan / APC rPDU
-
-    // --- Switch (prima dei router, per IOS/vIOS L2) ---
-    if(/switch|catalyst|nexus|procurve|aruba|comware|vios_l2|ios[_-]?l2|l2iol/.test(d)) return 'switch';
-
-    // --- Firewall / UTM ---
-    if(/firewall|fortigate|fortinet|pfsense|asa\b|checkpoint|palo\s?alto|pan-os|sonicwall|watchguard|opnsense|sophos.*firewall|stormshield|barracuda.*firewall/.test(d)) return 'firewall';
-
-    // --- UPS (prima di server: APC/Eaton a volte riportano Linux in sysDescr) ---
-    if(/\bups\b|\bapc\b|\beaton\b|powerware|cyberpower|riello|liebert|vertiv|\bmge\b/.test(d)) return 'ups';
-    if(_oidIs('ups')) return 'ups';  // APC (generico) / Eaton
-
-    // --- NAS / Storage (prima di server: Synology/QNAP girano su Linux) ---
-    if(/\bnas\b|synology|sinology|qnap|freenas|truenas|netapp|readynas|buffalo|drobo|iomega|dell\s*emc|powerstore|isilon|infinidat|hitachi\s*vsp|hpe\s*nimble|hpe\s*msa|storeonce|wd\s*my\s*cloud|seagate\s*nas|asustor|terramaster|openmediavault/.test(d)) return 'nas';
-    if(_oidIs('nas')) return 'nas';  // Synology / QNAP
-
-    // --- Server / virtualizzazione ---
-    if(/vmware\s*esx|esxi|proxmox|hyper.?v|xcp-ng|xenserver|nutanix|\bahv\b/.test(d)) return 'hypervisor';
-    if(/windows server|pnetlab|eve-ng|unetlab|openstack|kubernetes|k8s|docker|ubuntu server|debian|centos|red\s?hat|fedora|suse|freebsd|rocky linux|alma linux|oracle linux/.test(d)) return 'server';
-
-    // --- Router ---
-    if(/router|gateway|junos|mikrotik|routeros|vyos|openwrt|edgerouter|edgeos|unifi gateway|\busg\b|\budm\b|dream machine|zywall|web-based configurator|tp-link.*router|netgear.*router|d-link.*router/.test(d) && !/switch|gs\d{3,4}|xgs\d{3,4}/.test(d)) return 'router';
-    if(/\bios\b/.test(d) && !/switch|catalyst/.test(d)) return 'router';
-
-    // --- Fallback ---
-    // Se il device risponde SOLO a ping/ARP, senza alcun segnale di gestione
-    // (nessun sysDescr/sysObjectID SNMP, nessun banner web), è quasi certamente
-    // un ENDPOINT, non un apparato managed: un vero switch/router espone SNMP.
-    // → PC (planimetria). Tipico dei nodi VPCS/host in lab tipo PNETLab.
-    // Se invece c'è un segnale di gestione ma non riconosciuto, resta 'switch'.
-    if(/^desktop-|^win[0-9-]|^win-|workstation|laptop|notebook/i.test(host || '')) return 'pc';
-    if(/android|xiaomi|huawei|parallels|intel|pcs systemtechnik/.test(vhb)) return 'pc';
+    // ── 5. Catena endpoint (nessun segnale di funzione) ─────────────────────
+    // La convenzione hostname Windows e' un segnale piu' forte del nome del
+    // sistema operativo nel testo: viene prima.
+    if(PC_HOSTNAME_RE.test(String(host || ''))) return 'pc';
+    // `ios` e' un OS, non una funzione: vale solo qui in fondo, quando nessun
+    // segnale di funzione ha parlato — la stessa retrocessione fatta nel motore.
+    if(/\bios\b/.test(text) && !/switch|catalyst/.test(text)) return 'router';
+    if(_has(PC_VENDOR_RE)) return 'pc';
     if((banner||'').trim()) return 'iot';
+    // Senza alcun segnale di gestione (niente sysDescr/sysObjectID/banner) e'
+    // quasi certamente un ENDPOINT: un apparato managed espone SNMP.
+    // CON un segnale di gestione ma nessuna regola che risponde, la risposta e'
+    // «apparato gestito, funzione ignota» — non 'switch', che era il ripiego
+    // storico e faceva uscire switch un PC Windows, una TV e una lavatrice. Il
+    // tipo generico e' gestito e piazzabile in rack esattamente come prima:
+    // cambia solo che non gli si attribuisce una funzione mai misurata.
     const hasMgmtSignal = (descr||'').trim() || (objectId||'').trim();
-    return hasMgmtSignal ? 'switch' : 'pc';
+    return hasMgmtSignal ? 'customrack' : 'pc';
 }
-
 expose({
     _discVendorFromMac, _discRememberVendor, _discRememberClassHint, _discInvalidateExistingIndexes,
     _discBuildExistingIndexes, _discIndexNode, _discFindExistingDevice, _discGatewayMacs,

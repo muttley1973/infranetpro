@@ -71,10 +71,14 @@ test('FusionScorer: fallback chain when no signals (httpTitle → iot)', () => {
   assert.equal(result.confidence, 20);
 });
 
-test('FusionScorer: fallback chain when only SNMP signal (→ switch)', () => {
+// Un responder SNMP che non dichiara nessun layer e su cui nessuna regola parla:
+// il tipo e' IGNOTO, e si dice. Prima usciva 'switch' — la risposta di default
+// del prodotto per tutto cio' che non conosce, affermata senza alcuna prova.
+test('FusionScorer: fallback chain when only SNMP signal (→ tipo generico, non switch)', () => {
   const scorer = makeScorer();
   const result = scorer.classify({ snmpReachable: true });
-  assert.equal(result.deviceType, 'switch');
+  assert.equal(result.deviceType, 'customrack');
+  assert.notEqual(result.deviceType, 'switch');
   assert.equal(result.confidence, 25);
 });
 
@@ -110,10 +114,13 @@ test('FusionScorer: real vendor BRAND tokens still drive type (guardrail keeps b
 });
 
 // --- Move 2: fallback MISURATO (sysServices) invece di indovinare 'switch' -------
-test('FusionScorer: measured fallback — SNMP host (L4+L7) → server, bare responder → switch', () => {
+test('FusionScorer: measured fallback — SNMP host (L4+L7) → server, responder muto → generico', () => {
   const scorer = makeScorer();
   assert.equal(scorer.classify({ sysServices: 72, snmpReachable: true }).deviceType, 'server');
-  assert.equal(scorer.classify({ snmpReachable: true }).deviceType, 'switch'); // nessun layer → storico
+  assert.equal(scorer.classify({ sysServices: 2, snmpReachable: true }).deviceType, 'switch');   // L2 misurato
+  assert.equal(scorer.classify({ sysServices: 4, snmpReachable: true }).deviceType, 'router');   // L3 misurato
+  // Nessun layer dichiarato: non si sa. Il ripiego non nomina piu' una funzione.
+  assert.equal(scorer.classify({ snmpReachable: true }).deviceType, 'customrack');
 });
 
 // --- NetBIOS come segnale (deep-scan): host Windows = computer, mai apparato di rete --
@@ -207,7 +214,7 @@ test('FusionScorer: storage seam is accepted but unused', () => {
   const scorer = makeScorer({ storage: fakeStorage });
   assert.equal(scorer.storage, fakeStorage);
   const result = scorer.classify({ snmpReachable: true });
-  assert.equal(result.deviceType, 'switch');
+  assert.equal(result.deviceType, 'customrack');
 });
 
 test('FusionScorer: a plugin match without a type ("unknown") never becomes the device type', () => {
