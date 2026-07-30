@@ -147,6 +147,82 @@ test('_addRecoveryPages: un apparato con identita\' in conflitto NON e\' riprist
   assert.ok(/2\/2 ripristinabili/.test(seen2.join(' | ')), 'nessun conflitto -> entrambi ripristinabili');
 });
 
+test('_addRecoveryPages: garanzia/EOL in riga e in testata, con le STESSE regole della lente DR', { skip: !deps }, () => {
+  // In una runbook di procurement «lo ricompri?» viene subito dopo «cosa ricompri?»:
+  // la pagina DR porta le due date dichiarate, riassunte dallo stato piu' grave.
+  // Advisory come nell'app: un apparato fuori produzione con backup fresco resta
+  // ripristinabile — l'EOL dice che non lo RICOMPRI, non che non lo rimetti su.
+  const { _addRecoveryPages } = require('../server/pdf-report.js');
+  const NOW = Date.parse('2026-07-29T00:00:00Z');
+  const D = (giorni) => new Date(NOW + giorni * 864e5).toISOString().slice(0, 10);
+  const base = { backupRef: 'git@repo:cfg//x', backupMethod: 'ansible',
+    backupAt: '2026-07-20T00:00:00Z', serial: 'ABC123', firmware: 'X', model: 'C9300', rack: 'R-A' };
+  const devices = [
+    Object.assign({}, base, { name: 'SW-EOL', eolDate: D(-40), warrantyUntil: D(-90) }),
+    Object.assign({}, base, { name: 'SW-GAR', warrantyUntil: D(-1) }),
+    Object.assign({}, base, { name: 'SW-SOON', warrantyUntil: D(30) }),
+    Object.assign({}, base, { name: 'SW-OK', warrantyUntil: D(700) }),
+    Object.assign({}, base, { name: 'SW-MUTO' }),                       // nessuna data dichiarata
+  ];
+  const d = newDoc();
+  const seen = [];
+  const orig = d.text.bind(d);
+  d.text = (s, ...rest) => { seen.push(String(s)); return orig(s, ...rest); };
+  _addRecoveryPages(d, { devices }, 'P', 'x', 'it', NOW);
+  const txt = seen.join(' | ');
+  assert.ok(/Ciclo di vita/.test(txt), 'la colonna c\'e\': ' + txt.slice(0, 200));
+  assert.ok(/EOL/.test(txt), 'lo stato piu\' grave e\' marcato in riga');
+  assert.ok(/fuori garanzia/.test(txt));
+  assert.ok(/in scadenza/.test(txt));
+  assert.ok(/1 fuori produzione/.test(txt), 'la testata conta i fuori produzione');
+  // Advisory: tutti e 5 restano ripristinabili (backup fresco + identita' + rack).
+  assert.ok(/5\/5 ripristinabili/.test(txt), 'l\'EOL non declassa il verdetto: ' + txt.slice(0, 200));
+  assert.doesNotThrow(() => _addRecoveryPages(newDoc(), { devices }, 'P', 'x', 'en', NOW));
+});
+
+test('_addOverviewPages: la sintesi arriva nel dossier con le parole dell\'app', { skip: !deps }, () => {
+  // I verdetti che l'utente vede a schermo non arrivavano MAI nel PDF: il dossier
+  // consegnava i dati grezzi e teneva il giudizio dentro l'app. Il contenuto e'
+  // client-built (parole gia' risolte dal glue): qui si presidia che finisca sulla
+  // pagina, che i casi vuoti non esplodano e che NON entrino elenchi di device.
+  const { _addOverviewPages } = require('../server/pdf-report.js');
+  const dto = {
+    sections: [
+      { key: 'complete', num: 1, title: 'LAN', question: 'il documento descrive tutto?', level: 'warn',
+        verdict: '3 sezioni da completare',
+        rows: [{ label: 'Indirizzo IP', value: '33', sub: 'di 33', status: 'completo', tone: 'ok', prov: 'declared' }] },
+      { key: 'truth', num: 2, title: 'Conformità', question: 'corrisponde ancora alla realtà?', level: 'bad',
+        verdict: 'mai verificata',
+        rows: [{ label: 'Verificabili via SNMP', value: '9', sub: 'di 12', status: '3 senza accesso SNMP', tone: 'warn', prov: 'derived' }] },
+      { key: 'margin', num: 3, title: 'Espansione', question: 'quanto posso ancora crescere?', level: 'ok',
+        verdict: 'margine ampio',
+        rows: [{ label: 'Porte libere', value: '166', sub: 'di 181', status: '181 − 15 da verificare', tone: 'info', prov: 'declared' }] },
+    ],
+    perimeter: { title: 'Cosa non sto guardando', lead: 'restano fuori:', chips: ['WAN', 'STP', 'Restore'] },
+    legend: [{ prov: 'declared', label: 'dichiarato' }, { prov: 'none', label: 'non dichiarato' }],
+  };
+  const doc = newDoc();
+  const seen = [];
+  const orig = doc.text.bind(doc);
+  doc.text = (s, ...rest) => { seen.push(String(s)); return orig(s, ...rest); };
+  _addOverviewPages(doc, dto, 'Proj', '30/07/2026', 'it');
+  const txt = seen.join(' | ');
+  assert.ok(/1 {2}LAN/.test(txt), 'le tre colonne, numerate: ' + txt.slice(0, 200));
+  assert.ok(/3 sezioni da completare/.test(txt), 'il verdetto di colonna arriva in parole');
+  assert.ok(/3 senza accesso SNMP/.test(txt), '…e anche quello di riga');
+  assert.ok(/Cosa non sto guardando/.test(txt), 'il perimetro dichiarato resta nel dossier consegnato');
+  assert.ok(/WAN/.test(txt) && /Restore/.test(txt), 'con le sue voci');
+  // I font standard del PDF sono WinAnsi: il meno tipografico usciva come una
+  // virgoletta. Qui si presidia la normalizzazione, non la fortuna.
+  assert.ok(!/−/.test(txt), 'nessun carattere fuori CP1252 raggiunge la pagina');
+  assert.ok(/181 - 15 da verificare/.test(txt), '…e il testo resta leggibile');
+
+  // Casi limite: nessuna sezione, DTO assente → pagina «non disponibile», nessun throw.
+  assert.doesNotThrow(() => _addOverviewPages(newDoc(), { sections: [] }, 'P', 'd', 'it'));
+  assert.doesNotThrow(() => _addOverviewPages(newDoc(), null, 'P', 'd', 'en'));
+  assert.doesNotThrow(() => _addOverviewPages(newDoc(), dto, 'P', 'd', 'en'));
+});
+
 test('_addRecoveryPages: nessun SEGRETO nella riga (solo puntatore backup, mai config/community)', { skip: !deps }, () => {
   // Il client non deve MAI mettere community/config in reportData.recovery: qui si
   // verifica che la funzione consumi solo i campi allowlistati (ref/method/at/serial/

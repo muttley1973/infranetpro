@@ -4,7 +4,7 @@
 // ============================================================
 const express = require('express');
 const auth = require('../../auth');
-const { _loadPdfDeps, _addReportPages, _addCoverPage, _addNotesPages, _addChangelogPages, _addSparePages, _addAssetRegisterPages, _addRecoveryPages, _rt } = require('../pdf-report');
+const { _loadPdfDeps, _addReportPages, _addCoverPage, _addNotesPages, _addChangelogPages, _addSparePages, _addAssetRegisterPages, _addRecoveryPages, _addOverviewPages, _rt } = require('../pdf-report');
 const { addLabelPages } = require('../label-sheet');
 const { loadProject } = require('../projects-store');
 const { projectToDevices, applyPortMacFallback, isStructuralCabling } = require('../../lib/api-shape');
@@ -153,6 +153,13 @@ router.post('/api/export-pdf', auth.requireAdmin, (req, res) => {
       }
     }
 
+    // Panoramica: sintesi ESECUTIVA, quindi PRIMA delle sezioni di dettaglio —
+    // chi apre il dossier legge il verdetto, poi semmai i dati che lo sostengono.
+    // Contenuto client-built (reportData.overview): parole gia' risolte dal glue,
+    // nessun `items` (la sintesi non elenca device: quello e' il registro asset).
+    if (opts.includeOverview && reportData && reportData.overview) {
+      _addOverviewPages(doc, reportData.overview, hName, hDate, _lang);
+    }
     if (wantsReportPages && reportData && typeof reportData === 'object') {
       _addReportPages(doc, reportData, hName, hDate, SVGtoPDF, opts, _lang);
     }

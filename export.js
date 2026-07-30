@@ -17,6 +17,7 @@ const _typeName = (k) => (typeof typeName === 'function')
 const PDF_EXPORT_DEFAULTS = {
     includePlanimetria: true,
     includeBackground:  true,
+    includeOverview:    true,   // Panoramica: la sintesi esecutiva in testa al dossier
     includeInventory:   true,
     includeAsBuilt:     true,
     includeRacks:       true,
@@ -326,13 +327,14 @@ function openPdfExportOptions(){
     { const _s = document.getElementById('pdfopt-spare'); if(_s) _s.checked = PDF_EXPORT_DEFAULTS.includeSpare; }
     { const _a = document.getElementById('pdfopt-assets'); if(_a) _a.checked = PDF_EXPORT_DEFAULTS.includeAssets; }
     { const _r = document.getElementById('pdfopt-recovery'); if(_r) _r.checked = PDF_EXPORT_DEFAULTS.includeRecovery; }
+    { const _o = document.getElementById('pdfopt-overview'); if(_o) _o.checked = PDF_EXPORT_DEFAULTS.includeOverview; }
     syncPdfExportUi();
 }
 
 function closePdfExportOptions(){ document.getElementById('pdf-export-overlay').classList.remove('open'); }
 
 function setPdfExportAll(val){
-    ['pdfopt-plan','pdfopt-bg','pdfopt-inventory','pdfopt-asbuilt','pdfopt-racks','pdfopt-ports','pdfopt-vlans','pdfopt-topology','pdfopt-vms','pdfopt-spare','pdfopt-assets','pdfopt-recovery']
+    ['pdfopt-plan','pdfopt-bg','pdfopt-inventory','pdfopt-asbuilt','pdfopt-racks','pdfopt-ports','pdfopt-vlans','pdfopt-topology','pdfopt-vms','pdfopt-spare','pdfopt-assets','pdfopt-recovery','pdfopt-overview']
         .forEach(id=>{ const el=document.getElementById(id); if(el) el.checked=!!val; });
     if(!val){
         // Mantieni almeno una sezione attiva per evitare export vuoto.
@@ -371,6 +373,7 @@ function _getPdfExportOptionsFromUi(){
         includeSpare:       !!document.getElementById('pdfopt-spare')?.checked,
         includeAssets:      !!document.getElementById('pdfopt-assets')?.checked,
         includeRecovery:    !!document.getElementById('pdfopt-recovery')?.checked,
+        includeOverview:    !!document.getElementById('pdfopt-overview')?.checked,
     };
 }
 
@@ -1462,12 +1465,25 @@ function _buildPdfReportData() {
                 firmware: n.firmwareVer || inv.firmwareVer || '',
                 model: n.model || inv.model || '',
                 identityMismatch: !!(_declS && _measS && _declS !== _measS),
+                // Ciclo di vita: due date DICHIARATE (nessun apparato le misura).
+                // In una runbook di procurement pesano quanto il seriale — «lo
+                // ricompri?» viene subito dopo «cosa ricompri?». Vuote = non
+                // dichiarate: il PDF scrive un trattino, mai una data inventata.
+                warrantyUntil: n.warrantyUntil || '',
+                eolDate: n.eolDate || '',
                 rack: rk ? (rk.name || rk.id) : '',
             };
         }),
     };
 
-    return { cables, asBuilt, portAssignment, vlans, rackSvgs, topoSvg, handoff, spare, vms, recovery };
+    // ── Panoramica: la sintesi in testa al dossier ────────────────────────────
+    // I tre verdetti che l'utente vede a schermo, con le PAROLE gia' risolte dal
+    // glue (una sola fonte per i numeri, una sola per le parole). Se il modulo non
+    // c'e' o inciampa, la sezione semplicemente non compare: mai un PDF a meta'.
+    let overview = null;
+    try { if (typeof buildOverviewReport === 'function') overview = buildOverviewReport(); } catch (_) { overview = null; }
+
+    return { cables, asBuilt, portAssignment, vlans, rackSvgs, topoSvg, handoff, spare, vms, recovery, overview };
 }
 
 async function exportPDF(opts={}){
