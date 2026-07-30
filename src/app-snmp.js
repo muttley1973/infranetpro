@@ -637,7 +637,11 @@ export function applyPollResult(nodeId, data, opts={}){
             store.state.ports[pid].lagGroup = _snmpLagMap[lid];
             if(_lagNameById[lid]){
                 if(!store.state.lagGroups) store.state.lagGroups={};
-                store.state.lagGroups[_snmpLagMap[lid]] = _lagNameById[lid];
+                // Fill-if-empty: un nome già presente (es. rinominato a mano
+                // dall'utente) non si riscrive — stessa guardia dell'auto-nome
+                // dall'aggregatore più sotto (manual-first).
+                if(!store.state.lagGroups[_snmpLagMap[lid]])
+                    store.state.lagGroups[_snmpLagMap[lid]] = _lagNameById[lid];
             }
         } else if(store.state.ports[pid]?.lagGroup?.startsWith('snmp-lag-')){
             // SNMP dice che questa porta non è più in LAG → rimuovi il gruppo auto

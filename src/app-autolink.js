@@ -1237,8 +1237,13 @@ async function _autoDiscoverLinks(nodeIds){
                 if(!store.state.ports[p.dst]) store.state.ports[p.dst] = {};
                 const sLag = String(store.state.ports[p.src].lagGroup || '');
                 const dLag = String(store.state.ports[p.dst].lagGroup || '');
-                if(!sLag.startsWith('snmp-lag-') && sLag !== groupId){ store.state.ports[p.src].lagGroup = groupId; changed++; }
-                if(!dLag.startsWith('snmp-lag-') && dLag !== groupId){ store.state.ports[p.dst].lagGroup = groupId; changed++; }
+                // L'inferenza scrive solo dove non c'è un gid o dove c'è un suo
+                // pari (lldp-lag-*): un LAG SNMP (misura diretta) e un LAG creato
+                // a mano (gid `lg…`, dichiarato = legge) non si toccano.
+                const sFree = !sLag || sLag.startsWith('lldp-lag-');
+                const dFree = !dLag || dLag.startsWith('lldp-lag-');
+                if(sFree && sLag !== groupId){ store.state.ports[p.src].lagGroup = groupId; changed++; }
+                if(dFree && dLag !== groupId){ store.state.ports[p.dst].lagGroup = groupId; changed++; }
                 if(!store.state.ports[p.src].isTrunk){ store.state.ports[p.src].isTrunk = true; changed++; }
                 if(!store.state.ports[p.dst].isTrunk){ store.state.ports[p.dst].isTrunk = true; changed++; }
             }
