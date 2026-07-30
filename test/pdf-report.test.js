@@ -116,6 +116,31 @@ test('_addRecoveryPages: rende la sezione DR (backup pointer + serial/firmware) 
   assert.doesNotThrow(() => _addRecoveryPages(newDoc(), null, 'Proj', '29/07/2026', 'it'));
 });
 
+test('🔒 _addRecoveryPages: il puntatore backup arriva sulla carta SENZA credenziali', { skip: !deps }, () => {
+  // Era l'unico consumatore di `backup.ref` che lo stampava verbatim, mentre il
+  // DTO REST lo strippa da sempre. Un dossier si inoltra per email: una credenziale
+  // finita lì non si ritira piu'.
+  const { _addRecoveryPages } = require('../server/pdf-report.js');
+  const NOW = Date.parse('2026-07-30T00:00:00Z');
+  const devices = [
+    { name: 'SW-URL', backupRef: 'https://svc:S3cr3tURL@git.local/cfg.git', backupMethod: 'git',
+      backupAt: '2026-07-28T00:00:00Z', serial: 'A1', firmware: 'F', model: 'M', rack: 'R' },
+    { name: 'SW-SCP', backupRef: 'backupsvc:S3cr3tSCP@nas.local:/vol/cfg', backupMethod: 'manual',
+      backupAt: '2026-07-28T00:00:00Z', serial: 'A2', firmware: 'F', model: 'M', rack: 'R' },
+  ];
+  const doc = newDoc();
+  const seen = [];
+  const origText = doc.text.bind(doc);
+  doc.text = (s, ...rest) => { seen.push(String(s)); return origText(s, ...rest); };
+  _addRecoveryPages(doc, { devices }, 'P', 'd', 'it', NOW);
+  const txt = seen.join(' | ');
+  assert.ok(!/S3cr3tURL/.test(txt), 'nessuna password dalla forma URL sulla pagina');
+  assert.ok(!/S3cr3tSCP/.test(txt), 'nessuna password dalla forma scp sulla pagina');
+  // Il puntatore però resta leggibile: strippare non deve voler dire cancellare.
+  assert.ok(/git\.local/.test(txt), 'l\'host del repo resta: serve a chi ripristina');
+  assert.ok(/nas\.local/.test(txt), 'idem per il puntatore scp');
+});
+
 test('_addRecoveryPages: un apparato con identita\' in conflitto NON e\' ripristinabile', { skip: !deps }, () => {
   // Seriale dichiarato ≠ misurato = «apparato sostituito»: la lente DR non lo
   // conta fra i ripristinabili, e il dossier consegnato al cliente deve dare lo

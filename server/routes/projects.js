@@ -9,6 +9,7 @@ const auth = require('../../auth');
 const { timestamp } = require('../../utils');
 const { PROJECTS_DIR, nextId, saveProject, loadProject, listProjects, removeBgAsset } = require('../projects-store');
 const { runProjectDeleteHooks } = require('../module-registry');
+const { stripRefCreds } = require('../../lib/backup-ref.js');
 
 const router = express.Router();
 
@@ -42,6 +43,27 @@ function _redactSnmpSecrets(project) {
   return project;
 }
 
+// 🔒 Il puntatore al backup (`node.backup.ref`) non deve MAI arrivare al disco con
+// dentro una credenziale: da lì finisce nel DTO REST, nell'inventory Ansible e nel
+// dossier PDF. Finora la barriera viveva solo nel client (lib/backup-ref.js sul
+// campo che l'utente digita) — ma un PUT costruito a mano, o un progetto importato
+// da JSON, la scavalcava. Qui NON si rifiuta il salvataggio: si toglie il segreto e
+// si tiene il puntatore. Rifiutare farebbe perdere all'utente tutto il lavoro del
+// progetto per un carattere in un campo, che è una punizione sproporzionata; il
+// client, dove l'utente sta digitando, resta più severo e glielo dice.
+function _sanitizeBackupRefs(state) {
+  const nodes = state && state.nodes;
+  if (!Array.isArray(nodes)) return 0;
+  let stripped = 0;
+  for (const n of nodes) {
+    const ref = n && n.backup && n.backup.ref;
+    if (!ref) continue;
+    const clean = stripRefCreds(ref);
+    if (clean !== String(ref).trim()) { n.backup.ref = clean; stripped++; }
+  }
+  return stripped;
+}
+
 // Lista (solo metadati, senza state)
 router.get('/api/projects', (_, res) => {
   res.json(listProjects());
@@ -51,6 +73,7 @@ router.get('/api/projects', (_, res) => {
 router.post('/api/projects', auth.requireAdmin, (req, res) => {
   const name  = (req.body?.name || 'New Project').toString().trim() || 'New Project';
   const state = req.body?.state ?? {};
+  _sanitizeBackupRefs(state);
   const id    = nextId();
   const now   = timestamp();
   saveProject(id, name, state, now, now);
@@ -73,6 +96,7 @@ router.put('/api/projects/:id', auth.requireAdmin, (req, res) => {
 
   const name  = req.body?.name  ? (req.body.name.toString().trim() || p.name) : p.name;
   const state = req.body?.state !== undefined ? req.body.state : p.state;
+  _sanitizeBackupRefs(state);
   const now   = timestamp();
   saveProject(id, name, state, p.created_at, now);
   // Solo metadati: NON ricarichiamo il progetto (eviterebbe di ri-encodare l'asset
@@ -108,3 +132,4 @@ router.post('/api/projects/:id/copy', auth.requireAdmin, (req, res) => {
 module.exports = router;
 // Esposto per i test (SEC-M1): redazione dei segreti SNMP per lettori non-admin.
 module.exports._redactSnmpSecrets = _redactSnmpSecrets;
+module.exports._sanitizeBackupRefs = _sanitizeBackupRefs;

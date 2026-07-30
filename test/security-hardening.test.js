@@ -47,6 +47,38 @@ test('SEC-M1: _redactSnmpSecrets copre anche le VM (vm.integration + legacy vm.s
   assert.equal(vms[2].name, 'bare', 'VM senza integrazione intatta');
 });
 
+// ── L3: il puntatore backup non arriva al disco con dentro un segreto ──────
+// La barriera viveva SOLO nel client (il campo che l'utente digita). Un PUT
+// costruito a mano o un progetto importato da JSON la scavalcava — e da lì il
+// segreto sarebbe finito nel DTO REST, nell'inventory Ansible e nel dossier PDF.
+const { _sanitizeBackupRefs } = require('../server/routes/projects');
+
+test('L3: _sanitizeBackupRefs toglie le credenziali dal puntatore ma TIENE il puntatore', () => {
+  const state = { nodes: [
+    { id: 'sw1', backup: { ref: 'https://u:S3cr3t@git.local/cfg.git', method: 'git' } },
+    { id: 'sw2', backup: { ref: 'backupsvc:P4ss@nas.local:/vol/cfg' } },   // forma scp, il bypass storico
+    { id: 'sw3', backup: { ref: 'git@github.com:org/repo.git' } },         // lecito: nessuna password
+    { id: 'sw4', backup: {} },
+    { id: 'pc1' },                                                         // nessun backup → intatto
+  ] };
+  const n = _sanitizeBackupRefs(state);
+  assert.equal(n, 2, 'due puntatori ripuliti');
+  assert.equal(state.nodes[0].backup.ref, 'https://git.local/cfg.git');
+  assert.equal(state.nodes[1].backup.ref, 'nas.local:/vol/cfg');
+  assert.equal(state.nodes[2].backup.ref, 'git@github.com:org/repo.git', 'il legittimo non si tocca');
+  assert.equal(state.nodes[0].backup.method, 'git', 'il resto del blocco backup resta');
+  // Canarino: nessun segreto sopravvive da nessuna parte nello state.
+  const dump = JSON.stringify(state);
+  assert.ok(!dump.includes('S3cr3t') && !dump.includes('P4ss'), 'nessun segreto nello state salvato');
+});
+
+test('L3: _sanitizeBackupRefs non esplode su state malformati', () => {
+  assert.equal(_sanitizeBackupRefs(null), 0);
+  assert.equal(_sanitizeBackupRefs({}), 0);
+  assert.equal(_sanitizeBackupRefs({ nodes: 'nope' }), 0);
+  assert.equal(_sanitizeBackupRefs({ nodes: [null, undefined, {}] }), 0);
+});
+
 // ── SEC-M2: guardia del bypass auth ────────────────────────────────────────
 const { _computeDevNoAuth } = require('../auth');
 

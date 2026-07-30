@@ -8,6 +8,7 @@
 // a differenza di pdfkit che resta lazy.
 const { nodeLabelParts } = require('../lib/node-label.js');
 const { _i18nDict: _I18N_DICT } = require('../lib/i18n.js');   // dizionario indicizzabile per lingua, senza cambiare quella globale
+const { stripRefCreds } = require('../lib/backup-ref.js');     // 🔒 stessa regola del validatore: il puntatore resta, il segreto no
 
 let _pdfkitMod = null, _svgToPdfMod = null;
 function _loadPdfDeps() {
@@ -920,7 +921,10 @@ function _addRecoveryPages(doc, recovery, projName, date, lang = 'it', now = Dat
       : '-';
     return [
       i + 1, _s(d.name) || '-',
-      hasBackup ? _s(d.backupRef) : _rt(L, 'rec.none'),
+      // 🔒 Il puntatore è input libero e questa pagina era l'UNICO consumatore di
+      // `backup.ref` che lo stampava verbatim (il DTO REST lo strippa da sempre):
+      // un dossier si inoltra per email, e una credenziale finita lì non si ritira.
+      hasBackup ? stripRefCreds(d.backupRef) : _rt(L, 'rec.none'),
       _s(d.backupMethod) || '-', dateTxt,
       // Il seriale «sostituito?» è marcato in riga: chi ricompra deve sapere che
       // quel numero è in discussione, non fidarsene.
