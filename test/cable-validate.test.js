@@ -155,3 +155,55 @@ test('campi vuoti / link nullo → nessun crash, nessun problema', () => {
   assert.deepEqual(validateCable(null), []);
   assert.deepEqual(validateCable({}), []);
 });
+
+// ── C1: l'eccezione a corto raggio è NORMA, non un errore da segnalare ──────
+test('10G su Cat6 a ≤55m NON è un problema: 802.3an/TSB-155 lo ammette', () => {
+  // Un avviso su una posa conforme insegna a ignorare gli avvisi. La lunghezza
+  // deve essere DICHIARATA: senza, non si può sapere se sta dentro i 55m.
+  const corta = validateCable({ medium: 'copper', cableCategory: 'Cat6', maxSpeed: '10G', length: 40 });
+  assert.equal(has(corta, 'speed-cat'), false, '40m: dentro la clausola dei 55m');
+  const alLimite = validateCable({ medium: 'copper', cableCategory: 'Cat6', maxSpeed: '10G', length: 55 });
+  assert.equal(has(alLimite, 'speed-cat'), false, '55m esatti: ancora ammesso');
+  const lunga = validateCable({ medium: 'copper', cableCategory: 'Cat6', maxSpeed: '10G', length: 70 });
+  assert.equal(has(lunga, 'speed-cat'), true, '70m: oltre la clausola, il warn resta');
+  const senzaLen = validateCable({ medium: 'copper', cableCategory: 'Cat6', maxSpeed: '10G' });
+  assert.equal(has(senzaLen, 'speed-cat'), true, 'lunghezza non dichiarata: non si può assumere che sia corta');
+  // L'eccezione vale per QUELLA coppia, non per il rame in generale.
+  assert.equal(has(validateCable({ medium: 'copper', cableCategory: 'Cat5e', maxSpeed: '10G', length: 20 }), 'speed-cat'),
+    true, 'Cat5e a 10G non ha nessuna clausola a corto raggio');
+});
+
+// ── C2: la tratta in FIBRA non era validata affatto ─────────────────────────
+test('fibra oltre la portata della sua classe ottica → warn fiber-reach', () => {
+  const om3 = validateCable({ medium: 'fiber', cableCategory: 'OM3', maxSpeed: '10G', length: 400 });
+  const w = om3.find(x => x.code === 'fiber-reach');
+  assert.ok(w, 'OM3 a 400m con 10G: oltre i 300m di portata');
+  assert.equal(w.level, 'warn');
+  assert.equal(w.params.max, 300);
+  assert.equal(w.params.cat, 'OM3');
+  assert.equal(w.params.rec, 'OM4', 'consiglia la classe che ci arriva');
+  assert.equal(has(validateCable({ medium: 'fiber', cableCategory: 'OM3', maxSpeed: '10G', length: 250 }), 'fiber-reach'),
+    false, '250m su OM3 a 10G: dentro la portata');
+});
+
+test('fibra: la portata dipende dalla VELOCITÀ, non solo dalla classe', () => {
+  // È il punto per cui una tabella «OM3 = 300m» sarebbe stata sbagliata: a 40G
+  // la stessa fibra arriva a 100m. Stessa posa, stesso cavo, esito diverso.
+  const a10 = validateCable({ medium: 'fiber', cableCategory: 'OM3', maxSpeed: '10G', length: 150 });
+  const a40 = validateCable({ medium: 'fiber', cableCategory: 'OM3', maxSpeed: '40G', length: 150 });
+  assert.equal(has(a10, 'fiber-reach'), false, '150m a 10G: ci sta');
+  assert.equal(has(a40, 'fiber-reach'), true, '150m a 40G: NON ci sta (OM3 = 100m)');
+});
+
+test('fibra: senza classe, senza velocità o senza lunghezza NON si inventa un verdetto', () => {
+  for (const l of [
+    { medium: 'fiber', maxSpeed: '10G', length: 5000 },                       // classe non dichiarata
+    { medium: 'fiber', cableCategory: 'OM3', length: 5000 },                  // velocità non dichiarata
+    { medium: 'fiber', cableCategory: 'OM3', maxSpeed: '10G' },               // lunghezza non dichiarata
+    { medium: 'fiber', cableCategory: 'OM3', maxSpeed: '400G', length: 5000 },// velocità fuori tabella
+  ]) {
+    assert.equal(has(validateCable(l), 'fiber-reach'), false, JSON.stringify(l));
+  }
+  // OS2 monomodale: 10 km di portata LR/LX, una dorsale di campus non la supera.
+  assert.equal(has(validateCable({ medium: 'fiber', cableCategory: 'OS2', maxSpeed: '10G', length: 2000 }), 'fiber-reach'), false);
+});
