@@ -265,12 +265,11 @@ function openL3Report(){
 // ── Export CSV ────────────────────────────────────────────────────────
 function l3ExportCsv(){
     const rep = _l3Report || _l3Compute(true);
-    const rows = [['vlan', 'nome', 'subnet', 'gateway', 'device_gateway', 'stato', 'ip_usati', 'dns', 'note']];
-    const noteOf = r => r.warnings.map(w => ({
-        noGateway: 'manca gateway', invalidCidr: 'CIDR non valido', orphanGateway: 'gateway orfano',
-        staleBinding: 'device cancellato', gatewayOutOfSubnet: 'gateway fuori subnet',
-        gatewayReserved: 'gateway = network/broadcast address',
-    }[w] || w)).join(', ');
+    // Intestazioni e note seguono la lingua: un CSV si apre in Excel e lo legge una
+    // persona. Il codice del warning resta la chiave (`l3.csv.<code>`), così una
+    // regola nuova senza traduzione si vede subito invece di uscire in italiano.
+    const rows = [t('l3.csv.cols').split(';')];
+    const noteOf = r => r.warnings.map(w => { const k = 'l3.csv.' + w; const s = t(k); return s === k ? w : s; }).join(', ');
     rep.rows.forEach(r => rows.push([
         r.vid, r.name, r.subnet, r.gateway, r.nodeName || '', r.status, r.usedCount, r.dns, noteOf(r),
     ]));

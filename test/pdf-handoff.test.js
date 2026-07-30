@@ -123,3 +123,29 @@ test('porte libere: 0 pagine se vuoto, >=1 se presente', { skip: !has }, () => {
   };
   assert.ok(countPages(doc => R._addSparePages(doc, spare, 'P', 'd')) >= 1);
 });
+
+// ── N11/N14: assente ≠ zero, anche sulla carta ─────────────────────────────
+test('copertina: un contatore MAI fornito stampa un trattino, non uno zero a 22pt', { skip: !has }, async () => {
+  // «0 Macchine virtuali» su un dato che nessuno ha passato è un'affermazione
+  // inventata — e in copertina, a corpo 22, è la prima cosa che il cliente legge.
+  const txt = await pdfText(doc => R._addCoverPage(doc, {
+    title: 'Dossier', project: 'Rete X', date: '30/07/2026', user: 'mario',
+    deviceCount: 4,   // fornito
+    // cableCount / vlanCount / vmCount: NON forniti
+  }));
+  assert.ok(/4/.test(txt), 'il contatore fornito si vede');
+  assert.ok(/-/.test(txt), 'i contatori assenti escono come trattino');
+});
+
+test('porte libere: «nessuna fibra dichiarata» non si scrive «0 SFP»', { skip: !has }, async () => {
+  const senzaFibra = { totals: { devices: 1, ports: 24, used: 4, free: 20, freeAccess: 20, freeSfp: 0, sfp: 0, suspect: 0 },
+    racks: [{ name: 'R-A', devices: [{ name: 'SW-A', free: 20, freeAccess: 20, freeSfp: 0, sfp: 0, suspect: 0, used: 4, total: 24 }] }], unracked: [] };
+  const t1 = await pdfText(doc => R._addSparePages(doc, senzaFibra, 'P', '30/07/2026', 'it'));
+  assert.ok(/nessuna porta in fibra dichiarata/.test(t1), 'lo dice a parole: ' + t1.slice(0, 200));
+  assert.ok(!/0 SFP/.test(t1), 'e non finge un conteggio');
+
+  const conFibra = { totals: { devices: 1, ports: 26, used: 4, free: 22, freeAccess: 20, freeSfp: 2, sfp: 2, suspect: 0 },
+    racks: [{ name: 'R-A', devices: [{ name: 'SW-A', free: 22, freeAccess: 20, freeSfp: 2, sfp: 2, suspect: 0, used: 4, total: 26 }] }], unracked: [] };
+  const t2 = await pdfText(doc => R._addSparePages(doc, conFibra, 'P', '30/07/2026', 'it'));
+  assert.ok(/2 libere su 2 SFP\/uplink/.test(t2), 'con fibra dichiarata torna il rapporto: ' + t2.slice(0, 200));
+});

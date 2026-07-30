@@ -9,6 +9,7 @@
 const { nodeLabelParts } = require('../lib/node-label.js');
 const { _i18nDict: _I18N_DICT } = require('../lib/i18n.js');   // dizionario indicizzabile per lingua, senza cambiare quella globale
 const { stripRefCreds } = require('../lib/backup-ref.js');     // 🔒 stessa regola del validatore: il puntatore resta, il segreto no
+const OV_THRESHOLDS = require('../lib/overview.js');           // soglie DR/ciclo di vita: una sola definizione, dossier e app
 
 let _pdfkitMod = null, _svgToPdfMod = null;
 function _loadPdfDeps() {
@@ -69,6 +70,7 @@ const _RL = {
     'col.used': 'Occupate', 'col.total': 'Totale',
     'vlan.accessPorts': 'Porte access:', 'vlan.trunkLinks': 'Trunk link:',
     'spare.total': 'Totale', 'spare.freeOf': 'libere su', 'spare.suspect': 'sospette (SNMP attive)',
+    'spare.noSfp': 'nessuna porta in fibra dichiarata',
     'spare.unracked': '(fuori rack)',
     'title.overview': 'Panoramica',
     'sub.overview': 'Le tre domande sul documento, alla data di questo dossier',
@@ -76,6 +78,7 @@ const _RL = {
     'title.recovery': 'Ripristinabilità (DR)',
     'empty.recovery': 'Nessun apparato gestito da valutare.',
     'rec.recoverable': 'ripristinabili', 'rec.noBackupN': 'senza backup', 'rec.noLocN': 'senza posizione',
+    'rec.nonePop': 'nessun apparato da valutare',
     'rec.none': '— nessuno', 'rec.mismatchN': 'con identità da sciogliere', 'rec.mismatch': 'sostituito?',
     'col.lifecycle': 'Ciclo di vita', 'rec.eolN': 'fuori produzione',
     'rec.lcEol': 'EOL', 'rec.lcExpired': 'fuori garanzia', 'rec.lcSoon': 'in scadenza', 'rec.lcOk': 'ok',
@@ -116,6 +119,7 @@ const _RL = {
     'col.used': 'Used', 'col.total': 'Total',
     'vlan.accessPorts': 'Access ports:', 'vlan.trunkLinks': 'Trunk links:',
     'spare.total': 'Total', 'spare.freeOf': 'free of', 'spare.suspect': 'suspect (SNMP active)',
+    'spare.noSfp': 'no fibre ports declared',
     'spare.unracked': '(unracked)',
     'title.overview': 'Overview',
     'sub.overview': 'The three questions about the document, as of this dossier',
@@ -123,6 +127,7 @@ const _RL = {
     'title.recovery': 'Recoverability (DR)',
     'empty.recovery': 'No managed devices to assess.',
     'rec.recoverable': 'recoverable', 'rec.noBackupN': 'without a backup', 'rec.noLocN': 'without a location',
+    'rec.nonePop': 'no devices to assess',
     'rec.none': '— none', 'rec.mismatchN': 'with an unresolved identity', 'rec.mismatch': 'replaced?',
     'col.lifecycle': 'Lifecycle', 'rec.eolN': 'end-of-life',
     'rec.lcEol': 'EOL', 'rec.lcExpired': 'out of warranty', 'rec.lcSoon': 'expiring', 'rec.lcOk': 'ok',
@@ -698,7 +703,9 @@ function _addCoverPage(doc, cover, lang = 'it') {
   stats.forEach(([k, v], i) => {
     const x = M + i * (bw + 10);
     doc.rect(x, y, bw, 64).fillAndStroke('#f1f5f9', '#cbd5e1');
-    doc.font('Helvetica-Bold').fontSize(22).fillColor('#1e3a5f').text(String(v == null ? 0 : v), x, y + 12, { width: bw, align: 'center', lineBreak: false });
+    // Dato mancante = trattino, come ovunque nel dossier. Uno «0» grande così è
+    // un'affermazione, e su un contatore mai fornito sarebbe falsa.
+    doc.font('Helvetica-Bold').fontSize(22).fillColor('#1e3a5f').text(v == null ? '-' : String(v), x, y + 12, { width: bw, align: 'center', lineBreak: false });
     doc.font('Helvetica').fontSize(9).fillColor('#64748b').text(k, x, y + 44, { width: bw, align: 'center', lineBreak: false });
   });
 
@@ -760,7 +767,12 @@ function _addSparePages(doc, spare, projName, date, lang = 'it') {
   const t = spare.totals || {};
   doc.addPage({ size: [595, 842], margins: { top: 0, bottom: 0, left: 0, right: 0 } });
   _rHdr(doc, T, projName, date);
-  const summary = `${_rt(L, 'spare.total')}: ${t.free || 0} ${_rt(L, 'spare.freeOf')} ${t.ports || 0}  -  ${t.freeAccess || 0} access  -  ${t.freeSfp || 0} SFP/uplink`
+  // «0 SFP» e «nessuna fibra dichiarata» sono due fatti diversi, e la Panoramica
+  // li distingue già (riga freeSfp, tratteggiata quando non c'è fibra): il dossier
+  // deve dire la stessa cosa dello schermo, o è la stessa metrica con due verità.
+  const sfpTxt = t.sfp ? `${t.freeSfp || 0} ${_rt(L, 'spare.freeOf')} ${t.sfp} SFP/uplink`
+                       : _rt(L, 'spare.noSfp');
+  const summary = `${_rt(L, 'spare.total')}: ${t.free || 0} ${_rt(L, 'spare.freeOf')} ${t.ports || 0}  -  ${t.freeAccess || 0} access  -  ${sfpTxt}`
     + (t.suspect ? `  -  ${t.suspect} ${_rt(L, 'spare.suspect')}` : '');
   const y = _rSub(doc, summary, _TOP);
   const cols = [
@@ -775,7 +787,9 @@ function _addSparePages(doc, spare, projName, date, lang = 'it') {
   ];
   const rows = [];
   const pushDev = (rackName, d) => rows.push([
-    rackName, d.name, String(d.free), String(d.freeAccess), String(d.freeSfp),
+    // Un apparato senza porte in fibra non ha «0 SFP libere»: non ha SFP. Il
+    // trattino lo dice, lo zero lo nasconderebbe dentro un conteggio.
+    rackName, d.name, String(d.free), String(d.freeAccess), d.sfp ? String(d.freeSfp) : '-',
     d.suspect ? String(d.suspect) : '', String(d.used), String(d.total),
   ]);
   racks.forEach(r => (r.devices || []).forEach(d => pushDev(r.name, d)));
@@ -855,11 +869,12 @@ function _addAssetRegisterPages(doc, assets, projName, date, lastRevised, lang =
 // I dati sono client-built in reportData.recovery (come spare/cavi/VLAN): puntatore
 // backup CREDENTIAL-FREE per contratto (ref rifiuta credenziali), MAI il config né la
 // community — stesso confine anti-leak del registro asset.
-const _REC_FRESH_MS = 30 * 864e5;
-// «In scadenza» = entro 90 giorni, la STESSA soglia della lente DR
-// (LIFECYCLE_SOON_DAYS in lib/overview.js). Due numeri diversi per la stessa
-// domanda farebbero litigare il dossier con l'app.
-const _REC_SOON_MS = 90 * 864e5;
+// Le due soglie NON sono più ricopiate qui: arrivano dal motore (lib/overview.js),
+// che è dove la lente DR le definisce. Erano due numeri scritti a mano in due file
+// per la stessa domanda — cioè due verità in attesa di divergere alla prima
+// modifica. Ora cambiarle nella lente cambia anche il dossier.
+const _REC_FRESH_MS = OV_THRESHOLDS.BACKUP_FRESH_DAYS * 864e5;
+const _REC_SOON_MS = OV_THRESHOLDS.LIFECYCLE_SOON_DAYS * 864e5;
 function _addRecoveryPages(doc, recovery, projName, date, lang = 'it', now = Date.now()) {
   const L = _rlang(lang);
   const T = _rt(L, 'title.recovery');
@@ -933,7 +948,11 @@ function _addRecoveryPages(doc, recovery, projName, date, lang = 'it', now = Dat
     ];
   });
 
-  const sub = `${recoverable}/${list.length} ${_rt(L, 'rec.recoverable')}`
+  // Popolazione vuota: «0/0 ripristinabili» suona come un esito, e non lo è —
+  // non c'è nulla da ripristinare. La riga sotto lo dice già a parole
+  // (`empty.recovery`), quindi qui il verdetto tace invece di stampare un rapporto
+  // su un insieme che non esiste.
+  const sub = (list.length ? `${recoverable}/${list.length} ${_rt(L, 'rec.recoverable')}` : _rt(L, 'rec.nonePop'))
     + (noBackup ? `  -  ${noBackup} ${_rt(L, 'rec.noBackupN')}` : '')
     + (noLoc ? `  -  ${noLoc} ${_rt(L, 'rec.noLocN')}` : '')
     + (mismatch ? `  -  ${mismatch} ${_rt(L, 'rec.mismatchN')}` : '')

@@ -610,7 +610,7 @@ function _updateRackUNumLabel(){
 }
 function deleteCurrentRack(){
     if(store.state.racks.length<=1){showAlert(t('msg.rack.cannotDeleteOnly'));return;}
-    showConfirm('Eliminare questo rack e tutti i suoi apparati?',()=>{
+    showConfirm(t('msg.rack.confirmDelete'),()=>{
         pushHistory();
         const ids=new Set(store.state.nodes.filter(n=>TYPES[n.type]?.isRack&&n.rackId===store.state.currentRack).map(n=>n.id));
         store.state.nodes=store.state.nodes.filter(n=>!ids.has(n.id));

@@ -136,14 +136,17 @@ test('computeIpamUsage: usati > capacità (rete+broadcast documentati) → pct c
   assert.equal(u.freeCount, 0);
 });
 
-test('computeIpamUsage: subnet assente o CIDR non valido → tutto a zero', () => {
+test('computeIpamUsage: senza CIDR i CONTEGGI sono zero, ma liberi e percentuale NON esistono', () => {
+  // Distinzione voluta: `usedCount` a zero è un fatto (non è documentato niente
+  // dentro un CIDR che non c'è), mentre «0 liberi» e «0%» sarebbero affermazioni
+  // su una capacità che nessuno conosce — e «0 liberi» si legge «rete piena».
   for (const bad of ['', '   ', 'non-un-cidr', '999.1.1.0/24']) {
     const u = usage(bad, { documentedIps: ['1.2.3.4'], leaseIps: ['1.2.3.5'] });
     assert.equal(u.cidr, null, `cidr null per "${bad}"`);
     assert.equal(u.capacity, 0);
     assert.equal(u.usedCount, 0);
-    assert.equal(u.freeCount, 0);
-    assert.equal(u.pct, 0);
+    assert.equal(u.freeCount, null, `niente capacità ⇒ nessun numero di liberi ("${bad}")`);
+    assert.equal(u.pct, null, `niente capacità ⇒ nessuna percentuale ("${bad}")`);
     assert.equal(u.gatewayOk, true);    // nessun CIDR ⇒ nessun vincolo gateway
   }
 });

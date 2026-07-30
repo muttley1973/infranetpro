@@ -1293,3 +1293,51 @@ test('perimetro esplicito: buildOverview dichiara «cosa non sto guardando» (ch
   // Il perimetro e\' una COPIA difensiva della costante (mutarlo non tocca la lib).
   assert.notStrictEqual(o.blindSpots, _BLIND_SPOTS);
 });
+
+// ── N13: la provenienza non si eredita per distrazione ─────────────────────
+test('② ogni riga DICHIARA la sua provenienza: il default e\' «non dichiarato», non «dichiarato»', () => {
+  // Guardia strutturale sul SORGENTE, come il test di parità i18n sui validatori.
+  // `_row` aveva default `prov:'declared'`: una riga nuova che si dimenticava di
+  // dirlo affermava provenienza umana — fail-OPEN sul paletto centrale. Ora il
+  // default tace, e questo test impedisce che qualcuno riapra la porta.
+  const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'lib', 'overview.js'), 'utf8');
+  const lines = src.split(/\r?\n/);
+  const senzaProv = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/_row\('([a-zA-Z]+)'/);
+    if (!m) continue;
+    let depth = 0, txt = '', j = i, started = false;
+    while (j < lines.length) {
+      for (const ch of lines[j]) { if (ch === '{') { depth++; started = true; } else if (ch === '}') { depth--; } }
+      txt += lines[j] + '\n'; j++;
+      if (started && depth <= 0) break;
+    }
+    if (!/\bprov:/.test(txt)) senzaProv.push(m[1] + ' (riga ' + (i + 1) + ')');
+    i = j - 1;
+  }
+  assert.deepEqual(senzaProv, [], 'righe senza `prov` esplicito: ' + senzaProv.join(', '));
+  assert.ok(!/prov: 'declared', tone: 'normal', items: \[\] \}/.test(src), 'il default di _row non torna «declared»');
+});
+
+test('② un insieme MISTO non si etichetta con la sua parte migliore (cavi dedotti)', () => {
+  const T = { switch: { isActive: true } };
+  const nodes = [{ id: 'a', type: 'switch', ip: '10.0.0.1' }, { id: 'b', type: 'switch', ip: '10.0.0.2' }];
+  const manuali = buildOverview({ types: T, nodes, links: [{ src: 'a-1', dst: 'b-1' }] }).complete;
+  assert.equal(rowOf(manuali, 'cables').prov, 'declared', 'tutti posati a mano');
+  const misti = buildOverview({ types: T, nodes,
+    links: [{ src: 'a-1', dst: 'b-1' }, { src: 'a-2', dst: 'b-2', autoLinked: true }] }).complete;
+  assert.equal(rowOf(misti, 'cables').value, 2);
+  assert.equal(rowOf(misti, 'cables').prov, 'derived', 'un solo cavo dedotto basta: l\'insieme non e\' dichiarato');
+  assert.equal(rowOf(buildOverview({ types: T, nodes, links: [] }).complete, 'cables').prov, 'none');
+});
+
+test('② un MAC non si dichiara, si osserva — e le porte libere sono un conto, non una cifra scritta', () => {
+  const T = { switch: { isActive: true } };
+  const conMac = buildOverview({ types: T, nodes: [{ id: 'a', type: 'switch', ip: '10.0.0.1', mac: 'AA:BB:CC:DD:EE:01' }] }).complete;
+  assert.equal(rowOf(conMac, 'mac').prov, 'measured');
+  const senzaMac = buildOverview({ types: T, nodes: [{ id: 'a', type: 'switch', ip: '10.0.0.1' }] }).complete;
+  assert.equal(rowOf(senzaMac, 'mac').prov, 'none', 'zero MAC osservati -> nessuna provenienza da vantare');
+  const marg = buildOverview({ types: T, nodes: [{ id: 'a', type: 'switch', ip: '10.0.0.1', ports: 8 }],
+    spare: { totals: { ports: 8, free: 8, used: 0, suspect: 0 }, racks: [], unracked: [] } }).margin;
+  assert.equal(rowOf(marg, 'freePorts').prov, 'derived');
+});
