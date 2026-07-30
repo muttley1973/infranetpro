@@ -56,6 +56,9 @@
         .power-live-row { display:flex; justify-content:space-between; gap:10px; font-size:.82rem; padding:2px 0; }
         .power-live-row > span:first-child { color:var(--text-muted); }
         .power-live-row > span:last-child { color:var(--text-main); font-variant-numeric:tabular-nums; }
+        /* Misurato ≠ dichiarato: la riga si evidenzia invece di correggere il campo
+           alle spalle dell'utente (manual-first). Il travaso resta un gesto. */
+        .power-live-row.vm-snmp-mismatch > span:last-child { color:var(--idle-color); font-weight:600; }
         .wifi-inh-from { color:var(--text-muted); }
         /* Porta radio Wi-Fi: badge antenna in alto a destra del device, target di
            collegamento (trascina qui un client → wireless). */

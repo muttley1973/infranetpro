@@ -220,6 +220,13 @@ function _snmpSectionHtml(vm, ref){
         const when = (() => { try { return new Date(seen.at).toLocaleString(); } catch(_){ return seen.at || ''; } })();
         const add = (k, v) => { if(v != null && v !== '') rows.push(`<div class="power-live-row"><span>${k}</span><span>${_esc(v)}</span></div>`); };
         add(t('hv.vmSnmpName'), seen.sysName);
+        // Lo stato MISURATO sta qui, accanto alle altre misure, e non riscrive più
+        // da solo il campo dichiarato. Se hai scritto «spenta» e la macchina
+        // risponde, questa riga è la discrepanza da vedere — «Usa questi valori»
+        // la applica quando lo decidi tu.
+        if(seen.powerState === 'running') rows.push(
+            `<div class="power-live-row${vm.state === 'stopped' ? ' vm-snmp-mismatch' : ''}">`
+            + `<span>${t('hv.vmState')}</span><span>${t('hv.running')}</span></div>`);
         add(t('hv.vmSnmpUptime'), seen.uptime);
         add('vCPU', seen.cpuCores);
         add('RAM (GB)', seen.ramGb);

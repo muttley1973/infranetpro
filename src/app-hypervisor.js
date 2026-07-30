@@ -446,9 +446,15 @@ export async function pollVmSnmp(hostId, vmId){
         .map(i => String((i && i.mac) || '').trim().toUpperCase())
         .filter(m => m && !/^(?:00[:-]){5}00$/.test(m)))];
     if(!seen.macs.length) delete seen.macs;
+    // Ha risposto, quindi e' accesa: e' una MISURA, e come tutte le altre misure di
+    // questa funzione resta in `snmpSeen`. Prima riscriveva `vm.state` — il campo
+    // DICHIARATO che l'utente commuta a mano — fuori dal travaso esplicito e senza
+    // pushHistory(): niente undo, e uno stato spento «corretto» in silenzio dalla
+    // sonda. Il fatto non si perde (lo racconta il pannello e lo applica
+    // applyVmSnmpValues, che e' il gesto); quello che si perde e' la riscrittura.
+    seen.powerState = 'running';
     vm.snmpSeen = seen;
     delete vm.snmpError;
-    vm.state = 'running';             // ha risposto: prova che e' accesa (misurata)
     markDirty(); renderProps(); if(typeof renderAll === 'function') renderAll();
     _showToast(t('hv.vmSnmpOk', { name: seen.sysName || vm.name || 'VM' }), 'ok', 5000);
     return true;
@@ -477,6 +483,10 @@ export function applyVmSnmpValues(hostId, vmId){
     if(Number.isFinite(s.cpuCores)) vm.vcpu   = s.cpuCores;
     if(Number.isFinite(s.ramGb))    vm.ramGb  = s.ramGb;
     if(Number.isFinite(s.diskGb))   vm.diskGb = s.diskGb;
+    // Lo stato misurato entra QUI, col gesto e con l'undo — non piu' da solo al
+    // termine della sonda: se hai scritto «spenta» e la macchina risponde, e' una
+    // discrepanza da mostrarti, non un campo da correggerti alle spalle.
+    if(s.powerState) vm.state = s.powerState;
     markDirty(); renderProps();
     _showToast(t('hv.vmSnmpApplied'), 'ok', 4000);
 }

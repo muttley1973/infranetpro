@@ -1276,8 +1276,16 @@ function _expandLagMemberLinks(s){
     // Igiene LAG su load (lib/lag-reconcile.js): (1) un cavo verso un device PASSIVO
     // o PASS-THROUGH (patch panel, presa, VoIP, media converter) non e' un LAG ->
     // togli il tag spurio PRIMA dell'espansione, cosi' non viene trattato come membro.
+    // L'invariante è giusto (non si aggrega verso una presa a muro), ma la
+    // mutazione era MUTA: se avevi marcato tu quel LAG, il marcatore spariva a ogni
+    // load senza che nulla lo dicesse — e non c'era modo di capire perché non
+    // «tenesse». La funzione il conteggio lo restituiva già: ora lo si racconta.
     const _lagTypeOfPort = pid => (TYPES[getNodeByPortId(pid)?.type] || null);
-    if(typeof stripLagOnPassive==='function') stripLagOnPassive(s.links, _lagTypeOfPort);
+    if(typeof stripLagOnPassive==='function'){
+        const _stripped = stripLagOnPassive(s.links, _lagTypeOfPort);
+        if(_stripped > 0 && typeof _showToast === 'function')
+            setTimeout(() => _showToast(t('msg.lag.strippedPassive', { n: _stripped }), 'warn', 7000), 800);
+    }
     const seen = Object.create(null);
     const out = [];
     const pairSig = (a,b) => [String(a||''), String(b||'')].sort().join('||');

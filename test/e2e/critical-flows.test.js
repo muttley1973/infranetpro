@@ -322,7 +322,16 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         const tb = document.getElementById('adopt-tbody').innerHTML;
         const rowCount = document.querySelectorAll('#adopt-tbody tr').length;
 
-        // 3) adotta (flusso completo) — ASSE B: via CLICK REALE delegato sul bottone Applica
+        // 3) SPUNTA il candidato: il modale non arriva più pre-selezionato (ADR
+        // manual-first, «mai pre-selezionare un osservato»). L'adozione è un gesto,
+        // e il test lo esegue come lo eseguirebbe una persona.
+        const chkPrima = [...document.querySelectorAll('#adopt-tbody .adopt-chk')].filter(c => c.checked).length;
+        const senzaSpunta = state.nodes.length;
+        document.querySelector('#adopt-overlay [data-act="adopt-apply"]').click();
+        const dopoSenzaSpunta = state.nodes.length;   // deve NON aver adottato nulla
+        document.querySelectorAll('#adopt-tbody .adopt-chk').forEach(c => { c.checked = true; });
+
+        // 4) adotta (flusso completo) — ASSE B: via CLICK REALE delegato sul bottone Applica
         selType = null; selId = null;   // contesto floor per il renderProps post-adozione
         const before = state.nodes.length;
         document.querySelector('#adopt-overlay [data-act="adopt-apply"]').click();
@@ -343,6 +352,8 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           modalNotDoc: tb.indexOf('AA:BB:CC:00:00:10') < 0,
           modalNotExpired: tb.indexOf('AA:BB:CC:00:00:99') < 0,
           rowCount,
+          chkPrima,                                  // 0 = nessun candidato pre-spuntato
+          deltaSenzaSpunta: dopoSenzaSpunta - senzaSpunta,   // 0 = «Applica» senza spunte non adotta
           delta: after - before,
           adoptedIp: adopted.ip || '',
           adoptedName: adopted.name || '',
@@ -355,6 +366,8 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.modalNotDoc, 'il modal NON ripropone il lease già documentato (.10)');
       assert.ok(r.modalNotExpired, 'il modal NON mostra il lease scaduto (.99, isLeaseStale)');
       assert.equal(r.rowCount, 1, 'un solo candidato (il .45)');
+      assert.equal(r.chkPrima, 0, 'nessun osservato PRE-SPUNTATO: l\'adozione è un gesto, non il default');
+      assert.equal(r.deltaSenzaSpunta, 0, '«Applica» senza spunte non aggiunge nulla al documento');
       assert.equal(r.delta, 1, 'adoptApply crea 1 nodo');
       assert.equal(r.adoptedIp, '192.168.20.45', 'il device adottato nasce con l\'IP del lease');
       assert.equal(r.adoptedName, 'tv-sala', 'il device adottato prende il nome dal lease (hostname)');

@@ -106,15 +106,20 @@ function _adoptShowModal(){
         const all = document.getElementById('adopt-all'); if(all) all.checked = false;
         return;
     }
+    // Nessun candidato PRE-SPUNTATO: l'ADR manual-first dice «mai pre-selezionare
+    // un osservato», e questo modale scrive device veri nel documento. Arrivare
+    // con tutto spuntato rende l'adozione in blocco il gesto di default e la
+    // scelta consapevole l'eccezione — esattamente il contrario. «Seleziona
+    // tutto» resta a un clic, per chi quel blocco lo vuole davvero.
     tbody.innerHTML = _adoptRows.map((c, i) => `<tr class="adopt-row${c.cls === 'endpoint' ? ' is-endpoint' : ''}">
-        <td><input type="checkbox" class="adopt-chk" data-idx="${i}" checked></td>
+        <td><input type="checkbox" class="adopt-chk" data-idx="${i}"></td>
         <td class="adopt-mac">${esc(c.mac)}</td>
         <td>${esc(c.vendor || '—')}</td>
         <td>${c.vlan != null ? esc(c.vlan) : '—'}</td>
         <td class="adopt-seen">${esc(c.seenOn || '—')}</td>
         <td><select class="adopt-type" data-idx="${i}">${_adoptTypeOptions(c.typeDefault)}</select></td>
     </tr>`).join('');
-    const all = document.getElementById('adopt-all'); if(all) all.checked = true;
+    const all = document.getElementById('adopt-all'); if(all) all.checked = false;
     if(typeof closeReportMenu === 'function') closeReportMenu();
 }
 

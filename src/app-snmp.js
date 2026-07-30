@@ -616,7 +616,19 @@ export function applyPollResult(nodeId, data, opts={}){
         }
     });
 
-    if(data.interfaces && data.interfaces.length>0) n.ports = Math.max(n.ports || 0, data.interfaces.length);
+    // Il conteggio porte DICHIARATO si alzava in silenzio al numero di interfacce
+    // SNMP: additivo, quindi innocuo in apparenza, ma un 24 diventato 28 senza che
+    // nessuno lo dica non è più il numero che hai scritto — e la Panoramica lo
+    // conta come denominatore «dichiarato». Ora si alza lo stesso (togliere le
+    // porte misurate dal disegno sarebbe peggio) ma il DELTA resta scritto in
+    // `portsReal`, come `ip6Real` per l'indirizzo: il pannello lo segnala e sei tu
+    // a decidere se il documento va corretto.
+    if(data.interfaces && data.interfaces.length > 0){
+        const measured = data.interfaces.length;
+        const declared = n.ports || 0;
+        if(measured > declared){ n.ports = measured; if(declared) n.portsReal = declared; }
+        else if(n.portsReal) delete n.portsReal;
+    }
     (data.interfaces||[]).forEach((iface,idx)=>{
         if(_skipByIdx[idx]) return; // porta manuale preservata (manual-first)
         const pid = _pidByIdx[idx];
