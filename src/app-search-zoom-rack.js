@@ -475,7 +475,8 @@ function toggleRackOnFloor(){
 export function renderRackTabs(){
     const sel=document.getElementById('rack-select'); sel.innerHTML='';
     store.state.racks.forEach(r=>{
-        if(!r.sizeU)r.sizeU=42;
+        // Un render NON scrive nel documento: l'altezza non dichiarata resta tale
+        // (il ripiego 42U lo mette getRackSize sotto, solo per disegnare).
         const opt=document.createElement('option');
         opt.value=r.id; opt.innerText=r.name;
         if(r.id===store.state.currentRack)opt.selected=true;

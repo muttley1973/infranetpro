@@ -1449,12 +1449,19 @@ function _buildPdfReportData() {
             const b = n.backup || {};
             const inv = (n.integration && n.integration.inventory) || {};
             const rk = (state.racks || []).find(r => r.id === n.rackId);
+            // Seriale DICHIARATO ≠ MISURATO = apparato sostituito: un'identità su cui
+            // NON si può contare per il ripristino. Il flag viaggia a parte così il
+            // PDF dà lo stesso verdetto della lente DR (prima il dossier consegnato
+            // era più ottimista dell'app, che qui conta la lacuna).
+            const _declS = String(n.serialNumber || '').trim().toLowerCase();
+            const _measS = String(inv.serialNumber || '').trim().toLowerCase();
             return {
                 name: getNodeDisplayName(n) || n.name || n.id,
                 backupRef: b.ref || '', backupMethod: b.method || '', backupAt: b.at || '',
                 serial: n.serialNumber || inv.serialNumber || '',
                 firmware: n.firmwareVer || inv.firmwareVer || '',
                 model: n.model || inv.model || '',
+                identityMismatch: !!(_declS && _measS && _declS !== _measS),
                 rack: rk ? (rk.name || rk.id) : '',
             };
         }),

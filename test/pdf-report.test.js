@@ -116,6 +116,37 @@ test('_addRecoveryPages: rende la sezione DR (backup pointer + serial/firmware) 
   assert.doesNotThrow(() => _addRecoveryPages(newDoc(), null, 'Proj', '29/07/2026', 'it'));
 });
 
+test('_addRecoveryPages: un apparato con identita\' in conflitto NON e\' ripristinabile', { skip: !deps }, () => {
+  // Seriale dichiarato ≠ misurato = «apparato sostituito»: la lente DR non lo
+  // conta fra i ripristinabili, e il dossier consegnato al cliente deve dare lo
+  // stesso verdetto (prima era piu' ottimista dell'app).
+  const { _addRecoveryPages } = require('../server/pdf-report.js');
+  const NOW = Date.parse('2026-07-29T00:00:00Z');
+  const ok = { name: 'SW-OK', backupRef: 'git@repo:cfg//ok', backupMethod: 'ansible',
+    backupAt: '2026-07-20T00:00:00Z', serial: 'ABC123', firmware: 'X', model: 'C9300', rack: 'R-A' };
+  const swapped = Object.assign({}, ok, { name: 'SW-SWAP', identityMismatch: true });
+  assert.doesNotThrow(() => _addRecoveryPages(newDoc(), { devices: [ok, swapped] }, 'P', 'd', 'en', NOW));
+  // Si intercetta doc.text (PDFDocument vero) per leggere cio' che finisce sulla
+  // pagina: il conteggio in testata e il marcatore di riga.
+  const doc = newDoc();
+  const seen = [];
+  const origText = doc.text.bind(doc);
+  doc.text = (s, ...rest) => { seen.push(String(s)); return origText(s, ...rest); };
+  _addRecoveryPages(doc, { devices: [ok, swapped] }, 'P', 'd', 'it', NOW);
+  const txt = seen.join(' | ');
+  assert.ok(/1\/2 ripristinabili/.test(txt), 'solo 1 dei 2 e\' ripristinabile: ' + txt.slice(0, 300));
+  assert.ok(/1 con identità da sciogliere/.test(txt), 'la testata conta il dubbio identità');
+  assert.ok(/sostituito\?/.test(txt), 'la riga marca il seriale in discussione');
+
+  // Controprova: senza il flag, lo stesso apparato torna ripristinabile.
+  const doc2 = newDoc();
+  const seen2 = [];
+  const orig2 = doc2.text.bind(doc2);
+  doc2.text = (s, ...rest) => { seen2.push(String(s)); return orig2(s, ...rest); };
+  _addRecoveryPages(doc2, { devices: [ok, Object.assign({}, swapped, { identityMismatch: false })] }, 'P', 'd', 'it', NOW);
+  assert.ok(/2\/2 ripristinabili/.test(seen2.join(' | ')), 'nessun conflitto -> entrambi ripristinabili');
+});
+
 test('_addRecoveryPages: nessun SEGRETO nella riga (solo puntatore backup, mai config/community)', { skip: !deps }, () => {
   // Il client non deve MAI mettere community/config in reportData.recovery: qui si
   // verifica che la funzione consumi solo i campi allowlistati (ref/method/at/serial/

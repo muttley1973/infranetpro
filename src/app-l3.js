@@ -87,11 +87,14 @@ export function _l3Compute(withUsage){ return win.buildL3Report(_l3BuildModel(wi
 // subnet. Riusa QUESTO modello (stesso dell'overlay L3), che include gli IP delle
 // VM dichiarate — così un IP condiviso VM↔fisico non sfugge come «0 duplicati».
 // `buildIpamAudit` è il <script> lib/ipam-audit.js (globale, non ri-bundlato).
+// Ritorna null se l'igiene NON è stata calcolata (lib assente o errore): «non
+// valutato» ≠ «nessun conflitto». Prima il ripiego era una rete pulita, e un
+// fallimento del motore usciva come verdetto VERDE (② no-invenzioni).
 export function _ipamAuditReport(){
     try {
         if(typeof buildIpamAudit === 'function') return buildIpamAudit(_l3BuildModel(false, { withVmIps: true }));
-    } catch(_){ /* ripiego: rete pulita, mai un errore in Panoramica */ }
-    return { duplicateIps: [], subnetOverlaps: [] };
+    } catch(_){ /* niente errori in Panoramica: si degrada a «non valutato» */ }
+    return null;
 }
 
 // Set dei node-id che fanno da gateway L3 (per il badge). Senza usage → leggero.

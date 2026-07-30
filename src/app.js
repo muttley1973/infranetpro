@@ -653,7 +653,10 @@ export function _migrateState(s) {
     // letta dal motore Verifica e dall'auto-poll VLAN).
     if (!Array.isArray(s.dhcpSources)) s.dhcpSources = [];
     store._dhcpLeases = _dhcpMergeSources(s.dhcpSources);
-    s.racks.forEach(r => { if (!r.sizeU) r.sizeU=42; });
+    // NIENTE back-fill di r.sizeU: un rack importato o creato via API non ha
+    // dichiarato la propria altezza, e scrivergli 42U dentro lo renderebbe
+    // indistinguibile da uno dichiarato 42U (② no-invenzioni). Il ripiego 42U
+    // vive nei LETTORI (getRackSize e i suoi gemelli), che lo hanno già.
     _normalizeProjectNodeIds(s);
     _expandLagMemberLinks(s);
     _repairRackPlacements(s);

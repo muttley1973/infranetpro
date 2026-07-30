@@ -197,8 +197,9 @@ function _buildModel() {
     // Igiene IPAM (doc↔doc, non doc↔realtà): IP duplicati + subnet che si
     // sovrappongono. Calcolata dal motore L3 (stesso modello dell'overlay, con gli
     // IP delle VM) e passata alla lib: la Panoramica la RACCONTA, non la ricalcola.
+    // null = non valutata: la riga lo dirà, invece di dichiarare zero conflitti.
     let ipamAudit;
-    try { ipamAudit = _ipamAuditReport(); } catch (_) { ipamAudit = { duplicateIps: [], subnetOverlaps: [] }; }
+    try { ipamAudit = _ipamAuditReport(); } catch (_) { ipamAudit = null; }
 
     // Presenza per apparato (advisory, lente «Ripristinabilità»): piega le observation
     // di discovery sul nodo — via MAC noto o IP — e ne ricava «visto di recente» vs
@@ -281,8 +282,8 @@ function _tileValue(r) {
         case 'subnets':      return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), ''];
         case 'gateways':     return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), t('ov.of', { n: r.total })];
         case 'lastSync':     return r.prov === 'none' ? [t('ov.none'), ''] : [r.value + '/' + r.total, ''];
-        case 'suspectPorts': return [_n(r.value), r.total ? t('ov.of', { n: r.total }) : ''];
-        case 'conflicts':    return [_n(r.value), ''];
+        case 'suspectPorts': return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), r.total ? t('ov.of', { n: r.total }) : ''];
+        case 'conflicts':    return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), ''];
         case 'secSnmp':      return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), t('ov.of', { n: r.total })];
         case 'secCommunity': return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), ''];
         case 'secMgmtVlan':  return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), ''];
@@ -351,15 +352,19 @@ function _tileStatus(r) {
             : { w: t('ov.st.read', { age: _age(e.ageMs, e.at) }), tone: 'info' };
         case 'verifiable':   return gap ? { w: t('ov.st.unverifiable', { n: gap }), tone: 'warn' }
             : { w: t('ov.st.verifiedAll'), tone: 'ok' };
-        case 'suspectPorts': return r.value > 0
-            ? { w: t('ov.st.mismatch'), tone: 'warn' }
-            : { w: t('ov.st.coherent'), tone: 'ok' };
+        // Mai letto = nessun confronto possibile: «coerente» in verde sarebbe una
+        // misura inventata (il numero 0 qui è assenza di dati, non assenza di guai).
+        case 'suspectPorts': return r.prov === 'none'
+            ? { w: t('ov.st.never'), tone: 'none' }
+            : (r.value > 0 ? { w: t('ov.st.mismatch'), tone: 'warn' } : { w: t('ov.st.coherent'), tone: 'ok' });
         // Conflitti IPAM: 0 = piano pulito (verde); >0 = da risolvere (ambra). Il
         // verdetto distingue duplicati e overlap così l'utente sa cosa aprire.
-        case 'conflicts':    return r.value > 0
-            ? { w: t(e.dup && e.overlap ? 'ov.confBoth' : (e.overlap ? 'ov.confOverlap' : 'ov.confDup'),
-                     { d: e.dup || 0, o: e.overlap || 0 }), tone: 'warn' }
-            : { w: t('ov.confClean'), tone: 'ok' };
+        case 'conflicts':    return r.prov === 'none'
+            ? { w: t('ov.confUnknown'), tone: 'none' }
+            : (r.value > 0
+                ? { w: t(e.dup && e.overlap ? 'ov.confBoth' : (e.overlap ? 'ov.confOverlap' : 'ov.confDup'),
+                         { d: e.dup || 0, o: e.overlap || 0 }), tone: 'warn' }
+                : { w: t('ov.confClean'), tone: 'ok' });
         case 'neighbors':    return { w: t('ov.neighborsFrom', { n: e.fromDevices || 0 }), tone: 'info' };
         case 'lags':         return r.prov === 'none'
             ? { w: t('ov.st.none'), tone: 'none' }
@@ -378,8 +383,13 @@ function _tileStatus(r) {
             : { w: t('ov.st.available'), tone: 'ok' };
         case 'freeSfp':      return r.prov === 'none' ? { w: t('ov.st.none'), tone: 'none' }
             : (r.value === 0 ? { w: t('ov.st.noneFree'), tone: 'warn' } : { w: t('ov.st.available'), tone: 'ok' });
-        case 'rackU':        return r.prov === 'none' ? { w: t('ov.st.none'), tone: 'none' }
-            : (r.value === 0 ? { w: t('ov.st.rackFull'), tone: 'warn' } : { w: t('ov.st.free'), tone: 'ok' });
+        // Altezza rack: se anche un solo rack non la dichiara il totale è un'ipotesi
+        // (42U di ripiego) → si dice, invece di sentenziare «pieno»/«libere» su un
+        // denominatore inventato. Stesso schema di ipFree («/24 assunto»).
+        case 'rackU':
+            if (r.prov === 'none') return { w: t('ov.st.none'), tone: 'none' };
+            if (e.assumed) return { w: t('ov.rackAssumed', { n: e.assumed }), tone: 'info' };
+            return r.value === 0 ? { w: t('ov.st.rackFull'), tone: 'warn' } : { w: t('ov.st.free'), tone: 'ok' };
         case 'poe':          return r.prov === 'none'
             ? { w: t('ov.ofSwitches', { n: r.total || 0 }), tone: 'none' }
             : { w: e.headroomW != null ? t('ov.headroomW', { n: e.headroomW }) : t('ov.st.declared'), tone: 'ok' };

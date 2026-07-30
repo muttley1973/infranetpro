@@ -291,6 +291,9 @@ test('② VERO: i conflitti IPAM (IP duplicati + overlap subnet) emergono come r
     nodes: [{ id: 'sw1', type: 'switch', ip: '10.0.0.1', integration: { driver: 'snmp-v2c', host: '10.0.0.1' } }],
     spare: { totals: { free: 10, suspect: 0, ports: 24 } },
     lastSyncAt: 1000, now: 2000, lastSyncResult: { at: 1000, ok: 1, total: 1 },
+    // Igiene CALCOLATA e risultata pulita: un oggetto (vuoto) e' un esito, non
+    // l'assenza di esito — vedi il caso «non valutata» in fondo al test.
+    ipamAudit: { duplicateIps: [], subnetOverlaps: [] },
   };
   // Rete pulita: la riga c'e' comunque, a 0, e non abbassa la salute.
   const clean = buildOverview(base).truth;
@@ -327,6 +330,40 @@ test('② VERO: i conflitti IPAM (IP duplicati + overlap subnet) emergono come r
   const mr = rowOf(many, 'conflicts');
   assert.equal(mr.items[0].id, '10.0.0.9');
   assert.equal(mr.items[0].meta, 'A, B, C');
+
+  // Igiene NON valutata (motore assente o in errore: il glue passa null) ≠ rete
+  // pulita. Prima un fallimento di calcolo usciva come «nessun conflitto» VERDE.
+  for (const missing of [null, undefined]) {
+    const unknown = buildOverview(Object.assign({}, base, { ipamAudit: missing })).truth;
+    const ur = rowOf(unknown, 'conflicts');
+    assert.equal(ur.prov, 'none', 'non valutata -> provenienza \'none\' (tratteggiata)');
+    assert.equal(ur.value, null, 'nessun numero: 0 direbbe «ho guardato e non c\'era nulla»');
+    assert.equal(ur.tone, 'normal', 'non e\' un allarme: e\' un\'assenza di dato');
+    assert.equal(unknown.health.level, 'ok', 'un conteggio mancante non ingiallisce da solo');
+  }
+});
+
+test('② VERO: senza NEMMENO una lettura, «0 porte sospette» non e\' una misura', () => {
+  // suspectPorts e' l'unico confronto realta'↔documento senza Verifica, ma vive
+  // sulle letture SNMP: a zero letture il conteggio 0 e' assenza di dati, non
+  // assenza di guai. Stesso gating della riga sorella lastSync.
+  const nodes = [{ id: 'sw1', type: 'switch', ip: '10.0.0.1', integration: { driver: 'snmp-v2c', host: '10.0.0.1' } }];
+  const never = buildOverview({ types: TYPES, nodes, now: 2000,
+    spare: { totals: { free: 10, suspect: 0, ports: 24 } } }).truth;
+  const nr = rowOf(never, 'suspectPorts');
+  assert.equal(nr.prov, 'none', 'mai letto -> nessuna provenienza misurata');
+  assert.equal(nr.value, null, 'niente «0 · tutto coerente» in verde su una misura mai fatta');
+  assert.equal(nr.total, null);
+  assert.equal(rowOf(never, 'lastSync').prov, 'none', 'le due righe raccontano la stessa storia');
+
+  // Dopo una lettura il conteggio torna una misura vera, zero incluso.
+  const read = buildOverview({ types: TYPES, nodes, now: 2000,
+    lastSyncAt: 1000, lastSyncResult: { at: 1000, ok: 1, total: 1 },
+    spare: { totals: { free: 10, suspect: 0, ports: 24 } } }).truth;
+  const rr = rowOf(read, 'suspectPorts');
+  assert.equal(rr.prov, 'measured');
+  assert.equal(rr.value, 0, 'letto e coerente: lo zero ora significa qualcosa');
+  assert.equal(rr.total, 10);
 });
 
 test('② VERO B3: il report VIVO aggiunge righe-categoria navigabili (drill), non al reload', () => {
@@ -519,11 +556,39 @@ test('③ REGRESSIONE denominatore rack: il totale U viene da `sizeU`, non da un
   assert.equal(fill[1].sizeU, 12);
   assert.equal(fill[1].free, 9);
 
-  // sizeU assente sul rack → default app-wide 42 (come app.js:656), MAI 0.
-  assert.equal(_rackFill([{ id: 'r3' }], [], types)[0].sizeU, 42);
+  // sizeU assente sul rack → ripiego 42 per DISEGNARE, MAI 0 — ma marcato come
+  // NON dichiarato: il documento non ha mai detto quanto e' alto quel rack.
+  const undecl = _rackFill([{ id: 'r3' }], [], types)[0];
+  assert.equal(undecl.sizeU, 42);
+  assert.equal(undecl.declared, false, '42U e\' un ripiego, non una dichiarazione');
+  assert.ok(fill.every((r) => r.declared === true), 'r1/r2 dichiarano la propria altezza');
   // e passato dentro buildOverview, il totale non e' piu' fisso a 42.
   const o = buildOverview({ types, nodes, rackFill: fill, spare: { totals: { free: 0, ports: 0 } } });
   assert.equal(rowOf(o.margin, 'rackU').total, 36, '24 + 12, non 84');
+  assert.equal(rowOf(o.margin, 'rackU').prov, 'declared', 'tutte le altezze dichiarate');
+  assert.equal(rowOf(o.margin, 'rackU').extra.assumed, 0);
+});
+
+test('③ un totale U che include altezze ASSUNTE non si dichiara «dichiarato»', () => {
+  // Un rack importato/creato via API non dichiara sizeU: il suo contributo al
+  // totale e' il ripiego 42U, cioe' un'ipotesi. Dire 'declared' su quel totale
+  // sarebbe spacciare un default per una scelta dell'utente (② no-invenzioni).
+  const types = { switch: { isActive: true, isRack: true, sizeU: 1 } };
+  const nodes = [{ id: 'a', type: 'switch', rackId: 'r1', sizeU: 2 }];
+  const mixed = _rackFill([{ id: 'r1', sizeU: 24 }, { id: 'r2' }], nodes, types);
+  const o = buildOverview({ types, nodes, rackFill: mixed, spare: { totals: { free: 0, ports: 0 } } });
+  const row = rowOf(o.margin, 'rackU');
+  assert.equal(row.total, 66, '24 dichiarati + 42 assunti');
+  assert.equal(row.prov, 'derived', 'basta un rack senza altezza per non poter dire «dichiarato»');
+  assert.equal(row.extra.assumed, 1, 'quanti rack stanno assumendo: la riga lo dice');
+
+  // Un rack «pieno» ma con altezza ASSUNTA non tinge la sezione: sarebbe un
+  // allarme inventato (potrebbe essere un 47U con spazio di avanzo).
+  const fullAssumed = _rackFill([{ id: 'r2' }], [{ id: 'big', type: 'switch', rackId: 'r2', sizeU: 42 }], types);
+  const fa = buildOverview({ types, nodes: [{ id: 'big', type: 'switch', rackId: 'r2', sizeU: 42 }],
+    rackFill: fullAssumed, spare: { totals: { free: 5, ports: 24 } } });
+  assert.equal(rowOf(fa.margin, 'rackU').value, 0, '0 U libere sul ripiego 42');
+  assert.equal(fa.margin.health.level, 'ok', 'niente warn «rack pieno» su un\'altezza assunta');
 });
 
 test('③ zero fibre LIBERE e zero fibre DICHIARATE non sono la stessa cosa', () => {
