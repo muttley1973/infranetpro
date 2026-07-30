@@ -4,6 +4,10 @@ What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://k
 
 ## Unreleased
 
+## 2.3.0 — 2026-07-30
+
+**Honesty pass.** Everything below has one theme: the app no longer says more than it knows. A verdict that rests on nothing is grey, not green; a measurement carries its age; a number states where it came from; and what the app cannot check, it names. Plus a sixth Overview lens, warranty/EOL, and the Overview page in the handover dossier.
+
 - **Fixed** — **10G over Cat6 within 55 m no longer raises a warning**: 802.3an/TSB-155 allows it, and a warning on a compliant run teaches you to ignore warnings. The length has to be declared — without it there is no way to know the run is short.
 - **Added** — the **fibre run is now validated** against its optical class, which it never was: an OM3 backbone pulled to 400 m at 10G — a link that will not come up — went through without a word. The reach depends on the **speed**, not just the class: OM3 carries 300 m at 10G but only 100 m at 40G, so a rule that ignored the bitrate would have been worse than no rule. With no class, no speed or no length declared, nothing is claimed.
 - **Changed** — **trunk symmetry** (both ends carrying the same tagged VLANs) joins "What I'm not looking at". In the document the two ends match by construction — a trunk is a single link object, so comparing it with itself proves nothing — and the per-side egress lists that would settle it are not read yet. Declared rather than half-built, so it doesn't look like a check that has been made.
