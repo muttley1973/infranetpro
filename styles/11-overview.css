@@ -62,8 +62,9 @@ body.view-overview #export-area { display: none; }
 .ov-dr-verdict.v-ok   .ov-vdot { background: var(--active-color); }
 .ov-dr-verdict.v-warn .ov-vdot { background: var(--idle-color); }
 .ov-dr-verdict.v-bad  .ov-vdot { background: var(--fault-color); }
-/* «Non lo so» ha il suo colore: senza NEMMENO una lettura live il pallino resta
-   grigio — un verdetto assente non deve somigliare a un verdetto positivo. */
+/* «Non lo so» ha il suo colore: senza NEMMENO una lettura live (⑥) o senza un
+   solo accesso SNMP da valutare (⑤) il pallino resta grigio — un verdetto
+   assente non deve somigliare a un verdetto positivo. */
 .ov-dr-verdict.v-none .ov-vdot { background: var(--inactive-color); }
 .ov-dr-big { font-size: var(--fs-xl); font-weight: 700; color: var(--text-main); }
 .ov-dr-big .ov-dr-of { font-size: var(--fs-md); font-weight: 400; color: var(--inactive-color); }

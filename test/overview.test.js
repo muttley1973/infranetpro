@@ -1043,12 +1043,29 @@ test('⑤ Sicurezza: tutto v3 con VLAN di gestione → verde; senza VLAN di gest
   assert.equal(rowOf(noVlan, 'secMgmtVlan').prov, 'none');
 });
 
-test('⑤ Sicurezza: progetto senza apparati gestiti → lente vuota (managed 0), salute ok, nessun throw', () => {
+test('⑤ Sicurezza: progetto senza apparati gestiti → lente vuota (managed 0), verdetto neutro, nessun throw', () => {
   const s = buildOverview({ types: DR_TYPES, nodes: [{ id: 'pc1', type: 'pc', ip: '10.0.0.5' }] }).security;
   assert.equal(s.managed, 0);
   assert.equal(s.snmpTotal, 0);
-  assert.equal(s.health.level, 'ok');
+  assert.equal(s.health.level, 'none', 'niente da valutare non è «a norma»');
   assert.equal(rowOf(s, 'secSnmp').prov, 'none');
+});
+
+test('⑤ Sicurezza: apparati gestiti ma NESSUN accesso SNMP → verdetto neutro, mai verde', () => {
+  // Il caso quotidiano di un progetto appena disegnato: gli switch ci sono, le
+  // credenziali non ancora. Zero misure di esposizione ≠ esposizione zero: l'app
+  // non sa se quegli apparati non parlano SNMP o se nessuno ha scritto l'accesso.
+  const s = buildOverview({
+    types: DR_TYPES, mgmtVlans: [99],
+    nodes: [{ id: 'sw1', type: 'switch' }, { id: 'sw2', type: 'switch' }],
+  }).security;
+  assert.equal(s.managed, 2, 'gli apparati gestibili ci sono');
+  assert.equal(s.snmpTotal, 0, 'nessuno di loro ha un accesso configurato');
+  assert.equal(s.health.level, 'none');
+  assert.equal(s.health.issues, 0, 'neutro non è «zero problemi»: è nessuna misura');
+  // Una VLAN di gestione dichiarata NON compra il verde: è advisory, e comunque
+  // parla di segmentazione, non di quanto sia esposto un accesso che non esiste.
+  assert.equal(rowOf(s, 'secMgmtVlan').value, 1);
 });
 
 test('nessuna riga contiene stringhe di interfaccia (le parole le mette il renderer)', () => {
