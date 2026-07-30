@@ -202,7 +202,22 @@ async function _pollPowerNode(nodeId){
     try{
         const r=await fetch('/api/poll-power',{method:'POST',headers:{'Content-Type':'application/json'},body});
         const data=await r.json();
+        // ATS che non parla il profilo APC PowerNet (Eaton, Vertiv, Socomec…): la
+        // sessione SNMP è riuscita, gli OID no. NON è un errore di rete e non è una
+        // lettura: prima usciva un pannello di trattini indistinguibile da un
+        // apparato che non sa dirti niente. Ora lo si dice — e lo stato SNMP resta
+        // 'ok', perché l'apparato ha risposto: è il PROFILO che non lo copre.
+        if(data.ok && data.unreadable){
+            n.powerLive=null; delete n.powerLiveAt;
+            n.powerUnreadable = data.unreadableReason || 'profile';
+            n.snmpStatus='ok'; n.snmpLastOk=new Date().toISOString();
+            markDirty(); renderAll(); renderProps();
+            showAlert(t('msg.power.atsProfile'));
+            if(btn){ btn.disabled=false; _reset(); }
+            return;
+        }
         if(data.ok && data.live){
+            delete n.powerUnreadable;
             n.powerLive=data.live; n.powerLiveAt=new Date().toISOString();
             n.snmpStatus='ok'; n.snmpLastOk=n.powerLiveAt;
             markDirty(); renderAll(); renderProps();

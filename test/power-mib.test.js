@@ -50,6 +50,23 @@ test('parseAts: sorgente e ridondanza', () => {
   const b = parseAts({ selectedSource: 2, redundancyState: 1 });
   assert.equal(b.selectedSource, 'B');
   assert.equal(b.redundant, false);
+  assert.equal(a.answered, true, 'ha risposto: almeno un OID del profilo');
+});
+
+test('parseAts: un ATS che NON parla il profilo APC non e\' un silenzio, e\' uno stato', () => {
+  // Per gli ATS non esiste l'equivalente della RFC 1628 che il ramo UPS usa per
+  // tutti: il profilo e' APC PowerNet, l'unico documentato pubblicamente. Un
+  // Eaton/Vertiv/Socomec non risponde a quegli OID — e prima usciva un oggetto di
+  // soli `null`, indistinguibile da un apparato che dice «non lo so» su tutto.
+  const muto = parseAts({});
+  assert.equal(muto.selectedSource, null);
+  assert.equal(muto.redundant, null);
+  assert.equal(muto.overCurrent, null);
+  assert.equal(muto.answered, false, 'il silenzio si dichiara, non si maschera da lettura');
+  assert.equal(muto.profile, 'apc-powernet', 'e si dice ANCHE con quale profilo si e\' provato');
+  // Basta un solo OID per dire «ha risposto» (un ATS puo' non esporli tutti).
+  assert.equal(parseAts({ overCurrent: 1 }).answered, true);
+  assert.equal(parseAts(null).answered, false);
 });
 
 test('upsRuntimeCritical: autonomia sotto soglia', () => {

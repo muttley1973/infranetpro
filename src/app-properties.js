@@ -317,6 +317,12 @@ export function _buildNetAccessHtml(n, d, opts){
 // (dal poll /api/poll-power). Vuoto finché non c'è un poll: i campi di
 // documentazione manuali restano indipendenti (manual-first).
 export function _powerLiveHtml(n){
+    // ATS che non parla il profilo APC PowerNet: la lettura c'è stata, questi OID
+    // no. Lo si DICE, invece di lasciare la scheda vuota come se non avessi mai
+    // interrogato — un silenzio non spiegato somiglia a un guasto.
+    if(n && n.powerUnreadable && !(n.powerLive))
+        return `<div class="power-live"><div class="power-live-head" style="color:#e3b341"><i class="fas fa-circle-info"></i> ${escapeHTML(t('pwr.unreadable'))}</div>`
+            + `<div class="power-live-row vm-snmp-descr"><span>${escapeHTML(t('pwr.unreadableWhy'))}</span></div></div>`;
     const live = n && n.powerLive;
     if(!live) return '';
     const esc = s => escapeHTML(String(s == null ? '' : s));

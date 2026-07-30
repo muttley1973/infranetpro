@@ -2048,7 +2048,18 @@ async function pollPower(cfg, kind) {
   });
 
   const live = (kind === 'ats') ? POWER_MIB.parseAts(raw) : POWER_MIB.parseUps(raw);
-  return { kind: kind === 'ats' ? 'ats' : 'ups', live };
+  const out = { kind: kind === 'ats' ? 'ats' : 'ups', live };
+  // ATS che non parla il profilo APC PowerNet (Eaton, Vertiv, Socomec...): la
+  // sessione SNMP c'e' stata, gli OID no. Prima usciva un `live` di soli null,
+  // indistinguibile da un apparato che risponde «non lo so» — cioe' un silenzio
+  // travestito da lettura. Ora lo stato e' esplicito e l'interfaccia puo' dirlo.
+  // Nessun OID di altri vendori aggiunto a indovinare: senza datasheet e senza
+  // hardware su cui provarli non sarebbe una misura (paletto ②).
+  if (out.kind === 'ats' && live && live.answered === false) {
+    out.unreadable = true;
+    out.unreadableReason = 'profile';
+  }
+  return out;
 }
 
 module.exports = { poll, pollNeighbors, probe, pollPower };
