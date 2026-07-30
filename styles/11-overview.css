@@ -62,9 +62,14 @@ body.view-overview #export-area { display: none; }
 .ov-dr-verdict.v-ok   .ov-vdot { background: var(--active-color); }
 .ov-dr-verdict.v-warn .ov-vdot { background: var(--idle-color); }
 .ov-dr-verdict.v-bad  .ov-vdot { background: var(--fault-color); }
+/* «Non lo so» ha il suo colore: senza NEMMENO una lettura live il pallino resta
+   grigio — un verdetto assente non deve somigliare a un verdetto positivo. */
+.ov-dr-verdict.v-none .ov-vdot { background: var(--inactive-color); }
 .ov-dr-big { font-size: var(--fs-xl); font-weight: 700; color: var(--text-main); }
 .ov-dr-big .ov-dr-of { font-size: var(--fs-md); font-weight: 400; color: var(--inactive-color); }
 .ov-dr-lbl { font-size: var(--fs-md); color: var(--text-muted); }
+/* Salute live «di ieri»: il perche' del giallo, accanto al verdetto. */
+.ov-hl-stale { font-size: var(--fs-sm); color: var(--idle-color); }
 
 .ov-col {
     background: var(--panel-bg); border: 1px solid var(--panel-border);
@@ -151,7 +156,16 @@ button.ov-r:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 .ov-r.s-warn .ov-st { color: var(--idle-color); }
 .ov-r.s-none .ov-st { color: var(--inactive-color); }
 .ov-r.s-info .ov-st { color: var(--text-muted); }
+/* Critico ≠ da guardare: un disco al 99% o un UPS con tre minuti di autonomia
+   non possono avere lo stesso colore di un avviso (lente ⑥ Salute live). */
+.ov-r.s-bad  .ov-st { color: var(--fault-color); }
+/* Secondo contatore accanto al primo: popolazione DIVERSA (quelli che non
+   interroghi), quindi colore e peso diversi — non si somma al numero grande e non
+   deve sembrare parte del suo rapporto. Il separatore lo fa lo spazio, non un «/». */
+.ov-num-alt { font-size: var(--fs-lg); font-weight: 600; color: var(--idle-color); margin-left: 12px; }
+.ov-sub-alt { font-size: var(--fs-md); color: var(--idle-color); opacity: .8; margin-left: 3px; }
 .ov-r.s-warn .ov-val .ov-num { color: var(--idle-color); }
+.ov-r.s-bad  .ov-val .ov-num { color: var(--fault-color); }
 .ov-foot-row .ov-meter { flex: 1 1 auto; min-width: 24px; }
 
 .ov-r.is-open { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
@@ -257,6 +271,12 @@ button.ov-r:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 .ov-detail li .ov-tag.p-stale    { color: var(--idle-color); border-color: var(--idle-color); }
 .ov-detail li .ov-tag.p-dated    { color: var(--idle-color); border-color: var(--idle-color); }
 .ov-detail li .ov-tag.p-mismatch { color: var(--fault-color); border-color: var(--fault-color); }
+.ov-detail li .ov-tag.p-crit     { color: var(--fault-color); border-color: var(--fault-color); }
+.ov-detail li .ov-tag.p-warn     { color: var(--idle-color); border-color: var(--idle-color); }
+/* Perché quell'apparato non è a posto nella lettura SNMP: non risponde (misura
+   fallita, rosso) oppure non lo si interroga affatto: non verificabile (ambra). */
+.ov-detail li .ov-tag.p-snmpErr { color: var(--fault-color); border-color: var(--fault-color); }
+.ov-detail li .ov-tag.p-unverifiable { color: var(--idle-color); border-color: var(--idle-color); border-style: solid; }
 .ov-detail li button.ov-go {
     all: unset; cursor: pointer; padding: 2px 4px; border-radius: var(--radius-sm);
     display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; width: 100%;
@@ -288,19 +308,33 @@ button.ov-r:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
    Panoramica NON valuta, così l'assenza di un allarme non si legge come «tutto ok».
    Peso visivo volutamente basso (è un piè-di-pagina, non un risultato), ma sempre
    presente e a ogni lente. */
+/* SEMPRE su UNA riga: è un piè-di-pagina, non un blocco di testo — andare a capo
+   si mangiava mezza schermata e spingeva giù i risultati. Ci sta per DIMENSIONE,
+   non per troncamento: pastiglie compatte con etichette corte (il nome per esteso
+   e il perché vivono nel tooltip). Se lo spazio si stringe davvero, sparisce prima
+   l'introduzione (sotto i 1100px) — la frase intera resta nel title della riga. */
 .ov-perimeter {
-    flex: 0 0 auto; display: flex; align-items: baseline; gap: 6px 10px; flex-wrap: wrap;
-    padding: 8px 16px; border-top: 1px dashed var(--hairline);
-    background: var(--surface-1); font-size: var(--fs-md); color: var(--text-muted);
+    flex: 0 0 auto; display: flex; align-items: center; gap: 8px; flex-wrap: nowrap;
+    padding: 7px 16px; border-top: 1px dashed var(--hairline);
+    background: var(--surface-1); font-size: var(--fs-sm); color: var(--text-muted);
 }
-.ov-perim-title { font-weight: 600; color: var(--text-main); }
-.ov-perim-lead { flex: 1 1 220px; min-width: 0; }
-.ov-perim-chips { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ov-perim-title { flex: 0 0 auto; font-weight: 600; color: var(--text-main); white-space: nowrap; }
+.ov-perim-lead { flex: 0 0 auto; white-space: nowrap; }
+.ov-perim-chips {
+    display: inline-flex; align-items: center; gap: 5px; flex-wrap: nowrap;
+    flex: 0 1 auto; min-width: 0; overflow-x: auto; overscroll-behavior-x: contain;
+    scrollbar-width: none;
+}
+.ov-perim-chips::-webkit-scrollbar { height: 0; }
 .ov-perim-chip {
-    display: inline-flex; align-items: center; gap: 5px;
-    padding: 1px 8px; border: 1px dashed var(--inactive-color); border-radius: var(--radius-pill);
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 0 6px; border: 1px dashed var(--inactive-color); border-radius: var(--radius-pill);
+    font-size: var(--fs-xs); line-height: 1.65;
     color: var(--text-muted); white-space: nowrap; cursor: help;
 }
+/* Schermi stretti: l'introduzione cede il posto alle pastiglie, che sono il
+   contenuto. La frase per esteso resta raggiungibile in hover sulla riga. */
+@media (max-width: 1100px) { .ov-perim-lead { display: none; } }
 /* tier 'elsewhere' = misurato altrove ma non in un verdetto qui: bordo pieno + un
    puntino lo distinguono dai 'unmodeled' (dimensioni non modellate affatto). */
 .ov-perim-chip.t-elsewhere { border-style: solid; }

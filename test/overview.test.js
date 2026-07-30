@@ -18,6 +18,7 @@ const TYPES = {
   switch: { isActive: true, isRack: true },      // attivo: hasIP implicito
   router: { isActive: true, isRack: true },
   pc:     { hasIP: true, isFloor: true },
+  printer: { hasIP: true, isFloor: true },       // non e' infrastruttura, ma parla SNMP
   ups:    { hasIP: true, isPassive: true, isRack: true },
   wallport: { isPassive: true },                 // niente IP possibile
   room:   { isStructural: true },
@@ -223,8 +224,9 @@ test('② VERO: verificabili, porte sospette ordinate per gravita, chi non ha ma
   });
   const t = o.truth;
   assert.equal(rowOf(t, 'verifiable').value, 2, 'sw1 e sw2 hanno driver+host/ip');
-  assert.equal(rowOf(t, 'verifiable').total, 4);
-  assert.deepEqual(rowOf(t, 'verifiable').items.map((i) => i.id), ['pc1', 'pc2'], 'i NON verificabili, per nome');
+  assert.equal(rowOf(t, 'verifiable').total, 2, 'il denominatore e\' la popolazione GESTIBILE, non i PC');
+  assert.equal(rowOf(t, 'verifiable').extra.unverifiable, 2, 'i due PC non si interrogano: non verificabili');
+  assert.deepEqual(rowOf(t, 'verifiable').items.map((i) => i.tag), ['unverifiable', 'unverifiable']);
   assert.equal(rowOf(t, 'lastSync').extra.ageMs, 3000, 'eta\' del dato, non un timestamp crudo');
   assert.deepEqual(rowOf(t, 'suspectPorts').items, [{ id: 'sw2', meta: 3 }, { id: 'sw1', meta: 2 }],
     'peggiore in cima: si ordina per cio\' su cui si agisce');
@@ -393,11 +395,118 @@ test('② VERO B3: il report VIVO aggiunge righe-categoria navigabili (drill), n
 test('② senza porte sospette il titolo scende alla copertura della verifica', () => {
   const o = buildOverview({
     types: TYPES,
+    // sw2 e' interrogato ma NON risponde: e' quella la lacuna di copertura.
+    // Un apparato che non si interroga affatto non lo e' — e' una scelta.
     nodes: [{ id: 'sw1', type: 'switch', ip: '10.0.0.1', integration: { driver: 'snmp-v2c', host: '10.0.0.1' } },
+      { id: 'sw2', type: 'switch', ip: '10.0.0.2', integration: { driver: 'snmp-v2c', host: '10.0.0.2' }, snmpStatus: 'err' },
       { id: 'pc1', type: 'pc', ip: '10.0.0.50' }],
     spare: { totals: { free: 10, suspect: 0, ports: 24 } },
   });
   assert.equal(o.truth.headline.key, 'verifiable');
+});
+
+test('② VERO: chi si interroga lo dice IL DRIVER — non il tipo di apparato', () => {
+  // Una stampante non e' infrastruttura ma parla Printer-MIB, e la si interroga a
+  // ogni Verifica: il discrimine non e' il TIPO ma la configurazione. Prima la
+  // popolazione era «isActive», quindi una stampante muta non emergeva da nessuna
+  // parte e toglierle il driver non spostava un numero in cui non compariva
+  // (segnalato provandolo, 2026-07-30).
+  const base = {
+    types: TYPES, now: 5000, lastSyncAt: 2000, lastSyncResult: { ok: 2, total: 2, at: 2000 },
+    spare: { totals: { free: 10, suspect: 0, ports: 24 } },
+  };
+  const o = buildOverview(Object.assign({}, base, {
+    nodes: [
+      { id: 'sw1', type: 'switch', ip: '10.0.0.1', integration: { driver: 'snmp-v2c', host: '10.0.0.1' } },
+      { id: 'prn1', type: 'printer', ip: '10.0.0.60', integration: { driver: 'snmp-v2c', host: '10.0.0.60' } },
+      { id: 'pc1', type: 'pc', ip: '10.0.0.50' },
+    ],
+  }));
+  const v = rowOf(o.truth, 'verifiable');
+  assert.equal(v.total, 2, 'la stampante interrogata entra nel conto quanto lo switch');
+  assert.equal(v.value, 2);
+  assert.deepEqual(v.items.map((i) => i.id), ['pc1'], 'resta il solo PC, che non si interroga');
+  assert.equal(v.extra.unverifiable, 1, 'non e\' verificabile via SNMP, e si conta a parte');
+  assert.equal(o.truth.health.level, 'ok', 'VERDE raggiungibile: era tutto il punto');
+});
+
+test('② VERO: senza driver l\'apparato esce dal conto e va nella lista «a mano»', () => {
+  // Nessun driver E' gia' una dichiarazione: non lo interrogo, quindi non e'
+  // VERIFICABILE via SNMP. Non e' una lacuna da rimproverare — non blocca il verde
+  // — ma non sparisce: resta in elenco e nella nota accanto al verdetto, altrimenti
+  // sarebbe bastato non configurare nulla per comprarsi un verde. La lista copre
+  // TUTTI quelli che un accesso potrebbero averlo (isActive || hasIP), non la sola
+  // infrastruttura: e' lo stesso confine con cui il pannello offre l'Integrazione.
+  const o = buildOverview({
+    types: TYPES, now: 5000, lastSyncAt: 2000, lastSyncResult: { ok: 1, total: 1, at: 2000 },
+    spare: { totals: { free: 10, suspect: 0, ports: 24 } },
+    nodes: [
+      { id: 'sw1', type: 'switch', ip: '10.0.0.1', integration: { driver: 'snmp-v2c', host: '10.0.0.1' } },
+      { id: 'dumb', type: 'switch', ip: '10.0.0.2' },
+      { id: 'prn1', type: 'printer', ip: '10.0.0.60' },
+      { id: 'pc1', type: 'pc', ip: '10.0.0.50' },
+    ],
+  });
+  const v = rowOf(o.truth, 'verifiable');
+  assert.equal(v.total, 1, 'si conta solo cio\' che si interroga');
+  assert.equal(v.value, 1);
+  assert.equal(v.extra.unverifiable, 3, 'switch, stampante e PC non interrogati: nessuno e\' verificabile via SNMP');
+  assert.deepEqual(v.items.map((i) => i.tag), ['unverifiable', 'unverifiable', 'unverifiable']);
+  assert.deepEqual(v.items.map((i) => i.id), ['dumb', 'prn1', 'pc1'], '…e ognuno ha un nome, subito');
+  assert.equal(o.truth.health.level, 'ok', 'una scelta non e\' un problema: non blocca il verde');
+  assert.equal(o.truth.health.issues, 0);
+});
+
+test('② VERO: senza NESSUN accesso configurato la riga e\' tratteggiata, mai verde', () => {
+  // Il verde piu' facile da comprare: non interrogare niente e dichiarare che
+  // tutto quel niente risponde. La riga esce 'none' — non lo sappiamo.
+  const o = buildOverview({
+    types: TYPES, now: 5000, lastSyncAt: 2000, lastSyncResult: { ok: 0, total: 0, at: 2000 },
+    spare: { totals: { free: 10, suspect: 0, ports: 24 } },
+    nodes: [{ id: 'sw1', type: 'switch', ip: '10.0.0.1' }, { id: 'pc1', type: 'pc', ip: '10.0.0.50' }],
+  });
+  const v = rowOf(o.truth, 'verifiable');
+  assert.equal(v.prov, 'none');
+  assert.equal(v.value, null);
+  assert.equal(v.total, null);
+  assert.equal(v.extra.unverifiable, 2, 'switch e PC: nessuno dei due e\' verificabile');
+});
+
+
+test('② VERO: un apparato configurato che NON risponde non diventa verde', () => {
+  // Configurato ma muto e' una misura FALLITA, non una scelta: pesa finche' non
+  // si sana (credenziali, apparato acceso, o smettendo di interrogarlo). Il
+  // contrario — verde su una lettura andata male — e' esattamente cio' che questa
+  // Panoramica non fa piu' da nessuna parte.
+  const o = buildOverview({
+    types: TYPES, now: 5000, lastSyncAt: 2000, lastSyncResult: { ok: 1, total: 2, at: 2000 },
+    spare: { totals: { free: 10, suspect: 0, ports: 24 } },
+    nodes: [
+      { id: 'sw1', type: 'switch', ip: '10.0.0.1', integration: { driver: 'snmp-v2c', host: '10.0.0.1' }, snmpStatus: 'ok' },
+      { id: 'sw2', type: 'switch', ip: '10.0.0.2', integration: { driver: 'snmp-v2c', host: '10.0.0.2' }, snmpStatus: 'err' },
+    ],
+  });
+  const v = rowOf(o.truth, 'verifiable');
+  assert.equal(v.total, 2, 'due interrogati');
+  assert.equal(v.value, 1, '…uno solo risponde: il numero lo dice senza spiegazioni');
+  assert.equal(v.extra.errors, 1);
+  assert.deepEqual(v.items.map((i) => [i.id, i.tag]), [['sw2', 'snmpErr']], 'col NOME, senza cliccare');
+  assert.equal(o.truth.health.level, 'warn', 'nessun verde su una misura fallita');
+  assert.equal(o.truth.health.issues, 1);
+  // Smettere di interrogarlo e' la terza via per sanare: esce dal conto e va
+  // nella lista «a mano» — che resta visibile, quindi non e' una scorciatoia.
+  const nonPiuInterrogato = buildOverview({
+    types: TYPES, now: 5000, lastSyncAt: 2000, lastSyncResult: { ok: 1, total: 1, at: 2000 },
+    spare: { totals: { free: 10, suspect: 0, ports: 24 } },
+    nodes: [
+      { id: 'sw1', type: 'switch', ip: '10.0.0.1', integration: { driver: 'snmp-v2c', host: '10.0.0.1' }, snmpStatus: 'ok' },
+      { id: 'sw2', type: 'switch', ip: '10.0.0.2', integration: {}, snmpStatus: 'err' },
+    ],
+  });
+  const v2 = rowOf(nonPiuInterrogato.truth, 'verifiable');
+  assert.equal(v2.extra.errors, 0);
+  assert.equal(v2.extra.unverifiable, 1, 'non sparisce: passa fra i non verificabili');
+  assert.equal(nonPiuInterrogato.truth.health.level, 'ok');
 });
 
 test('② VERO: il verdetto degrada a «warn» quando il dato è vecchio di GIORNI (staleness)', () => {
@@ -627,6 +736,38 @@ test('③ con il PoE dichiarato la riga diventa misurabile e somma il margine', 
   assert.equal(rowOf(o.margin, 'poe').prov, 'declared');
   assert.equal(rowOf(o.margin, 'poe').value, 1, '1 switch su 2 lo dichiara');
   assert.equal(rowOf(o.margin, 'poe').extra.headroomW, 248.2);
+  assert.equal(rowOf(o.margin, 'poe').extra.debtW, null, 'nessuno sforamento = nessun debito');
+  assert.equal(rowOf(o.margin, 'poe').tone, 'normal');
+  assert.equal(o.margin.health.issues, 0, 'un budget capiente non e\' un problema di margine');
+});
+
+test('③ un margine PoE NEGATIVO e\' un DEBITO, non un margine: mai in verde', () => {
+  // Il budget DICHIARATO non copre le classi MISURATE sulle porte: se tutti gli
+  // alimentati tirassero la loro classe, quello switch resterebbe corto. Sommarlo
+  // agli avanzi degli altri lo cancellava dalla vista (il totale di flotta
+  // compensa) e il verdetto usciva «−40 W di margine» in VERDE.
+  const o = buildOverview({
+    types: TYPES, nodes: [{ id: 'sw1', type: 'switch' }, { id: 'sw2', type: 'switch' }],
+    caps: [
+      { id: 'sw1', caps: { poe: { budgetW: 130, headroomW: -40 } } },
+      { id: 'sw2', caps: { poe: { budgetW: 370, headroomW: 248.2 } } },
+    ],
+    spare: { totals: { free: 10, ports: 24 } },
+  });
+  const poe = rowOf(o.margin, 'poe');
+  assert.equal(poe.extra.debtW, 40, 'il debito esce A PARTE: sommato agli avanzi sparirebbe');
+  assert.equal(poe.extra.over, 1, 'e si sa su quanti apparati');
+  assert.equal(poe.extra.headroomW, 208.2, 'il totale di flotta resta, ma non e\' piu\' l\'unico numero');
+  assert.equal(poe.tone, 'alert');
+  assert.deepEqual(poe.items.map((i) => i.id), ['sw1'], 'il dettaglio dice QUALE switch');
+  assert.equal(poe.items[0].metric, 'poeDebt', 'la lib da\' il token, il renderer la parola');
+  assert.equal(poe.items[0].value, 40);
+  // La salute della colonna lo conta: un budget sforato e' una risorsa esaurita,
+  // esattamente come un rack pieno o zero porte libere.
+  assert.equal(o.margin.health.level, 'warn');
+  assert.equal(o.margin.health.issues, 1);
+  // …ed e' il PUNTO D'INGRESSO della colonna: l'unica capacita' gia' sforata.
+  assert.equal(o.margin.headline.key, 'poe');
 });
 
 test('③ la banda uplink è il LAG PIÙ CAPIENTE, non la somma (un LAG ha due capi)', () => {
@@ -915,12 +1056,198 @@ test('nessuna riga contiene stringhe di interfaccia (le parole le mette il rende
     types: TYPES, nodes: [{ id: 'sw1', type: 'switch', ip: '10.0.0.1' }],
     spare: { totals: { free: 1, ports: 24 } },
   });
-  const all = [...o.complete.rows, ...o.truth.rows, ...o.margin.rows, ...o.recovery.rows, ...o.security.rows];
+  const all = [...o.complete.rows, ...o.truth.rows, ...o.margin.rows, ...o.recovery.rows, ...o.security.rows, ...o.health.rows];
   for (const r of all) {
     assert.equal(typeof r.key, 'string');
     assert.ok(['declared', 'measured', 'derived', 'none'].includes(r.prov), 'provenienza dichiarata: ' + r.key);
     assert.ok(!('label' in r) && !('text' in r), 'la lib non scrive testo: ' + r.key);
   }
+});
+
+// ── ④ DR · CICLO DI VITA (garanzia / fine vita) ──────────────────────────────
+// Due date DICHIARATE, senza gemello misurato: nessun apparato dice via SNMP
+// quando scade il contratto. I test presidiano il punto delicato — il
+// DENOMINATORE: chi non dichiara niente non è «coperto», è fuori dal conto.
+const LC_NOW = Date.parse('2026-07-30T12:00:00Z');
+const LC_D = (giorni) => new Date(LC_NOW + giorni * 864e5).toISOString().slice(0, 10);
+
+test('④ ciclo di vita: senza date dichiarate la riga è tratteggiata, non verde', () => {
+  const o = buildOverview({
+    types: TYPES, now: LC_NOW,
+    nodes: [{ id: 'sw1', type: 'switch' }, { id: 'sw2', type: 'switch' }],
+  });
+  const lc = rowOf(o.recovery, 'drLifecycle');
+  assert.equal(lc.prov, 'none', 'nessuno dichiara: non lo sappiamo');
+  assert.equal(lc.value, null, 'mai uno zero al posto di «non lo so»');
+  assert.equal(lc.total, null);
+});
+
+test('④ ciclo di vita: il denominatore è chi DICHIARA, e chi non dichiara resta contato a parte', () => {
+  const o = buildOverview({
+    types: TYPES, now: LC_NOW,
+    nodes: [
+      { id: 'ok1', type: 'switch', warrantyUntil: LC_D(400) },        // coperto
+      { id: 'muto', type: 'switch' },                                  // non dichiara nulla
+      { id: 'muto2', type: 'router' },
+    ],
+  });
+  const lc = rowOf(o.recovery, 'drLifecycle');
+  assert.equal(lc.total, 1, 'solo chi dichiara entra nel conto');
+  assert.equal(lc.value, 1);
+  assert.equal(lc.prov, 'declared');
+  assert.equal(lc.extra.undeclared, 2, '…e i muti si sanno, così «1 di 1» non si spaccia per «tutto a posto»');
+  assert.equal(lc.items.length, 0);
+});
+
+test('④ ciclo di vita: fuori produzione > fuori garanzia > in scadenza, e la voce porta la data', () => {
+  const o = buildOverview({
+    types: TYPES, now: LC_NOW,
+    nodes: [
+      { id: 'vecchio', type: 'switch', eolDate: LC_D(-30), warrantyUntil: LC_D(-60) },  // EOL vince sulla garanzia scaduta
+      { id: 'scaduto', type: 'switch', warrantyUntil: LC_D(-1) },
+      { id: 'quasi', type: 'router', warrantyUntil: LC_D(45) },                          // entro i 90 giorni
+      { id: 'sereno', type: 'router', warrantyUntil: LC_D(400), eolDate: LC_D(900) },
+    ],
+  });
+  const lc = rowOf(o.recovery, 'drLifecycle');
+  assert.equal(lc.total, 4);
+  assert.equal(lc.value, 1, 'uno solo senza niente da dire');
+  assert.equal(lc.extra.eol, 1);
+  assert.equal(lc.extra.expired, 1);
+  assert.equal(lc.extra.soon, 1);
+  assert.equal(lc.tone, 'alert', 'scaduti o fuori produzione: la riga si accende');
+  const byId = new Map(lc.items.map((i) => [i.id, i]));
+  assert.equal(byId.get('vecchio').tag, 'eol', 'fuori produzione batte fuori garanzia');
+  assert.equal(byId.get('vecchio').value, LC_D(-30), 'e porta la data che conta');
+  assert.equal(byId.get('vecchio').metric, 'date', 'ISO nella lib, formato locale nel renderer');
+  assert.equal(byId.get('scaduto').tag, 'expired');
+  assert.equal(byId.get('quasi').tag, 'soon');
+  assert.ok(!byId.has('sereno'), 'chi è a posto non finisce nell\'elenco');
+});
+
+test('④ ciclo di vita: ADVISORY — non decide chi è «ripristinabile stanotte»', () => {
+  // Un apparato fuori produzione con backup fresco, identità e posizione resta
+  // ripristinabile: l'EOL dice che non lo RICOMPRI, non che non lo rimetti su.
+  const o = buildOverview({
+    types: TYPES, now: LC_NOW,
+    nodes: [{
+      id: 'sw1', type: 'switch', rackId: 'r1', serialNumber: 'ABC123',
+      eolDate: LC_D(-500), warrantyUntil: LC_D(-500),
+      backup: { ref: 'git@repo:sw1.cfg', at: new Date(LC_NOW - 5 * 864e5).toISOString() },
+    }],
+  });
+  assert.equal(o.recovery.recoverable, 1, 'il verdetto DR non cambia definizione');
+  assert.equal(o.recovery.health.level, 'ok');
+  assert.equal(rowOf(o.recovery, 'drLifecycle').extra.eol, 1, '…ma la riga lo dice comunque');
+});
+
+// ── ⑥ SALUTE ─────────────────────────────────────────────────────────────────
+// L'unica lente che parla del PRESENTE. Gli allarmi arrivano gia' derivati da
+// lib/health-alerts.js (soglie testate li'): qui si presidia che la composizione
+// non trasformi «non lo so» in «va tutto bene».
+const HL_NOW = Date.parse('2026-07-30T12:00:00Z');
+const hl = (over) => Object.assign(
+  { id: 'x', type: 'nas', at: HL_NOW, blocks: { host: true }, cpu: null, alerts: [] }, over);
+
+test('⑥ SALUTE LIVE: senza NEMMENO una lettura il verdetto e\' «non lo so», non verde', () => {
+  const o = buildOverview({
+    types: TYPES, now: HL_NOW,
+    nodes: [{ id: 'sw1', type: 'switch', ip: '10.0.0.1', integration: { driver: 'snmp-v2c', host: '10.0.0.1' } }],
+  });
+  assert.equal(o.health.health.level, 'none', 'assenza di misura != salute buona');
+  assert.equal(o.health.measured, 0);
+  assert.equal(o.health.targets, 1, 'un apparato interrogabile c\'e\': il denominatore lo dice');
+  for (const k of ['hlHost', 'hlPower', 'hlSupplies', 'hlCpu']) {
+    assert.equal(rowOf(o.health, k).prov, 'none', k + ': tratteggiata');
+    assert.equal(rowOf(o.health, k).value, null, k + ': mai uno zero al posto di «non lo so»');
+  }
+  assert.equal(rowOf(o.health, 'hlReading').prov, 'none');
+});
+
+test('⑥ il denominatore e\' chi ha RISPOSTO con quella telemetria, non la flotta', () => {
+  const o = buildOverview({
+    types: TYPES, nodes: [], now: HL_NOW,
+    liveHealth: [hl({ id: 'nas1', blocks: { host: true } }), hl({ id: 'ups1', blocks: { power: true } })],
+  });
+  assert.equal(rowOf(o.health, 'hlHost').total, 1, 'un NAS non rende l\'UPS «un host a posto»');
+  assert.equal(rowOf(o.health, 'hlPower').total, 1);
+  assert.equal(rowOf(o.health, 'hlSupplies').prov, 'none', 'nessuna stampante ha parlato: riga tratteggiata');
+  assert.equal(o.health.measured, 2);
+  assert.equal(o.health.healthy, 2);
+  assert.equal(o.health.health.level, 'ok');
+});
+
+test('⑥ un critico tinge di rosso, un avviso di giallo — e la voce dice QUALE metrica', () => {
+  const o = buildOverview({
+    types: TYPES, nodes: [], now: HL_NOW,
+    liveHealth: [
+      hl({ id: 'nas1', blocks: { host: true }, alerts: [{ severity: 'crit', kind: 'disk', value: 97, label: '/volume1' }] }),
+      hl({ id: 'ups1', blocks: { power: true }, alerts: [{ severity: 'warn', kind: 'ups', value: 12, label: 'runtime' }] }),
+    ],
+  });
+  assert.equal(o.health.health.level, 'bad', 'un critico non e\' «da guardare»');
+  assert.equal(o.health.health.issues, 2);
+  assert.equal(o.health.crit, 1);
+  assert.equal(o.health.healthy, 0);
+  const host = rowOf(o.health, 'hlHost');
+  assert.equal(host.value, 0);
+  assert.equal(host.total, 1);
+  assert.equal(host.extra.crit, 1);
+  assert.equal(host.items[0].metric, 'disk', 'token, non parole (le mette il renderer)');
+  assert.equal(host.items[0].label, '/volume1', 'il nome grezzo del volume passa intatto');
+  assert.equal(host.items[0].tag, 'crit');
+  assert.equal(rowOf(o.health, 'hlPower').items[0].metric, 'ups.runtime', 'la sotto-metrica UPS entra nel token');
+});
+
+test('⑥ la CPU si RIPORTA, non si giudica: nessuna soglia inventata', () => {
+  // hrProcessorLoad e' il carico ISTANTANEO fra due poll: un 97% non e' un guasto.
+  // La riga da' il numero e da chi arriva; il verdetto della lente non lo usa.
+  const o = buildOverview({
+    types: TYPES, nodes: [], now: HL_NOW,
+    liveHealth: [hl({ id: 'nas1', cpu: 12 }), hl({ id: 'srv1', cpu: 97 })],
+  });
+  const cpu = rowOf(o.health, 'hlCpu');
+  assert.equal(cpu.value, 97, 'il piu\' carico');
+  assert.equal(cpu.prov, 'measured');
+  assert.equal(cpu.tone, 'normal');
+  assert.deepEqual(cpu.items.map((i) => i.id), ['srv1', 'nas1'], 'piu\' carico in cima');
+  assert.equal(o.health.health.level, 'ok', 'la CPU non abbassa il verdetto');
+});
+
+test('⑥ «salute live» letta ieri non e\' piu\' live: il verde degrada e lo DICE', () => {
+  const old = buildOverview({ types: TYPES, nodes: [], now: HL_NOW, liveHealth: [hl({ at: HL_NOW - 9 * 3600e3 })] });
+  assert.equal(old.health.health.level, 'warn', 'una misura di 9 ore fa non e\' «adesso»');
+  assert.equal(old.health.health.stale, true);
+  assert.equal(old.health.health.staleHours, 9);
+  const fresh = buildOverview({ types: TYPES, nodes: [], now: HL_NOW, liveHealth: [hl({ at: HL_NOW - 60e3 })] });
+  assert.equal(fresh.health.health.level, 'ok');
+  assert.ok(!fresh.health.health.stale, 'un dato appena letto non si ingiallisce');
+});
+
+test('⑥ la freschezza del quadro e\' quella del dato PIU\' VECCHIO, non del piu\' recente', () => {
+  // Un solo apparato riletto adesso non rinfresca gli altri cinque letti ieri:
+  // «nessun allarme su 6» vale quanto vale la misura piu' stantia fra quelle sei.
+  const o = buildOverview({
+    types: TYPES, nodes: [], now: HL_NOW,
+    liveHealth: [hl({ id: 'vecchio', at: HL_NOW - 30 * 3600e3 }), hl({ id: 'appena', at: HL_NOW - 60e3 })],
+  });
+  assert.equal(o.health.health.level, 'warn', 'il piu\' recente non copre il piu\' vecchio');
+  assert.equal(o.health.health.staleHours, 30);
+  const rd = rowOf(o.health, 'hlReading');
+  assert.equal(rd.extra.at, HL_NOW - 30 * 3600e3, 'l\'eta\' mostrata e\' quella della lettura piu\' vecchia');
+  assert.equal(rd.extra.newestAt, HL_NOW - 60e3, 'l\'altra faccia resta a disposizione');
+  // Due situazioni, due frasi: qui una lettura e' fresca, quindi il problema sono
+  // gli apparati rimasti indietro — non «il dato e' vecchio» tout court.
+  assert.equal(o.health.health.allStale, false);
+  assert.equal(o.health.staleReadings, 1, 'una sola lettura ha passato la soglia');
+
+  // Se invece anche la PIU' RECENTE ha passato la soglia, il dato e' vecchio e basta.
+  const tutte = buildOverview({
+    types: TYPES, nodes: [], now: HL_NOW,
+    liveHealth: [hl({ id: 'a', at: HL_NOW - 30 * 3600e3 }), hl({ id: 'b', at: HL_NOW - 8 * 3600e3 })],
+  });
+  assert.equal(tutte.health.health.allStale, true);
+  assert.equal(tutte.health.staleReadings, 2);
 });
 
 test('perimetro esplicito: buildOverview dichiara «cosa non sto guardando» (chiavi + tier, nessuna parola)', () => {
@@ -936,8 +1263,15 @@ test('perimetro esplicito: buildOverview dichiara «cosa non sto guardando» (ch
   }
   // Le dimensioni-chiave che il giudizio da senior aveva chiamato buchi sono dichiarate.
   const keys = o.blindSpots.map((b) => b.key);
-  for (const must of ['wan', 'stp', 'firewall', 'lifecycle', 'restore', 'power']) {
+  for (const must of ['wan', 'stp', 'firewall', 'restore', 'sensors']) {
     assert.ok(keys.includes(must), 'perimetro dichiara: ' + must);
+  }
+  // Il perimetro è un TODO VIVO, non una scritta fissa: ciò che viene modellato
+  // ESCE dalla lista. UPS e salute host sono ora in un verdetto (lente ⑥), quindi
+  // le loro voci non devono più comparire — altrimenti la Panoramica dichiarerebbe
+  // di non guardare una cosa che guarda.
+  for (const gone of ['power', 'health', 'lifecycle']) {
+    assert.ok(!keys.includes(gone), 'ora modellato, quindi fuori dal perimetro: ' + gone);
   }
   // Il perimetro e\' una COPIA difensiva della costante (mutarlo non tocca la lib).
   assert.notStrictEqual(o.blindSpots, _BLIND_SPOTS);

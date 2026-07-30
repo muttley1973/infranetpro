@@ -139,13 +139,17 @@ function _propsKebabClose(){
  *    - macLabel        (string, default 'MAC address')
  *    - macPlaceholder  (string, default '00:11:22:33:44:55')
  *  Ritorna stringa HTML, o '' se il device non ha senso di esporlo. */
-/** Genera i 4 campi inventario standard (Marca, Modello, Seriale, Firmware/OS)
- *  da inserire come PRIMI campi dentro la fisarmonica device-specifica.
- *  Sostituisce la vecchia fisarmonica "Inventario" separata: cosi' tutte le
- *  informazioni del device stanno in un unico posto coerente.
+/** Genera i campi inventario standard (Marca, Modello, Seriale, Firmware/OS +
+ *  Garanzia / Fine vita) da inserire come PRIMI campi dentro la fisarmonica
+ *  device-specifica. Sostituisce la vecchia fisarmonica "Inventario" separata:
+ *  cosi' tutte le informazioni del device stanno in un unico posto coerente.
  *  Il placeholder degli input usa quello che ENTITY-MIB ha popolato in
  *  `n.integration.inventory` (se presente) cosi' l'utente vede il valore
- *  rilevato dall'SNMP anche quando non ha ancora confermato manualmente. */
+ *  rilevato dall'SNMP anche quando non ha ancora confermato manualmente.
+ *  Garanzia e fine vita NON hanno un gemello misurato: nessun apparato dice via
+ *  SNMP quando scade il contratto o quando il vendor smette di venderlo — sono
+ *  DICHIARATE e basta (`n.warrantyUntil` / `n.eolDate`, data ISO). Restano vuote
+ *  finche' qualcuno non le scrive: assenza, mai uno zero o una data inventata. */
 export function _buildInventoryFieldsHtml(n, d){
     const inventory = (n.integration && n.integration.inventory) || {};
     const placeholders = {
@@ -161,6 +165,10 @@ export function _buildInventoryFieldsHtml(n, d){
     <div class="prop-row2">
         <div class="prop-group"><label>${t('field.serial')}</label><input value="${escapeHTML(n.serialNumber||'')}" placeholder="${placeholders.serialNumber}" onchange="updateN('serialNumber',this.value)"></div>
         <div class="prop-group"><label>Firmware / OS</label><input value="${escapeHTML(n.firmwareVer||'')}" placeholder="${placeholders.firmwareVer}" onchange="updateN('firmwareVer',this.value)"></div>
+    </div>
+    <div class="prop-row2">
+        <div class="prop-group"><label>${t('field.warranty')}</label><input type="date" value="${escapeHTML(n.warrantyUntil||'')}" data-tip="${t('field.warrantyTip')}" data-change="node-field" data-field="warrantyUntil"></div>
+        <div class="prop-group"><label>${t('field.eol')}</label><input type="date" value="${escapeHTML(n.eolDate||'')}" data-tip="${t('field.eolTip')}" data-change="node-field" data-field="eolDate"></div>
     </div>`;
 }
 

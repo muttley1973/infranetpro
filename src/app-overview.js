@@ -27,6 +27,7 @@ import { registerClickActions } from './app-delegation.js';
 import { setPropsSectionState } from './app-properties.js';   // click «Subnet»/«Indirizzi liberi» → pannello VLAN (dove le reti si DICHIARANO)
 import { _ipamAuditReport } from './app-l3.js';   // ② «Vero»: igiene IPAM (IP duplicati + overlap subnet), stesso modello dell'overlay L3 (include gli IP VM)
 import { buildOverview, _rackFill } from '../lib/overview.js';
+import { computeHealthAlerts } from '../lib/health-alerts.js';   // ⑥ Salute live: soglie DOCUMENTATE una volta sola (le stesse che legge l'assistente AI)
 
 // La vista corrente e' una preferenza DELL'UTENTE su QUESTA macchina, non un
 // dato del progetto: se vivesse in `state` riaprirebbe il bug chiuso il
@@ -51,13 +52,14 @@ function _saveView(v) {
 }
 
 // La LENTE della Panoramica: 'summary' = Sintesi (le 3 colonne) · 'recovery' =
-// «Ripristinabilità» · 'security' = «Sicurezza & Servizi». Come la vista, è una
+// «Ripristinabilità» · 'security' = «Sicurezza & Servizi» · 'health' = «Salute
+// live» (l'unica che parla del presente). Come la vista, è una
 // preferenza LOCALE (localStorage per macchina), MAI in `state`: cambiare lente
 // non deve sporcare il documento.
 const LENS_KEY = 'infranet.ov.lens';
-const _LENSES = ['summary', 'recovery', 'security'];
+const _LENSES = ['summary', 'recovery', 'security', 'health'];
 // Le lenti a colonna singola (non le 3 colonne della Sintesi).
-const _SINGLE_LENSES = ['recovery', 'security'];
+const _SINGLE_LENSES = ['recovery', 'security', 'health'];
 function _savedLens() {
     try { const v = localStorage.getItem(LENS_KEY); return _LENSES.indexOf(v) !== -1 ? v : 'summary'; } catch (_) { return 'summary'; }
 }
@@ -101,6 +103,15 @@ function _overviewDelta(pid, o, syncAt) {
 // ── Modello per la lib ───────────────────────────────────────────────────────
 // Un solo giro sui nodi: costruisce insieme i device per il report porte libere,
 // il conteggio delle porte in fibra e le capacita' hardware per apparato.
+// I timestamp «vivi» viaggiano come ISO (n.snmpLastOk, integration.lastPoll,
+// n.powerLiveAt); qualche progetto vecchio può portarli in ms. 0 = non databile —
+// e una misura che non si sa quando è stata presa non tinge di verde nulla.
+function _liveTs(v) {
+    if (typeof v === 'number' && Number.isFinite(v)) return v;
+    const ms = Date.parse(v || '');
+    return Number.isFinite(ms) ? ms : 0;
+}
+
 function _buildModel() {
     const st = store.state || {};
     const nodes = Array.isArray(st.nodes) ? st.nodes : [];
@@ -109,6 +120,7 @@ function _buildModel() {
 
     const spareDevices = [];
     const caps = [];
+    const liveHealth = [];
     const portMacNodeIds = new Set();
     // MAC→id nodo (chiave esadecimale, STESSA norm della lib _macKey): serve a
     // risolvere a nome i vicini LLDP/CDP che si annunciano solo col chassis-id
@@ -159,6 +171,30 @@ function _buildModel() {
             lagNames: st.lagGroups || {}, lagModes: st.lagModes || {},
         });
         if (c) caps.push({ id: n.id, caps: c });
+
+        // ⑥ Salute live: la telemetria che l'apparato ha DAVVERO restituito
+        // (HOST-RESOURCES · Printer-MIB · UPS-MIB). Gli allarmi non li decide questo
+        // glue: li deriva lib/health-alerts.js con le sue soglie documentate — le
+        // stesse che legge l'assistente AI, così «RAM piena» significa la stessa cosa
+        // ovunque. Qui si RACCOGLIE (chi ha risposto, quando, con che numeri).
+        const _hb = {
+            host: (n.integration && typeof n.integration.hostResources === 'object') ? n.integration.hostResources : null,
+            printer: (n.integration && typeof n.integration.printer === 'object') ? n.integration.printer : null,
+            power: (n.powerLive && typeof n.powerLive === 'object') ? n.powerLive : null,
+        };
+        if (_hb.host || _hb.printer || _hb.power) {
+            let alerts = [];
+            // Un blocco malformato non deve far sparire la lente: peggio di «non lo
+            // so» c'è solo una schermata bianca.
+            try { alerts = computeHealthAlerts({ health: _hb }) || []; } catch (_) { alerts = []; }
+            liveHealth.push({
+                id: n.id, type: n.type,
+                at: Math.max(_liveTs(n.snmpLastOk), _liveTs(n.integration && n.integration.lastPoll), _liveTs(n.powerLiveAt)),
+                blocks: { host: !!_hb.host, printer: !!_hb.printer, power: !!_hb.power },
+                cpu: (_hb.host && typeof _hb.host.cpuLoad === 'number') ? _hb.host.cpuLoad : null,
+                alerts,
+            });
+        }
 
         // Porte libere: solo infrastruttura (un PC non e' capacita' disponibile).
         if (_isLeafEndpoint(n.type) || !pc) continue;
@@ -245,7 +281,7 @@ function _buildModel() {
         ipamVlans: (st.ipam && st.ipam.vlans) ? st.ipam.vlans : {},
         vlanIdsInUse, vlanNames: st.vlanNames || {}, measuredVlanNames,
         spare: buildSpareReport(spareDevices), sfpTotal, rackFill, networks, ipamAudit,
-        caps, fleet: computeFleetCapabilities(caps.map((x) => x.caps)),
+        caps, fleet: computeFleetCapabilities(caps.map((x) => x.caps)), liveHealth,
         topoCache: st.topoCache || {}, lagGroups: st.lagGroups || {},
         lastSyncAt: st.lastSnmpSyncAt || 0, lastSyncResult: st.lastSnmpSyncResult || {},
         lastVerify: st.lastVerify || null,   // Fase 2: l'ultima Verifica come stato (riga «Vero»)
@@ -263,6 +299,16 @@ function _buildModel() {
 
 // ── Parole: la lib da' chiavi e numeri, qui diventano testo ──────────────────
 const _n = (v) => (v == null ? t('ov.none') : String(v));
+
+// Una data DICHIARATA (ISO 'YYYY-MM-DD') resa nel formato locale. Se non è una
+// data la si restituisce com'è: meglio il testo grezzo dell'utente che un
+// «Invalid Date» — non si inventa nulla nemmeno quando il dato è malformato.
+function _fmtDate(iso) {
+    const s = String(iso == null ? '' : iso).trim();
+    if (!s) return '';
+    const ms = Date.parse(s);
+    return Number.isFinite(ms) ? new Date(ms).toLocaleDateString() : s;
+}
 
 function _age(ms, at) {
     if (!at) return t('ov.never');
@@ -296,9 +342,41 @@ function _tileValue(r) {
         case 'poe':          return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), t('ov.of', { n: r.total })];
         case 'uplink':       return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), 'Mbps'];
         case 'ipFree':       return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), ''];
+        // DOPPIO contatore: quanti rispondono fra quelli che interroghi, e — a
+        // fianco, in ambra — quanti non li interroghi affatto. Sono due popolazioni
+        // diverse, non un rapporto: sommarle o metterle nello stesso «di N» le
+        // farebbe leggere come una lacuna, che non sono.
+        case 'verifiable': {
+            const nv = (r.extra || {}).unverifiable > 0
+                ? { num: String(r.extra.unverifiable), sub: t('ov.st.unverifiableShort') } : null;
+            return r.prov === 'none' ? [t('ov.none'), '', nv] : [_n(r.value), t('ov.of', { n: r.total }), nv];
+        }
         case 'drRedundancy': return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), t('ov.of', { n: r.total })];
+        case 'drLifecycle':  return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), t('ov.of', { n: r.total })];
+        // ⑥ Salute live — «quanti stanno bene su quanti ne hanno parlato». Il
+        // denominatore e' chi ha RISPOSTO con quella telemetria, non la flotta.
+        case 'hlReading':    return r.prov === 'none' ? [t('ov.none'), ''] : [r.total ? r.value + '/' + r.total : _n(r.value), ''];
+        case 'hlHost':
+        case 'hlPower':
+        case 'hlSupplies':   return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), t('ov.of', { n: r.total })];
+        case 'hlCpu':        return r.prov === 'none' ? [t('ov.none'), ''] : [r.value + '%', ''];
         default:             return [_n(r.value), r.total != null ? t('ov.of', { n: r.total }) : ''];
     }
+}
+
+// I NOMI dietro un verdetto, non il loro numero. Con più rack, «2 non rispondono»
+// costringe a sfogliare le pagine per scoprire QUALI: il nome, lì, fa risparmiare
+// il giro. Se ne mostrano al più tre e poi «+N»: la riga resta una riga, e il
+// testo intero vive comunque nel `title` e nel dettaglio che si apre.
+const _NAMES_MAX = 3;
+function _itemNames(r, tag) {
+    const ids = (r.items || []).filter((it) => it.tag === tag).map((it) => it.id);
+    const names = ids.slice(0, _NAMES_MAX).map((id) => {
+        const n = nodeById(id);
+        return (n && getNodeDisplayName(n)) || String(id);
+    });
+    const rest = ids.length - names.length;
+    return names.join(' · ') + (rest > 0 ? ' +' + rest : '');
 }
 
 // Il VERDETTO: due parole che dicono se quel numero va bene. Senza, «25» non
@@ -350,8 +428,17 @@ function _tileStatus(r) {
         case 'lastSync':     return r.prov === 'none'
             ? { w: t('ov.st.never'), tone: 'none' }
             : { w: t('ov.st.read', { age: _age(e.ageMs, e.at) }), tone: 'info' };
-        case 'verifiable':   return gap ? { w: t('ov.st.unverifiable', { n: gap }), tone: 'warn' }
-            : { w: t('ov.st.verifiedAll'), tone: 'ok' };
+        // Con più rack, sfogliare le pagine per scoprire cosa non va è il lavoro che
+        // questa riga deve togliere: quindi qui escono i NOMI, non i conteggi.
+        // Chi non risponde per primo, in rosso — è un guasto. Quando tutto quello
+        // che si interroga risponde il verdetto è VERDE: chi non è verificabile lo
+        // dice il SECONDO CONTATORE accanto al numero, e i nomi stanno nell'elenco
+        // che si apre. Una riga di testo in più sotto il verdetto era rumore.
+        case 'verifiable': {
+            if (r.prov === 'none') return { w: t('ov.st.noPoll'), tone: 'none' };
+            if (e.errors > 0) return { w: t('ov.st.errNames', { names: _itemNames(r, 'snmpErr') }), tone: 'bad' };
+            return { w: t('ov.st.verifiedAll'), tone: 'ok' };
+        }
         // Mai letto = nessun confronto possibile: «coerente» in verde sarebbe una
         // misura inventata (il numero 0 qui è assenza di dati, non assenza di guai).
         case 'suspectPorts': return r.prov === 'none'
@@ -390,9 +477,13 @@ function _tileStatus(r) {
             if (r.prov === 'none') return { w: t('ov.st.none'), tone: 'none' };
             if (e.assumed) return { w: t('ov.rackAssumed', { n: e.assumed }), tone: 'info' };
             return r.value === 0 ? { w: t('ov.st.rackFull'), tone: 'warn' } : { w: t('ov.st.free'), tone: 'ok' };
-        case 'poe':          return r.prov === 'none'
-            ? { w: t('ov.ofSwitches', { n: r.total || 0 }), tone: 'none' }
-            : { w: e.headroomW != null ? t('ov.headroomW', { n: e.headroomW }) : t('ov.st.declared'), tone: 'ok' };
+        // PoE: un margine NEGATIVO non è un margine. Il budget dichiarato che non
+        // copre le classi misurate è un DEBITO — mostrarlo in verde come «−40 W di
+        // margine» diceva «va bene» proprio dove non va (N10 dell'audit).
+        case 'poe':
+            if (r.prov === 'none') return { w: t('ov.ofSwitches', { n: r.total || 0 }), tone: 'none' };
+            if (e.debtW) return { w: t('ov.poeDebt', { w: e.debtW, n: e.over || 0 }), tone: 'warn' };
+            return { w: e.headroomW != null ? t('ov.headroomW', { n: e.headroomW }) : t('ov.st.declared'), tone: 'ok' };
         case 'uplink':       return r.prov === 'none'
             ? { w: t('ov.st.noSpeeds'), tone: 'none' }
             : { w: t('ov.st.widestLag', { n: e.devices || 0 }), tone: 'info' };
@@ -430,6 +521,20 @@ function _tileStatus(r) {
         case 'drRedundancy': return r.prov === 'none'
             ? { w: t('ov.dr.redNone'), tone: 'none' }
             : { w: t('ov.dr.redProtected', { n: r.value }), tone: 'info' };
+        // Ciclo di vita: nessuno dichiara date → riga tratteggiata, non un verde.
+        // Poi, dal più grave: fuori produzione · fuori garanzia · in scadenza.
+        // Quando tutto è coperto il verdetto dice anche quanti NON dichiarano
+        // niente: «12 di 12» su una popolazione di 32 sarebbe un verde comprato
+        // con l'ignoranza degli altri 20.
+        case 'drLifecycle': {
+            if (r.prov === 'none') return { w: t('ov.dr.lcNone'), tone: 'none' };
+            if (e.eol > 0) return { w: t('ov.dr.lcEol', { n: e.eol }), tone: 'bad' };
+            if (e.expired > 0) return { w: t('ov.dr.lcExpired', { n: e.expired }), tone: 'warn' };
+            if (e.soon > 0) return { w: t('ov.dr.lcSoon', { n: e.soon }), tone: 'warn' };
+            return e.undeclared > 0
+                ? { w: t('ov.dr.lcCoveredOf', { n: e.undeclared }), tone: 'info' }
+                : { w: t('ov.dr.lcCovered'), tone: 'ok' };
+        }
         // ⑤ SICUREZZA — esposizione della gestione (SNMP · community · segmentazione).
         case 'secSnmp': {
             if (r.prov === 'none') return { w: t('ov.sx.snmpNone'), tone: 'none' };
@@ -442,6 +547,26 @@ function _tileStatus(r) {
         case 'secMgmtVlan':  return r.prov === 'none'
             ? { w: t('ov.sx.vlanNone'), tone: 'none' }
             : { w: t('ov.sx.vlanSep', { n: r.value }), tone: 'info' };
+        // ⑥ SALUTE LIVE — telemetria misurata (RAM/dischi · UPS · consumabili).
+        // «Quando» in cima: una misura senza data non vale come «adesso».
+        case 'hlReading':    return r.prov === 'none'
+            ? { w: t('ov.hl.noReading'), tone: 'none' }
+            : { w: t('ov.hl.readAge', { age: _age(e.ageMs, e.at) }), tone: 'info' };
+        // Nessuna risposta per quella telemetria = riga tratteggiata: un apparato che
+        // non parla di dischi non è un apparato «coi dischi a posto».
+        case 'hlHost':
+        case 'hlPower':
+        case 'hlSupplies': {
+            if (r.prov === 'none') return { w: t('ov.hl.na'), tone: 'none' };
+            if (e.crit > 0) return { w: t('ov.hl.crit', { n: e.crit }), tone: 'bad' };
+            if (e.alerts > 0) return { w: t('ov.hl.warn', { n: e.alerts }), tone: 'warn' };
+            return { w: t('ov.hl.clean'), tone: 'ok' };
+        }
+        // CPU: RIPORTATA, mai giudicata. Una soglia sul carico istantaneo sarebbe
+        // inventata (un picco fra due poll non è un guasto) → tono neutro sempre.
+        case 'hlCpu':        return r.prov === 'none'
+            ? { w: t('ov.hl.cpuNone'), tone: 'none' }
+            : { w: t('ov.hl.cpuMax', { n: e.devices || 0 }), tone: 'info' };
         default:             return { w: '', tone: 'info' };
     }
 }
@@ -485,11 +610,16 @@ function _rowEl(secKey, r) {
     k.appendChild(_el('span', 'ov-t', t('ov.row.' + r.key)));
     el.appendChild(k);
 
-    // 2) il numero grande di QUESTA voce
-    const [val, sub] = _tileValue(r);
+    // 2) il numero grande di QUESTA voce — e, se la voce ne ha DUE, il secondo
+    // contatore accanto: popolazione diversa, colore diverso, mai sommati.
+    const [val, sub, alt] = _tileValue(r);
     const v = _el('div', 'ov-val');
     v.appendChild(_el('span', 'ov-num', val));
     if (sub) v.appendChild(_el('span', 'ov-sub', sub));
+    if (alt && alt.num) {
+        v.appendChild(_el('span', 'ov-num-alt', alt.num));
+        if (alt.sub) v.appendChild(_el('span', 'ov-sub-alt', alt.sub));
+    }
     el.appendChild(v);
 
     // 3) il verdetto in parole + il meter, che e' solo un rinforzo del numero.
@@ -524,7 +654,15 @@ function _itemLi(it) {
     // Provenienza per-voce (misurato/dedotto): la lib da' il token, la parola
     // la mette qui — mai stringhe di interfaccia dentro la lib.
     if (it.tag) inner.appendChild(_el('span', 'ov-tag p-' + it.tag, t('ov.prov.' + it.tag)));
-    const metaTxt = it.addr || (it.meta != null ? String(it.meta) : '');
+    // Alcune voci portano un TOKEN di metrica invece di un numero nudo (la lente
+    // «Salute», il debito PoE, le date del ciclo di vita): la parola la mette qui
+    // — la lib resta senza stringhe d'interfaccia. `l` è il nome grezzo (volume,
+    // colore) e può mancare: il trim finale evita lo spazio orfano davanti al
+    // valore. Le DATE viaggiano in ISO (confrontabili, senza lingua) e diventano
+    // formato locale solo qui, all'ultimo momento.
+    const metaTxt = it.metric
+        ? t('ov.hl.m.' + it.metric, { v: it.metric === 'date' ? _fmtDate(it.value) : (it.value != null ? it.value : ''), l: it.label || '' }).replace(/\s+/g, ' ').trim()
+        : (it.addr || (it.meta != null ? String(it.meta) : ''));
     if (metaTxt || it.of != null) {
         const m = _el('span', 'ov-meta');
         if (metaTxt) m.appendChild(_el('span', null, metaTxt));
@@ -672,7 +810,7 @@ function _switchGrpTab(el) {
 // fuorvianti — occupavano lo stesso peso di «15 porte non corrispondono» pur
 // non essendo un problema da guardare. Vanno in cima alla colonna, come data
 // del capitolo: tutto quello che c'e' sotto vale a quella data.
-const _META_ROWS = { truth: ['lastSync', 'verify'] };
+const _META_ROWS = { truth: ['lastSync', 'verify'], health: ['hlReading'] };
 
 function _metaStripEl(sec, keys) {
     const strip = _el('div', 'ov-meta-strip');
@@ -771,6 +909,10 @@ function _sectionEl(secKey, num, sec, deltaN) {
 // bene». Sola lettura, nessuna interazione: il testo pieno è nel title (hover).
 function _perimeterEl(blindSpots) {
     const box = _el('section', 'ov-perimeter');
+    // La riga sta SEMPRE su una riga sola, e ci sta per DIMENSIONE: etichette corte,
+    // introduzione breve. La frase per esteso — perché quelle dimensioni restano
+    // fuori — vive nel title della riga, così l'onestà non costa una seconda riga.
+    box.title = t('ov.perimeter.hint');
     box.appendChild(_el('span', 'ov-perim-title', t('ov.perimeter.title')));
     box.appendChild(_el('span', 'ov-perim-lead', t('ov.perimeter.lead')));
     const chips = _el('span', 'ov-perim-chips');
@@ -876,6 +1018,119 @@ function _securityEl(secKey, sec) {
     return col;
 }
 
+// ⑥ SALUTE LIVE a tutta larghezza: verdetto «X di Y apparati senza allarmi» + le
+// telemetrie che hanno risposto (risorse · UPS · consumabili · CPU). Riusa la STESSA
+// macchina delle colonne (_rowEl/_detailEl via data-sec="health") e lo stile del
+// verdetto DR — una lente in più, non un'altra grammatica da imparare.
+function _healthEl(secKey, sec) {
+    const col = _el('section', 'ov-col ov-col-recovery');
+    col.dataset.sec = secKey;
+    const h2 = document.createElement('h2');
+    h2.appendChild(document.createTextNode(t('ov.sec.health')));
+    col.appendChild(h2);
+    col.appendChild(_el('p', 'ov-ask', t('ov.sec.healthQ')));
+
+    // Verdetto: «quanti apparati non hanno niente da segnalare?». Senza NEMMENO
+    // una lettura il livello è 'none' (grigio): «non lo so» ha il suo colore, non
+    // si traveste da verde — l'errore che questa lente non deve ripetere.
+    const lvl = (sec.health && sec.health.level) || 'none';
+    const verdict = _el('div', 'ov-dr-verdict v-' + lvl);
+    verdict.appendChild(_el('span', 'ov-vdot'));
+    if (sec.measured > 0) {
+        const big = _el('span', 'ov-dr-big');
+        big.appendChild(_el('b', null, String(sec.healthy)));
+        big.appendChild(_el('span', 'ov-dr-of', ' ' + t('ov.of', { n: sec.measured })));
+        verdict.appendChild(big);
+        verdict.appendChild(_el('span', 'ov-dr-lbl', t('ov.hl.healthy')));
+        // Dato vecchio: il verde diventa giallo e il PERCHÉ è scritto, non implicito.
+        // Una salute letta ieri non è la salute di adesso. Due frasi, due fatti
+        // diversi: se anche la lettura PIÙ RECENTE è vecchia il dato è vecchio e
+        // basta; se invece ce n'è una di poco fa, il problema sono gli apparati
+        // rimasti indietro. L'età usa le STESSE parole della striscia in cima
+        // (_snmpFreshness): due unità per lo stesso fatto si leggono come due fatti.
+        const _rd = sec.rows.find((r) => r.key === 'hlReading');
+        if (sec.health && sec.health.stale && _rd) {
+            const e = _rd.extra || {};
+            const w = sec.health.allStale
+                ? t('ov.hl.stale', { age: _age(null, e.newestAt) })
+                : t('ov.hl.staleSome', { n: sec.staleReadings || 0 });
+            verdict.appendChild(_el('span', 'ov-hl-stale', w));
+        }
+    } else {
+        verdict.appendChild(_el('span', 'ov-dr-lbl', t(sec.targets > 0 ? 'ov.hl.empty' : 'ov.hl.noSnmp')));
+    }
+    col.appendChild(verdict);
+
+    // Il «quando» della lettura in cima, come la data del capitolo nella «Vero».
+    const metaKeys = _META_ROWS[secKey] || [];
+    if (metaKeys.length) col.appendChild(_metaStripEl(sec, metaKeys));
+
+    const rows = _el('div', 'ov-rows');
+    for (const r of sec.rows) {
+        if (metaKeys.indexOf(r.key) !== -1) continue;
+        rows.appendChild(_rowEl(secKey, r));
+    }
+    col.appendChild(rows);
+    for (const r of sec.rows) if (r.items && r.items.length) col.appendChild(_detailEl(secKey, r));
+    return col;
+}
+
+// ── La Panoramica dentro il dossier ──────────────────────────────────────────
+// I verdetti che l'utente vede a schermo non arrivavano MAI nel PDF: il dossier
+// consegnava i dati grezzi e teneva il giudizio dentro l'app. Chi paga la
+// consulenza — «la mia rete è documentata? è ancora vera? è ripristinabile?» —
+// non lo leggeva mai.
+//
+// Qui si costruisce il DTO per il report. Le PAROLE non si riscrivono lato
+// server: sono le stesse che _tileValue/_tileStatus mettono a schermo, e la lib
+// resta l'unica fonte dei numeri. Il server disegna soltanto — nessuna terza
+// copia della logica (l'errore che la pagina DR ha fatto duplicando le soglie).
+//
+// Gli `items` NON entrano: è una sintesi da una pagina, e il drill-down (nomi,
+// IP, elenchi di device) è materiale da schermo. Meno superficie, meno rischio.
+const _REPORT_SECTIONS = [
+    ['complete', 1], ['truth', 2], ['margin', 3],
+];
+
+export function buildOverviewReport() {
+    const o = buildOverview(_buildModel());
+    const sections = _REPORT_SECTIONS.map(([key, num]) => {
+        const sec = o[key] || {};
+        const health = sec.health || {};
+        const lvl = health.level || 'ok';
+        return {
+            key, num,
+            title: t('ov.sec.' + key),
+            question: t('ov.sec.' + key + 'Q'),
+            level: lvl,
+            // Il verdetto di colonna, con la stessa eccezione «stantìo» dello schermo.
+            verdict: (key === 'truth' && health.stale)
+                ? t('ov.truthStale', { n: health.staleDays || 0 })
+                : t('ov.health.' + key + '.' + lvl, { n: health.issues || 0 }),
+            rows: (sec.rows || []).map((r) => {
+                const [val, sub, alt] = _tileValue(r);
+                const st = _tileStatus(r);
+                // Nel PDF non c'è una seconda cifra grande: il contatore in più si
+                // accoda al testo, così il fatto non si perde nella carta.
+                return { label: t('ov.row.' + r.key), value: val,
+                    sub: (sub || '') + (alt && alt.num ? ' · ' + alt.num + ' ' + (alt.sub || '') : ''),
+                    status: st.w || '', tone: st.tone, prov: r.prov };
+            }),
+        };
+    });
+    return {
+        sections,
+        // Il perimetro dichiarato: in un dossier di consegna è la riga che
+        // protegge chi consegna — nero su bianco, cosa NON è stato valutato.
+        perimeter: {
+            title: t('ov.perimeter.title'),
+            lead: t('ov.perimeter.hint'),
+            chips: (o.blindSpots || []).map((b) => t('ov.blind.' + b.key)),
+        },
+        legend: ['declared', 'measured', 'derived', 'none'].map((p) => ({ prov: p, label: t('ov.prov.' + p) })),
+    };
+}
+
 /**
  * Ridisegna la Panoramica. Chiamata da renderAll SOLO quando la vista e' attiva:
  * fuori dalla vista non si spende un ciclo (il modello gira su tutti i nodi e
@@ -894,13 +1149,16 @@ export function renderOverview() {
     // lacune/discrepanze in meno o in più rispetto al Sync precedente.
     const dl = _overviewDelta(store.currentProjectId, o, Number(model.lastSyncAt) || 0);
 
-    // Selettore di LENTE: Sintesi (le 3 colonne) · Ripristinabilità (DR-readiness).
+    // Selettore di LENTE: Sintesi (le 3 colonne) · Ripristinabilità · Sicurezza · Salute live.
     const lens = _savedLens();
     root.appendChild(_lensSwitchEl(lens));
 
-    if (lens === 'recovery' || lens === 'security') {
+    if (_SINGLE_LENSES.indexOf(lens) !== -1) {
         const wrap = _el('div', 'ov-cols ov-cols-single');
-        wrap.appendChild(lens === 'security' ? _securityEl('security', o.security) : _recoveryEl('recovery', o.recovery));
+        const build = { recovery: () => _recoveryEl('recovery', o.recovery),
+                        security: () => _securityEl('security', o.security),
+                        health: () => _healthEl('health', o.health) };
+        wrap.appendChild(build[lens]());
         root.appendChild(wrap);
     } else {
         const cols = _el('div', 'ov-cols');
@@ -1014,10 +1272,10 @@ export function setOverview(on) {
 
 export function toggleOverview() { setOverview(!document.body.classList.contains('view-overview')); }
 
-// Commuta la lente (Sintesi ⇄ Ripristinabilità): salva la preferenza locale e
+// Commuta la lente (Sintesi ⇄ le lenti opt-in): salva la preferenza locale e
 // ridisegna. Niente markDirty: cambiare lente non sporca il documento.
 function _setLens(v) {
-    _saveLens(v);   // _saveLens valida contro _LENSES (summary/recovery/security)
+    _saveLens(v);   // _saveLens valida contro _LENSES (summary/recovery/security/health)
     renderOverview();
 }
 
@@ -1029,7 +1287,9 @@ export function restoreOverviewView() {
 // renderOverview e' chiamata BARE (typeof-guard) dalla coda di renderAll in
 // app-render-core.js — stesso schema di renderSubbar: evita un import circolare
 // fra render-core e questo modulo, che importa gia' il nucleo.
-expose({ renderOverview, toggleOverview, setOverview, restoreOverviewView });
+// buildOverviewReport esce sul ponte: export.js e' uno <script> (non un modulo del
+// bundle) e lo chiama con typeof-guard, come fa gia' con buildSpareReport.
+expose({ renderOverview, toggleOverview, setOverview, restoreOverviewView, buildOverviewReport });
 
 registerClickActions({
     'overview-toggle': () => toggleOverview(),

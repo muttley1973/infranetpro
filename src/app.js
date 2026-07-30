@@ -2223,6 +2223,10 @@ function markNodeBackupNow(nid){
 registerChangeActions({
     'backup-ref':    (el) => setNodeBackup(el.dataset.node, 'ref', el.value),
     'backup-method': (el) => setNodeBackup(el.dataset.node, 'method', el.value),
+    // Campo semplice del device selezionato, per delegation invece che con un
+    // onchange inline (ASSE B: il ponte non deve crescere). `data-field` dice
+    // QUALE campo; updateN decide poi se vive sul nodo o nel suo spec.
+    'node-field':    (el) => updateN(el.dataset.field, el.value),
 });
 registerClickActions({
     'backup-mark-now': (el) => markNodeBackupNow(el.dataset.node),
