@@ -185,7 +185,9 @@ function handleDrop(e,zone){
         // Subtract border-top (8px, scaled) so ry=0 is exactly the first inner grid row
         const ry=(e.clientY-r.top)/store.state.rackView.zoom - 8, rs=getRackSize();
         const u=rs-Math.floor(ry/rackUPx());
-        n.sizeU=d.sizeU; n.rackU=Math.max(1,Math.min(rs-n.sizeU+1,u)); n.brand=d.brand; n.rackId=store.state.currentRack;
+        // Il brand di catalogo del TIPO resta un placeholder nel pannello: non si
+        // materializza nel dato (vendor-neutral — nessuna marca inventata al drop).
+        n.sizeU=d.sizeU; n.rackU=Math.max(1,Math.min(rs-n.sizeU+1,u)); n.rackId=store.state.currentRack;
         if(t==='blankpanel'){
             n.name='Pannello vuoto';
             n.brand='';

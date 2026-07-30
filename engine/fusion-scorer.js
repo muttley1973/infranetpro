@@ -285,7 +285,13 @@ class FusionScorer {
     if (isMediaPlayer) bump('tv', 55, 'regex-media-player');
     if (/chromecast|google ?cast/.test(fullText) && !svc.l2 && !svc.l3 && !switchWords && !routerWords) bump('tv', 75, 'regex-chromecast');
     if (/sony|bravia/.test(fullText) && !svc.l2 && !svc.l3 && !switchWords && !routerWords && !/camera|cctv|nvr|dvr|projector/.test(fullText)) bump('tv', 58, 'regex-sony-bravia');
-    if ((macPrefix === '58:FD:B1' || /lg ?webos|lgwebostv/.test(fullText)) && !svc.l2 && !svc.l3 && !switchWords && !routerWords) bump('tv', 82, 'regex-lg-webos');
+    // webOS nel testo = stringa di PRODOTTO (segnale forte, 82). L'OUI da solo è il
+    // segnale più DEBOLE e resta sotto il tetto OUI≤45 dichiarato sopra: lo stesso
+    // MAC sta su monitor, soundbar e moduli di terzi, non solo su un televisore.
+    // Un unico bump (i punti si SOMMANO: due regole gonfierebbero il voto).
+    const _lgWebosText = /lg ?webos|lgwebostv/.test(fullText);
+    if ((macPrefix === '58:FD:B1' || _lgWebosText) && !svc.l2 && !svc.l3 && !switchWords && !routerWords)
+      bump('tv', _lgWebosText ? 82 : 45, _lgWebosText ? 'regex-lg-webos' : 'mac-oui-lg-tv');
     if (/lg|lge|lg electronics|lg innotek/.test(vendor) && isAppliance) bump('iot', 88, 'regex-lg-appliance');
     if (!svc.l2 && !svc.l3 && !switchWords && !routerWords &&
         /\bandroid\b/.test(fullText) && !isTv && !isAppliance && !SMART_HOME_RE.test(fullText)) bump('mobile', 25, 'regex-android-generic');

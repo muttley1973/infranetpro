@@ -395,7 +395,7 @@ function _renderAllNow(){
             // L'hostname/brand non occupa piu' spazio fisso a sinistra -> piu'
             // spazio disponibile per le porte (utile su switch ad alta densita').
             // rack-label: targhetta nera fissa con nome/ID a destra del device.
-            const _hoverInfo = [n.hostname, n.name, n.ip].filter(Boolean).join(' · ') || (n.brand||def.brand||'');
+            const _hoverInfo = [n.hostname, n.name, n.ip].filter(Boolean).join(' · ') || (n.brand||'');
             // Stacking visual hint (P7.1): la rack-label cambia colore da
             // nero a ciano accent (stesso colore del highlight LAG) quando il
             // device e' membro di uno stack. Testo nero per contrasto. La

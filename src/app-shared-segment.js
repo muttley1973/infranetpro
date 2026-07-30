@@ -733,7 +733,7 @@ function _createSharedSegmentNode(pid, role){
             id:_nextNodeId(type, used),
             type,
             name: role === 'switch' ? `Switch unmanaged ${info.ifName}` : _sharedSegmentRoleLabel(role),
-            brand: role === 'switch' ? 'Unmanaged' : def.brand,
+            brand: role === 'switch' ? 'Unmanaged' : '',   // «Unmanaged» = classe inferita, non un vendor; mai il default di catalogo
             ports,
             sizeU:def.sizeU || 1,
             rackId,

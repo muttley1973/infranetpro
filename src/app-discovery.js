@@ -1092,7 +1092,7 @@ async function importDiscovered(){
                     id: _nextNodeId(d.type, usedNodeIds), type: d.type,
                     name: _discDisplayName(d), hostname: d.hostname||'', ip: d.ip||'', ip6: d.ip6||'',
                     mac: safeMac,
-                    brand: d.vendor || def.brand || '',
+                    brand: d.vendor || '',   // solo il vendor MISURATO: mai il default di catalogo del tipo
                     vendorHint: d.vendorHint || _discVendorFromMac(d.mac) || '',
                     identitySource: _discIdentitySource(d),
                     identityConfidence: d.identityConfidence || d.confidence?.level || 'low',
@@ -1112,7 +1112,7 @@ async function importDiscovered(){
                     id: _nextNodeId(d.type, usedNodeIds), type: d.type,
                     name: _discDisplayName(d), hostname: d.hostname||'', ip: d.ip||'', ip6: d.ip6||'',
                     mac: safeMac,
-                    brand: d.vendor || def.brand || '',
+                    brand: d.vendor || '',   // solo il vendor MISURATO: mai il default di catalogo del tipo
                     vendorHint: d.vendorHint || _discVendorFromMac(d.mac) || '',
                     identitySource: _discIdentitySource(d),
                     identityConfidence: d.identityConfidence || d.confidence?.level || 'low',

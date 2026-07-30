@@ -189,7 +189,7 @@ function _adoptCreateNodes(picks, autoLink){
             const col = floorCount % 5, row = Math.floor(floorCount / 5);
             n = {
                 id: nid, type, name, hostname: cand.hostname || '', ip: cand.ip || '', mac: macN,
-                brand: cand.vendor || def.brand || '', vendorHint: cand.vendor || '',
+                brand: cand.vendor || '', vendorHint: cand.vendor || '',   // mai il default di catalogo
                 identitySource: 'fdb', identityConfidence: 'low',
                 x: baseX - 200 + col * 120, y: baseY - 100 + row * 120,
                 ports: def.ports || 1,
@@ -200,7 +200,7 @@ function _adoptCreateNodes(picks, autoLink){
             const rackU = (typeof _findFreeU === 'function') ? _findFreeU(rackId, sU) : 1;
             n = {
                 id: nid, type, name, hostname: cand.hostname || '', ip: cand.ip || '', mac: macN,
-                brand: cand.vendor || def.brand || '', vendorHint: cand.vendor || '',
+                brand: cand.vendor || '', vendorHint: cand.vendor || '',   // mai il default di catalogo
                 identitySource: 'fdb', identityConfidence: 'low',
                 rackId, rackU, sizeU: sU, ports: def.ports || 0,
             };
