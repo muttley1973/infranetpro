@@ -290,6 +290,40 @@ header [data-tip]:not([data-tip-pos]):hover::after,
 header [data-tip]:not([data-tip-pos]):focus-visible::after {
     transform: translateX(-50%) translateY(0);
 }
+/* I controlli del gruppo destro stanno SEMPRE a ridosso del bordo, a qualunque
+   larghezza: un tooltip centrato su di loro esce dallo schermo — a 1024px il chip
+   di freschezza SNMP ne perdeva 71px, e la parte fuori non si legge. Qui il
+   tooltip si ancora al bordo DESTRO del controllo e cresce verso sinistra: resta
+   sopra/sotto l'elemento come gli altri, ma dentro la finestra.
+   (È anche cio' che rende innocuo il `clip` orizzontale sull'header: senza questa
+   regola quei due tooltip sarebbero tagliati invece che fuori schermo — sempre
+   illeggibili, solo in modo diverso.) */
+header .header-right [data-tip]:not([data-tip-pos])::after {
+    left: auto;
+    right: 0;
+    transform: translateX(0) translateY(-4px);
+}
+header .header-right [data-tip]:not([data-tip-pos]):hover::after,
+header .header-right [data-tip]:not([data-tip-pos]):focus-visible::after {
+    transform: translateX(0) translateY(0);
+}
+/* Il chip di freschezza non sta in `.header-right`: e' un figlio diretto
+   dell'header, quindi CAMBIA LATO quando la barra va a capo. Sopra i 900px sta a
+   destra e va ancorato li'; sotto finisce a ridosso del bordo SINISTRO, dove
+   ancorarlo a destra lo spingerebbe fuori dall'altra parte (misurato: 152px fuori
+   a 820px, contro i 71 del centrato). Sotto la soglia resta centrato: non e'
+   perfetto, ma e' il comportamento di prima e non lo peggioriamo. */
+@media (min-width: 900px) {
+    header .sync-fresh-chip[data-tip]:not([data-tip-pos])::after {
+        left: auto;
+        right: 0;
+        transform: translateX(0) translateY(-4px);
+    }
+    header .sync-fresh-chip[data-tip]:not([data-tip-pos]):hover::after,
+    header .sync-fresh-chip[data-tip]:not([data-tip-pos]):focus-visible::after {
+        transform: translateX(0) translateY(0);
+    }
+}
 
 /* ── Drift Report (Reality Check / N1) ──────────────────────────────── */
 .drift-overlay {

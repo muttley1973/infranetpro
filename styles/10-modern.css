@@ -53,6 +53,19 @@ header {
     row-gap: 5px;
     background: #10151c;
     border-bottom: 1px solid var(--hairline);
+    /* La pagina aveva una barra di scorrimento ORIZZONTALE su schermi stretti (82px
+       a 1024) senza che niente di visibile uscisse: la causa erano i TOOLTIP. Sono
+       pseudo-elementi assoluti con `opacity:0` — invisibili ma vivi nel layout, e
+       quelli dei controlli piu' a destra sporgevano oltre il bordo, allargando
+       l'area scorribile. `clip` la richiude.
+       ⚠️ `overflow-y` resta VISIBLE di proposito: i menu a tendina dell'header
+       (impexp · report · automazioni · utente · risultati ricerca) si aprono verso
+       il basso e devono uscire. Verificato che nessuno dei cinque sfora anche in
+       larghezza, quindi il clip orizzontale non ne taglia nessuno — ed e' il
+       motivo per cui NON si usa `hidden`, che li bloccherebbe in verticale.
+       (Stessa famiglia di trappole del `transform` sull'header: vedi sopra.) */
+    overflow-x: clip;
+    overflow-y: visible;
 }
 .header-title { letter-spacing: -.01em; }
 .header-title i { filter: drop-shadow(0 0 8px rgba(0,212,255,.35)); }
