@@ -11,7 +11,7 @@
 
 import { expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { escapeHTML, normalizeStatus } from './app-util.js';
+import { escapeHTML, normalizeStatus, hasPortStatus } from './app-util.js';
 import { nodeById, getNodeByPortId, getPortNodeId, _isRadioPid, _enableManualValueInProps } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _effPortVlan, _getLinkTrunk, _parseTrunkVlans, _runActiveAnchor, _voipVoiceVlan, _portEffTrunk } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
@@ -75,11 +75,16 @@ export function _renderPortProps(panel){
         const _rawStatus = (pi.statusOvr != null) ? pi.statusOvr
                          : (pi.status != null && pi.status !== '') ? pi.status
                          : _inh.status;
+        // Endpoint: se nessuno dei tre (proprio dichiarato · proprio misurato ·
+        // ereditato dallo switch) dice qualcosa, lo stato è IGNOTO — e un riquadro
+        // in sola lettura che dice «Inattiva» sarebbe un'affermazione inventata.
+        const _leafKnown = _rawStatus != null && _rawStatus !== '';
         const _leafStatus = normalizeStatus(_rawStatus);
         const _leafSpeedVal = pi.speedOvr ?? pi.speed ?? _inh.speed ?? null;
         const _leafSpd = _leafSpeedVal!=null ? (_leafSpeedVal>=1000?`${(_leafSpeedVal/1000).toFixed(_leafSpeedVal%1000?1:0)}G`:`${_leafSpeedVal}M`) : '';
         const portNum=pid.split('-').slice(1).join('-');
-        const effStatus=pi.statusOvr??normalizeStatus(pi.status)??'inactive';
+        const _stKnown=hasPortStatus(pi);
+        const effStatus=_stKnown?(pi.statusOvr??normalizeStatus(pi.status)):'';
         const effVlan=_effPortVlan(pid);
         const effSpeed=pi.speedOvr??pi.speed??null;
         const spdDisplay=effSpeed!=null?(effSpeed>=1000?`${(effSpeed/1000).toFixed(effSpeed%1000?1:0)}G`:`${effSpeed}M`):'';
@@ -130,13 +135,14 @@ export function _renderPortProps(panel){
                      onchange="setPortField('${pid}','desc',this.value)">
             </div>
             ${_passiveConduit ? '' : (_floorLeaf ? `<div class="prop-group"><label>${t('common.status')}</label>
-              ${_roBox(escapeHTML(_statusLabel(_leafStatus)))}
+              ${_roBox(_leafKnown ? escapeHTML(_statusLabel(_leafStatus)) : `<span style="color:var(--text-muted)">${t('port.statusUnknown')}</span>`)}
             </div>
             <div class="prop-group"><label>${t('port.speed')}</label>
               ${_roBox(_leafSpd ? escapeHTML(_leafSpd) : '—')}
             </div>` : `<div class="prop-group"><label>${t('common.status')}</label>
               <div style="display:flex;gap:5px">
                 <select class="${pi.statusOvr?'ovr':''} " style="flex:1" onchange="setPortField('${pid}','statusOvr',this.value)">
+                  <option value=""         ${effStatus===''        ?'selected':''}>${t('port.statusUnknown')}</option>
                   <option value="active"   ${effStatus==='active'  ?'selected':''}>${t('port.statusActive')}</option>
                   <option value="idle"     ${effStatus==='idle'    ?'selected':''}>${t('port.statusIdle')}</option>
                   <option value="inactive" ${effStatus==='inactive'?'selected':''}>${t('port.statusInactive')}</option>

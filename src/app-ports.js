@@ -17,7 +17,7 @@
 //     non-strict, scrivono la stessa proprietà di window.
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { escapeHTML, uid, normalizeStatus } from './app-util.js';
+import { escapeHTML, uid, normalizeStatus, hasPortStatus } from './app-util.js';
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, pushHistory, renderCables, _patchPanelOffset } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { propagateVlans, _effPortVlan, _ensureVlanColor } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -46,7 +46,10 @@ function renderPortsTable(n){
         const pi = state.ports[pid] || {};
         const hidden = !!pi.hidden;
         if(!hidden) visibleCount++;
-        const effStatus = pi.statusOvr ?? normalizeStatus(pi.status) ?? 'inactive';
+        // Stato NON determinato (mai dichiarato né misurato): il menu resta su «—»
+        // invece di mostrare OFF, che si leggerebbe come «l'ho dichiarata spenta».
+        const stKnown = hasPortStatus(pi);
+        const effStatus = stKnown ? (pi.statusOvr ?? normalizeStatus(pi.status)) : '';
         const effVlan = _effPortVlan(pid);
         const effSpeed = pi.speedOvr ?? pi.speed ?? null;
         const spdVal = effSpeed != null ? fmtSpd(effSpeed) : '';
@@ -63,6 +66,7 @@ function renderPortsTable(n){
   <select class="${pi.statusOvr?'ovr':''}"
           data-ovr-pid="${pid}" data-ovr-field="statusOvr" ${hidden?'disabled':''}
           onchange="setPortField('${pid}','statusOvr',this.value)">
+    <option value=""         ${effStatus===''        ?'selected':''}>—</option>
     <option value="active"   ${effStatus==='active'  ?'selected':''}>▲ ACT</option>
     <option value="idle"     ${effStatus==='idle'    ?'selected':''}>◌ IDLE</option>
     <option value="inactive" ${effStatus==='inactive'?'selected':''}>OFF</option>

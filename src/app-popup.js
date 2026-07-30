@@ -7,7 +7,7 @@
 // ============================================================
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { escapeHTML, normalizeStatus } from './app-util.js';
+import { escapeHTML, normalizeStatus, hasPortStatus } from './app-util.js';
 import { nodeById, getNodeByPortId, getPortNodeId, renderCables, _showToast, switchRightTab, _linksForPort, getRackById, _getLinkPhysicalView } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderTopoOverlay } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps, setPropsSectionState } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -221,7 +221,9 @@ export function showPop(e,pid){
             : t('pnl.misc.none'));
 
     // Valori effettivi (override > SNMP > default)
-    const effStatus = pi.statusOvr ?? normalizeStatus(pi.status) ?? 'inactive';
+    // Mai dichiarato né misurato = «—»: preselezionare INACTIVE farebbe passare
+    // un default per una scelta dell'utente (vedi hasPortStatus).
+    const effStatus = hasPortStatus(pi) ? (pi.statusOvr ?? normalizeStatus(pi.status)) : '';
     const effVlan   = _effPortVlan(pid);
     const effSpeed  = pi.speedOvr  ?? pi.speed  ?? null;
     const effDesc   = pi.desc      ?? '';
@@ -250,6 +252,7 @@ ${snmpBar}
 <div class="port-row">
   <label>${t('pnl.misc.status')}</label>
   <select class="${pi.statusOvr?'ovr':''}" onchange="setPortField('${pid}','statusOvr',this.value)">
+    <option value=""         ${effStatus===''        ?'selected':''}>${t('port.statusUnknown')}</option>
     <option value="active"   ${effStatus==='active'  ?'selected':''}>ACTIVE</option>
     <option value="idle"     ${effStatus==='idle'    ?'selected':''}>IDLE</option>
     <option value="inactive" ${effStatus==='inactive'?'selected':''}>INACTIVE</option>

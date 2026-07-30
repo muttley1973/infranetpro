@@ -31,6 +31,16 @@ export function normalizeStatus(s) {
     return ['inactive', 'active', 'fault', 'idle'].includes(s) ? s : 'inactive';
 }
 
+/** Lo stato di questa porta è NOTO? (dichiarato dall'utente o misurato via SNMP)
+ *  `normalizeStatus(undefined)` vale 'inactive' — un default deliberato per
+ *  DISEGNARE (il grigio neutro), che però non va mai spacciato per un fatto:
+ *  una porta mai osservata non è «spenta», è NON DETERMINATA. Chi scrive una
+ *  parola o preseleziona un campo dichiarato deve chiedere prima a questa. */
+export function hasPortStatus(pi) {
+    const p = pi || {};
+    return p.statusOvr != null || (p.status != null && p.status !== '');
+}
+
 /** Normalizza un MAC a formato AA:BB:CC:DD:EE:FF (accetta i formati comuni). */
 export function normalizeMacAddress(v) {
     const raw = String(v || '').trim();
@@ -63,4 +73,4 @@ export function _shadeHex(hex, factor) {
 // Ponte legacy: i classic script (export.js usa normalizeStatus/normalizeNumber)
 // e gli onclick="" inline leggono questi helper dallo scope globale. Sparirà a
 // ritiro del ponte completato.
-expose({ escapeHTML, uid, normalizeNumber, normalizeStatus, normalizeMacAddress, hexToRgba, _shadeHex });
+expose({ escapeHTML, uid, normalizeNumber, normalizeStatus, hasPortStatus, normalizeMacAddress, hexToRgba, _shadeHex });

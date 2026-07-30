@@ -22,6 +22,7 @@ import { propagateVlans, _ensureVlanColor, _getLinkTrunk } from './app-vlan-auto
 import { renderProps, _propsSectionIsOpen, _buildPropsHeader } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { wifiIssueTexts } from './app-issue-text.js';   // le PAROLE dei validatori puri (i18n), che lib/wifi-spec.js non ha più
 
 const _WIFI_BAND_LABELS = { '2.4': '2.4 GHz', '5': '5 GHz', '6': '6 GHz (Wi-Fi 6E)' };
 const _WIFI_SEC_LABELS = {
@@ -173,7 +174,7 @@ function _wifiCfgHtml(cfg, nodeId, idx){
         .concat((typeof win.WIFI_STANDARDS !== 'undefined' ? win.WIFI_STANDARDS : []).map(s => opt(s.id, cfg.standard, s.label))).join('');
     // Banner PHY della radio (canale↔banda, standard↔banda); la sicurezza è per-BSS.
     const issues = (typeof win.validateWifi === 'function') ? win.validateWifi({ band: cfg.band, channel: cfg.channel, standard: cfg.standard }) : [];
-    const banner = issues.length ? `<div class="cable-validate-banner">${issues.map(i => `
+    const banner = issues.length ? `<div class="cable-validate-banner">${wifiIssueTexts(issues).map(i => `
         <div class="cable-validate-row lvl-${i.level}">
           <i class="fas ${i.level === 'error' ? 'fa-circle-exclamation' : 'fa-triangle-exclamation'}"></i>
           <div class="cable-validate-txt"><b>${esc(i.title)}</b><span>${esc(i.why)}</span></div>
@@ -210,7 +211,7 @@ function _radioSsidsHtml(radio, nodeId, idx){
         const sec = ['<option value="">—</option>']
             .concat((typeof win.WIFI_SECURITY !== 'undefined' ? win.WIFI_SECURITY : []).map(x => opt(x, s.security, _WIFI_SEC_LABELS[x] || x))).join('');
         const bssIssues = (typeof win.validateWifi === 'function') ? win.validateWifi({ band: radio.band, security: s.security }) : [];
-        const bn = bssIssues.length ? `<div class="cable-validate-banner" style="margin-top:5px">${bssIssues.map(i => `
+        const bn = bssIssues.length ? `<div class="cable-validate-banner" style="margin-top:5px">${wifiIssueTexts(bssIssues).map(i => `
             <div class="cable-validate-row lvl-${i.level}"><i class="fas ${i.level === 'error' ? 'fa-circle-exclamation' : 'fa-triangle-exclamation'}"></i>
             <div class="cable-validate-txt"><b>${esc(i.title)}</b><span>${esc(i.why)}</span></div></div>`).join('')}</div>` : '';
         return `<div class="bss-row" style="border:1px solid var(--panel-border);border-radius:6px;padding:7px;margin-top:6px">

@@ -14,6 +14,7 @@ import { _portDisplayName } from './app-ports.js';   // ritiro ponte: funzioni f
 import { _getLinkVlan } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
 import { _routeHopRemovable } from './app-cabling-editor.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { _wifiAssocHtml } from './app-wifi.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
+import { cableIssueTexts, chainWarnTexts } from './app-issue-text.js';   // le PAROLE dei validatori puri (i18n), che le lib non hanno più
 
 // ============================================================
 // PROPERTIES PANEL — renderer CAVO/LINK (selType===link)
@@ -273,7 +274,7 @@ export function _renderLinkProps(panel){
                     ? `<div class="prop-group" style="margin-top:10px;padding:8px 10px;border:1px solid #b8860b;border-radius:8px;background:rgba(245,197,24,.08)">
                          <div style="font-size:.82rem;font-weight:700;color:#f5c518;margin-bottom:4px"><i class="fas fa-triangle-exclamation"></i> ${t('cable.chainAnomaly')}</div>
                          <ul style="margin:0;padding-left:18px;font-size:.8rem;color:var(--text-muted);line-height:1.45">
-                           ${_chainCheck.warnings.map(w => `<li>${escapeHTML(w.msg)}</li>`).join('')}
+                           ${chainWarnTexts(_chainCheck.warnings).map(m => `<li>${escapeHTML(m)}</li>`).join('')}
                          </ul>
                        </div>`
                     : '';
@@ -413,7 +414,7 @@ export function _renderLinkProps(panel){
                 const _cableBadge = _cableIssues.length
                     ? `<span class="props-collapsible-preview cable-warn-pill ${_cableHasErr?'lvl-error':'lvl-warn'}" data-tip="${_cableHasErr?t('pnl.gen.incompatDetected'):t('pnl.gen.compatWarning')}"><i class="fas fa-triangle-exclamation"></i> ${_cableIssues.length}</span>`
                     : '';
-                const _cableBanner = _cableIssues.length ? `<div class="cable-validate-banner">${_cableIssues.map(i=>`
+                const _cableBanner = _cableIssues.length ? `<div class="cable-validate-banner">${cableIssueTexts(_cableIssues).map(i=>`
                     <div class="cable-validate-row lvl-${i.level}">
                       <i class="fas ${i.level==='error'?'fa-circle-exclamation':'fa-triangle-exclamation'}"></i>
                       <div class="cable-validate-txt"><b>${escapeHTML(i.title)}</b><span>${escapeHTML(i.why)}</span></div>

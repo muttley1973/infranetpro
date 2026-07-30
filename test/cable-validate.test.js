@@ -34,13 +34,17 @@ test('10G su Cat5e → warn speed-cat (con consiglio Cat6A)', () => {
   const r = validateCable({ medium:'copper', cableCategory:'Cat5e', maxSpeed:'10G' });
   const w = r.find(x=>x.code==='speed-cat');
   assert.ok(w && w.level==='warn');
-  assert.match(w.why, /Cat6A/);
+  assert.equal(w.params.rec, 'Cat6A', 'la categoria consigliata e\' un DATO, non una frase');
+  assert.equal(w.params.recReach, 100);
 });
 
-test('10G su Cat6 → warn speed-cat (nota 55m)', () => {
+test('10G su Cat6 → warn speed-cat (coda con la nota dei 55m)', () => {
   const w = validateCable({ medium:'copper', cableCategory:'Cat6', maxSpeed:'10G' }).find(x=>x.code==='speed-cat');
   assert.ok(w);
-  assert.match(w.why, /55m/);
+  // La nota «su Cat6 il 10G regge solo fino a ~55m» e' una CODA scelta dalla lib
+  // (params.tail) e resa dal renderer: qui si verifica la scelta, non la prosa.
+  assert.equal(w.params.tail, 'recCat6');
+  assert.equal(w.params.rec, 'Cat6A');
 });
 
 test('1G su Cat5e → nessun warn velocità', () => {
@@ -52,20 +56,24 @@ test('100G su Cat8 → messaggio con reach 30m, MAI "40G a 100m"', () => {
   // non deve più dire "a 100m" per una categoria a corto raggio.
   const w = validateCable({ medium:'copper', cableCategory:'Cat8', maxSpeed:'100G' }).find(x=>x.code==='speed-cat');
   assert.ok(w);
-  assert.match(w.why, /a 30m/);
-  assert.doesNotMatch(w.why, /40G a 100m/);
+  assert.equal(w.params.catReach, 30, 'la reach di Cat8 e\' 30m, non 100m');
+  assert.equal(w.params.catMax, '40G');
+  assert.equal(w.params.tail, 'noCopper', '100G non passa sul rame: nessuna categoria da consigliare');
+  assert.equal(w.params.rec, '');
 });
 
 test('25G su Cat6 → consiglia Cat8 alla sua reach reale (30m)', () => {
   const w = validateCable({ medium:'copper', cableCategory:'Cat6', maxSpeed:'25G' }).find(x=>x.code==='speed-cat');
   assert.ok(w);
-  assert.match(w.why, /a 30m serve Cat8/);
+  assert.equal(w.params.rec, 'Cat8');
+  assert.equal(w.params.recReach, 30, 'consigliata alla SUA reach reale, non a 100m');
+  assert.equal(w.params.tail, 'rec');
 });
 
 test('rame > 100m → warn copper-length (TIA-568)', () => {
   const w = validateCable({ medium:'copper', cableCategory:'Cat6', length:130 }).find(x=>x.code==='copper-length');
   assert.ok(w && w.level==='warn');
-  assert.match(w.why, /100m/);
+  assert.equal(w.params.len, 130);
 });
 
 test('rame a 90m → nessun warn lunghezza', () => {
@@ -75,7 +83,9 @@ test('rame a 90m → nessun warn lunghezza', () => {
 test('Cat8 40G a 60m → warn cat-reach (limite 30m)', () => {
   const w = validateCable({ medium:'copper', cableCategory:'Cat8', maxSpeed:'40G', length:60 }).find(x=>x.code==='cat-reach');
   assert.ok(w && w.level==='warn');
-  assert.match(w.why, /30m/);
+  assert.equal(w.params.max, 30);
+  assert.equal(w.params.len, 60);
+  assert.equal(w.params.cat, 'Cat8');
 });
 
 test('Cat8 a 25m → nessun warn cat-reach (entro il limite)', () => {
@@ -112,11 +122,16 @@ test('802.3bt su Cat5e → warn poe-cat', () => {
 test('cross-check: porta negozia 10G ma cavo dichiarato 1G → warn speed-vs-snmp', () => {
   const w = validateCable({ medium:'copper', maxSpeed:'1G' }, { snmpSpeedMbps:10000 }).find(x=>x.code==='speed-vs-snmp');
   assert.ok(w);
-  assert.match(w.why, /10G/);
+  assert.equal(w.params.real, '10G', 'la velocita\' misurata, gia\' in etichetta leggibile');
+  assert.equal(w.params.doc, '1G');
 });
 
 test('cross-check mezzo: SNMP fibra vs doc rame → warn medium-vs-snmp', () => {
-  assert.ok(has(validateCable({ medium:'copper' }, { snmpMedium:'fiber' }), 'medium-vs-snmp'));
+  const w = validateCable({ medium:'copper' }, { snmpMedium:'fiber' }).find(x=>x.code==='medium-vs-snmp');
+  assert.ok(w);
+  // I mezzi restano CHIAVI: «Rame»/«Fibra» sono parole, e le mette il renderer.
+  assert.equal(w.params.snmp, 'fiber');
+  assert.equal(w.params.doc, 'copper');
 });
 
 test('lengthM come fallback di length', () => {
@@ -127,7 +142,8 @@ test('native VLAN mismatch su trunk fra apparati attivi → error', () => {
   const r = validateCable({}, { isTrunk:true, srcNative:1, dstNative:99 });
   const e = r.find(x => x.code === 'native-mismatch');
   assert.ok(e && e.level === 'error');
-  assert.match(e.why, /1 vs 99/);
+  assert.equal(e.params.a, 1);
+  assert.equal(e.params.b, 99);
   // nativa coincidente → nessun problema
   assert.ok(!has(validateCable({}, { isTrunk:true, srcNative:10, dstNative:10 }), 'native-mismatch'));
   // non trunk, o un capo non attivo (native null) → niente check
