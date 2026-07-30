@@ -64,11 +64,22 @@ test('① COMPLETO: struttura e passivi fuori dal denominatore, le lacune escono
   const c = o.complete;
   assert.equal(rowOf(c, 'addr').total, 4, 'switch+router+pc+ups (stanza e presa fuori)');
   assert.equal(rowOf(c, 'addr').value, 3, 'l\'UPS non ha indirizzo');
-  assert.deepEqual(rowOf(c, 'addr').items.map((i) => i.id), ['ups1']);
+  // Il dettaglio è l'ABBINAMENTO ARP: tutti gli indirizzabili, con IP e MAC. Le
+  // lacune restano IN CIMA — prima chi non ha IP, poi chi non ha MAC.
+  assert.deepEqual(rowOf(c, 'addr').items.map((i) => [i.id, i.addr, i.mac]), [
+    ['ups1', '', ''],                                  // né IP né MAC → primo
+    ['rt1', '10.0.0.254', ''],                         // IP sì, MAC no → secondo
+    ['pc1', '10.0.0.50', 'aa:bb:cc:00:00:02'],
+    ['sw1', '10.0.0.1', 'aa:bb:cc:00:00:01'],
+  ]);
   assert.equal(rowOf(c, 'name').value, 1, 'solo SW-CORE ha un nome vero');
   assert.deepEqual(rowOf(c, 'name').items.map((i) => i.id).sort(), ['pc1', 'rt1', 'ups1']);
-  assert.equal(rowOf(c, 'mac').value, 2);
-  assert.equal(rowOf(c, 'mac').extra.fromPorts, 0, 'nessun MAC preso dalle interfacce qui');
+  // Il MAC non è più una riga a sé: vive dentro `addr`, con la sua lacuna e la sua
+  // provenienza. Il numero grande della riga resta quello degli IP.
+  assert.equal(rowOf(c, 'mac'), undefined, 'niente più riquadro «Indirizzo MAC» separato');
+  assert.equal(rowOf(c, 'addr').extra.mac, 2, 'due apparati hanno un MAC osservato');
+  assert.equal(rowOf(c, 'addr').extra.macNone, 2, 'e due no');
+  assert.equal(rowOf(c, 'addr').extra.fromPorts, 0, 'nessun MAC preso dalle interfacce qui');
   assert.equal(rowOf(c, 'cables').value, 2);
   // Un cavo dedotto dall'auto-link NON è un cavo dichiarato: la sezione che
   // chiede «il documento descrive tutto?» deve tenerli separati.
@@ -87,16 +98,22 @@ test('① REGRESSIONE: su un apparato SNMP il MAC sta sulle INTERFACCE, non su n
     { id: 'sw2', type: 'switch', name: 'SW-ACC', ip: '10.0.0.2', mac: '' },    // nessun MAC da nessuna parte
     { id: 'pc1', type: 'pc', name: 'PC-1', ip: '10.0.0.50', mac: 'aa:bb:cc:00:00:01' },
   ];
-  const o = buildOverview({ types: TYPES, nodes, portMacNodeIds: new Set(['sw1']) });
-  const mac = rowOf(o.complete, 'mac');
-  assert.equal(mac.value, 2, 'sw1 conta come documentato: l\'identità L2 c\'è');
-  assert.equal(mac.extra.fromPorts, 1, 'e si dichiara che arriva dalle interfacce');
-  assert.deepEqual(mac.items.map((i) => i.id), ['sw2'], 'manca solo a chi non ce l\'ha davvero');
+  const o = buildOverview({ types: TYPES, nodes, portMacNodeIds: new Set(['sw1']),
+    portMacById: { sw1: '00:11:22:33:44:55' } });
+  const addr = rowOf(o.complete, 'addr');
+  assert.equal(addr.extra.mac, 2, 'sw1 conta come documentato: l\'identità L2 c\'è');
+  assert.equal(addr.extra.fromPorts, 1, 'e si dichiara che arriva dalle interfacce');
+  assert.equal(addr.extra.macNone, 1, 'manca solo a chi non ce l\'ha davvero');
+  // Nel dettaglio ARP chi non ha MAC viene per primo. sw1 il MAC ce l'ha ma sulle
+  // INTERFACCE: si mostra quello, non un trattino — dare per assente un indirizzo
+  // che la riga stessa conta come documentato sarebbe la contraddizione peggiore.
+  assert.deepEqual(addr.items.map((i) => [i.id, i.mac, i.macFromPorts]),
+    [['sw2', '', false], ['pc1', 'aa:bb:cc:00:00:01', false], ['sw1', '00:11:22:33:44:55', true]]);
 
   // Accetta anche un array (non solo Set): il chiamante non deve indovinare il tipo.
   const o2 = buildOverview({ types: TYPES, nodes, portMacNodeIds: ['sw1', 'sw2'] });
-  assert.equal(rowOf(o2.complete, 'mac').value, 3);
-  assert.equal(rowOf(o2.complete, 'mac').extra.fromPorts, 2);
+  assert.equal(rowOf(o2.complete, 'addr').extra.mac, 3);
+  assert.equal(rowOf(o2.complete, 'addr').extra.fromPorts, 2);
 });
 
 test('① un hostname PINNATO A MANO vale come nome proprio anche se node.name resta l\'IP', () => {
@@ -581,13 +598,38 @@ test('③ MARGINE: il margine e\' quello ONESTO (libere meno sospette)', () => {
   });
   const g = o.margin;
   assert.equal(rowOf(g, 'freePorts').value, 166, '181 libere − 15 viste attive');
-  assert.deepEqual(rowOf(g, 'freePorts').extra, { raw: 181, suspect: 15 }, 'il numero grezzo resta leggibile');
+  assert.deepEqual(rowOf(g, 'freePorts').extra, { raw: 181, suspect: 15, bySpeed: [], noSpeed: 0 },
+    'il numero grezzo resta leggibile; senza velocita\' misurate la ripartizione e\' vuota, non zero-per-classe');
   // Il click mostra, per ogni device, le libere sul totale, DISTINTI in rack e
   // fuori rack (prima i device in rack, piu' libere in cima, poi i liberi).
   assert.deepEqual(rowOf(g, 'freePorts').items.map((i) => [i.id, i.meta, i.of, i.group]),
     [['sw1', 40, 48, 'rack'], ['sw2', 4, 24, 'rack'], ['rt1', 2, 8, 'loose']]);
   assert.equal(rowOf(g, 'rackU').value, 26);
   assert.equal(g.headline.key, 'freePorts');
+});
+
+// «166 libere» non dice quanto puoi crescere finche' non sai se sono 1G o 10G. La
+// ripartizione vive DENTRO «Porte libere» come terza scheda del dettaglio, non in un
+// riquadro suo: e' un altro modo di guardare le stesse porte.
+test('③ Porte libere: la ripartizione per VELOCITA\' e\' una scheda del dettaglio', () => {
+  const o = buildOverview({
+    types: TYPES, nodes: [{ id: 'sw1', type: 'switch' }],
+    spare: { totals: { free: 30, suspect: 0, ports: 48, freeSfp: 0,
+                       freeBySpeed: { 1000: 20, 10000: 4, 100: 1 }, freeNoSpeed: 5 },
+      racks: [{ devices: [{ id: 'sw1', total: 48, free: 30 }] }], unracked: [] },
+    sfpTotal: 0, rackFill: [],
+  });
+  const r = rowOf(o.margin, 'freePorts');
+  assert.deepEqual(r.extra.bySpeed, [{ mbps: 10000, n: 4 }, { mbps: 1000, n: 20 }, { mbps: 100, n: 1 }],
+    'classi ordinate dalla piu\' veloce');
+  assert.equal(r.extra.noSpeed, 5, 'le porte senza velocita\' nota restano contate a parte');
+  const speed = r.items.filter((i) => i.group === 'speed');
+  assert.deepEqual(speed.map((i) => [i.id, i.metric, i.value]),
+    [[4, 'speedClass', 10000], [20, 'speedClass', 1000], [1, 'speedClass', 100], [5, 'speedNone', null]],
+    'una voce per classe + una per le porte di cui nessuno sa la velocita\'');
+  assert.equal(r.items.filter((i) => i.group === 'rack').length, 1, 'le schede per-apparato restano');
+  // Niente stringhe d'interfaccia nel motore: la parola «1 Gbps» la mette il renderer.
+  assert.ok(speed.every((i) => typeof i.id === 'number' && !/[a-z]/i.test(String(i.value == null ? '' : i.value))));
 });
 
 test('③ Indirizzi liberi: mostra i LIBERI (host del /24 meno gli usati), non gli usati', () => {
@@ -1365,10 +1407,16 @@ test('② un insieme MISTO non si etichetta con la sua parte migliore (cavi dedo
 
 test('② un MAC non si dichiara, si osserva — e le porte libere sono un conto, non una cifra scritta', () => {
   const T = { switch: { isActive: true } };
+  // Il MAC sta nella riga `addr`, ma resta una MISURA: `prov` della riga parla
+  // dell'IP (dichiarato), il MAC porta il suo conteggio a parte — fonderli in una
+  // sola parola avrebbe fatto passare per dichiarati 48 bit che nessuno digita.
   const conMac = buildOverview({ types: T, nodes: [{ id: 'a', type: 'switch', ip: '10.0.0.1', mac: 'AA:BB:CC:DD:EE:01' }] }).complete;
-  assert.equal(rowOf(conMac, 'mac').prov, 'measured');
+  assert.equal(rowOf(conMac, 'addr').prov, 'declared', 'la riga misura la completezza del DOCUMENTO');
+  assert.equal(rowOf(conMac, 'addr').extra.mac, 1, 'il MAC osservato c\'è');
+  assert.equal(rowOf(conMac, 'addr').items[0].mac, 'AA:BB:CC:DD:EE:01', 'e finisce nell\'abbinamento ARP');
   const senzaMac = buildOverview({ types: T, nodes: [{ id: 'a', type: 'switch', ip: '10.0.0.1' }] }).complete;
-  assert.equal(rowOf(senzaMac, 'mac').prov, 'none', 'zero MAC osservati -> nessuna provenienza da vantare');
+  assert.equal(rowOf(senzaMac, 'addr').extra.mac, 0, 'zero MAC osservati');
+  assert.equal(rowOf(senzaMac, 'addr').extra.macNone, 1, 'e uno dichiarato mancante');
   const marg = buildOverview({ types: T, nodes: [{ id: 'a', type: 'switch', ip: '10.0.0.1', ports: 8 }],
     spare: { totals: { ports: 8, free: 8, used: 0, suspect: 0 }, racks: [], unracked: [] } }).margin;
   assert.equal(rowOf(marg, 'freePorts').prov, 'derived');

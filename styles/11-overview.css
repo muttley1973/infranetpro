@@ -195,8 +195,23 @@ button.ov-r:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
    Il `margin-left:auto` lo spinge al margine destro: la distanza dal rapporto
    principale diventa tutto lo spazio disponibile invece di 12px fissi — la
    separazione che questo paragrafo chiede, resa dal layout invece che a occhio. */
-.ov-num-alt { font-size: var(--fs-lg); font-weight: 600; color: var(--idle-color); margin-left: auto; }
-.ov-sub-alt { font-size: var(--fs-md); color: var(--idle-color); opacity: .8; margin-left: 3px; flex: 0 1 auto; }
+/* Il secondo contatore e la sua parola sono UN blocco: `20` e «non verificabili»
+   descrivono la stessa cosa, e separati il numero restava in riga mentre la
+   parola scendeva — un 20 orfano accanto al rapporto grande, che sembrava
+   parte sua. `white-space:nowrap` li tiene insieme, `margin-left:auto` spinge
+   il blocco a destra, e quando non ci sta scende tutto intero. */
+/* Distanza FISSA dal rapporto principale, non `margin-left:auto`. Spingerlo al
+   bordo destro aveva senso quando il riquadro era stretto: ora che ne occupa due
+   i due contatori finivano agli estremi opposti, e la distanza diceva «non
+   c'entrano niente» invece di «popolazione diversa». Vicini ma staccati. */
+.ov-alt { display: inline-flex; align-items: baseline; gap: 3px; margin-left: 14px; white-space: nowrap; flex: 0 0 auto; }
+/* Due contatori = due celle. Il riquadro «Verificabili» porta un rapporto E una
+   seconda popolazione: in una cella sola non ci stanno affiancati a nessuna
+   larghezza, perche' le celle sono ~150px per costruzione. Meglio un riquadro
+   largo il doppio che due numeri su due righe o un testo rimpicciolito. */
+.ov-r.has-alt { grid-column: span 2; }
+.ov-num-alt { font-size: var(--fs-lg); font-weight: 600; color: var(--idle-color); }
+.ov-sub-alt { font-size: var(--fs-md); color: var(--idle-color); opacity: .8; }
 .ov-r.s-warn .ov-val .ov-num { color: var(--idle-color); }
 .ov-r.s-bad  .ov-val .ov-num { color: var(--fault-color); }
 .ov-foot-row .ov-meter { flex: 1 1 auto; min-width: 24px; }
@@ -267,6 +282,15 @@ button.ov-r:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 .ov-col-recovery .ov-detail li .ov-meta { margin-left: 0; padding-left: 14px; }
 /* contesto attenuato accanto al valore (es. «di 254» utilizzabili del CIDR) */
 .ov-detail li .ov-meta-of { color: var(--inactive-color); }
+/* MAC sotto il nome+IP: `flex-basis:100%` in un `li` che va a capo lo mette su una
+   riga sua, con l'abbinamento ARP leggibile per intero invece di due indirizzi che
+   si contendono la stessa riga. Monospazio: si confronta a colpo d'occhio. */
+.ov-detail li .ov-mac {
+    flex: 0 0 100%; font-size: var(--fs-md); color: var(--text-muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    letter-spacing: .2px; margin-top: -2px;
+}
+.ov-detail li .ov-mac.is-none { color: var(--inactive-color); font-family: inherit; }
 /* dettaglio a SCHEDE (es. «In rack» / «Fuori rack»): le sub-header in testa
    dividono lo spazio in due; cliccandone una si vede la sua lista. */
 .ov-detail .ov-tabs { display: flex; gap: 6px; flex: 0 0 auto; margin-bottom: 8px; }

@@ -122,6 +122,7 @@ function _buildModel() {
     const caps = [];
     const liveHealth = [];
     const portMacNodeIds = new Set();
+    const portMacById = Object.create(null);   // nodeId → primo MAC visto sulle sue interfacce
     // MAC→id nodo (chiave esadecimale, STESSA norm della lib _macKey): serve a
     // risolvere a nome i vicini LLDP/CDP che si annunciano solo col chassis-id
     // MAC. Copre node.mac + MAC di porta + MAC di LAG (primo che vince).
@@ -152,7 +153,14 @@ function _buildModel() {
             // Su un apparato SNMP il MAC arriva per INTERFACCIA: `node.mac` resta
             // vuoto mentre le porte hanno il loro ifPhysAddress. Vale come identita'
             // L2 documentata quanto il MAC di chassis.
-            if (String(p.mac || '').trim()) { portMacNodeIds.add(n.id); _rememberMac(p.mac, n.id); }
+            // Su un apparato SNMP il MAC arriva per INTERFACCIA: oltre a segnare che
+            // il device un'identita' L2 ce l'ha, si tiene il PRIMO MAC visto, perche'
+            // l'abbinamento ARP della Panoramica deve poter mostrare un indirizzo vero
+            // invece di un trattino su un device che il conteggio da' per documentato.
+            if (String(p.mac || '').trim()) {
+                portMacNodeIds.add(n.id); _rememberMac(p.mac, n.id);
+                if (!portMacById[n.id]) portMacById[n.id] = String(p.mac).trim();
+            }
             cabled[i] = _linksForPort(pid).length > 0;
             if (!cabled[i]) freePorts++;
             capPorts.push({
@@ -163,7 +171,10 @@ function _buildModel() {
             });
         }
         for (const l of ((n.integration && n.integration.lags) || [])) {
-            if (l && String(l.mac || '').trim()) { portMacNodeIds.add(n.id); _rememberMac(l.mac, n.id); }
+            if (l && String(l.mac || '').trim()) {
+                portMacNodeIds.add(n.id); _rememberMac(l.mac, n.id);
+                if (!portMacById[n.id]) portMacById[n.id] = String(l.mac).trim();
+            }
         }
         const c = computeDeviceCapabilities({
             type: n.type, spec: n.spec, radios: n.radios, vmsCount: (n.vms || []).length,
@@ -210,7 +221,12 @@ function _buildModel() {
             if (kind === 'sfp') sfpTotal++;
             // `cabled[i]` è già stato risolto nel giro sopra: `_linksForPort` costa
             // una scansione dei link, chiederla due volte per porta si sente a 500 nodi.
-            list.push({ pid, kind, cabled: !!cabled[i], activeSnmp: responded && pi.status === 'active' });
+            // `speed`: l'override a mano vince sulla misura (manual-first), e null
+            // resta null — «velocita' non nota» e' un fatto, non uno zero.
+            list.push({
+                pid, kind, cabled: !!cabled[i], activeSnmp: responded && pi.status === 'active',
+                speed: (pi.speedOvr != null) ? pi.speedOvr : (pi.speed != null ? pi.speed : null),
+            });
         }
         if (list.length) {
             spareDevices.push({ id: n.id, name: getNodeDisplayName(n) || n.id, rackId: n.rackId || null, rackName: rackName(n.rackId), ports: list });
@@ -277,7 +293,7 @@ function _buildModel() {
     }
 
     return {
-        nodes, types: TYPES, links: Array.isArray(st.links) ? st.links : [], portMacNodeIds, macToNode, presence,
+        nodes, types: TYPES, links: Array.isArray(st.links) ? st.links : [], portMacNodeIds, portMacById, macToNode, presence,
         ipamVlans: (st.ipam && st.ipam.vlans) ? st.ipam.vlans : {},
         vlanIdsInUse, vlanNames: st.vlanNames || {}, measuredVlanNames,
         spare: buildSpareReport(spareDevices), sfpTotal, rackFill, networks, ipamAudit,
@@ -299,6 +315,18 @@ function _buildModel() {
 
 // ── Parole: la lib da' chiavi e numeri, qui diventano testo ──────────────────
 const _n = (v) => (v == null ? t('ov.none') : String(v));
+
+// Mbps → l'unità con cui la gente parla delle porte: 1000 diventa «1 Gbps», 2500
+// «2.5 Gbps», 100 resta «100 Mbps». Sta qui e non nella lib perché è una parola,
+// non un dato — il motore ragiona in Mbps e basta.
+function _speedTxt(mbps) {
+    const v = Number(mbps) || 0;
+    if (v >= 1000) {
+        const g = v / 1000;
+        return (Number.isInteger(g) ? String(g) : String(Math.round(g * 10) / 10)) + ' Gbps';
+    }
+    return v + ' Mbps';
+}
 
 // Una data DICHIARATA (ISO 'YYYY-MM-DD') resa nel formato locale. Se non è una
 // data la si restituisce com'è: meglio il testo grezzo dell'utente che un
@@ -391,7 +419,16 @@ function _tileStatus(r) {
     // B3 — righe-categoria del Drift: verdetto uniforme «da decidere» (una per riga).
     if (r.drill) return { w: t('ov.driftAction'), tone: r.value > 0 ? 'warn' : 'ok' };
     switch (r.key) {
-        case 'addr': return gapStatus();
+        // IP e MAC in una riga sola: il numero grande conta gli IP, il verdetto
+        // porta la METÀ mancante dell'identità — quanti sono senza MAC, o (se ci
+        // sono tutti) quanti arrivano dalle interfacce invece che dal chassis, che
+        // evita la domanda «ma il MAC c'è, perché me lo dai per mancante?».
+        case 'addr': {
+            if (gap > 0) return gapStatus();
+            if (e.macNone > 0) return { w: t('ov.st.missingMac', { n: e.macNone }), tone: 'warn' };
+            return e.fromPorts ? { w: t('ov.st.completeVia', { n: e.fromPorts }), tone: 'ok' }
+                               : { w: t('ov.st.complete'), tone: 'ok' };
+        }
         // Nomi VLAN: il dichiarato è legge, ma SNMP colma le lacune e segnala i conflitti.
         // Priorità: conflitto (decisione umana) > lacuna colmabile da SNMP > gap semplice.
         case 'vlanNames':
@@ -402,11 +439,6 @@ function _tileStatus(r) {
         // I nomi «mancanti» sono in realta' «da confermare»: il device c'e', gli
         // manca solo un nome proprio (spesso si chiama ancora come il suo IP).
         case 'name': return gapStatus('ov.st.missingNames');
-        // Il MAC e' completo anche quando arriva dalle interfacce: dirlo evita
-        // la domanda «ma il MAC c'e', perche' me lo dai per mancante?».
-        case 'mac': return (gap === 0 && e.fromPorts)
-            ? { w: t('ov.st.completeVia', { n: e.fromPorts }), tone: 'ok' }
-            : gapStatus();
         // «17 documentati» era vago proprio dove serviva precisione: un cavo
         // dedotto dall'auto-link non e' un cavo dichiarato.
         case 'cables':       return e.auto
@@ -470,6 +502,9 @@ function _tileStatus(r) {
             : { w: t('ov.st.available'), tone: 'ok' };
         case 'freeSfp':      return r.prov === 'none' ? { w: t('ov.st.none'), tone: 'none' }
             : (r.value === 0 ? { w: t('ov.st.noneFree'), tone: 'warn' } : { w: t('ov.st.available'), tone: 'ok' });
+        // Ripartizione delle libere per velocità: le prime due classi (dalla più
+        // veloce), e a seguire quante non hanno velocità nota. Quelle NON sono
+        // porte lente — è il motivo per cui restano fuori dal numero grande.
         // Altezza rack: se anche un solo rack non la dichiara il totale è un'ipotesi
         // (42U di ripiego) → si dice, invece di sentenziare «pieno»/«libere» su un
         // denominatore inventato. Stesso schema di ipFree («/24 assunto»).
@@ -616,9 +651,20 @@ function _rowEl(secKey, r) {
     const v = _el('div', 'ov-val');
     v.appendChild(_el('span', 'ov-num', val));
     if (sub) v.appendChild(_el('span', 'ov-sub', sub));
+    // Numero e parola del secondo contatore stanno in UN solo elemento: sono una
+    // cosa sola («20 non verificabili»), e da elementi flex separati il numero
+    // restava in riga mentre la parola scendeva sotto — un 20 orfano che sembrava
+    // parte del rapporto grande. Ora, se lo spazio manca, scendono insieme.
     if (alt && alt.num) {
-        v.appendChild(_el('span', 'ov-num-alt', alt.num));
-        if (alt.sub) v.appendChild(_el('span', 'ov-sub-alt', alt.sub));
+        const a = _el('span', 'ov-alt');
+        a.appendChild(_el('span', 'ov-num-alt', alt.num));
+        if (alt.sub) a.appendChild(_el('span', 'ov-sub-alt', alt.sub));
+        v.appendChild(a);
+        // Il riquadro con DUE contatori chiede il doppio di spazio: dentro un terzo
+        // di schermo diviso in tre, «13 di 13» + «20 non verificabili» sono ~176px
+        // contro i ~158 disponibili, e la seconda coppia scendeva sotto. Occupa due
+        // celle della griglia invece di rimpicciolire il testo fino a non leggerlo.
+        el.classList.add('has-alt');
     }
     el.appendChild(v);
 
@@ -661,7 +707,9 @@ function _itemLi(it) {
     // valore. Le DATE viaggiano in ISO (confrontabili, senza lingua) e diventano
     // formato locale solo qui, all'ultimo momento.
     const metaTxt = it.metric
-        ? t('ov.hl.m.' + it.metric, { v: it.metric === 'date' ? _fmtDate(it.value) : (it.value != null ? it.value : ''), l: it.label || '' }).replace(/\s+/g, ' ').trim()
+        ? t('ov.hl.m.' + it.metric, { v: it.metric === 'date' ? _fmtDate(it.value)
+                                       : it.metric === 'speedClass' ? _speedTxt(it.value)
+                                       : (it.value != null ? it.value : ''), l: it.label || '' }).replace(/\s+/g, ' ').trim()
         : (it.addr || (it.meta != null ? String(it.meta) : ''));
     if (metaTxt || it.of != null) {
         const m = _el('span', 'ov-meta');
@@ -672,6 +720,14 @@ function _itemLi(it) {
         inner.appendChild(m);
     }
     li.appendChild(inner);
+    // Il MAC va SOTTO l'indirizzo, non accanto: sono l'abbinamento ARP dello stesso
+    // apparato, e affiancati su una riga di dettaglio finivano a ellissi tutti e due.
+    // Quando manca si scrive un trattino — «non osservato» è un fatto, e va detto.
+    if (it.mac !== undefined) {
+        const mc = _el('span', 'ov-mac' + (it.mac ? '' : ' is-none'), it.mac || t('ov.none'));
+        if (it.mac && it.macFromPorts) mc.title = t('ov.macFromPorts');
+        li.appendChild(mc);
+    }
     return li;
 }
 

@@ -585,8 +585,8 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         const dPc = (typeof TYPES !== 'undefined' && TYPES['pc']) || {};
         const dSrv = (typeof TYPES !== 'undefined' && TYPES['server']) || {};
         // Ramo FLOOR (pc → h) e ramo RACK/attivo (server → devSpec).
-        const pcChain = _nodeDeviceChainHtml(pc, dPc, '<!--id-->');
-        const srvChain = _nodeDeviceChainHtml(srv, dSrv, '<!--id-->');
+        const pcChain = _nodeDeviceChainHtml(pc, dPc);
+        const srvChain = _nodeDeviceChainHtml(srv, dSrv);
         // Helper esposto, usato anche da app-properties-port (bundle).
         const vlanRow = _floorAccessVlanRow(pc);
 
@@ -4478,10 +4478,11 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.deepEqual(v.sections, ['complete', 'truth', 'margin'], 'le tre domande, in ordine');
       // Colonna 2: «Ultima lettura» e «Verifica completa» non sono risultati ma
       // la DATA del capitolo → stanno nella striscia in cima, non fra i riquadri.
-      // ① Progetto +«Gateway per subnet» (7) · ② Vero +«Conflitti IPAM» (5, con lastSync+verify in cima) · ③ Espansione (6).
-      assert.deepEqual(v.rowsPerSection, [7, 5, 6], 'sette · cinque (+2 in cima) · sei');
-      assert.equal(v.tilesWithNumber, 18, 'ogni riquadro ha il SUO numero grande');
-      assert.equal(v.tilesWithVerdict, 18, '…e il suo verdetto in parole: un numero solo non dice se va bene');
+      // ① Progetto (6: il MAC non è più un riquadro suo, sta dentro «Indirizzo IP e MAC»)
+      // · ② Vero +«Conflitti IPAM» (5, con lastSync+verify in cima) · ③ Espansione (6).
+      assert.deepEqual(v.rowsPerSection, [6, 5, 6], 'sei · cinque (+2 in cima) · sei');
+      assert.equal(v.tilesWithNumber, 17, 'ogni riquadro ha il SUO numero grande');
+      assert.equal(v.tilesWithVerdict, 17, '…e il suo verdetto in parole: un numero solo non dice se va bene');
       assert.ok(!v.hasSingleHeadline, 'nessun titolo unico che parli per tutta la sezione');
       assert.equal(v.metaItems, 2, 'lettura e Verifica sono la data del capitolo, in cima alla colonna');
       assert.ok(/mai/i.test(v.metaText), 'e dichiarano quando: ' + v.metaText);
@@ -4516,7 +4517,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       });
       assert.ok(d.open, 'il dettaglio si apre');
       assert.ok(d.items.some((x) => /10\.7\.0\.11/.test(x)), 'elenca il device che si chiama come il suo IP');
-      assert.equal(d.numbersVisible, 18, 'tutti i numeri restano visibili: mai un overlay');
+      assert.equal(d.numbersVisible, 17, 'tutti i numeri restano visibili: mai un overlay');
       assert.equal(d.rowsVisible, d.rowsTotal, 'nessuna riga viene nascosta per far posto');
       assert.ok(!d.bodyScrolls, 'tutto in una schermata');
 
