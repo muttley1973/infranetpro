@@ -22,12 +22,15 @@ import { _hvPanelHtml } from './app-hypervisor.js';   // ritiro ponte: funzioni 
 // ============================================================
 // PROPERTIES PANEL — catena device-specifica per-tipo (estratta da
 // app-properties-node.js per spezzare il renderer monolitico).
-// _nodeDeviceChainHtml(n, d, _identityBlock) → { h, devSpec }
+// _nodeDeviceChainHtml(n, d) → { h, devSpec }
 //   h       : contributo dei device FLOOR (layout inline, h+=)
 //   devSpec : contributo dei device RACK/attivi (accordion device-spec,
 //             _devSpecHtml+=), poi cucito nellassemblaggio rack del chiamante.
+// ⚠️ Il blocco «Identità rilevata» NON passa piu' di qui: lo emette il chiamante
+// in cima al pannello, una volta sola e per ogni tipo. Qui dentro lo stampava
+// solo il ramo `ap`, quindi su tutti gli altri floor non si vedeva affatto.
 // Sequenza piatta di blocchi indipendenti if(n.type===...): un solo blocco
-// scatta per render. Usa solo n, d, _identityBlock + helper globali
+// scatta per render. Usa solo n, d + helper globali
 // (selected, t, escapeHTML, _build*Html, _powerLiveHtml, updateN, ...).
 // Caricato in netmapper.html subito dopo app-properties-node.js.
 // ============================================================
@@ -84,7 +87,7 @@ export function _floorAccessVlanRow(n, pid){
       </div>`;
 }
 
-export function _nodeDeviceChainHtml(n, d, _identityBlock){
+export function _nodeDeviceChainHtml(n, d){
     let h = '';
     let _devSpecHtml = '';
     // Le fisarmoniche FLOOR mettono la device-specifica PRIMA di "Rete & Accesso"
@@ -95,8 +98,7 @@ export function _nodeDeviceChainHtml(n, d, _identityBlock){
     // resta '' (lì l'ordine è già gestito dall'assemblaggio in app-properties-node.js).
     let _floorNet = '';
             if(n.type==='ap'){
-                h+=`${_identityBlock}
-                    <div class="prop-group"><label>${t('f.apId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="AP-01" onchange="updateFloorId(this.value)"></div>
+                h+=`<div class="prop-group"><label>${t('f.apId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="AP-01" onchange="updateFloorId(this.value)"></div>
                     ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false, macLabel:'MAC / BSSID'}), '')}
                     <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-ap')?'open':''} ontoggle="setPropsSectionState('device-ap',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-wifi"></i> ${t('dev.ap')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <!-- Config Wi-Fi (SSID/banda/canale/standard/sicurezza/VLAN) unificata

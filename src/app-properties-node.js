@@ -159,6 +159,13 @@ export function _renderNodeProps(panel){
                 ${n.possibleReplacement ? `<div style="color:#d29922"><i class="fas fa-triangle-exclamation" style="margin-right:4px"></i>${t('pnl.node.possibleReplacement')}</div>` : ''}
                 ${_pReconcile ? `<div style="color:#d29922"><i class="fas fa-triangle-exclamation" style="margin-right:4px"></i>${t('pnl.node.portReconcile', {n:_pReconcile})}</div>` : ''}
             </div>` : '';
+            // «Identità rilevata» IN CIMA, subito sotto l'intestazione e PRIMA di
+            // Nome/ID. E' il contesto con cui si legge tutto il resto del pannello —
+            // chi dice che questo apparato e' questo apparato, e quanto ci crede — e
+            // sotto i campi finiva a valle delle cose che serve a interpretare.
+            // Emesso QUI una volta sola, per QUALUNQUE tipo: prima lo stampava il
+            // ramo rack a meta' pannello e, fra i floor, solo l'AP.
+            h += _identityBlock;
             // Sezioni del pannello accumulate in variabili separate per poter
             // controllare l'ordine finale (Device-specifico in alto, poi Rete &
             // Accesso, Layout porte, LAG, Integrazione). Usate solo per i RACK;
@@ -620,7 +627,6 @@ ${showFiber ? `<div class="prop-row2">
                         </select>
                     </div>` : ''}
                     `;
-                h += _identityBlock;
                 // ---- sezione LAG manuali (assemblata in fondo) ----
                 if(d.isRack&&d.isActive){
                     const _lagMap=getLagGroupsForNode(n.id);
@@ -795,7 +801,7 @@ ${showFiber ? `<div class="prop-row2">
             // Floor → contributo a h (layout inline); rack/attivi → contributo a
             // _devSpecHtml (accordion device-spec), cucito nellassemblaggio qui sotto.
             {
-                const _dc = _nodeDeviceChainHtml(n, d, _identityBlock);
+                const _dc = _nodeDeviceChainHtml(n, d);
                 h += _dc.h;
                 _devSpecHtml += _dc.devSpec;
                 // FLOOR: la fisarmonica "Rete & Accesso" viene catturata in _dc.net dal

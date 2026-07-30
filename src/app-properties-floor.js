@@ -65,72 +65,6 @@ export function _renderFloorProps(panel){
             'props-title-upper'
         );
         let h = `${_panelHeader}
-            <details class="props-collapsible props-primary" ${_propsSectionIsOpen('floor-bgimage')?'open':''} ontoggle="setPropsSectionState('floor-bgimage',this.open)">
-              <summary class="props-collapsible-head"><span><i class="fas fa-map"></i> ${t('floor.imgSection')}</span>${_bgPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
-              <div class="props-collapsible-body">
-                <div class="prop-group" style="margin-bottom:10px">
-                  <button class="toolbar-btn primary" style="width:100%;justify-content:center;gap:8px"
-                          onclick="document.getElementById('map-upload').click()">
-                    <i class="fas fa-upload"></i>
-                    ${state.bgImage?t('floor.replaceMap'):t('floor.importMap')}
-                  </button>
-                </div>
-                ${state.bgImage?`
-                <div class="prop-group" style="margin-bottom:10px">
-                  <button class="toolbar-btn${state.bgImageLocked?' primary':''}" style="width:100%;justify-content:center;gap:8px"
-                          onclick="toggleBgImageLock()">
-                    <i class="fas ${state.bgImageLocked?'fa-lock':'fa-lock-open'}"></i>
-                    ${state.bgImageLocked?t('floor.mapLocked'):t('floor.lockScale')}
-                  </button>
-                </div>
-                <div class="prop-group" style="${state.bgImageLocked?'opacity:0.38;pointer-events:none':''}">
-                  <label>${t('f.bgScale')}</label>
-                  <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
-                    <button class="zoom-btn" style="background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:4px;padding:4px 9px" onclick="scaleBgImage(-0.05)"><i class="fas fa-minus"></i></button>
-                    <input id="bg-scale-slider" type="range" min="0.1" max="5" step="0.05"
-                           value="${(state.bgImageScale||1).toFixed(2)}"
-                           style="flex:1;accent-color:var(--accent)"
-                           oninput="scaleBgImageTo(+this.value)">
-                    <button class="zoom-btn" style="background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:4px;padding:4px 9px" onclick="scaleBgImage(0.05)"><i class="fas fa-plus"></i></button>
-                    <span id="bg-scale-lbl" style="font-size:0.78rem;min-width:42px;text-align:right">${Math.round((state.bgImageScale||1)*100)}%</span>
-                  </div>
-                  <button class="toolbar-btn" style="width:100%;margin-top:6px;font-size:0.75rem" onclick="scaleBgImageTo(1)"><i class="fas fa-undo" style="margin-right:4px"></i>${t('floor.reset100')}</button>
-                </div>
-                <div class="prop-group" style="margin-bottom:10px">
-                  <label>${t('floor.mapOpacity')}</label>
-                  <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
-                    <i class="fas fa-circle-half-stroke" style="color:var(--text-muted);font-size:0.8rem"></i>
-                    <input id="bg-opacity-slider" type="range" min="0.05" max="1" step="0.05"
-                           value="${(state.bgImageOpacity ?? 0.4).toFixed(2)}"
-                           style="flex:1;accent-color:var(--accent)"
-                           oninput="setBgImageOpacity(+this.value)">
-                    <span id="bg-opacity-lbl" style="font-size:0.78rem;min-width:42px;text-align:right">${Math.round((state.bgImageOpacity ?? 0.4) * 100)}%</span>
-                  </div>
-                </div>
-                <div style="display:flex;gap:6px">
-                  <button class="toolbar-btn" style="flex:1" ${state.bgImageLocked?'disabled':''} onclick="fitBgImageToCanvas()"><i class="fas fa-expand-arrows-alt"></i> ${t('floor.fitCanvas')}</button>
-                  <button class="toolbar-btn danger" style="flex:1" onclick="clearMap()"><i class="fas fa-trash"></i> ${t('floor.removeMap')}</button>
-                </div>`:''}
-                <div class="prop-group" style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;border-top:1px solid var(--panel-border);padding-top:10px">
-                  <label style="margin:0">${t('floor.grid')}</label>
-                  <label class="toggle-sw">
-                    <input type="checkbox" ${state.gridHidden?'':'checked'} onchange="toggleFloorGrid(this.checked)">
-                    <span class="toggle-track"></span>
-                  </label>
-                </div>
-                <div class="prop-notes-header"><i class="fas fa-palette"></i> ${t('floor.colorsSection')}</div>
-                <div class="prop-group"><label>${t('f.floorBg')}</label><input type="color" value="${escapeHTML(state.uiColors?.floorBg||'#0d1117')}" onchange="updateUiColor('floorBg',this.value)"></div>
-                <div class="prop-group"><label>${t('f.rackBg')}</label><input type="color" value="${escapeHTML(state.uiColors?.rackBg||'#ffffff')}" onchange="updateUiColor('rackBg',this.value)"></div>
-                <div class="prop-notes-header"><i class="fas fa-tag"></i> ${t('floor.labelsSection')}</div>
-                <div class="prop-group" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
-                  <label style="margin:0">${t('f.abbrevNames')}</label>
-                  <label class="toggle-sw" data-tip="${t('f.abbrevNamesTip')}">
-                    <input type="checkbox" ${state.abbrevNames?'checked':''} onchange="toggleAbbrevNames(this.checked)">
-                    <span class="toggle-track"></span>
-                  </label>
-                </div>
-              </div>
-            </details>
             <details class="props-collapsible props-primary" ${_propsSectionIsOpen('floor-vlan')?'open':''} ontoggle="setPropsSectionState('floor-vlan',this.open)">
               <summary class="props-collapsible-head"><span><i class="fas fa-network-wired"></i> VLAN</span>${_vlanPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
               <div class="props-collapsible-body">
@@ -205,6 +139,72 @@ export function _renderFloorProps(panel){
                   <input type="number" id="new-vlan-id" placeholder="ID" style="width:55px">
                   <input type="color" id="new-vlan-color" value="#00d4ff" style="flex:1">
                   <button class="toolbar-btn primary" style="padding:4px 9px;margin:0" onclick="addVlanColor()">${t('common.add')}</button>
+                </div>
+              </div>
+            </details>
+            <details class="props-collapsible props-primary" ${_propsSectionIsOpen('floor-bgimage')?'open':''} ontoggle="setPropsSectionState('floor-bgimage',this.open)">
+              <summary class="props-collapsible-head"><span><i class="fas fa-map"></i> ${t('floor.imgSection')}</span>${_bgPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
+              <div class="props-collapsible-body">
+                <div class="prop-group" style="margin-bottom:10px">
+                  <button class="toolbar-btn primary" style="width:100%;justify-content:center;gap:8px"
+                          onclick="document.getElementById('map-upload').click()">
+                    <i class="fas fa-upload"></i>
+                    ${state.bgImage?t('floor.replaceMap'):t('floor.importMap')}
+                  </button>
+                </div>
+                ${state.bgImage?`
+                <div class="prop-group" style="margin-bottom:10px">
+                  <button class="toolbar-btn${state.bgImageLocked?' primary':''}" style="width:100%;justify-content:center;gap:8px"
+                          onclick="toggleBgImageLock()">
+                    <i class="fas ${state.bgImageLocked?'fa-lock':'fa-lock-open'}"></i>
+                    ${state.bgImageLocked?t('floor.mapLocked'):t('floor.lockScale')}
+                  </button>
+                </div>
+                <div class="prop-group" style="${state.bgImageLocked?'opacity:0.38;pointer-events:none':''}">
+                  <label>${t('f.bgScale')}</label>
+                  <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
+                    <button class="zoom-btn" style="background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:4px;padding:4px 9px" onclick="scaleBgImage(-0.05)"><i class="fas fa-minus"></i></button>
+                    <input id="bg-scale-slider" type="range" min="0.1" max="5" step="0.05"
+                           value="${(state.bgImageScale||1).toFixed(2)}"
+                           style="flex:1;accent-color:var(--accent)"
+                           oninput="scaleBgImageTo(+this.value)">
+                    <button class="zoom-btn" style="background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:4px;padding:4px 9px" onclick="scaleBgImage(0.05)"><i class="fas fa-plus"></i></button>
+                    <span id="bg-scale-lbl" style="font-size:0.78rem;min-width:42px;text-align:right">${Math.round((state.bgImageScale||1)*100)}%</span>
+                  </div>
+                  <button class="toolbar-btn" style="width:100%;margin-top:6px;font-size:0.75rem" onclick="scaleBgImageTo(1)"><i class="fas fa-undo" style="margin-right:4px"></i>${t('floor.reset100')}</button>
+                </div>
+                <div class="prop-group" style="margin-bottom:10px">
+                  <label>${t('floor.mapOpacity')}</label>
+                  <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
+                    <i class="fas fa-circle-half-stroke" style="color:var(--text-muted);font-size:0.8rem"></i>
+                    <input id="bg-opacity-slider" type="range" min="0.05" max="1" step="0.05"
+                           value="${(state.bgImageOpacity ?? 0.4).toFixed(2)}"
+                           style="flex:1;accent-color:var(--accent)"
+                           oninput="setBgImageOpacity(+this.value)">
+                    <span id="bg-opacity-lbl" style="font-size:0.78rem;min-width:42px;text-align:right">${Math.round((state.bgImageOpacity ?? 0.4) * 100)}%</span>
+                  </div>
+                </div>
+                <div style="display:flex;gap:6px">
+                  <button class="toolbar-btn" style="flex:1" ${state.bgImageLocked?'disabled':''} onclick="fitBgImageToCanvas()"><i class="fas fa-expand-arrows-alt"></i> ${t('floor.fitCanvas')}</button>
+                  <button class="toolbar-btn danger" style="flex:1" onclick="clearMap()"><i class="fas fa-trash"></i> ${t('floor.removeMap')}</button>
+                </div>`:''}
+                <div class="prop-group" style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;border-top:1px solid var(--panel-border);padding-top:10px">
+                  <label style="margin:0">${t('floor.grid')}</label>
+                  <label class="toggle-sw">
+                    <input type="checkbox" ${state.gridHidden?'':'checked'} onchange="toggleFloorGrid(this.checked)">
+                    <span class="toggle-track"></span>
+                  </label>
+                </div>
+                <div class="prop-notes-header"><i class="fas fa-palette"></i> ${t('floor.colorsSection')}</div>
+                <div class="prop-group"><label>${t('f.floorBg')}</label><input type="color" value="${escapeHTML(state.uiColors?.floorBg||'#0d1117')}" onchange="updateUiColor('floorBg',this.value)"></div>
+                <div class="prop-group"><label>${t('f.rackBg')}</label><input type="color" value="${escapeHTML(state.uiColors?.rackBg||'#ffffff')}" onchange="updateUiColor('rackBg',this.value)"></div>
+                <div class="prop-notes-header"><i class="fas fa-tag"></i> ${t('floor.labelsSection')}</div>
+                <div class="prop-group" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+                  <label style="margin:0">${t('f.abbrevNames')}</label>
+                  <label class="toggle-sw" data-tip="${t('f.abbrevNamesTip')}">
+                    <input type="checkbox" ${state.abbrevNames?'checked':''} onchange="toggleAbbrevNames(this.checked)">
+                    <span class="toggle-track"></span>
+                  </label>
                 </div>
               </div>
             </details>`;
