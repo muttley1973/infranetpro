@@ -309,6 +309,10 @@
         .rack-device.snmp-ok { border-left-color:var(--active-color); }
         .rack-device.snmp-err { border-left-color:var(--fault-color); }
         .rack-device.snmp-pending { border-left-color:#d29922; }
+        /* «Ha risposto, ma non adesso»: verde SPENTO. Non è un guasto (rosso) né
+           un'attesa (ambra) — è una risposta che ha perso attualità. Il verde pieno
+           resta la promessa «sta rispondendo», e va guadagnata ogni volta. */
+        .rack-device.snmp-stale { border-left-color:#2f6f43; }
         .rack-device.snmp-na { border-left-color:var(--inactive-color); }
         .rack-device.snmp-fault .rack-label { color:#f8a09a; }
         /* Presenza dopo la Verifica — SOLO floor node (i rack device hanno già il LED

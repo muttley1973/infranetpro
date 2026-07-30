@@ -47,6 +47,17 @@ export function _snmpFreshness(ts){
     const level = ms < 15*60000 ? 'fresh' : ms < 6*3600000 ? 'aging' : 'old';
     return { txt, level, color:_SNMP_FRESH_COLOR[level] };
 }
+// Una risposta SNMP senza data, o piu' vecchia della soglia, non e' lo stato di
+// ADESSO: e' il ricordo di una risposta. `n.snmpStatus` sopravvive al salvataggio,
+// quindi senza questo controllo un progetto riaperto dopo mesi mostrava LED verdi
+// su apparati magari spenti da settimane. Soglia UNICA con lib/subbar-stats.js
+// (`SNMP_STALE_HOURS`, = il livello 'old' di _snmpFreshness qui sopra).
+export function _snmpIsStale(lastOkIso){
+    const hrs = (typeof SNMP_STALE_HOURS === 'number') ? SNMP_STALE_HOURS : 6;
+    const at = Date.parse(String(lastOkIso || ''));
+    return !Number.isFinite(at) || (Date.now() - at) > hrs * 3600000;
+}
+
 // Timestamp dell'ultimo sync riuscito. Fallback per progetti pre-feature:
 // deriva dal neighbors cache (il dato che alimenta la topologia).
 export function _lastSnmpSyncTs(){
@@ -732,7 +743,7 @@ export function applyPollResult(nodeId, data, opts={}){
 }
 
 expose({
-    _hasSnmpIntegration, _snmpFreshness, _lastSnmpSyncTs, _hasSnmpTargets,
+    _hasSnmpIntegration, _snmpFreshness, _snmpIsStale, _lastSnmpSyncTs, _hasSnmpTargets,
     _renderSyncFreshness, _renderV3PendingChip, _v3JumpNext, _v3NeedsCreds, _v3PendingNodes,
     updateIntegration, _pollPowerNode, pollSNMP, pollAllSNMP,
     _snmpOperToUiStatus, _snmpSpeedToUi, _snmpVlanToUi, _snmpNameToUi, _snmpAliasToUi,

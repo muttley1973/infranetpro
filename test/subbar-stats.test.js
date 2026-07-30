@@ -96,28 +96,55 @@ test('"ha SNMP" = driver snmp* + host|ip; altrimenti non conta', () => {
   assert.equal(_hasSnmp({ ip: '10.0.0.4' }), false, 'nessuna integrazione -> no');
 });
 
+const NOW = Date.parse('2026-07-30T12:00:00Z');
+const ISO = (msAgo) => new Date(NOW - msAgo).toISOString();
+
 test('salute SNMP: none / ok / warn / err in base ai responder', () => {
-  const snmp = (driver, status) => ({ type: 'switch', integration: { driver, host: '10.0.0.1' }, snmpStatus: status });
+  // `snmpLastOk` recente: qui si testano gli STATI, non l'età (che ha il suo test).
+  const snmp = (driver, status) => ({ type: 'switch', integration: { driver, host: '10.0.0.1' },
+    snmpStatus: status, snmpLastOk: status === 'ok' ? ISO(60000) : undefined });
 
   // nessun device SNMP configurato
-  assert.equal(computeSubbarStats([{ type: 'pc', ip: '1.1.1.1' }], TYPES).snmpHealth, 'none');
+  assert.equal(computeSubbarStats([{ type: 'pc', ip: '1.1.1.1' }], TYPES, NOW).snmpHealth, 'none');
 
   // tutti ok
-  let s = computeSubbarStats([snmp('snmp-v2c', 'ok'), snmp('snmp-v2c', 'ok')], TYPES);
+  let s = computeSubbarStats([snmp('snmp-v2c', 'ok'), snmp('snmp-v2c', 'ok')], TYPES, NOW);
   assert.deepEqual([s.snmpTotal, s.snmpOk, s.snmpHealth], [2, 2, 'ok']);
 
   // misto (uno su, uno giu') -> warn
-  s = computeSubbarStats([snmp('snmp-v2c', 'ok'), snmp('snmp-v2c', 'err')], TYPES);
+  s = computeSubbarStats([snmp('snmp-v2c', 'ok'), snmp('snmp-v2c', 'err')], TYPES, NOW);
   assert.deepEqual([s.snmpTotal, s.snmpOk, s.snmpDown, s.snmpHealth], [2, 1, 1, 'warn']);
 
   // nessuno su + almeno un guasto REALE -> err (rosso)
-  s = computeSubbarStats([snmp('snmp-v2c', 'err'), snmp('snmp-v2c', 'err')], TYPES);
+  s = computeSubbarStats([snmp('snmp-v2c', 'err'), snmp('snmp-v2c', 'err')], TYPES, NOW);
   assert.deepEqual([s.snmpTotal, s.snmpOk, s.snmpDown, s.snmpHealth], [2, 0, 2, 'err']);
 
   // configurati ma MAI sondati (snmpStatus assente) -> warn (ambra), NON rosso:
   // "non ancora verificato" non e' "guasto" (niente rosso a sproposito).
-  s = computeSubbarStats([snmp('snmp-v2c', undefined), snmp('snmp-v2c', undefined)], TYPES);
+  s = computeSubbarStats([snmp('snmp-v2c', undefined), snmp('snmp-v2c', undefined)], TYPES, NOW);
   assert.deepEqual([s.snmpTotal, s.snmpOk, s.snmpDown, s.snmpHealth], [2, 0, 0, 'warn']);
+});
+
+test('salute SNMP: una risposta VECCHIA non tiene la spia verde', () => {
+  // `snmpStatus` sopravvive al salvataggio: senza data, un progetto riaperto dopo
+  // mesi mostrava la spia verde su apparati magari spenti da settimane.
+  const dev = (lastOk) => ({ type: 'switch', integration: { driver: 'snmp-v2c', host: '10.0.0.1' },
+    snmpStatus: 'ok', snmpLastOk: lastOk });
+
+  const recente = computeSubbarStats([dev(ISO(60 * 60000))], TYPES, NOW);   // 1 ora fa
+  assert.deepEqual([recente.snmpOk, recente.snmpStale, recente.snmpHealth], [1, 0, 'ok']);
+
+  const vecchia = computeSubbarStats([dev(ISO(4 * 86400000))], TYPES, NOW);  // 4 giorni fa
+  assert.equal(vecchia.snmpOk, 1, 'ha risposto davvero: il CONTEGGIO non si tocca');
+  assert.equal(vecchia.snmpStale, 1);
+  assert.equal(vecchia.snmpHealth, 'warn', 'ma la spia non promette «sta rispondendo»');
+  assert.equal(vecchia.snmpNewestOk, NOW - 4 * 86400000, 'l\'età esce, così il tooltip può dirla');
+
+  // Progetto vecchio, PRIMA della feature: nessun `snmpLastOk` = nessuna data.
+  const senzaData = computeSubbarStats([dev(undefined)], TYPES, NOW);
+  assert.equal(senzaData.snmpStale, 1, 'senza data non si può affermare che sia recente');
+  assert.equal(senzaData.snmpHealth, 'warn');
+  assert.equal(senzaData.snmpNewestOk, null);
 });
 
 test('catalogo TYPES assente -> difensivo (nessun crash, niente indirizzabili)', () => {

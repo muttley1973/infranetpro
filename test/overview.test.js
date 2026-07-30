@@ -538,6 +538,38 @@ test('② VERO: il verdetto degrada a «warn» quando il dato è vecchio di GIOR
   assert.ok(!never.health.stale, 'niente lettura → non è "stantìo", è "mai letto"');
 });
 
+test('il gate di staleness vale su ③ MARGINE, e NON su ① LAN né ⑤ Sicurezza', () => {
+  // N15. Non è «estendilo dappertutto»: si gatta solo ciò che poggia su una MISURA.
+  const day = 86400000;
+  const now = 1000 * day;
+  const base = {
+    types: TYPES,
+    nodes: [{ id: 'sw1', type: 'switch', ip: '10.0.0.1', ports: 8,
+      integration: { driver: 'snmp-v3', v3user: 'u', host: '10.0.0.1' } }],
+    spare: { totals: { free: 8, suspect: 0, ports: 8, freeSfp: 0, sfp: 0 },
+      racks: [], unracked: [{ id: 'sw1', total: 8, free: 8 }] },
+    mgmtVlans: [99],
+    lastSyncResult: { ok: 1, total: 1 },
+  };
+  const fresco = buildOverview(Object.assign({}, base, { lastSyncAt: now - 2 * day, now }));
+  const vecchio = buildOverview(Object.assign({}, base, { lastSyncAt: now - 20 * day, now }));
+
+  // ③ poggia su una misura (porte sospette, classi PoE): degrada e lo dice.
+  assert.equal(fresco.margin.health.level, 'ok');
+  assert.equal(vecchio.margin.health.level, 'warn', '20 giorni: «margine ampio» è un ricordo');
+  assert.equal(vecchio.margin.health.stale, true);
+  assert.equal(vecchio.margin.health.staleDays, 20);
+
+  // ① chiede se il DOCUMENTO descrive tutto: un documento non invecchia.
+  assert.equal(vecchio.complete.health.level, fresco.complete.health.level, '① non si tocca');
+  assert.ok(!vecchio.complete.health.stale);
+
+  // ⑤ sembra «da misura» ma i suoi tre ingressi sono DICHIARATI (driver scelto,
+  // community scritta, VLAN marcata): non invecchiano perché non sincronizzi.
+  assert.equal(vecchio.security.health.level, fresco.security.health.level, '⑤ non si tocca');
+  assert.ok(!vecchio.security.health.stale);
+});
+
 test('③ MARGINE: il margine e\' quello ONESTO (libere meno sospette)', () => {
   const o = buildOverview({
     types: TYPES, nodes: [{ id: 'sw1', type: 'switch' }],

@@ -840,10 +840,12 @@ function _verdictEl(secKey, health, deltaN) {
     const lvl = (health && health.level) || 'ok';
     const el = _el('div', 'ov-verdict v-' + lvl);
     el.appendChild(_el('span', 'ov-vdot'));
-    // «Vero» stantìo: se il verdetto è warn per sola vecchiaia del dato (nessuna
-    // differenza da decidere), il messaggio lo dice invece di «0 da decidere».
-    const vtxt = (secKey === 'truth' && health && health.stale)
-        ? t('ov.truthStale', { n: health.staleDays || 0 })
+    // Verdetto stantìo: se è warn per SOLA vecchiaia del dato (niente da decidere),
+    // il messaggio lo dice invece di «0 da decidere» o «margine risicato» — che
+    // sarebbero due bugie diverse sulla stessa causa. Vale per ogni lente che
+    // porta il flag: la lib decide QUALI (② e ③), il renderer lo racconta e basta.
+    const vtxt = (health && health.stale)
+        ? t('ov.staleVerdict', { n: health.staleDays || 0 })
         : t('ov.health.' + secKey + '.' + lvl, { n: (health && health.issues) || 0 });
     el.appendChild(_el('span', 'ov-vtxt', vtxt));
     // Delta dall'ultima lettura: segno esplicito (−N meno · +N piu'), colore
@@ -1104,8 +1106,8 @@ export function buildOverviewReport() {
             question: t('ov.sec.' + key + 'Q'),
             level: lvl,
             // Il verdetto di colonna, con la stessa eccezione «stantìo» dello schermo.
-            verdict: (key === 'truth' && health.stale)
-                ? t('ov.truthStale', { n: health.staleDays || 0 })
+            verdict: health.stale
+                ? t('ov.staleVerdict', { n: health.staleDays || 0 })
                 : t('ov.health.' + key + '.' + lvl, { n: health.issues || 0 }),
             rows: (sec.rows || []).map((r) => {
                 const [val, sub, alt] = _tileValue(r);

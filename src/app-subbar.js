@@ -239,7 +239,14 @@ function _statsEl(stats) {
     null,
     stats.snmpTotal ? (stats.snmpOk + '/' + stats.snmpTotal) : '—',
     t('subbar.snmp'),
-    stats.snmpTotal ? t('subbar.snmpTip', { ok: stats.snmpOk, total: stats.snmpTotal }) : t('subbar.snmpNone'),
+    // Il pallino ingiallisce anche quando rispondono TUTTI, se l'ultima risposta
+    // non è recente: il tooltip deve dire perché, altrimenti l'ambra sembra un
+    // guasto. `_snmpFreshness` dà l'età nella stessa unità del chip in toolbar.
+    stats.snmpTotal
+      ? t('subbar.snmpTip', { ok: stats.snmpOk, total: stats.snmpTotal })
+        + (stats.snmpStale ? ' · ' + t('subbar.snmpStale', {
+            n: stats.snmpStale, age: _snmpFreshness(stats.snmpNewestOk).txt }) : '')
+      : t('subbar.snmpNone'),
   );
   const dot = document.createElement('span'); dot.className = 'msb-dot msb-dot-' + stats.snmpHealth;
   snmp.insertBefore(dot, snmp.firstChild);

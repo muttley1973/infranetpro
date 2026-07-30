@@ -21,7 +21,7 @@ import { _l3GatewayNodeIds } from './app-l3.js';   // ritiro ponte: coda funzion
 import { _getRackFloorLinks, _linkMatchesVlanFilter } from './app-popup.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { _panelSkinRackHtml, _resolveNodeSkin } from './app-panel-skin.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { _paintRoutingTargets } from './app-cabling-editor.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
-import { _hasSnmpIntegration, _renderV3PendingChip, _v3NeedsCreds } from './app-snmp.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
+import { _hasSnmpIntegration, _renderV3PendingChip, _v3NeedsCreds, _snmpIsStale } from './app-snmp.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { _applySpareHighlight } from './app-spare.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 
 // Altezza in px di una unità rack (1U). UNICO punto di verità: la CSS var
@@ -263,7 +263,15 @@ function _renderAllNow(){
             const el=document.createElement('div'); el.dataset.id=n.id;
             const _lldpDisc=store._topoVisible&&store._topoData&&store._topoData.nodes.some(tn=>tn.nodeId===n.id);
             const _snmpOn=_hasSnmpIntegration(n);
-            const _snmpStateCls = !_snmpOn ? ' snmp-na' : (n.snmpStatus==='ok' ? ' snmp-ok' : (n.snmpStatus==='err' ? ' snmp-err snmp-fault' : ' snmp-pending'));
+            // Il LED verde diceva «risponde» leggendo solo `snmpStatus`, che il
+            // progetto si porta dietro nel salvataggio: riaperto dopo mesi, un rack
+            // di apparati spenti restava tutto verde. Ora il verde vuole anche una
+            // risposta RECENTE (soglia unica SNMP_STALE_HOURS); quella vecchia resta
+            // verde spento — «ha risposto, ma non adesso» — invece di promettere.
+            const _snmpStale = n.snmpStatus==='ok' && _snmpIsStale(n.snmpLastOk);
+            const _snmpStateCls = !_snmpOn ? ' snmp-na'
+                : (n.snmpStatus==='ok' ? (_snmpStale ? ' snmp-stale' : ' snmp-ok')
+                : (n.snmpStatus==='err' ? ' snmp-err snmp-fault' : ' snmp-pending'));
             // NIENTE overlay presenza (rosso/grigio) sui rack device: nel rack lo stato
             // è già dato dal LED SNMP (snmp-ok/err/pending). L'overlay assente/non-verificabile
             // vive solo sui floor node, che il LED non ce l'hanno.
