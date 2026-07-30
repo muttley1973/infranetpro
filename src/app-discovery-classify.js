@@ -19,23 +19,60 @@ import { registerChangeActions } from './app-delegation.js';   // ASSE B: checkb
 const DISC_DEEP_SCAN_PREF_KEY = 'infranet.discovery.deepScan';
 const DISC_CLASS_HINTS_PREF_KEY = 'infranet.discovery.classHints.v1';
 
-// La tabella OUI scritta a mano che stava qui è STATA RIMOSSA (audit V6): era il
-// gemello client di quella nel server — gli stessi 35 prefissi, cioè l'inventario
-// del banco di prova — e aveva lo stesso difetto. L'ADR è esplicito: «registri
-// aggiornabili, non tabelle a mano». Una di quelle voci era anche sbagliata:
-// 18:60:24 vi risultava «Hewlett Packard», mentre lo IEEE lo assegna a Canon.
+// ── Vendor da MAC, lato client: due livelli ──────────────────────────────────
+// (1) CACHE DI SESSIONE, riempita dai vendor che il SERVER ha risolto col registro
+//     IEEE + i plugin per-vendor. È la fonte autorevole e viene interrogata PRIMA.
+// (2) TABELLA LOCALE di primo soccorso, qui sotto. Serve dove una risposta pronta
+//     conta più della completezza: il modale «Adotta» lavora su MAC presi dall'FDB
+//     e deve mostrare una marca SUBITO, senza obbligare a una scansione.
 //
-// Al suo posto una CACHE DI SESSIONE alimentata dalle risposte del server, che il
-// vendor lo risolve col registro IEEE + i plugin per-vendor. Così il client non
-// mantiene più nessun dato proprio: impara dalle scansioni che ha già fatto e,
-// finché non ha imparato, tace — che è l'esito onesto ('' = non lo so), non un
-// ripiego da tabella locale.
+// La contraddizione che l'audit V6 segnalava sta nel SERVER, ed è chiusa lì: era
+// `row.vendor` — il primo anello letto da engine/fusion-scorer.js — a nascere da
+// una tabella a mano, quindi un suo errore vinceva su sysObjectID, OS-fingerprint
+// e registro messi insieme. Qui a valle non decide nessuna classificazione: è un
+// ripiego di visualizzazione, e la cache lo scavalca appena il server ha parlato.
+//
+// ⚠️ 18:60:24 diceva «Hewlett Packard»: lo IEEE lo assegna a CANON. Corretto —
+// una tabella di comodo può essere incompleta, non può essere falsa.
+const DISC_OUI_VENDOR = {
+    'D4:1A:D1': 'Zyxel',
+    '08:26:97': 'Zyxel',
+    'BC:CF:4F': 'Zyxel',
+    '50:68:12': 'Cisco',
+    '50:F8:B7': 'Cisco',
+    '50:7A:19': 'Cisco',
+    '50:9D:DD': 'Cisco',
+    '08:00:09': 'Hewlett Packard',
+    'F4:39:09': 'Hewlett Packard',
+    '18:60:24': 'Canon',
+    '00:0C:C1': 'Eaton',
+    '00:11:32': 'Synology',
+    'EC:71:DB': 'Reolink',
+    '00:0C:29': 'VMware',
+    '00:50:56': 'VMware',
+    '00:D0:4B': 'LaCie',
+    '00:1C:42': 'Parallels',
+    'F4:F5:E8': 'Google',
+    'FC:F1:52': 'Sony',
+    '00:04:4B': 'NVIDIA',
+    'F0:03:8C': 'AzureWave',
+    '40:9F:38': 'AzureWave',
+    '7C:D5:66': 'Amazon',
+    '60:F6:77': 'Intel',
+    '08:00:27': 'PCS Systemtechnik',
+    'F4:BF:80': 'Huawei',
+    '4C:BC:E9': 'LG Innotek',
+    '88:46:04': 'Xiaomi',
+    '4C:E0:DB': 'Xiaomi',
+    'F4:60:E2': 'Xiaomi',
+    'A4:50:46': 'Xiaomi',
+    '58:FD:B1': 'LG',
+};
 const _discOuiCache = Object.create(null);
 
-// Registra i vendor che il SERVER ha risolto, per prefisso OUI: è la cache di
-// sessione che ha sostituito la tabella a mano (vedi il commento sopra). Chiamata
-// su ogni riga di scoperta — la stessa marca tornerà utile più avanti, per esempio
-// nel modale «Adotta», dove i MAC arrivano dall'FDB senza passare da una scansione.
+// Registra i vendor che il SERVER ha risolto, per prefisso OUI. Chiamata su ogni
+// riga di scoperta: quella marca vale poi per tutta la sessione, anche dove non
+// c'è una riga di scansione da cui leggerla.
 export function _discRememberVendor(mac, vendor){
     const m = normalizeMacAddress(mac || '');
     const v = String(vendor == null ? '' : vendor).trim();
@@ -45,7 +82,9 @@ export function _discRememberVendor(mac, vendor){
 export function _discVendorFromMac(mac){
     const m = normalizeMacAddress(mac || '');
     if(!m) return '';
-    return _discOuiCache[m.substring(0, 8)] || '';
+    const p = m.substring(0, 8);
+    // Prima ciò che il registro ha detto in questa sessione, poi il ripiego locale.
+    return _discOuiCache[p] || DISC_OUI_VENDOR[p] || '';
 }
 
 function _discClassHintKeys(row){

@@ -47,8 +47,16 @@ test('e li risolve MEGLIO: 18:60:24 e\' Canon, non Hewlett Packard', () => {
   assert.match(engine.getVendor('00:11:32:00:00:01'), /synology/i);
 });
 
-test('nessuna tabella OUI scritta a mano e\' tornata nel sorgente', () => {
-  for (const rel of ['server/netscan.js', 'src/app-discovery-classify.js', 'server/routes/discovery.js']) {
+test('il SERVER non ha piu\' una tabella OUI cablata: il vendor lo decide il registro', () => {
+  // La guardia vale sul lato server, che e' dove stava la contraddizione: `row.vendor`
+  // e' il primo anello letto da engine/fusion-scorer.js, quindi una tabella a mano
+  // sbagliata li' vinceva su sysObjectID, OS-fingerprint e registro messi insieme.
+  //
+  // Il client tiene invece una tabella di PRIMO SOCCORSO (src/app-discovery-classify.js),
+  // deliberata: nel modale «Adotta» i MAC arrivano dall'FDB e una marca subito vale
+  // piu' della completezza. Li' non decide nessuna classificazione, ed e' scavalcata
+  // dalla cache appena il server ha risposto — per questo non e' in questa lista.
+  for (const rel of ['server/netscan.js', 'server/routes/discovery.js']) {
     const src = fs.readFileSync(path.join(ROOT, rel), 'utf8');
     // Una mappa OUI a mano si riconosce da piu' prefissi MAC come CHIAVI di oggetto.
     const chiaviOui = src.match(/'[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}'\s*:/g) || [];
@@ -56,4 +64,23 @@ test('nessuna tabella OUI scritta a mano e\' tornata nel sorgente', () => {
       rel + ': sembra esserci di nuovo una tabella OUI cablata (' + chiaviOui.length + ' voci). '
       + 'I prefissi che il registro non conosce vanno nel plugin del loro vendore (plugins/oui/).');
   }
+});
+
+test('la tabella di primo soccorso del client non contraddice il registro', () => {
+  // Puo' essere INCOMPLETA (e' un ripiego), non puo' essere FALSA: e' l'errore che
+  // l'audit aveva scovato — 18:60:24 dato a Hewlett Packard, mentre e' Canon.
+  const src = fs.readFileSync(path.join(ROOT, 'src', 'app-discovery-classify.js'), 'utf8');
+  const voci = [...src.matchAll(/'([0-9A-F]{2}:[0-9A-F]{2}:[0-9A-F]{2})':\s*'([^']+)'/g)];
+  assert.ok(voci.length > 10, 'la tabella client c\'e\' (voci: ' + voci.length + ')');
+  const discordi = [];
+  for (const [, prefisso, locale] of voci) {
+    const ufficiale = engine.getVendor(prefisso + ':00:00:01');
+    if (!ufficiale) continue;                       // il registro non lo conosce: nulla da confrontare
+    const a = locale.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const b = ufficiale.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!b.startsWith(a) && !a.startsWith(b.slice(0, Math.max(4, a.length)))) {
+      discordi.push(prefisso + ': locale=' + locale + ' registro=' + ufficiale);
+    }
+  }
+  assert.deepEqual(discordi, [], 'voci in contraddizione col registro:\n  ' + discordi.join('\n  '));
 });
