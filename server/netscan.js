@@ -311,46 +311,14 @@ function _readLocalInterfaceMap() {
   return map;
 }
 
-const OUI_VENDOR = {
-  'D4:1A:D1': 'Zyxel',
-  '08:26:97': 'Zyxel',
-  'BC:CF:4F': 'Zyxel',
-  '50:68:12': 'Cisco',
-  '50:F8:B7': 'Cisco',
-  '50:7A:19': 'Cisco',
-  '50:9D:DD': 'Cisco',
-  '08:00:09': 'Hewlett Packard',
-  'F4:39:09': 'Hewlett Packard',
-  '18:60:24': 'Hewlett Packard',
-  '00:0C:C1': 'Eaton',
-  '00:11:32': 'Synology',
-  'EC:71:DB': 'Reolink',
-  '00:0C:29': 'VMware',
-  '00:50:56': 'VMware',
-  '00:D0:4B': 'LaCie',
-  '00:1C:42': 'Parallels',
-  'F4:F5:E8': 'Google',
-  'FC:F1:52': 'Sony',
-  '00:04:4B': 'NVIDIA',
-  'F0:03:8C': 'AzureWave',
-  '40:9F:38': 'AzureWave',
-  '7C:D5:66': 'Amazon',
-  '60:F6:77': 'Intel',
-  '08:00:27': 'PCS Systemtechnik',
-  'F4:BF:80': 'Huawei',
-  '4C:BC:E9': 'LG Innotek',
-  '88:46:04': 'Xiaomi',
-  '4C:E0:DB': 'Xiaomi',
-  'F4:60:E2': 'Xiaomi',
-  'A4:50:46': 'Xiaomi',
-  '58:FD:B1': 'LG',
-};
-
-function _vendorByMac(mac) {
-  const m = _normMac(mac);
-  if (!m) return '';
-  return OUI_VENDOR[m.substring(0, 8)] || '';
-}
+// La tabella OUI scritta a mano che stava qui e' STATA RIMOSSA (audit V6).
+// Era l'inventario del banco di prova (3 Zyxel, 4 Cisco, Synology, Reolink...)
+// e precedeva il registro IEEE nella catena di fusione: `row.vendor` e' il primo
+// anello letto da engine/fusion-scorer.js, quindi vinceva su tutto — anche quando
+// sbagliava (18:60:24 vi risultava «Hewlett Packard», lo IEEE lo assegna a Canon).
+// L'ADR e' esplicito: «registri aggiornabili, non tabelle a mano». Il vendor ora
+// lo risolve l'OuiEngine in server/routes/discovery.js (`npm run update-oui`),
+// e i prefissi che al registro mancano davvero vivono nel plugin del loro vendor.
 
 function _extractTitle(html) {
   const m = String(html || '').match(/<title[^>]*>([^<]{1,120})<\/title>/i);
@@ -812,4 +780,4 @@ async function _mdnsSsdpSweep(opts = {}) {
   return aggregateSweep(messages);
 }
 
-module.exports = { expandSubnet, _execFileAsync, _pingHost, _pingResultIsAlive, _pingHostRetry, _stealthDelayMs, _normMac, _parseArpTable, _parseNeighbors, _readArpMap, _ipToNum, _demoteStaleArpDup, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _castProbe, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost, _mdnsSsdpSweep, _fetchUpnpXml, _shuffled, _buildNbstatQuery, _parseNbstatResponse, _nbstatUdp };
+module.exports = { expandSubnet, _execFileAsync, _pingHost, _pingResultIsAlive, _pingHostRetry, _stealthDelayMs, _normMac, _parseArpTable, _parseNeighbors, _readArpMap, _ipToNum, _demoteStaleArpDup, _readLocalInterfaceMap, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _castProbe, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost, _mdnsSsdpSweep, _fetchUpnpXml, _shuffled, _buildNbstatQuery, _parseNbstatResponse, _nbstatUdp };

@@ -743,6 +743,7 @@ export function applyPollResult(nodeId, data, opts={}){
                 memberIds: hint.memberIds,
                 sampleNames: hint.sampleNames,
                 suggestedFormat: hint.suggestedFormat,
+                suggestedSlot: hint.suggestedSlot,
                 detectedAt: new Date().toISOString(),
             };
         } else if(n.stackDetectionHint){

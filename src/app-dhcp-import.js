@@ -15,16 +15,22 @@ import { store } from './store.js';
 import { _showToast, markDirty, _dhcpSyncLeases } from './app.js';
 import { registerClickActions, registerChangeActions, registerInputActions } from './app-delegation.js';   // ASSE B: event delegation (click/change/input)
 
-// Etichette credenziali per-vendor (id → [campo, label]); combaciano coi driver
-// server/dhcp-drivers/vendor/*. Solo per la UI del pull live (pack a pagamento).
-const _DHCP_CREDS = {
-    fortigate: [['token', 'API token']],
-    panos: [['apikey', 'API key']],
-    opnsense: [['key', 'API key'], ['secret', 'API secret']],
-    mikrotik: [['user', 'Username'], ['pass', 'Password']],
-};
 const _FMT_LABEL = { 'isc': 'ISC dhcpd', 'dnsmasq': 'dnsmasq', 'kea-csv': 'Kea', 'csv': 'CSV' };
-const _creds = id => _DHCP_CREDS[id] || [['token', 'API token']];
+
+// Quali credenziali chiedere lo dice il DRIVER, non una tabella qui. Il server
+// serve già `auth:[campi]` per ciascuno (GET /api/dhcp-drivers): la copia locale
+// per-vendor che stava qui era un secondo elenco da tenere allineato a mano —
+// aggiungere un driver sul server e dimenticarsi di questa riga significava
+// chiedere il campo sbagliato. Le etichette sono generiche e per NOME di campo:
+// nessun vendore compare in questo file.
+const _CRED_LABEL = { token: 'API token', apikey: 'API key', key: 'API key',
+    secret: 'API secret', user: 'Username', pass: 'Password' };
+let _dhcpDrivers = [];
+const _creds = (id) => {
+    const d = _dhcpDrivers.find(x => x && x.id === id);
+    const fields = (d && Array.isArray(d.auth) && d.auth.length) ? d.auth : ['token'];
+    return fields.map(f => [f, _CRED_LABEL[f] || (f.charAt(0).toUpperCase() + f.slice(1))]);
+};
 
 // Set "in staging": appena parsato (incolla o pull live), non ancora aggiunto
 // come fonte. live = { vendor, host, port, label } se da pull live, null se incolla.
@@ -70,6 +76,7 @@ async function _populateDhcpVendors() {
     let list = [];
     try { const r = await fetch('/api/dhcp-drivers'); const d = await r.json(); if (d && d.ok) list = d.drivers || []; } catch (_) { /* offline */ }
     if (!list.length) { if (section) section.style.display = 'none'; return; }
+    _dhcpDrivers = list;                 // i campi credenziale vengono da qui, non da una tabella locale
     if (section) section.style.display = '';
     document.getElementById('dhcp-live-vendor').innerHTML = list.map(v => `<option value="${esc(v.id)}">${esc(v.label)}</option>`).join('');
     updateDhcpVendorFields();

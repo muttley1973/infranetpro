@@ -627,8 +627,12 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         const gtSwitch = _guessType('Cisco IOS Software, Catalyst 2960', '', '', '', '');
         const gtPcFb   = _guessType('', '', '', '', 'DESKTOP-A1B2C3');             // fallback endpoint
 
-        // --- OUI vendor da MAC ---
-        const vendor = _discVendorFromMac('ec:71:db:00:11:22');                    // EC:71:DB → Reolink
+        // --- OUI vendor da MAC: cache di sessione, non piu' tabella a mano ---
+        // Il client non tiene piu' un elenco proprio di prefissi (audit V6): impara
+        // dai vendor che il SERVER risolve col registro IEEE. Prima di imparare tace.
+        const vendorPrima = _discVendorFromMac('ec:71:db:00:11:22');
+        _discRememberVendor('EC:71:DB:AA:BB:CC', 'Reolink');                        // come farebbe una riga di scansione
+        const vendor = _discVendorFromMac('ec:71:db:00:11:22');                    // stesso OUI, altro device
 
         // --- sanitize device class (regex early-return, no _discExistingNode) ---
         const klass = _discSanitizeDeviceClass({ vendor: 'Synology', hostname: 'nas01' });
@@ -648,7 +652,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         const conflict = _discFindExistingDevice({ ip: '10.0.0.5', mac: '11:22:33:44:55:66' }, idx);
 
         return {
-          gtNas, gtCam, gtSwitch, gtPcFb, vendor, klass, src, label,
+          gtNas, gtCam, gtSwitch, gtPcFb, vendorPrima, vendor, klass, src, label,
           byMacId: byMac.node && byMac.node.id, byMacBy: byMac.matchedBy,
           byIpBy: byIp.matchedBy, conflictBy: conflict.matchedBy,
         };
@@ -657,7 +661,8 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(r.gtCam, 'webcam', '_guessType riconosce vendor Reolink → webcam');
       assert.equal(r.gtSwitch, 'switch', '_guessType riconosce Catalyst → switch');
       assert.equal(r.gtPcFb, 'pc', '_guessType fallback host DESKTOP- → pc');
-      assert.equal(r.vendor, 'Reolink', '_discVendorFromMac mappa OUI EC:71:DB → Reolink');
+      assert.equal(r.vendorPrima, '', 'prima di imparare il client TACE (nessuna tabella OUI locale)');
+      assert.equal(r.vendor, 'Reolink', 'dopo, lo stesso OUI e\' noto per tutta la sessione');
       assert.equal(r.klass, 'nas', '_discSanitizeDeviceClass classifica Synology → nas');
       assert.equal(r.src, 'snmp', '_discIdentitySource: snmpReachable → snmp');
       assert.equal(r.label, 'SNMP confermato', '_discIdentityLabel mappa snmp → etichetta');

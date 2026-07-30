@@ -19,45 +19,33 @@ import { registerChangeActions } from './app-delegation.js';   // ASSE B: checkb
 const DISC_DEEP_SCAN_PREF_KEY = 'infranet.discovery.deepScan';
 const DISC_CLASS_HINTS_PREF_KEY = 'infranet.discovery.classHints.v1';
 
-const DISC_OUI_VENDOR = {
-    'D4:1A:D1': 'Zyxel',
-    '08:26:97': 'Zyxel',
-    'BC:CF:4F': 'Zyxel',
-    '50:68:12': 'Cisco',
-    '50:F8:B7': 'Cisco',
-    '50:7A:19': 'Cisco',
-    '50:9D:DD': 'Cisco',
-    '08:00:09': 'Hewlett Packard',
-    'F4:39:09': 'Hewlett Packard',
-    '18:60:24': 'Hewlett Packard',
-    '00:0C:C1': 'Eaton',
-    '00:11:32': 'Synology',
-    'EC:71:DB': 'Reolink',
-    '00:0C:29': 'VMware',
-    '00:50:56': 'VMware',
-    '00:D0:4B': 'LaCie',
-    '00:1C:42': 'Parallels',
-    'F4:F5:E8': 'Google',
-    'FC:F1:52': 'Sony',
-    '00:04:4B': 'NVIDIA',
-    'F0:03:8C': 'AzureWave',
-    '40:9F:38': 'AzureWave',
-    '7C:D5:66': 'Amazon',
-    '60:F6:77': 'Intel',
-    '08:00:27': 'PCS Systemtechnik',
-    'F4:BF:80': 'Huawei',
-    '4C:BC:E9': 'LG Innotek',
-    '88:46:04': 'Xiaomi',
-    '4C:E0:DB': 'Xiaomi',
-    'F4:60:E2': 'Xiaomi',
-    'A4:50:46': 'Xiaomi',
-    '58:FD:B1': 'LG',
-};
+// La tabella OUI scritta a mano che stava qui è STATA RIMOSSA (audit V6): era il
+// gemello client di quella nel server — gli stessi 35 prefissi, cioè l'inventario
+// del banco di prova — e aveva lo stesso difetto. L'ADR è esplicito: «registri
+// aggiornabili, non tabelle a mano». Una di quelle voci era anche sbagliata:
+// 18:60:24 vi risultava «Hewlett Packard», mentre lo IEEE lo assegna a Canon.
+//
+// Al suo posto una CACHE DI SESSIONE alimentata dalle risposte del server, che il
+// vendor lo risolve col registro IEEE + i plugin per-vendor. Così il client non
+// mantiene più nessun dato proprio: impara dalle scansioni che ha già fatto e,
+// finché non ha imparato, tace — che è l'esito onesto ('' = non lo so), non un
+// ripiego da tabella locale.
+const _discOuiCache = Object.create(null);
+
+// Registra i vendor che il SERVER ha risolto, per prefisso OUI: è la cache di
+// sessione che ha sostituito la tabella a mano (vedi il commento sopra). Chiamata
+// su ogni riga di scoperta — la stessa marca tornerà utile più avanti, per esempio
+// nel modale «Adotta», dove i MAC arrivano dall'FDB senza passare da una scansione.
+export function _discRememberVendor(mac, vendor){
+    const m = normalizeMacAddress(mac || '');
+    const v = String(vendor == null ? '' : vendor).trim();
+    if(m && v) _discOuiCache[m.substring(0, 8)] = v;
+}
 
 export function _discVendorFromMac(mac){
     const m = normalizeMacAddress(mac || '');
     if(!m) return '';
-    return DISC_OUI_VENDOR[m.substring(0, 8)] || '';
+    return _discOuiCache[m.substring(0, 8)] || '';
 }
 
 function _discClassHintKeys(row){
@@ -533,7 +521,7 @@ function _guessType(descr, objectId, vendor='', banner='', host=''){
 }
 
 expose({
-    _discVendorFromMac, _discRememberClassHint, _discInvalidateExistingIndexes,
+    _discVendorFromMac, _discRememberVendor, _discRememberClassHint, _discInvalidateExistingIndexes,
     _discBuildExistingIndexes, _discIndexNode, _discFindExistingDevice, _discGatewayMacs,
     _discAttachMergeGuards, _discMacIsNextHop,
     _discMarkIpMacConflict, _discTouchNodeIdentity, _discIdentitySource,

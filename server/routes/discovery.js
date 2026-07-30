@@ -9,7 +9,7 @@ const os  = require('os');
 const auth = require('../../auth');
 const { DRIVERS } = require('../drivers');
 const { buildNeighborCandidates, buildPortIndex, buildMacIndex, buildPortMacIndex, buildFdbCandidates, buildArpCandidates, buildNdCandidates, locateMacsOnEdge } = require('../../lib/correlate');
-const { expandSubnet, _execFileAsync, _pingHost, _pingHostRetry, _stealthDelayMs, _normMac, _parseArpTable, _readArpMap, _demoteStaleArpDup, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost, _mdnsSsdpSweep, _shuffled } = require('../netscan');
+const { expandSubnet, _execFileAsync, _pingHost, _pingHostRetry, _stealthDelayMs, _normMac, _parseArpTable, _readArpMap, _demoteStaleArpDup, _readLocalInterfaceMap, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost, _mdnsSsdpSweep, _shuffled } = require('../netscan');
 const { _cleanHostname, PEN_VENDOR, _penFromObjectId, _vendorByObjectId, _decodeSysServices, _classifyDiscoveredDevice, _buildDiscoveryMeta, _decorateDiscoveryRow } = require('../classify');
 const { OuiEngine } = require('../../engine');
 const { publicMdns } = require('../../lib/discovery-mdns');
@@ -49,6 +49,14 @@ function _getRouteOuiEngine() {
 function _isVirtualMac(mac) {
   try { return _getRouteOuiEngine().isVirtual(mac); }
   catch (_) { return false; }
+}
+
+// Vendor dal registro aggiornabile. Sincrona (OuiEngine.getVendor lo è) e a prova
+// di errore: se il registro non risponde si resta senza vendor, che è la risposta
+// onesta — mai un ripiego da tabella locale.
+function _ouiVendor(mac) {
+  try { return _getRouteOuiEngine().getVendor(mac) || ''; }
+  catch (_) { return ''; }
 }
 
 // IPv4 dotted → intero unsigned 32-bit (null se non valido).
@@ -338,7 +346,13 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
       const mac = arpMap.get(r.ip) || localIfaces.get(r.ip) || '';
       if (mac) {
         r.mac = mac;
-        r.vendor = _vendorByMac(mac);
+        // Il vendor esce dal REGISTRO (IEEE 57k + plugin per-vendor, aggiornabile
+        // con `npm run update-oui`), non da una tabella scritta a mano nel codice
+        // di scansione. Quella tabella non era solo ridondante: era anche
+        // SBAGLIATA — 18:60:24 vi risultava «Hewlett Packard» mentre lo IEEE lo
+        // assegna a Canon — e siccome `row.vendor` è il primo anello della catena
+        // di fusione (engine/fusion-scorer.js), l'errore vinceva su tutto il resto.
+        r.vendor = _ouiVendor(mac);
         // ARP autorevole (come nmap sulla LAN): un host on-segment con voce ARP locale
         // HA risposto all'ARP → e' presente sul filo anche se ha perso l'ICMP (ping
         // singolo, o host con ICMP filtrato/flaky). Lo marchiamo alive SENZA fingere un

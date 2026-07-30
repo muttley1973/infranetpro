@@ -6,7 +6,7 @@ import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funz
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { focusNode, switchRack } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { _isLeafEndpoint, _autoLinkEndpoint, _recordDiscoveryObservation } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
-import { _discIndexNode, _discVendorFromMac, _discIdentitySource, _discFindExistingDevice, _discBuildExistingIndexes, _discTouchNodeIdentity, _discMacIsNextHop, _loadDeepScanPref, _saveDeepScanPref, _discSanitizeDeviceClass, _discRememberClassHint, _discHasStrongIdentity, _discCanAutoRetype, _discInvalidateExistingIndexes, _discMarkIpMacConflict, _discConfidenceScore } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { _discIndexNode, _discVendorFromMac, _discRememberVendor, _discIdentitySource, _discFindExistingDevice, _discBuildExistingIndexes, _discTouchNodeIdentity, _discMacIsNextHop, _loadDeepScanPref, _saveDeepScanPref, _discSanitizeDeviceClass, _discRememberClassHint, _discHasStrongIdentity, _discCanAutoRetype, _discInvalidateExistingIndexes, _discMarkIpMacConflict, _discConfidenceScore } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { _findFreeU } from './app-topology-crawl.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
 import { registerChangeActions, registerClickActions } from './app-delegation.js';   // ASSE B: checkbox "seleziona tutti" Scopri via data-change; bottone "Nuova ricerca" via data-act
 
@@ -311,6 +311,10 @@ function _discEnsureMeta(d){
     // Sorgente DHCP (lease importato): il server marca dhcpLease/viaProtocol=DHCP.
     // La marchiamo _via:'dhcp' per badge sorgente + stato "Osservato" coerenti.
     if(!row._via && (row.dhcpLease === true || String(row.viaProtocol||'').toUpperCase()==='DHCP')) row._via = 'dhcp';
+    // Il vendor autorevole lo manda il SERVER (registro IEEE + plugin per-vendor):
+    // lo si impara qui, così resta disponibile anche dove non c'è una riga di
+    // scansione — il modale «Adotta» lavora su MAC presi dall'FDB.
+    if(row.vendor) _discRememberVendor(row.mac, row.vendor);
     const ouiVendor = _discVendorFromMac(row.mac);
     if(!row.vendor) row.vendor = ouiVendor;
     row.vendorHint = row.vendorHint || ouiVendor || '';

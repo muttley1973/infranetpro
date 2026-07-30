@@ -273,6 +273,13 @@ test('_classifyDiscoveredDevice: hypervisor VMware ESXi (sysObjectID 6876)', () 
   assert.equal(_classifyDiscoveredDevice({
     descr:'VMware ESXi 7.0.3', objectId:'1.3.6.1.4.1.6876.4.1', snmpReachable:true,
   }), 'hypervisor');
+  // Il sysObjectID DA SOLO basta, con un sysDescr generico che di per sé direbbe
+  // «server»: prova che la promozione passa dai PLUGIN e non dal PEN VMware che
+  // stava cablato nello scorer (tolto: era l'unico vendore hardcoded lì dentro,
+  // mentre Proxmox/XCP-ng/Nutanix passavano dai plugin come tutti).
+  assert.equal(_classifyDiscoveredDevice({
+    descr:'Linux localhost 4.19.0 x86_64', objectId:'1.3.6.1.4.1.6876.4.1', snmpReachable:true,
+  }), 'hypervisor');
   // Anche Proxmox/Hyper-V riconosciuti dal sysDescr → hypervisor.
   assert.equal(_classifyDiscoveredDevice({ descr:'Proxmox VE 8.1 Linux', snmpReachable:true }), 'hypervisor');
   // PNETLab (lab/orchestrazione) e Windows Server restano `server`, non hypervisor.

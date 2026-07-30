@@ -341,10 +341,25 @@ test('getQualifiedPortName: standalone -> "N"', () => {
     assert.equal(getQualifiedPortName(standalone('sw1'), 1), '1');
 });
 
-test('getQualifiedPortName: in stack -> "<member>/0/<port>"', () => {
-    assert.equal(getQualifiedPortName(member('sw1', 'stk-1', 1), 24), '1/0/24');
-    assert.equal(getQualifiedPortName(member('sw2', 'stk-1', 2), 1),  '2/0/1');
-    assert.equal(getQualifiedPortName(member('sw3', 'stk-1', 3), 48), '3/0/48');
+test('getQualifiedPortName: senza formato MISURATO non si inventa lo slot -> "<member>/<port>"', () => {
+    // Uno stack dichiarato a mano: membro e porta li sappiamo, come li scriva quel
+    // vendore no. Prima usciva sempre `<m>/0/<p>` — lo schema fixed-config Cisco
+    // applicato a chiunque, che è esattamente ciò che l'ADR ③ vieta.
+    assert.equal(getQualifiedPortName(member('sw1', 'stk-1', 1), 24), '1/24');
+    assert.equal(getQualifiedPortName(member('sw2', 'stk-1', 2), 1),  '2/1');
+    assert.equal(getQualifiedPortName(member('sw3', 'stk-1', 3), 48), '3/48');
+});
+
+test('getQualifiedPortName: col formato MISURATO si usa lo slot letto, non uno assunto', () => {
+    const conFormato = (id, mid, slot) => {
+        const n = member(id, 'stk-1', mid);
+        n.spec.stackPortFormat = 'cisco-iosxe';
+        if (slot !== undefined) n.spec.stackPortSlot = slot;
+        return n;
+    };
+    assert.equal(getQualifiedPortName(conFormato('sw1', 1, 0), 24), '1/0/24');
+    assert.equal(getQualifiedPortName(conFormato('sw2', 2, 1), 3), '2/1/3', 'slot 1 misurato, non lo 0 di prima');
+    assert.equal(getQualifiedPortName(conFormato('sw3', 3), 5), '3/0/5', 'formato noto ma slot non letto -> 0');
 });
 
 test('getQualifiedPortName: in stack senza memberId valido -> fallback "N"', () => {
@@ -354,7 +369,7 @@ test('getQualifiedPortName: in stack senza memberId valido -> fallback "N"', () 
 
 test('getQualifiedPortName: back-compat letture su node.stackMemberId (no spec)', () => {
     const n = { id: 'sw1', type: 'switch', stackId: 'stk-1', stackMemberId: 2 };
-    assert.equal(getQualifiedPortName(n, 7), '2/0/7');
+    assert.equal(getQualifiedPortName(n, 7), '2/7');
 });
 
 // ============================================================================

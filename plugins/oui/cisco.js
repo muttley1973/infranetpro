@@ -20,6 +20,11 @@ const ouiPrefixes = [
   '5C835D', '60737C', '6422C4', '6CB2AE', '70568D', '745E1C', '7C0ECE', '88F031',
   '8C604F', '90E2BA', '94A7AD', '989E63', '9C57AD', 'A036F0', 'A488DB', 'A89D21',
   'B0FAEB', 'C067AF', 'C4724F', 'D89695', 'DC774C', 'E007F2', 'E04C7F', 'F44E05',
+  // Added when the hand-written OUI table in server/netscan.js was removed (audit
+  // V6): these four are real Cisco assignments that the bundled IEEE snapshot does
+  // not carry. They belong here — in the vendor's own refreshable plugin — not in
+  // a lookup table inside the scanning code.
+  '506812', '50F8B7', '507A19', '509DDD',
 ];
 
 const priority = 100;

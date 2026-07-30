@@ -252,7 +252,7 @@ ${sfpCount > 0 ? `<div class="prop-row2" style="margin-top:4px">
     <select onchange="updateFrontPanel('sfpStartNum', this.value==='continued'? '' : (this.value==='restart' ? 1 : parseInt(this.value,10)))" data-tip="${t('pnl.node.sfpNumTip')}">
       <option value="continued" ${(fp.sfpStartNum===null||fp.sfpStartNum===undefined)?'selected':''}>${t('o.continuousEx')}</option>
       <option value="restart"   ${fp.sfpStartNum===1?'selected':''}>${t('o.restart1Ex')}</option>
-      <option value="49"        ${fp.sfpStartNum===49?'selected':''}>${t('o.custom49cisco')}</option>
+      <option value="49"        ${fp.sfpStartNum===49?'selected':''}>${t('o.custom49')}</option>
       <option value="25"        ${fp.sfpStartNum===25?'selected':''}>${t('o.custom25')}</option>
     </select>
   </div>

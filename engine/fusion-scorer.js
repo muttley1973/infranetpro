@@ -441,10 +441,16 @@ class FusionScorer {
 
     // Promozione server→hypervisor: l'hypervisor è una SPECIALIZZAZIONE del server,
     // quindi un host che vince come `server` ma porta evidenza hypervisor (sysDescr
-    // ESXi/Proxmox/Hyper-V/XCP-ng/Nutanix o sysObjectID VMware) È un hypervisor. Il
-    // segnale OS generico (linux/vmware→server) altrimenti maschererebbe l'host.
+    // ESXi/Proxmox/Hyper-V/XCP-ng/Nutanix, o un sysObjectID che i plugin classificano
+    // come hypervisor) È un hypervisor. Il segnale OS generico (linux/vmware→server)
+    // altrimenti maschererebbe l'host.
+    // Il PEN di VMware, che stava scritto qui dentro, è stato tolto: era l'unico
+    // vendore con un OID cablato nello scorer generico — mentre Proxmox, XCP-ng e
+    // Nutanix passavano dai plugin come tutti. Ora passa dai plugin anche lui
+    // (plugins/vmware.js dichiara già `deviceType: 'hypervisor'` su quel prefisso),
+    // e la regola vale allo stesso modo per chiunque.
     if (deviceType === 'server' &&
-        (HYPERVISOR_RE.test(fullText) || oid('1.3.6.1.4.1.6876.') || sysObjectInfo?.deviceType === 'hypervisor')) {
+        (HYPERVISOR_RE.test(fullText) || sysObjectInfo?.deviceType === 'hypervisor')) {
       deviceType = 'hypervisor';
     }
 

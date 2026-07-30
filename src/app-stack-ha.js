@@ -83,6 +83,12 @@ function acceptStackHint(){
     const spec = _ensureNodeSpec(n);
     spec.stackId = stackId;
     spec.stackMemberId = 1;
+    // La FORMA dei nomi porta misurata sulle interfacce viene conservata: e' quella
+    // che `getQualifiedPortName` usa al posto dello slot «0» che prima era cablato
+    // sulla convenzione Cisco. Se la misura non c'e', l'etichetta resta
+    // «membro/porta» — senza inventare uno slot che nessuno ha letto.
+    if(hint.suggestedFormat) spec.stackPortFormat = hint.suggestedFormat;
+    if(Number.isFinite(hint.suggestedSlot)) spec.stackPortSlot = hint.suggestedSlot;
     delete spec.stackRole;
     delete n.stackDetectionHint;
     renderAll(); markDirty();
