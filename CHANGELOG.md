@@ -4,6 +4,10 @@ What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://k
 
 ## Unreleased
 
+- **Fixed** — the Overview tiles no longer **cut their own text**. Three tiles per row inside a third of the screen gave each one about a ninth of the window — 116px at 1280, against a verdict line that needs up to 170 — so at that width **24 strings were truncated**, the tile *labels* among them ("Indirizzo …", "Verificabil…"): the name of the thing whose number you are reading. Labels and verdicts now wrap instead of clipping, and the row keeps three tiles only while they fit, dropping to two when the column narrows.
+- **Fixed** — in "Verifiable over SNMP" the **denominator vanished**: the row read `13  20 not verifiable`. It was the only element with `overflow:hidden`, so it absorbed all the compression on its own and collapsed to zero width while the secondary counter stayed whole — leaving the main ratio without its "of 13" and the second number looking like part of it. When space runs short it is now the second counter that moves down a line.
+- **Fixed** — below 1100px, where the three columns stack, the tiles **overlapped the next section's heading**. The grid was giving each column a third of the height regardless of what it contained; they now take their content's height and the page scrolls, which is what that breakpoint always intended.
+
 ## 2.3.0 — 2026-07-30
 
 **Honesty pass.** Everything below has one theme: the app no longer says more than it knows. A verdict that rests on nothing is grey, not green; a measurement carries its age; a number states where it came from; and what the app cannot check, it names. Plus a sixth Overview lens, warranty/EOL, and the Overview page in the handover dossier.

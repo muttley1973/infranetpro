@@ -33,7 +33,13 @@ body.view-overview #export-area { display: none; }
    torna a scorrere. Meglio scorrere che comprimere fino all'inutilizzabile. */
 @media (max-width: 1100px) {
     #overview { overflow: auto; }
-    .ov-cols { grid-template-columns: 1fr; }
+    /* Impilate, le colonne devono prendere l'altezza del LORO CONTENUTO. Senza
+       queste due righe la griglia le faceva alte un terzo dello spazio a testa e
+       i tile debordavano SOPRA l'intestazione della sezione seguente — testo su
+       testo, illeggibile. A scorrere e' `#overview`, come dice il commento qui
+       sopra: quello e' il patto, non comprimere le colonne fino a sovrapporle. */
+    .ov-cols { grid-template-columns: 1fr; flex: 0 0 auto; align-content: start; }
+    .ov-col { min-height: auto; }
 }
 /* Lente «Ripristinabilità»: una sola colonna a tutta larghezza. */
 .ov-cols-single { grid-template-columns: 1fr; }
@@ -124,10 +130,22 @@ body.view-overview #export-area { display: none; }
    Un titolo unico per sezione era fuorviante — parlava di una riga sola e
    declassava le altre cinque. Qui ogni voce si spiega da sola: etichetta,
    numero, verdetto in parole. Il meter e' solo un rinforzo, mai l'unico dato. */
+/* TRE per riga QUANDO CI STANNO, non per forza. Con `repeat(3, 1fr)` fisso ogni
+   tile riceveva un nono della finestra — 116px a 1280 — e a quel punto il testo
+   non entrava piu': a 1280 erano 24 troncature, comprese le ETICHETTE («Indirizzo
+   …», «Verificabil…»), che sono il nome del tile e senza il quale non si capisce
+   di cosa parli il numero. `auto-fit` tiene i tre in fila sui monitor larghi e
+   scende a due quando la colonna si stringe. Sotto i 1100px le colonne si
+   impilano gia' (media query sopra), quindi li' i tre tornano da soli. */
 .ov-rows {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px;
     flex: 0 0 auto; margin-top: 12px;
 }
+/* Le lenti a tutta larghezza (DR · Sicurezza · Salute) restano a TRE: li' la
+   colonna e' l'intera pagina, i tile erano gia' larghi e non troncavano nulla.
+   Senza questa riga `auto-fit` ne infilerebbe sei per riga — piu' densi di prima
+   per un problema che quelle lenti non avevano. */
+.ov-col-recovery .ov-rows { grid-template-columns: repeat(3, 1fr); }
 .ov-r {
     display: flex; flex-direction: column; gap: 5px;
     padding: 9px 9px; text-align: left; width: 100%; min-width: 0;
@@ -142,17 +160,28 @@ button.ov-r:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 .ov-r.is-urgent { box-shadow: inset 4px 0 0 0 var(--idle-color); }
 .ov-r.is-urgent.u-bad { box-shadow: inset 4px 0 0 0 var(--fault-color); }
 
-.ov-k { font-size: var(--fs-md); color: var(--text-muted); display: flex; align-items: center; gap: 6px; min-width: 0; }
-.ov-k .ov-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-k { font-size: var(--fs-md); color: var(--text-muted); display: flex; align-items: flex-start; gap: 6px; min-width: 0; }
+/* L'etichetta VA A CAPO, non si tronca: e' il nome del tile, e «Verificabil…» non
+   distingue una riga dall'altra. Meglio due righe di etichetta che una monca. */
+.ov-k .ov-t { min-width: 0; }
+.ov-k .ov-d { flex: 0 0 auto; margin-top: .35em; }
 
-.ov-val { display: flex; align-items: baseline; gap: 4px; font-variant-numeric: tabular-nums; min-width: 0; }
+.ov-val { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; row-gap: 2px; font-variant-numeric: tabular-nums; min-width: 0; }
 .ov-val .ov-num { font-size: 1.55rem; font-weight: 600; line-height: 1; letter-spacing: -.5px; }
-.ov-val .ov-sub { font-size: var(--fs-sm); color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Il DENOMINATORE non si comprime. Era l'unico elemento della riga con
+   `overflow:hidden`, quindi assorbiva da solo tutta la compressione e finiva a
+   ZERO px: sul tile «Verificabili via SNMP» usciva «13  20 non verificabili» —
+   il rapporto principale senza il suo «di 13», e il contatore secondario che
+   sembrava farne parte. Se lo spazio manca, a scendere di riga e' il secondo. */
+.ov-val .ov-sub { font-size: var(--fs-sm); color: var(--text-muted); flex: 0 0 auto; white-space: nowrap; }
 .ov-r.is-missing .ov-val .ov-num { color: var(--inactive-color); font-size: 1.3rem; }
 
 /* il VERDETTO: colore + PAROLA, mai il colore da solo (deuteranopia) */
 .ov-foot-row { display: flex; align-items: center; gap: 8px; }
-.ov-st { font-size: var(--fs-md); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Anche il verdetto va a capo. E' la frase che spiega il numero — «16 da verificare
+   · 2 manuali» chiede 170px e il tile ne aveva 87: troncarla lasciava «16 da
+   verific…», cioe' meta' informazione con l'aria di essere tutta. */
+.ov-st { font-size: var(--fs-md); }
 .ov-r.s-ok   .ov-st { color: var(--active-color); }
 .ov-r.s-warn .ov-st { color: var(--idle-color); }
 .ov-r.s-none .ov-st { color: var(--inactive-color); }
@@ -162,9 +191,12 @@ button.ov-r:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 .ov-r.s-bad  .ov-st { color: var(--fault-color); }
 /* Secondo contatore accanto al primo: popolazione DIVERSA (quelli che non
    interroghi), quindi colore e peso diversi — non si somma al numero grande e non
-   deve sembrare parte del suo rapporto. Il separatore lo fa lo spazio, non un «/». */
-.ov-num-alt { font-size: var(--fs-lg); font-weight: 600; color: var(--idle-color); margin-left: 12px; }
-.ov-sub-alt { font-size: var(--fs-md); color: var(--idle-color); opacity: .8; margin-left: 3px; }
+   deve sembrare parte del suo rapporto. Il separatore lo fa lo spazio, non un «/».
+   Il `margin-left:auto` lo spinge al margine destro: la distanza dal rapporto
+   principale diventa tutto lo spazio disponibile invece di 12px fissi — la
+   separazione che questo paragrafo chiede, resa dal layout invece che a occhio. */
+.ov-num-alt { font-size: var(--fs-lg); font-weight: 600; color: var(--idle-color); margin-left: auto; }
+.ov-sub-alt { font-size: var(--fs-md); color: var(--idle-color); opacity: .8; margin-left: 3px; flex: 0 1 auto; }
 .ov-r.s-warn .ov-val .ov-num { color: var(--idle-color); }
 .ov-r.s-bad  .ov-val .ov-num { color: var(--fault-color); }
 .ov-foot-row .ov-meter { flex: 1 1 auto; min-width: 24px; }
