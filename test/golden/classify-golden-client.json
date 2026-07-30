@@ -19,6 +19,8 @@
  "v7-raritan-pdu-real": "pdu",
  "v7-juniper-srx": "firewall",
  "v7-srx-bare-model": "firewall",
+ "v7-vsrx-junos-boilerplate": "firewall",
+ "v7-vsrx-services-gateway": "firewall",
  "v7-juniper-mx": "router",
  "v7-mx-bare-model": "router",
  "v7-ios-xe-measured-l2": "router",
