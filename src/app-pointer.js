@@ -165,7 +165,17 @@ function handleDrop(e,zone){
         let rx=(e.clientX-r.left-store.state.floorView.x)/store.state.floorView.zoom;
         let ry=(e.clientY-r.top -store.state.floorView.y)/store.state.floorView.zoom;
         if(d.isStructural){n.w=200;n.h=200;rx-=100;ry-=100;n.color=d.defaultColor;}
-        if(t==='wallport'){const c=store.state.nodes.filter(x=>x.type==='wallport').length+1;n.name='A-'+c.toString().padStart(2,'0');n.portId=n.name;}
+        if(t==='wallport'){
+            // Prefisso WA-, come tutte le altre: nasceva 'A-', quindi ogni presa
+            // aggiunta a mano riapriva l'incoerenza di nomenclatura invece di
+            // seguirla. Il numero segue il PIU' ALTO gia' assegnato e non il
+            // CONTEGGIO: cancellandone una il conteggio scende e la presa
+            // successiva rinasceva con un nome gia' in uso. (Il conteggio fragile
+            // vale anche per AP-/EP-/CAM- qui sotto: stesso rimedio, una riga.)
+            const max=store.state.nodes.reduce((m,x)=>x.type==='wallport'
+                ? Math.max(m, parseInt(String(x.name||'').replace(/^WA?-/,''),10)||0) : m, 0);
+            n.name='WA-'+String(max+1).padStart(2,'0'); n.portId=n.name;
+        }
         if(t==='ap'){const c=store.state.nodes.filter(x=>x.type==='ap').length+1;n.name='AP-'+c.toString().padStart(2,'0');n.radios=[{}];}  // AP = sempre wireless
         if(t==='customfloor'){const c=store.state.nodes.filter(x=>x.type==='customfloor').length+1;n.name='EP-'+c.toString().padStart(2,'0');spec.customCategory='';}
         if(t==='webcam'){

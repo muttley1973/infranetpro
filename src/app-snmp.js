@@ -141,9 +141,23 @@ export function _renderV3PendingChip(){
     const el = document.getElementById('v3-pending-chip');
     if(!el) return;
     const n = _v3PendingNodes().length;
-    if(!n){ el.style.display = 'none'; return; }
+    // Il posto resta PRENOTATO anche a zero. Sparendo, il chip toglieva ~44px
+    // all'header in un colpo solo: fra 1345 e 1420px di larghezza bastavano a
+    // mandare la toolbar su due righe da sola, dopo una Verifica che trovava
+    // device solo-v3 — «si e' spostata senza che io toccassi niente». Stesso
+    // patto del chip di freschezza: la misura non cambia mai (min-width in CSS).
     el.style.display = 'inline-flex';
     el.innerHTML = `<i class="fas fa-key"></i> ${n}`;
+    if(!n){
+        el.style.visibility = 'hidden';
+        el.setAttribute('aria-hidden', 'true');
+        el.tabIndex = -1;
+        el.removeAttribute('data-tip');
+        return;
+    }
+    el.style.visibility = '';
+    el.removeAttribute('aria-hidden');
+    el.tabIndex = 0;
     el.setAttribute('data-tip', t('intg.v3PendingTip', { n }));
 }
 // Salta al prossimo device da configurare (ciclo relativo alla selezione):

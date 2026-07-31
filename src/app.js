@@ -329,8 +329,8 @@ export function _buildDefaultState() {
         discoveryHistory:{ observations:[] },
         nodes:[
             {id:'r1', type:'room',       x:40,  y:40,  w:360,h:440, name:'Server Room',  color:'#16212b'},
-            {id:'wp1',type:'wallport',   x:260, y:160, name:'A-01', ports:1},
-            {id:'wp2',type:'wallport',   x:260, y:260, name:'A-02', ports:1},
+            {id:'wp1',type:'wallport',   x:260, y:160, name:'WA-01', ports:1},
+            {id:'wp2',type:'wallport',   x:260, y:260, name:'WA-02', ports:1},
             {id:'pp1',type:'patchpanel', rackU:41,sizeU:2,ports:24, name:'PP-A',    brand:'CommScope',rackId:'rack_1'},
             {id:'sw1',type:'switch',     rackU:39,sizeU:1,ports:24, name:'SW-Core', brand:'Cisco',    rackId:'rack_1'}
         ],

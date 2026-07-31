@@ -173,7 +173,7 @@ export function _nodeDeviceChainHtml(n, d){
             }
             if(n.type==='wallport'){
                 h+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-wallport')?'open':''} ontoggle="setPropsSectionState('device-wallport',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-ethernet"></i> ${t('dev.wallport')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
-                    <div class="prop-group"><label>${t('f.socketId')}</label><input value="${escapeHTML(getWallPortLabel(n))}" placeholder="A-01" onchange="updateWallPortId(this.value)"></div>
+                    <div class="prop-group"><label>${t('f.socketId')}</label><input value="${escapeHTML(getWallPortLabel(n))}" placeholder="WA-01" onchange="updateWallPortId(this.value)"></div>
                 </div></details>`;
             }
             if(n.type==='printer'){

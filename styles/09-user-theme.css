@@ -162,8 +162,37 @@
         /* ≤1420px (portatili comuni / finestra non massimizzata): stringiamo ANCORA la
            ricerca e i campi progetto, e compattiamo un filo il chip, per restare su UNA
            riga fino a ~1200px — senza mai togliere il chip né le etichette Scopri/Verifica. */
+        /* ≤1980px — la compattazione che NON toglie niente: solo aria e ridondanza.
+           Il limite e' cosi' alto perche' il problema stava all'estremo LARGO, non
+           a quello stretto: sopra i 1737px non si attivava nessuna media query e la
+           barra restava a taglia piena, dove chiede 1938px. Cioe' PIU' di 1920, la
+           larghezza desktop piu' diffusa: a schermo intero andava a capo sempre, e
+           si raddrizzava solo rimpicciolendo la finestra — il contrario di quello
+           che uno si aspetta. Da 1981px in su la barra a taglia piena ci sta da
+           sola (1938 < 1981), quindi la copertura non ha buchi. */
+        /* SENZA limite superiore, di proposito. Lo spazio fra i controlli e' aria:
+           13 vuoti nell'header e 12 nel solo cluster destro valevano ~150px, piu' di
+           qualunque bottone, e nessuno li rimpiange. Tenerli larghi solo sopra una
+           certa soglia significa riaprire il bug su ogni monitor che non l'ha ancora
+           superata — e le larghezze CSS non seguono i pollici: un 4K a 200% (il
+           default Windows) da' 1920px CSS, a 150% ne da' 2560; solo al 100% si
+           arriva a 3840, e un 8K a 7680. Una regola che vale sempre non ha soglie
+           da azzeccare. */
+        header { gap: 4px; }
+        .header-right { gap: 4px; }
+
+        @media (max-width: 1980px) {
+            /* Il chip riservava 11em (158px) per scrivere «13/13 · 3 gg»: dopo i due
+               cluster di bottoni e' il singolo elemento piu' largo dell'header. Qui
+               tiene l'ESITO colorato — l'informazione di stato — e lascia l'eta' al
+               tooltip, che la dice per esteso. Il chip non sparisce e non cambia
+               larghezza al variare del contatore: la min-width resta, solo piu'
+               piccola (il salto di larghezza era il bug chiuso nella 2.3.1). */
+            #sync-fresh-chip { min-width: 5em; }
+            #sync-fresh-chip > span:nth-of-type(2),
+            #sync-fresh-chip > span:nth-of-type(3) { display: none; }
+        }
         @media (max-width: 1420px) {
-            header { gap: 4px; }
             #project-select { max-width: 92px; }
             .search-panel { flex: 0 1 96px; min-width: 60px; }
             .sync-fresh-chip { padding: 4px 9px; font-size: var(--fs-sm); }
@@ -180,15 +209,23 @@
 
         /* ---- Header fallback B ---- */
         @media (max-width: 1100px) {
-            header { padding: 0 10px; gap: 8px; }
+            /* gap NON riportato a 8px: quello di <=1420px resta valido. Era la
+               stessa inversione della ricerca e del selettore progetto — lo spazio
+               raddoppiava proprio dove ce n'era meno. */
+            header { padding: 0 10px; }
             .header-sep { display: none; }
             .header-title { font-size:var(--fs-lg); }
-            #project-select { max-width: 145px; }
+            /* Qui NON si riallarga niente. Questo blocco nasconde le etichette dei
+               bottoni, quindi sembrava esserci spazio per rendere di nuovo comodi
+               ricerca e selettore progetto — ma arrivando DOPO nella cascata
+               disfaceva la compattazione dei tre breakpoint precedenti
+               (ricerca 64->230, selettore 80->145) proprio dove lo spazio e' meno.
+               Risultato: sotto i 1100px la barra non poteva piu' tornare su una
+               riga. I valori di <=1280px restano validi per ereditarieta'. */
             .project-bar { gap: 3px; }
             .project-bar .toolbar-btn { padding: 5px 7px; }
             #btn-save #save-label { display: none; }
             #btn-save { padding: 5px 8px; }
-            .search-panel { flex: 0 1 230px; min-width: 140px; }
             #btn-impexp .btn-label,
             #btn-discover .btn-label,
             #btn-topology .btn-label,
@@ -421,8 +458,16 @@ body.spare-mode .port-led.spare-suspect {
     border: 1px solid rgba(210,153,34,.45); pointer-events: none;
 }
 /* Chip-contatore accanto al Sync (clic = salta al prossimo da configurare). */
-.v3-pending-chip { color: #d29922 !important; border-color: rgba(210,153,34,.45) !important; background: rgba(210,153,34,.10) !important; font-weight: 800; }
-.v3-pending-chip i { margin-right: 3px; }
+/* Il chip porta le classi `status-chip s-warn` (netmapper.html), non
+   `.v3-pending-chip`: due regole scritte per una classe che nessun elemento ha
+   mai avuto, e che `s-warn` gia' copriva con gli stessi identici valori ambra.
+   Rimosse invece di agganciarle: erano tre `!important` per non cambiare nulla. */
+/* Larghezza FISSA del chip: 1, 12 o 128 device da configurare devono occupare
+   lo stesso spazio, altrimenti il contatore che cresce sposta la toolbar come
+   faceva il chip di freschezza prima della 2.3.1. In em per seguire i
+   breakpoint che rimpiccioliscono il font. Il chip a zero resta in pagina
+   invisibile (visibility, non display) proprio per tenere il posto. */
+#v3-pending-chip { min-width: 3.6em; justify-content: center; }
 .vlan-l3-hint { grid-column: 1/-1; font-size: var(--fs-xs); color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
 .vlan-l3-hint b { color: var(--text-main); }
 .vlan-l3-hint.warn { color: #e3b341; }
