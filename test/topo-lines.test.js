@@ -533,3 +533,81 @@ test('hideWireless: nasconde i fanout wireless, tiene i cablati', () => {
   assert.ok(!res.fanout.some(f => f.wireless), 'i fanout wireless devono sparire');
   assert.ok(res.fanout.some(f => f.linkId === 'lc'), 'il fanout cablato resta');
 });
+
+// ---- Filtro di mezzo a tre stati --------------------------------------------
+// Il vecchio booleano `hideWireless` e' UNO dei tre stati: resta accettato perche'
+// i chiamanti esistenti non devono cambiare per una funzionalita' che si aggiunge.
+
+const mixed = () => ({
+  links: [
+    { id: 'lw', src: 'sw1-1', dst: 'pc1-1', wireless: true },   // fanout wireless
+    { id: 'lc', src: 'sw1-2', dst: 'wp1-1' },                   // fanout cablato
+  ],
+});
+
+test('mediumFilter "all": non toglie niente e non conta niente', () => {
+  const res = buildTopoLines(baseModel({ ...mixed(), mediumFilter: 'all' }));
+  assert.equal(res.fanout.filter(f => f.wireless).length, 1);
+  assert.equal(res.fanout.filter(f => !f.wireless).length, 1);
+  assert.deepEqual(res.hidden, { wireless: 0, wired: 0 });
+});
+
+test('mediumFilter "wired": via le onde, resta il cavo', () => {
+  const res = buildTopoLines(baseModel({ ...mixed(), mediumFilter: 'wired' }));
+  assert.ok(!res.fanout.some(f => f.wireless), 'le onde devono sparire');
+  assert.ok(res.fanout.some(f => f.linkId === 'lc'), 'il cavo resta');
+  assert.equal(res.hidden.wireless, 1, 'e va DETTO quante ne ha tolte');
+  assert.equal(res.hidden.wired, 0);
+});
+
+test('mediumFilter "wireless": il verso opposto — via il cavo, restano le onde', () => {
+  const res = buildTopoLines(baseModel({ ...mixed(), mediumFilter: 'wireless' }));
+  assert.ok(!res.fanout.some(f => !f.wireless), 'il cavo deve sparire');
+  assert.ok(res.fanout.some(f => f.linkId === 'lw'), 'l\'onda resta');
+  assert.equal(res.hidden.wired, 1);
+  assert.equal(res.hidden.wireless, 0);
+});
+
+test('mediumFilter vale anche sulle coppie floor↔floor, non solo sul fan-out', () => {
+  const base = {
+    nodes: [
+      { id: 'pc9', type: 'pc', x: 100, y: 100 },
+      { id: 'pr9', type: 'printer', x: 300, y: 100 },
+      { id: 'pc8', type: 'pc', x: 100, y: 300 },
+      { id: 'pr8', type: 'printer', x: 300, y: 300 },
+    ],
+    racks: [],
+    links: [
+      { id: 'lwf', src: 'pc9-1', dst: 'pr9-1', wireless: true },
+      { id: 'lcf', src: 'pc8-1', dst: 'pr8-1' },
+    ],
+  };
+  const soloCavo = buildTopoLines(model({ ...base, mediumFilter: 'wired' }));
+  assert.equal(soloCavo.pairs.length, 1);
+  assert.equal(soloCavo.pairs[0].wireless, false);
+  assert.equal(soloCavo.hidden.wireless, 1);
+
+  const soloOnde = buildTopoLines(model({ ...base, mediumFilter: 'wireless' }));
+  assert.equal(soloOnde.pairs.length, 1);
+  assert.equal(soloOnde.pairs[0].wireless, true);
+  assert.equal(soloOnde.hidden.wired, 1);
+});
+
+test('mediumFilter batte hideWireless quando ci sono entrambi (nuovo vince)', () => {
+  const res = buildTopoLines(baseModel({ ...mixed(), hideWireless: true, mediumFilter: 'wireless' }));
+  assert.ok(res.fanout.some(f => f.linkId === 'lw'), 'con mediumFilter=wireless l\'onda deve restare');
+  assert.ok(!res.fanout.some(f => f.linkId === 'lc'));
+});
+
+test('hidden c\'e\' anche sui return anticipati (traccia fisica, endpoint nascosti)', () => {
+  const conTraccia = buildTopoLines(baseModel({
+    ...mixed(), mediumFilter: 'wired',
+    physicalTrace: true, highPathIds: new Set(['lc']),
+  }));
+  assert.deepEqual(conTraccia.hidden, { wireless: 1, wired: 0 });
+
+  const senzaEndpoint = buildTopoLines(baseModel({
+    ...mixed(), mediumFilter: 'wired', hideEndpoints: true,
+  }));
+  assert.deepEqual(senzaEndpoint.hidden, { wireless: 1, wired: 0 });
+});

@@ -117,10 +117,29 @@
         #topo-legend .topo-leg-trunk:hover,
         #topo-legend .topo-leg-endpoint:hover,
         #topo-legend .topo-leg-wlan:hover { filter: brightness(1.25); }
-        /* WLAN attivo = wireless NASCOSTE → tono ciano (distinto da trunk/endpoint) */
+        /* Pillola del MEZZO, tre stati. La larghezza e' riservata perche' ciclando
+           cambia la parola (CAVO+WLAN / SOLO CAVO / SOLO WLAN): senza min-width le
+           pillole a destra scivolerebbero a ogni click, e un controllo che si sposta
+           sotto il dito e' un controllo che si sbaglia. */
+        #topo-legend .topo-leg-wlan { min-width: 8.6em; justify-content: center; }
+        /* .active = tutto mostrato (stato di riposo) → ciano, distinto da trunk/endpoint */
         #topo-legend .topo-leg-wlan.active {
             color: #39c5cf; background: rgba(57,197,207,.13);
             border: 1px solid #2a8c93;
+        }
+        /* .only-wl = solo il wireless: verso opposto, quindi accento suo (viola) e
+           non il ciano del riposo ne' il grigio di "solo cavo". */
+        #topo-legend .topo-leg-wlan.only-wl {
+            color: #b083f0; background: rgba(176,131,240,.13);
+            border: 1px solid #7d54b8;
+        }
+        /* Il conteggio di cio' che il filtro nasconde: sta SULLA pillola, non nel
+           tooltip — un numero che si vede solo al passaggio del mouse e' nascosto
+           quanto le linee di cui parla. */
+        #topo-legend .topo-leg-wlan .topo-leg-hid {
+            font-weight: 700; font-size: 10px; opacity: .75;
+            padding-left: 5px; margin-left: 4px;
+            border-left: 1px solid currentColor;
         }
         #topo-legend .topo-leg-trunk.active {
             color: #5ba3f5; background: rgba(91,163,245,.13);

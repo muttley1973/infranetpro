@@ -6,6 +6,10 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 
 ## Unreleased
 
+### Added
+- Topology: the **WLAN pill cycles through three states** — wired and wireless together, wired only, wireless only. One medium at a time, because an access point with twelve wireless clients is unreadable among the forty cables running beneath it.
+- While a medium filter is on, the pill **carries the number of links it is hiding**: a view that filters without saying how much it omits is lying by omission.
+
 ### Changed
 - The **README is a landing page**: a banner, a proof row of badges, a six-cell value grid and a quick start above the fold; the 120-item feature list becomes a table you can scan plus nine sections that open. Nothing was removed.
 - **Language flags are SVG files, not emoji** — no font on Windows renders 🇮🇹 or 🇬🇧, so the manuals were labelled with two blank boxes.

@@ -58,7 +58,7 @@ export const store = proxy([
     'resizeNode', 'isPanningFloor', 'isPanningRack', 'rackPanStart', '_spaceDown',
     '_dragDownPt', '_hoverRackId', '_propsTabHold', '_floorPortClick',
     '_physicalTraceActive', '_propsExplicit', '_rightTab', '_snmpSyncing',
-    '_topoHideEndpoints', '_topoHideWireless', '_topoFdbVlanCache', '_discTypeMap',
+    '_topoHideEndpoints', '_topoMedium', '_topoFdbVlanCache', '_discTypeMap',
     '_focusedLagGroup', '_topoArpCache', '_topoNdCache', '_topoWifiIfsCache', '_topoWifiNbrCache',
     // ── coda-stato di INTERAZIONE, 3º giro (ritiro ponte 2026-07-11) ──────────
     // Storia undo/redo, flag dirty, rilevamento doppio-click manuale (rack/floor/

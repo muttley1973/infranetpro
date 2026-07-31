@@ -423,7 +423,7 @@ store._hoverRackId = null;   // rack ID in hover sulla planimetria (proposta C) 
 store._filterVlan  = null;   // VLAN ID attivo come filtro visuale (null = nessun filtro)  (var: idem)
 store._topoTrunkOnly = false; // toggle legenda: evidenzia i TRUNK (attenua il resto)  (store: ex win.*)
 store._topoHideEndpoints = false; // toggle legenda: nasconde le linee verso gli endpoint  (var: idem)
-store._topoHideWireless = false;  // toggle legenda: nasconde le connessioni wireless (onde)  (var: idem)
+store._topoMedium = 'all';        // pillola legenda: 'all' | 'wired' | 'wireless'  (var: idem)
 
 // Toggle "Trunk" della legenda topologia: evidenzia le linee trunk attenuando
 // le altre (stesso modello interattivo del filtro VLAN, stato di sessione).
@@ -444,11 +444,17 @@ export function toggleTopoEndpointFilter(){
     renderTopoOverlay();   // le linee verso gli endpoint le toglie buildTopoLines
 }
 
-// Toggle "WLAN" della legenda topologia: nasconde tutte le connessioni wireless
-// (le onde) — pairs floor↔floor e fan-out marcati wireless. Stato di sessione.
+// Pillola del MEZZO nella legenda topologia. Cicla su tre stati invece che due:
+//   cavo + onde  →  solo cavo  →  solo onde  →  cavo + onde
+// Guardare una natura per volta e' l'unico modo di leggere un AP con dodici
+// client wireless in mezzo a quaranta cavi che gli passano sotto. Le linee le
+// toglie buildTopoLines (mediumFilter), che restituisce anche QUANTE ne ha tolte
+// perche' la pillola lo dica. Stato di sessione: non sporca il documento.
+const _TOPO_MEDIA = ['all', 'wired', 'wireless'];
 export function toggleTopoWlanFilter(){
-    store._topoHideWireless = !store._topoHideWireless;
-    renderTopoOverlay();   // le onde le toglie buildTopoLines (filtro hideWireless)
+    const i = _TOPO_MEDIA.indexOf(store._topoMedium || 'all');
+    store._topoMedium = _TOPO_MEDIA[(i + 1) % _TOPO_MEDIA.length];
+    renderTopoOverlay();
 }
 
 export function _applyViewMode(){

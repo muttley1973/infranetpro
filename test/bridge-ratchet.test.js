@@ -107,7 +107,7 @@ const RETIRED_STATE = ['state', 'selId', 'selType', 'dragNode', 'currentProjectI
   'resizeNode', 'isPanningFloor', 'isPanningRack', 'rackPanStart', '_spaceDown',
   '_dragDownPt', '_hoverRackId', '_propsTabHold', '_floorPortClick',
   '_physicalTraceActive', '_propsExplicit', '_rightTab', '_snmpSyncing',
-  '_topoHideEndpoints', '_topoHideWireless', '_topoFdbVlanCache', '_discTypeMap',
+  '_topoHideEndpoints', '_topoMedium', '_topoFdbVlanCache', '_discTypeMap',
   '_focusedLagGroup',
   // Coda-stato di INTERAZIONE, 3º giro (ritiro ponte 2026-07-11).
   'panStart', '_linkJustStarted', '_topoTipTimer', '_history', '_histIdx',

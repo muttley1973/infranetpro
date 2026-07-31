@@ -45,7 +45,13 @@ export function renderTopoOverlay(){
 // per filtrare la mappa. Click su pillola = applica/rimuove filtro VLAN.
 // Doppio click = apre modal showVlanMembers (porte access + trunk link).
 let _topoLegendBound = false;
-export function _renderTopoLegend(){
+// Quante linee ha tolto il filtro di mezzo: lo sa solo la lib pura, e arriva qui
+// dal render dell'overlay. Le altre tre chiamate alla legenda (filtro VLAN,
+// discovery, render core) non ce l'hanno: si ricorda l'ultimo valore noto invece
+// di far lampeggiare via il numero a ogni ridisegno della barra.
+let _topoHidden = { wireless: 0, wired: 0 };
+export function _renderTopoLegend(hidden){
+    if(hidden) _topoHidden = hidden;
     const el = document.getElementById('topo-legend');
     if(!el) return;
     // Visibile in entrambe le viste:
@@ -133,8 +139,22 @@ export function _renderTopoLegend(){
             const epOff = (typeof store._topoHideEndpoints !== 'undefined') && store._topoHideEndpoints;
             html += `<span class="topo-leg-endpoint${!epOff?' active':''}" data-tip="${t('pnl.disc.tipEndpoint')}" data-tip-pos="bottom"><i class="fas fa-circle-nodes"></i>ENDPOINT</span>`;
             html += `<span class="topo-leg-sep"></span>`;
-            const wlOff = (typeof store._topoHideWireless !== 'undefined') && store._topoHideWireless;
-            html += `<span class="topo-leg-wlan${!wlOff?' active':''}" data-tip="${t('pnl.disc.tipWlan')}" data-tip-pos="bottom"><i class="fas fa-wifi"></i>WLAN</span>`;
+            // Pillola del MEZZO, tre stati. Ognuno ha la sua PAROLA e non solo un
+            // colore, e il conteggio di cio' che nasconde sta SULLA pillola: un
+            // numero che vive nel tooltip e' nascosto quanto le linee che tace.
+            const med = store._topoMedium || 'all';
+            const nHid = med === 'wired' ? (_topoHidden.wireless || 0)
+                       : med === 'wireless' ? (_topoHidden.wired || 0) : 0;
+            const medUi = {
+                all:      { cls:' active',     icon:'fa-wifi',     lab:'medAll',      tip:'tipMedAll' },
+                wired:    { cls:'',            icon:'fa-ethernet', lab:'medWired',    tip:'tipMedWired' },
+                wireless: { cls:' only-wl',    icon:'fa-wifi',     lab:'medWireless', tip:'tipMedWireless' },
+            }[med] || { cls:' active', icon:'fa-wifi', lab:'medAll', tip:'tipMedAll' };
+            const medTip = t('pnl.disc.' + medUi.tip, { n: nHid });
+            html += `<span class="topo-leg-wlan${medUi.cls}" data-tip="${escapeHTML(medTip)}" data-tip-pos="bottom">`
+                 +  `<i class="fas ${medUi.icon}"></i>${t('pnl.disc.' + medUi.lab)}`
+                 +  (nHid ? `<b class="topo-leg-hid">${nHid}</b>` : '')
+                 +  `</span>`;
         }
     }
     el.innerHTML = html;
@@ -156,7 +176,7 @@ function _buildTopoModel(){
         filterVlan: store._filterVlan,
         trunkOnly: (typeof store._topoTrunkOnly !== 'undefined') && store._topoTrunkOnly,
         hideEndpoints: (typeof store._topoHideEndpoints !== 'undefined') && store._topoHideEndpoints,
-        hideWireless: (typeof store._topoHideWireless !== 'undefined') && store._topoHideWireless,
+        mediumFilter: (typeof store._topoMedium !== 'undefined' && store._topoMedium) || 'all',
         physicalTrace: (typeof store._physicalTraceActive !== 'undefined') && store._physicalTraceActive,
         vlanColors: store.state.vlanColors || {},
         highPathIds: store.highPath,
@@ -181,11 +201,11 @@ function _buildTopoModel(){
 }
 
 function _renderTopoOverlayNow(){
-    _renderTopoLegend();
     const svg=document.getElementById('topo-floor-overlay');
-    if(!svg) return;
-    svg.innerHTML='';
-    if(!store._topoVisible || store._viewMode!=='topology') return;
+    if(svg) svg.innerHTML='';
+    // Fuori dalla topologia la legenda si disegna comunque (pillole VLAN in mappa),
+    // ma senza conteggi: li' il filtro di mezzo non c'e' proprio.
+    if(!svg || !store._topoVisible || store._viewMode!=='topology'){ _renderTopoLegend(); return; }
 
     const NS='http://www.w3.org/2000/svg';
     // App dark-only oggi; theme-aware per il futuro: se `data-theme="light"` e'
@@ -200,7 +220,9 @@ function _renderTopoOverlayNow(){
     for(const el of document.querySelectorAll('.floor-node[data-id]')){ const id=el.getAttribute('data-id'); if(!els.nodes.has(id)) els.nodes.set(id, el); }
     for(const el of document.querySelectorAll('.floor-rack[data-rackid]')){ const id=el.getAttribute('data-rackid'); if(!els.racks.has(id)) els.racks.set(id, el); }
 
-    const { pairs, fanout, rackAlerts } = win.buildTopoLines(_buildTopoModel());
+    const { pairs, fanout, rackAlerts, hidden } = win.buildTopoLines(_buildTopoModel());
+    // La legenda DOPO le linee: solo la lib pura sa quante ne ha tolte il filtro.
+    _renderTopoLegend(hidden);
     // PERF: si disegna in un DocumentFragment (STACCATO dal DOM live) e si appende UNA
     // volta sola alla fine → niente layout-thrashing. Le letture offsetWidth nel loop NON
     // forzano piu' un reflow a ogni append, perche' il DOM live non viene toccato fino
