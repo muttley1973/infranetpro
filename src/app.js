@@ -1808,13 +1808,24 @@ function _renderCablesNow(){
         // Wireless (link.wireless): reso "a onda" (lib/wave-path.js) e classe
         // dedicata, per distinguerlo a colpo d'occhio dal cavo fisico.
         const _wl=l.wireless?' wireless':'';
-        // Toggle TRUNK (pillola legenda, solo topologia): i cavi trunk mostrati dal
-        // toggle vanno EVIDENZIATI (glow/spessore .highlight) come in topologia — non
-        // lasciati come cavo spento. shouldRenderLink ne governa già la VISIBILITÀ
-        // (gated a topologia); qui ne allineiamo gli ATTRIBUTI a un cavo "acceso".
-        const _trunkEmph = (typeof _topoTrunkOnly!=='undefined' && _topoTrunkOnly && _viewMode==='topology' && (typeof _linkIsTrunk==='function' ? _linkIsTrunk(l) : l.mode==='trunk'));
-        const _emph = highPath.has(l.id) ? ' highlight' : isSelected ? ' sel' : (_trunkEmph ? ' highlight' : '');
-        const cls=`cable${_amb}${_wl}${_emph}`;
+        // Pillola TRUNK/ACCESS (solo topologia): il cavo che il filtro ha SELEZIONATO
+        // va EVIDENZIATO — non lasciato come cavo spento. shouldRenderLink ne governa
+        // già la VISIBILITÀ; qui ne allineiamo gli ATTRIBUTI a un cavo "acceso".
+        // Vale in ENTRAMBI i versi: «solo trunk» ingrossa i trunk, «solo access»
+        // ingrossa le access. Legarlo al solo trunk era un'asimmetria — la stessa
+        // vista, filtrata al contrario, disegnava i suoi cavi sottili. In
+        // «trunk + access» il disegno resta quello di riposo.
+        // Classe PROPRIA (.mode-emph = 2.5px), non `.highlight`: quella dice gia'
+        // «questo e' il cavo che stai seguendo» (percorso fisico), e due significati
+        // con un aspetto solo si rendono illeggibili a vicenda. Si SOMMA a
+        // highlight/sel invece di escluderle: un cavo selezionato non deve uscire
+        // piu' sottile di quelli che gli stanno intorno.
+        const _modeEmph = (typeof _topoTrunkMode!=='undefined' && _viewMode==='topology' && (()=>{
+            const _t = (typeof _linkIsTrunk==='function') ? _linkIsTrunk(l) : l.mode==='trunk';
+            return (_topoTrunkMode==='trunk' && _t) || (_topoTrunkMode==='access' && !_t);
+        })());
+        const _emph = highPath.has(l.id) ? ' highlight' : isSelected ? ' sel' : '';
+        const cls=`cable${_amb}${_wl}${_emph}${_modeEmph?' mode-emph':''}`;
         const path=document.createElementNS('http://www.w3.org/2000/svg','path');
         path.setAttribute('class',cls);
         path.setAttribute('stroke',color);
@@ -1903,9 +1914,14 @@ function _renderCablesNow(){
         const cable=document.createElementNS('http://www.w3.org/2000/svg','path');
         // Segnala anche cavi cross-rack inferiti per coerenza con la rack view.
         const _ambX=_chainAmb.has(l.id)?' ambiguous':'';
-        const _trunkEmphX = (typeof _topoTrunkOnly!=='undefined' && _topoTrunkOnly && _viewMode==='topology' && (typeof _linkIsTrunk==='function' ? _linkIsTrunk(l) : l.mode==='trunk'));
-        const _emphX = isSelected ? ' sel' : (isTrace || _trunkEmphX) ? ' highlight' : '';
-        cable.setAttribute('class',`cable-xrack${_ambX}${_emphX}`);
+        // Stesse regole del floor: evidenzia cio' che il filtro ha selezionato, nei
+        // due versi; la traccia resta `.highlight` e le classi si sommano.
+        const _modeEmphX = (typeof _topoTrunkMode!=='undefined' && _viewMode==='topology' && (()=>{
+            const _t = (typeof _linkIsTrunk==='function') ? _linkIsTrunk(l) : l.mode==='trunk';
+            return (_topoTrunkMode==='trunk' && _t) || (_topoTrunkMode==='access' && !_t);
+        })());
+        const _emphX = isSelected ? ' sel' : isTrace ? ' highlight' : '';
+        cable.setAttribute('class',`cable-xrack${_ambX}${_emphX}${_modeEmphX?' mode-emph':''}`);
         cable.setAttribute('stroke',col);
         cable.style.color=col;   // currentColor = colore cavo → glow colorato
         cable.setAttribute('d',xrD);

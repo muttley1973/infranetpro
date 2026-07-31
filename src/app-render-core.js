@@ -135,7 +135,13 @@ function _buildFloorNodeEl(n, def, absentCls){
         return true;
     })();
     if(_nodeDim && store._topoVisible) return null;   // nascosto in topologia → salta
-    const _epCls = def.passThrough ? '' : ' topo-endpoint';
+    // Chi e' "endpoint" lo decide lib/topo-lines.js, la stessa funzione che filtra
+    // le LINEE: qui c'era una seconda regola («endpoint = senza pass-through») che
+    // non coincideva, e il telefono VoIP — pass-through perche' ha il PC in cascata
+    // — restava a schermo mentre i suoi cavi sparivano. Fallback prudente: senza la
+    // lib nessun tile viene nascosto, meglio di nasconderne di sbagliati.
+    const _isEp = win.isTopoEndpointType;
+    const _epCls = (typeof _isEp === 'function' && _isEp(def)) ? ' topo-endpoint' : '';
     el.className = `floor-node ${store.selId===n.id?'selected':''}${_selectedPortOnNode?' port-selected':''}${_nodeDim?' vlan-dim':''}${_epCls}${absentCls}`;
     el.style.cssText = `left:${n.x}px;top:${n.y}px`;
     const pc = n.ports!==undefined?n.ports:def.ports;
@@ -709,7 +715,14 @@ function shouldRenderLink(l){
     // su selezione. Agganciato a _viewMode==='topology': tornando alla mappa la
     // regola decade da sola (niente carryover, che era il bug per cui fu tolta —
     // sulla mappa non c'è la pillola per spegnerlo). Vedi 3eda193.
-    if(store._topoTrunkOnly && store._viewMode === 'topology' && _linkIsTrunk(l)) return true;
+    // Simmetrico fra i due versi: se la pillola chiede «solo access», le access
+    // devono comparire nel rack come ci comparivano i trunk — un filtro che vale
+    // solo in una direzione si legge come un bug.
+    if(store._viewMode === 'topology'){
+        const _tm = store._topoTrunkMode || 'all';
+        if(_tm === 'trunk'  &&  _linkIsTrunk(l)) return true;
+        if(_tm === 'access' && !_linkIsTrunk(l)) return true;
+    }
     // Wireless: la selezione comanda in modo esatto, scavalcando il declutter
     // generale delle porte floor. Radio selezionata → TUTTI i suoi client;
     // interfaccia di un client selezionata → SOLO la sua. (Il percorso fisico

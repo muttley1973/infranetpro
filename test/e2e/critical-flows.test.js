@@ -4464,6 +4464,11 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           metaText: (document.querySelector('.ov-col[data-sec="truth"] .ov-meta-strip')?.textContent || '').replace(/\s+/g, ' ').trim(),
           floorHidden: getComputedStyle(document.getElementById('export-area')).display === 'none',
           viewMode: window._viewMode,
+          // Terzo segmento del fil di Arianna: deve dire la vista in cui SEI.
+          // Entrando in Panoramica restava su quella di prima, perche' setOverview
+          // cambiava _viewMode senza ridisegnare la sotto-barra (Planimetria e
+          // Topologia passano da renderAll e non avevano il problema).
+          crumbView: (document.querySelector('.msb-crumb')?.lastElementChild?.textContent || '').trim(),
           storedView: localStorage.getItem('infranet.view'),
           stateHasView: JSON.stringify(state).indexOf('overview') !== -1,
           // ogni riga dichiara la provenienza; nessuna riga senza pallino
@@ -4488,6 +4493,8 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(/mai/i.test(v.metaText), 'e dichiarano quando: ' + v.metaText);
       assert.ok(v.floorHidden, 'la planimetria lascia il posto alla Panoramica');
       assert.equal(v.viewMode, 'overview');
+      assert.equal(v.crumbView, 'Panoramica',
+        'il fil di Arianna dice la vista in cui sei, non quella da cui vieni: ' + v.crumbView);
       assert.ok(v.allHaveProv, 'ogni numero dichiara da dove viene (paletto ②)');
       assert.equal(v.subnetsProv, 'none', 'nessuna subnet dichiarata → «non dichiarato»');
       assert.equal(v.subnetsTxt, '—', 'il dato che manca è un trattino, mai uno zero');

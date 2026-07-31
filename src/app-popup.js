@@ -421,16 +421,21 @@ store._topoNeighborsCache = {};   // var: letto/scritto dal bundle src/app-topol
 store._topoTipTimer= null;   // timer per nascondere il tooltip  (var: letto/scritto dal bundle src/app-topology-overlay.js via win.*)
 store._hoverRackId = null;   // rack ID in hover sulla planimetria (proposta C)  (var: letto dal bundle via win.*)
 store._filterVlan  = null;   // VLAN ID attivo come filtro visuale (null = nessun filtro)  (var: idem)
-store._topoTrunkOnly = false; // toggle legenda: evidenzia i TRUNK (attenua il resto)  (store: ex win.*)
+store._topoTrunkMode = 'all'; // pillola legenda: 'all' | 'access' | 'trunk'  (store: ex win.*)
 store._topoHideEndpoints = false; // toggle legenda: nasconde le linee verso gli endpoint  (var: idem)
 store._topoMedium = 'all';        // pillola legenda: 'all' | 'wired' | 'wireless'  (var: idem)
 
-// Toggle "Trunk" della legenda topologia: evidenzia le linee trunk attenuando
-// le altre (stesso modello interattivo del filtro VLAN, stato di sessione).
+// Pillola TRUNK della legenda topologia. Cicla su tre stati, come quella del mezzo:
+//   trunk + access  →  solo access  →  solo trunk  →  trunk + access
+// Chi non passa SPARISCE invece di essere attenuato: una linea al 12% di opacita'
+// e' ancora li' da leggere e da scavalcare col mouse, e si confonde con le altre
+// attenuazioni della vista. Stato di sessione: non sporca il documento.
+const _TOPO_TRUNK = ['all', 'access', 'trunk'];
 export function toggleTopoTrunkFilter(){
-    store._topoTrunkOnly = !store._topoTrunkOnly;
+    const i = _TOPO_TRUNK.indexOf(store._topoTrunkMode || 'all');
+    store._topoTrunkMode = _TOPO_TRUNK[(i + 1) % _TOPO_TRUNK.length];
     renderTopoOverlay();   // ridisegna linee + legenda (la legenda e' dentro il render)
-    renderCables();        // in topologia i cavi trunk compaiono/spariscono anche nel RACK (shouldRenderLink)
+    renderCables();        // in topologia i cavi filtrati compaiono/spariscono anche nel RACK (shouldRenderLink)
 }
 
 // Toggle "Endpoint" della legenda topologia: nasconde le linee verso gli
@@ -647,8 +652,9 @@ export function _drawFanoutLineDesc(d, svg, NS, els){
         if(v){ x2=d.fx+v[0]*hwF; y2=d.fy+v[1]*hhF; }
     }
 
-    // Linea visibile. Toggle TRUNK attivo → le non-trunk si attenuano (trunkDim).
-    const baseOp = d.trunkDim ? 0.12 : d.opacity;
+    // Linea visibile. Il filtro trunk/access non attenua piu' nulla: chi non passa
+    // non arriva neanche qui (buildTopoLines lo toglie dalla lista).
+    const baseOp = d.opacity;
     // Wireless: linea "a onda" (path sinusoidale) invece di retta.
     const _wl = d.wireless && typeof win.buildWavePath === 'function';
     const line=document.createElementNS(NS, _wl ? 'path' : 'line');
@@ -657,23 +663,40 @@ export function _drawFanoutLineDesc(d, svg, NS, els){
     line.setAttribute('stroke',d.color);
     line.setAttribute('stroke-width',d.width);   // niente ingrossamento su selezione: basta il glow (tfl-hl)
     line.setAttribute('stroke-linecap','round');
-    line.setAttribute('opacity',(d.selected && !d.trunkDim)?'1':String(baseOp));
+    line.setAttribute('opacity',d.selected?'1':String(baseOp));
     line.setAttribute('class',`tfl topo-selected-cable${d.ambiguous?' tfl-ambiguous':''}${_wl?' tfl-wireless':''}`);
     line.dataset.linkId=d.linkId;
     line.setAttribute('style',`pointer-events:none;color:${d.color}`);   // color = stroke → glow del colore del cavo (tfl-hl)
 
-    // Linee NON interattive (rack non corrente): solo visive, niente hit →
-    // non intercettano il pointerdown e NON bloccano il drag dei rack.
-    if(!d.interactive){
+    // Hit area invisibile piu' larga, ARRETRATA AI DUE CAPI.
+    //
+    // Prima l'area di click la ricevevano SOLO le linee del rack corrente (o di
+    // quello sotto il mouse): tutte le altre erano disegnate ma inerti, per non
+    // rubare il pointerdown all'icona del rack e non bloccarne il trascinamento.
+    // L'intento era giusto, il prezzo no: su 78 fan-out del progetto demo ne
+    // restavano selezionabili fra 8 e 51 a seconda di quale rack fosse aperto, e
+    // NESSUNA senza un rack aperto — e da fuori non c'e' modo di indovinare
+    // perche' un cavo si clicca e quello accanto no. (Fra l'altro la difesa era
+    // gia' incoerente: le coppie rack<->rack e floor<->floor stendono bande da
+    // 18px SEMPRE, e si fermano pure il pointerdown.)
+    // Ora la banda c'e' su tutte, ma parte e finisce a HIT_GAP px dai capi: i
+    // pixel a ridosso dell'icona del rack e del tile restano liberi, quindi il
+    // pointerdown su un'icona fa ancora partire il drag.
+    const HIT_GAP=12;
+    const _hdx=x2-x1, _hdy=y2-y1, _hlen=Math.hypot(_hdx,_hdy);
+    if(_hlen <= HIT_GAP*2+8){
+        // Troppo corta perche' resti qualcosa da cliccare una volta liberati i
+        // due capi: una banda fra due icone attaccate ruberebbe il drag a
+        // entrambe. Resta solo visiva.
         const g0=document.createElementNS(NS,'g');
         g0.appendChild(line);
         svg.appendChild(g0);
         return;
     }
-    // Hit area invisibile più larga
+    const _ux=_hdx/_hlen, _uy=_hdy/_hlen;
     const hit=document.createElementNS(NS,'line');
-    hit.setAttribute('x1',x1); hit.setAttribute('y1',y1);
-    hit.setAttribute('x2',x2); hit.setAttribute('y2',y2);
+    hit.setAttribute('x1',x1+_ux*HIT_GAP); hit.setAttribute('y1',y1+_uy*HIT_GAP);
+    hit.setAttribute('x2',x2-_ux*HIT_GAP); hit.setAttribute('y2',y2-_uy*HIT_GAP);
     hit.setAttribute('stroke','transparent');
     hit.setAttribute('stroke-width','14');
     hit.setAttribute('style','pointer-events:visibleStroke;cursor:pointer');

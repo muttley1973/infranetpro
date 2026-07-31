@@ -98,7 +98,7 @@ const RETIRED_STATE = ['state', 'selId', 'selType', 'dragNode', 'currentProjectI
   'linkStart', 'highPath', 'lagSelPorts', '_focusedLagPorts', '_viewMode',
   '_topoData', '_topoVisible', '_topoNeighborsCache', '_topoFdbCache',
   '_discResults', '_driftReport', '_dhcpLeases', '_filterVlan', '_rackCollapsed', '_spareActive',
-  '_topoTrunkOnly', '_lastPopPid', '_lastPopX', '_lastPopY', '_currentUser',
+  '_topoTrunkMode', '_lastPopPid', '_lastPopX', '_lastPopY', '_currentUser',
   // Coda-stato di INTERAZIONE (ritiro ponte 2026-07-11): stato transitorio di
   // gesture/modalità, ora proxato da store.js come gli altri. Vedi store.js.
   'dragOffset', 'dragRack', '_dragArmed', 'lagSelMode',
@@ -619,7 +619,16 @@ test('ponte: la coda funzioni A batch 2 non è più letta da win.*', () => {
 // _macRowsForPort) sono lib-script reads, STESSA categoria di normalizeFdbVlan/
 // pruneDiscoveryHistory: leggono l'unica istanza viva, niente ri-bundle. Nessuna
 // funzione/stato NUOVO sul ponte (ASSE A resta sospeso, §2.2).
-const MAX_WIN_REFS = 275;
+// +1 (275 → 276, 2026-07-31): ENDPOINT — «endpoint» era definito DUE volte e le due
+// definizioni non coincidevano: lib/topo-lines.js (che filtra le LINEE) diceva
+// «device floor con IP, anche pass-through», il renderer del tile diceva «tipo senza
+// pass-through». Il telefono VoIP cade nella forbice — ha un IP e regge il PC in
+// cascata — quindi col toggle attivo sparivano i suoi cavi ma restava la piastrella
+// sospesa. La definizione ora e' UNA (`isTopoEndpointType`, esportata dalla lib e
+// testata); il renderer la legge da `win`, lib-script read della STESSA categoria di
+// buildTopoLines/temporalConfidence — legge l'unica istanza viva, niente ri-bundle.
+// Aumento MOTIVATO di 1, nessuno stato nuovo sul ponte (ASSE A resta sospeso, §2.2).
+const MAX_WIN_REFS = 276;
 
 test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => {
   const total = countInCode(/\bwin\./g);

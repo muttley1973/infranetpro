@@ -22,6 +22,22 @@
            "segnale". Colore = VLAN (coerente coi cavi); a distinguerlo e' la forma. */
         .cable.wireless { opacity:1; stroke-width:1.3; filter:drop-shadow(0 0 1.1px currentColor); }
         .cable.wireless:hover { stroke-width:1.9; }
+        /* Pillola TRUNK/ACCESS attiva: il cavo che il filtro ha SELEZIONATO va a 2.5px
+           — UN numero solo, uguale sul floor, nel rack e sull'onda, e uguale nei due
+           versi: «solo trunk» ingrossa i trunk, «solo access» ingrossa le access. La
+           regola dev'essere dicibile in una frase, e una vista filtrata al contrario
+           non puo' disegnare i suoi cavi piu' sottili.
+           Lo spessore e' il segnale, e il glow NO: quello e' di `.highlight`, che vuol
+           dire «questo e' il cavo che stai seguendo». Finche' i due condividevano
+           l'aspetto, col filtro attivo la traccia spariva dentro gli altri. */
+        .cable.mode-emph { stroke-width:2.5; opacity:1; }
+        .cable-xrack.mode-emph { stroke-width:2.5; opacity:1; }
+        /* `mode-emph` si SOMMA a `.sel`/`.highlight` invece di sostituirle: altrimenti
+           il cavo selezionato scendeva a 2.2 e usciva piu' SOTTILE di quelli che gli
+           stavano intorno — l'opposto di quel che deve dire una selezione. Qui tiene il
+           suo glow e sale ancora un poco. */
+        .cable.mode-emph.sel, .cable.mode-emph.highlight,
+        .cable-xrack.mode-emph.sel, .cable-xrack.mode-emph.highlight { stroke-width:2.9; }
         /* Toggle/nota "Collegamento wireless" nel pannello del cavo */
         .link-wireless-toggle { display:flex; align-items:center; gap:7px; font-size:.82rem; color:var(--text-main); cursor:pointer; user-select:none; padding:4px 2px; }
         .link-wireless-toggle input { width:auto; margin:0; }

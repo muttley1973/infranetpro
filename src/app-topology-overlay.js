@@ -130,9 +130,23 @@ export function _renderTopoLegend(hidden){
             // Separa le pillole VLAN dai toggle (il border-right della vlan-list è
             // stato tolto per non duplicare il | prima del bottone Topologia).
             html += `<span class="topo-leg-sep"></span>`;
-            // TRUNK è un'AZIONE (evidenzia): grigio di default, si accende quando attivo.
-            const trunkOn = (typeof store._topoTrunkOnly !== 'undefined') && store._topoTrunkOnly;
-            html += `<span class="topo-leg-trunk${trunkOn?' active':''}" data-tip="${t('pnl.disc.tipTrunk')}" data-tip-pos="bottom"><i class="fas fa-code-branch"></i>TRUNK</span>`;
+            // Pillola TRUNK/ACCESS: tre stati come quella del mezzo, stessa grammatica
+            // (parola + colore + conteggio di cio' che sparisce, sulla pillola).
+            const tm = store._topoTrunkMode || 'all';
+            const nTrunkHid = tm === 'trunk' ? (_topoHidden.access || 0)
+                            : tm === 'access' ? (_topoHidden.trunk || 0) : 0;
+            const nIgnote = tm === 'all' ? 0 : (_topoHidden.unknownMode || 0);
+            const tmUi = {
+                all:    { cls:'',           icon:'fa-code-branch',  lab:'trkAll',    tip:'tipTrkAll' },
+                access: { cls:' only-acc',  icon:'fa-arrow-right-to-bracket', lab:'trkAccess', tip:'tipTrkAccess' },
+                trunk:  { cls:' active',    icon:'fa-code-branch',  lab:'trkTrunk',  tip:'tipTrkTrunk' },
+            }[tm] || { cls:'', icon:'fa-code-branch', lab:'trkAll', tip:'tipTrkAll' };
+            const tmTip = t('pnl.disc.' + tmUi.tip, { n: nTrunkHid })
+                        + (nIgnote ? ' · ' + t('pnl.disc.trkUnknown', { n: nIgnote }) : '');
+            html += `<span class="topo-leg-trunk${tmUi.cls}" data-tip="${escapeHTML(tmTip)}" data-tip-pos="bottom">`
+                 +  `<i class="fas ${tmUi.icon}"></i>${t('pnl.disc.' + tmUi.lab)}`
+                 +  (nTrunkHid ? `<b class="topo-leg-hid">${nTrunkHid}</b>` : '')
+                 +  `</span>`;
             // ENDPOINT e WLAN sono "mostra/nascondi": ACCESI di default (tutto mostrato),
             // grigi quando il filtro nasconde.
             html += `<span class="topo-leg-sep"></span>`;
@@ -174,7 +188,7 @@ function _buildTopoModel(){
         currentRack: store.state.currentRack,
         hoverRackId: store._hoverRackId,
         filterVlan: store._filterVlan,
-        trunkOnly: (typeof store._topoTrunkOnly !== 'undefined') && store._topoTrunkOnly,
+        trunkFilter: (typeof store._topoTrunkMode !== 'undefined' && store._topoTrunkMode) || 'all',
         hideEndpoints: (typeof store._topoHideEndpoints !== 'undefined') && store._topoHideEndpoints,
         mediumFilter: (typeof store._topoMedium !== 'undefined' && store._topoMedium) || 'all',
         physicalTrace: (typeof store._physicalTraceActive !== 'undefined') && store._physicalTraceActive,
@@ -295,7 +309,7 @@ function _drawTopoPair(p, svg, NS, isDark, els){
     else { line.setAttribute('x1',x1); line.setAttribute('y1',y1); line.setAttribute('x2',x2); line.setAttribute('y2',y2); }
     line.setAttribute('class',`tfl topo-selected-cable${p.ambiguous?' tfl-ambiguous':''}${_wl?' tfl-wireless':''}`);
     line.setAttribute('stroke-width',p.width.toFixed(1));
-    line.setAttribute('opacity', (p.selected && !p.trunkDim) ? '1' : (p.trunkDim ? '0.12' : '0.88'));   // selected (percorso fisico) acceso; toggle TRUNK attenua le non-trunk
+    line.setAttribute('opacity', p.selected ? '1' : '0.88');   // selected (percorso fisico) acceso; il filtro trunk/access toglie, non attenua
     line.setAttribute('style',`pointer-events:none;stroke:${p.color};color:${p.color}${_wl?';fill:none':''}`);
     line.setAttribute('data-pair',p.key);
 

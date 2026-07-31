@@ -1326,6 +1326,12 @@ export function setOverview(on) {
     }
     const btn = document.getElementById('btn-overview');
     if (btn) btn.setAttribute('aria-pressed', want ? 'true' : 'false');
+    // Il terzo segmento del fil di Arianna SEGUE la vista (Planimetria/Topologia/
+    // Panoramica): cambiandola qui va ridisegnato, altrimenti resta fermo a quella
+    // di prima — entrando in Panoramica continuava a dire «Topologia», e uscendone
+    // il contrario. Chiamata BARE con typeof-guard, come renderOverview dalla coda
+    // di renderAll (app-render-core.js): niente import nuovo fra i due moduli.
+    if (typeof renderSubbar === 'function') renderSubbar();
 }
 
 export function toggleOverview() { setOverview(!document.body.classList.contains('view-overview')); }

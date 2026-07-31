@@ -2,7 +2,7 @@
 // Hardening rendering: il "COSA disegnare" e' ora testabile senza DOM.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildTopoLines } = require('../lib/topo-lines.js');
+const { buildTopoLines, isTopoEndpointType } = require('../lib/topo-lines.js');
 
 // ---- Fixtures minime ---------------------------------------------------------
 
@@ -239,9 +239,9 @@ test('fanout.ambiguous per-link (isAmbiguousLink)', () => {
   assert.equal(res.fanout[0].ambiguous, true);
 });
 
-// ---- Fanout: enfasi/interattivita' per rack corrente ----------------------------
+// ---- Fanout: enfasi per rack corrente -------------------------------------------
 
-test('fanout: rack corrente emphasized+interactive, gli altri attenuati e non interattivi', () => {
+test('fanout: il rack corrente e\' enfatizzato, gli altri attenuati', () => {
   const res = buildTopoLines(baseModel({
     currentRack: 'r1',
     links: [
@@ -252,11 +252,39 @@ test('fanout: rack corrente emphasized+interactive, gli altri attenuati e non in
   const fa = res.fanout.find(f => f.linkId === 'a');
   const fb = res.fanout.find(f => f.linkId === 'b');
   assert.equal(fa.emphasized, true);
-  assert.equal(fa.interactive, true);
   assert.equal(fa.opacity, 0.78);
   assert.equal(fb.emphasized, false);
-  assert.equal(fb.interactive, false);   // niente hit → non blocca il drag dei rack
   assert.equal(fb.opacity, 0.38);
+});
+
+// L'enfasi e' una questione di ASPETTO e non deve decidere che cosa si puo'
+// cliccare: quando lo faceva, i cavi degli altri rack erano disegnati ma inerti
+// e non c'era modo di capire perche' uno si selezionasse e il vicino no.
+// Il drag dei rack lo protegge il renderer, arretrando la banda di hit dai capi.
+test('fanout: l\'enfasi NON porta con se\' l\'interattivita\'', () => {
+  const res = buildTopoLines(baseModel({
+    currentRack: 'r1',
+    links: [
+      { id: 'a', src: 'pc1-1', dst: 'sw1-3' },
+      { id: 'b', src: 'wp1-1', dst: 'sw2-3' },
+    ],
+  }));
+  for (const f of res.fanout) {
+    assert.equal('interactive' in f, false,
+      'il descrittore non deve piu\' dettare chi e\' cliccabile: lo decide il renderer');
+  }
+});
+
+test('fanout: senza rack corrente nessuna linea e\' enfatizzata (ma restano tutte)', () => {
+  const res = buildTopoLines(baseModel({
+    currentRack: null,
+    links: [
+      { id: 'a', src: 'pc1-1', dst: 'sw1-3' },
+      { id: 'b', src: 'wp1-1', dst: 'sw2-3' },
+    ],
+  }));
+  assert.equal(res.fanout.length, 2, 'le linee ci sono comunque');
+  assert.ok(res.fanout.every(f => !f.emphasized));
 });
 
 test('fanout: selected se il link e\' in highPath o selezionato', () => {
@@ -451,32 +479,83 @@ test('hideEndpoints: il VoIP (pass-through con IP) è un endpoint → nascosto f
     'né presa↔telefono né telefono↔PC sono disegnate: il VoIP è trattato come endpoint');
 });
 
-test('trunkOnly: attenua (trunkDim) le linee non-trunk, mai quelle trunk', () => {
-  const res = buildTopoLines(baseModel({
-    trunkOnly: true,
+// Le non-trunk venivano ATTENUATE a 0.12 (`trunkDim`). Ora escono dalla lista:
+// una linea quasi trasparente e' ancora li' da leggere e da scavalcare col mouse,
+// e si confonde con le altre attenuazioni della vista.
+test('«solo trunk»: le non-trunk escono dalla lista, coppie e fan-out insieme', () => {
+  const m = baseModel({
     links: [
       { id: 't', src: 'sw1-1', dst: 'sw2-1', mode: 'trunk' },   // pair trunk
       { id: 'b', src: 'pc1-1', dst: 'wp1-1' },                  // pair access
       { id: 'f', src: 'wp1-1', dst: 'sw1-5', mode: 'trunk' },   // fanout trunk
       { id: 'g', src: 'pc1-1', dst: 'sw2-7' },                  // fanout access
     ],
-  }));
-  assert.equal(res.pairs.find(p => p.kind === 'rack-rack').trunkDim, false);
-  assert.equal(res.pairs.find(p => p.kind === 'floor-floor').trunkDim, true);
-  assert.equal(res.fanout.find(f => f.linkId === 'f').trunkDim, false);
-  assert.equal(res.fanout.find(f => f.linkId === 'g').trunkDim, true);
+    helpers: { linkIsTrunk: l => l.mode === 'trunk' },
+  });
+  const res = buildTopoLines({ ...m, trunkFilter: 'trunk' });
+  assert.ok(res.pairs.every(p => p.hasTrunk), 'restano solo le coppie che portano un trunk');
+  assert.deepEqual(res.fanout.map(f => f.linkId), ['f']);
+  assert.ok(res.hidden.access > 0, 'e va detto quante ne ha tolte');
+  // nessun residuo del vecchio meccanismo di attenuazione
+  assert.ok([...res.pairs, ...res.fanout].every(x => !('trunkDim' in x)));
 });
 
-test('trunkOnly off: nessuna linea attenuata (trunkDim sempre false)', () => {
+test('«trunk + access»: non toglie niente e non attenua niente', () => {
   const res = buildTopoLines(baseModel({
+    trunkFilter: 'all',
     links: [
       { id: 't', src: 'sw1-1', dst: 'sw2-1', mode: 'trunk' },
       { id: 'b', src: 'pc1-1', dst: 'wp1-1' },
       { id: 'g', src: 'pc1-1', dst: 'sw2-7' },
     ],
+    helpers: { linkIsTrunk: l => l.mode === 'trunk' },
   }));
-  assert.ok(res.pairs.every(p => p.trunkDim === false));
-  assert.ok(res.fanout.every(f => f.trunkDim === false));
+  assert.equal(res.hidden.trunk, 0);
+  assert.equal(res.hidden.access, 0);
+  assert.ok([...res.pairs, ...res.fanout].every(x => !('trunkDim' in x)));
+});
+
+// ---- «Endpoint»: UNA definizione sola --------------------------------------------
+// Il renderer del tile (app-render-core.js) ne aveva una SUA — «endpoint = tipo
+// senza pass-through» — che non coincideva con questa. Il telefono VoIP, che fa
+// pass-through perche' regge il PC in cascata, spariva dalle LINEE ma restava a
+// schermo come piastrella sospesa. Ora `isTopoEndpointType` e' esportata e la
+// usano tutti e due; questi test la bloccano.
+
+test('isTopoEndpointType: il VoIP e\' un endpoint anche se fa pass-through', () => {
+  assert.equal(isTopoEndpointType(TYPES.voip), true,
+    'ha un IP: e\' un terminale, non un pezzo di rame — il PC in cascata non lo rende un conduit');
+});
+
+test('isTopoEndpointType: i conduit puri NON sono endpoint (sono il confine della vista)', () => {
+  assert.equal(isTopoEndpointType(TYPES.wallport), false);
+});
+
+test('isTopoEndpointType: i device floor con IP sono endpoint, strutturali e rack no', () => {
+  assert.equal(isTopoEndpointType(TYPES.pc), true);
+  assert.equal(isTopoEndpointType(TYPES.printer), true);
+  assert.equal(isTopoEndpointType(TYPES.room), false, 'una stanza non e\' un endpoint');
+  assert.equal(isTopoEndpointType(TYPES.switch), false, 'gli apparati in rack nemmeno');
+  assert.equal(isTopoEndpointType(undefined), false, 'tipo ignoto: fail-closed, non si nasconde nulla');
+});
+
+test('il filtro ENDPOINT usa quella funzione e non una copia: il VoIP sparisce', () => {
+  const res = buildTopoLines(baseModel({
+    nodes: [
+      { id: 'sw1', type: 'switch', rackId: 'r1' },
+      { id: 'wpV', type: 'wallport', x: 100, y: 100 },
+      { id: 'tel', type: 'voip', x: 200, y: 100 },
+      { id: 'pcV', type: 'pc', x: 300, y: 100 },
+    ],
+    links: [
+      { id: 'e1', src: 'wpV-1', dst: 'tel-1' },
+      { id: 'e2', src: 'tel-2', dst: 'pcV-1' },
+    ],
+    hideEndpoints: true,
+  }));
+  const tocca = id => res.pairs.some(p => p.nodeAId === id || p.nodeBId === id);
+  assert.equal(tocca('tel'), false, 'nessuna linea deve restare attaccata al telefono');
+  assert.equal(tocca('pcV'), false);
 });
 
 // ---- Purezza --------------------------------------------------------------------
@@ -534,6 +613,107 @@ test('hideWireless: nasconde i fanout wireless, tiene i cablati', () => {
   assert.ok(res.fanout.some(f => f.linkId === 'lc'), 'il fanout cablato resta');
 });
 
+// ---- Filtro TRUNK/ACCESS a tre stati ----------------------------------------
+// Chi non passa SPARISCE: prima veniva solo attenuato (`trunkDim`), che e' un'altra
+// cosa — una linea al 12% resta da leggere e da scavalcare col mouse.
+
+function trunkModel(over = {}) {
+  return baseModel({
+    links: [
+      { id: 'lt', src: 'sw1-1', dst: 'wp1-1', mode: 'trunk' },   // fanout trunk
+      { id: 'la', src: 'sw1-2', dst: 'pc1-1' },                  // fanout access
+    ],
+    helpers: { linkIsTrunk: l => l.mode === 'trunk' },
+    ...over,
+  });
+}
+
+test('trunkFilter "all": trunk e access insieme, niente nascosto', () => {
+  const res = buildTopoLines(trunkModel({ trunkFilter: 'all' }));
+  assert.equal(res.fanout.length, 2);
+  assert.equal(res.hidden.trunk, 0);
+  assert.equal(res.hidden.access, 0);
+});
+
+test('trunkFilter "trunk": le access SPARISCONO (non attenuate) e si contano', () => {
+  const res = buildTopoLines(trunkModel({ trunkFilter: 'trunk' }));
+  assert.deepEqual(res.fanout.map(f => f.linkId), ['lt']);
+  assert.equal(res.hidden.access, 1);
+  assert.ok(res.fanout.every(f => !('trunkDim' in f)), 'trunkDim non deve piu\' esistere');
+});
+
+test('trunkFilter "access": il verso opposto — spariscono i trunk', () => {
+  const res = buildTopoLines(trunkModel({ trunkFilter: 'access' }));
+  assert.deepEqual(res.fanout.map(f => f.linkId), ['la']);
+  assert.equal(res.hidden.trunk, 1);
+});
+
+test('trunkOnly=true resta accettato come sinonimo di "trunk"', () => {
+  const res = buildTopoLines(trunkModel({ trunkOnly: true }));
+  assert.deepEqual(res.fanout.map(f => f.linkId), ['lt']);
+});
+
+test('una coppia e\' un fascio: passa se contiene almeno una linea del tipo chiesto', () => {
+  const base = {
+    nodes: [
+      { id: 'pcA', type: 'pc', x: 100, y: 100 },
+      { id: 'prA', type: 'printer', x: 300, y: 100 },
+    ],
+    racks: [],
+    links: [
+      { id: 'm1', src: 'pcA-1', dst: 'prA-1', mode: 'trunk' },
+      { id: 'm2', src: 'pcA-2', dst: 'prA-2' },              // stessa coppia, access
+    ],
+    helpers: { linkIsTrunk: l => l.mode === 'trunk' },
+  };
+  const misto = buildTopoLines(model({ ...base, trunkFilter: 'all' })).pairs[0];
+  assert.equal(misto.hasTrunk, true);
+  assert.equal(misto.hasAccess, true);
+  // la coppia sopravvive a ENTRAMBI i filtri, perche' porta l'uno e l'altro
+  assert.equal(buildTopoLines(model({ ...base, trunkFilter: 'trunk' })).pairs.length, 1);
+  assert.equal(buildTopoLines(model({ ...base, trunkFilter: 'access' })).pairs.length, 1);
+});
+
+test('modo IGNOTO: nessun cavo documentato dietro → fuori da entrambi, contato a parte', () => {
+  // topoData con un edge LLDP che non risolve a nessun link del progetto
+  const m = model({
+    nodes: [
+      { id: 'pcU', type: 'pc', x: 100, y: 100 },
+      { id: 'prU', type: 'printer', x: 300, y: 100 },
+    ],
+    racks: [], links: [],
+    topoData: {
+      nodes: [{ id: 't1', nodeId: 'pcU' }, { id: 't2', nodeId: 'prU' }],
+      edges: [{ src: 't1', dst: 't2', protocol: 'LLDP' }],
+    },
+    helpers: { linkIsTrunk: l => l.mode === 'trunk' },
+  });
+  const tutto = buildTopoLines({ ...m, trunkFilter: 'all' });
+  assert.equal(tutto.pairs.length, 1, 'senza filtro la coppia scoperta si vede');
+  assert.equal(tutto.pairs[0].hasTrunk, false);
+  assert.equal(tutto.pairs[0].hasAccess, false, 'non e\' access per esclusione');
+  for (const f of ['trunk', 'access']) {
+    const r = buildTopoLines({ ...m, trunkFilter: f });
+    assert.equal(r.pairs.length, 0, `con filtro "${f}" una linea di modo ignoto non si afferma`);
+    assert.equal(r.hidden.unknownMode, 1, 'e si conta a parte, non fra le access');
+  }
+});
+
+test('i due filtri si compongono: mezzo e modo insieme', () => {
+  const res = buildTopoLines(baseModel({
+    links: [
+      { id: 'x1', src: 'sw1-1', dst: 'wp1-1', mode: 'trunk' },
+      { id: 'x2', src: 'sw1-2', dst: 'pc1-1' },
+      { id: 'x3', src: 'sw1-3', dst: 'pc1-2', wireless: true, mode: 'trunk' },
+    ],
+    helpers: { linkIsTrunk: l => l.mode === 'trunk' },
+    mediumFilter: 'wired', trunkFilter: 'trunk',
+  }));
+  assert.deepEqual(res.fanout.map(f => f.linkId), ['x1'], 'solo il trunk via cavo');
+  assert.equal(res.hidden.wireless, 1);
+  assert.equal(res.hidden.access, 1);
+});
+
 // ---- Filtro di mezzo a tre stati --------------------------------------------
 // Il vecchio booleano `hideWireless` e' UNO dei tre stati: resta accettato perche'
 // i chiamanti esistenti non devono cambiare per una funzionalita' che si aggiunge.
@@ -549,7 +729,8 @@ test('mediumFilter "all": non toglie niente e non conta niente', () => {
   const res = buildTopoLines(baseModel({ ...mixed(), mediumFilter: 'all' }));
   assert.equal(res.fanout.filter(f => f.wireless).length, 1);
   assert.equal(res.fanout.filter(f => !f.wireless).length, 1);
-  assert.deepEqual(res.hidden, { wireless: 0, wired: 0 });
+  assert.equal(res.hidden.wireless, 0);
+  assert.equal(res.hidden.wired, 0);
 });
 
 test('mediumFilter "wired": via le onde, resta il cavo', () => {
@@ -604,10 +785,10 @@ test('hidden c\'e\' anche sui return anticipati (traccia fisica, endpoint nascos
     ...mixed(), mediumFilter: 'wired',
     physicalTrace: true, highPathIds: new Set(['lc']),
   }));
-  assert.deepEqual(conTraccia.hidden, { wireless: 1, wired: 0 });
+  assert.equal(conTraccia.hidden.wireless, 1);
 
   const senzaEndpoint = buildTopoLines(baseModel({
     ...mixed(), mediumFilter: 'wired', hideEndpoints: true,
   }));
-  assert.deepEqual(senzaEndpoint.hidden, { wireless: 1, wired: 0 });
+  assert.equal(senzaEndpoint.hidden.wireless, 1);
 });

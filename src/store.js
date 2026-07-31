@@ -40,7 +40,7 @@ export const store = proxy([
     // ── viste topologia / discovery ──────────────────────────────────────────
     '_viewMode', '_topoData', '_topoVisible', '_topoNeighborsCache',
     '_topoFdbCache', '_discResults', '_driftReport', '_dhcpLeases', '_filterVlan',
-    '_rackCollapsed', '_spareActive', '_topoTrunkOnly',
+    '_rackCollapsed', '_spareActive', '_topoTrunkMode',
     // ── popup / sessione UI ──────────────────────────────────────────────────
     '_lastPopPid', '_lastPopX', '_lastPopY', '_currentUser',
     // ── coda-stato di INTERAZIONE (ritiro ponte 2026-07-11) ───────────────────
