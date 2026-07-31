@@ -6,6 +6,15 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 
 ## Unreleased
 
+### Changed
+- The **README is a landing page**: a banner, a proof row of badges, a six-cell value grid and a quick start above the fold; the 120-item feature list becomes a table you can scan plus nine sections that open. Nothing was removed.
+- **Language flags are SVG files, not emoji** — no font on Windows renders 🇮🇹 or 🇬🇧, so the manuals were labelled with two blank boxes.
+- The **release badge reads GitHub** instead of a number typed by hand, which is one fewer place to bump — and one that had already gone stale before.
+
+### Fixed
+- The test counts in the README said 1590 and 90; they are **1,926 and 93**.
+- Two roadmap entries were **filed under *Planned* with their box already ticked** (IPv6 Scope A, the OS hint from ping TTL). They shipped, so they now sit with what shipped.
+
 ## [2.3.1](https://github.com/muttley1973/infranetpro/releases/tag/v2.3.1) — 2026-07-31
 
 **The classifier stops guessing from brand names.** Deciding *what a device is* was the last important decision in the product with no regression net behind it.

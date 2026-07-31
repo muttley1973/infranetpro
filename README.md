@@ -1,24 +1,125 @@
-﻿# InfraNet Pro
+<div align="center">
 
-> **Network infrastructure diagramming and live SNMP management — in a single self-hosted app.**
+<img src="GitHub%20Images/hero.png" alt="InfraNet Pro — document your network, then let SNMP prove the drawing is still true" width="100%">
 
-[![CI](https://github.com/muttley1973/infranetpro/actions/workflows/ci.yml/badge.svg)](https://github.com/muttley1973/infranetpro/actions/workflows/ci.yml)
-[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D16-brightgreen?logo=node.js)](https://nodejs.org/)
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2.3.1-orange)]()
-[![Lingua: Italiano · English](https://img.shields.io/badge/lang-Italiano%20%C2%B7%20English-00b3d6)]()
-
-<p align="center">
-  <b>InfraNet Pro is free and open source.</b> If it helps your work, you can buy me a coffee — it funds new features. ☕<br>
-  <a href="https://ko-fi.com/infranetpro"><img height="36" src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Support InfraNet Pro on Ko-fi"></a>
+<p>
+  <a href="https://github.com/muttley1973/infranetpro/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/muttley1973/infranetpro/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/muttley1973/infranetpro/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/muttley1973/infranetpro?label=release&color=00b3d6"></a>
+  <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-1f6feb"></a>
+  <a href="https://nodejs.org/"><img alt="Node.js 16 or newer" src="https://img.shields.io/badge/Node.js-%E2%89%A5%2016-3fb950?logo=nodedotjs&logoColor=white"></a>
+  <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
+<p>
+  <a href="#testing"><img alt="1,926 tests, 0 failing" src="https://img.shields.io/badge/tests-1%2C926%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="93 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-93%20real--browser%20flows-3fb950"></a>
+  <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
+  <a href="#oui-intelligence-engine"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
+  <img alt="No database" src="https://img.shields.io/badge/database-none-8b949e">
+</p>
+
+<p>
+  <a href="#quick-start"><b>Quick start</b></a> &nbsp;·&nbsp;
+  <a href="#features"><b>Features</b></a> &nbsp;·&nbsp;
+  <a href="#screenshots"><b>Screenshots</b></a> &nbsp;·&nbsp;
+  <a href="#architecture"><b>Architecture</b></a> &nbsp;·&nbsp;
+  <a href="#rest-api-v1"><b>REST API</b></a> &nbsp;·&nbsp;
+  <a href="#roadmap"><b>Roadmap</b></a> &nbsp;·&nbsp;
+  <a href="CHANGELOG.md"><b>Changelog</b></a>
+</p>
+
+<table>
+<tr>
+<td align="center" width="50%">
+<a href="MANUALE_TECNICO_IT.pdf"><img src="GitHub%20Images/flag-it.svg" width="26" alt=""><br><b>Manuale tecnico — Italiano</b></a><br>
+<sub>48 pagine illustrate · interfaccia, onboarding e manuale completi in italiano, con selettore IT/EN nell'app.</sub>
+</td>
+<td align="center" width="50%">
+<a href="TECHNICAL_MANUAL_EN.pdf"><img src="GitHub%20Images/flag-gb.svg" width="26" alt=""><br><b>Technical manual — English</b></a><br>
+<sub>48 illustrated pages · fully bilingual UI, onboarding and manual, with an in-app IT/EN switcher.</sub>
+</td>
+</tr>
+</table>
+
+<a href="https://ko-fi.com/infranetpro"><img height="34" alt="Support InfraNet Pro on Ko-fi" src="https://ko-fi.com/img/githubbutton_sm.svg"></a><br>
+<sub><b>InfraNet Pro is free and open source.</b> If it helps your work, a coffee funds the next feature. ☕</sub>
+
+</div>
+
+---
 
 <p align="center">
   <img src="GitHub%20Images/demo.gif" alt="InfraNet Pro — a quick tour: topology, live racks, VLAN isolation, SNMP discovery and the AI assistant" width="900"><br>
   <em>A quick tour — auto-discovered topology, live 19″ racks, one-click VLAN isolation, SNMP discovery and the grounded AI assistant. <a href="#screenshots">More screenshots ↓</a></em>
 </p>
 
-> 🌍 **Bilingue · Bilingual — 🇮🇹 Italiano & 🇬🇧 English.** Interfaccia, onboarding e manuale tecnico completi in entrambe le lingue, con selettore IT/EN nell'app. · Fully bilingual UI, onboarding and technical manual, with an in-app IT/EN switcher. 📖 [Manuale IT](MANUALE_TECNICO_IT.pdf) · [Manual EN](TECHNICAL_MANUAL_EN.pdf)
+---
+
+## What it is
+
+InfraNet Pro is a **self-hosted web application** that lets network engineers draw rack layouts and floor-plan diagrams, then bring them to life by polling live data from real devices via SNMP. Interfaces, VLANs, LAG groups and neighbour topology are discovered automatically — no external database, no cloud dependency, minimal tooling (a lightweight esbuild bundle for the frontend; `npm start` builds it).
+
+Current product direction: InfraNet Pro keeps discovery and classification inside the app. External discovery and monitoring engines are not part of the active roadmap; the internal SNMP/sysObjectID/LLDP/CDP/FDB engine is the source of truth and can be refined with local plugins over time.
+
+<table>
+<tr>
+<td width="33%" valign="top">
+<b>🗺️ The drawing checks itself</b><br><br>
+You draw the racks and the floor plan. One button polls the real devices and reports what moved: port state, an IP change on the same MAC, a swapped serial, a device that vanished, a cable that never existed.
+</td>
+<td width="33%" valign="top">
+<b>✋ Manual-first, always</b><br><br>
+What you declare is law. Discovery <i>proposes</i> and never overwrites: edited fields carry a padlock, and a measurement that disagrees is raised as a warning instead of quietly winning the argument.
+</td>
+<td width="33%" valign="top">
+<b>🚫 It never bluffs</b><br><br>
+Every figure declares where it came from — declared, measured (with its age), or derived. A number nobody measured shows as a dash, not a zero, and each lens names what it is <i>not</i> looking at.
+</td>
+</tr>
+<tr>
+<td width="33%" valign="top">
+<b>📦 Zero infrastructure</b><br><br>
+One Node process and one JSON file per project. No database, no cloud, no agent on your devices, no telemetry. Binds to <code>127.0.0.1</code> by default, and runs in Docker with one command.
+</td>
+<td width="33%" valign="top">
+<b>🔌 Standard MIBs, any vendor</b><br><br>
+IF-MIB, Q-BRIDGE, LLDP/CDP, ENTITY-MIB, IEEE 802.3ad, UPS-MIB, Printer-MIB, HOST-RESOURCES. Vendor intelligence lives in hot-reloadable local plugins — never hardcoded into the scan path.
+</td>
+<td width="33%" valign="top">
+<b>📤 Built to hand over</b><br><br>
+A vector PDF dossier with an audit-ready asset register, editable draw.io racks (one layer per VLAN), printable cable labels, a read-only REST API and a ready-made Ansible inventory.
+</td>
+</tr>
+</table>
+
+---
+
+## Quick start
+
+```bash
+git clone https://github.com/muttley1973/infranetpro.git
+cd infranetpro
+npm install
+npm start
+```
+
+Open **http://localhost:8421**. An **admin** account is created on first start and you are prompted to change its password.
+
+<table>
+<tr>
+<td valign="top" width="50%">
+<b>🐳 Prefer a container?</b><br>
+<code>docker compose up -d --build</code><br>
+<sub>Host networking by default, so discovery is complete. See <a href="#docker">Docker</a>.</sub>
+</td>
+<td valign="top" width="50%">
+<b>🖥️ On Windows?</b><br>
+Double-click <code>avvia.bat</code>.<br>
+<sub>Full detail in <a href="#installation">Installation</a> and <a href="#configuration">Configuration</a>.</sub>
+</td>
+</tr>
+</table>
+
+> **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then run **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
 > 📰 **What's new (v2.3.1) — the classifier stops guessing from brand names.** Deciding *what a device is* was the last important decision in the product with no regression net behind it. There is one now — a shared corpus run through *both* engines on every test run — and behind it a word no longer outranks a measurement, a brand no longer decides a type, and **"switch" stops being the answer for everything unrecognised**. The Overview pairs **IP and MAC in one row** and breaks free ports down **by speed**.
 >
@@ -26,47 +127,85 @@
 
 > 🔒 **Security-audited & hardened.** The codebase has undergone an application-security audit (no critical issues) and the follow-up fixes are covered by **automated security regression tests**: the data surfaces (AI context, REST DTOs, exports) are **allowlist-only** so secrets never leave the machine, OS commands run via `execFile` with no shell, project IDs are path-traversal-safe, and secrets use a CSPRNG. See [Authentication & Roles → Security hardening & audit](#authentication--roles).
 
-InfraNet Pro is a **self-hosted web application** that lets network engineers draw rack layouts and floor-plan diagrams, then bring them to life by polling live data from real devices via SNMP. Interfaces, VLANs, LAG groups and neighbour topology are discovered automatically — no external database, no cloud dependency, minimal tooling (a lightweight esbuild bundle for the frontend; `npm start` builds it).
-
-Current product direction: InfraNet Pro keeps discovery and classification inside the app. External discovery and monitoring engines are not part of the active roadmap; the internal SNMP/sysObjectID/LLDP/CDP/FDB engine is the source of truth and can be refined with local plugins over time.
-
 ---
-
 ## Table of Contents
 
-- [Screenshots](#screenshots)
-- [Features](#features)
-- [Architecture](#architecture)
-- [Requirements](#requirements)
-- [Installation](#installation)
-- [Docker](#docker)
-- [Configuration](#configuration)
-- [Usage](#usage)
-- [SNMP Integration](#snmp-integration)
-- [sysObjectID Intelligence Engine](#sysobjectid-intelligence-engine)
-- [OUI Intelligence Engine](#oui-intelligence-engine)
-- [Fusion Scoring Engine](#fusion-scoring-engine)
-- [LAG / EtherChannel Detection](#lag--etherchannel-detection)
-- [VLAN Management](#vlan-management)
-- [Authentication & Roles](#authentication--roles)
-- [Project Data Model](#project-data-model)
-- [API Reference](#api-reference)
-- [REST API (v1)](#rest-api-v1)
-- [Known Limitations](#known-limitations)
-- [Roadmap](#roadmap)
-- [Testing](#testing)
-- [Contributing](#contributing)
-- [License](#license)
+<table>
+<tr>
+<td valign="top" width="33%">
+
+<b>🚀 Get it running</b>
+<ul>
+<li><a href="#quick-start">Quick start</a></li>
+<li><a href="#requirements">Requirements</a></li>
+<li><a href="#installation">Installation</a></li>
+<li><a href="#docker">Docker</a></li>
+<li><a href="#configuration">Configuration</a></li>
+<li><a href="#usage">Usage</a></li>
+<li><a href="#testing">Testing</a></li>
+</ul>
+
+</td>
+<td valign="top" width="33%">
+
+<b>🧭 What it does</b>
+<ul>
+<li><a href="#screenshots">Screenshots</a></li>
+<li><a href="#features">Features</a></li>
+<li><a href="#snmp-integration">SNMP integration</a></li>
+<li><a href="#vlan-management">VLAN management</a></li>
+<li><a href="#lag--etherchannel-detection">LAG / EtherChannel detection</a></li>
+<li><a href="#authentication--roles">Authentication &amp; roles</a></li>
+<li><a href="#known-limitations">Known limitations</a></li>
+</ul>
+
+</td>
+<td valign="top" width="33%">
+
+<b>🔬 Under the hood</b>
+<ul>
+<li><a href="#architecture">Architecture</a></li>
+<li><a href="#sysobjectid-intelligence-engine">sysObjectID engine</a></li>
+<li><a href="#oui-intelligence-engine">OUI engine</a></li>
+<li><a href="#fusion-scoring-engine">Fusion scoring engine</a></li>
+<li><a href="#project-data-model">Project data model</a></li>
+<li><a href="#api-reference">API reference</a></li>
+<li><a href="#rest-api-v1">REST API (v1)</a></li>
+</ul>
+
+</td>
+</tr>
+</table>
+
+<p align="center">
+  <a href="#roadmap">Roadmap</a> ·
+  <a href="#feedback--requests">Feedback &amp; requests</a> ·
+  <a href="#contributing">Contributing</a> ·
+  <a href="#support">Support</a> ·
+  <a href="#license">License</a> ·
+  <a href="ARCHITECTURE.md">ARCHITECTURE.md</a> ·
+  <a href="CHANGELOG.md">CHANGELOG.md</a> ·
+  <a href="LICENSING.md">LICENSING.md</a>
+</p>
 
 ---
-
 ## Screenshots
 
-> 📖 **Full feature manual (PDF):** [🇮🇹 Italiano](MANUALE_TECNICO_IT.pdf) · [🇬🇧 English](TECHNICAL_MANUAL_EN.pdf) — dark cover, white printable interior, 19 illustrated chapters.
+<p align="center">
+  <b>Full feature manual (PDF)</b> —
+  <a href="MANUALE_TECNICO_IT.pdf"><img src="GitHub%20Images/flag-it.svg" width="20" alt=""> Italiano</a> ·
+  <a href="TECHNICAL_MANUAL_EN.pdf"><img src="GitHub%20Images/flag-gb.svg" width="20" alt=""> English</a><br>
+  <sub>Dark cover, white printable interior, 19 illustrated chapters, 48 pages per language.</sub>
+</p>
 
 <p align="center">
   <img src="GitHub%20Images/Topologia.png" alt="InfraNet Pro — topology view" width="900"><br>
   <em>Topology — auto-discovered L1/L2 neighbours (LLDP / CDP / FDB) drawn over the floor plan</em>
+</p>
+
+<p align="center">
+  <img src="GitHub%20Images/pannello%20Panoramica.png" alt="InfraNet Pro — the Overview: three columns of verdicts with the provenance of every figure" width="900"><br>
+  <em>Overview — three standing questions in three columns, every number carrying its <b>provenance</b>: declared, from a scan, derived, or <em>not declared</em> as a dash rather than a zero. Rows open in place. <sub>(Shown in Italian — the whole UI ships in both languages.)</sub></em>
 </p>
 
 | Rack view | Rack detail |
@@ -93,9 +232,22 @@ Current product direction: InfraNet Pro keeps discovery and classification insid
 
 ## Features
 
-> Deeper detail lives in [ARCHITECTURE.md](ARCHITECTURE.md), the [technical manuals](MANUALE_TECNICO_IT.pdf) and the commit history.
+| Area | At a glance |
+|---|---|
+| **🗺️ Diagramming** | 19″ racks with live port LEDs, floor plans, ~4,100 device models across 52 vendors, MGMT & SFP blocks, hypervisors and VMs, the Overview dashboard, exports to PDF · SVG · draw.io |
+| **📡 Live SNMP** | v1 / v2c / v3 discovery, interfaces, VLANs, LAG, LLDP/CDP neighbours, ENTITY-MIB inventory, wireless associations, DHCP lease import, the Verify / Drift report |
+| **🔗 LAG detection** | A four-level cascade — `ifStackTable` · IEEE 802.3ad · LACP actor state · LLDP-inferred — plus LACP mode coherence across both ends |
+| **🏷️ VLAN** | Access and trunk detection, Q-BRIDGE bitmaps with a VTP fallback, auto-derived trunks, per-VLAN IPAM occupancy, one-click isolation across the whole map |
+| **📶 Wireless** | Up to 8 radios per device with their own SSID, band, channel, security and VLAN; over-the-air association discovery from the bridge FDB and the L3 neighbour table |
+| **🧵 Cabling** | Segment editor on the TIA-568 hierarchy, copper *and* fibre reach validation, end-to-end physical path trace, printable label sheets and CSV |
+| **🤖 AI assistant** | Bring-your-own-key, OpenAI-compatible, local by default; allowlist context, grounded answers with clickable citations, Ansible drafts — advisory, never auto-applied |
+| **🔒 Security** | Session auth with admin/viewer roles, rate-limited login, loopback bind, secrets structurally excluded from every data surface |
+| **🌍 Bilingual** | Complete Italian and English interface, onboarding and 48-page manual, guarded by an `it ↔ en` key-parity test |
 
-### Diagramming
+> Every heading below opens. Deeper detail lives in [ARCHITECTURE.md](ARCHITECTURE.md), the [technical manuals](MANUALE_TECNICO_IT.pdf) and the commit history.
+<details>
+<summary><b>🗺️ Diagramming</b> — <sub>racks, floor plans, labels, hypervisors, the Overview dashboard and every export</sub></summary>
+
 - **Rack view** — drag-and-drop 19″ rack units (1U–8U) with colour-coded port LEDs.
 - **Apply model** — search a real switch or router model and apply it in one click: port count and front panel are set natively and drawn by the built-in renderer. The catalogue ships ~4,100 models across 52 vendors, generated from public-domain device data (`tools/import-device-types.js`).
 - **Front-panel controls** — per-device port count and layout (Auto / Linear / Sequential / Cisco-alternating), with an optional separate SFP block and a dedicated MGMT block.
@@ -133,7 +285,11 @@ Current product direction: InfraNet Pro keeps discovery and classification insid
 - **Cable-label export** — pick the fields you need with a live preview; export as CSV for mail-merge or as ready-to-print **PDF label sheets** (Avery A4 grids, Dymo rolls, configurable generic). Includes a wrap/flag mode that repeats the ID so it reads from both sides. The room is derived geometrically from the floor position.
 - **Dark UI** — a focused dark theme driven by semantic CSS tokens, so a light theme would only add a second value set.
 
-### Live Device Integration (SNMP)
+</details>
+
+<details>
+<summary><b>📡 Live Device Integration (SNMP)</b> — <sub>discovery, polling, neighbours, honest presence, the drift report and DHCP leases</sub></summary>
+
 - **SNMP v1 / v2c / v3** (authPriv, authNoPriv, noAuthNoPriv) out of the box.
 - **Auto-discovery** — scan a subnet (CIDR or range) and auto-place reachable devices.
 - **Interface discovery** — every physical interface with speed, duplex, admin and operational state.
@@ -152,7 +308,11 @@ Current product direction: InfraNet Pro keeps discovery and classification insid
 - **Endpoint/BYOD transparency** — undocumented entries that look like user devices (guest VLAN, crowded uplink port, randomised MAC) collapse into a group so the actionable infrastructure stays clean. Each hidden row says **why** in plain language, and a toggle reveals them.
 - **"Management VLAN" role** — the opposite of a guest VLAN: an undocumented device seen there is forced to infrastructure, never collapsed as BYOD, and flagged with a red security badge.
 
-### LAG / EtherChannel (multi-level detection)
+</details>
+
+<details>
+<summary><b>🔗 LAG / EtherChannel (multi-level detection)</b> — <sub>the four-level cascade, and what Cisco does differently</sub></summary>
+
 - **L0** — `ifStackTable` higher/lower layer analysis.
 - **L1** — `dot3adAggMemberPorts` (IEEE 802.3ad MIB).
 - **L2** — `lagAttached` + actor operational state bitmask.
@@ -161,7 +321,11 @@ Current product direction: InfraNet Pro keeps discovery and classification insid
 - Groups auto-named from the aggregator interface (`Port-channel1`, `bond0`).
 - Selecting a LAG member port highlights all its siblings.
 
-### VLAN Management
+</details>
+
+<details>
+<summary><b>🏷️ VLAN Management</b> — <sub>access and trunk, the VTP fallback, derived trunks and IPAM occupancy</sub></summary>
+
 - **Per-port VLAN assignment** (access mode) and **trunk detection** with native VLAN and allowed list.
 - VLAN list shown in both the cable popup and the port popup, in compact range notation (`1,10,100-120,200`).
 - **Fallback VLAN discovery via Cisco VTP MIB** — no per-VLAN community required.
@@ -172,13 +336,21 @@ Current product direction: InfraNet Pro keeps discovery and classification insid
 - **Site default native VLAN** — change the untagged default site-wide; per-port and per-trunk overrides win.
 - **IPAM occupancy from DHCP leases** — real address usage per VLAN: capacity, a usage bar, and a documented / DHCP-only / free breakdown, with an *"N undocumented → Adopt"* shortcut that carries MAC, IP and hostname (`lib/ipam.js`, read-only).
 
-### Wireless
+</details>
+
+<details>
+<summary><b>📶 Wireless</b> — <sub>radios, SSIDs, bands and channels — and why a radio only talks to a radio</sub></summary>
+
 - **Up to 8 radio interfaces per device**, each with its own SSID, band, channel, security and VLAN (`lib/radio.js`).
 - **Wireless is its own connection type** — a radio port only connects to another radio port; radio to network-port is rejected.
 - **Per-device radio layout** — floor tiles show radios on 8 perimeter anchors, rack devices line them up on the left edge.
 - A device's SSID VLANs are carried tagged on its wired uplink, which automatically becomes a **trunk**.
 
-### Cabling Metadata
+</details>
+
+<details>
+<summary><b>🧵 Cabling Metadata</b> — <sub>segments, the TIA-568 hierarchy, reach validation and the physical path trace</sub></summary>
+
 - Cable-level metadata on `state.links[]`: type, length, colour, install date and installer, permanence, notes — with backward-compatible normalisation of legacy fields.
 - **Segment editor** — highlight mode lights every free pass-through port; click one to split a cable into two real segments (`PC ↔ patch panel ↔ switch`). *Remove hop* merges them back (`lib/cabling.js`).
 - **TIA-568 hierarchy rule** — a hop can only be inserted if it sits *between* the endpoints in the structured-cabling hierarchy, so a completed run cannot be extended with out-of-place hops. VoIP phones are pass-through at level 0.5.
@@ -189,7 +361,11 @@ Current product direction: InfraNet Pro keeps discovery and classification insid
 - **Topology legend toggles** — `TRUNK` highlights trunk links and reveals them inside the rack window; `ENDPOINT` hides the last hop to leaf devices to declutter the backbone.
 - **Physical-path trace** — double-click a cable in Topology to light up the *whole* run (switch → patch → wall socket → endpoint) across racks and floor.
 
-### AI Assistant (advisory)
+</details>
+
+<details>
+<summary><b>🤖 AI Assistant (advisory)</b> — <sub>bring-your-own-key, allowlist context, grounded answers and Ansible drafts</sub></summary>
+
 - **In-app assistant, bring-your-own-key** — a third *Assistant* tab that answers questions about *your documented network* in plain language: who is on a VLAN, what is on a port, which IPs are free, why a device is absent, SNMP health, topology, SSIDs and hardware capabilities. Provider-agnostic through a single **OpenAI-compatible** endpoint, **local by default** so data never leaves the machine.
 - **Data security by construction** — the API key lives **only on the server** and never returns to the browser. The context is built from the **same allowlist** as the REST API, so the SNMP community and credentials are not in the list and physically cannot leave; a secret-name denylist guards the health passthrough. A **"Show what leaves"** button previews the exact sanitised JSON, and a build-failing test asserts no secret can reach the context.
 - **No hallucination** — *"InfraNet computes, the AI narrates"*: drift, free IPs and gaps are pre-computed and passed as facts, and the model is told to answer *"not in the documentation"* when it doesn't know.
@@ -202,19 +378,29 @@ Current product direction: InfraNet Pro keeps discovery and classification insid
 - **Onboarding guide** — the assistant orients you across the full workflow (build → document → verify → analyse → hand off → automate) by the features' real labels, and proactively surfaces under-used ones relevant to your project's actual state.
 - **Health monitoring & proactive alerts** — the assistant sees each device's real SNMP health (printer supplies, host CPU/RAM/disks, UPS). A pure engine derives **deterministic alerts against thresholds** (`lib/health-alerts.js`) and the prompt tells the assistant to report problems first, using only pre-computed values. HOST-RESOURCES is polled for network gear too, so Linux-based devices give CPU, RAM and disk for free. Reachability stays with Verify; temperature and traffic are not collected, so they are never fabricated.
 
-### Security
+</details>
+
+<details>
+<summary><b>🔒 Security</b> — <sub>authentication, roles, what it binds to and what it never sends</sub></summary>
+
 - Session-based authentication (express-session + bcryptjs) with a **rate-limited login** endpoint.
 - Two roles: **admin** (full control) and **viewer** (read-only), with SNMP secrets redacted for viewers.
 - Auto-generated session secret persisted to `.session-secret`, owner-only and written atomically.
 - Binds to `127.0.0.1` only — not exposed to the network by default.
 - Baseline security headers on every response, path-traversal-safe project IDs, and CSPRNG-generated secrets. See [Security hardening & audit](#authentication--roles).
 
-### Internationalization (i18n)
+</details>
+
+<details>
+<summary><b>🌍 Internationalization (i18n)</b> — <sub>the bilingual interface, and the test that keeps it honest</sub></summary>
+
 - **Bilingual UI (Italian / English)** with a switcher in the user menu *and* on the login page; the choice is persisted and carried into the app.
 - Pure, zero-dependency `lib/i18n.js`: `t(key, vars)` with an `it → en` fallback, so an untranslated key never breaks the UI.
 - Two wiring mechanisms: `data-i18n` attributes for static HTML, `t('key')` inline for JS-generated panels.
 - The technical glossary (VLAN, SNMP, LLDP/CDP, SFP…) and vendor names are intentionally left untranslated.
 - An `it ↔ en` key-parity test guards against missing translations — including the pure validators, whose warnings used to be hardcoded Italian.
+
+</details>
 
 ---
 
@@ -543,7 +729,11 @@ Users are stored in `users.json` with bcrypt-hashed passwords (cost factor 12).
 The login endpoint is rate-limited to **10 attempts per 15 minutes** per IP.
 
 ### Security hardening & audit
-InfraNet Pro is designed for a **trusted LAN, behind login**, bound to `127.0.0.1` by default. The codebase has undergone an **application-security audit** (no critical findings) and the follow-up hardening is enforced by tests:
+InfraNet Pro is designed for a **trusted LAN, behind login**, bound to `127.0.0.1` by default. The codebase has undergone an **application-security audit** (no critical findings) and the follow-up hardening is enforced by tests.
+
+<details>
+<summary><b>The 14 hardening measures, and the test that guards each one</b></summary>
+
 - **Secrets never leave the machine on the data surfaces** — the AI context, the REST API v1 DTOs and the exports are built from an **explicit allowlist** (`lib/api-shape.js`, `server/ai/context.js`): SNMP communities, Wi-Fi passphrases/PSK, API keys and tokens are structurally excluded. A **build-failing guard test** (`test/ai-context.test.js`) fails the build if a secret-looking field ever reaches the AI context.
 - **The bring-your-own AI key is stored owner-only** — `data/ai-config.json` is written `0o600` (and re-tightened at startup) so a co-tenant on the host can't read the key; supply it via `INFRANET_AI_KEY` to keep it off disk entirely (`server/ai-config.js`, guarded by `test/ai-config.test.js`).
 - **Uploaded skin SVGs are sanitized before render** — a shared library skin is stripped of `<script>` / event handlers (`on*`, in every quoting form) / external references, both by a server-side regex pass and by a real **DOM parse** on the client for the preview *and* the rack, so a poisoned skin-pack can't run script in another user's Properties panel (`lib/panel-skin.js`, `src/app-panel-skin.js`, guarded by `test/panel-skin.test.js`).
@@ -558,6 +748,8 @@ InfraNet Pro is designed for a **trusted LAN, behind login**, bound to `127.0.0.
 - **The dev auth-bypass is fail-closed** — `INFRANET_DEV_NO_AUTH=1` (a preview convenience) is honoured **only** when the server is bound to loopback and `NODE_ENV` is not `production`; on a network-reachable bind it is ignored with a loud warning, so it can never silently disable auth in production (`auth.js`, guarded by `test/security-hardening.test.js`).
 - **Baseline HTTP security headers on every response** — `Content-Security-Policy` (self-hosted assets → `default-src 'self'` with `object-src 'none'`, `base-uri 'self'`, `frame-ancestors 'none'`; inline kept because the UI needs it), `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` (`server.js`).
 - **Skin CSS sanitized too** — beyond `<script>` / event handlers / external refs, `<style>` and `style=""` are stripped of external / `data:` / `javascript:` `url()` (local `url(#id)` kept), `expression()` and `@import`, and `vbscript:` is neutralised like `javascript:` (`lib/panel-skin.js`).
+
+</details>
 
 > 🔐 Found a vulnerability? Please report it **privately** to the maintainer instead of opening a public issue.
 
@@ -661,7 +853,9 @@ See [integrations/ansible/README.md](integrations/ansible/README.md) for the ful
 
 Full release notes live in [CHANGELOG.md](CHANGELOG.md). Highlights of what has shipped:
 
-**Done:**
+<details>
+<summary><b>✅ Shipped</b> — <sub>24 milestones</sub></summary>
+
 - [x] **Overview (summary view)** — a read-only view (like Topology; it never touches the document) in three columns — **Document / Conformance / Expansion** — each cell a number *and* a plain-word verdict declaring the **provenance** of every figure (declared / from scan / derived / not declared, a missing datum shown dashed, never a zero); an at-a-glance **health dot + verdict** per column, a severity-coloured **entry-point accent** on the most urgent tile, and a **since-last-read delta** (−N / +N, baseline in `localStorage`, never in the document). Every row **drills down in place**. Composes existing engines only — no new measurement (`lib/overview.js`, pure + tests)
 - [x] **AI assistant** — advisory, bring-your-own-key, OpenAI-compatible (local Ollama by default); server-side key, allowlist context + a build-failing anti-leak guard test; scope/capability toggles; never auto-applies
 - [x] **REST API v1 + Ansible dynamic inventory** — read-only, bearer-token, sanitized `/api/v1/*`; token UI; stdlib-only `infranet_inventory.py` with rich host-vars (VLAN/subnet/gateway, serial/firmware, rack, mgmt, **`ansible_network_os`**, **config-backup pointer**) and a **`backup_missing`** group
@@ -684,6 +878,10 @@ Full release notes live in [CHANGELOG.md](CHANGELOG.md). Highlights of what has 
 - [x] **Multi-vendor LAG detection** — four-level cascade (ifStack / 802.3ad / ActorOperState / LLDP-inferred), logical id, LACP mode coherence
 - [x] **Topology "to confirm" states** — deduced infra/uplink cables (guessed remote port, materialised gateway, FDB uplink-resolution of a documented device) are born *Inferred · to verify* (amber Confirm/Delete, dashed on the map), never mislabelled `LLDP` — nor `LAG` when the uplink lands on a local LAG member port toward a blind switch whose port we can't know; a hidden multi-port intermediary behind a 2–4-MAC access port is surfaced as a shared L2 segment with a role **suggested** from the endpoints (other subnet → gateway · virtual OUI → hypervisor · randomised MAC → AP · else switch) and materialised from the Shared L2 panel
 - [x] **Engineering** — zero-dep regression suite + CI, server modularization, frontend ESM/esbuild migration, correlation primitives (`lib/correlate.js`), ENTITY-MIB inventory, `node.spec` refactor
+- [x] **IPv6 (Scope A), treated like IPv4:** address field in device Properties **with the same padlock** (`ip6Manual`); the SNMP poll reads the device's **own** address (`ipAddressTable`) so the **Sync auto-populates** it and **Verify** flags a locked divergence. Plus Neighbour Discovery (`ipNetToPhysicalTable`, routable global/ULA only) — which now also feeds **cross-subnet presence**: a device in a router's ND cache is green even if IPv6-only or ARP-aged (twin of the router-ARP path) — EUI-64 → vendor hint, privacy-IID → BYOD. Active IPv6 sweep (`ping ff02::1`) stays parked.
+- [x] **OS-family hint from ping TTL** (nmap-style, zero-cost, low-weight, embedded-appliance-suppressed; internal — not shown in the scan table)
+
+</details>
 
 **Planned:**
 - [ ] `ENTITY-SENSOR-MIB` (temperatures/fans/PSU) + real PoE wattage per switch
@@ -691,8 +889,6 @@ Full release notes live in [CHANGELOG.md](CHANGELOG.md). Highlights of what has 
 - [ ] SQLite-backed storage for discovery/IP history, FDB cache and audit log
 - [ ] Internal discovery/classification hardening (richer local plugins, more real-device tests)
 - [ ] Topology multi-source fusion (LLDP + FDB agreement boost; stricter unmanaged-switch detection)
-- [x] **IPv6 (Scope A), treated like IPv4:** address field in device Properties **with the same padlock** (`ip6Manual`); the SNMP poll reads the device's **own** address (`ipAddressTable`) so the **Sync auto-populates** it and **Verify** flags a locked divergence. Plus Neighbour Discovery (`ipNetToPhysicalTable`, routable global/ULA only) — which now also feeds **cross-subnet presence**: a device in a router's ND cache is green even if IPv6-only or ARP-aged (twin of the router-ARP path) — EUI-64 → vendor hint, privacy-IID → BYOD. Active IPv6 sweep (`ping ff02::1`) stays parked.
-- [x] **OS-family hint from ping TTL** (nmap-style, zero-cost, low-weight, embedded-appliance-suppressed; internal — not shown in the scan table)
 - [ ] Discovered-device de-duplication, shadow/rogue-device signal
 - [ ] Keep discovery propose-and-reconcile, never overwrite (the *"discovered ≠ intent"* model)
 
@@ -722,7 +918,7 @@ Coverage focuses on the pure, bug-prone logic that has historically broken: SNMP
 
 Current local quality baseline:
 - `npm run check` validates all project JS sources (~140 files)
-- `npm test` runs the full regression suite (currently 1590+ unit tests, all passing) plus a real‑browser E2E suite (`RUN_E2E=1`, 90 flows)
+- `npm test` runs the full regression suite (currently **1,926 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **93 flows**)
 - final visual verification is still important for rack/front-panel refinements
 
 > Pure functions are exposed for tests via an additive `_internals` export on
@@ -823,8 +1019,30 @@ PARTICULAR PURPOSE. See the GNU AGPL for more details.
 
 ---
 
-<p align="center">
-  Built with ❤️ for network engineers who prefer developing with a coding agent.
+<div align="center">
+
+<img src="GitHub%20Images/logo.png" width="46" alt=""><br>
+<b>InfraNet Pro</b><br>
+<sub>Built with ❤️ for network engineers who prefer developing with a coding agent.</sub><br>
+<sub>If it earns a place in your workflow, a ⭐ helps other engineers find it.</sub>
+
+<p>
+  <a href="#quick-start">Quick start</a> ·
+  <a href="CHANGELOG.md">Changelog</a> ·
+  <a href="ARCHITECTURE.md">Architecture</a> ·
+  <a href="https://github.com/muttley1973/infranetpro/issues/new/choose">Report a bug</a> ·
+  <a href="https://github.com/muttley1973/infranetpro/discussions">Discussions</a> ·
+  <a href="LICENSING.md">Commercial licence</a>
 </p>
+
+<p>
+  <a href="MANUALE_TECNICO_IT.pdf"><img src="GitHub%20Images/flag-it.svg" width="18" alt=""> Manuale tecnico</a>
+  &nbsp;·&nbsp;
+  <a href="TECHNICAL_MANUAL_EN.pdf"><img src="GitHub%20Images/flag-gb.svg" width="18" alt=""> Technical manual</a>
+</p>
+
+<a href="https://ko-fi.com/infranetpro"><img height="32" alt="Support InfraNet Pro on Ko-fi" src="https://ko-fi.com/img/githubbutton_sm.svg"></a>
+
+</div>
 
 
