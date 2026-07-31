@@ -1021,7 +1021,7 @@ PARTICULAR PURPOSE. See the GNU AGPL for more details.
 
 <div align="center">
 
-<img src="GitHub%20Images/logo.png" width="46" alt=""><br>
+<img src="GitHub%20Images/logo-mark.png" width="52" alt=""><br>
 <b>InfraNet Pro</b><br>
 <sub>Built with ❤️ for network engineers who prefer developing with a coding agent.</sub><br>
 <sub>If it earns a place in your workflow, a ⭐ helps other engineers find it.</sub>
