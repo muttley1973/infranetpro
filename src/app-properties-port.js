@@ -52,9 +52,16 @@ export function _renderPortProps(panel){
         }
         const pi=state.ports[pid]||{};
         const portNode=getNodeByPortId(pid);
-        // Coupler L1 PASSIVO (presa a muro, patch panel, media converter): non ha
-        // stato/velocità/VLAN propri — sono determinati dallo switch a monte e
-        // propagati. Per non confondere, su questi NON si mostrano quei campi.
+        // Coupler L1 PASSIVO (presa a muro, patch panel, media converter): velocità
+        // e VLAN non sono suoi — li determina lo switch a monte e si propagano, quindi
+        // quei campi restano fuori.
+        // Lo STATO invece SI', ed è editabile: su una tappa passiva «attiva» non vuol
+        // dire link-up, vuol dire OCCUPATA DA UN CAVO, che è un fatto del pannello e
+        // non dello switch. Lo scrive già da sé chi collega (app-pointer.js,
+        // app-cabling-editor.js `_markPortActive`) e lo cancella chi scollega; il campo
+        // serve per i casi che l'app non può vedere — una bretella posata ma non
+        // documentata, una porta rotta. Nasconderlo lasciava una porta col cavo dentro
+        // indistinguibile da una libera, senza modo di correggerla (paletto ①).
         const _passiveConduit = !!(portNode && TYPES[portNode.type] && TYPES[portNode.type].isPassive && TYPES[portNode.type].passThrough);
         // Device FLOOR con IP non-attivo (PC, stampante, IoT, AP, webcam, TV, VoIP…):
         // consumer/tagger di rete. La VLAN la determina lo SWITCH a monte (access
@@ -97,6 +104,18 @@ export function _renderPortProps(panel){
         if(pi.lagId&&pi.lagId>0) snmpParts.push(`LAG ${pi.lagId}`);
         const snmpBar=snmpParts.length?`<div class="snmp-bar" style="margin:0 0 10px"><span class="sb">SNMP</span>${escapeHTML(snmpParts.join(' · '))}</div>`:'';
         const rst=(f,lbl)=>pi[f]!=null?`<button class="toolbar-btn" style="padding:2px 6px;margin:0;font-size:0.7rem" data-tip="${t('pnl.dev.restoreField',{field:lbl})}" onclick="clearPortField('${pid}','${f}');renderProps()">↺</button>`:'';
+        // Select dello STATO dichiarabile. Una sola definizione, usata sia dallo
+        // switchport sia dalla tappa passiva: due copie delle stesse cinque voci
+        // divergono al primo che ne aggiunge una.
+        const _statusSelect = ()=>`<div style="display:flex;gap:5px">
+                  <select class="${pi.statusOvr?'ovr':''} " style="flex:1" onchange="setPortField('${pid}','statusOvr',this.value)">
+                    <option value=""         ${effStatus===''        ?'selected':''}>${t('port.statusUnknown')}</option>
+                    <option value="active"   ${effStatus==='active'  ?'selected':''}>${t('port.statusActive')}</option>
+                    <option value="idle"     ${effStatus==='idle'    ?'selected':''}>${t('port.statusIdle')}</option>
+                    <option value="inactive" ${effStatus==='inactive'?'selected':''}>${t('port.statusInactive')}</option>
+                    <option value="fault"    ${effStatus==='fault'   ?'selected':''}>Fault</option>
+                  </select>${rst('statusOvr',t('pnl.dev.fieldStatus'))}
+                </div>`;
         // Chip "Membro LAG" (viola, identico al badge del cavo) + chip delle porte
         // del bonding (porta corrente evidenziata), quando la porta e' in LAG.
         const _lagHead = (()=>{
@@ -134,21 +153,16 @@ export function _renderPortProps(panel){
               <input value="${escapeHTML(pi.desc||'')}" placeholder="${escapeHTML(pi.alias||pi.ifName||t('pnl.dev.phDescEg'))}"
                      onchange="setPortField('${pid}','desc',this.value)">
             </div>
-            ${_passiveConduit ? '' : (_floorLeaf ? `<div class="prop-group"><label>${t('common.status')}</label>
+            ${_passiveConduit ? `<div class="prop-group"><label>${t('common.status')}</label>
+              ${_statusSelect()}
+              <div style="font-size:0.73rem;color:var(--text-muted);margin-top:4px;padding-left:2px;line-height:1.4">${t('port.passiveStatusHint')}</div>
+            </div>` : (_floorLeaf ? `<div class="prop-group"><label>${t('common.status')}</label>
               ${_roBox(_leafKnown ? escapeHTML(_statusLabel(_leafStatus)) : `<span style="color:var(--text-muted)">${t('port.statusUnknown')}</span>`)}
             </div>
             <div class="prop-group"><label>${t('port.speed')}</label>
               ${_roBox(_leafSpd ? escapeHTML(_leafSpd) : '—')}
             </div>` : `<div class="prop-group"><label>${t('common.status')}</label>
-              <div style="display:flex;gap:5px">
-                <select class="${pi.statusOvr?'ovr':''} " style="flex:1" onchange="setPortField('${pid}','statusOvr',this.value)">
-                  <option value=""         ${effStatus===''        ?'selected':''}>${t('port.statusUnknown')}</option>
-                  <option value="active"   ${effStatus==='active'  ?'selected':''}>${t('port.statusActive')}</option>
-                  <option value="idle"     ${effStatus==='idle'    ?'selected':''}>${t('port.statusIdle')}</option>
-                  <option value="inactive" ${effStatus==='inactive'?'selected':''}>${t('port.statusInactive')}</option>
-                  <option value="fault"    ${effStatus==='fault'   ?'selected':''}>Fault</option>
-                </select>${rst('statusOvr',t('pnl.dev.fieldStatus'))}
-              </div>
+              ${_statusSelect()}
             </div>
             <div class="prop-group"><label>${t('port.speed')}</label>
               <div style="display:flex;gap:5px">

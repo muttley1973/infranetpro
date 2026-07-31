@@ -68,6 +68,21 @@ function buildSnapshots() {
       selType='port'; selId='swp-1'; renderProps(); snap['scope:port']=panel();
     });
 
+    // D-bis. Scope port — tappa PASSIVA (patch panel) con un cavo dentro. Caso
+    // distinto dallo switchport: qui velocita' e VLAN non sono della porta (le
+    // decide lo switch a monte e si propagano), ma lo STATO si' — «occupata da un
+    // cavo» e' un fatto del pannello. Il golden lo blinda perche' era la meta' non
+    // coperta: una porta col cavo dentro resa identica a una libera passava liscia.
+    cap('scope:port-passive', () => {
+      const pp={id:'ppg',type:'patchpanel',name:'PPG',rackId:state.currentRack,rackU:3,sizeU:2,ports:24};
+      const sw={id:'swg',type:'switch',name:'SWG',rackId:state.currentRack,rackU:1,sizeU:1,ports:8};
+      state.nodes.push(pp,sw); if(typeof _invalidateIdx==='function') _invalidateIdx();
+      const lk=_createLinkRecord('ppg-1','swg-1'); lk.id='goldpasslink'; state.links.push(lk);
+      state.ports['ppg-1']={ status:'active' };   // come lo scrive chi collega il cavo
+      if(typeof _invalidateIdx==='function') _invalidateIdx();
+      selType='port'; selId='ppg-1'; renderProps(); snap['scope:port-passive']=panel();
+    });
+
     // E. Render rack generato (innerHTML del device) per alcuni tipi
     const rackCap = (name, build) => cap('rack:'+name, () => {
       const n = build(); state.nodes=state.nodes.filter(x=>x.id!==n.id); state.nodes.push(n);
