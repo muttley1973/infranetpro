@@ -10,8 +10,12 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 - The **README is a landing page**: a banner, a proof row of badges, a six-cell value grid and a quick start above the fold; the 120-item feature list becomes a table you can scan plus nine sections that open. Nothing was removed.
 - **Language flags are SVG files, not emoji** — no font on Windows renders 🇮🇹 or 🇬🇧, so the manuals were labelled with two blank boxes.
 - The **release badge reads GitHub** instead of a number typed by hand, which is one fewer place to bump — and one that had already gone stale before.
+- **Wall outlets are born `WA-01`**, matching the ones already in the field, and the number follows the highest already assigned instead of the count — delete one and the next was reborn with a name in use.
 
 ### Fixed
+- The **toolbar wrapped at full screen** and straightened out when the window was made smaller: above 1737px no rule applied, and at full size the bar asks for 1938px — more than the 1920 most desktops have.
+- The **freshness chip leaves the age to its tooltip** below 1980px, keeping the coloured result; at 158px it was the widest single item after the two button clusters.
+- The **"v3 to configure" chip holds its slot at zero** instead of taking its 44px back when it disappears, which let a Sync that found v3-only devices move the toolbar by itself.
 - The test counts in the README said 1590 and 90; they are **1,926 and 93**.
 - Two roadmap entries were **filed under *Planned* with their box already ticked** (IPv6 Scope A, the OS hint from ping TTL). They shipped, so they now sit with what shipped.
 
