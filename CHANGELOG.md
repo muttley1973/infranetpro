@@ -4,7 +4,7 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 
 **A linked version number is a published release** — follow it to the release on GitHub. *Unreleased* is what has landed on `main` since the last one.
 
-## 2.4.0 — 2026-07-31
+## [2.4.0](https://github.com/muttley1973/infranetpro/releases/tag/v2.4.0) — 2026-07-31
 
 **One thing at a time, and say what you are hiding.** The topology legend stops dimming what you filtered out and starts removing it — then puts the count on the pill, because a view that filters in silence omits without admitting it.
 
