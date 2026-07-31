@@ -2,9 +2,11 @@
 
 What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachangelog.com/); newest first, grouped by release. **One line per change** — the reasoning behind each one lives in the commit history.
 
+**A linked version number is a published release** — follow it to the release on GitHub. *Unreleased* is what has landed on `main` since the last one.
+
 ## Unreleased
 
-## 2.3.1 — 2026-07-31
+## [2.3.1](https://github.com/muttley1973/infranetpro/releases/tag/v2.3.1) — 2026-07-31
 
 **The classifier stops guessing from brand names.** Deciding *what a device is* was the last important decision in the product with no regression net behind it.
 
@@ -41,8 +43,9 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 ### Repository
 - ⚠️ **The commit history was rewritten and force-pushed.** 401 commits are now in English, shortened, and free of the automated co-author trailer. **No file content changed** — every commit tree is byte-identical, and the `v2.1.0`/`v2.2.0`/`v2.3.0` tags were re-pointed to the equivalent commits. **If you have a clone or fork, re-clone or `git fetch && git reset --hard origin/main`.**
 - The CI workflow's step names and comments are in English (they are printed on every Actions run page).
+- **The documentation was simplified.** This CHANGELOG went from 84 chronological sections — nearly one per change — to one section per release, every entry preserved as a single line: 90 KB to 26 KB. The README's feature list keeps every feature but states each in a sentence or two instead of a paragraph; one bullet alone ran about 6,000 characters, longer than most of the sections it described.
 
-## 2.3.0 — 2026-07-30
+## [2.3.0](https://github.com/muttley1973/infranetpro/releases/tag/v2.3.0) — 2026-07-30
 
 **The honesty pass.** One theme throughout: the app no longer says more than it knows. A verdict resting on nothing is grey, not green; a measurement carries its age; a number declares where it came from.
 
@@ -103,7 +106,7 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 - The **SNMP community is masked** like the v3 passphrases already were, in the device panel and both scan dialogs.
 - SNMP secrets are redacted for non-admin readers **on virtual machines** too; the existing test covered only nodes, which is what let the gap through.
 
-## 2.2.0 — 2026-07-29
+## [2.2.0](https://github.com/muttley1973/infranetpro/releases/tag/v2.2.0) — 2026-07-29
 
 **The Overview grows up: five lenses and an offline DR runbook.**
 
@@ -143,7 +146,7 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 - The toolbar no longer **wraps and overlaps the sub-bar**, and tooltips wrap instead of clipping.
 - The L3-neighbour wireless signal keeps **unicast MACs only**.
 
-## 2.1.0 — 2026-07-24
+## [2.1.0](https://github.com/muttley1973/infranetpro/releases/tag/v2.1.0) — 2026-07-24
 
 **The semantic-honesty pass.** Ten findings, each proven on the sample projects: the report, the AI context, the sub-header and the exported floor plan stop asserting what the data doesn't support.
 
@@ -178,7 +181,7 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 ### Security
 - SNMP secrets are **redacted for read-only viewers**; the development auth-bypass is **fail-closed** (loopback and non-production only); baseline security headers on every response; CSS injection sanitised in skin styles.
 
-## 2.0.5 — 2026-07-14
+## [2.0.5](https://github.com/muttley1973/infranetpro/releases/tag/v2.0.5) — 2026-07-14
 
 ### Added
 - **"Apply model"**: search a real switch or router model and apply it in one click — port count and front panel set natively, drawn by the built-in renderer.
@@ -200,7 +203,7 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 - The **panel-skin importer's stored XSS is closed** — the sanitiser now covers unquoted, backtick and slash-separated handlers plus orphan executable tags, and both preview and render sanitise through the DOM.
 - Secrets are owner-only and written atomically; the login timing leak is equalised; the AI response body is capped.
 
-## 2.0.4 — 2026-07-10
+## [2.0.4](https://github.com/muttley1973/infranetpro/releases/tag/v2.0.4) — 2026-07-10
 
 ### Added
 - **Direct NBSTAT over UDP** names Windows hosts in about 40 ms — the CLI queried every local interface and took 10–30 s on a multi-NIC host.
@@ -210,7 +213,7 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 - The Verify report **stops repeating itself**: "not verifiable" folds under its subnet in Project networks, each network carrying a presence badge.
 - The PDF **asset register lists IT assets, not structural cabling** — wall ports and electrical panels have no network identity and showed as empty rows.
 
-## 2.0.2 – 2.0.3 — 2026-07-08
+## [2.0.2](https://github.com/muttley1973/infranetpro/releases/tag/v2.0.2) – [2.0.3](https://github.com/muttley1973/infranetpro/releases/tag/v2.0.3) — 2026-07-08
 
 ### Added
 - **Closed-port devices identify themselves**: an opt-in multicast pass (mDNS, SSDP, ONVIF) names the silent ones — the advertised service *is* the type, vendor-neutrally.
