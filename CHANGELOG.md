@@ -6,22 +6,28 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 
 ## Unreleased
 
+**One thing at a time, and say what you are hiding.** The topology legend stops dimming what you filtered out and starts removing it — then puts the count on the pill, because a view that filters in silence omits without admitting it.
+
 ### Added
-- Topology: the **WLAN pill cycles through three states** — wired and wireless together, wired only, wireless only. One medium at a time, because an access point with twelve wireless clients is unreadable among the forty cables running beneath it.
-- While a medium filter is on, the pill **carries the number of links it is hiding**: a view that filters without saying how much it omits is lying by omission.
+- Two legend pills **cycle through three states** instead of two: wired / wireless, and trunk / access. Each carries the number of links it is hiding.
+- **Cables the active filter picked are drawn 2.5px thick**, whichever way it is filtering — the same view filtered the other way must not draw its cables thinner.
+- A run carrying **both** trunk and access survives either filter; one discovered over LLDP and never documented is **counted apart** rather than called access by elimination.
+- **Every fan-out line can be clicked**, not only those of the rack that happens to be open — it was 8 to 51 of 78 on the demo project, and none with no rack open.
+- A **passive hop can be declared occupied**: on a patch panel or an outlet, *active* means a cable is in it, not link-up. Speed and VLAN stay out — those really do belong upstream.
 
 ### Changed
-- The **README is a landing page**: a banner, a proof row of badges, a six-cell value grid and a quick start above the fold; the 120-item feature list becomes a table you can scan plus nine sections that open. Nothing was removed.
-- **Language flags are SVG files, not emoji** — no font on Windows renders 🇮🇹 or 🇬🇧, so the manuals were labelled with two blank boxes.
-- The **release badge reads GitHub** instead of a number typed by hand, which is one fewer place to bump — and one that had already gone stale before.
-- **Wall outlets are born `WA-01`**, matching the ones already in the field, and the number follows the highest already assigned instead of the count — delete one and the next was reborn with a name in use.
+- The **README is a landing page**: banner, proof badges, a value grid and a quick start above the fold; the 120-item feature list becomes a scannable table plus nine sections that open. Nothing was removed.
+- **Language flags are SVG files, not emoji** — no font on Windows renders 🇮🇹 or 🇬🇧, so the manual links carried two blank boxes.
+- The **release badge reads GitHub** instead of a hand-typed number: one fewer place to bump, and one that had already gone stale.
+- **Wall outlets are born `WA-01`**, matching the ones already in the field, numbered from the highest assigned rather than the count — delete one and the next was reborn with a name in use.
 
 ### Fixed
-- The **toolbar wrapped at full screen** and straightened out when the window was made smaller: above 1737px no rule applied, and at full size the bar asks for 1938px — more than the 1920 most desktops have.
-- The **freshness chip leaves the age to its tooltip** below 1980px, keeping the coloured result; at 158px it was the widest single item after the two button clusters.
-- The **"v3 to configure" chip holds its slot at zero** instead of taking its 44px back when it disappears, which let a Sync that found v3-only devices move the toolbar by itself.
-- The test counts in the README said 1590 and 90; they are **1,926 and 93**.
-- Two roadmap entries were **filed under *Planned* with their box already ticked** (IPv6 Scope A, the OS hint from ping TTL). They shipped, so they now sit with what shipped.
+- The breadcrumb **says which view you are in**: the Overview kept the label of the view you came from, in both directions.
+- **ENDPOINT hides VoIP phones too.** *Endpoint* was defined twice and the two disagreed; a phone falls in the gap — it has an IP and carries the PC downstream — so its cables vanished while the tile stayed on screen with nothing attached.
+- A trunk **no longer borrows the look of the cable you are tracing**: thickness says *trunk*, the glow stays reserved for what is selected or traced, and the two marks add up instead of replacing one another.
+- The **toolbar wrapped at full screen** and straightened out when the window shrank: above 1737px no rule applied, and at full size the bar asks for 1938px — more than the 1920 most desktops have.
+- The **freshness chip** leaves the age to its tooltip below 1980px, and the **"v3 to configure" chip holds its slot at zero** instead of moving the toolbar when a Sync finds v3-only devices.
+- Two wrong statements about this project's own record: the README's test counts, and two roadmap entries left under *Planned* with their box already ticked.
 
 ## [2.3.1](https://github.com/muttley1973/infranetpro/releases/tag/v2.3.1) — 2026-07-31
 
