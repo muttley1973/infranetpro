@@ -3,7 +3,12 @@
 # GitHub builds the repository "Contributors" list from commit history
 # (authors + Co-authored-by trailers). This file coalesces auxiliary
 # identities onto the single canonical maintainer so the Contributors
-# graph shows one author instead of several — without rewriting history.
+# graph shows one author instead of several.
+#
+# As of 2.3.1 the main-branch history carries no Co-authored-by trailer at
+# all, so this mapping is a safety net rather than the mechanism: it still
+# covers the older release tags (v2.0.0–v2.0.5), whose commits are reachable
+# by tag but are not ancestors of main and were therefore left untouched.
 #
 # Format: <canonical name> <canonical email> <email to remap>
 muttley1973 <muttley1973@users.noreply.github.com> <noreply@anthropic.com>

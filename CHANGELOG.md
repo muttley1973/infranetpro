@@ -4,7 +4,7 @@ What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://k
 
 ## Unreleased
 
-## 2.3.1 — in preparazione
+## 2.3.1 — 2026-07-31
 
 **The classifier stops guessing from brand names.** Deciding *what a device is* was the last important decision in the product with no snapshot behind it, and it showed: a word in a description outranked a measurement, a brand name in a type rule mislabelled the rest of that brand's catalogue, and the browser kept a second, divergent copy of the rules. Same theme as 2.3.0 — the app no longer says more than it knows — applied to the one place where being wrong renames the thing on your screen.
 
@@ -31,6 +31,10 @@ What's new in InfraNet Pro. Format loosely based on [Keep a Changelog](https://k
 - **Changed** — **"Detected identity" moves to the top of every property panel**, above Name/ID. It is the context you read the rest of the panel with — who says this device is this device, and how sure — and below the fields it sat downstream of the things it explains. It is also emitted once for **every** type now: the rack branch printed it halfway down the panel, and among floor devices only the access point had it at all.
 - **Changed** — in the project context panel, **VLANs come before the floor plan**.
 - **Fixed** — a **patch panel no longer invents its own specification**. One with nothing filled in displayed «Cat 6 · U/UTP · 24p», indistinguishable on screen from one actually declared, and its dropdowns opened pre-set on those same values — so the guess became a document field the moment you touched anything. Nothing declared, nothing shown, and the copper/fibre blocks appear once you choose the medium.
+
+### Repository
+
+- ⚠️ **The commit history was rewritten and force-pushed** with this release. English is the project's language, and for a stretch the commit messages had drifted into Italian: 116 of them, from 2026-06-28 onwards. All 401 commits from that point are now in English, shortened (the bodies had grown into essays), and free of the automated `Co-Authored-By` trailer — the sole author is the maintainer. **No file content changed**: every commit tree is byte-identical to before, verified commit by commit, and the `v2.1.0`, `v2.2.0` and `v2.3.0` tags were re-pointed to the equivalent rewritten commits with their trees unchanged. **If you have a clone or a fork, re-clone or `git fetch && git reset --hard origin/main`** — your local history has diverged.
 
 ## 2.3.0 — 2026-07-30
 
