@@ -7,11 +7,13 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 ## Unreleased
 
 ### Added
-- Overview: the **Live reading** and **Management VLAN** tiles now open a list — the SNMP targets (the silent ones first, marked *no reading*, then the ones that answered), and each management VLAN **by name** (declared, or measured over SNMP; there can be more than one).
+- Dashboard: the **Live reading** and **Management VLAN** tiles now open a list — the SNMP targets (the silent ones first, marked *no reading*, then the ones that answered), and each management VLAN **by name** (declared, or measured over SNMP; there can be more than one).
 
 ### Changed
-- Overview: the **Gateway** tile opens the full **subnet → gateway** map — the ones without a gateway first, then each declared subnet with its gateway — instead of only the gaps, and stays clickable when none are missing.
-- Overview: the **Default community** tile shows an administrator *which* known default a device uses (public / private / empty), as a marker the renderer resolves; the raw value still never leaves the engine, and a custom community is never surfaced.
+- The **Overview is renamed Dashboard** throughout the UI — the toolbar button, the breadcrumb, the tooltips and the dossier's section title.
+- The toolbar spells out its actions: **Dashboard**, **Salva/Save**, **Esporta/Export** join Scopri and Verifica as words on wide screens, each collapsing back to its icon as the window narrows, in that order; the freshness counter keeps its room to grow.
+- Dashboard: the **Gateway** tile opens the full **subnet → gateway** map — the ones without a gateway first, then each declared subnet with its gateway — instead of only the gaps, and stays clickable when none are missing.
+- Dashboard: the **Default community** tile shows an administrator *which* known default a device uses (public / private / empty), as a marker the renderer resolves; the raw value still never leaves the engine, and a custom community is never surfaced.
 
 ## [2.4.0](https://github.com/muttley1973/infranetpro/releases/tag/v2.4.0) — 2026-07-31
 

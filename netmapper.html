@@ -36,8 +36,8 @@
     </div>
     <div class="header-sep"></div>
     <div id="impexp-menu-wrap" style="position:relative">
-        <button class="toolbar-btn icon-only" id="btn-impexp" onclick="toggleImpExpMenu()" data-i18n-tip="impexp.tip" data-tip="Importa / Esporta">
-            <i class="fas fa-right-left"></i><span class="btn-label" data-i18n="impexp.label"> Importa/Esporta</span><i class="fas fa-chevron-down" style="font-size:0.6rem;margin-left:4px;opacity:.6"></i>
+        <button class="toolbar-btn" id="btn-impexp" onclick="toggleImpExpMenu()" data-i18n-tip="impexp.tip" data-tip="Importa / Esporta">
+            <i class="fas fa-right-left"></i><span class="btn-label" data-i18n="impexp.btnLabel"> Esporta</span><i class="fas fa-chevron-down" style="font-size:0.6rem;margin-left:4px;opacity:.6"></i>
         </button>
         <div id="impexp-dropdown" class="header-menu-dropdown" style="display:none">
             <button class="header-menu-item" onclick="document.getElementById('json-upload').click();closeImpExpMenu()">
@@ -93,7 +93,7 @@
     <!-- Chip freschezza del progetto (ex badge dentro il bottone Sync, ritirato): indicatore
          di stato autonomo SUBITO DOPO la ricerca, visibile in OGNI vista e all'apertura
          (lo alimenta _renderSyncFreshness in app-snmp.js). Clic → apre la Panoramica. -->
-    <button class="status-chip sync-fresh-chip" id="sync-fresh-chip" data-act="overview-toggle" style="display:none" data-i18n-tip="sync.freshChipTip" data-tip="Freschezza dati del progetto · clic per la Panoramica"></button>
+    <button class="status-chip sync-fresh-chip" id="sync-fresh-chip" data-act="overview-toggle" style="display:none" data-i18n-tip="sync.freshChipTip" data-tip="Freschezza dati del progetto · clic per la Dashboard"></button>
 
     <!-- Actions — allineati a destra -->
 <!-- Tooltip topologia (compare vicino al cursore al hover sulle linee) -->
@@ -108,7 +108,7 @@
         <button class="toolbar-btn" id="btn-overview" data-act="overview-toggle"
                 data-i18n-tip="ov.tip"
                 data-tip="Vista di sintesi: cosa manca al documento, cosa non torna con la realtà, quanto margine resta">
-            <i class="fas fa-circle-info"></i><span class="btn-label" data-i18n="ov.label"> Panoramica</span>
+            <i class="fas fa-circle-info"></i><span class="btn-label" data-i18n="ov.label"> Dashboard</span>
         </button>
         <button class="toolbar-btn" id="btn-discover" onclick="openDiscovery()"
                 data-i18n-tip="discover.tip"
@@ -209,7 +209,7 @@
          una lettura del progetto, non parte del disegno esportato. Il contenuto
          lo rende src/app-overview.js; qui resta vuoto e nascosto finche' la vista
          non e' attiva (body.view-overview). -->
-    <main id="overview" role="region" data-i18n-aria="ov.label" aria-label="Panoramica"></main>
+    <main id="overview" role="region" data-i18n-aria="ov.label" aria-label="Dashboard"></main>
     <div id="export-area">
         <aside id="sidebar-left">
             <div class="sidebar-section" style="flex:1;overflow-y:auto">
@@ -916,7 +916,7 @@
       <div style="display:flex;flex-direction:column;gap:8px">
         <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-plan" checked onchange="syncPdfExportUi()"> <span data-i18n="pdf.plan">Planimetria (pagina 1)</span></label>
         <label style="display:flex;align-items:center;gap:8px;padding-left:22px;opacity:.95"><input type="checkbox" id="pdfopt-bg" checked> <span data-i18n="pdf.bg">Include immagine di sfondo planimetria</span></label>
-        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-overview" checked> <span data-i18n="pdf.overview">Panoramica (sintesi in testa)</span></label>
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-overview" checked> <span data-i18n="pdf.overview">Dashboard (sintesi in testa)</span></label>
         <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-inventory" checked> <span data-i18n="pdf.inventory">Inventario cavi</span></label>
         <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-asbuilt" checked> <span data-i18n="pdf.asbuilt">Tracciato cablaggio (As-Built)</span></label>
         <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-racks" checked> <span data-i18n="pdf.racks">Vista rack</span></label>

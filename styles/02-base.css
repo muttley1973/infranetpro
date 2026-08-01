@@ -73,7 +73,7 @@
         .toolbar-btn.save-dirty:hover { background: #3a2900; }
 
         /* Search */
-        .search-panel { position: relative; flex: 0 1 420px; min-width: 180px; }
+        .search-panel { position: relative; flex: 0 1 320px; min-width: 250px; }
         .search-input-wrap { display: flex; align-items: center; gap: 7px; background: var(--bg-color); border: 1px solid var(--panel-border); border-radius: var(--radius-md); padding: 0 8px; height: 32px; }
         .search-input-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0,212,255,0.12); }
         .search-input-wrap i { color: var(--text-muted); font-size:var(--fs-md); }

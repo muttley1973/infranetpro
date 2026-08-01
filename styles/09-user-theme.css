@@ -130,12 +130,11 @@
            etichette. Report/Assistente/Automazioni sono già icon-only per classe.
            Il wrap (rete di sicurezza) è strutturale sull'header, non serve qui. */
         @media (max-width: 1920px) {
-            /* Scopri (#btn-discover) e Verifica (#btn-drift) TENGONO l'etichetta anche
-               sui monitor comuni: sono le due azioni di rete primarie, meglio con testo
-               (UX). Panoramica resta solo-icona (la nuova «i» informativa parla da sé). */
-            #btn-overview .btn-label,
+            /* A 1920 restano etichettati: Dashboard (#btn-overview), Salva (#btn-save),
+               Scopri (#btn-discover) e Verifica (#btn-drift). Collassano a icona più in
+               basso (Dashboard per prima, ≤1600: è la 4ª parola e va lasciato fiato al
+               contatore di freschezza, che si allarga col numero — ok/tot). */
             #btn-export-drawio .btn-label,
-            #btn-save #save-label,
             #btn-user #user-label,
             #modules-nav-slot .btn-label {
                 position:absolute; width:1px; height:1px; padding:0; margin:-1px;
@@ -159,6 +158,27 @@
                → la barra sta su UNA riga fino a ~1420px con chip ed etichette intatti. */
             .search-panel { flex: 0 1 158px; min-width: 78px; }
         }
+        /* ≤1900px: «Esporta» (#btn-impexp) torna solo-icona (la ⇄ + il nome pieno nel
+           tooltip). È la 5ª etichetta e la PRIMA a cedere: cinque parole ci stanno solo
+           dai ~1901px (1920 e oltre). Sotto, restano le altre quattro. sr-only. */
+        @media (max-width: 1900px) {
+            #btn-impexp .btn-label {
+                position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+                overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
+            }
+        }
+        /* ≤1850px: Dashboard (#btn-overview) torna solo-icona. È la 4ª etichetta e la
+           prima a cedere: quattro parole (Dashboard·Salva·Scopri·Verifica) ci stanno solo
+           dai ~1860px in su — sotto, nemmeno tre reggerebbero a gap pieno. Collassata qui,
+           restano tre etichette + il fiato per il contatore di freschezza (ok/tot) che si
+           allarga col numero. Salva/Scopri/Verifica restano fino ai loro breakpoint.
+           sr-only: il nome accessibile del bottone non si perde. */
+        @media (max-width: 1850px) {
+            #btn-overview .btn-label {
+                position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+                overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
+            }
+        }
         /* ≤1420px (portatili comuni / finestra non massimizzata): stringiamo ANCORA la
            ricerca e i campi progetto, e compattiamo un filo il chip, per restare su UNA
            riga fino a ~1200px — senza mai togliere il chip né le etichette Scopri/Verifica. */
@@ -178,7 +198,13 @@
            default Windows) da' 1920px CSS, a 150% ne da' 2560; solo al 100% si
            arriva a 3840, e un 8K a 7680. Una regola che vale sempre non ha soglie
            da azzeccare. */
-        header { gap: 4px; }
+        /* Gap di base (schermi >1737px) = 6px: il largo respira un filo più dei monitor
+           medi (5px), progressione monotona (era 4px, cioè PIÙ stretto dei medi — al
+           contrario). NON 7px: a 1740 nemmeno 3 etichette ci stanno a 7. L'aria è pagata
+           restringendo la ricerca (420→320px, floor 250) sui larghi: così a 1920 le 4
+           etichette (Dashboard·Salva·Scopri·Verifica) + il fiato per il contatore che si
+           allarga col numero. Il tier ≤1737 riporta gap a 5 e ricerca a 158. */
+        header { gap: 6px; }
         .header-right { gap: 4px; }
 
         @media (max-width: 1980px) {
@@ -205,6 +231,13 @@
             header { padding: 4px 10px; }
             #project-select { max-width: 80px; }
             .search-panel { flex: 0 1 64px; min-width: 48px; }
+            /* Salva torna solo-icona: da qui in giù i tre cluster + le tre etichette
+               d'azione non stanno su una riga (Scopri/Verifica restano — sono nel cluster
+               destro, con più aria). sr-only: il nome accessibile del bottone resta. */
+            #btn-save #save-label {
+                position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+                overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
+            }
         }
 
         /* ---- Header fallback B ---- */
@@ -224,7 +257,6 @@
                riga. I valori di <=1280px restano validi per ereditarieta'. */
             .project-bar { gap: 3px; }
             .project-bar .toolbar-btn { padding: 5px 7px; }
-            #btn-save #save-label { display: none; }
             #btn-save { padding: 5px 8px; }
             #btn-impexp .btn-label,
             #btn-discover .btn-label,

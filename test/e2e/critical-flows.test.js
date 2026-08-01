@@ -4493,7 +4493,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(/mai/i.test(v.metaText), 'e dichiarano quando: ' + v.metaText);
       assert.ok(v.floorHidden, 'la planimetria lascia il posto alla Panoramica');
       assert.equal(v.viewMode, 'overview');
-      assert.equal(v.crumbView, 'Panoramica',
+      assert.equal(v.crumbView, 'Dashboard',
         'il fil di Arianna dice la vista in cui sei, non quella da cui vieni: ' + v.crumbView);
       assert.ok(v.allHaveProv, 'ogni numero dichiara da dove viene (paletto ②)');
       assert.equal(v.subnetsProv, 'none', 'nessuna subnet dichiarata → «non dichiarato»');
