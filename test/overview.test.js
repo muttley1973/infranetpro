@@ -210,7 +210,12 @@ test('① Gateway per subnet: le dichiarate SENZA gateway emergono come lacuna (
   const gw = rowOf(o.complete, 'gateways');
   assert.equal(gw.total, 2, 'solo le VLAN con un CIDR (10 e 20)');
   assert.equal(gw.value, 1, 'solo la 10 ha il gateway');
-  assert.deepEqual(gw.items.map((i) => i.id), ['10.0.20.0/24'], 'il click elenca le subnet SENZA gateway');
+  // Il click elenca TUTTE le dichiarate (la mappa subnet→gateway): prima le SENZA
+  // gateway (marcate, azione), poi le complete con il loro gateway come meta.
+  assert.deepEqual(gw.items.map((i) => i.id), ['10.0.20.0/24', '10.0.0.0/24'],
+    'prima le subnet SENZA gateway, poi le complete');
+  assert.deepEqual(gw.items[0], { id: '10.0.20.0/24', meta: '—', tag: 'noGateway' }, 'la lacuna è marcata');
+  assert.deepEqual(gw.items[1], { id: '10.0.0.0/24', meta: '10.0.0.1' }, 'la completa mostra il suo gateway');
   assert.equal(gw.prov, 'declared');
   assert.ok(o.complete.health.issues >= 1, 'un gateway mancante pesa sulla salute di Documento');
 
