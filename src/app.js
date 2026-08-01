@@ -1017,7 +1017,7 @@ export function _promoteLinkToManual(link){
     return true;
 }
 
-function promoteLinkToManual(id){
+export function promoteLinkToManual(id){
     const l=state.links.find(x=>x.id===id); if(!l) return;
     if(!l.autoLinked) return;
     pushHistory();
@@ -1030,7 +1030,7 @@ function promoteLinkToManual(id){
 }
 
 /** Imposta o cancella l'etichetta manuale di un cavo. */
-function setCableLabel(id, val){
+export function setCableLabel(id, val){
     const l=state.links.find(x=>x.id===id); if(!l) return;
     const v=val.trim();
     const nextLabel = v || undefined;
@@ -1048,7 +1048,7 @@ function setCableLabel(id, val){
  * Chiama renderProps() per aggiornare i campi dinamici (es. categoria
  * cambia in base al mezzo scelto).
  */
-function setLinkProp(id, key, val){
+export function setLinkProp(id, key, val){
     const l=state.links.find(x=>x.id===id); if(!l) return;
     let v=typeof val==='string'?val.trim():val;
     if(key==='isPermanent') v = (v==='permanent') ? true : (v==='patch') ? false : null;
@@ -2441,7 +2441,7 @@ function deleteNode(){
     _removeNodeById(rid);
     selId=null;selType=null; renderAll(); markDirty();
 }
-function deleteLink(id){
+export function deleteLink(id){
     const lid=id||selId; if(!lid) return;
     const link=state.links.find(x=>x.id===lid);
     pushHistory();

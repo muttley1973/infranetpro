@@ -99,7 +99,7 @@ function _computeRoutingTargets(excludeLinkId){
     return map;
 }
 
-function enterRoutingMode(linkId){
+export function enterRoutingMode(linkId){
     const link = (store.state.links || []).find(l => l.id === linkId);
     if(!link){ _showToast(t('msg.rack.cableNotFound'), 'warn'); return; }
     _routingTargetPids = _computeRoutingTargets(linkId);
@@ -282,7 +282,7 @@ export function _routingPickPort(midPid){
 }
 
 // "Togli tappa": fonde i 2 tratti che si incontrano sulla porta pass-through.
-function removeRouteHop(midPid){
+export function removeRouteHop(midPid){
     const touching = (store.state.links || []).filter(l =>
         l && (String(l.src) === midPid || String(l.dst) === midPid));
     if(touching.length !== 2){

@@ -480,10 +480,10 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
 
         selType = null; selId = null;
         return {
-          cableHasMode: /setLinkMode\(/.test(cableHtml),
+          cableHasMode: /data-act="link-mode"/.test(cableHtml),
           cableHasSrc: cableHtml.indexOf('SW1') >= 0,
           cablePortDescOk: cableHtml.indexOf('PC1') >= 0,
-          cableHasSpecs: cableHtml.indexOf('setLinkProp(') >= 0,
+          cableHasSpecs: cableHtml.indexOf('data-change="link-prop"') >= 0,
           wlHasWifi: /fa-wifi/.test(wlHtml),
           wlInheritsSsid: wlHtml.indexOf('Net') >= 0,
         };
@@ -2400,9 +2400,10 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           selType = 'link'; selId = lk.id; renderProps();
 
           const inputs = [...document.querySelectorAll('#props-panel input[type="number"]')];
-          const vlanInput = inputs.find(i => (i.getAttribute('onchange') || '').includes('setLinkNativeVlan'));
+          const vlanInput = inputs.find(i => i.getAttribute('data-change') === 'link-native-vlan');
           const hadInput = !!vlanInput;
-          if (vlanInput) { vlanInput.value = '50'; vlanInput.dispatchEvent(new Event('change')); }  // wiring reale
+          // change delegato: l'evento REALE fa bubbling fino al listener sul document
+          if (vlanInput) { vlanInput.value = '50'; vlanInput.dispatchEvent(new Event('change', { bubbles: true })); }
 
           const portOvr = state.ports['sw-1'] && state.ports['sw-1'].vlanOvr;
           const eff = (typeof _getLinkVlan === 'function') ? _getLinkVlan(state.links[0]) : null;
@@ -2410,7 +2411,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
       });
       assert.ok(r.ok, 'nessun errore nel flusso VLAN access cavo: ' + r.err);
-      assert.ok(r.hadInput, 'il pannello cavo in Access mostra un input VLAN editabile (setLinkNativeVlan)');
+      assert.ok(r.hadInput, 'il pannello cavo in Access mostra un input VLAN editabile (data-change="link-native-vlan")');
       assert.equal(r.portOvr, 50, 'la modifica scrive il PVID (vlanOvr=50) della porta switch attiva');
       assert.equal(r.eff, 50, 'la VLAN effettiva del cavo diventa 50');
     });

@@ -74,8 +74,8 @@ test('ui: pannello cavo trunk → nativa editabile + VLAN trasportate (derivato)
     propagateVlans();
     selType='link'; selId=up.id; renderProps(); const h=${panelHtml()};
     return JSON.stringify({ ok:true,
-      nativeEditable: h.indexOf("setLinkNativeVlan('"+up.id+"'")>=0,
-      trunkVlansField: h.indexOf("setLinkTrunkVlans('"+up.id+"'")>=0,
+      nativeEditable: h.indexOf('data-change="link-native-vlan"')>=0,
+      trunkVlansField: h.indexOf('data-change="link-trunk-vlans"')>=0,
       trunkBadge: h.indexOf('TRUNK')>=0 });
   `);
   assert.ok(r.ok, 'render lancia: ' + r.err);

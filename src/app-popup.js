@@ -87,7 +87,7 @@ export function _showPhysicalCablePath(linkId){
 // seleziona il link del segmento MANTENENDO l'evidenziazione del percorso
 // (non azzera store.highPath/store._physicalTraceActive). Cosi' l'utente naviga i tratti
 // dal pannello mentre il percorso resta illuminato su rack+floor.
-function selectPathSegment(linkId){
+export function selectPathSegment(linkId){
     const l=store.state.links.find(x=>x.id===linkId); if(!l) return;
     store.selType='link'; store.selId=linkId;
     // Se il segmento tocca una porta rack, porta in vista quel rack PRIMA del

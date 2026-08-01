@@ -2,19 +2,53 @@
 // renderProps() (classic in app-properties.js, che lo chiama via window). Builder
 // del core + global legacy via win.*; lib guarded script-tagged (linkState/
 // cable-validate/cabling) via win.*; _wifiAssocHtml esposto da app-wifi; t dal
-// ponte. I nomi dentro gli onclick=""/onchange="" restano bare. Nessun cambio logica.
+// ponte. Gli handler del pannello sono data-act/data-change/data-blur (event
+// delegation, registrati sopra). Nessun cambio logica.
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
-import { getNodeByPortId, getNodeDisplayName, getWallPortLabel, _getLinkPhysicalView, _enableManualValueInProps, _activatePropsTab, _cableAutoLabel } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { getNodeByPortId, getNodeDisplayName, getWallPortLabel, _getLinkPhysicalView, _enableManualValueInProps, _activatePropsTab, _cableAutoLabel, promoteLinkToManual, setCableLabel, setLinkProp, deleteLink } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderProps, _propsSectionIsOpen, _buildPropsHeader } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { TYPES, _frontPanelPortLabel, _frontPanelIsUplink } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
-import { _effPortVlan, _getLinkTrunk, _parseTrunkVlans, _runActiveAnchor } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _effPortVlan, _getLinkTrunk, _parseTrunkVlans, _runActiveAnchor, setLinkNativeVlan, setLinkColor, setLinkMode, setLinkTrunkVlans } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _portDisplayName } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
-import { _getLinkVlan } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
-import { _routeHopRemovable } from './app-cabling-editor.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
+import { _getLinkVlan, selectPathSegment } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
+import { _routeHopRemovable, enterRoutingMode, removeRouteHop } from './app-cabling-editor.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { _wifiAssocHtml } from './app-wifi.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { cableIssueTexts, chainWarnTexts } from './app-issue-text.js';   // le PAROLE dei validatori puri (i18n), che le lib non hanno più
+import { registerClickActions, registerChangeActions, registerBlurActions } from './app-delegation.js';   // ASSE B: handler del pannello cavo via event delegation (ex on* inline)
+
+// ASSE B (ritiro ponte): gli handler inline del pannello CAVO passano a data-act/
+// data-change/data-blur + azioni delegate registrate qui. Gli argomenti (id del
+// link, nome campo, coercizione) viaggiano in data-*; le fn restano in expose()
+// finche' altri pannelli/topologia le chiamano ancora inline. I 3 bottoni
+// espandi/comprimi/ripristina dell'header sono azioni CONDIVISE (app-properties.js).
+function _coerceLinkVal(el){
+    const c = el.dataset.coerce;
+    if(c === 'trim') return el.value.trim();
+    if(c === 'num')  return el.value === '' ? '' : +el.value;
+    return el.value;
+}
+registerClickActions({
+    'link-color-reset': (el) => setLinkColor(el.dataset.lid, null),
+    'link-promote':     (el) => promoteLinkToManual(el.dataset.lid),
+    'link-del':         (el) => deleteLink(el.dataset.lid),
+    'link-label-reset': (el) => { setCableLabel(el.dataset.lid, ''); renderProps(); },
+    'link-mode':        (el) => setLinkMode(el.dataset.lid, el.dataset.mode),
+    'link-remove-hop':  (el) => removeRouteHop(el.dataset.pid),
+    'link-seg-pick':    (el) => selectPathSegment(el.dataset.seglink),
+    'link-route':       (el) => enterRoutingMode(el.dataset.lid),
+});
+registerChangeActions({
+    'link-label':       (el) => setCableLabel(el.dataset.lid, el.value),
+    'link-native-vlan': (el) => setLinkNativeVlan(el.dataset.lid, el.value),
+    'link-trunk-vlans': (el) => setLinkTrunkVlans(el.dataset.lid, el.value),
+    'link-color':       (el) => setLinkColor(el.dataset.lid, el.value),
+    'link-prop':        (el) => setLinkProp(el.dataset.lid, el.dataset.lprop, _coerceLinkVal(el)),
+});
+registerBlurActions({
+    'link-trunk-vlans': (el) => setLinkTrunkVlans(el.dataset.lid, el.value),
+});
 
 // ============================================================
 // PROPERTIES PANEL — renderer CAVO/LINK (selType===link)
@@ -61,7 +95,7 @@ export function _renderLinkProps(panel){
         const srcNode=getNodeByPortId(l.src), dstNode=getNodeByPortId(l.dst);
         const srcLbl=(srcNode?.name||'?')+' · '+_cablePortDesc(l.src);
         const dstLbl=(dstNode?.name||'?')+' · '+_cablePortDesc(l.dst);
-        const rstBtn=l.colorOvr?`<button class="prst" style="font-size:0.85rem" data-tip="${t('pnl.gen.resetAutoColor')}" onclick="setLinkColor('${l.id}',null)">↺</button>`:'';
+        const rstBtn=l.colorOvr?`<button class="prst" style="font-size:0.85rem" data-tip="${t('pnl.gen.resetAutoColor')}" data-act="link-color-reset" data-lid="${l.id}">↺</button>`:'';
         const colorResetBtn = isAuto ? '' : rstBtn;
         // Stato esplicito link (lib/linkwin.state.js): 'ambiguous' = dedotto con
         // confidence < 0.80 (MAC/ARP/FDB). Va proposto all'utente per verifica.
@@ -75,13 +109,13 @@ export function _renderLinkProps(panel){
                     <span>${t('cable.verifyMsg')}</span>
                 </div>
                 <div class="link-verify-actions">
-                    <button class="toolbar-btn primary" onclick="promoteLinkToManual('${l.id}')"><i class="fas fa-check"></i> ${t('common.confirm')}</button>
-                    <button class="toolbar-btn danger" onclick="deleteLink('${l.id}')"><i class="fas fa-trash"></i> ${t('common.delete')}</button>
+                    <button class="toolbar-btn primary" data-act="link-promote" data-lid="${l.id}"><i class="fas fa-check"></i> ${t('common.confirm')}</button>
+                    <button class="toolbar-btn danger" data-act="link-del" data-lid="${l.id}"><i class="fas fa-trash"></i> ${t('common.delete')}</button>
                 </div>
             </div>` : '';
         const autoEditBar = (isAuto && !_isAmbiguous) ? `<div style="margin-top:8px;padding:8px 10px;background:rgba(9,105,218,.06);border:1px solid rgba(9,105,218,.20);border-radius:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:0.78rem">
                 <span style="color:var(--text-muted)">${t('cable.autoEditMsg')}</span>
-                <button class="toolbar-btn primary" onclick="promoteLinkToManual('${l.id}')"><i class="fas fa-pen"></i> ${t('common.edit')}</button>
+                <button class="toolbar-btn primary" data-act="link-promote" data-lid="${l.id}"><i class="fas fa-pen"></i> ${t('common.edit')}</button>
             </div>` : '';
         // Trunk EFFETTIVO (derivato dalle VLAN trasportate da voce/SSID, o manuale).
         const tk = (typeof _getLinkTrunk==='function') ? _getLinkTrunk(l)
@@ -136,7 +170,7 @@ export function _renderLinkProps(panel){
                 linkHeaderTitle,
                 linkHeaderSubtitle,
                 'fa-link',
-                `<span class="props-toggles"><button class="props-toggle-btn" onclick="_propsExpandAll()" data-tip="${t('props.expandAll')}"><i class="fas fa-angles-down"></i></button><button class="props-toggle-btn" onclick="_propsCollapseAll()" data-tip="${t('props.collapseAll')}"><i class="fas fa-angles-up"></i></button><button class="props-toggle-btn" onclick="_propsResetSections()" data-tip="${t('props.resetSections')}"><i class="fas fa-rotate"></i></button><button class="props-toggle-btn danger" onclick="deleteLink('${l.id}')" data-tip="${_linkDeleteTip}"><i class="fas fa-trash"></i></button></span>`
+                `<span class="props-toggles"><button class="props-toggle-btn" data-act="props-expand-all" data-tip="${t('props.expandAll')}"><i class="fas fa-angles-down"></i></button><button class="props-toggle-btn" data-act="props-collapse-all" data-tip="${t('props.collapseAll')}"><i class="fas fa-angles-up"></i></button><button class="props-toggle-btn" data-act="props-reset-sections" data-tip="${t('props.resetSections')}"><i class="fas fa-rotate"></i></button><button class="props-toggle-btn danger" data-act="link-del" data-lid="${l.id}" data-tip="${_linkDeleteTip}"><i class="fas fa-trash"></i></button></span>`
             )}
             <div class="prop-row2">
               <div class="prop-group" style="flex:0 0 55%"><label>${t('common.type')}</label><input disabled value="${l.wireless?'Wireless':t('cable.cable')}${l.autoLinked?' (auto)':''}"></div>
@@ -147,14 +181,14 @@ export function _renderLinkProps(panel){
             <div class="prop-group">
               <label style="display:flex;align-items:center;gap:5px">
                 ${t('cable.label')}
-                ${hasManualLbl?`<button class="prst" data-tip="${t('pnl.gen.resetAutoLabel')}" onclick="setCableLabel('${l.id}','');renderProps()">↺</button>`:''}
+                ${hasManualLbl?`<button class="prst" data-tip="${t('pnl.gen.resetAutoLabel')}" data-act="link-label-reset" data-lid="${l.id}">↺</button>`:''}
               </label>
               <input type="text"
                      value="${escapeHTML(l.label||'')}"
                      placeholder="${escapeHTML(autoLbl)}"
                      style="width:100%"
                      ${lockAttr}
-                     onchange="setCableLabel('${l.id}',this.value)">
+                     data-change="link-label" data-lid="${l.id}">
               ${hasManualLbl?`<div style="font-size:0.7rem;color:var(--text-muted);margin-top:3px"><i class="fas fa-arrow-right-arrow-left" style="font-size:0.6rem;margin-right:3px"></i>${escapeHTML(autoLbl)}</div>`:''}
             </div>
             <div class="prop-group" style="margin-top:6px">
@@ -163,7 +197,7 @@ export function _renderLinkProps(panel){
                 ? `<div style="display:flex;align-items:center;gap:8px">
                      <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${autoColor};flex-shrink:0;border:1px solid rgba(255,255,255,.18)"></span>
                      <input type="number" min="1" max="4094" value="${vl}" ${lockAttr} style="flex:1"
-                            onchange="setLinkNativeVlan('${l.id}',this.value)" data-tip="${t('cable.accessVlanTip')}">
+                            data-change="link-native-vlan" data-lid="${l.id}" data-tip="${t('cable.accessVlanTip')}">
                    </div>
                    ${vlanName?`<div style="font-size:0.7rem;color:var(--text-muted);margin-top:3px"><i class="fas fa-tag" style="font-size:0.6rem;margin-right:3px"></i>${vlanName}</div>`:''}`
                 : `<div style="padding:4px 0;font-size:0.83rem;color:var(--text-main)">${vlanBadge}</div>`}
@@ -175,11 +209,11 @@ export function _renderLinkProps(panel){
               <label>${t('cable.portMode')}</label>
               <div style="display:flex;gap:6px;margin-top:4px">
                 <button class="toolbar-btn${!isTrunk?' soft':''}" style="flex:1;padding:5px" ${lockAttr}
-                  onclick="setLinkMode('${l.id}','access')">
+                  data-act="link-mode" data-lid="${l.id}" data-mode="access">
                   <i class="fas fa-circle" style="font-size:0.6rem"></i> Access
                 </button>
                 <button class="toolbar-btn${isTrunk?' soft':''}" style="flex:1;padding:5px" ${lockAttr}
-                  onclick="setLinkMode('${l.id}','trunk')">
+                  data-act="link-mode" data-lid="${l.id}" data-mode="trunk">
                   <i class="fas fa-layer-group" style="font-size:0.7rem"></i> Trunk
                 </button>
               </div>
@@ -190,7 +224,7 @@ export function _renderLinkProps(panel){
               <label>${t('cable.trunkNativeLabel')}</label>
               ${_nativeActivePid
                 ? `<input type="number" min="1" max="4094" value="${tk.native}" ${lockAttr}
-                     onchange="setLinkNativeVlan('${l.id}',this.value)"
+                     data-change="link-native-vlan" data-lid="${l.id}"
                      data-tip="${t('cable.trunkNativeTip')}">`
                 : `<div style="padding:4px 0;font-size:0.8rem;color:var(--text-muted)">VLAN ${tk.native} <span style="font-size:0.7rem">· ${t('cable.trunkNativeUpstream')}</span></div>`}
             </div>
@@ -204,12 +238,12 @@ export function _renderLinkProps(panel){
               <div style="font-size:0.7rem;color:var(--text-muted);margin:4px 0 6px">${t('cable.trunkAutoNote')}</div>
               <input type="text" value="" placeholder="${tk.vlans.join(',')}"
                 style="width:100%" ${lockAttr}
-                onchange="setLinkTrunkVlans('${l.id}',this.value)"
-                onblur="setLinkTrunkVlans('${l.id}',this.value)">` : `
+                data-change="link-trunk-vlans" data-lid="${l.id}"
+                data-blur="link-trunk-vlans">` : `
               <input type="text" value="${escapeHTML(trunkVlans)}" placeholder="1,10,20,100"
                 style="width:100%" ${lockAttr}
-                onchange="setLinkTrunkVlans('${l.id}',this.value)"
-                onblur="setLinkTrunkVlans('${l.id}',this.value)">
+                data-change="link-trunk-vlans" data-lid="${l.id}"
+                data-blur="link-trunk-vlans">
               <div style="font-size:0.7rem;color:var(--text-muted);margin-top:3px">
                 ${t('cable.vlansConfigured',{n:_parseTrunkVlans(trunkVlans).length})}
               </div>`}
@@ -222,7 +256,7 @@ export function _renderLinkProps(panel){
               </label>
                <input type="color" value="${l.colorOvr||autoColor}"
                       style="width:100%;${l.colorOvr?'border-color:#e3b341':''}" ${lockAttr}
-                      onchange="setLinkColor('${l.id}',this.value)">
+                      data-change="link-color" data-lid="${l.id}">
             </div>
             ${(()=>{
                 // Wireless: nessun percorso FISICO (è un'associazione radio).
@@ -321,7 +355,7 @@ export function _renderLinkProps(panel){
                         const rm = removable
                             ? `<button class="toolbar-btn danger" style="padding:0 5px;margin:0 0 0 3px;font-size:.62rem;line-height:1.4;vertical-align:1px"
                                  data-tip="${t('pnl.gen.removeHopTip')}"
-                                 onclick="removeRouteHop('${escapeHTML(h.pid)}')"><i class="fas fa-times"></i></button>`
+                                 data-act="link-remove-hop" data-pid="${escapeHTML(h.pid)}"><i class="fas fa-times"></i></button>`
                             : '';
                         return `<span style="white-space:nowrap">${h.label}${rm}</span>`;
                       }).join(' <span style="color:var(--active-color)">→</span> ')
@@ -346,7 +380,7 @@ export function _renderLinkProps(panel){
                     // style principale (bordo/sfondo); un secondo `style` verrebbe
                     // ignorato dal browser e annullerebbe bordo+sfondo. Il cursore
                     // pointer e' gia' nello style principale.
-                    const _segClick = s.linkId ? ` onclick="selectPathSegment('${escapeHTML(s.linkId)}')"` : '';
+                    const _segClick = s.linkId ? ` data-act="link-seg-pick" data-seglink="${escapeHTML(s.linkId)}"` : '';
                     return `<div class="prop-group seg-pick${s.isSelected?' sel':''}"${_segClick} data-tip="${t('cable.segPickTip')}" style="margin-bottom:8px;padding:8px 10px;border:1px solid ${_segBorder};border-radius:8px;background:${_segBg}${s.linkId?';cursor:pointer':''}">
                         <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:4px">
                           <div style="font-size:.9rem;font-weight:700;color:var(--text-main)">${s.isSelected?'<i class="fas fa-caret-right" style="color:var(--active-color);margin-right:4px"></i>':''}${t('cable.segmentN',{n:idx+1})}</div>
@@ -370,7 +404,7 @@ export function _renderLinkProps(panel){
                     <div class="prop-group" style="margin-top:10px">
                       <button class="toolbar-btn soft" style="width:100%;justify-content:center;gap:8px"
                               data-tip="${t('cable.splitTip')}"
-                              onclick="enterRoutingMode('${l.id}')">
+                              data-act="link-route" data-lid="${l.id}">
                         <i class="fas fa-route"></i> ${t('cable.routeThrough')}
                       </button>
                     </div>
@@ -485,12 +519,12 @@ export function _renderLinkProps(panel){
                        class="${ovr('cableType')}"
                        value="${escapeHTML(l.cableType||'')}"
                        placeholder="${escapeHTML(_derivedCableType || t('pnl.gen.cableTypePh'))}" ${lockAttr}
-                       onchange="setLinkProp('${l.id}','cableType',this.value)">
+                       data-change="link-prop" data-lid="${l.id}" data-lprop="cableType">
               </div>
 
               <div class="prop-group">
                 <label>${t('cable.segmentType')}</label>
-                <select class="${ovr('isPermanent')}" ${lockAttr} onchange="setLinkProp('${l.id}','isPermanent',this.value)">
+                <select class="${ovr('isPermanent')}" ${lockAttr} data-change="link-prop" data-lid="${l.id}" data-lprop="isPermanent">
                   <option value="" ${l.isPermanent==null?'selected':''}>${t('common.unspecifiedM')}</option>
                   <option value="patch" ${l.isPermanent===false?'selected':''}>${t('cable.patchCord')}</option>
                   <option value="permanent" ${l.isPermanent===true?'selected':''}>Permanent link</option>
@@ -499,7 +533,7 @@ export function _renderLinkProps(panel){
 
               <div class="prop-group">
                 <label>${t('common.status')}</label>
-                <select class="${ovr('cableStatus')}" ${lockAttr} onchange="setLinkProp('${l.id}','cableStatus',this.value)">
+                <select class="${ovr('cableStatus')}" ${lockAttr} data-change="link-prop" data-lid="${l.id}" data-lprop="cableStatus">
                   <option value="" ${!l.cableStatus?'selected':''}>${t('common.unspecifiedM')}</option>
                   <option value="active"     ${l.cableStatus==='active'    ?'selected':''}>${t('port.statusActive')}</option>
                   <option value="inactive"   ${l.cableStatus==='inactive'  ?'selected':''}>${t('port.statusInactive')}</option>
@@ -509,7 +543,7 @@ export function _renderLinkProps(panel){
 
               <div class="prop-group">
                 <label>${t('cable.medium')}</label>
-                <select class="${ovr('medium')}" ${lockAttr} onchange="setLinkProp('${l.id}','medium',this.value.trim())">
+                <select class="${ovr('medium')}" ${lockAttr} data-change="link-prop" data-lid="${l.id}" data-lprop="medium" data-coerce="trim">
                   <option value="" ${!l.medium?'selected':''}>${t('common.unspecifiedM')}</option>
                   <option value="copper" ${l.medium==='copper'?'selected':''}>${t('cable.copper')}</option>
                   <option value="fiber" ${l.medium==='fiber'?'selected':''}>${t('cable.fiber')}</option>
@@ -520,7 +554,7 @@ export function _renderLinkProps(panel){
 
               <div class="prop-group">
                 <label>${catLabel}</label>
-                <select class="${ovr('cableCategory')}" ${lockAttr} onchange="setLinkProp('${l.id}','cableCategory',this.value.trim())">
+                <select class="${ovr('cableCategory')}" ${lockAttr} data-change="link-prop" data-lid="${l.id}" data-lprop="cableCategory" data-coerce="trim">
                   <option value="" ${!l.cableCategory?'selected':''}>${t('common.unspecifiedF')}</option>
                   <option value="Cat5e" ${l.cableCategory==='Cat5e'?'selected':''}>Cat 5e</option>
                   <option value="Cat6" ${l.cableCategory==='Cat6'?'selected':''}>Cat 6</option>
@@ -536,7 +570,7 @@ export function _renderLinkProps(panel){
 
               <div class="prop-group">
                 <label>${t('cable.connector')}</label>
-                <select class="${ovr('connector')}" ${lockAttr} onchange="setLinkProp('${l.id}','connector',this.value.trim())">
+                <select class="${ovr('connector')}" ${lockAttr} data-change="link-prop" data-lid="${l.id}" data-lprop="connector" data-coerce="trim">
                   <option value="" ${!l.connector?'selected':''}>${t('common.unspecifiedM')}</option>
                   <option value="RJ45" ${l.connector==='RJ45'?'selected':''}>RJ45</option>
                   <option value="LC" ${l.connector==='LC'?'selected':''}>LC</option>
@@ -552,7 +586,7 @@ export function _renderLinkProps(panel){
 
               <div class="prop-group">
                 <label>${t('cable.maxSpeed')}</label>
-                <select class="${ovr('maxSpeed')}" ${lockAttr} onchange="setLinkProp('${l.id}','maxSpeed',this.value.trim())">
+                <select class="${ovr('maxSpeed')}" ${lockAttr} data-change="link-prop" data-lid="${l.id}" data-lprop="maxSpeed" data-coerce="trim">
                   <option value="" ${!l.maxSpeed?'selected':''}>${t('common.unspecifiedF')}</option>
                   <option value="100M" ${l.maxSpeed==='100M'?'selected':''}>100 Mbps</option>
                   <option value="1G" ${l.maxSpeed==='1G'?'selected':''}>1 Gbps</option>
@@ -573,7 +607,7 @@ export function _renderLinkProps(panel){
                        class="${ovr('length')}"
                        value="${l.length!=null?l.length:''}"
                        placeholder="${t('pnl.gen.lengthPh')}" ${lockAttr}
-                       onchange="setLinkProp('${l.id}','length',this.value===''?'':+this.value)">
+                       data-change="link-prop" data-lid="${l.id}" data-lprop="length" data-coerce="num">
               </div>
 
               <div class="prop-group">
@@ -582,7 +616,7 @@ export function _renderLinkProps(panel){
                        class="${ovr('installedAt')}"
                        value="${escapeHTML(l.installedAt||'')}"
                        ${lockAttr}
-                       onchange="setLinkProp('${l.id}','installedAt',this.value)">
+                       data-change="link-prop" data-lid="${l.id}" data-lprop="installedAt">
               </div>
 
               <div class="prop-group">
@@ -591,12 +625,12 @@ export function _renderLinkProps(panel){
                        class="${ovr('installedBy')}"
                        value="${escapeHTML(l.installedBy||'')}"
                        placeholder="${t('cable.installedByPh')}" ${lockAttr}
-                       onchange="setLinkProp('${l.id}','installedBy',this.value)">
+                       data-change="link-prop" data-lid="${l.id}" data-lprop="installedBy">
               </div>
 
               <div class="prop-group">
                 <label>PoE</label>
-                <select class="${ovr('poe')}" ${lockAttr} onchange="setLinkProp('${l.id}','poe',this.value.trim())">
+                <select class="${ovr('poe')}" ${lockAttr} data-change="link-prop" data-lid="${l.id}" data-lprop="poe" data-coerce="trim">
                   <option value="" ${!l.poe?'selected':''}>${t('common.unspecifiedM')}</option>
                   <option value="none" ${l.poe==='none'?'selected':''}>${t('o.none')}</option>
                   <option value="802.3af" ${l.poe==='802.3af'?'selected':''}>802.3af — 15 W</option>
@@ -612,7 +646,7 @@ export function _renderLinkProps(panel){
                           class="${ovr('notes')}"
                           placeholder="${t('pnl.gen.freeDescPh')}"
                           style="width:100%;resize:vertical;padding:5px 7px;font-size:var(--fs-lg);background:var(--bg-color);border:1px solid var(--panel-border);border-radius:4px;color:var(--text-main)" ${lockAttr}
-                          onchange="setLinkProp('${l.id}','notes',this.value)">${escapeHTML(l.notes||'')}</textarea>
+                          data-change="link-prop" data-lid="${l.id}" data-lprop="notes">${escapeHTML(l.notes||'')}</textarea>
               </div>`;
               })()}
               </div></details>`;

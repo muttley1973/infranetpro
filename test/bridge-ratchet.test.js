@@ -728,7 +728,19 @@ function countInlineHandlers() {
 // (239 occorrenze su 45 scenari, zero altri cambi). setPropsSectionState RESTA in
 // expose() (la chiamano gli helper e2e come globale + app-shared-segment via import):
 // toglierla non abbassa questo cricchetto (che conta gli inline on*=, non expose()).
-const MAX_INLINE_HANDLERS = 513;
+//
+// −34 (513 → 479), Blocco 2a — PANNELLO CAVO (app-properties-link.js). I 34 handler
+// (14 onclick + 18 onchange + 2 onblur) passano a data-act/data-change/data-blur +
+// azioni delegate registrate nel modulo. Aggiunto il tipo `blur` all'harness (via
+// `focusout`, che fa bubbling). Le 11 funzioni chiamate (setLinkProp/setCableLabel/
+// setLinkColor/setLinkMode/setLink*Vlan*/promoteLinkToManual/deleteLink/selectPath
+// Segment/enterRoutingMode/removeRouteHop) sono passate a `export function` +
+// importate (restano in expose() per gli altri pannelli non ancora migrati). I 12
+// onchange setLinkProp sono UNA sola azione `link-prop` (campo in data-lprop,
+// coercizione trim/num in data-coerce). I 3 bottoni espandi/comprimi/ripristina
+// dell'header sono azioni CONDIVISE registrate in app-properties.js. Golden: solo
+// scope:link cambia, verificato handler-only (strip on*/data-* → identico).
+const MAX_INLINE_HANDLERS = 479;
 test('ponte ASSE B: gli handler inline on*= non superano il tetto a cricchetto', () => {
   const total = countInlineHandlers();
   assert.ok(total <= MAX_INLINE_HANDLERS,

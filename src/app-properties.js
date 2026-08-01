@@ -24,7 +24,7 @@ import { _renderFloorProps } from './app-properties-floor.js';   // ritiro ponte
 import { _renderVmProps } from './app-properties-vm.js';   // 5o scope: scheda macchina virtuale (selType==='vm')
 import { _deviceHasWifi, _isWifiCapable } from './app.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { _radioIfacesHtml } from './app-wifi.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
-import { registerToggleActions } from './app-delegation.js';   // ASSE B: fisarmoniche <details> via event delegation (ex ontoggle inline)
+import { registerToggleActions, registerClickActions } from './app-delegation.js';   // ASSE B: fisarmoniche + header via event delegation (ex ontoggle/onclick inline)
 
 // MAC da mostrare per un device: il MAC di device se c'e', altrimenti fallback
 // alla PORTA col suffisso numerico piu' basso (gli apparati SNMP — switch/router/
@@ -109,6 +109,17 @@ function _propsResetSections(){
     try{ localStorage.removeItem(_PROPS_SECTIONS_PREF_KEY); }catch(_){}
     renderProps();
 }
+
+// ASSE B (ritiro ponte): i 3 bottoni "espandi tutto / comprimi tutto / ripristina
+// sezioni" dell'header del pannello proprieta sono IDENTICI in ogni renderer
+// (link/node/floor/port), che ora usano data-act invece di onclick. Le fn restano
+// module-private (in scope qui, hoisted) + in expose() finche' i pannelli non
+// ancora migrati le chiamano ancora inline.
+registerClickActions({
+    'props-expand-all':     () => _propsExpandAll(),
+    'props-collapse-all':   () => _propsCollapseAll(),
+    'props-reset-sections': () => _propsResetSections(),
+});
 /** Toggle del menu kebab dell'header del pannello proprieta. */
 function _propsKebabToggle(e){
     if(e) e.stopPropagation();

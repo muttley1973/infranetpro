@@ -423,7 +423,7 @@ export function _linkIsTrunk(l){ return _getLinkTrunk(l).mode === 'trunk'; }
 // capo ATTIVO del link (switch/router) — la nativa È il PVID di quella porta,
 // nessun modello nuovo. Su switch↔switch scrive il capo attivo trovato. Tiene il
 // link selezionato (a differenza di setPortField, che deseleziona).
-function setLinkNativeVlan(linkId, val){
+export function setLinkNativeVlan(linkId, val){
     const l = store.state.links.find(x=>x.id===linkId); if(!l) return;
     const _act = pid => !!TYPES[getNodeByPortId(pid)?.type]?.isActive;
     const pid = _act(l.src) ? l.src : (_act(l.dst) ? l.dst : null);
@@ -847,7 +847,7 @@ registerClickActions({
     'vm-backdrop': (el, ev) => { if (ev.target === el) closeVlanMembers(); },
     'vm-close':    () => closeVlanMembers(),
 });
-function setLinkColor(id,color){
+export function setLinkColor(id,color){
     const l=store.state.links.find(x=>x.id===id); if(!l) return;
     const same = color===null ? !('colorOvr' in l) && !l.autoLinked : l.colorOvr===color && !l.autoLinked;
     if(same) return;
@@ -867,7 +867,7 @@ function setLinkColor(id,color){
 // nativa/PVID); il motore la propaga a tutti i segmenti passivi della tratta.
 // Solo se il run non tocca alcuna interfaccia attiva si ricade sull'override del
 // cavo (catena di soli passivi: nessun switchport che possa "possedere" il trunk).
-function setLinkMode(id, mode){
+export function setLinkMode(id, mode){
     const l=store.state.links.find(x=>x.id===id); if(!l) return;
     const anchor = (typeof _runActiveAnchor==='function') ? _runActiveAnchor(l) : null;
     if(anchor){
@@ -893,7 +893,7 @@ function setLinkMode(id, mode){
     renderProps(); markDirty();
 }
 
-function setLinkTrunkVlans(id, raw){
+export function setLinkTrunkVlans(id, raw){
     const l=store.state.links.find(x=>x.id===id); if(!l) return;
     const next = raw.trim();
     const anchor = (typeof _runActiveAnchor==='function') ? _runActiveAnchor(l) : null;
