@@ -10,7 +10,7 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="1,945 tests, 0 failing" src="https://img.shields.io/badge/tests-1%2C945%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="1,948 tests, 0 failing" src="https://img.shields.io/badge/tests-1%2C948%20%C2%B7%200%20failing-3fb950"></a>
   <a href="#testing"><img alt="93 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-93%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#oui-intelligence-engine"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
@@ -918,7 +918,7 @@ Coverage focuses on the pure, bug-prone logic that has historically broken: SNMP
 
 Current local quality baseline:
 - `npm run check` validates all project JS sources (~140 files)
-- `npm test` runs the full regression suite (currently **1,945 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **93 flows**)
+- `npm test` runs the full regression suite (currently **1,948 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **93 flows**)
 - final visual verification is still important for rack/front-panel refinements
 
 > Pure functions are exposed for tests via an additive `_internals` export on
