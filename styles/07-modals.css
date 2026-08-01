@@ -410,17 +410,18 @@
         /* Chip freschezza del progetto (ex badge dentro il bottone Sync, ritirato):
            indicatore di stato autonomo accanto a Verifica, color-coded, clic → Panoramica.
            Base .status-chip; qui solo icona/gap. Contenuto e colori: _renderSyncFreshness. */
-        /* ⚠️ LARGHEZZA RISERVATA, non «quanto serve adesso». Il contenuto cambia da
-           solo mentre guardi — «adesso» → «2 min» → «13 gg», e dopo un Sync anche
-           «0/13» → «13/13» — e ogni volta il chip cambiava larghezza di ~45px. In
-           un header con `flex-wrap`, quei 45px bastano a spingere il cluster dei
-           bottoni sulla riga sotto: la barra «slittava» da sola, senza che nessuno
-           avesse toccato niente. Riservando lo spazio del caso piu' largo la misura
-           si aggiorna e il layout resta fermo. In `em` per seguire i breakpoint che
+        /* ⚠️ LARGHEZZA RISERVATA, non «quanto serve adesso». L'età cambia da sola
+           mentre guardi — «adesso» → «2 min» → «13 gg» — e ogni cambio spostava il
+           chip di qualche px. In un header con `flex-wrap` bastano a spingere il
+           cluster dei bottoni sulla riga sotto: la barra «slittava» da sola, senza
+           che nessuno avesse toccato niente. Riservando lo spazio del caso più largo
+           la misura si aggiorna e il layout resta fermo. Ora il chip porta la SOLA
+           età (il conteggio ok/tot è nella sotto-header): bastano ~6.5em, non più le
+           11 che servivano a «13/13 · 3 gg». In `em` per seguire i breakpoint che
            rimpiccioliscono il font. */
         .sync-fresh-chip { gap:6px; font-weight:600; white-space:nowrap;
             font-size:var(--fs-md); padding:5px 12px;
-            min-width:11em; justify-content:center; }   /* un po' più grande, accanto alla ricerca */
+            min-width:6.5em; justify-content:center; }   /* riserva per l'età più larga */
         .sync-fresh-chip .sync-fresh-ico { color:var(--text-muted); opacity:.75; font-size:.85rem; }
         /* Pallino di freschezza dentro il pulsante Topologia (stesso linguaggio del chip). */
         .topo-fresh-dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-left:4px; vertical-align:middle; flex-shrink:0; }

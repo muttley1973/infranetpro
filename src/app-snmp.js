@@ -72,13 +72,14 @@ function _hasSnmpTargets(){
         return (cfg.driver||'').startsWith('snmp') && !!((cfg.host||n.ip||'').trim());
     });
 }
-// Chip di stato freschezza "ok/tot · età" (#sync-fresh-chip), autonomo nella toolbar
-// accanto a Verifica: ESITO dell'ultimo Sync (persistito col progetto in
-// state.lastSnmpSyncResult) + età dell'ultimo tentativo, color-coded. Prima viveva
-// DENTRO il bottone Sync; da quando il Sync è stato ritirato (Verifica ⊇ Sync) è un
-// indicatore a sé, visibile in ogni vista e all'apertura, cliccabile → Panoramica.
-// L'esito NON evapora coi 4s del flash: resta finché un nuovo Sync non lo sostituisce,
-// e sopravvive a salva/riapri. Nascosto durante il sync e durante il flash del
+// Chip di FRESCHEZZA (#sync-fresh-chip), autonomo nella toolbar accanto a Verifica:
+// mostra l'ETÀ dell'ultima lettura SNMP, color-coded per freschezza. Il CONTEGGIO
+// ok/tot dell'ultimo Sync NON è qui — vive nella sotto-header (salute SNMP, col
+// pallino), e replicarlo faceva del chip l'elemento più largo dell'header. L'esito
+// completo (quanti device hanno risposto) resta nel tooltip. Prima viveva DENTRO il
+// bottone Sync; da quando il Sync è stato ritirato (Verifica ⊇ Sync) è un indicatore
+// a sé, visibile in ogni vista e all'apertura, cliccabile → Panoramica. L'età
+// sopravvive a salva/riapri. Nascosto durante il sync e durante il flash del
 // risultato sul bottone Verifica (prima il ripristino immediato affiancava l'età
 // STANTIA al risultato fresco: era lo stato confondente "0/11 (11 err) · 13 gg").
 let _syncFlashUntil = 0;
@@ -92,21 +93,13 @@ export function _renderSyncFreshness(){
     const f = _snmpFreshness(res && res.at ? res.at : _lastSnmpSyncTs());
     el.style.display='inline-flex';
     const ico = `<i class="fas fa-network-wired sync-fresh-ico"></i>`;
-    if(res && res.total > 0){
-        // Esito (verde tutti ok / ambra misto / rosso zero ok) + età del tentativo.
-        const cCol = res.err === 0 ? _SNMP_FRESH_COLOR.fresh
-                   : res.ok === 0 ? _SNMP_FRESH_COLOR.old : _SNMP_FRESH_COLOR.aging;
-        el.innerHTML = ico
-            + `<span style="color:${cCol}">${res.ok}/${res.total}</span>`
-            + `<span style="opacity:.55"> · </span><span style="color:${f.color}">${f.txt}</span>`;
-        el.setAttribute('data-tip', t('snmp.tip.result', {age: f.txt, ok: res.ok, total: res.total}));
-        return;
-    }
-    // Nessun esito registrato (progetti pre-feature): solo l'età, come prima.
+    // Solo l'ETÀ, color-coded per freschezza: il conteggio ok/tot è nella sotto-header.
     el.innerHTML = ico + `<span style="color:${f.color}">${f.txt}</span>`;
-    el.setAttribute('data-tip', f.level==='none'
-        ? t('snmp.tip.never')
-        : t('snmp.tip.ago', {age: f.txt}));
+    // Il tooltip porta l'esito completo quando un Sync l'ha registrato (età + ok/tot);
+    // altrimenti solo l'età, o «mai» per i progetti senza ancora una lettura.
+    el.setAttribute('data-tip', (res && res.total > 0)
+        ? t('snmp.tip.result', {age: f.txt, ok: res.ok, total: res.total})
+        : f.level === 'none' ? t('snmp.tip.never') : t('snmp.tip.ago', {age: f.txt}));
 }
 
 // Esito PERSISTITO dell'ultimo auto-link (Sync o import singolo): alimenta la

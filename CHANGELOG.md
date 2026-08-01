@@ -11,7 +11,8 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 
 ### Changed
 - The **Overview is renamed Dashboard** throughout the UI — the toolbar button, the breadcrumb, the tooltips and the dossier's section title.
-- The toolbar spells out its actions: **Dashboard**, **Salva/Save**, **Esporta/Export** join Scopri and Verifica as words on wide screens, each collapsing back to its icon as the window narrows, in that order; the freshness counter keeps its room to grow.
+- The toolbar spells out its actions: **Dashboard**, **Salva/Save**, **Esporta/Export** join Scopri and Verifica as words on wide screens, each collapsing back to its icon as the window narrows, in that order.
+- The **freshness chip** shows the age of the last SNMP read again — colour-coded — instead of the response count: the count already lives in the status bar with its dot, and the full result (how many devices answered) moves to the chip's tooltip. The age had been hidden on every viewport ≤1980px CSS — which is nearly any monitor, a 1080p screen or a 4K one at Windows' default 200% scaling both reporting 1920px — leaving only the count on the chip.
 - Dashboard: the **Gateway** tile opens the full **subnet → gateway** map — the ones without a gateway first, then each declared subnet with its gateway — instead of only the gaps, and stays clickable when none are missing.
 - Dashboard: the **Default community** tile shows an administrator *which* known default a device uses (public / private / empty), as a marker the renderer resolves; the raw value still never leaves the engine, and a custom community is never surfaced.
 

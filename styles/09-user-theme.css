@@ -207,17 +207,10 @@
         header { gap: 6px; }
         .header-right { gap: 4px; }
 
-        @media (max-width: 1980px) {
-            /* Il chip riservava 11em (158px) per scrivere «13/13 · 3 gg»: dopo i due
-               cluster di bottoni e' il singolo elemento piu' largo dell'header. Qui
-               tiene l'ESITO colorato — l'informazione di stato — e lascia l'eta' al
-               tooltip, che la dice per esteso. Il chip non sparisce e non cambia
-               larghezza al variare del contatore: la min-width resta, solo piu'
-               piccola (il salto di larghezza era il bug chiuso nella 2.3.1). */
-            #sync-fresh-chip { min-width: 5em; }
-            #sync-fresh-chip > span:nth-of-type(2),
-            #sync-fresh-chip > span:nth-of-type(3) { display: none; }
-        }
+        /* Il chip mostra SEMPRE la freschezza (l'età dell'ultima lettura): il
+           conteggio ok/tot vive nella sotto-header, quindi qui non c'è più il
+           «13/13 · 3 gg» da comprimere. Niente override di larghezza per fascia:
+           la base .sync-fresh-chip riserva già lo spazio dell'età più larga. */
         @media (max-width: 1420px) {
             #project-select { max-width: 92px; }
             .search-panel { flex: 0 1 96px; min-width: 60px; }
