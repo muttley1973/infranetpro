@@ -713,6 +713,14 @@ function fitBgImageToCanvas(){
     renderProps(); // aggiorna slider
 }
 
+// ASSE B (ritiro ponte): il pannello FLOOR importa le funzioni immagine-di-sfondo /
+// griglia per registrarle come azioni delegate (ex onclick/oninput/onchange inline).
+// Restano anche in expose() finche' i chiamanti non migrati le usano.
+export {
+    toggleBgImageLock, scaleBgImage, scaleBgImageTo, fitBgImageToCanvas,
+    clearMap, toggleFloorGrid, setBgImageOpacity,
+};
+
 expose({
     // search
     getSearchIcon, getPortSummary, buildSearchResults,

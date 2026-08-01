@@ -105,7 +105,7 @@ test('ui: card VLAN → toggle "nativa" per-riga (no più campo numerico)', () =
     state.vlanColors = Object.assign({}, state.vlanColors||{}, { 99:'#00d4ff' });
     selType=null; selId=null; renderProps(); const h=${panelHtml()};
     return JSON.stringify({ ok:true,
-      toggle: h.indexOf('toggleSiteNativeVlan(99)')>=0,
+      toggle: h.indexOf('data-act="vlan-native-toggle" data-vid="99"')>=0,
       noOldField: h.indexOf('setSiteNativeVlan(this.value)')<0 });
   `);
   assert.ok(r.ok, 'render lancia: ' + r.err);

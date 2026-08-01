@@ -996,7 +996,8 @@ export function _dispName(name){
         ? abbreviateName(name) : (name==null ? '' : String(name));
 }
 // Toggle "Nomi abbreviati" (planimetria + etichette cavi). Solo display.
-function toggleAbbrevNames(on){
+// ASSE B: export per la registrazione delegata nel pannello FLOOR (ex onchange inline).
+export function toggleAbbrevNames(on){
     state.abbrevNames = !!on;
     markDirty();
     renderAll();

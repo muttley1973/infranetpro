@@ -976,6 +976,16 @@ function addVlanColor(){
     if(!Number.isNaN(v)&&c){pushHistory();store.state.vlanColors[v]=c;renderAll();markDirty();}
 }
 
+// ASSE B (ritiro ponte): il pannello FLOOR (app-properties-floor.js) importa queste
+// funzioni per registrarle come azioni delegate (ex handler inline della card VLAN e
+// dei colori UI). Restano anche in expose() finche' altri pannelli non migrati le usano.
+// updateVlanIpam e' gia' `export function` sopra → esclusa qui per non duplicarla.
+export {
+    clearAllVlans, toggleVlanIpam, toggleGuestVlan, toggleMgmtVlan,
+    toggleSiteNativeVlan, toggleVoiceVlan, _openVoiceAssignDialog,
+    deleteVlanColor, addVlanColor, updateVlanName, updateVlanColor, updateUiColor,
+};
+
 expose({
     _ensureVlanColor, setAutoPoll, _startAutoPoll, _stopAutoPoll, _updateAutoPollBadge,
     toggleAutomationMenu, renderAutomationMenu,

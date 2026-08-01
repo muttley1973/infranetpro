@@ -740,7 +740,21 @@ function countInlineHandlers() {
 // coercizione trim/num in data-coerce). I 3 bottoni espandi/comprimi/ripristina
 // dell'header sono azioni CONDIVISE registrate in app-properties.js. Golden: solo
 // scope:link cambia, verificato handler-only (strip on*/data-* → identico).
-const MAX_INLINE_HANDLERS = 479;
+//
+// −31 (479 → 448), Blocco 2b — PANNELLO FLOOR / contesto planimetria
+// (app-properties-floor.js). I 31 handler (20 onclick + 9 onchange + 2 oninput)
+// della card VLAN + immagine di sfondo + colori/etichette passano a data-act/
+// data-change/data-input + azioni delegate registrate nel modulo. Le 21 funzioni
+// chiamate sono passate a `export` nei moduli che le possiedono (app-vlan-autopoll:
+// clearAllVlans/toggle*Vlan*/updateVlan*/updateUiColor/…; app-search-zoom-rack:
+// scaleBgImage*/toggleBgImageLock/clearMap/toggleFloorGrid/setBgImageOpacity;
+// app-drift-adopt: openAdoptFromLeases; app.js: toggleAbbrevNames) e importate per la
+// registrazione (restano in expose() per i pannelli non ancora migrati). I 3
+// updateVlanIpam(subnet/gateway/dns) collassano in UNA azione `vlan-ipam-field`
+// (campo in data-field); i 2 updateUiColor in `ui-color` (chiave in data-uikey); i
+// 2 scaleBgImage(±0.05) in `bg-scale-step` (delta in data-delta). Golden: solo
+// scope:floor cambia, verificato handler-only (strip on*/data-* → identico).
+const MAX_INLINE_HANDLERS = 448;
 test('ponte ASSE B: gli handler inline on*= non superano il tetto a cricchetto', () => {
   const total = countInlineHandlers();
   assert.ok(total <= MAX_INLINE_HANDLERS,

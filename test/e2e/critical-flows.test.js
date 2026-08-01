@@ -347,7 +347,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         const ov = document.getElementById('adopt-overlay'); if (ov) ov.style.display = 'none';
 
         return {
-          badgeShown: badge.indexOf('vlan-ipam-occ-adopt') >= 0 && badge.indexOf('openAdoptFromLeases(20)') >= 0,
+          badgeShown: badge.indexOf('vlan-ipam-occ-adopt') >= 0 && badge.indexOf('data-act="adopt-from-leases" data-vid="20"') >= 0,
           modalHas45: tb.indexOf('AA:BB:CC:00:00:45') >= 0,
           modalNotDoc: tb.indexOf('AA:BB:CC:00:00:10') < 0,
           modalNotExpired: tb.indexOf('AA:BB:CC:00:00:99') < 0,
@@ -394,7 +394,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         // la card VLAN mostra il pulsante management
         const panel = document.createElement('div');
         _vlanIpamOpen.add(20); _renderFloorProps(panel); _vlanIpamOpen.clear();
-        const cardHasMgmtBtn = panel.innerHTML.indexOf('toggleMgmtVlan(20)') >= 0;
+        const cardHasMgmtBtn = panel.innerHTML.indexOf('data-act="vlan-mgmt-toggle" data-vid="20"') >= 0;
 
         // adozione dalla card: su VLAN di management il candidato è INFRA → typeDefault 'switch', non 'pc'
         openAdoptFromLeases(20);
@@ -2364,12 +2364,12 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           renderProps();
 
           const beforeNative = (typeof _siteNativeVlan === 'function') ? _siteNativeVlan() : 1;
-          const btn = document.querySelector('button[onclick="toggleSiteNativeVlan(99)"]');
+          const btn = document.querySelector('button[data-act="vlan-native-toggle"][data-vid="99"]');
           const hadBtn = !!btn;
-          if (btn) btn.click();                                // setSiteNativeVlan(99) + re-render
+          if (btn) btn.click();                                // delegazione → toggleSiteNativeVlan(99) + re-render
           const afterNative = (typeof _siteNativeVlan === 'function') ? _siteNativeVlan() : 1;
           const stateNat = state.nativeVlan;
-          const btn2 = document.querySelector('button[onclick="toggleSiteNativeVlan(99)"]');
+          const btn2 = document.querySelector('button[data-act="vlan-native-toggle"][data-vid="99"]');
           const isActive = btn2 ? btn2.className.includes('primary') : false;
           if (btn2) btn2.click();                              // ri-clic → torna a default (1)
           const afterToggleOff = (typeof _siteNativeVlan === 'function') ? _siteNativeVlan() : 1;

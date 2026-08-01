@@ -248,6 +248,9 @@ function _adoptRecomputeDrift(){
 // (da app-properties-floor.js) + le funzioni "testabili" esercitate dall'E2E
 // (_adoptCandidates, _adoptCreateNodes). ASSE B: chiudi/seleziona-tutti/applica del
 // modale sono DELEGATE (data-act/data-change) → non più su window.
+// ASSE B: export per la registrazione delegata nel pannello FLOOR (ex onclick inline
+// nel blocco Occupazione IPAM). Resta anche in expose() per i chiamanti non migrati.
+export { openAdoptFromLeases };
 expose({
     openAdoptModal, openAdoptFromLeases,
     _adoptCandidates, _adoptCreateNodes,
