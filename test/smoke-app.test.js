@@ -221,9 +221,9 @@ test('vlan CATENA COMPLETA: switchport → run (patch/presa) → endpoint/porta 
       const md=l=>_getLinkTrunk(l).mode, vl=l=>_getLinkTrunk(l).vlans;
       const panel=(ty,id)=>{ selType=ty; selId=id; renderProps(); return document.getElementById('props-panel').innerHTML; };
       const ro = h => ({                                   // marcatori "editabile?" del pannello
-        statusEdit:/onchange="setPortField\\('[^']+','statusOvr'/.test(h),
-        speedEdit:/onchange="setPortSpeed/.test(h),
-        portVlanEdit:/onchange="setPortField\\('[^']+','vlanOvr'/.test(h) });
+        statusEdit:/data-change="port-field"[^>]*data-pfield="statusOvr"/.test(h),
+        speedEdit:/data-change="port-speed"/.test(h),
+        portVlanEdit:/data-change="port-field"[^>]*data-pfield="vlanOvr"/.test(h) });
 
       // ── FASE 1: switchport ACCESS VLAN 10 → propaga lungo tutto il run ──
       state.ports['sw-1']={vlanOvr:10}; propagateVlans();
@@ -753,9 +753,9 @@ test('porta: endpoint floor — Stato/Velocità read-only, VLAN editabile (overr
       _invalidateIdx&&_invalidateIdx();
       const probe = pid => { selType='port'; selId=pid; renderProps();
         const h=document.getElementById('props-panel').innerHTML;
-        return { statusEdit:/onchange="setPortField\\('[^']+','statusOvr'/.test(h),
-                 speedEdit:/onchange="setPortSpeed/.test(h),
-                 vlanEditPort:/onchange="setPortField\\('[^']+','vlanOvr'/.test(h),
+        return { statusEdit:/data-change="port-field"[^>]*data-pfield="statusOvr"/.test(h),
+                 speedEdit:/data-change="port-speed"/.test(h),
+                 vlanEditPort:/data-change="port-field"[^>]*data-pfield="vlanOvr"/.test(h),
                  vlanEditEndpoint:/onchange="setEndpointVlan\\(/.test(h),
                  hasVlanLabel:/>VLAN</.test(h) };
       };

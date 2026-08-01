@@ -985,6 +985,9 @@ export {
     toggleSiteNativeVlan, toggleVoiceVlan, _openVoiceAssignDialog,
     deleteVlanColor, addVlanColor, updateVlanName, updateVlanColor, updateUiColor,
 };
+// ASSE B: pannello PORTA / popup porta importano queste per la registrazione delegata
+// (ex onchange/onclick inline). Restano anche in expose() per le superfici non migrate.
+export { setPortMode, setPortTrunkVlans, setNodeVoiceVlan };
 
 expose({
     _ensureVlanColor, setAutoPoll, _startAutoPoll, _stopAutoPoll, _updateAutoPollBadge,

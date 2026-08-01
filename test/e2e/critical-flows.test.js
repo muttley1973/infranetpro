@@ -441,8 +441,8 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         selType = null; selId = null;
         return {
           swHasPortId: swHtml.indexOf('Port ID') >= 0,
-          swHasField: swHtml.indexOf('setPortField(') >= 0,
-          swHasMode: swHtml.indexOf('setPortMode(') >= 0,
+          swHasField: swHtml.indexOf('data-change="port-field"') >= 0,
+          swHasMode: swHtml.indexOf('data-act="port-mode"') >= 0,
           radioDelegated: radioHtml.indexOf('Net') >= 0 || /addBss\(/.test(radioHtml),
         };
       });
@@ -2436,13 +2436,14 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
 
           // il device-panel del telefono NON deve più avere la VLAN voce (uniformatura)
           selType = 'node'; selId = 'tel'; renderProps();
-          const inDevice = (document.getElementById('props-panel').innerHTML || '').includes('setNodeVoiceVlan');
+          const inDevice = (document.getElementById('props-panel').innerHTML || '').includes('node-voice-vlan');
           // il pannello PORTA sì → editor editabile
           selType = 'port'; selId = 'tel-1'; renderProps();
           const inputs = [...document.querySelectorAll('#props-panel input[type="number"]')];
-          const voiceInput = inputs.find(i => (i.getAttribute('onchange') || '').includes('setNodeVoiceVlan'));
+          const voiceInput = inputs.find(i => (i.getAttribute('data-change') || '') === 'node-voice-vlan');
           const hadInput = !!voiceInput;
-          if (voiceInput) { voiceInput.value = '40'; voiceInput.dispatchEvent(new Event('change')); }
+          // ASSE B: input delegato → l'evento deve BUBBLARE fino al listener sul document
+          if (voiceInput) { voiceInput.value = '40'; voiceInput.dispatchEvent(new Event('change', { bubbles: true })); }
 
           const nodeVoice = (typeof _voipVoiceVlan === 'function') ? _voipVoiceVlan(nodeById('tel')) : nodeById('tel').voiceVlan;
           const carries40 = _getLinkTrunk(state.links[0]).vlans.includes(40);

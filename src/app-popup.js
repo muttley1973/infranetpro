@@ -15,9 +15,30 @@ import { renderAll, isRackPort, renderNow } from './app-render-core.js';   // ri
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { ensureNodeRackVisible, renderRackTabs, _updateFloorToolbarVisibility } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { _effPortVlan, _parseTrunkVlans, _siteNativeVlan, _vlansToRangeStr } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
-import { _portDisplayName, _focusLagForPort, getPassivePortLagInfo } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _portDisplayName, _focusLagForPort, getPassivePortLagInfo,
+         setPortField, clearPortField, setPortSpeed, removePortFromLag, startLagMode } from './app-ports.js';   // ritiro ponte + ASSE B: fn del dominio porta (ex win.*)
 import { _cancelLink } from './app-pointer.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { _sharedSegmentHtml } from './app-shared-segment.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
+import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: handler del popup porta + azioni CONDIVISE del dominio porta via event delegation
+
+// ASSE B (ritiro ponte): azioni delegate del POPUP porta + le azioni CONDIVISE del
+// dominio porta (usate anche dal pannello Proprieta' PORTA e, poi, dalla tabella
+// porte del nodo). Le fn condivise (setPortField/setPortSpeed) si auto-refreshano →
+// nessun tail; quelle col tail specifico (chiudi popup / rimuovi da LAG) restano
+// popup-locali. pid nei data-pid (o data-ovr-pid della tabella porte), campo in
+// data-pfield (o data-ovr-field). setPortField(vlanOvr) coerce a numero (>=1).
+const _ppid   = (el) => el.dataset.pid || el.dataset.ovrPid;
+const _pfield = (el) => el.dataset.pfield || el.dataset.ovrField;
+registerChangeActions({
+    'port-field': (el) => { const f = _pfield(el); setPortField(_ppid(el), f, f === 'vlanOvr' ? (+el.value || 1) : el.value); },
+    'port-speed': (el) => setPortSpeed(_ppid(el), el.value),
+});
+registerClickActions({
+    'port-clear':            (el) => clearPortField(_ppid(el), _pfield(el)),
+    'port-lag-add':          (el) => startLagMode(_ppid(el)),
+    'pop-close':             () => closePop(),
+    'port-lag-remove-close': (el) => { removePortFromLag(_ppid(el)); closePop(); },
+});
 
 export function _findProjectLinkByPorts(a,b){
     if(!a||!b) return null;
@@ -241,17 +262,17 @@ export function showPop(e,pid){
     const spdDisplay=effSpeed!=null?(effSpeed>=1000?`${(effSpeed/1000).toFixed(effSpeed%1000?1:0)}G`:`${effSpeed}M`):'';
     const spdPlaceholder=pi.speed!=null?(pi.speed>=1000?`${(pi.speed/1000).toFixed(pi.speed%1000?1:0)}G`:`${pi.speed}M`):'es. 1G';
 
-    const rst=(f,lbl)=>pi[f]!==undefined&&pi[f]!==null?`<button class="prst" data-tip="${t('pnl.misc.restore',{label:lbl})}" onclick="clearPortField('${pid}','${f}')">↺</button>`:'<span></span>';
+    const rst=(f,lbl)=>pi[f]!==undefined&&pi[f]!==null?`<button class="prst" data-tip="${t('pnl.misc.restore',{label:lbl})}" data-act="port-clear" data-pid="${pid}" data-pfield="${f}">↺</button>`:'<span></span>';
 
     const pop=document.getElementById('popup');
     pop.innerHTML=`
 <h4>${escapeHTML(node?node.name:'?')} — ${t('pnl.misc.port')} ${escapeHTML(portNum)}
-  <button class="pop-close" onclick="closePop()">✕</button>
+  <button class="pop-close" data-act="pop-close">✕</button>
 </h4>
 ${snmpBar}
 <div class="port-row">
   <label>${t('pnl.misc.status')}</label>
-  <select class="${pi.statusOvr?'ovr':''}" onchange="setPortField('${pid}','statusOvr',this.value)">
+  <select class="${pi.statusOvr?'ovr':''}" data-change="port-field" data-pid="${pid}" data-pfield="statusOvr">
     <option value=""         ${effStatus===''        ?'selected':''}>${t('port.statusUnknown')}</option>
     <option value="active"   ${effStatus==='active'  ?'selected':''}>ACTIVE</option>
     <option value="idle"     ${effStatus==='idle'    ?'selected':''}>IDLE</option>
@@ -264,7 +285,7 @@ ${snmpBar}
   <label>${t('pnl.misc.description')}</label>
   <input value="${escapeHTML(effDesc)}"
          placeholder="${escapeHTML(pi.alias||pi.ifName||t('pnl.misc.descriptionPh'))}"
-         onchange="setPortField('${pid}','desc',this.value)">
+         data-change="port-field" data-pid="${pid}" data-pfield="desc">
   <span></span>
 </div>
 <div class="port-row">
@@ -272,7 +293,7 @@ ${snmpBar}
   <input value="${escapeHTML(spdDisplay)}"
          placeholder="${escapeHTML(spdPlaceholder)}"
          class="${pi.speedOvr!=null?'ovr':''}"
-         onchange="setPortSpeed('${pid}',this.value)"
+         data-change="port-speed" data-pid="${pid}"
          data-tip="${t('pnl.misc.speedFormat')}">
   ${rst('speedOvr',t('pnl.misc.fieldSpeed'))}
 </div>
@@ -288,7 +309,7 @@ ${(()=>{
   <input type="number" min="1" max="4094"
          value="${effVlan}"
          class="${pi.vlanOvr!=null?'ovr':''}"
-         onchange="setPortField('${pid}','vlanOvr',+this.value||1)"
+         data-change="port-field" data-pid="${pid}" data-pfield="vlanOvr"
          data-tip="${t('pnl.misc.nativeVlanTip')}">
   ${rst('vlanOvr','VLAN')}
 </div>`
@@ -318,7 +339,7 @@ ${vlanNativaRow}
   <input type="number" min="1" max="4094"
          value="${effVlan}"
          class="${pi.vlanOvr!=null?'ovr':''}"
-         onchange="setPortField('${pid}','vlanOvr',+this.value||1)">
+         data-change="port-field" data-pid="${pid}" data-pfield="vlanOvr">
   ${rst('vlanOvr','VLAN')}
 </div>`;
         } else {
@@ -344,11 +365,11 @@ ${(()=>{
             const gname=escapeHTML(store.state.lagGroups&&store.state.lagGroups[gid]?store.state.lagGroups[gid]:'LAG');
             return `<div style="border-top:1px solid #30363d;margin-top:6px;padding-top:6px;display:flex;align-items:center;gap:6px">
               <span style="color:#00d4ff;font-size:0.76rem;font-weight:600">⛓ ${gname}</span>
-              <button class="toolbar-btn danger" style="padding:2px 7px;font-size:0.72rem;margin:0" onclick="removePortFromLag('${pid}');closePop()">${t('pnl.misc.remove')}</button>
+              <button class="toolbar-btn danger" style="padding:2px 7px;font-size:0.72rem;margin:0" data-act="port-lag-remove-close" data-pid="${pid}">${t('pnl.misc.remove')}</button>
             </div>`;
         } else {
             return `<div style="border-top:1px solid #30363d;margin-top:6px;padding-top:6px">
-              <button class="toolbar-btn" style="width:100%;font-size:0.75rem;padding:4px 8px" onclick="startLagMode('${pid}')">⛓ ${t('pnl.misc.addToLag')}</button>
+              <button class="toolbar-btn" style="width:100%;font-size:0.75rem;padding:4px 8px" data-act="port-lag-add" data-pid="${pid}">⛓ ${t('pnl.misc.addToLag')}</button>
             </div>`;
         }
     } else {

@@ -754,7 +754,20 @@ function countInlineHandlers() {
 // (campo in data-field); i 2 updateUiColor in `ui-color` (chiave in data-uikey); i
 // 2 scaleBgImage(±0.05) in `bg-scale-step` (delta in data-delta). Golden: solo
 // scope:floor cambia, verificato handler-only (strip on*/data-* → identico).
-const MAX_INLINE_HANDLERS = 448;
+//
+// −22 (448 → 426), Blocco 3 — PANNELLO PORTA (app-properties-port.js, 13) + POPUP
+// porta (app-popup.js, 9). Le fn del dominio porta (setPortField/clearPortField/
+// setPortSpeed/removePortFromLag/startLagMode/togglePortVlanLock in app-ports.js;
+// setPortMode/setPortTrunkVlans/setNodeVoiceVlan in app-vlan-autopoll) sono passate a
+// `export` + importate (restano in expose() per la tabella porte del nodo, non ancora
+// migrata). Le azioni CONDIVISE senza tail (`port-field` con coercizione vlanOvr in
+// data-pfield, `port-speed`, `port-clear`, `port-lag-add`) sono registrate UNA volta
+// in app-popup.js e usate da entrambe le superfici; quelle col tail specifico restano
+// locali: pannello `port-clear-render`/`port-lag-remove-render` (+renderProps),
+// `port-mode`/`port-vlan-lock`/`port-trunk-vlans`/`node-voice-vlan`; popup `pop-close`/
+// `port-lag-remove-close` (+closePop). Golden: solo scope:port/port-passive cambia,
+// verificato handler-only (strip on*/data-* → identico); il popup non e' nel golden.
+const MAX_INLINE_HANDLERS = 426;
 test('ponte ASSE B: gli handler inline on*= non superano il tetto a cricchetto', () => {
   const total = countInlineHandlers();
   assert.ok(total <= MAX_INLINE_HANDLERS,

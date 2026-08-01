@@ -5,24 +5,47 @@
 // renderProps() (classic in app-properties.js, che lo chiama via window). Porta
 // fisica o, se pid radio, delega a _renderRadioProps (app-wifi, già nel bundle).
 // Builder condivisi del core (_buildPropsHeader) e i global legacy (state/TYPES/
-// selId/porte/VLAN/LAG/segmento) via win.*; `t` dal ponte. I nomi dentro gli
-// onclick=""/onchange="" dell'HTML generato girano in scope PAGINA → restano bare.
-// NESSUN cambiamento di logica rispetto all'originale.
+// selId/porte/VLAN/LAG/segmento) via win.*; `t` dal ponte.
+// ASSE B (ritiro ponte): gli handler inline del pannello passano a data-act/
+// data-change/data-blur + event delegation. Le azioni CONDIVISE del dominio porta
+// (port-field/port-speed) sono registrate in app-popup.js; qui si registrano solo
+// quelle SPECIFICHE del pannello (col tail renderProps() o proprie: mode, trunk,
+// lock, voce). NESSUN cambiamento di logica rispetto all'originale.
 
 import { expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, normalizeStatus, hasPortStatus } from './app-util.js';
 import { nodeById, getNodeByPortId, getPortNodeId, _isRadioPid, _enableManualValueInProps } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
-import { _effPortVlan, _getLinkTrunk, _parseTrunkVlans, _runActiveAnchor, _voipVoiceVlan, _portEffTrunk } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
-import { _buildPropsHeader } from './app-properties.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
-import { _vlanLabel } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
+import { _effPortVlan, _getLinkTrunk, _parseTrunkVlans, _runActiveAnchor, _voipVoiceVlan, _portEffTrunk,
+         setPortMode, setPortTrunkVlans, setNodeVoiceVlan } from './app-vlan-autopoll.js';   // ritiro ponte + ASSE B: funzioni foglia UI/vlan + azioni porta (ex win.*)
+import { renderProps, _buildPropsHeader } from './app-properties.js';   // ritiro ponte + ASSE B: dispatcher + builder header (ex win.*)
+import { _vlanLabel } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*) — carica anche le azioni CONDIVISE port-field/port-speed
 import { _floorAccessVlanRow } from './app-properties-node-devices.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
-import { getPassivePortLagInfo } from './app-ports.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
+import { getPassivePortLagInfo, clearPortField, removePortFromLag, togglePortVlanLock } from './app-ports.js';   // ritiro ponte + ASSE B: fn del dominio porta (ex win.*)
+import { registerClickActions, registerChangeActions, registerBlurActions } from './app-delegation.js';   // ASSE B: handler del pannello PORTA via event delegation (ex on* inline)
 import { _renderRadioProps } from './app-wifi.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { _sharedSegmentHtml } from './app-shared-segment.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
-// NB: renderProps() qui è chiamato SOLO da un onclick="" (bare-in-template, scope
-// pagina → window.renderProps via expose): nessun import ESM, sarebbe inutilizzato.
+
+// ASSE B (ritiro ponte): azioni delegate SPECIFICHE del pannello Proprieta' PORTA.
+// I campi stato/descrizione/velocita'/VLAN usano le azioni CONDIVISE port-field/
+// port-speed (registrate in app-popup.js, che questo modulo importa → registrazione
+// gia' eseguita). Qui solo quelle col tail renderProps() dopo la mutazione (il
+// bottone/pannello va ri-reso) o proprie del pannello. pid in data-pid, campo in
+// data-pfield, modo in data-mode, nodo VoIP in data-nid.
+registerClickActions({
+    'port-clear-render':      (el) => { clearPortField(el.dataset.pid, el.dataset.pfield); renderProps(); },
+    'port-lag-remove-render': (el) => { removePortFromLag(el.dataset.pid); renderProps(); },
+    'port-vlan-lock':         (el) => togglePortVlanLock(el.dataset.pid),
+    'port-mode':              (el) => setPortMode(el.dataset.pid, el.dataset.mode),
+});
+registerChangeActions({
+    'port-trunk-vlans': (el) => setPortTrunkVlans(el.dataset.pid, el.value),
+    'node-voice-vlan':  (el) => setNodeVoiceVlan(el.dataset.nid, el.value),
+});
+registerBlurActions({
+    'port-trunk-vlans': (el) => setPortTrunkVlans(el.dataset.pid, el.value),
+});
 
 // Stato/velocità sono proprietà del LINK: uguali ai due capi (negoziati end-to-end).
 // Una porta senza dati propri (endpoint floor, passivo) li EREDITA dalla porta
@@ -103,12 +126,12 @@ export function _renderPortProps(panel){
         if(pi.vlan&&pi.vlan>1) snmpParts.push(`VLAN ${_vlanLabel(pi.vlan)}`);
         if(pi.lagId&&pi.lagId>0) snmpParts.push(`LAG ${pi.lagId}`);
         const snmpBar=snmpParts.length?`<div class="snmp-bar" style="margin:0 0 10px"><span class="sb">SNMP</span>${escapeHTML(snmpParts.join(' · '))}</div>`:'';
-        const rst=(f,lbl)=>pi[f]!=null?`<button class="toolbar-btn" style="padding:2px 6px;margin:0;font-size:0.7rem" data-tip="${t('pnl.dev.restoreField',{field:lbl})}" onclick="clearPortField('${pid}','${f}');renderProps()">↺</button>`:'';
+        const rst=(f,lbl)=>pi[f]!=null?`<button class="toolbar-btn" style="padding:2px 6px;margin:0;font-size:0.7rem" data-tip="${t('pnl.dev.restoreField',{field:lbl})}" data-act="port-clear-render" data-pid="${pid}" data-pfield="${f}">↺</button>`:'';
         // Select dello STATO dichiarabile. Una sola definizione, usata sia dallo
         // switchport sia dalla tappa passiva: due copie delle stesse cinque voci
         // divergono al primo che ne aggiunge una.
         const _statusSelect = ()=>`<div style="display:flex;gap:5px">
-                  <select class="${pi.statusOvr?'ovr':''} " style="flex:1" onchange="setPortField('${pid}','statusOvr',this.value)">
+                  <select class="${pi.statusOvr?'ovr':''} " style="flex:1" data-change="port-field" data-pid="${pid}" data-pfield="statusOvr">
                     <option value=""         ${effStatus===''        ?'selected':''}>${t('port.statusUnknown')}</option>
                     <option value="active"   ${effStatus==='active'  ?'selected':''}>${t('port.statusActive')}</option>
                     <option value="idle"     ${effStatus==='idle'    ?'selected':''}>${t('port.statusIdle')}</option>
@@ -137,7 +160,7 @@ export function _renderPortProps(panel){
             return `<div class="props-lag-head">
                 <span style="background:#a371f7;color:#fff;padding:2px 9px;border-radius:4px;font-weight:700;font-size:0.74rem" data-tip="${gname}">${t('pnl.dev.lagMember')}</span>
                 <span class="lag-chips">${chips.join('')}</span>
-                <button class="toolbar-btn danger" style="padding:3px 9px;font-size:0.72rem" onclick="removePortFromLag('${pid}');renderProps()">${t('pnl.misc.remove')}</button>
+                <button class="toolbar-btn danger" style="padding:3px 9px;font-size:0.72rem" data-act="port-lag-remove-render" data-pid="${pid}">${t('pnl.misc.remove')}</button>
             </div>`;
         })();
         panel.innerHTML=`
@@ -151,7 +174,7 @@ export function _renderPortProps(panel){
             ${snmpBar}
             <div class="prop-group"><label>${t('common.description')}</label>
               <input value="${escapeHTML(pi.desc||'')}" placeholder="${escapeHTML(pi.alias||pi.ifName||t('pnl.dev.phDescEg'))}"
-                     onchange="setPortField('${pid}','desc',this.value)">
+                     data-change="port-field" data-pid="${pid}" data-pfield="desc">
             </div>
             ${_passiveConduit ? `<div class="prop-group"><label>${t('common.status')}</label>
               ${_statusSelect()}
@@ -168,7 +191,7 @@ export function _renderPortProps(panel){
               <div style="display:flex;gap:5px">
                 <input value="${escapeHTML(spdDisplay)}" placeholder="${escapeHTML(spdPh)}"
                        class="${pi.speedOvr!=null?'ovr':''}" style="flex:1"
-                       onchange="setPortSpeed('${pid}',this.value)" data-tip="${t('pnl.dev.speedTip')}">
+                       data-change="port-speed" data-pid="${pid}" data-tip="${t('pnl.dev.speedTip')}">
                 ${rst('speedOvr',t('pnl.dev.fieldSpeed'))}
               </div>
             </div>`)}
@@ -200,7 +223,7 @@ export function _renderPortProps(panel){
                                       : ((portNode.voiceVlan!=null) ? portNode.voiceVlan : ((portNode.spec&&portNode.spec.voiceVlan)||1));
                             return `<div class="prop-group" style="margin-top:6px"><label>${t('f.vlanVoice')}</label>
                                 <input type="number" min="1" max="4094" value="${_vv}" class="${_vv>1?'ovr':''}" style="flex:1"
-                                       onchange="setNodeVoiceVlan('${portNode.id}',this.value)" data-tip="${t('f.vlanVoiceTip')}"></div>`;
+                                       data-change="node-voice-vlan" data-nid="${portNode.id}" data-tip="${t('f.vlanVoiceTip')}"></div>`;
                         })() : '';
                         return `<div class="prop-group"><label>VLAN</label>${_roBox(_inner)}</div>${_voiceRow}`;
                     }
@@ -216,8 +239,8 @@ export function _renderPortProps(panel){
                 const _vlanField = (label) => `<div class="prop-group"><label>${label}</label>
                     <div style="display:flex;gap:5px">
                       <input type="number" min="1" max="4094" value="${_vlanDet ? effVlan : ''}" placeholder="${effVlan}" class="${pi.vlanOvr!=null?'ovr':''}" style="flex:1"
-                             onchange="setPortField('${pid}','vlanOvr',+this.value||1)">
-                      <button type="button" class="toolbar-btn" style="padding:2px 7px;margin:0;font-size:0.78rem;line-height:1${pi.vlanOvr!=null?';color:var(--accent);border-color:var(--accent)':''}" data-tip="${t(pi.vlanOvr!=null?'lock.locked':'lock.unlocked')}" aria-label="${t(pi.vlanOvr!=null?'lock.locked':'lock.unlocked')}" aria-pressed="${pi.vlanOvr!=null?'true':'false'}" onclick="togglePortVlanLock('${pid}')"><i class="fas fa-lock${pi.vlanOvr!=null?'':'-open'}"></i></button>
+                             data-change="port-field" data-pid="${pid}" data-pfield="vlanOvr">
+                      <button type="button" class="toolbar-btn" style="padding:2px 7px;margin:0;font-size:0.78rem;line-height:1${pi.vlanOvr!=null?';color:var(--accent);border-color:var(--accent)':''}" data-tip="${t(pi.vlanOvr!=null?'lock.locked':'lock.unlocked')}" aria-label="${t(pi.vlanOvr!=null?'lock.locked':'lock.unlocked')}" aria-pressed="${pi.vlanOvr!=null?'true':'false'}" data-act="port-vlan-lock" data-pid="${pid}"><i class="fas fa-lock${pi.vlanOvr!=null?'':'-open'}"></i></button>
                     </div>
                     ${state.vlanNames?.[effVlan]?`<div style="font-size:0.73rem;color:var(--text-muted);margin-top:3px;padding-left:2px"><i class="fas fa-tag" style="font-size:0.65rem;margin-right:4px"></i>${escapeHTML(state.vlanNames[effVlan])}</div>`:''}
                   </div>`;
@@ -251,8 +274,8 @@ export function _renderPortProps(panel){
                   <div class="prop-group" style="margin-top:8px;border-top:1px solid var(--panel-border);padding-top:8px">
                     <label>${t('cable.portMode')}</label>
                     <div style="display:flex;gap:6px;margin-top:4px">
-                      <button class="toolbar-btn${!_isTrunk?' soft':''}" style="flex:1;padding:5px" onclick="setPortMode('${pid}','access')"><i class="fas fa-circle" style="font-size:0.6rem"></i> Access</button>
-                      <button class="toolbar-btn${_isTrunk?' soft':''}" style="flex:1;padding:5px" onclick="setPortMode('${pid}','trunk')"><i class="fas fa-layer-group" style="font-size:0.7rem"></i> Trunk</button>
+                      <button class="toolbar-btn${!_isTrunk?' soft':''}" style="flex:1;padding:5px" data-act="port-mode" data-pid="${pid}" data-mode="access"><i class="fas fa-circle" style="font-size:0.6rem"></i> Access</button>
+                      <button class="toolbar-btn${_isTrunk?' soft':''}" style="flex:1;padding:5px" data-act="port-mode" data-pid="${pid}" data-mode="trunk"><i class="fas fa-layer-group" style="font-size:0.7rem"></i> Trunk</button>
                     </div>
                   </div>
                   ${_vlanField(_isTrunk ? t('cable.trunkNativeLabel') : 'VLAN')}
@@ -261,7 +284,7 @@ export function _renderPortProps(panel){
                       <span style="font-size:0.68rem;color:var(--text-muted)">${t('pnl.dev.egVlanRange')}</span></label>
                     <input type="text" value="${escapeHTML(_tvStr)}" placeholder="1,10,20,100"
                            style="width:100%;font-family:monospace;font-size:0.82rem"
-                           onchange="setPortTrunkVlans('${pid}',this.value)" onblur="setPortTrunkVlans('${pid}',this.value)">
+                           data-change="port-trunk-vlans" data-pid="${pid}" data-blur="port-trunk-vlans">
                     <div style="font-size:0.7rem;color:var(--text-muted);margin-top:3px">
                       ${_fromSnmp?`<span style="color:#5ba3f5"><i class="fas fa-satellite-dish" style="font-size:0.6rem;margin-right:3px"></i>SNMP</span> · `:''}${t('cable.vlansConfigured',{n:_tvArr.length})} · ${t('port.trunkPropNote')}
                     </div>
@@ -275,7 +298,7 @@ export function _renderPortProps(panel){
                 if(portNode2&&TYPES[portNode2.type]?.isActive){
                     if((state.ports[pid]||{}).lagGroup) return '';
                     return `<div style="border-top:1px solid var(--panel-border);margin-top:8px;padding-top:8px">
-                  <button class="toolbar-btn" style="width:100%;padding:6px;font-size:0.8rem" onclick="startLagMode('${pid}')">⛓ ${t('pnl.misc.addToLag')}</button>
+                  <button class="toolbar-btn" style="width:100%;padding:6px;font-size:0.8rem" data-act="port-lag-add" data-pid="${pid}">⛓ ${t('pnl.misc.addToLag')}</button>
                 </div>`;
                 }
                 // Dispositivo passivo: info LAG traversal se presente.

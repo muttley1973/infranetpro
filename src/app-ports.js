@@ -647,6 +647,13 @@ function togglePortVlanLock(pid){
 // setPortField/setPortSpeed/clearAllPortOverrides/togglePortHidden/confirmLag/
 // cancelLag + funzioni chiamate dai file classic: renderPortsTable [props],
 // portTip/_isLagFocusedPort/_focusLagForPort [render/popup], LAG UI, ecc).
+// ASSE B (ritiro ponte): pannello PORTA (app-properties-port.js) e popup porta
+// (app-popup.js) importano queste fn per registrarle come azioni delegate (ex on*
+// inline). Restano anche in expose() finche' altre superfici non migrate le usano.
+export {
+    setPortField, clearPortField, setPortSpeed,
+    removePortFromLag, startLagMode, togglePortVlanLock,
+};
 expose({
     togglePortVlanLock,
     renderPortsTable, getLagGroupsForNode, startLagMode, _toggleLagPort,
