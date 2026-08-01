@@ -777,6 +777,10 @@ export function applyPollResult(nodeId, data, opts={}){
     if(!opts.noRender){ renderAll(); renderCables(); renderProps(); }
 }
 
+// ASSE B (ritiro ponte): il pannello NODE (app-properties-node.js) importa queste
+// per registrarle come azioni delegate (ex onchange/onclick inline). Restano anche
+// in expose() finche' le superfici non migrate le usano.
+export { updateIntegration, pollSNMP };
 expose({
     _hasSnmpIntegration, _snmpFreshness, _snmpIsStale, _lastSnmpSyncTs, _hasSnmpTargets,
     _renderSyncFreshness, _renderV3PendingChip, _v3JumpNext, _v3NeedsCreds, _v3PendingNodes,

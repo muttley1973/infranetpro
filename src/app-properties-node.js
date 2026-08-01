@@ -3,26 +3,119 @@
 // ============================================================
 // MODULO ESM (migrato da lib/app-properties-node.js): _renderNodeProps, l'ultima
 // foglia del gruppo properties. Chiamato dal dispatcher renderProps (core, bundle)
-// via window. Approccio ALIAS-BLOCK: i simboli legacy/core usati build-time sono
-// aliasati a win.* in cima alla funzione, così gli onclick="" (che referenziano
-// state/TYPES/handler a RUNTIME in scope pagina) restano testo bare. selId/selType
-// (riassegnati) via win.*; t dal ponte; _propsExplicit var-ificato in app.js.
-// Nessun cambiamento di logica.
+// via window. ASSE B (Blocco 4, 2026-08-01): gli handler inline sono passati a
+// EVENT DELEGATION — ogni on*= e' un attributo data-* + un'azione registrata in
+// cima al modulo (vedi il blocco registerClickActions/ChangeActions/InputActions);
+// le fn del dominio sono IMPORTATE, non piu' lette da window. Resta l'ALIAS-BLOCK
+// solo per i pochi simboli lib-script (stack/ha-pair) ancora sul ponte + lo stato
+// via store. selId/selType via store; t dal ponte. Nessun cambiamento di logica.
 // ============================================================
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { escapeHTML } from './app-util.js';
-import { nodeById, getNodeDisplayName, selected, _patchPanelOffset, _enableManualValueInProps, _activatePropsTab, getNodeRackSize, _patchPanelChainOptions, isRackTopNumbered, rackUToVisible } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { escapeHTML, normalizeNumber } from './app-util.js';
+import { nodeById, getNodeDisplayName, selected, _patchPanelOffset, _enableManualValueInProps, _activatePropsTab, getNodeRackSize, _patchPanelChainOptions, isRackTopNumbered, rackUToVisible, updateN, updateFrontPanel, deleteNode, visibleUToRackU } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { TYPES, typeName, _nodeSpecView, _fixedRackLabel, _frontPanelState } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { _propsSectionIsOpen, _buildNetAccessHtml, renderProps, _buildPropsHeader, _propsIconForType, _buildPatchPanelPreview } from './app-properties.js';   // ritiro ponte: builder pannello (ex win.*)
 import { osIconHtmlFor } from '../lib/os-icon.js';   // icona OS (accento colorato nell'intestazione device)
 import { _discIdentityLabel } from './app-discovery-classify.js';   // ritiro ponte: alias-block sciolto (ex win.*)
-import { _defaultStackName } from './app-stack-ha.js';   // ritiro ponte: alias-block sciolto (ex win.*)
-import { getLagGroupsForNode } from './app-ports.js';   // ritiro ponte: alias-block sciolto (ex win.*)
+import { _defaultStackName, setNodeStack, setNodeStackMemberId, removeNodeFromStack, acceptStackHint, dismissStackHint, setNodeHaPair, setNodeHaCluster, setNodeHaRole, setNodeHaMode, setNodeHaSync, removeNodeFromHa, _defaultHaGroupName } from './app-stack-ha.js';   // ritiro ponte: stacking/HA (ex win.*)
+import { getLagGroupsForNode, setLagMode, renameLag, dissolveLag } from './app-ports.js';   // ritiro ponte: alias-block sciolto + LAG manuali (ex win.*)
 import { _nodeDeviceChainHtml } from './app-properties-node-devices.js';   // ritiro ponte: alias-block sciolto (ex win.*)
 import { _l3SviSectionHtml } from './app-l3.js';   // ritiro ponte: alias-block sciolto (ex win.*)
 import { _panelSkinSectionHtml } from './app-panel-skin.js';   // ritiro ponte: alias-block sciolto (ex win.*)
 import { _deviceTypeApplyHtml } from './app-device-types.js';   // "Applica modello" (catalogo device-type)
+import { registerClickActions, registerChangeActions, registerInputActions } from './app-delegation.js';   // ASSE B (Blocco 4): event delegation degli handler inline del pannello NODE
+import { updateIntegration, pollSNMP } from './app-snmp.js';   // ritiro ponte: integrazione SNMP (ex win.*)
+import { toggleRoomLock, _liveStructColor, _liveStructOpacity, moveNodeToRack } from './app-search-zoom-rack.js';   // ritiro ponte: lock stanza · colore/opacita' live · sposta rack (ex win.*)
+
+// ── ASSE B (Blocco 4): event delegation degli handler del pannello NODE ──────
+// Ogni on*= inline del renderer diventa un attributo data-* + un'azione qui. I
+// parametri prima interpolati nell'handler (field, bounds, id nodo, gid LAG,
+// ruolo/modalita' HA…) migrano in data-* e si leggono da el.dataset. Le fn del
+// dominio (updateN/updateFrontPanel/updateIntegration/stack·HA/LAG…) sono
+// IMPORTATE (niente window). I 3 bottoni espandi/comprimi/ripristina dell'header
+// usano azioni CONDIVISE gia' registrate in app-properties.js.
+
+// updateN(field, value): coercizione del valore in data-ncoerce — (assente)=stringa
+//   · num=+value · int=normalizeNumber(v,def,min,max) · int-empty=''→undefined
+//   altrimenti come int (campo fontSize, che ammette "auto").
+function _nVal(el){
+    const c = el.dataset.ncoerce;
+    if(c === 'num') return +el.value;
+    if(c === 'int' || c === 'int-empty'){
+        if(c === 'int-empty' && el.value === '') return undefined;
+        return normalizeNumber(el.value, +el.dataset.ndef, +el.dataset.nmin, +el.dataset.nmax);
+    }
+    return el.value;
+}
+// updateFrontPanel(key, value): coercizione in data-fpcoerce — (assente)=stringa ·
+//   lit=data-fpval (bottoni layout) · checked=el.checked · eq=el.value===data-fpeq
+//   · int=normalizeNumber(...) · startnum=continued→''/restart→1/altrimenti
+//   parseInt (numerazione progressiva SFP/porte).
+function _fpVal(el){
+    const c = el.dataset.fpcoerce;
+    if(c === 'lit')      return el.dataset.fpval;
+    if(c === 'checked')  return el.checked;
+    if(c === 'eq')       return el.value === el.dataset.fpeq;
+    if(c === 'int')      return normalizeNumber(el.value, +el.dataset.fpdef, +el.dataset.fpmin, +el.dataset.fpmax);
+    if(c === 'startnum') return el.value === 'continued' ? '' : (el.value === 'restart' ? 1 : parseInt(el.value, 10));
+    return el.value;
+}
+const _fp = (el) => updateFrontPanel(el.dataset.fpkey, _fpVal(el));
+
+registerClickActions({
+    'node-delete':        () => deleteNode(),
+    'update-n-clear':     (el) => updateN(el.dataset.nfield, ''),   // bottone Reset colore
+    'update-fp':          _fp,   // bottoni layout base (value literal in data-fpval)
+    'room-lock-toggle':   (el) => toggleRoomLock(el.dataset.nid),
+    'snmp-poll':          (el) => pollSNMP(el.dataset.nid),
+    'stack-hint-accept':  () => acceptStackHint(),
+    'stack-hint-dismiss': () => dismissStackHint(),
+    'stack-remove':       () => removeNodeFromStack(),
+    'ha-remove':          () => removeNodeFromHa(),
+    'lag-dissolve':       (el) => dissolveLag(el.dataset.gid),
+});
+registerChangeActions({
+    'update-n':           (el) => updateN(el.dataset.nfield, _nVal(el)),
+    'update-racku':       (el) => {
+        const fromTop = el.dataset.fromtop === '1';
+        const raw = fromTop ? visibleUToRackU(el.dataset.rackid, +el.value, +el.dataset.su) : +el.value;
+        updateN('rackU', normalizeNumber(raw, 1, 1, +el.dataset.rs));
+    },
+    'update-hostname':    (el) => { updateN('hostname', el.value); updateN('hostnameManual', !!el.value.trim()); },
+    'move-node-to-rack':  (el) => {
+        if(el.value !== el.dataset.curr){
+            if(moveNodeToRack(el.dataset.nid, el.value)) el.dataset.curr = el.value;
+            else el.value = el.dataset.curr;
+        }
+    },
+    'update-fp':          _fp,
+    'update-intg':        (el) => updateIntegration(el.dataset.nid, el.dataset.ikey, el.dataset.icoerce === 'intdef' ? (+el.value || +el.dataset.idef) : el.value),
+    'update-intg-host':   (el) => { updateIntegration(el.dataset.nid, 'host', el.value); updateIntegration(el.dataset.nid, 'hostManual', !!el.value.trim()); },
+    'stack-mode-standalone': (el) => { if(el.checked) removeNodeFromStack(); },
+    'stack-mode-member':  (el) => { if(el.checked) setNodeStack(el.dataset.stackname, 1); },
+    'stack-set':          (el) => setNodeStack(el.value, +el.dataset.mid),
+    'stack-member-id':    (el) => setNodeStackMemberId(parseInt(el.value, 10)),
+    'ha-mode-standalone': (el) => { if(el.checked) removeNodeFromHa(); },
+    'ha-mode-pair':       (el) => {
+        if(!el.checked) return;
+        const candidates = store.state.nodes.filter(x => x.id !== el.dataset.nid && TYPES[x.type]?.haEligible);
+        if(candidates[0]) setNodeHaPair(candidates[0].id, 'active', 'active-passive');
+        else alert(t('msg.ui.noHaPeer'));
+    },
+    'ha-mode-cluster':    (el) => { if(el.checked) setNodeHaCluster(_defaultHaGroupName(store.state.nodes.find(x => x.id === el.dataset.nid)), 'active', 'cluster-N'); },
+    'ha-pair-peer':       (el) => setNodeHaPair(el.value, el.dataset.harole, el.dataset.hamode),
+    'ha-role':            (el) => setNodeHaRole(el.value),
+    'ha-mode':            (el) => setNodeHaMode(el.value),
+    'ha-sync':            (el) => setNodeHaSync(el.value),
+    'ha-cluster-name':    (el) => setNodeHaCluster(el.value, el.dataset.harole, el.dataset.hamode),
+    'lag-mode-set':       (el) => setLagMode(el.dataset.gid, el.value),
+    'lag-rename':         (el) => renameLag(el.dataset.gid, el.value),
+});
+registerInputActions({
+    'struct-color-live':   (el) => _liveStructColor(el.dataset.nid, el.value),
+    'struct-opacity-live': (el) => _liveStructOpacity(el.dataset.nid, +el.value),
+});
 
 // ============================================================
 // PROPERTIES PANEL — renderer NODO (dispositivo/struttura, selType===node)
@@ -52,8 +145,9 @@ function _lagPeerMode(members){
 
 // Proprieta' di un DISPOSITIVO/struttura selezionato (selType==='node').
 export function _renderNodeProps(panel){
-        // ── Alias verso lo scope legacy (build-time); gli onclick="" restano bare ──
-        // TYPES non è più aliasato: arriva dall'import ESM in cima al modulo.
+        // ── Alias verso lo scope legacy (build-time) ──
+        // Gli handler NON sono piu' inline (Blocco 4: event delegation) → niente
+        // testo bare da preservare. TYPES arriva dall'import ESM in cima al modulo.
         // Alias RESIDUI = solo lib-script (stack/ha-pair, <script>: restano sul ponte)
         // + stato via store. Le funzioni definite in src/ arrivano dagli import ESM in cima.
         const state = store.state,
@@ -83,7 +177,7 @@ export function _renderNodeProps(panel){
             n.name || n.hostname || n.ip || d.name,
             d.name,
             _propsIconForType(n.type),
-            `<span class="props-toggles"><button class="props-toggle-btn" onclick="_propsExpandAll()" data-tip="${t('pnl.node.expandAll')}"><i class="fas fa-angles-down"></i></button><button class="props-toggle-btn" onclick="_propsCollapseAll()" data-tip="${t('pnl.node.collapseAll')}"><i class="fas fa-angles-up"></i></button><button class="props-toggle-btn" onclick="_propsResetSections()" data-tip="${t('pnl.node.resetSections')}"><i class="fas fa-rotate"></i></button><button class="props-toggle-btn danger" onclick="deleteNode()" data-tip="${_delTip}"><i class="fas fa-trash"></i></button></span>`,
+            `<span class="props-toggles"><button class="props-toggle-btn" data-act="props-expand-all" data-tip="${t('pnl.node.expandAll')}"><i class="fas fa-angles-down"></i></button><button class="props-toggle-btn" data-act="props-collapse-all" data-tip="${t('pnl.node.collapseAll')}"><i class="fas fa-angles-up"></i></button><button class="props-toggle-btn" data-act="props-reset-sections" data-tip="${t('pnl.node.resetSections')}"><i class="fas fa-rotate"></i></button><button class="props-toggle-btn danger" data-act="node-delete" data-tip="${_delTip}"><i class="fas fa-trash"></i></button></span>`,
             '', _osIco
         );
         let h=`${_panelHeader}`;
@@ -96,7 +190,7 @@ export function _renderNodeProps(panel){
             h+=`<div class="prop-group">
                   <label>${t('f.roomName')}</label>
                   <input value="${escapeHTML(n.name||'')}" placeholder="${t('pnl.node.noNamePlaceholder')}"
-                         onchange="updateN('name',this.value)">
+                         data-change="update-n" data-nfield="name">
                 </div>
                 <div class="prop-group">
                   <label style="display:flex;align-items:center;justify-content:space-between">
@@ -106,11 +200,11 @@ export function _renderNodeProps(panel){
                   <input type="number" min="6" max="200" step="1"
                          value="${_fontSize}" placeholder="${t('pnl.node.autoPxPlaceholder',{n:Math.round(_autoFs)})}"
                          style="width:100%;box-sizing:border-box"
-                         onchange="updateN('fontSize', this.value===''?undefined:normalizeNumber(this.value,${Math.round(_autoFs)},6,200))">
+                         data-change="update-n" data-nfield="fontSize" data-ncoerce="int-empty" data-ndef="${Math.round(_autoFs)}" data-nmin="6" data-nmax="200">
                 </div>
                 <div class="prop-group" style="margin-bottom:10px">
                   <button class="toolbar-btn${_locked?' primary':''}" style="width:100%;justify-content:center;gap:8px"
-                          onclick="toggleRoomLock('${n.id}')">
+                          data-act="room-lock-toggle" data-nid="${n.id}">
                     <i class="fas ${_locked?'fa-lock':'fa-lock-open'}"></i>
                     ${_locked?t('pnl.node.roomLockedClickUnlock'):t('pnl.node.lockPosSize')}
                   </button>
@@ -120,8 +214,8 @@ export function _renderNodeProps(panel){
                     <span>${t('pnl.node.bgColor')}</span>
                     <input type="color" value="${n.color||d.defaultColor}"
                            style="width:38px;height:26px;padding:1px;cursor:pointer"
-                           oninput="_liveStructColor('${n.id}',this.value)"
-                           onchange="updateN('color',this.value)">
+                           data-input="struct-color-live" data-nid="${n.id}"
+                           data-change="update-n" data-nfield="color">
                   </label>
                 </div>
                 <div class="prop-group">
@@ -130,15 +224,15 @@ export function _renderNodeProps(panel){
                     <span id="struct-opacity-lbl">${Math.round(_opacity*100)}%</span>
                   </label>
                   <input type="range" min="0" max="1" step="0.05" value="${_opacity.toFixed(2)}"
-                         oninput="_liveStructOpacity('${n.id}',+this.value)"
-                         onchange="updateN('opacity',+this.value)">
+                         data-input="struct-opacity-live" data-nid="${n.id}"
+                         data-change="update-n" data-nfield="opacity" data-ncoerce="num">
                 </div>
-                <div class="prop-group"><label>${t('f.widthPx')}</label><input type="number" step="20" value="${n.w||200}" onchange="updateN('w',normalizeNumber(this.value,200,40,5000))"></div>
-                <div class="prop-group"><label>${t('f.heightPx')}</label><input type="number" step="20" value="${n.h||200}" onchange="updateN('h',normalizeNumber(this.value,200,40,5000))"></div>
+                <div class="prop-group"><label>${t('f.widthPx')}</label><input type="number" step="20" value="${n.w||200}" data-change="update-n" data-nfield="w" data-ncoerce="int" data-ndef="200" data-nmin="40" data-nmax="5000"></div>
+                <div class="prop-group"><label>${t('f.heightPx')}</label><input type="number" step="20" value="${n.h||200}" data-change="update-n" data-nfield="h" data-ncoerce="int" data-ndef="200" data-nmin="40" data-nmax="5000"></div>
                 <p class="prop-notes-header"><i class="fas fa-sticky-note"></i> ${t('common.notes')}</p>
                 <div class="prop-group">
                   <textarea rows="3" placeholder="${t('pnl.node.notesPlaceholder')}"
-                            onchange="updateN('notes',this.value)">${escapeHTML(n.notes||'')}</textarea>
+                            data-change="update-n" data-nfield="notes">${escapeHTML(n.notes||'')}</textarea>
                 </div>
                 `;
         } else {
@@ -200,12 +294,12 @@ export function _renderNodeProps(panel){
                     _layoutPortsHtml = `<details class="props-collapsible" ${_propsSectionIsOpen('layout-ports')?'open':''} data-toggle="props-section" data-section="layout-ports"><summary class="props-collapsible-head"><span><i class="fas fa-grip-vertical"></i> ${t('sec.portLayout')}</span>${_lpPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">${(typeof _deviceTypeApplyHtml==='function' && !isPatch) ? _deviceTypeApplyHtml() : ''}
 <div class="prop-row2">
   <div class="prop-group" style="grid-column:1/-1"><label>${t('field.portCount')}</label>
-    <input type="number" min="0" max="96" value="${n.ports!==undefined?n.ports:d.ports}" onchange="updateN('ports',normalizeNumber(this.value,${d.ports},0,96))">${n.portsReal?`<div style="font-size:0.78rem;color:#e3b341;margin-top:3px" data-tip="${escapeHTML(t('field.portCount.driftTip'))}"><i class="fas fa-triangle-exclamation"></i> ${escapeHTML(t('field.portCount.drift',{n:n.portsReal}))}</div>`:''}
+    <input type="number" min="0" max="96" value="${n.ports!==undefined?n.ports:d.ports}" data-change="update-n" data-nfield="ports" data-ncoerce="int" data-ndef="${d.ports}" data-nmin="0" data-nmax="96">${n.portsReal?`<div style="font-size:0.78rem;color:#e3b341;margin-top:3px" data-tip="${escapeHTML(t('field.portCount.driftTip'))}"><i class="fas fa-triangle-exclamation"></i> ${escapeHTML(t('field.portCount.drift',{n:n.portsReal}))}</div>`:''}
   </div>
 </div>
 <div class="prop-group" style="margin-top:6px"><label>${t('f.baseLayout')}</label>
   <div class="layout-thumbnails" role="radiogroup" aria-label="${t('pnl.node.basePortLayout')}">
-    <button type="button" class="layout-thumb${layout==='linear'?' selected':''}" onclick="updateFrontPanel('baseLayout','linear')" data-tip="${t('pnl.node.layoutLinearTip')}" aria-pressed="${layout==='linear'?'true':'false'}" aria-label="${t('pnl.node.layoutLinear')}">
+    <button type="button" class="layout-thumb${layout==='linear'?' selected':''}" data-act="update-fp" data-fpkey="baseLayout" data-fpcoerce="lit" data-fpval="linear" data-tip="${t('pnl.node.layoutLinearTip')}" aria-pressed="${layout==='linear'?'true':'false'}" aria-label="${t('pnl.node.layoutLinear')}">
       <svg viewBox="0 0 80 22" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <text x="8"  y="10" font-size="7" font-weight="700" font-family="system-ui,sans-serif" fill="currentColor">1</text>
         <text x="20" y="10" font-size="7" font-weight="700" font-family="system-ui,sans-serif" fill="currentColor">2</text>
@@ -216,7 +310,7 @@ export function _renderNodeProps(panel){
         <text x="40" y="18" font-size="5.5" font-family="system-ui,sans-serif" fill="currentColor" text-anchor="middle">${t('pnl.node.layoutLinear')}</text>
       </svg>
     </button>
-    <button type="button" class="layout-thumb${layout==='sequential'?' selected':''}" onclick="updateFrontPanel('baseLayout','sequential')" data-tip="${t('pnl.node.layoutSequentialTip')}" aria-pressed="${layout==='sequential'?'true':'false'}" aria-label="${t('pnl.node.layoutSequential')}">
+    <button type="button" class="layout-thumb${layout==='sequential'?' selected':''}" data-act="update-fp" data-fpkey="baseLayout" data-fpcoerce="lit" data-fpval="sequential" data-tip="${t('pnl.node.layoutSequentialTip')}" aria-pressed="${layout==='sequential'?'true':'false'}" aria-label="${t('pnl.node.layoutSequential')}">
       <svg viewBox="0 0 80 22" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <text x="22" y="13" font-size="5.5" font-family="system-ui,sans-serif" fill="currentColor" text-anchor="middle">${t('pnl.node.layoutSequential')}</text>
         <text x="48" y="9"  font-size="6.5" font-weight="700" font-family="system-ui,sans-serif" fill="currentColor">1</text>
@@ -227,7 +321,7 @@ export function _renderNodeProps(panel){
         <text x="68" y="18" font-size="6.5" font-weight="700" font-family="system-ui,sans-serif" fill="currentColor">6</text>
       </svg>
     </button>
-    <button type="button" class="layout-thumb${layout==='alternating'?' selected':''}" onclick="updateFrontPanel('baseLayout','alternating')" data-tip="${t('pnl.node.layoutAlternatingTip')}" aria-pressed="${layout==='alternating'?'true':'false'}" aria-label="${t('pnl.node.layoutAlternating')}">
+    <button type="button" class="layout-thumb${layout==='alternating'?' selected':''}" data-act="update-fp" data-fpkey="baseLayout" data-fpcoerce="lit" data-fpval="alternating" data-tip="${t('pnl.node.layoutAlternatingTip')}" aria-pressed="${layout==='alternating'?'true':'false'}" aria-label="${t('pnl.node.layoutAlternating')}">
       <svg viewBox="0 0 80 22" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <text x="22" y="13" font-size="5.5" font-family="system-ui,sans-serif" fill="currentColor" text-anchor="middle">${t('pnl.node.layoutAlternating')}</text>
         <text x="48" y="9"  font-size="6.5" font-weight="700" font-family="system-ui,sans-serif" fill="currentColor">1</text>
@@ -241,14 +335,14 @@ export function _renderNodeProps(panel){
   </div>
 </div>
 <div class="prop-check-grid">
-  <label class="prop-check" data-tip="${t('pnl.node.port1BottomTip')}"><input type="checkbox" ${fp.oneBottom?'checked':''} onchange="updateFrontPanel('oneBottom',this.checked)"> ${t('pnl.node.port1Bottom')}</label>
+  <label class="prop-check" data-tip="${t('pnl.node.port1BottomTip')}"><input type="checkbox" ${fp.oneBottom?'checked':''} data-change="update-fp" data-fpkey="oneBottom" data-fpcoerce="checked"> ${t('pnl.node.port1Bottom')}</label>
 </div>
 ${isPatch ? '' : `<div class="prop-row2" style="margin-top:4px">
   <div class="prop-group"><label>${t('f.sfpPorts')}</label>
-    <input type="number" min="0" max="${maxSfp}" value="${sfpCount}" onchange="updateFrontPanel('sfpCount',normalizeNumber(this.value,0,0,${maxSfp}))" data-tip="${t('pnl.node.sfpPortsTip')}">
+    <input type="number" min="0" max="${maxSfp}" value="${sfpCount}" data-change="update-fp" data-fpkey="sfpCount" data-fpcoerce="int" data-fpdef="0" data-fpmin="0" data-fpmax="${maxSfp}" data-tip="${t('pnl.node.sfpPortsTip')}">
   </div>
 ${sfpCount > 0 ? `  <div class="prop-group"><label>${t('f.sfpPos')}</label>
-    <select onchange="updateFrontPanel('sfpRight',this.value==='right')">
+    <select data-change="update-fp" data-fpkey="sfpRight" data-fpcoerce="eq" data-fpeq="right">
       <option value="left"  ${!fp.sfpRight?'selected':''}>${t('o.left')}</option>
       <option value="right" ${ fp.sfpRight?'selected':''}>${t('o.rightDef')}</option>
     </select>
@@ -256,7 +350,7 @@ ${sfpCount > 0 ? `  <div class="prop-group"><label>${t('f.sfpPos')}</label>
 </div>
 ${sfpCount > 0 ? `<div class="prop-row2" style="margin-top:4px">
   <div class="prop-group"><label>${t('f.sfpNum')}</label>
-    <select onchange="updateFrontPanel('sfpStartNum', this.value==='continued'? '' : (this.value==='restart' ? 1 : parseInt(this.value,10)))" data-tip="${t('pnl.node.sfpNumTip')}">
+    <select data-change="update-fp" data-fpkey="sfpStartNum" data-fpcoerce="startnum" data-tip="${t('pnl.node.sfpNumTip')}">
       <option value="continued" ${(fp.sfpStartNum===null||fp.sfpStartNum===undefined)?'selected':''}>${t('o.continuousEx')}</option>
       <option value="restart"   ${fp.sfpStartNum===1?'selected':''}>${t('o.restart1Ex')}</option>
       <option value="49"        ${fp.sfpStartNum===49?'selected':''}>${t('o.custom49')}</option>
@@ -264,7 +358,7 @@ ${sfpCount > 0 ? `<div class="prop-row2" style="margin-top:4px">
     </select>
   </div>
   <div class="prop-group"><label>${t('f.sfpPrefix')}</label>
-    <input type="text" maxlength="6" value="${escapeHTML(fp.sfpPrefix||'')}" placeholder="${t('pnl.node.nonePlaceholder')}" onchange="updateFrontPanel('sfpPrefix', this.value)" data-tip="${t('pnl.node.sfpPrefixTip')}">
+    <input type="text" maxlength="6" value="${escapeHTML(fp.sfpPrefix||'')}" placeholder="${t('pnl.node.nonePlaceholder')}" data-change="update-fp" data-fpkey="sfpPrefix" data-tip="${t('pnl.node.sfpPrefixTip')}">
   </div>
 </div>
 <div class="prop-row2" style="margin-top:6px;padding-top:4px;border-top:1px dashed var(--panel-border)">
@@ -272,15 +366,15 @@ ${sfpCount > 0 ? `<div class="prop-row2" style="margin-top:4px">
 </div>
 <div class="prop-row2">
   <div class="prop-group"><label>${t('f.ports2block')}</label>
-    <input type="number" min="0" max="${maxSfp}" value="${fp.sfp2Count||0}" onchange="updateFrontPanel('sfp2Count', normalizeNumber(this.value,0,0,${maxSfp}))" data-tip="${t('pnl.node.sfp2CountTip')}">
+    <input type="number" min="0" max="${maxSfp}" value="${fp.sfp2Count||0}" data-change="update-fp" data-fpkey="sfp2Count" data-fpcoerce="int" data-fpdef="0" data-fpmin="0" data-fpmax="${maxSfp}" data-tip="${t('pnl.node.sfp2CountTip')}">
   </div>
 ${(fp.sfp2Count||0) > 0 ? `  <div class="prop-group"><label>${t('f.prefix2block')}</label>
-    <input type="text" maxlength="6" value="${escapeHTML(fp.sfp2Prefix||'')}" placeholder="${t('pnl.node.nonePlaceholder')}" onchange="updateFrontPanel('sfp2Prefix', this.value)" data-tip="${t('pnl.node.sfp2PrefixTip')}">
+    <input type="text" maxlength="6" value="${escapeHTML(fp.sfp2Prefix||'')}" placeholder="${t('pnl.node.nonePlaceholder')}" data-change="update-fp" data-fpkey="sfp2Prefix" data-tip="${t('pnl.node.sfp2PrefixTip')}">
   </div>` : ''}
 </div>
 ${(fp.sfp2Count||0) > 0 ? `<div class="prop-row2" style="margin-top:4px">
   <div class="prop-group" style="grid-column:1/-1"><label>${t('f.num2block')}</label>
-    <select onchange="updateFrontPanel('sfp2StartNum', this.value==='continued'? '' : (this.value==='restart' ? 1 : parseInt(this.value,10)))" data-tip="${t('pnl.node.sfp2NumTip')}">
+    <select data-change="update-fp" data-fpkey="sfp2StartNum" data-fpcoerce="startnum" data-tip="${t('pnl.node.sfp2NumTip')}">
       <option value="continued" ${(fp.sfp2StartNum===null||fp.sfp2StartNum===undefined)?'selected':''}>${t('o.continuous')}</option>
       <option value="restart"   ${fp.sfp2StartNum===1?'selected':''}>${t('o.restart1')}</option>
       <option value="49"        ${fp.sfp2StartNum===49?'selected':''}>${t('o.custom49')}</option>
@@ -299,22 +393,22 @@ ${isPatch ? (()=>{
   <div class="prop-group" style="grid-column:1/-1"><label style="font-size:0.72rem;color:var(--text-muted);font-weight:600">${t('f.progNumbering')}</label></div>
 </div>
 <div class="prop-group"><label>${t('f.continueFrom')}</label>
-  <select onchange="updateFrontPanel('ppContinueFrom',this.value)" data-tip="${t('pnl.node.ppContinueFromTip')}">
+  <select data-change="update-fp" data-fpkey="ppContinueFrom" data-tip="${t('pnl.node.ppContinueFromTip')}">
     <option value="" ${!_ppFrom?'selected':''}>${t('o.sepIndep')}</option>
     ${_ppOpts.map(p=>`<option value="${escapeHTML(p.id)}" ${_ppFrom===p.id?'selected':''}>${escapeHTML(getNodeDisplayName(p)||p.name||p.id)}</option>`).join('')}
   </select>
 </div>
 <div class="prop-group"><label>${t('f.orStartFrom')}</label>
-  <input type="number" min="1" max="9999" value="${escapeHTML(String(_ppStart))}" placeholder="${t('pnl.node.autoPlaceholder')}" onchange="updateFrontPanel('ppStartNum',this.value)" data-tip="${t('pnl.node.ppStartNumTip')}">
+  <input type="number" min="1" max="9999" value="${escapeHTML(String(_ppStart))}" placeholder="${t('pnl.node.autoPlaceholder')}" data-change="update-fp" data-fpkey="ppStartNum" data-tip="${t('pnl.node.ppStartNumTip')}">
 </div>
 ${_ppPreview?`<div style="font-size:0.72rem;color:var(--text-muted);margin:2px 2px 0"><i class="fas fa-hashtag" style="margin-right:5px"></i>${_ppPreview}</div>`:''}`;
 })() : ''}
 ${fp.mgmtEligible ? `<div class="prop-row2" style="margin-top:4px">
   <div class="prop-group"><label>${t('f.mgmtPorts')}</label>
-    <input type="number" min="0" max="4" value="${fp.mgmtCount||0}" onchange="updateFrontPanel('mgmtCount',normalizeNumber(this.value,0,0,4))" data-tip="${t('pnl.node.mgmtPortsTip')}">
+    <input type="number" min="0" max="4" value="${fp.mgmtCount||0}" data-change="update-fp" data-fpkey="mgmtCount" data-fpcoerce="int" data-fpdef="0" data-fpmin="0" data-fpmax="4" data-tip="${t('pnl.node.mgmtPortsTip')}">
   </div>
 ${(fp.mgmtCount||0) > 0 ? `  <div class="prop-group"><label>${t('f.mgmtPos')}</label>
-    <select onchange="updateFrontPanel('mgmtPosition',this.value)">
+    <select data-change="update-fp" data-fpkey="mgmtPosition">
       <option value="left"  ${fp.mgmtPosition!=='right'?'selected':''}>${t('o.leftDef')}</option>
       <option value="right" ${fp.mgmtPosition==='right'?'selected':''}>${t('o.right')}</option>
     </select>
@@ -322,7 +416,7 @@ ${(fp.mgmtCount||0) > 0 ? `  <div class="prop-group"><label>${t('f.mgmtPos')}</l
 </div>
 ${(fp.mgmtCount||0) > 0 ? `<div class="prop-row2" style="margin-top:4px">
   <div class="prop-group" style="grid-column:1/-1"><label>${t('f.mgmtLabel')}</label>
-    <input type="text" maxlength="10" value="${escapeHTML(fp.mgmtLabel||'MGMT')}" placeholder="MGMT" onchange="updateFrontPanel('mgmtLabel',this.value)" data-tip="${t('pnl.node.mgmtLabelTip')}">
+    <input type="text" maxlength="10" value="${escapeHTML(fp.mgmtLabel||'MGMT')}" placeholder="MGMT" data-change="update-fp" data-fpkey="mgmtLabel" data-tip="${t('pnl.node.mgmtLabelTip')}">
   </div>
 </div>` : ''}` : ''}
 </div>
@@ -363,8 +457,8 @@ ${(fp.mgmtCount||0) > 0 ? `<div class="prop-row2" style="margin-top:4px">
   <div class="stack-hint-head"><i class="fas fa-magic-wand-sparkles"></i> ${t('pnl.node.detectedStackPre')} <strong>${_hint.memberIds.length}</strong> ${t('pnl.node.detectedStackPost',{fmt:escapeHTML(_hint.suggestedFormat||'pattern')})}</div>
   <div class="stack-hint-body">${t('pnl.node.membersFoundInPoll')} <strong>${_hint.memberIds.join(', ')}</strong>.<br>${t('pnl.node.exampleLabel')} <code>${escapeHTML(_hint.sampleNames.slice(0,3).join(' · '))}</code></div>
   <div class="stack-hint-actions">
-    <button class="toolbar-btn" style="justify-content:center" onclick="acceptStackHint()"><i class="fas fa-layer-group"></i> ${t('pnl.node.promoteToMaster')}</button>
-    <button class="toolbar-btn" style="justify-content:center" onclick="dismissStackHint()">${t('pnl.node.ignore')}</button>
+    <button class="toolbar-btn" style="justify-content:center" data-act="stack-hint-accept"><i class="fas fa-layer-group"></i> ${t('pnl.node.promoteToMaster')}</button>
+    <button class="toolbar-btn" style="justify-content:center" data-act="stack-hint-dismiss">${t('pnl.node.ignore')}</button>
   </div>
 </div>` : '';
                     // Force-open la fisarmonica quando c'e' un hint da mostrare:
@@ -373,16 +467,16 @@ ${(fp.mgmtCount||0) > 0 ? `<div class="prop-row2" style="margin-top:4px">
                     _stackingHtml = `<details class="props-collapsible props-secondary" ${_stackOpen?'open':''} data-toggle="props-section" data-section="stacking"><summary class="props-collapsible-head"><span><i class="fas fa-layer-group"></i> ${t('sec.stacking')}</span>${_hint && !_isIn ? `<span class="props-collapsible-preview" style="color:var(--accent)">${t('pnl.node.detected')}</span>` : _preview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
 ${_hintBanner}
 <div class="prop-check-grid" style="grid-template-columns:1fr 1fr;border-top:none;border-bottom:none;padding:0;margin-bottom:6px">
-  <label class="prop-check" data-tip="${t('pnl.node.stackStandaloneTip')}"><input type="radio" name="stack-mode-${escapeHTML(n.id)}" ${!_isIn?'checked':''} onchange="if(this.checked) removeNodeFromStack()"> Standalone</label>
-  <label class="prop-check" data-tip="${t('pnl.node.stackMemberTip')}"><input type="radio" name="stack-mode-${escapeHTML(n.id)}" ${_isIn?'checked':''} onchange="if(this.checked) setNodeStack('${escapeHTML(_allStacks[0]||_defaultStackName(n))}', 1)"> ${t('pnl.node.stackMember')}</label>
+  <label class="prop-check" data-tip="${t('pnl.node.stackStandaloneTip')}"><input type="radio" name="stack-mode-${escapeHTML(n.id)}" ${!_isIn?'checked':''} data-change="stack-mode-standalone"> Standalone</label>
+  <label class="prop-check" data-tip="${t('pnl.node.stackMemberTip')}"><input type="radio" name="stack-mode-${escapeHTML(n.id)}" ${_isIn?'checked':''} data-change="stack-mode-member" data-stackname="${escapeHTML(_allStacks[0]||_defaultStackName(n))}"> ${t('pnl.node.stackMember')}</label>
 </div>
 ${_isIn ? `<div class="prop-row2">
   <div class="prop-group"><label>${t('f.stackName')}</label>
-    <input type="text" list="stack-ids-${escapeHTML(n.id)}" value="${escapeHTML(_stackId)}" onchange="setNodeStack(this.value, ${_mid})" data-tip="${t('pnl.node.stackNameTip')}">
+    <input type="text" list="stack-ids-${escapeHTML(n.id)}" value="${escapeHTML(_stackId)}" data-change="stack-set" data-mid="${_mid}" data-tip="${t('pnl.node.stackNameTip')}">
     <datalist id="stack-ids-${escapeHTML(n.id)}">${_datalistOpts}</datalist>
   </div>
   <div class="prop-group"><label>${t('f.role')}</label>
-    <select onchange="setNodeStackMemberId(parseInt(this.value,10))" data-tip="${t('pnl.node.stackRoleTip')}">
+    <select data-change="stack-member-id" data-tip="${t('pnl.node.stackRoleTip')}">
 ${(function(){
     // Costruisce le opzioni: Primary (#1), Secondary (#2), Member #3..10.
     // Mostra "(libero)" sulle posizioni non occupate (esclude se stesso),
@@ -405,7 +499,7 @@ ${(function(){
 </div>
 <div class="stack-members-title">${t('pnl.node.currentMembers',{n:_members.length})}</div>
 ${_renderMembersList()}
-<button class="toolbar-btn danger" style="width:100%;margin-top:6px;justify-content:center" onclick="removeNodeFromStack()"><i class="fas fa-unlink"></i> ${t('pnl.node.removeFromStack')}</button>` : ''}
+<button class="toolbar-btn danger" style="width:100%;margin-top:6px;justify-content:center" data-act="stack-remove"><i class="fas fa-unlink"></i> ${t('pnl.node.removeFromStack')}</button>` : ''}
 </div>
 </details>`;
                 }
@@ -446,18 +540,18 @@ ${_renderMembersList()}
                     };
                     _haHtml = `<details class="props-collapsible props-secondary" ${_propsSectionIsOpen('ha')?'open':''} data-toggle="props-section" data-section="ha"><summary class="props-collapsible-head"><span><i class="fas fa-shield-halved"></i> ${t('sec.ha')}</span>${_haPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
 <div class="prop-check-grid" style="grid-template-columns:1fr 1fr 1fr;border-top:none;border-bottom:none;padding:0;margin-bottom:6px;gap:4px">
-  <label class="prop-check" data-tip="${t('pnl.node.haStandaloneTip')}"><input type="radio" name="ha-mode-${escapeHTML(n.id)}" ${!_haOn?'checked':''} onchange="if(this.checked) removeNodeFromHa()"> Standalone</label>
-  <label class="prop-check" data-tip="${t('pnl.node.haPairTip')}"><input type="radio" name="ha-mode-${escapeHTML(n.id)}" ${_haPairOn?'checked':''} onchange="if(this.checked){ const candidates=state.nodes.filter(x=>x.id!=='${escapeHTML(n.id)}' && TYPES[x.type]?.haEligible); if(candidates[0]) setNodeHaPair(candidates[0].id, 'active', 'active-passive'); else alert(t('msg.ui.noHaPeer')); }"> Pair (1-1)</label>
-  <label class="prop-check" data-tip="${t('pnl.node.haClusterTip')}"><input type="radio" name="ha-mode-${escapeHTML(n.id)}" ${_haClusterOn?'checked':''} onchange="if(this.checked) setNodeHaCluster(_defaultHaGroupName(state.nodes.find(x=>x.id==='${escapeHTML(n.id)}')), 'active', 'cluster-N')"> Cluster (N>2)</label>
+  <label class="prop-check" data-tip="${t('pnl.node.haStandaloneTip')}"><input type="radio" name="ha-mode-${escapeHTML(n.id)}" ${!_haOn?'checked':''} data-change="ha-mode-standalone"> Standalone</label>
+  <label class="prop-check" data-tip="${t('pnl.node.haPairTip')}"><input type="radio" name="ha-mode-${escapeHTML(n.id)}" ${_haPairOn?'checked':''} data-change="ha-mode-pair" data-nid="${escapeHTML(n.id)}"> Pair (1-1)</label>
+  <label class="prop-check" data-tip="${t('pnl.node.haClusterTip')}"><input type="radio" name="ha-mode-${escapeHTML(n.id)}" ${_haClusterOn?'checked':''} data-change="ha-mode-cluster" data-nid="${escapeHTML(n.id)}"> Cluster (N>2)</label>
 </div>
 ${_haPairOn ? `<div class="prop-row2">
   <div class="prop-group"><label>${t('f.peerDevice')}</label>
-    <select onchange="setNodeHaPair(this.value, '${escapeHTML(_haRole)}', '${escapeHTML(_haMode)}')" data-tip="${t('pnl.node.haPeerTip')}">
+    <select data-change="ha-pair-peer" data-harole="${escapeHTML(_haRole)}" data-hamode="${escapeHTML(_haMode)}" data-tip="${t('pnl.node.haPeerTip')}">
       ${_haPeerOptions || `<option disabled selected>${t('o.noEligible')}</option>`}
     </select>
   </div>
   <div class="prop-group"><label>${t('f.role')}</label>
-    <select onchange="setNodeHaRole(this.value)" data-tip="${t('pnl.node.haRolePairTip')}">
+    <select data-change="ha-role" data-tip="${t('pnl.node.haRolePairTip')}">
       <option value=""        ${_haRole===''?'selected':''}>${t('common.unspecifiedM')}</option>
       <option value="active"  ${_haRole==='active'?'selected':''}>Active</option>
       <option value="standby" ${_haRole==='standby'?'selected':''}>Standby</option>
@@ -466,13 +560,13 @@ ${_haPairOn ? `<div class="prop-row2">
 </div>
 <div class="prop-row2" style="margin-top:4px">
   <div class="prop-group"><label>${t('f.mode')}</label>
-    <select onchange="setNodeHaMode(this.value)" data-tip="${t('pnl.node.haModePairTip')}">
+    <select data-change="ha-mode" data-tip="${t('pnl.node.haModePairTip')}">
       <option value="active-passive" ${_haMode==='active-passive'?'selected':''}>Active-Passive</option>
       <option value="active-active"  ${_haMode==='active-active' ?'selected':''}>Active-Active</option>
     </select>
   </div>
   <div class="prop-group"><label>Sync</label>
-    <select onchange="setNodeHaSync(this.value)" data-tip="${t('pnl.node.haSyncTip')}">
+    <select data-change="ha-sync" data-tip="${t('pnl.node.haSyncTip')}">
       <option value="state-full"     ${_haSync==='state-full'    ?'selected':''}>State-full</option>
       <option value="config-only"    ${_haSync==='config-only'   ?'selected':''}>Config-only</option>
       <option value="failover-only"  ${_haSync==='failover-only' ?'selected':''}>Failover-only</option>
@@ -481,11 +575,11 @@ ${_haPairOn ? `<div class="prop-row2">
 </div>` : ''}
 ${_haClusterOn ? `<div class="prop-row2">
   <div class="prop-group"><label>${t('f.clusterName')}</label>
-    <input type="text" list="ha-groups-${escapeHTML(n.id)}" value="${escapeHTML(_haGroupId)}" onchange="setNodeHaCluster(this.value, '${escapeHTML(_haRole)}', '${escapeHTML(_haMode)}')" data-tip="${t('pnl.node.haClusterNameTip')}">
+    <input type="text" list="ha-groups-${escapeHTML(n.id)}" value="${escapeHTML(_haGroupId)}" data-change="ha-cluster-name" data-harole="${escapeHTML(_haRole)}" data-hamode="${escapeHTML(_haMode)}" data-tip="${t('pnl.node.haClusterNameTip')}">
     <datalist id="ha-groups-${escapeHTML(n.id)}">${_haDatalistOpts}</datalist>
   </div>
   <div class="prop-group"><label>${t('f.role')}</label>
-    <select onchange="setNodeHaRole(this.value)" data-tip="${t('pnl.node.haRoleClusterTip')}">
+    <select data-change="ha-role" data-tip="${t('pnl.node.haRoleClusterTip')}">
       <option value=""        ${_haRole===''?'selected':''}>${t('common.unspecifiedM')}</option>
       <option value="active"  ${_haRole==='active'?'selected':''}>Active</option>
       <option value="standby" ${_haRole==='standby'?'selected':''}>Standby</option>
@@ -495,14 +589,14 @@ ${_haClusterOn ? `<div class="prop-row2">
 </div>
 <div class="prop-row2" style="margin-top:4px">
   <div class="prop-group"><label>${t('f.mode')}</label>
-    <select onchange="setNodeHaMode(this.value)" data-tip="${t('pnl.node.haModeClusterTip')}">
+    <select data-change="ha-mode" data-tip="${t('pnl.node.haModeClusterTip')}">
       <option value="cluster-N"      ${_haMode==='cluster-N'     ?'selected':''}>Cluster-N</option>
       <option value="active-passive" ${_haMode==='active-passive'?'selected':''}>Active-Passive</option>
       <option value="active-active"  ${_haMode==='active-active' ?'selected':''}>Active-Active</option>
     </select>
   </div>
   <div class="prop-group"><label>Sync</label>
-    <select onchange="setNodeHaSync(this.value)">
+    <select data-change="ha-sync">
       <option value="state-full"     ${_haSync==='state-full'    ?'selected':''}>State-full</option>
       <option value="config-only"    ${_haSync==='config-only'   ?'selected':''}>Config-only</option>
       <option value="failover-only"  ${_haSync==='failover-only' ?'selected':''}>Failover-only</option>
@@ -511,7 +605,7 @@ ${_haClusterOn ? `<div class="prop-row2">
 </div>` : ''}
 ${_haOn ? `<div class="ha-partners-title">${t('pnl.node.peersMembers',{n:_haPartners.length})}</div>
 ${_renderHaPartnersList()}
-<button class="toolbar-btn danger" style="width:100%;margin-top:6px;justify-content:center" onclick="removeNodeFromHa()"><i class="fas fa-unlink"></i> ${t('pnl.node.removeFromHa')}</button>` : ''}
+<button class="toolbar-btn danger" style="width:100%;margin-top:6px;justify-content:center" data-act="ha-remove"><i class="fas fa-unlink"></i> ${t('pnl.node.removeFromHa')}</button>` : ''}
 </div>
 </details>`;
                 }
@@ -532,7 +626,7 @@ ${_renderHaPartnersList()}
                     const _ppUnset = `<option value="" ${selected(media,'')}>${t('o.notDeclared')}</option>`;
                     _patchPanelHtml = `<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-patchpanel')?'open':''} data-toggle="props-section" data-section="device-patchpanel"><summary class="props-collapsible-head"><span><i class="fas fa-bars"></i> Patch Panel</span>${_buildPatchPanelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
 <div class="prop-group"><label>${t('f.ppCategory')}</label>
-  <select onchange="updateN('ppMedia',this.value)">
+  <select data-change="update-n" data-nfield="ppMedia">
     ${_ppUnset}
     <option value="copper" ${selected(media,'copper')}>${t('o.copperRj45')}</option>
     <option value="fiber"  ${selected(media,'fiber')}>${t('o.fiberOdf')}</option>
@@ -541,7 +635,7 @@ ${_renderHaPartnersList()}
 </div>
 ${showCopper ? `<div class="prop-row2">
   <div class="prop-group"><label>${t('f.copperStd')}</label>
-    <select onchange="updateN('ppCopperCat',this.value)">
+    <select data-change="update-n" data-nfield="ppCopperCat">
       <option value="" ${selected(cat,'')}>${t('o.notDeclared')}</option>
       <option value="cat5e" ${selected(cat,'cat5e')}>Cat 5e</option>
       <option value="cat6"  ${selected(cat,'cat6')}>Cat 6</option>
@@ -551,7 +645,7 @@ ${showCopper ? `<div class="prop-row2">
     </select>
   </div>
   <div class="prop-group"><label>${t('f.shielding')}</label>
-    <select onchange="updateN('ppCopperShield',this.value)">
+    <select data-change="update-n" data-nfield="ppCopperShield">
       <option value="" ${selected(shield,'')}>${t('o.notDeclared')}</option>
       <option value="utp" ${selected(shield,'utp')}>${t('pnl.node.shieldUtp')}</option>
       <option value="ftp" ${selected(shield,'ftp')}>${t('pnl.node.shieldFtp')}</option>
@@ -561,7 +655,7 @@ ${showCopper ? `<div class="prop-row2">
 </div>` : ''}
 ${showFiber ? `<div class="prop-row2">
   <div class="prop-group"><label>${t('f.fiberConn')}</label>
-    <select onchange="updateN('ppFiberConnector',this.value)">
+    <select data-change="update-n" data-nfield="ppFiberConnector">
       <option value="" ${selected(conn,'')}>${t('o.notDeclared')}</option>
       <option value="lc-simplex" ${selected(conn,'lc-simplex')}>LC simplex</option>
       <option value="lc-duplex"  ${selected(conn,'lc-duplex')}>LC duplex</option>
@@ -573,7 +667,7 @@ ${showFiber ? `<div class="prop-row2">
     </select>
   </div>
   <div class="prop-group"><label>${t('f.fiberMode')}</label>
-    <select onchange="updateN('ppFiberMode',this.value)">
+    <select data-change="update-n" data-nfield="ppFiberMode">
       <option value="" ${selected(mode,'')}>${t('o.notDeclared')}</option>
       <option value="sm-os1" ${selected(mode,'sm-os1')}>SM — OS1</option>
       <option value="sm-os2" ${selected(mode,'sm-os2')}>SM — OS2</option>
@@ -593,21 +687,21 @@ ${showFiber ? `<div class="prop-row2">
                     if(n.type==='patchpanel'){
                         // Patch panel passivo: solo hostname, niente IP/Mgmt/MAC
                         _networkAccessHtml = `<details class="props-collapsible" ${_propsSectionIsOpen('network-access')?'open':''} data-toggle="props-section" data-section="network-access"><summary class="props-collapsible-head"><span><i class="fas fa-link"></i> ${t('sec.netAccess')}</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
-                            <div class="prop-group"><label>Hostname</label><input value="${escapeHTML(n.hostname||'')}" placeholder="${escapeHTML(d.brand)}" onchange="updateN('hostname',this.value);updateN('hostnameManual',!!this.value.trim())"></div>
+                            <div class="prop-group"><label>Hostname</label><input value="${escapeHTML(n.hostname||'')}" placeholder="${escapeHTML(d.brand)}" data-change="update-hostname"></div>
                         </div></details>`;
                     } else {
                         _networkAccessHtml = _buildNetAccessHtml(n, d);
                     }
                 }
 
-                h+=`<div class="prop-group"><label>${t('field.nameId')}</label><input ${isRackFiller?'disabled':''} value="${escapeHTML(isRackFiller?fixedName:(n.name||''))}" placeholder="${escapeHTML(d.name)}" onchange="updateN('name',this.value)"></div>
-                    <div class="prop-group"><label>${t('f.sizeU')}</label><input type="number" min="1" max="${rs}" value="${n.sizeU!==undefined?n.sizeU:d.sizeU}" onchange="updateN('sizeU',normalizeNumber(this.value,${d.sizeU},1,${rs}))"></div>
+                h+=`<div class="prop-group"><label>${t('field.nameId')}</label><input ${isRackFiller?'disabled':''} value="${escapeHTML(isRackFiller?fixedName:(n.name||''))}" placeholder="${escapeHTML(d.name)}" data-change="update-n" data-nfield="name"></div>
+                    <div class="prop-group"><label>${t('f.sizeU')}</label><input type="number" min="1" max="${rs}" value="${n.sizeU!==undefined?n.sizeU:d.sizeU}" data-change="update-n" data-nfield="sizeU" data-ncoerce="int" data-ndef="${d.sizeU}" data-nmin="1" data-nmax="${rs}"></div>
                     ${(() => {
                         const fromTop = isRackTopNumbered(n.rackId);
                         const sU = n.sizeU!==undefined?n.sizeU:d.sizeU;
                         const shown = fromTop ? rackUToVisible(n.rackId, n.rackU, sU) : n.rackU;
                         const lbl = fromTop ? t('f.posUTop') : t('f.posUBottom');
-                        return `<div class="prop-group"><label>${lbl}</label><input type="number" min="1" max="${rs}" value="${shown}" onchange="updateN('rackU',normalizeNumber(${fromTop?`visibleUToRackU('${n.rackId}',+this.value,${sU})`:`+this.value`},1,1,${rs}))"></div>`;
+                        return `<div class="prop-group"><label>${lbl}</label><input type="number" min="1" max="${rs}" value="${shown}" data-change="update-racku" data-fromtop="${fromTop?'1':'0'}" data-rackid="${n.rackId}" data-su="${sU}" data-rs="${rs}"></div>`;
                     })()}
                     <div class="prop-group">
                       <label style="display:flex;align-items:center;justify-content:space-between">
@@ -615,14 +709,14 @@ ${showFiber ? `<div class="prop-row2">
                         <span style="display:flex;align-items:center;gap:6px">
                           <input type="color" value="${n.color||'#4a4a4a'}"
                                  style="width:38px;height:26px;padding:1px;cursor:pointer"
-                                 onchange="updateN('color',this.value)">
+                                 data-change="update-n" data-nfield="color">
                           <button class="toolbar-btn" type="button" style="padding:3px 8px;font-size:0.72rem"
-                                  onclick="updateN('color','')">Reset</button>
+                                  data-act="update-n-clear" data-nfield="color">Reset</button>
                         </span>
                       </label>
                     </div>
                     ${state.racks.length > 1 ? `<div class="prop-group"><label>${t('f.parentRack')}</label>
-                        <select onchange="if(this.value!==this.dataset.curr){if(moveNodeToRack('${n.id}',this.value))this.dataset.curr=this.value;else this.value=this.dataset.curr;}" data-curr="${n.rackId||''}">
+                        <select data-change="move-node-to-rack" data-nid="${n.id}" data-curr="${n.rackId||''}">
                             ${state.racks.map(r => `<option value="${r.id}" ${r.id===n.rackId?'selected':''}>${escapeHTML(r.name)} (${r.sizeU||42}U)</option>`).join('')}
                         </select>
                     </div>` : ''}
@@ -664,17 +758,17 @@ ${showFiber ? `<div class="prop-row2">
                                 }
                             } catch(_){}
                             const _lagWarn=_bits.length?`<div class="lag-warn" style="font-size:0.72rem;color:#d29922;padding:2px 0 6px">⚠ ${escapeHTML(_bits.join(' · '))}</div>`:'';
-                            const _modeSel=`<select class="lag-group-mode" onchange="setLagMode('${gid}',this.value)" data-tip="${t('lag.modeTip')}">`
+                            const _modeSel=`<select class="lag-group-mode" data-change="lag-mode-set" data-gid="${gid}" data-tip="${t('lag.modeTip')}">`
                               +`<option value="" ${!_curMode?'selected':''}>${escapeHTML(t('lag.modeUnset'))}</option>`
                               +`<option value="active" ${_curMode==='active'?'selected':''}>${escapeHTML(t('lag.modeActive'))}</option>`
                               +`<option value="passive" ${_curMode==='passive'?'selected':''}>${escapeHTML(t('lag.modePassive'))}</option>`
                               +`<option value="static" ${_curMode==='static'?'selected':''}>${escapeHTML(t('lag.modeStatic'))}</option>`
                               +`</select>`;
                             lagHtml+=`<div class="lag-group-row">
-                              <input class="lag-group-name" value="${escapeHTML(gname)}" placeholder="${t('pnl.node.lagNamePlaceholder')}" onchange="renameLag('${gid}',this.value)" data-tip="${t('pnl.node.renameLagGroup')}">
+                              <input class="lag-group-name" value="${escapeHTML(gname)}" placeholder="${t('pnl.node.lagNamePlaceholder')}" data-change="lag-rename" data-gid="${gid}" data-tip="${t('pnl.node.renameLagGroup')}">
                               <span class="lag-chips">${members}</span>
                               ${_modeSel}
-                              <button class="lag-group-del" onclick="dissolveLag('${gid}')" data-tip="${t('pnl.node.dissolveGroup')}">✕</button>
+                              <button class="lag-group-del" data-act="lag-dissolve" data-gid="${gid}" data-tip="${t('pnl.node.dissolveGroup')}">✕</button>
                             </div>${_lagWarn}`;
                         }
                         lagHtml+='</div></div></details>';
@@ -755,7 +849,7 @@ ${showFiber ? `<div class="prop-row2">
                   if(!rows.length) return '';
                   return `<div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;padding:8px 9px;background:rgba(139,148,158,.07);border:1px solid rgba(139,148,158,.25);border-radius:5px;font-size:0.72rem">${rows.join('')}</div>`;
                 })() : '';
-                const snmpImportBlock = showSnmp ? `<div style="margin-top:10px"><button class="toolbar-btn primary" style="width:100%;font-size:0.78rem;padding:5px 6px" id="snmp-poll-btn" onclick="pollSNMP('${n.id}')"><i class="fas fa-network-wired"></i> ${t('snmp.import')}</button></div>` : '';
+                const snmpImportBlock = showSnmp ? `<div style="margin-top:10px"><button class="toolbar-btn primary" style="width:100%;font-size:0.78rem;padding:5px 6px" id="snmp-poll-btn" data-act="snmp-poll" data-nid="${n.id}"><i class="fas fa-network-wired"></i> ${t('snmp.import')}</button></div>` : '';
                 // Avviso: device SNMPv3 rilevato dalla discovery senza credenziali.
                 const snmpV3CredWarn = v3NeedsCreds ? `<div style="display:flex;align-items:center;gap:6px;margin-top:10px;padding:6px 8px;background:rgba(210,153,34,.10);border:1px solid rgba(210,153,34,.35);border-radius:5px;font-size:0.72rem"><i class="fas fa-key" style="color:#d29922;flex-shrink:0"></i><span style="color:#d29922;font-weight:600">${t('intg.v3NeedsCreds')}</span></div>` : '';
                 const _intgPreview = (() => {
@@ -768,7 +862,7 @@ ${showFiber ? `<div class="prop-row2">
                                   : '';
                     return `<span class="props-collapsible-preview">${_drvLbl}${_stHtml}</span>`;
                 })();
-                _integrationHtml = `<details class="snmp-section props-collapsible props-secondary" ${_propsSectionIsOpen('integration')?'open':''} data-toggle="props-section" data-section="integration"><summary class="props-collapsible-head"><span><i class="fas fa-plug"></i> ${t('sec.integration')}</span>${_intgPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body"><div class="prop-group"><label>Driver</label><select onchange="updateIntegration('${n.id}','driver',this.value)"><option value="" ${selected(drv,'')}>${t('o.sepNone')}</option><option value="snmp-v1" ${selected(drv,'snmp-v1')}>SNMP v1</option><option value="snmp-v2c"${selected(drv,'snmp-v2c')}>SNMP v2c</option><option value="snmp-v3" ${selected(drv,'snmp-v3')}>SNMP v3</option></select></div>${showSnmp?`<div class="prop-group"><label>${t('f.hostOverride')}</label><input value="${escapeHTML(intg.host||'')}" placeholder="${t('pnl.node.useNodeIpPlaceholder')}" onchange="updateIntegration('${n.id}','host',this.value);updateIntegration('${n.id}','hostManual',!!this.value.trim())"></div><div class="prop-row2"><div class="prop-group"><label>${t('intg.udpPort')}</label><input type="number" value="${intg.port||161}" onchange="updateIntegration('${n.id}','port',+this.value||161)"></div><div class="prop-group"><label>Timeout (s)</label><input type="number" value="${intg.timeout||3}" onchange="updateIntegration('${n.id}','timeout',+this.value||3)"></div></div>${!isV3?`<div class="prop-group"><label>Community</label><input type="password" autocomplete="new-password" value="${escapeHTML(intg.community||'public')}" onchange="updateIntegration('${n.id}','community',this.value)"></div>`:''}${isV3?`<div class="prop-group"><label>${t('intg.usmUser')}</label><input value="${escapeHTML(intg.v3user||'')}" onchange="updateIntegration('${n.id}','v3user',this.value)"></div><div class="prop-row2"><div class="prop-group" style="flex:0 0 72px"><label>Auth</label><select onchange="updateIntegration('${n.id}','v3authProto',this.value)"><option ${selected(intg.v3authProto||'SHA','MD5')}>MD5</option><option ${selected(intg.v3authProto||'SHA','SHA')}>SHA</option></select></div><div class="prop-group"><label>${t('f.authPass')}</label><input type="password" value="${escapeHTML(intg.v3authPass||'')}" autocomplete="new-password" onchange="updateIntegration('${n.id}','v3authPass',this.value)"></div></div><div class="prop-row2"><div class="prop-group" style="flex:0 0 72px"><label>Priv</label><select onchange="updateIntegration('${n.id}','v3privProto',this.value)"><option ${selected(intg.v3privProto||'AES','DES')}>DES</option><option ${selected(intg.v3privProto||'AES','AES')}>AES</option></select></div><div class="prop-group"><label>${t('f.privPass')}</label><input type="password" value="${escapeHTML(intg.v3privPass||'')}" autocomplete="new-password" onchange="updateIntegration('${n.id}','v3privPass',this.value)"></div></div><div class="prop-group"><label>Security level</label><select onchange="updateIntegration('${n.id}','v3secLevel',this.value)"><option value="noAuthNoPriv"${selected(intg.v3secLevel||'authPriv','noAuthNoPriv')}>noAuthNoPriv</option><option value="authNoPriv"  ${selected(intg.v3secLevel||'authPriv','authNoPriv'  )}>authNoPriv</option><option value="authPriv"    ${selected(intg.v3secLevel||'authPriv','authPriv'    )}>authPriv</option></select></div><div class="prop-group"><label>${t('intg.context')}</label><input value="${escapeHTML(intg.v3context||'')}" placeholder="${t('pnl.node.v3ContextPlaceholder')}" data-tip="${t('pnl.node.v3ContextTip')}" onchange="updateIntegration('${n.id}','v3context',this.value)"></div>`:''}`:''}</div></details>${snmpV3CredWarn}${snmpStatusBlock}${snmpSystemBlock}${snmpPrinterBlock}${snmpHostResBlock}${snmpImportBlock}`;
+                _integrationHtml = `<details class="snmp-section props-collapsible props-secondary" ${_propsSectionIsOpen('integration')?'open':''} data-toggle="props-section" data-section="integration"><summary class="props-collapsible-head"><span><i class="fas fa-plug"></i> ${t('sec.integration')}</span>${_intgPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body"><div class="prop-group"><label>Driver</label><select data-change="update-intg" data-nid="${n.id}" data-ikey="driver"><option value="" ${selected(drv,'')}>${t('o.sepNone')}</option><option value="snmp-v1" ${selected(drv,'snmp-v1')}>SNMP v1</option><option value="snmp-v2c"${selected(drv,'snmp-v2c')}>SNMP v2c</option><option value="snmp-v3" ${selected(drv,'snmp-v3')}>SNMP v3</option></select></div>${showSnmp?`<div class="prop-group"><label>${t('f.hostOverride')}</label><input value="${escapeHTML(intg.host||'')}" placeholder="${t('pnl.node.useNodeIpPlaceholder')}" data-change="update-intg-host" data-nid="${n.id}"></div><div class="prop-row2"><div class="prop-group"><label>${t('intg.udpPort')}</label><input type="number" value="${intg.port||161}" data-change="update-intg" data-nid="${n.id}" data-ikey="port" data-icoerce="intdef" data-idef="161"></div><div class="prop-group"><label>Timeout (s)</label><input type="number" value="${intg.timeout||3}" data-change="update-intg" data-nid="${n.id}" data-ikey="timeout" data-icoerce="intdef" data-idef="3"></div></div>${!isV3?`<div class="prop-group"><label>Community</label><input type="password" autocomplete="new-password" value="${escapeHTML(intg.community||'public')}" data-change="update-intg" data-nid="${n.id}" data-ikey="community"></div>`:''}${isV3?`<div class="prop-group"><label>${t('intg.usmUser')}</label><input value="${escapeHTML(intg.v3user||'')}" data-change="update-intg" data-nid="${n.id}" data-ikey="v3user"></div><div class="prop-row2"><div class="prop-group" style="flex:0 0 72px"><label>Auth</label><select data-change="update-intg" data-nid="${n.id}" data-ikey="v3authProto"><option ${selected(intg.v3authProto||'SHA','MD5')}>MD5</option><option ${selected(intg.v3authProto||'SHA','SHA')}>SHA</option></select></div><div class="prop-group"><label>${t('f.authPass')}</label><input type="password" value="${escapeHTML(intg.v3authPass||'')}" autocomplete="new-password" data-change="update-intg" data-nid="${n.id}" data-ikey="v3authPass"></div></div><div class="prop-row2"><div class="prop-group" style="flex:0 0 72px"><label>Priv</label><select data-change="update-intg" data-nid="${n.id}" data-ikey="v3privProto"><option ${selected(intg.v3privProto||'AES','DES')}>DES</option><option ${selected(intg.v3privProto||'AES','AES')}>AES</option></select></div><div class="prop-group"><label>${t('f.privPass')}</label><input type="password" value="${escapeHTML(intg.v3privPass||'')}" autocomplete="new-password" data-change="update-intg" data-nid="${n.id}" data-ikey="v3privPass"></div></div><div class="prop-group"><label>Security level</label><select data-change="update-intg" data-nid="${n.id}" data-ikey="v3secLevel"><option value="noAuthNoPriv"${selected(intg.v3secLevel||'authPriv','noAuthNoPriv')}>noAuthNoPriv</option><option value="authNoPriv"  ${selected(intg.v3secLevel||'authPriv','authNoPriv'  )}>authNoPriv</option><option value="authPriv"    ${selected(intg.v3secLevel||'authPriv','authPriv'    )}>authPriv</option></select></div><div class="prop-group"><label>${t('intg.context')}</label><input value="${escapeHTML(intg.v3context||'')}" placeholder="${t('pnl.node.v3ContextPlaceholder')}" data-tip="${t('pnl.node.v3ContextTip')}" data-change="update-intg" data-nid="${n.id}" data-ikey="v3context"></div>`:''}`:''}</div></details>${snmpV3CredWarn}${snmpStatusBlock}${snmpSystemBlock}${snmpPrinterBlock}${snmpHostResBlock}${snmpImportBlock}`;
                 // Inventario non e' piu' una fisarmonica separata: i 4 campi
                 // (Marca/Modello/Seriale/Firmware-OS) vengono inseriti come
                 // primi campi dentro la fisarmonica device-specifica via
@@ -841,7 +935,7 @@ ${showFiber ? `<div class="prop-row2">
                 const _fpcPrev = `<span class="props-collapsible-preview">${_fpc===1?t('pnl.node.portCountOne',{n:_fpc}):t('pnl.node.portCountMany',{n:_fpc})}</span>`;
                 h+=`<details class="props-collapsible" ${_propsSectionIsOpen('floor-ports')?'open':''} data-toggle="props-section" data-section="floor-ports"><summary class="props-collapsible-head"><span><i class="fas fa-ethernet"></i> ${t('sec.netPorts')}</span>${_fpcPrev}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('field.portCount')}</label>
-                      <input type="number" min="1" max="8" value="${_fpc}" onchange="updateN('ports',normalizeNumber(this.value,${d.ports||1},1,8))" data-tip="${t('pnl.node.floorPortsTip')}">
+                      <input type="number" min="1" max="8" value="${_fpc}" data-change="update-n" data-nfield="ports" data-ncoerce="int" data-ndef="${d.ports||1}" data-nmin="1" data-nmax="8" data-tip="${t('pnl.node.floorPortsTip')}">
                     </div>
                     <p style="font-size:0.72rem;color:var(--text-muted);margin:6px 2px 0;line-height:1.4"><i class="fas fa-circle-info" style="margin-right:5px"></i>${t('pnl.node.floorPortsInfo')}</p>
                 </div></details>`;
@@ -866,7 +960,7 @@ ${showFiber ? `<div class="prop-row2">
             h+=`<details class="props-collapsible props-secondary" ${_propsSectionIsOpen('notes')?'open':''} data-toggle="props-section" data-section="notes"><summary class="props-collapsible-head"><span><i class="fas fa-sticky-note"></i> ${t('common.notes')}</span>${_notesPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                 <div class="prop-group">
                   <textarea rows="3" placeholder="${t('notes.placeholder')}"
-                            onchange="updateN('notes',this.value)">${escapeHTML(n.notes||'')}</textarea>
+                            data-change="update-n" data-nfield="notes">${escapeHTML(n.notes||'')}</textarea>
                 </div>
             </div></details>`;
             // (bottone Elimina ora nel menu kebab dell'header del pannello)

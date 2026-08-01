@@ -767,7 +767,27 @@ function countInlineHandlers() {
 // `port-mode`/`port-vlan-lock`/`port-trunk-vlans`/`node-voice-vlan`; popup `pop-close`/
 // `port-lag-remove-close` (+closePop). Golden: solo scope:port/port-passive cambia,
 // verificato handler-only (strip on*/data-* → identico); il popup non e' nel golden.
-const MAX_INLINE_HANDLERS = 426;
+//
+// −88 (426 → 338), Blocco 4 — PANNELLO NODE (app-properties-node.js, 80) + TABELLA
+// PORTE del nodo e BANNER LAG (app-ports.js, 8). Il renderer NODE e' il piu' grosso
+// del gruppo properties: header (espandi/comprimi/ripristina CONDIVISI + node-delete),
+// struttura (nome/font/lock/colore·opacita' live/w·h/note), layout porte del rack
+// (updateFrontPanel), stacking, HA pair/cluster, patch-panel, rete&accesso, LAG
+// manuali, integrazione SNMP (v1/v2c/v3), backup, floor-ports. Le fn del dominio sono
+// passate a `export` nei moduli proprietari (app.js updateN/updateFrontPanel/deleteNode/
+// visibleUToRackU; app-snmp updateIntegration/pollSNMP; app-stack-ha i 12 setter stack·HA;
+// app-search-zoom-rack toggleRoomLock/_liveStruct*/moveNodeToRack; app-ports setLagMode/
+// renameLag/dissolveLag) e importate per la registrazione (restano in expose() per le
+// superfici non migrate). Azioni data-driven per non moltiplicare le chiavi: `update-n`
+// (campo in data-nfield, coercizione str/num/int/int-empty + bounds in data-n*), `update-fp`
+// (data-fpkey + data-fpcoerce lit/checked/eq/int/startnum), `update-intg` (data-ikey +
+// data-icoerce intdef). La tabella porte usa le azioni CONDIVISE `port-field`/`port-speed`
+// (gia' in app-popup.js, leggono data-ovr-pid/-field come fallback → le righe le portano
+// gia'); locali in app-ports.js solo `port-clear-all`/`port-hidden-toggle`/`lag-confirm`/
+// `lag-cancel`. I 3 bottoni header sono le azioni CONDIVISE di app-properties.js. Golden:
+// scope:node (per-device) + scope:port/port-passive, verificato handler-only su tutti i 45
+// scenari (strip on*/data-* → identico); il banner LAG non e' nel golden.
+const MAX_INLINE_HANDLERS = 338;
 test('ponte ASSE B: gli handler inline on*= non superano il tetto a cricchetto', () => {
   const total = countInlineHandlers();
   assert.ok(total <= MAX_INLINE_HANDLERS,

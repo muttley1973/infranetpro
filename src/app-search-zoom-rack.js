@@ -719,6 +719,8 @@ function fitBgImageToCanvas(){
 export {
     toggleBgImageLock, scaleBgImage, scaleBgImageTo, fitBgImageToCanvas,
     clearMap, toggleFloorGrid, setBgImageOpacity,
+    // Blocco 4 (pannello NODE): lock stanza · colore/opacita' live struttura · sposta rack.
+    toggleRoomLock, _liveStructColor, _liveStructOpacity, moveNodeToRack,
 };
 
 expose({

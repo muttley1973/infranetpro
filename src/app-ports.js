@@ -25,6 +25,22 @@ import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funz
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { closePop, showPop, _vlanLabel } from './app-popup.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { trace, _cancelLink } from './app-pointer.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { registerClickActions } from './app-delegation.js';   // ASSE B: azioni delegate della tabella porte del nodo + banner LAG (ex onclick inline)
+
+// ── ASSE B (Blocco 4): azioni delegate LOCALI di questo modulo ──────────────
+// La tabella porte del pannello NODE (renderPortsTable) e il banner LAG
+// (_updateLagBanner) sono generati QUI. I loro campi desc/status/speed/vlan usano
+// le azioni CONDIVISE `port-field`/`port-speed` (registrate in app-popup.js, che
+// leggono data-ovr-pid/-field come fallback → le righe le portano gia'). Restano
+// locali le azioni col tail specifico o senza gemello nel popup: reset TUTTI gli
+// override della porta, nascondi/mostra interfaccia, conferma/annulla creazione LAG.
+// Le 4 fn vivono in questo modulo (hoisted) → nessun import.
+registerClickActions({
+    'port-clear-all':     (el) => clearAllPortOverrides(el.dataset.pid),
+    'port-hidden-toggle': (el) => togglePortHidden(el.dataset.pid),
+    'lag-confirm':        () => confirmLag(),
+    'lag-cancel':         () => cancelLag(),
+});
 
 // Init dello stato condiviso su window (il bundle gira ULTIMO; i classic li
 // scrivono solo dentro handler, quindi qui sono ancora undefined → li seminiamo).
@@ -62,10 +78,10 @@ function renderPortsTable(n){
   <span class="pt-num">${i}</span>
   <input value="${escapeHTML(pi.desc||'')}" placeholder="${escapeHTML(descPh)}"
          data-ovr-pid="${pid}" data-ovr-field="desc" ${hidden?'disabled':''}
-         onchange="setPortField('${pid}','desc',this.value)">
+         data-change="port-field">
   <select class="${pi.statusOvr?'ovr':''}"
           data-ovr-pid="${pid}" data-ovr-field="statusOvr" ${hidden?'disabled':''}
-          onchange="setPortField('${pid}','statusOvr',this.value)">
+          data-change="port-field">
     <option value=""         ${effStatus===''        ?'selected':''}>—</option>
     <option value="active"   ${effStatus==='active'  ?'selected':''}>▲ ACT</option>
     <option value="idle"     ${effStatus==='idle'    ?'selected':''}>◌ IDLE</option>
@@ -75,15 +91,15 @@ function renderPortsTable(n){
   <input value="${escapeHTML(spdVal)}" placeholder="${escapeHTML(spdPh)}"
          class="${pi.speedOvr!=null?'ovr':''}"
          data-ovr-pid="${pid}" data-ovr-field="speedOvr" ${hidden?'disabled':''}
-         onchange="setPortSpeed('${pid}',this.value)" data-tip="${t('pnl.dev.speedTip')}">
+         data-change="port-speed" data-tip="${t('pnl.dev.speedTip')}">
   <input type="number" min="1" max="4094" value="${effVlan}"
          class="${pi.vlanOvr!=null?'ovr':''}"
          data-ovr-pid="${pid}" data-ovr-field="vlanOvr" ${hidden?'disabled':''}
-         onchange="setPortField('${pid}','vlanOvr',+this.value||1)">
+         data-change="port-field">
   <button class="pt-rst${hasOvr?' has-ovr':''}" data-tip="${t('pnl.dev.resetPortOvr',{n:i})}"
-          onclick="clearAllPortOverrides('${pid}')" data-ovr-rst="${pid}">↺</button>
+          data-act="port-clear-all" data-pid="${pid}" data-ovr-rst="${pid}">↺</button>
   <button class="pt-hide${hidden?' pt-hide-on':''}" data-tip="${hidden?t('pnl.dev.showIface'):t('pnl.dev.hideIface')}"
-          onclick="togglePortHidden('${pid}')">Hide</button>
+          data-act="port-hidden-toggle" data-pid="${pid}">Hide</button>
 </div>`;
     }
     const hiddenCount = pc - visibleCount;
@@ -280,8 +296,8 @@ export function _updateLagBanner(){
     b.innerHTML = `<i class="fas fa-layer-group" style="color:#00d4ff"></i>`
         + ` <strong>${t('pnl.dev.portsSelected',{n:n})}</strong>`
         + ` &nbsp;·&nbsp; ${t('pnl.dev.lagClickMore')}`
-        + ` &nbsp;<button class="lag-confirm" onclick="confirmLag()">${t('pnl.dev.createLag')}</button>`
-        + ` <button class="lag-cancel"  onclick="cancelLag()">${t('pnl.dev.cancel')}</button>`
+        + ` &nbsp;<button class="lag-confirm" data-act="lag-confirm">${t('pnl.dev.createLag')}</button>`
+        + ` <button class="lag-cancel"  data-act="lag-cancel">${t('pnl.dev.cancel')}</button>`
         + ` <kbd>Esc</kbd>`;
     b.classList.add('show');
 }
@@ -653,6 +669,8 @@ function togglePortVlanLock(pid){
 export {
     setPortField, clearPortField, setPortSpeed,
     removePortFromLag, startLagMode, togglePortVlanLock,
+    // Blocco 4 (pannello NODE): sezione LAG manuali del pannello proprieta'.
+    setLagMode, renameLag, dissolveLag,
 };
 expose({
     togglePortVlanLock,

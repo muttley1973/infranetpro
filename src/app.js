@@ -2590,6 +2590,11 @@ async function init(){
     setInterval(_refreshTopoBtnState, 60 * 1000);
 }
 
+// ASSE B (ritiro ponte): il pannello NODE (app-properties-node.js) importa queste
+// per registrarle come azioni delegate (ex onchange/onclick inline). Restano anche
+// in expose() finche' le superfici non migrate le usano.
+export { updateN, updateFrontPanel, deleteNode, visibleUToRackU };
+
 // ============================================================
 // EXPOSE — tutte le funzioni top-level del nucleo su window, come quando
 // app.js era un classic script (handler inline onclick, export.js classico,

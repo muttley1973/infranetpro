@@ -579,10 +579,12 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         const panel = document.getElementById('props-panel');
         selType = 'node'; selId = 'pp1'; window._propsExplicit = true;
         renderProps();
-        const selMedia = panel.querySelector('select[onchange*="ppMedia"]');
+        // ASSE B (Blocco 4): le tendine patch-panel scrivono per delegation
+        // (data-change="update-n" data-nfield="pp*"), non piu' con onchange inline.
+        const selMedia = panel.querySelector('select[data-change="update-n"][data-nfield="ppMedia"]');
         const mediaValue = selMedia ? selMedia.value : '(assente)';
         // Nessun blocco rame/fibra finche' il supporto non e' dichiarato.
-        const catShown = !!panel.querySelector('select[onchange*="ppCopperCat"]');
+        const catShown = !!panel.querySelector('select[data-change="update-n"][data-nfield="ppCopperCat"]');
 
         window._propsExplicit = false; selType = null; selId = null;
         return { vuoto, soloPorte, dichiarato, fibra, mediaValue, catShown };
@@ -2916,7 +2918,10 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           // 1) la scheda nasce con UNA card vNIC vuota, e la sezione non ha nulla
           //    che assomigli al contatore-porte del PC
           const cards0 = P().querySelectorAll('.vnic-card').length;
-          const hasPortCount = !!P().querySelector('[onchange*="updateN(\'ports\'"]');
+          // ASSE B (Blocco 4): il contatore-porte scrive per delegation (data-change=
+          // "update-n" data-nfield="ports"), non piu' onchange inline. La scheda vNIC
+          // non deve contenerlo — negativa che ora punta al selettore giusto.
+          const hasPortCount = !!P().querySelector('[data-change="update-n"][data-nfield="ports"]');
           const nicsBefore = (nodeById('lab').vms[0].nics || []).length;
 
           // 2) DIGITAZIONE REALE nella prima card → la scheda viene CREATA

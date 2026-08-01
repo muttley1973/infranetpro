@@ -240,6 +240,17 @@ export function _defaultStackName(node){
     return `stk-${core}`;
 }
 
+// ASSE B (ritiro ponte): il pannello NODE (app-properties-node.js) importa queste
+// per registrarle come azioni delegate (ex onchange/onclick inline). Restano anche
+// in expose() finche' le superfici non migrate le usano. _defaultStackName è già
+// `export function` (riga 229).
+export {
+    setNodeStack, setNodeStackMemberId, removeNodeFromStack,
+    acceptStackHint, dismissStackHint,
+    setNodeHaPair, setNodeHaCluster, setNodeHaRole, setNodeHaMode, setNodeHaSync,
+    removeNodeFromHa, _defaultHaGroupName,
+};
+
 // Tutte le 14 funzioni erano globali (classic script) e sono chiamate da
 // app-properties-node.js / app.js (handler onchange + helper di render).
 expose({
