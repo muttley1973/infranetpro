@@ -358,7 +358,7 @@ export function _renderLinkProps(panel){
                     <div style="font-size:.88rem;color:var(--text-muted);line-height:1.45">
                       ${t('cable.directLinkDesc')}
                     </div>`;
-                return `<details class="props-collapsible props-secondary" ${_propsSectionIsOpen('link-physical-path')?'open':''} ontoggle="setPropsSectionState('link-physical-path',this.open)" style="margin-top:14px">
+                return `<details class="props-collapsible props-secondary" ${_propsSectionIsOpen('link-physical-path')?'open':''} data-toggle="props-section" data-section="link-physical-path" style="margin-top:14px">
                   <summary class="props-collapsible-head"><span><i class="fas fa-route"></i> ${t('cable.physicalPath')}</span>${_chainWarnBadge}${_pathPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
                   <div class="props-collapsible-body">
                     <div class="prop-group" style="padding:10px 12px;border:1px solid var(--panel-border);border-radius:8px;background:rgba(255,255,255,.02)">
@@ -429,7 +429,7 @@ export function _renderLinkProps(panel){
                 const _physPreview = _physPreviewBits.length
                     ? `<span class="props-collapsible-preview">${_physPreviewBits.join(' · ')}</span>`
                     : '';
-                return `<details class="props-collapsible props-secondary" ${(_cableIssues.length || _propsSectionIsOpen('link-physical-specs'))?'open':''} ontoggle="setPropsSectionState('link-physical-specs',this.open)" style="margin-top:14px">
+                return `<details class="props-collapsible props-secondary" ${(_cableIssues.length || _propsSectionIsOpen('link-physical-specs'))?'open':''} data-toggle="props-section" data-section="link-physical-specs" style="margin-top:14px">
               <summary class="props-collapsible-head"><span><i class="fas fa-ethernet"></i> ${t('cable.physicalSpecs')}</span>${_cableBadge}${_physPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
               <div class="props-collapsible-body">
               ${_cableBanner}

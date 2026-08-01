@@ -345,7 +345,7 @@ export function _hvPanelHtml(n, d){
         ? vms.map(vm => _vmRowHtml(vm, n.id)).join('')
         : `<div class="drift-empty" style="padding:8px 4px">${esc(t('hv.noVms'))}</div>`;
 
-    return `<details class="props-collapsible props-primary" ${open} ontoggle="setPropsSectionState('${secId}',this.open)"><summary class="props-collapsible-head"><span><i class="fas ${icon}"></i> ${title}</span>${preview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+    return `<details class="props-collapsible props-primary" ${open} data-toggle="props-section" data-section="${secId}"><summary class="props-collapsible-head"><span><i class="fas ${icon}"></i> ${title}</span>${preview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
         ${inv}
         <div class="prop-group"><label>${t('hv.platform')}</label><select onchange="updateN('hvPlatform',this.value)">${platOpts}</select></div>
         <div class="prop-grid2">
@@ -362,7 +362,7 @@ export function _hvPanelHtml(n, d){
              pannello dopo ogni re-render (scroll azzerato) e i drop morivano. La zona
              tratteggiata resta come invito visivo ma SOPRA la lista: posizione stabile
              (non scende di una riga a ogni import), visibile a pannello appena aperto. */}
-        <details class="props-collapsible props-secondary" data-vm-dropzone data-host-id="${esc(n.id)}" ${(typeof _propsSectionIsOpen==='function' && _propsSectionIsOpen('hv-vms')) ? 'open' : ''} ontoggle="setPropsSectionState('hv-vms',this.open)">
+        <details class="props-collapsible props-secondary" data-vm-dropzone data-host-id="${esc(n.id)}" ${(typeof _propsSectionIsOpen==='function' && _propsSectionIsOpen('hv-vms')) ? 'open' : ''} data-toggle="props-section" data-section="hv-vms">
             <summary class="props-collapsible-head"><span><i class="fas fa-display"></i> ${t('hv.section')}</span><span class="props-count-badge">${running}/${vms.length}</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
             <div class="props-collapsible-body">
                 <div class="vm-import-dz"><i class="fas fa-arrow-down-to-bracket"></i> ${esc(t('hv.vmImportHint'))}</div>

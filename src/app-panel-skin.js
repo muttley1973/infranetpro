@@ -127,7 +127,7 @@ export function _panelSkinSectionHtml(n){
         ${curId?`<button type="button" class="panel-skin-btn danger" style="width:100%;margin-top:6px" onclick="deleteLibrarySkin('${escapeHTML(curId)}')" data-tip="${t('skin.deleteTip')}"><i class="fas fa-trash"></i> ${t('skin.deleteBtn')}</button>`:''}`;
     const prev = cur ? `<span class="props-collapsible-preview">${escapeHTML(cur.name||t('skin.active'))}</span>`
                      : `<span class="props-collapsible-preview muted">${t('skin.noSkin')}</span>`;
-    return `<details class="props-collapsible props-secondary" ${_propsSectionIsOpen('panel-skin')?'open':''} ontoggle="setPropsSectionState('panel-skin',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-vector-square"></i> ${t('skin.section')}</span>${prev}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">${body}</div></details>`;
+    return `<details class="props-collapsible props-secondary" ${_propsSectionIsOpen('panel-skin')?'open':''} data-toggle="props-section" data-section="panel-skin"><summary class="props-collapsible-head"><span><i class="fas fa-vector-square"></i> ${t('skin.section')}</span>${prev}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">${body}</div></details>`;
 }
 
 /** Upload: valida lato client (feedback) → POST allo store → cache → assegna. */

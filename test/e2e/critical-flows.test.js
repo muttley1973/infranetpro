@@ -519,6 +519,26 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         setPropsSectionState('network-access', true);
         const openAfterSet = _propsSectionIsOpen('network-access') === true;
 
+        // 5) ASSE B — DELEGATION della fisarmonica: le sezioni passano lo stato via
+        //    data-toggle="props-section" (event delegation in CATTURA, `toggle` non
+        //    fa bubbling), non piu' via ontoggle inline. Rendo il nodo, prendo una
+        //    <details data-toggle>, ne cambio `open` e dispatcho un vero 'toggle':
+        //    il listener delegato deve chiamare setPropsSectionState e lo stato
+        //    module-private deve riflettere il cambio.
+        selType = 'node'; selId = 'sv'; renderProps();
+        let delegatedToggle = false, foundDataToggle = false, noInlineOntoggle = false;
+        const det = panel.querySelector('details[data-toggle="props-section"][data-section]');
+        if (det) {
+          foundDataToggle = true;
+          noInlineOntoggle = panel.innerHTML.indexOf('ontoggle') < 0;
+          const sec = det.dataset.section;
+          const before = _propsSectionIsOpen(sec);
+          det.open = !before;
+          det.dispatchEvent(new Event('toggle'));          // non-bubbling → cattura
+          delegatedToggle = _propsSectionIsOpen(sec) === !before;
+          det.open = before; det.dispatchEvent(new Event('toggle'));   // ripristino
+        }
+
         selType = null; selId = null;
         return {
           nodeDispatched: nodeHtml.indexOf('SRV') >= 0,
@@ -526,6 +546,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           headerOk: header.indexOf('fa-server') >= 0 && header.indexOf('sub') >= 0,
           netHasIp: net.indexOf('10.0.0.5') >= 0 || /updateN\('ip'/.test(net),
           sectionRoundTrip: closedAfterSet && openAfterSet,
+          foundDataToggle, noInlineOntoggle, delegatedToggle,
         };
       });
       assert.ok(r.nodeDispatched, 'renderProps dispatcha al ramo NODE (_renderNodeProps)');
@@ -533,6 +554,9 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.headerOk, '_buildPropsHeader produce l’header con icona/sottotitolo');
       assert.ok(r.netHasIp, '_buildNetAccessHtml mostra IP/campi di rete');
       assert.ok(r.sectionRoundTrip, 'setPropsSectionState↔_propsSectionIsOpen round-trip (stato module-private)');
+      assert.ok(r.foundDataToggle, 'le fisarmoniche del pannello portano data-toggle="props-section"');
+      assert.ok(r.noInlineOntoggle, 'nessun ontoggle="" inline residuo nel pannello proprietà (ASSE B)');
+      assert.ok(r.delegatedToggle, 'un toggle delegato (in cattura) chiama setPropsSectionState e persiste lo stato');
     });
 
     await t.test('patch panel: la tipologia non dichiarata resta non dichiarata (niente «Cat 6 · U/UTP» inventato)', async () => {

@@ -100,7 +100,7 @@ export function _nodeDeviceChainHtml(n, d){
             if(n.type==='ap'){
                 h+=`<div class="prop-group"><label>${t('f.apId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="AP-01" onchange="updateFloorId(this.value)"></div>
                     ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false, macLabel:'MAC / BSSID'}), '')}
-                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-ap')?'open':''} ontoggle="setPropsSectionState('device-ap',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-wifi"></i> ${t('dev.ap')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-ap')?'open':''} data-toggle="props-section" data-section="device-ap"><summary class="props-collapsible-head"><span><i class="fas fa-wifi"></i> ${t('dev.ap')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <!-- Config Wi-Fi (SSID/banda/canale/standard/sicurezza/VLAN) unificata
                          con il router: vive nella fisarmonica WIRELESS (interfacce radio
                          n.radios[]). I campi legacy a singola radio sono stati rimossi. -->
@@ -137,7 +137,7 @@ export function _nodeDeviceChainHtml(n, d){
             if(n.type==='webcam'){
                 h+=`<div class="prop-group"><label>${t('f.cameraId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="CAM-01" onchange="updateFloorId(this.value)"></div>
                     ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false, macLabel:'MAC'}), '')}
-                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-webcam')?'open':''} ontoggle="setPropsSectionState('device-webcam',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-video"></i> ${t('dev.webcam')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-webcam')?'open':''} data-toggle="props-section" data-section="device-webcam"><summary class="props-collapsible-head"><span><i class="fas fa-video"></i> ${t('dev.webcam')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('f.mounting')}</label><select onchange="updateN('mountType',this.value)">
                         <option value="ceiling" ${selected(n.mountType||'ceiling','ceiling')}>${t('o.ceiling')}</option>
                         <option value="wall"    ${selected(n.mountType,'wall')}>${t('o.wall')}</option>
@@ -172,14 +172,14 @@ export function _nodeDeviceChainHtml(n, d){
                 </div></details>`;
             }
             if(n.type==='wallport'){
-                h+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-wallport')?'open':''} ontoggle="setPropsSectionState('device-wallport',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-ethernet"></i> ${t('dev.wallport')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                h+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-wallport')?'open':''} data-toggle="props-section" data-section="device-wallport"><summary class="props-collapsible-head"><span><i class="fas fa-ethernet"></i> ${t('dev.wallport')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('f.socketId')}</label><input value="${escapeHTML(getWallPortLabel(n))}" placeholder="WA-01" onchange="updateWallPortId(this.value)"></div>
                 </div></details>`;
             }
             if(n.type==='printer'){
                 h+=`<div class="prop-group"><label>${t('field.nameId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="PRN-01" onchange="updateFloorId(this.value)"></div>
                     ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false}), '')}
-                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-printer')?'open':''} ontoggle="setPropsSectionState('device-printer',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-print"></i> ${t('dev.printer')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-printer')?'open':''} data-toggle="props-section" data-section="device-printer"><summary class="props-collapsible-head"><span><i class="fas fa-print"></i> ${t('dev.printer')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('field.brand')}</label><input value="${escapeHTML(n.brand||'')}" placeholder="HP, Canon, Epson, Ricoh…" onchange="updateN('brand',this.value)"></div>
                     <div class="prop-group"><label>${t('field.model')}</label><input value="${escapeHTML(n.model||'')}" placeholder="LaserJet Pro M404dn…" onchange="updateN('model',this.value)"></div>
                     <h4 style="margin:12px 0 8px;color:var(--text-main);border-bottom:1px solid var(--panel-border);padding-bottom:4px">${t('pnl.dev.networkPrint')}</h4>
@@ -201,7 +201,7 @@ export function _nodeDeviceChainHtml(n, d){
                 h+=`<div class="prop-group"><label>${t('field.nameId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="TEL-01" onchange="updateFloorId(this.value)"></div>
                     <div class="prop-group"><label>${t('f.extNumber')}</label><input value="${escapeHTML(n.extension||'')}" placeholder="201" onchange="updateN('extension',this.value)"></div>
                     ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false}), '')}
-                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-voip')?'open':''} ontoggle="setPropsSectionState('device-voip',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-phone"></i> ${t('dev.voip')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-voip')?'open':''} data-toggle="props-section" data-section="device-voip"><summary class="props-collapsible-head"><span><i class="fas fa-phone"></i> ${t('dev.voip')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('field.brand')}</label><select onchange="updateN('brand',this.value)">
                         <option value=""            ${selected(n.brand||'','')}>${t('common.unspecifiedM')}</option>
                         <option value="Cisco"       ${selected(n.brand,'Cisco')}>Cisco</option>
@@ -239,7 +239,7 @@ export function _nodeDeviceChainHtml(n, d){
                 h+=`<div class="prop-group"><label>${t('field.nameId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="BADGE-01" onchange="updateFloorId(this.value)"></div>
                     <div class="prop-group"><label>${t('f.zonePort')}</label><input value="${escapeHTML(n.zone||'')}" placeholder="${t('pnl.dev.phZoneExample')}" onchange="updateN('zone',this.value)"></div>
                     ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false}), '')}
-                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-badgereader')?'open':''} ontoggle="setPropsSectionState('device-badgereader',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-id-card"></i> ${t('dev.badgereader')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-badgereader')?'open':''} data-toggle="props-section" data-section="device-badgereader"><summary class="props-collapsible-head"><span><i class="fas fa-id-card"></i> ${t('dev.badgereader')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('field.brand')}</label><select onchange="updateN('brand',this.value)">
                         <option value=""        ${selected(n.brand||'','')}>${t('common.unspecifiedM')}</option>
                         <option value="HID"     ${selected(n.brand,'HID')}>HID Global</option>
@@ -277,7 +277,7 @@ export function _nodeDeviceChainHtml(n, d){
                 h+=`<div class="prop-group"><label>${t('field.nameId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="PC-MARIO, WS-01" onchange="updateFloorId(this.value)"></div>
                     <div class="prop-group"><label>${t('f.assignedUser')}</label><input value="${escapeHTML(n.assignedUser||'')}" placeholder="Mario Rossi" onchange="updateN('assignedUser',this.value)"></div>
                     ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false}), '')}
-                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-pc')?'open':''} ontoggle="setPropsSectionState('device-pc',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-desktop"></i> ${t('dev.pc')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-pc')?'open':''} data-toggle="props-section" data-section="device-pc"><summary class="props-collapsible-head"><span><i class="fas fa-desktop"></i> ${t('dev.pc')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('field.brand')}</label><select onchange="updateN('brand',this.value)">
                         <option value=""        ${selected(n.brand||'','')}>${t('common.unspecifiedM')}</option>
                         <option value="Dell"    ${selected(n.brand,'Dell')}>Dell</option>
@@ -314,7 +314,7 @@ export function _nodeDeviceChainHtml(n, d){
                 h+=`<div class="prop-group"><label>${t('field.nameId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="PHONE-MARIO, IPAD-01" onchange="updateFloorId(this.value)"></div>
                     <div class="prop-group"><label>${t('f.assignedUser')}</label><input value="${escapeHTML(n.assignedUser||'')}" placeholder="Mario Rossi" onchange="updateN('assignedUser',this.value)"></div>
                     ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false, ipPlaceholder:'192.168... (se IP)'}), '')}
-                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-mobile')?'open':''} ontoggle="setPropsSectionState('device-mobile',this.open)"><summary class="props-collapsible-head"><span><i class="fas ${escapeHTML(d.icon)}"></i> ${t('dev.mobile')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-mobile')?'open':''} data-toggle="props-section" data-section="device-mobile"><summary class="props-collapsible-head"><span><i class="fas ${escapeHTML(d.icon)}"></i> ${t('dev.mobile')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('f.formFactor')}</label><select onchange="updateN('formFactor',this.value)">
                         <option value="smartphone" ${selected(n.formFactor||'smartphone','smartphone')}>Smartphone</option>
                         <option value="tablet"     ${selected(n.formFactor,'tablet')}>Tablet</option>
@@ -362,7 +362,7 @@ export function _nodeDeviceChainHtml(n, d){
                 const protos = Array.isArray(n.nasProtocols) ? n.nasProtocols : [];
                 h+=`<div class="prop-group"><label>${t('field.nameId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="NAS-01, DS920+" onchange="updateFloorId(this.value)"></div>
                     ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false}), '')}
-                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-nasdesktop')?'open':''} ontoggle="setPropsSectionState('device-nasdesktop',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-hard-drive"></i> ${t('dev.nasdesktop')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-nasdesktop')?'open':''} data-toggle="props-section" data-section="device-nasdesktop"><summary class="props-collapsible-head"><span><i class="fas fa-hard-drive"></i> ${t('dev.nasdesktop')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.swPlatform')}</label><select onchange="updateN('nasPlatform',this.value)">
                         <option value=""        ${selected(n.nasPlatform||'','')}>${t('common.unspecifiedM')}</option>
@@ -394,7 +394,7 @@ export function _nodeDeviceChainHtml(n, d){
             if(n.type==='iot'){
                 h+=`<div class="prop-group"><label>${t('field.nameId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="IOT-01, SENSOR-TEMP-A" onchange="updateFloorId(this.value)"></div>
                     ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false, ipPlaceholder:'192.168... (se IP)'}), '')}
-                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-iot')?'open':''} ontoggle="setPropsSectionState('device-iot',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-microchip"></i> ${t('dev.iot')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-iot')?'open':''} data-toggle="props-section" data-section="device-iot"><summary class="props-collapsible-head"><span><i class="fas fa-microchip"></i> ${t('dev.iot')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('f.deviceType')}</label><select onchange="updateN('iotType',this.value)">
                         <option value="temp"      ${selected(n.iotType||'temp','temp')}>${t('o.iotTemp')}</option>
                         <option value="temp-hum"  ${selected(n.iotType,'temp-hum')}>${t('o.iotTempHum')}</option>
@@ -426,7 +426,7 @@ export function _nodeDeviceChainHtml(n, d){
             if(n.type==='projector'){
                 h+=`<div class="prop-group"><label>${t('field.nameId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="${t('pnl.dev.phProjName')}" onchange="updateFloorId(this.value)"></div>
                     ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false}), '')}
-                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-projector')?'open':''} ontoggle="setPropsSectionState('device-projector',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-chalkboard"></i> ${t('dev.projector')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-projector')?'open':''} data-toggle="props-section" data-section="device-projector"><summary class="props-collapsible-head"><span><i class="fas fa-chalkboard"></i> ${t('dev.projector')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('field.brand')}</label><select onchange="updateN('brand',this.value)">
                         <option value=""         ${selected(n.brand||'','')}>${t('common.unspecifiedM')}</option>
                         <option value="Epson"    ${selected(n.brand,'Epson')}>Epson</option>
@@ -462,7 +462,7 @@ export function _nodeDeviceChainHtml(n, d){
                     </select></div>                </div></details>`;
             }
             if(n.type==='pbx'){
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-pbx')?'open':''} ontoggle="setPropsSectionState('device-pbx',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-phone-volume"></i> ${t('dev.pbx')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-pbx')?'open':''} data-toggle="props-section" data-section="device-pbx"><summary class="props-collapsible-head"><span><i class="fas fa-phone-volume"></i> ${t('dev.pbx')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.trunkProto')}</label><select onchange="updateN('pbxTrunk',this.value)">
                         <option value="sip"       ${selected(n.pbxTrunk||'sip','sip')}>SIP Trunk</option>
@@ -490,7 +490,7 @@ export function _nodeDeviceChainHtml(n, d){
                 </div></details>`;
             }
             if(n.type==='consolesvr'){
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-consolesvr')?'open':''} ontoggle="setPropsSectionState('device-consolesvr',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-terminal"></i> ${t('dev.consolesvr')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-consolesvr')?'open':''} data-toggle="props-section" data-section="device-consolesvr"><summary class="props-collapsible-head"><span><i class="fas fa-terminal"></i> ${t('dev.consolesvr')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.oobIp')}</label>
                         <input value="${escapeHTML(n.oobIp||'')}" placeholder="${t('pnl.dev.phOobIp')}" onchange="updateN('oobIp',this.value)"></div>
@@ -513,7 +513,7 @@ export function _nodeDeviceChainHtml(n, d){
                 </div></details>`;
             }
             if(n.type==='wlanctrl'){
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-wlanctrl')?'open':''} ontoggle="setPropsSectionState('device-wlanctrl',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-wifi"></i> ${t('dev.wlanctrl')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-wlanctrl')?'open':''} data-toggle="props-section" data-section="device-wlanctrl"><summary class="props-collapsible-head"><span><i class="fas fa-wifi"></i> ${t('dev.wlanctrl')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.apManagedCur')}</label>
                         <input type="number" min="0" max="10000" value="${n.apManaged||0}" onchange="updateN('apManaged',parseInt(this.value)||0)"></div>
@@ -534,7 +534,7 @@ export function _nodeDeviceChainHtml(n, d){
                 </div></details>`;
             }
             if(n.type==='mediaconv'){
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-mediaconv')?'open':''} ontoggle="setPropsSectionState('device-mediaconv',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-right-left"></i> ${t('dev.mediaconv')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-mediaconv')?'open':''} data-toggle="props-section" data-section="device-mediaconv"><summary class="props-collapsible-head"><span><i class="fas fa-right-left"></i> ${t('dev.mediaconv')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.fiberType')}</label><select onchange="updateN('fiberType',this.value)">
                         <option value="sm"  ${selected(n.fiberType||'sm','sm')}>Single-mode (SM)</option>
@@ -564,7 +564,7 @@ export function _nodeDeviceChainHtml(n, d){
                 </div></details>`;
             }
             if(n.type==='nvr'){
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-nvr')?'open':''} ontoggle="setPropsSectionState('device-nvr',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-record-vinyl"></i> ${t('devh.nvr')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-nvr')?'open':''} data-toggle="props-section" data-section="device-nvr"><summary class="props-collapsible-head"><span><i class="fas fa-record-vinyl"></i> ${t('devh.nvr')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.platform')}</label><select onchange="updateN('nvrPlatform',this.value)">
                         <option value=""          ${selected(n.nvrPlatform||'','')}>${t('common.unspecifiedM')}</option>
@@ -593,7 +593,7 @@ export function _nodeDeviceChainHtml(n, d){
                     </select></div>                </div></details>`;
             }
             if(n.type==='sdwan'){
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-sdwan')?'open':''} ontoggle="setPropsSectionState('device-sdwan',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-cloud-bolt"></i> ${t('dev.sdwan')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-sdwan')?'open':''} data-toggle="props-section" data-section="device-sdwan"><summary class="props-collapsible-head"><span><i class="fas fa-cloud-bolt"></i> ${t('dev.sdwan')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.platform')}</label><select onchange="updateN('sdwanPlatform',this.value)">
                         <option value=""           ${selected(n.sdwanPlatform||'','')}>${t('common.unspecifiedM')}</option>
@@ -621,7 +621,7 @@ export function _nodeDeviceChainHtml(n, d){
                 </div></details>`;
             }
             if(n.type==='vpncon'){
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-vpncon')?'open':''} ontoggle="setPropsSectionState('device-vpncon',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-key"></i> ${t('dev.vpncon')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-vpncon')?'open':''} data-toggle="props-section" data-section="device-vpncon"><summary class="props-collapsible-head"><span><i class="fas fa-key"></i> ${t('dev.vpncon')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.platform')}</label><select onchange="updateN('vpnPlatform',this.value)">
                         <option value=""               ${selected(n.vpnPlatform||'','')}>${t('common.unspecifiedM')}</option>
@@ -657,7 +657,7 @@ export function _nodeDeviceChainHtml(n, d){
             if(n.type==='doorctrl'){
                 h+=`<div class="prop-group"><label>${t('field.nameId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="DOOR-ENTR-01, ACL-PIANO2" onchange="updateFloorId(this.value)"></div>
                     ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false}), '')}
-                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-doorctrl')?'open':''} ontoggle="setPropsSectionState('device-doorctrl',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-door-open"></i> ${t('dev.doorctrl')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-doorctrl')?'open':''} data-toggle="props-section" data-section="device-doorctrl"><summary class="props-collapsible-head"><span><i class="fas fa-door-open"></i> ${t('dev.doorctrl')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('f.platform')}</label><select onchange="updateN('doorPlatform',this.value)">
                         <option value=""           ${selected(n.doorPlatform||'','')}>${t('common.unspecifiedM')}</option>
                         <option value="hid"        ${selected(n.doorPlatform,'hid')}>HID Global (VertX/Aero)</option>
@@ -683,7 +683,7 @@ export function _nodeDeviceChainHtml(n, d){
             }
             if(n.type==='panelboard'){
                 h+=`<div class="prop-group"><label>${t('field.nameId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="QE-CED, QE-PIANO2" onchange="updateFloorId(this.value)"></div>
-                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-panelboard')?'open':''} ontoggle="setPropsSectionState('device-panelboard',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-bolt"></i> ${t('dev.panelboard')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-panelboard')?'open':''} data-toggle="props-section" data-section="device-panelboard"><summary class="props-collapsible-head"><span><i class="fas fa-bolt"></i> ${t('dev.panelboard')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('f.powerType')}</label><select onchange="updateN('panelPhase',this.value)">
                         <option value="single-230" ${selected(n.panelPhase||'single-230','single-230')}>${t('o.single230sp')}</option>
                         <option value="three-400"  ${selected(n.panelPhase,'three-400')}>${t('o.three400sp')}</option>
@@ -710,7 +710,7 @@ export function _nodeDeviceChainHtml(n, d){
             if(n.type==='tv'){
                 h+=`<div class="prop-group"><label>${t('field.nameId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="TV-SALA-A, DISPLAY-01" onchange="updateFloorId(this.value)"></div>
                     ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false}), '')}
-                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-tv')?'open':''} ontoggle="setPropsSectionState('device-tv',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-tv"></i> ${t('dev.tv')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-tv')?'open':''} data-toggle="props-section" data-section="device-tv"><summary class="props-collapsible-head"><span><i class="fas fa-tv"></i> ${t('dev.tv')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('f.usage')}</label><select onchange="updateN('tvUsage',this.value)">
                         <option value="meeting"   ${selected(n.tvUsage||'meeting','meeting')}>${t('o.meetingRoom')}</option>
                         <option value="signage"   ${selected(n.tvUsage,'signage')}>Digital signage</option>
@@ -752,7 +752,7 @@ export function _nodeDeviceChainHtml(n, d){
                 h+=`<div class="prop-group"><label>${t('field.nameId')}</label><input value="${escapeHTML(n.name||'')}" placeholder="Endpoint-01" onchange="updateFloorId(this.value)"></div>
                     <div class="prop-group"><label>${t('f.category')}</label><input value="${escapeHTML(n.customCategory||'')}" placeholder="${t('pnl.dev.phCustomCatFloor')}" onchange="updateN('customCategory',this.value)"></div>
                     ${(_floorNet = _buildNetAccessHtml(n, d, {includeHostname:false}), '')}
-                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-customfloor')?'open':''} ontoggle="setPropsSectionState('device-customfloor',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-cube"></i> ${t('dev.customfloor')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                    <details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-customfloor')?'open':''} data-toggle="props-section" data-section="device-customfloor"><summary class="props-collapsible-head"><span><i class="fas fa-cube"></i> ${t('dev.customfloor')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     <div class="prop-group"><label>${t('field.brand')}</label><input value="${escapeHTML(n.brand||'')}" placeholder="NVIDIA, Google, Sony, custom..." onchange="updateN('brand',this.value)"></div>
                     <div class="prop-group"><label>${t('field.model')}</label><input value="${escapeHTML(n.model||'')}" placeholder="Shield TV, Chromecast, appliance..." onchange="updateN('model',this.value)"></div>
                     <div class="prop-group"><label>${t('field.connection')}</label><select onchange="updateN('connection',this.value)">
@@ -762,7 +762,7 @@ export function _nodeDeviceChainHtml(n, d){
                     </select></div>                </div></details>`;
             }
             if(n.type==='customrack'){
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-customrack')?'open':''} ontoggle="setPropsSectionState('device-customrack',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-cube"></i> ${t('dev.customrack')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-customrack')?'open':''} data-toggle="props-section" data-section="device-customrack"><summary class="props-collapsible-head"><span><i class="fas fa-cube"></i> ${t('dev.customrack')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.category')}</label><input value="${escapeHTML(n.customCategory||'')}" placeholder="${t('pnl.dev.phCustomCatRack')}" onchange="updateN('customCategory',this.value)"></div>
                     <div class="prop-group"><label>${t('field.brand')}</label><input value="${escapeHTML(n.brand||'')}" placeholder="${t('pnl.dev.phVendorMaker')}" onchange="updateN('brand',this.value)"></div>
@@ -770,7 +770,7 @@ export function _nodeDeviceChainHtml(n, d){
                 </div></details>`;
             }
             if(n.type==='switch'){
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-switch')?'open':''} ontoggle="setPropsSectionState('device-switch',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-network-wired"></i> Switch</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-switch')?'open':''} data-toggle="props-section" data-section="device-switch"><summary class="props-collapsible-head"><span><i class="fas fa-network-wired"></i> Switch</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.mgmtType')}</label><select onchange="updateN('swMgmt',this.value)">
                         <option value="managed"   ${selected(n.swMgmt||'managed','managed')}>Managed</option>
@@ -796,7 +796,7 @@ export function _nodeDeviceChainHtml(n, d){
             if(n.type==='router'){
                 const protos = Array.isArray(n.rtRoutingProtos) ? n.rtRoutingProtos : [];
                 const hasBgp = protos.includes('bgp');
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-router')?'open':''} ontoggle="setPropsSectionState('device-router',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-route"></i> Router</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-router')?'open':''} data-toggle="props-section" data-section="device-router"><summary class="props-collapsible-head"><span><i class="fas fa-route"></i> Router</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.role')}</label><select onchange="updateN('rtRole',this.value)">
                         <option value="edge"       ${selected(n.rtRole||'edge','edge')}>Edge / WAN</option>
@@ -827,7 +827,7 @@ export function _nodeDeviceChainHtml(n, d){
             }
             if(n.type==='firewall'){
                 const svcs = Array.isArray(n.fwServices) ? n.fwServices : [];
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-firewall')?'open':''} ontoggle="setPropsSectionState('device-firewall',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-shield-halved"></i> Firewall</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-firewall')?'open':''} data-toggle="props-section" data-section="device-firewall"><summary class="props-collapsible-head"><span><i class="fas fa-shield-halved"></i> Firewall</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.deployMode')}</label><select onchange="updateN('fwDeployMode',this.value)">
                         <option value="routed"      ${selected(n.fwDeployMode||'routed','routed')}>Routed (L3)</option>
@@ -853,7 +853,7 @@ export function _nodeDeviceChainHtml(n, d){
                 </div></details>`;
             }
             if(n.type==='server'){
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-server')?'open':''} ontoggle="setPropsSectionState('device-server',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-server"></i> Server</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-server')?'open':''} data-toggle="props-section" data-section="device-server"><summary class="props-collapsible-head"><span><i class="fas fa-server"></i> Server</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.role')}</label><select onchange="updateN('srvRole',this.value)">
                         <option value="hypervisor"  ${selected(n.srvRole||'hypervisor','hypervisor')}>Hypervisor</option>
@@ -902,7 +902,7 @@ export function _nodeDeviceChainHtml(n, d){
             }
             if(n.type==='nas'){
                 const protos = Array.isArray(n.nasProtocols) ? n.nasProtocols : [];
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-nas')?'open':''} ontoggle="setPropsSectionState('device-nas',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-database"></i> ${t('dev.nas')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-nas')?'open':''} data-toggle="props-section" data-section="device-nas"><summary class="props-collapsible-head"><span><i class="fas fa-database"></i> ${t('dev.nas')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.typology')}</label><select onchange="updateN('nasType',this.value)">
                         <option value="file"    ${selected(n.nasType||'file','file')}>NAS — file storage</option>
@@ -946,7 +946,7 @@ export function _nodeDeviceChainHtml(n, d){
             }
             if(n.type==='kvm'){
                 const isIp = (n.kvmType||'analog')==='ip';
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-kvm')?'open':''} ontoggle="setPropsSectionState('device-kvm',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-keyboard"></i> ${t('dev.kvm')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-kvm')?'open':''} data-toggle="props-section" data-section="device-kvm"><summary class="props-collapsible-head"><span><i class="fas fa-keyboard"></i> ${t('dev.kvm')}</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.type')}</label><select onchange="updateN('kvmType',this.value)">
                         <option value="analog"   ${selected(n.kvmType||'analog','analog')}>${t('o.analogVga')}</option>
@@ -964,7 +964,7 @@ export function _nodeDeviceChainHtml(n, d){
                 </div></details>`;
             }
             if(n.type==='ups'){
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-ups')?'open':''} ontoggle="setPropsSectionState('device-ups',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-car-battery"></i> UPS</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-ups')?'open':''} data-toggle="props-section" data-section="device-ups"><summary class="props-collapsible-head"><span><i class="fas fa-car-battery"></i> UPS</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.topology')}</label><select onchange="updateN('upsTopology',this.value)">
                         <option value="standby"  ${selected(n.upsTopology||'line-interactive','standby')}>Standby (offline)</option>
@@ -982,7 +982,7 @@ export function _nodeDeviceChainHtml(n, d){
                 </div></details>`;
             }
             if(n.type==='pdu'){
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-pdu')?'open':''} ontoggle="setPropsSectionState('device-pdu',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-plug"></i> PDU</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-pdu')?'open':''} data-toggle="props-section" data-section="device-pdu"><summary class="props-collapsible-head"><span><i class="fas fa-plug"></i> PDU</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.type')}</label><select onchange="updateN('pduType',this.value)">
                         <option value="basic"            ${selected(n.pduType||'basic','basic')}>${t('o.basicDistrib')}</option>
@@ -1008,7 +1008,7 @@ export function _nodeDeviceChainHtml(n, d){
                 </div></details>`;
             }
             if(n.type==='ats'){
-                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-ats')?'open':''} ontoggle="setPropsSectionState('device-ats',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-shuffle"></i> ATS — Transfer Switch</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+                _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-ats')?'open':''} data-toggle="props-section" data-section="device-ats"><summary class="props-collapsible-head"><span><i class="fas fa-shuffle"></i> ATS — Transfer Switch</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.prefSource')}</label><select onchange="updateN('atsSourcePref',this.value)" data-tip="${t('pnl.dev.atsPrefSourceTip')}">
                         <option value="A" ${selected(n.atsSourcePref||'A','A')}>${t('o.sourceAprim')}</option>

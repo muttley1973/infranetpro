@@ -715,7 +715,20 @@ function countInlineHandlers() {
 // inline della sezione — i campi (ref/method) e il bottone «Segna ora» sono già
 // data-change/data-act (event delegation). Migrare solo questo ontoggle sarebbe
 // incoerente col resto del pannello GOLDEN → crescita coerente, non nuovo debito.
-const MAX_INLINE_HANDLERS = 567;
+//
+// ── ▶ RIPRESA ASSE B (2026-08-01), Blocco 1 ─────────────────────────────────
+// −54 (570 → 513): TUTTE le fisarmoniche <details> del pannello proprietà passano
+// da `ontoggle="setPropsSectionState('X',this.open)"` a `data-toggle="props-section"
+// data-section="X"` + UN'unica azione delegata (registerToggleActions in
+// app-properties.js). L'harness (app-delegation.js) ora gestisce il tipo `toggle`
+// in FASE DI CATTURA — `toggle` non fa bubbling, quindi il listener sul document si
+// aggancia in cattura (document→target). Un pattern solo su 10 moduli (properties
+// core/node/node-devices/link/floor + hypervisor/l3/wifi/panel-skin/shared-segment).
+// Golden rigenerato: verificato che l'UNICA differenza è lo swap dell'attributo
+// (239 occorrenze su 45 scenari, zero altri cambi). setPropsSectionState RESTA in
+// expose() (la chiamano gli helper e2e come globale + app-shared-segment via import):
+// toglierla non abbassa questo cricchetto (che conta gli inline on*=, non expose()).
+const MAX_INLINE_HANDLERS = 513;
 test('ponte ASSE B: gli handler inline on*= non superano il tetto a cricchetto', () => {
   const total = countInlineHandlers();
   assert.ok(total <= MAX_INLINE_HANDLERS,

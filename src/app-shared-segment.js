@@ -7,7 +7,9 @@
 // Migrato a modulo ESM (src/) da lib/app-autolink.js (R9).
 // Le funzioni di discovery-observation (_recordDiscoveryObservation, _nodeByMacMap)
 // e l'engine auto-link restano in app-autolink.js (lette via win.*).
-// NB: setPropsSectionState dentro ontoggle="" resta BARE (gira in scope pagina).
+// NB: la fisarmonica del segmento usa data-toggle="props-section" (event
+// delegation in cattura); setPropsSectionState('shared-segment',true) resta una
+// chiamata JS importata (apre la sezione quando si crea un nodo intermedio).
 // ============================================================
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
@@ -427,7 +429,7 @@ function _sharedSegmentPropsWrapV2(previewHtml, bodyHtml){
     const preview = previewHtml
         ? `<span class="props-collapsible-preview">${previewHtml}</span>`
         : '';
-    return `<details id="props-shared-segment" class="props-collapsible props-secondary" ${_propsSectionIsOpen('shared-segment')?'open':''} ontoggle="setPropsSectionState('shared-segment',this.open)" style="margin-top:14px">
+    return `<details id="props-shared-segment" class="props-collapsible props-secondary" ${_propsSectionIsOpen('shared-segment')?'open':''} data-toggle="props-section" data-section="shared-segment" style="margin-top:14px">
       <summary class="props-collapsible-head"><span><i class="fas fa-diagram-project"></i> ${t('pnl.seg.l2Shared')}</span>${preview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
       <div class="props-collapsible-body">${bodyHtml}</div>
     </details>`;

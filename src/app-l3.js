@@ -166,7 +166,7 @@ export function _l3SviSectionHtml(nodeId){
                 <span class="l3-svi-gw">${esc(v.gateway || '—')}${r.subnet ? ` <span class="l3-svi-sub">${esc(r.subnet)}</span>` : ''}${oos ? ` <span class="l3-svi-warn" data-tip="${esc(t('pnl.feat.gwOutOfSubnet'))}">⚠</span>` : ''}</span>
               </div>`;
         }).join('');
-    return `<details class="props-collapsible props-secondary" ${_propsSectionIsOpen('node-l3') ? 'open' : ''} ontoggle="setPropsSectionState('node-l3',this.open)">
+    return `<details class="props-collapsible props-secondary" ${_propsSectionIsOpen('node-l3') ? 'open' : ''} data-toggle="props-section" data-section="node-l3">
         <summary class="props-collapsible-head"><span><i class="fas fa-route"></i> ${t('l3.sviSection')}</span><span class="props-collapsible-preview">${dev.vlans.length} VLAN</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
         <div class="props-collapsible-body">
           <div class="l3-svi-intro">${t('l3.sviIntro')}</div>

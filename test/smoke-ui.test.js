@@ -37,10 +37,10 @@ test('ui: AP = wireless per definizione (niente toggle, fisarmonica sempre); PC 
     selType='node'; selId='pc'; renderProps();  const pcH=${panelHtml()};
     return JSON.stringify({ ok:true,
       apToggle: apH.indexOf("setDeviceWifi('ap'")>=0,
-      apWirelessAcc: apH.indexOf("setPropsSectionState('wireless'")>=0,
+      apWirelessAcc: apH.indexOf('data-section="wireless"')>=0,
       apRadioMgr: apH.indexOf("setNodeRadioCount('ap'")>=0,
       pcToggle: pcH.indexOf("setDeviceWifi('pc'")>=0,
-      pcWirelessAcc: pcH.indexOf("setPropsSectionState('wireless'")>=0 });
+      pcWirelessAcc: pcH.indexOf('data-section="wireless"')>=0 });
   `);
   assert.ok(r.ok, 'render lancia: ' + r.err);
   assert.ok(!r.apToggle, 'AP: NESSUN toggle Wi-Fi (è wireless per definizione)');
@@ -55,7 +55,7 @@ test('ui: multi-porta LAN solo su floor non-passivi e non pass-through', () => {
     const mk=(id,type)=>({id,type,name:id,x:0,y:0,w:60,h:40,ports:(TYPES[type]&&TYPES[type].ports)||1});
     const printer=mk('pr','printer'), wall=mk('wp','wallport'), voip=mk('vp','voip'), panel=mk('qd','panelboard');
     state.nodes.push(printer,wall,voip,panel); if(typeof _invalidateIdx==='function') _invalidateIdx();
-    const has = id => { selType='node'; selId=id; renderProps(); return ${panelHtml()}.indexOf("setPropsSectionState('floor-ports'")>=0; };
+    const has = id => { selType='node'; selId=id; renderProps(); return ${panelHtml()}.indexOf('data-section="floor-ports"')>=0; };
     return JSON.stringify({ ok:true, printer:has('pr'), wall:has('wp'), voip:has('vp'), panel:has('qd') });
   `);
   assert.ok(r.ok, 'render lancia: ' + r.err);

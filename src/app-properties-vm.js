@@ -19,9 +19,10 @@
 //
 // ASSE B: questa superficie nasce SENZA handler inline. Ogni campo scrive via
 // data-change="vm-field" + data-vm-field (registrati in app-hypervisor.js), i
-// bottoni via data-act. Le fisarmoniche sono `open` e non persistono lo stato:
-// l'evento `toggle` non fa bubbling, quindi non e' delegabile, e un ontoggle=""
-// inline farebbe risalire il cricchetto.
+// bottoni via data-act. Le fisarmoniche restano `open` e non persistono lo stato,
+// per scelta di semplicita' (la scheda VM e' effimera). NB: il pannello proprieta
+// principale invece PERSISTE via data-toggle="props-section" — l'evento `toggle`
+// e' ora delegato in fase di CATTURA (non fa bubbling), vedi app-delegation.js.
 // ============================================================
 import { t } from './_bridge.js';
 import { store } from './store.js';

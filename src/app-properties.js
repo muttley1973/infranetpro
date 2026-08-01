@@ -24,6 +24,7 @@ import { _renderFloorProps } from './app-properties-floor.js';   // ritiro ponte
 import { _renderVmProps } from './app-properties-vm.js';   // 5o scope: scheda macchina virtuale (selType==='vm')
 import { _deviceHasWifi, _isWifiCapable } from './app.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { _radioIfacesHtml } from './app-wifi.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
+import { registerToggleActions } from './app-delegation.js';   // ASSE B: fisarmoniche <details> via event delegation (ex ontoggle inline)
 
 // MAC da mostrare per un device: il MAC di device se c'e', altrimenti fallback
 // alla PORTA col suffisso numerico piu' basso (gli apparati SNMP — switch/router/
@@ -78,6 +79,14 @@ export function setPropsSectionState(key, open){
     _propsSectionsState[key] = !!open;
     try{ localStorage.setItem(_PROPS_SECTIONS_PREF_KEY, JSON.stringify(_propsSectionsState)); }catch(_){}
 }
+
+// ASSE B (ritiro ponte): OGNI fisarmonica del pannello proprieta ora porta
+// data-toggle="props-section" data-section="<id>" invece dell'ontoggle inline
+// che chiamava setPropsSectionState. UN'unica azione delegata (in cattura,
+// perche `toggle` non fa bubbling) legge la sezione da data-section e il nuovo
+// stato da el.open. setPropsSectionState resta in expose() (la chiamano gli
+// helper e2e come globale + app-shared-segment via import).
+registerToggleActions({ 'props-section': (el) => setPropsSectionState(el.dataset.section, el.open) });
 
 /** Espande/comprime tutte le fisarmoniche del pannello proprieta correnti.
  *  Imposta l'attributo open e dispatcha 'toggle' cosi setPropsSectionState
@@ -300,14 +309,14 @@ export function _buildNetAccessHtml(n, d, opts){
     // Fisarmonica WIRELESS separata (fuori da Rete & Accesso): sempre per l'AP,
     // altrimenti solo col toggle attivo.
     const _wirelessAccordion = _wifiOn
-        ? `<details class="props-collapsible props-primary" ${_propsSectionIsOpen('wireless')?'open':''} ontoggle="setPropsSectionState('wireless',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-wifi"></i> ${t('sec.wireless')}</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+        ? `<details class="props-collapsible props-primary" ${_propsSectionIsOpen('wireless')?'open':''} data-toggle="props-section" data-section="wireless"><summary class="props-collapsible-head"><span><i class="fas fa-wifi"></i> ${t('sec.wireless')}</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
              ${(typeof _radioIfacesHtml==='function') ? _radioIfacesHtml(n) : ''}
            </div></details>`
         : '';
     // Lucchetto manual-first VISIBILE: riflette/commuta il flag *Manual del campo
     // (ipManual/hostnameManual). Bloccato = la Verifica segnala se la rete diverge.
     const _lockBtn = (field, locked) => `<button type="button" class="toolbar-btn" style="padding:2px 7px;margin:0;font-size:0.78rem;line-height:1${locked?';color:var(--accent);border-color:var(--accent)':''}" data-tip="${t(locked?'lock.locked':'lock.unlocked')}" aria-label="${t(locked?'lock.locked':'lock.unlocked')}" aria-pressed="${locked?'true':'false'}" onclick="toggleNodeLock('${field}');renderProps()"><i class="fas fa-lock${locked?'':'-open'}"></i></button>`;
-    return `<details class="props-collapsible" ${_propsSectionIsOpen('network-access')?'open':''} ontoggle="setPropsSectionState('network-access',this.open)"><summary class="props-collapsible-head"><span><i class="fas fa-link"></i> ${t('sec.netAccess')}</span>${_previewHtml}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+    return `<details class="props-collapsible" ${_propsSectionIsOpen('network-access')?'open':''} data-toggle="props-section" data-section="network-access"><summary class="props-collapsible-head"><span><i class="fas fa-link"></i> ${t('sec.netAccess')}</span>${_previewHtml}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
         ${_stackHint}
         ${includeHostname ? `<div class="prop-group"><label>Hostname</label><div style="display:flex;gap:5px;align-items:center"><input style="flex:1" value="${escapeHTML(n.hostname||'')}" placeholder="${escapeHTML(d.brand||'')}" ${_ro} onchange="updateN('hostname',this.value);updateN('hostnameManual',!!this.value.trim())">${_ro?'':_lockBtn('hostname',!!n.hostnameManual)}</div></div>` : ''}
         <div class="prop-group"><label>${t('net.ip')}</label><div style="display:flex;gap:5px;align-items:center"><input style="flex:1" value="${escapeHTML(n.ip||'')}" placeholder="${escapeHTML(ipPlaceholder)}" ${_ro} onchange="updateN('ip',this.value);updateN('ipManual',!!this.value.trim())">${_ro?'':_lockBtn('ip',!!n.ipManual)}</div></div>

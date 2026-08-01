@@ -15,12 +15,15 @@
 //     input   -> data-input     (typing live su text/number/textarea)
 //     focus   -> data-focus     (ripristino/azione al focus; usa `focusin` che fa bubbling)
 //     keydown -> data-keydown    (navigazione da tastiera; la fn riceve l'evento)
+//     toggle  -> data-toggle     (<details> fisarmonica; `toggle` NON fa bubbling →
+//                                 si delega in FASE DI CATTURA sul document)
 //
 // USO:  registerClickActions({  undo: () => undo() });
 //       registerChangeActions({ 'rack-size': (el) => updateRackSize(el.value) });
 //       registerInputActions({  'palette-filter': (el) => filterPaletteItems(el.value) });
 //       registerFocusActions({  'global-search': (el) => handleSearchInput(el.value) });
 //       registerKeydownActions({ 'global-search': (el, ev) => handleSearchKey(ev) });
+//       registerToggleActions({ 'props-section': (el) => setPropsSectionState(el.dataset.section, el.open) });
 //       initDelegation();   // UNA volta (in bindEventsOnce)
 //   HTML/template:  <button data-act="undo">…</button>
 //                   <select data-change="rack-size">…</select>
@@ -43,6 +46,7 @@ const _reg = {
     focus:     new Map(),
     keydown:   new Map(),
     dragstart: new Map(),
+    toggle:    new Map(),
 };
 const _attr = {
     click:     'data-act',
@@ -51,6 +55,7 @@ const _attr = {
     focus:     'data-focus',
     keydown:   'data-keydown',
     dragstart: 'data-dragstart',
+    toggle:    'data-toggle',
 };
 // Nome dell'evento DOM realmente agganciato per tipo (focus -> focusin, che fa bubbling;
 // dragstart fa bubbling nativamente -> delega sul document).
@@ -61,6 +66,13 @@ const _domEvent = {
     focus:     'focusin',
     keydown:   'keydown',
     dragstart: 'dragstart',
+    toggle:    'toggle',
+};
+// L'evento `toggle` dei <details> NON fa bubbling: per delegarlo dal document si
+// aggancia il listener in FASE DI CATTURA (document -> target). Gli altri tipi
+// bubbling-abili (o resi tali via focusin) si agganciano in bubbling normale.
+const _capturePhase = {
+    toggle: true,
 };
 
 function _add(type, map) {
@@ -83,6 +95,9 @@ export function registerFocusActions(map)  { _add('focus', map); }
 export function registerKeydownActions(map){ _add('keydown', map); }
 /** Registra azioni dragstart (item della palette; la fn riceve l'evento drag). Attributo data-dragstart. */
 export function registerDragstartActions(map){ _add('dragstart', map); }
+/** Registra azioni toggle (<details> fisarmonica; delega in cattura). Attributo data-toggle.
+ *  La fn riceve l'elemento <details>: legge el.open (stato nuovo) e el.dataset.* per gli argomenti. */
+export function registerToggleActions(map){ _add('toggle', map); }
 
 // Dispatch PURO per tipo: risale da `target` al primo [attr] del tipo, guarda il
 // registro, invoca fn(el, ev). Ritorna true se ha gestito.
@@ -103,6 +118,7 @@ export function dispatchInput(target, ev)   { return _dispatch('input', target, 
 export function dispatchFocus(target, ev)   { return _dispatch('focus', target, ev); }
 export function dispatchKeydown(target, ev) { return _dispatch('keydown', target, ev); }
 export function dispatchDragstart(target, ev){ return _dispatch('dragstart', target, ev); }
+export function dispatchToggle(target, ev)   { return _dispatch('toggle', target, ev); }
 
 let _inited = false;
 /** Aggancia UNA sola volta i listener delegati sul document (idempotente). */
@@ -112,7 +128,8 @@ export function initDelegation(root) {
     const r = root || (typeof document !== 'undefined' ? document : null);
     if (!r) return;
     // Un listener delegato per TIPO interno; il nome DOM viene da _domEvent (focus->focusin).
+    // toggle non fa bubbling -> _capturePhase lo aggancia in fase di cattura.
     for (const type of Object.keys(_reg)) {
-        r.addEventListener(_domEvent[type], (ev) => _dispatch(type, ev.target, ev));
+        r.addEventListener(_domEvent[type], (ev) => _dispatch(type, ev.target, ev), !!_capturePhase[type]);
     }
 }

@@ -5,7 +5,8 @@
 // renderProps() (ancora classic in app-properties.js, che lo chiama via window).
 // Legge i builder condivisi del core (_buildPropsHeader/_propsSectionIsOpen) e i
 // global legacy (state/IPAM/VLAN/voce) via win.*; `t` dal ponte. I nomi dentro gli
-// onclick=""/ontoggle="" dell'HTML generato girano in scope PAGINA → restano bare.
+// onclick="" dell'HTML generato girano in scope PAGINA → restano bare (le
+// fisarmoniche sono passate a data-toggle="props-section", event delegation).
 // `store._vlanIpamOpen` è il Set condiviso var-ificato in app.js (i writer classic lo
 // mutano, qui si legge). NESSUN cambiamento di logica rispetto all'originale.
 
@@ -65,7 +66,7 @@ export function _renderFloorProps(panel){
             'props-title-upper'
         );
         let h = `${_panelHeader}
-            <details class="props-collapsible props-primary" ${_propsSectionIsOpen('floor-vlan')?'open':''} ontoggle="setPropsSectionState('floor-vlan',this.open)">
+            <details class="props-collapsible props-primary" ${_propsSectionIsOpen('floor-vlan')?'open':''} data-toggle="props-section" data-section="floor-vlan">
               <summary class="props-collapsible-head"><span><i class="fas fa-network-wired"></i> VLAN</span>${_vlanPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
               <div class="props-collapsible-body">
                 <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
@@ -142,7 +143,7 @@ export function _renderFloorProps(panel){
                 </div>
               </div>
             </details>
-            <details class="props-collapsible props-primary" ${_propsSectionIsOpen('floor-bgimage')?'open':''} ontoggle="setPropsSectionState('floor-bgimage',this.open)">
+            <details class="props-collapsible props-primary" ${_propsSectionIsOpen('floor-bgimage')?'open':''} data-toggle="props-section" data-section="floor-bgimage">
               <summary class="props-collapsible-head"><span><i class="fas fa-map"></i> ${t('floor.imgSection')}</span>${_bgPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
               <div class="props-collapsible-body">
                 <div class="prop-group" style="margin-bottom:10px">

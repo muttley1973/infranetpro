@@ -232,7 +232,7 @@ function _radioSsidsHtml(radio, nodeId, idx){
     const _ssN = list.filter(s => s && s.ssid).length;
     const _open = (typeof _propsSectionIsOpen === 'function') ? _propsSectionIsOpen('radio-ssids') : true;
     const _preview = _ssN ? `<span class="props-collapsible-preview">${_ssN} SSID</span>` : '';
-    return `<details class="props-collapsible props-secondary" ${_open ? 'open' : ''} ontoggle="if(typeof setPropsSectionState==='function')setPropsSectionState('radio-ssids',this.open)">
+    return `<details class="props-collapsible props-secondary" ${_open ? 'open' : ''} data-toggle="props-section" data-section="radio-ssids">
         <summary class="props-collapsible-head"><span><i class="fas fa-broadcast-tower"></i> ${esc(_t('radio.ssidList') || 'SSID trasmessi')}</span>${_preview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
         <div class="props-collapsible-body">
           ${rows || `<div class="radio-assoc-empty">${esc(_t('radio.noSsid') || 'Nessun SSID')}</div>`}
