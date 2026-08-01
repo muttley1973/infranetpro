@@ -1100,13 +1100,56 @@ test('⑤ Sicurezza: SNMP v3 cifrato vs v1/v2c in chiaro; la community di defaul
   const comm = rowOf(s, 'secCommunity');
   assert.equal(comm.value, 1, 'solo sw2 usa una community di default (public)');
   assert.deepEqual(comm.items.map((i) => i.id), ['sw2']);
-  // ANTI-LEAK: la community NON esce MAI dal motore, solo il conteggio+nome device.
+  // VIEWER (nessun isAdmin): elenca l'apparato ma NON marca QUALE default.
+  assert.ok(comm.items.every((i) => !i.tag), 'il viewer non vede quale default');
+  // ANTI-LEAK: nessun VALORE grezzo di community esce dal motore (nemmeno il default).
   const dump = JSON.stringify(s);
   assert.ok(!dump.includes('public') && !dump.includes('S3cr3t'), 'nessun valore di community nel report');
 
   assert.equal(rowOf(s, 'secMgmtVlan').value, 1, 'una VLAN di gestione dichiarata');
   assert.equal(rowOf(s, 'secMgmtVlan').prov, 'declared');
+  assert.deepEqual(rowOf(s, 'secMgmtVlan').items, [{ id: 'VLAN 99', meta: null }], 'il drill-down la elenca (nome assente qui)');
   assert.equal(s.health.level, 'bad', 'una community indovinabile = porta aperta (rosso)');
+});
+
+test('⑤ community di default: SOLO l\'admin vede QUALE default (tag-enum); mai il valore di una custom', () => {
+  const base = {
+    types: DR_TYPES,
+    nodes: [
+      { id: 'sw2', type: 'switch', ip: '10.0.0.2', integration: { driver: 'snmp-v2c', community: 'public' } },
+      { id: 'sw5', type: 'switch', ip: '10.0.0.5', integration: { driver: 'snmp-v2c', community: '' } },       // vuota
+      { id: 'sw3', type: 'switch', ip: '10.0.0.3', integration: { driver: 'snmp-v2c', community: 'S3cr3t!' } }, // CUSTOM: non è un default
+    ],
+  };
+  // admin: il TAG del default (public/vuota), mai la stringa grezza; la custom non è nemmeno flaggata.
+  const admin = rowOf(buildOverview(Object.assign({ isAdmin: true }, base)).security, 'secCommunity');
+  assert.deepEqual(admin.items.map((i) => i.id), ['sw2', 'sw5'], 'solo i default noti sono flaggati, non la custom');
+  assert.deepEqual(admin.items.map((i) => i.tag), ['commPublic', 'commEmpty'], 'l\'admin vede QUALE default, come tag');
+  // Il valore grezzo non entra nel modello nemmeno per l'admin (il renderer risolve il tag).
+  const dumpAdmin = JSON.stringify(buildOverview(Object.assign({ isAdmin: true }, base)).security);
+  assert.ok(!/"public"|S3cr3t/.test(dumpAdmin), 'nessun valore grezzo di community, né default né custom');
+});
+
+test('⑤ VLAN di gestione: il drill-down elenca ogni VLAN col suo NOME, e possono essere più d\'una', () => {
+  const s = buildOverview({
+    types: DR_TYPES, mgmtVlans: [10, 99],
+    vlanNames: { 10: 'Management', 99: 'OOB' },
+    nodes: [{ id: 'sw1', type: 'switch', integration: { driver: 'snmp-v3', v3user: 'admin' } }],
+  }).security;
+  const mv = rowOf(s, 'secMgmtVlan');
+  assert.equal(mv.value, 2, 'due VLAN di gestione');
+  assert.deepEqual(mv.items, [
+    { id: 'VLAN 10', meta: 'Management' },
+    { id: 'VLAN 99', meta: 'OOB' },
+  ], 'ogni VLAN col suo nome dichiarato, nell\'ordine dichiarato');
+
+  // Nome non dichiarato ma MISURATO via SNMP → si usa quello (manual-first: dichiarato prima).
+  const s2 = buildOverview({
+    types: DR_TYPES, mgmtVlans: [20],
+    measuredVlanNames: { 20: { name: 'MgmtSNMP' } },
+    nodes: [{ id: 'sw1', type: 'switch', integration: { driver: 'snmp-v3', v3user: 'admin' } }],
+  }).security;
+  assert.deepEqual(rowOf(s2, 'secMgmtVlan').items, [{ id: 'VLAN 20', meta: 'MgmtSNMP' }], 'nome misurato in mancanza del dichiarato');
 });
 
 test('⑤ Sicurezza: tutto v3 con VLAN di gestione → verde; senza VLAN di gestione → giallo', () => {
@@ -1344,6 +1387,23 @@ test('⑥ la freschezza del quadro e\' quella del dato PIU\' VECCHIO, non del pi
   });
   assert.equal(tutte.health.health.allStale, true);
   assert.equal(tutte.health.staleReadings, 2);
+});
+
+test('⑥ «Ultima lettura»: il drill-down elenca i target SNMP — prima i silenti (marcati), poi chi ha risposto', () => {
+  const o = buildOverview({
+    types: TYPES, now: HL_NOW,
+    nodes: [
+      { id: 'nas1', type: 'nas', ip: '10.0.0.5', integration: { driver: 'snmp-v2c', host: '10.0.0.5' } }, // risponde
+      { id: 'sw9', type: 'switch', ip: '10.0.0.9', integration: { driver: 'snmp', host: '10.0.0.9' } },    // silente
+    ],
+    liveHealth: [hl({ id: 'nas1', type: 'nas', blocks: { host: true } })],
+  });
+  const rd = rowOf(o.health, 'hlReading');
+  assert.equal(rd.value, 1, 'un apparato ha risposto');
+  assert.equal(rd.total, 2, 'due target SNMP');
+  assert.deepEqual(rd.items.map((i) => i.id), ['sw9', 'nas1'], 'il silente PRIMA (azione), poi chi ha risposto');
+  assert.deepEqual(rd.items[0], { id: 'sw9', type: 'switch', meta: '—', tag: 'noReading' }, 'il silente è marcato');
+  assert.deepEqual(rd.items[1], { id: 'nas1', type: 'nas' }, 'chi ha risposto: solo il device, nessun chip');
 });
 
 test('perimetro esplicito: buildOverview dichiara «cosa non sto guardando» (chiavi + tier, nessuna parola)', () => {

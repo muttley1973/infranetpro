@@ -309,6 +309,9 @@ function _buildModel() {
         // con la Verifica (per rivederlo dopo un Sync si ri-esegue la Verifica).
         driftLive: (store._driftReport && store._driftReport._fromVerify) ? store._driftReport : null,
         mgmtVlans: Array.isArray(st.mgmtVlans) ? st.mgmtVlans : [],   // ⑤ Sicurezza: VLAN marcate «di gestione» (segmentazione)
+        // Solo un admin vede QUALE default (public/private/vuota) usa una community: il
+        // motore emette il tag unicamente se questo è vero (un viewer non lo riceve mai).
+        isAdmin: !!(store._currentUser && store._currentUser.role === 'admin'),
         now: Date.now(),
     };
 }
