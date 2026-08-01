@@ -742,20 +742,19 @@ is VPN/LAN.
   merged to `main` (`8b77e63`)** — all `lib/app-*.js` glue **and** the nucleus (`src/app.js`)
   are ESM in the bundle. The only remaining classic `<script>`s are the pure `lib/*.js` and
   `export.js` (by design).
-- **Retiring the `window` bridge — SUSPENDED (low-priority, resume opportunistically).**
-  > **Decision (2026-07-14): the bridge-retirement effort (both axes below) is parked as a spare-time
-  > task, not abandoned.** The half-migrated state is stable and correct; further reduction isn't worth
-  > prioritising over higher-value work (e.g. closing the presentation-layer test gap). **The two ratchets
-  > STAY as regression guards** — the counts may only *hold or shrink*, never grow (no new `win.*` reads,
-  > no new inline handlers) — but *driving them down is no longer an active goal*: lower a ratchet only
-  > opportunistically, when a module is being touched for other reasons. Resume the migration deliberately
-  > when there's slack.
+- **Retiring the `window` bridge — RESUMED (2026-08-01): finishing it, one panel at a time.**
+  > **Decision (2026-08-01): the bridge-retirement effort is active again.** After being parked as a
+  > spare-time task on 2026-07-14, Axis B is now being driven down deliberately — one properties-panel
+  > surface per commit, each with full gates + a live check + a golden strip-compare (which proves the
+  > only diff is the handler-attribute swap). The two ratchets stay monotonic regression guards (counts
+  > may only *hold or shrink*); lowering them toward the structural floor is once again an active goal.
+  > Axis A is already at its floor; Axis B is the active front.
 
   `src/_bridge.js` still lets not-yet-retired
   code reach globals (`win.*` read, `expose()` publish). Removing it has **two independent axes**,
   each tracked so it can only move forward:
   - **Axis A — `win.*` → real `import`.** A monotonic ratchet (`test/bridge-ratchet.test.js`,
-    `MAX_WIN_REFS`, may only decrease) drove `win.*` references down to a floor of **268**: every
+    `MAX_WIN_REFS`, may only decrease) drove `win.*` references down to a floor of **276**: every
     retirable function is imported, and mutable view-state (`state`, `selId`, `_history`, …) lives
     behind a proxy in `src/store.js`. The residue is the pure `lib/*.js` `<script>` globals and their
     `typeof` guards, which stay by design (importing them would re-bundle the UMD, clobbering the live
@@ -763,13 +762,16 @@ is VPN/LAN.
   - **Axis B — inline handlers (`onclick`/`onchange`/`oninput`/…) → event delegation.** Inline handlers
     are *why* the bridge still exists (they resolve names in page lexical scope). **A monotonic ratchet
     (`MAX_INLINE_HANDLERS` in `test/bridge-ratchet.test.js`, may only decrease) now caps their count —
-    currently 627 across `src/*.js` templates + `netmapper.html` static — so Axis B is measured and
+    currently 426 across `src/*.js` templates + `netmapper.html` static — so Axis B is measured and
     converges like Axis A; the target is the structural floor (a few stay inline by design, e.g. the
     gear inside the golden properties panel).** `src/app-delegation.js`
     installs **one delegated listener per event type** on the document — `data-act` for `click`,
     `data-change` for `change` (selects, checkboxes, file inputs, committed numbers), `data-input` for
     live `input` (typing), `data-focus` for `focus` (attached as `focusin`, which bubbles — plain
-    `focus` does not), and `data-keydown` for `keydown` (the handler receives the event) — so an element
+    `focus` does not), `data-blur` for `blur` (attached as `focusout`, which bubbles — used to commit a
+    field on focus loss), `data-dragstart` for `dragstart`, `data-toggle` for a `<details>` accordion's
+    `toggle` (which does **not** bubble, so it is delegated in the **capture** phase), and `data-keydown`
+    for `keydown` (the handler receives the event) — so an element
     carries `data-<type>="key"` (arguments read off the element via
     `el.value`/`el.checked`/`data-*`), and the module that **owns** the function registers
     `{ key: (el) => fn(el.value) }` at load: the handler is an **imported** function, off `window`. For a
@@ -784,7 +786,7 @@ is VPN/LAN.
     change/input/focus/keydown surfaces are done — only the export panel's remain (`export.js` classic)
     — but **~55 `onclick` handlers are still inline** there (report/discovery/import/PDF-export
     actions, status chips: a mix of clean-but-deferred and genuinely blocked).
-    The migration then moves into the **~535 handlers inside dynamically-rendered templates** (rows/cards built by `innerHTML`
+    The migration then moves into the **handlers inside dynamically-rendered templates** (rows/cards built by `innerHTML`
     at runtime) — these migrate identically, because a document-level delegated listener also catches
     events from elements created *after* load. Dynamic clusters done so far: the Discover table rows
     (`disc-row`/`disc-type`), the search-results dropdown (`search-pick`), the Drift panel's seven
@@ -804,7 +806,22 @@ is VPN/LAN.
     modal** (`topo-crawl-*`, the backdrop keeps its "don't close mid-crawl" wrapper behind the
     `ev.target === el` guard), and the **topology hover-tooltip** (`#topo-tip`, rendered by
     `_showTopoTip` in `app-popup.js`: `topo-create-link`/`topo-nav-rack` with the pair-key/rack-id in
-    `data-*`). The rest follows surface by surface. `_bridge.js` / `expose()` are deleted only when Axis B is finished. *(Side note: the AI help
+    `data-*`). Then the **golden properties panels** themselves began migrating, one panel per commit:
+    the shared **section accordions** (every `<details>` → `data-toggle="props-section"`, delegated in
+    the capture phase — the harness gained the `toggle` type for this); the **cable panel**
+    (`app-properties-link.js` — its twelve `setLinkProp` fields collapse to one `link-prop` action, the
+    field in `data-lprop` and the trim/number coercion in `data-coerce`, and the harness gained `blur`
+    via `focusout` for the trunk-VLAN commit); the **floor / project-context panel**
+    (`app-properties-floor.js` — `updateVlanIpam`'s three fields collapse to `vlan-ipam-field`,
+    `updateUiColor` to `ui-color`, the two `scaleBgImage` steps to `bg-scale-step`); and the **port
+    panel + port popup** (`app-properties-port.js` + `app-popup.js` — the port-domain functions export
+    from `app-ports.js`/`app-vlan-autopoll.js`, and the actions **shared across both surfaces**
+    (`port-field` with the `vlanOvr` numeric coercion, `port-speed`, …) register **once** in the leaf
+    module both import, so they are never double-registered, while the actions carrying a surface-specific
+    tail — `renderProps()` in the panel, `closePop()` in the popup — stay local). The three header buttons
+    (expand-all / collapse-all / reset-sections) are shared actions registered once in `app-properties.js`
+    and reused by every panel. Still inline: the node panel + its ports table, and the node-devices
+    sub-panel (the bulk of the remaining count). The rest follows surface by surface. `_bridge.js` / `expose()` are deleted only when Axis B is finished. *(Side note: the AI help
     catalog in `lib/ui-catalog.js`, which reads the real button labels/tooltips, derives a button's action
     from `data-act` as well as `onclick`, so delegated buttons stay in the assistant's catalog.)*
 - **ESLint gate (`eslint.config.js`, v9).** `no-undef` is enforced as a safety net where
