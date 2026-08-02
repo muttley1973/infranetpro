@@ -305,4 +305,8 @@ registerChangeActions({
 
 // ASSE B: voce "Mappa L3" del menu Report via data-act (ex win.openL3Report).
 // Nota: l'onclick originale NON chiudeva il dropdown → comportamento preservato.
-registerClickActions({ 'report-l3': () => openL3Report() });
+// UX: il report «Mappa L3 / Gateway» e' ASSORBITO nella Dashboard — si lancia dal
+// drill-down del tile Gateway (lente ① Completo), non piu' dal menu header. openL3Report
+// chiude comunque il menu internamente (no-op quando parte dalla Dashboard). Il CTA e'
+// reso da app-overview.js (_REPORT_CTA); l'azione vive qui, col report.
+registerClickActions({ 'overview-l3-report': () => openL3Report() });

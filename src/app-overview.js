@@ -764,7 +764,8 @@ function _wantsVlanCta(secKey, key) {
 // duplicazione (un dato, una porta). Chiave = 'secKey:rowKey'; l'azione e' registrata
 // nel modulo PROPRIETARIO del report (app-spare/app-l3/app-wifi), non qui.
 const _REPORT_CTA = {
-    'margin:freePorts': { act: 'overview-spare-report', label: 'ov.cta.spareReport' },
+    'margin:freePorts':  { act: 'overview-spare-report', label: 'ov.cta.spareReport' },
+    'complete:gateways': { act: 'overview-l3-report',    label: 'ov.cta.l3Report' },
 };
 
 function _detailEl(secKey, r) {

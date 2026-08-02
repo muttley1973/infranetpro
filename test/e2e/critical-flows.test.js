@@ -3550,7 +3550,11 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         state.ipam.vlans['50'] = { subnet: '192.168.50.0/24', gateway: '192.168.50.1' };  // → auto-match su rt.ip
         const ids = _l3GatewayNodeIds();                 // legge win.buildL3Report + win._parseCidrInfo via ponte
         const svi = _l3SviSectionHtml('l3rt');
-        document.querySelector('[data-act="report-l3"]').click();   // overlay via event delegation
+        // UX: report L3/Gateway ASSORBITO nella Dashboard → azione delegata overview-l3-report
+        // (CTA nel drill-down del tile Gateway), non piu' dal menu header.
+        const _l3Cta = document.createElement('button');
+        _l3Cta.dataset.act = 'overview-l3-report'; document.body.appendChild(_l3Cta);
+        _l3Cta.click();   // -> openL3Report via event delegation
         const ov = document.getElementById('l3-overlay');
         const l3Wired = !!ov && !!ov.querySelector('[data-act="l3-close"]') && !!ov.querySelector('[data-act="l3-export"]');
         const res = {
