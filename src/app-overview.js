@@ -230,7 +230,7 @@ function _buildModel() {
             });
         }
         if (list.length) {
-            spareDevices.push({ id: n.id, name: getNodeDisplayName(n) || n.id, rackId: n.rackId || null, rackName: rackName(n.rackId), ports: list });
+            spareDevices.push({ id: n.id, type: n.type, name: getNodeDisplayName(n) || n.id, rackId: n.rackId || null, rackName: rackName(n.rackId), ports: list });
         }
     }
 
@@ -374,7 +374,15 @@ function _tileValue(r) {
         case 'neighbors':    return [_n(r.value), ''];
         case 'lags':         return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), ''];
         case 'verify':       return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), ''];
-        case 'freePorts':    return [_n(r.value), t('ov.of', { n: r.total })];
+        // Numero grande = capacità SWITCH; se ci sono porte «altro» (patch panel/
+        // appliance) il secondo contatore «+N non switch» sta accanto, popolazione
+        // diversa, mai sommata (stesso schema di «verifiable»).
+        case 'freePorts': {
+            const e = r.extra || {};
+            const alt = Number(e.otherFree) > 0
+                ? { num: '+' + e.otherFree, sub: t('ov.st.nonSwitch') } : null;
+            return r.prov === 'none' ? [t('ov.none'), '', alt] : [_n(r.value), t('ov.of', { n: r.total }), alt];
+        }
         case 'freeSfp':      return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), t('ov.of', { n: r.total })];
         case 'rackU':        return r.prov === 'none' ? [t('ov.none'), ''] : [r.value + 'U', t('ov.of', { n: r.total })];
         case 'poe':          return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), t('ov.of', { n: r.total })];

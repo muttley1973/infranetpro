@@ -52,7 +52,7 @@ function _spareBuildDevices(){
             const activeSnmp = responded && (pi.status === 'active');  // cross-check realtà↔doc
             ports.push({ pid, kind: sfpSet.has(i) ? 'sfp' : 'access', cabled, activeSnmp });
         }
-        if(ports.length) out.push({ id: n.id, name: getNodeDisplayName(n) || n.name || n.id, rackId: n.rackId || null, rackName: rackName(n.rackId), ports });
+        if(ports.length) out.push({ id: n.id, type: n.type, name: getNodeDisplayName(n) || n.name || n.id, rackId: n.rackId || null, rackName: rackName(n.rackId), ports });
     }
     return out;
 }
@@ -120,14 +120,22 @@ function openSpareReport(){
     ov.style.display = 'flex';
     const esc = s => escapeHTML(String(s == null ? '' : s));
     const tot = rep.totals;
+    // Testata onesta: il numero grande e' la capacita' SWITCH (dove attacchi un
+    // nuovo device); patch panel e appliance restano nel report, ma sommati a parte
+    // sotto («+N su patch panel e apparati»). Lo split arriva da rep.byClass
+    // (lib/spare-ports.js); fallback al totale intero se manca (chiamante legacy).
+    const bc = rep.byClass || {};
+    const sw = bc.switch || tot;
+    const ot = bc.other || {};
+    const swFree = sw.free || 0, swPorts = sw.ports || 0, otherFree = ot.free || 0;
     const _stt = document.getElementById('spare-title'); if(_stt) _stt.textContent = t('report.spareTitle');
     const header = `<div class="spare-summary">
         <div class="spare-summary-hdr">
-            <div class="spare-summary-big">${t('spare.freePortsOf',{free:`<b>${tot.free}</b>`,ports:tot.ports})}</div>
+            <div class="spare-summary-big">${t('spare.switchFreeOf',{free:`<b>${swFree}</b>`,ports:swPorts})}</div>
             <label class="spare-hl" id="spare-hl-toggle"><input type="checkbox" ${store._spareActive?'checked':''} data-change="spare-highlight"> <i class="fas fa-highlighter"></i> ${t('spare.highlight')}</label>
             <button class="toolbar-btn" data-act="spare-export" data-tip="${t('spare.csvTip')}"><i class="fas fa-file-csv"></i> CSV</button>
         </div>
-        <div class="spare-summary-sub">${tot.freeAccess} access · ${tot.freeSfp} SFP/uplink${tot.suspect?` · <span class="spare-susp-pill">⚠ ${t('spare.maybeInUse',{n:tot.suspect})}</span>`:''}</div>
+        <div class="spare-summary-sub">${sw.freeAccess||0} access · ${sw.freeSfp||0} SFP/uplink${otherFree?` · ${t('spare.otherFree',{n:otherFree})}`:''}${tot.suspect?` · <span class="spare-susp-pill">⚠ ${t('spare.maybeInUse',{n:tot.suspect})}</span>`:''}</div>
     </div>`;
     const renderDev = d => `<div class="spare-row">
         <span class="spare-row-name">${esc(d.name)}</span>${_spareCapChip(d)}</div>`;

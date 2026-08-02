@@ -334,6 +334,9 @@ button.ov-r:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
    fallita, rosso) oppure non lo si interroga affatto: non verificabile (ambra). */
 .ov-detail li .ov-tag.p-snmpErr { color: var(--fault-color); border-color: var(--fault-color); }
 .ov-detail li .ov-tag.p-unverifiable { color: var(--idle-color); border-color: var(--idle-color); border-style: solid; }
+/* ③ Espansione: patch panel / appliance dentro «Porte libere» — hanno porte libere
+   ma non sono capacità switch, quindi il tag è muto (fuori dal numero grande). */
+.ov-detail li .ov-tag.p-nonSwitch { color: var(--text-muted); border-color: var(--hairline); border-style: dashed; }
 .ov-detail li button.ov-go {
     all: unset; cursor: pointer; padding: 2px 4px; border-radius: var(--radius-sm);
     display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; width: 100%;

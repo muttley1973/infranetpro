@@ -603,8 +603,8 @@ test('③ MARGINE: il margine e\' quello ONESTO (libere meno sospette)', () => {
   });
   const g = o.margin;
   assert.equal(rowOf(g, 'freePorts').value, 166, '181 libere − 15 viste attive');
-  assert.deepEqual(rowOf(g, 'freePorts').extra, { raw: 181, suspect: 15, bySpeed: [], noSpeed: 0 },
-    'il numero grezzo resta leggibile; senza velocita\' misurate la ripartizione e\' vuota, non zero-per-classe');
+  assert.deepEqual(rowOf(g, 'freePorts').extra, { raw: 181, suspect: 15 },
+    'il numero grezzo (raw−suspect = onesto) resta leggibile in extra');
   // Il click mostra, per ogni device, le libere sul totale, DISTINTI in rack e
   // fuori rack (prima i device in rack, piu' libere in cima, poi i liberi).
   assert.deepEqual(rowOf(g, 'freePorts').items.map((i) => [i.id, i.meta, i.of, i.group]),
@@ -613,28 +613,58 @@ test('③ MARGINE: il margine e\' quello ONESTO (libere meno sospette)', () => {
   assert.equal(g.headline.key, 'freePorts');
 });
 
-// «166 libere» non dice quanto puoi crescere finche' non sai se sono 1G o 10G. La
-// ripartizione vive DENTRO «Porte libere» come terza scheda del dettaglio, non in un
-// riquadro suo: e' un altro modo di guardare le stesse porte.
-test('③ Porte libere: la ripartizione per VELOCITA\' e\' una scheda del dettaglio', () => {
+// Il dettaglio di «Porte libere» ha DUE schede: «In rack» e «Fuori rack» (quest'ultima
+// = le prese a muro / ciò che sta sul piano). Niente scheda «Per velocità»: scelta di
+// prodotto (2026-08-02), il conteggio fuori-rack è più utile della ripartizione velocità.
+test('③ Porte libere: due schede — In rack / Fuori rack — niente «Per velocità»', () => {
   const o = buildOverview({
     types: TYPES, nodes: [{ id: 'sw1', type: 'switch' }],
-    spare: { totals: { free: 30, suspect: 0, ports: 48, freeSfp: 0,
-                       freeBySpeed: { 1000: 20, 10000: 4, 100: 1 }, freeNoSpeed: 5 },
-      racks: [{ devices: [{ id: 'sw1', total: 48, free: 30 }] }], unracked: [] },
+    spare: { totals: { free: 31, suspect: 0, ports: 49, freeSfp: 0 },
+      racks: [{ devices: [{ id: 'sw1', total: 48, free: 30, capClass: 'switch' }] }],
+      unracked: [{ id: 'wa1', total: 1, free: 1, capClass: 'other' }] },
     sfpTotal: 0, rackFill: [],
   });
   const r = rowOf(o.margin, 'freePorts');
-  assert.deepEqual(r.extra.bySpeed, [{ mbps: 10000, n: 4 }, { mbps: 1000, n: 20 }, { mbps: 100, n: 1 }],
-    'classi ordinate dalla piu\' veloce');
-  assert.equal(r.extra.noSpeed, 5, 'le porte senza velocita\' nota restano contate a parte');
-  const speed = r.items.filter((i) => i.group === 'speed');
-  assert.deepEqual(speed.map((i) => [i.id, i.metric, i.value]),
-    [[4, 'speedClass', 10000], [20, 'speedClass', 1000], [1, 'speedClass', 100], [5, 'speedNone', null]],
-    'una voce per classe + una per le porte di cui nessuno sa la velocita\'');
-  assert.equal(r.items.filter((i) => i.group === 'rack').length, 1, 'le schede per-apparato restano');
-  // Niente stringhe d'interfaccia nel motore: la parola «1 Gbps» la mette il renderer.
-  assert.ok(speed.every((i) => typeof i.id === 'number' && !/[a-z]/i.test(String(i.value == null ? '' : i.value))));
+  const groups = new Set(r.items.map((i) => i.group));
+  assert.ok(!groups.has('speed'), 'nessuna scheda «Per velocità»');
+  assert.deepEqual([...groups].sort(), ['loose', 'rack'], 'solo In rack / Fuori rack');
+  assert.equal(r.items.find((i) => i.id === 'wa1').tag, 'nonSwitch',
+    'la presa a muro sta in «Fuori rack», marcata «non switch»');
+  assert.equal(r.extra.bySpeed, undefined, 'niente ripartizione per velocità in extra');
+});
+
+// La testata «Porte libere» è la capacità SWITCH (dove attacchi un nuovo device);
+// patch panel/appliance hanno porte libere ma non sono fabric → contate a parte
+// (badge «+N non switch»), mai nel numero grande. Lo split arriva da byClass.
+test('③ Porte libere: la testata è la capacità SWITCH; il resto a parte (byClass)', () => {
+  const o = buildOverview({
+    types: TYPES, nodes: [{ id: 'sw1', type: 'switch' }],
+    spare: {
+      totals: { free: 55, suspect: 0, ports: 88, freeSfp: 0 },
+      byClass: {
+        switch: { free: 40, suspect: 0, ports: 48, freeBySpeed: {}, freeNoSpeed: 0 },
+        other: { free: 15, suspect: 0, ports: 40 },
+      },
+      racks: [{ devices: [
+        { id: 'sw1', total: 48, free: 40, capClass: 'switch' },
+        { id: 'pp1', total: 24, free: 9, capClass: 'other' },
+        { id: 'nvr1', total: 16, free: 6, capClass: 'other' },
+      ] }],
+      unracked: [],
+    },
+    sfpTotal: 0, rackFill: [],
+  });
+  const r = rowOf(o.margin, 'freePorts');
+  assert.equal(r.value, 40, 'il numero grande è la capacità switch onesta, non 55');
+  assert.equal(r.total, 48, 'su 48 porte switch, non 88');
+  assert.equal(r.extra.otherFree, 15, 'patch panel (9) + NVR (6) contati a parte');
+  assert.equal(r.extra.otherPorts, 40);
+  // I non-switch portano il tag «non switch» nel drill-down; lo switch no.
+  const tagById = {};
+  for (const it of r.items) tagById[it.id] = it.tag || null;
+  assert.equal(tagById.sw1, null, 'lo switch è capacità, niente tag');
+  assert.equal(tagById.pp1, 'nonSwitch');
+  assert.equal(tagById.nvr1, 'nonSwitch');
 });
 
 test('③ Indirizzi liberi: mostra i LIBERI (host del /24 meno gli usati), non gli usati', () => {

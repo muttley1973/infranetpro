@@ -80,3 +80,42 @@ test('input vuoto/nullo → report vuoto senza crash', () => {
   assert.deepEqual(r.racks, []);
   assert.deepEqual(r.freePids, []);
 });
+
+// La testata «Porte libere» conta gli SWITCH; il resto (patch panel/appliance) va
+// contato ma a parte. `byClass` separa le due popolazioni dallo stesso conteggio.
+test('byClass: switch vs other (patch panel/appliance contati a parte)', () => {
+  const mk = (id, type, freeN) => ({
+    id, type, rackId: 'r1',
+    ports: Array.from({ length: freeN }, (_, i) => p(`${id}-${i + 1}`, 'access', false)),
+  });
+  const r = buildSpareReport([
+    Object.assign(mk('sw1', 'switch', 40)),
+    Object.assign(mk('pp1', 'patchpanel', 24)),
+    Object.assign(mk('nvr1', 'nvr', 15)),
+  ]);
+  assert.equal(r.byClass.switch.free, 40, 'solo lo switch nella classe switch');
+  assert.equal(r.byClass.switch.ports, 40);
+  assert.equal(r.byClass.other.free, 39, 'patch panel (24) + NVR (15) = 39 a parte');
+  assert.equal(r.totals.free, 79, 'il totale resta la somma delle due classi');
+  // capClass finisce su ogni device: serve al drill-down per marcare i non-switch.
+  const devById = {};
+  for (const d of r.racks[0].devices) devById[d.id] = d;
+  assert.equal(devById.sw1.capClass, 'switch');
+  assert.equal(devById.pp1.capClass, 'other');
+  assert.equal(devById.nvr1.capClass, 'other');
+});
+
+// Le prese a muro NON gonfiano la capacità switch (sono 'other'), ma restano contate
+// come porte libere «fuori rack»: è il conteggio che l'utente vuole vedere lì.
+test('le prese a muro (wallport) contano come non-switch «fuori rack»', () => {
+  const r = buildSpareReport([
+    { id: 'sw1', type: 'switch', rackId: 'r1', ports: [p('sw1-1', 'access', false)] },
+    { id: 'wa1', type: 'wallport', rackId: null, ports: [p('wa1-1', 'access', false)] },
+  ]);
+  assert.equal(r.totals.devices, 2, 'switch + presa a muro');
+  assert.equal(r.byClass.switch.free, 1, 'lo switch è la sola capacità switch');
+  assert.equal(r.byClass.other.free, 1, 'la presa a muro conta come non-switch');
+  assert.equal(r.unracked.length, 1, 'senza rack → fuori rack');
+  assert.equal(r.unracked[0].capClass, 'other');
+  assert.deepEqual(r.freePids.sort(), ['sw1-1', 'wa1-1']);
+});
