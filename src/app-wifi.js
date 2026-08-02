@@ -18,7 +18,6 @@ import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (e
 import { escapeHTML } from './app-util.js';
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, _showToast, _invalidateIdx, _linksForPort, _nodeRadios, _isRadioPid, setNodeRadioCount } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*) + (ASSE B coda) numero radio
 import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: voce menu Report + (coda) pannello wireless via event delegation
-import { closeReportMenu } from './app-auth.js';   // ASSE B: chiude il dropdown Report (proprietario = app-auth)
 import { propagateVlans, _ensureVlanColor, _getLinkTrunk } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps, _propsSectionIsOpen, _buildPropsHeader } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -568,28 +567,18 @@ function _buildWifiVlanInput(){
     // dell'AP by-design. Il report resta focalizzato sul lato AP (ssid-not-in-trunk).
     return { aps, clients };
 }
-function _wifiVlanIssues(){ return (typeof win.wifiVlanIssues==='function') ? win.wifiVlanIssues(_buildWifiVlanInput()) : []; }
+function _wifiVlanIssues(){ return wifiVlanCoherence().issues; }   // delega: UN solo win.wifiVlanIssues (in wifiVlanCoherence)
 
-function _closeWifiVlanReport(){ const ov=document.getElementById('wifivlan-overlay'); if(ov) ov.style.display='none'; }
-function openWifiVlanReport(){
-    const _t = t;
-    let ov = document.getElementById('wifivlan-overlay');
-    if(!ov){
-        ov = document.createElement('div'); ov.id='wifivlan-overlay'; ov.className='drift-overlay';
-        document.body.appendChild(ov);
-        ov.addEventListener('mousedown', e => { if(e.target===ov) _closeWifiVlanReport(); });
-    }
-    const issues = _wifiVlanIssues();
-    const body = issues.length ? issues.map(is => {
-        const msg = is.kind==='ssid-not-in-trunk'
-            ? _t('wifi.issueSsidTrunk', { ssid:is.ssid, vlan:is.vlan, ap:is.ap })
-            : _t('wifi.issueClientVlan', { client:is.client, vlan:is.vlan, ap:is.ap });
-        return `<div class="cable-validate-row lvl-warn"><i class="fas fa-triangle-exclamation"></i><div class="cable-validate-txt"><span>${escapeHTML(msg)}</span></div></div>`;
-    }).join('') : `<div class="drift-empty">${escapeHTML(_t('wifi.coherenceOk'))}</div>`;
-    ov.innerHTML = `<div class="drift-modal"><div class="drift-head"><span><i class="fas fa-wifi"></i> ${escapeHTML(_t('report.wifiVlan'))}</span>`
-        + `<button class="toolbar-btn" data-act="wifi-report-close" data-tip="${escapeHTML(_t('common.close'))}"><i class="fas fa-times"></i></button></div>`
-        + `<div class="drift-body" style="padding:12px">${body}</div></div>`;
-    ov.style.display='flex';
+// Segnale per la Panoramica (⑤ Sicurezza): coerenza VLAN wireless come DATO grezzo,
+// riusando lo STESSO input e motore del vecchio report (un solo calcolo, niente
+// duplicazione). issues = SSID la cui VLAN non è nel trunk dell'uplink dell'AP;
+// apCount = quanti AP trasmettono SSID (→ 'none' quando non c'è wireless documentato).
+// L'overlay standalone è stato RITIRATO: il verdetto + le righe vivono ora nella
+// Panoramica (lente ⑤), il menu «Report e analisi» è assorbito nella Dashboard.
+export function wifiVlanCoherence(){
+    const input = _buildWifiVlanInput();
+    const issues = (typeof win.wifiVlanIssues==='function') ? win.wifiVlanIssues(input) : [];
+    return { issues, apCount: (input.aps || []).length };
 }
 
 // ── Pubblicazione sul ponte ──────────────────────────────────────────
@@ -598,7 +587,7 @@ function openWifiVlanReport(){
 // smoke esercita direttamente (_wifiCfgHtml, _wifiVlanIssues).
 expose({
     updateRadioCfg, setRadioLabel, updateBssCfg, addBss, removeBss, selectRadioIface,
-    addSsidForVlan, setClientAssoc, _pickBss, _closeBssMenu, _closeWifiVlanReport,
+    addSsidForVlan, setClientAssoc, _pickBss, _closeBssMenu,
     _assignWirelessBss, _renderRadioProps, _wifiAssocHtml,
     _radioIfacesHtml, _wifiCfgHtml, _wifiVlanIssues,
 });
@@ -618,13 +607,11 @@ registerChangeActions({
     'client-assoc': (el) => setClientAssoc(el.dataset.pid, el.value),
 });
 registerClickActions({
-    'report-wifi':          () => { openWifiVlanReport(); closeReportMenu(); },   // voce menu Report (ex win.openWifiVlanReport)
     'radio-remove-bss':     (el) => removeBss(el.dataset.nid, +el.dataset.idx, el.dataset.sid),
     'radio-add-bss':        (el) => addBss(el.dataset.nid, +el.dataset.idx),
     'radio-select-iface':   (el) => selectRadioIface(el.dataset.nid, +el.dataset.idx),
     'radio-add-ssid-vlan':  (el) => addSsidForVlan(el.dataset.nid, +el.dataset.vlan),
     'bss-pick':             (el) => _pickBss(el.dataset.lid, el.dataset.sid),
     'bss-menu-close':       () => _closeBssMenu(),
-    'wifi-report-close':    () => _closeWifiVlanReport(),
     'wifi-assoc-open':      (el) => { store.selType = 'link'; store.selId = el.dataset.lid; renderAll(); renderProps(); },
 });

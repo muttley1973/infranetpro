@@ -1165,6 +1165,35 @@ test('⑤ Sicurezza: tutto v3 con VLAN di gestione → verde; senza VLAN di gest
   assert.equal(rowOf(noVlan, 'secMgmtVlan').prov, 'none');
 });
 
+test('⑤ Sicurezza: coerenza VLAN wireless — SSID fuori dal trunk emerge; senza AP la riga è neutra', () => {
+  const snmpOk = { id: 'sw1', type: 'switch', integration: { driver: 'snmp-v3', v3user: 'u' } };
+  const issues = [{ kind: 'ssid-not-in-trunk', ssid: 'Guest', vlan: 40, ap: 'AP-1' }];
+
+  // Senza AP con SSID → riga neutra (prov 'none', value null); non tocca il verdetto SNMP.
+  const none = buildOverview({ types: DR_TYPES, nodes: [snmpOk], mgmtVlans: [10] }).security;
+  assert.equal(rowOf(none, 'secWifiVlan').prov, 'none', 'senza wireless documentato la riga è neutra');
+  assert.equal(rowOf(none, 'secWifiVlan').value, null);
+  assert.equal(none.health.level, 'ok', 'il wireless assente non altera il verde SNMP');
+
+  // Un SSID con VLAN fuori dal trunk → 1 problema, drill-down, verdetto almeno giallo.
+  const bad = buildOverview({ types: DR_TYPES, nodes: [snmpOk], mgmtVlans: [10], wifiApCount: 2, wifiVlanIssues: issues }).security;
+  const r = rowOf(bad, 'secWifiVlan');
+  assert.equal(r.prov, 'declared', 'con AP che trasmettono SSID la coerenza è valutata');
+  assert.equal(r.value, 1);
+  assert.equal(r.tone, 'alert');
+  assert.deepEqual(r.items, [{ id: 'SSID «Guest» · VLAN 40', meta: 'AP-1' }], 'il drill-down elenca l\'SSID incoerente');
+  assert.equal(bad.health.level, 'warn', 'un SSID fuori dal trunk porta ⑤ ad almeno giallo');
+
+  // AP con SSID ma coerenti → 0 problemi, non abbassa un verde.
+  const okw = buildOverview({ types: DR_TYPES, nodes: [snmpOk], mgmtVlans: [10], wifiApCount: 1, wifiVlanIssues: [] }).security;
+  assert.equal(rowOf(okw, 'secWifiVlan').value, 0, 'wireless coerente = 0 problemi');
+  assert.equal(okw.health.level, 'ok', 'wireless coerente non abbassa il verde');
+
+  // Wireless incoerente SENZA SNMP: la lente non resta grigia, sale a giallo (mai verde).
+  const wifiOnly = buildOverview({ types: DR_TYPES, nodes: [{ id: 'ap1', type: 'ap' }], mgmtVlans: [10], wifiApCount: 1, wifiVlanIssues: issues }).security;
+  assert.equal(wifiOnly.health.level, 'warn', 'un problema wireless emerge anche senza SNMP');
+});
+
 test('⑤ Sicurezza: progetto senza apparati gestiti → lente vuota (managed 0), verdetto neutro, nessun throw', () => {
   const s = buildOverview({ types: DR_TYPES, nodes: [{ id: 'pc1', type: 'pc', ip: '10.0.0.5' }] }).security;
   assert.equal(s.managed, 0);

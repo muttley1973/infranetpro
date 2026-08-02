@@ -170,19 +170,12 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         // Pannello associazione: eredita il Wi-Fi dell'AP servente.
         const assoc = _wifiAssocHtml(wl);
 
-        // Report coerenza VLAN wireless: apre l'overlay via event delegation (ASSE B:
-        // openWifiVlanReport è una voce del menu Report con data-act, non su window), poi lo chiude.
-        const reportDelegatedGone = typeof window.openWifiVlanReport === 'undefined';
-        document.querySelector('[data-act="report-wifi"]').click();
-        const ov = document.getElementById('wifivlan-overlay');
-        const reportOpen = !!ov && ov.style.display === 'flex';
-        _closeWifiVlanReport();
-        const reportClosed = !!ov && ov.style.display === 'none';
+        // Il report «Coerenza VLAN wireless» è ASSORBITO nella Panoramica (lente ⑤,
+        // verdetto pieno nel motore lib/overview.js) — l'overlay standalone è ritirato.
 
-        // cleanup: niente overlay/selezione residua per i test successivi.
+        // cleanup: niente selezione residua per i test successivi.
         selType = null; selId = null;
         const bm = document.getElementById('bss-menu-overlay'); if (bm) bm.remove();
-        if (ov) ov.remove();
 
         return {
           bss: wl.bss,
@@ -191,7 +184,6 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           radioPanelHasAddBtn: /data-act="radio-add-bss"/.test(radioPanelHtml),   // ASSE B: ex addBss( inline
           ssN, bidOk: !!bid,
           assocInherits: assoc.indexOf('Corp') >= 0,
-          reportOpen, reportClosed, reportDelegatedGone,
         };
       });
       assert.equal(r.bss, 's1', 'associazione automatica al BSS unico (s1)');
@@ -201,9 +193,6 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.radioPanelHasAddBtn, 'il pannello radio offre "Aggiungi SSID" (addBss)');
       assert.equal(r.ssN, 2, 'addBss aggiunge un secondo SSID (Corp + Guest)');
       assert.ok(r.assocInherits, 'il pannello associazione eredita l’SSID Corp dall’AP');
-      assert.ok(r.reportDelegatedGone, 'ASSE B: openWifiVlanReport ritirata dal ponte (voce "VLAN Wi-Fi" del menu Report via data-act)');
-      assert.ok(r.reportOpen, 'la voce "VLAN Wi-Fi" del menu Report (data-act) apre l’overlay');
-      assert.ok(r.reportClosed, '_closeWifiVlanReport chiude l’overlay');
     });
 
     await t.test('app-properties-floor migrato: pannello contesto progetto + IPAM cross-boundary (_vlanIpamOpen)', async () => {

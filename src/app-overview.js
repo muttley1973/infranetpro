@@ -26,6 +26,7 @@ import { _driftRowHtml, _driftNetworksSection } from './app-drift.js';   // B3/B
 import { registerClickActions } from './app-delegation.js';
 import { setPropsSectionState } from './app-properties.js';   // click «Subnet»/«Indirizzi liberi» → pannello VLAN (dove le reti si DICHIARANO)
 import { _ipamAuditReport } from './app-l3.js';   // ② «Vero»: igiene IPAM (IP duplicati + overlap subnet), stesso modello dell'overlay L3 (include gli IP VM)
+import { wifiVlanCoherence } from './app-wifi.js';   // ⑤ «Sicurezza»: coerenza VLAN wireless (stesso motore del vecchio report, ora assorbito nella Dashboard)
 import { buildOverview, _rackFill } from '../lib/overview.js';
 import { computeHealthAlerts } from '../lib/health-alerts.js';   // ⑥ Salute live: soglie DOCUMENTATE una volta sola (le stesse che legge l'assistente AI)
 
@@ -252,6 +253,10 @@ function _buildModel() {
     // null = non valutata: la riga lo dirà, invece di dichiarare zero conflitti.
     let ipamAudit;
     try { ipamAudit = _ipamAuditReport(); } catch (_) { ipamAudit = null; }
+    // ⑤ Coerenza VLAN wireless: la Panoramica la RACCONTA (stesso motore del report),
+    // non la ricalcola. { issues, apCount } grezzi → il motore (lib) fa la riga.
+    let wifiCoh;
+    try { wifiCoh = wifiVlanCoherence(); } catch (_) { wifiCoh = { issues: [], apCount: 0 }; }
 
     // Presenza per apparato (advisory, lente «Ripristinabilità»): piega le observation
     // di discovery sul nodo — via MAC noto o IP — e ne ricava «visto di recente» vs
@@ -309,6 +314,7 @@ function _buildModel() {
         // con la Verifica (per rivederlo dopo un Sync si ri-esegue la Verifica).
         driftLive: (store._driftReport && store._driftReport._fromVerify) ? store._driftReport : null,
         mgmtVlans: Array.isArray(st.mgmtVlans) ? st.mgmtVlans : [],   // ⑤ Sicurezza: VLAN marcate «di gestione» (segmentazione)
+        wifiVlanIssues: wifiCoh.issues, wifiApCount: wifiCoh.apCount,   // ⑤ Sicurezza: coerenza VLAN wireless (SSID fuori dal trunk)
         // Solo un admin vede QUALE default (public/private/vuota) usa una community: il
         // motore emette il tag unicamente se questo è vero (un viewer non lo riceve mai).
         isAdmin: !!(store._currentUser && store._currentUser.role === 'admin'),
@@ -364,6 +370,7 @@ function _tileValue(r) {
         case 'secSnmp':      return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), t('ov.of', { n: r.total })];
         case 'secCommunity': return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), ''];
         case 'secMgmtVlan':  return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), ''];
+        case 'secWifiVlan':  return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), ''];
         case 'neighbors':    return [_n(r.value), ''];
         case 'lags':         return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), ''];
         case 'verify':       return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), ''];
@@ -585,6 +592,9 @@ function _tileStatus(r) {
         case 'secMgmtVlan':  return r.prov === 'none'
             ? { w: t('ov.sx.vlanNone'), tone: 'none' }
             : { w: t('ov.sx.vlanSep', { n: r.value }), tone: 'info' };
+        case 'secWifiVlan':  return r.prov === 'none'
+            ? { w: t('ov.sx.wifiNa'), tone: 'none' }
+            : (r.value > 0 ? { w: t('ov.sx.wifiIssues', { n: r.value }), tone: 'warn' } : { w: t('ov.sx.wifiOk'), tone: 'ok' });
         // ⑥ SALUTE LIVE — telemetria misurata (RAM/dischi · UPS · consumabili).
         // «Quando» in cima: una misura senza data non vale come «adesso».
         case 'hlReading':    return r.prov === 'none'
