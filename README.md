@@ -121,9 +121,9 @@ Double-click <code>avvia.bat</code>.<br>
 
 > **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then run **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.5.0) — the Dashboard is the single place, and its numbers mean what they say.** The **"Report e analisi" menu folds into the tiles** it belonged to, a new Security verdict flags **wireless SSIDs whose VLAN their access point's trunk does not carry**, and **"Free ports" now counts switch capacity** — patch panels, appliances and wall outlets are counted apart, so the headline is the port a new device can actually use.
+> 📰 **What's new (v2.5.1) — cable traces follow the physical path, and custom values stay saved.** The visible run now follows **device → wall port → patch panel → switch**, or the direct **device → switch** path, without drifting to hidden coordinates; custom manual properties also survive re-rendering.
 >
-> 📰 **Before that (v2.4.0) — one thing at a time, and say what you are hiding.** The topology legend stops dimming what you filter out and starts removing it, then puts the count on the pill. Two legend filters **cycle through three states** — wired / wireless and trunk / access — every **fan-out cable is clickable**, not only the open rack's, and a **passive hop can be declared occupied**. Full detail in [CHANGELOG.md](CHANGELOG.md).
+> 📰 **Before that (v2.5.0) — the Dashboard is the single place, and its numbers mean what they say.** The **"Report e analisi" menu folds into the tiles** it belonged to, a new Security verdict flags **wireless SSIDs whose VLAN their access point's trunk does not carry**, and **"Free ports" now counts switch capacity** — patch panels, appliances and wall outlets are counted apart, so the headline is the port a new device can actually use. Full detail in [CHANGELOG.md](CHANGELOG.md).
 
 > 🔒 **Security-audited & hardened.** The codebase has undergone an application-security audit (no critical issues) and the follow-up fixes are covered by **automated security regression tests**: the data surfaces (AI context, REST DTOs, exports) are **allowlist-only** so secrets never leave the machine, OS commands run via `execFile` with no shell, project IDs are path-traversal-safe, and secrets use a CSPRNG. See [Authentication & Roles → Security hardening & audit](#authentication--roles).
 
@@ -1044,5 +1044,4 @@ PARTICULAR PURPOSE. See the GNU AGPL for more details.
 <a href="https://ko-fi.com/infranetpro"><img height="32" alt="Support InfraNet Pro on Ko-fi" src="https://ko-fi.com/img/githubbutton_sm.svg"></a>
 
 </div>
-
 

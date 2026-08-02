@@ -4,6 +4,17 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 
 **A linked version number is a published release** — follow it to the release on GitHub. *Unreleased* is what has landed on `main` since the last one.
 
+## [2.5.1](https://github.com/muttley1973/infranetpro/releases/tag/v2.5.1) — 2026-08-02
+
+**Cable traces now follow the documented physical path, and custom values stay saved.**
+
+### Fixed
+- Cable rendering now ignores property-panel controls that reuse a port ID, so traces no longer start from hidden `0×0` coordinates. The visible path remains `device → wall port → patch panel → switch`, or the direct `device → switch` path.
+- Custom manual property values persist after the delegated form re-renders.
+
+### Changed
+- The header's right-hand cluster is evenly spaced and grouped with the same dividers the left side uses.
+
 ## [2.5.0](https://github.com/muttley1973/infranetpro/releases/tag/v2.5.0) — 2026-08-02
 
 **The Dashboard is the single place, and its numbers say what they mean.** The "Report e analisi" menu folds into the tiles it belonged to, a new Security verdict flags wireless SSIDs whose VLAN their access point's trunk does not carry, and "Free ports" stops counting patch panels, appliances and wall outlets as switch capacity — the headline is the port a new device can actually use.
