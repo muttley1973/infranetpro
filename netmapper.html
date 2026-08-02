@@ -115,13 +115,14 @@
                 data-tip="Scansiona la rete via SNMP, poi espande automaticamente via LLDP/CDP">
             <i class="fas fa-satellite-dish"></i><span class="btn-label" data-i18n="discover.label"> Scopri</span>
         </button>
-        <span style="width:1px;height:18px;background:var(--panel-border);opacity:.5;flex-shrink:0;align-self:center"></span>
+        <div class="header-sep"></div>
         <button class="status-chip s-warn" id="v3-pending-chip" onclick="_v3JumpNext()" data-tip="Device SNMPv3 da configurare — clic per saltare al prossimo"></button>
         <button class="toolbar-btn primary" id="btn-drift" onclick="runDriftCheck()"
                 data-i18n-tip="verify.tip"
                 data-tip="Controllo completo: rilegge i dati SNMP, ricostruisce la topologia e verifica la presenza reale (ping/ARP/TCP), evidenziando differenze e cambi IP">
             <i class="fas fa-clipboard-check"></i><span class="btn-label" data-i18n="verify.label"> Verifica</span>
         </button>
+        <div class="header-sep"></div>
         <!-- «Report e analisi» è stato ASSORBITO nella Dashboard (porte libere e mappa L3
              nei drill-down dei tile, coerenza VLAN wireless come verdetto ⑤ Sicurezza).
              Resta la sola «Storia modifiche», ora bottone header autonomo (il log è un
@@ -133,7 +134,7 @@
                 data-i18n-tip="assistant.toolbarTip" data-tip="Impostazioni assistente (admin) · la chat si apre dalla tab «Assistente» o col tasto A">
             <i class="fas fa-robot"></i><span class="btn-label" data-i18n="assistant.label"> Assistente</span>
         </button>
-        <span style="width:1px;height:18px;background:var(--panel-border);opacity:.5;flex-shrink:0;align-self:center"></span>
+        <div class="header-sep"></div>
         <div id="automation-menu-wrap" style="position:relative">
             <button class="toolbar-btn icon-only" id="btn-automation" onclick="toggleAutomationMenu()" data-i18n-tip="autom.tip" data-tip="Automazioni di rete: polling SNMP in background e rinnovo automatico IP (DHCP)">
                 <i class="fas fa-gear"></i><span class="btn-label" data-i18n="autom.label"> Automazioni</span><i class="fas fa-chevron-down" style="font-size:0.6rem;margin-left:4px;opacity:.6"></i>

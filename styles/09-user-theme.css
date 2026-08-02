@@ -205,7 +205,16 @@
            etichette (Dashboard·Salva·Scopri·Verifica) + il fiato per il contatore che si
            allarga col numero. Il tier ≤1737 riporta gap a 5 e ricerca a 158. */
         header { gap: 6px; }
-        .header-right { gap: 4px; }
+        /* Cluster destro con lo STESSO passo del resto dell'header (6px): spazio
+           regolare a destra come a sinistra, i separatori `.header-sep` cadono nel
+           medesimo ritmo. Sui monitor stretti il tier ≤1420 lo riporta a 4px. */
+        .header-right { gap: 6px; }
+        /* Il contatore di freschezza è un RIQUADRO: bordo visibile + angoli
+           arrotondati come i bottoni (radius-md), non una pillola senza bordo. Quando
+           il dato è fresco le classi di tono (s-ok/s-warn…) danno il loro colore al
+           bordo; su «mai» resta il bordo neutro. `header .sync-fresh-chip` (0,1,1)
+           batte sia `.status-chip` sia il pill di 10-modern. */
+        header .sync-fresh-chip { border-color: var(--panel-border); border-radius: var(--radius-md); }
 
         /* Il chip mostra SEMPRE la freschezza (l'età dell'ultima lettura): il
            conteggio ok/tot vive nella sotto-header, quindi qui non c'è più il
@@ -216,6 +225,7 @@
             .search-panel { flex: 0 1 96px; min-width: 60px; }
             .sync-fresh-chip { padding: 4px 9px; font-size: var(--fs-sm); }
             .sync-fresh-chip .sync-fresh-ico { font-size: .78rem; }
+            .header-right { gap: 4px; }   /* sotto i 1420 il cluster torna stretto per restare su una riga */
         }
         /* ≤1280px (schermi 1280/1152 o zoom del browser su monitor più grandi):
            ultimo giro di compattazione — padding ridotto, ricerca e selettore progetto
