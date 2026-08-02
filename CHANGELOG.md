@@ -8,6 +8,7 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 
 ### Added
 - Dashboard: the **Live reading** and **Management VLAN** tiles now open a list — the SNMP targets (the silent ones first, marked *no reading*, then the ones that answered), and each management VLAN **by name** (declared, or measured over SNMP; there can be more than one).
+- Dashboard: a **wireless VLAN coherence** verdict in the Security lens — how many SSIDs advertise a VLAN their access point's uplink trunk does not carry; the drill-down lists the out-of-place SSIDs with their AP, and zero means coherent. An SSID outside the trunk turns the lens amber.
 
 ### Changed
 - The **Overview is renamed Dashboard** throughout the UI — the toolbar button, the breadcrumb, the tooltips and the dossier's section title.
@@ -15,6 +16,7 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 - The **freshness chip** shows the age of the last SNMP read again — colour-coded — instead of the response count: the count already lives in the status bar with its dot, and the full result (how many devices answered) moves to the chip's tooltip. The age had been hidden on every viewport ≤1980px CSS — which is nearly any monitor, a 1080p screen or a 4K one at Windows' default 200% scaling both reporting 1920px — leaving only the count on the chip.
 - Dashboard: the **Gateway** tile opens the full **subnet → gateway** map — the ones without a gateway first, then each declared subnet with its gateway — instead of only the gaps, and stays clickable when none are missing.
 - Dashboard: the **Default community** tile shows an administrator *which* known default a device uses (public / private / empty), as a marker the renderer resolves; the raw value still never leaves the engine, and a custom community is never surfaced.
+- The **"Report e analisi" menu is absorbed into the Dashboard**: the free-ports table and the L3/gateway map — both with CSV export — now open from their tile drill-downs, and the wireless-VLAN coherence report becomes a Security-lens verdict. The header keeps only **Change history**, as a standalone button: a log over time is not a state snapshot, so it stays out of the Dashboard.
 
 ## [2.4.0](https://github.com/muttley1973/infranetpro/releases/tag/v2.4.0) — 2026-07-31
 
