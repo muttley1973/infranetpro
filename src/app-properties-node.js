@@ -38,10 +38,17 @@ import { toggleRoomLock, _liveStructColor, _liveStructOpacity, moveNodeToRack } 
 
 // updateN(field, value): coercizione del valore in data-ncoerce — (assente)=stringa
 //   · num=+value · int=normalizeNumber(v,def,min,max) · int-empty=''→undefined
-//   altrimenti come int (campo fontSize, che ammette "auto").
+//   · intdef=parseInt(v,10)||data-ndef · floatdef=parseFloat(v)||data-ndef · bool=el.checked
+// intdef/floatdef/bool servono la catena device-spec (app-properties-node-devices.js,
+// Blocco 5): preservano ESATTAMENTE il vecchio inline `parseInt(v)||N` / `parseFloat(v)||N`
+// / `this.checked` — SENZA il clamp min/max di `int` (lì min/max erano solo hint HTML,
+// mai applicati in JS: mapparli su `int` avrebbe cambiato il comportamento).
 function _nVal(el){
     const c = el.dataset.ncoerce;
     if(c === 'num') return +el.value;
+    if(c === 'bool') return el.checked;
+    if(c === 'intdef')   return parseInt(el.value, 10) || +el.dataset.ndef;
+    if(c === 'floatdef') return parseFloat(el.value)  || +el.dataset.ndef;
     if(c === 'int' || c === 'int-empty'){
         if(c === 'int-empty' && el.value === '') return undefined;
         return normalizeNumber(el.value, +el.dataset.ndef, +el.dataset.nmin, +el.dataset.nmax);

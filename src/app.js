@@ -2594,6 +2594,10 @@ async function init(){
 // per registrarle come azioni delegate (ex onchange/onclick inline). Restano anche
 // in expose() finche' le superfici non migrate le usano.
 export { updateN, updateFrontPanel, deleteNode, visibleUToRackU };
+// ASSE B (Blocco 5): la catena device-spec (app-properties-node-devices.js) importa queste
+// per registrarle come azioni delegate (ex onchange inline updateFloorId/updateWallPortId/
+// _toggleArrayField). Restano anche in expose() per le superfici non migrate.
+export { updateFloorId, updateWallPortId, _toggleArrayField };
 
 // ============================================================
 // EXPOSE — tutte le funzioni top-level del nucleo su window, come quando

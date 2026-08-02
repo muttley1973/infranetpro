@@ -787,7 +787,26 @@ function countInlineHandlers() {
 // `lag-cancel`. I 3 bottoni header sono le azioni CONDIVISE di app-properties.js. Golden:
 // scope:node (per-device) + scope:port/port-passive, verificato handler-only su tutti i 45
 // scenari (strip on*/data-* → identico); il banner LAG non e' nel golden.
-const MAX_INLINE_HANDLERS = 338;
+//
+// −198 (338 → 140), Blocco 5 — CATENA DEVICE-SPEC (app-properties-node-devices.js), il
+// file piu' grosso dell'ASSE B. I ~40 rami per-tipo (ap/webcam/printer/voip/pc/mobile/
+// nas/router/firewall/server/ups/pdu/ats/…) portavano 198 onchange inline. Convertiti a
+// event delegation: 163 updateN → data-change="update-n" (campo in data-nfield, coercizione
+// in data-ncoerce) riusando l'azione GIA' registrata in app-properties-node.js (Blocco 4) —
+// il pannello NODE e la catena device-spec sono la STESSA superficie, un solo listener. Il
+// coercitore _nVal e' stato esteso con 3 modi che preservano ESATTAMENTE il vecchio inline:
+// `intdef`=parseInt(v,10)||data-ndef, `floatdef`=parseFloat(v)||data-ndef, `bool`=el.checked
+// (NON riusati `int`, che clampava a min/max: qui min/max erano solo hint HTML, mai applicati
+// in JS → riusarli avrebbe cambiato il comportamento). Le 4 azioni tail-free SOLO di questa
+// superficie (floor-id/wallport-id/toggle-array/endpoint-vlan) sono registrate LOCALMENTE nel
+// modulo (updateFloorId/updateWallPortId/_toggleArrayField da app.js; setEndpointVlan da
+// app-vlan-autopoll — tutte passate a `export`, restano in expose() per i non migrati).
+// Il builder manual-value (_enableManualValueInProps) era GIA' delegation-aware (dispatcha un
+// 'change' bubbling sulle select senza onchange) → nessun cambio, solo verifica live del
+// flusso «Personalizzato…». Golden rigenerato: 33 scenari device cambiano SOLO gli attributi,
+// verificato handler-only su tutti i 45 (strip on*/data-* → identico); 2 selettori e2e
+// (updateN('brand'→data-nfield, setEndpointVlan(→data-change=endpoint-vlan) aggiornati.
+const MAX_INLINE_HANDLERS = 140;
 test('ponte ASSE B: gli handler inline on*= non superano il tetto a cricchetto', () => {
   const total = countInlineHandlers();
   assert.ok(total <= MAX_INLINE_HANDLERS,

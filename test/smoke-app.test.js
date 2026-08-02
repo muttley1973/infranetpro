@@ -248,7 +248,7 @@ test('vlan CATENA COMPLETA: switchport → run (patch/presa) → endpoint/porta 
       // VLAN è propagata (FASE 1) il campo resta in sola lettura.
       state.nodes.push({id:'pcStd',type:'pc',name:'PC-STD',x:500,y:500,ports:1});
       _invalidateIdx&&_invalidateIdx(); propagateVlans();
-      const pcStdEditable = /onchange="setEndpointVlan\\('pcStd'/.test(panel('port','pcStd-1'));
+      const pcStdEditable = /data-change="endpoint-vlan"[^>]*data-nid="pcStd"/.test(panel('port','pcStd-1'));   // ASSE B: ex onchange="setEndpointVlan('pcStd',…)"
       selType='node'; selId='pcStd'; setEndpointVlan('pcStd','pcStd-1','30');
       const f4 = { editable:pcStdEditable, ovr:(state.ports['pcStd-1']||{}).vlanOvr,
                    eff:_effPortVlan('pcStd-1'), keptSel:(selType==='node'&&selId==='pcStd') };
@@ -756,7 +756,7 @@ test('porta: endpoint floor — Stato/Velocità read-only, VLAN editabile (overr
         return { statusEdit:/data-change="port-field"[^>]*data-pfield="statusOvr"/.test(h),
                  speedEdit:/data-change="port-speed"/.test(h),
                  vlanEditPort:/data-change="port-field"[^>]*data-pfield="vlanOvr"/.test(h),
-                 vlanEditEndpoint:/onchange="setEndpointVlan\\(/.test(h),
+                 vlanEditEndpoint:/data-change="endpoint-vlan"/.test(h),   // ASSE B: ex onchange="setEndpointVlan(…)"
                  hasVlanLabel:/>VLAN</.test(h) };
       };
       return JSON.stringify({ ok:true, pc:probe('pc6-1'), sw:probe('sw-1'), wp:probe('wp-1') });

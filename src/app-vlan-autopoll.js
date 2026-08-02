@@ -988,6 +988,9 @@ export {
 // ASSE B: pannello PORTA / popup porta importano queste per la registrazione delegata
 // (ex onchange/onclick inline). Restano anche in expose() per le superfici non migrate.
 export { setPortMode, setPortTrunkVlans, setNodeVoiceVlan };
+// ASSE B (Blocco 5): la catena device-spec floor importa setEndpointVlan per la riga VLAN
+// endpoint editabile (ex onchange="setEndpointVlan(...)"). Resta anche in expose().
+export { setEndpointVlan };
 
 expose({
     _ensureVlanColor, setAutoPoll, _startAutoPoll, _stopAutoPoll, _updateAutoPollBadge,

@@ -617,10 +617,10 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         const vlanRow = _floorAccessVlanRow(pc);
 
         return {
-          pcFloorBranch: (pcChain.h || '').indexOf("updateN('brand'") >= 0,
+          pcFloorBranch: (pcChain.h || '').indexOf('data-nfield="brand"') >= 0,   // ASSE B: ex onchange="updateN('brand',…)"
           pcHasDell: (pcChain.h || '').indexOf('Dell') >= 0,
           srvRackBranch: (srvChain.devSpec || '').indexOf('device-server') >= 0,
-          vlanRowOk: (vlanRow || '').indexOf('setEndpointVlan(') >= 0,
+          vlanRowOk: (vlanRow || '').indexOf('data-change="endpoint-vlan"') >= 0,   // ASSE B: ex onchange="setEndpointVlan(…)"
         };
       });
       assert.ok(r.pcFloorBranch, '_nodeDeviceChainHtml: ramo FLOOR (pc) popola h con i campi device');
