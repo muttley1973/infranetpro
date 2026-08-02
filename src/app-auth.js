@@ -85,10 +85,10 @@ function closeImpExpMenu(){
     if(d) d.style.display='none';
 }
 
-function toggleReportMenu(){
-    const d=document.getElementById('report-dropdown');
-    if(d) d.style.display=d.style.display==='none'?'block':'none';
-}
+// «Report e analisi» assorbito nella Dashboard: niente più dropdown Report — resta la
+// sola «Storia modifiche» come bottone header autonomo (data-act="report-audit"). Il
+// toggle del menu è stato ritirato. closeReportMenu resta come no-op difensivo: la
+// chiama ancora openL3Report (app-l3) dopo l'assorbimento; senza dropdown è innocua.
 export function closeReportMenu(){
     const d=document.getElementById('report-dropdown');
     if(d) d.style.display='none';
@@ -97,7 +97,6 @@ export function closeReportMenu(){
 document.addEventListener('click', e=>{
     if(!e.target.closest('#user-menu-wrap')) closeUserMenu();
     if(!e.target.closest('#impexp-menu-wrap')) closeImpExpMenu();
-    if(!e.target.closest('#report-menu-wrap')) closeReportMenu();
     // Popover "Automazioni rete": chiudi cliccando fuori, ma il badge auto-poll
     // (#autopoll-badge, nell'area di stato) lo APRE → escludilo dalla chiusura.
     if(!e.target.closest('#automation-menu-wrap') && !e.target.closest('#autopoll-badge')){
@@ -370,7 +369,6 @@ registerClickActions({
     'change-password':   () => { openChangePassword(); closeUserMenu(); },
     'lang-switch':       (el) => switchLang(el.dataset.lang),
     'logout':            () => doLogout(),
-    'report-menu-toggle': () => toggleReportMenu(),
     // Modale utenti/accessi
     'um-backdrop':   (el, ev) => { if (ev.target === el) closeUserManager(); },
     'um-close':      () => closeUserManager(),

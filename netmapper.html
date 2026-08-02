@@ -122,16 +122,13 @@
                 data-tip="Controllo completo: rilegge i dati SNMP, ricostruisce la topologia e verifica la presenza reale (ping/ARP/TCP), evidenziando differenze e cambi IP">
             <i class="fas fa-clipboard-check"></i><span class="btn-label" data-i18n="verify.label"> Verifica</span>
         </button>
-        <div id="report-menu-wrap" style="position:relative">
-            <button class="toolbar-btn icon-only" id="btn-report" data-act="report-menu-toggle" data-i18n-tip="report.tip" data-tip="Report e analisi: storia modifiche, porte libere, mappa L3, coerenza VLAN">
-                <i class="fas fa-chart-column"></i><span class="btn-label" data-i18n="report.label"> Report</span><i class="fas fa-chevron-down" style="font-size:0.6rem;margin-left:4px;opacity:.6"></i>
-            </button>
-            <div id="report-dropdown" class="header-menu-dropdown" style="display:none">
-                <button class="header-menu-item" id="btn-audit" data-act="report-audit">
-                    <i class="fas fa-clock-rotate-left"></i> <span data-i18n="report.audit">Storia modifiche</span>
-                </button>
-            </div>
-        </div>
+        <!-- «Report e analisi» è stato ASSORBITO nella Dashboard (porte libere e mappa L3
+             nei drill-down dei tile, coerenza VLAN wireless come verdetto ⑤ Sicurezza).
+             Resta la sola «Storia modifiche», ora bottone header autonomo (il log è un
+             registro temporale, non una fotografia di stato → non appartiene alla Dashboard). -->
+        <button class="toolbar-btn icon-only" id="btn-audit" data-act="report-audit" data-i18n-tip="report.audit" data-tip="Storia modifiche">
+            <i class="fas fa-clock-rotate-left"></i>
+        </button>
         <button class="toolbar-btn icon-only" id="btn-assistant" data-act="assistant-open"
                 data-i18n-tip="assistant.toolbarTip" data-tip="Impostazioni assistente (admin) · la chat si apre dalla tab «Assistente» o col tasto A">
             <i class="fas fa-robot"></i><span class="btn-label" data-i18n="assistant.label"> Assistente</span>
