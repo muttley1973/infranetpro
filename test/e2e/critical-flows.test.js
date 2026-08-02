@@ -3413,7 +3413,11 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         const av = document.getElementById('audit-overlay');
         // app-spare: usa win.TYPES/_isLeafEndpoint/_frontPanelSfpGroups (ponte) +
         // buildSpareReport (import puro) sul default state (switch 24 porte).
-        document.querySelector('[data-act="report-spare"]').click();   // apre l'overlay via event delegation
+        // UX: il report Porte libere e' ASSORBITO nella Dashboard → si lancia via l'azione
+        // delegata overview-spare-report (CTA nel drill-down ③ Margine), non piu' dal menu.
+        const _spareCta = document.createElement('button');
+        _spareCta.dataset.act = 'overview-spare-report'; document.body.appendChild(_spareCta);
+        _spareCta.click();   // -> openSpareReport via event delegation
         const sv = document.getElementById('spare-overlay');
         // ASSE B: wiring delegato degli overlay + drive di eventi REALI (se un handler
         // lancia, l'evaluate rigetta e il test fallisce → prova che la route delegata gira).

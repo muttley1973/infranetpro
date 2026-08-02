@@ -758,6 +758,15 @@ function _wantsVlanCta(secKey, key) {
     return (secKey === 'complete' && (key === 'subnets' || key === 'vlanNames')) || (secKey === 'margin' && key === 'ipFree');
 }
 
+// Assorbimento del vecchio menu «Report e analisi» nella Dashboard: dal drill-down
+// del tile, un CTA apre il REPORT di dettaglio (tabella + CSV) di QUEL concetto. Il
+// verdetto e gli item vivono gia' qui; il report aggiunge solo l'export → nessuna
+// duplicazione (un dato, una porta). Chiave = 'secKey:rowKey'; l'azione e' registrata
+// nel modulo PROPRIETARIO del report (app-spare/app-l3/app-wifi), non qui.
+const _REPORT_CTA = {
+    'margin:freePorts': { act: 'overview-spare-report', label: 'ov.cta.spareReport' },
+};
+
 function _detailEl(secKey, r) {
     const d = _el('div', 'ov-detail');
     d.dataset.for = secKey + ':' + r.key;
@@ -846,6 +855,14 @@ function _detailEl(secKey, r) {
         const cta = _el('button', 'ov-cta', t('ov.goVlanPanel'));
         cta.type = 'button';
         cta.dataset.act = 'overview-vlan-panel';
+        d.appendChild(cta);
+    }
+    // Ponte al report di dettaglio assorbito dal menu header (tabella + CSV).
+    const _rc = _REPORT_CTA[secKey + ':' + r.key];
+    if (_rc) {
+        const cta = _el('button', 'ov-cta', t(_rc.label));
+        cta.type = 'button';
+        cta.dataset.act = _rc.act;
         d.appendChild(cta);
     }
     return d;

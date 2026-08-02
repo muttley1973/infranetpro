@@ -20,7 +20,6 @@ import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (e
 import { escapeHTML } from './app-util.js';
 import { getNodeDisplayName, _linksForPort } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: voce menu Report + overlay Porte libere (template dinamico) via event delegation
-import { closeReportMenu } from './app-auth.js';   // ASSE B: chiude il dropdown Report (proprietario = app-auth)
 import { TYPES, _frontPanelSfpGroups } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _isLeafEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
 
@@ -184,5 +183,7 @@ registerChangeActions({
     'spare-highlight': (el) => setSpareHighlight(el.checked),
 });
 
-// ASSE B: voce "Porte libere" del menu Report via data-act (ex win.openSpareReport).
-registerClickActions({ 'report-spare': () => { openSpareReport(); closeReportMenu(); } });
+// UX: il report «Porte libere» e' ASSORBITO nella Dashboard — si lancia dal drill-down
+// del tile ③ Margine (riga freePorts), non piu' dal menu header. Stessa fn, nuovo punto
+// d'accesso; il CTA e' reso da app-overview.js (_REPORT_CTA), l'azione vive qui col report.
+registerClickActions({ 'overview-spare-report': () => openSpareReport() });
