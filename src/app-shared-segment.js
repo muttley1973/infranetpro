@@ -23,6 +23,25 @@ import { closePop, showPop } from './app-popup.js';   // ritiro ponte: funzioni 
 import { _portDisplayName } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _isLeafEndpoint, _nodeByMacMap, _ensureDiscoveryHistory } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
 import { _findFreeU, _resolveRackOverlap } from './app-topology-crawl.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
+import { registerClickActions } from './app-delegation.js';   // ASSE B (coda): event delegation dei 20 onclick del pannello segmento condiviso
+
+// ── ASSE B (coda): azioni delegate del pannello «segmento condiviso» ─────────
+// I 20 onclick inline (wizard bind + azioni per-porta) diventano data-act +
+// UN'azione registrata qui: le funzioni sono TUTTE module-private a questo file,
+// quindi la registrazione e' locale (nessun export). pid/nodeId/type/role si
+// leggono da data-pid/-nid/-type/-role sull'elemento cliccato.
+registerClickActions({
+    'ss-bind-select':  (el) => _selectSharedSegmentBindNode(el.dataset.nid),
+    'ss-bind-confirm': (el) => _confirmSharedSegmentBind(el.dataset.nid, el.dataset.pid),
+    'ss-props':        (el) => _openSharedSegmentProps(el.dataset.pid),
+    'ss-node-open':    (el) => _sharedSegmentNodeOpen(el.dataset.pid),
+    'ss-clear-role':   (el) => _clearSharedSegmentRole(el.dataset.pid),
+    'ss-restore':      (el) => _restoreSharedSegment(el.dataset.pid),
+    'ss-ignore':       (el) => _ignoreSharedSegment(el.dataset.pid),
+    'ss-create-node':  (el) => _createSharedSegmentNode(el.dataset.pid, el.dataset.type),
+    'ss-open-bind':    (el) => _openSharedSegmentBind(el.dataset.pid, el.dataset.type),
+    'ss-mark-role':    (el) => _markSharedSegmentRole(el.dataset.pid, el.dataset.role),
+});
 
 let _sharedBindState = null; // stato wizard bind (module-local, nessun lettore esterno)
 function _macRowsForPort(pid, opts={}){
@@ -300,7 +319,7 @@ function _renderSharedSegmentBind(){
             const location = _sharedSegmentNodeLocation(n);
             const score = _sharedSegmentNodeRoleScore(n, _sharedBindState.role);
             const badge = score > 0 ? `<span class="shared-bind-badge">${t('pnl.seg.strongCandidate')}</span>` : '';
-            return `<button class="shared-bind-card" onclick="_selectSharedSegmentBindNode('${n.id}')">
+            return `<button class="shared-bind-card" data-act="ss-bind-select" data-nid="${n.id}">
                 <div class="shared-bind-card-head">
                   <div class="shared-bind-card-title"><i class="fas ${TYPES[n.type]?.icon || 'fa-cube'}"></i>${escapeHTML(getNodeDisplayName(n))}</div>
                   ${badge}
@@ -317,7 +336,7 @@ function _renderSharedSegmentBind(){
 
     const node = nodeById(_sharedBindState.nodeId);
     const portCards = (_sharedBindState.portChoices || []).map(p=>`
-        <button class="shared-bind-card" onclick="_confirmSharedSegmentBind('${_sharedBindState.nodeId}','${p.pid}')">
+        <button class="shared-bind-card" data-act="ss-bind-confirm" data-nid="${_sharedBindState.nodeId}" data-pid="${p.pid}">
             <div class="shared-bind-card-head">
               <div class="shared-bind-card-title"><i class="fas fa-ethernet"></i>${escapeHTML(p.label || p.pid)}</div>
               ${p.hinted ? `<span class="shared-bind-badge">${t('pnl.seg.suggestedPort')}</span>` : ''}
@@ -466,7 +485,7 @@ export function _sharedSegmentHtml(pid, context='popup'){
         if(compact){
             return `<div class="shared-seg-ignored">
             <span><i class="fas fa-circle-info" style="color:var(--active-color)"></i> ${t('pnl.seg.l2SharedConfirmed')}</span>
-            <button class="toolbar-btn" onclick="_openSharedSegmentProps('${pid}')"><i class="fas fa-sliders"></i> ${t('pnl.seg.manageInProps')}</button>
+            <button class="toolbar-btn" data-act="ss-props" data-pid="${pid}"><i class="fas fa-sliders"></i> ${t('pnl.seg.manageInProps')}</button>
           </div>`;
         }
         return _sharedSegmentPropsWrapV2(
@@ -474,8 +493,8 @@ export function _sharedSegmentHtml(pid, context='popup'){
             `<div class="shared-seg-ignored">
             <span><i class="fas fa-check-circle" style="color:var(--active-color)"></i> ${t('pnl.seg.linkedToExisting')} · ${escapeHTML(targetLine)}</span>
             <div style="display:flex;gap:6px;flex-wrap:wrap">
-                <button class="toolbar-btn" onclick="_sharedSegmentNodeOpen('${pid}')"><i class="fas fa-arrow-up-right-from-square"></i> ${t('pnl.seg.open')}</button>
-                <button class="toolbar-btn" onclick="_clearSharedSegmentRole('${pid}')"><i class="fas fa-rotate-left"></i> ${t('pnl.seg.undo')}</button>
+                <button class="toolbar-btn" data-act="ss-node-open" data-pid="${pid}"><i class="fas fa-arrow-up-right-from-square"></i> ${t('pnl.seg.open')}</button>
+                <button class="toolbar-btn" data-act="ss-clear-role" data-pid="${pid}"><i class="fas fa-rotate-left"></i> ${t('pnl.seg.undo')}</button>
             </div>
           </div>`
         );
@@ -485,14 +504,14 @@ export function _sharedSegmentHtml(pid, context='popup'){
         if(compact){
             return `<div class="shared-seg-ignored">
             <span><i class="fas fa-circle-info" style="color:var(--active-color)"></i> ${t('pnl.seg.l2SharedClassified')}</span>
-            <button class="toolbar-btn" onclick="_openSharedSegmentProps('${pid}')"><i class="fas fa-sliders"></i> ${t('pnl.seg.manageInProps')}</button>
+            <button class="toolbar-btn" data-act="ss-props" data-pid="${pid}"><i class="fas fa-sliders"></i> ${t('pnl.seg.manageInProps')}</button>
           </div>`;
         }
         return _sharedSegmentPropsWrapV2(
             `${t('pnl.seg.statusClassified')} · ${escapeHTML(_sharedSegmentRoleLabel(roleKey))}`,
             `<div class="shared-seg-ignored">
             <span><i class="fas fa-check-circle" style="color:var(--active-color)"></i> ${t('pnl.seg.transitPort')} · ${escapeHTML(_sharedSegmentRoleLabel(roleKey))}</span>
-            <button class="toolbar-btn" onclick="_clearSharedSegmentRole('${pid}')"><i class="fas fa-rotate-left"></i> ${t('pnl.seg.undo')}</button>
+            <button class="toolbar-btn" data-act="ss-clear-role" data-pid="${pid}"><i class="fas fa-rotate-left"></i> ${t('pnl.seg.undo')}</button>
           </div>`
         );
     }
@@ -501,7 +520,7 @@ export function _sharedSegmentHtml(pid, context='popup'){
     const ignoredHtml = isIgnored
         ? `<div class="shared-seg-ignored">
             ${t('pnl.seg.segmentIgnored')}
-            <button class="toolbar-btn" onclick="_restoreSharedSegment('${pid}')"><i class="fas fa-eye"></i> ${t('pnl.seg.showAgain')}</button>
+            <button class="toolbar-btn" data-act="ss-restore" data-pid="${pid}"><i class="fas fa-eye"></i> ${t('pnl.seg.showAgain')}</button>
           </div>`
         : '';
     const info = _sharedSegmentInfoForPort(pid, {includeIgnored:isIgnored});
@@ -545,8 +564,8 @@ export function _sharedSegmentHtml(pid, context='popup'){
             ${roleHtml}
         </div>${serverBadge}
         <div class="shared-seg-actions">
-            <button class="toolbar-btn primary" onclick="_openSharedSegmentProps('${pid}')"><i class="fas fa-sliders"></i> ${t('pnl.seg.manageInProps')}</button>
-            <button class="toolbar-btn danger" onclick="_ignoreSharedSegment('${pid}')"><i class="fas fa-eye-slash"></i> ${t('pnl.seg.ignore')}</button>
+            <button class="toolbar-btn primary" data-act="ss-props" data-pid="${pid}"><i class="fas fa-sliders"></i> ${t('pnl.seg.manageInProps')}</button>
+            <button class="toolbar-btn danger" data-act="ss-ignore" data-pid="${pid}"><i class="fas fa-eye-slash"></i> ${t('pnl.seg.ignore')}</button>
         </div>
     </div>`;
     }
@@ -578,25 +597,25 @@ export function _sharedSegmentHtml(pid, context='popup'){
         </div>
         <div class="ss-acts">
             <div class="ss-act" data-for="switch">
-                <button class="toolbar-btn primary" onclick="_createSharedSegmentNode('${pid}','switch')"><i class="fas fa-plus"></i> ${t('pnl.seg.createSwitch')}</button>
-                <button class="toolbar-btn" onclick="_openSharedSegmentBind('${pid}','switch')"><i class="fas fa-link"></i> ${t('pnl.seg.linkToExisting')}</button>
+                <button class="toolbar-btn primary" data-act="ss-create-node" data-pid="${pid}" data-type="switch"><i class="fas fa-plus"></i> ${t('pnl.seg.createSwitch')}</button>
+                <button class="toolbar-btn" data-act="ss-open-bind" data-pid="${pid}" data-type="switch"><i class="fas fa-link"></i> ${t('pnl.seg.linkToExisting')}</button>
             </div>
             <div class="ss-act" data-for="ap">
-                <button class="toolbar-btn primary" onclick="_createSharedSegmentNode('${pid}','ap')"><i class="fas fa-plus"></i> ${t('pnl.seg.createAp')}</button>
-                <button class="toolbar-btn" onclick="_openSharedSegmentBind('${pid}','ap')"><i class="fas fa-link"></i> ${t('pnl.seg.linkToExisting')}</button>
+                <button class="toolbar-btn primary" data-act="ss-create-node" data-pid="${pid}" data-type="ap"><i class="fas fa-plus"></i> ${t('pnl.seg.createAp')}</button>
+                <button class="toolbar-btn" data-act="ss-open-bind" data-pid="${pid}" data-type="ap"><i class="fas fa-link"></i> ${t('pnl.seg.linkToExisting')}</button>
             </div>
             <div class="ss-act" data-for="gateway">
-                <button class="toolbar-btn primary" onclick="_createSharedSegmentNode('${pid}','gateway')"><i class="fas fa-plus"></i> ${t('pnl.seg.createGateway')}</button>
-                <button class="toolbar-btn" onclick="_openSharedSegmentBind('${pid}','gateway')"><i class="fas fa-link"></i> ${t('pnl.seg.linkToExisting')}</button>
+                <button class="toolbar-btn primary" data-act="ss-create-node" data-pid="${pid}" data-type="gateway"><i class="fas fa-plus"></i> ${t('pnl.seg.createGateway')}</button>
+                <button class="toolbar-btn" data-act="ss-open-bind" data-pid="${pid}" data-type="gateway"><i class="fas fa-link"></i> ${t('pnl.seg.linkToExisting')}</button>
             </div>
             <div class="ss-act" data-for="hypervisor">
-                <button class="toolbar-btn primary" onclick="_openSharedSegmentBind('${pid}','hypervisor')"><i class="fas fa-link"></i> ${t('pnl.seg.linkToHypervisor')}</button>
-                <button class="toolbar-btn" onclick="_markSharedSegmentRole('${pid}','hypervisor')"><i class="fas fa-arrow-up"></i> ${t('pnl.seg.markAsTransit')}</button>
+                <button class="toolbar-btn primary" data-act="ss-open-bind" data-pid="${pid}" data-type="hypervisor"><i class="fas fa-link"></i> ${t('pnl.seg.linkToHypervisor')}</button>
+                <button class="toolbar-btn" data-act="ss-mark-role" data-pid="${pid}" data-role="hypervisor"><i class="fas fa-arrow-up"></i> ${t('pnl.seg.markAsTransit')}</button>
             </div>
             <div class="ss-act" data-for="uplink">
-                <button class="toolbar-btn primary" onclick="_markSharedSegmentRole('${pid}','rackuplink')"><i class="fas fa-arrow-up"></i> ${t('pnl.seg.markPortAsTransit')}</button>
+                <button class="toolbar-btn primary" data-act="ss-mark-role" data-pid="${pid}" data-role="rackuplink"><i class="fas fa-arrow-up"></i> ${t('pnl.seg.markPortAsTransit')}</button>
             </div>
-            <button class="toolbar-btn danger ss-ignore-act" onclick="_ignoreSharedSegment('${pid}')"><i class="fas fa-eye-slash"></i> ${t('pnl.seg.ignoreSegment')}</button>
+            <button class="toolbar-btn danger ss-ignore-act" data-act="ss-ignore" data-pid="${pid}"><i class="fas fa-eye-slash"></i> ${t('pnl.seg.ignoreSegment')}</button>
         </div>
     </div>`;
     return _sharedSegmentPropsWrapV2(

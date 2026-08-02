@@ -788,6 +788,13 @@ function countInlineHandlers() {
 // scope:node (per-device) + scope:port/port-passive, verificato handler-only su tutti i 45
 // scenari (strip on*/data-* → identico); il banner LAG non e' nel golden.
 //
+// −20 (129 → 109), CODA ASSE B — PANNELLO SEGMENTO CONDIVISO (app-shared-segment.js):
+// i 20 onclick del wizard bind + azioni per-porta (crea/collega switch·ap·gateway·hypervisor,
+// marca transito, ignora/ripristina, apri props/nodo, annulla ruolo) → data-act + 10 azioni
+// `ss-*` registrate LOCALMENTE (le fn sono TUTTE module-private → nessun export). pid/nodeId/
+// type/role letti da data-pid/-nid/-type/-role. Pannello NON nel golden (superficie popup/
+// props del segmento, fuori dai 4 scope) → verifica live; golden invariato.
+//
 // −11 (140 → 129), CODA ASSE B — BUILDER CONDIVISI (app-properties.js): i due builder
 // resi in OGNI pannello proprietà — _buildInventoryFieldsHtml (brand/model/serial/firmware)
 // e _buildNetAccessHtml (hostname/ip/mac + lucchetto manual-first + auto-link + toggle wifi/
@@ -818,7 +825,7 @@ function countInlineHandlers() {
 // flusso «Personalizzato…». Golden rigenerato: 33 scenari device cambiano SOLO gli attributi,
 // verificato handler-only su tutti i 45 (strip on*/data-* → identico); 2 selettori e2e
 // (updateN('brand'→data-nfield, setEndpointVlan(→data-change=endpoint-vlan) aggiornati.
-const MAX_INLINE_HANDLERS = 129;
+const MAX_INLINE_HANDLERS = 109;
 test('ponte ASSE B: gli handler inline on*= non superano il tetto a cricchetto', () => {
   const total = countInlineHandlers();
   assert.ok(total <= MAX_INLINE_HANDLERS,
