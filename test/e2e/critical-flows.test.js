@@ -27,6 +27,33 @@ if (RUN) {
 // Una route 404 attesa: il browser chiede /favicon.ico (nessuna favicon servita).
 const isBenign404 = (u) => /\/favicon\.ico(\?|$)/.test(u);
 
+const CABLE_RENDER_FIXTURE = {
+  racks: [{ id: 'rk-acc', name: 'CED · Rack Accesso', sizeU: 24, x: 1576, y: 2742 }],
+  currentRack: 'rk-acc',
+  nodes: [
+    { id: 'sw3', type: 'switch', name: 'ACC-SW-1', brand: 'Cisco', rackId: 'rk-acc', rackU: 24, sizeU: 1, ports: 48 },
+    { id: 'sw4', type: 'switch', name: 'ACC-SW-2', brand: 'Cisco', rackId: 'rk-acc', rackU: 23, sizeU: 1, ports: 48 },
+    { id: 'pp4', type: 'patchpanel', name: 'PP-ACC-B', brand: 'CommScope', rackId: 'rk-acc', rackU: 13, sizeU: 2, ports: 24 },
+    { id: 'nasd1', type: 'nasdesktop', name: 'NAS-IT', brand: 'Synology', x: 1560, y: 2480, ports: 1 },
+    { id: 'ap1', type: 'ap', name: 'AP-UFFICI-1', brand: 'Aruba', x: 840, y: 1700, ports: 1 },
+    { id: 'wp64', type: 'wallport', name: 'WA-64', ports: 1, portId: 'WA-64', x: 626, y: 1708 },
+  ],
+  links: [
+    { id: 'l81', src: 'nasd1-1', dst: 'sw3-25' },
+    { id: 'l_ms8rqigb7es', src: 'ap1-1', dst: 'wp64-1' },
+    { id: 'l_ms8rqop0jko', src: 'wp64-1', dst: 'pp4-12' },
+    { id: 'l_ms8rr14j3ab', src: 'pp4-12', dst: 'sw4-21' },
+  ],
+  ports: {
+    'nasd1-1': { status: 'active', vlan: 20, vlanProp: 20 },
+    'sw3-25': { status: 'idle', vlan: 20, speed: 1000 },
+    'ap1-1': { status: 'active', mode: 'trunk', trunkVlans: [10, 20, 40, 50], vlanOvr: 10, isTrunk: true },
+    'wp64-1': { status: 'active', vlanProp: 10, trunkProp: [10, 20, 40, 50], isTrunkProp: true },
+    'pp4-12': { status: 'active', vlanProp: 10, trunkProp: [10, 20, 40, 50], isTrunkProp: true },
+    'sw4-21': { status: 'active', vlan: 10, speed: 1000, mode: 'trunk', trunkVlans: [10, 20, 40, 50], vlanOvr: 10, isTrunk: true },
+  },
+};
+
 test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, async (t) => {
   const srv = await startServer();
   // In CI (utente non-root, niente /dev/shm ampio) Chrome headless può crashare
@@ -92,11 +119,9 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
     });
 
     await t.test('render cavi: la catena floor→wallport→patch panel→switch e il diretto floor→switch usano porte reali', async () => {
-      const fs = require('node:fs');
-      const path = require('node:path');
-      const project = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'projects', '8.json'), 'utf8')).state;
       const r = await page.evaluate((incoming) => {
-        state = _migrateState(structuredClone(incoming));
+        state = Object.assign(_buildDefaultState(), structuredClone(incoming));
+        state = _migrateState(state);
         _invalidateIdx();
         state.currentRack = 'rk-acc';
         _viewMode = 'map'; _topoVisible = false;
@@ -118,7 +143,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
             direct: pathData('l81'),
           }));
         }));
-      }, project);
+      }, CABLE_RENDER_FIXTURE);
       assert.ok(r.chainVisible, 'tutti i tre segmenti della catena fisica sono visibili');
       assert.equal(r.chainHasOrigin, false, 'nessun segmento della catena parte dall’origine');
       assert.ok(r.direct, 'il collegamento diretto floor→switch è visibile');
