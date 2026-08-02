@@ -91,6 +91,40 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.match(r.vert, /^M 20 10 C 20 \S+,20 \S+,20 210$/, 'cavo verticale piega solo in y: ' + r.vert);
     });
 
+    await t.test('render cavi: la catena floor→wallport→patch panel→switch e il diretto floor→switch usano porte reali', async () => {
+      const fs = require('node:fs');
+      const path = require('node:path');
+      const project = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'projects', '8.json'), 'utf8')).state;
+      const r = await page.evaluate((incoming) => {
+        state = _migrateState(structuredClone(incoming));
+        _invalidateIdx();
+        state.currentRack = 'rk-acc';
+        _viewMode = 'map'; _topoVisible = false;
+        selType = 'port'; selId = 'ap1-1'; highPath.clear(); trace('ap1-1');
+        renderRackTabs(); updateTransforms(); renderNow(); renderCables();
+        return new Promise(resolve => requestAnimationFrame(() => {
+          const cable = (id, root = '#cable-overlay') => document.querySelector(`${root} path.cable[data-link-id="${id}"]`);
+          const pathData = (id, root) => cable(id, root)?.getAttribute('d') || '';
+          const chain = {
+            apToWall: pathData('l_ms8rqigb7es'),
+            wallToPatch: pathData('l_ms8rqop0jko'),
+            patchToSwitch: pathData('l_ms8rr14j3ab', '#rack-cable-overlay'),
+          };
+          selId = 'nasd1-1'; highPath.clear(); trace('nasd1-1'); renderNow(); renderCables();
+          requestAnimationFrame(() => resolve({
+            chain,
+            chainVisible: Object.values(chain).every(Boolean),
+            chainHasOrigin: Object.values(chain).some(d => /^M 0(?:[ .-]|$)/.test(d)),
+            direct: pathData('l81'),
+          }));
+        }));
+      }, project);
+      assert.ok(r.chainVisible, 'tutti i tre segmenti della catena fisica sono visibili');
+      assert.equal(r.chainHasOrigin, false, 'nessun segmento della catena parte dall’origine');
+      assert.ok(r.direct, 'il collegamento diretto floor→switch è visibile');
+      assert.equal(/^M 0(?:[ .-]|$)/.test(r.direct), false, 'il collegamento diretto non parte dall’origine');
+    });
+
     await t.test('instradamento cavi: validMidTypes/canRouteThrough applicano la gerarchia TIA-568', async () => {
       const r = await page.evaluate(() => ({
         wpSwitch: validMidTypes('wallport', 'switch'),

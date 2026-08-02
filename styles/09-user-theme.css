@@ -215,6 +215,21 @@
            bordo; su «mai» resta il bordo neutro. `header .sync-fresh-chip` (0,1,1)
            batte sia `.status-chip` sia il pill di 10-modern. */
         header .sync-fresh-chip { border-color: var(--panel-border); border-radius: var(--radius-md); }
+        /* Slot-cluster che possono restare SENZA figli visibili — `#modules-nav-slot`
+           (nessun modulo a pagamento) e `#status-cluster` (nessun chip acceso: i suoi
+           3 chip nascono display:none e li accende il JS uno per volta). Da item flex a
+           larghezza 0 mangiavano un gap di 6px PER LATO → il "buco" prima del separatore
+           utente nel cluster destro (misurato: 12px dove il ritmo è 6). `display:contents`
+           li toglie dal flusso quando sono vuoti (nessun gap riservato); quando invece
+           hanno un figlio visibile, questo entra nel flex di `.header-right` con lo stesso
+           passo di 6px → ritmo regolare a destra come a sinistra. */
+        #modules-nav-slot, header #status-cluster { display: contents; }
+        /* Il `|` DOPO il contatore freschezza (#fresh-chip-sep) esiste solo se il
+           contatore c'è. Quando #sync-fresh-chip è nascosto (JS mette display:none —
+           niente target SNMP o durante il Sync) il suo divisore si nasconde: dopo la
+           ricerca resta il solo `|` che chiude la casella, non un divisore orfano/doppio.
+           Chip mostrato = inline style `display: inline-flex` → il divisore riappare. */
+        #sync-fresh-chip:not([style*="inline-flex"]) + #fresh-chip-sep { display: none; }
 
         /* Il chip mostra SEMPRE la freschezza (l'età dell'ultima lettura): il
            conteggio ok/tot vive nella sotto-header, quindi qui non c'è più il
@@ -243,21 +258,20 @@
             }
         }
 
-        /* ---- Header fallback B ---- */
-        @media (max-width: 1100px) {
-            /* gap NON riportato a 8px: quello di <=1420px resta valido. Era la
-               stessa inversione della ricerca e del selettore progetto — lo spazio
-               raddoppiava proprio dove ce n'era meno. */
-            header { padding: 0 10px; }
-            .header-sep { display: none; }
+        /* ---- Header fallback B ----
+           Diviso in DUE soglie di proposito. La COMPATTAZIONE (etichette→icona su
+           Esporta/Scopri/utente + campi progetto stretti) parte a ≤1200, non a ≤1100:
+           fra ≤1280 e ≤1100 non si attivava nulla, il contenuto chiedeva ~1155px e la
+           barra andava a DUE righe in tutta la fascia 1101-1170 (misurato: header alto
+           84px a 1140). Anticipata a ≤1200 la compattazione libera ~60px, molto più
+           dell'overflow, così la barra resta su UNA riga fino a ~1100 — e i SEPARATORI
+           `|` restano visibili (l'utente li vuole), perché non è più necessario toglierli
+           per far spazio. gap NON riportato a 8px: quello di ≤1420 resta valido. */
+        @media (max-width: 1200px) {
             .header-title { font-size:var(--fs-lg); }
-            /* Qui NON si riallarga niente. Questo blocco nasconde le etichette dei
-               bottoni, quindi sembrava esserci spazio per rendere di nuovo comodi
-               ricerca e selettore progetto — ma arrivando DOPO nella cascata
-               disfaceva la compattazione dei tre breakpoint precedenti
-               (ricerca 64->230, selettore 80->145) proprio dove lo spazio e' meno.
-               Risultato: sotto i 1100px la barra non poteva piu' tornare su una
-               riga. I valori di <=1280px restano validi per ereditarieta'. */
+            /* Qui NON si riallarga niente: nascondere le etichette sembra liberare
+               spazio per ricerca/selettore, ma riallargarli disferebbe la compattazione
+               dei breakpoint precedenti proprio dove lo spazio è meno. */
             .project-bar { gap: 3px; }
             .project-bar .toolbar-btn { padding: 5px 7px; }
             #btn-save { padding: 5px 8px; }
@@ -270,6 +284,12 @@
             #btn-topology,
             #btn-user { padding: 5px 8px; }
             #btn-user i:last-child { display: none; }
+        }
+        /* ≤1100: ultimo giro. Solo qui cedono i separatori e il padding verticale,
+           quando nemmeno la compattazione di ≤1200 basta più a stare su una riga. */
+        @media (max-width: 1100px) {
+            header { padding: 0 10px; }
+            .header-sep { display: none; }
         }
 
 /* ============================================================

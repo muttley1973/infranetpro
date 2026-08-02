@@ -1774,30 +1774,49 @@ function _renderCablesNow(){
     rov.style.top=vpEl.scrollTop+'px';
     rov.style.left=vpEl.scrollLeft+'px';
 
-    // Mappa pid→element costruita una sola volta: evita N×2 querySelector per N cavi
+    // Mappa pid→element costruita una sola volta: evita N×2 querySelector per N cavi.
+    // Limitare la mappa agli ancoraggi visuali delle porte: il pannello Proprietà
+    // usa lo stesso data-pid su input/select/button per modificare una porta. Se
+    // quei controlli finiscono nella mappa, l'ultimo elemento può essere nascosto
+    // e il cavo viene calcolato verso il suo rect 0×0.
     const pidMap={};
-    document.querySelectorAll('[data-pid]').forEach(el=>{ pidMap[el.dataset.pid]=el; });
+    document.querySelectorAll('.floor-node [data-pid], .rack-device [data-pid]').forEach(el=>{
+        pidMap[el.dataset.pid]=el;
+    });
 
     // --- Cavi normali (stessa posizione logica) ---
     state.links.forEach(l=>{
         if(!shouldRenderLink(l)) return;
         const ends = _getLinkDrawEndpoints(l);
         if(!ends.src || !ends.dst) return;
-        if(suppressRackOverlays && !l.wireless && (isRackPort(ends.src) || isRackPort(ends.dst))) return;
         // Nascondi il cavo se uno dei due nodi floor è fuori dalla VLAN filtro
         const _snId=getPortNodeId(ends.src), _dnId=getPortNodeId(ends.dst);
         if(_floorNodeHiddenByVlan(_snId)||_floorNodeHiddenByVlan(_dnId)) return;
         if(_filterVlan&&!_linkMatchesVlanFilter(l)) return;
         let src=pidMap[ends.src];
         let dst=pidMap[ends.dst];
-        // Wireless + pannello rack nascosto (tab Proprietà): ancora il lato rack
-        // all'icona del rack sul floor, così l'onda non scappa a sinistra.
-        if(l.wireless && suppressRackOverlays){
-            const sa=_wlRackIconAnchor(ends.src); if(sa) src=sa;
-            const da=_wlRackIconAnchor(ends.dst); if(da) dst=da;
+        // Un capo su una porta di RACK NON disegnabile in questa vista — pannello rack
+        // nascosto (tab Proprietà/Assistente) o RACK DIVERSO da quello mostrato → il LED
+        // è display:none (rect 0×0) o assente. Senza intervento il cavo veniva TIRATO
+        // all'origine («passa per 0.0», la tratta che non tocca la presa a muro) oppure
+        // SALTATO del tutto («manca la tratta verso il device»). Come già succedeva SOLO
+        // per il wireless, àncora il capo-rack all'ICONA del rack sulla planimetria: così
+        // il cavo device↔rack (cablato o wireless) resta visibile e punta al rack giusto,
+        // invece di sparire o finire a (0,0). Solo per cavi MISTI floor↔rack; i rack↔rack
+        // tengono il ramo vp-relativo qui sotto.
+        const _srcRack = isRackPort(ends.src), _dstRack = isRackPort(ends.dst);
+        const _undrawable = el => !el || (()=>{ const r=el.getBoundingClientRect(); return r.width===0 && r.height===0; })();
+        if(_srcRack !== _dstRack){
+            if(_srcRack && _undrawable(src)){ const a=_wlRackIconAnchor(ends.src); if(a && !_undrawable(a)) src=a; }
+            if(_dstRack && _undrawable(dst)){ const a=_wlRackIconAnchor(ends.dst); if(a && !_undrawable(a)) dst=a; }
         }
         if(!src||!dst) return;                       // cross-rack: uno dei due manca → gestito sotto
         const sr=src.getBoundingClientRect(), dr=dst.getBoundingClientRect();
+        // Un capo-RACK ancora a 0×0 (rack non piazzato sulla planimetria → niente icona,
+        // o rack↔rack verso un rack non mostrato): salta invece di puntarlo a (0,0). NON
+        // si controllano i capi FLOOR: un cavo device↔presa non va mai perso per un rect
+        // transitorio (era la causa di «manca la tratta verso il device»).
+        if((_srcRack && sr.width===0 && sr.height===0) || (_dstRack && dr.width===0 && dr.height===0)) return;
         const vl=_getLinkVlan(l);
         const autoColor=state.vlanColors[vl]||_chainCol.get(l.id)||'#6e7681';
         const color=l.colorOvr||autoColor;
@@ -2055,6 +2074,18 @@ function _resolveManualPropValue(sel){
             const v = _readManualByRef(sel.dataset.mkind, sel.dataset.mnode, sel.dataset.mfield);
             if(v !== undefined && v !== null) return String(v);
         }
+        // Select MIGRATE a event-delegation (`data-change="update-n" data-nfield=…`):
+        // niente `onchange` da parsare e niente `data-mkind` → il ramo storico sotto non
+        // le vede, e senza questo il resolver tornerebbe il default (`sel.value`) al
+        // re-render, PERDENDO il valore custom appena salvato: la select ricade sul
+        // default. È la regressione del bug fba8d48 dopo il ritiro degli handler inline
+        // (ASSE B). Rileggo dal modello con la STESSA regola spec/`n[key]` di updateN.
+        if(sel.dataset && sel.dataset.change === 'update-n' && sel.dataset.nfield){
+            const n = nodeById(selId);
+            const key = sel.dataset.nfield;
+            const v = n ? ((n.spec && n.spec[key] !== undefined && n.spec[key] !== null) ? n.spec[key] : n[key]) : undefined;
+            if(v !== undefined && v !== null) return String(v);
+        }
         const oc = String(sel.getAttribute('onchange') || '');
         let matched = false;
         let m = oc.match(/updateN\('([^']+)',\s*this\.value\)/);
@@ -2176,6 +2207,11 @@ export function _enableManualValueInProps(panel){
 }
 
 function updateN(k,v){
+    // Sentinella dell'harness manual-value (_enableManualValueInProps): NON persistere
+    // mai il token. Scegliendo «Personalizzato…» il change delegato arriva qui col token
+    // PRIMA del prompt; la conferma poi ri-emette il change col valore vero. Senza questa
+    // guardia il token finirebbe nel modello (e ci resterebbe su Annulla).
+    if(v === '__custom_manual__') return;
     const n=nodeById(selId); if(!n) return;
     const _auditOldName=(k==='name') ? String(n.name||'') : null;
     const fixedRackLabel=_fixedRackLabel(n.type);

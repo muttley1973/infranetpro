@@ -77,11 +77,16 @@
     <!-- Undo / Redo -->
     <button class="toolbar-btn" id="btn-undo" data-act="undo" data-i18n-tip="undo.tip" data-tip="Annulla (Ctrl+Z)" disabled><i class="fas fa-rotate-left"></i></button>
     <button class="toolbar-btn" id="btn-redo" data-act="redo" data-i18n-tip="redo.tip" data-tip="Ripeti (Ctrl+Y)"  disabled><i class="fas fa-rotate-right"></i></button>
-    <div class="header-sep"></div>
+    <!-- Separatore-àncora del centraggio: `margin-left:auto` QUI (non sulla ricerca)
+         accumula lo spazio libero PRIMA di questo `|`, così il divisore ABBRACCIA la
+         ricerca (`| Cerca`) invece di restare orfano vicino a redo. Con l'`auto` gemello
+         su `.header-right` i due spazi sono SIMMETRICI → ricerca centrata fra i gruppi,
+         niente vuoto asimmetrico. -->
+    <div class="header-sep" style="margin-left:auto"></div>
 
-    <!-- Search + chip freschezza — centrati nella barra come UNITÀ (search margin-left:auto,
-         header-right margin-left:auto → i due auto dividono a metà lo spazio libero). -->
-    <div class="search-panel" style="margin-left:auto;">
+    <!-- Search + chip freschezza: unità centrata «| Cerca | mai |». I divisori la
+         abbracciano (6px); i due spazi laterali, uguali, la centrano fra i gruppi. -->
+    <div class="search-panel">
         <div class="search-input-wrap">
             <i class="fas fa-search"></i>
             <input id="global-search" type="search" data-i18n-ph="search.ph" placeholder="Cerca dispositivi, porte, link…" autocomplete="off"
@@ -90,10 +95,17 @@
         </div>
         <div id="search-results"></div>
     </div>
+    <!-- `|` "dopo cerca": chiude la casella di ricerca. Sempre presente (la ricerca c'è
+         sempre); col chip nascosto è l'unico divisore dopo la ricerca. -->
+    <div class="header-sep"></div>
     <!-- Chip freschezza del progetto (ex badge dentro il bottone Sync, ritirato): indicatore
          di stato autonomo SUBITO DOPO la ricerca, visibile in OGNI vista e all'apertura
          (lo alimenta _renderSyncFreshness in app-snmp.js). Clic → apre la Panoramica. -->
     <button class="status-chip sync-fresh-chip" id="sync-fresh-chip" data-act="overview-toggle" style="display:none" data-i18n-tip="sync.freshChipTip" data-tip="Freschezza dati del progetto · clic per la Dashboard"></button>
+    <!-- `|` "dopo il contatore freschezza": esiste solo QUANDO il contatore è visibile.
+         Se il chip è nascosto (niente SNMP / durante il Sync) questo divisore si nasconde
+         via CSS (regola in 09-user-theme.css) per non lasciare un `|` orfano o doppio. -->
+    <div class="header-sep" id="fresh-chip-sep"></div>
 
     <!-- Actions — allineati a destra -->
 <!-- Tooltip topologia (compare vicino al cursore al hover sulle linee) -->
@@ -141,8 +153,10 @@
             </button>
             <div id="automation-dropdown" class="header-menu-dropdown autom-pop" style="display:none"></div>
         </div>
-        <!-- Slot generico per le voci di menu dei moduli a pagamento (vuoto se nessun modulo). -->
-        <div id="modules-nav-slot" class="modules-nav-slot" style="display:flex;gap:6px;align-items:center"></div>
+        <!-- Slot generico per le voci di menu dei moduli a pagamento (vuoto se nessun modulo).
+             Niente stile inline: il layout è in CSS (.modules-nav-slot → display:contents) così
+             quando è vuoto non riserva un gap nel cluster destro. -->
+        <div id="modules-nav-slot" class="modules-nav-slot"></div>
         <div id="status-cluster" class="status-cluster">
             <button class="status-chip s-info" id="spare-active-badge" data-act="spare-highlight-off" data-i18n-tip="spare.badgeTip" data-tip="Porte libere evidenziate nel rack — clicca per spegnere">
                 <i class="fas fa-plug-circle-plus"></i><span data-i18n="report.spare">Porte libere</span><i class="fas fa-times chip-x"></i>
