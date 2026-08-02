@@ -38,7 +38,7 @@ test('ui: AP = wireless per definizione (niente toggle, fisarmonica sempre); PC 
     return JSON.stringify({ ok:true,
       apToggle: apH.indexOf('data-change="device-wifi" data-nid="ap"')>=0,   // ASSE B: ex onchange="setDeviceWifi('ap',…)"
       apWirelessAcc: apH.indexOf('data-section="wireless"')>=0,
-      apRadioMgr: apH.indexOf("setNodeRadioCount('ap'")>=0,
+      apRadioMgr: apH.indexOf('data-change="radio-count" data-nid="ap"')>=0,   // ASSE B: ex onchange="setNodeRadioCount('ap',…)"
       pcToggle: pcH.indexOf('data-change="device-wifi" data-nid="pc"')>=0,   // ASSE B: ex onchange="setDeviceWifi('pc',…)"
       pcWirelessAcc: pcH.indexOf('data-section="wireless"')>=0 });
   `);
@@ -92,7 +92,7 @@ test('ui: associazione wireless → solo proprietà radio, niente specifiche cav
     const wl=_createLinkRecord('wa-radio','wb-radio'); wl.wireless=true; state.links.push(wl); if(typeof _invalidateIdx==='function') _invalidateIdx();
     selType='link'; selId=wl.id; renderProps(); const h=${panelHtml()};
     return JSON.stringify({ ok:true,
-      hasRssi: h.indexOf("'rssi'")>=0,
+      hasRssi: h.indexOf('data-lprop="rssi"')>=0,   // ASSE B: ex onchange="setLinkProp(id,'rssi',…)"
       noCableType: h.indexOf("'cableType'")<0 });
   `);
   assert.ok(r.ok, 'render lancia: ' + r.err);

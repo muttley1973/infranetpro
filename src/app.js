@@ -2609,6 +2609,9 @@ export { updateFloorId, updateWallPortId, _toggleArrayField };
 // (app-properties.js) importa toggleNodeLock per la sua azione delegata (ex
 // onclick="toggleNodeLock(field);renderProps()"). Resta in expose() per i non migrati.
 export { toggleNodeLock };
+// ASSE B (coda, pannello wireless): app-wifi.js importa setNodeRadioCount per l'azione
+// delegata «numero radio» (ex onchange="setNodeRadioCount(id,this.value)"). Resta in expose().
+export { setNodeRadioCount };
 
 // ============================================================
 // EXPOSE — tutte le funzioni top-level del nucleo su window, come quando

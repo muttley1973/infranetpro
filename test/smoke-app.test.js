@@ -553,9 +553,9 @@ test('wireless: solo infrastruttura wifiServe crea SSID; i client si associano e
       const rtSsids = (nodeById('rt').radios[0].ssids||[]).length;
       selType='port'; selId='rt-radio'; renderProps();
       const rtPanel = document.getElementById('props-panel').innerHTML;
-      return JSON.stringify({ ok:true, pcSsids, pcClientHint:/clientOnly|associ/i.test(pcPanel) || pcPanel.indexOf('addBss')<0,
-        pcHasAddBtn:/addBss\\(/.test(pcPanel), rtSsids, rtBid:bid, rtHasAddBtn:/addBss\\(/.test(rtPanel),
-        rtAccordion:/props-collapsible/.test(rtPanel), rtRedTrash:/toolbar-btn danger[^>]*onclick="removeBss/.test(rtPanel) });
+      return JSON.stringify({ ok:true, pcSsids, pcClientHint:/clientOnly|associ/i.test(pcPanel) || pcPanel.indexOf('radio-add-bss')<0,
+        pcHasAddBtn:/data-act="radio-add-bss"/.test(pcPanel), rtSsids, rtBid:bid, rtHasAddBtn:/data-act="radio-add-bss"/.test(rtPanel),
+        rtAccordion:/props-collapsible/.test(rtPanel), rtRedTrash:/toolbar-btn danger[^>]*data-act="radio-remove-bss"/.test(rtPanel) });   // ASSE B: ex onclick addBss/removeBss
     } catch(e){ return JSON.stringify({ ok:false, err:String(e&&e.stack||e) }); }
   })()`);
   const r = JSON.parse(out);
@@ -645,7 +645,7 @@ test('wireless: client coerente — VLAN del nodo dalla radio + radio client rea
       state.links.push(wl,up); _invalidateIdx&&_invalidateIdx();
       state.ports['sw-2']={vlanOvr:10}; propagateVlans();
       // VLAN editabile = la radio AP la espone via updateBssCfg (per-SSID); il client no.
-      const reEdit=new RegExp("(updateRadioCfg|updateBssCfg)\\\\([^)]*'vlan'");
+      const reEdit=new RegExp('data-change="(radio-cfg|bss-cfg)"[^>]*data-field="vlan"');   // ASSE B: ex (updateRadioCfg|updateBssCfg)(…,'vlan')
       const panel=(ty,id)=>{ selType=ty; selId=id; renderProps(); return document.getElementById('props-panel').innerHTML; };
       // G1: uniformatura — il nodo NON mostra la VLAN nel pannello device (vive
       // nell'interfaccia/radio); in particolare niente "VLAN 1" della porta cablata.

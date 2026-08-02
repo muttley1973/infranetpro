@@ -788,6 +788,16 @@ function countInlineHandlers() {
 // scope:node (per-device) + scope:port/port-passive, verificato handler-only su tutti i 45
 // scenari (strip on*/data-* → identico); il banner LAG non e' nel golden.
 //
+// −19 (109 → 90), CODA ASSE B — PANNELLO WIRELESS (app-wifi.js): editor radio (standard/
+// band/channel) + SSID/BSS (ssid/vlan/security, add/remove) + numero radio + label + client-
+// assoc + picker BSS + apri-associazione + report VLAN Wi-Fi. → data-act/data-change + azioni
+// registrate LOCALMENTE (fn module-private; solo setNodeRadioCount importata da app.js).
+// idx/vlan coercizionati a numero (`+`, come i literal `${idx}`/`${v}` inline); la var `u`
+// (prima "args della chiamata") ora porta i data-attr comuni (`data-nid`/`-idx`[/`-sid`]).
+// rssi/length RIUSANO l'azione `link-prop` (data-lid, SENZA data-coerce: l'inline passava
+// this.value grezzo, setLinkProp trima — il `num` del pannello cavo cambierebbe il comportamento
+// wifi). `wifi-assoc-open` sostituisce l'onclick composto (selType/selId + renderAll/renderProps).
+//
 // −20 (129 → 109), CODA ASSE B — PANNELLO SEGMENTO CONDIVISO (app-shared-segment.js):
 // i 20 onclick del wizard bind + azioni per-porta (crea/collega switch·ap·gateway·hypervisor,
 // marca transito, ignora/ripristina, apri props/nodo, annulla ruolo) → data-act + 10 azioni
@@ -825,7 +835,7 @@ function countInlineHandlers() {
 // flusso «Personalizzato…». Golden rigenerato: 33 scenari device cambiano SOLO gli attributi,
 // verificato handler-only su tutti i 45 (strip on*/data-* → identico); 2 selettori e2e
 // (updateN('brand'→data-nfield, setEndpointVlan(→data-change=endpoint-vlan) aggiornati.
-const MAX_INLINE_HANDLERS = 109;
+const MAX_INLINE_HANDLERS = 90;
 test('ponte ASSE B: gli handler inline on*= non superano il tetto a cricchetto', () => {
   const total = countInlineHandlers();
   assert.ok(total <= MAX_INLINE_HANDLERS,

@@ -186,9 +186,9 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
 
         return {
           bss: wl.bss,
-          ifacesHasInput: ifaces.indexOf('setNodeRadioCount') >= 0,
+          ifacesHasInput: ifaces.indexOf('data-change="radio-count"') >= 0,   // ASSE B: ex setNodeRadioCount inline
           radioPanelHasSsid: radioPanelHtml.indexOf('Corp') >= 0,
-          radioPanelHasAddBtn: /addBss\(/.test(radioPanelHtml),
+          radioPanelHasAddBtn: /data-act="radio-add-bss"/.test(radioPanelHtml),   // ASSE B: ex addBss( inline
           ssN, bidOk: !!bid,
           assocInherits: assoc.indexOf('Corp') >= 0,
           reportOpen, reportClosed, reportDelegatedGone,
@@ -443,7 +443,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           swHasPortId: swHtml.indexOf('Port ID') >= 0,
           swHasField: swHtml.indexOf('data-change="port-field"') >= 0,
           swHasMode: swHtml.indexOf('data-act="port-mode"') >= 0,
-          radioDelegated: radioHtml.indexOf('Net') >= 0 || /addBss\(/.test(radioHtml),
+          radioDelegated: radioHtml.indexOf('Net') >= 0 || /data-act="radio-add-bss"/.test(radioHtml),   // ASSE B: ex addBss( inline
         };
       });
       assert.ok(r.swHasPortId, 'switchport: mostra Port ID');

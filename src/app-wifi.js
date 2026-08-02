@@ -9,14 +9,15 @@
 //
 // MODULO ESM (migrato da lib/app-wifi.js): legge i globali legacy + i lib puri
 // script-tagged (radio.js, wifi-spec.js, wifi-vlan-check.js — UMD su window) via
-// win.*; `t` dal ponte; pubblica la sua API con expose(). I nomi dentro gli
-// onclick=""/onchange="" dell'HTML generato girano in scope PAGINA → restano bare.
+// win.*; `t` dal ponte; pubblica la sua API con expose().
+// ── ASSE B (coda): gli handler inline dell'editor radio/SSID + report VLAN Wi-Fi
+//    sono passati a event delegation (vedi i blocchi registerChangeActions/ClickActions).
 
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
-import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, _showToast, _invalidateIdx, _linksForPort, _nodeRadios, _isRadioPid } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
-import { registerClickActions } from './app-delegation.js';   // ASSE B: voce menu Report via data-act
+import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, _showToast, _invalidateIdx, _linksForPort, _nodeRadios, _isRadioPid, setNodeRadioCount } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*) + (ASSE B coda) numero radio
+import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: voce menu Report + (coda) pannello wireless via event delegation
 import { closeReportMenu } from './app-auth.js';   // ASSE B: chiude il dropdown Report (proprietario = app-auth)
 import { propagateVlans, _ensureVlanColor, _getLinkTrunk } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps, _propsSectionIsOpen, _buildPropsHeader } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
@@ -179,16 +180,16 @@ function _wifiCfgHtml(cfg, nodeId, idx){
           <i class="fas ${i.level === 'error' ? 'fa-circle-exclamation' : 'fa-triangle-exclamation'}"></i>
           <div class="cable-validate-txt"><b>${esc(i.title)}</b><span>${esc(i.why)}</span></div>
         </div>`).join('')}</div>` : '';
-    const u = `'${nodeId}',${idx}`;   // argomenti comuni updateRadioCfg (campi PHY)
+    const u = `data-nid="${nodeId}" data-idx="${idx}"`;   // attributi comuni radio-cfg (event delegation)
     const _t = t;
     // Livello FISICO della radio: standard/banda/canale (l'SSID/VLAN sta nei BSS sotto).
     return `<div class="wifi-cfg">
         <div class="prop-grid2">
-          <div class="prop-group"><label>${esc(_t('pnl.feat.standard'))}</label><select onchange="updateRadioCfg(${u},'standard',this.value)">${stdOpts}</select></div>
-          <div class="prop-group"><label>${esc(_t('pnl.feat.band'))}</label><select onchange="updateRadioCfg(${u},'band',this.value)">${bandOpts}</select></div>
+          <div class="prop-group"><label>${esc(_t('pnl.feat.standard'))}</label><select data-change="radio-cfg" ${u} data-field="standard">${stdOpts}</select></div>
+          <div class="prop-group"><label>${esc(_t('pnl.feat.band'))}</label><select data-change="radio-cfg" ${u} data-field="band">${bandOpts}</select></div>
         </div>
         <div class="prop-grid2">
-          <div class="prop-group"><label>${esc(_t('pnl.feat.channel'))}</label><select onchange="updateRadioCfg(${u},'channel',this.value)">${chanOpts}</select></div>
+          <div class="prop-group"><label>${esc(_t('pnl.feat.channel'))}</label><select data-change="radio-cfg" ${u} data-field="channel">${chanOpts}</select></div>
           <div class="prop-group"></div>
         </div>
         ${banner}
@@ -207,7 +208,7 @@ function _radioSsidsHtml(radio, nodeId, idx){
         .concat((typeof win.WIFI_SECURITY !== 'undefined' ? win.WIFI_SECURITY : []).map(s => opt(s, '', _WIFI_SEC_LABELS[s] || s)));
     const list = (typeof win.radioSsids === 'function') ? win.radioSsids(radio) : (radio && radio.ssids || []);
     const rows = list.map(s => {
-        const u = `'${nodeId}',${idx},'${esc(s.id)}'`;
+        const u = `data-nid="${nodeId}" data-idx="${idx}" data-sid="${esc(s.id)}"`;
         const sec = ['<option value="">—</option>']
             .concat((typeof win.WIFI_SECURITY !== 'undefined' ? win.WIFI_SECURITY : []).map(x => opt(x, s.security, _WIFI_SEC_LABELS[x] || x))).join('');
         const bssIssues = (typeof win.validateWifi === 'function') ? win.validateWifi({ band: radio.band, security: s.security }) : [];
@@ -216,13 +217,13 @@ function _radioSsidsHtml(radio, nodeId, idx){
             <div class="cable-validate-txt"><b>${esc(i.title)}</b><span>${esc(i.why)}</span></div></div>`).join('')}</div>` : '';
         return `<div class="bss-row" style="border:1px solid var(--panel-border);border-radius:6px;padding:7px;margin-top:6px">
             <div class="prop-grid2">
-              <div class="prop-group"><label>SSID</label><input value="${esc(s.ssid || '')}" placeholder="${esc(_t('pnl.feat.ssidPh'))}" onchange="updateBssCfg(${u},'ssid',this.value)"></div>
-              <div class="prop-group"><label>VLAN</label><input type="number" min="1" max="4094" value="${esc(s.vlan || '')}" placeholder="1" onchange="updateBssCfg(${u},'vlan',this.value)" data-tip="${esc(_t('radio.vlanTip'))}"></div>
+              <div class="prop-group"><label>SSID</label><input value="${esc(s.ssid || '')}" placeholder="${esc(_t('pnl.feat.ssidPh'))}" data-change="bss-cfg" ${u} data-field="ssid"></div>
+              <div class="prop-group"><label>VLAN</label><input type="number" min="1" max="4094" value="${esc(s.vlan || '')}" placeholder="1" data-change="bss-cfg" ${u} data-field="vlan" data-tip="${esc(_t('radio.vlanTip'))}"></div>
             </div>
             <div class="prop-grid2">
-              <div class="prop-group"><label>${esc(_t('radio.security') || 'Sicurezza')}</label><select onchange="updateBssCfg(${u},'security',this.value)">${sec}</select></div>
+              <div class="prop-group"><label>${esc(_t('radio.security') || 'Sicurezza')}</label><select data-change="bss-cfg" ${u} data-field="security">${sec}</select></div>
               <div class="prop-group" style="display:flex;align-items:flex-end;justify-content:flex-end">
-                <button class="toolbar-btn danger" onclick="removeBss(${u})" data-tip="${esc(_t('radio.removeSsid') || 'Rimuovi SSID')}"><i class="fas fa-trash"></i></button></div>
+                <button class="toolbar-btn danger" data-act="radio-remove-bss" ${u} data-tip="${esc(_t('radio.removeSsid') || 'Rimuovi SSID')}"><i class="fas fa-trash"></i></button></div>
             </div>
             ${bn}
           </div>`;
@@ -236,7 +237,7 @@ function _radioSsidsHtml(radio, nodeId, idx){
         <summary class="props-collapsible-head"><span><i class="fas fa-broadcast-tower"></i> ${esc(_t('radio.ssidList') || 'SSID trasmessi')}</span>${_preview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
         <div class="props-collapsible-body">
           ${rows || `<div class="radio-assoc-empty">${esc(_t('radio.noSsid') || 'Nessun SSID')}</div>`}
-          <button class="toolbar-btn" style="margin-top:7px" onclick="addBss('${nodeId}',${idx})"><i class="fas fa-plus"></i> ${esc(_t('radio.addSsid') || 'Aggiungi SSID')}</button>
+          <button class="toolbar-btn" style="margin-top:7px" data-act="radio-add-bss" data-nid="${nodeId}" data-idx="${idx}"><i class="fas fa-plus"></i> ${esc(_t('radio.addSsid') || 'Aggiungi SSID')}</button>
         </div></details>`;
 }
 
@@ -254,7 +255,7 @@ export function _radioIfacesHtml(n){
         const sub = [r.band ? (_WIFI_BAND_LABELS[r.band] || r.band) : '', r.channel && r.channel !== 'auto' ? `ch ${r.channel}` : '',
             _ssN ? `${_ssN} SSID` : ''].filter(Boolean).join(' · ');
         const cnt = (typeof _linksForPort === 'function') ? _linksForPort(pid).length : 0;
-        return `<div class="radio-iface-row${sel ? ' selected' : ''}" onclick="selectRadioIface('${n.id}',${i})">
+        return `<div class="radio-iface-row${sel ? ' selected' : ''}" data-act="radio-select-iface" data-nid="${n.id}" data-idx="${i}">
             <i class="fas fa-wifi"></i>
             <span class="ri-name">${esc(lbl)}</span>
             <span class="ri-sub">${esc(sub) || '—'}</span>
@@ -294,7 +295,7 @@ export function _radioIfacesHtml(n){
           ${_allVlans.map(v => {
               const col = _vc[v] || '#6e7681';
               const ss = _ssidByVlan[v];
-              const _add = ss ? '' : `<button onclick="addSsidForVlan('${n.id}',${v})" data-tip="${esc(_t('radio.createSsid'))}" style="border:0;background:transparent;color:var(--active-color);cursor:pointer;padding:0 0 0 2px;font-size:0.72rem;line-height:1"><i class="fas fa-plus-circle"></i></button>`;
+              const _add = ss ? '' : `<button data-act="radio-add-ssid-vlan" data-nid="${n.id}" data-vlan="${v}" data-tip="${esc(_t('radio.createSsid'))}" style="border:0;background:transparent;color:var(--active-color);cursor:pointer;padding:0 0 0 2px;font-size:0.72rem;line-height:1"><i class="fas fa-plus-circle"></i></button>`;
               return `<span style="display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:11px;background:rgba(255,255,255,.04);border:1px solid var(--panel-border);font-size:0.72rem;white-space:nowrap">
                   <span style="width:9px;height:9px;border-radius:50%;background:${col};flex-shrink:0;border:1px solid rgba(255,255,255,.18)"></span>
                   <b>VLAN ${v}</b><span style="color:var(--text-muted)">${ss ? esc(ss) : esc(_t('radio.unassigned'))}</span>${_add}
@@ -304,7 +305,7 @@ export function _radioIfacesHtml(n){
     return `<div class="radio-ifaces">
         <div class="prop-group radio-count">
           <label><i class="fas fa-wifi"></i> ${_t('radio.count')}</label>
-          <input type="number" min="${_minRadios}" max="8" value="${radios.length}" onchange="setNodeRadioCount('${n.id}',this.value)">
+          <input type="number" min="${_minRadios}" max="8" value="${radios.length}" data-change="radio-count" data-nid="${n.id}">
         </div>
         ${_poolHtml}
         ${rows}
@@ -418,12 +419,12 @@ function _openBssMenu(linkId, node){
     const rows = named.map(s => {
         const col = (s.vlan && vc[s.vlan]) || '#6e7681';
         const band = s.band ? ` · ${esc(_WIFI_BAND_LABELS[s.band] || s.band)}` : '';
-        return `<button class="bss-pick" onclick="_pickBss('${esc(linkId)}','${esc(s.id)}')" style="display:flex;align-items:center;gap:9px;width:100%;text-align:left;border:1px solid var(--panel-border);background:rgba(255,255,255,.03);border-radius:7px;padding:9px 11px;margin-top:6px;cursor:pointer;color:var(--text-main)">
+        return `<button class="bss-pick" data-act="bss-pick" data-lid="${esc(linkId)}" data-sid="${esc(s.id)}" style="display:flex;align-items:center;gap:9px;width:100%;text-align:left;border:1px solid var(--panel-border);background:rgba(255,255,255,.03);border-radius:7px;padding:9px 11px;margin-top:6px;cursor:pointer;color:var(--text-main)">
             <span style="width:11px;height:11px;border-radius:50%;background:${col};flex-shrink:0;border:1px solid rgba(255,255,255,.18)"></span>
             <b>${esc(s.ssid)}</b>${s.vlan ? `<span style="color:var(--text-muted)">VLAN ${s.vlan}${band}</span>` : ''}</button>`;
     }).join('');
     ov.innerHTML = `<div class="drift-modal" style="max-width:340px"><div class="drift-head"><span><i class="fas fa-wifi"></i> ${esc(_t('radio.pickBss'))}</span>`
-        + `<button class="toolbar-btn" onclick="_closeBssMenu()" data-tip="${esc(_t('common.close'))}"><i class="fas fa-times"></i></button></div>`
+        + `<button class="toolbar-btn" data-act="bss-menu-close" data-tip="${esc(_t('common.close'))}"><i class="fas fa-times"></i></button></div>`
         + `<div class="drift-body" style="padding:12px">${rows}</div></div>`;
     ov.style.display = 'flex';
 }
@@ -453,7 +454,7 @@ export function _renderRadioProps(panel, pid){
         const nm = on ? ((typeof getNodeDisplayName === 'function' ? getNodeDisplayName(on) : '') || on.name || on.id) : other;
         const kind = l.wireless ? _t('cable.wirelessAssoc') : _t('cable.cable');
         const ico = l.wireless ? 'fa-wifi' : 'fa-ethernet';
-        return `<div class="radio-assoc-row" onclick="selType='link';selId='${l.id}';renderAll();renderProps()">
+        return `<div class="radio-assoc-row" data-act="wifi-assoc-open" data-lid="${l.id}">
             <i class="fas ${ico}"></i><span class="ra-name">${esc(nm)}</span><span class="ra-kind">${esc(kind)}</span></div>`;
     }).join('');
     const assocBlock = links.length
@@ -462,7 +463,7 @@ export function _renderRadioProps(panel, pid){
     panel.innerHTML = `
         ${_buildPropsHeader(devName, lbl, 'fa-wifi')}
         <div class="prop-group"><label>${esc(_t('radio.label'))}</label>
-          <input value="${esc(cfg.label || '')}" placeholder="${esc(_t('radio.iface'))} ${p.idx + 1}" onchange="setRadioLabel('${p.nodeId}',${p.idx},this.value)"></div>
+          <input value="${esc(cfg.label || '')}" placeholder="${esc(_t('radio.iface'))} ${p.idx + 1}" data-change="radio-label" data-nid="${p.nodeId}" data-idx="${p.idx}"></div>
         ${(() => {
             const _srv = _radioServingSsid(pid, cfg, links);
             if(!_srv){
@@ -478,7 +479,7 @@ export function _renderRadioProps(panel, pid){
             const _cur = _srv.bssId;
             const _picker = (_opts.length > 1)
                 ? `<div class="prop-group"><label>${esc(_t('radio.assocSsid'))}</label>
-                    <select onchange="setClientAssoc('${pid}', this.value)">
+                    <select data-change="client-assoc" data-pid="${pid}">
                       ${_opts.map(o => `<option value="${esc(o.id)}"${o.id === _cur ? ' selected' : ''}>${esc(o.ssid)}${o.vlan ? ` · VLAN ${o.vlan}` : ''}${o.band ? ` · ${esc(_WIFI_BAND_LABELS[o.band] || o.band)}` : ''}</option>`).join('')}
                     </select></div>`
                 : '';
@@ -532,8 +533,8 @@ export function _wifiAssocHtml(l){
     const dist = (l.length != null && l.length !== '') ? l.length : '';
     return `${inh}
         <div class="prop-grid2">
-          <div class="prop-group"><label>${esc(t('pnl.feat.rssiSignal'))}</label><input type="number" max="0" min="-100" value="${esc(rssi)}" placeholder="${esc(t('pnl.feat.rssiPh'))}" onchange="setLinkProp('${l.id}','rssi',this.value)"></div>
-          <div class="prop-group"><label>${esc(t('pnl.feat.distance'))}</label><input type="number" min="0" value="${esc(dist)}" placeholder="${esc(t('pnl.feat.distancePh'))}" onchange="setLinkProp('${l.id}','length',this.value)"></div>
+          <div class="prop-group"><label>${esc(t('pnl.feat.rssiSignal'))}</label><input type="number" max="0" min="-100" value="${esc(rssi)}" placeholder="${esc(t('pnl.feat.rssiPh'))}" data-change="link-prop" data-lid="${l.id}" data-lprop="rssi"></div>
+          <div class="prop-group"><label>${esc(t('pnl.feat.distance'))}</label><input type="number" min="0" value="${esc(dist)}" placeholder="${esc(t('pnl.feat.distancePh'))}" data-change="link-prop" data-lid="${l.id}" data-lprop="length"></div>
         </div>`;
 }
 
@@ -586,7 +587,7 @@ function openWifiVlanReport(){
         return `<div class="cable-validate-row lvl-warn"><i class="fas fa-triangle-exclamation"></i><div class="cable-validate-txt"><span>${escapeHTML(msg)}</span></div></div>`;
     }).join('') : `<div class="drift-empty">${escapeHTML(_t('wifi.coherenceOk'))}</div>`;
     ov.innerHTML = `<div class="drift-modal"><div class="drift-head"><span><i class="fas fa-wifi"></i> ${escapeHTML(_t('report.wifiVlan'))}</span>`
-        + `<button class="toolbar-btn" onclick="_closeWifiVlanReport()" data-tip="${escapeHTML(_t('common.close'))}"><i class="fas fa-times"></i></button></div>`
+        + `<button class="toolbar-btn" data-act="wifi-report-close" data-tip="${escapeHTML(_t('common.close'))}"><i class="fas fa-times"></i></button></div>`
         + `<div class="drift-body" style="padding:12px">${body}</div></div>`;
     ov.style.display='flex';
 }
@@ -602,5 +603,28 @@ expose({
     _radioIfacesHtml, _wifiCfgHtml, _wifiVlanIssues,
 });
 
-// ASSE B: voce "VLAN Wi-Fi" del menu Report via data-act (ex win.openWifiVlanReport).
-registerClickActions({ 'report-wifi': () => { openWifiVlanReport(); closeReportMenu(); } });
+// ── ASSE B (coda): azioni delegate del pannello wireless ─────────────────────
+// Gli onchange/onclick inline dell'editor radio/SSID + report VLAN Wi-Fi passano a
+// event delegation. Le fn sono module-private (tranne setNodeRadioCount da app.js,
+// importata) → registrazione LOCALE. idx/vlan sono NUMERI (coercizione `+`, come i
+// literal `${idx}`/`${v}` inline); nodeId/bssId/field/value sono stringhe. rssi/length
+// riusano l'azione `link-prop` (app-properties-link.js, legge data-lid) SENZA data-coerce:
+// l'inline wifi passava `this.value` grezzo (setLinkProp poi trima), quindi niente `num`.
+registerChangeActions({
+    'radio-cfg':    (el) => updateRadioCfg(el.dataset.nid, +el.dataset.idx, el.dataset.field, el.value),
+    'bss-cfg':      (el) => updateBssCfg(el.dataset.nid, +el.dataset.idx, el.dataset.sid, el.dataset.field, el.value),
+    'radio-count':  (el) => setNodeRadioCount(el.dataset.nid, el.value),
+    'radio-label':  (el) => setRadioLabel(el.dataset.nid, +el.dataset.idx, el.value),
+    'client-assoc': (el) => setClientAssoc(el.dataset.pid, el.value),
+});
+registerClickActions({
+    'report-wifi':          () => { openWifiVlanReport(); closeReportMenu(); },   // voce menu Report (ex win.openWifiVlanReport)
+    'radio-remove-bss':     (el) => removeBss(el.dataset.nid, +el.dataset.idx, el.dataset.sid),
+    'radio-add-bss':        (el) => addBss(el.dataset.nid, +el.dataset.idx),
+    'radio-select-iface':   (el) => selectRadioIface(el.dataset.nid, +el.dataset.idx),
+    'radio-add-ssid-vlan':  (el) => addSsidForVlan(el.dataset.nid, +el.dataset.vlan),
+    'bss-pick':             (el) => _pickBss(el.dataset.lid, el.dataset.sid),
+    'bss-menu-close':       () => _closeBssMenu(),
+    'wifi-report-close':    () => _closeWifiVlanReport(),
+    'wifi-assoc-open':      (el) => { store.selType = 'link'; store.selId = el.dataset.lid; renderAll(); renderProps(); },
+});
