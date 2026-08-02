@@ -2493,7 +2493,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           // floor finiva nel bucket sbagliato e non veniva mai concatenato).
           selType = 'node'; selId = 'hl'; renderProps();
           const labHtml = document.getElementById('props-panel').innerHTML || '';
-          const labComplete = labHtml.includes('addVm(') && labHtml.includes('hvPlatform') && labHtml.includes("updateN('ip'");
+          const labComplete = labHtml.includes('addVm(') && labHtml.includes('hvPlatform') && labHtml.includes('data-field="ip"');   // ASSE B: ex onchange="updateN('ip',…)"
 
           // aggiungere una VM via la funzione esposta e impostarne la VLAN aggiorna il trunk
           addVm('hv');

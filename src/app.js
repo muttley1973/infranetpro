@@ -2252,6 +2252,13 @@ registerChangeActions({
     // onchange inline (ASSE B: il ponte non deve crescere). `data-field` dice
     // QUALE campo; updateN decide poi se vive sul nodo o nel suo spec.
     'node-field':    (el) => updateN(el.dataset.field, el.value),
+    // Campo identità con flag *Manual gemello (ip→ipManual, hostname→hostnameManual):
+    // scrive il valore E marca il campo come manual-first (il vecchio inline a doppia
+    // updateN dei builder «Rete & Accesso»). Generico come node-field, `data-field` sceglie.
+    'node-field-manual': (el) => { updateN(el.dataset.field, el.value); updateN(el.dataset.field + 'Manual', !!el.value.trim()); },
+    // Toggle wireless dei builder condivisi (ex onchange="setDeviceWifi/ApMode(id,checked)").
+    'device-wifi':   (el) => setDeviceWifi(el.dataset.nid, el.checked),
+    'device-ap-mode':(el) => setDeviceApMode(el.dataset.nid, el.checked),
 });
 registerClickActions({
     'backup-mark-now': (el) => markNodeBackupNow(el.dataset.node),
@@ -2598,6 +2605,10 @@ export { updateN, updateFrontPanel, deleteNode, visibleUToRackU };
 // per registrarle come azioni delegate (ex onchange inline updateFloorId/updateWallPortId/
 // _toggleArrayField). Restano anche in expose() per le superfici non migrate.
 export { updateFloorId, updateWallPortId, _toggleArrayField };
+// ASSE B (coda, builder condivisi): il lucchetto manual-first di «Rete & Accesso»
+// (app-properties.js) importa toggleNodeLock per la sua azione delegata (ex
+// onclick="toggleNodeLock(field);renderProps()"). Resta in expose() per i non migrati.
+export { toggleNodeLock };
 
 // ============================================================
 // EXPOSE — tutte le funzioni top-level del nucleo su window, come quando

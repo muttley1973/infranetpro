@@ -1598,6 +1598,11 @@ async function _autoDiscoverLinks(nodeIds){
     return { created, updated, lagGroups, protocols, pruned, diag };
 }
 
+// ASSE B (coda, builder condivisi): il bottone «Tenta collegamento automatico» di
+// «Rete & Accesso» (app-properties.js) importa questa per l'azione delegata (ex
+// onclick="_autoLinkEndpointUI()"). Resta anche in expose() per i non migrati.
+export { _autoLinkEndpointUI };
+
 expose({
     _matchNodeByIdent, _isLeafEndpoint, _ensureDiscoveryHistory,
     _recordDiscoveryObservation, _recordDiscoveryBatch, _nodeByMacMap,

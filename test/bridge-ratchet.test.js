@@ -788,6 +788,18 @@ function countInlineHandlers() {
 // scope:node (per-device) + scope:port/port-passive, verificato handler-only su tutti i 45
 // scenari (strip on*/data-* → identico); il banner LAG non e' nel golden.
 //
+// −11 (140 → 129), CODA ASSE B — BUILDER CONDIVISI (app-properties.js): i due builder
+// resi in OGNI pannello proprietà — _buildInventoryFieldsHtml (brand/model/serial/firmware)
+// e _buildNetAccessHtml (hostname/ip/mac + lucchetto manual-first + auto-link + toggle wifi/
+// AP-mode). brand/model/serial/firmware/mac → `data-change="node-field"` (l'azione GENERICA
+// gia' in app.js, `data-field` sceglie il campo, come le date warranty/eol gia' migrate);
+// hostname/ip → NUOVA `node-field-manual` (scrive il campo + il flag *Manual gemello, ex
+// doppia updateN inline) accanto a node-field in app.js; toggle `device-wifi`/`device-ap-mode`
+// (fn locali app.js) idem; click `node-lock`(+renderProps) e `autolink-endpoint` registrate
+// in app-properties.js (owner del builder, renderProps locale) con import di toggleNodeLock
+// (app.js) e _autoLinkEndpointUI (app-autolink, entrambe passate a `export`). Golden: cambiano
+// TUTTI gli scenari con inventario/rete (quasi ogni node:* + scope), verificato handler-only.
+//
 // −198 (338 → 140), Blocco 5 — CATENA DEVICE-SPEC (app-properties-node-devices.js), il
 // file piu' grosso dell'ASSE B. I ~40 rami per-tipo (ap/webcam/printer/voip/pc/mobile/
 // nas/router/firewall/server/ups/pdu/ats/…) portavano 198 onchange inline. Convertiti a
@@ -806,7 +818,7 @@ function countInlineHandlers() {
 // flusso «Personalizzato…». Golden rigenerato: 33 scenari device cambiano SOLO gli attributi,
 // verificato handler-only su tutti i 45 (strip on*/data-* → identico); 2 selettori e2e
 // (updateN('brand'→data-nfield, setEndpointVlan(→data-change=endpoint-vlan) aggiornati.
-const MAX_INLINE_HANDLERS = 140;
+const MAX_INLINE_HANDLERS = 129;
 test('ponte ASSE B: gli handler inline on*= non superano il tetto a cricchetto', () => {
   const total = countInlineHandlers();
   assert.ok(total <= MAX_INLINE_HANDLERS,

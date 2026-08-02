@@ -36,10 +36,10 @@ test('ui: AP = wireless per definizione (niente toggle, fisarmonica sempre); PC 
     selType='node'; selId='ap'; renderProps();  const apH=${panelHtml()};
     selType='node'; selId='pc'; renderProps();  const pcH=${panelHtml()};
     return JSON.stringify({ ok:true,
-      apToggle: apH.indexOf("setDeviceWifi('ap'")>=0,
+      apToggle: apH.indexOf('data-change="device-wifi" data-nid="ap"')>=0,   // ASSE B: ex onchange="setDeviceWifi('ap',…)"
       apWirelessAcc: apH.indexOf('data-section="wireless"')>=0,
       apRadioMgr: apH.indexOf("setNodeRadioCount('ap'")>=0,
-      pcToggle: pcH.indexOf("setDeviceWifi('pc'")>=0,
+      pcToggle: pcH.indexOf('data-change="device-wifi" data-nid="pc"')>=0,   // ASSE B: ex onchange="setDeviceWifi('pc',…)"
       pcWirelessAcc: pcH.indexOf('data-section="wireless"')>=0 });
   `);
   assert.ok(r.ok, 'render lancia: ' + r.err);

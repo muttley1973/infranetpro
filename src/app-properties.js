@@ -7,14 +7,17 @@
 // _buildNetAccessHtml, _propsSectionIsOpen, setPropsSectionState, _props*) sono usati
 // da MOLTI file classic + dalle foglie + dagli onclick/ontoggle inline → expose().
 // Stato sezioni (_propsSectionsState) è module-private (nessuno lo legge da fuori).
-// Simboli legacy via win.*; t dal ponte; nomi negli onclick="" restano bare.
-// Nessun cambiamento di logica rispetto all'originale.
+// Simboli legacy via win.*; t dal ponte.
+// ── ASSE B (coda): gli handler inline dei builder condivisi (inventory + «Rete &
+//    Accesso») sono passati a event delegation — vedi i blocchi registerClickActions/
+//    ToggleActions + node-field/node-field-manual/device-wifi (registrate in app.js).
 // ============================================================
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
-import { _isLeafEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
+import { _isLeafEndpoint, _autoLinkEndpointUI } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*) + (ASSE B coda) bottone auto-link
+
 import { _mgmtRow } from './app-management.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { _updateFloorToolbarVisibility } from './app-search-zoom-rack.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { _renderNodeProps } from './app-properties-node.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
@@ -22,7 +25,7 @@ import { _renderPortProps } from './app-properties-port.js';   // ritiro ponte: 
 import { _renderLinkProps } from './app-properties-link.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { _renderFloorProps } from './app-properties-floor.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { _renderVmProps } from './app-properties-vm.js';   // 5o scope: scheda macchina virtuale (selType==='vm')
-import { _deviceHasWifi, _isWifiCapable } from './app.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
+import { _deviceHasWifi, _isWifiCapable, toggleNodeLock } from './app.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*) + (ASSE B coda) lucchetto manual-first
 import { _radioIfacesHtml } from './app-wifi.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { registerToggleActions, registerClickActions } from './app-delegation.js';   // ASSE B: fisarmoniche + header via event delegation (ex ontoggle/onclick inline)
 
@@ -119,6 +122,11 @@ registerClickActions({
     'props-expand-all':     () => _propsExpandAll(),
     'props-collapse-all':   () => _propsCollapseAll(),
     'props-reset-sections': () => _propsResetSections(),
+    // Builder condivisi «Rete & Accesso» (ASSE B coda): lucchetto manual-first del
+    // campo (ex onclick="toggleNodeLock(field);renderProps()") e bottone auto-link
+    // dell'endpoint (ex onclick="_autoLinkEndpointUI()"). renderProps e' locale a questo modulo.
+    'node-lock':         (el) => { toggleNodeLock(el.dataset.field); renderProps(); },
+    'autolink-endpoint': () => _autoLinkEndpointUI(),
 });
 /** Toggle del menu kebab dell'header del pannello proprieta. */
 function _propsKebabToggle(e){
@@ -179,12 +187,12 @@ export function _buildInventoryFieldsHtml(n, d){
         firmwareVer:  escapeHTML(inventory.firmwareVer || ''),
     };
     return `<div class="prop-row2">
-        <div class="prop-group"><label>${t('field.brand')}</label><input value="${escapeHTML(n.brand||'')}" placeholder="${placeholders.brand}" onchange="updateN('brand',this.value)"></div>
-        <div class="prop-group"><label>${t('field.model')}</label><input value="${escapeHTML(n.model||'')}" placeholder="${placeholders.model}" onchange="updateN('model',this.value)"></div>
+        <div class="prop-group"><label>${t('field.brand')}</label><input value="${escapeHTML(n.brand||'')}" placeholder="${placeholders.brand}" data-change="node-field" data-field="brand"></div>
+        <div class="prop-group"><label>${t('field.model')}</label><input value="${escapeHTML(n.model||'')}" placeholder="${placeholders.model}" data-change="node-field" data-field="model"></div>
     </div>
     <div class="prop-row2">
-        <div class="prop-group"><label>${t('field.serial')}</label><input value="${escapeHTML(n.serialNumber||'')}" placeholder="${placeholders.serialNumber}" onchange="updateN('serialNumber',this.value)"></div>
-        <div class="prop-group"><label>Firmware / OS</label><input value="${escapeHTML(n.firmwareVer||'')}" placeholder="${placeholders.firmwareVer}" onchange="updateN('firmwareVer',this.value)"></div>
+        <div class="prop-group"><label>${t('field.serial')}</label><input value="${escapeHTML(n.serialNumber||'')}" placeholder="${placeholders.serialNumber}" data-change="node-field" data-field="serialNumber"></div>
+        <div class="prop-group"><label>Firmware / OS</label><input value="${escapeHTML(n.firmwareVer||'')}" placeholder="${placeholders.firmwareVer}" data-change="node-field" data-field="firmwareVer"></div>
     </div>
     <div class="prop-row2">
         <div class="prop-group"><label>${t('field.warranty')}</label><input type="date" value="${escapeHTML(n.warrantyUntil||'')}" data-tip="${t('field.warrantyTip')}" data-change="node-field" data-field="warrantyUntil"></div>
@@ -293,7 +301,7 @@ export function _buildNetAccessHtml(n, d, opts){
         && typeof _isLeafEndpoint === 'function'
         && _isLeafEndpoint(n.type);
     const _autoLinkBtn = _showAutoLink
-        ? `<div class="prop-group" style="margin-top:8px"><button class="toolbar-btn" style="width:100%" onclick="_autoLinkEndpointUI()" data-tip="${t('autolink.tip')}"><i class="fas fa-wand-magic-sparkles"></i> ${t('autolink.btn')}</button></div>`
+        ? `<div class="prop-group" style="margin-top:8px"><button class="toolbar-btn" style="width:100%" data-act="autolink-endpoint" data-tip="${t('autolink.tip')}"><i class="fas fa-wand-magic-sparkles"></i> ${t('autolink.btn')}</button></div>`
         : '';
     // Wi-Fi: sui device capaci (AP/router/firewall) la spunta + la config Wi-Fi
     // vivono QUI, in fondo a "Rete & Accesso" (un solo punto per tutti i tipi:
@@ -310,11 +318,11 @@ export function _buildNetAccessHtml(n, d, opts){
     // da hotspot può trasmettere SSID senza cambiare tipo. Off di default; sblocca l'editor SSID.
     const _nativeServe = !!(TYPES[n.type] && TYPES[n.type].wifiServe);
     const _apModeToggle = (_wifiCapable && !_nativeServe && _wifiOn)
-        ? `<label class="link-wireless-toggle" data-tip="${t('wifi.apMode')}"><input type="checkbox" ${n.apMode?'checked':''} onchange="setDeviceApMode('${n.id}',this.checked)"> <i class="fas fa-tower-broadcast"></i> <span class="lwt-txt">${t('wifi.apModeShort')}</span></label>`
+        ? `<label class="link-wireless-toggle" data-tip="${t('wifi.apMode')}"><input type="checkbox" ${n.apMode?'checked':''} data-change="device-ap-mode" data-nid="${n.id}"> <i class="fas fa-tower-broadcast"></i> <span class="lwt-txt">${t('wifi.apModeShort')}</span></label>`
         : '';
     const _wifiToggle = (_wifiCapable && !_wifiMandatory)
         ? `<div class="netaccess-wifi">
-             <label class="link-wireless-toggle" data-tip="${t('wifi.capable')}"><input type="checkbox" ${_wifiOn?'checked':''} onchange="setDeviceWifi('${n.id}',this.checked)"> <i class="fas fa-wifi"></i> <span class="lwt-txt">${t('wifi.capableShort')}</span></label>${_apModeToggle}
+             <label class="link-wireless-toggle" data-tip="${t('wifi.capable')}"><input type="checkbox" ${_wifiOn?'checked':''} data-change="device-wifi" data-nid="${n.id}"> <i class="fas fa-wifi"></i> <span class="lwt-txt">${t('wifi.capableShort')}</span></label>${_apModeToggle}
            </div>`
         : '';
     // Fisarmonica WIRELESS separata (fuori da Rete & Accesso): sempre per l'AP,
@@ -326,14 +334,14 @@ export function _buildNetAccessHtml(n, d, opts){
         : '';
     // Lucchetto manual-first VISIBILE: riflette/commuta il flag *Manual del campo
     // (ipManual/hostnameManual). Bloccato = la Verifica segnala se la rete diverge.
-    const _lockBtn = (field, locked) => `<button type="button" class="toolbar-btn" style="padding:2px 7px;margin:0;font-size:0.78rem;line-height:1${locked?';color:var(--accent);border-color:var(--accent)':''}" data-tip="${t(locked?'lock.locked':'lock.unlocked')}" aria-label="${t(locked?'lock.locked':'lock.unlocked')}" aria-pressed="${locked?'true':'false'}" onclick="toggleNodeLock('${field}');renderProps()"><i class="fas fa-lock${locked?'':'-open'}"></i></button>`;
+    const _lockBtn = (field, locked) => `<button type="button" class="toolbar-btn" style="padding:2px 7px;margin:0;font-size:0.78rem;line-height:1${locked?';color:var(--accent);border-color:var(--accent)':''}" data-tip="${t(locked?'lock.locked':'lock.unlocked')}" aria-label="${t(locked?'lock.locked':'lock.unlocked')}" aria-pressed="${locked?'true':'false'}" data-act="node-lock" data-field="${field}"><i class="fas fa-lock${locked?'':'-open'}"></i></button>`;
     return `<details class="props-collapsible" ${_propsSectionIsOpen('network-access')?'open':''} data-toggle="props-section" data-section="network-access"><summary class="props-collapsible-head"><span><i class="fas fa-link"></i> ${t('sec.netAccess')}</span>${_previewHtml}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
         ${_stackHint}
-        ${includeHostname ? `<div class="prop-group"><label>Hostname</label><div style="display:flex;gap:5px;align-items:center"><input style="flex:1" value="${escapeHTML(n.hostname||'')}" placeholder="${escapeHTML(d.brand||'')}" ${_ro} onchange="updateN('hostname',this.value);updateN('hostnameManual',!!this.value.trim())">${_ro?'':_lockBtn('hostname',!!n.hostnameManual)}</div></div>` : ''}
-        <div class="prop-group"><label>${t('net.ip')}</label><div style="display:flex;gap:5px;align-items:center"><input style="flex:1" value="${escapeHTML(n.ip||'')}" placeholder="${escapeHTML(ipPlaceholder)}" ${_ro} onchange="updateN('ip',this.value);updateN('ipManual',!!this.value.trim())">${_ro?'':_lockBtn('ip',!!n.ipManual)}</div></div>
+        ${includeHostname ? `<div class="prop-group"><label>Hostname</label><div style="display:flex;gap:5px;align-items:center"><input style="flex:1" value="${escapeHTML(n.hostname||'')}" placeholder="${escapeHTML(d.brand||'')}" ${_ro} data-change="node-field-manual" data-field="hostname">${_ro?'':_lockBtn('hostname',!!n.hostnameManual)}</div></div>` : ''}
+        <div class="prop-group"><label>${t('net.ip')}</label><div style="display:flex;gap:5px;align-items:center"><input style="flex:1" value="${escapeHTML(n.ip||'')}" placeholder="${escapeHTML(ipPlaceholder)}" ${_ro} data-change="node-field-manual" data-field="ip">${_ro?'':_lockBtn('ip',!!n.ipManual)}</div></div>
         <div class="prop-group"><label>${t('net.ip6')}</label><div style="display:flex;gap:5px;align-items:center"><input style="flex:1" value="${escapeHTML(n.ip6||'')}" placeholder="2001:db8::1" ${_ro} data-change="node-ip6">${_ro?'':_lockBtn('ip6',!!n.ip6Manual)}</div>${n.ip6Real?`<div style="font-size:0.78rem;color:#e3b341;margin-top:3px" data-tip="${escapeHTML(t('net.ip6.driftTip'))}"><i class="fas fa-triangle-exclamation"></i> ${escapeHTML(t('net.ip6.drift'))}: <span style="font-family:monospace">${escapeHTML(n.ip6Real)}</span></div>`:''}</div>
         ${_mgmtRow(n.mgmtUrl||'', n.ip||'', n.id)}
-        ${showMac ? `<div class="prop-group"><label>${escapeHTML(macLabel)}</label><input value="${escapeHTML(macVal)}"${macDerived?` title="${escapeHTML(t('mac.fromPort'))}"`:''} placeholder="${escapeHTML(macPlaceholder)}" ${_ro} onchange="updateN('mac',this.value)"></div>` : ''}
+        ${showMac ? `<div class="prop-group"><label>${escapeHTML(macLabel)}</label><input value="${escapeHTML(macVal)}"${macDerived?` title="${escapeHTML(t('mac.fromPort'))}"`:''} placeholder="${escapeHTML(macPlaceholder)}" ${_ro} data-change="node-field" data-field="mac"></div>` : ''}
         ${_autoLinkBtn}
         ${_wifiToggle}
     </div></details>${_wirelessAccordion}`;
