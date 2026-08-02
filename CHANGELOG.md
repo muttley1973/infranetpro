@@ -4,7 +4,9 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 
 **A linked version number is a published release** — follow it to the release on GitHub. *Unreleased* is what has landed on `main` since the last one.
 
-## Unreleased
+## [2.5.0](https://github.com/muttley1973/infranetpro/releases/tag/v2.5.0) — 2026-08-02
+
+**The Dashboard is the single place, and its numbers say what they mean.** The "Report e analisi" menu folds into the tiles it belonged to, a new Security verdict flags wireless SSIDs whose VLAN their access point's trunk does not carry, and "Free ports" stops counting patch panels, appliances and wall outlets as switch capacity — the headline is the port a new device can actually use.
 
 ### Added
 - Dashboard: the **Live reading** and **Management VLAN** tiles now open a list — the SNMP targets (the silent ones first, marked *no reading*, then the ones that answered), and each management VLAN **by name** (declared, or measured over SNMP; there can be more than one).
@@ -18,6 +20,7 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 - Dashboard: the **Default community** tile shows an administrator *which* known default a device uses (public / private / empty), as a marker the renderer resolves; the raw value still never leaves the engine, and a custom community is never surfaced.
 - The **"Report e analisi" menu is absorbed into the Dashboard**: the free-ports table and the L3/gateway map — both with CSV export — now open from their tile drill-downs, and the wireless-VLAN coherence report becomes a Security-lens verdict. The header keeps only **Change history**, as a standalone button: a log over time is not a state snapshot, so it stays out of the Dashboard.
 - Dashboard: **Free ports** now headlines the real *switch* capacity — the port where a new device actually attaches — with patch panels, appliances (NVR, KVM, console server, NAS, firewall…) and wall outlets counted apart as a *+N non-switch* badge instead of inflating the total; the drill-down splits into **In-rack / Outside-rack** (the free wall outlets), each non-switch device marked. On the demo project this reads 114 of 216 switch ports free (+129 non-switch) where it used to claim 243 of 491. The per-speed breakdown tab is dropped in favour of the out-of-rack count.
+- The header's right-hand cluster is evenly spaced and grouped with the same dividers the left side uses — views | Verify | tools | automation | account — and the freshness counter sits in a bordered, rounded box instead of a borderless pill (a fresh reading still tints that border with its status colour).
 
 ## [2.4.0](https://github.com/muttley1973/infranetpro/releases/tag/v2.4.0) — 2026-07-31
 
