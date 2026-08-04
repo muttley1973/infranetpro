@@ -31,6 +31,10 @@ import { registerClickActions } from './app-delegation.js';   // ASSE B (coda): 
 // quindi la registrazione e' locale (nessun export). pid/nodeId/type/role si
 // leggono da data-pid/-nid/-type/-role sull'elemento cliccato.
 registerClickActions({
+    // Coda ASSE B (netmapper.html static): modale «Collega a dispositivo esistente».
+    'ssbind-backdrop': (el, ev) => { if (ev.target === el) _closeSharedSegmentBind(); },
+    'ssbind-close':    () => _closeSharedSegmentBind(),
+    'ssbind-back':     () => _backSharedSegmentBind(),
     'ss-bind-select':  (el) => _selectSharedSegmentBindNode(el.dataset.nid),
     'ss-bind-confirm': (el) => _confirmSharedSegmentBind(el.dataset.nid, el.dataset.pid),
     'ss-props':        (el) => _openSharedSegmentProps(el.dataset.pid),

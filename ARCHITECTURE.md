@@ -762,11 +762,14 @@ is VPN/LAN.
   - **Axis B — inline handlers (`onclick`/`onchange`/`oninput`/…) → event delegation.** Inline handlers
     are *why* the bridge still exists (they resolve names in page lexical scope). **A monotonic ratchet
     (`MAX_INLINE_HANDLERS` in `test/bridge-ratchet.test.js`, may only decrease) now caps their count —
-    currently 56 across `src/*.js` templates + `netmapper.html` static — so Axis B is measured and
+    currently 36 across `src/*.js` templates + `netmapper.html` static — so Axis B is measured and
     converges like Axis A; the target is the structural floor. Every property-panel and overlay
-    surface in `src/*.js` is now delegated; the residue is `netmapper.html`'s canvas interactions
-    (wheel / drop / dragover / contextmenu / scroll / mouse-enter-leave — each needs a new harness
-    event type) plus two structural handlers (the cabling-editor gear, the render-core pointer-down).** `src/app-delegation.js`
+    surface in `src/*.js` is delegated, and so is `netmapper.html`'s static shell (buttons, tabs,
+    dialogs — each action registered in its owning module). The residue is: the PDF/label export
+    dialogs and export-menu items (they call `export.js`, a classic non-ESM `<script>` — delegating
+    them would need a `win.*` read and breach the Axis-A floor, so they stay by design), plus the
+    canvas interactions (wheel / drop / dragover / contextmenu / scroll / mouse-enter-leave +
+    `app-render-core`'s pointer-down) that still await new harness event types.** `src/app-delegation.js`
     installs **one delegated listener per event type** on the document — `data-act` for `click`,
     `data-change` for `change` (selects, checkboxes, file inputs, committed numbers), `data-input` for
     live `input` (typing), `data-focus` for `focus` (attached as `focusin`, which bubbles — plain

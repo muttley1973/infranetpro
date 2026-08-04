@@ -862,7 +862,23 @@ function countInlineHandlers() {
 // (data-ncoerce intdef/floatdef = parseInt/parseFloat||default, SENZA clamp),
 // «Aggiungi VM» → hv-add-vm (id in data-nid). Golden rigenerato: 35 scenari node
 // cambiano SOLO attributi, verificato handler-only (strip on*/data-* → identico).
-const MAX_INLINE_HANDLERS = 56;
+//
+// −20 (56 → 36): coda ASSE B, SHELL STATICO di netmapper.html (handler che usano tipi
+// harness GIA' esistenti — click). Migrati alle azioni registrate nel modulo OWNER:
+// bottone Scopri + modale discovery (disc-open/backdrop/close/run/import → app-discovery),
+// modale «Collega a dispositivo» (ssbind-* → app-shared-segment), modale generico
+// prompt/confirm (modal-resolve, val in data-val → app-core), bottone «Topologia»
+// (toggle-topology → app-topology-discover; il tasto destro resta inline, e' contextmenu),
+// chip V3 (v3-jump-next → app-snmp), «Verifica» (run-drift-check → app-drift), badge/bottone
+// «Automazioni» (automation-menu-toggle → app-vlan-autopoll), le 3 tab del pannello destro
+// (right-tab, nome in data-tab → app.js). Tutte le fn sono LOCALI ai rispettivi owner →
+// nessun nuovo export/import ne' lettura win.*. Non-golden (shell), verifica LIVE.
+// RESTA in netmapper.html: 21 handler dei dialoghi PDF/etichette export + 4 voci del menu
+// import/export che chiamano export.js (CLASSIC, fuori-ASSE per design: registrarli
+// richiederebbe una lettura win.* e romperebbe il tetto A) + le interazioni CANVAS
+// (wheel/drop/dragover/contextmenu/scroll/mouse-enter-leave + onpointerdown di
+// app-render-core) che aspettano nuovi tipi di evento nell'harness.
+const MAX_INLINE_HANDLERS = 36;
 test('ponte ASSE B: gli handler inline on*= non superano il tetto a cricchetto', () => {
   const total = countInlineHandlers();
   assert.ok(total <= MAX_INLINE_HANDLERS,

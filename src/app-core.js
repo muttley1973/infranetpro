@@ -230,6 +230,8 @@ expose({
 // su window: i bottoni della toolbar le chiamano via `data-act` (event delegation).
 // saveProject è anche importata da app.js per la scorciatoia Ctrl+S.
 registerClickActions({
+    // Coda ASSE B (netmapper.html static): modale generico prompt/confirm (#modal-box).
+    'modal-resolve':     (el) => modalResolve(el.dataset.val === '1'),
     'project-new':       () => newProject(),
     'project-rename':    () => renameProject(),
     'project-duplicate': () => duplicateProject(),

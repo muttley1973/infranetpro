@@ -2298,6 +2298,8 @@ registerChangeActions({
 });
 registerClickActions({
     'backup-mark-now': (el) => markNodeBackupNow(el.dataset.node),
+    // Coda ASSE B (netmapper.html static): le 3 tab del pannello destro (rack/props/ai).
+    'right-tab':       (el) => switchRightTab(el.dataset.tab),
 });
 
 // Lock manual-first VISIBILE: fissa/sblocca un campo identità del device (IP /

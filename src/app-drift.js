@@ -756,6 +756,8 @@ expose({
 // (registrata qui, import da app-ai); openAdoptModal → data-act="adopt-open"
 // (registrata in app-drift-adopt.js, che gia' possiede il modale Adotta).
 registerClickActions({
+    // Coda ASSE B (netmapper.html static): bottone header «Verifica».
+    'run-drift-check':   () => runDriftCheck(),
     'drift-close':       () => _closeDriftReport(),
     'drift-investigate': (el) => driftInvestigate(el.dataset.key),
     'drift-ignore':      (el) => driftIgnore(el.dataset.key),

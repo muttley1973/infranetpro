@@ -849,6 +849,8 @@ registerClickActions({
     'autopoll-interval': (el) => setAutoPoll(null, +el.dataset.interval),
     'voice-close':   () => _closeVoiceAssign(),
     'voice-confirm': () => _voiceAssignConfirm(),
+    // Coda ASSE B (netmapper.html static): il badge/bottone che APRE il popover Automazioni.
+    'automation-menu-toggle': () => toggleAutomationMenu(),
 });
 registerChangeActions({
     'autopoll-toggle': (el) => setAutoPoll(el.checked, null),

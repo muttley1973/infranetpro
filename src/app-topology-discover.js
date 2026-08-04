@@ -462,6 +462,9 @@ expose({
 // app-popup.js): "Crea cavo" (pairKey in data-pairkey) e "vai al rack" (rackId in
 // data-rack). Le due fn escono da expose(); erano chiamate SOLO da quel tooltip.
 registerClickActions({
+    // Coda ASSE B (netmapper.html static): bottone «Topologia». Il tasto destro
+    // "aggiorna" resta inline (oncontextmenu → serve un tipo harness nuovo).
+    'toggle-topology':  () => toggleTopology(),
     'topo-create-link': (el) => _createTopoLink(el.dataset.pairkey),
     'topo-nav-rack':    (el) => navigateToRack(el.dataset.rack),
 });

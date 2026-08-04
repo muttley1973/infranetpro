@@ -122,14 +122,14 @@
                 data-tip="Vista di sintesi: cosa manca al documento, cosa non torna con la realtà, quanto margine resta">
             <i class="fas fa-circle-info"></i><span class="btn-label" data-i18n="ov.label"> Dashboard</span>
         </button>
-        <button class="toolbar-btn" id="btn-discover" onclick="openDiscovery()"
+        <button class="toolbar-btn" id="btn-discover" data-act="disc-open"
                 data-i18n-tip="discover.tip"
                 data-tip="Scansiona la rete via SNMP, poi espande automaticamente via LLDP/CDP">
             <i class="fas fa-satellite-dish"></i><span class="btn-label" data-i18n="discover.label"> Scopri</span>
         </button>
         <div class="header-sep"></div>
-        <button class="status-chip s-warn" id="v3-pending-chip" onclick="_v3JumpNext()" data-tip="Device SNMPv3 da configurare — clic per saltare al prossimo"></button>
-        <button class="toolbar-btn primary" id="btn-drift" onclick="runDriftCheck()"
+        <button class="status-chip s-warn" id="v3-pending-chip" data-act="v3-jump-next" data-tip="Device SNMPv3 da configurare — clic per saltare al prossimo"></button>
+        <button class="toolbar-btn primary" id="btn-drift" data-act="run-drift-check"
                 data-i18n-tip="verify.tip"
                 data-tip="Controllo completo: rilegge i dati SNMP, ricostruisce la topologia e verifica la presenza reale (ping/ARP/TCP), evidenziando differenze e cambi IP">
             <i class="fas fa-clipboard-check"></i><span class="btn-label" data-i18n="verify.label"> Verifica</span>
@@ -148,7 +148,7 @@
         </button>
         <div class="header-sep"></div>
         <div id="automation-menu-wrap" style="position:relative">
-            <button class="toolbar-btn icon-only" id="btn-automation" onclick="toggleAutomationMenu()" data-i18n-tip="autom.tip" data-tip="Automazioni di rete: polling SNMP in background e rinnovo automatico IP (DHCP)">
+            <button class="toolbar-btn icon-only" id="btn-automation" data-act="automation-menu-toggle" data-i18n-tip="autom.tip" data-tip="Automazioni di rete: polling SNMP in background e rinnovo automatico IP (DHCP)">
                 <i class="fas fa-gear"></i><span class="btn-label" data-i18n="autom.label"> Automazioni</span><i class="fas fa-chevron-down" style="font-size:0.6rem;margin-left:4px;opacity:.6"></i>
             </button>
             <div id="automation-dropdown" class="header-menu-dropdown autom-pop" style="display:none"></div>
@@ -161,7 +161,7 @@
             <button class="status-chip s-info" id="spare-active-badge" data-act="spare-highlight-off" data-i18n-tip="spare.badgeTip" data-tip="Porte libere evidenziate nel rack — clicca per spegnere">
                 <i class="fas fa-plug-circle-plus"></i><span data-i18n="report.spare">Porte libere</span><i class="fas fa-times chip-x"></i>
             </button>
-            <button class="status-chip s-ok" id="autopoll-badge" onclick="toggleAutomationMenu()" data-i18n-tip="autopoll.tip" data-tip="Polling automatico attivo — clic per le automazioni"></button>
+            <button class="status-chip s-ok" id="autopoll-badge" data-act="automation-menu-toggle" data-i18n-tip="autopoll.tip" data-tip="Polling automatico attivo — clic per le automazioni"></button>
             <!-- Il badge del filtro VLAN vive ora nella sotto-header (#modern-subbar,
                  src/app-subbar.js: _vlanFilterEl), centrato tra breadcrumb e statistiche. -->
         </div>
@@ -342,7 +342,7 @@
             <div id="map-view-bar">
                 <div id="topo-legend"></div>
                 <span id="map-view-sep"></span>
-                <button class="toolbar-btn" id="btn-topology" onclick="toggleTopology()" oncontextmenu="event.preventDefault();discoverTopology(true)"
+                <button class="toolbar-btn" id="btn-topology" data-act="toggle-topology" oncontextmenu="event.preventDefault();discoverTopology(true)"
                         data-i18n-tip="topology.tip"
                         data-tip="Vista: mostra i collegamenti LLDP/CDP sulla planimetria · tasto destro per aggiornare">
                     <i class="fas fa-project-diagram"></i><span class="btn-label" data-i18n="topology.label"> Topologia</span>
@@ -359,14 +359,14 @@
         <aside id="rack-view" ondragover="event.preventDefault();" ondrop="handleDrop(event,'rack')">
             <!-- Tab bar: Rack / Proprietà / Assistente -->
             <div id="right-tab-bar" role="tablist" data-i18n-aria="tab.barAria" aria-label="Pannello destro">
-                <div class="right-tab active" id="tab-rack" role="tab" aria-selected="true" aria-controls="rack-viewport" tabindex="0" onclick="switchRightTab('rack')">
+                <div class="right-tab active" id="tab-rack" role="tab" aria-selected="true" aria-controls="rack-viewport" tabindex="0" data-act="right-tab" data-tab="rack">
                     <i class="fas fa-server" style="font-size:0.75rem"></i> <span data-i18n="tab.rack">Rack</span>
                 </div>
-                <div class="right-tab" id="tab-props" role="tab" aria-selected="false" aria-controls="props-panel-wrap" tabindex="0" onclick="switchRightTab('props')">
+                <div class="right-tab" id="tab-props" role="tab" aria-selected="false" aria-controls="props-panel-wrap" tabindex="0" data-act="right-tab" data-tab="props">
                     <i class="fas fa-sliders" style="font-size:0.75rem"></i> <span data-i18n="tab.props">Proprietà</span>
                     <span class="tab-badge" id="props-tab-badge"></span>
                 </div>
-                <div class="right-tab" id="tab-ai" role="tab" aria-selected="false" aria-controls="ai-panel-wrap" tabindex="0" onclick="switchRightTab('ai')"
+                <div class="right-tab" id="tab-ai" role="tab" aria-selected="false" aria-controls="ai-panel-wrap" tabindex="0" data-act="right-tab" data-tab="ai"
                      data-i18n-tip="assistant.tabTip" data-tip="Assistente di rete — domande, diagnosi e bozze · scorciatoia: A">
                     <i class="fas fa-robot" style="font-size:0.75rem"></i> <span data-i18n="tab.ai">Assistente</span>
                     <span class="tab-badge" id="ai-tab-badge"></span>
@@ -465,8 +465,8 @@
         <p id="modal-msg"></p>
         <input id="modal-input" type="text" autocomplete="off">
         <div id="modal-actions">
-            <button id="modal-cancel" class="toolbar-btn"         onclick="modalResolve(false)" data-i18n="common.cancel">Annulla</button>
-            <button id="modal-ok"     class="toolbar-btn primary" onclick="modalResolve(true)">OK</button>
+            <button id="modal-cancel" class="toolbar-btn"         data-act="modal-resolve" data-val="0" data-i18n="common.cancel">Annulla</button>
+            <button id="modal-ok"     class="toolbar-btn primary" data-act="modal-resolve" data-val="1">OK</button>
         </div>
     </div>
 </div>
@@ -722,11 +722,11 @@
 </div>
 
 <!-- ===== MODAL DISCOVERY RETE ===== -->
-<div id="disc-overlay" class="tool-modal-overlay" onclick="if(event.target===this)_closeDiscoveryOverlayClick()">
+<div id="disc-overlay" class="tool-modal-overlay" data-act="disc-backdrop">
   <div class="tool-modal wide" role="dialog" aria-modal="true" aria-labelledby="disc-title">
     <div class="tool-modal-header">
       <h3 id="disc-title"><i class="fas fa-satellite-dish"></i> <span data-i18n="disc.title">Scopri dispositivi in rete</span></h3>
-      <button class="toolbar-btn" onclick="closeDiscovery()" style="padding:4px 8px"><i class="fas fa-times"></i></button>
+      <button class="toolbar-btn" data-act="disc-close" style="padding:4px 8px"><i class="fas fa-times"></i></button>
     </div>
     <div class="tool-modal-body">
       <div id="disc-setup">
@@ -819,9 +819,9 @@
     </div>
     <div class="tool-modal-footer">
       <button class="toolbar-btn" id="disc-new-search" data-act="disc-new-search" style="margin-right:auto;display:none"><i class="fas fa-arrow-left"></i> <span data-i18n="disc.newSearch">Nuova ricerca</span></button>
-      <button class="toolbar-btn" onclick="closeDiscovery()" data-i18n="common.cancel">Annulla</button>
-      <button class="toolbar-btn" id="disc-scan-btn" onclick="runDiscovery()"><i class="fas fa-search"></i> <span data-i18n="disc.scan">Scansiona</span></button>
-      <button class="toolbar-btn primary" id="disc-import-btn" onclick="importDiscovered()" disabled><i class="fas fa-file-import"></i> <span data-i18n="common.addSelected">Aggiungi selezionati</span></button>
+      <button class="toolbar-btn" data-act="disc-close" data-i18n="common.cancel">Annulla</button>
+      <button class="toolbar-btn" id="disc-scan-btn" data-act="disc-run"><i class="fas fa-search"></i> <span data-i18n="disc.scan">Scansiona</span></button>
+      <button class="toolbar-btn primary" id="disc-import-btn" data-act="disc-import" disabled><i class="fas fa-file-import"></i> <span data-i18n="common.addSelected">Aggiungi selezionati</span></button>
     </div>
   </div>
 </div>
@@ -1015,16 +1015,16 @@
 </div>
 
 <!-- Shared segment bind existing device -->
-<div id="shared-bind-overlay" class="tool-modal-overlay" onclick="if(event.target===this)_closeSharedSegmentBind()">
+<div id="shared-bind-overlay" class="tool-modal-overlay" data-act="ssbind-backdrop">
   <div class="tool-modal" style="width:620px;max-width:96vw" role="dialog" aria-modal="true" aria-labelledby="shared-bind-title">
     <div class="tool-modal-header">
       <h3 id="shared-bind-title"><i class="fas fa-link"></i> Collega a dispositivo esistente</h3>
-      <button class="toolbar-btn" onclick="_closeSharedSegmentBind()" style="padding:4px 8px"><i class="fas fa-times"></i></button>
+      <button class="toolbar-btn" data-act="ssbind-close" style="padding:4px 8px"><i class="fas fa-times"></i></button>
     </div>
     <div id="shared-bind-body" class="tool-modal-body"></div>
     <div class="tool-modal-footer">
-      <button class="toolbar-btn" id="shared-bind-back" onclick="_backSharedSegmentBind()" style="display:none"><i class="fas fa-arrow-left"></i> <span data-i18n="common.back">Indietro</span></button>
-      <button class="toolbar-btn primary" onclick="_closeSharedSegmentBind()" data-i18n="common.close">Chiudi</button>
+      <button class="toolbar-btn" id="shared-bind-back" data-act="ssbind-back" style="display:none"><i class="fas fa-arrow-left"></i> <span data-i18n="common.back">Indietro</span></button>
+      <button class="toolbar-btn primary" data-act="ssbind-close" data-i18n="common.close">Chiudi</button>
     </div>
   </div>
 </div>

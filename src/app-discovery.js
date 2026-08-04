@@ -1325,4 +1325,10 @@ registerChangeActions({
 // non onclick inline (tetto a cricchetto handler inline).
 registerClickActions({
     'disc-new-search': () => _discShowSetupPhase(),
+    // Coda ASSE B (netmapper.html static): bottone «Scopri» + modale discovery.
+    'disc-open':      () => openDiscovery(),
+    'disc-backdrop':  (el, ev) => { if (ev.target === el) _closeDiscoveryOverlayClick(); },
+    'disc-close':     () => closeDiscovery(),
+    'disc-run':       () => runDiscovery(),
+    'disc-import':    () => importDiscovered(),
 });

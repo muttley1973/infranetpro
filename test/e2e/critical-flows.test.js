@@ -4337,11 +4337,13 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       await page.waitForTimeout(350);
       const persisted = await page.evaluate(() => document.getElementById('btn-discover').classList.contains('coach-spotlight'));
       assert.ok(persisted, 'il faro resta acceso finché non lo si clicca (niente timer)');
-      // …e si spegne SOLO quando si clicca il bottone illuminato (neutralizzo
-      // l'onclick reale per non aprire la discovery: testo solo lo spegnimento).
+      // …e si spegne SOLO quando si clicca il bottone illuminato (neutralizzo la
+      // DELEGA — il bottone ora usa data-act, non onclick — per non aprire la
+      // discovery: testo solo lo spegnimento. Lo spotlight-clear è un listener
+      // `click` diretto sull'elemento (app-ai.js), indipendente dal data-act).
       const cleared = await page.evaluate(() => {
         const b = document.getElementById('btn-discover');
-        b.onclick = null; b.click();
+        b.removeAttribute('data-act'); b.click();
         return !b.classList.contains('coach-spotlight');
       });
       assert.ok(cleared, 'cliccando il bottone illuminato il faro si spegne');

@@ -796,4 +796,6 @@ expose({
 // _ensureVlanColor) → nessun nuovo ciclo di import ne' lettura win.* aggiunta.
 registerClickActions({
     'automation-sync-now': () => { pollAllSNMP(); toggleAutomationMenu(); },
+    // Coda ASSE B (netmapper.html static): chip «V3 da configurare» → salta al prossimo.
+    'v3-jump-next': () => _v3JumpNext(),
 });
