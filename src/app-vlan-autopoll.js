@@ -17,7 +17,7 @@ import { _renderTopoLegend } from './app-topology-overlay.js';   // ritiro ponte
 import { _getLinkVlan, _vlanLabel } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
 import { _deviceAccessVlanPid } from './app-properties-node-devices.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { applyUiColors } from './app-search-zoom-rack.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
-import { registerClickActions } from './app-delegation.js';   // ASSE B: backdrop/chiudi del modale «Membership VLAN» via data-act (coerente con gli altri overlay in #modal-root)
+import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: modale «Membership VLAN» + popover Automazioni + modale VLAN voce via event delegation
 
 // Handle dei timer auto-poll: prima `let` in app.js, usati SOLO qui -> module-local.
 let _autoPollTimer = null;     // handle setInterval auto-poll
@@ -49,7 +49,9 @@ function setAutoPoll(enabled, interval){
 // Raccoglie i due interruttori di automazione (auto-poll SNMP + rinnovo IP
 // DHCP), prima sepolti nei collassabili di Proprietà planimetria, in un unico
 // menu in header accanto all'area di stato. Il badge auto-poll lo apre.
-function toggleAutomationMenu(){
+// ASSE B: export per registrare l'azione «Sincronizza ora» in app-snmp.js (owner di
+// pollAllSNMP; app-snmp gia' importa questo modulo → nessun nuovo ciclo di import).
+export function toggleAutomationMenu(){
     const d=document.getElementById('automation-dropdown');
     if(!d) return;
     if(d.style.display==='none' || !d.style.display){ renderAutomationMenu(); d.style.display='block'; }
@@ -68,7 +70,7 @@ export function renderAutomationMenu(){
       <div class="autom-sec">
         <div class="autom-row">
           <span class="autom-title"><i class="fas fa-network-wired"></i>${escapeHTML(t('autom.syncNow'))}</span>
-          <button class="toolbar-btn" style="padding:3px 9px;font-size:0.75rem" onclick="pollAllSNMP();toggleAutomationMenu()" data-tip="${escapeHTML(t('autom.syncNowTip'))}"><i class="fas fa-rotate"></i> ${escapeHTML(t('autom.syncNowBtn'))}</button>
+          <button class="toolbar-btn" style="padding:3px 9px;font-size:0.75rem" data-act="automation-sync-now" data-tip="${escapeHTML(t('autom.syncNowTip'))}"><i class="fas fa-rotate"></i> ${escapeHTML(t('autom.syncNowBtn'))}</button>
         </div>
         <div class="autom-desc">${escapeHTML(t('autom.syncNowDesc'))}</div>
       </div>
@@ -76,12 +78,12 @@ export function renderAutomationMenu(){
         <div class="autom-row">
           <span class="autom-title"><i class="fas fa-clock"></i>${escapeHTML(t('autom.poll'))}</span>
           <label class="toggle-sw" data-tip="${escapeHTML(t('autopoll.tip'))}">
-            <input type="checkbox" ${ap.enabled?'checked':''} onchange="setAutoPoll(this.checked,null)">
+            <input type="checkbox" ${ap.enabled?'checked':''} data-change="autopoll-toggle">
             <span class="toggle-track"></span>
           </label>
         </div>
         <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;${ap.enabled?'':'opacity:.4;pointer-events:none'}">
-          ${[1,5,10,15,30].map(m=>`<button class="toolbar-btn${ivl===m?' primary':''}" style="padding:3px 9px;font-size:0.75rem" onclick="setAutoPoll(null,${m})">${m}m</button>`).join('')}
+          ${[1,5,10,15,30].map(m=>`<button class="toolbar-btn${ivl===m?' primary':''}" style="padding:3px 9px;font-size:0.75rem" data-act="autopoll-interval" data-interval="${m}">${m}m</button>`).join('')}
         </div>
         <div class="autom-desc">${escapeHTML(t('autom.pollDesc'))}</div>
       </div>
@@ -90,14 +92,14 @@ export function renderAutomationMenu(){
         <div class="autom-row">
           <span class="autom-title"><i class="fas fa-arrows-rotate"></i>${escapeHTML(t('autom.ipRenew'))}</span>
           <label class="toggle-sw" data-tip="${escapeHTML(t('autom.ipRenewTip'))}">
-            <input type="checkbox" ${ipr?'checked':''} onchange="setAutoIpRenew(this.checked)">
+            <input type="checkbox" ${ipr?'checked':''} data-change="autopoll-ip-renew">
             <span class="toggle-track"></span>
           </label>
         </div>
         <div class="autom-desc">${escapeHTML(t('autom.ipRenewDesc'))}</div>
         <div class="autom-row" style="margin-top:11px">
           <span class="autom-title"><i class="fas fa-table-list"></i>${escapeHTML(t('dhcp.title'))}</span>
-          <button class="toolbar-btn" style="padding:3px 9px;font-size:0.75rem" onclick="openDhcpImport()"><i class="fas fa-folder-open"></i> ${escapeHTML(t('dhcp.load'))}</button>
+          <button class="toolbar-btn" style="padding:3px 9px;font-size:0.75rem" data-act="dhcp-open"><i class="fas fa-folder-open"></i> ${escapeHTML(t('dhcp.load'))}</button>
         </div>
         <div class="autom-desc">${escapeHTML(dl.length ? t('dhcp.inMemory',{n:dl.length}) : t('dhcp.loadDesc'))}</div>
       </div>`;
@@ -684,20 +686,20 @@ function _voiceAssignHtml(){
     const total = _voipNodes().length;
     return `<div class="drift-modal" style="max-width:440px">
       <div class="drift-head"><span><i class="fas fa-phone"></i> ${_tV('voice.assignTitle','Assegna VLAN voce {vid} ai telefoni',{vid})}</span>
-        <button class="toolbar-btn" onclick="_closeVoiceAssign()" data-tip="${_tV('common.close','Chiudi')}"><i class="fas fa-times"></i></button></div>
+        <button class="toolbar-btn" data-act="voice-close" data-tip="${_tV('common.close','Chiudi')}"><i class="fas fa-times"></i></button></div>
       <div class="drift-body" style="padding:14px">
         <div class="prop-group"><label>${_tV('voice.scope','Ambito')}</label>
-          <label class="prop-check"><input type="radio" name="va-scope" value="all" checked onchange="_voiceAssignPreview()"> ${_tV('voice.scopeAll','Tutti i telefoni')} (${total})</label>
-          <label class="prop-check"${selVoip?'':' style="opacity:.45"'}><input type="radio" name="va-scope" value="selected" ${selVoip?'':'disabled'} onchange="_voiceAssignPreview()"> ${_tV('voice.scopeSelected','Solo il telefono selezionato')}</label>
+          <label class="prop-check"><input type="radio" name="va-scope" value="all" checked data-change="voice-preview"> ${_tV('voice.scopeAll','Tutti i telefoni')} (${total})</label>
+          <label class="prop-check"${selVoip?'':' style="opacity:.45"'}><input type="radio" name="va-scope" value="selected" ${selVoip?'':'disabled'} data-change="voice-preview"> ${_tV('voice.scopeSelected','Solo il telefono selezionato')}</label>
         </div>
         <div class="prop-group" style="margin-top:8px"><label>${_tV('voice.policy','Telefoni già configurati')}</label>
-          <label class="prop-check"><input type="radio" name="va-policy" value="empty" checked onchange="_voiceAssignPreview()"> ${_tV('voice.policyEmpty','Solo telefoni senza voce')}</label>
-          <label class="prop-check"><input type="radio" name="va-policy" value="all" onchange="_voiceAssignPreview()"> ${_tV('voice.policyAll','Sovrascrivi tutti')}</label>
+          <label class="prop-check"><input type="radio" name="va-policy" value="empty" checked data-change="voice-preview"> ${_tV('voice.policyEmpty','Solo telefoni senza voce')}</label>
+          <label class="prop-check"><input type="radio" name="va-policy" value="all" data-change="voice-preview"> ${_tV('voice.policyAll','Sovrascrivi tutti')}</label>
         </div>
         <div id="voice-assign-count" style="margin-top:10px;font-size:.85rem;color:var(--text-muted)"></div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
-          <button class="toolbar-btn" onclick="_closeVoiceAssign()">${_tV('common.cancel','Annulla')}</button>
-          <button class="toolbar-btn primary" onclick="_voiceAssignConfirm()"><i class="fas fa-phone"></i> ${_tV('voice.apply','Assegna')}</button>
+          <button class="toolbar-btn" data-act="voice-close">${_tV('common.cancel','Annulla')}</button>
+          <button class="toolbar-btn primary" data-act="voice-confirm"><i class="fas fa-phone"></i> ${_tV('voice.apply','Assegna')}</button>
         </div>
       </div>
     </div>`;
@@ -837,9 +839,20 @@ function closeVlanMembers(){
 }
 // Backdrop e bottoni «chiudi» del modale Membership VLAN via event delegation
 // (data-act), come tutti gli overlay in #modal-root — niente più onclick inline.
+// Coda ASSE B: popover Automazioni (intervallo auto-poll) + modale VLAN voce
+// (chiudi/conferma). setAutoPoll/_closeVoiceAssign/_voiceAssignConfirm sono locali.
+// «Sincronizza ora» (pollAllSNMP) è in app-snmp.js, rinnovo IP in app-drift.js,
+// «Carica lease» in app-dhcp-import.js (registrate nei rispettivi owner).
 registerClickActions({
     'vm-backdrop': (el, ev) => { if (ev.target === el) closeVlanMembers(); },
     'vm-close':    () => closeVlanMembers(),
+    'autopoll-interval': (el) => setAutoPoll(null, +el.dataset.interval),
+    'voice-close':   () => _closeVoiceAssign(),
+    'voice-confirm': () => _voiceAssignConfirm(),
+});
+registerChangeActions({
+    'autopoll-toggle': (el) => setAutoPoll(el.checked, null),
+    'voice-preview':   () => _voiceAssignPreview(),
 });
 export function setLinkColor(id,color){
     const l=store.state.links.find(x=>x.id===id); if(!l) return;

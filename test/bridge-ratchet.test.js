@@ -835,7 +835,21 @@ function countInlineHandlers() {
 // flusso «Personalizzato…». Golden rigenerato: 33 scenari device cambiano SOLO gli attributi,
 // verificato handler-only su tutti i 45 (strip on*/data-* → identico); 2 selettori e2e
 // (updateN('brand'→data-nfield, setEndpointVlan(→data-change=endpoint-vlan) aggiornati.
-const MAX_INLINE_HANDLERS = 90;
+//
+// ── ▶ CODA ASSE B (2026-08-04): superfici NON-golden ─────────────────────────
+// −17 (89 → 72): gli ultimi handler inline degli overlay/popover/modali FUORI dal
+// golden dei pannelli proprieta'. (1) Drift «aggiungi mappatura» → data-act="adopt-open"
+// (openAdoptModal, registrato in app-drift-adopt.js, owner del modale Adotta). (2) Modale
+// Import DHCP: righe fonte → refresh/rimuovi fonte + elimina lease; refresh/remove TENGONO
+// preventDefault (vivono in un <summary>: il click aprirebbe il <details>) — il listener
+// delegato in bubbling annulla comunque il toggle di default. (3) Popover «Automazioni»:
+// sync-now/auto-poll toggle+intervallo/rinnovo-IP/carica-DHCP; le azioni cross-modulo si
+// registrano nell'OWNER per non creare cicli di import ne' aggiungere letture win.*
+// (automation-sync-now in app-snmp.js che possiede pollAllSNMP e gia' importa
+// app-vlan-autopoll; autopoll-ip-renew in app-drift.js che possiede setAutoIpRenew;
+// dhcp-open in app-dhcp-import.js). (4) Dialogo VLAN-voce: chiudi/preview/conferma (locali).
+// Nessun cambio golden (nessuna di queste superfici e' nello snapshot dei pannelli).
+const MAX_INLINE_HANDLERS = 72;
 test('ponte ASSE B: gli handler inline on*= non superano il tetto a cricchetto', () => {
   const total = countInlineHandlers();
   assert.ok(total <= MAX_INLINE_HANDLERS,

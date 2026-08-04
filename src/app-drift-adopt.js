@@ -262,6 +262,11 @@ expose({
 registerClickActions({
     'adopt-close': () => _closeAdoptModal(),
     'adopt-apply': () => adoptApply(),
+    // ASSE B (coda): apre il modale Adotta dal pannello Drift — ex onclick
+    // openAdoptModal([key]) in app-drift.js. Senza data-key → filterKey=undefined
+    // (identico a openAdoptModal()). openAdoptModal resta in expose() (l'E2E lo
+    // chiama come globale + assert su window).
+    'adopt-open':  (el) => openAdoptModal(el.dataset.key),
 });
 registerChangeActions({
     'adopt-selall': (el) => _adoptToggleAll(el.checked),

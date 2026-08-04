@@ -511,7 +511,7 @@ export function _driftRowHtml(cat, r){
             ? `<span class="drift-why"><span class="drift-why-tag drift-mgmt" title="${esc(t('drift.onMgmtVlanTip'))}"><i class="fas fa-shield-halved"></i> ${esc(t('drift.onMgmtVlan'))}</span></span>`
             : '';
         main = `<span class="drift-row-main">${esc(r.mac)}</span><span class="drift-row-sub">${esc(r.label)}${vlanStr}</span>${whyStr}${mgmtStr}`;
-        const addBtn = `<button class="drift-act add" onclick="openAdoptModal('${esc(r.key)}')" data-tip="${t('drift.tipAddMap')}"><i class="fas fa-plus"></i></button>`;
+        const addBtn = `<button class="drift-act add" data-act="adopt-open" data-key="${esc(r.key)}" data-tip="${t('drift.tipAddMap')}"><i class="fas fa-plus"></i></button>`;
         actions = `${addBtn}${ignBtn}${invBtn}`;
     } else if(cat === 'ghostCable'){
         main = `<span class="drift-row-main">${esc(r.label)}</span><span class="drift-row-sub">${t('drift.portDown',{n:esc(r.downStreak)})}</span>`;
@@ -694,7 +694,7 @@ export function _renderDriftReport(){
                 const epToggle = epN
                     ? `<label class="drift-ep-toggle" data-tip="${t('drift.showEndpointsTip')}"><input type="checkbox" data-change="drift-show-endpoints"${showEp ? ' checked' : ''}> ${t('drift.showEndpoints')}</label>`
                     : '';
-                topBar = `<div class="drift-adopt-bar">${epToggle}<button class="toolbar-btn" onclick="openAdoptModal()" data-tip="${t('drift.addMapTip')}"><i class="fas fa-plus-circle"></i> ${t('drift.addMap')}</button></div>`;
+                topBar = `<div class="drift-adopt-bar">${epToggle}<button class="toolbar-btn" data-act="adopt-open" data-tip="${t('drift.addMapTip')}"><i class="fas fa-plus-circle"></i> ${t('drift.addMap')}</button></div>`;
             }
         }
         if(c.k === 'identityDrift'){
@@ -751,8 +751,10 @@ expose({
 // ASSE B — superficie DINAMICA del pannello Drift (righe/bottoni resi da
 // _renderDriftReport a runtime). onclick/onchange inline -> data-act/data-change:
 // le 7 fn locali escono da expose(); gli argomenti (chiave riga, CIDR) viaggiano in
-// data-key/data-cidr. Restano inline (cross-module, migrati coi loro cluster):
-// aiExplainDrift (app-ai) e openAdoptModal (app-drift-adopt).
+// data-key/data-cidr. Le fn cross-module sono delegate coi loro cluster ma
+// registrate nel modulo che le POSSIEDE: aiExplainDrift → data-act="drift-explain"
+// (registrata qui, import da app-ai); openAdoptModal → data-act="adopt-open"
+// (registrata in app-drift-adopt.js, che gia' possiede il modale Adotta).
 registerClickActions({
     'drift-close':       () => _closeDriftReport(),
     'drift-investigate': (el) => driftInvestigate(el.dataset.key),
@@ -765,4 +767,9 @@ registerClickActions({
 });
 registerChangeActions({
     'drift-show-endpoints': (el) => setDriftShowEndpoints(el.checked),
+    // Coda ASSE B: toggle «Rinnovo IP» del popover Automazioni (reso da
+    // app-vlan-autopoll). setAutoIpRenew e' locale QUI (owner) → registrato qui per
+    // evitare che app-vlan-autopoll importi app-drift (sarebbe un ciclo: app-drift
+    // gia' importa renderAutomationMenu da app-vlan-autopoll).
+    'autopoll-ip-renew': (el) => setAutoIpRenew(el.checked),
 });

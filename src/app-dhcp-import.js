@@ -251,13 +251,13 @@ function renderDhcpSources() {
     }
     const body = srcs.map(s => {
         const icon = s.live ? 'fa-cloud-arrow-down' : 'fa-file-lines';
-        const refresh = s.live ? `<button title="${esc(t('dhcp.refreshSource'))}" onclick="event.preventDefault();refreshDhcpSource('${esc(s.id)}')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;padding:2px 6px"><i class="fas fa-rotate"></i></button>` : '';
-        const rmv = `<button title="${esc(t('dhcp.removeSource'))}" onclick="event.preventDefault();removeDhcpSource('${esc(s.id)}')" style="background:none;border:none;color:var(--fault-color);cursor:pointer;padding:2px 6px"><i class="fas fa-trash-can"></i></button>`;
+        const refresh = s.live ? `<button title="${esc(t('dhcp.refreshSource'))}" data-act="dhcp-src-refresh" data-sid="${esc(s.id)}" style="background:none;border:none;color:var(--text-muted);cursor:pointer;padding:2px 6px"><i class="fas fa-rotate"></i></button>` : '';
+        const rmv = `<button title="${esc(t('dhcp.removeSource'))}" data-act="dhcp-src-remove" data-sid="${esc(s.id)}" style="background:none;border:none;color:var(--fault-color);cursor:pointer;padding:2px 6px"><i class="fas fa-trash-can"></i></button>`;
         const rows = (s.leases || []).map(l => `<tr style="border-top:1px solid var(--panel-border)">
             <td style="padding:3px 6px;font-family:monospace;white-space:nowrap">${esc(l.mac)}</td>
             <td style="padding:3px 6px;white-space:nowrap">${esc(l.ip)}</td>
             <td style="padding:3px 6px;color:var(--text-muted)">${esc(l.hostname || '')}</td>
-            <td style="padding:3px 6px;text-align:right"><button title="${esc(t('dhcp.delLease'))}" onclick="deleteDhcpLease('${esc(l.mac)}')" style="background:none;border:none;color:var(--text-muted);cursor:pointer"><i class="fas fa-xmark"></i></button></td></tr>`).join('');
+            <td style="padding:3px 6px;text-align:right"><button title="${esc(t('dhcp.delLease'))}" data-act="dhcp-lease-del" data-mac="${esc(l.mac)}" style="background:none;border:none;color:var(--text-muted);cursor:pointer"><i class="fas fa-xmark"></i></button></td></tr>`).join('');
         return `<details style="border:1px solid var(--panel-border);border-radius:5px;margin-bottom:6px">
           <summary style="display:flex;align-items:center;gap:8px;padding:7px 9px;cursor:pointer;font-size:0.78rem">
             <i class="fas ${icon}" style="color:var(--accent-color)"></i>
@@ -280,7 +280,9 @@ function renderDhcpSources() {
     _syncClearBtn();
 }
 
-// Handler inline dell'HTML (onclick="").
+// I bottoni del modale sono DELEGATI (data-act, vedi registerClickActions sotto).
+// Restano in expose() perche' openDhcpImport e' ancora aperto da un handler inline
+// (popover Automazioni, coda ASSE B) e per i chiamanti E2E come globali.
 expose({
     openDhcpImport, closeDhcpImport, fetchDhcpLive,
     useDhcpLeases, refreshDhcpSource, removeDhcpSource, deleteDhcpLease, clearDhcpSources, dhcpVerifyNow,
@@ -301,6 +303,9 @@ registerInputActions({
 });
 // ASSE B — bottoni del modale DHCP (ex onclick inline) via data-act.
 registerClickActions({
+    // Coda ASSE B: apre il modale dal popover Automazioni (reso da app-vlan-autopoll).
+    // Registrato QUI, owner di openDhcpImport.
+    'dhcp-open':       () => openDhcpImport(),
     'dhcp-backdrop':   (el, ev) => { if (ev.target === el) closeDhcpImport(); },
     'dhcp-close':      () => closeDhcpImport(),
     'dhcp-fetch-live': () => fetchDhcpLive(),
@@ -308,4 +313,11 @@ registerClickActions({
     'dhcp-use':        () => useDhcpLeases(),
     'dhcp-clear':      () => clearDhcpSources(),
     'dhcp-verify':     () => dhcpVerifyNow(),
+    // Tabella fonti (righe rese a runtime da renderDhcpSources). refresh/remove
+    // vivono DENTRO un <summary>: senza preventDefault il click aprirebbe/chiuderebbe
+    // il <details>. Il listener delegato e' in bubbling → ev.preventDefault() annulla
+    // comunque il toggle di default (avviene a fine dispatch). id/mac in data-*.
+    'dhcp-src-refresh': (el, ev) => { ev.preventDefault(); refreshDhcpSource(el.dataset.sid); },
+    'dhcp-src-remove':  (el, ev) => { ev.preventDefault(); removeDhcpSource(el.dataset.sid); },
+    'dhcp-lease-del':   (el) => deleteDhcpLease(el.dataset.mac),
 });

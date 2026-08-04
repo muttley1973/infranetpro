@@ -15,10 +15,11 @@ import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: fun
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _driftBuildDocSnapshot, _driftComputeFromDoc } from './app-drift.js';   // presenza→grigio: ricalcolo Drift dopo il Sync
-import { _ensureVlanColor } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _ensureVlanColor, toggleAutomationMenu } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*) + ASSE B: chiude il popover Automazioni dopo il sync
 import { _autoLinkDiagText } from './app-autolink.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { selectAndFocusNode } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
 import { _refreshTopoBtnState } from './app-topology-discover.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
+import { registerClickActions } from './app-delegation.js';   // ASSE B: azione «Sincronizza ora» del popover Automazioni (owner di pollAllSNMP)
 
 // Tipi per cui richiedere HOST-RESOURCES-MIB standard (CPU/RAM/dischi). Oltre agli
 // host generici, includiamo gli apparati di rete spesso Linux-based (MikroTik,
@@ -787,4 +788,12 @@ expose({
     updateIntegration, _pollPowerNode, pollSNMP, pollAllSNMP,
     _snmpOperToUiStatus, _snmpSpeedToUi, _snmpVlanToUi, _snmpNameToUi, _snmpAliasToUi,
     _snmpLagToUi, _snmpMacToUi, _applySnmpBasePortFields, applyPollResult,
+});
+
+// ASSE B (coda) — bottone «Sincronizza ora» del popover Automazioni (reso da
+// app-vlan-autopoll): avvia il poll SNMP completo e chiude il popover. Registrato
+// QUI perche' app-snmp possiede pollAllSNMP e importa gia' app-vlan-autopoll (per
+// _ensureVlanColor) → nessun nuovo ciclo di import ne' lettura win.* aggiunta.
+registerClickActions({
+    'automation-sync-now': () => { pollAllSNMP(); toggleAutomationMenu(); },
 });
