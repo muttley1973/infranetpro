@@ -220,87 +220,11 @@ export function _renderModeIndicator(){
 // ============================================================
 store._history=[]; store._histIdx=-1;   // var: reset dal bundle app-core (loadProject) via win.*
 
-export function pushHistory() {
-    _history = _history.slice(0, _histIdx+1);
-    // bgImage è base64 (spesso >1 MB): escluso dagli snapshot per non saturare la RAM.
-    // Undo/redo riagganciano sempre il bgImage corrente — l'immagine di sfondo
-    // non è un'operazione annullabile (ha il proprio pulsante "Rimuovi mappa").
-    // auditLog è append-only: escluso dagli snapshot così l'undo non lo riscrive
-    // (la storia "chi/quando/cosa" sopravvive a undo/redo).
-    const bg = state.bgImage;
-    const audit = state.auditLog;
-    state.bgImage = null;
-    state.auditLog = undefined;
-    _history.push(JSON.stringify(state));
-    state.bgImage = bg;
-    state.auditLog = audit;
-    if (_history.length > 60) _history.shift(); else _histIdx++;
-    _updateHistoryBtns();
-}
-
-export function undo() {
-    if (_histIdx <= 0) return;
-    const bg = state.bgImage;                  // preserva il background corrente
-    const audit = state.auditLog;              // append-only: non si annulla
-    state = JSON.parse(_history[--_histIdx]);
-    state.bgImage = bg;                        // riaggancia (non è in snapshot)
-    state.auditLog = audit;
-    _invalidateIdx();
-    _resetSelection(); renderRackTabs(); updateTransforms(); renderAll();
-    _updateHistoryBtns();
-}
-
-export function redo() {
-    if (_histIdx >= _history.length-1) return;
-    const bg = state.bgImage;                  // preserva il background corrente
-    const audit = state.auditLog;              // append-only: non si annulla
-    state = JSON.parse(_history[++_histIdx]);
-    state.bgImage = bg;                        // riaggancia (non è in snapshot)
-    state.auditLog = audit;
-    _invalidateIdx();
-    _resetSelection(); renderRackTabs(); updateTransforms(); renderAll();
-    _updateHistoryBtns();
-}
-
-export function _updateHistoryBtns() {
-    document.getElementById('btn-undo').disabled = _histIdx <= 0;
-    document.getElementById('btn-redo').disabled = _histIdx >= _history.length-1;
-}
-
-export function _resetSelection() { selId=null; selType=null; highPath.clear(); }
-
-// ============================================================
-// DIRTY FLAG (sostituisce saveState)
-// ============================================================
-export function markDirty() {
-    _invalidateIdx();
-    _isDirty = true;
-    const dot = document.getElementById('save-dot');
-    const btn = document.getElementById('btn-save');
-    if (dot) dot.style.display = 'inline-block';
-    if (btn) { btn.classList.add('save-dirty'); btn.classList.remove('primary'); }
-}
-
-export function _clearDirty() {
-    _isDirty = false;
-    const dot = document.getElementById('save-dot');
-    const btn = document.getElementById('btn-save');
-    if (dot) dot.style.display = 'none';
-    if (btn) { btn.classList.remove('save-dirty'); btn.classList.add('primary'); }
-}
-
-// ── Audit trail (N2): journal append-only "chi / quando / cosa" ──────
-// Registra solo eventi STRUTTURALI (device/cavi/VLAN/sync/doc), non ogni
-// micro-edit (per quello c'è l'undo). Append + cap a 1000; auditLog è
-// escluso dagli snapshot di undo (sopravvive a undo/redo).
-export function logAudit(action, info){
-    info = info || {};
-    if(typeof appendAudit !== 'function') return;
-    if(!Array.isArray(state.auditLog)) state.auditLog = [];
-    const user = (typeof _currentUser === 'object' && _currentUser && _currentUser.username) ? _currentUser.username : 'sistema';
-    appendAudit(state.auditLog, { user, action, target: info.target, summary: info.summary }, 1000);
-    markDirty();
-}
+// STORICO/DIRTY/AUDIT estratti in ./app-history.js (split app.js #3). Import+re-export:
+// import per i molti call-site interni (markDirty/pushHistory/logAudit/undo/redo) e
+// re-export per i consumatori ESM che importano queste fn da ./app.js.
+import { pushHistory, undo, redo, _updateHistoryBtns, _resetSelection, markDirty, _clearDirty, logAudit } from "./app-history.js";
+export { pushHistory, undo, redo, _updateHistoryBtns, _resetSelection, markDirty, _clearDirty, logAudit };
 
 // ============================================================
 // API CLIENT
@@ -2371,7 +2295,7 @@ export { setNodeRadioCount };
 // ============================================================
 expose({
   _activatePropsTab, _bindDraggablePanel, _buildDefaultState, _chainAmbiguousLinkIds, _chainVlanColors,
-  _clampFloatingPanel, _clearDirty, _clearPropsTab, _createLinkRecord,
+  _clampFloatingPanel, _clearPropsTab, _createLinkRecord,
   _deviceHasWifi, _enableManualValueInProps, _endPopupDrag, _expandLagMemberLinks,
   _getLinkPhysicalView, _getPassThroughMode, _getUiModeMeta,
   _idPrefixForType, _invalidateIdx, _isInteractiveDragTarget, _isLinearPassThroughPort,
@@ -2380,14 +2304,14 @@ expose({
   _nextNodeId, _nodeRadios, _normalizeProjectNodeIds,
   _paletteTypeLabel, _propagateStackMasterIntegration,
   _rackDeviceBg, _radioCountOf, _radioPid, _rebuildIdx, _renderCablesNow, _renderModeIndicator,
-  _repairRackPlacements, _resetSelection, _resolveManualPropValue, _runInlineOnChange, _sanitizeProjectConnectivity,
-  _showToast, _startPopupDrag, _toggleArrayField, _updateHistoryBtns, _validateWallPortConnection,
+  _repairRackPlacements, _resolveManualPropValue, _runInlineOnChange, _sanitizeProjectConnectivity,
+  _showToast, _startPopupDrag, _toggleArrayField, _validateWallPortConnection,
   _wallPortConnectionRole, _wallPortHasRole, _wlRackIconAnchor, applyStaticI18n, bindEventsOnce, canAddConnection,
   checked, clampRackDevice, deleteLink, deleteNode, getNodeByPortId,
   getNodeDisplayName, getNodePortCount, getNodeRackSize, getPortConnectionCount, getPortMaxConnections, getPortNodeId,
   getRackById, getRackName, getRackSize, getWallPortLabel,
-  init, initDraggablePopups, isPortOnNode, isRackTopNumbered, logAudit, markDirty,
-  nodeById, pushHistory,
+  init, initDraggablePopups, isPortOnNode, isRackTopNumbered,
+  nodeById,
   rackUToVisible, registerModuleNav, removeNodePorts, renderCables, selected,
   setDeviceApMode, setDeviceWifi, setNodeRadioCount, switchRightTab,
   toggleNodeLock, updateFloorId, updateFrontPanel, updateN,
