@@ -4,13 +4,18 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 
 **A linked version number is a published release** — follow it to the release on GitHub. *Unreleased* is what has landed on `main` since the last one.
 
-## [Unreleased]
+## [2.5.2] — 2026-08-04
 
-**Two tidies in the sub-header and the cable tooltips.** The active VLAN filter shows as a centred chip in the sub-header, and cable tooltips fit each device with its port on a single line.
+**Type each subnet once, reveal any masked password, and a calmer Discover dialog.** The scan and the VLAN panel share the subnet you type, every masked field gets a reveal toggle, and the sub-header centres the active VLAN filter while cable tooltips fit on one line.
+
+### Added
+- **Discover associates the scanned subnet with a VLAN**, so the same subnet is not typed twice: a VLAN dropdown (with a *New VLAN…* option) fills the scan range from a declared VLAN, or — when you scan with a VLAN chosen — declares that subnet in the VLAN panel (range normalised to a CIDR, VLAN created if new, never overwriting a subnet already declared). The SNMP community stays out of the panel.
+- A **reveal ("eye") toggle on every masked password field** — the SNMP communities, the AI key, change-password and new-user, the DHCP live credentials, the SNMPv3 panel credentials and the login form.
 
 ### Changed
 - The **VLAN filter badge moves from the header into the sub-header**, centred between the breadcrumb and the project stats: it takes the centre slot from the next-step hint while a filter is active, and the hint returns when the filter is cleared. The sub-header's two side zones are now equal-width, so the centred element sits truly centred.
 - **Cable tooltips join each device with its port on one line** — `device port → device port` instead of the names and the ports on two rows — cutting the popup's height. A LAG bundle with several cables keeps the device pair as a header, one line per port pair.
+- The Discover **VLAN field and the floor "Replace map" / "Lock map scale" buttons adopt the outlined Load-SVG style**, a full-width divider separates the scan target from the scan options, and the map-lock button sits below the resize slider it controls.
 
 ## [2.5.1](https://github.com/muttley1973/infranetpro/releases/tag/v2.5.1) — 2026-08-02
 
