@@ -62,41 +62,11 @@ store._isDirty = false;   // var: idem (switchProject guard)
 // Ricostruiti lazy al primo accesso successivo all'invalidazione.
 // ============================================================
 
-let _idxDirty      = true;
-let _nodeByIdMap   = Object.create(null); // nodeId  → node
-let _linksByPortMap = Object.create(null); // portId → Link[]
-
-export function _invalidateIdx() { _idxDirty = true; }
-
-function _rebuildIdx() {
-    _nodeByIdMap   = Object.create(null);
-    _linksByPortMap = Object.create(null);
-    for (const n of state.nodes) _nodeByIdMap[n.id] = n;
-    for (const l of state.links) {
-        for(const pid of _getLinkPortIds(l)){
-            (_linksByPortMap[pid] ??= []).push(l);
-        }
-    }
-    _idxDirty = false;
-}
-
-/**
- * Cerca un nodo per ID in O(1).
- * Sostituisce: state.nodes.find(x => x.id === id)
- */
-export function nodeById(id) {
-    if (_idxDirty) _rebuildIdx();
-    return _nodeByIdMap[id] ?? null;
-}
-
-/**
- * Restituisce i link che toccano la porta `pid` in O(1).
- * Sostituisce: state.links.filter(l => l.src===pid || l.dst===pid)
- */
-export function _linksForPort(pid) {
-    if (_idxDirty) _rebuildIdx();
-    return _linksByPortMap[pid] ?? [];
-}
+// STATE LOOKUP INDEXES + getter porta/nodo estratti in ./app-index.js (split app.js #4).
+// Import+re-export: import per i call-site interni (es. _getUiModeMeta) e re-export per
+// i molti consumatori ESM (nodeById 25, getNodeByPortId 16, getPortNodeId 13, ...).
+import { _invalidateIdx, nodeById, _linksForPort, getPortNodeId, isPortOnNode, getNodeByPortId } from "./app-index.js";
+export { _invalidateIdx, nodeById, _linksForPort, getPortNodeId, isPortOnNode, getNodeByPortId };
 
 // selId/selType: var (non let) così sono proprietà di window e i moduli migrati
 // del bundle (es. src/app-stack-ha.js) li leggono via store.selId/store.selType
@@ -1155,13 +1125,7 @@ export function _repairRackPlacements(s){
     }
 }
 
-export function getPortNodeId(pid)          {
-    const p = String(pid || '');
-    const cut = p.lastIndexOf('-');
-    return cut > 0 ? p.slice(0, cut) : p;
-}
-export function isPortOnNode(pid,nodeId)    { return getPortNodeId(pid)===nodeId; }
-export function getNodeByPortId(pid)        { return nodeById(getPortNodeId(pid)); }
+// getPortNodeId/isPortOnNode/getNodeByPortId estratti in ./app-index.js (split app.js #4, re-export sopra).
 
 // ── Interfacce radio Wi-Fi (collegamenti wireless senza porta fisica) ──
 // Un device espone 0..8 interfacce radio (n.radios[]). Ogni radio è un
@@ -2298,20 +2262,19 @@ expose({
   _clampFloatingPanel, _clearPropsTab, _createLinkRecord,
   _deviceHasWifi, _enableManualValueInProps, _endPopupDrag, _expandLagMemberLinks,
   _getLinkPhysicalView, _getPassThroughMode, _getUiModeMeta,
-  _idPrefixForType, _invalidateIdx, _isInteractiveDragTarget, _isLinearPassThroughPort,
+  _idPrefixForType, _isInteractiveDragTarget, _isLinearPassThroughPort,
   _isRadioPid, _isValidProjectPortId, _isWifiCapable,
-  _linksForPort, _loadDefaultLocal, _makeFloatingPanel, _migrateState, _movePopupDrag,
+  _loadDefaultLocal, _makeFloatingPanel, _migrateState, _movePopupDrag,
   _nextNodeId, _nodeRadios, _normalizeProjectNodeIds,
   _paletteTypeLabel, _propagateStackMasterIntegration,
-  _rackDeviceBg, _radioCountOf, _radioPid, _rebuildIdx, _renderCablesNow, _renderModeIndicator,
+  _rackDeviceBg, _radioCountOf, _radioPid, _renderCablesNow, _renderModeIndicator,
   _repairRackPlacements, _resolveManualPropValue, _runInlineOnChange, _sanitizeProjectConnectivity,
   _showToast, _startPopupDrag, _toggleArrayField, _validateWallPortConnection,
   _wallPortConnectionRole, _wallPortHasRole, _wlRackIconAnchor, applyStaticI18n, bindEventsOnce, canAddConnection,
-  checked, clampRackDevice, deleteLink, deleteNode, getNodeByPortId,
-  getNodeDisplayName, getNodePortCount, getNodeRackSize, getPortConnectionCount, getPortMaxConnections, getPortNodeId,
+  checked, clampRackDevice, deleteLink, deleteNode,
+  getNodeDisplayName, getNodePortCount, getNodeRackSize, getPortConnectionCount, getPortMaxConnections,
   getRackById, getRackName, getRackSize, getWallPortLabel,
-  init, initDraggablePopups, isPortOnNode, isRackTopNumbered,
-  nodeById,
+  init, initDraggablePopups, isRackTopNumbered,
   rackUToVisible, registerModuleNav, removeNodePorts, renderCables, selected,
   setDeviceApMode, setDeviceWifi, setNodeRadioCount, switchRightTab,
   toggleNodeLock, updateFloorId, updateFrontPanel, updateN,
