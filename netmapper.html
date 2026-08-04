@@ -36,14 +36,14 @@
     </div>
     <div class="header-sep"></div>
     <div id="impexp-menu-wrap" style="position:relative">
-        <button class="toolbar-btn" id="btn-impexp" onclick="toggleImpExpMenu()" data-i18n-tip="impexp.tip" data-tip="Importa / Esporta">
+        <button class="toolbar-btn" id="btn-impexp" data-act="impexp-toggle" data-i18n-tip="impexp.tip" data-tip="Importa / Esporta">
             <i class="fas fa-right-left"></i><span class="btn-label" data-i18n="impexp.btnLabel"> Esporta</span><i class="fas fa-chevron-down" style="font-size:0.6rem;margin-left:4px;opacity:.6"></i>
         </button>
         <div id="impexp-dropdown" class="header-menu-dropdown" style="display:none">
-            <button class="header-menu-item" onclick="document.getElementById('json-upload').click();closeImpExpMenu()">
+            <button class="header-menu-item" data-act="impexp-import-json">
                 <i class="fas fa-file-import"></i> <span data-i18n="impexp.importJson">Importa progetto JSON</span>
             </button>
-            <button class="header-menu-item" onclick="openCsvImport();closeImpExpMenu()">
+            <button class="header-menu-item" data-act="impexp-import-csv">
                 <i class="fas fa-file-csv"></i> <span data-i18n="impexp.importCsv">Importa dispositivi da CSV</span>
             </button>
             <div class="header-menu-divider"></div>

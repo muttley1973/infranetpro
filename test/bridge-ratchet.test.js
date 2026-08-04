@@ -873,12 +873,28 @@ function countInlineHandlers() {
 // «Automazioni» (automation-menu-toggle → app-vlan-autopoll), le 3 tab del pannello destro
 // (right-tab, nome in data-tab → app.js). Tutte le fn sono LOCALI ai rispettivi owner →
 // nessun nuovo export/import ne' lettura win.*. Non-golden (shell), verifica LIVE.
-// RESTA in netmapper.html: 21 handler dei dialoghi PDF/etichette export + 4 voci del menu
-// import/export che chiamano export.js (CLASSIC, fuori-ASSE per design: registrarli
-// richiederebbe una lettura win.* e romperebbe il tetto A) + le interazioni CANVAS
-// (wheel/drop/dragover/contextmenu/scroll/mouse-enter-leave + onpointerdown di
-// app-render-core) che aspettano nuovi tipi di evento nell'harness.
-const MAX_INLINE_HANDLERS = 36;
+//
+// −4 (36 → 32): gli ultimi handler MIGRABILI con l'harness esistente (click).
+// (a) Menu Import/Export in netmapper.html: bottone toggle + le 2 voci di IMPORT
+// (JSON pick, CSV) → impexp-toggle/impexp-import-json/impexp-import-csv registrati
+// in app-auth.js (OWNER del menu: possiede toggle/closeImpExpMenu + il listener
+// click-fuori). openCsvImport è cross-modulo → ora ESM-export da app-csv-import.js
+// (resta anche in expose() per compat window). (b) app-cabling-editor.js: il bottone
+// «annulla» dell'hint instradamento (template di _renderRoutingHint) → routing-exit
+// (nuovo register nel modulo; _exitRoutingMode resta in expose() perché app.js lo
+// chiama ancora come bareword con guardia typeof al tasto Esc). Non-golden, LIVE.
+//
+// PAVIMENTO ASSE B con l'harness attuale = 32 (nessun altro handler è migrabile senza
+// nuovi tipi di evento o senza sfondare il tetto A). Fotografia onesta del residuo:
+//   • 21 in netmapper.html = dialoghi PDF/etichette export (14 onclick + 3 onchange +
+//     4 oninput) + le 4 voci EXPORT del menu (JSON/PDF/dossier/etichette) → chiamano
+//     export.js (CLASSIC <script>, non-ESM): registrarli richiederebbe una lettura
+//     win.* e romperebbe il tetto A (MAX_WIN_REFS=276, esatto). Restano per DESIGN.
+//   • 11 CANVAS = 10 in netmapper.html (wheel×2/drop×2/dragover×2/contextmenu/scroll/
+//     mouseenter/mouseleave) + 1 in app-render-core (onpointerdown). Aspettano NUOVI
+//     tipi di evento nell'harness (app-delegation.js oggi: click·change·input·focus·
+//     blur·keydown·dragstart·toggle) e vanno testati col mouse vero (pan/zoom/drag).
+const MAX_INLINE_HANDLERS = 32;
 test('ponte ASSE B: gli handler inline on*= non superano il tetto a cricchetto', () => {
   const total = countInlineHandlers();
   assert.ok(total <= MAX_INLINE_HANDLERS,

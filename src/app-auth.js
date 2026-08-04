@@ -80,7 +80,7 @@ function toggleImpExpMenu(){
     if(d) d.style.display=d.style.display==='none'?'block':'none';
 }
 
-function closeImpExpMenu(){
+export function closeImpExpMenu(){   // ASSE B: importata da app-csv-import.js (voce «Importa CSV»); resta in expose() per le voci EXPORT inline + export.js
     const d=document.getElementById('impexp-dropdown');
     if(d) d.style.display='none';
 }
@@ -369,6 +369,13 @@ registerClickActions({
     'change-password':   () => { openChangePassword(); closeUserMenu(); },
     'lang-switch':       (el) => switchLang(el.dataset.lang),
     'logout':            () => doLogout(),
+    // Menu Import/Export (header): toggle + la voce «Importa JSON» (owned qui). La voce
+    // «Importa CSV» è registrata in app-csv-import.js (OWNER di openCsvImport, importa di
+    // là closeImpExpMenu → nessun ciclo verso app-types). Le voci di EXPORT (JSON/PDF/
+    // dossier/etichette) restano onclick inline: chiamano export.js (classic <script>);
+    // migrarle richiederebbe una lettura win.* → romperebbe il tetto Asse A.
+    'impexp-toggle':      () => toggleImpExpMenu(),
+    'impexp-import-json': () => { document.getElementById('json-upload').click(); closeImpExpMenu(); },
     // Modale utenti/accessi
     'um-backdrop':   (el, ev) => { if (ev.target === el) closeUserManager(); },
     'um-close':      () => closeUserManager(),

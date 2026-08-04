@@ -12,6 +12,7 @@ import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: fun
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { toggleRackPanel } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
+import { registerClickActions } from './app-delegation.js';   // ASSE B: event delegation (data-act) — pulsante «annulla» dell'hint instradamento
 
 // Stato modalità (globali condivise con app-pointer.js / app-render-core.js
 // via global lexical scope, come tutti gli altri stati dell'app).
@@ -188,7 +189,7 @@ function _renderRoutingHint(link){
     }
     hint.innerHTML = `<i class="fas fa-route"></i>
         <span>${t('pnl.disc.routingHint',{title:'<strong>'+t('pnl.disc.routingTitle')+'</strong>',yellow:'<span style="color:#f5c518">'+t('pnl.disc.routingYellow')+'</span>',esc:'<kbd>Esc</kbd>'})}</span>
-        <button onclick="_exitRoutingMode()" data-tip="${t('pnl.disc.cancel')}"><i class="fas fa-times"></i></button>`;
+        <button data-act="routing-exit" data-tip="${t('pnl.disc.cancel')}"><i class="fas fa-times"></i></button>`;
     hint.style.display = 'flex';
 }
 
@@ -320,4 +321,11 @@ export function _routeHopRemovable(pid){
 expose({
     enterRoutingMode, _exitRoutingMode, _routingPickPort, removeRouteHop,
     _routeHopRemovable, _paintRoutingTargets, _computeRoutingTargets,
+});
+
+// ASSE B — «annulla» dell'hint instradamento (ex onclick="_exitRoutingMode()"
+// nel template di _renderRoutingHint) via data-act. _exitRoutingMode resta in
+// expose() perché app.js lo chiama ancora come bareword con guardia typeof (Esc).
+registerClickActions({
+    'routing-exit': () => _exitRoutingMode(),
 });
