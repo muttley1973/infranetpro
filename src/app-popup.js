@@ -771,6 +771,12 @@ export function _drawFanoutLineDesc(d, svg, NS, els){
     svg.appendChild(g);
 }
 
+// Porta accanto al nome del device sulla riga fusa "device porta ↔ device porta"
+// (riduce l'altezza del tooltip rispetto a device / porte su due righe). Tag
+// monospace attaccato al nome; vuota se la porta manca → resta solo il device.
+// Condivisa dai due tooltip cavo (_showFloorLinkTip e _showTopoTip).
+const _portTag = (p) => { const s = escapeHTML(String(p == null ? '' : p).trim()); return s ? ` <span class="topotip-port">${s}</span>` : ''; };
+
 // ---- Tooltip per link rack → floor node ------------------------------------
 function _showFloorLinkTip(ev,td){
     const tip=document.getElementById('topo-tip'); if(!tip) return;
@@ -779,12 +785,12 @@ function _showFloorLinkTip(ev,td){
           + (td.trunkVlans ? `<span style="color:var(--text-muted);font-size:0.7rem;margin-left:6px">VLAN ${escapeHTML(td.trunkVlans)}</span>` : '')
         : `<span style="background:#10241a;border:1px solid #2c6a45;border-radius:4px;padding:1px 7px;font-size:0.68rem;font-weight:700;color:#5fbf83">ACCESS</span>`
           + `<span style="color:var(--text-muted);font-size:0.7rem;margin-left:6px">VLAN ${escapeHTML(td.vlan)}</span>`;
+    // device + porta su UN'UNICA riga ("device porta → device porta").
     let h=`<div class="topotip-header">
         <span class="topotip-proto" style="background:${td.color}">${escapeHTML(td.nodeType)}</span>
         <span class="topotip-ok">✓ ${t('pnl.misc.connected')}</span>
     </div>
-    <div class="topotip-racks"><b>${escapeHTML(td.srcName)}</b> → <b>${escapeHTML(td.dstName)}</b></div>
-    <div class="topotip-link" style="margin-top:4px">${escapeHTML(td.srcPort)} <span>↔</span> ${escapeHTML(td.dstPort)}</div>
+    <div class="topotip-racks"><b>${escapeHTML(td.srcName)}</b>${_portTag(td.srcPort)} → <b>${escapeHTML(td.dstName)}</b>${_portTag(td.dstPort)}</div>
     <div style="margin-top:5px">${modeBadge}</div>
     <div class="topotip-hint"><i class="fas fa-route"></i> ${t('pnl.misc.dblClickPhysicalPath')}</div>`;
     tip.innerHTML=h; tip.style.display='block'; tip.dataset.userPlaced='0';
@@ -802,10 +808,21 @@ export function _showTopoTip(ev,td){
     const pc=String(td.protocol||'').startsWith('CDP')?'#ff8c00':td.protocol==='Manual'?'#39d353':'#00aaff';
     let h=`<div class="topotip-header"><span class="topotip-proto" style="background:${pc}">${td.protocol}</span>`;
     if(td.confirmed) h+=`<span class="topotip-ok">&#10003; ${t('pnl.misc.inProject')}</span>`;
-    h+=`</div><div class="topotip-racks"><b>${escapeHTML(td.srcName)}</b> &harr; <b>${escapeHTML(td.dstName)}</b></div>`;
-    td.edges.slice(0,4).forEach(e=>{
-        h+=`<div class="topotip-link">${escapeHTML(e.srcPort||'?')} <span>&harr;</span> ${escapeHTML(e.dstPort||'?')}</div>`;
-    });
+    h+=`</div>`;
+    const _edges=td.edges.slice(0,4);
+    if(_edges.length===1){
+        // Segmento singolo: device + porta su UN'UNICA riga (come _showFloorLinkTip),
+        // invece di "device ↔ device" + "porta ↔ porta" su due righe → tooltip più basso.
+        const e=_edges[0];
+        h+=`<div class="topotip-racks"><b>${escapeHTML(td.srcName)}</b>${_portTag(e.srcPort)} &harr; <b>${escapeHTML(td.dstName)}</b>${_portTag(e.dstPort)}</div>`;
+    } else {
+        // Più segmenti fra lo stesso device pair (LAG): intestazione device + una riga
+        // per coppia di porte (fondere ripeterebbe i nomi su ogni riga).
+        h+=`<div class="topotip-racks"><b>${escapeHTML(td.srcName)}</b> &harr; <b>${escapeHTML(td.dstName)}</b></div>`;
+        _edges.forEach(e=>{
+            h+=`<div class="topotip-link">${escapeHTML(e.srcPort||'?')} <span>&harr;</span> ${escapeHTML(e.dstPort||'?')}</div>`;
+        });
+    }
     if(td.edges.length>4) h+=`<div class="topotip-more">${t('pnl.misc.moreN',{n:td.edges.length-4})}</div>`;
     const firstLink=td.edges.find(e=>e.linkId)?.linkId||'';
     if(firstLink) h+=`<div class="topotip-hint"><i class="fas fa-route"></i> ${t('pnl.misc.dblClickPhysicalPath')}</div>`;

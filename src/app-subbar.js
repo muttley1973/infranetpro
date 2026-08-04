@@ -128,6 +128,30 @@ function _suggestEl(sug) {
   return wrap;
 }
 
+// Filtro VLAN attivo: chip centrato nella sotto-header (spostato qui dal
+// #status-cluster dell'header, su richiesta). Sorgente di verita' = store._filterVlan,
+// non un DOM da sincronizzare: renderSubbar gira a ogni renderAll (setVlanFilter lo
+// chiama). Assente il filtro -> elemento vuoto (:empty collassa via CSS). Clic o
+// Invio/Spazio rimuove il filtro (setVlanFilter(null), global esposto da app-vlan-autopoll).
+function _vlanFilterEl() {
+  const wrap = document.createElement('div');
+  wrap.className = 'msb-vlan';
+  const vid = store._filterVlan;
+  if (vid == null) return wrap;                     // :empty -> nascosto
+  wrap.setAttribute('role', 'button');
+  wrap.setAttribute('tabindex', '0');
+  wrap.title = t('vlanfilter.tip');
+  const ico = document.createElement('i'); ico.className = 'fas fa-filter'; wrap.appendChild(ico);
+  const lbl = (typeof _vlanLabel === 'function') ? _vlanLabel(vid) : String(vid);
+  const txt = document.createElement('span'); txt.className = 'msb-vlan-txt'; txt.textContent = 'VLAN ' + lbl;
+  wrap.appendChild(txt);
+  const x = document.createElement('i'); x.className = 'fas fa-times msb-vlan-x'; wrap.appendChild(x);
+  const clear = () => { if (typeof setVlanFilter === 'function') setVlanFilter(null); };
+  wrap.addEventListener('click', clear);
+  wrap.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); clear(); } });
+  return wrap;
+}
+
 // Esito dell'ultimo auto-link (persistito dal Sync in state.lastAutoLinkResult):
 // riga informativa che NON evapora come il toast. Vuota (:empty → nascosta via
 // CSS) finché un Sync/import non registra un esito. La diagnostica «perché
@@ -263,7 +287,11 @@ export function renderSubbar() {
   const stats = (typeof computeSubbarStats === 'function') ? computeSubbarStats(nodes, TYPES) : null;
   bar.innerHTML = '';
   bar.appendChild(_crumbEl());
-  bar.appendChild(_suggestEl(_suggest()));
+  // Zona centrale: quando il filtro VLAN e' attivo il chip PRENDE il posto del
+  // suggerimento (cosi' resta centrato tra breadcrumb e statistiche, senza il
+  // nudge largo che lo spingerebbe a destra). Tolto il filtro, torna il suggerimento.
+  if (store._filterVlan != null) bar.appendChild(_vlanFilterEl());
+  else bar.appendChild(_suggestEl(_suggest()));
   bar.appendChild(_autoLinkEl());
   bar.appendChild(_topoWarnEl(_topoWarn()));
   bar.appendChild(_statsEl(stats));

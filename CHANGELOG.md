@@ -4,6 +4,14 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 
 **A linked version number is a published release** — follow it to the release on GitHub. *Unreleased* is what has landed on `main` since the last one.
 
+## [Unreleased]
+
+**Two tidies in the sub-header and the cable tooltips.** The active VLAN filter shows as a centred chip in the sub-header, and cable tooltips fit each device with its port on a single line.
+
+### Changed
+- The **VLAN filter badge moves from the header into the sub-header**, centred between the breadcrumb and the project stats: it takes the centre slot from the next-step hint while a filter is active, and the hint returns when the filter is cleared. The sub-header's two side zones are now equal-width, so the centred element sits truly centred.
+- **Cable tooltips join each device with its port on one line** — `device port → device port` instead of the names and the ports on two rows — cutting the popup's height. A LAG bundle with several cables keeps the device pair as a header, one line per port pair.
+
 ## [2.5.1](https://github.com/muttley1973/infranetpro/releases/tag/v2.5.1) — 2026-08-02
 
 **Cable traces now follow the documented physical path, and custom values stay saved.**

@@ -162,9 +162,8 @@
                 <i class="fas fa-plug-circle-plus"></i><span data-i18n="report.spare">Porte libere</span><i class="fas fa-times chip-x"></i>
             </button>
             <button class="status-chip s-ok" id="autopoll-badge" onclick="toggleAutomationMenu()" data-i18n-tip="autopoll.tip" data-tip="Polling automatico attivo — clic per le automazioni"></button>
-            <button class="status-chip s-info" id="vlan-filter-badge" onclick="setVlanFilter(null)" data-i18n-tip="vlanfilter.tip" data-tip="Filtro VLAN attivo — clicca per rimuovere">
-                <i class="fas fa-filter"></i><span></span><i class="fas fa-times chip-x"></i>
-            </button>
+            <!-- Il badge del filtro VLAN vive ora nella sotto-header (#modern-subbar,
+                 src/app-subbar.js: _vlanFilterEl), centrato tra breadcrumb e statistiche. -->
         </div>
         <div class="header-sep"></div>
         <!-- Badge utente + menu (la lingua vive dentro questo menu) -->

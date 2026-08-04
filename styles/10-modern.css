@@ -431,8 +431,12 @@ header {
 }
 /* ZONA SINISTRA: breadcrumb. Mostra il nome progetto PER INTERO quando c'e' spazio;
    solo il nome si accorcia (icona, "InfraNet Pro", separatori e "Planimetria" restano
-   sempre interi), con ellissi unicamente se la barra e' davvero stretta. */
-#modern-subbar .msb-crumb { flex:1 1 auto; display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-muted); font-weight:500; min-width:0; overflow:hidden; }
+   sempre interi), con ellissi unicamente se la barra e' davvero stretta.
+   flex-basis:0 (come la zona DESTRA .msb-stats): le due fasce laterali crescono in modo
+   SIMMETRICO, cosi' l'elemento centrale (suggerimento o chip del filtro VLAN) resta
+   davvero centrato nella barra. Con basis:auto il breadcrumb si seminava con la
+   larghezza del nome e sbilanciava il centro (il chip finiva schiacciato a destra). */
+#modern-subbar .msb-crumb { flex:1 1 0; display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-muted); font-weight:500; min-width:0; overflow:hidden; }
 #modern-subbar .msb-crumb > i,
 #modern-subbar .msb-crumb > span { flex-shrink:0; white-space:nowrap; }
 #modern-subbar .msb-crumb i { color:#4d5560; font-size:11px; }
@@ -477,6 +481,15 @@ header {
 #modern-subbar .msb-autolink { flex:0 0 auto; display:inline-flex; align-items:center; gap:7px; padding:3px 10px; border-radius:6px; font-size:12px; white-space:nowrap; cursor:default; background:rgba(255,255,255,.03); color:var(--text-muted); border:1px solid var(--panel-border); }
 #modern-subbar .msb-autolink:empty { display:none; }
 #modern-subbar .msb-autolink > i { font-size:11px; flex-shrink:0; color:var(--accent); opacity:.75; }
+
+/* Filtro VLAN attivo: chip centrato (spostato qui dal #status-cluster dell'header).
+   Stessa grammatica del vecchio .status-chip.s-info (tono info/accent); :empty -> collassa. */
+#modern-subbar .msb-vlan { flex:0 0 auto; display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:600; white-space:nowrap; cursor:pointer; background:#00d4ff1a; color:var(--accent); border:1px solid #00d4ff44; transition:filter .12s; }
+#modern-subbar .msb-vlan:empty { display:none; }
+#modern-subbar .msb-vlan:hover { filter:brightness(1.2); }
+#modern-subbar .msb-vlan:focus-visible { outline:2px solid #00d4ff88; outline-offset:1px; }
+#modern-subbar .msb-vlan > i { font-size:11px; flex-shrink:0; }
+#modern-subbar .msb-vlan .msb-vlan-x { font-size:10px; opacity:.7; }
 
 /* Stretto: nascondi il breadcrumb e le etichette-parola delle statistiche (restano
    icone + valori + pulsante del suggerimento). */

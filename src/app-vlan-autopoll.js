@@ -546,15 +546,9 @@ function clearAllVlans(){
 
 export function setVlanFilter(vid){
     store._filterVlan = vid;
-    const badge=document.getElementById('vlan-filter-badge');
-    if(badge){
-        if(vid){
-            badge.querySelector('span').textContent='VLAN '+_vlanLabel(vid);
-            badge.style.display='inline-flex';
-        } else {
-            badge.style.display='none';
-        }
-    }
+    // Il chip del filtro e' reso dalla sotto-header (src/app-subbar.js: _vlanFilterEl)
+    // a partire da store._filterVlan: renderAll -> renderSubbar lo aggiorna. Niente
+    // piu' badge nell'header da sincronizzare a mano.
     renderAll(); renderCables();
 }
 
