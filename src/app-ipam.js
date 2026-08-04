@@ -1,0 +1,170 @@
+// ============================================================
+// IPAM (stato + occupazione per-VLAN)  [modulo ESM, estratto da app.js]
+// Split app.js #1: helper IPAM legati allo store. Motori puri in lib/ipam.js +
+// lib/cidr.js (caricati come <script>, letti bare). expose() per i consumatori
+// che risolvono queste fn su window (app-ai, app-drift-adopt, app-properties-floor
+// via typeof-guard); i 4 export ESM restano raggiungibili anche da ./app.js
+// (re-export), così i moduli che già importano da lì non cambiano una riga.
+// ============================================================
+import { expose } from "./_bridge.js";
+import { store } from "./store.js";
+import { getNodeDisplayName } from "./app.js";   // ciclo benigno: uso solo a runtime (dentro _collectKnownIps)
+import { normalizeMacAddress } from "./app-util.js";
+import { vmIps } from "../lib/vm-nics.js";   // IPv4 di tutte le vNIC (stesso import di app.js: esbuild deduplica)
+// Bare globals (no-undef OFF su src/): state - computeIpamUsage (lib/ipam.js) -
+// isLeaseStale (lib/dhcp-lease.js) - _parseIpv4Int/_parseCidrInfo/_ipInCidr (lib/cidr.js).
+
+export function _ensureIpamState(){
+    if(!state.ipam) state.ipam = { vlans:{} };
+    if(!state.ipam.vlans || typeof state.ipam.vlans !== 'object') state.ipam.vlans = {};
+    return state.ipam.vlans;
+}
+
+export function _ipamEntry(vid, create=false){
+    const vlans = _ensureIpamState();
+    const key = String(vid);
+    if(!vlans[key] && create) vlans[key] = {};
+    return vlans[key] || null;
+}
+
+// _parseIpv4Int, _parseCidrInfo, _ipInCidr sono ora in /lib/cidr.js
+// (caricato come <script> prima di app.js, esposto come globali).
+
+// F6 — memo IPAM per-frame. _renderFloorProps chiama _ipamUsageForVlan/_vlanIpamSummary
+// per OGNI VLAN, e ognuna rifà _collectKnownIps()/_activeLeaseIps() (scan di TUTTI i nodi
+// + lease). Con V VLAN il costo era ~O(V·nodi) a ogni resa. Durante UNA singola resa
+// sincrona del pannello i nodi/lease non cambiano → si calcolano una volta sola. Il memo
+// vive SOLO tra _ipamMemoBegin() e _ipamMemoEnd() (chiamate sincrone da _renderFloorProps)
+// → nessuna staleness fuori dalla resa: le altre chiamate (Assistente AI, L3) girano con
+// memo nullo e ricalcolano fresco.
+let _ipamFrameMemo = null;
+function _ipamMemoBegin(){ _ipamFrameMemo = { known:null, leases:null }; }
+function _ipamMemoEnd(){ _ipamFrameMemo = null; }
+
+function _collectKnownIps(){
+    if(_ipamFrameMemo && _ipamFrameMemo.known) return _ipamFrameMemo.known;
+    const seen = new Map();
+    const _add = (ip, label) => {
+        const s = String(ip||'').trim();
+        if(!s || _parseIpv4Int(s) == null) return;
+        if(!seen.has(s)) seen.set(s, { ip:s, nodes:[] });
+        seen.get(s).nodes.push(label);
+    };
+    for(const n of state.nodes || []){
+        _add(n.ip, getNodeDisplayName(n));
+        _add(n.integration?.host, getNodeDisplayName(n));
+        // Le VM occupano indirizzi REALI nella loro VLAN: senza contarle, il
+        // «prossimo IP libero» (nextFree) le proponeva come libere → collisione
+        // (schema ①/cecità: 32/32 IP di VM invisibili su progetto 9). Ogni IPv4
+        // di ogni vNIC entra fra i «noti», etichettato host / nome-VM.
+        for(const vm of (n.vms || [])){
+            const label = `${getNodeDisplayName(n)} / ${vm && vm.name ? vm.name : 'VM'}`;
+            for(const rec of vmIps(vm)) _add(rec && rec.ip, label);  // vmIps → [{nicId,name,ip}]
+        }
+    }
+    const _res = [...seen.values()].sort((a,b)=>a.ip.localeCompare(b.ip, undefined, { numeric:true }));
+    if(_ipamFrameMemo) _ipamFrameMemo.known = _res;
+    return _res;
+}
+
+// IP dei lease DHCP ATTIVI in cache (store._dhcpLeases): scartati gli stale
+// (isLeaseStale = G2, stesso criterio del Drift) e i duplicati. Alimentano
+// l'occupazione IPAM (lib/ipam.js). Transitori, non persistiti.
+function _activeLeaseIps(){
+    if(_ipamFrameMemo && _ipamFrameMemo.leases) return _ipamFrameMemo.leases;
+    const leases = Array.isArray(store._dhcpLeases) ? store._dhcpLeases : [];
+    const out = [], seen = new Set();
+    for(const l of leases){
+        const ip = String((l && l.ip) || '').trim();
+        if(!ip || seen.has(ip) || isLeaseStale(l)) continue;
+        seen.add(ip);
+        out.push(ip);
+    }
+    if(_ipamFrameMemo) _ipamFrameMemo.leases = out;
+    return out;
+}
+
+export function _ipamUsageForVlan(vid){
+    const entry = _ipamEntry(vid);
+    const gateway = String(entry?.gateway || '').trim();
+    const known = _collectKnownIps();
+    // Motore puro (opzione A: documentati + solo-DHCP = realtà sul filo).
+    const u = computeIpamUsage({
+        subnet: entry?.subnet || '',
+        gateway,
+        documentedIps: known.map(x => x.ip),
+        leaseIps: _activeLeaseIps(),
+        parseCidr: _parseCidrInfo,
+        ipInCidr: _ipInCidr,
+    });
+    // Dettaglio documentati con label (per il campione mostrato nella card).
+    const usedDetailed = u.cidr ? known.filter(x => _ipInCidr(x.ip, u.cidr)) : [];
+    return {
+        hasData: !!(entry && Object.keys(entry).length),
+        cidr: u.cidr,
+        gateway,
+        gatewayOk: u.gatewayOk,
+        usedCount: u.usedCount,
+        used: usedDetailed,
+        sample: usedDetailed.slice(0,3),
+        // Occupazione (lib/ipam.js): capacità, ripartizione, liberi, percentuale.
+        capacity: u.capacity,
+        documentedCount: u.documentedCount,
+        dhcpOnlyCount: u.dhcpOnlyCount,
+        freeCount: u.freeCount,
+        pct: u.pct,
+        leaseInCidr: u.leaseInCidr,
+        dhcpOnly: u.dhcpOnly,
+        nextFree: u.nextFree,        // «prossimo IP libero» (suggerimento IPAM / Assistente AI)
+    };
+}
+
+// Lease "solo DHCP" di una VLAN come righe stile drift.undocumented, per il flusso
+// Adotta dalla card IPAM (NON richiede una Verifica). Stessa base dell'ambra nella
+// barra (usage.dhcpOnly = IP nel CIDR non documentati), mappata al lease per portare
+// MAC + IP + hostname nell'adozione → il device adottato nasce già documentato (esce
+// dall'ambra). Manual-first: sola lettura, nessun side-effect.
+function _dhcpUndocumentedForVlan(vid){
+    const usage = _ipamUsageForVlan(vid);
+    const want = new Set(Array.isArray(usage.dhcpOnly) ? usage.dhcpOnly : []);
+    if(!usage.cidr || !want.size) return [];
+    const leases = Array.isArray(store._dhcpLeases) ? store._dhcpLeases : [];
+    // Sulla VLAN di management un lease è infrastruttura (interfaccia di gestione),
+    // non un endpoint → default 'infra' (switch/rack) invece di 'pc'/floor.
+    const onMgmt = (state.mgmtVlans || []).map(String).includes(String(vid));
+    const out = [], seen = new Set();
+    for(const l of leases){
+        const ip = String((l && l.ip) || '').trim();
+        if(!want.has(ip) || isLeaseStale(l)) continue;
+        const mac = normalizeMacAddress(String((l && l.mac) || ''));
+        if(!mac || seen.has(mac)) continue; seen.add(mac);
+        const host = String((l && l.hostname) || '').trim();
+        out.push({
+            key: `dhcp:${mac}`, sig: mac, mac, ip, hostname: host,
+            label: host ? `${host} · ${ip}` : ip,
+            cls: onMgmt ? 'infra' : 'endpoint',               // mgmt → infra; altrove un lease è quasi sempre un endpoint
+            vlan: (l && l.vlan != null) ? l.vlan : (Number.isFinite(+vid) ? +vid : null),
+        });
+    }
+    return out;
+}
+
+export function _vlanIpamSummary(vid){
+    const entry = _ipamEntry(vid);
+    const usage = _ipamUsageForVlan(vid);
+    if(!entry && !usage.usedCount) return '';
+    const parts = [];
+    if(entry?.subnet) parts.push(entry.subnet);
+    if(entry?.gateway) parts.push(`GW ${entry.gateway}`);
+    if(entry?.dns) parts.push(`DNS ${entry.dns}`);
+    if(usage.cidr && usage.capacity) parts.push(`${usage.usedCount}/${usage.capacity} IP`);
+    else if(usage.usedCount) parts.push(`${usage.usedCount} IP`);
+    if(!usage.cidr && entry?.subnet) parts.push('CIDR non valido');
+    if(usage.cidr && !usage.gatewayOk) parts.push('gateway fuori subnet');
+    return parts.join(' · ');
+}
+
+// Superficie window (invariata): questi 8 erano nell expose() di app.js e ora
+// vivono qui. I consumatori bare-via-window (typeof-guard) li trovano identici.
+expose({ _ensureIpamState, _ipamEntry, _ipamUsageForVlan, _vlanIpamSummary,
+         _ipamMemoBegin, _ipamMemoEnd, _collectKnownIps, _dhcpUndocumentedForVlan });
