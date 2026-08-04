@@ -115,7 +115,7 @@ export function _mgmtRow(url, autoIp, nodeId){
       <label style="display:flex;align-items:center;justify-content:space-between">
         <span>Management</span>
         <a href="${escapeHTML(primary)}"
-           onclick="return _openMgmt(this.href)"
+           data-act="mgmt-open"
            id="mgmt-open-${nodeId}"
            class="mgmt-open-btn"
            style="${canOpen?'':'opacity:.35;pointer-events:none'}"
@@ -124,13 +124,13 @@ export function _mgmtRow(url, autoIp, nodeId){
         </a>
       </label>
       <div class="mgmt-row-main">
-        <select class="mgmt-proto-sel" onchange="updateN('mgmtProto',this.value)" data-tip="${t('pnl.misc.mgmtProtoApp')}">${protoOpts}</select>
+        <select class="mgmt-proto-sel" data-change="update-n" data-nfield="mgmtProto" data-tip="${t('pnl.misc.mgmtProtoApp')}">${protoOpts}</select>
         <input value="${escapeHTML(url||'')}"
                placeholder="${escapeHTML(_mgmtBuildUrl(proto, autoIp)||'es. https://192.168.1.1')}"
-               oninput="_updateMgmtRow('${nodeId}',this.value)"
-               onchange="updateN('mgmtUrl',this.value)"
+               data-input="mgmt-row-update" data-nid="${nodeId}"
+               data-change="update-n" data-nfield="mgmtUrl"
                data-tip="${t('pnl.misc.urlOptionalOverride')}">
-        <button type="button" class="mgmt-proto-edit" onclick="_openMgmtProtoEditor()" data-tip="${t('pnl.misc.manageProtocols')}"><i class="fas fa-cog"></i></button>
+        <button type="button" class="mgmt-proto-edit" data-act="mgmt-proto-edit" data-tip="${t('pnl.misc.manageProtocols')}"><i class="fas fa-cog"></i></button>
       </div>
     </div>`;
 }
@@ -203,19 +203,26 @@ expose({
     _mgmtRow, _openMgmt, _openMgmtProtoEditor, _updateMgmtRow,
 });
 
-// ── ASSE B (ritiro onclick inline): MODALE «Protocolli di management» ──────────
-// Il modale è separato dal pannello proprietà (non-golden). Statici (chiusura/
-// backdrop con guardia ev.target===el, reset, aggiungi) + righe generate a runtime
-// da `_renderMgmtProtoEditor` (input label/scheme via data-input con idx+field,
-// cestino via data-act). `_openMgmtProtoEditor` RESTA su window (lo apre il bottone
-// nel pannello proprietà, che è golden).
+// ── ASSE B: MODALE «Protocolli di management» (non-golden) + RIGA management del
+// pannello proprietà (GOLDEN, coda ASSE B) ────────────────────────────────────
+// Modale: statici (chiusura/backdrop con guardia ev.target===el, reset, aggiungi)
+// + righe generate a runtime da `_renderMgmtProtoEditor` (input label/scheme via
+// data-input con idx+field, cestino via data-act).
+// Riga management (_mgmtRow, resa nel pannello NODE golden): «apri console»
+// (mgmt-open, ex `return _openMgmt(this.href)` → preventDefault + el.href),
+// l'ingranaggio editor (mgmt-proto-edit) e l'URL override (mgmt-row-update, input
+// live). Il select protocollo e il commit URL riusano l'azione condivisa `update-n`
+// (data-nfield=mgmtProto/mgmtUrl), registrata dal pannello NODE — NON qui.
 registerClickActions({
     'mgmt-proto-backdrop': (el, ev) => { if (ev.target === el) _closeMgmtProtoEditor(); },
     'mgmt-proto-close':    () => _closeMgmtProtoEditor(),
     'mgmt-proto-reset':    () => _resetMgmtProtoEditor(),
     'mgmt-proto-add':      () => _addMgmtProto(),
     'mgmt-proto-del':      (el) => _deleteMgmtProto(Number(el.dataset.idx)),
+    'mgmt-open':           (el, ev) => { ev.preventDefault(); _openMgmt(el.href); },
+    'mgmt-proto-edit':     () => _openMgmtProtoEditor(),
 });
 registerInputActions({
     'mgmt-proto-field': (el) => _updateMgmtProtoField(Number(el.dataset.idx), el.dataset.field, el.value),
+    'mgmt-row-update':  (el) => _updateMgmtRow(el.dataset.nid, el.value),
 });

@@ -24,6 +24,7 @@ import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (e
 import { renderProps, _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { portTip } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B (coda): sezione «Skin pannello» del pannello NODE (golden) via event delegation
 
 // ---- Cache client dello skin store -----------------------------------------
 let _skinStore = [];   // [{id,name,brand,model,face,viewBox,ports,svg}]
@@ -118,13 +119,13 @@ export function _panelSkinSectionHtml(n){
         ? `<p class="panel-skin-meta">${t('skin.legacyNote')}</p>` : '';
     const body = `${preview}${legacyNote}
         <div class="prop-group"><label>${t('skin.fromLib')}</label>
-          <select onchange="assignNodeSkin(this.value)">${opts.join('')}</select>
+          <select data-change="skin-assign">${opts.join('')}</select>
         </div>
         <div class="prop-row2">
-          <label class="panel-skin-btn primary" data-tip="${t('skin.uploadTip')}"><i class="fas fa-upload"></i> ${t('skin.uploadBtn')}<input type="file" accept=".svg,image/svg+xml" style="display:none" onchange="uploadPanelSkin(this)"></label>
-          ${curId?`<button type="button" class="panel-skin-btn" onclick="assignNodeSkin('')" data-tip="${t('skin.detachTip')}"><i class="fas fa-link-slash"></i> ${t('skin.detachBtn')}</button>`:''}
+          <label class="panel-skin-btn primary" data-tip="${t('skin.uploadTip')}"><i class="fas fa-upload"></i> ${t('skin.uploadBtn')}<input type="file" accept=".svg,image/svg+xml" style="display:none" data-change="skin-upload"></label>
+          ${curId?`<button type="button" class="panel-skin-btn" data-act="skin-detach" data-tip="${t('skin.detachTip')}"><i class="fas fa-link-slash"></i> ${t('skin.detachBtn')}</button>`:''}
         </div>
-        ${curId?`<button type="button" class="panel-skin-btn danger" style="width:100%;margin-top:6px" onclick="deleteLibrarySkin('${escapeHTML(curId)}')" data-tip="${t('skin.deleteTip')}"><i class="fas fa-trash"></i> ${t('skin.deleteBtn')}</button>`:''}`;
+        ${curId?`<button type="button" class="panel-skin-btn danger" style="width:100%;margin-top:6px" data-act="skin-delete" data-skin-id="${escapeHTML(curId)}" data-tip="${t('skin.deleteTip')}"><i class="fas fa-trash"></i> ${t('skin.deleteBtn')}</button>`:''}`;
     const prev = cur ? `<span class="props-collapsible-preview">${escapeHTML(cur.name||t('skin.active'))}</span>`
                      : `<span class="props-collapsible-preview muted">${t('skin.noSkin')}</span>`;
     return `<details class="props-collapsible props-secondary" ${_propsSectionIsOpen('panel-skin')?'open':''} data-toggle="props-section" data-section="panel-skin"><summary class="props-collapsible-head"><span><i class="fas fa-vector-square"></i> ${t('skin.section')}</span>${prev}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">${body}</div></details>`;
@@ -268,10 +269,23 @@ function _onSkinRadioPointerDown(ev, nodeId, ridx, pid){
 
 // Superficie pubblica: boot (loadPanelSkinStore), render (_resolveNodeSkin,
 // _panelSkinRackHtml, _onSkinRadioPointerDown da app-render-core.js), pannello
-// (_panelSkinSectionHtml da app-properties-node.js) + handler inline onchange/
-// onclick (uploadPanelSkin, assignNodeSkin, clearPanelSkin, deleteLibrarySkin).
+// (_panelSkinSectionHtml da app-properties-node.js). ASSE B (coda): i 4 handler
+// della sezione sono DELEGATI (register sotto); le fn restano in expose() per
+// l'E2E come globali e i chiamanti non migrati.
 expose({
     loadPanelSkinStore, _resolveNodeSkin, _panelSkinSectionHtml, _panelSkinRackHtml,
     _onSkinRadioPointerDown, uploadPanelSkin, assignNodeSkin, clearPanelSkin,
     deleteLibrarySkin,
+});
+
+// ASSE B (coda) — sezione «Skin pannello» del pannello NODE (golden): assegna dalla
+// libreria (select→value), carica SVG (file input→elemento), stacca (assign ''),
+// elimina dalla libreria (id in data-skin-id). Le fn sono locali a questo modulo.
+registerChangeActions({
+    'skin-assign': (el) => assignNodeSkin(el.value),
+    'skin-upload': (el) => uploadPanelSkin(el),
+});
+registerClickActions({
+    'skin-detach': () => assignNodeSkin(''),
+    'skin-delete': (el) => deleteLibrarySkin(el.dataset.skinId),
 });

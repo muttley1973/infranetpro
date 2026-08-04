@@ -347,16 +347,16 @@ export function _hvPanelHtml(n, d){
 
     return `<details class="props-collapsible props-primary" ${open} data-toggle="props-section" data-section="${secId}"><summary class="props-collapsible-head"><span><i class="fas ${icon}"></i> ${title}</span>${preview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
         ${inv}
-        <div class="prop-group"><label>${t('hv.platform')}</label><select onchange="updateN('hvPlatform',this.value)">${platOpts}</select></div>
+        <div class="prop-group"><label>${t('hv.platform')}</label><select data-change="update-n" data-nfield="hvPlatform">${platOpts}</select></div>
         <div class="prop-grid2">
-            <div class="prop-group"><label>${t('hv.cluster')}</label><input value="${esc(n.hvCluster || '')}" placeholder="${esc(t('pnl.feat.optional'))}" onchange="updateN('hvCluster',this.value)"></div>
-            <div class="prop-group"><label>${t('hv.manager')}</label><input value="${esc(n.hvManager || '')}" placeholder="vCenter / Prism…" onchange="updateN('hvManager',this.value)"></div>
+            <div class="prop-group"><label>${t('hv.cluster')}</label><input value="${esc(n.hvCluster || '')}" placeholder="${esc(t('pnl.feat.optional'))}" data-change="update-n" data-nfield="hvCluster"></div>
+            <div class="prop-group"><label>${t('hv.manager')}</label><input value="${esc(n.hvManager || '')}" placeholder="vCenter / Prism…" data-change="update-n" data-nfield="hvManager"></div>
         </div>
         <div class="prop-grid2">
-            <div class="prop-group"><label>RAM (GB)</label><input type="number" min="1" max="65536" value="${n.hvRamGb || 64}" onchange="updateN('hvRamGb',parseInt(this.value)||64)"></div>
-            <div class="prop-group"><label>Storage (TB)</label><input type="number" min="0" max="10000" step="0.5" value="${n.hvStorageTb || 1}" onchange="updateN('hvStorageTb',parseFloat(this.value)||0)"></div>
+            <div class="prop-group"><label>RAM (GB)</label><input type="number" min="1" max="65536" value="${n.hvRamGb || 64}" data-change="update-n" data-nfield="hvRamGb" data-ncoerce="intdef" data-ndef="64"></div>
+            <div class="prop-group"><label>Storage (TB)</label><input type="number" min="0" max="10000" step="0.5" value="${n.hvStorageTb || 1}" data-change="update-n" data-nfield="hvStorageTb" data-ncoerce="floatdef" data-ndef="0"></div>
         </div>
-        <div class="prop-group"><label>${t('hv.mgmtVlan')}</label><input type="number" min="1" max="4094" value="${n.mgmtVlan || 1}" data-tip="${esc(t('hv.mgmtVlanTip'))}" onchange="updateN('mgmtVlan',parseInt(this.value)||1)"></div>
+        <div class="prop-group"><label>${t('hv.mgmtVlan')}</label><input type="number" min="1" max="4094" value="${n.mgmtVlan || 1}" data-tip="${esc(t('hv.mgmtVlanTip'))}" data-change="update-n" data-nfield="mgmtVlan" data-ncoerce="intdef" data-ndef="1"></div>
         ${''/* Drop-zone VM: il bersaglio (data-vm-dropzone) è TUTTA la sezione — con
              tante VM la vecchia zona in fondo alla lista usciva dallo scrollport del
              pannello dopo ogni re-render (scroll azzerato) e i drop morivano. La zona
@@ -367,7 +367,7 @@ export function _hvPanelHtml(n, d){
             <div class="props-collapsible-body">
                 <div class="vm-import-dz"><i class="fas fa-arrow-down-to-bracket"></i> ${esc(t('hv.vmImportHint'))}</div>
                 ${vmRows}
-                <button type="button" class="toolbar-btn" style="width:100%;justify-content:center;margin-top:4px" onclick="addVm('${n.id}')"><i class="fas fa-plus"></i> ${t('hv.addVm')}</button>
+                <button type="button" class="toolbar-btn" style="width:100%;justify-content:center;margin-top:4px" data-act="hv-add-vm" data-nid="${n.id}"><i class="fas fa-plus"></i> ${t('hv.addVm')}</button>
             </div>
         </details>
     </div></details>`;
@@ -551,6 +551,9 @@ registerClickActions({
     // Apertura console di management: stessa strategia per-protocollo dei device
     // (http/https in tab, ssh/rdp/vnc all'handler del sistema operativo).
     'vm-mgmt-open':  (el, ev) => { if(ev) ev.preventDefault(); _openMgmt(el.getAttribute('href')); },
+    // Coda ASSE B: bottone «Aggiungi VM» dell'host nel pannello NODE golden
+    // (ex onclick addVm('<id>') → id in data-nid).
+    'hv-add-vm':     (el) => addVm(el.dataset.nid),
 });
 // Sentinella dell'harness «Personalizzato…» (app.js `_enableManualValueInProps`):
 // NON e' un valore, e' la voce che apre il prompt. Va ignorata su DUE fronti:

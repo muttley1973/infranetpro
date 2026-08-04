@@ -2534,14 +2534,14 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           // il pannello device dell'hypervisor (rack) mostra l'editor VM
           selType = 'node'; selId = 'hv'; renderProps();
           const html = document.getElementById('props-panel').innerHTML || '';
-          const hasEditor = html.includes('addVm(') && html.includes('hv-vms');
+          const hasEditor = html.includes('hv-add-vm') && html.includes('hv-vms');   // ASSE B: ex onclick="addVm('…')" → data-act="hv-add-vm"
 
           // anche il pannello del homelab (FLOOR) dev'essere completo come l'host rack:
           // nome + Rete&Accesso + piattaforma + editor VM (regressione: il device-spec
           // floor finiva nel bucket sbagliato e non veniva mai concatenato).
           selType = 'node'; selId = 'hl'; renderProps();
           const labHtml = document.getElementById('props-panel').innerHTML || '';
-          const labComplete = labHtml.includes('addVm(') && labHtml.includes('hvPlatform') && labHtml.includes('data-field="ip"');   // ASSE B: ex onchange="updateN('ip',…)"
+          const labComplete = labHtml.includes('hv-add-vm') && labHtml.includes('hvPlatform') && labHtml.includes('data-field="ip"');   // ASSE B: ex onclick="addVm(" → data-act="hv-add-vm"; ex onchange="updateN('ip',…)" → data-field="ip"
 
           // aggiungere una VM via la funzione esposta e impostarne la VLAN aggiorna il trunk
           addVm('hv');
@@ -3563,7 +3563,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
 
         return {
           exposed,
-          sectionHasSelect: sectionHtml.indexOf('assignNodeSkin') >= 0 && sectionHtml.indexOf('skin') >= 0,
+          sectionHasSelect: sectionHtml.indexOf('skin-assign') >= 0 && sectionHtml.indexOf('skin') >= 0,   // ASSE B: ex onchange="assignNodeSkin(this.value)" → data-change="skin-assign"
           rackFallback: rackHtml === '',          // niente skin → fallback al layout generato
           resolvedNull: resolved === null,
           malPreviewClean: malSection.indexOf('onload') === -1 && malSection.indexOf('__xss') === -1,

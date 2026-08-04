@@ -849,7 +849,20 @@ function countInlineHandlers() {
 // app-vlan-autopoll; autopoll-ip-renew in app-drift.js che possiede setAutoIpRenew;
 // dhcp-open in app-dhcp-import.js). (4) Dialogo VLAN-voce: chiudi/preview/conferma (locali).
 // Nessun cambio golden (nessuna di queste superfici e' nello snapshot dei pannelli).
-const MAX_INLINE_HANDLERS = 72;
+//
+// −16 (72 → 56): coda ASSE B, superfici GOLDEN del pannello NODE (ultimi handler
+// inline dei pannelli proprieta'). (1) Skin pannello (app-panel-skin.js): assegna/
+// carica/stacca/elimina skin → skin-assign/skin-upload (change) + skin-detach/
+// skin-delete (click). (2) Riga management (app-management.js): apri console
+// (mgmt-open, ex `return _openMgmt(this.href)` → preventDefault+el.href), ingranaggio
+// editor (mgmt-proto-edit), URL override live (mgmt-row-update input); il select
+// protocollo e il commit URL riusano `update-n` (data-nfield mgmtProto/mgmtUrl) del
+// pannello NODE. (3) Hypervisor (app-hypervisor.js): platform/cluster/manager/
+// ram(intdef 64)/storage(floatdef 0)/mgmtVlan(intdef 1) riusano `update-n`
+// (data-ncoerce intdef/floatdef = parseInt/parseFloat||default, SENZA clamp),
+// «Aggiungi VM» → hv-add-vm (id in data-nid). Golden rigenerato: 35 scenari node
+// cambiano SOLO attributi, verificato handler-only (strip on*/data-* → identico).
+const MAX_INLINE_HANDLERS = 56;
 test('ponte ASSE B: gli handler inline on*= non superano il tetto a cricchetto', () => {
   const total = countInlineHandlers();
   assert.ok(total <= MAX_INLINE_HANDLERS,
