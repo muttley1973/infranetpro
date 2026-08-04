@@ -154,8 +154,9 @@ lib/                   Shared browser + test modules (the heart of the app)
                     and PC/SoftAP hotspots; L3 path gated on broadcasting an SSID)  (pure)
   vlan-trunk.js     carriedVlans + effLinkVlans (trunk derivato)       (pure)  …
                        (PURE only — the ex-`lib/app-*.js` GLUE now lives in src/)
-src/app.js             Core glue/nucleus: state, escapeHTML, init(), renderAll dispatch
-                       (now ESM in the bundle, imported 2nd in src/main.js after app-types)
+src/app.js             Core bootstrap/nucleus: state init, init(), bindEvents, expose()
+                       (ESM; imported 2nd in src/main.js after app-types). Cohesive helper
+                       clusters extracted → app-ipam/app-cables/app-history/app-index/app-props-tabs.js
 netmapper.html         The app shell + the <script> load order (authoritative)
 styles/                Modular CSS (9 ordered partials + design tokens) — ex style.css; see styles/README.md
 build.js               esbuild build of the frontend ESM bundle (dist/app.bundle.js)
@@ -742,6 +743,13 @@ is VPN/LAN.
   merged to `main` (`8b77e63`)** — all `lib/app-*.js` glue **and** the nucleus (`src/app.js`)
   are ESM in the bundle. The only remaining classic `<script>`s are the pure `lib/*.js` and
   `export.js` (by design).
+- **`app.js` decomposition (2026-08-04).** The 2685-line nucleus was split into 5 cohesive
+  ESM modules — `app-ipam.js` (IPAM occupancy), `app-cables.js` (cable labels/setters),
+  `app-history.js` (undo/redo + dirty + audit), `app-index.js` (O(1) lookups + port/node
+  getters), `app-props-tabs.js` (right-panel tabs + manual-value select). Each is a **verbatim
+  move** (golden byte-identical). `app.js` (now ~2065 lines) keeps the bootstrap + the final
+  `expose()` and **re-exports every moved symbol**, so the 41 consumer modules were untouched;
+  both ratchets are unchanged. State init and the entry render/event wiring stay in `app.js`.
 - **Retiring the `window` bridge — RESUMED (2026-08-01): finishing it, one panel at a time.**
   > **Decision (2026-08-01): the bridge-retirement effort is active again.** After being parked as a
   > spare-time task on 2026-07-14, Axis B is now being driven down deliberately — one properties-panel
