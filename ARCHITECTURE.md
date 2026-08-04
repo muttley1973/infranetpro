@@ -826,8 +826,10 @@ is VPN/LAN.
     module both import, so they are never double-registered, while the actions carrying a surface-specific
     tail — `renderProps()` in the panel, `closePop()` in the popup — stay local). The three header buttons
     (expand-all / collapse-all / reset-sections) are shared actions registered once in `app-properties.js`
-    and reused by every panel. Still inline: the node panel + its ports table, and the node-devices
-    sub-panel (the bulk of the remaining count). The rest follows surface by surface. `_bridge.js` / `expose()` are deleted only when Axis B is finished. *(Side note: the AI help
+    and reused by every panel. Every properties panel + overlay in `src/*.js` is now delegated, and so
+    is `netmapper.html`'s static shell (buttons, tabs, dialogs); the residue is the `export.js`-backed
+    export dialogs (classic `<script>`, inline by design) and the canvas interactions awaiting new
+    harness event types. `_bridge.js` / `expose()` are deleted only when Axis B is finished. *(Side note: the AI help
     catalog in `lib/ui-catalog.js`, which reads the real button labels/tooltips, derives a button's action
     from `data-act` as well as `onclick`, so delegated buttons stay in the assistant's catalog.)*
 - **ESLint gate (`eslint.config.js`, v9).** `no-undef` is enforced as a safety net where
