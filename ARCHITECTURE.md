@@ -762,9 +762,11 @@ is VPN/LAN.
   - **Axis B — inline handlers (`onclick`/`onchange`/`oninput`/…) → event delegation.** Inline handlers
     are *why* the bridge still exists (they resolve names in page lexical scope). **A monotonic ratchet
     (`MAX_INLINE_HANDLERS` in `test/bridge-ratchet.test.js`, may only decrease) now caps their count —
-    currently 426 across `src/*.js` templates + `netmapper.html` static — so Axis B is measured and
-    converges like Axis A; the target is the structural floor (a few stay inline by design, e.g. the
-    gear inside the golden properties panel).** `src/app-delegation.js`
+    currently 56 across `src/*.js` templates + `netmapper.html` static — so Axis B is measured and
+    converges like Axis A; the target is the structural floor. Every property-panel and overlay
+    surface in `src/*.js` is now delegated; the residue is `netmapper.html`'s canvas interactions
+    (wheel / drop / dragover / contextmenu / scroll / mouse-enter-leave — each needs a new harness
+    event type) plus two structural handlers (the cabling-editor gear, the render-core pointer-down).** `src/app-delegation.js`
     installs **one delegated listener per event type** on the document — `data-act` for `click`,
     `data-change` for `change` (selects, checkboxes, file inputs, committed numbers), `data-input` for
     live `input` (typing), `data-focus` for `focus` (attached as `focusin`, which bubbles — plain
@@ -784,8 +786,9 @@ is VPN/LAN.
     deep-TCP-scan preference checkboxes (`change`), the map-image + JSON-import file pickers
     (`change`), and the global search box (`input` + `focus` + `keydown`). Of the static HTML the
     change/input/focus/keydown surfaces are done — only the export panel's remain (`export.js` classic)
-    — but **~55 `onclick` handlers are still inline** there (report/discovery/import/PDF-export
-    actions, status chips: a mix of clean-but-deferred and genuinely blocked).
+    — but **~54 handlers are still inline** there (report/discovery/import/PDF-export click actions
+    and status chips, plus the canvas interactions — wheel / drop / dragover / contextmenu / scroll /
+    mouse-enter-leave — that still need new harness event types).
     The migration then moves into the **handlers inside dynamically-rendered templates** (rows/cards built by `innerHTML`
     at runtime) — these migrate identically, because a document-level delegated listener also catches
     events from elements created *after* load. Dynamic clusters done so far: the Discover table rows
