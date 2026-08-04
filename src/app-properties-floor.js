@@ -193,20 +193,13 @@ export function _renderFloorProps(panel){
               <summary class="props-collapsible-head"><span><i class="fas fa-map"></i> ${t('floor.imgSection')}</span>${_bgPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
               <div class="props-collapsible-body">
                 <div class="prop-group" style="margin-bottom:10px">
-                  <button class="toolbar-btn primary" style="width:100%;justify-content:center;gap:8px"
+                  <button class="panel-skin-btn primary" style="width:100%"
                           data-act="map-upload">
                     <i class="fas fa-upload"></i>
                     ${state.bgImage?t('floor.replaceMap'):t('floor.importMap')}
                   </button>
                 </div>
                 ${state.bgImage?`
-                <div class="prop-group" style="margin-bottom:10px">
-                  <button class="toolbar-btn${state.bgImageLocked?' primary':''}" style="width:100%;justify-content:center;gap:8px"
-                          data-act="bg-lock-toggle">
-                    <i class="fas ${state.bgImageLocked?'fa-lock':'fa-lock-open'}"></i>
-                    ${state.bgImageLocked?t('floor.mapLocked'):t('floor.lockScale')}
-                  </button>
-                </div>
                 <div class="prop-group" style="${state.bgImageLocked?'opacity:0.38;pointer-events:none':''}">
                   <label>${t('f.bgScale')}</label>
                   <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
@@ -219,6 +212,13 @@ export function _renderFloorProps(panel){
                     <span id="bg-scale-lbl" style="font-size:0.78rem;min-width:42px;text-align:right">${Math.round((state.bgImageScale||1)*100)}%</span>
                   </div>
                   <button class="toolbar-btn" style="width:100%;margin-top:6px;font-size:0.75rem" data-act="bg-scale-reset"><i class="fas fa-undo" style="margin-right:4px"></i>${t('floor.reset100')}</button>
+                </div>
+                <div class="prop-group" style="margin-bottom:10px">
+                  <button class="panel-skin-btn primary" style="width:100%"
+                          data-act="bg-lock-toggle">
+                    <i class="fas ${state.bgImageLocked?'fa-lock':'fa-lock-open'}"></i>
+                    ${state.bgImageLocked?t('floor.mapLocked'):t('floor.lockScale')}
+                  </button>
                 </div>
                 <div class="prop-group" style="margin-bottom:10px">
                   <label>${t('floor.mapOpacity')}</label>

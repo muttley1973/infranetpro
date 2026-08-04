@@ -745,6 +745,26 @@
           <input id="disc-timeout" type="number" value="2" min="1" max="10">
         </div>
       </div>
+      <!-- Associazione VLAN ↔ subnet (declare-first, bidirezionale): la subnet dello
+           scan è LO STESSO dato del pannello VLAN → si digita una volta sola. Scegli
+           una VLAN già dichiarata e il suo subnet riempie l'intervallo; oppure indica
+           una VLAN e alla scansione la subnet viene dichiarata nel pannello. Opzionale. -->
+      <div class="tm-row disc-vlan-row">
+        <div class="tm-field" style="width:260px;min-width:260px">
+          <label data-i18n="disc.fieldVlan">Associa a VLAN (facoltativo)</label>
+          <select id="disc-vlan" data-change="disc-vlan">
+            <option value="" data-i18n="disc.vlanNone">— nessuna —</option>
+            <option value="__new__" data-i18n="disc.vlanNewOpt">Nuova VLAN…</option>
+          </select>
+        </div>
+        <div class="tm-field" id="disc-vlan-new-wrap" style="width:120px;min-width:120px;display:none">
+          <label data-i18n="disc.vlanNewLabel">Numero VLAN</label>
+          <input id="disc-vlan-new" type="number" min="1" max="4094" placeholder="es. 30" data-change="disc-vlan" autocomplete="off">
+        </div>
+        <div id="disc-vlan-hint" class="disc-vlan-hint" aria-live="polite"></div>
+      </div>
+      <!-- Linea full-frame: separa "cosa/dove scansionare" (sopra) da "come scansionare" (sotto). -->
+      <div class="disc-sep"></div>
       <div class="disc-opt-row">
         <label class="disc-speed" data-i18n-tip="disc.speedTip" data-tip="Bilanciata: consigliata, ritmo gentile. Veloce: in parallelo, più rapida. Prudente: serializzata con pause casuali per non farsi notare da un IDS — più lenta.">
           <span data-i18n="disc.speed">Velocità</span>

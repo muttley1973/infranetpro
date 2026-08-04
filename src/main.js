@@ -15,6 +15,7 @@ import './app-types.js';   // FOUNDATION: definisce TYPES (export const + expose
 import './store.js';   // FOUNDATION: store dello stato condiviso (proxy window) — early
 import './app-delegation.js';   // ASSE B: harness event delegation (data-act) — infra
 import './app-modal-a11y.js';   // M9: a11y tool-modal (focus-trap + Esc) — infra, prima del nucleo
+import './app-pw-reveal.js';   // occhio "mostra password" sui campi mascherati — infra, dopo la delegation
 import './app-util.js';    // FOGLIA: helper puri (escapeHTML/uid) — importati da app.js
 import './app-os-icons.js';   // inietta lo sprite icone-OS (<symbol>) nel DOM — prima dei render
 import './app.js';         // NUCLEO: stato (store.state) + core bootstrap — subito dopo i TYPES

@@ -251,6 +251,20 @@ header {
 .tm-field input,
 .tm-field select { border-radius: var(--radius-md); border-color: var(--hairline); }
 
+/* Occhio "mostra password" sui campi mascherati (src/app-pw-reveal.js).
+   Il wrapper eredita il posto dell'input nel layout (flex/larghezza copiate inline);
+   l'occhio sta nel padding destro riservato dall'input (paddingRight:32px inline). */
+.pw-field { position: relative; display: flex; align-items: center; min-width: 0; }
+.pw-field > input { min-width: 0; }
+.pw-eye {
+    position: absolute; top: 0; right: 0; height: 100%; width: 30px;
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: 0; padding: 0; margin: 0; cursor: pointer;
+    color: var(--text-muted); font-size: 0.9em; z-index: 2;
+}
+.pw-eye:hover { color: var(--text-main); }
+.pw-eye:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 4px; }
+
 /* Zoom control del floorplan → vetro come la barra VLAN */
 .zoom-controls {
     background: rgba(19,25,34,.82);

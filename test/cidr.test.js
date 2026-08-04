@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { _parseIpv4Int, _parseCidrInfo, _ipInCidr } = require('../lib/cidr.js');
+const { _parseIpv4Int, _parseCidrInfo, _ipInCidr, _intToIpv4, subnetInputToCidr } = require('../lib/cidr.js');
 
 test('_parseIpv4Int: parsing e validazione ottetti', () => {
   assert.equal(_parseIpv4Int('0.0.0.0'), 0);
@@ -47,4 +47,27 @@ test('_ipInCidr: appartenenza alla subnet', () => {
   const c30 = _parseCidrInfo('10.0.0.4/30'); // host validi .5 .6
   assert.equal(_ipInCidr('10.0.0.5', c30), true);
   assert.equal(_ipInCidr('10.0.0.8', c30), false);
+});
+
+test('_intToIpv4: intero -> dotted quad', () => {
+  assert.equal(_intToIpv4(0), '0.0.0.0');
+  assert.equal(_intToIpv4(0xffffffff), '255.255.255.255');
+  assert.equal(_intToIpv4(_parseIpv4Int('192.168.10.0')), '192.168.10.0');
+});
+
+test('subnetInputToCidr: input di scansione -> subnet CIDR da dichiarare', () => {
+  // CIDR: normalizzato all'indirizzo di rete, prefisso rispettato
+  assert.equal(subnetInputToCidr('192.168.10.0/24'), '192.168.10.0/24');
+  assert.equal(subnetInputToCidr('192.168.10.20/24'), '192.168.10.0/24');
+  assert.equal(subnetInputToCidr('10.0.0.0/16'), '10.0.0.0/16');
+  assert.equal(subnetInputToCidr(' 172.16.5.4 / 30 '), '172.16.5.4/30');
+  // range senza prefisso -> la /24 che lo contiene
+  assert.equal(subnetInputToCidr('192.168.10.1-254'), '192.168.10.0/24');
+  assert.equal(subnetInputToCidr('192.168.10.50-99'), '192.168.10.0/24');
+  // IP singolo -> la sua /24
+  assert.equal(subnetInputToCidr('192.168.10.7'), '192.168.10.0/24');
+  // non parsabile / vuoto -> ''
+  assert.equal(subnetInputToCidr(''), '');
+  assert.equal(subnetInputToCidr('non-una-rete'), '');
+  assert.equal(subnetInputToCidr('999.1.1.1'), '');
 });

@@ -111,6 +111,15 @@
         /* Opzioni scansione: due gruppi impilati (velocità + "cerca più a fondo")
            invece di una riga unica che va a capo in modo disordinato. */
         .disc-opt-row { display:flex; flex-direction:column; gap:12px; margin-top:2px; }
+        /* Campo "Associa a VLAN": la subnet dello scan e' lo stesso dato del pannello
+           VLAN. Hint accanto al campo = VLAN esistente/nuova + eventuale subnet dichiarata. */
+        .disc-vlan-row { align-items:flex-end; }
+        .disc-vlan-hint { flex:1; min-width:0; font-size:var(--fs-xs); color:var(--text-muted);
+            padding-bottom:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        /* Linea di separazione FULL-FRAME (edge-to-edge del modale: annulla il padding
+           orizzontale 18px del corpo) fra il blocco "cosa/dove scansionare + VLAN" e il
+           blocco "come scansionare" (velocità · profondità). */
+        #disc-overlay .disc-sep { height:1px; background:var(--panel-border); margin:14px -18px; }
         /* Riga "Velocità": etichetta + select inline, stesso look dei campi del modale. */
         .disc-speed { display:flex; align-items:center; gap:10px; font-size:var(--fs-sm); color:var(--text-muted); cursor:pointer; }
         .disc-speed > span { min-width:64px; }

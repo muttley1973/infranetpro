@@ -418,6 +418,8 @@ export function renderProps(){
     // ripiega da solo se la selezione e' stantia (host o VM cancellati).
     else if(selType==='vm'&&selId){ _renderVmProps(panel); }
     else { _renderFloorProps(panel); }
+    // Campi mascherati del pannello (es. credenziali SNMPv3): occhio "mostra password".
+    if(typeof enhancePwFields === 'function') enhancePwFields(panel);
 }
 
 // ─────────────────────────────────────────────────────────────

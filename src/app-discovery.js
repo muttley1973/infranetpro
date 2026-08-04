@@ -1,7 +1,8 @@
 import { win, expose } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, normalizeMacAddress } from './app-util.js';
-import { markDirty, pushHistory, renderCables, _showToast, _nextNodeId } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { markDirty, pushHistory, renderCables, _showToast, _nextNodeId, _ipamEntry } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { _ensureVlanColor, updateVlanIpam } from './app-vlan-autopoll.js';   // associazione VLAN↔subnet dallo scan (declare-first)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { focusNode, switchRack } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
@@ -104,6 +105,119 @@ function _dt(key, fallback, vars){ return (typeof win.t === 'function') ? win.t(
 // separa senza falsi negativi. Un host con anche solo un MAC (ARP) parte da ~22%.
 const DISC_PRESELECT_MIN_CONF = 15;
 
+// ── Associazione VLAN ↔ subnet dal dialogo «Scopri» (declare-first, bidirezionale) ──
+// «Scopri» e il pannello VLAN condividono LO STESSO dato: la subnet. Il campo VLAN
+// del dialogo evita di digitarla due volte.
+//  · all'INDIETRO: scegli una VLAN GIÀ dichiarata → il suo subnet riempie l'intervallo;
+//  · in AVANTI: indichi una VLAN (anche nuova) → alla scansione la subnet finisce in
+//    ipam.vlans[vid].subnet (la VLAN si crea nella palette se non c'è).
+// Manual-first: opzionale (vuoto = solo scan); la subnet dichiarata NON si sovrascrive
+// mai in silenzio (fill-if-empty; se differisce, solo un avviso). La community NON
+// entra mai nel pannello (è una credenziale per-device, regole anti-leak).
+
+// VLAN note al progetto (palette ∪ nomi ∪ IPAM), con nome ed eventuale subnet dichiarata.
+function _discKnownVlans(){
+    const st = store.state || {};
+    const ids = new Set();
+    for(const k of Object.keys(st.vlanColors || {})) ids.add(+k);
+    for(const k of Object.keys(st.vlanNames || {})) ids.add(+k);
+    for(const k of Object.keys((st.ipam && st.ipam.vlans) || {})) ids.add(+k);
+    return [...ids].filter(v => v >= 1 && v <= 4094).sort((a,b)=>a-b).map(vid => ({
+        vid,
+        name: (st.vlanNames && st.vlanNames[vid]) || '',
+        subnet: (typeof _ipamEntry === 'function' && (_ipamEntry(vid) || {}).subnet) || '',
+    }));
+}
+
+// VID VLAN effettivo scelto: dal <select>, o dal campo "Nuova VLAN" quando è
+// selezionata l'opzione __new__. null se nessuno / fuori range 1..4094.
+function _discEffectiveVlanId(){
+    const sel = document.getElementById('disc-vlan');
+    const v = sel ? sel.value : '';
+    if(v === '__new__'){
+        const ni = document.getElementById('disc-vlan-new');
+        const n = parseInt(ni && ni.value, 10);
+        return (n >= 1 && n <= 4094) ? n : null;
+    }
+    const n = parseInt(v, 10);
+    return (n >= 1 && n <= 4094) ? n : null;
+}
+
+// (Ri)popola il <select> VLAN: «— nessuna —», le VLAN note (nome + subnet dichiarata),
+// «Nuova VLAN…» in coda. Azzera anche il campo id-nuova e l'hint.
+function _discPopulateVlanList(){
+    const sel = document.getElementById('disc-vlan');
+    const wrap = document.getElementById('disc-vlan-new-wrap');
+    const ni = document.getElementById('disc-vlan-new');
+    if(ni) ni.value = '';
+    if(wrap) wrap.style.display = 'none';
+    if(sel){
+        sel.innerHTML = '';
+        const none = document.createElement('option');
+        none.value = ''; none.textContent = _dt('disc.vlanNone', '— nessuna —');
+        sel.appendChild(none);
+        for(const v of _discKnownVlans()){
+            const o = document.createElement('option');
+            o.value = String(v.vid);
+            o.textContent = 'VLAN ' + v.vid + (v.name ? ' — ' + v.name : '') + (v.subnet ? ' · ' + v.subnet : '');
+            sel.appendChild(o);
+        }
+        const nw = document.createElement('option');
+        nw.value = '__new__'; nw.textContent = _dt('disc.vlanNewOpt', 'Nuova VLAN…');
+        sel.appendChild(nw);
+        sel.value = '';
+    }
+    _discRenderVlanHint();
+}
+
+// Cambio del <select> (o del campo "Nuova VLAN"): mostra/nasconde il campo id per la
+// VLAN nuova e, ALL'INDIETRO, riempie l'intervallo col subnet dichiarato (se vuoto).
+function _onDiscVlanChange(el){
+    const sel = document.getElementById('disc-vlan');
+    const isNew = !!sel && sel.value === '__new__';
+    const wrap = document.getElementById('disc-vlan-new-wrap');
+    if(wrap) wrap.style.display = isNew ? '' : 'none';
+    if(isNew && el === sel){ const ni = document.getElementById('disc-vlan-new'); if(ni){ ni.value = ''; ni.focus(); } }
+    const vid = _discEffectiveVlanId();
+    if(vid && !isNew){
+        const known = _discKnownVlans().find(v => v.vid === vid);
+        const sub = document.getElementById('disc-subnet');
+        if(known && known.subnet && sub && !sub.value.trim()) sub.value = known.subnet;
+    }
+    _discRenderVlanHint();
+}
+
+function _discRenderVlanHint(){
+    const el = document.getElementById('disc-vlan-hint'); if(!el) return;
+    const vid = _discEffectiveVlanId();
+    if(!vid){ el.textContent = ''; return; }
+    const known = _discKnownVlans().find(v => v.vid === vid);
+    if(!known){ el.textContent = _dt('disc.vlanNew', 'nuova VLAN ' + vid, { vid }); return; }
+    let txt = 'VLAN ' + vid + (known.name ? ' — ' + known.name : '');
+    if(known.subnet) txt += ' · ' + known.subnet;
+    el.textContent = txt;
+}
+
+// Alla SCANSIONE: se una VLAN è indicata, dichiara la subnet scansionata nel pannello.
+// Fill-if-empty: se la VLAN ha già una subnet DIVERSA non la tocca (e lo segnala).
+function _declareScanSubnetToVlan(){
+    const vid = _discEffectiveVlanId();
+    if(!vid) return;
+    const raw = (document.getElementById('disc-subnet') || {}).value || '';
+    const cidr = (typeof subnetInputToCidr === 'function') ? subnetInputToCidr(raw) : '';
+    if(!cidr) return;   // niente subnet parsabile da dichiarare
+    const existing = (typeof _ipamEntry === 'function' && (_ipamEntry(vid) || {}).subnet) || '';
+    if(existing === cidr) return;   // già dichiarata identica → nulla da fare
+    if(existing && existing !== cidr){
+        _showToast(_dt('disc.vlanKept', `VLAN ${vid}: subnet ${existing} già dichiarata (non modificata)`, { vid, subnet: existing }), 'warn', 4500);
+        return;
+    }
+    if(typeof pushHistory === 'function') pushHistory();
+    if(typeof _ensureVlanColor === 'function') _ensureVlanColor(vid);
+    if(typeof updateVlanIpam === 'function') updateVlanIpam(vid, 'subnet', cidr);   // markDirty + renderProps
+    _showToast(_dt('disc.vlanDeclared', `VLAN ${vid}: subnet ${cidr} dichiarata nel pannello`, { vid, subnet: cidr }), 'ok', 3500);
+}
+
 function openDiscovery(prefillCidr){
     // Il driver resta su 'auto' (rilevamento unificato v2c + v3): NON lo
     // sovrascriviamo col driver di un device esistente, altrimenti un solo
@@ -129,6 +243,7 @@ function openDiscovery(prefillCidr){
     if(deepOpt) deepOpt.checked = _loadDeepScanPref();
     const ibtn = document.getElementById('disc-import-btn');
     if(ibtn) ibtn.disabled = true;
+    _discPopulateVlanList();   // campo VLAN: datalist delle VLAN note + reset campo/hint
     store._discResults=[];
     store._discSelMap={};
     store._discTypeMap={};
@@ -206,6 +321,7 @@ async function runDiscovery(){
     const ignorePing = !!document.getElementById('disc-ignore-ping')?.checked;
     const expandTopology = !!document.getElementById('disc-expand-topology')?.checked;
     if(!subnet){ document.getElementById('disc-progress').innerHTML=`<span class="tm-err">${_dt('disc.enterRange','Inserisci un range di rete.')}</span>`; return; }
+    _declareScanSubnetToVlan();   // declare-first: se una VLAN è indicata, dichiara la subnet nel pannello
 
     const btn = document.getElementById('disc-scan-btn');
     btn.disabled=true; btn.innerHTML=`<i class="fas fa-spinner fa-spin"></i> ${_dt('disc.scanning','Scansione…')}`;
@@ -1203,6 +1319,7 @@ registerChangeActions({
     'disc-selall': (el) => discSelectAll(el.checked),
     'disc-row':    (el) => _discOnRowToggle(el),
     'disc-type':   (el) => _discOnTypeChange(el),
+    'disc-vlan':   (el) => _onDiscVlanChange(el),
 });
 // ASSE B: bottone "Nuova ricerca" (fase RISULTATI → torna al SETUP) via data-act,
 // non onclick inline (tetto a cricchetto handler inline).

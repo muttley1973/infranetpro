@@ -101,6 +101,15 @@
     font-size: 0.85rem;
     pointer-events: none;
   }
+  /* Occhio "mostra password" a destra (annulla la regola dell'icona sinistra sull'<i> interno). */
+  .pw-eye-login {
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    background: none; border: 0; padding: 4px 6px; margin: 0; cursor: pointer;
+    color: var(--text-muted); font-size: 0.85rem; line-height: 1;
+  }
+  .pw-eye-login:hover { color: var(--text-main); }
+  .pw-eye-login i { position: static; left: auto; transform: none; pointer-events: auto; color: inherit; font-size: inherit; }
+  #password { padding-right: 34px; }
   input[type=text], input[type=password] {
     width: 100%;
     padding: 11px 12px 11px 38px;
@@ -232,6 +241,10 @@
           <i class="fas fa-lock"></i>
           <input type="password" id="password" name="password"
                  placeholder="••••••••" autocomplete="current-password" required>
+          <button type="button" class="pw-eye-login" id="pw-eye" aria-label="Mostra password"
+                  onclick="var p=document.getElementById('password'),i=this.querySelector('i'),s=p.type==='password';p.type=s?'text':'password';i.className=s?'fas fa-eye-slash':'fas fa-eye';this.setAttribute('aria-label',s?'Nascondi password':'Mostra password');">
+            <i class="fas fa-eye"></i>
+          </button>
         </div>
       </div>
 
