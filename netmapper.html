@@ -77,15 +77,17 @@
     <!-- Undo / Redo -->
     <button class="toolbar-btn" id="btn-undo" data-act="undo" data-i18n-tip="undo.tip" data-tip="Annulla (Ctrl+Z)" disabled><i class="fas fa-rotate-left"></i></button>
     <button class="toolbar-btn" id="btn-redo" data-act="redo" data-i18n-tip="redo.tip" data-tip="Ripeti (Ctrl+Y)"  disabled><i class="fas fa-rotate-right"></i></button>
-    <!-- Separatore-àncora del centraggio: `margin-left:auto` QUI (non sulla ricerca)
-         accumula lo spazio libero PRIMA di questo `|`, così il divisore ABBRACCIA la
-         ricerca (`| Cerca`) invece di restare orfano vicino a redo. Con l'`auto` gemello
-         su `.header-right` i due spazi sono SIMMETRICI → ricerca centrata fra i gruppi,
-         niente vuoto asimmetrico. -->
-    <div class="header-sep" style="margin-left:auto"></div>
+    <!-- `|` che chiude il gruppo modifica (undo/redo) prima della ricerca. NIENTE
+         `margin-left:auto` qui (né sul gemello `.header-right`): i due margini auto
+         accumulavano lo spazio libero in DUE vuoti simmetrici attorno a una ricerca a
+         larghezza fissa. Ora lo spazio lo assorbe la RICERCA (`flex-grow`, sotto), che
+         riempie il centro e spinge il cluster destro al bordo — niente vuoti. -->
+    <div class="header-sep"></div>
 
-    <!-- Search + chip freschezza: unità centrata «| Cerca | mai |». I divisori la
-         abbracciano (6px); i due spazi laterali, uguali, la centrano fra i gruppi. -->
+    <!-- Search + chip freschezza. La ricerca ha PRIORITÀ DI ESPANSIONE (flex-grow):
+         cresce a riempire lo spazio fra il gruppo modifica e il cluster destro. I
+         divisori `|` la abbracciano (6px); il basis (media query) resta l'ammortizzatore
+         che decide il wrap, il grow riempie il resto. -->
     <div class="search-panel">
         <div class="search-input-wrap">
             <i class="fas fa-search"></i>
@@ -128,7 +130,14 @@
             <i class="fas fa-satellite-dish"></i><span class="btn-label" data-i18n="discover.label"> Scopri</span>
         </button>
         <div class="header-sep"></div>
+        <!-- Scomparto del chip SNMPv3 «da configurare»: «Scopri | [n] | Verifica |». Il chip
+             sta FUORI dal bay di Verifica (che resta «| Verifica |», centrata nel cuscinetto).
+             A ZERO device il chip non ingombra e il suo `|` destro (#v3-chip-sep) sparisce →
+             resta «Scopri | Verifica |» (regole in 09-user-theme.css). Con device da
+             configurare torna «| n |». È un avviso pre-Verifica → sta accanto a Scopri; la
+             ricerca elastica (flex-grow) assorbe la comparsa senza spostare i pulsanti. -->
         <button class="status-chip s-warn" id="v3-pending-chip" data-act="v3-jump-next" data-tip="Device SNMPv3 da configurare — clic per saltare al prossimo"></button>
+        <div class="header-sep" id="v3-chip-sep"></div>
         <button class="toolbar-btn primary" id="btn-drift" data-act="run-drift-check"
                 data-i18n-tip="verify.tip"
                 data-tip="Controllo completo: rilegge i dati SNMP, ricostruisce la topologia e verifica la presenza reale (ping/ARP/TCP), evidenziando differenze e cambi IP">

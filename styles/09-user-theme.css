@@ -156,7 +156,7 @@
                usa il flex-BASIS (non il min-width), quindi abbassare il basis è ciò che
                tiene il cluster destro sulla stessa riga. Basis piccolo + min-width piccolo
                → la barra sta su UNA riga fino a ~1420px con chip ed etichette intatti. */
-            .search-panel { flex: 0 1 158px; min-width: 78px; }
+            .search-panel { flex: 1 1 158px; min-width: 78px; }
         }
         /* ≤1900px: «Esporta» (#btn-impexp) torna solo-icona (la ⇄ + il nome pieno nel
            tooltip). È la 5ª etichetta e la PRIMA a cedere: cinque parole ci stanno solo
@@ -237,7 +237,7 @@
            la base .sync-fresh-chip riserva già lo spazio dell'età più larga. */
         @media (max-width: 1420px) {
             #project-select { max-width: 92px; }
-            .search-panel { flex: 0 1 96px; min-width: 60px; }
+            .search-panel { flex: 1 1 96px; min-width: 60px; }
             .sync-fresh-chip { padding: 4px 9px; font-size: var(--fs-sm); }
             .sync-fresh-chip .sync-fresh-ico { font-size: .78rem; }
             .header-right { gap: 4px; }   /* sotto i 1420 il cluster torna stretto per restare su una riga */
@@ -248,7 +248,7 @@
         @media (max-width: 1280px) {
             header { padding: 4px 10px; }
             #project-select { max-width: 80px; }
-            .search-panel { flex: 0 1 64px; min-width: 48px; }
+            .search-panel { flex: 1 1 64px; min-width: 48px; }
             /* Salva torna solo-icona: da qui in giù i tre cluster + le tre etichette
                d'azione non stanno su una riga (Scopri/Verifica restano — sono nel cluster
                destro, con più aria). sr-only: il nome accessibile del bottone resta. */
@@ -523,6 +523,18 @@ body.spare-mode .port-led.spare-suspect {
    breakpoint che rimpiccioliscono il font. Il chip a zero resta in pagina
    invisibile (visibility, non display) proprio per tenere il posto. */
 #v3-pending-chip { min-width: 3.6em; justify-content: center; }
+/* A ZERO device il chip non deve lasciare un cuscinetto vuoto nel suo scomparto: lo
+   marca `aria-hidden="true"` (lo mette _renderV3PendingChip in app-snmp.js). Azzero
+   larghezza/bordo/spazi e nascondo il suo `|` destro (#v3-chip-sep) → resta
+   «Scopri | Verifica |», con Verifica centrata. Con device da configurare (aria-hidden
+   rimosso) il chip torna nel suo scomparto «| n |». Il posto non è più RISERVATO qui: la
+   ricerca elastica (flex-grow) assorbe la comparsa senza spostare i pulsanti d'azione. */
+/* `display:none` (non width:0): a width:0 il chip resta un item flex e i suoi DUE gap da
+   6px sopravvivono (12px) sballando il centraggio di Verifica. `!important` perché
+   _renderV3PendingChip imposta `display:inline-flex` inline (le dichiarazioni important
+   battono lo stile inline). Fuori-flusso = nessun gap, Verifica centrata 6/6. */
+#v3-pending-chip[aria-hidden="true"] { display: none !important; }
+#v3-pending-chip[aria-hidden="true"] + #v3-chip-sep { display: none; }
 .vlan-l3-hint { grid-column: 1/-1; font-size: var(--fs-xs); color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
 .vlan-l3-hint b { color: var(--text-main); }
 .vlan-l3-hint.warn { color: #e3b341; }

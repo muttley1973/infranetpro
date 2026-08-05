@@ -11,7 +11,10 @@
            schermo va a capo e l'header CRESCE, spingendo giù la sotto-barra invece di
            farsela coprire (era la causa dell'overlap header↔subbar su schermi &lt;~1738px). */
         header { background: var(--panel-bg); border-bottom: 1px solid var(--panel-border); padding: 4px 16px; display: flex; align-items: center; gap: 12px; min-height: 52px; position: relative; z-index: 100; flex-shrink: 0; }
-        .header-right { display:flex; align-items:center; gap:8px; margin-left:auto; flex-shrink:0; }
+        /* Niente `margin-left:auto`: e' la ricerca (flex-grow) a riempire lo spazio e a
+           spingere questo cluster al bordo destro. Un auto qui mangerebbe lo spazio PRIMA
+           del grow (precedenza dei margini auto) e la ricerca non crescerebbe. */
+        .header-right { display:flex; align-items:center; gap:8px; flex-shrink:0; }
         .header-title { font-weight: bold; font-size:var(--fs-xl); display: flex; align-items: center; gap: 8px; white-space: nowrap; flex-shrink: 0; }
         .header-title i { color: var(--accent); }
         .header-sep { width: 1px; height: 26px; background: var(--panel-border); flex-shrink: 0; }
@@ -73,7 +76,10 @@
         .toolbar-btn.save-dirty:hover { background: #3a2900; }
 
         /* Search */
-        .search-panel { position: relative; flex: 0 1 320px; min-width: 250px; }
+        /* flex-GROW 1: la ricerca ha priorità di espansione, riempie lo spazio fra i
+           gruppi (niente vuoti). Il basis 320 (e i basis ridotti delle media query)
+           restano l'ammortizzatore per la decisione di wrap; min-width evita che sparisca. */
+        .search-panel { position: relative; flex: 1 1 320px; min-width: 250px; }
         .search-input-wrap { display: flex; align-items: center; gap: 7px; background: var(--bg-color); border: 1px solid var(--panel-border); border-radius: var(--radius-md); padding: 0 8px; height: 32px; }
         .search-input-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0,212,255,0.12); }
         .search-input-wrap i { color: var(--text-muted); font-size:var(--fs-md); }

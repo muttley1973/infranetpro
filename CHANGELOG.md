@@ -6,6 +6,10 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 
 ## [Unreleased]
 
+### Changed
+- The **header buttons are evenly spaced and the search bar expands to fill the free space**: the two centring auto-margins are gone, so the search (flex-grow) takes the slack instead of leaving two empty cushions around it, and the right cluster stays pinned to the edge.
+- The **Verify button is centred between its two dividers**: the SNMPv3 "to configure" chip moved into its own compartment (`Discover │ n │ Verify │`) that collapses to nothing when there is nothing to configure, and a divider now follows Discover.
+
 ### Fixed
 - On short screens the **Dashboard columns now scroll their own tiles** instead of clipping the ones that overflow below the fold: the column grid row is bounded to the available height and each column scrolls internally, while the lens selector, perimeter note and footer stay pinned. Tall screens are unchanged; below 1100px the stacked columns still scroll the page.
 
