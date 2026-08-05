@@ -1320,6 +1320,38 @@ export function _chainVlanColors(){
         l => { const vl = _getLinkVlan(l); return vl > 1 ? (state.vlanColors[vl] || null) : null; });
 }
 
+// Proof-State del cavo -> classe SVG (spec Proof-State unificato §5.2). Il cavo
+// EREDITA lo stato dagli estremi: dedotto = tratteggio (fitto/rado per tier),
+// fantasma = attenuato+tratteggio (evidenza persa). Il DICHIARATO resta pieno
+// (nessuna classe): un cavo manuale verso un device muto NON si attenua — il
+// segnale d'irraggiungibilita' sta sul NODO, non sul cavo (cablaggio != liveness).
+const _CABLE_PROOF_CLS = {
+    'declared':        '',
+    'declared-review': ' cable-review',   // la realta' contraddice QUESTO cavo: marker d'attenzione
+    'derived-strong':  ' cable-derived',
+    'derived-weak':    ' cable-derived cable-weak',
+    'ghost':           ' cable-ghost',
+};
+
+// Badge dello STATO-DI-PROVA del cavo — pillola compatta accanto ai badge di
+// provenienza (LLDP/CDP/MAC), STESSA misura/forma (padding/border-radius/font).
+// Reso sia nell'header Proprietà cavo sia nella lista Cavi della Panoramica. Il
+// dichiarato NON millanta liveness: resta «Dichiarato» (cablaggio ≠ liveness).
+const _CABLE_PROOF_BADGE = {
+    'derived-strong':  { key: 'fresh',    color: '#1a7f37' },   // inferenza con evidenza FRESCA
+    'derived-weak':    { key: 'weak',     color: '#bf8700' },   // inferenza debole/che invecchia
+    'ghost':           { key: 'ghost',    color: '#6e7681' },   // inferenza che ha PERSO l'evidenza
+    'declared-review': { key: 'review',   color: '#cf222e' },   // la realtà contraddice il cavo
+    'declared':        { key: 'declared', color: '#57606a' },   // asserito a mano, nessun claim di liveness
+};
+// state (output di cableProof) → HTML della pillola, o '' se lo stato è ignoto
+// (nessuna Verifica → nessun badge, non spacciamo per fantasma un cavo mai provato).
+export function _cableProofBadgeHtml(state){
+    const m = _CABLE_PROOF_BADGE[state];
+    if(!m) return '';
+    return `<span class="cable-proof-badge" style="background:${m.color};color:#fff;padding:2px 9px;border-radius:4px;font-weight:700;font-size:0.74rem" data-tip="${t('proof.badge.tip')}">${t('proof.badge.' + m.key)}</span>`;
+}
+
 let _renderCablesRaf = 0;
 export function renderCables(){
     if(_renderCablesRaf) return;
@@ -1385,6 +1417,12 @@ function _renderCablesNow(){
         pidMap[el.dataset.pid]=el;
     });
 
+    // Proof-State ATTIVO solo se il progetto e' stato verificato almeno una volta
+    // (>=1 nodo con n.proof): senza dati di prova NON tratteggiamo nulla — un cavo
+    // dedotto verso estremi mai verificati resterebbe altrimenti sempre "fantasma".
+    // Calcolato UNA volta per render.
+    const _proofOn = (typeof cableProof==='function') && state.nodes.some(n=>n&&n.proof);
+
     // --- Cavi normali (stessa posizione logica) ---
     state.links.forEach(l=>{
         if(!shouldRenderLink(l)) return;
@@ -1446,7 +1484,13 @@ function _renderCablesNow(){
             return (_topoTrunkMode==='trunk' && _t) || (_topoTrunkMode==='access' && !_t);
         })());
         const _emph = highPath.has(l.id) ? ' highlight' : isSelected ? ' sel' : '';
-        const cls=`cable${_amb}${_wl}${_emph}${_modeEmph?' mode-emph':''}`;
+        // Eredita' del Proof-State sul disegno: il cavo prende lo stato dai due
+        // estremi (_snId/_dnId gia' risolti sopra). Solo dasharray/opacity: colore
+        // VLAN e glow di selezione restano governati da _emph/color qui accanto.
+        const _proofCls = _proofOn
+            ? (_CABLE_PROOF_CLS[cableProof(l, (nodeById(_snId)||{}).proof, (nodeById(_dnId)||{}).proof)] || '')
+            : '';
+        const cls=`cable${_amb}${_wl}${_emph}${_modeEmph?' mode-emph':''}${_proofCls}`;
         const path=document.createElementNS('http://www.w3.org/2000/svg','path');
         path.setAttribute('class',cls);
         path.setAttribute('stroke',color);

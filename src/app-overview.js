@@ -19,7 +19,7 @@ import { t, expose, buildSpareReport, deriveProjectNetworks, computeDeviceCapabi
 import { store } from './store.js';
 import { TYPES, _frontPanelSfpGroups } from './app-types.js';
 import { _isLeafEndpoint } from './app-autolink.js';
-import { nodeById, getNodeDisplayName, _linksForPort, switchRightTab } from './app.js';
+import { nodeById, getNodeDisplayName, _linksForPort, switchRightTab, _cableProofBadgeHtml } from './app.js';
 import { focusNode } from './app-search-zoom-rack.js';
 import { _snmpFreshness } from './app-snmp.js';
 import { _driftRowHtml, _driftNetworksSection } from './app-drift.js';   // B3/B4: drill-down inline «Vero» riusa righe+azioni e la sezione «Reti» del Drift
@@ -459,9 +459,22 @@ function _tileStatus(r) {
         case 'name': return gapStatus('ov.st.missingNames');
         // «17 documentati» era vago proprio dove serviva precisione: un cavo
         // dedotto dall'auto-link non e' un cavo dichiarato.
-        case 'cables':       return e.auto
-            ? { w: t('ov.st.cableSplit', { m: e.manual, a: e.auto }), tone: 'info' }
-            : { w: t('ov.st.documented'), tone: 'info' };
+        case 'cables': {
+            // Dopo una Verifica il verdetto diventa il NUMERO-D'IDENTITÀ del cablaggio:
+            // ogni cavo eredita lo stato dei suoi estremi (spec Proof-State §5.3). Il
+            // fantasma (inferenza senza evidenza) è la notizia → tono warn. Senza
+            // Verifica (proofCounts null) resta il vecchio split dedotti/manuali.
+            const pc = e.proofCounts;
+            if (pc) {
+                const derived = pc.derivedStrong + pc.derivedWeak;
+                const declared = pc.declared + pc.review;
+                return { w: t('ov.st.cableProof', { g: pc.ghost, d: derived, m: declared }),
+                         tone: pc.ghost > 0 ? 'warn' : (derived > 0 ? 'info' : 'ok') };
+            }
+            return e.auto
+                ? { w: t('ov.st.cableSplit', { m: e.manual, a: e.auto }), tone: 'info' }
+                : { w: t('ov.st.documented'), tone: 'info' };
+        }
         // Nella colonna «il documento è completo?» la lacuna è il punto: la
         // subnet c'è nella rete ma NON è dichiarata nel progetto. «non dichiarate»
         // (col conteggio delle osservate) lo dice meglio di «osservate», che
@@ -717,6 +730,13 @@ function _itemLi(it) {
     if (bId) {
         const bN = nodeById(bId);
         inner.appendChild(_el('span', 'ov-peer', '↔ ' + (bN ? (getNodeDisplayName(bN) || bId) : String(bId))));
+    }
+    // Numero-d'identità del singolo cavo: il badge dello stato di prova (post-Verifica),
+    // stessa pillola dei badge di provenienza nel pannello Proprietà. `it.proof` è un
+    // token dal motore (cableProof); la parola/colore li mette il badge (i18n), mai la lib.
+    if (it.proof && typeof _cableProofBadgeHtml === 'function') {
+        const _pb = _cableProofBadgeHtml(it.proof);
+        if (_pb) { const holder = _el('span', 'ov-proof'); holder.innerHTML = _pb; inner.appendChild(holder); }
     }
     // Provenienza per-voce (misurato/dedotto): la lib da' il token, la parola
     // la mette qui — mai stringhe di interfaccia dentro la lib.

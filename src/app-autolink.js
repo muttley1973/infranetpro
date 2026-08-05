@@ -76,6 +76,51 @@ function _matchNodeByIdent(hostname, ip){
     return (shortAmbiguous ? null : byShortName) || byIp || null;
 }
 
+// Miscablaggio per-porta (spec Proof-State §4.3): confronta il VICINO OSSERVATO
+// (LLDP/CDP dal neighbor cache) col capo DICHIARATO di ogni cavo e scrive
+// `l.miscabled` sui cavi contraddetti (lo PULISCE sugli altri). La decisione onesta
+// — silenzio ≠ contraddizione, vicino ignoto/ambiguo → skip, capo PASSIVO → skip
+// (l'LLDP transita i patch panel) — vive nella lib pura `detectMiscabling`; qui solo
+// la risoluzione vicino→nodeId (glue, riusa i resolver già in scope). Chiamata dalla
+// Verifica (dopo pollAllSNMP che riempie la cache). Ritorna quanti ne ha marcati.
+export function reconcileMiscabling(){
+    const links = store.state.links || [];
+    if(typeof detectMiscabling !== 'function') return 0;
+    const cache = store._topoNeighborsCache || {};
+    // observedByPort: pid locale → id del nodo NOTO visto come vicino; una porta con
+    // ≥2 vicini DISTINTI (LAG/hub) è ambigua ed esclusa.
+    const observedByPort = {}, ambiguous = new Set();
+    for(const localNodeId in cache){
+        const entry = cache[localNodeId];
+        for(const nb of ((entry && entry.neighbors) || [])){
+            if(!nb || !nb.localPort) continue;
+            const lp = _findPortByIfName(localNodeId, nb.localPort);
+            if(!lp || ambiguous.has(lp)) continue;
+            const rem = _matchNodeByIdent(nb.remoteDevice, nb.remoteIP);
+            if(!rem || !rem.id) continue;                       // vicino non risolto a nodo noto → skip
+            if(observedByPort[lp] && observedByPort[lp] !== rem.id){
+                delete observedByPort[lp]; ambiguous.add(lp); continue;   // 2 vicini distinti → ambiguo
+            }
+            observedByPort[lp] = rem.id;
+        }
+    }
+    const ownerByPort = {};
+    for(const l of links){
+        if(l && l.src) ownerByPort[l.src] = getPortNodeId(l.src);
+        if(l && l.dst) ownerByPort[l.dst] = getPortNodeId(l.dst);
+    }
+    const activeNodes = new Set((store.state.nodes || [])
+        .filter(n => n && TYPES[n.type] && TYPES[n.type].isActive).map(n => n.id));
+    const mism = detectMiscabling(links, observedByPort, ownerByPort, activeNodes);
+    let n = 0;
+    for(const l of links){
+        if(!l || l.id == null) continue;
+        if(mism[l.id]){ l.miscabled = mism[l.id]; n++; }
+        else if(l.miscabled) delete l.miscabled;
+    }
+    return n;
+}
+
 // Endpoint foglia auto-collegabile via MAC table:
 //  - ha un indirizzo IP/MAC (hasIP)
 //  - NON è infrastruttura di switching/instradamento (!isActive)
@@ -1610,6 +1655,6 @@ expose({
     _isInferredUplinkProto,
     _resolveEndpointSwitchPort, _findWallPortBehindInfrastructurePort, _autoLinkEndpoint,
     _autoLinkWirelessAssoc,
-    _autoLinkEndpointUI, _autoLinkDiagText, _autoDiscoverLinks,
+    _autoLinkEndpointUI, _autoLinkDiagText, _autoDiscoverLinks, reconcileMiscabling,
     // pruneDiscoveryHistory / normalizeFdbVlan / DISCOVERY_HISTORY_MAX* → lib/discovery-history.js
 });

@@ -89,6 +89,36 @@ test('① COMPLETO: struttura e passivi fuori dal denominatore, le lacune escono
   assert.equal(rowOf(c, 'addr').pct, 75, 'la percentuale la calcola la lib, non il renderer');
 });
 
+test('① COMPLETO: dopo una Verifica la riga Cavi porta il numero-d\'identità del cablaggio (Proof-State)', () => {
+  const fresh = new Date().toISOString();
+  const nodes = [
+    { id: 'sw1', type: 'switch', name: 'SW', ip: '10.0.0.1', proof: { status: 'proven', lastProvenAt: fresh } },
+    { id: 'rt1', type: 'router', name: 'RT', ip: '10.0.0.254', proof: { status: 'proven', lastProvenAt: fresh } },
+    { id: 'pc1', type: 'pc', name: 'PC', ip: '10.0.0.50', proof: { status: 'unverified' } },   // muto in questa passata
+  ];
+  const o = buildOverview({ types: TYPES, nodes, links: [
+    { id: 'lm', src: 'sw1-1', dst: 'rt1-1' },                                                       // manuale, estremi provati → declared
+    { id: 'ls', autoLinked: true, protocol: 'LLDP', confidence: 0.97, src: 'sw1-2', dst: 'rt1-2' }, // dedotto forte, provati → derived-strong
+    { id: 'lg', autoLinked: true, protocol: 'MAC', confidence: 0.72, src: 'sw1-3', dst: 'pc1-1' },  // dedotto verso muto → ghost
+  ] });
+  const ex = rowOf(o.complete, 'cables').extra;
+  assert.equal(ex.proofCounts.declared, 1, 'il manuale con estremi provati resta declared (il dichiarato è legge)');
+  assert.equal(ex.proofCounts.derivedStrong, 1, 'LLDP 0.97 con estremi provati → derived-strong');
+  assert.equal(ex.proofCounts.ghost, 1, 'dedotto verso un estremo unverified → ghost');
+  assert.equal(ex.proofScore.total, 3, 'i tre cavi entrano nel Truth Score');
+  assert.equal(ex.proofScore.declared, 1, 'un cavo dichiarato, tenuto distinto (non collassato in proven)');
+  assert.equal(ex.proofScore.proven, 0, 'un cavo non è mai «provato» dalla macchina, solo i suoi estremi');
+  // Ogni cavo (dedotto) porta il SUO stato di prova nell'item del drill-down (il badge).
+  const items = rowOf(o.complete, 'cables').items;
+  assert.equal(items.length, 2, 'i due cavi dedotti nel drill-down «da verificare»');
+  assert.ok(items.some((i) => i.proof === 'ghost'), 'il dedotto verso il muto porta ghost nel suo item');
+  assert.ok(items.some((i) => i.proof === 'derived-strong'), 'il dedotto forte porta derived-strong nel suo item');
+  // Retro-compatibile: SENZA proof (nessuna Verifica) la extra non porta i nuovi campi.
+  const noProof = buildOverview({ types: TYPES, nodes: [{ id: 'a', type: 'switch', ip: '1.1.1.1' }],
+    links: [{ src: 'a-1', dst: 'a-2' }] });
+  assert.equal(rowOf(noProof.complete, 'cables').extra.proofCounts, undefined, 'niente proof → nessun campo aggiunto');
+});
+
 test('① REGRESSIONE: su un apparato SNMP il MAC sta sulle INTERFACCE, non su node.mac', () => {
   // Caso reale (Rete+Lab, 2026-07-23): 6 switch/router gestiti via SNMP hanno
   // `node.mac` vuoto e il MAC per-porta (ifPhysAddress) + quello dei LAG. La

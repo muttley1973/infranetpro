@@ -150,6 +150,48 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(/^M 0(?:[ .-]|$)/.test(r.direct), false, 'il collegamento diretto non parte dall’origine');
     });
 
+    await t.test('proof-state cavo: eredita lo stato degli estremi (cable-derived / cable-ghost / il dichiarato resta pieno)', async () => {
+      const r = await page.evaluate((incoming) => {
+        state = Object.assign(_buildDefaultState(), structuredClone(incoming));
+        state = _migrateState(state);
+        _invalidateIdx();
+        state.currentRack = 'rk-acc';
+        _viewMode = 'map'; _topoVisible = false;
+        const L = () => state.links.find((l) => l.id === 'l81');
+        const setProof = (id, p) => { const n = state.nodes.find((x) => x.id === id); if (n) n.proof = p; };
+        const now = new Date().toISOString();
+        const clsOf = () => {
+          const p = document.querySelector('#cable-overlay path.cable[data-link-id="l81"]')
+                 || document.querySelector('#rack-cable-overlay path.cable[data-link-id="l81"]');
+          return p ? p.getAttribute('class') : null;
+        };
+        const renderTrace = () => { selType = 'port'; selId = 'nasd1-1'; highPath.clear(); trace('nasd1-1'); renderNow(); renderCables(); };
+        // A) DEDOTTO forte (LLDP 0.97) con estremi provati freschi → derived-strong
+        Object.assign(L(), { autoLinked: true, protocol: 'LLDP', confidence: 0.97 });
+        setProof('nasd1', { status: 'proven', lastProvenAt: now });
+        setProof('sw3', { status: 'proven', lastProvenAt: now });
+        renderTrace();
+        return new Promise((resolve) => requestAnimationFrame(() => {
+          const strong = clsOf();
+          // B) stesso cavo DEDOTTO ma un estremo 'unverified' → ghost (persa l'evidenza)
+          setProof('nasd1', { status: 'unverified' });
+          renderTrace();
+          requestAnimationFrame(() => {
+            const ghost = clsOf();
+            // C) stesso estremo muto, ma cavo MANUALE (dichiarato) → resta pieno, nessuna classe proof
+            Object.assign(L(), { autoLinked: false });
+            renderTrace();
+            requestAnimationFrame(() => resolve({ strong, ghost, declared: clsOf() }));
+          });
+        }));
+      }, CABLE_RENDER_FIXTURE);
+      const has = (c, s) => (c || '').split(/\s+/).indexOf(s) >= 0;
+      assert.ok(has(r.strong, 'cable-derived') && !has(r.strong, 'cable-ghost'), `dedotto forte → cable-derived (era: ${r.strong})`);
+      assert.ok(has(r.ghost, 'cable-ghost'), `dedotto con estremo muto → cable-ghost (era: ${r.ghost})`);
+      assert.ok(!has(r.declared, 'cable-ghost') && !has(r.declared, 'cable-derived'),
+        `il DICHIARATO è legge: cavo manuale verso estremo muto resta pieno, senza classe proof (era: ${r.declared})`);
+    });
+
     await t.test('instradamento cavi: validMidTypes/canRouteThrough applicano la gerarchia TIA-568', async () => {
       const r = await page.evaluate(() => ({
         wpSwitch: validMidTypes('wallport', 'switch'),

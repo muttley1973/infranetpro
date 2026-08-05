@@ -220,6 +220,26 @@
         .cable-xrack.ambiguous:not(.highlight):not(.sel) {
             opacity: .8;
         }
+        /* Proof-State del cavo (spec Proof-State unificato §5.2): il cavo EREDITA
+           lo stato dei suoi estremi. DEDOTTO = tratteggio (fitto = adiacenza forte
+           LLDP/CDP, rado = inferenza debole FDB/MAC/ARP); FANTASMA = attenuato +
+           tratteggio (l'inferenza ha perso l'evidenza dell'estremo). Il DICHIARATO
+           non ha classe (resta pieno: cablaggio fisico != liveness — il segnale
+           d'assenza sta sul NODO). Definite DOPO .ambiguous → a parita' di
+           specificita' (0,2,0) vincono il dasharray; colore VLAN e glow di selezione
+           restano intatti (qui solo dasharray/opacity/marker). */
+        .cable.cable-derived,
+        .cable-xrack.cable-derived { stroke-dasharray: 6 4; }
+        .cable.cable-derived.cable-weak,
+        .cable-xrack.cable-derived.cable-weak { stroke-dasharray: 3 6; }
+        .cable.cable-ghost,
+        .cable-xrack.cable-ghost { stroke-dasharray: 2 6; }
+        .cable.cable-ghost:not(.highlight):not(.sel),
+        .cable-xrack.cable-ghost:not(.highlight):not(.sel) { opacity: .35; }
+        /* declared-review: la realta' contraddice QUESTO cavo manuale. Resta PIENO
+           (nessun dash: e' pur sempre dichiarato), ma con un alone d'attenzione. */
+        .cable.cable-review,
+        .cable-xrack.cable-review { filter: drop-shadow(0 0 1.6px var(--idle-color)); }
         .cable-hit { fill:none; stroke:transparent; stroke-width:14; stroke-linecap:round; cursor:pointer; pointer-events:stroke; }
         /* Wireless: banda di click più larga (l'onda esce dalla linea dritta) */
         .cable-hit.cable-hit-wireless { stroke-width:26; }

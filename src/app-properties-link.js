@@ -7,7 +7,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
-import { getNodeByPortId, getNodeDisplayName, getWallPortLabel, _getLinkPhysicalView, _enableManualValueInProps, _activatePropsTab, _cableAutoLabel, promoteLinkToManual, setCableLabel, setLinkProp, deleteLink } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { getNodeByPortId, getNodeDisplayName, getWallPortLabel, _getLinkPhysicalView, _enableManualValueInProps, _activatePropsTab, _cableAutoLabel, promoteLinkToManual, setCableLabel, setLinkProp, deleteLink, _cableProofBadgeHtml } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderProps, _propsSectionIsOpen, _buildPropsHeader } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { TYPES, _frontPanelPortLabel, _frontPanelIsUplink } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _effPortVlan, _getLinkTrunk, _parseTrunkVlans, _runActiveAnchor, setLinkNativeVlan, setLinkColor, setLinkMode, setLinkTrunkVlans } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
@@ -157,10 +157,23 @@ export function _renderLinkProps(panel){
         // la vecchia riga "Rilevato automaticamente" sotto la VLAN.
         const _lsProtoStr = _ls ? String(_ls.protocol||'') : '';
         const _lsProtoCol = _lsProtoStr.startsWith('LLDP') ? '#0969da' : _lsProtoStr.startsWith('CDP') ? '#e8640a' : '#57606a';
+        // Badge STATO-DI-PROVA del cavo, accanto ai badge di provenienza (stessa
+        // forma). Solo dopo una Verifica (≥1 nodo con proof): senza dati di prova
+        // niente badge — non spacciamo per fantasma un cavo verso estremi mai
+        // verificati. Il dichiarato resta «Dichiarato» (cablaggio ≠ liveness).
+        const _pfOn = (typeof cableProof === 'function') && store.state.nodes.some(n => n && n.proof);
+        const _pfBadge = _pfOn ? _cableProofBadgeHtml(cableProof(l, srcNode && srcNode.proof, dstNode && dstNode.proof)) : '';
+        // Miscablaggio: la porta annuncia via LLDP/CDP un vicino diverso dal cavo →
+        // dice COSA vede vs COSA dice il documento (spec Proof-State §4.3).
+        const _misName = (id) => { const nn = (store.state.nodes || []).find(x => x && x.id === id); return (nn && getNodeDisplayName(nn)) || String(id || ''); };
+        const miscabledBanner = l.miscabled ? `<div class="link-verify-banner" style="border-color:rgba(207,34,46,.40);background:rgba(207,34,46,.08)">
+                <div class="link-verify-msg"><i class="fas fa-triangle-exclamation" style="color:#cf222e"></i>
+                    <span>${t('cable.miscabledMsg', { obs: escapeHTML(_misName(l.miscabled.observed)), decl: escapeHTML(_misName(l.miscabled.declared)) })}</span>
+                </div></div>` : '';
         const stateRow = _ls ? `<div class="prop-group" style="flex:0 0 45%;padding-right:10px"><label style="text-align:right">${t('common.status')}</label>
             <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;padding:4px 0;flex-wrap:wrap">
               <span style="background:${_lsCol[_ls.key]||'#57606a'};color:#fff;padding:2px 9px;border-radius:4px;font-weight:700;font-size:0.74rem">${escapeHTML(_lsLabel)}</span>
-              ${_lsProtoStr?`<span style="background:${_lsProtoCol};color:#fff;padding:2px 9px;border-radius:4px;font-weight:700;font-size:0.74rem">${escapeHTML(_lsProtoStr)}</span>`:''}
+              ${_lsProtoStr?`<span style="background:${_lsProtoCol};color:#fff;padding:2px 9px;border-radius:4px;font-weight:700;font-size:0.74rem">${escapeHTML(_lsProtoStr)}</span>`:''}${_pfBadge}
               ${_ls.confidence!=null?`<span style="font-size:0.73rem;color:var(--text-muted)">${Math.round(_ls.confidence*100)}%</span>`:''}
             </div></div>` : '';
 
@@ -203,7 +216,7 @@ export function _renderLinkProps(panel){
                 : `<div style="padding:4px 0;font-size:0.83rem;color:var(--text-main)">${vlanBadge}</div>`}
             </div>
             ${verifyBanner}
-            ${autoEditBar}
+            ${autoEditBar}${miscabledBanner}
 
             <div class="prop-group" style="margin-top:10px;border-top:1px solid var(--panel-border);padding-top:10px">
               <label>${t('cable.portMode')}</label>

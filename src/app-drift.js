@@ -25,6 +25,7 @@ import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funz
 import { renderAutomationMenu } from './app-vlan-autopoll.js';   // setAutoIpRenew aggiorna il popover Automazioni
 import { ensureNodeRackVisible, focusNode, selectAndFocusNode } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { trace } from './app-pointer.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { reconcileMiscabling } from './app-autolink.js';   // Proof-State: miscablaggio per-porta (l.miscabled) dai neighbor cache
 import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: pannello Drift (template dinamico) via event delegation
 import { aiExplainDrift } from './app-ai.js';   // ASSE B: bottone «Spiega» del Drift (delegato qui, definito in app-ai)
 
@@ -193,6 +194,48 @@ function _driftPersistSnapshot(){
     rep._fromVerify = true;
 }
 
+// ── Proof-state persistente (spec Proof-State unificato §3.1, §6) ────
+// Dopo la Verifica (poll SNMP + sweep presenza + drift buckets) fissa `n.proof` su
+// OGNI nodo, dagli STESSI segnali che il Drift ha già classificato — nessuna nuova
+// interrogazione. `deriveNodeProof` (lib/proof.js, bare-global come `driftBannerKind`)
+// applica le regole d'onestà: "assente" solo con evidenza dura (macOrphan = trustAbsent
+// = ARP-miss on-segment), un remoto muto è 'unverified' (grigio, mai absent), un IP/
+// identità che contraddice il documento vince come 'diverged'. Persistito come i dati
+// SNMP: il `markDirty` del chiamante lo salva, ma NON è un passo di undo (§3.1). La
+// vista NON lo tocca — si scrive solo qui, in un'azione che interroga la realtà.
+function _driftWriteProofState(sweep, snmpPolled){
+    const rep = store._driftReport;
+    if(!rep || typeof deriveNodeProof !== 'function') return;
+    const now = Date.now();
+    const reachable = (sweep && sweep.reachable) || {};
+    const _ids = rows => new Set((rows || []).map(r => r && r.nodeId).filter(Boolean));
+    const absentIds = _ids(rep.macOrphan);      // trustAbsent = evidenza dura di assenza
+    const unverIds  = _ids(rep.unverified);     // subnet fuori portata sweep = grigio
+    const divergedIds = new Set([               // la realtà contraddice il documento
+        ...(rep.ipChanged || []).map(r => r && r.nodeId).filter(Boolean),
+        ...(rep.identityDrift || []).filter(r => r && r.identity).map(r => r.nodeId).filter(Boolean),
+    ]);
+    const _method = via => {
+        const v = String(via || '').toLowerCase();
+        return v === 'icmp' ? 'ping' : (['ping','arp','tcp','snmp'].indexOf(v) >= 0 ? v : null);
+    };
+    for(const n of (store.state.nodes || [])){
+        if(!n) continue;
+        const ip = ((n.integration || {}).host || n.ip || '').trim();
+        const reach = ip ? reachable[ip] : null;   // {alive, via} | undefined
+        const snmpOk = !!(snmpPolled && n.snmpStatus === 'ok');
+        n.proof = deriveNodeProof({
+            prev: n.proof,
+            snmpOk,
+            reachable: (reach == null) ? null : (reach.alive === true),
+            diverged: divergedIds.has(n.id),
+            absentEvidence: absentIds.has(n.id),
+            attempted: snmpOk || reach != null || absentIds.has(n.id) || unverIds.has(n.id) || divergedIds.has(n.id),
+            method: snmpOk ? 'snmp' : (reach ? _method(reach.via) : null),
+        }, now);
+    }
+}
+
 // ── Sweep di raggiungibilità (audit presenza multi-segnale) ──────────
 // Interroga il server (ping ICMP / ARP / TCP) sugli IP documentati: stabilisce
 // la PRESENZA dei device che NON parlano SNMP. Ritorna { ip: { alive, via } } o
@@ -239,6 +282,8 @@ async function runDriftCheck(){
         _driftComputeFromDoc(docSnap, sweep || {});     // streaks + snapshot realtà + buildDriftReport
         _driftAutoRenewIps();                           // opt-in: rinnova IP dei MAC noti (DHCP)
         _driftPersistSnapshot();                        // B1: la Verifica resta come stato (Panoramica «Vero»)
+        _driftWriteProofState(sweep || {}, hasSnmp);    // Proof-State: fissa n.proof su ogni nodo (persistito, non-undo)
+        reconcileMiscabling();                          // Proof-State: marca i cavi col vicino osservato ≠ dichiarato (l.miscabled)
         markDirty();
         // B4 — il risultato ATTERRA nella Panoramica «Vero» (overlay ritirato): se non
         // sei già lì, ti ci porta, così la Verifica "resta" invece di lampeggiare in un
