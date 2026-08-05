@@ -4,6 +4,13 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 
 **A linked version number is a published release** — follow it to the release on GitHub. *Unreleased* is what has landed on `main` since the last one.
 
+## [2.6.2] — 2026-08-05
+
+**The VLAN filter now shows every cable that really carries the VLAN.** Filtering by a VLAN used to hide cables whose VLAN was *derived* — a VoIP voice VLAN, a per-SSID wireless VLAN, or a VLAN propagated along a passive run — because the filter read only the raw trunk field (or the single native VLAN), while the cable colours and topology already used the full carried set. Now the filter uses that same source: a passive element reflects the VLAN its active endpoints carry instead of vanishing.
+
+### Fixed
+- The **VLAN filter matches the cable's real carried VLANs** (`_getLinkTrunk`, derived trunk included) — one source shared with cable colours, topology and properties — instead of the raw `trunkVlans` field or the single native VLAN. A passive element (wall port, patch panel) follows the VLAN of its active endpoints rather than falling back to the site-native VLAN.
+
 ## [2.6.1] — 2026-08-05
 
 **Header and Dashboard polish.** The header now spreads its buttons evenly and lets the search bar grow into the free space, with Verify centred between its dividers; on short screens the Dashboard columns and an open drill-down list both scroll so nothing is cut off. Presentation only — no data or behaviour changes.

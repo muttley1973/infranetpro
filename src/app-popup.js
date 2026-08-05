@@ -14,7 +14,7 @@ import { renderProps, setPropsSectionState } from './app-properties.js';   // ri
 import { renderAll, isRackPort, renderNow } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { ensureNodeRackVisible, renderRackTabs, _updateFloorToolbarVisibility } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
-import { _effPortVlan, _parseTrunkVlans, _siteNativeVlan, _vlansToRangeStr } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _effPortVlan, _getLinkTrunk, _siteNativeVlan, _vlansToRangeStr } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _portDisplayName, _focusLagForPort, getPassivePortLagInfo,
          setPortField, clearPortField, setPortSpeed, removePortFromLag, startLagMode } from './app-ports.js';   // ritiro ponte + ASSE B: fn del dominio porta (ex win.*)
 import { _cancelLink } from './app-pointer.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
@@ -520,13 +520,16 @@ function _floorNodeHiddenByVlan(nid){
     const pc=n.ports!==undefined?n.ports:def.ports;
     for(let i=1;i<=pc;i++){
         const pid=`${n.id}-${i}`;
-        // Porta access: controlla la VLAN effettiva di questa porta (propagata dal BFS)
+        // VLAN dichiarata sulla PORTA del nodo stesso (device attivo / endpoint con
+        // access proprio, anche scablato): resta visibile.
         const eff=_effPortVlan(pid);
         if(eff===store._filterVlan) return false;
-        // Porta trunk: controlla se questa porta trasporta la VLAN filtro
-        if(_linksForPort(pid).some(lk=>
-            lk.mode==='trunk'
-            &&_parseTrunkVlans(lk.trunkVlans||'').includes(store._filterVlan))) return false;
+        // Un cavo su questa porta porta la VLAN filtro? STESSO matcher del renderer
+        // (`_linkMatchesVlanFilter` → `_getLinkTrunk`, DERIVATO incluso) → l'hider dei
+        // cavi combacia con `_nodeDim`. Prima guardava solo `l.trunkVlans` grezzo:
+        // nascondeva il cavo di un trunk DERIVATO (voce VoIP/SSID) o di un passivo che
+        // riflette gli attivi. Il passivo non "ha" una VLAN: la eredita dal cavo/attivi.
+        if(_linksForPort(pid).some(_linkMatchesVlanFilter)) return false;
     }
     return true; // nessuna porta del nodo è in questa VLAN → nasconde nodo e suoi cavi
 }
@@ -565,14 +568,19 @@ export function _getLinkVlan(l){
     return (typeof _siteNativeVlan==='function') ? _siteNativeVlan() : 1;
 }
 
-/** Restituisce true se il link appartiene alla VLAN filtro attiva. */
+/** Restituisce true se il link appartiene alla VLAN filtro attiva.
+ *  UNA fonte sola = le VLAN che il cavo REALMENTE porta (`_getLinkTrunk(l).vlans`):
+ *  per un access è `[nativa]`, per un trunk sono TUTTE le portate — incluso il
+ *  DERIVATO (voce VoIP, VLAN-per-SSID di un AP, `trunkProp` propagato sul run
+ *  passivo). È la stessa funzione che colora i cavi, la topologia e le Proprietà.
+ *  Prima il filtro guardava solo `_getLinkVlan` (la sola nativa) o `l.trunkVlans`
+ *  GREZZO → un trunk derivato (l.trunkVlans vuoto) spariva dal filtro pur portando
+ *  la VLAN: divergenza motore↔renderer, ora unificata. */
 export function _linkMatchesVlanFilter(l){
     if(!store._filterVlan) return true;
-    if(l.mode==='trunk'){
-        return _parseTrunkVlans(l.trunkVlans||'').includes(store._filterVlan);
-    }
-    // Usa _getLinkVlan — stessa funzione che colora i cavi, già gestisce
-    // vlan=0 (salta valori non positivi), gerarchia attivo > propagato > passivo.
+    const tk = (typeof _getLinkTrunk==='function') ? _getLinkTrunk(l) : null;
+    if(tk && Array.isArray(tk.vlans)) return tk.vlans.includes(store._filterVlan);
+    // Fallback (motore trunk non caricato): comportamento storico.
     return _getLinkVlan(l)===store._filterVlan;
 }
 

@@ -242,6 +242,38 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(r.vB, 40, 'cambiando BSS a B → VLAN 40');
     });
 
+    // GUARDIA (2.6.2): il filtro VLAN deve matchare le VLAN che il cavo REALMENTE
+    // porta (`_getLinkTrunk().vlans`, DERIVATO incluso), non solo il campo grezzo
+    // `l.trunkVlans` / la sola nativa. Regressione storica: un trunk derivato (voce
+    // VoIP, VLAN-per-SSID) spariva dal filtro pur essendo colorato/mostrato giusto —
+    // divergenza motore↔renderer. Fixture: uplink AP→switch che porta la VLAN 20
+    // dell'SSID SENZA `trunkVlans` manuale.
+    await t.test('filtro VLAN: un cavo su TRUNK DERIVATO (VLAN-per-SSID) matcha il filtro, non solo il campo grezzo', async () => {
+      const r = await page.evaluate(() => {
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes.length = 0; state.links.length = 0; state.ports = {};
+        state.nodes.push(
+          { id: 'sw', type: 'switch', name: 'SW', x: 0, y: 0, ports: 8 },
+          { id: 'ap', type: 'ap', name: 'AP', x: 5, y: 5, ports: 1, radios: [{ band: '5', ssids: [{ id: 'g', ssid: 'Guest', vlan: 20 }] }] });
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        const up = _createLinkRecord('sw-1', 'ap-1');   // uplink CABLATO AP→switch
+        state.links.push(up); if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        propagateVlans();
+        const derivedVlans = _getLinkTrunk(up).vlans;
+        const rawTrunk = String(up.trunkVlans || '');
+        setVlanFilter(20);  const match20  = _linkMatchesVlanFilter(up);
+        setVlanFilter(777); const match777 = _linkMatchesVlanFilter(up);
+        setVlanFilter(null);
+        return { derivedVlans, rawTrunk, match20, match777 };
+      });
+      // Il DERIVATO porta la 20 (SSID) MA il campo grezzo è vuoto: è proprio il caso
+      // che il filtro storico mancava (guardava solo il grezzo / la nativa).
+      assert.ok(r.derivedVlans.includes(20), 'il trunk DERIVATO del cavo porta la VLAN 20 (SSID): ' + JSON.stringify(r.derivedVlans));
+      assert.equal(r.rawTrunk, '', 'il campo grezzo l.trunkVlans è VUOTO → trunk derivato, non manuale');
+      assert.equal(r.match20, true, 'il filtro VLAN 20 MATCHA il cavo (via _getLinkTrunk, non il grezzo)');
+      assert.equal(r.match777, false, 'nessun over-match: una VLAN non portata non matcha');
+    });
+
     await t.test('app-wifi migrato: gestore radio + pannello SSID + report coerenza VLAN nel browser reale', async () => {
       const r = await page.evaluate(() => {
         state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
