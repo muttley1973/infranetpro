@@ -153,7 +153,11 @@ body.view-overview #export-area { display: none; }
    impilano gia' (media query sopra), quindi li' i tre tornano da soli. */
 .ov-rows {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px;
-    flex: 0 0 auto; margin-top: 12px;
+    /* flex-shrink 1 + overflow: quando un drill-down si apre (o i tile eccedono in altezza
+       su schermi bassi) l'AREA TILE cede spazio e SCORRE da sola, così la lista del
+       dettaglio resta visibile invece di essere schiacciata a zero. A tutta altezza i tile
+       restano naturali (grow 0, nessuna scrollbar); si stringono solo quando serve. */
+    flex: 0 1 auto; min-height: 88px; overflow-y: auto; scrollbar-width: thin; margin-top: 12px;
 }
 /* Le lenti a tutta larghezza (DR · Sicurezza · Salute) restano a TRE: li' la
    colonna e' l'intera pagina, i tile erano gia' larghi e non troncavano nulla.
@@ -267,9 +271,18 @@ button.ov-r:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 /* ── dettaglio IN LOCO: si apre nella colonna, non copre nulla ── */
 .ov-detail {
     margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--hairline);
-    display: none; flex-direction: column; min-height: 0; flex: 1 1 auto;
+    /* flex-basis 0 (NON auto): con basis auto il dettaglio prende come base la sua altezza
+       di CONTENUTO — una lista drill-down è alta migliaia di px, così il container era
+       sempre in "shrink" e schiacciava i tile ANCHE a schermo alto. Con basis 0 il dettaglio
+       non pretende spazio dal contenuto: cresce solo nel libero → tile pieni quando c'è
+       spazio, lista che scorre da sola (min-height in .is-open ne garantisce la visibilità). */
+    display: none; flex-direction: column; min-height: 0; flex: 1 1 0;
 }
-.ov-detail.is-open { display: flex; }
+/* Aperto, il dettaglio prende ALMENO il ~40% della colonna e l'area tile sopra tiene un
+   pavimento (~1 riga, min-height in .ov-rows): su schermi bassi la lista del drill-down è
+   sempre visibile E i tile non spariscono (scorrono). A tutta altezza flex:1 1 auto lo fa
+   crescere oltre e i min non vincolano → nessun cambiamento sui grandi. */
+.ov-detail.is-open { display: flex; min-height: 40%; }
 .ov-dh { display: flex; align-items: center; gap: 8px; font-size: var(--fs-md); color: var(--text-muted); margin-bottom: 6px; }
 .ov-dh b { color: var(--text-main); font-weight: 600; }
 .ov-dh .ov-x {

@@ -12,6 +12,7 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 
 ### Fixed
 - On short screens the **Dashboard columns now scroll their own tiles** instead of clipping the ones that overflow below the fold: the column grid row is bounded to the available height and each column scrolls internally, while the lens selector, perimeter note and footer stay pinned. Tall screens are unchanged; below 1100px the stacked columns still scroll the page.
+- On short screens **an open Dashboard drill-down list is now always readable**: the tiles above yield space and scroll (keeping a row visible) while the detail list takes at least ~40% of the column and scrolls on its own. On tall screens nothing changes — the tiles keep their full height (the detail grows from a zero basis, so a long list no longer squeezes them).
 
 ## [2.6.0] — 2026-08-05
 
