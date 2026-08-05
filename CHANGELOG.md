@@ -4,7 +4,9 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 
 **A linked version number is a published release** — follow it to the release on GitHub. *Unreleased* is what has landed on `main` since the last one.
 
-## [Unreleased]
+## [2.6.1] — 2026-08-05
+
+**Header and Dashboard polish.** The header now spreads its buttons evenly and lets the search bar grow into the free space, with Verify centred between its dividers; on short screens the Dashboard columns and an open drill-down list both scroll so nothing is cut off. Presentation only — no data or behaviour changes.
 
 ### Changed
 - The **header buttons are evenly spaced and the search bar expands to fill the free space**: the two centring auto-margins are gone, so the search (flex-grow) takes the slack instead of leaving two empty cushions around it, and the right cluster stays pinned to the edge.
