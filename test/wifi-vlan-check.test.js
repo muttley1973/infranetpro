@@ -32,6 +32,28 @@ test('wifiVlanIssues: client con VLAN non distribuita dall’AP', () => {
   assert.equal(out[0].vlan, 99);
 });
 
+test('wifiVlanIssues: IP del client in una subnet-VLAN diversa dalla VLAN dell’SSID = incoerenza', () => {
+  const out = W.wifiVlanIssues({
+    aps: [],
+    // SENSORE su SSID VLAN 50 ma IP nella subnet dichiarata come VLAN 70 → mismatch.
+    // Un client wireless prende la VLAN dall'SSID: l'IP di un'altra VLAN è incoerente.
+    clients: [{ id:'s1', name:'SENSORE-01', ap:'AP-PROD-2', connVlan:50, ipVlan:70 }],
+  });
+  assert.equal(out.length, 1);
+  assert.equal(out[0].kind, 'client-ip-vlan-mismatch');
+  assert.equal(out[0].vlan, 50, 'vlan = quella dell’SSID (connessione reale)');
+  assert.equal(out[0].ipVlan, 70, 'ipVlan = quella implicata dall’IP');
+  assert.equal(out[0].client, 'SENSORE-01');
+});
+
+test('wifiVlanIssues: client coerente (VLAN dell’SSID = VLAN dell’IP) → nessun problema', () => {
+  const out = W.wifiVlanIssues({
+    aps: [],
+    clients: [{ id:'s2', name:'OK', ap:'AP', connVlan:20, ipVlan:20 }],
+  });
+  assert.deepEqual(out, []);
+});
+
 test('wifiVlanIssues: lo STESSO SSID su più radio = UN problema, non uno per radio (schema ④)', () => {
   // apSsidList elenca lo stesso SSID una volta per radio (2.4/5/6 GHz): senza
   // dedup «8 problemi» diventavano 16/24. Qui 3 radio × lo stesso SSID/VLAN.

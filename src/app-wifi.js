@@ -19,6 +19,7 @@ import { escapeHTML } from './app-util.js';
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, _showToast, _invalidateIdx, _linksForPort, _nodeRadios, _isRadioPid, setNodeRadioCount } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*) + (ASSE B coda) numero radio
 import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: voce menu Report + (coda) pannello wireless via event delegation
 import { propagateVlans, _ensureVlanColor, _getLinkTrunk } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { _parseCidrInfo, _ipInCidr } from '../lib/cidr.js';   // lib pura ESM (no win.*): IP→VLAN dalla subnet dichiarata, per la coerenza IP/SSID
 import { renderProps, _propsSectionIsOpen, _buildPropsHeader } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
@@ -562,9 +563,33 @@ function _buildWifiVlanInput(){
             aps.push({ id:n.id, name:_name(n), ssids:pool.map(o=>({ssid:o.ssid, vlan:o.vlan})), uplinkAllowed });
         }
     }
-    // Nota: i client non producono più issue "vlan-not-distributed": con il picker
-    // SSID la VLAN del client DERIVA dal BSS servente, quindi è sempre nel pool
-    // dell'AP by-design. Il report resta focalizzato sul lato AP (ssid-not-in-trunk).
+    // Client wireless: la VLAN «vera» è quella dell'SSID/BSS a cui è associato
+    // (_getLinkTrunk del suo link radio); la confrontiamo con la VLAN la cui subnet
+    // DICHIARATA contiene il suo IP. Se divergono → incoerenza (o l'SSID o l'IP è
+    // sbagliato: un client wireless prende la VLAN dall'SSID). La vecchia issue
+    // "vlan-not-distributed" non serve più (col picker la VLAN deriva dal BSS).
+    const vidx = [];
+    const vlanMap = (state.ipam && state.ipam.vlans) || {};
+    for(const vid in vlanMap){
+        const info = _parseCidrInfo(vlanMap[vid] && vlanMap[vid].subnet);
+        if(info) vidx.push({ vid: parseInt(vid, 10), info });
+    }
+    const _ipVlan = ip => { for(const e of vidx) if(_ipInCidr(ip, e.info)) return e.vid; return null; };
+    for(const l of (state.links || [])){
+        if(!l || !l.wireless) continue;
+        const nA = nodeById(getPortNodeId(l.src)), nB = nodeById(getPortNodeId(l.dst));
+        if(!nA || !nB) continue;
+        const ap = nA.type==='ap' ? nA : (nB.type==='ap' ? nB : null);
+        const cl = ap===nA ? nB : (ap===nB ? nA : null);
+        if(!ap || !cl) continue;
+        const ip = String(cl.ip || '').trim();
+        if(!ip) continue;
+        const ipVlan = _ipVlan(ip);
+        if(!ipVlan) continue;                        // IP fuori da ogni subnet dichiarata → niente da confrontare
+        const cv = _getLinkTrunk(l).vlans;           // VLAN del BSS (access wireless)
+        const connVlan = (Array.isArray(cv) && cv.length === 1) ? cv[0] : null;
+        if(connVlan) clients.push({ id: cl.id, name: _name(cl), ap: _name(ap), connVlan, ipVlan });
+    }
     return { aps, clients };
 }
 function _wifiVlanIssues(){ return wifiVlanCoherence().issues; }   // delega: UN solo win.wifiVlanIssues (in wifiVlanCoherence)

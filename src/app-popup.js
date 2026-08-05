@@ -15,6 +15,7 @@ import { renderAll, isRackPort, renderNow } from './app-render-core.js';   // ri
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { ensureNodeRackVisible, renderRackTabs, _updateFloorToolbarVisibility } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { _effPortVlan, _getLinkTrunk, _siteNativeVlan, _vlansToRangeStr } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { radioPid } from '../lib/radio.js';   // pid porta radio (ESM, no win.*): filtro VLAN wireless
 import { _portDisplayName, _focusLagForPort, getPassivePortLagInfo,
          setPortField, clearPortField, setPortSpeed, removePortFromLag, startLagMode } from './app-ports.js';   // ritiro ponte + ASSE B: fn del dominio porta (ex win.*)
 import { _cancelLink } from './app-pointer.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
@@ -530,6 +531,15 @@ function _floorNodeHiddenByVlan(nid){
         // nascondeva il cavo di un trunk DERIVATO (voce VoIP/SSID) o di un passivo che
         // riflette gli attivi. Il passivo non "ha" una VLAN: la eredita dal cavo/attivi.
         if(_linksForPort(pid).some(_linkMatchesVlanFilter)) return false;
+    }
+    // Porte RADIO (wireless): un client è "sulla" VLAN dell'SSID a cui è associato,
+    // non solo su quella del suo IP. Senza queste, un device wireless è INVISIBILE al
+    // filtro della sua VLAN reale (quella del BSS) — le porte numeriche sopra sono solo
+    // cablate. Stesso matcher; `radioPid` ESM (niente win.*).
+    for(let ri=0; ri<((n.radios && n.radios.length) || 0); ri++){
+        const rpid = (typeof radioPid==='function') ? radioPid(n.id, ri) : `${n.id}-radio${ri?ri+1:''}`;
+        if(_effPortVlan(rpid)===store._filterVlan) return false;
+        if(_linksForPort(rpid).some(_linkMatchesVlanFilter)) return false;
     }
     return true; // nessuna porta del nodo è in questa VLAN → nasconde nodo e suoi cavi
 }

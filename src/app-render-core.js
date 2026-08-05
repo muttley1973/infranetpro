@@ -15,6 +15,7 @@ import { renderTopoOverlay, _renderTopoLegend } from './app-topology-overlay.js'
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeShort, _frontPanelPortLabel, _fixedRackLabel, _frontPanelState, _frontPanelRows, _frontPanelIsUplink, _frontPanelSfpPorts, _frontPanelSfpGroups } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { nodeLabelParts } from '../lib/node-label.js';   // lib pura importata ESM (come lib/ipv6.js): NON un globale su window
+import { radioPid } from '../lib/radio.js';   // pid porta radio (ESM, no win.*): filtro VLAN wireless in _nodeDim
 import { switchRack, toggleRackPanel, applyUiColors, _updateRackFloorBtn } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { portTip, _portLagGid, _isLagFocusedPort, _updateLagBanner } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _l3GatewayNodeIds } from './app-l3.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
@@ -131,6 +132,14 @@ function _buildFloorNodeEl(n, def, absentCls){
             const eff = _effPortVlan(pid);
             if(eff === store._filterVlan) return false;
             if(_linksForPort(pid).some(lk=>_linkMatchesVlanFilter(lk))) return false;
+        }
+        // Porte RADIO (wireless): il device è "sulla" VLAN dell'SSID a cui è associato,
+        // non solo su quella del suo IP → un client wireless è filtrabile per la sua VLAN
+        // reale (BSS). Le porte numeriche sopra sono solo cablate. `radioPid` ESM.
+        for(let ri=0; ri<((n.radios && n.radios.length) || 0); ri++){
+            const rpid = (typeof radioPid==='function') ? radioPid(n.id, ri) : `${n.id}-radio${ri?ri+1:''}`;
+            if(_effPortVlan(rpid) === store._filterVlan) return false;
+            if(_linksForPort(rpid).some(lk=>_linkMatchesVlanFilter(lk))) return false;
         }
         return true;
     })();
