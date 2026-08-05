@@ -4,6 +4,19 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 
 **A linked version number is a published release** — follow it to the release on GitHub. *Unreleased* is what has landed on `main` since the last one.
 
+## [Unreleased]
+
+**Every documented cable now carries an honest proof-state.** After a Verify, a cable inherits the reachability of its endpoints: a declared (manual) cable stays solid when its device goes quiet, while an inferred cable whose evidence is lost or has decayed becomes a *ghost* — visible, never deleted. The Dashboard sums it up, and each cable shows its own badge.
+
+### Added
+- **Proof-state for cables**, from a pure engine: `Fresh` / `Weak` for a fresh inference (LLDP/CDP vs FDB/MAC), `Ghost` when the endpoint can no longer be confirmed or the confidence has decayed, `Declared` for a hand-drawn cable, `Review` when reality contradicts it. A node's state (proven / unverified / absent / diverged) is persisted with the project during Verify, next to the SNMP data — never an undo step, and the read-only overview never writes it.
+- A **Truth Score on the Dashboard cables tile** — *"N ghost · N inferred · N declared"* — the cabling's identity at a glance, composed from each cable's own state.
+- A **proof-state badge** next to the LLDP/CDP/MAC provenance badges in the cable properties, and in the cables drill-down list.
+- **Per-port miscabling detection**: the observed LLDP/CDP neighbour on a port is compared with the documented other end, and a manual cable to the wrong neighbour is flagged *Review* with a banner naming what the port announces. Silence, unresolved or ambiguous neighbours, and passive ends (patch panels, which LLDP transits) are never flagged.
+
+### Changed
+- On the map, **inferred cables render dashed and ghost cables attenuated**, inheriting their endpoints' proof-state; a declared cable stays solid — the unreachability shows on the node, not the cable.
+
 ## [2.5.2] — 2026-08-04
 
 **Type each subnet once, reveal any masked password, and a calmer Discover dialog.** The scan and the VLAN panel share the subnet you type, every masked field gets a reveal toggle, and the sub-header centres the active VLAN filter while cable tooltips fit on one line.
