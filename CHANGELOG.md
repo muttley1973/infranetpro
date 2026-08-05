@@ -6,10 +6,14 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 
 ## [2.6.2] — 2026-08-05
 
-**The VLAN filter now shows every cable that really carries the VLAN.** Filtering by a VLAN used to hide cables whose VLAN was *derived* — a VoIP voice VLAN, a per-SSID wireless VLAN, or a VLAN propagated along a passive run — because the filter read only the raw trunk field (or the single native VLAN), while the cable colours and topology already used the full carried set. Now the filter uses that same source: a passive element reflects the VLAN its active endpoints carry instead of vanishing.
+**The VLAN filter now shows the real, derived VLAN — for cables and for wireless — and flags a wireless client whose IP doesn't match its SSID.** Filtering by a VLAN used to hide anything whose VLAN was *derived* rather than written into the raw trunk field: a VoIP voice VLAN, a per-SSID wireless VLAN, a VLAN propagated along a passive run, or a wireless device that joins an SSID's VLAN. The cable colours and topology already used the full carried set — now the filter uses that same source. The Dashboard also flags a wireless client whose IP falls in a different VLAN's subnet than the SSID it joined.
+
+### Added
+- **Security lens flags a wireless client whose IP-VLAN ≠ SSID-VLAN** (`client-ip-vlan-mismatch`): a client inherits the VLAN of the SSID it associates to, so an IP in a different declared VLAN subnet is a contradiction (the SSID or the address is wrong). The connection VLAN comes from the associated SSID/BSS (`_getLinkTrunk`), the IP-VLAN from the declared subnet that contains the address — the warning names the client, the SSID VLAN it joined and the VLAN its IP implies.
 
 ### Fixed
 - The **VLAN filter matches the cable's real carried VLANs** (`_getLinkTrunk`, derived trunk included) — one source shared with cable colours, topology and properties — instead of the raw `trunkVlans` field or the single native VLAN. A passive element (wall port, patch panel) follows the VLAN of its active endpoints rather than falling back to the site-native VLAN.
+- The **VLAN filter follows a wireless device to the VLAN of its SSID**: its radio ports and wireless links are matched too, so a client associated to an SSID on VLAN X shows under X (a passive still reflects its active endpoints). Previously only cabled ports were considered, so a wireless-only device could vanish from its own VLAN.
 
 ## [2.6.1] — 2026-08-05
 
