@@ -16,6 +16,7 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 
 ### Changed
 - On the map, **inferred cables render dashed and ghost cables attenuated**, inheriting their endpoints' proof-state; a declared cable stays solid — the unreachability shows on the node, not the cable.
+- The drift **"ghost cable" now counts only inferred cables**: a manual cable on a long-down port is the device being down, not a ghost — one honest source for *"a cable that lost its evidence"*, shared with the proof-state (which also ghosts an inferred cable whose port is down even when its device answers by another path).
 
 ## [2.5.2] — 2026-08-04
 
