@@ -234,6 +234,15 @@ function _driftWriteProofState(sweep, snmpPolled){
             method: snmpOk ? 'snmp' : (reach ? _method(reach.via) : null),
         }, now);
     }
+    // Alimenta l.portDown dal bucket ghostCable (dedotti con porta d'accesso down da
+    // ≥N sync): UNA fonte sola per «cavo dedotto senza evidenza». cableProof lo ghosta
+    // anche quando il device risponde per altra via (multi-homed). Il manuale non entra
+    // qui (ghostCable è dedotti-only) → resta Dichiarato: cablaggio ≠ liveness.
+    const ghostIds = new Set((rep.ghostCable || []).map(r => r && r.id).filter(Boolean));
+    for(const l of (store.state.links || [])){
+        if(!l || l.id == null) continue;
+        if(ghostIds.has(l.id)) l.portDown = true; else if(l.portDown) delete l.portDown;
+    }
 }
 
 // ── Sweep di raggiungibilità (audit presenza multi-segnale) ──────────

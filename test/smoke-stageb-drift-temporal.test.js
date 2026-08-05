@@ -190,6 +190,7 @@ test('T2→T3 — MATURAZIONE nel tempo: cavo fantasma + assente scattano solo a
   const macNodeIds = new Set(DOC.macs.map(m => m.nodeId).filter(Boolean));
   const cable = DOC.cables.find(c => c.src && c.dst && (macNodeIds.has(c.dst.slice(0, c.dst.lastIndexOf('-'))) || macNodeIds.has(c.src.slice(0, c.src.lastIndexOf('-')))));
   assert.ok(cable, 'serve un cavo con almeno un capo verso un nodo con MAC');
+  cable.autoLinked = true;   // ghostCable è dedotti-only (riconciliazione Proof-State): il cavo del test è un dedotto
   // orienta: downPort sul capo "switch", il device assente è all'altro capo
   let downPort = cable.src, victimNode = cable.dst.slice(0, cable.dst.lastIndexOf('-'));
   if (!macNodeIds.has(victimNode)) { downPort = cable.dst; victimNode = cable.src.slice(0, cable.src.lastIndexOf('-')); }

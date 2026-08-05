@@ -30,8 +30,8 @@ test('cavo fantasma: porta manuale (no ifName) NON conta; porta ifName inactive 
     state.ports['sw2-1'] = { status:'inactive', ifName:'GigabitEthernet0/0', downStreak:5 };
     state.ports['pcI-1'] = { status:'active' };
     state.links.push(
-      { id:'cM', src:'pcM-1', dst:'sw1-1' },   // cavo sulla porta manuale
-      { id:'cI', src:'pcI-1', dst:'sw2-1' }    // cavo sulla porta ifName
+      { id:'cM', src:'pcM-1', dst:'sw1-1', autoLinked:true },   // cavo DEDOTTO sulla porta manuale (no ifName)
+      { id:'cI', src:'pcI-1', dst:'sw2-1', autoLinked:true }    // cavo DEDOTTO sulla porta ifName
     );
     if(typeof _invalidateIdx==='function') _invalidateIdx();
     const docSnap = _driftBuildDocSnapshot();

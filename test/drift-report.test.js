@@ -550,11 +550,11 @@ test('Fase 3: device VISTO (segnale positivo) con porta down → resta VERDE (po
   assert.equal(r.counts.unverified, 0);
 });
 
-test('cavo fantasma: porta down da >= N sync → ghostCable; sotto soglia → no', () => {
+test('cavo fantasma: cavo DEDOTTO con porta down da >= N sync → ghostCable; sotto soglia → no', () => {
   const doc = {
     cables: [
-      { id: 'c1', label: 'A→B', src: 'sw1-1', dst: 'sw2-1' },   // streak 3 → fantasma
-      { id: 'c2', label: 'A→C', src: 'sw1-2', dst: 'sw3-1' },   // streak 1 → no
+      { id: 'c1', label: 'A→B', src: 'sw1-1', dst: 'sw2-1', autoLinked: true },   // dedotto, streak 3 → fantasma
+      { id: 'c2', label: 'A→C', src: 'sw1-2', dst: 'sw3-1', autoLinked: true },   // dedotto, streak 1 → no
     ],
   };
   const snmp = { portDownStreak: { 'sw1-1': 3, 'sw2-1': 0, 'sw1-2': 1 } };
@@ -562,6 +562,15 @@ test('cavo fantasma: porta down da >= N sync → ghostCable; sotto soglia → no
   assert.equal(r.counts.ghostCable, 1);
   assert.equal(r.ghostCable[0].id, 'c1');
   assert.equal(r.ghostCable[0].downStreak, 3);
+});
+
+test('cavo fantasma: un cavo MANUALE su porta down NON è ghostCable (il nodo è down, non il cavo)', () => {
+  // Riconciliazione col Proof-State: il dichiarato è legge — cablaggio != liveness.
+  // La porta down si riflette sul NODO (presenza), non declassa il cavo manuale.
+  const doc = { cables: [{ id: 'c1', label: 'A→B', src: 'sw1-1', dst: 'sw2-1' }] };   // niente autoLinked = manuale
+  const snmp = { portDownStreak: { 'sw1-1': 5 } };
+  const r = buildDriftReport(snmp, doc, [], { downStreakN: 3 });
+  assert.equal(r.counts.ghostCable, 0, 'il manuale su porta down non è un «cavo fantasma»');
 });
 
 test('ignore persiste: la riga con key ignorata non compare', () => {

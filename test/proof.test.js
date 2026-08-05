@@ -160,6 +160,19 @@ test('MISCABLAGGIO: cavo DEDOTTO con l.miscabled -> ghost anche se fresco', () =
   assert.equal(cableProof(derived, proven(DAY), proven(DAY), NOW), 'ghost');
 });
 
+test('PORTA DOWN: cavo DEDOTTO con l.portDown -> ghost anche se il device risponde (multi-homed)', () => {
+  // Riconciliazione ghostCable: la porta d'accesso è down da >=N sync; il device è vivo
+  // per altra via (estremi provati) ma QUESTO cavo non ha evidenza.
+  const derived = { autoLinked: true, confidence: 0.97, protocol: 'LLDP', portDown: true };
+  assert.equal(cableProof(derived, proven(HOUR), proven(HOUR), NOW), 'ghost');
+});
+
+test('PORTA DOWN: un cavo MANUALE con portDown resta declared (il dichiarato è legge)', () => {
+  // portDown alimenta solo i DEDOTTI (ghostCable è dedotti-only); un manuale non lo prende
+  // mai, ma anche se lo avesse: cablaggio != liveness -> resta Dichiarato.
+  assert.equal(cableProof({ autoLinked: false, portDown: true }, { status: 'unverified' }, proven(HOUR), NOW), 'declared');
+});
+
 // ---- deriveNodeProof (§7.2: absent solo con prova; muto -> unverified) -----
 test('deriveNodeProof: SNMP ok -> proven, lastProvenAt = now, method snmp', () => {
   const p = deriveNodeProof({ snmpOk: true }, NOW);
