@@ -27,6 +27,11 @@ body.view-overview #export-area { display: none; }
 .ov-cols {
     flex: 1 1 auto; min-height: 0;
     display: grid; grid-template-columns: repeat(3, 1fr);
+    /* La riga vale ESATTAMENTE l'altezza disponibile (min 0), non il contenuto: senza
+       questa riga la riga-griglia era `auto`, cresceva fino al tile piu' basso e i tile
+       in eccesso sbordavano sotto la colonna — clippati da `#overview{overflow:hidden}`,
+       irraggiungibili. Vincolata, ogni colonna ha un box entro cui scorrere (sotto). */
+    grid-template-rows: minmax(0, 1fr);
     gap: var(--space-6, 12px); padding: var(--space-6, 12px) var(--space-7, 16px);
 }
 /* Sotto i 1100px tre colonne diventano illeggibili: si impilano e la pagina
@@ -38,7 +43,11 @@ body.view-overview #export-area { display: none; }
        i tile debordavano SOPRA l'intestazione della sezione seguente — testo su
        testo, illeggibile. A scorrere e' `#overview`, come dice il commento qui
        sopra: quello e' il patto, non comprimere le colonne fino a sovrapporle. */
-    .ov-cols { grid-template-columns: 1fr; flex: 0 0 auto; align-content: start; }
+    /* Impilate, le colonne prendono l'altezza del LORO contenuto (righe `auto`, non il
+       `minmax(0,1fr)` del modo a 3 colonne) e a scorrere e' `#overview`/la pagina. Qui
+       l'`overflow-y:auto` della regola base e' un no-op: la colonna e' alta quanto il
+       contenuto, quindi non ha eccesso da scorrere. */
+    .ov-cols { grid-template-columns: 1fr; grid-template-rows: auto; flex: 0 0 auto; align-content: start; }
     .ov-col { min-height: auto; }
 }
 /* Lente «Ripristinabilità»: una sola colonna a tutta larghezza. */
@@ -82,6 +91,11 @@ body.view-overview #export-area { display: none; }
     background: var(--panel-bg); border: 1px solid var(--panel-border);
     border-radius: var(--radius-xl); padding: 14px 16px;
     display: flex; flex-direction: column; min-height: 0;
+    /* I tile della colonna scorrono DENTRO la colonna quando sono piu' dell'altezza
+       (schermi bassi): footer, perimetro e selettore-lente restano fissi. Su schermi
+       alti il contenuto entra e la scrollbar non compare. `scrollbar-width:thin` per
+       non rubare larghezza al tile (la colonna ha combattuto per ogni px, vedi .ov-rows). */
+    overflow-y: auto; scrollbar-width: thin;
     box-shadow: var(--shadow-sm);
 }
 /* Tipografia +~120%: si sale di una fascia sui token gia' definiti (01-tokens.css),

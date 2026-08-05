@@ -4,6 +4,11 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 
 **A linked version number is a published release** — follow it to the release on GitHub. *Unreleased* is what has landed on `main` since the last one.
 
+## [Unreleased]
+
+### Fixed
+- On short screens the **Dashboard columns now scroll their own tiles** instead of clipping the ones that overflow below the fold: the column grid row is bounded to the available height and each column scrolls internally, while the lens selector, perimeter note and footer stay pinned. Tall screens are unchanged; below 1100px the stacked columns still scroll the page.
+
 ## [2.6.0] — 2026-08-05
 
 **Every documented cable now carries an honest proof-state.** After a Verify, a cable inherits the reachability of its endpoints: a declared (manual) cable stays solid when its device goes quiet, while an inferred cable whose evidence is lost or has decayed becomes a *ghost* — visible, never deleted. The Dashboard sums it up, and each cable shows its own badge.
