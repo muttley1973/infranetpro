@@ -4,7 +4,7 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 
 **A linked version number is a published release** — follow it to the release on GitHub. *Unreleased* is what has landed on `main` since the last one.
 
-## [Unreleased]
+## [2.7.0] — 2026-08-06
 
 **The header never spills onto a second line when a status badge appears.** Turning on background polling, highlighting spare ports, a freshness counter or an SNMPv3 notice each add width the responsive breakpoints can't foresee; in the ~1738–1920px range that alone was enough to push the right-hand cluster onto a second row — just enabling polling broke the layout. The header now measures itself and reclaims space in the requested order: first it collapses button labels to icons, and only as a last resort narrows the search bar, so it stays on one line. Verify keeps its label.
 
