@@ -146,6 +146,9 @@ app.get('/', (_, res) => res.sendFile(path.join(ROOT, 'netmapper.html')));
 // ---- Progetti (server/routes/projects.js) -----------------------------------
 app.use(require('./server/routes/projects'));
 
+// ---- Storico progetto (server/routes/history.js) ----------------------------
+app.use(require('./server/routes/history'));
+
 // ---- Skin store (server/routes/skins.js) ------------------------------------
 app.use(require('./server/routes/skins'));
 

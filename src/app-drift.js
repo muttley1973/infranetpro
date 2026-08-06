@@ -267,20 +267,25 @@ async function _driftReachabilitySweep(){
 }
 
 // ── Entry point: bottone "Verifica documentazione" ───────────────────
-async function runDriftCheck(){
+// opts.silent: Verifica PROGRAMMATA (timer) — calcola e persiste come la manuale,
+// ma NON ruba lo schermo: niente alert, niente spinner sul bottone, non forza la
+// Panoramica. Aggiorna comunque proof-state/freschezza (feedback discreto). Resta
+// "rileva, non adotta": nessuna adozione automatica, come la Verifica a mano.
+async function runDriftCheck(opts = {}){
+    const silent = !!opts.silent;
     const state = store.state;
     if(_driftRunning || store._snmpSyncing) return;
     const hasSnmp = state.nodes.some(n => String((n.integration||{}).driver||'').startsWith('snmp') && String((n.integration||{}).host||n.ip||'').trim());
     // I lease DHCP sono una fonte valida anche senza SNMP (rete dietro firewall):
     // se ce ne sono, la Verifica gira lo stesso (il poll SNMP viene saltato).
     const hasLeases = Array.isArray(store._dhcpLeases) && store._dhcpLeases.length > 0;
-    if(!hasSnmp && !hasLeases){ showAlert(t('msg.net.noSnmpDevicesDoc')); return; }
+    if(!hasSnmp && !hasLeases){ if(!silent) showAlert(t('msg.net.noSnmpDevicesDoc')); return; }
     _driftRunning = true;
     // Segnale cross-modulo: pollAllSNMP (app-snmp.js) lo legge per sapere che è la
     // Verifica a possedere il bottone #btn-drift (scrive il progresso ma NON fa flash
     // né ripristino: lo fa runDriftCheck a fine controllo).
     store._driftRunning = true;
-    const btn = document.getElementById('btn-drift');
+    const btn = silent ? null : document.getElementById('btn-drift');  // silent: non toccare il bottone
     // Salvataggio idempotente: se un flash di Sync standalone ha già messo qui
     // l'etichetta originale, NON sovrascriverla col testo del flash.
     if(btn){ btn.disabled = true; if(btn.dataset._lbl == null) btn.dataset._lbl = btn.innerHTML; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
@@ -297,18 +302,82 @@ async function runDriftCheck(){
         // B4 — il risultato ATTERRA nella Panoramica «Vero» (overlay ritirato): se non
         // sei già lì, ti ci porta, così la Verifica "resta" invece di lampeggiare in un
         // overlay. setOverview è bare-global (expose di app-overview), typeof-guard.
-        if(typeof setOverview === 'function' && store._viewMode !== 'overview') setOverview(true);
+        // silent: NON forzare la vista (la Verifica programmata non deve rubare lo schermo).
+        if(!silent && typeof setOverview === 'function' && store._viewMode !== 'overview') setOverview(true);
         // renderAll SEMPRE (rAF-coalescato): subbar/nextStep e ingrigimento assenti
-        // devono riflettere l'esito appena calcolato, non solo i rinnovi IP.
+        // devono riflettere l'esito appena calcolato, non solo i rinnovi IP. Anche in
+        // silent: aggiorna il chip di freschezza («ultima prova: N fa») = feedback discreto.
         renderAll();
         _renderDriftReport();   // overlay dormiente: rispecchia solo nella Panoramica «Vero»
+        _appendVerifyTimeline(silent);   // Fase 3: registra la riga di storico (best-effort)
     } catch(e){
-        showAlert(t('msg.net.docCheckFailed') + (e && e.message || e));
+        // silent: la Verifica programmata non apre alert; logga e riproverà al prossimo tick.
+        if(silent) console.warn('[auto-verify] verifica programmata fallita:', e && e.message || e);
+        else showAlert(t('msg.net.docCheckFailed') + (e && e.message || e));
     } finally {
         _driftRunning = false;
         store._driftRunning = false;
         if(btn){ btn.disabled = false; if(btn.dataset._lbl){ btn.innerHTML = btn.dataset._lbl; delete btn.dataset._lbl; } }
     }
+}
+
+// ── Verifica PROGRAMMATA (scheduler, clone del pattern auto-poll) ─────
+// Un timer che ogni N minuti lancia una Verifica SILENZIOSA (runDriftCheck{silent}):
+// stesso motore della Verifica manuale (poll + sweep + compute + proof-state), ma
+// senza rubare lo schermo. "Rileva, non adotta": nessuna adozione automatica.
+// Limite onesto: vive nel browser (serve la scheda aperta), come l'auto-poll.
+let _verifyTimer = null;
+
+async function _scheduledVerify(){
+    if(_driftRunning || store._snmpSyncing) return;                          // non sovrapporre a Sync/Verifica
+    if(typeof document !== 'undefined' && document.visibilityState === 'hidden') return;  // scheda nascosta: salta il giro
+    await runDriftCheck({ silent: true });
+}
+
+// Rearm idempotente: ferma il timer esistente e lo riavvia se verifyEvery>0.
+// Chiamata da setAutoVerify e al caricamento progetto (app-core.loadProject).
+export function _startAutoVerify(){
+    _stopAutoVerify();
+    const every = (store.state.autoPoll?.verifyEvery | 0);
+    if(every > 0) _verifyTimer = setInterval(_scheduledVerify, every * 60000);
+}
+export function _stopAutoVerify(){
+    if(_verifyTimer){ clearInterval(_verifyTimer); _verifyTimer = null; }
+}
+
+// Toggle dal popover Automazioni: 0=off | 15|30|60 min. Persiste in autoPoll
+// (come gli altri campi automazione) e ri-arma il timer.
+function setAutoVerify(every){
+    every = every | 0;
+    if(!store.state.autoPoll) store.state.autoPoll = { enabled:false, interval:5 };
+    store.state.autoPoll.verifyEvery = (every > 0) ? every : 0;
+    markDirty();
+    _startAutoVerify();
+    if(typeof renderAutomationMenu === 'function') renderAutomationMenu();   // aggiorna i bottoni-intervallo nel popover
+}
+
+// ── Storico: riga di timeline leggera per ogni Verifica (Fase 3) ─────
+// A ogni Verifica (auto o manuale) registra una "fotografia leggera" (~1 KB) FUORI
+// dal JSON di progetto: /api/projects/:id/history/timeline. È la linea del tempo
+// (divergenze/dimensione nel tempo). Opt-out con autoPoll.snapshotOnVerify=false.
+// Best-effort: fire-and-forget, non blocca né alza mai alert; at/by li fissa il
+// server (autorevoli). Solo admin persiste (route requireAdmin): un viewer riceve
+// 403 e la Verifica prosegue comunque.
+function _appendVerifyTimeline(silent){
+    try {
+        if(store.state.autoPoll && store.state.autoPoll.snapshotOnVerify === false) return;   // opt-out esplicito
+        if(!store.currentProjectId) return;
+        const rep = store._driftReport || {};
+        const body = {
+            verify: silent ? 'auto' : 'manual',
+            counts: rep.counts || {},
+            totals: { nodes: (store.state.nodes||[]).length, cables: (store.state.links||[]).length },
+        };
+        fetch(`/api/projects/${store.currentProjectId}/history/timeline`, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify(body),
+        }).catch(()=>{});   // lo storico è un di più: mai disturbare la Verifica
+    } catch(_){ /* best-effort */ }
 }
 
 // ── Azioni 1-click ───────────────────────────────────────────────────
@@ -812,6 +881,8 @@ expose({
 registerClickActions({
     // Coda ASSE B (netmapper.html static): bottone header «Verifica».
     'run-drift-check':   () => runDriftCheck(),
+    // Popover Automazioni: intervallo Verifica programmata (0=off | 15|30|60 min).
+    'autoverify-interval': (el) => setAutoVerify(+el.dataset.interval),
     'drift-close':       () => _closeDriftReport(),
     'drift-investigate': (el) => driftInvestigate(el.dataset.key),
     'drift-ignore':      (el) => driftIgnore(el.dataset.key),

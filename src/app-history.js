@@ -8,6 +8,7 @@
 import { expose } from "./_bridge.js";
 import { _invalidateIdx } from "./app.js";   // ciclo benigno: uso solo a runtime
 import { renderAll } from "./app-render-core.js";
+import { saveProject } from "./app-core.js";   // ciclo benigno: solo a runtime (autosave debounced)
 // Bare globals (no-undef OFF): _history/_histIdx/state/_isDirty/selId/selType/highPath
 // (proxy store) - renderRackTabs/updateTransforms (window, app-search-zoom-rack) -
 // appendAudit (lib/audit-log.js) - _currentUser (store).
@@ -71,6 +72,25 @@ export function markDirty() {
     const btn = document.getElementById('btn-save');
     if (dot) dot.style.display = 'inline-block';
     if (btn) { btn.classList.add('save-dirty'); btn.classList.remove('primary'); }
+    _scheduleAutosave();
+}
+
+// ── AUTOSAVE (debounce-on-dirty) ─────────────────────────────────────
+// Ogni markDirty ri-arma un timer; alla quiete (debounce) salva UNA volta,
+// in silenzio (saveProject{quiet}). Copre sia gli edit umani sia i dati
+// freschi (Sync/Verifica). "Guardare non sporca": i cambi di sola VISTA non
+// chiamano markDirty → non innescano autosave. Opt-in: default OFF
+// (autoPoll.autosave) per non scrivere su disco durante golden/test.
+let _autosaveTimer = null;
+export function _scheduleAutosave() {
+    if (!state.autoPoll || !state.autoPoll.autosave) return;   // opt-in, default OFF
+    clearTimeout(_autosaveTimer);
+    const wait = (state.autoPoll.autosaveDebounceMs | 0) || 10000;   // coalescing raffiche
+    _autosaveTimer = setTimeout(() => {
+        _autosaveTimer = null;
+        if (!_isDirty) return;             // niente da salvare (già salvato o pulito)
+        saveProject({ quiet: true });      // salta da sé se _snmpSyncing / nessun progetto
+    }, wait);
 }
 
 export function _clearDirty() {

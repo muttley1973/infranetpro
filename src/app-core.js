@@ -11,6 +11,7 @@ import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funz
 import { renderRackTabs, updateTransforms, _updateFloorToolbarVisibility, initPaletteUi } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { _restoreTopoSession } from './app-topology-discover.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { _startAutoPoll, _stopAutoPoll } from './app-vlan-autopoll.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
+import { _startAutoVerify } from './app-drift.js';   // Verifica programmata: rearm timer al load progetto (ciclo benigno: solo a runtime)
 import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: bottoni progetto (data-act) + selettore progetto (data-change)
 import { loadDeviceTypes } from './app-device-types.js';   // boot catalogo device-type (import diretto: no win.*)
 
@@ -64,6 +65,7 @@ async function loadProject(id) {
     _clearDirty();
     _stopAutoPoll();
     if(store.state.autoPoll?.enabled) _startAutoPoll();
+    _startAutoVerify();   // rearm Verifica programmata sul progetto caricato (stop+start idempotente)
     renderRackTabs(); updateTransforms(); renderAll();
     document.title = `InfraNet Pro — ${proj.name}`;
 }
@@ -148,7 +150,9 @@ async function deleteProject() {
     });
 }
 
-export async function saveProject() {   // ASSE B: importata da app.js (scorciatoia Ctrl+S), non più su window
+// opts.quiet: salvataggio SILENZIOSO (autosave) — nessuna animazione «Salvato»,
+// nessun alert in caso di errore (il dirty resta e riproverà al prossimo markDirty).
+export async function saveProject(opts = {}) {   // ASSE B: importata da app.js (scorciatoia Ctrl+S), non più su window
     if (!store.currentProjectId) return;
     if (store._snmpSyncing) return;
     try {
@@ -157,6 +161,7 @@ export async function saveProject() {   // ASSE B: importata da app.js (scorciat
             body: JSON.stringify({state: store.state})
         });
         _clearDirty();
+        if (opts.quiet) return;   // autosave: persiste e basta, niente feedback visivo
         const icon  = document.getElementById('save-icon');
         const label = document.getElementById('save-label');
         if (icon)  icon.className  = 'fas fa-check';
@@ -166,6 +171,9 @@ export async function saveProject() {   // ASSE B: importata da app.js (scorciat
             if (label) label.textContent = (typeof t==='function') ? t('save.label') : ' Salva ';
         }, 1800);
     } catch(e) {
+        // Autosave silenzioso: non rubare lo schermo con un alert; _isDirty resta
+        // true (non abbiamo raggiunto _clearDirty) → il prossimo edit riprova.
+        if (opts.quiet) { console.warn('[autosave] salvataggio fallito:', e && e.message); return; }
         showAlert(t('msg.ui.saveFailed',{message: e.message}));
     }
 }

@@ -45,6 +45,24 @@ function setAutoPoll(enabled, interval){
     renderAutomationMenu(); // aggiorna toggle + bottoni intervallo nel popover
 }
 
+// Autosave (debounce-on-dirty): il motore vive in app-history.js (_scheduleAutosave,
+// chiamato da markDirty). Qui solo il toggle del popover Automazioni. Default OFF.
+function setAutosave(enabled){
+    if(!store.state.autoPoll) store.state.autoPoll={enabled:false,interval:5};
+    store.state.autoPoll.autosave = !!enabled;
+    markDirty();
+    renderAutomationMenu();
+}
+
+// Fotografia (riga di timeline) a ogni Verifica — default ON. Controlla se
+// runDriftCheck registra lo storico leggero (app-drift._appendVerifyTimeline).
+function setSnapshotOnVerify(enabled){
+    if(!store.state.autoPoll) store.state.autoPoll={enabled:false,interval:5};
+    store.state.autoPoll.snapshotOnVerify = !!enabled;
+    markDirty();
+    renderAutomationMenu();
+}
+
 // ── Popover "Automazioni rete" ───────────────────────────────────────
 // Raccoglie i due interruttori di automazione (auto-poll SNMP + rinnovo IP
 // DHCP), prima sepolti nei collassabili di Proprietà planimetria, in un unico
@@ -64,6 +82,9 @@ export function renderAutomationMenu(){
     const st=store.state;
     const ap=st.autoPoll||{enabled:false,interval:5};
     const ipr=!!st.autoIpRenew;
+    const as=!!ap.autosave;   // autosave debounced-on-dirty (default OFF)
+    const sov=!(ap.snapshotOnVerify===false);   // fotografia (timeline) a ogni Verifica (default ON)
+    const vev=ap.verifyEvery|0;   // Verifica programmata: 0=off | 15|30|60 min
     const dl=Array.isArray(store._dhcpLeases)?store._dhcpLeases:[];   // lease DHCP transitori in memoria
     const ivl=ap.interval||5;
     d.innerHTML = `
@@ -88,6 +109,16 @@ export function renderAutomationMenu(){
         <div class="autom-desc">${escapeHTML(t('autom.pollDesc'))}</div>
       </div>
       <div class="autom-sec">
+        <div class="autom-row">
+          <span class="autom-title"><i class="fas fa-clipboard-check"></i>${escapeHTML(t('autom.autoVerify'))}</span>
+        </div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px">
+          <button class="toolbar-btn${vev===0?' primary':''}" style="padding:3px 9px;font-size:0.75rem" data-act="autoverify-interval" data-interval="0">${escapeHTML(t('autom.off'))}</button>
+          ${[15,30,60].map(m=>`<button class="toolbar-btn${vev===m?' primary':''}" style="padding:3px 9px;font-size:0.75rem" data-act="autoverify-interval" data-interval="${m}">${m}m</button>`).join('')}
+        </div>
+        <div class="autom-desc">${escapeHTML(t('autom.autoVerifyDesc'))}</div>
+      </div>
+      <div class="autom-sec">
         <div class="autom-grouphd"><i class="fas fa-network-wired"></i>${escapeHTML(t('autom.dhcpGroup'))}</div>
         <div class="autom-row">
           <span class="autom-title"><i class="fas fa-arrows-rotate"></i>${escapeHTML(t('autom.ipRenew'))}</span>
@@ -102,6 +133,25 @@ export function renderAutomationMenu(){
           <button class="toolbar-btn" style="padding:3px 9px;font-size:0.75rem" data-act="dhcp-open"><i class="fas fa-folder-open"></i> ${escapeHTML(t('dhcp.load'))}</button>
         </div>
         <div class="autom-desc">${escapeHTML(dl.length ? t('dhcp.inMemory',{n:dl.length}) : t('dhcp.loadDesc'))}</div>
+      </div>
+      <div class="autom-sec">
+        <div class="autom-grouphd"><i class="fas fa-floppy-disk"></i>${escapeHTML(t('autom.saveGroup'))}</div>
+        <div class="autom-row">
+          <span class="autom-title"><i class="fas fa-cloud-arrow-up"></i>${escapeHTML(t('autom.autosave'))}</span>
+          <label class="toggle-sw" data-tip="${escapeHTML(t('autom.autosaveTip'))}">
+            <input type="checkbox" ${as?'checked':''} data-change="autosave-toggle">
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+        <div class="autom-desc">${escapeHTML(t('autom.autosaveDesc'))}</div>
+        <div class="autom-row" style="margin-top:11px">
+          <span class="autom-title"><i class="fas fa-clock-rotate-left"></i>${escapeHTML(t('autom.snapOnVerify'))}</span>
+          <label class="toggle-sw" data-tip="${escapeHTML(t('autom.snapOnVerifyTip'))}">
+            <input type="checkbox" ${sov?'checked':''} data-change="snapshot-on-verify">
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+        <div class="autom-desc">${escapeHTML(t('autom.snapOnVerifyDesc'))}</div>
       </div>`;
 }
 
@@ -854,6 +904,8 @@ registerClickActions({
 });
 registerChangeActions({
     'autopoll-toggle': (el) => setAutoPoll(el.checked, null),
+    'autosave-toggle': (el) => setAutosave(el.checked),
+    'snapshot-on-verify': (el) => setSnapshotOnVerify(el.checked),
     'voice-preview':   () => _voiceAssignPreview(),
 });
 export function setLinkColor(id,color){
