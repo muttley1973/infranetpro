@@ -18,11 +18,11 @@ import { _getLinkVlan, _vlanLabel } from './app-popup.js';   // ritiro ponte: fu
 import { _deviceAccessVlanPid } from './app-properties-node-devices.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { applyUiColors } from './app-search-zoom-rack.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: modale «Membership VLAN» + popover Automazioni + modale VLAN voce via event delegation
+import { effAutoConfig, MONITOR_INTERVALS, fmtMonitorInterval } from '../lib/auto-monitor.js';   // config PURA del monitoraggio automatico unificato (schema nuovo + migrazione legacy + etichette)
 
-// Handle dei timer auto-poll: prima `let` in app.js, usati SOLO qui -> module-local.
-let _autoPollTimer = null;     // handle setInterval auto-poll
-let _autoPollTickTimer = null; // handle setInterval badge countdown
-let _autoPollNextAt = 0;       // timestamp prossimo ciclo (ms epoch)
+// Lo scheduler del monitoraggio automatico (poll leggero + Verifica completa, unificati)
+// vive in app-drift.js (_startAutoMonitor/_autoMonitorTick); qui restano solo la UI del
+// popover e il badge, che legge il prossimo giro da store._autoMonitorNextAt.
 
 const _VPAL=['#00d4ff','#a371f7','#39d353','#f1e05a','#f85149','#ff9500','#ff6eb4','#00c8a0','#4fc3f7','#56b6c2','#e06c75','#e5c07b'];
 
@@ -35,15 +35,6 @@ export function _ensureVlanColor(vid){
 // ============================================================
 // AUTO-POLL SNMP
 // ============================================================
-
-function setAutoPoll(enabled, interval){
-    if(!store.state.autoPoll) store.state.autoPoll={enabled:false,interval:5};
-    if(enabled !== null) store.state.autoPoll.enabled = !!enabled;
-    if(interval !== null && interval > 0) store.state.autoPoll.interval = interval;
-    markDirty();
-    if(store.state.autoPoll.enabled){ _startAutoPoll(); } else { _stopAutoPoll(); }
-    renderAutomationMenu(); // aggiorna toggle + bottoni intervallo nel popover
-}
 
 // Autosave (debounce-on-dirty): il motore vive in app-history.js (_scheduleAutosave,
 // chiamato da markDirty). Qui solo il toggle del popover Automazioni. Default OFF.
@@ -80,46 +71,36 @@ export function renderAutomationMenu(){
     const d=document.getElementById('automation-dropdown');
     if(!d) return;
     const st=store.state;
-    const ap=st.autoPoll||{enabled:false,interval:5};
+    const ap=st.autoPoll||{};
+    const cfg=effAutoConfig(ap);   // {enabled, interval, depth} — schema nuovo o migrato dai legacy
     const ipr=!!st.autoIpRenew;
     const as=!!ap.autosave;   // autosave debounced-on-dirty (default OFF)
     const sov=!(ap.snapshotOnVerify===false);   // fotografia (timeline) a ogni Verifica (default ON)
-    const av=!!ap.autoVerify;   // Verifica programmata: slider attivo/spento (stile auto-poll)
-    const vev=ap.verifyEvery|0;   // intervallo Verifica programmata (15|30|60|1440 min, 1440=24h)
     const dl=Array.isArray(store._dhcpLeases)?store._dhcpLeases:[];   // lease DHCP transitori in memoria
-    const ivl=ap.interval||5;
+    const ivls=(cfg.depth==='full')?MONITOR_INTERVALS.full:MONITOR_INTERVALS.light;   // intervalli adattivi alla profondità
     d.innerHTML = `
       <div class="autom-sec">
-        <div class="autom-grouphd"><i class="fas fa-network-wired"></i>${escapeHTML(t('autom.snmpGroup'))}</div>
+        <div class="autom-grouphd"><i class="fas fa-gauge-high"></i>${escapeHTML(t('autom.monitor'))}</div>
         <div class="autom-row">
           <span class="autom-title"><i class="fas fa-rotate"></i>${escapeHTML(t('autom.syncNow'))}</span>
           <button class="toolbar-btn" style="padding:3px 9px;font-size:0.75rem" data-act="automation-sync-now" data-tip="${escapeHTML(t('autom.syncNowTip'))}"><i class="fas fa-rotate"></i> ${escapeHTML(t('autom.syncNowBtn'))}</button>
         </div>
         <div class="autom-desc">${escapeHTML(t('autom.syncNowDesc'))}</div>
         <div class="autom-row" style="margin-top:11px">
-          <span class="autom-title"><i class="fas fa-clock"></i>${escapeHTML(t('autom.poll'))}</span>
-          <label class="toggle-sw" data-tip="${escapeHTML(t('autopoll.tip'))}">
-            <input type="checkbox" ${ap.enabled?'checked':''} data-change="autopoll-toggle">
+          <span class="autom-title"><i class="fas fa-satellite-dish"></i>${escapeHTML(t('autom.monitorAuto'))}</span>
+          <label class="toggle-sw" data-tip="${escapeHTML(t('autom.monitorTip'))}">
+            <input type="checkbox" ${cfg.enabled?'checked':''} data-change="automonitor-toggle">
             <span class="toggle-track"></span>
           </label>
         </div>
-        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;${ap.enabled?'':'opacity:.4;pointer-events:none'}">
-          ${[1,5,10,15,30].map(m=>`<button class="toolbar-btn${ivl===m?' primary':''}" style="padding:3px 9px;font-size:0.75rem" data-act="autopoll-interval" data-interval="${m}">${m}m</button>`).join('')}
+        <div style="display:flex;gap:5px;margin-top:8px;${cfg.enabled?'':'opacity:.4;pointer-events:none'}">
+          <button class="toolbar-btn${cfg.depth==='light'?' primary':''}" style="padding:3px 9px;font-size:0.75rem;flex:1" data-act="automonitor-depth" data-depth="light">${escapeHTML(t('autom.depthLight'))}</button>
+          <button class="toolbar-btn${cfg.depth==='full'?' primary':''}" style="padding:3px 9px;font-size:0.75rem;flex:1" data-act="automonitor-depth" data-depth="full">${escapeHTML(t('autom.depthFull'))}</button>
         </div>
-        <div class="autom-desc">${escapeHTML(t('autom.pollDesc'))}</div>
-      </div>
-      <div class="autom-sec">
-        <div class="autom-row">
-          <span class="autom-title"><i class="fas fa-clipboard-check"></i>${escapeHTML(t('autom.autoVerify'))}</span>
-          <label class="toggle-sw" data-tip="${escapeHTML(t('autom.autoVerifyTip'))}">
-            <input type="checkbox" ${av?'checked':''} data-change="autoverify-toggle">
-            <span class="toggle-track"></span>
-          </label>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;${cfg.enabled?'':'opacity:.4;pointer-events:none'}">
+          ${ivls.map(m=>`<button class="toolbar-btn${cfg.interval===m?' primary':''}" style="padding:3px 9px;font-size:0.75rem" data-act="automonitor-interval" data-interval="${m}">${fmtMonitorInterval(m)}</button>`).join('')}
         </div>
-        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;${av?'':'opacity:.4;pointer-events:none'}">
-          ${[15,30,60,1440].map(m=>`<button class="toolbar-btn${vev===m?' primary':''}" style="padding:3px 9px;font-size:0.75rem" data-act="autoverify-interval" data-interval="${m}">${m===1440?'24h':m+'m'}</button>`).join('')}
-        </div>
-        <div class="autom-desc">${escapeHTML(t('autom.autoVerifyDesc'))}</div>
+        <div class="autom-desc">${escapeHTML(cfg.depth==='full'?t('autom.depthFullDesc'):t('autom.depthLightDesc'))}</div>
       </div>
       <div class="autom-sec">
         <div class="autom-grouphd"><i class="fas fa-network-wired"></i>${escapeHTML(t('autom.dhcpGroup'))}</div>
@@ -158,37 +139,23 @@ export function renderAutomationMenu(){
       </div>`;
 }
 
-export function _startAutoPoll(){
-    _stopAutoPoll();
-    const mins = store.state.autoPoll?.interval || 5;
-    _autoPollNextAt = Date.now() + mins * 60000;
-    _autoPollTimer = setInterval(async ()=>{
-        _autoPollNextAt = Date.now() + mins * 60000;
-        await win.pollAllSNMP({ dataOnly:true });   // SOLO dati SNMP, niente auto-link topologia
-    }, mins * 60000);
-    // aggiorna il conto alla rovescia sul badge ogni 30 secondi
-    _autoPollTickTimer = setInterval(_updateAutoPollBadge, 30000);
-    _updateAutoPollBadge();
-}
-
-export function _stopAutoPoll(){
-    if(_autoPollTimer){ clearInterval(_autoPollTimer); _autoPollTimer=null; }
-    if(_autoPollTickTimer){ clearInterval(_autoPollTickTimer); _autoPollTickTimer=null; }
-    _autoPollNextAt=0;
-    _updateAutoPollBadge();
-}
-
-function _updateAutoPollBadge(){
+// Badge «Auto Nm» in header: conto alla rovescia al prossimo giro del monitoraggio
+// automatico unificato. Legge la config effettiva (schema nuovo o migrato) e il
+// timestamp del prossimo giro impostato dallo scheduler (store._autoMonitorNextAt,
+// in app-drift.js). Importato là per aggiornarlo a ogni tick/start/stop.
+export function _updateAutoPollBadge(){
     const badge=document.getElementById('autopoll-badge'); if(!badge) return;
-    if(!store.state.autoPoll?.enabled || !_autoPollNextAt){ badge.style.display='none'; return; }
-    const diffMs=Math.max(0, _autoPollNextAt-Date.now());
+    const cfg=effAutoConfig(store.state.autoPoll);
+    const nextAt=store._autoMonitorNextAt||0;
+    if(!cfg.enabled || !nextAt){ badge.style.display='none'; return; }
+    const diffMs=Math.max(0, nextAt-Date.now());
     const mins=Math.floor(diffMs/60000);
     const secs=Math.floor((diffMs%60000)/1000);
     const label = mins>0 ? `${mins}m` : `${secs}s`;
     badge.style.display='inline-flex';
     badge.innerHTML=`<i class="fas fa-clock"></i> Auto ${label}`;
     badge.setAttribute('data-tip', (typeof t==='function') ? t('autopoll.titleLive',{m:mins,s:secs})
-                                        : `Auto-poll attivo · prossimo ciclo tra ${mins}m ${secs}s`);
+                                        : `Monitoraggio attivo · prossimo giro tra ${mins}m ${secs}s`);
 }
 
 /**
@@ -892,21 +859,20 @@ function closeVlanMembers(){
 }
 // Backdrop e bottoni «chiudi» del modale Membership VLAN via event delegation
 // (data-act), come tutti gli overlay in #modal-root — niente più onclick inline.
-// Coda ASSE B: popover Automazioni (intervallo auto-poll) + modale VLAN voce
-// (chiudi/conferma). setAutoPoll/_closeVoiceAssign/_voiceAssignConfirm sono locali.
+// Coda ASSE B: popover Automazioni + modale VLAN voce (chiudi/conferma).
+// _closeVoiceAssign/_voiceAssignConfirm sono locali; il monitoraggio automatico
+// (toggle/profondità/intervallo → setAutoMonitor) è registrato in app-drift.js.
 // «Sincronizza ora» (pollAllSNMP) è in app-snmp.js, rinnovo IP in app-drift.js,
 // «Carica lease» in app-dhcp-import.js (registrate nei rispettivi owner).
 registerClickActions({
     'vm-backdrop': (el, ev) => { if (ev.target === el) closeVlanMembers(); },
     'vm-close':    () => closeVlanMembers(),
-    'autopoll-interval': (el) => setAutoPoll(null, +el.dataset.interval),
     'voice-close':   () => _closeVoiceAssign(),
     'voice-confirm': () => _voiceAssignConfirm(),
     // Coda ASSE B (netmapper.html static): il badge/bottone che APRE il popover Automazioni.
     'automation-menu-toggle': () => toggleAutomationMenu(),
 });
 registerChangeActions({
-    'autopoll-toggle': (el) => setAutoPoll(el.checked, null),
     'autosave-toggle': (el) => setAutosave(el.checked),
     'snapshot-on-verify': (el) => setSnapshotOnVerify(el.checked),
     'voice-preview':   () => _voiceAssignPreview(),
@@ -1057,7 +1023,7 @@ export { setPortMode, setPortTrunkVlans, setNodeVoiceVlan };
 export { setEndpointVlan };
 
 expose({
-    _ensureVlanColor, setAutoPoll, _startAutoPoll, _stopAutoPoll, _updateAutoPollBadge,
+    _ensureVlanColor, _updateAutoPollBadge,
     toggleAutomationMenu, renderAutomationMenu,
     _buildPortAdjacency, propagateVlans, _isVlanConduit, _portEffTrunk, _portTrunkSeed,
     _propagateTrunkMembership, _runActiveAnchor, _effPortVlan, _getLinkTrunk, _linkIsTrunk,

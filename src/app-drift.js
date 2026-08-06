@@ -22,7 +22,8 @@ import { escapeHTML, normalizeMacAddress } from './app-util.js';
 import { nodeById, markDirty, getNodeByPortId, getNodeDisplayName, pushHistory, logAudit, _cableAutoLabel } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
-import { renderAutomationMenu } from './app-vlan-autopoll.js';   // setAutoIpRenew aggiorna il popover Automazioni
+import { renderAutomationMenu, _updateAutoPollBadge } from './app-vlan-autopoll.js';   // popover Automazioni + badge del monitoraggio (ciclo benigno: solo a runtime)
+import { effAutoConfig, clampMonitorInterval } from '../lib/auto-monitor.js';   // config PURA del monitoraggio unificato (schema nuovo + migrazione legacy)
 import { ensureNodeRackVisible, focusNode, selectAndFocusNode } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { trace } from './app-pointer.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { reconcileMiscabling } from './app-autolink.js';   // Proof-State: miscablaggio per-porta (l.miscabled) dai neighbor cache
@@ -324,45 +325,70 @@ async function runDriftCheck(opts = {}){
     }
 }
 
-// ── Verifica PROGRAMMATA (scheduler, clone del pattern auto-poll) ─────
-// Un timer che ogni N minuti lancia una Verifica SILENZIOSA (runDriftCheck{silent}):
-// stesso motore della Verifica manuale (poll + sweep + compute + proof-state), ma
-// senza rubare lo schermo. "Rileva, non adotta": nessuna adozione automatica.
-// Limite onesto: vive nel browser (serve la scheda aperta), come l'auto-poll.
-let _verifyTimer = null;
+// ── Monitoraggio automatico UNIFICATO (un solo scheduler, due profondità) ──
+// Un solo timer: a ogni tick esegue la profondità scelta —
+//   'light' → win.pollAllSNMP({dataOnly:true})  (solo valori SNMP, nessuno storico)
+//   'full'  → runDriftCheck({silent:true})       (Verifica completa + timeline/snapshot)
+// La Verifica INGLOBA già il polling SNMP: le due profondità NON girano insieme, si
+// sceglie quella eseguita a ogni tick (config/migrazione in lib/auto-monitor.js).
+// "Rileva, non adotta": nessuna adozione automatica. Limite onesto: vive nel browser
+// (serve la scheda aperta). Il prossimo giro è in store._autoMonitorNextAt (badge).
+let _monitorTimer = null;       // handle setInterval del giro
+let _monitorBadgeTimer = null;  // handle setInterval del conto alla rovescia sul badge
+let _monitorBusy = false;       // guardia anti-sovrapposizione: mai due giri (né due sweep SNMP) insieme
 
-async function _scheduledVerify(){
-    if(_driftRunning || store._snmpSyncing) return;                          // non sovrapporre a Sync/Verifica
+async function _autoMonitorTick(){
+    if(_monitorBusy || _driftRunning || store._snmpSyncing) return;                      // non sovrapporre a Sync/Verifica/altro giro
     if(typeof document !== 'undefined' && document.visibilityState === 'hidden') return;  // scheda nascosta: salta il giro
-    await runDriftCheck({ silent: true });
+    const cfg = effAutoConfig(store.state.autoPoll);
+    if(!cfg.enabled) return;
+    _monitorBusy = true;
+    store._autoMonitorNextAt = Date.now() + cfg.interval * 60000;   // pianifica il prossimo (per il badge)
+    try {
+        if(cfg.depth === 'full') await runDriftCheck({ silent: true });   // include SNMP + storico
+        else await win.pollAllSNMP({ dataOnly: true });                   // 'light': solo dati SNMP (come runDriftCheck, non guardato)
+    } catch(e){
+        console.warn('[auto-monitor] giro fallito:', e && e.message || e);   // riproverà al prossimo tick
+    } finally {
+        _monitorBusy = false;
+        if(typeof _updateAutoPollBadge === 'function') _updateAutoPollBadge();
+    }
 }
 
-// Rearm idempotente: ferma il timer e lo riavvia se ATTIVO con un intervallo.
-// Chiamata da setAutoVerify e al caricamento progetto (app-core.loadProject).
-export function _startAutoVerify(){
-    _stopAutoVerify();
-    const ap = store.state.autoPoll || {};
-    const every = ap.verifyEvery | 0;
-    if(ap.autoVerify && every > 0) _verifyTimer = setInterval(_scheduledVerify, every * 60000);
+// Rearm idempotente: ferma i timer e li riavvia se il monitoraggio è ATTIVO con un
+// intervallo. Chiamata da setAutoMonitor e al caricamento progetto (app-core.loadProject).
+export function _startAutoMonitor(){
+    _stopAutoMonitor();
+    const cfg = effAutoConfig(store.state.autoPoll);
+    if(!cfg.enabled || !(cfg.interval > 0)) return;
+    store._autoMonitorNextAt = Date.now() + cfg.interval * 60000;
+    _monitorTimer = setInterval(_autoMonitorTick, cfg.interval * 60000);
+    _monitorBadgeTimer = setInterval(() => { if(typeof _updateAutoPollBadge === 'function') _updateAutoPollBadge(); }, 30000);
+    if(typeof _updateAutoPollBadge === 'function') _updateAutoPollBadge();
 }
-export function _stopAutoVerify(){
-    if(_verifyTimer){ clearInterval(_verifyTimer); _verifyTimer = null; }
+export function _stopAutoMonitor(){
+    if(_monitorTimer){ clearInterval(_monitorTimer); _monitorTimer = null; }
+    if(_monitorBadgeTimer){ clearInterval(_monitorBadgeTimer); _monitorBadgeTimer = null; }
+    store._autoMonitorNextAt = 0;
+    if(typeof _updateAutoPollBadge === 'function') _updateAutoPollBadge();
 }
 
-// Verifica programmata dal popover Automazioni, STESSO modello dell'auto-poll:
-// slider attivo/spento (autoPoll.autoVerify) + intervallo (autoPoll.verifyEvery,
-// 15|30|60|1440 min, 1440=24h). setAutoVerify(enabled, every): passa null al campo
-// che non cambi. All'attivazione senza intervallo scelto usa un default (60 min).
-// setInterval regge 24h (limite ~24,8 giorni).
-function setAutoVerify(enabled, every){
-    if(!store.state.autoPoll) store.state.autoPoll = { enabled:false, interval:5 };
+// Setter unico dal popover Automazioni: setAutoMonitor(enabled, interval, depth),
+// passa null al campo che non cambi. Persiste lo schema NUOVO (enabled/interval/depth)
+// e ritira i legacy (autoVerify/verifyEvery): da qui la fonte è enabled/interval/depth.
+// Al cambio profondità l'intervallo viene clampato al set della nuova (auto-monitor.js).
+function setAutoMonitor(enabled, interval, depth){
+    if(!store.state.autoPoll) store.state.autoPoll = {};
     const ap = store.state.autoPoll;
-    if(enabled !== null) ap.autoVerify = !!enabled;
-    if(every !== null && every > 0) ap.verifyEvery = every;
-    if(ap.autoVerify && !((ap.verifyEvery | 0) > 0)) ap.verifyEvery = 60;   // default all'attivazione
+    const cur = effAutoConfig(ap);
+    const newDepth = (depth !== null) ? (depth === 'light' ? 'light' : 'full') : cur.depth;
+    ap.enabled  = (enabled !== null) ? !!enabled : cur.enabled;
+    ap.depth    = newDepth;
+    ap.interval = clampMonitorInterval(newDepth, (interval !== null) ? interval : cur.interval);
+    delete ap.autoVerify; delete ap.verifyEvery;   // ritira i legacy: da ora la fonte è enabled/interval/depth
     markDirty();
-    _startAutoVerify();
-    if(typeof renderAutomationMenu === 'function') renderAutomationMenu();   // aggiorna slider + bottoni-intervallo
+    _startAutoMonitor();
+    if(typeof renderAutomationMenu === 'function') renderAutomationMenu();   // aggiorna toggle + profondità + intervalli
 }
 
 // ── Storico: riga di timeline leggera per ogni Verifica (Fase 3) ─────
@@ -890,8 +916,9 @@ expose({
 registerClickActions({
     // Coda ASSE B (netmapper.html static): bottone header «Verifica».
     'run-drift-check':   () => runDriftCheck(),
-    // Popover Automazioni: intervallo Verifica programmata (15|30|60|1440 min).
-    'autoverify-interval': (el) => setAutoVerify(null, +el.dataset.interval),
+    // Popover Automazioni: intervallo del monitoraggio (adattivo alla profondità) + scelta profondità.
+    'automonitor-interval': (el) => setAutoMonitor(null, +el.dataset.interval, null),
+    'automonitor-depth':    (el) => setAutoMonitor(null, null, el.dataset.depth),
     'drift-close':       () => _closeDriftReport(),
     'drift-investigate': (el) => driftInvestigate(el.dataset.key),
     'drift-ignore':      (el) => driftIgnore(el.dataset.key),
@@ -903,8 +930,8 @@ registerClickActions({
 });
 registerChangeActions({
     'drift-show-endpoints': (el) => setDriftShowEndpoints(el.checked),
-    // Popover Automazioni: slider attivazione Verifica programmata (stile auto-poll).
-    'autoverify-toggle': (el) => setAutoVerify(el.checked, null),
+    // Popover Automazioni: interruttore master del monitoraggio automatico unificato.
+    'automonitor-toggle': (el) => setAutoMonitor(el.checked, null, null),
     // Coda ASSE B: toggle «Rinnovo IP» del popover Automazioni (reso da
     // app-vlan-autopoll). setAutoIpRenew e' locale QUI (owner) → registrato qui per
     // evitare che app-vlan-autopoll importi app-drift (sarebbe un ciclo: app-drift

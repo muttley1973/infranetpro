@@ -10,8 +10,7 @@ import { pushHistory, _invalidateIdx, logAudit, _clearDirty, _migrateState, _upd
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderRackTabs, updateTransforms, _updateFloorToolbarVisibility, initPaletteUi } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { _restoreTopoSession } from './app-topology-discover.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
-import { _startAutoPoll, _stopAutoPoll } from './app-vlan-autopoll.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
-import { _startAutoVerify } from './app-drift.js';   // Verifica programmata: rearm timer al load progetto (ciclo benigno: solo a runtime)
+import { _startAutoMonitor } from './app-drift.js';   // monitoraggio automatico unificato: rearm dello scheduler al load progetto (ciclo benigno: solo a runtime)
 import { createSnapshot } from './app-snapshots.js';   // snapshot su Salva manuale (ciclo benigno: solo a runtime)
 import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: bottoni progetto (data-act) + selettore progetto (data-change)
 import { loadDeviceTypes } from './app-device-types.js';   // boot catalogo device-type (import diretto: no win.*)
@@ -64,9 +63,7 @@ async function loadProject(id) {
     _invalidateIdx();
     store._history=[]; store._histIdx=-1; _updateHistoryBtns();
     _clearDirty();
-    _stopAutoPoll();
-    if(store.state.autoPoll?.enabled) _startAutoPoll();
-    _startAutoVerify();   // rearm Verifica programmata sul progetto caricato (stop+start idempotente)
+    _startAutoMonitor();   // rearm del monitoraggio automatico sul progetto caricato (stop+start idempotente)
     renderRackTabs(); updateTransforms(); renderAll();
     document.title = `InfraNet Pro — ${proj.name}`;
 }
@@ -86,9 +83,7 @@ export function applyRestoredState(snapState){
     store._vlanIpamOpen.clear();
     _invalidateIdx();
     store._history=[]; store._histIdx=-1; _updateHistoryBtns();   // l'undo riparte dallo stato ripristinato
-    _stopAutoPoll();
-    if(store.state.autoPoll?.enabled) _startAutoPoll();
-    _startAutoVerify();
+    _startAutoMonitor();
     renderRackTabs(); updateTransforms(); renderAll();
 }
 

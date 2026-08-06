@@ -386,22 +386,22 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         const pop = (document.getElementById('automation-dropdown') || {}).innerHTML || '';
         return {
           hasHeader: closed.indexOf('Contesto progetto') >= 0,
-          pollingMovedOut: closed.indexOf('Polling automatico SNMP') < 0,
+          monitorMovedOut: closed.indexOf('Monitoraggio automatico') < 0,
           hasColors: closed.indexOf('Colori workspace') >= 0,
           hasVlan10Card: closed.indexOf('VLAN 10') >= 0,
           ipamClosed: closed.indexOf('Subnet / CIDR') < 0,
           ipamOpenedReflectsSet: opened.indexOf('Subnet / CIDR') >= 0,
-          popHasPolling: pop.indexOf('Polling automatico SNMP') >= 0,
+          popHasMonitor: pop.indexOf('Monitoraggio automatico') >= 0,
           popHasIpRenew: pop.indexOf('Rinnovo automatico IP') >= 0,
         };
       });
       assert.ok(r.hasHeader, 'header "Contesto progetto"');
-      assert.ok(r.pollingMovedOut, 'Polling NON è più nel Contesto progetto (spostato nel popover Automazioni)');
+      assert.ok(r.monitorMovedOut, 'Monitoraggio NON è nel Contesto progetto (vive nel popover Automazioni)');
       assert.ok(r.hasColors, 'sezione Colori workspace');
       assert.ok(r.hasVlan10Card, 'card VLAN 10 presente');
       assert.ok(r.ipamClosed, 'IPAM chiuso di default: niente campi Subnet');
       assert.ok(r.ipamOpenedReflectsSet, 'il modulo legge win._vlanIpamOpen: aprendo VLAN 10 compaiono i campi IPAM (cross-boundary)');
-      assert.ok(r.popHasPolling, 'popover Automazioni: sezione Polling automatico SNMP');
+      assert.ok(r.popHasMonitor, 'popover Automazioni: sezione Monitoraggio automatico');
       assert.ok(r.popHasIpRenew, 'popover Automazioni: sezione Rinnovo automatico IP (DHCP)');
     });
 
@@ -2035,7 +2035,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           if (typeof _invalidateIdx === 'function') _invalidateIdx();
 
           const fns = ['propagateVlans','_effPortVlan','setSiteNativeVlan','toggleVoiceVlan',
-            'setLinkMode','showVlanMembers','_vlansToRangeStr','_ensureVlanColor','setAutoPoll'];
+            'setLinkMode','showVlanMembers','_vlansToRangeStr','_ensureVlanColor'];
           const allFns = fns.every(n => typeof window[n] === 'function');
 
           propagateVlans();

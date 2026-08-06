@@ -4,6 +4,13 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 
 **A linked version number is a published release** — follow it to the release on GitHub. *Unreleased* is what has landed on `main` since the last one.
 
+## [2.7.1] — 2026-08-06
+
+**The Automazioni menu now has one "Automatic monitoring" scheduler with two depths, instead of two overlapping timers.** Background SNMP polling and scheduled Verify were separate on/off timers — but a Verify already includes the SNMP poll, so running both was redundant and, at coinciding ticks, fired two concurrent SNMP sweeps. They are now a single scheduler: pick a depth and one interval, with an in-flight guard so a poll and a Verify can never sweep SNMP at the same time.
+
+### Changed
+- **Unified "Automatic monitoring" (one scheduler, two depths)** replaces the separate SNMP auto-poll and scheduled Verify: one master toggle, one depth selector — *Light* refreshes live SNMP values only (no history), *Full* runs the complete Verify (reality check + history) — and a depth-adaptive interval (Light 5/10/15/30 min — 5 min is the SNMP polling standard, below which large networks can't keep up; Full hourly to daily: 1h/6h/12h/24h). A single in-flight lock prevents overlapping runs and double SNMP sweeps; one countdown badge. Pure config + migration in `lib/auto-monitor.js`: projects saved with the old separate toggles migrate on the fly (a scheduled Verify becomes *Full*, an auto-poll becomes *Light*) without dirtying the file.
+
 ## [2.7.0] — 2026-08-06
 
 **The header never spills onto a second line when a status badge appears.** Turning on background polling, highlighting spare ports, a freshness counter or an SNMPv3 notice each add width the responsive breakpoints can't foresee; in the ~1738–1920px range that alone was enough to push the right-hand cluster onto a second row — just enabling polling broke the layout. The header now measures itself and reclaims space in the requested order: first it collapses button labels to icons, and only as a last resort narrows the search bar, so it stays on one line. Verify keeps its label.
