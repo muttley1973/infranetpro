@@ -18,6 +18,7 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 
 ### Fixed
 - **The header stays on one row when the runtime status badges appear** (auto-poll, spare ports, freshness, SNMPv3, paid-module entries): a fitter measures the wrap and reclaims space by priority — button labels to icons first (Export → Dashboard → Save → Discover), the search bar last — instead of relying on the search's shrink headroom, which the badge set could exceed above the ≤1737px breakpoint. The media queries still own the layout when no badge is showing (the fitter is purely additive); Verify never loses its label.
+- **The "restore point created" feedback is now visible from inside the History panel**: the toast rendered below the modal overlay (z-index 400 vs the panel's 1000), so it was hidden while the panel was open. The toast now sits above panels (z-index 2000), and the Restore tab also shows an inline success/error banner for both create and restore. The verification-timeline row is now written right after the compute and persist — before the UI rendering — so a downstream render error can no longer skip recording a Verify.
 
 ## [2.6.2] — 2026-08-05
 

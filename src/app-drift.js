@@ -299,6 +299,10 @@ async function runDriftCheck(opts = {}){
         _driftWriteProofState(sweep || {}, hasSnmp);    // Proof-State: fissa n.proof su ogni nodo (persistito, non-undo)
         reconcileMiscabling();                          // Proof-State: marca i cavi col vicino osservato ≠ dichiarato (l.miscabled)
         markDirty();
+        // Storico: registra la riga di timeline SUBITO dopo calcolo/persistenza, PRIMA
+        // del rendering — così un eventuale errore nella UI a valle non impedisce mai il
+        // salvataggio della Verifica (Fase 3, best-effort).
+        _appendVerifyTimeline(silent);
         // B4 — il risultato ATTERRA nella Panoramica «Vero» (overlay ritirato): se non
         // sei già lì, ti ci porta, così la Verifica "resta" invece di lampeggiare in un
         // overlay. setOverview è bare-global (expose di app-overview), typeof-guard.
@@ -309,7 +313,6 @@ async function runDriftCheck(opts = {}){
         // silent: aggiorna il chip di freschezza («ultima prova: N fa») = feedback discreto.
         renderAll();
         _renderDriftReport();   // overlay dormiente: rispecchia solo nella Panoramica «Vero»
-        _appendVerifyTimeline(silent);   // Fase 3: registra la riga di storico (best-effort)
     } catch(e){
         // silent: la Verifica programmata non apre alert; logga e riproverà al prossimo tick.
         if(silent) console.warn('[auto-verify] verifica programmata fallita:', e && e.message || e);

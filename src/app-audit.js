@@ -171,12 +171,20 @@ async function _renderTimelineTab(){
 // ── Scheda RIPRISTINO (snapshot completi, Fase 4) ────────────────────
 const _SNAP_REASONS = ['on-demand','pre-restore','save','manual','daily','pre-import','pre-adopt','pre-delete'];
 function _reasonLabel(r){ return _SNAP_REASONS.includes(r) ? _tA('storia.reason.' + r) : (r || '—'); }
-async function _renderSnapshotsTab(){
+// Avviso inline DENTRO il pannello «Storia» (il toast, alzato sopra i modali, resta
+// complementare): conferma del punto creato / ripristino, visibile senza uscire dal modale.
+function _snapNotice(n){
+    if(!n || !n.msg) return '';
+    const ok = n.type !== 'err';
+    const col = ok ? '#3fb950' : '#f85149';
+    return `<div style="margin:0 0 10px;padding:8px 12px;border-radius:8px;font-size:.85rem;display:flex;align-items:center;gap:8px;background:${ok?'rgba(63,185,80,.14)':'rgba(248,81,73,.14)'};border:1px solid ${col};color:var(--text-main,#e6edf3)"><i class="fas ${ok?'fa-circle-check':'fa-circle-exclamation'}" style="color:${col}"></i> ${escapeHTML(n.msg)}</div>`;
+}
+async function _renderSnapshotsTab(notice){
     const box = document.getElementById('storia-body'); if(!box) return;
     box.innerHTML = `<div class="drift-empty">${escapeHTML(_tA('common.loading','Carico…'))}</div>`;
     const rows = await fetchSnapshots();
     if(_activeTab !== 'snapshots') return;
-    const head = `<div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    const head = `${_snapNotice(notice)}<div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <button class="toolbar-btn primary" data-act="snap-create"><i class="fas fa-camera"></i> ${escapeHTML(_tA('storia.snapCreate','Crea punto di ripristino'))}</button>
         <span class="autom-desc" style="margin:0">${escapeHTML(_tA('storia.snapHint','Le fotografie vivono fuori dal file di progetto. Ripristinare crea prima un punto di sicurezza.'))}</span></div>`;
     if(!rows.length){ box.innerHTML = head + `<div class="drift-empty">${escapeHTML(_tA('storia.snapEmpty','Nessuna fotografia salvata. Crea un punto, oppure ne nasce uno prima delle operazioni rischiose.'))}</div>`; return; }
@@ -215,8 +223,8 @@ registerClickActions({
     'audit-close':  () => _closeAuditLog(),
     'audit-export': () => exportAuditCsv(),
     'storia-tab':   (el) => _setTab(el.dataset.tab),
-    'snap-create':  () => createManualPoint(() => { if(_activeTab === 'snapshots') _renderSnapshotsTab(); }),
-    'snap-restore': (el) => restoreSnapshot(el.dataset.sid, { at: el.dataset.at }, () => { if(_activeTab === 'snapshots') _renderSnapshotsTab(); }),
+    'snap-create':  () => createManualPoint((rec) => { if(_activeTab === 'snapshots') _renderSnapshotsTab(rec ? { type:'ok', msg: t('snap.pointCreated') } : { type:'err', msg: t('snap.pointFailed') }); }),
+    'snap-restore': (el) => { const at = el.dataset.at; restoreSnapshot(el.dataset.sid, { at }, (ok) => { if(_activeTab === 'snapshots') _renderSnapshotsTab(ok ? { type:'ok', msg: t('snap.restoreDone', { when: at }) } : { type:'err', msg: t('snap.restoreFailed') }); }); },
 });
 registerInputActions({
     'audit-filter': (el) => setAuditFilter(el.value),
