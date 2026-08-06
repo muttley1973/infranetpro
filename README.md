@@ -121,9 +121,9 @@ Double-click <code>avvia.bat</code>.<br>
 
 > **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then run **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.5.1) — cable traces follow the physical path, and custom values stay saved.** The visible run now follows **device → wall port → patch panel → switch**, or the direct **device → switch** path, without drifting to hidden coordinates; custom manual properties also survive re-rendering.
+> 📰 **What's new (v2.7.0) — the documentation keeps itself saved and verified, and a history you can roll back to.** Opt-in **Autosave** and a silent **Scheduled Verify** run in the background; every Verify leaves a dated row in a **verification timeline**, and **restorable snapshots** — kept outside the project file — let you create a point and roll back to it. All reachable from the Automations menu and a unified **History** panel.
 >
-> 📰 **Before that (v2.5.0) — the Dashboard is the single place, and its numbers mean what they say.** The **"Report e analisi" menu folds into the tiles** it belonged to, a new Security verdict flags **wireless SSIDs whose VLAN their access point's trunk does not carry**, and **"Free ports" now counts switch capacity** — patch panels, appliances and wall outlets are counted apart, so the headline is the port a new device can actually use. Full detail in [CHANGELOG.md](CHANGELOG.md).
+> 📰 **Before that (v2.6.0) — every documented cable carries an honest proof-state.** After a Verify a cable inherits the reachability of its endpoints: a declared cable stays solid when its device goes quiet, while an inferred cable whose evidence has decayed becomes a *ghost* — visible, never deleted. Full detail in [CHANGELOG.md](CHANGELOG.md).
 
 > 🔒 **Security-audited & hardened.** The codebase has undergone an application-security audit (no critical issues) and the follow-up fixes are covered by **automated security regression tests**: the data surfaces (AI context, REST DTOs, exports) are **allowlist-only** so secrets never leave the machine, OS commands run via `execFile` with no shell, project IDs are path-traversal-safe, and secrets use a CSPRNG. See [Authentication & Roles → Security hardening & audit](#authentication--roles).
 
@@ -240,9 +240,10 @@ Double-click <code>avvia.bat</code>.<br>
 | **🏷️ VLAN** | Access and trunk detection, Q-BRIDGE bitmaps with a VTP fallback, auto-derived trunks, per-VLAN IPAM occupancy, one-click isolation across the whole map |
 | **📶 Wireless** | Up to 8 radios per device with their own SSID, band, channel, security and VLAN; over-the-air association discovery from the bridge FDB and the L3 neighbour table |
 | **🧵 Cabling** | Segment editor on the TIA-568 hierarchy, copper *and* fibre reach validation, end-to-end physical path trace, printable label sheets and CSV |
+| **🕓 History & automation** | Opt-in autosave, a silent scheduled Verify, a verification timeline and restorable full-state snapshots — kept outside the project file, behind a database-ready interface |
 | **🤖 AI assistant** | Bring-your-own-key, OpenAI-compatible, local by default; allowlist context, grounded answers with clickable citations, Ansible drafts — advisory, never auto-applied |
 | **🔒 Security** | Session auth with admin/viewer roles, rate-limited login, loopback bind, secrets structurally excluded from every data surface |
-| **🌍 Bilingual** | Complete Italian and English interface, onboarding and 48-page manual, guarded by an `it ↔ en` key-parity test |
+| **🌍 Bilingual** | Complete Italian and English interface, onboarding and ~49-page manual, guarded by an `it ↔ en` key-parity test |
 
 > Every heading below opens. Deeper detail lives in [ARCHITECTURE.md](ARCHITECTURE.md), the [technical manuals](MANUALE_TECNICO_IT.pdf) and the commit history.
 <details>
