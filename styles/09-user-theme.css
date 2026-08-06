@@ -292,6 +292,31 @@
             .header-sep { display: none; }
         }
 
+        /* ---- Fitter anti-wrap (src/app-header-fit.js) ----
+           Le media query sopra tengono l'header su UNA riga in base alla sola
+           LARGHEZZA. Ma i badge di stato (auto-poll, porte libere, freschezza,
+           SNMPv3, moduli a pagamento) compaiono a runtime e aggiungono larghezza
+           che nessuna @media può prevedere → nella fascia ~1738–1920px bastavano a
+           spingere il cluster destro su DUE righe. Il fitter MISURA e, finché
+           serve, aggiunge queste classi cumulative recuperando spazio nell'ordine
+           di PRIORITÀ voluto: prima le etichette a icona (Esporta→Dashboard→Salva→
+           Scopri), e SOLO come ultima risorsa stringe la ricerca. «Verifica»
+           (azione primaria) non perde mai la scritta. Stessa tecnica sr-only delle
+           @media: l'etichetta resta nel DOM per gli screen reader, sparisce solo
+           a video. Specificità (id+classi) sopra quella delle @media → vince. */
+        header.hf1 #btn-impexp .btn-label,
+        header.hf2 #btn-overview .btn-label,
+        header.hf3 #btn-save #save-label,
+        header.hf4 #btn-discover .btn-label {
+            position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+            overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+        }
+        /* hf5 — ultima risorsa: la ricerca cede il suo basis (grow → resta grande
+           quando c'è spazio; qui si stringe fino a ~icona+poco). min-width piccolo
+           per massimizzare lo spazio recuperato: si arriva qui solo su finestre
+           strette con più badge accesi insieme. */
+        header.hf5 .search-panel { flex: 1 1 0; min-width: 40px; }
+
 /* ============================================================
    TOOLTIP CSS CUSTOM (traducibile dal browser)
    Sostituiscono gli attributi title="..." che il browser

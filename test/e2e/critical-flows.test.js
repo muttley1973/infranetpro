@@ -107,6 +107,42 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(info.dataPid > 10, 'render reale: porte [data-pid] presenti nel DOM');
     });
 
+    await t.test('header: i badge di stato non mandano la barra a due righe (fitter)', async () => {
+      // Fascia critica ~1738–1920px: sopra il breakpoint ≤1737 la ricerca ha
+      // ancora un basis largo (320px), quindi PRIMA del fitter bastava attivare
+      // il polling (badge "Auto …") per spingere il cluster destro su una
+      // seconda riga. Pagina dedicata a 1760px, isolata dal `page` condiviso a
+      // 1500 per non disturbare i subtest successivi.
+      const p = await browser.newPage({ viewport: { width: 1760, height: 950 } });
+      try {
+        await p.goto(srv.baseURL, { waitUntil: 'load' });
+        await p.waitForFunction(
+          () => typeof window._fitHeader === 'function' && !!document.querySelector('header'),
+          null, { timeout: 15000 });
+        const r = await p.evaluate(() => {
+          // Accende i badge come fa l'app quando il polling è attivo e i dati
+          // sono freschi (stessa via: style.display sul badge).
+          const fresh = document.getElementById('sync-fresh-chip');
+          if (fresh) { fresh.textContent = '16 h'; fresh.style.display = 'inline-flex'; }
+          const auto = document.getElementById('autopoll-badge');
+          if (auto) { auto.textContent = 'Auto 4m'; auto.style.display = 'inline-flex'; }
+          window._fitHeader();   // deterministico: non aspetta il rAF dell'osservatore
+          const h = document.querySelector('header');
+          const right = h.querySelector('.header-right');
+          const title = h.querySelector('.header-title');
+          const verifica = document.querySelector('#btn-drift .btn-label');
+          return {
+            twoRows: (right.offsetTop - title.offsetTop) > 20,
+            verificaShown: verifica ? Math.round(verifica.getBoundingClientRect().width) > 5 : false,
+          };
+        });
+        assert.equal(r.twoRows, false, 'header su UNA riga coi badge di stato accesi (niente wrap)');
+        assert.ok(r.verificaShown, 'l’etichetta «Verifica» (azione primaria) resta visibile');
+      } finally {
+        await p.close();
+      }
+    });
+
     await t.test('instradamento cavi: getCablePath è direction-true (niente nodo) nel browser reale', async () => {
       const r = await page.evaluate(() => ({
         horiz: getCablePath(10, 20, 210, 20),

@@ -4,6 +4,13 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 
 **A linked version number is a published release** — follow it to the release on GitHub. *Unreleased* is what has landed on `main` since the last one.
 
+## [Unreleased]
+
+**The header never spills onto a second line when a status badge appears.** Turning on background polling, highlighting spare ports, a freshness counter or an SNMPv3 notice each add width the responsive breakpoints can't foresee; in the ~1738–1920px range that alone was enough to push the right-hand cluster onto a second row — just enabling polling broke the layout. The header now measures itself and reclaims space in the requested order: first it collapses button labels to icons, and only as a last resort narrows the search bar, so it stays on one line. Verify keeps its label.
+
+### Fixed
+- **The header stays on one row when the runtime status badges appear** (auto-poll, spare ports, freshness, SNMPv3, paid-module entries): a fitter measures the wrap and reclaims space by priority — button labels to icons first (Export → Dashboard → Save → Discover), the search bar last — instead of relying on the search's shrink headroom, which the badge set could exceed above the ≤1737px breakpoint. The media queries still own the layout when no badge is showing (the fitter is purely additive); Verify never loses its label.
+
 ## [2.6.2] — 2026-08-05
 
 **The VLAN filter now shows the real, derived VLAN — for cables and for wireless — and flags a wireless client whose IP doesn't match its SSID.** Filtering by a VLAN used to hide anything whose VLAN was *derived* rather than written into the raw trunk field: a VoIP voice VLAN, a per-SSID wireless VLAN, a VLAN propagated along a passive run, or a wireless device that joins an SSID's VLAN. The cable colours and topology already used the full carried set — now the filter uses that same source. The Dashboard also flags a wireless client whose IP falls in a different VLAN's subnet than the SSID it joined.
