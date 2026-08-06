@@ -334,26 +334,32 @@ async function _scheduledVerify(){
     await runDriftCheck({ silent: true });
 }
 
-// Rearm idempotente: ferma il timer esistente e lo riavvia se verifyEvery>0.
+// Rearm idempotente: ferma il timer e lo riavvia se ATTIVO con un intervallo.
 // Chiamata da setAutoVerify e al caricamento progetto (app-core.loadProject).
 export function _startAutoVerify(){
     _stopAutoVerify();
-    const every = (store.state.autoPoll?.verifyEvery | 0);
-    if(every > 0) _verifyTimer = setInterval(_scheduledVerify, every * 60000);
+    const ap = store.state.autoPoll || {};
+    const every = ap.verifyEvery | 0;
+    if(ap.autoVerify && every > 0) _verifyTimer = setInterval(_scheduledVerify, every * 60000);
 }
 export function _stopAutoVerify(){
     if(_verifyTimer){ clearInterval(_verifyTimer); _verifyTimer = null; }
 }
 
-// Toggle dal popover Automazioni: 0=off | 15|30|60 min. Persiste in autoPoll
-// (come gli altri campi automazione) e ri-arma il timer.
-function setAutoVerify(every){
-    every = every | 0;
+// Verifica programmata dal popover Automazioni, STESSO modello dell'auto-poll:
+// slider attivo/spento (autoPoll.autoVerify) + intervallo (autoPoll.verifyEvery,
+// 15|30|60|1440 min, 1440=24h). setAutoVerify(enabled, every): passa null al campo
+// che non cambi. All'attivazione senza intervallo scelto usa un default (60 min).
+// setInterval regge 24h (limite ~24,8 giorni).
+function setAutoVerify(enabled, every){
     if(!store.state.autoPoll) store.state.autoPoll = { enabled:false, interval:5 };
-    store.state.autoPoll.verifyEvery = (every > 0) ? every : 0;
+    const ap = store.state.autoPoll;
+    if(enabled !== null) ap.autoVerify = !!enabled;
+    if(every !== null && every > 0) ap.verifyEvery = every;
+    if(ap.autoVerify && !((ap.verifyEvery | 0) > 0)) ap.verifyEvery = 60;   // default all'attivazione
     markDirty();
     _startAutoVerify();
-    if(typeof renderAutomationMenu === 'function') renderAutomationMenu();   // aggiorna i bottoni-intervallo nel popover
+    if(typeof renderAutomationMenu === 'function') renderAutomationMenu();   // aggiorna slider + bottoni-intervallo
 }
 
 // ── Storico: riga di timeline leggera per ogni Verifica (Fase 3) ─────
@@ -881,8 +887,8 @@ expose({
 registerClickActions({
     // Coda ASSE B (netmapper.html static): bottone header «Verifica».
     'run-drift-check':   () => runDriftCheck(),
-    // Popover Automazioni: intervallo Verifica programmata (0=off | 15|30|60 min).
-    'autoverify-interval': (el) => setAutoVerify(+el.dataset.interval),
+    // Popover Automazioni: intervallo Verifica programmata (15|30|60|1440 min).
+    'autoverify-interval': (el) => setAutoVerify(null, +el.dataset.interval),
     'drift-close':       () => _closeDriftReport(),
     'drift-investigate': (el) => driftInvestigate(el.dataset.key),
     'drift-ignore':      (el) => driftIgnore(el.dataset.key),
@@ -894,6 +900,8 @@ registerClickActions({
 });
 registerChangeActions({
     'drift-show-endpoints': (el) => setDriftShowEndpoints(el.checked),
+    // Popover Automazioni: slider attivazione Verifica programmata (stile auto-poll).
+    'autoverify-toggle': (el) => setAutoVerify(el.checked, null),
     // Coda ASSE B: toggle «Rinnovo IP» del popover Automazioni (reso da
     // app-vlan-autopoll). setAutoIpRenew e' locale QUI (owner) → registrato qui per
     // evitare che app-vlan-autopoll importi app-drift (sarebbe un ciclo: app-drift

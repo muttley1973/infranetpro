@@ -84,19 +84,19 @@ export function renderAutomationMenu(){
     const ipr=!!st.autoIpRenew;
     const as=!!ap.autosave;   // autosave debounced-on-dirty (default OFF)
     const sov=!(ap.snapshotOnVerify===false);   // fotografia (timeline) a ogni Verifica (default ON)
-    const vev=ap.verifyEvery|0;   // Verifica programmata: 0=off | 15|30|60 min
+    const av=!!ap.autoVerify;   // Verifica programmata: slider attivo/spento (stile auto-poll)
+    const vev=ap.verifyEvery|0;   // intervallo Verifica programmata (15|30|60|1440 min, 1440=24h)
     const dl=Array.isArray(store._dhcpLeases)?store._dhcpLeases:[];   // lease DHCP transitori in memoria
     const ivl=ap.interval||5;
     d.innerHTML = `
       <div class="autom-sec">
+        <div class="autom-grouphd"><i class="fas fa-network-wired"></i>${escapeHTML(t('autom.snmpGroup'))}</div>
         <div class="autom-row">
-          <span class="autom-title"><i class="fas fa-network-wired"></i>${escapeHTML(t('autom.syncNow'))}</span>
+          <span class="autom-title"><i class="fas fa-rotate"></i>${escapeHTML(t('autom.syncNow'))}</span>
           <button class="toolbar-btn" style="padding:3px 9px;font-size:0.75rem" data-act="automation-sync-now" data-tip="${escapeHTML(t('autom.syncNowTip'))}"><i class="fas fa-rotate"></i> ${escapeHTML(t('autom.syncNowBtn'))}</button>
         </div>
         <div class="autom-desc">${escapeHTML(t('autom.syncNowDesc'))}</div>
-      </div>
-      <div class="autom-sec">
-        <div class="autom-row">
+        <div class="autom-row" style="margin-top:11px">
           <span class="autom-title"><i class="fas fa-clock"></i>${escapeHTML(t('autom.poll'))}</span>
           <label class="toggle-sw" data-tip="${escapeHTML(t('autopoll.tip'))}">
             <input type="checkbox" ${ap.enabled?'checked':''} data-change="autopoll-toggle">
@@ -111,10 +111,13 @@ export function renderAutomationMenu(){
       <div class="autom-sec">
         <div class="autom-row">
           <span class="autom-title"><i class="fas fa-clipboard-check"></i>${escapeHTML(t('autom.autoVerify'))}</span>
+          <label class="toggle-sw" data-tip="${escapeHTML(t('autom.autoVerifyTip'))}">
+            <input type="checkbox" ${av?'checked':''} data-change="autoverify-toggle">
+            <span class="toggle-track"></span>
+          </label>
         </div>
-        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px">
-          <button class="toolbar-btn${vev===0?' primary':''}" style="padding:3px 9px;font-size:0.75rem" data-act="autoverify-interval" data-interval="0">${escapeHTML(t('autom.off'))}</button>
-          ${[15,30,60].map(m=>`<button class="toolbar-btn${vev===m?' primary':''}" style="padding:3px 9px;font-size:0.75rem" data-act="autoverify-interval" data-interval="${m}">${m}m</button>`).join('')}
+        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;${av?'':'opacity:.4;pointer-events:none'}">
+          ${[15,30,60,1440].map(m=>`<button class="toolbar-btn${vev===m?' primary':''}" style="padding:3px 9px;font-size:0.75rem" data-act="autoverify-interval" data-interval="${m}">${m===1440?'24h':m+'m'}</button>`).join('')}
         </div>
         <div class="autom-desc">${escapeHTML(t('autom.autoVerifyDesc'))}</div>
       </div>
@@ -152,11 +155,6 @@ export function renderAutomationMenu(){
           </label>
         </div>
         <div class="autom-desc">${escapeHTML(t('autom.snapOnVerifyDesc'))}</div>
-        <div class="autom-row" style="margin-top:11px">
-          <span class="autom-title"><i class="fas fa-clock-rotate-left"></i>${escapeHTML(t('autom.historyOpen'))}</span>
-          <button class="toolbar-btn" style="padding:3px 9px;font-size:0.75rem" data-act="history-open"><i class="fas fa-folder-open"></i> ${escapeHTML(t('autom.historyOpenBtn'))}</button>
-        </div>
-        <div class="autom-desc">${escapeHTML(t('autom.historyOpenDesc'))}</div>
       </div>`;
 }
 

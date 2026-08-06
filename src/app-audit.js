@@ -222,8 +222,8 @@ registerInputActions({
     'audit-filter': (el) => setAuditFilter(el.value),
 });
 
-// Voce "Storia" del menu Report + bottone "Storico/ripristina…" del popover Automazioni.
+// Voce "Storia" del menu Report (apre il pannello «Storia»; le schede Verifiche/Ripristino
+// sono lì dentro). L'entry point era anche nel popover Automazioni: rimosso su richiesta.
 registerClickActions({
     'report-audit': () => { openAuditLog(); closeReportMenu(); },
-    'history-open': () => openAuditLog('snapshots'),
 });
