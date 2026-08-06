@@ -12,6 +12,7 @@ import { renderRackTabs, updateTransforms, _updateFloorToolbarVisibility, initPa
 import { _restoreTopoSession } from './app-topology-discover.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { _startAutoPoll, _stopAutoPoll } from './app-vlan-autopoll.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { _startAutoVerify } from './app-drift.js';   // Verifica programmata: rearm timer al load progetto (ciclo benigno: solo a runtime)
+import { createSnapshot } from './app-snapshots.js';   // snapshot su Salva manuale (ciclo benigno: solo a runtime)
 import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: bottoni progetto (data-act) + selettore progetto (data-change)
 import { loadDeviceTypes } from './app-device-types.js';   // boot catalogo device-type (import diretto: no win.*)
 
@@ -68,6 +69,27 @@ async function loadProject(id) {
     _startAutoVerify();   // rearm Verifica programmata sul progetto caricato (stop+start idempotente)
     renderRackTabs(); updateTransforms(); renderAll();
     document.title = `InfraNet Pro — ${proj.name}`;
+}
+
+// Applica uno stato RIPRISTINATO (snapshot) al progetto CORRENTE, in memoria —
+// stessa meccanica di loadProject/undo, ma senza fetch e conservando ciò che NON
+// vive nello snapshot: il bgImage corrente (l'immagine di sfondo ha il suo
+// «Rimuovi mappa», come per undo) e l'auditLog append-only (la storia
+// «chi/quando/cosa» sopravvive al ripristino). Il chiamante persiste con saveProject.
+export function applyRestoredState(snapState){
+    const bg    = store.state && store.state.bgImage;
+    const audit = store.state && store.state.auditLog;
+    store.state = _migrateState(snapState);
+    store.state.bgImage  = bg;      // non è nello snapshot: tieni quello corrente
+    store.state.auditLog = audit;   // journal append-only: non si ripristina
+    if(typeof _restoreTopoSession === 'function') _restoreTopoSession();
+    store._vlanIpamOpen.clear();
+    _invalidateIdx();
+    store._history=[]; store._histIdx=-1; _updateHistoryBtns();   // l'undo riparte dallo stato ripristinato
+    _stopAutoPoll();
+    if(store.state.autoPoll?.enabled) _startAutoPoll();
+    _startAutoVerify();
+    renderRackTabs(); updateTransforms(); renderAll();
 }
 
 async function switchProject(id) {
@@ -161,6 +183,9 @@ export async function saveProject(opts = {}) {   // ASSE B: importata da app.js 
             body: JSON.stringify({state: store.state})
         });
         _clearDirty();
+        // Snapshot completo su Salva MANUALE (non autosave, non ripristino), con throttle:
+        // così una raffica di salvataggi non riempie lo storico (l'assottigliamento fa il resto).
+        if (!opts.quiet && !opts.noSnapshot) _maybeSnapshotOnSave();
         if (opts.quiet) return;   // autosave: persiste e basta, niente feedback visivo
         const icon  = document.getElementById('save-icon');
         const label = document.getElementById('save-label');
@@ -176,6 +201,16 @@ export async function saveProject(opts = {}) {   // ASSE B: importata da app.js 
         if (opts.quiet) { console.warn('[autosave] salvataggio fallito:', e && e.message); return; }
         showAlert(t('msg.ui.saveFailed',{message: e.message}));
     }
+}
+
+// Throttle degli snapshot su Salva: al massimo uno ogni 10 minuti (best-effort).
+let _lastSaveSnapAt = 0;
+const _SAVE_SNAP_THROTTLE_MS = 10 * 60 * 1000;
+function _maybeSnapshotOnSave(){
+    const now = Date.now();
+    if(now - _lastSaveSnapAt < _SAVE_SNAP_THROTTLE_MS) return;
+    _lastSaveSnapAt = now;
+    createSnapshot('', 'save');   // fire-and-forget: non blocca il salvataggio
 }
 
 async function _initApp() {

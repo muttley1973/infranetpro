@@ -13,6 +13,7 @@ import { nodeLabelParts } from '../lib/node-label.js';   // lib pura importata E
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: chiamate prima bare-global
 import { renderProps } from './app-properties.js';   // idem
 import { showAlert, saveProject } from './app-core.js';   // saveProject: ASSE B, scorciatoia Ctrl+S (ex win.saveProject)
+import { createSnapshot } from './app-snapshots.js';   // snapshot pre-import (ciclo benigno: solo a runtime)
 import { registerClickActions, registerChangeActions, initDelegation } from './app-delegation.js';   // ASSE B: event delegation (ritiro onclick/onchange inline)
 import { clearSearch } from './app-search-zoom-rack.js';   // ramo Escape: era una chiamata bare a una fn module-local → ReferenceError
 import { closeTopToolModal, initModalA11y } from './app-modal-a11y.js';   // M9: a11y dei tool-modal (Esc chiude, focus-trap)
@@ -850,6 +851,7 @@ function importJSON(input) {
         try {
             const parsed = JSON.parse(ev.target.result);
             if (!parsed.nodes||!parsed.racks) throw new Error('struttura non valida');
+            createSnapshot('', 'pre-import');   // rete di sicurezza: cattura lo stato PRIMA di rimpiazzarlo
             pushHistory();
             state = _migrateState(parsed);
             _restoreTopoSession();

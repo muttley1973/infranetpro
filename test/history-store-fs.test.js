@@ -21,6 +21,16 @@ function freshStore(opts = {}) {
 function entry(at, extra = {}) {
   return Object.assign({ at, by: 'tester', verify: 'manual', counts: { stateDrift: 1 }, totals: { nodes: 3, cables: 2 } }, extra);
 }
+// Semina un indice snapshot + blob (vuoti) "a mano", per testare l'assottigliamento
+// con un `now` iniettato (deterministico). specs: [{id, at, label?}].
+function seedSnaps(baseDir, pid, specs) {
+  const dir = path.join(baseDir, String(pid), 'snapshots');
+  fs.mkdirSync(dir, { recursive: true });
+  const metas = specs.map(s => ({ id: String(s.id), at: s.at, by: 't', label: s.label || '', reason: '', sizeGz: 1 }));
+  metas.forEach(m => fs.writeFileSync(path.join(dir, m.id + '.json.gz'), ''));
+  fs.writeFileSync(path.join(baseDir, String(pid), 'snapshots.jsonl'), metas.map(m => JSON.stringify(m)).join('\n') + '\n');
+  return metas;
+}
 
 test('baseDir è obbligatorio (interfaccia esplicita, niente default nascosto)', () => {
   assert.throws(() => createFsHistoryStore({}), /baseDir/);
@@ -95,4 +105,64 @@ test('pruneTimeline on-demand applica la stessa politica dell\'append', () => {
   const left = store.pruneTimeline(6);
   assert.equal(left, 2);
   assert.deepEqual(store.listTimeline(6).map(r => r.by), ['p2', 'p3']);
+});
+
+// ── SNAPSHOT completi (Fase 4) ───────────────────────────────────────
+
+test('putSnapshot gzip + getSnapshot round-trip dello stato INTERO', () => {
+  const { store } = freshStore();
+  const state = { nodes: [{ id: 'n1', name: 'sw', spec: { ports: 24 } }], links: [], filler: 'x'.repeat(6000) };
+  const rec = store.putSnapshot(8, { at: '2999-01-01 10:00:00', by: 'me', reason: 'manual' }, state);
+  assert.ok(rec.id, 'ritorna un id');
+  assert.ok(rec.sizeGz > 0 && rec.sizeGz < 6000, 'il gzip è più piccolo dell\'originale (~6 KB filler)');
+  assert.deepEqual(store.getSnapshot(8, rec.id), state, 'lo stato torna byte-identico dopo gunzip');
+});
+
+test('getSnapshot di un id inesistente → null (nessun crash)', () => {
+  const { store } = freshStore();
+  assert.equal(store.getSnapshot(8, 'nope'), null);
+});
+
+test('listSnapshots elenca i meta e ignora i record col blob mancante', () => {
+  const { store, baseDir } = freshStore();
+  const a = store.putSnapshot(9, { at: '2999-01-01 10:00:00', by: 'me' }, { nodes: [] });
+  const b = store.putSnapshot(9, { at: '2999-01-01 10:01:00', by: 'me' }, { nodes: [] });
+  fs.unlinkSync(path.join(baseDir, '9', 'snapshots', a.id + '.json.gz'));   // blob sparito → fuori lista
+  assert.deepEqual(store.listSnapshots(9).map(m => m.id), [b.id]);
+});
+
+test('assottigliamento: <48h tutte · 48h-7g una/ora · 7g-30g una/giorno · >30g via', () => {
+  const { store, baseDir } = freshStore();
+  const now = Date.parse('2026-08-10 00:00:00');
+  seedSnaps(baseDir, 3, [
+    { id: 'keepA',   at: '2026-08-09 12:00:00' },   // <48h → tenuta
+    { id: 'keepB',   at: '2026-08-09 18:00:00' },   // <48h → tenuta
+    { id: 'hourOld', at: '2026-08-06 10:00:00' },   // stessa ora di hourNew, più vecchia → via
+    { id: 'hourNew', at: '2026-08-06 10:30:00' },   // vince il bucket ora → tenuta
+    { id: 'hour2',   at: '2026-08-06 11:00:00' },   // altra ora → tenuta
+    { id: 'dayOld',  at: '2026-07-25 09:00:00' },   // stesso giorno di dayNew → via
+    { id: 'dayNew',  at: '2026-07-25 20:00:00' },   // vince il bucket giorno → tenuta
+    { id: 'ancient', at: '2026-05-01 00:00:00' },   // >30g → via
+  ]);
+  store.pruneSnapshots(3, { now });
+  assert.deepEqual(store.listSnapshots(3).map(m => m.id).sort(),
+    ['dayNew', 'hour2', 'hourNew', 'keepA', 'keepB'].sort());
+  assert.ok(!fs.existsSync(path.join(baseDir, '3', 'snapshots', 'ancient.json.gz')), 'blob >30g eliminato');
+  assert.ok(!fs.existsSync(path.join(baseDir, '3', 'snapshots', 'hourOld.json.gz')), 'blob perdente eliminato');
+});
+
+test('cap: oltre il tetto restano le più recenti; le etichettate sono ESENTI', () => {
+  const { store, baseDir } = freshStore({ snapshotCap: 3 });
+  const now = Date.parse('2026-08-10 00:00:00');
+  seedSnaps(baseDir, 4, [
+    { id: 'lab', at: '2026-01-01 00:00:00', label: 'milestone' },   // vecchia + etichettata → SEMPRE tenuta
+    { id: 'r1',  at: '2026-08-09 10:00:00' },
+    { id: 'r2',  at: '2026-08-09 11:00:00' },
+    { id: 'r3',  at: '2026-08-09 12:00:00' },
+    { id: 'r4',  at: '2026-08-09 13:00:00' },
+    { id: 'r5',  at: '2026-08-09 14:00:00' },
+  ]);
+  store.pruneSnapshots(4, { now });
+  // cap 3, 'lab' esente occupa 1 del tetto → allow 2 non-etichettate più recenti = r4, r5
+  assert.deepEqual(store.listSnapshots(4).map(m => m.id).sort(), ['lab', 'r4', 'r5'].sort());
 });

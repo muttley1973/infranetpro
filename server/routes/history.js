@@ -14,9 +14,15 @@ const auth = require('../../auth');
 const { timestamp } = require('../../utils');
 const { PROJECTS_DIR, loadProject } = require('../projects-store');
 const { createFsHistoryStore } = require('../history-store-fs');
+const { _sanitizeBackupRefs } = require('./projects');   // stessa redazione credenziali del PUT progetto
 
 const router = express.Router();
 const store  = createFsHistoryStore({ baseDir: path.join(PROJECTS_DIR, 'history') });
+
+// Motivi ammessi per uno snapshot (whitelist = niente stringhe arbitrarie in meta).
+const SNAP_REASONS = new Set(['manual', 'on-demand', 'save', 'pre-restore', 'pre-import', 'pre-adopt', 'pre-delete', 'daily']);
+const _reason = (r) => SNAP_REASONS.has(r) ? r : 'manual';
+const _label  = (l) => String(l || '').replace(/[\r\n\t]+/g, ' ').trim().slice(0, 80);
 
 // Chiavi di conteggio AMMESSE nella riga di timeline: i bucket del Drift Report
 // (lib/drift-report.js) + gli endpoint non documentati. Whitelist = anti-bloat e
@@ -72,6 +78,37 @@ router.get('/api/projects/:id/history/timeline', auth.requireAdmin, (req, res) =
   const limit = Math.min(5000, Math.max(0, parseInt(req.query.limit, 10) || 0));
   const entries = store.listTimeline(id, { from: req.query.from, to: req.query.to, limit });
   res.json({ entries });
+});
+
+// ── SNAPSHOT completi ripristinabili (Fase 4) ────────────────────────
+// Crea uno snapshot INTERO (gzip lato store). Il client invia lo `state` corrente
+// (bgImage/auditLog esclusi, come pushHistory) → cattura anche le modifiche non
+// salvate. Redazione credenziali come il PUT progetto.
+router.post('/api/projects/:id/history/snapshots', auth.requireAdmin, (req, res) => {
+  const id = +req.params.id;
+  if (!_projectExists(id)) return res.status(404).json({ error: 'Project not found' });
+  const b = req.body || {};
+  const state = (b.state && typeof b.state === 'object') ? b.state : null;
+  if (!state) return res.status(400).json({ error: 'state richiesto' });
+  _sanitizeBackupRefs(state);
+  const rec = store.putSnapshot(id, { at: timestamp(), by: _user(req), label: _label(b.label), reason: _reason(b.reason) }, state);
+  res.status(201).json({ ok: true, snapshot: rec });
+});
+
+// Elenco meta degli snapshot (ordine cronologico). Niente stato = leggero.
+router.get('/api/projects/:id/history/snapshots', auth.requireAdmin, (req, res) => {
+  const id = +req.params.id;
+  if (!_projectExists(id)) return res.status(404).json({ error: 'Project not found' });
+  res.json({ snapshots: store.listSnapshots(id) });
+});
+
+// Uno snapshot COMPLETO (stato decompresso), per il ripristino lato client.
+router.get('/api/projects/:id/history/snapshots/:sid', auth.requireAdmin, (req, res) => {
+  const id = +req.params.id;
+  if (!_projectExists(id)) return res.status(404).json({ error: 'Project not found' });
+  const state = store.getSnapshot(id, req.params.sid);
+  if (!state) return res.status(404).json({ error: 'Snapshot not found' });
+  res.json({ state });
 });
 
 module.exports = router;

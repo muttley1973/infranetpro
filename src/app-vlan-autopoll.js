@@ -152,6 +152,11 @@ export function renderAutomationMenu(){
           </label>
         </div>
         <div class="autom-desc">${escapeHTML(t('autom.snapOnVerifyDesc'))}</div>
+        <div class="autom-row" style="margin-top:11px">
+          <span class="autom-title"><i class="fas fa-clock-rotate-left"></i>${escapeHTML(t('autom.historyOpen'))}</span>
+          <button class="toolbar-btn" style="padding:3px 9px;font-size:0.75rem" data-act="history-open"><i class="fas fa-folder-open"></i> ${escapeHTML(t('autom.historyOpenBtn'))}</button>
+        </div>
+        <div class="autom-desc">${escapeHTML(t('autom.historyOpenDesc'))}</div>
       </div>`;
 }
 

@@ -22,6 +22,7 @@ import { _discIndexNode, _discVendorFromMac, _discFindExistingDevice, _discBuild
 import { _findFreeU } from './app-topology-crawl.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
 import { closeReportMenu } from './app-auth.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: modale Adotta (template dinamico) via event delegation
+import { createSnapshot } from './app-snapshots.js';   // snapshot pre-adozione (rete di sicurezza)
 import { _driftBuildDocSnapshot, _driftBuildSnmpSnapshot, _renderDriftReport } from './app-drift.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 
 let _adoptRows = [];           // candidati attualmente mostrati nel modal
@@ -136,6 +137,7 @@ function adoptApply(){
     });
     if(!picks.length){ _showToast(t('msg.net.noDeviceSelected'), 'warn'); return; }
 
+    createSnapshot('', 'pre-adopt');   // rete di sicurezza: cattura lo stato PRIMA dell'adozione in blocco
     const autoLink = !!document.getElementById('adopt-autolink')?.checked;
     const res = _adoptCreateNodes(picks, autoLink);
 
