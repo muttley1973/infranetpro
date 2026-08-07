@@ -137,3 +137,80 @@ test('nessun segreto nello stato importato', () => {
   assert.ok(!/community/i.test(s));
   assert.ok(!/integration/i.test(s));
 });
+
+test('ruoli NetBox reali → tipo InfraNet (hypervisor/printer/tor/app-server)', () => {
+  const nb = {
+    manufacturers: [{ id: 9, name: 'X' }],
+    deviceTypes: [{ id: 1, manufacturer: { id: 9 }, model: 'M' }],
+    deviceRoles: [
+      { id: 1, slug: 'hypervisor', name: 'Hypervisor' },
+      { id: 2, slug: 'printer', name: 'Printer' },
+      { id: 3, slug: 'tor-switch', name: 'ToR Switch' },
+      { id: 4, slug: 'application-server', name: 'Application Server' },
+      { id: 5, slug: 'labelprinter', name: 'Labelprinter' },
+    ],
+    devices: [
+      { id: 10, name: 'H', device_type: { id: 1 }, role: { id: 1 } },
+      { id: 11, name: 'P', device_type: { id: 1 }, role: { id: 2 } },
+      { id: 12, name: 'T', device_type: { id: 1 }, role: { id: 3 } },
+      { id: 13, name: 'A', device_type: { id: 1 }, role: { id: 4 } },
+      { id: 14, name: 'L', device_type: { id: 1 }, role: { id: 5 } },
+    ],
+  };
+  const { state, report } = map.netboxToState(nb);
+  const ty = id => state.nodes.find(n => n.id === 'nb-dev-' + id).type;
+  assert.equal(ty(10), 'hypervisor');
+  assert.equal(ty(11), 'printer');
+  assert.equal(ty(12), 'switch');
+  assert.equal(ty(13), 'server');
+  assert.equal(ty(14), 'printer');
+  assert.equal(report.unmappedRoles.length, 0);   // tutti mappati → nessun avviso
+});
+
+test('ubicazione (Location NetBox) preservata nelle note del device', () => {
+  const nb = {
+    manufacturers: [{ id: 9, name: 'X' }],
+    deviceTypes: [{ id: 1, manufacturer: { id: 9 }, model: 'M' }],
+    deviceRoles: [{ id: 1, slug: 'switch', name: 'Switch' }],
+    devices: [
+      { id: 10, name: 'sw', device_type: { id: 1 }, role: { id: 1 }, site: { name: 'HQ' }, location: { id: 5, name: 'Piano 2' } },
+      { id: 11, name: 'sw2', device_type: { id: 1 }, role: { id: 1 }, location: { id: 6, name: 'Comms closet' } },  // senza site
+      { id: 12, name: 'sw3', device_type: { id: 1 }, role: { id: 1 }, site: { name: 'HQ' } },                        // senza location
+    ],
+  };
+  const { state } = map.netboxToState(nb);
+  const byId = id => state.nodes.find(n => n.id === 'nb-dev-' + id);
+  assert.equal(byId(10).notes, 'HQ · Piano 2');
+  assert.equal(byId(11).notes, 'Comms closet');
+  assert.equal('notes' in byId(12), false);   // niente location → niente nota (no invenzioni)
+});
+
+test('rack: nomi NetBox intatti (niente prefisso sito → sta nel nome progetto)', () => {
+  const nb = {
+    racks: [
+      { id: 1, name: 'Comms closet', site: { name: 'Akron' }, u_height: 42 },
+      { id: 2, name: 'R103', site: { name: 'Akron' }, u_height: 48 },
+    ],
+  };
+  const { state } = map.netboxToState(nb);
+  const names = state.racks.map(r => r.name);
+  assert.ok(names.includes('Comms closet'));   // nome NetBox intatto
+  assert.ok(names.includes('R103'));
+});
+
+test('nome di ripiego: device senza name → "Modello #id"', () => {
+  const nb = {
+    manufacturers: [{ id: 9, name: 'Juniper' }],
+    deviceTypes: [{ id: 1, manufacturer: { id: 9 }, model: 'QFX5100-48T-6Q' }],
+    deviceRoles: [{ id: 1, slug: 'tor-switch', name: 'ToR Switch' }],
+    devices: [
+      { id: 98, name: '', device_type: { id: 1 }, role: { id: 1 } },                        // nessun nome → modello
+      { id: 99, name: '', display: '{99}', device_type: { id: 1 }, role: { id: 1 } },        // display inutile (id) → modello
+      { id: 100, name: '', display: 'core-fabric-99', device_type: { id: 1 }, role: { id: 1 } }, // display utile → usato
+    ],
+  };
+  const { state } = map.netboxToState(nb);
+  assert.equal(state.nodes.find(n => n.id === 'nb-dev-98').name, 'QFX5100-48T-6Q #98');
+  assert.equal(state.nodes.find(n => n.id === 'nb-dev-99').name, 'QFX5100-48T-6Q #99');
+  assert.equal(state.nodes.find(n => n.id === 'nb-dev-100').name, 'core-fabric-99');
+});

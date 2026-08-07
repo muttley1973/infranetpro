@@ -51,10 +51,26 @@ async function _loadConfig() {
   } catch (_) { /* rete assente → campi come sono */ }
 }
 
+// Chiusura al click sul backdrop, ma SOLO se il click è NATO sul backdrop. Una
+// selezione di testo che parte da un input (nome progetto/token) e finisce fuori
+// dal box produce un `click` col target = overlay → chiudeva il modale mentre
+// selezionavi. Tracciamo il mousedown e chiudiamo solo se anche la pressione era
+// sullo sfondo. (addEventListener locale sull'overlay: nessun win.*, nessun inline.)
+let _pressOnBackdrop = false;
+let _backdropWired = false;
+function _wireBackdrop() {
+  if (_backdropWired) return;
+  const ov = _el('dcim-overlay');
+  if (!ov) return;
+  ov.addEventListener('mousedown', (e) => { _pressOnBackdrop = (e.target === ov); });
+  _backdropWired = true;
+}
+
 /** Apre il pannello Sincronizzazione, carica la config e prepara il wizard import. */
 export function openDcimSync() {
   const ov = _el('dcim-overlay');
   if (!ov) return;
+  _wireBackdrop();
   ov.classList.add('open');
   _loadConfig();
   _wiz.step = 1; _wiz.preview = null; _wiz.previewErr = ''; _wiz.projectName = '';
@@ -269,7 +285,7 @@ async function _commit() {
 registerClickActions({
   'dcim-open': () => { openDcimSync(); closeImpExpMenu(); },
   'dcim-close': () => closeDcimSync(),
-  'dcim-backdrop': (el, ev) => { if (ev.target === el) closeDcimSync(); },
+  'dcim-backdrop': (el, ev) => { if (ev.target === el && _pressOnBackdrop) closeDcimSync(); },
   'dcim-test': () => _test(),
   'dcim-save': () => _save(),
   'dcim-tab': (el) => _showTab(el.dataset.tab),
