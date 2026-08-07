@@ -160,6 +160,12 @@ app.use(require('./server/routes/device-types'));
 // Session-gated (montata dopo auth.register). La chiave resta server-side.
 app.use(require('./server/routes/ai'));
 
+// ---- Sincronizzazione DCIM/IPAM (server/routes/integrations.js) -------------
+// Config (GET mascherato / PUT admin) + prova connessione + capabilities.
+// Session-gated (dopo auth.register). Il token DCIM resta server-side; l'IMPORT
+// arriva in Fase B, l'EXPORT vive nel modulo a pagamento modules/dcim-export/.
+app.use(require('./server/routes/integrations'));
+
 // ---- Primitive di rete / discovery (server/netscan.js) ----------------------
 const { expandSubnet, _execFileAsync, _pingHost, _normMac, _parseArpTable, _readArpMap, _readLocalInterfaceMap, OUI_VENDOR, _vendorByMac, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost } = require('./server/netscan');
 

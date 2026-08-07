@@ -87,7 +87,7 @@ export function applyRestoredState(snapState){
     renderRackTabs(); updateTransforms(); renderAll();
 }
 
-async function switchProject(id) {
+export async function switchProject(id) {
     if (store._isDirty) {
         showConfirm(t('pnl.seg.unsavedChanges'),
             async () => { await loadProject(id); await loadProjectList(); },
