@@ -31,6 +31,15 @@ function _setStatus(text, kind) {
       : 'var(--text-muted)';
 }
 
+// Colore del bottone «Prova connessione»: verde se la connessione risponde,
+// rosso se fallisce, neutro altrimenti (in attesa o dopo una modifica dei campi).
+function _setTestBtn(kind) {
+  const btn = _el('dcim-test-btn');
+  if (!btn) return;
+  btn.classList.remove('ok', 'err');
+  if (kind === 'ok' || kind === 'err') btn.classList.add(kind);
+}
+
 // GET config → popola i campi. Il token non torna mai dal server: se `tokenSet`
 // il placeholder dice «impostato» e il campo resta vuoto (digitarne uno = cambiarlo).
 async function _loadConfig() {
@@ -47,7 +56,7 @@ async function _loadConfig() {
         : t('integrations.tokenPh');
       tok.disabled = !!c.tokenFromEnv;
     }
-    _setStatus(t('integrations.notConnected'), '');
+    _setStatus(t('integrations.notConnected'), ''); _setTestBtn('');
   } catch (_) { /* rete assente → campi come sono */ }
 }
 
@@ -74,9 +83,11 @@ export function openDcimSync() {
   ov.classList.add('open');
   _loadConfig();
   _wiz.step = 1; _wiz.preview = null; _wiz.previewErr = ''; _wiz.projectName = '';
+  _resetCommitState();
   _showTab('import');
 }
 function closeDcimSync() {
+  _stopCommitProgressTimer();
   const ov = _el('dcim-overlay');
   if (ov) ov.classList.remove('open');
 }
@@ -87,8 +98,8 @@ async function _test() {
   const url = _val('dcim-url');
   const token = (_el('dcim-token') ? _el('dcim-token').value : '');   // NON trim: il token può avere spazi? no, ma non lo tocchiamo
   const verifyTls = _checked('dcim-verifytls');
-  if (!url) { _setStatus(t('integrations.needUrl'), 'err'); return; }
-  _setStatus(t('integrations.testing'), '');
+  if (!url) { _setStatus(t('integrations.needUrl'), 'err'); _setTestBtn('err'); return; }
+  _setStatus(t('integrations.testing'), ''); _setTestBtn('');
   const body = { url, verifyTls };
   if (token) body.token = token;
   try {
@@ -98,10 +109,12 @@ async function _test() {
     const j = await r.json().catch(() => ({}));
     if (j && j.ok) {
       _setStatus(t('integrations.connected') + (j.version ? ' · NetBox v' + j.version : ''), 'ok');
+      _setTestBtn('ok');
     } else {
       _setStatus(t('integrations.testFail') + (j && j.error ? ' — ' + j.error : ''), 'err');
+      _setTestBtn('err');
     }
-  } catch (_) { _setStatus(t('integrations.testFail'), 'err'); }
+  } catch (_) { _setStatus(t('integrations.testFail'), 'err'); _setTestBtn('err'); }
 }
 
 // Salva la config (PUT admin). Il token viaggia solo se l'utente ne ha digitato
@@ -133,7 +146,37 @@ const _wiz = {
   },
   preview: null, loadingPreview: false, previewErr: '',
   projectName: '',
+  commit: { state: 'idle', stage: 0, result: null, error: '', name: '' },
 };
+
+let _commitProgressTimer = null;
+const _commitStages = [
+  { icon: 'fa-plug', key: 'integrations.commitStageConnect' },
+  { icon: 'fa-cloud-arrow-down', key: 'integrations.commitStageRead' },
+  { icon: 'fa-diagram-project', key: 'integrations.commitStageBuild' },
+  { icon: 'fa-floppy-disk', key: 'integrations.commitStageSave' },
+];
+
+function _stopCommitProgressTimer() {
+  if (_commitProgressTimer) clearTimeout(_commitProgressTimer);
+  _commitProgressTimer = null;
+}
+
+function _resetCommitState() {
+  _stopCommitProgressTimer();
+  _wiz.commit = { state: 'idle', stage: 0, result: null, error: '', name: '' };
+}
+
+function _scheduleCommitProgress() {
+  _stopCommitProgressTimer();
+  const advance = () => {
+    if (_wiz.commit.state !== 'running') return;
+    _wiz.commit.stage = Math.min(_wiz.commit.stage + 1, _commitStages.length - 2);
+    _renderImport();
+    _commitProgressTimer = setTimeout(advance, 1600);
+  };
+  _commitProgressTimer = setTimeout(advance, 1600);
+}
 
 const _sp = () => `<i class="fas fa-spinner fa-spin" style="color:var(--text-muted)"></i> ${escapeHTML(t('integrations.loading'))}`;
 
@@ -174,6 +217,9 @@ function _toggleScope(kind, id, checked) {
 function _renderImport() {
   const b = _el('dcim-import-body');
   if (!b) return;
+  if (_wiz.commit.state === 'running') { b.innerHTML = _renderCommitProgress(); return; }
+  if (_wiz.commit.state === 'done') { b.innerHTML = _renderCommitResult(); return; }
+  if (_wiz.commit.state === 'error') { b.innerHTML = _renderCommitError(); return; }
   const s = _wiz.step;
   const dot = (n, key) => `<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:${n <= s ? 'var(--text-primary)' : 'var(--text-muted)'}">
     <span style="width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:0.5px solid var(--border-strong);${n <= s ? 'background:var(--text-accent);color:var(--surface-2)' : ''}">${n}</span>${escapeHTML(t(key))}</div>`;
@@ -186,6 +232,44 @@ function _renderImport() {
     <button class="um-btn" data-act="dcim-wiz-back"${s === 1 ? ' style="visibility:hidden"' : ''}><i class="fas fa-arrow-left"></i> ${escapeHTML(t('integrations.back'))}</button>
     ${s < 3 ? `<button class="um-btn primary" data-act="dcim-wiz-next">${escapeHTML(t('integrations.next'))} <i class="fas fa-arrow-right"></i></button>` : '<span></span>'}</div>`;
   b.innerHTML = stepper + body + nav;
+}
+
+function _renderCommitProgress() {
+  const stage = Math.min(_wiz.commit.stage, _commitStages.length - 1);
+  const steps = _commitStages.map((item, index) => {
+    const state = index < stage ? 'is-done' : index === stage ? 'is-active' : '';
+    const marker = index < stage ? '<i class="fas fa-check"></i>' : `<i class="fas ${item.icon}"></i>`;
+    return `<li class="dcim-progress-step ${state}"><span class="dcim-progress-marker">${marker}</span><span>${escapeHTML(t(item.key))}</span></li>`;
+  }).join('');
+  return `<section class="dcim-import-progress" aria-live="polite">
+    <div class="dcim-progress-hero"><span class="dcim-progress-icon"><i class="fas fa-server fa-pulse"></i></span>
+      <div><h4>${escapeHTML(t('integrations.commitTitle'))}</h4><p>${escapeHTML(t('integrations.commitHint'))}</p></div></div>
+    <div class="dcim-progress-track" role="progressbar" aria-label="${escapeHTML(t('integrations.commitTitle'))}"><span></span></div>
+    <ol class="dcim-progress-steps">${steps}</ol>
+    <div class="dcim-progress-live"><i class="fas fa-spinner fa-spin"></i> ${escapeHTML(t(_commitStages[stage].key))}</div>
+  </section>`;
+}
+
+function _renderCommitResult() {
+  const result = _wiz.commit.result || {};
+  const c = result.counts || {};
+  const name = _wiz.commit.name || ('#' + (result.projectId ?? ''));
+  const count = (value, key) => `<div class="dcim-result-count"><strong>${Number(value || 0)}</strong><span>${escapeHTML(t(key))}</span></div>`;
+  return `<section class="dcim-import-result" aria-live="polite">
+    <div class="dcim-result-hero"><span class="dcim-result-icon"><i class="fas fa-circle-check"></i></span>
+      <div><h4>${escapeHTML(t('integrations.commitDone'))}</h4><p>${escapeHTML(t('integrations.created', { name }))}</p></div></div>
+    <div class="dcim-result-grid">${count(c.devices, 'integrations.cDevices')}${count(c.interfaces, 'integrations.cInterfaces')}${count(c.cables, 'integrations.cCables')}${count(c.vlans, 'integrations.cVlans')}</div>
+    <div class="dcim-result-actions"><button class="um-btn primary" data-act="dcim-open-created"${result.projectId == null ? ' disabled' : ''}><i class="fas fa-arrow-up-right-from-square"></i> ${escapeHTML(t('integrations.openProject'))}</button>
+      <button class="um-btn ghost" data-act="dcim-close">${escapeHTML(t('integrations.progressClose'))}</button></div>
+  </section>`;
+}
+
+function _renderCommitError() {
+  return `<section class="dcim-import-result dcim-import-result-error" aria-live="assertive">
+    <div class="dcim-result-hero"><span class="dcim-result-icon"><i class="fas fa-circle-exclamation"></i></span>
+      <div><h4>${escapeHTML(t('integrations.commitFailed'))}</h4><p>${escapeHTML(_wiz.commit.error || t('integrations.importFail'))}</p></div></div>
+    <div class="dcim-result-actions"><button class="um-btn primary" data-act="dcim-commit-retry"><i class="fas fa-rotate-right"></i> ${escapeHTML(t('integrations.retry'))}</button></div>
+  </section>`;
 }
 
 function _renderScopeStep() {
@@ -241,10 +325,15 @@ function _renderPreviewStep() {
     }).join('')
     : `<p style="color:var(--text-muted);font-size:.9rem">${escapeHTML(t('integrations.previewEmpty'))}</p>`;
   const nameVal = _wiz.projectName || p.proposedProjectName || '';
-  const commit = `<div style="display:flex;gap:10px;align-items:end;margin-top:12px">
-    <div style="flex:1"><label style="font-size:12px;color:var(--text-secondary)">${escapeHTML(t('integrations.projectName'))}</label>
-    <input type="text" id="dcim-name" data-input="dcim-name" value="${escapeHTML(nameVal)}" style="width:100%"></div>
-    <button class="um-btn primary" data-act="dcim-commit"${c.devices ? '' : ' disabled'}><i class="fas fa-plus"></i> ${escapeHTML(t('integrations.createProject'))}</button></div>`;
+  // Campo nome nello stile nativo InfraNet (.prop-group: etichetta sopra, controllo
+  // a tutta larghezza col bordo/sfondo del tema), bottone «Crea progetto» su riga a sé.
+  const commit = `<div class="prop-group" style="margin-top:14px">
+      <label>${escapeHTML(t('integrations.projectName'))}</label>
+      <input type="text" id="dcim-name" data-input="dcim-name" value="${escapeHTML(nameVal)}" autocomplete="off">
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:10px">
+      <button class="um-btn primary" data-act="dcim-commit"${c.devices ? '' : ' disabled'}><i class="fas fa-plus"></i> ${escapeHTML(t('integrations.createProject'))}</button>
+    </div>`;
   return cards + warnHtml + rows + commit;
 }
 
@@ -271,15 +360,26 @@ async function _runPreview() {
 }
 
 async function _commit() {
+  if (_wiz.commit.state === 'running') return;
   const name = _wiz.projectName || (_wiz.preview && _wiz.preview.proposedProjectName) || '';
+  _wiz.commit = { state: 'running', stage: 0, result: null, error: '', name };
+  _renderImport();
+  _scheduleCommitProgress();
   try {
     const r = await fetch(API + '/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ commit: true, selection: _wiz.selection, projectName: name }) });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.ok) { showAlert(t('integrations.importFail') + (j.error ? ' — ' + j.error : '')); return; }
-    closeDcimSync();
-    showAlert(t('integrations.created', { name: name || ('#' + j.projectId) }));
-    if (j.projectId != null) switchProject(j.projectId);
-  } catch (_) { showAlert(t('integrations.importFail')); }
+    if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    _wiz.commit.stage = _commitStages.length;
+    _wiz.commit.state = 'done';
+    _wiz.commit.result = j;
+    _stopCommitProgressTimer();
+    _renderImport();
+  } catch (e) {
+    _stopCommitProgressTimer();
+    _wiz.commit.state = 'error';
+    _wiz.commit.error = String((e && e.message) || e || t('integrations.importFail'));
+    _renderImport();
+  }
 }
 
 registerClickActions({
@@ -287,12 +387,14 @@ registerClickActions({
   'dcim-close': () => closeDcimSync(),
   'dcim-backdrop': (el, ev) => { if (ev.target === el && _pressOnBackdrop) closeDcimSync(); },
   'dcim-test': () => _test(),
-  'dcim-save': () => _save(),
-  'dcim-tab': (el) => _showTab(el.dataset.tab),
-  'dcim-wiz-next': () => { if (_wiz.step < 3) { _wiz.step++; if (_wiz.step === 3) _runPreview(); else _renderImport(); } },
-  'dcim-wiz-back': () => { if (_wiz.step > 1) { _wiz.step--; _renderImport(); } },
+  'dcim-save': () => { if (_wiz.commit.state !== 'running') _save(); },
+  'dcim-tab': (el) => { if (_wiz.commit.state !== 'running') _showTab(el.dataset.tab); },
+  'dcim-wiz-next': () => { if (_wiz.commit.state === 'idle' && _wiz.step < 3) { _wiz.step++; if (_wiz.step === 3) _runPreview(); else _renderImport(); } },
+  'dcim-wiz-back': () => { if (_wiz.commit.state === 'idle' && _wiz.step > 1) { _wiz.step--; _renderImport(); } },
   'dcim-load-scopes': () => _loadScopes(),
   'dcim-commit': () => _commit(),
+  'dcim-commit-retry': () => { _resetCommitState(); _renderImport(); },
+  'dcim-open-created': () => { const id = _wiz.commit.result && _wiz.commit.result.projectId; if (id != null) { switchProject(id); closeDcimSync(); } },
 });
 registerChangeActions({
   'dcim-scope': (el) => _toggleScope(el.dataset.kind, el.dataset.id, el.checked),
@@ -305,4 +407,6 @@ registerChangeActions({
 });
 registerInputActions({
   'dcim-name': (el) => { _wiz.projectName = el.value; },
+  // Modifica di URL/token → l'esito precedente non vale più: bottone e chip neutri.
+  'dcim-cfg': () => { _setTestBtn(''); _setStatus(t('integrations.notConnected'), ''); },
 });

@@ -52,9 +52,25 @@ test('mappa device → nodi con brand/model/serial/rack/ip', () => {
 
 test('rack importato con altezza dichiarata (no invenzione 42U se assente)', () => {
   const { state } = map.netboxToState(fixture());
-  assert.deepEqual(state.racks, [{ id: 'nb-rack-30', name: 'Rack A', sizeU: 42 }]);
+  assert.deepEqual(state.racks, [{ id: 'nb-rack-30', name: 'Rack A', sizeU: 42, x: 120, y: 120 }]);
   const noU = map.netboxToState({ racks: [{ id: 1, name: 'R' }] });
   assert.equal('sizeU' in noU.state.racks[0], false);
+});
+
+test('rack importati vengono piazzati sul floor con coordinate deterministiche e non sovrapposte', () => {
+  const nb = { racks: Array.from({ length: 6 }, (_, i) => ({ id: i + 1, name: 'Rack ' + (i + 1) })) };
+  const { state } = map.netboxToState(nb);
+  assert.deepEqual(state.racks.map(r => [r.x, r.y]), [
+    [120, 120], [340, 120], [560, 120], [780, 120], [1000, 120], [120, 260],
+  ]);
+  assert.equal(new Set(state.racks.map(r => r.x + ',' + r.y)).size, state.racks.length);
+});
+
+test('import apre la vista Rack sul primo rack (currentRack impostato)', () => {
+  const { state } = map.netboxToState(fixture());
+  assert.equal(state.currentRack, 'nb-rack-30');           // altrimenti rack-chassis vuoto
+  const noRack = map.netboxToState({ devices: [] });
+  assert.equal('currentRack' in noRack.state, false);      // niente rack → niente selezione
 });
 
 test('slot porte deterministici: dati prima, mgmt in coda, ordine naturale', () => {
@@ -218,8 +234,8 @@ test('rack bifacciale → 2 rack InfraNet (fronte + "· retro"), device assegnat
   const { state } = map.netboxToState(nb);
   const byId = id => state.racks.find(r => r.id === id);
   assert.equal(state.racks.length, 2);
-  assert.deepEqual(byId('nb-rack-30'), { id: 'nb-rack-30', name: 'MDF', sizeU: 42 });
-  assert.deepEqual(byId('nb-rack-30-rear'), { id: 'nb-rack-30-rear', name: 'MDF · retro', sizeU: 42 });
+  assert.deepEqual(byId('nb-rack-30'), { id: 'nb-rack-30', name: 'MDF', sizeU: 42, x: 120, y: 120 });
+  assert.deepEqual(byId('nb-rack-30-rear'), { id: 'nb-rack-30-rear', name: 'MDF · retro', sizeU: 42, x: 340, y: 120 });
   const sw = state.nodes.find(n => n.id === 'nb-dev-100');
   const pp = state.nodes.find(n => n.id === 'nb-dev-200');
   assert.equal(sw.rackId, 'nb-rack-30'); assert.equal(sw.rackU, 40);        // fronte

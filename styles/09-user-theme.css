@@ -32,6 +32,9 @@
         .um-btn.primary { background:var(--accent); color:#000; }
         .um-btn.danger  { background:var(--fault-color); color:#fff; }
         .um-btn.ghost   { background:var(--panel-border); color:var(--text-main); }
+        /* Esito «Prova connessione»: verde se risponde, rosso se fallisce. */
+        .um-btn.ok  { background:var(--active-color); color:#04140b; }
+        .um-btn.err { background:var(--fault-color); color:#fff; }
         .um-msg { font-size:var(--fs-sm); padding:6px 10px; border-radius:5px; margin-top:8px; display:none; }
         .um-msg.ok   { background:rgba(57,211,83,.12); border:1px solid rgba(57,211,83,.3); color:var(--active-color); display:block; }
         .um-msg.err  { background:rgba(248,81,73,.12); border:1px solid rgba(248,81,73,.3); color:var(--fault-color); display:block; }

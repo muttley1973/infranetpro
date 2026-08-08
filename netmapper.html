@@ -525,10 +525,10 @@
           <span style="display:inline-flex;align-items:center;gap:6px;font-weight:500"><i class="fas fa-database" style="color:var(--text-muted)"></i> NetBox</span>
         </div>
         <div class="um-row">
-          <input type="text" id="dcim-url" data-i18n-ph="integrations.urlPh" placeholder="https://dcim.azienda.local" autocomplete="off" style="flex:1">
+          <input type="text" id="dcim-url" data-input="dcim-cfg" data-i18n-ph="integrations.urlPh" placeholder="https://dcim.azienda.local" autocomplete="off" style="flex:1">
         </div>
         <div class="um-row">
-          <input type="password" id="dcim-token" data-i18n-ph="integrations.tokenPh" placeholder="Token API" autocomplete="off" style="flex:1">
+          <input type="password" id="dcim-token" data-input="dcim-cfg" data-i18n-ph="integrations.tokenPh" placeholder="Token API" autocomplete="off" style="flex:1">
         </div>
         <div class="um-row">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
@@ -537,7 +537,7 @@
           </label>
         </div>
         <div class="um-row" style="align-items:center;gap:12px">
-          <button class="um-btn" data-act="dcim-test"><i class="fas fa-plug"></i> <span data-i18n="integrations.test">Prova connessione</span></button>
+          <button class="um-btn" id="dcim-test-btn" data-act="dcim-test"><i class="fas fa-plug"></i> <span data-i18n="integrations.test">Prova connessione</span></button>
           <span id="dcim-status" data-i18n="integrations.notConnected" style="font-size:.85rem;color:var(--text-muted)">Non connesso</span>
         </div>
       </div>

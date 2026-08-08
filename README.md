@@ -10,8 +10,8 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="1,948 tests, 0 failing" src="https://img.shields.io/badge/tests-1%2C948%20%C2%B7%200%20failing-3fb950"></a>
-  <a href="#testing"><img alt="93 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-93%20real--browser%20flows-3fb950"></a>
+  <a href="#testing"><img alt="2,083 tests, 0 failing" src="https://img.shields.io/badge/tests-2%2C083%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="97 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-97%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#oui-intelligence-engine"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
   <img alt="No database" src="https://img.shields.io/badge/database-none-8b949e">
@@ -78,7 +78,7 @@ Every figure declares where it came from — declared, measured (with its age), 
 <tr>
 <td width="33%" valign="top">
 <b>📦 Zero infrastructure</b><br><br>
-One Node process and one JSON file per project. No database, no cloud, no agent on your devices, no telemetry. Binds to <code>127.0.0.1</code> by default, and runs in Docker with one command.
+One Node process and one main JSON file per project, with optional history and snapshot sidecars kept outside that project file. No database, no cloud, no agent on your devices, no telemetry. Binds to <code>127.0.0.1</code> by default, and runs in Docker with one command.
 </td>
 <td width="33%" valign="top">
 <b>🔌 Standard MIBs, any vendor</b><br><br>
@@ -240,7 +240,7 @@ Double-click <code>avvia.bat</code>.<br>
 | **🏷️ VLAN** | Access and trunk detection, Q-BRIDGE bitmaps with a VTP fallback, auto-derived trunks, per-VLAN IPAM occupancy, one-click isolation across the whole map |
 | **📶 Wireless** | Up to 8 radios per device with their own SSID, band, channel, security and VLAN; over-the-air association discovery from the bridge FDB and the L3 neighbour table |
 | **🧵 Cabling** | Segment editor on the TIA-568 hierarchy, copper *and* fibre reach validation, end-to-end physical path trace, printable label sheets and CSV |
-| **🕓 History & automation** | Opt-in autosave, a silent scheduled Verify, a verification timeline and restorable full-state snapshots — kept outside the project file, behind a database-ready interface |
+| **🕓 History & automation** | One **Automatic monitoring** scheduler (Light / Full), opt-in autosave, a verification timeline and restorable full-state snapshots — kept outside the project file, behind a database-ready interface |
 | **🤖 AI assistant** | Bring-your-own-key, OpenAI-compatible, local by default; allowlist context, grounded answers with clickable citations, Ansible drafts — advisory, never auto-applied |
 | **🔒 Security** | Session auth with admin/viewer roles, rate-limited login, loopback bind, secrets structurally excluded from every data surface |
 | **🌍 Bilingual** | Complete Italian and English interface, onboarding and ~49-page manual, guarded by an `it ↔ en` key-parity test |
@@ -918,8 +918,8 @@ server on a temp store and is skipped unless `RUN_E2E=1`.
 Coverage focuses on the pure, bug-prone logic that has historically broken: SNMP parsing & extraction (`test/snmp.test.js`, `test/extractData.test.js`), discovery & classification (`test/discovery.test.js`, 14 real-device cases), correlation primitives (`test/correlate.test.js`), the sysObjectID / OUI / Fusion engines (`tests/*.test.js`), front-panel state, cable validation (incl. **Cat8 30 m reach**), IPAM & LAG audits, and an app-wide **smoke E2E** (`test/smoke-app.test.js`) that loads every `netmapper.html` script plus the esbuild bundle into a `vm` + DOM stub and asserts `renderAll`/`renderProps` never throw on any device type.
 
 Current local quality baseline:
-- `npm run check` validates all project JS sources (~140 files)
-- `npm test` runs the full regression suite (currently **1,948 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **93 flows**)
+- `npm run check` validates all project JS sources (399 files)
+- `npm test` runs the full regression suite (currently **2,083 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **97 flows**)
 - final visual verification is still important for rack/front-panel refinements
 
 > Pure functions are exposed for tests via an additive `_internals` export on
@@ -1045,4 +1045,3 @@ PARTICULAR PURPOSE. See the GNU AGPL for more details.
 <a href="https://ko-fi.com/infranetpro"><img height="32" alt="Support InfraNet Pro on Ko-fi" src="https://ko-fi.com/img/githubbutton_sm.svg"></a>
 
 </div>
-

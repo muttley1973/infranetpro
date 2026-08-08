@@ -520,6 +520,12 @@ export function _migrateState(s) {
         s.currentRack = 'rack_default';
         (s.nodes||[]).forEach(n => { if (TYPES[n.type]?.isRack) n.rackId='rack_default'; });
     }
+    // currentRack assente o "appeso" (rack eliminato, oppure progetto importato che
+    // crea i rack ma non ne seleziona uno) → apri sul primo rack esistente, così la
+    // vista Rack non è vuota. Stesso ripiego di app-csv-import (import CSV).
+    if (s.racks.length && !s.racks.some(r => r && r.id === s.currentRack)) {
+        s.currentRack = s.racks[0].id;
+    }
     if (!s.floorView) s.floorView = {x:0,y:0,zoom:1};
     if (!s.rackView)  s.rackView  = {zoom:1};
     if (!s.uiColors)  s.uiColors  = {floorBg:'#0d1117',rackBg:'#ffffff'};
