@@ -6,7 +6,14 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 
 ## [2.7.2] — 2026-08-08
 
-**In the topology view, the rack shows its cables again in the default "trunk + access" mode.** The trunk/access pill force-shows cables in the rack that otherwise appear only on selection — but only in its two exclusive states ("trunk only" / "access only"); its default "trunk + access" state force-showed nothing, so a rack whose cables are all access (a freshly imported one, for instance) looked cable-less until you narrowed the filter. "Trunk + access" now shows every cable, at the same emphasized thickness as the exclusive states.
+**Import an existing NetBox as a new InfraNet project, and the topology view stops hiding a rack's cables.** DCIM/IPAM sync connects to a NetBox instance over its REST API and builds a project from a chosen site — racks placed on the floor plan, a front/rear cabinet split in two, patch-panel cabling reconstructed as a native pass-through chain. Import is free; write-back is a paid module. The same release fixes the topology "trunk + access" filter, which force-showed a rack's cables only in its two exclusive states.
+
+### Added
+- **DCIM/IPAM sync — import from NetBox** (free): connect with a base URL + API token (secret stored server-side at `0o600`, never in git or the browser) plus a connection test; a three-step wizard (site scope → entity toggles → preview with per-row deselect) builds a **new** project, with a staged progress screen and a result summary. Import is read-only — it never writes to NetBox. Pure NetBox→state mapping in `lib/dcim-map.js`; admin-gated routes under `/api/integrations/dcim/*`.
+- **Imported racks are placed on the floor plan** and open in the Rack view — each rack gets a non-overlapping grid position and a clickable floor icon; the first rack is set current so the cabinet renders populated.
+- **Front/rear cabinet split** — a NetBox rack with devices on both faces becomes two InfraNet racks (`… · retro`), devices assigned by face, cross-face cables drawn as cross-rack links.
+- **Patch-panel cabling** — front/rear-port terminations become a native pass-through chain sharing the pass-through pid (no synthetic segments); type-aware termination resolution, with the NetBox 4.6 `rear_ports[]` array schema handled alongside the legacy singular field. Power/PDU and WAN-circuit cables are skipped quietly.
+- **Write-back to NetBox** is a **paid module** (`modules/dcim-export/`): dry-run diff, create-or-PATCH by natural key, never delete; the free build feature-detects it and hides the Export tab.
 
 ### Fixed
 - **The topology "trunk + access" (default) pill now shows all rack cables** (`shouldRenderLink`): it force-shows cables that otherwise appear only on selection, but only its exclusive "trunk only" / "access only" states did — so the default state hid every cable (an imported rack with only access links looked empty until you narrowed the filter to "access only"). It now matches its own label and the floor overlay, where the "all" state already draws every pair.

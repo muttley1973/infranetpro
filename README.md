@@ -121,7 +121,7 @@ Double-click <code>avvia.bat</code>.<br>
 
 > **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then run **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.7.2) — the topology view shows rack cables again in the default "trunk + access" mode.** The trunk/access filter force-shows cables that otherwise appear only on selection, but only in its two exclusive states; its default **trunk + access** state showed none, so a rack with only access links looked empty until you narrowed the filter. It now shows every cable, at the same thickness as the filtered states.
+> 📰 **What's new (v2.7.2) — import an existing NetBox as a new InfraNet project.** Connect to a NetBox instance (base URL + API token, with a connection test), pick a site, and a three-step wizard builds a project from it: racks placed on the floor plan, devices in their cabinets, a front/rear cabinet split into two racks, and **patch-panel cabling** reconstructed as a native pass-through chain. Import is free (public); write-back is a paid module. The same release also fixes the topology **trunk + access** view, which no longer hides a rack's cables.
 >
 > 📰 **Before that (v2.7.1) — SNMP polling and scheduled Verify are now one *Automatic monitoring* scheduler.** Pick a depth — **Light** (live SNMP refresh only) or **Full** (complete Verify + history) — and one interval; a poll and a Verify never sweep SNMP at the same time. Full detail in [CHANGELOG.md](CHANGELOG.md).
 
@@ -236,6 +236,7 @@ Double-click <code>avvia.bat</code>.<br>
 |---|---|
 | **🗺️ Diagramming** | 19″ racks with live port LEDs, floor plans, ~4,100 device models across 52 vendors, MGMT & SFP blocks, hypervisors and VMs, the Dashboard, exports to PDF · SVG · draw.io |
 | **📡 Live SNMP** | v1 / v2c / v3 discovery, interfaces, VLANs, LAG, LLDP/CDP neighbours, ENTITY-MIB inventory, wireless associations, DHCP lease import, the Verify / Drift report |
+| **🔄 DCIM / IPAM sync** | Import an existing **NetBox** into a new project over its REST API — sites, racks (front/rear split), floor-placed, devices, interfaces, VLANs/prefixes and patch-panel cabling; free import, paid write-back |
 | **🔗 LAG detection** | A four-level cascade — `ifStackTable` · IEEE 802.3ad · LACP actor state · LLDP-inferred — plus LACP mode coherence across both ends |
 | **🏷️ VLAN** | Access and trunk detection, Q-BRIDGE bitmaps with a VTP fallback, auto-derived trunks, per-VLAN IPAM occupancy, one-click isolation across the whole map |
 | **📶 Wireless** | Up to 8 radios per device with their own SSID, band, channel, security and VLAN; over-the-air association discovery from the bridge FDB and the L3 neighbour table |
@@ -308,6 +309,20 @@ Double-click <code>avvia.bat</code>.<br>
 - **DHCP lease import** — paste or load a lease table (ISC dhcpd, dnsmasq, Kea, generic CSV; pfSense, OPNsense, MikroTik, Synology, Windows exports) for authoritative MAC ↔ IP across **all VLANs** — what local ARP cannot see behind an L3 firewall. Multiple servers accumulate as persisted sources. A lease table is an **identity map, not a liveness probe**: a documented device missing from it is *unverifiable*, never absent (`lib/dhcp-lease.js`). Live vendor pull is a separately-distributed driver pack.
 - **Endpoint/BYOD transparency** — undocumented entries that look like user devices (guest VLAN, crowded uplink port, randomised MAC) collapse into a group so the actionable infrastructure stays clean. Each hidden row says **why** in plain language, and a toggle reveals them.
 - **"Management VLAN" role** — the opposite of a guest VLAN: an undocumented device seen there is forced to infrastructure, never collapsed as BYOD, and flagged with a red security badge.
+
+</details>
+
+<details>
+<summary><b>🔄 DCIM / IPAM sync (NetBox)</b> — <sub>import an existing NetBox into a new project; write-back is a paid module</sub></summary>
+
+- **Live connection over the REST API** — set a base URL and an API token, then **Test connection** probes `/api/status/` (chip turns green on success, red on failure). The token is stored server-side at `0o600`, is never returned to the browser, and never enters git — the same secret handling as the SNMP and AI keys.
+- **Three-step import wizard** → new project — **Scope** (pick a site, with counts), **Entities** (devices+ports+cables / IPAM / racks toggles), **Preview** (live counts, per-row deselect, honest warnings) → **Create project**. A staged progress screen, a result with counts and *Open project*, and a retry on error. Import is read-only (GET); it never writes to NetBox.
+- **One site = one project** — the site names the project, racks keep their NetBox names, and a device's Location becomes a note (InfraNet has no multi-floor model); import one site at a time so rack names stay unambiguous.
+- **Racks placed on the floor plan** — each imported rack is auto-positioned on a non-overlapping grid and appears as a clickable floor icon; the first rack opens in the Rack view, populated.
+- **Front/rear cabinet split** — a NetBox rack with devices on *both* faces becomes **two** InfraNet racks (`… · retro`), each device on its own side, with cross-face cables drawn as cross-rack links.
+- **Patch-panel cabling** — front/rear-port terminations are reconstructed as a **native pass-through chain** (switch → panel-A → panel-B → server) sharing the pass-through pid — no synthetic segments. Type-aware termination resolution avoids id collisions across NetBox's separate id spaces, and the NetBox 4.6 `rear_ports[]` array schema is handled alongside the legacy singular field. Power/PDU and WAN-circuit cables are out of scope and skipped quietly.
+- **Catalogue reconciliation** — a NetBox `device_type.slug` is matched against the built-in device-type catalogue (both seeded from the same public NetBox library), applying the native port count and front panel; otherwise the imported interface count is used.
+- **Manual-first, non-destructive** — import creates a **new** project and never clobbers an existing one. **Write-back to NetBox is a paid module** (`modules/dcim-export/`): dry-run diff first, create-or-PATCH by natural key, **never delete**; the free build feature-detects it and hides the Export tab.
 
 </details>
 
