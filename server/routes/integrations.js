@@ -97,6 +97,11 @@ async function _pullForImport(client, sel) {
   if (on('devices')) {
     const itf = await _batchByField(client, '/api/dcim/interfaces/', 'device_id', deviceIds);
     nb.interfaces = itf.results; if (itf.truncated) nb.truncated = true;
+    // Front port dei patch panel → slot passanti che permettono al cablaggio
+    // strutturato di risolversi (switch → pp → pp → server). I rear port arrivano
+    // via FK dal front (rear_port) → nessun fetch dedicato.
+    const fp = await _batchByField(client, '/api/dcim/front-ports/', 'device_id', deviceIds);
+    nb.frontPorts = fp.results; if (fp.truncated) nb.truncated = true;
   }
   if (on('cabling')) {
     const cab = await _batchByField(client, '/api/dcim/cables/', 'device_id', deviceIds);

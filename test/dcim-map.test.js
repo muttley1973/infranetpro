@@ -198,6 +198,169 @@ test('rack: nomi NetBox intatti (niente prefisso sito → sta nel nome progetto)
   assert.ok(names.includes('R103'));
 });
 
+// ── Cablaggio via patch panel (front/rear port → slot passanti) ──────────────
+// Percorso strutturato: SW:Gi0/1 —cavo— PP-A:F1 ═interno═ PP-A:R1 —cavo—
+// PP-B:R1 ═interno═ PP-B:F1 —cavo— SRV:eth0. In NetBox = 3 cavi (interface↔
+// frontport, rearport↔rearport, frontport↔interface). In InfraNet = 3 link che
+// condividono lo slot passante del pannello (fronte+retro = una sola porta).
+function ppFixture() {
+  return {
+    manufacturers: [{ id: 1, name: 'Cisco' }, { id: 2, name: 'CommScope' }],
+    deviceTypes: [
+      { id: 10, manufacturer: { id: 1 }, model: 'C9200', u_height: 1 },
+      { id: 12, manufacturer: { id: 2 }, model: 'PP-24', u_height: 1 },
+    ],
+    deviceRoles: [
+      { id: 20, slug: 'access-switch', name: 'Access Switch' },
+      { id: 22, slug: 'patch-panel', name: 'Patch Panel' },
+      { id: 23, slug: 'server', name: 'Server' },
+    ],
+    devices: [
+      { id: 100, name: 'SW', device_type: { id: 10 }, role: { id: 20 } },
+      { id: 200, name: 'PP-A', device_type: { id: 12 }, role: { id: 22 } },
+      { id: 201, name: 'PP-B', device_type: { id: 12 }, role: { id: 22 } },
+      { id: 300, name: 'SRV', device_type: { id: 10 }, role: { id: 23 } },
+    ],
+    interfaces: [
+      { id: 1000, device: { id: 100 }, name: 'GigabitEthernet0/1' },
+      { id: 1300, device: { id: 300 }, name: 'eth0' },
+    ],
+    frontPorts: [
+      // fuori ordine di proposito → devono ordinarsi 1,2 (ordine naturale)
+      { id: 2001, device: { id: 200 }, name: '2', rear_port: { id: 3001 } },
+      { id: 2000, device: { id: 200 }, name: '1', rear_port: { id: 3000 } },
+      { id: 2100, device: { id: 201 }, name: '1', rear_port: { id: 3100 } },
+      { id: 2101, device: { id: 201 }, name: '2', rear_port: { id: 3101 } },
+    ],
+    cables: [
+      { id: 500, a_terminations: [{ object_type: 'dcim.interface', object_id: 1000 }], b_terminations: [{ object_type: 'dcim.frontport', object_id: 2000 }] },
+      { id: 501, a_terminations: [{ object_type: 'dcim.rearport', object_id: 3000 }], b_terminations: [{ object_type: 'dcim.rearport', object_id: 3100 }], type: { value: 'cat6a' } },
+      { id: 502, a_terminations: [{ object_type: 'dcim.frontport', object_id: 2100 }], b_terminations: [{ object_type: 'dcim.interface', object_id: 1300 }] },
+    ],
+  };
+}
+
+test('front port di un patch panel → slot passanti (ordine naturale, conteggio)', () => {
+  const { state } = map.netboxToState(ppFixture());
+  const pa = state.nodes.find(n => n.id === 'nb-dev-200');
+  assert.equal(pa.type, 'patchpanel');
+  assert.equal(pa.ports, 2);                     // 2 front port → 2 slot
+  // front port "1" → slot 1, "2" → slot 2 (naturale, non ordine di array)
+  // (nessuna ifName perché il nome coincide col numero di slot)
+  assert.equal('nb-dev-200-1' in state.ports, false);
+  assert.equal('nb-dev-200-2' in state.ports, false);
+});
+
+test('cavo interface↔front-port → link su slot del pannello', () => {
+  const { state } = map.netboxToState(ppFixture());
+  const l = state.links.find(x => x.id === 'nb-cbl-500');
+  assert.ok(l);
+  assert.deepEqual([l.src, l.dst].sort(), ['nb-dev-100-1', 'nb-dev-200-1'].sort());
+});
+
+test('cavo rear-port↔rear-port → backbone risolto via FK del front (stesso slot)', () => {
+  const { state } = map.netboxToState(ppFixture());
+  const l = state.links.find(x => x.id === 'nb-cbl-501');
+  assert.ok(l);
+  // rear 3000 → slot 1 di PP-A ; rear 3100 → slot 1 di PP-B
+  assert.deepEqual([l.src, l.dst].sort(), ['nb-dev-200-1', 'nb-dev-201-1'].sort());
+  assert.equal(l.cableCategory, 'cat6a');
+});
+
+test('catena patch panel: lo slot passante è CONDIVISO fra i tratti (nessun segments[])', () => {
+  const { state } = map.netboxToState(ppFixture());
+  assert.equal(state.links.length, 3);
+  const touch = pid => state.links.filter(l => l.src === pid || l.dst === pid).length;
+  // PP-A slot 1: fronte (verso SW) + retro (verso PP-B) = 2 link
+  assert.equal(touch('nb-dev-200-1'), 2);
+  // PP-B slot 1: retro (da PP-A) + fronte (verso SRV) = 2 link
+  assert.equal(touch('nb-dev-201-1'), 2);
+  // estremi attivi = 1 link ciascuno
+  assert.equal(touch('nb-dev-100-1'), 1);
+  assert.equal(touch('nb-dev-300-1'), 1);
+  // nessun link usa segments[] (modello nativo a catena)
+  assert.ok(state.links.every(l => !('segments' in l)));
+});
+
+test('risoluzione type-aware: interface #N e front-port #N non collidono', () => {
+  const nb = {
+    manufacturers: [{ id: 1, name: 'Cisco' }],
+    deviceTypes: [{ id: 10, manufacturer: { id: 1 }, model: 'C9200' }],
+    deviceRoles: [{ id: 20, slug: 'access-switch', name: 'Switch' }, { id: 22, slug: 'patch-panel', name: 'PP' }],
+    devices: [
+      { id: 100, name: 'SW', device_type: { id: 10 }, role: { id: 20 } },
+      { id: 200, name: 'PP', device_type: { id: 10 }, role: { id: 22 } },
+    ],
+    interfaces: [{ id: 777, device: { id: 100 }, name: 'Gi0/1' }],           // interface #777
+    frontPorts: [{ id: 777, device: { id: 200 }, name: '1', rear_port: { id: 900 } }], // front #777 (STESSO id)
+    cables: [
+      // cavo sulla FRONT PORT #777 → deve andare al pannello, non allo switch
+      { id: 500, a_terminations: [{ object_type: 'dcim.interface', object_id: 777 }], b_terminations: [{ object_type: 'dcim.frontport', object_id: 777 }] },
+    ],
+  };
+  const { state } = map.netboxToState(nb);
+  const l = state.links.find(x => x.id === 'nb-cbl-500');
+  assert.ok(l);
+  // un capo sullo switch (interface 777), l'altro sul pannello (front 777) — non lo stesso device
+  assert.deepEqual([l.src, l.dst].sort(), ['nb-dev-100-1', 'nb-dev-200-1'].sort());
+});
+
+test('schema NetBox 4.6+: front port con rear_ports[] (non rear_port singolo) → backbone risolto', () => {
+  // In 4.6 il front port mappa i rear via array `rear_ports:[{rear_port:<id>}]`
+  // (id nudo), non `rear_port:{id}`. Il backbone rear↔rear deve comunque risolvere.
+  const nb = {
+    deviceRoles: [{ id: 22, slug: 'patch-panel', name: 'PP' }],
+    devices: [
+      { id: 200, name: 'PP-A', role: { id: 22 } },
+      { id: 201, name: 'PP-B', role: { id: 22 } },
+    ],
+    frontPorts: [
+      { id: 2000, device: { id: 200 }, name: '1', rear_ports: [{ position: 1, rear_port: 3000, rear_port_position: 1 }] },
+      { id: 2100, device: { id: 201 }, name: '1', rear_ports: [{ position: 1, rear_port: 3100, rear_port_position: 1 }] },
+    ],
+    cables: [
+      { id: 600, a_terminations: [{ object_type: 'dcim.rearport', object_id: 3000 }], b_terminations: [{ object_type: 'dcim.rearport', object_id: 3100 }] },
+    ],
+  };
+  assert.deepEqual(map._frontRearIds({ rear_ports: [{ rear_port: 3000 }, { rear_port: { id: 3001 } }] }), [3000, 3001]);
+  const { state } = map.netboxToState(nb);
+  const l = state.links.find(x => x.id === 'nb-cbl-600');
+  assert.ok(l, 'il cavo rear↔rear deve risolversi anche con schema 4.6');
+  assert.deepEqual([l.src, l.dst].sort(), ['nb-dev-200-1', 'nb-dev-201-1'].sort());
+});
+
+test('cavi fuori scope (power/console/circuito) → saltati SENZA avviso; miss di rete → avviso', () => {
+  const nb = {
+    deviceRoles: [{ id: 20, slug: 'access-switch', name: 'SW' }],
+    devices: [{ id: 100, name: 'SW', role: { id: 20 } }],
+    interfaces: [{ id: 1000, device: { id: 100 }, name: 'Gi0/1' }, { id: 1001, device: { id: 100 }, name: 'Gi0/2' }],
+    cables: [
+      // alimentazione: outlet↔powerport → fuori scope, niente avviso
+      { id: 700, a_terminations: [{ object_type: 'dcim.poweroutlet', object_id: 9000 }], b_terminations: [{ object_type: 'dcim.powerport', object_id: 9001 }] },
+      // circuito WAN: interfaccia↔circuittermination → fuori scope, niente avviso
+      { id: 701, a_terminations: [{ object_type: 'dcim.interface', object_id: 1000 }], b_terminations: [{ object_type: 'circuits.circuittermination', object_id: 9100 }] },
+      // miss VERO: interfaccia↔interfaccia con un capo su device non importato → avviso
+      { id: 702, a_terminations: [{ object_type: 'dcim.interface', object_id: 1001 }], b_terminations: [{ object_type: 'dcim.interface', object_id: 5555 }] },
+    ],
+  };
+  const { state, report } = map.netboxToState(nb);
+  assert.equal(state.links.length, 0);
+  // solo il 702 (net↔net non risolto) genera avviso; 700/701 silenziosi
+  assert.equal(report.warnings.filter(w => /700|701/.test(w)).length, 0);
+  assert.equal(report.warnings.filter(w => /702/.test(w)).length, 1);
+});
+
+test('front port con etichetta non banale → preservata in ifName', () => {
+  const nb = {
+    deviceRoles: [{ id: 22, slug: 'patch-panel', name: 'PP' }],
+    devices: [{ id: 200, name: 'PP', role: { id: 22 } }],
+    frontPorts: [{ id: 2000, device: { id: 200 }, name: 'A1', description: 'Room 204', rear_port: { id: 3000 } }],
+  };
+  const { state } = map.netboxToState(nb);
+  assert.equal(state.ports['nb-dev-200-1'].ifName, 'A1');
+  assert.equal(state.ports['nb-dev-200-1'].desc, 'Room 204');
+});
+
 test('nome di ripiego: device senza name → "Modello #id"', () => {
   const nb = {
     manufacturers: [{ id: 9, name: 'Juniper' }],
