@@ -198,6 +198,64 @@ test('rack: nomi NetBox intatti (niente prefisso sito → sta nel nome progetto)
   assert.ok(names.includes('R103'));
 });
 
+// ── Split fronte/retro (a1) ─────────────────────────────────────────────────
+// NetBox = UN rack con device.face front/rear; InfraNet = fronte e retro sono
+// DUE rack. Un rack bifacciale va spezzato in 2 (fronte = nome, retro = "· retro").
+test('rack bifacciale → 2 rack InfraNet (fronte + "· retro"), device assegnati per faccia', () => {
+  const nb = {
+    manufacturers: [{ id: 1, name: 'Cisco' }, { id: 2, name: 'CommScope' }],
+    deviceTypes: [{ id: 10, manufacturer: { id: 1 }, model: 'C9200', u_height: 1 }, { id: 12, manufacturer: { id: 2 }, model: 'PP-24', u_height: 1 }],
+    deviceRoles: [{ id: 20, slug: 'access-switch', name: 'SW' }, { id: 22, slug: 'patch-panel', name: 'PP' }],
+    racks: [{ id: 30, name: 'MDF', u_height: 42 }],
+    devices: [
+      { id: 100, name: 'SW', device_type: { id: 10 }, role: { id: 20 }, rack: { id: 30 }, position: 40, face: { value: 'front', label: 'Front' } },
+      { id: 200, name: 'PP', device_type: { id: 12 }, role: { id: 22 }, rack: { id: 30 }, position: 42, face: { value: 'rear', label: 'Rear' } },
+    ],
+    interfaces: [{ id: 1000, device: { id: 100 }, name: 'Gi0/1' }],
+    frontPorts: [{ id: 2000, device: { id: 200 }, name: '1', rear_ports: [{ rear_port: 3000 }] }],
+    cables: [{ id: 500, a_terminations: [{ object_type: 'dcim.interface', object_id: 1000 }], b_terminations: [{ object_type: 'dcim.frontport', object_id: 2000 }] }],
+  };
+  const { state } = map.netboxToState(nb);
+  const byId = id => state.racks.find(r => r.id === id);
+  assert.equal(state.racks.length, 2);
+  assert.deepEqual(byId('nb-rack-30'), { id: 'nb-rack-30', name: 'MDF', sizeU: 42 });
+  assert.deepEqual(byId('nb-rack-30-rear'), { id: 'nb-rack-30-rear', name: 'MDF · retro', sizeU: 42 });
+  const sw = state.nodes.find(n => n.id === 'nb-dev-100');
+  const pp = state.nodes.find(n => n.id === 'nb-dev-200');
+  assert.equal(sw.rackId, 'nb-rack-30'); assert.equal(sw.rackU, 40);        // fronte
+  assert.equal(pp.rackId, 'nb-rack-30-rear'); assert.equal(pp.rackU, 42);   // retro
+  // il cavo fronte↔retro diventa un link CROSS-RACK (nodi in rack diversi)
+  const l = state.links.find(x => x.id === 'nb-cbl-500');
+  assert.ok(l);
+  const rackOf = pid => state.nodes.find(n => pid.startsWith(n.id + '-')).rackId;
+  assert.notEqual(rackOf(l.src), rackOf(l.dst));
+});
+
+test('rack con device su UNA sola faccia → UN rack, nessun "· retro" spurio', () => {
+  const nb = {
+    deviceRoles: [{ id: 22, slug: 'patch-panel', name: 'PP' }],
+    racks: [{ id: 31, name: 'R105', u_height: 42 }],
+    devices: [
+      { id: 201, name: 'PP1', role: { id: 22 }, rack: { id: 31 }, position: 26, face: { value: 'rear', label: 'Rear' } },
+      { id: 202, name: 'PP2', role: { id: 22 }, rack: { id: 31 }, position: 24, face: { value: 'rear', label: 'Rear' } },
+    ],
+  };
+  const { state } = map.netboxToState(nb);
+  assert.equal(state.racks.length, 1);
+  assert.equal(state.racks[0].id, 'nb-rack-31');
+  assert.equal(state.racks[0].name, 'R105');                 // niente "· retro"
+  assert.ok(!/retro/.test(state.racks[0].name));
+  assert.equal(state.nodes.find(n => n.id === 'nb-dev-201').rackId, 'nb-rack-31');
+  assert.equal(state.nodes.find(n => n.id === 'nb-dev-202').rackId, 'nb-rack-31');
+});
+
+test('face assente/null → trattata come fronte (rack singolo)', () => {
+  assert.equal(map._faceOf({ face: null }), 'front');
+  assert.equal(map._faceOf({}), 'front');
+  assert.equal(map._faceOf({ face: { value: 'rear' } }), 'rear');
+  assert.equal(map._faceOf({ face: 'rear' }), 'rear');
+});
+
 // ── Cablaggio via patch panel (front/rear port → slot passanti) ──────────────
 // Percorso strutturato: SW:Gi0/1 —cavo— PP-A:F1 ═interno═ PP-A:R1 —cavo—
 // PP-B:R1 ═interno═ PP-B:F1 —cavo— SRV:eth0. In NetBox = 3 cavi (interface↔
