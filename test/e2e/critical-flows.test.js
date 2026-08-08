@@ -2138,15 +2138,28 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           // isRackPort discrimina rack vs floor
           const swIsRack = isRackPort('sw-1'), pcIsRack = isRackPort('pc-1');
 
-          // shouldRenderLink: porta selezionata → cavo visibile; deselezionato → nascosto
+          // shouldRenderLink: porta selezionata → cavo visibile; deselezionato → nascosto.
+          // In vista MAPPA esplicita (un test precedente può lasciare _viewMode='topology',
+          // dove la pillola 'all' rende comunque tutto visibile: qui vogliamo il declutter puro).
+          _viewMode = 'map'; _topoTrunkMode = 'all';
           selType = 'port'; selId = 'sw-1'; highPath.clear();
           const lnkVisible = shouldRenderLink(state.links[0]);
           selType = null; selId = null; highPath.clear();
           const lnkHidden = shouldRenderLink(state.links[0]);
 
+          // shouldRenderLink in topologia: lo stato «TRUNK+ACCESS» (all) mostra TUTTI
+          // i cavi anche senza selezione. Prima mancava il ramo 'all' → li nascondeva
+          // tutti, e un rack importato senza trunk sembrava "senza cavi" finche' non
+          // si passava a «solo access». I due stati esclusivi restano il filtro fine.
+          _viewMode = 'topology'; _topoTrunkMode = 'all';
+          const lnkTopoAll = shouldRenderLink(state.links[0]);   // sw↔pc access, non selezionato
+          _topoTrunkMode = 'trunk';
+          const lnkTopoTrunkOnly = shouldRenderLink(state.links[0]); // access → nascosto in «solo trunk»
+          _viewMode = 'map'; _topoTrunkMode = 'all';            // ripristina per i test successivi
+
           renderScope('floor'); // render mirato senza crash (coalescing rAF)
 
-          return { ok: true, fns, floorItems, rackDevs, isPath, isRackPath, swIsRack, pcIsRack, lnkVisible, lnkHidden };
+          return { ok: true, fns, floorItems, rackDevs, isPath, isRackPath, swIsRack, pcIsRack, lnkVisible, lnkHidden, lnkTopoAll, lnkTopoTrunkOnly };
         } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
       });
       assert.ok(r.ok, 'nessun errore nel flusso render-core: ' + r.err);
@@ -2159,6 +2172,8 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(!r.pcIsRack, 'isRackPort: pc-1 NON è porta di rack');
       assert.ok(r.lnkVisible, 'shouldRenderLink: cavo visibile con la porta selezionata');
       assert.ok(!r.lnkHidden, 'shouldRenderLink: cavo nascosto senza selezione (declutter)');
+      assert.ok(r.lnkTopoAll, 'shouldRenderLink: in topologia «trunk+access» il cavo è visibile senza selezione');
+      assert.ok(!r.lnkTopoTrunkOnly, 'shouldRenderLink: in topologia «solo trunk» un cavo access resta nascosto');
     });
 
     await t.test('app-popup migrato: showPop + _getLinkVlan/_linkMatchesVlanFilter + _applyViewMode + stato topo su window', async () => {

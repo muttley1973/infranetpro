@@ -729,6 +729,12 @@ function shouldRenderLink(l){
     // solo in una direzione si legge come un bug.
     if(store._viewMode === 'topology'){
         const _tm = store._topoTrunkMode || 'all';
+        // «trunk + access» (stato di default della pillola): mostra TUTTI i cavi.
+        // L'etichetta promette entrambi, e l'overlay del pavimento in 'all' disegna
+        // gia' ogni coppia — lasciarlo come "solo su selezione" li nascondeva tutti
+        // (un rack importato senza trunk sembrava senza cavi finche' non si passava
+        // a «solo access»). I due stati esclusivi restano il filtro fine.
+        if(_tm === 'all') return true;
         if(_tm === 'trunk'  &&  _linkIsTrunk(l)) return true;
         if(_tm === 'access' && !_linkIsTrunk(l)) return true;
     }
