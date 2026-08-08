@@ -4,6 +4,14 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 
 **A linked version number is a published release** — follow it to the release on GitHub. *Unreleased* is what has landed on `main` since the last one.
 
+## [2.7.2] — 2026-08-08
+
+**In the topology view, the rack shows its cables again in the default "trunk + access" mode.** The trunk/access pill force-shows cables in the rack that otherwise appear only on selection — but only in its two exclusive states ("trunk only" / "access only"); its default "trunk + access" state force-showed nothing, so a rack whose cables are all access (a freshly imported one, for instance) looked cable-less until you narrowed the filter. "Trunk + access" now shows every cable, at the same emphasized thickness as the exclusive states.
+
+### Fixed
+- **The topology "trunk + access" (default) pill now shows all rack cables** (`shouldRenderLink`): it force-shows cables that otherwise appear only on selection, but only its exclusive "trunk only" / "access only" states did — so the default state hid every cable (an imported rack with only access links looked empty until you narrowed the filter to "access only"). It now matches its own label and the floor overlay, where the "all" state already draws every pair.
+- **Cables shown in "trunk + access" get the same 2.5px emphasis as the exclusive states** (`mode-emph`, all three states): a cable no longer draws thinner in the full view than in the filtered one.
+
 ## [2.7.1] — 2026-08-06
 
 **The Automazioni menu now has one "Automatic monitoring" scheduler with two depths, instead of two overlapping timers.** Background SNMP polling and scheduled Verify were separate on/off timers — but a Verify already includes the SNMP poll, so running both was redundant and, at coinciding ticks, fired two concurrent SNMP sweeps. They are now a single scheduler: pick a depth and one interval, with an in-flight guard so a poll and a Verify can never sweep SNMP at the same time.
