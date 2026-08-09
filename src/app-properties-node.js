@@ -13,7 +13,8 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, normalizeNumber } from './app-util.js';
-import { nodeById, getNodeDisplayName, selected, _patchPanelOffset, _enableManualValueInProps, _activatePropsTab, getNodeRackSize, _patchPanelChainOptions, isRackTopNumbered, rackUToVisible, updateN, updateFrontPanel, deleteNode, visibleUToRackU } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, getNodeDisplayName, selected, _patchPanelOffset, _enableManualValueInProps, _activatePropsTab, getNodeRackSize, _patchPanelChainOptions, isRackTopNumbered, rackUToVisible, updateN, updateFrontPanel, deleteNode, visibleUToRackU, markDirty, logAudit } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { renderAll } from './app-render-core.js';   // P4: re-render dopo adozione/scarto del retype proposto
 import { TYPES, typeName, _nodeSpecView, _fixedRackLabel, _frontPanelState } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { _propsSectionIsOpen, _buildNetAccessHtml, renderProps, _buildPropsHeader, _propsIconForType, _buildPatchPanelPreview } from './app-properties.js';   // ritiro ponte: builder pannello (ex win.*)
 import { osIconHtmlFor } from '../lib/os-icon.js';   // icona OS (accento colorato nell'intestazione device)
@@ -70,8 +71,38 @@ function _fpVal(el){
 }
 const _fp = (el) => updateFrontPanel(el.dataset.fpkey, _fpVal(el));
 
+// P4 «proponi, non applicare»: adotta / ignora il TIPO suggerito dal Discovery su un
+// nodo gia' documentato (la proposta vive in n.discoveryConflicts 'identity-shift', non
+// e' mai stata applicata in silenzio). Adottare = scelta deliberata → pinna typeManual
+// (il tipo non tornera' a oscillare) e pulisce la proposta; ignorare = tiene il tipo
+// attuale e pulisce la proposta. Entrambe con audit.
+function _adoptRetype(nid, newType){
+    const n = nodeById(nid); if(!n) return;
+    if(!TYPES[newType] || n.type === newType){ _dismissRetype(nid); return; }
+    const prevType = n.type;
+    n.type = newType;
+    // Adotta le porte di default del nuovo tipo SOLO se il nodo aveva ancora quelle del
+    // vecchio (o nessuna): non calpesta un conteggio porte gia' personalizzato/misurato.
+    const prevDef = TYPES[prevType]?.ports || 0, nextDef = TYPES[newType]?.ports || 0;
+    if(!n.ports || n.ports === prevDef) n.ports = nextDef || n.ports;
+    n.typeManual = true;                       // adozione esplicita = pinnato (manual-first)
+    n.possibleReplacement = false;
+    if(Array.isArray(n.discoveryConflicts)) n.discoveryConflicts = n.discoveryConflicts.filter(c => !c || c.type !== 'identity-shift');
+    logAudit('discovery-retype-adopt', { target: n.name || n.id, summary: `${prevType} → ${newType}` });
+    markDirty(); renderAll(); renderProps();
+}
+function _dismissRetype(nid){
+    const n = nodeById(nid); if(!n) return;
+    n.possibleReplacement = false;
+    if(Array.isArray(n.discoveryConflicts)) n.discoveryConflicts = n.discoveryConflicts.filter(c => !c || c.type !== 'identity-shift');
+    logAudit('discovery-retype-dismiss', { target: n.name || n.id, summary: n.type });
+    markDirty(); renderProps();
+}
+
 registerClickActions({
     'node-delete':        () => deleteNode(),
+    'adopt-retype':       (el) => _adoptRetype(el.dataset.nid, el.dataset.type),
+    'dismiss-retype':     (el) => _dismissRetype(el.dataset.nid),
     'update-n-clear':     (el) => updateN(el.dataset.nfield, ''),   // bottone Reset colore
     'update-fp':          _fp,   // bottoni layout base (value literal in data-fpval)
     'room-lock-toggle':   (el) => toggleRoomLock(el.dataset.nid),
@@ -248,7 +279,13 @@ export function _renderNodeProps(panel){
             const _idLabel = _discIdentityLabel(_idSrc);
             const _hintVendor = String(n.vendorHint || '').trim();
             const _pReconcile = Array.isArray(n.portReconcileConflicts) ? n.portReconcileConflicts.length : 0;
-            const _showIdentity = !!(_idSrc || _hintVendor || n.possibleReplacement || _pReconcile);
+            // P4 «proponi, non applicare»: proposta di RI-TIPIZZAZIONE dal Discovery
+            // (identity-shift con un tipo valido diverso dall'attuale). NON e' stata applicata:
+            // si adotta o si ignora a mano qui sotto. Prendo la piu' recente.
+            const _typeShift = (Array.isArray(n.discoveryConflicts) ? n.discoveryConflicts : [])
+                .filter(c => c && c.type === 'identity-shift' && c.newType && c.newType !== n.type && TYPES[c.newType])
+                .slice(-1)[0] || null;
+            const _showIdentity = !!(_idSrc || _hintVendor || n.possibleReplacement || _pReconcile || _typeShift);
             const _idColor = _idConf === 'high' ? '#39d353' : _idConf === 'mid' ? '#d29922' : '#8b949e';
             const _identityBlock = _showIdentity ? `<div style="margin:8px 0 12px;padding:8px 10px;background:color-mix(in srgb, var(--accent) 7%, transparent);border:1px solid color-mix(in srgb, var(--accent) 20%, transparent);border-radius:6px;display:flex;flex-direction:column;gap:5px;font-size:0.74rem">
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -258,6 +295,12 @@ export function _renderNodeProps(panel){
                     ${_hintVendor ? `<span style="color:var(--text-muted);opacity:.5">|</span><span style="color:var(--text-muted)">${t('pnl.node.vendorHintMacOui')} <strong style="color:var(--text-main)">${escapeHTML(_hintVendor)}</strong></span>` : ''}
                 </div>
                 ${n.possibleReplacement ? `<div style="color:#d29922"><i class="fas fa-triangle-exclamation" style="margin-right:4px"></i>${t('pnl.node.possibleReplacement')}</div>` : ''}
+                ${_typeShift ? `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;color:#d29922">
+                    <i class="fas fa-arrows-rotate"></i>
+                    <span>${t('pnl.node.retypeSuggest', { type: escapeHTML(typeName(_typeShift.newType)) })}${Number.isFinite(_typeShift.confidence) ? ` · ${_typeShift.confidence}%` : ''}</span>
+                    <button type="button" data-act="adopt-retype" data-nid="${escapeHTML(n.id)}" data-type="${escapeHTML(_typeShift.newType)}" style="padding:2px 8px;border-radius:4px;border:1px solid #d29922;background:#d2992222;color:#e3b341;cursor:pointer">${t('pnl.node.retypeAdopt')}</button>
+                    <button type="button" data-act="dismiss-retype" data-nid="${escapeHTML(n.id)}" style="padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer">${t('pnl.node.retypeDismiss')}</button>
+                </div>` : ''}
                 ${_pReconcile ? `<div style="color:#d29922"><i class="fas fa-triangle-exclamation" style="margin-right:4px"></i>${t('pnl.node.portReconcile', {n:_pReconcile})}</div>` : ''}
             </div>` : '';
             // «Identità rilevata» IN CIMA, subito sotto l'intestazione e PRIMA di

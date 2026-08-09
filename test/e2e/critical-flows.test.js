@@ -1459,6 +1459,60 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(r.cleared, 0, 'senza Drift report nessun rack device è marcato');
     });
 
+    await t.test('P4 retype = proposta: adotta applica e pinna il tipo suggerito; ignora lo scarta', async () => {
+      const r = await page.evaluate(async () => {
+        const raf = () => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          const id = 'p4-node';
+          // nodo GIA' documentato come 'switch' con una PROPOSTA di retype a 'router'
+          // (registrata dall'import, MAI applicata): possibleReplacement + identity-shift.
+          state.nodes.push({ id, type: 'switch', name: 'CORE-1', ip: '10.4.4.4', ports: 24,
+            possibleReplacement: true,
+            discoveryConflicts: [{ type: 'identity-shift', oldType: 'switch', newType: 'router', source: 'snmp', confidence: 85 }] });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          window._propsExplicit = true; selType = 'node'; selId = id; renderProps(); await raf();
+          const adoptBtn = document.querySelector('[data-act="adopt-retype"][data-nid="' + id + '"]');
+          const dismissBtn = document.querySelector('[data-act="dismiss-retype"][data-nid="' + id + '"]');
+          const shown = !!adoptBtn && !!dismissBtn && adoptBtn.dataset.type === 'router';
+          const typeBefore = nodeById(id).type;
+          if (adoptBtn) adoptBtn.click(); await raf();
+          const nA = nodeById(id);
+          const typeAfter = nA.type, pinned = !!nA.typeManual, flagCleared = !nA.possibleReplacement;
+          const shiftCleared = !(Array.isArray(nA.discoveryConflicts) && nA.discoveryConflicts.some(c => c.type === 'identity-shift'));
+          const rowGone = !document.querySelector('[data-act="adopt-retype"][data-nid="' + id + '"]');
+          // IGNORA: un altro nodo con proposta → dismiss non cambia il tipo ne' pinna
+          const id2 = 'p4-node2';
+          state.nodes.push({ id: id2, type: 'pc', name: 'PC-X', ip: '10.4.4.5',
+            possibleReplacement: true,
+            discoveryConflicts: [{ type: 'identity-shift', oldType: 'pc', newType: 'nas', source: 'snmp', confidence: 60 }] });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          window._propsExplicit = true; selType = 'node'; selId = id2; renderProps(); await raf();
+          const dBtn = document.querySelector('[data-act="dismiss-retype"][data-nid="' + id2 + '"]');
+          if (dBtn) dBtn.click(); await raf();
+          const n2 = nodeById(id2);
+          const typeAfter2 = n2.type, flagCleared2 = !n2.possibleReplacement, notPinned2 = !n2.typeManual;
+          // cleanup
+          state.nodes = state.nodes.filter(n => n.id !== id && n.id !== id2);
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          window._propsExplicit = false; selType = null; selId = null; renderProps();
+          return { ok: true, shown, typeBefore, typeAfter, pinned, flagCleared, shiftCleared, rowGone,
+            typeAfter2, flagCleared2, notPinned2 };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso P4 retype: ' + r.err);
+      assert.ok(r.shown, 'la proposta mostra Adotta/Ignora col tipo suggerito (router)');
+      assert.equal(r.typeBefore, 'switch', 'prima il tipo documentato resta switch (proposta NON applicata)');
+      assert.equal(r.typeAfter, 'router', 'Adotta applica il tipo suggerito');
+      assert.ok(r.pinned, 'Adotta pinna il tipo (typeManual)');
+      assert.ok(r.flagCleared, 'Adotta pulisce possibleReplacement');
+      assert.ok(r.shiftCleared, 'Adotta rimuove la proposta identity-shift');
+      assert.ok(r.rowGone, 'dopo l\'adozione la riga proposta sparisce');
+      assert.equal(r.typeAfter2, 'pc', 'Ignora NON cambia il tipo');
+      assert.ok(r.flagCleared2, 'Ignora pulisce possibleReplacement');
+      assert.ok(r.notPinned2, 'Ignora non pinna il tipo');
+    });
+
     await t.test('app-csv-import migrato: openCsvImport + previewCsv (con errore) + importCsvNodes nel browser reale', async () => {
       const r = await page.evaluate(() => {
         try {

@@ -1157,14 +1157,17 @@ async function importDiscovered(){
                 foundExisting.netbiosName = foundExisting.netbiosName || d.netbiosName || '';
                 foundExisting.netbiosGroup = foundExisting.netbiosGroup || d.netbiosGroup || '';
                 if(!Array.isArray(foundExisting.smbShares) || !foundExisting.smbShares.length) foundExisting.smbShares = Array.isArray(d.smbShares) ? d.smbShares : [];
-                // Tipo: manual-first. Se l'utente ha scelto il tipo a mano nel dialogo
-                // (_typeManual) vince ed e' pinnato -> Verifiche/import futuri non lo
-                // ricambiano. Altrimenti l'auto-retype euristico agisce solo su un tipo
-                // NON pinnato (rispetta un typeManual gia' fissato).
-                const _applyRetype = d._typeManual
-                    ? (foundExisting.type !== d.type)
-                    : (_discCanAutoRetype(foundExisting.type, d.type) &&
-                       shouldRefreshIdentity && score >= 70 && !foundExisting.typeManual);
+                // Tipo: manual-first + P4 «proponi, non applicare». `foundExisting` e' un nodo
+                // GIA' DOCUMENTATO (viene dall'indice del progetto): l'auto-retype EURISTICO non
+                // si applica piu' da solo su di esso. La proposta e' gia' registrata sopra
+                // (possibleReplacement + discoveryConflicts: tipo suggerito, sorgente, confidenza)
+                // e si adotta con un'azione ESPLICITA dal pannello (adopt-retype) o si ignora.
+                // Viene applicato SUBITO solo se l'utente ha ri-scelto il tipo a mano nel dialogo
+                // Discovery (_typeManual = manuale-su-manuale). Cosi' anche i legacy pre-typeManual
+                // sono protetti: un tipo gia' documentato = proposta, mai sovrascrittura silenziosa.
+                // L'auto-apply del tipo dal classificatore resta solo per i nodi NUOVI di questa
+                // sessione (ramo di creazione sotto, dove il tipo e' la prima documentazione).
+                const _applyRetype = !!d._typeManual && (foundExisting.type !== d.type);
                 if(_applyRetype){
                     const prevType = foundExisting.type;
                     foundExisting.type = d.type;
