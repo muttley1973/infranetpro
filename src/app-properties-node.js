@@ -99,10 +99,27 @@ function _dismissRetype(nid){
     markDirty(); renderProps();
 }
 
+// P5 · adotta il conteggio porte MISURATO su un nodo con conteggio pinnato a mano.
+// La proposta (`portsMeasured`) l'ha registrata l'SNMP (lib/ports-reconcile.js)
+// senza toccare il disegno; qui l'utente decide di allineare il documento alla
+// realta'. Il pin `portsManual` resta: e' comunque un valore deciso a mano (adozione
+// esplicita). Le porte misurate in eccesso esistono gia' in `state.ports` (la sync
+// le popola sempre): alzare il conteggio le fa semplicemente disegnare.
+function _adoptPorts(nid){
+    const n = nodeById(nid); if(!n || n.portsMeasured == null) return;
+    const measured = n.portsMeasured;
+    if(measured > (n.ports || 0)) n.ports = measured;
+    delete n.portsMeasured;
+    n.portsManual = true;
+    logAudit('ports-adopt-measured', { target: n.name || n.id, summary: String(measured) });
+    markDirty(); renderAll(); renderProps();
+}
+
 registerClickActions({
     'node-delete':        () => deleteNode(),
     'adopt-retype':       (el) => _adoptRetype(el.dataset.nid, el.dataset.type),
     'dismiss-retype':     (el) => _dismissRetype(el.dataset.nid),
+    'adopt-ports':        (el) => _adoptPorts(el.dataset.nid),
     'update-n-clear':     (el) => updateN(el.dataset.nfield, ''),   // bottone Reset colore
     'update-fp':          _fp,   // bottoni layout base (value literal in data-fpval)
     'room-lock-toggle':   (el) => toggleRoomLock(el.dataset.nid),
@@ -344,7 +361,7 @@ export function _renderNodeProps(panel){
                     _layoutPortsHtml = `<details class="props-collapsible" ${_propsSectionIsOpen('layout-ports')?'open':''} data-toggle="props-section" data-section="layout-ports"><summary class="props-collapsible-head"><span><i class="fas fa-grip-vertical"></i> ${t('sec.portLayout')}</span>${_lpPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">${(typeof _deviceTypeApplyHtml==='function' && !isPatch) ? _deviceTypeApplyHtml() : ''}
 <div class="prop-row2">
   <div class="prop-group" style="grid-column:1/-1"><label>${t('field.portCount')}</label>
-    <input type="number" min="0" max="96" value="${n.ports!==undefined?n.ports:d.ports}" data-change="update-n" data-nfield="ports" data-ncoerce="int" data-ndef="${d.ports}" data-nmin="0" data-nmax="96">${n.portsReal?`<div style="font-size:0.78rem;color:#e3b341;margin-top:3px" data-tip="${escapeHTML(t('field.portCount.driftTip'))}"><i class="fas fa-triangle-exclamation"></i> ${escapeHTML(t('field.portCount.drift',{n:n.portsReal}))}</div>`:''}
+    <input type="number" min="0" max="96" value="${n.ports!==undefined?n.ports:d.ports}" data-change="update-n" data-nfield="ports" data-ncoerce="int" data-ndef="${d.ports}" data-nmin="0" data-nmax="96">${n.portsReal?`<div style="font-size:0.78rem;color:#e3b341;margin-top:3px" data-tip="${escapeHTML(t('field.portCount.driftTip'))}"><i class="fas fa-triangle-exclamation"></i> ${escapeHTML(t('field.portCount.drift',{n:n.portsReal}))}</div>`:''}${n.portsMeasured?`<div style="font-size:0.78rem;margin-top:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="color:#e3b341" data-tip="${escapeHTML(t('field.portCount.measuredTip'))}"><i class="fas fa-satellite-dish"></i> ${escapeHTML(t('field.portCount.measured',{n:n.portsMeasured}))}</span><button type="button" data-act="adopt-ports" data-nid="${escapeHTML(n.id)}" style="padding:2px 8px;border-radius:4px;border:1px solid #d29922;background:#d2992222;color:#e3b341;cursor:pointer">${escapeHTML(t('field.portCount.adopt'))}</button></div>`:''}
   </div>
 </div>
 <div class="prop-group" style="margin-top:6px"><label>${t('f.baseLayout')}</label>

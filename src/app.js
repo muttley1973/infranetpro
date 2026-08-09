@@ -1663,6 +1663,11 @@ function updateN(k,v){
     // Discovery non rinomina piu' un nome deliberato, nemmeno se coincide con host/IP/tipo.
     // Vuoto = sblocca (torna a seguire l'auto-naming), come il campo Hostname.
     if(k==='name') n.nameManual = !!String(v).trim();
+    // Conteggio porte scelto a mano = pinnato (manual-first, gemello di typeManual):
+    // l'SNMP non alza piu' `ports` in silenzio, propone «Adotta porte rilevate»
+    // (src/app-snmp.js via lib/ports-reconcile.js). Se riscrivi il conteggio a >=
+    // della misura pendente, la proposta non ha piu' senso → la togli.
+    if(k==='ports'){ n.portsManual = true; if(n.portsMeasured != null && Number(v) >= n.portsMeasured) delete n.portsMeasured; }
     if(k==='name' && _auditOldName!=null && v && String(v)!==_auditOldName){
         logAudit('device-rename', { target:String(v), summary:_auditOldName?((typeof t==='function')?t('audit.wasNamed',{name:_auditOldName}):`era «${_auditOldName}»`):'' });
     }

@@ -1513,6 +1513,58 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.notPinned2, 'Ignora non pinna il tipo');
     });
 
+    await t.test('P5 conteggio porte manual-first: editare a mano pinna portsManual; la misura SNMP resta una proposta adottabile', async () => {
+      const r = await page.evaluate(async () => {
+        const raf = () => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          // 1) editare a mano il conteggio porte (vero updateN, come il pannello) → pin
+          const id = 'p5-sw';
+          state.nodes.push({ id, type: 'switch', name: 'SW-P5', ip: '10.5.5.5', ports: 24 });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          selType = 'node'; selId = id;
+          const before = !!nodeById(id).portsManual;   // nodo nuovo: nessun pin (migrazione conservativa)
+          updateN('ports', 24);                          // conferma il conteggio a mano
+          const pinned = !!nodeById(id).portsManual;
+          // 2) esito d'una sync su nodo pinnato: `ports` resta, la misura va in proposta
+          //    (come lo scrive applyPollResult via lib/ports-reconcile.js).
+          nodeById(id).portsMeasured = 28;
+          window._propsExplicit = true; selType = 'node'; selId = id; renderProps(); await raf();
+          const adoptBtn = document.querySelector('[data-act="adopt-ports"][data-nid="' + id + '"]');
+          const proposalShown = !!adoptBtn;
+          const portsBefore = nodeById(id).ports;
+          // 3) Adotta → ports=28, proposta sparita, pin conservato
+          if (adoptBtn) adoptBtn.click(); await raf();
+          const nA = nodeById(id);
+          const portsAfter = nA.ports, proposalGone = nA.portsMeasured == null, stillPinned = !!nA.portsManual;
+          const rowGone = !document.querySelector('[data-act="adopt-ports"][data-nid="' + id + '"]');
+          // 4) riscrivere a mano a >= misura pendente pulisce la proposta senza pannello
+          const id2 = 'p5-sw2';
+          state.nodes.push({ id: id2, type: 'switch', name: 'SW-P5b', ip: '10.5.5.6', ports: 24, portsManual: true, portsMeasured: 28 });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          selType = 'node'; selId = id2;
+          updateN('ports', 28);
+          const n2 = nodeById(id2);
+          const clearedByEdit = n2.portsMeasured == null && n2.ports === 28 && !!n2.portsManual;
+          // cleanup
+          state.nodes = state.nodes.filter(x => x.id !== id && x.id !== id2);
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          window._propsExplicit = false; selType = null; selId = null; renderProps();
+          return { ok: true, before, pinned, proposalShown, portsBefore, portsAfter, proposalGone, stillPinned, rowGone, clearedByEdit };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso P5 porte: ' + r.err);
+      assert.equal(r.before, false, 'nodo nuovo: portsManual non impostato (migrazione conservativa)');
+      assert.ok(r.pinned, 'editare a mano il conteggio porte fissa portsManual');
+      assert.ok(r.proposalShown, 'con portsMeasured il pannello mostra «Adotta porte rilevate»');
+      assert.equal(r.portsBefore, 24, 'col pin la misura SNMP NON alza il conteggio dichiarato (resta 24)');
+      assert.equal(r.portsAfter, 28, 'Adotta allinea il conteggio alla misura (28)');
+      assert.ok(r.proposalGone, 'dopo l\'adozione la proposta portsMeasured sparisce');
+      assert.ok(r.stillPinned, 'dopo l\'adozione il conteggio resta pinnato (valore deciso a mano)');
+      assert.ok(r.rowGone, 'dopo l\'adozione la riga proposta sparisce dal pannello');
+      assert.ok(r.clearedByEdit, 'riscrivere a mano il conteggio a >= misura pulisce la proposta');
+    });
+
     await t.test('app-csv-import migrato: openCsvImport + previewCsv (con errore) + importCsvNodes nel browser reale', async () => {
       const r = await page.evaluate(() => {
         try {

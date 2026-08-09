@@ -14,6 +14,7 @@ import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (e
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { reconcilePortCount } from '../lib/ports-reconcile.js';   // P5: conteggio porte dichiarato vs misura (manual-first, lib pura)
 import { _driftBuildDocSnapshot, _driftComputeFromDoc } from './app-drift.js';   // presenza→grigio: ricalcolo Drift dopo il Sync
 import { _ensureVlanColor, toggleAutomationMenu } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*) + ASSE B: chiude il popover Automazioni dopo il sync
 import { _autoLinkDiagText } from './app-autolink.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
@@ -639,18 +640,20 @@ export function applyPollResult(nodeId, data, opts={}){
         }
     });
 
-    // Il conteggio porte DICHIARATO si alzava in silenzio al numero di interfacce
-    // SNMP: additivo, quindi innocuo in apparenza, ma un 24 diventato 28 senza che
-    // nessuno lo dica non è più il numero che hai scritto — e la Panoramica lo
-    // conta come denominatore «dichiarato». Ora si alza lo stesso (togliere le
-    // porte misurate dal disegno sarebbe peggio) ma il DELTA resta scritto in
-    // `portsReal`, come `ip6Real` per l'indirizzo: il pannello lo segnala e sei tu
-    // a decidere se il documento va corretto.
+    // Conteggio porte DICHIARATO vs misura SNMP (manual-first, lib pura). Senza pin
+    // `portsManual` la misura piu' alta alza `ports` e il dichiarato va in ombra in
+    // `portsReal` (comportamento storico: una sostituzione hardware vera resta
+    // rappresentabile). CON `portsManual` il conteggio dichiarato e' legge: `ports`
+    // non si alza, la misura piu' alta diventa una PROPOSTA in `portsMeasured` (come
+    // `ip6Real`) e il pannello offre «Adotta porte rilevate». Mai ridurre su walk
+    // parziale. Semantica single-source in lib/ports-reconcile.js (+ test unit).
     if(data.interfaces && data.interfaces.length > 0){
-        const measured = data.interfaces.length;
-        const declared = n.ports || 0;
-        if(measured > declared){ n.ports = measured; if(declared) n.portsReal = declared; }
-        else if(n.portsReal) delete n.portsReal;
+        const _pr = reconcilePortCount({ declared: n.ports || 0, measured: data.interfaces.length, pinned: !!n.portsManual });
+        if(_pr){
+            n.ports = _pr.ports;
+            if(_pr.portsReal == null) delete n.portsReal; else n.portsReal = _pr.portsReal;
+            if(_pr.portsMeasured == null) delete n.portsMeasured; else n.portsMeasured = _pr.portsMeasured;
+        }
     }
     (data.interfaces||[]).forEach((iface,idx)=>{
         if(_skipByIdx[idx]) return; // porta manuale preservata (manual-first)
