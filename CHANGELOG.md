@@ -4,6 +4,19 @@ What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachan
 
 **A linked version number is a published release** — follow it to the release on GitHub. *Unreleased* is what has landed on `main` since the last one.
 
+## [2.7.3] — 2026-08-09
+
+**Automation now proposes instead of silently overwriting what you documented by hand.** Discovery, Sync, Verify and SNMP could each quietly rewrite a name, a device type, an SNMP host or a port count you had entered yourself. Every hand-entered decision is now a pin the automation respects: a divergent measurement is surfaced as a proposal you adopt on purpose — never applied behind your back — while measured, dynamic state (presence, status) still follows the network.
+
+### Changed
+- **A hand-typed device name is manual-first** (`nameManual`): Discovery no longer renames a device you named yourself, even when the name matches its host/IP/type, and Sync/Drift never write the name; clearing the field unlocks auto-naming again. Conservative migration — only names edited from now on are pinned.
+- **A device retype is proposed, not applied, on an already-documented node**: when the classifier disagrees with the documented type it records a proposal (old/new type, source, confidence) instead of switching it, and the Properties panel offers Adopt / Dismiss; brand-new devices are still typed automatically.
+- **A hand-set port count is manual-first** (`portsManual`): editing "Port count" pins it, and an SNMP walk that measures more interfaces no longer raises the number silently — it surfaces "SNMP detected N — Adopt detected ports"; without the pin the previous behaviour stands (the count rises and the declared value is shadowed in `portsReal`). Never reduced on a partial walk. The declared-vs-measured reconciliation is single-sourced in a pure, unit-tested `lib/ports-reconcile.js`.
+
+### Fixed
+- **Drift's IP-change no longer overwrites a hand-pinned SNMP host** (`hostManual`): the reachability and IP-renew paths respect a management host you entered yourself, matching the guard already used in classification.
+- **Rack devices show honest presence**: an *absent* (documented MAC not seen on a probed subnet) or *unverifiable* (subnet never reached) rack device now carries the presence overlay, visually distinct from the SNMP-error left border — parity with floor nodes.
+
 ## [2.7.1] — 2026-08-06
 
 **The Automazioni menu now has one "Automatic monitoring" scheduler with two depths, instead of two overlapping timers.** Background SNMP polling and scheduled Verify were separate on/off timers — but a Verify already includes the SNMP poll, so running both was redundant and, at coinciding ticks, fired two concurrent SNMP sweeps. They are now a single scheduler: pick a depth and one interval, with an in-flight guard so a poll and a Verify can never sweep SNMP at the same time.
