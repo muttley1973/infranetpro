@@ -1175,11 +1175,16 @@ async function importDiscovered(){
                     }
                 }
                 if(d._typeManual) foundExisting.typeManual = true;
+                // Nome manual-first come hostname/tipo: un nome pinnato a mano (nameManual)
+                // non viene mai rinominato dall'import, nemmeno se coincide con host/IP/tipo.
+                // Senza pin: sostituisci solo un nome vuoto o auto-generato (= host/IP/tipo).
                 if(
-                    !foundExisting.name ||
-                    autoName === autoHost ||
-                    autoName === autoIp ||
-                    autoName === String(TYPES[foundExisting.type]?.name || '').trim().toLowerCase()
+                    !foundExisting.nameManual && (
+                        !foundExisting.name ||
+                        autoName === autoHost ||
+                        autoName === autoIp ||
+                        autoName === String(TYPES[foundExisting.type]?.name || '').trim().toLowerCase()
+                    )
                 ){
                     foundExisting.name = d.hostname || d.ip || foundExisting.name;
                 }

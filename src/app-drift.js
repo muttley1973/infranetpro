@@ -497,7 +497,7 @@ function driftApplyIpChange(key){
     n.ipManual = false;                       // ora deriva dalla rete (verificata)
     if(!n.integration) n.integration = {};
     const ih = String(n.integration.host || '').trim();
-    if(!ih || ih === oldIp) n.integration.host = row.newIp;
+    if(!n.integration.hostManual && (!ih || ih === oldIp)) n.integration.host = row.newIp;
     if(typeof logAudit === 'function') logAudit('drift-ipchange', { target: row.label || n.name || n.id, summary: `${oldIp || '?'} → ${row.newIp}` });
     markDirty(); renderAll();
     _driftDropRow(key);
@@ -545,7 +545,7 @@ function _driftAutoRenewIps(){
         n.ipManual = false;                       // deriva dalla rete (verificata)
         if(!n.integration) n.integration = {};
         const ih = String(n.integration.host || '').trim();
-        if(!ih || ih === oldIp) n.integration.host = row.newIp;
+        if(!n.integration.hostManual && (!ih || ih === oldIp)) n.integration.host = row.newIp;
         logAudit('drift-ipchange-auto', { target: row.label || n.name || n.id, summary: `${oldIp || '?'} → ${row.newIp}` });
         _driftDropRow(row.key);
         applied++;

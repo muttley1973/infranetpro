@@ -315,13 +315,21 @@
         .rack-device.snmp-stale { border-left-color:#2f6f43; }
         .rack-device.snmp-na { border-left-color:var(--inactive-color); }
         .rack-device.snmp-fault .rack-label { color:#f8a09a; }
-        /* Presenza dopo la Verifica — SOLO floor node (i rack device hanno già il LED
-           SNMP snmp-ok/err). Entrambi restano cliccabili per correggere IP/stato:
+        /* Presenza dopo la Verifica — su floor node E rack device (P3). È l'esito della
+           Verifica (device visto/non visto in rete), DISTINTO dallo stato SNMP del rack
+           (bordo sinistro = esito del poll): un apparato può rispondere allo SNMP ma essere
+           assente, o viceversa. Tutti restano cliccabili per correggere IP/stato:
            - node-absent    = ASSENTE confermato (subnet sondata, nessun segnale) → ROSSO d'allerta;
-           - node-unverified = presenza NON verificabile (subnet non raggiunta)     → grigio "incerto". */
-        .floor-node.node-absent { box-shadow:0 0 0 2px var(--fault-color), 0 0 9px rgba(248,81,73,.55); }
+           - node-unverified = presenza NON verificabile (subnet non raggiunta)     → grigio "incerto".
+           Onestà garantita dal motore (app-render-core): rosso solo da macOrphan, grigio da
+           unverified, nessun overlay senza IP, e snmp-ok azzera l'overlay. Sul rack l'alone
+           rosso è volutamente diverso dal bordo-sinistro rosso di snmp-err/snmp-fault. */
+        .floor-node.node-absent,
+        .rack-device.node-absent { box-shadow:0 0 0 2px var(--fault-color), 0 0 9px rgba(248,81,73,.55); }
         .floor-node.node-unverified { opacity:0.4; filter:grayscale(0.9); }
         .floor-node.node-unverified.selected { opacity:0.72; }
+        .rack-device.node-unverified { opacity:0.45; filter:grayscale(0.9); }
+        .rack-device.node-unverified.selected { opacity:0.75; }
         /* Brand visibile solo per dispositivi a bassa densità (=8 porte) */
         /* .rack-brand rimosso: l'hostname e' ora un title HTML sul .rack-device
            (tooltip browser nativo al hover) e non occupa piu' spazio fisso a

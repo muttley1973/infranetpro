@@ -1659,6 +1659,10 @@ function updateN(k,v){
     }
     // Tipo scelto a mano = pinnato (manual-first): Discovery/Verifica non lo ricambiano.
     if(k==='type') n.typeManual = true;
+    // Nome scelto a mano = pinnato (manual-first), gemello di typeManual/hostnameManual:
+    // Discovery non rinomina piu' un nome deliberato, nemmeno se coincide con host/IP/tipo.
+    // Vuoto = sblocca (torna a seguire l'auto-naming), come il campo Hostname.
+    if(k==='name') n.nameManual = !!String(v).trim();
     if(k==='name' && _auditOldName!=null && v && String(v)!==_auditOldName){
         logAudit('device-rename', { target:String(v), summary:_auditOldName?((typeof t==='function')?t('audit.wasNamed',{name:_auditOldName}):`era «${_auditOldName}»`):'' });
     }
@@ -1874,11 +1878,13 @@ function updateFrontPanel(k,v){
 function updateWallPortId(value){
     const n=nodeById(selId); if(!n||n.type!=='wallport') return;
     n.portId=value.trim()||n.name||'Presa'; n.name=n.portId;
+    n.nameManual = !!value.trim();   // ID presa scelto a mano = pinnato (manual-first)
     renderAll(); markDirty();
 }
 function updateFloorId(value){
     const n=nodeById(selId); if(!n) return;
     n.name=value.trim()||n.name||n.type;
+    n.nameManual = !!value.trim();   // nome deliberato = pinnato (manual-first); vuoto = sblocca
     renderAll(); markDirty();
 }
 function updateP(k,v){

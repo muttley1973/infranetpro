@@ -1161,6 +1161,40 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.restored, 'stato ripristinato dopo il test');
     });
 
+    await t.test('manual-first: modificare a mano il nome fissa nameManual (Discovery non rinomina piu\')', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          const baseN = state.nodes.length;
+          state.nodes.push({ id: 'n_nm', type: 'switch', name: 'SW-CORE', ip: '10.8.8.8' });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          selType = 'node'; selId = 'n_nm';
+          const before = !!nodeById('n_nm').nameManual;   // nodo nuovo: nessun pin (migrazione conservativa)
+          // scrittura a mano dal pannello (data-change="update-n" data-nfield="name")
+          updateN('name', 'SALA-CED');
+          const afterSet = !!nodeById('n_nm').nameManual;
+          const nameVal = nodeById('n_nm').name;
+          // svuotare = sbloccare (torna a seguire l'auto-naming), come il campo Hostname
+          updateN('name', '');
+          const afterClear = !!nodeById('n_nm').nameManual;
+          // percorso floor-id (pannello node-devices) → stesso flag
+          updateFloorId('PIANO-2');
+          const floorFlag = !!nodeById('n_nm').nameManual;
+          // cleanup (non inquinare i test successivi)
+          state.nodes = state.nodes.filter(n => n.id !== 'n_nm');
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          selType = null; selId = null; renderProps();
+          return { ok: true, before, afterSet, nameVal, afterClear, floorFlag, restored: state.nodes.length === baseN };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso nameManual: ' + r.err);
+      assert.equal(r.before, false, 'nodo nuovo: nameManual non impostato (migrazione conservativa)');
+      assert.equal(r.afterSet, true, 'nome scritto a mano → nameManual true');
+      assert.equal(r.nameVal, 'SALA-CED', 'il nome scritto a mano e\' applicato');
+      assert.equal(r.afterClear, false, 'nome svuotato → nameManual false (sblocca)');
+      assert.equal(r.floorFlag, true, 'updateFloorId con valore → nameManual true');
+      assert.ok(r.restored, 'stato ripristinato dopo il test');
+    });
+
     await t.test('app-drift presence-aware: cambio IP (stesso MAC) rilevato dal motore nel browser reale', async () => {
       // Test del motore puro nel browser (no state/render → niente inquinamento
       // della pagina condivisa). Il glue (_driftBuildDocSnapshot/_driftBuildSnmpSnapshot)
@@ -1379,6 +1413,50 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.unverifiedMarked, 'il device su subnet non raggiunta riceve la classe .node-unverified');
       assert.ok(r.notAbsent, 'un device unverified NON riceve .node-absent (grigio, non rosso)');
       assert.equal(r.clearedAfter, 0, 'senza Drift report nessun device è marcato non-verificabile');
+    });
+
+    await t.test('presenza sul RACK (P3): un rack device assente/non-verificabile mostra l\'overlay, distinto da snmp-err', async () => {
+      const r = await page.evaluate(async () => {
+        const raf = () => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.racks = [{ id: 'rP3', name: 'Rack P3', sizeU: 42 }]; state.currentRack = 'rP3';
+          const id = 'rk-absent-sw';
+          // rack device con IP+MAC e SNMP in errore: prima del fix restava solo "snmp-err",
+          // senza mai dire "assente" anche quando il Drift lo sapeva (bucket macOrphan).
+          state.nodes.push({ id, type: 'switch', name: 'SW-RK', rackId: 'rP3', rackU: 1, sizeU: 1, ports: 8, ip: '10.7.7.7', mac: 'aa:bb:cc:dd:ee:07', integration: { driver: 'snmp-v2c' }, snmpStatus: 'err' });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          const sel = `.rack-device[data-id="${id}"]`;
+          // ASSENTE confermato (macOrphan): overlay rosso, IN AGGIUNTA al bordo snmp-err
+          window._driftReport = { macOrphan: [{ key: 'mac:x', nodeId: id }], unverified: [] };
+          renderAll(); await raf();
+          const el1 = document.querySelector(sel);
+          const absentMarked = !!el1?.classList.contains('node-absent');
+          const stillSnmpErr = !!el1?.classList.contains('snmp-err');   // lo stato SNMP resta distinto/visibile
+          // Guardia: se poi RISPONDE allo SNMP (ok) l'overlay "assente" sparisce
+          state.nodes.find(n => n.id === id).snmpStatus = 'ok';
+          renderAll(); await raf();
+          const absentAfterOk = !!document.querySelector(sel)?.classList.contains('node-absent');
+          // NON verificabile (unverified): grigio, non rosso
+          state.nodes.find(n => n.id === id).snmpStatus = 'err';
+          window._driftReport = { macOrphan: [], unverified: [{ key: 'unver:x', nodeId: id }] };
+          renderAll(); await raf();
+          const el2 = document.querySelector(sel);
+          const unverifiedMarked = !!el2?.classList.contains('node-unverified');
+          const notAbsent = !el2?.classList.contains('node-absent');
+          // cleanup
+          window._driftReport = null; renderAll(); await raf();
+          const cleared = document.querySelectorAll('.rack-device.node-absent, .rack-device.node-unverified').length;
+          return { ok: true, absentMarked, stillSnmpErr, absentAfterOk, unverifiedMarked, notAbsent, cleared };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso presenza rack: ' + r.err);
+      assert.ok(r.absentMarked, 'il rack device assente (macOrphan) riceve .node-absent');
+      assert.ok(r.stillSnmpErr, 'lo stato SNMP (snmp-err) resta visibile: presenza e poll sono segnali distinti');
+      assert.equal(r.absentAfterOk, false, 'se poi risponde allo SNMP (ok) l\'overlay "assente" sparisce');
+      assert.ok(r.unverifiedMarked, 'il rack device su subnet non raggiunta riceve .node-unverified');
+      assert.ok(r.notAbsent, 'un rack device unverified NON riceve .node-absent (grigio, non rosso)');
+      assert.equal(r.cleared, 0, 'senza Drift report nessun rack device è marcato');
     });
 
     await t.test('app-csv-import migrato: openCsvImport + previewCsv (con errore) + importCsvNodes nel browser reale', async () => {

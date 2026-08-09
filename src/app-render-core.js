@@ -287,10 +287,14 @@ function _renderAllNow(){
             const _snmpStateCls = !_snmpOn ? ' snmp-na'
                 : (n.snmpStatus==='ok' ? (_snmpStale ? ' snmp-stale' : ' snmp-ok')
                 : (n.snmpStatus==='err' ? ' snmp-err snmp-fault' : ' snmp-pending'));
-            // NIENTE overlay presenza (rosso/grigio) sui rack device: nel rack lo stato
-            // è già dato dal LED SNMP (snmp-ok/err/pending). L'overlay assente/non-verificabile
-            // vive solo sui floor node, che il LED non ce l'hanno.
-            el.className=`rack-device type-${n.type} ${store.selId===n.id?'selected':''}${_lldpDisc?' lldp-discovered':''}${_snmpStateCls}`;
+            // Overlay presenza (P3): il rack device ora mostra ANCHE l'esito della Verifica
+            // — node-absent = assente CONFERMATO (macOrphan), node-unverified = non
+            // verificabile (unverified) — DISTINTO dallo stato SNMP (bordo sinistro/LED),
+            // che è l'esito del poll. `_absentCls` porta già l'onestà (calcolato sopra per
+            // ogni nodo): rosso solo con IP + subnet sondata + assenza affidabile, grigio se
+            // non raggiunta, niente overlay senza IP, e snmpStatus 'ok' lo azzera (device
+            // riacceso+risponde = di nuovo pieno). Il dato c'era nel Drift; ora si vede sul telaio.
+            el.className=`rack-device type-${n.type} ${store.selId===n.id?'selected':''}${_lldpDisc?' lldp-discovered':''}${_snmpStateCls}${_absentCls}`;
             const sU=n.sizeU!==undefined?n.sizeU:def.sizeU;
             const rackBg = _rackDeviceBg(n.color);
             el.style.gridRow=`${rs-n.rackU-sU+2}/span ${sU}`;
