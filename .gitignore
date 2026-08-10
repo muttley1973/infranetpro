@@ -8,6 +8,10 @@ node_modules/
 # Bundle esbuild del frontend (artefatto di build: si rigenera con npm run build)
 dist/
 
+# Git worktree locali (es. .worktrees/<branch>): checkout separati con dist/ propri,
+# non fanno parte del repo — mai versionarli né lintarli.
+.worktrees/
+
 # Dati progetti salvati localmente (non versionare dati utente)
 projects/
 
@@ -89,10 +93,24 @@ users.json
 # chiave sessione auto-generata
 .session-secret
 # token REST API (hash sha-256 dei token; segreti — vedi server/api-tokens.js)
-api-tokens.json
+# `*` copre anche il .bak della scrittura atomica (contiene gli hash dei token).
+api-tokens.json*
 # config Assistente AI: endpoint/modello/enabled + chiave BYO. La chiave NON deve
 # MAI finire nel repo (override anche via env INFRANET_AI_KEY) — vedi server/ai-config.js
-data/ai-config.json
+# `*` copre anche i .bak/.tmp lasciati dalla scrittura atomica (contengono la chiave).
+data/ai-config.json*
+# config Sincronizzazione DCIM/IPAM: url + token dell'istanza esterna (es. NetBox).
+# Il token NON deve MAI finire nel repo (override via env INFRANET_DCIM_TOKEN) —
+# vedi server/dcim-config.js. `*` copre anche il .bak della scrittura atomica.
+data/dcim-config.json*
+
+# -------------------------------------------------------
+# Catalogo device-types — snapshot canonico generato (non versionare)
+# -------------------------------------------------------
+# device-types-canonical.json (~33 MB) è l'output del generatore catalogo
+# (branch DCIM `scripts/update-device-types.js`): NON letto a runtime, rigenerabile.
+# Ignorato ovunque per non versionare mai il blob.
+data/device-types-canonical.json
 
 # -------------------------------------------------------
 # Runtime / backup locali (non versionare)
