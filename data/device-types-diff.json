@@ -1,22 +1,23 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-10T08:43:50.859Z",
-  "sourceRef": "a91e9fa66efaff6c292a16a773a08ad9b9b7a631",
-  "sourceSha256": "db929b893f1fc7e7a183af0f1ce1f14da3948f6013d1a6700a8c2e3700888a79",
-  "added": [],
+  "generatedAt": "2026-08-10T13:35:06.250Z",
+  "sourceRef": "5efffb4a613402a37a7daf616f081e56147662c0",
+  "sourceSha256": "4871f7b08a81ee34d3fc9954dc2415eceee965eb49775bb7072aea044ac6e437",
+  "added": [
+    "apc-smart-ups-srt-3000va-rm",
+    "apc-srtl3krm1uinc"
+  ],
   "removed": [],
   "metadataChanged": [],
-  "templateChanged": [
-    "cisco-isr-1111-8p"
-  ],
+  "templateChanged": [],
   "excludedRuntime": [],
   "counts": {
-    "added": 0,
+    "added": 2,
     "removed": 0,
     "metadataChanged": 0,
-    "templateChanged": 1,
+    "templateChanged": 0,
     "excludedRuntime": 0,
-    "changed": 1
+    "changed": 0
   },
   "dropped": [
     {

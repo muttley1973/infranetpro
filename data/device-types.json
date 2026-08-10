@@ -5649,6 +5649,27 @@
     }
   },
   {
+    "slug": "apc-smart-ups-srt-3000va-rm",
+    "sourceSlug": "apc-smart-ups-srt-3000va-rm",
+    "brand": "APC",
+    "brandSlug": "apc",
+    "model": "Smart-UPS SRT 3000VA RM",
+    "partNumber": "SRT3000RMXLI",
+    "ports": 0,
+    "rackU": 2,
+    "isFullDepth": true,
+    "frontPanel": {
+      "mgmtCount": 1
+    },
+    "counts": {
+      "copper": 0,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 1,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "apc-smart-ups-srt-5000va-200v",
     "sourceSlug": "apc-smart-ups-srt-5000va-200v",
     "brand": "APC",
@@ -6380,6 +6401,27 @@
     "brandSlug": "apc",
     "model": "SRTL2K2RM1UINC",
     "partNumber": "SRTL2K2RM1UINC",
+    "ports": 0,
+    "rackU": 1,
+    "isFullDepth": true,
+    "frontPanel": {
+      "mgmtCount": 1
+    },
+    "counts": {
+      "copper": 0,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 1,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "apc-srtl3krm1uinc",
+    "sourceSlug": "apc-srtl3krm1uinc",
+    "brand": "APC",
+    "brandSlug": "apc",
+    "model": "SRTL3KRM1UINC",
+    "partNumber": "SRTL3KRM1UINC",
     "ports": 0,
     "rackU": 1,
     "isFullDepth": true,
