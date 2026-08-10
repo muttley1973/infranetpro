@@ -9,7 +9,7 @@
 // ============================================================
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { nodeById, markDirty, pushHistory, renderCables, _showToast, switchRightTab, logAudit, _propagateStackMasterIntegration } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, getPortNodeId, markDirty, pushHistory, renderCables, _showToast, switchRightTab, logAudit, _propagateStackMasterIntegration } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -587,7 +587,7 @@ export function applyPollResult(nodeId, data, opts={}){
     const inv = data.inventory || null;
     if(inv && typeof inv === 'object'){
         const defBrand = TYPES[n.type]?.brand || '';
-        const canFillBrand = !String(n.brand || '').trim() || String(n.brand || '').trim() === defBrand;
+        const canFillBrand = !n.brandManual && (!String(n.brand || '').trim() || String(n.brand || '').trim() === defBrand);
         if(inv.brand && canFillBrand) n.brand = inv.brand;
         if(inv.model && !String(n.model || '').trim()) n.model = inv.model;
         if(inv.serialNumber && !String(n.serialNumber || '').trim()) n.serialNumber = inv.serialNumber;
@@ -608,14 +608,14 @@ export function applyPollResult(nodeId, data, opts={}){
     const _ifPidMap = {};
     const _manualPids = new Set();
     for(const pid of Object.keys(store.state.ports)){
-        if(pid.slice(0, pid.lastIndexOf('-')) !== nodeId) continue;
+        if(getPortNodeId(pid) !== nodeId) continue;
         const k = _normIf(store.state.ports[pid].ifName);
         if(k && !_ifPidMap[k]) _ifPidMap[k] = pid;
     }
     for(const l of (store.state.links || [])){
         if(!l || l.autoLinked) continue;
-        if(l.src && l.src.slice(0, l.src.lastIndexOf('-')) === nodeId) _manualPids.add(l.src);
-        if(l.dst && l.dst.slice(0, l.dst.lastIndexOf('-')) === nodeId) _manualPids.add(l.dst);
+        if(l.src && getPortNodeId(l.src) === nodeId) _manualPids.add(l.src);
+        if(l.dst && getPortNodeId(l.dst) === nodeId) _manualPids.add(l.dst);
     }
     const _pidByIdx = [], _skipByIdx = [], _portConflicts = [];
     (data.interfaces || []).forEach((iface, idx) => {

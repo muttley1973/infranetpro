@@ -157,7 +157,7 @@ function handleDrop(e,zone){
     const t=e.dataTransfer.getData('text/plain'); if(!t||!TYPES[t]) return;
     store._paletteDragType='';
     const d=TYPES[t];
-    const n={id:_nextNodeId(t),type:t,name:d.name+' '+Math.floor(Math.random()*100),ports:d.ports};
+    const n={id:_nextNodeId(t),type:t,typeManual:true,name:d.name+' '+Math.floor(Math.random()*100),ports:d.ports};
     const spec=_ensureNodeSpec(n);
 
     if(zone==='floor'&&d.isFloor){

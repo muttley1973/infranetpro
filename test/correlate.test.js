@@ -176,6 +176,13 @@ test('buildPortIndex: struttura base', () => {
   assert.ok(idx.ports['sw1'].every(e => e.portId && e.ifName !== undefined));
 });
 
+test('buildPortIndex: usa il nodeId noto piu lungo per i PID con trattini', () => {
+  const idx = buildPortIndex({
+    'nb-dev-100-logical-123': { ifName: 'Gi0/1' },
+  }, {}, ['nb-dev-100', 'nb-dev-100-logical']);
+  assert.equal(idx.ports['nb-dev-100-logical'][0].portId, 'nb-dev-100-logical-123');
+});
+
 test('findPortByIfName: match exact (raw)', () => {
   const idx = buildPortIndex(SAMPLE_PORTS);
   assert.equal(findPortByIfName('sw1', 'GigabitEthernet0/1', idx), 'sw1-1');

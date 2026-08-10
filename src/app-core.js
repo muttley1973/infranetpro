@@ -5,7 +5,7 @@
 // (currentProjectId, _history, _isDirty, state, ...) su window via win.*.
 // ============================================================
 import { win, expose, t } from './_bridge.js';
-import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
+import { store, resetProjectRuntime } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { pushHistory, _invalidateIdx, logAudit, _clearDirty, _migrateState, _updateHistoryBtns, _buildDefaultState, bindEventsOnce, _loadDefaultLocal } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderRackTabs, updateTransforms, _updateFloorToolbarVisibility, initPaletteUi } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
@@ -58,6 +58,7 @@ async function loadProject(id) {
     const proj = await apiFetch(`${API}/${id}`);
     store.currentProjectId = proj.id;
     store.state = _migrateState(proj.state);
+    resetProjectRuntime();
     if(typeof _restoreTopoSession === 'function') _restoreTopoSession();
     store._vlanIpamOpen.clear();
     _invalidateIdx();
@@ -77,6 +78,7 @@ export function applyRestoredState(snapState){
     const bg    = store.state && store.state.bgImage;
     const audit = store.state && store.state.auditLog;
     store.state = _migrateState(snapState);
+    resetProjectRuntime();
     store.state.bgImage  = bg;      // non è nello snapshot: tieni quello corrente
     store.state.auditLog = audit;   // journal append-only: non si ripristina
     if(typeof _restoreTopoSession === 'function') _restoreTopoSession();
@@ -109,6 +111,7 @@ async function newProject() {
         });
         store.currentProjectId = proj.id;
         store.state = _migrateState(proj.state);
+        resetProjectRuntime();
         if(typeof _restoreTopoSession === 'function') _restoreTopoSession();
         store._vlanIpamOpen.clear();
         _invalidateIdx();
@@ -144,6 +147,7 @@ async function duplicateProject() {
         });
         store.currentProjectId = proj.id;
         store.state = _migrateState(proj.state);
+        resetProjectRuntime();
         if(typeof _restoreTopoSession === 'function') _restoreTopoSession();
         _invalidateIdx();
         store._history=[]; store._histIdx=-1; _updateHistoryBtns();

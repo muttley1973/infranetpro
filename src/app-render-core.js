@@ -24,6 +24,7 @@ import { _panelSkinRackHtml, _resolveNodeSkin } from './app-panel-skin.js';   //
 import { _paintRoutingTargets } from './app-cabling-editor.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { _hasSnmpIntegration, _renderV3PendingChip, _v3NeedsCreds, _snmpIsStale } from './app-snmp.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { _applySpareHighlight } from './app-spare.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
+import { nodePresenceClass } from '../lib/presence.js';
 
 // Altezza in px di una unità rack (1U). UNICO punto di verità: la CSS var
 // `--ru-h` (style.css :root), letta qui dal render JS che dimensiona chassis,
@@ -237,12 +238,10 @@ function _renderAllNow(){
     // subnet sondata, nessun segnale) sono evidenziati in ROSSO. Calcolato UNA
     // volta per render. Guardia: chi ha poi risposto allo SNMP (snmpStatus 'ok')
     // torna a colori pieni — un device riacceso+sincronizzato è di nuovo vivo.
-    const _absentIds = new Set(((store._driftReport && store._driftReport.macOrphan) || [])
-        .map(r => r.nodeId).filter(Boolean));
+
     // Presenza NON verificabile (subnet non raggiunta dalla Verifica): grigio "incerto",
     // distinto dal rosso "assente confermato" (macOrphan). Bucket unverified del Drift.
-    const _unverifiedIds = new Set(((store._driftReport && store._driftReport.unverified) || [])
-        .map(r => r.nodeId).filter(Boolean));
+
 
     store.state.nodes.forEach(n=>{
         const def=TYPES[n.type]; if(!def) return;
@@ -250,9 +249,7 @@ function _renderAllNow(){
         // rosso = assente CONFERMATO (macOrphan, subnet sondata); grigio = NON
         // verificabile (unverified, subnet non raggiunta). Chi ha poi risposto al
         // Sync (snmpStatus 'ok') torna a colori pieni.
-        const _absentCls = n.snmpStatus==='ok' ? ''
-            : _absentIds.has(n.id) ? ' node-absent'
-            : _unverifiedIds.has(n.id) ? ' node-unverified' : '';
+        const _absentCls = nodePresenceClass(n, store._driftReport);
         // Se SNMP non è attivo per questo nodo, elimina eventuale stato errore
         // residuo per evitare bordi rossi "bloccati" dopo disattivazione driver.
         if(!_hasSnmpIntegration(n)){
@@ -566,12 +563,10 @@ function _renderFloorNow(){
     // e non verificabili (unverified → grigio) restano evidenziati ANCHE su un render
     // mirato del solo floor (es. resize struttura) — senza questo, un
     // renderScope('floor') tornava a colorarli.
-    const _absentIds = new Set(((store._driftReport && store._driftReport.macOrphan) || [])
-        .map(r => r.nodeId).filter(Boolean));
+
     // Presenza NON verificabile (subnet non raggiunta dalla Verifica): grigio "incerto",
     // distinto dal rosso "assente confermato" (macOrphan). Bucket unverified del Drift.
-    const _unverifiedIds = new Set(((store._driftReport && store._driftReport.unverified) || [])
-        .map(r => r.nodeId).filter(Boolean));
+
     store.state.nodes.forEach(n => {
         const def = TYPES[n.type]; if(!def) return;
         if(!def.isFloor) return;
@@ -587,9 +582,7 @@ function _renderFloorNow(){
         // rosso = assente CONFERMATO (macOrphan, subnet sondata); grigio = NON
         // verificabile (unverified, subnet non raggiunta). Chi ha poi risposto al
         // Sync (snmpStatus 'ok') torna a colori pieni.
-        const _absentCls = n.snmpStatus==='ok' ? ''
-            : _absentIds.has(n.id) ? ' node-absent'
-            : _unverifiedIds.has(n.id) ? ' node-unverified' : '';
+        const _absentCls = nodePresenceClass(n, store._driftReport);
         const built = _buildFloorNodeEl(n, def, _absentCls);
         if(!built) return;
         (built.structural ? fS : fI).appendChild(built.el);

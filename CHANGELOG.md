@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased] - 2026-08-10
+
+**The network view keeps the same identity and presence state across reloads.** Runtime caches are cleared when a project changes, persisted presence proof remains visible, and topology correlation uses the complete documented node identifier instead of guessing from the last hyphen.
+
+### Fixed
+- **Persisted presence is rendered after reload**: documented absent and unverifiable devices keep their red or grey overlay until a newer verification result replaces it.
+- **Project replacement clears runtime state**: loading, importing, creating or duplicating a project no longer carries stale topology, discovery, drift or selection data into the new project.
+- **Port identifiers with hyphens are resolved safely**: correlation, topology planning, drift and SNMP reconciliation use the longest known node ID, with the legacy parser retained as a fallback.
+- **Manual brand edits remain manual-first**: discovery and SNMP inventory no longer replace a brand explicitly entered by the user.
+- **Browser UMD modules load the shared port parser before correlation and drift**, keeping the browser and Node/test paths aligned.
+
 What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachangelog.com/); newest first, grouped by release. **One line per change** — the reasoning behind each one lives in the commit history.
 
 **A linked version number is a published release** — follow it to the release on GitHub. *Unreleased* is what has landed on `main` since the last one.

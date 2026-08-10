@@ -50,6 +50,19 @@ test('_logicalPairKey: due membri dello stesso LAG → stessa chiave', () => {
   assert.notEqual(_logicalPairKey('a-3', 'b-3', {}), _logicalPairKey('a-6', 'b-6', {}));
 });
 
+test('buildTopologyPlan: il portIndex conserva il nodeId con trattini', () => {
+  const portIndex = buildPortIndex({
+    'nb-dev-100-logical-123': { ifName: 'Gi0/1' },
+    'sw-core-1': { ifName: 'Gi0/1' },
+  }, {}, ['nb-dev-100-logical', 'sw-core']);
+  const plan = buildTopologyPlan({
+    candidates: [{ src: 'nb-dev-100-logical-123', dst: 'sw-core-1', confidence: 0.9, protocol: 'LLDP', sources: ['LLDP'] }],
+    portIndex,
+  });
+  assert.equal(plan.links[0].reason.vars.srcNode, 'nb-dev-100-logical');
+  assert.equal(plan.links[0].reason.vars.dstNode, 'sw-core');
+});
+
 // ============================================================
 // buildTopologyPlan — logica base
 // ============================================================

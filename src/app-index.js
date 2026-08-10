@@ -7,6 +7,7 @@
 // resta module-local, solo esposto su window.
 // ============================================================
 import { expose } from "./_bridge.js";
+import { nodeIdOfPort } from '../lib/port-id.js';
 // Bare globals (no-undef OFF): state - _getLinkPortIds (lib/link-model.js, <script>).
 
 let _idxDirty      = true;
@@ -46,10 +47,10 @@ export function _linksForPort(pid) {
 }
 
 // ── Getter porta -> nodo (id porta = "<nodeId>-<porta>") ──
-export function getPortNodeId(pid)          {
-    const p = String(pid || '');
-    const cut = p.lastIndexOf('-');
-    return cut > 0 ? p.slice(0, cut) : p;
+export function getPortNodeId(pid, knownNodeIds)          {
+    const ids = knownNodeIds || (typeof state !== 'undefined' && Array.isArray(state.nodes)
+        ? state.nodes.map(n => n && n.id).filter(Boolean) : []);
+    return nodeIdOfPort(pid, ids);
 }
 export function isPortOnNode(pid,nodeId)    { return getPortNodeId(pid)===nodeId; }
 export function getNodeByPortId(pid)        { return nodeById(getPortNodeId(pid)); }

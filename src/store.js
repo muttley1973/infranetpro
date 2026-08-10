@@ -67,3 +67,36 @@ export const store = proxy([
     '_rackPortDblPid', '_rackPortDblTime', '_rackFloorDblId', '_rackFloorDblTime',
     '_rackDblId', '_rackDblTime', '_paletteDragType', '_isDirty', '_dragModalState',
 ]);
+
+export function resetProjectRuntime() {
+    store.selId = null;
+    store.selType = null;
+    store.selVmId = null;
+    if (store.highPath && typeof store.highPath.clear === 'function') store.highPath.clear();
+    else store.highPath = new Set();
+    store.linkStart = null;
+    store.dragNode = null;
+    store.dragRack = null;
+    store._viewMode = 'map';
+    store._topoData = null;
+    store._topoVisible = false;
+    store._topoNeighborsCache = {};
+    store._topoFdbCache = {};
+    store._topoFdbVlanCache = {};
+    store._topoArpCache = {};
+    store._topoNdCache = {};
+    store._topoWifiIfsCache = {};
+    store._topoWifiNbrCache = {};
+    store._discResults = [];
+    store._discSelMap = {};
+    store._discTypeMap = {};
+    store._driftReport = null;
+    store._filterVlan = null;
+    store._topoTrunkMode = 'all';
+    store._topoHideEndpoints = false;
+    store._topoMedium = 'all';
+    store._physicalTraceActive = false;
+    store._snmpSyncing = false;
+    if (store._vlanIpamOpen && typeof store._vlanIpamOpen.clear === 'function') store._vlanIpamOpen.clear();
+    else store._vlanIpamOpen = new Set();
+}

@@ -5,8 +5,9 @@ import { win, expose, t, mergeLeaseSources } from './_bridge.js';
 // funzioni pure → nessuno snapshot congelato possibile. Il bundle la pubblica
 // comunque su window (UMD) per eventuali consumatori classic.
 import { canonicalizeIpv6 } from '../lib/ipv6.js';
+import { nodeIdOfPort } from '../lib/port-id.js';
 import { migrateVmNics, VM_FLAT_NET_FIELDS, vmIps } from '../lib/vm-nics.js';   // migrazione vm.ip/mac/vlan → vm.nics[]; vmIps = IPv4 di tutte le vNIC
-import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
+import { store, resetProjectRuntime } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, normalizeNumber, normalizeStatus, normalizeMacAddress, _shadeHex } from './app-util.js';   // helper puri estratti dal god-file
 import { TYPES, typeName, typeShort } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (prima letto dal global implicito) + nome localizzato
 import { nodeLabelParts } from '../lib/node-label.js';   // lib pura importata ESM: come si LEGGE il nome di un device
@@ -206,6 +207,7 @@ export { pushHistory, undo, redo, _updateHistoryBtns, _resetSelection, markDirty
 
 export function _loadDefaultLocal() {
     state = _migrateState(_buildDefaultState());
+    resetProjectRuntime();
     _restoreTopoSession();
     _vlanIpamOpen.clear();
     document.getElementById('project-select').innerHTML =
@@ -406,10 +408,9 @@ export function _createLinkRecord(src, dst, extra={}){
 
 function _isValidProjectPortId(s, pid){
     const raw = String(pid || '').trim();
-    const cut = raw.lastIndexOf('-');
-    if(cut <= 0 || cut >= raw.length - 1) return false;
-    const nodeId = raw.slice(0, cut);
-    return Array.isArray(s.nodes) && s.nodes.some(n => n.id === nodeId);
+    if(!raw || !Array.isArray(s.nodes)) return false;
+    const nodeId = nodeIdOfPort(raw, s.nodes.map(n => n && n.id).filter(Boolean));
+    return !!nodeId && raw !== nodeId && raw.slice(nodeId.length, nodeId.length + 1) === '-';
 }
 
 function _sanitizeProjectConnectivity(s){
@@ -854,6 +855,7 @@ function importJSON(input) {
             createSnapshot('', 'pre-import');   // rete di sicurezza: cattura lo stato PRIMA di rimpiazzarlo
             pushHistory();
             state = _migrateState(parsed);
+            resetProjectRuntime();
             _restoreTopoSession();
             _resetSelection(); renderRackTabs(); updateTransforms(); renderAll();
             markDirty();
@@ -900,6 +902,7 @@ function _normalizeProjectNodeIds(s){
     if (!s || !Array.isArray(s.nodes) || !s.nodes.length) return;
 
     const idMap = Object.create(null);
+    const oldNodeIds = new Set(s.nodes.map(n => String(n?.id || '')).filter(Boolean));
     const used  = new Set();
     const counters = Object.create(null);
     const toReassign = [];
@@ -938,13 +941,9 @@ function _normalizeProjectNodeIds(s){
 
     const remapPid = (pid) => {
         const p = String(pid || '');
-        const cut = p.lastIndexOf('-');
-        if (cut <= 0) {
-            const onlyNode = idMap[p] || p;
-            return onlyNode;
-        }
-        const oldNodeId = p.slice(0, cut);
-        const suffix = p.slice(cut + 1);
+        const oldNodeId = nodeIdOfPort(p, oldNodeIds);
+        if (!oldNodeId || oldNodeId === p) return idMap[p] || p;
+        const suffix = p.slice(oldNodeId.length + 1);
         const newNodeId = idMap[oldNodeId] || oldNodeId;
         return `${newNodeId}-${suffix}`;
     };
@@ -1659,6 +1658,7 @@ function updateN(k,v){
     }
     // Tipo scelto a mano = pinnato (manual-first): Discovery/Verifica non lo ricambiano.
     if(k==='type') n.typeManual = true;
+    if(k==='brand') n.brandManual = !!String(v).trim();
     // Nome scelto a mano = pinnato (manual-first), gemello di typeManual/hostnameManual:
     // Discovery non rinomina piu' un nome deliberato, nemmeno se coincide con host/IP/tipo.
     // Vuoto = sblocca (torna a seguire l'auto-naming), come il campo Hostname.

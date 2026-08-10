@@ -73,7 +73,7 @@ export function _driftBuildDocSnapshot(){
 function _driftUpdateStreaks(docSnap){
     const state = store.state;
     for(const pid of Object.keys(docSnap.ports)){
-        const nodeId = String(pid).slice(0, String(pid).lastIndexOf('-'));
+        const nodeId = getPortNodeId(pid);
         const n = nodeById(nodeId);   // importato da app.js (guardia win.* ridondante rimossa)
         // DRIFT-M7 (audit 2026-07-21): switch MUTO → non verificabile in QUESTO ciclo.
         // Prima si faceva `continue` lasciando lo streak CONGELATO: una porta arrivata a

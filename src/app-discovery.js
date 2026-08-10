@@ -1152,7 +1152,7 @@ async function importDiscovered(){
                 if(d.vendor){
                     const _defBrand = TYPES[foundExisting.type]?.brand || '';
                     const _brandNow = String(foundExisting.brand || '').trim();
-                    if(!_brandNow || _brandNow === _defBrand) foundExisting.brand = d.vendor;
+                    if(!foundExisting.brandManual && (!_brandNow || _brandNow === _defBrand)) foundExisting.brand = d.vendor;
                 }
                 foundExisting.netbiosName = foundExisting.netbiosName || d.netbiosName || '';
                 foundExisting.netbiosGroup = foundExisting.netbiosGroup || d.netbiosGroup || '';

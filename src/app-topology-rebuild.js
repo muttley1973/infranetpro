@@ -106,7 +106,8 @@ export function materializeTopologyNodes(pollResults) {
     },
   });
 
-  const portIndex = buildPortIndex(store.state.ports, store.state.lagGroups || {});
+  const portIndex = buildPortIndex(store.state.ports, store.state.lagGroups || {},
+    store.state.nodes.map(n => n && n.id).filter(Boolean));
   const plan = buildTopologyPlan({
     candidates: [], portIndex, nodes: store.state.nodes,
     existingLinks: store.state.links,
