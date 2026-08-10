@@ -8,6 +8,7 @@
 - **Persisted presence is rendered after reload**: documented absent and unverifiable devices keep their red or grey overlay until a newer verification result replaces it.
 - **Project replacement clears runtime state**: loading, importing, creating or duplicating a project no longer carries stale topology, discovery, drift or selection data into the new project.
 - **Port identifiers with hyphens are resolved safely**: correlation, topology planning, drift and SNMP reconciliation use the longest known node ID, with the legacy parser retained as a fallback.
+- **Verify, SNMP poll and topology building stay responsive on large networks**: the hyphen-safe port→node resolver (`getPortNodeId` / `nodeIdOfPort`) is O(1) again in the common case — the naive last-hyphen split is always the longest possible node prefix, so when it is a known node ID it is returned directly; only the rare multi-hyphen suffix (e.g. `…-logical-<id>`) falls back to the longest-prefix scan, over a set built once. Fixes a regression where the resolver, called in per-port hot loops (per-device poll, `buildPortIndex`, drift streaks, auto-link), rebuilt and scanned all node IDs on every call and could freeze the tab mid-scan during an automatic Full or Light monitor.
 - **Manual brand edits remain manual-first**: discovery and SNMP inventory no longer replace a brand explicitly entered by the user.
 - **Browser UMD modules load the shared port parser before correlation and drift**, keeping the browser and Node/test paths aligned.
 

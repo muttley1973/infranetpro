@@ -56,7 +56,7 @@
 
 ## What it is
 
-> **Current main stability fixes:** verification presence proof is restored after reopening a project; loading or importing a project clears transient topology and discovery caches; and port identifiers are resolved against the complete documented node ID, including IDs containing hyphens. Manual device brands remain protected from automatic replacement. See the [unreleased changelog](CHANGELOG.md#unreleased) for the implementation details.
+> **Current main stability fixes:** verification presence proof is restored after reopening a project; loading or importing a project clears transient topology and discovery caches; and port identifiers are resolved against the complete documented node ID, including IDs containing hyphens — resolved in O(1) on the hot path, so an automatic Full or Light monitor no longer freezes the tab while it builds the topology on a large network. Manual device brands remain protected from automatic replacement. See the [unreleased changelog](CHANGELOG.md#unreleased) for the implementation details.
 
 InfraNet Pro is a **self-hosted web application** that lets network engineers draw rack layouts and floor-plan diagrams, then bring them to life by polling live data from real devices via SNMP. Interfaces, VLANs, LAG groups and neighbour topology are discovered automatically — no external database, no cloud dependency, minimal tooling (a lightweight esbuild bundle for the frontend; `npm start` builds it).
 

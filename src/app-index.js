@@ -47,10 +47,20 @@ export function _linksForPort(pid) {
 }
 
 // ── Getter porta -> nodo (id porta = "<nodeId>-<porta>") ──
+// PERF: chiamato in loop caldi per-porta (applyPollResult, _driftUpdateStreaks,
+// auto-link, render). Fast-path O(1) tramite l'indice _nodeByIdMap (le sue chiavi
+// SONO i node id): lo split ingenuo sull'ultimo '-' è il prefisso-nodo più lungo
+// possibile, quindi se è un node id noto è già corretto. Solo i suffissi
+// multi-trattino (es. …-logical-<id>) delegano alla scansione di nodeIdOfPort.
 export function getPortNodeId(pid, knownNodeIds)          {
-    const ids = knownNodeIds || (typeof state !== 'undefined' && Array.isArray(state.nodes)
-        ? state.nodes.map(n => n && n.id).filter(Boolean) : []);
-    return nodeIdOfPort(pid, ids);
+    if (knownNodeIds) return nodeIdOfPort(pid, knownNodeIds);
+    if (_idxDirty) _rebuildIdx();
+    const p = String(pid || '');
+    const cut = p.lastIndexOf('-');
+    const naive = cut > 0 ? p.slice(0, cut) : p;
+    if (naive && (naive in _nodeByIdMap)) return naive;   // O(1): copre id canonici + gran parte dei dashed
+    if (!naive) return p;
+    return nodeIdOfPort(p, _nodeByIdMap);                 // raro: suffisso multi-trattino → longest-prefix
 }
 export function isPortOnNode(pid,nodeId)    { return getPortNodeId(pid)===nodeId; }
 export function getNodeByPortId(pid)        { return nodeById(getPortNodeId(pid)); }
