@@ -17,6 +17,7 @@ import { nodeById, getNodeDisplayName, selected, _patchPanelOffset, _enableManua
 import { TYPES, typeName, _nodeSpecView, _fixedRackLabel, _frontPanelState } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { _propsSectionIsOpen, _buildNetAccessHtml, renderProps, _buildPropsHeader, _propsIconForType, _buildPatchPanelPreview } from './app-properties.js';   // ritiro ponte: builder pannello (ex win.*)
 import { osIconHtmlFor } from '../lib/os-icon.js';   // icona OS (accento colorato nell'intestazione device)
+import { pduManagementPortCount } from '../lib/pdu-layout.js';
 import { _discIdentityLabel } from './app-discovery-classify.js';   // ritiro ponte: alias-block sciolto (ex win.*)
 import { _defaultStackName, setNodeStack, setNodeStackMemberId, removeNodeFromStack, acceptStackHint, dismissStackHint, setNodeHaPair, setNodeHaCluster, setNodeHaRole, setNodeHaMode, setNodeHaSync, removeNodeFromHa, _defaultHaGroupName } from './app-stack-ha.js';   // ritiro ponte: stacking/HA (ex win.*)
 import { getLagGroupsForNode, setLagMode, renameLag, dissolveLag } from './app-ports.js';   // ritiro ponte: alias-block sciolto + LAG manuali (ex win.*)
@@ -289,21 +290,22 @@ export function _renderNodeProps(panel){
                 // ---- Layout porte ----
                 if(!isRackFiller){
                     const fp = _frontPanelState(n, n.ports!==undefined ? n.ports : d.ports || 0);
+                    const mgmtCount = n.type==='pdu' ? pduManagementPortCount(n) : fp.mgmtCount;
                     const layout = fp.baseLayout || 'auto';
                     const sfpCount = Number.isFinite(fp.sfpCount) ? fp.sfpCount : (fp.separateSfp ? 4 : 0);
                     const maxSfp = Math.min(48, Math.max(0, fp.portCount));
                     const isPatch = n.type==='patchpanel';
                     const _portTot = n.ports!==undefined ? n.ports : (d.ports || 0);
                     const _sfpShown = fp.separateSfp && sfpCount > 0 ? sfpCount : 0;
-                    const _lpPreview = _portTot
+                    const _lpPreview = n.type==='pdu' ? '' : (_portTot
                         ? `<span class="props-collapsible-preview">${t('common.portsCount',{n:_portTot})}${_sfpShown?` · ${_sfpShown} SFP`:''}</span>`
-                        : '';
-                    _layoutPortsHtml = `<details class="props-collapsible" ${_propsSectionIsOpen('layout-ports')?'open':''} data-toggle="props-section" data-section="layout-ports"><summary class="props-collapsible-head"><span><i class="fas fa-grip-vertical"></i> ${t('sec.portLayout')}</span>${_lpPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">${(typeof _deviceTypeApplyHtml==='function' && !isPatch) ? _deviceTypeApplyHtml() : ''}
-<div class="prop-row2">
+                        : '');
+                    _layoutPortsHtml = `<details class="props-collapsible" ${_propsSectionIsOpen('layout-ports')?'open':''} data-toggle="props-section" data-section="layout-ports"><summary class="props-collapsible-head"><span><i class="fas fa-grip-vertical"></i> ${t('sec.portLayout')}</span>${_lpPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">${(typeof _deviceTypeApplyHtml==='function' && !isPatch) ? _deviceTypeApplyHtml(n) : ''}
+${n.type==='pdu' ? '' : `<div class="prop-row2">
   <div class="prop-group" style="grid-column:1/-1"><label>${t('field.portCount')}</label>
     <input type="number" min="0" max="96" value="${n.ports!==undefined?n.ports:d.ports}" data-change="update-n" data-nfield="ports" data-ncoerce="int" data-ndef="${d.ports}" data-nmin="0" data-nmax="96">${n.portsReal?`<div style="font-size:0.78rem;color:#e3b341;margin-top:3px" data-tip="${escapeHTML(t('field.portCount.driftTip'))}"><i class="fas fa-triangle-exclamation"></i> ${escapeHTML(t('field.portCount.drift',{n:n.portsReal}))}</div>`:''}
   </div>
-</div>
+</div>`}
 <div class="prop-group" style="margin-top:6px"><label>${t('f.baseLayout')}</label>
   <div class="layout-thumbnails" role="radiogroup" aria-label="${t('pnl.node.basePortLayout')}">
     <button type="button" class="layout-thumb${layout==='linear'?' selected':''}" data-act="update-fp" data-fpkey="baseLayout" data-fpcoerce="lit" data-fpval="linear" data-tip="${t('pnl.node.layoutLinearTip')}" aria-pressed="${layout==='linear'?'true':'false'}" aria-label="${t('pnl.node.layoutLinear')}">
@@ -410,18 +412,18 @@ ${isPatch ? (()=>{
 </div>
 ${_ppPreview?`<div style="font-size:0.72rem;color:var(--text-muted);margin:2px 2px 0"><i class="fas fa-hashtag" style="margin-right:5px"></i>${_ppPreview}</div>`:''}`;
 })() : ''}
-${fp.mgmtEligible ? `<div class="prop-row2" style="margin-top:4px">
+${fp.mgmtEligible && n.type!=='pdu' ? `<div class="prop-row2" style="margin-top:4px">
   <div class="prop-group"><label>${t('f.mgmtPorts')}</label>
-    <input type="number" min="0" max="4" value="${fp.mgmtCount||0}" data-change="update-fp" data-fpkey="mgmtCount" data-fpcoerce="int" data-fpdef="0" data-fpmin="0" data-fpmax="4" data-tip="${t('pnl.node.mgmtPortsTip')}">
+    <input type="number" min="0" max="4" value="${mgmtCount||0}" data-change="update-fp" data-fpkey="mgmtCount" data-fpcoerce="int" data-fpdef="0" data-fpmin="0" data-fpmax="4" data-tip="${t('pnl.node.mgmtPortsTip')}">
   </div>
-${(fp.mgmtCount||0) > 0 ? `  <div class="prop-group"><label>${t('f.mgmtPos')}</label>
+${mgmtCount > 0 ? `  <div class="prop-group"><label>${t('f.mgmtPos')}</label>
     <select data-change="update-fp" data-fpkey="mgmtPosition">
       <option value="left"  ${fp.mgmtPosition!=='right'?'selected':''}>${t('o.leftDef')}</option>
       <option value="right" ${fp.mgmtPosition==='right'?'selected':''}>${t('o.right')}</option>
     </select>
   </div>` : ''}
 </div>
-${(fp.mgmtCount||0) > 0 ? `<div class="prop-row2" style="margin-top:4px">
+${mgmtCount > 0 ? `<div class="prop-row2" style="margin-top:4px">
   <div class="prop-group" style="grid-column:1/-1"><label>${t('f.mgmtLabel')}</label>
     <input type="text" maxlength="10" value="${escapeHTML(fp.mgmtLabel||'MGMT')}" placeholder="MGMT" data-change="update-fp" data-fpkey="mgmtLabel" data-tip="${t('pnl.node.mgmtLabelTip')}">
   </div>
@@ -696,6 +698,8 @@ ${showFiber ? `<div class="prop-row2">
                         _networkAccessHtml = `<details class="props-collapsible" ${_propsSectionIsOpen('network-access')?'open':''} data-toggle="props-section" data-section="network-access"><summary class="props-collapsible-head"><span><i class="fas fa-link"></i> ${t('sec.netAccess')}</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                             <div class="prop-group"><label>Hostname</label><input value="${escapeHTML(n.hostname||'')}" placeholder="${escapeHTML(d.brand)}" data-change="update-hostname"></div>
                         </div></details>`;
+                    } else if(n.type==='pdu' && pduManagementPortCount(n)===0){
+                        _networkAccessHtml = `<details class="props-collapsible" ${_propsSectionIsOpen('network-access')?'open':''} data-toggle="props-section" data-section="network-access"><summary class="props-collapsible-head"><span><i class="fas fa-link"></i> ${t('sec.netAccess')}</span><span class="props-collapsible-preview muted">${t('o.pduMgmtNone')}</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body"><div class="pdu-port-model-note"><i class="fas fa-circle-info"></i> ${t('pnl.node.pduNoNetworkNote')}</div></div></details>`;
                     } else {
                         _networkAccessHtml = _buildNetAccessHtml(n, d);
                     }
@@ -785,7 +789,7 @@ ${showFiber ? `<div class="prop-row2">
             }
                 // ---- Integrazione SNMP: device con IP (rack attivi/power E floor
                 // come stampante/AP/webcam/NAS) → un solo pannello per tutti.
-                if(d.isActive || d.hasIP || (n.integration && n.integration.driver)){
+                if(d.isActive || ((d.hasIP && !(n.type==='pdu' && pduManagementPortCount(n)===0)) || (n.integration && n.integration.driver))){
                 const intg=n.integration||{};
                 const drv=intg.driver||'';
                 const showSnmp=drv==='snmp-v1'||drv==='snmp-v2c'||drv==='snmp-v3';

@@ -5,6 +5,7 @@
 // ============================================================
 const fs   = require('fs');
 const path = require('path');
+const { PROJECT_STATE_SCHEMA_VERSION } = require('../lib/project-format.js');
 
 // La cartella projects/ sta nella root del progetto (server/ è un livello sotto).
 // Override via INFRANET_PROJECTS_DIR: serve a far girare il server su uno store
@@ -148,8 +149,11 @@ function saveProject(id, name, state, createdAt, updatedAt) {
   let prevMeta = null;
   try { if (fs.existsSync(file)) prevMeta = (JSON.parse(fs.readFileSync(file, 'utf8')).state) || null; } catch (_) { /* ignora */ }
   const storeState = extractBgAsset(id, state, ASSETS_DIR, prevMeta);
+  const rawVersion = Number(storeState.schemaVersion);
+  storeState.schemaVersion = Number.isInteger(rawVersion) && rawVersion > 0
+    ? rawVersion : PROJECT_STATE_SCHEMA_VERSION;
   atomicWriteFile(file, JSON.stringify(
-    { id, name, created_at: createdAt, updated_at: updatedAt, state: storeState }
+    { format: 'infranet-project', schemaVersion: storeState.schemaVersion, id, name, created_at: createdAt, updated_at: updatedAt, state: storeState }
   ));
 }
 

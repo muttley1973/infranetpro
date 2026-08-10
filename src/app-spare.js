@@ -36,7 +36,7 @@ function _spareBuildDevices(){
     for(const n of (store.state.nodes || [])){
         // Solo infrastruttura con porte (switch/router/firewall/patch panel…),
         // NON gli endpoint (un PC/AP non e' "capacita' libera" per nuovi device).
-        if(_isLeafEndpoint(n.type)) continue;
+        if(_isLeafEndpoint(n.type, n)) continue;
         const pc = (n.ports !== undefined) ? n.ports : (TYPES[n.type]?.ports || 0);
         if(!pc) continue;
         // Indici porta che sono SFP/uplink (il resto e' access). mgmt sta fuori da 1..pc.

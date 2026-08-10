@@ -22,6 +22,7 @@ delete process.env.INFRANET_DCIM_TOKEN;
 const express = require('express');
 
 let role = 'admin';
+let rejectSiteIpamFilters = false;
 let app, server, base;
 let nb, nbBase;
 
@@ -50,11 +51,17 @@ const NB = {
   ],
   '/api/ipam/vlans/': [{ id: 60, vid: 10, name: 'Mgmt' }],
   '/api/ipam/prefixes/': [{ id: 70, prefix: '10.0.0.0/24', vlan: { vid: 10 } }],
+  '/api/ipam/ip-addresses/': [{ id: 80, address: '10.0.0.2/24', assigned_object: { id: 1000, device: { id: 100 } } }],
 };
 
 before(async () => {
   nb = http.createServer((req, res) => {
-    const p = new URL(req.url, 'http://x').pathname;
+    const url = new URL(req.url, 'http://x');
+    const p = url.pathname;
+    if (rejectSiteIpamFilters && /^\/api\/ipam\/(vlans|prefixes)\/$/.test(p) && url.searchParams.has('site_id')) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ detail: 'Invalid filter: site_id' }));
+    }
     res.writeHead(200, { 'Content-Type': 'application/json' });
     if (p === '/api/status/') return res.end(JSON.stringify({ 'netbox-version': '4.1.3' }));
     if (NB[p]) return res.end(JSON.stringify({ count: NB[p].length, next: null, results: NB[p] }));
@@ -119,6 +126,32 @@ test('GET /capabilities → import true, export false (build free)', async () =>
   assert.equal(j.export, false);
 });
 
+test('GET /catalog → stato del catalogo locale senza segreti', async () => {
+  const r = await fetch(`${base}${P}/catalog`);
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  assert.equal(typeof j.available, 'boolean');
+  assert.equal('token' in j, false);
+});
+
+test('GET /catalog/diff → differenze locali senza segreti', async () => {
+  const r = await fetch(`${base}${P}/catalog/diff`);
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  assert.equal(j.ok, true);
+  assert.ok(j.diff === null || typeof j.diff === 'object');
+  assert.ok(!/token|password|secret/i.test(JSON.stringify(j)));
+});
+
+test('POST /catalog/check e /catalog/update → solo admin', async () => {
+  role = 'viewer';
+  const check = await fetch(`${base}${P}/catalog/check`, { method: 'POST' });
+  const update = await fetch(`${base}${P}/catalog/update`, { method: 'POST' });
+  assert.equal(check.status, 403);
+  assert.equal(update.status, 403);
+  role = 'admin';
+});
+
 test('POST /test → prova connessione riuscita (versione dal mock)', async () => {
   const r = await fetch(`${base}${P}/test`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -161,8 +194,14 @@ test('POST /import dry-run → conteggi + nome proposto + campioni', async () =>
   assert.equal(j.counts.devices, 2);
   assert.equal(j.counts.cables, 1);
   assert.equal(j.counts.vlans, 1);
+  assert.equal(j.counts.prefixes, 1);
+  assert.equal(j.counts.ips, 1);
+  assert.equal(j.counts.directLinks, 1);
+  assert.equal(j.counts.passThroughLinks, 0);
+  assert.equal(j.counts.devicesRack, 2);
   assert.equal(j.proposedProjectName, 'HQ');
   assert.equal(j.samples.devices.length, 2);
+  assert.equal(j.reconciliation.required, 2);
 });
 
 test('POST /import dry-run con selezione: exclude device → conteggio ridotto', async () => {
@@ -173,13 +212,55 @@ test('POST /import dry-run con selezione: exclude device → conteggio ridotto',
   const j = await r.json();
   assert.equal(j.counts.devices, 1);
   assert.equal(j.counts.cables, 0);   // il cavo puntava al device escluso
+  assert.deepEqual(j.samples.excluded.devices, [101]);
+});
+
+test('POST /import dry-run con mapping manuale → riconciliazione risolta', async () => {
+  const r = await fetch(`${base}${P}/import`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ selection: { mapping: {
+      '100': { type: 'switch', placement: 'rack' },
+      '101': { type: 'switch', placement: 'rack' },
+    } } }),
+  });
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  assert.equal(j.reconciliation.required, 0);
+  assert.equal(j.reconciliation.resolved, 4);
+});
+
+test('POST /import IPAM con filtro site_id non supportato → fallback senza bloccare', async () => {
+  rejectSiteIpamFilters = true;
+  const r = await fetch(`${base}${P}/import`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ selection: { scope: { siteIds: [40], roleSlugs: [], tags: [] }, allowUnresolved: true } }),
+  });
+  rejectSiteIpamFilters = false;
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  assert.ok(j.warnings.some(w => /site_id/.test(w)));
+});
+
+test('POST /import commit senza riconciliazione → 409 e nessun progetto', async () => {
+  const count0 = fs.readdirSync(PROJECTS).filter(f => /^\d+\.json$/.test(f)).length;
+  const r = await fetch(`${base}${P}/import`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ commit: true, projectName: 'Import bloccato' }),
+  });
+  assert.equal(r.status, 409);
+  const j = await r.json();
+  assert.equal(j.ok, false);
+  assert.equal(j.reconciliation.required, 2);
+  assert.equal(j.reconciliationRequired.length, 2);
+  const count1 = fs.readdirSync(PROJECTS).filter(f => /^\d+\.json$/.test(f)).length;
+  assert.equal(count1, count0);
 });
 
 test('POST /import commit → crea un NUOVO progetto isolato', async () => {
   const count0 = fs.readdirSync(PROJECTS).filter(f => /^\d+\.json$/.test(f)).length;
   const r = await fetch(`${base}${P}/import`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ commit: true, projectName: 'Import test' }),
+    body: JSON.stringify({ commit: true, projectName: 'Import test', selection: { allowUnresolved: true } }),
   });
   assert.equal(r.status, 201);
   const j = await r.json();

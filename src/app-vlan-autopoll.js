@@ -416,7 +416,7 @@ export function _getLinkTrunk(l){
     if(!l || typeof win.effLinkVlans!=='function') return { mode:'access', native:1, vlans:[1], carried:[], derived:true };
     const native = (typeof _getLinkVlan==='function') ? _getLinkVlan(l) : 1;
     const srcNode = getNodeByPortId(l.src), dstNode = getNodeByPortId(l.dst);
-    const _isLeaf = n => !!(n && typeof _isLeafEndpoint==='function' && _isLeafEndpoint(n.type));
+    const _isLeaf = n => !!(n && typeof _isLeafEndpoint==='function' && _isLeafEndpoint(n.type, n));
     let carried = [];
     if(srcNode && !_isLeaf(dstNode) && typeof win.carriedVlans==='function') carried = carried.concat(win.carriedVlans(srcNode));
     if(dstNode && !_isLeaf(srcNode) && typeof win.carriedVlans==='function') carried = carried.concat(win.carriedVlans(dstNode));

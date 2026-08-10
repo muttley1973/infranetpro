@@ -19,6 +19,7 @@
 const fs = require('fs');
 const path = require('path');
 const { atomicWriteFile } = require('./projects-store');   // scrittura atomica (+ mode)
+const { normalizeBaseUrl } = require('./dcim/client');
 
 const CONFIG_FILE = process.env.INFRANET_DCIM_CONFIG_FILE ||
   path.join(__dirname, '..', 'data', 'dcim-config.json');
@@ -35,10 +36,10 @@ const DEFAULTS = Object.freeze({
   adapter: 'netbox',
 });
 
-// URL base canonico: trim + via le slash finali (il client le rimette al join).
+// URL base canonico: trim, elimina gli endpoint API incollati e le slash finali.
 // Una sola forma su disco/UI → confronti e log puliti.
 function _normUrl(s) {
-  return (typeof s === 'string' ? s.trim() : '').replace(/\/+$/, '');
+  return normalizeBaseUrl(s);
 }
 
 // Normalizza un oggetto config arbitrario sui soli campi noti (allowlist) e tipi

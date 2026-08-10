@@ -15,12 +15,15 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
-import { _buildDeviceBrandModelPreview, _propsSectionIsOpen, _buildInventoryFieldsHtml, _buildNetAccessHtml, _powerLiveHtml } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
+import { _buildDeviceBrandModelPreview, _propsSectionIsOpen, _buildInventoryFieldsHtml, _buildNetAccessHtml, _powerLiveHtml, renderProps } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
-import { selected, checked, getWallPortLabel, updateFloorId, updateWallPortId, _toggleArrayField } from './app.js';   // ritiro ponte: helper option-selected/checked + (ASSE B) setter ex-onchange
+import { MAX_PDU_OUTLETS, normalizePduOutletCount, pduManagementMode, pduManagementPortCount, pduSerialPortCount, pduAuxiliaryPortCount, outletStatusText, pduOutletStatusState, pduOutletConnection } from '../lib/pdu-layout.js';
+import { nodeById, getNodeDisplayName, markDirty, selected, checked, getWallPortLabel, updateFloorId, updateWallPortId, _toggleArrayField } from './app.js';   // ritiro ponte: helper option-selected/checked + (ASSE B) setter ex-onchange
+import { renderAll } from './app-render-core.js';
 import { _effPortVlan, setEndpointVlan } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup + (ASSE B) setEndpointVlan (ex onchange)
 import { _hvPanelHtml } from './app-hypervisor.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
-import { registerChangeActions } from './app-delegation.js';   // ASSE B (Blocco 5): event delegation degli onchange inline della catena device-spec
+import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B (Blocco 5): event delegation degli onchange inline della catena device-spec
+import { pduConnectionDeviceSelect } from './app-pdu-connection.js';
 
 // ── ASSE B (Blocco 5): azioni delegate della catena device-spec ─────────────
 // Gli onchange inline di questo modulo diventano UN attributo data-change + una
@@ -36,6 +39,154 @@ registerChangeActions({
     'toggle-array':  (el) => _toggleArrayField(el.dataset.taid, el.dataset.tafield, el.dataset.taval, el.checked),
     'endpoint-vlan': (el) => setEndpointVlan(el.dataset.nid, el.dataset.pid, el.value),
 });
+
+registerClickActions({
+    'pdu-connection-reset': (el) => clearPduConnection(el.dataset.nid, +el.dataset.pindex),
+    'pdu-outlet-status-reset': (el) => clearPduOutletStatus(el.dataset.nid, +el.dataset.pindex),
+});
+
+registerChangeActions({
+    'pdu-connection-field': (el) => setPduConnectionField(el.dataset.nid, +el.dataset.pindex, el.dataset.pfield, el.value),
+    'pdu-outlet-field': (el) => setPduOutletField(el.dataset.nid, +el.dataset.pindex, el.dataset.pfield, el.value),
+});
+
+function _pduOutletStatusLabel(status){
+    return ({
+        active: t('port.statusActive'),
+        fault: 'Fault',
+        inactive: t('port.statusInactive'),
+    })[status] || status;
+}
+
+function _pduOutletStateHtml(n){
+    const outlets = Array.isArray(n && n.powerOutlets) ? n.powerOutlets : [];
+    if(!outlets.length) return '';
+    const counts = { active:0, fault:0, inactive:0 };
+    const colors = { active:'var(--active-color)', fault:'var(--fault-color)', inactive:'var(--inactive-color)' };
+    const chips = outlets.slice(0, MAX_PDU_OUTLETS).map((outlet, index) => {
+        const status = pduOutletStatusState(outlet);
+        counts[status] = (counts[status] || 0) + 1;
+        const label = String(outlet.label || outlet.name || `P${index + 1}`);
+        const raw = outlet.rawStatus || outletStatusText(outlet);
+        const title = [label, _pduOutletStatusLabel(status), raw && raw !== status ? raw : ''].filter(Boolean).join(' · ');
+        return `<span title="${escapeHTML(title)}" style="display:inline-flex;align-items:center;gap:4px;padding:2px 5px;border:1px solid var(--panel-border);border-radius:3px;font-size:.68rem;color:var(--text-main);background:var(--bg-color)"><i class="fas fa-square" style="font-size:.55rem;color:${colors[status]||colors.inactive}"></i>${escapeHTML(label)}</span>`;
+    }).join('');
+    const summary = Object.entries(counts).filter(([, count]) => count > 0).map(([status, count]) => `<span style="color:${colors[status]}">${count} ${escapeHTML(_pduOutletStatusLabel(status))}</span>`).join(' · ');
+    return `<div class="prop-group"><label>Stato prese power</label>
+        <div style="display:flex;flex-wrap:wrap;gap:4px">${chips}</div>
+        <div class="pdu-port-model-note"><i class="fas fa-circle-info"></i> ${summary} · stato operativo importato da NetBox; le prese power non sono porte Ethernet e non generano cavi.</div>
+    </div>`;
+}
+
+function _pduOutletSource(n){
+    if(!n) return [];
+    if(Array.isArray(n.powerOutlets)) return n.powerOutlets;
+    if(Array.isArray(n.spec?.powerOutlets)) return n.spec.powerOutlets;
+    if(Array.isArray(n.pduOutlets)) return n.pduOutlets;
+    if(Array.isArray(n.spec?.pduOutlets)) return n.spec.pduOutlets;
+    return [];
+}
+
+function _ensurePduOutletEntry(n, index){
+    if(!n || n.type !== 'pdu' || !Number.isInteger(index) || index < 0 || index >= MAX_PDU_OUTLETS) return null;
+    const source = _pduOutletSource(n);
+    if(!Array.isArray(n.powerOutlets)) n.powerOutlets = source.map(outlet => ({ ...(outlet || {}) }));
+    while(n.powerOutlets.length <= index) n.powerOutlets.push({ name:`P${n.powerOutlets.length + 1}` });
+    if(!n.powerOutlets[index] || typeof n.powerOutlets[index] !== 'object') n.powerOutlets[index] = { name:`P${index + 1}` };
+    return n.powerOutlets[index];
+}
+
+function _pduConnectionRerender(){
+    renderAll();
+    renderProps();
+}
+
+function setPduConnectionField(nodeId, index, field, value){
+    if(!['deviceId', 'deviceName', 'portName'].includes(field)) return;
+    const node = nodeById(nodeId);
+    const outlet = _ensurePduOutletEntry(node, index);
+    if(!outlet) return;
+    if(!outlet.connectionOvr || typeof outlet.connectionOvr !== 'object') outlet.connectionOvr = {};
+    const next = String(value == null ? '' : value).trim();
+    if(field === 'deviceId'){
+        if(!next){
+            delete outlet.connectionOvr.deviceId;
+            delete outlet.connectionOvr.deviceName;
+        }else if(next !== '__current__'){
+            const selected = nodeById(next);
+            if(!selected) return;
+            outlet.connectionOvr.deviceId = String(selected.id);
+            outlet.connectionOvr.deviceName = String(getNodeDisplayName(selected) || selected.name || selected.hostname || selected.id);
+        }
+    }else if(next) outlet.connectionOvr[field] = next;
+    else delete outlet.connectionOvr[field];
+    if(!Object.keys(outlet.connectionOvr).length) delete outlet.connectionOvr;
+    markDirty();
+    _pduConnectionRerender();
+}
+
+function clearPduConnection(nodeId, index){
+    const node = nodeById(nodeId);
+    const outlet = _ensurePduOutletEntry(node, index);
+    if(!outlet) return;
+    if(outlet.connectionOvr && typeof outlet.connectionOvr === 'object') delete outlet.connectionOvr;
+    markDirty();
+    _pduConnectionRerender();
+}
+
+function setPduOutletField(nodeId, index, field, value){
+    if(field !== 'statusOvr') return;
+    const node = nodeById(nodeId);
+    const outlet = _ensurePduOutletEntry(node, index);
+    if(!outlet) return;
+    const next = String(value == null ? '' : value).trim().toLowerCase();
+    if(['active', 'inactive', 'fault'].includes(next)) outlet.statusOvr = next;
+    else delete outlet.statusOvr;
+    markDirty();
+    _pduConnectionRerender();
+}
+
+function clearPduOutletStatus(nodeId, index){
+    const node = nodeById(nodeId);
+    const outlet = _ensurePduOutletEntry(node, index);
+    if(!outlet) return;
+    delete outlet.statusOvr;
+    markDirty();
+    _pduConnectionRerender();
+}
+
+function _pduPowerConnectionsHtml(n){
+    const source = _pduOutletSource(n);
+    const configured = n && n.pduOutletCount != null ? n.pduOutletCount : (source.length || 8);
+    const count = normalizePduOutletCount(configured);
+    const entries = Array.from({ length:count }, (_, index) => source[index] || { name:`P${index + 1}` });
+    const connected = entries.reduce((total, outlet) => total + (pduOutletConnection(outlet).connected ? 1 : 0), 0);
+    const rows = entries.map((outlet, index) => {
+        const connection = pduOutletConnection(outlet);
+        const label = String(outlet.label || outlet.name || `P${index + 1}`);
+        const status = pduOutletStatusState(outlet);
+        const portClass = connection.manualPort ? 'ovr' : '';
+        const sourceClass = connection.manual ? 'manual' : (connection.imported ? 'netbox' : 'empty');
+        const sourceLabel = connection.manual ? t('pdu.manual') : (connection.imported ? t('pdu.netbox') : t('pdu.notSet'));
+        const reset = connection.manual
+            ? `<button class="pdu-connection-reset" type="button" data-act="pdu-connection-reset" data-nid="${escapeHTML(n.id)}" data-pindex="${index}" title="${escapeHTML(t('pdu.resetConnection'))}" aria-label="${escapeHTML(t('pdu.resetConnection'))}"><i class="fas fa-rotate-left"></i></button>`
+            : '';
+        return `<div class="pdu-connection-row">
+            <div class="pdu-connection-head"><span class="pdu-connection-outlet"><i class="fas fa-plug"></i>${escapeHTML(label)}</span><span class="pdu-connection-status ${status}">${escapeHTML(_pduOutletStatusLabel(status))}</span><span class="pdu-connection-source ${sourceClass}">${escapeHTML(sourceLabel)}</span>${reset}</div>
+            <div class="pdu-connection-fields">
+                <label class="pdu-connection-field"><span>${escapeHTML(t('pdu.connectionDevice'))}</span>${pduConnectionDeviceSelect({ nodeId:n.id, index, connection })}</label>
+                <label class="pdu-connection-field"><span>${escapeHTML(t('pdu.connectionPort'))}</span><input class="${portClass}" value="${escapeHTML(connection.portName)}" placeholder="${escapeHTML(t('pdu.notSet'))}" data-change="pdu-connection-field" data-nid="${escapeHTML(n.id)}" data-pindex="${index}" data-pfield="portName"></label>
+            </div>
+        </div>`;
+    }).join('');
+    return `<details class="props-collapsible props-secondary pdu-connections-section" ${_propsSectionIsOpen('pdu-power-connections')?'open':''} data-toggle="props-section" data-section="pdu-power-connections">
+        <summary class="props-collapsible-head"><span><i class="fas fa-bolt"></i> ${escapeHTML(t('pdu.connectionsTitle'))}</span><span class="props-collapsible-preview">${escapeHTML(t('pdu.connectionsPreview',{connected,total:count}))}</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
+        <div class="props-collapsible-body"><div>
+            <div class="pdu-connection-hint"><i class="fas fa-circle-info"></i> ${escapeHTML(t('pdu.connectionsHint'))}</div>
+            <div class="pdu-connection-list">${rows}</div>
+        </div></div>
+    </details>`;
+}
 
 // ============================================================
 // PROPERTIES PANEL — catena device-specifica per-tipo (estratta da
@@ -1000,6 +1151,14 @@ export function _nodeDeviceChainHtml(n, d){
                 </div></details>`;
             }
             if(n.type==='pdu'){
+                const _pduMgmtMode = pduManagementMode(n);
+                const _pduHasEthernet = _pduMgmtMode === 'ethernet' || _pduMgmtMode === 'ethernet-serial';
+                const _pduHasSerial = _pduMgmtMode === 'serial' || _pduMgmtMode === 'ethernet-serial';
+                const _pduEthPorts = pduManagementPortCount(n);
+                const _pduSerialPorts = pduSerialPortCount(n);
+                const _pduSensorPorts = pduAuxiliaryPortCount(n, 'pduSensorPorts', 2);
+                const _pduUsbPorts = pduAuxiliaryPortCount(n, 'pduUsbPorts', 3);
+                const _pduExpansionPorts = pduAuxiliaryPortCount(n, 'pduExpansionPorts', 2);
                 _devSpecHtml+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-pdu')?'open':''} data-toggle="props-section" data-section="device-pdu"><summary class="props-collapsible-head"><span><i class="fas fa-plug"></i> PDU</span>${_buildDeviceBrandModelPreview(n)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                     ${_buildInventoryFieldsHtml(n, d)}
                     <div class="prop-group"><label>${t('f.type')}</label><select data-change="update-n" data-nfield="pduType">
@@ -1008,6 +1167,25 @@ export function _nodeDeviceChainHtml(n, d){
                         <option value="switched"         ${selected(n.pduType,'switched')}>${t('o.pduSwitched')}</option>
                         <option value="switched-metered" ${selected(n.pduType,'switched-metered')}>Switched + Metered</option>
                     </select></div>
+                    <div class="prop-group"><label>${t('f.pduMgmtType')}</label><select data-change="update-n" data-nfield="pduMgmtMode" data-tip="${t('pnl.node.pduMgmtTypeTip')}">
+                        <option value="none"            ${selected(_pduMgmtMode,'none')}>${t('o.pduMgmtNone')}</option>
+                        <option value="ethernet"        ${selected(_pduMgmtMode,'ethernet')}>${t('o.pduMgmtEthernet')}</option>
+                        <option value="serial"          ${selected(_pduMgmtMode,'serial')}>${t('o.pduMgmtSerial')}</option>
+                        <option value="ethernet-serial"  ${selected(_pduMgmtMode,'ethernet-serial')}>${t('o.pduMgmtEthernetSerial')}</option>
+                    </select></div>
+                    ${_pduHasEthernet ? `<div class="prop-group"><label>${t('f.pduEthernetPorts')}</label>
+                        <input type="number" min="1" max="2" value="${_pduEthPorts||1}" data-change="update-n" data-nfield="pduEthernetPorts" data-ncoerce="intdef" data-ndef="1"></div>` : ''}
+                    ${_pduHasSerial ? `<div class="prop-group"><label>${t('f.pduConsolePorts')}</label>
+                        <input type="number" min="1" max="2" value="${_pduSerialPorts||1}" data-change="update-n" data-nfield="pduSerialPorts" data-ncoerce="intdef" data-ndef="1"></div>` : ''}
+                    <div class="prop-row2">
+                        <div class="prop-group"><label>${t('f.pduSensorPorts')}</label>
+                            <input type="number" min="0" max="2" value="${_pduSensorPorts}" data-change="update-n" data-nfield="pduSensorPorts" data-ncoerce="intdef" data-ndef="0"></div>
+                        <div class="prop-group"><label>${t('f.pduUsbPorts')}</label>
+                            <input type="number" min="0" max="3" value="${_pduUsbPorts}" data-change="update-n" data-nfield="pduUsbPorts" data-ncoerce="intdef" data-ndef="0"></div>
+                    </div>
+                    <div class="prop-group"><label>${t('f.pduExpansionPorts')}</label>
+                        <input type="number" min="0" max="2" value="${_pduExpansionPorts}" data-change="update-n" data-nfield="pduExpansionPorts" data-ncoerce="intdef" data-ndef="0"></div>
+                    <div class="pdu-port-model-note"><i class="fas fa-circle-info"></i> ${t('pnl.node.pduPortsNote')}</div>
                     <div class="prop-group"><label>${t('f.phases')}</label><select data-change="update-n" data-nfield="pduPhase">
                         <option value="single" ${selected(n.pduPhase||'single','single')}>${t('o.single230')}</option>
                         <option value="three"  ${selected(n.pduPhase,'three')}>${t('o.three400')}</option>
@@ -1022,7 +1200,9 @@ export function _nodeDeviceChainHtml(n, d){
                         <option value="horizontal-1u" ${selected(n.pduOrientation,'horizontal-1u')}>${t('o.horiz1u')}</option>
                     </select></div>
                     <div class="prop-group"><label>${t('f.totalSockets')}</label>
-                        <input type="number" min="1" max="96" value="${n.pduOutletCount||8}" data-change="update-n" data-nfield="pduOutletCount" data-ncoerce="intdef" data-ndef="8"></div>
+                        <input type="number" min="1" max="${MAX_PDU_OUTLETS}" value="${n.pduOutletCount||8}" data-change="update-n" data-nfield="pduOutletCount" data-ncoerce="intdef" data-ndef="8"></div>
+                    ${_pduOutletStateHtml(n)}
+                    ${_pduPowerConnectionsHtml(n)}
                 </div></details>`;
             }
             if(n.type==='ats'){

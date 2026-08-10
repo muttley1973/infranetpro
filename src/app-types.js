@@ -58,7 +58,7 @@ export const TYPES = {
     customrack:  { isRack:true,  isActive:true,   mgmtEligible:true, name:'Dispositivo rack generico', icon:'fa-cube',     sizeU:1, ports:1, brand:''     },
     // ── Rack passivi MA con possibile interfaccia IP ──────────────────────────
     ups:         { isRack:true,  isPassive:true,  hasIP:true, name:'UPS',            icon:'fa-car-battery', sizeU:2, ports:1, brand:'APC'  },
-    pdu:         { isRack:true,  isPassive:true,  hasIP:true, name:'PDU',            icon:'fa-plug',        sizeU:1, ports:1, brand:'APC'  },
+    pdu:         { isRack:true,  isPassive:true,  hasIP:true, mgmtEligible:true, name:'PDU',            icon:'fa-plug',        sizeU:1, ports:1, brand:'APC'  },
     ats:         { isRack:true,  isPassive:true,  hasIP:true, name:'ATS — Transfer Switch', icon:'fa-shuffle', sizeU:1, ports:1, brand:'APC' },
     mediaconv:   { isRack:true,  isPassive:true,  hasIP:true, passThrough:'device', name:'Media Converter', icon:'fa-right-left', sizeU:1, ports:2, brand:'Moxa' },
     // ── Strutturale ───────────────────────────────────────────────────────────
@@ -151,7 +151,7 @@ const NODE_SPEC_FIELDS = new Set([
     'nasType','nasCapacityTb','nasRaid','nasProtocols','nasPlatform',
     'kvmType','kvmMaxRes','kvmConnectedServers','kvmRemoteAccess',
     'upsTopology','upsVa','upsW','upsAutonomyMin','upsHotSwap',
-    'pduType','pduPhase','pduCurrentA','pduOrientation','pduOutletCount',
+    'pduType','pduPhase','pduCurrentA','pduOrientation','pduOutletCount','pduMgmtMode','pduEthernetPorts','pduSerialPorts','pduSensorPorts','pduUsbPorts','pduExpansionPorts',
     'atsSourcePref','atsInputV','atsCurrentA','atsOutletCount',
     'stackId','stackMemberId','stackRole',
     'haPeer','haGroupId','haRole','haMode','haSync',
@@ -220,6 +220,10 @@ export function _frontPanelSfpPorts(node, portCount){
 export function _frontPanelSfpGroups(node, portCount){
     const mgmtEligible = !!(node && TYPES[node.type] && TYPES[node.type].mgmtEligible);
     return win.frontPanelSfpGroups(node, portCount, mgmtEligible);
+}
+
+export function _frontPanelSharedSlots(node, portCount){
+    return (_frontPanelState(node, portCount).sharedMediaSlots || []).map(item => item.slot);
 }
 
 export function _frontPanelRows(node, portCount){
@@ -322,5 +326,5 @@ expose({
     NODE_ID_PREFIX,
     _fixedRackLabel, _isNodeSpecField, _ensureNodeSpec, _compactNodeSpec, _nodeSpecView,
     _frontPanelLegacyState, _frontPanelState, _frontPanelSfpPorts, _frontPanelSfpGroups,
-    _frontPanelRows, _frontPanelIsUplink, _frontPanelShortIfName, _frontPanelPortLabel,
+    _frontPanelRows, _frontPanelIsUplink, _frontPanelSharedSlots, _frontPanelShortIfName, _frontPanelPortLabel,
 });

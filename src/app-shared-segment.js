@@ -777,7 +777,7 @@ function _createSharedSegmentNode(pid, role){
         let idx = 2;
         for(const item of info.endpoints){
             const ep = item.node;
-            if(!ep || !_isLeafEndpoint(ep.type)) continue;
+            if(!ep || !_isLeafEndpoint(ep.type, ep)) continue;
             const epPid = `${ep.id}-1`;
             const existing = store.state.links.find(l=>_linkTouchesPort(l, epPid));
             if(existing && !existing.autoLinked) continue;

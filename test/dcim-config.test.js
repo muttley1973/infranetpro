@@ -41,6 +41,12 @@ test('setConfig persiste url/token/tls e la maschera non espone il token', () =>
   assert.equal(onDisk.token, 'SEG-RE-TO');
 });
 
+test('setConfig riduce un endpoint API alla base dell\'istanza', () => {
+  const m = cfg.setConfig({ url: 'https://netbox.local/api/dcim/devices/' });
+  assert.equal(m.url, 'https://netbox.local');
+  assert.equal(cfg.getConfigWithToken().url, 'https://netbox.local');
+});
+
 test("token undefined mantiene, '' cancella", () => {
   cfg.setConfig({ url: 'https://nb.local', token: 'KEEPME' });
   cfg.setConfig({ url: 'https://nb2.local' });          // niente token nel patch

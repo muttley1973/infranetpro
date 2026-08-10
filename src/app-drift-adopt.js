@@ -214,7 +214,7 @@ function _adoptCreateNodes(picks, autoLink){
         }
         store.state.nodes.push(n);
         if(existingIdx && typeof _discIndexNode === 'function') _discIndexNode(existingIdx, n);
-        if(typeof _isLeafEndpoint === 'function' && _isLeafEndpoint(type)) newEndpoints.push(n);
+        if(typeof _isLeafEndpoint === 'function' && _isLeafEndpoint(type, n)) newEndpoints.push(n);
         added++;
     });
 

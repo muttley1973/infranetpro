@@ -15,12 +15,14 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const { execFile } = require('child_process');
 const auth = require('../../auth');
 const { timestamp } = require('../../utils');
 const dcimConfig = require('../dcim-config');
 const capabilities = require('../dcim/capabilities');
 const { DcimClient } = require('../dcim/client');
 const dcimMap = require('../../lib/dcim-map');
+const deviceCatalog = require('../../lib/device-catalog');
 const { nextId, saveProject } = require('../projects-store');
 
 const router = express.Router();
@@ -37,18 +39,59 @@ function _client() {
 // del pannello nell'import (best-effort: assente = ripiego su porte misurate).
 let _catCacheKey = '';
 let _catCache = null;
-function _catalogByKey() {
+let _catalogUpdateRunning = false;
+function _catalogStatus() {
+  const catalogFile = process.env.INFRANET_DEVICE_TYPES || path.join(__dirname, '..', '..', 'data', 'device-types.json');
+  const manifestFile = path.join(__dirname, '..', '..', 'data', 'device-types-manifest.json');
+  const canonicalFile = path.join(__dirname, '..', '..', 'data', 'device-types-canonical.json');
+  const out = { available: false, source: null, generatedAt: null, catalogModels: 0, canonicalModels: 0, catalogVendors: 0, excludedModels: 0 };
+  try {
+    const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+    out.available = true;
+    out.source = manifest.source || null;
+    out.sourceRef = manifest.sourceRef || (manifest.source && manifest.source.ref) || null;
+    out.generatedAt = manifest.generatedAt || null;
+    out.catalogModels = Number(manifest.catalogModels || 0);
+    out.canonicalModels = Number(manifest.canonicalModels || 0);
+    out.catalogVendors = Number(manifest.catalogVendors || 0);
+    out.excludedModels = Number(manifest.excludedModels || 0);
+    out.diff = manifest.diff || null;
+  } catch (_) { /* manifest opzionale: lo stato resta locale/legacy */ }
+  try { out.runtimeBytes = fs.statSync(catalogFile).size; } catch (_) { out.runtimeBytes = 0; }
+  try { out.canonicalBytes = fs.statSync(canonicalFile).size; } catch (_) { out.canonicalBytes = 0; }
+  return out;
+}
+function _catalogForImport() {
   const file = process.env.INFRANET_DEVICE_TYPES || path.join(__dirname, '..', '..', 'data', 'device-types.json');
   try {
     const st = fs.statSync(file);
-    const key = st.mtimeMs + ':' + st.size;
+    const manifestFile = path.join(__dirname, '..', '..', 'data', 'device-types-manifest.json');
+    const aliasFile = path.join(__dirname, '..', '..', 'data', 'device-types-aliases.json');
+    const fileKey = candidate => {
+      try { const s = fs.statSync(candidate); return s.mtimeMs + ':' + s.size; } catch (_) { return 'missing'; }
+    };
+    const key = st.mtimeMs + ':' + st.size + '|' + fileKey(manifestFile) + '|' + fileKey(aliasFile);
     if (_catCache && key === _catCacheKey) return _catCache;
     const arr = JSON.parse(fs.readFileSync(file, 'utf8'));
-    const m = Object.create(null);
-    if (Array.isArray(arr)) for (const e of arr) if (e && e.brand && e.model) m[(String(e.brand) + ' ' + String(e.model)).toLowerCase()] = e;
-    _catCache = m; _catCacheKey = key;
-    return m;
-  } catch (_) { return _catCache || Object.create(null); }
+    const entries = Array.isArray(arr) ? arr : [];
+    const byKey = Object.create(null);
+    for (const e of entries) {
+      if (e && e.brand && e.model) byKey[(String(e.brand) + ' ' + String(e.model)).toLowerCase()] = e;
+    }
+    let aliases = Object.create(null);
+    try {
+      const rawAliases = JSON.parse(fs.readFileSync(aliasFile, 'utf8'));
+      if (rawAliases && typeof rawAliases === 'object' && !Array.isArray(rawAliases)) aliases = rawAliases;
+    } catch (_) { /* alias opzionali */ }
+    let version = null;
+    try {
+      const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+      version = manifest.sourceRef || (manifest.source && manifest.source.ref) || manifest.generatedAt || null;
+    } catch (_) { /* manifest opzionale */ }
+    _catCache = { byKey, indexes: deviceCatalog.buildIndexes(entries), aliases, version };
+    _catCacheKey = key;
+    return _catCache;
+  } catch (_) { return _catCache || { byKey: Object.create(null), indexes: null, aliases: Object.create(null), version: null }; }
 }
 
 function _chunk(arr, n) { const out = []; for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n)); return out; }
@@ -59,10 +102,49 @@ async function _batchByField(client, apiPath, field, ids, cap) {
   const uniq = [...new Set((ids || []).filter(x => x != null))];
   const out = []; let truncated = false;
   for (const chunk of _chunk(uniq, 50)) {
-    const r = await client.getPaginated(apiPath, { [field]: chunk }, { cap: cap || 20000 });
+    const remaining = (cap || 20000) - out.length;
+    if (remaining <= 0) { truncated = true; break; }
+    const r = await client.getPaginated(apiPath, { [field]: chunk }, { cap: remaining });
     out.push(...r.results); if (r.truncated) truncated = true;
   }
   return { results: out, truncated };
+}
+
+async function _paginatedWithFallback(client, apiPath, query, opts) {
+  try {
+    return { ...(await client.getPaginated(apiPath, query, opts)), fallback: false };
+  } catch (error) {
+    if (!query || !Object.keys(query).length) throw error;
+    const result = await client.getPaginated(apiPath, {}, opts);
+    const filters = Object.keys(query).join(', ');
+    return { ...result, fallback: true, warning: apiPath + ' non supporta i filtri (' + filters + '); importati i risultati disponibili' };
+  }
+}
+
+function _assignedDeviceId(ip) {
+  const assigned = ip && (ip.assigned_object || ip.assignedObject);
+  if (assigned && assigned.device && assigned.device.id != null) return assigned.device.id;
+  if (assigned && assigned.device_id != null) return assigned.device_id;
+  if (ip && ip.device && ip.device.id != null) return ip.device.id;
+  return ip && ip.device_id != null ? ip.device_id : null;
+}
+
+async function _pullIpAddresses(client, deviceIds) {
+  const selected = new Set((deviceIds || []).filter(id => id != null).map(String));
+  if (!selected.size) return { results: [], truncated: false };
+  try {
+    const scoped = await client.getPaginated('/api/ipam/ip-addresses/', { device_id: [...selected] }, { cap: 50000 });
+    return { results: scoped.results, truncated: scoped.truncated };
+  } catch (_) {
+    const all = await client.getPaginated('/api/ipam/ip-addresses/', {}, { cap: 50000 });
+    return {
+      results: all.results.filter(ip => {
+        const deviceId = _assignedDeviceId(ip);
+        return deviceId != null && selected.has(String(deviceId));
+      }),
+      truncated: all.truncated,
+    };
+  }
 }
 
 // Scarica dalla DCIM il bundle per l'import, onorando la selezione: `scope`
@@ -76,42 +158,68 @@ async function _pullForImport(client, sel) {
   const has = a => Array.isArray(a) && a.length;
   const nb = { truncated: false };
 
-  nb.deviceRoles = (await client.getPaginated('/api/dcim/device-roles/', {}, { cap: 5000 })).results;
+  const rolesPromise = client.getPaginated('/api/dcim/device-roles/', {}, { cap: 5000 });
 
   const devQ = {};
   if (has(scope.siteIds)) devQ.site_id = scope.siteIds;
   if (has(scope.rackIds)) devQ.rack_id = scope.rackIds;
   if (has(scope.roleSlugs)) devQ.role = scope.roleSlugs;
   if (has(scope.tags)) devQ.tag = scope.tags;
-  const dev = await client.getPaginated('/api/dcim/devices/', devQ, { cap: 20000 });
+  const [roles, dev] = await Promise.all([
+    rolesPromise,
+    client.getPaginated('/api/dcim/devices/', devQ, { cap: 20000 }),
+  ]);
+  nb.deviceRoles = roles.results;
   nb.devices = dev.results; if (dev.truncated) nb.truncated = true;
   const deviceIds = nb.devices.map(d => d.id).filter(x => x != null);
 
-  nb.deviceTypes = (await _batchByField(client, '/api/dcim/device-types/', 'id',
-    nb.devices.map(d => d.device_type && d.device_type.id))).results;
+  const typeIds = nb.devices.map(d => d.device_type && d.device_type.id);
+  const [deviceTypes, racks] = await Promise.all([
+    _batchByField(client, '/api/dcim/device-types/', 'id', typeIds),
+    on('racks') ? _batchByField(client, '/api/dcim/racks/', 'id', nb.devices.map(d => d.rack && d.rack.id)) : Promise.resolve({ results: [], truncated: false }),
+  ]);
+  nb.deviceTypes = deviceTypes.results;
+  if (deviceTypes.truncated) nb.truncated = true;
 
   if (on('racks')) {
-    nb.racks = (await _batchByField(client, '/api/dcim/racks/', 'id',
-      nb.devices.map(d => d.rack && d.rack.id))).results;
+    nb.racks = racks.results;
+    if (racks.truncated) nb.truncated = true;
   }
   if (on('devices')) {
-    const itf = await _batchByField(client, '/api/dcim/interfaces/', 'device_id', deviceIds);
+    const [itf, fp, powerOutlets, powerPorts, consolePorts] = await Promise.all([
+      _batchByField(client, '/api/dcim/interfaces/', 'device_id', deviceIds),
+      _batchByField(client, '/api/dcim/front-ports/', 'device_id', deviceIds),
+      _batchByField(client, '/api/dcim/power-outlets/', 'device_id', deviceIds),
+      _batchByField(client, '/api/dcim/power-ports/', 'device_id', deviceIds),
+      _batchByField(client, '/api/dcim/console-ports/', 'device_id', deviceIds),
+    ]);
     nb.interfaces = itf.results; if (itf.truncated) nb.truncated = true;
     // Front port dei patch panel → slot passanti che permettono al cablaggio
     // strutturato di risolversi (switch → pp → pp → server). I rear port arrivano
     // via FK dal front (rear_port) → nessun fetch dedicato.
-    const fp = await _batchByField(client, '/api/dcim/front-ports/', 'device_id', deviceIds);
     nb.frontPorts = fp.results; if (fp.truncated) nb.truncated = true;
+    nb.powerOutlets = powerOutlets.results; if (powerOutlets.truncated) nb.truncated = true;
+    nb.powerPorts = powerPorts.results; if (powerPorts.truncated) nb.truncated = true;
+    nb.consolePorts = consolePorts.results; if (consolePorts.truncated) nb.truncated = true;
   }
   if (on('cabling')) {
     const cab = await _batchByField(client, '/api/dcim/cables/', 'device_id', deviceIds);
     const seen = new Set();
     nb.cables = cab.results.filter(c => c && c.id != null && !seen.has(c.id) && seen.add(c.id));
+    if (cab.truncated) nb.truncated = true;
   }
   if (on('ipam')) {
     const vq = {}; if (has(scope.siteIds)) vq.site_id = scope.siteIds;
-    nb.vlans = (await client.getPaginated('/api/ipam/vlans/', vq, { cap: 20000 })).results;
-    nb.prefixes = (await client.getPaginated('/api/ipam/prefixes/', vq, { cap: 20000 })).results;
+    const [vlans, prefixes, ips] = await Promise.all([
+      _paginatedWithFallback(client, '/api/ipam/vlans/', vq, { cap: 20000 }),
+      _paginatedWithFallback(client, '/api/ipam/prefixes/', vq, { cap: 20000 }),
+      _pullIpAddresses(client, deviceIds),
+    ]);
+    nb.vlans = vlans.results; if (vlans.truncated) nb.truncated = true;
+    if (vlans.warning) (nb.warnings || (nb.warnings = [])).push(vlans.warning);
+    nb.prefixes = prefixes.results; if (prefixes.truncated) nb.truncated = true;
+    if (prefixes.warning) (nb.warnings || (nb.warnings = [])).push(prefixes.warning);
+    nb.ipAddresses = ips.results; if (ips.truncated) nb.truncated = true;
   }
   return nb;
 }
@@ -131,8 +239,8 @@ router.get('/api/integrations/dcim/config', (_req, res) => {
 router.put('/api/integrations/dcim/config', auth.requireAdmin, (req, res) => {
   try {
     res.json(dcimConfig.setConfig(req.body || {}));
-  } catch (_e) {
-    res.status(500).json({ error: 'Impossibile salvare la configurazione DCIM' });
+  } catch (e) {
+    res.status(400).json({ error: String((e && e.message) || 'Configurazione DCIM non valida') });
   }
 });
 
@@ -157,6 +265,69 @@ router.post('/api/integrations/dcim/test', auth.requireAdmin, async (req, res) =
 
 router.get('/api/integrations/dcim/capabilities', (_req, res) => {
   res.json({ import: true, export: capabilities.isExportAvailable() });
+});
+
+// Stato del catalogo locale: leggibile nella UI, senza esporre la sorgente YAML.
+// L'aggiornamento resta un'operazione amministrativa esplicita e non entra nel
+// percorso runtime dell'importazione.
+router.get('/api/integrations/dcim/catalog', (_req, res) => {
+  res.json(_catalogStatus());
+});
+
+router.get('/api/integrations/dcim/catalog/diff', (_req, res) => {
+  const file = path.join(__dirname, '..', '..', 'data', 'device-types-diff.json');
+  try {
+    const diff = JSON.parse(fs.readFileSync(file, 'utf8'));
+    res.json({ ok: true, diff });
+  } catch (_) {
+    res.json({ ok: true, diff: null });
+  }
+});
+
+function _runCatalogUpdater(checkOnly) {
+  if (_catalogUpdateRunning) return Promise.reject(new Error('Aggiornamento catalogo già in corso'));
+  _catalogUpdateRunning = true;
+  const script = path.join(__dirname, '..', '..', 'scripts', 'update-device-types.js');
+  const args = [script, '--quiet'];
+  if (checkOnly) args.push('--check');
+  const env = Object.assign({}, process.env);
+  if (env.Path && !env.PATH) env.PATH = env.Path;
+  delete env.Path;
+  return new Promise((resolve, reject) => {
+    execFile(process.execPath, args, {
+      cwd: path.join(__dirname, '..', '..'),
+      timeout: 120000,
+      windowsHide: true,
+      env,
+      maxBuffer: 1024 * 1024,
+    }, (error, stdout, stderr) => {
+      _catalogUpdateRunning = false;
+      if (checkOnly && error && error.code === 2) {
+        return resolve({ available: true, output: String(stdout || stderr || '').trim() });
+      }
+      if (error) return reject(new Error(String(stderr || stdout || error.message || error).trim()));
+      resolve({ available: false, output: String(stdout || '').trim() });
+    });
+  });
+}
+
+router.post('/api/integrations/dcim/catalog/check', auth.requireAdmin, async (_req, res) => {
+  try {
+    const result = await _runCatalogUpdater(true);
+    res.json({ ok: true, available: result.available, status: _catalogStatus() });
+  } catch (e) {
+    res.status(502).json({ ok: false, error: String((e && e.message) || e) });
+  }
+});
+
+router.post('/api/integrations/dcim/catalog/update', auth.requireAdmin, async (_req, res) => {
+  try {
+    await _runCatalogUpdater(false);
+    _catCache = null; _catCacheKey = '';
+    res.json({ ok: true, status: _catalogStatus() });
+  } catch (e) {
+    res.status(502).json({ ok: false, error: String((e && e.message) || e) });
+  }
 });
 
 // Scoperta ambiti: siti/rack/ruoli/tag con conteggi, per il passo «Ambito» del
@@ -193,7 +364,14 @@ router.post('/api/integrations/dcim/import', auth.requireAdmin, async (req, res)
   try { nb = await _pullForImport(client, selection); }
   catch (e) { return res.status(502).json({ error: String((e && e.message) || e) }); }
 
-  const { state, report } = dcimMap.netboxToState(nb, { catalogByKey: _catalogByKey(), selection });
+  const catalog = _catalogForImport();
+  const { state, report } = dcimMap.netboxToState(nb, {
+    catalogByKey: catalog.byKey,
+    catalogIndexes: catalog.indexes,
+    catalogAliases: catalog.aliases,
+    catalogVersion: catalog.version,
+    selection,
+  });
   const proposedName = _proposedName(nb);
 
   if (!body.commit) {
@@ -204,14 +382,39 @@ router.post('/api/integrations/dcim/import', auth.requireAdmin, async (req, res)
       samples: {
         devices: state.nodes.slice(0, 12).map(n => ({
           key: 'device:' + String(n.id).replace('nb-dev-', ''),
-          name: n.name, type: n.type, brand: n.brand || null, model: n.model || null,
+          name: n.name, type: n.type, placement: n.placement, brand: n.brand || null, model: n.model || null,
         })),
         vlans: Object.keys(state.vlanNames).slice(0, 20).map(v => ({ vid: +v, name: state.vlanNames[v] })),
         unmappedRoles: report.unmappedRoles,
         unmatchedDeviceTypes: report.unmatchedDeviceTypes.slice(0, 20),
+        catalogMatches: report.catalogMatches.details.slice(0, 100),
+        unresolvedCables: report.cables.unresolved.slice(0, 100),
+        excluded: report.excluded,
       },
       warnings: report.warnings.slice(0, 50),
+      catalogVersion: catalog.version,
+      catalogMatches: report.catalogMatches,
+      cableReport: report.cables,
+      excluded: report.excluded,
+      reconciliation: {
+        required: report.reviewRequired.length,
+        resolved: report.manualMappings.applied.length,
+        invalid: report.manualMappings.invalid,
+      },
       truncated: report.truncated,
+    });
+  }
+
+  if ((report.reviewRequired.length || report.manualMappings.invalid.length) && selection.allowUnresolved !== true) {
+    return res.status(409).json({
+      ok: false,
+      error: 'Conferma i casi di riconciliazione prima di creare il progetto',
+      reconciliationRequired: report.reviewRequired,
+      reconciliation: {
+        required: report.reviewRequired.length,
+        resolved: report.manualMappings.applied.length,
+        invalid: report.manualMappings.invalid,
+      },
     });
   }
 

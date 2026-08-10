@@ -5,6 +5,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const map = require('../lib/dcim-map');
+const deviceCatalog = require('../lib/device-catalog');
 
 function fixture() {
   return {
@@ -46,8 +47,10 @@ test('mappa device → nodi con brand/model/serial/rack/ip', () => {
   assert.equal(core.rackU, 40);
   assert.equal(core.sizeU, 1);
   assert.equal(core.ip, '10.0.0.2');
-  assert.equal(core.ports, 3);
+  assert.equal(core.ports, 2);
   assert.equal(report.counts.devices, 2);
+  assert.equal(report.counts.devicesRack, 2);
+  assert.equal(report.counts.devicesFloor, 0);
 });
 
 test('rack importato con altezza dichiarata (no invenzione 42U se assente)', () => {
@@ -73,14 +76,56 @@ test('import apre la vista Rack sul primo rack (currentRack impostato)', () => {
   assert.equal('currentRack' in noRack.state, false);      // niente rack → niente selezione
 });
 
-test('slot porte deterministici: dati prima, mgmt in coda, ordine naturale', () => {
+test('slot porte deterministici: dati numerici e MGMT su PID dedicato', () => {
   const { state } = map.netboxToState(fixture());
   assert.equal(state.ports['nb-dev-100-1'].ifName, 'GigabitEthernet1/0/1');
   assert.equal(state.ports['nb-dev-100-1'].vlanOvr, 10);
   assert.equal(state.ports['nb-dev-100-2'].mode, 'trunk');
   assert.deepEqual(state.ports['nb-dev-100-2'].trunkVlans, [10, 20]);
-  assert.equal(state.ports['nb-dev-100-3'].ifName, 'mgmt0');   // mgmt_only → ultimo
+  assert.equal(state.ports['nb-dev-100-mgmt1'].ifName, 'mgmt0');
+  assert.equal(state.ports['nb-dev-100-mgmt1'].mgmt, true);
   assert.equal(state.ports['nb-dev-100-1'].mac, '00:11:22:33:44:01');
+});
+
+test('PDU NetBox: interfacce Ethernet diventano MGMT e power outlet conservano lo stato', () => {
+  const nb = {
+    deviceTypes: [{ id: 50, manufacturer: { id: 1 }, model: 'APC PDU', slug: 'apc-pdu', u_height: 1 }],
+    manufacturers: [{ id: 1, name: 'APC', slug: 'apc' }],
+    deviceRoles: [{ id: 51, name: 'PDU', slug: 'pdu' }],
+    racks: [{ id: 52, name: 'Rack PDU', u_height: 42 }],
+    devices: [{ id: 53, name: 'PDU-01', device_type: { id: 50 }, role: { id: 51 }, rack: { id: 52 }, position: 1 }],
+    interfaces: [
+      { id: 540, device: { id: 53 }, name: 'eth0', enabled: true, mark_connected: true },
+      { id: 541, device: { id: 53 }, name: 'eth1', enabled: false },
+    ],
+    consolePorts: [{ id: 550, device: { id: 53 }, name: 'console' }],
+    powerPorts: [{ id: 560, device: { id: 53 }, name: 'power-in', maximum_draw: 3680, feed_leg: 'A' }],
+    powerOutlets: [
+      { id: 570, device: { id: 53 }, name: 'outlet-1', status: { value: 'enabled' }, mark_connected: true,
+        link_peer: { id: 660, name: 'PSU-1', device: { id: 66, name: 'Server-01' } }, link_peer_type: 'powerport' },
+      { id: 571, device: { id: 53 }, name: 'outlet-2', status: { value: 'faulty' } },
+      { id: 572, device: { id: 53 }, name: 'outlet-3', status: { value: 'disabled' } },
+    ],
+  };
+  const { state, report } = map.netboxToState(nb);
+  const pdu = state.nodes[0];
+  assert.equal(pdu.type, 'pdu');
+  assert.equal(pdu.pduMgmtMode, 'ethernet-serial');
+  assert.equal(pdu.pduEthernetPorts, 2);
+  assert.equal(pdu.pduSerialPorts, 1);
+  assert.equal(pdu.pduOutletCount, 3);
+  assert.deepEqual(pdu.powerOutlets.map(outlet => outlet.status), ['active', 'fault', 'inactive']);
+  assert.deepEqual(pdu.powerOutlets.map(outlet => outlet.rawStatus), ['enabled', 'faulty', 'disabled']);
+  assert.equal(pdu.powerOutlets[0].connectedTo.deviceName, 'Server-01');
+  assert.equal(pdu.powerOutlets[0].connectedTo.name, 'PSU-1');
+  assert.equal(pdu.pduPowerPorts[0].maximumDraw, 3680);
+  assert.equal(state.ports['nb-dev-53-1'].mgmt, true);
+  assert.equal(state.ports['nb-dev-53-1'].status, 'active');
+  assert.equal(state.ports['nb-dev-53-2'].status, 'inactive');
+  assert.equal('nb-dev-53-mgmt1' in state.ports, false);
+  assert.equal(report.counts.powerOutlets, 3);
+  assert.equal(report.counts.powerPorts, 1);
+  assert.equal(report.counts.consolePorts, 1);
 });
 
 test('ruolo sconosciuto → customrack + report.unmappedRoles', () => {
@@ -88,6 +133,27 @@ test('ruolo sconosciuto → customrack + report.unmappedRoles', () => {
   const acc = state.nodes.find(n => n.id === 'nb-dev-101');
   assert.equal(acc.type, 'customrack');
   assert.ok(report.unmappedRoles.includes('Mystery'));
+});
+
+test('mapping manuale: tipo e posizione prevalgono e risolvono la revisione', () => {
+  const { state, report } = map.netboxToState(fixture(), {
+    selection: {
+      mapping: {
+        '100': { type: 'server', placement: 'floor' },
+        '101': { type: 'ap', placement: 'floor' },
+      },
+    },
+  });
+  const core = state.nodes.find(n => n.id === 'nb-dev-100');
+  const acc = state.nodes.find(n => n.id === 'nb-dev-101');
+  assert.equal(core.type, 'server');
+  assert.equal(core.placement, 'floor');
+  assert.equal(core.rackId, undefined);
+  assert.deepEqual(core.source.manualMapping, { type: 'server', placement: 'floor' });
+  assert.equal(acc.type, 'ap');
+  assert.equal(acc.placement, 'floor');
+  assert.equal(report.reviewRequired.length, 0);
+  assert.equal(report.manualMappings.applied.length, 4);
 });
 
 test('cavo → link con endpoint risolti su slot, categoria, lunghezza, colore', () => {
@@ -101,6 +167,8 @@ test('cavo → link con endpoint risolti su slot, categoria, lunghezza, colore',
   assert.equal(l.lengthM, 3);
   assert.equal(l.color, '#ff0000');
   assert.equal(report.counts.cables, 1);
+  assert.equal(report.counts.directLinks, 1);
+  assert.equal(report.counts.passThroughLinks, 0);
 });
 
 test('cavo con modello di terminazione LEGACY (termination_a_id)', () => {
@@ -113,10 +181,16 @@ test('cavo con modello di terminazione LEGACY (termination_a_id)', () => {
 });
 
 test('VLAN + prefisso → ipam + vlanNames', () => {
-  const { state } = map.netboxToState(fixture());
-  assert.deepEqual(state.ipam.vlans[10], { subnet: '10.0.0.0/24' });
+  const nb = fixture();
+  nb.ipAddresses[0].assigned_object = { id: 1000, device: { id: 100 } };
+  const { state, report } = map.netboxToState(nb);
+  assert.equal(state.ipam.vlans[10].subnet, '10.0.0.0/24');
+  assert.equal(state.ipam.vlans[10].name, 'Mgmt');
+  assert.deepEqual(state.ipam.prefixes, [{ id: 70, prefix: '10.0.0.0/24', vlan: 10 }]);
+  assert.deepEqual(state.ipam.addresses, [{ id: 80, address: '10.0.0.2/24', interfaceId: 1000, portId: 'nb-dev-100-1', deviceId: '100' }]);
   assert.equal(state.vlanNames[10], 'Mgmt');
   assert.equal(state.vlanNames[20], 'Voice');
+  assert.equal(report.counts.ips, 1);
 });
 
 test('riconciliazione catalogo: template capiente → ports+frontPanel del modello', () => {
@@ -124,9 +198,96 @@ test('riconciliazione catalogo: template capiente → ports+frontPanel del model
   const { state, report } = map.netboxToState(fixture(), { catalogByKey });
   const core = state.nodes.find(n => n.id === 'nb-dev-100');
   assert.equal(core.ports, 24);
-  assert.deepEqual(core.frontPanel, { baseLayout: 'x' });
+  assert.deepEqual(core.frontPanel, { baseLayout: 'x', mgmtCount: 1 });
   // il modello non nel catalogo (6300M) finisce fra gli unmatched
   assert.ok(report.unmatchedDeviceTypes.some(s => /6300M/.test(s)));
+});
+
+test('catalogo: SFP nelle posizioni del frontale e MGMT separata anche con porte NetBox incomplete', () => {
+  const nb = fixture();
+  nb.interfaces = [
+    { id: 1003, device: { id: 100 }, name: 'SFP1', type: { value: '10gbase-x-sfpp' } },
+    { id: 1004, device: { id: 100 }, name: 'SFP2', type: { value: '10gbase-x-sfpp' } },
+    { id: 1000, device: { id: 100 }, name: 'GigabitEthernet1/0/1', type: { value: '1000base-t' } },
+    { id: 1001, device: { id: 100 }, name: 'GigabitEthernet1/0/2', type: { value: '1000base-t' } },
+    { id: 1002, device: { id: 100 }, name: 'mgmt0', mgmt_only: true },
+    { id: 1100, device: { id: 101 }, name: 'GigabitEthernet1/0/1', type: { value: '1000base-t' } },
+  ];
+  nb.ipAddresses.push({ id: 81, address: '10.0.0.10/24', assigned_object: { id: 1002, device: { id: 100 } } });
+  const { state } = map.netboxToState(nb, {
+    catalogByKey: {
+      'cisco c9200-24t': { ports: 24, frontPanel: { separateSfp: true, sfpCount: 4, mgmtCount: 1 } },
+    },
+  });
+  const core = state.nodes.find(n => n.id === 'nb-dev-100');
+  assert.equal(core.ports, 24);
+  assert.deepEqual(core.frontPanel, { separateSfp: true, sfpCount: 4, mgmtCount: 1 });
+  assert.equal(state.ports['nb-dev-100-1'].ifName, 'GigabitEthernet1/0/1');
+  assert.equal(state.ports['nb-dev-100-2'].ifName, 'GigabitEthernet1/0/2');
+  assert.equal(state.ports['nb-dev-100-21'].ifName, 'SFP1');
+  assert.equal(state.ports['nb-dev-100-22'].ifName, 'SFP2');
+  assert.equal(state.ports['nb-dev-100-mgmt1'].ifName, 'mgmt0');
+  assert.equal(state.ipam.addresses.find(ip => ip.id === 81).portId, 'nb-dev-100-mgmt1');
+});
+
+test('catalogo neutrale: media condivisi occupano uno slot senza creare MGMT', () => {
+  const nb = fixture();
+  nb.deviceTypes[0] = { id: 10, manufacturer: { id: 1 }, model: 'ISR 1111-8P', slug: 'cisco-isr-1111-8p', u_height: 1 };
+  nb.deviceRoles[0] = { id: 20, name: 'Router', slug: 'router' };
+  nb.interfaces = [
+    ...Array.from({ length: 9 }, (_, index) => ({
+      id: 1200 + index,
+      device: { id: 100 },
+      name: 'GigabitEthernet1/0/' + (index + 1),
+      type: { value: '1000base-t' },
+    })),
+    { id: 1299, device: { id: 100 }, name: 'GigabitEthernet0/0/0', type: { value: '1000base-x-sfp' } },
+    { id: 1100, device: { id: 101 }, name: 'GigabitEthernet1/0/1', type: { value: '1000base-t' } },
+  ];
+  const catalogByKey = {
+    'cisco isr 1111-8p': {
+      ports: 10,
+      frontPanel: {
+        separateSfp: false,
+        sfpCount: 0,
+        sharedMediaSlots: [{ start: 10, count: 1, media: ['copper', 'fiber'] }],
+      },
+      counts: { copper: 9, sfp: 1, qsfp: 0, mgmt: 0, combo: 1 },
+    },
+  };
+  const { state } = map.netboxToState(nb, { catalogByKey });
+  const router = state.nodes.find(node => node.id === 'nb-dev-100');
+  assert.equal(router.type, 'router');
+  assert.equal(router.ports, 10);
+  assert.equal(router.frontPanel.separateSfp, false);
+  assert.deepEqual(router.frontPanel.sharedMediaSlots, [{ slot: 10, media: ['copper', 'fiber'] }]);
+  assert.equal(state.ports['nb-dev-100-1'].physicalKind, 'copper');
+  assert.equal(state.ports['nb-dev-100-10'].physicalKind, 'fiber');
+  assert.equal(state.ports['nb-dev-100-10'].sharedMedia, true);
+  assert.equal(state.ports['nb-dev-100-mgmt1'], undefined);
+});
+
+test('riconciliazione catalogo: slug NetBox prioritario e device senza rack resta floor', () => {
+  const nb = fixture();
+  nb.devices[0] = Object.assign({}, nb.devices[0], { rack: null });
+  const catalogIndexes = deviceCatalog.buildIndexes([{
+    sourceSlug: 'cisco-c9200-24t',
+    brand: 'Cisco',
+    brandSlug: 'cisco',
+    model: 'C9200-24T',
+    ports: 24,
+    frontPanel: { baseLayout: 'slug' },
+  }]);
+  const { state, report } = map.netboxToState(nb, { catalogIndexes, catalogVersion: 'catalog-rev-1' });
+  const core = state.nodes.find(n => n.id === 'nb-dev-100');
+  assert.equal(core.placement, 'floor');
+  assert.equal(core.type, 'switch');
+  assert.equal(core.ports, 24);
+  assert.equal(core.source.deviceTypeSlug, 'cisco-c9200-24t');
+  assert.equal(core.source.catalogMatch, 'source-slug');
+  assert.equal(core.source.catalogVersion, 'catalog-rev-1');
+  assert.equal(report.catalogMatches.byStrategy['source-slug'], 1);
+  assert.deepEqual([core.x, core.y], [120, 430]);
 });
 
 test('selezione: exclude device rimuove il nodo e i suoi cavi', () => {
@@ -422,6 +583,8 @@ test('cavi fuori scope (power/console/circuito) → saltati SENZA avviso; miss d
   // solo il 702 (net↔net non risolto) genera avviso; 700/701 silenziosi
   assert.equal(report.warnings.filter(w => /700|701/.test(w)).length, 0);
   assert.equal(report.warnings.filter(w => /702/.test(w)).length, 1);
+  assert.equal(report.counts.unresolvedCables, 1);
+  assert.deepEqual(report.cables.unresolved, [{ id: 702, reason: 'network-termination-not-imported' }]);
 });
 
 test('front port con etichetta non banale → preservata in ifName', () => {

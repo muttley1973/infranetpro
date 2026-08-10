@@ -8,6 +8,10 @@ node_modules/
 # Bundle esbuild del frontend (artefatto di build: si rigenera con npm run build)
 dist/
 
+# Git worktree locali (es. .worktrees/<branch>): checkout separati con dist/ propri,
+# non fanno parte del repo — mai versionarli né lintarli.
+.worktrees/
+
 # Dati progetti salvati localmente (non versionare dati utente)
 projects/
 
@@ -98,6 +102,17 @@ data/ai-config.json*
 # Il token NON deve MAI finire nel repo (override via env INFRANET_DCIM_TOKEN) —
 # vedi server/dcim-config.js. `*` copre anche il .bak della scrittura atomica.
 data/dcim-config.json*
+
+# -------------------------------------------------------
+# Catalogo device-types — snapshot canonico generato (non versionare)
+# -------------------------------------------------------
+# device-types-canonical.json è l'output "full-fidelity" del generatore
+# (scripts/update-device-types.js → `npm run update-device-types`): ~33 MB, NON
+# letto a runtime (solo statSync della dimensione, con fallback a 0) e rigenerabile
+# dal NetBox devicetype-library (ref/sha pinnati nel manifest). Restano versionati
+# il runtime data/device-types.json, il manifest, il diff e i piccoli file di
+# controllo (aliases/overrides/exclusions).
+data/device-types-canonical.json
 
 # -------------------------------------------------------
 # Runtime / backup locali (non versionare)

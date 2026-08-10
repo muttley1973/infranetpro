@@ -170,6 +170,24 @@ test/                  node --test: pure-lib tests + smoke-app (vm + DOM stub)
 
 ---
 
+## 2.1 Rack front-panel rendering
+
+The native rack renderer is the final visual projection of a device's neutral
+`frontPanel` state. The renderer keeps the main data rows, SFP/QSFP groups and
+dedicated management slots separate, while interface identity and numbering
+remain in the same model used by NetBox import and **Apply model**.
+
+For high-density combinations, `_renderAllNow` adds the visual-only `dense-xxl`
+class when an SFP block is present and either the main row has at least 20 slots,
+the SFP groups contain at least 8 slots, or the combined row and SFP count reaches
+28. The CSS then reduces inter-block gaps, cell dimensions and border overhead and
+disables the historical fixed translations. It does not reorder ports, change
+`frontPanel`, alter `state.ports` or change the vendor-neutral classification.
+
+The regression scenario in `test/render-density.test.js` protects a 54-port device
+with 12 SFP slots and one MGMT slot, asserting that all 54 data interfaces and the
+dedicated management interface remain rendered.
+
 ## 3. The key pattern: pure lib + glue
 
 Every non-trivial piece of logic is a **pure UMD-lite module** in `lib/`: it works
@@ -236,7 +254,7 @@ Gotchas.
 A project is a single `state` object (see `_buildDefaultState()` in `src/app.js`):
 
 ```text
-state = { racks[], currentRack, nodes[], links[], ports{}, vlanColors{},
+state = { schemaVersion, racks[], currentRack, nodes[], links[], ports{}, vlanColors{},
           vlanNames{}, ipam{vlans{}}, lagGroups{}, lagModes{}, guestVlans[], … }
 ```
 
@@ -250,8 +268,9 @@ Mutation → render → persist:
 serializes `state` to JSON via `PUT /api/<projectId>`.
 
 Load path: `loadProject(id)` fetches the stored `state` and runs it through
-`_migrateState()` (`src/app.js`) before it becomes the live model. Migration is
-idempotent and mostly additive (defaults for new fields, legacy VLAN/radio/link
+`_migrateState()` (`src/app.js`) before it becomes the live model. `schemaVersion` is
+written in the envelope and in the state; unknown future versions are preserved rather
+than silently downgraded. Migration is idempotent and mostly additive (defaults for new fields, legacy VLAN/radio/link
 repairs), with one structural step: `_normalizeProjectNodeIds` **canonicalizes
 device IDs** that don't already match the `<type-prefix><n>` scheme (an imported
 `core1` switch becomes `sw1`) and remaps every ID-embedding reference — link
@@ -261,6 +280,14 @@ the port-side `ports[].lagGroup` and the `state.lagGroups` map keys go through o
 shared `remapLagId` helper so they stay aligned across formats (`snmp-lag-…`,
 `lldp-lag-a||b`, `lag-<id>-poN`). App-created projects already use canonical IDs,
 so this is a no-op for them; it only reshapes imported/generated projects.
+
+The server saves the main project with a temporary file, `fsync`, rename and `.bak`
+fallback. The floor-plan image is a sidecar under `projects/assets/`; timeline and
+snapshot history are separate files under `projects/history/<id>/`, written atomically
+with `fsync` and pruned when a project is deleted. The browser JSON export is a portable
+envelope, not a raw server backup: it redacts SNMP credentials and sanitizes backup
+references before download, and the importer unwraps both this format and legacy state
+files.
 
 `renderAll()` (rAF-coalesced) rebuilds the rack chassis, floor, cables overlay and
 the right panel. `renderProps()` dispatches by selection (`selType`/`selId`) to

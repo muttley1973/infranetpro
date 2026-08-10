@@ -1261,7 +1261,7 @@ async function importDiscovered(){
                 source:_discSourceInfo(d).label, confidence:_discConfidenceInfo(d).score/100
             });
             _discIndexNode(existingIdx, n);
-            if(_isLeafEndpoint(d.type)) _importedEndpoints.push(n);
+            if(_isLeafEndpoint(d.type, n)) _importedEndpoints.push(n);
             imported++;
         });
 

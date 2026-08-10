@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "sourceRef": "a91e9fa66efaff6c292a16a773a08ad9b9b7a631",
+  "sourceSha256": "db929b893f1fc7e7a183af0f1ce1f14da3948f6013d1a6700a8c2e3700888a79",
+  "source": {
+    "name": "netbox-device-type-library",
+    "url": "https://github.com/netbox-community/devicetype-library.git",
+    "ref": "a91e9fa66efaff6c292a16a773a08ad9b9b7a631",
+    "license": "CC0-1.0"
+  },
+  "generatedAt": "2026-08-10T08:43:50.859Z",
+  "canonicalModels": 5980,
+  "catalogModels": 5244,
+  "catalogVendors": 276,
+  "excludedModels": 736,
+  "sourceFiles": 5980,
+  "aliasCount": 0,
+  "overrideCount": 1,
+  "exclusionCount": 0,
+  "diff": {
+    "added": 0,
+    "removed": 0,
+    "metadataChanged": 0,
+    "templateChanged": 1,
+    "excludedRuntime": 0,
+    "changed": 1
+  },
+  "previous": {
+    "sourceRef": "a91e9fa66efaff6c292a16a773a08ad9b9b7a631",
+    "sourceSha256": "db929b893f1fc7e7a183af0f1ce1f14da3948f6013d1a6700a8c2e3700888a79"
+  }
+}

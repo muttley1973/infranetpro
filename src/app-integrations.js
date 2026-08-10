@@ -11,6 +11,7 @@
 // ============================================================
 import { t } from './_bridge.js';
 import { escapeHTML } from './app-util.js';
+import { store } from './store.js';
 import { closeImpExpMenu } from './app-auth.js';
 import { showAlert, switchProject } from './app-core.js';
 import { registerClickActions, registerChangeActions, registerInputActions } from './app-delegation.js';
@@ -27,7 +28,8 @@ function _setStatus(text, kind) {
   if (!s) return;
   s.textContent = text;
   s.style.color = kind === 'ok' ? 'var(--success-color)'
-    : kind === 'err' ? 'var(--danger-color)'
+    : kind === 'warn' ? 'var(--warning-color)'
+      : kind === 'err' ? 'var(--danger-color)'
       : 'var(--text-muted)';
 }
 
@@ -82,7 +84,15 @@ export function openDcimSync() {
   _wireBackdrop();
   ov.classList.add('open');
   _loadConfig();
+  _loadCatalogStatus();
   _wiz.step = 1; _wiz.preview = null; _wiz.previewErr = ''; _wiz.projectName = '';
+  _wiz.selection = {
+    entities: { devices: true, cabling: true, ipam: true, racks: true },
+    scope: { siteIds: [], roleSlugs: [], tags: [] },
+    exclude: [], mapping: {}, allowUnresolved: false,
+  };
+  _wiz.previewStale = false; _wiz.reconciliationGroups = [];
+  _wiz.scopeMode = 'all'; _wiz.scopeKind = 'site'; _wiz.scopeSearch = '';
   _resetCommitState();
   _showTab('import');
 }
@@ -108,7 +118,9 @@ async function _test() {
     });
     const j = await r.json().catch(() => ({}));
     if (j && j.ok) {
-      _setStatus(t('integrations.connected') + (j.version ? ' · NetBox v' + j.version : ''), 'ok');
+      const authLabel = j.authMethod === 'v2' ? t('integrations.authV2')
+        : j.authMethod === 'v1' ? t('integrations.authV1Legacy') : '';
+      _setStatus(t('integrations.connected') + (j.version ? ' · NetBox v' + j.version : '') + (authLabel ? ' — ' + authLabel : ''), j.authMethod === 'v1' ? 'warn' : 'ok');
       _setTestBtn('ok');
     } else {
       _setStatus(t('integrations.testFail') + (j && j.error ? ' — ' + j.error : ''), 'err');
@@ -139,15 +151,91 @@ async function _save() {
 const _wiz = {
   step: 1,
   scopes: null, loadingScopes: false, scopeErr: '',
+  scopeMode: 'all', scopeKind: 'site', scopeSearch: '',
   selection: {
     entities: { devices: true, cabling: true, ipam: true, racks: true },
     scope: { siteIds: [], roleSlugs: [], tags: [] },
     exclude: [],
+    mapping: {},
+    allowUnresolved: false,
   },
-  preview: null, loadingPreview: false, previewErr: '',
+  preview: null, previewStale: false, reconciliationGroups: [], loadingPreview: false, previewErr: '',
   projectName: '',
   commit: { state: 'idle', stage: 0, result: null, error: '', name: '' },
 };
+
+let _catalogStatus = null;
+let _catalogActionBusy = '';
+
+function _renderCatalogStatus() {
+  const el = _el('dcim-catalog-summary');
+  if (!el) return;
+  const c = _catalogStatus;
+  if (!c) { el.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${escapeHTML(t('integrations.catalogLoading'))}`; return; }
+  if (!c.available) {
+    const actions = store._currentUser && store._currentUser.role === 'admin'
+      ? `<div class="dcim-catalog-actions">
+          <button class="um-btn" data-act="dcim-catalog-check"${_catalogActionBusy ? ' disabled' : ''}><i class="fas ${_catalogActionBusy === 'check' ? 'fa-spinner fa-spin' : 'fa-rotate'}"></i> ${escapeHTML(_catalogActionBusy === 'check' ? t('integrations.catalogChecking') : t('integrations.catalogCheck'))}</button>
+          <button class="um-btn" data-act="dcim-catalog-update"${_catalogActionBusy ? ' disabled' : ''}><i class="fas ${_catalogActionBusy === 'update' ? 'fa-spinner fa-spin' : 'fa-cloud-arrow-down'}"></i> ${escapeHTML(_catalogActionBusy === 'update' ? t('integrations.catalogUpdating') : t('integrations.catalogUpdate'))}</button>
+        </div>`
+      : `<span style="margin-left:10px">${escapeHTML(t('integrations.catalogViewer'))}</span>`;
+    el.innerHTML = `<i class="fas fa-circle-info"></i> ${escapeHTML(t('integrations.catalogLegacy'))}${actions}`;
+    return;
+  }
+  const ref = String(c.generatedAt || '').match(/^\d{4}-\d{2}-\d{2}/)?.[0] || t('integrations.catalogLocal');
+  const actions = store._currentUser && store._currentUser.role === 'admin'
+    ? `<div class="dcim-catalog-actions">
+        <button class="um-btn" data-act="dcim-catalog-check"${_catalogActionBusy ? ' disabled' : ''}><i class="fas ${_catalogActionBusy === 'check' ? 'fa-spinner fa-spin' : 'fa-rotate'}"></i> ${escapeHTML(_catalogActionBusy === 'check' ? t('integrations.catalogChecking') : t('integrations.catalogCheck'))}</button>
+        <button class="um-btn" data-act="dcim-catalog-diff"><i class="fas fa-code-compare"></i> ${escapeHTML(t('integrations.catalogDiff'))}</button>
+        <button class="um-btn" data-act="dcim-catalog-update"${_catalogActionBusy ? ' disabled' : ''}><i class="fas ${_catalogActionBusy === 'update' ? 'fa-spinner fa-spin' : 'fa-cloud-arrow-down'}"></i> ${escapeHTML(_catalogActionBusy === 'update' ? t('integrations.catalogUpdating') : t('integrations.catalogUpdate'))}</button>
+      </div>`
+    : `<span style="margin-left:10px">${escapeHTML(t('integrations.catalogViewer'))}</span>`;
+  el.innerHTML = `<i class="fas fa-database" style="color:var(--success-color)"></i> <strong>${escapeHTML(t('integrations.catalogTitle'))}</strong>
+    <span style="margin-left:8px">${escapeHTML(t('integrations.catalogStats', { canonical: c.canonicalModels || 0, runtime: c.catalogModels || 0, vendors: c.catalogVendors || 0, excluded: c.excludedModels || 0 }))}</span>
+    <span style="margin-left:8px">${escapeHTML(t('integrations.catalogVersion', { version: ref }))}</span>${actions}`;
+}
+
+async function _loadCatalogStatus() {
+  _catalogStatus = null; _renderCatalogStatus();
+  try {
+    const r = await fetch(API + '/catalog', { headers: { Accept: 'application/json' } });
+    _catalogStatus = r.ok ? await r.json() : { available: false };
+  } catch (_) { _catalogStatus = { available: false }; }
+  _renderCatalogStatus();
+}
+
+async function _catalogAction(action) {
+  if (_catalogActionBusy) return;
+  _catalogActionBusy = action; _renderCatalogStatus();
+  try {
+    const r = await fetch(API + '/catalog/' + action, { method: 'POST', headers: { Accept: 'application/json' } });
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok || !body.ok) throw new Error(body.error || ('HTTP ' + r.status));
+    await _loadCatalogStatus();
+    if (action === 'update' && typeof window !== 'undefined' && window.dispatchEvent) {
+      window.dispatchEvent(new Event('infranet:catalog-updated'));
+    }
+    showAlert(action === 'update' ? t('integrations.catalogUpdated') : body.available ? t('integrations.catalogAvailable') : t('integrations.catalogUpToDate'));
+  } catch (e) {
+    showAlert(String((e && e.message) || e || t('integrations.catalogUpdateFail')));
+  }
+  _catalogActionBusy = ''; _renderCatalogStatus();
+}
+
+async function _showCatalogDiff() {
+  try {
+    const r = await fetch(API + '/catalog/diff', { headers: { Accept: 'application/json' } });
+    const body = await r.json().catch(() => ({}));
+    const counts = body.diff && body.diff.counts;
+    if (!counts) return showAlert(t('integrations.catalogUpToDate'));
+    showAlert(t('integrations.catalogDiffSummary', {
+      added: counts.added || 0,
+      removed: counts.removed || 0,
+      metadata: counts.metadataChanged || 0,
+      template: counts.templateChanged || 0,
+    }));
+  } catch (_) { showAlert(t('integrations.catalogUpdateFail')); }
+}
 
 let _commitProgressTimer = null;
 const _commitStages = [
@@ -214,12 +302,59 @@ function _toggleScope(kind, id, checked) {
   if (!checked && i >= 0) arr.splice(i, 1);
 }
 
+function _scopeItems(kind) {
+  const scopes = _wiz.scopes || { sites: [], roles: [], tags: [] };
+  return kind === 'site' ? scopes.sites : kind === 'role' ? scopes.roles : scopes.tags;
+}
+
+function _scopeItemMatches(item) {
+  const query = String(_wiz.scopeSearch || '').trim().toLowerCase();
+  if (!query) return true;
+  return [item.name, item.slug].filter(Boolean).some(value => String(value).toLowerCase().includes(query));
+}
+
+function _scopeSelectionCount() {
+  const scope = _wiz.selection.scope;
+  return (scope.siteIds.length || 0) + (scope.roleSlugs.length || 0) + (scope.tags.length || 0);
+}
+
+function _scopeIsComplete(kind) {
+  const items = _scopeItems(kind);
+  if (!items.length) return false;
+  const selected = kind === 'site' ? _wiz.selection.scope.siteIds.map(String) : kind === 'role' ? _wiz.selection.scope.roleSlugs.map(String) : _wiz.selection.scope.tags.map(String);
+  const ids = items.map(item => String(kind === 'site' ? item.id : item.slug));
+  return selected.length >= ids.length && ids.every(id => selected.includes(id));
+}
+
+function _selectionForRequest() {
+  const selection = Object.assign({}, _wiz.selection, { scope: Object.assign({}, _wiz.selection.scope) });
+  if (_scopeIsComplete('site')) selection.scope.siteIds = [];
+  if (_scopeIsComplete('role')) selection.scope.roleSlugs = [];
+  if (_scopeIsComplete('tag')) selection.scope.tags = [];
+  return selection;
+}
+
+function _scopeSelectionSummary() {
+  const scope = _wiz.selection.scope;
+  const parts = [];
+  if (scope.siteIds.length) parts.push(_scopeIsComplete('site') ? t('integrations.scopeAllSites') : t('integrations.scopeSitesSelected', { n: scope.siteIds.length }));
+  if (scope.roleSlugs.length) parts.push(_scopeIsComplete('role') ? t('integrations.scopeAllRoles') : t('integrations.scopeRolesSelected', { n: scope.roleSlugs.length }));
+  if (scope.tags.length) parts.push(_scopeIsComplete('tag') ? t('integrations.scopeAllTags') : t('integrations.scopeTagsSelected', { n: scope.tags.length }));
+  const devices = _scopeItems('site').filter(site => scope.siteIds.includes(+site.id)).reduce((sum, site) => sum + Number(site.deviceCount || 0), 0);
+  if (devices) parts.push(t('integrations.scopeDevicesSelected', { n: devices }));
+  return parts.length ? parts.join(' · ') : t('integrations.scopeSummaryEmpty');
+}
+
 function _renderImport() {
   const b = _el('dcim-import-body');
   if (!b) return;
-  if (_wiz.commit.state === 'running') { b.innerHTML = _renderCommitProgress(); return; }
-  if (_wiz.commit.state === 'done') { b.innerHTML = _renderCommitResult(); return; }
-  if (_wiz.commit.state === 'error') { b.innerHTML = _renderCommitError(); return; }
+  const overlay = _el('dcim-overlay');
+  const hasReconciliation = _wiz.step === 3 && Array.isArray(_wiz.preview?.catalogMatches?.details)
+    && _wiz.preview.catalogMatches.details.some(detail => detail && detail.reviewRequired);
+  if (overlay) overlay.classList.toggle('dcim-has-reconciliation', hasReconciliation);
+  if (_wiz.commit.state === 'running') { if (overlay) overlay.classList.remove('dcim-has-reconciliation'); b.innerHTML = _renderCommitProgress(); return; }
+  if (_wiz.commit.state === 'done') { if (overlay) overlay.classList.remove('dcim-has-reconciliation'); b.innerHTML = _renderCommitResult(); return; }
+  if (_wiz.commit.state === 'error') { if (overlay) overlay.classList.remove('dcim-has-reconciliation'); b.innerHTML = _renderCommitError(); return; }
   const s = _wiz.step;
   const dot = (n, key) => `<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:${n <= s ? 'var(--text-primary)' : 'var(--text-muted)'}">
     <span style="width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:0.5px solid var(--border-strong);${n <= s ? 'background:var(--text-accent);color:var(--surface-2)' : ''}">${n}</span>${escapeHTML(t(key))}</div>`;
@@ -228,9 +363,10 @@ function _renderImport() {
     ${dot(2, 'integrations.wizStep2')}<div style="flex:1;height:0.5px;background:var(--border)"></div>
     ${dot(3, 'integrations.wizStep3')}</div>`;
   const body = s === 1 ? _renderScopeStep() : s === 2 ? _renderEntityStep() : _renderPreviewStep();
+  const scopeReady = _wiz.scopeMode !== 'custom' || _scopeSelectionCount() > 0;
   const nav = `<div style="display:flex;justify-content:space-between;margin-top:14px">
     <button class="um-btn" data-act="dcim-wiz-back"${s === 1 ? ' style="visibility:hidden"' : ''}><i class="fas fa-arrow-left"></i> ${escapeHTML(t('integrations.back'))}</button>
-    ${s < 3 ? `<button class="um-btn primary" data-act="dcim-wiz-next">${escapeHTML(t('integrations.next'))} <i class="fas fa-arrow-right"></i></button>` : '<span></span>'}</div>`;
+    ${s < 3 ? `<button class="um-btn primary" data-act="dcim-wiz-next"${s === 1 && !scopeReady ? ' disabled' : ''}>${escapeHTML(t('integrations.next'))} <i class="fas fa-arrow-right"></i></button>` : '<span></span>'}</div>`;
   b.innerHTML = stepper + body + nav;
 }
 
@@ -277,14 +413,58 @@ function _renderScopeStep() {
   if (_wiz.scopeErr) return `<div style="color:var(--danger-color);font-size:.9rem">${escapeHTML(_wiz.scopeErr)}
     <button class="um-btn" data-act="dcim-load-scopes" style="margin-left:8px">${escapeHTML(t('integrations.retry'))}</button></div>`;
   const sc = _wiz.scopes || { sites: [], roles: [], tags: [] };
-  const row = (kind, id, label, count) => `<label class="row" style="display:flex;align-items:center;gap:10px;padding:7px 10px;border:0.5px solid var(--border);border-radius:var(--radius);margin-bottom:6px;font-size:13px">
-    <input type="checkbox" data-change="dcim-scope" data-kind="${kind}" data-id="${escapeHTML(String(id))}"${_scopeChecked(kind, id) ? ' checked' : ''}>
-    <span style="flex:1">${escapeHTML(label)}</span>${count != null ? `<span style="font-size:11px;color:var(--text-muted)">${escapeHTML(String(count))}</span>` : ''}</label>`;
-  const sec = (title, items) => items.length ? `<div style="margin-bottom:10px"><div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px">${escapeHTML(title)}</div>${items.join('')}</div>` : '';
-  return `<p style="font-size:.85rem;color:var(--text-muted);margin:0 0 10px">${escapeHTML(t('integrations.scopeHint'))}</p>`
-    + sec(t('integrations.sites'), sc.sites.map(x => row('site', x.id, x.name, t('integrations.devicesN', { n: x.deviceCount || 0 }))))
-    + sec(t('integrations.roles'), sc.roles.map(x => row('role', x.slug, x.name, x.count || 0)))
-    + sec(t('integrations.tags'), sc.tags.map(x => row('tag', x.slug, x.name, x.count || 0)));
+  const totalDevices = sc.sites.reduce((sum, site) => sum + Number(site.deviceCount || 0), 0);
+  if (_wiz.scopeMode !== 'custom') {
+    return `<section class="dcim-scope-quick" aria-labelledby="dcim-scope-title">
+      <p class="dcim-scope-hint" id="dcim-scope-title">${escapeHTML(t('integrations.scopeHint'))}</p>
+      <div class="dcim-scope-choice-grid">
+        <button class="dcim-scope-choice is-primary" data-act="dcim-scope-all">
+          <span class="dcim-scope-choice-icon"><i class="fas fa-globe"></i></span>
+          <span class="dcim-scope-choice-copy"><strong>${escapeHTML(t('integrations.scopeAll'))}</strong><small>${escapeHTML(t('integrations.scopeAllDesc', { devices: totalDevices, sites: sc.sites.length }))}</small></span>
+          <i class="fas fa-arrow-right dcim-scope-choice-arrow"></i>
+        </button>
+        <button class="dcim-scope-choice" data-act="dcim-scope-custom">
+          <span class="dcim-scope-choice-icon"><i class="fas fa-sliders"></i></span>
+          <span class="dcim-scope-choice-copy"><strong>${escapeHTML(t('integrations.scopeCustom'))}</strong><small>${escapeHTML(t('integrations.scopeCustomDesc'))}</small></span>
+          <i class="fas fa-arrow-right dcim-scope-choice-arrow"></i>
+        </button>
+      </div>
+    </section>`;
+  }
+
+  const kind = _wiz.scopeKind || 'site';
+  const kinds = [
+    { key: 'site', label: t('integrations.sites'), icon: 'fa-building' },
+    { key: 'role', label: t('integrations.roles'), icon: 'fa-user-tag' },
+    { key: 'tag', label: t('integrations.tags'), icon: 'fa-tag' },
+  ];
+  const items = _scopeItems(kind);
+  const filteredItems = items.filter(_scopeItemMatches);
+  const row = item => {
+    const id = kind === 'site' ? item.id : kind === 'role' ? item.slug : item.slug;
+    const count = kind === 'site' ? t('integrations.devicesN', { n: item.deviceCount || 0 }) : t('integrations.scopeItemsN', { n: item.count || 0 });
+    const searchText = [item.name, item.slug].filter(Boolean).join(' ');
+    return `<label class="dcim-scope-option" data-scope-option data-search="${escapeHTML(searchText)}">
+      <input type="checkbox" data-change="dcim-scope" data-kind="${kind}" data-id="${escapeHTML(String(id))}"${_scopeChecked(kind, id) ? ' checked' : ''}>
+      <span class="dcim-scope-option-name">${escapeHTML(item.name)}</span>
+      <span class="dcim-scope-option-count">${escapeHTML(String(count))}</span>
+    </label>`;
+  };
+  const tabs = kinds.map(item => `<button class="dcim-scope-tab${item.key === kind ? ' is-active' : ''}" data-act="dcim-scope-kind" data-kind="${item.key}" role="tab" aria-selected="${item.key === kind ? 'true' : 'false'}"><i class="fas ${item.icon}"></i>${escapeHTML(item.label)}<span>${_scopeItems(item.key).length}</span></button>`).join('');
+  const rows = filteredItems.map(row).join('');
+  return `<section class="dcim-scope-custom" aria-labelledby="dcim-scope-custom-title">
+    <div class="dcim-scope-custom-head">
+      <div><h4 id="dcim-scope-custom-title"><i class="fas fa-sliders"></i> ${escapeHTML(t('integrations.scopeCustom'))}</h4><p>${escapeHTML(t('integrations.scopeCustomDesc'))}</p></div>
+      <button class="um-btn ghost dcim-scope-all-link" data-act="dcim-scope-all"><i class="fas fa-globe"></i> ${escapeHTML(t('integrations.scopeBackToAll'))}</button>
+    </div>
+    <div class="dcim-scope-summary"><i class="fas fa-filter"></i><span>${escapeHTML(_scopeSelectionSummary())}</span></div>
+    <div class="dcim-scope-tabs" role="tablist">${tabs}</div>
+    <div class="dcim-scope-toolbar">
+      <label class="dcim-scope-search"><i class="fas fa-search"></i><input type="search" data-input="dcim-scope-search" value="${escapeHTML(_wiz.scopeSearch)}" placeholder="${escapeHTML(t('integrations.scopeSearch'))}" autocomplete="off"></label>
+      <div class="dcim-scope-actions"><button class="um-btn" data-act="dcim-scope-select-all"><i class="fas fa-check-double"></i> ${escapeHTML(t('integrations.scopeSelectAll'))}</button><button class="um-btn" data-act="dcim-scope-clear"><i class="fas fa-xmark"></i> ${escapeHTML(t('integrations.scopeClear'))}</button></div>
+    </div>
+    <div class="dcim-scope-list" id="dcim-scope-list" role="tabpanel">${rows}<div class="dcim-scope-empty"${filteredItems.length ? ' hidden' : ''}><i class="fas fa-magnifying-glass"></i> ${escapeHTML(t('integrations.scopeEmpty'))}</div></div>
+  </section>`;
 }
 
 function _renderEntityStep() {
@@ -299,22 +479,175 @@ function _renderEntityStep() {
     + tog('racks', 'fa-layer-group', t('integrations.entRacks'));
 }
 
+const _RECON_TYPES = [
+  'switch', 'router', 'firewall', 'server', 'hypervisor', 'nas', 'kvm', 'ups', 'pdu', 'ats',
+  'patchpanel', 'ap', 'webcam', 'tv', 'iot', 'pc', 'mobile', 'voip', 'printer', 'projector',
+  'doorctrl', 'consolesvr', 'pbx', 'nvr', 'wlanctrl', 'customfloor', 'customrack',
+];
+
+function _reconcileTypeLabel(type) {
+  const key = 'type.' + type;
+  const label = t(key);
+  return label === key ? type : label;
+}
+
+function _reconciliationGroups(details) {
+  const groups = new Map();
+  for (const detail of Array.isArray(details) ? details : []) {
+    if (!detail || !detail.reviewRequired) continue;
+    const key = [detail.brand || '', detail.model || '', detail.roleSlug || '', detail.type || '', detail.placement || '', detail.status || ''].join('\u001f');
+    let group = groups.get(key);
+    if (!group) {
+      group = { brand: detail.brand || '', model: detail.model || '', sourceSlug: detail.sourceSlug || '', role: detail.roleName || detail.roleSlug || '', type: detail.type || 'customrack', placement: detail.placement || 'floor', status: detail.status || 'unmatched', strategy: detail.strategy || 'unmatched', ids: [], count: 0 };
+      groups.set(key, group);
+    }
+    group.ids.push(detail.deviceId);
+    group.count++;
+  }
+  _wiz.reconciliationGroups = Array.from(groups.values());
+  return _wiz.reconciliationGroups;
+}
+
+function _renderReconciliationPanel(p) {
+  const details = p.catalogMatches && p.catalogMatches.details || [];
+  const groups = _reconciliationGroups(details);
+  if (!groups.length && !_wiz.previewStale) return '';
+  const reconciliation = p.reconciliation || {};
+  const caseCount = Number.isFinite(Number(reconciliation.required)) ? Number(reconciliation.required) : groups.length;
+  const deviceCount = groups.reduce((sum, group) => sum + group.count, 0);
+  const summary = `<div class="disc-summary-grid dcim-reconcile-summary">
+    <span class="dcim-reconcile-chip is-warning"><i class="fas fa-triangle-exclamation"></i><b>${caseCount}</b>${escapeHTML(t('integrations.reconcileCases', { n: caseCount }))}</span>
+    <span class="dcim-reconcile-chip"><i class="fas fa-layer-group"></i><b>${groups.length}</b>${escapeHTML(t('integrations.reconcileGroups', { n: groups.length }))}</span>
+    <span class="dcim-reconcile-chip"><i class="fas fa-server"></i><b>${deviceCount}</b>${escapeHTML(t('integrations.reconcileDevices', { n: deviceCount }))}</span>
+  </div>`;
+  const columns = `<div class="dcim-reconcile-columns"><span>${escapeHTML(t('integrations.reconcileColDevice'))}</span><span>${escapeHTML(t('integrations.reconcileColCount'))}</span><span>${escapeHTML(t('integrations.reconcileType'))}</span><span>${escapeHTML(t('integrations.reconcilePlacement'))}</span></div>`;
+  const rows = groups.map((group, index) => {
+    const firstMapping = _wiz.selection.mapping && _wiz.selection.mapping[String(group.ids[0])];
+    const selectedType = firstMapping && firstMapping.type || group.type;
+    const selectedPlacement = firstMapping && firstMapping.placement || group.placement;
+    const typeOptions = _RECON_TYPES.map(type => `<option value="${type}"${type === selectedType ? ' selected' : ''}>${escapeHTML(_reconcileTypeLabel(type))}</option>`).join('');
+    const placementOptions = ['rack', 'floor'].map(value => `<option value="${value}"${value === selectedPlacement ? ' selected' : ''}>${escapeHTML(value)}</option>`).join('');
+    const title = [group.brand, group.model].filter(Boolean).join(' ') || t('integrations.reconcileTitle');
+    const role = group.role || '—';
+    return `<div class="dcim-reconcile-row">
+      <div><strong>${escapeHTML(title)}</strong><div style="font-size:11px;color:var(--text-muted)">${escapeHTML(role)}${group.sourceSlug ? ' · ' + escapeHTML(group.sourceSlug) : ''} · ${escapeHTML(group.strategy)} · ${escapeHTML(t('integrations.reconcileGroup', { n: group.count }))}</div></div>
+      <label style="font-size:11px;color:var(--text-secondary)">${escapeHTML(t('integrations.reconcileType'))}<select data-change="dcim-map-type" data-group="${index}" style="display:block;width:100%;margin-top:3px">${typeOptions}</select></label>
+      <label style="font-size:11px;color:var(--text-secondary)">${escapeHTML(t('integrations.reconcilePlacement'))}<select data-change="dcim-map-placement" data-group="${index}" style="display:block;width:100%;margin-top:3px">${placementOptions}</select></label>
+    </div>`;
+  }).join('');
+  const allow = _wiz.selection.allowUnresolved === true;
+  return `<section class="dcim-reconcile-panel" aria-labelledby="dcim-reconcile-title">
+    <div class="dcim-reconcile-heading"><h4 id="dcim-reconcile-title"><i class="fas fa-list-check"></i> ${escapeHTML(t('integrations.reconcileTitle'))}</h4><p>${escapeHTML(t('integrations.reconcileHint'))}</p></div>
+    ${summary}
+    ${columns}
+    <div class="dcim-reconcile-rows">${rows}</div>
+    <div class="dcim-reconcile-allow-row">
+      <input type="checkbox" data-change="dcim-allow-unresolved"${allow ? ' checked' : ''}>
+      <span>${escapeHTML(t('integrations.reconcileAllow'))}<small style="display:block;color:var(--text-muted)">${escapeHTML(t('integrations.reconcileAllowHint'))}</small></span>
+    </div>
+    <div class="dcim-reconcile-actions">
+      <button class="um-btn" data-act="dcim-reconcile-preview"><i class="fas fa-rotate"></i> ${escapeHTML(t('integrations.reconcileRebuild'))}</button>
+      ${_wiz.previewStale ? `<span style="font-size:11px;color:var(--warning-color,#e3b341)">${escapeHTML(t('integrations.reconcilePending'))}</span>` : ''}
+    </div>
+  </section>`;
+}
+
+function _previewWarningGroups(p, samples, counts) {
+  const groups = [];
+  const add = (message, details) => {
+    if (!message) return;
+    groups.push({ message, details: Array.isArray(details) ? details.filter(Boolean).map(String) : [] });
+  };
+  if (samples.unmappedRoles && samples.unmappedRoles.length) {
+    add(t('integrations.warnRoles', { n: samples.unmappedRoles.length }), samples.unmappedRoles);
+  }
+  if (samples.unmatchedDeviceTypes && samples.unmatchedDeviceTypes.length) {
+    add(t('integrations.warnDt', { n: samples.unmatchedDeviceTypes.length }), samples.unmatchedDeviceTypes);
+  }
+
+  const rawWarnings = Array.isArray(p.warnings) ? p.warnings.map(String) : [];
+  const interfaceWarning = /^device\s+\S+\s+ha\s+più\s+interfacce\s+NetBox\s+\((\d+)\)\s+del\s+template\s+catalogo\s+\(([^)]+)\)$/i;
+  const interfaceWarnings = rawWarnings.filter(warning => interfaceWarning.test(warning));
+  if (interfaceWarnings.length) {
+    add(t('integrations.previewInterfacesWarning', { n: interfaceWarnings.length }), interfaceWarnings);
+  }
+
+  const cableWarnings = rawWarnings.filter(warning => /^cavo\s+/i.test(warning));
+  if (counts.unresolvedCables) {
+    add(t('integrations.cUnresolved', { n: counts.unresolvedCables }), cableWarnings);
+  }
+
+  const consumed = new Set([...interfaceWarnings, ...cableWarnings]);
+  const generic = new Map();
+  for (const warning of rawWarnings) {
+    if (consumed.has(warning)) continue;
+    const item = generic.get(warning) || { message: warning, details: [] };
+    item.details.push(warning);
+    generic.set(warning, item);
+  }
+  for (const item of generic.values()) {
+    add(item.details.length > 1 ? `${item.message} ×${item.details.length}` : item.message, item.details);
+  }
+  return groups;
+}
+
+function _renderPreviewWarnings(groups) {
+  if (!groups.length) return '';
+  const items = groups.map(group => {
+    const details = group.details.length ? `<details class="dcim-preview-alert-details">
+      <summary>${escapeHTML(t('integrations.previewDetails'))}</summary>
+      <div class="dcim-preview-alert-list">${group.details.slice(0, 20).map(detail => `<div>${escapeHTML(detail)}</div>`).join('')}${group.details.length > 20 ? '<div>…</div>' : ''}</div>
+    </details>` : '';
+    return `<article class="dcim-preview-alert">
+      <div class="dcim-preview-alert-main"><i class="fas fa-triangle-exclamation"></i><strong>${escapeHTML(group.message)}</strong></div>
+      ${details}
+    </article>`;
+  }).join('');
+  return `<section class="dcim-preview-warnings" aria-labelledby="dcim-preview-warnings-title">
+    <h4 id="dcim-preview-warnings-title"><i class="fas fa-circle-info"></i> ${escapeHTML(t('integrations.previewWarnings'))}</h4>
+    <div class="dcim-preview-alert-list-wrap">${items}</div>
+  </section>`;
+}
+
 function _renderPreviewStep() {
   if (_wiz.loadingPreview) return `<div>${_sp()}</div>`;
   if (_wiz.previewErr) return `<div style="color:var(--danger-color);font-size:.9rem">${escapeHTML(_wiz.previewErr)}</div>`;
   const p = _wiz.preview;
   if (!p) return `<div>${_sp()}</div>`;
   const c = p.counts || {};
-  const mc = (v, l) => `<div style="background:var(--surface-2);border-radius:var(--radius);padding:8px 10px;text-align:center">
-    <div style="font-size:20px;font-weight:500">${v || 0}</div><div style="font-size:11px;color:var(--text-secondary)">${escapeHTML(l)}</div></div>`;
-  const cards = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px">
-    ${mc(c.devices, t('integrations.cDevices'))}${mc(c.interfaces, t('integrations.cInterfaces'))}${mc(c.cables, t('integrations.cCables'))}${mc(c.vlans, t('integrations.cVlans'))}</div>`;
   const sm = p.samples || {};
-  const warns = [];
-  if (sm.unmappedRoles && sm.unmappedRoles.length) warns.push(t('integrations.warnRoles', { n: sm.unmappedRoles.length }));
-  if (sm.unmatchedDeviceTypes && sm.unmatchedDeviceTypes.length) warns.push(t('integrations.warnDt', { n: sm.unmatchedDeviceTypes.length }));
-  const warnHtml = warns.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${warns.map(w =>
-    `<span style="font-size:11px;padding:2px 8px;border-radius:var(--radius);background:var(--bg-warning,rgba(227,179,65,.15));color:var(--warning-color,#e3b341)"><i class="fas fa-triangle-exclamation"></i> ${escapeHTML(w)}</span>`).join('')}</div>` : '';
+  const review = (p.catalogMatches && p.catalogMatches.details || []).filter(x => x.reviewRequired).slice(0, 20);
+  const reviewHtml = review.length ? `<details style="margin-bottom:10px"><summary style="cursor:pointer;font-size:12px;color:var(--warning-color,#e3b341)"><i class="fas fa-list-check"></i> ${escapeHTML(t('integrations.reviewMatches', { n: review.length }))}</summary>
+    <div style="margin-top:7px;max-height:150px;overflow:auto">${review.map(x => `<div style="padding:4px 0;border-bottom:0.5px solid var(--border)"><strong>${escapeHTML(x.name || ('#' + x.deviceId))}</strong> <span style="color:var(--text-muted)">· ${escapeHTML(x.strategy || 'unmatched')}${x.sourceSlug ? ' · ' + escapeHTML(x.sourceSlug) : ''}</span></div>`).join('')}</div></details>` : '';
+  const previewExcluded = Object.values(p.excluded || {}).reduce((sum, values) => sum + (Array.isArray(values) ? values.length : 0), 0);
+  const previewMatched = (p.catalogMatches && p.catalogMatches.matched) || 0;
+  const previewUnmatched = (p.catalogMatches && p.catalogMatches.unmatched) || 0;
+  const previewReviewDetails = (p.catalogMatches && p.catalogMatches.details || []).filter(x => x && x.reviewRequired);
+  const previewReconciliation = p.reconciliation || {};
+  const previewReviewCount = Number.isFinite(Number(previewReconciliation.required)) ? Number(previewReconciliation.required) : previewReviewDetails.length;
+  const previewKpi = (value, label, icon) => `<div class="dcim-preview-kpi"><i class="fas ${icon}"></i><strong>${escapeHTML(String(value || 0))}</strong><span>${escapeHTML(label)}</span></div>`;
+  const previewContext = `<div class="dcim-preview-context"><strong>${escapeHTML(p.proposedProjectName || t('integrations.previewTitle'))}</strong><span>${escapeHTML(t('integrations.previewContext', { devices: c.devices || 0, rack: c.devicesRack || 0, floor: c.devicesFloor || 0 }))}</span></div>`;
+  const previewKpis = `<div class="dcim-preview-kpis">
+    ${previewKpi(c.devices, t('integrations.cDevices'), 'fa-server')}
+    ${previewKpi(c.directLinks, t('integrations.previewDirect'), 'fa-link')}
+    ${previewKpi(c.passThroughLinks, t('integrations.previewPassThrough'), 'fa-route')}
+    ${previewKpi(previewMatched, t('integrations.previewMatched'), 'fa-check')}
+  </div>`;
+  const previewSecondary = `<div class="dcim-preview-secondary" aria-label="${escapeHTML(t('integrations.previewDetails'))}">
+    <span><i class="fas fa-network-wired"></i> ${escapeHTML(t('integrations.cInterfaces'))} ${c.interfaces || 0}</span>
+    <span><i class="fas fa-plug"></i> ${escapeHTML(t('integrations.cCables'))} ${c.cables || 0}</span>
+    <span><i class="fas fa-layer-group"></i> ${escapeHTML(t('integrations.cVlans'))} ${c.vlans || 0}</span>
+    <span><i class="fas fa-diagram-project"></i> ${escapeHTML(t('integrations.cPrefixes'))} ${c.prefixes || 0}</span>
+    <span><i class="fas fa-location-dot"></i> ${escapeHTML(t('integrations.cIps'))} ${c.ips || 0}</span>
+    <span><i class="fas fa-server"></i> ${escapeHTML(t('integrations.cRackFloor', { rack: c.devicesRack || 0, floor: c.devicesFloor || 0 }))}</span>
+    <span><i class="fas fa-question"></i> ${escapeHTML(t('integrations.cToReview', { n: previewUnmatched }))}</span>
+    <span><i class="fas fa-filter-circle-xmark"></i> ${escapeHTML(t('integrations.cExcluded', { n: previewExcluded }))}</span>
+  </div>`;
+  const previewAttention = previewReviewCount > 0 ? `<section class="dcim-preview-attention" aria-labelledby="dcim-preview-attention-title">
+    <div class="dcim-preview-attention-main"><i class="fas fa-triangle-exclamation"></i><div><strong id="dcim-preview-attention-title">${escapeHTML(t('integrations.previewAttention'))}</strong><span>${escapeHTML(t('integrations.reconcileCases', { n: previewReviewCount }))}</span></div></div>
+    <button class="um-btn" data-act="dcim-reconcile-focus"><i class="fas fa-list-check"></i> ${escapeHTML(t('integrations.previewResolve'))}</button>
+  </section>` : '';
+  const previewWarningHtml = _renderPreviewWarnings(_previewWarningGroups(p, sm, c));
   const devs = sm.devices || [];
   const rows = devs.length
     ? `<p style="font-size:.85rem;color:var(--text-muted);margin:0 0 6px">${escapeHTML(t('integrations.excludeHint'))}</p>` + devs.map(d => {
@@ -325,6 +658,13 @@ function _renderPreviewStep() {
     }).join('')
     : `<p style="color:var(--text-muted);font-size:.9rem">${escapeHTML(t('integrations.previewEmpty'))}</p>`;
   const nameVal = _wiz.projectName || p.proposedProjectName || '';
+  const reconciliation = _renderReconciliationPanel(p);
+  const reconciliationBlocked = p.reconciliation && !_wiz.selection.allowUnresolved && (
+    p.reconciliation.required > 0 || (Array.isArray(p.reconciliation.invalid) && p.reconciliation.invalid.length > 0)
+  );
+  const blocked = _wiz.previewStale || reconciliationBlocked;
+  const previewStatus = blocked ? `<div class="dcim-preview-status is-blocked"><i class="fas fa-circle-info"></i> ${escapeHTML(_wiz.previewStale ? t('integrations.previewNeedsRebuild') : t('integrations.reconcileBlocked'))}</div>` : c.devices ? `<div class="dcim-preview-status is-ready"><i class="fas fa-circle-check"></i> ${escapeHTML(t('integrations.previewReady'))}</div>` : `<div class="dcim-preview-status"><i class="fas fa-circle-info"></i> ${escapeHTML(t('integrations.noDevicesSelected'))}</div>`;
+  const blockHint = blocked ? `<div style="margin-top:10px;padding:7px 9px;border-radius:var(--radius);background:var(--bg-warning,rgba(227,179,65,.1));color:var(--warning-color,#e3b341);font-size:12px"><i class="fas fa-circle-info"></i> ${escapeHTML(_wiz.previewStale ? t('integrations.previewNeedsRebuild') : t('integrations.reconcileBlocked'))}</div>` : (!c.devices ? `<div style="margin-top:10px;color:var(--text-muted);font-size:12px"><i class="fas fa-circle-info"></i> ${escapeHTML(t('integrations.noDevicesSelected'))}</div>` : '');
   // Campo nome nello stile nativo InfraNet (.prop-group: etichetta sopra, controllo
   // a tutta larghezza col bordo/sfondo del tema), bottone «Crea progetto» su riga a sé.
   const commit = `<div class="prop-group" style="margin-top:14px">
@@ -332,9 +672,9 @@ function _renderPreviewStep() {
       <input type="text" id="dcim-name" data-input="dcim-name" value="${escapeHTML(nameVal)}" autocomplete="off">
     </div>
     <div style="display:flex;justify-content:flex-end;margin-top:10px">
-      <button class="um-btn primary" data-act="dcim-commit"${c.devices ? '' : ' disabled'}><i class="fas fa-plus"></i> ${escapeHTML(t('integrations.createProject'))}</button>
+      <button class="um-btn primary" data-act="dcim-commit"${c.devices && !blocked ? '' : ' disabled'} title="${blocked ? escapeHTML(t('integrations.reconcileBlocked')) : ''}"><i class="fas fa-plus"></i> ${escapeHTML(t('integrations.createProject'))}</button>
     </div>`;
-  return cards + warnHtml + rows + commit;
+  return previewContext + previewKpis + previewSecondary + previewAttention + reconciliation + previewWarningHtml + rows + previewStatus + commit;
 }
 
 async function _loadScopes() {
@@ -350,10 +690,11 @@ async function _loadScopes() {
 async function _runPreview() {
   _wiz.loadingPreview = true; _wiz.previewErr = ''; _wiz.preview = null; _renderImport();
   try {
-    const r = await fetch(API + '/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ selection: _wiz.selection }) });
+    const r = await fetch(API + '/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ selection: _selectionForRequest() }) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
     _wiz.preview = j;
+    _wiz.previewStale = false;
     if (!_wiz.projectName) _wiz.projectName = j.proposedProjectName || '';
   } catch (e) { _wiz.previewErr = String((e && e.message) || e); }
   _wiz.loadingPreview = false; _renderImport();
@@ -366,8 +707,14 @@ async function _commit() {
   _renderImport();
   _scheduleCommitProgress();
   try {
-    const r = await fetch(API + '/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ commit: true, selection: _wiz.selection, projectName: name }) });
+    const r = await fetch(API + '/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ commit: true, selection: _selectionForRequest(), projectName: name }) });
     const j = await r.json().catch(() => ({}));
+    if (r.status === 409 && j.reconciliation) {
+      _stopCommitProgressTimer();
+      _wiz.commit = { state: 'idle', stage: 0, result: null, error: '', name };
+      await _runPreview();
+      return;
+    }
     if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
     _wiz.commit.stage = _commitStages.length;
     _wiz.commit.state = 'done';
@@ -387,26 +734,88 @@ registerClickActions({
   'dcim-close': () => closeDcimSync(),
   'dcim-backdrop': (el, ev) => { if (ev.target === el && _pressOnBackdrop) closeDcimSync(); },
   'dcim-test': () => _test(),
+  'dcim-catalog-check': () => _catalogAction('check'),
+  'dcim-catalog-diff': () => _showCatalogDiff(),
+  'dcim-catalog-update': () => _catalogAction('update'),
   'dcim-save': () => { if (_wiz.commit.state !== 'running') _save(); },
   'dcim-tab': (el) => { if (_wiz.commit.state !== 'running') _showTab(el.dataset.tab); },
-  'dcim-wiz-next': () => { if (_wiz.commit.state === 'idle' && _wiz.step < 3) { _wiz.step++; if (_wiz.step === 3) _runPreview(); else _renderImport(); } },
+  'dcim-wiz-next': () => { if (_wiz.commit.state === 'idle' && _wiz.step < 3 && (_wiz.step !== 1 || _wiz.scopeMode !== 'custom' || _scopeSelectionCount() > 0)) { _wiz.step++; if (_wiz.step === 3) _runPreview(); else _renderImport(); } },
   'dcim-wiz-back': () => { if (_wiz.commit.state === 'idle' && _wiz.step > 1) { _wiz.step--; _renderImport(); } },
   'dcim-load-scopes': () => _loadScopes(),
+  'dcim-scope-all': () => {
+    _wiz.scopeMode = 'all'; _wiz.scopeSearch = '';
+    _wiz.selection.scope = { siteIds: [], roleSlugs: [], tags: [] };
+    _wiz.previewStale = true; _renderImport();
+  },
+  'dcim-scope-custom': () => { _wiz.scopeMode = 'custom'; _wiz.scopeKind = 'site'; _wiz.scopeSearch = ''; _renderImport(); },
+  'dcim-scope-kind': (el) => { _wiz.scopeKind = el.dataset.kind || 'site'; _wiz.scopeSearch = ''; _renderImport(); },
+  'dcim-scope-select-all': () => {
+    for (const item of _scopeItems(_wiz.scopeKind).filter(_scopeItemMatches)) {
+      const id = _wiz.scopeKind === 'site' ? item.id : item.slug;
+      _toggleScope(_wiz.scopeKind, id, true);
+    }
+    _wiz.previewStale = true; _renderImport();
+  },
+  'dcim-scope-clear': () => {
+    for (const item of _scopeItems(_wiz.scopeKind)) {
+      const id = _wiz.scopeKind === 'site' ? item.id : item.slug;
+      _toggleScope(_wiz.scopeKind, id, false);
+    }
+    _wiz.previewStale = true; _renderImport();
+  },
+  'dcim-reconcile-focus': () => {
+    const panel = document.querySelector('#dcim-import-body .dcim-reconcile-panel');
+    if (!panel) return;
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    panel.setAttribute('tabindex', '-1');
+    panel.focus({ preventScroll: true });
+  },
+  'dcim-reconcile-preview': () => _runPreview(),
   'dcim-commit': () => _commit(),
   'dcim-commit-retry': () => { _resetCommitState(); _renderImport(); },
   'dcim-open-created': () => { const id = _wiz.commit.result && _wiz.commit.result.projectId; if (id != null) { switchProject(id); closeDcimSync(); } },
 });
 registerChangeActions({
-  'dcim-scope': (el) => _toggleScope(el.dataset.kind, el.dataset.id, el.checked),
-  'dcim-ent': (el) => { _wiz.selection.entities[el.dataset.key] = el.checked; },
+  'dcim-scope': (el) => { _wiz.scopeMode = 'custom'; _toggleScope(el.dataset.kind, el.dataset.id, el.checked); _wiz.previewStale = true; _renderImport(); },
+  'dcim-ent': (el) => { _wiz.selection.entities[el.dataset.key] = el.checked; _wiz.previewStale = true; _renderImport(); },
   'dcim-dev-row': (el) => {
     const key = el.dataset.key, ex = _wiz.selection.exclude, i = ex.indexOf(key);
     if (!el.checked && i < 0) ex.push(key);
     if (el.checked && i >= 0) ex.splice(i, 1);
+    _wiz.previewStale = true;
+    _renderImport();
   },
+  'dcim-map-type': (el) => {
+    const group = _wiz.reconciliationGroups[Number(el.dataset.group)];
+    if (!group) return;
+    for (const id of group.ids) _wiz.selection.mapping[String(id)] = Object.assign({}, _wiz.selection.mapping[String(id)] || {}, { type: el.value });
+    _wiz.previewStale = true;
+    _renderImport();
+  },
+  'dcim-map-placement': (el) => {
+    const group = _wiz.reconciliationGroups[Number(el.dataset.group)];
+    if (!group) return;
+    for (const id of group.ids) _wiz.selection.mapping[String(id)] = Object.assign({}, _wiz.selection.mapping[String(id)] || {}, { placement: el.value });
+    _wiz.previewStale = true;
+    _renderImport();
+  },
+  'dcim-allow-unresolved': (el) => { _wiz.selection.allowUnresolved = !!el.checked; _renderImport(); },
 });
 registerInputActions({
   'dcim-name': (el) => { _wiz.projectName = el.value; },
+  'dcim-scope-search': (el) => {
+    _wiz.scopeSearch = el.value;
+    const query = String(el.value || '').trim().toLowerCase();
+    const rows = [...document.querySelectorAll('#dcim-scope-list [data-scope-option]')];
+    let visible = 0;
+    for (const row of rows) {
+      const match = !query || String(row.dataset.search || '').toLowerCase().includes(query);
+      row.hidden = !match;
+      if (match) visible++;
+    }
+    const empty = document.querySelector('#dcim-scope-list .dcim-scope-empty');
+    if (empty) empty.hidden = visible > 0;
+  },
   // Modifica di URL/token → l'esito precedente non vale più: bottone e chip neutri.
   'dcim-cfg': () => { _setTestBtn(''); _setStatus(t('integrations.notConnected'), ''); },
 });

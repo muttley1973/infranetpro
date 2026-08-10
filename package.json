@@ -17,6 +17,7 @@
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p tsconfig.json",
     "update-oui": "node scripts/update-oui-db.js",
+    "update-device-types": "node scripts/update-device-types.js",
     "update-pen": "node scripts/update-pen-db.js"
   },
   "dependencies": {
