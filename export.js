@@ -1428,10 +1428,13 @@ function _buildPdfReportData() {
             project: document.getElementById('header-proj-name')?.textContent?.trim() || 'InfraNet Pro',
             date: new Date().toLocaleDateString(_lg === 'en' ? 'en-GB' : 'it-IT'),
             user: (typeof _currentUser === 'object' && _currentUser && _currentUser.username) || '',
+            // Le NOTE non passano piu' di qui: vivono nel registro asset, accanto al
+            // loro apparato (server-side, applyDeviceNotes). Un secondo posto che
+            // decide «qual e' la nota di un device» sarebbe la solita definizione
+            // duplicata destinata a divergere.
             devices: state.nodes.map(n => ({
                 name: getNodeDisplayName(n) || n.name || n.id,
                 typeLabel: _typeName(n.type),
-                notes: n.notes || '',
                 structural: !!TYPES[n.type]?.isStructural,
             })),
             cableCount: state.links.length,
@@ -1662,14 +1665,14 @@ async function exportPDF(opts={}){
 }
 
 // Dossier di consegna (N4): preset "un click" — tutte le sezioni + copertina
-// + note + storia modifiche. Riusa interamente exportPDF.
+// + storia modifiche. Le note per-device stanno nel Registro asset. Riusa exportPDF.
 function exportDossier(){
     return exportPDF({
         includePlanimetria:true, includeBackground:true,
         includeInventory:true, includeAsBuilt:true, includeRacks:true,
         includePorts:true, includeVlans:true, includeTopology:true,
         includeVms:true, includePdu:true,
-        includeCover:true, includeNotes:true, includeChangelog:true,
+        includeCover:true, includeChangelog:true,
         includeSpare:true, includeAssets:true,
         _dossier:true,
     });

@@ -22,18 +22,15 @@ test('cover: conteggi device (esclusi gli strutturali) + cavi/vlan + default tit
   assert.equal(r.cover.vlanCount, 3);
 });
 
-test('note: solo device con testo non vuoto, ordinate per nome', () => {
+// Le note per-device sono uscite da qui: stanno nel Registro asset, sulla riga del
+// loro apparato (lib/api-shape applyDeviceNotes + server/pdf-report). Il dossier NON
+// deve tornare a costruirsene una seconda definizione.
+test('note: nessuna sezione note nel dossier (vivono nel registro asset)', () => {
   const r = buildHandoffSections({
-    devices: [
-      { name: 'Zeta', notes: 'spegnere di notte', structural: false },
-      { name: 'Alfa', notes: '  ', structural: false },         // vuota → esclusa
-      { name: 'Beta', notes: 'VLAN 99 isolata GDPR', structural: false },
-      { name: 'Sala', notes: 'qualcosa', structural: true },     // strutturale → escluso
-    ],
+    devices: [{ name: 'Zeta', notes: 'spegnere di notte', structural: false }],
   });
-  assert.equal(r.notes.length, 2);
-  assert.deepEqual(r.notes.map(n => n.label), ['Beta', 'Zeta']);   // ordinate
-  assert.equal(r.notes[0].text, 'VLAN 99 isolata GDPR');
+  assert.equal(r.notes, undefined);
+  assert.deepEqual(Object.keys(r).sort(), ['changelog', 'cover']);
 });
 
 test('changelog: ultime N voci dalla più recente', () => {
@@ -54,6 +51,5 @@ test('changelog: limit di default 50; meno voci → tutte', () => {
 test('input vuoto → struttura valida con default', () => {
   const r = buildHandoffSections({});
   assert.equal(r.cover.deviceCount, 0);
-  assert.deepEqual(r.notes, []);
   assert.deepEqual(r.changelog, []);
 });

@@ -5,10 +5,10 @@
 const express = require('express');
 const auth = require('../../auth');
 const { buildPduReport } = require('../../lib/pdu-report.js');
-const { _loadPdfDeps, _addReportPages, _addCoverPage, _addNotesPages, _addChangelogPages, _addSparePages, _addPduPages, _addAssetRegisterPages, _addRecoveryPages, _addOverviewPages, _rt } = require('../pdf-report');
+const { _loadPdfDeps, _addReportPages, _addCoverPage, _addChangelogPages, _addSparePages, _addPduPages, _addAssetRegisterPages, _addRecoveryPages, _addOverviewPages, _rt } = require('../pdf-report');
 const { addLabelPages } = require('../label-sheet');
 const { loadProject } = require('../projects-store');
-const { projectToDevices, applyPortMacFallback, isStructuralCabling } = require('../../lib/api-shape');
+const { projectToDevices, applyPortMacFallback, applyDeviceNotes, isStructuralCabling } = require('../../lib/api-shape');
 
 const router = express.Router();
 
@@ -29,7 +29,7 @@ router.post('/api/export-pdf', auth.requireAdmin, (req, res) => {
   };
 
   const hasPlanSvg = typeof svg === 'string' && svg.length > 0;
-  const wantsReportPages = !!(opts.includeInventory || opts.includeAsBuilt || opts.includeRacks || opts.includePorts || opts.includeVlans || opts.includeTopology || opts.includeCover || opts.includeNotes || opts.includeChangelog || opts.includeSpare || opts.includeAssets || opts.includeRecovery || opts.includePdu);
+  const wantsReportPages = !!(opts.includeInventory || opts.includeAsBuilt || opts.includeRacks || opts.includePorts || opts.includeVlans || opts.includeTopology || opts.includeCover || opts.includeChangelog || opts.includeSpare || opts.includeAssets || opts.includeRecovery || opts.includePdu);
 
   if (!opts.includePlanimetria && !wantsReportPages) {
     return res.status(400).json({ error: 'Nessuna sezione selezionata per l\'export PDF' });
@@ -175,12 +175,13 @@ router.post('/api/export-pdf', auth.requireAdmin, (req, res) => {
       // MAC stanno sulle porte) -> fallback misurato al MAC della porta base, cosi'
       // l'infrastruttura non esce con MAC vuoto. Solo qui (il DTO condiviso resta com'e').
       if (_project && _project.state) applyPortMacFallback(assets, _project.state.ports);
+      // La nota scritta a mano sull'apparato viaggia CON la sua riga (non piu' in un
+      // capitolo «Note» separato, dove per capire a chi si riferisse bisognava
+      // reincrociare i nomi). Come il fallback MAC: vive solo nel registro.
+      if (_project && _project.state) applyDeviceNotes(assets, _project.state.nodes);
       _addAssetRegisterPages(doc, assets, hName, hDate, _lastRevised, _lang);
     }
-    // Dossier di consegna (N4): note e storia modifiche in coda
-    if (opts.includeNotes && reportData && reportData.handoff) {
-      _addNotesPages(doc, reportData.handoff.notes, hName, hDate, _lang);
-    }
+    // Dossier di consegna (N4): storia modifiche in coda
     if (opts.includeChangelog && reportData && reportData.handoff) {
       _addChangelogPages(doc, reportData.handoff.changelog, hName, hDate, _lang);
     }

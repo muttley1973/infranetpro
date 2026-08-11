@@ -55,7 +55,7 @@
             </button>
             <button class="header-menu-item" onclick="exportDossier();closeImpExpMenu()"
                     data-i18n-tip="impexp.dossierTip"
-                    data-tip="PDF di consegna completo: copertina, planimetria, rack, porte, VLAN, inventario, note e storia modifiche">
+                    data-tip="PDF di consegna completo: copertina, planimetria, rack, porte, VLAN, inventario, registro asset (con la nota di ogni apparato) e storia modifiche">
                 <i class="fas fa-folder-open"></i> <span data-i18n="impexp.dossier">Dossier di consegna</span>
             </button>
             <button class="header-menu-item" onclick="openLabelExportOptions();closeImpExpMenu()">
@@ -1010,7 +1010,7 @@
         <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-vms" checked> <span data-i18n="pdf.vms">Macchine virtuali (per host)</span></label>
         <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-pdu" checked> <span data-i18n="pdf.pdu">Alimentazione: PDU e prese</span></label>
         <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-spare" checked> <span data-i18n="pdf.spare">Porte libere (capacità per rack)</span></label>
-        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-assets" checked> <span data-i18n="pdf.assets">Registro asset (inventario dispositivi)</span></label>
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-assets" checked> <span data-i18n="pdf.assets">Registro asset (inventario dispositivi + note)</span></label>
         <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-recovery" checked> <span data-i18n="pdf.recovery">Ripristinabilità (backup · identità · posizione)</span></label>
       </div>
       <div id="pdfopt-hint" style="margin-top:12px;font-size:0.76rem;color:var(--text-muted)"></div>

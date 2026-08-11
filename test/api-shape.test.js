@@ -5,7 +5,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
-  projectToInventory, projectToDevices, toAnsibleInventory, nodeToDevice, applyPortMacFallback,
+  projectToInventory, projectToDevices, toAnsibleInventory, nodeToDevice, applyPortMacFallback, applyDeviceNotes,
   isStructuralCabling,
 } = require('../lib/api-shape.js');
 
@@ -270,6 +270,27 @@ test('applyPortMacFallback: device senza MAC eredita il MAC della porta col suff
 test('applyPortMacFallback: difensivo su input mancanti', () => {
   assert.deepEqual(applyPortMacFallback(null, null), []);
   assert.deepEqual(applyPortMacFallback([{ id: 'a', mac: null }], undefined), [{ id: 'a', mac: null }]);
+});
+
+// ── applyDeviceNotes (registro asset: la nota sulla riga del suo apparato) ────
+test('applyDeviceNotes: la nota del nodo finisce sul device omonimo, trimmata', () => {
+  const devices = [{ id: 'sw1', name: 'SW-CORE' }, { id: 'ap1', name: 'AP' }, { id: 'fw1', name: 'FW' }];
+  const nodes = [
+    { id: 'sw1', notes: '  spegnere di notte  ' },
+    { id: 'ap1', notes: '   ' },              // solo spazi -> non e' una nota
+    { id: 'zz9', notes: 'orfana' },           // nessun device corrispondente
+  ];
+  applyDeviceNotes(devices, nodes);
+  assert.equal(devices[0].notes, 'spegnere di notte');
+  assert.equal(devices[1].notes, undefined, 'nota vuota -> il campo non nasce nemmeno');
+  assert.equal(devices[2].notes, undefined);
+});
+
+test('applyDeviceNotes: il DTO condiviso non porta note (solo il registro) + difensivo', () => {
+  // Contratto REST v1 / Ansible: nessun testo libero nel DTO.
+  assert.equal('notes' in nodeToDevice({ id: 'n1', type: 'switch', name: 'S', notes: 'segreta' }, {}), false);
+  assert.deepEqual(applyDeviceNotes(null, null), []);
+  assert.deepEqual(applyDeviceNotes([{ id: 'a' }], undefined), [{ id: 'a' }]);
 });
 
 test('nodeToDevice: ip6 e\' un campo DISTINTO (non finisce in ip; ansible resta IPv4)', () => {

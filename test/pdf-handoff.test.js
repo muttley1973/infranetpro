@@ -60,9 +60,23 @@ test('copertina: aggiunge esattamente 1 pagina', { skip: !has }, () => {
   assert.equal(p, 1);
 });
 
-test('note: 0 pagine se vuote, >=1 se presenti', { skip: !has }, () => {
-  assert.equal(countPages(doc => R._addNotesPages(doc, [], 'P', 'd')), 0);
-  assert.ok(countPages(doc => R._addNotesPages(doc, [{ label: 'Core-01', text: 'spegnere di notte' }], 'P', 'd')) >= 1);
+// La nota scritta a mano NON ha piu' un capitolo suo: esce sulla riga del suo
+// apparato dentro il Registro asset. Un capitolo separato costringeva a reincrociare
+// i nomi per capire di chi parlasse.
+test('note: escono nel Registro asset, sulla riga del loro device', { skip: !has }, async () => {
+  assert.equal(typeof R._addNotesPages, 'undefined', 'niente piu\' capitolo Note separato');
+  const assets = [
+    { id: 'sw1', name: 'CORE-SW', type: 'switch', brand: 'Cisco', model: 'C9300', serial: 'FCW1', ip: '10.0.0.1', mac: 'AA:BB', vlan: 10, rack: null, notes: 'spegnere di notte' },
+    { id: 'ap1', name: 'AP-Lobby', type: 'ap', brand: null, model: null, serial: null, ip: null, mac: null, vlan: null, rack: null },
+  ];
+  const it = await pdfText(doc => R._addAssetRegisterPages(doc, assets, 'Net', '11/08/2026', null, 'it'));
+  assert.ok(it.includes('spegnere di notte'), 'il testo della nota esce: ' + it.slice(0, 200));
+  assert.ok(/1 con nota/.test(it), 'il sottotitolo conta solo i device che una nota ce l\'hanno');
+  const en = await pdfText(doc => R._addAssetRegisterPages(doc, assets, 'Net', '11/08/2026', null, 'en'));
+  assert.ok(en.includes('with a note') && en.includes('spegnere di notte'), 'EN tradotto');
+  // Nessuna nota -> nessuna riga in piu' e nessun contatore inventato.
+  const senza = await pdfText(doc => R._addAssetRegisterPages(doc, [assets[1]], 'Net', '11/08/2026', null, 'it'));
+  assert.ok(!/con nota/.test(senza), 'senza note il sottotitolo tace');
 });
 
 test('changelog: 0 pagine se vuoto, >=1 se presente', { skip: !has }, () => {

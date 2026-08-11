@@ -43,7 +43,7 @@ const _RL = {
   it: {
     'title.inventory': 'Inventario Cavi', 'title.asbuilt': 'Tracciato cablaggio (As-Built)',
     'title.racks': 'Vista rack', 'title.ports': 'Assegnazione porte', 'title.vlans': 'Sommario VLAN',
-    'title.topology': 'Topologia LLDP/CDP', 'title.assets': 'Registro asset', 'title.notes': 'Note',
+    'title.topology': 'Topologia LLDP/CDP', 'title.assets': 'Registro asset',
     'title.changelog': 'Storia modifiche', 'title.spare': 'Porte libere', 'title.floorplan': 'Planimetria',
     'title.vms': 'Macchine virtuali',
     'sub.vms': 'VM documentate sugli host di virtualizzazione',
@@ -73,7 +73,7 @@ const _RL = {
     'sub.cables': 'cavi documentati nel progetto', 'sub.routes': 'percorsi tracciati',
     'sub.vlans': 'VLAN configurate', 'sub.assets': 'dispositivi documentati',
     'sub.portsA': 'porte su', 'sub.portsB': 'dispositivi',
-    'assets.lastRevised': 'Ultima revisione documento',
+    'assets.lastRevised': 'Ultima revisione documento', 'assets.withNotes': 'con nota',
     'empty.cables': 'Nessun cavo presente.',
     'empty.asbuilt': 'Nessun percorso tracciabile. Collegare i dispositivi per generare i tracciati.',
     'empty.racks': 'Nessun rack presente nel progetto.', 'empty.ports': 'Nessuna porta configurata.',
@@ -110,7 +110,7 @@ const _RL = {
   en: {
     'title.inventory': 'Cable inventory', 'title.asbuilt': 'Cabling route (As-Built)',
     'title.racks': 'Rack view', 'title.ports': 'Port assignment', 'title.vlans': 'VLAN summary',
-    'title.topology': 'LLDP/CDP topology', 'title.assets': 'Asset register', 'title.notes': 'Notes',
+    'title.topology': 'LLDP/CDP topology', 'title.assets': 'Asset register',
     'title.changelog': 'Change history', 'title.spare': 'Free ports', 'title.floorplan': 'Floor plan',
     'title.vms': 'Virtual machines',
     'sub.vms': 'VMs documented on the virtualization hosts',
@@ -140,7 +140,7 @@ const _RL = {
     'sub.cables': 'cables documented in the project', 'sub.routes': 'traced routes',
     'sub.vlans': 'VLANs configured', 'sub.assets': 'devices documented',
     'sub.portsA': 'ports across', 'sub.portsB': 'devices',
-    'assets.lastRevised': 'Document last revised',
+    'assets.lastRevised': 'Document last revised', 'assets.withNotes': 'with a note',
     'empty.cables': 'No cables.',
     'empty.asbuilt': 'No traceable route. Connect the devices to generate routes.',
     'empty.racks': 'No racks in the project.', 'empty.ports': 'No ports configured.',
@@ -245,8 +245,17 @@ function _wrapFit(doc, str, widthPt, fs = 7) {
   return out.length ? out : [''];
 }
 
-function _rTable(doc, cols, rows, y0, title, projName, date) {
+// `opts.notes` (facoltativo, array PARALLELO a `rows`): la nota della riga, disegnata
+// a TUTTA LARGHEZZA sotto le celle invece che in una colonna. Una nota e' prosa libera
+// di lunghezza imprevedibile: in una colonna da ~50pt sarebbe illeggibile e farebbe
+// esplodere l'altezza di ogni riga, mentre a tutta larghezza sta in una o due righe e
+// resta attaccata al suo apparato (stessa banda zebrata, stesso bordo).
+// `opts.noteLabel` = etichetta breve premessa al testo (es. «Nota»).
+function _rTable(doc, cols, rows, y0, title, projName, date, opts = {}) {
   const M = _RM, HH = 16, RH = 13, FS = 7;
+  const NFS = 6.5, NLH = 8;                            // nota: piu' piccola del corpo tabella
+  const notesArr = Array.isArray(opts.notes) ? opts.notes : null;
+  const noteLabel = opts.noteLabel ? String(opts.noteLabel) + ': ' : '';
   const TW = cols.reduce((s, c) => s + c.w, 0);
   let y = y0;
 
@@ -272,7 +281,10 @@ function _rTable(doc, cols, rows, y0, title, projName, date) {
       return [_fit(doc, raw, c.w - 6, FS)];
     });
     const rowLines = Math.max(...cellLines.map(lines => lines.length));
-    const rowH = Math.max(RH, 4 + rowLines * 9);
+    const cellsH = Math.max(RH, 4 + rowLines * 9);
+    const noteTxt = notesArr ? String(notesArr[ri] ?? '').trim() : '';
+    const noteLines = noteTxt ? _wrapFit(doc, noteLabel + noteTxt, TW - 22, NFS) : [];
+    const rowH = cellsH + (noteLines.length ? noteLines.length * NLH + 3 : 0);
 
     if (y + rowH > _BOT) {
       doc.addPage({ size: [595, 842], margins: { top: 0, bottom: 0, left: 0, right: 0 } });
@@ -339,6 +351,16 @@ function _rTable(doc, cols, rows, y0, title, projName, date) {
       });
       x += c.w;
     });
+    // Nota della riga: corsivo tenue, rientrata, sotto le celle e dentro la stessa
+    // banda. Le metriche di Helvetica-Oblique sono quelle di Helvetica -> la misura
+    // fatta sopra con _wrapFit resta valida.
+    if (noteLines.length) {
+      doc.font('Helvetica-Oblique').fontSize(NFS).fillColor('#64748b');
+      noteLines.forEach((line, li) => {
+        doc.text(line, M + 11, y + cellsH - 1 + (li * NLH), { lineBreak: false });
+      });
+      doc.font('Helvetica');
+    }
     doc.moveTo(M, y + rowH).lineTo(M + TW, y + rowH).strokeColor('#e2e8f0').lineWidth(0.2).stroke();
     y += rowH;
   });
@@ -749,20 +771,6 @@ function _addCoverPage(doc, cover, lang = 'it') {
      .text(_rt(L, 'cover.footer'), M, 802, { width: W, align: 'center', lineBreak: false });
 }
 
-// Pagine Note: tabella Dispositivo | Nota (testo a capo).
-function _addNotesPages(doc, notes, projName, date, lang = 'it') {
-  if (!Array.isArray(notes) || !notes.length) return;
-  const L = _rlang(lang);
-  const T = _rt(L, 'title.notes');
-  doc.addPage({ size: [595, 842], margins: { top: 0, bottom: 0, left: 0, right: 0 } });
-  _rHdr(doc, T, projName, date);
-  const cols = [
-    { label: _rt(L, 'col.device'), w: 150 },
-    { label: _rt(L, 'col.note'), w: _RW - 150, wrap: true },
-  ];
-  _rTable(doc, cols, notes.map(n => [n.label, n.text]), _TOP, T, projName, date);
-}
-
 // Pagine Changelog: tabella Data/ora | Utente | Azione | Oggetto | Dettaglio.
 function _addChangelogPages(doc, changelog, projName, date, lang = 'it') {
   if (!Array.isArray(changelog) || !changelog.length) return;
@@ -1024,7 +1032,13 @@ function _addAssetRegisterPages(doc, assets, projName, date, lastRevised, lang =
   doc.addPage({ size: [595, 842], margins: { top: 0, bottom: 0, left: 0, right: 0 } });
   _rHdr(doc, T, projName, date);
   const rev = _fmtRevised(lastRevised, lang);
+  // La nota scritta a mano viaggia CON il suo apparato (riga a tutta larghezza sotto
+  // la riga del device), non in un capitolo a parte: chi legge il registro ha davanti
+  // insieme identita', posizione e la raccomandazione dell'operatore.
+  const notes = list.map(d => (d && d.notes != null ? String(d.notes).trim() : ''));
+  const withNotes = notes.filter(Boolean).length;
   const sub = `${list.length} ${_rt(L, 'sub.assets')}`
+    + (withNotes ? `  -  ${withNotes} ${_rt(L, 'assets.withNotes')}` : '')
     + (rev ? `  -  ${_rt(L, 'assets.lastRevised')}: ${rev}` : '');
   const y = _rSub(doc, sub, _TOP);
   if (!list.length) {
@@ -1051,7 +1065,7 @@ function _addAssetRegisterPages(doc, assets, projName, date, lastRevised, lang =
     (d.vlan != null ? String(d.vlan) : '-'),
     d.rack ? (String(d.rack.name || d.rack.id || '') + (d.rack.u != null ? ` U${d.rack.u}` : '')) : '-',
   ]);
-  _rTable(doc, cols, rows, y, T, projName, date);
+  _rTable(doc, cols, rows, y, T, projName, date, { notes, noteLabel: _rt(L, 'col.note') });
 }
 
 // Ripristinabilità (DR) — pagina/e per-device: DOVE vive il backup di ogni apparato
@@ -1297,4 +1311,4 @@ function _addOverviewPages(doc, overview, projName, date, lang = 'it') {
   }
 }
 
-module.exports = { _loadPdfDeps, _addReportPages, _addCoverPage, _addNotesPages, _addChangelogPages, _addSparePages, _addPduPages, _addAssetRegisterPages, _addRecoveryPages, _addOverviewPages, _assetDeviceLabel, _fmtRevised, _rt, _fit, _wrapFit };
+module.exports = { _loadPdfDeps, _addReportPages, _addCoverPage, _addChangelogPages, _addSparePages, _addPduPages, _addAssetRegisterPages, _addRecoveryPages, _addOverviewPages, _assetDeviceLabel, _fmtRevised, _rt, _fit, _wrapFit };
