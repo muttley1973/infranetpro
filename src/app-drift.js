@@ -286,13 +286,22 @@ async function runDriftCheck(opts = {}){
     // Verifica a possedere il bottone #btn-drift (scrive il progresso ma NON fa flash
     // né ripristino: lo fa runDriftCheck a fine controllo).
     store._driftRunning = true;
+    // ...ma solo la Verifica VISIBILE possiede il bottone. La programmata (silent) non
+    // lo tocca — e quindi non lo ripristina. Senza distinguere i due casi, pollAllSNMP
+    // vedeva _driftRunning, ci scriveva comunque il progresso e delegava il ripristino
+    // a una Verifica che il bottone non l'aveva nemmeno preso: risultato, lo spinner
+    // restava acceso per sempre (monitoraggio automatico a profondità 'full').
+    // Invariante ora esplicito: CHI SCRIVE SUL BOTTONE È CHI LO RIPRISTINA.
+    store._driftOwnsActivityBtn = !silent;
     const btn = silent ? null : document.getElementById('btn-drift');  // silent: non toccare il bottone
     // Salvataggio idempotente: se un flash di Sync standalone ha già messo qui
     // l'etichetta originale, NON sovrascriverla col testo del flash.
     if(btn){ btn.disabled = true; if(btn.dataset._lbl == null) btn.dataset._lbl = btn.innerHTML; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
     try {
         const docSnap = _driftBuildDocSnapshot();      // PRIMA del sync (i campi base verranno sovrascritti)
-        if(hasSnmp) await win.pollAllSNMP({ deferPresence:false }); // no ricalcolo presenza differito: la Verifica fa già il compute completo con sweep (evita doppio streak — DRIFT-A1)
+        // silent propagato: il poll di una Verifica programmata non deve scrivere NULLA
+        // sul bottone attività (secondo lucchetto sull'invariante qui sopra).
+        if(hasSnmp) await win.pollAllSNMP({ deferPresence:false, silent }); // no ricalcolo presenza differito: la Verifica fa già il compute completo con sweep (evita doppio streak — DRIFT-A1)
         const sweep = await _driftReachabilitySweep();  // presenza multi-segnale (ping/ARP/TCP) + tabella ARP
         _driftComputeFromDoc(docSnap, sweep || {});     // streaks + snapshot realtà + buildDriftReport
         _driftAutoRenewIps();                           // opt-in: rinnova IP dei MAC noti (DHCP)
@@ -321,6 +330,7 @@ async function runDriftCheck(opts = {}){
     } finally {
         _driftRunning = false;
         store._driftRunning = false;
+        store._driftOwnsActivityBtn = false;
         if(btn){ btn.disabled = false; if(btn.dataset._lbl){ btn.innerHTML = btn.dataset._lbl; delete btn.dataset._lbl; } }
     }
 }

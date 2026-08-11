@@ -4294,6 +4294,57 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.activeMacIncluded, 'un device attivo con MAC resta in doc.macs');
     });
 
+    await t.test('Verifica PROGRAMMATA (monitoraggio automatico): non lascia il bottone appeso allo spinner', async () => {
+      // REGRESSIONE — «attivando il monitoraggio automatico la Verifica resta in spinning».
+      // Il monitoraggio a profondità 'full' (il DEFAULT) esegue runDriftCheck({silent:true}),
+      // che per contratto NON tocca #btn-drift. Ma la Verifica chiama pollAllSNMP, e quello
+      // scriveva comunque il progresso sul bottone perché deduceva il possesso da
+      // store._driftRunning — vero anche per la Verifica programmata, che però il bottone
+      // non lo prende e quindi non lo ripristina: spinner acceso PER SEMPRE (e nemmeno una
+      // Verifica manuale successiva lo recuperava, perché si salvava lo spinner stesso come
+      // "etichetta originale"). Serve il percorso REALE: senza un nodo SNMP la Verifica esce
+      // subito e il bottone non verrebbe toccato comunque, quindi il test non proverebbe nulla.
+      // L'host è un TLD riservato (RFC 6761) → il poll fallisce subito, ma la scrittura sul
+      // bottone avviene PRIMA del risultato: è esattamente il punto che ci interessa.
+      const r = await page.evaluate(async () => {
+        const btn = document.getElementById('btn-drift');
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes.push({ id: 'snmpx', type: 'switch', name: 'SNMP-X', x: 5, y: 5, ports: 8,
+          integration: { driver: 'snmp-v2c', host: 'invalid.invalid', community: 'public' } });
+        const before = btn.innerHTML;
+        await window.runDriftCheck({ silent: true });
+        const afterSilent = btn.innerHTML;
+        // ...e la Verifica VISIBILE deve continuare a prendere e RIRILASCIARE il bottone.
+        const p = window.runDriftCheck();
+        const duringManual = { spin: /fa-spin/.test(btn.innerHTML), disabled: btn.disabled };
+        await p;
+        const out = {
+          silentUntouched: afterSilent === before,
+          silentNoStrayLbl: btn.dataset._lbl == null,
+          silentNoSpinner: !/fa-spin/.test(afterSilent),
+          manualSpins: duringManual.spin,
+          manualDisables: duringManual.disabled,
+          manualRestored: btn.innerHTML === before,
+          manualNoStrayLbl: btn.dataset._lbl == null,
+        };
+        // La Verifica VISIBILE atterra nella Panoramica (setOverview(true)): senza
+        // rientrare, tutti i test di vista che seguono (drag/pan rack, planimetria,
+        // onboarding, topologia) girerebbero sulla schermata sbagliata. Stessa
+        // disciplina del blocco Drift qui sopra, che chiude il suo overlay.
+        window._driftReport = null; delete state.lastVerify;
+        localStorage.removeItem('infranet.view');
+        if (typeof setOverview === 'function') setOverview(false);
+        return out;
+      });
+      assert.ok(r.silentNoSpinner, 'la Verifica programmata non lascia lo spinner acceso su #btn-drift');
+      assert.ok(r.silentUntouched, 'la Verifica programmata non tocca affatto l\'etichetta di #btn-drift');
+      assert.ok(r.silentNoStrayLbl, 'la Verifica programmata non lascia un dataset._lbl orfano sul bottone');
+      assert.ok(r.manualSpins, 'la Verifica manuale mostra ancora lo spinner sul bottone');
+      assert.ok(r.manualDisables, 'la Verifica manuale disabilita ancora il bottone mentre gira');
+      assert.ok(r.manualRestored, 'la Verifica manuale ripristina l\'etichetta originale a fine controllo');
+      assert.ok(r.manualNoStrayLbl, 'la Verifica manuale ripulisce dataset._lbl a fine controllo');
+    });
+
     await t.test('app-ports migrato: override porta + flusso LAG + stato cross-boundary su window', async () => {
       // Copertura della glue Ports (ex lib/app-ports.js) nel bundle ESM. Verifica
       // soprattutto i binding CROSS-BOUNDARY che solo il browser reale cattura:

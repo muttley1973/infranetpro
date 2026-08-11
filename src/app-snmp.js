@@ -346,8 +346,16 @@ async function pollAllSNMP(opts){
     // progresso (più informativo dello spinner nudo), niente flash/restore. Standalone
     // (Automazioni / Topologia force) invece salviamo l'etichetta, mostriamo il flash
     // del risultato e la ripristiniamo dopo 4s.
-    const actBtn=document.getElementById('btn-drift');
-    const ownsBtn=!store._driftRunning;
+    // opts.silent: poll di una Verifica PROGRAMMATA — il bottone non si tocca affatto,
+    // né progresso né flash. actBtn a null spegne in un colpo solo ogni scrittura qui
+    // sotto (sono tutte guardate da `if(actBtn ...)`, incluso setActLbl).
+    const actBtn=(opts && opts.silent) ? null : document.getElementById('btn-drift');
+    // Possediamo il bottone (salva etichetta → flash → ripristino) a meno che una
+    // Verifica VISIBILE non lo possieda già: in quel caso è lei a ripristinarlo.
+    // La guardia legge il flag di POSSESSO, non _driftRunning: una Verifica programmata
+    // è "running" ma NON possiede il bottone, e confondere i due lasciava lo spinner
+    // acceso per sempre (nessuno lo ripristinava).
+    const ownsBtn=!store._driftOwnsActivityBtn;
     if(actBtn && ownsBtn && actBtn.dataset._lbl==null) actBtn.dataset._lbl=actBtn.innerHTML;
     const setActLbl=(html)=>{ if(actBtn) actBtn.innerHTML=html; };
     // Il chip freschezza si nasconde durante il sync (gate _snmpSyncing in
@@ -486,9 +494,12 @@ async function pollAllSNMP(opts){
         const _lbl = actBtn.dataset._lbl;
         setTimeout(()=>{
             _syncFlashUntil = 0;
-            // Se nel frattempo è partita una Verifica, il bottone è suo: la ripristina
-            // lei (il suo salvataggio dataset._lbl è idempotente) — non interferiamo.
-            if(store._driftRunning) return;
+            // Se nel frattempo è partita una Verifica VISIBILE, il bottone è suo: la
+            // ripristina lei (il suo salvataggio dataset._lbl è idempotente) — non
+            // interferiamo. Una Verifica PROGRAMMATA invece non lo ripristina (non lo
+            // possiede): lì il ripristino resta nostro, altrimenti il flash resterebbe
+            // congelato sul bottone.
+            if(store._driftOwnsActivityBtn) return;
             actBtn.className='toolbar-btn primary';
             if(_lbl != null) actBtn.innerHTML = _lbl;
             delete actBtn.dataset._lbl;
