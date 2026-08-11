@@ -38,6 +38,13 @@ test('PDU outlet grid uses up to twelve columns', () => {
   assert.equal(pduManagementPortCount({ type: 'pdu', ports: 1, spec: { pduMgmtMode: 'ethernet' } }), 1);
   assert.equal(pduManagementPortCount({ type: 'pdu', ports: 1, spec: { pduMgmtMode: 'ethernet', pduEthernetPorts: 2 } }), 2);
   assert.equal(pduManagementPortCount({ type: 'pdu', ports: 1, frontPanel: { mgmtCount: 0 } }), 0);
+  // Regression: an imported PDU has no data ports (ports === 0). In ethernet mode
+  // the management count must still be at least 1, otherwise the cable-able mgmt
+  // port never renders. Before the fix, ports:0 collapsed the fallback to 0.
+  assert.equal(pduManagementPortCount({ type: 'pdu', ports: 0, spec: { pduMgmtMode: 'ethernet' } }), 1);
+  assert.equal(pduManagementPortCount({ type: 'pdu', ports: 0, ip: '10.0.0.50' }), 1); // mode via IP fallback
+  assert.equal(pduManagementPortCount({ type: 'pdu', ports: 0, spec: { pduMgmtMode: 'ethernet', pduEthernetPorts: 2 } }), 2);
+  assert.equal(pduManagementPortCount({ type: 'pdu', ports: 0, spec: { pduMgmtMode: 'none' } }), 0);
   assert.equal(normalizePduManagementMode('ethernet+serial'), 'ethernet-serial');
   assert.equal(pduManagementMode({ type: 'pdu', spec: { pduMgmtMode: 'serial' } }), 'serial');
   assert.equal(pduSerialPortCount({ type: 'pdu', spec: { pduMgmtMode: 'serial' } }), 1);
