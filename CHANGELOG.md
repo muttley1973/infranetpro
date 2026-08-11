@@ -41,6 +41,7 @@
 - **Cables shown in "trunk + access" get the same 2.5px emphasis as the exclusive states** (`mode-emph`, all three states): a cable no longer draws thinner in the full view than in the filtered one.
 - **A PDU outlet can be set to "inactive" by hand**: a manual outlet-status override is now authoritative and no longer re-classified by the fuzzy NetBox-status matcher — which matched the substring "active" inside "inactive" and silently flipped a hand-set inactive outlet back to active. Manual `active`/`inactive`/`fault` are honored verbatim; the matcher also recognizes "inactive" directly.
 - **A PDU in Ethernet management mode always shows its cable-able management port**: on an imported PDU with no data ports (`ports === 0`), the management-port count collapsed to zero — so the Ethernet/IP port never rendered and couldn't be cabled. In ethernet/ethernet-serial mode the count is now at least 1 regardless of the (unrelated) data-port count.
+- **PDU auxiliary ports (console/serial, sensor, USB, expansion) render as loose cells**: they were wrapped in a bordered box whose fixed five-column grid reserved a constant width even for a single port, squeezing the power-outlet grid next to it — so adding a serial port visibly resized the outlets. They now flow as small content-sized cells and take only the space they need.
 
 ### Security
 - **js-yaml updated to 4.3.1** in the development dependency tree, clearing the Dependabot high-severity quadratic-CPU advisory without changing runtime behavior.

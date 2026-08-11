@@ -661,41 +661,37 @@
 .pdu-management-ports.compact-1u .rack-mgmt-grid .rack-port-unit.mgmt-slot {
     gap:0;
 }
+        /* Auxiliary ports (console/serial, sensor, USB, expansion) render as LOOSE
+           cells — no bordered box, no fixed-column grid. `flex:0 0 auto` + natural
+           cell width means they take only the space they need and never resize the
+           power-outlet grid beside them. Wrap (capped width) keeps a long aux list
+           on two short rows instead of stealing horizontal space. */
         .rack-ports.pdu-auxiliary-ports {
-            flex:0 1 auto;
+            flex:0 0 auto;
             min-width:0;
-            max-width:78px;
-            margin:0 2px;
-            padding:1px 2px;
-            border:1px solid rgba(154,165,177,.25);
-            border-radius:2px;
-            background:rgba(0,0,0,.12);
-            box-sizing:border-box;
-            overflow:hidden;
-        }
-        .pdu-auxiliary-ports.compact-1u {
-            align-self:stretch;
-            align-items:center;
-        }
-        .pdu-aux-grid {
-            display:grid;
-            grid-template-columns:repeat(5, 12px);
-            grid-auto-rows:5px;
+            max-width:84px;
+            margin:0 3px;
             gap:1px;
+            flex-wrap:wrap;
             align-content:center;
             justify-content:center;
-            width:100%;
-            height:100%;
+        }
+        .pdu-auxiliary-ports.compact-1u {
+            align-self:center;
+            align-items:center;
         }
         .pdu-aux-port {
-            width:100%;
-            height:100%;
+            width:auto;
+            min-width:11px;
+            height:7px;
+            padding:0 1px;
             box-sizing:border-box;
             border:1px solid #59636f;
             border-radius:1px;
             background:#252b33;
             color:#c8d1dc;
             font:3px/1 monospace;
+            letter-spacing:-.2px;
             display:flex;
             align-items:center;
             justify-content:center;

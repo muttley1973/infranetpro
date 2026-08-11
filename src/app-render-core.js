@@ -99,7 +99,10 @@ function _pduAuxiliaryHtml(n){
     const cells = groups.flatMap(group => Array.from({length:group.count}, (_, index) =>
         `<div class="pdu-aux-port ${group.key}" data-pdu-aux="${group.key}:${index + 1}" data-pdu-label="${group.title} ${index + 1}" title="${group.title} ${index + 1}" aria-label="${group.title} ${index + 1}">${group.label}</div>`
     )).join('');
-    return `<div class="rack-ports pdu-auxiliary-ports compact-1u" aria-label="PDU auxiliary ports"><div class="pdu-aux-grid">${cells}</div></div>`;
+    // Loose auxiliary ports (no bordered box, no fixed column grid): they flow as
+    // small cells sized to their own content, so they take only the width they need
+    // and don't steal space from — or resize — the power-outlet grid next to them.
+    return `<div class="rack-ports pdu-auxiliary-ports compact-1u" aria-label="PDU auxiliary ports">${cells}</div>`;
 }
 
 // ============================================================
