@@ -542,7 +542,12 @@
         .rack-ports.rack-ports-sfp-layout.dense-xxl .rack-sfp-side {
             grid-auto-columns:6px;
             column-gap:1px;
-            row-gap:0;
+            /* Spread the two SFP rows to the copper row pitch so the SFP LEDs sit on
+               the same horizontal lines as the switch data ports. In dense-xxl the
+               copper cell is LED(6px)+number, pitch ~9px; the SFP cell is LED(4px)+
+               number, pitch ~7px — a 2px row-gap closes the 2px gap and centers the
+               SFP block vertically against the main port block (both LED rows aligned). */
+            row-gap:2px;
         }
         .rack-ports.rack-ports-sfp-layout.dense-xxl .rack-port-unit.sfp-slot {
             width:6px;
