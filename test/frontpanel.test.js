@@ -3,7 +3,7 @@
 // layout legacy), filtraggio MGMT su tipi non eligibili, label trim/default.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { frontPanelState, frontPanelLegacyState, frontPanelPortLabel, frontPanelSfpGroups } = require('../lib/frontpanel.js');
+const { frontPanelState, frontPanelLegacyState, frontPanelPortLabel, frontPanelSfpGroups, frontPanelSharedSlots } = require('../lib/frontpanel.js');
 
 // ============================================================================
 // frontPanelState — stato canonico
@@ -498,6 +498,15 @@ test('frontPanelSfpGroups: solo sfp1 -> 1 gruppo', () => {
     const groups = frontPanelSfpGroups({ type: 'switch', frontPanel: { separateSfp: true, sfpCount: 4 } }, 28, true);
     assert.equal(groups.length, 1);
     assert.deepEqual(groups[0].ports, [25, 26, 27, 28]);
+});
+
+test('frontPanelSharedSlots: media condivisi occupano una sola posizione', () => {
+    const node = { type: 'router', frontPanel: {
+        sharedMediaSlots: [{ start: 10, count: 1, media: ['copper', 'fiber'] }],
+    } };
+    const state = frontPanelState(node, 10, true);
+    assert.deepEqual(state.sharedMediaSlots, [{ slot: 10, media: ['copper', 'fiber'] }]);
+    assert.deepEqual(frontPanelSharedSlots(node, 10), [10]);
 });
 
 test('frontPanelSfpGroups: sfp1 + sfp2 -> 2 gruppi distinti', () => {

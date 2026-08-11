@@ -209,7 +209,7 @@ function _buildModel() {
         }
 
         // Porte libere: solo infrastruttura (un PC non e' capacita' disponibile).
-        if (_isLeafEndpoint(n.type) || !pc) continue;
+        if (_isLeafEndpoint(n.type, n) || !pc) continue;
         const sfp = new Set();
         for (const g of _frontPanelSfpGroups(n, pc)) for (const p of (g.ports || [])) sfp.add(p);
         const responded = n.snmpStatus === 'ok';

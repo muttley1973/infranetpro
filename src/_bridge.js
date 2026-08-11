@@ -11,6 +11,7 @@
 // l'unica esposizione su window resterà quella richiesta dagli handler inline.
 // ============================================================
 export const win = (typeof window !== 'undefined') ? window : globalThis;
+export const projectFormat = win;
 
 /** Pubblica su window l'API pubblica di un modulo convertito (bridge legacy). */
 export function expose(api) { Object.assign(win, api); }

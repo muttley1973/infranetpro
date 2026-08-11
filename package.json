@@ -1,6 +1,6 @@
 {
   "name": "infranetpro",
-  "version": "2.7.3",
+  "version": "2.8.0",
   "description": "InfraNet Pro — network infrastructure diagramming tool",
   "license": "AGPL-3.0-or-later",
   "author": "muttley1973",
@@ -17,6 +17,7 @@
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p tsconfig.json",
     "update-oui": "node scripts/update-oui-db.js",
+    "update-device-types": "node scripts/update-device-types.js",
     "update-pen": "node scripts/update-pen-db.js"
   },
   "dependencies": {

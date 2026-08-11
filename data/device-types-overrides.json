@@ -1,0 +1,18 @@
+{
+  "cisco-isr-1111-8p": {
+    "frontPanel": {
+      "separateSfp": false,
+      "sfpCount": 0,
+      "sharedMediaSlots": [
+        {
+          "start": 10,
+          "count": 1,
+          "media": ["copper", "fiber"]
+        }
+      ]
+    },
+    "counts": {
+      "combo": 1
+    }
+  }
+}

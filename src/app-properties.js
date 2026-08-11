@@ -21,7 +21,7 @@ import { _isLeafEndpoint, _autoLinkEndpointUI } from './app-autolink.js';   // r
 import { _mgmtRow } from './app-management.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { _updateFloorToolbarVisibility } from './app-search-zoom-rack.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { _renderNodeProps } from './app-properties-node.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
-import { _renderPortProps } from './app-properties-port.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
+import { _renderPortProps, _renderPduOutletProps } from './app-properties-port.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { _renderLinkProps } from './app-properties-link.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { _renderFloorProps } from './app-properties-floor.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { _renderVmProps } from './app-properties-vm.js';   // 5o scope: scheda macchina virtuale (selType==='vm')
@@ -299,7 +299,7 @@ export function _buildNetAccessHtml(n, d, opts){
     const _showAutoLink = showMac
         && !_isStackMember
         && typeof _isLeafEndpoint === 'function'
-        && _isLeafEndpoint(n.type);
+        && _isLeafEndpoint(n.type, n);
     const _autoLinkBtn = _showAutoLink
         ? `<div class="prop-group" style="margin-top:8px"><button class="toolbar-btn" style="width:100%" data-act="autolink-endpoint" data-tip="${t('autolink.tip')}"><i class="fas fa-wand-magic-sparkles"></i> ${t('autolink.btn')}</button></div>`
         : '';
@@ -413,6 +413,7 @@ export function renderProps(){
     // move VERBATIM qui sotto; usano solo panel + globali (selId/selType/state/TYPES).
     if(selType==='node'&&selId){ _renderNodeProps(panel); }
     else if(selType==='port'&&selId){ _renderPortProps(panel); }
+    else if(selType==='pdu-outlet'&&selId){ _renderPduOutletProps(panel); }
     else if(selType==='link'&&selId){ _renderLinkProps(panel); }
     // 5o scope: la scheda di una VM (host in selId, VM in selVmId). Il renderer
     // ripiega da solo se la selezione e' stantia (host o VM cancellati).

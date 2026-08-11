@@ -84,6 +84,23 @@ test('list di un progetto senza storico ritorna [] (nessun file, nessun crash)',
   assert.deepEqual(store.listTimeline(999), []);
 });
 
+test('removeProject elimina timeline, snapshot e indice del progetto', () => {
+  const { store, baseDir } = freshStore();
+  store.appendTimeline(998, entry('2999-01-01 10:00:00'));
+  store.putSnapshot(998, { at: '2999-01-01 10:01:00', by: 'me' }, { nodes: [] });
+  assert.equal(fs.existsSync(path.join(baseDir, '998')), true);
+  assert.equal(store.removeProject(998), true);
+  assert.equal(fs.existsSync(path.join(baseDir, '998')), false);
+  assert.equal(store.listTimeline(998).length, 0);
+  assert.deepEqual(store.listSnapshots(998), []);
+});
+
+test('removeProjectHistory rifiuta base vuota e identificativi non numerici', () => {
+  const { removeProjectHistory } = require('../server/history-store-fs.js');
+  assert.equal(removeProjectHistory('', 1), false);
+  assert.equal(removeProjectHistory(path.join(os.tmpdir(), 'history-test'), '../1'), false);
+});
+
 test('una riga corrotta nel JSONL viene saltata, non rompe la lettura', () => {
   const { store, baseDir } = freshStore();
   const dir = path.join(baseDir, '5');

@@ -27,6 +27,71 @@ if (RUN) {
 // Una route 404 attesa: il browser chiede /favicon.ico (nessuna favicon servita).
 const isBenign404 = (u) => /\/favicon\.ico(\?|$)/.test(u);
 
+const DCIM_E2E_DATA = {
+  '/api/dcim/sites/': [{ id: 40, name: 'HQ', device_count: 2 }, { id: 41, name: 'Branch', device_count: 0 }],
+  '/api/dcim/racks/': [{ id: 30, name: 'Rack A', u_height: 42, site: { id: 40, name: 'HQ' }, device_count: 1 }],
+  '/api/dcim/device-roles/': [{ id: 20, name: 'E2E Unknown', slug: 'e2e-unknown', device_count: 2 }],
+  '/api/extras/tags/': [{ id: 1, name: 'Production', slug: 'production', tagged_items: 2 }, { id: 2, name: 'Managed', slug: 'managed', tagged_items: 2 }],
+  '/api/dcim/devices/': [
+    { id: 100, name: 'E2E-RACK-SW', site: { id: 40, name: 'HQ' }, device_type: { id: 10 }, role: { id: 20 }, rack: { id: 30 }, position: 40, serial: 'E2E-RACK-100', primary_ip4: { address: '10.40.0.2/24' } },
+    { id: 101, name: 'E2E-FLOOR-AP', site: { id: 40, name: 'HQ' }, location: { name: 'Ufficio 1' }, device_type: { id: 11 }, role: { id: 20 }, rack: null, primary_ip4: { address: '10.40.0.3/24' } },
+  ],
+  '/api/dcim/device-types/': [
+    { id: 10, manufacturer: { id: 1, name: 'E2E Vendor', slug: 'e2e-vendor' }, model: 'E2E-Rack-Unknown', slug: 'e2e-rack-unknown', u_height: 1 },
+    { id: 11, manufacturer: { id: 1, name: 'E2E Vendor', slug: 'e2e-vendor' }, model: 'E2E-Floor-Unknown', slug: 'e2e-floor-unknown', u_height: 1 },
+  ],
+  '/api/dcim/interfaces/': [
+    { id: 1000, device: { id: 100 }, name: 'Gi1/0/1', mac_address: '00:40:00:00:00:01', mode: { value: 'access' }, untagged_vlan: { vid: 10 } },
+    { id: 1001, device: { id: 100 }, name: 'Gi1/0/2', mode: { value: 'tagged' }, tagged_vlans: [{ vid: 10 }, { vid: 20 }] },
+    { id: 1100, device: { id: 101 }, name: 'eth0', mac_address: '00:40:00:00:00:02' },
+  ],
+  '/api/dcim/front-ports/': [],
+  // Endpoint ausiliari che l'import interroga per il modello PDU/console (i device
+  // di test non ne hanno): un NetBox reale li espone e risponde []. Senza queste
+  // voci il mock 404-erebbe e l'import fallirebbe (502) prima della riconciliazione.
+  '/api/dcim/power-outlets/': [],
+  '/api/dcim/power-ports/': [],
+  '/api/dcim/console-ports/': [],
+  '/api/dcim/cables/': [
+    { id: 500, a_terminations: [{ object_type: 'dcim.interface', object_id: 1001 }], b_terminations: [{ object_type: 'dcim.interface', object_id: 1100 }], type: { value: 'cat6' }, length: 3, length_unit: { value: 'm' } },
+  ],
+  '/api/ipam/vlans/': [{ id: 60, vid: 10, name: 'Management' }],
+  '/api/ipam/prefixes/': [{ id: 70, prefix: '10.40.0.0/24', vlan: { vid: 10 } }],
+  '/api/ipam/ip-addresses/': [
+    { id: 80, address: '10.40.0.2/24', assigned_object: { id: 1000, device: { id: 100 } } },
+    { id: 81, address: '10.40.0.3/24', assigned_object: { id: 1100, device: { id: 101 } } },
+  ],
+};
+
+async function startMockNetBox() {
+  const authHeaders = [];
+  const requestUrls = [];
+  const server = http.createServer((req, res) => {
+    const url = new URL(req.url, 'http://127.0.0.1');
+    authHeaders.push(req.headers.authorization || '');
+    requestUrls.push(req.url);
+    res.setHeader('Content-Type', 'application/json');
+    if (req.headers.authorization !== 'Bearer nbt_key.secret') {
+      res.statusCode = 401;
+      return res.end(JSON.stringify({ detail: 'NetBox v2 Bearer token required' }));
+    }
+    if (url.pathname === '/api/status/') return res.end(JSON.stringify({ 'netbox-version': '4.2.0-e2e' }));
+    const results = DCIM_E2E_DATA[url.pathname];
+    if (!results) {
+      res.statusCode = 404;
+      return res.end(JSON.stringify({ detail: 'Not found' }));
+    }
+    res.end(JSON.stringify({ count: results.length, next: null, results }));
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  return {
+    baseURL: `http://127.0.0.1:${server.address().port}`,
+    authHeaders,
+    requestUrls,
+    async close() { await new Promise(resolve => server.close(resolve)); },
+  };
+}
+
 const CABLE_RENDER_FIXTURE = {
   racks: [{ id: 'rk-acc', name: 'CED · Rack Accesso', sizeU: 24, x: 1576, y: 2742 }],
   currentRack: 'rk-acc',
@@ -105,6 +170,163 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(info.fnsOk, 'funzioni di ingresso chiave definite nel browser reale');
       assert.ok(info.nodes >= 5, 'stato di default caricato (nodi)');
       assert.ok(info.dataPid > 10, 'render reale: porte [data-pid] presenti nel DOM');
+    });
+
+    await t.test('DCIM import: riconciliazione manuale, progetto nuovo e JSON persistito', async () => {
+      const mock = await startMockNetBox();
+      const dcimPage = await browser.newPage({ viewport: { width: 1500, height: 950 } });
+      const dcimPageErrors = [];
+      const dcimConsoleErrors = [];
+      dcimPage.on('pageerror', error => dcimPageErrors.push(String(error)));
+      dcimPage.on('console', message => { if (message.type() === 'error') dcimConsoleErrors.push(message.text()); });
+      try {
+        await dcimPage.goto(srv.baseURL, { waitUntil: 'load' });
+        await dcimPage.waitForFunction(() => typeof renderAll === 'function' && Array.isArray(state.nodes), null, { timeout: 15000 });
+
+        const setup = await dcimPage.evaluate(async (url) => {
+          const put = await fetch('/api/integrations/dcim/config', {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url, token: 'nbt_key.secret', verifyTls: false }),
+          });
+          const putBody = await put.json();
+          const probe = await fetch('/api/integrations/dcim/test', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+          });
+          return { putStatus: put.status, putBody, probeStatus: probe.status, probe: await probe.json() };
+        }, mock.baseURL);
+        assert.equal(setup.putStatus, 200, 'la configurazione DCIM viene salvata');
+        assert.equal('token' in setup.putBody, false, 'la risposta di configurazione non espone il token');
+        assert.equal(setup.probeStatus, 200, 'la prova connessione risponde');
+        assert.equal(setup.probe.ok, true, 'il mock NetBox viene raggiunto');
+        assert.equal(setup.probe.version, '4.2.0-e2e');
+
+        await dcimPage.click('#btn-impexp');
+        await dcimPage.click('[data-act="dcim-open"]');
+        await dcimPage.waitForSelector('#dcim-overlay.open', { timeout: 5000 });
+        await dcimPage.waitForSelector('button[data-act="dcim-scope-custom"]', { timeout: 10000 });
+        const scopeQuick = await dcimPage.evaluate(() => ({
+          all: !!document.querySelector('button[data-act="dcim-scope-all"]'),
+          custom: !!document.querySelector('button[data-act="dcim-scope-custom"]'),
+          nextEnabled: document.querySelector('button[data-act="dcim-wiz-next"]')?.disabled === false,
+        }));
+        assert.equal(scopeQuick.all, true, 'la scelta rapida Importa tutto è visibile');
+        assert.equal(scopeQuick.custom, true, 'la personalizzazione è separata dalla scelta rapida');
+        assert.equal(scopeQuick.nextEnabled, true, 'l’importazione completa è pronta senza selezioni manuali');
+        await dcimPage.click('button[data-act="dcim-scope-custom"]');
+        await dcimPage.waitForSelector('input[data-change="dcim-scope"][data-id="40"]', { timeout: 10000 });
+        assert.equal(await dcimPage.locator('button[data-act="dcim-wiz-next"]').isDisabled(), true, 'la personalizzazione richiede almeno un ambito');
+        await dcimPage.fill('input[data-input="dcim-scope-search"]', 'HQ');
+        assert.equal(await dcimPage.locator('[data-scope-option]:not([hidden])').count(), 1, 'la ricerca riduce la lista degli ambiti');
+        await dcimPage.fill('input[data-input="dcim-scope-search"]', '');
+        await dcimPage.waitForFunction((url) => document.getElementById('dcim-url')?.value === url, mock.baseURL, { timeout: 5000 });
+        await dcimPage.click('#dcim-test-btn');
+        await dcimPage.waitForFunction(() => /v2/i.test(document.getElementById('dcim-status')?.textContent || ''), null, { timeout: 10000 });
+        assert.equal(await dcimPage.inputValue('#dcim-url'), mock.baseURL, "la UI mostra l'istanza configurata");
+
+        await dcimPage.check('input[data-change="dcim-scope"][data-kind="site"][data-id="40"]');
+        await dcimPage.click('button[data-act="dcim-scope-kind"][data-kind="role"]');
+        await dcimPage.click('button[data-act="dcim-scope-select-all"]');
+        await dcimPage.click('button[data-act="dcim-scope-kind"][data-kind="tag"]');
+        await dcimPage.click('button[data-act="dcim-scope-select-all"]');
+        const scopeSummary = await dcimPage.locator('.dcim-scope-summary').textContent();
+        assert.match(scopeSummary, /tutti i ruoli/);
+        assert.match(scopeSummary, /tutti i tag/);
+        await dcimPage.click('button[data-act="dcim-wiz-next"]');
+        await dcimPage.waitForSelector('input[data-change="dcim-ent"][data-key="devices"]', { timeout: 5000 });
+        await dcimPage.click('button[data-act="dcim-wiz-next"]');
+        await dcimPage.waitForSelector('.dcim-reconcile-panel', { timeout: 15000 });
+
+        const deviceRequests = mock.requestUrls.filter(url => /\/api\/dcim\/devices\//.test(url));
+        const previewDeviceRequest = deviceRequests[deviceRequests.length - 1] || '';
+        assert.match(previewDeviceRequest, /site_id=40/, 'la preview mantiene il filtro sito scelto');
+        assert.doesNotMatch(previewDeviceRequest, /(?:^|[?&])role=/, 'la selezione completa dei ruoli non restringe l’importazione');
+        assert.doesNotMatch(previewDeviceRequest, /(?:^|[?&])tag=/, 'la selezione completa dei tag non restringe l’importazione');
+
+        const initialReview = await dcimPage.evaluate(() => ({
+          groups: document.querySelectorAll('.dcim-reconcile-row').length,
+          devices: [...document.querySelectorAll('.dcim-reconcile-chip')].map(el => el.textContent.trim()).join(' | '),
+          kpis: document.querySelectorAll('.dcim-preview-kpi').length,
+          attention: !!document.querySelector('.dcim-preview-attention'),
+          warningCards: document.querySelectorAll('.dcim-preview-alert').length,
+          commitDisabled: document.querySelector('button[data-act="dcim-commit"]')?.disabled === true,
+        }));
+        assert.equal(initialReview.groups, 2, 'la UI raggruppa i due modelli da riconciliare');
+        assert.match(initialReview.devices, /2/);
+        assert.equal(initialReview.kpis, 4, 'la preview espone quattro KPI principali');
+        assert.equal(initialReview.attention, true, 'la riconciliazione è presentata come attenzione primaria');
+        assert.ok(initialReview.warningCards <= 3, 'gli avvisi tecnici non vengono duplicati in badge ripetuti');
+        assert.equal(initialReview.commitDisabled, true, 'la creazione resta bloccata finché la riconciliazione non è risolta');
+
+        await dcimPage.click('button[data-act="dcim-reconcile-focus"]');
+        assert.equal(await dcimPage.evaluate(() => document.activeElement?.classList.contains('dcim-reconcile-panel')), true, 'Risolvi casi porta il focus alla riconciliazione');
+
+        await dcimPage.selectOption('select[data-change="dcim-map-type"][data-group="0"]', 'switch');
+        await dcimPage.selectOption('select[data-change="dcim-map-placement"][data-group="0"]', 'rack');
+        await dcimPage.selectOption('select[data-change="dcim-map-type"][data-group="1"]', 'ap');
+        await dcimPage.selectOption('select[data-change="dcim-map-placement"][data-group="1"]', 'floor');
+        await dcimPage.click('button[data-act="dcim-reconcile-preview"]');
+        await dcimPage.waitForSelector('button[data-act="dcim-commit"]:not([disabled])', { timeout: 15000 });
+
+        const resolvedReview = await dcimPage.evaluate(() => ({
+          panelGone: !document.querySelector('.dcim-reconcile-panel'),
+          commitDisabled: document.querySelector('button[data-act="dcim-commit"]')?.disabled === true,
+        }));
+        assert.equal(resolvedReview.panelGone, true, 'la sezione di riconciliazione scompare quando tutti i casi sono risolti');
+        assert.equal(resolvedReview.commitDisabled, false, 'la creazione viene abilitata dopo il ricalcolo');
+
+        await dcimPage.fill('#dcim-name', 'E2E DCIM Import');
+        await dcimPage.click('button[data-act="dcim-commit"]');
+        await dcimPage.waitForSelector('button[data-act="dcim-open-created"]', { timeout: 15000 });
+
+        const resultText = await dcimPage.evaluate(() => [...document.querySelectorAll('.dcim-result-count')].map(el => el.textContent.replace(/\s+/g, ' ').trim()).join(' | '));
+        assert.match(resultText, /2/);
+        assert.match(resultText, /3/);
+        assert.match(resultText, /1/);
+
+        const saved = await dcimPage.evaluate(async () => {
+          const list = await (await fetch('/api/projects')).json();
+          const meta = list.find(item => item.name === 'E2E DCIM Import');
+          if (!meta) return null;
+          return await (await fetch('/api/projects/' + meta.id)).json();
+        });
+        assert.ok(saved, 'il progetto importato compare nella lista progetti');
+        assert.equal(saved.name, 'E2E DCIM Import');
+        assert.equal(saved.state.nodes.length, 2);
+        assert.equal(saved.state.ports && Object.keys(saved.state.ports).length, 3);
+        assert.equal(saved.state.links.length, 1);
+        assert.equal(saved.state.racks.length, 1);
+        assert.equal(saved.state.vlanNames['10'], 'Management');
+        assert.equal(saved.state.ipam.addresses.length, 2);
+        const rackNode = saved.state.nodes.find(node => node.id === 'nb-dev-100');
+        const floorNode = saved.state.nodes.find(node => node.id === 'nb-dev-101');
+        assert.equal(rackNode.type, 'switch');
+        assert.equal(rackNode.placement, 'rack');
+        assert.equal(rackNode.source.manualMapping.type, 'switch');
+        assert.equal(floorNode.type, 'ap');
+        assert.equal(floorNode.placement, 'floor');
+        assert.equal(floorNode.source.manualMapping.placement, 'floor');
+
+        await dcimPage.click('button[data-act="dcim-open-created"]');
+        await dcimPage.waitForFunction(() => document.title.includes('E2E DCIM Import') && state.nodes.length === 2 && state.links.length === 1, null, { timeout: 10000 });
+        const loaded = await dcimPage.evaluate(() => ({
+          nodes: state.nodes.map(node => [node.name, node.type, node.placement]),
+          links: state.links.length,
+          ports: Object.keys(state.ports || {}).length,
+          rack: state.racks[0]?.name,
+          vlan: state.vlanNames?.[10],
+        }));
+        assert.deepEqual(loaded.nodes.map(node => node[1]), ['switch', 'ap']);
+        assert.equal(loaded.links, 1);
+        assert.equal(loaded.ports, 3);
+        assert.equal(loaded.rack, 'Rack A');
+        assert.equal(loaded.vlan, 'Management');
+        assert.ok(mock.authHeaders.length > 0 && mock.authHeaders.every(value => value === 'Bearer nbt_key.secret'), 'ogni chiamata verso NetBox usa il token v2 Bearer');
+        assert.deepEqual(dcimPageErrors, [], 'nessun errore JS nel flusso DCIM: ' + dcimPageErrors.join(' | '));
+        assert.deepEqual(dcimConsoleErrors.filter(message => !/Failed to load resource/.test(message)), [], 'nessun errore console nel flusso DCIM');
+      } finally {
+        await dcimPage.close();
+        await mock.close();
+      }
     });
 
     await t.test('header: i badge di stato non mandano la barra a due righe (fitter)', async () => {
@@ -2322,15 +2544,28 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           // isRackPort discrimina rack vs floor
           const swIsRack = isRackPort('sw-1'), pcIsRack = isRackPort('pc-1');
 
-          // shouldRenderLink: porta selezionata → cavo visibile; deselezionato → nascosto
+          // shouldRenderLink: porta selezionata → cavo visibile; deselezionato → nascosto.
+          // In vista MAPPA esplicita (un test precedente può lasciare _viewMode='topology',
+          // dove la pillola 'all' rende comunque tutto visibile: qui vogliamo il declutter puro).
+          _viewMode = 'map'; _topoTrunkMode = 'all';
           selType = 'port'; selId = 'sw-1'; highPath.clear();
           const lnkVisible = shouldRenderLink(state.links[0]);
           selType = null; selId = null; highPath.clear();
           const lnkHidden = shouldRenderLink(state.links[0]);
 
+          // shouldRenderLink in topologia: lo stato «TRUNK+ACCESS» (all) mostra TUTTI
+          // i cavi anche senza selezione. Prima mancava il ramo 'all' → li nascondeva
+          // tutti, e un rack importato senza trunk sembrava "senza cavi" finche' non
+          // si passava a «solo access». I due stati esclusivi restano il filtro fine.
+          _viewMode = 'topology'; _topoTrunkMode = 'all';
+          const lnkTopoAll = shouldRenderLink(state.links[0]);   // sw↔pc access, non selezionato
+          _topoTrunkMode = 'trunk';
+          const lnkTopoTrunkOnly = shouldRenderLink(state.links[0]); // access → nascosto in «solo trunk»
+          _viewMode = 'map'; _topoTrunkMode = 'all';            // ripristina per i test successivi
+
           renderScope('floor'); // render mirato senza crash (coalescing rAF)
 
-          return { ok: true, fns, floorItems, rackDevs, isPath, isRackPath, swIsRack, pcIsRack, lnkVisible, lnkHidden };
+          return { ok: true, fns, floorItems, rackDevs, isPath, isRackPath, swIsRack, pcIsRack, lnkVisible, lnkHidden, lnkTopoAll, lnkTopoTrunkOnly };
         } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
       });
       assert.ok(r.ok, 'nessun errore nel flusso render-core: ' + r.err);
@@ -2343,6 +2578,8 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(!r.pcIsRack, 'isRackPort: pc-1 NON è porta di rack');
       assert.ok(r.lnkVisible, 'shouldRenderLink: cavo visibile con la porta selezionata');
       assert.ok(!r.lnkHidden, 'shouldRenderLink: cavo nascosto senza selezione (declutter)');
+      assert.ok(r.lnkTopoAll, 'shouldRenderLink: in topologia «trunk+access» il cavo è visibile senza selezione');
+      assert.ok(!r.lnkTopoTrunkOnly, 'shouldRenderLink: in topologia «solo trunk» un cavo access resta nascosto');
     });
 
     await t.test('app-popup migrato: showPop + _getLinkVlan/_linkMatchesVlanFilter + _applyViewMode + stato topo su window', async () => {

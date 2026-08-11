@@ -251,6 +251,52 @@
             box-shadow:0 4px 12px rgba(0,0,0,.5); }
         #lag-sel-banner.show { display:flex; }
         #lag-sel-banner strong { color:var(--accent); }
+        .pdu-outlet-connection { display:grid; gap:5px; padding:7px 8px; border:1px solid var(--panel-border); border-radius:var(--radius-sm); background:var(--surface-2); }
+        .pdu-outlet-connection > div { display:flex; align-items:baseline; gap:8px; min-width:0; }
+        .pdu-outlet-connection span { flex:0 0 132px; color:var(--text-muted); font-size:var(--fs-sm); }
+        .pdu-outlet-connection strong { min-width:0; color:var(--text-main); font-size:var(--fs-md); overflow-wrap:anywhere; }
+        .pdu-connections-section { margin-top:10px; padding-top:8px; }
+        .pdu-connection-hint { display:flex; gap:7px; align-items:flex-start; margin:0 0 8px; padding:6px 8px; border:1px solid color-mix(in srgb, var(--accent) 28%, var(--panel-border)); border-radius:var(--radius-sm); background:color-mix(in srgb, var(--accent) 6%, transparent); color:var(--text-muted); font-size:var(--fs-sm); line-height:1.35; }
+        .pdu-connection-hint i { flex:0 0 auto; color:var(--accent); margin-top:2px; }
+        .pdu-connection-list { display:grid; gap:6px; max-height:360px; overflow:auto; padding:1px 2px 2px 0; }
+        .pdu-connection-row { display:grid; gap:6px; padding:7px 8px; border:1px solid var(--panel-border); border-radius:var(--radius-sm); background:var(--surface-2); }
+        .pdu-connection-head { display:flex; align-items:center; gap:6px; min-width:0; }
+        .pdu-connection-outlet { display:flex; align-items:center; gap:6px; min-width:0; color:var(--text-main); font-weight:700; font-size:var(--fs-md); }
+        .pdu-connection-outlet i { color:var(--accent); font-size:var(--fs-sm); }
+        .pdu-connection-status, .pdu-connection-source { flex:0 0 auto; padding:2px 5px; border:1px solid var(--panel-border); border-radius:var(--radius-xl); color:var(--text-muted); font-size:var(--fs-xs); line-height:1.1; }
+        .pdu-connection-status.active { color:var(--active-color); border-color:color-mix(in srgb, var(--active-color) 45%, var(--panel-border)); }
+        .pdu-connection-status.fault { color:var(--fault-color); border-color:color-mix(in srgb, var(--fault-color) 45%, var(--panel-border)); }
+        .pdu-connection-status.idle { color:var(--idle-color); border-color:color-mix(in srgb, var(--idle-color) 45%, var(--panel-border)); }
+        .pdu-connection-status.inactive, .pdu-connection-status.unknown { color:var(--text-muted); }
+        .pdu-connection-source { margin-left:auto; }
+        .pdu-connection-source.netbox { color:var(--text-muted); }
+        .pdu-connection-source.manual { color:var(--idle-color); border-color:color-mix(in srgb, var(--idle-color) 50%, var(--panel-border)); }
+        .pdu-connection-source.empty { opacity:.65; }
+        .pdu-connection-reset { flex:0 0 auto; padding:2px 5px; border:1px solid var(--panel-border); border-radius:var(--radius-sm); background:transparent; color:var(--text-muted); cursor:pointer; }
+        .pdu-connection-reset:hover { color:var(--accent); border-color:var(--accent); }
+        .pdu-connection-fields { display:grid; grid-template-columns:1fr 1fr; gap:6px; min-width:0; }
+        .pdu-connection-field { display:grid; gap:3px; min-width:0; color:var(--text-main); font-size:var(--fs-md); }
+        .pdu-connection-field > span { display:block; color:var(--text-main); font-size:var(--fs-md); }
+        /* Le righe aggregate devono usare gli stessi controlli della presa singola. */
+        .pdu-connection-field input, .pdu-connection-field select {
+            width:100%; min-width:0; box-sizing:border-box; background:var(--bg-color);
+            border:1px solid var(--panel-border); color:var(--text-main); padding:5px 7px;
+            border-radius:var(--radius-sm); font-family:inherit; font-size:var(--fs-lg);
+        }
+        .pdu-connection-field input:focus, .pdu-connection-field select:focus { outline:none; border-color:var(--accent); }
+        .pdu-connection-field input.ovr, .pdu-connection-field select.ovr { border-color:var(--idle-color) !important; box-shadow:0 0 0 1px color-mix(in srgb, var(--idle-color) 18%, transparent); }
+        .pdu-connection-device-select { color:var(--text-main); }
+        .pdu-outlet-connection-section { margin-top:8px; }
+        .pdu-outlet-connection-fields { display:flex; margin-top:2px; }
+        .pdu-outlet-connection-field { margin-bottom:0; }
+        .pdu-outlet-connection-footer { display:flex; align-items:center; gap:6px; margin-top:8px; color:var(--text-muted); font-size:var(--fs-xs); }
+        .pdu-outlet-status-editor { display:flex; align-items:center; gap:5px; min-width:0; }
+        .pdu-outlet-status-editor select { flex:1; min-width:0; }
+        .pdu-outlet-status-editor select.ovr { border-color:var(--idle-color) !important; box-shadow:0 0 0 1px color-mix(in srgb, var(--idle-color) 18%, transparent); }
+        .pdu-outlet-status-reset { flex:0 0 auto; padding:5px 7px; border:1px solid var(--panel-border); border-radius:var(--radius-sm); background:transparent; color:var(--text-muted); cursor:pointer; }
+        .pdu-outlet-status-reset:hover { color:var(--accent); border-color:var(--accent); }
+        .pdu-outlet-status-meta { margin-top:3px; color:var(--text-muted); font-size:var(--fs-xs); }
+        @media (max-width:480px) { .pdu-connection-fields { grid-template-columns:1fr; } .pdu-outlet-connection-fields { display:grid; grid-template-columns:1fr; } }
         #lag-sel-banner .lag-confirm { background:var(--accent); border:none; border-radius:3px;
             color:var(--bg-color); font-size:var(--fs-sm); padding:2px 10px; cursor:pointer; font-weight:600; }
         #lag-sel-banner .lag-cancel  { background:transparent; border:1px solid #555;
@@ -276,4 +322,4 @@
         .lag-group-del { background:none; border:1px solid #444; color:#666; border-radius:3px;
             padding:1px 6px; font-size:var(--fs-xs); cursor:pointer; flex-shrink:0; }
         .lag-group-del:hover { border-color:var(--fault-color); color:var(--fault-color); }
-
+

@@ -31,7 +31,10 @@ const PDF_EXPORT_DEFAULTS = {
 };
 
 function exportJSON() {
-    const blob = new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+    const payload = typeof createPortableProjectExport === 'function'
+        ? createPortableProjectExport(state, { projectId: typeof currentProjectId !== 'undefined' ? currentProjectId : '' })
+        : { format:'infranet-project-export', schemaVersion: Number(state?.schemaVersion) || 1, exportedAt:new Date().toISOString(), state };
+    const blob = new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = 'infranet-backup.json';

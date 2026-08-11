@@ -107,9 +107,12 @@ data/dcim-config.json*
 # -------------------------------------------------------
 # Catalogo device-types — snapshot canonico generato (non versionare)
 # -------------------------------------------------------
-# device-types-canonical.json (~33 MB) è l'output del generatore catalogo
-# (branch DCIM `scripts/update-device-types.js`): NON letto a runtime, rigenerabile.
-# Ignorato ovunque per non versionare mai il blob.
+# device-types-canonical.json è l'output "full-fidelity" del generatore
+# (scripts/update-device-types.js → `npm run update-device-types`): ~33 MB, NON
+# letto a runtime (solo statSync della dimensione, con fallback a 0) e rigenerabile
+# dal NetBox devicetype-library (ref/sha pinnati nel manifest). Restano versionati
+# il runtime data/device-types.json, il manifest, il diff e i piccoli file di
+# controllo (aliases/overrides/exclusions).
 data/device-types-canonical.json
 
 # -------------------------------------------------------

@@ -54,6 +54,19 @@ function _openFloorNodeProps(id){
     renderProps();
 }
 
+function _openPduOutletProps(selection){
+    store.dragNode = null;
+    store.selType = 'pdu-outlet';
+    store.selId = selection;
+    store._propsExplicit = true;
+    switchRightTab('props');
+    renderAll();
+    renderProps();
+}
+
+let _pduOutletDblSelection = null;
+let _pduOutletDblTime = 0;
+
 // ── Import VM: trascina un tile sulla drop-zone del pannello host ─────
 // Il bersaglio NON è un tile sul floor ma una "zona di rilascio" nel pannello
 // Proprietà dell'host (sezione Macchine virtuali) → vale per host su floor E in
@@ -187,7 +200,7 @@ function handleDrop(e,zone){
         pushHistory(); store.state.nodes.push(n);
         // Endpoint trascinato: tenta l'auto-link (di norma vuoto → nessun link finché
         // non si compila il MAC; scatta poi da updateN). Innocuo se la cache è vuota.
-        if(_isLeafEndpoint(t)) _autoLinkEndpoint(n.id);
+        if(_isLeafEndpoint(t, n)) _autoLinkEndpoint(n.id);
     } else if(zone==='rack'&&d.isRack){
         if(!store.state.currentRack||!store.state.racks.length) return; // nessun rack presente
         const ch=document.getElementById('rack-chassis');
@@ -216,7 +229,7 @@ function handleDrop(e,zone){
         pushHistory(); store.state.nodes.push(n);
         // UPS/PDU managed sono endpoint foglia: tenta l'auto-link (vuoto al drop,
         // scatta quando si compila il MAC). Innocuo se la cache FDB è vuota.
-        if(_isLeafEndpoint(t)) _autoLinkEndpoint(n.id);
+        if(_isLeafEndpoint(t, n)) _autoLinkEndpoint(n.id);
     }
     // Evidenzia e inquadra il nodo appena inserito, così non sembra "sparito"
     // (specie se finisce in una zona del floor fuori dalla vista corrente).
@@ -314,10 +327,29 @@ function handlePointerDown(e){
     closePop(); store.highPath.clear(); store._physicalTraceActive=false;
 
     const port=e.target.closest('[data-pid]');
+    const pduOutlet=e.target.closest('[data-pdu-outlet]');
     const rackFloorEl=e.target.closest('.floor-rack');
     const floorEl=!rackFloorEl&&(e.target.closest('.floor-node')||e.target.closest('.floor-room'));
     const rackEl=e.target.closest('.rack-device');
     const resize=e.target.closest('.resize-handle');
+
+    if(pduOutlet){
+        // Le prese power sono endpoint di alimentazione, non porte di rete:
+        // nessun cablaggio, LAG o selezione cavo deve intercettarle.
+        if(!LMB) return;
+        e.stopPropagation(); e.preventDefault();
+        const selection=pduOutlet.dataset.pduSelection;
+        const now=Date.now();
+        if(selection && _pduOutletDblSelection===selection && (now-_pduOutletDblTime)<350){
+            _pduOutletDblSelection=null; _pduOutletDblTime=0;
+            _openPduOutletProps(selection);
+        } else {
+            _pduOutletDblSelection=selection || null; _pduOutletDblTime=now;
+            if(selection) _openPduOutletProps(selection);
+            else renderAll();
+        }
+        return;
+    }
 
     if(port){
         e.stopPropagation(); e.preventDefault();
@@ -832,6 +864,13 @@ function handleDoubleClick(e){
     //    al rack corretto, apri il pannello rack (tab Rack), evidenzia trace.
     //  - Porta di device RACK → apri il pannello Proprieta porta (scorciatoia
     //    per evitare il popup e arrivare direttamente all'editor).
+    const pduOutlet = e.target.closest('[data-pdu-outlet]');
+    if(pduOutlet){
+        e.stopPropagation(); e.preventDefault();
+        closePop();
+        _openPduOutletProps(pduOutlet.dataset.pduSelection);
+        return;
+    }
     const port = e.target.closest('[data-pid]');
     if(port){
         e.stopPropagation();

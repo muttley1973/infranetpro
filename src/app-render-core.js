@@ -13,9 +13,10 @@ import { nodeById, getNodeByPortId, getPortNodeId, renderCables, _linksForPort, 
 import { propagateVlans, _linkIsTrunk, _effPortVlan } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderTopoOverlay, _renderTopoLegend } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
-import { TYPES, typeShort, _frontPanelPortLabel, _fixedRackLabel, _frontPanelState, _frontPanelRows, _frontPanelIsUplink, _frontPanelSfpPorts, _frontPanelSfpGroups } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { TYPES, typeShort, _frontPanelPortLabel, _fixedRackLabel, _frontPanelState, _frontPanelRows, _frontPanelIsUplink, _frontPanelSfpPorts, _frontPanelSfpGroups, _frontPanelSharedSlots } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { nodeLabelParts } from '../lib/node-label.js';   // lib pura importata ESM (come lib/ipv6.js): NON un globale su window
 import { radioPid } from '../lib/radio.js';   // pid porta radio (ESM, no win.*): filtro VLAN wireless in _nodeDim
+import { normalizePduOutletCount, outletStatusText, pduOutletStatusState, pduOutletConnection, pduOutletGrid, pduOutletCellSize, pduManagementPortCount, pduSerialPortCount, pduAuxiliaryPortCount } from '../lib/pdu-layout.js';
 import { switchRack, toggleRackPanel, applyUiColors, _updateRackFloorBtn } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { portTip, _portLagGid, _isLagFocusedPort, _updateLagBanner } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _l3GatewayNodeIds } from './app-l3.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
@@ -36,6 +37,69 @@ export function rackUPx(){
         const v = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--ru-h'), 10);
         return v > 0 ? v : 24;
     } catch(_){ return 24; }
+}
+
+function _pduPowerOutlets(n){
+    const spec = n && n.spec && typeof n.spec === 'object' ? n.spec : {};
+    const source = Array.isArray(n.powerOutlets) ? n.powerOutlets
+        : (Array.isArray(spec.powerOutlets) ? spec.powerOutlets
+            : (Array.isArray(n.pduOutlets) ? n.pduOutlets : (Array.isArray(spec.pduOutlets) ? spec.pduOutlets : [])));
+    const configuredCount = n.pduOutletCount ?? spec.pduOutletCount;
+    const count = normalizePduOutletCount(configuredCount ?? (source.length || 8));
+    const items = Array.from({length:count}, (_, index) => source[index] || {});
+    return { count, items };
+}
+
+function _pduPowerGridHtml(n, sizeU=1){
+    const { count, items } = _pduPowerOutlets(n);
+    const grid = pduOutletGrid(count);
+    const cell = pduOutletCellSize(count, sizeU);
+    const cells = items.map((outlet, index) => {
+        const label = String(outlet.label || outlet.name || outlet.display || `P${index + 1}`);
+        const number = String(index + 1);
+        const rawStatus = outlet.rawStatus || outletStatusText(outlet);
+        const status = pduOutletStatusState(outlet);
+        const connection = pduOutletConnection(outlet);
+        const targetText = [connection.deviceName, connection.portName].filter(Boolean).join(' · ')
+            || outlet.powerPort || outlet.power_port || '';
+        const title = [`PDU ${label}`, rawStatus || status, targetText].filter(Boolean).join(' · ');
+        const key = outlet.id || outlet.name || index + 1;
+        const selection = `${n.id}::${key}`;
+        const selected = store.selType === 'pdu-outlet' && store.selId === selection ? ' selected' : '';
+        return `<div class="pdu-power-outlet ${status}${selected}" data-pdu-outlet="${escapeHTML(`${n.id}:${key}`)}" data-pdu-selection="${escapeHTML(selection)}" data-pdu-node="${escapeHTML(n.id)}" data-pdu-key="${escapeHTML(String(key))}" data-pdu-label="${escapeHTML(label)}" data-pdu-number="${escapeHTML(number)}" title="${escapeHTML(title)}" aria-label="${escapeHTML(title)}"></div>`;
+    }).join('');
+    return `<div class="rack-ports pdu-power-ports" aria-label="PDU power outlets"><div class="pdu-power-grid" style="--pdu-cols:${grid.columns};--pdu-rows:${grid.rows};--pdu-cell-w:${cell.width}px;--pdu-cell-h:${cell.height}px;--pdu-font:${cell.fontSize}px">${cells}</div></div>`;
+}
+
+function _pduManagementHtml(n){
+    const count = pduManagementPortCount(n);
+    if(count <= 0) return '';
+    const base = (n.frontPanel && typeof n.frontPanel.mgmtLabel === 'string' && n.frontPanel.mgmtLabel.trim())
+        ? n.frontPanel.mgmtLabel.trim() : 'MGMT';
+    let cells = '';
+    for(let i=1;i<=count;i++){
+        const pid=`${n.id}-${i}`;
+        const pi=store.state.ports[pid]||{};
+        const st=normalizeStatus(pi.statusOvr??pi.status);
+        const label=count===1 ? base : `${base}${i}`;
+        const tip=portTip(pid) || label;
+        cells += `<div class="rack-port-unit mgmt-slot"><div class="port-led mgmt-slot ${st}" data-pid="${pid}" title="${escapeHTML(tip)}"></div><span class="port-num mgmt-num" title="${escapeHTML(label)}">${i}</span></div>`;
+    }
+    return `<div class="rack-ports rack-ports-sfp-layout pdu-management-ports mgmt-only compact-1u"><div class="rack-mgmt-side"><div class="rack-mgmt-grid">${cells}</div><span class="rack-mgmt-title" title="${escapeHTML(base)}">${escapeHTML(base)}</span></div></div>`;
+}
+
+function _pduAuxiliaryHtml(n){
+    const groups = [
+        { key:'serial', label:'CON', title:'Console / serial', count:pduSerialPortCount(n) },
+        { key:'sensor', label:'SNS', title:'Sensor', count:pduAuxiliaryPortCount(n, 'pduSensorPorts', 2) },
+        { key:'usb', label:'USB', title:'USB', count:pduAuxiliaryPortCount(n, 'pduUsbPorts', 3) },
+        { key:'expansion', label:'AUX', title:'Expansion / feature', count:pduAuxiliaryPortCount(n, 'pduExpansionPorts', 2) },
+    ].filter(group => group.count > 0);
+    if(!groups.length) return '';
+    const cells = groups.flatMap(group => Array.from({length:group.count}, (_, index) =>
+        `<div class="pdu-aux-port ${group.key}" data-pdu-aux="${group.key}:${index + 1}" data-pdu-label="${group.title} ${index + 1}" title="${group.title} ${index + 1}" aria-label="${group.title} ${index + 1}">${group.label}</div>`
+    )).join('');
+    return `<div class="rack-ports pdu-auxiliary-ports compact-1u" aria-label="PDU auxiliary ports"><div class="pdu-aux-grid">${cells}</div></div>`;
 }
 
 // ============================================================
@@ -298,8 +362,11 @@ function _renderAllNow(){
             if(rackBg) el.style.background = rackBg;
             const pc=n.ports!==undefined?n.ports:def.ports;
             let pts='';
-            if(pc>0){
+            if(n.type==='pdu'){
+                pts=_pduPowerGridHtml(n,sU)+_pduManagementHtml(n)+_pduAuxiliaryHtml(n);
+            } else if(pc>0){
                 const _fpState=_frontPanelState(n, pc);
+                const sharedMediaSlots=new Set(_frontPanelSharedSlots(n, pc));
                 // Gap unico per numeriche e logiche: stessa distribuzione delle porte
                 // in tutti i casi (le etichette logiche piu' lunghe vengono troncate
                 // via CSS senza modificare lo spazio fra le porte).
@@ -307,7 +374,6 @@ function _renderAllNow(){
                 // Densita': switch con >16 porte per riga (es. 48 porte = 24/riga)
                 // usano classe dense-xl per font/spaziatura adattati.
                 const perRow = Math.max(...(_frontPanelRows(n, pc).map(r=>r.length))) || pc;
-                const densityCls = perRow > 16 ? ' dense-xl' : '';
                 const mkPort=(i)=>{
                     const pid=`${n.id}-${i}`;
                     const pi=store.state.ports[pid]||{};
@@ -319,14 +385,16 @@ function _renderAllNow(){
                     const lagFocCls=_isLagFocusedPort(pid)?' lag-focus':'';
                     const lagDataAttr=lagGid?` data-lag="${escapeHTML(lagGid)}"`:'';
                     const isUplink=_frontPanelIsUplink(n, i, pc);
+                    const isSharedMedia=sharedMediaSlots.has(i);
                     const uplinkCls=isUplink?' uplink sfp-slot':'';
+                    const sharedMediaCls=isSharedMedia?' shared-media-slot':'';
                     const ledCls=isUplink?' port-led sfp-slot':'port-led';
                     const label=_frontPanelPortLabel(n, i, pc);
                     // title HTML nativo browser: appare sempre, anche dentro container
                     // con overflow:hidden (a differenza del tooltip CSS [data-tip]).
                     const portTipText = portTip(pid);
                     const numHtml=`<span class="port-num" title="${escapeHTML(label)}">${escapeHTML(label)}</span>`;
-                    return `<div class="rack-port-unit${uplinkCls}"><div class="${ledCls} ${st}${lagSelCls}${lagMemCls}${lagFocCls}" data-pid="${pid}"${lagDataAttr} title="${escapeHTML(portTipText)}"></div>${numHtml}</div>`;
+                    return `<div class="rack-port-unit${uplinkCls}${sharedMediaCls}"><div class="${ledCls} ${st}${lagSelCls}${lagMemCls}${lagFocCls}${sharedMediaCls}" data-pid="${pid}"${lagDataAttr} title="${escapeHTML(portTipText)}"></div>${numHtml}</div>`;
                 };
                 // MGMT slot dedicato (1..4 celle, bordo ciano stile cavo console
                 // Cisco). Pid `${n.id}-mgmt${i}`. Etichetta base editabile (default
@@ -356,6 +424,13 @@ function _renderAllNow(){
                 };
                 const rows=_frontPanelRows(n, pc);
                 const sideRows=_frontPanelSfpPorts(n, pc);
+                const sfpPortCount = sideRows.length;
+                const ultraDense = sfpPortCount > 0 && (
+                    perRow >= 20 ||
+                    sfpPortCount >= 8 ||
+                    perRow + sfpPortCount >= 28
+                );
+                const densityCls = `${perRow > 16 ? ' dense-xl' : ''}${ultraDense ? ' dense-xxl' : ''}`;
                 if(sideRows.length || _fpState.mgmtPort){
                     const compactCls=sU===1?' compact-1u':'';
                     const maxRow=Math.max(...rows.map(r=>r.length)) || pc;
@@ -726,6 +801,12 @@ function shouldRenderLink(l){
     // solo in una direzione si legge come un bug.
     if(store._viewMode === 'topology'){
         const _tm = store._topoTrunkMode || 'all';
+        // «trunk + access» (stato di default della pillola): mostra TUTTI i cavi.
+        // L'etichetta promette entrambi, e l'overlay del pavimento in 'all' disegna
+        // gia' ogni coppia — lasciarlo come "solo su selezione" li nascondeva tutti
+        // (un rack importato senza trunk sembrava senza cavi finche' non si passava
+        // a «solo access»). I due stati esclusivi restano il filtro fine.
+        if(_tm === 'all') return true;
         if(_tm === 'trunk'  &&  _linkIsTrunk(l)) return true;
         if(_tm === 'access' && !_linkIsTrunk(l)) return true;
     }

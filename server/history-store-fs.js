@@ -20,6 +20,18 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 
+function removeProjectHistory(baseDir, projectId) {
+  const rawBaseDir = String(baseDir == null ? '' : baseDir).trim();
+  if (!rawBaseDir) return false;
+  const root = path.resolve(rawBaseDir);
+  const id = String(projectId == null ? '' : projectId);
+  if (!/^\d+$/.test(id) || root === path.parse(root).root) return false;
+  const target = path.resolve(root, id);
+  if (target === root || !target.startsWith(root + path.sep)) return false;
+  fs.rmSync(target, { recursive: true, force: true });
+  return true;
+}
+
 // Retention TIMELINE: generosa (righe minuscole). Cap numero + età.
 const TIMELINE_CAP = 2000;                               // ~2000 Verifiche
 const TIMELINE_MAX_AGE_MS = 365 * 24 * 3600 * 1000;      // 1 anno
@@ -46,7 +58,9 @@ function createFsHistoryStore(opts = {}) {
   // Scrittura atomica: tmp + rename (vale per stringhe e Buffer/gzip).
   function _atomicWrite(file, data) {
     const tmp = file + '.tmp';
-    fs.writeFileSync(tmp, data);
+    const fd = fs.openSync(tmp, 'w');
+    try { fs.writeSync(fd, data); fs.fsyncSync(fd); }
+    finally { fs.closeSync(fd); }
     fs.renameSync(tmp, file);
   }
   // Legge un JSONL tollerando righe corrotte (le salta).
@@ -162,7 +176,10 @@ function createFsHistoryStore(opts = {}) {
       const now = Number.isFinite(o.now) ? o.now : Date.now();
       return _applySnapPrune(projectId, _readLines(_snapIndex(projectId)), now).length;
     },
+    removeProject(projectId) {
+      return removeProjectHistory(baseDir, projectId);
+    },
   };
 }
 
-module.exports = { createFsHistoryStore };
+module.exports = { createFsHistoryStore, removeProjectHistory };

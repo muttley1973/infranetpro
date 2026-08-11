@@ -8,10 +8,12 @@ const path = require('path');
 const auth = require('../../auth');
 const { timestamp } = require('../../utils');
 const { PROJECTS_DIR, nextId, saveProject, loadProject, listProjects, removeBgAsset } = require('../projects-store');
+const { removeProjectHistory } = require('../history-store-fs');
 const { runProjectDeleteHooks } = require('../module-registry');
 const { stripRefCreds } = require('../../lib/backup-ref.js');
 
 const router = express.Router();
+const HISTORY_DIR = path.join(PROJECTS_DIR, 'history');
 
 // SEC-M1 (audit 2026-07-21): il progetto grezzo contiene i segreti SNMP
 // (community v1/v2c + passphrase v3) in node.integration. Un lettore NON-admin
@@ -112,6 +114,8 @@ router.delete('/api/projects/:id', auth.requireAdmin, (req, res) => {
   fs.unlinkSync(file);
   try { fs.unlinkSync(file + '.bak'); } catch (_) { /* best-effort */ }
   removeBgAsset(id);                               // rimuovi l'asset bgImage (niente orfani)
+  try { removeProjectHistory(HISTORY_DIR, id); }
+  catch (e) { console.error(`[projects] impossibile rimuovere lo storico ${id}: ${e.message}`); }
   runProjectDeleteHooks(id);                       // hook moduli: ogni modulo pulisce i propri sidecar
   res.json({ ok: true, deleted_id: id });
 });

@@ -1,0 +1,4440 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-10T13:35:06.250Z",
+  "sourceRef": "5efffb4a613402a37a7daf616f081e56147662c0",
+  "sourceSha256": "4871f7b08a81ee34d3fc9954dc2415eceee965eb49775bb7072aea044ac6e437",
+  "added": [
+    "apc-smart-ups-srt-3000va-rm",
+    "apc-srtl3krm1uinc"
+  ],
+  "removed": [],
+  "metadataChanged": [],
+  "templateChanged": [],
+  "excludedRuntime": [],
+  "counts": {
+    "added": 2,
+    "removed": 0,
+    "metadataChanged": 0,
+    "templateChanged": 0,
+    "excludedRuntime": 0,
+    "changed": 0
+  },
+  "dropped": [
+    {
+      "slug": "adva-f7-48csm-1hu-19600-19130",
+      "model": "F7/48CSM/1HU-19600-19130",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "allnet-all2288",
+      "model": "ALL2288",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "alpha-cordex-cxc",
+      "model": "Cordex CXC",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "alpha-cordex-cxcm1-hp",
+      "model": "Cordex CXCM1 HP",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "apc-acf202blk",
+      "model": "ACF202BLK",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "apc-smx120bp",
+      "model": "SMX120BP",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "apc-smx48rmbp2u",
+      "model": "SMX48RMBP2U",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "apple-appletv31",
+      "model": "AppleTV3,1",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "apple-appletv32",
+      "model": "AppleTV3,2",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "apple-appletv53",
+      "model": "AppleTV5,3",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "apple-appletv62",
+      "model": "AppleTV6,2",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "apple-appletv111",
+      "model": "AppleTV11,1",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "apple-rack-macpro71",
+      "model": "MacPro7,1 Rack Mount",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "apple-mac-studio-2025-m4-max",
+      "model": "Mac Studio 2025 M4 Max",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "apple-mac-mini-2024-m4",
+      "model": "Mac Mini 2024 M4",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "apple-mac-mini-2011",
+      "model": "Mac mini (2011)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "apple-mac-mini-2018",
+      "model": "Mac mini (2018)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "apple-mac-mini-2023",
+      "model": "Mac mini (2023)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "apple-mac-mini-m1-2020",
+      "model": "Mac mini (M1 2020)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "arista-dcs-7508",
+      "model": "DCS-7508",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "avm-fritzrepeater-1200",
+      "model": "FRITZ!Repeater 1200",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "avm-fritzrepeater-1200ax",
+      "model": "FRITZ!Repeater 1200ax",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "avm-fritzrepeater-1750e",
+      "model": "FRITZ!Repeater 1750E",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "avm-fritzwlan-repeater-dvb-c",
+      "model": "FRITZ!WLAN Repeater DVB-C",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "avocent-dsriq-ps2",
+      "model": "DSRIQ-PS2",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "avocent-dsriq-srl",
+      "model": "DSRIQ-SRL",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "avocent-dsriq-usb",
+      "model": "DSRIQ-USB",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "avocent-dsriq-vsn",
+      "model": "DSRIQ-VSN",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "avocent-mpuiq-srl",
+      "model": "MPUIQ-SRL",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "avocent-mpuiq-vmchs",
+      "model": "MPUIQ-VMCHS",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "axis-p1468-le",
+      "model": "P1468-LE",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "axis-q1971-le-7mm",
+      "model": "Q1971-LE (7mm)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "axis-q6315-le",
+      "model": "Q6315-LE",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "barracuda-message-archiver-350",
+      "model": "Message Archiver 350",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "bastion-skat-bc-48-18s3-rack",
+      "model": "SKAT-BC-48-18S3-RACK",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "bastion-skat-bc-72-18s3-rack",
+      "model": "SKAT-BC-72-18S3-RACK",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "belden-rv6ppf1u24bk",
+      "model": "RV6PPF1U24BK",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "belden-rv6ppf2u48bk",
+      "model": "RV6PPF2U48BK",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "blackmagicdesign-atem-constellation-8k",
+      "model": "ATEM Constellation 8K",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "cabeus-pl-24-cat-5e-dual-idc",
+      "model": "PL-24-Cat-5e-Dual-IDC",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "canon-imagerunner-advance-525i-iii",
+      "model": "imageRunner ADVANCE 525i III",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "canon-imagerunner-advance-dx-527i",
+      "model": "imageRunner ADVANCE DX 527i",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "canon-imagerunner-advance-c3520",
+      "model": "imageRUNNER ADVANCE C3520",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "canon-imagerunner-advance-c3530-iii",
+      "model": "imageRUNNER ADVANCE C3530 III",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "canon-imagerunner-advance-c3530",
+      "model": "imageRUNNER ADVANCE C3530",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "canon-imagerunner-advance-dx-c3720",
+      "model": "imageRunner ADVANCE DX C3720",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "certa-c450r-bb1",
+      "model": "C450R-BB1",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "certa-c450r-bb2",
+      "model": "C450R-BB2",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "certa-ebm-240-7ah",
+      "model": "EBM-240-7AH",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "certa-ebm-240-9ah",
+      "model": "EBM-240-9AH",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "check-point-cpac-1500-3600-3800-rm-dual",
+      "model": "CPAC-1500/3600/3800-RM-DUAL",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ciena-fla1-10-a8-ac",
+      "model": "FLA1-10-A8-AC",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ciena-fla1-10-b8-ac",
+      "model": "FLA1-10-B8-AC",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ciena-fla2-10-e8-ac",
+      "model": "FLA2-10-E8-AC",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ciena-fla2-48-m-ac",
+      "model": "FLA2-48-M-AC",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "cisco-ata-186",
+      "model": "ATA-186",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "cisco-c9800-l-rmnt",
+      "model": "Catalyst 9800-L Wireless Controller Rack Mount Tray",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "cisco-catalyst-digital-building-5-slot-rack-mount",
+      "model": "Catalyst Digital Building 5-slot Rack Mount",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "cisco-7206vxr",
+      "model": "7206VXR",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "cisco-dn1-hw-apl",
+      "model": "DN1-HW-APL",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "cisco-dn2-hw-apl",
+      "model": "DN2-HW-APL",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "cisco-fpr1k-dt-rack-mnt",
+      "model": "FPR1K-DT-RACK-MNT",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "cisco-isr2651xm",
+      "model": "ISR2651XM",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "cisco-ucs-5108-chassis",
+      "model": "UCS 5108 Chassis",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "cisco-assurance-gt-sky-gt-aa",
+      "model": "Assurance Sensor GT",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "cisco-spa112-v05",
+      "model": "SPA112-V05",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "cisco-ucs-x210c-m6",
+      "model": "UCS-X210c-M6",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "cisco-ucs-x210c-m7",
+      "model": "UCS-X210c-M7",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "cisco-ucsb-b200-m3",
+      "model": "UCSB-B200-M3",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "cisco-ucsb-b200-m4",
+      "model": "UCSB-B200-M4",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "cisco-ucsb-b200-m5",
+      "model": "UCSB-B200-M5",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "cisco-ucsb-b200-m6",
+      "model": "UCSB-B200-M6",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "cisco-ws-svc-asa-sm1-k9",
+      "model": "ASA Services Module",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "colable-col5141s",
+      "model": "COL5141S",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "commscope-360-e-mod-1u-24",
+      "model": "360-E-MOD-1U-24",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "commscope-360-imv-cntrlr",
+      "model": "360-imV-CNTRLR",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "commscope-360-ip-1100-e-gs6-1u-24",
+      "model": "360-iP-1100-E-GS6-1U-24",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "commscope-360-ipr-1100-e-gs6-1u-24",
+      "model": "360-IPR-1100-E-GS6-1U-24",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "commscope-cpp-sddm-sl-1u-24",
+      "model": "CPP-SDDM-SL-1U-24",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "commscope-cpp-uddm-m-1u-24",
+      "model": "CPP-UDDM-M-1U-24",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "commscope-cppa-uddm-m-2u-48",
+      "model": "CPPA-UDDM-M-2U-48",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "commscope-fms-k2bi-l1a1-48-sp",
+      "model": "FMS-K2BI-L1A1-48-SP",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "commscope-htk-19-ss-1u",
+      "model": "HTK-19-SS-1U",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "commscope-htk-19-ss-2u",
+      "model": "HTK-19-SS-2U",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "commscope-mfps-khd-p-sil1-048",
+      "model": "MFPS-KHD-P-SIL1-048",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "commscope-mfps-khd-p-sil2-048",
+      "model": "MFPS-KHD-P-SIL2-048",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "connectcom-ccm-patchpanel-1he-slite-hd-right",
+      "model": "CCM Patchpanel 1HE SLITE HD Right",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "corning-maxcsv-02408-c001",
+      "model": "MAXCSV-02408-C001",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "corvil-cmc-5",
+      "model": "CMC-5",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "cxr-fop-4fxo-mm2-sc",
+      "model": "Modem Fibre Optique 4 voies FXO/SC - FOP-4FXO-MM2-SC",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "d-link-dap-1360",
+      "model": "DAP-1360",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "d-link-dis-m100g-sw",
+      "model": "DIS-M100G-SW",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "datadirect-networks-sfa200nvx2-enclosure",
+      "model": "SFA200NVX2 Enclosure",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "datwyler-patch-panel-ks-24x-black",
+      "model": "Patch Panel KS 24x Black",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "datwyler-patch-panel-ks-24x-light-grey",
+      "model": "Patch Panel KS 24x Light Grey",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "datwyler-patch-panel-ku-24x-black",
+      "model": "Patch Panel KU 24x Black",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "datwyler-patch-panel-ku-24x-light-grey",
+      "model": "Patch Panel KU 24x Light Grey",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "datwyler-patch-panel-mgk-24x-light-grey",
+      "model": "Patch Panel MGK 24x Light Grey",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "datwyler-patch-panel-mgk-24x-silver",
+      "model": "Patch Panel MGK 24x Silver",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-dkmmled185-207",
+      "model": "DKMMLED185-207",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-optiplex-3070-micro",
+      "model": "OptiPlex 3070 Micro",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-optiplex-sff-7010",
+      "model": "OptiPlex SFF 7010",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-optiplex-sff-7050",
+      "model": "OptiPlex SFF 7050",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-1950",
+      "model": "PowerEdge 1950",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-c6400",
+      "model": "PowerEdge C6400",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-c6420",
+      "model": "PowerEdge C6420",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-c6500",
+      "model": "PowerEdge C6500",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-c6525",
+      "model": "PowerEdge C6525",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-fc430",
+      "model": "PowerEdge FC430",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-fc630",
+      "model": "PowerEdge FC630",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-fc640",
+      "model": "PowerEdge FC640",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-fx2",
+      "model": "PowerEdge FX2",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-m1000e",
+      "model": "PowerEdge M1000e",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-m620",
+      "model": "PowerEdge M620",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-m630",
+      "model": "PowerEdge M630",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-m640",
+      "model": "PowerEdge M640",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-mx7000",
+      "model": "PowerEdge MX7000",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r200",
+      "model": "PowerEdge R200",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r210-ii",
+      "model": "PowerEdge R210 II",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r220",
+      "model": "PowerEdge R220",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r230",
+      "model": "PowerEdge R230",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r250",
+      "model": "PowerEdge R250",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r310",
+      "model": "PowerEdge R310",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r320",
+      "model": "PowerEdge R320",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r330",
+      "model": "PowerEdge R330",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r340",
+      "model": "PowerEdge R340",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r350",
+      "model": "PowerEdge R350",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r360",
+      "model": "PowerEdge R360",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r410",
+      "model": "PowerEdge R410",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r415",
+      "model": "PowerEdge R415",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r420",
+      "model": "PowerEdge R420",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r430",
+      "model": "PowerEdge R430",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r440",
+      "model": "PowerEdge R440",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r450",
+      "model": "PowerEdge R450",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r510",
+      "model": "PowerEdge R510",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r520",
+      "model": "PowerEdge R520",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r530",
+      "model": "PowerEdge R530",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r540",
+      "model": "PowerEdge R540",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r550",
+      "model": "PowerEdge R550",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r610",
+      "model": "PowerEdge R610",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r620",
+      "model": "PowerEdge R620",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r620xl",
+      "model": "PowerEdge R620XL",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r630",
+      "model": "PowerEdge R630",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r640",
+      "model": "PowerEdge R640",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r650",
+      "model": "PowerEdge R650",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r650xs",
+      "model": "PowerEdge R650xs",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r6515",
+      "model": "PowerEdge R6515",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r6525",
+      "model": "PowerEdge R6525",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r660",
+      "model": "PowerEdge R660",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r660xs",
+      "model": "PowerEdge R660xs",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r6615",
+      "model": "PowerEdge R6615",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r6625",
+      "model": "PowerEdge R6625",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r670",
+      "model": "PowerEdge R670",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r6715",
+      "model": "PowerEdge R6715",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r6725",
+      "model": "PowerEdge R6725",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r710",
+      "model": "PowerEdge R710",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r715",
+      "model": "PowerEdge R715",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r720",
+      "model": "PowerEdge R720",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r720xd",
+      "model": "PowerEdge R720xd",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r730",
+      "model": "PowerEdge R730",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r730xd",
+      "model": "PowerEdge R730xd",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r740",
+      "model": "PowerEdge R740",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r740xd",
+      "model": "PowerEdge R740xd",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r740xd2",
+      "model": "PowerEdge R740xd2",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r7425",
+      "model": "PowerEdge R7425",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r750",
+      "model": "PowerEdge R750",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r750xs",
+      "model": "PowerEdge R750xs",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r7515",
+      "model": "PowerEdge R7515",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r7525",
+      "model": "PowerEdge R7525",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r760",
+      "model": "PowerEdge R760",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r760xd2",
+      "model": "PowerEdge R760xd2",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r760xs",
+      "model": "PowerEdge R760xs",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r7615",
+      "model": "PowerEdge R7615",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r7625",
+      "model": "PowerEdge R7625",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r770",
+      "model": "PowerEdge R770",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r7715",
+      "model": "PowerEdge R7715",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r7725",
+      "model": "PowerEdge R7725",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r815",
+      "model": "PowerEdge R815",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r820",
+      "model": "PowerEdge R820",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-r840",
+      "model": "PowerEdge R840",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-t110",
+      "model": "PowerEdge T110",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-t310",
+      "model": "PowerEdge T310",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-t320",
+      "model": "PowerEdge T320",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-t330",
+      "model": "PowerEdge T330",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-t340",
+      "model": "PowerEdge T340",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-t350",
+      "model": "PowerEdge T350",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-t420",
+      "model": "PowerEdge T420",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-t430",
+      "model": "PowerEdge T430",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-t440",
+      "model": "PowerEdge T440",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-t630",
+      "model": "PowerEdge T630",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-t640",
+      "model": "PowerEdge T640",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-vrtx",
+      "model": "PowerEdge VRTX",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-poweredge-xr7620",
+      "model": "PowerEdge XR7620",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-powerscale-h700-chassis",
+      "model": "Powerscale H700 Chassis",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "dell-unity-xt-880f",
+      "model": "Unity XT 880F",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "eaton-9pxebm180",
+      "model": "9PXEBM180",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "eaton-9pxebm72rt2u",
+      "model": "9PXEBM72RT2U",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "eaton-tripp-lite-b051-000",
+      "model": "Tripp Lite B051-000",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "eaton-tripp-lite-n054-024",
+      "model": "Tripp Lite N054-024",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "efb-elektronik-691651ats8",
+      "model": "691651ATS8",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "eltex-wep-2l",
+      "model": "WEP-2L",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "eltex-wep-30l",
+      "model": "WEP-30L",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "eltex-wlc-hw-50",
+      "model": "WLC-HW-50",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ericsson-gru0401",
+      "model": "GRU0401",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "exegate-epp3-10-12-8p8c-c6-110d",
+      "model": "EPP3-10-12-8P8C-C6-110D",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "exegate-epp3-19-24-8p8c-c6-110d",
+      "model": "EPP3-19-24-8P8C-C6-110D",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "exegate-eppw-12-8p8c-c5e-fr",
+      "model": "EPPW-12-8P8C-C5e-FR",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "extreme-networks-715w-ac-psu-fb",
+      "model": "715W AC PSU FB",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "f5-big-ip-vpr-c2400",
+      "model": "BIG-IP VPR-C2400",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "fortinet-fex-40d",
+      "model": "FortiExtender 40D",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "fortinet-sp-racktray-02",
+      "model": "SP-RACKTRAY-02",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "fs-c6p-u24ft1u",
+      "model": "C6P-U24FT1U",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "fs-c6p-u48ft1u",
+      "model": "C6P-U48FT1U",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "fs-fhu-fpp48flcsmf",
+      "model": "FHU-FPP48FLCSMF",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "fs-fmu-1ufmx-n",
+      "model": "FMU-1UFMX-N",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "fs-fmu-c182761m",
+      "model": "FMU-C182761M",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "fs-fmu-d402160m",
+      "model": "FMU-D402160M",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "fs-fmu-d402160m3",
+      "model": "FMU-D402160M3",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "fs-fmu-mc042733",
+      "model": "FMU-MC042733",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "fs-fmu-mc082745",
+      "model": "FMU-MC082745",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "fs-fmu-mc084761em3",
+      "model": "FMU-MC084761EM3",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "fs-fmu-md085360em3",
+      "model": "FMU-MD085360EM3",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "fujitsu-celsius-w580",
+      "model": "CELSIUS W580",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "fujitsu-primergy-bx2560-m1",
+      "model": "Primergy BX2560 M1",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "fujitsu-primergy-bx2560-m2",
+      "model": "Primergy BX2560 M2",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "fujitsu-primergy-bx924-s4",
+      "model": "Primergy BX924 S4",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "fujitsu-primergy-rx2540-m5",
+      "model": "PRIMERGY RX2540 M5",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "fujitsu-primergy-tx100-s1",
+      "model": "PRIMERGY TX100 S1",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "fujitsu-primergy-tx1310-m1",
+      "model": "PRIMERGY TX1310 M1",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "fujitsu-primergy-tx1310-m3",
+      "model": "PRIMERGY TX1310 M3",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "fujitsu-primergy-tx1330-m4",
+      "model": "PRIMERGY TX1330 M4",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-0u-fan-panel",
+      "model": "0u-fan-panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-12-port-copper-patch-panel-full-depth",
+      "model": "12-port Copper Patch Panel Full Depth",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-12-port-copper-patch-panel-half-depth",
+      "model": "12-port Copper Patch Panel Half Depth",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-16-port-copper-modular-patch-panel-half-depth",
+      "model": "16-port Copper Modular Patch Panel Half Depth",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-1u-fan-panel",
+      "model": "1u-fan-panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-24-port-copper-patch-panel-half-depth",
+      "model": "24-port Copper Patch Panel Half Depth",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-24-port-copper-patch-panel",
+      "model": "24-port Copper Patch Panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-24-port-copper-phone-patch-panel-half-depth",
+      "model": "24-port Copper Phone Patch Panel Half Depth",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-48-port-copper-patch-panel-half-depth",
+      "model": "48-port Copper Patch Panel Half Depth",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-48-port-copper-patch-panel-high-density-half-depth",
+      "model": "48-port Copper Patch Panel High Density Half Depth",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-48-port-copper-patch-panel-high-density",
+      "model": "48-port Copper Patch Panel High Density",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-48-port-copper-patch-panel",
+      "model": "48-port Copper Patch Panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-50-port-copper-phone-patch-panel-half-depth",
+      "model": "50-port Copper Phone Patch Panel Half Depth",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-8-port-copper-patch-panel-half-depth",
+      "model": "8-port Copper Patch Panel Half Depth",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-8-port-copper-patch-panel",
+      "model": "8-port Copper Patch Panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-blanking-panel-1u",
+      "model": "Blanking Panel 1U",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-blanking-panel-2u",
+      "model": "Blanking Panel 2U",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-blanking-panel-4u",
+      "model": "Blanking Panel 4U",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-cable-management-panel-1u",
+      "model": "Cable Management Panel 1U",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-cable-management-panel-2u",
+      "model": "Cable Management Panel 2U",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-din-rail-3u",
+      "model": "din-rail-3u",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-lc-12-port-fiber-patch-panel-half-depth",
+      "model": "LC-12-port Fiber Patch Panel Half Depth",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-lc-12-port-fiber-patch-panel",
+      "model": "LC-12-port Fiber Patch Panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-lc-24-port-fiber-patch-panel-half-depth",
+      "model": "LC-24-port Fiber Patch Panel Half Depth",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-lc-24-port-fiber-patch-panel",
+      "model": "LC-24-port Fiber Patch Panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-lc-48-port-fiber-patch-panel-half-depth",
+      "model": "LC-48-port Fiber Patch Panel Half Depth",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-lc-48-port-fiber-patch-panel-high-density-half-depth",
+      "model": "LC-48-port Fiber Patch Panel High Density Half Depth",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-lc-48-port-fiber-patch-panel-high-density",
+      "model": "LC-48-port Fiber Patch Panel High Density",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-lc-48-port-fiber-patch-panel",
+      "model": "LC-48-port Fiber Patch Panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-lc-8-port-fiber-patch-panel-half-depth",
+      "model": "LC-8-port Fiber Patch Panel Half Depth",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-lc-8-port-fiber-patch-panel",
+      "model": "LC-8-port Fiber Patch Panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-lsh-apc-24-port-fiber-patch-panel-full-depth",
+      "model": "LSH/APC 24-Port Fiber Patch Panel Full Depth",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-lsh-apc-24-port-fiber-patch-panel-half-depth",
+      "model": "LSH/APC 24-Port Fiber Patch Panel Half Depth",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-lsh-apc-48-port-fiber-patch-panel-full-depth",
+      "model": "LSH/APC 48-Port Fiber Patch Panel Full Depth",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-lsh-apc-48-port-fiber-patch-panel-half-depth",
+      "model": "LSH/APC 48-Port Fiber Patch Panel Half Depth",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-media-converter-1g-sc",
+      "model": "Media-Converter-1G-SC",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-media-converter",
+      "model": "Media Converter",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-poe-injector",
+      "model": "POE Injector",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-rack-workstation-4u-1psu",
+      "model": "rack-workstation-4u-1psu",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-sc-12-port-duplex-fiber-patch-panel-rear-splice",
+      "model": "SC-12-port-duplex Fiber Patch Panel Rear Splice",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-sc-12-port-fiber-patch-panel-half-depth",
+      "model": "SC-12-port Fiber Patch Panel Half Depth",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-sc-12-port-fiber-patch-panel",
+      "model": "SC-12-port Fiber Patch Panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-sc-24-double-port-fiber-patch-panel-half-depth",
+      "model": "SC-24-double-port Fiber Patch Panel Half Depth",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-sc-24-double-port-fiber-patch-panel",
+      "model": "SC-24-double-port Fiber Patch Panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-sc-24-port-fiber-patch-panel-half-depth",
+      "model": "SC-24-port Fiber Patch Panel Half Depth",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-sc-24-port-fiber-patch-panel",
+      "model": "SC-24-port Fiber Patch Panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-sc-6-port-fiber-patch-panel-half-depth",
+      "model": "SC-6-port Fiber Patch Panel Half Depth",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-sc-6-port-fiber-patch-panel",
+      "model": "SC-6-port Fiber Patch Panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-shelf-1he-full-depth",
+      "model": "shelf-1he-full-depth",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-shelf-1he",
+      "model": "shelf-1he",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-shelf-2he",
+      "model": "shelf-2he",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-shelf-drawer-1u-full",
+      "model": "Shelf Drawer 1U Full Depth",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-sliding-shelf-drawer-1u",
+      "model": "Sliding Shelf Drawer 1U",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-st-12-port-fiber-patch-panel",
+      "model": "ST-12-port Fiber Patch Panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-st-16-port-fiber-patch-panel-rear-splice",
+      "model": "ST-16-port Fiber Patch Panel Rear Splice",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-st-24-port-fiber-patch-panel-rear-splice",
+      "model": "ST-24-port Fiber Patch Panel Rear Splice",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-storage-drawer-2u",
+      "model": "Storage Drawer 2U",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-storage-drawer-3u",
+      "model": "Storage Drawer 3U",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-storage-drawer-4u",
+      "model": "Storage Drawer 4U",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-vented-blanking-panel-1u",
+      "model": "Vented Blanking Panel 1U",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-vented-blanking-panel-2u",
+      "model": "Vented Blanking Panel 2U",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-wall-box-1-utp-plug",
+      "model": "Wall box, 1 UTP plug",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-wall-box-2-utp-plugs",
+      "model": "Wall box, 2 UTP plugs",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-wall-box-3-utp-plugs",
+      "model": "Wall box, 3 UTP plugs",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-wall-box-4-utp-plugs",
+      "model": "Wall box, 4 UTP plugs",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "generic-wall-box-6-utp-plugs",
+      "model": "Wall box, 6 UTP plugs",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ghipsystems-gs5104-1271-0",
+      "model": "GS5104-1271-0",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ghipsystems-gs5104-1271-c",
+      "model": "GS5104-1271-C",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ghipsystems-gs5104-1271-e",
+      "model": "GS5104-1271-E",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ghipsystems-gs5104-1271-ec",
+      "model": "GS5104-1271-EC",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ghipsystems-gs5104-1351-0",
+      "model": "GS5104-1351-0",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ghipsystems-gs5104-1351-c",
+      "model": "GS5104-1351-C",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ghipsystems-gs5104-1351-e",
+      "model": "GS5104-1351-E",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ghipsystems-gs5104-1351-ec",
+      "model": "GS5104-1351-EC",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ghipsystems-gs5104-1471-0",
+      "model": "GS5104-1471-0",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ghipsystems-gs5104-1471-c",
+      "model": "GS5104-1471-C",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ghipsystems-gs5104-1471-e",
+      "model": "GS5104-1471-E",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ghipsystems-gs5104-1471-ec",
+      "model": "GS5104-1471-EC",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ghipsystems-gs5104-1471-ew",
+      "model": "GS5104-1471-EW",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ghipsystems-gs5104-1551-0",
+      "model": "GS5104-1551-0",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ghipsystems-gs5104-1551-c",
+      "model": "GS5104-1551-C",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ghipsystems-gs5104-1551-e",
+      "model": "GS5104-1551-E",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ghipsystems-gs5104-1551-ec",
+      "model": "GS5104-1551-EC",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ghipsystems-gs5108-1271-0",
+      "model": "GS5108-1271-0",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ghipsystems-gs5108-1271-e",
+      "model": "GS5108-1271-E",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ghipsystems-gs5108-1471-0",
+      "model": "GS5108-1471-0",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ghipsystems-gs5108-1471-e",
+      "model": "GS5108-1471-E",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ghipsystems-gs5116-1271-0",
+      "model": "GS5116-1271-0",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "gmktec-nucbox-g3-plus",
+      "model": "NucBox G3 Plus",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hikvision-ds-2cd2047g2-luc",
+      "model": "DS-2CD2047G2-LU(C)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hikvision-ds-7616nxi-k2-1u",
+      "model": "DS-7616NXI-K2-1U",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hikvision-ds-7616nxi-k2",
+      "model": "DS-7616NXI-K2",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hikvision-ds-7632nxi-k2",
+      "model": "DS-7632NXI-K2",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hitachi-compute-blade-2000",
+      "model": "Compute Blade 2000",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hitachi-compute-blade-e55r3",
+      "model": "Compute Blade E55R3",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hitachi-compute-blade-e55r4",
+      "model": "Compute Blade E55R4",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hiwatch-ds-i252l",
+      "model": "DS-I252L",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hp-260-g2",
+      "model": "HP 260 G2",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hp-elitedesk-800-g2-mini",
+      "model": "EliteDesk 800 G2 Mini",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hp-elitedesk-800-g5-mini",
+      "model": "EliteDesk 800 G5 Mini",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hp-elitedesk-800-g9-mini",
+      "model": "EliteDesk 800 G9 Mini",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hp-z420",
+      "model": "Z420",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hp-prodesk-400-g3-sff",
+      "model": "ProDesk 400 G3 SFF",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-prodesk-400-g6-mt",
+      "model": "ProDesk 400 G6 MT",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hp-promini-400-g9",
+      "model": "ProMini 400 G9",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hp-t630-thin-client",
+      "model": "t630 Thin Client",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hp-t640-thin-client",
+      "model": "t640 Thin Client",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-3par-storeserv-8000-sff-enclosure",
+      "model": "3PAR StoreServ 8000 SFF Enclosure",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-456204-b21",
+      "model": "BladeSystem c7000 DDR2 Onboard Administrator with KVM",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-d2600-disk-enclosure",
+      "model": "D2600 Disk Enclosure",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-d2700-disk-enclosure",
+      "model": "D2700 Disk Enclosure",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-d3600-disk-enclosure",
+      "model": "D3600 Disk Enclosure",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-d3700-disk-enclosure",
+      "model": "D3700 Disk Enclosure",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-msa-2040-energy-start-lff-disk-enclosure",
+      "model": "HPE MSA 2040 energy start LFF Disk Enclosure",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-msa-2040-lff-disk-enclosure",
+      "model": "HPE MSA 2040 LFF Disk Enclosure",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-msa-2060-sas-12g-2u-12-disk-lff-drive-enclosure",
+      "model": "HPE MSA 2060 SAS 12G 2U 12-disk LFF Drive Enclosure",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-msa-2060-sas-12g-2u-24-disk-sff-drive-enclosure",
+      "model": "HPE MSA 2060 SAS 12G 2U 24-disk SFF Drive Enclosure",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-p2000-dual-io-dc-power-carrier-grade-sff-drive-enclosure",
+      "model": "HPE P2000 dual IO DC-Power Carrier-Grade SFF drive enclosure",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-p2000-dual-io-lff-drive-enclosure",
+      "model": "HPE P2000 Dual IO LFF Drive Enclosure",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-msa-2050-enclosure",
+      "model": "MSA 2050 Enclosure",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-msa-2050-sas-controller",
+      "model": "MSA 2050 SAS Controller",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-msa-3600-lff-disk-enclosure",
+      "model": "MSA 3600 LFF Disk Enclosure",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-primera-2u-enclosure",
+      "model": "Primera 2U Enclosure",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-primera-4u-enclosure",
+      "model": "Primera 4U Enclosure",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-bl460c-gen10",
+      "model": "ProLiant BL460c Gen10",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-bl460c-gen8",
+      "model": "ProLiant BL460c Gen8",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-bl460c-gen9",
+      "model": "ProLiant BL460c Gen9",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-bl660c-gen9",
+      "model": "ProLiant BL660c Gen9",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl120-gen7",
+      "model": "ProLiant-DL120-Gen7",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl180-gen6",
+      "model": "ProLiant DL180 Gen6",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl20-gen10",
+      "model": "ProLiant DL20 Gen10",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl20-gen11",
+      "model": "ProLiant DL20 Gen11",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl20-gen9",
+      "model": "ProLiant DL20 Gen9",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl320-gen6",
+      "model": "ProLiant-DL320-Gen6",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl320e-gen8",
+      "model": "ProLiant DL320e Gen8",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl325-gen10-plus-v2",
+      "model": "ProLiant DL325 Gen10 Plus v2",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl325-gen10-plus",
+      "model": "ProLiant DL325 Gen10 Plus",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl325-gen10",
+      "model": "ProLiant DL325 Gen10",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl325-gen11",
+      "model": "ProLiant DL325 Gen11",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl345-gen11",
+      "model": "ProLiant DL345 Gen11",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl360-gen10-plus",
+      "model": "ProLiant DL360 Gen10 Plus",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl360-gen10",
+      "model": "ProLiant DL360 Gen10",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl360-gen11",
+      "model": "ProLiant DL360 Gen11",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl360-gen7",
+      "model": "ProLiant DL360 Gen7",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl360-gen9",
+      "model": "ProLiant DL360 Gen9",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl360e-gen8",
+      "model": "ProLiant DL360e Gen8",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl360p-gen8",
+      "model": "ProLiant DL360p Gen8",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl365-gen10",
+      "model": "ProLiant DL365 Gen10",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl365-gen11",
+      "model": "ProLiant DL365 Gen11",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl380-gen10-plus",
+      "model": "ProLiant DL380 Gen10 Plus",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl380-gen10",
+      "model": "ProLiant DL380 Gen10",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl380-gen11",
+      "model": "ProLiant DL380 Gen11",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl380-gen5",
+      "model": "ProLiant DL380 Gen5",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl380-gen6",
+      "model": "ProLiant DL380 Gen6",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl380-gen7",
+      "model": "ProLiant DL380 Gen7",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl380-gen9",
+      "model": "ProLiant DL380 Gen9",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl380e-gen8",
+      "model": "ProLiant DL380e Gen8",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl380p-gen8",
+      "model": "ProLiant DL380p Gen8",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl385-gen10-plus-v2",
+      "model": "ProLiant DL385 Gen10 Plus v2",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl385-gen10",
+      "model": "ProLiant DL385 Gen10",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl385-gen11",
+      "model": "ProLiant DL385 Gen11",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl385p-gen8",
+      "model": "ProLiant DL385p Gen8",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl560-gen10",
+      "model": "ProLiant DL560 Gen10",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl580-gen10",
+      "model": "ProLiant DL580 Gen10",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl580-gen7",
+      "model": "ProLiant DL580 Gen7",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl580-gen9",
+      "model": "ProLiant DL580 Gen9",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dl60-gen9",
+      "model": "ProLiant DL60 Gen9",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dx360-gen10",
+      "model": "ProLiant DX360 Gen10",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dx385-gen10-plus-v2",
+      "model": "ProLiant DX385 Gen10 Plus V2",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-dx385-gen10-plus",
+      "model": "ProLiant DX385 Gen10 Plus",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-microserver-gen10-plus",
+      "model": "ProLiant MicroServer Gen10 Plus",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-microserver-gen10",
+      "model": "ProLiant MicroServer Gen10",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-microserver-gen11",
+      "model": "ProLiant MicroServer Gen11",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-ml110-gen10",
+      "model": "ProLiant ML110 Gen10",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-ml110-gen9",
+      "model": "ProLiant ML110 Gen9",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-ml30-gen10-plus",
+      "model": "ProLiant ML30 Gen10 Plus",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-ml30-gen9",
+      "model": "ProLiant ML30 Gen9",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-ml350-gen10",
+      "model": "ProLiant ML350 Gen10",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-ml350-gen11",
+      "model": "ProLiant ML350 Gen11",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-ml350-gen9",
+      "model": "ProLiant ML350 Gen9",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-ml350p-gen8",
+      "model": "ProLiant ML350p Gen8",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-xl170r-g9-1u",
+      "model": "ProLiant XL170r G9 (1U)",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-xl170r-g9-2u",
+      "model": "ProLiant XL170r G9 (2U)",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-xl420-gen9",
+      "model": "ProLiant XL420 Gen9",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-storeever-1-8-g2",
+      "model": "StoreEver 1/8 G2",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-storeever-lto-5-sas",
+      "model": "StoreEver LTO-5 SAS",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-storeever-lto-ultrium-external-tape-drive",
+      "model": "StoreEver LTO Ultrium External Tape Drive",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-synergy-12000-frame",
+      "model": "Synergy 12000 Frame",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-synergy-4-port-frame-link-module",
+      "model": "Synergy 4-port Frame Link Module",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-synergy-480-gen10-plus",
+      "model": "Synergy 480 Gen10 Plus",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-synergy-480-gen10",
+      "model": "Synergy 480 Gen10",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-synergy-50gb-interconnect-link-module",
+      "model": "Synergy 50Gb Interconnect Link Module",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-synergy-composer2-management-appliance",
+      "model": "Synergy Composer2 Management Appliance",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "huawei-dorado-5000-v6-enclosure",
+      "model": "Dorado 5000 V6 Enclosure",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "huawei-optixtrans-dc908",
+      "model": "OptiXtrans DC908",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hw-group-hwg-ste",
+      "model": "HWG-STE",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "i-pro-wv-s66600-z3l",
+      "model": "WV-S66600-Z3L",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "i-pro-wv-u15550-v3l",
+      "model": "WV-U15550-V3L",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "i-pro-wv-x15500-v3l",
+      "model": "WV-X15500-V3L",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ibm-bladecenter-hs22",
+      "model": "BladeCenter HS22",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ibm-eserver-x226",
+      "model": "eServer x226",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "intel-nuc11pahi5",
+      "model": "NUC11PAHi5",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "intel-nuc11tnbi5",
+      "model": "NUC11TNBi5",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "intel-nuc8i3bek3",
+      "model": "NUC8i3BEK3",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "itk-co05-1pc",
+      "model": "CO05-1PC",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "kerlink-wirnet-ifemtocell",
+      "model": "Wirnet iFemtoCell",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "kerlink-wirnet-istation",
+      "model": "Wirnet iStation",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "kerlink-wirnet-station",
+      "model": "Wirnet Station",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "lancom-730-4g-plus",
+      "model": "730-4G+",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "lancom-883-voip",
+      "model": "883 VoIP",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "lancom-lw-600",
+      "model": "LW-600",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "lancom-lw-700",
+      "model": "LW-700",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "lancom-rack-mount",
+      "model": "Rack Mount",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "lenovo-flex-system",
+      "model": "Flex System",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "lenovo-thinkcentre-m70q-gen-5-tiny",
+      "model": "ThinkCentre M70q Gen 5 Tiny",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "lenovo-thinkcentre-m75q-gen-5-tiny",
+      "model": "ThinkCentre M75q Gen 5 Tiny",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "lenovo-thinksystem-sr530",
+      "model": "ThinkSystem SR530",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "lenovo-thinksystem-sr550",
+      "model": "ThinkSystem SR550",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "meinberg-lantime-m200",
+      "model": "Lantime M200",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "mellanox-sx60-dkit",
+      "model": "SX60-DKIT",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "middle-atlantic-d2",
+      "model": "Middle Atlantic - D2",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "middle-atlantic-d4",
+      "model": "Middle Atlantic - D4",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "mikrotik-k-79",
+      "model": "RB5009/L009 rackmount kit K-79",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "mikrotik-cap-rbcap2nd",
+      "model": "cAP RBcAP2nD",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "mikrotik-rblhgr-and-r11e-lte-us",
+      "model": "RBLHGR&R11e-LTE-US",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "mikrotik-rblhgr-and-r11e-lte6",
+      "model": "RBLHGR&R11e-LTE6",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "mikrotik-rbltap-2hnd",
+      "model": "RBLtAP-2HnD",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "mikrotik-sxt-lite5",
+      "model": "SXT Lite5",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "mikrotik-sxtsq-5-ac",
+      "model": "SXTsq 5 ac",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "mikrotik-wap-60g",
+      "model": "wAP 60G",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "mikrotik-rbwapr-2nd-and-r11e-lr8g",
+      "model": "wAP LR8G kit",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "mikrotik-wap-lte-kit",
+      "model": "wAP LTE kit",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "mimosa-networks-a5",
+      "model": "A5",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "mimosa-networks-a5c",
+      "model": "A5c",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "mimosa-networks-a5x",
+      "model": "A5x",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "mimosa-networks-b5c",
+      "model": "B5c",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "mimosa-networks-b5x",
+      "model": "B5X",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "mimosa-networks-c5c",
+      "model": "C5c",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "mimosa-networks-c5x",
+      "model": "C5x",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "mimosa-networks-c6x",
+      "model": "C6x",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "nabu-casa-home-assistant-green",
+      "model": "Home Assistant Green",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "netlink-fd-6166-2xrj-45-8p-8c-5",
+      "model": "FD-6166-2xRJ-45-8p-8c-5",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "nvidia-jetson-xavier-nx-developer-kit",
+      "model": "Jetson Xavier NX Developer Kit",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "opengear-acm5003-m-f-e",
+      "model": "ACM5003-M-F-E",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "overland-tandberg-8920-rdx-2x1gbe",
+      "model": "RDX QuikStation 4 (Rackmount, 2x1GbE)",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "overland-tandberg-8920-rdx-4x1gbe",
+      "model": "RDX QuikStation 4 (Rackmount, 4x1GbE)",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "overland-tandberg-neos-storageloader",
+      "model": "NEOs StorageLoader",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "palo-alto-networks-pa-220-rack-kit",
+      "model": "PA-220 Rack Kit",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "palo-alto-networks-pa-220-rack-tray-kit",
+      "model": "PA-220 Rack Tray Kit",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "palo-alto-networks-pan-1ru-4post-rack-10",
+      "model": "PAN-1RU-4POST-RACK-10",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "palo-alto-networks-pan-1ru-4post-rack-11",
+      "model": "PAN-1RU-4POST-RACK-11",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "palo-alto-networks-pan-1ru-4post-rack-12",
+      "model": "PAN-1RU-4POST-RACK-12",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "palo-alto-networks-pan-1ru-rgd-rack-kit-4post",
+      "model": "PAN-1RU-RGD-RACK-KIT-4POST",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "palo-alto-networks-pan-1ru-small-rack4",
+      "model": "PAN-1RU-SMALL-RACK4",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "palo-alto-networks-pan-ion-1200-c5g-racktray",
+      "model": "PAN-ION-1200-C5G-RACKTRAY",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "palo-alto-networks-pan-ion-1200-racktray",
+      "model": "PAN-ION-1200-RACKTRAY",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "palo-alto-networks-pan-ion-racktray-1200-s-c",
+      "model": "PAN-ION-RACKTRAY-1200-S-C",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "palo-alto-networks-pan-ion-racktray-1200-s-c5g",
+      "model": "PAN-ION-RACKTRAY-1200-S-C5G",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "palo-alto-networks-pan-ion-racktray-3200",
+      "model": "PAN-ION-RACKTRAY-3200",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "palo-alto-networks-pan-pa-400-poe-racktray",
+      "model": "PAN-PA-400-POE-RACKTRAY",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "palo-alto-networks-pan-pa-400-racktray",
+      "model": "PAN-PA-400-RACKTRAY",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-cdpp8rg-s",
+      "model": "Mini-Com Shielded DIN Rail Patch Panel (8 Port)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-cdpp8rg",
+      "model": "Mini-Com DIN Rail Patch Panel (8 Port)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-cp24bly",
+      "model": "Mini-Com Shielded Patch Panel (24 Port, 1RU)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-cp48bly",
+      "model": "Mini-Com Shielded Patch Panel (48 Port, 2RU)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-cp48hdbl",
+      "model": "Mini-Com Shielded High Density Patch Panel (48 Port, 1RU)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-cpa24bly",
+      "model": "Mini-Com Shielded Angled Patch Panel (24 Port, 1RU)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-cpa48bly",
+      "model": "Mini-Com Shielded Angled Patch Panel (48 Port, 2RU)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-cpa48hdbl",
+      "model": "Mini-Com Shielded High Density Angled Patch Panel (48 Port, 1RU)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-cpp24fmwbly",
+      "model": "Mini-Com Flush Mount Patch Panel (24 Port, 1RU)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-cpp24wbly",
+      "model": "Mini-Com Front Access Patch Panel (24 Port, 1RU)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-cpp48fmwbly",
+      "model": "Mini-Com Flush Mount Patch Panel (48 Port, 2RU)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-cpp48hdewbl",
+      "model": "Mini-Com High Density Patch Panel (48 Port, 1RU)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-cpp48wbly",
+      "model": "Mini-Com Front Access Patch Panel (48 Port, 2RU)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-cpp72fmwbly",
+      "model": "Mini-Com Flush Mount Patch Panel (72 Port, 2RU)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-cppa24fmwbly",
+      "model": "Mini-Com Flush Mount Angled Patch Panel (24 Port, 1RU)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-cppa48fmwbly",
+      "model": "Mini-Com Flush Mount Angled Patch Panel (48 Port, 2RU)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-cppa48hdwbly",
+      "model": "Mini-Com High Density Angled Patch Panel (48 Port, 1RU)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-cppa72fmwbly",
+      "model": "Mini-Com Flush Mount Angled Patch Panel (72 Port, 2RU)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-dp245e88tgy",
+      "model": "DP5e Flat Cat 5e Punchdown Patch Panel 24 Ports, 1RU, Black",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-dp24688tgy",
+      "model": "Cat 6 Punchdown Patch Panel, 24 Ports, 1 RU, Black",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-dp246x88tgy",
+      "model": "Cat 6A Punchdown Patch Panel, 24 Ports, 1 RU, Black",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-dp485e88tgy",
+      "model": "DP5e Flat Cat 5e Punchdown Patch Panel 48 Ports, 2RU, Black",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-dp48688tgy",
+      "model": "Cat 6 Punchdown Patch Panel, 48 Ports, 2 RU, Black",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-dp486x88tgy",
+      "model": "Cat 6A Punchdown Patch Panel, 48 Ports, 2 RU, Black",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-fce1",
+      "model": "Quicknet Rack Mount Fiber Enclosure, 1 RU",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-fce1u",
+      "model": "Opticom Rack Mount Fiber Enclosure, 1 RU, 4 Ports",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-fce2",
+      "model": "Quicknet Rack Mount Fiber Enclosure, 2 RU",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-fce2u",
+      "model": "Opticom Rack Mount Fiber Enclosure, 2 RU, 8 Ports",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-fce4u",
+      "model": "Opticom Rack Mount Fiber Enclosure, 4 RU, 16 Ports",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-fre1ubl",
+      "model": "Opticom Rack Mount Enclosure, Black, 1 RU, 4 FAP/Cassette Slots",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-fre1uwh",
+      "model": "Opticom Rack Mount Enclosure, White, 1 RU, 4 FAP/Cassette Slots",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-fre2ubl",
+      "model": "Opticom Rack Mount Enclosure, Black, 2 RU, 8 FAP/Cassette Slots",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-fre2uwh",
+      "model": "Opticom Rack Mount Enclosure, White, 2 RU, 8 FAP/Cassette Slots",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-fre4ubl",
+      "model": "Opticom Rack Mount Enclosure, Black, 4 RU, 16 FAP/Cassette Slots",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-fre4uwh",
+      "model": "Opticom Rack Mount Enclosure, White, 4 RU, 16 FAP/Cassette Slots",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-frme1",
+      "model": "Opticom Rack Mount Fiber Enclosure, 1 RU",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-frme1u",
+      "model": "Opticom Rack Mount Enclosure, Black, 1 RU, 3 FAP/Cassette Slots",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-frme2",
+      "model": "Opticom Rack Mount Fiber Enclosure, 2 RU",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-frme2u",
+      "model": "Opticom Rack Mount Enclosure, Black, 2 RU, 6 FAP/Cassette Slots",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-frme3",
+      "model": "Opticom Rack Mount Fiber Enclosure, 3 RU",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-frme4",
+      "model": "Opticom Rack Mount Enclosure, Black, 4 RU, 12 FAP/Cassette Slots",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-fwme1bl",
+      "model": "Opticom Wall Mount Fiber Enclosure, Black, 1 FAP/Cassette Slot",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-fwme2",
+      "model": "Opticom Wallmount Fiber Enclosure (2 Adapters)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-fwme4",
+      "model": "Opticom Wallmount Fiber Enclosure (4 Adapters)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-fwme8",
+      "model": "Opticom Wallmount Fiber Enclosure (8 Adapters)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "panduit-wmpf1e",
+      "model": "HORIZONTAL CABLE MGR FRONT 2 RU",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "patton-sn4170",
+      "model": "SN4170 VOIP",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "philips-hue-bridge-2-1",
+      "model": "Hue Bridge 2.1",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "quantum-superloader-3",
+      "model": "SuperLoader 3",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rackifyus-1-inch-grommet-panel",
+      "model": "1-Inch-Grommet-Panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rackifyus-1u-blank-panel",
+      "model": "1U-Blank-Panel",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rackifyus-1u-vented-panel",
+      "model": "1U-Vented-Panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rackifyus-2u-blank-panel",
+      "model": "2U-Blank-Panel",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rackifyus-2u-vented-panel",
+      "model": "2U-Vented-Panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rackifyus-dell-optiplex-micro-3000-5000-7000",
+      "model": "Dell-OptiPlex-Micro-3000-5000-7000",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rackifyus-hp-elitedesk-mini-g1-g2",
+      "model": "HP-EliteDesk-Mini-G1-G2",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rackifyus-hp-elitedesk-mini-g3-g4-g5",
+      "model": "HP-EliteDesk-Mini-G3-G4-G5",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rackifyus-jetkvm-1x",
+      "model": "JetKVM-1x",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rackifyus-lenovo-thinkcentre-tiny",
+      "model": "Lenovo-ThinkCentre-Tiny",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rackifyus-mac-mini-m1-m2-intel",
+      "model": "Mac-Mini-M1-M2-Intel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rackifyus-netgear-gs308-gs308e",
+      "model": "Netgear-GS308-GS308E",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rackmount-it-rm-wg-t6",
+      "model": "RM-WG-T6",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "raspberry-pi-rpi-modb",
+      "model": "Raspberry Pi Model B",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "raspberry-pi-rpi-modbp",
+      "model": "Raspberry Pi Model B+",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "raspberry-pi-rpi2-modb",
+      "model": "Raspberry Pi 2 Model B",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "raspberry-pi-rpi3-modb",
+      "model": "Raspberry Pi 3 Model B",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "raspberry-pi-rpi3-modbp",
+      "model": "Raspberry Pi 3 Model B+",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "raspberry-pi-rpi4-mod400",
+      "model": "Raspberry Pi 4 Model 400",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "raspberry-pi-rpi4-modb",
+      "model": "Raspberry Pi 4 Model B",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "raspberry-pi-rpi5",
+      "model": "Raspberry Pi 5",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "raspberry-pi-rpiz-13",
+      "model": "Raspberry Pi Zero v1.3",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "raspberry-pi-rpiz-w",
+      "model": "Raspberry Pi Zero W",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rittal-dk-7030000",
+      "model": "DK 7030000",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rittal-dk-7030040",
+      "model": "DK 7030040",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rittal-dk-7030088",
+      "model": "DK 7030088",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-a10",
+      "model": "ControlLogix Rack - 10 Slot",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-a10k",
+      "model": "ControlLogix Rack K - 10 Slot",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-a10xt",
+      "model": "ControlLogix Rack XT - 10 Slot",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-a13",
+      "model": "ControlLogix Rack - 13 Slot",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-a13k",
+      "model": "ControlLogix Rack K - 13 Slot",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-a17",
+      "model": "ControlLogix Rack - 17 Slot",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-a17k",
+      "model": "ControlLogix Rack K - 17 Slot",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-a4",
+      "model": "ControlLogix Rack - 4 Slot",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-a4k",
+      "model": "ControlLogix Rack K - 4 Slot",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-a7",
+      "model": "ControlLogix Rack - 7 Slot",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-a7k",
+      "model": "ControlLogix Rack K - 7 Slot",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-a7xt",
+      "model": "ControlLogix Rack XT - 7 Slot",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-en2f",
+      "model": "ControlLogix Fiber Ethernet Adapter (EN2F)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-en2fk",
+      "model": "ControlLogix Fiber Ethernet Adapter K (EN2FK)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-en2t",
+      "model": "ControlLogix Ethernet Adapter (EN2T)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-en2tk",
+      "model": "ControlLogix Ethernet Adapter K (EN2TK)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-enbt",
+      "model": "ControlLogix Ethernet Adapter (ENBT)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-enbtk",
+      "model": "ControlLogix Ethernet Adapter K (ENBT)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-controllogix-web-module",
+      "model": "ControlLogix Web Module",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-l81e-nse",
+      "model": "ControlLogix 5580 L81E-NSE",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-l81e",
+      "model": "ControlLogix 5580 L81E",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-l81ek",
+      "model": "ControlLogix 5580 L81EK",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-l81ep",
+      "model": "ControlLogix 5580 L81EP",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-l81es",
+      "model": "GuardLogix 5580 L81ES",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-l81esk",
+      "model": "GuardLogix 5580 L81ESK",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-l82e-nse",
+      "model": "ControlLogix 5580 L82E-NSE",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-l82e",
+      "model": "ControlLogix 5580 L82E",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-l82ek",
+      "model": "ControlLogix 5580 L82EK",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-l82es",
+      "model": "GuardLogix 5580 L82ES",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-l82esk",
+      "model": "GuardLogix 5580 L82ESK",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-l83e-nse",
+      "model": "ControlLogix 5580 L83E-NSE",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-l83e",
+      "model": "ControlLogix 5580 L83E",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-l83ek",
+      "model": "ControlLogix 5580 L83EK",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-l83ep",
+      "model": "ControlLogix 5580 L83EP",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-l83es",
+      "model": "GuardLogix 5580 L83ES",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-l83esk",
+      "model": "GuardLogix 5580 L83ESK",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-l84e-nse",
+      "model": "ControlLogix 5580 L84E-NSE",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-l84e",
+      "model": "ControlLogix 5580 L84E",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-l84ek",
+      "model": "ControlLogix 5580 L84EK",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-l84es",
+      "model": "GuardLogix 5580 L84ES",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-l84esk",
+      "model": "GuardLogix 5580 L84ESK",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-l85e-nse",
+      "model": "ControlLogix 5580 L85E-NSE",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-l85e",
+      "model": "ControlLogix 5580 L85E",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-l85ek",
+      "model": "ControlLogix 5580 L85EK",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "rockwell-automation-1756-l85ep",
+      "model": "ControlLogix 5580 L85EP",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "room-alert-32s-monitor",
+      "model": "32S Monitor",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ruckus-r350",
+      "model": "R350",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "safran-secure-sync-enterprise-1200-011",
+      "model": "SecureSync Enterprise",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "schweitzer-engineering-laboratories-sel-587-current-differential-relay",
+      "model": "SEL-587 Current Differential Relay",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "sedna-usb3-hub-13p",
+      "model": "SE-RM-19-USB3-HUB-13-A",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "siemon-hd5-16",
+      "model": "16-port Category 5e 1RU flat patch panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "siemon-hd5-24",
+      "model": "24-port Category 5e 1RU flat patch panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "siemon-hd5-24a",
+      "model": "24-port Category 5e 1RU angled patch panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "siemon-hd5-32",
+      "model": "32-port Category 5e 2RU flat patch panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "siemon-hd5-48",
+      "model": "48-port Category 5e 2RU flat patch panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "siemon-hd5-48a",
+      "model": "48-port Category 5e 2RU angled patch panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "siemon-hd5-96",
+      "model": "96-port Category 5e 4RU flat patch panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "siemon-hd6-24",
+      "model": "24-port Category 6 1RU flat patch panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "siemon-hd6-24a",
+      "model": "24-port Category 6 1RU angled patch panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "siemon-hd6-32",
+      "model": "32-port Category 6 2RU flat patch panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "siemon-hd6-48",
+      "model": "48-port Category 6 2RU flat patch panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "siemon-hd6-48a",
+      "model": "48-port Category 6 2RU angled patch panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "siemon-hd6-96",
+      "model": "96-port Category 6 4RU flat patch panel",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "silex-ds-510",
+      "model": "DS-510",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "silex-ds-520an",
+      "model": "DS-520AN",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "silex-ds-600",
+      "model": "DS-600",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "silex-ds-700",
+      "model": "DS-700",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "silex-ds-700ac",
+      "model": "DS-700AC",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "silex-sd-300",
+      "model": "SD-300",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "silex-sd-300ac",
+      "model": "SD-300AC",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "silex-sd-330ac-1402",
+      "model": "SD-330AC-1402",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "smartlabs-sml-482-hd-base",
+      "model": "SML-482 HD Base",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "smartoptics-h-md-32-9140-9605",
+      "model": "H-MD-32-9140-9605",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "smartoptics-h-md-40-921-960",
+      "model": "H-MD-40-921-960",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "smartoptics-m-3840-ll",
+      "model": "M-3840-LL",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "snom-m700",
+      "model": "M700",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "snr-erd-2s",
+      "model": "erd-2s",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "snr-erd-4s",
+      "model": "erd-4s",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "snr-ers2000",
+      "model": "ERS2000",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "snr-ers2010",
+      "model": "ERS2010",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "snr-fb-org-3",
+      "model": "SNR-FB-ORG-3",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "solid-optics-so-chassis-mod4",
+      "model": "SO-CHASSIS-MOD4",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "solid-optics-dwdm-8x100g-edfamux",
+      "model": "SO-DWDM-8x100G-EDFAMUX",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "solid-optics-so-dwdm-mux-8ch-plus-upg",
+      "model": "SO-DWDM-MUX-8CH+UPG",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "solid-optics-so-dwdm-mux-ch20-35-plus-upg-plus-mon",
+      "model": "SO-DWDM-MUX-CH20-35+UPG+MON",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "solid-optics-so-dwdm-mux-ch20-59-plus-mon-plus-1310",
+      "model": "SO-DWDM-MUX-CH20-59+MON+1310",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "solid-optics-so-mod4-3xmpo-mmf-24xlc",
+      "model": "SO-MOD4-3xMPO/MMF-24xLC",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "sonnet-rackmac-mini",
+      "model": "RackMac mini",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ssd-skon-din-1b",
+      "model": "skon-din-1b",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ssd-skon-wall-1b",
+      "model": "skon-wall-1b",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "supermicro-as-1014s-wtrt",
+      "model": "SuperServer A+ Server 1014S-WTRT",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "supermicro-as-2124bt-hntr",
+      "model": "A+ Server 2124BT-HNTR",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "supermicro-as-2124bt-htr",
+      "model": "A+ Server 2124BT-HTR",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "supermicro-as-3015mr-h8tnr",
+      "model": "MicroCloud A+ Server AS 3015MR-H8TNR",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "supermicro-ssg-640p-e1cr36l",
+      "model": "Storage SuperServer SSG-640P-E1CR36L",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "supermicro-superserver-5018d-mtf",
+      "model": "SuperServer 5018D-MTF",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "supermicro-sys-1027r-wrf",
+      "model": "SuperServer 1027R-WRF",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "supermicro-sys-1029u-tr4t",
+      "model": "SuperServer 1029U-TR4T",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "supermicro-sys-6018r-mt",
+      "model": "SuperServer 6018R-MT",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "supermicro-sys-6029u-tr4t-plus",
+      "model": "SuperServer 6029U-TR4T+",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "supermicro-superserver-sys-e300-9d",
+      "model": "SuperServer SYS-E300-9D",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "telcord-ks-mp-4k-1u-bk",
+      "model": "KS-MP-4K-1U-BK",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "telcord-mp-4k-6rj-bk",
+      "model": "MP-4K-6RJ-BK",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "telcord-ok-4k-6qlc-u-2mpo-u-mm504-bk",
+      "model": "OK-4K-6QLC_U-2MPO_U-MM504-BK",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "teltonika-trb140",
+      "model": "TRB140",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "teltonika-trb500",
+      "model": "TRB500",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "tenda-i23-ac1200",
+      "model": "i23 AC1200",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "thales-g5backup",
+      "model": "G5Backup",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "trendnet-tc-p16c5e",
+      "model": "TC-P16C5E",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "trendnet-tc-p24c5e",
+      "model": "TC-P24C5E",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "trendnet-tc-p48c5e",
+      "model": "TC-P48C5E",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "trendnet-tew-821dap",
+      "model": "TEW-821DAP",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "trendnet-tpe-113gi-a",
+      "model": "TPE-113GI/A",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-ckg2-rm",
+      "model": "CloudKey Rack Mount",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-er-rmkit",
+      "model": "EdgeRouter Rack Mount Kit",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-ins-3af-o-g",
+      "model": "Instant PoE 802.3af Gigabit Adapter",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-liteap-120",
+      "model": "LiteAP 120",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-liteap-gps",
+      "model": "LiteAP GPS",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-picostation-m2",
+      "model": "PicoStation M2",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-surge-protector",
+      "model": "Surge Protector",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-u6-enterprise",
+      "model": "U6 Enterprise",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-u6-lite",
+      "model": "U6 Lite",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-u6-lr",
+      "model": "U6 Long-Range",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-u6-mesh",
+      "model": "U6 Mesh",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-u6-pro",
+      "model": "U6 Professional",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-u6-plus",
+      "model": "U6+",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-u7-lite",
+      "model": "U7 Lite",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-u7-outdoor",
+      "model": "U7 Outdoor",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-u7-pro-max",
+      "model": "U7 Pro Max",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-u7-pro-outdoor",
+      "model": "U7 Pro Outdoor",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-u7-pro-wall",
+      "model": "U7 Pro Wall",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-u7-pro-xg",
+      "model": "U7 Pro XG",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-u7-pro-xgs",
+      "model": "U7 Pro XGS",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-u7-pro",
+      "model": "U7 Professional",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-uacc-ai-port-rm",
+      "model": "AI Port Rack Mount",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-uacc-rack-panel-patch-blank-24",
+      "model": "24-Port Blank Keystone Patch Panel",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-uap-ac-lite",
+      "model": "AC Lite",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-uap-ac-lr",
+      "model": "AC Long-Range",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-uap-ac-m",
+      "model": "AC Mesh",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-uap-flexhd",
+      "model": "FlexHD",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-unifi-application-server",
+      "model": "UniFi Application Server",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-ubb",
+      "model": "Unifi Building Bridge",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-uc-ck",
+      "model": "UniFi Cloud Key",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-cloud-key-gen2-plus",
+      "model": "Cloud Key Gen2 Plus",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-cloud-key-gen2",
+      "model": "Cloud Key Gen2",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-uk-ultra",
+      "model": "Swiss Army Knife",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-unifi-uvc-g3-flex",
+      "model": "Unifi G3 Flex",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-unifi-uvc-g3-pro",
+      "model": "Unifi G3 Pro",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-unifi-uvc-g4-dome",
+      "model": "Unifi G4 Dome",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-unifi-uvc-g4-doorbell",
+      "model": "Unifi G4 Doorbell",
+      "role": "endpoint",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-unifi-uvc-g4-ins",
+      "model": "Unifi G4 Instant",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-unifi-uvc-g5-dome-ultra",
+      "model": "Unifi G5 Dome Ultra",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-unifi-uvc-g5-flex",
+      "model": "Unifi G5 Flex",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-unifi-uvc-g5-turret-ultra",
+      "model": "Unifi G5 Turret Ultra",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-unifi-uvc-g6-ins",
+      "model": "Unifi G6 Instant",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-unifi-uvc-g6-turret",
+      "model": "Unifi G6 Turret",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-wave-lr",
+      "model": "UISP Wave LR",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ugreen-dh2300",
+      "model": "DH2300",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ugreen-dh4300plus",
+      "model": "DH4300Plus",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ugreen-dxp2800",
+      "model": "DXP2800",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ugreen-dxp480tplus",
+      "model": "DXP480TPlus",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "unipi-technology-axon-m205",
+      "model": "Axon M205",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "unipi-technology-neuron-s103-rpi4",
+      "model": "Neuron S103 (RPi4)",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "uptime-industries-bladerunner-20",
+      "model": "BladeRunner 1.0 20 blade",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "uptime-industries-compute-blade-v1-dev",
+      "model": "Compute Blade v1 Dev",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "vertiv-mpuiq-vmchs",
+      "model": "MPUIQ-VMCHS",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "vertiv-sa1-01002",
+      "model": "SA1-01002",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "videoxlink-x2",
+      "model": "X2",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "yealink-w60b",
+      "model": "W60B",
+      "role": "other",
+      "reason": "role-filter"
+    }
+  ]
+}

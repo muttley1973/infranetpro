@@ -20,6 +20,7 @@ import { collectWirelessClients, resolveClientAssoc } from '../lib/wifi-assoc.js
 import { radioPid, setRadioCount, apSsidList } from '../lib/radio.js';   // Layer 4c: pid/gestione radio + BSS serviti (import ESM → niente crescita del ponte win.*)
 import { pairSig } from '../lib/correlate.js';   // Layer 4c: firma-coppia canonica (stesso formato di _pairSig usato per rejectedAutoLinks)
 import { _normMacKey } from '../lib/netnames.js';   // Layer 4c: normalizzazione MAC (stessa del resto del motore)
+import { pduManagementPortCount } from '../lib/pdu-layout.js';
 // ============================================================
 // AUTO-LINK DISCOVERY — algoritmo multi-layer trasparente
 //
@@ -129,8 +130,9 @@ export function reconcileMiscabling(){
 //          + UPS/PDU managed (rack, porta di management).
 // Esclude: switch/router/server/nas… (isActive), media converter (2 porte,
 //          dispositivo di passaggio), patch panel/prese (no IP).
-export function _isLeafEndpoint(type){
+export function _isLeafEndpoint(type, node){
     const d = TYPES[type];
+    if(type === 'pdu' && node && pduManagementPortCount(node) <= 0) return false;
     return !!(d && d.hasIP && !d.isActive && (d.ports === 1));
 }
 
@@ -332,7 +334,7 @@ function _isTransitPort(swPid, swId){
         const otherNid = getPortNodeId(otherPid);
         if(!otherNid || otherNid === swId) continue;
         const otherNode = nodeById(otherNid);
-        if(otherNode && !_isLeafEndpoint(otherNode.type)) return true;
+        if(otherNode && !_isLeafEndpoint(otherNode.type, otherNode)) return true;
     }
     return false;
 }
@@ -460,7 +462,7 @@ function _findWallPortBehindInfrastructurePort(infraPid, epPid){
                     if(chk.ok && canAddConnection(other)) return other;
                     continue;
                 }
-                if(TYPES[n.type]?.isPassive && !_isLeafEndpoint(n.type)){
+                if(TYPES[n.type]?.isPassive && !_isLeafEndpoint(n.type, n)){
                     queue.push(other);
                 }
             }
@@ -482,7 +484,7 @@ export function _autoLinkEndpoint(nodeId){
     if(!node) return { ok:false, reason:'no-node' };
     // Solo endpoint foglia a porta singola (printer/AP/PC/webcam/voip/…/UPS/PDU).
     // Switch/router/server si collegano via LLDP/CDP/FDB nel motore principale.
-    if(!_isLeafEndpoint(node.type)) return { ok:false, reason:'tipo-non-endpoint' };
+    if(!_isLeafEndpoint(node.type, node)) return { ok:false, reason:'tipo-non-endpoint' };
     const epPid = `${nodeId}-1`;
     const existing = store.state.links.find(l => _linkTouchesPort(l, epPid));
     if(existing && !existing.autoLinked) return { ok:false, reason:'manual-link' };
@@ -546,7 +548,7 @@ export function _autoLinkWirelessAssoc(){
         for(const w of clients){
             const client = macToNode.get(_normMacKey(w.mac));
             if(!client || client.id === dev.id) continue;
-            if(!_isLeafEndpoint(client.type)) continue;                      // solo endpoint foglia (PC/telefono/…)
+            if(!_isLeafEndpoint(client.type, client)) continue;                      // solo endpoint foglia (PC/telefono/…)
             // Assicura una radio-stazione sul client (idx 0), come nel modello manuale.
             if(_radiosLen(client) < 1) setRadioCount(client, 1);
             if(_radiosLen(client) < 1) continue;                             // radio non creabile → salta
@@ -805,7 +807,7 @@ async function _autoDiscoverLinks(nodeIds){
         ip:       n.ip       || '',
         ports:    n.ports,
         mac:      n.mac      || '',
-        isLeafEndpoint: _isLeafEndpoint(n.type),
+        isLeafEndpoint: _isLeafEndpoint(n.type, n),
         isPassive: !!TYPES[n.type]?.isPassive,
         isActive: !!TYPES[n.type]?.isActive,
         integration: { host: (n.integration?.host || '') },
@@ -985,7 +987,7 @@ async function _autoDiscoverLinks(nodeIds){
                     if(!pid) continue;
                     const nid = _portNodeId(pid);
                     const nd = nid ? nodeById(nid) : null;
-                    if(nd && !_isLeafEndpoint(nd.type) && _isTransitPort(pid, nid)) return true;
+                    if(nd && !_isLeafEndpoint(nd.type, nd) && _isTransitPort(pid, nid)) return true;
                 }
                 return false;
             };
@@ -1017,7 +1019,7 @@ async function _autoDiscoverLinks(nodeIds){
                 let rp = _findPortByIfName(remNode.id, nb.remotePort);
                 if(!rp){
                     const remPorts = remNode.ports !== undefined ? remNode.ports : (TYPES[remNode.type]?.ports || 0);
-                    if(remPorts === 1 || _isLeafEndpoint(remNode.type)) rp = `${remNode.id}-1`;
+                    if(remPorts === 1 || _isLeafEndpoint(remNode.type, remNode)) rp = `${remNode.id}-1`;
                 }
                 const conf = nb.protocol === 'LLDP' ? CONF_LLDP : nb.protocol === 'CDP' ? CONF_CDP : 0.70;
                 addCandidate(lp, rp, conf, nb.protocol);
@@ -1108,7 +1110,7 @@ async function _autoDiscoverLinks(nodeIds){
             if(!remNode || remNode.id === n.id) continue;
             let rp = null;
             const remPorts = remNode.ports !== undefined ? remNode.ports : (TYPES[remNode.type]?.ports || 0);
-            if(remPorts === 1 || _isLeafEndpoint(remNode.type)) rp = `${remNode.id}-1`;
+                    if(remPorts === 1 || _isLeafEndpoint(remNode.type, remNode)) rp = `${remNode.id}-1`;
             if(!rp) continue;
             addCandidate(lp, rp, Math.max(0.5, confByCount - 0.01), 'ARP-MAC');
         }
@@ -1138,7 +1140,7 @@ async function _autoDiscoverLinks(nodeIds){
     // _resolveEndpointSwitchPort: un solo switch, porta access, non uplink).
     let prunedEndpointLinks = 0;
     for(const node of store.state.nodes){
-        if(!_isLeafEndpoint(node.type)) continue; // endpoint foglia a porta singola (incl. UPS/PDU)
+        if(!_isLeafEndpoint(node.type, node)) continue; // endpoint foglia a porta singola (incl. UPS/PDU)
         if(!win._normMacKey(node.mac)) continue;
         const epPid = `${node.id}-1`;
         // non sovrascrivere un link manuale già presente sull'endpoint

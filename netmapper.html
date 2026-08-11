@@ -66,6 +66,10 @@
             <button class="header-menu-item" id="btn-export-drawio">
                 <i class="fas fa-project-diagram"></i> <span data-i18n="impexp.exportDrawio">Esporta per draw.io</span>
             </button>
+            <div class="header-menu-divider"></div>
+            <button class="header-menu-item" data-act="dcim-open">
+                <i class="fas fa-rotate"></i> <span data-i18n="integrations.menuItem">Sincronizzazione DCIM/IPAM…</span>
+            </button>
         </div>
     </div>
     <div class="header-sep"></div>
@@ -502,6 +506,55 @@
     <div class="tool-modal-footer">
       <button id="vm-btn-filter" class="um-btn primary"></button>
       <button class="um-btn ghost" data-act="vm-close"><i class="fas fa-times"></i> <span data-i18n="common.close">Chiudi</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL SINCRONIZZAZIONE DCIM/IPAM ===== -->
+<div id="dcim-overlay" class="tool-modal-overlay" data-act="dcim-backdrop">
+  <div id="dcim-modal" class="tool-modal" role="dialog" aria-modal="true" aria-labelledby="dcim-title">
+    <div class="tool-modal-header um-header">
+      <h3 id="dcim-title"><i class="fas fa-rotate"></i> <span data-i18n="integrations.title">Sincronizzazione DCIM/IPAM</span></h3>
+      <button class="toolbar-btn" data-act="dcim-close" style="padding:4px 8px" data-tip="Chiudi"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="tool-modal-body">
+      <p data-i18n="integrations.hint" style="color:var(--text-muted);margin:0 0 14px;font-size:.9rem">Collega un'istanza DCIM/IPAM esterna (NetBox) per importare o esportare la documentazione di rete.</p>
+      <div class="um-form">
+        <div class="um-row" style="align-items:center">
+          <label style="min-width:110px" data-i18n="integrations.adapter">Adattatore</label>
+          <span style="display:inline-flex;align-items:center;gap:6px;font-weight:500"><i class="fas fa-database" style="color:var(--text-muted)"></i> NetBox</span>
+        </div>
+        <div class="um-row">
+          <input type="text" id="dcim-url" data-input="dcim-cfg" data-i18n-ph="integrations.urlPh" placeholder="https://dcim.azienda.local" autocomplete="off" style="flex:1" aria-describedby="dcim-url-hint">
+          <small id="dcim-url-hint" data-i18n="integrations.urlHint" style="color:var(--text-muted)">Inserisci solo la base, non /api/dcim/devices: gli endpoint vengono aggiunti automaticamente.</small>
+        </div>
+        <div class="um-row" style="display:flex;flex-direction:column;align-items:stretch;gap:5px">
+          <label for="dcim-token" data-i18n="integrations.tokenLabel">Token API NetBox v2</label>
+          <input type="password" id="dcim-token" data-input="dcim-cfg" data-i18n-ph="integrations.tokenPh" aria-describedby="dcim-token-hint" placeholder="nbt_key.secret" autocomplete="off" style="flex:1">
+          <small id="dcim-token-hint" data-i18n="integrations.tokenHint" style="color:var(--text-muted)">Crea in NetBox un token v2. Il token dell'API InfraNet si gestisce da Account → Token API.</small>
+        </div>
+        <div class="um-row">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="dcim-verifytls" checked>
+            <span data-i18n="integrations.verifyTls">Verifica certificato TLS</span>
+          </label>
+        </div>
+        <div class="um-row" style="align-items:center;gap:12px">
+          <button class="um-btn" id="dcim-test-btn" data-act="dcim-test"><i class="fas fa-plug"></i> <span data-i18n="integrations.test">Prova connessione</span></button>
+          <span id="dcim-status" data-i18n="integrations.notConnected" style="font-size:.85rem;color:var(--text-muted)">Non connesso</span>
+        </div>
+      </div>
+      <div id="dcim-catalog-summary" style="margin-top:12px;padding:9px 11px;border:0.5px solid var(--border);border-radius:var(--radius);font-size:.8rem;color:var(--text-muted)"></div>
+      <div class="um-tabs" style="margin-top:16px">
+        <button class="um-tab active" id="dcim-tab-import" data-act="dcim-tab" data-tab="import"><i class="fas fa-download"></i> <span data-i18n="integrations.importTab">Importa</span></button>
+        <button class="um-tab" id="dcim-tab-export" data-act="dcim-tab" data-tab="export"><i class="fas fa-lock"></i> <span data-i18n="integrations.exportTab">Esporta · Pro</span></button>
+      </div>
+      <div id="dcim-import-pane"><div id="dcim-import-body"></div></div>
+      <div id="dcim-export-pane" style="display:none"><div id="dcim-export-body"></div></div>
+    </div>
+    <div class="tool-modal-footer">
+      <button class="um-btn primary" data-act="dcim-save"><i class="fas fa-floppy-disk"></i> <span data-i18n="integrations.save">Salva</span></button>
+      <button class="um-btn ghost" data-act="dcim-close"><i class="fas fa-times"></i> <span data-i18n="common.close">Chiudi</span></button>
     </div>
   </div>
 </div>
@@ -1082,6 +1135,7 @@
 <script src="/lib/drift-report.js"></script>
 <script src="/lib/drift-snapshot.js"></script>
 <script src="/lib/backup-ref.js"></script>
+<script src="/lib/project-format.js"></script>
 <script src="/lib/project-networks.js"></script>
 <script src="/lib/ai-grounding.js"></script>
 <script src="/lib/ai-draft.js"></script>

@@ -17,8 +17,13 @@
 
 ### A) Template NATIVI → "Applica modello" (CONSIGLIATO, look ESATTO)
 Genera un **catalogo** di template nativi (`ports` + `frontPanel`: sfpCount/sfp2Count/
-sfpStartNum/mgmtCount) che il **renderer di default** dell'app usa per disegnare
+sfpStartNum/mgmtCount/sharedMediaSlots) che il **renderer di default** dell'app usa per disegnare
 porte/SFP/MGMT esatte. È la strada giusta: nessun SVG, riusa il render nativo.
+
+`sharedMediaSlots` descrive posizioni fisiche condivise da più media senza aumentare
+il numero delle porte: `{ start: 10, count: 1, media: ["copper", "fiber"] }` è
+uno slot dati unico compatibile con rame o fibra. Le correzioni hardware verificate
+restano in `data/device-types-overrides.json`, senza regole dipendenti dal vendor.
 ```bash
 node tools/import-device-types.js <inputDir> <outDir> --catalog=data/device-types.json
 ```
@@ -55,6 +60,13 @@ Output senza `--seed`: `<outDir>/<slug>.svg` (una per modello) + `<outDir>/catal
   console/power/interfacce virtuali/wireless vengono **scartate**.
 - Ogni skin è validata con `lib/panel-skin.js` (`parsePanelSkin`) prima di salvarla.
 
+Il renderer nativo del rack usa gli stessi dati `frontPanel` senza introdurre una
+classificazione dipendente dal vendor. Quando un modello combina una riga principale
+densa con un blocco SFP ampio, applica automaticamente una modalità visuale compatta:
+riduce gli spazi e le celle, rimuove gli spostamenti fissi e mantiene visibili le porte
+rame, SFP/QSFP e MGMT. La modalità riguarda solo la geometria CSS: non modifica il
+conteggio, l'ordine, la numerazione o il mapping delle interfacce.
+
 ## Limiti noti
 - Layout **generico** a 2 righe: leggibile ma non 1:1 col pannello fisico reale
   (con l'ancoraggio SNMP all'`ifName`, il numero disegnato è comunque cosmetico).
@@ -64,3 +76,67 @@ Output senza `--seed`: `<outDir>/<slug>.svg` (una per modello) + `<outDir>/catal
 
 > Nota: `skins/` è gitignored. Le skin generate restano locali; questo strumento
 > le rigenera on-demand da qualunque set di YAML CC0.
+
+## Aggiornamento periodico del catalogo
+
+Il catalogo CC0 viene aggiornato separatamente dall'importazione DCIM/IPAM.
+L'importazione NetBox usa sempre l'ultimo catalogo locale valido e non scarica
+la sorgente durante il wizard.
+
+Nella finestra **Sincronizzazione DCIM/IPAM**, l'amministratore vede lo stato
+del catalogo e può usare **Controlla aggiornamenti** o **Aggiorna catalogo**.
+Il viewer può consultare lo stato ma non avviare operazioni. L'aggiornamento
+usa lo stesso script locale, non modifica i progetti e non invia dati NetBox.
+Per la sorgente GitHub l'updater usa un clone parziale (`sparse checkout`):
+scarica solo `device-types/*.yaml` e `device-types/*.yml`, non l'intero archivio
+del repository. Il timeout del trasferimento è di 120 secondi; se Git non è
+disponibile, l'errore viene mostrato senza sostituire il catalogo precedente.
+
+```bash
+# acquisisce la sorgente pubblica, genera canonico e runtime
+npm run update-device-types
+
+# analizza la sorgente senza scrivere file
+npm run update-device-types -- --dry
+
+# controlla se la revisione locale è cambiata (exit code 2 se c'è un aggiornamento)
+npm run update-device-types -- --check
+
+# usa una checkout locale, utile per sviluppo e CI senza rete
+npm run update-device-types -- --input=C:\path\to\devicetype-library
+
+# usa una revisione precisa della sorgente
+npm run update-device-types -- --ref=<commit>
+
+# salva un report differenziale in un percorso esplicito
+npm run update-device-types -- --dry --report=data/device-types-review.json
+```
+
+Lo script genera:
+
+- `data/device-types-canonical.json` con dati e interfacce completi;
+- `data/device-types.json` con i template leggeri usati dall'app;
+- `data/device-types-manifest.json` con sorgente, commit, checksum e statistiche;
+- `data/device-types-diff.json` con modelli aggiunti, rimossi, modificati ed esclusi.
+
+Le correzioni locali restano separate dalla sorgente CC0:
+
+- `data/device-types-aliases.json` per rinominare slug NetBox non allineati;
+- `data/device-types-overrides.json` per correzioni hardware verificate;
+- `data/device-types-exclusions.json` per escludere esplicitamente modelli dal runtime.
+
+Gli override sono applicati solo alla proiezione runtime; il canonico conserva
+sempre il valore originale. Il comando interrompe l'aggiornamento se trova YAML
+incompleti, slug duplicati, file troppo grandi, symlink o una variazione anomala
+delle esclusioni. `--strict-license` abilita anche il controllo esplicito della
+licenza CC0 nella sorgente locale.
+
+Il runtime usa prima `device_type.slug` NetBox, poi alias e marca/modello
+normalizzati. Se il modello non viene trovato, il device e le sue interfacce
+restano comunque importabili e visualizzabili; il report segnala il fallback.
+Un aggiornamento del catalogo non modifica automaticamente i progetti esistenti.
+Se un progetto contiene un nodo importato con una revisione precedente, il pannello
+proprietà mostra un avviso **scheda hardware aggiornata**: l'azione **Rivedi /
+applica nuova scheda** aggiorna porte, front-panel e altezza solo dopo conferma
+esplicita. La preview DCIM distingue inoltre i casi non riconciliati dagli oggetti
+esclusi manualmente dall'utente.

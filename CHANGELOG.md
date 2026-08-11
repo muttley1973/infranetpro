@@ -1,8 +1,31 @@
 # Changelog
 
-## [Unreleased] - 2026-08-10
+## [2.8.0] — 2026-08-11
 
-**The network view keeps the same identity and presence state across reloads.** Runtime caches are cleared when a project changes, persisted presence proof remains visible, and topology correlation uses the complete documented node identifier instead of guessing from the last hyphen.
+**Import an existing NetBox/DCIM as a new InfraNet project — on a NetBox-compatible device catalog — while automation proposes instead of silently overwriting what you documented by hand.** DCIM/IPAM sync builds a project from a NetBox site (racks on the floor plan, a front/rear cabinet split, patch-panel cabling as a native pass-through chain); the device catalog is the canonical CC0 library projected through neutral port-slot semantics (combo ports and a full PDU model, up to 48 outlets); and portable JSON exports are versioned and secret-free. At the same time the network view keeps the same identity and presence state across reloads — runtime caches are cleared when a project changes, persisted presence proof stays visible, and the hyphen-safe port→node resolver stays O(1) so large topologies never freeze mid-scan during an automatic monitor.
+
+### Added
+- **DCIM/IPAM sync — import from NetBox** (free): connect with a base URL + API token (secret stored server-side at `0o600`, never in git or the browser) plus a connection test; a three-step wizard (site scope → entity toggles → preview with per-row deselect) builds a **new** project, with a staged progress screen and a result summary. Import is read-only — it never writes to NetBox. Pure NetBox→state mapping in `lib/dcim-map.js`; admin-gated routes under `/api/integrations/dcim/*`.
+- **Imported racks are placed on the floor plan** and open in the Rack view — each rack gets a non-overlapping grid position and a clickable floor icon; the first rack is set current so the cabinet renders populated.
+- **Front/rear cabinet split** — a NetBox rack with devices on both faces becomes two InfraNet racks (`… · retro`), devices assigned by face, cross-face cables drawn as cross-rack links.
+- **Patch-panel cabling** — front/rear-port terminations become a native pass-through chain sharing the pass-through pid (no synthetic segments); type-aware termination resolution, with the NetBox 4.6 `rear_ports[]` array schema handled alongside the legacy singular field. Power/PDU and WAN-circuit cables are skipped quietly.
+- **Write-back to NetBox** is a **paid module** (`modules/dcim-export/`): dry-run diff, create-or-PATCH by natural key, never delete; the free build feature-detects it and hides the Export tab.
+- **Vendor-neutral NetBox hardware compatibility**: the CC0 catalog is kept as a canonical source and projected into the InfraNet runtime catalog through aliases, overrides, exclusions and generated revision metadata; update tooling and catalog diff tests make refreshes repeatable without changing the source dataset.
+- **Complete DCIM/IPAM reconciliation**: NetBox devices, interfaces, cables, VLANs, prefixes, IP addresses, racks and floor devices are mapped into InfraNet's own model, with a manual review step for ambiguous roles and locations before a new project is created.
+- **Neutral physical port-slot model**: management, copper, SFP/SFP+, QSFP and other physical roles are represented by vendor-neutral slot semantics, so importing a device or applying a hardware model does not invent or reorder ports.
+- **Portable, versioned project JSON**: projects carry a schema version; browser exports use an `infranet-project-export` envelope, redact SNMP credentials and sanitize backup references, while imports accept both the new envelope and legacy bare state files.
+- **PDU power-outlet presentation**: rack PDUs support up to 48 passive power outlets inside the rack port frame, with cells that scale down as density grows, the frame resizing with the rack height (`1U`, `2U` and above), a dedicated management frame and no network cable endpoint semantics.
+- **PDU power connections**: the Properties panel exposes an **Alimentazione** accordion with an editable outlet list; NetBox connections remain the source value, while manual device/port edits are stored as separate overrides and can be reset without losing the imported data.
+- **Single PDU outlet properties**: the power connection is now an accordion with a rack-device dropdown for the powered device and an editable power-port field. The operational state follows the same manual-first rule as network ports: NetBox remains the imported source, a manual `statusOvr` is stored separately, and reset restores the imported state.
+- **PDU outlet status mapping**: NetBox `Enabled`, `Disabled` and `Faulty` map to InfraNet active, inactive and fault; an undocumented outlet is inactive by default, while a documented connection becomes active unless an explicit operational state says otherwise. A manual `statusOvr` always takes precedence over the imported `rawStatus`, including when NetBox reports `Enabled`.
+- **PDU interface model**: the properties panel now separates Ethernet/IP management ports from serial console, sensor, USB and expansion/feature ports; only Ethernet ports render as network endpoints, while auxiliary ports remain visible without creating network cable targets.
+
+### Changed
+- **High-density SFP rendering**: devices with dense main-port rows and large SFP blocks now use a compact visual mode that removes fixed horizontal transforms, reduces inter-block spacing and keeps every copper, SFP and management port visible without changing the vendor-neutral classification or numbering.
+- **PDU connection field consistency**: the aggregated **Alimentazione** list now uses the same dark controls, typography, spacing and focus treatment as the single-outlet Properties panel.
+- **DCIM import workflow**: the wizard now exposes progressive preview, site/role/tag selection, explicit reconciliation choices, catalog revision information and a staged result summary before project creation. Imported racks are placed without overlap, front/rear cabinets remain distinct and patch-panel paths remain native pass-through chains.
+- **Project persistence**: the server envelope records the state schema version; history and restorable snapshots remain outside the main JSON, with atomic writes and `fsync` for the history sidecars. Topology cache entries are pruned when their devices no longer exist.
+- **NetBox import transport**: the connector canonicalizes an instance URL even when an API endpoint was pasted, accepts raw tokens and complete `Token`/`Bearer` headers, fails closed on cross-origin or failed pagination, enforces batch caps globally and overlaps only independent reads to shorten large imports.
 
 ### Fixed
 - **Persisted presence is rendered after reload**: documented absent and unverifiable devices keep their red or grey overlay until a newer verification result replaces it.
@@ -11,6 +34,20 @@
 - **Verify, SNMP poll and topology building stay responsive on large networks**: the hyphen-safe port→node resolver (`getPortNodeId` / `nodeIdOfPort`) is O(1) again in the common case — the naive last-hyphen split is always the longest possible node prefix, so when it is a known node ID it is returned directly; only the rare multi-hyphen suffix (e.g. `…-logical-<id>`) falls back to the longest-prefix scan, over a set built once. Fixes a regression where the resolver, called in per-port hot loops (per-device poll, `buildPortIndex`, drift streaks, auto-link), rebuilt and scanned all node IDs on every call and could freeze the tab mid-scan during an automatic Full or Light monitor.
 - **Manual brand edits remain manual-first**: discovery and SNMP inventory no longer replace a brand explicitly entered by the user.
 - **Browser UMD modules load the shared port parser before correlation and drift**, keeping the browser and Node/test paths aligned.
+- **Manual reconciliation accuracy**: role, device type, site/location and port mapping choices are preserved through preview and import instead of falling back to a generic or stale classification.
+- **Project cleanup**: deleting a project also removes its verification timeline and snapshot directory, preventing stale history from being exposed if an identifier is later reused.
+- **Catalog and port-layout regressions**: imported NetBox interfaces now follow the same neutral layout rules used when applying a model from Properties, including management and high-speed uplink roles.
+- **The topology "trunk + access" (default) pill now shows all rack cables** (`shouldRenderLink`): it force-shows cables that otherwise appear only on selection, but previously only its exclusive "trunk only" / "access only" states did — so the default state hid every cable (an imported rack with only access links looked empty until you narrowed the filter). It now matches its own label and the floor overlay.
+- **Cables shown in "trunk + access" get the same 2.5px emphasis as the exclusive states** (`mode-emph`, all three states): a cable no longer draws thinner in the full view than in the filtered one.
+
+### Security
+- **js-yaml updated to 4.3.1** in the development dependency tree, clearing the Dependabot high-severity quadratic-CPU advisory without changing runtime behavior.
+
+### Tests and documentation
+- Added browser E2E coverage for DCIM import, manual reconciliation, project creation, JSON persistence, neutral port rendering and the imported physical cable chain.
+- Added unit coverage for catalog mapping, catalog revisions, portable JSON redaction, schema unwrapping, topology-cache pruning, atomic history writes and project-history cleanup.
+- Added regression coverage for NetBox URL/token normalization and connection safety, plus the O(1) hyphen-safe port→node resolver (Set/object membership, multi-hyphen suffixes).
+- Documented the NetBox DCIM/IPAM workflow and the manual-first pins in the README, technical architecture and bilingual manual.
 
 What's new in InfraNet Pro. Format based on [Keep a Changelog](https://keepachangelog.com/); newest first, grouped by release. **One line per change** — the reasoning behind each one lives in the commit history.
 

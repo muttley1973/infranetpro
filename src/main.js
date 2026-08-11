@@ -54,6 +54,7 @@ import './app-discovery.js';
 import './app-topology-overlay.js';
 import './app-csv-import.js';
 import './app-dhcp-import.js';
+import './app-integrations.js';   // Sincronizzazione DCIM/IPAM (NetBox): config + prova connessione — voce nel menu Import/Export
 import './app-ai.js';
 import './app-subbar.js';
 import './app-overview.js';   // vista di sintesi (Completo · Vero · Margine) — dopo il nucleo

@@ -302,6 +302,8 @@
 
         /* Rack devices */
         .rack-device { grid-column:1/-1; width:100%; background:var(--rack-metal); border:1px solid #111; border-left:3px solid var(--inactive-color); border-bottom:2px solid #000; display:flex; align-items:center; justify-content:space-between; padding:2px 6px; color:#ddd; position:relative; cursor:move; box-sizing:border-box; overflow:hidden; }
+        .rack-device.type-pdu { overflow:visible; }
+        .rack-device.type-pdu > .pdu-power-ports { align-self:stretch; }
         .rack-device.selected { outline:1px solid var(--accent); outline-offset:-1px; filter:brightness(1.15); z-index:5; }
         /* Errore SNMP: barra di stato a SINISTRA rossa (come gli altri stati) +
            LED di stato; niente piu' "tutto il bordo rosso". */
@@ -489,6 +491,8 @@
            ciano MGMT e dai LED status. */
         .rack-port-unit.uplink .port-led { border:1px solid rgba(154,165,177,.75); box-shadow:0 0 0 1px rgba(154,165,177,.1); }
         .rack-port-unit.uplink .port-num { color:#7a8a9e; }
+        .rack-port-unit.shared-media-slot .port-led { border:1px dashed rgba(210,153,34,.8); box-shadow:0 0 0 1px rgba(210,153,34,.12); }
+        .rack-port-unit.shared-media-slot .port-num { color:#d29922; }
         .rack-port-unit.sfp-slot { gap:1px; }
         .rack-ports .rack-port-unit { width:var(--rack-port-cell); min-width:var(--rack-port-cell); max-width:var(--rack-port-cell); }
         .rack-ports .rack-port-unit.sfp-slot { width:auto; min-width:0; max-width:none; }
@@ -519,6 +523,48 @@
             row-gap:0;
             /* width auto: scala in base al numero di SFP (2 righe always) */
         }
+        .rack-ports.rack-ports-sfp-layout.dense-xxl {
+            --rack-port-cell:6px;
+            gap:3px;
+            transform:none;
+        }
+        .rack-ports.rack-ports-sfp-layout.dense-xxl .rack-ports-main,
+        .rack-ports.rack-ports-sfp-layout.dense-xxl .rack-sfp-side {
+            gap:0;
+        }
+        .rack-ports.rack-ports-sfp-layout.dense-xxl.sfp-right .rack-ports-main,
+        .rack-ports.rack-ports-sfp-layout.dense-xxl.sfp-left .rack-ports-main {
+            transform:none;
+        }
+        .rack-ports.rack-ports-sfp-layout.dense-xxl .rack-ports-row {
+            column-gap:1px;
+        }
+        .rack-ports.rack-ports-sfp-layout.dense-xxl .rack-sfp-side {
+            grid-auto-columns:6px;
+            column-gap:1px;
+            row-gap:0;
+        }
+        .rack-ports.rack-ports-sfp-layout.dense-xxl .rack-port-unit.sfp-slot {
+            width:6px;
+            min-width:6px;
+            max-width:6px;
+            gap:0;
+        }
+        .rack-ports.rack-ports-sfp-layout.dense-xxl .port-led.sfp-slot,
+        .rack-ports.rack-ports-sfp-layout.dense-xxl .port-led.mgmt-slot {
+            box-sizing:border-box;
+            width:6px;
+            height:4px;
+        }
+        .rack-ports.rack-ports-sfp-layout.dense-xxl .port-led:not(.sfp-slot):not(.mgmt-slot) {
+            width:6px;
+            height:6px;
+        }
+        .rack-ports.rack-ports-sfp-layout.dense-xxl .port-num {
+            font-size:3px;
+            letter-spacing:-.3px;
+            max-width:8px;
+        }
         .port-led { width:7px; height:7px; border-radius:1px; background:var(--inactive-color); pointer-events:auto; cursor:crosshair; transition:transform .1s, box-shadow .1s; flex-shrink:0; }
         .port-led.sfp-slot { width:8px; height:5px; border-radius:1px; background:transparent; border:2px solid rgba(154,165,177,.75); box-shadow:inset 0 0 0 1px rgba(154,165,177,.1); }
         .port-led:hover { transform:scale(1.5); box-shadow:0 0 6px var(--accent); }
@@ -530,6 +576,147 @@
         .port-led.sfp-slot.fault { background:rgba(248,81,73,.15); box-shadow:0 0 4px rgba(248,81,73,.5); border-color:rgba(248,81,73,.8); }
         .port-led.idle   { background:var(--idle-color);   box-shadow:0 0 5px var(--idle-color); }
         .port-led.sfp-slot.idle { background:rgba(210,153,34,.14); box-shadow:0 0 4px rgba(210,153,34,.45); border-color:rgba(210,153,34,.75); }
+        .rack-ports.pdu-power-ports {
+            flex:1 1 auto;
+            min-width:0;
+            margin:0 4px;
+            padding:2px 4px;
+            border:1px solid rgba(154,165,177,.28);
+            border-radius:2px;
+            background:rgba(0,0,0,.16);
+            box-sizing:border-box;
+        }
+        .pdu-power-grid {
+            display:grid;
+            grid-template-columns:repeat(var(--pdu-cols), var(--pdu-cell-w));
+            grid-template-rows:repeat(var(--pdu-rows), var(--pdu-cell-h));
+            gap:2px;
+            align-content:space-evenly;
+            justify-content:space-evenly;
+            width:100%;
+            height:100%;
+            min-width:0;
+        }
+        .pdu-power-outlet {
+            width:100%;
+            height:100%;
+            box-sizing:border-box;
+            border:1px solid #4b5563;
+            border-radius:2px;
+            background:var(--inactive-color);
+            box-shadow:inset 0 0 0 1px rgba(0,0,0,.24);
+            pointer-events:auto;
+            cursor:pointer;
+            transition:transform .1s, box-shadow .1s, background .1s;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            color:rgba(255,255,255,.72);
+            font-family:monospace;
+            font-size:var(--pdu-font);
+            line-height:1;
+        }
+        .pdu-power-outlet::after { content:attr(data-pdu-number); pointer-events:none; user-select:none; }
+        .pdu-power-outlet:hover { transform:scale(1.5); box-shadow:0 0 6px var(--accent); z-index:102; }
+        .pdu-power-outlet.active:hover { box-shadow:0 0 9px var(--active-color); }
+        .pdu-power-outlet.active { background:var(--active-color); border-color:var(--active-color); box-shadow:0 0 5px var(--active-color); }
+        .pdu-power-outlet.fault { background:var(--fault-color); border-color:var(--fault-color); box-shadow:0 0 5px var(--fault-color); }
+        .pdu-power-outlet.idle { background:var(--idle-color); border-color:var(--idle-color); box-shadow:0 0 5px var(--idle-color); }
+        .pdu-power-outlet.inactive { background:var(--inactive-color); border-color:var(--inactive-color); box-shadow:none; }
+        .pdu-power-outlet.unknown { background:#242b33; border:1px dashed rgba(105,117,134,.72); box-shadow:none; color:rgba(255,255,255,.48); }
+        .pdu-power-outlet.selected { outline:1px solid var(--accent); outline-offset:1px; transform:scale(1.35); box-shadow:0 0 0 2px var(--accent), 0 0 7px rgba(0,212,255,.55); z-index:102; }
+        .rack-ports.pdu-management-ports {
+            flex:0 0 auto;
+            min-width:0;
+            margin:0 2px;
+            gap:0;
+        }
+.rack-ports.pdu-management-ports.compact-1u {
+    align-self:center;
+    align-items:center;
+    padding:0;
+    box-sizing:border-box;
+    overflow:visible;
+    height:max-content;
+    min-height:max-content;
+}
+.pdu-management-ports .rack-mgmt-side {
+    padding:2px 4px;
+            border:1px solid rgba(0,212,255,.3);
+            border-radius:2px;
+            background:rgba(0,212,255,.04);
+}
+.pdu-management-ports.compact-1u .rack-mgmt-side {
+    max-height:none;
+    padding:0 3px;
+    box-sizing:border-box;
+    overflow:visible;
+    height:max-content;
+    min-height:max-content;
+}
+.pdu-management-ports.compact-1u .port-led.mgmt-slot {
+    width:6px;
+    height:4px;
+}
+.pdu-management-ports.compact-1u .rack-mgmt-grid .rack-port-unit.mgmt-slot {
+    gap:0;
+}
+        .rack-ports.pdu-auxiliary-ports {
+            flex:0 1 auto;
+            min-width:0;
+            max-width:78px;
+            margin:0 2px;
+            padding:1px 2px;
+            border:1px solid rgba(154,165,177,.25);
+            border-radius:2px;
+            background:rgba(0,0,0,.12);
+            box-sizing:border-box;
+            overflow:hidden;
+        }
+        .pdu-auxiliary-ports.compact-1u {
+            align-self:stretch;
+            align-items:center;
+        }
+        .pdu-aux-grid {
+            display:grid;
+            grid-template-columns:repeat(5, 12px);
+            grid-auto-rows:5px;
+            gap:1px;
+            align-content:center;
+            justify-content:center;
+            width:100%;
+            height:100%;
+        }
+        .pdu-aux-port {
+            width:100%;
+            height:100%;
+            box-sizing:border-box;
+            border:1px solid #59636f;
+            border-radius:1px;
+            background:#252b33;
+            color:#c8d1dc;
+            font:3px/1 monospace;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            overflow:hidden;
+            white-space:nowrap;
+        }
+        .pdu-aux-port.serial { border-color:rgba(210,153,34,.75); color:#ffd27a; }
+        .pdu-aux-port.sensor { border-color:rgba(163,113,247,.75); color:#d8b4fe; }
+        .pdu-aux-port.usb { border-color:rgba(88,166,255,.75); color:#8bc7ff; }
+        .pdu-aux-port.expansion { border-color:rgba(154,165,177,.8); color:#d0d7de; }
+        .pdu-port-model-note {
+            margin:5px 0 2px;
+            padding:5px 7px;
+            border:1px solid rgba(0,212,255,.22);
+            border-radius:4px;
+            background:rgba(0,212,255,.05);
+            color:var(--text-muted);
+            font-size:.72rem;
+            line-height:1.35;
+        }
+        .pdu-port-model-note i { color:var(--accent); margin-right:4px; }
         /* ---- Skin pannello custom (prototipo): SVG al posto della griglia LED ---- */
         /* Con la skin: niente padding e niente bordo telaio (lo disegna l'SVG), MA
            si tiene la barra di stato SNMP a sinistra (border-left 3px). Si impostano
@@ -612,4 +799,4 @@
         .rack-ports.rack-ports-sfp-layout.has-mgmt-opposite { gap:9px; }
         .rack-ports.rack-ports-sfp-layout.sfp-right.has-mgmt-opposite .rack-ports-main,
         .rack-ports.rack-ports-sfp-layout.sfp-left.has-mgmt-opposite .rack-ports-main { transform:none; }
-
+

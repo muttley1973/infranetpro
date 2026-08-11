@@ -7,7 +7,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
-const { frontPanelState } = require('../lib/frontpanel');
+const { frontPanelState, frontPanelSharedSlots } = require('../lib/frontpanel');
 
 const catalog = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'device-types.json'), 'utf8'));
 
@@ -26,8 +26,10 @@ test('device-types.json: catalogo ben formato', () => {
 test('frontPanel deriva lo split SFP/MGMT dai campi template (tutti i modelli)', () => {
   for (const c of catalog) {
     const s = frontPanelState({ type: 'switch', ports: c.ports, frontPanel: c.frontPanel }, c.ports, true);
-    assert.equal(s.sfpCount, Math.min(48, c.counts.sfp), c.model + ' sfp');
-    assert.equal(s.sfp2Count || 0, Math.min(48, c.counts.qsfp), c.model + ' sfp2');
+    const sharedFiberOne = s.sharedMediaSlots.filter(item => item.media.some(media => /fiber|optical|sfp/.test(media)) && !item.media.some(media => /qsfp|cfp/.test(media))).length;
+    const sharedFiberTwo = s.sharedMediaSlots.filter(item => item.media.some(media => /qsfp|cfp/.test(media))).length;
+    assert.equal(s.sfpCount, Math.min(48, Math.max(0, c.counts.sfp - sharedFiberOne)), c.model + ' sfp');
+    assert.equal(s.sfp2Count || 0, Math.min(48, Math.max(0, c.counts.qsfp - sharedFiberTwo)), c.model + ' sfp2');
     assert.equal(s.mgmtCount || 0, Math.min(4, c.counts.mgmt), c.model + ' mgmt');
   }
 });
@@ -38,9 +40,21 @@ test('frontPanel deriva lo split SFP/MGMT dai campi template (tutti i modelli)',
 test('nessuna fibra resa come rame (rame implicito == rame reale, tutti i modelli)', () => {
   for (const c of catalog) {
     const s = frontPanelState({ type: 'switch', ports: c.ports, frontPanel: c.frontPanel }, c.ports, true);
-    const impliedCopper = c.ports - s.sfpCount - (s.sfp2Count || 0);
+    const sharedSlots = frontPanelSharedSlots({ type: 'switch', frontPanel: c.frontPanel }, c.ports).length;
+    const impliedCopper = c.ports - s.sfpCount - (s.sfp2Count || 0) - sharedSlots;
     assert.equal(impliedCopper, c.counts.copper, c.model + ' rame implicito != reale');
   }
+});
+
+test('Cisco ISR 1111-8P: il combo rame/fibra resta uno slot e non diventa MGMT', () => {
+  const c = catalog.find(x => x.slug === 'cisco-isr-1111-8p');
+  assert.ok(c, 'ISR 1111-8P presente nel catalogo');
+  assert.equal(c.ports, 10);
+  assert.equal(c.frontPanel.separateSfp, false);
+  assert.deepEqual(frontPanelSharedSlots({ type: 'router', frontPanel: c.frontPanel }, c.ports), [10]);
+  const state = frontPanelState({ type: 'router', ports: c.ports, frontPanel: c.frontPanel }, c.ports, true);
+  assert.equal(state.sfpCount, 0);
+  assert.equal(state.mgmtCount, 0);
 });
 
 // Caso del bug: 24x SFP+ (blocco1) + 4x SFP56 (blocco2), ZERO rame.

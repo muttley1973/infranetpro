@@ -30,6 +30,7 @@ module.exports = [
       'backup_reset/**', 'vendor/**', 'docs/**', 'skins/**', 'coverage/**',
       'tools/snmp-sim/**', // regola di progetto: mai toccare
       'modules/**',        // moduli a pagamento (privati, gitignored) — fuori dal gate pubblico
+      '.worktrees/**',     // git worktree locali (checkout + dist propri) — non fanno parte della sorgente
       '**/*.min.js',
     ],
   },

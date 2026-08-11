@@ -1,4 +1,4 @@
-import { win, expose, t, mergeLeaseSources } from './_bridge.js';
+import { win, projectFormat, expose, t, mergeLeaseSources } from './_bridge.js';
 // lib PURA e STATELESS: import ESM diretto (meta ASSE A) invece di win.* (il ponte
 // è al floor 268). Non è registrata come <script>, quindi la regola "non importare
 // un lib-<script>" (motivata dallo STATO, es. i18n) non si applica: qui è tutto
@@ -7,6 +7,7 @@ import { win, expose, t, mergeLeaseSources } from './_bridge.js';
 import { canonicalizeIpv6 } from '../lib/ipv6.js';
 import { nodeIdOfPort } from '../lib/port-id.js';
 import { migrateVmNics, VM_FLAT_NET_FIELDS, vmIps } from '../lib/vm-nics.js';   // migrazione vm.ip/mac/vlan → vm.nics[]; vmIps = IPv4 di tutte le vNIC
+import { normalizePduOutletCount, normalizePduManagementMode, normalizePduPortCount, pduManagementPortCount } from '../lib/pdu-layout.js';
 import { store, resetProjectRuntime } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, normalizeNumber, normalizeStatus, normalizeMacAddress, _shadeHex } from './app-util.js';   // helper puri estratti dal god-file
 import { TYPES, typeName, typeShort } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (prima letto dal global implicito) + nome localizzato
@@ -26,11 +27,13 @@ import { closeTopToolModal, initModalA11y } from './app-modal-a11y.js';   // M9:
 // ============================================================
 // STATO APPLICAZIONE
 // ============================================================
+const PROJECT_STATE_SCHEMA_VERSION = Number(projectFormat.PROJECT_STATE_SCHEMA_VERSION) || 1;
 // `var` (non `let`) di proposito: così `state` vive su window.state ed è
 // leggibile/riassegnabile dai moduli ESM convertiti (bundle esbuild) tramite il
 // ponte di migrazione (src/_bridge.js → store.state). I classic script legacy lo
 // vedono comunque come globale. Vedi build.js / src/main.js.
 store.state = {
+    schemaVersion: PROJECT_STATE_SCHEMA_VERSION,
     vlanColors:{}, vlanNames:{}, racks:[], currentRack:null,
     ipam:{ vlans:{} },
     floorView:{x:0,y:0,zoom:1}, rackView:{zoom:1},
@@ -216,6 +219,7 @@ export function _loadDefaultLocal() {
 
 export function _buildDefaultState() {
     return {
+        schemaVersion: PROJECT_STATE_SCHEMA_VERSION,
         vlanColors:{10:'#00d4ff',20:'#ff00d4',30:'#39d353',40:'#f1e05a',99:'#f85149'},
         ipam:{ vlans:{} },
         racks:[{id:'rack_1',name:'Main Rack',sizeU:42}],
@@ -446,6 +450,7 @@ export function _dhcpSyncLeases() {
 
 export function _migrateState(s) {
     if(!s || typeof s !== 'object') s = _buildDefaultState();
+    const incomingSchemaVersion = Number(s.schemaVersion);
     _sanitizeProjectConnectivity(s);
     if (Array.isArray(s.nodes)) s.nodes.forEach(_compactNodeSpec);
     // Migrazione VLAN endpoint floor: i vecchi campi spec (vlanPc/vlanIot/…) erano
@@ -521,6 +526,12 @@ export function _migrateState(s) {
         s.currentRack = 'rack_default';
         (s.nodes||[]).forEach(n => { if (TYPES[n.type]?.isRack) n.rackId='rack_default'; });
     }
+    // currentRack assente o "appeso" (rack eliminato, oppure progetto importato che
+    // crea i rack ma non ne seleziona uno) → apri sul primo rack esistente, così la
+    // vista Rack non è vuota. Stesso ripiego di app-csv-import (import CSV).
+    if (s.racks.length && !s.racks.some(r => r && r.id === s.currentRack)) {
+        s.currentRack = s.racks[0].id;
+    }
     if (!s.floorView) s.floorView = {x:0,y:0,zoom:1};
     if (!s.rackView)  s.rackView  = {zoom:1};
     if (!s.uiColors)  s.uiColors  = {floorBg:'#0d1117',rackBg:'#ffffff'};
@@ -556,6 +567,9 @@ export function _migrateState(s) {
     _normalizeProjectNodeIds(s);
     _expandLagMemberLinks(s);
     _repairRackPlacements(s);
+    if(typeof projectFormat.pruneProjectStateCaches === 'function') projectFormat.pruneProjectStateCaches(s);
+    s.schemaVersion = Number.isInteger(incomingSchemaVersion) && incomingSchemaVersion > PROJECT_STATE_SCHEMA_VERSION
+        ? incomingSchemaVersion : PROJECT_STATE_SCHEMA_VERSION;
     return s;
 }
 
@@ -851,10 +865,13 @@ function importJSON(input) {
     reader.onload = ev => {
         try {
             const parsed = JSON.parse(ev.target.result);
-            if (!parsed.nodes||!parsed.racks) throw new Error('struttura non valida');
+            const imported = typeof projectFormat.unwrapProjectState === 'function' ? projectFormat.unwrapProjectState(parsed) : parsed;
+            const valid = typeof projectFormat.isProjectState === 'function'
+                ? projectFormat.isProjectState(imported) : !!(imported && imported.nodes && imported.racks);
+            if (!valid) throw new Error('struttura non valida');
             createSnapshot('', 'pre-import');   // rete di sicurezza: cattura lo stato PRIMA di rimpiazzarlo
             pushHistory();
-            state = _migrateState(parsed);
+            state = _migrateState(imported);
             resetProjectRuntime();
             _restoreTopoSession();
             _resetSelection(); renderRackTabs(); updateTransforms(); renderAll();
@@ -1191,7 +1208,7 @@ function _wallPortConnectionRole(wpPid, otherPid){
     if(wp?.type !== 'wallport') return null;
     if(!other || other.type === 'wallport') return 'invalid';
     if(TYPES[other.type]?.isRack || TYPES[other.type]?.isActive || TYPES[other.type]?.isPassive) return 'infrastructure';
-    if(_isLeafEndpoint(other.type)) return 'endpoint';
+    if(_isLeafEndpoint(other.type, other)) return 'endpoint';
     return 'invalid';
 }
 
@@ -1468,13 +1485,12 @@ function _renderCablesNow(){
         // Wireless (link.wireless): reso "a onda" (lib/wave-path.js) e classe
         // dedicata, per distinguerlo a colpo d'occhio dal cavo fisico.
         const _wl=l.wireless?' wireless':'';
-        // Pillola TRUNK/ACCESS (solo topologia): il cavo che il filtro ha SELEZIONATO
-        // va EVIDENZIATO — non lasciato come cavo spento. shouldRenderLink ne governa
+        // Pillola TRUNK/ACCESS (solo topologia): il cavo che il filtro MOSTRA va
+        // EVIDENZIATO — non lasciato come cavo spento. shouldRenderLink ne governa
         // già la VISIBILITÀ; qui ne allineiamo gli ATTRIBUTI a un cavo "acceso".
-        // Vale in ENTRAMBI i versi: «solo trunk» ingrossa i trunk, «solo access»
-        // ingrossa le access. Legarlo al solo trunk era un'asimmetria — la stessa
-        // vista, filtrata al contrario, disegnava i suoi cavi sottili. In
-        // «trunk + access» il disegno resta quello di riposo.
+        // Vale in TUTTI e tre gli stati: «solo trunk» ingrossa i trunk, «solo access»
+        // ingrossa le access, «trunk + access» ingrossa entrambi — così un cavo non
+        // cambia spessore solo perché si passa dalla vista filtrata a quella piena.
         // Classe PROPRIA (.mode-emph = 2.5px), non `.highlight`: quella dice gia'
         // «questo e' il cavo che stai seguendo» (percorso fisico), e due significati
         // con un aspetto solo si rendono illeggibili a vicenda. Si SOMMA a
@@ -1482,7 +1498,8 @@ function _renderCablesNow(){
         // piu' sottile di quelli che gli stanno intorno.
         const _modeEmph = (typeof _topoTrunkMode!=='undefined' && _viewMode==='topology' && (()=>{
             const _t = (typeof _linkIsTrunk==='function') ? _linkIsTrunk(l) : l.mode==='trunk';
-            return (_topoTrunkMode==='trunk' && _t) || (_topoTrunkMode==='access' && !_t);
+            return _topoTrunkMode==='all'
+                || (_topoTrunkMode==='trunk' && _t) || (_topoTrunkMode==='access' && !_t);
         })());
         const _emph = highPath.has(l.id) ? ' highlight' : isSelected ? ' sel' : '';
         // Eredita' del Proof-State sul disegno: il cavo prende lo stato dai due
@@ -1580,11 +1597,12 @@ function _renderCablesNow(){
         const cable=document.createElementNS('http://www.w3.org/2000/svg','path');
         // Segnala anche cavi cross-rack inferiti per coerenza con la rack view.
         const _ambX=_chainAmb.has(l.id)?' ambiguous':'';
-        // Stesse regole del floor: evidenzia cio' che il filtro ha selezionato, nei
-        // due versi; la traccia resta `.highlight` e le classi si sommano.
+        // Stesse regole del floor: evidenzia cio' che il filtro MOSTRA, in tutti e tre
+        // gli stati (anche «trunk + access»); la traccia resta `.highlight` e le classi si sommano.
         const _modeEmphX = (typeof _topoTrunkMode!=='undefined' && _viewMode==='topology' && (()=>{
             const _t = (typeof _linkIsTrunk==='function') ? _linkIsTrunk(l) : l.mode==='trunk';
-            return (_topoTrunkMode==='trunk' && _t) || (_topoTrunkMode==='access' && !_t);
+            return _topoTrunkMode==='all'
+                || (_topoTrunkMode==='trunk' && _t) || (_topoTrunkMode==='access' && !_t);
         })());
         const _emphX = isSelected ? ' sel' : isTrace ? ' highlight' : '';
         cable.setAttribute('class',`cable-xrack${_ambX}${_emphX}${_modeEmphX?' mode-emph':''}`);
@@ -1633,6 +1651,15 @@ store._rightTab = 'rack';   // 'rack' | 'props' (var: letto bare da app-pointer/
 import { switchRightTab, _activatePropsTab, _clearPropsTab, _enableManualValueInProps } from "./app-props-tabs.js";
 export { switchRightTab, _activatePropsTab, _clearPropsTab, _enableManualValueInProps };
 
+function _cleanupPduNetworkPorts(n){
+    const keep = pduManagementPortCount(n);
+    for(let i = keep + 1; i <= 4; i++){
+        const pid = `${n.id}-${i}`;
+        if(state.ports && state.ports[pid]) delete state.ports[pid];
+        if(Array.isArray(state.links)) state.links = state.links.filter(l => l && l.src !== pid && l.dst !== pid);
+    }
+}
+
 function updateN(k,v){
     // Sentinella dell'harness manual-value (_enableManualValueInProps): NON persistere
     // mai il token. Scegliendo «Personalizzato…» il change delegato arriva qui col token
@@ -1645,6 +1672,13 @@ function updateN(k,v){
     if(n.type==='wallport'&&k==='ports') v=1;
     if(n.type==='blankpanel'&&k==='ports') v=0;
     if(n.type==='cablemanager'&&k==='ports') v=0;
+    if(n.type==='pdu'&&k==='pduOutletCount') v=normalizePduOutletCount(v);
+    if(n.type==='pdu'&&k==='pduMgmtMode') v=normalizePduManagementMode(v);
+    if(n.type==='pdu'&&k==='pduEthernetPorts') v=normalizePduPortCount(v, 2, 1);
+    if(n.type==='pdu'&&k==='pduSerialPorts') v=normalizePduPortCount(v, 2, 1);
+    if(n.type==='pdu'&&k==='pduSensorPorts') v=normalizePduPortCount(v, 2, 0);
+    if(n.type==='pdu'&&k==='pduUsbPorts') v=normalizePduPortCount(v, 3, 0);
+    if(n.type==='pdu'&&k==='pduExpansionPorts') v=normalizePduPortCount(v, 2, 0);
     if(fixedRackLabel&&k==='name') v=fixedRackLabel;
     if(k==='mac') v=normalizeMacAddress(v);
     if(k==='sizeU'){const rs=getNodeRackSize(n);v=normalizeNumber(v,TYPES[n.type]?.sizeU||1,1,rs);n.rackU=normalizeNumber(n.rackU,1,1,rs-v+1);}
@@ -1656,6 +1690,7 @@ function updateN(k,v){
     } else {
         n[k]=v;
     }
+    if(n.type==='pdu' && (k==='pduMgmtMode' || k==='pduEthernetPorts')) _cleanupPduNetworkPorts(n);
     // Tipo scelto a mano = pinnato (manual-first): Discovery/Verifica non lo ricambiano.
     if(k==='type') n.typeManual = true;
     if(k==='brand') n.brandManual = !!String(v).trim();
@@ -1673,7 +1708,7 @@ function updateN(k,v){
     }
     // Aggiornato un identificatore di un endpoint foglia → ritenta l'auto-link
     // (es. ho appena incollato il MAC su una presa/AP/UPS).
-    if((k==='mac'||k==='ip'||k==='hostname') && _isLeafEndpoint(n.type)){
+    if((k==='mac'||k==='ip'||k==='hostname') && _isLeafEndpoint(n.type, n)){
         _autoLinkEndpoint(n.id);
     }
     // Stacking (P7.2): se il nodo e' master di uno stack e si tocca uno dei
@@ -1846,7 +1881,7 @@ function updateFrontPanel(k,v){
         delete n.frontPanel.mgmtPort;
         // Rimuovi pid sopra il nuovo count (1..4 max range)
         for(let i = newCount + 1; i <= 4; i++){
-            const pid = `${n.id}-mgmt${i}`;
+            const pid = n.type==='pdu' ? `${n.id}-${i}` : `${n.id}-mgmt${i}`;
             if(state.ports && state.ports[pid]) delete state.ports[pid];
             if(Array.isArray(state.links)){
                 state.links = state.links.filter(l => l && l.src !== pid && l.dst !== pid);
@@ -1916,6 +1951,14 @@ export function _removeNodeById(rid){
     state.nodes=state.nodes.filter(n=>n.id!==rid);
     state.links=state.links.filter(l=>!isPortOnNode(l.src,rid)&&!isPortOnNode(l.dst,rid));
     removeNodePorts(new Set([rid]));
+    if(state.topoCache && typeof state.topoCache === 'object' && !Array.isArray(state.topoCache)) delete state.topoCache[rid];
+    if(state.discoveryHistory && Array.isArray(state.discoveryHistory.observations)) {
+        state.discoveryHistory.observations = state.discoveryHistory.observations.filter(obs => {
+            if(!obs || typeof obs !== 'object') return false;
+            if(String(obs.switchId || '') === String(rid)) return false;
+            return !String(obs.portId || '').startsWith(String(rid) + '-');
+        });
+    }
 }
 function deleteNode(){
     if(!selId) return;

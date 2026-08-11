@@ -10,8 +10,8 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="1,948 tests, 0 failing" src="https://img.shields.io/badge/tests-1%2C948%20%C2%B7%200%20failing-3fb950"></a>
-  <a href="#testing"><img alt="93 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-93%20real--browser%20flows-3fb950"></a>
+  <a href="#testing"><img alt="2,083 tests, 0 failing" src="https://img.shields.io/badge/tests-2%2C083%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="97 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-97%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#oui-intelligence-engine"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
   <img alt="No database" src="https://img.shields.io/badge/database-none-8b949e">
@@ -80,7 +80,7 @@ Every figure declares where it came from — declared, measured (with its age), 
 <tr>
 <td width="33%" valign="top">
 <b>📦 Zero infrastructure</b><br><br>
-One Node process and one JSON file per project. No database, no cloud, no agent on your devices, no telemetry. Binds to <code>127.0.0.1</code> by default, and runs in Docker with one command.
+One Node process and one main JSON file per project, with optional history and snapshot sidecars kept outside that project file. No database, no cloud, no agent on your devices, no telemetry. Binds to <code>127.0.0.1</code> by default, and runs in Docker with one command.
 </td>
 <td width="33%" valign="top">
 <b>🔌 Standard MIBs, any vendor</b><br><br>
@@ -123,9 +123,9 @@ Double-click <code>avvia.bat</code>.<br>
 
 > **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then run **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.7.3) — automation proposes instead of silently overwriting what you documented by hand.** A hand-typed **name**, a **device type**, an SNMP **host** and a **port count** are each a pin the automation respects: Discovery/Sync/Verify no longer rewrite them behind your back — a divergent measurement is surfaced as a proposal you **adopt on purpose** (e.g. *"SNMP detected 28 ports — Adopt detected ports"*). Measured, dynamic state (presence, status) still follows the network.
+> 📰 **What's new (v2.8.0) — import an existing NetBox/DCIM as a new InfraNet project, on a NetBox-compatible device catalog.** Connect to a NetBox instance (base URL + API token, with a connection test), pick a site, and a three-step wizard builds a project from it: racks placed on the floor plan, devices in their cabinets, a front/rear cabinet split into two racks, and **patch-panel cabling** reconstructed as a native pass-through chain. The catalog is the canonical CC0 device-type library with **neutral port-slot semantics** — combo ports and a full **PDU** model (up to 48 outlets, manual-first overrides) — and portable JSON exports are now **versioned and secret-free**. The topology **trunk + access** view no longer hides a rack's cables. Import is free (public); write-back is a paid module.
 >
-> 📰 **Before that (v2.7.1) — SNMP polling and scheduled Verify are now one *Automatic monitoring* scheduler.** Pick a depth — **Light** (live SNMP refresh only) or **Full** (complete Verify + history) — and one interval (admin-tuned: Light 5–30 min, Full hourly to daily); a poll and a Verify never sweep SNMP at the same time. Full detail in [CHANGELOG.md](CHANGELOG.md).
+> 📰 **Automation proposes instead of silently overwriting what you documented by hand.** A hand-typed **name**, **device type**, **brand**, SNMP **host** and **port count** are each a pin the automation respects: Discovery/Sync/Verify no longer rewrite them behind your back — a divergent measurement is surfaced as a proposal you **adopt on purpose** (e.g. *"SNMP detected 28 ports — Adopt detected ports"*). SNMP polling and scheduled Verify are one *Automatic monitoring* scheduler — **Light** (live SNMP refresh) or **Full** (complete Verify + history) — and the port→node resolver stays O(1) so large topologies don't freeze during an automatic sweep. Full detail in [CHANGELOG.md](CHANGELOG.md).
 
 > 🔒 **Security-audited & hardened.** The codebase has undergone an application-security audit (no critical issues) and the follow-up fixes are covered by **automated security regression tests**: the data surfaces (AI context, REST DTOs, exports) are **allowlist-only** so secrets never leave the machine, OS commands run via `execFile` with no shell, project IDs are path-traversal-safe, and secrets use a CSPRNG. See [Authentication & Roles → Security hardening & audit](#authentication--roles).
 
@@ -238,11 +238,12 @@ Double-click <code>avvia.bat</code>.<br>
 |---|---|
 | **🗺️ Diagramming** | 19″ racks with live port LEDs, floor plans, ~4,100 device models across 52 vendors, MGMT & SFP blocks, hypervisors and VMs, the Dashboard, exports to PDF · SVG · draw.io |
 | **📡 Live SNMP** | v1 / v2c / v3 discovery, interfaces, VLANs, LAG, LLDP/CDP neighbours, ENTITY-MIB inventory, wireless associations, DHCP lease import, the Verify / Drift report |
+| **🔄 DCIM / IPAM sync** | Import an existing **NetBox** into a new project over its REST API — sites, racks (front/rear split), floor-placed, devices, interfaces, VLANs/prefixes and patch-panel cabling; free import, paid write-back |
 | **🔗 LAG detection** | A four-level cascade — `ifStackTable` · IEEE 802.3ad · LACP actor state · LLDP-inferred — plus LACP mode coherence across both ends |
 | **🏷️ VLAN** | Access and trunk detection, Q-BRIDGE bitmaps with a VTP fallback, auto-derived trunks, per-VLAN IPAM occupancy, one-click isolation across the whole map |
 | **📶 Wireless** | Up to 8 radios per device with their own SSID, band, channel, security and VLAN; over-the-air association discovery from the bridge FDB and the L3 neighbour table |
 | **🧵 Cabling** | Segment editor on the TIA-568 hierarchy, copper *and* fibre reach validation, end-to-end physical path trace, printable label sheets and CSV |
-| **🕓 History & automation** | Opt-in autosave, a silent scheduled Verify, a verification timeline and restorable full-state snapshots — kept outside the project file, behind a database-ready interface |
+| **🕓 History & automation** | One **Automatic monitoring** scheduler (Light / Full), opt-in autosave, a verification timeline and restorable full-state snapshots — kept outside the project file, behind a database-ready interface |
 | **🤖 AI assistant** | Bring-your-own-key, OpenAI-compatible, local by default; allowlist context, grounded answers with clickable citations, Ansible drafts — advisory, never auto-applied |
 | **🔒 Security** | Session auth with admin/viewer roles, rate-limited login, loopback bind, secrets structurally excluded from every data surface |
 | **🌍 Bilingual** | Complete Italian and English interface, onboarding and ~49-page manual, guarded by an `it ↔ en` key-parity test |
@@ -255,7 +256,7 @@ Double-click <code>avvia.bat</code>.<br>
 - **Apply model** — search a real switch or router model and apply it in one click: port count and front panel are set natively and drawn by the built-in renderer. The catalogue ships ~4,100 models across 52 vendors, generated from public-domain device data (`tools/import-device-types.js`).
 - **Front-panel controls** — per-device port count and layout (Auto / Linear / Sequential / Cisco-alternating), with an optional separate SFP block and a dedicated MGMT block.
 - **Dedicated MGMT ports** — up to 4 cyan cells outside the regular `1..N` numbering, with an editable label (MGMT, iLO, iDRAC, fxp0…). Excluded from VLAN/LAG/FDB data-plane logic.
-- **SFP block** — a separate cell group with an anodised border, left or right of the main port grid, up to 48 per block.
+- **SFP block** — a separate cell group with an anodised border, left or right of the main port grid, up to 48 per block; high-density combinations compact the gaps and cells automatically so copper, SFP and MGMT ports remain visible.
 - **Floor map** — place devices on an SVG floor plan; cables drawn as bezier curves.
 - **Labels say what a thing is** — the name on top, the address underneath. When Discover finds no hostname it stores the IP as the name, so the readable line is *derived for display* from the classified type and vendor (`IoT-AzureWave`, `NAS-LaCie`); `node.name` is never rewritten and a declared name always wins (`lib/node-label.js`).
 - **Multi-port floor devices** — PCs, access points and custom endpoints can declare several ports, each independently cablable. Orthogonal to the pass-through model of wall sockets and VoIP phones.
@@ -310,6 +311,22 @@ Double-click <code>avvia.bat</code>.<br>
 - **DHCP lease import** — paste or load a lease table (ISC dhcpd, dnsmasq, Kea, generic CSV; pfSense, OPNsense, MikroTik, Synology, Windows exports) for authoritative MAC ↔ IP across **all VLANs** — what local ARP cannot see behind an L3 firewall. Multiple servers accumulate as persisted sources. A lease table is an **identity map, not a liveness probe**: a documented device missing from it is *unverifiable*, never absent (`lib/dhcp-lease.js`). Live vendor pull is a separately-distributed driver pack.
 - **Endpoint/BYOD transparency** — undocumented entries that look like user devices (guest VLAN, crowded uplink port, randomised MAC) collapse into a group so the actionable infrastructure stays clean. Each hidden row says **why** in plain language, and a toggle reveals them.
 - **"Management VLAN" role** — the opposite of a guest VLAN: an undocumented device seen there is forced to infrastructure, never collapsed as BYOD, and flagged with a red security badge.
+
+</details>
+
+<details>
+<summary><b>🔄 DCIM / IPAM sync (NetBox)</b> — <sub>import an existing NetBox into a new project; write-back is a paid module</sub></summary>
+
+- **Live connection over the REST API** — set a base URL and an API token, then **Test connection** probes `/api/status/` (chip turns green on success, red on failure). If an API endpoint is pasted by mistake, InfraNet reduces it to the instance base automatically. The token is stored server-side at `0o600`, is never returned to the browser, and never enters git — the same secret handling as the SNMP and AI keys.
+- **Three-step import wizard** → new project — **Scope** (pick a site, with counts), **Entities** (devices+ports+cables / IPAM / racks toggles), **Preview** (live counts, per-row deselect, honest warnings) → **Create project**. A staged progress screen, a result with counts and *Open project*, and a retry on error. Import is read-only (GET); it never writes to NetBox.
+- **NetBox authentication** — use the v2 token format (`nbt_<key>.<secret>`), sent as `Authorization: Bearer`; legacy tokens continue temporarily as `Authorization: Token` and are identified by the connection test with a migration warning. Raw tokens and complete `Token ...` / `Bearer ...` header values are accepted. REST paths remain unversioned (`/api/dcim/...`, `/api/ipam/...`, `/api/status/`).
+- **One site = one project** — the site names the project, racks keep their NetBox names, and a device's Location becomes a note (InfraNet has no multi-floor model); import one site at a time so rack names stay unambiguous.
+- **Racks placed on the floor plan** — each imported rack is auto-positioned on a non-overlapping grid and appears as a clickable floor icon; the first rack opens in the Rack view, populated.
+- **Front/rear cabinet split** — a NetBox rack with devices on *both* faces becomes **two** InfraNet racks (`… · retro`), each device on its own side, with cross-face cables drawn as cross-rack links.
+- **Patch-panel cabling** — front/rear-port terminations are reconstructed as a **native pass-through chain** (switch → panel-A → panel-B → server) sharing the pass-through pid — no synthetic segments. Type-aware termination resolution avoids id collisions across NetBox's separate id spaces, and the NetBox 4.6 `rear_ports[]` array schema is handled alongside the legacy singular field. Power/PDU and WAN-circuit cables are out of scope and skipped quietly.
+- **Catalogue reconciliation** — a NetBox `device_type.slug` is matched against the built-in device-type catalogue (both seeded from the same public NetBox library), applying the native port count and front panel; otherwise the imported interface count is used.
+ - **PDU power connections** — up to 48 outlets are rendered inside a frame that adapts to the device height (`1U`, `2U` and above). The PDU and single-outlet Properties → **Alimentazione** accordions expose the powered device through a dropdown of devices placed in the project racks and its power port from NetBox; the aggregated outlet list uses the same dark controls, typography and focus treatment as the single-outlet panel. Manual edits are stored as protected overrides, with a one-click reset to the imported value. Outlet state follows NetBox's `Enabled` / `Disabled` / `Faulty` model as active / inactive / fault, defaults to inactive when undocumented, and becomes active when a connection is documented unless an explicit manual or imported state says otherwise. A manual state always wins over the imported NetBox value, including the raw imported status.
+- **Manual-first, non-destructive** — import creates a **new** project and never clobbers an existing one. **Write-back to NetBox is a paid module** (`modules/dcim-export/`): dry-run diff first, create-or-PATCH by natural key, **never delete**; the free build feature-detects it and hides the Export tab.
 
 </details>
 
@@ -767,7 +784,9 @@ Log in as admin → **Settings → Users** to:
 
 ## Project Data Model
 
-Each project is a plain JSON file in `projects/<id>.json`: top-level `id` / `name` / `created_at` / `updated_at` plus a `state` object holding the network. The main collections are `nodes` (devices), `links` (cables — with cabling metadata, LAG grouping, auto-link confidence and pass-through `segments`), `ports` (keyed by portId), `racks`, `lagGroups`, `vlans` and VLAN/IPAM state; the floor-plan image is kept out of the JSON as a sidecar asset. The shape evolves with the app and is stored as-is.
+Each project is a plain JSON file in `projects/<id>.json`: top-level `format`, `schemaVersion`, `id` / `name` / `created_at` / `updated_at` plus a `state` object holding the network. The main collections are `nodes` (devices), `links` (cables — with cabling metadata, LAG grouping, auto-link confidence and pass-through `segments`), `ports` (keyed by portId), `racks`, `lagGroups`, `vlans` and VLAN/IPAM state; the floor-plan image is kept out of the JSON as a sidecar asset. The state is migrated idempotently and carries its schema version so older projects remain readable. Verification history and restorable snapshots live in `projects/history/<id>/` with retention and are removed together with the project.
+
+The **Export → JSON** action creates a portable `infranet-project-export` envelope containing the schema version and state, while removing SNMP credentials and credentials embedded in backup pointers. Import accepts this envelope as well as legacy bare state JSON and server project envelopes.
 
 The secret-free device projection reused by the REST API and the exports is defined in `lib/api-shape.js` (`nodeToDevice`). Field-by-field detail of each object (node / link / port / rack) lives in [ARCHITECTURE.md](ARCHITECTURE.md).
 
@@ -920,8 +939,8 @@ server on a temp store and is skipped unless `RUN_E2E=1`.
 Coverage focuses on the pure, bug-prone logic that has historically broken: SNMP parsing & extraction (`test/snmp.test.js`, `test/extractData.test.js`), discovery & classification (`test/discovery.test.js`, 14 real-device cases), correlation primitives (`test/correlate.test.js`), the sysObjectID / OUI / Fusion engines (`tests/*.test.js`), front-panel state, cable validation (incl. **Cat8 30 m reach**), IPAM & LAG audits, and an app-wide **smoke E2E** (`test/smoke-app.test.js`) that loads every `netmapper.html` script plus the esbuild bundle into a `vm` + DOM stub and asserts `renderAll`/`renderProps` never throw on any device type.
 
 Current local quality baseline:
-- `npm run check` validates all project JS sources (~140 files)
-- `npm test` runs the full regression suite (currently **1,948 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **93 flows**)
+- `npm run check` validates all project JS sources (399 files)
+- `npm test` runs the full regression suite (currently **2,083 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **97 flows**)
 - final visual verification is still important for rack/front-panel refinements
 
 > Pure functions are exposed for tests via an additive `_internals` export on
@@ -1047,4 +1066,3 @@ PARTICULAR PURPOSE. See the GNU AGPL for more details.
 <a href="https://ko-fi.com/infranetpro"><img height="32" alt="Support InfraNet Pro on Ko-fi" src="https://ko-fi.com/img/githubbutton_sm.svg"></a>
 
 </div>
-
