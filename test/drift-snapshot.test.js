@@ -511,3 +511,55 @@ test('round-trip: swap del serial → identityDrift azionabile dallo snapshot al
   assert.equal(r.counts.identityDrift, 1);
   assert.equal(r.identityDrift[0].diffs.find(x => x.field === 'serialNumber').real, 'XYZ999');
 });
+
+// ── L'ARP dei router è un RICORDO del Sync, non una misura di adesso ─────────
+// Regressione dal vivo: un NAS spento restava a colori pieni. La sweep aveva la
+// prova dura dell'assenza (reach[ip].absent, ARP-miss sul filo locale dopo il
+// ping), ma la tabella ARP che un router ci aveva dato all'ultimo Sync mappava
+// ancora quel MAC su quell'IP → macAtIps/observedMacs lo dichiaravano vivo →
+// buildDriftReport usciva dal ramo `liveIps` con un `continue` e il device non
+// finiva in NESSUN bucket di presenza: né rosso né grigio. La misura fresca deve
+// battere il ricordo; il verde cross-subnet (Fase 2) resta intatto in tutti i
+// casi in cui quella prova NON c'è.
+const _ARP_MAC = '00:d0:4b:94:c1:f0';
+const _arpNodes = [{ id: 'nas1', ip: '192.168.1.110', mac: _ARP_MAC }];
+const _arpDoc = { macs: [{ mac: _ARP_MAC, label: 'NAS', nodeId: 'nas1', ip: '192.168.1.110' }], ipOnly: [] };
+const _arpSnap = (reachable) => buildSnmpSnapshot({
+  nodes: _arpNodes, reachable, arpTable: { '192.168.1.1': 'D4:1A:D1:82:11:20' },
+  snmpArp: { [_ARP_MAC]: '192.168.1.110' }, ports: {}, links: [],
+  normMac: (x) => String(x || '').toLowerCase(),
+});
+
+test('ARP del router: un IP PROVATO assente non viene resuscitato dalla cache del Sync', () => {
+  const snap = _arpSnap({ '192.168.1.110': { alive: false, via: '', mac: '', absent: true } });
+  assert.equal(!!snap.trustAbsentNodeIds.nas1, true, 'la prova dura di assenza resta');
+  assert.equal((snap.macAtIps || {})[_ARP_MAC], undefined, 'il ricordo non entra fra gli IP vivi del MAC');
+  assert.equal(snap.observedMacs.includes(_ARP_MAC), false, 'il ricordo non conta come "visto in rete"');
+  assert.equal(snap.observedSubnets.includes('192.168.1'), true, 'la /24 resta osservata: il router quel segmento lo raggiunge');
+  const rep = buildDriftReport(snap, _arpDoc, [], {});
+  assert.equal(rep.counts.macOrphan, 1, 'il device provato assente è ROSSO, non fuori da ogni bucket');
+  assert.equal(rep.counts.ipChanged, 0, 'e non viene scambiato per un cambio IP');
+});
+
+test('ARP del router: senza prova di assenza il verde cross-subnet resta (Fase 2 intatta)', () => {
+  for (const [desc, reachable] of [
+    ['remoto muto (absent:false)', { '192.168.1.110': { alive: false, via: '', mac: '', absent: false } }],
+    ['Sync senza sweep', null],
+    ['raggiunto dal ping', { '192.168.1.110': { alive: true, via: 'ping', mac: '', absent: false } }],
+  ]) {
+    const snap = _arpSnap(reachable);
+    assert.equal(snap.observedMacs.includes(_ARP_MAC), true, `${desc}: il MAC resta visto in rete`);
+    const rep = buildDriftReport(snap, _arpDoc, [], {});
+    assert.equal(rep.counts.macOrphan, 0, `${desc}: nessun falso rosso`);
+  }
+});
+
+test('ND IPv6: un vicino memorizzato non resuscita un nodo provato assente', () => {
+  const snap = buildSnmpSnapshot({
+    nodes: _arpNodes, reachable: { '192.168.1.110': { alive: false, via: '', mac: '', absent: true } },
+    arpTable: { '192.168.1.1': 'D4:1A:D1:82:11:20' }, snmpNd: { [_ARP_MAC]: 'fe80::1' },
+    ports: {}, links: [], normMac: (x) => String(x || '').toLowerCase(),
+  });
+  assert.equal(snap.observedMacs.includes(_ARP_MAC), false, 'il vicino ND memorizzato non vale come presenza');
+  assert.equal(buildDriftReport(snap, _arpDoc, [], {}).counts.macOrphan, 1, 'resta ROSSO');
+});
