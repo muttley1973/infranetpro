@@ -6395,6 +6395,25 @@
     }
   },
   {
+    "slug": "apc-srt96rmbp",
+    "sourceSlug": "apc-srt96rmbp",
+    "brand": "APC",
+    "brandSlug": "apc",
+    "model": "SRT96RMBP",
+    "partNumber": "SRT96RMBP",
+    "ports": 0,
+    "rackU": 2,
+    "isFullDepth": true,
+    "frontPanel": {},
+    "counts": {
+      "copper": 0,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "apc-srtl2k2rm1uinc",
     "sourceSlug": "apc-srtl2k2rm1uinc",
     "brand": "APC",
@@ -6433,6 +6452,25 @@
       "sfp": 0,
       "qsfp": 0,
       "mgmt": 1,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "apc-srtl50rmbp1u-li",
+    "sourceSlug": "apc-srtl50rmbp1u-li",
+    "brand": "APC",
+    "brandSlug": "apc",
+    "model": "SRTL50RMBP1U-LI",
+    "partNumber": "SRTL50RMBP1U-LI",
+    "ports": 0,
+    "rackU": 1,
+    "isFullDepth": true,
+    "frontPanel": {},
+    "counts": {
+      "copper": 0,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
       "fiberDropped": 0
     }
   },
@@ -92818,6 +92856,25 @@
     "brandSlug": "qnap",
     "model": "TS-259 Pro+",
     "partNumber": "TS-259-Pro+",
+    "ports": 2,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 2,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "qnap-ts-264",
+    "sourceSlug": "qnap-ts-264",
+    "brand": "QNAP",
+    "brandSlug": "qnap",
+    "model": "TS-264",
+    "partNumber": "TS-264",
     "ports": 2,
     "rackU": 1,
     "isFullDepth": false,
