@@ -10,8 +10,8 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="2,083 tests, 0 failing" src="https://img.shields.io/badge/tests-2%2C083%20%C2%B7%200%20failing-3fb950"></a>
-  <a href="#testing"><img alt="97 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-97%20real--browser%20flows-3fb950"></a>
+  <a href="#testing"><img alt="2,136 tests, 0 failing" src="https://img.shields.io/badge/tests-2%2C136%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="103 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-103%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#oui-intelligence-engine"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
   <img alt="No database" src="https://img.shields.io/badge/database-none-8b949e">
@@ -123,7 +123,7 @@ Double-click <code>avvia.bat</code>.<br>
 
 > **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then run **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.8.0) — import an existing NetBox/DCIM as a new InfraNet project, on a NetBox-compatible device catalog.** Connect to a NetBox instance (base URL + API token, with a connection test), pick a site, and a three-step wizard builds a project from it: racks placed on the floor plan, devices in their cabinets, a front/rear cabinet split into two racks, and **patch-panel cabling** reconstructed as a native pass-through chain. The catalog is the canonical CC0 device-type library with **neutral port-slot semantics** — combo ports and a full **PDU** model (up to 48 outlets, manual-first overrides) — and portable JSON exports are now **versioned and secret-free**. The topology **trunk + access** view no longer hides a rack's cables. Import is free (public); write-back is a paid module.
+> 📰 **What's new (v2.8.0) — import an existing NetBox/DCIM as a new InfraNet project, on a NetBox-compatible device catalog.** Connect to a NetBox instance (base URL + API token, with a connection test), pick a site, and a three-step wizard builds a project from it: racks placed on the floor plan, devices in their cabinets, a front/rear cabinet split into two racks, and **patch-panel cabling** reconstructed as a native pass-through chain. The catalog is the canonical CC0 device-type library with **neutral port-slot semantics** — combo ports and a full **PDU** model (up to 48 outlets, manual-first overrides) — and portable JSON exports are now **versioned and secret-free**. A NetBox **virtual chassis** comes back as a **stack**, and the preview is a **list of decisions** rather than a wall of warnings: what you will get, what will not come in and why — named device by device — with the default already applied. The topology **trunk + access** view no longer hides a rack's cables. Import is free (public); write-back is a paid module.
 >
 > 📰 **Automation proposes instead of silently overwriting what you documented by hand.** A hand-typed **name**, **device type**, **brand**, SNMP **host** and **port count** are each a pin the automation respects: Discovery/Sync/Verify no longer rewrite them behind your back — a divergent measurement is surfaced as a proposal you **adopt on purpose** (e.g. *"SNMP detected 28 ports — Adopt detected ports"*). SNMP polling and scheduled Verify are one *Automatic monitoring* scheduler — **Light** (live SNMP refresh) or **Full** (complete Verify + history) — and the port→node resolver stays O(1) so large topologies don't freeze during an automatic sweep. Full detail in [CHANGELOG.md](CHANGELOG.md).
 
@@ -940,7 +940,7 @@ Coverage focuses on the pure, bug-prone logic that has historically broken: SNMP
 
 Current local quality baseline:
 - `npm run check` validates all project JS sources (399 files)
-- `npm test` runs the full regression suite (currently **2,083 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **97 flows**)
+- `npm test` runs the full regression suite (currently **2,136 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **103 flows**)
 - final visual verification is still important for rack/front-panel refinements
 
 > Pure functions are exposed for tests via an additive `_internals` export on
