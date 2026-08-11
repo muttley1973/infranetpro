@@ -59,6 +59,13 @@ test('PDU outlet status follows NetBox and defaults to inactive', () => {
   assert.equal(pduOutletStatusState({ rawStatus: 'enabled', statusOvr: 'fault' }), 'fault');
   assert.equal(pduOutletStatusState({ rawStatus: 'faulty', statusOvr: 'active' }), 'active');
   assert.equal(pduOutletStatusState({ status: 'Enabled', statusOvr: '' }), 'active');
+  // Regression: a manual "inactive" override must win over an imported "enabled".
+  // "inactive" contains the substring "active" — the fuzzy matcher used to flip it
+  // back to "active", so a hand-set inactive outlet could never be saved.
+  assert.equal(pduOutletStatusState({ rawStatus: 'enabled', statusOvr: 'inactive' }), 'inactive');
+  assert.equal(pduOutletStatusState({ connectionOvr: { deviceId: 'server-1' }, statusOvr: 'inactive' }), 'inactive');
+  assert.equal(pduOutletStatusState({ rawStatus: 'enabled', statusOvr: 'Inactive' }), 'inactive');
+  assert.equal(normalizePduOutletStatus({ status: 'inactive' }), 'inactive');
 });
 
 test('PDU outlet connection keeps NetBox data separate from manual overrides', () => {
