@@ -392,6 +392,12 @@ router.post('/api/integrations/dcim/import', auth.requireAdmin, async (req, res)
         excluded: report.excluded,
       },
       warnings: report.warnings.slice(0, 50),
+      // Forma strutturata degli stessi eventi: e' quella su cui il pannello di
+      // riconciliazione costruisce le decisioni. Cappata perche' un sito grande puo'
+      // produrne una per apparato; `issuesTotal` dice quante sono davvero, cosi' il
+      // conteggio a schermo resta vero anche quando l'elenco e' troncato.
+      issues: report.issues.slice(0, 2000),
+      issuesTotal: report.issues.length,
       catalogVersion: catalog.version,
       catalogMatches: report.catalogMatches,
       cableReport: report.cables,

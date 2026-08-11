@@ -15,6 +15,7 @@ import { store } from './store.js';
 import { closeImpExpMenu } from './app-auth.js';
 import { showAlert, switchProject } from './app-core.js';
 import { registerClickActions, registerChangeActions, registerInputActions } from './app-delegation.js';
+import { buildDecisions, sanitizeDecisions } from '../lib/dcim-decisions.js';
 
 const API = '/api/integrations/dcim';
 
@@ -89,7 +90,7 @@ export function openDcimSync() {
   _wiz.selection = {
     entities: { devices: true, cabling: true, ipam: true, racks: true },
     scope: { siteIds: [], roleSlugs: [], tags: [] },
-    exclude: [], mapping: {}, allowUnresolved: false,
+    exclude: [], mapping: {}, decisions: {}, allowUnresolved: false,
   };
   _wiz.previewStale = false; _wiz.reconciliationGroups = [];
   _wiz.scopeMode = 'all'; _wiz.scopeKind = 'site'; _wiz.scopeSearch = '';
@@ -157,6 +158,7 @@ const _wiz = {
     scope: { siteIds: [], roleSlugs: [], tags: [] },
     exclude: [],
     mapping: {},
+    decisions: {},
     allowUnresolved: false,
   },
   preview: null, previewStale: false, reconciliationGroups: [], loadingPreview: false, previewErr: '',
@@ -331,6 +333,9 @@ function _selectionForRequest() {
   if (_scopeIsComplete('site')) selection.scope.siteIds = [];
   if (_scopeIsComplete('role')) selection.scope.roleSlugs = [];
   if (_scopeIsComplete('tag')) selection.scope.tags = [];
+  // Solo le scelte che il motore sa applicare, e mai quelle lasciate al default:
+  // la richiesta descrive cosa l'utente ha CAMBIATO, non lo stato del pannello.
+  selection.decisions = sanitizeDecisions(_wiz.selection.decisions);
   return selection;
 }
 
@@ -348,13 +353,12 @@ function _scopeSelectionSummary() {
 function _renderImport() {
   const b = _el('dcim-import-body');
   if (!b) return;
-  const overlay = _el('dcim-overlay');
-  const hasReconciliation = _wiz.step === 3 && Array.isArray(_wiz.preview?.catalogMatches?.details)
-    && _wiz.preview.catalogMatches.details.some(detail => detail && detail.reviewRequired);
-  if (overlay) overlay.classList.toggle('dcim-has-reconciliation', hasReconciliation);
-  if (_wiz.commit.state === 'running') { if (overlay) overlay.classList.remove('dcim-has-reconciliation'); b.innerHTML = _renderCommitProgress(); return; }
-  if (_wiz.commit.state === 'done') { if (overlay) overlay.classList.remove('dcim-has-reconciliation'); b.innerHTML = _renderCommitResult(); return; }
-  if (_wiz.commit.state === 'error') { if (overlay) overlay.classList.remove('dcim-has-reconciliation'); b.innerHTML = _renderCommitError(); return; }
+  // La modale non si allarga più a 1080px quando c'è da riconciliare: serviva alla
+  // tabella a quattro colonne del vecchio pannello. Ora quelle scelte sono righe come
+  // le altre, e a piena larghezza le spiegazioni diventavano righe da 140 caratteri.
+  if (_wiz.commit.state === 'running') { b.innerHTML = _renderCommitProgress(); return; }
+  if (_wiz.commit.state === 'done') { b.innerHTML = _renderCommitResult(); return; }
+  if (_wiz.commit.state === 'error') { b.innerHTML = _renderCommitError(); return; }
   const s = _wiz.step;
   const dot = (n, key) => `<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:${n <= s ? 'var(--text-primary)' : 'var(--text-muted)'}">
     <span style="width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:0.5px solid var(--border-strong);${n <= s ? 'background:var(--text-accent);color:var(--surface-2)' : ''}">${n}</span>${escapeHTML(t(key))}</div>`;
@@ -508,104 +512,165 @@ function _reconciliationGroups(details) {
   return _wiz.reconciliationGroups;
 }
 
-function _renderReconciliationPanel(p) {
-  const details = p.catalogMatches && p.catalogMatches.details || [];
-  const groups = _reconciliationGroups(details);
-  if (!groups.length && !_wiz.previewStale) return '';
-  const reconciliation = p.reconciliation || {};
-  const caseCount = Number.isFinite(Number(reconciliation.required)) ? Number(reconciliation.required) : groups.length;
-  const deviceCount = groups.reduce((sum, group) => sum + group.count, 0);
-  const summary = `<div class="disc-summary-grid dcim-reconcile-summary">
-    <span class="dcim-reconcile-chip is-warning"><i class="fas fa-triangle-exclamation"></i><b>${caseCount}</b>${escapeHTML(t('integrations.reconcileCases', { n: caseCount }))}</span>
-    <span class="dcim-reconcile-chip"><i class="fas fa-layer-group"></i><b>${groups.length}</b>${escapeHTML(t('integrations.reconcileGroups', { n: groups.length }))}</span>
-    <span class="dcim-reconcile-chip"><i class="fas fa-server"></i><b>${deviceCount}</b>${escapeHTML(t('integrations.reconcileDevices', { n: deviceCount }))}</span>
-  </div>`;
-  const columns = `<div class="dcim-reconcile-columns"><span>${escapeHTML(t('integrations.reconcileColDevice'))}</span><span>${escapeHTML(t('integrations.reconcileColCount'))}</span><span>${escapeHTML(t('integrations.reconcileType'))}</span><span>${escapeHTML(t('integrations.reconcilePlacement'))}</span></div>`;
-  const rows = groups.map((group, index) => {
-    const firstMapping = _wiz.selection.mapping && _wiz.selection.mapping[String(group.ids[0])];
-    const selectedType = firstMapping && firstMapping.type || group.type;
-    const selectedPlacement = firstMapping && firstMapping.placement || group.placement;
-    const typeOptions = _RECON_TYPES.map(type => `<option value="${type}"${type === selectedType ? ' selected' : ''}>${escapeHTML(_reconcileTypeLabel(type))}</option>`).join('');
-    const placementOptions = ['rack', 'floor'].map(value => `<option value="${value}"${value === selectedPlacement ? ' selected' : ''}>${escapeHTML(value)}</option>`).join('');
-    const title = [group.brand, group.model].filter(Boolean).join(' ') || t('integrations.reconcileTitle');
-    const role = group.role || '—';
-    return `<div class="dcim-reconcile-row">
-      <div><strong>${escapeHTML(title)}</strong><div style="font-size:11px;color:var(--text-muted)">${escapeHTML(role)}${group.sourceSlug ? ' · ' + escapeHTML(group.sourceSlug) : ''} · ${escapeHTML(group.strategy)} · ${escapeHTML(t('integrations.reconcileGroup', { n: group.count }))}</div></div>
-      <label style="font-size:11px;color:var(--text-secondary)">${escapeHTML(t('integrations.reconcileType'))}<select data-change="dcim-map-type" data-group="${index}" style="display:block;width:100%;margin-top:3px">${typeOptions}</select></label>
-      <label style="font-size:11px;color:var(--text-secondary)">${escapeHTML(t('integrations.reconcilePlacement'))}<select data-change="dcim-map-placement" data-group="${index}" style="display:block;width:100%;margin-top:3px">${placementOptions}</select></label>
-    </div>`;
-  }).join('');
-  const allow = _wiz.selection.allowUnresolved === true;
-  return `<section class="dcim-reconcile-panel" aria-labelledby="dcim-reconcile-title">
-    <div class="dcim-reconcile-heading"><h4 id="dcim-reconcile-title"><i class="fas fa-list-check"></i> ${escapeHTML(t('integrations.reconcileTitle'))}</h4><p>${escapeHTML(t('integrations.reconcileHint'))}</p></div>
-    ${summary}
-    ${columns}
-    <div class="dcim-reconcile-rows">${rows}</div>
-    <div class="dcim-reconcile-allow-row">
-      <input type="checkbox" data-change="dcim-allow-unresolved"${allow ? ' checked' : ''}>
-      <span>${escapeHTML(t('integrations.reconcileAllow'))}<small style="display:block;color:var(--text-muted)">${escapeHTML(t('integrations.reconcileAllowHint'))}</small></span>
-    </div>
-    <div class="dcim-reconcile-actions">
-      <button class="um-btn" data-act="dcim-reconcile-preview"><i class="fas fa-rotate"></i> ${escapeHTML(t('integrations.reconcileRebuild'))}</button>
-      ${_wiz.previewStale ? `<span style="font-size:11px;color:var(--warning-color,#e3b341)">${escapeHTML(t('integrations.reconcilePending'))}</span>` : ''}
-    </div>
-  </section>`;
-}
-
-function _previewWarningGroups(p, samples, counts) {
-  const groups = [];
-  const add = (message, details) => {
-    if (!message) return;
-    groups.push({ message, details: Array.isArray(details) ? details.filter(Boolean).map(String) : [] });
-  };
-  if (samples.unmappedRoles && samples.unmappedRoles.length) {
-    add(t('integrations.warnRoles', { n: samples.unmappedRoles.length }), samples.unmappedRoles);
-  }
-  if (samples.unmatchedDeviceTypes && samples.unmatchedDeviceTypes.length) {
-    add(t('integrations.warnDt', { n: samples.unmatchedDeviceTypes.length }), samples.unmatchedDeviceTypes);
-  }
-
-  const rawWarnings = Array.isArray(p.warnings) ? p.warnings.map(String) : [];
-  const interfaceWarning = /^device\s+\S+\s+ha\s+più\s+interfacce\s+NetBox\s+\((\d+)\)\s+del\s+template\s+catalogo\s+\(([^)]+)\)$/i;
-  const interfaceWarnings = rawWarnings.filter(warning => interfaceWarning.test(warning));
-  if (interfaceWarnings.length) {
-    add(t('integrations.previewInterfacesWarning', { n: interfaceWarnings.length }), interfaceWarnings);
-  }
-
-  const cableWarnings = rawWarnings.filter(warning => /^cavo\s+/i.test(warning));
-  if (counts.unresolvedCables) {
-    add(t('integrations.cUnresolved', { n: counts.unresolvedCables }), cableWarnings);
-  }
-
-  const consumed = new Set([...interfaceWarnings, ...cableWarnings]);
-  const generic = new Map();
-  for (const warning of rawWarnings) {
-    if (consumed.has(warning)) continue;
-    const item = generic.get(warning) || { message: warning, details: [] };
-    item.details.push(warning);
-    generic.set(warning, item);
-  }
-  for (const item of generic.values()) {
-    add(item.details.length > 1 ? `${item.message} ×${item.details.length}` : item.message, item.details);
-  }
-  return groups;
-}
-
-function _renderPreviewWarnings(groups) {
+// Riga di decisione «tipo da confermare»: è ciò che restava del pannello
+// «Riconciliazione manuale», assorbito qui. Aveva le decisioni vere ma viveva in un
+// blocco separato che si contendeva la scena con gli avvisi — e compariva vuoto
+// («0 casi») a ogni ricalcolo. Ora è una riga come le altre, con le sue due tendine
+// al posto dei bottoni-radio: stessa gerarchia, stesso posto, un pannello solo.
+function _renderReviewRows(p, startIndex) {
+  const groups = _reconciliationGroups(p.catalogMatches && p.catalogMatches.details || []);
   if (!groups.length) return '';
-  const items = groups.map(group => {
-    const details = group.details.length ? `<details class="dcim-preview-alert-details">
-      <summary>${escapeHTML(t('integrations.previewDetails'))}</summary>
-      <div class="dcim-preview-alert-list">${group.details.slice(0, 20).map(detail => `<div>${escapeHTML(detail)}</div>`).join('')}${group.details.length > 20 ? '<div>…</div>' : ''}</div>
-    </details>` : '';
-    return `<article class="dcim-preview-alert">
-      <div class="dcim-preview-alert-main"><i class="fas fa-triangle-exclamation"></i><strong>${escapeHTML(group.message)}</strong></div>
-      ${details}
+  return groups.map((group, index) => {
+    const firstMapping = _wiz.selection.mapping && _wiz.selection.mapping[String(group.ids[0])];
+    const selectedType = (firstMapping && firstMapping.type) || group.type;
+    const selectedPlacement = (firstMapping && firstMapping.placement) || group.placement;
+    const typeOptions = _RECON_TYPES.map(type => `<option value="${type}"${type === selectedType ? ' selected' : ''}>${escapeHTML(_reconcileTypeLabel(type))}</option>`).join('');
+    const placementOptions = ['rack', 'floor'].map(value => `<option value="${value}"${value === selectedPlacement ? ' selected' : ''}>${escapeHTML(t('dcim.dec.placement.' + value))}</option>`).join('');
+    const model = [group.brand, group.model].filter(Boolean).join(' ');
+    const why = [
+      t('dcim.dec.review.why'),
+      model ? t('dcim.dec.models', { list: model }) : '',
+      group.role ? t('dcim.dec.roles', { list: group.role }) : '',
+    ].filter(Boolean).join(' ');
+    return `<article class="dcim-dec is-choice" id="dcim-dec-review-${startIndex + index}">
+      <div class="dcim-dec-stripe"></div>
+      <div class="dcim-dec-body">
+        <div class="dcim-dec-title">${escapeHTML(_tp('dcim.dec.review.title', group.count, { n: group.count }))}</div>
+        <div class="dcim-dec-why">${escapeHTML(why)}</div>
+        <div class="dcim-dec-selects">
+          <label>${escapeHTML(t('integrations.reconcileType'))}
+            <select data-change="dcim-map-type" data-group="${index}">${typeOptions}</select></label>
+          <label>${escapeHTML(t('integrations.reconcilePlacement'))}
+            <select data-change="dcim-map-placement" data-group="${index}">${placementOptions}</select></label>
+        </div>
+      </div>
     </article>`;
   }).join('');
-  return `<section class="dcim-preview-warnings" aria-labelledby="dcim-preview-warnings-title">
-    <h4 id="dcim-preview-warnings-title"><i class="fas fa-circle-info"></i> ${escapeHTML(t('integrations.previewWarnings'))}</h4>
-    <div class="dcim-preview-alert-list-wrap">${items}</div>
+}
+
+// ── Riconciliazione: una riga = una DECISIONE, mai un apparato ──────────────
+// Sostituisce la lista di «Avvisi tecnici», che ripeteva la stessa frase una volta
+// per apparato e non chiedeva niente. Qui ogni riga porta la conseguenza, le
+// alternative e il default già scelto: chi ha fretta legge il preventivo in testa e
+// importa, chi vuole controllare apre l'elenco degli apparati (per NOME).
+// Il raggruppamento vive in lib/dcim-decisions.js e lavora sui CODICI degli avvisi
+// strutturati del mapper — nessuna frase viene più ri-letta con una regex.
+
+// Singolare/plurale senza una macchina dei plurali: se il conteggio è 1 si cerca
+// prima la variante `…One`. «1 apparati» è il genere di dettaglio che fa sembrare
+// improvvisata tutta la schermata, e costa una chiave.
+function _tp(key, n, vars) {
+  if (n === 1) { const one = key + 'One'; const s = t(one, vars); if (s !== one) return s; }
+  return t(key, vars);
+}
+
+// Testo della riga. Un codice sconosciuto (motore più nuovo dell'interfaccia) non
+// rompe il pannello: esce con la sua etichetta grezza e il conteggio.
+function _decisionText(row, suffix) {
+  const key = 'dcim.dec.' + row.code + '.' + suffix;
+  const vars = Object.assign({ n: row.count, code: row.code }, row.data || {});
+  const text = suffix === 'title' ? _tp(key, row.count, vars) : t(key, vars);
+  if (text !== key) return text;
+  return suffix === 'title' ? _tp('dcim.dec.unknown.title', row.count, vars) : '';
+}
+
+function _decisionWhy(row) {
+  const parts = [];
+  const why = _decisionText(row, (row.data && row.data.mixed) ? 'whyMixed' : 'why');
+  if (why) parts.push(why);
+  if (row.models && row.models.length) parts.push(t('dcim.dec.models', { list: row.models.slice(0, 6).join(' · ') }));
+  if (row.roles && row.roles.length) parts.push(t('dcim.dec.roles', { list: row.roles.slice(0, 6).join(' · ') }));
+  if (row.kinds && row.kinds.length) {
+    const list = row.kinds.map(k => { const key = 'dcim.dec.kind.' + k; const s = t(key); return s === key ? k : s; });
+    parts.push(t('dcim.dec.kinds', { list: list.join(' · ') }));
+  }
+  return parts.join(' ');
+}
+
+// Elenco degli apparati coinvolti: chiuso di default (è il dettaglio, non la
+// decisione) e cappato — mille nomi non aiutano nessuno a scegliere.
+function _decisionDevices(row, index) {
+  if (!row.devices || !row.devices.length) return '';
+  const shown = row.devices.slice(0, 40);
+  const rest = row.devices.length - shown.length;
+  return `<details class="dcim-dec-devices"><summary>${escapeHTML(_tp('dcim.dec.showDevices', row.devices.length, { n: row.devices.length }))}</summary>
+    <div class="dcim-dec-devlist" id="dcim-dec-dev-${index}">${shown.map(d => escapeHTML(d.name)).join(' · ')}${rest > 0 ? ' <span>' + escapeHTML(t('dcim.dec.andMore', { n: rest })) + '</span>' : ''}</div></details>`;
+}
+
+function _renderDecisionRow(row, index) {
+  const isLoss = row.severity === 'loss';
+  const options = (row.options || []).map(opt => {
+    const on = row.chosen === opt.id;
+    return `<label class="dcim-dec-opt${on ? ' is-on' : ''}">
+      <input type="radio" name="dcim-dec-${index}" data-change="dcim-decision" data-code="${escapeHTML(row.code)}" data-option="${escapeHTML(opt.id)}"${on ? ' checked' : ''}>
+      <span><span class="dcim-dec-opt-lab">${escapeHTML(_decisionText(row, opt.id))}</span>
+      <span class="dcim-dec-opt-eff">${escapeHTML(_decisionText(row, opt.id + 'Eff'))}</span></span>
+      ${opt.isDefault ? `<span class="dcim-dec-def">${escapeHTML(t('dcim.dec.default'))}</span>` : ''}
+    </label>`;
+  }).join('');
+  return `<article class="dcim-dec is-${escapeHTML(row.severity)}">
+    <div class="dcim-dec-stripe"></div>
+    <div class="dcim-dec-body">
+      <div class="dcim-dec-title">${escapeHTML(_decisionText(row, 'title'))}${isLoss ? `<span class="dcim-dec-loss">${escapeHTML(t('dcim.dec.lossTag'))}</span>` : ''}</div>
+      <div class="dcim-dec-why">${escapeHTML(_decisionWhy(row))}</div>
+      ${options ? `<div class="dcim-dec-opts">${options}</div>` : ''}
+      ${_decisionDevices(row, index)}
+    </div>
+  </article>`;
+}
+
+function _renderDecisions(p) {
+  const model = buildDecisions(p, _wiz.selection.decisions);
+  const o = model.outcome;
+  const num = (key, value) => `<span class="dcim-out-n">${escapeHTML(t(key, { n: value }))}</span>`;
+  // Il preventivo: l'unica riga che chi importa legge davvero.
+  const totals = [num('dcim.dec.oDevices', o.devices), num('dcim.dec.oCables', o.cables),
+    num('dcim.dec.oVlans', o.vlans), num('dcim.dec.oRacks', o.racks)].join('<i>·</i>');
+  const costs = o.costs.map(cost => {
+    const key = 'dcim.cost.' + cost.code + (cost.chosen ? '.' + cost.chosen : '');
+    const label = _tp(key, cost.n, { n: cost.n });
+    if (label === key) return '';   // nessuna etichetta breve = niente chip inventato
+    return `<span class="dcim-cost is-${escapeHTML(cost.severity)}">${escapeHTML(label)}</span>`;
+  }).filter(Boolean).join('');
+  const outcome = `<div class="dcim-outcome">
+    <div class="dcim-outcome-main"><span class="dcim-out-lead">${escapeHTML(t('dcim.dec.outcome'))}</span> ${totals}</div>
+    ${costs ? `<div class="dcim-outcome-costs"><span>${escapeHTML(t('dcim.dec.costs'))}</span>${costs}</div>`
+      : `<div class="dcim-outcome-costs is-clean"><i class="fas fa-circle-check"></i> ${escapeHTML(t('dcim.dec.clean'))}</div>`}
+  </div>`;
+  // Una PERDITA non ha alternative, ma non per questo è un dettaglio: sta in testa,
+  // non sotto «non richiede scelte». Chi importa deve sapere subito cosa non entra.
+  const losses = model.info.filter(row => row.severity === 'loss');
+  const plain = model.info.filter(row => row.severity !== 'loss');
+  let seq = 0;
+  const block = (rows, label) => rows.length
+    ? `<span class="dcim-dec-label">${escapeHTML(label)}</span>` + rows.map(row => _renderDecisionRow(row, seq++)).join('')
+    : '';
+  // I «tipi da confermare» sono decisioni a tutti gli effetti — e sono le uniche che
+  // BLOCCANO la creazione del progetto: vanno per prime fra quelle da prendere.
+  const review = _renderReviewRows(p, 0);
+  const reviewCount = (_wiz.reconciliationGroups || []).length;
+  const decisions = block(losses, t('dcim.dec.losses'))
+    + ((review || model.decisions.length)
+      ? `<span class="dcim-dec-label">${escapeHTML(t('dcim.dec.toDecide'))} · ${reviewCount + model.decisions.length}</span>`
+        + review + model.decisions.map(row => _renderDecisionRow(row, seq++)).join('')
+      : '');
+  const info = block(plain, t('dcim.dec.info'));
+  // Coda del pannello: la valvola «importa comunque» e il ricalcolo, che stavano nel
+  // vecchio blocco Riconciliazione. Compaiono solo se c'è qualcosa da confermare o
+  // l'anteprima è da rifare — un pannello non deve mostrare comandi inerti.
+  const foot = (reviewCount || _wiz.previewStale) ? `<div class="dcim-dec-foot">
+    <label class="dcim-dec-allow"><input type="checkbox" data-change="dcim-allow-unresolved"${_wiz.selection.allowUnresolved === true ? ' checked' : ''}>
+      <span>${escapeHTML(t('integrations.reconcileAllow'))}<small>${escapeHTML(t('integrations.reconcileAllowHint'))}</small></span></label>
+    <div class="dcim-dec-foot-actions">
+      <button class="um-btn" data-act="dcim-reconcile-preview"><i class="fas fa-rotate"></i> ${escapeHTML(t('integrations.reconcileRebuild'))}</button>
+      ${_wiz.previewStale ? `<span class="dcim-dec-pending">${escapeHTML(t('integrations.reconcilePending'))}</span>` : ''}
+    </div>
+  </div>` : '';
+  const truncated = model.truncated
+    ? `<div class="dcim-dec-truncated">${escapeHTML(t('dcim.dec.truncated', { n: (p.issues || []).length, total: p.issuesTotal || 0 }))}</div>` : '';
+  return `<section class="dcim-decisions" aria-labelledby="dcim-dec-title">
+    <h4 id="dcim-dec-title"><i class="fas fa-scale-balanced"></i> ${escapeHTML(t('dcim.dec.heading'))}</h4>
+    ${outcome}${decisions}${info}${truncated}${foot}
   </section>`;
 }
 
@@ -647,7 +712,7 @@ function _renderPreviewStep() {
     <div class="dcim-preview-attention-main"><i class="fas fa-triangle-exclamation"></i><div><strong id="dcim-preview-attention-title">${escapeHTML(t('integrations.previewAttention'))}</strong><span>${escapeHTML(t('integrations.reconcileCases', { n: previewReviewCount }))}</span></div></div>
     <button class="um-btn" data-act="dcim-reconcile-focus"><i class="fas fa-list-check"></i> ${escapeHTML(t('integrations.previewResolve'))}</button>
   </section>` : '';
-  const previewWarningHtml = _renderPreviewWarnings(_previewWarningGroups(p, sm, c));
+  const previewWarningHtml = _renderDecisions(p);
   const devs = sm.devices || [];
   const rows = devs.length
     ? `<p style="font-size:.85rem;color:var(--text-muted);margin:0 0 6px">${escapeHTML(t('integrations.excludeHint'))}</p>` + devs.map(d => {
@@ -658,7 +723,6 @@ function _renderPreviewStep() {
     }).join('')
     : `<p style="color:var(--text-muted);font-size:.9rem">${escapeHTML(t('integrations.previewEmpty'))}</p>`;
   const nameVal = _wiz.projectName || p.proposedProjectName || '';
-  const reconciliation = _renderReconciliationPanel(p);
   const reconciliationBlocked = p.reconciliation && !_wiz.selection.allowUnresolved && (
     p.reconciliation.required > 0 || (Array.isArray(p.reconciliation.invalid) && p.reconciliation.invalid.length > 0)
   );
@@ -674,7 +738,7 @@ function _renderPreviewStep() {
     <div style="display:flex;justify-content:flex-end;margin-top:10px">
       <button class="um-btn primary" data-act="dcim-commit"${c.devices && !blocked ? '' : ' disabled'} title="${blocked ? escapeHTML(t('integrations.reconcileBlocked')) : ''}"><i class="fas fa-plus"></i> ${escapeHTML(t('integrations.createProject'))}</button>
     </div>`;
-  return previewContext + previewKpis + previewSecondary + previewAttention + reconciliation + previewWarningHtml + rows + previewStatus + commit;
+  return previewContext + previewKpis + previewSecondary + previewAttention + previewWarningHtml + rows + previewStatus + commit;
 }
 
 async function _loadScopes() {
@@ -764,7 +828,7 @@ registerClickActions({
     _wiz.previewStale = true; _renderImport();
   },
   'dcim-reconcile-focus': () => {
-    const panel = document.querySelector('#dcim-import-body .dcim-reconcile-panel');
+    const panel = document.querySelector('#dcim-import-body .dcim-decisions');
     if (!panel) return;
     panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
     panel.setAttribute('tabindex', '-1');
@@ -782,6 +846,15 @@ registerChangeActions({
     const key = el.dataset.key, ex = _wiz.selection.exclude, i = ex.indexOf(key);
     if (!el.checked && i < 0) ex.push(key);
     if (el.checked && i >= 0) ex.splice(i, 1);
+    _wiz.previewStale = true;
+    _renderImport();
+  },
+  // La scelta cambia l'ESITO dell'import, quindi l'anteprima va rifatta: si marca
+  // stale come per ogni altra modifica alla selezione, non si finge un aggiornamento.
+  'dcim-decision': (el) => {
+    const code = el.dataset.code, option = el.dataset.option;
+    if (!code || !option) return;
+    _wiz.selection.decisions[code] = option;
     _wiz.previewStale = true;
     _renderImport();
   },

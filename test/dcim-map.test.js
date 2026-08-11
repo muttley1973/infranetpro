@@ -203,6 +203,107 @@ test('riconciliazione catalogo: template capiente → ports+frontPanel del model
   assert.ok(report.unmatchedDeviceTypes.some(s => /6300M/.test(s)));
 });
 
+// ── Decisione «porte oltre il catalogo» ─────────────────────────────────────
+// NetBox dichiara più interfacce fisiche di quante ne preveda il modello. Il
+// CONTEGGIO non è in discussione (`_effectivePortLayout` allarga già dataPorts: in
+// nessuno dei due rami si perde una porta) — si sceglie la DISPOSIZIONE del frontale.
+const _tooSmall = { 'cisco c9200-24t': { ports: 1, frontPanel: { baseLayout: 'x' }, rackU: 1 } };
+
+test('porte oltre il catalogo: senza scelta resta la disposizione del modello + avviso strutturato', () => {
+  const { state, report } = map.netboxToState(fixture(), { catalogByKey: _tooSmall });
+  const core = state.nodes.find(n => n.id === 'nb-dev-100');
+  assert.equal(core.ports, 2, 'tutte le porte NetBox sono dichiarate: nessuna si perde');
+  assert.deepEqual(core.frontPanel, { baseLayout: 'x', mgmtCount: 1 }, 'e la disposizione resta quella del catalogo');
+  assert.equal(report.catalogMatches.templateTooSmall, 1);
+  const issue = report.issues.find(i => i.code === 'ports.overTemplate');
+  assert.deepEqual(
+    { code: issue.code, deviceId: issue.deviceId, deviceName: issue.deviceName, netbox: issue.netbox, template: issue.template, applied: issue.applied },
+    { code: 'ports.overTemplate', deviceId: 100, deviceName: 'SW-CORE-01', netbox: 2, template: 1, applied: 'keepCatalog' },
+    'l\'avviso porta il NOME e i due numeri: il pannello non deve piu\' leggere una frase');
+});
+
+test('porte oltre il catalogo: «pannello neutro» toglie la disposizione dichiarata, non le porte', () => {
+  const { state, report } = map.netboxToState(fixture(), {
+    catalogByKey: _tooSmall, selection: { decisions: { 'ports.overTemplate': 'genericPanel' } },
+  });
+  const core = state.nodes.find(n => n.id === 'nb-dev-100');
+  assert.equal(core.ports, 2, 'stesse porte del ramo di default');
+  assert.equal(core.frontPanel, undefined, 'ma nessuna posizione inventata: meglio non sapere che sbagliare');
+  assert.equal(report.issues.find(i => i.code === 'ports.overTemplate').applied, 'genericPanel');
+  assert.ok(state.ports['nb-dev-100-2'], 'la porta c\'era in entrambi i rami');
+});
+
+test('avvisi strutturati: stesso evento, una sola emissione (issues + warnings restano allineati)', () => {
+  const { report } = map.netboxToState(fixture(), { catalogByKey: _tooSmall });
+  // Il ruolo "Mystery" non e' mappato: l'avviso esce con il nome del device, non con l'id.
+  const role = report.issues.find(i => i.code === 'role.unmapped');
+  assert.deepEqual({ deviceId: role.deviceId, deviceName: role.deviceName, role: role.role },
+    { deviceId: 101, deviceName: 'SW-ACC-03', role: 'Mystery' });
+  // Il modello Aruba non e' a catalogo: e' una classe, non una frase da leggere.
+  assert.ok(report.issues.some(i => i.code === 'catalog.unmatched' && /6300M/.test(i.model)));
+  assert.ok(!report.warnings.some(w => /6300M/.test(w)), 'e non sporca il log testuale');
+});
+
+// ── Fedeltà del mapping: quello che NetBox dichiara, e SOLO quello ──────────
+// Reperti misurati su un NetBox 4.6.7 vero (72 apparati, 90 prefissi, 63 VLAN).
+test('prefisso SENZA VLAN: nessuna «VLAN 0» inventata, nessuna VLAN fantasma', () => {
+  const nb = fixture();
+  nb.prefixes = [
+    { id: 70, prefix: '10.0.0.0/24', vlan: { vid: 10 } },   // con VLAN
+    { id: 71, prefix: '192.168.0.0/20' },                   // SENZA VLAN
+  ];
+  const { state } = map.netboxToState(nb);
+  const senza = state.ipam.prefixes.find(p => p.prefix === '192.168.0.0/20');
+  assert.equal(senza.vlan, null, 'senza VLAN dichiarata il prefisso non ne inventa una');
+  assert.notEqual(senza.vlan, 0, '`+null === 0`: la VLAN 0 non esiste, non va documentata');
+  assert.equal('null' in state.ipam.vlans, false, 'e non nasce una VLAN fantasma con chiave null');
+  assert.equal(state.ipam.vlans['10'].subnet, '10.0.0.0/24', 'il prefisso CON VLAN resta agganciato');
+});
+
+test('VLAN NetBox per sito/gruppo: il conteggio annunciato è quello che ATTERRA', () => {
+  const nb = fixture();
+  // Stesso vid dichiarato in tre siti diversi + un secondo vid: NetBox ne conta 4,
+  // il documento ne contiene 2 (lo spazio vid di InfraNet e' piatto).
+  nb.vlans = [
+    { id: 1, vid: 100, name: 'Data', site: { id: 1 } },
+    { id: 2, vid: 100, name: 'Data', site: { id: 2 } },
+    { id: 3, vid: 100, name: 'Data', site: { id: 3 } },
+    { id: 4, vid: 200, name: 'Voice' },
+  ];
+  nb.prefixes = [];
+  const { state, report } = map.netboxToState(nb);
+  assert.equal(report.counts.vlans, 2, 'annuncia le VLAN che si ottengono');
+  assert.equal(report.counts.vlanRecords, 4, 'senza nascondere quante righe ha letto');
+  assert.equal(Object.keys(state.vlanNames).length, 2);
+  const issue = report.issues.find(i => i.code === 'vlan.collapsed');
+  assert.deepEqual({ declared: issue.declared, kept: issue.kept, conflicts: issue.conflicts },
+    { declared: 4, kept: 2, conflicts: 0 }, 'il collasso viene dichiarato, non subito');
+});
+
+test('VLAN con lo stesso vid e nomi DIVERSI: il conflitto viene contato', () => {
+  const nb = fixture();
+  nb.vlans = [{ id: 1, vid: 100, name: 'Data' }, { id: 2, vid: 100, name: 'Ospiti' }];
+  nb.prefixes = [];
+  const { report } = map.netboxToState(nb);
+  assert.equal(report.issues.find(i => i.code === 'vlan.collapsed').conflicts, 1,
+    'un nome che ne sovrascrive un altro in silenzio va almeno contato');
+});
+
+test('cavi fuori perimetro (alimentazione/console/WAN): dichiarati, non taciuti', () => {
+  const nb = fixture();
+  nb.cables = [
+    { id: 600, a_terminations: [{ object_type: 'dcim.poweroutlet', object_id: 1 }], b_terminations: [{ object_type: 'dcim.powerport', object_id: 2 }] },
+    { id: 601, a_terminations: [{ object_type: 'circuits.circuittermination', object_id: 3 }], b_terminations: [{ object_type: 'dcim.interface', object_id: 1000 }] },
+  ];
+  const { state, report } = map.netboxToState(nb);
+  assert.equal(state.links.length, 0, 'non entrano fra i cavi del progetto');
+  assert.equal(report.counts.unresolvedCables, 0, 'e non sono un guasto da risolvere');
+  const oos = report.issues.filter(i => i.code === 'cable.outOfScope');
+  assert.equal(oos.length, 2, 'ma vengono dichiarati');
+  assert.deepEqual(oos.map(i => i.kind).sort(), ['circuit', 'power'], 'col motivo per cui restano fuori');
+  assert.equal(report.warnings.some(w => /600|601/.test(w)), false, 'senza rumore nel log testuale');
+});
+
 test('catalogo: SFP nelle posizioni del frontale e MGMT separata anche con porte NetBox incomplete', () => {
   const nb = fixture();
   nb.interfaces = [

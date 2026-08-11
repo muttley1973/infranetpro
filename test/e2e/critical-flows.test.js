@@ -234,7 +234,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         await dcimPage.click('button[data-act="dcim-wiz-next"]');
         await dcimPage.waitForSelector('input[data-change="dcim-ent"][data-key="devices"]', { timeout: 5000 });
         await dcimPage.click('button[data-act="dcim-wiz-next"]');
-        await dcimPage.waitForSelector('.dcim-reconcile-panel', { timeout: 15000 });
+        await dcimPage.waitForSelector('.dcim-decisions .dcim-dec-selects', { timeout: 15000 });
 
         const deviceRequests = mock.requestUrls.filter(url => /\/api\/dcim\/devices\//.test(url));
         const previewDeviceRequest = deviceRequests[deviceRequests.length - 1] || '';
@@ -243,22 +243,22 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         assert.doesNotMatch(previewDeviceRequest, /(?:^|[?&])tag=/, 'la selezione completa dei tag non restringe l’importazione');
 
         const initialReview = await dcimPage.evaluate(() => ({
-          groups: document.querySelectorAll('.dcim-reconcile-row').length,
-          devices: [...document.querySelectorAll('.dcim-reconcile-chip')].map(el => el.textContent.trim()).join(' | '),
+          groups: document.querySelectorAll('.dcim-dec-selects').length,
+          devices: [...document.querySelectorAll('.dcim-decisions .dcim-dec-label')].map(el => el.textContent.trim()).join(' | '),
           kpis: document.querySelectorAll('.dcim-preview-kpi').length,
           attention: !!document.querySelector('.dcim-preview-attention'),
-          warningCards: document.querySelectorAll('.dcim-preview-alert').length,
+          warningCards: document.querySelectorAll('.dcim-decisions .dcim-dec').length,
           commitDisabled: document.querySelector('button[data-act="dcim-commit"]')?.disabled === true,
         }));
-        assert.equal(initialReview.groups, 2, 'la UI raggruppa i due modelli da riconciliare');
+        assert.equal(initialReview.groups, 2, 'la UI raggruppa i due modelli da riconciliare, una riga di decisione ciascuno');
         assert.match(initialReview.devices, /2/);
         assert.equal(initialReview.kpis, 4, 'la preview espone quattro KPI principali');
         assert.equal(initialReview.attention, true, 'la riconciliazione è presentata come attenzione primaria');
-        assert.ok(initialReview.warningCards <= 3, 'gli avvisi tecnici non vengono duplicati in badge ripetuti');
+        assert.ok(initialReview.warningCards <= 6, 'una riga per DECISIONE, mai una per apparato');
         assert.equal(initialReview.commitDisabled, true, 'la creazione resta bloccata finché la riconciliazione non è risolta');
 
         await dcimPage.click('button[data-act="dcim-reconcile-focus"]');
-        assert.equal(await dcimPage.evaluate(() => document.activeElement?.classList.contains('dcim-reconcile-panel')), true, 'Risolvi casi porta il focus alla riconciliazione');
+        assert.equal(await dcimPage.evaluate(() => document.activeElement?.classList.contains('dcim-decisions')), true, 'Risolvi casi porta il focus alle decisioni');
 
         await dcimPage.selectOption('select[data-change="dcim-map-type"][data-group="0"]', 'switch');
         await dcimPage.selectOption('select[data-change="dcim-map-placement"][data-group="0"]', 'rack');
@@ -268,10 +268,10 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         await dcimPage.waitForSelector('button[data-act="dcim-commit"]:not([disabled])', { timeout: 15000 });
 
         const resolvedReview = await dcimPage.evaluate(() => ({
-          panelGone: !document.querySelector('.dcim-reconcile-panel'),
+          panelGone: !document.querySelector('.dcim-dec-selects'),
           commitDisabled: document.querySelector('button[data-act="dcim-commit"]')?.disabled === true,
         }));
-        assert.equal(resolvedReview.panelGone, true, 'la sezione di riconciliazione scompare quando tutti i casi sono risolti');
+        assert.equal(resolvedReview.panelGone, true, 'le righe da confermare spariscono quando tutti i casi sono risolti');
         assert.equal(resolvedReview.commitDisabled, false, 'la creazione viene abilitata dopo il ricalcolo');
 
         await dcimPage.fill('#dcim-name', 'E2E DCIM Import');
