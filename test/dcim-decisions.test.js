@@ -53,8 +53,11 @@ test('ordine di lettura: prima cosa si perde, poi cosa si sceglie, infine cosa i
 });
 
 test('il preventivo somma i due tipi di cavo e non inventa contatori', () => {
-  const r = buildDecisions({ issues: [], counts: { devices: 72, directLinks: 120, passThroughLinks: 10, vlans: 14, racks: 5 } });
-  assert.deepEqual(r.outcome, { devices: 72, cables: 130, vlans: 14, racks: 5, costs: [] });
+  const r = buildDecisions({ issues: [], counts: { devices: 72, directLinks: 120, passThroughLinks: 10, vlans: 14, racks: 5, stacks: 4 } });
+  assert.deepEqual(r.outcome, { devices: 72, cables: 130, vlans: 14, racks: 5, stacks: 4, costs: [] });
+  // Un import senza stack non deve far comparire un "0 stack" nel preventivo: il
+  // pannello lo omette, ma il numero resta 0 e non `undefined`.
+  assert.equal(buildDecisions({ issues: [], counts: { devices: 3 } }).outcome.stacks, 0);
   assert.deepEqual(r.decisions, []);
   assert.deepEqual(r.info, []);
 });
@@ -81,5 +84,37 @@ test('difensivo: report vuoto, issue senza codice, code sconosciuto', () => {
 
 test('il catalogo non regala opzioni: solo i codici con una vera alternativa', () => {
   const withOptions = Object.keys(DECISION_CATALOG).filter(c => (DECISION_CATALOG[c].options || []).length > 1);
-  assert.deepEqual(withOptions, ['ports.overTemplate']);
+  assert.deepEqual(withOptions.sort(), ['device.statusNotActive', 'ports.overTemplate']);
+});
+
+test('status non attivo: il default e\' il comportamento storico, la scelta si spedisce', () => {
+  const issues = [
+    { code: 'device.statusNotActive', deviceId: 1, deviceName: 'sw-old', kind: 'decommissioning' },
+    { code: 'device.statusNotActive', deviceId: 2, deviceName: 'sw-new', kind: 'planned' },
+  ];
+  const r = buildDecisions({ issues, counts: { devices: 9 } });
+  const row = r.decisions.find(d => d.code === 'device.statusNotActive');
+  assert.ok(row, 'e\' una decisione, non una riga informativa');
+  assert.equal(row.chosen, 'importAll', 'chi non tocca niente ottiene quel che otteneva prima');
+  assert.equal(row.count, 2);
+  assert.deepEqual(row.devices.map(d => d.name), ['sw-old', 'sw-new'], 'i nomi, non gli id NetBox');
+  assert.deepEqual(row.kinds, ['decommissioning', 'planned'], 'gli stati distinti, non ripetuti');
+  // La scelta non-default viaggia; il default resta implicito.
+  assert.deepEqual(sanitizeDecisions({ 'device.statusNotActive': 'skipNotActive' }), { 'device.statusNotActive': 'skipNotActive' });
+  assert.deepEqual(sanitizeDecisions({ 'device.statusNotActive': 'importAll' }), {});
+});
+
+test('cio\' che non entra sta in cima: le perdite prima delle scelte, le scelte prima degli info', () => {
+  const r = buildDecisions({
+    issues: [
+      { code: 'device.tenantSkipped', deviceId: 1, deviceName: 'a', kind: 'Acme' },
+      { code: 'device.statusNotActive', deviceId: 2, deviceName: 'b', kind: 'planned' },
+      { code: 'ports.consoleSkipped', deviceId: 3, deviceName: 'c', found: 2 },
+      { code: 'ports.powerSkipped', deviceId: 4, deviceName: 'd', found: 1 },
+    ],
+    counts: { devices: 4 },
+  });
+  assert.deepEqual(r.info.map(x => x.code), ['ports.consoleSkipped', 'ports.powerSkipped', 'device.tenantSkipped']);
+  assert.deepEqual(r.info.map(x => x.severity), ['loss', 'loss', 'info']);
+  assert.deepEqual(r.decisions.map(x => x.code), ['device.statusNotActive']);
 });

@@ -715,3 +715,125 @@ test('nome di ripiego: device senza name → "Modello #id"', () => {
   assert.equal(state.nodes.find(n => n.id === 'nb-dev-99').name, 'QFX5100-48T-6Q #99');
   assert.equal(state.nodes.find(n => n.id === 'nb-dev-100').name, 'core-fabric-99');
 });
+
+// ── Virtual chassis → stack ──────────────────────────────────────────────────
+// Il modello InfraNet esiste già (lib/stack.js, tag-based su spec.stackId): qui si
+// verifica solo che il filo sia collegato, non che nasca un modello nuovo.
+test('virtual chassis NetBox → stack InfraNet: nome, numero di membro, master', () => {
+  const nb = fixture();
+  nb.devices[0].virtual_chassis = { id: 7, name: 'stack-piano-1', master: { id: 100 } };
+  nb.devices[0].vc_position = 1;
+  nb.devices[1].virtual_chassis = { id: 7, name: 'stack-piano-1', master: { id: 100 } };
+  nb.devices[1].vc_position = 2;
+  const { state, report } = map.netboxToState(nb);
+  const a = state.nodes.find(n => n.id === 'nb-dev-100');
+  const b = state.nodes.find(n => n.id === 'nb-dev-101');
+  assert.equal(a.spec.stackId, 'stack-piano-1');
+  assert.equal(a.spec.stackMemberId, 1);
+  assert.equal(a.spec.stackRole, 'master');
+  assert.equal(b.spec.stackId, 'stack-piano-1');
+  assert.equal(b.spec.stackMemberId, 2);
+  assert.equal(b.spec.stackRole, 'member');
+  assert.equal(report.counts.stacks, 1, 'due apparati, UNO stack');
+  assert.equal(state.nodes.length, 2, 'i membri restano due nodi: sono due scatole in due U');
+});
+
+test('virtual chassis senza nome ne\' master: ripiego leggibile e nessun ruolo inventato', () => {
+  const nb = fixture();
+  nb.devices[0].virtual_chassis = { id: 7 };
+  nb.devices[0].vc_position = 3;
+  const { state } = map.netboxToState(nb);
+  const a = state.nodes.find(n => n.id === 'nb-dev-100');
+  assert.equal(a.spec.stackId, 'nb-vc-7');
+  assert.equal(a.spec.stackMemberId, 3);
+  assert.equal('stackRole' in a.spec, false, 'senza master dichiarato decide getStackMaster, non l\'import');
+});
+
+test('due virtual chassis omonimi finiscono in un solo stack: si dichiara', () => {
+  const nb = fixture();
+  nb.devices[0].virtual_chassis = { id: 7, name: 'stack' };
+  nb.devices[1].virtual_chassis = { id: 8, name: 'stack' };
+  const { report } = map.netboxToState(nb);
+  const issue = report.issues.find(i => i.code === 'stack.nameConflict');
+  assert.ok(issue, 'l\'omonimia fonde due stack in uno: va detta');
+  assert.equal(issue.deviceName, 'SW-ACC-03');
+  assert.equal(report.counts.stacks, 1);
+});
+
+// ── Status di servizio ───────────────────────────────────────────────────────
+test('status diverso da attivo: entra lo stesso, ma l\'anteprima lo dice', () => {
+  const nb = fixture();
+  nb.devices[1].status = { value: 'decommissioning', label: 'Decommissioning' };
+  const { state, report } = map.netboxToState(nb);
+  assert.equal(state.nodes.length, 2, 'default storico: entra');
+  const issue = report.issues.find(i => i.code === 'device.statusNotActive');
+  assert.equal(issue.deviceName, 'SW-ACC-03');
+  assert.equal(issue.kind, 'decommissioning');
+  assert.equal(state.nodes.find(n => n.id === 'nb-dev-101').source.status, 'decommissioning');
+});
+
+test('status attivo o assente: nessun avviso (ignoto non diventa un verdetto)', () => {
+  const nb = fixture();
+  nb.devices[0].status = { value: 'active' };
+  const { report } = map.netboxToState(nb);
+  assert.equal(report.issues.filter(i => i.code === 'device.statusNotActive').length, 0);
+});
+
+test('decisione «solo apparati in servizio»: restano fuori loro e i loro cavi', () => {
+  const nb = fixture();
+  nb.devices[1].status = { value: 'planned' };
+  const { state, report } = map.netboxToState(nb, { selection: { decisions: { 'device.statusNotActive': 'skipNotActive' } } });
+  assert.deepEqual(state.nodes.map(n => n.id), ['nb-dev-100']);
+  assert.ok(report.excluded.devices.includes(101));
+  assert.equal(report.counts.devices, 1);
+  assert.equal(state.links.length, 0, 'il cavo non sopravvive all\'apparato che non c\'e\'');
+  assert.ok(report.issues.some(i => i.code === 'device.statusNotActive'), 'la riga resta: e\' il modo di tornare indietro');
+});
+
+// ── Componenti che InfraNet non modella fuori dai PDU ────────────────────────
+test('porte console fuori dai PDU: dichiarate, non sparite', () => {
+  const nb = fixture();
+  nb.consolePorts = [{ id: 900, device: { id: 100 }, name: 'console' }, { id: 901, device: { id: 100 }, name: 'aux' }];
+  const { report } = map.netboxToState(nb);
+  const issue = report.issues.find(i => i.code === 'ports.consoleSkipped');
+  assert.equal(issue.found, 2);
+  assert.equal(issue.deviceName, 'SW-CORE-01');
+  assert.equal(report.counts.consolePortsSkipped, 2);
+  assert.equal(report.counts.consolePorts, 0, 'il contatore dei PDU non si gonfia con quelle scartate');
+});
+
+test('alimentazione fuori dai PDU: ingressi e prese contati insieme e dichiarati', () => {
+  const nb = fixture();
+  nb.powerPorts = [{ id: 910, device: { id: 100 }, name: 'PSU-1' }, { id: 911, device: { id: 100 }, name: 'PSU-2' }];
+  nb.powerOutlets = [{ id: 920, device: { id: 100 }, name: 'out-1' }];
+  const { report } = map.netboxToState(nb);
+  const issue = report.issues.find(i => i.code === 'ports.powerSkipped');
+  assert.equal(issue.found, 3);
+  assert.equal(report.counts.powerPortsSkipped, 3);
+  assert.equal(report.counts.powerPorts, 0);
+});
+
+// ── Campi NetBox senza una casa in InfraNet ──────────────────────────────────
+test('tenant, platform e description: ognuno dove ha senso, la platform MAI nel firmware', () => {
+  const nb = fixture();
+  nb.devices[0].tenant = { id: 5, name: 'Acme SpA' };
+  nb.devices[0].platform = { id: 6, name: 'Cisco IOS', slug: 'cisco-ios' };
+  nb.devices[0].description = 'Armadio di piano, chiave in portineria';
+  nb.devices[0].site = { id: 1, name: 'Sede' };
+  nb.devices[0].location = { id: 2, name: 'Piano 1' };
+  const { state, report } = map.netboxToState(nb);
+  const core = state.nodes.find(n => n.id === 'nb-dev-100');
+  assert.equal(core.source.tenant, 'Acme SpA');
+  assert.equal(core.source.platformSlug, 'cisco-ios');
+  assert.equal(core.source.platformName, 'Cisco IOS');
+  assert.equal(core.firmwareVer, undefined, 'la platform non e\' il firmware: la confusione farebbe scattare un identity-drift falso');
+  assert.equal(core.notes, 'Sede · Piano 1 — Armadio di piano, chiave in portineria');
+  assert.ok(report.issues.some(i => i.code === 'device.tenantSkipped'));
+});
+
+test('description senza ubicazione: la nota e\' solo la descrizione', () => {
+  const nb = fixture();
+  nb.devices[0].description = 'Solo prosa';
+  const { state } = map.netboxToState(nb);
+  assert.equal(state.nodes.find(n => n.id === 'nb-dev-100').notes, 'Solo prosa');
+});

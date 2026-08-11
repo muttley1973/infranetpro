@@ -574,6 +574,13 @@ function _decisionText(row, suffix) {
   return suffix === 'title' ? _tp('dcim.dec.unknown.title', row.count, vars) : '';
 }
 
+// Ora locale HH:MM da un ISO. Solo l'orario: la lettura vive una manciata di
+// minuti, la data sarebbe rumore. ISO illeggibile → stringa vuota, mai «Invalid Date».
+function _clock(iso) {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+}
+
 function _decisionWhy(row) {
   const parts = [];
   const why = _decisionText(row, (row.data && row.data.mixed) ? 'whyMixed' : 'why');
@@ -582,7 +589,13 @@ function _decisionWhy(row) {
   if (row.roles && row.roles.length) parts.push(t('dcim.dec.roles', { list: row.roles.slice(0, 6).join(' · ') }));
   if (row.kinds && row.kinds.length) {
     const list = row.kinds.map(k => { const key = 'dcim.dec.kind.' + k; const s = t(key); return s === key ? k : s; });
-    parts.push(t('dcim.dec.kinds', { list: list.join(' · ') }));
+    // `kinds` trasporta valori distinti di natura diversa a seconda della riga: tipi
+    // di cavo, ma anche nomi di tenant o stati NetBox. «Tipi: Dunder-Mifflin, Inc.»
+    // e' sbagliato — quindi l'etichetta puo' essere specializzata per codice, e
+    // ricade su quella generica quando non lo e'.
+    const lblKey = 'dcim.dec.' + row.code + '.kinds';
+    const lbl = t(lblKey, { list: list.join(' · ') });
+    parts.push(lbl === lblKey ? t('dcim.dec.kinds', { list: list.join(' · ') }) : lbl);
   }
   return parts.join(' ');
 }
@@ -622,10 +635,14 @@ function _renderDecisionRow(row, index) {
 function _renderDecisions(p) {
   const model = buildDecisions(p, _wiz.selection.decisions);
   const o = model.outcome;
-  const num = (key, value) => `<span class="dcim-out-n">${escapeHTML(t(key, { n: value }))}</span>`;
+  const num = (key, value) => `<span class="dcim-out-n">${escapeHTML(_tp(key, value, { n: value }))}</span>`;
   // Il preventivo: l'unica riga che chi importa legge davvero.
+  // Gli stack compaiono solo se ce ne sono: «0 stack» in un import che non ne ha
+  // e' rumore, e per giunta suggerisce una perdita che non c'e' stata.
   const totals = [num('dcim.dec.oDevices', o.devices), num('dcim.dec.oCables', o.cables),
-    num('dcim.dec.oVlans', o.vlans), num('dcim.dec.oRacks', o.racks)].join('<i>·</i>');
+    num('dcim.dec.oVlans', o.vlans), num('dcim.dec.oRacks', o.racks)]
+    .concat(o.stacks ? [num('dcim.dec.oStacks', o.stacks)] : [])
+    .join('<i>·</i>');
   const costs = o.costs.map(cost => {
     const key = 'dcim.cost.' + cost.code + (cost.chosen ? '.' + cost.chosen : '');
     const label = _tp(key, cost.n, { n: cost.n });
@@ -668,9 +685,16 @@ function _renderDecisions(p) {
   </div>` : '';
   const truncated = model.truncated
     ? `<div class="dcim-dec-truncated">${escapeHTML(t('dcim.dec.truncated', { n: (p.issues || []).length, total: p.issuesTotal || 0 }))}</div>` : '';
+  // Età del dato + rilettura esplicita. Ricalcolare una decisione riusa la lettura
+  // già fatta (istantaneo): proprio per questo va detto DA QUANDO è quella lettura,
+  // altrimenti un pannello che risponde subito si scambia per «NetBox adesso».
+  const fresh = p.fetchedAt ? `<div class="dcim-dec-fresh">
+    <span>${escapeHTML(t('dcim.dec.fetchedAt', { time: _clock(p.fetchedAt) }))}</span>
+    <button class="um-btn um-btn-ghost" data-act="dcim-reread"><i class="fas fa-cloud-arrow-down"></i> ${escapeHTML(t('dcim.dec.reread'))}</button>
+  </div>` : '';
   return `<section class="dcim-decisions" aria-labelledby="dcim-dec-title">
     <h4 id="dcim-dec-title"><i class="fas fa-scale-balanced"></i> ${escapeHTML(t('dcim.dec.heading'))}</h4>
-    ${outcome}${decisions}${info}${truncated}${foot}
+    ${outcome}${decisions}${info}${truncated}${foot}${fresh}
   </section>`;
 }
 
@@ -751,10 +775,15 @@ async function _loadScopes() {
   _wiz.loadingScopes = false; _renderImport();
 }
 
-async function _runPreview() {
+// `refresh` = rileggi da NetBox anche se il server ha già il bundle in memoria.
+// Senza, ricalcolare una decisione costa millisecondi invece di un pull intero:
+// è ciò che rende praticabile il «prova l'altra opzione e guarda cosa cambia».
+async function _runPreview(refresh) {
   _wiz.loadingPreview = true; _wiz.previewErr = ''; _wiz.preview = null; _renderImport();
   try {
-    const r = await fetch(API + '/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ selection: _selectionForRequest() }) });
+    const body = { selection: _selectionForRequest() };
+    if (refresh) body.refresh = true;
+    const r = await fetch(API + '/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
     _wiz.preview = j;
@@ -834,7 +863,8 @@ registerClickActions({
     panel.setAttribute('tabindex', '-1');
     panel.focus({ preventScroll: true });
   },
-  'dcim-reconcile-preview': () => _runPreview(),
+  'dcim-reconcile-preview': () => _runPreview(),          // ricalcola sulla lettura in memoria
+  'dcim-reread': () => _runPreview(true),                  // rilegge davvero da NetBox
   'dcim-commit': () => _commit(),
   'dcim-commit-retry': () => { _resetCommitState(); _renderImport(); },
   'dcim-open-created': () => { const id = _wiz.commit.result && _wiz.commit.result.projectId; if (id != null) { switchProject(id); closeDcimSync(); } },

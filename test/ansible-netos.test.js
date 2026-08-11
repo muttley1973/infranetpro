@@ -34,3 +34,21 @@ test('Cisco Meraki (cloud-managed) → null, non cisco.ios (niente backup networ
 test('nessun falso positivo da "iOS" di Apple (serve un segnale Cisco esplicito)', () => {
   assert.equal(vendorToNetworkOs({ brand: 'Apple', model: 'iPhone', sysDescr: 'iOS 17' }), null);
 });
+
+// ── La piattaforma DICHIARATA (import DCIM: NetBox `platform`) ───────────────
+// È documentazione, non deduzione: batte l'ipotesi ricavata da marca e modello.
+test('platform dichiarata: vince sul brand, e non si arrende se e\' muta', () => {
+  // Il caso che conta: brand generico, platform precisa.
+  assert.equal(vendorToNetworkOs({ brand: 'Cisco', model: 'C9500', platform: 'Cisco NX-OS' }), 'cisco.nxos.nxos');
+  assert.equal(vendorToNetworkOs({ platform: 'cisco-ios' }), 'cisco.ios.ios', 'lo slug NetBox va bene quanto il nome');
+  assert.equal(vendorToNetworkOs({ platform: 'juniper-junos' }), 'junipernetworks.junos.junos');
+  // Platform che non dice niente → si ripiega sul brand invece di arrendersi.
+  assert.equal(vendorToNetworkOs({ brand: 'Arista', platform: 'linux-generico' }), 'arista.eos.eos');
+  assert.equal(vendorToNetworkOs({ platform: 'boh' }), null, 'nessun segnale da nessuna parte → null');
+});
+
+test('platform Meraki: veto esplicito, NON si ripiega sul brand Cisco', () => {
+  // ⚠️ La regressione da evitare: `_match` torna null perche' Meraki e' cloud-managed,
+  // e un fallback cieco sul brand "Cisco" direbbe cisco.ios.ios — l'opposto.
+  assert.equal(vendorToNetworkOs({ brand: 'Cisco', model: 'MS220', platform: 'Cisco Meraki' }), null);
+});

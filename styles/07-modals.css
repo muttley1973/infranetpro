@@ -74,7 +74,14 @@
         .tool-modal-header h3 i { color:var(--accent); }
         .tool-modal-body { padding:16px 18px; overflow-y:auto; flex:1; }
         .tool-modal-footer { padding:12px 18px; border-top:1px solid var(--panel-border); display:flex; gap:8px; justify-content:flex-end; flex-shrink:0; }
-        #dcim-overlay .tool-modal { width:min(540px,96vw); max-height:86vh; transition:width .18s ease; }
+        /* 780px: le righe di decisione portano una spiegazione + le alternative, e a
+           540px andavano a capo troppo spesso. Oltre gli ~800 la riga di testo supera
+           i ~100 caratteri e torna faticosa da leggere: 780 e' il compromesso. */
+        #dcim-overlay .tool-modal { width:min(780px,96vw); max-height:86vh; transition:width .18s ease; }
+        /* Età della lettura NetBox + rilettura esplicita: discreta, in coda al
+           pannello — è contesto sul dato, non un'azione primaria. */
+        .dcim-dec-fresh { display:flex; align-items:center; justify-content:flex-end; gap:9px; margin-top:9px; color:var(--text-muted); font-size:var(--fs-sm); }
+        .dcim-dec-fresh .um-btn { padding:4px 9px; font-size:var(--fs-sm); }
         .dcim-catalog-actions { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; width:100%; margin-top:8px; }
         .dcim-catalog-actions .um-btn { width:100%; min-height:32px; justify-content:center; padding:6px 8px; font-size:var(--fs-sm); }
         @media (max-width:520px) { .dcim-catalog-actions { grid-template-columns:1fr; } }

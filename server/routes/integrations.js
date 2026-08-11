@@ -21,11 +21,29 @@ const { timestamp } = require('../../utils');
 const dcimConfig = require('../dcim-config');
 const capabilities = require('../dcim/capabilities');
 const { DcimClient } = require('../dcim/client');
+const { createPullCache } = require('../dcim/pull-cache');
 const dcimMap = require('../../lib/dcim-map');
 const deviceCatalog = require('../../lib/device-catalog');
 const { nextId, saveProject } = require('../projects-store');
 
 const router = express.Router();
+
+// Bundle grezzo letto da NetBox, tenuto in MEMORIA per il tempo di una sessione di
+// import. ⚠️ Non finisce mai nel JSON di progetto né su disco: è un accorgimento di
+// velocità, non un dato. Vedi server/dcim/pull-cache.js per il perché della chiave.
+const pullCache = createPullCache();
+
+// Chi legge: istanza + utente (token e permessi sono suoi). In dev senza auth la
+// sessione non c'è: una chiave costante va benissimo, l'utente è uno solo.
+function _pullKey(req, selection) {
+  const c = dcimConfig.getConfig();
+  return pullCache.keyFor({
+    instance: c && c.url,
+    userId: (req.session && req.session.user && (req.session.user.id != null ? req.session.user.id : req.session.user.username)) || 'dev',
+    scope: selection.scope,
+    entities: selection.entities,
+  });
+}
 
 // Client DCIM dalle credenziali salvate (env > disco). Lancia se non configurato.
 function _client() {
@@ -238,7 +256,12 @@ router.get('/api/integrations/dcim/config', (_req, res) => {
 
 router.put('/api/integrations/dcim/config', auth.requireAdmin, (req, res) => {
   try {
-    res.json(dcimConfig.setConfig(req.body || {}));
+    const saved = dcimConfig.setConfig(req.body || {});
+    // Cambiata l'istanza o il token: quello che c'è in memoria è stato letto con
+    // credenziali che non valgono più. Si butta tutto, non solo la chiave di
+    // questo utente — un token nuovo può vedere una fetta diversa.
+    pullCache.clear();
+    res.json(saved);
   } catch (e) {
     res.status(400).json({ error: String((e && e.message) || 'Configurazione DCIM non valida') });
   }
@@ -360,9 +383,22 @@ router.post('/api/integrations/dcim/import', auth.requireAdmin, async (req, res)
   let client;
   try { client = _client(); } catch (e) { return res.status(400).json({ error: e.message }); }
 
-  let nb;
-  try { nb = await _pullForImport(client, selection); }
-  catch (e) { return res.status(502).json({ error: String((e && e.message) || e) }); }
+  // La lettura da NetBox si paga UNA VOLTA per sessione di import: cambiare una
+  // decisione ricalcola soltanto la mappatura (funzione pura, millisecondi).
+  // `refresh: true` forza la rilettura — è il comando esplicito «rileggi da NetBox».
+  // ⚠️ Il commit usa la stessa voce di cache: così il progetto creato è ESATTAMENTE
+  // quello dell'anteprima approvata, non una seconda lettura che nel frattempo può
+  // essere cambiata sotto i piedi.
+  const cacheKey = _pullKey(req, selection);
+  const hit = body.refresh ? null : pullCache.get(cacheKey);
+  const fromCache = !!hit;
+  let nb = hit ? hit.value : null;
+  let fetchedAt = hit ? hit.at : null;
+  if (!nb) {
+    try { nb = await _pullForImport(client, selection); }
+    catch (e) { return res.status(502).json({ error: String((e && e.message) || e) }); }
+    fetchedAt = pullCache.set(cacheKey, nb).at;
+  }
 
   const catalog = _catalogForImport();
   const { state, report } = dcimMap.netboxToState(nb, {
@@ -379,6 +415,11 @@ router.post('/api/integrations/dcim/import', auth.requireAdmin, async (req, res)
       ok: true,
       counts: report.counts,
       proposedProjectName: proposedName,
+      // Quando è stata letta NetBox, e se questa risposta viene da una lettura
+      // riusata. Va DETTO: un'anteprima istantanea che non dice di essere una
+      // fotografia di dieci minuti fa si legge come «NetBox adesso».
+      fetchedAt: fetchedAt != null ? new Date(fetchedAt).toISOString() : null,
+      fromCache,
       samples: {
         devices: state.nodes.slice(0, 12).map(n => ({
           key: 'device:' + String(n.id).replace('nb-dev-', ''),
@@ -427,7 +468,11 @@ router.post('/api/integrations/dcim/import', auth.requireAdmin, async (req, res)
   const name = (typeof body.projectName === 'string' && body.projectName.trim()) ? body.projectName.trim() : proposedName;
   const id = nextId();
   const now = timestamp();
+  // ⚠️ `state` e basta: nel progetto va il documento di rete, MAI il bundle grezzo
+  // da cui è nato. La cache resta in memoria e muore qui — il prossimo import è
+  // un'altra sessione e rilegge, perché nel frattempo il DCIM può essere cambiato.
   saveProject(id, name, state, now, now);
+  pullCache.invalidate(cacheKey);
   res.status(201).json({ ok: true, projectId: id, counts: report.counts });
 });
 

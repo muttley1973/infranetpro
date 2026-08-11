@@ -198,6 +198,12 @@ test('toAnsibleInventory: ansible_network_os dal vendor noto + puntatore backup 
   // vendor ignoto (pc/ap) → network_os OMESSO (mai null, romperebbe la connessione).
   assert.ok(!('ansible_network_os' in inv._meta.hostvars['PC-Ufficio']), 'vendor ignoto → nessun network_os');
 
+  // La platform DICHIARATA dall'import DCIM batte l'ipotesi da marca: un Nexus
+  // dichiarato non deve ricevere comandi IOS solo perche' il brand dice "Cisco".
+  proj.state.nodes[0].source = { system: 'netbox', platformSlug: 'cisco-nxos', platformName: 'Cisco NX-OS' };
+  assert.equal(toAnsibleInventory(proj)._meta.hostvars['CORE-SW-1'].ansible_network_os, 'cisco.nxos.nxos');
+  delete proj.state.nodes[0].source;
+
   // con backup dichiarato → ref esposto, fuori da backup_missing.
   proj.state.nodes[0].backup = { ref: 'smb://nas/configs/sw-core', method: 'ansible', at: '2026-07-20', by: 'user:1' };
   const inv2 = toAnsibleInventory(proj);
