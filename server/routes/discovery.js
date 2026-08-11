@@ -160,8 +160,19 @@ router.post('/api/reachability', auth.requireAdmin, async (req, res) => {
 
     const checkOne = async (ip) => {
       try {
-        // 1) ARP: già visto a L2 di recente → presente (anche se blocca ICMP)
-        if (arp.has(ip)) return { ip, alive: true, via: 'arp' };
+        // ⚠️ NIENTE scorciatoia sull'ARP letto PRIMA della sweep. La tabella dei vicini
+        // dell'OS non è una misura di adesso: dopo che un host sparisce la sua voce
+        // resta a lungo in stato «Stale» (col MAC ancora buono), e _parseNeighbors la
+        // tiene apposta — è una presenza L2 REALE ma PASSATA. Prima si usciva subito
+        // con alive:'arp' SENZA nemmeno pingare: un device spento restava verde finché
+        // qualcun altro non forzava la risoluzione — cioè, in pratica, per sempre.
+        // Misurato dal vivo (2026-08-11, due device del lab): staccati e ancora
+        // «presenti»; un `ping` a mano faceva cadere la voce Stale e solo allora
+        // diventavano rossi. Adesso si PROVA sempre: il ping obbliga l'OS a rivalidare
+        // il vicino, e la ri-lettura di fine sweep (sotto) è la stessa evidenza ARP ma
+        // FRESCA — l'host che blocca ICMP ma c'è resta verde comunque, perché la sua
+        // risoluzione L2 riesce. Costa un ping in più sugli host già in cache; è il
+        // prezzo di una risposta che vale adesso.
         // 2) ICMP ping con ritentativo (popola anche l'ARP, riletto a fine sweep per il MAC).
         // Ritenta: un device flaky che perde il 1° ICMP non deve risultare "assente".
         { const _pr = await _pingHostRetry(ip, pingMs, 2); if (_pr.alive) return { ip, alive: true, via: 'ping' }; }

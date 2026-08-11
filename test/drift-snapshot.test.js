@@ -554,6 +554,61 @@ test('ARP del router: senza prova di assenza il verde cross-subnet resta (Fase 2
   }
 });
 
+// Stessa classe, altre due tabelle-ricordo. La MAC-table di uno switch tiene un
+// client appena scollegato per tutto l'aging time (300s di default, di più su alcuni
+// vendor) e un lease DHCP dura ore: entrambe dicono «l'ho visto passare», nessuna
+// delle due ri-verifica al momento della lettura. Se la sweep ha appena provato che
+// l'IP non c'è più sul nostro filo, la misura fresca deve battere il ricordo —
+// altrimenti un device staccato resta verde per minuti.
+test('FDB dello switch: la MAC-table non resuscita un nodo provato assente', () => {
+  const snap = buildSnmpSnapshot({
+    nodes: _arpNodes, reachable: { '192.168.1.110': { alive: false, via: '', mac: '', absent: true } },
+    arpTable: { '192.168.1.1': 'D4:1A:D1:82:11:20' },
+    fdb: { sw1: { [_ARP_MAC]: 'Gi0/5' } },
+    ports: {}, links: [], normMac: (x) => String(x || '').toLowerCase(),
+  });
+  assert.equal(snap.observedMacs.includes(_ARP_MAC), false, 'il MAC ancora in FDB non vale come presenza');
+  assert.equal(snap.fdbObserved, true, 'ma l\'osservabilità L2 resta (la FDB è stata letta)');
+  assert.equal(buildDriftReport(snap, _arpDoc, [], {}).counts.macOrphan, 1, 'resta ROSSO');
+});
+
+test('FDB dello switch: senza prova di assenza la MAC-table resta un segnale di presenza', () => {
+  const snap = buildSnmpSnapshot({
+    nodes: _arpNodes, reachable: { '192.168.1.110': { alive: false, via: '', mac: '', absent: false } },
+    arpTable: { '192.168.1.1': 'D4:1A:D1:82:11:20' },
+    fdb: { sw1: { [_ARP_MAC]: 'Gi0/5' } },
+    ports: {}, links: [], normMac: (x) => String(x || '').toLowerCase(),
+  });
+  assert.equal(snap.observedMacs.includes(_ARP_MAC), true, 'il MAC in FDB vale come "visto in rete"');
+  assert.equal(buildDriftReport(snap, _arpDoc, [], {}).counts.macOrphan, 0, 'nessun falso rosso');
+});
+
+test('Lease DHCP: un lease valido non resuscita un IP provato assente', () => {
+  const lease = { mac: _ARP_MAC, ip: '192.168.1.110', hostname: 'nas', state: 'active' };
+  const snap = buildSnmpSnapshot({
+    nodes: _arpNodes, reachable: { '192.168.1.110': { alive: false, via: '', mac: '', absent: true } },
+    arpTable: { '192.168.1.1': 'D4:1A:D1:82:11:20' }, leases: [lease],
+    ports: {}, links: [], normMac: (x) => String(x || '').toLowerCase(),
+    isLeaseStale: () => false,
+  });
+  assert.equal(snap.observedMacs.includes(_ARP_MAC), false, 'il lease non vale come presenza');
+  assert.equal((snap.macAtIps || {})[_ARP_MAC], undefined, 'e non entra fra gli IP vivi del MAC');
+  assert.equal(snap.reachabilityChecked, true, 'il file lease è stato comunque letto (osservabilità)');
+  assert.equal(buildDriftReport(snap, _arpDoc, [], {}).counts.macOrphan, 1, 'resta ROSSO');
+});
+
+test('Lease DHCP: senza prova di assenza il lease resta un segnale di presenza', () => {
+  const lease = { mac: _ARP_MAC, ip: '192.168.1.110', hostname: 'nas', state: 'active' };
+  const snap = buildSnmpSnapshot({
+    nodes: _arpNodes, reachable: { '192.168.1.110': { alive: false, via: '', mac: '', absent: false } },
+    arpTable: { '192.168.1.1': 'D4:1A:D1:82:11:20' }, leases: [lease],
+    ports: {}, links: [], normMac: (x) => String(x || '').toLowerCase(),
+    isLeaseStale: () => false,
+  });
+  assert.equal(snap.observedMacs.includes(_ARP_MAC), true, 'il lease vale come "visto"');
+  assert.equal(buildDriftReport(snap, _arpDoc, [], {}).counts.macOrphan, 0, 'nessun falso rosso');
+});
+
 test('ND IPv6: un vicino memorizzato non resuscita un nodo provato assente', () => {
   const snap = buildSnmpSnapshot({
     nodes: _arpNodes, reachable: { '192.168.1.110': { alive: false, via: '', mac: '', absent: true } },
