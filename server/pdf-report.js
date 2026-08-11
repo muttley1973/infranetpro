@@ -57,11 +57,8 @@ const _RL = {
     'sub.pdu': 'unità di distribuzione documentate',
     'sub.pduOutlets': 'prese documentate',
     'empty.pdu': 'Nessuna PDU documentata nel progetto.',
-    'empty.pduOutlets': 'Nessuna presa documentata: le PDU dichiarano solo il numero di prese.',
-    'col.pdu': 'PDU', 'col.u': 'U', 'col.phase': 'Fasi', 'col.currentA': 'A',
-    'col.outlets': 'Prese', 'col.active': 'Attive', 'col.fault': 'Guasti',
-    'col.mgmt': 'Gestione', 'col.outlet': 'Presa', 'col.declared': 'Dichiarato',
-    'col.powered': 'Apparato alimentato', 'col.port': 'Porta', 'col.source': 'Origine',
+    'col.phase': 'Fasi', 'col.outlets': 'Prese', 'col.active': 'Attive',
+    'col.fault': 'Guasti', 'col.mgmt': 'Gestione', 'col.powered': 'con carico',
     'pdu.type.basic': 'Base', 'pdu.type.metered': 'Metered', 'pdu.type.switched': 'Switched',
     'pdu.type.switched-metered': 'Switched+Metered',
     'pdu.phase.single': 'Mono', 'pdu.phase.three': 'Trifase',
@@ -69,10 +66,7 @@ const _RL = {
     'pdu.mgmt.ethernet-serial': 'Ethernet+Console',
     'pdu.st.active': 'Attiva', 'pdu.st.inactive': 'Inattiva', 'pdu.st.fault': 'Guasta',
     'pdu.src.manual': 'Manuale', 'pdu.src.imported': 'Importato',
-    'pdu.noDetail': 'prese non elencate',
-    'title.pduDetail': 'Alimentazione — Schede PDU',
-    'sub.pduDetail': 'schede di ripristino (una per PDU)',
-    'pdu.fw': 'Firmware', 'pdu.position': 'Posizione', 'pdu.orientation': 'Montaggio',
+        'pdu.fw': 'Firmware', 'pdu.position': 'Posizione', 'pdu.orientation': 'Montaggio',
     'pdu.rated': 'Corrente nom.', 'pdu.mgmtPorts': 'Porte gestione', 'pdu.assetTag': 'Asset tag',
     'pdu.orient.vertical-0u': 'Verticale 0U', 'pdu.orient.horizontal-1u': 'Orizzontale 1U',
     'pdu.feedFrom': 'ALIMENTATA DA', 'pdu.loadList': 'PRESE E CARICHI',
@@ -130,11 +124,8 @@ const _RL = {
     'sub.pdu': 'documented power distribution units',
     'sub.pduOutlets': 'documented outlets',
     'empty.pdu': 'No PDU documented in this project.',
-    'empty.pduOutlets': 'No outlet documented: the PDUs only declare an outlet count.',
-    'col.pdu': 'PDU', 'col.u': 'U', 'col.phase': 'Phase', 'col.currentA': 'A',
-    'col.outlets': 'Outlets', 'col.active': 'Active', 'col.fault': 'Fault',
-    'col.mgmt': 'Management', 'col.outlet': 'Outlet', 'col.declared': 'Declared',
-    'col.powered': 'Powered device', 'col.port': 'Port', 'col.source': 'Source',
+    'col.phase': 'Phase', 'col.outlets': 'Outlets', 'col.active': 'Active',
+    'col.fault': 'Fault', 'col.mgmt': 'Management', 'col.powered': 'with a load',
     'pdu.type.basic': 'Basic', 'pdu.type.metered': 'Metered', 'pdu.type.switched': 'Switched',
     'pdu.type.switched-metered': 'Switched+Metered',
     'pdu.phase.single': 'Single', 'pdu.phase.three': 'Three-phase',
@@ -142,10 +133,7 @@ const _RL = {
     'pdu.mgmt.ethernet-serial': 'Ethernet+Console',
     'pdu.st.active': 'Active', 'pdu.st.inactive': 'Inactive', 'pdu.st.fault': 'Fault',
     'pdu.src.manual': 'Manual', 'pdu.src.imported': 'Imported',
-    'pdu.noDetail': 'outlets not listed',
-    'title.pduDetail': 'Power — PDU sheets',
-    'sub.pduDetail': 'restore sheets (one per PDU)',
-    'pdu.fw': 'Firmware', 'pdu.position': 'Position', 'pdu.orientation': 'Mounting',
+        'pdu.fw': 'Firmware', 'pdu.position': 'Position', 'pdu.orientation': 'Mounting',
     'pdu.rated': 'Rated current', 'pdu.mgmtPorts': 'Management ports', 'pdu.assetTag': 'Asset tag',
     'pdu.orient.vertical-0u': 'Vertical 0U', 'pdu.orient.horizontal-1u': 'Horizontal 1U',
     'pdu.feedFrom': 'FED FROM', 'pdu.loadList': 'OUTLETS AND LOADS',
@@ -873,54 +861,26 @@ function _addPduPages(doc, pdu, projName, date, lang = 'it') {
     doc.font('Helvetica').fontSize(8).fillColor('#94a3b8').text(_rt(L, 'empty.pdu'), _RM, y0);
     return;
   }
-  const dash = (v) => (v == null || v === '' ? '-' : String(v));
   // Etichetta tradotta per i valori NOTI; un valore fuori scala (progetto vecchio,
   // import di un vendor esotico) si stampa com'è invece di sparire.
   const lbl = (prefix, v) => (v ? (_RL[L][`${prefix}.${v}`] || v) : '-');
 
-  // ── Pagina 1: riepilogo per PDU ──────────────────────────────────────
-  const T = _rt(L, 'title.pdu');
-  doc.addPage({ size: [595, 842], margins: { top: 0, bottom: 0, left: 0, right: 0 } });
-  _rHdr(doc, T, projName, date);
-  const freeTxt = t.free == null ? '' : `  -  ${t.free} ${_rt(L, 'col.free')}`;
-  let y = _rSub(doc, `${t.pdus || 0} ${_rt(L, 'sub.pdu')}  -  ${t.outlets || 0} ${_rt(L, 'sub.pduOutlets')}`
-    + `  -  ${t.active || 0} ${_rt(L, 'col.active')}${freeTxt}`
-    + (t.fault ? `  -  ${t.fault} ${_rt(L, 'col.fault')}` : ''), _TOP);
-  const sumCols = [
-    { label: _rt(L, 'col.rack'),     w: 70, wrap: true },
-    { label: _rt(L, 'col.pdu'),      w: 95, wrap: true },
-    { label: _rt(L, 'col.u'),        w: 22 },
-    { label: _rt(L, 'col.type'),     w: 62, shrink: true },
-    { label: _rt(L, 'col.phase'),    w: 40 },
-    { label: _rt(L, 'col.currentA'), w: 26 },
-    { label: _rt(L, 'col.outlets'),  w: 34 },
-    { label: _rt(L, 'col.active'),   w: 38, color: '#1a7f37' },
-    { label: _rt(L, 'col.free'),     w: 38 },
-    { label: _rt(L, 'col.fault'),    w: 36, color: '#b42318' },
-    { label: _rt(L, 'col.mgmt'),     w: 72, shrink: true },
-  ]; // 533
-  _rTable(doc, sumCols, summary.map(s => [
-    dash(s.rackName), s.name, dash(s.rackU), lbl('pdu.type', s.pduType), lbl('pdu.phase', s.phase),
-    s.currentA == null ? '-' : String(s.currentA),
-    String(s.outletsTotal),
-    // Senza l'elenco prese non sappiamo quante sono attive/libere: '-' lo dice,
-    // uno zero direbbe una cosa falsa (e nel totale non entra, vedi lib).
-    s.outletsDetailed ? String(s.outletsActive) : '-',
-    s.outletsDetailed ? String(s.outletsFree) : '-',
-    s.outletsDetailed ? (s.outletsFault ? String(s.outletsFault) : '') : '-',
-    lbl('pdu.mgmt', s.mgmtMode),
-  ]), y, T, projName, date);
-
-  // ── Pagina 2+: una SCHEDA DI RIPRISTINO per PDU ──────────────────────
+  // ── UNA SCHEDA DI RIPRISTINO PER PDU, tutto su un blocco solo ────────
   // È il capitolo che serve davvero in consegna: chi deve rimettere in servizio
   // una PDU sostituita trova qui, su una sola scheda, identità e matricola, dove
   // sta nel rack, da dove prende corrente, come la si raggiunge per gestirla,
   // dove vive il backup della configurazione e cosa alimenta ogni presa. Stesso
   // linguaggio visivo delle card VLAN (fascia scura + corpo a due colonne).
-  const T2 = _rt(L, 'title.pduDetail');
+  const T2 = _rt(L, 'title.pdu');
   doc.addPage({ size: [595, 842], margins: { top: 0, bottom: 0, left: 0, right: 0 } });
   _rHdr(doc, T2, projName, date);
-  y = _rSub(doc, `${summary.length} ${_rt(L, 'sub.pduDetail')}`, _TOP);
+  // I totali del capitolo stanno in UNA riga sopra le schede: bastano a dare la
+  // misura d'insieme e non costano una pagina di tabella che ripeterebbe, campo
+  // per campo, quello che ogni scheda dice già per esteso.
+  const freeTxt = t.free == null ? '' : `  -  ${t.free} ${_rt(L, 'col.free')}`;
+  let y = _rSub(doc, `${t.pdus || 0} ${_rt(L, 'sub.pdu')}  -  ${t.outlets || 0} ${_rt(L, 'sub.pduOutlets')}`
+    + `  -  ${t.active || 0} ${_rt(L, 'col.active')}  -  ${t.powered || 0} ${_rt(L, 'col.powered')}${freeTxt}`
+    + (t.fault ? `  -  ${t.fault} ${_rt(L, 'col.fault')}` : ''), _TOP);
   const M = _RM, CW = _RW;
   const outletsByPdu = new Map();
   for (const o of outlets) {
@@ -969,12 +929,17 @@ function _addPduPages(doc, pdu, projName, date, lang = 'it') {
     const noteRows = s.notes ? _wrapFit(doc, s.notes, CW - 12, 6).length : 0;
     const feedRows = feedLines.reduce((a, l) => a + _wrapFit(doc, l, CW - 12, 6).length, 0);
     const outRows = outLines.reduce((a, l) => a + _wrapFit(doc, l, CW - 12, 6).length, 0);
-    const cardH = 18 + pairRows * 10 + 4
+    const cardH = 18 + 3 + pairRows * 10 + 4
       + (feedLines.length ? 10 + feedRows * 9 : 0)
       + (outLines.length ? 10 + outRows * 9 : 0)
       + (noteRows ? 10 + noteRows * 9 : 0) + 8;
 
-    if (y + Math.min(cardH, 260) > _BOT) {
+    // Una scheda non si spezza mai fra due pagine: chi la consulta davanti al rack
+    // deve avere tutto sotto gli occhi, non metà qui e metà voltando foglio. Se non
+    // ci sta nello spazio rimasto, comincia dalla pagina nuova; se è più alta di una
+    // pagina INTERA (PDU da 48 prese) si accetta il taglio, ma solo in quel caso.
+    const pageH = _BOT - _TOP;
+    if (y + cardH > _BOT && (y > _TOP || cardH <= pageH)) {
       doc.addPage({ size: [595, 842], margins: { top: 0, bottom: 0, left: 0, right: 0 } });
       _rHdr(doc, T2, projName, date);
       y = _TOP;
@@ -1016,6 +981,9 @@ function _addPduPages(doc, pdu, projName, date, lang = 'it') {
       y += 1;
     };
     block('pdu.feedFrom', feedLines, '#b45309');
+    // Prese una per riga. Una versione a due colonne impaginava la seconda colonna
+    // fuori posto (partiva sopra la prima): meglio una lista che si legge bene e
+    // qualche riga in più, che una griglia stretta e sbagliata.
     block('pdu.loadList', outLines, '#1a7f37');
     block('col.note', s.notes ? [s.notes] : [], '#64748b');
     y += 6;
