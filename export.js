@@ -1510,12 +1510,41 @@ function _buildPdfReportData() {
             name: n.name,
             brand: n.brand,
             model: n.model,
+            // Identità per il RIPRISTINO: chi la ricompra e chi la riconfigura ha
+            // bisogno di matricola/firmware/asset tag e della copertura, non solo
+            // del nome. `integration.inventory` è la misura ENTITY-MIB, il livello
+            // nodo è il dichiarato: passano entrambi, a valle decide il dichiarato.
+            serialNumber: n.serialNumber,
+            firmwareVer: n.firmwareVer,
+            assetTag: n.assetTag,
+            warrantyUntil: n.warrantyUntil,
+            mac: n.mac,
+            notes: n.notes,
+            sizeU: n.sizeU,
+            // Puntatore al backup della configurazione: DOVE vive, mai il config e
+            // mai le credenziali (`ref` è già validato credential-free a monte).
+            backup: n.backup ? { ref: n.backup.ref, method: n.backup.method, at: n.backup.at } : undefined,
+            // Alimentazione IN INGRESSO (power-port importate da NetBox): da quale
+            // quadro/UPS arriva la corrente. Senza, la runbook di ripristino non
+            // dice da dove ricollegarla.
+            pduPowerPorts: Array.isArray(n.pduPowerPorts) ? n.pduPowerPorts : undefined,
             // Il nome del rack lo risolve il client (conosce state.racks); al server
             // arriva già leggibile, così il capitolo non deve reidratare nulla.
             rackName: n.rackId != null ? (_rackNameById.get(String(n.rackId)) || null) : null,
             rackU: n.rackU,
             ip: n.ip,
-            integration: { host: (n.integration || {}).host },
+            // Dell'integrazione escono SOLO l'indirizzo, il nome del driver (che sia
+            // SNMP o meno è un fatto di ripristino) e l'inventario MISURATO. Community
+            // e credenziali non attraversano mai questo confine.
+            integration: n.integration ? {
+                host: n.integration.host,
+                driver: n.integration.driver,
+                inventory: n.integration.inventory ? {
+                    serialNumber: n.integration.inventory.serialNumber,
+                    model: n.integration.inventory.model,
+                    firmwareVer: n.integration.inventory.firmwareVer,
+                } : undefined,
+            } : undefined,
             frontPanel: n.frontPanel ? { mgmtCount: n.frontPanel.mgmtCount } : undefined,
             ports: n.ports,
             // I campi PDU vivono in node.spec[...] (o al livello nodo nei progetti
@@ -1525,12 +1554,14 @@ function _buildPdfReportData() {
                 pduType: n.spec.pduType, pduPhase: n.spec.pduPhase, pduCurrentA: n.spec.pduCurrentA,
                 pduOrientation: n.spec.pduOrientation, pduOutletCount: n.spec.pduOutletCount,
                 pduMgmtMode: n.spec.pduMgmtMode, pduEthernetPorts: n.spec.pduEthernetPorts,
-                pduSerialPorts: n.spec.pduSerialPorts,
+                pduSerialPorts: n.spec.pduSerialPorts, pduSensorPorts: n.spec.pduSensorPorts,
+                pduUsbPorts: n.spec.pduUsbPorts, pduExpansionPorts: n.spec.pduExpansionPorts,
             } : undefined,
             pduType: n.pduType, pduPhase: n.pduPhase, pduCurrentA: n.pduCurrentA,
             pduOrientation: n.pduOrientation, pduOutletCount: n.pduOutletCount,
             pduMgmtMode: n.pduMgmtMode, pduEthernetPorts: n.pduEthernetPorts,
-            pduSerialPorts: n.pduSerialPorts,
+            pduSerialPorts: n.pduSerialPorts, pduSensorPorts: n.pduSensorPorts,
+            pduUsbPorts: n.pduUsbPorts, pduExpansionPorts: n.pduExpansionPorts,
             powerOutlets: Array.isArray(n.powerOutlets) ? n.powerOutlets.map(o => ({
                 id: o.id, name: o.name, label: o.label,
                 status: o.status, rawStatus: o.rawStatus, state: o.state, powerState: o.powerState,

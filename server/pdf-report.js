@@ -70,6 +70,12 @@ const _RL = {
     'pdu.st.active': 'Attiva', 'pdu.st.inactive': 'Inattiva', 'pdu.st.fault': 'Guasta',
     'pdu.src.manual': 'Manuale', 'pdu.src.imported': 'Importato',
     'pdu.noDetail': 'prese non elencate',
+    'title.pduDetail': 'Alimentazione — Schede PDU',
+    'sub.pduDetail': 'schede di ripristino (una per PDU)',
+    'pdu.fw': 'Firmware', 'pdu.position': 'Posizione', 'pdu.orientation': 'Montaggio',
+    'pdu.rated': 'Corrente nom.', 'pdu.mgmtPorts': 'Porte gestione', 'pdu.assetTag': 'Asset tag',
+    'pdu.orient.vertical-0u': 'Verticale 0U', 'pdu.orient.horizontal-1u': 'Orizzontale 1U',
+    'pdu.feedFrom': 'ALIMENTATA DA', 'pdu.loadList': 'PRESE E CARICHI',
     'sub.cables': 'cavi documentati nel progetto', 'sub.routes': 'percorsi tracciati',
     'sub.vlans': 'VLAN configurate', 'sub.assets': 'dispositivi documentati',
     'sub.portsA': 'porte su', 'sub.portsB': 'dispositivi',
@@ -137,6 +143,12 @@ const _RL = {
     'pdu.st.active': 'Active', 'pdu.st.inactive': 'Inactive', 'pdu.st.fault': 'Fault',
     'pdu.src.manual': 'Manual', 'pdu.src.imported': 'Imported',
     'pdu.noDetail': 'outlets not listed',
+    'title.pduDetail': 'Power — PDU sheets',
+    'sub.pduDetail': 'restore sheets (one per PDU)',
+    'pdu.fw': 'Firmware', 'pdu.position': 'Position', 'pdu.orientation': 'Mounting',
+    'pdu.rated': 'Rated current', 'pdu.mgmtPorts': 'Management ports', 'pdu.assetTag': 'Asset tag',
+    'pdu.orient.vertical-0u': 'Vertical 0U', 'pdu.orient.horizontal-1u': 'Horizontal 1U',
+    'pdu.feedFrom': 'FED FROM', 'pdu.loadList': 'OUTLETS AND LOADS',
     'sub.cables': 'cables documented in the project', 'sub.routes': 'traced routes',
     'sub.vlans': 'VLANs configured', 'sub.assets': 'devices documented',
     'sub.portsA': 'ports across', 'sub.portsB': 'devices',
@@ -848,8 +860,19 @@ function _addPduPages(doc, pdu, projName, date, lang = 'it') {
   const L = _rlang(lang);
   const summary = Array.isArray(pdu.summary) ? pdu.summary : [];
   const outlets = Array.isArray(pdu.outlets) ? pdu.outlets : [];
-  if (!summary.length) return;   // niente PDU documentate → nessun capitolo
   const t = pdu.totals || {};
+  // Capitolo CHIESTO ma progetto senza PDU: si stampa la pagina con lo stato vuoto,
+  // non si sparisce in silenzio. Sparire lascia il lettore a chiedersi se il
+  // capitolo manchi per un errore — e chi l'ha spuntato merita una risposta
+  // esplicita («qui non c'è nulla di documentato»). Stessa convenzione di VM e VLAN.
+  if (!summary.length) {
+    const T0 = _rt(L, 'title.pdu');
+    doc.addPage({ size: [595, 842], margins: { top: 0, bottom: 0, left: 0, right: 0 } });
+    _rHdr(doc, T0, projName, date);
+    const y0 = _rSub(doc, `0 ${_rt(L, 'sub.pdu')}`, _TOP);
+    doc.font('Helvetica').fontSize(8).fillColor('#94a3b8').text(_rt(L, 'empty.pdu'), _RM, y0);
+    return;
+  }
   const dash = (v) => (v == null || v === '' ? '-' : String(v));
   // Etichetta tradotta per i valori NOTI; un valore fuori scala (progetto vecchio,
   // import di un vendor esotico) si stampa com'è invece di sparire.
@@ -888,29 +911,115 @@ function _addPduPages(doc, pdu, projName, date, lang = 'it') {
     lbl('pdu.mgmt', s.mgmtMode),
   ]), y, T, projName, date);
 
-  // ── Pagina 2: dettaglio prese ────────────────────────────────────────
-  const T2 = _rt(L, 'title.pduOutlets');
+  // ── Pagina 2+: una SCHEDA DI RIPRISTINO per PDU ──────────────────────
+  // È il capitolo che serve davvero in consegna: chi deve rimettere in servizio
+  // una PDU sostituita trova qui, su una sola scheda, identità e matricola, dove
+  // sta nel rack, da dove prende corrente, come la si raggiunge per gestirla,
+  // dove vive il backup della configurazione e cosa alimenta ogni presa. Stesso
+  // linguaggio visivo delle card VLAN (fascia scura + corpo a due colonne).
+  const T2 = _rt(L, 'title.pduDetail');
   doc.addPage({ size: [595, 842], margins: { top: 0, bottom: 0, left: 0, right: 0 } });
   _rHdr(doc, T2, projName, date);
-  y = _rSub(doc, `${outlets.length} ${_rt(L, 'sub.pduOutlets')}  -  ${t.powered || 0} ${_rt(L, 'col.powered')}`, _TOP);
-  if (!outlets.length) {
-    doc.font('Helvetica').fontSize(8).fillColor('#94a3b8').text(_rt(L, 'empty.pduOutlets'), _RM, y);
-    return;
+  y = _rSub(doc, `${summary.length} ${_rt(L, 'sub.pduDetail')}`, _TOP);
+  const M = _RM, CW = _RW;
+  const outletsByPdu = new Map();
+  for (const o of outlets) {
+    if (!outletsByPdu.has(o.pduId)) outletsByPdu.set(o.pduId, []);
+    outletsByPdu.get(o.pduId).push(o);
   }
-  const outCols = [
-    { label: _rt(L, 'col.pdu'),      w: 95, wrap: true },
-    { label: _rt(L, 'col.outlet'),   w: 70, wrap: true },
-    { label: _rt(L, 'col.status'),   w: 48 },
-    { label: _rt(L, 'col.declared'), w: 60, shrink: true },
-    { label: _rt(L, 'col.powered'),  w: 140, wrap: true },
-    { label: _rt(L, 'col.port'),     w: 70, wrap: true },
-    { label: _rt(L, 'col.source'),   w: 50, shrink: true },
-  ]; // 533
-  _rTable(doc, outCols, outlets.map(o => [
-    o.pduName, o.label, lbl('pdu.st', o.status), dash(o.rawStatus),
-    dash(o.deviceName), dash(o.portName),
-    o.source ? _rt(L, `pdu.src.${o.source}`) : '',
-  ]), y, T2, projName, date);
+
+  for (const s of summary) {
+    const mine = outletsByPdu.get(s.id) || [];
+    // Coppie etichetta/valore, due per riga: la scheda si legge come una targa.
+    const pairs = [
+      [_rt(L, 'col.brand'), s.brand], [_rt(L, 'col.model'), s.model],
+      [_rt(L, 'col.serial'), s.serial], [_rt(L, 'pdu.fw'), s.firmware],
+      [_rt(L, 'col.rack'), s.rackName], [_rt(L, 'pdu.position'), s.rackU == null ? null : `U${s.rackU}${s.sizeU ? ` (${s.sizeU}U)` : ''}`],
+      [_rt(L, 'col.type'), s.pduType ? lbl('pdu.type', s.pduType) : null],
+      [_rt(L, 'pdu.orientation'), s.orientation ? lbl('pdu.orient', s.orientation) : null],
+      [_rt(L, 'col.phase'), s.phase ? lbl('pdu.phase', s.phase) : null],
+      [_rt(L, 'pdu.rated'), s.currentA == null ? null : `${s.currentA} A`],
+      [_rt(L, 'col.mgmt'), lbl('pdu.mgmt', s.mgmtMode)],
+      [_rt(L, 'pdu.mgmtPorts'), [s.ethernetPorts ? `${s.ethernetPorts}x Eth` : null,
+        s.serialPorts ? `${s.serialPorts}x console` : null, s.sensorPorts ? `${s.sensorPorts}x sensor` : null,
+        s.usbPorts ? `${s.usbPorts}x USB` : null, s.expansionPorts ? `${s.expansionPorts}x aux` : null,
+      ].filter(Boolean).join(' · ') || null],
+      ['IP', s.ip], ['MAC', s.mac],
+      [_rt(L, 'pdu.assetTag'), s.assetTag], [_rt(L, 'col.lifecycle'), s.warrantyUntil],
+      [_rt(L, 'col.backupRef'), s.backupRef], [_rt(L, 'col.method'), s.backupMethod],
+    ].filter(p => p[1] != null && p[1] !== '');
+
+    // Alimentazione in ingresso: una riga per presa di corrente del PDU.
+    const feedLines = (s.feeds || []).map(f =>
+      `${f.name || '-'}${f.type ? ` (${f.type})` : ''} <- ${f.source || '?'}${f.sourcePort ? ` · ${f.sourcePort}` : ''}`);
+    // Prese: solo quelle che alimentano qualcosa portano un testo lungo; le libere
+    // restano compatte. Questo è il "collegamenti" che serve per ricablare.
+    // La provenienza qualifica il COLLEGAMENTO: senza un apparato da mostrare non
+    // c'è nulla da attribuire, e stampare «[Importato]» accanto a una presa vuota
+    // farebbe pensare a un carico che il documento non sta dichiarando.
+    const outLines = mine.map(o =>
+      `${o.label}  ${lbl('pdu.st', o.status)}`
+      + (o.deviceName
+        ? `  ->  ${o.deviceName}${o.portName ? ` · ${o.portName}` : ''}`
+          + (o.source ? `  [${_rt(L, `pdu.src.${o.source}`)}]` : '')
+        : ''));
+
+    doc.font('Helvetica');
+    const pairRows = Math.ceil(pairs.length / 2);
+    const noteRows = s.notes ? _wrapFit(doc, s.notes, CW - 12, 6).length : 0;
+    const feedRows = feedLines.reduce((a, l) => a + _wrapFit(doc, l, CW - 12, 6).length, 0);
+    const outRows = outLines.reduce((a, l) => a + _wrapFit(doc, l, CW - 12, 6).length, 0);
+    const cardH = 18 + pairRows * 10 + 4
+      + (feedLines.length ? 10 + feedRows * 9 : 0)
+      + (outLines.length ? 10 + outRows * 9 : 0)
+      + (noteRows ? 10 + noteRows * 9 : 0) + 8;
+
+    if (y + Math.min(cardH, 260) > _BOT) {
+      doc.addPage({ size: [595, 842], margins: { top: 0, bottom: 0, left: 0, right: 0 } });
+      _rHdr(doc, T2, projName, date);
+      y = _TOP;
+    }
+
+    // Fascia titolo: pallino ambra (alimentazione) + nome + posizione a destra.
+    doc.rect(M, y, CW, 18).fill('#1e293b');
+    doc.circle(M + 9, y + 9, 3.5).fill('#d29922');
+    doc.font('Helvetica-Bold').fontSize(8).fillColor('#ffffff')
+       .text(_fit(doc, s.name, CW - 190, 8), M + 18, y + 5, { lineBreak: false });
+    const place = [s.rackName, s.rackU == null ? null : `U${s.rackU}`,
+      `${s.outletsTotal} ${_rt(L, 'col.outlets')}`].filter(Boolean).join('  ·  ');
+    doc.font('Helvetica').fontSize(7).fillColor('#94a3b8')
+       .text(place, M + CW - 175, y + 6, { width: 170, align: 'right', lineBreak: false });
+    y += 18 + 3;
+
+    // Corpo: coppie etichetta/valore su due colonne.
+    const colW = (CW - 12) / 2;
+    pairs.forEach((p, i) => {
+      const cx = M + 6 + (i % 2) * colW;
+      const cy = y + Math.floor(i / 2) * 10;
+      doc.font('Helvetica').fontSize(6).fillColor('#64748b')
+         .text(_fit(doc, p[0], 78, 6), cx, cy, { lineBreak: false });
+      doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#0f172a')
+         .text(_fit(doc, String(p[1]), colW - 84, 6.5), cx + 80, cy, { lineBreak: false });
+    });
+    y += pairRows * 10 + 4;
+
+    const block = (titleKey, lines, color) => {
+      if (!lines.length) return;
+      doc.font('Helvetica-Bold').fontSize(6).fillColor(color).text(_rt(L, titleKey), M + 6, y, { lineBreak: false });
+      y += 9;
+      lines.forEach(l => {
+        _wrapFit(doc, l, CW - 12, 6).forEach(seg => {
+          doc.font('Helvetica').fontSize(6).fillColor('#334155').text(seg, M + 10, y, { lineBreak: false });
+          y += 9;
+        });
+      });
+      y += 1;
+    };
+    block('pdu.feedFrom', feedLines, '#b45309');
+    block('pdu.loadList', outLines, '#1a7f37');
+    block('col.note', s.notes ? [s.notes] : [], '#64748b');
+    y += 6;
+  }
 }
 
 // Formatta un ISO timestamp (project.updated_at) in data/ora locale IT. Soft-fail

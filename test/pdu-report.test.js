@@ -116,3 +116,57 @@ test('capitolo completo: input assente o vuoto non lancia e non inventa righe', 
     assert.equal(r.totals.free, null, 'senza PDU dettagliate la capacità residua è ignota, non zero');
   }
 });
+
+// ── Campi di RIPRISTINO: quello che serve per rimettere in servizio una PDU ──
+test('scheda di ripristino: identità, posizione, alimentazione in ingresso, backup', () => {
+  const s = pduSummaryRow({
+    id: 'p1', name: 'PDU-1', rackName: 'R1', rackU: 3, sizeU: 1,
+    brand: 'APC', model: 'AP8853', serialNumber: 'SN-123', firmwareVer: '6.8.2',
+    assetTag: 'AST-9', warrantyUntil: '2028-01-31', mac: 'AA:BB:CC:00:00:01',
+    notes: 'Alimenta il rack A', backup: { ref: 'git://cfg/pdu1', method: 'scp', at: '2026-08-01' },
+    integration: { host: '10.0.0.5', driver: 'snmp-v2c' },
+    pduPowerPorts: [{ name: 'Input', type: 'iec-60320-c14', connectedTo: { deviceName: 'UPS-1', name: 'Out-3' } }],
+    spec: { pduSensorPorts: 1, pduUsbPorts: 2, pduExpansionPorts: 1 },
+  });
+  assert.equal(s.serial, 'SN-123');
+  assert.equal(s.firmware, '6.8.2');
+  assert.equal(s.assetTag, 'AST-9');
+  assert.equal(s.warrantyUntil, '2028-01-31');
+  assert.equal(s.mac, 'AA:BB:CC:00:00:01');
+  assert.equal(s.sizeU, 1);
+  assert.equal(s.driver, 'snmp-v2c');
+  assert.equal(s.backupRef, 'git://cfg/pdu1');
+  assert.equal(s.backupMethod, 'scp');
+  assert.equal(s.notes, 'Alimenta il rack A');
+  assert.equal(s.sensorPorts, 1);
+  assert.equal(s.usbPorts, 2);
+  assert.equal(s.expansionPorts, 1);
+  assert.deepEqual(s.feeds, [{ name: 'Input', type: 'iec-60320-c14', source: 'UPS-1', sourcePort: 'Out-3' }],
+    'da DOVE arriva la corrente: la prima cosa che serve per ricollegarla');
+});
+
+// Manual-first: la matricola SCRITTA a mano vince sulla misura ENTITY-MIB; la
+// misura però copre il buco quando nessuno l'ha scritta.
+test('scheda: il dichiarato batte la misura, la misura copre il buco', () => {
+  const dich = pduSummaryRow({ id: 'p', serialNumber: 'SCRITTA', integration: { inventory: { serialNumber: 'MISURATA' } } });
+  assert.equal(dich.serial, 'SCRITTA');
+  const solaMisura = pduSummaryRow({ id: 'p', integration: { inventory: { serialNumber: 'MISURATA', firmwareVer: '1.2' } } });
+  assert.equal(solaMisura.serial, 'MISURATA');
+  assert.equal(solaMisura.firmware, '1.2');
+  assert.equal(pduSummaryRow({ id: 'p' }).serial, null, 'nessuna delle due → resta ignota');
+});
+
+test('scheda: nessuna alimentazione in ingresso dichiarata → lista vuota, non inventata', () => {
+  assert.deepEqual(pduSummaryRow({ id: 'p' }).feeds, []);
+  assert.deepEqual(pduSummaryRow({ id: 'p', pduPowerPorts: 'non-un-array' }).feeds, []);
+});
+
+// Il capitolo CHIESTO su un progetto senza PDU non deve sparire in silenzio: il
+// builder restituisce comunque una struttura valida e il renderer stampa lo stato
+// vuoto. Sparire lascerebbe il lettore a chiedersi se manchi per un errore.
+test('capitolo chiesto senza PDU: struttura valida per lo stato vuoto', () => {
+  const r = buildPduReport({ pdus: [] });
+  assert.ok(Array.isArray(r.summary) && Array.isArray(r.outlets));
+  assert.equal(r.totals.pdus, 0);
+  assert.equal(r.totals.outlets, 0);
+});

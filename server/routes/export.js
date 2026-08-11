@@ -200,7 +200,10 @@ router.post('/api/export-pdf', auth.requireAdmin, (req, res) => {
     // browser vivono solo dentro il bundle ESM, irraggiungibili da export.js
     // (script classico). Il client manda i soli campi PDU in whitelist — nessun
     // segreto SNMP — e il server compone: una sola implementazione, testata.
-    if (opts.includePdu && reportData && Array.isArray(reportData.pdus) && reportData.pdus.length) {
+    // Anche con ZERO PDU il capitolo si stampa (stato vuoto esplicito): chi lo ha
+    // spuntato deve leggere «non c'è nulla di documentato», non trovarsi il capitolo
+    // sparito e chiedersi se sia un errore dell'export.
+    if (opts.includePdu && reportData && Array.isArray(reportData.pdus)) {
       _addPduPages(doc, buildPduReport({ pdus: reportData.pdus }), hName, hDate, _lang);
     }
 
