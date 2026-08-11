@@ -52,6 +52,24 @@ const _RL = {
     'col.owner': 'Responsabile', 'col.crit': 'Criticità',
     'vm.running': 'Accesa', 'vm.stopped': 'Spenta', 'vm.unknown': 'Non spec.',
     'vm.crit.low': 'Bassa', 'vm.crit.medium': 'Media', 'vm.crit.high': 'Alta', 'vm.crit.critical': 'Critica',
+    // ── Alimentazione / PDU ──────────────────────────────────────────────
+    'title.pdu': 'Alimentazione — PDU', 'title.pduOutlets': 'Alimentazione — Prese',
+    'sub.pdu': 'unità di distribuzione documentate',
+    'sub.pduOutlets': 'prese documentate',
+    'empty.pdu': 'Nessuna PDU documentata nel progetto.',
+    'empty.pduOutlets': 'Nessuna presa documentata: le PDU dichiarano solo il numero di prese.',
+    'col.pdu': 'PDU', 'col.u': 'U', 'col.phase': 'Fasi', 'col.currentA': 'A',
+    'col.outlets': 'Prese', 'col.active': 'Attive', 'col.fault': 'Guasti',
+    'col.mgmt': 'Gestione', 'col.outlet': 'Presa', 'col.declared': 'Dichiarato',
+    'col.powered': 'Apparato alimentato', 'col.port': 'Porta', 'col.source': 'Origine',
+    'pdu.type.basic': 'Base', 'pdu.type.metered': 'Metered', 'pdu.type.switched': 'Switched',
+    'pdu.type.switched-metered': 'Switched+Metered',
+    'pdu.phase.single': 'Mono', 'pdu.phase.three': 'Trifase',
+    'pdu.mgmt.none': 'Nessuna', 'pdu.mgmt.ethernet': 'Ethernet', 'pdu.mgmt.serial': 'Console',
+    'pdu.mgmt.ethernet-serial': 'Ethernet+Console',
+    'pdu.st.active': 'Attiva', 'pdu.st.inactive': 'Inattiva', 'pdu.st.fault': 'Guasta',
+    'pdu.src.manual': 'Manuale', 'pdu.src.imported': 'Importato',
+    'pdu.noDetail': 'prese non elencate',
     'sub.cables': 'cavi documentati nel progetto', 'sub.routes': 'percorsi tracciati',
     'sub.vlans': 'VLAN configurate', 'sub.assets': 'dispositivi documentati',
     'sub.portsA': 'porte su', 'sub.portsB': 'dispositivi',
@@ -101,6 +119,24 @@ const _RL = {
     'col.owner': 'Owner', 'col.crit': 'Criticality',
     'vm.running': 'Running', 'vm.stopped': 'Stopped', 'vm.unknown': 'Unknown',
     'vm.crit.low': 'Low', 'vm.crit.medium': 'Medium', 'vm.crit.high': 'High', 'vm.crit.critical': 'Critical',
+    // ── Power / PDU ──────────────────────────────────────────────────────
+    'title.pdu': 'Power — PDUs', 'title.pduOutlets': 'Power — Outlets',
+    'sub.pdu': 'documented power distribution units',
+    'sub.pduOutlets': 'documented outlets',
+    'empty.pdu': 'No PDU documented in this project.',
+    'empty.pduOutlets': 'No outlet documented: the PDUs only declare an outlet count.',
+    'col.pdu': 'PDU', 'col.u': 'U', 'col.phase': 'Phase', 'col.currentA': 'A',
+    'col.outlets': 'Outlets', 'col.active': 'Active', 'col.fault': 'Fault',
+    'col.mgmt': 'Management', 'col.outlet': 'Outlet', 'col.declared': 'Declared',
+    'col.powered': 'Powered device', 'col.port': 'Port', 'col.source': 'Source',
+    'pdu.type.basic': 'Basic', 'pdu.type.metered': 'Metered', 'pdu.type.switched': 'Switched',
+    'pdu.type.switched-metered': 'Switched+Metered',
+    'pdu.phase.single': 'Single', 'pdu.phase.three': 'Three-phase',
+    'pdu.mgmt.none': 'None', 'pdu.mgmt.ethernet': 'Ethernet', 'pdu.mgmt.serial': 'Console',
+    'pdu.mgmt.ethernet-serial': 'Ethernet+Console',
+    'pdu.st.active': 'Active', 'pdu.st.inactive': 'Inactive', 'pdu.st.fault': 'Fault',
+    'pdu.src.manual': 'Manual', 'pdu.src.imported': 'Imported',
+    'pdu.noDetail': 'outlets not listed',
     'sub.cables': 'cables documented in the project', 'sub.routes': 'traced routes',
     'sub.vlans': 'VLANs configured', 'sub.assets': 'devices documented',
     'sub.portsA': 'ports across', 'sub.portsB': 'devices',
@@ -797,6 +833,86 @@ function _addSparePages(doc, spare, projName, date, lang = 'it') {
   _rTable(doc, cols, rows, y, T, projName, date);
 }
 
+// ── ALIMENTAZIONE / PDU ──────────────────────────────────────────────────────
+// Due pagine, stessa ossatura grafica del resto del report (_rHdr + _rSub +
+// _rTable): un RIEPILOGO (dov'è ogni PDU, che tipo è, quante prese, come si
+// gestisce) e il DETTAGLIO PRESE (cosa alimenta ciascuna, e di chi è la parola).
+// Le righe arrivano già composte da lib/pdu-report.js (puro, testato): qui si fa
+// solo impaginazione e traduzione — nessuna regola di dominio duplicata.
+//
+// Onestà: un campo non dichiarato stampa '-' e MAI uno zero (uno zero afferma
+// «misurato zero»). Un PDU importato che dichiara solo il numero di prese, senza
+// elencarle, lo dice a chiare lettere invece di esibire una riga di zeri.
+function _addPduPages(doc, pdu, projName, date, lang = 'it') {
+  pdu = pdu || {};
+  const L = _rlang(lang);
+  const summary = Array.isArray(pdu.summary) ? pdu.summary : [];
+  const outlets = Array.isArray(pdu.outlets) ? pdu.outlets : [];
+  if (!summary.length) return;   // niente PDU documentate → nessun capitolo
+  const t = pdu.totals || {};
+  const dash = (v) => (v == null || v === '' ? '-' : String(v));
+  // Etichetta tradotta per i valori NOTI; un valore fuori scala (progetto vecchio,
+  // import di un vendor esotico) si stampa com'è invece di sparire.
+  const lbl = (prefix, v) => (v ? (_RL[L][`${prefix}.${v}`] || v) : '-');
+
+  // ── Pagina 1: riepilogo per PDU ──────────────────────────────────────
+  const T = _rt(L, 'title.pdu');
+  doc.addPage({ size: [595, 842], margins: { top: 0, bottom: 0, left: 0, right: 0 } });
+  _rHdr(doc, T, projName, date);
+  const freeTxt = t.free == null ? '' : `  -  ${t.free} ${_rt(L, 'col.free')}`;
+  let y = _rSub(doc, `${t.pdus || 0} ${_rt(L, 'sub.pdu')}  -  ${t.outlets || 0} ${_rt(L, 'sub.pduOutlets')}`
+    + `  -  ${t.active || 0} ${_rt(L, 'col.active')}${freeTxt}`
+    + (t.fault ? `  -  ${t.fault} ${_rt(L, 'col.fault')}` : ''), _TOP);
+  const sumCols = [
+    { label: _rt(L, 'col.rack'),     w: 70, wrap: true },
+    { label: _rt(L, 'col.pdu'),      w: 95, wrap: true },
+    { label: _rt(L, 'col.u'),        w: 22 },
+    { label: _rt(L, 'col.type'),     w: 62, shrink: true },
+    { label: _rt(L, 'col.phase'),    w: 40 },
+    { label: _rt(L, 'col.currentA'), w: 26 },
+    { label: _rt(L, 'col.outlets'),  w: 34 },
+    { label: _rt(L, 'col.active'),   w: 38, color: '#1a7f37' },
+    { label: _rt(L, 'col.free'),     w: 38 },
+    { label: _rt(L, 'col.fault'),    w: 36, color: '#b42318' },
+    { label: _rt(L, 'col.mgmt'),     w: 72, shrink: true },
+  ]; // 533
+  _rTable(doc, sumCols, summary.map(s => [
+    dash(s.rackName), s.name, dash(s.rackU), lbl('pdu.type', s.pduType), lbl('pdu.phase', s.phase),
+    s.currentA == null ? '-' : String(s.currentA),
+    String(s.outletsTotal),
+    // Senza l'elenco prese non sappiamo quante sono attive/libere: '-' lo dice,
+    // uno zero direbbe una cosa falsa (e nel totale non entra, vedi lib).
+    s.outletsDetailed ? String(s.outletsActive) : '-',
+    s.outletsDetailed ? String(s.outletsFree) : '-',
+    s.outletsDetailed ? (s.outletsFault ? String(s.outletsFault) : '') : '-',
+    lbl('pdu.mgmt', s.mgmtMode),
+  ]), y, T, projName, date);
+
+  // ── Pagina 2: dettaglio prese ────────────────────────────────────────
+  const T2 = _rt(L, 'title.pduOutlets');
+  doc.addPage({ size: [595, 842], margins: { top: 0, bottom: 0, left: 0, right: 0 } });
+  _rHdr(doc, T2, projName, date);
+  y = _rSub(doc, `${outlets.length} ${_rt(L, 'sub.pduOutlets')}  -  ${t.powered || 0} ${_rt(L, 'col.powered')}`, _TOP);
+  if (!outlets.length) {
+    doc.font('Helvetica').fontSize(8).fillColor('#94a3b8').text(_rt(L, 'empty.pduOutlets'), _RM, y);
+    return;
+  }
+  const outCols = [
+    { label: _rt(L, 'col.pdu'),      w: 95, wrap: true },
+    { label: _rt(L, 'col.outlet'),   w: 70, wrap: true },
+    { label: _rt(L, 'col.status'),   w: 48 },
+    { label: _rt(L, 'col.declared'), w: 60, shrink: true },
+    { label: _rt(L, 'col.powered'),  w: 140, wrap: true },
+    { label: _rt(L, 'col.port'),     w: 70, wrap: true },
+    { label: _rt(L, 'col.source'),   w: 50, shrink: true },
+  ]; // 533
+  _rTable(doc, outCols, outlets.map(o => [
+    o.pduName, o.label, lbl('pdu.st', o.status), dash(o.rawStatus),
+    dash(o.deviceName), dash(o.portName),
+    o.source ? _rt(L, `pdu.src.${o.source}`) : '',
+  ]), y, T2, projName, date);
+}
+
 // Formatta un ISO timestamp (project.updated_at) in data/ora locale IT. Soft-fail
 // sul grezzo se non parsabile: mai lanciare da un helper di report.
 function _fmtRevised(v, lang) {
@@ -1104,4 +1220,4 @@ function _addOverviewPages(doc, overview, projName, date, lang = 'it') {
   }
 }
 
-module.exports = { _loadPdfDeps, _addReportPages, _addCoverPage, _addNotesPages, _addChangelogPages, _addSparePages, _addAssetRegisterPages, _addRecoveryPages, _addOverviewPages, _assetDeviceLabel, _fmtRevised, _rt, _fit, _wrapFit };
+module.exports = { _loadPdfDeps, _addReportPages, _addCoverPage, _addNotesPages, _addChangelogPages, _addSparePages, _addPduPages, _addAssetRegisterPages, _addRecoveryPages, _addOverviewPages, _assetDeviceLabel, _fmtRevised, _rt, _fit, _wrapFit };

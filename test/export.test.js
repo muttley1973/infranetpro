@@ -109,7 +109,10 @@ test('export: _buildPdfReportData — forma completa del report senza crash', ()
   // `overview` entra col resto: in ambiente di test il glue della Panoramica non
   // c'e' (e' un modulo del bundle), quindi il campo esiste ma vale null — ed e'
   // esattamente il comportamento voluto, mai un dossier a meta'.
-  assert.deepEqual(r.keys, ['asBuilt','cables','handoff','overview','portAssignment','rackSvgs','recovery','spare','topoSvg','vlans','vms'],
+  // `pdus` porta i soli campi PDU in whitelist: le righe del capitolo Alimentazione
+  // le compone il server (lib/pdu-report.js), perché servono gli helper di
+  // lib/pdu-layout.js che nel browser vivono solo dentro il bundle ESM.
+  assert.deepEqual(r.keys, ['asBuilt','cables','handoff','overview','pdus','portAssignment','rackSvgs','recovery','spare','topoSvg','vlans','vms'],
     'il report deve avere tutte le sezioni attese');
   assert.equal(r.cables, 6, 'una riga inventario per ogni link (6)');
   assert.ok(r.vlanIds.includes(10) && r.vlanIds.includes(20) && r.vlanIds.includes(30),

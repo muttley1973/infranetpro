@@ -4,7 +4,8 @@
 // ============================================================
 const express = require('express');
 const auth = require('../../auth');
-const { _loadPdfDeps, _addReportPages, _addCoverPage, _addNotesPages, _addChangelogPages, _addSparePages, _addAssetRegisterPages, _addRecoveryPages, _addOverviewPages, _rt } = require('../pdf-report');
+const { buildPduReport } = require('../../lib/pdu-report.js');
+const { _loadPdfDeps, _addReportPages, _addCoverPage, _addNotesPages, _addChangelogPages, _addSparePages, _addPduPages, _addAssetRegisterPages, _addRecoveryPages, _addOverviewPages, _rt } = require('../pdf-report');
 const { addLabelPages } = require('../label-sheet');
 const { loadProject } = require('../projects-store');
 const { projectToDevices, applyPortMacFallback, isStructuralCabling } = require('../../lib/api-shape');
@@ -28,7 +29,7 @@ router.post('/api/export-pdf', auth.requireAdmin, (req, res) => {
   };
 
   const hasPlanSvg = typeof svg === 'string' && svg.length > 0;
-  const wantsReportPages = !!(opts.includeInventory || opts.includeAsBuilt || opts.includeRacks || opts.includePorts || opts.includeVlans || opts.includeTopology || opts.includeCover || opts.includeNotes || opts.includeChangelog || opts.includeSpare || opts.includeAssets || opts.includeRecovery);
+  const wantsReportPages = !!(opts.includeInventory || opts.includeAsBuilt || opts.includeRacks || opts.includePorts || opts.includeVlans || opts.includeTopology || opts.includeCover || opts.includeNotes || opts.includeChangelog || opts.includeSpare || opts.includeAssets || opts.includeRecovery || opts.includePdu);
 
   if (!opts.includePlanimetria && !wantsReportPages) {
     return res.status(400).json({ error: 'Nessuna sezione selezionata per l\'export PDF' });
@@ -192,6 +193,15 @@ router.post('/api/export-pdf', auth.requireAdmin, (req, res) => {
     // credential-free, MAI il config né la community.
     if (opts.includeRecovery && reportData && reportData.recovery) {
       _addRecoveryPages(doc, reportData.recovery, hName, hDate, _lang);
+    }
+    // Alimentazione (PDU): riepilogo + dettaglio prese. A differenza degli altri
+    // capitoli le righe si compongono QUI e non nel client: servono gli helper di
+    // lib/pdu-layout.js (stato presa, connessione, modalità di gestione) che nel
+    // browser vivono solo dentro il bundle ESM, irraggiungibili da export.js
+    // (script classico). Il client manda i soli campi PDU in whitelist — nessun
+    // segreto SNMP — e il server compone: una sola implementazione, testata.
+    if (opts.includePdu && reportData && Array.isArray(reportData.pdus) && reportData.pdus.length) {
+      _addPduPages(doc, buildPduReport({ pdus: reportData.pdus }), hName, hDate, _lang);
     }
 
     const chunks = [];

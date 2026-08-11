@@ -25,6 +25,7 @@ const PDF_EXPORT_DEFAULTS = {
     includeVlans:       true,
     includeTopology:    true,
     includeVms:         true,   // capitolo "Macchine virtuali": catalogo delle VM per host
+    includePdu:         true,   // capitolo "Alimentazione": riepilogo PDU + dettaglio prese
     includeSpare:       true,
     includeAssets:      true,   // registro asset per-device (NIS2/ISO): server-side da nodeToDevice
     includeRecovery:    true,   // sezione Ripristinabilità (DR): backup pointer + serial/firmware + posizione
@@ -327,6 +328,7 @@ function openPdfExportOptions(){
     document.getElementById('pdfopt-vlans').checked     = PDF_EXPORT_DEFAULTS.includeVlans;
     document.getElementById('pdfopt-topology').checked  = PDF_EXPORT_DEFAULTS.includeTopology;
     { const _v = document.getElementById('pdfopt-vms'); if(_v) _v.checked = PDF_EXPORT_DEFAULTS.includeVms; }
+    { const _p = document.getElementById('pdfopt-pdu'); if(_p) _p.checked = PDF_EXPORT_DEFAULTS.includePdu; }
     { const _s = document.getElementById('pdfopt-spare'); if(_s) _s.checked = PDF_EXPORT_DEFAULTS.includeSpare; }
     { const _a = document.getElementById('pdfopt-assets'); if(_a) _a.checked = PDF_EXPORT_DEFAULTS.includeAssets; }
     { const _r = document.getElementById('pdfopt-recovery'); if(_r) _r.checked = PDF_EXPORT_DEFAULTS.includeRecovery; }
@@ -337,7 +339,7 @@ function openPdfExportOptions(){
 function closePdfExportOptions(){ document.getElementById('pdf-export-overlay').classList.remove('open'); }
 
 function setPdfExportAll(val){
-    ['pdfopt-plan','pdfopt-bg','pdfopt-inventory','pdfopt-asbuilt','pdfopt-racks','pdfopt-ports','pdfopt-vlans','pdfopt-topology','pdfopt-vms','pdfopt-spare','pdfopt-assets','pdfopt-recovery','pdfopt-overview']
+    ['pdfopt-plan','pdfopt-bg','pdfopt-inventory','pdfopt-asbuilt','pdfopt-racks','pdfopt-ports','pdfopt-vlans','pdfopt-topology','pdfopt-vms','pdfopt-pdu','pdfopt-spare','pdfopt-assets','pdfopt-recovery','pdfopt-overview']
         .forEach(id=>{ const el=document.getElementById(id); if(el) el.checked=!!val; });
     if(!val){
         // Mantieni almeno una sezione attiva per evitare export vuoto.
@@ -373,6 +375,7 @@ function _getPdfExportOptionsFromUi(){
         includeVlans:       !!document.getElementById('pdfopt-vlans')?.checked,
         includeTopology:    !!document.getElementById('pdfopt-topology')?.checked,
         includeVms:         !!document.getElementById('pdfopt-vms')?.checked,
+        includePdu:         !!document.getElementById('pdfopt-pdu')?.checked,
         includeSpare:       !!document.getElementById('pdfopt-spare')?.checked,
         includeAssets:      !!document.getElementById('pdfopt-assets')?.checked,
         includeRecovery:    !!document.getElementById('pdfopt-recovery')?.checked,
@@ -1486,7 +1489,59 @@ function _buildPdfReportData() {
     let overview = null;
     try { if (typeof buildOverviewReport === 'function') overview = buildOverviewReport(); } catch (_) { overview = null; }
 
-    return { cables, asBuilt, portAssignment, vlans, rackSvgs, topoSvg, handoff, spare, vms, recovery, overview };
+    // ── Alimentazione / PDU ──────────────────────────────────────────────
+    // A differenza degli altri capitoli qui NON componiamo le righe: servono gli
+    // helper di lib/pdu-layout.js (stato presa, connessione, modalità di gestione)
+    // che nel browser vivono solo dentro il bundle ESM e non sono globali — questo
+    // file è uno script classico. Mandiamo quindi i soli campi PDU, in WHITELIST
+    // esplicita, e le righe le compone il server (lib/pdu-report.js): una sola
+    // implementazione, testata a tavolino.
+    //
+    // ⚠️ La whitelist è anche la barriera anti-leak: si copiano campi NOMINATI, mai
+    // il nodo intero — `node.integration` porta community/credenziali SNMP e non
+    // deve uscire dal browser (stessa regola dell'export JSON sanificato). Dell'
+    // integrazione esce SOLO `host`, che è un indirizzo, non un segreto.
+    const _rackNameById = new Map((state.racks || [])
+        .filter(r => r && r.id != null).map(r => [String(r.id), String(r.name || r.id)]));
+    const pdus = (state.nodes || [])
+        .filter(n => n && n.type === 'pdu')
+        .map(n => ({
+            id: n.id,
+            name: n.name,
+            brand: n.brand,
+            model: n.model,
+            // Il nome del rack lo risolve il client (conosce state.racks); al server
+            // arriva già leggibile, così il capitolo non deve reidratare nulla.
+            rackName: n.rackId != null ? (_rackNameById.get(String(n.rackId)) || null) : null,
+            rackU: n.rackU,
+            ip: n.ip,
+            integration: { host: (n.integration || {}).host },
+            frontPanel: n.frontPanel ? { mgmtCount: n.frontPanel.mgmtCount } : undefined,
+            ports: n.ports,
+            // I campi PDU vivono in node.spec[...] (o al livello nodo nei progetti
+            // vecchi): si copiano ENTRAMBI i livelli e a valle `nodeField` sceglie —
+            // lo stesso getter che usa il renderer, non una seconda regola.
+            spec: n.spec ? {
+                pduType: n.spec.pduType, pduPhase: n.spec.pduPhase, pduCurrentA: n.spec.pduCurrentA,
+                pduOrientation: n.spec.pduOrientation, pduOutletCount: n.spec.pduOutletCount,
+                pduMgmtMode: n.spec.pduMgmtMode, pduEthernetPorts: n.spec.pduEthernetPorts,
+                pduSerialPorts: n.spec.pduSerialPorts,
+            } : undefined,
+            pduType: n.pduType, pduPhase: n.pduPhase, pduCurrentA: n.pduCurrentA,
+            pduOrientation: n.pduOrientation, pduOutletCount: n.pduOutletCount,
+            pduMgmtMode: n.pduMgmtMode, pduEthernetPorts: n.pduEthernetPorts,
+            pduSerialPorts: n.pduSerialPorts,
+            powerOutlets: Array.isArray(n.powerOutlets) ? n.powerOutlets.map(o => ({
+                id: o.id, name: o.name, label: o.label,
+                status: o.status, rawStatus: o.rawStatus, state: o.state, powerState: o.powerState,
+                statusOvr: o.statusOvr, connectionOvr: o.connectionOvr,
+                connectedTo: o.connectedTo, connectedDeviceId: o.connectedDeviceId,
+                connectedDeviceName: o.connectedDeviceName, connectedPortName: o.connectedPortName,
+                powerPort: o.powerPort, connected: o.connected, cable: o.cable, cableStatus: o.cableStatus,
+            })) : undefined,
+        }));
+
+    return { cables, asBuilt, portAssignment, vlans, rackSvgs, topoSvg, handoff, spare, vms, recovery, overview, pdus };
 }
 
 async function exportPDF(opts={}){
@@ -1582,7 +1637,7 @@ function exportDossier(){
         includePlanimetria:true, includeBackground:true,
         includeInventory:true, includeAsBuilt:true, includeRacks:true,
         includePorts:true, includeVlans:true, includeTopology:true,
-        includeVms:true,
+        includeVms:true, includePdu:true,
         includeCover:true, includeNotes:true, includeChangelog:true,
         includeSpare:true, includeAssets:true,
         _dossier:true,
