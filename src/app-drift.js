@@ -313,6 +313,7 @@ async function runDriftCheck(opts = {}){
         // del rendering — così un eventuale errore nella UI a valle non impedisce mai il
         // salvataggio della Verifica (Fase 3, best-effort).
         _appendVerifyTimeline(silent);
+        _persistPresence();   // la misura di presenza non aspetta un Salva (vedi sotto)
         // B4 — il risultato ATTERRA nella Panoramica «Vero» (overlay ritirato): se non
         // sei già lì, ti ci porta, così la Verifica "resta" invece di lampeggiare in un
         // overlay. setOverview è bare-global (expose di app-overview), typeof-guard.
@@ -422,6 +423,25 @@ function _appendVerifyTimeline(silent){
             method:'POST', headers:{'Content-Type':'application/json'},
             body: JSON.stringify(body),
         }).catch(()=>{});   // lo storico è un di più: mai disturbare la Verifica
+    } catch(_){ /* best-effort */ }
+}
+
+// La PRESENZA appena misurata va salvata SUBITO, fuori dal JSON di progetto: non è
+// una modifica al documento (quella la fa l'utente e aspetta Salva), è una misura —
+// e il monitoraggio automatico ne produce una ogni ora. Senza questa riga il
+// risultato viveva solo in memoria: al primo ricaricamento il pavimento tornava a
+// dipingere dall'ultimo salvataggio, e un apparato spento tornava verde.
+// Best-effort come la timeline: se fallisce, la Verifica prosegue e il colore resta
+// giusto in questa sessione. Il merge alla riapertura sta in lib/presence-store.js.
+function _persistPresence(){
+    try {
+        if(!store.currentProjectId || typeof collectPresence !== 'function') return;
+        const body = collectPresence(store.state);
+        if(!Object.keys(body.nodes).length) return;   // niente da dire = niente scrittura
+        fetch(`/api/projects/${store.currentProjectId}/history/presence`, {
+            method:'PUT', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify(body),
+        }).catch(()=>{});
     } catch(_){ /* best-effort */ }
 }
 

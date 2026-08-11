@@ -16,6 +16,7 @@
 //   <baseDir>/<id>/timeline.jsonl                 — righe di timeline
 //   <baseDir>/<id>/snapshots.jsonl                — indice meta degli snapshot
 //   <baseDir>/<id>/snapshots/<snapId>.json.gz     — stato intero gzip
+//   <baseDir>/<id>/presence.json                  — chi c'è / chi non c'è (corrente)
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
@@ -54,6 +55,7 @@ function createFsHistoryStore(opts = {}) {
   const _timelineFile = (id) => path.join(_dir(id), 'timeline.jsonl');
   const _snapDir      = (id) => path.join(_dir(id), 'snapshots');
   const _snapIndex    = (id) => path.join(_dir(id), 'snapshots.jsonl');
+  const _presenceFile = (id) => path.join(_dir(id), 'presence.json');
 
   // Scrittura atomica: tmp + rename (vale per stringhe e Buffer/gzip).
   function _atomicWrite(file, data) {
@@ -175,6 +177,22 @@ function createFsHistoryStore(opts = {}) {
     pruneSnapshots(projectId, o = {}) {
       const now = Number.isFinite(o.now) ? o.now : Date.now();
       return _applySnapPrune(projectId, _readLines(_snapIndex(projectId)), now).length;
+    },
+    // ── PRESENZA (chi c'è / chi non c'è) ────────────────────────────────
+    // Sta qui e non nel <id>.json per la stessa ragione della timeline: non è
+    // una modifica al documento, è una MISURA. Il documento lo scrive l'utente e
+    // aspetta Salva; la presenza la scrive la rete e non può aspettare nessuno,
+    // altrimenti un apparato spento torna verde al primo reload.
+    // File singolo sovrascritto (non append): esiste UNA presenza corrente.
+    savePresence(projectId, presence) {
+      fs.mkdirSync(_dir(projectId), { recursive: true });
+      const rec = { at: new Date().toISOString(), nodes: (presence && presence.nodes) || {} };
+      _atomicWrite(_presenceFile(projectId), JSON.stringify(rec));
+      return rec;
+    },
+    readPresence(projectId) {
+      try { return JSON.parse(fs.readFileSync(_presenceFile(projectId), 'utf8')); }
+      catch (_) { return null; }   // assente o illeggibile = nessuna presenza salvata
     },
     removeProject(projectId) {
       return removeProjectHistory(baseDir, projectId);

@@ -14,6 +14,7 @@ const auth = require('../../auth');
 const { timestamp } = require('../../utils');
 const { PROJECTS_DIR, loadProject } = require('../projects-store');
 const { createFsHistoryStore } = require('../history-store-fs');
+const { sanitizePresence } = require('../../lib/presence-store');
 const { _sanitizeBackupRefs } = require('./projects');   // stessa redazione credenziali del PUT progetto
 
 const router = express.Router();
@@ -69,6 +70,20 @@ router.post('/api/projects/:id/history/timeline', auth.requireAdmin, (req, res) 
   };
   store.appendTimeline(id, entry);
   res.json({ ok: true, at: entry.at });
+});
+
+// ── PRESENZA corrente (chi c'è / chi non c'è) ────────────────────────
+// La Verifica la manda qui appena l'ha misurata, senza aspettare un Salva: NON è
+// una modifica al documento, è una misura, e il monitoraggio automatico ne produce
+// una ogni ora. Prima finiva solo in memoria e moriva al reload — un apparato
+// spento tornava verde perché il file su disco raccontava l'ultimo salvataggio.
+// Il merge alla riapertura sta in lib/presence-store.js (vince la misura più fresca).
+router.put('/api/projects/:id/history/presence', auth.requireAdmin, (req, res) => {
+  const id = +req.params.id;
+  if (!_projectExists(id)) return res.status(404).json({ error: 'Project not found' });
+  const clean = sanitizePresence(req.body);
+  const rec = store.savePresence(id, clean);
+  res.json({ ok: true, at: rec.at, nodes: Object.keys(clean.nodes).length });
 });
 
 // Lista la timeline (?limit=&from=&to=). Ordine cronologico.

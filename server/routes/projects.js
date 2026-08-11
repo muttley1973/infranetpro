@@ -8,12 +8,16 @@ const path = require('path');
 const auth = require('../../auth');
 const { timestamp } = require('../../utils');
 const { PROJECTS_DIR, nextId, saveProject, loadProject, listProjects, removeBgAsset } = require('../projects-store');
-const { removeProjectHistory } = require('../history-store-fs');
+const { removeProjectHistory, createFsHistoryStore } = require('../history-store-fs');
+const { mergePresence } = require('../../lib/presence-store');
 const { runProjectDeleteHooks } = require('../module-registry');
 const { stripRefCreds } = require('../../lib/backup-ref.js');
 
 const router = express.Router();
 const HISTORY_DIR = path.join(PROJECTS_DIR, 'history');
+// Sola LETTURA della presenza salvata (la scrive il router storico): stessa
+// cartella, stessa interfaccia — un domani il backend SQLite subentra a entrambi.
+const _history = createFsHistoryStore({ baseDir: HISTORY_DIR });
 
 // SEC-M1 (audit 2026-07-21): il progetto grezzo contiene i segreti SNMP
 // (community v1/v2c + passphrase v3) in node.integration. Un lettore NON-admin
@@ -84,8 +88,14 @@ router.post('/api/projects', auth.requireAdmin, (req, res) => {
 
 // Leggi
 router.get('/api/projects/:id', (req, res) => {
-  const p = loadProject(+req.params.id);
+  const id = +req.params.id;
+  const p = loadProject(id);
   if (!p) return res.status(404).json({ error: 'Project not found' });
+  // La PRESENZA vive fuori dal <id>.json (come lo storico) perché è una misura, non
+  // una modifica: la Verifica la salva da sé, senza aspettare che qualcuno prema
+  // Salva. Qui torna dentro allo stato, così chi riapre il progetto ritrova gli
+  // apparati spenti ancora rossi. Vince la misura più fresca (lib/presence-store).
+  try { mergePresence(p.state, _history.readPresence(id)); } catch (_) { /* mai bloccare l'apertura */ }
   if (req.session?.user?.role !== 'admin') _redactSnmpSecrets(p);   // SEC-M1
   return res.json(p);
 });

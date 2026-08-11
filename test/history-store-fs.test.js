@@ -183,3 +183,34 @@ test('cap: oltre il tetto restano le più recenti; le etichettate sono ESENTI', 
   // cap 3, 'lab' esente occupa 1 del tetto → allow 2 non-etichettate più recenti = r4, r5
   assert.deepEqual(store.listSnapshots(4).map(m => m.id).sort(), ['lab', 'r4', 'r5'].sort());
 });
+
+// ── PRESENZA corrente (chi c'è / chi non c'è) ────────────────────────────────
+// Sta nello storico perché è una MISURA, non una modifica al documento: si salva
+// da sé, senza aspettare che l'utente prema Salva.
+test('presenza: round-trip, sovrascrittura e assenza del file', () => {
+  const { store, baseDir } = freshStore();
+  assert.equal(store.readPresence(7), null, 'mai letta = nessuna presenza, non un errore');
+
+  const rec = store.savePresence(7, { nodes: { pc7: { status: 'absent', absentEvidence: true } } });
+  assert.ok(Date.parse(rec.at), 'l\'istante lo fissa il server');
+  const back = store.readPresence(7);
+  assert.equal(back.nodes.pc7.status, 'absent');
+  assert.equal(back.at, rec.at);
+
+  // Esiste UNA presenza corrente: la nuova sostituisce, non si accoda.
+  store.savePresence(7, { nodes: { pc7: { status: 'proven' } } });
+  const after = store.readPresence(7);
+  assert.equal(after.nodes.pc7.status, 'proven');
+  assert.equal(Object.keys(after.nodes).length, 1);
+
+  assert.equal(fs.existsSync(path.join(baseDir, '7', 'presence.json')), true);
+  assert.equal(store.readPresence(8), null, 'progetti diversi non si mescolano');
+});
+
+test('presenza: cancellare il progetto porta via anche la sua presenza', () => {
+  const { store, baseDir } = freshStore();
+  store.savePresence(3, { nodes: { a: { status: 'proven' } } });
+  store.removeProject(3);
+  assert.equal(store.readPresence(3), null);
+  assert.equal(fs.existsSync(path.join(baseDir, '3')), false);
+});
