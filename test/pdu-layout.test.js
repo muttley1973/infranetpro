@@ -45,6 +45,18 @@ test('PDU outlet grid uses up to twelve columns', () => {
   assert.equal(pduManagementPortCount({ type: 'pdu', ports: 0, ip: '10.0.0.50' }), 1); // mode via IP fallback
   assert.equal(pduManagementPortCount({ type: 'pdu', ports: 0, spec: { pduMgmtMode: 'ethernet', pduEthernetPorts: 2 } }), 2);
   assert.equal(pduManagementPortCount({ type: 'pdu', ports: 0, spec: { pduMgmtMode: 'none' } }), 0);
+  // Regression: console+ethernet (ethernet-serial) must still expose a cable-able
+  // Ethernet port. A catalog front-panel layout can carry frontPanel.mgmtCount === 0
+  // (the import only *sets* mgmtCount when > 0, so a template value of 0 survives).
+  // That zero legacy hint used to short-circuit the count to 0, hiding the Ethernet
+  // management port the mode guarantees. It must floor at 1 instead.
+  assert.equal(pduManagementPortCount({ type: 'pdu', ports: 8, frontPanel: { mgmtCount: 0 }, spec: { pduMgmtMode: 'ethernet-serial' } }), 2);
+  assert.equal(pduManagementPortCount({ type: 'pdu', ports: 8, frontPanel: { mgmtCount: 0 }, spec: { pduMgmtMode: 'ethernet' } }), 2);
+  // An explicit pduEthernetPorts driven out of range (0) is likewise floored to 1
+  // whenever the mode still declares Ethernet management.
+  assert.equal(pduManagementPortCount({ type: 'pdu', ports: 8, frontPanel: { mgmtCount: 0 }, spec: { pduMgmtMode: 'ethernet-serial', pduEthernetPorts: 0 } }), 1);
+  // A positive legacy mgmtCount is still honoured verbatim (unchanged path).
+  assert.equal(pduManagementPortCount({ type: 'pdu', ports: 8, frontPanel: { mgmtCount: 2 }, spec: { pduMgmtMode: 'ethernet-serial' } }), 2);
   assert.equal(normalizePduManagementMode('ethernet+serial'), 'ethernet-serial');
   assert.equal(pduManagementMode({ type: 'pdu', spec: { pduMgmtMode: 'serial' } }), 'serial');
   assert.equal(pduSerialPortCount({ type: 'pdu', spec: { pduMgmtMode: 'serial' } }), 1);
