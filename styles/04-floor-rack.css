@@ -471,7 +471,14 @@
             grid-template-rows:repeat(2, min-content); /* sempre 2 righe */
             grid-auto-flow:column;                     /* riempie per colonne: 2 SFP = 1 col verticale, 4 SFP = 2 col, 6 SFP = 3 col */
             grid-auto-columns:min-content;
-            row-gap:3px;
+            /* Passo delle 2 righe SFP = passo delle righe rame, così i LED SFP
+               cadono sulle stesse orizzontali delle porte dati. Qui (>=2U, né
+               compact-1u né dense-xxl) la cella rame è LED 7px + numero, passo 15px;
+               la cella SFP ha LED 5px, quindi servono 5px di row-gap (non 3) per
+               pareggiare. I due rami più densi ridefiniscono il valore più sotto:
+               compact-1u -> 0 (LED rame 5px = LED SFP 5px, passo già uguale),
+               dense-xxl  -> 2px. */
+            row-gap:5px;
             column-gap:2px;
             align-content:center;
             align-items:center;
@@ -520,6 +527,10 @@
         .rack-ports-sfp-layout.compact-1u:not(.dense-xl) .port-num { font-size:4px; line-height:1; }
         .rack-ports-sfp-layout.compact-1u .rack-sfp-side {
             column-gap:1px;
+            /* row-gap 0 VOLUTO (verificato a misura): in compact-1u il LED rame è
+               5x5 e il LED SFP 8x5 — stessa altezza, quindi le due righe SFP hanno
+               già il passo delle righe rame e i LED sono allineati senza aggiunte.
+               Cfr. il ramo base (>=2U) che invece serve 5px e dense-xxl 2px. */
             row-gap:0;
             /* width auto: scala in base al numero di SFP (2 righe always) */
         }
@@ -542,12 +553,26 @@
         .rack-ports.rack-ports-sfp-layout.dense-xxl .rack-sfp-side {
             grid-auto-columns:6px;
             column-gap:1px;
-            /* Spread the two SFP rows to the copper row pitch so the SFP LEDs sit on
-               the same horizontal lines as the switch data ports. In dense-xxl the
-               copper cell is LED(6px)+number, pitch ~9px; the SFP cell is LED(4px)+
-               number, pitch ~7px — a 2px row-gap closes the 2px gap and centers the
-               SFP block vertically against the main port block (both LED rows aligned). */
+            /* Passo delle 2 righe SFP = passo delle righe rame (LED sulle stesse
+               orizzontali delle porte dati). In dense-xxl la cella SFP è LED 4px +
+               gap 0 + numero 3px = 7px; la cella rame è LED 6px + gap interno +
+               numero 3px, con `.rack-ports-main` a gap 0. Il gap interno della cella
+               rame vale 1px (base) -> passo 10 -> servono 3px qui. */
+            row-gap:3px;
+            /* Il blocco SFP resta più basso di quello rame (17 vs 20px): con
+               align-content:center il centraggio cadrebbe a mezzo pixel e le righe
+               risulterebbero shiftate di 0.5px. 1px di padding inferiore alza il
+               contenuto centrato di 0.5px e le riporta esattamente sulle stesse
+               orizzontali. Non serve nel ramo compact-1u+dense-xl qui sotto, dove
+               le due altezze cadono già su un centraggio intero. */
+            padding-bottom:1px;
+        }
+        /* ...tranne quando compact-1u+dense-xl azzerano il gap interno della cella
+           rame (`.compact-1u .rack-port-unit{gap:0}` non riesposto da `:not(.dense-xl)`):
+           lì il passo rame scende a 9 e bastano 2px. */
+        .rack-ports.rack-ports-sfp-layout.dense-xxl.compact-1u.dense-xl .rack-sfp-side {
             row-gap:2px;
+            padding-bottom:0;
         }
         .rack-ports.rack-ports-sfp-layout.dense-xxl .rack-port-unit.sfp-slot {
             width:6px;
