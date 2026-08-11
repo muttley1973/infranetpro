@@ -1592,8 +1592,11 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           const sel = `.floor-node[data-id="${id}"]`;
           const absentMarked = !!document.querySelector(sel)?.classList.contains('node-absent');
           const othersGray = document.querySelectorAll('.floor-node.node-absent').length;
-          // Guardia: se poi RISPONDE allo SNMP non deve restare grigio.
-          state.nodes.find(n => n.id === id).snmpStatus = 'ok';
+          // Guardia: se poi RISPONDE allo SNMP non deve restare grigio. La risposta
+          // porta SEMPRE la sua data (ogni poll riuscito scrive snmpLastOk, app-snmp.js):
+          // senza, «ha risposto» non è databile e non vale come «vivo ADESSO» — la
+          // presenza segue la soglia di freschezza già usata dal LED del rack.
+          Object.assign(state.nodes.find(n => n.id === id), { snmpStatus: 'ok', snmpLastOk: new Date().toISOString() });
           renderAll(); await raf();
           const stillAbsentAfterOk = !!document.querySelector(sel)?.classList.contains('node-absent');
           // cleanup: niente report → niente attenuazione
@@ -1655,8 +1658,10 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           const el1 = document.querySelector(sel);
           const absentMarked = !!el1?.classList.contains('node-absent');
           const stillSnmpErr = !!el1?.classList.contains('snmp-err');   // lo stato SNMP resta distinto/visibile
-          // Guardia: se poi RISPONDE allo SNMP (ok) l'overlay "assente" sparisce
-          state.nodes.find(n => n.id === id).snmpStatus = 'ok';
+          // Guardia: se poi RISPONDE allo SNMP (ok) l'overlay "assente" sparisce. La
+          // risposta porta la sua data (ogni poll riuscito scrive snmpLastOk): un «ok»
+          // non databile non vale come «vivo ADESSO», come già per il LED del rack.
+          Object.assign(state.nodes.find(n => n.id === id), { snmpStatus: 'ok', snmpLastOk: new Date().toISOString() });
           renderAll(); await raf();
           const absentAfterOk = !!document.querySelector(sel)?.classList.contains('node-absent');
           // NON verificabile (unverified): grigio, non rosso
