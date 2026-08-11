@@ -231,10 +231,25 @@ function _buildFloorNodeEl(n, def, absentCls){
     let pts = '';
     if(pc>1){ pts='<div class="floor-ports">'; for(let i=1;i<=pc;i++) pts += getPortHTML(`${n.id}-${i}`); pts += '</div>'; }
     const _snmpOn = _hasSnmpIntegration(n);
-    const _ferr = _snmpOn && n.snmpStatus==='err' ? ` style="outline:2px solid #f85149;outline-offset:2px;border-radius:3px"` : '';
+    // Il segnale di stato sta SEMPRE sul contenitore, mai su un pezzo interno. Qui
+    // l'errore SNMP disegnava un contorno rosso inline sull'etichetta: stesso colore
+    // dell'«assente», ma su un elemento diverso — a schermo due apparati in rosso
+    // sembravano avere due bordi diversi senza motivo (uno intorno al nome, uno
+    // intorno alla tile). Ora è una classe sulla tile, come sul rack.
+    // ⚠️ Resta VISIVAMENTE distinto dall'assenza (tratteggiato vs pieno): un driver
+    // che fallisce non è un apparato sparito, e il rack fa già la stessa scelta col
+    // bordo sinistro. Confonderli sarebbe un verdetto che mente.
+    // ⚠️ E NON si disegna quando la presenza ha già un verdetto (`absentCls`): su un
+    // apparato che la sonda non riesce a raggiungere — subnet fuori portata, grigio
+    // «non verificabile» — l'SNMP fallisce PER QUELLO, e un anello d'allarme
+    // spaccerebbe per guasto ciò che è solo fuori vista. Su uno provato assente
+    // sarebbe un secondo anello che ripete la stessa notizia. L'errore SNMP è una
+    // notizia solo quando l'apparato c'è ma non risponde: community sbagliata, ACL,
+    // agent fermo. Stessa regola dei verdetti: niente allarme senza misura che lo regga.
+    if(_snmpOn && n.snmpStatus==='err' && !absentCls) el.classList.add('snmp-fault');
     const _v3BadgeF = (typeof _v3NeedsCreds === 'function' && _v3NeedsCreds(n))
         ? `<span class="floor-v3-badge" title="${t('pnl.gen.v3MissingCreds')}"><i class="fas fa-key"></i></span>` : '';
-    el.innerHTML = `${icon}${_v3BadgeF}<div class="label"${_ferr}>${_floorLabelHtml(n)}</div>${pts}${_radioPortHtml(n)}`;
+    el.innerHTML = `${icon}${_v3BadgeF}<div class="label">${_floorLabelHtml(n)}</div>${pts}${_radioPortHtml(n)}`;
     return { el, structural: false };
 }
 // _floorLabelHtml — etichetta del nodo in planimetria: PRIMA la parte leggibile,

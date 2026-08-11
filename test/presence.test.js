@@ -39,3 +39,27 @@ test('presenza: i percorsi senza «ok» restano invariati', () => {
   assert.equal(nodePresenceClass({ id: 'pc1' }, _absentReport), ' node-absent');
   assert.equal(nodePresenceClass({ id: 'altro' }, _absentReport), '');
 });
+
+// ── L'anello dell'errore SNMP sulla planimetria ──────────────────────────────
+// Sta sulla TILE come ogni altro stato (prima era un contorno inline sull'etichetta
+// interna: stesso rosso dell'assenza, ma su un elemento diverso), ed è TRATTEGGIATO
+// perché «non riesco a interrogarlo» non è «non c'è».
+// ⚠️ L'invariante che conta: NON si disegna quando la presenza ha già un verdetto.
+// Su un apparato in una subnet fuori portata l'SNMP fallisce PER QUELLO — spacciarlo
+// per guasto sarebbe un allarme senza una misura che lo regga.
+const fs = require('node:fs');
+const path = require('node:path');
+const RENDER = fs.readFileSync(path.join(__dirname, '..', 'src', 'app-render-core.js'), 'utf8');
+const CSS = fs.readFileSync(path.join(__dirname, '..', 'styles', '04-floor-rack.css'), 'utf8');
+
+test('errore SNMP sul pavimento: anello sulla tile, mai sull\'etichetta interna', () => {
+  assert.match(RENDER, /el\.classList\.add\('snmp-fault'\)/, 'classe sul contenitore');
+  assert.equal(/class="label"\s*\$\{_ferr\}/.test(RENDER), false, 'niente stile inline sull\'etichetta');
+  assert.equal(/outline:2px solid #f85149/.test(RENDER), false, 'niente colore cablato a mano nel renderer');
+  assert.match(CSS, /\.floor-node\.snmp-fault \{[^}]*dashed/, 'tratteggiato: distinto dall\'assenza, che è piena');
+});
+
+test('⚠️ nessun anello di guasto se la presenza ha gia\' un verdetto', () => {
+  assert.match(RENDER, /n\.snmpStatus==='err' && !absentCls/,
+    'un apparato irraggiungibile (grigio) o provato assente non prende anche l\'anello SNMP');
+});

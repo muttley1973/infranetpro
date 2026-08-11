@@ -328,6 +328,12 @@
            rosso è volutamente diverso dal bordo-sinistro rosso di snmp-err/snmp-fault. */
         .floor-node.node-absent,
         .rack-device.node-absent { box-shadow:0 0 0 2px var(--fault-color), 0 0 9px rgba(248,81,73,.55); }
+        /* Errore del driver SNMP sul pavimento: sulla TILE come tutti gli altri stati
+           (prima era un contorno inline sull'etichetta interna, e a schermo sembrava
+           un bordo rosso messo a caso). TRATTEGGIATO di proposito: «non riesco a
+           interrogarlo» non è «non c'è» — il rack distingue le due cose col bordo
+           sinistro, qui col tratto. */
+        .floor-node.snmp-fault { outline:2px dashed var(--fault-color); outline-offset:2px; border-radius:5px; }
         .floor-node.node-unverified { opacity:0.4; filter:grayscale(0.9); }
         .floor-node.node-unverified.selected { opacity:0.72; }
         .rack-device.node-unverified { opacity:0.45; filter:grayscale(0.9); }
