@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.8.2] — 2026-08-12
+
+### Fixed
+- **The import preview no longer announces a limit that does not exist.** It still said the tenant of N devices "is not shown" and that InfraNet has no owner field — true until 2.8.0, and false since the **Declared by the DCIM** block landed. The row is gone rather than reworded: that section declares *limits*, and the tenant now behaves like role, status and platform, none of which get a row of their own. Reported from a real import against a live NetBox.
+
+### Changed
+- **The PDU has no "Orientation" field any more.** It offered "Vertical 0U" — as the default, no less — while InfraNet only ever mounts a PDU horizontally, in the rack unit frame: a choice with no consequence, which is worse than no choice. Gone from the panel, the handover dossier and the export, and cleared from projects that carry it. It comes back the day the vertical mount is actually drawn, together with the rendering and not before.
+- **The power-outlet chips in the PDU properties panel are easier to read** — bigger type and more padding.
+- **The change journal moves out of the project file**, into `history/<id>/audit.json`. It is not a measurement — it is the history of the document — but it is a journal that grows on its own, and the code already treated it as a non-document by keeping it out of undo and snapshots. Merging is a plain union: no entry lost, none duplicated, so saving the same state twice cannot double the journal. A copy starts its own history, and portable exports leave it behind — it carries the usernames of whoever worked on the document. On real projects this is the last big block: **838 KB → 701 KB** across the set, with two of them losing a fifth of their size.
+
 ## [2.8.1] — 2026-08-12
 
 **A project file that holds what you declared, and nothing else.** Measurements — presence, discovery sightings, propagated VLANs — now live beside the project instead of inside it, so opening a project no longer changes it and the file stops growing on its own. Verified on a 500-device network.

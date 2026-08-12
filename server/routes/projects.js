@@ -12,6 +12,7 @@ const { removeProjectHistory, createFsHistoryStore } = require('../history-store
 const { mergePresence, foldPresence, collectPresence, stripPresence } = require('../../lib/presence-store');
 const { mergeObservations, foldObservations, stripObservations } = require('../../lib/discovery-history');
 const { stripDerivedVlan } = require('../../lib/project-format');
+const { mergeAudit, foldAudit, stripAudit } = require('../../lib/audit-log');
 const { runProjectDeleteHooks } = require('../module-registry');
 const { stripRefCreds } = require('../../lib/backup-ref.js');
 
@@ -56,6 +57,20 @@ function _observationsOutOfDocument(id, state) {
     if (folded.observations.length) _history.saveObservations(id, folded);
   } catch (_) { /* best-effort, come sopra */ }
   stripObservations(state);
+}
+
+// ── E nemmeno il giornale delle modifiche ────────────────────────────
+// ⚠️ Questo NON è una misura: è la storia del documento, «chi ha cambiato cosa».
+// Esce per la ragione della timeline — è un giornale append-only che cresce da
+// solo, e il codice lo trattava già da non-documento (fuori da undo e snapshot).
+// La fusione è un'UNIONE senza duplicati: risalvare lo stesso stato due volte non
+// deve raddoppiare il giornale, e nessuna voce deve andare persa.
+function _auditOutOfDocument(id, state) {
+  try {
+    const folded = foldAudit(_history.readAudit(id), state && state.auditLog);
+    if (folded.entries.length) _history.saveAudit(id, folded);
+  } catch (_) { /* best-effort, come sopra */ }
+  stripAudit(state);
 }
 
 // SEC-M1 (audit 2026-07-21): il progetto grezzo contiene i segreti SNMP
@@ -127,6 +142,7 @@ router.post('/api/projects', auth.requireAdmin, (req, res) => {
   stripPresence(state);
   stripObservations(state);
   stripDerivedVlan(state);
+  stripAudit(state);              // il giornale di un altro impianto non è la nostra storia
   saveProject(id, name, state, now, now);
   res.status(201).json(loadProject(id));
 });
@@ -142,6 +158,7 @@ router.get('/api/projects/:id', (req, res) => {
   // apparati spenti ancora rossi. Vince la misura più fresca (lib/presence-store).
   try { mergePresence(p.state, _history.readPresence(id)); } catch (_) { /* mai bloccare l'apertura */ }
   try { mergeObservations(p.state, _history.readObservations(id)); } catch (_) { /* idem */ }
+  try { mergeAudit(p.state, _history.readAudit(id)); } catch (_) { /* idem */ }
   if (req.session?.user?.role !== 'admin') _redactSnmpSecrets(p);   // SEC-M1
   return res.json(p);
 });
@@ -158,6 +175,7 @@ router.put('/api/projects/:id', auth.requireAdmin, (req, res) => {
   const now   = timestamp();
   _presenceOutOfDocument(id, state);
   _observationsOutOfDocument(id, state);
+  _auditOutOfDocument(id, state);
   // La propagazione VLAN si ricalcola a ogni render: nel file non ci va. Senza
   // questa riga, aprire un progetto e guardarlo bastava a farlo crescere.
   stripDerivedVlan(state);
@@ -195,6 +213,7 @@ router.post('/api/projects/:id/copy', auth.requireAdmin, (req, res) => {
   stripPresence(src.state);
   stripObservations(src.state);
   stripDerivedVlan(src.state);
+  stripAudit(src.state);          // la copia è un documento nuovo: la sua storia inizia ora
   saveProject(newId, name, src.state, now, now);
   res.status(201).json(loadProject(newId));
 });

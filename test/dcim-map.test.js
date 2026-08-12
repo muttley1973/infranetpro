@@ -831,7 +831,10 @@ test('tenant, platform e description: ognuno dove ha senso, la platform MAI nel 
   assert.equal(core.source.platformName, 'Cisco IOS');
   assert.equal(core.firmwareVer, undefined, 'la platform non e\' il firmware: la confusione farebbe scattare un identity-drift falso');
   assert.equal(core.notes, 'Sede · Piano 1 — Armadio di piano, chiave in portineria');
-  assert.ok(report.issues.some(i => i.code === 'device.tenantSkipped'));
+  // ⚠️ Il tenant NON produce piu' un avviso: fino alla 2.8.0 nessuna schermata lo
+  // leggeva e l'anteprima doveva dichiararlo come limite; ora si vede nel riquadro
+  // «Dichiarato dal DCIM» come ruolo, stato e platform, che una riga non ce l'hanno.
+  assert.equal(report.issues.some(i => i.code === 'device.tenantSkipped'), false);
 });
 
 test('description senza ubicazione: la nota e\' solo la descrizione', () => {

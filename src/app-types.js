@@ -151,7 +151,7 @@ const NODE_SPEC_FIELDS = new Set([
     'nasType','nasCapacityTb','nasRaid','nasProtocols','nasPlatform',
     'kvmType','kvmMaxRes','kvmConnectedServers','kvmRemoteAccess',
     'upsTopology','upsVa','upsW','upsAutonomyMin','upsHotSwap',
-    'pduType','pduPhase','pduCurrentA','pduOrientation','pduOutletCount','pduMgmtMode','pduEthernetPorts','pduSerialPorts','pduSensorPorts','pduUsbPorts','pduExpansionPorts',
+    'pduType','pduPhase','pduCurrentA','pduOutletCount','pduMgmtMode','pduEthernetPorts','pduSerialPorts','pduSensorPorts','pduUsbPorts','pduExpansionPorts',
     'atsSourcePref','atsInputV','atsCurrentA','atsOutletCount',
     'stackId','stackMemberId','stackRole',
     'haPeer','haGroupId','haRole','haMode','haSync',

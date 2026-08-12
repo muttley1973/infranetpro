@@ -1555,13 +1555,13 @@ function _buildPdfReportData() {
             // lo stesso getter che usa il renderer, non una seconda regola.
             spec: n.spec ? {
                 pduType: n.spec.pduType, pduPhase: n.spec.pduPhase, pduCurrentA: n.spec.pduCurrentA,
-                pduOrientation: n.spec.pduOrientation, pduOutletCount: n.spec.pduOutletCount,
+                pduOutletCount: n.spec.pduOutletCount,
                 pduMgmtMode: n.spec.pduMgmtMode, pduEthernetPorts: n.spec.pduEthernetPorts,
                 pduSerialPorts: n.spec.pduSerialPorts, pduSensorPorts: n.spec.pduSensorPorts,
                 pduUsbPorts: n.spec.pduUsbPorts, pduExpansionPorts: n.spec.pduExpansionPorts,
             } : undefined,
             pduType: n.pduType, pduPhase: n.pduPhase, pduCurrentA: n.pduCurrentA,
-            pduOrientation: n.pduOrientation, pduOutletCount: n.pduOutletCount,
+            pduOutletCount: n.pduOutletCount,
             pduMgmtMode: n.pduMgmtMode, pduEthernetPorts: n.pduEthernetPorts,
             pduSerialPorts: n.pduSerialPorts, pduSensorPorts: n.pduSensorPorts,
             pduUsbPorts: n.pduUsbPorts, pduExpansionPorts: n.pduExpansionPorts,

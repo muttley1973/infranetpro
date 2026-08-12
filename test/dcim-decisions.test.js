@@ -107,14 +107,14 @@ test('status non attivo: il default e\' il comportamento storico, la scelta si s
 test('cio\' che non entra sta in cima: le perdite prima delle scelte, le scelte prima degli info', () => {
   const r = buildDecisions({
     issues: [
-      { code: 'device.tenantSkipped', deviceId: 1, deviceName: 'a', kind: 'Acme' },
+      { code: 'role.unmapped', deviceId: 1, deviceName: 'a', kind: 'sensore' },
       { code: 'device.statusNotActive', deviceId: 2, deviceName: 'b', kind: 'planned' },
       { code: 'ports.consoleSkipped', deviceId: 3, deviceName: 'c', found: 2 },
       { code: 'ports.powerSkipped', deviceId: 4, deviceName: 'd', found: 1 },
     ],
     counts: { devices: 4 },
   });
-  assert.deepEqual(r.info.map(x => x.code), ['ports.consoleSkipped', 'ports.powerSkipped', 'device.tenantSkipped']);
+  assert.deepEqual(r.info.map(x => x.code), ['ports.consoleSkipped', 'ports.powerSkipped', 'role.unmapped']);
   assert.deepEqual(r.info.map(x => x.severity), ['loss', 'loss', 'info']);
   assert.deepEqual(r.decisions.map(x => x.code), ['device.statusNotActive']);
 });

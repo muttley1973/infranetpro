@@ -18,6 +18,7 @@
 //   <baseDir>/<id>/snapshots/<snapId>.json.gz     — stato intero gzip
 //   <baseDir>/<id>/presence.json                  — chi c'è / chi non c'è (corrente)
 //   <baseDir>/<id>/observations.json              — chi è stato visto dove, e quante volte
+//   <baseDir>/<id>/audit.json                     — giornale «chi/quando/cosa» del documento
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
@@ -58,6 +59,7 @@ function createFsHistoryStore(opts = {}) {
   const _snapIndex    = (id) => path.join(_dir(id), 'snapshots.jsonl');
   const _presenceFile = (id) => path.join(_dir(id), 'presence.json');
   const _observationsFile = (id) => path.join(_dir(id), 'observations.json');
+  const _auditFile = (id) => path.join(_dir(id), 'audit.json');
 
   // Scrittura atomica: tmp + rename (vale per stringhe e Buffer/gzip).
   function _atomicWrite(file, data) {
@@ -211,6 +213,23 @@ function createFsHistoryStore(opts = {}) {
     readObservations(projectId) {
       try { return JSON.parse(fs.readFileSync(_observationsFile(projectId), 'utf8')); }
       catch (_) { return null; }   // assente o illeggibile = nessuna osservazione salvata
+    },
+    // ── GIORNALE delle modifiche (chi / quando / cosa) ────────────────────
+    // ⚠️ Non è una misura come presenza e osservazioni: è la storia del documento.
+    // Sta qui per la ragione della TIMELINE — è un giornale append-only, cresce da
+    // solo, e il codice lo trattava già da non-documento (fuori da undo e snapshot).
+    // File singolo sovrascritto: la fusione (unione senza duplicati, cap alle più
+    // recenti) la fa `foldAudit` in lib/audit-log.js prima di arrivare qui.
+    saveAudit(projectId, journal) {
+      fs.mkdirSync(_dir(projectId), { recursive: true });
+      const entries = (journal && Array.isArray(journal.entries)) ? journal.entries : [];
+      const rec = { at: new Date().toISOString(), entries };
+      _atomicWrite(_auditFile(projectId), JSON.stringify(rec));
+      return rec;
+    },
+    readAudit(projectId) {
+      try { return JSON.parse(fs.readFileSync(_auditFile(projectId), 'utf8')); }
+      catch (_) { return null; }   // assente o illeggibile = nessun giornale salvato
     },
     removeProject(projectId) {
       return removeProjectHistory(baseDir, projectId);

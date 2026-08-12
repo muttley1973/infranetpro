@@ -84,8 +84,14 @@ test('dropObsoleteFields toglie i campi che non legge nessuno e NON tocca il res
       'sw1-2': { ifName: 'Gi1/0/2' },
     },
   };
+  // ⚠️ Un campo di apparato vive sul nodo E in node.spec: vanno puliti entrambi.
+  state.nodes.push({ id: 'pdu1', name: 'PDU', pduOrientation: 'vertical-0u',
+    spec: { pduOrientation: 'vertical-0u', pduOutletCount: 8 } });
   const dropped = dropObsoleteFields(state);
-  assert.equal(dropped, 2, 'un campo per nodo e uno per porta');
+  assert.equal(dropped, 4, 'un campo per nodo, uno per porta, e i due della PDU (nodo + spec)');
+  assert.equal('pduOrientation' in state.nodes[2], false);
+  assert.equal('pduOrientation' in state.nodes[2].spec, false, 'anche dentro spec');
+  assert.equal(state.nodes[2].spec.pduOutletCount, 8, 'il resto dello spec non si tocca');
   assert.equal('lastDiscoveryMatch' in state.nodes[0], false);
   assert.equal('physicalKind' in state.ports['sw1-1'], false);
   // Il documento resta intatto: si tolgono i morti, non i vivi.

@@ -69,11 +69,11 @@ function _pduOutletStateHtml(n){
         const label = String(outlet.label || outlet.name || `P${index + 1}`);
         const raw = outlet.rawStatus || outletStatusText(outlet);
         const title = [label, _pduOutletStatusLabel(status), raw && raw !== status ? raw : ''].filter(Boolean).join(' · ');
-        return `<span title="${escapeHTML(title)}" style="display:inline-flex;align-items:center;gap:4px;padding:2px 5px;border:1px solid var(--panel-border);border-radius:3px;font-size:.68rem;color:var(--text-main);background:var(--bg-color)"><i class="fas fa-square" style="font-size:.55rem;color:${colors[status]||colors.inactive}"></i>${escapeHTML(label)}</span>`;
+        return `<span title="${escapeHTML(title)}" style="display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border:1px solid var(--panel-border);border-radius:4px;font-size:.8rem;color:var(--text-main);background:var(--bg-color)"><i class="fas fa-square" style="font-size:.65rem;color:${colors[status]||colors.inactive}"></i>${escapeHTML(label)}</span>`;
     }).join('');
     const summary = Object.entries(counts).filter(([, count]) => count > 0).map(([status, count]) => `<span style="color:${colors[status]}">${count} ${escapeHTML(_pduOutletStatusLabel(status))}</span>`).join(' · ');
     return `<div class="prop-group"><label>Stato prese power</label>
-        <div style="display:flex;flex-wrap:wrap;gap:4px">${chips}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">${chips}</div>
         <div class="pdu-port-model-note"><i class="fas fa-circle-info"></i> ${summary} · stato operativo importato da NetBox; le prese power non sono porte Ethernet e non generano cavi.</div>
     </div>`;
 }
@@ -1150,6 +1150,12 @@ export function _nodeDeviceChainHtml(n, d){
                     ${typeof _powerLiveHtml==='function' ? _powerLiveHtml(n) : ''}
                 </div></details>`;
             }
+            // ⚠️ La PDU NON ha un campo «Orientamento» (rimosso in 2.8.2): InfraNet
+            // la monta solo in ORIZZONTALE, nel telaio a unità del rack. Il campo
+            // offriva «Verticale 0U» — e per giunta come predefinito — promettendo un
+            // montaggio che il render non sa disegnare: una scelta senza conseguenza,
+            // cioè peggio di nessuna scelta. Il giorno che il verticale 0U si disegna
+            // davvero, il campo torna INSIEME al render, non prima.
             if(n.type==='pdu'){
                 const _pduMgmtMode = pduManagementMode(n);
                 const _pduHasEthernet = _pduMgmtMode === 'ethernet' || _pduMgmtMode === 'ethernet-serial';
@@ -1194,10 +1200,6 @@ export function _nodeDeviceChainHtml(n, d){
                         <option value="16" ${selected(String(n.pduCurrentA||16),'16')}>16 A</option>
                         <option value="32" ${selected(String(n.pduCurrentA||16),'32')}>32 A</option>
                         <option value="63" ${selected(String(n.pduCurrentA||16),'63')}>63 A</option>
-                    </select></div>
-                    <div class="prop-group"><label>${t('f.orientation')}</label><select data-change="update-n" data-nfield="pduOrientation">
-                        <option value="vertical-0u"   ${selected(n.pduOrientation||'vertical-0u','vertical-0u')}>${t('o.vert0u')}</option>
-                        <option value="horizontal-1u" ${selected(n.pduOrientation,'horizontal-1u')}>${t('o.horiz1u')}</option>
                     </select></div>
                     <div class="prop-group"><label>${t('f.totalSockets')}</label>
                         <input type="number" min="1" max="${MAX_PDU_OUTLETS}" value="${n.pduOutletCount||8}" data-change="update-n" data-nfield="pduOutletCount" data-ncoerce="intdef" data-ndef="8"></div>
