@@ -71,3 +71,78 @@ test('subnetInputToCidr: input di scansione -> subnet CIDR da dichiarare', () =>
   assert.equal(subnetInputToCidr('non-una-rete'), '');
   assert.equal(subnetInputToCidr('999.1.1.1'), '');
 });
+
+// ============================================================
+// IPv6 — una VLAN dual-stack ha un /24 E un /64: entrambi devono essere
+// dichiarabili. L'espansione dell'indirizzo arriva da lib/ipv6.js.
+// ============================================================
+
+test('_parseCidrInfo: la famiglia e` esplicita, non dedotta dal chiamante', () => {
+  assert.equal(_parseCidrInfo('192.168.10.0/24').family, 4);
+  assert.equal(_parseCidrInfo('2001:db8:0:14::/64').family, 6);
+  // Sull'oggetto v6 i campi a 32 bit NON esistono: chi fa aritmetica deve
+  // guardare `family` prima, e senza il campo se ne accorge subito.
+  const c6 = _parseCidrInfo('2001:db8:0:14::/64');
+  assert.equal(c6.network, undefined);
+  assert.equal(c6.broadcast, undefined);
+  assert.equal(c6.mask, undefined);
+});
+
+test('_parseCidrInfo: IPv6, indirizzo di rete e prefisso', () => {
+  const c = _parseCidrInfo('2001:db8:0:14::/64');
+  assert.equal(c.prefix, 64);
+  assert.deepEqual(c.network6, [0x2001, 0x0db8, 0, 0x14, 0, 0, 0, 0]);
+
+  // la parte host viene azzerata, esattamente come per l'IPv4
+  assert.deepEqual(_parseCidrInfo('2001:db8:0:14::5/64').network6, c.network6);
+  assert.deepEqual(_parseCidrInfo('2001:DB8:0:14:aaaa:bbbb:cccc:dddd/64').network6, c.network6);
+
+  // prefisso non allineato alle word (10 bit -> maschera dentro la prima word)
+  assert.deepEqual(_parseCidrInfo('fe80::/10').network6, [0xfe80, 0, 0, 0, 0, 0, 0, 0]);
+  assert.deepEqual(_parseCidrInfo('febf::1/10').network6, [0xfe80, 0, 0, 0, 0, 0, 0, 0]);
+
+  // estremi
+  assert.deepEqual(_parseCidrInfo('::1/128').network6, [0, 0, 0, 0, 0, 0, 0, 1]);
+  assert.deepEqual(_parseCidrInfo('2001:db8::1/0').network6, [0, 0, 0, 0, 0, 0, 0, 0]);
+  // zone-id: non fa parte dell'indirizzo, si scarta
+  assert.deepEqual(_parseCidrInfo('fe80::1%eth0/64').network6, [0xfe80, 0, 0, 0, 0, 0, 0, 0]);
+});
+
+test('_parseCidrInfo: IPv6 malformato -> null (mai un indirizzo inventato)', () => {
+  assert.equal(_parseCidrInfo('2001:db8::/129'), null);   // prefisso fuori range
+  assert.equal(_parseCidrInfo('2001:db8::'), null);       // senza prefisso
+  assert.equal(_parseCidrInfo('gggg::/64'), null);        // hextet non valido
+  assert.equal(_parseCidrInfo('2001:db8::1::2/64'), null); // due compressioni
+  assert.equal(_parseCidrInfo('2001:db8:0:14/64'), null); // troppo poche word
+  // regressione: un IPv4 con prefisso fuori range non deve scivolare nel ramo v6
+  assert.equal(_parseCidrInfo('192.168.1.0/33'), null);
+  assert.equal(_parseCidrInfo('192.168.1.0/128'), null);
+});
+
+test('_ipInCidr: IPv6 e famiglie che non si mescolano', () => {
+  const c64 = _parseCidrInfo('2001:db8:0:14::/64');
+  assert.equal(_ipInCidr('2001:db8:0:14::1', c64), true);
+  assert.equal(_ipInCidr('2001:db8:0:14:ffff:ffff:ffff:ffff', c64), true);
+  assert.equal(_ipInCidr('2001:db8:0:15::1', c64), false);
+  assert.equal(_ipInCidr('non-un-ip', c64), false);
+
+  const cLl = _parseCidrInfo('fe80::/10');
+  assert.equal(_ipInCidr('fe80::1', cLl), true);
+  assert.equal(_ipInCidr('febf::1', cLl), true);
+  assert.equal(_ipInCidr('fec0::1', cLl), false);
+
+  // v4 dentro un prefisso v6 e viceversa: sempre false, mai un match casuale
+  assert.equal(_ipInCidr('192.168.10.1', c64), false);
+  assert.equal(_ipInCidr('2001:db8:0:14::1', _parseCidrInfo('192.168.10.0/24')), false);
+});
+
+test('subnetInputToCidr: IPv6 -> prefisso canonico da dichiarare', () => {
+  assert.equal(subnetInputToCidr('2001:db8:0:14::/64'), '2001:db8:0:14::/64');
+  assert.equal(subnetInputToCidr('2001:db8:0:14::5/64'), '2001:db8:0:14::/64');
+  assert.equal(subnetInputToCidr('2001:DB8:0:14:aaaa::5 / 64'), '2001:db8:0:14::/64');
+  // IPv6 nudo -> la sua /64 (SLAAC, RFC 4291), gemello del "IP singolo -> /24"
+  assert.equal(subnetInputToCidr('2001:db8:0:14::5'), '2001:db8:0:14::/64');
+  // v4 invariato anche ora che il ramo v6 esiste
+  assert.equal(subnetInputToCidr('192.168.10.7'), '192.168.10.0/24');
+  assert.equal(subnetInputToCidr('gggg::/64'), '');
+});

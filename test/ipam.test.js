@@ -23,6 +23,29 @@ test('_hostCapacity: host assegnabili per prefisso (con casi limite)', () => {
   assert.equal(_hostCapacity(null), 0);
 });
 
+// Su IPv6 la "capacità" non esiste: una /64 ha 2^64 indirizzi. Zero è la risposta
+// onesta — e senza il gate esplicito l'aritmetica a 32 bit su campi assenti
+// risponderebbe 1, cioè una rete da un indirizzo solo. Falso e plausibile.
+test('_hostCapacity: IPv6 non ha capacità, si contano gli indirizzi visti', () => {
+  assert.equal(cap('2001:db8:0:14::/64'), 0);
+  assert.equal(cap('2001:db8::/48'), 0);
+  assert.equal(cap('2001:db8::1/128'), 0);
+
+  // Il conteggio degli occupati resta vero, sono liberi/percentuale a tacere.
+  const u = usage('2001:db8:0:14::/64', {
+    gateway: '2001:db8:0:14::1',
+    documentedIps: ['2001:db8:0:14::10', '2001:db8:0:14::11', '2001:db8:0:15::9'], // l'ultimo è fuori
+  });
+  assert.equal(u.capacity, 0);
+  assert.equal(u.documentedCount, 3);   // ::1 (gateway) + ::10 + ::11
+  assert.equal(u.usedCount, 3);
+  assert.equal(u.freeCount, null);      // niente "0 liberi" = "rete piena"
+  assert.equal(u.pct, null);
+  assert.equal(u.nextFree, null);
+  assert.equal(u.gatewayOk, true);
+  assert.equal(u.gatewayIsReserved, false);
+});
+
 // ---------- opzione A: documentati + solo-DHCP = realtà sul filo ----------
 test('computeIpamUsage: conteggio opzione A con gateway, dedup e fuori-subnet', () => {
   const u = usage('192.168.20.0/24', {
