@@ -264,6 +264,12 @@
     <div>© 2026 muttley1973 · <span data-i18n="license">Licenza</span> <b>AGPL-3.0-or-later</b></div>
     <div data-i18n="freeSw">software libero, senza garanzia</div>
     <div class="lf-links">
+      <!-- I manuali NON stanno nell'immagine (.dockerignore esclude *.pdf, di
+           proposito): il link va alle RELEASE, dove sono allegati come asset e
+           seguono la versione. Qui in fondo al login perché si veda anche prima
+           di entrare — è dove guarda chi ha appena tirato su il container. -->
+      <a href="https://github.com/muttley1973/infranetpro/releases/latest" target="_blank" rel="noopener noreferrer" data-i18n="manual">Manuale (IT/EN)</a>
+      <span>·</span>
       <a href="https://github.com/muttley1973/infranetpro" target="_blank" rel="noopener" data-i18n="srcCode">Codice sorgente</a>
       <span>·</span>
       <a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noopener" data-i18n="viewLic">Vedi licenza</a>
@@ -285,6 +291,7 @@ const I18N = {
     badCreds: 'Credenziali non valide',
     netErr: 'Errore di rete. Controlla che il server sia attivo.',
     license: 'Licenza', freeSw: 'software libero, senza garanzia',
+    manual: 'Manuale (IT/EN)',
     srcCode: 'Codice sorgente', viewLic: 'Vedi licenza', commLic: 'Licenza commerciale',
   },
   en: {
@@ -293,6 +300,7 @@ const I18N = {
     badCreds: 'Invalid credentials',
     netErr: 'Network error. Check that the server is running.',
     license: 'License', freeSw: 'free software, no warranty',
+    manual: 'Manual (IT/EN)',
     srcCode: 'Source code', viewLic: 'View license', commLic: 'Commercial license',
   },
 };

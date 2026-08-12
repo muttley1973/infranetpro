@@ -61,3 +61,21 @@ test('app e login dichiarano l\'icona della scheda, e non serve una rotta per av
   const fav = await fetch(srv.baseURL + '/favicon.ico');
   assert.equal(fav.status, 404);
 });
+
+// ⚠️ Questo si legge dal FILE, non da `fetch('/login')`: l'helper e2e avvia il
+// server con INFRANET_DEV_NO_AUTH=1, e in quel caso `loginPage()` (auth.js) fa
+// redirect a '/' — una fetch tornerebbe 200 servendo l'APP, non il login. È il
+// tranello che mi ha fatto dire «il link non c'è» quando invece c'era.
+test('login: il link ai manuali punta alle Release (non a un file del repo)', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const html = fs.readFileSync(path.join(__dirname, '..', 'login.html'), 'utf8');
+  const a = html.match(/<a[^>]+href="([^"]*github[^"]*)"[^>]*data-i18n="manual"[^>]*>/);
+  assert.ok(a, 'manca il link al manuale nel piè di pagina del login');
+  assert.match(a[1], /\/releases\/latest$/,
+    'deve puntare alle Release: lì i PDF sono allegati come asset e seguono la versione');
+  assert.match(a[0], /target="_blank"/, 'si apre in una scheda nuova');
+  assert.match(a[0], /rel="noopener/, 'noopener: la pagina aperta non tocca questa');
+  for (const lang of ['manual: \'Manuale (IT/EN)\'', 'manual: \'Manual (IT/EN)\''])
+    assert.ok(html.includes(lang), `manca la voce di dizionario: ${lang}`);
+});
