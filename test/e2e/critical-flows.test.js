@@ -1276,6 +1276,73 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.overlayClosed, 'closeDiscovery chiude l\'overlay');
     });
 
+    await t.test('Scopri: colonne trascinabili — la larghezza si ricorda e la tabella scorre in orizzontale', async () => {
+      // La colonna Vendor tronca i nomi lunghi ("Zyxel Communic..."): l'utente la
+      // allarga. Qui si prova il giro completo — maniglie presenti, larghezza
+      // applicata dalla preferenza salvata, e scorrimento orizzontale quando la
+      // somma supera il contenitore. Il trascinamento vero (pointer) e' coperto
+      // dalla verifica manuale; qui conta che le REGOLE arrivino al DOM.
+      const r = await page.evaluate(() => {
+        try {
+          localStorage.setItem('infranet.discCols.v1', JSON.stringify({ 5: 420, 6: 300, 7: 320 }));
+          // ⚠️ La preparazione è IDEMPOTENTE e la preferenza si legge una volta per
+          // caricamento (giusto: a cambiarla è solo questo codice, che tiene le
+          // larghezze in memoria). Un test precedente ha già aperto la modale su
+          // questa pagina, quindi qui si azzera il marcatore per simulare
+          // un'apertura a freddo — è l'unico modo di provare il percorso
+          // «preferenza salvata → DOM» senza ricaricare e disturbare gli altri test.
+          const t0 = document.querySelector('#disc-results-table-wrap .disc-scan-table');
+          if (t0) delete t0.dataset.colResizeReady;
+          openDiscovery();   // prepara le maniglie e applica le larghezze salvate
+          window._discResults = [
+            { ip: '10.0.0.5', mac: 'AA:BB:CC:DD:EE:01', alive: true, vendor: 'Zyxel Communications Corporation' },
+          ];
+          _discRenderTable();
+          const wrap = document.getElementById('disc-results-table-wrap');
+          const table = wrap.querySelector('.disc-scan-table');
+          const grips = table.querySelectorAll('.col-resizer').length;
+          // Seconda apertura: le maniglie non devono raddoppiare. ⚠️ openDiscovery
+          // riporta la modale in fase SETUP e NASCONDE la tabella: senza il render
+          // successivo ogni misura di layout varrebbe 0.
+          openDiscovery();
+          const gripsAgain = table.querySelectorAll('.col-resizer').length;
+          // openDiscovery azzera anche i risultati: si ripopola prima di ridisegnare.
+          window._discResults = [
+            { ip: '10.0.0.5', mac: 'AA:BB:CC:DD:EE:01', alive: true, vendor: 'Zyxel Communications Corporation' },
+          ];
+          _discRenderTable();
+          const w = [...table.tHead.rows[0].cells].map(th => Math.round(th.getBoundingClientRect().width));
+          return {
+            ok: true, grips, gripsAgain, widths: w,
+            nameHasGrip: !!table.tHead.rows[0].cells[2].querySelector('.col-resizer'),
+            chkHasGrip: !!table.tHead.rows[0].cells[0].querySelector('.col-resizer'),
+            minWidth: table.style.minWidth,
+            wrapClient: wrap.clientWidth,
+            overflowX: getComputedStyle(wrap).overflowX,
+            scrollsX: wrap.scrollWidth > wrap.clientWidth + 1,
+            sticky: getComputedStyle(table.tHead.rows[0].cells[0]).position,
+            vendorTitle: !!document.querySelector('#disc-tbody .disc-vendor[title]'),
+          };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore preparando le colonne: ' + r.err);
+      assert.equal(r.grips, 5, 'una maniglia per colonna fissa (stato·IP·vendor·MAC·tipo)');
+      assert.equal(r.gripsAgain, 5, 'riaprire la modale NON raddoppia le maniglie (idempotente)');
+      assert.ok(!r.nameHasGrip, 'la colonna Nome resta ELASTICA: assorbe lo spazio, niente maniglia');
+      assert.ok(!r.chkHasGrip, 'la colonna della spunta non si ridimensiona');
+      assert.deepEqual(r.widths.slice(4), [420, 300, 320], 'le larghezze salvate arrivano al DOM');
+      // Lo scorrimento orizzontale NON è una proprietà a sé: nasce dalla larghezza
+      // minima della tabella (somma delle colonne + pavimento dell'elastica) contro
+      // un contenitore che sa scorrere. Si asserisce il MECCANISMO, non la larghezza
+      // della finestra di prova: 34+80+112+420+300+320 + 200 = 1466.
+      assert.equal(r.minWidth, '1466px', 'la larghezza minima somma le colonne correnti + il pavimento della elastica');
+      assert.match(r.overflowX, /auto|scroll/, 'il contenitore della tabella sa scorrere');
+      assert.ok(r.wrapClient >= 1466 || r.scrollsX,
+        `contenitore ${r.wrapClient}px più stretto del minimo ${r.minWidth}: doveva scorrere`);
+      assert.equal(r.sticky, 'sticky', 'l\'intestazione resta visibile mentre la lista scorre');
+      assert.ok(r.vendorTitle, 'la cella Vendor porta il testo intero nel title: leggibile anche senza allargare');
+    });
+
     await t.test('Import: SNMP attivo SOLO sui device che hanno risposto (snmpReachable); gli altri senza driver', async () => {
       const r = await page.evaluate(async () => {
         try {

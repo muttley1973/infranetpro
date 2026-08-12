@@ -10,6 +10,7 @@ import { _isLeafEndpoint, _autoLinkEndpoint, _recordDiscoveryObservation, _persi
 import { _discIndexNode, _discVendorFromMac, _discRememberVendor, _discIdentitySource, _discFindExistingDevice, _discBuildExistingIndexes, _discTouchNodeIdentity, _discMacIsNextHop, _loadDeepScanPref, _saveDeepScanPref, _discSanitizeDeviceClass, _discRememberClassHint, _discHasStrongIdentity, _discCanAutoRetype, _discInvalidateExistingIndexes, _discMarkIpMacConflict, _discConfidenceScore } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { _findFreeU } from './app-topology-crawl.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
 import { registerChangeActions, registerClickActions } from './app-delegation.js';   // ASSE B: checkbox "seleziona tutti" Scopri via data-change; bottone "Nuova ricerca" via data-act
+import { enableColumnResize } from './app-col-resize.js';   // colonne della tabella Scopri trascinabili + scorrimento orizzontale
 
 // Nome DISPLAY per la tabella Scopri e per il nome del nodo importato. L'utente legge la
 // RIGA (Nome -> Vendor -> Tipo, gia' in colonne separate) e fa l'abbinamento da solo:
@@ -250,6 +251,25 @@ function openDiscovery(prefillCidr){
     store._discRunning=false;
     store._discImporting=false;
     document.getElementById('disc-overlay').classList.add('open');
+    _discEnableColResize();
+}
+
+// Colonne trascinabili: si prepara all'APERTURA (idempotente) e non al boot,
+// così l'etichetta della maniglia esce nella lingua corrente anche se l'utente
+// l'ha cambiata dopo il caricamento. I default combaciano con 07-modals.css:
+// se cambiano lì vanno cambiati anche qui, altrimenti lo scorrimento orizzontale
+// parte alla larghezza sbagliata. La colonna 3 (Nome) è l'elastica, la 1 (spunta)
+// è troppo stretta perché valga la pena.
+function _discEnableColResize(){
+    enableColumnResize(document.querySelector('#disc-results-table-wrap .disc-scan-table'), {
+        varPrefix: 'disc-col',
+        defaults: { 1:34, 2:80, 4:112, 5:122, 6:140, 7:196 },
+        elastic: 3,
+        elasticFloor: 200,   // sotto i 200px la colonna Nome coi badge non si legge
+        skip: [1],
+        storageKey: 'infranet.discCols.v1',
+        label: _dt('disc.colResize','Trascina per allargare · doppio clic per rimettere la larghezza iniziale'),
+    });
 }
 
 function closeDiscovery(){
@@ -779,7 +799,7 @@ function _discRenderTable(){
           <td><span class="disc-st ${reach.cls}" data-tip="${escapeHTML(reach.title)}">${escapeHTML(reach.label)}</span></td>
           <td class="disc-host"><span class="disc-name">${escapeHTML(displayName)}</span><span class="disc-badges">${badges}</span></td>
           <td class="disc-ip">${escapeHTML(d.ip)}</td>
-          <td class="disc-vendor">${escapeHTML(_discVendorLabel(d))}</td>
+          <td class="disc-vendor" title="${escapeHTML(_discVendorLabel(d))}">${escapeHTML(_discVendorLabel(d))}</td>
           <td class="disc-mac">${escapeHTML(d.mac||'—')}</td>
           <td><select class="disc-type" data-idx="${i}" data-change="disc-type">${opts}</select> <span class="disc-dest" data-idx="${i}">${_discDestIcon(t)}</span></td>
         </tr>`;

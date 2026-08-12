@@ -370,12 +370,38 @@
            colonna Nome (3a, con i badge) prende lo spazio restante; il resto e' fisso. */
         .disc-scan-table { table-layout:fixed; }
         .disc-scan-table th, .disc-scan-table td { overflow:hidden; }
-        .disc-scan-table th:nth-child(1), .disc-scan-table td:nth-child(1) { width:34px; }   /* checkbox */
-        .disc-scan-table th:nth-child(2), .disc-scan-table td:nth-child(2) { width:80px; }   /* stato */
-        .disc-scan-table th:nth-child(4), .disc-scan-table td:nth-child(4) { width:112px; }  /* IP (fs-sm: ci sta anche .100) */
-        .disc-scan-table th:nth-child(5), .disc-scan-table td:nth-child(5) { width:122px; }  /* vendor */
-        .disc-scan-table th:nth-child(6), .disc-scan-table td:nth-child(6) { width:140px; }  /* MAC */
-        .disc-scan-table th:nth-child(7), .disc-scan-table td:nth-child(7) { width:196px; }  /* tipo (select + icona destinazione) */
+        /* Le larghezze passano da una VARIABILE per colonna: il default è quello di
+           sempre, e trascinare la maniglia riscrive solo la variabile (src/app-col-resize.js).
+           L'indice della variabile è lo stesso di nth-child, così CSS e JS parlano
+           della stessa colonna. La 3a (Nome) NON ha larghezza: è l'elastica, si
+           prende lo spazio che avanza e per questo non ha maniglia. */
+        .disc-scan-table th:nth-child(1), .disc-scan-table td:nth-child(1) { width:var(--disc-col-1, 34px); }   /* checkbox */
+        .disc-scan-table th:nth-child(2), .disc-scan-table td:nth-child(2) { width:var(--disc-col-2, 80px); }   /* stato */
+        .disc-scan-table th:nth-child(4), .disc-scan-table td:nth-child(4) { width:var(--disc-col-4, 112px); }  /* IP (fs-sm: ci sta anche .100) */
+        .disc-scan-table th:nth-child(5), .disc-scan-table td:nth-child(5) { width:var(--disc-col-5, 122px); }  /* vendor */
+        .disc-scan-table th:nth-child(6), .disc-scan-table td:nth-child(6) { width:var(--disc-col-6, 140px); }  /* MAC */
+        .disc-scan-table th:nth-child(7), .disc-scan-table td:nth-child(7) { width:var(--disc-col-7, 196px); }  /* tipo (select + icona destinazione) */
+        /* Intestazione ferma mentre la lista scorre: senza, appena si scende le
+           maniglie sparivano e non si capiva più quale colonna si stava allargando.
+           Sfondo pieno OBBLIGATORIO, altrimenti le righe si vedono in trasparenza. */
+        .disc-scan-table thead th { position:sticky; top:0; z-index:2; background:var(--panel-bg); }
+        /* Maniglia di ridimensionamento: striscia invisibile sul bordo destro della
+           th, che si accende al passaggio. `touch-action:none` serve al pointer
+           capture su touch, altrimenti il browser interpreta il drag come scroll. */
+        .disc-scan-table th.col-resizable { position:relative; }
+        .disc-scan-table .col-resizer {
+            position:absolute; top:0; right:0; width:8px; height:100%;
+            cursor:col-resize; touch-action:none; user-select:none;
+        }
+        .disc-scan-table .col-resizer::after {
+            content:''; position:absolute; top:15%; right:3px; width:2px; height:70%;
+            background:var(--panel-border); border-radius:1px; transition:background .12s ease;
+        }
+        .disc-scan-table .col-resizer:hover::after,
+        .disc-scan-table .col-resizer.dragging::after { background:var(--accent); }
+        /* Mentre si trascina il puntatore può uscire dalla maniglia: il cursore
+           resta quello del ridimensionamento su tutta la pagina. */
+        .disc-scan-table .col-resizer.dragging { cursor:col-resize; }
         /* Cella Tipo: select + icona destinazione (planimetria/rack) su UNA riga.
            Il select riserva ~28px per l'icona così non va a capo sotto il dropdown. */
         .disc-scan-table td:nth-child(7) { white-space:nowrap; }
