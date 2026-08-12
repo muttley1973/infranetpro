@@ -54,6 +54,12 @@ function _auditEnsureOverlay(){
 
 function _tA(key, fallback, vars){ return t(key, vars); }
 
+// Quante voci di giornale si disegnano in una volta. Non è un tetto sui DATI
+// (quello è AUDIT_CAP_DEFAULT, in lib/audit-log.js, ed è 10.000): è quanto ne
+// entra in una lista che resta scorrevole. Chi cerca più indietro usa il filtro
+// o il CSV.
+const _AUDIT_VIEW_MAX = 500;
+
 function _auditActLabel(action){
     if(ACTION_LABELS && ACTION_LABELS[action]) return t('audit.act.' + action);
     return auditActionLabel(action) || (action || '');
@@ -132,7 +138,15 @@ function _renderAuditList(){
     const rows = log.slice().reverse().filter(e => !q || _searchable(e).includes(q));
     if(!log.length){ box.innerHTML = `<div class="drift-empty">${escapeHTML(_tA('audit.empty','Nessuna modifica registrata. La storia parte da ora.'))}</div>`; return; }
     if(!rows.length){ box.innerHTML = `<div class="drift-empty">${escapeHTML(_tA('audit.noResults','Nessun risultato per il filtro.'))}</div>`; return; }
-    box.innerHTML = rows.map(e => {
+    // ⚠️ Il giornale arriva fino ad AUDIT_CAP_DEFAULT (10.000): disegnarlo tutto
+    // vorrebbe dire 10.000 righe in un solo innerHTML. Si mostra la finestra più
+    // recente e si dice quante ne restano — il filtro qui sopra continua a
+    // cercare su TUTTO il giornale, e il CSV lo esporta intero.
+    const shown = rows.slice(0, _AUDIT_VIEW_MAX);
+    const capped = rows.length > shown.length
+        ? `<div class="drift-empty">${escapeHTML(_tA('audit.capped','', { n: shown.length, tot: rows.length }))}</div>`
+        : '';
+    box.innerHTML = capped + shown.map(e => {
         let when = e.ts; try { when = new Date(e.ts).toLocaleString(locale); } catch(_){}
         const ic = _AUDIT_ICONS[e.action] || 'fa-circle';
         const tgt = e.target ? ` <b>«${escapeHTML(e.target)}»</b>` : '';

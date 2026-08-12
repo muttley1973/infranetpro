@@ -103,14 +103,17 @@ export function _clearDirty() {
 
 // ── Audit trail (N2): journal append-only "chi / quando / cosa" ──────
 // Registra solo eventi STRUTTURALI (device/cavi/VLAN/sync/doc), non ogni
-// micro-edit (per quello c'è l'undo). Append + cap a 1000; auditLog è
-// escluso dagli snapshot di undo (sopravvive a undo/redo).
+// micro-edit (per quello c'è l'undo). auditLog è escluso dagli snapshot di
+// undo (sopravvive a undo/redo).
+// ⚠️ Il tetto NON si scrive qui: lo decide AUDIT_CAP_DEFAULT in
+// lib/audit-log.js, ed è l'unico posto. Qui c'era un 1000 a mano, cioè una
+// seconda definizione dello stesso numero che vinceva sulla prima.
 export function logAudit(action, info){
     info = info || {};
     if(typeof appendAudit !== 'function') return;
     if(!Array.isArray(state.auditLog)) state.auditLog = [];
     const user = (typeof _currentUser === 'object' && _currentUser && _currentUser.username) ? _currentUser.username : 'sistema';
-    appendAudit(state.auditLog, { user, action, target: info.target, summary: info.summary }, 1000);
+    appendAudit(state.auditLog, { user, action, target: info.target, summary: info.summary });
     markDirty();
 }
 

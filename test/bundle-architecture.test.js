@@ -48,3 +48,22 @@ test('bundle: contiene davvero i moduli migrati (build non vuota)', () => {
   assert.ok(bundle.includes('expose'), 'il bundle deve contenere il ponte expose()');
   assert.ok(bundle.length > 5000, `bundle troppo piccolo (${bundle.length}B): build rotta?`);
 });
+
+// ── Nessun sorgente è BINARIO per git ────────────────────────────────
+// ⚠️ Successo davvero (2.8.2, lib/audit-log.js): un byte NUL scritto per sbaglio
+// dentro una stringa — al posto della sua sequenza di escape — rende il file
+// binario agli occhi di git. Il codice gira, i test passano, eslint tace: ma
+// `git diff` dice «Binary files differ», `grep` salta il file e una revisione
+// non può leggerlo. Si prende solo guardando i byte.
+test('⚠️ nessun sorgente contiene byte di controllo: git li tratterebbe da binari', () => {
+  const files = execFileSync('git', ['ls-files', '*.js', '*.json', '*.css', '*.html', '*.md'],
+    { cwd: ROOT, encoding: 'utf8' }).split('\n').map(s => s.trim()).filter(Boolean);
+  const bad = [];
+  for (const rel of files) {
+    let buf;
+    try { buf = fs.readFileSync(path.join(ROOT, rel)); } catch (_) { continue; }
+    const at = buf.indexOf(0);
+    if (at >= 0) bad.push(`${rel} (byte NUL a offset ${at})`);
+  }
+  assert.deepEqual(bad, [], 'usa la sequenza di escape, non il carattere:\n' + bad.join('\n'));
+});

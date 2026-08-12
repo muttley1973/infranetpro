@@ -5,7 +5,7 @@ const assert = require('node:assert');
 const {
   buildAuditEntry, appendAudit, auditActionLabel,
   formatAuditLine, filterAudit, auditToCsv,
-  foldAudit, stripAudit, mergeAudit,
+  foldAudit, stripAudit, mergeAudit, AUDIT_CAP_DEFAULT,
 } = require('../lib/audit-log.js');
 
 test('buildAuditEntry: default ts + user=sistema su campi mancanti', () => {
@@ -154,4 +154,32 @@ test('⚠️ il Salva fa confluire il giornale PRIMA di scrivere il progetto', (
 
 test('⚠️ l\'export non porta il giornale: contiene gli username di chi ci lavora', () => {
   assert.match(FORMAT, /delete out\.auditLog;/);
+});
+
+// ── Il tetto: un numero solo, in un posto solo ───────────────────────
+const HISTORY = fs.readFileSync(path.join(__dirname, '..', 'src', 'app-history.js'), 'utf8');
+const AUDIT_UI = fs.readFileSync(path.join(__dirname, '..', 'src', 'app-audit.js'), 'utf8');
+
+test('⚠️ il tetto è definito UNA volta: chi appende non porta il suo numero', () => {
+  // Il bug: qui c'era `appendAudit(..., 1000)`, cioè una seconda definizione
+  // dello stesso tetto — e vinceva lei, quindi alzarlo nella lib non faceva
+  // niente. Famiglia dei doppioni motore/renderer.
+  const call = HISTORY.match(/appendAudit\([^)]*\)/);
+  assert.ok(call, 'logAudit deve ancora appendere');
+  assert.doesNotMatch(call[0], /\d{3,}/, 'nessun tetto scritto a mano: lo decide AUDIT_CAP_DEFAULT');
+});
+
+test('il tetto vale 10.000 voci, e il fold ci si appoggia', () => {
+  assert.equal(AUDIT_CAP_DEFAULT, 10000);
+  const log = [];
+  appendAudit(log, { action: 'snmp-sync' });
+  assert.equal(log.length, 1, 'senza cap esplicito usa il default');
+});
+
+test('⚠️ la lista non disegna 10.000 righe: finestra + avviso di quante restano', () => {
+  assert.match(AUDIT_UI, /_AUDIT_VIEW_MAX\s*=\s*\d+/, 'la finestra di rendering è dichiarata');
+  assert.match(AUDIT_UI, /rows\.slice\(0, _AUDIT_VIEW_MAX\)/, 'si disegna solo la finestra');
+  assert.match(AUDIT_UI, /audit\.capped/, 'e si dice quante ne restano fuori');
+  const max = Number(AUDIT_UI.match(/_AUDIT_VIEW_MAX\s*=\s*(\d+)/)[1]);
+  assert.ok(max < AUDIT_CAP_DEFAULT, 'la finestra sta sotto il tetto dei dati, altrimenti non serve');
 });
