@@ -11,20 +11,32 @@ import { store } from "./store.js";
 import { getNodeDisplayName } from "./app.js";   // ciclo benigno: uso solo a runtime (dentro _collectKnownIps)
 import { normalizeMacAddress } from "./app-util.js";
 import { vmIps } from "../lib/vm-nics.js";   // IPv4 di tutte le vNIC (stesso import di app.js: esbuild deduplica)
+import { ensureIpam, vlanIpamView } from "../lib/ipam-model.js";   // l'autorita' sui prefissi: la subnet non e' piu' un campo della VLAN
 // Bare globals (no-undef OFF su src/): state - computeIpamUsage (lib/ipam.js) -
 // isLeaseStale (lib/dhcp-lease.js) - _parseIpv4Int/_parseCidrInfo/_ipInCidr (lib/cidr.js).
 
 export function _ensureIpamState(){
-    if(!state.ipam) state.ipam = { vlans:{} };
-    if(!state.ipam.vlans || typeof state.ipam.vlans !== 'object') state.ipam.vlans = {};
-    return state.ipam.vlans;
+    return ensureIpam(state).vlans;
 }
 
-export function _ipamEntry(vid, create=false){
+// Il RECORD per-VLAN: quel che e' davvero della VLAN e non del prefisso — il
+// legame manuale con l'interfaccia SVI (`gatewayNodeId`) e i metadati che l'import
+// DCIM legge dalla VLAN (nome, descrizione, stato, sito, tenant).
+// ⚠️ NON contiene la subnet: quella sta in `ipam.prefixes[]`. Chi vuole vedere
+// «subnet + gateway + DNS di questa VLAN» usa _vlanIpam(), che e' la VISTA.
+// Si chiamava _ipamEntry: rinominata di proposito, cosi' un lettore rimasto
+// indietro non trova un oggetto dalla forma giusta e dal contenuto sbagliato.
+export function _vlanRecord(vid, create=false){
     const vlans = _ensureIpamState();
     const key = String(vid);
     if(!vlans[key] && create) vlans[key] = {};
     return vlans[key] || null;
+}
+
+// Vista per-VLAN derivata dall'autorita': { subnet, gateway, dns } dal prefisso
+// principale + i campi per-VLAN veri. Ricalcolata a ogni chiamata, mai memorizzata.
+export function _vlanIpam(vid){
+    return vlanIpamView(state, vid);
 }
 
 // _parseIpv4Int, _parseCidrInfo, _ipInCidr sono ora in /lib/cidr.js
@@ -84,14 +96,16 @@ function _activeLeaseIps(){
     return out;
 }
 
-export function _ipamUsageForVlan(vid){
-    const entry = _ipamEntry(vid);
-    const gateway = String(entry?.gateway || '').trim();
+// Occupazione di UN prefisso. È questa la funzione vera: un prefisso ha un CIDR e
+// un gateway suoi, e una VLAN dual-stack ne ha due. _ipamUsageForVlan qui sotto
+// resta come scorciatoia per i lettori che sono per-VLAN per natura.
+export function _ipamUsageForPrefix(cidr, gateway){
     const known = _collectKnownIps();
+    const gw = String(gateway || '').trim();
     // Motore puro (opzione A: documentati + solo-DHCP = realtà sul filo).
     const u = computeIpamUsage({
-        subnet: entry?.subnet || '',
-        gateway,
+        subnet: String(cidr || ''),
+        gateway: gw,
         documentedIps: known.map(x => x.ip),
         leaseIps: _activeLeaseIps(),
         parseCidr: _parseCidrInfo,
@@ -100,9 +114,8 @@ export function _ipamUsageForVlan(vid){
     // Dettaglio documentati con label (per il campione mostrato nella card).
     const usedDetailed = u.cidr ? known.filter(x => _ipInCidr(x.ip, u.cidr)) : [];
     return {
-        hasData: !!(entry && Object.keys(entry).length),
         cidr: u.cidr,
-        gateway,
+        gateway: gw,
         gatewayOk: u.gatewayOk,
         usedCount: u.usedCount,
         used: usedDetailed,
@@ -117,6 +130,15 @@ export function _ipamUsageForVlan(vid){
         dhcpOnly: u.dhcpOnly,
         nextFree: u.nextFree,        // «prossimo IP libero» (suggerimento IPAM / Assistente AI)
     };
+}
+
+// L'occupazione del prefisso PRINCIPALE di una VLAN. Con un prefisso per VLAN —
+// cioè ogni progetto scritto fino alla 2.8.x — il risultato è identico a prima.
+export function _ipamUsageForVlan(vid){
+    const entry = _vlanIpam(vid);
+    const u = _ipamUsageForPrefix(entry?.subnet || '', entry?.gateway || '');
+    u.hasData = !!(entry && Object.keys(entry).length);
+    return u;
 }
 
 // Lease "solo DHCP" di una VLAN come righe stile drift.undocumented, per il flusso
@@ -150,7 +172,7 @@ function _dhcpUndocumentedForVlan(vid){
 }
 
 export function _vlanIpamSummary(vid){
-    const entry = _ipamEntry(vid);
+    const entry = _vlanIpam(vid);
     const usage = _ipamUsageForVlan(vid);
     if(!entry && !usage.usedCount) return '';
     const parts = [];
@@ -164,7 +186,8 @@ export function _vlanIpamSummary(vid){
     return parts.join(' · ');
 }
 
-// Superficie window (invariata): questi 8 erano nell expose() di app.js e ora
-// vivono qui. I consumatori bare-via-window (typeof-guard) li trovano identici.
-expose({ _ensureIpamState, _ipamEntry, _ipamUsageForVlan, _vlanIpamSummary,
-         _ipamMemoBegin, _ipamMemoEnd, _collectKnownIps, _dhcpUndocumentedForVlan });
+// Superficie window: questi erano nell expose() di app.js e ora vivono qui. I
+// consumatori bare-via-window (typeof-guard) li trovano identici — tranne
+// `_ipamEntry`, che NON c'è più: si chiama `_vlanRecord` e non contiene la subnet.
+expose({ _ensureIpamState, _vlanRecord, _vlanIpam, _ipamUsageForVlan, _ipamUsageForPrefix,
+         _vlanIpamSummary, _ipamMemoBegin, _ipamMemoEnd, _collectKnownIps, _dhcpUndocumentedForVlan });

@@ -19,6 +19,7 @@ import { _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte: bu
 import { closeReportMenu } from './app-auth.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { updateVlanIpam } from './app-vlan-autopoll.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { vmIps } from '../lib/vm-nics.js';   // lib pura importata ESM (come lib/ipv6.js): NON un globale su window
+import { ipamByVidView } from '../lib/ipam-model.js';   // vista per-VLAN derivata dall'autorità sui prefissi
 
 // Tipi che possono fare da gateway L3 (per il dropdown di scelta).
 const _L3_GATEWAY_TYPES = ['router', 'firewall', 'switch'];
@@ -61,7 +62,10 @@ function _l3BuildModel(withUsage, opts){
         const vid = +v;
         return { vid, name: store.state.vlanNames?.[vid] || '', color: vlanColors[v] || '' };
     });
-    const ipamByVid = (store.state.ipam && store.state.ipam.vlans) ? store.state.ipam.vlans : {};
+    // Vista derivata: `subnet`/`gateway`/`dns` dal prefisso principale della VLAN,
+    // `gatewayNodeId` dal record VLAN. Il report L3 è per-VLAN perché l'interfaccia
+    // SVI del router è una per VLAN — non una per prefisso.
+    const ipamByVid = ipamByVidView(store.state);
     // «IP del device» = campo manuale n.ip OPPURE l'host di integrazione (SNMP).
     // Definizione uniforme al resto dei motori (lib/api-shape.js, drift-snapshot,
     // _collectKnownIps): senza questo un device SNMP-only (ip in integration.host)

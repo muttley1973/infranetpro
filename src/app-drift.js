@@ -24,6 +24,7 @@ import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (e
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAutomationMenu, _updateAutoPollBadge } from './app-vlan-autopoll.js';   // popover Automazioni + badge del monitoraggio (ciclo benigno: solo a runtime)
 import { effAutoConfig, clampMonitorInterval } from '../lib/auto-monitor.js';   // config PURA del monitoraggio unificato (schema nuovo + migrazione legacy)
+import { ipamByVidView } from '../lib/ipam-model.js';   // vista per-VLAN derivata dai prefissi dichiarati
 import { ensureNodeRackVisible, focusNode, selectAndFocusNode } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { trace } from './app-pointer.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { reconcileMiscabling } from './app-autolink.js';   // Proof-State: miscablaggio per-porta (l.miscabled) dai neighbor cache
@@ -755,7 +756,7 @@ export function _driftNetworksSection(rep){
     // Helper CIDR LOCALI (niente bare-global → cricchetto A/B invariato).
     const _ipInt = ip => { const p = String(ip == null ? '' : ip).split('.'); if (p.length !== 4) return null; let v = 0; for (let i = 0; i < 4; i++) { const x = Number(p[i]); if (!Number.isInteger(x) || x < 0 || x > 255) return null; v = v * 256 + x; } return v >>> 0; };
     const _subInfo = c => { const mm = /^(\d{1,3}(?:\.\d{1,3}){3})\s*\/\s*(\d{1,2})$/.exec(String(c == null ? '' : c)); if (!mm) return null; const b = _ipInt(mm[1]); const p = Number(mm[2]); if (b == null || p < 0 || p > 32) return null; const mask = p === 0 ? 0 : ((0xffffffff << (32 - p)) >>> 0); return { network: (b & mask) >>> 0, mask, prefix: p }; };
-    const _ipamV = (store.state.ipam && store.state.ipam.vlans) ? store.state.ipam.vlans : {};
+    const _ipamV = ipamByVidView(store.state);
     const _declSubs = []; const _seenSub = new Set();
     for (const k of Object.keys(_ipamV)) { const info = _subInfo((_ipamV[k] || {}).subnet); if (!info) continue; const key = info.network + '/' + info.prefix; if (_seenSub.has(key)) continue; _seenSub.add(key); _declSubs.push(info); }
     _declSubs.sort((a, b) => b.prefix - a.prefix);   // più specifica prima

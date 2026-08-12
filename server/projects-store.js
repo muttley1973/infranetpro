@@ -6,6 +6,7 @@
 const fs   = require('fs');
 const path = require('path');
 const { PROJECT_STATE_SCHEMA_VERSION } = require('../lib/project-format.js');
+const { migrateIpam } = require('../lib/ipam-model.js');
 
 // La cartella projects/ sta nella root del progetto (server/ è un livello sotto).
 // Override via INFRANET_PROJECTS_DIR: serve a far girare il server su uno store
@@ -114,6 +115,12 @@ function extractBgAsset(id, state, assetsDir, prevMeta) {
 // round-trip è pulito (il client non vede mai bgImageAsset/bgImageHash).
 function reattachBgAsset(proj, assetsDir) {
   const st = proj && proj.state;
+  // Schema 2: la subnet esce dalla VLAN e diventa un prefisso. La migrazione gira
+  // anche QUI, non solo nel client: la REST API, l'inventario Ansible, il PDF e
+  // l'assistente leggono il progetto dal disco senza passare da _migrateState, e
+  // un file scritto in formato 1 sarebbe arrivato loro senza nessuna subnet.
+  // Solo in memoria: il file cambia quando il client salva. Idempotente.
+  if (st) migrateIpam(st);
   if (st && st.bgImageAsset) {
     try {
       const buf  = fs.readFileSync(path.join(assetsDir, st.bgImageAsset));

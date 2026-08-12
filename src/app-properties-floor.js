@@ -23,7 +23,7 @@ import { _isVoiceVlan, _siteNativeVlan,
          clearAllVlans, toggleVlanIpam, toggleGuestVlan, toggleMgmtVlan, toggleSiteNativeVlan,
          toggleVoiceVlan, _openVoiceAssignDialog, deleteVlanColor, addVlanColor,
          updateVlanName, updateVlanColor, updateVlanIpam, updateUiColor } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni vlan/snmp + azioni card VLAN (ex win.*)
-import { _enableManualValueInProps, _ipamUsageForVlan, _ipamEntry, _vlanIpamSummary, _clearPropsTab, toggleAbbrevNames } from './app.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
+import { _enableManualValueInProps, _ipamUsageForVlan, _vlanIpam, _vlanIpamSummary, _clearPropsTab, toggleAbbrevNames } from './app.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
 import { toggleBgImageLock, scaleBgImage, scaleBgImageTo, fitBgImageToCanvas, clearMap, toggleFloorGrid, setBgImageOpacity } from './app-search-zoom-rack.js';   // ASSE B: azioni immagine di sfondo / griglia (ex on* inline)
 import { openAdoptFromLeases } from './app-drift-adopt.js';   // ASSE B: adotta lease non documentati (ex onclick inline)
 import { _l3Compute, _l3GatewayBindingHtml } from './app-l3.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
@@ -136,7 +136,7 @@ export function _renderFloorProps(panel){
             const _isNative = _siteNat === vid;
             const vname=escapeHTML(state.vlanNames?.[vid]||'');
             const usage=_ipamUsageForVlan(vid);
-            const ipam=_ipamEntry(vid);
+            const ipam=_vlanIpam(vid);
             const ipamOpen=store._vlanIpamOpen.has(vid);
             const ipamSummary=escapeHTML(_vlanIpamSummary(vid));
             const ipamWarn=(!usage.cidr && ipam?.subnet) || (usage.cidr && !usage.gatewayOk);

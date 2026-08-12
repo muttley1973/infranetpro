@@ -1,8 +1,9 @@
 import { win, expose } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, normalizeMacAddress } from './app-util.js';
-import { markDirty, pushHistory, renderCables, _showToast, _nextNodeId, _ipamEntry } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { markDirty, pushHistory, renderCables, _showToast, _nextNodeId, _vlanIpam } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { _ensureVlanColor, updateVlanIpam } from './app-vlan-autopoll.js';   // associazione VLAN↔subnet dallo scan (declare-first)
+import { prefixesOf } from '../lib/ipam-model.js';   // le VLAN note includono quelle citate da un prefisso
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName, typeShort } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { nodeLabelParts } from '../lib/node-label.js';   // etichetta leggibile quando il nome sarebbe l'IP (che ha già la sua colonna)
@@ -141,10 +142,11 @@ function _discKnownVlans(){
     for(const k of Object.keys(st.vlanColors || {})) ids.add(+k);
     for(const k of Object.keys(st.vlanNames || {})) ids.add(+k);
     for(const k of Object.keys((st.ipam && st.ipam.vlans) || {})) ids.add(+k);
+    for(const p of prefixesOf(st)) if(p.vlan != null) ids.add(+p.vlan);   // una VLAN esiste anche se ha solo un prefisso
     return [...ids].filter(v => v >= 1 && v <= 4094).sort((a,b)=>a-b).map(vid => ({
         vid,
         name: (st.vlanNames && st.vlanNames[vid]) || '',
-        subnet: (typeof _ipamEntry === 'function' && (_ipamEntry(vid) || {}).subnet) || '',
+        subnet: (typeof _vlanIpam === 'function' && (_vlanIpam(vid) || {}).subnet) || '',
     }));
 }
 
@@ -225,7 +227,7 @@ function _declareScanSubnetToVlan(){
     const raw = (document.getElementById('disc-subnet') || {}).value || '';
     const cidr = (typeof subnetInputToCidr === 'function') ? subnetInputToCidr(raw) : '';
     if(!cidr) return;   // niente subnet parsabile da dichiarare
-    const existing = (typeof _ipamEntry === 'function' && (_ipamEntry(vid) || {}).subnet) || '';
+    const existing = (typeof _vlanIpam === 'function' && (_vlanIpam(vid) || {}).subnet) || '';
     if(existing === cidr) return;   // già dichiarata identica → nulla da fare
     if(existing && existing !== cidr){
         _showToast(_dt('disc.vlanKept', `VLAN ${vid}: subnet ${existing} già dichiarata (non modificata)`, { vid, subnet: existing }), 'warn', 4500);

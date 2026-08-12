@@ -22,6 +22,7 @@ import { switchRightTab, nodeById } from './app.js';
 import { openUserManager, umSwitchTab } from './app-auth.js';
 import { registerClickActions } from './app-delegation.js';
 import { TYPES } from './app-types.js';   // catalogo tipi per computeSubbarStats (snmpDown)
+import { ipamByVidView } from '../lib/ipam-model.js';   // vista per-VLAN derivata dai prefissi dichiarati
 
 // Apre la tab «Assistente» (pulsante toolbar + shortcut «A»). Se il pannello
 // destro è collassato lo ri-espande PRIMA dello switch, altrimenti l'utente non
@@ -202,7 +203,7 @@ function _aiCollectLiveFacts(){
         // da state.ipam.vlans (NON da un array "vlans"). Le occupazioni le calcola il
         // motore puro via _ipamUsageForVlan (global bare). «InfraNet calcola, l'AI racconta».
         const st = store.state || {};
-        const ipamVlans = (st.ipam && st.ipam.vlans) ? st.ipam.vlans : {};
+        const ipamVlans = ipamByVidView(st);
         const vids = new Set();
         for(const k of Object.keys(st.vlanColors || {})) vids.add(+k);
         for(const k of Object.keys(st.vlanNames || {})) vids.add(+k);

@@ -16,7 +16,9 @@ function projWithSecrets() {
     id: 7, name: 'Sede', updated_at: '2026-06-29',
     state: {
       vlanNames: { 20: 'Uffici' },
-      ipam: { vlans: { 20: { subnet: '10.0.20.0/24', gateway: '10.0.20.1', dns: '10.0.20.1' } } },
+      // Schema 2: prefissi di primo livello (il progetto arriva già migrato dal
+      // projects-store, che è l'unica porta d'ingresso lato server).
+      ipam: { vlans: {}, prefixes: [{ cidr: '10.0.20.0/24', vlan: 20, gateway: '10.0.20.1', dns: '10.0.20.1' }] },
       racks: [{ id: 'r1', name: 'Rack 1', sizeU: 42 }],
       nodes: [{
         id: 'n1', type: 'switch', name: 'SW-Core', ip: '10.0.20.2', mac: 'aa:bb:cc:dd:ee:ff',
@@ -103,7 +105,7 @@ function projWithTopo() {
     id: 9, name: 'Topo',
     state: {
       vlanNames: { 20: 'Uffici' },
-      ipam: { vlans: { 20: { subnet: '10.0.20.0/24', gateway: '10.0.20.1' } } },
+      ipam: { vlans: {}, prefixes: [{ cidr: '10.0.20.0/24', vlan: 20, gateway: '10.0.20.1' }] },
       racks: [],
       nodes: [
         { id: 'sw1', type: 'switch', name: 'SW-Core', ip: '10.0.20.2', snmpStatus: 'ok',
@@ -190,7 +192,7 @@ function projWithWifi() {
     id: 11, name: 'Wifi',
     state: {
       vlanNames: { 20: 'Dati', 40: 'Guest' },
-      ipam: { vlans: { 20: { subnet: '10.40.20.0/24' } } },
+      ipam: { vlans: {}, prefixes: [{ cidr: '10.40.20.0/24', vlan: 20 }] },
       racks: [],
       nodes: [{
         id: 'ap1', type: 'ap', name: 'AP-Sala', ip: '10.40.10.20',
@@ -231,7 +233,7 @@ function projWithCaps() {
     id: 12, name: 'Caps',
     state: {
       vlanNames: { 20: 'Dati' },
-      ipam: { vlans: { 20: { subnet: '10.0.20.0/24', gateway: '10.0.20.1' } } },
+      ipam: { vlans: {}, prefixes: [{ cidr: '10.0.20.0/24', vlan: 20, gateway: '10.0.20.1' }] },
       racks: [],
       lagGroups: { g1: 'Port-channel1' },
       nodes: [

@@ -17,10 +17,13 @@ function sampleProject() {
     updated_at: '2026-06-27 10:00:00',
     state: {
       vlanNames: { 10: 'Management', 20: 'Dati' },
-      ipam: { vlans: {
-        10: { subnet: '10.20.10.0/24', gateway: '10.20.10.1', dns: '10.20.10.1' },
-        20: { subnet: '10.20.20.0/24', gateway: '10.20.20.1', dns: '10.20.10.1' },
-      } },
+      // Schema 2: la subnet e` un prefisso, la VLAN un riferimento. Un progetto in
+      // formato 1 arriva qui gia` migrato — lo fa server/projects-store.js al load
+      // (v. il test in coda), perche` la REST API non passa da _migrateState.
+      ipam: { vlans: {}, prefixes: [
+        { cidr: '10.20.10.0/24', vlan: 10, gateway: '10.20.10.1', dns: '10.20.10.1' },
+        { cidr: '10.20.20.0/24', vlan: 20, gateway: '10.20.20.1', dns: '10.20.10.1' },
+      ] },
       racks: [{ id: 'rk-core', name: 'CED · Rack Core', sizeU: 42, x: 1, y: 2 }],
       nodes: [
         { id: 'sw1', type: 'switch', name: 'CORE-SW-1', brand: 'Cisco', model: 'C9300-48P', rackId: 'rk-core', rackU: 42, sizeU: 1, ports: 48,
@@ -305,4 +308,25 @@ test('nodeToDevice: ip6 e\' un campo DISTINTO (non finisce in ip; ansible resta 
   assert.equal(d.ip6, 'fe80::0211:22ff:fe33:4455', 'ip6 esposto come campo a se\'');
   const d2 = nodeToDevice({ id: 'x', type: 'pc', name: 'PC', ip: '1.2.3.4' }, {});
   assert.equal(d2.ip6, null, 'ip6 assente -> null');
+});
+
+// ── Formato 1 → 2: il server migra al load, non solo il client ───────────────
+// La REST API, l'inventario Ansible, il PDF e l'assistente leggono il progetto
+// dal disco senza passare da _migrateState (che vive nel bundle del browser). Se
+// la migrazione fosse solo lato client, ogni progetto salvato prima di questo
+// cambiamento sarebbe arrivato all'API senza NESSUNA subnet, e la VLAN derivata
+// da IP↔subnet sarebbe diventata null su tutta la flotta.
+test('un progetto in formato 1 migrato da` lo stesso inventario di uno in formato 2', () => {
+  const { migrateIpam } = require('../lib/ipam-model.js');
+  const legacy = sampleProject();
+  legacy.state.ipam = { vlans: {
+    10: { subnet: '10.20.10.0/24', gateway: '10.20.10.1', dns: '10.20.10.1' },
+    20: { subnet: '10.20.20.0/24', gateway: '10.20.20.1', dns: '10.20.10.1' },
+  } };
+  migrateIpam(legacy.state);
+  assert.deepEqual(toAnsibleInventory(legacy), toAnsibleInventory(sampleProject()));
+  // e senza migrazione la VLAN derivata sparirebbe: e` quello che il gate deve vedere
+  const raw = sampleProject();
+  raw.state.ipam = { vlans: { 10: { subnet: '10.20.10.0/24' } } };
+  assert.equal(projectToDevices(raw).find(d => d.id === 'sw1').vlan, null);
 });

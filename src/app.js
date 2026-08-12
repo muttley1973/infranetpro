@@ -6,6 +6,7 @@ import { win, projectFormat, expose, t, mergeLeaseSources } from './_bridge.js';
 // comunque su window (UMD) per eventuali consumatori classic.
 import { canonicalizeIpv6 } from '../lib/ipv6.js';
 import { nodeIdOfPort } from '../lib/port-id.js';
+import { migrateIpam } from '../lib/ipam-model.js';   // la subnet esce dalla VLAN e diventa un prefisso: migrazione idempotente al load
 import { migrateVmNics, VM_FLAT_NET_FIELDS, vmIps } from '../lib/vm-nics.js';   // migrazione vm.ip/mac/vlan → vm.nics[]; vmIps = IPv4 di tutte le vNIC
 import { normalizePduOutletCount, normalizePduManagementMode, normalizePduPortCount, pduManagementPortCount } from '../lib/pdu-layout.js';
 import { store, resetProjectRuntime } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
@@ -543,6 +544,12 @@ export function _migrateState(s) {
     if (!s.vlanNames)     s.vlanNames = {};
     if (!s.ipam) s.ipam = { vlans:{} };
     if (!s.ipam.vlans || typeof s.ipam.vlans !== 'object') s.ipam.vlans = {};
+    // schemaVersion 2: la subnet non e' piu' un campo della VLAN. `subnet`/`gateway`/
+    // `dns` escono da ipam.vlans[<vid>] e diventano righe di ipam.prefixes[], dove la
+    // VLAN e' un riferimento facoltativo — cosi' una rete senza VLAN esiste e una VLAN
+    // dual-stack tiene tutti e due i prefissi. Idempotente: rieseguirla non fa nulla.
+    // `ipam.vlans` RESTA: ci vivono il binding manuale all'SVI e i metadati DCIM.
+    migrateIpam(s);
     if (!s.bgImageScale)       s.bgImageScale  = 1;
     if (s.bgImageLocked === undefined) s.bgImageLocked = false;
     if (!s.autoPoll) s.autoPoll = { enabled:false, interval:5 };
@@ -1309,7 +1316,7 @@ export function getNodeDisplayName(n) {
 
 // IPAM estratto in ./app-ipam.js (split app.js #1). Re-export per i consumatori
 // che importano da ./app.js (app-vlan-autopoll, app-discovery, app-properties-floor, app-l3):
-export { _ensureIpamState, _ipamEntry, _ipamUsageForVlan, _vlanIpamSummary } from "./app-ipam.js";
+export { _ensureIpamState, _vlanRecord, _vlanIpam, _ipamUsageForVlan, _ipamUsageForPrefix, _vlanIpamSummary } from "./app-ipam.js";
 // Search, zoom, rack management e palette estratti in lib/app-search-zoom-rack.js
 
 // Render core (renderAll/renderScope/renderFloor/cable paths): lib/app-render-core.js (R3)

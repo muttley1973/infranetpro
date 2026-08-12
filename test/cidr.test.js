@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { _parseIpv4Int, _parseCidrInfo, _ipInCidr, _intToIpv4, subnetInputToCidr } = require('../lib/cidr.js');
+const { _parseIpv4Int, _parseCidrInfo, _ipInCidr, _cidrsOverlap, _intToIpv4, subnetInputToCidr } = require('../lib/cidr.js');
 
 test('_parseIpv4Int: parsing e validazione ottetti', () => {
   assert.equal(_parseIpv4Int('0.0.0.0'), 0);
@@ -134,6 +134,29 @@ test('_ipInCidr: IPv6 e famiglie che non si mescolano', () => {
   // v4 dentro un prefisso v6 e viceversa: sempre false, mai un match casuale
   assert.equal(_ipInCidr('192.168.10.1', c64), false);
   assert.equal(_ipInCidr('2001:db8:0:14::1', _parseCidrInfo('192.168.10.0/24')), false);
+});
+
+test('_cidrsOverlap: intersezione e contenimento, mai fra famiglie diverse', () => {
+  const C = _parseCidrInfo;
+  // stessa rete
+  assert.equal(_cidrsOverlap(C('192.168.10.0/24'), C('192.168.10.0/24')), true);
+  // contenimento in tutte e due le direzioni (l'ordine non conta)
+  assert.equal(_cidrsOverlap(C('192.168.10.0/24'), C('192.168.10.128/25')), true);
+  assert.equal(_cidrsOverlap(C('192.168.10.128/25'), C('192.168.10.0/24')), true);
+  assert.equal(_cidrsOverlap(C('10.0.0.0/8'), C('10.20.30.0/24')), true);
+  // adiacenti ma disgiunte
+  assert.equal(_cidrsOverlap(C('192.168.10.0/25'), C('192.168.10.128/25')), false);
+  assert.equal(_cidrsOverlap(C('192.168.10.0/24'), C('192.168.11.0/24')), false);
+
+  // IPv6: stessa matematica
+  assert.equal(_cidrsOverlap(C('2001:db8::/32'), C('2001:db8:0:14::/64')), true);
+  assert.equal(_cidrsOverlap(C('2001:db8:0:14::/64'), C('2001:db8:0:15::/64')), false);
+
+  // ⚠️ Famiglie diverse: un /24 IPv4 e un /64 IPv6 sulla stessa VLAN sono
+  // dual-stack, NON un conflitto di indirizzamento.
+  assert.equal(_cidrsOverlap(C('192.168.10.0/24'), C('2001:db8:0:14::/64')), false);
+  assert.equal(_cidrsOverlap(null, C('10.0.0.0/8')), false);
+  assert.equal(_cidrsOverlap(C('10.0.0.0/8'), null), false);
 });
 
 test('subnetInputToCidr: IPv6 -> prefisso canonico da dichiarare', () => {

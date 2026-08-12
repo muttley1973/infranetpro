@@ -8,7 +8,8 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, normalizeNumber } from './app-util.js';
-import { nodeById, markDirty, getNodeByPortId, getPortNodeId, pushHistory, renderCables, _showToast, _promoteLinkToManual, _ipamEntry, _ensureIpamState } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, markDirty, getNodeByPortId, getPortNodeId, pushHistory, renderCables, _showToast, _promoteLinkToManual, _vlanRecord, _ensureIpamState } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { primaryPrefixForVlan, upsertPrefix, removePrefix, prefixKey, migrateIpam, prefixesForVlan, prefixesWithoutVlan } from '../lib/ipam-model.js';   // la subnet è un prefisso, non un campo della VLAN
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, _ensureNodeSpec } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
@@ -532,13 +533,48 @@ function toggleVlanIpam(v){
     else store._vlanIpamOpen.add(vid);
     renderProps();
 }
+// Scrive un campo IPAM di una VLAN. `subnet`/`gateway`/`dns` sono del PREFISSO e
+// finiscono in ipam.prefixes[]; `gatewayNodeId` e i metadati DCIM sono della VLAN e
+// restano nel suo record. Con una sola subnet per VLAN — ogni progetto scritto fino
+// alla 2.8.x — quello che si vede dopo la scrittura è identico a prima.
 export function updateVlanIpam(v, field, value){
     const vid = +v;
-    const entry = _ipamEntry(vid, true);
     const val = String(value||'').trim();
-    if(val) entry[field] = val;
-    else delete entry[field];
-    if(!Object.keys(entry).length) delete _ensureIpamState()[String(vid)];
+    const st = store.state;
+    if(field === 'subnet'){
+        const prev = primaryPrefixForVlan(st, vid);
+        if(!val){
+            if(prev) removePrefix(st, prev.cidr);
+        } else if(prev && prefixKey(prev.cidr) !== prefixKey(val)){
+            // Rinomina: la riga porta con sé gateway, DNS e quel che è arrivato dal
+            // DCIM. Cambiare il CIDR non è cancellare la rete e rifarla.
+            const moved = Object.assign({}, prev, { cidr: val });
+            removePrefix(st, prev.cidr);
+            upsertPrefix(st, moved);
+        } else {
+            upsertPrefix(st, { cidr: val, vlan: vid, source: (prev && prev.source) || 'manual' });
+        }
+        // Un gateway o un DNS dichiarati quando la subnet non c'era ancora sono
+        // rimasti sul record della VLAN: ora hanno un prefisso a cui attaccarsi.
+        // Li sposta la migrazione, che è idempotente — una definizione sola.
+        migrateIpam(st);
+    } else if(field === 'gateway' || field === 'dns'){
+        const row = primaryPrefixForVlan(st, vid);
+        if(row){
+            upsertPrefix(st, { cidr: row.cidr, [field]: val });
+        } else {
+            // Nessuna subnet dichiarata: non esiste un prefisso a cui appartenere.
+            // Il valore resta sul record della VLAN finché la subnet non arriva.
+            const entry = _vlanRecord(vid, true);
+            if(val) entry[field] = val; else delete entry[field];
+            if(!Object.keys(entry).length) delete _ensureIpamState()[String(vid)];
+        }
+    } else {
+        const entry = _vlanRecord(vid, true);
+        if(val) entry[field] = val;
+        else delete entry[field];
+        if(!Object.keys(entry).length) delete _ensureIpamState()[String(vid)];
+    }
     markDirty();
     renderProps();
 }
@@ -547,6 +583,10 @@ function deleteVlanColor(v){
     delete store.state.vlanColors[v];
     if(store.state.vlanNames) delete store.state.vlanNames[v];
     if(store.state.ipam?.vlans) delete store.state.ipam.vlans[String(v)];
+    // Cancellare una VLAN cancellava anche la sua subnet: ora la subnet è un
+    // prefisso a parte, quindi va tolta esplicitamente o sopravvivrebbe a una
+    // VLAN che non esiste più. Comportamento identico a prima.
+    for(const p of prefixesForVlan(store.state, +v)) removePrefix(store.state, p.cidr);
     store._vlanIpamOpen.delete(+v);
     if(store._filterVlan===+v) setVlanFilter(null);
     renderAll(); markDirty();
@@ -558,7 +598,9 @@ function clearAllVlans(){
     pushHistory();
     store.state.vlanColors = {};
     store.state.vlanNames  = {};
-    store.state.ipam = { vlans:{} };
+    // Le reti SENZA VLAN sopravvivono: «togli tutte le VLAN» non è «togli tutte le
+    // reti», e una /30 punto-punto non ha mai avuto una VLAN da rimuovere.
+    store.state.ipam = { vlans:{}, prefixes: prefixesWithoutVlan(store.state) };
     store._vlanIpamOpen.clear();
     if(store._filterVlan && store._filterVlan !== 1) setVlanFilter(null);
     renderAll(); markDirty();

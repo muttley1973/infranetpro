@@ -1350,7 +1350,9 @@ function _buildPdfReportData() {
 
         const totalAccess = accessGroups.reduce((s, g) => s + g.ports.length, 0);
         // IPAM (da tabella VLAN): range IP (subnet), gateway di default, DNS.
-        const ipam = (state.ipam?.vlans?.[vid] || state.ipam?.vlans?.[v]) || {};
+        // Vista derivata dai prefissi (lib/ipam-model.js, sul bundle e quindi su
+        // window): la subnet non è più un campo della VLAN.
+        const ipam = vlanIpamView(state, vid) || {};
         return { id: v, name: state.vlanNames?.[v] || '', color: state.vlanColors[vid],
                  subnet: String(ipam.subnet || '').trim(),
                  gateway: String(ipam.gateway || '').trim(),

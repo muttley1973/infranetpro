@@ -32,10 +32,9 @@ test('migrateIpam: la subnet esce dalla VLAN e diventa un prefisso', () => {
   assert.equal(p10.gateway, '192.168.10.1');
   assert.equal(p10.dns, '1.1.1.1');
 
-  // subnet/gateway/dns spariscono dalla VLAN...
-  assert.equal(s.ipam.vlans['10'].subnet, undefined);
-  assert.equal(s.ipam.vlans['10'].gateway, undefined);
-  assert.equal(s.ipam.vlans['10'].dns, undefined);
+  // La VLAN 10 conteneva SOLO subnet/gateway/dns: svuotata, la voce sparisce —
+  // la VLAN resta viva nella palette e nel prefisso che la cita.
+  assert.equal(s.ipam.vlans['10'], undefined);
   // ...ma cio` che e` davvero PER-VLAN resta dov'e`. `ipam.vlans` non e` un
   // contenitore di sole subnet: ci vivono il legame con l'SVI e i metadati DCIM.
   assert.equal(s.ipam.vlans['20'].gatewayNodeId, 'rt1');
@@ -60,6 +59,13 @@ test('migrateIpam: gateway dichiarato senza subnet NON viene distrutto', () => {
   assert.equal(s.ipam.vlans['40'].gateway, '10.0.40.1');
   assert.equal(s.ipam.vlans['40'].dns, '9.9.9.9');
   assert.equal(prefixesOf(s).length, 0);
+
+  // ...e quando la subnet arriva, l'orfano entra nel prefisso.
+  upsertPrefix(s, { cidr: '10.0.40.0/24', vlan: 40 });
+  migrateIpam(s);
+  assert.equal(findPrefix(s, '10.0.40.0/24').gateway, '10.0.40.1');
+  assert.equal(findPrefix(s, '10.0.40.0/24').dns, '9.9.9.9');
+  assert.equal(s.ipam.vlans['40'], undefined);
 });
 
 test('migrateIpam: idempotente — rieseguirla non cambia nulla', () => {

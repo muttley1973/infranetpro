@@ -20,6 +20,7 @@ import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName
 import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: voce menu Report + (coda) pannello wireless via event delegation
 import { propagateVlans, _ensureVlanColor, _getLinkTrunk } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { _parseCidrInfo, _ipInCidr } from '../lib/cidr.js';   // lib pura ESM (no win.*): IP→VLAN dalla subnet dichiarata, per la coerenza IP/SSID
+import { prefixesOf } from '../lib/ipam-model.js';   // le subnet dichiarate stanno nei prefissi
 import { renderProps, _propsSectionIsOpen, _buildPropsHeader } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
@@ -568,13 +569,19 @@ function _buildWifiVlanInput(){
     // DICHIARATA contiene il suo IP. Se divergono → incoerenza (o l'SSID o l'IP è
     // sbagliato: un client wireless prende la VLAN dall'SSID). La vecchia issue
     // "vlan-not-distributed" non serve più (col picker la VLAN deriva dal BSS).
+    // Tutti i prefissi dichiarati, non uno per VLAN: vince il più specifico, come
+    // in una tabella di routing.
     const vidx = [];
-    const vlanMap = (state.ipam && state.ipam.vlans) || {};
-    for(const vid in vlanMap){
-        const info = _parseCidrInfo(vlanMap[vid] && vlanMap[vid].subnet);
-        if(info) vidx.push({ vid: parseInt(vid, 10), info });
+    for(const p of prefixesOf(state)){
+        if(p.vlan == null) continue;
+        const info = _parseCidrInfo(p.cidr);
+        if(info) vidx.push({ vid: +p.vlan, info });
     }
-    const _ipVlan = ip => { for(const e of vidx) if(_ipInCidr(ip, e.info)) return e.vid; return null; };
+    const _ipVlan = ip => {
+        let best = null, bestLen = -1;
+        for(const e of vidx){ if(_ipInCidr(ip, e.info) && e.info.prefix > bestLen){ best = e.vid; bestLen = e.info.prefix; } }
+        return best;
+    };
     for(const l of (state.links || [])){
         if(!l || !l.wireless) continue;
         const nA = nodeById(getPortNodeId(l.src)), nB = nodeById(getPortNodeId(l.dst));
