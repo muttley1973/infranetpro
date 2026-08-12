@@ -1,5 +1,19 @@
 # Changelog
 
+## [Unreleased]
+
+**The subnet stops being a field of the VLAN.** A network is now a thing in its own right, and the VLAN it belongs to is optional — the shape every IPAM of reference uses. Project format goes to schema 2; opening a project migrates it in place, and nothing moves on screen for a project that has one subnet per VLAN.
+
+### Added
+- **A VLAN can carry more than one network.** Dual-stack works: an IPv4 prefix and an IPv6 prefix on the same VLAN, each with its own gateway, because in reality those are two different gateways.
+- **Networks with no VLAN.** Point-to-point links, transit networks, out-of-band management — real addresses that no VLAN describes. They get their own section and a reduced card: no colour, and none of the guest / management / native / voice switches, which are layer-2 semantics and have nothing to describe there.
+- **IPv6 in the CIDR helpers.** Discovery has measured IPv6 since 2.5; now it can be declared too. A bare IPv6 normalises to its /64, the twin of the existing bare-IPv4-to-its-/24 rule. There is no capacity bar for an IPv6 prefix — 2^64 addresses is not a percentage — so occupancy counts the addresses actually seen.
+- **`prefixes` in the REST inventory** (`/api/v1/projects/:id`): every declared network with its VLAN (`null` when it has none), name, gateway, DNS and provenance. `vlans[].subnet` keeps its shape and its meaning of "the VLAN's IPv4 prefix".
+
+### Fixed
+- **The DCIM import stops throwing prefixes away.** It used to copy each CIDR into a single per-VLAN field: on a real NetBox the 51 prefixes out of 90 that carry no VLAN never reached the app, and a VLAN with two prefixes kept whichever came last — silently, with no line in the decision list. Both now come in, and the preview says how many arrived without a VLAN and which VLANs carry more than one.
+- **Overlapping-subnet detection works on IPv6** and never reports two address families as a conflict: a /24 and a /64 on the same VLAN are dual-stack.
+
 ## [2.8.2] — 2026-08-12
 
 ### Added

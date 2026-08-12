@@ -330,3 +330,30 @@ test('un progetto in formato 1 migrato da` lo stesso inventario di uno in format
   raw.state.ipam = { vlans: { 10: { subnet: '10.20.10.0/24' } } };
   assert.equal(projectToDevices(raw).find(d => d.id === 'sw1').vlan, null);
 });
+
+test('projectToInventory: `prefixes` porta TUTTE le reti, anche quelle senza VLAN', () => {
+  // `vlans[].subnet` e` il prefisso principale e da solo mente due volte: di una
+  // VLAN dual-stack mostra meta', e le reti senza VLAN non le nomina.
+  const p = sampleProject();
+  p.state.ipam.prefixes.push(
+    { cidr: '2001:db8:0:10::/64', vlan: 10, source: 'dcim', description: 'Mgmt v6' },
+    { cidr: '10.255.0.0/30', vlan: null, name: 'punto-punto R1-R2', source: 'manual' },
+  );
+  const inv = projectToInventory(p);
+
+  assert.equal(inv.prefixes.length, 4);
+  assert.deepEqual(inv.prefixes.map(x => x.cidr),
+    ['10.20.10.0/24', '10.20.20.0/24', '2001:db8:0:10::/64', '10.255.0.0/30']);
+  // la VLAN 10 ha due reti: nell'elenco ci sono entrambe...
+  assert.equal(inv.prefixes.filter(x => x.vlan === 10).length, 2);
+  // ...mentre il campo singolo di `vlans[]` resta l'IPv4 (contratto invariato)
+  assert.equal(inv.vlans.find(v => v.id === 10).subnet, '10.20.10.0/24');
+  // rete senza VLAN: `vlan` null, mai 0
+  const p2p = inv.prefixes.find(x => x.cidr === '10.255.0.0/30');
+  assert.equal(p2p.vlan, null);
+  assert.equal(p2p.name, 'punto-punto R1-R2');
+  assert.equal(p2p.source, 'manual');
+  // allowlist: nessun campo fuori elenco (niente `id` NetBox nel DTO pubblico)
+  assert.deepEqual(Object.keys(p2p).sort(),
+    ['cidr', 'description', 'dns', 'gateway', 'name', 'source', 'status', 'vlan']);
+});

@@ -126,6 +126,8 @@ lib/                   Shared browser + test modules (the heart of the app)
   health-alerts.js  computeHealthAlerts → deterministic problem alerts from SNMP telemetry (RAM/disk/ink/UPS)  (pure)
   ui-catalog.js     extractCatalog/catalogLines: derive UI help (buttons+tooltips) from HTML+i18n  (pure)
   ipam.js           computeIpamUsage incl. nextFree (next free host = «suggested IP»)  (pure)
+  ipam-model.js     prefixes are first-class, the VLAN is an optional reference; migration
+                    from the 2.8.x shape where the subnet was a field of the VLAN  (pure)
   ipam-audit.js     buildIpamAudit → duplicate IPs + overlapping subnets (IPAM hygiene, doc↔doc)  (pure)
   lag-audit.js      checkLagMembers → LAG member consistency (speed/VLAN mismatch);
                     checkLagPair → LACP cross-end mode coherence (both-passive /
@@ -255,7 +257,8 @@ A project is a single `state` object (see `_buildDefaultState()` in `src/app.js`
 
 ```text
 state = { schemaVersion, racks[], currentRack, nodes[], links[], ports{}, vlanColors{},
-          vlanNames{}, ipam{vlans{}}, lagGroups{}, lagModes{}, guestVlans[], … }
+          vlanNames{}, ipam{prefixes[], vlans{}, addresses[]}, lagGroups{}, lagModes{},
+          guestVlans[], … }
 ```
 
 - **node**: `{ id, type, name, rackU, sizeU, ports, rackId, ip, ip6, ip6Manual, … }` — `ip6` is a **distinct** IPv6 field with the same manual-first padlock as `ip` (`ip6Manual`): the Sync auto-populates it from the device's own SNMP address (`ipAddressTable`), or Neighbour Discovery proposes it; never merged into `ip`, the IPv4 IPAM, or the Ansible host
