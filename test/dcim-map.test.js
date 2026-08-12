@@ -184,9 +184,11 @@ test('VLAN + prefisso → ipam + vlanNames', () => {
   const nb = fixture();
   nb.ipAddresses[0].assigned_object = { id: 1000, device: { id: 100 } };
   const { state, report } = map.netboxToState(nb);
-  assert.equal(state.ipam.vlans[10].subnet, '10.0.0.0/24');
+  // La subnet NON viene più ricopiata dentro la VLAN: il prefisso è l'autorità e
+  // la VLAN un riferimento. Sul record VLAN restano i suoi metadati NetBox.
+  assert.equal(state.ipam.vlans[10].subnet, undefined);
   assert.equal(state.ipam.vlans[10].name, 'Mgmt');
-  assert.deepEqual(state.ipam.prefixes, [{ id: 70, prefix: '10.0.0.0/24', vlan: 10 }]);
+  assert.deepEqual(state.ipam.prefixes, [{ id: 70, cidr: '10.0.0.0/24', vlan: 10, source: 'dcim' }]);
   assert.deepEqual(state.ipam.addresses, [{ id: 80, address: '10.0.0.2/24', interfaceId: 1000, portId: 'nb-dev-100-1', deviceId: '100' }]);
   assert.equal(state.vlanNames[10], 'Mgmt');
   assert.equal(state.vlanNames[20], 'Voice');
@@ -253,11 +255,11 @@ test('prefisso SENZA VLAN: nessuna «VLAN 0» inventata, nessuna VLAN fantasma',
     { id: 71, prefix: '192.168.0.0/20' },                   // SENZA VLAN
   ];
   const { state } = map.netboxToState(nb);
-  const senza = state.ipam.prefixes.find(p => p.prefix === '192.168.0.0/20');
+  const senza = state.ipam.prefixes.find(p => p.cidr === '192.168.0.0/20');
   assert.equal(senza.vlan, null, 'senza VLAN dichiarata il prefisso non ne inventa una');
   assert.notEqual(senza.vlan, 0, '`+null === 0`: la VLAN 0 non esiste, non va documentata');
   assert.equal('null' in state.ipam.vlans, false, 'e non nasce una VLAN fantasma con chiave null');
-  assert.equal(state.ipam.vlans['10'].subnet, '10.0.0.0/24', 'il prefisso CON VLAN resta agganciato');
+  assert.equal(state.ipam.prefixes.find(p => p.cidr === '10.0.0.0/24').vlan, 10, 'il prefisso CON VLAN resta agganciato');
 });
 
 test('VLAN NetBox per sito/gruppo: il conteggio annunciato è quello che ATTERRA', () => {
@@ -842,4 +844,52 @@ test('description senza ubicazione: la nota e\' solo la descrizione', () => {
   nb.devices[0].description = 'Solo prosa';
   const { state } = map.netboxToState(nb);
   assert.equal(state.nodes.find(n => n.id === 'nb-dev-100').notes, 'Solo prosa');
+});
+
+// ── Prefissi: quello che entra, e la riga che lo dice ────────────────────────
+// I due difetti che il modello a prefissi chiude, misurati su un NetBox vero:
+// 51 prefissi su 90 senza VLAN (sparivano) e le VLAN dual-stack (il secondo
+// prefisso sovrascriveva il primo, in silenzio).
+test('prefissi: le reti senza VLAN entrano davvero, e l\'import lo dichiara', () => {
+  const nb = fixture();
+  nb.prefixes = [
+    { id: 70, prefix: '10.0.0.0/24', vlan: { vid: 10 } },
+    { id: 71, prefix: '192.168.0.0/20' },
+    { id: 72, prefix: '10.255.0.0/30', description: 'punto-punto R1-R2' },
+  ];
+  const { state, report } = map.netboxToState(nb);
+  assert.equal(state.ipam.prefixes.length, 3, 'entrano tutti e tre');
+  const senzaVlan = state.ipam.prefixes.filter(p => p.vlan == null);
+  assert.equal(senzaVlan.length, 2);
+  assert.equal(senzaVlan[1].description, 'punto-punto R1-R2', 'la descrizione NetBox arriva nel documento');
+  assert.equal(state.ipam.prefixes.every(p => p.source === 'dcim'), true, 'provenienza dichiarata');
+
+  const iss = report.issues.find(i => i.code === 'prefix.noVlan');
+  assert.ok(iss, 'una riga lo dice: prima sparivano senza che nessuno lo sapesse');
+  assert.equal(iss.n, 2);
+});
+
+test('prefissi: una VLAN dual-stack tiene tutti e due, e l\'import lo dichiara', () => {
+  const nb = fixture();
+  nb.prefixes = [
+    { id: 70, prefix: '10.0.0.0/24', vlan: { vid: 10 } },
+    { id: 73, prefix: '2001:db8:0:10::/64', vlan: { vid: 10 } },
+  ];
+  const { state, report } = map.netboxToState(nb);
+  const v10 = state.ipam.prefixes.filter(p => p.vlan === 10);
+  assert.equal(v10.length, 2, 'il secondo NON cancella il primo');
+  assert.deepEqual(v10.map(p => p.cidr), ['10.0.0.0/24', '2001:db8:0:10::/64']);
+
+  const iss = report.issues.find(i => i.code === 'prefix.multiPerVlan');
+  assert.ok(iss);
+  assert.equal(iss.n, 1);
+  assert.equal(iss.total, 2);
+});
+
+test('prefissi: senza doppioni ne` reti orfane, nessuna delle due righe compare', () => {
+  const nb = fixture();
+  nb.prefixes = [{ id: 70, prefix: '10.0.0.0/24', vlan: { vid: 10 } }];
+  const { report } = map.netboxToState(nb);
+  assert.equal(report.issues.some(i => i.code === 'prefix.noVlan'), false);
+  assert.equal(report.issues.some(i => i.code === 'prefix.multiPerVlan'), false);
 });
