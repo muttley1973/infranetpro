@@ -15,8 +15,23 @@ const DAY = 864e5;
 const iso = ms => new Date(ms).toISOString();
 
 test('costanti di default esportate', () => {
-  assert.equal(DISCOVERY_HISTORY_MAX, 1000);
+  assert.equal(DISCOVERY_HISTORY_MAX, 10000);
   assert.equal(DISCOVERY_HISTORY_MAX_AGE_DAYS, 90);
+});
+
+// ⚠️ Il tetto sul numero è un fermo anti-crescita, NON la regola di conservazione:
+// quella è l'invecchiamento a 90 giorni. Se il tetto tornasse sotto la taglia di
+// una rete vera (un'osservazione = un endpoint visto: 204 su un progetto da 6
+// nodi), morderebbe per primo e butterebbe via le osservazioni PIÙ VECCHIE —
+// cioè il firstSeen su cui lib/temporal-confidence.js dà il punteggio.
+test('⚠️ il tetto sta largo abbastanza da non anticipare i 90 giorni', () => {
+  assert.ok(DISCOVERY_HISTORY_MAX >= 10000,
+    'sotto le ~10k il conteggio diventa la regola vera al posto dell\'età');
+  const now = Date.UTC(2026, 5, 19);
+  const list = [];
+  for (let i = 0; i < 5000; i++) list.push({ mac: 'm' + i, lastSeen: iso(now - 10 * DAY) });
+  pruneDiscoveryHistory(list, { now });
+  assert.equal(list.length, 5000, '5000 osservazioni recenti non vengono toccate');
 });
 
 test('pruneDiscoveryHistory: scarta le observation più vecchie del cutoff (lastSeen)', () => {
@@ -52,13 +67,63 @@ test('pruneDiscoveryHistory: tiene i record senza data valida (legacy)', () => {
   assert.deepEqual(list.map(r => r.mac), ['legacy', 'baddate']);
 });
 
-test('pruneDiscoveryHistory: applica il tetto rigido tenendo le più recenti (in coda)', () => {
+// ⚠️ Questo test certificava il difetto. L'elenco è ordinato per PRIMO
+// avvistamento (un record noto si aggiorna sul posto), non per data: `splice(0,…)`
+// toglieva le osservazioni conosciute da più tempo, cioè le più consolidate —
+// count alto e firstSeen lontano, la materia prima di lib/temporal-confidence.js.
+// Qui m0 è la vista più di recente e m9 la più stantia: devono restare m0..m3.
+test('⚠️ il tetto sacrifica le viste MENO di recente, non le conosciute da più tempo', () => {
   const now = Date.now();
   const list = Array.from({ length: 10 }, (_, i) => ({ mac: 'm' + i, lastSeen: iso(now - i * 1000) }));
-  pruneDiscoveryHistory(list, { now, max: 4, maxAgeDays: 99999 });
-  assert.equal(list.length, 4);
-  // splice(0, len-max) rimuove dalla TESTA → restano gli ultimi 4 (m6..m9)
-  assert.deepEqual(list.map(r => r.mac), ['m6', 'm7', 'm8', 'm9']);
+  const out = pruneDiscoveryHistory(list, { now, max: 4, maxAgeDays: 99999 });
+  assert.equal(out, list, 'sfoltisce sempre IN PLACE');
+  assert.deepEqual(list.map(r => r.mac), ['m0', 'm1', 'm2', 'm3']);
+});
+
+test('il tetto non rimescola: i superstiti restano nell\'ordine di prima', () => {
+  const now = Date.now();
+  // ordine di arrivo a..e, freschezza volutamente sparsa
+  const list = [
+    { mac: 'a', lastSeen: iso(now - 5000) },
+    { mac: 'b', lastSeen: iso(now - 1000) },   // la più fresca
+    { mac: 'c', lastSeen: iso(now - 9000) },   // la più stantia → via
+    { mac: 'd', lastSeen: iso(now - 3000) },
+  ];
+  pruneDiscoveryHistory(list, { now, max: 3, maxAgeDays: 99999 });
+  assert.deepEqual(list.map(r => r.mac), ['a', 'b', 'd'], 'cade c, gli altri non si spostano');
+});
+
+test('sotto il tetto non si tocca niente (nessun riordino a sorpresa)', () => {
+  const now = Date.now();
+  const list = [
+    { mac: 'vecchia-ma-viva', lastSeen: iso(now - 9000) },
+    { mac: 'nuova', lastSeen: iso(now - 10) },
+  ];
+  pruneDiscoveryHistory(list, { now, max: 10, maxAgeDays: 99999 });
+  assert.deepEqual(list.map(r => r.mac), ['vecchia-ma-viva', 'nuova']);
+});
+
+// L'aging protegge i record senza data (mancanza di data non è prova di
+// obsolescenza), ma quando il tetto COSTRINGE a scegliere sono i primi a cadere:
+// non portano nessuna evidenza temporale.
+test('sotto il tetto cadono per prime le osservazioni senza data valida', () => {
+  const now = Date.now();
+  const list = [
+    { mac: 'senza-data' },
+    { mac: 'fresca', lastSeen: iso(now - 1000) },
+    { mac: 'data-rotta', lastSeen: 'non-una-data' },
+    { mac: 'meno-fresca', lastSeen: iso(now - 8000) },
+  ];
+  pruneDiscoveryHistory(list, { now, max: 2, maxAgeDays: 99999 });
+  assert.deepEqual(list.map(r => r.mac), ['fresca', 'meno-fresca']);
+});
+
+test('a parità di lastSeen decide l\'ordine di arrivo (taglio deterministico)', () => {
+  const now = Date.now();
+  const same = iso(now - 1000);
+  const list = [{ mac: 'p' }, { mac: 'q' }, { mac: 'r' }].map(o => Object.assign(o, { lastSeen: same }));
+  pruneDiscoveryHistory(list, { now, max: 2, maxAgeDays: 99999 });
+  assert.deepEqual(list.map(r => r.mac), ['q', 'r'], 'cade la prima arrivata, senza ambiguità');
 });
 
 test('pruneDiscoveryHistory: input non-array → ritorna invariato', () => {

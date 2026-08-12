@@ -36,7 +36,14 @@ function removeProjectHistory(baseDir, projectId) {
 }
 
 // Retention TIMELINE: generosa (righe minuscole). Cap numero + età.
-const TIMELINE_CAP = 2000;                               // ~2000 Verifiche
+//
+// ⚠️ Il tetto deve BASTARE a coprire l'età dichiarata, altrimenti è lui la
+// regola vera e l'anno qui sotto è una promessa che non si mantiene. La riga la
+// scrive solo la Verifica COMPLETA, e il monitoraggio automatico può girare ogni
+// ora: **8.760 righe l'anno**. Con i 2000 di prima la storia si fermava a ~83
+// giorni — il conteggio zittiva l'età senza dirlo. Una riga misurata sul disco
+// sta in 270 byte: un anno intero occupa ~2,4 MB per progetto.
+const TIMELINE_CAP = 10000;                              // > 8.760 = un anno di Verifiche orarie
 const TIMELINE_MAX_AGE_MS = 365 * 24 * 3600 * 1000;      // 1 anno
 
 // Retention SNAPSHOT: cap + assottigliamento (le etichettate sono esenti, mai
@@ -237,4 +244,6 @@ function createFsHistoryStore(opts = {}) {
   };
 }
 
-module.exports = { createFsHistoryStore, removeProjectHistory };
+// TIMELINE_CAP/TIMELINE_MAX_AGE_MS sono esportate perché il loro ACCORDO è un
+// invariante sotto test: il tetto sul numero non deve mai anticipare l'età.
+module.exports = { createFsHistoryStore, removeProjectHistory, TIMELINE_CAP, TIMELINE_MAX_AGE_MS };

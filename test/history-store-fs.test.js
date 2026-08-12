@@ -54,6 +54,19 @@ test('append multipli preservano l\'ordine cronologico (= ordine d\'append)', ()
   assert.deepEqual(store.listTimeline(1).map(r => r.by), ['a', 'b', 'c']);
 });
 
+// ⚠️ Due regole di retention che si contraddicono = una promessa non mantenuta.
+// La riga la scrive solo la Verifica COMPLETA, e il monitoraggio automatico può
+// girare ogni ora: se il tetto sul NUMERO sta sotto le ore di un anno, è lui la
+// regola vera e l'età dichiarata non si raggiunge mai. Con 2000 la storia si
+// fermava a ~83 giorni mentre il codice prometteva 1 anno.
+test('⚠️ il tetto sul numero non anticipa l\'età dichiarata', () => {
+  const { TIMELINE_CAP, TIMELINE_MAX_AGE_MS } = require('../server/history-store-fs.js');
+  const oreCoperte = TIMELINE_MAX_AGE_MS / 3600e3;   // 1 Verifica/ora = il caso peggiore
+  assert.ok(TIMELINE_CAP >= oreCoperte,
+    `tetto ${TIMELINE_CAP} < ${oreCoperte} Verifiche orarie: la storia si ferma a ` +
+    `${Math.round(TIMELINE_CAP / 24)} giorni invece dei ${Math.round(oreCoperte / 24)} promessi`);
+});
+
 test('retention per NUMERO: cap tiene solo le ultime N', () => {
   const { store } = freshStore({ timelineCap: 3 });
   for (let i = 0; i < 6; i++) store.appendTimeline(2, entry('2999-01-01 10:0' + i + ':00', { by: 'e' + i }));
