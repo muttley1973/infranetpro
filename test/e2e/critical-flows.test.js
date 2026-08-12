@@ -5301,6 +5301,57 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(e.length, 0, 'nessun errore JS: ' + e.join(' | '));
     });
 
+    await t.test('Quello che il DCIM dichiara si VEDE (e gli slug tecnici restano fuori)', async () => {
+      // Audit 2026-08-12: `node.source` era scritto dall'import e letto da NESSUNA
+      // schermata — 13 nodi su 14 con un tenant invisibile. Sola lettura: `source`
+      // è la voce dell'import, non la tua, e non va travasata nelle note (al
+      // round-trip verso NetBox finirebbe nella description).
+      const errBefore = pageErrors.length;
+      const r = await page.evaluate(() => {
+        state = _buildDefaultState();
+        if (typeof _migrateState === 'function') _migrateState(state);
+        const n = state.nodes.find((x) => x && x.type === 'switch') || state.nodes[0];
+        n.source = {
+          tenant: 'NC State University', status: 'active', roleSlug: 'core-switch',
+          deviceTypeSlug: 'ex9214', manufacturerSlug: 'juniper', catalogMatch: 'normalized-name',
+        };
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        if (typeof switchRightTab === 'function') switchRightTab('props');
+        selType = 'node'; selId = n.id;
+        renderProps();
+        const blk = document.querySelector('#props-panel .dcim-src');
+        const txt = blk ? (blk.textContent || '') : '';
+        // Un nodo SENZA source non deve produrre nemmeno l'intestazione.
+        const bare = state.nodes.find((x) => x && x.id !== n.id && !x.source);
+        let emptyHasBlock = null;
+        if (bare) { selId = bare.id; renderProps(); emptyHasBlock = !!document.querySelector('#props-panel .dcim-src'); }
+        return {
+          present: !!blk,
+          rows: blk ? blk.querySelectorAll('.dcim-src-row').length : 0,
+          showsTenant: txt.includes('NC State University'),
+          showsStatus: txt.includes('active'),
+          showsRole: txt.includes('core-switch'),
+          leaksSlug: txt.includes('ex9214') || txt.includes('juniper') || txt.includes('normalized-name'),
+          emptyHasBlock,
+        };
+      });
+      // Igiene: questo test lascia una selezione e la scheda Proprietà davanti.
+      // Senza ripristino il test successivo trova il pannello rack nascosto (LED a
+      // rect 0×0) e fallisce per una ragione che non è sua.
+      await page.evaluate(() => {
+        selType = null; selId = null;
+        if (typeof switchRightTab === 'function') switchRightTab('rack');
+        renderAll(); renderProps();
+      });
+      assert.ok(r.present, 'il blocco «Dichiarato dal DCIM» compare quando l\'import ha dichiarato qualcosa');
+      assert.equal(r.rows, 3, 'una riga per campo dichiarato (tenant, stato, ruolo): ' + r.rows);
+      assert.ok(r.showsTenant && r.showsStatus && r.showsRole, 'tenant, stato e ruolo sono a schermo');
+      assert.equal(r.leaksSlug, false, 'gli slug tecnici (catalogo/vendor) NON finiscono sotto gli occhi dell\'utente');
+      if (r.emptyHasBlock !== null) assert.equal(r.emptyHasBlock, false, 'nessun blocco (e nessuna intestazione vuota) su un nodo senza dichiarazione DCIM');
+      const e = pageErrors.slice(errBefore);
+      assert.equal(e.length, 0, 'nessun errore JS: ' + e.join(' | '));
+    });
+
     await t.test('L\'anteprima del cavo parte dalla PORTA, non dal primo [data-pid] del documento', async () => {
       // REGRESSIONE: `data-pid` e' dual-use — oltre al LED della porta lo portano
       // anche i controlli del pannello Proprieta'. Appena parte un collegamento la

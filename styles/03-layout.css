@@ -119,4 +119,9 @@
         .prop-group textarea:focus { outline:none; border-color:var(--accent); }
         .prop-notes-header { font-size:var(--fs-md); text-transform:uppercase; color:var(--text-main); letter-spacing:.04em; margin:12px 0 6px; padding-top:10px; border-top:1px solid var(--panel-border); display:flex; align-items:center; gap:5px; }
         .prop-group input[type="color"] { padding:2px; height:30px; cursor:pointer; }
-
+        /* Dichiarato dal DCIM: sola lettura. Volutamente SPENTO rispetto ai campi
+           editabili sopra — si legge come una citazione, non come roba tua. */
+        .dcim-src { display:flex; flex-direction:column; gap:3px; padding:7px 9px; border:1px dashed var(--panel-border); border-radius:5px; background:rgba(255,255,255,0.02); }
+        .dcim-src-row { display:flex; justify-content:space-between; align-items:baseline; gap:10px; font-size:var(--fs-sm); }
+        .dcim-src-k { color:var(--text-muted); white-space:nowrap; }
+        .dcim-src-v { color:var(--text-main); text-align:right; word-break:break-word; }

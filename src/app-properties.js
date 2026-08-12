@@ -15,6 +15,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
+import { sourceRows } from '../lib/dcim-source-view.js';   // cosa DICHIARA il DCIM importato: sola lettura, `node.source` non è roba dell'utente
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _isLeafEndpoint, _autoLinkEndpointUI } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*) + (ASSE B coda) bottone auto-link
 
@@ -197,7 +198,35 @@ export function _buildInventoryFieldsHtml(n, d){
     <div class="prop-row2">
         <div class="prop-group"><label>${t('field.warranty')}</label><input type="date" value="${escapeHTML(n.warrantyUntil||'')}" data-tip="${t('field.warrantyTip')}" data-change="node-field" data-field="warrantyUntil"></div>
         <div class="prop-group"><label>${t('field.eol')}</label><input type="date" value="${escapeHTML(n.eolDate||'')}" data-tip="${t('field.eolTip')}" data-change="node-field" data-field="eolDate"></div>
-    </div>`;
+    </div>` + _buildDcimSourceHtml(n);
+    // ⚠️ CONCATENAZIONE, non interpolazione dentro il template: `${...}` che torna
+    // stringa vuota lascia comunque il newline e l'indentazione della riga, e il
+    // golden render — che confronta l'output byte a byte — segnalerebbe 20 diff di
+    // puro spazio bianco. Così un device SENZA dichiarazione DCIM rende identico a
+    // prima, e il golden resta un oracolo invece di diventare rumore da rigenerare.
+}
+
+/** Quello che il DCIM importato DICHIARA di questo apparato: di chi è (tenant),
+ *  com'è dichiarato (stato), che mestiere fa (ruolo), che NOS monta (platform).
+ *  Sola lettura, e per due motivi che vale la pena ricordare:
+ *    - `node.source` appartiene all'IMPORT, i campi sopra e le note appartengono a
+ *      TE. Travasare il tenant nelle note lo farebbe passare per prosa tua, da
+ *      rileggere con una regex al giro dopo — e riscrivendo verso NetBox se lo
+ *      ritroverebbe nella `description`.
+ *    - Non serviva un campo nuovo: il dato c'era già, strutturato. Mancava solo
+ *      qualcuno che lo disegnasse (audit 2026-08-12: 13 nodi su 14 con un tenant
+ *      che nessuna schermata mostrava).
+ *  Niente riga per i campi che il DCIM non dichiara: un vuoto stampato si legge
+ *  come un dato. Se il blocco non ha righe, non esiste. */
+function _buildDcimSourceHtml(n){
+    const rows = (typeof sourceRows === 'function') ? sourceRows(n) : [];
+    if(!rows.length) return '';
+    const items = rows.map(r =>
+        `<div class="dcim-src-row"><span class="dcim-src-k">${escapeHTML(t(r.label))}</span><span class="dcim-src-v">${escapeHTML(r.value)}</span></div>`
+    ).join('');
+    return `
+    <p class="prop-notes-header"><i class="fas fa-file-import"></i> ${t('src.header')}</p>
+    <div class="dcim-src" data-tip="${t('src.tip')}">${items}</div>`;
 }
 
 /** Genera lo `<span class="props-collapsible-preview">` con Marca + Modello
