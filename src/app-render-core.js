@@ -236,9 +236,12 @@ function _buildFloorNodeEl(n, def, absentCls){
     // dell'«assente», ma su un elemento diverso — a schermo due apparati in rosso
     // sembravano avere due bordi diversi senza motivo (uno intorno al nome, uno
     // intorno alla tile). Ora è una classe sulla tile, come sul rack.
-    // ⚠️ Resta VISIVAMENTE distinto dall'assenza (tratteggiato vs pieno): un driver
-    // che fallisce non è un apparato sparito, e il rack fa già la stessa scelta col
-    // bordo sinistro. Confonderli sarebbe un verdetto che mente.
+    // ⚠️ Resta VISIVAMENTE distinto dall'assenza (anello arancione contro alone
+    // rosso): un driver che fallisce non è un apparato sparito, e il rack fa già la
+    // stessa scelta col bordo sinistro. Confonderli sarebbe un verdetto che mente.
+    // ⚠️ E il segnale si SPIEGA da sé: un anello colorato senza testo obbliga a
+    // chiedere cosa vuol dire (è successo). Il `title` dice la notizia e le cause
+    // tipiche, così la tile non ha bisogno di una legenda a parte.
     // ⚠️ E NON si disegna quando la presenza ha già un verdetto (`absentCls`): su un
     // apparato che la sonda non riesce a raggiungere — subnet fuori portata, grigio
     // «non verificabile» — l'SNMP fallisce PER QUELLO, e un anello d'allarme
@@ -246,7 +249,10 @@ function _buildFloorNodeEl(n, def, absentCls){
     // sarebbe un secondo anello che ripete la stessa notizia. L'errore SNMP è una
     // notizia solo quando l'apparato c'è ma non risponde: community sbagliata, ACL,
     // agent fermo. Stessa regola dei verdetti: niente allarme senza misura che lo regga.
-    if(_snmpOn && n.snmpStatus==='err' && !absentCls) el.classList.add('snmp-fault');
+    if(_snmpOn && n.snmpStatus==='err' && !absentCls){
+        el.classList.add('snmp-fault');
+        el.title = t('floor.snmpFaultTip');
+    }
     const _v3BadgeF = (typeof _v3NeedsCreds === 'function' && _v3NeedsCreds(n))
         ? `<span class="floor-v3-badge" title="${t('pnl.gen.v3MissingCreds')}"><i class="fas fa-key"></i></span>` : '';
     el.innerHTML = `${icon}${_v3BadgeF}<div class="label">${_floorLabelHtml(n)}</div>${pts}${_radioPortHtml(n)}`;

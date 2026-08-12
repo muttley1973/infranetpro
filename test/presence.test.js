@@ -42,7 +42,7 @@ test('presenza: i percorsi senza «ok» restano invariati', () => {
 
 // ── L'anello dell'errore SNMP sulla planimetria ──────────────────────────────
 // Sta sulla TILE come ogni altro stato (prima era un contorno inline sull'etichetta
-// interna: stesso rosso dell'assenza, ma su un elemento diverso), ed è TRATTEGGIATO
+// interna: stesso rosso dell'assenza, ma su un elemento diverso), ed è ARANCIONE
 // perché «non riesco a interrogarlo» non è «non c'è».
 // ⚠️ L'invariante che conta: NON si disegna quando la presenza ha già un verdetto.
 // Su un apparato in una subnet fuori portata l'SNMP fallisce PER QUELLO — spacciarlo
@@ -56,7 +56,22 @@ test('errore SNMP sul pavimento: anello sulla tile, mai sull\'etichetta interna'
   assert.match(RENDER, /el\.classList\.add\('snmp-fault'\)/, 'classe sul contenitore');
   assert.equal(/class="label"\s*\$\{_ferr\}/.test(RENDER), false, 'niente stile inline sull\'etichetta');
   assert.equal(/outline:2px solid #f85149/.test(RENDER), false, 'niente colore cablato a mano nel renderer');
-  assert.match(CSS, /\.floor-node\.snmp-fault \{[^}]*dashed/, 'tratteggiato: distinto dall\'assenza, che è piena');
+  // ⚠️ Si distingue dall'assenza per COLORE, non per tratto. Il tratteggio in
+  // questa app significa già «dedotto, da confermare» (i cavi inferiti da
+  // LLDP/FDB, documentato anche nel manuale): usarlo anche qui caricava lo
+  // stesso segno di due significati. Ora anello PIENO in `--probe-warn`, e
+  // l'assenza resta il suo alone rosso — due forme, due colori, due notizie.
+  const RING = CSS.match(/\.floor-node\.snmp-fault \{[^}]*\}/)[0];
+  assert.match(RING, /solid/, 'anello pieno');
+  assert.doesNotMatch(RING, /dashed/, 'il tratteggio è il vocabolario del «dedotto», non del guasto');
+  assert.match(RING, /var\(--probe-warn\)/, 'colore da token semantico');
+  assert.doesNotMatch(RING, /--fault-color/, 'NON il rosso dell\'assenza: sono due notizie diverse');
+  assert.match(CSS, /\.floor-node\.node-absent[^{]*\{[^}]*box-shadow/, 'l\'assenza resta un alone, non un contorno');
+});
+
+test('l\'anello di guasto SNMP si spiega da sé (nessuna legenda da cercare)', () => {
+  // Un anello colorato senza testo obbliga a chiedere cosa significa: è successo.
+  assert.match(RENDER, /el\.title = t\('floor\.snmpFaultTip'\)/, 'la tile porta la spiegazione nel title');
 });
 
 test('⚠️ nessun anello di guasto se la presenza ha gia\' un verdetto', () => {

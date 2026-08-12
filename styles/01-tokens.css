@@ -8,6 +8,11 @@
             --bg-color: #0d1117; --panel-bg: #1e2733; --panel-border: #30363d;
             --text-main: #c9d1d9; --text-muted: #8b949e; --accent: #00d4ff;
             --active-color: #39d353; --fault-color: #f85149; --inactive-color: #6e7681; --idle-color: #f5a623;
+            /* «L'ho interrogato e non risponde» — NON è «non c'è». Arancio scelto per
+               esclusione: il rosso è già l'assenza provata, l'ambra #d29922 è l'attesa
+               (snmp-pending) e le credenziali v3 mancanti, il verde la risposta buona,
+               il grigio il non-verificabile. Serviva un gradino fra ambra e rosso. */
+            --probe-warn: #f0883e;
             --rack-bg: #969696; --rack-metal: linear-gradient(180deg, #4a4a4a, #2b2b2b);
 
             /* ---- TOKEN SEMANTICI DI SUPERFICIE ----
@@ -112,6 +117,7 @@
             --fault-color:    #cf222e;
             --inactive-color: #57606a;
             --idle-color:     #9a6700;   /* ambra scura */
+            --probe-warn:     #bc4c00;   /* arancio scuro: regge su bianco */
             --rack-bg:        #8a9099;
             --rack-metal:     linear-gradient(180deg, #5a6270, #3d4450); /* chassis resta scuro */
             --surface-1:      #ffffff;
