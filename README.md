@@ -10,8 +10,8 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="2,136 tests, 0 failing" src="https://img.shields.io/badge/tests-2%2C136%20%C2%B7%200%20failing-3fb950"></a>
-  <a href="#testing"><img alt="103 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-103%20real--browser%20flows-3fb950"></a>
+  <a href="#testing"><img alt="2,191 tests, 0 failing" src="https://img.shields.io/badge/tests-2%2C191%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="108 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-108%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#oui-intelligence-engine"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
   <img alt="No database" src="https://img.shields.io/badge/database-none-8b949e">
@@ -121,6 +121,8 @@ Double-click <code>avvia.bat</code>.<br>
 
 > **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then run **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
+> 📰 **What's new (v2.8.2) — an address belongs to the interface, and the map stops saying the same thing twice.** A port can now carry its **own address**: a router answers on one per interface, and until now the second one could only be recorded as a second device. The device card keeps the management address. In the scan results, columns are **draggable** and the Name column no longer repeats the IP that already has its own column — without a model or hostname it composes from what was measured (type and brand) and says so. A device that will not answer SNMP now wears an **orange** ring, drawn exactly like the red halo of an absent one: same shape, different colour, because they are different pieces of news. Retention ceilings that were quietly cutting history short were raised, and the change journal moved out of the project file.
+>
 > 📰 **What's new (v2.8.1) — a project file that holds what you declared, and nothing else.** Measurements — presence, discovery sightings, propagated VLANs — now live **beside** the project rather than inside it, so opening a project no longer changes it and the file stops growing on its own; existing projects migrate at their next save, and portable exports carry the document only, so whoever opens one elsewhere runs their own **Verify** instead of inheriting a photograph of an installation they are not looking at. What NetBox declares about an imported device — owner (tenant), status, role, platform — is now **on screen**, read-only, at the foot of the Properties panel. Measured on real projects: **838 KB → 719 KB**. Verified on a 500-device network.
 >
 > 📰 **What's new (v2.8.0) — import an existing NetBox/DCIM as a new InfraNet project, on a NetBox-compatible device catalog.** Connect to a NetBox instance (base URL + API token, with a connection test), pick a site, and a three-step wizard builds a project from it: racks placed on the floor plan, devices in their cabinets, a front/rear cabinet split into two racks, and **patch-panel cabling** reconstructed as a native pass-through chain. The catalog is the canonical CC0 device-type library with **neutral port-slot semantics** — combo ports and a full **PDU** model (up to 48 outlets, manual-first overrides) — and portable JSON exports are now **versioned and secret-free**. A NetBox **virtual chassis** comes back as a **stack**, and the preview is a **list of decisions** rather than a wall of warnings: what you will get, what will not come in and why — named device by device — with the default already applied. The topology **trunk + access** view no longer hides a rack's cables. Import is free (public); write-back is a paid module.
@@ -940,7 +942,7 @@ Coverage focuses on the pure, bug-prone logic that has historically broken: SNMP
 
 Current local quality baseline:
 - `npm run check` validates all project JS sources (399 files)
-- `npm test` runs the full regression suite (currently **2,136 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **103 flows**)
+- `npm test` runs the full regression suite (currently **2,191 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **103 flows**)
 - final visual verification is still important for rack/front-panel refinements
 
 > Pure functions are exposed for tests via an additive `_internals` export on
