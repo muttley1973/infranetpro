@@ -179,12 +179,24 @@ export function _recordDiscoveryObservation(obs){
     return true;
 }
 
-function _recordDiscoveryBatch(rows){
-    let n = 0;
-    for(const r of rows || []) if(_recordDiscoveryObservation(r)) n++;
-    // L'aging (O(n)) gira una volta a fine batch, non per singola observation.
-    if(n) win.pruneDiscoveryHistory(_ensureDiscoveryHistory());
-    return n;
+// Le osservazioni appena raccolte vanno salvate SUBITO, fuori dal JSON di progetto:
+// non sono una modifica al documento (quella la fa l'utente e aspetta Salva), sono
+// una MISURA. Senza questa riga una scansione non salvata spariva al reload — e
+// sparivano con lei il «visto N volte» e l'arco temporale su cui
+// lib/temporal-confidence.js costruisce il punteggio, che una scansione sola non
+// ricostruisce. Best-effort come la timeline: se fallisce, la scoperta prosegue e i
+// dati restano buoni in questa sessione. Il server FONDE (vedi routes/history.js),
+// quindi una lista parziale non può azzerare l'accumulo.
+export function _persistObservations(){
+    try {
+        if(!store.currentProjectId) return;
+        const observations = _ensureDiscoveryHistory();
+        if(!observations.length) return;
+        fetch(`/api/projects/${store.currentProjectId}/history/observations`, {
+            method:'PUT', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ observations }),
+        }).catch(()=>{});
+    } catch(_){ /* best-effort */ }
 }
 
 export function _nodeByMacMap(){
@@ -1634,6 +1646,8 @@ async function _autoDiscoverLinks(nodeIds){
     } catch(e){ console.warn(`[AutoLink] wireless-assoc: ${e.message}`); }
 
     if(created > 0 || updated > 0 || lagGroups > 0 || pruned > 0 || historyAdded > 0) markDirty();
+    // Fine giro: le osservazioni raccolte durante la scansione non aspettano il Salva.
+    if(historyAdded > 0){ win.pruneDiscoveryHistory(_ensureDiscoveryHistory()); _persistObservations(); }
     if(created===0 && updated===0){
         if(diag.topoOk===0) diag.reasons.push(t('pnl.sys.diagNoTopoResp'));
         if(diag.neighborsSeen===0) diag.reasons.push(t('pnl.sys.diagNoNeighbors'));
@@ -1652,7 +1666,7 @@ export { _autoLinkEndpointUI };
 
 expose({
     _matchNodeByIdent, _isLeafEndpoint, _ensureDiscoveryHistory,
-    _recordDiscoveryObservation, _recordDiscoveryBatch, _nodeByMacMap,
+    _recordDiscoveryObservation, _persistObservations, _nodeByMacMap,
     _refreshTopoFdbCache, _refreshSnmpPortInventory, _isTransitPort, _lagTrunkVlansForPortLag,
     _isInferredUplinkProto,
     _resolveEndpointSwitchPort, _findWallPortBehindInfrastructurePort, _autoLinkEndpoint,

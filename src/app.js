@@ -568,6 +568,9 @@ export function _migrateState(s) {
     _expandLagMemberLinks(s);
     _repairRackPlacements(s);
     if(typeof projectFormat.pruneProjectStateCaches === 'function') projectFormat.pruneProjectStateCaches(s);
+    // Campi che nessuno legge piu': via all'apertura, il progetto se ne libera al
+    // primo salvataggio. Elenco chiuso e motivato in lib/project-format.js.
+    if(typeof projectFormat.dropObsoleteFields === 'function') projectFormat.dropObsoleteFields(s);
     s.schemaVersion = Number.isInteger(incomingSchemaVersion) && incomingSchemaVersion > PROJECT_STATE_SCHEMA_VERSION
         ? incomingSchemaVersion : PROJECT_STATE_SCHEMA_VERSION;
     return s;

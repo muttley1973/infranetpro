@@ -17,6 +17,7 @@
 //   <baseDir>/<id>/snapshots.jsonl                — indice meta degli snapshot
 //   <baseDir>/<id>/snapshots/<snapId>.json.gz     — stato intero gzip
 //   <baseDir>/<id>/presence.json                  — chi c'è / chi non c'è (corrente)
+//   <baseDir>/<id>/observations.json              — chi è stato visto dove, e quante volte
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
@@ -56,6 +57,7 @@ function createFsHistoryStore(opts = {}) {
   const _snapDir      = (id) => path.join(_dir(id), 'snapshots');
   const _snapIndex    = (id) => path.join(_dir(id), 'snapshots.jsonl');
   const _presenceFile = (id) => path.join(_dir(id), 'presence.json');
+  const _observationsFile = (id) => path.join(_dir(id), 'observations.json');
 
   // Scrittura atomica: tmp + rename (vale per stringhe e Buffer/gzip).
   function _atomicWrite(file, data) {
@@ -193,6 +195,22 @@ function createFsHistoryStore(opts = {}) {
     readPresence(projectId) {
       try { return JSON.parse(fs.readFileSync(_presenceFile(projectId), 'utf8')); }
       catch (_) { return null; }   // assente o illeggibile = nessuna presenza salvata
+    },
+    // ── OSSERVAZIONI di scoperta (chi è stato visto dove, e quante volte) ──
+    // Stessa ragione della presenza: è una misura, non documentazione. Su un
+    // progetto con pochi apparati arrivava a pesare il 96% del <id>.json.
+    // File singolo sovrascritto: esiste UN elenco corrente, già sfoltito da chi
+    // lo passa (aging 90gg + tetto in lib/discovery-history.js).
+    saveObservations(projectId, history) {
+      fs.mkdirSync(_dir(projectId), { recursive: true });
+      const list = (history && Array.isArray(history.observations)) ? history.observations : [];
+      const rec = { at: new Date().toISOString(), observations: list };
+      _atomicWrite(_observationsFile(projectId), JSON.stringify(rec));
+      return rec;
+    },
+    readObservations(projectId) {
+      try { return JSON.parse(fs.readFileSync(_observationsFile(projectId), 'utf8')); }
+      catch (_) { return null; }   // assente o illeggibile = nessuna osservazione salvata
     },
     removeProject(projectId) {
       return removeProjectHistory(baseDir, projectId);

@@ -362,8 +362,11 @@ test('catalogo neutrale: media condivisi occupano uno slot senza creare MGMT', (
   assert.equal(router.ports, 10);
   assert.equal(router.frontPanel.separateSfp, false);
   assert.deepEqual(router.frontPanel.sharedMediaSlots, [{ slot: 10, media: ['copper', 'fiber'] }]);
-  assert.equal(state.ports['nb-dev-100-1'].physicalKind, 'copper');
-  assert.equal(state.ports['nb-dev-100-10'].physicalKind, 'fiber');
+  // Il media della porta si legge da mediaOptions + frontPanel: `physicalKind` non
+  // si persiste piu' (era scritto su OGNI porta e non lo leggeva nessuno).
+  assert.equal(state.ports['nb-dev-100-1'].physicalKind, undefined);
+  assert.equal(state.ports['nb-dev-100-10'].physicalKind, undefined);
+  assert.deepEqual(state.ports['nb-dev-100-10'].mediaOptions, ['copper', 'fiber']);
   assert.equal(state.ports['nb-dev-100-10'].sharedMedia, true);
   assert.equal(state.ports['nb-dev-100-mgmt1'], undefined);
 });

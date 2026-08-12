@@ -9,15 +9,54 @@ const auth = require('../../auth');
 const { timestamp } = require('../../utils');
 const { PROJECTS_DIR, nextId, saveProject, loadProject, listProjects, removeBgAsset } = require('../projects-store');
 const { removeProjectHistory, createFsHistoryStore } = require('../history-store-fs');
-const { mergePresence } = require('../../lib/presence-store');
+const { mergePresence, foldPresence, collectPresence, stripPresence } = require('../../lib/presence-store');
+const { mergeObservations, foldObservations, stripObservations } = require('../../lib/discovery-history');
+const { stripDerivedVlan } = require('../../lib/project-format');
 const { runProjectDeleteHooks } = require('../module-registry');
 const { stripRefCreds } = require('../../lib/backup-ref.js');
 
 const router = express.Router();
 const HISTORY_DIR = path.join(PROJECTS_DIR, 'history');
-// Sola LETTURA della presenza salvata (la scrive il router storico): stessa
-// cartella, stessa interfaccia — un domani il backend SQLite subentra a entrambi.
+// Presenza salvata: la scrive il router storico dopo ogni Verifica, e la rilegge la
+// GET qui sotto. Questo router la tocca in scrittura in un solo caso — il Salva, che
+// vi fa confluire la presenza dei progetti vecchi prima di toglierla dal documento.
+// Stessa cartella, stessa interfaccia: un domani il backend SQLite subentra a entrambi.
 const _history = createFsHistoryStore({ baseDir: HISTORY_DIR });
+
+// ── La presenza non è documentazione ─────────────────────────────────
+// `n.proof` è una MISURA (chi c'era, quando, con che prova): il documento lo scrive
+// l'utente, la presenza la scrive la rete. Vive nel sidecar `history/<id>/presence.json`,
+// dove la Verifica la salva da sé senza aspettare un Salva, e da dove la GET la
+// rimette nello stato. Restava però anche DENTRO al `<id>.json`, perché il Salva
+// rimandava indietro lo stato intero: due copie della stessa misura, tenute allineate
+// da una regola di freschezza che esisteva solo per rimediare al doppione.
+//
+// Qui si chiude: prima di scrivere, la presenza CONFLUISCE nel sidecar (vince la più
+// fresca) ed ESCE dallo stato. Sui progetti scritti prima d'ora è anche la migrazione
+// — i loro rossi vengono promossi nel sidecar invece di sparire col primo Salva.
+function _presenceOutOfDocument(id, state) {
+  try {
+    const folded = foldPresence(_history.readPresence(id), collectPresence(state));
+    if (Object.keys(folded.nodes).length) _history.savePresence(id, folded);
+  } catch (_) { /* best-effort: un sidecar che non si scrive non deve bloccare il Salva */ }
+  stripPresence(state);
+}
+
+// ── Le osservazioni di scoperta nemmeno ──────────────────────────────
+// Stessa natura, stesso trattamento: «questo MAC l'ho visto su questa porta, N
+// volte, dal … al …» è ciò che ha visto la rete. Su un progetto con pochi
+// apparati arrivava a pesare il 96% del file. Il fold tiene la storia più larga —
+// primo avvistamento più antico, ultimo più recente, conteggio maggiore — perché
+// è un dato che si ACCUMULA: una scansione sola non ricostruisce tre mesi di
+// avvistamenti, ed è su quell'accumulo che `lib/temporal-confidence.js` misura
+// quanto è «reale» un endpoint.
+function _observationsOutOfDocument(id, state) {
+  try {
+    const folded = foldObservations(_history.readObservations(id), state && state.discoveryHistory);
+    if (folded.observations.length) _history.saveObservations(id, folded);
+  } catch (_) { /* best-effort, come sopra */ }
+  stripObservations(state);
+}
 
 // SEC-M1 (audit 2026-07-21): il progetto grezzo contiene i segreti SNMP
 // (community v1/v2c + passphrase v3) in node.integration. Un lettore NON-admin
@@ -82,6 +121,12 @@ router.post('/api/projects', auth.requireAdmin, (req, res) => {
   _sanitizeBackupRefs(state);
   const id    = nextId();
   const now   = timestamp();
+  // Qui si toglie e basta, senza far confluire niente: una presenza che arriva
+  // insieme a un progetto NUOVO (import di un export altrui) è la misura di
+  // un'altra rete. Adottarla come nostra sarebbe un'invenzione.
+  stripPresence(state);
+  stripObservations(state);
+  stripDerivedVlan(state);
   saveProject(id, name, state, now, now);
   res.status(201).json(loadProject(id));
 });
@@ -96,6 +141,7 @@ router.get('/api/projects/:id', (req, res) => {
   // Salva. Qui torna dentro allo stato, così chi riapre il progetto ritrova gli
   // apparati spenti ancora rossi. Vince la misura più fresca (lib/presence-store).
   try { mergePresence(p.state, _history.readPresence(id)); } catch (_) { /* mai bloccare l'apertura */ }
+  try { mergeObservations(p.state, _history.readObservations(id)); } catch (_) { /* idem */ }
   if (req.session?.user?.role !== 'admin') _redactSnmpSecrets(p);   // SEC-M1
   return res.json(p);
 });
@@ -110,6 +156,11 @@ router.put('/api/projects/:id', auth.requireAdmin, (req, res) => {
   const state = req.body?.state !== undefined ? req.body.state : p.state;
   _sanitizeBackupRefs(state);
   const now   = timestamp();
+  _presenceOutOfDocument(id, state);
+  _observationsOutOfDocument(id, state);
+  // La propagazione VLAN si ricalcola a ogni render: nel file non ci va. Senza
+  // questa riga, aprire un progetto e guardarlo bastava a farlo crescere.
+  stripDerivedVlan(state);
   saveProject(id, name, state, p.created_at, now);
   // Solo metadati: NON ricarichiamo il progetto (eviterebbe di ri-encodare l'asset
   // bgImage in base64 ad ogni Salva). Save leggero = obiettivo dell'estrazione asset.
@@ -139,6 +190,11 @@ router.post('/api/projects/:id/copy', auth.requireAdmin, (req, res) => {
   const name  = (req.body?.name || `${src.name} (Copia)`).toString().trim();
   const newId = nextId();
   const now   = timestamp();
+  // La copia nasce senza presenza: il documento si duplica, la misura no — quei
+  // rossi riguardano gli apparati dell'originale, non quelli della copia.
+  stripPresence(src.state);
+  stripObservations(src.state);
+  stripDerivedVlan(src.state);
   saveProject(newId, name, src.state, now, now);
   res.status(201).json(loadProject(newId));
 });

@@ -7,6 +7,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const {
   pruneDiscoveryHistory, normalizeFdbVlan,
+  observationKey, sanitizeObservation, foldObservations, mergeObservations, stripObservations,
   DISCOVERY_HISTORY_MAX, DISCOVERY_HISTORY_MAX_AGE_DAYS,
 } = require('../lib/discovery-history.js');
 
@@ -85,4 +86,124 @@ test('normalizeFdbVlan: usa il normalizzatore MAC iniettato', () => {
 test('normalizeFdbVlan: input non-oggetto → mappa vuota', () => {
   assert.deepEqual(normalizeFdbVlan(null), {});
   assert.deepEqual(normalizeFdbVlan('x'), {});
+});
+
+// ============================================================
+// Le osservazioni vivono FUORI dal documento: sanificazione, fusione, migrazione.
+// ============================================================
+const OBS = (over) => Object.assign({
+  ts: '2026-05-01T10:00:00.000Z', lastSeen: '2026-08-01T10:00:00.000Z', count: 3,
+  mac: 'aa:bb:cc:dd:ee:ff', ip: '192.168.1.50',
+  switchId: 'sw1', switchName: 'Core', portId: 'sw1-4', ifName: 'Gi1/0/4',
+  source: 'FDB', confidence: 0.8,
+}, over || {});
+
+test('sanitizeObservation: serve un MAC o un IP, e la FORMA del record non cambia', () => {
+  assert.equal(sanitizeObservation(null), null);
+  assert.equal(sanitizeObservation({ count: 9 }), null, 'senza mac e senza ip non identifica niente');
+  const o = sanitizeObservation({ mac: ' aa:bb ', count: 0, confidence: 'x' });
+  // I cinque campi testuali ci sono SEMPRE, anche vuoti: un round-trip non deve
+  // cambiare la forma sotto ai lettori (chi confronta con '' smetterebbe di trovarli).
+  for (const k of ['switchId', 'switchName', 'portId', 'ifName', 'source']) assert.equal(o[k], '');
+  assert.equal(o.mac, 'aa:bb', 'trim sì, ri-normalizzazione del MAC NO');
+  assert.equal(o.count, 1, 'un conteggio non valido vale 1, non 0');
+  assert.equal(o.confidence, 0);
+  assert.equal(sanitizeObservation({ ip: '10.0.0.1', ts: 'ieri' }).ts, undefined, 'data illeggibile scartata');
+});
+
+test('⚠️ fold: tiene la storia PIÙ LARGA (primo più antico, ultimo più recente, conteggio maggiore)', () => {
+  const vecchia = OBS({ ts: '2026-01-01T00:00:00.000Z', lastSeen: '2026-02-01T00:00:00.000Z', count: 10, confidence: 0.4 });
+  const nuova   = OBS({ ts: '2026-07-01T00:00:00.000Z', lastSeen: '2026-08-10T00:00:00.000Z', count: 2,  confidence: 0.9 });
+  const { observations } = foldObservations({ observations: [vecchia] }, { observations: [nuova] });
+  assert.equal(observations.length, 1, 'stessa chiave = una riga sola');
+  const o = observations[0];
+  assert.equal(o.ts, '2026-01-01T00:00:00.000Z', 'il primo avvistamento è il più antico');
+  assert.equal(o.lastSeen, '2026-08-10T00:00:00.000Z', 'l\'ultimo è il più recente');
+  assert.equal(o.count, 10);
+  assert.equal(o.confidence, 0.9);
+});
+
+test('⚠️ fold IDEMPOTENTE: risalvare non gonfia il conteggio', () => {
+  // Il conteggio alimenta il punteggio di lib/temporal-confidence.js: sommarlo a
+  // ogni Salva trasformerebbe due salvataggi in una certezza inventata.
+  const uno = foldObservations(null, { observations: [OBS()] });
+  const due = foldObservations(uno, { observations: [OBS()] });
+  const tre = foldObservations(due, uno);
+  assert.equal(due.observations[0].count, 3);
+  assert.equal(tre.observations[0].count, 3);
+  assert.equal(tre.observations.length, 1);
+});
+
+test('fold: chiavi diverse restano righe diverse, e l\'aging vale sull\'unione', () => {
+  const a = OBS();
+  const b = OBS({ portId: 'sw1-9', ifName: 'Gi1/0/9' });
+  assert.equal(observationKey(a) === observationKey(b), false);
+  assert.equal(foldObservations({ observations: [a] }, { observations: [b] }).observations.length, 2);
+  // Vecchia di 200 giorni → fuori per aging (tetto 90).
+  const antica = OBS({ ts: iso(Date.now() - 200 * DAY), lastSeen: iso(Date.now() - 200 * DAY), mac: '11:22:33:44:55:66' });
+  const out = foldObservations({ observations: [antica] }, { observations: [OBS({ lastSeen: iso(Date.now()) })] });
+  assert.equal(out.observations.length, 1, 'l\'aging gira sull\'unione, non sui pezzi');
+});
+
+test('fold difensivo: ingressi nulli, malformati, non-array', () => {
+  assert.deepEqual(foldObservations(null, null), { observations: [] });
+  assert.deepEqual(foldObservations({ observations: 'no' }, undefined), { observations: [] });
+  assert.deepEqual(foldObservations([OBS()], null).observations.length, 1, 'accetta anche l\'array nudo');
+});
+
+test('merge rimette nello stato, strip lo toglie — e il documento non si tocca', () => {
+  // Progetto vecchio: le osservazioni se le trascina DENTRO, il sidecar non c'è.
+  const state = { nodes: [{ id: 'sw1', name: 'Core' }], discoveryHistory: { observations: [OBS()] } };
+  assert.equal(mergeObservations(state, null), 1, 'quelle del documento non si perdono');
+  assert.equal(mergeObservations(state, { observations: [OBS({ mac: '11:22:33:44:55:66' })] }), 2, 'unione con il sidecar');
+  assert.equal(stripObservations(state), 2);
+  assert.equal('discoveryHistory' in state, false);
+  assert.equal(state.nodes[0].name, 'Core', 'il dichiarato resta');
+  assert.equal(stripObservations(state), 0, 'idempotente');
+  assert.equal(stripObservations(null), 0);
+  assert.equal(mergeObservations(null, { observations: [OBS()] }), 0);
+});
+
+// ── Aggancio alla route ──────────────────────────────────────────────
+const fs = require('node:fs');
+const path = require('node:path');
+const R_PROJECTS = fs.readFileSync(path.join(__dirname, '..', 'server', 'routes', 'projects.js'), 'utf8');
+
+test('⚠️ il Salva fa confluire le osservazioni PRIMA di scrivere il progetto', () => {
+  assert.match(R_PROJECTS, /_observationsOutOfDocument\(id, state\);/);
+  assert.ok(R_PROJECTS.indexOf('_observationsOutOfDocument(id, state);') <
+            R_PROJECTS.indexOf('saveProject(id, name, state, p.created_at, now)'),
+    'prima nel sidecar, poi il documento: al contrario la migrazione non finisce mai');
+  assert.match(R_PROJECTS, /mergeObservations\(p\.state, _history\.readObservations\(id\)\)/, 'la GET le rimette');
+  assert.match(R_PROJECTS, /stripObservations\(state\);/, 'progetto NUOVO: si toglie e basta');
+  assert.match(R_PROJECTS, /stripObservations\(src\.state\);/, 'la copia nasce senza');
+});
+
+const R_HISTORY = fs.readFileSync(path.join(__dirname, '..', 'server', 'routes', 'history.js'), 'utf8');
+const AUTOLINK = fs.readFileSync(path.join(__dirname, '..', 'src', 'app-autolink.js'), 'utf8');
+const DISCOVERY = fs.readFileSync(path.join(__dirname, '..', 'src', 'app-discovery.js'), 'utf8');
+
+test('⚠️ la scansione manda le osservazioni appena finita, senza aspettare un Salva', () => {
+  // Tre anelli, e basta romperne uno per riavere il bug: la scansione manda, la
+  // route fonde e salva, la GET del progetto le rimette (già asserita sopra).
+  assert.match(AUTOLINK, /export function _persistObservations\(\)/);
+  assert.match(AUTOLINK, /history\/observations`, \{\s*\n?\s*method:'PUT'/, 'PUT al sidecar');
+  // Fine giro dell'auto-scoperta: si spedisce DOPO aver raccolto, non prima.
+  assert.ok(AUTOLINK.indexOf('if(historyAdded > 0){') > AUTOLINK.indexOf('let historyAdded'),
+    'lo scarico sta a fine funzione, dopo la raccolta');
+  assert.match(AUTOLINK, /if\(historyAdded > 0\)\{ win\.pruneDiscoveryHistory\(_ensureDiscoveryHistory\(\)\); _persistObservations\(\); \}/);
+  // Fine import dei device scoperti.
+  assert.match(DISCOVERY, /if\(imported > 0 \|\| updated > 0\) _persistObservations\(\);/);
+  assert.ok(DISCOVERY.indexOf('_persistObservations();') > DISCOVERY.lastIndexOf('_recordDiscoveryObservation({'),
+    'si spedisce dopo aver registrato');
+});
+
+test('la route fonde invece di sovrascrivere: una lista parziale non azzera l\'accumulo', () => {
+  assert.match(R_HISTORY, /router\.put\('\/api\/projects\/:id\/history\/observations', auth\.requireAdmin/);
+  assert.match(R_HISTORY, /foldObservations\(store\.readObservations\(id\), req\.body\)/, 'fold col salvato, mai il body nudo');
+  assert.match(R_HISTORY, /if \(!_projectExists\(id\)\) return res\.status\(404\)/);
+});
+
+test('_recordDiscoveryBatch non esiste più (era morto: nessun chiamante)', () => {
+  assert.equal(/_recordDiscoveryBatch/.test(AUTOLINK), false);
 });

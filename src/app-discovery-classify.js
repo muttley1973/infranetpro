@@ -322,7 +322,9 @@ export function _discTouchNodeIdentity(node, row, matchedBy='', idx=null){
     node.firstSeen = node.firstSeen || now;
     node.lastSeen = now;
     node.currentIp = seenIp || node.currentIp || oldIp || '';
-    node.lastDiscoveryMatch = matchedBy || node.lastDiscoveryMatch || '';
+    // NIENTE `lastDiscoveryMatch`: era una briciola di diagnostica che si rileggeva
+    // solo da se' stessa, persistita su ogni nodo scoperto. Il «da dove viene questa
+    // identita'» che l'interfaccia mostra davvero e' `identitySource`.
 
     // Non adottare come identità un MAC di next-hop (gateway/proxy-ARP/VRRP): sarebbe
     // il MAC dell'apparato di transito, non del device (DISC-A1). Con idx guardato,

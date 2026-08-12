@@ -15,6 +15,7 @@ const { timestamp } = require('../../utils');
 const { PROJECTS_DIR, loadProject } = require('../projects-store');
 const { createFsHistoryStore } = require('../history-store-fs');
 const { sanitizePresence } = require('../../lib/presence-store');
+const { foldObservations } = require('../../lib/discovery-history');
 const { _sanitizeBackupRefs } = require('./projects');   // stessa redazione credenziali del PUT progetto
 
 const router = express.Router();
@@ -84,6 +85,22 @@ router.put('/api/projects/:id/history/presence', auth.requireAdmin, (req, res) =
   const clean = sanitizePresence(req.body);
   const rec = store.savePresence(id, clean);
   res.json({ ok: true, at: rec.at, nodes: Object.keys(clean.nodes).length });
+});
+
+// ── OSSERVAZIONI di scoperta ─────────────────────────────────────────
+// Stessa storia della presenza: la scansione le manda appena finita, senza
+// aspettare un Salva. Prima vivevano solo in memoria fino al salvataggio, e con
+// l'autosave OFF di default una scoperta non salvata spariva al reload — proprio
+// il dato su cui `lib/temporal-confidence.js` costruisce il «visto N volte».
+// ⚠️ Si FONDE con quanto già su disco (vince la storia più larga, il conteggio si
+// prende col massimo): un client con una lista parziale non deve poter azzerare
+// l'accumulo di mesi.
+router.put('/api/projects/:id/history/observations', auth.requireAdmin, (req, res) => {
+  const id = +req.params.id;
+  if (!_projectExists(id)) return res.status(404).json({ error: 'Project not found' });
+  const folded = foldObservations(store.readObservations(id), req.body);
+  const rec = store.saveObservations(id, folded);
+  res.json({ ok: true, at: rec.at, observations: folded.observations.length });
 });
 
 // Lista la timeline (?limit=&from=&to=). Ordine cronologico.

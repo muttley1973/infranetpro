@@ -1,13 +1,23 @@
 # Changelog
 
-## [Unreleased]
+## [2.8.1] — 2026-08-12
+
+**A project file that holds what you declared, and nothing else.** Measurements — presence, discovery sightings, propagated VLANs — now live beside the project instead of inside it, so opening a project no longer changes it and the file stops growing on its own. Verified on a 500-device network.
 
 ### Added
-- **What the imported DCIM declares is now on screen.** An audit of two real NetBox imports found `node.source` written by the importer and read by no screen at all — 13 devices out of 14 carried a tenant nobody could see. The Properties panel now ends with a read-only **Declared by the DCIM** block: owner (tenant), declared status, role, platform. Only fields the DCIM actually declared, because a printed blank reads as data; technical slugs stay out. Read-only on purpose — `node.source` is the importer's voice, the fields above and the notes are yours.
+- **Declared by the DCIM** — a read-only block at the foot of the Properties panel showing what NetBox declares about an imported device: owner (tenant), status, role, platform. Only fields actually declared, because a printed blank reads as data.
 
 ### Fixed
-- **A cable being drawn now starts at the port, not off the edge of the screen.** Starting a link redraws the Properties panel, which puts the same `data-pid` on a dozen controls; a bare `querySelector` anchored the preview to one of those instead of the port LED. Asking for "the element that represents this port" is now a single call (`portAnchorEl`), scoped the way the cable renderer already was, and the six other callers use it too. A port that is not drawable here and now gets no preview at all, rather than one from an invented point.
-- **Hiding the floor-plan grid now frees every placement, not just dragging.** Three paths that put something on the map without dragging it — "Place on floor plan", the shared-segment node, the racks the sub-bar places — rounded to their own 20px step and never read the setting. The rule now lives once in `lib/floor-snap.js`.
+- **Looking at a project no longer changes it.** VLAN propagation is rebuilt from scratch on every render, yet it was written to disk — and the render created port records that did not exist (159 on a 500-device network, +5% file). Saving now strips it.
+- **The browser tab has an icon.** Neither page declared one, so every load asked for `/favicon.ico`, got a 404 and logged a console error. The mark is the app's own `fa-network-wired` glyph, rendered from the vendored Font Awesome and inlined — not redrawn by hand.
+
+### Changed
+- **Presence lives in exactly one place.** It sat both in the project file and in its own store beside it, kept in line by a freshness rule that existed only to paper over the duplication. Saving now folds it into the store and takes it out of the document — which is also the migration for existing projects.
+- **Discovery sightings move out too**, into `history/<id>/observations.json`: up to 96% of a small project's file. Merging keeps the wider history and takes the count as a maximum, so saving twice cannot inflate a sighting into a certainty.
+- **Fields nobody reads are gone** from the project file: `physicalKind`, stamped on every port by the DCIM import, and `lastDiscoveryMatch`. Existing projects shed them at the next save.
+- **Portable exports carry the document only** — no presence, no sightings, no derived VLANs: whoever opens one elsewhere runs their own Verify rather than inheriting a photograph of an installation they are not looking at.
+
+**Measured on real projects: 838 KB → 719 KB; one of them 49.6 KB → 1.6 KB.**
 
 ## [2.8.0] — 2026-08-11
 

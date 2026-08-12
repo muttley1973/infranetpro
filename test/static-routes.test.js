@@ -39,3 +39,25 @@ test('rotta ignota -> 404 JSON catch-all', async () => {
   assert.equal(r.status, 404);
   assert.deepEqual(await r.json(), { error: 'Not found' });
 });
+
+// ⚠️ L'icona della scheda è IN LINEA (data-URI), non un file servito: le rotte
+// statiche sono una lista bianca e la pagina di login la vede chi non ha ancora
+// una sessione. Senza dichiarazione il browser chiede /favicon.ico su OGNI
+// apertura e prende un 404 — errore rosso in console e scheda senza icona.
+// Le due pagine devono portare la STESSA icona: sono la stessa applicazione.
+test('app e login dichiarano l\'icona della scheda, e non serve una rotta per averla', async () => {
+  const viste = [];
+  for (const [nome, url] of [['app', '/'], ['login', '/login']]) {
+    const res = await fetch(srv.baseURL + url);
+    assert.equal(res.status, 200, `${nome} risponde`);
+    const html = await res.text();
+    const m = html.match(/<link[^>]+rel="icon"[^>]+href="([^"]+)"/);
+    assert.ok(m, `${nome}: manca <link rel="icon">`);
+    assert.match(m[1], /^data:image\/png;base64,/, `${nome}: l'icona deve essere in linea, non una rotta`);
+    viste.push(m[1]);
+  }
+  assert.equal(viste[0], viste[1], 'app e login devono mostrare la stessa icona');
+  // E /favicon.ico resta senza rotta: è giusto così, nessuno lo chiede più.
+  const fav = await fetch(srv.baseURL + '/favicon.ico');
+  assert.equal(fav.status, 404);
+});

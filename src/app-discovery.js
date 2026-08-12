@@ -6,7 +6,7 @@ import { _ensureVlanColor, updateVlanIpam } from './app-vlan-autopoll.js';   // 
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { focusNode, switchRack } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
-import { _isLeafEndpoint, _autoLinkEndpoint, _recordDiscoveryObservation } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
+import { _isLeafEndpoint, _autoLinkEndpoint, _recordDiscoveryObservation, _persistObservations } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
 import { _discIndexNode, _discVendorFromMac, _discRememberVendor, _discIdentitySource, _discFindExistingDevice, _discBuildExistingIndexes, _discTouchNodeIdentity, _discMacIsNextHop, _loadDeepScanPref, _saveDeepScanPref, _discSanitizeDeviceClass, _discRememberClassHint, _discHasStrongIdentity, _discCanAutoRetype, _discInvalidateExistingIndexes, _discMarkIpMacConflict, _discConfidenceScore } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { _findFreeU } from './app-topology-crawl.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
 import { registerChangeActions, registerClickActions } from './app-delegation.js';   // ASSE B: checkbox "seleziona tutti" Scopri via data-change; bottone "Nuova ricerca" via data-act
@@ -1282,6 +1282,9 @@ async function importDiscovered(){
         }
 
         markDirty(); renderAll(); renderCables();
+        // Fine import: gli avvistamenti appena registrati vanno nel loro archivio
+        // subito, senza aspettare che qualcuno prema Salva (sono una misura).
+        if(imported > 0 || updated > 0) _persistObservations();
         closeDiscovery();
         if(_importedEndpoints.length){
             const first=_importedEndpoints[0];
