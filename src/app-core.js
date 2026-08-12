@@ -60,7 +60,7 @@ async function loadProject(id) {
     store.state = _migrateState(proj.state);
     resetProjectRuntime();
     if(typeof _restoreTopoSession === 'function') _restoreTopoSession();
-    store._vlanIpamOpen.clear();
+    store._vlanIpamOpen.clear(); store._prefixOpen.clear();
     _invalidateIdx();
     store._history=[]; store._histIdx=-1; _updateHistoryBtns();
     _clearDirty();
@@ -82,7 +82,7 @@ export function applyRestoredState(snapState){
     store.state.bgImage  = bg;      // non è nello snapshot: tieni quello corrente
     store.state.auditLog = audit;   // journal append-only: non si ripristina
     if(typeof _restoreTopoSession === 'function') _restoreTopoSession();
-    store._vlanIpamOpen.clear();
+    store._vlanIpamOpen.clear(); store._prefixOpen.clear();
     _invalidateIdx();
     store._history=[]; store._histIdx=-1; _updateHistoryBtns();   // l'undo riparte dallo stato ripristinato
     _startAutoMonitor();
@@ -113,7 +113,7 @@ async function newProject() {
         store.state = _migrateState(proj.state);
         resetProjectRuntime();
         if(typeof _restoreTopoSession === 'function') _restoreTopoSession();
-        store._vlanIpamOpen.clear();
+        store._vlanIpamOpen.clear(); store._prefixOpen.clear();
         _invalidateIdx();
         store._history=[]; store._histIdx=-1; _updateHistoryBtns();
         _clearDirty();

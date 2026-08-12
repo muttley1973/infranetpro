@@ -611,8 +611,8 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           monitorMovedOut: closed.indexOf('Monitoraggio automatico') < 0,
           hasColors: closed.indexOf('Colori workspace') >= 0,
           hasVlan10Card: closed.indexOf('VLAN 10') >= 0,
-          ipamClosed: closed.indexOf('Subnet / CIDR') < 0,
-          ipamOpenedReflectsSet: opened.indexOf('Subnet / CIDR') >= 0,
+          ipamClosed: closed.indexOf('vlan-ipam-fields') < 0,
+          ipamOpenedReflectsSet: opened.indexOf('vlan-ipam-fields') >= 0,
           popHasMonitor: pop.indexOf('Monitoraggio automatico') >= 0,
           popHasIpRenew: pop.indexOf('Rinnovo automatico IP') >= 0,
         };
@@ -635,6 +635,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         state.vlanNames = state.vlanNames || {}; state.vlanNames['20'] = 'Uffici';
         state.ipam = state.ipam || { vlans: {} };
         state.ipam.vlans['20'] = { subnet: '192.168.20.0/24', gateway: '192.168.20.1' };
+        _migrateState(state);   // formato 1 -> 2: la subnet diventa un prefisso, come al caricamento
         state.nodes.push({ id: 'pc20', type: 'pc', name: 'PC-20', x: 10, y: 10, ports: 1, ip: '192.168.20.10' });
         if (typeof _invalidateIdx === 'function') _invalidateIdx();
         // Lease: .10 = già documentato · .45 = solo-DHCP (non documentato) · .99 = SCADUTO
@@ -682,6 +683,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         state.vlanNames = state.vlanNames || {}; state.vlanNames['20'] = 'Uffici';
         state.ipam = state.ipam || { vlans: {} };
         state.ipam.vlans['20'] = { subnet: '192.168.20.0/24', gateway: '192.168.20.1' };
+        _migrateState(state);   // formato 1 -> 2: la subnet diventa un prefisso, come al caricamento
         state.nodes.push({ id: 'pc20', type: 'pc', name: 'PC-20', x: 10, y: 10, ports: 1, mac: 'AA:BB:CC:00:00:10', ip: '192.168.20.10' });
         if (typeof _invalidateIdx === 'function') _invalidateIdx();
         window._dhcpLeases = [
@@ -764,6 +766,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         state.vlanNames = state.vlanNames || {}; state.vlanNames['20'] = 'Mgmt';
         state.ipam = state.ipam || { vlans: {} };
         state.ipam.vlans['20'] = { subnet: '192.168.20.0/24', gateway: '192.168.20.1' };
+        _migrateState(state);   // formato 1 -> 2: la subnet diventa un prefisso, come al caricamento
         if (typeof _invalidateIdx === 'function') _invalidateIdx();
         window._dhcpLeases = [{ mac: 'AA:BB:CC:00:00:45', ip: '192.168.20.45', hostname: 'sw-access' }];
 

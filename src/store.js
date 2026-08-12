@@ -49,7 +49,7 @@ export const store = proxy([
     // falsy/vuoti al render iniziale → golden invariante. La cella di verità resta
     // window.X (per i bare-global self-ref in app.js e i writer classic).
     'dragOffset', 'dragRack', '_dragArmed', 'lagSelMode',
-    '_discRunning', '_discImporting', '_discSelMap', '_routingLinkId', '_vlanIpamOpen',
+    '_discRunning', '_discImporting', '_discSelMap', '_routingLinkId', '_vlanIpamOpen', '_prefixOpen',
     // ── coda-stato di INTERAZIONE, 2º giro (ritiro ponte 2026-07-11) ──────────
     // Altri flag/cache di gesture/vista: resize, pan floor/rack, spazio-premuto,
     // punto-mouse-down, hover-rack, tab-hold props, click-porta-floor, traccia fisica,
@@ -99,4 +99,8 @@ export function resetProjectRuntime() {
     store._snmpSyncing = false;
     if (store._vlanIpamOpen && typeof store._vlanIpamOpen.clear === 'function') store._vlanIpamOpen.clear();
     else store._vlanIpamOpen = new Set();
+    // Righe-rete espanse (chiave = CIDR normalizzato): stato di INTERAZIONE, come
+    // sopra. Vuoto al render iniziale → il golden non lo vede.
+    if (store._prefixOpen && typeof store._prefixOpen.clear === 'function') store._prefixOpen.clear();
+    else store._prefixOpen = new Set();
 }

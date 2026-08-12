@@ -9,7 +9,7 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, normalizeNumber } from './app-util.js';
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, pushHistory, renderCables, _showToast, _promoteLinkToManual, _vlanRecord, _ensureIpamState } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
-import { primaryPrefixForVlan, upsertPrefix, removePrefix, prefixKey, migrateIpam, prefixesForVlan, prefixesWithoutVlan } from '../lib/ipam-model.js';   // la subnet è un prefisso, non un campo della VLAN
+import { primaryPrefixForVlan, upsertPrefix, removePrefix, prefixKey, migrateIpam, prefixesForVlan, prefixesWithoutVlan, prefixesOf, findPrefix } from '../lib/ipam-model.js';   // la subnet è un prefisso, non un campo della VLAN
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, _ensureNodeSpec } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
@@ -578,6 +578,62 @@ export function updateVlanIpam(v, field, value){
     markDirty();
     renderProps();
 }
+// ── Reti dichiarate (ipam.prefixes[]) ───────────────────────────────────────
+// Dichiara una rete. `vid` null = rete senza VLAN (punto-punto, transito). Il
+// CIDR si normalizza all'indirizzo di RETE, come già fa «Scopri»: chi scrive
+// 192.168.20.5/24 intende la /24, non l'host.
+export function addDeclaredPrefix(raw, vid){
+    const cidr = (typeof subnetInputToCidr === 'function') ? subnetInputToCidr(raw) : String(raw||'').trim();
+    if(!cidr){ _showToast(t('floor.hintBadCidr'), 'warn', 3500); return; }
+    if(findPrefix(store.state, cidr)){ _showToast(t('floor.netDup', { cidr }), 'warn', 3500); return; }
+    pushHistory();
+    upsertPrefix(store.state, { cidr, vlan: vid == null ? null : +vid, source: 'manual' });
+    if(vid != null && typeof _ensureVlanColor === 'function') _ensureVlanColor(+vid);
+    migrateIpam(store.state);   // un gateway rimasto orfano entra nel prefisso appena nato
+    store._prefixOpen.add(prefixKey(cidr));   // nasce aperta: c'è da compilare gateway e DNS
+    markDirty();
+    renderProps();
+}
+
+export function removeDeclaredPrefix(key){
+    const row = prefixesOf(store.state).find(p => prefixKey(p.cidr) === key);
+    if(!row) return;
+    pushHistory();
+    removePrefix(store.state, row.cidr);
+    store._prefixOpen.delete(key);
+    markDirty();
+    renderProps();
+}
+
+// Un campo di una rete già dichiarata. Cambiare il CIDR è una RINOMINA: la riga
+// si porta dietro gateway, DNS e quello che è arrivato dal DCIM.
+export function updatePrefixField(key, field, value){
+    const row = prefixesOf(store.state).find(p => prefixKey(p.cidr) === key);
+    if(!row) return;
+    const val = String(value||'').trim();
+    if(field === 'cidr'){
+        const cidr = (typeof subnetInputToCidr === 'function') ? subnetInputToCidr(val) : val;
+        if(!cidr || prefixKey(cidr) === key){ renderProps(); return; }   // vuoto o invariato: nulla da fare
+        if(findPrefix(store.state, cidr)){ _showToast(t('floor.netDup', { cidr }), 'warn', 3500); renderProps(); return; }
+        pushHistory();
+        const moved = Object.assign({}, row, { cidr });
+        removePrefix(store.state, row.cidr);
+        upsertPrefix(store.state, moved);
+        if(store._prefixOpen.delete(key)) store._prefixOpen.add(prefixKey(cidr));
+    } else {
+        pushHistory();
+        upsertPrefix(store.state, { cidr: row.cidr, [field]: val });
+    }
+    markDirty();
+    renderProps();
+}
+
+export function togglePrefixOpen(key){
+    if(store._prefixOpen.has(key)) store._prefixOpen.delete(key);
+    else store._prefixOpen.add(key);
+    renderProps();
+}
+
 function deleteVlanColor(v){
     pushHistory();
     delete store.state.vlanColors[v];
@@ -1071,6 +1127,7 @@ expose({
     _propagateTrunkMembership, _runActiveAnchor, _effPortVlan, _getLinkTrunk, _linkIsTrunk,
     setLinkNativeVlan, setEndpointVlan, setNodeVoiceVlan, _siteNativeVlan, setSiteNativeVlan,
     toggleSiteNativeVlan, updateVlanColor, updateVlanName, toggleVlanIpam, updateVlanIpam,
+    addDeclaredPrefix, removeDeclaredPrefix, updatePrefixField, togglePrefixOpen,
     deleteVlanColor, clearAllVlans, setVlanFilter, toggleGuestVlan, toggleMgmtVlan, _isVoiceVlan,
     toggleVoiceVlan, _voipNodes, _voipVoiceVlan, _setVoipVoiceVlan, _voiceAssignTargets,
     applyVoiceVlanBulk, _tV, _openVoiceAssignDialog, _closeVoiceAssign, _voiceAssignHtml,

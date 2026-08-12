@@ -111,3 +111,109 @@ test('cancellare una VLAN porta via la sua subnet, ma non le reti senza VLAN', (
   })()`);
   assert.deepStrictEqual(JSON.parse(out), [{ cidr: '10.0.0.0/30', vlan: null, name: 'punto-punto R1-R2' }]);
 });
+
+// ── L'interfaccia: dichiarare le reti ───────────────────────────────────────
+// Il criterio del piano, alla lettera: si dichiara una /64 accanto a una /24 e
+// una /30 senza VLAN.
+test('il pannello VLAN: una /64 accanto a una /24, e una /30 senza VLAN', () => {
+  const out = run(APP.ctx, `(() => {
+    state = _migrateState({ schemaVersion:2, nodes:[
+      { id:'sw1', type:'switch', name:'SW1', ip:'192.168.20.10' },
+    ], racks:[], links:[], ports:{}, vlanColors:{ 20:'#00d4ff' }, vlanNames:{ 20:'Uffici' },
+      ipam:{ vlans:{}, prefixes:[] } });
+
+    addDeclaredPrefix('192.168.20.0/24', 20);
+    addDeclaredPrefix('2001:db8:0:14::/64', 20);   // dual-stack: prima si perdeva
+    addDeclaredPrefix('10.0.0.0/30', null);        // rete senza VLAN
+    updatePrefixField(prefixKey('10.0.0.0/30'), 'name', 'punto-punto R1-R2');
+
+    selType = null; selId = null; renderProps();
+    const html = document.getElementById('props-panel').innerHTML;
+    return JSON.stringify({
+      prefixes: state.ipam.prefixes,
+      hasNoVlanSection: html.includes('Reti senza VLAN'),
+      plainCards: (html.match(/vlan-ipam-plain/g) || []).length,
+      showsP2P: html.includes('10.0.0.0/30'),
+      // la VLAN 20 e' CHIUSA: le sue due reti non si vedono finche' non la apri
+      showsV6WhileClosed: html.includes('2001:db8:0:14::/64'),
+    });
+  })()`);
+  const r = JSON.parse(out);
+
+  assert.strictEqual(r.prefixes.length, 3);
+  assert.deepStrictEqual(r.prefixes.map(p => p.cidr),
+    ['192.168.20.0/24', '2001:db8:0:14::/64', '10.0.0.0/30']);
+  assert.deepStrictEqual(r.prefixes.map(p => p.vlan), [20, 20, null]);
+  assert.strictEqual(r.prefixes[2].name, 'punto-punto R1-R2');
+
+  assert.strictEqual(r.hasNoVlanSection, true, 'la sezione «Reti senza VLAN» c\'è');
+  assert.strictEqual(r.plainCards, 1, 'una sola card ridotta: la /30');
+  assert.strictEqual(r.showsP2P, true);
+  assert.strictEqual(r.showsV6WhileClosed, false, 'col cassetto VLAN chiuso le sue reti non si stampano');
+});
+
+test('il pannello VLAN: aperto il cassetto, le due reti della VLAN si vedono', () => {
+  const out = run(APP.ctx, `(() => {
+    state = _migrateState({ schemaVersion:2, nodes:[], racks:[], links:[], ports:{},
+      vlanColors:{ 20:'#00d4ff' }, vlanNames:{},
+      ipam:{ vlans:{}, prefixes:[
+        { cidr:'192.168.20.0/24', vlan:20, gateway:'192.168.20.1' },
+        { cidr:'2001:db8:0:14::/64', vlan:20, source:'dcim', description:'Uffici v6' },
+      ] } });
+    _vlanIpamOpen.clear(); _prefixOpen.clear(); _vlanIpamOpen.add(20);
+    selType = null; selId = null; renderProps();
+    const html = document.getElementById('props-panel').innerHTML;
+    return JSON.stringify({
+      v4: html.includes('192.168.20.0/24'),
+      v6: html.includes('2001:db8:0:14::/64'),
+      dcimBadge: html.includes('drift-net-tag is-decl'),
+      // la riga e' CHIUSA: gateway e descrizione stanno dietro il chevron
+      gwHidden: !html.includes('data-field="gateway"'),
+      descHidden: !html.includes('Uffici v6'),
+    });
+  })()`);
+  const r = JSON.parse(out);
+  assert.strictEqual(r.v4, true);
+  assert.strictEqual(r.v6, true, 'il dual-stack si vede: due righe, non una');
+  assert.strictEqual(r.dcimBadge, true, 'la provenienza DCIM si distingue');
+  assert.strictEqual(r.gwHidden, true, 'riga compatta: il gateway è nella parte espansa');
+  assert.strictEqual(r.descHidden, true);
+});
+
+test('il pannello VLAN: espansa, la riga mostra gateway, DNS e cio` che dichiara il DCIM', () => {
+  const out = run(APP.ctx, `(() => {
+    state = _migrateState({ schemaVersion:2, nodes:[], racks:[], links:[], ports:{},
+      vlanColors:{ 20:'#00d4ff' }, vlanNames:{},
+      ipam:{ vlans:{}, prefixes:[
+        { cidr:'192.168.20.0/24', vlan:20, gateway:'192.168.20.1', dns:'1.1.1.1',
+          source:'dcim', status:'active', description:'Rete uffici' },
+      ] } });
+    _vlanIpamOpen.clear(); _prefixOpen.clear(); _vlanIpamOpen.add(20);
+    togglePrefixOpen(prefixKey('192.168.20.0/24'));
+    selType = null; selId = null; renderProps();
+    const html = document.getElementById('props-panel').innerHTML;
+    return JSON.stringify({
+      gw: html.includes('192.168.20.1'), dns: html.includes('1.1.1.1'),
+      status: html.includes('active'), desc: html.includes('Rete uffici'),
+    });
+  })()`);
+  const r = JSON.parse(out);
+  assert.strictEqual(r.gw, true);
+  assert.strictEqual(r.dns, true);
+  assert.strictEqual(r.status, true, 'lo stato dichiarato dal DCIM si legge qui');
+  assert.strictEqual(r.desc, true);
+});
+
+test('il pannello VLAN: un gateway orfano non sparisce dalla vista', () => {
+  // Vecchio progetto con il gateway scritto e la subnet no: la migrazione lo
+  // lascia sul record VLAN, e il cassetto lo dice invece di ignorarlo.
+  const out = run(APP.ctx, `(() => {
+    state = _migrateState({ schemaVersion:1, nodes:[], racks:[], links:[], ports:{},
+      vlanColors:{ 40:'#f1e05a' }, vlanNames:{},
+      ipam:{ vlans:{ 40:{ gateway:'10.0.40.1' } } } });
+    _vlanIpamOpen.clear(); _prefixOpen.clear(); _vlanIpamOpen.add(40);
+    selType = null; selId = null; renderProps();
+    return document.getElementById('props-panel').innerHTML.includes('10.0.40.1') ? 'visibile' : 'sparito';
+  })()`);
+  assert.strictEqual(out, 'visibile');
+});
