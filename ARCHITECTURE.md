@@ -260,7 +260,7 @@ state = { schemaVersion, racks[], currentRack, nodes[], links[], ports{}, vlanCo
 
 - **node**: `{ id, type, name, rackU, sizeU, ports, rackId, ip, ip6, ip6Manual, … }` — `ip6` is a **distinct** IPv6 field with the same manual-first padlock as `ip` (`ip6Manual`): the Sync auto-populates it from the device's own SNMP address (`ipAddressTable`), or Neighbour Discovery proposes it; never merged into `ip`, the IPv4 IPAM, or the Ansible host
 - **link**: `{ id, src:'nodeId-portN', dst:'nodeId-portN', … }`
-- **port**: `state.ports['nodeId-N'] = { status, speed, vlan, … }`
+- **port**: `state.ports['nodeId-N'] = { status, speed, vlan, ip, … }` — `ip` is the address **of that interface**, not of the device: a router answers on one address per port, and while the model held a single address per device the second interface could only be recorded as a second device. `node.ip` stays the management address. Declared manual-first: stored as typed, with the panel flagging anything that is not an IPv4 rather than refusing it. Not offered on passive ports (patch panels, wall outlets), where copper passes through and no interface terminates
 
 Mutation → render → persist:
 `updateN(...)/setLinkProp(...)` mutate `state` → call `renderAll()` (or a scoped

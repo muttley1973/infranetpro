@@ -442,6 +442,11 @@ export function portTip(pid){
     }
     const vlan = _effPortVlan(pid);
     if(vlan && vlan>1) parts.push(`VLAN ${_vlanLabel(vlan)}`);
+    // Indirizzo DELL'INTERFACCIA (non del nodo): un router ha un indirizzo per
+    // presa, ed è quello che permette di riconoscere «l'altra interfaccia dello
+    // stesso apparato» invece di duplicarlo. Nel tooltip perché si legga dalla
+    // mappa e dal rack senza aprire il pannello.
+    if(pi.ip) parts.push(pi.ip);
     // LAG con hint cross-stack quando la LAG attraversa piu' membri dello
     // stesso stack (caso reale: Port-channel1 con Gi1/0/24 + Gi2/0/24).
     const _hasLag = (pi.lagId && pi.lagId>0) || !!_portLagGid(pid);
@@ -468,6 +473,12 @@ export function _portDisplayName(pid){
 function setPortField(pid, field, val){
     const state = store.state;
     if(!state.ports[pid]) state.ports[pid] = {};
+    // L'indirizzo dell'interfaccia è un dato DICHIARATO, come `node.ip`: si
+    // ripulisce dagli spazi e si scrive com'è. NON si rifiuta un valore che non
+    // sembra un IP — manual-first: quello che l'utente dichiara entra, e a dire
+    // che non torna ci pensa l'avviso nel pannello (e domani l'audit IPAM), non
+    // un campo che si rifiuta di ricordare quello che gli hai scritto.
+    if(field === 'ip') val = String(val == null ? '' : val).trim();
     if(val===null || val===undefined || val==='') delete state.ports[pid][field];
     else state.ports[pid][field] = val;
     if(field==='vlanOvr'){

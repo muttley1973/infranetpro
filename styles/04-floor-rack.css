@@ -331,14 +331,15 @@
         /* Errore del driver SNMP sul pavimento: sulla TILE come tutti gli altri stati
            (prima era un contorno inline sull'etichetta interna, e a schermo sembrava
            un bordo rosso messo a caso).
-           ⚠️ Si distingue dall'assenza per COLORE, non più per tratto. Il tratteggio
+           ⚠️ Distinto dall'assenza per COLORE, e per colore soltanto. Il tratteggio
            in questa app vuol già dire un'altra cosa — «dedotto, da confermare»: è il
-           segno dei cavi inferiti da LLDP/FDB, ed è scritto anche nel manuale. Usarlo
-           anche qui caricava lo stesso segno di due significati. Ora: anello PIENO
-           arancione (`--probe-warn`) contro l'alone ROSSO dell'assente, che per giunta
-           è un box-shadow: due forme diverse e due colori diversi per due notizie
-           diverse — «non risponde all'interrogazione» ≠ «non c'è». */
-        .floor-node.snmp-fault { outline:2px solid var(--probe-warn); outline-offset:2px; border-radius:5px; }
+           segno dei cavi inferiti da LLDP/FDB, ed è scritto anche nel manuale.
+           ⚠️ STESSA GEOMETRIA dell'alone dell'assente (box-shadow che segue il raggio
+           della tile), non un outline staccato: due stati dello stesso oggetto devono
+           avere la stessa forma, altrimenti sembrano due decorazioni scorrelate
+           invece di due valori della stessa notizia. Cambia il colore, che è la
+           notizia: arancione «non risponde all'interrogazione» ≠ rosso «non c'è». */
+        .floor-node.snmp-fault { box-shadow:0 0 0 2px var(--probe-warn), 0 0 9px rgba(240,136,62,.55); }
         .floor-node.node-unverified { opacity:0.4; filter:grayscale(0.9); }
         .floor-node.node-unverified.selected { opacity:0.72; }
         .rack-device.node-unverified { opacity:0.45; filter:grayscale(0.9); }

@@ -56,17 +56,20 @@ test('errore SNMP sul pavimento: anello sulla tile, mai sull\'etichetta interna'
   assert.match(RENDER, /el\.classList\.add\('snmp-fault'\)/, 'classe sul contenitore');
   assert.equal(/class="label"\s*\$\{_ferr\}/.test(RENDER), false, 'niente stile inline sull\'etichetta');
   assert.equal(/outline:2px solid #f85149/.test(RENDER), false, 'niente colore cablato a mano nel renderer');
-  // ⚠️ Si distingue dall'assenza per COLORE, non per tratto. Il tratteggio in
-  // questa app significa già «dedotto, da confermare» (i cavi inferiti da
-  // LLDP/FDB, documentato anche nel manuale): usarlo anche qui caricava lo
-  // stesso segno di due significati. Ora anello PIENO in `--probe-warn`, e
-  // l'assenza resta il suo alone rosso — due forme, due colori, due notizie.
-  const RING = CSS.match(/\.floor-node\.snmp-fault \{[^}]*\}/)[0];
-  assert.match(RING, /solid/, 'anello pieno');
-  assert.doesNotMatch(RING, /dashed/, 'il tratteggio è il vocabolario del «dedotto», non del guasto');
+  // ⚠️ Guasto e assenza sono due valori della STESSA notizia: stessa forma,
+  // colore diverso. Il tratteggio qui non entra — in questa app significa già
+  // «dedotto, da confermare» (i cavi inferiti da LLDP/FDB, documentato anche nel
+  // manuale), e un outline staccato faceva sembrare i due stati due decorazioni
+  // scorrelate invece che due letture dello stesso apparato.
+  const RING   = CSS.match(/\.floor-node\.snmp-fault \{[^}]*\}/)[0];
+  const ABSENT = CSS.match(/\.floor-node\.node-absent[^{]*\{[^}]*\}/)[0];
+  // Solo le misure del primo strato: il colore DEVE essere diverso, la forma no.
+  const geom = (rule) => ((rule.match(/box-shadow:\s*([\d.px\s-]+?)\s*(?:var\(|rgba?\()/) || [])[1] || '').trim();
+  assert.match(RING, /box-shadow/, 'alone come l\'assenza, non un outline staccato');
+  assert.doesNotMatch(RING, /outline|dashed/, 'né contorno staccato né tratteggio');
+  assert.equal(geom(RING), geom(ABSENT), 'STESSA geometria dell\'alone dell\'assente');
   assert.match(RING, /var\(--probe-warn\)/, 'colore da token semantico');
-  assert.doesNotMatch(RING, /--fault-color/, 'NON il rosso dell\'assenza: sono due notizie diverse');
-  assert.match(CSS, /\.floor-node\.node-absent[^{]*\{[^}]*box-shadow/, 'l\'assenza resta un alone, non un contorno');
+  assert.doesNotMatch(RING, /--fault-color/, 'NON il rosso dell\'assenza: cambia il colore, che è la notizia');
 });
 
 test('l\'anello di guasto SNMP si spiega da sé (nessuna legenda da cercare)', () => {

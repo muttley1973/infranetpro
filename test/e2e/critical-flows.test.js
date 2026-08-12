@@ -1276,6 +1276,78 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.overlayClosed, 'closeDiscovery chiude l\'overlay');
     });
 
+    await t.test('L\'indirizzo sta sull\'INTERFACCIA: dichiarato, ripulito, e avvisato se non è un IP', async () => {
+      // Un router ha un indirizzo per presa: finché il modello ne teneva uno solo,
+      // la seconda interfaccia poteva esistere solo come un secondo apparato.
+      // Manual-first: quello che l'utente scrive si SALVA sempre — se non ha la
+      // forma di un IPv4 si avvisa, non si rifiuta.
+      const r = await page.evaluate(async () => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = {};
+          state.nodes.push({ id: 'rt9', type: 'router', name: 'R-EDGE', ip: '192.168.1.200', x: 200, y: 200, ports: 4 });
+          state.nodes.push({ id: 'pp9', type: 'patchpanel', name: 'PP-9', x: 400, y: 200, ports: 8 });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          renderAll();
+          await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+          const open = (pid) => { selType = 'port'; selId = pid; renderProps(); };
+          const input = () => document.querySelector('[data-pfield="ip"]');
+          const warns = () => (document.getElementById('props-panel')?.textContent || '').includes('Non sembra un indirizzo');
+          const type = (v) => { const el = input(); el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); };
+
+          open('rt9-2');
+          const onActive = !!input();
+          type('  10.10.30.1  '); open('rt9-2');
+          const stored = (state.ports['rt9-2'] || {}).ip, warnAfterValid = warns();
+          type('sala-server'); open('rt9-2');
+          const storedOdd = (state.ports['rt9-2'] || {}).ip, warnAfterOdd = warns();
+          type('10.10.30.1'); open('rt9-2');
+          const tip = (typeof portTip === 'function') ? portTip('rt9-2') : '';
+          open('pp9-3');
+          const onPassive = !!input();
+          return { ok: true, onActive, stored, warnAfterValid, storedOdd, warnAfterOdd, tip, onPassive };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel pannello porta: ' + r.err);
+      assert.ok(r.onActive, 'la porta di un router ha il campo indirizzo');
+      assert.ok(!r.onPassive, 'la presa di un patch panel NO: è rame che passa, non un\'interfaccia');
+      assert.equal(r.stored, '10.10.30.1', 'salvato senza spazi attorno');
+      assert.ok(!r.warnAfterValid, 'un indirizzo valido non fa scattare l\'avviso');
+      assert.equal(r.storedOdd, 'sala-server', '⚠️ manual-first: un valore strano si salva lo stesso');
+      assert.ok(r.warnAfterOdd, '…ma il pannello dice che non sembra un indirizzo');
+      assert.match(r.tip, /10\.10\.30\.1/, 'l\'indirizzo si legge dal tooltip della porta, senza aprire il pannello');
+    });
+
+    await t.test('Scopri: la colonna NOME non ripete l\'IP (che ha la sua colonna)', async () => {
+      // Su una rete vera metà dei device non annuncia né modello né hostname, e la
+      // colonna Nome finiva per stampare l'indirizzo — lo stesso già presente due
+      // colonne più in là. Ora si compone dal MISURATO (tipo+marca) con la stessa
+      // lib della planimetria, e la riga composta si vede che è composta.
+      const r = await page.evaluate(() => {
+        try {
+          openDiscovery();
+          window._discResults = [
+            { ip: '10.0.0.7', mac: 'AA:BB:CC:00:00:07', alive: true, hostname: 'CORE-SW', deviceClass: 'switch', vendor: 'Cisco' },
+            { ip: '10.0.0.8', mac: 'AA:BB:CC:00:00:08', alive: true, deviceClass: 'iot', vendor: 'AzureWave Technology Inc.' },
+          ];
+          _discRenderTable();
+          const rows = [...document.querySelectorAll('#disc-tbody tr')].map(tr => ({
+            nome: tr.querySelector('.disc-name').textContent.trim(),
+            ip: tr.querySelector('.disc-ip').textContent.trim(),
+            derivato: tr.querySelector('.disc-name').classList.contains('nl-derived'),
+          }));
+          return { ok: true, rows };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel render: ' + r.err);
+      assert.equal(r.rows.length, 2);
+      assert.equal(r.rows.filter(x => x.nome === x.ip).length, 0, 'nessuna riga ripete l\'IP come nome');
+      assert.equal(r.rows[0].nome, 'CORE-SW', 'un hostname vero resta intatto');
+      assert.equal(r.rows[0].derivato, false, 'e non è marcato come composto');
+      assert.match(r.rows[1].nome, /AzureWave/, 'senza nome si compone dal misurato (tipo+marca)');
+      assert.equal(r.rows[1].derivato, true, 'la riga composta si dichiara tale (più tenue)');
+    });
+
     await t.test('Scopri: colonne trascinabili — la larghezza si ricorda e la tabella scorre in orizzontale', async () => {
       // La colonna Vendor tronca i nomi lunghi ("Zyxel Communic..."): l'utente la
       // allarga. Qui si prova il giro completo — maniglie presenti, larghezza

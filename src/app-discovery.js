@@ -4,7 +4,8 @@ import { escapeHTML, uid, normalizeMacAddress } from './app-util.js';
 import { markDirty, pushHistory, renderCables, _showToast, _nextNodeId, _ipamEntry } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { _ensureVlanColor, updateVlanIpam } from './app-vlan-autopoll.js';   // associazione VLAN↔subnet dallo scan (declare-first)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
-import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
+import { TYPES, typeName, typeShort } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
+import { nodeLabelParts } from '../lib/node-label.js';   // etichetta leggibile quando il nome sarebbe l'IP (che ha già la sua colonna)
 import { focusNode, switchRack } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { _isLeafEndpoint, _autoLinkEndpoint, _recordDiscoveryObservation, _persistObservations } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
 import { _discIndexNode, _discVendorFromMac, _discRememberVendor, _discIdentitySource, _discFindExistingDevice, _discBuildExistingIndexes, _discTouchNodeIdentity, _discMacIsNextHop, _loadDeepScanPref, _saveDeepScanPref, _discSanitizeDeviceClass, _discRememberClassHint, _discHasStrongIdentity, _discCanAutoRetype, _discInvalidateExistingIndexes, _discMarkIpMacConflict, _discConfidenceScore } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
@@ -73,6 +74,23 @@ function _discCleanModel(model, vendor){
     m = m.replace(/\s+(android\s*tv|google\s*tv|smart\s*tv|media\s*player|streaming\s*(?:stick|player|box)|network\s*camera|ip\s*camera|webcam|printer|scanner)\s*$/i, '');
     return m.trim();
 }
+// Etichetta della colonna NOME. ⚠️ NON è `_discDisplayName`: quella ricade
+// sull'IP quando non trova né modello né hostname, e nella tabella l'IP ha già
+// una colonna sua — ripeterlo due volte per riga non aggiunge niente e toglie
+// spazio proprio dove servirebbe. Qui si riusa `lib/node-label.js`, la stessa
+// lib che la planimetria usa per lo stesso identico problema: quando il nome
+// mancherebbe compone dal MISURATO (tipo + marca, «IoT-AzureWave») e lascia
+// l'indirizzo a chi lo mostra — cioè la colonna IP.
+// `derived` dice se la riga è composta da noi: la si stampa più tenue, con le
+// stesse classi della mappa, perché non è un nome dichiarato da nessuno.
+function _discRowLabel(d, type){
+    const p = nodeLabelParts(
+        { name: _discDisplayName(d), ip: d && d.ip, ip6: d && d.ip6, brand: d && d.vendor },
+        { typeName: typeShort(type), vendor: d && d.vendor }
+    );
+    return p;
+}
+
 function _discDisplayName(d){
     if(!d) return '';
     // Modello ESATTO: SNMP ENTITY-MIB (switch/router/NAS che lo espongono) o mDNS/UPnP/ONVIF.
@@ -787,7 +805,7 @@ function _discRenderTable(){
             + ` <span class="disc-badge rec-${rec.cls}" data-tip="${escapeHTML(rec.label + ' · ' + rec.title)}"><i class="fas ${_discRecIcon(rec.cls)}"></i></span>`
             + _discEdgeBadge(d);
         const reach = _discReachabilityInfo(d);
-        const displayName = _discDisplayName(d);
+        const rowLabel = _discRowLabel(d, t);   // NOME senza l'IP: quello ha la sua colonna
         // Pre-selezione = vivo E confidenza sopra la soglia fantasmi (i solo-ping a
         // ~10% NON si spuntano di default). L'utente puo' sempre spuntarli a mano.
         const _lowConf = !!d.alive && (conf.score || 0) < DISC_PRESELECT_MIN_CONF;
@@ -797,7 +815,7 @@ function _discRenderTable(){
         return `<tr class="${_rowCls}">
           <td><input type="checkbox" class="disc-chk" data-idx="${i}" data-change="disc-row" ${checked?'checked':''}></td>
           <td><span class="disc-st ${reach.cls}" data-tip="${escapeHTML(reach.title)}">${escapeHTML(reach.label)}</span></td>
-          <td class="disc-host"><span class="disc-name">${escapeHTML(displayName)}</span><span class="disc-badges">${badges}</span></td>
+          <td class="disc-host"><span class="disc-name${rowLabel.derived ? ' nl-derived' : ''}"${rowLabel.derived ? ` title="${escapeHTML(_dt('disc.derivedName','Nome composto da tipo e marca misurati: questo apparato non dichiara né un modello né un hostname.'))}"` : ''}>${escapeHTML(rowLabel.primary)}</span><span class="disc-badges">${badges}</span></td>
           <td class="disc-ip">${escapeHTML(d.ip)}</td>
           <td class="disc-vendor" title="${escapeHTML(_discVendorLabel(d))}">${escapeHTML(_discVendorLabel(d))}</td>
           <td class="disc-mac">${escapeHTML(d.mac||'—')}</td>

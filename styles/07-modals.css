@@ -358,6 +358,11 @@
            l'ultimo badge (la posizione — il segnale più debole, con tooltip completo). */
         .disc-host { font-weight:600; display:flex; align-items:center; min-width:0; overflow:hidden; white-space:nowrap; }
         .disc-host .disc-name { flex:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        /* Nome COMPOSTO da noi (tipo+marca misurati) perché l'apparato non dichiara
+           né modello né hostname: più tenue, esattamente come sulla planimetria
+           (.nl-derived in 04-floor-rack.css). Non è un nome che qualcuno ha
+           dichiarato, e non deve sembrarlo. */
+        .disc-host .disc-name.nl-derived { font-weight:450; color:var(--text-muted); }
         .disc-host .disc-badges { display:flex; align-items:center; min-width:0; flex:0 1 auto; overflow:hidden; white-space:nowrap; }
         .disc-host .disc-badge { flex:none; }
         /* MAC: i MAC normalizzati sono in MAIUSCOLO (glifi piu' larghi) → senza nowrap

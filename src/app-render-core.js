@@ -236,8 +236,8 @@ function _buildFloorNodeEl(n, def, absentCls){
     // dell'«assente», ma su un elemento diverso — a schermo due apparati in rosso
     // sembravano avere due bordi diversi senza motivo (uno intorno al nome, uno
     // intorno alla tile). Ora è una classe sulla tile, come sul rack.
-    // ⚠️ Resta VISIVAMENTE distinto dall'assenza (anello arancione contro alone
-    // rosso): un driver che fallisce non è un apparato sparito, e il rack fa già la
+    // ⚠️ Resta distinto dall'assenza per COLORE (arancione contro rosso), a parità
+    // di forma: un driver che fallisce non è un apparato sparito, e il rack fa già la
     // stessa scelta col bordo sinistro. Confonderli sarebbe un verdetto che mente.
     // ⚠️ E il segnale si SPIEGA da sé: un anello colorato senza testo obbliga a
     // chiedere cosa vuol dire (è successo). Il `title` dice la notizia e le cause

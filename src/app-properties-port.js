@@ -249,6 +249,37 @@ export function _renderPortProps(panel){
                     <option value="fault"    ${effStatus==='fault'   ?'selected':''}>Fault</option>
                   </select>${rst('statusOvr',t('pnl.dev.fieldStatus'))}
                 </div>`;
+        // ── Indirizzo dell'INTERFACCIA ──────────────────────────────────
+        // L'indirizzo non è dell'apparato, è della presa: un router ha un
+        // indirizzo per interfaccia, e finché il modello ne teneva uno solo la
+        // seconda interfaccia poteva esistere solo come un SECONDO apparato
+        // (caso reale: un vicino LLDP che era l'altra porta di un MikroTik già
+        // in mappa). `node.ip` resta l'indirizzo di amministrazione.
+        //
+        // NON si mostra sulle tappe passive: un patch panel o una presa a muro
+        // sono rame che passa, non interfacce che terminano traffico — offrire
+        // lì un campo indirizzo inviterebbe a scriverci un dato falso.
+        //
+        // Il valore si scrive com'è dichiarato (manual-first). Se non ha la
+        // forma di un IPv4 si AVVISA, non si rifiuta: rifiutare vorrebbe dire
+        // che il campo dimentica quello che l'utente ha scritto.
+        const _ifaceAddrGroup = _passiveConduit ? '' : (()=>{
+            const val = String(pi.ip || '');
+            // `_parseIpv4Int` arriva da lib/cidr.js, che è uno <script>: si legge
+            // come GLOBALE NUDO (come fa app-ipam.js), non via `win.` — il ponte
+            // ha un tetto a cricchetto sulle letture `win.*` e una validazione non
+            // vale una deroga. Nessuna copia locale del parse: un secondo «cos'è
+            // un IPv4» in giro è il difetto che si ripete da solo.
+            const looksIp = !val || (typeof _parseIpv4Int === 'function' ? _parseIpv4Int(val) !== null : true);
+            const warn = looksIp ? '' :
+                `<div style="font-size:0.73rem;color:var(--probe-warn);margin-top:4px;padding-left:2px;line-height:1.4">${t('port.ipNotAnAddress')}</div>`;
+            return `<div class="prop-group"><label>${t('port.ifaceIp')}</label>
+              <input value="${escapeHTML(val)}" placeholder="${escapeHTML(t('port.ifaceIpPh'))}" inputmode="numeric"
+                     data-change="port-field" data-pid="${pid}" data-pfield="ip">
+              <div style="font-size:0.73rem;color:var(--text-muted);margin-top:4px;padding-left:2px;line-height:1.4">${t('port.ifaceIpHint')}</div>
+              ${warn}
+            </div>`;
+        })();
         // Chip "Membro LAG" (viola, identico al badge del cavo) + chip delle porte
         // del bonding (porta corrente evidenziata), quando la porta e' in LAG.
         const _lagHead = (()=>{
@@ -286,6 +317,7 @@ export function _renderPortProps(panel){
               <input value="${escapeHTML(pi.desc||'')}" placeholder="${escapeHTML(pi.alias||pi.ifName||t('pnl.dev.phDescEg'))}"
                      data-change="port-field" data-pid="${pid}" data-pfield="desc">
             </div>
+            ${_ifaceAddrGroup}
             ${_passiveConduit ? `<div class="prop-group"><label>${t('common.status')}</label>
               ${_statusSelect()}
               <div style="font-size:0.73rem;color:var(--text-muted);margin-top:4px;padding-left:2px;line-height:1.4">${t('port.passiveStatusHint')}</div>
