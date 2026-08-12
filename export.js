@@ -222,7 +222,7 @@ function _renderLabelPreview(){
     if(fmt==='csv'){
         const cols=_csvColumnsFor(fields);
         if(!cols.length){ box.innerHTML=head+'<div style="font-size:0.78rem;color:var(--text-muted)">Seleziona almeno un campo.</div>'; return; }
-        const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+        const esc=escapeHTML;   // una definizione sola: quella di app-util (esposta su window)
         const th=cols.map(c=>`<th style="text-align:left;padding:3px 8px;border-bottom:1px solid var(--border);white-space:nowrap">${esc(c.h)}</th>`).join('');
         const trs=rows.slice(0,4).map(r=>'<tr>'+cols.map(c=>`<td style="padding:3px 8px;white-space:nowrap;max-width:210px;overflow:hidden;text-overflow:ellipsis">${esc(c.v(r))}</td>`).join('')+'</tr>').join('');
         box.innerHTML=head+`<div style="overflow:auto;max-height:200px;border:1px solid var(--border);border-radius:6px">`+
@@ -236,7 +236,7 @@ function _renderLabelPreview(){
     if(fmt==='generic-grid'){ const g=_genericGridFromUi(); if(g.labelW&&g.labelH) dim=[g.labelW,g.labelH]; }
     const W=240, H=Math.max(46, Math.round(W*dim[1]/dim[0]));
     const wrap=!!document.getElementById('lblexp-wrap')?.checked;
-    const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+    const esc=escapeHTML;   // una definizione sola: quella di app-util (esposta su window)
     const r=rows[0];
     let inner;
     if(wrap){

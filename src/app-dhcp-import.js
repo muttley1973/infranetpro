@@ -11,6 +11,13 @@
 // rilancia la Verifica. Parsing nel lib puro lib/dhcp-lease.js. La sezione live
 // appare solo se il server ha driver installati (GET /api/dhcp-drivers).
 import { expose, t, parseDhcpLeases } from './_bridge.js';
+// `esc` era una SECONDA definizione locale dell'escape, che copriva 4 caratteri su
+// 5: le stava fuori l'apice singolo. Era motivata (i suoi valori finiscono in testo
+// o in attributi con doppi apici) e infatti non apriva un buco vivo — ma è la solita
+// trappola delle definizioni duplicate: il prossimo che riusa `esc` dentro un
+// attributo con apici singoli si porta a casa la falla. Una definizione sola, quella
+// condivisa; il nome `esc` resta come alias per non riscrivere trenta righe.
+import { escapeHTML as esc } from './app-util.js';
 import { store } from './store.js';
 import { _showToast, markDirty, _dhcpSyncLeases } from './app.js';
 import { registerClickActions, registerChangeActions, registerInputActions } from './app-delegation.js';   // ASSE B: event delegation (click/change/input)
@@ -38,9 +45,9 @@ let _staged = { leases: [], format: '', live: null };
 // Quando si rinnova una fonte live esistente, il prossimo "Aggiungi" la SOSTITUISCE.
 let _refreshId = null;
 
-// Escape HTML minimale per i valori dinamici resi nella tabella (hostname dai
-// lease = dato non fidato). I MAC/id usati negli onclick sono hex/generati → no quote.
-const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+// Escape dei valori dinamici resi nella tabella (l'hostname dei lease è dato NON
+// fidato: lo sceglie il client DHCP). L'escaper è UNO SOLO, importato qui sopra:
+// vedi la nota all'import.
 
 function _ensureSources() {
     if (!store.state) return [];
