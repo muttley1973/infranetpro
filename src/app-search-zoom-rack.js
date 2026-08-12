@@ -15,6 +15,7 @@ import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: fun
 import { renderAll, rackUPx } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName, _nodeSpecView } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { trace } from './app-pointer.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { snapFloor } from '../lib/floor-snap.js';   // aggancio alla griglia: stessa regola del drag (rispetta gridHidden)
 
 // Stato ricerca: module-local (prima era `let` in app.js, usato SOLO qui).
 let searchResults = [], activeSearchIndex = -1;
@@ -466,8 +467,10 @@ function toggleRackOnFloor(){
         const fp=document.getElementById('floorplan');
         const cx=(fp.clientWidth/2-store.state.floorView.x)/store.state.floorView.zoom;
         const cy=(fp.clientHeight/2-store.state.floorView.y)/store.state.floorView.zoom;
-        rack.x=Math.round(cx/20)*20;
-        rack.y=Math.round(cy/20)*20;
+        // Aggancio alla griglia solo se la griglia c'è: con l'interruttore spento
+        // il segnaposto si appoggia dove sta il centro, come il drag a mano.
+        rack.x=snapFloor(cx, store.state.gridHidden);
+        rack.y=snapFloor(cy, store.state.gridHidden);
     }
     renderAll(); markDirty();
 }

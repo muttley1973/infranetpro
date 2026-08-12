@@ -5300,6 +5300,72 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       const e = pageErrors.slice(errBefore);
       assert.equal(e.length, 0, 'nessun errore JS: ' + e.join(' | '));
     });
+
+    await t.test('L\'anteprima del cavo parte dalla PORTA, non dal primo [data-pid] del documento', async () => {
+      // REGRESSIONE: `data-pid` e' dual-use — oltre al LED della porta lo portano
+      // anche i controlli del pannello Proprieta'. Appena parte un collegamento la
+      // porta viene selezionata e il pannello si ridisegna: un querySelector nudo
+      // restituiva un BUTTON del pannello (o il suo rect 0x0 con la scheda Rack
+      // davanti) e l'anteprima partiva dall'angolo — «il cavo arriva dal pavimento».
+      const errBefore = pageErrors.length;
+      await page.evaluate(() => {
+        state = _buildDefaultState();
+        if (typeof _migrateState === 'function') _migrateState(state);
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        if (typeof switchRightTab === 'function') switchRightTab('rack');
+        renderAll();
+      });
+      await page.waitForSelector('.rack-device [data-pid]', { timeout: 5000 });
+      const r = await page.evaluate(() => {
+        const led0 = document.querySelector('.rack-device [data-pid]');
+        const pid = led0.getAttribute('data-pid');
+        // La condizione che fa scattare il difetto: il pannello Proprieta' della
+        // PORTA renderizzato — sparge lo stesso data-pid su input/select/button —
+        // mentre davanti resta la scheda Rack, che li lascia nascosti (rect 0x0).
+        selType = 'port'; selId = pid;
+        renderProps();
+        const led = document.querySelector(`.rack-device [data-pid="${CSS.escape(pid)}"]`);
+        const b = led.getBoundingClientRect();
+        const cx = Math.round(b.left + b.width / 2), cy = Math.round(b.top + b.height / 2);
+        const mk = (t, x, y) => new PointerEvent(t, { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, button: 2, buttons: 2, pointerId: 1, isPrimary: true, pointerType: 'mouse' });
+        led.dispatchEvent(mk('pointerdown', cx, cy));       // tasto destro = avvia il collegamento
+        document.dispatchEvent(mk('pointermove', cx + 160, cy + 110));
+        // Il LED va RIPRESO dopo il renderAll che la selezione ha innescato.
+        const led2 = document.querySelector(`.rack-device [data-pid="${CSS.escape(pid)}"]`);
+        const b2 = led2.getBoundingClientRect();
+        const vp = document.getElementById('rack-viewport').getBoundingClientRect();
+        const d = document.getElementById('temp-link-rack').getAttribute('d') || '';
+        const m = d.match(/^M\s+(-?[\d.]+)\s+(-?[\d.]+)/);
+        const nudo = document.querySelector(`[data-pid="${CSS.escape(pid)}"]`);
+        const out = {
+          pid,
+          disegnata: m ? { x: Math.round(+m[1]), y: Math.round(+m[2]) } : null,
+          attesa: { x: Math.round(b2.left - vp.left + b2.width / 2), y: Math.round(b2.top - vp.top + b2.height / 2) },
+          // Quanti elementi condividono il pid, e se il PRIMO del documento e' un
+          // controllo del pannello: se lo e', il selettore nudo sarebbe caduto qui.
+          totali: document.querySelectorAll(`[data-pid="${CSS.escape(pid)}"]`).length,
+          nudoInPannello: !!(nudo && nudo.closest('#props-panel')),
+          nudoCentro: nudo ? (() => { const n = nudo.getBoundingClientRect(); return { x: Math.round(n.left - vp.left + n.width / 2), y: Math.round(n.top - vp.top + n.height / 2) }; })() : null,
+        };
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        return out;
+      });
+      // Senza questa la guardia sarebbe CIECA: se il pannello non spargesse più il
+      // pid, il test passerebbe anche col selettore nudo e non proteggerebbe nulla.
+      assert.ok(r.totali > 1 && r.nudoInPannello,
+        `condizione del difetto riprodotta: più elementi con ${r.pid} (${r.totali}) e il primo del documento è nel pannello Proprietà (${r.nudoInPannello})`);
+      assert.ok(r.disegnata, 'l\'anteprima del cavo viene disegnata (temp-link-rack ha un path)');
+      assert.ok(Math.abs(r.disegnata.x - r.attesa.x) <= 2 && Math.abs(r.disegnata.y - r.attesa.y) <= 2,
+        `l'anteprima parte dal centro del LED della porta ${r.pid}: disegnata ${JSON.stringify(r.disegnata)} vs attesa ${JSON.stringify(r.attesa)}`);
+      // Quando il pid e' condiviso col pannello Proprieta', il PRIMO elemento del
+      // documento e' un altro punto: l'anteprima non deve mai finire li'.
+      if (r.totali > 1 && r.nudoInPannello) {
+        assert.ok(Math.abs(r.disegnata.x - r.nudoCentro.x) > 2 || Math.abs(r.disegnata.y - r.nudoCentro.y) > 2,
+          `l'anteprima NON parte dal controllo del pannello che condivide il pid (${r.totali} elementi con ${r.pid})`);
+      }
+      const e = pageErrors.slice(errBefore);
+      assert.equal(e.length, 0, 'nessun errore JS: ' + e.join(' | '));
+    });
   } finally {
     await browser.close();
     await srv.close();

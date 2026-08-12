@@ -24,6 +24,7 @@ import { _portDisplayName } from './app-ports.js';   // ritiro ponte: funzioni f
 import { _isLeafEndpoint, _nodeByMacMap, _ensureDiscoveryHistory } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
 import { _findFreeU, _resolveRackOverlap } from './app-topology-crawl.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
 import { registerClickActions } from './app-delegation.js';   // ASSE B (coda): event delegation dei 20 onclick del pannello segmento condiviso
+import { snapFloorPoint } from '../lib/floor-snap.js';   // aggancio alla griglia: stessa regola del drag (rispetta gridHidden)
 
 // ── ASSE B (coda): azioni delegate del pannello «segmento condiviso» ─────────
 // I 20 onclick inline (wizard bind + azioni per-porta) diventano data-act +
@@ -640,7 +641,7 @@ function _findFreeFloorSpot(){
     const r = fp ? fp.getBoundingClientRect() : {width:1200,height:800};
     const x = (-store.state.floorView.x + r.width * 0.45) / (store.state.floorView.zoom || 1);
     const y = (-store.state.floorView.y + r.height * 0.45) / (store.state.floorView.zoom || 1);
-    return { x:Math.round(x/20)*20, y:Math.round(y/20)*20 };
+    return snapFloorPoint(x, y, store.state.gridHidden);
 }
 
 function _connectPortsSafe(src, dst, meta={}){

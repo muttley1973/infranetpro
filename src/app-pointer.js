@@ -25,6 +25,8 @@ import { _focusLagForPort, _toggleLagPort } from './app-ports.js';   // ritiro p
 import { _clearTopoHighlight, _highlightTopoLinks } from './app-topology-discover.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { _assignWirelessBss } from './app-wifi.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { _resolveRackOverlap } from './app-topology-crawl.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
+import { snapFloor } from '../lib/floor-snap.js';   // aggancio alla griglia: regola unica condivisa con piazza-rack/segmento/sotto-barra
+import { portAnchorEl, floorNodeEl, rackDeviceEl, isDrawable } from './app-util.js';   // ancore visuali: data-pid/data-id sono dual-use, il primo del documento è spesso un controllo del pannello
 
 // soglia drag/click (px): unico lettore era questo modulo → module-local
 const _DRAG_THRESHOLD_PX = 5;
@@ -137,7 +139,7 @@ function _vmAbsorbEligible(n){
 // può restare "dentro la zona" anche se rilasci fuori).
 function _vmDropTargetAtPoint(x, y, dragId){
     const restore = [];
-    const tile = dragId ? document.querySelector(`[data-id="${(window.CSS && CSS.escape) ? CSS.escape(dragId) : dragId}"]`) : null;
+    const tile = floorNodeEl(dragId);
     if(tile){ restore.push([tile, tile.style.pointerEvents]); tile.style.pointerEvents = 'none'; }
     if(_vmDragGhost){ restore.push([_vmDragGhost, _vmDragGhost.style.pointerEvents]); _vmDragGhost.style.pointerEvents = 'none'; }
     const under = document.elementFromPoint(x, y);
@@ -150,11 +152,13 @@ function _vmDropTargetAtPoint(x, y, dragId){
     return { host, onFloor, onDz: !!dz };
 }
 
-// Snap-to-grid planimetria: aggancia alla griglia 20px SOLO se la griglia è
-// visibile. Con la griglia disattivata (state.gridHidden) il posizionamento è
-// libero al pixel — coerente col fatto che non c'è più nessuna griglia a cui
-// agganciarsi. Usato da drop/drag/resize dei device floor e dei rack su mappa.
-function _snapFloor(v){ return store.state.gridHidden ? Math.round(v) : Math.round(v/20)*20; }
+// Snap-to-grid planimetria: aggancia alla griglia SOLO se la griglia è visibile.
+// Con la griglia disattivata (state.gridHidden) il posizionamento è libero al
+// pixel — coerente col fatto che non c'è più nessuna griglia a cui agganciarsi.
+// Usato da drop/drag/resize dei device floor e dei rack su mappa. La regola vive
+// in lib/floor-snap.js perché la condividono anche i punti che APPOGGIANO roba
+// sulla mappa senza trascinarla (piazza-rack, segmento condiviso, sotto-barra).
+function _snapFloor(v){ return snapFloor(v, store.state.gridHidden); }
 
 // ============================================================
 // DRAG & DROP
@@ -608,7 +612,7 @@ function handlePointerMove(e){
             const rx=(e.clientX-fp.left-store.state.floorView.x)/store.state.floorView.zoom-store.dragOffset.x;
             const ry=(e.clientY-fp.top -store.state.floorView.y)/store.state.floorView.zoom-store.dragOffset.y;
             n.x=_snapFloor(rx); n.y=_snapFloor(ry);
-            const el=document.querySelector(`[data-id="${n.id}"]`);
+            const el=floorNodeEl(n.id);
             if(el){el.style.left=n.x+'px';el.style.top=n.y+'px';}
             _updateVmDropTarget(e, n, el);   // tile sopra un host? evidenzia il bersaglio di rilascio
             renderCables();
@@ -621,7 +625,7 @@ function handlePointerMove(e){
             const ry=(e.clientY-ch.top)/store.state.rackView.zoom - 8 - store.dragOffset.y;
             const rs=getNodeRackSize(n),sU=n.sizeU!==undefined?n.sizeU:TYPES[n.type].sizeU;
             n.rackU=Math.max(1,Math.min(rs-sU+1,rs-sU+1-Math.round(ry/rackUPx())));
-            const el=document.querySelector(`[data-id="${n.id}"]`);
+            const el=rackDeviceEl(n.id);
             if(el)el.style.gridRow=`${rs-n.rackU-sU+2}/span ${sU}`;
             renderCables();
         }
@@ -640,17 +644,25 @@ function handlePointerMove(e){
         const rx=(e.clientX-fp.left-store.state.floorView.x)/store.state.floorView.zoom;
         const ry=(e.clientY-fp.top -store.state.floorView.y)/store.state.floorView.zoom;
         n.w=Math.max(40,_snapFloor(rx-n.x)); n.h=Math.max(40,_snapFloor(ry-n.y));
-        const el=document.querySelector(`[data-id="${n.id}"]`);
+        const el=floorNodeEl(n.id);
         if(el){
             el.style.width=n.w+'px'; el.style.height=n.h+'px';
             const sp=el.querySelector('span');
             if(sp) sp.style.fontSize=(n.fontSize!==undefined ? n.fontSize : Math.max(10,Math.min(Math.min(n.w,n.h)*0.1,36)))+'px';
         }
     } else if(store.linkStart){
-        const st=document.querySelector(`[data-pid="${store.linkStart}"]`);
+        // L'ANCORA della porta, non il primo `data-pid` del documento: appena parte
+        // il collegamento la porta viene selezionata e il pannello Proprietà si
+        // ridisegna, spargendo lo STESSO data-pid su una decina di input/select/button.
+        // Con la scheda Rack davanti quei controlli sono nascosti (rect 0×0 a 0,0) e
+        // l'anteprima partiva dall'angolo in alto a sinistra — «il cavo arriva dal
+        // pavimento». Stesso ancoraggio della pidMap che disegna i cavi definitivi.
+        const st=portAnchorEl(store.linkStart);
         const _lsp=store.state.ports[store.linkStart]||{};
         const color=store.state.vlanColors[_lsp.vlanOvr??_lsp.vlan??_lsp.vlanProp??1]||'#aaa';
-        if(st){
+        // Porta non disegnabile qui e ora (rack diverso, pannello chiuso): meglio
+        // nessuna anteprima che una che parte da un punto inventato.
+        if(st && isDrawable(st)){
             const sr=st.getBoundingClientRect();
             if(isRackPort(store.linkStart)){
                 const vp=document.getElementById('rack-viewport').getBoundingClientRect();

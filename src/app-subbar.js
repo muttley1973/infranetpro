@@ -18,6 +18,7 @@ import { expose, t } from './_bridge.js';
 import { store } from './store.js';
 import { TYPES } from './app-types.js';
 import { _snmpFreshness } from './app-snmp.js';   // età "adesso/min/h/gg" per l'esito auto-link
+import { snapFloor } from '../lib/floor-snap.js';   // aggancio alla griglia: stessa regola del drag (rispetta gridHidden)
 
 // Nome progetto: la fonte viva e' la <select> dell'header (si aggiorna al cambio
 // progetto); fallback al nome nello store, poi a un segnaposto i18n.
@@ -204,13 +205,14 @@ function _placeHiddenRacks(rackIds) {
   const todo = ids.map((id) => racks.find((r) => r && r.id === id)).filter((r) => r && r.x === undefined);
   if (!todo.length) return;
   if (typeof pushHistory === 'function') pushHistory();
-  // Centro della viewport planimetria, come toggleRackOnFloor (snap 20px).
+  // Centro della viewport planimetria, come toggleRackOnFloor (stesso aggancio:
+  // lib/floor-snap.js, che rispetta l'interruttore Griglia).
   const fv = st.floorView || { x: 0, y: 0, zoom: 1 };
   const zoom = fv.zoom || 1;
   const fp = document.getElementById('floorplan');
   let cx = 200, cy = 200;
   if (fp) { cx = (fp.clientWidth / 2 - (fv.x || 0)) / zoom; cy = (fp.clientHeight / 2 - (fv.y || 0)) / zoom; }
-  const snap = (v) => Math.round(v / 20) * 20;
+  const snap = (v) => snapFloor(v, st.gridHidden);
   // Sfalsa a destra dei rack GIA' piazzati, cosi' i nuovi non si accavallano.
   const base = racks.filter((r) => r && r.x !== undefined).length;
   const GAP = 200;

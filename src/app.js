@@ -9,7 +9,7 @@ import { nodeIdOfPort } from '../lib/port-id.js';
 import { migrateVmNics, VM_FLAT_NET_FIELDS, vmIps } from '../lib/vm-nics.js';   // migrazione vm.ip/mac/vlan → vm.nics[]; vmIps = IPv4 di tutte le vNIC
 import { normalizePduOutletCount, normalizePduManagementMode, normalizePduPortCount, pduManagementPortCount } from '../lib/pdu-layout.js';
 import { store, resetProjectRuntime } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { escapeHTML, uid, normalizeNumber, normalizeStatus, normalizeMacAddress, _shadeHex } from './app-util.js';   // helper puri estratti dal god-file
+import { escapeHTML, uid, normalizeNumber, normalizeStatus, normalizeMacAddress, _shadeHex, PORT_ANCHOR_SEL } from './app-util.js';   // helper puri estratti dal god-file + ancora visuale delle porte
 import { TYPES, typeName, typeShort } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (prima letto dal global implicito) + nome localizzato
 import { nodeLabelParts } from '../lib/node-label.js';   // lib pura importata ESM: come si LEGGE il nome di un device
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: chiamate prima bare-global
@@ -1431,7 +1431,7 @@ function _renderCablesNow(){
     // quei controlli finiscono nella mappa, l'ultimo elemento può essere nascosto
     // e il cavo viene calcolato verso il suo rect 0×0.
     const pidMap={};
-    document.querySelectorAll('.floor-node [data-pid], .rack-device [data-pid]').forEach(el=>{
+    document.querySelectorAll(PORT_ANCHOR_SEL).forEach(el=>{
         pidMap[el.dataset.pid]=el;
     });
 

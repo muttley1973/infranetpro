@@ -17,7 +17,7 @@
 //     non-strict, scrivono la stessa proprietà di window.
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { escapeHTML, uid, normalizeStatus, hasPortStatus } from './app-util.js';
+import { escapeHTML, uid, normalizeStatus, hasPortStatus, portAnchorEl } from './app-util.js';   // portAnchorEl: il LED della porta, non il primo controllo del pannello con lo stesso data-pid
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, pushHistory, renderCables, _patchPanelOffset } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { propagateVlans, _effPortVlan, _ensureVlanColor } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -373,7 +373,7 @@ function clearAllPortOverrides(pid){
     delete state.ports[pid].speedOvr;
     delete state.ports[pid].vlanOvr;
     delete state.ports[pid].desc;
-    const el = document.querySelector(`[data-pid="${pid}"]`);
+    const el = portAnchorEl(pid);
     if(el){
         const pi = state.ports[pid] || {};
         const st = normalizeStatus(pi.statusOvr ?? pi.status);
@@ -488,7 +488,7 @@ function setPortField(pid, field, val){
         markDirty();
         return;
     }
-    const el = document.querySelector(`[data-pid="${pid}"]`);
+    const el = portAnchorEl(pid);
     if(el){
         const pi = state.ports[pid] || {};
         const st = normalizeStatus(pi.statusOvr ?? pi.status);
@@ -517,7 +517,7 @@ function clearPortField(pid, field){
         markDirty();
         return;
     }
-    const el = document.querySelector(`[data-pid="${pid}"]`);
+    const el = portAnchorEl(pid);
     if(el){
         const pi = state.ports[pid] || {};
         const st = normalizeStatus(pi.statusOvr ?? pi.status);

@@ -6,7 +6,7 @@
 // ============================================================
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { uid } from './app-util.js';
+import { uid, portAnchorEl } from './app-util.js';   // portAnchorEl: evidenzia il LED della tappa, non un controllo del pannello
 import { markDirty, getNodeByPortId, getNodeDisplayName, pushHistory, _showToast, _invalidateIdx, switchRightTab, getWallPortLabel, getPortMaxConnections, _isLinearPassThroughPort, _getPassThroughMode } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -166,7 +166,7 @@ export function _paintRoutingTargets(){
     document.querySelectorAll('.floor-rack.routing-rack').forEach(el => el.classList.remove('routing-rack'));
     const _rackIds = new Set();
     _routingTargetPids.forEach((_info, pid) => {
-        const el = document.querySelector(`[data-pid="${pid}"]`);
+        const el = portAnchorEl(pid);
         if(el) el.classList.add('routing-target');
         // Tappa nel rack (patch panel) → ricorda l'armadio: ne evidenziamo
         // l'ICONA sul floor (`.floor-rack`), così l'utente vede DOVE andare

@@ -70,6 +70,50 @@ export function _shadeHex(hex, factor) {
     return `#${[r, g, b].map(v => v.toString(16).padStart(2, '0')).join('')}`;
 }
 
+// ─────────────────────────────────────────────────────────────
+// ANCORE VISUALI — quale ELEMENTO rappresenta una porta o un apparato
+// ─────────────────────────────────────────────────────────────
+// `data-pid` e `data-id` sono DUAL-USE: oltre al LED della porta nel rack e al
+// tile sulla planimetria, li portano anche i controlli del pannello Proprietà
+// (input/select/button che modificano QUELLA porta). Un
+// `document.querySelector('[data-pid=…]')` nudo restituisce il PRIMO del
+// documento — e con il pannello Proprietà renderizzato quel primo è un controllo
+// del pannello, che quando la scheda attiva è un'altra ha rect 0×0 a (0,0): chi
+// disegna un cavo lo tira dall'angolo, chi evidenzia una porta illumina un bottone.
+// Chi cerca la POSIZIONE o l'ASPETTO di una porta deve passare da qui.
+export const PORT_ANCHOR_SEL = '.floor-node [data-pid], .rack-device [data-pid]';
+
+function _cssEsc(v) {
+    const s = String(v == null ? '' : v);
+    return (typeof CSS !== 'undefined' && CSS.escape) ? CSS.escape(s) : s;
+}
+
+/** L'ancora visuale di una porta: il LED nel rack o il pin sul tile. Mai un controllo del pannello. */
+export function portAnchorEl(pid) {
+    if (pid == null || pid === '') return null;
+    const e = _cssEsc(pid);
+    return document.querySelector(`.floor-node [data-pid="${e}"], .rack-device [data-pid="${e}"]`);
+}
+
+/** Il tile di un apparato sulla planimetria. */
+export function floorNodeEl(id) {
+    if (id == null || id === '') return null;
+    return document.querySelector(`.floor-node[data-id="${_cssEsc(id)}"]`);
+}
+
+/** L'apparato dentro il telaio del rack. */
+export function rackDeviceEl(id) {
+    if (id == null || id === '') return null;
+    return document.querySelector(`.rack-device[data-id="${_cssEsc(id)}"]`);
+}
+
+/** Un elemento è disegnabile qui e ora? Nascosto o fuori vista = rect 0×0: non ci si ancora nulla. */
+export function isDrawable(el) {
+    if (!el) return false;
+    const r = el.getBoundingClientRect();
+    return r.width > 0 || r.height > 0;
+}
+
 // Ponte legacy: i classic script (export.js usa normalizeStatus/normalizeNumber)
 // e gli onclick="" inline leggono questi helper dallo scope globale. Sparirà a
 // ritiro del ponte completato.
