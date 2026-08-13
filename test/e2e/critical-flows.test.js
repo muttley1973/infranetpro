@@ -586,20 +586,24 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.assocInherits, 'il pannello associazione eredita l’SSID Corp dall’AP');
     });
 
-    await t.test('app-properties-floor migrato: pannello contesto progetto + IPAM cross-boundary (_vlanIpamOpen)', async () => {
+    await t.test('app-properties-floor migrato: pannello contesto progetto + reti cross-boundary (_prefixOpen)', async () => {
       const r = await page.evaluate(() => {
         state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
         state.vlanColors['10'] = '#00d4ff';
         state.vlanNames = state.vlanNames || {}; state.vlanNames['10'] = 'Uffici';
+        state.ipam = { vlans: {}, prefixes: [{ cidr: '192.168.10.0/24', vlan: 10 }] };
+        _prefixOpen.clear();
         const panel = document.createElement('div');
         _renderFloorProps(panel);
         const closed = panel.innerHTML;
-        // cross-boundary: un writer classic mette VLAN 10 tra le IPAM aperte (Set
-        // var-ificato su window); il modulo bundle deve leggerla via win._vlanIpamOpen.
-        _vlanIpamOpen.add(10);
+        // cross-boundary: un writer classic mette la rete fra quelle col dettaglio
+        // aperto (Set var-ificato su window); il modulo bundle deve leggerla via
+        // win._prefixOpen. È lo stesso fatto che verificava _vlanIpamOpen prima che
+        // il cassetto IPAM della card VLAN sparisse — cambia il soggetto, non il giunto.
+        _prefixOpen.add('192.168.10.0/24');
         _renderFloorProps(panel);
         const opened = panel.innerHTML;
-        _vlanIpamOpen.clear();
+        _prefixOpen.clear();
         // Auto-poll + rinnovo IP non sono più in floor props: vivono nel popover
         // "Automazioni rete" in header (renderAutomationMenu su #automation-dropdown).
         state.autoPoll = { enabled: true, interval: 10 };
@@ -611,8 +615,8 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           monitorMovedOut: closed.indexOf('Monitoraggio automatico') < 0,
           hasColors: closed.indexOf('Colori workspace') >= 0,
           hasVlan10Card: closed.indexOf('VLAN 10') >= 0,
-          ipamClosed: closed.indexOf('vlan-ipam-fields') < 0,
-          ipamOpenedReflectsSet: opened.indexOf('vlan-ipam-fields') >= 0,
+          ipamClosed: closed.indexOf('net-detail') < 0,
+          ipamOpenedReflectsSet: opened.indexOf('net-detail') >= 0,
           popHasMonitor: pop.indexOf('Monitoraggio automatico') >= 0,
           popHasIpRenew: pop.indexOf('Rinnovo automatico IP') >= 0,
         };
@@ -621,8 +625,8 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.monitorMovedOut, 'Monitoraggio NON è nel Contesto progetto (vive nel popover Automazioni)');
       assert.ok(r.hasColors, 'sezione Colori workspace');
       assert.ok(r.hasVlan10Card, 'card VLAN 10 presente');
-      assert.ok(r.ipamClosed, 'IPAM chiuso di default: niente campi Subnet');
-      assert.ok(r.ipamOpenedReflectsSet, 'il modulo legge win._vlanIpamOpen: aprendo VLAN 10 compaiono i campi IPAM (cross-boundary)');
+      assert.ok(r.ipamClosed, 'nessun dettaglio aperto di default');
+      assert.ok(r.ipamOpenedReflectsSet, 'il modulo legge win._prefixOpen: aprendo la rete compare il suo dettaglio (cross-boundary)');
       assert.ok(r.popHasMonitor, 'popover Automazioni: sezione Monitoraggio automatico');
       assert.ok(r.popHasIpRenew, 'popover Automazioni: sezione Rinnovo automatico IP (DHCP)');
     });
@@ -646,14 +650,14 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           { mac: 'AA:BB:CC:00:00:99', ip: '192.168.20.99', state: 'expired' },
         ];
         const panel = document.createElement('div');
-        _vlanIpamOpen.add(20);
+        _prefixOpen.add('192.168.20.0/24');
         _renderFloorProps(panel);
         const withLeases = panel.innerHTML;
         // Manual-first: senza lease il blocco resta (soli documentati) ma sparisce la fonte "DHCP".
         window._dhcpLeases = null;
         _renderFloorProps(panel);
         const noLeases = panel.innerHTML;
-        _vlanIpamOpen.clear();
+        _prefixOpen.clear();
         return {
           hasOcc: withLeases.indexOf('vlan-ipam-occ') >= 0,
           hasDhcpSrc: withLeases.indexOf('vlan-ipam-occ-src') >= 0,
@@ -695,9 +699,9 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
 
         // 1) la card aperta mostra il badge "Adotta" coi non documentati
         const panel = document.createElement('div');
-        _vlanIpamOpen.add(20); _renderFloorProps(panel);
+        _prefixOpen.add('192.168.20.0/24'); _renderFloorProps(panel);
         const badge = panel.innerHTML;
-        _vlanIpamOpen.clear();
+        _prefixOpen.clear();
 
         // 2) apri il modal seeded DIRETTAMENTE dai lease (senza Drift report)
         openAdoptFromPrefix(prefixKey('192.168.20.0/24'));
@@ -722,9 +726,9 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
 
         // 4) ri-render: il device è ora documentato → l'ambra "solo DHCP" e il badge spariscono
         const panel2 = document.createElement('div');
-        _vlanIpamOpen.add(20); _renderFloorProps(panel2);
+        _prefixOpen.add('192.168.20.0/24'); _renderFloorProps(panel2);
         const afterHtml = panel2.innerHTML;
-        _vlanIpamOpen.clear();
+        _prefixOpen.clear();
         window._dhcpLeases = null;
         const ov = document.getElementById('adopt-overlay'); if (ov) ov.style.display = 'none';
 
@@ -776,7 +780,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
 
         // la card VLAN mostra il pulsante management
         const panel = document.createElement('div');
-        _vlanIpamOpen.add(20); _renderFloorProps(panel); _vlanIpamOpen.clear();
+        _prefixOpen.add('192.168.20.0/24'); _renderFloorProps(panel); _prefixOpen.clear();
         const cardHasMgmtBtn = panel.innerHTML.indexOf('data-act="vlan-mgmt-toggle" data-vid="20"') >= 0;
 
         // adozione dalla card: su VLAN di management il candidato è INFRA → typeDefault 'switch', non 'pc'

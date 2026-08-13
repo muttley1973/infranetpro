@@ -11,8 +11,9 @@
 // in expose() per i pannelli non ancora migrati). Le fisarmoniche usano gia'
 // data-toggle="props-section"; i 3 bottoni header espandi/comprimi/ripristina sono
 // azioni CONDIVISE registrate in app-properties.js.
-// `store._vlanIpamOpen` è il Set condiviso var-ificato in app.js (i writer classic lo
-// mutano, qui si legge). NESSUN cambiamento di logica rispetto all'originale.
+// `store._prefixOpen` (chiave = CIDR normalizzato) è il Set condiviso var-ificato in
+// app.js: dice quale rete ha il dettaglio aperto in «Reti». I writer classic lo
+// mutano, qui si legge.
 
 import { expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
@@ -20,16 +21,16 @@ import { escapeHTML, normalizeNumber } from './app-util.js';
 import { registerClickActions, registerChangeActions, registerInputActions } from './app-delegation.js';   // ASSE B: handler del pannello floor via event delegation (ex on* inline)
 import { _propsSectionIsOpen, _buildPropsHeader } from './app-properties.js';   // ritiro ponte: lettura stato sezioni (ex win.*)
 import { _isVoiceVlan, _siteNativeVlan,
-         clearAllVlans, toggleVlanIpam, toggleGuestVlan, toggleMgmtVlan, toggleSiteNativeVlan,
+         clearAllVlans, toggleGuestVlan, toggleMgmtVlan, toggleSiteNativeVlan,
          toggleVoiceVlan, _openVoiceAssignDialog, deleteVlanColor, addVlanColor,
          updateVlanName, updateVlanColor, updateVlanIpam, updateUiColor } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni vlan/snmp + azioni card VLAN (ex win.*)
-import { _enableManualValueInProps, _ipamUsageForVlan, _vlanIpam, _vlanIpamSummary, _clearPropsTab, toggleAbbrevNames } from './app.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
+import { _enableManualValueInProps, _vlanIpam, _clearPropsTab, toggleAbbrevNames } from './app.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
 import { toggleBgImageLock, scaleBgImage, scaleBgImageTo, fitBgImageToCanvas, clearMap, toggleFloorGrid, setBgImageOpacity } from './app-search-zoom-rack.js';   // ASSE B: azioni immagine di sfondo / griglia (ex on* inline)
 import { openAdoptFromPrefix } from './app-drift-adopt.js';   // ASSE B: adotta lease non documentati (ex onclick inline)
 import { _l3Compute, _l3GatewayBindingHtml } from './app-l3.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { _ipamUsageForPrefix } from './app-ipam.js';   // occupazione di UN prefisso (non piu' di una VLAN)
-import { addDeclaredPrefix, addDeclaredNetworks, removeDeclaredPrefix, updatePrefixField, togglePrefixOpen } from './app-vlan-autopoll.js';   // scritture sulle reti dichiarate
-import { prefixesOf, prefixesForVlan, prefixesWithoutVlan, prefixForIp, prefixKey } from '../lib/ipam-model.js';   // l'autorita' sui prefissi
+import { addDeclaredNetworks, removeDeclaredPrefix, updatePrefixField, togglePrefixOpen } from './app-vlan-autopoll.js';   // scritture sulle reti dichiarate
+import { prefixesOf, prefixesForVlan, prefixForIp, prefixKey } from '../lib/ipam-model.js';   // l'autorita' sui prefissi
 // Bare globals dei <script> puri: `_parseCidrInfo` (lib/cidr.js), `compareCidr` e
 // `findSubnetOverlaps` (lib/ipam-audit.js). SENZA typeof-guard: se una lib non c'e'
 // la sezione «Reti» deve rompersi a voce alta, non ordinare a caso o dichiarare
@@ -45,7 +46,13 @@ registerClickActions({
     // l'occupazione e' del prefisso, e una rete senza VLAN non aveva candidati.
     'adopt-from-leases':  (el) => openAdoptFromPrefix(el.dataset.key),
     'vlan-clear-all':     () => clearAllVlans(),
-    'vlan-ipam-toggle':   (el) => toggleVlanIpam(_vid(el)),
+    // Dalla card VLAN si dichiara l'APPARTENENZA: la rete nasce gia' su questa VLAN.
+    'vlan-nets-add':      (el) => {
+        const row = el.closest('.net-addrow');
+        const input = row && row.querySelector('input');   // scoped alla riga, mai una query nuda
+        if(!input) return;
+        addDeclaredNetworks(input.value, _vid(el));
+    },
     'vlan-guest-toggle':  (el) => toggleGuestVlan(_vid(el)),
     'vlan-mgmt-toggle':   (el) => toggleMgmtVlan(_vid(el)),
     'vlan-native-toggle': (el) => toggleSiteNativeVlan(_vid(el)),
@@ -68,13 +75,6 @@ registerClickActions({
         if(!input) return;
         addDeclaredNetworks(input.value, null);
     },
-    'prefix-add':         (el) => {
-        const row = el.closest('.vlan-ipam-addrow');
-        const input = row && row.querySelector('input');   // scoped alla riga, mai una query nuda
-        if(!input) return;
-        addDeclaredPrefix(input.value, el.dataset.vid == null ? null : +el.dataset.vid);
-        input.value = '';
-    },
     'map-upload':         () => document.getElementById('map-upload')?.click(),
     'bg-lock-toggle':     () => toggleBgImageLock(),
     'bg-scale-step':      (el) => scaleBgImage(+el.dataset.delta),
@@ -96,8 +96,8 @@ registerInputActions({
     'bg-opacity': (el) => setBgImageOpacity(+el.value),
 });
 
-// Blocco "Occupazione" della card IPAM aperta: barra di capacità + ripartizione
-// documentati / solo-DHCP / liberi (dati da _ipamUsageForVlan → lib/ipam.js,
+// Blocco "Occupazione" del dettaglio di una rete: barra di capacità + ripartizione
+// documentati / solo-DHCP / liberi (dati da _ipamUsageForPrefix → lib/ipam.js,
 // opzione A = realtà sul filo). La fonte "DHCP" appare solo se ci sono lease nel
 // CIDR (manual-first: senza lease il blocco resta utile coi soli documentati).
 // Solo numeri + stringhe t() fidate → nessun escape necessario.
@@ -120,62 +120,33 @@ function _ipamOccHtml(u, vid, key){
                       </div>`;
 }
 
-// ── Reti dichiarate ─────────────────────────────────────────────────────────
-// Una riga per prefisso: CHIUSA mostra il CIDR e quanto è occupato, APERTA il
-// gateway, il DNS e — se la rete arriva dall'import — quello che il DCIM ne
-// dichiara. La riga compatta esiste perché NetBox il gateway non ce l'ha: dopo
-// un import la parte espansa sarebbe vuota su ogni riga, e una lista di campi
-// vuoti si legge come «manca qualcosa» invece che «non lo sappiamo».
-// `alone` = la rete è l'unica del suo gruppo. Allora la riga nasce APERTA e senza
-// chevron: la forma compatta esiste per rendere scorribile un elenco, e un elenco
-// di uno non c'è. È anche il caso di ogni progetto scritto fino alla 2.8.x — una
-// subnet per VLAN — che così continua a vedersi esattamente come prima.
-function _prefixRowHtml(p, vid, plain, alone){
-    const key = prefixKey(p.cidr);
-    const open = alone || store._prefixOpen.has(key);
-    const usage = _ipamUsageForPrefix(p.cidr, p.gateway || '');
-    const fromDcim = p.source === 'dcim';
-    // Occupazione in una riga: su IPv6 la capacità non esiste (2^64 indirizzi non
-    // sono una barra di riempimento) → si contano gli indirizzi visti e basta.
-    const occ = !usage.cidr ? `<span style="color:#e3b341">${t('floor.hintBadCidr')}</span>`
-        : usage.capacity ? `${usage.usedCount}/${usage.capacity} · ${usage.pct}%`
-        : t('floor.ipDetected', { n: usage.usedCount });
-    return `<div class="vlan-ipam-card${open?' open':''}${plain?' vlan-ipam-plain':''}">
-                  <div class="vlan-ipam-row">
-                    ${alone?'':`<button class="toolbar-btn${open?' primary':''}" style="padding:3px 6px;margin:0;flex-shrink:0" data-tip="${t('floor.netDetails')}" data-act="prefix-expand" data-key="${escapeHTML(key)}"><i class="fas fa-chevron-${open?'up':'down'}"></i></button>`}
-                    <input type="text" value="${escapeHTML(p.cidr||'')}" placeholder="${vid==null?t('floor.netPhNoVlan'):t('floor.netPh',{vid})}"
-                           style="flex:1;min-width:0;padding:5px 7px;font-family:var(--font-mono,monospace);font-size:var(--fs-md);background:var(--bg-color);border:1px solid var(--panel-border);border-radius:4px;color:var(--text-main)"
-                           data-change="prefix-field" data-key="${escapeHTML(key)}" data-field="cidr">
-                    <span class="vlan-ipam-summary" style="margin:0;flex-shrink:0">${escapeHTML(occ)}</span>
-                    ${fromDcim?`<span class="drift-net-tag is-decl" data-tip="${t('floor.netFromDcim')}"><i class="fas fa-database"></i></span>`:''}
-                    <button class="toolbar-btn" style="padding:3px 6px;margin:0;flex-shrink:0" data-tip="${t('floor.netDel')}" data-act="prefix-del" data-key="${escapeHTML(key)}"><i class="fas fa-times"></i></button>
-                  </div>
-                  ${open ? `<div class="vlan-ipam-fields" style="margin-left:0">
-                      ${vid==null?`<div class="prop-group" style="grid-column:1/-1">
-                        <label>${t('floor.netName')}</label>
-                        <input value="${escapeHTML(p.name||'')}" placeholder="${t('floor.netPhName')}" data-change="prefix-field" data-key="${escapeHTML(key)}" data-field="name">
-                      </div>`:''}
-                      <div class="prop-group">
-                        <label>${t('f.gatewayIp')}</label>
-                        <input value="${escapeHTML(p.gateway||'')}" placeholder="${t('floor.phGateway',{vid:vid==null?'':vid})}" data-change="prefix-field" data-key="${escapeHTML(key)}" data-field="gateway">
-                      </div>
-                      <div class="prop-group">
-                        <label>DNS</label>
-                        <input value="${escapeHTML(p.dns||'')}" placeholder="${t('floor.phDns')}" data-change="prefix-field" data-key="${escapeHTML(key)}" data-field="dns">
-                      </div>
-                      ${_netDcimHintHtml(p)}
-                      ${usage.cidr ? _ipamOccHtml(usage, vid, key) : ''}
-                    </div>` : ''}
-                </div>`;
-}
-
-// La riga «aggiungi»: un campo e un bottone, come quella che aggiunge una VLAN.
-// `data-vid` assente = rete senza VLAN.
-function _prefixAddHtml(vid){
-    return `<div class="vlan-ipam-addrow" style="display:flex;gap:5px;margin-top:6px">
-                  <input type="text" placeholder="${vid==null?t('floor.netPhNoVlan'):t('floor.netPh',{vid})}" style="flex:1;min-width:0;padding:5px 7px;font-family:var(--font-mono,monospace)">
-                  <button class="toolbar-btn primary" style="padding:4px 9px;margin:0;flex-shrink:0" data-act="prefix-add"${vid==null?'':` data-vid="${vid}"`}><i class="fas fa-plus"></i> ${t('floor.netAdd')}</button>
-                </div>`;
+// ── Card VLAN: il campo di APPARTENENZA ─────────────────────────────────────
+// Da qui si dice QUALI reti stanno su questa VLAN; da «Reti» si dice com'e' fatta
+// una rete. Due porte, un'autorita': tutte e due chiamano le stesse funzioni sullo
+// stesso array, nessuna tiene una copia.
+// ⚠️ Il bottone del chip e' ⊘ e STACCA (`vlan` → null): la rete resta nel documento,
+// col suo gateway e il suo DNS. Cancellarla e' la × di «Reti», ed e' un'altra cosa.
+// Passa da `prefix-clear`, che svuota un campo e non sa nemmeno rimuovere una riga:
+// scambiare i due gesti, da qui, non e' possibile.
+function _vlanNetsHtml(vid, prefixes){
+    const chips = prefixes.map(p => {
+        const key = prefixKey(p.cidr);
+        const u = _ipamUsageForPrefix(p.cidr, p.gateway || '');
+        const occ = !u.cidr ? t('floor.hintBadCidr')
+            : u.capacity ? `${u.usedCount}/${u.capacity}`
+            : t('floor.ipDetected', { n: u.usedCount });
+        return `<span class="net-chip${u.cidr?'':' bad'}">
+                    <span class="net-chip-cidr">${escapeHTML(p.cidr||'')}</span>
+                    <span class="net-chip-occ">${escapeHTML(occ)}</span>
+                    ${p.source==='dcim'?`<span class="drift-net-tag is-decl" data-tip="${t('floor.netFromDcim')}"><i class="fas fa-database"></i></span>`:''}
+                    <button type="button" class="net-chip-x" data-act="prefix-clear" data-key="${escapeHTML(key)}" data-field="vlan" data-tip="${t('floor.netDetach',{vid})}"><i class="fas fa-ban"></i></button>
+                  </span>`;
+    }).join('');
+    return `${chips ? `<div class="net-chipfield">${chips}</div>` : `<div class="vlan-ipam-hint">${t('floor.netNone')}</div>`}
+                  <div class="net-addrow">
+                    <input type="text" placeholder="${t('floor.netPh',{vid})}">
+                    <button class="toolbar-btn" data-act="vlan-nets-add" data-vid="${Number(vid)}"><i class="fas fa-plus"></i> ${t('floor.netAdd')}</button>
+                  </div>`;
 }
 
 // ── Sezione «Reti» ──────────────────────────────────────────────────────────
@@ -364,7 +335,6 @@ export function _renderFloorProps(panel){
         // Stato persistito in localStorage via setPropsSectionState.
         // ─────────────────────────────────────────────────────────────
         const _vlanCount = Object.keys(state.vlanColors).length;
-        const _noVlanNets = prefixesWithoutVlan(state);
         const _bgPreview = state.bgImage
             ? `<span class="props-collapsible-preview" style="color:var(--active-color)">${t('floor.mapLoaded')}${state.bgImageLocked?' · 🔒':''}</span>`
             : `<span class="props-collapsible-preview" style="color:var(--text-muted)">${t('floor.noMap')}</span>`;
@@ -384,8 +354,9 @@ export function _renderFloorProps(panel){
                   <button class="toolbar-btn" style="padding:4px 10px;margin:0;font-size:0.74rem;background:var(--accent-soft);border-color:var(--accent);color:var(--text-main)" data-tip="${t('floor.clearAllVlansTip')}" data-act="vlan-clear-all"><i class="fas fa-trash-alt" style="margin-right:6px;color:var(--fault-color)"></i>${t('floor.clearAllVlans')}</button>
                 </div>
                 <div style="max-height:640px;overflow-y:auto;padding-right:4px">`;
-        // F6: memo IPAM per-frame — _l3Compute e OGNI card VLAN chiamano _ipamUsageForVlan/
-        // _vlanIpamSummary, e ciascuna ri-scandisce tutti i nodi + lease. Le accentro in
+        // F6: memo IPAM per-frame — _l3Compute, OGNI chip di OGNI card VLAN e OGNI rete
+        // di «Reti» chiamano _ipamUsageForPrefix, e ciascuna ri-scandisce tutti i nodi
+        // + lease. Le accentro in
         // 1 sola scansione per questa resa (sincrona) → poi il memo si azzera nel finally,
         // niente staleness fuori. Bare + typeof guard: se assente, resa piu' lenta ma
         // corretta.
@@ -400,7 +371,6 @@ export function _renderFloorProps(panel){
             const vid=normalizeNumber(v,1,1,4094);
             const _isNative = _siteNat === vid;
             const vname=escapeHTML(state.vlanNames?.[vid]||'');
-            const usage=_ipamUsageForVlan(vid);
             const ipam=_vlanIpam(vid);
             const _vlanPrefixes=prefixesForVlan(state, vid);
             // Un gateway rimasto sul record della VLAN significa che era stato scritto
@@ -408,19 +378,13 @@ export function _renderFloorProps(panel){
             // questa riga sparirebbe dalla vista pur restando nel file.
             const _orphanGw=(!_vlanPrefixes.length && (ipam?.gateway||ipam?.dns))
                 ? [ipam.gateway, ipam.dns].filter(Boolean).join(' · ') : '';
-            const ipamOpen=store._vlanIpamOpen.has(vid);
-            const ipamSummary=escapeHTML(_vlanIpamSummary(vid));
-            const ipamWarn=(!usage.cidr && ipam?.subnet) || (usage.cidr && !usage.gatewayOk);
-            const nearFull=!!(usage.cidr && usage.capacity && usage.pct>=90);   // subnet quasi piena → ambra a colpo d'occhio
-            const summaryWarn=ipamWarn || nearFull;
-            h+=`<div class="vlan-ipam-card${ipamOpen?' open':''}">
+            h+=`<div class="vlan-ipam-card">
                   <div class="vlan-ipam-row">
                     <label style="margin:0;width:68px;font-size:0.78rem;flex-shrink:0;white-space:nowrap;font-weight:700;color:${escapeHTML(state.vlanColors[v]||'#8b949e')}">VLAN ${vid}</label>
                     <input type="text" value="${vname}" placeholder="${t('vlan.namePlaceholder')}"
                            style="flex:1;min-width:0;max-width:400px;padding:5px 7px;font-size:var(--fs-lg);background:var(--bg-color);border:1px solid var(--panel-border);border-radius:4px;color:var(--text-main)"
                            data-change="vlan-name" data-vid="${vid}">
                     <input type="color" value="${escapeHTML(state.vlanColors[v])}" data-change="vlan-color" data-vid="${vid}" style="width:32px;flex-shrink:0;padding:2px">
-                    <button class="toolbar-btn${ipamOpen?' primary':''}" style="padding:3px 6px;margin:0" data-tip="${t('floor.ipamTip',{vid})}" data-act="vlan-ipam-toggle" data-vid="${vid}"><i class="fas fa-network-wired"></i></button>
                     <button class="toolbar-btn${(Array.isArray(state.guestVlans)&&state.guestVlans.map(Number).includes(vid))?' primary':''}" style="padding:3px 6px;margin:0" data-tip="${(Array.isArray(state.guestVlans)&&state.guestVlans.map(Number).includes(vid))?t('floor.guestOn'):t('floor.guestOff')}" data-act="vlan-guest-toggle" data-vid="${vid}"><i class="fas fa-user-group"></i></button>
                     <button class="toolbar-btn${(Array.isArray(state.mgmtVlans)&&state.mgmtVlans.map(Number).includes(vid))?' primary':''}" style="padding:3px 6px;margin:0" data-tip="${(Array.isArray(state.mgmtVlans)&&state.mgmtVlans.map(Number).includes(vid))?t('floor.mgmtOn'):t('floor.mgmtOff')}" data-act="vlan-mgmt-toggle" data-vid="${vid}"><i class="fas fa-screwdriver-wrench"></i></button>
                     <button class="toolbar-btn${_isNative?' primary':''}" style="padding:3px 6px;margin:0" data-tip="${_isNative?t('vlan.nativeUnmark'):t('vlan.nativeMark')}" data-act="vlan-native-toggle" data-vid="${vid}"><i class="fas fa-house"></i></button>
@@ -428,16 +392,11 @@ export function _renderFloorProps(panel){
                     ${(typeof _isVoiceVlan==='function'&&_isVoiceVlan(vid))?`<button class="toolbar-btn" style="padding:3px 6px;margin:0" data-tip="${t('voice.assignTip')}" data-act="vlan-voice-assign" data-vid="${vid}"><i class="fas fa-arrow-right-to-bracket"></i></button>`:''}
                     <button class="toolbar-btn" style="padding:3px 6px;margin:0" data-act="vlan-delete" data-vid="${vid}"><i class="fas fa-times"></i></button>
                   </div>
-                  ${(ipamSummary || ipamOpen) ? `<div class="vlan-ipam-summary${summaryWarn?' warn':''}">${ipamSummary ? `${ipamSummary}${nearFull?` · ${usage.pct}% — ${t('floor.occNearFull')}`:''}` : t('floor.noNetInfo')}</div>` : ''}
-                  ${ipamOpen ? `<div class="vlan-ipam-fields">
-                      <div style="grid-column:1/-1">
-                        ${_vlanPrefixes.length ? _vlanPrefixes.map(p => _prefixRowHtml(p, vid, false, _vlanPrefixes.length === 1)).join('')
-                          : `<div class="vlan-ipam-hint">${t('floor.netNone')} ${t('floor.hintNoSubnet')}</div>`}
-                        ${_orphanGw ? `<div class="vlan-ipam-hint warn">${t('floor.gwNoNet')} <span>${escapeHTML(_orphanGw)}</span></div>` : ''}
-                        ${_prefixAddHtml(vid)}
-                      </div>
-                      ${(typeof _l3GatewayBindingHtml==='function') ? _l3GatewayBindingHtml(vid, _l3rows[vid]) : ''}
-                    </div>` : ''}
+                  ${_vlanNetsHtml(vid, _vlanPrefixes)}
+                  ${_orphanGw ? `<div class="vlan-ipam-hint warn">${t('floor.gwNoNet')} <span>${escapeHTML(_orphanGw)}</span></div>` : ''}
+                  <div class="vlan-ipam-fields">
+                    ${(typeof _l3GatewayBindingHtml==='function') ? _l3GatewayBindingHtml(vid, _l3rows[vid]) : ''}
+                  </div>
                 </div>`;
         });
         h+=`</div>
@@ -446,10 +405,6 @@ export function _renderFloorProps(panel){
                   <input type="color" id="new-vlan-color" value="#00d4ff" style="flex:1">
                   <button class="toolbar-btn primary" style="padding:4px 9px;margin:0" data-act="vlan-add">${t('common.add')}</button>
                 </div>
-                <div class="prop-notes-header"><i class="fas fa-diagram-project"></i> ${t('floor.noVlanSection')}</div>
-                <div class="vlan-ipam-hint">${t('floor.noVlanHint')}</div>
-                ${_noVlanNets.map(p => _prefixRowHtml(p, null, true, _noVlanNets.length === 1)).join('')}
-                ${_prefixAddHtml(null)}
               </div>
             </details>
             ${_netsSectionHtml(state)}`;

@@ -42,9 +42,10 @@ export function _vlanIpam(vid){
 // _parseIpv4Int, _parseCidrInfo, _ipInCidr sono ora in /lib/cidr.js
 // (caricato come <script> prima di app.js, esposto come globali).
 
-// F6 — memo IPAM per-frame. _renderFloorProps chiama _ipamUsageForVlan/_vlanIpamSummary
-// per OGNI VLAN, e ognuna rifà _collectKnownIps()/_activeLeaseIps() (scan di TUTTI i nodi
-// + lease). Con V VLAN il costo era ~O(V·nodi) a ogni resa. Durante UNA singola resa
+// F6 — memo IPAM per-frame. _renderFloorProps chiama _ipamUsageForPrefix per OGNI rete
+// dichiarata (i chip delle card VLAN piu' la sezione «Reti»), e ognuna rifà
+// _collectKnownIps()/_activeLeaseIps() (scan di TUTTI i nodi
+// + lease). Con N reti il costo era ~O(N·nodi) a ogni resa. Durante UNA singola resa
 // sincrona del pannello i nodi/lease non cambiano → si calcolano una volta sola. Il memo
 // vive SOLO tra _ipamMemoBegin() e _ipamMemoEnd() (chiamate sincrone da _renderFloorProps)
 // → nessuna staleness fuori dalla resa: le altre chiamate (Assistente AI, L3) girano con
@@ -177,23 +178,9 @@ export function _dhcpUndocumentedForPrefix(cidr, gateway, vid){
     return out;
 }
 
-export function _vlanIpamSummary(vid){
-    const entry = _vlanIpam(vid);
-    const usage = _ipamUsageForVlan(vid);
-    if(!entry && !usage.usedCount) return '';
-    const parts = [];
-    if(entry?.subnet) parts.push(entry.subnet);
-    if(entry?.gateway) parts.push(`GW ${entry.gateway}`);
-    if(entry?.dns) parts.push(`DNS ${entry.dns}`);
-    if(usage.cidr && usage.capacity) parts.push(`${usage.usedCount}/${usage.capacity} IP`);
-    else if(usage.usedCount) parts.push(`${usage.usedCount} IP`);
-    if(!usage.cidr && entry?.subnet) parts.push('CIDR non valido');
-    if(usage.cidr && !usage.gatewayOk) parts.push('gateway fuori subnet');
-    return parts.join(' · ');
-}
-
-// Superficie window: questi erano nell expose() di app.js e ora vivono qui. I
-// consumatori bare-via-window (typeof-guard) li trovano identici — tranne
-// `_ipamEntry`, che NON c'è più: si chiama `_vlanRecord` e non contiene la subnet.
+// `_vlanIpamSummary` NON c'è più: era la riga di riepilogo sotto la card VLAN,
+// costruita a mano con «GW …», «DNS …» e due frasi in italiano dentro il codice.
+// Diceva della VLAN quello che ora dicono i chip della rete — e di UNA sola rete,
+// la principale, perché una riga di testo non sa raccontarne due.
 expose({ _ensureIpamState, _vlanRecord, _vlanIpam, _ipamUsageForVlan, _ipamUsageForPrefix,
-         _vlanIpamSummary, _ipamMemoBegin, _ipamMemoEnd, _collectKnownIps, _dhcpUndocumentedForPrefix });
+         _ipamMemoBegin, _ipamMemoEnd, _collectKnownIps, _dhcpUndocumentedForPrefix });

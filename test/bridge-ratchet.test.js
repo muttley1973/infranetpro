@@ -102,7 +102,10 @@ const RETIRED_STATE = ['state', 'selId', 'selType', 'dragNode', 'currentProjectI
   // Coda-stato di INTERAZIONE (ritiro ponte 2026-07-11): stato transitorio di
   // gesture/modalità, ora proxato da store.js come gli altri. Vedi store.js.
   'dragOffset', 'dragRack', '_dragArmed', 'lagSelMode',
-  '_discRunning', '_discImporting', '_discSelMap', '_routingLinkId', '_vlanIpamOpen',
+  // `_vlanIpamOpen` non c'e' piu': il cassetto IPAM della card VLAN e' stato
+  // sostituito dal campo di appartenenza. Al suo posto `_prefixOpen`, che dice
+  // quale RETE ha il dettaglio aperto in «Reti» — stesso ruolo, altro soggetto.
+  '_discRunning', '_discImporting', '_discSelMap', '_routingLinkId', '_prefixOpen', '_netsBad',
   // Coda-stato di INTERAZIONE, 2º giro (ritiro ponte 2026-07-11).
   'resizeNode', 'isPanningFloor', 'isPanningRack', 'rackPanStart', '_spaceDown',
   '_dragDownPt', '_hoverRackId', '_propsTabHold', '_floorPortClick',
@@ -356,7 +359,7 @@ const RETIRED_TAIL_FN2 = [
   '_renderRadioProps', '_wifiAssocHtml', '_buildDefaultState', '_cableAutoLabel', '_chainAmbiguousLinkIds', '_chainVlanColors',
   '_clearPropsTab', '_deviceHasWifi', '_dispName', '_ensureIpamState', '_getPassThroughMode', '_ipamEntry',
   '_ipamUsageForVlan', '_isLinearPassThroughPort', '_isWifiCapable', '_loadDefaultLocal', '_migrateState', '_propagateStackMasterIntegration',
-  '_rackDeviceBg', '_repairRackPlacements', '_resetSelection', '_updateHistoryBtns', '_validateWallPortConnection', '_vlanIpamSummary',
+  '_rackDeviceBg', '_repairRackPlacements', '_resetSelection', '_updateHistoryBtns', '_validateWallPortConnection',
   'bindEventsOnce', 'clampRackDevice', 'getNodePortCount', 'getPortConnectionCount', 'getRackSize', 'isPortOnNode',
   'removeNodePorts'];
 test('ponte: la coda funzioni A batch 2 non è più letta da win.*', () => {

@@ -603,8 +603,8 @@ function _renderAllNow(){
     });
 
     // F6: la resa Proprieta' e' costosa SOLO nel ramo planimetria (nessuna selezione):
-    // _renderFloorProps scandisce ogni VLAN con _ipamUsageForVlan/_vlanIpamSummary,
-    // ognuna ri-scansiona TUTTI i nodi. Inutile quando il pannello e' NASCOSTO (tab
+    // _renderFloorProps calcola l'occupazione di ogni rete dichiarata con
+    // _ipamUsageForPrefix, e ognuna ri-scansiona TUTTI i nodi. Inutile quando il pannello e' NASCOSTO (tab
     // Rack/Assistente) e non c'e' selezione. Con una selezione attiva la resa e'
     // leggera (un solo nodo/porta/cavo) e va tenuta — _activatePropsTab (nei renderer
     // di selezione) garantisce lo switch a 'props' anche dagli entry-point che non lo

@@ -527,12 +527,6 @@ function updateVlanName(v,name){
     if(n) store.state.vlanNames[v]=n; else delete store.state.vlanNames[v];
     markDirty();
 }
-function toggleVlanIpam(v){
-    const vid = +v;
-    if(store._vlanIpamOpen.has(vid)) store._vlanIpamOpen.delete(vid);
-    else store._vlanIpamOpen.add(vid);
-    renderProps();
-}
 // Scrive un campo IPAM di una VLAN. `subnet`/`gateway`/`dns` sono del PREFISSO e
 // finiscono in ipam.prefixes[]; `gatewayNodeId` e i metadati DCIM sono della VLAN e
 // restano nel suo record. Con una sola subnet per VLAN — ogni progetto scritto fino
@@ -579,22 +573,11 @@ export function updateVlanIpam(v, field, value){
     renderProps();
 }
 // ── Reti dichiarate (ipam.prefixes[]) ───────────────────────────────────────
-// Dichiara una rete. `vid` null = rete senza VLAN (punto-punto, transito). Il
-// CIDR si normalizza all'indirizzo di RETE, come già fa «Scopri»: chi scrive
-// 192.168.20.5/24 intende la /24, non l'host.
-export function addDeclaredPrefix(raw, vid){
-    const cidr = (typeof subnetInputToCidr === 'function') ? subnetInputToCidr(raw) : String(raw||'').trim();
-    if(!cidr){ _showToast(t('floor.hintBadCidr'), 'warn', 3500); return; }
-    if(findPrefix(store.state, cidr)){ _showToast(t('floor.netDup', { cidr }), 'warn', 3500); return; }
-    pushHistory();
-    upsertPrefix(store.state, { cidr, vlan: vid == null ? null : +vid, source: 'manual' });
-    if(vid != null && typeof _ensureVlanColor === 'function') _ensureVlanColor(+vid);
-    migrateIpam(store.state);   // un gateway rimasto orfano entra nel prefisso appena nato
-    store._prefixOpen.add(prefixKey(cidr));   // nasce aperta: c'è da compilare gateway e DNS
-    markDirty();
-    renderProps();
-}
-
+// `addDeclaredPrefix` (una rete alla volta) non c'e' piu': `addDeclaredNetworks`
+// fa la stessa cosa con una lista di uno, e due funzioni per «dichiara una rete»
+// sarebbero due posti dove decidere cosa fare di un doppione, della normalizzazione
+// e del passo di storia — destinati a divergere.
+//
 // Il campo a chip: una lista separata da virgole, da «Reti» o dalla card VLAN.
 // Le reti valide entrano in UN SOLO passo di storia — un gesto dell'utente, un
 // annulla — e quello che non si parsa resta nel campo, in rosso (`store._netsBad`),
@@ -674,7 +657,6 @@ function deleteVlanColor(v){
     // prefisso a parte, quindi va tolta esplicitamente o sopravvivrebbe a una
     // VLAN che non esiste più. Comportamento identico a prima.
     for(const p of prefixesForVlan(store.state, +v)) removePrefix(store.state, p.cidr);
-    store._vlanIpamOpen.delete(+v);
     if(store._filterVlan===+v) setVlanFilter(null);
     renderAll(); markDirty();
 }
@@ -688,7 +670,6 @@ function clearAllVlans(){
     // Le reti SENZA VLAN sopravvivono: «togli tutte le VLAN» non è «togli tutte le
     // reti», e una /30 punto-punto non ha mai avuto una VLAN da rimuovere.
     store.state.ipam = { vlans:{}, prefixes: prefixesWithoutVlan(store.state) };
-    store._vlanIpamOpen.clear();
     if(store._filterVlan && store._filterVlan !== 1) setVlanFilter(null);
     renderAll(); markDirty();
 }
@@ -1140,7 +1121,7 @@ function addVlanColor(){
 // dei colori UI). Restano anche in expose() finche' altri pannelli non migrati le usano.
 // updateVlanIpam e' gia' `export function` sopra → esclusa qui per non duplicarla.
 export {
-    clearAllVlans, toggleVlanIpam, toggleGuestVlan, toggleMgmtVlan,
+    clearAllVlans, toggleGuestVlan, toggleMgmtVlan,
     toggleSiteNativeVlan, toggleVoiceVlan, _openVoiceAssignDialog,
     deleteVlanColor, addVlanColor, updateVlanName, updateVlanColor, updateUiColor,
 };
@@ -1157,8 +1138,8 @@ expose({
     _buildPortAdjacency, propagateVlans, _isVlanConduit, _portEffTrunk, _portTrunkSeed,
     _propagateTrunkMembership, _runActiveAnchor, _effPortVlan, _getLinkTrunk, _linkIsTrunk,
     setLinkNativeVlan, setEndpointVlan, setNodeVoiceVlan, _siteNativeVlan, setSiteNativeVlan,
-    toggleSiteNativeVlan, updateVlanColor, updateVlanName, toggleVlanIpam, updateVlanIpam,
-    addDeclaredPrefix, addDeclaredNetworks, removeDeclaredPrefix, updatePrefixField, togglePrefixOpen,
+    toggleSiteNativeVlan, updateVlanColor, updateVlanName, updateVlanIpam,
+    addDeclaredNetworks, removeDeclaredPrefix, updatePrefixField, togglePrefixOpen,
     deleteVlanColor, clearAllVlans, setVlanFilter, toggleGuestVlan, toggleMgmtVlan, _isVoiceVlan,
     toggleVoiceVlan, _voipNodes, _voipVoiceVlan, _setVoipVoiceVlan, _voiceAssignTargets,
     applyVoiceVlanBulk, _tV, _openVoiceAssignDialog, _closeVoiceAssign, _voiceAssignHtml,

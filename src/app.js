@@ -105,11 +105,10 @@ store._propsExplicit=false;
 //   store._propsExplicit (guard render rack). I writer classic (app.js/app-pointer)
 //   fanno bare-assign → cadono sulla stessa var di window.
 store._rackDblTime=0; store._rackDblId=null;   // rilevazione manuale doppio click (dblclick non arriva con preventDefault)
-store._vlanIpamOpen=new Set();   // VLAN con dettagli IPAM aperti nel pannello floor
-store._prefixOpen=new Set();     // reti dichiarate con la riga espansa (chiave = CIDR normalizzato)
+store._prefixOpen=new Set();     // reti col dettaglio aperto in «Reti» (chiave = CIDR normalizzato)
 store._netsBad='';               // testo scritto in «Reti» che non e' una rete: resta a schermo, in rosso
 // ^ var (non let): il modulo bundle app-properties-floor.js lo legge via
-//   store._vlanIpamOpen (.has). Un let vivrebbe nel global lexical, invisibile al
+//   store._prefixOpen (.has). Un let vivrebbe nel global lexical, invisibile al
 //   bundle → .has di undefined. I writer classic (.add/.delete/.clear) mutano
 //   la stessa unica Set su window.
 store._snmpSyncing=false;   // true durante la sincronizzazione SNMP collettiva  (var: letto dal bundle src/app-topology-discover.js via store._snmpSyncing)
@@ -215,7 +214,7 @@ export function _loadDefaultLocal() {
     state = _migrateState(_buildDefaultState());
     resetProjectRuntime();
     _restoreTopoSession();
-    _vlanIpamOpen.clear();
+    _prefixOpen.clear();
     document.getElementById('project-select').innerHTML =
         '<option value="0">— offline —</option>';
 }
@@ -1318,7 +1317,7 @@ export function getNodeDisplayName(n) {
 
 // IPAM estratto in ./app-ipam.js (split app.js #1). Re-export per i consumatori
 // che importano da ./app.js (app-vlan-autopoll, app-discovery, app-properties-floor, app-l3):
-export { _ensureIpamState, _vlanRecord, _vlanIpam, _ipamUsageForVlan, _ipamUsageForPrefix, _vlanIpamSummary } from "./app-ipam.js";
+export { _ensureIpamState, _vlanRecord, _vlanIpam, _ipamUsageForVlan, _ipamUsageForPrefix } from "./app-ipam.js";
 // Search, zoom, rack management e palette estratti in lib/app-search-zoom-rack.js
 
 // Render core (renderAll/renderScope/renderFloor/cable paths): lib/app-render-core.js (R3)
