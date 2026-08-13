@@ -203,3 +203,44 @@ test('computeIpamUsage: gateway = network/broadcast address → gatewayIsReserve
   assert.equal(usage('10.0.0.0/31', { gateway: '10.0.0.0' }).gatewayIsReserved, false, '/31: estremi = host validi (RFC 3021)');
   assert.equal(usage('10.0.0.5/32', { gateway: '10.0.0.5' }).gatewayIsReserved, false, '/32: host singolo');
 });
+
+// ---- IPv6: due scritture, un indirizzo ---------------------------------------
+// L'identita' di un indirizzo la definisce lib/cidr.js (addrKey). Qui si prova che
+// l'occupazione la USA: il gateway dichiarato sul prefisso e l'ip6 del router che
+// lo tiene sono lo STESSO indirizzo, e contarli due volte gonfiava la /64.
+test('computeIpamUsage: lo stesso IPv6 scritto in due forme conta UNA volta', () => {
+  const u = computeIpamUsage({
+    subnet: '2001:db8:0:20::/64',
+    gateway: '2001:DB8:0:20:0:0:0:1',                  // forma estesa, maiuscola
+    documentedIps: ['2001:db8:0:20::1',                // stesso indirizzo, forma canonica
+                    '2001:db8:0:20::10'],
+    leaseIps: [],
+    parseCidr: _parseCidrInfo, ipInCidr: _ipInCidr,
+  });
+  assert.equal(u.usedCount, 2, 'due indirizzi distinti, non tre');
+  assert.equal(u.capacity, 0, 'su IPv6 non esiste una capacita da mostrare');
+  assert.equal(u.freeCount, null);
+  assert.equal(u.pct, null);
+});
+
+test('computeIpamUsage: un IPv6 fuori dal prefisso resta fuori, come in IPv4', () => {
+  const u = computeIpamUsage({
+    subnet: '2001:db8:0:20::/64', gateway: '',
+    documentedIps: ['2001:db8:0:20::5', '2001:db8:0:99::5', '192.168.20.5'],
+    leaseIps: [], parseCidr: _parseCidrInfo, ipInCidr: _ipInCidr,
+  });
+  assert.equal(u.usedCount, 1, 'ne cade dentro uno solo: le famiglie non si mescolano');
+});
+
+test('computeIpamUsage: su IPv4 la chiave E\' la stringa — nessun cambiamento', () => {
+  const u = computeIpamUsage({
+    subnet: '192.168.20.0/24', gateway: '192.168.20.1',
+    documentedIps: ['192.168.20.1', '192.168.20.10'],
+    leaseIps: ['192.168.20.50'],
+    parseCidr: _parseCidrInfo, ipInCidr: _ipInCidr,
+  });
+  assert.equal(u.documentedCount, 2, 'il gateway coincide col primo documentato: uno solo');
+  assert.equal(u.dhcpOnlyCount, 1);
+  assert.equal(u.usedCount, 3);
+  assert.equal(u.nextFree, '192.168.20.2');
+});

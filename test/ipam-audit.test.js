@@ -42,6 +42,46 @@ test('findDuplicateIps: ordinamento numerico "umano" (.10 dopo .2)', () => {
   assert.deepEqual(dups.map(d => d.ip), ['10.0.0.2', '10.0.0.10']);
 });
 
+// ---- findDuplicateIps: IPv6 --------------------------------------------------
+// Un device dual-stack dichiara due indirizzi. Prima si guardava solo `ip`: un
+// IPv6 ricopiato su due apparati non risultava duplicato, mai.
+
+test('findDuplicateIps: stesso IPv6 su due nodi → segnalato', () => {
+  const dups = findDuplicateIps([
+    { id: 'a', name: 'SRV', ip: '192.168.20.10', ip6: '2001:db8:0:20::10' },
+    { id: 'b', name: 'NAS', ip: '192.168.20.11', ip6: '2001:db8:0:20::10' },
+  ]);
+  assert.equal(dups.length, 1);
+  assert.deepEqual(dups[0].nodes.map(n => n.name).sort(), ['NAS', 'SRV']);
+});
+
+test('findDuplicateIps: lo stesso IPv6 scritto in due forme è UN indirizzo', () => {
+  // Il caso vero: uno arriva da SNMP in forma canonica, l'altro l'ha battuto una
+  // persona. Col confronto testuale erano due indirizzi diversi.
+  const dups = findDuplicateIps([
+    { id: 'a', name: 'SRV', ip6: '2001:db8:0:20::10' },
+    { id: 'b', name: 'NAS', ip6: '2001:DB8:0:20:0:0:0:10' },
+  ]);
+  assert.equal(dups.length, 1);
+  assert.deepEqual(dups[0].nodes.map(n => n.name).sort(), ['NAS', 'SRV']);
+});
+
+test('findDuplicateIps: un nodo che ripete se stesso non è un duplicato', () => {
+  // Stesso indirizzo nei due campi dello STESSO nodo: strano, ma non è un
+  // conflitto fra apparati — e il conflitto è quello che questo audit cerca.
+  assert.deepEqual(findDuplicateIps([
+    { id: 'a', name: 'strano', ip: '2001:db8::1', ip6: '2001:DB8::1' },
+  ]), []);
+});
+
+test('findDuplicateIps: v4 e v6 non si mescolano, e gli IPv4 restano in testa', () => {
+  const dups = findDuplicateIps([
+    { id: '1', name: 'a', ip: '10.0.0.2', ip6: '2001:db8::10' },
+    { id: '2', name: 'b', ip: '10.0.0.2', ip6: '2001:db8::10' },
+  ]);
+  assert.deepEqual(dups.map(d => d.ip), ['10.0.0.2', '2001:db8::10']);
+});
+
 // ---- findSubnetOverlaps -----------------------------------------------------
 
 // L'input è `ipam.prefixes[]`, l'autorità: la VLAN è un attributo facoltativo del

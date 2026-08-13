@@ -10,10 +10,10 @@ import { expose } from "./_bridge.js";
 import { store } from "./store.js";
 import { getNodeDisplayName } from "./app.js";   // ciclo benigno: uso solo a runtime (dentro _collectKnownIps)
 import { normalizeMacAddress } from "./app-util.js";
-import { vmIps } from "../lib/vm-nics.js";   // IPv4 di tutte le vNIC (stesso import di app.js: esbuild deduplica)
+import { vmIps, vmIp6s } from "../lib/vm-nics.js";   // indirizzi di tutte le vNIC (stesso import di app.js: esbuild deduplica)
 import { ensureIpam, vlanIpamView } from "../lib/ipam-model.js";   // l'autorita' sui prefissi: la subnet non e' piu' un campo della VLAN
 // Bare globals (no-undef OFF su src/): state - computeIpamUsage (lib/ipam.js) -
-// isLeaseStale (lib/dhcp-lease.js) - _parseIpv4Int/_parseCidrInfo/_ipInCidr (lib/cidr.js).
+// isLeaseStale (lib/dhcp-lease.js) - _parseCidrInfo/_ipInCidr/addrFamily/addrKey (lib/cidr.js).
 
 export function _ensureIpamState(){
     return ensureIpam(state).vlans;
@@ -54,28 +54,47 @@ let _ipamFrameMemo = null;
 function _ipamMemoBegin(){ _ipamFrameMemo = { known:null, leases:null }; }
 function _ipamMemoEnd(){ _ipamFrameMemo = null; }
 
+// Gli indirizzi DOCUMENTATI, di tutte e due le famiglie. Fino alla 2.8.x il filtro
+// era `_parseIpv4Int(s) == null → scarta`: ogni IPv6 usciva qui, e l'occupazione di
+// una rete v6 restava a zero per sempre — un /64 con sei apparati dentro mostrava
+// «1 IP» (il solo gateway, che lib/ipam.js aggiunge per conto suo). Un IPv6 e' un
+// indirizzo occupato esattamente quanto un IPv4; il filtro per famiglia lo fa gia'
+// `ipInCidr` prefisso per prefisso, qui non serve e faceva danno.
+// La chiave e' `addrKey` (lib/cidr.js): due scritture dello stesso IPv6 sono UN
+// indirizzo, e finiscono nella stessa riga invece di contare due volte.
 function _collectKnownIps(){
     if(_ipamFrameMemo && _ipamFrameMemo.known) return _ipamFrameMemo.known;
     const seen = new Map();
     const _add = (ip, label) => {
         const s = String(ip||'').trim();
-        if(!s || _parseIpv4Int(s) == null) return;
-        if(!seen.has(s)) seen.set(s, { ip:s, nodes:[] });
-        seen.get(s).nodes.push(label);
+        if(!s || addrFamily(s) == null) return;
+        const key = addrKey(s);
+        // Cio' che si MOSTRA e' come e' stato scritto (manual-first): vince la prima.
+        if(!seen.has(key)) seen.set(key, { ip:s, nodes:[] });
+        seen.get(key).nodes.push(label);
     };
     for(const n of state.nodes || []){
         _add(n.ip, getNodeDisplayName(n));
+        _add(n.ip6, getNodeDisplayName(n));
         _add(n.integration?.host, getNodeDisplayName(n));
         // Le VM occupano indirizzi REALI nella loro VLAN: senza contarle, il
         // «prossimo IP libero» (nextFree) le proponeva come libere → collisione
-        // (schema ①/cecità: 32/32 IP di VM invisibili su progetto 9). Ogni IPv4
+        // (schema ①/cecità: 32/32 IP di VM invisibili su progetto 9). Ogni indirizzo
         // di ogni vNIC entra fra i «noti», etichettato host / nome-VM.
         for(const vm of (n.vms || [])){
             const label = `${getNodeDisplayName(n)} / ${vm && vm.name ? vm.name : 'VM'}`;
-            for(const rec of vmIps(vm)) _add(rec && rec.ip, label);  // vmIps → [{nicId,name,ip}]
+            for(const rec of vmIps(vm)) _add(rec && rec.ip, label);     // vmIps  → [{nicId,name,ip}]
+            for(const rec of vmIp6s(vm)) _add(rec && rec.ip6, label);   // vmIp6s → [{nicId,name,ip6}]
         }
     }
-    const _res = [...seen.values()].sort((a,b)=>a.ip.localeCompare(b.ip, undefined, { numeric:true }));
+    // Ordine: prima gli IPv4 (numerico, 1.2.3.4 < 1.2.3.40), poi gli IPv6. Un
+    // ordinamento unico misto metterebbe "2001:…" in mezzo ai "192.168…", e questa
+    // lista la legge una persona nel campione della card.
+    const _res = [...seen.values()].sort((a,b)=>{
+        const fa = addrFamily(a.ip) || 4, fb = addrFamily(b.ip) || 4;
+        if(fa !== fb) return fa - fb;
+        return a.ip.localeCompare(b.ip, undefined, { numeric:true });
+    });
     if(_ipamFrameMemo) _ipamFrameMemo.known = _res;
     return _res;
 }

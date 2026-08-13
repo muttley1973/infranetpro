@@ -2,7 +2,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { _parseIpv4Int, _parseCidrInfo, _ipInCidr, _cidrsOverlap, _intToIpv4, subnetInputToCidr } = require('../lib/cidr.js');
+const { _parseIpv4Int, _parseCidrInfo, _ipInCidr, _cidrsOverlap, _intToIpv4, subnetInputToCidr,
+        addrFamily, addrKey } = require('../lib/cidr.js');
 
 test('_parseIpv4Int: parsing e validazione ottetti', () => {
   assert.equal(_parseIpv4Int('0.0.0.0'), 0);
@@ -168,4 +169,36 @@ test('subnetInputToCidr: IPv6 -> prefisso canonico da dichiarare', () => {
   // v4 invariato anche ora che il ramo v6 esiste
   assert.equal(subnetInputToCidr('192.168.10.7'), '192.168.10.0/24');
   assert.equal(subnetInputToCidr('gggg::/64'), '');
+});
+
+// ---- addrFamily / addrKey ---------------------------------------------------
+// L'identita' di un INDIRIZZO (non di un prefisso). Vivono qui, con l'aritmetica
+// degli indirizzi, e le usano lib/l3-gateway.js e lib/ipam-audit.js: la stessa
+// regola scritta in due strati diverge al primo ritocco.
+test('addrFamily: riconosce la specie, e dice null su cio\' che non e\' un indirizzo', () => {
+  assert.equal(addrFamily('192.168.1.1'), 4);
+  assert.equal(addrFamily('2001:db8::1'), 6);
+  assert.equal(addrFamily('fe80::1%eth0'), 6);       // lo zone-id non fa parte dell'indirizzo
+  assert.equal(addrFamily('::ffff:192.168.1.1'), 6); // IPv4-mapped: e' comunque un IPv6
+  assert.equal(addrFamily(''), null);
+  assert.equal(addrFamily(null), null);
+  assert.equal(addrFamily('192.168.1.999'), null, 'ottetto fuori range: non e\' un IPv4');
+  assert.equal(addrFamily('gggg::1'), null, 'non e\' esadecimale: non e\' un IPv6');
+  assert.equal(addrFamily('switch-01'), null, 'un hostname non e\' un indirizzo');
+});
+
+test('addrKey: due scritture dello stesso IPv6 hanno la STESSA chiave', () => {
+  assert.equal(addrKey('2001:DB8:0:20:0:0:0:1'), addrKey('2001:db8:0:20::1'));
+  assert.equal(addrKey('2001:db8:0:20::1'), '2001:db8:0:20::1');
+  // Indirizzi diversi restano diversi: la normalizzazione non collassa nulla.
+  assert.notEqual(addrKey('2001:db8:0:20::1'), addrKey('2001:db8:0:20::2'));
+  // IPv4: la stringa e' gia' la sua forma canonica, e non va toccata.
+  assert.equal(addrKey('192.168.1.1'), '192.168.1.1');
+  assert.equal(addrKey('  192.168.1.1  '), '192.168.1.1');
+  assert.equal(addrKey(''), '');
+  assert.equal(addrKey(null), '');
+  // Cio' che non si parsa fa da chiave a se' stesso: niente collassi fra stringhe
+  // diverse (due hostname non diventano lo stesso "indirizzo").
+  assert.equal(addrKey('gggg::1'), 'gggg::1');
+  assert.notEqual(addrKey('gggg::1'), addrKey('hhhh::1'));
 });

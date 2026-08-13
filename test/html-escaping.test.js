@@ -186,7 +186,7 @@ const CAPS = {
     'src/app-drift.js': 15,
     'src/app-hypervisor.js': 9,
     'src/app-integrations.js': 41,
-    'src/app-l3.js': 6,
+    'src/app-l3.js': 3,
     'src/app-management.js': 9,
     'src/app-panel-skin.js': 3,
     'src/app-pdu-connection.js': 2,

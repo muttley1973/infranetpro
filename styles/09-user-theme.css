@@ -572,10 +572,12 @@ body.spare-mode .port-led.spare-suspect {
 .l3-svi-row:hover { background: var(--surface-hover); }
 .l3-svi-vlan { font-weight: 700; flex-shrink: 0; min-width: 62px; }
 .l3-svi-name { color: var(--text-main); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.l3-svi-gw { color: var(--text-muted); font-size: .74rem; margin-left: auto; }
+/* Indirizzo + rete su una riga sola: in IPv6 sono due stringhe lunghe, quindi la
+   cella si accorcia con l'ellissi invece di spingere fuori il nome. */
+.l3-svi-gw { color: var(--text-muted); font-size: .74rem; margin-left: auto; min-width: 0; max-width: 62%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .l3-svi-sub { opacity: .7; }
 .l3-svi-warn { color: #e3b341; }
-/* Overlay "Mappa L3 / Gateway" — tabella VLAN→subnet→gateway→device→stato */
+/* Overlay "Mappa L3 / Gateway" — tabella rete→VLAN→gateway→device→stato */
 /* Piu' largo degli altri report: e' l'unico con una TABELLA a sei colonne, e a
    680px i nomi device finivano nei puntini. Il guscio .drift-modal resta a 680
    per Verifica / Porte libere / Adotta / Storia, che sono elenchi a una colonna. */
@@ -587,21 +589,30 @@ body.spare-mode .port-led.spare-suspect {
 .l3-sum-warn { color: #e3b341; font-weight: 600; }
 .l3-table { display: flex; flex-direction: column; gap: 1px; }
 /* Le taglie erano tutte in rem grezzi e fuori scala (.9 / .82 / .8): ora sono
-   token, e salgono di un gradino. La gerarchia resta quella: identita' della
-   riga (VLAN, nome, device) al corpo --fs-lg, indirizzi e verdetto un gradino
-   sotto, intestazioni --fs-sm maiuscolo come le altre liste dell'app.
-   Le colonne crescono con il testo: a 16px i vecchi 74/116/106px troncavano. */
+   token, e salgono di un gradino. La gerarchia segue l'IDENTITA' della riga, che
+   ora e' la RETE (una riga per prefisso, non per VLAN): rete, nome e device al
+   corpo --fs-lg, gateway e verdetto un gradino sotto, intestazioni --fs-sm
+   maiuscolo come le altre liste dell'app.
+   Ogni cella di testo ha min-width:0 + ellissi: un CIDR IPv6 («2001:db8:0:20::/64»)
+   e' lungo il doppio di un IPv4, e senza questo allargherebbe la griglia
+   spingendo le colonne di destra fuori dalla modale. */
 .l3-row {
-    display: grid; grid-template-columns: 84px minmax(150px, 1.7fr) 132px 120px minmax(90px, 1fr) 104px;
+    display: grid;
+    grid-template-columns: minmax(140px, 1.5fr) 76px minmax(90px, 1fr) minmax(130px, 1.4fr) minmax(90px, 1fr) 100px;
     align-items: center; gap: 6px; padding: 7px 8px; border-radius: var(--radius-md); font-size: var(--fs-lg);
 }
 .l3-row:hover { background: var(--surface-hover); }
 .l3-row-head { font-size: var(--fs-sm); text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); font-weight: 700; border-bottom: 1px solid var(--panel-border); border-radius: 0; }
 .l3-row.has-warn { background: rgba(227,179,65,.06); }
+.l3-row > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .l3-row-vlan { font-weight: 700; }
-.l3-row-name { color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.l3-row-sub, .l3-row-gw { color: var(--text-muted); font-size: var(--fs-md); }
-.l3-row-dev { color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.l3-row-name { color: var(--text-main); }
+.l3-row-sub { color: var(--text-main); font-weight: 600; }
+.l3-row-gw { color: var(--text-muted); font-size: var(--fs-md); }
+.l3-row-dev { color: var(--text-main); }
+/* L'intestazione non e' un dato: a --fs-sm maiuscolo «Gateway» ci sta, e senza
+   questo l'ellissi la mangerebbe nella colonna piu' stretta. */
+.l3-row-head > span { font-weight: 700; }
 .l3-st { font-size: var(--fs-md); font-weight: 700; white-space: nowrap; }
 .l3-st-ok { color: var(--active-color); }
 .l3-st-auto { color: var(--active-color); opacity: .85; }

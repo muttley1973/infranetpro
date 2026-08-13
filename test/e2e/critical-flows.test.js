@@ -4273,11 +4273,24 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         // ASSE B: le azioni interne al report L3 (chiudi/export/scelta gateway) sono delegate → fuori da window
         const l3FnsOffWin = ['l3ExportCsv', '_closeL3Report', 'updateVlanGatewayNode'].every((n) => typeof window[n] === 'undefined');
         state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
-        const rt = { id: 'l3rt', type: 'router', name: 'GW', x: 0, y: 0, w: 60, h: 40, ip: '192.168.50.1', ports: 8 };
-        state.nodes.push(rt); if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        // Il router è DUAL-STACK: dichiara un IPv4 e un IPv6, come ogni apparato
+        // che instrada davvero due famiglie.
+        const rt = { id: 'l3rt', type: 'router', name: 'GW', x: 0, y: 0, w: 60, h: 40,
+          ip: '192.168.50.1', ip6: '2001:db8:0:50::1', ports: 8 };
+        state.nodes.push(rt);
         state.vlanColors[50] = '#00d4ff'; state.vlanNames[50] = 'Test';
-        state.ipam = state.ipam || { vlans: {} };
-        state.ipam.vlans['50'] = { subnet: '192.168.50.0/24', gateway: '192.168.50.1' };  // → auto-match su rt.ip
+        // La rete si dichiara in `ipam.prefixes[]`, che è l'autorità (schemaVersion 2):
+        // scriverla come campo della VLAN è la forma legacy, e la migrazione ha il
+        // suo test dedicato (test/ipam-prefix-migration.test.js). Qui interessa il
+        // report. ⚠️ Niente _migrateState DOPO aver inserito il nodo: rinumera gli
+        // id non canonici (l3rt → rt1) e il test finirebbe a cercare un altro nodo.
+        // Due prefissi sulla STESSA VLAN = dual-stack. Il gateway v6 è scritto in
+        // forma estesa e maiuscola, diversa da quella del device: è lo stesso
+        // indirizzo, e il confronto dev'essere canonico per accorgersene.
+        state.ipam.prefixes.push(
+          { cidr: '192.168.50.0/24', vlan: 50, gateway: '192.168.50.1' },
+          { cidr: '2001:db8:0:50::/64', vlan: 50, gateway: '2001:DB8:0:50:0:0:0:1' });
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
         const ids = _l3GatewayNodeIds();                 // legge win.buildL3Report + win._parseCidrInfo via ponte
         const svi = _l3SviSectionHtml('l3rt');
         // UX: report L3/Gateway ASSORBITO nella Dashboard → azione delegata overview-l3-report
@@ -4287,6 +4300,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         _l3Cta.click();   // -> openL3Report via event delegation
         const ov = document.getElementById('l3-overlay');
         const l3Wired = !!ov && !!ov.querySelector('[data-act="l3-close"]') && !!ov.querySelector('[data-act="l3-export"]');
+        const rep = _l3Compute(false);
         const res = {
           exposed,
           delegatedGone, l3FnsOffWin, l3Wired,
@@ -4294,6 +4308,12 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           sviVlan: svi.indexOf('VLAN 50') >= 0,
           overlayVisible: !!ov && ov.style.display === 'flex',
           overlayHasVlan: !!ov && ov.textContent.indexOf('VLAN 50') >= 0,
+          // IPv6: due righe per la VLAN dual-stack, e il gateway v6 agganciato al
+          // router benché scritto in una forma diversa da quella del device.
+          netRows: rep.rows.filter((x) => x.cidr).map((x) => x.cidr),
+          v6Node: (rep.rows.find((x) => x.cidr === '2001:db8:0:50::/64') || {}).nodeId,
+          overlayHasV6: !!ov && ov.textContent.indexOf('2001:db8:0:50::/64') >= 0,
+          sviHasBoth: svi.indexOf('192.168.50.0/24') >= 0 && svi.indexOf('2001:db8:0:50::/64') >= 0,
         };
         // pulizia via CLICK REALE delegato (data-act="l3-close"): non coprire il rack ai test successivi
         const clBtn = ov && ov.querySelector('[data-act="l3-close"]');
@@ -4310,6 +4330,13 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.sviVlan, '_l3SviSectionHtml elenca VLAN 50 nel pannello device');
       assert.ok(r.overlayVisible, 'la voce "Mappa L3" del menu Report (data-act) apre l’overlay');
       assert.ok(r.overlayHasVlan, 'l’overlay L3 rende la riga VLAN 50');
+      // IPv6 nel browser reale, col bundle vero: una riga PER RETE.
+      assert.deepEqual(r.netRows, ['192.168.50.0/24', '2001:db8:0:50::/64'],
+        'la VLAN dual-stack produce due righe, ordinate per spazio degli indirizzi');
+      assert.equal(r.v6Node, 'l3rt',
+        'il gateway IPv6 aggancia il router via node.ip6, anche scritto in forma estesa/maiuscola');
+      assert.ok(r.overlayHasV6, 'l’overlay mostra il prefisso IPv6, che prima non ci arrivava');
+      assert.ok(r.sviHasBoth, 'la sezione SVI del device elenca ENTRAMBE le reti che instrada');
     });
 
     await t.test('app-drift-adopt migrato: candidati + creazione nodi + dedup nel browser reale', async () => {

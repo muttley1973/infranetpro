@@ -13,13 +13,14 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
-import { getNodeDisplayName, _ipamUsageForVlan } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { getNodeDisplayName, _ipamUsageForPrefix } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: voce menu Report + report L3 (template dinamico) via event delegation
 import { _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte: builder pannello (ex win.*)
 import { closeReportMenu } from './app-auth.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { updateVlanIpam } from './app-vlan-autopoll.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
-import { vmIps } from '../lib/vm-nics.js';   // lib pura importata ESM (come lib/ipv6.js): NON un globale su window
-import { ipamByVidView, prefixesOf } from '../lib/ipam-model.js';   // vista per-VLAN derivata dall'autorità sui prefissi (+ l'autorità stessa, per l'audit)
+import { vmIps, vmIp6s } from '../lib/vm-nics.js';   // lib pura importata ESM (come lib/ipv6.js): NON un globale su window
+import { ipamByVidView, prefixesOf } from '../lib/ipam-model.js';   // l'autorità sui prefissi + la vista per-VLAN (per `gatewayNodeId`)
+import { compareCidr } from '../lib/ipam-audit.js';   // l'ordine dello spazio degli indirizzi: la STESSA regola dell'elenco «Reti»
 
 // Tipi che possono fare da gateway L3 (per il dropdown di scelta).
 const _L3_GATEWAY_TYPES = ['router', 'firewall', 'switch'];
@@ -36,19 +37,29 @@ const _L3_GATEWAY_TYPES = ['router', 'firewall', 'switch'];
 // duplicato sulla seconda gamba è un conflitto vero quanto uno sulla prima.
 // L'etichetta nomina la scheda solo quando ce n'è più d'una — con una sola
 // vNIC (il caso normale) la riga resta identica a prima.
+// Una riga per vNIC porta ENTRAMBI i suoi indirizzi: una scheda dual-stack è una
+// scheda sola, e sdoppiarla in due pseudo-nodi farebbe risultare i suoi due
+// indirizzi «duplicati» l'uno con l'altro.
 function _vmIpNodes(){
     const out = [];
     for(const n of (store.state.nodes || [])){
         if(!Array.isArray(n.vms)) continue;
         const hostName = getNodeDisplayName(n) || n.name || n.id;
         for(const vm of n.vms){
-            const ips = vmIps(vm);
-            for(const e of ips){
-                const nicLabel = (ips.length > 1) ? ` · ${e.name || e.nicId}` : '';
+            const byNic = new Map();
+            const _slot = (e) => {
+                if(!byNic.has(e.nicId)) byNic.set(e.nicId, { nicId:e.nicId, name:e.name || '' });
+                return byNic.get(e.nicId);
+            };
+            for(const e of vmIps(vm))  _slot(e).ip  = e.ip;
+            for(const e of vmIp6s(vm)) _slot(e).ip6 = e.ip6;
+            const nics = [...byNic.values()];
+            for(const e of nics){
+                const nicLabel = (nics.length > 1) ? ` · ${e.name || e.nicId}` : '';
                 out.push({
                     id: `vm:${n.id}:${vm.id}:${e.nicId}`,
                     name: `${vm.name || 'VM'}${nicLabel} (VM · ${hostName})`,
-                    ip: e.ip, type: 'vm',
+                    ip: e.ip || '', ip6: e.ip6 || '', type: 'vm',
                 });
             }
         }
@@ -62,32 +73,37 @@ function _l3BuildModel(withUsage, opts){
         const vid = +v;
         return { vid, name: store.state.vlanNames?.[vid] || '', color: vlanColors[v] || '' };
     });
-    // Vista derivata: `subnet`/`gateway`/`dns` dal prefisso principale della VLAN,
-    // `gatewayNodeId` dal record VLAN. Il report L3 è per-VLAN perché l'interfaccia
-    // SVI del router è una per VLAN — non una per prefisso.
+    // `prefixes` = l'AUTORITÀ, ed è su questa che il report cicla: una riga per rete
+    // dichiarata. La vista per-VLAN (`ipamByVidView`) resta, ma solo per ciò che è
+    // davvero per-VLAN — `gatewayNodeId`, il legame con l'interfaccia SVI, che è una
+    // sola anche quando la VLAN porta due indirizzi. Ciclare le VLAN e leggerne il
+    // prefisso PRINCIPALE lasciava fuori dal report ogni gateway IPv6 e ogni rete
+    // senza VLAN.
+    const prefixes = prefixesOf(store.state);
     const ipamByVid = ipamByVidView(store.state);
-    // «IP del device» = campo manuale n.ip OPPURE l'host di integrazione (SNMP).
-    // Definizione uniforme al resto dei motori (lib/api-shape.js, drift-snapshot,
-    // _collectKnownIps): senza questo un device SNMP-only (ip in integration.host)
-    // risultava «gateway orfano» e i suoi IP duplicati sfuggivano all'audit IPAM.
+    // «indirizzo del device» = campo manuale n.ip / n.ip6 OPPURE l'host di
+    // integrazione (SNMP). Definizione uniforme al resto dei motori
+    // (lib/api-shape.js, drift-snapshot, _collectKnownIps): senza l'host un device
+    // SNMP-only risultava «gateway orfano»; senza l'ip6 lo risultava OGNI gateway
+    // IPv6, anche quando l'apparato che risponde è documentato.
     const nodes = (store.state.nodes || []).map(n => ({
         id: n.id, name: getNodeDisplayName(n) || n.name || n.id,
-        ip: n.ip || (n.integration && n.integration.host) || '', type: n.type,
+        ip: n.ip || (n.integration && n.integration.host) || '', ip6: n.ip6 || '', type: n.type,
     }));
     // Gli IP delle VM entrano SOLO nell'audit igiene (duplicati), non nella
     // risoluzione del gateway: quel binding pilota badge e tendine sui nodi VERI
     // del progetto, e una VM non è un nodo. In coda alla lista, così un device
     // fisico con lo stesso IP resta comunque il primo match del gateway.
     if(opts && opts.withVmIps) nodes.push(..._vmIpNodes());
-    const usageByVid = {};
-    if(withUsage && typeof _ipamUsageForVlan === 'function'){
-        for(const v of vlans){ try { usageByVid[String(v.vid)] = _ipamUsageForVlan(v.vid).usedCount; } catch(_){} }
+    // L'occupazione è del PREFISSO, non della VLAN: chiave = il cidr come dichiarato.
+    const usageByCidr = {};
+    if(withUsage && typeof _ipamUsageForPrefix === 'function'){
+        for(const p of prefixes){
+            try { usageByCidr[String(p.cidr)] = _ipamUsageForPrefix(p.cidr, p.gateway || '').usedCount; } catch(_){}
+        }
     }
-    // `prefixes` = l'autorità, non la vista: l'igiene IPAM confronta TUTTI i prefissi
-    // dichiarati, comprese le reti senza VLAN e il secondo prefisso di una VLAN
-    // dual-stack — che `ipamByVid` (uno per VLAN) non può mostrare. Il report L3
-    // resta per-VLAN e ignora questo campo.
-    return { vlans, ipamByVid, prefixes: prefixesOf(store.state), nodes, usageByVid, parseCidr: win._parseCidrInfo, ipInCidr: win._ipInCidr };
+    return { prefixes, vlans, ipamByVid, nodes, usageByCidr,
+             parseCidr: win._parseCidrInfo, ipInCidr: win._ipInCidr, compareCidr };
 }
 export function _l3Compute(withUsage){ return win.buildL3Report(_l3BuildModel(withUsage)); }
 
@@ -133,9 +149,9 @@ function updateVlanGatewayNode(vid, nodeId){
 // del gateway, nel dettaglio della rete: è lì che l'indirizzo si scrive, quindi è
 // lì che deve comparire «a questo indirizzo non risponde nessuno».
 // Riusa `findNodeByIp` (lib/l3-gateway.js, globale bare) e la stessa definizione di
-// «IP di un device» del report L3 — quella di `_l3BuildModel`, che include l'host
-// SNMP. Diversamente da `rows[vid]`, che guarda solo il prefisso PRINCIPALE della
-// VLAN, questa risponde per QUALSIASI prefisso: anche il v6 e quelli senza VLAN.
+// «indirizzo di un device» del report L3 — quella di `_l3BuildModel`, che include
+// l'host SNMP e l'IPv6. Vale per QUALSIASI famiglia: un gateway v6 aggancia il suo
+// router confrontando le forme canoniche, non le stringhe.
 export function _l3DeviceForIp(ip){
     const addr = String(ip || '').trim();
     if(!addr) return null;
@@ -147,8 +163,8 @@ export function _l3DeviceForIp(ip){
 // Il DEVICE che instrada la VLAN — non il suo indirizzo, che sta sul prefisso e si
 // scrive nel dettaglio della rete. Qui resta perché `gatewayNodeId` è per-VLAN:
 // l'interfaccia SVI è una sola anche quando porta due indirizzi (dual-stack).
-// row = riga gia' calcolata dal report (passata da renderProps per non
-// ricalcolare il report per ogni card).
+// row = la voce `byVlan[vid]` del report, cioè la vista per-VLAN DERIVATA dalle
+// righe per-rete (calcolata una volta da renderProps, non per card).
 export function _l3GatewayBindingHtml(vid, row){
     const esc = s => escapeHTML(String(s == null ? '' : s));
     const cands = _l3CandidateNodes(row && row.status === 'bound' ? row.nodeId : null);
@@ -176,28 +192,31 @@ export function _l3GatewayBindingHtml(vid, row){
 }
 
 // ── UI: sezione "Gateway L3 / SVI" nel pannello del device ────────────
-// Mostrata solo se il device instrada ≥1 VLAN. Read-only: deriva dal binding.
+// Mostrata solo se il device instrada ≥1 rete. Read-only: deriva dal binding.
+// Una riga per RETE, non per VLAN: un'interfaccia dual-stack instrada un /24 e un
+// /64, e riassumerli in «VLAN 20» nasconderebbe metà di ciò che quell'apparato fa.
+// Una rete senza VLAN esiste e va instradata come le altre: al posto della
+// pastiglia sta un trattino, non una riga in meno.
 export function _l3SviSectionHtml(nodeId){
     const esc = s => escapeHTML(String(s == null ? '' : s));
     let rep; try { rep = _l3Compute(true); } catch(_){ return ''; }
     const dev = (rep.l3Devices || []).find(d => String(d.id) === String(nodeId));
-    if(!dev || !dev.vlans.length) return '';
-    const rowsByVid = {}; (rep.rows || []).forEach(r => { rowsByVid[r.vid] = r; });
-    const items = dev.vlans
-        .slice()
-        .sort((a, b) => a.vid - b.vid)
-        .map(v => {
-            const r = rowsByVid[v.vid] || {};
+    if(!dev || !dev.nets.length) return '';
+    const rowByCidr = new Map(); (rep.rows || []).forEach(r => { if(r.cidr) rowByCidr.set(r.cidr, r); });
+    const items = dev.nets.map(v => {
+            const r = rowByCidr.get(v.cidr) || {};
             const color = r.color || '#8b949e';
-            const oos = r.warnings && r.warnings.includes('gatewayOutOfSubnet');
+            const wrn = Array.isArray(r.warnings) ? r.warnings : [];
+            const badKey = wrn.includes('gatewayFamilyMismatch') ? 'pnl.feat.gwFamilyMismatch'
+                : wrn.includes('gatewayOutOfSubnet') ? 'pnl.feat.gwOutOfSubnet' : '';
             return `<div class="l3-svi-row">
-                <span class="l3-svi-vlan" style="color:${esc(color)}">VLAN ${v.vid}</span>
+                <span class="l3-svi-vlan" style="color:${esc(color)}">${v.vid != null ? `VLAN ${Number(v.vid)}` : '—'}</span>
                 <span class="l3-svi-name">${esc(r.name || '')}</span>
-                <span class="l3-svi-gw">${esc(v.gateway || '—')}${r.subnet ? ` <span class="l3-svi-sub">${esc(r.subnet)}</span>` : ''}${oos ? ` <span class="l3-svi-warn" data-tip="${esc(t('pnl.feat.gwOutOfSubnet'))}">⚠</span>` : ''}</span>
+                <span class="l3-svi-gw">${esc(v.gateway || '—')}${v.cidr ? ` <span class="l3-svi-sub">${esc(v.cidr)}</span>` : ''}${badKey ? ` <span class="l3-svi-warn" data-tip="${esc(t(badKey))}">⚠</span>` : ''}</span>
               </div>`;
         }).join('');
     return `<details class="props-collapsible props-secondary" ${_propsSectionIsOpen('node-l3') ? 'open' : ''} data-toggle="props-section" data-section="node-l3">
-        <summary class="props-collapsible-head"><span><i class="fas fa-route"></i> ${t('l3.sviSection')}</span><span class="props-collapsible-preview">${dev.vlans.length} VLAN</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
+        <summary class="props-collapsible-head"><span><i class="fas fa-route"></i> ${t('l3.sviSection')}</span><span class="props-collapsible-preview">${t('l3.sviCount',{n:dev.nets.length})}</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
         <div class="props-collapsible-body">
           <div class="l3-svi-intro">${t('l3.sviIntro')}</div>
           ${items}
@@ -266,28 +285,36 @@ function openL3Report(){
     const _l3t = document.getElementById('l3-title'); if(_l3t) _l3t.textContent = t('report.l3');
     const warnBits = [];
     if(tot.orphan) warnBits.push(`<span class="l3-sum-warn">⚠ ${t('l3.orphanGw',{n:tot.orphan})}</span>`);
-    if(tot.noGateway) warnBits.push(`<span class="l3-sum-warn">⚠ ${t('l3.vlanNoGw',{n:tot.noGateway})}</span>`);
+    if(tot.noGateway) warnBits.push(`<span class="l3-sum-warn">⚠ ${t('l3.netNoGw',{n:tot.noGateway})}</span>`);
     if(tot.outOfSubnet) warnBits.push(`<span class="l3-sum-warn">⚠ ${t('l3.outSubnet',{n:tot.outOfSubnet})}</span>`);
+    if(tot.familyMismatch) warnBits.push(`<span class="l3-sum-warn">⚠ ${t('l3.famMismatch',{n:tot.familyMismatch})}</span>`);
     if(audit.duplicateIps.length) warnBits.push(`<span class="l3-sum-warn">⚠ ${t('l3.dupIpChip',{n:audit.duplicateIps.length})}</span>`);
     if(audit.subnetOverlaps.length) warnBits.push(`<span class="l3-sum-warn">⚠ ${t('l3.overlapChip',{n:audit.subnetOverlaps.length})}</span>`);
     const header = `<div class="spare-summary">
         <div class="spare-summary-hdr">
-            <div class="spare-summary-big">${t('l3.summary',{dev:`<b>${tot.l3Devices}</b>`,gw:`<b>${tot.withGateway}</b>`,vlans:tot.vlans})}</div>
+            <div class="spare-summary-big">${t('l3.summary',{dev:`<b>${tot.l3Devices}</b>`,gw:`<b>${tot.withGateway}</b>`,nets:tot.nets})}</div>
             <button class="toolbar-btn" style="margin-left:auto" data-act="l3-export" data-tip="${t('l3.csvTip')}"><i class="fas fa-file-csv"></i> CSV</button>
         </div>
         <div class="spare-summary-sub">${warnBits.length ? warnBits.join(' · ') : t('l3.noIssues')}</div>
     </div>`;
+    // La RETE è la prima colonna perché è l'identità della riga: è quella che si
+    // instrada, ed è l'unica cosa che c'è sempre (la VLAN è facoltativa). Ogni
+    // avviso sta accanto al valore che lo produce — famiglia e fuori-subnet sul
+    // gateway, CIDR malformato sulla rete — così si sa cosa correggere.
+    const gwWarn = r => r.warnings.includes('gatewayFamilyMismatch') ? 'pnl.feat.gwFamilyMismatch'
+        : r.warnings.includes('gatewayOutOfSubnet') ? 'pnl.feat.outOfSubnet'
+        : r.warnings.includes('gatewayReserved') ? 'pnl.feat.gwReserved' : '';
     const renderRow = r => `<div class="l3-row${r.warnings.length ? ' has-warn' : ''}">
-        <span class="l3-row-vlan" style="color:${esc(r.color || '#8b949e')}">VLAN ${r.vid}</span>
+        <span class="l3-row-sub">${r.cidr ? esc(r.cidr) : `<span class="l3-st-none" data-tip="${esc(t('l3.vlanNoNet'))}">—</span>`}${!r.cidrValid && r.cidr ? ` <span class="l3-svi-warn" data-tip="${esc(t('pnl.feat.invalidCidr'))}">⚠</span>` : ''}</span>
+        <span class="l3-row-vlan" style="color:${esc(r.color || '#8b949e')}">${r.vid != null ? `VLAN ${Number(r.vid)}` : '<span class="l3-st-none">—</span>'}</span>
         <span class="l3-row-name">${esc(r.name || '')}</span>
-        <span class="l3-row-sub">${esc(r.subnet || '—')}${!r.cidrValid && r.subnet ? ` <span class="l3-svi-warn" data-tip="${esc(t('pnl.feat.invalidCidr'))}">⚠</span>` : ''}</span>
-        <span class="l3-row-gw">${esc(r.gateway || '—')}${r.warnings.includes('gatewayOutOfSubnet') ? ` <span class="l3-svi-warn" data-tip="${esc(t('pnl.feat.outOfSubnet'))}">⚠</span>` : r.warnings.includes('gatewayReserved') ? ` <span class="l3-svi-warn" data-tip="${esc(t('pnl.feat.gwReserved'))}">⚠</span>` : ''}</span>
+        <span class="l3-row-gw">${esc(r.gateway || '—')}${gwWarn(r) ? ` <span class="l3-svi-warn" data-tip="${esc(t(gwWarn(r)))}">⚠</span>` : ''}</span>
         <span class="l3-row-dev">${r.nodeName ? esc(r.nodeName) : '<span class="l3-st-none">—</span>'}</span>
         <span class="l3-row-st">${_l3StatusBadge(r)}</span>
       </div>`;
     const head = `<div class="l3-row l3-row-head">
-        <span class="l3-row-vlan">VLAN</span><span class="l3-row-name">${t('common.name')}</span>
-        <span class="l3-row-sub">Subnet</span><span class="l3-row-gw">Gateway</span>
+        <span class="l3-row-sub">${t('l3.colNet')}</span><span class="l3-row-vlan">VLAN</span>
+        <span class="l3-row-name">${t('common.name')}</span><span class="l3-row-gw">Gateway</span>
         <span class="l3-row-dev">Device</span><span class="l3-row-st">${t('common.status')}</span></div>`;
     const body = rep.rows.length
         ? head + rep.rows.map(renderRow).join('')
@@ -304,8 +331,10 @@ function l3ExportCsv(){
     // regola nuova senza traduzione si vede subito invece di uscire in italiano.
     const rows = [t('l3.csv.cols').split(';')];
     const noteOf = r => r.warnings.map(w => { const k = 'l3.csv.' + w; const s = t(k); return s === k ? w : s; }).join(', ');
+    // La rete per prima, e la VLAN vuota quando non c'è: una cella con «0» sarebbe
+    // una VLAN che nessuno ha dichiarato.
     rep.rows.forEach(r => rows.push([
-        r.vid, r.name, r.subnet, r.gateway, r.nodeName || '', r.status, r.usedCount, r.dns, noteOf(r),
+        r.cidr, r.vid == null ? '' : r.vid, r.name, r.gateway, r.nodeName || '', r.status, r.usedCount, r.dns, noteOf(r),
     ]));
     const esc = v => { const s = String(v == null ? '' : v); return /[",;\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
     const csv = '﻿' + rows.map(r => r.map(esc).join(';')).join('\r\n');

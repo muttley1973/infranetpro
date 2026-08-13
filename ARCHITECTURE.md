@@ -84,8 +84,12 @@ plugins/               Seed vendor catalogs (zero database)
 
 lib/                   Shared browser + test modules (the heart of the app)
   i18n.js              t(key,vars), it/en dictionaries, glossary  (pure)
-  cidr.js netnames.js linkstate.js correlate.js cabling.js
-  topo-lines.js frontpanel.js stack.js ha-pair.js l3-gateway.js
+  cidr.js           IPv4+IPv6 prefix arithmetic; `addrFamily`/`addrKey` = the identity of
+                    a single ADDRESS (v4 verbatim, v6 canonical RFC 5952). One definition,
+                    used by l3-gateway.js and ipam-audit.js: the same rule written in two
+                    layers diverges, and it is always the incomplete one that wins  (pure)
+  netnames.js linkstate.js correlate.js cabling.js
+  topo-lines.js frontpanel.js stack.js ha-pair.js
   topology-plan.js  buildTopologyPlan / inferUnmanagedNodes / classifyIntermediary:
                     assemble tiered links from a Sync poll + infer a hidden multi-port
                     intermediary behind a 2–4-MAC access port and suggest its role
@@ -128,8 +132,12 @@ lib/                   Shared browser + test modules (the heart of the app)
   ipam.js           computeIpamUsage incl. nextFree (next free host = «suggested IP»)  (pure)
   ipam-model.js     prefixes are first-class, the VLAN is an optional reference; migration
                     from the 2.8.x shape where the subnet was a field of the VLAN  (pure)
-  ipam-audit.js     buildIpamAudit → duplicate IPs + overlapping prefixes (IPAM hygiene, doc↔doc);
+  ipam-audit.js     buildIpamAudit → duplicate addresses (v4+v6, canonical) + overlapping
+                    prefixes (IPAM hygiene, doc↔doc);
                     compareCidr = the one address-space ordering, shared with the panel  (pure)
+  l3-gateway.js     buildL3Report → one row PER DECLARED PREFIX (not per VLAN): who routes
+                    each network, both families. `byVlan` is the derived per-VLAN view for
+                    the SVI binding, which is the only genuinely per-VLAN fact  (pure)
   lag-audit.js      checkLagMembers → LAG member consistency (speed/VLAN mismatch);
                     checkLagPair → LACP cross-end mode coherence (both-passive /
                     lacp-vs-static)  (pure)

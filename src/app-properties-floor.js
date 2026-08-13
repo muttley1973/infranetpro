@@ -448,10 +448,13 @@ export function _renderFloorProps(panel){
         // corretta.
         if(typeof _ipamMemoBegin === 'function') _ipamMemoBegin();
         try {
-        // L3-lite: righe gateway calcolate UNA volta (non per card) per la
-        // riga "Device gateway" dentro ogni IPAM aperta.
-        const _l3rows = {};
-        try { if(typeof _l3Compute === 'function') (_l3Compute(false).rows || []).forEach(r => { _l3rows[r.vid] = r; }); } catch(_){}
+        // L3-lite: il report calcolato UNA volta (non per card) per la riga
+        // "Instradata da" dentro ogni card VLAN. Si legge `byVlan`, la vista
+        // per-VLAN derivata dalle righe per-rete: la card chiede «chi instrada
+        // questa VLAN», e l'SVI è una sola anche quando la VLAN porta un IPv4 e
+        // un IPv6 — due righe nel report, una risposta qui.
+        let _l3rows = {};
+        try { if(typeof _l3Compute === 'function') _l3rows = _l3Compute(false).byVlan || {}; } catch(_){}
         const _siteNat = (typeof _siteNativeVlan==='function') ? _siteNativeVlan() : 1;
         Object.keys(state.vlanColors).sort((a,b)=>+a-+b).forEach(v=>{
             const vid=normalizeNumber(v,1,1,4094);
