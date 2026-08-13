@@ -1,0 +1,296 @@
+'use strict';
+// ============================================================
+// ESCAPING HTML — cricchetto + guardia sullo scanner
+// ============================================================
+// L'interfaccia è costruita a mano con template literal e `innerHTML`: nessun
+// framework escapa al posto nostro. L'invariante «ogni valore interpolato in
+// HTML passa da un escaper» regge oggi su ~660 chiamate sparse in 33 file, e
+// non era imposta da niente. Una dimenticata è una XSS — e l'input NON è solo
+// la tastiera dell'operatore: sysName, sysDescr, hostname dei lease DHCP,
+// titoli HTTP e nomi dei vicini LLDP arrivano dagli APPARATI, cioè da chiunque
+// stia sulla rete che si sta documentando.
+//
+// Lo scanner sta in tools/html-escape-scan.js (eseguibile a mano per l'elenco:
+// `node tools/html-escape-scan.js --list`). Qui ci sono TRE guardie.
+//
+// ── 1) LO SCANNER MORDE ─────────────────────────────────────────────────────
+// La più importante, e la meno ovvia. Lo scanner è EURISTICO: se una modifica
+// lo rompesse in direzione permissiva, il cricchetto qui sotto continuerebbe a
+// passare — verde per sempre, e cieco. Le fixture fissano il comportamento nei
+// due sensi: quello che DEVE essere segnalato e quello che NON deve esserlo.
+// Un guard senza questo test protegge sé stesso, non il codice.
+//
+// ── 2) CRICCHETTO PER FILE ──────────────────────────────────────────────────
+// Stessa ricetta di MAX_WIN_REFS: il residuo può solo CALARE. È per FILE e non
+// globale per due ragioni. La prima è il messaggio d'errore: dice subito DOVE
+// è cresciuto. La seconda è che un tetto unico si lascia erodere — export.js
+// da solo pesa 149 (coordinate SVG calcolate, rumore inevitabile) e in un
+// totale unico coprirebbe l'aggiunta di un `${d.sysName}` crudo altrove.
+//
+// ── 3) UN SOLO ESCAPER ──────────────────────────────────────────────────────
+// La classe di bug ricorrente del progetto: lo stesso concetto definito due
+// volte, le due definizioni divergono, vince quella sbagliata. Al momento della
+// scrittura ce n'erano tre: `escapeHTML` (completa), una locale in
+// app-dhcp-import.js e due identiche in export.js — queste ultime coprivano 4
+// caratteri su 5, fuori l'apice singolo. Nessuna apriva un buco vivo (i loro
+// valori finiscono in testo o in attributi con doppi apici), ma è esattamente
+// la trappola che si arma da sola: basta che il prossimo riusi quel nome
+// dentro un attributo con apici singoli.
+// ============================================================
+const { test } = require('node:test');
+const assert = require('node:assert');
+const fs = require('node:fs');
+const path = require('node:path');
+const scan = require('../tools/html-escape-scan');
+
+const ROOT = path.join(__dirname, '..');
+
+// Scansiona un sorgente sintetico, raccogliendone i builder come farebbe il
+// corpus vero (per file).
+function scanFixture(lines) {
+    const src = Array.isArray(lines) ? lines.join('\n') : lines;
+    const builders = scan.collectHtmlBuilders([src]);
+    return scan.scanSource(src, builders, 'fixture.js');
+}
+const countUnproven = (lines) => scanFixture(lines).unproven.length;
+
+// ════════════════════════════════════════════════════════════════════════════
+// 1) LO SCANNER MORDE — casi che DEVONO essere segnalati
+// ════════════════════════════════════════════════════════════════════════════
+
+test('scanner: valore crudo nel testo → segnalato', () => {
+    assert.strictEqual(countUnproven('const h = `<div>${d.sysName}</div>`;'), 1);
+});
+
+test('scanner: valore crudo in un attributo → segnalato', () => {
+    assert.strictEqual(countUnproven('const h = `<td title="${row.descr}">x</td>`;'), 1);
+});
+
+test('scanner: valore crudo passato per una variabile locale → segnalato', () => {
+    assert.strictEqual(countUnproven([
+        'const nome = d.hostname;',
+        'const h = `<b>${nome}</b>`;',
+    ]), 1);
+});
+
+test('scanner: ramo di || non escapato → segnalato (entrambi i rami finiscono a schermo)', () => {
+    assert.strictEqual(countUnproven('const h = `<i>${escapeHTML(a) || d.vendor}</i>`;'), 1);
+});
+
+test('scanner: ramo di ternario non escapato → segnalato', () => {
+    assert.strictEqual(countUnproven("const h = `<i>${vivo ? d.model : ''}</i>`;"), 1);
+});
+
+test('scanner: concatenazione con un valore crudo → segnalato', () => {
+    assert.strictEqual(countUnproven("const h = `<i>${'MAC ' + d.mac}</i>`;"), 1);
+});
+
+test('scanner: funzione che ritorna una stringa GREZZA non passa per builder', () => {
+    // È la regressione che conta: una prima versione della regola compositiva
+    // guardava "i 4000 caratteri dopo la definizione" invece del corpo vero, e
+    // in un file denso di HTML finiva per promuovere a builder qualunque
+    // funzione — anche questa, che ritorna testo non escapato.
+    assert.strictEqual(countUnproven([
+        "function vendorLabel(d){ return d.vendor || '—'; }",
+        'const h = `<td>${vendorLabel(d)}</td>`;',
+    ]), 1);
+});
+
+test('scanner: un regex con apici non lo desincronizza', () => {
+    // `/[",;\n]/` contiene un apice doppio: letto come inizio di stringa, il
+    // parser si mangiava il resto del file e i template successivi sparivano —
+    // 249 interpolazioni invisibili, quasi tutte in export.js e drawio-export.
+    assert.strictEqual(countUnproven([
+        'const csv = v => /[",;\\n]/.test(v) ? v : v;',
+        'const h = `<div>${d.sysName}</div>`;',
+    ]), 1);
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// 1-bis) LO SCANNER NON ABBAIA A VUOTO — casi che NON vanno segnalati
+// ════════════════════════════════════════════════════════════════════════════
+
+test('scanner: escapeHTML esplicito → pulito', () => {
+    assert.strictEqual(countUnproven('const h = `<div>${escapeHTML(d.sysName)}</div>`;'), 0);
+});
+
+test('scanner: alias locale dell\'escaper → pulito', () => {
+    assert.strictEqual(countUnproven([
+        'const esc = s => escapeHTML(String(s == null ? "" : s));',
+        'const h = `<div>${esc(d.sysName)}</div>`;',
+    ]), 0);
+});
+
+test('scanner: alias importato dell\'escaper → pulito', () => {
+    assert.strictEqual(countUnproven([
+        "import { escapeHTML as esc } from './app-util.js';",
+        'const h = `<div>${esc(d.hostname)}</div>`;',
+    ]), 0);
+});
+
+test('scanner: stringa i18n → pulito (viene dal dizionario, non dalla rete)', () => {
+    assert.strictEqual(countUnproven("const h = `<div>${t('pnl.title')}</div>`;"), 0);
+});
+
+test('scanner: numeri e .length → pulito', () => {
+    assert.strictEqual(countUnproven('const h = `<span>${n.ports.length}</span>`;'), 0);
+});
+
+test('scanner: ternario fra letterali → pulito, e la CONDIZIONE non conta', () => {
+    // La condizione non finisce nell'output: chiederle l'escape sarebbe rumore.
+    assert.strictEqual(countUnproven("const h = `<i class=\"${d.sysName ? 'on' : 'off'}\"></i>`;"), 0);
+});
+
+test('scanner: map+join di template annidati → pulito (i pezzi li scansiona lui)', () => {
+    assert.strictEqual(countUnproven(
+        "const h = `<ul>${items.map(x => `<li>${escapeHTML(x)}</li>`).join('')}</ul>`;"
+    ), 0);
+});
+
+test('scanner: builder HTML dello stesso file → pulito (regola compositiva)', () => {
+    assert.strictEqual(countUnproven([
+        'function rigaHtml(d){ return `<tr><td>${escapeHTML(d.ip)}</td></tr>`; }',
+        'const h = `<table>${rigaHtml(d)}</table>`;',
+    ]), 0);
+});
+
+test('scanner: il corpus non è vuoto (il cricchetto non è vacuo)', () => {
+    // Se un refactor spostasse i file o rompesse il parser, `unproven` andrebbe
+    // a zero e tutti i tetti passerebbero: verde per il motivo sbagliato.
+    const { interpolations, unproven, files } = scan.scanCorpus();
+    assert.ok(files.length >= 100, `corpus troppo piccolo: ${files.length} file`);
+    assert.ok(interpolations > 2000, `interpolazioni HTML = ${interpolations}: lo scanner non sta leggendo il frontend`);
+    assert.ok(unproven.length > 0, 'zero residuo: sospetto, lo scanner ha smesso di guardare');
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// 2) CRICCHETTO PER FILE
+// ════════════════════════════════════════════════════════════════════════════
+// Come abbassarli: bonifica un file (avvolgi in escapeHTML, o estrai un
+// builder), rilancia `node tools/html-escape-scan.js` e riporta qui il numero
+// nuovo. Il test stampa da solo i file scesi. Alzare un tetto è ammesso solo
+// con una RAGIONE scritta accanto alla riga — come si fa con MAX_WIN_REFS.
+//
+// Cosa c'è dentro, in ordine di peso: coordinate SVG calcolate (export.js),
+// identificatori generati (`n.id`, `l.id`, `pid`), contatori di ciclo, e
+// soprattutto PARAMETRI DI FUNZIONE (`label`, `icon`, `col`) — che uno scanner
+// senza analisi interprocedurale non può risolvere nemmeno quando il chiamante
+// passa un valore già escapato. Sono «non dimostrati», non «sbagliati».
+const CAPS = {
+    'export.js': 149,
+    'lib/drawio-export.js': 21,
+    'src/app-audit.js': 3,
+    'src/app-auth.js': 4,
+    'src/app-discovery.js': 11,
+    'src/app-drift-adopt.js': 3,
+    'src/app-drift.js': 15,
+    'src/app-hypervisor.js': 9,
+    'src/app-integrations.js': 41,
+    'src/app-l3.js': 6,
+    'src/app-management.js': 9,
+    'src/app-panel-skin.js': 3,
+    'src/app-pdu-connection.js': 2,
+    'src/app-popup.js': 10,
+    'src/app-ports.js': 1,
+    'src/app-properties-floor.js': 10,
+    'src/app-properties-link.js': 15,
+    'src/app-properties-node-devices.js': 84,
+    'src/app-properties-node.js': 49,
+    'src/app-properties-port.js': 16,
+    'src/app-properties-vm.js': 15,
+    'src/app-properties.js': 17,
+    'src/app-render-core.js': 39,
+    'src/app-shared-segment.js': 25,
+    'src/app-snmp.js': 2,
+    'src/app-spare.js': 7,
+    'src/app-topology-crawl.js': 4,
+    'src/app-topology-discover.js': 1,
+    'src/app-topology-overlay.js': 9,
+    'src/app-vlan-autopoll.js': 17,
+    'src/app-wifi.js': 19,
+    'src/app.js': 2,
+};
+
+test('cricchetto: nessun file supera il suo tetto di interpolazioni non provate', () => {
+    const { unproven } = scan.scanCorpus();
+    const byFile = new Map();
+    for (const u of unproven) byFile.set(u.file, (byFile.get(u.file) || 0) + 1);
+
+    const cresciuti = [];
+    for (const [file, n] of byFile) {
+        const cap = CAPS[file] || 0;
+        if (n > cap) {
+            // Si elencano TUTTE le interpolazioni non provate del file, non «le
+            // ultime n-cap»: senza una linea di base non si sa quale sia quella
+            // nuova, e indicare righe a caso manderebbe a caccia di fantasmi.
+            const righe = unproven.filter(u => u.file === file);
+            cresciuti.push(`  ${file}: ${n} > ${cap}  (+${n - cap})\n` +
+                `    tutte le non provate del file — la nuova è fra queste:\n` +
+                righe.slice(0, 25).map(u => `      riga ${u.line}: \${${u.expr.slice(0, 80)}}`).join('\n') +
+                (righe.length > 25 ? `\n      …e altre ${righe.length - 25}` : ''));
+        }
+    }
+    assert.strictEqual(cresciuti.length, 0,
+        'interpolazioni in HTML non dimostrate sicure, sopra il tetto:\n' + cresciuti.join('\n') +
+        '\n\n  Avvolgi il valore in escapeHTML(), oppure — se è davvero sicuro — spiega perché\n' +
+        '  e alza il tetto in test/html-escaping.test.js. Elenco completo:\n' +
+        '      node tools/html-escape-scan.js --list');
+
+    // Promemoria non bloccante: quando un file cala, stringi il tetto.
+    const scesi = Object.keys(CAPS)
+        .filter(f => (byFile.get(f) || 0) < CAPS[f])
+        .map(f => `${f}: ${byFile.get(f) || 0} < ${CAPS[f]}`);
+    if (scesi.length) console.log(`[ratchet] escaping, tetti da abbassare → ${scesi.join(' · ')}`);
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// 3) UN SOLO ESCAPER
+// ════════════════════════════════════════════════════════════════════════════
+
+test('escaping: nel frontend esiste UNA sola definizione di escape HTML', () => {
+    // Firma di un escaper: un replace su una classe di caratteri che contiene
+    // sia & sia < (chi ne cita uno solo sta facendo altro).
+    const FIRMA = /replace\(\s*\/\[[^\]]*&[^\]]*<[^\]]*\]/;
+    // Variante a catena: .replace(/&/g, …).replace(/</g, …)
+    const FIRMA_CATENA = /replace\(\s*\/&\/g[^)]*\)\s*\.\s*replace\(\s*\/<\/g/;
+
+    const trovati = [];
+    for (const rel of scan.corpusFiles()) {
+        const src = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+        const code = src.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+        if (FIRMA.test(code) || FIRMA_CATENA.test(code)) trovati.push(rel);
+    }
+
+    // app-util.js = l'escaper HTML condiviso.
+    // drawio-export.js = _escXml, contesto XML del .drawio: escape COMPLETO sui
+    //   5 caratteri, entità XML (&apos; invece di &#39;). Concetto diverso,
+    //   legittimamente separato.
+    assert.deepStrictEqual(trovati.sort(), ['lib/drawio-export.js', 'src/app-util.js'],
+        'è comparsa una nuova definizione di escape. Usa escapeHTML di src/app-util.js\n' +
+        '  (o importalo con un alias): due definizioni dello stesso concetto divergono,\n' +
+        '  e vince sempre quella incompleta.');
+});
+
+test('escaping: escapeHTML neutralizza tutti e cinque i caratteri', () => {
+    // Si prova l'implementazione VERA, estratta dal file ed eseguita: una copia
+    // riscritta qui proverebbe soltanto che so scrivere due volte la stessa
+    // regex. app-util.js è ESM e non si può `require` da qui, quindi si isola
+    // la funzione e la si compila.
+    const src = fs.readFileSync(path.join(ROOT, 'src', 'app-util.js'), 'utf8');
+    const from = src.indexOf('export function escapeHTML');
+    assert.ok(from >= 0, 'escapeHTML non è più dichiarata in src/app-util.js');
+    const body = src.slice(from, src.indexOf('/** ID univoco', from)).replace('export ', '');
+    const escapeHTML = new Function(`${body}; return escapeHTML;`)();
+
+    assert.strictEqual(escapeHTML('<img src=x onerror=\'alert(1)\'>'),
+        '&lt;img src=x onerror=&#39;alert(1)&#39;&gt;');
+    // Uscita ESATTA per ciascuno dei cinque. Non «non contiene il carattere»:
+    // per la & sarebbe falso comunque, visto che &amp; una & ce l'ha dentro.
+    const ATTESI = { '&': 'x&amp;y', '<': 'x&lt;y', '>': 'x&gt;y', '"': 'x&quot;y', "'": 'x&#39;y' };
+    for (const [ch, atteso] of Object.entries(ATTESI)) {
+        assert.strictEqual(escapeHTML(`x${ch}y`), atteso, `escapeHTML sbaglia su ${ch}`);
+    }
+    // Null/undefined non devono diventare la stringa "null"/"undefined".
+    assert.strictEqual(escapeHTML(null), '');
+    assert.strictEqual(escapeHTML(undefined), '');
+});
