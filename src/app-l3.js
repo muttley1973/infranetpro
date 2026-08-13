@@ -19,7 +19,7 @@ import { _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte: bu
 import { closeReportMenu } from './app-auth.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { updateVlanIpam } from './app-vlan-autopoll.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { vmIps } from '../lib/vm-nics.js';   // lib pura importata ESM (come lib/ipv6.js): NON un globale su window
-import { ipamByVidView } from '../lib/ipam-model.js';   // vista per-VLAN derivata dall'autorità sui prefissi
+import { ipamByVidView, prefixesOf } from '../lib/ipam-model.js';   // vista per-VLAN derivata dall'autorità sui prefissi (+ l'autorità stessa, per l'audit)
 
 // Tipi che possono fare da gateway L3 (per il dropdown di scelta).
 const _L3_GATEWAY_TYPES = ['router', 'firewall', 'switch'];
@@ -83,7 +83,11 @@ function _l3BuildModel(withUsage, opts){
     if(withUsage && typeof _ipamUsageForVlan === 'function'){
         for(const v of vlans){ try { usageByVid[String(v.vid)] = _ipamUsageForVlan(v.vid).usedCount; } catch(_){} }
     }
-    return { vlans, ipamByVid, nodes, usageByVid, parseCidr: win._parseCidrInfo, ipInCidr: win._ipInCidr };
+    // `prefixes` = l'autorità, non la vista: l'igiene IPAM confronta TUTTI i prefissi
+    // dichiarati, comprese le reti senza VLAN e il secondo prefisso di una VLAN
+    // dual-stack — che `ipamByVid` (uno per VLAN) non può mostrare. Il report L3
+    // resta per-VLAN e ignora questo campo.
+    return { vlans, ipamByVid, prefixes: prefixesOf(store.state), nodes, usageByVid, parseCidr: win._parseCidrInfo, ipInCidr: win._ipInCidr };
 }
 export function _l3Compute(withUsage){ return win.buildL3Report(_l3BuildModel(withUsage)); }
 
@@ -215,8 +219,12 @@ function _l3HygieneHtml(audit, esc){
     for(const d of audit.duplicateIps){
         rows.push(`<div ${rs}>⚠ ${t('l3.dupIpRow',{ip:`<b>${esc(d.ip)}</b>`, names:esc(d.nodes.map(n=>n.name).join(', '))})}</div>`);
     }
+    // La riga nomina i PREFISSI, non le VLAN: una rete senza VLAN non ha un numero
+    // da citare, e due prefissi della stessa VLAN che si intersecano non si
+    // distinguerebbero. La VLAN va in coda al prefisso, e solo se c'è.
+    const netLabel = x => `<b>${esc(x.cidr)}</b>${x.vlan != null ? ` (VLAN ${+x.vlan})` : ''}`;
     for(const o of audit.subnetOverlaps){
-        rows.push(`<div ${rs}>⚠ ${t(o.identical?'l3.overlapRowSame':'l3.overlapRow',{a:o.vidA, b:o.vidB, sa:`<b>${esc(o.subnetA)}</b>`, sb:`<b>${esc(o.subnetB)}</b>`})}</div>`);
+        rows.push(`<div ${rs}>⚠ ${t(o.identical?'l3.overlapRowSame':'l3.overlapRow',{sa:netLabel(o.a), sb:netLabel(o.b)})}</div>`);
     }
     return `<div class="l3-hygiene" style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">`
         + `<div style="font-weight:600;margin-bottom:4px"><i class="fas fa-triangle-exclamation" style="color:#d29922"></i> ${t('l3.ipamHygiene')}</div>`

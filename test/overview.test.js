@@ -361,7 +361,7 @@ test('② VERO: i conflitti IPAM (IP duplicati + overlap subnet) emergono come r
   const dirty = buildOverview(Object.assign({}, base, {
     ipamAudit: {
       duplicateIps: [{ ip: '10.0.0.9', nodes: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }] }],
-      subnetOverlaps: [{ vidA: 10, vidB: 20, subnetA: '10.0.0.0/24', subnetB: '10.0.0.0/25', identical: false }],
+      subnetOverlaps: [{ a: { cidr: '10.0.0.0/24', vlan: 10 }, b: { cidr: '10.0.0.0/25', vlan: 20 }, identical: false }],
     },
   })).truth;
   const dr = rowOf(dirty, 'conflicts');
@@ -384,6 +384,22 @@ test('② VERO: i conflitti IPAM (IP duplicati + overlap subnet) emergono come r
   const mr = rowOf(many, 'conflicts');
   assert.equal(mr.items[0].id, '10.0.0.9');
   assert.equal(mr.items[0].meta, 'A, B, C');
+
+  // La VLAN del prefisso e' FACOLTATIVA: senza, '—' (mai «VLAN 0»); se non ce l'ha
+  // nessuna delle due non c'e' niente da nominare e resta il solo marcatore '='.
+  const noVlan = buildOverview(Object.assign({}, base, {
+    ipamAudit: {
+      duplicateIps: [],
+      subnetOverlaps: [
+        { a: { cidr: '172.16.0.0/16', vlan: null }, b: { cidr: '172.16.5.0/24', vlan: 30 }, identical: false },
+        { a: { cidr: '192.168.9.0/24', vlan: null }, b: { cidr: '192.168.9.0/24', vlan: null }, identical: true },
+      ],
+    },
+  })).truth;
+  const nr = rowOf(noVlan, 'conflicts');
+  assert.equal(nr.items[0].id, '172.16.0.0/16 ⇄ 172.16.5.0/24');
+  assert.equal(nr.items[0].meta, 'VLAN —/30');
+  assert.equal(nr.items[1].meta, '=');
 
   // Igiene NON valutata (motore assente o in errore: il glue passa null) ≠ rete
   // pulita. Prima un fallimento di calcolo usciva come «nessun conflitto» VERDE.

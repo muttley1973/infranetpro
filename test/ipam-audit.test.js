@@ -44,55 +44,105 @@ test('findDuplicateIps: ordinamento numerico "umano" (.10 dopo .2)', () => {
 
 // ---- findSubnetOverlaps -----------------------------------------------------
 
-const vlans = [{ vid: 10 }, { vid: 20 }, { vid: 30 }];
+// L'input è `ipam.prefixes[]`, l'autorità: la VLAN è un attributo facoltativo del
+// prefisso, non la chiave con cui si confronta.
+const P = (cidr, vlan) => ({ cidr, vlan: vlan === undefined ? null : vlan });
 
 test('findSubnetOverlaps: due /24 identiche su VLAN diverse → identical:true', () => {
-  const ov = findSubnetOverlaps(vlans, {
-    '10': { subnet: '192.168.1.0/24' },
-    '20': { subnet: '192.168.1.0/24' },
-  }, _parseCidrInfo);
+  const ov = findSubnetOverlaps([P('192.168.1.0/24', 10), P('192.168.1.0/24', 20)], _parseCidrInfo);
   assert.equal(ov.length, 1);
-  assert.equal(ov[0].vidA, 10);
-  assert.equal(ov[0].vidB, 20);
+  assert.equal(ov[0].a.vlan, 10);
+  assert.equal(ov[0].b.vlan, 20);
   assert.equal(ov[0].identical, true);
 });
 
 test('findSubnetOverlaps: containment (/25 dentro /24) → overlap, non identical', () => {
-  const ov = findSubnetOverlaps(vlans, {
-    '10': { subnet: '10.0.0.0/24' },
-    '20': { subnet: '10.0.0.0/25' },
-  }, _parseCidrInfo);
+  const ov = findSubnetOverlaps([P('10.0.0.0/24', 10), P('10.0.0.0/25', 20)], _parseCidrInfo);
   assert.equal(ov.length, 1);
   assert.equal(ov[0].identical, false);
 });
 
 test('findSubnetOverlaps: subnet disgiunte → nessun overlap', () => {
-  const ov = findSubnetOverlaps(vlans, {
-    '10': { subnet: '10.0.0.0/24' },
-    '20': { subnet: '10.0.1.0/24' },
-  }, _parseCidrInfo);
-  assert.deepEqual(ov, []);
+  assert.deepEqual(findSubnetOverlaps([P('10.0.0.0/24', 10), P('10.0.1.0/24', 20)], _parseCidrInfo), []);
 });
 
-test('findSubnetOverlaps: CIDR mancante o non valido → VLAN saltata', () => {
-  const ov = findSubnetOverlaps(vlans, {
-    '10': { subnet: '10.0.0.0/24' },
-    '20': { subnet: 'non-un-cidr' },
-    '30': {},
-  }, _parseCidrInfo);
+test('findSubnetOverlaps: CIDR mancante o non valido → prefisso saltato', () => {
+  const ov = findSubnetOverlaps([P('10.0.0.0/24', 10), P('non-un-cidr', 20), P('', 30), null], _parseCidrInfo);
   assert.deepEqual(ov, []);
 });
 
 test('findSubnetOverlaps: senza parseCidr → array vuoto (nessun crash)', () => {
-  assert.deepEqual(findSubnetOverlaps(vlans, { '10': { subnet: '10.0.0.0/24' } }, null), []);
+  assert.deepEqual(findSubnetOverlaps([P('10.0.0.0/24', 10)], null), []);
+});
+
+// ---- il 57% che prima era invisibile ----------------------------------------
+
+test('findSubnetOverlaps: due reti SENZA VLAN che si sovrappongono → conflitto, vlan null', () => {
+  const ov = findSubnetOverlaps([P('172.16.0.0/16'), P('172.16.5.0/24')], _parseCidrInfo);
+  assert.equal(ov.length, 1);
+  assert.equal(ov[0].a.cidr, '172.16.0.0/16');   // ordine di indirizzo: la più larga prima
+  assert.equal(ov[0].b.cidr, '172.16.5.0/24');
+  assert.equal(ov[0].a.vlan, null);
+  assert.equal(ov[0].b.vlan, null);
+  assert.equal(ov[0].identical, false);
+});
+
+test('findSubnetOverlaps: una con VLAN e una senza → conflitto (prima era invisibile)', () => {
+  const ov = findSubnetOverlaps([P('192.168.1.0/24', 10), P('192.168.1.128/25')], _parseCidrInfo);
+  assert.equal(ov.length, 1);
+  assert.equal(ov[0].a.vlan, 10);
+  assert.equal(ov[0].b.vlan, null);
+});
+
+test('findSubnetOverlaps: vlan 0 non è vlan null (`+null === 0`)', () => {
+  const ov = findSubnetOverlaps([P('192.168.1.0/24', 0), P('192.168.1.0/24')], _parseCidrInfo);
+  assert.equal(ov.length, 1);
+  const vlans = [ov[0].a.vlan, ov[0].b.vlan];
+  assert.ok(vlans.includes(0), 'la VLAN 0 dichiarata resta 0');
+  assert.ok(vlans.includes(null), 'la rete senza VLAN resta null');
+});
+
+// ---- L2 ≠ L3: la stessa VLAN, due spazi di indirizzi ------------------------
+
+test('findSubnetOverlaps: dual-stack v4+v6 sulla stessa VLAN → NESSUN conflitto', () => {
+  const ov = findSubnetOverlaps([P('192.168.20.0/24', 20), P('2001:db8:0:14::/64', 20)], _parseCidrInfo);
+  assert.deepEqual(ov, []);
+});
+
+test('findSubnetOverlaps: due v4 sulla stessa VLAN che si intersecano → conflitto', () => {
+  // Indirizzo secondario sulla stessa SVI: legittimo finché non si sovrappone.
+  const ov = findSubnetOverlaps([P('10.10.0.0/24', 20), P('10.10.0.0/25', 20)], _parseCidrInfo);
+  assert.equal(ov.length, 1);
+  assert.equal(ov[0].a.vlan, 20);
+  assert.equal(ov[0].b.vlan, 20);
+});
+
+test('findSubnetOverlaps: due v4 disgiunte sulla stessa VLAN → nessun conflitto', () => {
+  assert.deepEqual(findSubnetOverlaps([P('10.10.0.0/24', 20), P('10.10.1.0/24', 20)], _parseCidrInfo), []);
+});
+
+test('findSubnetOverlaps: due /64 v6 annidate → conflitto anche fra IPv6', () => {
+  const ov = findSubnetOverlaps([P('2001:db8::/32'), P('2001:db8:0:14::/64')], _parseCidrInfo);
+  assert.equal(ov.length, 1);
+  assert.equal(ov[0].a.cidr, '2001:db8::/32');
+  assert.equal(ov[0].identical, false);
+});
+
+test('findSubnetOverlaps: ordinato per indirizzo, non per ordine di dichiarazione', () => {
+  const ov = findSubnetOverlaps([
+    P('192.168.1.0/24', 30), P('10.0.0.0/8', 10), P('192.168.1.64/26', 40), P('10.1.2.0/24', 20),
+  ], _parseCidrInfo);
+  assert.deepEqual(ov.map(o => [o.a.cidr, o.b.cidr]), [
+    ['10.0.0.0/8', '10.1.2.0/24'],
+    ['192.168.1.0/24', '192.168.1.64/26'],
+  ]);
 });
 
 // ---- buildIpamAudit (integrazione) ------------------------------------------
 
 test('buildIpamAudit: aggrega duplicati + overlap dallo stesso modello', () => {
   const out = buildIpamAudit({
-    vlans: [{ vid: 10 }, { vid: 20 }],
-    ipamByVid: { '10': { subnet: '192.168.1.0/24' }, '20': { subnet: '192.168.1.128/25' } },
+    prefixes: [P('192.168.1.0/24', 10), P('192.168.1.128/25', 20)],
     nodes: [
       { id: 'a', name: 'SW1', ip: '192.168.1.1' },
       { id: 'b', name: 'SW2', ip: '192.168.1.1' },
@@ -107,8 +157,7 @@ test('buildIpamAudit: aggrega duplicati + overlap dallo stesso modello', () => {
 
 test('buildIpamAudit: rete pulita → entrambi vuoti', () => {
   const out = buildIpamAudit({
-    vlans: [{ vid: 10 }, { vid: 20 }],
-    ipamByVid: { '10': { subnet: '10.0.0.0/24' }, '20': { subnet: '10.0.1.0/24' } },
+    prefixes: [P('10.0.0.0/24', 10), P('10.0.1.0/24', 20)],
     nodes: [{ id: 'a', name: 'SW1', ip: '10.0.0.1' }, { id: 'b', name: 'SW2', ip: '10.0.1.1' }],
     parseCidr: _parseCidrInfo,
   });
