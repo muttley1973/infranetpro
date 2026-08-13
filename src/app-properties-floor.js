@@ -101,12 +101,22 @@ registerInputActions({
 // opzione A = realtà sul filo). La fonte "DHCP" appare solo se ci sono lease nel
 // CIDR (manual-first: senza lease il blocco resta utile coi soli documentati).
 // Solo numeri + stringhe t() fidate → nessun escape necessario.
+//
+// Su IPv6 la capacità NON esiste: 2^64 indirizzi non sono una barra di riempimento,
+// e `lib/ipam.js` restituisce apposta 0 invece di un numero plausibile. Senza questa
+// uscita anticipata il blocco stampava «0 / 0 · null%» sotto una barra vuota — una
+// cifra inventata al posto di un «non si conta».
 function _ipamOccHtml(u, vid, key){
     const cap = u.capacity || 0;
-    const near = cap > 0 && u.pct >= 90;                       // subnet quasi piena → ambra
+    if(!cap) return `<div class="vlan-ipam-occ" style="grid-column:1/-1">
+                        <div class="vlan-ipam-occ-hd"><span>${t('floor.occupancy')}</span>${u.leaseInCidr?`<span class="vlan-ipam-occ-src">DHCP</span>`:''}</div>
+                        <div class="vlan-ipam-occ-meta">${t('floor.ipDetected',{n:u.usedCount})}</div>
+                        ${!u.gatewayOk?`<div class="vlan-ipam-occ-warn">${t('floor.gwOutSubnet')}</div>`:''}
+                      </div>`;
+    const near = u.pct >= 90;                                  // subnet quasi piena → ambra
     const docColor = near ? '#f5a623' : '#00d4ff';
-    const docW = cap ? Math.min(100, (u.documentedCount / cap) * 100) : 0;
-    const dhcpW = cap ? Math.min(Math.max(100 - docW, 0), (u.dhcpOnlyCount / cap) * 100) : 0;
+    const docW = Math.min(100, (u.documentedCount / cap) * 100);
+    const dhcpW = Math.min(Math.max(100 - docW, 0), (u.dhcpOnlyCount / cap) * 100);
     const legend = [`<span><i class="dot" style="background:${docColor}"></i>${t('floor.occDocumented',{n:u.documentedCount})}</span>`];
     if(u.dhcpOnlyCount) legend.push(`<span><i class="dot" style="background:#f5a623"></i>${t('floor.occDhcpOnly',{n:u.dhcpOnlyCount})}</span>`);
     legend.push(`<span><i class="dot dot-free"></i>${t('floor.occFree',{n:u.freeCount})}</span>`);
@@ -134,7 +144,7 @@ function _vlanNetsHtml(vid, prefixes){
         const u = _ipamUsageForPrefix(p.cidr, p.gateway || '');
         const occ = !u.cidr ? t('floor.hintBadCidr')
             : u.capacity ? `${u.usedCount}/${u.capacity}`
-            : t('floor.ipDetected', { n: u.usedCount });
+            : `${Number(u.usedCount)} IP`;   // v6: nessuna capacita', solo gli indirizzi visti
         return `<span class="net-chip${u.cidr?'':' bad'}">
                     <span class="net-chip-cidr">${escapeHTML(p.cidr||'')}</span>
                     <span class="net-chip-occ">${escapeHTML(occ)}</span>
@@ -209,7 +219,7 @@ function _netChipHtml(p, usage, sel){
     const key = prefixKey(p.cidr);
     const occ = !usage.cidr ? t('floor.hintBadCidr')
         : usage.capacity ? `${usage.usedCount}/${usage.capacity}`
-        : t('floor.ipDetected', { n: usage.usedCount });
+        : `${Number(usage.usedCount)} IP`;   // v6: nessuna capacita', solo gli indirizzi visti
     return `<span class="net-chip${sel?' sel':''}${!usage.cidr?' bad':''}">
                     <button type="button" class="net-chip-cidr" data-act="prefix-expand" data-key="${escapeHTML(key)}" data-tip="${t('floor.netDetails')}">${escapeHTML(p.cidr||'')}</button>
                     ${_vlanBadgeHtml(_netVid(p))}

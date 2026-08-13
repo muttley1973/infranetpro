@@ -128,7 +128,8 @@ lib/                   Shared browser + test modules (the heart of the app)
   ipam.js           computeIpamUsage incl. nextFree (next free host = «suggested IP»)  (pure)
   ipam-model.js     prefixes are first-class, the VLAN is an optional reference; migration
                     from the 2.8.x shape where the subnet was a field of the VLAN  (pure)
-  ipam-audit.js     buildIpamAudit → duplicate IPs + overlapping subnets (IPAM hygiene, doc↔doc)  (pure)
+  ipam-audit.js     buildIpamAudit → duplicate IPs + overlapping prefixes (IPAM hygiene, doc↔doc);
+                    compareCidr = the one address-space ordering, shared with the panel  (pure)
   lag-audit.js      checkLagMembers → LAG member consistency (speed/VLAN mismatch);
                     checkLagPair → LACP cross-end mode coherence (both-passive /
                     lacp-vs-static)  (pure)
