@@ -51,18 +51,18 @@
         .tk-reveal.show { display:block; }
         .tk-reveal-note { display:flex; align-items:center; gap:7px; font-size:var(--fs-sm); color:var(--accent); margin-bottom:9px; }
         .tk-reveal-row { display:flex; gap:8px; align-items:center; }
-        .tk-code { flex:1; min-width:0; font-family:monospace; font-size:var(--fs-md); color:var(--text-main); background:var(--bg-color); border:1px solid var(--panel-border); border-radius: var(--radius-sm); padding:8px 10px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .tk-code { flex:1; min-width:0; font-family: var(--font-mono); font-size:var(--fs-md); color:var(--text-main); background:var(--bg-color); border:1px solid var(--panel-border); border-radius: var(--radius-sm); padding:8px 10px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         .tk-sec-label { font-size:var(--fs-md); font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.4px; margin:4px 0 2px; }
         .tk-row { display:flex; align-items:center; gap:11px; padding:10px 0; border-bottom:1px solid var(--panel-border); }
         .tk-row:last-of-type { border-bottom:none; }
         .tk-key { color:var(--text-muted); }
         .tk-main { flex:1; min-width:0; }
         .tk-label { font-size:var(--fs-md); font-weight:600; color:var(--text-main); }
-        .tk-prefix { font-size:var(--fs-sm); color:var(--text-muted); font-family:monospace; }
+        .tk-prefix { font-size:var(--fs-sm); color:var(--text-muted); font-family: var(--font-mono); }
         .tk-meta { text-align:right; font-size:var(--fs-sm); color:var(--text-muted); line-height:1.5; white-space:nowrap; }
         .tk-used { color:var(--active-color); }
         .tk-foot-hint { font-size:var(--fs-sm); color:var(--text-muted); margin-top:12px; display:flex; align-items:center; gap:6px; }
-        .tk-foot-hint code { font-family:monospace; }
+        .tk-foot-hint code { font-family: var(--font-mono); }
         /* ── Scheda Assistente AI (scheletro) nel modale «Utenti e accessi» ── */
         .ai-cfg-intro { font-size:var(--fs-sm); color:var(--text-muted); line-height:1.55; margin-bottom:14px; }
         .ai-cfg-toggle { display:flex; align-items:center; gap:8px; font-size:var(--fs-md); color:var(--text-main); margin-bottom:14px; }
@@ -72,7 +72,7 @@
         .ai-cfg-input:disabled { opacity:.6; cursor:not-allowed; }
         .ai-cfg-hint { display:flex; align-items:flex-start; gap:6px; font-size:var(--fs-sm); color:var(--text-muted); line-height:1.45; margin-top:-4px; }
         .ai-cfg-preview-head { display:flex; align-items:flex-start; gap:6px; font-size:var(--fs-sm); color:var(--accent); margin-bottom:8px; line-height:1.4; }
-        .ai-cfg-preview-out { background:var(--bg-color); border:1px solid var(--panel-border); border-radius:var(--radius-md); padding:10px 12px; font-family:monospace; font-size:var(--fs-sm); color:var(--text-main); max-height:300px; overflow:auto; white-space:pre-wrap; word-break:break-word; margin:0; }
+        .ai-cfg-preview-out { background:var(--bg-color); border:1px solid var(--panel-border); border-radius:var(--radius-md); padding:10px 12px; font-family: var(--font-mono); font-size:var(--fs-sm); color:var(--text-main); max-height:300px; overflow:auto; white-space:pre-wrap; word-break:break-word; margin:0; }
         .ai-cfg-group { margin-top:14px; padding-top:12px; border-top:1px solid var(--panel-border); }
         .ai-cfg-grouphd { font-size:var(--fs-sm); font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.4px; margin-bottom:9px; display:flex; align-items:center; gap:7px; }
         .ai-cfg-check { display:flex; align-items:center; gap:8px; font-size:var(--fs-md); color:var(--text-main); margin-bottom:7px; cursor:pointer; }
@@ -115,7 +115,7 @@
         /* Props panel wrap */
 
         /* ---- Topology Crawl modal ---- */
-        #td-log { display:none; background:var(--bg-color); border:1px solid var(--panel-border); border-radius: var(--radius-md); padding:8px 10px; max-height:200px; overflow-y:auto; font-family:monospace; font-size:var(--fs-sm); line-height:1.6; margin-bottom:10px; }
+        #td-log { display:none; background:var(--bg-color); border:1px solid var(--panel-border); border-radius: var(--radius-md); padding:8px 10px; max-height:200px; overflow-y:auto; font-family: var(--font-mono); font-size:var(--fs-sm); line-height:1.6; margin-bottom:10px; }
         .td-log-ok   { color:var(--active-color); }
         .td-log-miss { color:var(--text-muted); }
         .td-log-warn { color:var(--idle-color); }
@@ -572,24 +572,37 @@ body.spare-mode .port-led.spare-suspect {
 .l3-svi-row:hover { background: var(--surface-hover); }
 .l3-svi-vlan { font-weight: 700; flex-shrink: 0; min-width: 62px; }
 .l3-svi-name { color: var(--text-main); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.l3-svi-gw { color: var(--text-muted); font-size: .74rem; margin-left: auto; font-family: var(--mono, monospace); }
+.l3-svi-gw { color: var(--text-muted); font-size: .74rem; margin-left: auto; }
 .l3-svi-sub { opacity: .7; }
 .l3-svi-warn { color: #e3b341; }
 /* Overlay "Mappa L3 / Gateway" — tabella VLAN→subnet→gateway→device→stato */
+/* Piu' largo degli altri report: e' l'unico con una TABELLA a sei colonne, e a
+   680px i nomi device finivano nei puntini. Il guscio .drift-modal resta a 680
+   per Verifica / Porte libere / Adotta / Storia, che sono elenchi a una colonna. */
+#l3-overlay .drift-modal { width: min(780px, 94vw); }
+/* Il sommario di questo report riusa .spare-summary (non .drift-summary): la
+   riga «N gateway orfani» e' un avviso, e a .76rem era il testo piu' piccolo
+   della finestra proprio dove serviva leggerlo. */
+#l3-overlay .spare-summary-sub { font-size: var(--fs-md); }
 .l3-sum-warn { color: #e3b341; font-weight: 600; }
 .l3-table { display: flex; flex-direction: column; gap: 1px; }
+/* Le taglie erano tutte in rem grezzi e fuori scala (.9 / .82 / .8): ora sono
+   token, e salgono di un gradino. La gerarchia resta quella: identita' della
+   riga (VLAN, nome, device) al corpo --fs-lg, indirizzi e verdetto un gradino
+   sotto, intestazioni --fs-sm maiuscolo come le altre liste dell'app.
+   Le colonne crescono con il testo: a 16px i vecchi 74/116/106px troncavano. */
 .l3-row {
-    display: grid; grid-template-columns: 74px minmax(130px, 1.7fr) 116px 106px minmax(76px, 1fr) 100px;
-    align-items: center; gap: 6px; padding: 6px 8px; border-radius: var(--radius-md); font-size: .9rem;
+    display: grid; grid-template-columns: 84px minmax(150px, 1.7fr) 132px 120px minmax(90px, 1fr) 104px;
+    align-items: center; gap: 6px; padding: 7px 8px; border-radius: var(--radius-md); font-size: var(--fs-lg);
 }
 .l3-row:hover { background: var(--surface-hover); }
-.l3-row-head { font-size: .8rem; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); font-weight: 700; border-bottom: 1px solid var(--panel-border); border-radius: 0; }
+.l3-row-head { font-size: var(--fs-sm); text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); font-weight: 700; border-bottom: 1px solid var(--panel-border); border-radius: 0; }
 .l3-row.has-warn { background: rgba(227,179,65,.06); }
 .l3-row-vlan { font-weight: 700; }
 .l3-row-name { color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.l3-row-sub, .l3-row-gw { color: var(--text-muted); font-size: .82rem; font-family: var(--mono, monospace); }
+.l3-row-sub, .l3-row-gw { color: var(--text-muted); font-size: var(--fs-md); }
 .l3-row-dev { color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.l3-st { font-size: .8rem; font-weight: 700; white-space: nowrap; }
+.l3-st { font-size: var(--fs-md); font-weight: 700; white-space: nowrap; }
 .l3-st-ok { color: var(--active-color); }
 .l3-st-auto { color: var(--active-color); opacity: .85; }
 .l3-st-warn { color: #e3b341; }
@@ -659,7 +672,7 @@ body.spare-mode .port-led.spare-suspect {
 /* Sezione "Reti del progetto" (estratte da device + lease) nel report Verifica */
 .drift-net-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; flex-wrap: wrap; }
 .drift-net-row:hover { background: var(--surface-hover); }
-.drift-net-cidr { font-weight: 600; color: var(--text-main); font-family: var(--font-mono, monospace); white-space: nowrap; }
+.drift-net-cidr { font-weight: 600; color: var(--text-main); white-space: nowrap; }
 /* Badge provenienza subnet: dichiarata (accento) vs /24 di default (tratteggiato, muto). */
 .drift-net-tag { font-size: var(--fs-xs); line-height: 1.5; padding: 0 6px; border-radius: var(--radius-pill); border: 1px solid var(--hairline); color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
 .drift-net-tag.is-decl { color: var(--accent); border-color: var(--accent); }
@@ -689,7 +702,7 @@ body.spare-mode .port-led.spare-suspect {
 .adopt-table td { padding: 6px 8px; border-bottom: 1px solid var(--hairline); vertical-align: middle; }
 .adopt-row:hover { background: var(--surface-hover); }
 .adopt-row.is-endpoint { opacity: .92; }
-.adopt-mac { font-family: var(--mono, monospace); font-size: .9rem; color: var(--text-main); }
+.adopt-mac { font-size: .9rem; color: var(--text-main); }
 .adopt-seen { color: var(--text-muted); font-size: .85rem; }
 /* Select tipo: sfondo scuro + testo chiaro come il menu di Scopri (.disc-table select);
    con --input-bg le option restavano grigio chiaro su bianco = invisibili. */

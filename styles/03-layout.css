@@ -119,6 +119,12 @@
         .prop-group textarea:focus { outline:none; border-color:var(--accent); }
         .prop-notes-header { font-size:var(--fs-md); text-transform:uppercase; color:var(--text-main); letter-spacing:.04em; margin:12px 0 6px; padding-top:10px; border-top:1px solid var(--panel-border); display:flex; align-items:center; gap:5px; }
         .prop-group input[type="color"] { padding:2px; height:30px; cursor:pointer; }
+        /* Nel pannello Proprieta' TUTTI i campi modificabili hanno la taglia dei
+           dati che scrivono (--fs-lg, la stessa dell'elenco «Reti»). Detto una
+           volta e non regola per regola: i campi fuori da .prop-group — il nome
+           VLAN, l'ID della nuova VLAN, «Aggiungi rete» — se lo scordavano uno
+           alla volta, e restavano ai 13,3px di default del browser. */
+        #props-panel input:not([type="color"]), #props-panel select, #props-panel textarea { font-size: var(--fs-lg); }
         /* Dichiarato dal DCIM: sola lettura. Volutamente SPENTO rispetto ai campi
            editabili sopra — si legge come una citazione, non come roba tua. */
         .dcim-src { display:flex; flex-direction:column; gap:3px; padding:7px 9px; border:1px dashed var(--panel-border); border-radius:5px; background:rgba(255,255,255,0.02); }

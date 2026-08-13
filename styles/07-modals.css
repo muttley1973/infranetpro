@@ -351,7 +351,7 @@
         .disc-st.on { background:#173a22; color:var(--active-color); }
         .disc-st.seen { background:rgba(236,179,60,.12); color:#e3b341; border:1px solid rgba(236,179,60,.25); }
         .disc-st.off { background:#2d3138; color:var(--text-muted); }
-        .disc-ip   { font-family:monospace; color:var(--accent); font-size:var(--fs-sm); letter-spacing:-.02em; white-space:nowrap; }
+        .disc-ip   { color:var(--accent); font-size:var(--fs-sm); white-space:nowrap; }
         /* Nome + badge SEMPRE su UNA riga. REQUISITO: il NOME non si tronca mai → è
            flex:none (mostra intero). Sono i BADGE a cedere: raccolti in .disc-badges
            (flex:0 1 auto, overflow hidden) che si restringe da DESTRA, clippando prima
@@ -368,7 +368,7 @@
         /* MAC: i MAC normalizzati sono in MAIUSCOLO (glifi piu' larghi) → senza nowrap
            la cella andava a capo. Monospace + nowrap + tracking negativo la tengono
            su UNA riga senza allargare troppo la colonna. */
-        .disc-mac  { font-family:monospace; white-space:nowrap; color:var(--text-muted); font-size:var(--fs-sm); letter-spacing:-.02em; }
+        .disc-mac  { white-space:nowrap; color:var(--text-muted); font-size:var(--fs-sm); }
         .disc-vendor { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         /* Tabella Scopri principale: colonne a larghezza FISSA → allineamento stabile,
            niente colonne che ballano al variare del contenuto (MAC/vendor/badge). La
@@ -456,18 +456,22 @@
         .vlan-ipam-row { display:flex; align-items:center; gap:6px; }
         .vlan-ipam-fields { margin:8px 0 0 68px; display:grid; grid-template-columns:1fr 1fr; gap:7px; }
         .vlan-ipam-fields .prop-group { margin-bottom:0; }
-        .vlan-ipam-hint { grid-column:1/-1; font-size:var(--fs-xs); color:var(--text-muted); padding:5px 7px; border-radius: var(--radius-md); background:rgba(13,17,23,.35); border:1px solid rgba(255,255,255,.05); }
+        /* --fs-sm e non --fs-xs: e' testo da leggere dentro un pannello il cui
+           corpo sta a --fs-md, non una didascalia a pie' di pagina. Resta
+           chiaramente secondario (un gradino sotto), ma leggibile. */
+        .vlan-ipam-hint { grid-column:1/-1; font-size:var(--fs-sm); line-height:1.45; color:var(--text-muted); padding:6px 8px; border-radius: var(--radius-md); background:rgba(13,17,23,.35); border:1px solid rgba(255,255,255,.05); }
         .vlan-ipam-hint span { color:var(--text-main); }
         .vlan-ipam-hint.warn { color:#e3b341; border-color:rgba(227,179,65,.18); }
         /* Occupazione IPAM (lib/ipam.js): barra di capacità + ripartizione + liberi. */
         .vlan-ipam-occ { grid-column:1/-1; padding:7px 8px; border-radius:var(--radius-md); background:rgba(13,17,23,.35); border:1px solid rgba(255,255,255,.05); }
         .vlan-ipam-occ.near { border-color:rgba(245,166,35,.22); }
-        .vlan-ipam-occ-hd { display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:var(--fs-xs); color:var(--text-main); margin-bottom:6px; }
+        .vlan-ipam-occ-hd { display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:var(--fs-sm); color:var(--text-main); margin-bottom:6px; }
         .vlan-ipam-occ-src { font-size:var(--fs-xs); line-height:1; color:var(--accent); background:rgba(0,212,255,.12); border:1px solid rgba(0,212,255,.3); border-radius:9px; padding:2px 7px; }
         .vlan-ipam-occ-bar { height:8px; border-radius:4px; background:rgba(13,17,23,.6); border:1px solid rgba(255,255,255,.06); display:flex; overflow:hidden; }
         .vlan-ipam-occ-bar i { display:block; height:100%; }
-        .vlan-ipam-occ-meta { font-size:var(--fs-xs); color:var(--text-main); margin-top:4px; }
-        .vlan-ipam-occ-leg { display:flex; flex-wrap:wrap; gap:5px 12px; margin-top:5px; font-size:var(--fs-xs); color:var(--text-muted); }
+        /* La cifra e' il verdetto del blocco: sta al corpo del pannello, non sotto. */
+        .vlan-ipam-occ-meta { font-size:var(--fs-md); font-weight:600; font-variant-numeric:tabular-nums; color:var(--text-main); margin-top:5px; }
+        .vlan-ipam-occ-leg { display:flex; flex-wrap:wrap; gap:5px 12px; margin-top:5px; font-size:var(--fs-sm); color:var(--text-muted); }
         .vlan-ipam-occ-leg span { display:inline-flex; align-items:center; gap:4px; }
         .vlan-ipam-occ-leg .dot { width:8px; height:8px; border-radius:50%; display:inline-block; flex-shrink:0; }
         .vlan-ipam-occ-leg .dot-free { background:transparent; border:1px solid var(--text-muted); }
@@ -482,48 +486,102 @@
         .vlan-ipam-card > .net-chipfield,
         .vlan-ipam-card > .vlan-ipam-hint { margin-left:68px; }
         /* Il chip della card VLAN e' un <button>: porta alla rete, non la modifica. */
-        button.net-chip { cursor:pointer; font-family:inherit; font-size:var(--fs-xs); }
+        button.net-chip { cursor:pointer; font-family:inherit; font-size:var(--fs-sm); }
         button.net-chip:hover { border-color:rgba(0,212,255,.35); background:rgba(0,212,255,.08); }
-        .net-chip { display:inline-flex; align-items:center; gap:6px; padding:3px 4px 3px 8px; border-radius:14px; font-size:var(--fs-xs); background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); }
+        .net-chip { display:inline-flex; align-items:center; gap:6px; padding:4px 5px 4px 9px; border-radius:14px; font-size:var(--fs-sm); background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); }
         .net-chip.sel { border-color:rgba(0,212,255,.35); background:rgba(0,212,255,.08); }
         .net-chip.bad { border-color:rgba(248,81,73,.4); background:rgba(248,81,73,.07); }
-        .net-chip-cidr { background:none; border:0; padding:0; color:var(--text-main); font-family:var(--font-mono,monospace); font-size:var(--fs-xs); cursor:pointer; }
-        .net-chip-vlan { font-weight:700; white-space:nowrap; }
+        .net-chip-cidr { background:none; border:0; padding:0; color:var(--text-main); font-size:var(--fs-md); cursor:pointer; }
+        /* La VLAN e' una PASTIGLIA neutra con la pallina della palette, non un
+           testo colorato: scritta in rosso, «VLAN 99» e' indistinguibile da un
+           errore in un elenco che i conflitti li segna davvero in rosso. La
+           pallina e' lo stesso segno che la VLAN ha nella legenda della topologia
+           e nei popup — il colore resta, senza fingersi uno stato. */
+        .net-chip-vlan { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; justify-self:start;
+                         font-size:var(--fs-sm); font-weight:600; color:var(--text-main);
+                         padding:2px 9px 2px 7px; border-radius:var(--radius-pill);
+                         background:var(--surface-2); border:1px solid var(--hairline); }
+        .net-chip-vlan .vlan-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
         .net-chip-occ { color:var(--text-muted); font-variant-numeric:tabular-nums; }
         .net-chip-x { background:none; border:0; padding:2px 5px; color:var(--text-muted); cursor:pointer; border-radius:50%; line-height:1; }
         .net-chip-x:hover { color:var(--fault-color); background:rgba(248,81,73,.12); }
-        .net-addrow { display:flex; gap:5px; margin-top:6px; }
-        .net-addrow input { flex:1; min-width:0; padding:5px 7px; font-family:var(--font-mono,monospace); background:var(--bg-color); border:1px solid var(--panel-border); border-radius:4px; color:var(--text-main); }
+        .net-addrow { display:flex; gap:5px; margin-top:10px; }
+        /* Stessa taglia della tabella che alimenta: qui si scrive una rete, e la
+           si rilegge tre righe piu' su. --fs-lg come ogni altro campo del pannello. */
+        .net-addrow input { flex:1; min-width:0; padding:6px 8px; font-size:var(--fs-lg); background:var(--bg-color); border:1px solid var(--panel-border); border-radius:4px; color:var(--text-main); }
         .net-addrow.bad input { border-color:var(--fault-color); color:var(--fault-color); }
         .net-addrow .toolbar-btn { padding:4px 9px; margin:0; flex-shrink:0; }
         .net-detail { margin-top:8px; padding:8px; border-radius:var(--radius-lg); border:1px solid rgba(0,212,255,.22); background:rgba(0,212,255,.035); }
         /* La chiusura e' un CHEVRON, non una ×: in questa sezione la × cancella la
            rete dal documento, e due gesti cosi` diversi non possono avere lo stesso
            segno a un centimetro di distanza. */
-        .net-detail-hd { display:flex; align-items:center; gap:8px; font-size:var(--fs-xs); color:var(--text-muted); margin-bottom:6px; }
+        .net-detail-hd { display:flex; align-items:center; gap:8px; font-size:var(--fs-md); color:var(--text-muted); margin-bottom:8px; }
         .net-detail-hd > span { flex:1; min-width:0; }
         .net-detail-x { background:none; border:0; padding:2px 6px; color:var(--text-muted); cursor:pointer; border-radius:var(--radius-md); line-height:1; flex-shrink:0; }
         .net-detail-x:hover { color:var(--text-main); background:rgba(255,255,255,.06); }
         .net-detail .vlan-ipam-fields { margin-top:0; }
-        /* L'elenco del piano: righe fisse a tre colonne cosi' i CIDR si leggono
-           incolonnati, con la nota del conflitto sotto la seconda delle due. */
-        .net-plan { margin-top:10px; }
+        /* ── L'elenco del piano ─────────────────────────────────────────────────
+           Le colonne sono definite UNA volta, su .net-plan, e le usano sia
+           l'intestazione sia le righe: ogni riga e' un <button>, cioe' una griglia
+           per conto suo, e senza una misura condivisa si incolonnerebbe solo la
+           prima cella (`21/254` e' piu' larga di `2/254` e si trascina dietro la
+           VLAN, che finisce ad altezze diverse riga per riga).
+           La scala e' quella dei fratelli dentro una fisarmonica (.shared-seg-*):
+           corpo --fs-md, indirizzo --fs-lg, secondari --fs-sm. L'elenco e' IL
+           contenuto della sezione, non una didascalia — a --fs-xs stava sotto ai
+           campi del dettaglio che gli sta dentro. */
+        /* La colonna VLAN e' FISSA, non `auto`: con `auto` la larghezza la decide
+           il contenuto di quella riga, e siccome la prima colonna e' 1fr una
+           pastiglia piu' stretta («VLAN 1») sposta a destra l'inizio della sua —
+           misurato dal vivo, 1359/1361/1368 px su tre righe vicine. Fissa, le
+           pastiglie partono tutte dalla stessa verticale. 92px = «VLAN 4094». */
+        .net-plan { margin-top:10px; --net-cols: minmax(0,1fr) 92px 66px 62px; --net-gap:10px; }
+        /* Anche il gap e' una variabile: nel ramo stretto va stretto insieme alle
+           colonne, e scriverlo su .net-plan non arriverebbe qui (la griglia e' la
+           riga, non il contenitore). */
+        .net-phead, .net-prow { display:grid; grid-template-columns:var(--net-cols); align-items:center; gap:var(--net-gap); }
+        .net-phead { padding:0 6px 5px; font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.05em;
+                     color:var(--text-muted); border-bottom:1px solid var(--panel-border); }
+        /* Le celle dell'intestazione non devono MAI allargare la griglia: le
+           etichette sono tradotte, e una parola piu' lunga del previsto
+           spingerebbe fuori le colonne che l'elenco tiene allineate. */
+        .net-phead > span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .net-phead > span:first-child { cursor:help; justify-self:start; }
+        .net-phead-occ { grid-column:3 / -1; text-align:right; }
         /* Ogni riga e' un <button>: si clicca per aprire il dettaglio, e la tastiera
-           ci arriva come su qualsiasi altro comando. Colonne fisse perche' i CIDR
-           vanno letti incolonnati — e` cosi` che si vede dove due reti si toccano. */
-        .net-prow { display:grid; grid-template-columns:1fr auto auto auto; align-items:center; gap:8px;
-                    width:100%; padding:4px 6px; font-size:var(--fs-xs); border-radius:var(--radius-md);
-                    background:none; border:1px solid transparent; color:inherit;
+           ci arriva come su qualsiasi altro comando. Righe separate da una linea,
+           come le altre liste dentro il pannello: nessuna card per riga. */
+        .net-prow { width:100%; padding:7px 6px; font-size:var(--fs-md);
+                    background:none; border:0; border-bottom:1px solid var(--panel-border); color:inherit;
                     text-align:left; font-family:inherit; cursor:pointer; }
-        .net-prow:hover { background:rgba(255,255,255,.05); }
-        .net-prow.sel { border-color:rgba(0,212,255,.35); background:rgba(0,212,255,.08); }
-        .net-prow-cidr { font-family:var(--font-mono,monospace); color:var(--text-main); }
+        .net-prow:hover { background:var(--surface-hover); }
+        .net-prow:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+        /* Selezione e conflitto sono un BINARIO a sinistra, non un lavaggio di
+           fondo: il fondo colorato copriva la barra d'occupazione, cioe' proprio
+           il dato che la riga adesso porta. Stesso segno di .props-primary. */
+        .net-prow.sel { background:var(--accent-soft); box-shadow:inset 3px 0 0 var(--accent); }
+        .net-prow.clash { box-shadow:inset 3px 0 0 var(--fault-color); }
+        .net-prow.clash.sel { background:rgba(248,81,73,.12); box-shadow:inset 3px 0 0 var(--fault-color); }
+        .net-prow-cidr { font-size:var(--fs-lg); font-weight:600;
+                         letter-spacing:.02em; color:var(--text-main);
+                         min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .net-prow .drift-net-tag { margin-left:6px; }
         .net-prow-novlan { color:var(--text-muted); }
-        .net-prow-occ { color:var(--text-muted); font-variant-numeric:tabular-nums; }
-        .net-prow.clash { background:rgba(248,81,73,.08); }
-        .net-prow.clash.sel { background:rgba(248,81,73,.14); border-color:rgba(248,81,73,.35); }
+        .net-prow-occ { font-size:var(--fs-sm); color:var(--text-muted); font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap; }
+        .net-prow.bad .net-prow-cidr { color:var(--fault-color); }
         .net-prow.bad .net-prow-occ { color:#e3b341; }
-        .net-clashnote { font-size:var(--fs-xs); color:var(--fault-color); padding:2px 6px 5px; }
+        /* La barra in miniatura: stessa traccia e stessi colori del blocco
+           «Occupazione» del dettaglio, in scala. Sei frazioni con denominatori
+           diversi non si confrontano a occhio; sei barre si'. */
+        .net-prow-bar { height:6px; border-radius:3px; background:rgba(13,17,23,.6);
+                        border:1px solid rgba(255,255,255,.08); display:flex; overflow:hidden; }
+        .net-prow-bar i { display:block; height:100%; }
+        .net-prow-bar.near { border-color:rgba(245,166,35,.45); }
+        /* Su IPv6 la capacita' non esiste: la traccia sparisce invece di mostrarsi
+           vuota. Una barra a zero sotto un denominatore che non c'e' e' una cifra
+           inventata, non un «non si conta». */
+        .net-prow-bar.empty { background:none; border:0; }
+        .net-clashnote { font-size:var(--fs-sm); line-height:1.4; color:var(--fault-color); padding:5px 6px 7px; }
         /* Import VM: il bersaglio di rilascio (data-vm-dropzone) è TUTTA la sezione
            "Macchine virtuali" del pannello host — la vecchia zona-solo, in fondo alla
            lista, finiva fuori dallo scrollport con tante VM e i drop morivano. La
@@ -619,7 +677,7 @@
         .vnic-head .vnic-name:focus { border-color:var(--accent); background:var(--bg-input, rgba(0,0,0,.2)); outline:none; }
         .vnic-card .prop-group { margin-bottom:5px; }
         /* sysDescr: riga a tutta larghezza sotto i valori, testo che va a capo. */
-        .vm-snmp-descr { display:block; font-family:monospace; font-size:0.7rem;
+        .vm-snmp-descr { display:block; font-family: var(--font-mono); font-size:0.7rem;
                          color:var(--text-muted); white-space:normal; word-break:break-word; }
         /* Fantasma del device mentre lo trascini sul pannello (il tile sul floor è
            clippato e non può salire sopra il pannello → mostriamo cosa stai portando). */
@@ -628,7 +686,20 @@
         .vlan-ipam-occ-adopt > span { display:inline-flex; align-items:center; gap:5px; min-width:0; }
         .vlan-ipam-adopt-btn { flex-shrink:0; background:var(--accent-soft); border:1px solid var(--accent); color:var(--text-main); border-radius:5px; padding:2px 10px; font-size:var(--fs-xs); cursor:pointer; }
         .vlan-ipam-adopt-btn:hover { background:rgba(0,212,255,.2); }
-        @media (max-width: 1280px) { .vlan-ipam-fields { grid-template-columns:1fr; } }
+        @media (max-width: 1280px) {
+            .vlan-ipam-fields { grid-template-columns:1fr; }
+            /* Pannello stretto: cade la BARRA, non l'indirizzo. La barra e' il
+               colpo d'occhio, la cifra accanto dice la stessa cosa per esteso —
+               troncare un CIDR invece toglie l'identita' alla riga. */
+            /* Sparita la barra, i 66px non tornano tutti all'indirizzo: 10 vanno
+               all'ultima colonna, che senza barra deve reggere da sola
+               l'etichetta «OCCUPAZIONE». Il CIDR resta con ~30px di margine. */
+            .net-plan { --net-cols: minmax(0,1fr) 92px 0 80px; --net-gap:8px; }
+            /* Si svuota, NON si nasconde: `display:none` toglie l'elemento dalla
+               griglia e la frazione scalerebbe in colonna 3 (larga zero). La
+               cella resta, larga zero, senza bordo ne' fondo. */
+            .net-prow-bar { border:0; background:none; }
+        }
         /* ── Area di stato unificata in header ──────────────────────────────
            Una sola grammatica per i chip "fluttuanti": porte-libere /
            auto-poll / filtro-VLAN raccolti in #status-cluster; il chip

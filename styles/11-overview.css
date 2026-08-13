@@ -314,8 +314,7 @@ button.ov-r:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
    si contendono la stessa riga. Monospazio: si confronta a colpo d'occhio. */
 .ov-detail li .ov-mac {
     flex: 0 0 100%; font-size: var(--fs-md); color: var(--text-muted);
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    letter-spacing: .2px; margin-top: -2px;
+        letter-spacing: .2px; margin-top: -2px;
 }
 .ov-detail li .ov-mac.is-none { color: var(--inactive-color); font-family: inherit; }
 /* dettaglio a SCHEDE (es. «In rack» / «Fuori rack»): le sub-header in testa

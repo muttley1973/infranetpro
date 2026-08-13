@@ -28,6 +28,14 @@ const LEGACY = `{
 
 test('_migrateState: la subnet diventa un prefisso e il riepilogo non cambia', () => {
   const out = run(APP.ctx, `(() => {
+    // Una SEZIONE del pannello, dal suo marcatore al successivo: cosi il test
+    // guarda dentro la fisarmonica giusta invece che 'prima/dopo' un offset.
+    const section = (h, name) => {
+      const i = h.indexOf('data-section="' + name + '"');
+      if (i < 0) return '';
+      const j = h.indexOf('data-section="', i + 1);
+      return j < 0 ? h.slice(i) : h.slice(i, j);
+    };
     state = _migrateState(${LEGACY});
     return JSON.stringify({
       version: state.schemaVersion,
@@ -54,6 +62,14 @@ test('_migrateState: la subnet diventa un prefisso e il riepilogo non cambia', (
 
 test('_migrateState: rieseguirlo su uno stato già migrato non duplica nulla', () => {
   const out = run(APP.ctx, `(() => {
+    // Una SEZIONE del pannello, dal suo marcatore al successivo: cosi il test
+    // guarda dentro la fisarmonica giusta invece che 'prima/dopo' un offset.
+    const section = (h, name) => {
+      const i = h.indexOf('data-section="' + name + '"');
+      if (i < 0) return '';
+      const j = h.indexOf('data-section="', i + 1);
+      return j < 0 ? h.slice(i) : h.slice(i, j);
+    };
     state = _migrateState(${LEGACY});
     const first = JSON.stringify(state.ipam);
     state = _migrateState(state);
@@ -66,6 +82,14 @@ test('_migrateState: rieseguirlo su uno stato già migrato non duplica nulla', (
 
 test('updateVlanIpam: scrive nel prefisso, non nella VLAN', () => {
   const out = run(APP.ctx, `(() => {
+    // Una SEZIONE del pannello, dal suo marcatore al successivo: cosi il test
+    // guarda dentro la fisarmonica giusta invece che 'prima/dopo' un offset.
+    const section = (h, name) => {
+      const i = h.indexOf('data-section="' + name + '"');
+      if (i < 0) return '';
+      const j = h.indexOf('data-section="', i + 1);
+      return j < 0 ? h.slice(i) : h.slice(i, j);
+    };
     state = _migrateState({ schemaVersion:2, nodes:[], racks:[], links:[], ports:{},
                             vlanColors:{ 30:'#39d353' }, vlanNames:{}, ipam:{ vlans:{}, prefixes:[] } });
     updateVlanIpam(30, 'gateway', '10.0.30.1');      // gateway PRIMA della subnet
@@ -95,6 +119,14 @@ test('updateVlanIpam: scrive nel prefisso, non nella VLAN', () => {
 
 test('cancellare una VLAN porta via la sua subnet, ma non le reti senza VLAN', () => {
   const out = run(APP.ctx, `(() => {
+    // Una SEZIONE del pannello, dal suo marcatore al successivo: cosi il test
+    // guarda dentro la fisarmonica giusta invece che 'prima/dopo' un offset.
+    const section = (h, name) => {
+      const i = h.indexOf('data-section="' + name + '"');
+      if (i < 0) return '';
+      const j = h.indexOf('data-section="', i + 1);
+      return j < 0 ? h.slice(i) : h.slice(i, j);
+    };
     state = _migrateState({ schemaVersion:2, nodes:[], racks:[], links:[], ports:{},
       vlanColors:{ 20:'#00d4ff' }, vlanNames:{},
       ipam:{ vlans:{}, prefixes:[
@@ -112,6 +144,14 @@ test('cancellare una VLAN porta via la sua subnet, ma non le reti senza VLAN', (
 // una /30 senza VLAN.
 test('il pannello: una /64 accanto a una /24, e una /30 senza VLAN', () => {
   const out = run(APP.ctx, `(() => {
+    // Una SEZIONE del pannello, dal suo marcatore al successivo: cosi il test
+    // guarda dentro la fisarmonica giusta invece che 'prima/dopo' un offset.
+    const section = (h, name) => {
+      const i = h.indexOf('data-section="' + name + '"');
+      if (i < 0) return '';
+      const j = h.indexOf('data-section="', i + 1);
+      return j < 0 ? h.slice(i) : h.slice(i, j);
+    };
     state = _migrateState({ schemaVersion:2, nodes:[
       { id:'sw1', type:'switch', name:'SW1', ip:'192.168.20.10' },
     ], racks:[], links:[], ports:{}, vlanColors:{ 20:'#00d4ff' }, vlanNames:{ 20:'Uffici' },
@@ -130,12 +170,11 @@ test('il pannello: una /64 accanto a una /24, e una /30 senza VLAN', () => {
     // Il pannello ha due superfici sulle stesse reti: la card VLAN (appartenenza)
     // e la sezione «Reti» (tutte). Ognuna va letta sulla SUA parte, o l'altra
     // renderebbe vera un'asserzione per il motivo sbagliato.
-    const cut = html.indexOf('data-section="floor-nets"');
-    const vlanPart = cut < 0 ? html : html.slice(0, cut);
-    const nets = cut < 0 ? '' : html.slice(cut);
+    const vlanPart = section(html, 'floor-vlan');
+    const nets = section(html, 'floor-nets');
     return JSON.stringify({
       prefixes: state.ipam.prefixes,
-      hasNetsSection: cut >= 0,
+      hasNetsSection: !!nets,
       // La card VLAN mostra le SUE due reti, e non la /30 che una VLAN non ce l'ha.
       vlanCardV4: vlanPart.includes('192.168.20.0/24'),
       vlanCardV6: vlanPart.includes('2001:db8:0:14::/64'),
@@ -163,6 +202,14 @@ test('il pannello: una /64 accanto a una /24, e una /30 senza VLAN', () => {
 
 test('«Reti»: una riga per rete, ordinate per indirizzo, VLAN come badge', () => {
   const out = run(APP.ctx, `(() => {
+    // Una SEZIONE del pannello, dal suo marcatore al successivo: cosi il test
+    // guarda dentro la fisarmonica giusta invece che 'prima/dopo' un offset.
+    const section = (h, name) => {
+      const i = h.indexOf('data-section="' + name + '"');
+      if (i < 0) return '';
+      const j = h.indexOf('data-section="', i + 1);
+      return j < 0 ? h.slice(i) : h.slice(i, j);
+    };
     state = _migrateState({ schemaVersion:2, nodes:[], racks:[], links:[], ports:{},
       vlanColors:{ 20:'#00d4ff' }, vlanNames:{ 20:'Uffici' },
       ipam:{ vlans:{}, prefixes:[
@@ -173,7 +220,7 @@ test('«Reti»: una riga per rete, ordinate per indirizzo, VLAN come badge', () 
     _prefixOpen.clear(); _netsBad = '';
     selType = null; selId = null; renderProps();
     const html = document.getElementById('props-panel').innerHTML;
-    const nets = html.slice(html.indexOf('data-section="floor-nets"'));
+    const nets = section(html, 'floor-nets');
     // L'ordine a schermo, letto dalle righe del piano — che sono l'UNICO elenco:
     // i chip che ripetevano gli stessi prefissi sopra non ci sono piu'.
     const order = [...nets.matchAll(/class="net-prow-cidr">([^<]+)</g)].map(m => m[1]);
@@ -188,6 +235,16 @@ test('«Reti»: una riga per rete, ordinate per indirizzo, VLAN come badge', () 
       detailHidden: !nets.includes('net-detail'),
       // «Aggiungi rete» sta DOPO il piano
       addAfterPlan: nets.indexOf('net-addrow') > nets.lastIndexOf('class="net-prow'),
+      // L'elenco ha le colonne nominate, e sta PRIMA della prima riga.
+      head: nets.indexOf('net-phead') >= 0 && nets.indexOf('net-phead') < nets.indexOf('class="net-prow'),
+      // La barra d'occupazione: una per riga, ma su IPv6 e' la traccia VUOTA —
+      // 2^64 indirizzi non sono una barra di riempimento, e disegnarne una a zero
+      // sarebbe la stessa cifra inventata di «0 / 0 · null%».
+      bars: (nets.match(/class="net-prow-bar[ "]/g) || []).length,
+      emptyBars: (nets.match(/net-prow-bar empty/g) || []).length,
+      // Il colore della VLAN e' una pallina, non il colore del testo.
+      vlanDots: (nets.match(/vlan-dot/g) || []).length,
+      vlanTextColored: /net-chip-vlan" style="color:/.test(nets),
     });
   })()`);
   const r = JSON.parse(out);
@@ -201,10 +258,23 @@ test('«Reti»: una riga per rete, ordinate per indirizzo, VLAN come badge', () 
   assert.strictEqual(r.dcimBadge, true, 'la provenienza dell\'import si vede sulla riga');
   assert.strictEqual(r.detailHidden, true);
   assert.strictEqual(r.addAfterPlan, true, '«Aggiungi rete» sta sotto il piano');
+  assert.strictEqual(r.head, true, 'le colonne sono nominate, in cima all\'elenco');
+  assert.strictEqual(r.bars, 3, 'una cella d\'occupazione per riga');
+  assert.strictEqual(r.emptyBars, 1, 'su IPv6 la traccia e\' vuota: la capacita\' non si conta');
+  assert.strictEqual(r.vlanDots, 2, 'il colore della VLAN e\' una pallina');
+  assert.strictEqual(r.vlanTextColored, false, 'e non il colore del testo: in rosso sembrerebbe un errore');
 });
 
 test('«Reti»: il conflitto si vede nell\'elenco, e le famiglie diverse non lo sono', () => {
   const out = run(APP.ctx, `(() => {
+    // Una SEZIONE del pannello, dal suo marcatore al successivo: cosi il test
+    // guarda dentro la fisarmonica giusta invece che 'prima/dopo' un offset.
+    const section = (h, name) => {
+      const i = h.indexOf('data-section="' + name + '"');
+      if (i < 0) return '';
+      const j = h.indexOf('data-section="', i + 1);
+      return j < 0 ? h.slice(i) : h.slice(i, j);
+    };
     state = _migrateState({ schemaVersion:2, nodes:[], racks:[], links:[], ports:{},
       vlanColors:{ 20:'#00d4ff', 30:'#39d353' }, vlanNames:{},
       ipam:{ vlans:{}, prefixes:[
@@ -215,7 +285,7 @@ test('«Reti»: il conflitto si vede nell\'elenco, e le famiglie diverse non lo 
     _prefixOpen.clear(); _netsBad = '';
     selType = null; selId = null; renderProps();
     const html = document.getElementById('props-panel').innerHTML;
-    const nets = html.slice(html.indexOf('data-section="floor-nets"'));
+    const nets = section(html, 'floor-nets');
     return JSON.stringify({
       clashRows: (nets.match(/net-prow clash/g) || []).length,
       notes: (nets.match(/net-clashnote/g) || []).length,
@@ -231,6 +301,14 @@ test('«Reti»: il conflitto si vede nell\'elenco, e le famiglie diverse non lo 
 
 test('«Reti»: la riga aperta mostra il dettaglio sotto di se`, e la × cancella davvero', () => {
   const out = run(APP.ctx, `(() => {
+    // Una SEZIONE del pannello, dal suo marcatore al successivo: cosi il test
+    // guarda dentro la fisarmonica giusta invece che 'prima/dopo' un offset.
+    const section = (h, name) => {
+      const i = h.indexOf('data-section="' + name + '"');
+      if (i < 0) return '';
+      const j = h.indexOf('data-section="', i + 1);
+      return j < 0 ? h.slice(i) : h.slice(i, j);
+    };
     state = _migrateState({ schemaVersion:2, nodes:[], racks:[], links:[], ports:{},
       vlanColors:{ 20:'#00d4ff' }, vlanNames:{},
       ipam:{ vlans:{}, prefixes:[{ cidr:'192.168.20.0/24', vlan:20, gateway:'192.168.20.1', dns:'1.1.1.1' }] } });
@@ -238,7 +316,7 @@ test('«Reti»: la riga aperta mostra il dettaglio sotto di se`, e la × cancell
     selType = null; selId = null;
     togglePrefixOpen(prefixKey('192.168.20.0/24'));
     let html = document.getElementById('props-panel').innerHTML;
-    let nets = html.slice(html.indexOf('data-section="floor-nets"'));
+    let nets = section(html, 'floor-nets');
     const open = {
       detail: nets.includes('net-detail'),
       // il dettaglio si apre SOTTO la sua riga, non in fondo alla lista
@@ -257,7 +335,7 @@ test('«Reti»: la riga aperta mostra il dettaglio sotto di se`, e la × cancell
     togglePrefixOpen(prefixKey('192.168.20.0/24'));
     const afterClose = document.getElementById('props-panel').innerHTML;
     const closed = {
-      noDetail: !afterClose.slice(afterClose.indexOf('data-section="floor-nets"')).includes('net-detail'),
+      noDetail: !section(afterClose, 'floor-nets').includes('net-detail'),
       stillThere: state.ipam.prefixes.length,
     };
     removeDeclaredPrefix(prefixKey('192.168.20.0/24'));
@@ -277,13 +355,21 @@ test('«Reti»: la riga aperta mostra il dettaglio sotto di se`, e la × cancell
 
 test('«Reti»: la lista a virgole entra tutta, e cio` che non si parsa resta nel campo', () => {
   const out = run(APP.ctx, `(() => {
+    // Una SEZIONE del pannello, dal suo marcatore al successivo: cosi il test
+    // guarda dentro la fisarmonica giusta invece che 'prima/dopo' un offset.
+    const section = (h, name) => {
+      const i = h.indexOf('data-section="' + name + '"');
+      if (i < 0) return '';
+      const j = h.indexOf('data-section="', i + 1);
+      return j < 0 ? h.slice(i) : h.slice(i, j);
+    };
     state = _migrateState({ schemaVersion:2, nodes:[], racks:[], links:[], ports:{},
       vlanColors:{}, vlanNames:{}, ipam:{ vlans:{}, prefixes:[] } });
     _prefixOpen.clear(); _netsBad = '';
     selType = null; selId = null;
     addDeclaredNetworks('192.168.20.7/24, 2001:db8::/32, non-una-rete');
     const html = document.getElementById('props-panel').innerHTML;
-    const nets = html.slice(html.indexOf('data-section="floor-nets"'));
+    const nets = section(html, 'floor-nets');
     return JSON.stringify({
       cidrs: state.ipam.prefixes.map(p => p.cidr),
       vlans: state.ipam.prefixes.map(p => p.vlan),
@@ -303,6 +389,14 @@ test('«Reti»: la lista a virgole entra tutta, e cio` che non si parsa resta ne
 
 test('«Reti»: il selettore VLAN produce null, mai «VLAN 0»', () => {
   const out = run(APP.ctx, `(() => {
+    // Una SEZIONE del pannello, dal suo marcatore al successivo: cosi il test
+    // guarda dentro la fisarmonica giusta invece che 'prima/dopo' un offset.
+    const section = (h, name) => {
+      const i = h.indexOf('data-section="' + name + '"');
+      if (i < 0) return '';
+      const j = h.indexOf('data-section="', i + 1);
+      return j < 0 ? h.slice(i) : h.slice(i, j);
+    };
     state = _migrateState({ schemaVersion:2, nodes:[], racks:[], links:[], ports:{},
       vlanColors:{ 20:'#00d4ff' }, vlanNames:{},
       ipam:{ vlans:{}, prefixes:[{ cidr:'192.168.20.0/24', vlan:20 }] } });
@@ -328,6 +422,14 @@ test('«Reti»: il selettore VLAN produce null, mai «VLAN 0»', () => {
 
 test('la card VLAN: le due reti della VLAN sono chip, senza aprire niente', () => {
   const out = run(APP.ctx, `(() => {
+    // Una SEZIONE del pannello, dal suo marcatore al successivo: cosi il test
+    // guarda dentro la fisarmonica giusta invece che 'prima/dopo' un offset.
+    const section = (h, name) => {
+      const i = h.indexOf('data-section="' + name + '"');
+      if (i < 0) return '';
+      const j = h.indexOf('data-section="', i + 1);
+      return j < 0 ? h.slice(i) : h.slice(i, j);
+    };
     state = _migrateState({ schemaVersion:2, nodes:[], racks:[], links:[], ports:{},
       vlanColors:{ 20:'#00d4ff' }, vlanNames:{},
       ipam:{ vlans:{}, prefixes:[
@@ -337,7 +439,7 @@ test('la card VLAN: le due reti della VLAN sono chip, senza aprire niente', () =
     _prefixOpen.clear(); _netsBad = '';
     selType = null; selId = null; renderProps();
     const html = document.getElementById('props-panel').innerHTML;
-    const vlanPart = html.slice(0, html.indexOf('data-section="floor-nets"'));
+    const vlanPart = section(html, 'floor-vlan');
     return JSON.stringify({
       v4: vlanPart.includes('192.168.20.0/24'),
       v6: vlanPart.includes('2001:db8:0:14::/64'),
@@ -360,13 +462,21 @@ test('la card VLAN: le due reti della VLAN sono chip, senza aprire niente', () =
 
 test('la card VLAN: mostra le sue reti e NON le scrive', () => {
   const out = run(APP.ctx, `(() => {
+    // Una SEZIONE del pannello, dal suo marcatore al successivo: cosi il test
+    // guarda dentro la fisarmonica giusta invece che 'prima/dopo' un offset.
+    const section = (h, name) => {
+      const i = h.indexOf('data-section="' + name + '"');
+      if (i < 0) return '';
+      const j = h.indexOf('data-section="', i + 1);
+      return j < 0 ? h.slice(i) : h.slice(i, j);
+    };
     state = _migrateState({ schemaVersion:2, nodes:[], racks:[], links:[], ports:{},
       vlanColors:{ 20:'#00d4ff' }, vlanNames:{},
       ipam:{ vlans:{}, prefixes:[{ cidr:'192.168.20.0/24', vlan:20, gateway:'192.168.20.1', dns:'1.1.1.1' }] } });
     _prefixOpen.clear(); _netsBad = '';
     selType = null; selId = null; renderProps();
     const html = document.getElementById('props-panel').innerHTML;
-    const vlanPart = html.slice(0, html.indexOf('data-section="floor-nets"'));
+    const vlanPart = section(html, 'floor-vlan');
     return JSON.stringify({
       showsIt: vlanPart.includes('192.168.20.0/24'),
       // Un prefisso ha AL MASSIMO una VLAN: il campo esiste da un lato solo, e da
@@ -388,6 +498,14 @@ test('la card VLAN: mostra le sue reti e NON le scrive', () => {
 
 test('la card VLAN: il chip apre «Reti» sulla rete giusta, senza toccare niente', () => {
   const out = run(APP.ctx, `(() => {
+    // Una SEZIONE del pannello, dal suo marcatore al successivo: cosi il test
+    // guarda dentro la fisarmonica giusta invece che 'prima/dopo' un offset.
+    const section = (h, name) => {
+      const i = h.indexOf('data-section="' + name + '"');
+      if (i < 0) return '';
+      const j = h.indexOf('data-section="', i + 1);
+      return j < 0 ? h.slice(i) : h.slice(i, j);
+    };
     state = _migrateState({ schemaVersion:2, nodes:[], racks:[], links:[], ports:{},
       vlanColors:{ 20:'#00d4ff' }, vlanNames:{},
       ipam:{ vlans:{}, prefixes:[
@@ -400,7 +518,7 @@ test('la card VLAN: il chip apre «Reti» sulla rete giusta, senza toccare nient
     // la funzione dietro l'azione delegata 'net-goto' del chip
     openNetInNets(prefixKey('192.168.20.0/24'));
     const html = document.getElementById('props-panel').innerHTML;
-    const nets = html.slice(html.indexOf('data-section="floor-nets"'));
+    const nets = section(html, 'floor-nets');
     return JSON.stringify({
       sectionOpened: _propsSectionIsOpen('floor-nets'),
       openKeys: [..._prefixOpen],
@@ -417,6 +535,14 @@ test('la card VLAN: il chip apre «Reti» sulla rete giusta, senza toccare nient
 
 test('gateway: l\'INDIRIZZO dice chi risponde, la card VLAN dice quale APPARATO instrada', () => {
   const out = run(APP.ctx, `(() => {
+    // Una SEZIONE del pannello, dal suo marcatore al successivo: cosi il test
+    // guarda dentro la fisarmonica giusta invece che 'prima/dopo' un offset.
+    const section = (h, name) => {
+      const i = h.indexOf('data-section="' + name + '"');
+      if (i < 0) return '';
+      const j = h.indexOf('data-section="', i + 1);
+      return j < 0 ? h.slice(i) : h.slice(i, j);
+    };
     state = _migrateState({ schemaVersion:2, nodes:[
       { id:'rt1', type:'router', name:'RT1', ip:'192.168.20.1' },
     ], racks:[], links:[], ports:{}, vlanColors:{ 20:'#00d4ff', 30:'#39d353' }, vlanNames:{},
@@ -429,8 +555,7 @@ test('gateway: l\'INDIRIZZO dice chi risponde, la card VLAN dice quale APPARATO 
     togglePrefixOpen(prefixKey('10.0.30.0/24'));
     selType = null; selId = null; renderProps();
     const html = document.getElementById('props-panel').innerHTML;
-    const cut = html.indexOf('data-section="floor-nets"');
-    const vlanPart = html.slice(0, cut), nets = html.slice(cut);
+    const vlanPart = section(html, 'floor-vlan'), nets = section(html, 'floor-nets');
     return JSON.stringify({
       // «chi risponde a questo indirizzo» sta accanto all'INDIRIZZO, cioè in «Reti»
       answersInDetail: nets.includes('RT1'),
@@ -455,13 +580,21 @@ test('la card VLAN: un gateway orfano non sparisce dalla vista', () => {
   // Vecchio progetto con il gateway scritto e la subnet no: la migrazione lo
   // lascia sul record VLAN, e la card lo dice invece di ignorarlo.
   const out = run(APP.ctx, `(() => {
+    // Una SEZIONE del pannello, dal suo marcatore al successivo: cosi il test
+    // guarda dentro la fisarmonica giusta invece che 'prima/dopo' un offset.
+    const section = (h, name) => {
+      const i = h.indexOf('data-section="' + name + '"');
+      if (i < 0) return '';
+      const j = h.indexOf('data-section="', i + 1);
+      return j < 0 ? h.slice(i) : h.slice(i, j);
+    };
     state = _migrateState({ schemaVersion:1, nodes:[], racks:[], links:[], ports:{},
       vlanColors:{ 40:'#f1e05a' }, vlanNames:{},
       ipam:{ vlans:{ 40:{ gateway:'10.0.40.1' } } } });
     _prefixOpen.clear(); _netsBad = '';
     selType = null; selId = null; renderProps();
     const html = document.getElementById('props-panel').innerHTML;
-    const vlanPart = html.slice(0, html.indexOf('data-section="floor-nets"'));
+    const vlanPart = section(html, 'floor-vlan');
     return vlanPart.includes('10.0.40.1') ? 'visibile' : 'sparito';
   })()`);
   assert.strictEqual(out, 'visibile');
@@ -469,13 +602,21 @@ test('la card VLAN: un gateway orfano non sparisce dalla vista', () => {
 
 test('la card VLAN: il legame con l\'SVI resta qui — e` un device, non un attributo della rete', () => {
   const out = run(APP.ctx, `(() => {
+    // Una SEZIONE del pannello, dal suo marcatore al successivo: cosi il test
+    // guarda dentro la fisarmonica giusta invece che 'prima/dopo' un offset.
+    const section = (h, name) => {
+      const i = h.indexOf('data-section="' + name + '"');
+      if (i < 0) return '';
+      const j = h.indexOf('data-section="', i + 1);
+      return j < 0 ? h.slice(i) : h.slice(i, j);
+    };
     state = _migrateState({ schemaVersion:2, nodes:[{ id:'rt1', type:'router', name:'RT1', ip:'192.168.20.1' }],
       racks:[], links:[], ports:{}, vlanColors:{ 20:'#00d4ff' }, vlanNames:{},
       ipam:{ vlans:{ 20:{ gatewayNodeId:'rt1' } }, prefixes:[{ cidr:'192.168.20.0/24', vlan:20, gateway:'192.168.20.1' }] } });
     _prefixOpen.clear(); _netsBad = '';
     selType = null; selId = null; renderProps();
     const html = document.getElementById('props-panel').innerHTML;
-    const vlanPart = html.slice(0, html.indexOf('data-section="floor-nets"'));
+    const vlanPart = section(html, 'floor-vlan');
     return JSON.stringify({
       bindingInCard: vlanPart.includes('data-change="l3-gw-select"'),
       keptOnVlan: state.ipam.vlans['20'].gatewayNodeId,

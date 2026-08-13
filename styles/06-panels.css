@@ -146,7 +146,7 @@
         .shared-seg-row > div { min-width:0; display:flex; flex-direction:column; gap:1px; }
         .shared-seg-row b { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:var(--fs-sm); color:var(--text-main); }
         .shared-seg-row span { color:var(--text-muted); font-size:var(--fs-xs); }
-        .shared-seg-row code { color:#ffd36a; font-size:var(--fs-xs); font-family:ui-monospace, SFMono-Regular, Consolas, monospace; }
+        .shared-seg-row code { color:#ffd36a; font-size:var(--fs-xs); }
         /* Confidence temporale ("visto N volte"): chip per-tier accanto al MAC.
            Advisory (manual-first): dà colore al "quanto è consolidato" senza decidere. */
         /* Scoped sotto .shared-seg-list (3 classi) per battere la regola generica
@@ -241,7 +241,7 @@
         #cross-rack-banner strong { color:var(--active-color); }
         #cross-rack-banner em { color:var(--text-muted); font-style:normal; }
         #cross-rack-banner kbd { background:#21262d; border:1px solid #444; border-radius:3px;
-            padding:1px 5px; font-size:var(--fs-xs); font-family:monospace; color:var(--text-main); }
+            padding:1px 5px; font-size:var(--fs-xs); font-family: var(--font-mono); color:var(--text-main); }
 
         /* LAG selection mode banner */
         #lag-sel-banner { position:absolute; top:8px; left:50%; transform:translateX(-50%);
@@ -302,7 +302,7 @@
         #lag-sel-banner .lag-cancel  { background:transparent; border:1px solid #555;
             border-radius:3px; color:#999; font-size:var(--fs-sm); padding:2px 8px; cursor:pointer; }
         #lag-sel-banner kbd { background:#21262d; border:1px solid #444; border-radius:3px;
-            padding:1px 5px; font-size:var(--fs-xs); font-family:monospace; color:var(--text-main); }
+            padding:1px 5px; font-size:var(--fs-xs); font-family: var(--font-mono); color:var(--text-main); }
         /* LED port — stati LAG */
         .port-led.lag-sel     { box-shadow:0 0 0 2px var(--accent), 0 0 7px #00d4ffaa !important; }
         .port-led.lag-member  { background:var(--accent) !important; box-shadow:0 0 5px #00d4ffaa; }

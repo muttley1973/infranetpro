@@ -156,7 +156,7 @@
         .ai-draft { align-self:flex-start; max-width:96%; border:1px solid var(--panel-border); border-radius:8px; overflow:hidden; background:var(--bg-color); }
         .ai-draft-warn { border-color:var(--idle-color); }
         .ai-draft-head { display:flex; align-items:center; gap:6px; padding:5px 9px; font-size:var(--fs-xs); font-weight:700; color:var(--idle-color); background:rgba(245,166,35,.14); border-bottom:1px solid var(--idle-color); }
-        .ai-draft-code { margin:0; padding:9px 11px; overflow-x:auto; font-family:ui-monospace,Consolas,"SF Mono",monospace; font-size:var(--fs-xs); line-height:1.45; color:var(--text-main); white-space:pre; }
+        .ai-draft-code { margin:0; padding:9px 11px; overflow-x:auto; font-family: var(--font-mono); font-size:var(--fs-xs); line-height:1.45; color:var(--text-main); white-space:pre; }
         .ai-draft-copy { display:block; width:100%; border:none; border-top:1px solid var(--panel-border); background:var(--surface-2); color:var(--accent); font-size:var(--fs-xs); padding:5px; cursor:pointer; }
         .ai-draft-copy:hover { background:var(--accent-soft); }
         /* Onboarding «copilota» (§4d): chip «prossimo passo» (sotto il saluto /
@@ -220,7 +220,7 @@
            rackUPx). In scala reale 19":1.75" (≈10.86:1 con la larghezza pannello)
            così le skin del pannello entrano con proporzioni corrette. */
         :root { --ru-h: 29px; }
-        .ru { height:var(--ru-h); display:flex; align-items:center; justify-content:center; font-size:0.50rem; font-family:monospace; color:#969696; line-height:1; user-select:none; flex-shrink:0; box-sizing:border-box; }
+        .ru { height:var(--ru-h); display:flex; align-items:center; justify-content:center; font-size:0.50rem; font-family: var(--font-mono); color:#969696; line-height:1; user-select:none; flex-shrink:0; box-sizing:border-box; }
         /* Chassis: border-left widened to 28px to host the ruler numbers.
            Total width 356px keeps the internal port area identical to before (356-28-12=316px). */
         .rack-chassis { width:356px; background:var(--rack-bg); border:8px solid #333; border-left:19px solid #2a2a2a; border-right:19px solid #2a2a2a; border-bottom:19px solid #2a2a2a; display:grid; position:relative; box-shadow:inset 0 0 8px rgba(0,0,0,.5); overflow:hidden; box-sizing:border-box; }
@@ -354,7 +354,7 @@
         /* .rack-label: targhetta nera fissa del nome/ID — dimensioni
            (width/height/padding) e font SEMPRE uguali. Testi piu' lunghi
            del container vengono troncati con ellipsis. */
-        .rack-label { background:#111; padding:2px 4px; border-radius: var(--radius-xs); border:1px solid #333; font-family:monospace; font-size:0.48rem; pointer-events:none; white-space:nowrap; width:56px; max-width:56px; overflow:hidden; text-overflow:ellipsis; text-align:center; flex-shrink:0; box-sizing:border-box; line-height:1.1; color:#ddd; }
+        .rack-label { background:#111; padding:2px 4px; border-radius: var(--radius-xs); border:1px solid #333; font-family: var(--font-mono); font-size:0.48rem; pointer-events:none; white-space:nowrap; width:56px; max-width:56px; overflow:hidden; text-overflow:ellipsis; text-align:center; flex-shrink:0; box-sizing:border-box; line-height:1.1; color:#ddd; }
         /* Stacking visual hint (P7.1): la rack-label cambia colore da nera a
            ciano accent (stesso colore di highlight LAG) quando il device e'
            membro di uno stack. Testo nero per contrasto. La distinzione
@@ -432,7 +432,7 @@
             padding:1px 5px;
             border-radius: var(--radius-xs);
             font-size:var(--fs-md);
-            font-family:monospace;
+            font-family: var(--font-mono);
         }
         .stack-hint-actions {
             display:grid;
@@ -515,7 +515,7 @@
         .rack-port-unit.sfp-slot { gap:1px; }
         .rack-ports .rack-port-unit { width:var(--rack-port-cell); min-width:var(--rack-port-cell); max-width:var(--rack-port-cell); }
         .rack-ports .rack-port-unit.sfp-slot { width:auto; min-width:0; max-width:none; }
-        .port-num { display:block; width:100%; font-size:4px; color:#7a8a9e; line-height:1; pointer-events:none; user-select:none; text-align:center; font-family:monospace; white-space:nowrap; max-width:none; overflow:visible; text-overflow:clip; letter-spacing:-0.1px; }
+        .port-num { display:block; width:100%; font-size:4px; color:#7a8a9e; line-height:1; pointer-events:none; user-select:none; text-align:center; font-family: var(--font-mono); white-space:nowrap; max-width:none; overflow:visible; text-overflow:clip; letter-spacing:-0.1px; }
         /* Altissima densita': switch con >16 porte per riga (es. 48 porte = 24/riga). */
         .rack-ports.dense-xl .port-num { font-size:4px; letter-spacing:-.2px; max-width:16px; }
         .rack-ports.dense-xl.compact-1u .port-num { font-size:3px; max-width:none; }
@@ -654,7 +654,7 @@
             align-items:center;
             justify-content:center;
             color:rgba(255,255,255,.72);
-            font-family:monospace;
+            font-family: var(--font-mono);
             font-size:var(--pdu-font);
             line-height:1;
         }
@@ -821,7 +821,7 @@
         /* Titolo "MGMT" sotto il blocco di celle: corpo/font identici ai .port-num
            (4px monospace) per coerenza tipografica con la numerazione porte;
            solo il colore cambia in ciano per identificare il blocco MGMT. */
-        .rack-mgmt-title { display:block; font-size:4px; font-family:monospace; color:var(--accent); line-height:1; letter-spacing:-0.1px; white-space:nowrap; user-select:none; pointer-events:none; text-align:center; }
+        .rack-mgmt-title { display:block; font-size:4px; font-family: var(--font-mono); color:var(--accent); line-height:1; letter-spacing:-0.1px; white-space:nowrap; user-select:none; pointer-events:none; text-align:center; }
         .rack-ports-sfp-layout.compact-1u .rack-mgmt-side { row-gap:0; }
         .rack-ports-sfp-layout.compact-1u .rack-mgmt-grid { row-gap:0; column-gap:1px; }
         .rack-ports-sfp-layout.compact-1u .rack-mgmt-grid .rack-port-unit.mgmt-slot { width:auto; min-width:0; max-width:none; gap:0; }

@@ -34,6 +34,24 @@ Già esistenti (non toccati): **colori** (`--bg-color`, `--panel-*`, `--text-*`,
 
 Aggiunti in questa sessione:
 
+- **Famiglie** `--font-ui` e `--font-mono` — **APPLICATE** ovunque (31
+  dichiarazioni). Prima non esistevano: `var(--font-mono, monospace)` e
+  `var(--mono, monospace)` erano scritti in 7 punti ma **non definiti** da
+  nessuna parte, e altri 20 dichiaravano `monospace` nudo → su Windows 27
+  regole su 30 rendevano in Courier New e 3 in Consolas. Nessun `font-family`
+  nuovo fuori da questi due token.
+  - **Gli indirizzi non sono codice.** IP, CIDR, MAC e gateway si scrivono in
+    `--font-ui` con `font-variant-numeric: tabular-nums` (le cifre restano
+    incolonnate senza il tono da macchina da scrivere). La regola è **una
+    sola**, in `02-base.css`, con l'elenco delle classi: undici dichiarazioni
+    separate divergevano alla prima aggiunta.
+  - Restano `--font-mono`: `<code>`/`<kbd>`, log, token API, `sysDescr` grezzo,
+    le textarea dove si incolla una configurazione, e la serigrafia del rack
+    (dove il monospazio serve a stare dentro una cella larga 4 px).
+  - I controlli di modulo **non ereditano** il carattere: `input, textarea,
+    select, button { font-family: inherit }` in `02-base.css`. Senza,
+    un `<input>` fuori da `.prop-group` prende quello di sistema (Arial).
+
 - **Raggi** `--radius-xs|sm|md|lg|xl|pill` (2/4/6/8/10/999 px) — **APPLICATI**
   in tutto il CSS (90 occorrenze). Outlier deliberati (1/3/5/7/12px) restano
   grezzi dove sono micro-aggiustamenti (LED porta, celle, badge).

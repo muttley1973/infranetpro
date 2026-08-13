@@ -879,8 +879,13 @@ is VPN/LAN.
 - **Modular CSS + tokens.** `style.css` (≈1990 lines) is split into 9 ordered
   partials in `styles/` (loaded via `<link>` in cascade order, served by
   `/styles/:file`). Design tokens (colors/surfaces/shadows/typography already
-  present; **radius** applied, **spacing/z-index/transition** documented) live in
-  `styles/01-tokens.css`. See **`styles/README.md`**.
+  present; **radius** and **font families** applied, **spacing/z-index/transition**
+  documented) live in `styles/01-tokens.css`. See **`styles/README.md`**.
+  Two families only — `--font-ui` and `--font-mono` — and no new `font-family`
+  outside them. An **address is interface text, not code**: IP, CIDR, MAC and
+  gateway use `--font-ui` with `tabular-nums`, declared once in `02-base.css`
+  with the class list; monospace is reserved for `<code>`/`<kbd>`, logs, API
+  tokens, raw `sysDescr`, config textareas and the rack silkscreen.
 - **Headless E2E.** `test/e2e/` drives the app in a real Chrome (Playwright on the
   system browser via `INFRANET_DEV_NO_AUTH`, isolated temp store) — see §7.
 - **Floor/rack navigation parity.** Both canvases pan via a `transform: translate`

@@ -34,6 +34,19 @@
             --shadow-md:     0 1px 4px rgba(0,0,0,.40);
             --shadow-lg:     0 8px 24px rgba(0,0,0,.50);
 
+            /* ---- FAMIGLIE — due, e sono queste ----
+               GUIDA: nessun `font-family` nuovo fuori da questi due token.
+               Prima non esistevano: `var(--font-mono, monospace)` e
+               `var(--mono, monospace)` erano scritti in 7 punti ma NON definiti
+               da nessuna parte, e altri 20 dichiaravano `monospace` nudo. Su
+               Windows il generico e' Courier New — quindi 27 regole su 30
+               rendevano in Courier e 3 (che scrivevano lo stack per esteso) in
+               Consolas. Da qui la sensazione che i CIDR fossero di un'altra app.
+               `ui-monospace` per primo: su macOS e' SF Mono, su Windows recente
+               Cascadia; Consolas e' la rete di sicurezza. */
+            --font-ui:   system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
+
             /* ---- TIPOGRAFIA — scala 6 step (base 16px del browser) ----
                GUIDA: per ogni testo nuovo usa SEMPRE uno di questi token.
                Outlier deliberati ammessi: 0.48rem/0.5rem (solo .rack-label fisica). */

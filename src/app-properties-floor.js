@@ -117,7 +117,7 @@ function _ipamOccHtml(u, vid, key){
     return `<div class="vlan-ipam-occ${near?' near':''}" style="grid-column:1/-1">
                         <div class="vlan-ipam-occ-hd"><span>${t('floor.occupancy')}</span>${u.leaseInCidr?`<span class="vlan-ipam-occ-src">DHCP</span>`:''}</div>
                         <div class="vlan-ipam-occ-bar"><i style="width:${docW.toFixed(1)}%;background:${docColor}"></i><i style="width:${dhcpW.toFixed(1)}%;background:#f5a623"></i></div>
-                        <div class="vlan-ipam-occ-meta">${u.usedCount} / ${cap} · ${u.pct}%</div>
+                        <div class="vlan-ipam-occ-meta">${Number(u.usedCount)} / ${Number(cap)} · ${Number(u.pct)}%</div>
                         <div class="vlan-ipam-occ-leg">${legend.join('')}</div>
                         ${!u.gatewayOk?`<div class="vlan-ipam-occ-warn">${t('floor.gwOutSubnet')}</div>`:''}
                         ${u.dhcpOnlyCount?`<div class="vlan-ipam-occ-adopt"><span><i class="fas fa-triangle-exclamation"></i> ${t('floor.occUndoc',{n:u.dhcpOnlyCount})}</span><button type="button" class="vlan-ipam-adopt-btn" data-act="adopt-from-leases" data-key="${escapeHTML(key)}">${t('floor.occAdopt')}</button></div>`:''}
@@ -194,9 +194,58 @@ function _netVid(p){ return (p.vlan == null || !Number.isFinite(+p.vlan)) ? null
 // chip e la riga del piano, e due badge per la stessa cosa divergono al primo
 // ritocco. `Number(vid)` non e' ridondante — e' la prova, visibile al guard di
 // escaping, che a schermo finisce un numero.
+//
+// Il colore sta nella PASTIGLIA, non nel testo. Scritto in colore, «VLAN 99»
+// (rossa nella palette) e' indistinguibile da un errore, in un elenco che i
+// conflitti li segna davvero in rosso: la tinta della palette e' arbitraria
+// (`(vid*7)%_VPAL.length`) e non dice niente sulla salute della rete. La
+// pastiglia e' la stessa forma che la VLAN ha gia' nella legenda della topologia
+// e nei popup — stesso concetto, stesso segno.
 function _vlanBadgeHtml(vid){
     if(vid == null) return '';
-    return `<span class="net-chip-vlan" style="color:${escapeHTML(store.state.vlanColors[String(vid)] || '#8b949e')}">VLAN ${Number(vid)}</span>`;
+    const col = store.state.vlanColors[String(vid)] || '#8b949e';
+    return `<span class="net-chip-vlan"><i class="vlan-dot" style="background:${escapeHTML(col)}"></i>VLAN ${Number(vid)}</span>`;
+}
+
+// L'occupazione della riga: una barra in miniatura piu' la frazione. E' la
+// STESSA misura del blocco «Occupazione» del dettaglio, con gli stessi colori e
+// la stessa soglia d'ambra — piccola e grande devono restare la stessa cosa, o
+// il colpo d'occhio dell'elenco e il numero del dettaglio finiscono per
+// smentirsi (→ definizioni duplicate motore/renderer).
+//
+// Perche' una barra: sei frazioni con denominatori diversi (2/254, 7/254,
+// 21/254, 0/126) non si confrontano a occhio, e la domanda dell'elenco e'
+// «dove sto stretto». La barra risponde senza leggere una cifra.
+//
+// Su IPv6 la capacita' NON esiste (lib/ipam.js torna 0 apposta): niente barra.
+// Una traccia vuota sotto un denominatore che non c'e' e' la stessa bugia di
+// «0 / 0 · null%» — resta il conteggio, che e' l'unica cosa misurata.
+// Il tooltip della riga. Sta sulla RIGA e non sulla cella perche' il tooltip di
+// quest'app e' puro CSS (`[data-tip]:hover::after`): annidarne uno dentro un
+// bottone che ne ha gia' uno li accende tutti e due insieme. Una riga, un
+// tooltip — e visto che il gesto ormai si vede (la riga e' un bottone), quel
+// tooltip lo si spende per il dato, non per istruzioni sull'uso.
+function _netRowTip(u, p){
+    const occ = (!u || !u.cidr) ? t('floor.hintBadCidr')
+        : u.capacity ? t('floor.netsOccTip',{used:Number(u.usedCount), cap:Number(u.capacity), pct:Number(u.pct)})
+        : t('floor.netsOccTipV6',{n:Number(u.usedCount)});
+    return p && p.source === 'dcim' ? `${occ} · ${t('floor.netFromDcim')}` : occ;
+}
+
+function _netOccCellHtml(u){
+    if(!u || !u.cidr) return `<span class="net-prow-bar empty"></span><span class="net-prow-occ bad"><i class="fas fa-triangle-exclamation"></i></span>`;
+    const cap = u.capacity || 0;
+    if(!cap) return `<span class="net-prow-bar empty"></span><span class="net-prow-occ">${Number(u.usedCount)} IP</span>`;
+    const near = u.pct >= 90;
+    const docColor = near ? '#f5a623' : '#00d4ff';
+    // Minimo visibile: sotto l'1% (una /24 con due host) il riempimento sarebbe
+    // sub-pixel, e «quasi vuota» diventerebbe indistinguibile da «vuota». 2px e'
+    // la convenzione del segno minimo, non un arrotondamento del dato: la cifra
+    // accanto resta quella vera, e il tooltip pure.
+    const pxDoc = u.documentedCount ? Math.max(2, Math.round((u.documentedCount / cap) * 64)) : 0;
+    const pxDhcp = u.dhcpOnlyCount ? Math.max(2, Math.round((u.dhcpOnlyCount / cap) * 64)) : 0;
+    return `<span class="net-prow-bar${near?' near':''}"><i style="width:${Number(pxDoc)}px;background:${docColor}"></i><i style="width:${Number(pxDhcp)}px;background:#f5a623"></i></span>
+                    <span class="net-prow-occ">${Number(u.usedCount)}/${Number(cap)}</span>`;
 }
 
 // Quello che il DCIM dichiara di una rete importata: stato e descrizione, se ci
@@ -298,21 +347,28 @@ function _netPlanHtml(rows, usageByKey, overlaps){
         if(!noteAfter.has(kb)) noteAfter.set(kb, []);
         noteAfter.get(kb).push(o);
     }
-    const out = [];
+    // L'intestazione: nominare le colonne e' cio' che rende leggibile «2/254»
+    // senza spenderci una frase sotto. La regola d'ordinamento vive sul titolo
+    // della colonna che ordina — dove serve, quando serve.
+    const out = [`<div class="net-phead">
+                    <span data-tip="${t('floor.netsPlanHint')}" data-tip-wrap>${t('floor.netsColNet')}</span>
+                    <span>VLAN</span>
+                    <span class="net-phead-occ">${t('floor.netsColOcc')}</span>
+                  </div>`];
     for(const p of rows){
         const key = prefixKey(p.cidr);
         const vid = _netVid(p);
         const u = usageByKey.get(key) || {};
         const sel = store._prefixOpen.has(key);
-        // Su IPv6 la capacita' non esiste: si contano gli indirizzi VISTI.
-        const occ = !u.cidr ? t('floor.hintBadCidr')
-            : u.capacity ? `${u.usedCount}/${u.capacity}`
-            : `${Number(u.usedCount)} IP`;
-        out.push(`<button type="button" class="net-prow${clash.has(key)?' clash':''}${sel?' sel':''}${u.cidr?'':' bad'}" data-act="prefix-expand" data-key="${escapeHTML(key)}" data-tip="${t('floor.netDetails')}">
-                    <span class="net-prow-cidr">${escapeHTML(p.cidr||'')}</span>
-                    ${p.source==='dcim'?`<span class="drift-net-tag is-decl" data-tip="${t('floor.netFromDcim')}"><i class="fas fa-database"></i></span>`:''}
+        // La provenienza sta DENTRO la cella dell'indirizzo — dentro lo <span>,
+        // non accanto. E' un attributo dell'identita' della rete, non un dato da
+        // incolonnare; ma soprattutto: da fratello sarebbe un SECONDO figlio
+        // della griglia, e le righe importate dal DCIM avrebbero VLAN, barra e
+        // frazione slittate di una colonna rispetto a tutte le altre.
+        out.push(`<button type="button" class="net-prow${clash.has(key)?' clash':''}${sel?' sel':''}${u.cidr?'':' bad'}" data-act="prefix-expand" data-key="${escapeHTML(key)}" data-tip="${escapeHTML(_netRowTip(u, p))}" data-tip-wrap>
+                    <span class="net-prow-cidr">${escapeHTML(p.cidr||'')}${p.source==='dcim'?`<span class="drift-net-tag is-decl"><i class="fas fa-database"></i></span>`:''}</span>
                     ${vid!=null?_vlanBadgeHtml(vid):`<span class="net-prow-novlan">—</span>`}
-                    <span class="net-prow-occ">${escapeHTML(occ)}</span>
+                    ${_netOccCellHtml(u)}
                   </button>`);
         for(const o of (noteAfter.get(key) || [])){
             out.push(`<div class="net-clashnote">⚠ ${t(o.identical?'l3.overlapRowSame':'l3.overlapRow',{sa:`<b>${escapeHTML(o.a.cidr)}</b>`, sb:`<b>${escapeHTML(o.b.cidr)}</b>`})}</div>`);
@@ -339,7 +395,6 @@ function _netsSectionHtml(state){
                 <div class="vlan-ipam-hint">${t('floor.netsIntro')}</div>
                 ${rows.length?`<div class="net-plan">
                   ${_netPlanHtml(rows, usageByKey, overlaps)}
-                  <div class="vlan-ipam-hint">${t('floor.netsPlanHint')}</div>
                 </div>`:''}
                 <div class="net-addrow${bad?' bad':''}">
                   <input type="text" value="${escapeHTML(bad)}" placeholder="${t('floor.netsPh')}">
@@ -373,8 +428,12 @@ export function _renderFloorProps(panel){
             `<span class="props-toggles"><button class="props-toggle-btn" data-act="props-expand-all" data-tip="${t('props.expandAll')}"><i class="fas fa-angles-down"></i></button><button class="props-toggle-btn" data-act="props-collapse-all" data-tip="${t('props.collapseAll')}"><i class="fas fa-angles-up"></i></button><button class="props-toggle-btn" data-act="props-reset-sections" data-tip="${t('props.resetSections')}"><i class="fas fa-rotate"></i></button></span>`,
             'props-title-upper'
         );
-        let h = `${_panelHeader}
-            <details class="props-collapsible props-primary" ${_propsSectionIsOpen('floor-vlan')?'open':''} data-toggle="props-section" data-section="floor-vlan">
+        let h = _panelHeader;
+        // Il blocco VLAN si costruisce a parte e si incolla DOPO «Reti»: il piano
+        // di indirizzamento e' il documento, la VLAN e' un'etichetta che una rete
+        // puo' avere. Chi apre il contesto progetto cerca prima «dove stanno gli
+        // indirizzi», e solo dopo come sono etichettati.
+        let _vlanHtml = `<details class="props-collapsible props-primary" ${_propsSectionIsOpen('floor-vlan')?'open':''} data-toggle="props-section" data-section="floor-vlan">
               <summary class="props-collapsible-head"><span><i class="fas fa-network-wired"></i> VLAN</span>${_vlanPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
               <div class="props-collapsible-body">
                 <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
@@ -405,7 +464,7 @@ export function _renderFloorProps(panel){
             // questa riga sparirebbe dalla vista pur restando nel file.
             const _orphanGw=(!_vlanPrefixes.length && (ipam?.gateway||ipam?.dns))
                 ? [ipam.gateway, ipam.dns].filter(Boolean).join(' · ') : '';
-            h+=`<div class="vlan-ipam-card">
+            _vlanHtml+=`<div class="vlan-ipam-card">
                   <div class="vlan-ipam-row">
                     <label style="margin:0;width:68px;font-size:0.78rem;flex-shrink:0;white-space:nowrap;font-weight:700;color:${escapeHTML(state.vlanColors[v]||'#8b949e')}">VLAN ${vid}</label>
                     <input type="text" value="${vname}" placeholder="${t('vlan.namePlaceholder')}"
@@ -426,15 +485,18 @@ export function _renderFloorProps(panel){
                   </div>
                 </div>`;
         });
-        h+=`</div>
+        _vlanHtml+=`</div>
                 <div style="display:flex;gap:5px;margin-top:12px;border-top:1px solid var(--panel-border);padding-top:10px">
                   <input type="number" id="new-vlan-id" placeholder="ID" style="width:55px">
                   <input type="color" id="new-vlan-color" value="#00d4ff" style="flex:1">
                   <button class="toolbar-btn primary" style="padding:4px 9px;margin:0" data-act="vlan-add">${t('common.add')}</button>
                 </div>
               </div>
-            </details>
-            ${_netsSectionHtml(state)}`;
+            </details>`;
+        // «Reti» PRIMA, le VLAN dopo. Il calcolo resta dentro lo stesso memo: e'
+        // solo l'ordine a schermo a cambiare, non quante volte si scandiscono
+        // nodi e lease.
+        h += _netsSectionHtml(state) + _vlanHtml;
         // Fin qui, tutto dentro il memo IPAM per-frame: il ciclo VLAN, le reti senza
         // VLAN e «Reti», che calcola l'occupazione di OGNI prefisso. Una sola
         // scansione di nodi e lease per resa — senza, ogni card ne rifarebbe una.

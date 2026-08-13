@@ -4,7 +4,36 @@
    Generato dallo split di style.css (ordine cascata preservato).
    ============================================================ */
         input, textarea, select { user-select: text; }
-        body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg-color); color: var(--text-main); overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
+        /* I controlli di modulo NON ereditano il carattere: se non glielo si dice,
+           un <input> prende quello di sistema (Arial) invece che quello dell'app.
+           Nel pannello proprieta' il campo del nome VLAN era cosi' — l'unico
+           scritto in un'altra faccia, in mezzo a campi identici. Lo dichiaravano
+           gia' quattro regole a mano, una per volta: qui vale per tutti, e chi
+           vuole il monospazio (log, token, textarea di configurazione) lo chiede
+           con una classe, che batte questo selettore di elemento. */
+        input, textarea, select, button { font-family: inherit; }
+        body { margin: 0; font-family: var(--font-ui); background: var(--bg-color); color: var(--text-main); overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
+
+        /* ---- COME SI SCRIVE UN INDIRIZZO ----
+           IP, CIDR, MAC e gateway sono TESTO DELL'INTERFACCIA, non codice: si
+           scrivono col carattere dell'app come tutto il resto. Del monospazio
+           serviva una cosa sola — le cifre incolonnate — e quella la dà
+           `tabular-nums` senza il tono da macchina da scrivere.
+           Una regola SOLA, qui: undici classi la dichiaravano ognuna per conto
+           suo, e con undici dichiarazioni la prossima nasce diversa.
+           NON entrano in questo elenco (e restano monospazio, giustamente):
+           <code>/<kbd>, i log, i token API, il sysDescr grezzo, le textarea
+           dove si incolla una configurazione, e la serigrafia del rack, dove il
+           monospazio serve a stare dentro una cella larga 4 pixel. */
+        .disc-ip, .disc-mac,
+        .net-chip-cidr, .net-prow-cidr, .net-addrow input,
+        .shared-seg-row code,
+        .l3-svi-gw, .l3-row-sub, .l3-row-gw,
+        .drift-net-cidr, .adopt-mac,
+        .ov-detail li .ov-mac {
+            font-family: var(--font-ui);
+            font-variant-numeric: tabular-nums;
+        }
 
         /* ---- HEADER ---- */
         /* min-height (non height fissa): con flex-wrap, se la toolbar è più larga dello
