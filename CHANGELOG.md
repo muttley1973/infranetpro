@@ -6,6 +6,7 @@
 
 ### Added
 - **A "Networks" panel** — every declared network in one list, sorted by address (where collisions are neighbours), the VLAN as a badge, overlaps spelled out. Click a row for its detail (VLAN, name, gateway, DNS, occupancy, Adopt); add several at once, comma-separated, and what does not parse stays in the field, in red.
+- **A network can be edited, deleted or the whole plan cleared, in place** — change a network's address in its detail (a rename that keeps its VLAN, gateway, DNS and name, instead of delete-and-recreate), remove a single network with the **×** at the end of its row, or **Clear all networks** at the top (VLANs stay); both "clear all" actions ask first. The panel mirrors the VLAN card, down to the button placement.
 - **A VLAN can carry more than one network** — dual-stack (an IPv4 and an IPv6 prefix, each with its own gateway) and a secondary range on the same SVI.
 - **Networks with no VLAN** — point-to-point links, transit, out-of-band management: on a real NetBox they are most of the plan.
 - **IPv6 can be declared**, not just measured. A bare IPv6 normalises to its /64; there is no capacity bar for a /64 (2^64 is not a percentage), so occupancy counts the addresses actually seen.

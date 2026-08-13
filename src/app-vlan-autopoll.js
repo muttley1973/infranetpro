@@ -12,6 +12,7 @@ import { nodeById, markDirty, getNodeByPortId, getPortNodeId, pushHistory, rende
 import { primaryPrefixForVlan, upsertPrefix, removePrefix, prefixKey, migrateIpam, prefixesForVlan, prefixesWithoutVlan, prefixesOf, findPrefix, parseNetworkList } from '../lib/ipam-model.js';   // la subnet è un prefisso, non un campo della VLAN
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { showConfirm } from './app-core.js';   // modale di conferma dell'app (non il confirm() nativo)
 import { TYPES, _ensureNodeSpec } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _isLeafEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
 import { _renderTopoLegend } from './app-topology-overlay.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
@@ -665,15 +666,30 @@ function deleteVlanColor(v){
 
 /** Rimuove tutte le VLAN dalla palette lasciando solo VLAN 1 (default implicito). */
 function clearAllVlans(){
-    if(!confirm(t('msg.ui.clearVlans'))) return;
-    pushHistory();
-    store.state.vlanColors = {};
-    store.state.vlanNames  = {};
-    // Le reti SENZA VLAN sopravvivono: «togli tutte le VLAN» non è «togli tutte le
-    // reti», e una /30 punto-punto non ha mai avuto una VLAN da rimuovere.
-    store.state.ipam = { vlans:{}, prefixes: prefixesWithoutVlan(store.state) };
-    if(store._filterVlan && store._filterVlan !== 1) setVlanFilter(null);
-    renderAll(); markDirty();
+    // Avviso prima di cancellare, col modale dell'app (non il confirm() nativo, che
+    // era l'unico posto qui a usarlo). La cancellazione vera vive nel callback.
+    showConfirm(t('msg.ui.clearVlans'), () => {
+        pushHistory();
+        store.state.vlanColors = {};
+        store.state.vlanNames  = {};
+        // Le reti SENZA VLAN sopravvivono: «togli tutte le VLAN» non è «togli tutte le
+        // reti», e una /30 punto-punto non ha mai avuto una VLAN da rimuovere.
+        store.state.ipam = { vlans:{}, prefixes: prefixesWithoutVlan(store.state) };
+        if(store._filterVlan && store._filterVlan !== 1) setVlanFilter(null);
+        renderAll(); markDirty();
+    });
+}
+
+// Speculare a clearAllVlans: toglie tutte le RETI (i prefissi) e lascia le VLAN,
+// che sono etichette. Con avviso, come «Cancella tutte le VLAN».
+export function clearAllNetworks(){
+    showConfirm(t('msg.ui.clearNets'), () => {
+        pushHistory();
+        _ensureIpamState();
+        store.state.ipam.prefixes = [];
+        if(store._prefixOpen && typeof store._prefixOpen.clear === 'function') store._prefixOpen.clear();
+        renderAll(); markDirty();
+    });
 }
 
 // ---- Filtro VLAN sulla planimetria -----------------------------------------

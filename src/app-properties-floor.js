@@ -21,7 +21,7 @@ import { escapeHTML, normalizeNumber } from './app-util.js';
 import { registerClickActions, registerChangeActions, registerInputActions } from './app-delegation.js';   // ASSE B: handler del pannello floor via event delegation (ex on* inline)
 import { _propsSectionIsOpen, _buildPropsHeader, setPropsSectionState, renderProps } from './app-properties.js';   // ritiro ponte: lettura/scrittura stato sezioni + resa (ex win.*)
 import { _isVoiceVlan, _siteNativeVlan,
-         clearAllVlans, toggleGuestVlan, toggleMgmtVlan, toggleSiteNativeVlan,
+         clearAllVlans, clearAllNetworks, toggleGuestVlan, toggleMgmtVlan, toggleSiteNativeVlan,
          toggleVoiceVlan, _openVoiceAssignDialog, deleteVlanColor, addVlanColor,
          updateVlanName, updateVlanColor, updateVlanIpam, updateUiColor } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni vlan/snmp + azioni card VLAN (ex win.*)
 import { _enableManualValueInProps, _vlanIpam, _clearPropsTab, toggleAbbrevNames } from './app.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
@@ -46,6 +46,7 @@ registerClickActions({
     // l'occupazione e' del prefisso, e una rete senza VLAN non aveva candidati.
     'adopt-from-leases':  (el) => openAdoptFromPrefix(el.dataset.key),
     'vlan-clear-all':     () => clearAllVlans(),
+    'nets-clear-all':     () => clearAllNetworks(),
     'net-goto':           (el) => openNetInNets(el.dataset.key),
     'vlan-guest-toggle':  (el) => toggleGuestVlan(_vid(el)),
     'vlan-mgmt-toggle':   (el) => toggleMgmtVlan(_vid(el)),
@@ -298,6 +299,11 @@ function _netDetailHtml(p, usage){
                     <button type="button" class="net-detail-x" data-act="prefix-expand" data-key="${escapeHTML(key)}" data-tip="${t('floor.netDetailClose')}"><i class="fas fa-chevron-up"></i></button>
                   </div>
                   <div class="vlan-ipam-fields" style="margin-left:0">
+                    <div class="prop-group" style="grid-column:1/-1">
+                      <label data-tip="${t('floor.netCidrTip')}" data-tip-wrap>${t('floor.netCidr')}</label>
+                      <input value="${escapeHTML(p.cidr||'')}" placeholder="192.168.20.0/24" inputmode="text"
+                             data-change="prefix-field" data-key="${escapeHTML(key)}" data-field="cidr">
+                    </div>
                     <div class="prop-group">
                       <label>VLAN</label>
                       <select data-change="prefix-field" data-key="${escapeHTML(key)}" data-field="vlan">${_netVlanOptionsHtml(vid)}</select>
@@ -350,10 +356,17 @@ function _netPlanHtml(rows, usageByKey, overlaps){
     // L'intestazione: nominare le colonne e' cio' che rende leggibile «2/254»
     // senza spenderci una frase sotto. La regola d'ordinamento vive sul titolo
     // della colonna che ordina — dove serve, quando serve.
-    const out = [`<div class="net-phead">
-                    <span data-tip="${t('floor.netsPlanHint')}" data-tip-wrap>${t('floor.netsColNet')}</span>
-                    <span>VLAN</span>
-                    <span class="net-phead-occ">${t('floor.netsColOcc')}</span>
+    // Ogni riga finisce con una X per cancellare quella rete (come le card VLAN).
+    // Header e righe condividono la stessa griglia `1fr auto`: nell'header, al posto
+    // della X, un pulsante-fantasma INVISIBILE riserva la stessa larghezza → le colonne
+    // restano allineate senza numeri magici.
+    const _ghostDel = `<button type="button" class="net-prow-del toolbar-btn" style="visibility:hidden" tabindex="-1" aria-hidden="true"><i class="fas fa-times"></i></button>`;
+    const out = [`<div class="net-pline net-phead-line">
+                    <div class="net-phead">
+                      <span data-tip="${t('floor.netsPlanHint')}" data-tip-wrap>${t('floor.netsColNet')}</span>
+                      <span>VLAN</span>
+                      <span class="net-phead-occ">${t('floor.netsColOcc')}</span>
+                    </div>${_ghostDel}
                   </div>`];
     for(const p of rows){
         const key = prefixKey(p.cidr);
@@ -365,11 +378,14 @@ function _netPlanHtml(rows, usageByKey, overlaps){
         // incolonnare; ma soprattutto: da fratello sarebbe un SECONDO figlio
         // della griglia, e le righe importate dal DCIM avrebbero VLAN, barra e
         // frazione slittate di una colonna rispetto a tutte le altre.
-        out.push(`<button type="button" class="net-prow${clash.has(key)?' clash':''}${sel?' sel':''}${u.cidr?'':' bad'}" data-act="prefix-expand" data-key="${escapeHTML(key)}" data-tip="${escapeHTML(_netRowTip(u, p))}" data-tip-wrap>
-                    <span class="net-prow-cidr">${escapeHTML(p.cidr||'')}${p.source==='dcim'?`<span class="drift-net-tag is-decl"><i class="fas fa-database"></i></span>`:''}</span>
-                    ${vid!=null?_vlanBadgeHtml(vid):`<span class="net-prow-novlan">—</span>`}
-                    ${_netOccCellHtml(u)}
-                  </button>`);
+        out.push(`<div class="net-pline">
+                    <button type="button" class="net-prow${clash.has(key)?' clash':''}${sel?' sel':''}${u.cidr?'':' bad'}" data-act="prefix-expand" data-key="${escapeHTML(key)}" data-tip="${escapeHTML(_netRowTip(u, p))}" data-tip-wrap>
+                      <span class="net-prow-cidr">${escapeHTML(p.cidr||'')}${p.source==='dcim'?`<span class="drift-net-tag is-decl"><i class="fas fa-database"></i></span>`:''}</span>
+                      ${vid!=null?_vlanBadgeHtml(vid):`<span class="net-prow-novlan">—</span>`}
+                      ${_netOccCellHtml(u)}
+                    </button>
+                    <button type="button" class="net-prow-del toolbar-btn" data-act="prefix-del" data-key="${escapeHTML(key)}" data-tip="${t('floor.netDelete')}"><i class="fas fa-times"></i></button>
+                  </div>`);
         for(const o of (noteAfter.get(key) || [])){
             out.push(`<div class="net-clashnote">⚠ ${t(o.identical?'l3.overlapRowSame':'l3.overlapRow',{sa:`<b>${escapeHTML(o.a.cidr)}</b>`, sb:`<b>${escapeHTML(o.b.cidr)}</b>`})}</div>`);
         }
@@ -392,7 +408,9 @@ function _netsSectionHtml(state){
     return `<details class="props-collapsible props-primary" ${_propsSectionIsOpen('floor-nets')?'open':''} data-toggle="props-section" data-section="floor-nets">
               <summary class="props-collapsible-head"><span><i class="fas fa-diagram-project"></i> ${t('floor.netsSection')}</span><span class="props-collapsible-preview${overlaps.length?' warn':''}">${preview}</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
               <div class="props-collapsible-body">
-                <div class="vlan-ipam-hint">${t('floor.netsIntro')}</div>
+                ${rows.length?`<div style="display:flex;justify-content:flex-end;margin-bottom:6px">
+                  <button class="toolbar-btn" style="padding:4px 10px;margin:0;font-size:0.74rem;background:var(--accent-soft);border-color:var(--accent);color:var(--text-main)" data-tip="${t('floor.clearAllNetsTip')}" data-act="nets-clear-all"><i class="fas fa-trash-alt" style="margin-right:6px;color:var(--fault-color)"></i>${t('floor.clearAllNets')}</button>
+                </div>`:''}
                 ${rows.length?`<div class="net-plan">
                   ${_netPlanHtml(rows, usageByKey, overlaps)}
                 </div>`:''}

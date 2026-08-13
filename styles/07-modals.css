@@ -540,8 +540,14 @@
            colonne, e scriverlo su .net-plan non arriverebbe qui (la griglia e' la
            riga, non il contenitore). */
         .net-phead, .net-prow { display:grid; grid-template-columns:var(--net-cols); align-items:center; gap:var(--net-gap); }
+        /* La riga della lista = la riga (o header) a sinistra + la X di cancellazione
+           a destra. La linea di separazione sta QUI, cosi' arriva sotto tutta la riga
+           (X inclusa); su .net-phead/.net-prow non c'e' piu'. */
+        .net-pline { display:grid; grid-template-columns:1fr auto; align-items:center; column-gap:6px;
+                     border-bottom:1px solid var(--panel-border); }
+        .net-prow-del { padding:3px 6px; margin:0; align-self:center; flex-shrink:0; }
         .net-phead { padding:0 6px 5px; font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.05em;
-                     color:var(--text-muted); border-bottom:1px solid var(--panel-border); }
+                     color:var(--text-muted); }
         /* Le celle dell'intestazione non devono MAI allargare la griglia: le
            etichette sono tradotte, e una parola piu' lunga del previsto
            spingerebbe fuori le colonne che l'elenco tiene allineate. */
@@ -552,7 +558,7 @@
            ci arriva come su qualsiasi altro comando. Righe separate da una linea,
            come le altre liste dentro il pannello: nessuna card per riga. */
         .net-prow { width:100%; padding:7px 6px; font-size:var(--fs-md);
-                    background:none; border:0; border-bottom:1px solid var(--panel-border); color:inherit;
+                    background:none; border:0; color:inherit;
                     text-align:left; font-family:inherit; cursor:pointer; }
         .net-prow:hover { background:var(--surface-hover); }
         .net-prow:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
