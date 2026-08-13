@@ -118,8 +118,11 @@ test('il pannello: una /64 accanto a una /24, e una /30 senza VLAN', () => {
       ipam:{ vlans:{}, prefixes:[] } });
     _prefixOpen.clear(); _netsBad = '';
 
-    addDeclaredNetworks('192.168.20.0/24, 2001:db8:0:14::/64', 20);   // dual-stack: prima se ne perdeva una
-    addDeclaredNetworks('10.0.0.0/30', null);                          // rete senza VLAN
+    // Una rete nasce senza VLAN; l'appartenenza si scrive dalla tendina del
+    // dettaglio, che è l'unico posto dove quel campo si tocca.
+    addDeclaredNetworks('192.168.20.0/24, 2001:db8:0:14::/64, 10.0.0.0/30');
+    updatePrefixField(prefixKey('192.168.20.0/24'), 'vlan', '20');
+    updatePrefixField(prefixKey('2001:db8:0:14::/64'), 'vlan', '20');   // dual-stack: prima se ne perdeva una
     updatePrefixField(prefixKey('10.0.0.0/30'), 'name', 'punto-punto R1-R2');
 
     selType = null; selId = null; renderProps();
@@ -278,7 +281,7 @@ test('«Reti»: la lista a virgole entra tutta, e cio` che non si parsa resta ne
       vlanColors:{}, vlanNames:{}, ipam:{ vlans:{}, prefixes:[] } });
     _prefixOpen.clear(); _netsBad = '';
     selType = null; selId = null;
-    addDeclaredNetworks('192.168.20.7/24, 2001:db8::/32, non-una-rete', null);
+    addDeclaredNetworks('192.168.20.7/24, 2001:db8::/32, non-una-rete');
     const html = document.getElementById('props-panel').innerHTML;
     const nets = html.slice(html.indexOf('data-section="floor-nets"'));
     return JSON.stringify({
@@ -355,7 +358,7 @@ test('la card VLAN: le due reti della VLAN sono chip, senza aprire niente', () =
   assert.strictEqual(r.noDrawer, true, 'niente piu` cassetto IPAM da aprire');
 });
 
-test('la card VLAN: ⊘ STACCA la rete, non la cancella', () => {
+test('la card VLAN: mostra le sue reti e NON le scrive', () => {
   const out = run(APP.ctx, `(() => {
     state = _migrateState({ schemaVersion:2, nodes:[], racks:[], links:[], ports:{},
       vlanColors:{ 20:'#00d4ff' }, vlanNames:{},
@@ -364,33 +367,52 @@ test('la card VLAN: ⊘ STACCA la rete, non la cancella', () => {
     selType = null; selId = null; renderProps();
     const html = document.getElementById('props-panel').innerHTML;
     const vlanPart = html.slice(0, html.indexOf('data-section="floor-nets"'));
-    // Il bottone del chip nella card VLAN passa da prefix-clear su 'vlan': una
-    // funzione che svuota un campo e non sa nemmeno rimuovere una riga.
-    const detaches = /data-act="prefix-clear"[^>]*data-field="vlan"/.test(vlanPart);
-    updatePrefixField(prefixKey('192.168.20.0/24'), 'vlan', '');
-    const p = state.ipam.prefixes[0];
-    return JSON.stringify({ detaches, left: state.ipam.prefixes.length, vlan: p && p.vlan, gw: p && p.gateway, dns: p && p.dns });
+    return JSON.stringify({
+      showsIt: vlanPart.includes('192.168.20.0/24'),
+      // Un prefisso ha AL MASSIMO una VLAN: il campo esiste da un lato solo, e da
+      // qui non si scrive. Niente ⊘, niente campo per aggiungerne una.
+      noDetach: !vlanPart.includes('data-field="vlan"'),
+      noAddRow: !vlanPart.includes('net-addrow'),
+      noWriter: !/data-(act|change)="(prefix-clear|prefix-del|prefix-field|nets-add|vlan-nets-add)"/.test(vlanPart),
+      // il chip PORTA alla rete, e basta
+      chipNavigates: /class="net-chip[^"]*" data-act="net-goto"/.test(vlanPart),
+    });
   })()`);
   const r = JSON.parse(out);
-  assert.strictEqual(r.detaches, true, 'il bottone della card VLAN non puo` cancellare');
-  assert.strictEqual(r.left, 1, 'la rete resta nel documento');
-  assert.strictEqual(r.vlan, null);
-  assert.strictEqual(r.gw, '192.168.20.1', 'e si porta dietro il suo gateway');
-  assert.strictEqual(r.dns, '1.1.1.1');
+  assert.strictEqual(r.showsIt, true, 'la rete della VLAN si vede a colpo d\'occhio');
+  assert.strictEqual(r.noDetach, true, 'niente ⊘: l\'appartenenza si scrive da «Reti»');
+  assert.strictEqual(r.noAddRow, true, 'e niente campo per dichiararne una da qui');
+  assert.strictEqual(r.noWriter, true, 'nessuna scrittura sulle reti parte dalla card VLAN');
+  assert.strictEqual(r.chipNavigates, true, 'il chip porta alla rete');
 });
 
-test('la card VLAN: si dichiara una rete da qui e nasce gia` su questa VLAN', () => {
+test('la card VLAN: il chip apre «Reti» sulla rete giusta, senza toccare niente', () => {
   const out = run(APP.ctx, `(() => {
     state = _migrateState({ schemaVersion:2, nodes:[], racks:[], links:[], ports:{},
-      vlanColors:{ 20:'#00d4ff' }, vlanNames:{}, ipam:{ vlans:{}, prefixes:[] } });
+      vlanColors:{ 20:'#00d4ff' }, vlanNames:{},
+      ipam:{ vlans:{}, prefixes:[
+        { cidr:'192.168.20.0/24', vlan:20 }, { cidr:'10.0.0.0/30', vlan:null },
+      ] } });
     _prefixOpen.clear(); _netsBad = '';
-    selType = null; selId = null;
-    addDeclaredNetworks('192.168.20.0/24, 2001:db8:0:14::/64', 20);
-    return JSON.stringify(state.ipam.prefixes.map(p => [p.cidr, p.vlan]));
+    setPropsSectionState('floor-nets', false);
+    selType = null; selId = null; renderProps();
+    const before = JSON.stringify(state.ipam.prefixes);
+    // la funzione dietro l'azione delegata 'net-goto' del chip
+    openNetInNets(prefixKey('192.168.20.0/24'));
+    const html = document.getElementById('props-panel').innerHTML;
+    const nets = html.slice(html.indexOf('data-section="floor-nets"'));
+    return JSON.stringify({
+      sectionOpened: _propsSectionIsOpen('floor-nets'),
+      openKeys: [..._prefixOpen],
+      detailOf: (/net-detail-hd[\\s\\S]*?<b>([^<]+)</.exec(nets) || [])[1],
+      unchanged: JSON.stringify(state.ipam.prefixes) === before,
+    });
   })()`);
-  assert.deepStrictEqual(JSON.parse(out), [
-    ['192.168.20.0/24', 20], ['2001:db8:0:14::/64', 20],
-  ]);
+  const r = JSON.parse(out);
+  assert.strictEqual(r.sectionOpened, true, '«Reti» si apre se era chiusa');
+  assert.deepStrictEqual(r.openKeys, ['192.168.20.0/24'], 'si apre il dettaglio di QUELLA rete');
+  assert.strictEqual(r.detailOf, '192.168.20.0/24');
+  assert.strictEqual(r.unchanged, true, 'navigare non scrive: il documento non si muove');
 });
 
 test('la card VLAN: un gateway orfano non sparisce dalla vista', () => {

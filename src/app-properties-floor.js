@@ -19,7 +19,7 @@ import { expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, normalizeNumber } from './app-util.js';
 import { registerClickActions, registerChangeActions, registerInputActions } from './app-delegation.js';   // ASSE B: handler del pannello floor via event delegation (ex on* inline)
-import { _propsSectionIsOpen, _buildPropsHeader } from './app-properties.js';   // ritiro ponte: lettura stato sezioni (ex win.*)
+import { _propsSectionIsOpen, _buildPropsHeader, setPropsSectionState, renderProps } from './app-properties.js';   // ritiro ponte: lettura/scrittura stato sezioni + resa (ex win.*)
 import { _isVoiceVlan, _siteNativeVlan,
          clearAllVlans, toggleGuestVlan, toggleMgmtVlan, toggleSiteNativeVlan,
          toggleVoiceVlan, _openVoiceAssignDialog, deleteVlanColor, addVlanColor,
@@ -46,13 +46,7 @@ registerClickActions({
     // l'occupazione e' del prefisso, e una rete senza VLAN non aveva candidati.
     'adopt-from-leases':  (el) => openAdoptFromPrefix(el.dataset.key),
     'vlan-clear-all':     () => clearAllVlans(),
-    // Dalla card VLAN si dichiara l'APPARTENENZA: la rete nasce gia' su questa VLAN.
-    'vlan-nets-add':      (el) => {
-        const row = el.closest('.net-addrow');
-        const input = row && row.querySelector('input');   // scoped alla riga, mai una query nuda
-        if(!input) return;
-        addDeclaredNetworks(input.value, _vid(el));
-    },
+    'net-goto':           (el) => openNetInNets(el.dataset.key),
     'vlan-guest-toggle':  (el) => toggleGuestVlan(_vid(el)),
     'vlan-mgmt-toggle':   (el) => toggleMgmtVlan(_vid(el)),
     'vlan-native-toggle': (el) => toggleSiteNativeVlan(_vid(el)),
@@ -73,7 +67,7 @@ registerClickActions({
         const row = el.closest('.net-addrow');
         const input = row && row.querySelector('input');   // scoped alla riga, mai una query nuda
         if(!input) return;
-        addDeclaredNetworks(input.value, null);
+        addDeclaredNetworks(input.value);
     },
     'map-upload':         () => document.getElementById('map-upload')?.click(),
     'bg-lock-toggle':     () => toggleBgImageLock(),
@@ -130,14 +124,32 @@ function _ipamOccHtml(u, vid, key){
                       </div>`;
 }
 
-// ── Card VLAN: il campo di APPARTENENZA ─────────────────────────────────────
-// Da qui si dice QUALI reti stanno su questa VLAN; da «Reti» si dice com'e' fatta
-// una rete. Due porte, un'autorita': tutte e due chiamano le stesse funzioni sullo
-// stesso array, nessuna tiene una copia.
-// ⚠️ Il bottone del chip e' ⊘ e STACCA (`vlan` → null): la rete resta nel documento,
-// col suo gateway e il suo DNS. Cancellarla e' la × di «Reti», ed e' un'altra cosa.
-// Passa da `prefix-clear`, che svuota un campo e non sa nemmeno rimuovere una riga:
-// scambiare i due gesti, da qui, non e' possibile.
+// Dal chip della card VLAN alla rete: apre «Reti», apre il dettaglio di QUELLA rete
+// e ci porta sopra. Sola NAVIGAZIONE — non scrive niente nel documento:
+// l'appartenenza si cambia dalla tendina del dettaglio, che è il posto dove il
+// campo vive.
+export function openNetInNets(key){
+    if(!key) return;
+    setPropsSectionState('floor-nets', true);
+    store._prefixOpen.add(key);
+    renderProps();
+    // Query SCOPED al pannello appena riscritto (mai una nuda sul documento).
+    // Lo scorrimento è cosmetico: se non trova la riga, la rete è comunque aperta.
+    const panel = document.getElementById('props-panel');
+    const row = (panel && typeof panel.querySelector === 'function')
+        ? panel.querySelector(`.net-prow[data-key="${key.replace(/"/g, '\\"')}"]`) : null;
+    if(row && typeof row.scrollIntoView === 'function') row.scrollIntoView({ block: 'center' });
+}
+
+// ── Card VLAN: le reti che la CITANO, in sola lettura ───────────────────────
+// Un prefisso ha AL MASSIMO una VLAN: e' una relazione molti-a-uno, e il campo
+// esiste da un lato solo — sulla rete. Scriverla anche da qui voleva dire dare
+// semantica «aggiungi/togli» a un campo singolo, ed e' da li' che nasceva
+// l'ambiguita' fra ⊘ (stacca) e × (cancella): due gesti a un centimetro l'uno
+// dall'altro, che sono servite tre righe di manuale a distinguere.
+// Ora la card MOSTRA le sue reti e ci porta. Cambiarle si fa dove il campo vive,
+// cioe' nel dettaglio della rete in «Reti»: un'assegnazione, un posto.
+// (Il legame con l'SVI resta invece qui: `gatewayNodeId` e' della VLAN davvero.)
 function _vlanNetsHtml(vid, prefixes){
     const chips = prefixes.map(p => {
         const key = prefixKey(p.cidr);
@@ -145,18 +157,14 @@ function _vlanNetsHtml(vid, prefixes){
         const occ = !u.cidr ? t('floor.hintBadCidr')
             : u.capacity ? `${u.usedCount}/${u.capacity}`
             : `${Number(u.usedCount)} IP`;   // v6: nessuna capacita', solo gli indirizzi visti
-        return `<span class="net-chip${u.cidr?'':' bad'}">
+        return `<button type="button" class="net-chip${u.cidr?'':' bad'}" data-act="net-goto" data-key="${escapeHTML(key)}" data-tip="${t('floor.netGoto')}">
                     <span class="net-chip-cidr">${escapeHTML(p.cidr||'')}</span>
                     <span class="net-chip-occ">${escapeHTML(occ)}</span>
                     ${p.source==='dcim'?`<span class="drift-net-tag is-decl" data-tip="${t('floor.netFromDcim')}"><i class="fas fa-database"></i></span>`:''}
-                    <button type="button" class="net-chip-x" data-act="prefix-clear" data-key="${escapeHTML(key)}" data-field="vlan" data-tip="${t('floor.netDetach',{vid})}"><i class="fas fa-ban"></i></button>
-                  </span>`;
+                  </button>`;
     }).join('');
-    return `${chips ? `<div class="net-chipfield">${chips}</div>` : `<div class="vlan-ipam-hint">${t('floor.netNone')}</div>`}
-                  <div class="net-addrow">
-                    <input type="text" placeholder="${t('floor.netPh',{vid})}">
-                    <button class="toolbar-btn" data-act="vlan-nets-add" data-vid="${Number(vid)}"><i class="fas fa-plus"></i> ${t('floor.netAdd')}</button>
-                  </div>`;
+    return chips ? `<div class="net-chipfield">${chips}</div>`
+                 : `<div class="vlan-ipam-hint">${t('floor.netNone')}</div>`;
 }
 
 // ── Sezione «Reti» ──────────────────────────────────────────────────────────
@@ -491,4 +499,4 @@ export function _renderFloorProps(panel){
 }
 
 // Chiamato dal dispatcher renderProps() (app-properties.js, ancora classic).
-expose({ _renderFloorProps });
+expose({ _renderFloorProps, openNetInNets });

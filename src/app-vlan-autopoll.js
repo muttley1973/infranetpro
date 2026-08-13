@@ -578,18 +578,20 @@ export function updateVlanIpam(v, field, value){
 // sarebbero due posti dove decidere cosa fare di un doppione, della normalizzazione
 // e del passo di storia — destinati a divergere.
 //
-// Il campo a chip: una lista separata da virgole, da «Reti» o dalla card VLAN.
-// Le reti valide entrano in UN SOLO passo di storia — un gesto dell'utente, un
-// annulla — e quello che non si parsa resta nel campo, in rosso (`store._netsBad`),
-// invece di sparire senza dirlo. Un doppione non è un errore: si segnala e basta.
-export function addDeclaredNetworks(raw, vid){
+// Il campo di «Reti»: una lista separata da virgole. Le reti valide entrano in UN
+// SOLO passo di storia — un gesto dell'utente, un annulla — e quello che non si
+// parsa resta nel campo, in rosso (`store._netsBad`), invece di sparire senza
+// dirlo. Un doppione non è un errore: si segnala e basta.
+// Una rete NASCE senza VLAN e basta: l'appartenenza si scrive dalla tendina del
+// dettaglio, che è l'unico posto dove quel campo si tocca. Un parametro `vid` qui
+// sarebbe una seconda strada per la stessa assegnazione.
+export function addDeclaredNetworks(raw){
     const { ok, bad } = parseNetworkList(raw);
     const dup = ok.filter(c => findPrefix(store.state, c));
     const fresh = ok.filter(c => !findPrefix(store.state, c));
     if(fresh.length){
         pushHistory();
-        for(const cidr of fresh) upsertPrefix(store.state, { cidr, vlan: vid == null ? null : +vid, source: 'manual' });
-        if(vid != null && typeof _ensureVlanColor === 'function') _ensureVlanColor(+vid);
+        for(const cidr of fresh) upsertPrefix(store.state, { cidr, vlan: null, source: 'manual' });
         migrateIpam(store.state);   // un gateway rimasto orfano entra nel prefisso appena nato
         // Una sola rete dichiarata nasce aperta: c'è da compilare gateway e DNS.
         // Dichiarandone parecchie in un colpo, aprirle tutte è rumore.

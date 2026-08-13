@@ -12,7 +12,7 @@
 - **`prefixes` in the REST inventory** (`/api/v1/projects/:id`): every declared network with its VLAN (`null` when it has none), name, gateway, DNS and provenance. `vlans[].subnet` keeps its shape and its meaning of "the VLAN's IPv4 prefix".
 
 ### Changed
-- **The VLAN card says which networks, not how they are built.** The IPAM drawer behind the grid icon is gone; in its place a membership field, where the button detaches a network from the VLAN instead of deleting it — the network stays in the document with its gateway and DNS. Deleting is done from "Networks", which is the door where a network exists or does not. Both write through the same functions on the same array, so neither holds a copy.
+- **The VLAN card shows its networks and takes you to them; it does not write them.** The IPAM drawer behind the grid icon is gone, and so is the membership field that briefly replaced it: a network has at most one VLAN, so that field exists on one side only — on the network. Giving the VLAN card an add/detach for a single-valued field is what made "take it off this VLAN" and "delete it" look alike. Clicking a network on the card opens its row under "Networks", where the dropdown sets or clears the VLAN. The card still writes the gateway device, which is an attribute of the VLAN.
 
 ### Fixed
 - **Adopt from leases reached no candidates for a network with no VLAN**, because it asked for "the leases of VLAN N" while occupancy was always computed from the prefix. It now takes the prefix. A lease adopted from a network without a VLAN no longer lands in a "VLAN 0" that does not exist.

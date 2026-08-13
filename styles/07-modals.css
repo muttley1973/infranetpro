@@ -480,8 +480,10 @@
         /* Dentro la card VLAN i chip si allineano sotto il nome, non sotto l'etichetta
            «VLAN nn»: stessa rientranza dei campi, cosi` la colonna resta una sola. */
         .vlan-ipam-card > .net-chipfield,
-        .vlan-ipam-card > .net-addrow,
         .vlan-ipam-card > .vlan-ipam-hint { margin-left:68px; }
+        /* Il chip della card VLAN e' un <button>: porta alla rete, non la modifica. */
+        button.net-chip { cursor:pointer; font-family:inherit; font-size:var(--fs-xs); }
+        button.net-chip:hover { border-color:rgba(0,212,255,.35); background:rgba(0,212,255,.08); }
         .net-chip { display:inline-flex; align-items:center; gap:6px; padding:3px 4px 3px 8px; border-radius:14px; font-size:var(--fs-xs); background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); }
         .net-chip.sel { border-color:rgba(0,212,255,.35); background:rgba(0,212,255,.08); }
         .net-chip.bad { border-color:rgba(248,81,73,.4); background:rgba(248,81,73,.07); }
