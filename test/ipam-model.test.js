@@ -7,7 +7,46 @@ const assert = require('node:assert/strict');
 const {
   ensureIpam, prefixesOf, prefixesForVlan, prefixesWithoutVlan,
   prefixForIp, findPrefix, upsertPrefix, removePrefix, migrateIpam, prefixKey,
+  parseNetworkList,
 } = require('../lib/ipam-model.js');
+
+// ---- parseNetworkList (lettura dell'input del campo a chip) -----------------
+
+test('parseNetworkList: due reti separate da virgola, v4 e v6', () => {
+  assert.deepEqual(parseNetworkList('192.168.20.0/24, 2001:db8:0:14::/64'),
+    { ok: ['192.168.20.0/24', '2001:db8:0:14::/64'], bad: [] });
+});
+
+test('parseNetworkList: cio` che non si parsa resta INTERO in bad', () => {
+  const r = parseNetworkList('192.168.999.0/24');
+  assert.deepEqual(r.ok, []);
+  assert.deepEqual(r.bad, ['192.168.999.0/24']);
+});
+
+test('parseNetworkList: misto — il buono passa, il cattivo si segnala', () => {
+  const r = parseNetworkList('10.0.0.0/8, pippo, 2001:db8::/32');
+  assert.deepEqual(r.ok, ['10.0.0.0/8', '2001:db8::/32']);
+  assert.deepEqual(r.bad, ['pippo']);
+});
+
+test('parseNetworkList: doppioni → uno solo, vince il primo scritto', () => {
+  // Stessa rete scritta in tre modi: normalizzata, con un host dentro, in maiuscolo.
+  const r = parseNetworkList('192.168.20.0/24, 192.168.20.7/24, 2001:DB8:0:14::/64, 2001:db8:0:14::/64');
+  assert.deepEqual(r.ok, ['192.168.20.0/24', '2001:db8:0:14::/64']);
+  assert.deepEqual(r.bad, []);
+});
+
+test('parseNetworkList: virgole vuote e spazi ignorati (non sono errori)', () => {
+  assert.deepEqual(parseNetworkList('  , 10.0.0.0/30 ,,  '), { ok: ['10.0.0.0/30'], bad: [] });
+  assert.deepEqual(parseNetworkList(''), { ok: [], bad: [] });
+  assert.deepEqual(parseNetworkList(null), { ok: [], bad: [] });
+});
+
+test('parseNetworkList: normalizza come «Scopri» — host azzerato, nudo → /24 e /64', () => {
+  assert.deepEqual(parseNetworkList('192.168.10.7').ok, ['192.168.10.0/24']);
+  assert.deepEqual(parseNetworkList('2001:db8:0:14::5').ok, ['2001:db8:0:14::/64']);
+  assert.deepEqual(parseNetworkList('10.1.2.200/23').ok, ['10.1.2.0/23']);
+});
 
 // Stato in formato 2.8.x: la subnet e` un campo della VLAN.
 const legacy = () => ({
