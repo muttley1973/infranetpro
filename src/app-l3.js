@@ -129,7 +129,24 @@ function updateVlanGatewayNode(vid, nodeId){
     updateVlanIpam(+vid, 'gatewayNodeId', nodeId || '');
 }
 
-// ── UI: binding nella card IPAM (riga "Device gateway") ───────────────
+// Quale apparato documentato risponde a un indirizzo. Serve accanto all'INDIRIZZO
+// del gateway, nel dettaglio della rete: è lì che l'indirizzo si scrive, quindi è
+// lì che deve comparire «a questo indirizzo non risponde nessuno».
+// Riusa `findNodeByIp` (lib/l3-gateway.js, globale bare) e la stessa definizione di
+// «IP di un device» del report L3 — quella di `_l3BuildModel`, che include l'host
+// SNMP. Diversamente da `rows[vid]`, che guarda solo il prefisso PRINCIPALE della
+// VLAN, questa risponde per QUALSIASI prefisso: anche il v6 e quelli senza VLAN.
+export function _l3DeviceForIp(ip){
+    const addr = String(ip || '').trim();
+    if(!addr) return null;
+    try { return findNodeByIp(_l3BuildModel(false).nodes, addr) || null; }
+    catch(_){ return null; }
+}
+
+// ── UI: binding nella card VLAN (riga "Instradata da") ────────────────
+// Il DEVICE che instrada la VLAN — non il suo indirizzo, che sta sul prefisso e si
+// scrive nel dettaglio della rete. Qui resta perché `gatewayNodeId` è per-VLAN:
+// l'interfaccia SVI è una sola anche quando porta due indirizzi (dual-stack).
 // row = riga gia' calcolata dal report (passata da renderProps per non
 // ricalcolare il report per ogni card).
 export function _l3GatewayBindingHtml(vid, row){
@@ -142,9 +159,14 @@ export function _l3GatewayBindingHtml(vid, row){
     let hint = '', warn = false;
     if(row){
         if(row.status === 'bound') hint = `<i class="fas fa-check"></i> ${t('l3.hintBound',{name:`<b>${esc(row.nodeName)}</b>`})}`;
-        else if(row.status === 'auto') hint = `<i class="fas fa-wand-magic-sparkles"></i> ${t('l3.hintAuto',{name:`<b>${esc(row.nodeName)}</b>`})} <button class="toolbar-btn" style="padding:1px 6px;margin:0 0 0 4px;font-size:0.7rem" data-act="l3-gw-confirm" data-vid="${+vid}" data-node="${esc(row.nodeId)}">${t('common.confirm')}</button>`;
+        // «Dedotto da <ip>»: l'indirizzo che ha prodotto l'aggancio si NOMINA, o la
+        // riga afferma un legame senza dire da dove viene — e l'indirizzo, ora, sta
+        // in un'altra sezione.
+        else if(row.status === 'auto') hint = `<i class="fas fa-wand-magic-sparkles"></i> ${t('l3.hintAuto',{ip:`<b>${esc(row.gateway)}</b>`, name:`<b>${esc(row.nodeName)}</b>`})} <button class="toolbar-btn" style="padding:1px 6px;margin:0 0 0 4px;font-size:0.7rem" data-act="l3-gw-confirm" data-vid="${+vid}" data-node="${esc(row.nodeId)}">${t('common.confirm')}</button>`;
         else if(row.warnings && row.warnings.includes('staleBinding')){ warn = true; hint = `<i class="fas fa-triangle-exclamation"></i> ${t('l3.hintStale')}`; }
-        else if(row.status === 'orphan'){ warn = true; hint = `<i class="fas fa-triangle-exclamation"></i> ${t('l3.hintOrphan',{gw:esc(row.gateway)})}`; }
+        // Lo stato «orfano» (c'è un indirizzo, non risponde nessun apparato) NON si
+        // dice più qui: parlava di un valore che da questa sezione non si vede né si
+        // corregge. Vive accanto all'indirizzo, nel dettaglio della rete.
     }
     return `<div class="prop-group" style="grid-column:1/-1">
         <label>${t('l3.gwDevice')} <span style="font-weight:400;color:var(--text-muted)">${t('l3.gwDeviceSub')}</span></label>

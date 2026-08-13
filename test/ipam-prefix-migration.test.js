@@ -415,6 +415,42 @@ test('la card VLAN: il chip apre «Reti» sulla rete giusta, senza toccare nient
   assert.strictEqual(r.unchanged, true, 'navigare non scrive: il documento non si muove');
 });
 
+test('gateway: l\'INDIRIZZO dice chi risponde, la card VLAN dice quale APPARATO instrada', () => {
+  const out = run(APP.ctx, `(() => {
+    state = _migrateState({ schemaVersion:2, nodes:[
+      { id:'rt1', type:'router', name:'RT1', ip:'192.168.20.1' },
+    ], racks:[], links:[], ports:{}, vlanColors:{ 20:'#00d4ff', 30:'#39d353' }, vlanNames:{},
+      ipam:{ vlans:{}, prefixes:[
+        { cidr:'192.168.20.0/24', vlan:20, gateway:'192.168.20.1' },   // un device ce l'ha
+        { cidr:'10.0.30.0/24', vlan:30, gateway:'10.0.30.254' },        // nessuno ce l'ha
+      ] } });
+    _prefixOpen.clear(); _netsBad = '';
+    togglePrefixOpen(prefixKey('192.168.20.0/24'));
+    togglePrefixOpen(prefixKey('10.0.30.0/24'));
+    selType = null; selId = null; renderProps();
+    const html = document.getElementById('props-panel').innerHTML;
+    const cut = html.indexOf('data-section="floor-nets"');
+    const vlanPart = html.slice(0, cut), nets = html.slice(cut);
+    return JSON.stringify({
+      // «chi risponde a questo indirizzo» sta accanto all'INDIRIZZO, cioè in «Reti»
+      answersInDetail: nets.includes('RT1'),
+      noneInDetail: nets.includes('Nessun apparato documentato ha questo indirizzo'),
+      // e NON nella card VLAN, dove l'indirizzo non si vede né si corregge
+      noOrphanInVlanCard: !vlanPart.includes('non corrisponde a nessun device'),
+      // la card VLAN parla dell'APPARATO, con un nome che non dice «gateway»
+      routedByLabel: vlanPart.includes('Instradata da'),
+      // e quando lo deduce, nomina l'indirizzo da cui l'ha dedotto
+      saysFromWhichIp: vlanPart.includes('dedotto dall') && vlanPart.includes('192.168.20.1'),
+    });
+  })()`);
+  const r = JSON.parse(out);
+  assert.strictEqual(r.answersInDetail, true, 'il dettaglio dice quale apparato risponde all\'indirizzo');
+  assert.strictEqual(r.noneInDetail, true, 'e lo dice anche quando non risponde nessuno');
+  assert.strictEqual(r.noOrphanInVlanCard, true, 'l\'avviso non sta piu` dove l\'IP non si vede');
+  assert.strictEqual(r.routedByLabel, true, '«Instradata da»: e` l\'apparato, non l\'indirizzo');
+  assert.strictEqual(r.saysFromWhichIp, true, 'e dice da quale indirizzo l\'ha dedotto');
+});
+
 test('la card VLAN: un gateway orfano non sparisce dalla vista', () => {
   // Vecchio progetto con il gateway scritto e la subnet no: la migrazione lo
   // lascia sul record VLAN, e la card lo dice invece di ignorarlo.

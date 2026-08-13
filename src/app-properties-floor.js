@@ -27,7 +27,7 @@ import { _isVoiceVlan, _siteNativeVlan,
 import { _enableManualValueInProps, _vlanIpam, _clearPropsTab, toggleAbbrevNames } from './app.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
 import { toggleBgImageLock, scaleBgImage, scaleBgImageTo, fitBgImageToCanvas, clearMap, toggleFloorGrid, setBgImageOpacity } from './app-search-zoom-rack.js';   // ASSE B: azioni immagine di sfondo / griglia (ex on* inline)
 import { openAdoptFromPrefix } from './app-drift-adopt.js';   // ASSE B: adotta lease non documentati (ex onclick inline)
-import { _l3Compute, _l3GatewayBindingHtml } from './app-l3.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
+import { _l3Compute, _l3GatewayBindingHtml, _l3DeviceForIp } from './app-l3.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*) + «chi risponde a questo IP»
 import { _ipamUsageForPrefix } from './app-ipam.js';   // occupazione di UN prefisso (non piu' di una VLAN)
 import { addDeclaredNetworks, removeDeclaredPrefix, updatePrefixField, togglePrefixOpen } from './app-vlan-autopoll.js';   // scritture sulle reti dichiarate
 import { prefixesOf, prefixesForVlan, prefixForIp, prefixKey } from '../lib/ipam-model.js';   // l'autorita' sui prefissi
@@ -219,6 +219,19 @@ function _netVlanOptionsHtml(vid){
         .join('');
 }
 
+// Chi risponde all'INDIRIZZO del gateway. Sta qui e non nella card VLAN perché è
+// qui che l'indirizzo si scrive: dire «non risponde nessuno» in una sezione dove
+// quel valore non si vede è un avviso che non si può eseguire.
+// L'apparato è un'altra cosa dall'indirizzo — il primo lo si va ad aprire, il
+// secondo lo si scrive nei client — e la card VLAN lo dichiara col suo selettore.
+function _netGwDeviceHtml(gw){
+    if(!gw) return '';
+    const dev = _l3DeviceForIp(gw);
+    return dev
+        ? `<div class="vlan-ipam-hint"><i class="fas fa-server"></i> ${t('floor.gwDeviceIs',{name:`<span>${escapeHTML(dev.name || dev.id || '')}</span>`})}</div>`
+        : `<div class="vlan-ipam-hint warn"><i class="fas fa-triangle-exclamation"></i> ${t('floor.gwDeviceNone')}</div>`;
+}
+
 // Il dettaglio della rete aperta: com'e' fatta. La VLAN e' una tendina (— = nessuna),
 // il gateway un chip, il DNS un campo — perche' un gateway la sua rete la trova per
 // CONTENIMENTO, e 1.1.1.1 non cade dentro la rete che serve.
@@ -252,7 +265,8 @@ function _netDetailHtml(p, usage){
                             <button type="button" class="net-chip-x" data-act="prefix-clear" data-key="${escapeHTML(key)}" data-field="gateway" data-tip="${t('floor.netGwClear')}"><i class="fas fa-times"></i></button>
                           </span>
                         </div>
-                        ${usage.gatewayOk?'':`<div class="vlan-ipam-hint warn">${gwHome ? t('floor.gwInOther',{ip:`<b>${escapeHTML(gw)}</b>`,cidr:`<b>${escapeHTML(gwHome.cidr)}</b>`}) : t('floor.gwInNone',{ip:`<b>${escapeHTML(gw)}</b>`})}</div>`}`
+                        ${usage.gatewayOk?'':`<div class="vlan-ipam-hint warn">${gwHome ? t('floor.gwInOther',{ip:`<b>${escapeHTML(gw)}</b>`,cidr:`<b>${escapeHTML(gwHome.cidr)}</b>`}) : t('floor.gwInNone',{ip:`<b>${escapeHTML(gw)}</b>`})}</div>`}
+                        ${_netGwDeviceHtml(gw)}`
                         : `<input value="" placeholder="${t('floor.phGateway',{vid:vid==null?'':vid})}" data-change="prefix-field" data-key="${escapeHTML(key)}" data-field="gateway">`}
                     </div>
                     <div class="prop-group" style="grid-column:1/-1">

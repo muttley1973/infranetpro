@@ -14,6 +14,9 @@
 ### Changed
 - **The VLAN card shows its networks and takes you to them; it does not write them.** The IPAM drawer behind the grid icon is gone, and so is the membership field that briefly replaced it: a network has at most one VLAN, so that field exists on one side only — on the network. Giving the VLAN card an add/detach for a single-valued field is what made "take it off this VLAN" and "delete it" look alike. Clicking a network on the card opens its row under "Networks", where the dropdown sets or clears the VLAN. The card still writes the gateway device, which is an attribute of the VLAN.
 
+### Changed
+- **The two gateways say which one they are.** "Gateway (IP)" is now **the gateway address**, on the network, and "Gateway: device" is **"Routed by"**, on the VLAN — one is what hosts point at, the other is the box you log into when the VLAN stops passing. Where the device was inferred from an address the panel now names that address instead of asserting a link out of nowhere, and "no device holds this address" moved next to the address, in the network detail: it used to appear on the VLAN card, telling you to fix an IP that card does not show.
+
 ### Fixed
 - **Adopt from leases reached no candidates for a network with no VLAN**, because it asked for "the leases of VLAN N" while occupancy was always computed from the prefix. It now takes the prefix. A lease adopted from a network without a VLAN no longer lands in a "VLAN 0" that does not exist.
 - **The overlap audit was blind to more than half of a real plan.** It compared one prefix per VLAN, so networks with no VLAN — 51 out of 90 on a real NetBox — and the second prefix of a dual-stack VLAN were never checked; two overlapping prefixes on the same VLAN were skipped on purpose, which hid a secondary address colliding with the primary.
