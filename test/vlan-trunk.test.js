@@ -141,3 +141,15 @@ test('effLinkVlans: native invalida → fallback VLAN 1', () => {
   const r = V.effLinkVlans({ native: 99999, carried: [20] });
   assert.deepEqual(r.vlans, [1, 20]);
 });
+
+// ---- AUDIT 2026-08-13: fix P5 (trunk manuale rispettato) -------------------
+test('effLinkVlans: trunk forzato a mano resta trunk anche con 1 sola VLAN effettiva', () => {
+  // nativa == trasportata → le VLAN collassano a una, ma l\'utente ha scelto trunk:
+  // vince sulla derivazione e NON è marcato derived.
+  const r = V.effLinkVlans({ manualMode: 'trunk', native: 10, carried: [10] });
+  assert.equal(r.mode, 'trunk');
+  assert.equal(r.derived, false);
+  assert.deepEqual(r.vlans, [10]);
+  // Senza override, la stessa configurazione resta access (derivazione invariata).
+  assert.equal(V.effLinkVlans({ native: 10, carried: [10] }).mode, 'access');
+});

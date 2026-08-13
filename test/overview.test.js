@@ -1591,3 +1591,22 @@ test('② un MAC non si dichiara, si osserva — e le porte libere sono un conto
     spare: { totals: { ports: 8, free: 8, used: 0, suspect: 0 }, racks: [], unracked: [] } }).margin;
   assert.equal(rowOf(marg, 'freePorts').prov, 'derived');
 });
+
+// ---- AUDIT 2026-08-13: fix P2 (prefix-first: reti senza VLAN dichiarate) ----
+test('② prefix-first: una rete dichiarata SENZA VLAN conta come dichiarata (non «da dichiarare»)', () => {
+  const o = buildOverview({
+    types: TYPES, nodes: [{ id: 'sw1', type: 'switch', ip: '10.9.9.5' }],
+    // ipam.prefixes[] è l'autorità: la 10.9.9.0/24 non ha VLAN ma è dichiarata
+    prefixes: [
+      { cidr: '10.9.9.0/24', vlan: null, gateway: '' },
+      { cidr: '192.168.20.0/24', vlan: 20, gateway: '192.168.20.1' },
+    ],
+    networks: [{ net: '10.9.9', cidr: '10.9.9.0/24', ips: ['10.9.9.5', '10.9.9.8'], deviceCount: 2 }],
+  });
+  const gw = rowOf(o.complete, 'gateways');
+  assert.equal(gw.total, 2, 'le reti dichiarate sono 2, compresa quella senza VLAN');
+  assert.deepEqual(gw.items.filter((i) => i.tag === 'noGateway').map((i) => i.id), ['10.9.9.0/24']);
+  const sub = rowOf(o.complete, 'subnets');
+  assert.equal(sub.extra.undeclared, 0, 'gli IP osservati cadono in una rete DICHIARATA (vlan:null)');
+  assert.deepEqual(sub.items.map((i) => i.tag), ['declaredNet']);
+});

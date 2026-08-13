@@ -81,7 +81,12 @@ router.post('/api/ai/preview', (req, res) => {
 // POST chat — la conversazione vera. Assembla system-prompt (grounding) +
 // contesto sanitizzato, poi chiama il provider OpenAI-compatibile (BYO key,
 // server-side). La chiave NON compare mai nella risposta né negli errori.
-router.post('/api/ai/chat', async (req, res) => {
+// requireAdmin: la chat usa la chiave LLM dell'admin (a pagamento) e SPEDISCE il contesto
+// di rete a un provider esterno — un egress. Ogni altra route con egress/scan (poll,
+// discover, integrations/test) è admin-gated: senza questo, un viewer poteva prosciugare
+// la chiave e forzare l'esfiltrazione della topologia. (Se in futuro si vuole dare la chat
+// ai viewer, va fatto con un rate-limit e un budget espliciti, non togliendo il gate.)
+router.post('/api/ai/chat', auth.requireAdmin, async (req, res) => {
   const cfg = aiConfig.getConfigWithKey();        // include la chiave (solo qui, server-side)
   if (!cfg.enabled) return res.status(409).json({ error: 'ai_disabled' });
   if (!cfg.endpoint) return res.status(409).json({ error: 'ai_no_endpoint' });

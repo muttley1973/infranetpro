@@ -222,3 +222,15 @@ test('ensureIpam: costruisce la forma senza toccare cio` che c\'e`', () => {
   assert.deepEqual(empty.prefixes, []);
   assert.deepEqual(empty.vlans, {});
 });
+
+// ---- AUDIT 2026-08-13: fix F6 (chiave VLAN vuota non diventa VLAN 0) --------
+test('migrateIpam: una chiave VLAN vuota non inventa la «VLAN 0»', () => {
+  const st = { ipam: { prefixes: [], vlans: { '': { subnet: '10.0.0.0/24' } } } };
+  migrateIpam(st);
+  assert.equal(st.ipam.prefixes.length, 1);
+  assert.equal(st.ipam.prefixes[0].vlan, null, '`+"" === 0`: la chiave vuota → nessuna VLAN, non la 0');
+  // Una chiave VLAN valida continua a migrare normalmente
+  const st2 = { ipam: { prefixes: [], vlans: { '20': { subnet: '192.168.20.0/24' } } } };
+  migrateIpam(st2);
+  assert.equal(st2.ipam.prefixes[0].vlan, 20);
+});

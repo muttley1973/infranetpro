@@ -273,10 +273,15 @@ function importTopoCrawl(){
         }
         const existing = match.node;
         if(existing){
-            _discTouchNodeIdentity(existing, d, match.matchedBy);
+            // `existingIdx` come 4° arg attiva il filtro anti next-hop-MAC (DISC-A1) anche
+            // sul percorso crawl: senza, un MAC di gateway/proxy-ARP/VRRP poteva diventare
+            // l'identità del nodo. Lo stesso guard è già attivo nel percorso Discovery.
+            _discTouchNodeIdentity(existing, d, match.matchedBy, existingIdx);
             existing.hostname = existing.hostname || d.hostname || '';
             existing.mac = existing.mac || normalizeMacAddress(d.mac || '');
-            if(!existing.name || existing.name === existing.type) existing.name = d.hostname || d.ip || existing.name;
+            // Manual-first: un nome fissato a mano (`nameManual`) non si sovrascrive con la
+            // misura, nemmeno se coincide col type-id. Stessa regola del percorso Discovery.
+            if(!existing.nameManual && (!existing.name || existing.name === existing.type)) existing.name = d.hostname || d.ip || existing.name;
             if(!existing.integration) existing.integration = {};
             const hasDriverChoice = Object.prototype.hasOwnProperty.call(existing.integration, 'driver');
             if(!hasDriverChoice || existing.integration.driver == null){
@@ -323,7 +328,7 @@ function importTopoCrawl(){
                 integration,
             };
         }
-        _discTouchNodeIdentity(n, d, match.matchedBy || 'new');
+        _discTouchNodeIdentity(n, d, match.matchedBy || 'new', existingIdx);
         if(match.conflict?.existing){
             n.discoveryConflicts = [{
                 type:'ip-mac',

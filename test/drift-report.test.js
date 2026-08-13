@@ -656,3 +656,23 @@ test('identità: la riga ignorata segue la condizione (fingerprint sul valore re
   const snmpB = { responded: { 'sw1': true }, measuredIds: { 'sw1': { serialNumber: 'X2' } } };
   assert.equal(buildDriftReport(snmpB, doc, [keyA], {}).counts.identityDrift, 1, 'realtà diversa → nuova key → riappare');
 });
+
+// ---- AUDIT 2026-08-13: fix F2 (chiave ipchg con nodeId + nuovo-IP) ----------
+test('cambio IP: la chiave ipchg porta nodeId E nuovo-IP (no ignore permanente, no collisione VRRP)', () => {
+  const doc = { macs: [{ mac: 'AA:BB:CC:00:00:30', label: 'srv', nodeId: 'srv1', ip: '192.168.1.50' }] };
+  const snmp = { observedMacs: [], reachabilityChecked: true, fdbObserved: false, presentNodeIds: {},
+                 macAtIp: { 'aa:bb:cc:00:00:30': '192.168.1.60' } };
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.ipChanged[0].key, 'ipchg:srv1:192.168.1.60',
+    'la chiave include il nodeId (disambigua i MAC VRRP condivisi) e il nuovo-IP (fingerprint della condizione)');
+  // Due nodi con lo STESSO MAC (VRRP) e doc-IP stantii → chiavi DIVERSE (no collisione)
+  const doc2 = { macs: [
+    { mac: 'AA:BB:CC:00:00:99', label: 'a', nodeId: 'rtA', ip: '10.0.0.2' },
+    { mac: 'AA:BB:CC:00:00:99', label: 'b', nodeId: 'rtB', ip: '10.0.0.3' },
+  ] };
+  const snmp2 = { observedMacs: [], reachabilityChecked: true, fdbObserved: false, presentNodeIds: {},
+                  macAtIp: { 'aa:bb:cc:00:00:99': '10.0.0.9' } };
+  const r2 = buildDriftReport(snmp2, doc2, [], {});
+  const keys = new Set(r2.ipChanged.map((x) => x.key));
+  assert.equal(keys.size, r2.ipChanged.length, 'chiavi distinte per nodo, anche con MAC condiviso');
+});

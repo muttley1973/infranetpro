@@ -13,7 +13,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
-import { getNodeDisplayName, _ipamUsageForPrefix } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { getNodeDisplayName, _ipamUsageForPrefix, getNodeByPortId } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: voce menu Report + report L3 (template dinamico) via event delegation
 import { _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte: builder pannello (ex win.*)
 import { closeReportMenu } from './app-auth.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
@@ -67,6 +67,27 @@ function _vmIpNodes(){
     return out;
 }
 
+// Indirizzi di INTERFACCIA (2.8.2): un router risponde con un IP per porta. Ogni IP di
+// porta entra come indirizzo del suo device (id = nodo reale, così il gateway che coincide
+// con un IP di porta risolve al device che lo tiene invece di risultare «orfano», e l'audit
+// duplicati lo vede). NON si ri-emette l'indirizzo che il device ha GIÀ come ip/ip6: un
+// router il cui IP di gestione è anche un IP di porta non è un duplicato di se stesso.
+function _portIpNodes(){
+    const out = [];
+    // `addrKey` come GLOBALE NUDO (cidr.js è uno <script>, come in app-ipam.js): non passa
+    // dal ponte win.* → il cricchetto delle letture win.* resta invariato.
+    const _k = a => (typeof addrKey === 'function') ? addrKey(a || '') : String(a == null ? '' : a).trim();
+    for(const [pid, pi] of Object.entries(store.state.ports || {})){
+        if(!pi || !pi.ip) continue;
+        const nd = getNodeByPortId(pid);
+        if(!nd) continue;
+        const k = _k(pi.ip);
+        if(k === _k(nd.ip) || k === _k(nd.ip6)) continue;
+        out.push({ id: nd.id, name: getNodeDisplayName(nd) || nd.name || nd.id, ip: pi.ip, ip6: '', type: nd.type });
+    }
+    return out;
+}
+
 function _l3BuildModel(withUsage, opts){
     const vlanColors = store.state.vlanColors || {};
     const vlans = Object.keys(vlanColors).map(v => {
@@ -94,6 +115,7 @@ function _l3BuildModel(withUsage, opts){
     // risoluzione del gateway: quel binding pilota badge e tendine sui nodi VERI
     // del progetto, e una VM non è un nodo. In coda alla lista, così un device
     // fisico con lo stesso IP resta comunque il primo match del gateway.
+    nodes.push(..._portIpNodes());    // gli IP di porta risolvono il gateway al device che li tiene
     if(opts && opts.withVmIps) nodes.push(..._vmIpNodes());
     // L'occupazione è del PREFISSO, non della VLAN: chiave = il cidr come dichiarato.
     const usageByCidr = {};

@@ -544,7 +544,11 @@ function _snmpVlanToUi(v, prev){
     // letta da SNMP vince invece sempre (aggiorna il documento). Vale su QUALSIASI vendor.
     if(n === 1 && Number.isFinite(prev) && prev > 1) return prev;
     if(Number.isFinite(n) && n > 0) return n;
-    return prev ?? 1;
+    // Misura ASSENTE (undefined/0) e nessun valore precedente: NON si scrive «VLAN 1»
+    // come se fosse stata misurata (② no-invenzioni). Si tiene il precedente (che può
+    // essere undefined → nessuna VLAN documentata su quella porta); la nativa la
+    // derivano i lettori (_effPortVlan) da chi è AUTOREVOLE, non un default fabbricato.
+    return Number.isFinite(prev) ? prev : undefined;
 }
 function _snmpNameToUi(v, prev){
     const s = String(v || '').trim();

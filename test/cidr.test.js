@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { _parseIpv4Int, _parseCidrInfo, _ipInCidr, _cidrsOverlap, _intToIpv4, subnetInputToCidr,
-        addrFamily, addrKey } = require('../lib/cidr.js');
+        addrFamily, addrKey, addrIsLinkLocalV6 } = require('../lib/cidr.js');
 
 test('_parseIpv4Int: parsing e validazione ottetti', () => {
   assert.equal(_parseIpv4Int('0.0.0.0'), 0);
@@ -201,4 +201,24 @@ test('addrKey: due scritture dello stesso IPv6 hanno la STESSA chiave', () => {
   // diverse (due hostname non diventano lo stesso "indirizzo").
   assert.equal(addrKey('gggg::1'), 'gggg::1');
   assert.notEqual(addrKey('gggg::1'), addrKey('hhhh::1'));
+});
+
+// ---- AUDIT 2026-08-13: fix F1 (addrKey v4 canonico) + F5 (link-local) ------
+test('addrKey: IPv4 con zeri iniziali collassa sulla forma canonica (F1)', () => {
+  // Il validatore accetta "192.168.001.005" (decimale) → la chiave dev\'essere la
+  // stessa di "192.168.1.5", altrimenti due grafie contano come due indirizzi.
+  assert.equal(addrKey('192.168.001.005'), addrKey('192.168.1.5'));
+  assert.equal(addrKey('192.168.001.005'), '192.168.1.5');
+  assert.equal(addrKey('10.0.0.1'), '10.0.0.1');          // già canonico: invariato
+  assert.equal(addrKey('switch-01'), 'switch-01');        // non-IPv4 senza ':' → sé stesso
+});
+
+test('addrIsLinkLocalV6: riconosce fe80::/10, non il global/ULA (F5)', () => {
+  assert.equal(addrIsLinkLocalV6('fe80::1'), true);
+  assert.equal(addrIsLinkLocalV6('febf::1'), true);        // ancora dentro /10
+  assert.equal(addrIsLinkLocalV6('fec0::1'), false);       // fuori /10
+  assert.equal(addrIsLinkLocalV6('2001:db8::1'), false);
+  assert.equal(addrIsLinkLocalV6('fd00::1'), false);       // ULA, non link-local
+  assert.equal(addrIsLinkLocalV6('10.0.0.1'), false);
+  assert.equal(addrIsLinkLocalV6(''), false);
 });

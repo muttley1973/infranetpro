@@ -29,7 +29,7 @@ import { _ipamAuditReport } from './app-l3.js';   // ② «Vero»: igiene IPAM (
 import { wifiVlanCoherence } from './app-wifi.js';   // ⑤ «Sicurezza»: coerenza VLAN wireless (stesso motore del vecchio report, ora assorbito nella Dashboard)
 import { buildOverview, _rackFill } from '../lib/overview.js';
 import { computeHealthAlerts } from '../lib/health-alerts.js';   // ⑥ Salute live: soglie DOCUMENTATE una volta sola (le stesse che legge l'assistente AI)
-import { ipamByVidView } from '../lib/ipam-model.js';   // vista per-VLAN derivata dai prefissi dichiarati
+import { ipamByVidView, prefixesOf } from '../lib/ipam-model.js';   // vista per-VLAN + l'autorità prefix-first
 
 // La vista corrente e' una preferenza DELL'UTENTE su QUESTA macchina, non un
 // dato del progetto: se vivesse in `state` riaprirebbe il bug chiuso il
@@ -301,6 +301,7 @@ function _buildModel() {
     return {
         nodes, types: TYPES, links: Array.isArray(st.links) ? st.links : [], portMacNodeIds, portMacById, macToNode, presence,
         ipamVlans: ipamByVidView(st),
+        prefixes: prefixesOf(st),   // prefix-first: TUTTE le reti dichiarate (anche senza VLAN, e i 2° prefissi dual-stack)
         vlanIdsInUse, vlanNames: st.vlanNames || {}, measuredVlanNames,
         spare: buildSpareReport(spareDevices), sfpTotal, rackFill, networks, ipamAudit,
         caps, fleet: computeFleetCapabilities(caps.map((x) => x.caps)), liveHealth,

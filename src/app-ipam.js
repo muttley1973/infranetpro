@@ -8,7 +8,7 @@
 // ============================================================
 import { expose } from "./_bridge.js";
 import { store } from "./store.js";
-import { getNodeDisplayName } from "./app.js";   // ciclo benigno: uso solo a runtime (dentro _collectKnownIps)
+import { getNodeDisplayName, getNodeByPortId } from "./app.js";   // ciclo benigno: uso solo a runtime (dentro _collectKnownIps)
 import { normalizeMacAddress } from "./app-util.js";
 import { vmIps, vmIp6s } from "../lib/vm-nics.js";   // indirizzi di tutte le vNIC (stesso import di app.js: esbuild deduplica)
 import { ensureIpam, vlanIpamView } from "../lib/ipam-model.js";   // l'autorita' sui prefissi: la subnet non e' piu' un campo della VLAN
@@ -86,6 +86,16 @@ function _collectKnownIps(){
             for(const rec of vmIps(vm)) _add(rec && rec.ip, label);     // vmIps  → [{nicId,name,ip}]
             for(const rec of vmIp6s(vm)) _add(rec && rec.ip6, label);   // vmIp6s → [{nicId,name,ip6}]
         }
+    }
+    // Indirizzi di INTERFACCIA (2.8.2, `state.ports[pid].ip`): un router risponde con
+    // un IP per porta, e quegli indirizzi OCCUPANO la subnet esattamente come l'IP di
+    // gestione — senza, l'occupazione era sottostimata e `nextFree` poteva proporre un
+    // IP di porta gia' in uso. La chiave `addrKey` dedup-a un IP di porta uguale al
+    // mgmt (conta una volta sola).
+    for(const [pid, pi] of Object.entries(state.ports || {})){
+        if(!pi || !pi.ip) continue;
+        const nd = getNodeByPortId(pid);
+        _add(pi.ip, nd ? (getNodeDisplayName(nd) || nd.name || nd.id) : pid);
     }
     // Ordine: prima gli IPv4 (numerico, 1.2.3.4 < 1.2.3.40), poi gli IPv6. Un
     // ordinamento unico misto metterebbe "2001:…" in mezzo ai "192.168…", e questa

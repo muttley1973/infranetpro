@@ -541,6 +541,15 @@ export function _migrateState(s) {
     if (s.uiColors.rackBg === '#0d1117') s.uiColors.rackBg = '#ffffff';
     if (!s.vlanColors || !Object.keys(s.vlanColors).length)
         s.vlanColors = {10:'#00d4ff',20:'#ff00d4',30:'#39d353',40:'#f1e05a',99:'#f85149'};
+    // Sicurezza: i colori VLAN finiscono NUDI in `style="color:${c}"` (pannello VLAN,
+    // cavi, topologia). Dalla UI vengono da <input type=color> (#rrggbb), ma un progetto
+    // JSON IMPORTATO può portare un valore ostile (`red" onmouseover="…`) che esce
+    // dall'attributo style e arma un handler = XSS stored. Qui, all'apertura, ogni colore
+    // non conforme a #rrggbb torna al grigio neutro: un sink solo, chiuso a monte.
+    if (s.vlanColors && typeof s.vlanColors === 'object')
+        for (const k of Object.keys(s.vlanColors))
+            if (!/^#[0-9a-fA-F]{6}$/.test(String(s.vlanColors[k] == null ? '' : s.vlanColors[k]).trim()))
+                s.vlanColors[k] = '#8b949e';
     if(!s.vlanColors[1]) s.vlanColors[1] = '#8b949e';
     if (!s.vlanNames)     s.vlanNames = {};
     if (!s.ipam) s.ipam = { vlans:{} };

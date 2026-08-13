@@ -801,3 +801,28 @@ test('A2: inferito SENZA copertura trusted resta (unica evidenza dell\'adiacenza
   const r = suppressInferredDuplicates(links, _pn);
   assert.equal(r.removed.length, 0);
 });
+
+// ---- AUDIT 2026-08-13: fix R2 (LLDP+MAC è trusted) + F4 (parità IPv6) -------
+test('suppressInferredDuplicates: un link corroborato LLDP+MAC copre la porta e sopprime il doppione INFERRED', () => {
+  const portNodeId = (pid) => String(pid).split('-')[0];
+  const links = [
+    { id: 'l1', src: 'sw1-1', dst: 'rt1-3', autoLinked: true, protocol: 'LLDP+MAC' }, // adiacenza vera
+    { id: 'l2', src: 'sw1-1', dst: 'rt1-9', autoLinked: true, protocol: 'INFERRED' }, // doppione, porta inventata
+  ];
+  const { removed, links: kept } = suppressInferredDuplicates(links, portNodeId);
+  assert.deepEqual(removed.map((l) => l.id), ['l2'], 'il doppione INFERRED va rimosso anche nel caso corroborato');
+  assert.deepEqual(kept.map((l) => l.id), ['l1']);
+  // due link INFERRED indipendenti (nessuna copertura trusted) non si toccano
+  assert.equal(suppressInferredDuplicates(
+    [{ id: 'x', src: 'a-1', dst: 'b-1', autoLinked: true, protocol: 'INFERRED' }], portNodeId).removed.length, 0);
+});
+
+test('matchNodeByIdent: aggancia per l\'IPv6 di gestione, per identità e non per grafia (F4)', () => {
+  const nodes = [{ id: 'rt1', name: 'core', hostname: '', ip: '', ip6: '2001:DB8:0:20:0:0:0:1' }];
+  // il vicino annuncia il mgmt v6 in forma canonica: deve agganciare comunque
+  assert.equal(matchNodeByIdent('', '2001:db8:0:20::1', nodes)?.id, 'rt1');
+  // un v6 diverso non aggancia
+  assert.equal(matchNodeByIdent('', '2001:db8:0:20::2', nodes), null);
+  // l'IPv4 continua a funzionare
+  assert.equal(matchNodeByIdent('', '10.0.0.1', [{ id: 'a', ip: '10.0.0.1' }])?.id, 'a');
+});

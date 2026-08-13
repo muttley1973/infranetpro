@@ -210,3 +210,28 @@ test('buildIpamAudit: modello vuoto → nessun crash', () => {
   assert.deepEqual(out.duplicateIps, []);
   assert.deepEqual(out.subnetOverlaps, []);
 });
+
+// ---- AUDIT 2026-08-13: fix F5 (link-local per-link) + F1 (v4 canonico) ------
+test('findDuplicateIps: fe80::1 su due nodi NON è un duplicato (RFC 4007, per-link)', () => {
+  const dup = findDuplicateIps([
+    { id: 'rt1', name: 'router-A', ip: '10.0.0.1', ip6: 'fe80::1' },
+    { id: 'rt2', name: 'router-B', ip: '10.0.1.1', ip6: 'fe80::1' },
+  ]);
+  assert.equal(dup.length, 0, 'stesso link-local su segmenti diversi è legale');
+});
+
+test('findDuplicateIps: un IPv6 GLOBAL su due nodi resta un duplicato', () => {
+  const dup = findDuplicateIps([
+    { id: 'a', name: 'A', ip6: '2001:db8::10' },
+    { id: 'b', name: 'B', ip6: '2001:DB8:0:0:0:0:0:10' },   // stessa identità, altra grafia
+  ]);
+  assert.equal(dup.length, 1);
+});
+
+test('findDuplicateIps: IPv4 con grafie diverse (zeri iniziali) è un duplicato', () => {
+  const dup = findDuplicateIps([
+    { id: 'a', name: 'A', ip: '192.168.1.5' },
+    { id: 'b', name: 'B', ip: '192.168.001.005' },
+  ]);
+  assert.equal(dup.length, 1, 'stesso IPv4 scritto in due modi = un conflitto');
+});
