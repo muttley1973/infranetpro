@@ -893,3 +893,50 @@ test('prefissi: senza doppioni ne` reti orfane, nessuna delle due righe compare'
   assert.equal(report.issues.some(i => i.code === 'prefix.noVlan'), false);
   assert.equal(report.issues.some(i => i.code === 'prefix.multiPerVlan'), false);
 });
+
+// ── Indirizzi dichiarati che non entrano ─────────────────────────────────────
+// Su un NetBox vero: 180 dichiarati, 180 senza apparato, 0 importati. Il numero
+// era esatto e il silenzio no — «Indirizzi IP 0» accanto a «Prefissi 90» si
+// legge come un guasto. Il censimento lo misura il server (due `limit=1`); qui
+// si prova la parte che decide se quel numero e` dimostrabile.
+test('IP: quelli senza apparato restano fuori, e l\'import lo dichiara', () => {
+  const nb = fixture();
+  nb.ipCensus = { total: 181, unassigned: 180, sample: ['10.0.5.7/24', '10.0.5.8/24'] };
+  const { report } = map.netboxToState(nb);
+  assert.equal(report.counts.ips, 1, 'entra solo l\'indirizzo agganciato');
+  const iss = report.issues.find(i => i.code === 'ip.unassigned');
+  assert.ok(iss, 'la riga c\'e\': senza, lo zero si legge come un guasto');
+  assert.equal(iss.n, 180);
+  assert.equal(iss.total, 181);
+  assert.equal(iss.imported, 1);
+  // Un numero da solo non si giudica: gli esempi dicono se e` roba che serve.
+  assert.deepEqual(iss.sample, ['10.0.5.7/24', '10.0.5.8/24']);
+});
+
+test('IP: senza censimento non si dichiara niente', () => {
+  const nb = fixture();
+  delete nb.ipCensus;                              // versione che non l'ha misurato
+  const { report } = map.netboxToState(nb);
+  assert.equal(report.issues.some(i => i.code === 'ip.unassigned'), false,
+    'nessun numero e` meglio di un numero inventato');
+});
+
+// La guardia, che e` il punto del blocco. Il filtro «non agganciato» ha un nome
+// che cambia fra le versioni di NetBox: una che non lo conosce puo` IGNORARLO e
+// rispondere col totale. L'invariante che lo smaschera: chi e` entrato E`
+// agganciato, quindi i non agganciati non possono superare (totale - entrati).
+test('IP: un conteggio impossibile non si stampa (filtro caduto nel vuoto)', () => {
+  const nb = fixture();
+  nb.ipCensus = { total: 181, unassigned: 181 };   // 181 liberi su 181, ma 1 e` entrato
+  const { report } = map.netboxToState(nb);
+  assert.equal(report.counts.ips, 1);
+  assert.equal(report.issues.some(i => i.code === 'ip.unassigned'), false,
+    '181 non agganciati con 1 agganciato e` una contraddizione: il filtro non e` stato applicato');
+});
+
+test('IP: se sono tutti agganciati la riga non compare', () => {
+  const nb = fixture();
+  nb.ipCensus = { total: 1, unassigned: 0 };
+  const { report } = map.netboxToState(nb);
+  assert.equal(report.issues.some(i => i.code === 'ip.unassigned'), false);
+});

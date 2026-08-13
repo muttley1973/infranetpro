@@ -165,6 +165,38 @@ async function _pullIpAddresses(client, deviceIds) {
   }
 }
 
+// Quanti indirizzi NetBox DICHIARA, e quanti non sono agganciati a niente.
+// Serve solo a poterlo DIRE: `_pullIpAddresses` filtra per `device_id`, quindi
+// gli indirizzi liberi non tornano e non c'è modo di contarli dal bundle.
+// Misurato su un NetBox vero: 180 dichiarati, 180 senza apparato, 0 importati —
+// e l'anteprima scriveva «Indirizzi IP 0» accanto a «Prefissi 90», che è esatto
+// ma si legge come un guasto.
+// Costa DUE richieste, non 180 pagine: la risposta paginata porta `count`, e con
+// `limit=1` si legge quello senza scaricare le righe.
+// ⚠️ Il nome del filtro per «non agganciato» cambia fra le versioni di NetBox, e
+// una versione che non lo conosce può IGNORARLO e rispondere col totale. Qui si
+// raccoglie e basta; la guardia che scarta un conteggio impossibile sta nel
+// mapper, dov'è pura e testabile. Se una delle due chiamate fallisce si tace:
+// meglio nessun numero che un numero inventato.
+async function _pullIpCensus(client) {
+  const out = {};
+  try {
+    const all = await client.get('/api/ipam/ip-addresses/', { limit: 1 });
+    if (all && Number.isFinite(+all.count)) out.total = +all.count;
+  } catch (_) { /* nessun censimento: l'avviso non si stampa */ }
+  try {
+    // `limit=5` invece di 1: costa uguale e porta gli ESEMPI. Un numero da solo
+    // non si giudica — «180 restano fuori» diventa una domanda, «180 restano
+    // fuori, per esempio 10.0.5.7/24» diventa una risposta.
+    const free = await client.get('/api/ipam/ip-addresses/', { limit: 5, assigned_to_interface: 'false' });
+    if (free && Number.isFinite(+free.count)) out.unassigned = +free.count;
+    if (free && Array.isArray(free.results)) {
+      out.sample = free.results.map(r => (r && typeof r.address === 'string') ? r.address : '').filter(Boolean).slice(0, 5);
+    }
+  } catch (_) { /* filtro non supportato da questa versione: si tace */ }
+  return out;
+}
+
 // Scarica dalla DCIM il bundle per l'import, onorando la selezione: `scope`
 // diventa filtri di query (fetch solo la fetta scelta); `entities` salta intere
 // categorie. Ritorna la forma attesa da lib/dcim-map.js.
@@ -228,16 +260,18 @@ async function _pullForImport(client, sel) {
   }
   if (on('ipam')) {
     const vq = {}; if (has(scope.siteIds)) vq.site_id = scope.siteIds;
-    const [vlans, prefixes, ips] = await Promise.all([
+    const [vlans, prefixes, ips, census] = await Promise.all([
       _paginatedWithFallback(client, '/api/ipam/vlans/', vq, { cap: 20000 }),
       _paginatedWithFallback(client, '/api/ipam/prefixes/', vq, { cap: 20000 }),
       _pullIpAddresses(client, deviceIds),
+      _pullIpCensus(client),
     ]);
     nb.vlans = vlans.results; if (vlans.truncated) nb.truncated = true;
     if (vlans.warning) (nb.warnings || (nb.warnings = [])).push(vlans.warning);
     nb.prefixes = prefixes.results; if (prefixes.truncated) nb.truncated = true;
     if (prefixes.warning) (nb.warnings || (nb.warnings = [])).push(prefixes.warning);
     nb.ipAddresses = ips.results; if (ips.truncated) nb.truncated = true;
+    if (census && (census.total != null || census.unassigned != null)) nb.ipCensus = census;
   }
   return nb;
 }

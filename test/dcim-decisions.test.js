@@ -118,3 +118,25 @@ test('cio\' che non entra sta in cima: le perdite prima delle scelte, le scelte 
   assert.deepEqual(r.info.map(x => x.severity), ['loss', 'loss', 'info']);
   assert.deepEqual(r.decisions.map(x => x.code), ['device.statusNotActive']);
 });
+
+// Gli ESEMPI. Il mapper li raccoglieva gia` (`prefix.noVlan` ne porta cinque) e la
+// forma della riga li dichiarava nel commento in testa al modulo, ma buildDecisions
+// non li trasportava: erano dato morto da prima che questa riga esistesse.
+test('gli esempi arrivano fino alla riga, distinti e senza doppioni', () => {
+  const r = buildDecisions({
+    issues: [
+      { code: 'ip.unassigned', n: 180, sample: ['10.0.5.7/24', '10.0.5.8/24'] },
+      { code: 'ip.unassigned', n: 180, sample: ['10.0.5.8/24', '172.16.2.1/24'] },
+    ],
+    counts: {},
+  });
+  const row = r.info.find(x => x.code === 'ip.unassigned');
+  assert.ok(row, 'la riga c\'e\'');
+  assert.deepEqual(row.sample, ['10.0.5.7/24', '10.0.5.8/24', '172.16.2.1/24'],
+    'unione senza ripetizioni: la riga mostra casi diversi, non lo stesso tre volte');
+});
+
+test('una riga senza esempi non ne inventa', () => {
+  const r = buildDecisions({ issues: [{ code: 'ip.unassigned', n: 3 }], counts: {} });
+  assert.deepEqual(r.info.find(x => x.code === 'ip.unassigned').sample, []);
+});

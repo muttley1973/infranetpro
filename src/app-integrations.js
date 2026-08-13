@@ -597,6 +597,10 @@ function _decisionWhy(row) {
     const lbl = t(lblKey, { list: list.join(' · ') });
     parts.push(lbl === lblKey ? t('dcim.dec.kinds', { list: list.join(' · ') }) : lbl);
   }
+  // Gli esempi per ultimi: la riga dice prima QUANTI e PERCHÉ, poi mostra tre casi.
+  // Senza, «180 indirizzi restano fuori» resta un numero su cui non si può decidere
+  // niente; con, si riconosce al volo se è roba che serve o zavorra.
+  if (row.sample && row.sample.length) parts.push(t('dcim.dec.sample', { list: row.sample.slice(0, 3).join(' · ') }));
   return parts.join(' ');
 }
 

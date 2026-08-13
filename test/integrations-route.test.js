@@ -23,6 +23,8 @@ const express = require('express');
 
 let role = 'admin';
 let rejectSiteIpamFilters = false;
+let unassignedIps = 0;          // indirizzi dichiarati in NetBox e agganciati a niente
+let ignoreAssignedFilter = false;   // simula la versione che non conosce il filtro
 let app, server, base;
 let nb, nbBase;
 
@@ -64,6 +66,19 @@ before(async () => {
     }
     res.writeHead(200, { 'Content-Type': 'application/json' });
     if (p === '/api/status/') return res.end(JSON.stringify({ 'netbox-version': '4.1.3' }));
+    // Indirizzi NON agganciati a un apparato: in NetBox sono la norma e non
+    // tornano dalla fetch per `device_id`. Il censimento li conta con una
+    // seconda chiamata filtrata, e qui il finto NetBox la onora — cosi` il giro
+    // server→mapper si prova per davvero, non solo la funzione pura.
+    if (p === '/api/ipam/ip-addresses/') {
+      if (!ignoreAssignedFilter && url.searchParams.get('assigned_to_interface') === 'false') {
+        // Qualche riga vera: il censimento le usa come ESEMPI nella decisione.
+        const rows = unassignedIps ? [{ id: 900, address: '10.9.9.7/24' }, { id: 901, address: '172.16.2.1/24' }] : [];
+        return res.end(JSON.stringify({ count: unassignedIps, next: null, results: rows }));
+      }
+      const rows = NB[p];
+      return res.end(JSON.stringify({ count: rows.length + unassignedIps, next: null, results: rows }));
+    }
     if (NB[p]) return res.end(JSON.stringify({ count: NB[p].length, next: null, results: NB[p] }));
     res.end(JSON.stringify({ count: 0, next: null, results: [] }));
   });
@@ -239,6 +254,41 @@ test('POST /import IPAM con filtro site_id non supportato → fallback senza blo
   assert.equal(r.status, 200);
   const j = await r.json();
   assert.ok(j.warnings.some(w => /site_id/.test(w)));
+});
+
+// Su un NetBox vero: 180 indirizzi dichiarati, 180 senza apparato, 0 importati.
+// Il conteggio era esatto, il silenzio no — «Indirizzi IP 0» accanto a
+// «Prefissi 90» si legge come un guasto invece che come un confine del modello.
+test('POST /import dry-run → gli IP senza apparato sono DETTI, non taciuti', async () => {
+  unassignedIps = 180;
+  const r = await fetch(`${base}${P}/import`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh: true }),   // il bundle e` in cache dai test prima: qui serve rileggerlo
+  });
+  unassignedIps = 0;
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  assert.equal(j.counts.ips, 1, 'entra solo quello agganciato a un\'interfaccia');
+  const iss = j.issues.find(i => i.code === 'ip.unassigned');
+  assert.ok(iss, 'e gli altri 180 hanno una riga che li dichiara');
+  assert.equal(iss.n, 180);
+  assert.equal(iss.imported, 1);
+  // Gli esempi arrivano dal server fino alla riga: un numero da solo non si giudica.
+  assert.deepEqual(iss.sample, ['10.9.9.7/24', '172.16.2.1/24']);
+});
+
+// La guardia, dal vivo: alcune versioni di NetBox IGNORANO un filtro che non
+// conoscono e rispondono col totale. Qui il finto NetBox fa proprio questo.
+test('POST /import dry-run → un conteggio impossibile non si stampa', async () => {
+  ignoreAssignedFilter = true;    // il filtro cade nel vuoto: risponde col totale
+  unassignedIps = 180;
+  const r = await fetch(`${base}${P}/import`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh: true }),
+  });
+  ignoreAssignedFilter = false;
+  unassignedIps = 0;
+  const j = await r.json();
+  assert.equal(j.issues.some(i => i.code === 'ip.unassigned'), false,
+    '181 non agganciati con 1 agganciato e` una contraddizione: meglio tacere');
 });
 
 test('POST /import commit senza riconciliazione → 409 e nessun progetto', async () => {
