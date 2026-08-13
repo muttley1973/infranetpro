@@ -24,6 +24,8 @@ import { closeReportMenu } from './app-auth.js';   // ritiro ponte: coda funzion
 import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: modale Adotta (template dinamico) via event delegation
 import { createSnapshot } from './app-snapshots.js';   // snapshot pre-adozione (rete di sicurezza)
 import { _driftBuildDocSnapshot, _driftBuildSnmpSnapshot, _renderDriftReport } from './app-drift.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
+import { _dhcpUndocumentedForPrefix } from './app-ipam.js';   // i «solo DHCP» di UNA rete (non piu' di una VLAN)
+import { prefixesOf, prefixKey } from '../lib/ipam-model.js';   // l'autorita' sui prefissi: dalla chiave alla riga
 
 let _adoptRows = [];           // candidati attualmente mostrati nel modal
 
@@ -37,7 +39,7 @@ function _adoptCandidates(filterKey){
 
 // Costruisce i candidati Adotta da righe stile drift.undocumented (FDB o lease):
 // inietta vendor (OUI) e tipo indovinato. Punto unico → un solo aggancio al ponte
-// (riusato da _adoptCandidates e openAdoptFromLeases).
+// (riusato da _adoptCandidates e openAdoptFromPrefix).
 function _adoptBuild(rows){
     return win.buildAdoptCandidates(rows, {
         vendorOf: m => (typeof _discVendorFromMac === 'function' ? _discVendorFromMac(m) : ''),
@@ -88,11 +90,16 @@ function openAdoptModal(filterKey){
     _adoptShowModal();
 }
 
-// Adozione dei "solo DHCP" di una VLAN dalla card IPAM: candidati costruiti
-// DIRETTAMENTE dai lease in cache nella subnet (no Verifica richiesta). Portano
-// IP + hostname → il device adottato nasce già documentato (esce dall'ambra).
-function openAdoptFromLeases(vid){
-    const rows = (typeof _dhcpUndocumentedForVlan === 'function') ? _dhcpUndocumentedForVlan(vid) : [];
+// Adozione dei "solo DHCP" di una RETE: candidati costruiti DIRETTAMENTE dai lease
+// in cache dentro il prefisso (no Verifica richiesta). Portano IP + hostname → il
+// device adottato nasce già documentato (esce dall'ambra).
+// Prende la chiave del prefisso, non il numero di VLAN: l'occupazione è del
+// prefisso, e chiedendo «i lease della VLAN» una rete che una VLAN non ce l'ha non
+// restituiva nessun candidato. `_dhcpUndocumentedForPrefix` è IMPORTATA, non letta
+// come globale con guardia: se sparisse, questo file deve rompersi subito.
+function openAdoptFromPrefix(key){
+    const row = prefixesOf(store.state).find(p => prefixKey(p.cidr) === key);
+    const rows = row ? _dhcpUndocumentedForPrefix(row.cidr, row.gateway || '', row.vlan) : [];
     _adoptRows = _adoptBuild(rows);
     _adoptShowModal();
 }
@@ -246,20 +253,20 @@ function _adoptRecomputeDrift(){
     } catch(_){}
 }
 
-// Superficie pubblica: openAdoptModal (chiamato da app-drift.js) + openAdoptFromLeases
+// Superficie pubblica: openAdoptModal (chiamato da app-drift.js) + openAdoptFromPrefix
 // (da app-properties-floor.js) + le funzioni "testabili" esercitate dall'E2E
 // (_adoptCandidates, _adoptCreateNodes). ASSE B: chiudi/seleziona-tutti/applica del
 // modale sono DELEGATE (data-act/data-change) → non più su window.
 // ASSE B: export per la registrazione delegata nel pannello FLOOR (ex onclick inline
 // nel blocco Occupazione IPAM). Resta anche in expose() per i chiamanti non migrati.
-export { openAdoptFromLeases };
+export { openAdoptFromPrefix };
 expose({
-    openAdoptModal, openAdoptFromLeases,
+    openAdoptModal, openAdoptFromPrefix,
     _adoptCandidates, _adoptCreateNodes,
 });
 
 // ASSE B — modale Adotta: chiudi/seleziona-tutti/applica via event delegation.
-// Le 3 fn escono da expose(); openAdoptModal/openAdoptFromLeases (entry, chiamate
+// Le 3 fn escono da expose(); openAdoptModal/openAdoptFromPrefix (entry, chiamate
 // da app-drift.js/app-properties-floor.js) restano su window per ora.
 registerClickActions({
     'adopt-close': () => _closeAdoptModal(),

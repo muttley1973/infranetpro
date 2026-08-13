@@ -480,6 +480,35 @@
         .vlan-ipam-occ-leg .dot { width:8px; height:8px; border-radius:50%; display:inline-block; flex-shrink:0; }
         .vlan-ipam-occ-leg .dot-free { background:transparent; border:1px solid var(--text-muted); }
         .vlan-ipam-occ-warn { margin-top:5px; font-size:var(--fs-xs); color:#e3b341; }
+        /* Sezione «Reti»: il campo a chip, il dettaglio, l'elenco del piano. Cinque
+           classi in tutto, nominate per quello che sono. Il badge di provenienza e'
+           .drift-net-tag, quello gia' in uso: la provenienza si distingue con lo
+           stile che l'app ha gia', non con un colore inventato. */
+        .net-chipfield { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:7px; }
+        .net-chip { display:inline-flex; align-items:center; gap:6px; padding:3px 4px 3px 8px; border-radius:14px; font-size:var(--fs-xs); background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); }
+        .net-chip.sel { border-color:rgba(0,212,255,.35); background:rgba(0,212,255,.08); }
+        .net-chip.bad { border-color:rgba(248,81,73,.4); background:rgba(248,81,73,.07); }
+        .net-chip-cidr { background:none; border:0; padding:0; color:var(--text-main); font-family:var(--font-mono,monospace); font-size:var(--fs-xs); cursor:pointer; }
+        .net-chip-vlan { font-weight:700; white-space:nowrap; }
+        .net-chip-occ { color:var(--text-muted); font-variant-numeric:tabular-nums; }
+        .net-chip-x { background:none; border:0; padding:2px 5px; color:var(--text-muted); cursor:pointer; border-radius:50%; line-height:1; }
+        .net-chip-x:hover { color:var(--fault-color); background:rgba(248,81,73,.12); }
+        .net-addrow { display:flex; gap:5px; margin-top:6px; }
+        .net-addrow input { flex:1; min-width:0; padding:5px 7px; font-family:var(--font-mono,monospace); background:var(--bg-color); border:1px solid var(--panel-border); border-radius:4px; color:var(--text-main); }
+        .net-addrow.bad input { border-color:var(--fault-color); color:var(--fault-color); }
+        .net-addrow .toolbar-btn { padding:4px 9px; margin:0; flex-shrink:0; }
+        .net-detail { margin-top:8px; padding:8px; border-radius:var(--radius-lg); border:1px solid rgba(0,212,255,.22); background:rgba(0,212,255,.035); }
+        .net-detail-hd { font-size:var(--fs-xs); color:var(--text-muted); margin-bottom:6px; }
+        .net-detail .vlan-ipam-fields { margin-top:0; }
+        /* L'elenco del piano: righe fisse a tre colonne cosi' i CIDR si leggono
+           incolonnati, con la nota del conflitto sotto la seconda delle due. */
+        .net-plan { margin-top:10px; }
+        .net-prow { display:grid; grid-template-columns:1fr auto auto; align-items:center; gap:8px; padding:3px 6px; font-size:var(--fs-xs); border-radius:var(--radius-md); }
+        .net-prow-cidr { font-family:var(--font-mono,monospace); color:var(--text-main); }
+        .net-prow-novlan { color:var(--text-muted); }
+        .net-prow-occ { color:var(--text-muted); font-variant-numeric:tabular-nums; }
+        .net-prow.clash { background:rgba(248,81,73,.08); }
+        .net-clashnote { font-size:var(--fs-xs); color:var(--fault-color); padding:2px 6px 5px; }
         /* Import VM: il bersaglio di rilascio (data-vm-dropzone) è TUTTA la sezione
            "Macchine virtuali" del pannello host — la vecchia zona-solo, in fondo alla
            lista, finiva fuori dallo scrollport con tante VM e i drop morivano. La

@@ -107,6 +107,7 @@ store._propsExplicit=false;
 store._rackDblTime=0; store._rackDblId=null;   // rilevazione manuale doppio click (dblclick non arriva con preventDefault)
 store._vlanIpamOpen=new Set();   // VLAN con dettagli IPAM aperti nel pannello floor
 store._prefixOpen=new Set();     // reti dichiarate con la riga espansa (chiave = CIDR normalizzato)
+store._netsBad='';               // testo scritto in «Reti» che non e' una rete: resta a schermo, in rosso
 // ^ var (non let): il modulo bundle app-properties-floor.js lo legge via
 //   store._vlanIpamOpen (.has). Un let vivrebbe nel global lexical, invisibile al
 //   bundle → .has di undefined. I writer classic (.add/.delete/.clear) mutano

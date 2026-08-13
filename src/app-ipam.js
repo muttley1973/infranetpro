@@ -141,13 +141,17 @@ export function _ipamUsageForVlan(vid){
     return u;
 }
 
-// Lease "solo DHCP" di una VLAN come righe stile drift.undocumented, per il flusso
-// Adotta dalla card IPAM (NON richiede una Verifica). Stessa base dell'ambra nella
-// barra (usage.dhcpOnly = IP nel CIDR non documentati), mappata al lease per portare
+// Lease "solo DHCP" di un PREFISSO come righe stile drift.undocumented, per il
+// flusso Adotta (NON richiede una Verifica). Stessa base dell'ambra nella barra
+// (usage.dhcpOnly = IP nel CIDR non documentati), mappata al lease per portare
 // MAC + IP + hostname nell'adozione → il device adottato nasce già documentato (esce
 // dall'ambra). Manual-first: sola lettura, nessun side-effect.
-function _dhcpUndocumentedForVlan(vid){
-    const usage = _ipamUsageForVlan(vid);
+// Sta sul PREFISSO e non sulla VLAN perché l'occupazione è del prefisso: una rete
+// senza VLAN ha lease da adottare come qualsiasi altra, e chiedendo «i lease della
+// VLAN» non ne restituiva nessuno. La VLAN resta un parametro, ma solo per quello
+// che è davvero suo: se è di management un lease è infrastruttura, non un endpoint.
+export function _dhcpUndocumentedForPrefix(cidr, gateway, vid){
+    const usage = _ipamUsageForPrefix(cidr, gateway);
     const want = new Set(Array.isArray(usage.dhcpOnly) ? usage.dhcpOnly : []);
     if(!usage.cidr || !want.size) return [];
     const leases = Array.isArray(store._dhcpLeases) ? store._dhcpLeases : [];
@@ -165,7 +169,9 @@ function _dhcpUndocumentedForVlan(vid){
             key: `dhcp:${mac}`, sig: mac, mac, ip, hostname: host,
             label: host ? `${host} · ${ip}` : ip,
             cls: onMgmt ? 'infra' : 'endpoint',               // mgmt → infra; altrove un lease è quasi sempre un endpoint
-            vlan: (l && l.vlan != null) ? l.vlan : (Number.isFinite(+vid) ? +vid : null),
+            // `+null === 0`: senza il controllo su null una rete senza VLAN avrebbe
+            // adottato i suoi lease dentro una «VLAN 0» che non esiste.
+            vlan: (l && l.vlan != null) ? l.vlan : ((vid != null && Number.isFinite(+vid)) ? +vid : null),
         });
     }
     return out;
@@ -190,4 +196,4 @@ export function _vlanIpamSummary(vid){
 // consumatori bare-via-window (typeof-guard) li trovano identici — tranne
 // `_ipamEntry`, che NON c'è più: si chiama `_vlanRecord` e non contiene la subnet.
 expose({ _ensureIpamState, _vlanRecord, _vlanIpam, _ipamUsageForVlan, _ipamUsageForPrefix,
-         _vlanIpamSummary, _ipamMemoBegin, _ipamMemoEnd, _collectKnownIps, _dhcpUndocumentedForVlan });
+         _vlanIpamSummary, _ipamMemoBegin, _ipamMemoEnd, _collectKnownIps, _dhcpUndocumentedForPrefix });

@@ -9,7 +9,7 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, normalizeNumber } from './app-util.js';
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, pushHistory, renderCables, _showToast, _promoteLinkToManual, _vlanRecord, _ensureIpamState } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
-import { primaryPrefixForVlan, upsertPrefix, removePrefix, prefixKey, migrateIpam, prefixesForVlan, prefixesWithoutVlan, prefixesOf, findPrefix } from '../lib/ipam-model.js';   // la subnet è un prefisso, non un campo della VLAN
+import { primaryPrefixForVlan, upsertPrefix, removePrefix, prefixKey, migrateIpam, prefixesForVlan, prefixesWithoutVlan, prefixesOf, findPrefix, parseNetworkList } from '../lib/ipam-model.js';   // la subnet è un prefisso, non un campo della VLAN
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, _ensureNodeSpec } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
@@ -595,6 +595,29 @@ export function addDeclaredPrefix(raw, vid){
     renderProps();
 }
 
+// Il campo a chip: una lista separata da virgole, da «Reti» o dalla card VLAN.
+// Le reti valide entrano in UN SOLO passo di storia — un gesto dell'utente, un
+// annulla — e quello che non si parsa resta nel campo, in rosso (`store._netsBad`),
+// invece di sparire senza dirlo. Un doppione non è un errore: si segnala e basta.
+export function addDeclaredNetworks(raw, vid){
+    const { ok, bad } = parseNetworkList(raw);
+    const dup = ok.filter(c => findPrefix(store.state, c));
+    const fresh = ok.filter(c => !findPrefix(store.state, c));
+    if(fresh.length){
+        pushHistory();
+        for(const cidr of fresh) upsertPrefix(store.state, { cidr, vlan: vid == null ? null : +vid, source: 'manual' });
+        if(vid != null && typeof _ensureVlanColor === 'function') _ensureVlanColor(+vid);
+        migrateIpam(store.state);   // un gateway rimasto orfano entra nel prefisso appena nato
+        // Una sola rete dichiarata nasce aperta: c'è da compilare gateway e DNS.
+        // Dichiarandone parecchie in un colpo, aprirle tutte è rumore.
+        if(fresh.length === 1) store._prefixOpen.add(prefixKey(fresh[0]));
+        markDirty();
+    }
+    if(dup.length) _showToast(t('floor.netDup', { cidr: dup.join(', ') }), 'warn', 3500);
+    store._netsBad = bad.join(', ');
+    renderProps();
+}
+
 export function removeDeclaredPrefix(key){
     const row = prefixesOf(store.state).find(p => prefixKey(p.cidr) === key);
     if(!row) return;
@@ -620,6 +643,14 @@ export function updatePrefixField(key, field, value){
         removePrefix(store.state, row.cidr);
         upsertPrefix(store.state, moved);
         if(store._prefixOpen.delete(key)) store._prefixOpen.add(prefixKey(cidr));
+    } else if(field === 'vlan'){
+        // Il selettore manda una STRINGA: '' = nessuna VLAN → `null`, mai `0`
+        // (`+null === 0`, e «VLAN 0» non esiste). Il resto diventa un numero, così
+        // il campo ha la stessa forma di quello scritto dall'import DCIM.
+        const vid = val === '' ? null : (Number.isFinite(+val) ? +val : null);
+        pushHistory();
+        upsertPrefix(store.state, { cidr: row.cidr, vlan: vid });
+        if(vid != null && typeof _ensureVlanColor === 'function') _ensureVlanColor(vid);
     } else {
         pushHistory();
         upsertPrefix(store.state, { cidr: row.cidr, [field]: val });
@@ -1127,7 +1158,7 @@ expose({
     _propagateTrunkMembership, _runActiveAnchor, _effPortVlan, _getLinkTrunk, _linkIsTrunk,
     setLinkNativeVlan, setEndpointVlan, setNodeVoiceVlan, _siteNativeVlan, setSiteNativeVlan,
     toggleSiteNativeVlan, updateVlanColor, updateVlanName, toggleVlanIpam, updateVlanIpam,
-    addDeclaredPrefix, removeDeclaredPrefix, updatePrefixField, togglePrefixOpen,
+    addDeclaredPrefix, addDeclaredNetworks, removeDeclaredPrefix, updatePrefixField, togglePrefixOpen,
     deleteVlanColor, clearAllVlans, setVlanFilter, toggleGuestVlan, toggleMgmtVlan, _isVoiceVlan,
     toggleVoiceVlan, _voipNodes, _voipVoiceVlan, _setVoipVoiceVlan, _voiceAssignTargets,
     applyVoiceVlanBulk, _tV, _openVoiceAssignDialog, _closeVoiceAssign, _voiceAssignHtml,

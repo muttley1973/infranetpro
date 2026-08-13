@@ -25,11 +25,15 @@ import { _isVoiceVlan, _siteNativeVlan,
          updateVlanName, updateVlanColor, updateVlanIpam, updateUiColor } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni vlan/snmp + azioni card VLAN (ex win.*)
 import { _enableManualValueInProps, _ipamUsageForVlan, _vlanIpam, _vlanIpamSummary, _clearPropsTab, toggleAbbrevNames } from './app.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
 import { toggleBgImageLock, scaleBgImage, scaleBgImageTo, fitBgImageToCanvas, clearMap, toggleFloorGrid, setBgImageOpacity } from './app-search-zoom-rack.js';   // ASSE B: azioni immagine di sfondo / griglia (ex on* inline)
-import { openAdoptFromLeases } from './app-drift-adopt.js';   // ASSE B: adotta lease non documentati (ex onclick inline)
+import { openAdoptFromPrefix } from './app-drift-adopt.js';   // ASSE B: adotta lease non documentati (ex onclick inline)
 import { _l3Compute, _l3GatewayBindingHtml } from './app-l3.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { _ipamUsageForPrefix } from './app-ipam.js';   // occupazione di UN prefisso (non piu' di una VLAN)
-import { addDeclaredPrefix, removeDeclaredPrefix, updatePrefixField, togglePrefixOpen } from './app-vlan-autopoll.js';   // scritture sulle reti dichiarate
-import { prefixesForVlan, prefixesWithoutVlan, prefixKey } from '../lib/ipam-model.js';   // l'autorita' sui prefissi
+import { addDeclaredPrefix, addDeclaredNetworks, removeDeclaredPrefix, updatePrefixField, togglePrefixOpen } from './app-vlan-autopoll.js';   // scritture sulle reti dichiarate
+import { prefixesOf, prefixesForVlan, prefixesWithoutVlan, prefixForIp, prefixKey } from '../lib/ipam-model.js';   // l'autorita' sui prefissi
+// Bare globals dei <script> puri: `_parseCidrInfo` (lib/cidr.js), `compareCidr` e
+// `findSubnetOverlaps` (lib/ipam-audit.js). SENZA typeof-guard: se una lib non c'e'
+// la sezione «Reti» deve rompersi a voce alta, non ordinare a caso o dichiarare
+// zero conflitti — un verdetto verde per un motore assente e' peggio di un errore.
 
 // ASSE B (ritiro ponte): azioni delegate del pannello FLOOR. Gli argomenti (VLAN id,
 // nome campo, delta, chiave colore UI) viaggiano in data-*; le fn sono importate dai
@@ -37,7 +41,9 @@ import { prefixesForVlan, prefixesWithoutVlan, prefixKey } from '../lib/ipam-mod
 // fisarmoniche (data-toggle) sono azioni CONDIVISE registrate in app-properties.js.
 const _vid = (el) => +el.dataset.vid;   // il vid nel template e' numerico → ripristina il tipo
 registerClickActions({
-    'adopt-from-leases':  (el) => openAdoptFromLeases(_vid(el)),
+    // Adotta i «solo DHCP» di UNA rete: la chiave e' il prefisso, non la VLAN —
+    // l'occupazione e' del prefisso, e una rete senza VLAN non aveva candidati.
+    'adopt-from-leases':  (el) => openAdoptFromPrefix(el.dataset.key),
     'vlan-clear-all':     () => clearAllVlans(),
     'vlan-ipam-toggle':   (el) => toggleVlanIpam(_vid(el)),
     'vlan-guest-toggle':  (el) => toggleGuestVlan(_vid(el)),
@@ -52,6 +58,16 @@ registerClickActions({
     // operazione sarebbero due definizioni destinate a divergere.
     'prefix-expand':      (el) => togglePrefixOpen(el.dataset.key),
     'prefix-del':         (el) => removeDeclaredPrefix(el.dataset.key),
+    // Svuota un campo della rete (oggi il gateway, che si mostra a chip): stessa
+    // scrittura di un campo lasciato vuoto, non una cancellazione della rete.
+    'prefix-clear':       (el) => updatePrefixField(el.dataset.key, el.dataset.field, ''),
+    // Il campo a chip di «Reti»: una lista separata da virgole in un colpo solo.
+    'nets-add':           (el) => {
+        const row = el.closest('.net-addrow');
+        const input = row && row.querySelector('input');   // scoped alla riga, mai una query nuda
+        if(!input) return;
+        addDeclaredNetworks(input.value, null);
+    },
     'prefix-add':         (el) => {
         const row = el.closest('.vlan-ipam-addrow');
         const input = row && row.querySelector('input');   // scoped alla riga, mai una query nuda
@@ -85,7 +101,7 @@ registerInputActions({
 // opzione A = realtà sul filo). La fonte "DHCP" appare solo se ci sono lease nel
 // CIDR (manual-first: senza lease il blocco resta utile coi soli documentati).
 // Solo numeri + stringhe t() fidate → nessun escape necessario.
-function _ipamOccHtml(u, vid){
+function _ipamOccHtml(u, vid, key){
     const cap = u.capacity || 0;
     const near = cap > 0 && u.pct >= 90;                       // subnet quasi piena → ambra
     const docColor = near ? '#f5a623' : '#00d4ff';
@@ -100,7 +116,7 @@ function _ipamOccHtml(u, vid){
                         <div class="vlan-ipam-occ-meta">${u.usedCount} / ${cap} · ${u.pct}%</div>
                         <div class="vlan-ipam-occ-leg">${legend.join('')}</div>
                         ${!u.gatewayOk?`<div class="vlan-ipam-occ-warn">${t('floor.gwOutSubnet')}</div>`:''}
-                        ${u.dhcpOnlyCount?`<div class="vlan-ipam-occ-adopt"><span><i class="fas fa-triangle-exclamation"></i> ${t('floor.occUndoc',{n:u.dhcpOnlyCount})}</span><button type="button" class="vlan-ipam-adopt-btn" data-act="adopt-from-leases" data-vid="${vid}">${t('floor.occAdopt')}</button></div>`:''}
+                        ${u.dhcpOnlyCount?`<div class="vlan-ipam-occ-adopt"><span><i class="fas fa-triangle-exclamation"></i> ${t('floor.occUndoc',{n:u.dhcpOnlyCount})}</span><button type="button" class="vlan-ipam-adopt-btn" data-act="adopt-from-leases" data-key="${escapeHTML(key)}">${t('floor.occAdopt')}</button></div>`:''}
                       </div>`;
 }
 
@@ -147,10 +163,8 @@ function _prefixRowHtml(p, vid, plain, alone){
                         <label>DNS</label>
                         <input value="${escapeHTML(p.dns||'')}" placeholder="${t('floor.phDns')}" data-change="prefix-field" data-key="${escapeHTML(key)}" data-field="dns">
                       </div>
-                      ${(fromDcim && (p.status || p.description)) ? `<div class="vlan-ipam-hint">
-                        ${p.status?`${t('floor.netStatus')}: <span>${escapeHTML(p.status)}</span>`:''}${(p.status&&p.description)?' · ':''}${p.description?`${t('floor.netDesc')}: <span>${escapeHTML(p.description)}</span>`:''}
-                      </div>`:''}
-                      ${usage.cidr ? _ipamOccHtml(usage, vid) : ''}
+                      ${_netDcimHintHtml(p)}
+                      ${usage.cidr ? _ipamOccHtml(usage, vid, key) : ''}
                     </div>` : ''}
                 </div>`;
 }
@@ -162,6 +176,180 @@ function _prefixAddHtml(vid){
                   <input type="text" placeholder="${vid==null?t('floor.netPhNoVlan'):t('floor.netPh',{vid})}" style="flex:1;min-width:0;padding:5px 7px;font-family:var(--font-mono,monospace)">
                   <button class="toolbar-btn primary" style="padding:4px 9px;margin:0;flex-shrink:0" data-act="prefix-add"${vid==null?'':` data-vid="${vid}"`}><i class="fas fa-plus"></i> ${t('floor.netAdd')}</button>
                 </div>`;
+}
+
+// ── Sezione «Reti» ──────────────────────────────────────────────────────────
+// TUTTE le reti dichiarate, non solo quelle che una VLAN non ce l'hanno: il
+// prefisso e' di primo livello e la VLAN e' un suo attributo FACOLTATIVO. Una
+// sezione che contenesse solo le orfane le nominerebbe per cio' che NON hanno —
+// e su un IPAM vero sono la maggioranza del piano.
+// Qui la × cancella davvero: e' la porta dove una rete esiste o non esiste.
+//
+// L'ordine e' quello dello SPAZIO DEGLI INDIRIZZI (`compareCidr`, la stessa
+// funzione che ordina le coppie in conflitto): due reti che si sovrappongono
+// finiscono vicine, ed e' l'unico modo per vederle. Per VLAN sarebbero lontane.
+// Quello che non si parsa va in fondo, non sparisce.
+function _sortedPrefixes(state){
+    return prefixesOf(state).slice().sort((a, b) => {
+        const ia = _parseCidrInfo(a.cidr), ib = _parseCidrInfo(b.cidr);
+        if(!ia || !ib) return ia ? -1 : (ib ? 1 : 0);
+        return compareCidr(ia, ib) || String(a.cidr).localeCompare(String(b.cidr));
+    });
+}
+
+// La VLAN di una rete, o null. `+null === 0`: il null va escluso PRIMA della
+// conversione, o una rete senza VLAN diventa «VLAN 0».
+function _netVid(p){ return (p.vlan == null || !Number.isFinite(+p.vlan)) ? null : +p.vlan; }
+
+// Il badge della VLAN col colore della palette. Una definizione sola: lo usano il
+// chip e la riga del piano, e due badge per la stessa cosa divergono al primo
+// ritocco. `Number(vid)` non e' ridondante — e' la prova, visibile al guard di
+// escaping, che a schermo finisce un numero.
+function _vlanBadgeHtml(vid){
+    if(vid == null) return '';
+    return `<span class="net-chip-vlan" style="color:${escapeHTML(store.state.vlanColors[String(vid)] || '#8b949e')}">VLAN ${Number(vid)}</span>`;
+}
+
+// Quello che il DCIM dichiara di una rete importata: stato e descrizione, se ci
+// sono. Condivisa fra la riga compatta della card VLAN e il dettaglio di «Reti».
+function _netDcimHintHtml(p){
+    if(p.source !== 'dcim' || (!p.status && !p.description)) return '';
+    const st = p.status ? `${t('floor.netStatus')}: <span>${escapeHTML(p.status)}</span>` : '';
+    const de = p.description ? `${t('floor.netDesc')}: <span>${escapeHTML(p.description)}</span>` : '';
+    return `<div class="vlan-ipam-hint">${st}${(st&&de)?' · ':''}${de}</div>`;
+}
+
+// Le opzioni della tendina VLAN: `—` piu' la palette. Una VLAN dichiarata ma fuori
+// palette resta in elenco — nasconderla farebbe sparire il valore alla prima resa.
+function _netVlanOptionsHtml(vid){
+    const vids = Object.keys(store.state.vlanColors).map(Number).filter(Number.isFinite);
+    if(vid != null && !vids.includes(vid)) vids.push(vid);
+    vids.sort((a,b)=>a-b);
+    return [`<option value=""${vid==null?' selected':''}>${t('floor.netNoVlanOpt')}</option>`]
+        .concat(vids.map(v => `<option value="${Number(v)}"${v===vid?' selected':''}>VLAN ${Number(v)}${store.state.vlanNames?.[v]?` · ${escapeHTML(store.state.vlanNames[v])}`:''}</option>`))
+        .join('');
+}
+
+// Un chip per rete: il CIDR (cliccabile → dettaglio), il badge della VLAN col suo
+// colore, quanto e' occupata, la provenienza se viene dall'import, e la × che la
+// cancella. Su IPv6 la capacita' non esiste (2^64 indirizzi non sono una barra):
+// si contano gli indirizzi VISTI.
+function _netChipHtml(p, usage, sel){
+    const key = prefixKey(p.cidr);
+    const occ = !usage.cidr ? t('floor.hintBadCidr')
+        : usage.capacity ? `${usage.usedCount}/${usage.capacity}`
+        : t('floor.ipDetected', { n: usage.usedCount });
+    return `<span class="net-chip${sel?' sel':''}${!usage.cidr?' bad':''}">
+                    <button type="button" class="net-chip-cidr" data-act="prefix-expand" data-key="${escapeHTML(key)}" data-tip="${t('floor.netDetails')}">${escapeHTML(p.cidr||'')}</button>
+                    ${_vlanBadgeHtml(_netVid(p))}
+                    <span class="net-chip-occ">${escapeHTML(occ)}</span>
+                    ${p.source==='dcim'?`<span class="drift-net-tag is-decl" data-tip="${t('floor.netFromDcim')}"><i class="fas fa-database"></i></span>`:''}
+                    <button type="button" class="net-chip-x" data-act="prefix-del" data-key="${escapeHTML(key)}" data-tip="${t('floor.netDel')}"><i class="fas fa-times"></i></button>
+                  </span>`;
+}
+
+// Il dettaglio della rete aperta: com'e' fatta. La VLAN e' una tendina (— = nessuna),
+// il gateway un chip, il DNS un campo — perche' un gateway la sua rete la trova per
+// CONTENIMENTO, e 1.1.1.1 non cade dentro la rete che serve.
+function _netDetailHtml(p, usage){
+    const key = prefixKey(p.cidr);
+    const vid = _netVid(p);
+    const gw = String(p.gateway||'').trim();
+    // Dove cade DAVVERO il gateway: `prefixForIp` vince col piu' specifico, come una
+    // tabella di routing. Se non e' questa rete, si dice quale — e' una
+    // misconfigurazione vera, non un capriccio dell'interfaccia.
+    const gwHome = (gw && !usage.gatewayOk) ? prefixForIp(store.state, gw) : null;
+    return `<div class="net-detail">
+                  <div class="net-detail-hd">${t('floor.netDetailOf',{cidr:`<b>${escapeHTML(p.cidr||'')}</b>`})}</div>
+                  <div class="vlan-ipam-fields" style="margin-left:0">
+                    <div class="prop-group">
+                      <label>VLAN</label>
+                      <select data-change="prefix-field" data-key="${escapeHTML(key)}" data-field="vlan">${_netVlanOptionsHtml(vid)}</select>
+                    </div>
+                    <div class="prop-group">
+                      <label>${t('floor.netName')}</label>
+                      <input value="${escapeHTML(p.name||'')}" placeholder="${t('floor.netPhName')}" data-change="prefix-field" data-key="${escapeHTML(key)}" data-field="name">
+                    </div>
+                    <div class="prop-group" style="grid-column:1/-1">
+                      <label>${t('f.gatewayIp')}</label>
+                      ${gw ? `<div class="net-chipfield">
+                          <span class="net-chip${usage.gatewayOk?'':' bad'}">
+                            <span class="net-chip-cidr">${escapeHTML(gw)}</span>
+                            <button type="button" class="net-chip-x" data-act="prefix-clear" data-key="${escapeHTML(key)}" data-field="gateway" data-tip="${t('floor.netGwClear')}"><i class="fas fa-times"></i></button>
+                          </span>
+                        </div>
+                        ${usage.gatewayOk?'':`<div class="vlan-ipam-hint warn">${gwHome ? t('floor.gwInOther',{ip:`<b>${escapeHTML(gw)}</b>`,cidr:`<b>${escapeHTML(gwHome.cidr)}</b>`}) : t('floor.gwInNone',{ip:`<b>${escapeHTML(gw)}</b>`})}</div>`}`
+                        : `<input value="" placeholder="${t('floor.phGateway',{vid:vid==null?'':vid})}" data-change="prefix-field" data-key="${escapeHTML(key)}" data-field="gateway">`}
+                    </div>
+                    <div class="prop-group" style="grid-column:1/-1">
+                      <label>DNS</label>
+                      <input value="${escapeHTML(p.dns||'')}" placeholder="${t('floor.phDns')}" data-change="prefix-field" data-key="${escapeHTML(key)}" data-field="dns">
+                    </div>
+                    ${_netDcimHintHtml(p)}
+                    ${usage.cidr ? _ipamOccHtml(usage, vid, key) : ''}
+                  </div>
+                </div>`;
+}
+
+// L'elenco del piano: una riga per rete, ordinata per indirizzo, con la nota di
+// conflitto sotto la SECONDA delle due che si sovrappongono. Le stringhe sono
+// quelle del report L3 (`l3.overlapRow*`): stesso fatto, stesse parole — due
+// formulazioni dello stesso conflitto divergerebbero alla prima modifica.
+function _netPlanHtml(rows, usageByKey, overlaps){
+    const clash = new Set();
+    const noteAfter = new Map();   // chiave della SECONDA rete → conflitti da stampare sotto
+    for(const o of overlaps){
+        const ka = prefixKey(o.a.cidr), kb = prefixKey(o.b.cidr);
+        clash.add(ka); clash.add(kb);
+        if(!noteAfter.has(kb)) noteAfter.set(kb, []);
+        noteAfter.get(kb).push(o);
+    }
+    const out = [];
+    for(const p of rows){
+        const key = prefixKey(p.cidr);
+        const vid = _netVid(p);
+        const u = usageByKey.get(key) || {};
+        const occ = !u.cidr ? '—' : (u.capacity ? `${u.usedCount}/${u.capacity}` : String(u.usedCount || 0));
+        out.push(`<div class="net-prow${clash.has(key)?' clash':''}">
+                    <span class="net-prow-cidr">${escapeHTML(p.cidr||'')}</span>
+                    ${vid!=null?_vlanBadgeHtml(vid):`<span class="net-prow-novlan">—</span>`}
+                    <span class="net-prow-occ">${escapeHTML(occ)}</span>
+                  </div>`);
+        for(const o of (noteAfter.get(key) || [])){
+            out.push(`<div class="net-clashnote">⚠ ${t(o.identical?'l3.overlapRowSame':'l3.overlapRow',{sa:`<b>${escapeHTML(o.a.cidr)}</b>`, sb:`<b>${escapeHTML(o.b.cidr)}</b>`})}</div>`);
+        }
+    }
+    return out.join('');
+}
+
+// La fisarmonica intera. Va costruita DENTRO il memo IPAM per-frame: calcola
+// l'occupazione per ogni rete, e senza memo ognuna ri-scandirebbe nodi e lease.
+function _netsSectionHtml(state){
+    const rows = _sortedPrefixes(state);
+    const usageByKey = new Map();
+    for(const p of rows) usageByKey.set(prefixKey(p.cidr), _ipamUsageForPrefix(p.cidr, p.gateway || ''));
+    const overlaps = findSubnetOverlaps(rows, _parseCidrInfo);
+    const open = rows.filter(p => store._prefixOpen.has(prefixKey(p.cidr)));
+    const bad = String(store._netsBad || '');
+    const preview = `${t('floor.netsCount',{n:rows.length})}${overlaps.length?` · ${t('floor.netsConflicts',{n:overlaps.length})}`:''}`;
+    return `<details class="props-collapsible props-primary" ${_propsSectionIsOpen('floor-nets')?'open':''} data-toggle="props-section" data-section="floor-nets">
+              <summary class="props-collapsible-head"><span><i class="fas fa-diagram-project"></i> ${t('floor.netsSection')}</span><span class="props-collapsible-preview${overlaps.length?' warn':''}">${preview}</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
+              <div class="props-collapsible-body">
+                <div class="vlan-ipam-hint">${t('floor.netsIntro')}</div>
+                ${rows.length?`<div class="net-chipfield">${rows.map(p => _netChipHtml(p, usageByKey.get(prefixKey(p.cidr)), store._prefixOpen.has(prefixKey(p.cidr)))).join('')}</div>`:''}
+                <div class="net-addrow${bad?' bad':''}">
+                  <input type="text" value="${escapeHTML(bad)}" placeholder="${t('floor.netsPh')}">
+                  <button class="toolbar-btn primary" data-act="nets-add"><i class="fas fa-plus"></i> ${t('floor.netAdd')}</button>
+                </div>
+                ${bad?`<div class="vlan-ipam-hint warn">${t('floor.netsBad')}</div>`:''}
+                ${open.map(p => _netDetailHtml(p, usageByKey.get(prefixKey(p.cidr)))).join('')}
+                ${rows.length?`<div class="net-plan">
+                  <div class="prop-notes-header"><i class="fas fa-list-ol"></i> ${t('floor.netsPlan')}</div>
+                  ${_netPlanHtml(rows, usageByKey, overlaps)}
+                  <div class="vlan-ipam-hint">${t('floor.netsPlanHint')}</div>
+                </div>`:''}
+              </div>
+            </details>`;
 }
 
 // Contesto progetto / nessuna selezione (ramo else).
@@ -252,9 +440,6 @@ export function _renderFloorProps(panel){
                     </div>` : ''}
                 </div>`;
         });
-        } finally {
-            if(typeof _ipamMemoEnd === 'function') _ipamMemoEnd();
-        }
         h+=`</div>
                 <div style="display:flex;gap:5px;margin-top:12px;border-top:1px solid var(--panel-border);padding-top:10px">
                   <input type="number" id="new-vlan-id" placeholder="ID" style="width:55px">
@@ -267,7 +452,14 @@ export function _renderFloorProps(panel){
                 ${_prefixAddHtml(null)}
               </div>
             </details>
-            <details class="props-collapsible props-primary" ${_propsSectionIsOpen('floor-bgimage')?'open':''} data-toggle="props-section" data-section="floor-bgimage">
+            ${_netsSectionHtml(state)}`;
+        // Fin qui, tutto dentro il memo IPAM per-frame: il ciclo VLAN, le reti senza
+        // VLAN e «Reti», che calcola l'occupazione di OGNI prefisso. Una sola
+        // scansione di nodi e lease per resa — senza, ogni card ne rifarebbe una.
+        } finally {
+            if(typeof _ipamMemoEnd === 'function') _ipamMemoEnd();
+        }
+        h+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('floor-bgimage')?'open':''} data-toggle="props-section" data-section="floor-bgimage">
               <summary class="props-collapsible-head"><span><i class="fas fa-map"></i> ${t('floor.imgSection')}</span>${_bgPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
               <div class="props-collapsible-body">
                 <div class="prop-group" style="margin-bottom:10px">

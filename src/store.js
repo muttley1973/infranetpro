@@ -50,6 +50,7 @@ export const store = proxy([
     // window.X (per i bare-global self-ref in app.js e i writer classic).
     'dragOffset', 'dragRack', '_dragArmed', 'lagSelMode',
     '_discRunning', '_discImporting', '_discSelMap', '_routingLinkId', '_vlanIpamOpen', '_prefixOpen',
+    '_netsBad',
     // ── coda-stato di INTERAZIONE, 2º giro (ritiro ponte 2026-07-11) ──────────
     // Altri flag/cache di gesture/vista: resize, pan floor/rack, spazio-premuto,
     // punto-mouse-down, hover-rack, tab-hold props, click-porta-floor, traccia fisica,
@@ -103,4 +104,8 @@ export function resetProjectRuntime() {
     // sopra. Vuoto al render iniziale → il golden non lo vede.
     if (store._prefixOpen && typeof store._prefixOpen.clear === 'function') store._prefixOpen.clear();
     else store._prefixOpen = new Set();
+    // Quello che l'utente ha scritto nel campo «Reti» e che non e' una rete: resta
+    // a schermo, in rosso, finche' non lo corregge. Stato di INTERAZIONE, vuoto al
+    // render iniziale → il golden non lo vede.
+    store._netsBad = '';
 }

@@ -700,7 +700,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         _vlanIpamOpen.clear();
 
         // 2) apri il modal seeded DIRETTAMENTE dai lease (senza Drift report)
-        openAdoptFromLeases(20);
+        openAdoptFromPrefix(prefixKey('192.168.20.0/24'));
         const tb = document.getElementById('adopt-tbody').innerHTML;
         const rowCount = document.querySelectorAll('#adopt-tbody tr').length;
 
@@ -729,7 +729,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         const ov = document.getElementById('adopt-overlay'); if (ov) ov.style.display = 'none';
 
         return {
-          badgeShown: badge.indexOf('vlan-ipam-occ-adopt') >= 0 && badge.indexOf('data-act="adopt-from-leases" data-vid="20"') >= 0,
+          badgeShown: badge.indexOf('vlan-ipam-occ-adopt') >= 0 && badge.indexOf('data-act="adopt-from-leases" data-key="192.168.20.0/24"') >= 0,
           modalHas45: tb.indexOf('AA:BB:CC:00:00:45') >= 0,
           modalNotDoc: tb.indexOf('AA:BB:CC:00:00:10') < 0,
           modalNotExpired: tb.indexOf('AA:BB:CC:00:00:99') < 0,
@@ -780,7 +780,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         const cardHasMgmtBtn = panel.innerHTML.indexOf('data-act="vlan-mgmt-toggle" data-vid="20"') >= 0;
 
         // adozione dalla card: su VLAN di management il candidato è INFRA → typeDefault 'switch', non 'pc'
-        openAdoptFromLeases(20);
+        openAdoptFromPrefix(prefixKey('192.168.20.0/24'));
         const tb = document.getElementById('adopt-tbody').innerHTML;
         // Contratto (B): su VLAN di management il candidato è INFRA (riga non
         // is-endpoint → in rack, non nascosto come BYOD). Il tipo di default poi
