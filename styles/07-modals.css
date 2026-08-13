@@ -495,16 +495,32 @@
         .net-addrow.bad input { border-color:var(--fault-color); color:var(--fault-color); }
         .net-addrow .toolbar-btn { padding:4px 9px; margin:0; flex-shrink:0; }
         .net-detail { margin-top:8px; padding:8px; border-radius:var(--radius-lg); border:1px solid rgba(0,212,255,.22); background:rgba(0,212,255,.035); }
-        .net-detail-hd { font-size:var(--fs-xs); color:var(--text-muted); margin-bottom:6px; }
+        /* La chiusura e' un CHEVRON, non una ×: in questa sezione la × cancella la
+           rete dal documento, e due gesti cosi` diversi non possono avere lo stesso
+           segno a un centimetro di distanza. */
+        .net-detail-hd { display:flex; align-items:center; gap:8px; font-size:var(--fs-xs); color:var(--text-muted); margin-bottom:6px; }
+        .net-detail-hd > span { flex:1; min-width:0; }
+        .net-detail-x { background:none; border:0; padding:2px 6px; color:var(--text-muted); cursor:pointer; border-radius:var(--radius-md); line-height:1; flex-shrink:0; }
+        .net-detail-x:hover { color:var(--text-main); background:rgba(255,255,255,.06); }
         .net-detail .vlan-ipam-fields { margin-top:0; }
         /* L'elenco del piano: righe fisse a tre colonne cosi' i CIDR si leggono
            incolonnati, con la nota del conflitto sotto la seconda delle due. */
         .net-plan { margin-top:10px; }
-        .net-prow { display:grid; grid-template-columns:1fr auto auto; align-items:center; gap:8px; padding:3px 6px; font-size:var(--fs-xs); border-radius:var(--radius-md); }
+        /* Ogni riga e' un <button>: si clicca per aprire il dettaglio, e la tastiera
+           ci arriva come su qualsiasi altro comando. Colonne fisse perche' i CIDR
+           vanno letti incolonnati — e` cosi` che si vede dove due reti si toccano. */
+        .net-prow { display:grid; grid-template-columns:1fr auto auto auto; align-items:center; gap:8px;
+                    width:100%; padding:4px 6px; font-size:var(--fs-xs); border-radius:var(--radius-md);
+                    background:none; border:1px solid transparent; color:inherit;
+                    text-align:left; font-family:inherit; cursor:pointer; }
+        .net-prow:hover { background:rgba(255,255,255,.05); }
+        .net-prow.sel { border-color:rgba(0,212,255,.35); background:rgba(0,212,255,.08); }
         .net-prow-cidr { font-family:var(--font-mono,monospace); color:var(--text-main); }
         .net-prow-novlan { color:var(--text-muted); }
         .net-prow-occ { color:var(--text-muted); font-variant-numeric:tabular-nums; }
         .net-prow.clash { background:rgba(248,81,73,.08); }
+        .net-prow.clash.sel { background:rgba(248,81,73,.14); border-color:rgba(248,81,73,.35); }
+        .net-prow.bad .net-prow-occ { color:#e3b341; }
         .net-clashnote { font-size:var(--fs-xs); color:var(--fault-color); padding:2px 6px 5px; }
         /* Import VM: il bersaglio di rilascio (data-vm-dropzone) è TUTTA la sezione
            "Macchine virtuali" del pannello host — la vecchia zona-solo, in fondo alla

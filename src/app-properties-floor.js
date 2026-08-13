@@ -211,24 +211,6 @@ function _netVlanOptionsHtml(vid){
         .join('');
 }
 
-// Un chip per rete: il CIDR (cliccabile → dettaglio), il badge della VLAN col suo
-// colore, quanto e' occupata, la provenienza se viene dall'import, e la × che la
-// cancella. Su IPv6 la capacita' non esiste (2^64 indirizzi non sono una barra):
-// si contano gli indirizzi VISTI.
-function _netChipHtml(p, usage, sel){
-    const key = prefixKey(p.cidr);
-    const occ = !usage.cidr ? t('floor.hintBadCidr')
-        : usage.capacity ? `${usage.usedCount}/${usage.capacity}`
-        : `${Number(usage.usedCount)} IP`;   // v6: nessuna capacita', solo gli indirizzi visti
-    return `<span class="net-chip${sel?' sel':''}${!usage.cidr?' bad':''}">
-                    <button type="button" class="net-chip-cidr" data-act="prefix-expand" data-key="${escapeHTML(key)}" data-tip="${t('floor.netDetails')}">${escapeHTML(p.cidr||'')}</button>
-                    ${_vlanBadgeHtml(_netVid(p))}
-                    <span class="net-chip-occ">${escapeHTML(occ)}</span>
-                    ${p.source==='dcim'?`<span class="drift-net-tag is-decl" data-tip="${t('floor.netFromDcim')}"><i class="fas fa-database"></i></span>`:''}
-                    <button type="button" class="net-chip-x" data-act="prefix-del" data-key="${escapeHTML(key)}" data-tip="${t('floor.netDel')}"><i class="fas fa-times"></i></button>
-                  </span>`;
-}
-
 // Il dettaglio della rete aperta: com'e' fatta. La VLAN e' una tendina (— = nessuna),
 // il gateway un chip, il DNS un campo — perche' un gateway la sua rete la trova per
 // CONTENIMENTO, e 1.1.1.1 non cade dentro la rete che serve.
@@ -241,7 +223,10 @@ function _netDetailHtml(p, usage){
     // misconfigurazione vera, non un capriccio dell'interfaccia.
     const gwHome = (gw && !usage.gatewayOk) ? prefixForIp(store.state, gw) : null;
     return `<div class="net-detail">
-                  <div class="net-detail-hd">${t('floor.netDetailOf',{cidr:`<b>${escapeHTML(p.cidr||'')}</b>`})}</div>
+                  <div class="net-detail-hd">
+                    <span>${t('floor.netDetailOf',{cidr:`<b>${escapeHTML(p.cidr||'')}</b>`})}</span>
+                    <button type="button" class="net-detail-x" data-act="prefix-expand" data-key="${escapeHTML(key)}" data-tip="${t('floor.netDetailClose')}"><i class="fas fa-chevron-up"></i></button>
+                  </div>
                   <div class="vlan-ipam-fields" style="margin-left:0">
                     <div class="prop-group">
                       <label>VLAN</label>
@@ -276,6 +261,12 @@ function _netDetailHtml(p, usage){
 // conflitto sotto la SECONDA delle due che si sovrappongono. Le stringhe sono
 // quelle del report L3 (`l3.overlapRow*`): stesso fatto, stesse parole — due
 // formulazioni dello stesso conflitto divergerebbero alla prima modifica.
+// Ogni riga e' CLICCABILE e apre il dettaglio della sua rete, che si espande
+// subito sotto: l'elenco e' l'unico posto dove le reti si vedono, e una seconda
+// lista degli stessi prefissi (i chip che stavano sopra) diceva due volte la
+// stessa cosa senza aggiungerci niente.
+// Ordine dentro una riga aperta: la riga, l'eventuale conflitto (una sola frase),
+// poi il dettaglio — cosi` l'avviso resta attaccato alla coppia che descrive.
 function _netPlanHtml(rows, usageByKey, overlaps){
     const clash = new Set();
     const noteAfter = new Map();   // chiave della SECONDA rete → conflitti da stampare sotto
@@ -290,15 +281,21 @@ function _netPlanHtml(rows, usageByKey, overlaps){
         const key = prefixKey(p.cidr);
         const vid = _netVid(p);
         const u = usageByKey.get(key) || {};
-        const occ = !u.cidr ? '—' : (u.capacity ? `${u.usedCount}/${u.capacity}` : String(u.usedCount || 0));
-        out.push(`<div class="net-prow${clash.has(key)?' clash':''}">
+        const sel = store._prefixOpen.has(key);
+        // Su IPv6 la capacita' non esiste: si contano gli indirizzi VISTI.
+        const occ = !u.cidr ? t('floor.hintBadCidr')
+            : u.capacity ? `${u.usedCount}/${u.capacity}`
+            : `${Number(u.usedCount)} IP`;
+        out.push(`<button type="button" class="net-prow${clash.has(key)?' clash':''}${sel?' sel':''}${u.cidr?'':' bad'}" data-act="prefix-expand" data-key="${escapeHTML(key)}" data-tip="${t('floor.netDetails')}">
                     <span class="net-prow-cidr">${escapeHTML(p.cidr||'')}</span>
+                    ${p.source==='dcim'?`<span class="drift-net-tag is-decl" data-tip="${t('floor.netFromDcim')}"><i class="fas fa-database"></i></span>`:''}
                     ${vid!=null?_vlanBadgeHtml(vid):`<span class="net-prow-novlan">—</span>`}
                     <span class="net-prow-occ">${escapeHTML(occ)}</span>
-                  </div>`);
+                  </button>`);
         for(const o of (noteAfter.get(key) || [])){
             out.push(`<div class="net-clashnote">⚠ ${t(o.identical?'l3.overlapRowSame':'l3.overlapRow',{sa:`<b>${escapeHTML(o.a.cidr)}</b>`, sb:`<b>${escapeHTML(o.b.cidr)}</b>`})}</div>`);
         }
+        if(sel) out.push(_netDetailHtml(p, u));
     }
     return out.join('');
 }
@@ -310,25 +307,23 @@ function _netsSectionHtml(state){
     const usageByKey = new Map();
     for(const p of rows) usageByKey.set(prefixKey(p.cidr), _ipamUsageForPrefix(p.cidr, p.gateway || ''));
     const overlaps = findSubnetOverlaps(rows, _parseCidrInfo);
-    const open = rows.filter(p => store._prefixOpen.has(prefixKey(p.cidr)));
     const bad = String(store._netsBad || '');
     const preview = `${t('floor.netsCount',{n:rows.length})}${overlaps.length?` · ${t('floor.netsConflicts',{n:overlaps.length})}`:''}`;
+    // L'ordine e' quello del gesto: leggi il piano, poi ne aggiungi una. Il campo
+    // sta in fondo perche' e' l'ultima cosa che serve, non la prima.
     return `<details class="props-collapsible props-primary" ${_propsSectionIsOpen('floor-nets')?'open':''} data-toggle="props-section" data-section="floor-nets">
               <summary class="props-collapsible-head"><span><i class="fas fa-diagram-project"></i> ${t('floor.netsSection')}</span><span class="props-collapsible-preview${overlaps.length?' warn':''}">${preview}</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
               <div class="props-collapsible-body">
                 <div class="vlan-ipam-hint">${t('floor.netsIntro')}</div>
-                ${rows.length?`<div class="net-chipfield">${rows.map(p => _netChipHtml(p, usageByKey.get(prefixKey(p.cidr)), store._prefixOpen.has(prefixKey(p.cidr)))).join('')}</div>`:''}
+                ${rows.length?`<div class="net-plan">
+                  ${_netPlanHtml(rows, usageByKey, overlaps)}
+                  <div class="vlan-ipam-hint">${t('floor.netsPlanHint')}</div>
+                </div>`:''}
                 <div class="net-addrow${bad?' bad':''}">
                   <input type="text" value="${escapeHTML(bad)}" placeholder="${t('floor.netsPh')}">
                   <button class="toolbar-btn primary" data-act="nets-add"><i class="fas fa-plus"></i> ${t('floor.netAdd')}</button>
                 </div>
                 ${bad?`<div class="vlan-ipam-hint warn">${t('floor.netsBad')}</div>`:''}
-                ${open.map(p => _netDetailHtml(p, usageByKey.get(prefixKey(p.cidr)))).join('')}
-                ${rows.length?`<div class="net-plan">
-                  <div class="prop-notes-header"><i class="fas fa-list-ol"></i> ${t('floor.netsPlan')}</div>
-                  ${_netPlanHtml(rows, usageByKey, overlaps)}
-                  <div class="vlan-ipam-hint">${t('floor.netsPlanHint')}</div>
-                </div>`:''}
               </div>
             </details>`;
 }

@@ -158,7 +158,7 @@ test('il pannello: una /64 accanto a una /24, e una /30 senza VLAN', () => {
 
 // ── La sezione «Reti»: tutte le reti, la VLAN e` un'etichetta ────────────────
 
-test('«Reti»: tutte e tre le reti a chip, ordinate per indirizzo, VLAN come badge', () => {
+test('«Reti»: una riga per rete, ordinate per indirizzo, VLAN come badge', () => {
   const out = run(APP.ctx, `(() => {
     state = _migrateState({ schemaVersion:2, nodes:[], racks:[], links:[], ports:{},
       vlanColors:{ 20:'#00d4ff' }, vlanNames:{ 20:'Uffici' },
@@ -171,28 +171,33 @@ test('«Reti»: tutte e tre le reti a chip, ordinate per indirizzo, VLAN come ba
     selType = null; selId = null; renderProps();
     const html = document.getElementById('props-panel').innerHTML;
     const nets = html.slice(html.indexOf('data-section="floor-nets"'));
-    // L'ordine a schermo, letto dai chip cliccabili (uno per rete).
-    const order = [...nets.matchAll(/class="net-chip-cidr"[^>]*>([^<]+)</g)].map(m => m[1]);
+    // L'ordine a schermo, letto dalle righe del piano — che sono l'UNICO elenco:
+    // i chip che ripetevano gli stessi prefissi sopra non ci sono piu'.
+    const order = [...nets.matchAll(/class="net-prow-cidr">([^<]+)</g)].map(m => m[1]);
     return JSON.stringify({
       order,
-      count: (nets.match(/class="net-chip[ "]/g) || []).length,
+      rows: (nets.match(/class="net-prow[ "]/g) || []).length,
+      clickable: (nets.match(/class="net-prow[^"]*" data-act="prefix-expand"/g) || []).length,
+      noChips: !nets.includes('net-chip-cidr'),
       vlanBadges: (nets.match(/net-chip-vlan/g) || []).length,
       dcimBadge: nets.includes('drift-net-tag is-decl'),
-      // nessun chip selezionato → nessun dettaglio aperto
+      // nessuna riga selezionata → nessun dettaglio aperto
       detailHidden: !nets.includes('net-detail'),
-      planRows: (nets.match(/class="net-prow[ "]/g) || []).length,
+      // «Aggiungi rete» sta DOPO il piano
+      addAfterPlan: nets.indexOf('net-addrow') > nets.lastIndexOf('class="net-prow'),
     });
   })()`);
   const r = JSON.parse(out);
   // Per INDIRIZZO, non per VLAN ne` per ordine di dichiarazione: prima le v4 in
   // ordine numerico, poi le v6.
   assert.deepStrictEqual(r.order, ['10.0.0.0/30', '192.168.20.0/24', '2001:db8:0:14::/64']);
-  assert.strictEqual(r.count, 3, 'tutte e tre, comprese quelle con VLAN');
-  // Il badge compare 4 volte: 2 chip con VLAN + 2 righe del piano con VLAN.
-  assert.strictEqual(r.vlanBadges, 4, 'la VLAN e` un badge, e la rete senza non ne ha');
-  assert.strictEqual(r.dcimBadge, true, 'la provenienza dell\'import si vede anche qui');
+  assert.strictEqual(r.rows, 3, 'una riga per rete, comprese quelle con VLAN');
+  assert.strictEqual(r.clickable, 3, 'ogni riga apre il dettaglio della sua rete');
+  assert.strictEqual(r.noChips, true, 'niente doppio elenco: i chip sono spariti');
+  assert.strictEqual(r.vlanBadges, 2, 'la VLAN e` un badge, e la rete senza non ne ha');
+  assert.strictEqual(r.dcimBadge, true, 'la provenienza dell\'import si vede sulla riga');
   assert.strictEqual(r.detailHidden, true);
-  assert.strictEqual(r.planRows, 3, 'l\'elenco del piano ha una riga per rete');
+  assert.strictEqual(r.addAfterPlan, true, '«Aggiungi rete» sta sotto il piano');
 });
 
 test('«Reti»: il conflitto si vede nell\'elenco, e le famiglie diverse non lo sono', () => {
@@ -221,7 +226,7 @@ test('«Reti»: il conflitto si vede nell\'elenco, e le famiglie diverse non lo 
   assert.match(r.preview, /1 in conflitto/);
 });
 
-test('«Reti»: il chip aperto mostra il dettaglio, e la × cancella davvero', () => {
+test('«Reti»: la riga aperta mostra il dettaglio sotto di se`, e la × cancella davvero', () => {
   const out = run(APP.ctx, `(() => {
     state = _migrateState({ schemaVersion:2, nodes:[], racks:[], links:[], ports:{},
       vlanColors:{ 20:'#00d4ff' }, vlanNames:{},
@@ -233,18 +238,37 @@ test('«Reti»: il chip aperto mostra il dettaglio, e la × cancella davvero', (
     let nets = html.slice(html.indexOf('data-section="floor-nets"'));
     const open = {
       detail: nets.includes('net-detail'),
+      // il dettaglio si apre SOTTO la sua riga, non in fondo alla lista
+      underItsRow: nets.indexOf('net-detail') > nets.indexOf('class="net-prow'),
+      rowSelected: /class="net-prow[^"]*\bsel\b/.test(nets),
       vlanSelect: nets.includes('data-field="vlan"'),
       gwChip: nets.includes('192.168.20.1'),
       dnsField: nets.includes('data-field="dns"'),
+      // La chiusura si VEDE: un chevron nell'intestazione del dettaglio, non solo
+      // il ri-clic sulla riga. E non è una ×, che qui cancellerebbe la rete.
+      // (niente backtick in questo blocco: è dentro un template literal)
+      closeBtn: /class="net-detail-x"[^>]*data-act="prefix-expand"/.test(nets),
+      closeIsNotAnX: !/class="net-detail-x"[^>]*><i class="fas fa-times/.test(nets),
+    };
+    // Il chevron chiude e basta: la rete resta.
+    togglePrefixOpen(prefixKey('192.168.20.0/24'));
+    const afterClose = document.getElementById('props-panel').innerHTML;
+    const closed = {
+      noDetail: !afterClose.slice(afterClose.indexOf('data-section="floor-nets"')).includes('net-detail'),
+      stillThere: state.ipam.prefixes.length,
     };
     removeDeclaredPrefix(prefixKey('192.168.20.0/24'));
-    return JSON.stringify({ open, left: state.ipam.prefixes.length });
+    return JSON.stringify({ open, closed, left: state.ipam.prefixes.length });
   })()`);
   const r = JSON.parse(out);
   assert.strictEqual(r.open.detail, true, 'il dettaglio si apre sotto il campo');
   assert.strictEqual(r.open.vlanSelect, true, 'la VLAN si cambia da qui');
   assert.strictEqual(r.open.gwChip, true, 'il gateway e` a chip');
   assert.strictEqual(r.open.dnsField, true, 'il DNS resta un campo');
+  assert.strictEqual(r.open.closeBtn, true, 'il dettaglio ha un modo VISIBILE di chiudersi');
+  assert.strictEqual(r.open.closeIsNotAnX, true, 'e non e` una ×, che qui cancella la rete');
+  assert.strictEqual(r.closed.noDetail, true, 'chiuso, il dettaglio sparisce');
+  assert.strictEqual(r.closed.stillThere, 1, 'chiudere non cancella');
   assert.strictEqual(r.left, 0, 'la × di «Reti» cancella la rete dal documento');
 });
 
