@@ -487,7 +487,7 @@ export function _renderFloorProps(panel){
                 ? [ipam.gateway, ipam.dns].filter(Boolean).join(' · ') : '';
             _vlanHtml+=`<div class="vlan-ipam-card">
                   <div class="vlan-ipam-row">
-                    <label style="margin:0;width:68px;font-size:0.78rem;flex-shrink:0;white-space:nowrap;font-weight:700;color:${escapeHTML(state.vlanColors[v]||'#8b949e')}">VLAN ${vid}</label>
+                    <label style="margin:0;font-size:0.96rem;flex-shrink:0;white-space:nowrap;font-weight:700;text-align:left;color:${escapeHTML(state.vlanColors[v]||'#8b949e')}">VLAN ${vid}</label>
                     <input type="text" value="${vname}" placeholder="${t('vlan.namePlaceholder')}"
                            style="flex:1;min-width:0;max-width:400px;padding:5px 7px;font-size:var(--fs-lg);background:var(--bg-color);border:1px solid var(--panel-border);border-radius:4px;color:var(--text-main)"
                            data-change="vlan-name" data-vid="${vid}">
