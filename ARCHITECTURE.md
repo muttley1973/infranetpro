@@ -366,9 +366,19 @@ strong assertion cannot outlive its evidence.
 
 On the cable side a **declared** cable over a shut port becomes `declared-shut`
 (bucket `diverged`, badge "Port shut", Drift category `shutCable`) — never `ghost`,
-which means "inferred, and its evidence evaporated". Inferred cables stay out of that
-bucket: through a shut port the link never forms, so their down-streak already carries
-them into `ghostCable`.
+which means "inferred, and its evidence evaporated".
+
+An **inferred** cable over a shut port is not a ghost either, and this is the subtle
+part: the down-streak that feeds both the `no-link` shade and `ghostCable` counts
+consecutive verifies without link — but a port in `shutdown` has no link *by decision*,
+which is not an observation about the cable. `nextDownStreak()` therefore returns 0
+while `adminDown === true` (the same choice already made for a mute device: if we
+cannot observe, we do not accumulate), `applyPollResult` clears the streak on the
+true→false transition so a reopened port must re-earn its `no-link` over N real
+verifies, and `buildDriftReport` skips a cable whose end is shut regardless of a
+streak stored by an older save. Without this, shutting a port for a few verifies
+turned every inferred cable on it into a ghost — 35% opacity and a sparse dash, which
+on screen reads as gone — and reopening the port jumped straight back to dark grey.
 
 ### Measured hardware identity, and its age
 

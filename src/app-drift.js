@@ -17,7 +17,7 @@
 // anche da src/app-drift-adopt.js, quindi NON è una variabile di modulo.
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { DOWN_STREAK_N, forgetPortMeasure } from '../lib/port-state.js';   // lib pura importata ESM: soglia anti-flap + scadenza delle misure di porta
+import { DOWN_STREAK_N, forgetPortMeasure, nextDownStreak } from '../lib/port-state.js';   // lib pura importata ESM: soglia anti-flap + avanzamento e scadenza delle misure di porta
 import { TYPES, _frontPanelPortLabel } from './app-types.js';   // catalogo tipi: distingue gli elementi passivi dall'audit di presenza
 import { escapeHTML, normalizeMacAddress } from './app-util.js';
 import { nodeById, markDirty, getNodeByPortId, getNodeDisplayName, pushHistory, logAudit, _cableAutoLabel } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
@@ -106,8 +106,10 @@ function _driftUpdateStreaks(docSnap){
         // essere stantio o mis-mappato da un vecchio sync posizionale → NON deve
         // alimentare il "cavo fantasma" (falsi allarmi). Streak azzerato e saltato.
         if(!pi.ifName){ forgetPortMeasure(pi); continue; }
-        if(pi.status === 'active') pi.downStreak = 0;
-        else pi.downStreak = (pi.downStreak || 0) + 1;
+        // La regola sta in lib/port-state.js: una porta in `shutdown` NON accumula
+        // (il suo «senza link» e' la conseguenza di una decisione, non una prova sul
+        // cavo), una porta con link riparte da zero, il resto avanza di uno.
+        pi.downStreak = nextDownStreak(pi);
     }
 }
 

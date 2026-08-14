@@ -139,3 +139,46 @@ test('scadenza: input degeneri non esplodono', () => {
   assert.equal(forgetPortMeasure(undefined), false);
   assert.equal(forgetPortMeasure('Gi0/1'), false);
 });
+
+// ── nextDownStreak: cosa vale come PROVA sul cavo ────────────────────────────
+const { nextDownStreak } = require('../lib/port-state.js');
+
+// Regressione dal vivo (2026-08-14): l'utente spegne le porte 1-2 del Zyxel, fa
+// qualche Verifica, poi le RIACCENDE — e restano grigio scuro «senza link», come
+// se avessimo osservato il cavo mentre la porta era chiusa. Non l'avevamo
+// osservato: guardavamo una decisione. Stesso streak alimentava il «fantasma», e
+// un cavo dedotto su quella porta spariva dal disegno (35% + tratteggio rado).
+test('streak: una porta in shutdown NON accumula (non è una prova sul cavo)', () => {
+  assert.equal(nextDownStreak({ adminDown: true, status: 'inactive', downStreak: 7 }), 0);
+  assert.equal(nextDownStreak({ adminDown: true, status: 'inactive' }), 0);
+});
+
+test('streak: senza link avanza di uno, con link riparte da zero', () => {
+  assert.equal(nextDownStreak({ status: 'inactive' }), 1);
+  assert.equal(nextDownStreak({ status: 'inactive', downStreak: 2 }), 3);
+  assert.equal(nextDownStreak({ status: 'active', downStreak: 9 }), 0);
+  assert.equal(nextDownStreak({ status: 'inactive', adminDown: false, downStreak: 1 }), 2,
+    'admin UP misurato non blocca il conteggio: lì la porta la stiamo guardando davvero');
+});
+
+test('streak: riaperta la porta, il grigio scuro va RI-guadagnato', () => {
+  // La porta chiusa non matura; alla riapertura app-snmp azzera lo streak (la
+  // transizione true→false), quindi servono N verifiche vere per il «no-link».
+  let pi = { adminDown: true, status: 'inactive', downStreak: 0 };
+  for (let i = 0; i < 5; i++) pi.downStreak = nextDownStreak(pi);
+  assert.equal(pi.downStreak, 0, 'cinque verifiche da spenta non hanno insegnato nulla');
+  assert.equal(portShade(pi, DOWN_STREAK_N), 'shut');
+  pi.adminDown = false;                                   // riaccesa
+  assert.equal(portShade(pi, DOWN_STREAK_N), null, 'torna al grigio neutro, non al grigio scuro');
+  pi.downStreak = nextDownStreak(pi); pi.downStreak = nextDownStreak(pi);
+  assert.equal(portShade(pi, DOWN_STREAK_N), null, 'a due verifiche non ci si crede ancora');
+  pi.downStreak = nextDownStreak(pi);
+  assert.equal(portShade(pi, DOWN_STREAK_N), 'no-link', 'alla terza, misurata sul serio');
+});
+
+test('streak: input degeneri non esplodono', () => {
+  assert.equal(nextDownStreak(null), 0);
+  assert.equal(nextDownStreak(undefined), 0);
+  assert.equal(nextDownStreak('Gi0/1'), 0);
+  assert.equal(nextDownStreak({ status: 'inactive', downStreak: 'tanti' }), 1);
+});

@@ -583,8 +583,15 @@ function _snmpAdminToUi(v){
 }
 function _applySnmpBasePortFields(pid, iface){
     const p = store.state.ports[pid] || (store.state.ports[pid] = {});
+    const wasShut = p.adminDown === true;
     const adminDown = _snmpAdminToUi(iface.adminStatus);
     if(adminDown === undefined) delete p.adminDown; else p.adminDown = adminDown;
+    // RIAPERTA a mano: le verifiche passate mentre era chiusa non dicevano niente sul
+    // cavo (lib/port-state.js, `nextDownStreak`), quindi non possono decidere adesso.
+    // Senza questo la porta riaccesa tornava SUBITO grigio scuro «senza link» sulla
+    // fede di uno streak maturato mentre era spenta: si riparte da zero e il
+    // «no-link» va ri-guadagnato con N verifiche vere.
+    if(wasShut && adminDown === false) p.downStreak = 0;
     p.status = _snmpOperToUiStatus(iface.operStatus, p.status);
     p.vlan   = _snmpVlanToUi(iface.vlan, p.vlan);
     p.speed  = _snmpSpeedToUi(iface.speed, p.speed);

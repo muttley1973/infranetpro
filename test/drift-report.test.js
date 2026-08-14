@@ -573,6 +573,29 @@ test('cavo fantasma: un cavo MANUALE su porta down NON è ghostCable (il nodo è
   assert.equal(r.counts.ghostCable, 0, 'il manuale su porta down non è un «cavo fantasma»');
 });
 
+test('cavo fantasma: una porta SPENTA A MANO non rende fantasma il cavo dedotto', () => {
+  // Regressione dal vivo (2026-08-14): spenta la porta, il cavo dedotto spariva dal
+  // disegno (opacità .35 + tratteggio rado). «Fantasma» vuol dire «l'evidenza che
+  // reggeva questa deduzione è evaporata»; qui non è evaporata, è stata SPENTA — e
+  // una porta chiusa non è la prova che il cavo non c'è, è la prova che nessuno sta
+  // guardando. Lo streak non avanza più su una porta chiusa (lib/port-state.js), ma
+  // un progetto salvato PRIMA di quella regola porta ancora un valore alto: il
+  // cancello qui lo rende innocuo senza aspettare N verifiche nuove.
+  const doc = {
+    cables: [
+      { id: 'c1', label: 'A→B', src: 'sw1-1', dst: 'sw2-1', autoLinked: true },   // capo su porta chiusa
+      { id: 'c2', label: 'A→C', src: 'sw1-2', dst: 'sw3-1', autoLinked: true },   // porta aperta, davvero senza link
+    ],
+  };
+  const snmp = {
+    portDownStreak: { 'sw1-1': 9, 'sw1-2': 4 },
+    portAdminDown: { 'sw1-1': true },
+  };
+  const r = buildDriftReport(snmp, doc, [], { downStreakN: 3 });
+  assert.deepEqual(r.ghostCable.map(x => x.id), ['c2'], 'solo il cavo sulla porta APERTA è fantasma');
+  assert.equal(r.counts.ghostCable, 1);
+});
+
 test('ignore persiste: la riga con key ignorata non compare', () => {
   const doc = { ports: { 'sw1-1': { status: 'active', vlan: 10 } } };
   const snmp = { responded: { 'sw1': true }, ports: { 'sw1-1': { status: 'inactive', vlan: 10 } } };
