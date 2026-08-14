@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { _parseIpv4Int, _parseCidrInfo, _ipInCidr, _cidrsOverlap, _intToIpv4, subnetInputToCidr,
-        addrFamily, addrKey, addrIsLinkLocalV6 } = require('../lib/cidr.js');
+        addrFamily, addrKey, addrIsLinkLocalV6, segmentKey } = require('../lib/cidr.js');
 
 test('_parseIpv4Int: parsing e validazione ottetti', () => {
   assert.equal(_parseIpv4Int('0.0.0.0'), 0);
@@ -221,4 +221,45 @@ test('addrIsLinkLocalV6: riconosce fe80::/10, non il global/ULA (F5)', () => {
   assert.equal(addrIsLinkLocalV6('fd00::1'), false);       // ULA, non link-local
   assert.equal(addrIsLinkLocalV6('10.0.0.1'), false);
   assert.equal(addrIsLinkLocalV6(''), false);
+});
+
+// ── D2: il segmento di un indirizzo, definito UNA volta ─────────────────────
+// «I primi tre ottetti» era riscritto in cinque punti, e in due di quelli
+// l'assunzione /24 DECIDEVA un verdetto (assenza provata, on/off-segment).
+// Qui l'assunzione resta, ma dichiarata, e il prefisso DICHIARATO la batte.
+test('segmentKey: senza prefissi resta la convenzione storica (/24 v4, /64 v6)', () => {
+  assert.equal(segmentKey('10.0.1.7'), '10.0.1');
+  assert.equal(segmentKey('192.168.1.250'), '192.168.1');
+  assert.equal(segmentKey('2001:db8:0:14::5'), '2001:db8:0:14::/64');
+  assert.equal(segmentKey('mela'), '');
+  assert.equal(segmentKey(''), '');
+});
+
+test('segmentKey: una /22 dichiarata tiene insieme quattro /24 (niente confine inventato)', () => {
+  const P = [{ cidr: '10.0.0.0/22' }];
+  assert.equal(segmentKey('10.0.1.7', P), '10.0.0.0/22');
+  assert.equal(segmentKey('10.0.3.9', P), '10.0.0.0/22');
+  assert.equal(segmentKey('10.0.1.7', P), segmentKey('10.0.3.9', P), 'stessa rete = stesso segmento');
+  assert.notEqual(segmentKey('10.9.9.9', P), '10.0.0.0/22', 'fuori dalla rete dichiarata');
+});
+
+test('segmentKey: due /25 dentro una /24 restano DUE segmenti (era la copertura sovrastimata)', () => {
+  const P = [{ cidr: '192.168.1.0/25' }, { cidr: '192.168.1.128/25' }];
+  const bassa = segmentKey('192.168.1.10', P);
+  const alta = segmentKey('192.168.1.130', P);
+  assert.equal(bassa, '192.168.1.0/25');
+  assert.equal(alta, '192.168.1.128/25');
+  assert.notEqual(bassa, alta, 'sondare una metà non prova nulla sull\'altra');
+});
+
+test('segmentKey: vince il prefisso PIÙ SPECIFICO, come per la VLAN di un IP', () => {
+  const P = [{ cidr: '10.0.0.0/16' }, { cidr: '10.0.5.0/24' }];
+  assert.equal(segmentKey('10.0.5.7', P), '10.0.5.0/24');
+  assert.equal(segmentKey('10.0.9.7', P), '10.0.0.0/16');
+});
+
+test('segmentKey: accetta i prefissi come stringhe o come righe IPAM, e ignora il rumore', () => {
+  assert.equal(segmentKey('10.0.1.7', ['10.0.0.0/22']), '10.0.0.0/22');
+  assert.equal(segmentKey('10.0.1.7', [null, {}, { cidr: '' }, { cidr: 'mela' }]), '10.0.1');
+  assert.equal(segmentKey('10.0.1.7', 'non-un-elenco'), '10.0.1');
 });

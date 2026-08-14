@@ -24,7 +24,7 @@ import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (e
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAutomationMenu, _updateAutoPollBadge } from './app-vlan-autopoll.js';   // popover Automazioni + badge del monitoraggio (ciclo benigno: solo a runtime)
 import { effAutoConfig, clampMonitorInterval } from '../lib/auto-monitor.js';   // config PURA del monitoraggio unificato (schema nuovo + migrazione legacy)
-import { ipamByVidView } from '../lib/ipam-model.js';   // vista per-VLAN derivata dai prefissi dichiarati
+import { ipamByVidView, prefixesOf } from '../lib/ipam-model.js';   // vista per-VLAN derivata dai prefissi dichiarati
 import { ensureNodeRackVisible, focusNode, selectAndFocusNode } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { trace } from './app-pointer.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { reconcileMiscabling } from './app-autolink.js';   // Proof-State: miscablaggio per-porta (l.miscabled) dai neighbor cache
@@ -131,6 +131,11 @@ export function _driftBuildSnmpSnapshot(docSnap, reachable, arpTable){
         nodes: state.nodes,
         docPorts: docSnap.ports,
         ports: state.ports,
+        // Reti DICHIARATE: danno la maschera VERA al confine di segmento, da cui
+        // dipende «assenza provata» (rosso) vs «non verificabile» (grigio).
+        // La stessa lista va a deriveProjectNetworks/annotateNetworksVerification,
+        // che confrontano le loro righe con queste chiavi.
+        prefixes: prefixesOf(state),
         fdb, vlanCache,
         reachable, arpTable, snmpArp, snmpNd,
         // Lease DHCP: fonte MAC→IP cross-VLAN (transitorio, store._dhcpLeases).
@@ -741,13 +746,13 @@ export function _driftNetworksSection(rep){
     if(typeof deriveProjectNetworks !== 'function') return '';
     const esc = s => escapeHTML(String(s == null ? '' : s));
     const leases = Array.isArray(store._dhcpLeases) ? store._dhcpLeases : [];
-    const { networks } = deriveProjectNetworks({ nodes: store.state.nodes, leases });
+    const { networks } = deriveProjectNetworks({ nodes: store.state.nodes, leases, prefixes: prefixesOf(store.state) });
     if(!networks.length) return '';
     // Accorpamento: il join annota ogni /24 con la PRESENZA (la sweep ha osservato la
     // subnet?) e vi ANNIDA i device "non verificabili" → la sezione "Reti del progetto"
     // assorbe il vecchio bucket "Non verificabili" (stesso fatto, una sola vista).
     const joined = (rep && typeof annotateNetworksVerification === 'function')
-        ? annotateNetworksVerification(networks, { sweepRan: rep.sweepRan, observedSubnets: rep.observedSubnets, unverified: rep.unverified })
+        ? annotateNetworksVerification(networks, { sweepRan: rep.sweepRan, observedSubnets: rep.observedSubnets, unverified: rep.unverified, prefixes: prefixesOf(store.state) })
         : { networks: networks.map(n => Object.assign({}, n, { observed:null, unverifiedDevices:[], unverifiedCount:0 })), orphanUnverified: [] };
     const nets = joined.networks;
     // ① "sempre sul dichiarato": marca ogni /24 come DENTRO una subnet IPAM DICHIARATA
@@ -760,8 +765,18 @@ export function _driftNetworksSection(rep){
     const _declSubs = []; const _seenSub = new Set();
     for (const k of Object.keys(_ipamV)) { const info = _subInfo((_ipamV[k] || {}).subnet); if (!info) continue; const key = info.network + '/' + info.prefix; if (_seenSub.has(key)) continue; _seenSub.add(key); _declSubs.push(info); }
     _declSubs.sort((a, b) => b.prefix - a.prefix);   // più specifica prima
-    // Una /24 è "dichiarata" se cade in una subnet IPAM larga ≤ /24 (una /16, /8, /23…, o la /24 stessa).
-    const _declOf = n => { const base = _ipInt((n.net || '') + '.0'); if (base == null) return null; for (const d of _declSubs) if (d.prefix <= 24 && ((base & d.mask) >>> 0) === d.network) return d; return null; };
+    // Una rete è "dichiarata" se cade in una subnet IPAM larga ≤ /24 (una /16, /8, /23…, o la /24 stessa).
+    // ⚠️ L'indirizzo di rete si legge da `n.cidr`, che la riga porta SEMPRE completo:
+    // ricomporlo da `n.net + '.0'` funzionava solo finché la chiave era «a.b.c». Da
+    // quando una rete DICHIARATA dà alla riga la sua chiave vera (`10.0.0.0/22`),
+    // quella concatenazione produceva «10.0.0.0/22.0» → indirizzo illeggibile →
+    // nessuna riga risultava più dichiarata, e il badge spariva in silenzio.
+    const _declOf = n => {
+        const base = _ipInt(String(n.cidr || '').split('/')[0]);
+        if (base == null) return null;
+        for (const d of _declSubs) if (d.prefix <= 24 && ((base & d.mask) >>> 0) === d.network) return d;
+        return null;
+    };
     // dichiarate PRIMA, poi default; dentro ciascun gruppo si conserva l'ordine esistente (stabile).
     const _rowInfo = nets.map((n, i) => ({ n, decl: _declOf(n), i }));
     _rowInfo.sort((a, b) => ((b.decl ? 1 : 0) - (a.decl ? 1 : 0)) || (a.i - b.i));

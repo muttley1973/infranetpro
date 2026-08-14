@@ -9,7 +9,7 @@ const os  = require('os');
 const auth = require('../../auth');
 const { DRIVERS } = require('../drivers');
 const { buildNeighborCandidates, buildPortIndex, buildMacIndex, buildPortMacIndex, buildFdbCandidates, buildArpCandidates, buildNdCandidates, locateMacsOnEdge } = require('../../lib/correlate');
-const { expandSubnet, _execFileAsync, _pingHost, _pingHostRetry, _stealthDelayMs, _normMac, _parseArpTable, _readArpMap, _demoteStaleArpDup, _readLocalInterfaceMap, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost, _mdnsSsdpSweep, _shuffled } = require('../netscan');
+const { expandSubnet, _execFileAsync, _pingHost, _pingHostRetry, _stealthDelayMs, _normMac, _parseArpTable, _readArpMap, _demoteStaleArpDup, _readLocalInterfaceMap, _readLocalCidrs, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost, _mdnsSsdpSweep, _shuffled } = require('../netscan');
 const { _cleanHostname, PEN_VENDOR, _penFromObjectId, _vendorByObjectId, _decodeSysServices, _classifyDiscoveredDevice, _buildDiscoveryMeta, _decorateDiscoveryRow } = require('../classify');
 const { OuiEngine } = require('../../engine');
 const { publicMdns } = require('../../lib/discovery-mdns');
@@ -800,18 +800,17 @@ router.post('/api/discover/topology', auth.requireAdmin, async (req, res) => {
     // NON si resuscitano IP morti dall'ARP (spesso stantia) di un NAS/router on-segment
     // (es. la ipNetToMediaTable di una Synology piena di voci dormienti). L'ARP-SNMP
     // resta per gli host OFF-SEGMENT, il suo scopo.
-    let localSubnets = null;
+    // Le reti locali con la loro maschera VERA (os.networkInterfaces().cidr): il
+    // confine on/off-segment decide se un host è morto o solo dietro un router,
+    // e assumerlo /24 sbagliava su /22 e /25 (audit D2).
+    let localPrefixes = null;
     try {
-      const loc = _readLocalInterfaceMap();
-      localSubnets = new Set();
-      for (const lip of loc.keys()) {
-        const m = /^(\d{1,3}\.\d{1,3}\.\d{1,3})\./.exec(lip);
-        if (m) localSubnets.add(m[1]);
-      }
-    } catch (_) { localSubnets = null; }
+      const cidrs = _readLocalCidrs();
+      localPrefixes = cidrs.length ? cidrs : null;
+    } catch (_) { localPrefixes = null; }
     const arpMap = new Map();   // ip -> { ip, mac, viaFrom } (dedup cross-device)
     for (const { table, fromIp } of arpTables) {
-      for (const c of buildArpCandidates(table, { scanSet, knownIps, fromIp, localSubnets })) {
+      for (const c of buildArpCandidates(table, { scanSet, knownIps, fromIp, localPrefixes })) {
         if (!arpMap.has(c.ip)) arpMap.set(c.ip, c);
       }
     }

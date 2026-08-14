@@ -85,9 +85,15 @@ plugins/               Seed vendor catalogs (zero database)
 lib/                   Shared browser + test modules (the heart of the app)
   i18n.js              t(key,vars), it/en dictionaries, glossary  (pure)
   cidr.js           IPv4+IPv6 prefix arithmetic; `addrFamily`/`addrKey` = the identity of
-                    a single ADDRESS (v4 verbatim, v6 canonical RFC 5952). One definition,
-                    used by l3-gateway.js and ipam-audit.js: the same rule written in two
-                    layers diverges, and it is always the incomplete one that wins  (pure)
+                    a single ADDRESS (both families canonical), `segmentKey` = the segment
+                    an address belongs to — the DECLARED prefix containing it (most
+                    specific first), and only where nothing is declared the /24 (v4) /
+                    /64 (v6) convention, stated here instead of assumed per file. One
+                    definition each, used by l3-gateway/ipam-audit and by drift-snapshot,
+                    project-networks, correlate, topology-plan, dhcp-lease: the same rule
+                    written in two layers diverges, and it is always the incomplete one
+                    that wins. A segment key is only comparable against one built from
+                    the SAME prefix list — producer and consumer must be handed it  (pure)
   netnames.js linkstate.js correlate.js cabling.js
   topo-lines.js frontpanel.js stack.js ha-pair.js
   topology-plan.js  buildTopologyPlan / inferUnmanagedNodes / classifyIntermediary:
@@ -147,9 +153,17 @@ lib/                   Shared browser + test modules (the heart of the app)
   subbar-stats.js   computeSubbarStats → sub-header numbers: doc completeness
                     (withIp/addressable), device count (rooms excluded), SNMP health
                     (ok/err/warn/none) — same field defs as api-shape/app-drift  (pure)
-  mac-class.js      isVirtualMac/isRandomizedMac (BYOD); sharedMacsInBatch (a MAC on
-                    ≥2 IPs = shared next-hop) + gatewayMacSet (documented L3 gateways)
-                    → discovery skips by-MAC merge on those, no gateway collapse  (pure)
+  mac-class.js      What a MAC IS, for the whole project: `macKey` (canonical, to compare)
+                    and `macFormat` (uppercase, to display); anything that is not a MAC
+                    returns '' — a non-MAC used as a key is a string comparison in
+                    disguise. Accepts colons, dashes, Cisco dots, bare 12 hex. Also
+                    isVirtualMac/isRandomizedMac (BYOD, one merged OUI list);
+                    sharedMacsInBatch (a MAC on ≥2 IPs = shared next-hop) + gatewayMacSet
+                    (documented L3 gateways) → discovery skips by-MAC merge on those, no
+                    gateway collapse. netnames/topology-plan/dhcp-lease/ai-grounding
+                    delegate here; the Verify indexes with the injected normaliser, never
+                    a bare toLowerCase — that holds only while every source spells a MAC
+                    the same way  (pure)
   device-signatures.js  canonical sysObjectID→type table (OID_TYPE_VOTES; oidTypeVotes/
                     oidType/oidIsType) — single source read by the fusion scorer AND
                     the client _guessType (no OID drift)  (pure)

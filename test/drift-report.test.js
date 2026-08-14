@@ -676,3 +676,40 @@ test('cambio IP: la chiave ipchg porta nodeId E nuovo-IP (no ignore permanente, 
   const keys = new Set(r2.ipChanged.map((x) => x.key));
   assert.equal(keys.size, r2.ipChanged.length, 'chiavi distinte per nodo, anche con MAC condiviso');
 });
+
+// ── F7: la presenza non può dipendere dai separatori del MAC ────────────────
+// Documentato e misurato venivano confrontati con un `.toLowerCase()` nudo su
+// entrambi i lati: regge finché OGNI fonte emette la forma con i due punti. Il
+// giorno in cui una fonte usa altri separatori (incolla ARP di Windows
+// `AA-BB-CC-…`, un driver lease, la forma Cisco), il documentato non incontra
+// più il misurato → il device risulta ASSENTE pur essendo lì. Qui l'assenza è
+// POSSIBILE (trustAbsentNodeIds), quindi il test discrimina davvero.
+test('F7: un MAC osservato coi trattini riconosce il documentato coi due punti', () => {
+  const doc = { macs: [{ mac: 'AA:BB:CC:00:00:01', label: 'sw1', nodeId: 'sw1' }] };
+  const snmp = {
+    observedMacs: ['AA-BB-CC-00-00-01'],            // stessa scheda, altra scrittura
+    fdbObserved: true, responded: {}, trustAbsentNodeIds: { sw1: true },
+  };
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.macOrphan, 0, 'è presente: nessun falso «assente» per un separatore');
+});
+
+test('F7: vale anche per la forma Cisco a punti', () => {
+  const doc = { macs: [{ mac: 'aabb.ccdd.eeff', label: 'ap1', nodeId: 'ap1' }] };
+  const snmp = {
+    observedMacs: ['AA:BB:CC:DD:EE:FF'],
+    fdbObserved: true, responded: {}, trustAbsentNodeIds: { ap1: true },
+  };
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.macOrphan, 0, 'documentato in forma Cisco, misurato coi due punti: stesso device');
+});
+
+test('F7: un MAC davvero diverso resta assente (il fix non rende tutto uguale)', () => {
+  const doc = { macs: [{ mac: 'AA:BB:CC:00:00:01', label: 'sw1', nodeId: 'sw1' }] };
+  const snmp = {
+    observedMacs: ['DE-AD-BE-EF-00-99'],
+    fdbObserved: true, responded: {}, trustAbsentNodeIds: { sw1: true },
+  };
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.macOrphan, 1, 'assenza reale: sempre segnalata');
+});

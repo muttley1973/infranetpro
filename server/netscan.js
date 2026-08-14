@@ -298,6 +298,23 @@ function _demoteStaleArpDup(rows, strongByMac) {
   return demoted;
 }
 
+// CIDR delle interfacce IPv4 locali, con la maschera VERA (es. '192.168.1.10/24').
+// `os.networkInterfaces()` porta `cidr` già pronto: chi deve sapere se un IP è
+// on-segment per QUESTA macchina non ha alcun motivo di assumere una /24
+// (audit D2). Ritorna [] se l'informazione non c'è.
+function _readLocalCidrs() {
+  const out = [];
+  const ifaces = os.networkInterfaces?.() || {};
+  for (const entries of Object.values(ifaces)) {
+    for (const it of entries || []) {
+      if (!it || it.family !== 'IPv4' || it.internal) continue;
+      const c = String(it.cidr || '').trim();
+      if (c && out.indexOf(c) < 0) out.push(c);
+    }
+  }
+  return out;
+}
+
 function _readLocalInterfaceMap() {
   const map = new Map();
   const ifaces = os.networkInterfaces?.() || {};
@@ -780,4 +797,4 @@ async function _mdnsSsdpSweep(opts = {}) {
   return aggregateSweep(messages);
 }
 
-module.exports = { expandSubnet, _execFileAsync, _pingHost, _pingResultIsAlive, _pingHostRetry, _stealthDelayMs, _normMac, _parseArpTable, _parseNeighbors, _readArpMap, _ipToNum, _demoteStaleArpDup, _readLocalInterfaceMap, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _castProbe, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost, _mdnsSsdpSweep, _fetchUpnpXml, _shuffled, _buildNbstatQuery, _parseNbstatResponse, _nbstatUdp };
+module.exports = { expandSubnet, _execFileAsync, _pingHost, _pingResultIsAlive, _pingHostRetry, _stealthDelayMs, _normMac, _parseArpTable, _parseNeighbors, _readArpMap, _ipToNum, _demoteStaleArpDup, _readLocalInterfaceMap, _readLocalCidrs, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _castProbe, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost, _mdnsSsdpSweep, _fetchUpnpXml, _shuffled, _buildNbstatQuery, _parseNbstatResponse, _nbstatUdp };

@@ -246,7 +246,7 @@ function _buildModel() {
     // essere vuoto). Se il motore non c'è o inciampa, la riga resta "non
     // dichiarato": mai un elenco inventato al suo posto.
     let networks;
-    try { networks = (deriveProjectNetworks({ nodes, types: TYPES }) || {}).networks || []; } catch (_) { networks = []; }
+    try { networks = (deriveProjectNetworks({ nodes, types: TYPES, prefixes: prefixesOf(st) }) || {}).networks || []; } catch (_) { networks = []; }
 
     // Igiene IPAM (doc↔doc, non doc↔realtà): IP duplicati + subnet che si
     // sovrappongono. Calcolata dal motore L3 (stesso modello dell'overlay, con gli

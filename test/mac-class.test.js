@@ -108,3 +108,44 @@ test('countMacsPerPort: input vuoto/non valido => oggetto vuoto', () => {
   assert.deepEqual(countMacsPerPort(null), {});
   assert.deepEqual(countMacsPerPort(undefined), {});
 });
+
+// ── D3: UNA sola definizione di «cos'è un MAC» ───────────────────────────────
+// Il progetto ne aveva cinque, e divergevano: quella di lib/topology-plan
+// sostituiva solo i trattini, quindi un MAC in forma Cisco `aabb.ccdd.eeff` non
+// veniva MAI riconosciuto né virtuale né randomizzato — in silenzio.
+const { macKey, macFormat, isMac } = require('../lib/mac-class.js');
+
+test('macKey: una chiave sola da qualunque formato (colon, trattino, Cisco, nudo)', () => {
+  const atteso = 'aa:bb:cc:dd:ee:ff';
+  for (const raw of ['aa:bb:cc:dd:ee:ff', 'AA:BB:CC:DD:EE:FF', 'aa-bb-cc-dd-ee-ff',
+                     'AABB.CCDD.EEFF', 'aabbccddeeff', '  AA-BB-CC-DD-EE-FF  ']) {
+    assert.equal(macKey(raw), atteso, `formato non riconosciuto: ${raw}`);
+  }
+});
+
+test('macKey: ciò che non è un MAC non diventa una chiave (nessun passthrough)', () => {
+  for (const raw of ['', null, undefined, 'aabb', 'non-un-mac', 'aa:bb:cc:dd:ee:ff:00']) {
+    assert.equal(macKey(raw), '', `passthrough del refuso: ${JSON.stringify(raw)}`);
+  }
+  assert.equal(isMac('aabb'), false);
+  assert.equal(isMac('AABB.CCDD.EEFF'), true);
+});
+
+test('macFormat: forma da MOSTRARE (maiuscola), vuota se non è un MAC', () => {
+  assert.equal(macFormat('aabb.ccdd.eeff'), 'AA:BB:CC:DD:EE:FF');
+  assert.equal(macFormat('refuso'), '');
+});
+
+test('D3: un MAC in forma Cisco è riconosciuto virtuale/randomizzato come gli altri', () => {
+  // Stesso indirizzo, tre scritture: la risposta non può dipendere dai separatori.
+  assert.equal(isVirtualMac('00:50:56:12:34:56'), true);
+  assert.equal(isVirtualMac('0050.5612.3456'), true, 'forma Cisco: era il buco di _normMac6');
+  assert.equal(isVirtualMac('00-50-56-12-34-56'), true);
+  assert.equal(isRandomizedMac('0a:11:22:33:44:55'), true);
+  assert.equal(isRandomizedMac('0a11.2233.4455'), true, 'forma Cisco');
+});
+
+test('D3: la lista OUI virtuali è UNA (fusa con quella di topology-plan: Parallels)', () => {
+  assert.equal(isVirtualMac('00:1c:42:aa:bb:cc'), true, 'Parallels, veniva solo da topology-plan');
+  assert.equal(isVirtualMac('02:42:ac:11:00:02'), true, 'Docker, veniva solo da mac-class');
+});

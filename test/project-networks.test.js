@@ -139,3 +139,42 @@ test('annotate: input difensivi non lanciano', () => {
   assert.deepEqual(annotateNetworksVerification(), { networks: [], orphanUnverified: [] });
   assert.deepEqual(annotateNetworksVerification([], {}), { networks: [], orphanUnverified: [] });
 });
+
+// ── D2: le righe rete seguono la maschera DICHIARATA, non una /24 assunta ───
+// La chiave di segmento prodotta qui viene CONFRONTATA con `observedSubnets`
+// (lib/drift-snapshot): se i due lati la calcolassero diversamente, «la sweep ha
+// visto questa rete?» risponderebbe sempre no. Per questo la lista di prefissi
+// va passata a entrambi — ed è la stessa funzione (lib/cidr `segmentKey`).
+test('D2: una /22 dichiarata è UNA riga, non quattro /24', () => {
+  const nodes = [node('a', '10.0.0.5'), node('b', '10.0.1.5'), node('c', '10.0.3.9')];
+  const senza = deriveProjectNetworks({ nodes }).networks;
+  assert.equal(senza.length, 3, 'senza reti dichiarate: la vecchia convenzione, tre /24');
+  const con = deriveProjectNetworks({ nodes, prefixes: [{ cidr: '10.0.0.0/22' }] }).networks;
+  assert.equal(con.length, 1, 'con la rete dichiarata: una sola rete, come l\'ha scritta l\'utente');
+  assert.equal(con[0].cidr, '10.0.0.0/22', 'il CIDR è quello dichiarato, non «10.0.0.0/24» ricomposto');
+  assert.equal(con[0].deviceCount, 3);
+});
+
+test('D2: due /25 dentro una /24 restano due reti (il rosso non si estende alla metà mai sondata)', () => {
+  const prefixes = [{ cidr: '192.168.1.0/25' }, { cidr: '192.168.1.128/25' }];
+  const nodes = [node('bassa', '192.168.1.10'), node('alta', '192.168.1.130')];
+  const { networks } = deriveProjectNetworks({ nodes, prefixes });
+  assert.equal(networks.length, 2);
+  // La sweep ha visto SOLO la metà bassa: l'altra resta non osservata.
+  const { networks: joined } = annotateNetworksVerification(networks, {
+    sweepRan: true, observedSubnets: ['192.168.1.0/25'], unverified: [], prefixes,
+  });
+  const bassa = joined.find(n => n.cidr === '192.168.1.0/25');
+  const alta = joined.find(n => n.cidr === '192.168.1.128/25');
+  assert.equal(bassa.observed, true, 'sondata');
+  assert.equal(alta.observed, false, 'MAI sondata: con la /24 assunta risultava coperta, e i suoi device rossi');
+});
+
+test('D2: produttore e consumatore devono usare la stessa lista (altrimenti due mondi)', () => {
+  const prefixes = [{ cidr: '10.0.0.0/22' }];
+  const { networks } = deriveProjectNetworks({ nodes: [node('a', '10.0.1.5')], prefixes });
+  const giusto = annotateNetworksVerification(networks, {
+    sweepRan: true, observedSubnets: ['10.0.0.0/22'], unverified: [], prefixes,
+  }).networks[0];
+  assert.equal(giusto.observed, true, 'stesse chiavi da entrambi i lati → il join funziona');
+});

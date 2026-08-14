@@ -826,3 +826,26 @@ test('matchNodeByIdent: aggancia per l\'IPv6 di gestione, per identità e non pe
   // l'IPv4 continua a funzionare
   assert.equal(matchNodeByIdent('', '10.0.0.1', [{ id: 'a', ip: '10.0.0.1' }])?.id, 'a');
 });
+
+// ── D2: on-segment si decide con la maschera VERA del collector ─────────────
+const { buildArpCandidates } = require('../lib/correlate.js');
+// Se un IP è in una rete del collector, la sua ARP locale è autorevole: un host
+// che non ha risposto è MORTO e non va resuscitato dall'ARP (spesso stantia) di
+// un altro apparato. Il confine veniva assunto /24; ma `os.networkInterfaces()`
+// la maschera ce l'ha, e su una /22 metà degli host locali finiva trattata come
+// "off-segment" → device morti riproposti come vivi nello Scopri.
+test('D2: con la /22 locale un IP di un altro /24 è comunque ON-segment (niente resurrezione)', () => {
+  const arp = { 'aa:bb:cc:00:00:01': '10.0.2.50' };   // stesso /22 del collector, altro /24
+  const scanSet = new Set(['10.0.2.50']);
+  const conMaschera = buildArpCandidates(arp, { scanSet, localPrefixes: ['10.0.0.10/22'] });
+  assert.equal(conMaschera.length, 0, 'on-segment per la maschera vera → non resuscitato');
+  const conAssunzione = buildArpCandidates(arp, { scanSet, localSubnets: new Set(['10.0.0']) });
+  assert.equal(conAssunzione.length, 1, 'con la /24 assunta sembrava off-segment: ecco il difetto');
+});
+
+test('D2: un host DAVVERO off-segment resta un candidato (lo scopo dell\'ARP-SNMP)', () => {
+  const arp = { 'aa:bb:cc:00:00:02': '192.168.9.7' };
+  const out = buildArpCandidates(arp, { scanSet: new Set(['192.168.9.7']), localPrefixes: ['10.0.0.10/22'] });
+  assert.equal(out.length, 1, 'dietro un confine L3: è il caso per cui la funzione esiste');
+  assert.equal(out[0].mac, 'aa:bb:cc:00:00:02');
+});

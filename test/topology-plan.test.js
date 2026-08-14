@@ -607,3 +607,27 @@ test('buildApplyOps: materializeNeighbors gated dal tier lldp + salta gli exists
   const ops2 = buildApplyOps(plan, { existingLinks: [], portIndex: pIndex({}), tiers: { lldp: false, fdb: true, arp: true, inferred: true } });
   assert.equal(ops2.materializeNeighbors.length, 0, 'tier lldp OFF → niente vicini');
 });
+
+// ── D2: il confine di segmento decide un TIPO proposto ──────────────────────
+// «IP in subnet diversa → è un router» usava i primi tre ottetti: su una /22
+// due indirizzi della stessa rete sembravano cross-subnet e nasceva un router
+// che non esiste. Con la rete dichiarata il confine è quello vero.
+test('D2: due indirizzi della stessa /22 dichiarata NON sono cross-subnet', () => {
+  const macs = [{ mac: 'aa:bb:cc:00:00:01', ip: '10.0.1.5' }, { mac: 'aa:bb:cc:00:00:02', ip: '10.0.2.5' }];
+  const senza = classifyIntermediary(macs, '10.0.0.10');
+  assert.equal(senza.type, 'router', 'con la /24 assunta: router inventato');
+  const con = classifyIntermediary(macs, '10.0.0.10', [{ cidr: '10.0.0.0/22' }]);
+  assert.notEqual(con.type, 'router', 'con la rete dichiarata: stesso segmento, nessun router');
+});
+
+test('D2: un confine L3 VERO resta riconosciuto', () => {
+  const macs = [{ mac: 'aa:bb:cc:00:00:01', ip: '192.168.9.5' }];
+  const cls = classifyIntermediary(macs, '10.0.0.10', [{ cidr: '10.0.0.0/22' }]);
+  assert.equal(cls.type, 'router');
+  assert.equal(cls.signal, 'cross-subnet');
+});
+
+test('D3: la forma Cisco è riconosciuta virtuale anche qui (era il buco di _normMac6)', () => {
+  const macs = [{ mac: '0050.5601.0203' }, { mac: '0050.5601.0204' }];
+  assert.equal(classifyIntermediary(macs, '').type, 'hypervisor');
+});
