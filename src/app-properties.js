@@ -198,12 +198,27 @@ export function _buildInventoryFieldsHtml(n, d){
     <div class="prop-row2">
         <div class="prop-group"><label>${t('field.warranty')}</label><input type="date" value="${escapeHTML(n.warrantyUntil||'')}" data-tip="${t('field.warrantyTip')}" data-change="node-field" data-field="warrantyUntil"></div>
         <div class="prop-group"><label>${t('field.eol')}</label><input type="date" value="${escapeHTML(n.eolDate||'')}" data-tip="${t('field.eolTip')}" data-change="node-field" data-field="eolDate"></div>
-    </div>` + _buildDcimSourceHtml(n);
+    </div>` + _buildDcimSourceHtml(n) + _buildIdentityStaleHtml(n);
     // ⚠️ CONCATENAZIONE, non interpolazione dentro il template: `${...}` che torna
     // stringa vuota lascia comunque il newline e l'indentazione della riga, e il
     // golden render — che confronta l'output byte a byte — segnalerebbe 20 diff di
     // puro spazio bianco. Così un device SENZA dichiarazione DCIM rende identico a
     // prima, e il golden resta un oracolo invece di diventare rumore da rigenerare.
+}
+
+/** L'età della misura d'identità. Il segnaposto grigio dei quattro campi qui sopra
+ *  è quello che l'ENTITY-MIB ha letto — ma una lettura che non porta identità
+ *  (walk troncata, apparato senza quella MIB) non cancella piu' la misura buona di
+ *  prima: resta, marcata «ultimo noto» (lib/identity-reconcile.js). Se non lo si
+ *  dicesse, un modello di mesi fa si leggerebbe come appena misurato.
+ *  Riga assente quando la misura è riconfermata o non c'è: un avviso che compare
+ *  sempre non è piu' un avviso. */
+function _buildIdentityStaleHtml(n){
+    const inv = (n && n.integration && n.integration.inventory) || null;
+    if(!inv || inv.stale !== true) return '';
+    const at = Date.parse(inv.measuredAt || '');
+    const when = isNaN(at) ? '' : ' · ' + t('inv.measuredOn', { d: new Date(at).toLocaleDateString() });
+    return `<div class="prop-inv-stale"><i class="fas fa-clock-rotate-left"></i> <span>${escapeHTML(t('inv.lastKnown') + when)}</span></div>`;
 }
 
 /** Quello che il DCIM importato DICHIARA di questo apparato: di chi è (tenant),

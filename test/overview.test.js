@@ -1067,6 +1067,25 @@ test('④ DR: il MODELLO basta a identificare (anche senza serial) e il firmware
   assert.equal(r.recoverable, 2, 'sw1+sw2 ripristinabili; il firmware ignoto NON abbassa il conto');
 });
 
+test('④ DR: un\'identità NON riconfermata non grida «apparato sostituito»', () => {
+  // Stessa regola della Verifica (lib/identity-reconcile.js): se la lettura
+  // ENTITY-MIB non ha riconfermato chi è l'apparato, quello che resta è l'ultimo
+  // noto — utile per sapere cosa ricomprare, non abbastanza per un'accusa.
+  const now = Date.parse('2026-07-29T00:00:00Z');
+  const at = '2026-07-20T00:00:00Z';
+  const nodes = [
+    { id: 'sw1', type: 'switch', rackId: 'r1', serialNumber: 'OLD999', backup: { ref: 'x', at },
+      integration: { inventory: { serialNumber: 'NEW111', model: 'Stack', stale: true } } },
+  ];
+  const idr = rowOf(buildOverview({ types: DR_TYPES, nodes, now }).recovery, 'drIdentity');
+  assert.equal(idr.extra.mismatch, 0, 'misura stantìa → nessun mismatch');
+  assert.equal(idr.value, 1, 'ma l\'apparato resta identificabile');
+
+  // Controprova (mutation-proof): togli `stale` e l'accusa torna.
+  nodes[0].integration.inventory = { serialNumber: 'NEW111', model: 'Stack' };
+  assert.equal(rowOf(buildOverview({ types: DR_TYPES, nodes, now }).recovery, 'drIdentity').extra.mismatch, 1);
+});
+
 test('④ DR: presenza temporale è ADVISORY (denominatore = solo chi ha storia) e non fa da gate', () => {
   const now = Date.parse('2026-07-29T00:00:00Z');
   const at = '2026-07-20T00:00:00Z';

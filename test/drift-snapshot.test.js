@@ -512,6 +512,31 @@ test('round-trip: swap del serial → identityDrift azionabile dallo snapshot al
   assert.equal(r.identityDrift[0].diffs.find(x => x.field === 'serialNumber').real, 'XYZ999');
 });
 
+// L'apparato risponde benissimo, ma l'ENTITY-MIB no: l'inventory che sopravvive è
+// l'ULTIMO NOTO (`stale`, lib/identity-reconcile.js). Da una misura non
+// riconfermata non esce un'accusa di apparato sostituito — sul GS1900-24 vero era
+// esattamente questo il caso: walk troncata, «Stack» incoronato al posto del
+// chassis, e la Verifica gridava alla sostituzione.
+test('snmpSnap: una misura NON riconfermata (stale) non entra in measuredIds', () => {
+  const nodes = [
+    { id: 'sw1', snmpStatus: 'ok', integration: { inventory: { serialNumber: 'ABC123', model: 'GS1900-24' } } },
+    { id: 'sw2', snmpStatus: 'ok', integration: { inventory: { serialNumber: 'VECCHIO', model: 'Stack', stale: true } } },
+  ];
+  const s = buildSnmpSnapshot({ nodes });
+  assert.deepEqual(Object.keys(s.measuredIds), ['sw1'], 'sw2 risponde ma non ha riconfermato chi è');
+});
+
+test('round-trip: identità stantìa → NESSUN «apparato sostituito»', () => {
+  const nodes = [{ id: 'sw1', mac: 'AA:AA:AA:00:00:01', ip: '10.0.0.2', snmpStatus: 'ok',
+    serialNumber: 'ABC123', model: 'GS1900-24',
+    integration: { host: '10.0.0.2', inventory: { serialNumber: 'XYZ999', model: 'Stack', stale: true } } }];
+  const doc = buildDocSnapshot({ nodes, links: [], ports: {}, normMac: lower, nodeLabel: n => n.id });
+  const snmp = buildSnmpSnapshot({ nodes, docPorts: doc.ports, ports: {} });
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.identityDrift, 0, 'il dato vecchio resta consultabile, ma non accusa');
+  assert.equal(r.identityDrift.length, 0);
+});
+
 // ── L'ARP dei router è un RICORDO del Sync, non una misura di adesso ─────────
 // Regressione dal vivo: un NAS spento restava a colori pieni. La sweep aveva la
 // prova dura dell'assenza (reach[ip].absent, ARP-miss sul filo locale dopo il

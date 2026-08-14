@@ -131,3 +131,7 @@
         .dcim-src-row { display:flex; justify-content:space-between; align-items:baseline; gap:10px; font-size:var(--fs-sm); }
         .dcim-src-k { color:var(--text-muted); white-space:nowrap; }
         .dcim-src-v { color:var(--text-main); text-align:right; word-break:break-word; }
+        /* Identità hardware rimasta «ultimo noto»: nota, non allarme. Il dato è
+           ancora buono per ricomprare l'apparato — è la sua ETÀ che va detta,
+           quindi tono spento come i segnaposto, non l'ambra degli avvisi. */
+        .prop-inv-stale { display:flex; align-items:baseline; gap:6px; margin-top:6px; font-size:var(--fs-sm); color:var(--text-muted); }

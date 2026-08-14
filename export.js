@@ -1486,13 +1486,20 @@ function _buildPdfReportData() {
             // era più ottimista dell'app, che qui conta la lacuna).
             const _declS = String(n.serialNumber || '').trim().toLowerCase();
             const _measS = String(inv.serialNumber || '').trim().toLowerCase();
+            // ...ma solo se la misura è RICONFERMATA dall'ultimo poll. Un inventory
+            // rimasto «ultimo noto» (walk ENTITY-MIB troncata) informa ancora su cosa
+            // ricomprare, non autorizza a scrivere «sostituito» in un documento
+            // consegnato. Stessa regola di Verifica e Panoramica: lib/identity-reconcile.js
+            // (<script> caricato prima di questo).
+            const _idConfirmed = (typeof isConfirmedMeasure === 'function')
+                ? isConfirmedMeasure(inv) : (inv.stale !== true);
             return {
                 name: getNodeDisplayName(n) || n.name || n.id,
                 backupRef: b.ref || '', backupMethod: b.method || '', backupAt: b.at || '',
                 serial: n.serialNumber || inv.serialNumber || '',
                 firmware: n.firmwareVer || inv.firmwareVer || '',
                 model: n.model || inv.model || '',
-                identityMismatch: !!(_declS && _measS && _declS !== _measS),
+                identityMismatch: !!(_idConfirmed && _declS && _measS && _declS !== _measS),
                 // Ciclo di vita: due date DICHIARATE (nessun apparato le misura).
                 // In una runbook di procurement pesano quanto il seriale — «lo
                 // ricompri?» viene subito dopo «cosa ricompri?». Vuote = non

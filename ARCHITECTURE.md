@@ -370,6 +370,39 @@ which means "inferred, and its evidence evaporated". Inferred cables stay out of
 bucket: through a shut port the link never forms, so their down-streak already carries
 them into `ghostCable`.
 
+### Measured hardware identity, and its age
+
+`node.integration.inventory` is what ENTITY-MIB said about a device: make, model,
+serial, firmware. It is a **measurement**, so it has an age — which nothing tracked
+until 2.9.2. The field had two states ("there" / "not there") and was rewritten on
+every poll with whatever arrived, `null` included, which cut both ways: a read that
+carried no identity **erased** a good measurement taken months earlier, and whatever
+survived was compared against the declared fields as if freshly read, producing
+"device replaced" from a partial walk.
+
+ENTITY-MIB is walked by index, and on many agents the chassis sits at a very high one
+(on a GS1900-24, index 67,108,992, while a "Stack" entry sits at 64). A truncated walk
+therefore leaves the accessory rows and the scorer crowns the survivor — so
+`drivers/snmp.js` refuses to build an identity when nothing in the walk is a CHASSIS
+(class 3) or a MODULE (class 9): classes 11 (stack) and 5 (slot) describe how a device
+is organised, not what it is.
+
+**`lib/identity-reconcile.js`** holds the rule, in three states: *reconfirmed* (this
+poll measured it: `measuredAt`, no flag), *last known* (the poll succeeded but brought
+no identity — the previous measurement is kept, marked `stale`, with its original
+date), *never measured* (`null`). An inventory object carrying none of the four
+identity fields is not a measurement at all, so it cannot displace one. Nothing is
+touched on a **failed** poll: nothing was measured and nothing was contradicted.
+
+The consequence is the point: whoever **accuses** asks `isConfirmedMeasure()` —
+`lib/drift-snapshot.js` (`measuredIds` → the `identityDrift` bucket), `lib/overview.js`
+(`_identity.mismatch`, the recovery lens) and `export.js` (`identityMismatch` in the
+handover dossier), three engines that each carried their own copy of the comparison.
+Whoever **informs** reads it regardless — the model to buy again, the firmware to
+reflash, the Properties placeholders — with the panel saying "last known, not
+reconfirmed" and the date, since a months-old model otherwise reads as freshly
+measured.
+
 Rack devices keep their SNMP LED instead of an overlay. The buckets cover documented
 devices with an IP but no MAC too (`doc.ipOnly`), checked per-node rather than per-MAC.
 The signals are assembled in `lib/drift-snapshot.js` (`buildSnmpSnapshot`: `presentNodeIds`,

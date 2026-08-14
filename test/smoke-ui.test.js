@@ -204,3 +204,36 @@ test('ui: card HOST-RESOURCES (CPU/RAM/dischi) sul device NAS', () => {
   assert.ok(r.hasVol, 'mostra il volume');
   assert.ok(r.hasTB && r.hasGB, 'dimensioni formattate (GB/TB)');
 });
+
+test('ui: l’identità NON riconfermata si dichiara nel pannello (e sparisce quando è fresca)', () => {
+  // Il segnaposto grigio dei campi Marca/Modello/Seriale è la misura ENTITY-MIB.
+  // Da 2.9.2 una lettura che non porta identità non la cancella più: resta come
+  // «ultimo noto» (lib/identity-reconcile.js) — e va DETTO, altrimenti un modello
+  // di mesi fa si legge come appena misurato. Riga assente quando è riconfermata:
+  // un avviso che compare sempre non è più un avviso.
+  const r = ui(`
+    const mk = (id, inv) => ({ id, type:'switch', name:id, rackId:state.currentRack, rackU:1, sizeU:1,
+      ports:24, ip:'10.0.0.9', integration:{ driver:'snmp-v2c', inventory:inv } });
+    state.nodes.push(
+      mk('sw-stale', { model:'Stack', serialNumber:'S1', stale:true, measuredAt:'2026-05-02T09:00:00Z' }),
+      mk('sw-fresh', { model:'GS1900-24', serialNumber:'S1', measuredAt:'2026-08-14T09:00:00Z' }),
+      mk('sw-nulla', undefined));
+    if(typeof _invalidateIdx==='function') _invalidateIdx();
+    const h = id => { selType='node'; selId=id; renderProps(); return ${panelHtml()}; };
+    const hs = h('sw-stale'), hf = h('sw-fresh'), hn = h('sw-nulla');
+    return JSON.stringify({ ok:true,
+      staleRiga:  hs.indexOf('prop-inv-stale')>=0,
+      staleData:  hs.indexOf('2026')>=0 || hs.indexOf('02/05')>=0 || hs.indexOf('5/2')>=0,
+      staleModel: hs.indexOf('placeholder="Stack"')>=0,
+      freshRiga:  hf.indexOf('prop-inv-stale')>=0,
+      freshModel: hf.indexOf('placeholder="GS1900-24"')>=0,
+      nullaRiga:  hn.indexOf('prop-inv-stale')>=0 });
+  `);
+  assert.ok(r.ok, 'render lancia: ' + r.err);
+  assert.ok(r.staleRiga, 'misura non riconfermata → la riga «ultimo noto» c’è');
+  assert.ok(r.staleData, 'e porta la data della MISURA, non quella del poll');
+  assert.ok(r.staleModel, 'il valore resta consultabile come segnaposto (cosa ricomprare)');
+  assert.equal(r.freshRiga, false, 'misura riconfermata → nessuna riga');
+  assert.ok(r.freshModel, 'e il segnaposto è quello fresco');
+  assert.equal(r.nullaRiga, false, 'mai misurata → nessuna riga (assenza ≠ avviso)');
+});

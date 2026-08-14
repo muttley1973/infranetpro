@@ -127,6 +127,33 @@ test('export: _buildPdfReportData — forma completa del report senza crash', ()
   assert.equal(r.swPorts, 24, 'l’assegnazione porte elenca le 24 porte dello switch');
 });
 
+test('export: «apparato sostituito» nel dossier solo da una misura RICONFERMATA', () => {
+  // Il capitolo Ripristino scriveva «sostituito» confrontando il seriale dichiarato
+  // con quello misurato, senza guardare l'ETÀ della misura. Se la walk ENTITY-MIB si
+  // tronca, l'inventory resta «ultimo noto» (stale) — e un documento consegnato al
+  // cliente non deve accusare nessuno sulla base di una lettura vecchia.
+  const out = run(APP.ctx, `(() => {
+    try {
+      ${SETUP}
+      const sw = state.nodes.find(n => n.id === 'sw');
+      sw.serialNumber = 'DICHIARATO-1';
+      const _mismatchOf = () => {
+        const d = _exportInternals._buildPdfReportData();
+        return d.recovery.devices.find(x => x.name === 'CORE-SW').identityMismatch;
+      };
+      sw.integration = { inventory: { serialNumber: 'MISURATO-2', stale: true } };
+      const stantia = _mismatchOf();
+      sw.integration = { inventory: { serialNumber: 'MISURATO-2' } };
+      const fresca = _mismatchOf();
+      return JSON.stringify({ ok:true, stantia, fresca });
+    } catch(e){ return JSON.stringify({ ok:false, err:String(e&&e.stack||e) }); }
+  })()`);
+  const r = JSON.parse(out);
+  assert.ok(r.ok, 'il builder lancia: ' + r.err);
+  assert.equal(r.stantia, false, 'misura non riconfermata → il dossier non accusa');
+  assert.equal(r.fresca, true, 'misura riconfermata e divergente → «apparato sostituito»');
+});
+
 test('export: trunk nel sommario VLAN (VLAN voce 20 sul trunk switch↔telefono)', () => {
   const out = run(APP.ctx, `(() => {
     try {

@@ -15,6 +15,7 @@ import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: fun
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { reconcilePortCount } from '../lib/ports-reconcile.js';   // P5: conteggio porte dichiarato vs misura (manual-first, lib pura)
+import { reconcileInventory } from '../lib/identity-reconcile.js'; // identità hardware misurata: riconferma o «ultimo noto» (lib pura)
 import { _driftBuildDocSnapshot, _driftComputeFromDoc } from './app-drift.js';   // presenza→grigio: ricalcolo Drift dopo il Sync
 import { _ensureVlanColor, toggleAutomationMenu } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*) + ASSE B: chiude il popover Automazioni dopo il sync
 import { _autoLinkDiagText } from './app-autolink.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
@@ -739,7 +740,17 @@ export function applyPollResult(nodeId, data, opts={}){
     // lettura: NON toccano state.vlanNames (dichiarato = legge, manual-first). La
     // Panoramica li confronta col dichiarato e segnala lacune colmabili e conflitti.
     n.integration.vlanNames = (data.vlanNames && typeof data.vlanNames === 'object') ? data.vlanNames : {};
-    n.integration.inventory = inv || null;
+    // Identità hardware MISURATA: tre stati, non due (lib/identity-reconcile.js).
+    // Prima qui c'era `inv || null`, e una lettura senza identità — walk ENTITY-MIB
+    // troncata, agente che quella MIB non ce l'ha — CANCELLAVA una misura buona.
+    // Ora la misura precedente resta, marcata `stale`: chi accusa («apparato
+    // sostituito») chiede `isConfirmedMeasure` e tace, chi informa (modello da
+    // ricomprare, firmware da riflashare) continua a leggerla dicendo che è
+    // l'ultima nota. Su poll FALLITO non si tocca: non si è misurato né smentito.
+    const _pollAt = new Date().toISOString();
+    if(data.ok !== false){
+        n.integration.inventory = reconcileInventory(n.integration.inventory, inv, _pollAt);
+    }
     // Info di sistema live (sysLocation/sysContact/sysUpTime/sysDescr): SOLA
     // LETTURA, mostrate nel pannello Integrazione. Non toccano alcun campo
     // manuale (manual-first, D5) — sono dati "vivi" come powerLive/snmpStatus.
@@ -749,7 +760,7 @@ export function applyPollResult(nodeId, data, opts={}){
     n.integration.printer  = (data.printer && typeof data.printer === 'object') ? data.printer : null;
     // Risorse host live (HOST-RESOURCES: CPU/RAM/dischi) per server/pc/nas/homelab.
     n.integration.hostResources = (data.hostResources && typeof data.hostResources === 'object') ? data.hostResources : null;
-    n.integration.lastPoll = new Date().toISOString();
+    n.integration.lastPoll = _pollAt;
     // Auto-nome gruppi snmp-lag dall'aggregatore (es. "Port-channel1", "bond0", "LAG1")
     if(!store.state.lagGroups) store.state.lagGroups={};
     if(!store.state.lagModes) store.state.lagModes={};
