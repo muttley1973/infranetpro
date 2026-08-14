@@ -557,3 +557,55 @@ test('_escXml: entita basilari', () => {
 test('racks vuoti: mxfile vuoto valido', () => {
   assert.equal(buildDrawioXml({ racks: [], nodes: [] }), '<mxfile host="InfraNetPro"></mxfile>');
 });
+
+// ── Porte spente a mano / senza link (lib/port-state.js) ────────────────────
+// Il diagramma esportato deve dire la STESSA cosa del rack a schermo. È la classe
+// di bug più cara del progetto: due strati che colorano lo stesso concetto con
+// criteri propri e col tempo divergono. Qui la regola arriva per iniezione
+// (`helpers.portShade`), così il builder resta puro ma non se la riscrive.
+const { portShade } = require('../lib/port-state.js');
+
+test('draw.io: porta spenta a mano -> quasi nera, anche se il documento la dice attiva', () => {
+  const xml = build({
+    ports: {
+      'sw1-1': { status: 'active', adminDown: true },   // shutdown misurato
+      'sw1-2': { status: 'active' },                    // di controllo
+    },
+    helpers: { types: TYPES, portShade },
+  });
+  assert.match(cellOf(xml, 'sw1-1'), /#0a0d11/, 'la misura dello switch batte lo stato dichiarato');
+  assert.match(cellOf(xml, 'sw1-2'), /#39d353/, 'la porta accanto resta verde');
+});
+
+test('draw.io: porta senza link da >=N verifiche -> grigio scuro', () => {
+  const xml = build({
+    ports: { 'sw1-1': { status: 'inactive', downStreak: 4 }, 'sw1-2': { status: 'inactive', downStreak: 1 } },
+    helpers: { types: TYPES, portShade },
+  });
+  assert.match(cellOf(xml, 'sw1-1'), /#3c4149/);
+  assert.match(cellOf(xml, 'sw1-2'), /#6e7681/, 'un blip sotto soglia resta grigio neutro');
+});
+
+test('draw.io: la misura batte anche il ciano del LAG', () => {
+  const xml = build({
+    ports: { 'sw1-1': { status: 'active', lagGroup: 'lag1', adminDown: true } },
+    helpers: { types: TYPES, portShade },
+  });
+  assert.match(cellOf(xml, 'sw1-1'), /#0a0d11/);
+  assert.doesNotMatch(cellOf(xml, 'sw1-1'), /#00d4ff/);
+});
+
+test('draw.io: manual-first — se l\'utente ha dichiarato lo stato, la misura non lo riscrive', () => {
+  const xml = build({
+    ports: { 'sw1-1': { adminDown: true, statusOvr: 'active' } },
+    helpers: { types: TYPES, portShade },
+  });
+  assert.match(cellOf(xml, 'sw1-1'), /#39d353/);
+});
+
+test('draw.io: senza portShade iniettato il diagramma perde i grigi ma non ne inventa altri', () => {
+  // Degrado esplicito: un chiamante vecchio non deve produrre colori a caso.
+  const xml = build({ ports: { 'sw1-1': { status: 'active', adminDown: true } } });
+  assert.match(cellOf(xml, 'sw1-1'), /#39d353/);
+  assert.doesNotMatch(xml, /#0a0d11/);
+});

@@ -240,6 +240,12 @@
            (nessun dash: e' pur sempre dichiarato), ma con un alone d'attenzione. */
         .cable.cable-review,
         .cable-xrack.cable-review { filter: drop-shadow(0 0 1.6px var(--idle-color)); }
+        /* declared-shut: sotto questo cavo dichiarato c'e' una porta in `shutdown`.
+           Resta PIENO — il cavo non e' in dubbio, e' il documento che ha smesso di
+           essere vero — ma con l'alone rosso: quasi sempre l'apparato e' stato
+           dismesso e nessuno l'ha scritto. */
+        .cable.cable-shut,
+        .cable-xrack.cable-shut { filter: drop-shadow(0 0 1.8px var(--fault-color)); }
         .cable-hit { fill:none; stroke:transparent; stroke-width:14; stroke-linecap:round; cursor:pointer; pointer-events:stroke; }
         /* Wireless: banda di click più larga (l'onda esce dalla linea dritta) */
         .cable-hit.cable-hit-wireless { stroke-width:26; }

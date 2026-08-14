@@ -17,6 +17,7 @@
 // anche da src/app-drift-adopt.js, quindi NON è una variabile di modulo.
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
+import { DOWN_STREAK_N, forgetPortMeasure } from '../lib/port-state.js';   // lib pura importata ESM: soglia anti-flap + scadenza delle misure di porta
 import { TYPES, _frontPanelPortLabel } from './app-types.js';   // catalogo tipi: distingue gli elementi passivi dall'audit di presenza
 import { escapeHTML, normalizeMacAddress } from './app-util.js';
 import { nodeById, markDirty, getNodeByPortId, getNodeDisplayName, pushHistory, logAudit, _cableAutoLabel } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
@@ -35,7 +36,9 @@ import { aiExplainDrift } from './app-ai.js';   // ASSE B: bottone «Spiega» de
 // app-drift-adopt.js) → vive su window, mai come binding di modulo.
 if(typeof store._driftReport === 'undefined') store._driftReport = null;
 let _driftRunning = false;
-const DRIFT_DOWN_STREAK_N = 3;
+// La soglia vive in lib/port-state.js: la leggono la regola del «cavo fantasma» e
+// il LED del rack, e un numero uguale scritto in due posti prima o poi diverge.
+const DRIFT_DOWN_STREAK_N = DOWN_STREAK_N;
 
 function _driftNorm(mac){
     const s = (typeof normalizeMacAddress === 'function') ? normalizeMacAddress(mac) : String(mac || '');
@@ -71,6 +74,17 @@ export function _driftBuildDocSnapshot(){
 }
 
 // ── 4) Aggiorna lo streak "porta down" per le porte documentate ──────
+// Qui vive anche la SCADENZA di `adminDown` (la porta «spenta a mano», quasi nera
+// nel rack). Serve perché quel campo lo scrive SOLO un poll riuscito
+// (_applySnmpBasePortFields): se lo switch smette di rispondere nessuno lo tocca
+// più, e la porta continuerebbe a dirsi spenta sulla fede di una misura vecchia di
+// settimane. Un'affermazione forte non può sopravvivere alla prova che la reggeva —
+// è lo stesso principio per cui lo streak si azzera invece di congelarsi.
+// Vale anche per la porta che ha perso l'`ifName`: senza mappatura SNMP quel valore
+// non è più attribuibile a questa presa.
+// La regola sta in lib/port-state.js (`forgetPortMeasure`), accanto a quella che
+// DISEGNA le stesse due misure: chi decide quando una cosa si vede e chi decide
+// quando si smette di saperla non possono stare in due file diversi.
 function _driftUpdateStreaks(docSnap){
     const state = store.state;
     for(const pid of Object.keys(docSnap.ports)){
@@ -82,8 +96,7 @@ function _driftUpdateStreaks(docSnap){
         // Coerente con la presenza onesta ("mai rosso senza prova affidabile"): azzera lo
         // streak finché il device tace, così il rosso-da-porta-down non si eterna.
         if(!n || n.snmpStatus !== 'ok'){
-            const pm = state.ports[pid];
-            if(pm && pm.downStreak) pm.downStreak = 0;
+            forgetPortMeasure(state.ports[pid]);
             continue;
         }
         const pi = state.ports[pid]; if(!pi) continue;
@@ -92,7 +105,7 @@ function _driftUpdateStreaks(docSnap){
         // principio dello skip manual-first in applyPollResult): il suo `status` puo'
         // essere stantio o mis-mappato da un vecchio sync posizionale → NON deve
         // alimentare il "cavo fantasma" (falsi allarmi). Streak azzerato e saltato.
-        if(!pi.ifName){ if(pi.downStreak) pi.downStreak = 0; continue; }
+        if(!pi.ifName){ forgetPortMeasure(pi); continue; }
         if(pi.status === 'active') pi.downStreak = 0;
         else pi.downStreak = (pi.downStreak || 0) + 1;
     }
@@ -246,9 +259,14 @@ function _driftWriteProofState(sweep, snmpPolled){
     // anche quando il device risponde per altra via (multi-homed). Il manuale non entra
     // qui (ghostCable è dedotti-only) → resta Dichiarato: cablaggio ≠ liveness.
     const ghostIds = new Set((rep.ghostCable || []).map(r => r && r.id).filter(Boolean));
+    const shutIds  = new Set((rep.shutCable  || []).map(r => r && r.id).filter(Boolean));
     for(const l of (store.state.links || [])){
         if(!l || l.id == null) continue;
         if(ghostIds.has(l.id)) l.portDown = true; else if(l.portDown) delete l.portDown;
+        // …e l.portShut dal bucket shutCable (cavi DICHIARATI con un estremo in
+        // `shutdown`): UNA fonte sola anche qui, così «ignora» su quella riga vale
+        // pure per il badge del cavo, invece di farlo riapparire da un'altra strada.
+        if(shutIds.has(l.id)) l.portShut = true; else if(l.portShut) delete l.portShut;
     }
 }
 
@@ -455,13 +473,13 @@ function _persistPresence(){
 function _driftAllRows(){
     const rep = store._driftReport;
     if(!rep) return [];
-    return [].concat(rep.stateDrift, rep.macOrphan, rep.undocumented, rep.ghostCable, rep.ipChanged || [], rep.unverified || [], rep.identityDrift || []);
+    return [].concat(rep.stateDrift, rep.macOrphan, rep.undocumented, rep.ghostCable, rep.shutCable || [], rep.ipChanged || [], rep.unverified || [], rep.identityDrift || []);
 }
 function _driftFindRow(key){ return _driftAllRows().find(r => r.key === key) || null; }
 function _driftDropRow(key){
     const rep = store._driftReport;
     if(!rep) return;
-    for(const cat of ['stateDrift','macOrphan','undocumented','ghostCable','ipChanged','unverified','identityDrift']){
+    for(const cat of ['stateDrift','macOrphan','undocumented','ghostCable','shutCable','ipChanged','unverified','identityDrift']){
         if(!Array.isArray(rep[cat])) continue;
         rep[cat] = rep[cat].filter(r => r.key !== key);
         if(cat === 'undocumented'){
@@ -640,6 +658,7 @@ const _DRIFT_CATS = [
     { k:'unverified',   tk:'drift.catUnverified',   i:'fa-plug-circle-xmark',    c:'#6e7681' },
     { k:'undocumented', tk:'drift.catUndocumented', i:'fa-circle-question',      c:'#58a6ff' },
     { k:'ghostCable',   tk:'drift.catGhost',        i:'fa-link-slash',           c:'#f85149' },
+    { k:'shutCable',    tk:'drift.catShut',         i:'fa-ban',                  c:'#cf222e' },
 ];
 function _driftEnsureOverlay(){
     let ov = document.getElementById('drift-overlay');
@@ -709,6 +728,9 @@ export function _driftRowHtml(cat, r){
         actions = `${addBtn}${ignBtn}${invBtn}`;
     } else if(cat === 'ghostCable'){
         main = `<span class="drift-row-main">${esc(r.label)}</span><span class="drift-row-sub">${t('drift.portDown',{n:esc(r.downStreak)})}</span>`;
+        actions = `${ignBtn}${invBtn}`;
+    } else if(cat === 'shutCable'){
+        main = `<span class="drift-row-main">${esc(r.label)}</span><span class="drift-row-sub">${t('drift.portShut')}</span>`;
         actions = `${ignBtn}${invBtn}`;
     } else if(cat === 'ipChanged'){
         // G3: segnala se l'IP era fissato a mano → applicarlo sblocca il pin.

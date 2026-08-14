@@ -790,6 +790,9 @@ function exportDrawio(){
             normalizeNumber:    (typeof normalizeNumber === 'function')    ? normalizeNumber    : undefined,
             hasSnmpIntegration: (typeof _hasSnmpIntegration === 'function') ? _hasSnmpIntegration : undefined,
             typeName:           _typeName,
+            // Porte spente a mano / senza link: STESSA regola del rack a schermo
+            // (lib/port-state.js, <script> caricato prima di questo).
+            portShade:          (typeof portShade === 'function')          ? portShade          : null,
             isAbsent:           n => _absentIds.has(n.id) && n.snmpStatus !== 'ok',
             // Colore cavo = stessa convenzione della vista live (topologia/fanout):
             // override manuale, poi colore VLAN; null -> il builder usa il default.
@@ -840,6 +843,16 @@ function _buildRackSVG(rackId, opts){
     const statusColor = st => ({
         active:'#39d353', fault:'#f85149', idle:'#f5a623', inactive:'#6e7681',
     })[normalizeStatus(st)] || '#6e7681';
+    // Le due porte «off» MISURATE dallo switch (--shut-color / --nolink-color).
+    // Vincono su qualunque stato dichiarato: in tutto il disegno sono l'unico punto
+    // in cui parla l'apparato invece del documento, e un dossier che stampa verde
+    // una porta in `shutdown` è esattamente il genere di bugia che non vogliamo su
+    // carta. La regola NON si riscrive qui: è portShade() di lib/port-state.js.
+    const SHUT_COLOR = '#0a0d11', NOLINK_COLOR = '#3c4149';
+    const shadeColor = pi => {
+        const s = (typeof portShade === 'function') ? portShade(pi) : null;
+        return s === 'shut' ? SHUT_COLOR : (s === 'no-link' ? NOLINK_COLOR : null);
+    };
     const safe = v => escapeHTML(String(v ?? ''));
     const portName = pid => {
         const pi = state.ports[pid] || {};
@@ -875,7 +888,10 @@ function _buildRackSVG(rackId, opts){
             const cx = gridX + col * (cellW + colGap);
             const cy = gridY + row * (cellH + rowGap);
             const pi = state.ports[c.pid] || {};
-            const fillTone = pi.statusOvr || pi.status ? statusColor(pi.statusOvr ?? pi.status) : 'transparent';
+            // La misura batte il dichiarato E il «non determinato»: una porta spenta
+            // a mano si vede anche se il documento non dice niente di lei.
+            const fillTone = shadeColor(pi)
+                || (pi.statusOvr || pi.status ? statusColor(pi.statusOvr ?? pi.status) : 'transparent');
             out += `<g><title>${safe(c.tip)}</title>`
                 +`<rect x="${cx.toFixed(2)}" y="${cy.toFixed(2)}" width="${cellW}" height="${cellH}" rx="0.6" fill="${fillTone === 'transparent' ? 'none' : fillTone}" fill-opacity="${fillTone === 'transparent' ? 0 : 0.4}" stroke="${borderColor}" stroke-width="0.7"/>`
                 +`</g>`;
@@ -961,7 +977,8 @@ function _buildRackSVG(rackId, opts){
             const st = normalizeStatus(pi.statusOvr ?? pi.status);
             const vlan = _effPortVlan(pid);
             const lag = portLag(pid);
-            const ledFill = lag ? '#00d4ff' : statusColor(st);
+            // Ordine: misura dello switch, poi LAG (ciano), poi stato dichiarato.
+            const ledFill = shadeColor(pi) || (lag ? '#00d4ff' : statusColor(st));
             const px = cx - pSize / 2, py = ledCenterY - pSize / 2;
             let g = `<g><title>${safe(portName(pid))} - VLAN ${safe(vlan)}${lag ? ' - LAG' : ''}</title>`
                 +`<rect x="${px.toFixed(1)}" y="${py.toFixed(1)}" width="${pSize.toFixed(1)}" height="${pSize.toFixed(1)}" rx="1.2" fill="${ledFill}" stroke="#334155" stroke-width="0.55"/>`;

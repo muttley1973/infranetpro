@@ -311,6 +311,17 @@
         /* LED port — stati LAG */
         .port-led.lag-sel     { box-shadow:0 0 0 2px var(--accent), 0 0 7px #00d4ffaa !important; }
         .port-led.lag-member  { background:var(--accent) !important; box-shadow:0 0 5px #00d4ffaa; }
+        /* …ma la MISURA dello switch batte il ciano del LAG: una porta in `shutdown`
+           non è ciano perché fa parte di un aggregato — è chiusa, e per quel verso il
+           LAG con lei. Stessa precedenza degli export (export.js, lib/drawio-export.js):
+           il disegno a schermo e quello stampato non possono dire cose diverse.
+           Le regole stanno QUI e non in 04-floor-rack.css (dove vive il resto dei
+           colori LED) per una ragione sola: è questo blocco a usare `!important`, e
+           senza rispondergli sulla stessa riga di cascata il nero non arriverebbe mai
+           allo schermo. `lag-sel`/`lag-focus` restano SOPRA di proposito: quelli non
+           sono dati, sono «ti sto puntando questa». */
+        .port-led.admin-down  { background:var(--shut-color)   !important; box-shadow:none !important; }
+        .port-led.no-link     { background:var(--nolink-color) !important; box-shadow:none !important; }
         /* Bundle selezionato: violetto coerente col badge "Membro LAG" (#a371f7) */
         .port-led.lag-focus   { background:#a371f7 !important;
                                 box-shadow:0 0 7px #a371f7cc !important; z-index:2; }

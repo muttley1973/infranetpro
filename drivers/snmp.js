@@ -213,6 +213,12 @@ const OID = {
   ifDescr:        '1.3.6.1.2.1.2.2.1.2',
   ifType:         '1.3.6.1.2.1.2.2.1.3',
   ifPhysAddress:  '1.3.6.1.2.1.2.2.1.6',  // MAC address — discriminatore fisico/virtuale
+  // ifAdminStatus (.7) vs ifOperStatus (.8): due fatti DIVERSI. L'oper dice se c'e'
+  // link; l'admin dice se qualcuno l'ha SPENTA a mano (`shutdown`). Il secondo non e'
+  // un sintomo ma una DECISIONE scritta sull'apparato — quindi vale quanto una
+  // dichiarazione dell'utente, e una porta admin-down sotto un cavo dichiarato sono
+  // due dichiarazioni che si contraddicono. Standard IF-MIB, vendor-neutral.
+  ifAdminStatus:  '1.3.6.1.2.1.2.2.1.7',
   ifOperStatus:   '1.3.6.1.2.1.2.2.1.8',
   ifSpeed:        '1.3.6.1.2.1.2.2.1.5',
   ifHighSpeed:    '1.3.6.1.2.1.31.1.1.1.15',
@@ -402,6 +408,24 @@ function extractEntityInventory(vbs) {
 
   const primary = entries[0] || null;
   if (!primary) return null;
+
+  // GUARDIA WALK PARZIALE (fratello di SNMP-M2 sull'ifOperStatus). ENTITY-MIB si
+  // percorre in ordine di INDICE, e su parecchi agenti il chassis ha un indice
+  // altissimo mentre voci accessorie stanno in fondo alla scala: sul GS1900-24 lo
+  // «Stack» e' l'indice 64, il chassis il 67.108.992. Se la walk si tronca — device
+  // lento, rete occupata, budget esaurito — restano SOLO gli indici bassi, e il
+  // punteggio incorona come apparato quello che e' rimasto.
+  //
+  // Il danno non e' un modello sbagliato: e' che a valle diventa «apparato
+  // sostituito», cioe' un'accusa costruita su una lettura parziale. Qui non sappiamo
+  // se manchino delle righe, ma sappiamo riconoscere la firma del caso: nessun
+  // CHASSIS (class 3) e nessun MODULO (class 9) fra ciò che è arrivato. In quel caso
+  // l'identita' non e' misurata — e «non risulta» e' una risposta, l'accusa no.
+  //
+  // Le classi 11 (stack) e 5 (slot/contenitore) non sono apparati: descrivono come
+  // l'apparato e' organizzato, non che cosa e'. Da sole non fanno un'identita'.
+  const CHASSIS = 3, MODULE = 9;
+  if (!entries.some(e => e.class === CHASSIS || e.class === MODULE)) return null;
 
   const firmwareVer = _firstNonEmpty(primary.softwareRev, primary.firmwareRev, primary.hardwareRev);
   const inventory = {
@@ -673,6 +697,7 @@ function extractData(vbs) {
     { base: OID.ifDescr,       field: 'name',    conv: bufToStr },
     { base: OID.ifType,        field: 'type',    conv: bufToInt },
     { base: OID.ifPhysAddress, field: 'macBuf',  conv: v => v },   // raw buffer per isRealMac()
+    { base: OID.ifAdminStatus, field: 'admin',   conv: bufToInt },
     { base: OID.ifOperStatus,  field: 'oper',    conv: bufToInt },
     { base: OID.ifSpeed,       field: 'speed',
       conv: v => { const s = bufToInt(v); return s >= 0xFFFFFFFF ? 0 : Math.round(s / 1_000_000); } },
@@ -1141,7 +1166,11 @@ function extractData(vbs) {
     // Prima `f.oper || 2` lo forzava a 2=down → la porta risultava inattiva → accumulava
     // downStreak → falso rosso via trustAbsent. Emettendo 0 (ignoto), il mapping client
     // (_snmpOperToUiStatus) cade nel ramo "mantieni lo stato precedente" invece di down.
+    // adminStatus: stessa guardia dell'oper. 1=up · 2=down (`shutdown`) · 3=testing;
+    // 0 = MAI LETTO (agente che non espone la colonna, walk troncata) — che non e'
+    // "accesa" ne' "spenta": il consumatore deve poter dire "non risulta".
     const obj = { index: idx, name: f.name || `if${idx}`, alias: f.alias || '',
+                  adminStatus: f.admin || 0,
                   operStatus: f.oper || 0, speed, vlan: f.vlan || 1, lagId: lagLogicalId, lagIfIndex, mac,
                   isTrunk, trunkVlans };
     if (snmpMedium)    obj.snmpMedium = snmpMedium;

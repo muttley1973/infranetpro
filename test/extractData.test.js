@@ -409,3 +409,92 @@ test('LAG L0 ifStackTable: OID colonna .3 (ifStackStatus) e membri assegnati', (
   assert.equal(gi1.lagId, 1, 'Gi0/1 membro del LAG logico 1 (via ifStackTable)');
   assert.equal(gi2.lagId, 1, 'Gi0/2 membro del LAG logico 1 (via ifStackTable)');
 });
+
+// ---- ifAdminStatus (IF-MIB .7) -------------------------------------------
+// Perche' esiste, separato da ifOperStatus: l'oper dice se c'e' link, l'admin dice
+// se qualcuno l'ha spenta a mano. Il secondo non e' un sintomo ma una DECISIONE, e
+// distinguerli e' tutto il punto — altrimenti «shutdown» e «device staccato»
+// finiscono sotto lo stesso grigio.
+test('extractData: ifAdminStatus letto e distinto da ifOperStatus', () => {
+  const vbs = {
+    [at(OID.sysName, 0)]: Buffer.from('sw-admin', 'utf8'),
+    // Gi0/1: spenta a mano (admin down) — l'oper e' giu' di conseguenza
+    [at(OID.ifDescr, 1)]: Buffer.from('GigabitEthernet0/1', 'utf8'),
+    [at(OID.ifType, 1)]: u32(6),
+    [at(OID.ifAdminStatus, 1)]: u32(2),
+    [at(OID.ifOperStatus, 1)]: u32(2),
+    // Gi0/2: accesa in configurazione ma senza link (device spento, cavo sfilato…)
+    [at(OID.ifDescr, 2)]: Buffer.from('GigabitEthernet0/2', 'utf8'),
+    [at(OID.ifType, 2)]: u32(6),
+    [at(OID.ifAdminStatus, 2)]: u32(1),
+    [at(OID.ifOperStatus, 2)]: u32(2),
+  };
+  const r = extractData(vbs);
+  const gi1 = r.interfaces.find(i => i.name === 'GigabitEthernet0/1');
+  const gi2 = r.interfaces.find(i => i.name === 'GigabitEthernet0/2');
+  assert.equal(gi1.adminStatus, 2, 'admin down = spenta a mano');
+  assert.equal(gi2.adminStatus, 1, 'admin up: giu\' per altri motivi, non per una decisione');
+  assert.equal(gi1.operStatus, gi2.operStatus, 'l\'oper da solo non sa distinguerle: serve l\'admin');
+});
+
+test('extractData: ifAdminStatus ASSENTE -> 0 (ignoto), MAI 2 (down)', () => {
+  // Stessa guardia di SNMP-M2 sull'oper: un agente che non espone la colonna, o una
+  // walk troncata, non stanno dicendo «spenta» — non stanno dicendo niente. Se qui
+  // uscisse 2, ogni switch senza quella MIB si riempirebbe di porte «spente a mano».
+  const vbs = {
+    [at(OID.sysName, 0)]: Buffer.from('sw-noadmin', 'utf8'),
+    [at(OID.ifDescr, 1)]: Buffer.from('GigabitEthernet0/1', 'utf8'),
+    [at(OID.ifType, 1)]: u32(6),
+    [at(OID.ifOperStatus, 1)]: u32(1),
+  };
+  const r = extractData(vbs);
+  const gi1 = r.interfaces.find(i => i.name === 'GigabitEthernet0/1');
+  assert.equal(gi1.adminStatus, 0);
+});
+
+// ---- ENTITY-MIB: guardia sulla walk parziale ------------------------------
+// Fratello di SNMP-M2. ENTITY-MIB si percorre per INDICE, e su parecchi agenti il
+// chassis ha un indice altissimo mentre voci accessorie stanno in fondo alla scala
+// (sul GS1900-24: «Stack» = 64, chassis = 67.108.992). Se la walk si tronca restano
+// solo gli indici bassi, e il punteggio incorona come apparato quello rimasto — che a
+// valle diventa «apparato sostituito», un'accusa costruita su una lettura parziale.
+test('extractData: senza chassis né modulo l\'identità NON si inventa da voci accessorie', () => {
+  const vbs = {
+    [at(OID.sysName, 0)]: Buffer.from('sw-parziale', 'utf8'),
+    // solo gli indici bassi: è ciò che sopravvive a una walk troncata
+    [at(OID.entPhysicalDescr, 64)]: Buffer.from('Stack', 'utf8'),
+    [at(OID.entPhysicalClass, 64)]: u32(11),
+    [at(OID.entPhysicalDescr, 128)]: Buffer.from('Slot', 'utf8'),
+    [at(OID.entPhysicalClass, 128)]: u32(5),
+  };
+  const r = extractData(vbs);
+  assert.equal(r.inventory, null, '«Stack» e «Slot» non sono apparati: nessuna identità misurata');
+});
+
+test('extractData: appena arriva il chassis l\'identità torna, e vince lui', () => {
+  const vbs = {
+    [at(OID.sysName, 0)]: Buffer.from('sw-intero', 'utf8'),
+    [at(OID.entPhysicalDescr, 64)]: Buffer.from('Stack', 'utf8'),
+    [at(OID.entPhysicalClass, 64)]: u32(11),
+    [at(OID.entPhysicalDescr, 67108992)]: Buffer.from('GS1900-24', 'utf8'),
+    [at(OID.entPhysicalClass, 67108992)]: u32(3),
+    [at(OID.entPhysicalSerialNum, 67108992)]: Buffer.from('S202L27002866', 'utf8'),
+  };
+  const r = extractData(vbs);
+  assert.ok(r.inventory, 'con il chassis presente l\'identità c\'è');
+  assert.equal(r.inventory.model, 'GS1900-24', 'l\'indice alto non penalizza il chassis');
+  assert.equal(r.inventory.entityClass, 3);
+});
+
+test('extractData: basta un MODULO (class 9) — non tutti gli agenti espongono il chassis', () => {
+  const vbs = {
+    [at(OID.sysName, 0)]: Buffer.from('sw-modulo', 'utf8'),
+    [at(OID.entPhysicalDescr, 64)]: Buffer.from('Stack', 'utf8'),
+    [at(OID.entPhysicalClass, 64)]: u32(11),
+    [at(OID.entPhysicalDescr, 1000)]: Buffer.from('EX2200-24T', 'utf8'),
+    [at(OID.entPhysicalClass, 1000)]: u32(9),
+  };
+  const r = extractData(vbs);
+  assert.ok(r.inventory, 'un modulo è pur sempre un apparato');
+  assert.equal(r.inventory.model, 'EX2200-24T');
+});

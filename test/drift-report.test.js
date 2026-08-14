@@ -713,3 +713,45 @@ test('F7: un MAC davvero diverso resta assente (il fix non rende tutto uguale)',
   const r = buildDriftReport(snmp, doc, [], {});
   assert.equal(r.counts.macOrphan, 1, 'assenza reale: sempre segnalata');
 });
+
+// ── Cavi su porta SPENTA A MANO (shutCable) ────────────────────────────────
+// Il verso opposto del «cavo fantasma»: lì il cavo DEDOTTO perde l'evidenza che lo
+// reggeva, qui il cavo c'è davvero (l'hai visto tu) ma qualcuno ha chiuso la porta
+// sotto — due DICHIARAZIONI che si contraddicono, la tua e quella scritta
+// sull'apparato. Di solito: apparato dismesso, documento che non lo sa ancora.
+test('cavo DICHIARATO su porta in shutdown → shutCable', () => {
+  const doc = { cables: [{ id: 'c1', label: 'sw1↔srv', src: 'sw1-1', dst: 'srv-1' }] };   // niente autoLinked = manuale
+  const snmp = { portAdminDown: { 'sw1-1': true } };
+  const r = buildDriftReport(snmp, doc, [], { downStreakN: 3 });
+  assert.equal(r.counts.shutCable, 1);
+  assert.equal(r.shutCable[0].id, 'c1');
+  assert.deepEqual(r.shutCable[0].ports, ['sw1-1'], 'dice QUALE estremo è chiuso');
+});
+
+test('il cavo DEDOTTO non entra in shutCable: se la porta è chiusa il link non si forma', () => {
+  // Lo copre già ghostCable via lo streak — contarlo due volte sarebbe raccontare
+  // lo stesso fatto in due righe che l'utente deve chiudere separatamente.
+  const doc = { cables: [{ id: 'c1', src: 'sw1-1', dst: 'srv-1', autoLinked: true }] };
+  const r = buildDriftReport({ portAdminDown: { 'sw1-1': true } }, doc, [], { downStreakN: 3 });
+  assert.equal(r.counts.shutCable, 0);
+});
+
+test('shutCable: senza misura non si inventa niente (assenza ≠ porta accesa)', () => {
+  const doc = { cables: [{ id: 'c1', src: 'sw1-1', dst: 'srv-1' }] };
+  assert.equal(buildDriftReport({}, doc, [], {}).counts.shutCable, 0);
+  assert.equal(buildDriftReport({ portAdminDown: {} }, doc, [], {}).counts.shutCable, 0);
+});
+
+test('shutCable è ignorabile come le altre categorie', () => {
+  const doc = { cables: [{ id: 'c1', src: 'sw1-1', dst: 'srv-1' }] };
+  const snmp = { portAdminDown: { 'sw1-1': true } };
+  const r = buildDriftReport(snmp, doc, ['shut:c1'], { downStreakN: 3 });
+  assert.equal(r.counts.shutCable, 0, 'la riga ignorata sparisce dal conteggio');
+});
+
+test('shutCable vede anche l\'estremo DST, non solo il src', () => {
+  const doc = { cables: [{ id: 'c1', src: 'sw1-1', dst: 'sw2-9' }] };
+  const r = buildDriftReport({ portAdminDown: { 'sw2-9': true } }, doc, [], {});
+  assert.equal(r.counts.shutCable, 1);
+  assert.deepEqual(r.shutCable[0].ports, ['sw2-9']);
+});

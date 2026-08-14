@@ -1610,3 +1610,24 @@ test('② prefix-first: una rete dichiarata SENZA VLAN conta come dichiarata (no
   assert.equal(sub.extra.undeclared, 0, 'gli IP osservati cadono in una rete DICHIARATA (vlan:null)');
   assert.deepEqual(sub.items.map((i) => i.tag), ['declaredNet']);
 });
+
+test('① Cavi: il cavo DICHIARATO su porta in shutdown ha un contatore suo, non NaN', () => {
+  // Regressione: `cableProofCounts.shut++` su un campo non seminato dava NaN, e a
+  // valle `pc.shut || 0` lo leggeva come 0 — la voce non compariva MAI nella tessera
+  // «Cavi». Un bug che sparisce invece di rompere: questo test lo tiene visibile.
+  const fresh = new Date().toISOString();
+  const nodes = [
+    { id: 'sw1', type: 'switch', name: 'SW', ip: '10.0.0.1', proof: { status: 'proven', lastProvenAt: fresh } },
+    { id: 'rt1', type: 'router', name: 'RT', ip: '10.0.0.254', proof: { status: 'proven', lastProvenAt: fresh } },
+  ];
+  const o = buildOverview({ types: TYPES, nodes, driftLive: { counts: { shutCable: 1 } }, links: [
+    { id: 'lm', src: 'sw1-1', dst: 'rt1-1' },                    // dichiarato, porta sana
+    { id: 'lx', src: 'sw1-2', dst: 'rt1-2', portShut: true },     // dichiarato su porta chiusa a mano
+  ] });
+  const ex = rowOf(o.complete, 'cables').extra;
+  const pc = ex.proofCounts;
+  assert.equal(ex.shutCable, 1, 'contato — e preso dal report della Verifica, non da uno stato sui link');
+  assert.ok(Number.isFinite(ex.shutCable), 'e come NUMERO: un NaN qui sparirebbe in silenzio');
+  assert.equal(pc.declared, 1, 'non ruba il conteggio ai dichiarati sani');
+  assert.equal(pc.review, 0, 'e non finisce fra i riesami: ha una voce sua');
+});

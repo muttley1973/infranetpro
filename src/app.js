@@ -1366,6 +1366,7 @@ export function _chainVlanColors(){
 const _CABLE_PROOF_CLS = {
     'declared':        '',
     'declared-review': ' cable-review',   // la realta' contraddice QUESTO cavo: marker d'attenzione
+    'declared-shut':   ' cable-shut',     // porta spenta a mano sotto un cavo dichiarato
     'derived-strong':  ' cable-derived',
     'derived-weak':    ' cable-derived cable-weak',
     'ghost':           ' cable-ghost',
@@ -1380,6 +1381,7 @@ const _CABLE_PROOF_BADGE = {
     'derived-weak':    { key: 'weak',     color: '#bf8700' },   // inferenza debole/che invecchia
     'ghost':           { key: 'ghost',    color: '#6e7681' },   // inferenza che ha PERSO l'evidenza
     'declared-review': { key: 'review',   color: '#cf222e' },   // la realtà contraddice il cavo
+    'declared-shut':   { key: 'shut',     color: '#cf222e' },   // porta in shutdown: due dichiarazioni in conflitto
     'declared':        { key: 'declared', color: '#57606a' },   // asserito a mano, nessun claim di liveness
 };
 // state (output di cableProof) → HTML della pillola, o '' se lo stato è ignoto

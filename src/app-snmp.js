@@ -567,8 +567,23 @@ function _snmpMacToUi(v, prev){
     const s = String(v || '').trim();
     return s || prev || '';
 }
+// ifAdminStatus → p.adminDown, campo di MISURA (mai scritto a mano, mai dichiarato).
+// Vive accanto a `status` e non dentro, perché è un fatto diverso: `status` dice se
+// c'è link, questo dice se qualcuno l'ha spenta apposta. Tre valori e non due:
+//   true = 2 (down/`shutdown`) · false = 1|3 (up/testing) · assente = mai letto.
+// L'assenza NON diventa false: un agente che non espone la colonna non sta dicendo
+// «è accesa», non sta dicendo niente — e va cancellato il valore vecchio, che
+// altrimenti sopravviverebbe alla misura che non c'è più.
+function _snmpAdminToUi(v){
+    const n = Number(v);
+    if(n === 2) return true;
+    if(n === 1 || n === 3) return false;
+    return undefined;
+}
 function _applySnmpBasePortFields(pid, iface){
     const p = store.state.ports[pid] || (store.state.ports[pid] = {});
+    const adminDown = _snmpAdminToUi(iface.adminStatus);
+    if(adminDown === undefined) delete p.adminDown; else p.adminDown = adminDown;
     p.status = _snmpOperToUiStatus(iface.operStatus, p.status);
     p.vlan   = _snmpVlanToUi(iface.vlan, p.vlan);
     p.speed  = _snmpSpeedToUi(iface.speed, p.speed);

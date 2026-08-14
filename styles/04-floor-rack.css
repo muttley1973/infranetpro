@@ -618,6 +618,27 @@
         .port-led.sfp-slot.fault { background:rgba(248,81,73,.15); box-shadow:0 0 4px rgba(248,81,73,.5); border-color:rgba(248,81,73,.8); }
         .port-led.idle   { background:var(--idle-color);   box-shadow:0 0 5px var(--idle-color); }
         .port-led.sfp-slot.idle { background:rgba(210,153,34,.14); box-shadow:0 0 4px rgba(210,153,34,.45); border-color:rgba(210,153,34,.75); }
+        /* Le due porte «off» — DOPO .active/.fault/.idle nella cascata, quindi a
+           parita' di specificita' vincono: qualunque cosa il documento dica di questa
+           porta, se lo switch la misura giu' quello e' il fatto che conta. Nessun
+           alone: gli altri stati brillano perche' sono vivi, questi sono buchi.
+           Scala monocroma, dal fatto piu' forte al piu' debole:
+             .admin-down  spenta a mano (`shutdown`) — una decisione;
+             .no-link     senza link da >=3 verifiche — un sintomo ambiguo (device
+                          spento? NIC morta? SFP sfilato?), quindi un grigio scuro e
+                          non il nero: mezza strada verso il grigio neutro del «non
+                          risulta niente», che e' esattamente quel che sappiamo. */
+        /* ⚠️ Il gemello di queste due regole sta in 06-panels.css, subito dopo
+           `.port-led.lag-member`: quella e' `!important` e vince su qualsiasi cosa
+           scritta qui. Se cambi un colore, cambialo in ENTRAMBI. */
+        .port-led.no-link { background:var(--nolink-color); box-shadow:none; }
+        .port-led.sfp-slot.no-link { background:var(--nolink-color); border-color:var(--nolink-color); box-shadow:none; }
+        /* Nero PIENO, senza anello e senza alone: identica in tutto a una porta non
+           attiva, solo di un altro colore. Un contorno chiaro la faceva sembrare
+           selezionata, cioe' un'altra cosa; e il bordo degli SFP/MGMT va spento
+           anche lui, altrimenti resta un rettangolo vuoto invece di un buco. */
+        .port-led.admin-down { background:var(--shut-color); box-shadow:none; }
+        .port-led.sfp-slot.admin-down { background:var(--shut-color); border-color:var(--shut-color); box-shadow:none; }
         .rack-ports.pdu-power-ports {
             flex:1 1 auto;
             min-width:0;
@@ -771,6 +792,8 @@
         .panel-skin-svg .skin-port.active, .panel-skin-svg .skin-port.active * { fill:var(--active-color) !important; }
         .panel-skin-svg .skin-port.fault,  .panel-skin-svg .skin-port.fault *  { fill:var(--fault-color) !important; }
         .panel-skin-svg .skin-port.idle,   .panel-skin-svg .skin-port.idle *   { fill:var(--idle-color) !important; }
+        .panel-skin-svg .skin-port.no-link, .panel-skin-svg .skin-port.no-link * { fill:var(--nolink-color) !important; }
+        .panel-skin-svg .skin-port.admin-down, .panel-skin-svg .skin-port.admin-down * { fill:var(--shut-color) !important; }
         .panel-skin-svg .skin-port:hover,  .panel-skin-svg .skin-port:hover *  { fill:var(--accent) !important; }
         .panel-skin-svg .skin-port.selected { stroke:var(--accent); stroke-width:1.2; paint-order:stroke; }
         /* sezione "Skin pannello" nel pannello Proprieta */
@@ -815,6 +838,10 @@
         .port-led.mgmt-slot.active { box-shadow:0 0 4px rgba(0,212,255,.5); border-color:rgba(0,212,255,.85); }
         .port-led.mgmt-slot.fault  { box-shadow:0 0 4px rgba(248,81,73,.5);  border-color:rgba(248,81,73,.7); }
         .port-led.mgmt-slot.idle   { box-shadow:0 0 4px rgba(0,212,255,.45); border-color:rgba(0,212,255,.65); }
+        /* La MGMT e' trasparente col bordo ciano: qui il riempimento va rimesso, e va
+           messo DOPO .port-led.mgmt-slot (che lo azzera) per vincere la cascata. */
+        .port-led.mgmt-slot.no-link { background:var(--nolink-color); border-color:var(--nolink-color); box-shadow:none; }
+        .port-led.mgmt-slot.admin-down { background:var(--shut-color); border-color:var(--shut-color); box-shadow:none; }
         /* Numero sotto cella MGMT: stessa tipografia del .port-num SFP (font-size
            4px) ma colorato ciano per identificare visivamente come MGMT. */
         .port-num.mgmt-num { color:var(--accent); font-weight:600; }

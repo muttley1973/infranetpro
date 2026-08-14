@@ -15,6 +15,7 @@
 import { expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, normalizeStatus, hasPortStatus } from './app-util.js';
+import { DOWN_STREAK_N, portShade } from '../lib/port-state.js';   // lib pura importata ESM: la stessa misura che colora il LED
 import { nodeById, getNodeByPortId, getPortNodeId, _isRadioPid, _enableManualValueInProps } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _effPortVlan, _getLinkTrunk, _parseTrunkVlans, _runActiveAnchor, _voipVoiceVlan, _portEffTrunk,
@@ -235,7 +236,24 @@ export function _renderPortProps(panel){
         if(pi.speed) snmpParts.push(pi.speed>=1000?`${(pi.speed/1000).toFixed(pi.speed%1000?1:0)}G`:`${pi.speed}M`);
         if(pi.vlan&&pi.vlan>1) snmpParts.push(`VLAN ${_vlanLabel(pi.vlan)}`);
         if(pi.lagId&&pi.lagId>0) snmpParts.push(`LAG ${pi.lagId}`);
-        const snmpBar=snmpParts.length?`<div class="snmp-bar" style="margin:0 0 10px"><span class="sb">SNMP</span>${escapeHTML(snmpParts.join(' · '))}</div>`:'';
+        // Lo STATO MISURATO, a parole. Va qui e non nella tendina sotto perché quella
+        // è la DICHIARAZIONE dell'utente e non gliela riscrive nessuno (manual-first):
+        // questa riga dice «SNMP», cioè cosa risponde l'apparato, ed è il posto dove
+        // una porta spenta a mano deve poter contraddire il documento senza cancellarlo.
+        // Il colore è lo stesso del LED nel rack — un'altra tinta sarebbe un terzo
+        // dialetto per lo stesso fatto.
+        // Funzione e non espressione in linea: lo scanner dell'escaping (che tiene il
+        // cricchetto anti-XSS) sa dimostrare sicuro un BUILDER del corpus, mentre di
+        // una variabile che porta HTML non sa dire niente e la conta fra le non provate.
+        const _shadeChip = () => {
+            const s = portShade(pi, DOWN_STREAK_N);
+            if(!s) return '';
+            const sep = snmpParts.length ? ' &middot; ' : '';
+            const bg = s === 'shut' ? 'var(--shut-color)' : 'var(--nolink-color)';
+            const txt = s === 'shut' ? t('port.shut') : t('port.noLink', { n: Number(pi.downStreak) || DOWN_STREAK_N });
+            return `${sep}<span style="background:${bg};color:var(--text-main);border-radius:3px;padding:1px 6px">${escapeHTML(txt)}</span>`;
+        };
+        const snmpBar=(snmpParts.length||portShade(pi,DOWN_STREAK_N))?`<div class="snmp-bar" style="margin:0 0 10px"><span class="sb">SNMP</span>${escapeHTML(snmpParts.join(' · '))}${_shadeChip()}</div>`:'';
         const rst=(f,lbl)=>pi[f]!=null?`<button class="toolbar-btn" style="padding:2px 6px;margin:0;font-size:0.7rem" data-tip="${t('pnl.dev.restoreField',{field:lbl})}" data-act="port-clear-render" data-pid="${pid}" data-pfield="${f}">↺</button>`:'';
         // Select dello STATO dichiarabile. Una sola definizione, usata sia dallo
         // switchport sia dalla tappa passiva: due copie delle stesse cinque voci

@@ -470,8 +470,13 @@ function _tileStatus(r) {
             if (pc) {
                 const derived = pc.derivedStrong + pc.derivedWeak;
                 const declared = pc.declared + pc.review;
-                return { w: t('ov.st.cableProof', { g: pc.ghost, d: derived, m: declared }),
-                         tone: pc.ghost > 0 ? 'warn' : (derived > 0 ? 'info' : 'ok') };
+                // I cavi su porta spenta si aggiungono in coda SOLO se ce n'è almeno
+                // uno: è la condizione rara, e una riga che dice sempre «0 su porta
+                // spenta» diventa rumore che si smette di leggere.
+                const shut = e.shutCable || 0;
+                const w = t('ov.st.cableProof', { g: pc.ghost, d: derived, m: declared })
+                    + (shut > 0 ? ' · ' + t('ov.st.cableShut', { n: shut }) : '');
+                return { w, tone: (pc.ghost > 0 || shut > 0) ? 'warn' : (derived > 0 ? 'info' : 'ok') };
             }
             return e.auto
                 ? { w: t('ov.st.cableSplit', { m: e.manual, a: e.auto }), tone: 'info' }

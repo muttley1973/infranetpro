@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.9.2] — 2026-08-14
+**A port someone shut on purpose no longer looks like a port nobody uses.**
+
+### Added
+- **The rack tells a port that was switched off from one that is merely idle.** InfraNet read only `ifOperStatus` — whether a port has link — and never `ifAdminStatus`, whether a person turned it off. On a real Zyxel GS1900 eight ports read "down" and nothing separated the two someone had shut from the six that were simply empty. The two off-states now share a monochrome scale, near-black for shut by hand and dark grey for no link across three consecutive verifies, and the PDF dossier and the draw.io export print the same colours — paper has no tooltip to ask. The port's Properties say it in words, on the SNMP line, next to what the switch reports. A cable you drew yourself over a shut port gets a **"Port shut"** badge and its own row in the Verify — your word and the word written on the device contradict each other, which usually means the kit was decommissioned and the document has not caught up. A status you declared yourself keeps your colour, and the reading is forgotten as soon as the switch stops confirming it: an assertion this strong does not outlive its evidence.
+
 ## [2.9.1] — 2026-08-14
 **Three answers that could be wrong are now right.** A patch release: no new capability, only correctness in places where the app was stating something it did not know.
 

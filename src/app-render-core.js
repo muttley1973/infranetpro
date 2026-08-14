@@ -9,6 +9,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, hexToRgba, normalizeStatus } from './app-util.js';
+import { DOWN_STREAK_N, portShade } from '../lib/port-state.js';   // lib pura importata ESM (come lib/node-label.js): NON un globale su window
 import { nodeById, getNodeByPortId, getPortNodeId, renderCables, _linksForPort, _nodeRadios, _renderModeIndicator, getWallPortLabel, isRackTopNumbered, getRackSize, _dispName, clampRackDevice, _rackDeviceBg, isPortOnNode } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { propagateVlans, _linkIsTrunk, _effPortVlan } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderTopoOverlay, _renderTopoLegend } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -37,6 +38,17 @@ export function rackUPx(){
         const v = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--ru-h'), 10);
         return v > 0 ? v : 24;
     } catch(_){ return 24; }
+}
+
+// La misura di porta -> classe del LED, CONCATENATA allo stato invece che
+// interpolata a parte: il LED porta un token solo di «come si disegna questa
+// porta», non due adiacenti (e il cricchetto anti-XSS conta le interpolazioni).
+// Nessun interruttore: si vedono sempre. Sono due soli stati, rari, e su una
+// scala monocroma — chiedere all'utente di accendere una lente per sapere che
+// una porta e' spenta significherebbe non dirglielo mai.
+function _portStateCls(pi){
+    const shade = portShade(pi, DOWN_STREAK_N);
+    return shade ? ` ${shade === 'shut' ? 'admin-down' : 'no-link'}` : '';
 }
 
 function _pduPowerOutlets(n){
@@ -80,7 +92,7 @@ function _pduManagementHtml(n){
     for(let i=1;i<=count;i++){
         const pid=`${n.id}-${i}`;
         const pi=store.state.ports[pid]||{};
-        const st=normalizeStatus(pi.statusOvr??pi.status);
+        const st=normalizeStatus(pi.statusOvr??pi.status)+_portStateCls(pi);
         const label=count===1 ? base : `${base}${i}`;
         const tip=portTip(pid) || label;
         cells += `<div class="rack-port-unit mgmt-slot"><div class="port-led mgmt-slot ${st}" data-pid="${pid}" title="${escapeHTML(tip)}"></div><span class="port-num mgmt-num" title="${escapeHTML(label)}">${i}</span></div>`;
@@ -402,7 +414,7 @@ function _renderAllNow(){
                     const pid=`${n.id}-${i}`;
                     const pi=store.state.ports[pid]||{};
                     if(pi.hidden) return ''; // interfaccia nascosta (virtuale)
-                    const st=normalizeStatus(pi.statusOvr??pi.status);
+                    const st=normalizeStatus(pi.statusOvr??pi.status)+_portStateCls(pi);
                     const lagSelCls=store.lagSelMode&&store.lagSelPorts.has(pid)?' lag-sel':'';
                     const lagGid=_portLagGid(pid);
                     const lagMemCls=lagGid?' lag-member':'';
@@ -438,7 +450,7 @@ function _renderAllNow(){
                     for(let i=1;i<=mc;i++){
                         const pid=`${n.id}-mgmt${i}`;
                         const pi=store.state.ports[pid]||{};
-                        const st=normalizeStatus(pi.statusOvr??pi.status);
+                        const st=normalizeStatus(pi.statusOvr??pi.status)+_portStateCls(pi);
                         const selectedCls=(store.selType==='port' && store.selId===pid)?' selected':'';
                         const cellName = mc===1 ? base : `${base}${i}`;
                         const tip=portTip(pid) || cellName;

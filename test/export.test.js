@@ -253,3 +253,50 @@ test('export: _cableLabelRows + _nodeRoomName — etichette cavo coerenti', () =
   assert.equal(r.rows, 6, 'una riga etichetta per cavo');
   assert.ok(r.hasLabel, 'ogni riga etichetta ha una label');
 });
+
+// ── Porte spente a mano / senza link nel dossier (lib/port-state.js) ────────
+// Il PDF che porti in sala macchine non può stampare verde una porta che lo
+// switch dà in `shutdown`: la carta non ha un tooltip da interrogare, quindi è
+// proprio lì che una bugia dura di più. Stessa scala monocroma del rack a schermo,
+// stessa regola (portShade), nessun colore riscritto qui dentro.
+test('export: nel rack SVG la porta spenta a mano è quasi nera, quella senza link grigio scuro', () => {
+  const out = run(APP.ctx, `(() => {
+    try {
+      ${SETUP}
+      state.ports['sw-1'] = Object.assign(state.ports['sw-1']||{}, { status:'active', adminDown:true });   // shutdown misurato
+      state.ports['sw-2'] = Object.assign(state.ports['sw-2']||{}, { status:'inactive', downStreak:4 });   // senza link da 4 verifiche
+      state.ports['sw-3'] = Object.assign(state.ports['sw-3']||{}, { status:'inactive', downStreak:1 });   // blip sotto soglia
+      state.ports['sw-4'] = Object.assign(state.ports['sw-4']||{}, { status:'active' });                   // di controllo
+      state.ports['sw-5'] = Object.assign(state.ports['sw-5']||{}, { adminDown:true, statusOvr:'active' });// dichiarata dall'utente
+      const svg = _exportInternals._buildRackSVG(state.currentRack, { pdfMode:true }).svg;
+      return JSON.stringify({ ok:true,
+        hasShut:   svg.includes('#0a0d11'),
+        hasNoLink: svg.includes('#3c4149'),
+        shutCount:   (svg.match(/#0a0d11/g)||[]).length,
+        nolinkCount: (svg.match(/#3c4149/g)||[]).length });
+    } catch(e){ return JSON.stringify({ ok:false, err:String(e&&e.stack||e) }); }
+  })()`);
+  const r = JSON.parse(out);
+  assert.ok(r.ok, '_buildRackSVG lancia: ' + r.err);
+  assert.ok(r.hasShut, 'la porta in shutdown esce col quasi-nero, non col verde del documento');
+  assert.ok(r.hasNoLink, 'la porta senza link da >=3 verifiche esce col grigio scuro');
+  // Una sola per colore: il blip sotto soglia, quella di controllo e quella
+  // DICHIARATA dall'utente (manual-first) non devono tingersi.
+  assert.equal(r.shutCount, 1, 'solo la porta misurata shut — la dichiarata dall\'utente resta sua');
+  assert.equal(r.nolinkCount, 1, 'solo la porta oltre soglia — un blip non è un fatto');
+});
+
+test('export: senza porte misurate il rack SVG non contiene i due grigi', () => {
+  // Controprova: i colori non compaiono "da soli" (es. da un bordo o da un default).
+  const out = run(APP.ctx, `(() => {
+    try {
+      ${SETUP}
+      const svg = _exportInternals._buildRackSVG(state.currentRack, { pdfMode:true }).svg;
+      return JSON.stringify({ ok:true, shut: svg.includes('#0a0d11'), nolink: svg.includes('#3c4149') });
+    } catch(e){ return JSON.stringify({ ok:false, err:String(e&&e.stack||e) }); }
+  })()`);
+  const r = JSON.parse(out);
+  assert.ok(r.ok, '_buildRackSVG lancia: ' + r.err);
+  assert.equal(r.shut, false);
+  assert.equal(r.nolink, false);
+});

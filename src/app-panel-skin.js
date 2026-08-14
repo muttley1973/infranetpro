@@ -19,6 +19,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, normalizeStatus } from './app-util.js';
+import { DOWN_STREAK_N, portShade } from '../lib/port-state.js';   // lib pura importata ESM
 import { nodeById, markDirty } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps, _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
@@ -213,7 +214,11 @@ export function _panelSkinRackHtml(n){
             const pi = (store.state.ports && store.state.ports[pid]) || {};
             const stt = normalizeStatus(pi.statusOvr != null ? pi.statusOvr : pi.status);
             const selCls = (store.selType==='port' && store.selId===pid) ? ' selected' : '';
-            el.setAttribute('class', ((el.getAttribute('class')||'') + ' skin-port ' + stt + selCls).trim());
+            // Stessa misura del LED del rack: una skin vettoriale non puo' raccontare
+            // una verita' diversa dal frontale disegnato (twin-renderer).
+            const _shade = portShade(pi, DOWN_STREAK_N);
+            const stateCls = _shade ? (_shade === 'shut' ? ' admin-down' : ' no-link') : '';
+            el.setAttribute('class', ((el.getAttribute('class')||'') + ' skin-port ' + stt + stateCls + selCls).trim());
             // togli il fill proprio della forma E delle forme annidate (Illustrator
             // spesso mette <g id="port-N"><rect fill="..."/></g>) → il colore di
             // stato lo da la CSS su .skin-port e .skin-port *

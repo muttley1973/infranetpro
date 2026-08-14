@@ -344,6 +344,32 @@ requires a signal a live host cannot suppress:
 - **grey** (`.node-unverified`, bucket `unverified`) — everything else: FDB ageing,
   host-filtered ICMP, a mute SNMP agent, a remote/unreached subnet. Honest "don't know".
 
+### Port state: shut by hand vs merely idle
+
+`ifOperStatus` says whether a port has link; `ifAdminStatus` (IF-MIB `.7`, read since
+2.9.2) says whether a person turned it off. The two are different facts — the first is
+a symptom (device off, dead NIC, SFP pulled), the second a decision written on the
+device — and the rack draws them on a **monochrome scale** rather than as new hues,
+since green/red/amber already mean something else: near-black `--shut-color` for a port
+in `shutdown`, dark grey `--nolink-color` for no link across `DOWN_STREAK_N` verifies,
+plain grey for everything unknown.
+
+The rule is `portShade()` in **`lib/port-state.js`**, read by both renderers (the
+generated front panel and the vector skin), by the port Properties, by the PDF dossier
+and by the draw.io export — one definition, because a drawing that colours the same
+concept with rules of its own is this project's most expensive class of bug. Three
+invariants live there: the field **absent means "not known"**, never "port is up"
+(hence `=== true`); a status **declared by hand wins the drawing** (a measurement that
+contradicts it surfaces in the Verify, not by overwriting the pixel); and the reading is
+**forgotten** by `forgetPortMeasure()` as soon as the switch stops confirming it, so a
+strong assertion cannot outlive its evidence.
+
+On the cable side a **declared** cable over a shut port becomes `declared-shut`
+(bucket `diverged`, badge "Port shut", Drift category `shutCable`) — never `ghost`,
+which means "inferred, and its evidence evaporated". Inferred cables stay out of that
+bucket: through a shut port the link never forms, so their down-streak already carries
+them into `ghostCable`.
+
 Rack devices keep their SNMP LED instead of an overlay. The buckets cover documented
 devices with an IP but no MAC too (`doc.ipOnly`), checked per-node rather than per-MAC.
 The signals are assembled in `lib/drift-snapshot.js` (`buildSnmpSnapshot`: `presentNodeIds`,

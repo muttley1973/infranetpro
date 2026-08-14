@@ -333,3 +333,46 @@ test('la lib non cancella: irraggiungibile non rimuove il record (input intatto)
   assert.equal(link.id, 'l1');     // ...ma il cavo esiste ancora, immutato
   assert.equal(link.autoLinked, true);
 });
+
+// ── Cavo DICHIARATO su porta in shutdown → 'declared-shut' ─────────────────
+// La domanda a cui risponde: «un cavo manuale su una porta chiusa a mano dove lo
+// vedo?». Non diventa fantasma — quella parola vuol dire «l'ho dedotto io e
+// l'evidenza è evaporata», e su un cavo che hai visto tu è falsa.
+test('DICHIARATO su porta in shutdown -> declared-shut (MAI ghost)', () => {
+  const st = cableProof({ id: 'm1', portShut: true }, { status: 'proven', lastProvenAt: ago(HOUR) }, { status: 'proven', lastProvenAt: ago(HOUR) }, NOW);
+  assert.equal(st, 'declared-shut');
+});
+
+test('nessuna combinazione rende FANTASMA un cavo dichiarato', () => {
+  // Deve fallire se qualcuno un giorno «semplifica» il ramo nuovo riusando 'ghost'.
+  for (const extra of [{}, { portShut: true }, { portDown: true }, { portShut: true, portDown: true }]) {
+    const st = cableProof(Object.assign({ id: 'm1' }, extra), { status: 'absent' }, { status: 'unverified' }, NOW);
+    assert.notEqual(st, 'ghost', `manuale con ${JSON.stringify(extra)} non deve essere fantasma`);
+  }
+});
+
+test('la contraddizione MISURATA batte la porta: miscablaggio -> declared-review', () => {
+  assert.equal(cableProof({ id: 'm1', portShut: true, miscabled: true }, { status: 'proven', lastProvenAt: ago(HOUR) }, { status: 'proven', lastProvenAt: ago(HOUR) }, NOW), 'declared-review');
+  assert.equal(cableProof({ id: 'm1', portShut: true }, { status: 'diverged' }, { status: 'proven', lastProvenAt: ago(HOUR) }, NOW), 'declared-review');
+});
+
+test('un estremo muto NON basta: senza porta chiusa il dichiarato resta dichiarato', () => {
+  assert.equal(cableProof({ id: 'm1' }, { status: 'unverified' }, { status: 'absent' }, NOW), 'declared');
+});
+
+test('sul DEDOTTO nulla cambia: delibera il bucket ghostCable (filtrabile con «ignora»)', () => {
+  const d = (extra) => cableProof(Object.assign({ id: 'd1', autoLinked: true, confidence: 0.97, protocol: 'LLDP' }, extra),
+    { status: 'proven', lastProvenAt: ago(HOUR) }, { status: 'proven', lastProvenAt: ago(HOUR) }, NOW);
+  assert.equal(d({ portShut: true }), 'derived-strong', 'portShut non scavalca la scelta dell\'utente sul dedotto');
+  assert.equal(d({ portDown: true }), 'ghost');
+});
+
+test('truthBucket: il cavo su porta spenta è una contraddizione, non un dubbio', () => {
+  assert.equal(truthBucket('declared-shut'), 'diverged');
+});
+
+test('il ramo nuovo non muta il cavo', () => {
+  const link = Object.freeze({ id: 'm1', portShut: true });
+  assert.equal(cableProof(link, { status: 'proven', lastProvenAt: ago(HOUR) }, { status: 'proven', lastProvenAt: ago(HOUR) }, NOW), 'declared-shut');
+  assert.equal(link.portShut, true);
+});
