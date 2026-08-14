@@ -24,7 +24,7 @@ import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (e
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAutomationMenu, _updateAutoPollBadge } from './app-vlan-autopoll.js';   // popover Automazioni + badge del monitoraggio (ciclo benigno: solo a runtime)
 import { effAutoConfig, clampMonitorInterval } from '../lib/auto-monitor.js';   // config PURA del monitoraggio unificato (schema nuovo + migrazione legacy)
-import { ipamByVidView, prefixesOf } from '../lib/ipam-model.js';   // vista per-VLAN derivata dai prefissi dichiarati
+import { prefixesOf } from '../lib/ipam-model.js';   // l'autorità sulle reti dichiarate (prefix-first)
 import { ensureNodeRackVisible, focusNode, selectAndFocusNode } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { trace } from './app-pointer.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { reconcileMiscabling } from './app-autolink.js';   // Proof-State: miscablaggio per-porta (l.miscabled) dai neighbor cache
@@ -755,26 +755,40 @@ export function _driftNetworksSection(rep){
         ? annotateNetworksVerification(networks, { sweepRan: rep.sweepRan, observedSubnets: rep.observedSubnets, unverified: rep.unverified, prefixes: prefixesOf(store.state) })
         : { networks: networks.map(n => Object.assign({}, n, { observed:null, unverifiedDevices:[], unverifiedCount:0 })), orphanUnverified: [] };
     const nets = joined.networks;
-    // ① "sempre sul dichiarato": marca ogni /24 come DENTRO una subnet IPAM DICHIARATA
-    // (badge "dichiarata /N", messe PRIMA) oppure assunta di DEFAULT (badge "default /24").
-    // deriveProjectNetworks resta /24 (lo scan è per segmento): qui solo etichetta + ordine.
-    // Helper CIDR LOCALI (niente bare-global → cricchetto A/B invariato).
-    const _ipInt = ip => { const p = String(ip == null ? '' : ip).split('.'); if (p.length !== 4) return null; let v = 0; for (let i = 0; i < 4; i++) { const x = Number(p[i]); if (!Number.isInteger(x) || x < 0 || x > 255) return null; v = v * 256 + x; } return v >>> 0; };
-    const _subInfo = c => { const mm = /^(\d{1,3}(?:\.\d{1,3}){3})\s*\/\s*(\d{1,2})$/.exec(String(c == null ? '' : c)); if (!mm) return null; const b = _ipInt(mm[1]); const p = Number(mm[2]); if (b == null || p < 0 || p > 32) return null; const mask = p === 0 ? 0 : ((0xffffffff << (32 - p)) >>> 0); return { network: (b & mask) >>> 0, mask, prefix: p }; };
-    const _ipamV = ipamByVidView(store.state);
+    // ① "sempre sul dichiarato": marca ogni rete come DENTRO una subnet IPAM
+    // DICHIARATA (badge "dichiarata /N", messe PRIMA) oppure assunta di DEFAULT
+    // (badge "default /24"). Qui solo etichetta + ordine.
+    //
+    // L'aritmetica CIDR la fa `lib/cidr.js`, letto come GLOBALE BARE (lo <script>
+    // è caricato prima del bundle) con la guardia typeof — stesso idioma degli
+    // altri motori puri, e nessun `win.*` nuovo. Qui vivevano DUE copie a mano
+    // (`_ipInt` e un regex CIDR completo), entrambe IPv4-only mentre il modello è
+    // dual-stack: la stessa divergenza che aveva già prodotto un bug (audit D1).
+    const _cidrParse = (c) => (typeof _parseCidrInfo === 'function' ? _parseCidrInfo(c) : null);
+    const _cidrHas = (ip, info) => (typeof _ipInCidr === 'function' ? _ipInCidr(ip, info) : false);
+    // Reti dichiarate: `prefixes[]` è l'autorità — include quelle SENZA VLAN e il
+    // secondo prefisso di una dual-stack, che la vista per-VLAN non nominava.
     const _declSubs = []; const _seenSub = new Set();
-    for (const k of Object.keys(_ipamV)) { const info = _subInfo((_ipamV[k] || {}).subnet); if (!info) continue; const key = info.network + '/' + info.prefix; if (_seenSub.has(key)) continue; _seenSub.add(key); _declSubs.push(info); }
+    for (const p of prefixesOf(store.state)) {
+        const info = _cidrParse(p && p.cidr);
+        if (!info) continue;
+        const key = String(p.cidr).trim().toLowerCase();
+        if (_seenSub.has(key)) continue;
+        _seenSub.add(key); _declSubs.push(info);
+    }
     _declSubs.sort((a, b) => b.prefix - a.prefix);   // più specifica prima
-    // Una rete è "dichiarata" se cade in una subnet IPAM larga ≤ /24 (una /16, /8, /23…, o la /24 stessa).
-    // ⚠️ L'indirizzo di rete si legge da `n.cidr`, che la riga porta SEMPRE completo:
-    // ricomporlo da `n.net + '.0'` funzionava solo finché la chiave era «a.b.c». Da
-    // quando una rete DICHIARATA dà alla riga la sua chiave vera (`10.0.0.0/22`),
-    // quella concatenazione produceva «10.0.0.0/22.0» → indirizzo illeggibile →
-    // nessuna riga risultava più dichiarata, e il badge spariva in silenzio.
+    // Una rete è "dichiarata" se il suo indirizzo cade in una subnet dichiarata che
+    // la CONTIENE per intero (prefisso non più stretto del suo). La vecchia soglia
+    // fissa `<= 24` valeva solo finché ogni riga era una /24: ora una riga può
+    // essere essa stessa il prefisso dichiarato (es. /22 o /25) e va confrontata
+    // col proprio prefisso, non con 24.
+    // ⚠️ L'indirizzo si legge da `n.cidr`, che la riga porta SEMPRE completo:
+    // ricomporlo da `n.net + '.0'` funzionava solo finché la chiave era «a.b.c».
     const _declOf = n => {
-        const base = _ipInt(String(n.cidr || '').split('/')[0]);
-        if (base == null) return null;
-        for (const d of _declSubs) if (d.prefix <= 24 && ((base & d.mask) >>> 0) === d.network) return d;
+        const row = _cidrParse(n && n.cidr);
+        if (!row) return null;
+        const base = String(n.cidr).split('/')[0];
+        for (const d of _declSubs) if (d.prefix <= row.prefix && d.family === row.family && _cidrHas(base, d)) return d;
         return null;
     };
     // dichiarate PRIMA, poi default; dentro ciascun gruppo si conserva l'ordine esistente (stabile).

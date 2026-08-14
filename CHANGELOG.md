@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Fixed
+- **A declared network is recognised as declared, whatever its shape.** The Verify's network list and the Overview each carried their own hand-written CIDR reader, both IPv4-only while the model has been dual-stack for a release: an IPv6 network you had declared could never earn its "declared /64" badge, and the rule "declared if it sits inside a subnet of /24 or wider" was a fixed threshold from when every row was a /24 — a declared /22 or /25 was judged against 24 instead of against its own size. Both readers are gone; the one in `lib/cidr.js` answers, and a row is declared when a declared network contains it and is no narrower than it is. The list also reads the declared networks from `prefixes[]`, so the ones without a VLAN count too.
 - **A sighting with no date no longer counts as one from this morning.** Confidence in an inferred link grows with how often something was seen and fades with how long ago — but the fading only applied when the record carried a date. Without one it never aged: seen eight times with no date scored the same as seen yesterday, while the same record dated 400 days back scored a third of that. An unknown age now weighs as much as a month of silence, and it is stated rather than hidden — the chip reads "Undated", in grey with a dashed border, and says so in its tooltip. It does not claim the record is stale, nor invent an age: not knowing is the finding.
 
 ## [2.9.0] — 2026-08-14
