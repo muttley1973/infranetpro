@@ -191,10 +191,18 @@ function _aiCollectLiveFacts(){
             const iddrift = (Array.isArray(rep.identityDrift) ? rep.identityDrift : []).map(r =>
                 _aiCompact({ id: r.nodeId, name: r.label, swapped: !!r.identity, changes: (r.diffs || []).map(d => `${d.field}: ${d.doc}→${d.real}`) })
             ).filter(e => Object.keys(e).length);
+            // «Non verificabile» (grigio): la sweep non copriva quella subnet, la
+            // presenza NON è stata provata. È metà del verdetto della Verifica e
+            // senza di essa l'assistente vede solo bianco e nero.
+            const unver = (Array.isArray(rep.unverified) ? rep.unverified : []).map(r => {
+                const n = byId(r.nodeId);
+                return _aiCompact({ id: r.nodeId, name: r.label || (n && n.name), ip: r.ip || (n && n.ip), mac: r.mac, reason: r.reason });
+            }).filter(e => Object.keys(e).length);
             if(absent.length) drift.absent = absent;
             if(undoc.length) drift.undocumented = undoc;
             if(ipch.length) drift.ipChanged = ipch;
             if(iddrift.length) drift.identityChanged = iddrift;
+            if(unver.length) drift.unverified = unver;
             if(Object.keys(drift).length) facts.drift = drift;
         }
     } catch(_){}

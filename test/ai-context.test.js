@@ -355,3 +355,136 @@ test('scope.drift=false → niente drift anche se nei liveFacts', () => {
   const on = buildAiContext(projWithTopo(), live, { drift: true });
   assert.ok(on.facts && on.facts.drift, 'drift presente con scope.drift=true');
 });
+
+// ── Parità documentale: ciò che l'utente DICHIARA deve arrivare al modello ───
+// L'audit del 2026-08-14 ha misurato che 23 parametri su 30 non uscivano: il
+// contesto raccontava una rete più povera di quella documentata, e sul dichiarato
+// (reti, IPv6, VM, prese) l'assistente rispondeva «non risulta» — cioè il falso.
+// Questi test sono l'argine: ogni categoria ha la sua copertura E la sua guardia
+// anti-leak, perché aggiungere dati non deve mai aprire una fuga.
+
+function projDeclared() {
+  return {
+    id: 9, name: 'Dichiarato', updated_at: '2026-08-14',
+    state: {
+      vlanNames: { 10: 'Uffici', 99: 'Ospiti' },
+      guestVlans: [99], voiceVlans: [20], mgmtVlans: [10],
+      ipam: {
+        prefixes: [
+          { cidr: '10.10.10.0/24', vlan: 10, gateway: '10.10.10.1', name: 'Uffici' },
+          { cidr: '2001:db8:10::/64', vlan: 10, gateway: '2001:db8:10::1', name: 'Uffici v6' },
+          // La rete SENZA VLAN: la norma in un import DCIM, invisibile prima del fix.
+          { cidr: '192.168.77.0/24', vlan: null, gateway: '192.168.77.1', name: 'DMZ', source: 'netbox' },
+        ],
+      },
+      racks: [],
+      nodes: [
+        { id: 'rt1', type: 'router', name: 'RT-EDGE', ip: '10.10.10.1', ip6: '2001:db8:10::1', ports: 2,
+          warrantyUntil: '2025-01-01', eolDate: '2027-06-30' },
+        { id: 'hv1', type: 'hypervisor', name: 'ESXi-01', ip: '10.10.10.20', ports: 1,
+          vms: [{ id: 'vm1', name: 'DC-01', ip: '10.10.10.21', mac: 'f8:bc:12:00:00:01', vlan: 10, state: 'running',
+            integration: { driver: 'snmp', community: 'VMCOMM-LEAK' }, password: 'VMPW-LEAK' }] },
+        { id: 'pdu1', type: 'pdu', name: 'PDU-A', ip: '10.10.10.9', ports: 0,
+          powerOutlets: [
+            { name: 'C13-1', status: 'active', connectedDeviceId: 'rt1', connectedPortName: 'PS1', community: 'OUTLET-LEAK' },
+            { name: 'C13-2', status: 'inactive' },
+          ] },
+      ],
+      links: [],
+      ports: {
+        'rt1-1': { status: 'up', ifName: 'Gi0/0', desc: 'LAN', ip: '10.10.10.1', ip6: '2001:db8:10::1' },
+        'rt1-2': { status: 'up', ifName: 'Gi0/1', desc: 'WAN', ip: '203.0.113.7', community: 'PORT-LEAK' },
+      },
+    },
+  };
+}
+
+test('reti dichiarate: escono TUTTE, anche senza VLAN e anche IPv6 (prefix-first)', () => {
+  const ctx = buildAiContext(projDeclared(), null);
+  const cidrs = (ctx.networks || []).map(n => n.cidr);
+  assert.deepEqual(cidrs.sort(), ['10.10.10.0/24', '192.168.77.0/24', '2001:db8:10::/64'].sort());
+  const dmz = ctx.networks.find(n => n.cidr === '192.168.77.0/24');
+  assert.equal(dmz.gateway, '192.168.77.1');
+  assert.ok(!('vlan' in dmz), 'rete senza VLAN: nessuna «VLAN 0» inventata');
+  assert.equal(ctx.summary.networks, 3, 'il totale dichiarato sta nel summary');
+});
+
+test('ruoli VLAN dichiarati (ospiti/voce/gestione) nel contesto', () => {
+  const ctx = buildAiContext(projDeclared(), null);
+  const guest = ctx.vlans.find(v => v.id === 99);
+  const mgmt = ctx.vlans.find(v => v.id === 10);
+  assert.deepEqual(guest.roles, ['guest']);
+  assert.deepEqual(mgmt.roles, ['mgmt']);
+});
+
+test('indirizzi: ip6 del nodo + ip/ip6 di PORTA (il lato WAN sta sulla porta)', () => {
+  const ctx = buildAiContext(projDeclared(), null);
+  const rt = ctx.devices.find(d => d.id === 'rt1');
+  assert.equal(rt.ip6, '2001:db8:10::1');
+  const wan = rt.ports.list.find(p => p.name === 'WAN');
+  assert.equal(wan.ip, '203.0.113.7');
+  const lan = rt.ports.list.find(p => p.name === 'LAN');
+  assert.equal(lan.ip6, '2001:db8:10::1');
+});
+
+test('VM documentate sull\'host: nome/IP/MAC/VLAN/stato (non solo il conteggio)', () => {
+  const ctx = buildAiContext(projDeclared(), null);
+  const hv = ctx.devices.find(d => d.id === 'hv1');
+  assert.equal(hv.vms.length, 1);
+  assert.equal(hv.vms[0].name, 'DC-01');
+  assert.equal(hv.vms[0].ip, '10.10.10.21');
+  assert.equal(hv.vms[0].vlan, 10);
+});
+
+test('prese PDU: stato + apparato alimentato (catena di alimentazione)', () => {
+  const ctx = buildAiContext(projDeclared(), null);
+  const pdu = ctx.devices.find(d => d.id === 'pdu1');
+  assert.equal(pdu.outlets.length, 2);
+  assert.equal(pdu.outlets[0].outlet, 'C13-1');
+  assert.equal(pdu.outlets[0].state, 'active');
+  assert.equal(pdu.outlets[0].powers, 'RT-EDGE', 'il nome del device, non l\'id opaco');
+});
+
+test('ciclo di vita: garanzia e fine vita DICHIARATE', () => {
+  const ctx = buildAiContext(projDeclared(), null);
+  const rt = ctx.devices.find(d => d.id === 'rt1');
+  assert.equal(rt.lifecycle.warrantyUntil, '2025-01-01');
+  assert.equal(rt.lifecycle.eol, '2027-06-30');
+});
+
+test('GUARDIA: i blocchi nuovi (VM/prese/porte) non aprono fughe di segreti', () => {
+  const json = JSON.stringify(buildAiContext(projDeclared(), null));
+  for (const s of ['VMCOMM-LEAK', 'VMPW-LEAK', 'OUTLET-LEAK', 'PORT-LEAK']) {
+    assert.ok(!json.includes(s), `segreto trapelato dai blocchi nuovi: ${s}`);
+  }
+});
+
+test('scope: devices=false toglie anche VM/prese/ciclo di vita; ports=false toglie gli IP di porta', () => {
+  const noDev = buildAiContext(projDeclared(), null, { devices: false });
+  assert.ok(!('devices' in noDev), 'nessun device → nessuna VM, presa o data di garanzia');
+  const noPorts = buildAiContext(projDeclared(), null, { ports: false });
+  const rt = noPorts.devices.find(d => d.id === 'rt1');
+  assert.ok(!rt.ports, 'niente porte → niente indirizzi di porta');
+  assert.ok(rt.vms === undefined && rt.lifecycle, 'il resto del device resta');
+});
+
+test('drift: identità sostituita e «non verificabile» arrivano al modello', () => {
+  const live = {
+    drift: {
+      identityChanged: [{ id: 'rt1', name: 'RT-EDGE', swapped: true, changes: ['serial: FOC123→FOC999'], secret: 'IDLEAK' }],
+      unverified: [{ id: 'hv1', name: 'ESXi-01', ip: '10.10.10.20', reason: 'leaseReleased' }],
+    },
+  };
+  const ctx = buildAiContext(projDeclared(), live);
+  const d = ctx.facts.drift;
+  assert.equal(d.identityChanged[0].swapped, true);
+  assert.deepEqual(d.identityChanged[0].changes, ['serial: FOC123→FOC999']);
+  assert.equal(d.unverified[0].reason, 'leaseReleased');
+  assert.ok(!JSON.stringify(ctx).includes('IDLEAK'), 'campo extra scartato dall\'allowlist');
+});
+
+test('scope.drift=false spegne anche identità e non-verificabili', () => {
+  const live = { drift: { identityChanged: [{ id: 'rt1', swapped: true }], unverified: [{ id: 'hv1' }] } };
+  const off = buildAiContext(projDeclared(), live, { drift: false });
+  assert.ok(!(off.facts && off.facts.drift), 'tutte le categorie drift sono sotto lo stesso interruttore');
+});

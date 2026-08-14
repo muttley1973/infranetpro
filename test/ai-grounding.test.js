@@ -105,3 +105,36 @@ test('checkGrounding: input vuoti/sporchi non lanciano e tornano vuoti', () => {
   assert.doesNotThrow(() => extractEntities(null));
   assert.doesNotThrow(() => extractEntities({ devices: 'nope', vlans: 3, facts: 7 }));
 });
+
+// ── Il digest deve conoscere TUTTO ciò che è uscito ──────────────────────────
+// Trappola «definizioni duplicate»: il contesto e il digest anti-invenzione sono
+// due letture dello stesso oggetto. Quando al contesto si aggiungono reti senza
+// VLAN, indirizzi di porta e VM, il digest deve seguirle — altrimenti il modello
+// che cita il gateway della DMZ (dato che gli abbiamo passato NOI) si prende un
+// ⚠ «riferimento non trovato»: il controllo punirebbe le risposte giuste.
+test('digest: reti dichiarate, IP di porta e IP delle VM sono entità NOTE', () => {
+  const ctx = {
+    devices: [
+      { id: 'rt1', name: 'RT-EDGE', ip: '10.10.10.1',
+        ports: { list: [{ port: '2', name: 'WAN', ip: '203.0.113.7' }] } },
+      { id: 'hv1', name: 'ESXi-01', ip: '10.10.10.20',
+        vms: [{ name: 'DC-01', ip: '10.10.10.21', mac: 'f8:bc:12:00:00:01', vlan: 10 }] },
+    ],
+    vlans: [],
+    networks: [{ cidr: '192.168.77.0/24', gateway: '192.168.77.1', name: 'DMZ' }],
+  };
+  const ent = extractEntities(ctx);
+  for (const ip of ['203.0.113.7', '10.10.10.21', '192.168.77.1', '192.168.77.0']) {
+    assert.ok(ent.ips.includes(ip), `IP del contesto assente dal digest: ${ip}`);
+  }
+  assert.ok(ent.macs.includes('f8:bc:12:00:00:01'), 'MAC della VM nel digest');
+  const out = checkGrounding('Il lato WAN di RT-EDGE è 203.0.113.7 e il gateway DMZ è 192.168.77.1.', ent);
+  assert.deepEqual(out.unknownRefs, [], 'nessuna falsa accusa di invenzione');
+  assert.ok(out.citations.some(c => c.id === 'rt1'), 'RT-EDGE citato');
+});
+
+test('digest: un IP MAI passato al modello resta un riferimento sconosciuto', () => {
+  const ent = extractEntities({ devices: [{ id: 'a', name: 'A', ip: '10.0.0.1' }], vlans: [] });
+  const out = checkGrounding('Ho trovato anche 172.16.9.9 nella rete.', ent);
+  assert.deepEqual(out.unknownRefs, [{ kind: 'ip', value: '172.16.9.9' }]);
+});

@@ -10,7 +10,7 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="2,398 tests, 0 failing" src="https://img.shields.io/badge/tests-2%2C398%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="2,410 tests, 0 failing" src="https://img.shields.io/badge/tests-2%2C410%20%C2%B7%200%20failing-3fb950"></a>
   <a href="#testing"><img alt="108 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-108%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#oui-intelligence-engine"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>

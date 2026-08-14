@@ -19,6 +19,11 @@ const { projectToInventory } = require('../../lib/api-shape.js');
 const { _getLinkDrawEndpoints } = require('../../lib/link-model.js');
 const { computeDeviceCapabilities, computeFleetCapabilities } = require('../../lib/hw-capabilities.js');
 const { computeHealthAlerts, summarizeAlerts } = require('../../lib/health-alerts.js');
+// Prese PDU: stato e apparato alimentato si leggono con GLI STESSI helper del
+// pannello e del report (lib/pdu-layout), mai reinterpretando la forma della
+// presa qui — sarebbe la terza definizione dello stesso concetto.
+const { pduOutletStatusState, pduOutletConnection } = require('../../lib/pdu-layout.js');
+const { outletLabel } = require('../../lib/pdu-report.js');
 
 // Rimuove le chiavi a valore null/'' da un oggetto piatto (snapshot più compatto).
 function _compact(obj) {
@@ -42,7 +47,7 @@ const _PASSIVE_NO_IP_TYPES = new Set(['wallport', 'patchpanel', 'blankpanel', 'c
 // Device compatto: parte dal DTO allowlist di api-shape (già sicuro).
 function _device(d) {
   return _compact({
-    id: d.id, name: d.name, type: d.type, ip: d.ip, mac: d.mac, hostname: d.hostname,
+    id: d.id, name: d.name, type: d.type, ip: d.ip, ip6: d.ip6 || undefined, mac: d.mac, hostname: d.hostname,
     vlan: d.vlan, brand: d.brand, model: d.model, serial: d.serial, firmware: d.firmware,
     passive: _PASSIVE_NO_IP_TYPES.has(d.type) ? true : undefined,
     rack: d.rack ? _compact({ name: d.rack.name, u: d.rack.u }) : undefined,
@@ -170,11 +175,20 @@ function _devicePorts(node, state, resolveNode, neighborIndex, nameById, pids) {
       const nid = resolveNode(npid);
       return _compact({ device: nid ? (nameById[nid] || nid) : null, port: nid ? _portNum(npid, nid) : npid });
     });
-    const meaningful = neigh.length || name || (vlanRaw != null) || (status && status !== 'unknown') || trunk || p.lagGroup;
+    // INDIRIZZO DI PORTA: su un router L3 l'indirizzo vive sull'interfaccia, non
+    // sul nodo (il nodo ne ha uno solo, di gestione). Senza questi due campi il
+    // lato WAN e ogni interfaccia secondaria erano invisibili all'assistente, che
+    // pure deve ragionare su «quali IP sono in uso» (stessa autorità dei motori
+    // indirizzi, che leggono `state.ports[pid].ip`).
+    const pIp = (p.ip == null ? '' : String(p.ip)).trim();
+    const pIp6 = (p.ip6 == null ? '' : String(p.ip6)).trim();
+    const meaningful = neigh.length || name || (vlanRaw != null) || (status && status !== 'unknown') || trunk || p.lagGroup || pIp || pIp6;
     if (!meaningful) continue;
     entries.push(_compact({
       port: _portNum(pid, node.id),
       name,
+      ip: pIp || undefined,
+      ip6: pIp6 || undefined,
       status,
       speed,
       vlan: (vlanRaw != null) ? (Number(vlanRaw) || vlanRaw) : undefined,
@@ -264,6 +278,71 @@ function _wirelessSsids(node) {
   return [...map.values()].map(e => _compact({ ssid: e.ssid, vlan: e.vlan, security: e.security, bands: e.bands.length ? e.bands : undefined }));
 }
 
+// ── Ciclo di vita: due date DICHIARATE (nessun apparato le dice via SNMP). ───
+// Servono alla domanda «cosa è fuori garanzia / fuori produzione», che la
+// Panoramica calcola già nella lente DR: senza queste l'assistente non poteva
+// rispondere su un dato che l'utente aveva scritto a mano.
+function _lifecycle(node) {
+  const w = (node && node.warrantyUntil == null) ? '' : String(node.warrantyUntil).trim();
+  const e = (node && node.eolDate == null) ? '' : String(node.eolDate).trim();
+  const out = _compact({ warrantyUntil: w.slice(0, 32) || undefined, eol: e.slice(0, 32) || undefined });
+  return Object.keys(out).length ? out : undefined;
+}
+
+// ── VM di un host virtuale (allowlist ESPLICITA come il wireless). ───────────
+// Le VM vivono in `node.vms[]` e possono portare una `integration` con la sua
+// community: qui si leggono SOLO nome/indirizzi/VLAN/stato, per costruzione —
+// qualunque altro campo (segreti compresi) è scartato perché non viene copiato.
+// Prima usciva solo il CONTEGGIO (capabilities.compute.vms): l'assistente sapeva
+// «2 VM» ma non sapeva dire quali, pur essendo documentate.
+function _vms(node) {
+  const list = (node && Array.isArray(node.vms)) ? node.vms : [];
+  const out = [];
+  for (const v of list) {
+    if (!v || typeof v !== 'object') continue;
+    const e = _compact({
+      name: (v.name == null ? '' : String(v.name).trim().slice(0, 64)) || undefined,
+      ip: (v.ip == null ? '' : String(v.ip).trim()) || undefined,
+      ip6: (v.ip6 == null ? '' : String(v.ip6).trim()) || undefined,
+      mac: (v.mac == null ? '' : String(v.mac).trim().toUpperCase()) || undefined,
+      vlan: (v.vlan != null) ? (Number(v.vlan) || v.vlan) : undefined,
+      state: (v.state == null ? '' : String(v.state).trim().slice(0, 16)) || undefined,
+    });
+    if (Object.keys(e).length) out.push(e);
+    if (out.length >= 48) break;                 // cap di sicurezza (budget token)
+  }
+  return out.length ? out : undefined;
+}
+
+// ── Prese di una PDU: la catena di alimentazione. ────────────────────────────
+// «Cosa si spegne se muore la PDU-A» è una domanda di continuità operativa a cui
+// il documento sa rispondere (il Dossier stampa il capitolo) ma l'assistente no:
+// usciva solo il carico misurato. Stato e apparato alimentato si leggono con gli
+// helper CONDIVISI di lib/pdu-layout (una sola definizione: pannello, report e
+// contesto dicono la stessa cosa). Il nome del device è preferito all'id opaco.
+function _outlets(node, nameById) {
+  const list = (node && Array.isArray(node.powerOutlets)) ? node.powerOutlets : [];
+  const out = [];
+  for (let i = 0; i < list.length; i++) {
+    const o = list[i];
+    if (!o || typeof o !== 'object') continue;
+    const conn = pduOutletConnection(o);
+    // Il NOME DICHIARATO per primo, esattamente come lo stampa il Dossier PDF
+    // (lib/pdu-report → conn.deviceName): se l'assistente chiamasse quella presa
+    // in un altro modo rispetto al documento consegnato al cliente, sarebbero due
+    // verità per lo stesso dato. L'id serve solo quando il nome non c'è.
+    const byId = conn.deviceId ? (nameById && nameById[conn.deviceId]) : null;
+    const powers = (conn.deviceName || byId || '').toString().trim().slice(0, 64);
+    out.push(_compact({
+      outlet: String(outletLabel(o, i)).slice(0, 32),
+      state: pduOutletStatusState(o) || undefined,
+      powers: powers || undefined,
+    }));
+    if (out.length >= 64) break;                 // cap di sicurezza (budget token)
+  }
+  return out.length ? out : undefined;
+}
+
 // ── Topologia: adiacenza device↔device dai link. ─────────────────────────────
 function _topology(links, resolveNode, nameById) {
   const seen = new Set();
@@ -296,6 +375,23 @@ function _driftEntry(e, fields) {
   return Object.keys(out).length ? out : null;
 }
 
+// Identità hardware: seriale/modello MISURATI diversi da quelli DICHIARATI =
+// «apparato sostituito». Il client la raccoglieva già, ma l'allowlist non
+// conosceva la categoria e la scartava in silenzio: la notizia più grave della
+// Verifica non arrivava mai al modello. `changes` sono frasi corte già composte
+// dal client («serial: X→Y»), tagliate a 6 × 120 caratteri.
+function _identityEntry(e) {
+  if (!e || typeof e !== 'object') return null;
+  const out = {};
+  const id = _str(e.id), name = _str(e.name);
+  if (id !== null) out.id = id;
+  if (name !== null) out.name = name;
+  if (e.swapped === true) out.swapped = true;
+  const ch = _arr(e.changes).map(_str).filter(Boolean).slice(0, 6).map(s => s.slice(0, 120));
+  if (ch.length) out.changes = ch;
+  return Object.keys(out).length ? out : null;
+}
+
 function _sanitizeFacts(liveFacts, scope) {
   const lf = (liveFacts && typeof liveFacts === 'object') ? liveFacts : {};
   const sc = _normScope(scope);
@@ -307,9 +403,16 @@ function _sanitizeFacts(liveFacts, scope) {
     const absent = _arr(drift.absent).map(e => _driftEntry(e, ['id', 'name', 'ip', 'mac', 'vlan'])).filter(Boolean);
     const undoc = _arr(drift.undocumented).map(e => _driftEntry(e, ['ip', 'mac', 'vlan', 'hostname'])).filter(Boolean);
     const ipch = _arr(drift.ipChanged).map(e => _driftEntry(e, ['id', 'name', 'mac', 'from', 'to'])).filter(Boolean);
+    const ident = _arr(drift.identityChanged).map(_identityEntry).filter(Boolean);
+    // «Non verificabile» ≠ assente: la sweep non copriva quella subnet, quindi la
+    // presenza non è stata provata. Senza questa categoria il modello vedeva solo
+    // i presenti e gli assenti, e il grigio — che è metà del verdetto — spariva.
+    const unver = _arr(drift.unverified).map(e => _driftEntry(e, ['id', 'name', 'ip', 'mac', 'reason'])).filter(Boolean);
     if (absent.length) d.absent = absent;
     if (undoc.length) d.undocumented = undoc;
     if (ipch.length) d.ipChanged = ipch;
+    if (ident.length) d.identityChanged = ident;
+    if (unver.length) d.unverified = unver;
     if (Object.keys(d).length) facts.drift = d;
   }
 
@@ -362,6 +465,11 @@ function buildAiContext(project, liveFacts, scope) {
     if (sc.ports && raw) { const pr = _devicePorts(raw, state, resolveNode, neighborIndex, nameById, pidsByNode[d.id] || []); if (pr) out.ports = pr; }
     if (sc.snmpHealth && raw) { const hl = _deviceHealth(raw); if (hl) out.health = hl; }
     if (raw) { const ss = _wirelessSsids(raw); if (ss) out.ssids = ss; }   // inventario SSID (AP)
+    if (raw) {
+      const lc = _lifecycle(raw); if (lc) out.lifecycle = lc;              // garanzia / fine vita (dichiarate)
+      const vm = _vms(raw); if (vm) out.vms = vm;                          // VM documentate sull'host
+      const ol = _outlets(raw, nameById); if (ol) out.outlets = ol;        // prese PDU → chi alimentano
+    }
     // Capacità hardware DOCUMENTATE (lib/hw-capabilities): «InfraNet calcola».
     // Allowlist per costruzione (legge solo chiavi spec note). I sotto-blocchi
     // derivati dalle porte arrivano solo se anche lo scope Porte è ON.
@@ -381,15 +489,46 @@ function buildAiContext(project, liveFacts, scope) {
     return out;
   });
 
-  const vlans = (inv.vlans || []).map(v => _compact({ id: v.id, name: v.name, subnet: v.subnet, gateway: v.gateway, dns: v.dns }));
+  // Ruoli DICHIARATI di una VLAN (ospiti / voce / gestione): sono marcati sulla
+  // barra VLAN e cambiano il giudizio su un apparato (un non-documentato sulla
+  // VLAN di gestione è un fatto di sicurezza, sulla guest è normale). Senza
+  // questi l'assistente non sapeva nemmeno quale fosse la rete ospiti.
+  const _roleSet = (arr) => new Set((Array.isArray(arr) ? arr : []).map(Number).filter(Number.isFinite));
+  const _guestV = _roleSet(state.guestVlans), _voiceV = _roleSet(state.voiceVlans), _mgmtV = _roleSet(state.mgmtVlans);
+  const _roles = (vid) => {
+    const n = Number(vid);
+    const r = [];
+    if (_guestV.has(n)) r.push('guest');
+    if (_voiceV.has(n)) r.push('voice');
+    if (_mgmtV.has(n)) r.push('mgmt');
+    return r.length ? r : undefined;
+  };
+  const vlans = (inv.vlans || []).map(v => _compact({ id: v.id, name: v.name, subnet: v.subnet, gateway: v.gateway, dns: v.dns, roles: _roles(v.id) }));
+  // RETI DICHIARATE (prefissi) = l'autorità dell'indirizzamento (schema 2).
+  // `vlans[].subnet` da solo mente due volte: di una VLAN dual-stack mostra solo
+  // l'IPv4, e le reti SENZA VLAN — la norma in un import DCIM — non le nomina
+  // affatto. Senza questo blocco l'assistente rispondeva «non risulta dalla
+  // documentazione» su reti dichiarate a mano dall'utente (viola declare-first).
+  // Il dato è già calcolato da api-shape (stessa forma della REST v1): qui si
+  // copia, non si ricalcola. `description` (prosa libera) resta fuori per
+  // disegno, come le note: solo campi strutturati escono verso il modello.
+  const networks = (inv.prefixes || []).slice(0, 200).map(p => _compact({
+    cidr: p.cidr,
+    vlan: (p.vlan != null) ? p.vlan : undefined,      // assente = rete senza VLAN (legittima)
+    name: p.name, gateway: p.gateway, dns: p.dns, status: p.status, source: p.source,
+  }));
   const ctx = {
     project: { id: inv.id, name: inv.name },
     summary: {
       devices: inv.counts.devices, withIp: inv.counts.withIp, snmp: inv.counts.snmp,
+      // `networks` è il TOTALE dichiarato anche se l'elenco è tagliato a 200:
+      // un conteggio onesto vale più di una lista completa (no-invenzioni).
+      networks: (inv.prefixes || []).length,
       vlans: vlans.length, racks: (inv.racks || []).length,
     },
     vlans,
   };
+  if (networks.length) ctx.networks = networks;
   if (devices.length) ctx.devices = devices;
   // FRESCHEZZA dei dati (schema ②: «il tempo non entra mai»). Le misure — salute
   // SNMP, alert, UPS/batteria — sono una FOTO al momento della Verifica, non uno
@@ -427,5 +566,6 @@ module.exports = {
   buildAiContext, _sanitizeFacts, _device, _compact,
   _normScope, _buildPortNodeResolver, _portNum, _buildNeighborIndex,
   _safeScalars, _devicePorts, _deviceHealth, _topology, _wirelessSsids, _collectPorts,
+  _lifecycle, _vms, _outlets, _identityEntry,
   _PASSIVE_NO_IP_TYPES,
 };
