@@ -84,8 +84,12 @@ router.post('/api/ai/preview', (req, res) => {
 // requireAdmin: la chat usa la chiave LLM dell'admin (a pagamento) e SPEDISCE il contesto
 // di rete a un provider esterno — un egress. Ogni altra route con egress/scan (poll,
 // discover, integrations/test) è admin-gated: senza questo, un viewer poteva prosciugare
-// la chiave e forzare l'esfiltrazione della topologia. (Se in futuro si vuole dare la chat
-// ai viewer, va fatto con un rate-limit e un budget espliciti, non togliendo il gate.)
+// la chiave e forzare l'esfiltrazione della topologia.
+// ✅ DECISIONE CONFERMATA (2026-08-14): la chat resta riservata agli AMMINISTRATORI.
+// Non è un default provvisorio in attesa di qualcuno che lo allenti: è la scelta. Se un
+// giorno la si vorrà dare ai viewer, la strada NON è togliere questo gate, ma aggiungere
+// prima un rate-limit e un budget di spesa espliciti — senza quei due, «aperta ai viewer»
+// significa una bolletta e una topologia in mano a chiunque abbia un account in lettura.
 router.post('/api/ai/chat', auth.requireAdmin, async (req, res) => {
   const cfg = aiConfig.getConfigWithKey();        // include la chiave (solo qui, server-side)
   if (!cfg.enabled) return res.status(409).json({ error: 'ai_disabled' });
