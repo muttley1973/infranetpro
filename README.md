@@ -10,7 +10,7 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="2,431 tests, 0 failing" src="https://img.shields.io/badge/tests-2%2C431%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="2,436 tests, 0 failing" src="https://img.shields.io/badge/tests-2%2C436%20%C2%B7%200%20failing-3fb950"></a>
   <a href="#testing"><img alt="108 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-108%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#oui-intelligence-engine"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
@@ -121,6 +121,8 @@ Double-click <code>avvia.bat</code>.<br>
 
 > **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then run **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
+> 📰 **What's new (v2.9.1) — three answers that could be wrong are now right.** A declared network is recognised as declared whatever its shape: an IPv6 network you had declared now earns its badge, and a /22 or a /25 is judged against its own size instead of a fixed /24 threshold — one CIDR reader answers for the whole app. A sighting with no date stops passing for a fresh one: an unknown age now weighs as much as a month of silence and says so ("Undated") rather than scoring like something seen yesterday. And the AI chat being admin-only is recorded as a decision, not a default awaiting relaxation.
+>
 > 📰 **What's new (v2.9.0) — a network is a thing of its own, and every address is checked, not just the first IPv4.** The subnet stops being a field of the VLAN: a **network** is now first-class and the VLAN it carries is optional, the shape every real IPAM uses — so a point-to-point link or an out-of-band range with no VLAN finally exists, and a **dual-stack** VLAN keeps both its prefixes instead of dropping one. IPv6 can now be **declared** and is audited like IPv4 — the L3 map checks every gateway of every network, both families, and a `/64` shows occupancy rather than a meaningless percentage. A new **Networks** panel lists every declared prefix, sorted by address, with overlaps spelled out. This release also folds in a deep correctness pass: an address written on a port now counts everywhere, a cable inferred twice is removed even when the real one is corroborated, and the AI chat is admin-only.
 >
 > 📰 **What's new (v2.8.2) — an address belongs to the interface, and the map stops saying the same thing twice.** A port can now carry its **own address**: a router answers on one per interface, and until now the second one could only be recorded as a second device. The device card keeps the management address. In the scan results, columns are **draggable** and the Name column no longer repeats the IP that already has its own column — without a model or hostname it composes from what was measured (type and brand) and says so. A device that will not answer SNMP now wears an **orange** ring, drawn exactly like the red halo of an absent one: same shape, different colour, because they are different pieces of news. Retention ceilings that were quietly cutting history short were raised, and the change journal moved out of the project file.

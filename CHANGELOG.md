@@ -1,11 +1,13 @@
 # Changelog
 
-## [Unreleased]
+## [2.9.1] — 2026-08-14
+
+**Three answers that could be wrong are now right.** A patch release: no new capability, only correctness in places where the app was stating something it did not know.
 
 ### Fixed
-- **A declared network is recognised as declared, whatever its shape.** The Verify's network list and the Overview each carried their own hand-written CIDR reader, both IPv4-only while the model has been dual-stack for a release: an IPv6 network you had declared could never earn its "declared /64" badge, and the rule "declared if it sits inside a subnet of /24 or wider" was a fixed threshold from when every row was a /24 — a declared /22 or /25 was judged against 24 instead of against its own size. Both readers are gone; the one in `lib/cidr.js` answers, and a row is declared when a declared network contains it and is no narrower than it is. The list also reads the declared networks from `prefixes[]`, so the ones without a VLAN count too.
-- **A sighting with no date no longer counts as one from this morning.** Confidence in an inferred link grows with how often something was seen and fades with how long ago — but the fading only applied when the record carried a date. Without one it never aged: seen eight times with no date scored the same as seen yesterday, while the same record dated 400 days back scored a third of that. An unknown age now weighs as much as a month of silence, and it is stated rather than hidden — the chip reads "Undated", in grey with a dashed border, and says so in its tooltip. It does not claim the record is stale, nor invent an age: not knowing is the finding.
-
+- **A declared network is recognised as declared, whatever its shape.** The Verify and the Overview each read a CIDR with a reader of their own, both IPv4-only: an IPv6 network you had declared never earned its badge, and "declared if it sits in a subnet of /24 or wider" was a threshold from when every row was a /24 — a /22 or a /25 was judged against 24 instead of its own size. One reader answers now (`lib/cidr.js`), a row is declared when a declared network contains it and is no narrower, and the list counts the networks with no VLAN too.
+- **A sighting with no date no longer counts as one from this morning.** Confidence fades with age, but only when the record carried a date; without one it never aged and scored like something seen yesterday. An unknown age now weighs as much as a month of silence and is shown as "Undated" rather than hidden — it is not called stale, and no age is invented: not knowing is the finding.
+- **The AI chat being admin-only is recorded as a decision**, not a default waiting to be relaxed: opening it to viewers would take a rate limit and a spending budget first, not the removal of the gate.
 ## [2.9.0] — 2026-08-14
 
 **A network is a thing of its own, and every address is checked — not just the first IPv4.** The subnet stops being a field of the VLAN: a network is first-class, its VLAN optional, the shape every real IPAM uses. Project format goes to schema 2, migrated in place on open; nothing moves for a project with one subnet per VLAN.
