@@ -172,6 +172,9 @@ function _temporalChip(temp){
     const tipParts = [ t('temporal.seenTimes', { n: temp.seen }) ];
     if(temp.spanDays >= 1) tipParts.push(t('temporal.overDays', { n: Math.round(temp.spanDays) }));
     if(temp.ageDays != null && temp.ageDays >= 1) tipParts.push(t('temporal.lastSeenDays', { n: Math.round(temp.ageDays) }));
+    // Età ignota: si DICE, non si tace. Senza data il chip non può mostrare
+    // «ultima N gg fa», e un silenzio lì si legge come «appena vista».
+    else if(temp.ageUnknown) tipParts.push(t('temporal.ageUnknown'));
     return `<span class="seg-temporal seg-temporal-${temp.tier}" data-tip="${escapeHTML(tipParts.join(' · '))}">`
         + `<i class="fas fa-clock-rotate-left"></i> ${escapeHTML(tierLabel)} · ${temp.seen}×</span>`;
 }

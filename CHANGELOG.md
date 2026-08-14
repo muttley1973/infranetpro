@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **A sighting with no date no longer counts as one from this morning.** Confidence in an inferred link grows with how often something was seen and fades with how long ago — but the fading only applied when the record carried a date. Without one it never aged: seen eight times with no date scored the same as seen yesterday, while the same record dated 400 days back scored a third of that. An unknown age now weighs as much as a month of silence, and it is stated rather than hidden — the chip reads "Undated", in grey with a dashed border, and says so in its tooltip. It does not claim the record is stale, nor invent an age: not knowing is the finding.
+
 ## [2.9.0] — 2026-08-14
 
 **A network is a thing of its own, and every address is checked — not just the first IPv4.** The subnet stops being a field of the VLAN: a network is first-class, its VLAN optional, the shape every real IPAM uses. Project format goes to schema 2, migrated in place on open; nothing moves for a project with one subnet per VLAN.

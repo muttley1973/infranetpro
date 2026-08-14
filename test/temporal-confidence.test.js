@@ -138,3 +138,51 @@ test('score sempre in [0,1]', () => {
     }
   }
 });
+
+// ── D4: un avvistamento SENZA data non deve valere come uno di stamattina ────
+// Il decadimento si applicava solo se c'era una data; senza, la voce non
+// invecchiava mai e prendeva lo stesso punteggio di una vista fresca. È
+// l'ottimismo sul dato assente: quando non sappiamo, non dobbiamo regalare
+// fiducia. Ora l'età ignota pesa come un mese di silenzio — ma NON si afferma
+// `stale`, che sarebbe affermare qualcosa che non sappiamo.
+test('D4: 8 avvistamenti senza data valgono MENO di 8 visti ieri', () => {
+  const now = Date.parse('2026-08-14T00:00:00Z');
+  const senzaData = temporalConfidence({ seen: 8 }, now);
+  const ieri = temporalConfidence({ seen: 8, lastSeen: '2026-08-13T00:00:00Z' }, now);
+  assert.ok(senzaData.score < ieri.score, `senza data ${senzaData.score} deve stare sotto ${ieri.score}`);
+  assert.equal(senzaData.tier, 'undated');
+  assert.equal(senzaData.ageUnknown, true);
+  assert.equal(senzaData.ageDays, null, 'nessuna età inventata');
+  assert.equal(senzaData.stale, false, '«non recente» sarebbe un\'affermazione che non possiamo fare');
+});
+
+test('D4: l\'età ignota sta FRA il fresco e il dimenticato', () => {
+  const now = Date.parse('2026-08-14T00:00:00Z');
+  const fresco = temporalConfidence({ seen: 8, lastSeen: '2026-08-13T00:00:00Z' }, now).score;
+  const ignota = temporalConfidence({ seen: 8 }, now).score;
+  const vecchio = temporalConfidence({ seen: 8, lastSeen: '2025-07-10T00:00:00Z' }, now).score;
+  assert.ok(vecchio < ignota && ignota < fresco, `atteso ${vecchio} < ${ignota} < ${fresco}`);
+});
+
+test('D4: chi HA la data non cambia di una virgola', () => {
+  const now = Date.parse('2026-08-14T00:00:00Z');
+  // Le tre fasce datate restano quelle di prima: il ramo nuovo è l'ultimo `else if`.
+  assert.equal(temporalConfidence({ seen: 1, lastSeen: '2026-08-13T00:00:00Z' }, now).score, 0.2);
+  assert.equal(temporalConfidence({ seen: 8, lastSeen: '2026-08-13T00:00:00Z' }, now).score, 0.8);
+  assert.equal(temporalConfidence({ seen: 8, lastSeen: '2026-07-01T00:00:00Z' }, now).tier, 'stale');
+});
+
+test('D4: zero avvistamenti resta zero, e senza età ignota', () => {
+  const r = temporalConfidence({ seen: 0 }, Date.parse('2026-08-14T00:00:00Z'));
+  assert.equal(r.score, 0);
+  assert.equal(r.tier, 'fresh');
+  assert.equal(r.ageUnknown, false, 'non c\'è nulla da datare: niente da dichiarare ignoto');
+});
+
+test('D4: aggregando record senza date, l\'esito è «età ignota»', () => {
+  const agg = aggregateObservations([{ count: 3 }, { count: 5 }]);
+  assert.equal(agg.lastSeen, '', 'nessuna data inventata in aggregazione');
+  const r = temporalConfidence(agg, Date.parse('2026-08-14T00:00:00Z'));
+  assert.equal(r.seen, 8);
+  assert.equal(r.tier, 'undated');
+});
