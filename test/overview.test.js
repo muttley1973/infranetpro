@@ -1542,8 +1542,11 @@ test('perimetro esplicito: buildOverview dichiara «cosa non sto guardando» (ch
     assert.ok(!('label' in b) && !('text' in b) && !('title' in b), 'nessun testo nel dato: ' + b.key);
   }
   // Le dimensioni-chiave che il giudizio da senior aveva chiamato buchi sono dichiarate.
+  // 'nac' (802.1X/MAB/port-security) sta qui perche' la lente «Sicurezza» esiste: la'
+  // dentro il silenzio si legge come assoluzione, quindi la dimensione non letta va
+  // detta a voce alta o non va detta per niente.
   const keys = o.blindSpots.map((b) => b.key);
-  for (const must of ['wan', 'stp', 'firewall', 'restore', 'sensors']) {
+  for (const must of ['wan', 'stp', 'firewall', 'restore', 'sensors', 'nac']) {
     assert.ok(keys.includes(must), 'perimetro dichiara: ' + must);
   }
   // Il perimetro è un TODO VIVO, non una scritta fissa: ciò che viene modellato
@@ -1555,6 +1558,26 @@ test('perimetro esplicito: buildOverview dichiara «cosa non sto guardando» (ch
   }
   // Il perimetro e\' una COPIA difensiva della costante (mutarlo non tocca la lib).
   assert.notStrictEqual(o.blindSpots, _BLIND_SPOTS);
+});
+
+// ── Un perimetro senza parole non dichiara niente ──────────────────────────
+test('perimetro: ogni dimensione ha etichetta E tooltip, in ENTRAMBE le lingue', () => {
+  // `ov.blindHint.trunkSym` mancava da it E da en: la chip mostrava la CHIAVE GREZZA
+  // nel title (t() ricade sulla chiave stessa quando non trova niente). La parita'
+  // it/en non poteva vederlo — mancando da tutte e due, i due dizionari restavano
+  // identici: la simmetria era perfetta e il buco pure.
+  // La guardia sta QUI e non fra i test i18n perche' e' il perimetro a crescere: e'
+  // un TODO vivo, e chi ci aggiunge una voce deve portarsi dietro le parole.
+  const DICT = require('../lib/i18n.js')._i18nDict;
+  const mancanti = [];
+  for (const b of _BLIND_SPOTS) {
+    for (const lang of ['it', 'en']) {
+      for (const prefix of ['ov.blind.', 'ov.blindHint.']) {
+        if (!DICT[lang][prefix + b.key]) mancanti.push(lang + ' · ' + prefix + b.key);
+      }
+    }
+  }
+  assert.deepEqual(mancanti, [], 'chiavi i18n mancanti per il perimetro');
 });
 
 // ── N13: la provenienza non si eredita per distrazione ─────────────────────
