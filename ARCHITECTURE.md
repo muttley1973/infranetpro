@@ -380,6 +380,19 @@ streak stored by an older save. Without this, shutting a port for a few verifies
 turned every inferred cable on it into a ghost — 35% opacity and a sparse dash, which
 on screen reads as gone — and reopening the port jumped straight back to dark grey.
 
+The streak counts a **measurement**, not `port.status`. That field has three writers
+with three meanings — the user drawing a cable, the DCIM import, the poll — and when
+`ifOperStatus` does not arrive it keeps the *previous* value, so the series advanced on
+an observation nobody had repeated. `operUp` is therefore written beside `adminDown` by
+the poll alone, with the same three states (`true` link, `false` down, **absent** not
+measured) and the same expiry — `forgetPortMeasure()` drops them together. Absent
+covers both ways a reading fails to exist: the agent answers `unknown(4)`, which RFC
+2863 defines as "cannot determine" and which used to come out amber, and the interface
+simply not appearing in the walk, after which `applyPollResult` forgets the measurements
+of every mapped port that walk did not cover. A project saved before 2.9.2 carries no
+`operUp` and accumulates nothing until the first poll writes it, which is exactly what
+is known about it.
+
 ### Measured hardware identity, and its age
 
 `node.integration.inventory` is what ENTITY-MIB said about a device: make, model,

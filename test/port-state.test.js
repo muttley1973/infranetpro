@@ -107,13 +107,15 @@ test('scadenza: il nero si dimentica, non si eterna', () => {
   assert.equal(portShade(pi, DOWN_STREAK_N), null, 'e la porta torna al grigio neutro');
 });
 
-test('scadenza: le due misure si dimenticano INSIEME (stessa fonte, stessa scadenza)', () => {
-  const pi = { adminDown: true, downStreak: 9 };
+test('scadenza: le misure si dimenticano INSIEME (stessa fonte, stessa scadenza)', () => {
+  const pi = { adminDown: true, operUp: false, downStreak: 9 };
   forgetPortMeasure(pi);
   assert.equal('adminDown' in pi, false);
+  assert.equal('operUp' in pi, false, 'anche l\'oper: stessa fonte, stessa data di scadenza');
   assert.equal(pi.downStreak, 0);
   assert.equal(portShade(pi, DOWN_STREAK_N), null);
 });
+
 
 test('scadenza: `adminDown` cancellato, non messo a false — «non risulta» ≠ «è su»', () => {
   // Se restasse `false` diremmo «lo switch la dà accesa», che è una misura che non
@@ -149,22 +151,37 @@ const { nextDownStreak } = require('../lib/port-state.js');
 // osservato: guardavamo una decisione. Stesso streak alimentava il «fantasma», e
 // un cavo dedotto su quella porta spariva dal disegno (35% + tratteggio rado).
 test('streak: una porta in shutdown NON accumula (non è una prova sul cavo)', () => {
-  assert.equal(nextDownStreak({ adminDown: true, status: 'inactive', downStreak: 7 }), 0);
-  assert.equal(nextDownStreak({ adminDown: true, status: 'inactive' }), 0);
+  assert.equal(nextDownStreak({ adminDown: true, operUp: false, downStreak: 7 }), 0);
+  assert.equal(nextDownStreak({ adminDown: true, operUp: false }), 0);
 });
 
 test('streak: senza link avanza di uno, con link riparte da zero', () => {
-  assert.equal(nextDownStreak({ status: 'inactive' }), 1);
-  assert.equal(nextDownStreak({ status: 'inactive', downStreak: 2 }), 3);
-  assert.equal(nextDownStreak({ status: 'active', downStreak: 9 }), 0);
-  assert.equal(nextDownStreak({ status: 'inactive', adminDown: false, downStreak: 1 }), 2,
+  assert.equal(nextDownStreak({ operUp: false }), 1);
+  assert.equal(nextDownStreak({ operUp: false, downStreak: 2 }), 3);
+  assert.equal(nextDownStreak({ operUp: true, downStreak: 9 }), 0);
+  assert.equal(nextDownStreak({ operUp: false, adminDown: false, downStreak: 1 }), 2,
     'admin UP misurato non blocca il conteggio: lì la porta la stiamo guardando davvero');
+});
+
+// La seconda metà della stessa regressione: non solo la porta CHIUSA non prova
+// niente sul cavo — nemmeno la porta che questo giro non abbiamo LETTO.
+test('streak: senza la misura dell\'oper non si accumula (walk troncata, `unknown(4)`)', () => {
+  assert.equal(nextDownStreak({ downStreak: 5 }), 0, 'misura assente: la serie non avanza');
+  assert.equal(nextDownStreak({ operUp: undefined, downStreak: 5 }), 0);
+});
+
+test('streak: `status` NON è più la fonte (ha tre scrittori, non è una misura)', () => {
+  // Il campo lo scrivono anche l'utente che tira un cavo e l'import DCIM, e su una
+  // lettura mancante conserva il valore vecchio: contarci sopra le prove sul cavo
+  // faceva avanzare la serie su un'osservazione che nessuno aveva rifatto.
+  assert.equal(nextDownStreak({ status: 'inactive', downStreak: 2 }), 0, 'da solo non basta più');
+  assert.equal(nextDownStreak({ status: 'active', operUp: false, downStreak: 2 }), 3, 'vince la misura');
 });
 
 test('streak: riaperta la porta, il grigio scuro va RI-guadagnato', () => {
   // La porta chiusa non matura; alla riapertura app-snmp azzera lo streak (la
   // transizione true→false), quindi servono N verifiche vere per il «no-link».
-  let pi = { adminDown: true, status: 'inactive', downStreak: 0 };
+  let pi = { adminDown: true, operUp: false, downStreak: 0 };
   for (let i = 0; i < 5; i++) pi.downStreak = nextDownStreak(pi);
   assert.equal(pi.downStreak, 0, 'cinque verifiche da spenta non hanno insegnato nulla');
   assert.equal(portShade(pi, DOWN_STREAK_N), 'shut');
@@ -176,9 +193,18 @@ test('streak: riaperta la porta, il grigio scuro va RI-guadagnato', () => {
   assert.equal(portShade(pi, DOWN_STREAK_N), 'no-link', 'alla terza, misurata sul serio');
 });
 
+test('streak: dimenticata la misura, la serie non riparte da sola', () => {
+  // Il pericolo speculare: se `operUp` restasse a false dopo una walk che non ha
+  // coperto la porta, la Verifica successiva conterebbe prove su una lettura vecchia.
+  // Dimenticato il campo (è quello che fa app-snmp), non si accumula più.
+  const pi = { ifName: 'Gi0/9', operUp: false, downStreak: 2 };
+  forgetPortMeasure(pi);
+  assert.equal(nextDownStreak(pi), 0);
+});
+
 test('streak: input degeneri non esplodono', () => {
   assert.equal(nextDownStreak(null), 0);
   assert.equal(nextDownStreak(undefined), 0);
   assert.equal(nextDownStreak('Gi0/1'), 0);
-  assert.equal(nextDownStreak({ status: 'inactive', downStreak: 'tanti' }), 1);
+  assert.equal(nextDownStreak({ operUp: false, downStreak: 'tanti' }), 1);
 });

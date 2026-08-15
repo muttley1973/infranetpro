@@ -16,6 +16,7 @@ import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funz
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { reconcilePortCount } from '../lib/ports-reconcile.js';   // P5: conteggio porte dichiarato vs misura (manual-first, lib pura)
 import { reconcileInventory } from '../lib/identity-reconcile.js'; // identità hardware misurata: riconferma o «ultimo noto» (lib pura)
+import { forgetPortMeasure } from '../lib/port-state.js';   // scadenza delle misure di porta (lib pura): una lettura che questo giro non c'è stata non vale più
 import { _driftBuildDocSnapshot, _driftComputeFromDoc } from './app-drift.js';   // presenza→grigio: ricalcolo Drift dopo il Sync
 import { _ensureVlanColor, toggleAutomationMenu } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*) + ASSE B: chiude il popover Automazioni dopo il sync
 import { _autoLinkDiagText } from './app-autolink.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
@@ -528,9 +529,29 @@ function _snmpOperToUiStatus(v, prev){
     const n = Number(v);
     if(n === 1) return 'active';
     if(n === 2) return 'inactive';
-    if(n === 3 || n === 4 || n === 5) return 'idle';
+    if(n === 3 || n === 5) return 'idle';    // testing · dormant: stati VERI, riportati dall'apparato
     if(n === 6 || n === 7) return 'fault';
+    // 4 = unknown. Nella RFC 2863 vuol dire «l'agente non riesce a determinare lo
+    // stato»: è un «non risulta», non uno stato. Stava con testing/dormant e usciva
+    // AMBRA — una porta su cui il device dichiara di non sapere niente si accendeva
+    // come se fosse in test. Cade nel ramo che conserva, come 0 = colonna mai letta
+    // (guardia SNMP-M2): quella guardava i buchi, e il 4 le era sfuggito perché è un
+    // valore PRESENTE che significa assente.
     return prev ?? 'inactive';
+}
+// ifOperStatus → p.operUp, campo di MISURA gemello di `adminDown`: stessa fonte (solo
+// un poll riuscito), stessa scadenza (forgetPortMeasure). Tre valori e non due:
+//   true = 1 (up) · false = giù per qualunque motivo (2 down · 3 testing · 5 dormant ·
+//   6 notPresent · 7 lowerLayerDown) · assente = NON misurata (0 colonna mancante,
+//   4 unknown dichiarato dall'agente).
+// Vive accanto a `status` invece che dentro perché `status` non è una misura: lo
+// scrivono anche l'utente e l'import DCIM, e su una lettura mancante conserva il
+// valore vecchio. Chi conta le prove sul cavo (lib/port-state.js) legge questo.
+function _snmpOperToUi(v){
+    const n = Number(v);
+    if(n === 1) return true;
+    if(n === 2 || n === 3 || n === 5 || n === 6 || n === 7) return false;
+    return undefined;
 }
 function _snmpSpeedToUi(v, prev){
     const n = Number(v);
@@ -592,6 +613,8 @@ function _applySnmpBasePortFields(pid, iface){
     // fede di uno streak maturato mentre era spenta: si riparte da zero e il
     // «no-link» va ri-guadagnato con N verifiche vere.
     if(wasShut && adminDown === false) p.downStreak = 0;
+    const operUp = _snmpOperToUi(iface.operStatus);
+    if(operUp === undefined) delete p.operUp; else p.operUp = operUp;
     p.status = _snmpOperToUiStatus(iface.operStatus, p.status);
     p.vlan   = _snmpVlanToUi(iface.vlan, p.vlan);
     p.speed  = _snmpSpeedToUi(iface.speed, p.speed);
@@ -693,6 +716,7 @@ export function applyPollResult(nodeId, data, opts={}){
             if(_pr.portsMeasured == null) delete n.portsMeasured; else n.portsMeasured = _pr.portsMeasured;
         }
     }
+    const _measuredPids = new Set();
     (data.interfaces||[]).forEach((iface,idx)=>{
         if(_skipByIdx[idx]) return; // porta manuale preservata (manual-first)
         const pid = _pidByIdx[idx];
@@ -700,10 +724,28 @@ export function applyPollResult(nodeId, data, opts={}){
         // Aggiorna i campi SNMP senza azzerare valori validi precedenti
         // quando una risposta parziale non include tutti gli OID.
         _applySnmpBasePortFields(pid, iface);
+        _measuredPids.add(pid);
         if(iface.snmpMedium) store.state.ports[pid].snmpMedium = iface.snmpMedium;
         if(iface.snmpPoe != null) store.state.ports[pid].snmpPoe = iface.snmpPoe;
         // NON toccare: desc, statusOvr, speedOvr, vlanOvr, hidden (override manuali)
     });
+    // Le porte SNMP-mappate che QUESTA walk non ha coperto. Capita per davvero: una
+    // tabella lunga che si tronca, un modulo sfilato che porta via le sue interfacce.
+    // Il ciclo qui sopra tocca solo ciò che è arrivato, quindi le altre resterebbero
+    // con `adminDown`/`operUp` della lettura precedente — e la Verifica continuerebbe
+    // a contarci sopra le sue prove sul cavo. Un'affermazione non sopravvive alla
+    // prova che la reggeva: si dimenticano (lib/port-state.js), come già si fa quando
+    // il device tace del tutto. Solo se almeno un'interfaccia è tornata: a mani vuote
+    // non sappiamo distinguere «device senza interfacce» da «walk fallita», e quel
+    // caso lo copre già la guardia sul device muto.
+    if(data.interfaces && data.interfaces.length > 0){
+        for(const pid of Object.keys(store.state.ports)){
+            if(_measuredPids.has(pid)) continue;
+            if(getPortNodeId(pid) !== nodeId) continue;
+            const p = store.state.ports[pid];
+            if(p && p.ifName) forgetPortMeasure(p);
+        }
+    }
     // Auto-deriva lagGroup da lagId SNMP — tutte le porte dello stesso aggregatore
     // ricevono lo stesso identificatore di gruppo → LED blu + visualizzazione LAG in props.
     // Non sovrascrive lagGroup impostati manualmente su porte che l'SNMP NON ha marcato come LAG.

@@ -160,3 +160,55 @@ test('applyPollResult: VLAN SNMP=1 non sovrascrive una VLAN documentata non-defa
   assert.equal(r.v1, 30, 'SNMP=1 non sovrascrive la VLAN30 documentata (manual-first)');
   assert.equal(r.v2, 40, 'una VLAN reale >1 letta da SNMP aggiorna il documento');
 });
+
+// ── Il «non risulta» dell'oper, nelle sue due forme ──────────────────────────
+// La misura dell'ifOperStatus alimenta il conteggio delle prove sul cavo
+// (lib/port-state.js). Perche' non menta va scritta solo quando c'e' davvero, e in
+// due casi non c'e': l'agente dichiara `unknown(4)`, oppure la porta non compare
+// affatto nella walk.
+test('applyPollResult: oper `unknown(4)` non e\' uno stato — non colora e non fa misura', () => {
+  const out = run(APP.ctx, `(() => {
+    state = _buildDefaultState(); state.ports = state.ports || {};
+    state.nodes.push({ id:'sw1', type:'switch', name:'SW', ports:4, ip:'10.0.0.1' });
+    state.ports['sw1-1'] = { status:'active', ifName:'GigabitEthernet0/1', operUp:true };
+    if(typeof _invalidateIdx==='function') _invalidateIdx();
+    const data = { ok:true, interfaces:[
+      { name:'GigabitEthernet0/1', operStatus:4, adminStatus:1, speed:1000 },
+    ], lags:[], vlans:[1] };
+    applyPollResult('sw1', data, { noHistory:true });
+    const p = state.ports['sw1-1'];
+    return JSON.stringify({ status:p.status, hasOper:('operUp' in p), admin:p.adminDown });
+  })()`);
+  const r = JSON.parse(out);
+  assert.equal(r.status, 'active', 'l\'agente dice «non lo so»: resta lo stato precedente, non diventa ambra');
+  assert.equal(r.hasOper, false, 'e la misura si cancella — «non risulta» non e\' «e\' giu\'»');
+  assert.equal(r.admin, false, 'l\'admin invece era leggibile: quello resta misurato');
+});
+
+test('applyPollResult: una porta mappata che la walk NON copre dimentica le sue misure', () => {
+  const out = run(APP.ctx, `(() => {
+    state = _buildDefaultState(); state.ports = state.ports || {};
+    state.nodes.push({ id:'sw1', type:'switch', name:'SW', ports:4, ip:'10.0.0.1' });
+    state.ports['sw1-1'] = { status:'inactive', ifName:'GigabitEthernet0/1', operUp:false, adminDown:true, downStreak:4 };
+    state.ports['sw1-2'] = { status:'inactive', ifName:'GigabitEthernet0/2', operUp:false, adminDown:true, downStreak:4 };
+    if(typeof _invalidateIdx==='function') _invalidateIdx();
+    // Walk TRONCATA: torna solo la prima interfaccia. La seconda non e' stata negata,
+    // semplicemente non e' stata guardata.
+    const data = { ok:true, interfaces:[
+      { name:'GigabitEthernet0/1', operStatus:2, adminStatus:2, speed:1000 },
+    ], lags:[], vlans:[1] };
+    applyPollResult('sw1', data, { noHistory:true });
+    const a = state.ports['sw1-1'], b = state.ports['sw1-2'];
+    return JSON.stringify({
+      aOper:a.operUp, aAdmin:a.adminDown, aStreak:a.downStreak,
+      bHasOper:('operUp' in b), bHasAdmin:('adminDown' in b), bStreak:b.downStreak,
+    });
+  })()`);
+  const r = JSON.parse(out);
+  assert.equal(r.aOper, false, 'la porta letta conserva la sua misura');
+  assert.equal(r.aAdmin, true);
+  assert.equal(r.aStreak, 4, 'e il suo conteggio: il poll non lo tocca, lo fa la Verifica');
+  assert.equal(r.bHasOper, false, 'la porta non coperta dimentica l\'oper');
+  assert.equal(r.bHasAdmin, false, 'e l\'admin: stessa fonte, stessa scadenza');
+  assert.equal(r.bStreak, 0, 'e il conteggio riparte, invece di maturare al buio');
+});

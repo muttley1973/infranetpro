@@ -26,8 +26,9 @@ test('cavo fantasma: porta manuale (no ifName) NON conta; porta ifName inactive 
     // porta MANUALE senza ifName, status inactive stantio + streak gia' alto
     state.ports['sw1-1'] = { status:'inactive', downStreak:5 };
     state.ports['pcM-1'] = { status:'active' };
-    // porta SNMP-mappata (ifName), status inactive (davvero down) + streak alto
-    state.ports['sw2-1'] = { status:'inactive', ifName:'GigabitEthernet0/0', downStreak:5 };
+    // porta SNMP-mappata (ifName) e MISURATA giu' (operUp:false, non solo 'status'
+    // stantio: e' la misura a valere) + streak alto
+    state.ports['sw2-1'] = { status:'inactive', operUp:false, ifName:'GigabitEthernet0/0', downStreak:5 };
     state.ports['pcI-1'] = { status:'active' };
     state.links.push(
       { id:'cM', src:'pcM-1', dst:'sw1-1', autoLinked:true },   // cavo DEDOTTO sulla porta manuale (no ifName)
