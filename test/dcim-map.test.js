@@ -1086,8 +1086,9 @@ test('wireless: le radio diventano node.radios, non porte logiche', () => {
   assert.equal(ap.radios.length, 2);
   assert.deepEqual({ band: ap.radios[0].band, channel: ap.radios[0].channel, standard: ap.radios[0].standard },
     { band: '2.4', channel: 6, standard: 'wifi6' });
+  // Il canale largo non entra: v. il test dedicato più sotto. Qui conta la banda.
   assert.deepEqual({ band: ap.radios[1].band, channel: ap.radios[1].channel },
-    { band: '5', channel: 42 });
+    { band: '5', channel: undefined });
   assert.equal(state.ports['nb-dev-101-logical-1200'], undefined, 'non deve nascere anche una porta logica');
   assert.equal(report.counts.radios, 2);
   assert.equal(report.counts.ssids, 3);
@@ -1121,4 +1122,19 @@ test('wireless: nessuna radio → nessuna riga e nessun campo', () => {
   assert.equal(state.nodes.every(n => n.radios === undefined), true);
   assert.equal(report.counts.radios, 0);
   assert.equal(report.issues.some(i => String(i.code).startsWith('wifi.')), false);
+});
+
+// Il canale LARGO di NetBox non è il canale primario di InfraNet: «5g-42-5210-80»
+// è il blocco da 80 MHz, e 42 non è un primario ammesso. Scriverlo produceva un
+// avviso rosso su ogni AP importato — l'app aveva ragione, la mappatura no.
+test('wireless: un canale largo non entra come primario, e si dichiara', () => {
+  const nb = wifiFixture();
+  const { state, report } = map.netboxToState(nb);
+  const ap = state.nodes.find(n => n.id === 'nb-dev-101');
+  assert.equal(ap.radios[0].channel, 6, '2,4 GHz: il 6 è un primario vero, entra');
+  assert.equal(ap.radios[1].band, '5', 'la banda è certa e entra comunque');
+  assert.equal(ap.radios[1].channel, undefined, 'il 42 è un blocco, non un canale: non si scrive');
+  const iss = report.issues.find(i => i.code === 'wifi.wideChannel');
+  assert.ok(iss, 'e va detto, non taciuto');
+  assert.equal(iss.n, 1);
 });
