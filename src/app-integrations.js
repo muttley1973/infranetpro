@@ -732,6 +732,7 @@ function _renderPreviewStep() {
     <span><i class="fas fa-layer-group"></i> ${escapeHTML(t('integrations.cVlans'))} ${c.vlans || 0}</span>
     <span><i class="fas fa-diagram-project"></i> ${escapeHTML(t('integrations.cPrefixes'))} ${c.prefixes || 0}</span>
     <span><i class="fas fa-location-dot"></i> ${escapeHTML(t('integrations.cIps'))} ${c.ips || 0}</span>
+    ${c.radios ? `<span><i class="fas fa-wifi"></i> ${escapeHTML(t('integrations.cRadios', { n: c.radios, ssids: c.ssids || 0 }))}</span>` : ''}
     <span><i class="fas fa-server"></i> ${escapeHTML(t('integrations.cRackFloor', { rack: c.devicesRack || 0, floor: c.devicesFloor || 0 }))}</span>
     <span><i class="fas fa-question"></i> ${escapeHTML(t('integrations.cToReview', { n: previewUnmatched }))}</span>
     <span><i class="fas fa-filter-circle-xmark"></i> ${escapeHTML(t('integrations.cExcluded', { n: previewExcluded }))}</span>

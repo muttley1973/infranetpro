@@ -135,9 +135,14 @@ lib/                   Shared browser + test modules (the heart of the app)
   onboarding.js     nextStep(summary) → deterministic «next step» chip (onboarding §4d)  (pure)
   health-alerts.js  computeHealthAlerts → deterministic problem alerts from SNMP telemetry (RAM/disk/ink/UPS)  (pure)
   ui-catalog.js     extractCatalog/catalogLines: derive UI help (buttons+tooltips) from HTML+i18n  (pure)
-  ipam.js           computeIpamUsage incl. nextFree (next free host = «suggested IP»)  (pure)
+  ipam.js           computeIpamUsage incl. nextFree (next free host = «suggested IP»).
+                    Three populations, not two: documented devices, active DHCP leases,
+                    and the plan's RESERVATIONS — declared, on no device, and not free.
+                    A reservation that already carries a device counts once, as the device  (pure)
   ipam-model.js     prefixes are first-class, the VLAN is an optional reference; migration
-                    from the 2.8.x shape where the subnet was a field of the VLAN  (pure)
+                    from the 2.8.x shape where the subnet was a field of the VLAN.
+                    `prefix.reserved[]` holds the booked addresses: they belong to the
+                    NETWORK, not to a device — a booked address has no device by definition  (pure)
   ipam-audit.js     buildIpamAudit → duplicate addresses (v4+v6, canonical) + overlapping
                     prefixes (IPAM hygiene, doc↔doc);
                     compareCidr = the one address-space ordering, shared with the panel  (pure)

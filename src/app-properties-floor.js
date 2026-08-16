@@ -110,14 +110,21 @@ function _ipamOccHtml(u, vid, key){
                       </div>`;
     const near = u.pct >= 90;                                  // subnet quasi piena → ambra
     const docColor = near ? '#f5a623' : '#00d4ff';
+    // Terzo segmento: gli indirizzi che il piano IMPEGNA senza un apparato sopra.
+    // Grigio ardesia di proposito — non è una misura, è una scrittura: le altre
+    // due bande dicono che cosa si è VISTO, questa che cosa è stato PROMESSO.
+    // Senza una banda propria «31 di 254» sotto un solo apparato non si spiega.
+    const resCount = Number(u.reservedCount) || 0;
     const docW = Math.min(100, (u.documentedCount / cap) * 100);
     const dhcpW = Math.min(Math.max(100 - docW, 0), (u.dhcpOnlyCount / cap) * 100);
+    const resW = Math.min(Math.max(100 - docW - dhcpW, 0), (resCount / cap) * 100);
     const legend = [`<span><i class="dot" style="background:${docColor}"></i>${t('floor.occDocumented',{n:u.documentedCount})}</span>`];
     if(u.dhcpOnlyCount) legend.push(`<span><i class="dot" style="background:#f5a623"></i>${t('floor.occDhcpOnly',{n:u.dhcpOnlyCount})}</span>`);
+    if(resCount) legend.push(`<span><i class="dot" style="background:#8892a4"></i>${t('floor.occReserved',{n:resCount})}</span>`);
     legend.push(`<span><i class="dot dot-free"></i>${t('floor.occFree',{n:u.freeCount})}</span>`);
     return `<div class="vlan-ipam-occ${near?' near':''}" style="grid-column:1/-1">
                         <div class="vlan-ipam-occ-hd"><span>${t('floor.occupancy')}</span>${u.leaseInCidr?`<span class="vlan-ipam-occ-src">DHCP</span>`:''}</div>
-                        <div class="vlan-ipam-occ-bar"><i style="width:${docW.toFixed(1)}%;background:${docColor}"></i><i style="width:${dhcpW.toFixed(1)}%;background:#f5a623"></i></div>
+                        <div class="vlan-ipam-occ-bar"><i style="width:${docW.toFixed(1)}%;background:${docColor}"></i><i style="width:${dhcpW.toFixed(1)}%;background:#f5a623"></i><i style="width:${resW.toFixed(1)}%;background:#8892a4"></i></div>
                         <div class="vlan-ipam-occ-meta">${Number(u.usedCount)} / ${Number(cap)} · ${Number(u.pct)}%</div>
                         <div class="vlan-ipam-occ-leg">${legend.join('')}</div>
                         ${!u.gatewayOk?`<div class="vlan-ipam-occ-warn">${t('floor.gwOutSubnet')}</div>`:''}
@@ -230,7 +237,11 @@ function _netRowTip(u, p){
     const occ = (!u || !u.cidr) ? t('floor.hintBadCidr')
         : u.capacity ? t('floor.netsOccTip',{used:Number(u.usedCount), cap:Number(u.capacity), pct:Number(u.pct)})
         : t('floor.netsOccTipV6',{n:Number(u.usedCount)});
-    return p && p.source === 'dcim' ? `${occ} · ${t('floor.netFromDcim')}` : occ;
+    // «Usati» ora comprende le prenotazioni: se ce ne sono va detto QUI, o la riga
+    // fa un numero alto sotto una rete con due apparati e non si spiega da sola.
+    const res = (u && Number(u.reservedCount)) ? ` · ${t('floor.netsOccTipReserved',{n:Number(u.reservedCount)})}` : '';
+    const occAll = occ + res;
+    return p && p.source === 'dcim' ? `${occAll} · ${t('floor.netFromDcim')}` : occAll;
 }
 
 function _netOccCellHtml(u){

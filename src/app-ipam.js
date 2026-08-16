@@ -11,7 +11,7 @@ import { store } from "./store.js";
 import { getNodeDisplayName, getNodeByPortId } from "./app.js";   // ciclo benigno: uso solo a runtime (dentro _collectKnownIps)
 import { normalizeMacAddress } from "./app-util.js";
 import { vmIps, vmIp6s } from "../lib/vm-nics.js";   // indirizzi di tutte le vNIC (stesso import di app.js: esbuild deduplica)
-import { ensureIpam, vlanIpamView } from "../lib/ipam-model.js";   // l'autorita' sui prefissi: la subnet non e' piu' un campo della VLAN
+import { ensureIpam, vlanIpamView, findPrefix } from "../lib/ipam-model.js";   // l'autorita' sui prefissi: la subnet non e' piu' un campo della VLAN
 // Bare globals (no-undef OFF su src/): state - computeIpamUsage (lib/ipam.js) -
 // isLeaseStale (lib/dhcp-lease.js) - _parseCidrInfo/_ipInCidr/addrFamily/addrKey (lib/cidr.js).
 
@@ -132,12 +132,20 @@ function _activeLeaseIps(){
 export function _ipamUsageForPrefix(cidr, gateway){
     const known = _collectKnownIps();
     const gw = String(gateway || '').trim();
-    // Motore puro (opzione A: documentati + solo-DHCP = realtà sul filo).
+    // Le PRENOTAZIONI stanno sulla rete dichiarata (`prefix.reserved[]`, scritte
+    // dall'import DCIM): si leggono da lì e non dalla firma di questa funzione,
+    // così ogni chiamante le eredita senza cambiare una riga. Un CIDR che non è
+    // una rete dichiarata (sonde, report L3) semplicemente non ne ha.
+    const declaredRow = findPrefix(state, cidr);
+    const reserved = (declaredRow && Array.isArray(declaredRow.reserved)) ? declaredRow.reserved : [];
+    // Motore puro (opzione A: documentati + solo-DHCP = realtà sul filo, più ciò
+    // che il piano ha già impegnato).
     const u = computeIpamUsage({
         subnet: String(cidr || ''),
         gateway: gw,
         documentedIps: known.map(x => x.ip),
         leaseIps: _activeLeaseIps(),
+        reservedIps: reserved,
         parseCidr: _parseCidrInfo,
         ipInCidr: _ipInCidr,
     });
@@ -154,6 +162,7 @@ export function _ipamUsageForPrefix(cidr, gateway){
         capacity: u.capacity,
         documentedCount: u.documentedCount,
         dhcpOnlyCount: u.dhcpOnlyCount,
+        reservedCount: u.reservedCount,
         freeCount: u.freeCount,
         pct: u.pct,
         leaseInCidr: u.leaseInCidr,

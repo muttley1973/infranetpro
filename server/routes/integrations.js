@@ -178,6 +178,13 @@ async function _pullIpAddresses(client, deviceIds) {
 // raccoglie e basta; la guardia che scarta un conteggio impossibile sta nel
 // mapper, dov'è pura e testabile. Se una delle due chiamate fallisce si tace:
 // meglio nessun numero che un numero inventato.
+// ⚠️ Il censimento è GLOBALE, l'import è PER AMBITO. Un indirizzo non agganciato
+// non ha un sito proprio — ce l'ha solo attraverso il prefisso che lo contiene —
+// quindi non c'è un filtro per sito da applicare qui: restringerlo costerebbe una
+// chiamata `?parent=` per ogni rete importata. Finché resta globale, la frase
+// della decisione DEVE dirlo («In tutto NetBox…», `dcim.dec.ip.unassigned.*`):
+// misurato sul campo, importando un sito con 6 indirizzi liberi il pannello
+// annunciava 186, che è vero dell'archivio e falso di ciò che stai importando.
 async function _pullIpCensus(client) {
   const out = {};
   try {
@@ -195,6 +202,28 @@ async function _pullIpCensus(client) {
     }
   } catch (_) { /* filtro non supportato da questa versione: si tace */ }
   return out;
+}
+
+// Le PRENOTAZIONI dell'IPAM: indirizzi che NetBox dichiara e non aggancia a
+// nessuna interfaccia. Non sono apparati e non entrano come tali — ma sono
+// indirizzi che NON SI POSSONO ASSEGNARE, e questo InfraNet deve saperlo: senza,
+// «prossimo IP libero» proponeva un indirizzo che qualcuno aveva già impegnato
+// (misurato: rete importata da NetBox con .1–.30 prenotati, suggerimento .1).
+// UNA chiamata paginata con un tetto, non una per rete: quali cadano dentro le
+// reti importate lo decide l'aritmetica CIDR del mapper, che è pura e già scritta.
+// ⚠️ GUARDIA, e non è teorica: NetBox IGNORA IN SILENZIO un parametro di query
+// che non conosce — non risponde 400, risponde TUTTO. Se `assigned_to_interface`
+// non esiste in questa versione tornerebbero anche gli indirizzi DEGLI APPARATI,
+// e li marcheremmo come prenotazioni. Si ricontrolla riga per riga: passa solo
+// ciò che davvero non ha un `assigned_object`.
+async function _pullIpReservations(client) {
+  try {
+    const res = await client.getPaginated('/api/ipam/ip-addresses/', { assigned_to_interface: 'false' }, { cap: 20000 });
+    const rows = (res.results || []).filter(r => r && !(r.assigned_object || r.assignedObject));
+    return { results: rows, truncated: res.truncated, filterHeld: rows.length === (res.results || []).length };
+  } catch (_) {
+    return { results: [], truncated: false, filterHeld: true };   // niente prenotazioni, nessuna invenzione
+  }
 }
 
 // Scarica dalla DCIM il bundle per l'import, onorando la selezione: `scope`
@@ -252,6 +281,21 @@ async function _pullForImport(client, sel) {
     nb.powerPorts = powerPorts.results; if (powerPorts.truncated) nb.truncated = true;
     nb.consolePorts = consolePorts.results; if (consolePorts.truncated) nb.truncated = true;
   }
+  // Le WLAN dichiarate: SSID, cifratura, VLAN. L'interfaccia radio porta solo il
+  // riferimento (id + ssid), quindi senza questa lettura si saprebbe COME si
+  // chiama la rete e non CHE COS'È — che è il pezzo che serve all'audit. Sta
+  // sotto `devices` perché senza interfacce radio non c'è dove appenderle.
+  if (on('devices')) {
+    try {
+      const wl = await client.getPaginated('/api/wireless/wireless-lans/', {}, { cap: 10000 });
+      nb.wirelessLans = wl.results;
+      if (wl.truncated) nb.truncated = true;
+    } catch (_) {
+      // NetBox senza il modulo wireless (o troppo vecchio): nessuna WLAN, e le
+      // radio entrano lo stesso con banda e canale. Niente da inventare.
+      nb.wirelessLans = [];
+    }
+  }
   if (on('cabling')) {
     const cab = await _batchByField(client, '/api/dcim/cables/', 'device_id', deviceIds);
     const seen = new Set();
@@ -260,11 +304,12 @@ async function _pullForImport(client, sel) {
   }
   if (on('ipam')) {
     const vq = {}; if (has(scope.siteIds)) vq.site_id = scope.siteIds;
-    const [vlans, prefixes, ips, census] = await Promise.all([
+    const [vlans, prefixes, ips, census, reservations] = await Promise.all([
       _paginatedWithFallback(client, '/api/ipam/vlans/', vq, { cap: 20000 }),
       _paginatedWithFallback(client, '/api/ipam/prefixes/', vq, { cap: 20000 }),
       _pullIpAddresses(client, deviceIds),
       _pullIpCensus(client),
+      _pullIpReservations(client),
     ]);
     nb.vlans = vlans.results; if (vlans.truncated) nb.truncated = true;
     if (vlans.warning) (nb.warnings || (nb.warnings = [])).push(vlans.warning);
@@ -272,6 +317,7 @@ async function _pullForImport(client, sel) {
     if (prefixes.warning) (nb.warnings || (nb.warnings = [])).push(prefixes.warning);
     nb.ipAddresses = ips.results; if (ips.truncated) nb.truncated = true;
     if (census && (census.total != null || census.unassigned != null)) nb.ipCensus = census;
+    nb.ipReservations = reservations.results; if (reservations.truncated) nb.truncated = true;
   }
   return nb;
 }

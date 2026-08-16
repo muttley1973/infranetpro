@@ -955,3 +955,170 @@ test('IP: se sono tutti agganciati la riga non compare', () => {
   const { report } = map.netboxToState(nb);
   assert.equal(report.issues.some(i => i.code === 'ip.unassigned'), false);
 });
+
+// ── L'indirizzo dell'interfaccia arriva sulla porta ──────────────────────────
+// L'import risolveva gia' l'abbinamento porta↔indirizzo e poi lo lasciava in
+// `state.ipam.addresses[]`, che non legge nessuno: di un router importato entrava
+// il solo indirizzo di gestione. Il campo esiste, e' `state.ports[pid].ip`.
+test('indirizzo di interfaccia → campo indirizzo della porta', () => {
+  const nb = fixture();
+  nb.ipAddresses[0].assigned_object = { id: 1000, device: { id: 100 } };
+  const { state, report } = map.netboxToState(nb);
+  assert.equal(state.ports['nb-dev-100-1'].ip, '10.0.0.2', 'senza maschera: e\' un indirizzo, non una rete');
+  assert.equal(state.nodes.find(n => n.id === 'nb-dev-100').ip, '10.0.0.2', 'l\'indirizzo di gestione resta anche sul nodo');
+  assert.equal(report.issues.some(i => i.code === 'ip.portExtra'), false, 'niente resta fuori, niente da dichiarare');
+});
+
+test('la porta ne tiene uno: il resto si conta e si dice', () => {
+  const nb = fixture();
+  nb.ipAddresses = [
+    { id: 80, address: '10.0.0.2/24', assigned_object: { id: 1000, device: { id: 100 } } },
+    { id: 81, address: '10.0.0.9/24', assigned_object: { id: 1000, device: { id: 100 } } },
+    { id: 82, address: '2001:db8::1/64', assigned_object: { id: 1000, device: { id: 100 } } },
+  ];
+  const { state, report } = map.netboxToState(nb);
+  assert.equal(state.ports['nb-dev-100-1'].ip, '10.0.0.2', 'vince il primo IPv4 nell\'ordine di NetBox');
+  const iss = report.issues.find(i => i.code === 'ip.portExtra');
+  assert.ok(iss, 'cio\' che non entra nel campo va dichiarato');
+  assert.equal(iss.n, 2);
+  assert.ok(iss.sample.some(s => s.includes('GigabitEthernet1/0/1') && s.includes('2001:db8::1')),
+    'l\'esempio nomina l\'interfaccia e l\'indirizzo');
+});
+
+// ── Le prenotazioni dell'IPAM occupano la rete ───────────────────────────────
+test('prenotazioni: si posano sulla rete piu\' specifica che le contiene', () => {
+  const nb = fixture();
+  nb.prefixes = [
+    { id: 70, prefix: '10.0.0.0/16', status: { value: 'container' } },
+    { id: 71, prefix: '10.0.0.0/24', vlan: { vid: 10 } },
+  ];
+  nb.ipReservations = [
+    { id: 900, address: '10.0.0.240/24' },
+    { id: 901, address: '10.0.5.7/24' },       // dentro la /16, fuori dalla /24
+    { id: 902, address: '192.168.9.9/24' },    // fuori da tutte le reti importate
+  ];
+  const { state, report } = map.netboxToState(nb);
+  const p24 = state.ipam.prefixes.find(p => p.cidr === '10.0.0.0/24');
+  const p16 = state.ipam.prefixes.find(p => p.cidr === '10.0.0.0/16');
+  assert.deepEqual(p24.reserved, ['10.0.0.240'], 'la /24 batte il contenitore che la contiene');
+  assert.deepEqual(p16.reserved, ['10.0.5.7']);
+  const iss = report.issues.find(i => i.code === 'ip.reserved');
+  assert.equal(iss.n, 2, 'quella fuori dalle reti importate non e\' affare di questo documento');
+  assert.equal(iss.nets, 2);
+});
+
+// La trappola vera: NetBox IGNORA IN SILENZIO un filtro che non conosce e
+// risponde con TUTTO. Se succede, un indirizzo di apparato non deve diventare
+// una prenotazione — o l'occupazione conterebbe due volte lo stesso indirizzo.
+test('prenotazioni: un indirizzo agganciato a un\'interfaccia non lo diventa', () => {
+  const nb = fixture();
+  nb.ipReservations = [
+    { id: 900, address: '10.0.0.240/24' },
+    { id: 901, address: '10.0.0.2/24', assigned_object: { id: 1000, device: { id: 100 } } },
+  ];
+  const { state } = map.netboxToState(nb);
+  const p = state.ipam.prefixes.find(x => x.cidr === '10.0.0.0/24');
+  assert.deepEqual(p.reserved, ['10.0.0.240'], 'la seconda cintura tiene anche se il filtro cade nel vuoto');
+});
+
+test('prenotazioni: senza, il prefisso resta esattamente com\'era', () => {
+  const { state, report } = map.netboxToState(fixture());
+  assert.equal(state.ipam.prefixes[0].reserved, undefined, 'nessun campo vuoto nel documento');
+  assert.equal(report.issues.some(i => i.code === 'ip.reserved'), false);
+});
+
+// ── Ruoli: i terminali, e il tipo sbagliato che era peggio di quello mancante ──
+test('ruoli: i terminali hanno finalmente il loro tipo', () => {
+  const want = [
+    ['ip-camera', 'IP Camera', 'webcam'], ['voip-phone', 'VoIP Phone', 'voip'],
+    ['desktop', 'Desktop PC', 'pc'], ['display', 'Display', 'tv'],
+    ['projector', 'Projector', 'projector'], ['door-controller', 'Door Controller', 'doorctrl'],
+    ['iot-sensor', 'IoT Sensor', 'iot'], ['kvm', 'KVM Switch', 'kvm'],
+    ['tablet', 'Tablet', 'mobile'],
+  ];
+  for (const [slug, name, type] of want) {
+    const r = map._roleToInfranetType(slug, name, '');
+    assert.equal(r.type, type, slug + ' → ' + type);
+    assert.equal(r.mapped, true, slug + ' non deve finire fra i non mappati');
+  }
+});
+
+// Un «KVM Switch» contiene la parola switch: la regola di ripiego lo classificava
+// come switch. Un tipo sbagliato non lo va a controllare nessuno.
+test('ruoli: «KVM Switch» non e\' uno switch, nemmeno per ripiego', () => {
+  assert.equal(map._roleToInfranetType('kvm-over-ip', 'KVM Switch', 'KVM over IP 8-port').type, 'kvm');
+  assert.equal(map._roleToInfranetType('access-switch', 'Access Switch', 'C9200').type, 'switch',
+    'e lo switch resta uno switch');
+});
+
+test('generico: sul pavimento e\' customfloor, non «generico da rack»', () => {
+  const nb = fixture();
+  nb.deviceRoles.push({ id: 22, name: 'Cosa Ignota', slug: 'cosa-ignota' });
+  nb.devices.push({ id: 102, name: 'MISTERO-01', device_type: { id: 10 }, role: { id: 22 } });   // niente rack
+  nb.devices.push({ id: 103, name: 'MISTERO-02', device_type: { id: 10 }, role: { id: 22 }, rack: { id: 30 }, position: 10 });
+  const { state } = map.netboxToState(nb);
+  assert.equal(state.nodes.find(n => n.id === 'nb-dev-102').type, 'customfloor');
+  assert.equal(state.nodes.find(n => n.id === 'nb-dev-103').type, 'customrack');
+});
+
+// ── Wireless: un'interfaccia 802.11 e' un'antenna, non una porta ─────────────
+function wifiFixture() {
+  const nb = fixture();
+  nb.wirelessLans = [
+    { id: 900, ssid: 'Corp', auth_type: { value: 'wpa-enterprise' }, vlan: { vid: 20 } },
+    { id: 901, ssid: 'Guest', auth_type: { value: 'wpa-personal' }, vlan: { vid: 40 } },
+    { id: 902, ssid: 'Hotspot', auth_type: { value: 'open' } },
+  ];
+  nb.interfaces.push(
+    { id: 1200, device: { id: 101 }, name: 'radio0', type: { value: 'ieee802.11ax' },
+      rf_role: { value: 'ap' }, rf_channel: { value: '2.4g-6-2437-22' },
+      wireless_lans: [{ id: 901 }, { id: 902 }] },
+    { id: 1201, device: { id: 101 }, name: 'radio1', type: { value: 'ieee802.11ax' },
+      rf_role: { value: 'ap' }, rf_channel: { value: '5g-42-5210-80' },
+      wireless_lans: [{ id: 900 }] },
+  );
+  return nb;
+}
+
+test('wireless: le radio diventano node.radios, non porte logiche', () => {
+  const { state, report } = map.netboxToState(wifiFixture());
+  const ap = state.nodes.find(n => n.id === 'nb-dev-101');
+  assert.equal(ap.radios.length, 2);
+  assert.deepEqual({ band: ap.radios[0].band, channel: ap.radios[0].channel, standard: ap.radios[0].standard },
+    { band: '2.4', channel: 6, standard: 'wifi6' });
+  assert.deepEqual({ band: ap.radios[1].band, channel: ap.radios[1].channel },
+    { band: '5', channel: 42 });
+  assert.equal(state.ports['nb-dev-101-logical-1200'], undefined, 'non deve nascere anche una porta logica');
+  assert.equal(report.counts.radios, 2);
+  assert.equal(report.counts.ssids, 3);
+});
+
+test('wireless: ogni SSID porta la sua VLAN e la sua cifratura', () => {
+  const { state, report } = map.netboxToState(wifiFixture());
+  const ap = state.nodes.find(n => n.id === 'nb-dev-101');
+  assert.deepEqual(ap.radios[0].ssids.map(s => [s.ssid, s.vlan, s.security]),
+    [['Guest', 40, 'wpa2-psk'], ['Hotspot', undefined, 'open']]);
+  assert.deepEqual(ap.radios[1].ssids.map(s => [s.ssid, s.vlan, s.security]), [['Corp', 20, 'wpa2-ent']]);
+  assert.ok(ap.radios[0].ssids.every(s => /^nb-wl-/.test(s.id)), 'id BSS stabile, derivato da NetBox');
+  // La generazione WPA NetBox non la dice: si legge WPA2 e lo si DICHIARA.
+  const iss = report.issues.find(i => i.code === 'wifi.securityAssumed');
+  assert.equal(iss.n, 2, 'i due WPA; la rete aperta non e\' una lettura, e\' un dato');
+  assert.ok(report.issues.some(i => i.code === 'wifi.imported'));
+});
+
+test('wireless: senza wirelessLans la radio entra lo stesso con banda e canale', () => {
+  const nb = wifiFixture();
+  delete nb.wirelessLans;
+  const { state, report } = map.netboxToState(nb);
+  const ap = state.nodes.find(n => n.id === 'nb-dev-101');
+  assert.equal(ap.radios.length, 2);
+  assert.equal(ap.radios[0].ssids, undefined, 'nessun SSID inventato');
+  assert.equal(report.counts.ssids, 0);
+});
+
+test('wireless: nessuna radio → nessuna riga e nessun campo', () => {
+  const { state, report } = map.netboxToState(fixture());
+  assert.equal(state.nodes.every(n => n.radios === undefined), true);
+  assert.equal(report.counts.radios, 0);
+  assert.equal(report.issues.some(i => String(i.code).startsWith('wifi.')), false);
+});

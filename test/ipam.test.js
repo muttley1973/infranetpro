@@ -244,3 +244,49 @@ test('computeIpamUsage: su IPv4 la chiave E\' la stringa — nessun cambiamento'
   assert.equal(u.usedCount, 3);
   assert.equal(u.nextFree, '192.168.20.2');
 });
+
+// ---------- prenotazioni: scritte nel piano, non viste sul filo ----------
+// Un indirizzo prenotato non e' un apparato e non e' un lease: e' una promessa.
+// Ma libero non e', e il difetto che chiude e' esattamente questo — su una rete
+// importata da NetBox con .1-.30 gia' impegnati, il suggerimento era .1.
+test('prenotazioni: contano fra gli occupati e nextFree le salta', () => {
+  const u = usage('10.90.20.0/24', {
+    documentedIps: ['10.90.20.50'],
+    reservedIps: ['10.90.20.1', '10.90.20.2', '10.90.20.3'],
+  });
+  assert.equal(u.documentedCount, 1);
+  assert.equal(u.reservedCount, 3);
+  assert.equal(u.usedCount, 4);
+  assert.equal(u.freeCount, 250);
+  assert.equal(u.nextFree, '10.90.20.4', 'i primi tre sono impegnati nel piano');
+});
+
+test('prenotazioni: fuori dal CIDR non contano, i doppioni contano una volta', () => {
+  const u = usage('10.90.20.0/24', {
+    reservedIps: ['10.90.21.7', '10.90.20.9', '10.90.20.9', 'non-un-indirizzo', ''],
+  });
+  assert.equal(u.reservedCount, 1);
+  assert.equal(u.usedCount, 1);
+});
+
+// Se sopra la prenotazione c'e' davvero un apparato non sono due cose: e' quello
+// che si vede, e conta dove si vede. Contarlo due volte gonfierebbe l'occupazione
+// proprio nelle reti meglio documentate.
+test('prenotazioni: quella su un indirizzo gia\' documentato o in lease non conta due volte', () => {
+  const u = usage('10.90.20.0/24', {
+    documentedIps: ['10.90.20.10'],
+    leaseIps: ['10.90.20.11'],
+    reservedIps: ['10.90.20.10', '10.90.20.11', '10.90.20.12'],
+  });
+  assert.equal(u.documentedCount, 1);
+  assert.equal(u.dhcpOnlyCount, 1);
+  assert.equal(u.reservedCount, 1, 'solo .12 e\' una prenotazione pura');
+  assert.equal(u.usedCount, 3);
+});
+
+test('prenotazioni: senza, tutto come prima', () => {
+  const u = usage('10.90.20.0/24', { documentedIps: ['10.90.20.50'] });
+  assert.equal(u.reservedCount, 0);
+  assert.equal(u.usedCount, 1);
+  assert.equal(u.nextFree, '10.90.20.1');
+});
