@@ -140,3 +140,76 @@ test('una riga senza esempi non ne inventa', () => {
   const r = buildDecisions({ issues: [{ code: 'ip.unassigned', n: 3 }], counts: {} });
   assert.deepEqual(r.info.find(x => x.code === 'ip.unassigned').sample, []);
 });
+
+// ── I numeri di contesto: l'elenco chiuso che perdeva le chiavi nuove ─────────
+// `prefix.multiPerVlan` manda `total`, il suo titolo lo usa («…{total} in tutto»),
+// e a schermo compariva la GRAFFA GREZZA: la chiave non era nell'elenco delle
+// ammesse. Il motore era giusto, il testo era giusto, si perdevano nel mezzo — e
+// nessun test poteva vederlo, perché nessuno dei due lati era rotto.
+test('numeri di contesto: passa QUALSIASI chiave numerica, anche una mai vista prima', () => {
+  const r = buildDecisions({ issues: [{ code: 'prefix.multiPerVlan', n: 1, total: 47, quandoCapita: 9 }], counts: {} });
+  const row = r.info.find(x => x.code === 'prefix.multiPerVlan');
+  assert.equal(row.data.total, 47, 'la chiave che mancava all\'elenco');
+  assert.equal(row.data.quandoCapita, 9, 'e pure una che l\'elenco non poteva prevedere');
+});
+
+test('numeri di contesto: il `n` dell\'avviso NON sovrascrive il conteggio del gruppo', () => {
+  // Nel pannello `{n}` è quanti casi sono stati raggruppati. Se il `n` del singolo
+  // avviso finisse in `data`, tre avvisi da «n:1» direbbero «1 caso».
+  const r = buildDecisions({
+    issues: [{ code: 'prefix.multiPerVlan', n: 1, total: 2 }, { code: 'prefix.multiPerVlan', n: 1, total: 2 }],
+    counts: {},
+  });
+  const row = r.info.find(x => x.code === 'prefix.multiPerVlan');
+  assert.equal(row.count, 2, 'due avvisi = due casi');
+  assert.equal(row.data.n, undefined, 'e `n` resta fuori dai numeri di contesto');
+});
+
+test('numeri di contesto: solo NUMERI (una stringa in un titolo sarebbe contenuto)', () => {
+  const r = buildDecisions({ issues: [{ code: 'ip.unassigned', n: 1, total: 5, nota: 'ciao', vuoto: null, nan: NaN }], counts: {} });
+  const d = r.info.find(x => x.code === 'ip.unassigned').data;
+  assert.equal(d.total, 5);
+  assert.equal(d.nota, undefined);
+  assert.equal(d.vuoto, undefined);
+  assert.equal(d.nan, undefined, 'NaN non è un numero da mostrare');
+});
+
+test('nessun titolo esce con una graffa non sostituita (il bug visto a schermo)', () => {
+  // Ricostruisce le variabili come fa il pannello (`_decisionText`) e pretende che
+  // il testo finale non contenga più `{qualcosa}`: è l'unico punto in cui il giro
+  // motore → riga → dizionario si vede per intero.
+  const i18n = require('../lib/i18n.js');
+  const r = buildDecisions({ issues: [{ code: 'prefix.multiPerVlan', n: 2, total: 47 }], counts: {} });
+  const row = r.info.find(x => x.code === 'prefix.multiPerVlan');
+  const vars = Object.assign({ n: row.count, code: row.code }, row.data);
+  for (const lang of ['it', 'en']) {
+    i18n.setLang(lang);
+    for (const suffix of ['title', 'titleOne']) {
+      const s = i18n.t('dcim.dec.prefix.multiPerVlan.' + suffix, vars);
+      assert.ok(!/\{[a-zA-Z]+\}/.test(s), `${lang}/${suffix}: graffa non sostituita in «${s}»`);
+    }
+  }
+  i18n.setLang('it');
+});
+
+// ── Quanti casi vale una riga ─────────────────────────────────────────────────
+// Due nature diverse di avviso: uno per apparato (il mapper ne emette N) oppure
+// uno solo che DICHIARA quanti casi rappresenta. Contando le occorrenze in
+// entrambi i casi, i tre avvisi sull'IPAM dicevano sempre «Una…»: 180 indirizzi
+// fuori diventavano «Un indirizzo IP resta fuori».
+test('conteggio: un avviso che dichiara `n` vale per n casi, non per uno', () => {
+  const r = buildDecisions({ issues: [{ code: 'ip.unassigned', n: 180 }], counts: {} });
+  assert.equal(r.info.find(x => x.code === 'ip.unassigned').count, 180);
+});
+
+test('conteggio: senza `n` si contano le occorrenze (uno per apparato)', () => {
+  const r = buildDecisions({ issues: [overTemplate(1, 'a'), overTemplate(2, 'b')], counts: { devices: 2 } });
+  assert.equal(r.decisions[0].count, 2, 'due apparati, due casi — non due volte il loro `n`');
+});
+
+test('conteggio: `n` non valido non azzera la riga', () => {
+  for (const bad of [0, -3, 'tanti', null, NaN]) {
+    const r = buildDecisions({ issues: [{ code: 'ip.unassigned', n: bad }], counts: {} });
+    assert.equal(r.info.find(x => x.code === 'ip.unassigned').count, 1, 'ripiego: un caso, mai zero');
+  }
+});

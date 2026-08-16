@@ -886,6 +886,21 @@ test('prefissi: una VLAN dual-stack tiene tutti e due, e l\'import lo dichiara',
   assert.equal(iss.total, 2);
 });
 
+test('prefissi: l\'esempio resta un esempio, non la lista intera della VLAN', () => {
+  // Visto a schermo su NetBox vero: una VLAN con diciotto /24 stampava tutte e
+  // diciotto dentro il campione, e tre campioni facevano un muro di testo. Una riga
+  // che non si legge non informa.
+  const nb = fixture();
+  nb.prefixes = [];
+  for (let i = 1; i <= 18; i++) nb.prefixes.push({ id: 700 + i, prefix: `10.112.${i}.0/24`, vlan: { vid: 100 } });
+  const { report } = map.netboxToState(nb);
+  const iss = report.issues.find(i => i.code === 'prefix.multiPerVlan');
+  assert.equal(iss.total, 18, 'il TOTALE resta vero');
+  assert.equal(iss.sample.length, 1, 'una VLAN sola, un campione solo');
+  assert.equal(iss.sample[0], 'VLAN 100: 10.112.1.0/24, 10.112.2.0/24, 10.112.3.0/24 +15',
+    'tre reti e quante restano');
+});
+
 test('prefissi: senza doppioni ne` reti orfane, nessuna delle due righe compare', () => {
   const nb = fixture();
   nb.prefixes = [{ id: 70, prefix: '10.0.0.0/24', vlan: { vid: 10 } }];
