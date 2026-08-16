@@ -54,7 +54,7 @@ test('ordine di lettura: prima cosa si perde, poi cosa si sceglie, infine cosa i
 
 test('il preventivo somma i due tipi di cavo e non inventa contatori', () => {
   const r = buildDecisions({ issues: [], counts: { devices: 72, directLinks: 120, passThroughLinks: 10, vlans: 14, racks: 5, stacks: 4 } });
-  assert.deepEqual(r.outcome, { devices: 72, cables: 130, vlans: 14, racks: 5, stacks: 4, costs: [] });
+  assert.deepEqual(r.outcome, { devices: 72, cables: 130, vlans: 14, racks: 5, stacks: 4, vms: 0, costs: [] });
   // Un import senza stack non deve far comparire un "0 stack" nel preventivo: il
   // pannello lo omette, ma il numero resta 0 e non `undefined`.
   assert.equal(buildDecisions({ issues: [], counts: { devices: 3 } }).outcome.stacks, 0);
@@ -190,6 +190,38 @@ test('nessun titolo esce con una graffa non sostituita (il bug visto a schermo)'
     }
   }
   i18n.setLang('it');
+});
+
+// Stesso giro completo per le righe delle macchine virtuali, che portano numeri
+// di contesto propri (`hosts`, `total`, `imported`): sono esattamente la forma
+// che una volta e' arrivata a schermo con la graffa grezza.
+test('VM: le righe escono con tutti i numeri sostituiti, in italiano e in inglese', () => {
+  const i18n = require('../lib/i18n.js');
+  const issues = [
+    { code: 'vm.imported', n: 4, hosts: 2 },
+    { code: 'vm.viaCluster', n: 2 },
+    { code: 'vm.hostRetyped', n: 1, sample: ['srv-01'] },
+    { code: 'vm.noHost', n: 3, sample: ['a', 'b'] },
+    { code: 'vm.outOfScope', n: 181, total: 185, imported: 4 },
+    { code: 'vm.addrExtra', n: 2 },
+  ];
+  const r = buildDecisions({ issues, counts: { vms: 4 } });
+  const rows = r.info.concat(r.decisions).filter(x => x.code.startsWith('vm.'));
+  assert.equal(rows.length, 6, 'ogni codice VM ha la sua riga');
+  for (const lang of ['it', 'en']) {
+    i18n.setLang(lang);
+    for (const row of rows) {
+      const vars = Object.assign({ n: row.count, code: row.code }, row.data);
+      for (const suffix of ['title', 'titleOne', 'why']) {
+        const key = 'dcim.dec.' + row.code + '.' + suffix;
+        const s = i18n.t(key, vars);
+        assert.notEqual(s, key, `${lang}: manca la traduzione ${key}`);
+        assert.ok(!/\{[a-zA-Z]+\}/.test(s), `${lang}/${suffix}: graffa non sostituita in «${s}»`);
+      }
+    }
+  }
+  i18n.setLang('it');
+  assert.equal(r.outcome.vms, 4, 'il preventivo conta le VM');
 });
 
 // ── Quanti casi vale una riga ─────────────────────────────────────────────────

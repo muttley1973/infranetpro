@@ -296,6 +296,67 @@ async function _pullForImport(client, sel) {
       nb.wirelessLans = [];
     }
   }
+  // Le macchine virtuali. Vivono in un'applicazione a parte di NetBox
+  // (`virtualization/`) e si agganciano all'host in due modi diversi: `device`
+  // (la macchina fisica, esplicito) e `cluster`. Si chiede per ENTRAMBI e si
+  // unisce, perche' un archivio vero usa l'uno o l'altro a seconda di come e'
+  // stato popolato. Sta sotto `devices` perche' senza l'host importato una VM
+  // non ha dove atterrare.
+  if (on('devices')) {
+    try {
+      const clusterIds = nb.devices.map(d => d.cluster && d.cluster.id);
+      const [byDevice, byCluster] = await Promise.all([
+        _batchByField(client, '/api/virtualization/virtual-machines/', 'device_id', deviceIds),
+        _batchByField(client, '/api/virtualization/virtual-machines/', 'cluster_id', clusterIds),
+      ]);
+      // ⚠️ Seconda cintura, come per le prenotazioni IPAM: NetBox risponde a un
+      // filtro che non conosce restituendo TUTTO il database. Qui dentro non
+      // deve entrare una VM che non appartenga a un apparato o a un cluster del
+      // perimetro — altrimenti un import di un sito si porterebbe le VM di
+      // tutta l'azienda.
+      const wantDevice = new Set(deviceIds.map(String));
+      const wantCluster = new Set(clusterIds.filter(x => x != null).map(String));
+      const seen = new Set();
+      const vms = [];
+      for (const vm of [...byDevice.results, ...byCluster.results]) {
+        if (!vm || vm.id == null || seen.has(vm.id)) continue;
+        const dv = vm.device && vm.device.id;
+        const cl = vm.cluster && vm.cluster.id;
+        if (!(dv != null && wantDevice.has(String(dv))) && !(cl != null && wantCluster.has(String(cl)))) continue;
+        seen.add(vm.id); vms.push(vm);
+      }
+      nb.virtualMachines = vms;
+      if (byDevice.truncated || byCluster.truncated) nb.truncated = true;
+      // Censimento: quante VM esistono in TUTTO NetBox. Serve a poter dire «ne
+      // sono entrate 4 su 184» invece di mostrare un elenco vuoto e lasciare
+      // credere a un difetto — che e' esattamente la domanda da cui nasce
+      // questa funzione. Una chiamata sola, `limit=5`: il conteggio e cinque
+      // nomi d'esempio.
+      try {
+        const all = await client.get('/api/virtualization/virtual-machines/', { limit: 5 });
+        if (all && Number.isFinite(+all.count)) {
+          nb.vmCensus = {
+            total: +all.count,
+            sample: (all.results || []).map(v => String((v && v.name) || '')).filter(Boolean).slice(0, 5),
+          };
+        }
+      } catch (_) { /* il censimento e' un di piu': senza, si tace invece di stimare */ }
+      if (vms.length) {
+        const vmIds = vms.map(v => v.id);
+        const [vif, vip] = await Promise.all([
+          _batchByField(client, '/api/virtualization/interfaces/', 'virtual_machine_id', vmIds),
+          _batchByField(client, '/api/ipam/ip-addresses/', 'virtual_machine_id', vmIds),
+        ]);
+        nb.vmInterfaces = vif.results; if (vif.truncated) nb.truncated = true;
+        nb.vmIpAddresses = vip.results; if (vip.truncated) nb.truncated = true;
+      }
+    } catch (_) {
+      // NetBox senza l'app di virtualizzazione (o permessi che non la coprono):
+      // gli apparati entrano lo stesso, semplicemente senza VM. Niente da
+      // inventare e niente da far fallire.
+      nb.virtualMachines = [];
+    }
+  }
   if (on('cabling')) {
     const cab = await _batchByField(client, '/api/dcim/cables/', 'device_id', deviceIds);
     const seen = new Set();

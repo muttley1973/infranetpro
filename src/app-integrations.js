@@ -646,6 +646,7 @@ function _renderDecisions(p) {
   const totals = [num('dcim.dec.oDevices', o.devices), num('dcim.dec.oCables', o.cables),
     num('dcim.dec.oVlans', o.vlans), num('dcim.dec.oRacks', o.racks)]
     .concat(o.stacks ? [num('dcim.dec.oStacks', o.stacks)] : [])
+    .concat(o.vms ? [num('dcim.dec.oVms', o.vms)] : [])
     .join('<i>·</i>');
   const costs = o.costs.map(cost => {
     const key = 'dcim.cost.' + cost.code + (cost.chosen ? '.' + cost.chosen : '');

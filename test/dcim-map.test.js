@@ -1138,3 +1138,200 @@ test('wireless: un canale largo non entra come primario, e si dichiara', () => {
   assert.ok(iss, 'e va detto, non taciuto');
   assert.equal(iss.n, 1);
 });
+
+// ── Macchine virtuali ────────────────────────────────────────────────────────
+// NetBox le tiene in un archivio a parte e l'import non lo apriva: l'hypervisor
+// arrivava e la sua lista di VM restava vuota. Qui si verifica che tornino sopra
+// il loro host, e soprattutto che NON ne finisca nessuna dove non si sa.
+function vmFixture() {
+  return {
+    manufacturers: [{ id: 1, name: 'Dell', slug: 'dell' }],
+    deviceTypes: [{ id: 10, manufacturer: { id: 1 }, model: 'PowerEdge R650', slug: 'dell-r650', u_height: 1 }],
+    deviceRoles: [{ id: 20, name: 'Hypervisor', slug: 'hypervisor' }, { id: 21, name: 'Server', slug: 'server' }],
+    racks: [{ id: 30, name: 'Rack A', u_height: 42 }],
+    devices: [
+      { id: 100, name: 'ESX-01', device_type: { id: 10 }, role: { id: 20 }, rack: { id: 30 }, position: 10, cluster: { id: 900 } },
+      { id: 101, name: 'SRV-02', device_type: { id: 10 }, role: { id: 21 }, rack: { id: 30 }, position: 8 },
+    ],
+    interfaces: [],
+    virtualMachines: [
+      {
+        id: 700, name: 'DC01', device: { id: 101 }, cluster: { id: 901 },
+        status: { value: 'active' }, role: { name: 'Domain controller' },
+        platform: { name: 'Windows Server 2022' }, vcpus: 4, memory: 8192, disk: 102400,
+        description: 'Primario', primary_ip4: { address: '10.0.0.20/24' },
+      },
+      {
+        id: 701, name: 'FILE01', cluster: { id: 900 },
+        status: { value: 'offline' }, platform: { name: 'Ubuntu 22.04' }, vcpus: 2, memory: 4096,
+      },
+    ],
+    vmInterfaces: [
+      { id: 800, virtual_machine: { id: 700 }, name: 'eth0', mac_address: '00:50:56:aa:bb:01', untagged_vlan: { vid: 20 } },
+    ],
+    vmIpAddresses: [
+      { id: 850, address: '10.0.0.20/24', assigned_object_type: 'virtualization.vminterface', assigned_object_id: 800 },
+      { id: 851, address: 'fd00::20/64', assigned_object_type: 'virtualization.vminterface', assigned_object_id: 800 },
+    ],
+  };
+}
+
+test('VM: quella con il device dichiarato finisce su quell\'apparato', () => {
+  const { state, report } = map.netboxToState(vmFixture());
+  const srv = state.nodes.find(n => n.id === 'nb-dev-101');
+  assert.equal(srv.vms.length, 1);
+  const vm = srv.vms[0];
+  assert.equal(vm.id, 'nb-vm-700', 'id stabile derivato da NetBox');
+  assert.equal(vm.name, 'DC01');
+  assert.equal(vm.role, 'Domain controller');
+  assert.equal(vm.guestOs, 'win-srv', 'la platform passa dal vocabolario OS gia\' esistente');
+  assert.equal(vm.state, 'running');
+  assert.equal(vm.vcpu, 4);
+  assert.equal(vm.ramGb, 8, '8192 MB dichiarati da NetBox = 8 GB');
+  assert.equal(vm.diskGb, 100, '102400 MB = 100 GB');
+  assert.equal(vm.notes, 'Primario');
+  assert.equal(report.counts.vms, 2);
+});
+
+test('VM: la vNIC porta nome, MAC, VLAN e i due indirizzi', () => {
+  const { state } = map.netboxToState(vmFixture());
+  const vm = state.nodes.find(n => n.id === 'nb-dev-101').vms[0];
+  assert.equal(vm.nics.length, 1);
+  assert.equal(vm.nics[0].name, 'eth0');
+  assert.equal(vm.nics[0].mac, '00:50:56:aa:bb:01');
+  assert.equal(vm.nics[0].vlan, '20');
+  assert.equal(vm.nics[0].ip, '10.0.0.20');
+  assert.equal(vm.nics[0].ip6, 'fd00::20');
+});
+
+// NetBox spesso non nomina la macchina fisica: dice il cluster. Con UN SOLO
+// apparato importato di quel cluster l'host non e' ambiguo — ma resta una
+// LETTURA, e va dichiarata.
+test('VM: senza device, il cluster con un solo host importato basta — e si dichiara', () => {
+  const { state, report } = map.netboxToState(vmFixture());
+  const esx = state.nodes.find(n => n.id === 'nb-dev-100');
+  assert.equal(esx.vms.length, 1);
+  assert.equal(esx.vms[0].name, 'FILE01');
+  assert.equal(esx.vms[0].state, 'stopped', 'offline in NetBox = spenta');
+  assert.equal(esx.vms[0].guestOs, 'ubuntu');
+  const iss = report.issues.find(i => i.code === 'vm.viaCluster');
+  assert.ok(iss, 'la deduzione si dichiara');
+  assert.equal(iss.n, 1);
+});
+
+test('VM: cluster con due host importati → nessuno se la prende, e si dichiara', () => {
+  const nb = vmFixture();
+  nb.devices[1].cluster = { id: 900 };          // ora il cluster 900 ha DUE apparati
+  delete nb.virtualMachines[0].device;          // e la prima VM non nomina piu' l'host
+  nb.virtualMachines[0].cluster = { id: 900 };
+  const { state, report } = map.netboxToState(nb);
+  assert.equal(state.nodes.every(n => !n.vms || !n.vms.length), true, 'appenderle a caso sarebbe un\'invenzione');
+  const iss = report.issues.find(i => i.code === 'vm.noHost');
+  assert.ok(iss);
+  assert.equal(iss.n, 2);
+  assert.deepEqual(iss.sample, ['DC01', 'FILE01']);
+  assert.equal(report.counts.vms, 0);
+});
+
+test('VM: nessun host importato → restano fuori dichiarandolo, non spariscono', () => {
+  const nb = vmFixture();
+  nb.virtualMachines = [{ id: 700, name: 'ORFANA', cluster: { id: 999 }, status: { value: 'active' } }];
+  const { state, report } = map.netboxToState(nb);
+  assert.equal(state.nodes.every(n => !n.vms), true);
+  const iss = report.issues.find(i => i.code === 'vm.noHost');
+  assert.equal(iss.n, 1);
+  assert.deepEqual(iss.sample, ['ORFANA']);
+});
+
+// Chi ospita VM e' un host di virtualizzazione: lo dice l'archivio stesso. Il
+// tipo si adegua, altrimenti il pannello non ha la sezione dove mostrarle — che
+// e' il difetto da cui nasce tutto questo.
+test('VM: un server che ospita VM diventa un host, e la riga lo dice', () => {
+  const { state, report } = map.netboxToState(vmFixture());
+  const srv = state.nodes.find(n => n.id === 'nb-dev-101');
+  assert.equal(srv.type, 'hypervisor', 'era un server, NetBox ci mette sopra una VM');
+  const esx = state.nodes.find(n => n.id === 'nb-dev-100');
+  assert.equal(esx.type, 'hypervisor', 'gia\' hypervisor per ruolo: non cambia');
+  const iss = report.issues.find(i => i.code === 'vm.hostRetyped');
+  assert.ok(iss);
+  assert.equal(iss.n, 1, 'solo quello che e\' cambiato davvero');
+  assert.deepEqual(iss.sample, ['SRV-02']);
+});
+
+test('VM: un host da pavimento diventa homelab, non un hypervisor da rack', () => {
+  const nb = vmFixture();
+  delete nb.devices[1].rack;
+  delete nb.devices[1].position;
+  const { state } = map.netboxToState(nb);
+  const srv = state.nodes.find(n => n.id === 'nb-dev-101');
+  assert.equal(srv.placement, 'floor');
+  assert.equal(srv.type, 'homelab');
+});
+
+test('VM: l\'indirizzo primario entra anche senza interfacce dichiarate', () => {
+  const nb = vmFixture();
+  nb.vmInterfaces = []; nb.vmIpAddresses = [];
+  const { state } = map.netboxToState(nb);
+  const vm = state.nodes.find(n => n.id === 'nb-dev-101').vms[0];
+  assert.equal(vm.nics.length, 1);
+  assert.equal(vm.nics[0].ip, '10.0.0.20');
+});
+
+// Il caso che conta di piu': l'import non porta NESSUNA VM perche' quelle di
+// NetBox stanno altrove. Senza una riga che lo dica, l'elenco vuoto si legge
+// come un difetto — ed e' la domanda da cui nasce tutta la funzione.
+test('VM: zero importate ma NetBox ne ha, e la riga lo dice', () => {
+  const nb = fixture();
+  nb.vmCensus = { total: 180, sample: ['app-1', 'app-2'] };
+  const { report } = map.netboxToState(nb);
+  const iss = report.issues.find(i => i.code === 'vm.outOfScope');
+  assert.ok(iss, 'zero VM senza spiegazione e\' il difetto, non il risultato');
+  assert.equal(iss.n, 180);
+  assert.equal(iss.imported, 0);
+  assert.equal(iss.total, 180);
+  assert.deepEqual(iss.sample, ['app-1', 'app-2']);
+});
+
+// Il censimento porta le PRIME righe di NetBox, che sono spesso proprio quelle
+// entrate: stamparle sotto «restano fuori» sarebbe una bugia piccola e sicura.
+test('VM: gli esempi del confine non nominano le VM che sono entrate', () => {
+  const nb = vmFixture();
+  nb.vmCensus = { total: 50, sample: ['DC01', 'altra-sede-01', 'FILE01'] };
+  const { report } = map.netboxToState(nb);
+  const iss = report.issues.find(i => i.code === 'vm.outOfScope');
+  assert.equal(iss.n, 48);
+  assert.deepEqual(iss.sample, ['altra-sede-01'], 'DC01 e FILE01 sono entrate: non sono esempi di cio\' che resta fuori');
+});
+
+test('VM: se sono entrate tutte, la riga del confine non compare', () => {
+  const nb = vmFixture();
+  nb.vmCensus = { total: 2 };
+  const { report } = map.netboxToState(nb);
+  assert.equal(report.counts.vms, 2);
+  assert.equal(report.issues.some(i => i.code === 'vm.outOfScope'), false);
+});
+
+test('VM: nessuna VM → nessuna riga, nessun campo, nessun tipo cambiato', () => {
+  const { state, report } = map.netboxToState(fixture());
+  assert.equal(state.nodes.every(n => n.vms === undefined), true);
+  assert.equal(report.counts.vms, 0);
+  assert.equal(report.issues.some(i => String(i.code).startsWith('vm.')), false);
+});
+
+// ⚠️ DEFINIZIONE DUPLICATA, chiusa da qui. `_VM_HOST_TYPES` nel mapper e il flag
+// `hostsVms` in src/app-types.js dicono la stessa cosa in due posti: il mapper e'
+// una lib pura e non puo' importare un modulo ESM del frontend. Se qualcuno
+// aggiunge un tipo che ospita VM di la' e non di qua, un apparato di quel tipo
+// verrebbe riclassificato a hypervisor senza motivo — e nessun altro test lo
+// vedrebbe.
+test('VM: l\'elenco dei tipi che ospitano VM combacia con app-types.js', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'app-types.js'), 'utf8');
+  const declared = new Set();
+  const re = /^\s*([a-z][\w-]*)\s*:\s*\{([^}]*)\}/gmi;
+  let m;
+  while ((m = re.exec(src))) { if (/hostsVms\s*:\s*true/.test(m[2])) declared.add(m[1]); }
+  assert.ok(declared.size > 0, 'la lettura di app-types.js deve trovare qualcosa');
+  assert.deepEqual([...declared].sort(), [...map._VM_HOST_TYPES].sort());
+});
