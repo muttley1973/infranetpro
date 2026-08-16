@@ -276,7 +276,8 @@ function _l3StatusBadge(row){
 // non doc↔realta' che e' il Drift). Stringa vuota quando la rete e' pulita. I valori
 // interpolati sono gia' escapati (nomi device = input utente).
 function _l3HygieneHtml(audit, esc){
-    if(!audit || (!audit.duplicateIps.length && !audit.subnetOverlaps.length)) return '';
+    const _expected = (audit && audit.subnetOverlapsExpected) ? audit.subnetOverlapsExpected.length : 0;
+    if(!audit || (!audit.duplicateIps.length && !audit.subnetOverlaps.length && !_expected)) return '';
     const rs = 'style="font-size:0.8rem;color:var(--text-muted);padding:2px 0"';
     const rows = [];
     for(const d of audit.duplicateIps){
@@ -289,6 +290,12 @@ function _l3HygieneHtml(audit, esc){
     for(const o of audit.subnetOverlaps){
         rows.push(`<div ${rs}>⚠ ${t(o.identical?'l3.overlapRowSame':'l3.overlapRow',{sa:netLabel(o.a), sb:netLabel(o.b)})}</div>`);
     }
+    // Le sovrapposizioni che il piano PREVEDE (un contenitore con le sue reti dentro,
+    // o lo stesso spazio in due VRF) non sono un'accusa e non hanno il triangolino.
+    // Ma si dicono: un conteggio che cala in silenzio è peggio di uno sbagliato — chi
+    // legge deve poter distinguere «nessuna sovrapposizione» da «ce n'erano e le ho
+    // giudicate normali».
+    if(_expected) rows.push(`<div ${rs}>${t('l3.overlapExpected',{n:_expected})}</div>`);
     return `<div class="l3-hygiene" style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">`
         + `<div style="font-weight:600;margin-bottom:4px"><i class="fas fa-triangle-exclamation" style="color:#d29922"></i> ${t('l3.ipamHygiene')}</div>`
         + rows.join('') + `</div>`;

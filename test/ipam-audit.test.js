@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { buildIpamAudit, findDuplicateIps, findSubnetOverlaps } = require('../lib/ipam-audit.js');
+const { buildIpamAudit, findDuplicateIps, findSubnetOverlaps, findExpectedOverlaps } = require('../lib/ipam-audit.js');
 const { _parseCidrInfo } = require('../lib/cidr.js');
 
 // ---- findDuplicateIps -------------------------------------------------------
@@ -113,6 +113,61 @@ test('findSubnetOverlaps: CIDR mancante o non valido → prefisso saltato', () =
 
 test('findSubnetOverlaps: senza parseCidr → array vuoto (nessun crash)', () => {
   assert.deepEqual(findSubnetOverlaps([P('10.0.0.0/24', 10)], null), []);
+});
+
+// ---- le sovrapposizioni che NON sono un errore -------------------------------
+// Misurato su un piano tipo NetBox (contenitore di sito + le /24 dentro, piu' lo
+// stesso spazio in due VRF): 7 reti producevano 8 «conflitti», nessuno vero. La
+// gerarchia e la separazione per VRF sono il modo NORMALE di scrivere un piano, e
+// il documento gia' le dichiarava — le leggeva solo nessuno.
+const C = (cidr, extra) => Object.assign({ cidr, vlan: null }, extra || {});
+
+test('overlap: un contenitore e le reti che contiene NON sono un conflitto', () => {
+  const rows = [C('10.0.0.0/8', { status: 'container' }), C('10.10.10.0/24', { status: 'active' })];
+  assert.deepEqual(findSubnetOverlaps(rows, _parseCidrInfo), [], 'niente da accusare');
+  const exp = findExpectedOverlaps(rows, _parseCidrInfo);
+  assert.equal(exp.length, 1);
+  assert.equal(exp[0].reason, 'hierarchy');
+});
+
+test('overlap: lo sconto vale solo per il contenitore PIU\' LARGO, non per chi sta dentro', () => {
+  // Una /25 marcata contenitore dentro una /24 normale: la /24 non ha dichiarato
+  // niente, quindi la sovrapposizione resta un fatto da guardare.
+  const rows = [C('10.0.0.0/24', { status: 'active' }), C('10.0.0.0/25', { status: 'container' })];
+  assert.equal(findSubnetOverlaps(rows, _parseCidrInfo).length, 1);
+});
+
+test('overlap: due contenitori IDENTICI restano un conflitto (e\' la stessa rete due volte)', () => {
+  const rows = [C('10.0.0.0/8', { status: 'container' }), C('10.0.0.0/8', { status: 'container' })];
+  const ov = findSubnetOverlaps(rows, _parseCidrInfo);
+  assert.equal(ov.length, 1);
+  assert.equal(ov[0].identical, true);
+});
+
+test('overlap: lo stesso spazio in due VRF DICHIARATE e diverse non e\' un doppione', () => {
+  const rows = [C('192.168.1.0/24', { vrfId: 1 }), C('192.168.1.0/24', { vrfId: 2 })];
+  assert.deepEqual(findSubnetOverlaps(rows, _parseCidrInfo), []);
+  assert.equal(findExpectedOverlaps(rows, _parseCidrInfo)[0].reason, 'vrf');
+});
+
+test('overlap: una VRF sola non compra il silenzio (non sapere non e\' sapere)', () => {
+  assert.equal(findSubnetOverlaps([C('192.168.1.0/24', { vrfId: 1 }), C('192.168.1.0/24')], _parseCidrInfo).length, 1);
+  assert.equal(findSubnetOverlaps([C('192.168.1.0/24', { vrfId: 7 }), C('192.168.1.0/24', { vrfId: 7 })], _parseCidrInfo).length, 1);
+});
+
+test('overlap: «Container» e «container» sono la stessa cosa (vocabolario del DCIM)', () => {
+  const rows = [C('10.0.0.0/8', { status: 'Container' }), C('10.10.10.0/24', {})];
+  assert.deepEqual(findSubnetOverlaps(rows, _parseCidrInfo), []);
+});
+
+test('buildIpamAudit: le attese escono a parte, non spariscono', () => {
+  const a = buildIpamAudit({
+    prefixes: [C('10.0.0.0/8', { status: 'container' }), C('10.10.10.0/24'), C('172.16.0.0/24'), C('172.16.0.0/25')],
+    nodes: [], parseCidr: _parseCidrInfo,
+  });
+  assert.equal(a.subnetOverlaps.length, 1, 'resta solo il conflitto vero');
+  assert.equal(a.subnetOverlaps[0].a.cidr, '172.16.0.0/24');
+  assert.equal(a.subnetOverlapsExpected.length, 1, 'e la gerarchia e\' contata, non nascosta');
 });
 
 // ---- il 57% che prima era invisibile ----------------------------------------
