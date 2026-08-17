@@ -203,18 +203,19 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         await dcimPage.click('#btn-impexp');
         await dcimPage.click('[data-act="dcim-open"]');
         await dcimPage.waitForSelector('#dcim-overlay.open', { timeout: 5000 });
-        await dcimPage.waitForSelector('button[data-act="dcim-scope-custom"]', { timeout: 10000 });
+        // ⭐ Dalla 2.9.2 il mago si apre sulla SCELTA DEL SITO, non sullo scarico
+        // globale: un sito = un progetto è la strada, «Importa tutto il DCIM» la
+        // deviazione. La prova che conta è che «Avanti» resti SPENTO finché non
+        // scegli — è quella la regola, non il testo del bottone.
+        await dcimPage.waitForSelector('input[data-change="dcim-scope"][data-id="40"]', { timeout: 10000 });
         const scopeQuick = await dcimPage.evaluate(() => ({
-          all: !!document.querySelector('button[data-act="dcim-scope-all"]'),
-          custom: !!document.querySelector('button[data-act="dcim-scope-custom"]'),
+          siteList: !!document.querySelector('input[data-change="dcim-scope"][data-kind="site"]'),
+          globalEscape: !!document.querySelector('button[data-act="dcim-scope-all"]'),
           nextEnabled: document.querySelector('button[data-act="dcim-wiz-next"]')?.disabled === false,
         }));
-        assert.equal(scopeQuick.all, true, 'la scelta rapida Importa tutto è visibile');
-        assert.equal(scopeQuick.custom, true, 'la personalizzazione è separata dalla scelta rapida');
-        assert.equal(scopeQuick.nextEnabled, true, 'l’importazione completa è pronta senza selezioni manuali');
-        await dcimPage.click('button[data-act="dcim-scope-custom"]');
-        await dcimPage.waitForSelector('input[data-change="dcim-scope"][data-id="40"]', { timeout: 10000 });
-        assert.equal(await dcimPage.locator('button[data-act="dcim-wiz-next"]').isDisabled(), true, 'la personalizzazione richiede almeno un ambito');
+        assert.equal(scopeQuick.siteList, true, 'il primo passo è la scelta del sito');
+        assert.equal(scopeQuick.globalEscape, true, 'l’importazione globale resta raggiungibile, declassata');
+        assert.equal(scopeQuick.nextEnabled, false, 'senza un ambito scelto non si va avanti');
         await dcimPage.fill('input[data-input="dcim-scope-search"]', 'HQ');
         assert.equal(await dcimPage.locator('[data-scope-option]:not([hidden])').count(), 1, 'la ricerca riduce la lista degli ambiti');
         await dcimPage.fill('input[data-input="dcim-scope-search"]', '');

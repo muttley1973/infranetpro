@@ -1523,3 +1523,50 @@ test('ATS: le prese restano fuori e la perdita si dichiara', () => {
   assert.equal(report.counts.powerOutlets, 0);
   assert.ok(report.issues.find(i => i.code === 'ports.powerSkipped'));
 });
+
+// ── L'origine del documento ─────────────────────────────────────────────────
+// Il progetto registra da quale fetta di NetBox e' nato. Senza, il confronto non
+// sa a che cosa appartiene e finisce per dichiarare «nuovo» tutto il resto
+// dell'archivio: misurato, 181 novita' vere e inutili su un progetto di un sito.
+test('origine: il progetto registra i siti degli apparati ENTRATI', () => {
+  const nb = fixture();
+  nb.devices[0].site = { id: 7, name: 'Sede Milano' };
+  nb.devices[1].site = { id: 7, name: 'Sede Milano' };
+  const { state } = map.netboxToState(nb);
+  assert.equal(state.source.dcim.system, 'netbox');
+  assert.deepEqual(state.source.dcim.sites, [{ id: '7', name: 'Sede Milano' }]);
+});
+
+// ⚠️ L'origine e' una MISURA del risultato, non la copia della domanda: se scegli
+// tre siti e uno solo ha apparati, il progetto viene da quello.
+test('origine: due siti dichiarati, due siti registrati — senza doppioni', () => {
+  const nb = fixture();
+  nb.devices[0].site = { id: 7, name: 'Milano' };
+  nb.devices[1].site = { id: 9, name: 'Roma' };
+  nb.devices.push(Object.assign({}, nb.devices[0], { id: 102, name: 'SW-3', site: { id: 7, name: 'Milano' } }));
+  const { state } = map.netboxToState(nb);
+  assert.deepEqual(state.source.dcim.sites.map(s => s.id).sort(), ['7', '9']);
+});
+
+// Vuoto NON e' assente: chi legge deve distinguere «nessun apparato ha un sito»
+// da «progetto vecchio, che l'origine non la registrava affatto».
+test('origine: apparati senza sito → lista vuota, non campo assente', () => {
+  const { state } = map.netboxToState(fixture());
+  assert.deepEqual(state.source.dcim.sites, []);
+});
+
+test('origine: nessun apparato letto → nessuna origine inventata', () => {
+  const { state } = map.netboxToState({ vlans: [{ id: 1, vid: 10, name: 'X' }] });
+  assert.equal(state.source, undefined);
+});
+
+// ⚠️ Il JSON di progetto si esporta e si passa di mano: l'indirizzo dell'istanza
+// NetBox non deve viaggiarci dentro.
+test('origine: nessun indirizzo dell\'istanza finisce nel documento', () => {
+  const nb = fixture();
+  nb.devices[0].site = { id: 7, name: 'Milano' };
+  const { state } = map.netboxToState(nb);
+  const dump = JSON.stringify(state.source);
+  assert.equal(/https?:\/\//.test(dump), false);
+  assert.deepEqual(Object.keys(state.source.dcim).sort(), ['sites', 'system']);
+});

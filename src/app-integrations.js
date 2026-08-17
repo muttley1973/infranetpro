@@ -93,7 +93,13 @@ export function openDcimSync() {
     exclude: [], mapping: {}, decisions: {}, vlanRoleMap: {}, allowUnresolved: false,
   };
   _wiz.previewStale = false; _wiz.reconciliationGroups = [];
-  _wiz.scopeMode = 'all'; _wiz.scopeKind = 'site'; _wiz.scopeSearch = '';
+  // ⭐ Il mago si apre sulla SCELTA DEL SITO, non su «importa tutto». Un sito = un
+  // progetto è già la regola scritta nel manuale, ed è già il modo in cui si sceglie
+  // il nome del progetto (un solo sito → quel sito; più siti → un nome neutro, cioè
+  // il caso degenere). Aprendo sullo scarico globale la strada consigliata era
+  // quella fuori strada: adesso «Avanti» resta spento finché non scegli, e
+  // «Importa tutto il DCIM» è una deviazione dichiarata, non il punto di partenza.
+  _wiz.scopeMode = 'custom'; _wiz.scopeKind = 'site'; _wiz.scopeSearch = '';
   _resetCommitState();
   _showTab('import');
 }
@@ -346,11 +352,14 @@ function _selectionForRequest() {
 function _scopeSelectionSummary() {
   const scope = _wiz.selection.scope;
   const parts = [];
-  if (scope.siteIds.length) parts.push(_scopeIsComplete('site') ? t('integrations.scopeAllSites') : t('integrations.scopeSitesSelected', { n: scope.siteIds.length }));
-  if (scope.roleSlugs.length) parts.push(_scopeIsComplete('role') ? t('integrations.scopeAllRoles') : t('integrations.scopeRolesSelected', { n: scope.roleSlugs.length }));
-  if (scope.tags.length) parts.push(_scopeIsComplete('tag') ? t('integrations.scopeAllTags') : t('integrations.scopeTagsSelected', { n: scope.tags.length }));
+  // Singolare/plurale come nel pannello delle decisioni: «1 siti» fa sembrare
+  // improvvisata tutta la schermata, e questa riga adesso si legge anche nel
+  // confronto, dove dice l'ambito di ciò che è stato messo a paragone.
+  if (scope.siteIds.length) parts.push(_scopeIsComplete('site') ? t('integrations.scopeAllSites') : _tp('integrations.scopeSitesSelected', scope.siteIds.length, { n: scope.siteIds.length }));
+  if (scope.roleSlugs.length) parts.push(_scopeIsComplete('role') ? t('integrations.scopeAllRoles') : _tp('integrations.scopeRolesSelected', scope.roleSlugs.length, { n: scope.roleSlugs.length }));
+  if (scope.tags.length) parts.push(_scopeIsComplete('tag') ? t('integrations.scopeAllTags') : _tp('integrations.scopeTagsSelected', scope.tags.length, { n: scope.tags.length }));
   const devices = _scopeItems('site').filter(site => scope.siteIds.includes(+site.id)).reduce((sum, site) => sum + Number(site.deviceCount || 0), 0);
-  if (devices) parts.push(t('integrations.scopeDevicesSelected', { n: devices }));
+  if (devices) parts.push(_tp('integrations.scopeDevicesSelected', devices, { n: devices }));
   return parts.length ? parts.join(' · ') : t('integrations.scopeSummaryEmpty');
 }
 
@@ -426,14 +435,14 @@ function _renderScopeStep() {
     return `<section class="dcim-scope-quick" aria-labelledby="dcim-scope-title">
       <p class="dcim-scope-hint" id="dcim-scope-title">${escapeHTML(t('integrations.scopeHint'))}</p>
       <div class="dcim-scope-choice-grid">
-        <button class="dcim-scope-choice is-primary" data-act="dcim-scope-all">
-          <span class="dcim-scope-choice-icon"><i class="fas fa-globe"></i></span>
-          <span class="dcim-scope-choice-copy"><strong>${escapeHTML(t('integrations.scopeAll'))}</strong><small>${escapeHTML(t('integrations.scopeAllDesc', { devices: totalDevices, sites: sc.sites.length }))}</small></span>
+        <button class="dcim-scope-choice is-primary" data-act="dcim-scope-custom">
+          <span class="dcim-scope-choice-icon"><i class="fas fa-building"></i></span>
+          <span class="dcim-scope-choice-copy"><strong>${escapeHTML(t('integrations.scopeCustom'))}</strong><small>${escapeHTML(t('integrations.scopeCustomDesc'))}</small></span>
           <i class="fas fa-arrow-right dcim-scope-choice-arrow"></i>
         </button>
-        <button class="dcim-scope-choice" data-act="dcim-scope-custom">
-          <span class="dcim-scope-choice-icon"><i class="fas fa-sliders"></i></span>
-          <span class="dcim-scope-choice-copy"><strong>${escapeHTML(t('integrations.scopeCustom'))}</strong><small>${escapeHTML(t('integrations.scopeCustomDesc'))}</small></span>
+        <button class="dcim-scope-choice" data-act="dcim-scope-all">
+          <span class="dcim-scope-choice-icon"><i class="fas fa-globe"></i></span>
+          <span class="dcim-scope-choice-copy"><strong>${escapeHTML(t('integrations.scopeAll'))}</strong><small>${escapeHTML(t('integrations.scopeAllDesc', { devices: totalDevices, sites: sc.sites.length }))}</small></span>
           <i class="fas fa-arrow-right dcim-scope-choice-arrow"></i>
         </button>
       </div>
