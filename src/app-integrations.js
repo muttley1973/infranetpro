@@ -93,6 +93,7 @@ export function openDcimSync() {
     exclude: [], mapping: {}, decisions: {}, vlanRoleMap: {}, allowUnresolved: false,
   };
   _wiz.previewStale = false; _wiz.reconciliationGroups = [];
+  _wiz.compare = { state: 'idle', result: null, error: '' };
   // ⭐ Il mago si apre sulla SCELTA DEL SITO, non su «importa tutto». Un sito = un
   // progetto è già la regola scritta nel manuale, ed è già il modo in cui si sceglie
   // il nome del progetto (un solo sito → quel sito; più siti → un nome neutro, cioè
@@ -172,6 +173,10 @@ const _wiz = {
     allowUnresolved: false,
   },
   preview: null, previewStale: false, reconciliationGroups: [], loadingPreview: false, previewErr: '',
+  // Ri-lettura: che cosa è cambiato nel DCIM da quando hai importato. È una
+  // LETTURA — non scrive niente nel documento — e vive accanto all'anteprima
+  // perché usa lo stesso ambito: si confronta quel che si importerebbe.
+  compare: { state: 'idle', result: null, error: '' },
   projectName: '',
   commit: { state: 'idle', stage: 0, result: null, error: '', name: '' },
 };
@@ -372,6 +377,10 @@ function _renderImport() {
   if (_wiz.commit.state === 'running') { b.innerHTML = _renderCommitProgress(); return; }
   if (_wiz.commit.state === 'done') { b.innerHTML = _renderCommitResult(); return; }
   if (_wiz.commit.state === 'error') { b.innerHTML = _renderCommitError(); return; }
+  // Il confronto prende tutta la modale: è una lettura a sé, non un pezzo
+  // dell'anteprima, e mescolarlo coi passi dell'import confonderebbe due intenti
+  // diversi — «crea una fotocopia» e «dimmi che cosa è cambiato».
+  if (_wiz.compare.state !== 'idle') { b.innerHTML = _renderCompare(); return; }
   const s = _wiz.step;
   const dot = (n, key) => `<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:${n <= s ? 'var(--text-primary)' : 'var(--text-muted)'}">
     <span style="width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:0.5px solid var(--border-strong);${n <= s ? 'background:var(--text-accent);color:var(--surface-2)' : ''}">${n}</span>${escapeHTML(t(key))}</div>`;
@@ -385,6 +394,136 @@ function _renderImport() {
     <button class="um-btn" data-act="dcim-wiz-back"${s === 1 ? ' style="visibility:hidden"' : ''}><i class="fas fa-arrow-left"></i> ${escapeHTML(t('integrations.back'))}</button>
     ${s < 3 ? `<button class="um-btn primary" data-act="dcim-wiz-next"${s === 1 && !scopeReady ? ' disabled' : ''}>${escapeHTML(t('integrations.next'))} <i class="fas fa-arrow-right"></i></button>` : '<span></span>'}</div>`;
   b.innerHTML = stepper + body + nav;
+}
+
+// ── Ri-lettura: che cosa è cambiato nel DCIM ────────────────────────────────
+// Una riga = un oggetto che è cambiato, con i due valori affiancati. Il pannello
+// NON offre un «applica»: applicare vuol dire decidere chi vince campo per campo,
+// ed è una decisione che non si prende dentro un elenco. Qui si legge, e si
+// corregge a mano — che è come funziona tutto il resto del documento.
+const _CMP_GROUPS = [
+  { key: 'devices', icon: 'fa-server' },
+  { key: 'racks', icon: 'fa-layer-group' },
+  { key: 'prefixes', icon: 'fa-sitemap' },
+  { key: 'vlans', icon: 'fa-tags' },
+];
+
+function _cmpFieldLabel(field) {
+  const key = 'dcim.cmp.f.' + field;
+  const s = t(key);
+  return s === key ? field : s;
+}
+
+// Un confronto largo può produrre centinaia di righe — misurato: leggendo TUTTO
+// NetBox contro un progetto di un sito solo ne escono 181, e sono tutte vere.
+// Un muro di righe però non si legge: si mostrano le prime e si DICE quante
+// restano, come per gli apparati nella lista di decisioni.
+const _CMP_ROWS_SHOWN = 25;
+
+function _cmpMore(n) {
+  if (n <= 0) return '';
+  return `<div class="dcim-cmp-more">${escapeHTML(t('dcim.cmp.andMore', { n }))}</div>`;
+}
+
+function _cmpRows(list, kind, groupKey) {
+  return list.slice(0, _CMP_ROWS_SHOWN).map(item => {
+    const fields = (item.fields || []).map(f => {
+      const manual = f.manual ? ` <span class="dcim-cmp-manual">${escapeHTML(t('dcim.cmp.yours'))}</span>` : '';
+      return `<div class="dcim-cmp-field"><span class="dcim-cmp-fname">${escapeHTML(_cmpFieldLabel(f.field))}</span>
+        <span class="dcim-cmp-doc">${escapeHTML(f.doc || t('dcim.cmp.empty'))}${manual}</span>
+        <i class="fas fa-arrow-right-long"></i>
+        <span class="dcim-cmp-dcim">${escapeHTML(f.dcim)}</span></div>`;
+    }).join('');
+    return `<article class="dcim-cmp-row is-${escapeHTML(kind)}">
+      <div class="dcim-cmp-head"><span class="dcim-cmp-tag">${escapeHTML(t('dcim.cmp.' + kind))}</span>
+        <strong>${escapeHTML(item.name)}</strong></div>
+      ${fields}
+    </article>`;
+  }).join('') + _cmpMore(list.length - _CMP_ROWS_SHOWN);
+}
+
+// ⚠️ Questi tre sono FUNZIONI e non variabili locali di proposito. Trasportano
+// HTML già composto, quindi non si possono avvolgere in escapeHTML() — e lo
+// scanner dell'escaping sa dimostrare una CHIAMATA (guarda dentro il corpo), non
+// una locale (non fa analisi interprocedurale). Scritti come `const x = …` erano
+// cinque interpolazioni non provate e un tetto da alzare; così sono zero.
+// L'ambito del confronto ha DUE autorità possibili, e la differenza cambia come si
+// leggono i numeri. Se il progetto sa da dove viene (dalla 2.9.2 lo registra), è lui
+// a dettarlo e il confronto è esatto. Se non lo sa — progetto importato prima — si
+// ricade sulla scelta fatta a mano, e va detto invece di lasciarlo credere.
+//
+// ⚠️ Ambito vuoto non vuol dire «niente»: nel passo 1 vuol dire «importa tutto».
+// `_scopeSelectionSummary` risponde «Nessun ambito selezionato», che nell'anteprima
+// è giusto — non hai ancora scelto — e qui sarebbe l'esatto contrario del vero,
+// proprio nella riga che serve a spiegare perché il DCIM risulta pieno di novità.
+function _cmpScopeRow(r) {
+  const sc = (r && r.scope) || {};
+  if (sc.fromProject) {
+    const names = (Array.isArray(sc.sites) ? sc.sites : []).map(s => s && s.name).filter(Boolean);
+    return `<div class="dcim-cmp-scope is-exact"><i class="fas fa-crosshairs"></i> ${escapeHTML(t('dcim.cmp.scopeProject', { sites: names.join(' · ') }))}</div>`;
+  }
+  const scope = _scopeSelectionCount() > 0 ? _scopeSelectionSummary() : t('dcim.cmp.scopeAll');
+  return `<div class="dcim-cmp-scope"><i class="fas fa-filter"></i> ${escapeHTML(t('dcim.cmp.scope', { scope }))}</div>`;
+}
+
+function _cmpHandmade(hm) {
+  const h = hm || {};
+  if (!h.devices && !h.prefixes) return '';
+  return `<div class="dcim-cmp-note"><i class="fas fa-hand"></i> ${escapeHTML(t('dcim.cmp.handmade', { devices: h.devices || 0, prefixes: h.prefixes || 0 }))}</div>`;
+}
+
+function _cmpGroup(grp, g) {
+  const group = grp || {};
+  const count = (group.changed || []).length + (group.added || []).length + (group.removed || []).length;
+  if (!count) return '';
+  return `<div class="dcim-cmp-group"><span class="dcim-dec-label"><i class="fas ${escapeHTML(g.icon)}"></i> ${escapeHTML(t('dcim.cmp.g.' + g.key))} · ${escapeHTML(String(count))}</span>${_cmpRows(group.changed || [], 'changed', g.key)}${_cmpRows(group.added || [], 'added', g.key)}${_cmpRows(group.removed || [], 'removed', g.key)}</div>`;
+}
+
+function _cmpFresh(r) {
+  if (!r || !r.fetchedAt) return '';
+  return `<div class="dcim-dec-fresh"><span>${escapeHTML(t('dcim.dec.fetchedAt', { time: _clock(r.fetchedAt) }))}</span>
+    <button class="um-btn um-btn-ghost" data-act="dcim-compare-reread"><i class="fas fa-cloud-arrow-down"></i> ${escapeHTML(t('dcim.dec.reread'))}</button></div>`;
+}
+
+function _compareButton() {
+  // Compare solo se un progetto è aperto: senza, non c'è niente con cui
+  // confrontarsi e un bottone inerte è peggio di un bottone assente.
+  if (store.currentProjectId == null) return '<span></span>';
+  const busy = _wiz.compare.state === 'running';
+  return `<button class="um-btn" data-act="dcim-compare"${busy ? ' disabled' : ''}><i class="fas ${busy ? 'fa-spinner fa-spin' : 'fa-code-compare'}"></i> ${escapeHTML(t('dcim.cmp.action'))}</button>`;
+}
+
+function _renderCompare() {
+  const c = _wiz.compare;
+  const back = `<button class="um-btn" data-act="dcim-compare-back"><i class="fas fa-arrow-left"></i> ${escapeHTML(t('dcim.cmp.back'))}</button>`;
+  if (c.state === 'running') {
+    return `<section class="dcim-cmp"><div class="dcim-cmp-lead"><i class="fas fa-spinner fa-spin"></i> ${escapeHTML(t('dcim.cmp.running'))}</div></section>`;
+  }
+  if (c.state === 'error') {
+    return `<section class="dcim-cmp"><div class="dcim-preview-status is-blocked"><i class="fas fa-triangle-exclamation"></i> ${escapeHTML(c.error || t('dcim.cmp.failed'))}</div>
+      <div style="margin-top:12px">${back}</div></section>`;
+  }
+  const r = c.result || {};
+  const d = r.diff || {};
+  const n = d.counts || { added: 0, removed: 0, changed: 0 };
+  // Il preventivo del confronto, con lo stesso peso del preventivo dell'import:
+  // è la riga che si legge davvero.
+  const head = `<div class="dcim-outcome">
+    <div class="dcim-outcome-main"><span class="dcim-out-lead">${escapeHTML(t('dcim.cmp.outcome', { name: r.projectName || '' }))}</span>
+      <span class="dcim-out-n">${escapeHTML(_tp('dcim.cmp.nChanged', n.changed, { n: n.changed }))}</span><i>·</i>
+      <span class="dcim-out-n">${escapeHTML(_tp('dcim.cmp.nAdded', n.added, { n: n.added }))}</span><i>·</i>
+      <span class="dcim-out-n">${escapeHTML(_tp('dcim.cmp.nRemoved', n.removed, { n: n.removed }))}</span></div>
+    ${d.clean ? `<div class="dcim-outcome-costs is-clean"><i class="fas fa-circle-check"></i> ${escapeHTML(t('dcim.cmp.clean'))}</div>` : ''}
+  </div>`;
+  // Il lavoro fatto a mano NON è una differenza: è la ragione per cui questo
+  // pannello non applica niente da solo. Va detto sempre, anche a zero differenze.
+  const groups = _CMP_GROUPS.map(g => _cmpGroup(d[g.key], g)).join('');
+  return `<section class="dcim-cmp">
+    <div class="dcim-cmp-lead"><i class="fas fa-code-compare"></i> ${escapeHTML(t('dcim.cmp.lead'))}</div>
+    ${_cmpScopeRow(r)}
+    ${head}${_cmpHandmade(d.handmade)}${groups}${_cmpFresh(r)}
+    <div style="margin-top:12px">${back}</div>
+  </section>`;
 }
 
 function _renderCommitProgress() {
@@ -817,10 +956,34 @@ function _renderPreviewStep() {
       <label>${escapeHTML(t('integrations.projectName'))}</label>
       <input type="text" id="dcim-name" data-input="dcim-name" value="${escapeHTML(nameVal)}" autocomplete="off">
     </div>
-    <div style="display:flex;justify-content:flex-end;margin-top:10px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px">
+      ${_compareButton()}
       <button class="um-btn primary" data-act="dcim-commit"${c.devices && !blocked ? '' : ' disabled'} title="${blocked ? escapeHTML(t('integrations.reconcileBlocked')) : ''}"><i class="fas fa-plus"></i> ${escapeHTML(t('integrations.createProject'))}</button>
     </div>`;
   return previewContext + previewKpis + previewSecondary + previewAttention + previewWarningHtml + rows + previewStatus + commit;
+}
+
+// Confronto col progetto APERTO. Non tocca il documento: la rotta legge il
+// progetto da disco e restituisce differenze. `refresh` è l'unico modo di pagare
+// una lettura nuova di NetBox — altrimenti riusa quella dell'anteprima.
+async function _runCompare(refresh) {
+  const projectId = store.currentProjectId;
+  if (projectId == null) return;
+  _wiz.compare = { state: 'running', result: null, error: '' };
+  _renderImport();
+  try {
+    const body = { projectId, selection: _selectionForRequest() };
+    if (refresh) body.refresh = true;
+    const r = await fetch(API + '/compare', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    _wiz.compare = { state: 'done', result: j, error: '' };
+  } catch (e) {
+    _wiz.compare = { state: 'error', result: null, error: String((e && e.message) || e) };
+  }
+  _renderImport();
 }
 
 async function _loadScopes() {
@@ -923,6 +1086,9 @@ registerClickActions({
   },
   'dcim-reconcile-preview': () => _runPreview(),          // ricalcola sulla lettura in memoria
   'dcim-reread': () => _runPreview(true),                  // rilegge davvero da NetBox
+  'dcim-compare': () => _runCompare(),
+  'dcim-compare-reread': () => _runCompare(true),
+  'dcim-compare-back': () => { _wiz.compare = { state: 'idle', result: null, error: '' }; _renderImport(); },
   'dcim-commit': () => _commit(),
   'dcim-commit-retry': () => { _resetCommitState(); _renderImport(); },
   'dcim-open-created': () => { const id = _wiz.commit.result && _wiz.commit.result.projectId; if (id != null) { switchProject(id); closeDcimSync(); } },

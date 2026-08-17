@@ -25,6 +25,7 @@ let role = 'admin';
 let rejectSiteIpamFilters = false;
 let unassignedIps = 0;          // indirizzi dichiarati in NetBox e agganciati a niente
 let ignoreAssignedFilter = false;   // simula la versione che non conosce il filtro
+const deviceQueries = [];           // i `site_id` chiesti a ogni fetch di apparati
 let app, server, base;
 let nb, nbBase;
 
@@ -60,6 +61,11 @@ before(async () => {
   nb = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://x');
     const p = url.pathname;
+    // Che cosa e' stato CHIESTO davvero: serve a provare che il confronto si
+    // restringe da solo alla fetta da cui nasce il progetto, invece di rileggere
+    // tutto NetBox. Il mock ignora i filtri, quindi l'unico modo di verificarlo
+    // e' guardare la query.
+    if (p === '/api/dcim/devices/') deviceQueries.push(url.searchParams.getAll('site_id').join(','));
     if (rejectSiteIpamFilters && /^\/api\/ipam\/(vlans|prefixes)\/$/.test(p) && url.searchParams.has('site_id')) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ detail: 'Invalid filter: site_id' }));
@@ -331,4 +337,88 @@ test('POST /import come non-admin → 403', async () => {
   });
   assert.equal(r.status, 403);
   role = 'admin';
+});
+
+// ── Ri-lettura: l'ambito lo detta il PROGETTO ───────────────────────────────
+// Un progetto nato da un sito, confrontato con TUTTO NetBox, produce centinaia di
+// «novita'» vere e inutili — misurato su un NetBox reale: 181. Dalla 2.9.2 il
+// documento registra da dove viene e il confronto rilegge esattamente quella
+// fetta: la prova e' nella QUERY, non nel risultato.
+test('POST /compare: l\'ambito viene dal progetto, non dal mago', async () => {
+  const saved = { id: 900, name: 'Sede HQ', state: {
+    nodes: [{ id: 'nb-dev-100', name: 'SW-CORE-01', type: 'switch', source: { deviceId: 100 } }],
+    racks: [], ipam: { prefixes: [] }, vlanNames: {},
+    source: { dcim: { system: 'netbox', sites: [{ id: '40', name: 'HQ' }] } },
+  } };
+  fs.writeFileSync(path.join(PROJECTS, '900.json'), JSON.stringify(saved));
+  deviceQueries.length = 0;
+  const r = await fetch(`${base}${P}/compare`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    // Il mago dice «tutto»: il progetto lo smentisce, ed e' il progetto ad avere ragione.
+    body: JSON.stringify({ projectId: 900, refresh: true, selection: { scope: { siteIds: [], roleSlugs: [], tags: [] } } }),
+  });
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  assert.equal(j.ok, true);
+  assert.equal(j.scope.fromProject, true);
+  assert.deepEqual(j.scope.sites, [{ id: '40', name: 'HQ' }]);
+  assert.ok(deviceQueries.some(q => q === '40'), 'la lettura di NetBox e\' stata ristretta al sito del progetto');
+});
+
+// ⚠️ Un progetto importato PRIMA della 2.9.2 non registra l'origine: si ricade
+// sull'ambito scelto a mano e lo si DICE, invece di far finta di saperlo.
+test('POST /compare: progetto senza origine → si ricade sul mago, e si dichiara', async () => {
+  const old = { id: 901, name: 'Vecchio', state: { nodes: [], racks: [], ipam: { prefixes: [] }, vlanNames: {} } };
+  fs.writeFileSync(path.join(PROJECTS, '901.json'), JSON.stringify(old));
+  const r = await fetch(`${base}${P}/compare`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ projectId: 901, refresh: true, selection: {} }),
+  });
+  const j = await r.json();
+  assert.equal(j.ok, true);
+  assert.equal(j.scope.fromProject, false);
+  assert.deepEqual(j.scope.sites, []);
+});
+
+test('POST /compare: il confronto NON tocca il progetto su disco', async () => {
+  const before = fs.readFileSync(path.join(PROJECTS, '900.json'), 'utf8');
+  await fetch(`${base}${P}/compare`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ projectId: 900, selection: {} }),
+  });
+  assert.equal(fs.readFileSync(path.join(PROJECTS, '900.json'), 'utf8'), before);
+});
+
+test('POST /compare: progetto inesistente → 404, e senza progetto → 400', async () => {
+  const a = await fetch(`${base}${P}/compare`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ projectId: 99999, selection: {} }),
+  });
+  assert.equal(a.status, 404);
+  const b = await fetch(`${base}${P}/compare`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+  });
+  assert.equal(b.status, 400);
+});
+
+test('POST /compare come non-admin → 403', async () => {
+  role = 'viewer';
+  const r = await fetch(`${base}${P}/compare`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+  });
+  assert.equal(r.status, 403);
+  role = 'admin';
+});
+
+// Il commit scrive l'origine nel documento: e' il pezzo che rende esatto tutto
+// il resto, e senza questo test resterebbe una promessa del mapper.
+test('POST /import: il progetto creato registra il sito da cui nasce', async () => {
+  const r = await fetch(`${base}${P}/import`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ commit: true, projectName: 'Origine', selection: { allowUnresolved: true } }),
+  });
+  const j = await r.json();
+  const saved = JSON.parse(fs.readFileSync(path.join(PROJECTS, j.projectId + '.json'), 'utf8'));
+  assert.deepEqual(saved.state.source.dcim.sites, [{ id: '40', name: 'HQ' }]);
+  assert.equal(saved.state.source.dcim.system, 'netbox');
 });

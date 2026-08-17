@@ -24,7 +24,8 @@ const { DcimClient } = require('../dcim/client');
 const { createPullCache } = require('../dcim/pull-cache');
 const dcimMap = require('../../lib/dcim-map');
 const deviceCatalog = require('../../lib/device-catalog');
-const { nextId, saveProject } = require('../projects-store');
+const { nextId, saveProject, loadProject } = require('../projects-store');
+const dcimDiff = require('../../lib/dcim-diff');
 
 const router = express.Router();
 
@@ -620,6 +621,81 @@ router.post('/api/integrations/dcim/import', auth.requireAdmin, async (req, res)
   saveProject(id, name, state, now, now);
   pullCache.invalidate(cacheKey);
   res.status(201).json({ ok: true, projectId: id, counts: report.counts });
+});
+
+// ── Ri-lettura: che cosa è cambiato nel DCIM da quando hai importato ────────
+// L'import crea sempre un progetto NUOVO, e questa è la sua garanzia: nessun
+// merge, nessun clobber. Il rovescio è che quando NetBox cambia, rifare la
+// fotocopia butta via il lavoro fatto a mano. Questa rotta è l'altra metà, e la
+// sola che serve prima di decidere qualunque cosa: **non scrive niente, dice**.
+//
+// ⚠️ È una GET travestita da POST solo per riusare lo stesso corpo `selection`
+// dell'anteprima (ambito ed entità decidono che cosa si legge da NetBox). Non
+// tocca il progetto: `loadProject` legge e basta, e la risposta è un confronto.
+router.post('/api/integrations/dcim/compare', auth.requireAdmin, async (req, res) => {
+  const body = req.body || {};
+  const selection = (body.selection && typeof body.selection === 'object') ? body.selection : {};
+  const projectId = body.projectId;
+  if (projectId == null) return res.status(400).json({ error: 'projectId mancante' });
+  const project = loadProject(projectId);
+  if (!project) return res.status(404).json({ error: 'progetto non trovato' });
+
+  let client;
+  try { client = _client(); } catch (e) { return res.status(400).json({ error: e.message }); }
+
+  // ⭐ L'ambito del confronto lo detta il PROGETTO, non il mago d'importazione.
+  // Un progetto nato da un sito confrontato con tutto NetBox produce centinaia di
+  // «novità» vere e inutili (misurato: 181), e la domanda che si voleva fare era
+  // un'altra. Dalla 2.9.2 il documento registra da dove viene (`state.source.dcim.
+  // sites`) e qui si rilegge esattamente quella fetta.
+  // ⚠️ Un progetto importato PRIMA di quella versione non ce l'ha: si ricade
+  // sull'ambito scelto a mano e lo si DICE, invece di far finta di sapere.
+  const origin = (project.state && project.state.source && project.state.source.dcim) || null;
+  const originSites = (origin && Array.isArray(origin.sites) ? origin.sites : [])
+    .map(s => s && s.id).filter(x => x != null);
+  const scopedFromProject = originSites.length > 0;
+  if (scopedFromProject) {
+    selection.scope = Object.assign({}, selection.scope, { siteIds: originSites, roleSlugs: [], tags: [] });
+  }
+
+  // Stessa cache dell'anteprima: confrontare non deve ri-pagare la lettura, e
+  // `refresh: true` resta il comando esplicito «rileggi da NetBox adesso».
+  // ⚠️ L'ambito appena riscritto fa parte della chiave: se il progetto porta un
+  // ambito diverso da quello dell'anteprima, questa è un'altra lettura — ed è
+  // giusto che lo sia, perché è un'altra domanda.
+  const cacheKey = _pullKey(req, selection);
+  const hit = body.refresh ? null : pullCache.get(cacheKey);
+  let nb = hit ? hit.value : null;
+  let fetchedAt = hit ? hit.at : null;
+  if (!nb) {
+    try { nb = await _pullForImport(client, selection); }
+    catch (e) { return res.status(502).json({ error: String((e && e.message) || e) }); }
+    fetchedAt = pullCache.set(cacheKey, nb).at;
+  }
+
+  const catalog = _catalogForImport();
+  const { state } = dcimMap.netboxToState(nb, {
+    catalogByKey: catalog.byKey,
+    catalogIndexes: catalog.indexes,
+    catalogAliases: catalog.aliases,
+    catalogVersion: catalog.version,
+    selection,
+  });
+  const report = dcimDiff.diffAgainstProject(state, project.state || {});
+  res.json({
+    ok: true,
+    projectId,
+    projectName: project.name || null,
+    fetchedAt: fetchedAt != null ? new Date(fetchedAt).toISOString() : null,
+    fromCache: !!hit,
+    // Con che cosa è stato confrontato, e su quale autorità: il documento o una
+    // scelta a mano. La differenza cambia come si leggono i numeri, quindi esce.
+    scope: {
+      fromProject: scopedFromProject,
+      sites: (origin && Array.isArray(origin.sites) ? origin.sites : []).map(s => ({ id: s.id, name: s.name })),
+    },
+    diff: report,
+  });
 });
 
 module.exports = router;

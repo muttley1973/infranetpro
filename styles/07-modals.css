@@ -293,6 +293,33 @@
         .dcim-dec-devlist { max-height:130px; overflow:auto; margin-top:6px; padding:6px 7px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--panel-bg); color:var(--text-muted); font-size:var(--fs-xs); line-height:1.6; word-break:break-word; }
         .dcim-dec-devlist span { color:var(--accent); }
         .dcim-dec-truncated { font-size:var(--fs-xs); color:var(--text-muted); }
+        /* Ri-lettura del DCIM: che cosa e' cambiato da quando hai importato. Riusa
+           il vestito delle decisioni (stessa modale, stesso peso visivo) ma dice
+           una cosa diversa: qui non si sceglie niente, si LEGGE. Il verso della
+           freccia e' sempre documento → DCIM, cosi' il valore di sinistra e'
+           quello che hai adesso davanti agli occhi nell'applicazione. */
+        .dcim-cmp { display:flex; flex-direction:column; gap:11px; }
+        .dcim-cmp-lead { font-size:var(--fs-xs); color:var(--text-muted); line-height:1.5; }
+        .dcim-cmp-scope { font-size:var(--fs-xs); color:var(--text-muted); display:flex; align-items:flex-start; gap:7px; line-height:1.5; }
+        .dcim-cmp-scope.is-exact { color:var(--active-color); }
+        .dcim-cmp-more { font-size:var(--fs-xs); color:var(--text-muted); padding:2px 2px 0; }
+        .dcim-cmp-note { display:flex; align-items:flex-start; gap:7px; font-size:var(--fs-xs); color:var(--text-muted);
+            border:1px solid var(--border); border-radius:var(--radius); padding:8px 10px; line-height:1.5; }
+        .dcim-cmp-group { display:flex; flex-direction:column; gap:6px; }
+        .dcim-cmp-row { border:1px solid var(--border); border-left-width:3px; border-radius:var(--radius);
+            background:var(--surface-2); padding:8px 11px; display:flex; flex-direction:column; gap:5px; }
+        .dcim-cmp-row.is-changed { border-left-color:var(--warning-color,#e3b341); }
+        .dcim-cmp-row.is-added   { border-left-color:var(--active-color); }
+        .dcim-cmp-row.is-removed { border-left-color:var(--fault-color); }
+        .dcim-cmp-head { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; font-size:var(--fs-sm); color:var(--text-main); }
+        .dcim-cmp-tag { font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.08em; color:var(--text-muted); }
+        .dcim-cmp-field { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; font-size:var(--fs-xs); }
+        .dcim-cmp-fname { color:var(--text-muted); min-width:74px; }
+        .dcim-cmp-doc { color:var(--text-muted); text-decoration:line-through; text-decoration-thickness:1px; }
+        .dcim-cmp-field i { color:var(--text-muted); font-size:.85em; }
+        .dcim-cmp-dcim { color:var(--text-main); font-weight:600; }
+        .dcim-cmp-manual { text-decoration:none; margin-left:5px; color:var(--accent); border:1px solid var(--accent);
+            border-radius:var(--radius-pill); padding:0 6px; font-size:.92em; }
         /* Riga «tipo da confermare»: due tendine al posto dei radio. Stessa riga,
            stessa gerarchia — era il pannello «Riconciliazione manuale». */
         .dcim-dec-selects { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:9px; }
