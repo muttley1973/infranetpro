@@ -235,7 +235,10 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         await dcimPage.click('button[data-act="dcim-wiz-next"]');
         await dcimPage.waitForSelector('input[data-change="dcim-ent"][data-key="devices"]', { timeout: 5000 });
         await dcimPage.click('button[data-act="dcim-wiz-next"]');
-        await dcimPage.waitForSelector('.dcim-decisions .dcim-dec-selects', { timeout: 15000 });
+        // Le tendine dei tipi da confermare vivono nelle righe APERTE (article):
+        // le fisarmoniche dei ruoli VLAN hanno anche loro .dcim-dec-selects, e il
+        // selettore stretto tiene distinti i due conteggi.
+        await dcimPage.waitForSelector('.dcim-decisions article.dcim-dec .dcim-dec-selects', { timeout: 15000 });
 
         const deviceRequests = mock.requestUrls.filter(url => /\/api\/dcim\/devices\//.test(url));
         const previewDeviceRequest = deviceRequests[deviceRequests.length - 1] || '';
@@ -244,22 +247,23 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         assert.doesNotMatch(previewDeviceRequest, /(?:^|[?&])tag=/, 'la selezione completa dei tag non restringe l’importazione');
 
         const initialReview = await dcimPage.evaluate(() => ({
-          groups: document.querySelectorAll('.dcim-dec-selects').length,
+          groups: document.querySelectorAll('article.dcim-dec .dcim-dec-selects').length,
           devices: [...document.querySelectorAll('.dcim-decisions .dcim-dec-label')].map(el => el.textContent.trim()).join(' | '),
+          outcomes: document.querySelectorAll('.dcim-outcome').length,
           kpis: document.querySelectorAll('.dcim-preview-kpi').length,
           attention: !!document.querySelector('.dcim-preview-attention'),
+          blocksTag: !!document.querySelector('.dcim-dec-blocks'),
           warningCards: document.querySelectorAll('.dcim-decisions .dcim-dec').length,
           commitDisabled: document.querySelector('button[data-act="dcim-commit"]')?.disabled === true,
         }));
         assert.equal(initialReview.groups, 2, 'la UI raggruppa i due modelli da riconciliare, una riga di decisione ciascuno');
         assert.match(initialReview.devices, /2/);
-        assert.equal(initialReview.kpis, 4, 'la preview espone quattro KPI principali');
-        assert.equal(initialReview.attention, true, 'la riconciliazione è presentata come attenzione primaria');
-        assert.ok(initialReview.warningCards <= 6, 'una riga per DECISIONE, mai una per apparato');
+        assert.equal(initialReview.outcomes, 1, 'un preventivo solo: la schermata non ripete i numeri');
+        assert.equal(initialReview.kpis, 0, 'niente card KPI sopra il preventivo');
+        assert.equal(initialReview.attention, false, 'niente banner giallo: il semaforo è uno solo');
+        assert.equal(initialReview.blocksTag, true, 'la riga che blocca la creazione porta il suo tag addosso');
+        assert.ok(initialReview.warningCards <= 8, 'una riga per DECISIONE, mai una per apparato');
         assert.equal(initialReview.commitDisabled, true, 'la creazione resta bloccata finché la riconciliazione non è risolta');
-
-        await dcimPage.click('button[data-act="dcim-reconcile-focus"]');
-        assert.equal(await dcimPage.evaluate(() => document.activeElement?.classList.contains('dcim-decisions')), true, 'Risolvi casi porta il focus alle decisioni');
 
         await dcimPage.selectOption('select[data-change="dcim-map-type"][data-group="0"]', 'switch');
         await dcimPage.selectOption('select[data-change="dcim-map-placement"][data-group="0"]', 'rack');
@@ -269,7 +273,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         await dcimPage.waitForSelector('button[data-act="dcim-commit"]:not([disabled])', { timeout: 15000 });
 
         const resolvedReview = await dcimPage.evaluate(() => ({
-          panelGone: !document.querySelector('.dcim-dec-selects'),
+          panelGone: !document.querySelector('article.dcim-dec .dcim-dec-selects'),
           commitDisabled: document.querySelector('button[data-act="dcim-commit"]')?.disabled === true,
         }));
         assert.equal(resolvedReview.panelGone, true, 'le righe da confermare spariscono quando tutti i casi sono risolti');

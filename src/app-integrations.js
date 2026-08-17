@@ -672,6 +672,12 @@ function _reconciliationGroups(details) {
 function _renderReviewRows(p, startIndex) {
   const groups = _reconciliationGroups(p.catalogMatches && p.catalogMatches.details || []);
   if (!groups.length) return '';
+  // Queste sono le SOLE righe che bloccano la creazione, e lo dicono addosso —
+  // al posto del vecchio banner giallo, che lo diceva da un'altra parte e con un
+  // altro conteggio (apparati, non decisioni). La valvola «importa comunque» in
+  // fondo spegne il blocco, e con lui il tag.
+  const blocksTag = _wiz.selection.allowUnresolved === true ? ''
+    : `<span class="dcim-dec-blocks">${escapeHTML(t('dcim.dec.blocks'))}</span>`;
   return groups.map((group, index) => {
     const firstMapping = _wiz.selection.mapping && _wiz.selection.mapping[String(group.ids[0])];
     const selectedType = (firstMapping && firstMapping.type) || group.type;
@@ -687,7 +693,7 @@ function _renderReviewRows(p, startIndex) {
     return `<article class="dcim-dec is-choice" id="dcim-dec-review-${startIndex + index}">
       <div class="dcim-dec-stripe"></div>
       <div class="dcim-dec-body">
-        <div class="dcim-dec-title">${escapeHTML(_tp('dcim.dec.review.title', group.count, { n: group.count }))}</div>
+        <div class="dcim-dec-title">${escapeHTML(_tp('dcim.dec.review.title', group.count, { n: group.count }))}` + blocksTag + `</div>
         <div class="dcim-dec-why">${escapeHTML(why)}</div>
         <div class="dcim-dec-selects">
           <label>${escapeHTML(t('integrations.reconcileType'))}
@@ -708,29 +714,38 @@ function _renderReviewRows(p, startIndex) {
 // regola automatica avrebbe saputo distinguerla senza chiederlo.
 const _VLAN_ROLE_TARGETS = ['', 'mgmt', 'voice', 'guest', 'native'];
 
+function _vlanRoleOptions(role, chosen) {
+  return _VLAN_ROLE_TARGETS.map(id =>
+    `<option value="${escapeHTML(id)}"${id === chosen ? ' selected' : ''}>${escapeHTML(t('dcim.dec.vlanRole.t.' + (id || 'none')))}</option>`).join('');
+}
+
+// Riga a fisarmonica: non scegliere è un esito legittimo (le liste restano come
+// sono), quindi la riga chiusa DICE l'esito corrente invece di reclamare spazio.
 function _renderVlanRoleRows(p) {
   const roles = Array.isArray(p.vlanRoles) ? p.vlanRoles : [];
   if (!roles.length) return '';
   return roles.map((role) => {
     const chosen = String((_wiz.selection.vlanRoleMap || {})[role.slug] || '');
-    const options = _VLAN_ROLE_TARGETS.map(id =>
-      `<option value="${escapeHTML(id)}"${id === chosen ? ' selected' : ''}>${escapeHTML(t('dcim.dec.vlanRole.t.' + (id || 'none')))}</option>`).join('');
     const vids = role.vids || [];
     const why = [
       t('dcim.dec.vlanRole.why'),
       t('dcim.dec.vlanRole.vids', { list: vids.slice(0, 8).join(' · ') + (vids.length > 8 ? ' +' + (vids.length - 8) : '') }),
     ].join(' ');
-    return `<article class="dcim-dec is-choice">
-      <div class="dcim-dec-stripe"></div>
+    const chosenLabel = t('dcim.dec.vlanRole.t.' + (chosen || 'none')) + (chosen ? '' : ' · ' + t('dcim.dec.default'));
+    return `<details class="dcim-dec dcim-dec-fold is-choice">
+      <summary>
+        <span class="dcim-dec-fold-title">${escapeHTML(_tp('dcim.dec.vlanRole.title', vids.length, { role: role.name, n: vids.length }))}</span>
+        <span class="dcim-dec-fold-chosen">${escapeHTML(chosenLabel)}</span>
+        <i class="fas fa-chevron-down"></i>
+      </summary>
       <div class="dcim-dec-body">
-        <div class="dcim-dec-title">${escapeHTML(_tp('dcim.dec.vlanRole.title', vids.length, { role: role.name, n: vids.length }))}</div>
         <div class="dcim-dec-why">${escapeHTML(why)}</div>
         <div class="dcim-dec-selects">
           <label>${escapeHTML(t('dcim.dec.vlanRole.pick'))}
-            <select data-change="dcim-vlan-role" data-slug="${escapeHTML(role.slug)}">${options}</select></label>
+            <select data-change="dcim-vlan-role" data-slug="${escapeHTML(role.slug)}">${_vlanRoleOptions(role, chosen)}</select></label>
         </div>
       </div>
-    </article>`;
+    </details>`;
   }).join('');
 }
 
@@ -800,9 +815,8 @@ function _decisionDevices(row, index) {
     <div class="dcim-dec-devlist" id="dcim-dec-dev-${index}">${shown.map(d => escapeHTML(d.name)).join(' · ')}${rest > 0 ? ' <span>' + escapeHTML(t('dcim.dec.andMore', { n: rest })) + '</span>' : ''}</div></details>`;
 }
 
-function _renderDecisionRow(row, index) {
-  const isLoss = row.severity === 'loss';
-  const options = (row.options || []).map(opt => {
+function _decisionOptions(row, index) {
+  return (row.options || []).map(opt => {
     const on = row.chosen === opt.id;
     return `<label class="dcim-dec-opt${on ? ' is-on' : ''}">
       <input type="radio" name="dcim-dec-${index}" data-change="dcim-decision" data-code="${escapeHTML(row.code)}" data-option="${escapeHTML(opt.id)}"${on ? ' checked' : ''}>
@@ -811,22 +825,114 @@ function _renderDecisionRow(row, index) {
       ${opt.isDefault ? `<span class="dcim-dec-def">${escapeHTML(t('dcim.dec.default'))}</span>` : ''}
     </label>`;
   }).join('');
-  return `<article class="dcim-dec is-${escapeHTML(row.severity)}">
+}
+
+// `fold` = riga a fisarmonica. Con le opzioni, la riga chiusa dichiara la
+// scelta corrente (titolo a sinistra, scelta a destra) e si apre solo per
+// cambiarla. Senza opzioni — perdite e limiti — la riga chiusa tiene il titolo
+// e il tag «dato perso»: il fatto resta annunciato (per le perdite anche dal
+// chip nel preventivo), la spiegazione aspetta di essere chiesta. Aperti
+// restano solo i tipi da confermare, in _renderReviewRows. Una riga senza
+// niente da rivelare non finge la tendina: resta un articolo secco.
+// L'id serve ai chip del preventivo per arrivare qui.
+function _renderDecisionRow(row, index, fold) {
+  const isLoss = row.severity === 'loss';
+  const opts = _decisionOptions(row, index);
+  const lossTag = isLoss ? `<span class="dcim-dec-loss">${escapeHTML(t('dcim.dec.lossTag'))}</span>` : '';
+  const why = _decisionWhy(row);
+  const devices = _decisionDevices(row, index);
+  if (fold && opts) {
+    const chosenOpt = (row.options || []).find(opt => opt.id === row.chosen);
+    const chosenLabel = chosenOpt
+      ? _decisionText(row, chosenOpt.id) + (chosenOpt.isDefault ? ' · ' + t('dcim.dec.default') : '')
+      : '';
+    return `<details class="dcim-dec dcim-dec-fold is-${escapeHTML(row.severity)}" id="dcim-dec-row-${escapeHTML(row.code)}">
+      <summary>
+        <span class="dcim-dec-fold-title">${escapeHTML(_decisionText(row, 'title'))}</span>
+        <span class="dcim-dec-fold-chosen">${escapeHTML(chosenLabel)}</span>
+        <i class="fas fa-chevron-down"></i>
+      </summary>
+      <div class="dcim-dec-body">
+        ` + (why ? `<div class="dcim-dec-why">${escapeHTML(why)}</div>` : '') + `
+        <div class="dcim-dec-opts">` + opts + `</div>
+        ` + devices + `
+      </div>
+    </details>`;
+  }
+  if (fold && (why || devices)) {
+    return `<details class="dcim-dec dcim-dec-fold is-${escapeHTML(row.severity)}" id="dcim-dec-row-${escapeHTML(row.code)}">
+      <summary>
+        <span class="dcim-dec-fold-title">${escapeHTML(_decisionText(row, 'title'))}</span>
+        ` + lossTag + `
+        <i class="fas fa-chevron-down"></i>
+      </summary>
+      <div class="dcim-dec-body">
+        ` + (why ? `<div class="dcim-dec-why">${escapeHTML(why)}</div>` : '') + devices + `
+      </div>
+    </details>`;
+  }
+  return `<article class="dcim-dec is-${escapeHTML(row.severity)}" id="dcim-dec-row-${escapeHTML(row.code)}">
     <div class="dcim-dec-stripe"></div>
     <div class="dcim-dec-body">
-      <div class="dcim-dec-title">${escapeHTML(_decisionText(row, 'title'))}${isLoss ? `<span class="dcim-dec-loss">${escapeHTML(t('dcim.dec.lossTag'))}</span>` : ''}</div>
-      <div class="dcim-dec-why">${escapeHTML(_decisionWhy(row))}</div>
-      ${options ? `<div class="dcim-dec-opts">${options}</div>` : ''}
-      ${_decisionDevices(row, index)}
+      <div class="dcim-dec-title">${escapeHTML(_decisionText(row, 'title'))}` + lossTag + `</div>
+      ` + (why ? `<div class="dcim-dec-why">${escapeHTML(why)}</div>` : '') + `
+      ` + (opts ? `<div class="dcim-dec-opts">` + opts + '</div>' : '') + `
+      ` + devices + `
     </div>
   </article>`;
+}
+
+// Chip del preventivo: un chip = un codice con la sua etichetta breve. Nessuna
+// etichetta = niente chip inventato. È un bottone: porta alla riga che spiega.
+function _costChip(cost) {
+  const key = 'dcim.cost.' + cost.code + (cost.chosen ? '.' + cost.chosen : '');
+  const label = _tp(key, cost.n, { n: cost.n });
+  if (label === key) return '';
+  return `<button type="button" class="dcim-cost is-${escapeHTML(cost.severity)}" data-act="dcim-dec-goto" data-code="${escapeHTML(cost.code)}">${escapeHTML(label)}</button>`;
+}
+
+// Le PERDITE stanno nel preventivo: la riga «Importerò…» dice subito anche che
+// cosa NON entra, con un chip per voce. Due strisce separate perché hanno due
+// nature diverse: «non entra» è un fatto senza alternative, «con le scelte
+// attuali» è una conseguenza reversibile. Prima dei chip etichettati le perdite
+// finivano nel silenzio e la striscia diceva «nessuna perdita» — mentiva.
+function _outcomeCosts(o) {
+  const losses = (o.costs || []).filter(c => c.severity === 'loss').map(_costChip).filter(Boolean).join('');
+  const rest = (o.costs || []).filter(c => c.severity !== 'loss').map(_costChip).filter(Boolean).join('');
+  if (!losses && !rest) return `<div class="dcim-outcome-costs is-clean"><i class="fas fa-circle-check"></i> ${escapeHTML(t('dcim.dec.clean'))}</div>`;
+  return (losses ? `<div class="dcim-outcome-costs"><span>${escapeHTML(t('dcim.dec.notIn'))}</span>` + losses + '</div>' : '')
+    + (rest ? `<div class="dcim-outcome-costs"><span>${escapeHTML(t('dcim.dec.costs'))}</span>` + rest + '</div>' : '');
+}
+
+function _outcomeDetail(icon, text) {
+  return `<span><i class="fas ${escapeHTML(icon)}"></i> ${escapeHTML(text)}</span>`;
+}
+
+// I numeri di seconda fila (interfacce, prefissi, IP…) non ripetono il
+// preventivo: dicono cose che sopra non ci sono. Ma non decidono niente, quindi
+// stanno dietro una tendina — erano una striscia di nove chip sempre visibile.
+function _outcomeDetails(p) {
+  const c = p.counts || {};
+  const excluded = Object.values(p.excluded || {}).reduce((sum, values) => sum + (Array.isArray(values) ? values.length : 0), 0);
+  const items = [
+    _outcomeDetail('fa-network-wired', t('integrations.cInterfaces') + ' ' + (c.interfaces || 0)),
+    _outcomeDetail('fa-diagram-project', t('integrations.cPrefixes') + ' ' + (c.prefixes || 0)),
+    _outcomeDetail('fa-location-dot', t('integrations.cIps') + ' ' + (c.ips || 0)),
+  ];
+  if (c.radios) items.push(_outcomeDetail('fa-wifi', t('integrations.cRadios', { n: c.radios, ssids: c.ssids || 0 })));
+  items.push(_outcomeDetail('fa-server', t('integrations.cRackFloor', { rack: c.devicesRack || 0, floor: c.devicesFloor || 0 })));
+  if (excluded) items.push(_outcomeDetail('fa-filter-circle-xmark', t('integrations.cExcluded', { n: excluded })));
+  return `<details class="dcim-outcome-details"><summary><i class="fas fa-chevron-down"></i> ${escapeHTML(t('integrations.previewDetails'))}</summary>
+    <div class="dcim-outcome-detail-list">` + items.join('') + '</div></details>';
 }
 
 function _renderDecisions(p) {
   const model = buildDecisions(p, _wiz.selection.decisions);
   const o = model.outcome;
   const num = (key, value) => `<span class="dcim-out-n">${escapeHTML(_tp(key, value, { n: value }))}</span>`;
-  // Il preventivo: l'unica riga che chi importa legge davvero.
+  // Il preventivo: l'unica riga che chi importa legge davvero — e l'unica
+  // dichiarazione di numeri della schermata: le card KPI e la striscia di chip
+  // che lo ripetevano sopra non ci sono più.
   // Gli stack compaiono solo se ce ne sono: «0 stack» in un import che non ne ha
   // e' rumore, e per giunta suggerisce una perdita che non c'e' stata.
   const totals = [num('dcim.dec.oDevices', o.devices), num('dcim.dec.oCables', o.cables),
@@ -834,24 +940,17 @@ function _renderDecisions(p) {
     .concat(o.stacks ? [num('dcim.dec.oStacks', o.stacks)] : [])
     .concat(o.vms ? [num('dcim.dec.oVms', o.vms)] : [])
     .join('<i>·</i>');
-  const costs = o.costs.map(cost => {
-    const key = 'dcim.cost.' + cost.code + (cost.chosen ? '.' + cost.chosen : '');
-    const label = _tp(key, cost.n, { n: cost.n });
-    if (label === key) return '';   // nessuna etichetta breve = niente chip inventato
-    return `<span class="dcim-cost is-${escapeHTML(cost.severity)}">${escapeHTML(label)}</span>`;
-  }).filter(Boolean).join('');
   const outcome = `<div class="dcim-outcome">
-    <div class="dcim-outcome-main"><span class="dcim-out-lead">${escapeHTML(t('dcim.dec.outcome'))}</span> ${totals}</div>
-    ${costs ? `<div class="dcim-outcome-costs"><span>${escapeHTML(t('dcim.dec.costs'))}</span>${costs}</div>`
-      : `<div class="dcim-outcome-costs is-clean"><i class="fas fa-circle-check"></i> ${escapeHTML(t('dcim.dec.clean'))}</div>`}
-  </div>`;
-  // Una PERDITA non ha alternative, ma non per questo è un dettaglio: sta in testa,
-  // non sotto «non richiede scelte». Chi importa deve sapere subito cosa non entra.
+    <div class="dcim-outcome-main"><span class="dcim-out-lead">${escapeHTML(t('dcim.dec.outcome'))}</span> ` + totals + '</div>'
+    + _outcomeCosts(o) + _outcomeDetails(p) + '</div>';
+  // Le perdite hanno il loro chip nel preventivo, quindi le righe che le
+  // spiegano stanno DOPO le scelte: su una perdita non c'è niente da fare, su
+  // una scelta sì — prima ciò che aspetta una risposta, poi ciò che si legge.
   const losses = model.info.filter(row => row.severity === 'loss');
   const plain = model.info.filter(row => row.severity !== 'loss');
   let seq = 0;
   const block = (rows, label) => rows.length
-    ? `<span class="dcim-dec-label">${escapeHTML(label)}</span>` + rows.map(row => _renderDecisionRow(row, seq++)).join('')
+    ? `<span class="dcim-dec-label">${escapeHTML(label)}</span>` + rows.map(row => _renderDecisionRow(row, seq++, true)).join('')
     : '';
   // I «tipi da confermare» sono decisioni a tutti gli effetti — e sono le uniche che
   // BLOCCANO la creazione del progetto: vanno per prime fra quelle da prendere.
@@ -862,11 +961,11 @@ function _renderDecisions(p) {
   // sceglierli significa lasciare le liste come sono, che è un esito legittimo.
   const vlanRoles = _renderVlanRoleRows(p);
   const vlanRoleCount = (Array.isArray(p.vlanRoles) ? p.vlanRoles : []).length;
-  const decisions = block(losses, t('dcim.dec.losses'))
-    + ((review || vlanRoles || model.decisions.length)
-      ? `<span class="dcim-dec-label">${escapeHTML(t('dcim.dec.toDecide'))} · ${reviewCount + vlanRoleCount + model.decisions.length}</span>`
-        + review + vlanRoles + model.decisions.map(row => _renderDecisionRow(row, seq++)).join('')
-      : '');
+  const decisions = (review || vlanRoles || model.decisions.length)
+    ? `<span class="dcim-dec-label">${escapeHTML(t('dcim.dec.toDecide'))} · ${reviewCount + vlanRoleCount + model.decisions.length}</span>`
+      + review + vlanRoles + model.decisions.map(row => _renderDecisionRow(row, seq++, true)).join('')
+    : '';
+  const lossBlock = block(losses, t('dcim.dec.losses'));
   const info = block(plain, t('dcim.dec.info'));
   // Coda del pannello: la valvola «importa comunque» e il ricalcolo, che stavano nel
   // vecchio blocco Riconciliazione. Compaiono solo se c'è qualcosa da confermare o
@@ -881,17 +980,17 @@ function _renderDecisions(p) {
   </div>` : '';
   const truncated = model.truncated
     ? `<div class="dcim-dec-truncated">${escapeHTML(t('dcim.dec.truncated', { n: (p.issues || []).length, total: p.issuesTotal || 0 }))}</div>` : '';
-  // Età del dato + rilettura esplicita. Ricalcolare una decisione riusa la lettura
-  // già fatta (istantaneo): proprio per questo va detto DA QUANDO è quella lettura,
+  // Età del dato + rilettura esplicita, in TESTA accanto al titolo: qualifica i
+  // numeri del preventivo. Ricalcolare una decisione riusa la lettura già fatta
+  // (istantaneo): proprio per questo va detto DA QUANDO è quella lettura,
   // altrimenti un pannello che risponde subito si scambia per «NetBox adesso».
-  const fresh = p.fetchedAt ? `<div class="dcim-dec-fresh">
+  const fresh = p.fetchedAt ? `<span class="dcim-dec-fresh dcim-dec-fresh-head">
     <span>${escapeHTML(t('dcim.dec.fetchedAt', { time: _clock(p.fetchedAt) }))}</span>
     <button class="um-btn um-btn-ghost" data-act="dcim-reread"><i class="fas fa-cloud-arrow-down"></i> ${escapeHTML(t('dcim.dec.reread'))}</button>
-  </div>` : '';
+  </span>` : '';
   return `<section class="dcim-decisions" aria-labelledby="dcim-dec-title">
-    <h4 id="dcim-dec-title"><i class="fas fa-scale-balanced"></i> ${escapeHTML(t('dcim.dec.heading'))}</h4>
-    ${outcome}${decisions}${info}${truncated}${foot}${fresh}
-  </section>`;
+    <h4 id="dcim-dec-title"><i class="fas fa-scale-balanced"></i> ${escapeHTML(t('dcim.dec.heading'))}` + fresh + '</h4>'
+    + outcome + decisions + lossBlock + info + truncated + foot + '</section>';
 }
 
 function _renderPreviewStep() {
@@ -901,38 +1000,12 @@ function _renderPreviewStep() {
   if (!p) return `<div>${_sp()}</div>`;
   const c = p.counts || {};
   const sm = p.samples || {};
-  const review = (p.catalogMatches && p.catalogMatches.details || []).filter(x => x.reviewRequired).slice(0, 20);
-  const reviewHtml = review.length ? `<details style="margin-bottom:10px"><summary style="cursor:pointer;font-size:12px;color:var(--warning-color,#e3b341)"><i class="fas fa-list-check"></i> ${escapeHTML(t('integrations.reviewMatches', { n: review.length }))}</summary>
-    <div style="margin-top:7px;max-height:150px;overflow:auto">${review.map(x => `<div style="padding:4px 0;border-bottom:0.5px solid var(--border)"><strong>${escapeHTML(x.name || ('#' + x.deviceId))}</strong> <span style="color:var(--text-muted)">· ${escapeHTML(x.strategy || 'unmatched')}${x.sourceSlug ? ' · ' + escapeHTML(x.sourceSlug) : ''}</span></div>`).join('')}</div></details>` : '';
-  const previewExcluded = Object.values(p.excluded || {}).reduce((sum, values) => sum + (Array.isArray(values) ? values.length : 0), 0);
-  const previewMatched = (p.catalogMatches && p.catalogMatches.matched) || 0;
-  const previewUnmatched = (p.catalogMatches && p.catalogMatches.unmatched) || 0;
-  const previewReviewDetails = (p.catalogMatches && p.catalogMatches.details || []).filter(x => x && x.reviewRequired);
-  const previewReconciliation = p.reconciliation || {};
-  const previewReviewCount = Number.isFinite(Number(previewReconciliation.required)) ? Number(previewReconciliation.required) : previewReviewDetails.length;
-  const previewKpi = (value, label, icon) => `<div class="dcim-preview-kpi"><i class="fas ${icon}"></i><strong>${escapeHTML(String(value || 0))}</strong><span>${escapeHTML(label)}</span></div>`;
-  const previewContext = `<div class="dcim-preview-context"><strong>${escapeHTML(p.proposedProjectName || t('integrations.previewTitle'))}</strong><span>${escapeHTML(t('integrations.previewContext', { devices: c.devices || 0, rack: c.devicesRack || 0, floor: c.devicesFloor || 0 }))}</span></div>`;
-  const previewKpis = `<div class="dcim-preview-kpis">
-    ${previewKpi(c.devices, t('integrations.cDevices'), 'fa-server')}
-    ${previewKpi(c.directLinks, t('integrations.previewDirect'), 'fa-link')}
-    ${previewKpi(c.passThroughLinks, t('integrations.previewPassThrough'), 'fa-route')}
-    ${previewKpi(previewMatched, t('integrations.previewMatched'), 'fa-check')}
-  </div>`;
-  const previewSecondary = `<div class="dcim-preview-secondary" aria-label="${escapeHTML(t('integrations.previewDetails'))}">
-    <span><i class="fas fa-network-wired"></i> ${escapeHTML(t('integrations.cInterfaces'))} ${c.interfaces || 0}</span>
-    <span><i class="fas fa-plug"></i> ${escapeHTML(t('integrations.cCables'))} ${c.cables || 0}</span>
-    <span><i class="fas fa-layer-group"></i> ${escapeHTML(t('integrations.cVlans'))} ${c.vlans || 0}</span>
-    <span><i class="fas fa-diagram-project"></i> ${escapeHTML(t('integrations.cPrefixes'))} ${c.prefixes || 0}</span>
-    <span><i class="fas fa-location-dot"></i> ${escapeHTML(t('integrations.cIps'))} ${c.ips || 0}</span>
-    ${c.radios ? `<span><i class="fas fa-wifi"></i> ${escapeHTML(t('integrations.cRadios', { n: c.radios, ssids: c.ssids || 0 }))}</span>` : ''}
-    <span><i class="fas fa-server"></i> ${escapeHTML(t('integrations.cRackFloor', { rack: c.devicesRack || 0, floor: c.devicesFloor || 0 }))}</span>
-    <span><i class="fas fa-question"></i> ${escapeHTML(t('integrations.cToReview', { n: previewUnmatched }))}</span>
-    <span><i class="fas fa-filter-circle-xmark"></i> ${escapeHTML(t('integrations.cExcluded', { n: previewExcluded }))}</span>
-  </div>`;
-  const previewAttention = previewReviewCount > 0 ? `<section class="dcim-preview-attention" aria-labelledby="dcim-preview-attention-title">
-    <div class="dcim-preview-attention-main"><i class="fas fa-triangle-exclamation"></i><div><strong id="dcim-preview-attention-title">${escapeHTML(t('integrations.previewAttention'))}</strong><span>${escapeHTML(t('integrations.reconcileCases', { n: previewReviewCount }))}</span></div></div>
-    <button class="um-btn" data-act="dcim-reconcile-focus"><i class="fas fa-list-check"></i> ${escapeHTML(t('integrations.previewResolve'))}</button>
-  </section>` : '';
+  // Niente più riga di contesto, card KPI, striscia di chip né banner giallo
+  // «Richiede attenzione»: ogni numero stava già nel preventivo (o non decideva
+  // niente, e ora vive nella tendina «Vedi dettagli» del preventivo), e il
+  // banner era un secondo semaforo con un conteggio diverso — contava apparati
+  // mentre «Da decidere» conta decisioni, e i due numeri sembravano in
+  // contraddizione. La schermata è: preventivo → decisioni → esclusioni → stato.
   const previewWarningHtml = _renderDecisions(p);
   const devs = sm.devices || [];
   const rows = devs.length
@@ -949,7 +1022,6 @@ function _renderPreviewStep() {
   );
   const blocked = _wiz.previewStale || reconciliationBlocked;
   const previewStatus = blocked ? `<div class="dcim-preview-status is-blocked"><i class="fas fa-circle-info"></i> ${escapeHTML(_wiz.previewStale ? t('integrations.previewNeedsRebuild') : t('integrations.reconcileBlocked'))}</div>` : c.devices ? `<div class="dcim-preview-status is-ready"><i class="fas fa-circle-check"></i> ${escapeHTML(t('integrations.previewReady'))}</div>` : `<div class="dcim-preview-status"><i class="fas fa-circle-info"></i> ${escapeHTML(t('integrations.noDevicesSelected'))}</div>`;
-  const blockHint = blocked ? `<div style="margin-top:10px;padding:7px 9px;border-radius:var(--radius);background:var(--bg-warning,rgba(227,179,65,.1));color:var(--warning-color,#e3b341);font-size:12px"><i class="fas fa-circle-info"></i> ${escapeHTML(_wiz.previewStale ? t('integrations.previewNeedsRebuild') : t('integrations.reconcileBlocked'))}</div>` : (!c.devices ? `<div style="margin-top:10px;color:var(--text-muted);font-size:12px"><i class="fas fa-circle-info"></i> ${escapeHTML(t('integrations.noDevicesSelected'))}</div>` : '');
   // Campo nome nello stile nativo InfraNet (.prop-group: etichetta sopra, controllo
   // a tutta larghezza col bordo/sfondo del tema), bottone «Crea progetto» su riga a sé.
   const commit = `<div class="prop-group" style="margin-top:14px">
@@ -960,7 +1032,7 @@ function _renderPreviewStep() {
       ${_compareButton()}
       <button class="um-btn primary" data-act="dcim-commit"${c.devices && !blocked ? '' : ' disabled'} title="${blocked ? escapeHTML(t('integrations.reconcileBlocked')) : ''}"><i class="fas fa-plus"></i> ${escapeHTML(t('integrations.createProject'))}</button>
     </div>`;
-  return previewContext + previewKpis + previewSecondary + previewAttention + previewWarningHtml + rows + previewStatus + commit;
+  return previewWarningHtml + rows + previewStatus + commit;
 }
 
 // Confronto col progetto APERTO. Non tocca il documento: la rotta legge il
@@ -1077,12 +1149,13 @@ registerClickActions({
     }
     _wiz.previewStale = true; _renderImport();
   },
-  'dcim-reconcile-focus': () => {
-    const panel = document.querySelector('#dcim-import-body .dcim-decisions');
-    if (!panel) return;
-    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    panel.setAttribute('tabindex', '-1');
-    panel.focus({ preventScroll: true });
+  // Chip del preventivo → la sua riga: il numero in testa è cliccabile e porta
+  // alla spiegazione, aprendo la fisarmonica se la riga è ripiegata.
+  'dcim-dec-goto': (el) => {
+    const row = document.getElementById('dcim-dec-row-' + (el.dataset.code || ''));
+    if (!row) return;
+    if (row.tagName === 'DETAILS') row.open = true;
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
   },
   'dcim-reconcile-preview': () => _runPreview(),          // ricalcola sulla lettura in memoria
   'dcim-reread': () => _runPreview(true),                  // rilegge davvero da NetBox

@@ -233,23 +233,6 @@
         .tm-progress .tm-err { color:var(--fault-color); }
         .dcim-import-progress,
         .dcim-import-result { padding:8px 0 2px; }
-        .dcim-preview-context { display:flex; align-items:baseline; flex-wrap:wrap; gap:7px; margin:2px 0 12px; color:var(--text-muted); font-size:var(--fs-sm); }
-        .dcim-preview-context strong { color:var(--text-main); font-size:var(--fs-lg); }
-        .dcim-preview-kpis { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin-bottom:8px; }
-        .dcim-preview-kpi { display:grid; grid-template-columns:auto 1fr; column-gap:7px; align-items:center; min-width:0; padding:10px 11px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface-2); }
-        .dcim-preview-kpi i { grid-row:span 2; color:var(--accent); font-size:15px; }
-        .dcim-preview-kpi strong { color:var(--text-main); font-size:20px; line-height:1; font-weight:600; }
-        .dcim-preview-kpi span { overflow:hidden; color:var(--text-muted); font-size:var(--fs-xs); text-overflow:ellipsis; white-space:nowrap; }
-        .dcim-preview-secondary { display:flex; flex-wrap:wrap; gap:5px 11px; margin-bottom:12px; color:var(--text-muted); font-size:var(--fs-xs); }
-        .dcim-preview-secondary span { display:inline-flex; align-items:center; gap:4px; white-space:nowrap; }
-        .dcim-preview-secondary i { color:var(--text-secondary); }
-        .dcim-preview-attention { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:8px 0 10px; padding:10px 11px; border:1px solid rgba(227,179,65,.45); border-radius:var(--radius); background:rgba(227,179,65,.09); }
-        .dcim-preview-attention-main { display:flex; align-items:center; gap:9px; min-width:0; }
-        .dcim-preview-attention-main > i { color:var(--warning-color,#e3b341); font-size:16px; }
-        .dcim-preview-attention-main div { display:flex; flex-direction:column; gap:2px; min-width:0; }
-        .dcim-preview-attention-main strong { color:var(--text-main); font-size:var(--fs-sm); }
-        .dcim-preview-attention-main span { color:var(--warning-color,#e3b341); font-size:var(--fs-xs); }
-        .dcim-preview-attention .um-btn { flex:none; }
         /* ── Riconciliazione: una riga = una DECISIONE ─────────────────────────
            Sostituisce la lista di «Avvisi tecnici» (una riga per apparato, tutte
            uguali, nessuna leva). La striscia colorata a sinistra codifica la
@@ -269,6 +252,17 @@
         .dcim-cost.is-choice { color:var(--warning-color,#e3b341); background:rgba(227,179,65,.09); }
         .dcim-cost.is-loss { color:var(--fault-color); background:rgba(248,81,73,.1); }
         .dcim-cost.is-info { color:var(--text-muted); background:transparent; }
+        /* Il chip è un bottone: porta alla riga che lo spiega (e la apre). */
+        button.dcim-cost { appearance:none; font-family:inherit; cursor:pointer; }
+        button.dcim-cost:hover { filter:brightness(1.25); }
+        /* Tendina dei numeri di seconda fila dentro il preventivo. */
+        .dcim-outcome-details summary { display:inline-flex; align-items:center; gap:5px; width:max-content; cursor:pointer; list-style:none; color:var(--text-muted); font-size:var(--fs-xs); }
+        .dcim-outcome-details summary::-webkit-details-marker { display:none; }
+        .dcim-outcome-details summary i { font-size:10px; transition:transform .15s ease; }
+        .dcim-outcome-details[open] summary i { transform:rotate(180deg); }
+        .dcim-outcome-detail-list { display:flex; flex-wrap:wrap; gap:5px 11px; margin-top:6px; color:var(--text-muted); font-size:var(--fs-xs); }
+        .dcim-outcome-detail-list span { display:inline-flex; align-items:center; gap:4px; white-space:nowrap; }
+        .dcim-outcome-detail-list span i { color:var(--text-secondary); font-size:inherit; transition:none; }
         .dcim-dec-label { font-size:var(--fs-xs); letter-spacing:.09em; text-transform:uppercase; color:var(--text-muted); margin-top:4px; }
         .dcim-dec { display:flex; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface-2); overflow:hidden; }
         .dcim-dec-stripe { width:3px; flex:none; background:var(--warning-color,#e3b341); }
@@ -325,6 +319,27 @@
         .dcim-dec-selects { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:9px; }
         .dcim-dec-selects label { display:flex; flex-direction:column; gap:3px; min-width:0; font-size:var(--fs-xs); color:var(--text-muted); }
         .dcim-dec-selects select { width:100%; }
+        /* Fisarmonica: una riga col default già scelto si ripiega sul suo esito.
+           Chiusa dice titolo + scelta corrente; aperta ha il perché e le
+           alternative. Il bordo sinistro tiene il colore della gravità che
+           nella riga aperta porta la striscia. */
+        details.dcim-dec-fold { display:block; border-left:3px solid var(--warning-color,#e3b341); }
+        details.dcim-dec-fold.is-loss { border-left-color:var(--fault-color); }
+        details.dcim-dec-fold.is-info { border-left-color:var(--inactive-color,#6e7681); }
+        .dcim-dec-fold.is-info .dcim-dec-fold-title { font-weight:500; color:var(--text-muted); }
+        .dcim-dec-fold summary .dcim-dec-loss { flex:none; }
+        .dcim-dec-fold summary { display:flex; align-items:baseline; gap:8px; padding:9px 11px; cursor:pointer; list-style:none; }
+        .dcim-dec-fold summary::-webkit-details-marker { display:none; }
+        .dcim-dec-fold-title { flex:1; min-width:0; font-size:var(--fs-sm); font-weight:600; color:var(--text-main); }
+        .dcim-dec-fold-chosen { flex:none; color:var(--text-muted); font-size:var(--fs-xs); }
+        .dcim-dec-fold summary > i { flex:none; align-self:center; color:var(--text-muted); font-size:11px; transition:transform .15s ease; }
+        .dcim-dec-fold[open] summary > i { transform:rotate(180deg); }
+        .dcim-dec-fold .dcim-dec-body { padding-top:0; }
+        /* Il tag delle sole righe che bloccano la creazione: il semaforo sta
+           addosso alla riga, non in un banner a parte. */
+        .dcim-dec-blocks { flex:none; font-size:var(--fs-xs); font-weight:500; color:var(--warning-color,#e3b341); border:1px solid currentColor; border-radius:var(--radius-pill); padding:1px 8px; }
+        /* Età del dato accanto al titolo del preventivo. */
+        .dcim-dec-fresh-head { margin-left:auto; margin-top:0; font-weight:400; font-size:var(--fs-xs); }
         .dcim-dec-foot { margin-top:4px; padding-top:10px; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:9px; }
         .dcim-dec-allow { display:flex; align-items:flex-start; gap:8px; font-size:var(--fs-sm); cursor:pointer; }
         .dcim-dec-allow input { margin-top:3px; flex:none; accent-color:var(--accent); }
@@ -335,7 +350,6 @@
         .dcim-preview-status { display:flex; align-items:center; gap:6px; margin-top:10px; padding:7px 9px; border-radius:var(--radius); color:var(--text-muted); font-size:var(--fs-xs); background:rgba(255,255,255,.035); }
         .dcim-preview-status.is-ready { color:var(--active-color); background:rgba(51,209,122,.08); }
         .dcim-preview-status.is-blocked { color:var(--warning-color,#e3b341); background:rgba(227,179,65,.09); }
-        @media (max-width:720px) { .dcim-preview-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } .dcim-preview-attention { align-items:flex-start; flex-direction:column; } .dcim-preview-attention .um-btn { align-self:flex-end; } }
         .dcim-progress-hero,
         .dcim-result-hero { display:flex; align-items:center; gap:12px; margin-bottom:16px; }
         .dcim-progress-icon,
