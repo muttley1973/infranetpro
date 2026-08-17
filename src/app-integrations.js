@@ -90,7 +90,7 @@ export function openDcimSync() {
   _wiz.selection = {
     entities: { devices: true, cabling: true, ipam: true, racks: true },
     scope: { siteIds: [], roleSlugs: [], tags: [] },
-    exclude: [], mapping: {}, decisions: {}, allowUnresolved: false,
+    exclude: [], mapping: {}, decisions: {}, vlanRoleMap: {}, allowUnresolved: false,
   };
   _wiz.previewStale = false; _wiz.reconciliationGroups = [];
   _wiz.scopeMode = 'all'; _wiz.scopeKind = 'site'; _wiz.scopeSearch = '';
@@ -159,6 +159,10 @@ const _wiz = {
     exclude: [],
     mapping: {},
     decisions: {},
+    // Ruolo IPAM di NetBox → dichiarazione InfraNet ('mgmt'|'voice'|'guest'|'native').
+    // Vuoto di proposito: il motore non indovina, e finché non c'è una scelta qui
+    // dentro le liste di VLAN del documento restano quelle scritte a mano.
+    vlanRoleMap: {},
     allowUnresolved: false,
   },
   preview: null, previewStale: false, reconciliationGroups: [], loadingPreview: false, previewErr: '',
@@ -548,6 +552,40 @@ function _renderReviewRows(p, startIndex) {
   }).join('');
 }
 
+// Righe di abbinamento dei ruoli IPAM. NetBox sa che la VLAN 200 ha ruolo
+// «Access - Voice»; InfraNet ha la lista `voiceVlans` e oggi la si compila a mano.
+// Fra le due c'è una parola scritta da chi ha popolato l'archivio, e nient'altro:
+// per questo la scelta sta QUI, una volta per ruolo, e non in una tabella di
+// sinonimi dentro il motore. «Access - Wireless» non è la rete ospiti, e nessuna
+// regola automatica avrebbe saputo distinguerla senza chiederlo.
+const _VLAN_ROLE_TARGETS = ['', 'mgmt', 'voice', 'guest', 'native'];
+
+function _renderVlanRoleRows(p) {
+  const roles = Array.isArray(p.vlanRoles) ? p.vlanRoles : [];
+  if (!roles.length) return '';
+  return roles.map((role) => {
+    const chosen = String((_wiz.selection.vlanRoleMap || {})[role.slug] || '');
+    const options = _VLAN_ROLE_TARGETS.map(id =>
+      `<option value="${escapeHTML(id)}"${id === chosen ? ' selected' : ''}>${escapeHTML(t('dcim.dec.vlanRole.t.' + (id || 'none')))}</option>`).join('');
+    const vids = role.vids || [];
+    const why = [
+      t('dcim.dec.vlanRole.why'),
+      t('dcim.dec.vlanRole.vids', { list: vids.slice(0, 8).join(' · ') + (vids.length > 8 ? ' +' + (vids.length - 8) : '') }),
+    ].join(' ');
+    return `<article class="dcim-dec is-choice">
+      <div class="dcim-dec-stripe"></div>
+      <div class="dcim-dec-body">
+        <div class="dcim-dec-title">${escapeHTML(_tp('dcim.dec.vlanRole.title', vids.length, { role: role.name, n: vids.length }))}</div>
+        <div class="dcim-dec-why">${escapeHTML(why)}</div>
+        <div class="dcim-dec-selects">
+          <label>${escapeHTML(t('dcim.dec.vlanRole.pick'))}
+            <select data-change="dcim-vlan-role" data-slug="${escapeHTML(role.slug)}">${options}</select></label>
+        </div>
+      </div>
+    </article>`;
+  }).join('');
+}
+
 // ── Riconciliazione: una riga = una DECISIONE, mai un apparato ──────────────
 // Sostituisce la lista di «Avvisi tecnici», che ripeteva la stessa frase una volta
 // per apparato e non chiedeva niente. Qui ogni riga porta la conseguenza, le
@@ -671,10 +709,15 @@ function _renderDecisions(p) {
   // BLOCCANO la creazione del progetto: vanno per prime fra quelle da prendere.
   const review = _renderReviewRows(p, 0);
   const reviewCount = (_wiz.reconciliationGroups || []).length;
+  // Gli abbinamenti dei ruoli IPAM stanno fra le scelte, ma DOPO i tipi da
+  // confermare: quelli bloccano la creazione del progetto, questi no — non
+  // sceglierli significa lasciare le liste come sono, che è un esito legittimo.
+  const vlanRoles = _renderVlanRoleRows(p);
+  const vlanRoleCount = (Array.isArray(p.vlanRoles) ? p.vlanRoles : []).length;
   const decisions = block(losses, t('dcim.dec.losses'))
-    + ((review || model.decisions.length)
-      ? `<span class="dcim-dec-label">${escapeHTML(t('dcim.dec.toDecide'))} · ${reviewCount + model.decisions.length}</span>`
-        + review + model.decisions.map(row => _renderDecisionRow(row, seq++)).join('')
+    + ((review || vlanRoles || model.decisions.length)
+      ? `<span class="dcim-dec-label">${escapeHTML(t('dcim.dec.toDecide'))} · ${reviewCount + vlanRoleCount + model.decisions.length}</span>`
+        + review + vlanRoles + model.decisions.map(row => _renderDecisionRow(row, seq++)).join('')
       : '');
   const info = block(plain, t('dcim.dec.info'));
   // Coda del pannello: la valvola «importa comunque» e il ricalcolo, che stavano nel
@@ -905,6 +948,17 @@ registerChangeActions({
     const group = _wiz.reconciliationGroups[Number(el.dataset.group)];
     if (!group) return;
     for (const id of group.ids) _wiz.selection.mapping[String(id)] = Object.assign({}, _wiz.selection.mapping[String(id)] || {}, { placement: el.value });
+    _wiz.previewStale = true;
+    _renderImport();
+  },
+  // L'abbinamento cambia l'esito (le liste di VLAN del progetto), quindi l'anteprima
+  // va rifatta come per ogni altra scelta. Valore vuoto = si toglie la chiave, non
+  // si scrive una stringa vuota che poi il motore dovrebbe interpretare.
+  'dcim-vlan-role': (el) => {
+    const slug = el.dataset.slug;
+    if (!slug) return;
+    const map = _wiz.selection.vlanRoleMap || (_wiz.selection.vlanRoleMap = {});
+    if (el.value) map[slug] = el.value; else delete map[slug];
     _wiz.previewStale = true;
     _renderImport();
   },

@@ -581,6 +581,11 @@ router.post('/api/integrations/dcim/import', auth.requireAdmin, async (req, res)
       issues: report.issues.slice(0, 2000),
       issuesTotal: report.issues.length,
       catalogVersion: catalog.version,
+      // I ruoli IPAM letti dalle VLAN, con quante VLAN tocca ciascuno. Non sono un
+      // avviso: sono le righe di abbinamento del pannello, e restano vuote finché
+      // l'utente non sceglie. Sono pochi per costruzione (un archivio vero ne ha
+      // una manciata), quindi passano interi e non cappati.
+      vlanRoles: report.vlanRoles || [],
       catalogMatches: report.catalogMatches,
       cableReport: report.cables,
       excluded: report.excluded,

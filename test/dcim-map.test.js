@@ -1335,3 +1335,126 @@ test('VM: l\'elenco dei tipi che ospitano VM combacia con app-types.js', () => {
   assert.ok(declared.size > 0, 'la lettura di app-types.js deve trovare qualcosa');
   assert.deepEqual([...declared].sort(), [...map._VM_HOST_TYPES].sort());
 });
+
+// ── Ruoli IPAM → le liste di VLAN dichiarate ────────────────────────────────
+// Il paletto e' uno solo e vale piu' della funzione: il motore NON indovina.
+// Misurato su un NetBox vero, i ruoli si chiamano «Access - Data», «Access -
+// Voice», «Access - Wireless», «Management», «Testing»: una regola che cercasse
+// «wireless» dentro il nome avrebbe dichiarato ospiti l'intera rete aziendale.
+function roleFixture() {
+  const nb = fixture();
+  nb.vlans = [
+    { id: 60, vid: 10, name: 'Mgmt', role: { id: 1, name: 'Management', slug: 'management' } },
+    { id: 61, vid: 20, name: 'Voice', role: { id: 2, name: 'Access - Voice', slug: 'access-voice' } },
+    { id: 62, vid: 30, name: 'Wi-Fi', role: { id: 3, name: 'Access - Wireless', slug: 'access-wireless' } },
+    // Stesso ruolo dichiarato una seconda volta su un altro sito: in NetBox e' la
+    // norma (misurato: 13 dichiarazioni per lo stesso vid) e qui deve collassare.
+    { id: 63, vid: 20, name: 'Voice', role: { id: 2, name: 'Access - Voice', slug: 'access-voice' } },
+    { id: 64, vid: 40, name: 'Senza ruolo' },
+  ];
+  return nb;
+}
+
+test('ruoli VLAN: senza abbinamento il documento non guadagna NESSUNA lista', () => {
+  const { state, report } = map.netboxToState(roleFixture());
+  assert.equal(state.mgmtVlans, undefined);
+  assert.equal(state.voiceVlans, undefined);
+  assert.equal(state.guestVlans, undefined);
+  assert.equal(state.nativeVlan, undefined);
+  // I ruoli si vedono comunque: sono le righe di scelta dell'anteprima.
+  assert.deepEqual(report.vlanRoles.map(r => r.slug).sort(),
+    ['access-voice', 'access-wireless', 'management']);
+  assert.equal(report.issues.some(i => String(i.code).startsWith('vlanRole.applied')), false);
+});
+
+test('ruoli VLAN: il ruolo riporta le VLAN distinte, non le dichiarazioni lette', () => {
+  const { report } = map.netboxToState(roleFixture());
+  const voice = report.vlanRoles.find(r => r.slug === 'access-voice');
+  assert.deepEqual(voice.vids, [20], 'due dichiarazioni dello stesso vid sono una VLAN sola');
+  assert.equal(voice.n, 2, 'ma quante ne ha lette si sa lo stesso');
+  assert.equal(voice.name, 'Access - Voice');
+});
+
+test('ruoli VLAN: l\'abbinamento scelto compila le liste, e solo quelle scelte', () => {
+  const { state, report } = map.netboxToState(roleFixture(), {
+    selection: { vlanRoleMap: { management: 'mgmt', 'access-voice': 'voice' } },
+  });
+  assert.deepEqual(state.mgmtVlans, [10]);
+  assert.deepEqual(state.voiceVlans, [20]);
+  assert.equal(state.guestVlans, undefined, 'Access - Wireless non e\' stato abbinato: niente lista ospiti');
+  const iss = report.issues.find(i => i.code === 'vlanRole.applied');
+  assert.equal(iss.n, 2);
+  assert.equal(iss.vlans, 2);
+});
+
+test('ruoli VLAN: un bersaglio inventato non scrive niente', () => {
+  const { state } = map.netboxToState(roleFixture(), {
+    selection: { vlanRoleMap: { management: 'gestione', 'access-voice': true } },
+  });
+  assert.equal(state.mgmtVlans, undefined);
+  assert.equal(state.voiceVlans, undefined);
+});
+
+test('ruoli VLAN: la nativa e\' UNA, un ruolo con piu\' VLAN non la sceglie a caso', () => {
+  const nb = roleFixture();
+  nb.vlans.push({ id: 65, vid: 21, name: 'Voice 2', role: { id: 2, name: 'Access - Voice', slug: 'access-voice' } });
+  const { state, report } = map.netboxToState(nb, {
+    selection: { vlanRoleMap: { 'access-voice': 'native' } },
+  });
+  assert.equal(state.nativeVlan, undefined);
+  const iss = report.issues.find(i => i.code === 'vlanRole.nativeMany');
+  assert.equal(iss.vids, 2);
+  assert.equal(iss.role, 'Access - Voice');
+});
+
+test('ruoli VLAN: la nativa entra quando il ruolo tocca una VLAN sola', () => {
+  const { state } = map.netboxToState(roleFixture(), {
+    selection: { vlanRoleMap: { management: 'native' } },
+  });
+  assert.equal(state.nativeVlan, 10);
+});
+
+// La VLAN 1 e' il default: il pannello la cancella invece di scriverla, e
+// l'import deve fare la stessa cosa o il documento dichiarerebbe un'ovvieta'.
+test('ruoli VLAN: la VLAN 1 non diventa mai una nativa dichiarata', () => {
+  const nb = roleFixture();
+  nb.vlans = [{ id: 66, vid: 1, name: 'default', role: { id: 4, name: 'Nativa', slug: 'nativa' } }];
+  const { state, report } = map.netboxToState(nb, { selection: { vlanRoleMap: { nativa: 'native' } } });
+  assert.equal(state.nativeVlan, undefined);
+  assert.ok(report.issues.find(i => i.code === 'vlanRole.nativeMany'));
+});
+
+test('ruoli VLAN: la stessa VLAN in due liste si applica e si DICE', () => {
+  const nb = roleFixture();
+  nb.vlans.push({ id: 67, vid: 10, name: 'Mgmt bis', role: { id: 5, name: 'Ospiti', slug: 'ospiti' } });
+  const { state, report } = map.netboxToState(nb, {
+    selection: { vlanRoleMap: { management: 'mgmt', ospiti: 'guest' } },
+  });
+  assert.deepEqual(state.mgmtVlans, [10]);
+  assert.deepEqual(state.guestVlans, [10], 'sono elenchi indipendenti: il documento le tiene entrambe');
+  assert.equal(report.issues.find(i => i.code === 'vlanRole.conflict').n, 1);
+});
+
+// Misurato su un NetBox vero: «Management» sta su tredici RETI e su nessuna VLAN.
+// Senza questa riga quel ruolo sparirebbe dall'anteprima e sembrerebbe non esistere.
+test('ruoli VLAN: un ruolo che sta solo sulle reti viene dichiarato, non abbinato', () => {
+  const nb = roleFixture();
+  nb.prefixes = [
+    { id: 70, prefix: '10.0.0.0/24', vlan: { vid: 10 }, role: { name: 'Management', slug: 'management' } },
+    { id: 71, prefix: '10.9.0.0/24', role: { name: 'Fuori banda', slug: 'oob' } },
+    { id: 72, prefix: '10.9.1.0/24', role: { name: 'Fuori banda', slug: 'oob' } },
+  ];
+  const { report } = map.netboxToState(nb);
+  const iss = report.issues.find(i => i.code === 'vlanRole.prefixOnly');
+  assert.equal(iss.n, 1, 'management ha gia\' la sua VLAN: non e\' uno di questi');
+  assert.equal(iss.nets, 2);
+  assert.deepEqual(iss.sample, ['Fuori banda']);
+  assert.equal(report.vlanRoles.some(r => r.slug === 'oob'), false, 'senza VLAN non e\' una riga da abbinare');
+});
+
+test('ruoli VLAN: senza ruoli in NetBox, nessuna riga e nessun avviso', () => {
+  const { state, report } = map.netboxToState(fixture());
+  assert.deepEqual(report.vlanRoles, []);
+  assert.equal(report.issues.some(i => String(i.code).startsWith('vlanRole.')), false);
+  assert.equal(state.mgmtVlans, undefined);
+});
