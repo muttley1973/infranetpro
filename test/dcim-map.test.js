@@ -1458,3 +1458,68 @@ test('ruoli VLAN: senza ruoli in NetBox, nessuna riga e nessun avviso', () => {
   assert.equal(report.issues.some(i => String(i.code).startsWith('vlanRole.')), false);
   assert.equal(state.mgmtVlans, undefined);
 });
+
+// ── Le prese di un UPS ──────────────────────────────────────────────────────
+// Non e' il PDU a essere speciale: e' l'avere prese a valle. Un UPS da rack ne ha
+// quanto una barra, e sono la sola cosa che dice CHI RESTA ACCESO quando manca la
+// corrente. Finche' il cancello diceva `type === 'pdu'`, quelle prese arrivavano
+// fino alla riga giusta e finivano contate fra le PERDITE.
+function upsFixture() {
+  return {
+    deviceTypes: [{ id: 80, manufacturer: { id: 1 }, model: 'Smart-UPS 1500', slug: 'apc-smart-ups-1500', u_height: 2 }],
+    manufacturers: [{ id: 1, name: 'APC', slug: 'apc' }],
+    deviceRoles: [{ id: 81, name: 'UPS', slug: 'ups' }],
+    racks: [{ id: 82, name: 'Rack A', u_height: 42 }],
+    devices: [{ id: 83, name: 'UPS-01', device_type: { id: 80 }, role: { id: 81 }, rack: { id: 82 }, position: 1 }],
+    interfaces: [{ id: 840, device: { id: 83 }, name: 'eth0', enabled: true }],
+    powerPorts: [{ id: 860, device: { id: 83 }, name: 'input', maximum_draw: 1500 }],
+    powerOutlets: [
+      { id: 870, device: { id: 83 }, name: 'Group1-1', status: { value: 'enabled' }, mark_connected: true,
+        link_peer: { id: 990, name: 'PSU-1', device: { id: 99, name: 'SRV-01' } }, link_peer_type: 'powerport' },
+      { id: 871, device: { id: 83 }, name: 'Group1-2', status: { value: 'enabled' } },
+      { id: 872, device: { id: 83 }, name: 'Group2-1', status: { value: 'disabled' } },
+    ],
+  };
+}
+
+test('UPS: le sue prese entrano, con stato e apparato alimentato', () => {
+  const { state, report } = map.netboxToState(upsFixture());
+  const ups = state.nodes[0];
+  assert.equal(ups.type, 'ups');
+  assert.equal(ups.pduOutletCount, 3);
+  assert.deepEqual(ups.powerOutlets.map(o => o.status), ['active', 'active', 'inactive']);
+  assert.equal(ups.powerOutlets[0].connectedTo.deviceName, 'SRV-01');
+  assert.equal(report.counts.powerOutlets, 3);
+});
+
+test('UPS: le prese non sono piu\' una perdita dichiarata', () => {
+  const { report } = map.netboxToState(upsFixture());
+  assert.equal(report.counts.powerPortsSkipped, 0);
+  assert.equal(report.issues.some(i => i.code === 'ports.powerSkipped'), false);
+});
+
+test('UPS: l\'ingresso di corrente entra come sul PDU', () => {
+  const { state, report } = map.netboxToState(upsFixture());
+  assert.equal(state.nodes[0].pduPowerPorts[0].maximumDraw, 1500);
+  assert.equal(report.counts.powerPorts, 1);
+});
+
+// La scheda di rete di un UPS e' gestione, non una porta utente: stesso schema di
+// id del PDU, cosi' il render la trova dov'e' abituato a cercarla.
+test('UPS: l\'interfaccia Ethernet e\' gestione, con lo schema di id del PDU', () => {
+  const { state } = map.netboxToState(upsFixture());
+  assert.equal(state.nodes[0].pduMgmtMode, 'ethernet');
+  assert.equal(state.ports['nb-dev-83-1'].mgmt, true);
+  assert.equal('nb-dev-83-mgmt1' in state.ports, false);
+});
+
+// ⛔ L'ATS resta fuori, ed e' una decisione: il suo senso sono i DUE INGRESSI.
+test('ATS: le prese restano fuori e la perdita si dichiara', () => {
+  const nb = upsFixture();
+  nb.deviceRoles = [{ id: 81, name: 'ATS', slug: 'ats' }];
+  nb.deviceTypes[0].model = 'Rack ATS';
+  const { state, report } = map.netboxToState(nb);
+  assert.equal(state.nodes[0].powerOutlets, undefined);
+  assert.equal(report.counts.powerOutlets, 0);
+  assert.ok(report.issues.find(i => i.code === 'ports.powerSkipped'));
+});

@@ -17,7 +17,7 @@ import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: fun
 import { TYPES, typeShort, _frontPanelPortLabel, _fixedRackLabel, _frontPanelState, _frontPanelRows, _frontPanelIsUplink, _frontPanelSfpPorts, _frontPanelSfpGroups, _frontPanelSharedSlots } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { nodeLabelParts } from '../lib/node-label.js';   // lib pura importata ESM (come lib/ipv6.js): NON un globale su window
 import { radioPid } from '../lib/radio.js';   // pid porta radio (ESM, no win.*): filtro VLAN wireless in _nodeDim
-import { normalizePduOutletCount, outletStatusText, pduOutletStatusState, pduOutletConnection, pduOutletGrid, pduOutletCellSize, pduManagementPortCount, pduSerialPortCount, pduAuxiliaryPortCount } from '../lib/pdu-layout.js';
+import { normalizePduOutletCount, outletStatusText, pduOutletStatusState, pduOutletConnection, pduOutletGrid, pduOutletCellSize, pduManagementPortCount, pduSerialPortCount, pduAuxiliaryPortCount, rendersOutletGrid } from '../lib/pdu-layout.js';
 import { switchRack, toggleRackPanel, applyUiColors, _updateRackFloorBtn } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { portTip, _portLagGid, _isLagFocusedPort, _updateLagBanner } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _l3GatewayNodeIds } from './app-l3.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
@@ -398,7 +398,11 @@ function _renderAllNow(){
             if(rackBg) el.style.background = rackBg;
             const pc=n.ports!==undefined?n.ports:def.ports;
             let pts='';
-            if(n.type==='pdu'){
+            // La griglia di prese al posto del frontale. Vale per la barra sempre, e
+            // per un UPS solo quando le prese ci sono davvero (`rendersOutletGrid`):
+            // un UPS documentato a mano prima di questa versione tiene il frontale
+            // che aveva, invece di vederselo sostituire da otto prese inventate.
+            if(rendersOutletGrid(n)){
                 pts=_pduPowerGridHtml(n,sU)+_pduManagementHtml(n)+_pduAuxiliaryHtml(n);
             } else if(pc>0){
                 const _fpState=_frontPanelState(n, pc);

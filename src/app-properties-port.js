@@ -27,7 +27,7 @@ import { getPassivePortLagInfo, clearPortField, removePortFromLag, togglePortVla
 import { registerClickActions, registerChangeActions, registerBlurActions } from './app-delegation.js';   // ASSE B: handler del pannello PORTA via event delegation (ex on* inline)
 import { _renderRadioProps } from './app-wifi.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { _sharedSegmentHtml } from './app-shared-segment.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
-import { normalizePduOutletCount, outletStatusText, pduOutletStatusState, pduOutletConnection } from '../lib/pdu-layout.js';
+import { normalizePduOutletCount, outletStatusText, pduOutletStatusState, pduOutletConnection, hasPowerOutlets } from '../lib/pdu-layout.js';
 import { pduConnectionDeviceSelect } from './app-pdu-connection.js';
 
 // ASSE B (ritiro ponte): azioni delegate SPECIFICHE del pannello Proprieta' PORTA.
@@ -75,7 +75,7 @@ function _pduOutletEntry(selection, create=false){
     const parts = _pduOutletSelectionParts(selection);
     if(!parts) return null;
     const node = nodeById(parts.nodeId);
-    if(!node || node.type !== 'pdu') return null;
+    if(!node || !hasPowerOutlets(node.type)) return null;
     const source = _pduOutletSource(node);
     let index = source.findIndex((outlet, i) => String(outlet?.id ?? outlet?.name ?? i + 1) === parts.key);
     if(index < 0 && /^\d+$/.test(parts.key)) index = Number(parts.key) - 1;
@@ -137,10 +137,14 @@ export function _renderPduOutletProps(panel){
             ${connectionReset ? `<div class="pdu-outlet-connection-footer">${connectionReset}<span>${escapeHTML(t('pdu.resetConnection'))}</span></div>` : ''}
         </div></div>
     </details>`;
+    // Il sottotitolo dice CHE COS'E' l'apparato, non «PDU» per abitudine: la presa
+    // di un UPS e' la presa di un UPS, e chiamarla PDU e' la stessa svista che
+    // faceva sparire quelle prese dall'import.
+    const _outletKindLabel = node.type === 'ups' ? t('dev.ups') : t('dev.pdu');
     panel.innerHTML = `
         ${_buildPropsHeader(
             `${node.name || node.hostname || node.id} — ${label}`,
-            `${t('dev.pdu')} · ${t('pduOutlet.title')}`,
+            `${_outletKindLabel} · ${t('pduOutlet.title')}`,
             'fa-plug'
         )}
         <div class="prop-group"><label>${t('pduOutlet.identifier')}</label><input disabled value="${escapeHTML(label)}"></div>

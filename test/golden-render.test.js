@@ -164,7 +164,10 @@ test('golden render: PDU property panel mostra lo stato delle prese power', () =
 test('golden render: power outlet ha editor manual-first separato dalle porte di rete', () => {
   const cur = buildSnapshots();
   const html = cur['scope:pdu-outlet'] || '';
-  assert.match(html, /Presa power PDU/);
+  // Il sottotitolo porta il TIPO dell'apparato («PDU · …», «UPS · …») e poi la cosa
+  // selezionata, che e' una presa e basta: dirle «presa PDU» su un UPS era la stessa
+  // svista per cui quelle prese non entravano nemmeno.
+  assert.match(html, /PDU · Presa di alimentazione/);
   assert.match(html, /pdu-outlet-connection-section/);
   assert.match(html, /prop-row2 pdu-outlet-connection-fields/);
   assert.match(html, /prop-group pdu-outlet-connection-field/);

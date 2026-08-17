@@ -122,3 +122,66 @@ test('PDU device selector candidates include only documented rack devices', () =
   assert.deepEqual(candidates.map(candidate => candidate.id), ['sw-1']);
   assert.equal(candidates[0].rackName, 'Rack A');
 });
+
+// ── Chi ha delle prese ──────────────────────────────────────────────────────
+// Non e' il PDU a essere speciale: e' l'avere prese commutate a valle. Le prese
+// di un UPS sono la sola cosa che dice CHI RESTA ACCESO quando manca la
+// corrente, e per sei cancelli `type === 'pdu'` non entravano nemmeno.
+const { hasPowerOutlets, rendersOutletGrid, OUTLET_DEVICE_TYPES } = require('../lib/pdu-layout');
+
+test('prese: le ha la barra e le ha l\'UPS, non un apparato qualunque', () => {
+  assert.equal(hasPowerOutlets('pdu'), true);
+  assert.equal(hasPowerOutlets('ups'), true);
+  assert.equal(hasPowerOutlets({ type: 'ups' }), true);
+  assert.equal(hasPowerOutlets('switch'), false);
+  assert.equal(hasPowerOutlets(null), false);
+  assert.equal(hasPowerOutlets(undefined), false);
+});
+
+// ⛔ Decisione, non dimenticanza: il senso di un ATS sono i DUE INGRESSI. Dargli
+// le prese senza quelli racconterebbe la meta' che conta meno, lasciando
+// intendere che la ridondanza sia documentata.
+test('prese: l\'ATS resta fuori finche\' non entrano i suoi due ingressi', () => {
+  assert.equal(hasPowerOutlets('ats'), false);
+  assert.deepEqual(OUTLET_DEVICE_TYPES, ['pdu', 'ups']);
+});
+
+test('griglia: una barra si disegna sempre a prese', () => {
+  assert.equal(rendersOutletGrid({ type: 'pdu' }), true);
+  assert.equal(rendersOutletGrid({ type: 'pdu', powerOutlets: [] }), true);
+});
+
+// ⚠️ Manual-first: chi ha documentato un UPS a mano ha davanti il frontale che
+// si e' scelto. Un aggiornamento non glielo sostituisce con otto prese inventate.
+test('griglia: un UPS senza prese tiene il frontale che ha', () => {
+  assert.equal(rendersOutletGrid({ type: 'ups' }), false);
+  assert.equal(rendersOutletGrid({ type: 'ups', powerOutlets: [] }), false);
+  assert.equal(rendersOutletGrid({ type: 'ups', pduOutletCount: 0 }), false);
+});
+
+test('griglia: un UPS con prese vere passa alla griglia', () => {
+  assert.equal(rendersOutletGrid({ type: 'ups', powerOutlets: [{ name: 'P1' }] }), true);
+  assert.equal(rendersOutletGrid({ type: 'ups', pduOutletCount: 4 }), true);
+  // I campi device vivono in node.spec: chi legge deve guardare li' (trappola nota).
+  assert.equal(rendersOutletGrid({ type: 'ups', spec: { pduOutletCount: 6 } }), true);
+  assert.equal(rendersOutletGrid({ type: 'ups', spec: { powerOutlets: [{ name: 'P1' }] } }), true);
+});
+
+test('griglia: nessuna griglia per chi prese non ne ha', () => {
+  assert.equal(rendersOutletGrid({ type: 'switch', powerOutlets: [{ name: 'P1' }] }), false);
+  assert.equal(rendersOutletGrid(null), false);
+});
+
+// ⚠️ DEFINIZIONE DUPLICATA, chiusa da qui. `export.js` e' uno script classico e
+// non puo' importare questo modulo ESM: la lista e' ripetuta la'. Se divergono,
+// un UPS entra nel documento con le sue prese e sparisce dal capitolo che le
+// stampa — cioe' proprio dal foglio che serve in sala quando manca la corrente.
+test('prese: l\'elenco in export.js combacia con quello del modello', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'export.js'), 'utf8');
+  const m = src.match(/_OUTLET_TYPES\s*=\s*\[([^\]]*)\]/);
+  assert.ok(m, 'export.js deve dichiarare _OUTLET_TYPES');
+  const declared = m[1].split(',').map(s => s.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean);
+  assert.deepEqual(declared.sort(), [...OUTLET_DEVICE_TYPES].sort());
+});

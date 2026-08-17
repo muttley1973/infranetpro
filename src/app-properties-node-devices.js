@@ -17,7 +17,7 @@ import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (e
 import { escapeHTML } from './app-util.js';
 import { _buildDeviceBrandModelPreview, _propsSectionIsOpen, _buildInventoryFieldsHtml, _buildNetAccessHtml, _powerLiveHtml, renderProps } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
-import { MAX_PDU_OUTLETS, normalizePduOutletCount, pduManagementMode, pduManagementPortCount, pduSerialPortCount, pduAuxiliaryPortCount, outletStatusText, pduOutletStatusState, pduOutletConnection } from '../lib/pdu-layout.js';
+import { MAX_PDU_OUTLETS, normalizePduOutletCount, pduManagementMode, pduManagementPortCount, pduSerialPortCount, pduAuxiliaryPortCount, outletStatusText, pduOutletStatusState, pduOutletConnection, hasPowerOutlets, rendersOutletGrid } from '../lib/pdu-layout.js';
 import { nodeById, getNodeDisplayName, markDirty, selected, checked, getWallPortLabel, updateFloorId, updateWallPortId, _toggleArrayField } from './app.js';   // ritiro ponte: helper option-selected/checked + (ASSE B) setter ex-onchange
 import { renderAll } from './app-render-core.js';
 import { _effPortVlan, setEndpointVlan } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup + (ASSE B) setEndpointVlan (ex onchange)
@@ -88,7 +88,7 @@ function _pduOutletSource(n){
 }
 
 function _ensurePduOutletEntry(n, index){
-    if(!n || n.type !== 'pdu' || !Number.isInteger(index) || index < 0 || index >= MAX_PDU_OUTLETS) return null;
+    if(!n || !hasPowerOutlets(n.type) || !Number.isInteger(index) || index < 0 || index >= MAX_PDU_OUTLETS) return null;
     const source = _pduOutletSource(n);
     if(!Array.isArray(n.powerOutlets)) n.powerOutlets = source.map(outlet => ({ ...(outlet || {}) }));
     while(n.powerOutlets.length <= index) n.powerOutlets.push({ name:`P${n.powerOutlets.length + 1}` });
@@ -1147,6 +1147,11 @@ export function _nodeDeviceChainHtml(n, d){
                     <div class="prop-group"><label>${t('f.estRuntime')}</label>
                         <input type="number" min="1" max="600" value="${n.upsAutonomyMin||10}" data-change="update-n" data-nfield="upsAutonomyMin" data-ncoerce="intdef" data-ndef="10"></div>
                     <label class="prop-check"><input type="checkbox" ${checked(n.upsHotSwap)} data-change="update-n" data-nfield="upsHotSwap" data-ncoerce="bool" style="width:auto;margin-right:6px">${t('pnl.dev.hotSwapBatteries')}</label>
+                    <div class="prop-group"><label>${t('f.totalSockets')}</label>
+                        <input type="number" min="0" max="${escapeHTML(String(MAX_PDU_OUTLETS))}" value="${escapeHTML(String(n.pduOutletCount||''))}" placeholder="0" data-change="update-n" data-nfield="pduOutletCount" data-ncoerce="intdef" data-ndef="0"></div>
+                    <div class="pdu-port-model-note"><i class="fas fa-circle-info"></i> ${t('pnl.dev.upsOutletsNote')}</div>
+                    ${_pduOutletStateHtml(n)}
+                    ${rendersOutletGrid(n) ? _pduPowerConnectionsHtml(n) : ''}
                     ${typeof _powerLiveHtml==='function' ? _powerLiveHtml(n) : ''}
                 </div></details>`;
             }

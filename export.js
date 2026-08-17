@@ -1532,8 +1532,15 @@ function _buildPdfReportData() {
     // integrazione esce SOLO `host`, che è un indirizzo, non un segreto.
     const _rackNameById = new Map((state.racks || [])
         .filter(r => r && r.id != null).map(r => [String(r.id), String(r.name || r.id)]));
+    // ⚠️ SPECCHIO di `OUTLET_DEVICE_TYPES` in lib/pdu-layout.js — chi ha delle prese
+    // (barra e UPS; l'ATS è fuori per decisione). Questo file è uno script classico e
+    // non può importare il modulo ESM, quindi la lista è ripetuta: un test la
+    // confronta con l'originale e fallisce se divergono. Senza, un UPS entrerebbe
+    // nel documento con le sue prese e sparirebbe dal capitolo che le stampa — cioè
+    // proprio dal foglio che serve in sala quando manca la corrente.
+    const _OUTLET_TYPES = ['pdu', 'ups'];
     const pdus = (state.nodes || [])
-        .filter(n => n && n.type === 'pdu')
+        .filter(n => n && _OUTLET_TYPES.indexOf(n.type) >= 0)
         .map(n => ({
             id: n.id,
             name: n.name,
