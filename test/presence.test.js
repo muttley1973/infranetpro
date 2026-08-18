@@ -81,3 +81,45 @@ test('⚠️ nessun anello di guasto se la presenza ha gia\' un verdetto', () =>
   assert.match(RENDER, /n\.snmpStatus==='err' && !absentCls/,
     'un apparato irraggiungibile (grigio) o provato assente non prende anche l\'anello SNMP');
 });
+
+// ── Lo stato operativo DICHIARATO cambia la LETTURA, mai la misura ──────────
+// (lib/device-status.js · docs/adr/measured-not-declared.md)
+
+test('assenza SPIEGATA dallo stato dichiarato: non e piu il rosso d\'allerta', () => {
+  const n = { id: 'sw9', status: 'planned', proof: { status: 'absent' } };
+  assert.equal(nodePresenceClass(n, null), ' node-absent-expected');
+  // e lo stesso vale quando la Verifica ha appena prodotto il report
+  assert.equal(nodePresenceClass(n, { macOrphan: [{ nodeId: 'sw9' }], unverified: [] }), ' node-absent-expected');
+});
+
+test('senza stato dichiarato il comportamento storico non si muove', () => {
+  assert.equal(nodePresenceClass({ id: 'a', proof: { status: 'absent' } }, null), ' node-absent');
+  assert.equal(nodePresenceClass({ id: 'a', status: '', proof: { status: 'absent' } }, null), ' node-absent');
+  // uno stato non riconosciuto e' come non dichiarato: non silenzia niente
+  assert.equal(nodePresenceClass({ id: 'a', status: 'banana', proof: { status: 'absent' } }, null), ' node-absent');
+});
+
+test('«in servizio» non silenzia un\'assenza: il rosso resta rosso', () => {
+  assert.equal(nodePresenceClass({ id: 'a', status: 'active', proof: { status: 'absent' } }, null), ' node-absent');
+});
+
+test('⚠️ la CONTRADDIZIONE: dichiarato fuori servizio ma risponde', () => {
+  // e' il caso simmetrico al silenziamento: senza, il campo sarebbe solo un modo
+  // per far sparire i problemi.
+  assert.equal(nodePresenceClass({ id: 'a', status: 'offline', proof: { status: 'proven' } }, null), ' node-status-conflict');
+  assert.equal(nodePresenceClass({ id: 'a', status: 'decommissioning', proof: { status: 'proven' } }, null), ' node-status-conflict');
+});
+
+test('la contraddizione batte l\'uscita anticipata di «ha risposto da poco»', () => {
+  // e' proprio il caso in cui accade: risponde ORA, e il documento dice che non dovrebbe.
+  const n = { id: 'a', status: 'offline', snmpStatus: 'ok', snmpLastOk: new Date().toISOString() };
+  assert.equal(nodePresenceClass(n, null), ' node-status-conflict');
+  // mentre un apparato in servizio che risponde non ha nessun overlay, come sempre
+  const ok = { id: 'b', status: 'active', snmpStatus: 'ok', snmpLastOk: new Date().toISOString() };
+  assert.equal(nodePresenceClass(ok, null), '');
+});
+
+test('lo stato dichiarato non tocca il grigio del «non verificabile»', () => {
+  // non abbiamo misurato niente: non c'e' nulla da spiegare ne' da contraddire
+  assert.equal(nodePresenceClass({ id: 'a', status: 'planned', proof: { status: 'unverified' } }, null), ' node-unverified');
+});

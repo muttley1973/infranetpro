@@ -344,6 +344,25 @@
         .floor-node.node-unverified.selected { opacity:0.72; }
         .rack-device.node-unverified { opacity:0.45; filter:grayscale(0.9); }
         .rack-device.node-unverified.selected { opacity:0.75; }
+        /* Stato operativo DICHIARATO (lib/device-status.js). Non è una misura: è quello
+           che hai scritto tu, e cambia la LETTURA della misura — mai la misura, che
+           resta in n.proof (docs/adr/measured-not-declared.md).
+           - node-absent-expected = assente, e l'avevi dichiarato (pianificato, a
+             magazzino, spento, in dismissione) → NEUTRO. Un rosso qui insegnerebbe a
+             ignorare i rossi, e il giorno del rosso vero non lo guarda più nessuno.
+           - node-status-conflict = RISPONDE, ma è dichiarato fuori servizio → AMBRA.
+             È la contraddizione, ed è simmetrica al silenziamento qui sopra: senza,
+             il campo «stato» sarebbe solo un modo per far sparire i problemi.
+           ⚠️ STESSA GEOMETRIA degli altri stati (alone che segue il raggio della tile):
+           cambia il COLORE, che è la notizia. L'ambra non è l'arancione di snmp-fault —
+           quello dice «non risponde all'interrogazione», questa dice «il documento non
+           torna con la realtà». E niente tratteggio: in quest'app vuol dire «dedotto». */
+        .floor-node.node-absent-expected,
+        .rack-device.node-absent-expected { box-shadow:0 0 0 2px var(--inactive-color); opacity:0.7; }
+        .floor-node.node-absent-expected.selected,
+        .rack-device.node-absent-expected.selected { opacity:1; }
+        .floor-node.node-status-conflict,
+        .rack-device.node-status-conflict { box-shadow:0 0 0 2px var(--idle-color), 0 0 9px rgba(245,166,35,.45); }
         /* Brand visibile solo per dispositivi a bassa densità (=8 porte) */
         /* .rack-brand rimosso: l'hostname e' ora un title HTML sul .rack-device
            (tooltip browser nativo al hover) e non occupa piu' spazio fisso a

@@ -16,6 +16,7 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
 import { sourceRows } from '../lib/dcim-source-view.js';   // cosa DICHIARA il DCIM importato: sola lettura, `node.source` non è roba dell'utente
+import { STATUSES, normalizeStatus, statusFinding } from '../lib/device-status.js';   // stato operativo dichiarato: cambia la LETTURA del silenzio, mai la misura
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _isLeafEndpoint, _autoLinkEndpointUI } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*) + (ASSE B coda) bottone auto-link
 
@@ -187,6 +188,13 @@ export function _buildInventoryFieldsHtml(n, d){
         serialNumber: escapeHTML(inventory.serialNumber || ''),
         firmwareVer:  escapeHTML(inventory.firmwareVer || ''),
     };
+    // Stato operativo DICHIARATO. Vuoto = non dichiarato, ed è il default: i progetti
+    // che esistono si comportano esattamente come prima. `node-field-manual` scrive
+    // anche `statusManual`, così un ri-import DCIM non sovrascrive la tua scelta.
+    const curStatus = normalizeStatus(n.status);
+    const statusOpts = [''].concat(STATUSES).map(s =>
+        `<option value="${escapeHTML(s)}"${s === curStatus ? ' selected' : ''}>${escapeHTML(t(s ? 'status.' + s : 'status.undeclared'))}</option>`
+    ).join('');
     return `<div class="prop-row2">
         <div class="prop-group"><label>${t('field.brand')}</label><input value="${escapeHTML(n.brand||'')}" placeholder="${placeholders.brand}" data-change="node-field" data-field="brand"></div>
         <div class="prop-group"><label>${t('field.model')}</label><input value="${escapeHTML(n.model||'')}" placeholder="${placeholders.model}" data-change="node-field" data-field="model"></div>
@@ -195,15 +203,33 @@ export function _buildInventoryFieldsHtml(n, d){
         <div class="prop-group"><label>${t('field.serial')}</label><input value="${escapeHTML(n.serialNumber||'')}" placeholder="${placeholders.serialNumber}" data-change="node-field" data-field="serialNumber"></div>
         <div class="prop-group"><label>Firmware / OS</label><input value="${escapeHTML(n.firmwareVer||'')}" placeholder="${placeholders.firmwareVer}" data-change="node-field" data-field="firmwareVer"></div>
     </div>
+    <div class="prop-group"><label>${t('field.status')}</label><select data-tip="${t('field.statusTip')}" data-change="node-field-manual" data-field="status">${statusOpts}</select></div>
     <div class="prop-row2">
         <div class="prop-group"><label>${t('field.warranty')}</label><input type="date" value="${escapeHTML(n.warrantyUntil||'')}" data-tip="${t('field.warrantyTip')}" data-change="node-field" data-field="warrantyUntil"></div>
         <div class="prop-group"><label>${t('field.eol')}</label><input type="date" value="${escapeHTML(n.eolDate||'')}" data-tip="${t('field.eolTip')}" data-change="node-field" data-field="eolDate"></div>
-    </div>` + _buildDcimSourceHtml(n) + _buildIdentityStaleHtml(n);
+    </div>` + _buildDcimSourceHtml(n) + _buildIdentityStaleHtml(n) + _buildStatusFindingHtml(n);
     // ⚠️ CONCATENAZIONE, non interpolazione dentro il template: `${...}` che torna
     // stringa vuota lascia comunque il newline e l'indentazione della riga, e il
     // golden render — che confronta l'output byte a byte — segnalerebbe 20 diff di
     // puro spazio bianco. Così un device SENZA dichiarazione DCIM rende identico a
     // prima, e il golden resta un oracolo invece di diventare rumore da rigenerare.
+}
+
+/** L'incontro fra lo stato che hai DICHIARATO e quello che la rete ha RISPOSTO.
+ *  Due esiti soltanto, e sono asimmetrici di proposito (lib/device-status.js):
+ *  «assente, come dichiarato» è una nota muta — spiega un silenzio che avevi
+ *  previsto; «risponde, ma è dichiarato fuori servizio» è ambra, perché è la
+ *  contraddizione, ed è la ragione per cui il campo esiste. Senza questa seconda
+ *  riga lo stato sarebbe solo un modo per far sparire i rossi.
+ *  Riga assente quando non c'è niente da dire: nessuno stato dichiarato, oppure
+ *  nessuna misura con cui confrontarlo. */
+function _buildStatusFindingHtml(n){
+    const f = statusFinding(n && n.status, n && n.proof && n.proof.status);
+    if(!f) return '';
+    const conflict = f.code === 'status.aliveNotInService';
+    const icon = conflict ? 'fa-triangle-exclamation' : 'fa-circle-minus';
+    const txt = t(f.code, { s: t('status.' + f.status) });
+    return `<div class="prop-status-note${conflict ? ' is-conflict' : ''}"><i class="fas ${icon}"></i> <span>${escapeHTML(txt)}</span></div>`;
 }
 
 /** L'età della misura d'identità. Il segnaposto grigio dei quattro campi qui sopra

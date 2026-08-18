@@ -135,3 +135,9 @@
            ancora buono per ricomprare l'apparato — è la sua ETÀ che va detta,
            quindi tono spento come i segnaposto, non l'ambra degli avvisi. */
         .prop-inv-stale { display:flex; align-items:baseline; gap:6px; margin-top:6px; font-size:var(--fs-sm); color:var(--text-muted); }
+        /* L'incontro fra lo stato DICHIARATO e la misura. Muto quando la dichiarazione
+           spiega il silenzio (è una nota, non un allarme); ambra quando i due si
+           contraddicono — stesso colore del `node-status-conflict` sulla tile, perché
+           è la stessa notizia vista da vicino. */
+        .prop-status-note { display:flex; align-items:baseline; gap:6px; margin-top:6px; font-size:var(--fs-sm); color:var(--text-muted); }
+        .prop-status-note.is-conflict { color:var(--idle-color); }

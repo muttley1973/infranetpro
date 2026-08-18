@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.10.0] — 2026-08-18
+
+### Added
+
+- **A device can say where it is in its life cycle, and the verdict listens.** Planned, staged, in stock, in service, failed, decommissioning, out of service: one declared field, and the DCIM import fills it from a value it already read but until now only used to decide what to skip. It changes how silence is read — a device declared planned that does not answer is not a fault, it is what you expect, so it stops painting the floor red. Vocabulary is InfraNet's own and the alias table is open: NetBox's words, plain Italian and CSV spellings all reduce to it, and anything unrecognised stays undeclared rather than guessing.
+- **The rule cuts both ways, and that is the point.** A device declared out of service that *answers* is flagged amber on the tile and in its panel — documentation that has gone stale, which nothing until now could catch. Without that second half the field would have been nothing but a switch for making red go away.
+- **The measure is never touched.** `n.proof` still records the absence exactly as before; only the reading of it changes (`docs/adr/measured-not-declared.md`). A device with no declared status behaves precisely as it did, so existing projects are unaffected, and "in service" never silences an absence.
+- **The Overview counts both halves.** The "True" lens gains a row: devices answering while declared out of service take the headline whenever there are any, and — just as important — it states how many absences the declaration explained away. A silencing nobody counts is a silencing nobody sees. Where no device declares a status the row is dashed rather than a green zero: that is a gap, not a clean bill.
+
 ## [2.9.2] — 2026-08-18
 **Power gets documented the way it actually fails: by group, not by socket.**
 

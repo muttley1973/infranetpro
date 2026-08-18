@@ -1673,3 +1673,72 @@ test('① Cavi: il cavo DICHIARATO su porta in shutdown ha un contatore suo, non
   assert.equal(pc.declared, 1, 'non ruba il conteggio ai dichiarati sani');
   assert.equal(pc.review, 0, 'e non finisce fra i riesami: ha una voce sua');
 });
+
+// ── ② VERO · lo STATO DICHIARATO davanti alla misura ────────────────────────
+// (lib/device-status.js · il campo `n.status`)
+
+test('② VERO: nessuno dichiara lo stato -> riga tratteggiata, non uno zero verde', () => {
+  const o = buildOverview({
+    types: TYPES,
+    nodes: [{ id: 'sw1', type: 'switch', ip: '10.0.0.1', integration: { driver: 'snmp-v2c', host: '10.0.0.1' } }],
+    spare: { totals: { free: 10, suspect: 0, ports: 24 } },
+    lastSyncAt: 1000, now: 2000,
+  }).truth;
+  const r = rowOf(o, 'statusDeclared');
+  assert.ok(r, 'la riga c\'e\' sempre');
+  assert.equal(r.prov, 'none', 'nessuna dichiarazione = non lo sappiamo');
+  assert.equal(r.value, null, 'zero sarebbe un\'affermazione: qui e\' assenza di dato');
+  assert.equal(r.extra.declared, 0);
+  assert.equal(r.extra.undeclared, 1);
+});
+
+test('② VERO: l\'assenza SPIEGATA si conta, e non e\' una contraddizione', () => {
+  const o = buildOverview({
+    types: TYPES,
+    nodes: [
+      { id: 'sw1', type: 'switch', status: 'planned', proof: { status: 'absent' } },
+      { id: 'sw2', type: 'switch', status: 'active', proof: { status: 'proven' } },
+    ],
+    spare: { totals: { free: 10, suspect: 0, ports: 24 } },
+    lastSyncAt: 1000, now: 2000,
+  }).truth;
+  const r = rowOf(o, 'statusDeclared');
+  assert.equal(r.value, 0, 'nessuna contraddizione');
+  assert.equal(r.prov, 'measured');
+  assert.equal(r.extra.declared, 2);
+  assert.equal(r.extra.absentExpected, 1, 'il rosso NON acceso si conta: un silenziamento muto e\' invisibile');
+  assert.deepEqual(r.extra.byStatus, { planned: 1, active: 1 });
+  assert.equal(r.tone, 'normal');
+});
+
+test('② VERO: dichiarato fuori servizio ma risponde = contraddizione, e guida il titolo', () => {
+  const o = buildOverview({
+    types: TYPES,
+    nodes: [
+      { id: 'sw1', type: 'switch', status: 'decommissioning', ip: '10.0.0.5', proof: { status: 'proven' } },
+      { id: 'sw2', type: 'switch', status: 'active', proof: { status: 'proven' } },
+    ],
+    spare: { totals: { free: 10, suspect: 0, ports: 24 } },
+    lastSyncAt: 1000, now: 2000,
+  }).truth;
+  const r = rowOf(o, 'statusDeclared');
+  assert.equal(r.value, 1);
+  assert.equal(r.tone, 'alert');
+  assert.equal(r.items.length, 1, 'il numero grande e l\'elenco parlano della stessa cosa');
+  assert.equal(r.items[0].id, 'sw1');
+  assert.equal(r.items[0].tag, 'decommissioning', 'la riga dice QUALE stato e\' stato dichiarato');
+  assert.equal(o.headline.key, 'statusDeclared', 'la bugia piu\' netta e\' la notizia');
+});
+
+test('② VERO: uno stato non riconosciuto non dichiara nulla e non silenzia nulla', () => {
+  const o = buildOverview({
+    types: TYPES,
+    nodes: [{ id: 'sw1', type: 'switch', status: 'banana', proof: { status: 'absent' } }],
+    spare: { totals: { free: 10, suspect: 0, ports: 24 } },
+    lastSyncAt: 1000, now: 2000,
+  }).truth;
+  const r = rowOf(o, 'statusDeclared');
+  assert.equal(r.prov, 'none');
+  assert.equal(r.extra.undeclared, 1);
+  assert.equal(r.extra.absentExpected, 0);
+});

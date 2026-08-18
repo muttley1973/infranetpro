@@ -522,6 +522,18 @@ function _tileStatus(r) {
                 ? { w: t(e.dup && e.overlap ? 'ov.confBoth' : (e.overlap ? 'ov.confOverlap' : 'ov.confDup'),
                          { d: e.dup || 0, o: e.overlap || 0 }), tone: 'warn' }
                 : { w: t('ov.confClean'), tone: 'ok' });
+        // Stato dichiarato: nessuno lo dichiara = tratteggiato (non «tutto a posto»).
+        // Quando qualcuno lo dichiara, il verdetto dice PRIMA la contraddizione — chi
+        // risponde pur essendo dato fuori servizio — e solo in sua assenza quante
+        // assenze la dichiarazione ha spiegato. Quel secondo numero non è decorativo:
+        // è il conto dei rossi che NON abbiamo acceso, e va detto ad alta voce.
+        case 'statusDeclared': {
+            if (r.prov === 'none') return { w: t('ov.status.undeclared'), tone: 'none' };
+            if (r.value > 0) return { w: t('ov.status.conflict', { n: r.value }), tone: 'warn' };
+            return e.absentExpected > 0
+                ? { w: t('ov.status.explained', { d: e.declared, a: e.absentExpected }), tone: 'info' }
+                : { w: t('ov.status.clean', { d: e.declared }), tone: 'ok' };
+        }
         case 'neighbors':    return { w: t('ov.neighborsFrom', { n: e.fromDevices || 0 }), tone: 'info' };
         case 'lags':         return r.prov === 'none'
             ? { w: t('ov.st.none'), tone: 'none' }
