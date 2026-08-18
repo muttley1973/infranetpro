@@ -8,6 +8,12 @@
             --bg-color: #0d1117; --panel-bg: #1e2733; --panel-border: #30363d;
             --text-main: #c9d1d9; --text-muted: #8b949e; --accent: #00d4ff;
             --active-color: #39d353; --fault-color: #f85149; --inactive-color: #6e7681; --idle-color: #f5a623;
+            /* Gruppi di prese: otto tinte distinguibili fra loro e dai colori di STATO
+               (verde attivo / rosso guasto / grigio spento), che vivono sul fondo della
+               presa. Il gruppo e' una dichiarazione, lo stato una misura: canali separati. */
+            --pg-0:#6e7681;
+            --pg-1:#00d4ff; --pg-2:#ff8a3d; --pg-3:#a371f7; --pg-4:#f1e05a;
+            --pg-5:#3fb950; --pg-6:#ff6ac1; --pg-7:#58a6ff; --pg-8:#d29922;
             /* «L'ho interrogato e non risponde» — NON è «non c'è». Arancio scelto per
                esclusione: il rosso è già l'assenza provata, l'ambra #d29922 è l'attesa
                (snmp-pending) e le credenziali v3 mancanti, il verde la risposta buona,

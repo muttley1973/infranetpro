@@ -680,6 +680,16 @@
             line-height:1;
         }
         .pdu-power-outlet::after { content:attr(data-pdu-number); pointer-events:none; user-select:none; }
+        /* GRUPPO della presa: una fascia sottile in alto, non il colore di fondo.
+           Il fondo dice lo STATO (acceso/spento/guasto) ed e' una misura: il gruppo
+           e' una dichiarazione, e due cose diverse non possono usare lo stesso
+           canale visivo. Otto tinte distinguibili anche una accanto all'altra. */
+        .pdu-power-outlet { position:relative; }
+        .pdu-power-outlet[class*="pg-"]::before { content:""; position:absolute; left:1px; right:1px; top:0; height:2px; border-radius:1px; background:var(--pg-0); pointer-events:none; }
+        .pdu-power-outlet.pg-1::before { background:var(--pg-1); } .pdu-power-outlet.pg-2::before { background:var(--pg-2); }
+        .pdu-power-outlet.pg-3::before { background:var(--pg-3); } .pdu-power-outlet.pg-4::before { background:var(--pg-4); }
+        .pdu-power-outlet.pg-5::before { background:var(--pg-5); } .pdu-power-outlet.pg-6::before { background:var(--pg-6); }
+        .pdu-power-outlet.pg-7::before { background:var(--pg-7); } .pdu-power-outlet.pg-8::before { background:var(--pg-8); }
         .pdu-power-outlet:hover { transform:scale(1.5); box-shadow:0 0 6px var(--accent); z-index:102; }
         .pdu-power-outlet.active:hover { box-shadow:0 0 9px var(--active-color); }
         .pdu-power-outlet.active { background:var(--active-color); border-color:var(--active-color); box-shadow:0 0 5px var(--active-color); }

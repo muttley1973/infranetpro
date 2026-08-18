@@ -18,6 +18,7 @@ import { escapeHTML } from './app-util.js';
 import { _buildDeviceBrandModelPreview, _propsSectionIsOpen, _buildInventoryFieldsHtml, _buildNetAccessHtml, _powerLiveHtml, renderProps } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { MAX_PDU_OUTLETS, normalizePduOutletCount, pduManagementMode, pduManagementPortCount, pduSerialPortCount, pduAuxiliaryPortCount, outletStatusText, pduOutletStatusState, pduOutletConnection, hasPowerOutlets, rendersOutletGrid } from '../lib/pdu-layout.js';
+import { MAX_POWER_GROUPS, powerGroups, powerGroupView, nextGroupId, normalizeGroupId, normalizeSwitching, normalizeBackup } from '../lib/power-groups.js';   // gruppi di prese: due assi soli, dichiarati
 import { nodeById, getNodeDisplayName, markDirty, selected, checked, getWallPortLabel, updateFloorId, updateWallPortId, _toggleArrayField } from './app.js';   // ritiro ponte: helper option-selected/checked + (ASSE B) setter ex-onchange
 import { renderAll } from './app-render-core.js';
 import { _effPortVlan, setEndpointVlan } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup + (ASSE B) setEndpointVlan (ex onchange)
@@ -49,6 +50,83 @@ registerChangeActions({
     'pdu-connection-field': (el) => setPduConnectionField(el.dataset.nid, +el.dataset.pindex, el.dataset.pfield, el.value),
     'pdu-outlet-field': (el) => setPduOutletField(el.dataset.nid, +el.dataset.pindex, el.dataset.pfield, el.value),
 });
+
+// ── GRUPPI DI PRESE — la parola dell'utente, scritta sul nodo ───────────────
+// Un gruppo dice due cose e basta (lib/power-groups.js): se si puo' spegnere da
+// solo e se la batteria lo tiene. Qui si SCRIVE; a leggerlo e normalizzarlo
+// pensa la lib, cosi' pannello, rack e dossier non si scrivono tre regole loro.
+function _ensurePowerGroupList(n){
+    if(!n || !hasPowerOutlets(n.type)) return null;
+    if(!Array.isArray(n.powerGroups)) n.powerGroups = powerGroups(n).map(g => ({ ...g }));
+    return n.powerGroups;
+}
+
+function addPowerGroup(nodeId){
+    const n = nodeById(nodeId);
+    const list = _ensurePowerGroupList(n);
+    if(!list || list.length >= MAX_POWER_GROUPS) return;
+    const id = nextGroupId(n);
+    if(!id) return;
+    list.push({ id, name: t('pwg.defaultName', { n: list.length + 1 }), switching:'switched', backup:'battery' });
+    markDirty();
+    _pduConnectionRerender();
+}
+
+function removePowerGroup(nodeId, groupId){
+    const n = nodeById(nodeId);
+    const list = _ensurePowerGroupList(n);
+    if(!list) return;
+    const id = normalizeGroupId(groupId);
+    const i = list.findIndex(g => g && normalizeGroupId(g.id) === id);
+    if(i < 0) return;
+    list.splice(i, 1);
+    // Le prese che ci puntavano tornano SENZA gruppo. Lasciarle appese a un id
+    // cancellato sarebbe un dato falso: l'utente ha deciso che quel gruppo non
+    // esiste, e una presa non puo' appartenere a qualcosa che non c'e' piu'.
+    for(const outlet of (Array.isArray(n.powerOutlets) ? n.powerOutlets : [])){
+        if(outlet && normalizeGroupId(outlet.groupOvr) === id) outlet.groupOvr = '';
+    }
+    if(!list.length) delete n.powerGroups;
+    markDirty();
+    _pduConnectionRerender();
+}
+
+function setPowerGroupField(nodeId, groupId, field, value){
+    if(!['name', 'switching', 'backup'].includes(field)) return;
+    const n = nodeById(nodeId);
+    const list = _ensurePowerGroupList(n);
+    if(!list) return;
+    const g = list.find(x => x && normalizeGroupId(x.id) === normalizeGroupId(groupId));
+    if(!g) return;
+    if(field === 'name') g.name = String(value == null ? '' : value).trim();
+    else if(field === 'switching') g.switching = normalizeSwitching(value);
+    else g.backup = normalizeBackup(value);
+    markDirty();
+    _pduConnectionRerender();
+}
+
+// Assegnazione presa -> gruppo. Scrive in `groupOvr`, non in `group`: il primo
+// e' la tua parola, il secondo restera' al catalogo quando sapra' leggere «Group
+// 2 - Output 1» dal nome della presa. Cosi' il giorno che arriva non ti sovrascrive.
+function setPduOutletGroup(nodeId, index, groupId){
+    const n = nodeById(nodeId);
+    const outlet = _ensurePduOutletEntry(n, index);
+    if(!outlet) return;
+    outlet.groupOvr = normalizeGroupId(groupId);
+    markDirty();
+    _pduConnectionRerender();
+}
+
+registerClickActions({
+    'power-group-add': (el) => addPowerGroup(el.dataset.nid),
+    'power-group-del': (el) => removePowerGroup(el.dataset.nid, el.dataset.gid),
+});
+
+registerChangeActions({
+    'power-group-field': (el) => setPowerGroupField(el.dataset.nid, el.dataset.gid, el.dataset.gfield, el.value),
+    'pdu-outlet-group': (el) => setPduOutletGroup(el.dataset.nid, +el.dataset.pindex, el.value),
+});
+
 
 function _pduOutletStatusLabel(status){
     return ({
@@ -155,12 +233,79 @@ function clearPduOutletStatus(nodeId, index){
     _pduConnectionRerender();
 }
 
+// Le opzioni del menu «gruppo». `selected()` torna una parola chiave di
+// attributo, non un valore: e' per questo che si usa lui e non un ternario.
+function _powerGroupOptionsHtml(groups, current){
+    let out = `<option value="">${escapeHTML(t('pwg.noGroup'))}</option>`;
+    for(const g of groups){
+        out += `<option value="${escapeHTML(g.id)}" ${selected(current, g.id)}>${escapeHTML(g.name)}</option>`;
+    }
+    return out;
+}
+
+// Il campo «gruppo» nella riga di una presa. Vuoto finche' nessun gruppo esiste:
+// un menu con la sola voce «nessun gruppo» sarebbe una scelta senza conseguenza.
+function _pduOutletGroupFieldHtml(n, index, outlet, groups){
+    if(!groups.length) return '';
+    const current = normalizeGroupId(outlet && outlet.groupOvr !== undefined ? outlet.groupOvr : (outlet && outlet.group));
+    return `<label class="pdu-connection-field"><span>${escapeHTML(t('pwg.group'))}</span>`
+        + `<select data-change="pdu-outlet-group" data-nid="${escapeHTML(n.id)}" data-pindex="${escapeHTML(String(index))}">`
+        + _powerGroupOptionsHtml(groups, current)
+        + '</select></label>';
+}
+
+// Una riga per gruppo: nome, i due assi, quante prese ci stanno, e il cestino.
+function _powerGroupRowHtml(n, group, count){
+    return `<div class="pwg-row">
+        <span class="pwg-dot pg-${escapeHTML(String(group.index + 1))}"></span>
+        <input class="pwg-name" value="${escapeHTML(group.name)}" placeholder="${escapeHTML(t('pwg.namePh'))}" data-change="power-group-field" data-nid="${escapeHTML(n.id)}" data-gid="${escapeHTML(group.id)}" data-gfield="name">
+        <select class="pwg-sel pwg-sel-sw" title="${escapeHTML(t('pwg.switching'))}" data-change="power-group-field" data-nid="${escapeHTML(n.id)}" data-gid="${escapeHTML(group.id)}" data-gfield="switching">
+            <option value="switched" ${selected(group.switching, 'switched')}>${escapeHTML(t('pwg.switched'))}</option>
+            <option value="always" ${selected(group.switching, 'always')}>${escapeHTML(t('pwg.always'))}</option>
+        </select>
+        <select class="pwg-sel pwg-sel-bk" title="${escapeHTML(t('pwg.backup'))}" data-change="power-group-field" data-nid="${escapeHTML(n.id)}" data-gid="${escapeHTML(group.id)}" data-gfield="backup">
+            <option value="battery" ${selected(group.backup, 'battery')}>${escapeHTML(t('pwg.battery'))}</option>
+            <option value="surge" ${selected(group.backup, 'surge')}>${escapeHTML(t('pwg.surge'))}</option>
+        </select>
+        <span class="pwg-count">${escapeHTML(t('pwg.outletsN', { n: count }))}</span>
+        <button class="pwg-del" type="button" title="${escapeHTML(t('pwg.remove'))}" aria-label="${escapeHTML(t('pwg.remove'))}" data-act="power-group-del" data-nid="${escapeHTML(n.id)}" data-gid="${escapeHTML(group.id)}"><i class="fas fa-trash"></i></button>
+    </div>`;
+}
+
+// La sezione «Gruppi di prese». Vale per chiunque abbia prese — UPS e barre: il
+// gruppo non e' una stranezza dell'UPS, e' come si organizzano le prese. Si
+// costruisce per CONCATENAZIONE perche' una variabile locale che trasporta HTML
+// lo scanner dell'escaping non la sa dimostrare, e finirebbe nel residuo.
+function _powerGroupsHtml(n){
+    const view = powerGroupView(n, _pduOutletSource(n));
+    const groups = view.groups;
+    const preview = groups.length
+        ? t('pwg.preview', { groups: groups.length, ungrouped: view.ungrouped.length })
+        : t('pwg.previewNone');
+    const openAttr = _propsSectionIsOpen('power-groups') ? 'open' : '';
+    let html = `<details class="props-collapsible props-secondary pwg-section" ${escapeHTML(openAttr)} data-toggle="props-section" data-section="power-groups">
+        <summary class="props-collapsible-head"><span><i class="fas fa-layer-group"></i> ${escapeHTML(t('pwg.title'))}</span><span class="props-collapsible-preview">${escapeHTML(preview)}</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
+        <div class="props-collapsible-body"><div>
+            <div class="pdu-connection-hint"><i class="fas fa-circle-info"></i> ${escapeHTML(t('pwg.hint'))}</div>`;
+    if(!groups.length) html += `<div class="pwg-empty">${escapeHTML(t('pwg.empty'))}</div>`;
+    html += '<div class="pwg-list">';
+    for(const g of groups) html += _powerGroupRowHtml(n, g, g.outlets.length);
+    html += '</div>';
+    if(view.orphan.length) html += `<div class="pwg-orphan"><i class="fas fa-triangle-exclamation"></i> ${escapeHTML(t('pwg.orphan', { n: view.orphan.length }))}</div>`;
+    const addDisabled = groups.length >= MAX_POWER_GROUPS ? 'disabled' : '';
+    html += `<button class="pwg-add" type="button" ${escapeHTML(addDisabled)} data-act="power-group-add" data-nid="${escapeHTML(n.id)}"><i class="fas fa-plus"></i> ${escapeHTML(t('pwg.add'))}</button>`;
+    // Il ritorno chiude con un template, non con una stringa: e' cosi' che lo
+    // scanner dell'escaping riconosce un BUILDER e si fida del suo valore.
+    return html + `</div></div></details>`;
+}
+
 function _pduPowerConnectionsHtml(n){
     const source = _pduOutletSource(n);
     const configured = n && n.pduOutletCount != null ? n.pduOutletCount : (source.length || 8);
     const count = normalizePduOutletCount(configured);
     const entries = Array.from({ length:count }, (_, index) => source[index] || { name:`P${index + 1}` });
     const connected = entries.reduce((total, outlet) => total + (pduOutletConnection(outlet).connected ? 1 : 0), 0);
+    const _groupsForOutlets = powerGroups(n);   // il menu «gruppo» compare solo se un gruppo esiste
     const rows = entries.map((outlet, index) => {
         const connection = pduOutletConnection(outlet);
         const label = String(outlet.label || outlet.name || `P${index + 1}`);
@@ -176,6 +321,7 @@ function _pduPowerConnectionsHtml(n){
             <div class="pdu-connection-fields">
                 <label class="pdu-connection-field"><span>${escapeHTML(t('pdu.connectionDevice'))}</span>${pduConnectionDeviceSelect({ nodeId:n.id, index, connection })}</label>
                 <label class="pdu-connection-field"><span>${escapeHTML(t('pdu.connectionPort'))}</span><input class="${portClass}" value="${escapeHTML(connection.portName)}" placeholder="${escapeHTML(t('pdu.notSet'))}" data-change="pdu-connection-field" data-nid="${escapeHTML(n.id)}" data-pindex="${index}" data-pfield="portName"></label>
+                ${_pduOutletGroupFieldHtml(n, index, outlet, _groupsForOutlets)}
             </div>
         </div>`;
     }).join('');
@@ -1151,6 +1297,7 @@ export function _nodeDeviceChainHtml(n, d){
                         <input type="number" min="0" max="${escapeHTML(String(MAX_PDU_OUTLETS))}" value="${escapeHTML(String(n.pduOutletCount||''))}" placeholder="0" data-change="update-n" data-nfield="pduOutletCount" data-ncoerce="intdef" data-ndef="0"></div>
                     <div class="pdu-port-model-note"><i class="fas fa-circle-info"></i> ${t('pnl.dev.upsOutletsNote')}</div>
                     ${_pduOutletStateHtml(n)}
+                    ${rendersOutletGrid(n) ? _powerGroupsHtml(n) : ''}
                     ${rendersOutletGrid(n) ? _pduPowerConnectionsHtml(n) : ''}
                     ${typeof _powerLiveHtml==='function' ? _powerLiveHtml(n) : ''}
                 </div></details>`;
@@ -1209,6 +1356,7 @@ export function _nodeDeviceChainHtml(n, d){
                     <div class="prop-group"><label>${t('f.totalSockets')}</label>
                         <input type="number" min="1" max="${MAX_PDU_OUTLETS}" value="${n.pduOutletCount||8}" data-change="update-n" data-nfield="pduOutletCount" data-ncoerce="intdef" data-ndef="8"></div>
                     ${_pduOutletStateHtml(n)}
+                    ${_powerGroupsHtml(n)}
                     ${_pduPowerConnectionsHtml(n)}
                 </div></details>`;
             }

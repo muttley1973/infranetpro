@@ -78,6 +78,42 @@ test('righe presa: stato, apparato alimentato e provenienza', () => {
   assert.equal(rows[0].rawStatus, 'enabled', 'la parola originale della fonte resta leggibile');
 });
 
+// Il gruppo e' la meta' che conta di un UPS: dice chi resta acceso quando manca
+// la corrente. Sul dossier deve arrivare sia sulla presa (che gruppo e') sia
+// nella scheda (che gruppi esistono, e come sono fatti).
+test('dossier: il gruppo arriva sulla presa e nella scheda', () => {
+  const ups = {
+    id: 'ups1', name: 'UPS-Sala', type: 'ups',
+    powerGroups: [
+      { id: 'g1', name: 'Critici', switching: 'always', backup: 'battery' },
+      { id: 'g2', name: 'Sacrificabili', switching: 'switched', backup: 'battery' },
+      { id: 'g3', name: 'Stampanti', switching: 'switched', backup: 'surge' },
+    ],
+    powerOutlets: [
+      { name: 'Outlet 1', groupOvr: 'g1' },
+      { name: 'Outlet 2', groupOvr: 'g1' },
+      { name: 'Outlet 3', groupOvr: 'g2' },
+      { name: 'Outlet 4' },
+    ],
+  };
+  const rows = pduOutletRows(ups);
+  assert.deepEqual(rows.map(r => r.group), ['Critici', 'Critici', 'Sacrificabili', null],
+    'una presa non assegnata dice null, non un gruppo di comodo');
+
+  const s = pduSummaryRow(ups);
+  assert.deepEqual(s.groups, [
+    { name: 'Critici', switching: 'always', backup: 'battery', outlets: 2 },
+    { name: 'Sacrificabili', switching: 'switched', backup: 'battery', outlets: 1 },
+    { name: 'Stampanti', switching: 'switched', backup: 'surge', outlets: 0 },
+  ], 'un gruppo dichiarato e ancora vuoto resta in elenco: nasconderlo lo farebbe sembrare mai creato');
+});
+
+test('dossier: senza gruppi dichiarati non si inventa nulla', () => {
+  const rows = pduOutletRows(_pduB());
+  assert.deepEqual([...new Set(rows.map(r => r.group))], [null]);
+  assert.deepEqual(pduSummaryRow(_pduB()).groups, []);
+});
+
 test('etichetta presa: nome dichiarato, altrimenti il progressivo', () => {
   assert.equal(outletLabel({ name: 'C13-3' }, 0), 'C13-3');
   assert.equal(outletLabel({}, 4), '5');

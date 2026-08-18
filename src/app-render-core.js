@@ -18,6 +18,7 @@ import { TYPES, typeShort, _frontPanelPortLabel, _fixedRackLabel, _frontPanelSta
 import { nodeLabelParts } from '../lib/node-label.js';   // lib pura importata ESM (come lib/ipv6.js): NON un globale su window
 import { radioPid } from '../lib/radio.js';   // pid porta radio (ESM, no win.*): filtro VLAN wireless in _nodeDim
 import { normalizePduOutletCount, outletStatusText, pduOutletStatusState, pduOutletConnection, pduOutletGrid, pduOutletCellSize, pduManagementPortCount, pduSerialPortCount, pduAuxiliaryPortCount, rendersOutletGrid } from '../lib/pdu-layout.js';
+import { groupOfOutlet, outletGroupIndex } from '../lib/power-groups.js';   // la fascia di gruppo sulla presa: dichiarata, non misurata
 import { switchRack, toggleRackPanel, applyUiColors, _updateRackFloorBtn } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { portTip, _portLagGid, _isLagFocusedPort, _updateLagBanner } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _l3GatewayNodeIds } from './app-l3.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
@@ -74,11 +75,16 @@ function _pduPowerGridHtml(n, sizeU=1){
         const connection = pduOutletConnection(outlet);
         const targetText = [connection.deviceName, connection.portName].filter(Boolean).join(' · ')
             || outlet.powerPort || outlet.power_port || '';
-        const title = [`PDU ${label}`, rawStatus || status, targetText].filter(Boolean).join(' · ');
+        // Il GRUPPO della presa: fascia di colore e parola nel tooltip. Dice chi
+        // resta acceso al buio, che sul rack e' la domanda vera — e resta separato
+        // dallo stato, che colora il fondo ed e' una misura.
+        const group = groupOfOutlet(n, outlet);
+        const groupCls = outletGroupIndex(n, outlet) ? ('pg-' + outletGroupIndex(n, outlet)) : '';
+        const title = [`PDU ${label}`, rawStatus || status, group ? group.name : '', targetText].filter(Boolean).join(' · ');
         const key = outlet.id || outlet.name || index + 1;
         const selection = `${n.id}::${key}`;
         const selected = store.selType === 'pdu-outlet' && store.selId === selection ? ' selected' : '';
-        return `<div class="pdu-power-outlet ${status}${selected}" data-pdu-outlet="${escapeHTML(`${n.id}:${key}`)}" data-pdu-selection="${escapeHTML(selection)}" data-pdu-node="${escapeHTML(n.id)}" data-pdu-key="${escapeHTML(String(key))}" data-pdu-label="${escapeHTML(label)}" data-pdu-number="${escapeHTML(number)}" title="${escapeHTML(title)}" aria-label="${escapeHTML(title)}"></div>`;
+        return `<div class="pdu-power-outlet ${status}${selected}${escapeHTML(groupCls ? " " + groupCls : "")}" data-pdu-outlet="${escapeHTML(`${n.id}:${key}`)}" data-pdu-selection="${escapeHTML(selection)}" data-pdu-node="${escapeHTML(n.id)}" data-pdu-key="${escapeHTML(String(key))}" data-pdu-label="${escapeHTML(label)}" data-pdu-number="${escapeHTML(number)}" title="${escapeHTML(title)}" aria-label="${escapeHTML(title)}"></div>`;
     }).join('');
     return `<div class="rack-ports pdu-power-ports" aria-label="PDU power outlets"><div class="pdu-power-grid" style="--pdu-cols:${grid.columns};--pdu-rows:${grid.rows};--pdu-cell-w:${cell.width}px;--pdu-cell-h:${cell.height}px;--pdu-font:${cell.fontSize}px">${cells}</div></div>`;
 }

@@ -69,6 +69,8 @@ const _RL = {
         'pdu.fw': 'Firmware', 'pdu.position': 'Posizione', 
     'pdu.rated': 'Corrente nom.', 'pdu.mgmtPorts': 'Porte gestione', 'pdu.assetTag': 'Asset tag',
     'pdu.feedFrom': 'ALIMENTATA DA', 'pdu.loadList': 'PRESE E CARICHI',
+    'pdu.groups': 'GRUPPI DI PRESE', 'pdu.grp.switched': 'commutabile', 'pdu.grp.always': 'sempre acceso',
+    'pdu.grp.battery': 'batteria', 'pdu.grp.surge': 'solo filtrata',
     'sub.cables': 'cavi documentati nel progetto', 'sub.routes': 'percorsi tracciati',
     'sub.vlans': 'VLAN configurate', 'sub.assets': 'dispositivi documentati',
     'sub.portsA': 'porte su', 'sub.portsB': 'dispositivi',
@@ -135,6 +137,8 @@ const _RL = {
         'pdu.fw': 'Firmware', 'pdu.position': 'Position', 
     'pdu.rated': 'Rated current', 'pdu.mgmtPorts': 'Management ports', 'pdu.assetTag': 'Asset tag',
     'pdu.feedFrom': 'FED FROM', 'pdu.loadList': 'OUTLETS AND LOADS',
+    'pdu.groups': 'OUTLET GROUPS', 'pdu.grp.switched': 'switchable', 'pdu.grp.always': 'always on',
+    'pdu.grp.battery': 'battery', 'pdu.grp.surge': 'surge only',
     'sub.cables': 'cables documented in the project', 'sub.routes': 'traced routes',
     'sub.vlans': 'VLANs configured', 'sub.assets': 'devices documented',
     'sub.portsA': 'ports across', 'sub.portsB': 'devices',
@@ -918,13 +922,18 @@ function _addPduPages(doc, pdu, projName, date, lang = 'it') {
     // Alimentazione in ingresso: una riga per presa di corrente del PDU.
     const feedLines = (s.feeds || []).map(f =>
       `${f.name || '-'}${f.type ? ` (${f.type})` : ''} <- ${f.source || '?'}${f.sourcePort ? ` · ${f.sourcePort}` : ''}`);
+    // I GRUPPI: due parole per gruppo (commutabile o sempre acceso, batteria o
+    // solo filtrata) e quante prese contiene. E' la risposta alla domanda per cui
+    // si compra un UPS, e su carta va letta senza aprire nulla.
+    const grpLines = (s.groups || []).map(g =>
+      `${g.name}  ·  ${lbl('pdu.grp', g.switching)}  ·  ${lbl('pdu.grp', g.backup)}  ·  ${g.outlets} ${_rt(L, 'col.outlets')}`);
     // Prese: solo quelle che alimentano qualcosa portano un testo lungo; le libere
     // restano compatte. Questo è il "collegamenti" che serve per ricablare.
     // La provenienza qualifica il COLLEGAMENTO: senza un apparato da mostrare non
     // c'è nulla da attribuire, e stampare «[Importato]» accanto a una presa vuota
     // farebbe pensare a un carico che il documento non sta dichiarando.
     const outLines = mine.map(o =>
-      `${o.label}  ${lbl('pdu.st', o.status)}`
+      `${o.label}${o.group ? `  [${o.group}]` : ''}  ${lbl('pdu.st', o.status)}`
       + (o.deviceName
         ? `  ->  ${o.deviceName}${o.portName ? ` · ${o.portName}` : ''}`
           + (o.source ? `  [${_rt(L, `pdu.src.${o.source}`)}]` : '')
@@ -934,9 +943,11 @@ function _addPduPages(doc, pdu, projName, date, lang = 'it') {
     const pairRows = Math.ceil(pairs.length / 2);
     const noteRows = s.notes ? _wrapFit(doc, s.notes, CW - 12, 6).length : 0;
     const feedRows = feedLines.reduce((a, l) => a + _wrapFit(doc, l, CW - 12, 6).length, 0);
+    const grpRows = grpLines.reduce((a, l) => a + _wrapFit(doc, l, CW - 12, 6).length, 0);
     const outRows = outLines.reduce((a, l) => a + _wrapFit(doc, l, CW - 12, 6).length, 0);
     const cardH = 18 + 3 + pairRows * 10 + 4
       + (feedLines.length ? 10 + feedRows * 9 : 0)
+      + (grpLines.length ? 10 + grpRows * 9 : 0)
       + (outLines.length ? 10 + outRows * 9 : 0)
       + (noteRows ? 10 + noteRows * 9 : 0) + 8;
 
@@ -987,6 +998,9 @@ function _addPduPages(doc, pdu, projName, date, lang = 'it') {
       y += 1;
     };
     block('pdu.feedFrom', feedLines, '#b45309');
+    // I gruppi PRIMA dell'elenco prese: si legge «chi resta acceso» e poi si va
+    // a vedere quali prese ci stanno dentro, non il contrario.
+    block('pdu.groups', grpLines, '#7c3aed');
     // Prese una per riga. Una versione a due colonne impaginava la seconda colonna
     // fuori posto (partiva sopra la prima): meglio una lista che si legge bene e
     // qualche riga in più, che una griglia stretta e sbagliata.
