@@ -74,15 +74,56 @@ test('il silenzio del DCIM non e\' una differenza', () => {
   assert.equal(r.clean, true);
 });
 
-test('il rack si confronta per NOME, non per un id generato dall\'import', () => {
+test('rack senza riferimento: si ripiega sul NOME, e non si accusa il lavoro a mano', () => {
+  // Progetto nato PRIMA che il rack portasse la propria identita': l'id InfraNet
+  // lo genera l'import, quindi non e' una chiave. Resta il nome.
   const a = state([dev(1, { rackId: 'nb-rack-9' })], { racks: [{ id: 'nb-rack-9', name: 'Rack A', sizeU: 42 }] });
   const b = state([dev(1, { rackId: 'r-777' })], { racks: [{ id: 'r-777', name: 'Rack A', sizeU: 42 }] });
   assert.equal(diffAgainstProject(a, b).clean, true);
   const c = state([dev(1, { rackId: 'r-777' })], { racks: [{ id: 'r-777', name: 'Rack B', sizeU: 42 }] });
   const r = diffAgainstProject(a, c);
   assert.equal(r.devices.changed[0].fields.find(f => f.field === 'rack').dcim, 'Rack A');
-  assert.equal(r.racks.added.length, 1);      // «Rack A» non c'e' piu' nel documento
-  assert.equal(r.racks.removed.length, 1);    // e «Rack B» il DCIM non lo conosce
+  assert.equal(r.racks.added.length, 1, '«Rack A» il documento non ce l\'ha');
+  // ⚠️ «Rack B» NON finisce fra i rimossi: senza riferimento e' indistinguibile da
+  // un rack disegnato a mano, e dichiararlo sparito accuserebbe l'utente del proprio
+  // lavoro. E' la stessa regola gia' applicata agli apparati (onesta' ①). Si conta.
+  assert.equal(r.racks.removed.length, 0);
+  assert.equal(r.handmade.racks, 1);
+  assert.equal(r.weak.racksByName, 0, 'nessun appaiamento riuscito per nome, qui');
+});
+
+test('⭐ rack CON riferimento: rinominarlo in NetBox non lo fa sparire e ricomparire', () => {
+  // Il caso che il confronto per stringa sbagliava: stesso rack, nome nuovo. Prima
+  // usciva una riga «aggiunto» + una «rimosso» per un oggetto che non si e' mosso.
+  const a = state([], { racks: [{ id: 'nb-rack-30', name: 'MDF — piano 1', srcRack: 30, sizeU: 42 }] });
+  const b = state([], { racks: [{ id: 'nb-rack-30', name: 'MDF', srcRack: 30, sizeU: 42 }] });
+  const r = diffAgainstProject(a, b);
+  assert.equal(r.racks.added.length, 0);
+  assert.equal(r.racks.removed.length, 0);
+  assert.equal(r.racks.changed.length, 0, 'il nome non e\' fra i campi confrontati del rack');
+  assert.equal(r.weak.racksByName, 0, 'appaiato per riferimento, non per nome');
+
+  // L'altezza invece cambia davvero, e si vede — appaiando sempre per riferimento.
+  const c = state([], { racks: [{ id: 'nb-rack-30', name: 'MDF', srcRack: 30, sizeU: 47 }] });
+  const r2 = diffAgainstProject(a, c);
+  assert.deepEqual(r2.racks.changed[0].fields, [{ field: 'sizeU', dcim: '42', doc: '47' }]);
+});
+
+test('rack bifacciale: due rack InfraNet, un solo oggetto di la\', una sola riga', () => {
+  const due = { racks: [{ id: 'nb-rack-30', name: 'MDF', srcRack: 30, sizeU: 42 },
+                        { id: 'nb-rack-30-rear', name: 'MDF · retro', srcRack: 30, sizeU: 42 }] };
+  const r = diffAgainstProject(state([], due), state([], { racks: [] }));
+  assert.equal(r.racks.added.length, 1, 'di la\' e\' un rack solo: una riga, non due');
+});
+
+test('un rack scritto a mano CONVIVE con quelli importati e resta fuori dalle accuse', () => {
+  const dcim = state([], { racks: [{ id: 'nb-rack-30', name: 'MDF', srcRack: 30, sizeU: 42 }] });
+  const doc = state([], { racks: [{ id: 'nb-rack-30', name: 'MDF', srcRack: 30, sizeU: 42 },
+                                  { id: 'mio-1', name: 'Armadio ufficio', sizeU: 12 }] });
+  const r = diffAgainstProject(dcim, doc);
+  assert.equal(r.racks.removed.length, 0, 'l\'armadio che hai disegnato tu non «manca dal DCIM»');
+  assert.equal(r.handmade.racks, 1);
+  assert.equal(r.clean, true);
 });
 
 test('prefissi: identita\' = id NetBox, e una rete scritta a mano non manca da nessuna parte', () => {

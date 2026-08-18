@@ -55,7 +55,7 @@ test('mappa device → nodi con brand/model/serial/rack/ip', () => {
 
 test('rack importato con altezza dichiarata (no invenzione 42U se assente)', () => {
   const { state } = map.netboxToState(fixture());
-  assert.deepEqual(state.racks, [{ id: 'nb-rack-30', name: 'Rack A', sizeU: 42, x: 120, y: 120 }]);
+  assert.deepEqual(state.racks, [{ id: 'nb-rack-30', name: 'Rack A', srcRack: 30, sizeU: 42, x: 120, y: 120 }]);
   const noU = map.netboxToState({ racks: [{ id: 1, name: 'R' }] });
   assert.equal('sizeU' in noU.state.racks[0], false);
 });
@@ -501,8 +501,9 @@ test('rack bifacciale → 2 rack InfraNet (fronte + "· retro"), device assegnat
   const { state } = map.netboxToState(nb);
   const byId = id => state.racks.find(r => r.id === id);
   assert.equal(state.racks.length, 2);
-  assert.deepEqual(byId('nb-rack-30'), { id: 'nb-rack-30', name: 'MDF', sizeU: 42, x: 120, y: 120 });
-  assert.deepEqual(byId('nb-rack-30-rear'), { id: 'nb-rack-30-rear', name: 'MDF · retro', sizeU: 42, x: 340, y: 120 });
+  assert.deepEqual(byId('nb-rack-30'), { id: 'nb-rack-30', name: 'MDF', srcRack: 30, sizeU: 42, x: 120, y: 120 });
+  // ⚠️ I due lati di un bifacciale portano lo STESSO riferimento: di la' e' un rack solo.
+  assert.deepEqual(byId('nb-rack-30-rear'), { id: 'nb-rack-30-rear', name: 'MDF · retro', srcRack: 30, sizeU: 42, x: 340, y: 120 });
   const sw = state.nodes.find(n => n.id === 'nb-dev-100');
   const pp = state.nodes.find(n => n.id === 'nb-dev-200');
   assert.equal(sw.rackId, 'nb-rack-30'); assert.equal(sw.rackU, 40);        // fronte
@@ -586,10 +587,15 @@ test('front port di un patch panel → slot passanti (ordine naturale, conteggio
   const pa = state.nodes.find(n => n.id === 'nb-dev-200');
   assert.equal(pa.type, 'patchpanel');
   assert.equal(pa.ports, 2);                     // 2 front port → 2 slot
-  // front port "1" → slot 1, "2" → slot 2 (naturale, non ordine di array)
-  // (nessuna ifName perché il nome coincide col numero di slot)
-  assert.equal('nb-dev-200-1' in state.ports, false);
-  assert.equal('nb-dev-200-2' in state.ports, false);
+  // front port "1" → slot 1, "2" → slot 2 (naturale, non ordine di array).
+  // ⚠️ Dal riferimento all'origine la voce ESISTE — uno slot deve essere
+  // indirizzabile all'oggetto NetBox da cui viene — ma l'invariante che questo
+  // test difende resta la stessa: NESSUNA `ifName` quando il nome coincide col
+  // numero di slot, perché ripeterlo sarebbe un'etichetta che non dice niente.
+  assert.equal('nb-dev-200-1' in state.ports, true);
+  assert.equal(state.ports['nb-dev-200-1'].ifName, undefined);
+  assert.equal(state.ports['nb-dev-200-2'].ifName, undefined);
+  assert.equal(state.ports['nb-dev-200-1'].srcFront, 2000);
 });
 
 test('cavo interface↔front-port → link su slot del pannello', () => {
