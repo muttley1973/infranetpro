@@ -15,6 +15,8 @@ import { showAlert } from './app-core.js';
 import { renderAll } from './app-render-core.js';
 import { renderProps } from './app-properties.js';
 import { registerClickActions, registerChangeActions } from './app-delegation.js';
+import { hasPowerOutlets } from '../lib/pdu-layout.js';   // «ha prese», non «è un PDU»: unica definizione
+import { powerGroups } from '../lib/power-groups.js';     // i gruppi dichiarati dall'utente non si toccano
 
 let _catalog = [];
 let _byKey = {};   // "brand model" (lower) -> template
@@ -65,6 +67,38 @@ function _ensureDeviceTypeDatalist() {
 /** PURA: applica un template ai campi NATIVI del nodo. Ritorna true se applicato.
  *  Sostituisce ports + frontPanel (reset al layout del modello) e aggiorna
  *  brand/model/altezza-U. Non tocca porte/VLAN gia' configurate a valle. */
+// Le PRESE del modello, sul nodo. Manual-first su due livelli:
+//  · quello che hai scritto SULLA PRESA — a chi è collegata, lo stato dichiarato,
+//    il gruppo che le hai dato — sopravvive: il modello porta l'HARDWARE (quante
+//    sono, come si chiamano, che spina hanno), non il lavoro che ci hai fatto sopra;
+//  · i GRUPPI dichiarati da te restano intatti. Quelli letti dal catalogo entrano
+//    solo se non ne hai ancora nessuno — applicare un modello non è il momento
+//    per ribattezzarti i gruppi.
+// Le prese in più già documentate NON si cancellano: un modello che ne dichiara
+// meno di quante ne hai scritte non è una prova che le tue non esistano.
+const _OUTLET_KEEP = ['id', 'groupOvr', 'statusOvr', 'connectionOvr', 'connectedTo',
+    'connectedDeviceId', 'connectedDeviceName', 'connectedPortName', 'connected', 'rawStatus', 'status'];
+
+function _applyTemplateOutlets(node, tmpl) {
+    if (!hasPowerOutlets(node.type)) return;
+    const from = Array.isArray(tmpl.powerOutlets) ? tmpl.powerOutlets : [];
+    if (!from.length) return;
+    const existing = Array.isArray(node.powerOutlets) ? node.powerOutlets : [];
+    const merged = from.map((tpl, i) => {
+        const prev = existing[i] && typeof existing[i] === 'object' ? existing[i] : null;
+        const next = { name: String((tpl && tpl.name) || `P${i + 1}`) };
+        if (tpl && tpl.type) next.type = tpl.type;
+        if (tpl && tpl.group) next.group = tpl.group;
+        if (prev) for (const key of _OUTLET_KEEP) if (prev[key] !== undefined) next[key] = prev[key];
+        return next;
+    });
+    for (let i = from.length; i < existing.length; i++) merged.push(existing[i]);
+    node.powerOutlets = merged;
+    node.pduOutletCount = merged.length;
+    const groups = Array.isArray(tmpl.powerGroups) ? tmpl.powerGroups : [];
+    if (groups.length && !powerGroups(node).length) node.powerGroups = groups.map(g => Object.assign({}, g));
+}
+
 export function applyTemplateToNode(node, tmpl, rackTotalU) {
     if (!node || !tmpl) return false;
     node.ports = tmpl.ports;
@@ -81,6 +115,7 @@ export function applyTemplateToNode(node, tmpl, rackTotalU) {
         node.sizeU = rackTotalU ? Math.max(1, Math.min(tmpl.rackU, rackTotalU)) : Math.max(1, tmpl.rackU);
         if (rackTotalU) node.rackU = Math.max(1, Math.min(node.rackU || 1, rackTotalU - node.sizeU + 1));
     }
+    _applyTemplateOutlets(node, tmpl);
     return true;
 }
 

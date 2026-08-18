@@ -7,6 +7,7 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { buildTemplate, roleOf, parseDeviceType } = require('../tools/import-device-types');
+const { deriveOutletGroups } = require('../lib/power-groups');
 
 const DEFAULT_SOURCE = 'https://github.com/netbox-community/devicetype-library.git';
 const ROOT = path.resolve(__dirname, '..');
@@ -193,7 +194,28 @@ function canonicalModel(dt, file, inputDir, template) {
   };
 }
 
+// Le PRESE nel catalogo a runtime. Fin qui il catalogo ridotto teneva solo le
+// porte di rete: un UPS ci arrivava con zero prese, e «Applica modello» su un
+// gruppo di continuita' non gli dava nulla — mentre il canonico le descrive una
+// per una. Si travasano, con un tetto di 48 (lo stesso dell'import DCIM), e il
+// GRUPPO si legge dal nome quando il costruttore ce l'ha scritto: «Group 2 -
+// Output 1» dice gruppo 2, «Outlet 5» non dice niente e resta senza.
+function runtimePowerOutlets(dt) {
+  const raw = Array.isArray(dt['power-outlets']) ? dt['power-outlets'] : [];
+  const outlets = raw.slice(0, 48).map(o => {
+    const out = { name: String((o && o.name) || '').trim() };
+    const type = String((o && o.type) || '').trim();
+    if (type) out.type = type;
+    return out;
+  }).filter(o => o.name);
+  if (!outlets.length) return null;
+  const derived = deriveOutletGroups(outlets);
+  derived.assign.forEach((id, i) => { if (id && outlets[i]) outlets[i].group = id; });
+  return { powerOutlets: outlets, powerGroups: derived.groups };
+}
+
 function runtimeModel(dt, template) {
+  const power = runtimePowerOutlets(dt);
   return {
     slug: dt.slug || '',
     sourceSlug: dt.slug || '',
@@ -206,6 +228,10 @@ function runtimeModel(dt, template) {
     isFullDepth: bool(dt.is_full_depth),
     frontPanel: template.frontPanel,
     counts: template.counts,
+    // Assenti quando non ce ne sono: il catalogo non porta chiavi vuote in giro
+    // per 5296 modelli.
+    ...(power ? { powerOutlets: power.powerOutlets } : {}),
+    ...(power && power.powerGroups.length ? { powerGroups: power.powerGroups } : {}),
   };
 }
 
@@ -272,6 +298,8 @@ function runtimeFingerprint(model) {
     isFullDepth: model.isFullDepth,
     frontPanel: model.frontPanel,
     counts: model.counts,
+    powerOutlets: model.powerOutlets,
+    powerGroups: model.powerGroups,
   });
 }
 
@@ -316,6 +344,50 @@ function detectLicense(inputDir, source) {
   return 'unknown';
 }
 
+// ── Ricostruzione del solo catalogo RUNTIME dal canonico (--from-canonical) ──
+// Il canonico contiene GIA' tutto quello che serve: e' lui la fotografia della
+// sorgente. Quando cambia la PROIEZIONE — com'e' successo aggiungendo le prese —
+// non c'e' motivo di riscaricare 6000 file YAML per riscrivere un file che si
+// ricava da un altro che hai gia' sul disco. Non tocca canonico, manifesto e
+// diff: la sorgente non e' cambiata, e dire il contrario sarebbe una bugia
+// scritta in un file di provenienza.
+function rebuildRuntimeFromCanonical(canonicalPath, options) {
+  const doc = readJson(canonicalPath, null);
+  const models = Array.isArray(doc) ? doc : (doc && Array.isArray(doc.models) ? doc.models : null);
+  if (!models || !models.length) throw new Error('canonico assente o vuoto: ' + canonicalPath);
+  const overrides = controlMap(options && options.overrides);
+  const exclusions = exclusionSet(options && options.exclusions);
+  const useRoles = !(options && options.all);
+  const runtime = [];
+  const dropped = [];
+  for (const m of models) {
+    const raw = (m && m.raw) || {};
+    // Le chiavi tornano quelle del YAML originale: buildTemplate e roleOf leggono
+    // 'interfaces', 'module-bays', 'power-outlets', 'console-server-ports'.
+    const dt = {
+      slug: m.sourceSlug || raw.slug || '',
+      manufacturer: raw.manufacturer || (m.manufacturer && m.manufacturer.name) || '',
+      model: raw.model || m.model || '',
+      part_number: raw.part_number || m.partNumber || '',
+      u_height: raw.u_height,
+      is_full_depth: raw.is_full_depth,
+      interfaces: raw.interfaces || m.interfaces || [],
+      'module-bays': raw.module_bays || m.moduleBays || [],
+      'power-outlets': raw.power_outlets || m.powerOutlets || [],
+      'console-server-ports': raw.console_server_ports || m.consoleServerPorts || [],
+    };
+    const sourceSlug = String(dt.slug || '').trim();
+    if (!sourceSlug || !String(dt.manufacturer).trim() || !String(dt.model).trim()) continue;
+    const template = buildTemplate(dt);
+    const role = roleOf(dt, template.counts);
+    if (exclusions.has(sourceSlug)) { dropped.push(sourceSlug); continue; }
+    if (useRoles && !role.keep) { dropped.push(sourceSlug); continue; }
+    runtime.push(shallowMerge(runtimeModel(dt, template), controlFor(overrides, sourceSlug)));
+  }
+  runtime.sort((a, b) => (a.brand + a.model).localeCompare(b.brand + b.model));
+  return { runtime, dropped, models: models.length };
+}
+
 async function main() {
   const input = option('input', process.env.INFRANET_DEVICE_TYPES_SOURCE_DIR || '');
   const source = option('source', process.env.INFRANET_DEVICE_TYPES_SOURCE_URL || DEFAULT_SOURCE);
@@ -329,6 +401,22 @@ async function main() {
   const exclusionsPath = path.resolve(ROOT, option('exclusions', 'data/device-types-exclusions.json'));
   const reportPath = option('report', '');
   const useRoles = !flag('--all');
+  if (flag('--from-canonical')) {
+    const controls = {
+      overrides: readJson(overridesPath, {}),
+      exclusions: readJson(exclusionsPath, []),
+    };
+    const result = rebuildRuntimeFromCanonical(canonicalPath, { overrides: controls.overrides, exclusions: controls.exclusions, all: !useRoles });
+    const previousRuntime = readJson(catalogPath, []);
+    fs.writeFileSync(catalogPath, JSON.stringify(result.runtime, null, 2) + '\n');
+    const withOutlets = result.runtime.filter(m => Array.isArray(m.powerOutlets) && m.powerOutlets.length).length;
+    const withGroups = result.runtime.filter(m => Array.isArray(m.powerGroups) && m.powerGroups.length).length;
+    log('Ricostruito dal canonico: ' + result.runtime.length + ' modelli (prima ' +
+      (Array.isArray(previousRuntime) ? previousRuntime.length : 0) + '), esclusi ' + result.dropped.length +
+      ' | con prese: ' + withOutlets + ' | con gruppi letti dal nome: ' + withGroups);
+    log('Manifesto e diff NON toccati: la sorgente non e cambiata, solo la proiezione runtime.');
+    return;
+  }
   let acquired = null;
   try {
     acquired = input ? { dir: path.resolve(input), remove: false, sourceRef: 'local' } : await acquireSource(source, ref);

@@ -108,6 +108,11 @@ npm run update-device-types -- --input=C:\path\to\devicetype-library
 # usa una revisione precisa della sorgente
 npm run update-device-types -- --ref=<commit>
 
+# riscrive SOLO il catalogo runtime dal canonico che hai già sul disco,
+# senza rete: serve quando cambia la PROIEZIONE (nuovi campi nel template)
+# e non la sorgente. Manifesto e diff non vengono toccati.
+npm run update-device-types -- --from-canonical
+
 # salva un report differenziale in un percorso esplicito
 npm run update-device-types -- --dry --report=data/device-types-review.json
 ```
@@ -116,6 +121,8 @@ Lo script genera:
 
 - `data/device-types-canonical.json` con dati e interfacce completi;
 - `data/device-types.json` con i template leggeri usati dall'app;
+  include le PRESE di alimentazione (nome, tipo, e il gruppo quando il
+  costruttore lo scrive nel nome: «Group 2 - Output 1» → gruppo 2);
 - `data/device-types-manifest.json` con sorgente, commit, checksum e statistiche;
 - `data/device-types-diff.json` con modelli aggiunti, rimossi, modificati ed esclusi.
 

@@ -5595,6 +5595,58 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       const e = pageErrors.slice(errBefore);
       assert.equal(e.length, 0, 'nessun errore JS: ' + e.join(' | '));
     });
+
+    // Il passo che chiude il giro: il catalogo a runtime porta le PRESE (prima
+    // teneva solo le porte di rete, e un UPS ci arrivava con zero) e il GRUPPO
+    // letto dal nome che il costruttore ha scritto. Qui si guida l'input vero
+    // «Applica modello» con un gesto vero: se il catalogo servito non avesse le
+    // prese, o se l'applicazione non le travasasse, il test fallirebbe.
+    await t.test('Applica modello: un UPS a catalogo porta prese e gruppi, senza cancellare il tuo lavoro', async () => {
+      const errBefore = pageErrors.length;
+      const r = await page.evaluate(async () => {
+        state = _buildDefaultState();
+        state = _migrateState(state);
+        state.nodes.length = 0; state.links.length = 0; state.ports = {};
+        state.racks = [{ id: 'rk1', name: 'R1', sizeU: 12 }];
+        state.currentRack = 'rk1';
+        state.nodes.push({
+          id: 'ups1', type: 'ups', name: 'UPS-Sala', rackId: 'rk1', rackU: 1, sizeU: 2, ports: 1,
+          // Lavoro gia' fatto a mano: un collegamento dichiarato sulla prima presa
+          // e un gruppo dichiarato dall'utente. Devono sopravvivere al modello.
+          powerOutlets: [{ name: 'la mia presa', connectionOvr: { deviceName: 'Server-01' } }],
+          powerGroups: [{ id: 'g1', name: 'Critici', switching: 'always', backup: 'battery' }],
+        });
+        _invalidateIdx();
+        selType = 'node'; selId = 'ups1';
+        renderProps();
+        const input = document.querySelector('[data-change="apply-device-type"]');
+        if (!input) return { errore: 'input «Applica modello» assente: catalogo non caricato' };
+        input.value = 'APC Smart-UPS SRT 3000VA RM';
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        await new Promise(resolve => requestAnimationFrame(resolve));
+        const n = nodeById('ups1');
+        return {
+          prese: (n.powerOutlets || []).length,
+          nomePrima: (n.powerOutlets || [])[0] && n.powerOutlets[0].name,
+          tipoPrima: (n.powerOutlets || [])[0] && n.powerOutlets[0].type,
+          gruppoDedotto: (n.powerOutlets || [])[0] && n.powerOutlets[0].group,
+          collegamentoSopravvissuto: !!((n.powerOutlets || [])[0] || {}).connectionOvr,
+          gruppiDichiarati: (n.powerGroups || []).map(g => g.name),
+          conteggio: n.pduOutletCount,
+          modello: n.model,
+        };
+      });
+      assert.ok(!r.errore, r.errore || '');
+      assert.equal(r.prese, 10, 'le 10 prese del modello arrivano sul nodo (prima erano zero)');
+      assert.equal(r.nomePrima, 'Group 1 Outlet 1', 'il nome viene dal costruttore: e\' hardware');
+      assert.equal(r.tipoPrima, 'iec-60320-c13', 'e con lui il tipo di spina');
+      assert.equal(r.gruppoDedotto, 'g1', 'il gruppo si legge dal nome della presa, senza chiederlo');
+      assert.equal(r.conteggio, 10);
+      assert.ok(r.collegamentoSopravvissuto, 'il collegamento dichiarato a mano NON viene cancellato dal modello');
+      assert.deepEqual(r.gruppiDichiarati, ['Critici'], 'i gruppi che hai dichiarato non vengono ribattezzati dal catalogo');
+      const e = pageErrors.slice(errBefore);
+      assert.equal(e.length, 0, 'nessun errore JS: ' + e.join(' | '));
+    });
   } finally {
     await browser.close();
     await srv.close();
