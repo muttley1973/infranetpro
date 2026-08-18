@@ -1,27 +1,76 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-11T13:02:12.471Z",
-  "sourceRef": "2518d6dd7601ad3424dbfa5ac700fd479dd3642e",
-  "sourceSha256": "e5d8944ac129429d050f221f01740b1c7b11f5e4149470e1ff36876656869656",
+  "generatedAt": "2026-08-16T08:53:15.398Z",
+  "sourceRef": "2dd6ca4e61bdc5348b358bf9e1afbe341c4e3981",
+  "sourceSha256": "9f4dd05f75916b8fc4cc2e33fb7dd92f89353b01ada8e5a7810aadc0599c2570",
   "added": [
-    "apc-srt96rmbp",
-    "apc-srtl50rmbp1u-li",
-    "moxa-nport-5110",
-    "moxa-nport-5130",
-    "moxa-nport-5150",
-    "qnap-ts-264"
+    "apc-ap7553",
+    "cisco-firepower-2110",
+    "d-link-des-1024a",
+    "d-link-des-3028",
+    "d-link-dgs-1210-12ts-me",
+    "dell-equallogic-ps6100",
+    "dell-powervault-me5012",
+    "dell-ups-1920w",
+    "dell-ups-k802n-2700w",
+    "hpe-aruba-ap25",
+    "hpe-aruba-ap27",
+    "hpe-proliant-compute-dl320-gen12",
+    "hpe-proliant-compute-dl360-gen12",
+    "hpe-proliant-compute-dl380-gen12",
+    "hpe-proliant-compute-ml350-gen12",
+    "moxa-nport-5210a",
+    "moxa-nport-5230a",
+    "moxa-nport-5250a",
+    "moxa-nport-5410",
+    "moxa-nport-5430",
+    "moxa-nport-5450",
+    "moxa-nport-5610-8",
+    "moxa-nport-5630-16",
+    "moxa-nport-5630-8",
+    "moxa-nport-5650-16",
+    "moxa-nport-5650-8",
+    "netapp-ds4246",
+    "palo-alto-networks-pa-5540",
+    "qnap-ts-431x3",
+    "qnap-ts-664",
+    "qnap-ts-863u-rp",
+    "qnap-tvs-871u-rp",
+    "sophos-xg-210",
+    "synology-ds1525-plus",
+    "synology-ds1825-plus",
+    "synology-ds225-plus",
+    "synology-ds425-plus",
+    "synology-rs822rp-plus",
+    "teltonika-trb501",
+    "tp-link-eap650",
+    "tp-link-eap650-outdoor",
+    "tp-link-eap655-wall",
+    "tp-link-eap670",
+    "tp-link-eap723",
+    "tp-link-eap725-wall",
+    "tp-link-eap772",
+    "tp-link-eap773",
+    "tp-link-eap775-wall",
+    "tp-link-eap783",
+    "tp-link-eap787",
+    "tp-link-sg2210xmp-m2",
+    "ubiquiti-u7-long-range",
+    "ubiquiti-unifi-dream-router-7"
   ],
   "removed": [],
-  "metadataChanged": [],
+  "metadataChanged": [
+    "moxa-nport-5610-16"
+  ],
   "templateChanged": [],
   "excludedRuntime": [],
   "counts": {
-    "added": 6,
+    "added": 53,
     "removed": 0,
-    "metadataChanged": 0,
+    "metadataChanged": 1,
     "templateChanged": 0,
     "excludedRuntime": 0,
-    "changed": 0
+    "changed": 1
   },
   "dropped": [
     {
@@ -2179,6 +2228,30 @@
       "reason": "role-filter"
     },
     {
+      "slug": "hpe-proliant-compute-dl320-gen12",
+      "model": "ProLiant Compute DL320 Gen12",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-compute-dl360-gen12",
+      "model": "ProLiant Compute DL360 Gen12",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-compute-dl380-gen12",
+      "model": "ProLiant Compute DL380 Gen12",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "hpe-proliant-compute-ml350-gen12",
+      "model": "ProLiant Compute ML350 Gen12",
+      "role": "server",
+      "reason": "role-filter"
+    },
+    {
       "slug": "hpe-proliant-dl120-gen7",
       "model": "ProLiant-DL120-Gen7",
       "role": "server",
@@ -2865,6 +2938,24 @@
     {
       "slug": "moxa-nport-5150",
       "model": "NPort 5150",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "moxa-nport-5210a",
+      "model": "NPort 5210A",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "moxa-nport-5230a",
+      "model": "NPort 5230A",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "moxa-nport-5250a",
+      "model": "NPort 5250A",
       "role": "other",
       "reason": "role-filter"
     },
@@ -4203,6 +4294,12 @@
     {
       "slug": "ubiquiti-u7-lite",
       "model": "U7 Lite",
+      "role": "other",
+      "reason": "role-filter"
+    },
+    {
+      "slug": "ubiquiti-u7-long-range",
+      "model": "U7 Long-Range",
       "role": "other",
       "reason": "role-filter"
     },

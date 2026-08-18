@@ -3989,6 +3989,25 @@
     }
   },
   {
+    "slug": "apc-ap7553",
+    "sourceSlug": "apc-ap7553",
+    "brand": "APC",
+    "brandSlug": "apc",
+    "model": "AP7553",
+    "partNumber": "AP7553",
+    "ports": 0,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 0,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "apc-ap7721",
     "sourceSlug": "apc-ap7721",
     "brand": "APC",
@@ -31215,6 +31234,29 @@
     }
   },
   {
+    "slug": "cisco-firepower-2110",
+    "sourceSlug": "cisco-firepower-2110",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "Firepower 2110",
+    "partNumber": "FPR2110-NGFW-K9",
+    "ports": 16,
+    "rackU": 1,
+    "isFullDepth": true,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4,
+      "mgmtCount": 1
+    },
+    "counts": {
+      "copper": 12,
+      "sfp": 4,
+      "qsfp": 0,
+      "mgmt": 1,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "cisco-fmc1700",
     "sourceSlug": "cisco-fmc1700",
     "brand": "Cisco",
@@ -41801,6 +41843,25 @@
     }
   },
   {
+    "slug": "d-link-des-1024a",
+    "sourceSlug": "d-link-des-1024a",
+    "brand": "D-Link",
+    "brandSlug": "d-link",
+    "model": "DES-1024A",
+    "partNumber": "DES-1024A",
+    "ports": 24,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 24,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "d-link-des-1210-08p",
     "sourceSlug": "d-link-des-1210-08p",
     "brand": "D-Link",
@@ -41858,6 +41919,28 @@
     "counts": {
       "copper": 28,
       "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "d-link-des-3028",
+    "sourceSlug": "d-link-des-3028",
+    "brand": "D-Link",
+    "brandSlug": "d-link",
+    "model": "DES-3028",
+    "partNumber": "DES-3028",
+    "ports": 30,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4
+    },
+    "counts": {
+      "copper": 26,
+      "sfp": 4,
       "qsfp": 0,
       "mgmt": 0,
       "fiberDropped": 0
@@ -42413,6 +42496,29 @@
     "counts": {
       "copper": 8,
       "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "d-link-dgs-1210-12ts-me",
+    "sourceSlug": "d-link-dgs-1210-12ts-me",
+    "brand": "D-Link",
+    "brandSlug": "d-link",
+    "model": "DGS-1210-12TS-ME",
+    "partNumber": "",
+    "ports": 12,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 10,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 2,
+      "sfp": 10,
       "qsfp": 0,
       "mgmt": 0,
       "fiberDropped": 0
@@ -44857,6 +44963,27 @@
     }
   },
   {
+    "slug": "dell-equallogic-ps6100",
+    "sourceSlug": "dell-equallogic-ps6100",
+    "brand": "Dell",
+    "brandSlug": "dell",
+    "model": "EqualLogic PS6100",
+    "partNumber": "",
+    "ports": 4,
+    "rackU": 4,
+    "isFullDepth": true,
+    "frontPanel": {
+      "mgmtCount": 1
+    },
+    "counts": {
+      "copper": 4,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 1,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "dell-powerconnect-3548p",
     "sourceSlug": "dell-powerconnect-3548p",
     "brand": "Dell",
@@ -45990,6 +46117,25 @@
     }
   },
   {
+    "slug": "dell-powervault-me5012",
+    "sourceSlug": "dell-powervault-me5012",
+    "brand": "Dell",
+    "brandSlug": "dell",
+    "model": "PowerVault ME5012",
+    "partNumber": "",
+    "ports": 0,
+    "rackU": 2,
+    "isFullDepth": true,
+    "frontPanel": {},
+    "counts": {
+      "copper": 0,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "dell-powervault-me5084",
     "sourceSlug": "dell-powervault-me5084",
     "brand": "Dell",
@@ -46069,6 +46215,44 @@
       "sfp": 2,
       "qsfp": 0,
       "mgmt": 1,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "dell-ups-1920w",
+    "sourceSlug": "dell-ups-1920w",
+    "brand": "Dell",
+    "brandSlug": "dell",
+    "model": "UPS 1920W",
+    "partNumber": "",
+    "ports": 0,
+    "rackU": 2,
+    "isFullDepth": true,
+    "frontPanel": {},
+    "counts": {
+      "copper": 0,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "dell-ups-k802n-2700w",
+    "sourceSlug": "dell-ups-k802n-2700w",
+    "brand": "Dell",
+    "brandSlug": "dell",
+    "model": "UPS K802N 2700W",
+    "partNumber": "",
+    "ports": 0,
+    "rackU": 3,
+    "isFullDepth": true,
+    "frontPanel": {},
+    "counts": {
+      "copper": 0,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
       "fiberDropped": 0
     }
   },
@@ -64295,6 +64479,44 @@
     }
   },
   {
+    "slug": "hpe-aruba-ap25",
+    "sourceSlug": "hpe-aruba-ap25",
+    "brand": "HPE",
+    "brandSlug": "hpe",
+    "model": "Aruba AP25",
+    "partNumber": "R9B28A",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "hpe-aruba-ap27",
+    "sourceSlug": "hpe-aruba-ap27",
+    "brand": "HPE",
+    "brandSlug": "hpe",
+    "model": "Aruba AP27",
+    "partNumber": "JW055A",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "hpe-aruba-ec-10104",
     "sourceSlug": "hpe-aruba-ec-10104",
     "brand": "HPE",
@@ -67709,7 +67931,7 @@
     "brand": "HPE",
     "brandSlug": "hpe",
     "model": "ProCurve 2510G-48",
-    "partNumber": "J9020A",
+    "partNumber": "J9280A",
     "ports": 48,
     "rackU": 1,
     "isFullDepth": false,
@@ -85882,11 +86104,163 @@
     }
   },
   {
+    "slug": "moxa-nport-5410",
+    "sourceSlug": "moxa-nport-5410",
+    "brand": "Moxa",
+    "brandSlug": "moxa",
+    "model": "NPort 5410",
+    "partNumber": "",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "moxa-nport-5430",
+    "sourceSlug": "moxa-nport-5430",
+    "brand": "Moxa",
+    "brandSlug": "moxa",
+    "model": "NPort 5430",
+    "partNumber": "",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "moxa-nport-5450",
+    "sourceSlug": "moxa-nport-5450",
+    "brand": "Moxa",
+    "brandSlug": "moxa",
+    "model": "NPort 5450",
+    "partNumber": "",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "moxa-nport-5610-16",
     "sourceSlug": "moxa-nport-5610-16",
     "brand": "Moxa",
     "brandSlug": "moxa",
     "model": "NPort 5610-16",
+    "partNumber": "",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "moxa-nport-5610-8",
+    "sourceSlug": "moxa-nport-5610-8",
+    "brand": "Moxa",
+    "brandSlug": "moxa",
+    "model": "NPort 5610-8",
+    "partNumber": "",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "moxa-nport-5630-16",
+    "sourceSlug": "moxa-nport-5630-16",
+    "brand": "Moxa",
+    "brandSlug": "moxa",
+    "model": "NPort 5630-16",
+    "partNumber": "",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "moxa-nport-5630-8",
+    "sourceSlug": "moxa-nport-5630-8",
+    "brand": "Moxa",
+    "brandSlug": "moxa",
+    "model": "NPort 5630-8",
+    "partNumber": "",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "moxa-nport-5650-16",
+    "sourceSlug": "moxa-nport-5650-16",
+    "brand": "Moxa",
+    "brandSlug": "moxa",
+    "model": "NPort 5650-16",
+    "partNumber": "",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "moxa-nport-5650-8",
+    "sourceSlug": "moxa-nport-5650-8",
+    "brand": "Moxa",
+    "brandSlug": "moxa",
+    "model": "NPort 5650-8",
     "partNumber": "",
     "ports": 1,
     "rackU": 1,
@@ -86296,6 +86670,25 @@
     "partNumber": "DS224C",
     "ports": 0,
     "rackU": 2,
+    "isFullDepth": true,
+    "frontPanel": {},
+    "counts": {
+      "copper": 0,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "netapp-ds4246",
+    "sourceSlug": "netapp-ds4246",
+    "brand": "NetApp",
+    "brandSlug": "netapp",
+    "model": "DS4246",
+    "partNumber": "",
+    "ports": 0,
+    "rackU": 4,
     "isFullDepth": true,
     "frontPanel": {},
     "counts": {
@@ -91569,6 +91962,30 @@
     }
   },
   {
+    "slug": "palo-alto-networks-pa-5540",
+    "sourceSlug": "palo-alto-networks-pa-5540",
+    "brand": "Palo Alto Networks",
+    "brandSlug": "palo-alto-networks",
+    "model": "PA-5540",
+    "partNumber": "PAN-PA-5540-AC",
+    "ports": 40,
+    "rackU": 3,
+    "isFullDepth": true,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 16,
+      "sfp2Count": 24,
+      "mgmtCount": 2
+    },
+    "counts": {
+      "copper": 0,
+      "sfp": 16,
+      "qsfp": 24,
+      "mgmt": 2,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "palo-alto-networks-pa-555-poe",
     "sourceSlug": "palo-alto-networks-pa-555-poe",
     "brand": "Palo Alto Networks",
@@ -92971,6 +93388,28 @@
     }
   },
   {
+    "slug": "qnap-ts-431x3",
+    "sourceSlug": "qnap-ts-431x3",
+    "brand": "QNAP",
+    "brandSlug": "qnap",
+    "model": "TS-431X3",
+    "partNumber": "TS-431X3",
+    "ports": 3,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 1
+    },
+    "counts": {
+      "copper": 2,
+      "sfp": 1,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "qnap-ts-431xeu",
     "sourceSlug": "qnap-ts-431xeu",
     "brand": "QNAP",
@@ -93176,6 +93615,25 @@
     }
   },
   {
+    "slug": "qnap-ts-464",
+    "sourceSlug": "qnap-ts-464",
+    "brand": "QNAP",
+    "brandSlug": "qnap",
+    "model": "TS-464",
+    "partNumber": "TS-464",
+    "ports": 2,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 2,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "qnap-ts-469-pro",
     "sourceSlug": "qnap-ts-469-pro",
     "brand": "QNAP",
@@ -93271,6 +93729,25 @@
     }
   },
   {
+    "slug": "qnap-ts-664",
+    "sourceSlug": "qnap-ts-664",
+    "brand": "QNAP",
+    "brandSlug": "qnap",
+    "model": "TS-664",
+    "partNumber": "TS-664",
+    "ports": 2,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 2,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "qnap-ts-832pxu-rp",
     "sourceSlug": "qnap-ts-832pxu-rp",
     "brand": "QNAP",
@@ -93326,6 +93803,29 @@
     "counts": {
       "copper": 2,
       "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "qnap-ts-863u-rp",
+    "sourceSlug": "qnap-ts-863u-rp",
+    "brand": "QNAP",
+    "brandSlug": "qnap",
+    "model": "TS-863U-RP",
+    "partNumber": "TS-863U-RP-4G",
+    "ports": 5,
+    "rackU": 2,
+    "isFullDepth": true,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 1,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 4,
+      "sfp": 1,
       "qsfp": 0,
       "mgmt": 0,
       "fiberDropped": 0
@@ -93500,6 +94000,25 @@
     "frontPanel": {},
     "counts": {
       "copper": 2,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "qnap-tvs-871u-rp",
+    "sourceSlug": "qnap-tvs-871u-rp",
+    "brand": "QNAP",
+    "brandSlug": "qnap",
+    "model": "TVS-871U-RP",
+    "partNumber": "",
+    "ports": 4,
+    "rackU": 2,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 4,
       "sfp": 0,
       "qsfp": 0,
       "mgmt": 0,
@@ -100312,6 +100831,28 @@
     }
   },
   {
+    "slug": "sophos-xg-210",
+    "sourceSlug": "sophos-xg-210",
+    "brand": "Sophos",
+    "brandSlug": "sophos",
+    "model": "XG 210",
+    "partNumber": "",
+    "ports": 8,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2
+    },
+    "counts": {
+      "copper": 6,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "sophos-xg-650",
     "sourceSlug": "sophos-xg-650",
     "brand": "Sophos",
@@ -102824,6 +103365,25 @@
     }
   },
   {
+    "slug": "synology-ds1525-plus",
+    "sourceSlug": "synology-ds1525-plus",
+    "brand": "Synology",
+    "brandSlug": "synology",
+    "model": "DS1525+",
+    "partNumber": "DS1525+",
+    "ports": 2,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 2,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "synology-ds1618-plus",
     "sourceSlug": "synology-ds1618-plus",
     "brand": "Synology",
@@ -102912,6 +103472,25 @@
     "frontPanel": {},
     "counts": {
       "copper": 4,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "synology-ds1825-plus",
+    "sourceSlug": "synology-ds1825-plus",
+    "brand": "Synology",
+    "brandSlug": "synology",
+    "model": "DS1825+",
+    "partNumber": "DS1825+",
+    "ports": 2,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 2,
       "sfp": 0,
       "qsfp": 0,
       "mgmt": 0,
@@ -103074,12 +103653,50 @@
     }
   },
   {
+    "slug": "synology-ds225-plus",
+    "sourceSlug": "synology-ds225-plus",
+    "brand": "Synology",
+    "brandSlug": "synology",
+    "model": "DS225+",
+    "partNumber": "DS225+",
+    "ports": 2,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 2,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "synology-ds2419-plus",
     "sourceSlug": "synology-ds2419-plus",
     "brand": "Synology",
     "brandSlug": "synology",
     "model": "DS2419+",
     "partNumber": "DS2419+",
+    "ports": 4,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 4,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "synology-ds2422-plus",
+    "sourceSlug": "synology-ds2422-plus",
+    "brand": "Synology",
+    "brandSlug": "synology",
+    "model": "DS2422+",
+    "partNumber": "DS2422+",
     "ports": 4,
     "rackU": 1,
     "isFullDepth": false,
@@ -103118,6 +103735,25 @@
     "brandSlug": "synology",
     "model": "DS420+",
     "partNumber": "DS420+",
+    "ports": 2,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 2,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "synology-ds425-plus",
+    "sourceSlug": "synology-ds425-plus",
+    "brand": "Synology",
+    "brandSlug": "synology",
+    "model": "DS425+",
+    "partNumber": "DS425+",
     "ports": 2,
     "rackU": 1,
     "isFullDepth": false,
@@ -103704,6 +104340,25 @@
     }
   },
   {
+    "slug": "synology-rs822rp-plus",
+    "sourceSlug": "synology-rs822rp-plus",
+    "brand": "Synology",
+    "brandSlug": "synology",
+    "model": "RS822RP+",
+    "partNumber": "RS822RP+",
+    "ports": 4,
+    "rackU": 1,
+    "isFullDepth": true,
+    "frontPanel": {},
+    "counts": {
+      "copper": 4,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "synology-rx1217",
     "sourceSlug": "synology-rx1217",
     "brand": "Synology",
@@ -103853,6 +104508,25 @@
     "frontPanel": {},
     "counts": {
       "copper": 4,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "teltonika-trb501",
+    "sourceSlug": "teltonika-trb501",
+    "brand": "Teltonika",
+    "brandSlug": "teltonika",
+    "model": "TRB501",
+    "partNumber": "TRB501100000",
+    "ports": 3,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 3,
       "sfp": 0,
       "qsfp": 0,
       "mgmt": 0,
@@ -104308,12 +104982,88 @@
     }
   },
   {
+    "slug": "tp-link-eap650",
+    "sourceSlug": "tp-link-eap650",
+    "brand": "TP-Link",
+    "brandSlug": "tp-link",
+    "model": "EAP650",
+    "partNumber": "EAP650",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "tp-link-eap650-outdoor",
+    "sourceSlug": "tp-link-eap650-outdoor",
+    "brand": "TP-Link",
+    "brandSlug": "tp-link",
+    "model": "EAP650-Outdoor",
+    "partNumber": "EAP650-Outdoor",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "tp-link-eap653",
     "sourceSlug": "tp-link-eap653",
     "brand": "TP-Link",
     "brandSlug": "tp-link",
     "model": "EAP653",
     "partNumber": "EAP653",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "tp-link-eap655-wall",
+    "sourceSlug": "tp-link-eap655-wall",
+    "brand": "TP-Link",
+    "brandSlug": "tp-link",
+    "model": "EAP655-Wall",
+    "partNumber": "EAP655-Wall",
+    "ports": 4,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 4,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "tp-link-eap670",
+    "sourceSlug": "tp-link-eap670",
+    "brand": "TP-Link",
+    "brandSlug": "tp-link",
+    "model": "EAP670",
+    "partNumber": "EAP670",
     "ports": 1,
     "rackU": 1,
     "isFullDepth": false,
@@ -104352,6 +105102,139 @@
     "brandSlug": "tp-link",
     "model": "EAP720",
     "partNumber": "0153601474",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "tp-link-eap723",
+    "sourceSlug": "tp-link-eap723",
+    "brand": "TP-Link",
+    "brandSlug": "tp-link",
+    "model": "EAP723",
+    "partNumber": "EAP723",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "tp-link-eap725-wall",
+    "sourceSlug": "tp-link-eap725-wall",
+    "brand": "TP-Link",
+    "brandSlug": "tp-link",
+    "model": "EAP725-Wall",
+    "partNumber": "EAP725-Wall",
+    "ports": 4,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 4,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "tp-link-eap772",
+    "sourceSlug": "tp-link-eap772",
+    "brand": "TP-Link",
+    "brandSlug": "tp-link",
+    "model": "EAP772",
+    "partNumber": "EAP772",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "tp-link-eap773",
+    "sourceSlug": "tp-link-eap773",
+    "brand": "TP-Link",
+    "brandSlug": "tp-link",
+    "model": "EAP773",
+    "partNumber": "EAP773",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "tp-link-eap775-wall",
+    "sourceSlug": "tp-link-eap775-wall",
+    "brand": "TP-Link",
+    "brandSlug": "tp-link",
+    "model": "EAP775-Wall",
+    "partNumber": "EAP775-Wall",
+    "ports": 5,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 5,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "tp-link-eap783",
+    "sourceSlug": "tp-link-eap783",
+    "brand": "TP-Link",
+    "brandSlug": "tp-link",
+    "model": "EAP783",
+    "partNumber": "EAP783",
+    "ports": 2,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 2,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "tp-link-eap787",
+    "sourceSlug": "tp-link-eap787",
+    "brand": "TP-Link",
+    "brandSlug": "tp-link",
+    "model": "EAP787",
+    "partNumber": "EAP787",
     "ports": 1,
     "rackU": 1,
     "isFullDepth": false,
@@ -104557,6 +105440,28 @@
     "brandSlug": "tp-link",
     "model": "SG2210P",
     "partNumber": "SG2210P v5.20",
+    "ports": 10,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2
+    },
+    "counts": {
+      "copper": 8,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "tp-link-sg2210xmp-m2",
+    "sourceSlug": "tp-link-sg2210xmp-m2",
+    "brand": "TP-Link",
+    "brandSlug": "tp-link",
+    "model": "SG2210XMP-M2",
+    "partNumber": "SG2210XMP-M2",
     "ports": 10,
     "rackU": 1,
     "isFullDepth": false,
@@ -107715,6 +108620,28 @@
     "counts": {
       "copper": 9,
       "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "ubiquiti-unifi-dream-router-7",
+    "sourceSlug": "ubiquiti-unifi-dream-router-7",
+    "brand": "Ubiquiti",
+    "brandSlug": "ubiquiti",
+    "model": "UniFi Dream Router 7",
+    "partNumber": "UDR7",
+    "ports": 5,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 1
+    },
+    "counts": {
+      "copper": 4,
+      "sfp": 1,
       "qsfp": 0,
       "mgmt": 0,
       "fiberDropped": 0
