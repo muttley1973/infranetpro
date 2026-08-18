@@ -19,6 +19,7 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, normalizeStatus, hasPortStatus, portAnchorEl } from './app-util.js';   // portAnchorEl: il LED della porta, non il primo controllo del pannello con lo stesso data-pid
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, pushHistory, renderCables, _patchPanelOffset } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { radioLabelForPid } from '../lib/radio.js';   // il nome di una radio sta sul modello, non nel pid
 import { propagateVlans, _effPortVlan, _ensureVlanColor } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -466,6 +467,11 @@ export function portTip(pid){
 
 export function _portDisplayName(pid){
     const pi = store.state.ports[pid] || {};
+    // Radio: il nome vive sul modello (`node.radios[i].label`, dichiarato o
+    // importato dal DCIM) e batte tutto il resto — manual-first. Unica
+    // definizione in lib/radio.js: qui non si indovina dal pid.
+    const rl = radioLabelForPid(getNodeByPortId(pid), pid);
+    if(rl) return rl;
     const raw = pid.split('-').slice(1).join('/');
     return pi.ifName || pi.alias || pi.desc || raw || '?';
 }

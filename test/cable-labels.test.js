@@ -61,6 +61,26 @@ test('porta multi-segmento nel pid (mgmt/sfp): suffisso completo', () => {
   assert.equal(rows[0].to,   'B Psfp-2');
 });
 
+// Il nome di una presa radio vive sul modello (`node.radios[i].label`, scritto a
+// mano o importato dal DCIM): l'etichetta lo stampa invece del suffisso interno
+// del pid, e senza la "P" che è la convenzione delle porte fisiche.
+test('radio: il nome della radio al posto di "Pradio", "P" solo per le porte fisiche', () => {
+  const nodes = {
+    ap1:  { id: 'ap1',  name: 'AP-1',       radios: [{ label: 'radio0' }, { label: 'radio1' }] },
+    mob1: { id: 'mob1', name: 'Smartphone', radios: [{ label: 'wlan0' }] },
+    mob2: { id: 'mob2', name: 'Tablet',     radios: [{}] },   // radio senza nome
+  };
+  const rows = buildCableLabelRows(mkModel([
+    { id: 'w1', src: 'ap1-radio2', dst: 'mob1-radio' },
+    { id: 'w2', src: 'ap1-radio',  dst: 'mob2-radio' },
+    { id: 'c1', src: 'ap1-1',      dst: 'mob1-1' },
+  ], nodes));
+  assert.equal(rows[0].from, 'AP-1 radio1');
+  assert.equal(rows[0].to,   'Smartphone wlan0');
+  assert.equal(rows[1].to,   'Tablet Pradio', 'radio senza nome: comportamento storico invariato');
+  assert.equal(rows[2].from, 'AP-1 P1',       'le porte fisiche restano numerate con la P');
+});
+
 test('lengthM: numerico da lengthM, fallback su length, null se assente/NaN', () => {
   const rows = buildCableLabelRows(mkModel([
     { id: 'a', src: 'x-1', dst: 'y-1', lengthM: 12.5 },

@@ -26,6 +26,7 @@ import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funz
 import { renderAutomationMenu, _updateAutoPollBadge } from './app-vlan-autopoll.js';   // popover Automazioni + badge del monitoraggio (ciclo benigno: solo a runtime)
 import { effAutoConfig, clampMonitorInterval } from '../lib/auto-monitor.js';   // config PURA del monitoraggio unificato (schema nuovo + migrazione legacy)
 import { prefixesOf } from '../lib/ipam-model.js';   // l'autorità sulle reti dichiarate (prefix-first)
+import { radioLabelForPid } from '../lib/radio.js';   // il nome di una radio sta sul modello, non nel pid
 import { ensureNodeRackVisible, focusNode, selectAndFocusNode } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { trace } from './app-pointer.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { reconcileMiscabling } from './app-autolink.js';   // Proof-State: miscablaggio per-porta (l.miscabled) dai neighbor cache
@@ -48,9 +49,12 @@ function _driftNorm(mac){
 // (container/hypervisor) e MAC randomizzati/locally-administered (telefoni/BYOD).
 function _driftPortLabel(pid){
     const n = getNodeByPortId(pid);   // importato da app.js (guardia win.* ridondante rimossa)
+    const nm = n ? (getNodeDisplayName(n) || n.name || n.id) : pid;
+    // Radio: nome dal modello (lib/radio.js), senza la "P" delle porte fisiche.
+    const rl = radioLabelForPid(n, pid);
+    if(rl) return `${nm} / ${rl}`;
     const num = String(pid).slice(String(pid).lastIndexOf('-') + 1);
     const pn = (n && typeof _frontPanelPortLabel === 'function') ? _frontPanelPortLabel(n, num, n.ports || 0) : num;
-    const nm = n ? (getNodeDisplayName(n) || n.name || n.id) : pid;
     return `${nm} / P${pn}`;
 }
 

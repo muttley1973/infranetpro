@@ -22,6 +22,18 @@ test('parseRadioPid: round-trip e casi limite', () => {
   assert.equal(R.parseRadioPid('-radio'), null);    // nodeId vuoto
 });
 
+test('radioLabelForPid: il nome della radio si legge dal MODELLO, non dal pid', () => {
+  const n = { id: 'nb-dev-134', radios: [{ label: 'radio0' }, { label: ' wlan1 ' }, {}] };
+  assert.equal(R.radioLabelForPid(n, 'nb-dev-134-radio'),  'radio0');
+  assert.equal(R.radioLabelForPid(n, 'nb-dev-134-radio2'), 'wlan1');   // trim
+  assert.equal(R.radioLabelForPid(n, 'nb-dev-134-radio3'), null);      // radio senza nome
+  assert.equal(R.radioLabelForPid(n, 'nb-dev-134-radio9'), null);      // oltre le radio reali
+  assert.equal(R.radioLabelForPid(n, 'nb-dev-134-24'),     null);      // porta fisica
+  assert.equal(R.radioLabelForPid(null, 'nb-dev-134-radio'), null);
+  // Il nodo sbagliato non presta il nome delle sue radio a un pid altrui.
+  assert.equal(R.radioLabelForPid({ id: 'ap2', radios: [{ label: 'radio0' }] }, 'ap1-radio'), null);
+});
+
 test('linkKind: radio↔radio=wireless, rete↔rete=cable, mix=invalid', () => {
   assert.equal(R.linkKind(true,  true),  'wireless');
   assert.equal(R.linkKind(false, false), 'cable');

@@ -1057,6 +1057,38 @@ test('nomi abbreviati: il toggle abbrevia il cable auto-label (planimetria/etich
   assert.equal(r.flagAfter, false, 'state.abbrevNames riflette il toggle');
 });
 
+// Il nome di una presa radio vive su `node.radios[i].label` (pannello Wi-Fi o import
+// DCIM). Prima ogni etichetta lo ignorava e tagliava il pid, stampando «Pradio2»:
+// il nome scritto dall'utente non arrivava da nessuna parte. Ora la risoluzione è
+// una sola (radioLabelForPid, lib/radio.js) e la attraversa tutta la catena.
+test('radio: rinominare la radio cambia l\'etichetta del cavo e il nome della porta', () => {
+  const out = run(APP.ctx, `(() => {
+    try {
+      state = _buildDefaultState(); if(typeof _migrateState==='function') _migrateState(state);
+      state.nodes.length=0; state.links.length=0; state.ports={};
+      state.nodes.push(
+        { id:'ap1',  type:'ap', name:'AP-1', x:10, y:10, ports:2, radios:[{ band:'2.4' },{ band:'5' }] },
+        { id:'mob1', type:'phone', name:'Smartphone', x:200, y:10, ports:1, radios:[{}] });
+      if(typeof _invalidateIdx==='function') _invalidateIdx();
+      state.links.push(_createLinkRecord('ap1-radio2','mob1-radio'));
+      const before = { lbl:_cableAutoLabel(state.links[0]), port:_portDisplayName('ap1-radio2') };
+      setRadioLabel('ap1', 1, 'radio1-5GHz');
+      setRadioLabel('mob1', 0, 'wlan0');
+      const after  = { lbl:_cableAutoLabel(state.links[0]), port:_portDisplayName('ap1-radio2') };
+      setRadioLabel('ap1', 1, '');   // svuotare il campo torna al comportamento storico
+      const cleared = _cableAutoLabel(state.links[0]);
+      return JSON.stringify({ ok:true, before, after, cleared });
+    } catch(e){ return JSON.stringify({ ok:false, err:String(e&&e.stack||e) }); }
+  })()`);
+  const r = JSON.parse(out);
+  assert.ok(r.ok, 'flusso radio lancia: ' + r.err);
+  assert.equal(r.before.lbl,  'AP-1 radio2 → Smartphone radio', 'senza nome: il suffisso del pid, senza la P delle porte fisiche');
+  assert.equal(r.before.port, 'radio2');
+  assert.equal(r.after.lbl,   'AP-1 radio1-5GHz → Smartphone wlan0', 'il nome scritto arriva in etichetta');
+  assert.equal(r.after.port,  'radio1-5GHz', 'e nel nome porta (topologia, pannello cavo)');
+  assert.equal(r.cleared,     'AP-1 radio2 → Smartphone wlan0', 'campo svuotato: torna il suffisso, non resta appiccicato');
+});
+
 // pruneDiscoveryHistory/DISCOVERY_HISTORY_MAX estratti in lib/discovery-history.js: lo
 // stub carica i lib-script di netmapper.html → restano esercitabili qui (integrazione).
 // Integrazione: pruneDiscoveryHistory/DISCOVERY_HISTORY_MAX ora vivono in

@@ -9,6 +9,7 @@ import { TYPES } from "./app-types.js";
 import { renderAll } from "./app-render-core.js";
 import { renderProps } from "./app-properties.js";
 import { markDirty, pushHistory, getNodeByPortId, getNodeDisplayName, renderCables, _showToast } from "./app.js";   // cicli benigni: uso solo a runtime
+import { parseRadioPid, radioLabelForPid } from "../lib/radio.js";   // il nome di una radio sta sul modello, non nel pid
 // Bare globals (no-undef OFF): state - panelNumberOffset/panelChainReaches (lib/frontpanel.js) -
 // abbreviateName (lib/abbrev.js) - _normalizeLinkMetadata (lib/link-model.js).
 
@@ -76,11 +77,19 @@ export function toggleAbbrevNames(on){
     renderAll();
 }
 
+// Il pezzo «presa» dell'etichetta. Una porta numerica resta `P24`; una RADIO ha
+// un nome proprio (scritto a mano o importato dal DCIM) e si stampa quello, senza
+// la "P" che è la convenzione delle porte fisiche. Il nome lo risolve
+// `radioLabelForPid` (lib/radio.js): qui il pid non si taglia a fette.
+function _portTagForLabel(node, pid){
+    const suffix = String(pid).split('-').slice(1).join('-');
+    if(parseRadioPid(pid)) return radioLabelForPid(node, pid) || suffix;
+    return `P${_portNumForLabel(node, suffix)}`;
+}
+
 export function _cableAutoLabel(l){
     const sn=getNodeByPortId(l.src), dn=getNodeByPortId(l.dst);
-    const sp=_portNumForLabel(sn, l.src.split('-').slice(1).join('-'));
-    const dp=_portNumForLabel(dn, l.dst.split('-').slice(1).join('-'));
-    return `${_dispName(sn ? getNodeDisplayName(sn) : l.src)} P${sp} → ${_dispName(dn ? getNodeDisplayName(dn) : l.dst)} P${dp}`;
+    return `${_dispName(sn ? getNodeDisplayName(sn) : l.src)} ${_portTagForLabel(sn, l.src)} → ${_dispName(dn ? getNodeDisplayName(dn) : l.dst)} ${_portTagForLabel(dn, l.dst)}`;
 }
 
 export function _promoteLinkToManual(link){
