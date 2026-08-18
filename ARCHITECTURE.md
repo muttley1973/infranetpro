@@ -176,6 +176,12 @@ lib/                   Shared browser + test modules (the heart of the app)
                     parse (DNS compression, SSDP headers, UPnP XML), service→type map
                     (vendor-neutral) + aggregateSweep. Drives server _mdnsSsdpSweep  (pure)
   radio.js          radio interfaces: pid/anchor/linkKind/seeds       (pure)
+  power-groups.js   outlet GROUPS of a UPS/strip: two declared axes (switching:
+                    switched|always · backup: battery|surge) + the group read from the
+                    outlet NAME («Group 2 - Output 1», «Segment1_3», «Primary Group»,
+                    «Non Programmable», «Surge Only») — one parser shared by the catalog
+                    generator and the panel. DECLARED, never measured: RFC 1628 has no
+                    outlet groups, each vendor keeps them in a private MIB  (pure)
   wifi-assoc.js     isWirelessInterface (ifType ieee80211 / name) + isUnicastMac (drops
                     broadcast/multicast/null ARP noise) + classifyFdbAssociations (FDB →
                     wireless vs wired) + collectWirelessClients (unifies FDB-L2 and ARP/ND-L3

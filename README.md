@@ -10,8 +10,8 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="2,436 tests, 0 failing" src="https://img.shields.io/badge/tests-2%2C436%20%C2%B7%200%20failing-3fb950"></a>
-  <a href="#testing"><img alt="108 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-108%20real--browser%20flows-3fb950"></a>
+  <a href="#testing"><img alt="2,615 tests, 0 failing" src="https://img.shields.io/badge/tests-2%2C615%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="109 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-109%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#oui-intelligence-engine"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
   <img alt="No database" src="https://img.shields.io/badge/database-none-8b949e">
@@ -121,17 +121,17 @@ Double-click <code>avvia.bat</code>.<br>
 
 > **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then run **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.9.1) — three answers that could be wrong are now right.** A declared network is recognised as declared whatever its shape: an IPv6 network you had declared now earns its badge, and a /22 or a /25 is judged against its own size instead of a fixed /24 threshold — one CIDR reader answers for the whole app. A sighting with no date stops passing for a fresh one: an unknown age now weighs as much as a month of silence and says so ("Undated") rather than scoring like something seen yesterday. And the AI chat being admin-only is recorded as a decision, not a default awaiting relaxation.
+> 📰 **What's new (v2.9.2) — power gets documented the way it actually fails: by group, not by socket.**
+> A UPS is bought to answer one question — *what stays on when the power goes, and what can I shed to last longer* —
+> and that is a property of the **outlet group**, not of the single socket. Groups now exist on anything with outlets,
+> with the two axes every vendor means by a different name: whether the group can be switched on its own, and whether
+> the battery holds it. A UPS from the catalog arrives with its outlets already, and with the groups its maker wrote
+> into their names. It is **declared, not measured** — RFC 1628 has no outlet groups — and the panel says so.
+> The rack also tells a port **shut on purpose** from one merely idle, and neither a shut port nor an unanswered poll
+> counts any longer as evidence about the cable through it.
 >
-> 📰 **What's new (v2.9.0) — a network is a thing of its own, and every address is checked, not just the first IPv4.** The subnet stops being a field of the VLAN: a **network** is now first-class and the VLAN it carries is optional, the shape every real IPAM uses — so a point-to-point link or an out-of-band range with no VLAN finally exists, and a **dual-stack** VLAN keeps both its prefixes instead of dropping one. IPv6 can now be **declared** and is audited like IPv4 — the L3 map checks every gateway of every network, both families, and a `/64` shows occupancy rather than a meaningless percentage. A new **Networks** panel lists every declared prefix, sorted by address, with overlaps spelled out. This release also folds in a deep correctness pass: an address written on a port now counts everywhere, a cable inferred twice is removed even when the real one is corroborated, and the AI chat is admin-only.
->
-> 📰 **What's new (v2.8.2) — an address belongs to the interface, and the map stops saying the same thing twice.** A port can now carry its **own address**: a router answers on one per interface, and until now the second one could only be recorded as a second device. The device card keeps the management address. In the scan results, columns are **draggable** and the Name column no longer repeats the IP that already has its own column — without a model or hostname it composes from what was measured (type and brand) and says so. A device that will not answer SNMP now wears an **orange** ring, drawn exactly like the red halo of an absent one: same shape, different colour, because they are different pieces of news. Retention ceilings that were quietly cutting history short were raised, and the change journal moved out of the project file.
->
-> 📰 **What's new (v2.8.1) — a project file that holds what you declared, and nothing else.** Measurements — presence, discovery sightings, propagated VLANs — now live **beside** the project rather than inside it, so opening a project no longer changes it and the file stops growing on its own; existing projects migrate at their next save, and portable exports carry the document only, so whoever opens one elsewhere runs their own **Verify** instead of inheriting a photograph of an installation they are not looking at. What NetBox declares about an imported device — owner (tenant), status, role, platform — is now **on screen**, read-only, at the foot of the Properties panel. Measured on real projects: **838 KB → 719 KB**. Verified on a 500-device network.
->
-> 📰 **What's new (v2.8.0) — import an existing NetBox/DCIM as a new InfraNet project, on a NetBox-compatible device catalog.** Connect to a NetBox instance (base URL + API token, with a connection test), pick a site, and a three-step wizard builds a project from it: racks placed on the floor plan, devices in their cabinets, a front/rear cabinet split into two racks, and **patch-panel cabling** reconstructed as a native pass-through chain. The catalog is the canonical CC0 device-type library with **neutral port-slot semantics** — combo ports and a full **PDU** model (up to 48 outlets, manual-first overrides) — and portable JSON exports are now **versioned and secret-free**. A NetBox **virtual chassis** comes back as a **stack**, and the preview is a **list of decisions** rather than a wall of warnings: what you will get, what will not come in and why — named device by device — with the default already applied. The topology **trunk + access** view no longer hides a rack's cables. Import is free (public); write-back is a paid module.
->
-> 📰 **Automation proposes instead of silently overwriting what you documented by hand.** A hand-typed **name**, **device type**, **brand**, SNMP **host** and **port count** are each a pin the automation respects: Discovery/Sync/Verify no longer rewrite them behind your back — a divergent measurement is surfaced as a proposal you **adopt on purpose** (e.g. *"SNMP detected 28 ports — Adopt detected ports"*). SNMP polling and scheduled Verify are one *Automatic monitoring* scheduler — **Light** (live SNMP refresh) or **Full** (complete Verify + history) — and the port→node resolver stays O(1) so large topologies don't freeze during an automatic sweep. Full detail in [CHANGELOG.md](CHANGELOG.md).
+> 📖 Earlier releases — networks as first-class objects with IPv6 parity (2.9.0), the NetBox/DCIM import (2.8.0),
+> per-interface addresses (2.8.2) — are in the [CHANGELOG](CHANGELOG.md).
 
 > 🔒 **Security-audited & hardened.** The codebase has undergone an application-security audit (no critical issues) and the follow-up fixes are covered by **automated security regression tests**: the data surfaces (AI context, REST DTOs, exports) are **allowlist-only** so secrets never leave the machine, OS commands run via `execFile` with no shell, project IDs are path-traversal-safe, and secrets use a CSPRNG. See [Authentication & Roles → Security hardening & audit](#authentication--roles).
 
@@ -945,8 +945,8 @@ server on a temp store and is skipped unless `RUN_E2E=1`.
 Coverage focuses on the pure, bug-prone logic that has historically broken: SNMP parsing & extraction (`test/snmp.test.js`, `test/extractData.test.js`), discovery & classification (`test/discovery.test.js`, 14 real-device cases), correlation primitives (`test/correlate.test.js`), the sysObjectID / OUI / Fusion engines (`tests/*.test.js`), front-panel state, cable validation (incl. **Cat8 30 m reach**), IPAM & LAG audits, and an app-wide **smoke E2E** (`test/smoke-app.test.js`) that loads every `netmapper.html` script plus the esbuild bundle into a `vm` + DOM stub and asserts `renderAll`/`renderProps` never throw on any device type.
 
 Current local quality baseline:
-- `npm run check` validates all project JS sources (399 files)
-- `npm test` runs the full regression suite (currently **2,191 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **103 flows**)
+- `npm run check` validates all project JS sources (839 files)
+- `npm test` runs the full regression suite (currently **2,615 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **109 flows**)
 - final visual verification is still important for rack/front-panel refinements
 
 > Pure functions are exposed for tests via an additive `_internals` export on
