@@ -1370,8 +1370,16 @@ function extractData(vbs) {
   const lagByIdx = {};
   for (const l of lags) lagByIdx[l.index] = l;
   for (const p of physical) {
-    if (p.lagId > 0 && lagByIdx[p.lagId]) {
-      const agg = lagByIdx[p.lagId];
+    // ⚠️ L'aggregatore si trova col suo ifIndex (`lagIfIndex`), NON col suo id
+    // LOGICO (`lagId`): `Po1` è l'id logico 1 e vive all'ifIndex 10, e i due numeri
+    // non coincidono quasi mai. Cercando per id logico questo blocco non trovava
+    // niente e l'intera eredità — trunk, VLAN trasportate, PVID — non è mai scattata.
+    // Invisibile sui vIOS, che l'appartenenza non la pubblicano affatto; visibile
+    // sull'Arista del banco, dove Ethernet1/2 risultavano access mentre stanno in un
+    // Port-Channel trunk con 30 e 99.
+    const aggIdx = p.lagIfIndex || 0;
+    if (aggIdx > 0 && lagByIdx[aggIdx]) {
+      const agg = lagByIdx[aggIdx];
       if (!p.isTrunk && agg.isTrunk) {
         p.isTrunk    = true;
         p.trunkVlans = agg.trunkVlans;
