@@ -224,6 +224,12 @@ const OID = {
   ifHighSpeed:    '1.3.6.1.2.1.31.1.1.1.15',
   ifAlias:        '1.3.6.1.2.1.31.1.1.1.18',
   ifStackStatus:  '1.3.6.1.2.1.31.1.2.1.3',        // L0: H.L → RowStatus (colonna .3; la .2 è ifStackLowerLayer, not-accessible)
+  // Cisco CISCO-VLAN-IFTABLE-RELATIONSHIP-MIB: indice {vlanId}.{n} → valore = ifIndex
+  // dell'interfaccia che ROUTA quella VLAN (sottointerfaccia dot1Q o SVI). È l'unica
+  // fonte che DICHIARA la VLAN di una `Gi1.99`: il numero nel nome non è una prova, e
+  // dedurlo da lì sarebbe la stessa scommessa di «sei byte ⇒ è un MAC».
+  // Misurata sul banco (2026-08-20): presente su IOS-XE (CSR1000v), assente sul vIOS L2.
+  cviRoutedVlan:  '1.3.6.1.4.1.9.9.128.1.1.1.1.3',
   bridgePortIf:   '1.3.6.1.2.1.17.1.4.1.2',
   dot1qPvid:             '1.3.6.1.2.1.17.7.1.4.5.1.1',
   dot1qVlanEgressPorts:  '1.3.6.1.2.1.17.7.1.4.2.1.4',   // per-VLAN egress portlist bitmap (tagged + untagged)
@@ -735,6 +741,8 @@ function extractData(vbs) {
   // vmVlan raw: ifIndex → vlanId (Cisco CISCO-VLAN-MEMBERSHIP-MIB) — fallback VLAN
   // access dove dot1qPvid non espone la VLAN reale (es. vIOS). Indicizzato per ifIndex.
   const rawVmVlan = {};
+  const vlanOfRoutedIf = {};   // ifIndex → VLAN DICHIARATA (cviRoutedVlanIfIndex)
+  const stackLower = {};       // ifIndex → ifIndex su cui poggia (ifStackTable)
   // Tutti gli ID VLAN definiti sullo switch (da OID key dot1qVlanEgressPorts.{vlanId})
   // — include anche VLAN senza porte assegnate (bitmap vuota)
   const allVlanIds = new Set();
@@ -790,6 +798,15 @@ function extractData(vbs) {
     // applicata dopo come FALLBACK dove il PVID standard non da' la VLAN reale.
     if (oid.startsWith(OID.vmVlan + '.')) {
       rawVmVlan[lastIdx(oid)] = bufToInt(val); continue;
+    }
+
+    // cviRoutedVlanIfIndex — l'indice porta la VLAN, il VALORE l'ifIndex che la routa.
+    // Si legge nel verso opposto al solito: ifIndex → VLAN dichiarata.
+    if (oid.startsWith(OID.cviRoutedVlan + '.')) {
+      const vlanId = parseInt(oid.slice(OID.cviRoutedVlan.length + 1).split('.')[0], 10);
+      const ifIdx  = bufToInt(val);
+      if (vlanId >= 1 && vlanId <= 4094 && ifIdx > 0) vlanOfRoutedIf[ifIdx] = vlanId;
+      continue;
     }
 
     // VLAN egress / untagged bitmaps (trunk detection)
@@ -926,6 +943,10 @@ function extractData(vbs) {
     const H = parseInt(suffix.slice(0, dot));
     const L = parseInt(suffix.slice(dot + 1));
     if (!H || !L) continue;
+    // La relazione «H poggia su L» serve anche fuori dal LAG: è così che una
+    // sottointerfaccia dot1Q dichiara su quale porta FISICA vive. Raccolta prima
+    // del filtro sull'aggregatore, che scarterebbe tutto il resto.
+    if (stackLower[H] === undefined) stackLower[H] = L;
     if (((ifaces[H] && ifaces[H].type) || 0) !== 161) continue;
     if (!ifaces[L]) ifaces[L] = {};
     ifaces[L].lagId  = H;
@@ -1115,7 +1136,7 @@ function extractData(vbs) {
   const _MAU_FIBER  = new Set([3,6,7,8,12,13,17,18,23,24,25,26,32,34,35,36,38,39,40,44,45,46,47,48,49,50,51,52,53,55,59,60]);
   // Non classificati (null): 1=AUI · 21/22=1000BaseX-unknownPMD · 31/33/37=10G-unknownPMD · 56/57/58=backplane KX/KR
 
-  const physical = [], lags = [];
+  const physical = [], lags = [], subIfs = [];
   const _classify = []; // diagnostica: decisione di classificazione per ogni ifIndex
   const lagLogicalByIfIndex = {};
   for (const [idxStr, f] of Object.entries(ifaces)) {
@@ -1220,6 +1241,21 @@ function extractData(vbs) {
     // Aggiungi anche aggregatori con tipo=53 (propVirtual) il cui nome corrisponde
     // a pattern di aggregazione (Cisco Port-channel, Linux bond, Juniper ae, ecc.)
     else if (t === 53 && /^(port-?channel|bond\d*|ae\d|po\d+$|lag\d)/i.test(f.name||'')) { lags.push(obj); _classify.push({ idx, name: obj.name, type: t, mac: mac||'-', r: 'LAG (ifType=53)' }); }
+    // ifType 135 = l2vlan (RFC 2863): una sottointerfaccia dot1Q, cioè un pezzo di
+    // rete che vive SU una porta fisica. Non è cablabile — non diventa una porta —
+    // ma non è nemmeno niente: su un router-on-a-stick è lì che stanno l'indirizzo
+    // di management e la VLAN. Scartandola in silenzio sparivano entrambi, e con
+    // loro l'unico posto in cui quella VLAN era DICHIARATA.
+    // La VLAN si prende da cviRoutedVlanIfIndex quando l'apparato la pubblica: se
+    // tace resta `undefined`, perché il numero nel nome non è una misura.
+    else if (t === 135) {
+      subIfs.push({ index: idx, name: obj.name, alias: obj.alias,
+                    adminStatus: obj.adminStatus, operStatus: obj.operStatus, mac,
+                    parentIndex: stackLower[idx] || 0,
+                    vlan: vlanOfRoutedIf[idx] });
+      _classify.push({ idx, name: obj.name, type: t, mac: mac||'-',
+                       r: `SUB-IF dot1Q (vlan=${vlanOfRoutedIf[idx] ?? 'non dichiarata'}, su ifIndex ${stackLower[idx] || '?'})` });
+    }
     else _classify.push({ idx, name: obj.name, type: t, mac: mac||'-', r: `SKIP ifType=${t} (non fisico)` });
   }
 
@@ -1360,7 +1396,7 @@ function extractData(vbs) {
   const ip6 = _ownIp6FromVbs(vbs);
 
   snmpDebug(`  [VLANS] ${hostname||'?'}: ${vlansOut.length} VLAN rilevate (PVID+egress+trunk): [${vlansOut.join(',')}]`);
-  return { hostname, interfaces: physical, lags, vlans: vlansOut, vlanNames, inventory, system, printer, hostResources, ip6 };
+  return { hostname, interfaces: physical, lags, subInterfaces: subIfs, vlans: vlansOut, vlanNames, inventory, system, printer, hostResources, ip6 };
 }
 
 // ---- Session factory -------------------------------------------------------
