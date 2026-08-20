@@ -1481,10 +1481,18 @@ const N_OID = {
   sysName:        '1.3.6.1.2.1.1.5',
   ifDescr:        '1.3.6.1.2.1.2.2.1.2',
   ifType:         '1.3.6.1.2.1.2.2.1.3',  // IF-MIB: riconoscere le interfacce wireless (ieee80211=71)
-  // SNMP-M4 (audit 2026-07-21): lldpLocPortEntry col .4 = lldpLocPortDesc (DisplayString,
-  // nome porta leggibile). Prima era `.3` = lldpLocPortId, il cui valore col subtype
-  // macAddress è un MAC binario → bufToStr produceva mojibake come nome porta. Il .4 è
-  // sempre testuale; dove assente resta il fallback a ifDescr (ifName[lpn]).
+  // lldpLocPortEntry — le porte che l'apparato annuncia DI SÉ, indicizzate per
+  // lldpLocPortNum. ⚠️ Quel numero NON è l'ifIndex: sull'Arista del banco
+  // `Management1` è il numero 97 e l'ifIndex 999001 (misurato il 2026-08-20).
+  //   .4 lldpLocPortDesc — testuale, e sui Cisco è il nome PIENO
+  //      («GigabitEthernet0/0»), quello che combacia con ifDescr: resta la prima
+  //      scelta. SNMP-M4 (audit 2026-07-21) ci era arrivato per un'altra strada:
+  //      il `.3` letto senza sottotipo, col valore macAddress, dava mojibake.
+  //   .2/.3 sottotipo + identificatore: dove il sottotipo dice «nome di
+  //      interfaccia» questo è il nome DICHIARATO della porta, e copre il caso in
+  //      cui il `.4` è vuoto — che è appunto quello dell'Arista.
+  lldpLocPortIdSubtype:'1.0.8802.1.1.2.1.3.7.1.2',
+  lldpLocPortId:  '1.0.8802.1.1.2.1.3.7.1.3',
   lldpLocPortDesc:'1.0.8802.1.1.2.1.3.7.1.4',
   // LLDP-MIB lldpRemEntry (1.0.8802.1.1.2.1.4.1.1.N) — colonne corrette:
   //   .4 ChassisIdSubtype · .5 ChassisId · .6 PortIdSubtype · .7 PortId ·
@@ -1585,11 +1593,35 @@ function extractNeighbors(vbs) {
     ifType[lastIdx(oid)] = bufToInt(val);
   }
 
-  // --- LLDP local port descriptions: localPortNum → portName ---
-  const locPortName = {};
+  // --- LLDP: il nome della porta LOCALE (lldpLocPortNum → nome) ---------------
+  // ⚠️ `lldpLocPortNum` NON è l'ifIndex, e non c'è nessuna regola che lo imponga:
+  // è uno spazio di numerazione dell'agente. Misurato sull'Arista del banco il
+  // 2026-08-20: `Management1` ha numero LLDP 97 e ifIndex 999001. Chi dà per
+  // scontata l'uguaglianza cerca l'ifIndex 97, non trova niente, e fabbrica un
+  // nome finto («port97») che a valle non combacia con nessuna porta: il
+  // candidato viene scartato in silenzio e il cavo non si disegna.
+  // Il nome si LEGGE, in ordine di autorevolezza:
+  //   ① lldpLocPortDesc — testuale, e sui Cisco è il nome PIENO che combacia con
+  //      ifDescr («GigabitEthernet0/0» contro il «Gi0/0» dell'identificatore):
+  //      resta la prima scelta, ed è il comportamento storico;
+  //   ② lldpLocPortId, ma SOLO se il sottotipo dice che è un nome di interfaccia
+  //      (5 = interfaceName, 1 = interfaceAlias) — è il caso dell'Arista, che il
+  //      `.4` lo lascia vuoto. Col sottotipo macAddress qui c'è un MAC, e come
+  //      nome di porta non serve a niente;
+  //   ③ ifName[lpn], la vecchia scommessa, buona quando i due spazi coincidono
+  //      davvero — cioè quasi sempre, ma non per definizione.
+  const LLDP_PORT_IFALIAS = 1, LLDP_PORT_IFNAME = 5;
+  const _locId = {}, _locSub = {}, _locDesc = {};
   for (const [oid, val] of Object.entries(vbs)) {
-    if (!oid.startsWith(N_OID.lldpLocPortDesc + '.')) continue;
-    locPortName[lastIdx(oid)] = bufToStr(val);
+    if (oid.startsWith(N_OID.lldpLocPortDesc + '.'))          _locDesc[lastIdx(oid)] = bufToStr(val);
+    else if (oid.startsWith(N_OID.lldpLocPortId + '.'))       _locId[lastIdx(oid)]   = val;
+    else if (oid.startsWith(N_OID.lldpLocPortIdSubtype + '.'))_locSub[lastIdx(oid)]  = bufToInt(val);
+  }
+  const locPortName = {};
+  for (const lpn of new Set([...Object.keys(_locDesc), ...Object.keys(_locId)])) {
+    const sub = _locSub[lpn];
+    const daId = (sub === LLDP_PORT_IFNAME || sub === LLDP_PORT_IFALIAS) ? bufToStr(_locId[lpn]) : '';
+    locPortName[lpn] = _locDesc[lpn] || daId || '';
   }
 
   // --- LLDP remote entries: collect per (localPortNum, remoteIndex) ---
