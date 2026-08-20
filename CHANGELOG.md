@@ -13,6 +13,12 @@
 - **The rack comparison stops matching by name.** Renaming a rack in the DCIM used to report it as gone and re-appeared — two rows for an object that had not moved. It now matches by reference, falling back to the name for projects imported before the reference existed; that weaker pairing is counted and declared rather than passed off as certainty. A rack you drew yourself is never reported as missing from the DCIM, the same rule already applied to devices.
 - **A gate before any write-back exists.** The identity has to survive save-and-reload, or every line built on top of it is built on nothing: a test now takes a NetBox fixture through import, portable export, JSON and reopening, and asserts every reference — device, port, front and rear, rack, cable, prefix, address — comes back unchanged. It also asserts each family is present before comparing, so it cannot pass by proving nothing.
 
+### Fixed
+
+- **The assistant no longer says every switch is full.** It counted a device's ports by counting *port records*, and a record only exists once a port is documented or cabled — so "total minus used" was zero on every switch of every project. On the 500-device bench: 291 free ports per the Overview, **0** per the assistant, on all fourteen. The total is now what the device declares, with the documented count travelling alongside as its own figure. Undeclared port count → no total and no free count, rather than a guess.
+- **A PDU stops having two outlet counts.** Device fields live in `node.spec`; "Apply model" was writing the outlet count one level up. Two copies, and the readers disagreed by design — the rack grid showed one number and the Overview another, at the same instant, and the grid changed on its own after a reload. One precedence now, `spec` first, everywhere; and "Apply model" writes where the panel writes.
+- **The public API counts a device as SNMP-managed only if it can be polled.** Picking a driver was enough: a device with no address still counted in `/api/v1` and landed in the `snmp_managed` Ansible group — a playbook target with nowhere to connect. Three switches with one reachable: the app said one, the API three. Now it takes a driver *and* an address, as everywhere else.
+
 ## [2.9.2] — 2026-08-18
 **Power gets documented the way it actually fails: by group, not by socket.**
 

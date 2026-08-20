@@ -17,6 +17,7 @@ import { renderProps } from './app-properties.js';
 import { registerClickActions, registerChangeActions } from './app-delegation.js';
 import { hasPowerOutlets } from '../lib/pdu-layout.js';   // «ha prese», non «è un PDU»: unica definizione
 import { powerGroups } from '../lib/power-groups.js';     // i gruppi dichiarati dall'utente non si toccano
+import { _ensureNodeSpec } from './app-types.js';         // i campi `spec` si scrivono in `spec`, come fa il pannello
 
 let _catalog = [];
 let _byKey = {};   // "brand model" (lower) -> template
@@ -94,7 +95,12 @@ function _applyTemplateOutlets(node, tmpl) {
     });
     for (let i = from.length; i < existing.length; i++) merged.push(existing[i]);
     node.powerOutlets = merged;
-    node.pduOutletCount = merged.length;
+    // Il conteggio prese è un campo `spec` (NODE_SPEC_FIELDS): si scrive dove lo
+    // scrive il pannello — dentro `spec`, cancellando la copia sul nodo — perché
+    // due copie divergenti nello stesso documento significano due numeri diversi
+    // a schermo, e un terzo dopo il ricaricamento (audit 2026-08-18, C2).
+    _ensureNodeSpec(node).pduOutletCount = merged.length;
+    delete node.pduOutletCount;
     const groups = Array.isArray(tmpl.powerGroups) ? tmpl.powerGroups : [];
     if (groups.length && !powerGroups(node).length) node.powerGroups = groups.map(g => Object.assign({}, g));
 }

@@ -108,7 +108,9 @@ function projWithTopo() {
       ipam: { vlans: {}, prefixes: [{ cidr: '10.0.20.0/24', vlan: 20, gateway: '10.0.20.1' }] },
       racks: [],
       nodes: [
-        { id: 'sw1', type: 'switch', name: 'SW-Core', ip: '10.0.20.2', snmpStatus: 'ok',
+        // `ports: 24` = le porte DICHIARATE. Un documento vero dice quante porte
+        // ha l'apparato; i record in `state.ports` sono solo quelle documentate.
+        { id: 'sw1', type: 'switch', name: 'SW-Core', ip: '10.0.20.2', snmpStatus: 'ok', ports: 24,
           integration: { driver: 'snmp', community: 'SECRET-COMM',
             // Forma REALE del driver: ram/volumes annidati (3 livelli) + segreto in fondo.
             hostResources: { cpuLoad: 42, cpuCores: 4, ram: { pct: 55 },
@@ -238,7 +240,7 @@ function projWithCaps() {
       lagGroups: { g1: 'Port-channel1' },
       nodes: [
         // PoE budget documentato + chiavi segrete iniettate NELLO SPEC → non devono uscire.
-        { id: 'sw1', type: 'switch', name: 'SW-Core', ip: '10.0.20.2', snmpStatus: 'ok',
+        { id: 'sw1', type: 'switch', name: 'SW-Core', ip: '10.0.20.2', snmpStatus: 'ok', ports: 4,
           spec: { swPoeBudgetW: 370, community: 'SPECLEAK', apiKey: 'SPECKEY-LEAK' },
           integration: { driver: 'snmp', community: 'SECRET-COMM' } },
         { id: 'ups1', type: 'ups', name: 'UPS-A', ip: '10.0.20.3', spec: { upsVa: 3000, upsW: 2700, upsAutonomyMin: 12 } },
@@ -487,4 +489,46 @@ test('scope.drift=false spegne anche identità e non-verificabili', () => {
   const live = { drift: { identityChanged: [{ id: 'rt1', swapped: true }], unverified: [{ id: 'hv1' }] } };
   const off = buildAiContext(projDeclared(), live, { drift: false });
   assert.ok(!(off.facts && off.facts.drift), 'tutte le categorie drift sono sotto lo stesso interruttore');
+});
+
+// ── C1 (audit 2026-08-18): «quante porte ha, e quante ne restano libere» ─────
+// Il totale sono le porte DICHIARATE, non il numero di record in `state.ports`.
+// Un record nasce quando si documenta o si cabla una porta: contarli come totale
+// faceva `used === total` e quindi «0 libere» su ogni switch di ogni progetto.
+function projSpare() {
+  return {
+    id: 11, name: 'Spare',
+    state: {
+      vlanNames: {}, ipam: { vlans: {}, prefixes: [] }, racks: [],
+      nodes: [
+        { id: 'sw1', type: 'switch', name: 'ACC-SW-1', ip: '10.0.0.2', ports: 48 },   // 48 dichiarate
+        { id: 'ap1', type: 'ap', name: 'AP-1', ip: '10.0.0.9' },
+        { id: 'sw2', type: 'switch', name: 'SW-IGNOTO', ip: '10.0.0.3' },             // nessun conteggio dichiarato
+      ],
+      ports: {
+        'sw1-1': { status: 'active', speed: 1000, ifName: 'Gi1/0/1' },
+        'sw1-2': { status: 'active', speed: 1000, ifName: 'Gi1/0/2' },
+        'sw2-1': { status: 'active', speed: 1000 },
+      },
+      links: [{ id: 'L1', src: 'sw1-1', dst: 'ap1-1' }],
+    },
+  };
+}
+
+test('porte: il totale sono le DICHIARATE, i record sono «documented» (C1)', () => {
+  const ctx = buildAiContext(projSpare(), null);
+  const sw = ctx.devices.find(d => d.id === 'sw1');
+  assert.equal(sw.ports.total, 48, 'il totale è quello dichiarato sul nodo');
+  assert.equal(sw.ports.documented, 2, 'le porte con un record sono 2');
+  assert.equal(sw.ports.used, 1, 'una sola è cablata');
+  assert.equal(sw.ports.free, 47, '48 dichiarate − 1 usata: non 1, e soprattutto non 0');
+  assert.equal(sw.capabilities.ports.free, 47, 'le capacità leggono lo stesso numero');
+});
+
+test('porte: senza un conteggio dichiarato si TACE, non si spaccia il record count (C1)', () => {
+  const ctx = buildAiContext(projSpare(), null);
+  const sw2 = ctx.devices.find(d => d.id === 'sw2');
+  assert.equal(sw2.ports.total, undefined, 'nessun totale inventato');
+  assert.equal(sw2.ports.free, undefined, 'e quindi nessun «libere» inventato');
+  assert.equal(sw2.ports.documented, 1, 'ciò che sappiamo davvero resta');
 });

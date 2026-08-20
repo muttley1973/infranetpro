@@ -185,3 +185,28 @@ test('prese: l\'elenco in export.js combacia con quello del modello', () => {
   const declared = m[1].split(',').map(s => s.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean);
   assert.deepEqual(declared.sort(), [...OUTLET_DEVICE_TYPES].sort());
 });
+
+// ── C2 (audit 2026-08-18): una sola precedenza per node/spec ────────────────
+// `nodeField` era l'UNICA lettura node-first del progetto; hw-capabilities,
+// stack e ha-pair leggono `spec` per primo, e `_compactNodeSpec` al caricamento
+// tiene `spec` e cancella la copia sul nodo. Con le due copie divergenti la
+// griglia del rack mostrava un numero e la Panoramica un altro, e dopo un
+// ricaricamento la griglia cambiava da sola.
+const { nodeField } = require('../lib/pdu-layout');
+
+test('nodeField: `spec` batte il livello nodo quando divergono (C2)', () => {
+  const n = { type: 'pdu', pduOutletCount: 8, spec: { pduOutletCount: 24 } };
+  assert.equal(nodeField(n, 'pduOutletCount'), 24, 'vince spec, come per hw-capabilities');
+});
+
+test('nodeField: il livello nodo resta il ripiego dei documenti non compattati (C2)', () => {
+  assert.equal(nodeField({ type: 'pdu', pduOutletCount: 8 }, 'pduOutletCount'), 8);
+  assert.equal(nodeField({ type: 'pdu', spec: { pduOutletCount: 24 } }, 'pduOutletCount'), 24);
+  assert.equal(nodeField({ type: 'pdu' }, 'pduOutletCount'), undefined, 'niente valore inventato');
+  assert.equal(nodeField(null, 'pduOutletCount'), undefined);
+});
+
+test('nodeField: un valore `spec` esplicitamente nullo NON riapre il livello nodo (C2)', () => {
+  const n = { type: 'pdu', pduOutletCount: 8, spec: { pduOutletCount: null } };
+  assert.equal(nodeField(n, 'pduOutletCount'), null, 'l\'utente ha svuotato il campo: si rispetta');
+});

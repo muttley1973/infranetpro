@@ -155,13 +155,25 @@ function _safeScalars(obj, depth) {
 // `pids` = le porte GIÀ attribuite a questo nodo (indice costruito una volta in
 // buildAiContext). Se manca si ricade sulla scansione completa, così la firma
 // resta compatibile per chi chiama la funzione da fuori.
+// Le porte DICHIARATE dell'apparato. NON è il numero di record in `state.ports`:
+// un record nasce quando qualcuno documenta o cabla quella porta, quindi quasi
+// ogni record ha un vicino e «totale − usate» veniva 0 su OGNI switch — l'app
+// diceva all'assistente che il campus era pieno mentre il report «Porte libere»
+// ne contava 291 (audit 2026-08-18, difetto C1). Se il documento non dichiara
+// quante porte ha l'apparato non lo si inventa: `total` e `free` restano fuori,
+// e resta `documented`, che è ciò che sappiamo davvero (ADR no-invention).
+function _declaredPortCount(node) {
+  const n = Number(node && node.ports);
+  return (Number.isFinite(n) && n >= 0) ? n : null;
+}
+
 function _devicePorts(node, state, resolveNode, neighborIndex, nameById, pids) {
   const ports = (state && state.ports) || {};
   const pidList = Array.isArray(pids) ? pids : Object.keys(ports).filter(pid => resolveNode(pid) === node.id);
   const entries = [];
-  let total = 0, used = 0;
+  let documented = 0, used = 0;
   for (const pid of pidList) {
-    total++;
+    documented++;
     const p = ports[pid] || {};
     const neigh = neighborIndex[pid] ? [...neighborIndex[pid]] : [];
     if (neigh.length) used++;
@@ -199,7 +211,13 @@ function _devicePorts(node, state, resolveNode, neighborIndex, nameById, pids) {
     }));
     if (entries.length >= 64) break;          // cap di sicurezza (budget token)
   }
-  const out = _compact({ total: total || undefined, used: used || undefined, free: total ? (total - used) : undefined });
+  const declared = _declaredPortCount(node);
+  const out = _compact({
+    total: (declared != null) ? declared : undefined,
+    documented: documented || undefined,
+    used: used || undefined,
+    free: (declared != null) ? Math.max(0, declared - used) : undefined,
+  });
   if (entries.length) out.list = entries;
   return Object.keys(out).length ? out : undefined;
 }
@@ -212,9 +230,9 @@ function _collectPorts(node, state, resolveNode, neighborIndex, pids) {
   const ports = (state && state.ports) || {};
   const pidList = Array.isArray(pids) ? pids : Object.keys(ports).filter(pid => resolveNode(pid) === node.id);
   const list = [];
-  let total = 0, used = 0;
+  let documented = 0, used = 0;
   for (const pid of pidList) {
-    total++;
+    documented++;
     const p = ports[pid] || {};
     if (neighborIndex[pid] && neighborIndex[pid].size) used++;
     list.push({
@@ -225,7 +243,16 @@ function _collectPorts(node, state, resolveNode, neighborIndex, pids) {
     });
     if (list.length >= 512) break;
   }
-  return { total, used, free: total - used, list };
+  // Stessa regola di `_devicePorts`: il totale è quello DICHIARATO, e se manca
+  // si tace invece di spacciare il numero di record per capacità.
+  const declared = _declaredPortCount(node);
+  return {
+    total: declared,
+    documented,
+    used,
+    free: (declared != null) ? Math.max(0, declared - used) : null,
+    list,
+  };
 }
 
 // ── Salute SNMP (sola lettura, già importata): system/host/printer/power. ────

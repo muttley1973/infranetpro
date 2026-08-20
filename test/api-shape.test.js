@@ -256,6 +256,32 @@ test('nodeToDevice: funzione diretta con context vuoto', () => {
   assert.equal(d.snmp, false);
 });
 
+// ── C3 (audit 2026-08-18): «gestito via SNMP» = driver **e** indirizzo ───────
+// Guardare il solo driver contava anche chi non ha un indirizzo a cui
+// rivolgersi: quel device finiva nel conteggio pubblico E nel gruppo Ansible
+// `snmp_managed`, cioè fra i bersagli di un playbook. La condizione è quella di
+// lib/subbar-stats.js `_hasSnmp`, che decide chi l'app interroga davvero.
+test('nodeToDevice: driver SNMP senza indirizzo NON è «gestito via SNMP» (C3)', () => {
+  const conAddr = nodeToDevice({ id: 'a', type: 'switch', ip: '10.0.0.2', integration: { driver: 'snmp-v2c' } }, {});
+  const conHost = nodeToDevice({ id: 'b', type: 'switch', integration: { driver: 'snmp-v3', host: '10.0.0.3' } }, {});
+  const senza = nodeToDevice({ id: 'c', type: 'switch', integration: { driver: 'snmp-v2c' } }, {});
+  const altro = nodeToDevice({ id: 'd', type: 'switch', ip: '10.0.0.5', integration: { driver: 'ssh' } }, {});
+  assert.equal(conAddr.snmp, true, 'driver + IP del nodo');
+  assert.equal(conHost.snmp, true, 'driver + host esplicito (anche senza IP sul nodo)');
+  assert.equal(senza.snmp, false, 'driver scelto ma nessun indirizzo: non lo si può interrogare');
+  assert.equal(altro.snmp, false, 'un driver che non è SNMP non rende SNMP l\'apparato');
+});
+
+test('inventario Ansible: chi non ha indirizzo resta fuori da snmp_managed (C3)', () => {
+  const proj = { id: 1, name: 'x', state: { nodes: [
+    { id: 'sw1', type: 'switch', name: 'SW-1', ip: '10.0.0.2', integration: { driver: 'snmp-v2c' } },
+    { id: 'sw2', type: 'switch', name: 'SW-2', integration: { driver: 'snmp-v2c' } },
+  ], links: [], ports: {}, racks: [], ipam: { vlans: {}, prefixes: [] } } };
+  const inv = toAnsibleInventory(proj);
+  assert.deepEqual(inv.snmp_managed.hosts, ['SW-1'], 'un solo bersaglio: l\'altro non ha un indirizzo');
+  assert.equal(projectToInventory(proj).counts.snmp, 1, 'e il conteggio pubblico dice lo stesso');
+});
+
 // ── applyPortMacFallback (registro asset: MAC infra dalle porte) ─────────────
 test('applyPortMacFallback: device senza MAC eredita il MAC della porta col suffisso piu basso (uppercase)', () => {
   const devices = [

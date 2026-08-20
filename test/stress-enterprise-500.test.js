@@ -256,6 +256,10 @@ function buildAll() {
   if (overSw) overSw.spec.swPoeBudgetW = 30;
   const ofType = t => migrated.nodes.filter(n => n.type === t);
   ofType('ups').forEach(u => { u.spec = Object.assign({}, u.spec, { upsVa: 3000, upsW: 2700, upsAutonomyMin: 12, upsTopology: 'online' }); });
+  // Anche le barre e gli ATS: il blocco `power` esce per tutte e tre le classi,
+  // e una fixture che documenta solo gli UPS non lo mette alla prova.
+  ofType('pdu').forEach(p => { p.spec = Object.assign({}, p.spec, { pduPhase: 'single', pduCurrentA: 32, pduOutletCount: 24 }); });
+  ofType('ats').forEach(a => { a.spec = Object.assign({}, a.spec, { atsInputV: 230, atsCurrentA: 16, atsOutletCount: 8 }); });
   ofType('server').forEach(s => { s.spec = Object.assign({}, s.spec, { srvCpu: 'Xeon Silver 4310', srvRamGb: 128, srvStorageTb: 4, srvOs: 'Ubuntu 22.04' }); });
   ofType('nas').forEach(s => { s.spec = Object.assign({}, s.spec, { nasCapacityTb: 48, nasRaid: 'RAID6', nasPlatform: 'Synology DSM' }); });
   ofType('firewall').forEach(s => { s.spec = Object.assign({}, s.spec, { fwThroughputMbps: 10000 }); });
@@ -264,7 +268,12 @@ function buildAll() {
 
   const enrichCounts = {
     switchesPoe: switches.filter(sw => (portsByNode[sw.id] || []).some(pid => migrated.ports[pid].poe)).length,
+    // Un blocco `power` esce per UPS, PDU **e** ATS (lib/hw-capabilities.js
+    // `_power`): contare i soli UPS reggeva finche' la fixture non documentava
+    // nessun campo di alimentazione sulle barre, cioe' per un fatto della
+    // FIXTURE e non per un invariante dell'app (audit 2026-08-18, T1).
     ups: ofType('ups').length, servers: ofType('server').length, nas: ofType('nas').length,
+    powerDevices: ofType('ups').length + ofType('pdu').length + ofType('ats').length,
     firewalls: ofType('firewall').length, wlanctrl: ofType('wlanctrl').length,
     apsWithRadios: ofType('ap').filter(a => Array.isArray(a.radios) && a.radios.length).length,
   };
@@ -370,7 +379,7 @@ test('F2 — hw-capabilities: blocchi capacità emessi coerentemente con la flot
   const c = S.caps, e = S.enrichCounts;
   assert.equal(c.poe, e.switchesPoe, 'un blocco PoE per switch con budget+porte PoE');
   assert.ok(c.negHeadroom >= 1, 'atteso ≥1 switch con headroom PoE negativo (sovra-sottoscrizione)');
-  assert.equal(c.power, e.ups, 'un blocco power per UPS');
+  assert.equal(c.power, e.powerDevices, 'un blocco power per ogni UPS, barra e ATS documentati');
   assert.equal(c.compute, e.servers, 'un blocco compute per server');
   assert.equal(c.wlc, e.wlanctrl, 'un blocco WLC per controller');
   assert.equal(c.wireless, e.apsWithRadios, 'un blocco wireless per AP con radio');
