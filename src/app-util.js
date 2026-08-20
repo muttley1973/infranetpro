@@ -95,10 +95,20 @@ export function portAnchorEl(pid) {
     return document.querySelector(`.floor-node [data-pid="${e}"], .rack-device [data-pid="${e}"]`);
 }
 
-/** Il tile di un apparato sulla planimetria. */
+/**
+ * L'oggetto di un nodo sulla planimetria: il tile di un apparato OPPURE il
+ * rettangolo di una stanza.
+ * ⚠️ Le stanze hanno una classe TUTTA LORO (`.floor-room`, non `.floor-node`):
+ * chi cercava solo i tile tornava null su una stanza e saltava il proprio
+ * lavoro senza dirlo. È costato il trascinamento delle stanze — il dato si
+ * spostava, il rettangolo restava fermo, e sembrava che si incollasse alla
+ * griglia. Il pointerdown accettava già entrambe le classi
+ * (app-pointer.js): la differenza viveva in due strati e sono divergiti.
+ */
 export function floorNodeEl(id) {
     if (id == null || id === '') return null;
-    return document.querySelector(`.floor-node[data-id="${_cssEsc(id)}"]`);
+    const e = _cssEsc(id);
+    return document.querySelector(`.floor-node[data-id="${e}"], .floor-room[data-id="${e}"]`);
 }
 
 /** L'apparato dentro il telaio del rack. */

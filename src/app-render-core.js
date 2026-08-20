@@ -16,6 +16,7 @@ import { renderTopoOverlay, _renderTopoLegend } from './app-topology-overlay.js'
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeShort, _frontPanelPortLabel, _fixedRackLabel, _frontPanelState, _frontPanelRows, _frontPanelIsUplink, _frontPanelSfpPorts, _frontPanelSfpGroups, _frontPanelSharedSlots } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { nodeLabelParts } from '../lib/node-label.js';   // lib pura importata ESM (come lib/ipv6.js): NON un globale su window
+import { FLOOR_SNAP_STEP } from '../lib/floor-snap.js';   // il passo a cui gli oggetti si agganciano: la griglia si DISEGNA con lo stesso numero
 import { radioPid } from '../lib/radio.js';   // pid porta radio (ESM, no win.*): filtro VLAN wireless in _nodeDim
 import { normalizePduOutletCount, outletStatusText, pduOutletStatusState, pduOutletConnection, pduOutletGrid, pduOutletCellSize, pduManagementPortCount, pduSerialPortCount, pduAuxiliaryPortCount, rendersOutletGrid } from '../lib/pdu-layout.js';
 import { groupOfOutlet, outletGroupIndex } from '../lib/power-groups.js';   // la fascia di gruppo sulla presa: dichiarata, non misurata
@@ -314,7 +315,15 @@ function _renderAllNow(){
     // Altezza U in scala (var --ru-h via rackUPx). border-top:8 + border-bottom:19 = 27px
     const _U = rackUPx();
     ch.style.height=`${rs*_U+27}px`; ch.style.gridTemplateRows=`repeat(${rs},${_U}px)`;
-    const _grid=document.getElementById('floorplan-grid'); if(_grid) _grid.style.display = store.state.gridHidden ? 'none' : '';
+    // La griglia si disegna al passo a cui gli oggetti si AGGANCIANO: un solo
+    // numero, quello di lib/floor-snap.js. Prima il CSS ne aveva uno suo (40) e
+    // si finiva a mezza cella. Imporlo qui vuol dire che il foglio di stile non
+    // può più divergere di nascosto.
+    const _grid=document.getElementById('floorplan-grid');
+    if(_grid){
+        _grid.style.display = store.state.gridHidden ? 'none' : '';
+        _grid.style.backgroundSize = FLOOR_SNAP_STEP + 'px ' + FLOOR_SNAP_STEP + 'px';
+    }
     if(store.state.bgImage){ bg.src=store.state.bgImage; bg.style.display='block'; bg.style.transform=`scale(${store.state.bgImageScale||1})`; bg.style.opacity=(store.state.bgImageOpacity ?? 0.4); }
     else { bg.style.display='none'; }
 

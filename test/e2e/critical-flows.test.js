@@ -4766,6 +4766,74 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(res.panning, false, 'a pointerup il pan è terminato (isPanningRack=false)');
     });
 
+    await t.test('Planimetria: la stanza segue il cursore, e la griglia disegnata è quella su cui ci si ferma', async () => {
+      // Preparazione: una stanza sola, niente altro sotto il cursore.
+      await page.evaluate(() => {
+        ['audit-overlay', 'spare-overlay'].forEach((id) => { const o = document.getElementById(id); if (o) o.style.display = 'none'; });
+        const um = document.getElementById('user-manager-overlay'); if (um) um.classList.remove('open');
+        document.querySelectorAll('.modal-overlay.open, .overlay.open').forEach(o => o.classList.remove('open'));
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes.length = 0; state.links.length = 0; state.ports = {};
+        state.nodes.push({ id: 'rmA', type: 'room', name: 'Ufficio', x: 60, y: 60, w: 120, h: 120, color: '#16212b' });
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        state.floorView.x = 0; state.floorView.y = 0; state.floorView.zoom = 1;
+        // ⚠️ Un test precedente puo' lasciare la vista in TOPOLOGIA: li' la legenda
+        // copre la planimetria e il mouse VERO non arriva mai alla stanza (il primo
+        // giro e' fallito cosi': elementFromPoint tornava 'topo-leg-vlan').
+        _viewMode = 'map';
+        renderAll();
+      });
+
+      // Trascinamento vero, con un delta che NON è multiplo di nessun passo.
+      const trascina = async (grigliaVisibile) => {
+        await page.evaluate((v) => { toggleFloorGrid(v); const n = nodeById('rmA'); n.x = 60; n.y = 60; renderAll(); }, grigliaVisibile);
+        const loc = page.locator('.floor-room[data-id="rmA"]');
+        await loc.waitFor({ timeout: 5000 });
+        const b = await loc.boundingBox();
+        const x0 = Math.round(b.x + 30), y0 = Math.round(b.y + 30);
+        await page.mouse.move(x0, y0);
+        await page.mouse.down();
+        await page.mouse.move(x0 + 8, y0 + 8);        // supera la soglia dei 5px
+        await page.mouse.move(x0 + 37, y0 + 13);      // delta dispari, di proposito
+        const durante = await page.evaluate((p) => {
+          const sotto = document.elementFromPoint(p.x, p.y);
+          const el = document.querySelector('.floor-room[data-id="rmA"]');
+          const n = nodeById('rmA');
+          return { left: el.style.left, top: el.style.top, x: n.x, y: n.y,
+                   sotto: sotto ? (sotto.id || sotto.className || sotto.tagName) : '(niente)',
+                   dentroFloorplan: !!(sotto && sotto.closest && sotto.closest('#floorplan')) };
+        }, { x: x0 + 37, y: y0 + 13 });
+        await page.mouse.up();
+        const dopo = await page.evaluate(() => {
+          const n = nodeById('rmA');
+          const g = document.getElementById('floorplan-grid');
+          const passo = parseFloat(getComputedStyle(g).backgroundSize) || 0;
+          return { x: n.x, y: n.y, passoDisegnato: passo };
+        });
+        return { durante, dopo };
+      };
+
+      // ── Griglia SPENTA: si ferma dove la lasci ──────────────────────────
+      const spenta = await trascina(false);
+      assert.equal(spenta.durante.left, spenta.durante.x + 'px',
+        'il rettangolo della stanza SEGUE il cursore mentre trascini (non solo il dato)');
+      assert.equal(spenta.durante.top, spenta.durante.y + 'px', 'idem in verticale');
+      assert.ok(Math.abs((spenta.dopo.x - 60) - 37) <= 1,
+        'griglia spenta: la stanza si sposta esattamente di quanto si è spostato il puntatore (' + (spenta.dopo.x - 60) + ' invece di 37; sotto il rilascio: ' + spenta.durante.sotto + ', dentro la planimetria: ' + spenta.durante.dentroFloorplan + ')');
+      assert.ok(Math.abs((spenta.dopo.y - 60) - 13) <= 1, 'griglia spenta: idem in verticale');
+
+      // ── Griglia ACCESA: si ferma sul passo che vedi disegnato ───────────
+      const accesa = await trascina(true);
+      assert.equal(accesa.durante.left, accesa.durante.x + 'px', 'anche con la griglia accesa il rettangolo segue');
+      assert.ok(accesa.dopo.passoDisegnato > 0, 'la griglia deve dichiarare un passo');
+      // ⚠️ Il passo NON è ricopiato qui: si legge da ciò che la griglia disegna.
+      // Se qualcuno cambia il disegno senza cambiare l\'aggancio (o viceversa),
+      // questa riga diventa rossa — è il difetto «disegnata a 40, aggancio a 20».
+      assert.equal(accesa.dopo.x % accesa.dopo.passoDisegnato, 0,
+        'griglia accesa: ci si ferma sulla linea che la griglia disegna (x=' + accesa.dopo.x + ', passo=' + accesa.dopo.passoDisegnato + ')');
+      assert.equal(accesa.dopo.y % accesa.dopo.passoDisegnato, 0, 'idem in verticale');
+    });
+
     await t.test('Assistente AI (scheletro): 3ª tab + entry toolbar + shortcut «A» + scheda impostazioni + a11y', async () => {
       await page.evaluate(() => {
         ['audit-overlay', 'spare-overlay'].forEach((id) => { const o = document.getElementById(id); if (o) o.style.display = 'none'; });
