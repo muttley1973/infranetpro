@@ -1249,29 +1249,54 @@ test('VM: nessun host importato → restano fuori dichiarandolo, non spariscono'
   assert.deepEqual(iss.sample, ['ORFANA']);
 });
 
-// Chi ospita VM e' un host di virtualizzazione: lo dice l'archivio stesso. Il
-// tipo si adegua, altrimenti il pannello non ha la sezione dove mostrarle — che
-// e' il difetto da cui nasce tutto questo.
-test('VM: un server che ospita VM diventa un host, e la riga lo dice', () => {
+// Un apparato che NON sa ospitare VM ma in NetBox ne ha una sopra: e' l'unico
+// caso in cui il tipo si adegua ancora. Serve per i due test qui sotto.
+function vmOnSwitchFixture() {
+  const nb = vmFixture();
+  nb.deviceRoles.push({ id: 22, name: 'Access switch', slug: 'access-switch' });
+  nb.deviceTypes.push({ id: 11, manufacturer: { id: 1 }, model: 'Catalyst 9300', slug: 'c9300', u_height: 1 });
+  nb.devices.push({ id: 102, name: 'SW-03', device_type: { id: 11 }, role: { id: 22 }, rack: { id: 30 }, position: 6 });
+  nb.virtualMachines.push({ id: 702, name: 'VNF01', device: { id: 102 }, status: { value: 'active' } });
+  return nb;
+}
+
+// ⚠️ SPECIFICA CAMBIATA (2026-08-20): ospitare VM e' una CAPACITA', non un tipo.
+// Uno storage Synology/QNAP le ospita con un pacchetto e resta uno storage; un
+// server con Proxmox resta un server. Prima l'import riscriveva il tipo a
+// «hypervisor» e cancellava l'identita' che il DCIM dichiarava — il contrario
+// di cio' che fa il resto dell'import.
+test('VM: un server che ospita VM resta un server, e nessuno lo riclassifica', () => {
   const { state, report } = map.netboxToState(vmFixture());
   const srv = state.nodes.find(n => n.id === 'nb-dev-101');
-  assert.equal(srv.type, 'hypervisor', 'era un server, NetBox ci mette sopra una VM');
+  assert.equal(srv.type, 'server', 'il DCIM dice server: il tipo non si tocca');
+  assert.equal(srv.vms.length, 1, 'e la VM ce l\'ha lo stesso');
   const esx = state.nodes.find(n => n.id === 'nb-dev-100');
   assert.equal(esx.type, 'hypervisor', 'gia\' hypervisor per ruolo: non cambia');
+  assert.equal(report.issues.some(i => i.code === 'vm.hostRetyped'), false,
+    'niente da riclassificare, quindi nessuna riga di decisione');
+});
+
+// La riclassificazione non sparisce: resta per chi non ha DOVE mostrare il dato.
+test('VM: chi non puo\' ospitarle per costruzione si adegua, e la riga lo dice', () => {
+  const { state, report } = map.netboxToState(vmOnSwitchFixture());
+  const sw = state.nodes.find(n => n.id === 'nb-dev-102');
+  assert.equal(sw.type, 'hypervisor', 'uno switch non ha la sezione dove mostrarla');
+  assert.equal(sw.vms.length, 1);
   const iss = report.issues.find(i => i.code === 'vm.hostRetyped');
   assert.ok(iss);
   assert.equal(iss.n, 1, 'solo quello che e\' cambiato davvero');
-  assert.deepEqual(iss.sample, ['SRV-02']);
+  assert.deepEqual(iss.sample, ['SW-03']);
 });
 
 test('VM: un host da pavimento diventa homelab, non un hypervisor da rack', () => {
-  const nb = vmFixture();
-  delete nb.devices[1].rack;
-  delete nb.devices[1].position;
+  const nb = vmOnSwitchFixture();
+  const sw = nb.devices.find(d => d.id === 102);
+  delete sw.rack;
+  delete sw.position;
   const { state } = map.netboxToState(nb);
-  const srv = state.nodes.find(n => n.id === 'nb-dev-101');
-  assert.equal(srv.placement, 'floor');
-  assert.equal(srv.type, 'homelab');
+  const n = state.nodes.find(x => x.id === 'nb-dev-102');
+  assert.equal(n.placement, 'floor');
+  assert.equal(n.type, 'homelab');
 });
 
 test('VM: l\'indirizzo primario entra anche senza interfacce dichiarate', () => {

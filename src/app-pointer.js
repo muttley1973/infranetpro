@@ -125,6 +125,9 @@ function _updateVmDropTarget(e, n, el){
 // né un passivo senza IP (no host-in-host, no patch panel/passacavo). Il vincolo
 // isFloor preserva la semantica originaria (il rilevamento girava solo nel ramo
 // floor del move) ora che il check di rilascio vale per qualunque drag.
+// ⚠️ `hostsVms` qui vuol dire «è un tipo che ospita VM» (quindi non è esso stesso
+// una VM). Dal 2026-08-20 lo sono anche storage, server e NAS da tavolo: sul
+// pavimento questo esclude il solo `nasdesktop`, e di proposito.
 function _vmAbsorbEligible(n){
     const def = n && TYPES[n.type];
     const identity = !!(n && (n.mac || n.ip || (n.integration && n.integration.host)));

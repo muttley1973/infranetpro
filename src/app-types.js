@@ -26,7 +26,7 @@ export const TYPES = {
     tv:          { isFloor:true, isPassive:false, hasIP:true, name:'Smart TV / Media Player', icon:'fa-tv',     ports:1 },
     customfloor: { isFloor:true, isPassive:false, hasIP:true, name:'Endpoint personalizzato', icon:'fa-cube',   ports:1 },
     homelab:     { isFloor:true, isPassive:false, hasIP:true, hostsVms:true, name:'Homelab', icon:'fa-cubes', ports:1 },
-    nasdesktop:  { isFloor:true, isPassive:false, hasIP:true, name:'NAS (desktop)', icon:'fa-hard-drive', ports:1, brand:'Synology' },
+    nasdesktop:  { isFloor:true, isPassive:false, hasIP:true, hostsVms:true, name:'NAS (desktop)', icon:'fa-hard-drive', ports:1, brand:'Synology' },
     projector:   { isFloor:true, isPassive:false, hasIP:true, name:'Proiettore',          icon:'fa-chalkboard', ports:1 },
     badgereader: { isFloor:true, isPassive:false, hasIP:true, name:'Lettore badge',       icon:'fa-id-card',    ports:1 },
     doorctrl:    { isFloor:true, isPassive:false, hasIP:true, name:'Door Controller',     icon:'fa-door-open',  ports:1 },
@@ -42,12 +42,22 @@ export const TYPES = {
     // converter + endpoint di pavimento). Chi deve sapere "puo' avere un IP?"
     // scrive quindi `def.isActive || def.hasIP` — il solo `hasIP` esclude tutta
     // l'infrastruttura (bug trovato il 2026-07-23 in lib/subbar-stats.js).
+    //
+    // ⚠️ `hostsVms` NON vuol dire «questo è un hypervisor»: vuol dire «questo SA
+    // ospitare macchine virtuali». È una cosa che un apparato FA, non una cosa
+    // che È — uno storage Synology/QNAP le ospita con un pacchetto (Virtual
+    // Machine Manager, Virtualization Station) e resta uno storage; un server con
+    // Proxmox resta un server. Per questo il flag sta anche su server/nas/
+    // nasdesktop, e il TIPO di un apparato non va MAI riscritto per fare posto
+    // alle sue VM (l'import lo faceva: vedi lib/dcim-map.js).
+    // ⚠️ Chi deve sapere «questo nodo ospita VM davvero?» guarda il DATO
+    // (`node.vms`), non questo flag: il flag dice solo a chi il pannello lo offre.
     switch:      { isRack:true,  isActive:true,   mgmtEligible:true, stackEligible:true, name:'Switch',             icon:'fa-network-wired',   sizeU:1, ports:24, brand:'Cisco'     },
     router:      { isRack:true,  isActive:true,   mgmtEligible:true, haEligible:true, wifiServe:true, name:'Router',             icon:'fa-route',           sizeU:1, ports:8,  brand:'Juniper'   },
     firewall:    { isRack:true,  isActive:true,   mgmtEligible:true, haEligible:true, wifiServe:true, name:'Firewall',           icon:'fa-shield-halved',   sizeU:1, ports:4,  brand:'Fortinet'  },
-    server:      { isRack:true,  isActive:true,   mgmtEligible:true, haEligible:true, name:'Server',             icon:'fa-server',          sizeU:2, ports:4,  brand:'Dell EMC'  },
+    server:      { isRack:true,  isActive:true,   mgmtEligible:true, haEligible:true, hostsVms:true, name:'Server',             icon:'fa-server',          sizeU:2, ports:4,  brand:'Dell EMC'  },
     hypervisor:  { isRack:true,  isActive:true,   mgmtEligible:true, haEligible:true, hostsVms:true, name:'Hypervisor', icon:'fa-layer-group', sizeU:2, ports:4, brand:'VMware' },
-    nas:         { isRack:true,  isActive:true,   mgmtEligible:true, haEligible:true, name:'Storage (SAN / RAID)', icon:'fa-database',       sizeU:2, ports:4,  brand:'Synology'  },
+    nas:         { isRack:true,  isActive:true,   mgmtEligible:true, haEligible:true, hostsVms:true, name:'Storage (SAN / RAID)', icon:'fa-database',       sizeU:2, ports:4,  brand:'Synology'  },
     kvm:         { isRack:true,  isActive:true,   mgmtEligible:true, name:'KVM Switch',         icon:'fa-keyboard',        sizeU:1, ports:8,  brand:'ATEN'      },
     pbx:         { isRack:true,  isActive:true,   mgmtEligible:true, name:'Centralino VoIP',    icon:'fa-phone-volume',    sizeU:1, ports:4,  brand:'Sangoma'   },
     consolesvr:  { isRack:true,  isActive:true,   mgmtEligible:true, haEligible:true, name:'Console Server',     icon:'fa-terminal',        sizeU:1, ports:8,  brand:'Opengear'  },

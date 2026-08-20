@@ -22,7 +22,7 @@ import { MAX_POWER_GROUPS, powerGroups, powerGroupView, nextGroupId, normalizeGr
 import { nodeById, getNodeDisplayName, markDirty, selected, checked, getWallPortLabel, updateFloorId, updateWallPortId, _toggleArrayField } from './app.js';   // ritiro ponte: helper option-selected/checked + (ASSE B) setter ex-onchange
 import { renderAll } from './app-render-core.js';
 import { _effPortVlan, setEndpointVlan } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup + (ASSE B) setEndpointVlan (ex onchange)
-import { _hvPanelHtml } from './app-hypervisor.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
+import { _hvPanelHtml, _vmSectionHtml } from './app-hypervisor.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
 import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B (Blocco 5): event delegation degli onchange inline della catena device-spec
 import { pduConnectionDeviceSelect } from './app-pdu-connection.js';
 
@@ -704,6 +704,7 @@ export function _nodeDeviceChainHtml(n, d){
                             <label style="font-size:0.82rem"><input type="checkbox" ${checked(protos.includes('iscsi'))} data-change="toggle-array" data-taid="${n.id}" data-tafield="nasProtocols" data-taval="iscsi" style="width:auto;margin-right:6px">iSCSI</label>
                         </div>
                     </div>
+                    ${_vmSectionHtml(n)}
                 </div></details>`;
             }
             if(n.type==='iot'){
@@ -1200,6 +1201,7 @@ export function _nodeDeviceChainHtml(n, d){
                     </select></div>
                     <div class="prop-group"><label>${t('f.localStorage')}</label>
                         <input type="number" min="0" max="10000" step="0.5" value="${n.srvStorageTb ?? 2}" data-change="update-n" data-nfield="srvStorageTb" data-ncoerce="floatdef" data-ndef="0"></div>
+                    ${_vmSectionHtml(n)}
                 </div></details>`;
             }
             // Hypervisor (rack) + Homelab (floor): motore VM condiviso (src/app-hypervisor.js).
@@ -1257,6 +1259,7 @@ export function _nodeDeviceChainHtml(n, d){
                         <option value="emc"      ${selected(n.nasPlatform,'emc')}>Dell EMC</option>
                         <option value="altro"    ${selected(n.nasPlatform,'altro')}>${t('o.otherProprietary')}</option>
                     </select></div>
+                    ${_vmSectionHtml(n)}
                 </div></details>`;
             }
             if(n.type==='kvm'){

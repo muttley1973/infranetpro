@@ -3259,6 +3259,8 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           state.nodes.push({ id: 'pcvm', type: 'pc',      name: 'VM-Web', x: 60,  y: 60,  ports: 1, mac: 'AA:BB:CC:00:00:77', ip: '10.0.0.77' });
           state.nodes.push({ id: 'lab2', type: 'homelab', name: 'NUC-02', x: 400, y: 120, ports: 1, mac: 'AA:BB:CC:00:00:02' });
           state.nodes.push({ id: 'pc2',  type: 'pc',      name: 'PC2',    x: 80,  y: 200, ports: 1, mac: 'AA:BB:CC:00:00:88' });
+          // NAS da tavolo: dal 2026-08-20 è un tipo che ospita VM → non è una VM.
+          state.nodes.push({ id: 'nasd', type: 'nasdesktop', name: 'DS-01', x: 500, y: 200, ports: 1, mac: 'AA:BB:CC:00:00:99', ip: '10.0.0.99' });
           if (typeof _invalidateIdx === 'function') _invalidateIdx();
 
           const ok = absorbNodeAsVm('pcvm', 'lab');
@@ -3280,6 +3282,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           // guardie
           const guardHostInHost = absorbNodeAsVm('lab2', 'lab');  // un host non si assorbe in un host
           const guardSameNode  = absorbNodeAsVm('pc2', 'pc2');    // stesso nodo / bersaglio non-host
+          const guardNasHost   = absorbNodeAsVm('nasd', 'lab');   // un NAS da tavolo ospita VM: non è una VM
 
           // scheda VM (5° scope del pannello): campo MAC presente nella
           // fisarmonica «Porte vNIC» + updateVmNic normalizza.
@@ -3292,7 +3295,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           updateVmNic('lab', vmId, 'nic1', 'mac', 'aabbcc009900');
           const macNorm = (nodeById('lab').vms[0].nics[0] || {}).mac;
 
-          return { ok, vmName: vmNameI, vmIp: vmIpI, vmMac: vmMacI, tileGone, vmKnown, inPresence, guardHostInHost, guardSameNode, panelHasMac, macNorm, cardScope };
+          return { ok, vmName: vmNameI, vmIp: vmIpI, vmMac: vmMacI, tileGone, vmKnown, inPresence, guardHostInHost, guardSameNode, guardNasHost, panelHasMac, macNorm, cardScope };
         } catch (e) { return { err: String(e && e.stack || e) }; }
       });
       assert.ok(!r.err, 'nessun errore nel flusso assorbimento VM: ' + r.err);
@@ -3305,6 +3308,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(!r.inPresence, 'la VM NON entra nell\'audit di presenza (doc.macs): una VM spenta non risulta assente');
       assert.equal(r.guardHostInHost, false, 'guardia: un host non si assorbe dentro un host');
       assert.equal(r.guardSameNode, false, 'guardia: stesso nodo / bersaglio non-host rifiutato');
+      assert.equal(r.guardNasHost, false, 'guardia: un NAS da tavolo ospita VM, quindi non si assorbe come VM');
       assert.equal(r.cardScope, 'vm', 'openVmProps porta il pannello nello scope \'vm\' (scheda della VM)');
       assert.ok(r.panelHasMac, 'la scheda VM mostra il campo MAC (data-vm-field="mac")');
       assert.equal(r.macNorm, 'AA:BB:CC:00:99:00', 'updateVm normalizza il MAC della VM');

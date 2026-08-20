@@ -325,6 +325,36 @@ export function closeVmProps(){
     renderProps();
 }
 
+// ── UI: la sezione «Macchine virtuali» ─────────────────────────────────────
+// Blocco autonomo: lista delle VM + zona di importazione + «Aggiungi VM». Lo
+// usano TUTTI i tipi che sanno ospitare VM (TYPES.hostsVms): hypervisor e
+// homelab attraverso _hvPanelHtml, storage e server cuciti dal pannello device.
+// L'HTML è lo stesso per tutti — una VM su un NAS è la stessa cosa di una VM su
+// un hypervisor: cambia l'apparato che la ospita, non la macchina virtuale.
+//
+// Drop-zone VM: il bersaglio (data-vm-dropzone) è TUTTA la sezione — con tante
+// VM la vecchia zona in fondo alla lista usciva dallo scrollport del pannello
+// dopo ogni re-render (scroll azzerato) e i drop morivano. La zona tratteggiata
+// resta come invito visivo ma SOPRA la lista: posizione stabile (non scende di
+// una riga a ogni import), visibile a pannello appena aperto.
+export function _vmSectionHtml(n){
+    const esc = s => escapeHTML(String(s == null ? '' : s));
+    const vms = _nodeVms(n);
+    const running = vms.filter(v => v.state === 'running').length;   // solo le accese DICHIARATE (assente = non specificato, non "accesa")
+    const vmRows = vms.length
+        ? vms.map(vm => _vmRowHtml(vm, n.id)).join('')
+        : `<div class="drift-empty" style="padding:8px 4px">${esc(t('hv.noVms'))}</div>`;
+
+    return `<details class="props-collapsible props-secondary" data-vm-dropzone data-host-id="${esc(n.id)}" ${(typeof _propsSectionIsOpen==='function' && _propsSectionIsOpen('hv-vms')) ? 'open' : ''} data-toggle="props-section" data-section="hv-vms">
+            <summary class="props-collapsible-head"><span><i class="fas fa-display"></i> ${t('hv.section')}</span><span class="props-count-badge">${running}/${vms.length}</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
+            <div class="props-collapsible-body">
+                <div class="vm-import-dz"><i class="fas fa-arrow-down-to-bracket"></i> ${esc(t('hv.vmImportHint'))}</div>
+                ${vmRows}
+                <button type="button" class="toolbar-btn" style="width:100%;justify-content:center;margin-top:4px" data-act="hv-add-vm" data-nid="${n.id}"><i class="fas fa-plus"></i> ${t('hv.addVm')}</button>
+            </div>
+        </details>`;
+}
+
 // ── UI: pannello completo dell'host (inventario + host fields + lista VM) ──
 // Chiamato dallo switch del pannello device per i tipi con TYPES.hostsVms.
 export function _hvPanelHtml(n, d){
@@ -337,13 +367,8 @@ export function _hvPanelHtml(n, d){
     const plats = isLab ? _LAB_PLATFORMS : _HV_PLATFORMS;
     const platDefault = isLab ? 'proxmox' : 'esxi';
     const platOpts = plats.map(p => `<option value="${esc(p[0])}"${String(n.hvPlatform || platDefault) === p[0] ? ' selected' : ''}>${esc(p[1])}</option>`).join('');
-    const vms = _nodeVms(n);
-    const running = vms.filter(v => v.state === 'running').length;   // solo le accese DICHIARATE (assente = non specificato, non "accesa")
     const inv = (typeof _buildInventoryFieldsHtml === 'function') ? _buildInventoryFieldsHtml(n, d) : '';
     const preview = (typeof _buildDeviceBrandModelPreview === 'function') ? _buildDeviceBrandModelPreview(n) : '';
-    const vmRows = vms.length
-        ? vms.map(vm => _vmRowHtml(vm, n.id)).join('')
-        : `<div class="drift-empty" style="padding:8px 4px">${esc(t('hv.noVms'))}</div>`;
 
     return `<details class="props-collapsible props-primary" ${open} data-toggle="props-section" data-section="${secId}"><summary class="props-collapsible-head"><span><i class="fas ${icon}"></i> ${title}</span>${preview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
         ${inv}
@@ -357,19 +382,10 @@ export function _hvPanelHtml(n, d){
             <div class="prop-group"><label>Storage (TB)</label><input type="number" min="0" max="10000" step="0.5" value="${n.hvStorageTb || 1}" data-change="update-n" data-nfield="hvStorageTb" data-ncoerce="floatdef" data-ndef="0"></div>
         </div>
         <div class="prop-group"><label>${t('hv.mgmtVlan')}</label><input type="number" min="1" max="4094" value="${n.mgmtVlan || 1}" data-tip="${esc(t('hv.mgmtVlanTip'))}" data-change="update-n" data-nfield="mgmtVlan" data-ncoerce="intdef" data-ndef="1"></div>
-        ${''/* Drop-zone VM: il bersaglio (data-vm-dropzone) è TUTTA la sezione — con
-             tante VM la vecchia zona in fondo alla lista usciva dallo scrollport del
-             pannello dopo ogni re-render (scroll azzerato) e i drop morivano. La zona
-             tratteggiata resta come invito visivo ma SOPRA la lista: posizione stabile
-             (non scende di una riga a ogni import), visibile a pannello appena aperto. */}
-        <details class="props-collapsible props-secondary" data-vm-dropzone data-host-id="${esc(n.id)}" ${(typeof _propsSectionIsOpen==='function' && _propsSectionIsOpen('hv-vms')) ? 'open' : ''} data-toggle="props-section" data-section="hv-vms">
-            <summary class="props-collapsible-head"><span><i class="fas fa-display"></i> ${t('hv.section')}</span><span class="props-count-badge">${running}/${vms.length}</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
-            <div class="props-collapsible-body">
-                <div class="vm-import-dz"><i class="fas fa-arrow-down-to-bracket"></i> ${esc(t('hv.vmImportHint'))}</div>
-                ${vmRows}
-                <button type="button" class="toolbar-btn" style="width:100%;justify-content:center;margin-top:4px" data-act="hv-add-vm" data-nid="${n.id}"><i class="fas fa-plus"></i> ${t('hv.addVm')}</button>
-            </div>
-        </details>
+        ${''/* Questa riga vale 8 spazi nell'output e il golden li conta: non si
+             toglie. La sezione VM vive in _vmSectionHtml — condivisa con gli
+             altri tipi che ospitano macchine virtuali. */}
+        ${_vmSectionHtml(n)}
     </div></details>`;
 }
 
@@ -503,6 +519,12 @@ export function absorbNodeAsVm(srcId, hostId){
     if(!host || !src || host.id === src.id) return false;
     const hostDef = TYPES[host.type], srcDef = TYPES[src.type];
     if(!hostDef || !hostDef.hostsVms) return false;                                      // il bersaglio deve ospitare VM
+    // ⚠️ Qui `hostsVms` risponde a «è un tipo che ospita VM?», non a «ne ospita
+    // adesso?»: un host non si assorbe dentro un altro host. Dal 2026-08-20 sono
+    // tipi-host anche storage, server e NAS da tavolo, quindi un tile «NAS
+    // (desktop)» non si trascina più dentro un host — ed è voluto: quel tipo ora
+    // dichiara di saperle ospitare. I due tipi da RACK (nas, server) non
+    // passavano comunque di qui: il percorso del drag pretende isFloor.
     if(srcDef && (srcDef.hostsVms || (srcDef.isPassive && !srcDef.hasIP))) return false; // no host-in-host / passivi senza IP
     pushHistory();
     if(!Array.isArray(host.vms)) host.vms = [];

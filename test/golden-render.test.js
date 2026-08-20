@@ -186,6 +186,32 @@ test('golden render: power outlet ha editor manual-first separato dalle porte di
   assert.match(html, /non crea cavi di rete/);
 });
 
+// Ospitare macchine virtuali e' una CAPACITA' del tipo (TYPES.hostsVms), non un
+// privilegio di «hypervisor»: uno storage Synology/QNAP le ospita con un pacchetto
+// e resta uno storage. Il pannello deve offrire la sezione a TUTTI e SOLI i tipi
+// che la dichiarano — e l'atteso si LEGGE dal catalogo invece di essere ricopiato
+// qui: due elenchi della stessa cosa divergono al primo ritocco.
+test('golden render: la sezione VM sta su tutti e soli i tipi che ospitano VM', () => {
+  const cur = buildSnapshots();
+  const APP = loadApp(ROOT);
+  const capaci = run(APP.ctx, 'Object.keys(TYPES).filter(k => !!TYPES[k].hostsVms).sort()');
+  assert.ok(capaci.length >= 5, 'il catalogo deve dichiarare dei tipi che ospitano VM');
+
+  const conSezione = Object.keys(cur)
+    .filter(k => k.indexOf('node:') === 0 && String(cur[k]).includes('data-vm-dropzone'))
+    .map(k => k.slice(5)).sort();
+  assert.deepEqual(conSezione, capaci,
+    'la sezione «Macchine virtuali» segue TYPES.hostsVms: né un tipo in più né uno in meno');
+
+  // E la sezione e' quella VERA, non un guscio: lista, invito al drop e bottone.
+  for (const ty of capaci) {
+    const html = cur['node:' + ty] || '';
+    assert.match(html, /data-act="hv-add-vm"/, ty + ': manca il bottone «Aggiungi VM»');
+    assert.match(html, /class="vm-import-dz"/, ty + ': manca la zona di importazione');
+    assert.match(html, /data-section="hv-vms"/, ty + ': manca la fisarmonica delle VM');
+  }
+});
+
 test('golden render: output invariato vs baseline', { skip: _goldenSkip }, () => {
   const cur = buildSnapshots();
 

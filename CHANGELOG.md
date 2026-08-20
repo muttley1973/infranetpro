@@ -4,6 +4,8 @@
 
 ### Added
 
+- **Virtual machines belong to whatever hosts them** — storage arrays, desktop NAS boxes and servers now carry the same *Virtual machines* section a hypervisor has: the list, the import drop-zone, the VM card. Hosting VMs is something a device *does*, not what it is — a Synology or QNAP runs them from a package (Virtual Machine Manager, Virtualization Station) and is still a storage box, and its capacity, RAID level and protocols stay on the panel where they belong.
+- **So the DCIM import stops rewriting the type** — a NetBox device with virtual machines on it used to come back as a hypervisor (or a home lab, on the floor), erasing the role its own archive declared. That now happens only for a type that cannot host them at all — a switch, a firewall — where the data would otherwise have nowhere to live, and the import still says so in its list of decisions.
 - **Declared life-cycle status** — planned / staged / in stock / in service / failed / decommissioning / out of service. It changes how silence is read: a device declared planned that stays quiet is expected, not a fault. The DCIM import fills it; an unknown word stays undeclared rather than guessed.
 - **And it cuts both ways**: a device declared out of service that *answers* is flagged amber — stale documentation, which nothing caught before. The measure itself is untouched (`n.proof` records absence as always); only the reading changes.
 - **Overview: "Declared status" row** — contradictions take the headline, and the absences the declaration explained away are stated out loud. No device declaring a status leaves the row dashed, not a green zero.
