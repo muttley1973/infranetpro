@@ -401,6 +401,11 @@ ${(()=>{
 // ============================================================
 
 store._topoData    = null;   // { nodes[], edges[] } — ultimo grafo rilevato  (var: letto/scritto dal bundle src/app-topology-discover.js via win.*)
+// Adiacenze SENZA porta dell'ultimo Sync: [{srcNodeId,dstNodeId,protocol,srcPort,dstPort}].
+// Il protocollo dice che due apparati sono attaccati ma il nome di porta non si è
+// risolto: la linea si disegna lo stesso, con `?` al posto della porta. Vive fuori
+// dal documento (è una MISURA, non una dichiarazione) e muore col progetto.
+store._topoAdjacencies = [];
 store._topoVisible = false;  // overlay attivo sulla planimetria              (var: idem)
 store._viewMode    = 'map';  // 'map' | 'topology'                           (var: idem)
 store._physicalTraceActive = false; // in topologia mostra il cablaggio fisico solo su richiesta  (var: letto dal bundle src/app-topology-overlay.js via win.*)

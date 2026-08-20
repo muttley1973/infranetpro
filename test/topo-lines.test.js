@@ -792,3 +792,89 @@ test('hidden c\'e\' anche sui return anticipati (traccia fisica, endpoint nascos
   }));
   assert.equal(senzaEndpoint.hidden.wireless, 1);
 });
+
+// ---- Adiacenze SENZA porta ---------------------------------------------------
+// «So che sono attaccati, non so su quale porta»: il protocollo nomina entrambi
+// gli apparati ma il nome di porta non combacia con nessuna porta del documento.
+// Prima non usciva niente e i due risultavano estranei; ora la linea c'è e dice
+// `?`, invece di scegliere una porta a caso pur di disegnare qualcosa.
+
+test('adiacenza senza porta: due rack piazzati → una linea, con ? al posto della porta', () => {
+  const out = buildTopoLines(model({
+    nodes: [
+      { id: 'sw1', type: 'switch', rackId: 'rA' },
+      { id: 'sw2', type: 'switch', rackId: 'rB' },
+    ],
+    racks: [{ id: 'rA', name: 'A', x: 10, y: 10 }, { id: 'rB', name: 'B', x: 200, y: 10 }],
+    adjacencies: [{ srcNodeId: 'sw1', dstNodeId: 'sw2', protocol: 'LLDP', srcPort: 'port97' }],
+  }));
+  assert.equal(out.pairs.length, 1);
+  const p = out.pairs[0];
+  assert.equal(p.confirmed, false, 'nessun cavo fra i due: la coppia NON è confermata');
+  assert.equal(p.edges.length, 1);
+  assert.equal(p.edges[0].dstPort, '?', 'la porta che non si sa si dichiara, non si inventa');
+  assert.equal(p.edges[0].portless, true);
+});
+
+test('adiacenza senza porta: il cavo VERO prevale — la coppia risulta confermata', () => {
+  const out = buildTopoLines(model({
+    nodes: [
+      { id: 'sw1', type: 'switch', rackId: 'rA' },
+      { id: 'sw2', type: 'switch', rackId: 'rB' },
+    ],
+    racks: [{ id: 'rA', name: 'A', x: 10, y: 10 }, { id: 'rB', name: 'B', x: 200, y: 10 }],
+    links: [{ id: 'L1', src: 'sw1-1', dst: 'sw2-1' }],
+    adjacencies: [{ srcNodeId: 'sw1', dstNodeId: 'sw2', protocol: 'LLDP' }],
+  }));
+  assert.equal(out.pairs.length, 1);
+  assert.equal(out.pairs[0].confirmed, true, 'il porta-a-porta sostituisce l\'approssimazione');
+});
+
+test('adiacenza senza porta: due apparati a pavimento → linea floor↔floor', () => {
+  const out = buildTopoLines(model({
+    nodes: [
+      { id: 'pc1', type: 'pc', x: 10, y: 10, name: 'PC1' },
+      { id: 'prn', type: 'printer', x: 90, y: 10, name: 'Stampante' },
+    ],
+    adjacencies: [{ srcNodeId: 'pc1', dstNodeId: 'prn', protocol: 'CDP' }],
+  }));
+  assert.equal(out.pairs.length, 1);
+  assert.equal(out.pairs[0].protocol, 'CDP');
+});
+
+test('adiacenza senza porta: un apparato non piazzato → nessuna linea inventata', () => {
+  const out = buildTopoLines(model({
+    nodes: [
+      { id: 'sw1', type: 'switch', rackId: 'rA' },
+      { id: 'sw2', type: 'switch', rackId: 'rB' },
+    ],
+    racks: [{ id: 'rA', name: 'A', x: 10, y: 10 }, { id: 'rB', name: 'B' }],  // rB senza x
+    adjacencies: [{ srcNodeId: 'sw1', dstNodeId: 'sw2', protocol: 'LLDP' }],
+  }));
+  assert.equal(out.pairs.length, 0, 'senza posizione non c\'è dove disegnarla');
+});
+
+test('adiacenza senza porta: riferimenti a nodi inesistenti o a sé stesso → ignorati', () => {
+  const out = buildTopoLines(model({
+    nodes: [{ id: 'sw1', type: 'switch', rackId: 'rA' }],
+    racks: [{ id: 'rA', name: 'A', x: 10, y: 10 }],
+    adjacencies: [
+      { srcNodeId: 'sw1', dstNodeId: 'sw1' },          // sé stesso
+      { srcNodeId: 'sw1', dstNodeId: 'non-esiste' },   // nodo assente
+      { srcNodeId: '', dstNodeId: 'sw1' },             // id vuoto
+      null,
+    ],
+  }));
+  assert.equal(out.pairs.length, 0);
+});
+
+test('adiacenza senza porta: senza `adjacencies` il risultato è identico a prima', () => {
+  const base = model({
+    nodes: [{ id: 'sw1', type: 'switch', rackId: 'rA' }, { id: 'sw2', type: 'switch', rackId: 'rB' }],
+    racks: [{ id: 'rA', name: 'A', x: 10, y: 10 }, { id: 'rB', name: 'B', x: 200, y: 10 }],
+    links: [{ id: 'L1', src: 'sw1-1', dst: 'sw2-1' }],
+  });
+  const senza = buildTopoLines(base);
+  const conVuoto = buildTopoLines(Object.assign({}, base, { adjacencies: [] }));
+  assert.equal(JSON.stringify(senza.pairs.map(p => p.edges)), JSON.stringify(conVuoto.pairs.map(p => p.edges)));
+});

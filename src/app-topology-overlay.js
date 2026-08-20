@@ -185,6 +185,10 @@ function _buildTopoModel(){
         nodes: store.state.nodes, links: store.state.links, racks: store.state.racks,
         types: TYPES,
         topoData: store._topoData,
+        // Adiacenze senza porta raccolte dall'ultimo Sync: due apparati che si
+        // annunciano sono attaccati anche quando la porta non si risolve, e la
+        // mappa lo dice invece di farli sembrare estranei.
+        adjacencies: store._topoAdjacencies,
         currentRack: store.state.currentRack,
         hoverRackId: store._hoverRackId,
         filterVlan: store._filterVlan,

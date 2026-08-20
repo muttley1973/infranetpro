@@ -31,6 +31,7 @@ export function _restoreTopoSession(){
     if(!store.state.topoCache || typeof store.state.topoCache !== 'object' || Array.isArray(store.state.topoCache)) store.state.topoCache = {};
     store._topoNeighborsCache = store.state.topoCache;
     store._topoData = null;
+    store._topoAdjacencies = [];   // erano del progetto precedente, come il grafo
     if(store._topoVisible){
         store._topoVisible = false;
         store._viewMode = 'map';

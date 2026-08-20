@@ -718,6 +718,9 @@ async function _autoDiscoverLinks(nodeIds){
         targets:0, topoOk:0, neighborsSeen:0, fdbEntries:0, arpEntries:0,
         candidatesTotal:0, candidatesOverThr:0, byProto:{}, endpointReasons:{}, reasons:[]
     };
+    // Adiacenze senza porta viste in QUESTO giro. Si sostituiscono in blocco a fine
+    // corsa: un Sync è una fotografia, e una fotografia non si somma alla precedente.
+    const _adjSeen = [];
 
     const _portNodeId = pid => getPortNodeId(pid);
     const _pairSig = win.pairSig; // lib/correlate.js (logica invariata)
@@ -1172,6 +1175,13 @@ async function _autoDiscoverLinks(nodeIds){
             for(const u of data.unresolvedNeighbors){
                 const r = String(u && u.reason || 'unknown');
                 diag.neighborReasons[r] = (diag.neighborReasons[r] || 0) + 1;
+                // Quando ENTRAMBI gli apparati sono noti e a mancare è solo la porta,
+                // l'adiacenza è un fatto: va sulla mappa con `?` al posto della porta,
+                // invece di far sembrare estranei due apparati che si annunciano.
+                if(u && u.remoteNodeId && u.srcNodeId && u.remoteNodeId !== u.srcNodeId){
+                    _adjSeen.push({ srcNodeId: u.srcNodeId, dstNodeId: u.remoteNodeId,
+                                    protocol: u.protocol || 'LLDP', srcPort: u.localPort || '', dstPort: '' });
+                }
             }
             diag.unresolvedNeighbors = (diag.unresolvedNeighbors || []).concat(data.unresolvedNeighbors);
         }
@@ -1675,6 +1685,11 @@ async function _autoDiscoverLinks(nodeIds){
             diag.wifiAssoc = { created:_w.created, updated:_w.updated, pruned:_w.pruned };
         }
     } catch(e){ console.warn(`[AutoLink] wireless-assoc: ${e.message}`); }
+
+    // Le adiacenze senza porta di QUESTO giro sostituiscono quelle di prima: sono
+    // una misura, e una misura vecchia non vale la pena tenerla accanto alla nuova.
+    // Non toccano il documento (niente markDirty): vivono quanto la sessione.
+    store._topoAdjacencies = _adjSeen;
 
     if(created > 0 || updated > 0 || lagGroups > 0 || pruned > 0 || historyAdded > 0) markDirty();
     // Fine giro: le osservazioni raccolte durante la scansione non aspettano il Salva.
