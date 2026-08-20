@@ -359,6 +359,28 @@ function macToStr(v) {
   return Array.from(v).map(b => b.toString(16).padStart(2,'0')).join(':');
 }
 
+// Un MAC scritto per esteso, come lo scriverebbe una persona: «50:25:C2:00:29:00».
+// Accettato anche senza gli zeri di riempimento («0:1a:2b:0:10:0» — e' la grafia
+// con cui lo stampa net-snmp), e col trattino al posto dei due punti. Torna la
+// forma canonica minuscola, oppure '' se non e' un MAC.
+function macFromText(v) {
+  const s = (typeof v === 'string' ? v : bufToStr(v)).trim();
+  if (!/^[0-9a-f]{1,2}([:-][0-9a-f]{1,2}){5}$/i.test(s)) return '';
+  return s.split(/[:-]/).map(x => x.toLowerCase().padStart(2, '0')).join(':');
+}
+
+// Un identificatore LLDP che il SOTTOTIPO dichiara essere un MAC. Lo standard dice
+// sei ottetti grezzi, ma la codifica la sceglie l'AGENTE che interroghiamo, non chi
+// annuncia: misurato in laboratorio il 2026-08-20, lo stesso chassis-id dello stesso
+// switch Cisco arriva a sei ottetti se lo leggiamo dall'Arista e come testo di 17
+// byte se lo leggiamo dal MikroTik (RouterOS CHR). Entrambe le forme sono lo stesso
+// indirizzo, e vanno accettate entrambe: la regola «sei byte ⇒ e' un MAC» perdeva la
+// seconda per intero, e con lei l'unica identita' del vicino che non cambia mai.
+function lldpMac(v) {
+  if (Buffer.isBuffer(v) && v.length === 6) return macToStr(v);
+  return macFromText(v);
+}
+
 function _firstNonEmpty(...values) {
   for (const value of values) {
     const str = bufToStr(value);
@@ -1465,8 +1487,15 @@ const N_OID = {
   // sempre testuale; dove assente resta il fallback a ifDescr (ifName[lpn]).
   lldpLocPortDesc:'1.0.8802.1.1.2.1.3.7.1.4',
   // LLDP-MIB lldpRemEntry (1.0.8802.1.1.2.1.4.1.1.N) — colonne corrette:
-  //   .5 ChassisId · .7 PortId · .8 PortDesc · .9 SysName
+  //   .4 ChassisIdSubtype · .5 ChassisId · .6 PortIdSubtype · .7 PortId ·
+  //   .8 PortDesc · .9 SysName
+  // ⚠️ I SOTTOTIPI non sono un di piu': dicono COSA sia il valore che sta loro
+  // accanto (un MAC, un nome di interfaccia, una stringa locale). Senza, il tipo
+  // si indovina dalla lunghezza — e si sbaglia nei due versi: vedi `lldpMac`.
+  // Costano due colonne in piu' nella walk, una riga per vicino: poca roba.
+  lldpRemChassisIdSubtype:'1.0.8802.1.1.2.1.4.1.1.4',
   lldpRemChassisId:'1.0.8802.1.1.2.1.4.1.1.5', // chassis-id (spesso MAC) → match-by-MAC
+  lldpRemPortIdSubtype:'1.0.8802.1.1.2.1.4.1.1.6',
   lldpRemPortId:  '1.0.8802.1.1.2.1.4.1.1.7',
   lldpRemPortDesc:'1.0.8802.1.1.2.1.4.1.1.8',
   lldpRemSysName: '1.0.8802.1.1.2.1.4.1.1.9',
@@ -1580,13 +1609,57 @@ function extractNeighbors(vbs) {
     }
   }
 
-  // Un identificatore LLDP (chassis-id / port-id) può essere un MAC raw (6 byte):
-  // in tal caso va formattato come MAC, non come stringa (che risulterebbe binaria).
+  // ── Identificatori LLDP: decide il SOTTOTIPO, non la lunghezza ──────────────
+  // Ogni identificatore LLDP viaggia in coppia con un sottotipo che dice cosa sia
+  // (IEEE 802.1AB). Prima il sottotipo non lo chiedevamo e il tipo lo indovinavamo
+  // dalla lunghezza — «sei byte ⇒ e' un MAC» — e si sbagliava nei due versi:
+  //   · un MAC scritto per esteso (17 byte) non veniva riconosciuto e si PERDEVA,
+  //     e con lui l'unica identita' del vicino che non cambia mai;
+  //   · un nome di porta di sei caratteri esatti («Gi1/24», «ether1») diventava il
+  //     MAC 47:69:31:2f:32:34 — un indirizzo INVENTATO, che non appartiene a
+  //     nessuno e non combacia con niente.
+  // Dove l'agente non espone le colonne dei sottotipi resta il comportamento
+  // storico, piu' il riconoscimento del MAC scritto per esteso: una stringa fatta
+  // di sei gruppi esadecimali separati non puo' essere altro che un indirizzo.
+  const LLDP_CHASSIS_MAC = 4;   // lldpChassisIdSubtype: macAddress
+  const LLDP_PORT_MAC    = 3;   // lldpPortIdSubtype:    macAddress
   const lldpId = v => (Buffer.isBuffer(v) && v.length === 6) ? macToStr(v) : bufToStr(v);
-  lldpEntry(N_OID.lldpRemSysName,   (e, v) => { e.remoteDevice = bufToStr(v); });
-  lldpEntry(N_OID.lldpRemChassisId, (e, v) => { e.remoteMac = (Buffer.isBuffer(v) && v.length === 6) ? macToStr(v) : ''; });
-  lldpEntry(N_OID.lldpRemPortId,    (e, v) => { if (!e.remotePort) e.remotePort = lldpId(v); });
-  lldpEntry(N_OID.lldpRemPortDesc,  (e, v) => { if (!e.remotePort) e.remotePort = bufToStr(v); });
+  lldpEntry(N_OID.lldpRemSysName,          (e, v) => { e.remoteDevice = bufToStr(v); });
+  lldpEntry(N_OID.lldpRemChassisIdSubtype, (e, v) => { e._cidSub = bufToInt(v); });
+  lldpEntry(N_OID.lldpRemChassisId,        (e, v) => { e._cid    = v; });
+  lldpEntry(N_OID.lldpRemPortIdSubtype,    (e, v) => { e._pidSub = bufToInt(v); });
+  lldpEntry(N_OID.lldpRemPortId,           (e, v) => { e._pid    = v; });
+  lldpEntry(N_OID.lldpRemPortDesc,         (e, v) => { e._pdesc  = bufToStr(v); });
+
+  // L'interpretazione arriva DOPO la raccolta: sottotipo e valore stanno in due
+  // colonne diverse, e l'ordine con cui le percorriamo non deve contare.
+  for (const e of Object.values(lldpMap)) {
+    const pdesc = e._pdesc || '';
+
+    // Chassis-id → MAC solo se il sottotipo dice che e' un MAC. Se dice altro
+    // (7 = local, cioe' un nome scelto dall'amministratore) NON si inventa un
+    // indirizzo: meglio nessun MAC che uno falso.
+    e.remoteMac = (e._cidSub === undefined || e._cidSub === LLDP_CHASSIS_MAC)
+      ? lldpMac(e._cid) : '';
+
+    if (e._pidSub === LLDP_PORT_MAC) {
+      // La porta remota e' identificata da un MAC: e' un'identita' ESATTA, non un
+      // nome. Va nel suo campo — scriverla in `remotePort` la manderebbe a cercare
+      // fra i NOMI di porta, dove per definizione non puo' esserci, e la porta
+      // finirebbe dedotta invece che letta. Come nome resta la descrizione.
+      e.remotePortMac = lldpMac(e._pid);
+      e.remotePort    = pdesc;
+    } else if (e._pidSub !== undefined) {
+      // Sottotipo noto e diverso da macAddress: e' testo, e testo resta.
+      e.remotePort = bufToStr(e._pid) || pdesc;
+    } else {
+      // Agente senza la colonna del sottotipo: comportamento storico...
+      e.remotePort = lldpId(e._pid) || pdesc;
+      // ...con l'aggiunta del MAC scritto per esteso, che non e' un nome di porta.
+      const m = macFromText(e._pid);
+      if (m) { e.remotePortMac = m; e.remotePort = pdesc; }
+    }
+  }
 
   // --- LLDP management addresses → IP raggiungibile del vicino ---
   // lldpRemManAddrTable (IEEE 802.1AB): l'IP è codificato nell'indice OID, non nel valore.
@@ -1621,6 +1694,9 @@ function extractNeighbors(vbs) {
       localPort:    locPortName[lpn] || ifName[lpn] || `port${lpn}`,
       remoteDevice: dev,
       remotePort:   entry.remotePort  || '',
+      // MAC della PORTA remota, quando il vicino identifica la porta cosi' invece
+      // che col nome: e' l'aggancio esatto alla porta giusta, non una deduzione.
+      remotePortMac: entry.remotePortMac || '',
       remoteIP:     entry.remoteIP    || '',
       remoteMac:    entry.remoteMac   || '',
       protocol:     'LLDP',
@@ -2097,7 +2173,7 @@ module.exports = { poll, pollNeighbors, probe, pollPower };
 // Additivo: non altera il comportamento runtime del driver.
 module.exports._internals = {
   extractNeighbors, N_OID,
-  bufToStr, bufToInt, decodePortList, isRealMac, macToStr,
+  bufToStr, bufToInt, decodePortList, isRealMac, macToStr, macFromText, lldpMac,
   logicalLagIdFromName, lastIdx, extractData, extractEntityInventory,
   extractSystem, _formatUptime, extractPrinter, _supplyColorKey,
   extractHostResources, _isPathPrefix, OID, PRT_OID, HR_OID, _oidGt,

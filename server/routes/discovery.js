@@ -694,7 +694,8 @@ router.post('/api/topology', auth.requireAdmin, async (req, res) => {
           data.neighbors || [],
           cfg.projectNodes,
           portIndex,
-          macIndex
+          macIndex,
+          portMacIndex
         );
         const fdbRes = buildFdbCandidates(
           cfg.srcNodeId,

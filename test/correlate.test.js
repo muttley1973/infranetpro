@@ -849,3 +849,67 @@ test('D2: un host DAVVERO off-segment resta un candidato (lo scopo dell\'ARP-SNM
   assert.equal(out.length, 1, 'dietro un confine L3: è il caso per cui la funzione esiste');
   assert.equal(out[0].mac, 'aa:bb:cc:00:00:02');
 });
+
+// ---- porta remota identificata dal MAC (LLDP portIdSubtype = macAddress) -----
+// Misurato sul banco il 2026-08-20: un MikroTik annuncia le proprie porte col loro
+// MAC invece che col nome. È un'identità ESATTA — se quel MAC sta su una porta del
+// nodo remoto, la porta è LETTA dal protocollo, non indovinata.
+
+test('buildNeighborCandidates: porta remota per MAC -> porta ESATTA, link autorevole', () => {
+  const PORT_MAC = '50:48:de:00:1f:01';
+  const nodes = [
+    { id: 'sw',  hostname: 'SW-CORE', name: 'SW-CORE', ports: 24 },
+    { id: 'rtr', hostname: 'R-EDGE',  name: 'R-EDGE',  ports: 5 },
+  ];
+  const ports = {
+    'sw-23': { ifName: 'GigabitEthernet23' },
+    'rtr-2': { ifName: 'ether2', mac: PORT_MAC.toUpperCase() },
+  };
+  const idx  = buildPortIndex(ports);
+  const pmac = buildPortMacIndex(ports);
+  const neighbors = [
+    { protocol: 'LLDP', remoteDevice: 'R-EDGE', remoteMac: '', remoteIP: '',
+      localPort: 'GigabitEthernet23', remotePort: '', remotePortMac: PORT_MAC.toUpperCase() },
+  ];
+  const cset = buildNeighborCandidates('sw', neighbors, nodes, idx, buildMacIndex(nodes, ports), pmac);
+  assert.equal(cset.size(), 1);
+  const c = cset.values()[0];
+  assert.ok((c.src === 'sw-23' && c.dst === 'rtr-2') || (c.src === 'rtr-2' && c.dst === 'sw-23'),
+    'la porta remota è la 2, quella che porta quel MAC — non la prima libera');
+  assert.equal(c.protocol, 'LLDP', 'letta dal protocollo → resta autorevole, non «dedotta»');
+  assert.ok(c.confidence >= 0.90);
+});
+
+test('buildNeighborCandidates: senza portMacIndex il comportamento resta quello di prima', () => {
+  const nodes = [
+    { id: 'sw',  hostname: 'SW-CORE', name: 'SW-CORE', ports: 24 },
+    { id: 'rtr', hostname: 'R-EDGE',  name: 'R-EDGE',  ports: 5 },
+  ];
+  const ports = { 'sw-23': { ifName: 'GigabitEthernet23' }, 'rtr-2': { ifName: 'ether2', mac: '50:48:de:00:1f:01' } };
+  const neighbors = [
+    { protocol: 'LLDP', remoteDevice: 'R-EDGE', remoteMac: '', remoteIP: '',
+      localPort: 'GigabitEthernet23', remotePort: '', remotePortMac: '50:48:DE:00:1F:01' },
+  ];
+  const cset = buildNeighborCandidates('sw', neighbors, nodes, buildPortIndex(ports), {});
+  const c = cset.values()[0];
+  assert.ok(c.dst === 'rtr-1' || c.src === 'rtr-1', 'prima porta libera: la vecchia deduzione');
+  assert.equal(c.protocol, 'INFERRED');
+});
+
+test('buildNeighborCandidates: il MAC della porta remota identifica anche l\'APPARATO', () => {
+  const PORT_MAC = '50:48:de:00:1f:03';
+  const nodes = [
+    { id: 'sw',  hostname: 'SW-CORE', name: 'SW-CORE', ports: 24 },
+    { id: 'rtr', hostname: '', name: '', ip: '', ports: 5 },   // niente nome, niente IP, niente chassis-MAC
+  ];
+  const ports = { 'sw-23': { ifName: 'GigabitEthernet23' }, 'rtr-4': { ifName: 'ether4', mac: PORT_MAC } };
+  const neighbors = [
+    { protocol: 'LLDP', remoteDevice: 'nome-che-nel-documento-non-c-e', remoteMac: '', remoteIP: '',
+      localPort: 'GigabitEthernet23', remotePort: '', remotePortMac: PORT_MAC },
+  ];
+  const cset = buildNeighborCandidates('sw', neighbors, nodes, buildPortIndex(ports),
+    buildMacIndex(nodes, ports), buildPortMacIndex(ports));
+  assert.equal(cset.size(), 1, 'quella porta è sua: l\'apparato è identificato');
+  const c = cset.values()[0];
+  assert.ok(c.dst === 'rtr-4' || c.src === 'rtr-4');
+});
