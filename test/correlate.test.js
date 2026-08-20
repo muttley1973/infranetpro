@@ -913,3 +913,61 @@ test('buildNeighborCandidates: il MAC della porta remota identifica anche l\'APP
   const c = cset.values()[0];
   assert.ok(c.dst === 'rtr-4' || c.src === 'rtr-4');
 });
+
+// ---- vicini che NON diventano un cavo: il motivo si dice ---------------------
+// Un vicino scartato in silenzio è indistinguibile da un apparato senza vicini, ed
+// è così che i difetti si nascondono: D3 (lldpLocPortNum ≠ ifIndex) è vissuto
+// mesi dentro un `if (!src) return`. I motivi restano DISTINTI perché chiedono
+// azioni opposte: scansionare, aggiungere al documento, o correggere il codice.
+
+const _nodiBase = () => ([
+  { id: 'sw',  hostname: 'SW-CORE', name: 'SW-CORE', ports: 24 },
+  { id: 'rtr', hostname: 'R-EDGE',  name: 'R-EDGE',  ports: 5 },
+]);
+const _portiBase = () => ({ 'sw-23': { ifName: 'GigabitEthernet23' }, 'rtr-1': { ifName: 'ether1' } });
+
+test('unresolved: apparato letto benissimo ma assente dal documento → device-unknown', () => {
+  const unresolved = [];
+  const neighbors = [{ protocol: 'LLDP', remoteDevice: 'SW-CHE-NON-CE', remoteMac: 'aa:bb:cc:00:00:99',
+    remoteIP: '10.0.0.9', localPort: 'GigabitEthernet23', remotePort: 'Gi0/1' }];
+  const cset = buildNeighborCandidates('sw', neighbors, _nodiBase(), buildPortIndex(_portiBase()), {}, {}, { unresolved });
+  assert.equal(cset.size(), 0);
+  assert.equal(unresolved.length, 1);
+  assert.equal(unresolved[0].reason, 'device-unknown', 'si chiude scansionandolo, non scrivendo codice');
+  assert.equal(unresolved[0].remoteDevice, 'SW-CHE-NON-CE', 'si riporta ciò che il vicino ha DETTO');
+  assert.equal(unresolved[0].localPort, 'GigabitEthernet23');
+});
+
+test('unresolved: vicino che non annuncia nulla di cercabile → no-identity', () => {
+  const unresolved = [];
+  const neighbors = [{ protocol: 'LLDP', remoteDevice: '', remoteMac: '', remoteIP: '', remotePortMac: '',
+    localPort: 'GigabitEthernet23', remotePort: '' }];
+  const cset = buildNeighborCandidates('sw', neighbors, _nodiBase(), buildPortIndex(_portiBase()), {}, {}, { unresolved });
+  assert.equal(cset.size(), 0);
+  assert.equal(unresolved[0].reason, 'no-identity', 'qui non c\'è niente da scansionare: o è muto, o non lo sappiamo leggere');
+});
+
+test('unresolved: apparato noto ma porta LOCALE non risolta → local-port-unresolved (il sintomo di D3)', () => {
+  const unresolved = [];
+  const neighbors = [{ protocol: 'LLDP', remoteDevice: 'R-EDGE', remoteMac: '', remoteIP: '',
+    localPort: 'port97', remotePort: 'ether1' }];   // «port97» non è nessuna porta di sw
+  const cset = buildNeighborCandidates('sw', neighbors, _nodiBase(), buildPortIndex(_portiBase()), {}, {}, { unresolved });
+  assert.equal(cset.size(), 0, 'il cavo non si può disegnare: manca una delle due punte');
+  assert.equal(unresolved[0].reason, 'local-port-unresolved');
+  assert.equal(unresolved[0].localPort, 'port97', 'il nome che non ha combaciato resta leggibile');
+});
+
+test('unresolved: un vicino che diventa un cavo NON finisce nella lista', () => {
+  const unresolved = [];
+  const neighbors = [{ protocol: 'LLDP', remoteDevice: 'R-EDGE', remoteMac: '', remoteIP: '',
+    localPort: 'GigabitEthernet23', remotePort: 'ether1' }];
+  const cset = buildNeighborCandidates('sw', neighbors, _nodiBase(), buildPortIndex(_portiBase()), {}, {}, { unresolved });
+  assert.equal(cset.size(), 1);
+  assert.equal(unresolved.length, 0, 'la lista è dei MANCATI, non un registro di tutto');
+});
+
+test('unresolved: senza il raccoglitore il motore si comporta esattamente come prima', () => {
+  const neighbors = [{ protocol: 'LLDP', remoteDevice: 'SW-CHE-NON-CE', localPort: 'GigabitEthernet23' }];
+  const cset = buildNeighborCandidates('sw', neighbors, _nodiBase(), buildPortIndex(_portiBase()), {}, {});
+  assert.equal(cset.size(), 0, 'nessuna eccezione, nessun cambio di comportamento');
+});

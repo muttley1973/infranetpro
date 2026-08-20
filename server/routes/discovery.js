@@ -689,13 +689,18 @@ router.post('/api/topology', auth.requireAdmin, async (req, res) => {
         const portIndex = buildPortIndex(cfg.projectPorts, cfg.projectLagGroups || {});
         const macIndex  = buildMacIndex(cfg.projectNodes, cfg.projectPorts);
         const portMacIndex = buildPortMacIndex(cfg.projectPorts);
+        // I vicini che NON diventano un candidato non spariscono più: escono con
+        // il loro motivo. Un link che manca senza spiegazione è indistinguibile
+        // da un apparato che non ha vicini — ed è così che i difetti si nascondono.
+        const unresolved = [];
         const cset = buildNeighborCandidates(
           cfg.srcNodeId,
           data.neighbors || [],
           cfg.projectNodes,
           portIndex,
           macIndex,
-          portMacIndex
+          portMacIndex,
+          { unresolved }
         );
         const fdbRes = buildFdbCandidates(
           cfg.srcNodeId,
@@ -709,7 +714,9 @@ router.post('/api/topology', auth.requireAdmin, async (req, res) => {
         for (const sl of fdbRes.cset.values()) cset.add(sl.src, sl.dst, sl.confidence, sl.protocol);
         data.suggestedLinks = cset.values();
         if (fdbRes.sharedSegments.length) data.suggestedSharedSegments = fdbRes.sharedSegments;
-        console.log(`  [TOPO] ${cfg.host}: ${(data.neighbors||[]).length} vicini → ${data.suggestedLinks.length} link suggeriti`);
+        if (unresolved.length) data.unresolvedNeighbors = unresolved;
+        console.log(`  [TOPO] ${cfg.host}: ${(data.neighbors||[]).length} vicini → ${data.suggestedLinks.length} link suggeriti` +
+          (unresolved.length ? ` · ${unresolved.length} non agganciati (${[...new Set(unresolved.map(u => u.reason))].join(', ')})` : ''));
       } catch (e) {
         console.warn(`  [TOPO] suggestedLinks error (${cfg.srcNodeId}): ${e.message}`);
       }

@@ -670,6 +670,22 @@ export function _autoLinkDiagText(diag){
             .map(([k,v])=>`${labels[k]||k}: ${v}`);
         if(top.length) parts.push(top.join(' · '));
     }
+    // Vicini annunciati che non sono diventati un cavo: si dicono, e si dicono
+    // DISTINTI. «Non lo conosco» si chiude scansionando, «non ho saputo leggerlo»
+    // si chiude scrivendo codice: sommarli li nasconde tutti e due.
+    if(diag.neighborReasons){
+        const nr = Object.entries(diag.neighborReasons).filter(([,v]) => v > 0);
+        if(nr.length){
+            const tot = nr.reduce((s,[,v]) => s+v, 0);
+            // ⚠️ `t()` su chiave assente restituisce LA CHIAVE, non stringa vuota: un
+            // `||` non basterebbe e in pagina finirebbe «msg.net.alNb_qualcosa». Per un
+            // motivo che non conosciamo ancora si mostra il suo nome, che è leggibile.
+            const _lbl = k => { const key = 'msg.net.alNb_' + k; const s = t(key); return s === key ? k : s; };
+            const det = nr.sort((a,b)=>b[1]-a[1])
+                .map(([k,v]) => `${_lbl(k)}: ${v}`).join(' · ');
+            parts.push(`${tot} ${t('msg.net.alNbUnresolved')} (${det})`);
+        }
+    }
     if(Array.isArray(diag.reasons) && diag.reasons.length) parts.push(diag.reasons.slice(0,2).join(' · '));
     return parts.join(' · ');
 }
@@ -1143,6 +1159,21 @@ async function _autoDiscoverLinks(nodeIds){
                 }
             }
             diag.sharedSegmentHints = (diag.sharedSegmentHints || 0) + data.suggestedSharedSegments.length;
+        }
+
+        // ---- Vicini annunciati che NON sono diventati un cavo ---------------
+        // Il motore li restituisce col MOTIVO invece di scartarli in silenzio, e i
+        // motivi chiedono cose opposte: «apparato sconosciuto» si chiude
+        // scansionandolo, «porta locale non risolta» è un buco nostro nella lettura
+        // del protocollo. Contarli insieme li rimetterebbe nella stessa nebbia da
+        // cui questo lavoro li tira fuori.
+        if(Array.isArray(data.unresolvedNeighbors)){
+            diag.neighborReasons = diag.neighborReasons || {};
+            for(const u of data.unresolvedNeighbors){
+                const r = String(u && u.reason || 'unknown');
+                diag.neighborReasons[r] = (diag.neighborReasons[r] || 0) + 1;
+            }
+            diag.unresolvedNeighbors = (diag.unresolvedNeighbors || []).concat(data.unresolvedNeighbors);
         }
     }
 
