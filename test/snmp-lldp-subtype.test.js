@@ -167,3 +167,41 @@ test('D3: senza la tabella delle porte locali resta la vecchia scommessa su ifNa
   const n = primo(vbs(Object.assign({ [`${N_OID.ifDescr}.3`]: B('Gi0/2') }, remIn(3))));
   assert.equal(n.localPort, 'Gi0/2', 'dove i due spazi coincidono davvero, nulla cambia');
 });
+
+// ── ExtremeXOS: i due spazi di numerazione non si toccano ───────────────────
+// Misurato sul banco il 2026-08-20 (EXOS-VM 33.1.1.31). È il caso peggiore che
+// abbiamo, e nessuno se lo inventerebbe a tavolino: le porte LLDP sono 1, 2, 3 e
+// gli ifIndex sono 1001, 1002, 1003 — nessuna interfaccia ha indice 1, 2 o 3.
+// `lldpLocPortDesc` è VUOTO su tutte e tre, quindi la vecchia rete di sicurezza
+// (la descrizione) qui non c'era: restava `ifName[lpn]`, che non trova niente, e
+// il nome finiva fabbricato come «port1» — un nome che nel documento non esiste,
+// e il cavo spariva in silenzio.
+const exosLoc = () => ({
+  [`${N_OID.ifDescr}.1001`]: B('EXOS-VM Port 1'),
+  [`${N_OID.ifDescr}.1002`]: B('EXOS-VM Port 2'),
+  [`${N_OID.ifDescr}.1003`]: B('Management Port'),
+  [`${N_OID.ifDescr}.1000005`]: B('VLAN 04095 (Mgmt)'),
+  [`${N_OID.lldpLocPortIdSubtype}.1`]: 5, [`${N_OID.lldpLocPortId}.1`]: B('1'),
+  [`${N_OID.lldpLocPortIdSubtype}.2`]: 5, [`${N_OID.lldpLocPortId}.2`]: B('2'),
+  [`${N_OID.lldpLocPortIdSubtype}.3`]: 5, [`${N_OID.lldpLocPortId}.3`]: B('mgmt'),
+});
+
+test('EXOS: porta locale 1 → «1», non «port1» (numerazione LLDP disgiunta dagli ifIndex)', () => {
+  const n = primo(vbs(Object.assign(exosLoc(), remIn(1))));
+  assert.equal(n.localPort, '1', 'il nome dichiarato, non uno fabbricato dal numero');
+  assert.notEqual(n.localPort, 'port1', 'era questo, e non combaciava con nessuna porta del documento');
+});
+
+test('EXOS: anche la porta di management si nomina da sé', () => {
+  const n = primo(vbs(Object.assign(exosLoc(), remIn(3))));
+  assert.equal(n.localPort, 'mgmt');
+});
+
+test('EXOS: nessun ifIndex 1/2/3 — la vecchia scommessa non aveva su cosa cadere', () => {
+  // Serve a fissare la PREMESSA della fixture: se un domani qualcuno "aggiusta"
+  // i dati aggiungendo un ifIndex basso, il caso smette di essere quello vero.
+  const v = exosLoc();
+  for (const i of [1, 2, 3]) {
+    assert.equal(v[`${N_OID.ifDescr}.${i}`], undefined, 'ifIndex ' + i + ' non esiste su questo apparato');
+  }
+});
