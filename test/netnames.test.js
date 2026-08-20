@@ -46,6 +46,30 @@ test('_ifNameMeta: riconosce LAG e management', () => {
   assert.equal(_ifNameMeta('GigabitEthernet0/1').lagToken, '');
 });
 
+test('_ifNameMeta: «Management Port» è la stessa interfaccia di «mgmt»', () => {
+  // Misurato sul banco il 2026-08-20: un ExtremeXOS chiama la sua interfaccia di
+  // gestione «Management Port» in ifDescr e la annuncia come «mgmt» via LLDP, e
+  // i due nomi non si agganciavano — il vicino annunciato da SW-CORE su quella
+  // porta non trovava nessuna porta nel documento.
+  // La regola NON è su Extreme: il sostantivo generico in coda («Port»,
+  // «Interface») è decorazione, non identità, e lo scrivono in molti.
+  assert.equal(_ifNameMeta('Management Port').norm, 'mgmt:0');
+  assert.equal(_ifNameMeta('Management Port').norm, _ifNameMeta('mgmt').norm);
+  assert.equal(_ifNameMeta('Mgmt Port').norm, _ifNameMeta('mgmt0').norm);
+  assert.equal(_ifNameMeta('Management Interface').norm, 'mgmt:0');
+  assert.equal(_ifNameMeta('Management Port 1').norm, 'mgmt:1', 'il numero resta il numero');
+  assert.equal(_ifNameMeta('OOB Port').norm, 'mgmt:0');
+});
+
+test('_ifNameMeta: il sostantivo in coda NON trasforma una porta fisica in management', () => {
+  // Il rischio della regola sopra: inghiottire nella famiglia di gestione un
+  // nome che di gestione non è. «Port 1» è una porta fisica e deve restare tale.
+  assert.notEqual(_ifNameMeta('Port 1').norm, 'mgmt:1');
+  assert.equal(_ifNameMeta('Port 1').norm, _ifNameMeta('1').norm, 'resta la porta fisica 1');
+  assert.notEqual(_ifNameMeta('Ethernet Port').norm.slice(0, 4), 'mgmt');
+  assert.notEqual(_ifNameMeta('Console Port').norm, 'mgmt:0', 'la console non è la gestione IP');
+});
+
 test('_ifNameMeta: nomi equivalenti normalizzano allo stesso valore', () => {
   // matching LLDP: "GigabitEthernet0/1" e "Gi0/1" devono coincidere
   assert.equal(_ifNameMeta('GigabitEthernet0/1').norm, _ifNameMeta('Gi0/1').norm);
