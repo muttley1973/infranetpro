@@ -612,6 +612,32 @@ is VPN/LAN.
   instead of paying repeated timeouts (they only cost fewer neighbours/hosts, not a badge bug). Other
   callers (`poll`/printer/host-resources/`walkSession`) pass no scope → every base still retries.
   Pure-ish + unit-tested with a mock session.
+- **LLDP identifiers are read from their declared subtype, not their length (2026-08-20).**
+  Every LLDP identifier travels with a subtype naming what it is. `drivers/snmp.js` used to
+  infer that from the value's size — six bytes meant a MAC — which failed both ways on the
+  bench: a MAC rendered as seventeen bytes of text by one agent was dropped whole, and a port
+  named `Gi1/24` became an address belonging to nobody. The subtype columns
+  (`lldpRemChassisIdSubtype`, `lldpRemPortIdSubtype`, `lldpLocPortIdSubtype`) are now part of
+  the walk; `lldpMac()` accepts both encodings; a chassis id declared *local* yields no MAC
+  rather than an invented one. **The encoding is the answering agent's choice, not the
+  advertiser's** — the same chassis id arrives in two shapes depending on which device you ask —
+  so the rule is driven by the subtype and never by vendor. Agents that publish no subtype keep
+  the historical behaviour.
+- **The local port of a neighbour is resolved, not assumed (2026-08-20).** `lldpLocPortNum` is
+  the agent's own numbering space and need not be the ifIndex space (measured: Arista
+  `Management1` = LLDP port 97 / ifIndex 999001; ExtremeXOS ports 1-3 / ifIndex 1001-1003, with
+  no port description at all). The name comes from `lldpLocPortDesc` first — on Cisco the full
+  `GigabitEthernet0/0`, the form that matches the interface table — then from the advertised
+  identifier when its subtype names an interface, and only then from the old ifIndex guess.
+- **A neighbour that produces no link is reported, not dropped (2026-08-20).** `buildNeighborCandidates`
+  takes an optional collector and records why: `device-unknown` (identity read, absent from the
+  document → scan it), `no-identity` (nothing lookup-able was announced → our gap), or
+  `local-port-unresolved` (the protocol named a port that matches none). Counts surface in the
+  AutoLink diagnostics line. Where **both** devices are known and only the port is missing, the
+  pair becomes an **adjacency**: `buildTopoLines` draws it with `?` in place of the port name
+  (`m.adjacencies`, fed from `store._topoAdjacencies` — a measurement, replaced by each Sync and
+  kept out of the saved document). A real cable between the two still marks the pair confirmed:
+  the precise supersedes the approximate, and that rule stays in the passes that already own it.
 - **Vendor recognition — full IANA PEN + IEEE OUI registries (2026-07-04).** Two bundled,
   refreshable datasets back vendor resolution, so a new device is recognized without a code
   change (the fix to a recurring "vendor X is missing" class of reports):

@@ -121,14 +121,20 @@ Double-click <code>avvia.bat</code>.<br>
 
 > **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then run **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.9.2) — power gets documented the way it actually fails: by group, not by socket.**
-> A UPS is bought to answer one question — *what stays on when the power goes, and what can I shed to last longer* —
-> and that is a property of the **outlet group**, not of the single socket. Groups now exist on anything with outlets,
-> with the two axes every vendor means by a different name: whether the group can be switched on its own, and whether
-> the battery holds it. A UPS from the catalog arrives with its outlets already, and with the groups its maker wrote
-> into their names. It is **declared, not measured** — RFC 1628 has no outlet groups — and the panel says so.
-> The rack also tells a port **shut on purpose** from one merely idle, and neither a shut port nor an unanswered poll
-> counts any longer as evidence about the cable through it.
+> 📰 **What's new (v2.10.0) — the document learns where things are, and what hosts what.**
+> A NetBox **location becomes a room** on the floor plan, with its racks and devices inside it; what has
+> no location stays out of the rooms rather than tucked into one nobody declared. **Hosting virtual
+> machines is a capability, not a type** — storage boxes, NAS and servers carry the same VM section a
+> hypervisor does, and the import stops rewriting the type to make room for them. A device can declare
+> **where it is in its life cycle**, so a planned device that stays quiet is expected and a decommissioned
+> one that answers is flagged. Imported ports, patch-panel slots and racks **keep their DCIM identity**,
+> so renaming a rack upstream is a rename and not a delete.
+>
+> Under that, the neighbour protocols got honest: an LLDP identifier is read from **the subtype it
+> declares**, not from the length of its value, and the port a neighbour names is resolved instead of
+> assumed. A neighbour that produces no cable now **says why**, and two devices that announce each other
+> are drawn as **adjacent** even when the port is unknown — with `?` where the port would be, rather than
+> a port picked at random.
 >
 > 📖 Earlier releases — networks as first-class objects with IPv6 parity (2.9.0), the NetBox/DCIM import (2.8.0),
 > per-interface addresses (2.8.2) — are in the [CHANGELOG](CHANGELOG.md).

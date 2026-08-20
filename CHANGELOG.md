@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.10.0] — 2026-08-18
+## [2.10.0] — 2026-08-20
 
 ### Added
 
@@ -15,7 +15,6 @@
 - **The encoding is compact, and the price was measured** — the object type lives in the field's name: 13 bytes per port instead of 57 (a 40-device document grows by a third, not double). One module knows those names, so the encoding can change again without chasing callers.
 - **The rack diff stops matching by name** — renaming a rack in the DCIM used to report it gone and re-appeared. It matches by reference now, falling back to the name for older projects, and that weaker pairing is counted rather than passed off as certainty.
 - **A gate before any write-back** — a NetBox fixture goes through import, portable export, JSON and reopening, and every reference must come back unchanged; it also asserts each family is present, so it cannot pass by proving nothing.
-
 - **Two devices that announce each other are drawn as adjacent even when the port is not known.** Until now the topology needed a port at each end: a neighbour whose port name matched nothing left the pair looking like strangers, as if they had never seen each other. The line is there now, with `?` where the port is unknown — which is the honest shape of what was measured, rather than picking a port at random for the sake of drawing something. Precision still wins: where a cable of the project already joins the two, the pair reads as confirmed and this stays the rough version of something known better, not a second truth laid over it. The adjacency lives outside the document — it is a measurement, and it lasts as long as the session does.
 - **A neighbour that does not become a cable now says why.** The protocol announcing that two devices are attached, and the picture showing nothing, used to look exactly like a device with no neighbours at all — which is how a defect hides for months: the local-port bug fixed in this same release lived inside a bare guard that discarded a candidate whose source port was missing. Every announced neighbour that produces no link is now reported with a reason, and the reasons stay apart because they ask for opposite things: *device not in the document* is closed by scanning it or adding it, *neighbour with no readable identity* is closed by writing code, and *local port unresolved* means the protocol named a port we could not match — the symptom of an identifier we are not reading properly. What the neighbour actually announced travels with the reason, so the report can be traced back to the wire rather than to our paraphrase of it.
 
