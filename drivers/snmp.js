@@ -675,7 +675,13 @@ function logicalLagIdFromName(name) {
  * Usato come fallback quando il MAC non è disponibile o il vendor
  * assegna MAC reali anche alle interfacce bridge (es. Docker su Linux).
  */
-const VIRTUAL_IF_RE = /^(docker|br-|veth|virbr|tun|tap|dummy|sit|ip6tnl|ovs|lxc|lxd|flannel|cni|calic|weave|cilium|vlan|macvlan|ipvlan|gre|wg)/;
+// ⚠️ `virtual` non è un token Linux come gli altri: è la parola con cui un
+// apparato DICE di sé che quell'interfaccia non è una porta. Mancava, e la lista
+// — tutta di scuola container/Linux — la lasciava passare: un controller wireless
+// Cisco espone «Virtual Interface» come ifType 117 con lo stesso MAC della porta
+// vera, e l'apparato risultava a due porte invece che a una (misurato sul banco).
+// Ancorata a `^`: una porta fisica che nomina «virtual» a metà frase resta una porta.
+const VIRTUAL_IF_RE = /^(docker|br-|veth|virbr|virtual|tun|tap|dummy|sit|ip6tnl|ovs|lxc|lxd|flannel|cni|calic|weave|cilium|vlan|macvlan|ipvlan|gre|wg)/;
 
 // ---- walk ------------------------------------------------------------------
 
