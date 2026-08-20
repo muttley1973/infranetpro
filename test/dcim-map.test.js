@@ -1407,6 +1407,124 @@ test('VM: l\'elenco dei tipi che ospitano VM combacia con app-types.js', () => {
   assert.deepEqual([...declared].sort(), [...map._VM_HOST_TYPES].sort());
 });
 
+// ── Le ubicazioni NetBox diventano stanze ───────────────────────────────────
+// Il paletto qui e' uno solo e vale piu' della funzione: una Location NetBox NON
+// HA geometria. Che la stanza ESISTA lo dice il DCIM (misura); dove sta e quanto
+// e' grande lo decidiamo noi (dichiarazione). I test guardano entrambe le cose,
+// perche' sbagliarne una sola basta a raccontare una bugia sulla planimetria.
+function locFixture() {
+  return {
+    manufacturers: [{ id: 1, name: 'Cisco', slug: 'cisco' }],
+    deviceTypes: [{ id: 10, manufacturer: { id: 1 }, model: 'C9200', slug: 'c9200', u_height: 1 }],
+    deviceRoles: [{ id: 20, name: 'Access Switch', slug: 'access-switch' }, { id: 21, name: 'IP Camera', slug: 'ip-camera' }],
+    racks: [{ id: 30, name: 'Rack A', u_height: 42, location: { id: 5, name: 'Sala server' } }],
+    // 5 sta sotto 4; la 7 esiste in NetBox ma non ha niente dentro.
+    locations: [
+      { id: 5, name: 'Sala server', parent: { id: 4 } },
+      { id: 4, name: 'Piano 1' },
+      { id: 6, name: 'Uffici' },
+      { id: 7, name: 'Magazzino' },
+    ],
+    devices: [
+      { id: 100, name: 'SW-01', device_type: { id: 10 }, role: { id: 20 }, rack: { id: 30 }, position: 10, location: { id: 5, name: 'Sala server' } },
+      { id: 101, name: 'CAM-01', device_type: { id: 10 }, role: { id: 21 }, location: { id: 6, name: 'Uffici' } },
+      { id: 102, name: 'CAM-02', device_type: { id: 10 }, role: { id: 21 } },
+    ],
+  };
+}
+const _rooms = (state) => state.nodes.filter(n => n.type === 'room');
+
+test('ubicazioni: una stanza per ogni ubicazione CON qualcosa dentro, e nessuna per le vuote', () => {
+  const { state } = map.netboxToState(locFixture());
+  const rooms = _rooms(state);
+  assert.equal(rooms.length, 2, 'Sala server e Uffici hanno contenuto; Magazzino no');
+  assert.equal(rooms.some(r => /Magazzino/.test(r.name)), false, 'un rettangolo vuoto non documenta niente');
+});
+
+test('ubicazioni: la stanza porta il riferimento NetBox, non solo il nome', () => {
+  const { state } = map.netboxToState(locFixture());
+  const sala = _rooms(state).find(r => /Sala server/.test(r.name));
+  assert.ok(sala, 'la sala server deve esserci');
+  // Il nome si corregge, l\'id no: e\' l\'identita\' che regge al ri-confronto.
+  assert.equal(sala.srcLoc, 5);
+  assert.equal(sala.id, 'nb-loc-5');
+});
+
+test('ubicazioni: l\'annidamento diventa un nome solo, non una gerarchia finta', () => {
+  const { state } = map.netboxToState(locFixture());
+  const sala = _rooms(state).find(r => r.srcLoc === 5);
+  assert.equal(sala.name, 'Piano 1 · Sala server');
+});
+
+test('ubicazioni: il contenuto sta DENTRO i bordi della propria stanza', () => {
+  const { state } = map.netboxToState(locFixture());
+  const sala = _rooms(state).find(r => r.srcLoc === 5);
+  const uffici = _rooms(state).find(r => r.srcLoc === 6);
+  const dentro = (o, r) => o.x >= r.x && o.y >= r.y && o.x <= r.x + r.w && o.y <= r.y + r.h;
+  const rack = state.racks.find(r => r.id === 'nb-rack-30');
+  assert.ok(dentro(rack, sala), 'il rack sta nella sala server (' + rack.x + ',' + rack.y + ')');
+  const cam1 = state.nodes.find(n => n.name === 'CAM-01');
+  assert.ok(dentro(cam1, uffici), 'la telecamera sta negli uffici');
+  // E le due stanze non si sovrappongono fra loro.
+  assert.ok(sala.x + sala.w <= uffici.x || uffici.x + uffici.w <= sala.x, 'due stanze non si accavallano');
+});
+
+test('ubicazioni: la dimensione viene dal CONTENUTO, non da un numero fisso', () => {
+  const nb = locFixture();
+  for (let i = 0; i < 6; i++) {
+    nb.devices.push({ id: 200 + i, name: 'CAM-1' + i, device_type: { id: 10 }, role: { id: 21 }, location: { id: 6, name: 'Uffici' } });
+  }
+  const { state } = map.netboxToState(nb);
+  const uffici = _rooms(state).find(r => r.srcLoc === 6);
+  const sala = _rooms(state).find(r => r.srcLoc === 5);
+  assert.ok(uffici.h > sala.h, 'sette apparati occupano piu\' righe di uno: la stanza e\' piu\' alta');
+});
+
+test('ubicazioni: chi non ne ha una resta FUORI, e sotto le stanze', () => {
+  const { state, report } = map.netboxToState(locFixture());
+  const fondo = Math.max(..._rooms(state).map(r => r.y + r.h));
+  const cam2 = state.nodes.find(n => n.name === 'CAM-02');
+  assert.ok(cam2.y > fondo,
+    'un apparato senza ubicazione disegnato dentro una stanza direbbe una cosa che il DCIM non ha detto');
+  const iss = report.issues.find(i => i.code === 'location.none');
+  assert.ok(iss); assert.equal(iss.n, 1);
+});
+
+test('ubicazioni: la riga di decisione dice quante stanze e che la disposizione e\' nostra', () => {
+  const { report } = map.netboxToState(locFixture());
+  const iss = report.issues.find(i => i.code === 'location.rooms');
+  assert.ok(iss);
+  assert.equal(iss.n, 2);
+  assert.equal(iss.placed, 2, 'un rack e una telecamera messi dentro');
+  assert.equal(iss.nested, 1, 'una sola ubicazione annidata');
+});
+
+test('ubicazioni: la posizione e\' DICHIARATA, e il dato lo dice', () => {
+  const { state } = map.netboxToState(locFixture());
+  for (const r of _rooms(state)) {
+    // Stesso marchio dei rack piazzati dall\'import: chi legge il documento sa che
+    // quei numeri non vengono dal DCIM.
+    assert.equal(r.positionSource, 'infranet-import-grid');
+    assert.equal(r.color, undefined, 'il colore lo mette il renderer dal tipo: qui sarebbe una definizione doppia');
+  }
+});
+
+test('ubicazioni: due import dello stesso sito danno la STESSA planimetria', () => {
+  const a = map.netboxToState(locFixture()).state;
+  const b = map.netboxToState(locFixture()).state;
+  const geo = (s) => _rooms(s).map(r => [r.id, r.x, r.y, r.w, r.h].join(':')).sort();
+  // Senza un ordine stabile il confronto di ri-import vedrebbe differenze che
+  // non sono successe a nessuno.
+  assert.deepEqual(geo(a), geo(b));
+});
+
+test('ubicazioni: un NetBox che non le usa non guadagna nessuna stanza', () => {
+  const { state, report } = map.netboxToState(fixture());
+  assert.equal(_rooms(state).length, 0);
+  assert.equal(report.issues.some(i => String(i.code).startsWith('location.')), false,
+    'niente ubicazioni, nessuna riga: non si parla di ciò che non c\'è');
+});
+
 // ── Ruoli IPAM → le liste di VLAN dichiarate ────────────────────────────────
 // Il paletto e' uno solo e vale piu' della funzione: il motore NON indovina.
 // Misurato su un NetBox vero, i ruoli si chiamano «Access - Data», «Access -

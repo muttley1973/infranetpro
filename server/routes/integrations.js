@@ -261,6 +261,33 @@ async function _pullForImport(client, sel) {
   nb.deviceTypes = deviceTypes.results;
   if (deviceTypes.truncated) nb.truncated = true;
 
+  // Le ubicazioni: in NetBox sono i piani e le stanze del sito, e diventano le
+  // stanze della planimetria. L'oggetto che arriva DENTRO il device e' breve
+  // (id + nome) e non porta la catena dei padri: senza questa chiamata una
+  // «Sala server» annidata sotto «Piano 1» perderebbe il piano. Si chiedono per
+  // ID di quelle viste sugli apparati e sui rack — non tutto l'archivio: un
+  // import di un sito non deve portarsi le ubicazioni di tutta l'azienda.
+  const locIds = nb.devices.map(d => d.location && d.location.id)
+    .concat((racks.results || []).map(r => r && r.location && r.location.id));
+  if (locIds.some(x => x != null)) {
+    try {
+      const locs = await _batchByField(client, '/api/dcim/locations/', 'id', locIds);
+      // I PADRI non sono fra quelli visti: si chiedono in un secondo giro, una
+      // volta sola (la catena e' corta e il mapper si ferma comunque a 8).
+      const parentIds = (locs.results || []).map(l => l && l.parent && l.parent.id)
+        .filter(id => id != null && !(locs.results || []).some(l => l && l.id === id));
+      const parents = parentIds.length ? await _batchByField(client, '/api/dcim/locations/', 'id', parentIds) : { results: [], truncated: false };
+      const seen = new Set();
+      nb.locations = (locs.results || []).concat(parents.results || [])
+        .filter(l => l && l.id != null && !seen.has(l.id) && seen.add(l.id));
+      if (locs.truncated || parents.truncated) nb.truncated = true;
+    } catch (_) {
+      // NetBox senza il permesso sulle ubicazioni: le stanze si costruiscono lo
+      // stesso col nome breve che arriva dal device. Niente da inventare.
+      nb.locations = [];
+    }
+  }
+
   if (on('racks')) {
     nb.racks = racks.results;
     if (racks.truncated) nb.truncated = true;
