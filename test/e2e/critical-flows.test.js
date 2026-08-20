@@ -135,6 +135,36 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
   page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
   page.on('response', (r) => { if (r.status() >= 400) httpErrors.push({ url: r.url(), status: r.status() }); });
 
+  // Misura di un nodo che il RENDER RICREA (stanze, device nel rack, porte…).
+  //
+  // ⚠️ NON si usa locator.boundingBox() per questi: renderAll() coalesce il paint
+  // in un requestAnimationFrame (app-render-core.js), e fra l'istante in cui
+  // Playwright risolve il selettore e quello in cui misura il nodo, il re-render
+  // può averlo già sostituito. Un nodo staccato non ha box → boundingBox() torna
+  // null, e il test muore su `.x of null` a qualche riga di distanza, dicendo la
+  // cosa sbagliata: sembra che l'elemento non ci sia, mentre c'è ed è visibile —
+  // solo, è un ALTRO nodo. È una race, quindi rossa un giro su tre: in locale
+  // passa, in CI no (o viceversa).
+  //
+  // Il rect si legge DAL PAGE SCOPE, in un colpo solo, e solo quando è stabile
+  // (w/h > 0): lì non c'è finestra fra risoluzione e misura.
+  const rectStabile = async (sel, timeout = 5000) => {
+    try {
+      const h = await page.waitForFunction((s) => {
+        const el = document.querySelector(s);
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return (r.width > 0 && r.height > 0) ? { x: r.x, y: r.y, width: r.width, height: r.height } : null;
+      }, sel, { timeout });
+      return await h.jsonValue();
+    } catch (e) {
+      // Un misuratore che non riesce a misurare deve dire COSA non ha trovato,
+      // non lasciare un timeout anonimo a valle.
+      const quanti = await page.evaluate((s) => document.querySelectorAll(s).length, sel).catch(() => '?');
+      throw new Error(`rect non misurabile per «${sel}» entro ${timeout}ms (nel DOM: ${quanti} elementi)`, { cause: e });
+    }
+  };
+
   try {
     await page.goto(srv.baseURL, { waitUntil: 'load' });
     // L'app è pronta quando i globali chiave esistono e lo stato è caricato.
@@ -4705,15 +4735,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       await dev.waitFor({ timeout: 5000 });
       const env = await page.evaluate(() => ({ ruH: rackUPx(), zoom: state.rackView.zoom, before: nodeById('sw1').rackU }));
       assert.equal(env.ruH, 29, 'precondizione: --ru-h = 29px (rack in scala)');
-      // rAF-throttle hardening (CI headless): durante un re-render in rAF Playwright
-      // boundingBox() può tornare null un istante (nodo ricreato a metà paint) → box.x
-      // su null. Leggo il rect dal page-scope SOLO quando il box è stabile (w/h>0).
-      const box = await page.waitForFunction(() => {
-        const el = document.querySelector('.rack-device[data-id="sw1"]');
-        if (!el) return null;
-        const r = el.getBoundingClientRect();
-        return (r.width > 0 && r.height > 0) ? { x: r.x, y: r.y, width: r.width, height: r.height } : null;
-      }, null, { timeout: 5000 }).then((h) => h.jsonValue());
+      const box = await rectStabile('.rack-device[data-id="sw1"]');
       const gx = box.x + box.width - 8;          // bordo destro (targhetta), lontano dalle porte
       const gy = box.y + box.height / 2;
       const k = 3;
@@ -4749,7 +4771,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(pre.overflow, 'hidden', 'il rack-viewport non ha più scrollbar (overflow hidden)');
       assert.equal(pre.scrollbar, 0, 'nessun gutter di scrollbar');
       const vp = await vpLoc.boundingBox();
-      const sw1Before = await page.locator('.rack-device[data-id="sw1"]').boundingBox();
+      const sw1Before = await rectStabile('.rack-device[data-id="sw1"]');
       // area VUOTA bassa, drag diagonale: +150 a destra, -80 in alto (il contenuto segue)
       const px = vp.x + vp.width * 0.5, py = vp.y + vp.height * 0.9;
       await page.mouse.move(px, py);
@@ -4758,7 +4780,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       await page.mouse.move(px + 150, py - 80);
       await page.mouse.up();
       const res = await page.evaluate(() => ({ rx: state.rackView.x || 0, ry: state.rackView.y || 0, swAfter: nodeById('sw1').rackU, panning: isPanningRack }));
-      const sw1After = await page.locator('.rack-device[data-id="sw1"]').boundingBox();
+      const sw1After = await rectStabile('.rack-device[data-id="sw1"]');
       assert.equal(res.rx - pre.rx, 150, 'pan LATERALE a zoom 2.5: il translate x segue il cursore (+150)');
       assert.equal(res.ry - pre.ry, -80, 'pan verticale a zoom 2.5: il translate y segue il cursore (-80)');
       assert.ok(Math.abs((sw1After.x - sw1Before.x) - 150) <= 2, 'il device si sposta a schermo col pan (laterale reale)');
@@ -4787,9 +4809,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       // Trascinamento vero, con un delta che NON è multiplo di nessun passo.
       const trascina = async (grigliaVisibile) => {
         await page.evaluate((v) => { toggleFloorGrid(v); const n = nodeById('rmA'); n.x = 60; n.y = 60; renderAll(); }, grigliaVisibile);
-        const loc = page.locator('.floor-room[data-id="rmA"]');
-        await loc.waitFor({ timeout: 5000 });
-        const b = await loc.boundingBox();
+        const b = await rectStabile('.floor-room[data-id="rmA"]');
         const x0 = Math.round(b.x + 30), y0 = Math.round(b.y + 30);
         await page.mouse.move(x0, y0);
         await page.mouse.down();
