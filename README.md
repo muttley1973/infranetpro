@@ -121,7 +121,16 @@ Double-click <code>avvia.bat</code>.<br>
 
 > **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then run **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.10.0) — the document learns where things are, and what hosts what.**
+> 📰 **What's new (v2.10.1) — a VLAN nobody declared is no longer written down as VLAN 1.**
+> The SNMP reader used to end every port with a fallback of 1, so a device that says nothing about a
+> port's VLAN still produced a number that looked measured — and a VLAN declared by hand or propagated
+> from upstream could never prevail against it. It is left **absent** now. Alongside, three things the
+> devices were saying and nobody was reading: the **native VLAN of a Cisco trunk**, the **dot1Q
+> sub-interface** where a router-on-a-stick keeps its VLAN and its management address, and what a
+> **link aggregate** declares to the ports bundled into it. Every case was reproduced on real hardware
+> before being written down.
+>
+> 📰 **v2.10.0 — the document learns where things are, and what hosts what.**
 > A NetBox **location becomes a room** on the floor plan, with its racks and devices inside it; what has
 > no location stays out of the rooms rather than tucked into one nobody declared. **Hosting virtual
 > machines is a capability, not a type** — storage boxes, NAS and servers carry the same VM section a

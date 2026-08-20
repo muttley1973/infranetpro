@@ -404,6 +404,43 @@ of every mapped port that walk did not cover. A project saved before 2.9.2 carri
 `operUp` and accumulates nothing until the first poll writes it, which is exactly what
 is known about it.
 
+### A VLAN that was never declared
+
+The SNMP reader used to close every interface with `vlan: f.vlan || 1`. A device that
+publishes nothing about a port's VLAN — a Cisco vIOS answers neither `dot1qPvid` nor
+`vmVlan`, measured — still produced a 1, and in the document that 1 was
+indistinguishable from a measured one. Everything downstream treated it as a
+measurement: `_getLinkVlan` returns the VLAN of an *active* port before it ever
+consults the propagated one, so a VLAN declared by hand or propagated from upstream
+could not prevail. It was not overruled, it was stepped over.
+
+The field is now left **absent**, and the readers needed no change: they already fall
+through to the propagated VLAN when it is missing. The client converter
+`_snmpVlanToUi` had in fact documented this exact case for a long time and never got
+the chance to apply it, because the driver handed it a 1 instead of nothing — two
+layers holding opposite definitions of one value, with the lower one winning. When
+reading these paths, the question to ask of any default is *who else believes this is
+a measurement*.
+
+Three sources fill part of the gap the invention used to paper over, all declared by
+the device and none inferred: the **native VLAN of a Cisco trunk**
+(`vlanTrunkPortNativeVlan`, zero meaning "no native frames" and treated as silence);
+the **VLAN of a dot1Q sub-interface** (`cviRoutedVlanIfIndex`, whose index carries the
+VLAN *and* the physical port, so it declares the parent too — the standard
+`ifStackTable` still decides and the Cisco row only fills its gaps); and what an
+**aggregate** declares to its member ports, which is looked up by the aggregate's
+interface index rather than its logical id. That last lookup had used the logical id
+since it was written, so the inheritance had never once run — invisible on images
+that do not publish membership at all, which is most of them.
+
+A sub-interface enters the document as a **logical port**: the same shape the NetBox
+import already gives its logical interfaces, not a second model. It is not cablable,
+takes no positional slot and stays out of cable resolution, but it carries the VLAN
+and the address — on a router-on-a-stick that address is the one InfraNet is talking
+through, and it used to be discarded along with the interface. Its identity is the
+interface *name*, never the ifIndex: without `snmp-server ifindex persist` the indexes
+are reshuffled on reboot and the port would split in two at the next verification.
+
 ### Measured hardware identity, and its age
 
 `node.integration.inventory` is what ENTITY-MIB said about a device: make, model,
@@ -583,6 +620,18 @@ is VPN/LAN.
 - **Shadowing:** some functions use a local `const t` (e.g. `rep.totals`). The
   global i18n `t()` is shadowed there — rename the local (e.g. `tot`) before using
   `t()`.
+- **An interface name is matched through `lib/netnames.js`, never compared raw.**
+  `_ifNameMeta` normalises on three levels — exact, compact, vendor-neutral — so
+  `Gi1/1` and `GigabitEthernet1/1` are one interface, and a numeric fallback catches
+  the agents that announce a bare `1` for a port whose description is `EXOS-VM Port 1`.
+  Two shapes are worth knowing: the generic noun trailing a name (*Port*, *Interface*)
+  is decoration and is ignored **only** when testing the management family, so
+  `Management Port` is `mgmt` while `Port 1` stays the physical port 1; and an
+  interface whose name *begins* with `virtual` is not a port you can cable, which is
+  how a wireless controller publishing `Virtual Interface` beside its real port —
+  same ifType, same MAC — stopped being counted as a two-port device. Getting that
+  count wrong is not cosmetic: a neighbour announced on a multi-port device has its
+  far end deduced rather than known, and the link is downgraded to an inference.
 - **Windows:** Git shows LF→CRLF warnings; harmless. The login page blocks the
   preview tooling unless you authenticate.
 - **Don't add a new *runtime* dependency** without a strong reason (the build is
