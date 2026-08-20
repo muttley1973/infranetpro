@@ -186,7 +186,7 @@ test('prese: l\'elenco in export.js combacia con quello del modello', () => {
   assert.deepEqual(declared.sort(), [...OUTLET_DEVICE_TYPES].sort());
 });
 
-// ── C2 (audit 2026-08-18): una sola precedenza per node/spec ────────────────
+// ── C2 (audit 2026-08-20): una sola precedenza per node/spec ────────────────
 // `nodeField` era l'UNICA lettura node-first del progetto; hw-capabilities,
 // stack e ha-pair leggono `spec` per primo, e `_compactNodeSpec` al caricamento
 // tiene `spec` e cancella la copia sul nodo. Con le due copie divergenti la

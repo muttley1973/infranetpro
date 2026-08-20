@@ -55,7 +55,7 @@ test('bundle: contiene davvero i moduli migrati (build non vuota)', () => {
 // binario agli occhi di git. Il codice gira, i test passano, eslint tace: ma
 // `git diff` dice «Binary files differ», `grep` salta il file e una revisione
 // non può leggerlo. Si prende solo guardando i byte.
-// ── C4 (audit 2026-08-18): il reset di progetto non demuove la Dashboard ─────
+// ── C4 (audit 2026-08-20): il reset di progetto non demuove la Dashboard ─────
 // `resetProjectRuntime()` azzera il runtime DI PROGETTO. La topologia ci sta —
 // i suoi dati sono di quel progetto. La vista NO: e' una preferenza locale
 // (src/app-overview.js `_saveView`) e il <body> resta in `view-overview` anche

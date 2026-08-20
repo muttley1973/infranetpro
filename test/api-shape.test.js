@@ -256,7 +256,7 @@ test('nodeToDevice: funzione diretta con context vuoto', () => {
   assert.equal(d.snmp, false);
 });
 
-// ── C3 (audit 2026-08-18): «gestito via SNMP» = driver **e** indirizzo ───────
+// ── C3 (audit 2026-08-20): «gestito via SNMP» = driver **e** indirizzo ───────
 // Guardare il solo driver contava anche chi non ha un indirizzo a cui
 // rivolgersi: quel device finiva nel conteggio pubblico E nel gruppo Ansible
 // `snmp_managed`, cioè fra i bersagli di un playbook. La condizione è quella di

@@ -5599,7 +5599,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
     });
 
     // Chi lascia l'app sulla Dashboard e ricarica deve ritrovare i SUOI numeri.
-    // ⚠️ Questo NON è la guardia del difetto C4 (audit 2026-08-18): qui il
+    // ⚠️ Questo NON è la guardia del difetto C4 (audit 2026-08-20): qui il
     // progetto è già caricato quando la vista viene ripristinata, quindi l'ordine
     // che innescava il difetto non si riproduce — verificato reintroducendolo, e
     // il test passava lo stesso. La guardia vera sta in test/bundle-architecture

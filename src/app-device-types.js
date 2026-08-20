@@ -98,7 +98,7 @@ function _applyTemplateOutlets(node, tmpl) {
     // Il conteggio prese è un campo `spec` (NODE_SPEC_FIELDS): si scrive dove lo
     // scrive il pannello — dentro `spec`, cancellando la copia sul nodo — perché
     // due copie divergenti nello stesso documento significano due numeri diversi
-    // a schermo, e un terzo dopo il ricaricamento (audit 2026-08-18, C2).
+    // a schermo, e un terzo dopo il ricaricamento (audit 2026-08-20, C2).
     _ensureNodeSpec(node).pduOutletCount = merged.length;
     delete node.pduOutletCount;
     const groups = Array.isArray(tmpl.powerGroups) ? tmpl.powerGroups : [];

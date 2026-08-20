@@ -159,7 +159,7 @@ function _safeScalars(obj, depth) {
 // un record nasce quando qualcuno documenta o cabla quella porta, quindi quasi
 // ogni record ha un vicino e «totale − usate» veniva 0 su OGNI switch — l'app
 // diceva all'assistente che il campus era pieno mentre il report «Porte libere»
-// ne contava 291 (audit 2026-08-18, difetto C1). Se il documento non dichiara
+// ne contava 291 (audit 2026-08-20, difetto C1). Se il documento non dichiara
 // quante porte ha l'apparato non lo si inventa: `total` e `free` restano fuori,
 // e resta `documented`, che è ciò che sappiamo davvero (ADR no-invention).
 function _declaredPortCount(node) {

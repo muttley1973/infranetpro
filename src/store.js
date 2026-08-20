@@ -86,7 +86,7 @@ export function resetProjectRuntime() {
     // `renderOverview` usciva subito (guardia su `_viewMode`) e la Dashboard
     // restava ferma a com'era PRIMA che il progetto arrivasse — al caricamento
     // dichiarava «la rete è ancora vuota» su un documento pieno, e al cambio
-    // progetto mostrava i numeri di quello precedente (audit 2026-08-18, C4).
+    // progetto mostrava i numeri di quello precedente (audit 2026-08-20, C4).
     store._viewMode = (store._viewMode === 'overview') ? 'overview' : 'map';
     store._topoData = null;
     store._topoVisible = false;

@@ -491,7 +491,7 @@ test('scope.drift=false spegne anche identità e non-verificabili', () => {
   assert.ok(!(off.facts && off.facts.drift), 'tutte le categorie drift sono sotto lo stesso interruttore');
 });
 
-// ── C1 (audit 2026-08-18): «quante porte ha, e quante ne restano libere» ─────
+// ── C1 (audit 2026-08-20): «quante porte ha, e quante ne restano libere» ─────
 // Il totale sono le porte DICHIARATE, non il numero di record in `state.ports`.
 // Un record nasce quando si documenta o si cabla una porta: contarli come totale
 // faceva `used === total` e quindi «0 libere» su ogni switch di ogni progetto.

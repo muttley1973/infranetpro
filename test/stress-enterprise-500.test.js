@@ -271,7 +271,7 @@ function buildAll() {
     // Un blocco `power` esce per UPS, PDU **e** ATS (lib/hw-capabilities.js
     // `_power`): contare i soli UPS reggeva finche' la fixture non documentava
     // nessun campo di alimentazione sulle barre, cioe' per un fatto della
-    // FIXTURE e non per un invariante dell'app (audit 2026-08-18, T1).
+    // FIXTURE e non per un invariante dell'app (audit 2026-08-20, T1).
     ups: ofType('ups').length, servers: ofType('server').length, nas: ofType('nas').length,
     powerDevices: ofType('ups').length + ofType('pdu').length + ofType('ats').length,
     firewalls: ofType('firewall').length, wlanctrl: ofType('wlanctrl').length,
