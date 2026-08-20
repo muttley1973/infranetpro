@@ -1276,6 +1276,46 @@ test('VM: un server che ospita VM resta un server, e nessuno lo riclassifica', (
     'niente da riclassificare, quindi nessuna riga di decisione');
 });
 
+// Il caso da cui nasce tutto: uno STORAGE (Synology/QNAP) che ospita VM con un
+// pacchetto e resta uno storage. Vale in rack e a pavimento, e non e' il ruolo
+// «Hypervisor» travestito: il ruolo NetBox e' `storage`.
+function vmOnStorageFixture(conRack) {
+  const dev = { id: 103, name: 'NAS-01', device_type: { id: 12 }, role: { id: 23 } };
+  if (conRack) { dev.rack = { id: 30 }; dev.position = 12; }
+  return {
+    manufacturers: [{ id: 2, name: 'Synology', slug: 'synology' }],
+    deviceTypes: [{ id: 12, manufacturer: { id: 2 }, model: 'RS1221+', slug: 'synology-rs1221', u_height: 2 }],
+    deviceRoles: [{ id: 23, name: 'Storage', slug: 'storage' }],
+    racks: [{ id: 30, name: 'Rack A', u_height: 42 }],
+    devices: [dev],
+    virtualMachines: [{ id: 703, name: 'DOCS-VM', device: { id: 103 }, status: { value: 'active' },
+      platform: { name: 'Ubuntu 22.04' }, vcpus: 2, memory: 4096 }],
+    vmInterfaces: [{ id: 803, virtual_machine: { id: 703 }, name: 'eth0', mac_address: '00:50:56:aa:00:03', untagged_vlan: { vid: 30 } }],
+    vmIpAddresses: [{ id: 853, address: '10.0.0.30/24', assigned_object_type: 'virtualization.vminterface', assigned_object_id: 803 }],
+  };
+}
+
+for (const conRack of [true, false]) {
+  const dove = conRack ? 'in rack' : 'a pavimento';
+  test('VM: uno storage che ospita VM resta uno storage (' + dove + ')', () => {
+    const { state, report } = map.netboxToState(vmOnStorageFixture(conRack));
+    const nas = state.nodes.find(n => n.source && String(n.source.deviceId) === '103');
+    assert.ok(nas, 'l\'apparato deve entrare');
+    assert.equal(nas.type, 'nas', 'il ruolo NetBox e\' storage: il tipo non si tocca');
+    assert.equal((nas.vms || []).length, 1, 'e la VM ci arriva lo stesso');
+    const vm = nas.vms[0];
+    assert.equal(vm.name, 'DOCS-VM');
+    // La scheda della VM porta indirizzo e VLAN: e' il dato che alimenta IPAM,
+    // trunk derivato e apparati documentati. Se il tipo cambiasse, questa roba
+    // finirebbe su un nodo che non e' piu' quello dichiarato dal DCIM.
+    assert.equal((vm.nics || []).length, 1);
+    assert.equal(vm.nics[0].ip, '10.0.0.30');
+    assert.equal(vm.nics[0].vlan, '30');
+    assert.equal(report.issues.some(i => i.code === 'vm.hostRetyped'), false,
+      'nessuna riclassificazione, quindi nessuna riga di decisione');
+  });
+}
+
 // La riclassificazione non sparisce: resta per chi non ha DOVE mostrare il dato.
 test('VM: chi non puo\' ospitarle per costruzione si adegua, e la riga lo dice', () => {
   const { state, report } = map.netboxToState(vmOnSwitchFixture());
