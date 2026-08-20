@@ -746,7 +746,8 @@ function extractData(vbs) {
   // vmVlan raw: ifIndex → vlanId (Cisco CISCO-VLAN-MEMBERSHIP-MIB) — fallback VLAN
   // access dove dot1qPvid non espone la VLAN reale (es. vIOS). Indicizzato per ifIndex.
   const rawVmVlan = {};
-  const vlanOfRoutedIf = {};   // ifIndex → VLAN DICHIARATA (cviRoutedVlanIfIndex)
+  const vlanOfRoutedIf = {};   // ifIndex → VLAN DICHIARATA (cviRoutedVlanIfIndex); null = due VLAN in contraddizione
+  const parentOfRoutedIf = {}; // ifIndex → porta FISICA dichiarata dalla stessa riga
   const stackLower = {};       // ifIndex → ifIndex su cui poggia (ifStackTable)
   // Tutti gli ID VLAN definiti sullo switch (da OID key dot1qVlanEgressPorts.{vlanId})
   // — include anche VLAN senza porte assegnate (bitmap vuota)
@@ -806,12 +807,24 @@ function extractData(vbs) {
       rawVmVlan[lastIdx(oid)] = bufToInt(val); continue;
     }
 
-    // cviRoutedVlanIfIndex — l'indice porta la VLAN, il VALORE l'ifIndex che la routa.
-    // Si legge nel verso opposto al solito: ifIndex → VLAN dichiarata.
+    // cviRoutedVlanIfIndex — INDEX { cviVlanId, cviPhysicalIfIndex }, valore = ifIndex
+    // che ROUTA quella VLAN. Si legge nel verso opposto al solito: dall'ifIndex si
+    // ricava sia la VLAN (primo componente) sia la porta FISICA su cui vive
+    // (secondo componente, InterfaceIndexOrZero: 0 = non dichiarata).
     if (oid.startsWith(OID.cviRoutedVlan + '.')) {
-      const vlanId = parseInt(oid.slice(OID.cviRoutedVlan.length + 1).split('.')[0], 10);
+      const idx    = oid.slice(OID.cviRoutedVlan.length + 1).split('.');
+      const vlanId = parseInt(idx[0], 10);
+      const physIf = parseInt(idx[1], 10) || 0;
       const ifIdx  = bufToInt(val);
-      if (vlanId >= 1 && vlanId <= 4094 && ifIdx > 0) vlanOfRoutedIf[ifIdx] = vlanId;
+      if (vlanId >= 1 && vlanId <= 4094 && ifIdx > 0) {
+        // ⚠️ La MIB avverte che più righe possono riferirsi alla stessa interfaccia.
+        // Se ne dichiarano VLAN DIVERSE, tenere l'ultima letta farebbe dipendere il
+        // documento dall'ordine della walk: due dichiarazioni in contraddizione non
+        // fanno una misura, e `null` qui significa «non si sa», non «nessuna».
+        if (vlanOfRoutedIf[ifIdx] === undefined) vlanOfRoutedIf[ifIdx] = vlanId;
+        else if (vlanOfRoutedIf[ifIdx] !== vlanId) vlanOfRoutedIf[ifIdx] = null;
+        if (physIf > 0 && parentOfRoutedIf[ifIdx] === undefined) parentOfRoutedIf[ifIdx] = physIf;
+      }
       continue;
     }
 
@@ -1270,12 +1283,18 @@ function extractData(vbs) {
     // La VLAN si prende da cviRoutedVlanIfIndex quando l'apparato la pubblica: se
     // tace resta `undefined`, perché il numero nel nome non è una misura.
     else if (t === 135) {
+      // Genitore: ifStackTable PRIMA (RFC 2863, vale su qualunque vendor), la
+      // tabella Cisco come ripiego — stessa gerarchia standard-first già usata per
+      // vmVlan. Dove entrambe parlano concordano; dove lo stack tace il dato resta
+      // comunque dichiarato, e buttarlo sarebbe perderlo avendolo sotto mano.
+      const parent = stackLower[idx] || parentOfRoutedIf[idx] || 0;
+      const dich   = vlanOfRoutedIf[idx];       // null = dichiarazioni in conflitto
       subIfs.push({ index: idx, name: obj.name, alias: obj.alias,
                     adminStatus: obj.adminStatus, operStatus: obj.operStatus, mac,
-                    parentIndex: stackLower[idx] || 0,
-                    vlan: vlanOfRoutedIf[idx] });
+                    parentIndex: parent,
+                    vlan: dich == null ? undefined : dich });
       _classify.push({ idx, name: obj.name, type: t, mac: mac||'-',
-                       r: `SUB-IF dot1Q (vlan=${vlanOfRoutedIf[idx] ?? 'non dichiarata'}, su ifIndex ${stackLower[idx] || '?'})` });
+                       r: `SUB-IF dot1Q (vlan=${dich == null ? (dich === null ? 'in conflitto' : 'non dichiarata') : dich}, su ifIndex ${parent || '?'})` });
     }
     else _classify.push({ idx, name: obj.name, type: t, mac: mac||'-', r: `SKIP ifType=${t} (non fisico)` });
   }

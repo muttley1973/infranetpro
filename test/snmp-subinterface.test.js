@@ -58,10 +58,44 @@ test('la sottointerfaccia dichiara la porta FISICA su cui vive (ifStackTable)', 
   assert.equal(subOf(csr()).parentIndex, 1, 'Gi1.99 vive su ifIndex 1 = Gi1');
 });
 
-test('senza ifStackTable il genitore resta 0, non un numero plausibile', () => {
+test('senza ifStackTable il genitore lo dichiara la tabella Cisco', () => {
+  // L'indice di cviRoutedVlanIfIndex è {cviVlanId, cviPhysicalIfIndex}: il SECONDO
+  // componente è la porta fisica. Sul CSR le due fonti concordano — ifStack dice
+  // «7 sopra 1» e la riga `.99.1` dice «VLAN 99 sulla fisica 1» — ma dove lo stack
+  // tace il dato resta comunque dichiarato, e buttarlo sarebbe perderlo avendolo.
   const v = csr();
   delete v[`${OID.ifStackStatus}.7.1`];
-  assert.equal(subOf(v).parentIndex, 0);
+  assert.equal(subOf(v).parentIndex, 1);
+});
+
+test('se le due fonti discordano vince lo STANDARD (ifStackTable)', () => {
+  // ifStackTable è RFC 2863, la tabella Cisco è proprietaria: stessa gerarchia
+  // già usata per il ripiego vmVlan, standard-first.
+  const v = csr();
+  v[`${OID.ifStackStatus}.7.2`] = 1;                 // lo stack dice: 7 sta su 2
+  delete v[`${OID.ifStackStatus}.7.1`];
+  assert.equal(subOf(v).parentIndex, 2, 'lo stack decide, la tabella Cisco non lo scavalca');
+});
+
+test('nessuna delle due fonti: il genitore resta 0, non un numero plausibile', () => {
+  const v = csr();
+  delete v[`${OID.ifStackStatus}.7.1`];
+  delete v[`${OID.cviRoutedVlan}.99.1`];
+  const s = subOf(v);
+  assert.equal(s.parentIndex, 0);
+  assert.equal(s.vlan, undefined, 'senza quella riga sparisce anche la VLAN dichiarata');
+});
+
+test('due VLAN sulla STESSA interfaccia: non si sceglie, si dice che non si sa', () => {
+  // La MIB avverte che più righe possono riferirsi alla stessa interfaccia. Se
+  // due dichiarano VLAN diverse per lo stesso ifIndex, tenere l'ultima letta
+  // significherebbe far dipendere il documento dall'ordine della walk: due
+  // dichiarazioni in contraddizione non fanno una misura.
+  const v = csr();
+  v[`${OID.cviRoutedVlan}.100.1`] = 7;               // la stessa if 7, ma VLAN 100
+  const s = subOf(v);
+  assert.equal(s.name, 'Gi1.99', 'l\'interfaccia resta');
+  assert.equal(s.vlan, undefined, 'la VLAN no: 99 e 100 non si arbitrano');
 });
 
 test('la sottointerfaccia NON entra fra le porte fisiche (non è cablabile)', () => {
