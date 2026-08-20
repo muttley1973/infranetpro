@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **A VLAN nobody declared is no longer written as VLAN 1.** The SNMP driver ended every port with a fallback of 1, so a device that says nothing about a port's VLAN still produced a number, and in the document that number was indistinguishable from a measured one. Everything downstream then treated it as a measurement — the cable's VLAN is taken from an active port before the propagated one is ever consulted — so a VLAN that had been declared by hand, or propagated from upstream, could never prevail: it was not overruled, it was skipped over. Measured on the bench, this is not an exotic case: a Cisco vIOS exposes neither of the two tables that carry an access port's VLAN, and all nine of its ports came out on VLAN 1. The field is simply left absent now, and the same switch tells two different truths where it used to tell one — its access ports report no VLAN, its trunks report the native one, because that one *is* declared.
+- **The native VLAN of a Cisco trunk is read instead of assumed.** On IOS the standard PVID does not cover trunk ports and the Cisco fallback covers access ports only; the native lives in a third column that nothing was asking for. Every trunk therefore read as VLAN 1 — right by coincidence while the native is one, wrong and indistinguishable from right the moment someone writes `switchport trunk native vlan 99`. It is applied only to ports already recognised as trunks, since the column stays populated on access ports where it describes nothing.
+
+### Added
+
+- **A router-on-a-stick stops being invisible.** A dot1Q sub-interface — `Gi1.99` — is not something you plug a cable into, so the driver discarded it as "not physical" and said nothing. It took two things with it: the VLAN, and the address. On the bench the management address of a Cisco CSR1000v sits on the sub-interface, not on the port beneath it, which means the interface InfraNet was talking *through* did not exist in the document. Sub-interfaces now enter as logical ports — the same shape the NetBox import already uses, one model rather than two — carrying the physical port they stand on, taken from the device's own interface stack rather than inferred from the dotted name.
+- **And the port beneath them carries their VLAN.** That is not a deduction of ours: the device declares both halves — this interface *is* VLAN 99, and it lives on `Gi1` — so a cable on `Gi1` can finally say 99 instead of reporting only the untagged VLAN. Where the VLAN is not declared the sub-interface still appears and the VLAN stays unknown; the 99 in the name is not a measurement, and reading it from there would be the same wager as taking six bytes for a MAC address because they are six.
+
 ## [2.10.0] — 2026-08-20
 
 ### Added

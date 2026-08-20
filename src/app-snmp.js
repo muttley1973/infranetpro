@@ -729,6 +729,56 @@ export function applyPollResult(nodeId, data, opts={}){
         if(iface.snmpPoe != null) store.state.ports[pid].snmpPoe = iface.snmpPoe;
         // NON toccare: desc, statusOvr, speedOvr, vlanOvr, hidden (override manuali)
     });
+    // ── Sottointerfacce dot1Q → porte LOGICHE ────────────────────────────────
+    // Una `Gi1.99` non si cabla: non occupa uno slot fisico, non entra nel conteggio
+    // porte (che conta `data.interfaces`) e resta fuori dalla risoluzione dei cavi —
+    // per questo porta `logical: true`, la STESSA forma che l'import NetBox usa già
+    // per le sue interfacce logiche. Un modello solo, non due che divergono.
+    // Porta però due cose che prima si perdevano insieme a lei: la VLAN che
+    // l'apparato DICHIARA, e l'indirizzo con cui lo stiamo interrogando.
+    const _pidByIfIndex = {};
+    (data.interfaces||[]).forEach((iface, idx) => {
+        if(_skipByIdx[idx]) return;
+        if(iface.index > 0) _pidByIfIndex[iface.index] = _pidByIdx[idx];
+    });
+    const _logicalByIfName = {};
+    for(const pid of Object.keys(store.state.ports)){
+        if(getPortNodeId(pid) !== nodeId) continue;
+        const pp = store.state.ports[pid];
+        if(pp && pp.logical && pp.ifName) _logicalByIfName[_normIf(pp.ifName)] = pid;
+    }
+    (data.subInterfaces||[]).forEach(sub => {
+        if(!sub || !sub.name) return;
+        // L'identità stabile è il NOME, non l'ifIndex: senza `snmp-server ifindex
+        // persist` gli indici si rimescolano al riavvio, e la porta logica si
+        // sdoppierebbe a ogni Verifica.
+        const pid = _logicalByIfName[_normIf(sub.name)] || `${nodeId}-logical-${sub.index}`;
+        const p = store.state.ports[pid] || (store.state.ports[pid] = {});
+        p.logical = true;
+        p.ifName  = _snmpNameToUi(sub.name, p.ifName);
+        p.vlan    = _snmpVlanToUi(sub.vlan, p.vlan);   // assente resta assente
+        p.status  = _snmpOperToUiStatus(sub.operStatus, p.status);
+        const operUp = _snmpOperToUi(sub.operStatus);
+        if(operUp === undefined) delete p.operUp; else p.operUp = operUp;
+        const adminDown = _snmpAdminToUi(sub.adminStatus);
+        if(adminDown === undefined) delete p.adminDown; else p.adminDown = adminDown;
+        const mac = _snmpMacToUi(sub.mac, p.mac);
+        if(mac) p.mac = mac;
+        _measuredPids.add(pid);
+        if(sub.vlan >= 1) _ensureVlanColor(sub.vlan);
+        // La porta FISICA su cui vive, dichiarata dall'apparato (ifStackTable).
+        const parentPid = _pidByIfIndex[sub.parentIndex];
+        if(parentPid) p.parentPid = parentPid; else delete p.parentPid;
+        // …e quella porta TRASPORTA quella VLAN. Non è una deduzione nostra: sono
+        // due fatti dichiarati messi in fila — «questa interfaccia è la VLAN 99» e
+        // «vive su Gi1». È ciò che permette al cavo su Gi1 di dire finalmente 99
+        // invece di restare sulla nativa.
+        if(parentPid && sub.vlan >= 1){
+            const pp = store.state.ports[parentPid] || (store.state.ports[parentPid] = {});
+            pp.trunkVlans = [...new Set([...(pp.trunkVlans||[]), sub.vlan])].sort((a,b)=>a-b);
+            pp.isTrunk = true;
+        }
+    });
     // Le porte SNMP-mappate che QUESTA walk non ha coperto. Capita per davvero: una
     // tabella lunga che si tronca, un modulo sfilato che porta via le sue interfacce.
     // Il ciclo qui sopra tocca solo ciò che è arrivato, quindi le altre resterebbero
