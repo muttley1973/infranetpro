@@ -55,6 +55,32 @@ test('bundle: contiene davvero i moduli migrati (build non vuota)', () => {
 // binario agli occhi di git. Il codice gira, i test passano, eslint tace: ma
 // `git diff` dice «Binary files differ», `grep` salta il file e una revisione
 // non può leggerlo. Si prende solo guardando i byte.
+// ── C4 (audit 2026-08-18): il reset di progetto non demuove la Dashboard ─────
+// `resetProjectRuntime()` azzera il runtime DI PROGETTO. La topologia ci sta —
+// i suoi dati sono di quel progetto. La vista NO: e' una preferenza locale
+// (src/app-overview.js `_saveView`) e il <body> resta in `view-overview` anche
+// dopo il reset. Quando le due divergevano, `renderOverview` usciva subito a
+// ogni passata e la Dashboard restava congelata alla schermata disegnata PRIMA
+// che il progetto arrivasse: al caricamento dichiarava «la rete e' ancora vuota»
+// su un documento pieno, e al cambio progetto mostrava i numeri del precedente.
+// ⚠️ Guardia di SORGENTE, non di comportamento: la funzione non e' raggiungibile
+// da Node (ESM di src/, dietro il ponte window) e l'e2e non riproduce l'ordine
+// di boot che innesca il difetto — li' il progetto e' gia' caricato quando la
+// vista viene ripristinata. Il comportamento e' stato verificato a mano sul
+// server di sviluppo, prima e dopo il fix.
+test('⚠️ resetProjectRuntime non azzera la vista Dashboard (C4)', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'src', 'store.js'), 'utf8');
+  const at = src.indexOf('export function resetProjectRuntime');
+  assert.ok(at >= 0, 'resetProjectRuntime deve stare in src/store.js');
+  const body = src.slice(at, src.indexOf('\n}', at));
+  const line = body.split('\n').find(l => /store\._viewMode\s*=/.test(l));
+  assert.ok(line, 'il reset deve dire qualcosa su _viewMode, anche solo per lasciarlo stare');
+  assert.ok(/overview/.test(line),
+    'il reset non deve riportare la vista a "map" senza guardare se la Dashboard e\' aperta: '
+    + 'il <body> resterebbe in `view-overview` e la Panoramica smetterebbe di ridisegnarsi. '
+    + 'Riga trovata: ' + line.trim());
+});
+
 test('⚠️ nessun sorgente contiene byte di controllo: git li tratterebbe da binari', () => {
   const files = execFileSync('git', ['ls-files', '*.js', '*.json', '*.css', '*.html', '*.md'],
     { cwd: ROOT, encoding: 'utf8' }).split('\n').map(s => s.trim()).filter(Boolean);

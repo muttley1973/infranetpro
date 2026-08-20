@@ -78,7 +78,16 @@ export function resetProjectRuntime() {
     store.linkStart = null;
     store.dragNode = null;
     store.dragRack = null;
-    store._viewMode = 'map';
+    // ⚠️ La TOPOLOGIA è runtime di progetto e si spegne al cambio: i suoi dati
+    // sono di quel progetto. La DASHBOARD no — è una preferenza locale che
+    // sopravvive al cambio progetto (src/app-overview.js `_saveView`), e i suoi
+    // numeri si ricalcolano dal documento nuovo. Demuoverla a 'map' faceva
+    // divergere il flag dal <body>, che resta in `view-overview`: da lì
+    // `renderOverview` usciva subito (guardia su `_viewMode`) e la Dashboard
+    // restava ferma a com'era PRIMA che il progetto arrivasse — al caricamento
+    // dichiarava «la rete è ancora vuota» su un documento pieno, e al cambio
+    // progetto mostrava i numeri di quello precedente (audit 2026-08-18, C4).
+    store._viewMode = (store._viewMode === 'overview') ? 'overview' : 'map';
     store._topoData = null;
     store._topoVisible = false;
     store._topoNeighborsCache = {};

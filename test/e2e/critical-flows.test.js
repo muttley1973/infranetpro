@@ -5598,6 +5598,57 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(e.length, 0, 'nessun errore JS: ' + e.join(' | '));
     });
 
+    // Chi lascia l'app sulla Dashboard e ricarica deve ritrovare i SUOI numeri.
+    // ⚠️ Questo NON è la guardia del difetto C4 (audit 2026-08-18): qui il
+    // progetto è già caricato quando la vista viene ripristinata, quindi l'ordine
+    // che innescava il difetto non si riproduce — verificato reintroducendolo, e
+    // il test passava lo stesso. La guardia vera sta in test/bundle-architecture
+    // («resetProjectRuntime non azzera la vista Dashboard»). Questo resta uno
+    // smoke onesto: boot pulito, vista salvata, la Dashboard si disegna e si
+    // RIdisegna. Pagina dedicata: serve un boot vero.
+    await t.test('Dashboard: dopo un ricaricamento con la vista salvata si disegna e si ridisegna', async () => {
+      const p = await browser.newPage({ viewport: { width: 1500, height: 950 } });
+      try {
+        await p.goto(srv.baseURL, { waitUntil: 'load' });
+        await p.evaluate(() => { localStorage.setItem('infranet.view', 'overview'); });
+        await p.reload({ waitUntil: 'load' });
+        // Il progetto è caricato quando il documento ha dei nodi: è la stessa
+        // condizione che il difetto batteva sul tempo.
+        await p.waitForFunction(
+          () => typeof state !== 'undefined' && state.nodes && state.nodes.length > 0,
+          null, { timeout: 15000 });
+        await p.waitForTimeout(300);   // lascia scadere il rAF di renderAll
+        const r = await p.evaluate(() => {
+          const root = document.getElementById('overview');
+          const out = {
+            nodi: state.nodes.length,
+            inOverview: document.body.classList.contains('view-overview'),
+            renderizzata: !!(root && root.children.length),
+          };
+          // IL PUNTO: un re-render NORMALE deve continuare a ridisegnare la
+          // Dashboard. Se il caricamento del progetto ha demosso `_viewMode` a
+          // 'map' — lasciando però il <body> in `view-overview` — `renderOverview`
+          // esce subito e il contenitore resta vuoto: è così che la Dashboard
+          // restava congelata alla schermata disegnata prima del progetto.
+          if (root) root.textContent = '';
+          if (typeof renderNow === 'function') renderNow();
+          else if (typeof renderAll === 'function') renderAll();
+          out.riDisegnata = !!(root && root.children.length);
+          const txt = (root && root.innerText) || '';
+          out.sommaNumeri = (txt.match(/\d+/g) || []).map(Number).reduce((a, b) => a + b, 0);
+          return out;
+        });
+        assert.ok(r.nodi > 0, 'il documento è caricato');
+        assert.ok(r.inOverview, 'la vista salvata è stata ripristinata');
+        assert.ok(r.renderizzata, 'la Dashboard ha disegnato qualcosa al boot');
+        assert.ok(r.riDisegnata,
+          'un re-render normale ridisegna la Dashboard: se il flag di vista è stato azzerato dal caricamento del progetto, resta vuota (difetto C4)');
+        assert.ok(r.sommaNumeri > 0, 'e i numeri sono quelli del progetto, non tutti zero');
+      } finally {
+        await p.close();
+      }
+    });
+
     // Il passo che chiude il giro: il catalogo a runtime porta le PRESE (prima
     // teneva solo le porte di rete, e un UPS ci arrivava con zero) e il GRUPPO
     // letto dal nome che il costruttore ha scritto. Qui si guida l'input vero
@@ -5634,7 +5685,11 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           gruppoDedotto: (n.powerOutlets || [])[0] && n.powerOutlets[0].group,
           collegamentoSopravvissuto: !!((n.powerOutlets || [])[0] || {}).connectionOvr,
           gruppiDichiarati: (n.powerGroups || []).map(g => g.name),
-          conteggio: n.pduOutletCount,
+          // Il conteggio prese e' un campo `spec`: si legge con la precedenza
+          // dell'app (spec prima del nodo), la stessa di lib/pdu-layout.js
+          // `nodeField` e di hw-capabilities. «Applica modello» lo scrive li'.
+          conteggio: (n.spec && n.spec.pduOutletCount != null) ? n.spec.pduOutletCount : n.pduOutletCount,
+          conteggioSulNodo: n.pduOutletCount,
           modello: n.model,
         };
       });
@@ -5644,6 +5699,8 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(r.tipoPrima, 'iec-60320-c13', 'e con lui il tipo di spina');
       assert.equal(r.gruppoDedotto, 'g1', 'il gruppo si legge dal nome della presa, senza chiederlo');
       assert.equal(r.conteggio, 10);
+      assert.equal(r.conteggioSulNodo, undefined,
+        'una copia sola: il conteggio vive in `spec`, non anche sul nodo (audit C2)');
       assert.ok(r.collegamentoSopravvissuto, 'il collegamento dichiarato a mano NON viene cancellato dal modello');
       assert.deepEqual(r.gruppiDichiarati, ['Critici'], 'i gruppi che hai dichiarato non vengono ribattezzati dal catalogo');
       const e = pageErrors.slice(errBefore);
