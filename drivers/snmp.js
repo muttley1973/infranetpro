@@ -240,6 +240,11 @@ const OID = {
   vlanTrunkPortDynState:'1.3.6.1.4.1.9.9.46.1.6.1.1.13', // Cisco vlanTrunkPortDynamicState (col .13): stato CONFIGURATO del trunk (1=on, 2=off/access, 3=desirable, 4=auto, 5=onNoNegotiate)
   vlanTrunkPortStatus:  '1.3.6.1.4.1.9.9.46.1.6.1.1.14', // Cisco vlanTrunkPortDynamicStatus (col .14): stato OPERATIVO trunking (1=trunking, 2=notTrunking) — ATTENZIONE: su IOS virtuale può essere 1 anche su porte access
   vlanTrunkPortVlans:   '1.3.6.1.4.1.9.9.46.1.6.1.1.4',  // Cisco: bitmap VLAN 0-1023 abilitate sul trunk per ifIndex — senza @vlan community
+  // vlanTrunkPortNativeVlan (col .5): la NATIVA (untagged) di un trunk Cisco. Su IOS
+  // non passa da dot1qPvid e vmVlan copre solo le porte access, quindi senza questa
+  // colonna la nativa di OGNI trunk risultava 1 — vero per default, sbagliato ovunque
+  // ci sia un `switchport trunk native vlan N`. Misurata: risponde già sul vIOS L2.
+  vlanTrunkPortNative:  '1.3.6.1.4.1.9.9.46.1.6.1.1.5',
   // IEEE8023-LAG-MIB (corretto):
   //  dot3adAggPortListPorts     .1.2.840.10006.300.43.1.1.2.1.1
   //  dot3adAggPortAttachedAggID .1.2.840.10006.300.43.1.2.1.1.13
@@ -749,6 +754,7 @@ function extractData(vbs) {
   // Cisco VTP trunk port table (fallback per Q-BRIDGE vuoto senza @vlan community)
   const ciscoDynState    = {}; // ifIdx → number: 1=on, 2=off/access, 3=desirable, 4=auto, 5=onNoNeg
   const ciscoTrunkActive = {}; // ifIdx → boolean: true=trunking (operativo) — su IOS virtuale può essere true anche per porte access!
+  const ciscoTrunkNative = {}; // ifIdx → number: VLAN nativa DICHIARATA del trunk (col .5)
   const ciscoTrunkVlans  = {}; // ifIdx → Set<vlanId> (VLAN abilitate sul trunk)
 
   // MAU type (RFC 4836): ifIndex → last OID suffix (encodes physical medium)
@@ -859,6 +865,14 @@ function extractData(vbs) {
     // indicatore secondario solo quando vlanTrunkPortDynamicState non è disponibile.
     if (oid.startsWith(OID.vlanTrunkPortStatus + '.')) {
       ciscoTrunkActive[lastIdx(oid)] = bufToInt(val) === 1;
+      continue;
+    }
+
+    // vlanTrunkPortNativeVlan — la nativa DICHIARATA del trunk, raccolta raw e
+    // applicata sotto solo alle porte che il predicato riconosce come trunk (su una
+    // porta access questa colonna resta popolata ma non significa niente).
+    if (oid.startsWith(OID.vlanTrunkPortNative + '.')) {
+      ciscoTrunkNative[lastIdx(oid)] = bufToInt(val);
       continue;
     }
 
@@ -1332,6 +1346,12 @@ function extractData(vbs) {
       p.isTrunk    = true;
       p.trunkVlans = vlSet ? [...vlSet].filter(v => v >= 1).sort((a, b) => a - b) : [];
       if (p.trunkVlans.length) p.trunkVlans.forEach(v => allVlanIds.add(v));
+      // La nativa di un trunk È il PVID di quella porta. Su IOS non passa da
+      // dot1qPvid, quindi finché non la si leggeva restava il default: giusto per
+      // caso finché la nativa è 1, sbagliato e indistinguibile appena non lo è.
+      // Stesso predicato di trunk usato sopra — non una sua copia.
+      const nat = ciscoTrunkNative[p.index];
+      if (nat >= 1 && nat <= 4094) { p.vlan = nat; allVlanIds.add(nat); }
     }
   }
 
