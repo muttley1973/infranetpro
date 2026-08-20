@@ -1228,7 +1228,14 @@ function extractData(vbs) {
     // "accesa" ne' "spenta": il consumatore deve poter dire "non risulta".
     const obj = { index: idx, name: f.name || `if${idx}`, alias: f.alias || '',
                   adminStatus: f.admin || 0,
-                  operStatus: f.oper || 0, speed, vlan: f.vlan || 1, lagId: lagLogicalId, lagIfIndex, mac,
+                  // vlan: NON si inventa. Un apparato che non dichiara la VLAN di una
+                  // porta (dot1qPvid muto, vmVlan muta — è il caso del Cisco vIOS,
+                  // misurato) lascia il campo ASSENTE. Prima usciva 1, indistinguibile
+                  // da un 1 misurato: da lì in poi ogni lettore lo trattava da misura e
+                  // una VLAN dichiarata o propagata non riusciva più a prevalere.
+                  // Il cliente lo sa già gestire (_snmpVlanToUi, che documenta proprio
+                  // questo caso): era il driver a non dargliene l'occasione.
+                  operStatus: f.oper || 0, speed, vlan: f.vlan, lagId: lagLogicalId, lagIfIndex, mac,
                   isTrunk, trunkVlans };
     if (snmpMedium)    obj.snmpMedium = snmpMedium;
     if (snmpPoe !== null) obj.snmpPoe = snmpPoe;
@@ -1369,8 +1376,11 @@ function extractData(vbs) {
         p.isTrunk    = true;
         p.trunkVlans = agg.trunkVlans;
       }
-      // Eredita anche il PVID se la porta fisica non ne ha uno proprio
-      if (p.vlan === 1 && agg.vlan > 1) p.vlan = agg.vlan;
+      // Eredita anche il PVID se la porta fisica non ne ha uno proprio. «Non ne ha
+      // uno proprio» ora vuol dire due cose: campo ASSENTE (l'apparato tace) oppure
+      // 1, che su un membro di LAG è il default. Prima copriva solo il secondo caso
+      // perché il primo non esisteva: l'assenza era già stata trasformata in 1.
+      if ((p.vlan === undefined || p.vlan === 1) && agg.vlan > 1) p.vlan = agg.vlan;
     }
   }
 
