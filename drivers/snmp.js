@@ -767,10 +767,10 @@ function extractData(vbs) {
   const vlanOfRoutedIf = {};   // ifIndex → VLAN DICHIARATA (cviRoutedVlanIfIndex); null = due VLAN in contraddizione
   const parentOfRoutedIf = {}; // ifIndex → porta FISICA dichiarata dalla stessa riga
   const stackLower = {};       // ifIndex → ifIndex su cui poggia (ifStackTable)
-  // ifIndex delle interfacce che POSSIEDONO un indirizzo IP: sono di livello 3
-  // (instradano) e quindi non appartengono a nessuna VLAN. Le SVI e le loopback
-  // ci finiscono dentro anch'esse — giusto così, non sono porte fisiche e non
-  // diventano porte del documento.
+  // ifIndex delle interfacce che POSSIEDONO un indirizzo IP proprio. È un
+  // INDIZIO di livello 3, non una prova: qualsiasi host ne ha uno. Le SVI e le
+  // loopback ci finiscono dentro anch'esse — giusto così, non sono porte fisiche
+  // e non diventano porte del documento.
   const ownsIp = new Set();
   // Tutti gli ID VLAN definiti sullo switch (da OID key dot1qVlanEgressPorts.{vlanId})
   // — include anche VLAN senza porte assegnate (bitmap vuota)
@@ -1202,6 +1202,14 @@ function extractData(vbs) {
   const _MAU_FIBER  = new Set([3,6,7,8,12,13,17,18,23,24,25,26,32,34,35,36,38,39,40,44,45,46,47,48,49,50,51,52,53,55,59,60]);
   // Non classificati (null): 1=AUI · 21/22=1000BaseX-unknownPMD · 31/33/37=10G-unknownPMD · 56/57/58=backplane KX/KR
 
+  // Le interfacce che l'apparato dichiara PORTE DEL BRIDGE (dot1dBasePortIfIndex,
+  // la stessa tabella che serve a tradurre i PVID). `null` = l'agente non l'ha
+  // pubblicata affatto: silenzio, non un «no» — e va tenuto distinto, perché
+  // leggere l'assenza come «non commuta» farebbe instradare ogni porta con un IP.
+  const bridgeIfIdx = Object.keys(bpToIf).length
+    ? new Set(Object.values(bpToIf).filter(i => i > 0))
+    : null;
+
   const physical = [], lags = [], subIfs = [];
   const _classify = []; // diagnostica: decisione di classificazione per ogni ifIndex
   const lagLogicalByIfIndex = {};
@@ -1287,13 +1295,19 @@ function extractData(vbs) {
                   // una VLAN dichiarata o propagata non riusciva più a prevalere.
                   // Il cliente lo sa già gestire (_snmpVlanToUi, che documenta proprio
                   // questo caso): era il driver a non dargliene l'occasione.
-                  // routed: l'interfaccia possiede un indirizzo IP, quindi INSTRADA
-                  // e non appartiene a nessuna VLAN — nemmeno alla 1, che è il
-                  // default dei soli port commutati. Distingue «non sta in una
-                  // VLAN» (un fatto) da «la VLAN c'è ma l'apparato tace» (una
-                  // lacuna): senza, i due stati erano lo stesso silenzio.
+                  // Due MISURE distinte, e ognuna si chiama come cio' che misura.
+                  // `ownsIp`: l'interfaccia possiede un indirizzo IP proprio — che
+                  // e' normale per qualsiasi host, quindi da solo e' un INDIZIO di
+                  // livello 3, non una prova (si chiamava `routed` e prometteva la
+                  // conclusione al posto della premessa).
+                  // `bridges`: l'apparato dichiara questa interfaccia come porta
+                  // del BRIDGE (dot1dBasePortIfIndex). Chi c'e' dentro COMMUTA, ed
+                  // e' il veto su «instrada». ⚠️ Tre stati: assente = l'agente non
+                  // pubblica la tabella (silenzio, non un «no») — il vIOS del banco
+                  // la pubblica per 2 porte su 8, un altro esemplare per nessuna.
                   operStatus: f.oper || 0, speed, vlan: f.vlan, lagId: lagLogicalId, lagIfIndex, mac,
-                  isTrunk, trunkVlans, routed: ownsIp.has(idx) };
+                  isTrunk, trunkVlans, ownsIp: ownsIp.has(idx) };
+    if (bridgeIfIdx) obj.bridges = bridgeIfIdx.has(idx);
     if (snmpMedium)    obj.snmpMedium = snmpMedium;
     if (snmpPoe !== null) obj.snmpPoe = snmpPoe;
 

@@ -635,11 +635,14 @@ function _applySnmpBasePortFields(pid, iface){
         p.isTrunk = iface.isTrunk;
         p.trunkVlans = iface.trunkVlans || [];
     }
-    // INSTRADATA: l'apparato dichiara un indirizzo IP proprio su questa interfaccia,
-    // quindi è di livello 3 e non appartiene a nessuna VLAN — nemmeno alla 1, che è
-    // il default dei soli port commutati. È una MISURA come le altre: se il poll non
-    // la riporta più, si dimentica invece di sopravviversi (stessa regola di `vlan`).
-    if(iface.routed) p.routed = true; else delete p.routed;
+    // Due MISURE, ognuna col nome di ciò che misura — e nessuna delle due è la
+    // conclusione. `ownsIp`: l'interfaccia possiede un indirizzo IP proprio.
+    // `bridges`: l'apparato la dichiara porta del bridge, quindi COMMUTA (veto su
+    // «instrada»); assente = l'agente non pubblica la tabella, che è un silenzio e
+    // non un «no». A comporre le due c'è `isRoutedPort` in lib/vlan-authority.js,
+    // in un posto solo. Come ogni misura, se il poll non la riporta si dimentica.
+    if(iface.ownsIp) p.ownsIp = true; else delete p.ownsIp;
+    if(iface.bridges === undefined) delete p.bridges; else p.bridges = !!iface.bridges;
 }
 
 export function applyPollResult(nodeId, data, opts={}){

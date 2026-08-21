@@ -445,7 +445,7 @@ outcomes, each saying one thing only:
 |---|---|---|
 | `vlan` | exactly one VLAN applies | that VLAN’s colour |
 | `trunk` | it carries more than one | neutral + the carried VLANs as pills |
-| `routed` | the port owns an IP: it routes | neutral, and the panel says why |
+| `routed` | the port is not part of the bridge: it routes | neutral, and the panel says why |
 
 ⭐ **A cable that switches always has a VLAN, so it always has a colour.** «VLAN not
 declared» is not a state that exists in switching: every port of a bridge has a PVID, and
@@ -511,6 +511,15 @@ access ports in VLAN 99 both came out as routed links. It only distinguishes *wh
 applies — a routed port is a fact with nothing missing, while a switched one always has a
 VLAN — and the evidence is the standard address-to-interface table, of which only the IPv6
 rows were previously kept.
+
+⚠️ **«Routes» is measured as «is not a port of the bridge»**, which is what the word means;
+owning an address is only an indication, since every host has one. The evidence is
+`dot1dBasePortIfIndex` (BRIDGE-MIB), already walked to translate PVIDs. It is used
+asymmetrically on purpose: being **in** the table is a veto — that port switches — while
+being absent from it proves nothing, because a vIOS publishes the table for two ports out
+of eight and another unit of the same image for none. So the two measurements keep their
+own names, `ownsIp` and `bridges` (absent, not false, when the agent is silent), and
+`isRoutedPort` composes them in one place.
 
 The glue `src/app-link-color.js` is the only translator from that outcome to a colour.
 Before, eight sites computed it — `app.js` ×3, `topo-lines.js` ×2, `export.js` ×2, the
