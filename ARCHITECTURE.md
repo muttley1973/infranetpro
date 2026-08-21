@@ -469,6 +469,15 @@ it has no answer, not a hard one. So a multi-VLAN trunk takes no colour, and the
 carries are shown together at equal weight. A trunk carrying exactly one VLAN keeps its
 colour: there nothing is chosen, it is observed.
 
+⚠️ **One VLAN means one in total, native included.** The count used to filter VLAN 1 out, so
+a trunk with native 1 plus one tagged VLAN passed for «carrying a single VLAN» and took that
+colour — while two VLANs cross that copper, since the native's untagged traffic goes over it
+as well. Measured across the real projects: three cables, two of them access-point uplinks
+carrying management untagged in VLAN 1 and the SSID tagged in 99. The filter was the common
+practice («don't use VLAN 1») mistaken for a description of the wire. A known limit stays: a
+VLAN 1 *pruned* from the trunk does not really cross and we count it anyway — but that error
+leads to neutral, which asserts nothing, rather than to painting the wrong VLAN.
+
 On an access cable one VLAN does apply, so the ladder looks for *which*: a hand-set value,
 a measured one, the propagated one, a dot1Q sub-interface standing on the cabled port, then
 the declared network of an end that has **exactly one cable** — its address can only be

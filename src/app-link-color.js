@@ -186,7 +186,10 @@ export function _linkPaintLabel(l) {
     // `why` sta nella riga, `tip` nel tooltip: quando coincidono si tiene solo il
     // tooltip, o la stessa frase compare due volte a un dito di distanza.
     if (p.kind === 'vlan')   return Object.assign(base, { text: 'VLAN ' + p.vlan, why: tip });
-    if (p.kind === 'trunk')  return Object.assign(base, { text: t('cable.paintTrunk', { n: p.vlans.filter(v => v > 1).length }), why: '' });
+    // ⚠️ Il conteggio filtrava la 1, e su un trunk [1,99] scriveva «1 VLAN,
+    // nessuna prevale» — una riga che si contraddice da sé. Si conta come conta
+    // la decisione: la nativa e' una VLAN come le altre.
+    if (p.kind === 'trunk')  return Object.assign(base, { text: t('cable.paintTrunk', { n: p.vlans.length }), why: '' });
     if (p.kind === 'routed') return Object.assign(base, { text: t('cable.paintRouted'), why: '' });
     return Object.assign(base, { text: t('cable.paintUndeclared'), why: '' });
 }

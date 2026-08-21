@@ -193,7 +193,9 @@ test('trunk: nemmeno la sotto-interfaccia elegge una vincitrice', () => {
 });
 
 test('trunk: UNA sola VLAN trasportata ⇒ si constata, non si sceglie', () => {
-  const r = paint({ mode: 'trunk', native: 1, vlans: [1, 20], src: { active: true }, dst: { active: true } });
+  // ⚠️ «Una sola» vuol dire UNA IN TUTTO, nativa compresa: `[1, 20]` sono due
+  // VLAN che passano su quel rame, non una. → test/trunk-nativa-conta.test.js
+  const r = paint({ mode: 'trunk', native: 20, vlans: [20], src: { active: true }, dst: { active: true } });
   assert.equal(r.kind, 'vlan');
   assert.equal(r.vlan, 20);
   assert.equal(r.source, 'single-vlan');
