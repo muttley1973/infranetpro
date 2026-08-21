@@ -801,6 +801,17 @@ ${showFiber ? `<div class="prop-row2">
                         const _totPorts = _lagGids.reduce((acc,gid)=>acc+_lagMap[gid].length,0);
                         const _previewLag = `<span class="props-collapsible-preview">${t('lag.preview',{g:_lagGids.length,p:_totPorts})}</span>`;
                         let lagHtml=`<details class="props-collapsible props-secondary" ${_propsSectionIsOpen('lag-groups')?'open':''} data-toggle="props-section" data-section="lag-groups"><summary class="props-collapsible-head"><span><i class="fas fa-circle-nodes"></i> ${t('sec.lag')}</span>${_previewLag}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body"><div class="lag-groups-section">`;
+                        // Intestazione di colonna: una volta sola, invece di quattro
+                        // etichette ripetute su ogni riga. È qui che «VLAN» dice di che
+                        // numero si tratta — il placeholder non può farlo, perché porta
+                        // già ciò che VALE (il numero effettivo, o «misti»).
+                        lagHtml+=`<div class="lag-group-head">
+                          <span class="lag-col-name">${t('lag.colName')}</span>
+                          <span class="lag-col-ports">${t('lag.colPorts')}</span>
+                          <span class="lag-col-vlan">VLAN</span>
+                          <span class="lag-col-mode">${t('lag.colMode')}</span>
+                          <span class="lag-col-del"></span>
+                        </div>`;
                         for(const gid of _lagGids){
                             const gname=(state.lagGroups&&state.lagGroups[gid])||'LAG';
                             const members=_lagMap[gid].map(m=>`<span class="lag-chip">P${escapeHTML(String(m.num))}</span>`).join('');

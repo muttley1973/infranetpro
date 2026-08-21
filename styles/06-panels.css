@@ -366,19 +366,50 @@
                                 box-shadow:0 0 7px #a371f7cc !important; z-index:2; }
         /* Sezione Gruppi LAG nel pannello proprietà */
         .lag-groups-section { margin:0; padding:0; }
-        .lag-group-row { display:flex; align-items:center; gap:6px; margin-bottom:5px; font-size:var(--fs-md); }
+        .lag-group-row { display:flex; align-items:center; gap:6px; margin-bottom:5px; font-size:var(--fs-md);
+            --lag-cell-h:33px; }   /* l'altezza che i campi producono col padding di casa: select e bottone la prendono */
+        /* Intestazione di colonna: stessa grammatica delle label del pannello
+           (.prop-group label), e le stesse basi flex delle celle qui sotto — se le
+           due divergono l'intestazione indica la colonna sbagliata, che è peggio
+           di non averla. */
+        .lag-group-head { display:flex; align-items:center; gap:6px; margin:0 0 4px;
+            font-size:var(--fs-md); color:var(--text-muted); }
+        .lag-group-head .lag-col-name  { flex:0 0 110px; }
+        .lag-group-head .lag-col-ports { flex:1 1 auto; min-width:0; }
+        .lag-group-head .lag-col-vlan  { flex:0 0 62px; }
+        .lag-group-head .lag-col-mode  { flex:0 0 118px; }
+        .lag-group-head .lag-col-del   { flex:0 0 30px; }
+        /* Le pastiglie del gruppo stanno accanto al loro nome. Il `margin-left:auto`
+           della regola base serve all'intestazione della PORTA, dove le spinge a
+           destra: qui apriva un buco in mezzo alla riga. */
+        .lag-group-row .lag-chips { margin-left:0; flex:1 1 auto; min-width:0; }
         /* Chip porte alti come il campo nome LAG, SOLO nella sezione LAG/Aggregazioni (non in proprietà porta) */
         .lag-group-row .lag-chip { font-size:var(--fs-lg); padding:5px 7px; border-radius: var(--radius-sm); }
-        .lag-group-label { color:#58a6ff; font-weight:600; min-width:46px; }
-        .lag-group-name { flex:0 0 110px; font-family:inherit; font-size:var(--fs-lg); color:#58a6ff; font-weight:600; padding:5px 7px;
+        /* ⚠️ `min-width:0` non è decorazione: senza, la dimensione minima automatica
+           di un <input> (la sua larghezza intrinseca, ~20 caratteri) vince sulla base
+           flex e il campo esce a 210px invece che a 110. Vale per ogni cella-controllo
+           di questa riga. */
+        .lag-group-name { flex:0 0 110px; min-width:0; font-family:inherit; font-size:var(--fs-lg); color:var(--text-main); font-weight:600; padding:5px 7px;
             background:var(--bg-color); border:1px solid var(--panel-border); border-radius: var(--radius-sm); }
         .lag-group-name:focus { border-color:var(--accent); outline:none; }
         .lag-group-ports { color:var(--text-main); flex:1; font-size:var(--fs-md); }
-        /* VLAN del bundle: stessa altezza del nome, largo quanto basta a 4 cifre. */
-        .lag-group-vlan { flex:0 0 62px; font-family:inherit; font-size:var(--fs-lg); color:var(--text-main);
+        /* VLAN del bundle: largo quanto basta a quattro cifre. Chi dice che numero
+           sia e' l'intestazione di colonna: il placeholder non puo' farlo, perche'
+           porta gia' cio' che VALE (il numero effettivo, oppure «misti»). */
+        .lag-group-vlan { flex:0 0 62px; min-width:0; font-family:inherit; font-size:var(--fs-lg); color:var(--text-main);
             padding:5px 7px; background:var(--bg-color); border:1px solid var(--panel-border); border-radius: var(--radius-sm); }
         .lag-group-vlan:focus { border-color:var(--accent); outline:none; }
-        .lag-group-del { background:none; border:1px solid #444; color:#666; border-radius:3px;
-            padding:1px 6px; font-size:var(--fs-xs); cursor:pointer; flex-shrink:0; }
+        /* La select della modalità: le regole di casa (.prop-group select) non
+           arrivano fin qui, e senza queste tre righe restava un controllo nativo
+           in mezzo a campi disegnati. */
+        .lag-group-mode { flex:0 0 118px; min-width:0; font-family:inherit; font-size:var(--fs-lg); color:var(--text-main);
+            padding:5px 7px; height:var(--lag-cell-h); box-sizing:border-box; background:var(--bg-color); border:1px solid var(--panel-border); border-radius: var(--radius-sm); }
+        .lag-group-mode:focus { border-color:var(--accent); outline:none; }
+        /* Alto come i campi che ha accanto: con padding 1px contro 5px la riga
+           usciva disallineata, ed era l'unico elemento del pannello a usare
+           #444/#666 invece dei token. */
+        .lag-group-del { background:var(--bg-color); border:1px solid var(--panel-border); color:var(--text-muted);
+            border-radius: var(--radius-sm); flex:0 0 30px; min-width:0;
+            padding:5px 7px; font-size:var(--fs-lg); height:var(--lag-cell-h); box-sizing:border-box; cursor:pointer; }
         .lag-group-del:hover { border-color:var(--fault-color); color:var(--fault-color); }
 
