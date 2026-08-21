@@ -635,6 +635,11 @@ function _applySnmpBasePortFields(pid, iface){
         p.isTrunk = iface.isTrunk;
         p.trunkVlans = iface.trunkVlans || [];
     }
+    // INSTRADATA: l'apparato dichiara un indirizzo IP proprio su questa interfaccia,
+    // quindi è di livello 3 e non appartiene a nessuna VLAN — nemmeno alla 1, che è
+    // il default dei soli port commutati. È una MISURA come le altre: se il poll non
+    // la riporta più, si dimentica invece di sopravviversi (stessa regola di `vlan`).
+    if(iface.routed) p.routed = true; else delete p.routed;
 }
 
 export function applyPollResult(nodeId, data, opts={}){

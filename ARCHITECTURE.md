@@ -422,6 +422,60 @@ layers holding opposite definitions of one value, with the lower one winning. Wh
 reading these paths, the question to ask of any default is *who else believes this is
 a measurement*.
 
+Not inventing new ones turned out to be only half of it. `ports[pid].vlan` **is** the
+measurement — the hand-written value lives in `vlanOvr` — but `_snmpVlanToUi` kept the
+previous value whenever a poll had nothing to say about a port, which made every
+invented 1 immortal: no later reading could remove it. It is forgotten now, on the same
+ground `forgetPortMeasure` already forgets `adminDown`/`operUp` for ports a walk did not
+cover. The two cases stay apart on purpose: here the walk *did* cover the port and the
+device said nothing about its VLAN, which is stronger evidence than silence about the
+port itself, so only this one drops the value.
+
+### What a cable is — and the eight places that used to answer
+
+`_getLinkVlan` answers *what is the native VLAN of this link*, and that is correct; it is
+also what `_getLinkTrunk` uses as the trunk native. The colour was asking it the wrong
+question. On an access cable the native is the whole truth, but on a trunk it is one VLAN
+among several and legitimately 1, so painting it says «VLAN 1» about a cable carrying four.
+
+`lib/link-vlan-color.js` answers a different question — *what is this cable* — with four
+outcomes, each saying one thing only:
+
+| outcome | when | shown as |
+|---|---|---|
+| `vlan` | exactly one VLAN applies | that VLAN’s colour |
+| `trunk` | it carries more than one | neutral + the carried VLANs as pills |
+| `routed` | the port owns an IP: it routes | neutral, and the panel says why |
+| `undeclared` | it switches, so a VLAN exists — nobody names it | neutral + an audit row |
+
+⭐ **On a trunk no VLAN wins.** Every rule for electing one was tried and each asserted
+something untrue; the case that settles it is an interface doing management *and* VLAN 30 —
+it has no answer, not a hard one. So a multi-VLAN trunk takes no colour, and the VLANs it
+carries are shown together at equal weight. A trunk carrying exactly one VLAN keeps its
+colour: there nothing is chosen, it is observed.
+
+On an access cable one VLAN does apply, so the ladder looks for *which*: a hand-set value,
+a measured one, the propagated one, a dot1Q sub-interface standing on the cabled port, then
+the declared network of an end that has **exactly one cable** — its address can only be
+talking about that cable. A multi-homed device’s address says nothing about *this* one.
+
+⚠️ **`routed` is consulted last, never first.** Owning an IP address is normal for any
+host; it is the switch side that decides whether a cable is in a VLAN. Measured on the
+bench: with the check placed first, a VyOS router and a wireless controller sitting on
+access ports in VLAN 99 both came out as routed links. It only distinguishes *why* no VLAN
+applies — a routed port is a fact with nothing missing, an undeclared one is a gap that can
+be closed — and the evidence is the standard address-to-interface table, of which only the
+IPv6 rows were previously kept.
+
+The glue `src/app-link-color.js` is the only translator from that outcome to a colour.
+Before, eight sites computed it — `app.js` ×3, `topo-lines.js` ×2, `export.js` ×2, the
+properties colour picker — and they had already diverged: the topology used the pair’s most
+frequent VLAN while the rack used the native, so one cable could be two colours.
+`test/link-color-unica-definizione.test.js` refuses a ninth: no file outside the owner may
+index `vlanColors[…]` with a cable’s VLAN. Its three indexes (sub-interfaces by parent port,
+cables per node, VLAN of a node’s IP) are rebuilt by `propagateVlans()` rather than by an
+invalidation contract of their own — one lifecycle instead of two that drift.
+
 Three sources fill part of the gap the invention used to paper over, all declared by
 the device and none inferred: the **native VLAN of a Cisco trunk**
 (`vlanTrunkPortNativeVlan`, zero meaning "no native frames" and treated as silence);

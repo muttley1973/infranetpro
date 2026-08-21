@@ -210,6 +210,18 @@ const OID = {
   // L'indirizzo è nell'INDICE OID: addrType.addrLen.byte…  (addrType 1=IPv4, 2=IPv6).
   // Serve a leggere l'IPv6 PROPRIO del device (non i vicini). Standard, vendor-neutral.
   ipAddrIfIndex:  '1.3.6.1.2.1.4.34.1.3', // ipAddressIfIndex
+  // ---- IPv4 PROPRI per interfaccia (RFC 1213 ipAddrTable) ---------------------
+  // Serve a una domanda sola, e la chiude senza dedurre: questa interfaccia
+  // COMMUTA o INSTRADA? Un'interfaccia che possiede un indirizzo è di livello 3
+  // (`no switchport` + `ip address`) e per definizione NON appartiene a nessuna
+  // VLAN — nemmeno alla 1, che è il default dei soli port commutati. Senza questa
+  // colonna «non appartiene a nessuna VLAN» e «la VLAN c'è ma non la leggiamo»
+  // sono indistinguibili, e sono due cose diverse: la prima è un fatto, la
+  // seconda una lacuna. Misurato sul banco: SW-CORE dichiara 10.99.0.2 su ifIndex
+  // 1 (Gi0/0, il punto-punto verso il router di bordo) e nient'altro sulle porte.
+  // ⚠️ La tabella MODERNA (4.34, sopra) esiste ma su questo IOS risponde solo per
+  // IPv6: si leggono entrambe, chi tace non fa danno.
+  ipAdEntIfIndex: '1.3.6.1.2.1.4.20.1.2', // ipAdEntIfIndex (IPv4, storica)
   ifDescr:        '1.3.6.1.2.1.2.2.1.2',
   ifType:         '1.3.6.1.2.1.2.2.1.3',
   ifPhysAddress:  '1.3.6.1.2.1.2.2.1.6',  // MAC address — discriminatore fisico/virtuale
@@ -755,6 +767,11 @@ function extractData(vbs) {
   const vlanOfRoutedIf = {};   // ifIndex → VLAN DICHIARATA (cviRoutedVlanIfIndex); null = due VLAN in contraddizione
   const parentOfRoutedIf = {}; // ifIndex → porta FISICA dichiarata dalla stessa riga
   const stackLower = {};       // ifIndex → ifIndex su cui poggia (ifStackTable)
+  // ifIndex delle interfacce che POSSIEDONO un indirizzo IP: sono di livello 3
+  // (instradano) e quindi non appartengono a nessuna VLAN. Le SVI e le loopback
+  // ci finiscono dentro anch'esse — giusto così, non sono porte fisiche e non
+  // diventano porte del documento.
+  const ownsIp = new Set();
   // Tutti gli ID VLAN definiti sullo switch (da OID key dot1qVlanEgressPorts.{vlanId})
   // — include anche VLAN senza porte assegnate (bitmap vuota)
   const allVlanIds = new Set();
@@ -811,6 +828,22 @@ function extractData(vbs) {
     // applicata dopo come FALLBACK dove il PVID standard non da' la VLAN reale.
     if (oid.startsWith(OID.vmVlan + '.')) {
       rawVmVlan[lastIdx(oid)] = bufToInt(val); continue;
+    }
+
+    // Interfacce che POSSIEDONO un indirizzo → instradano, non commutano.
+    // Due tabelle standard perché i vendor ne popolano una o l'altra: la storica
+    // (RFC 1213, indice = i 4 byte IPv4, valore = ifIndex) e la moderna (IP-MIB,
+    // indice = tipo.lunghezza.byte…, valore = ifIndex). Qui interessa SOLO il
+    // valore — quale interfaccia — non l'indirizzo, che ha già i suoi lettori.
+    if (oid.startsWith(OID.ipAdEntIfIndex + '.')) {
+      const ifIdx = bufToInt(val);
+      if (ifIdx > 0) ownsIp.add(ifIdx);
+      continue;
+    }
+    if (oid.startsWith(OID.ipAddrIfIndex + '.')) {
+      const ifIdx = bufToInt(val);
+      if (ifIdx > 0) ownsIp.add(ifIdx);
+      continue;   // l'IPv6 proprio lo estrae `_ownIp6FromVbs`, che rilegge i varbind per conto suo
     }
 
     // cviRoutedVlanIfIndex — INDEX { cviVlanId, cviPhysicalIfIndex }, valore = ifIndex
@@ -1254,8 +1287,13 @@ function extractData(vbs) {
                   // una VLAN dichiarata o propagata non riusciva più a prevalere.
                   // Il cliente lo sa già gestire (_snmpVlanToUi, che documenta proprio
                   // questo caso): era il driver a non dargliene l'occasione.
+                  // routed: l'interfaccia possiede un indirizzo IP, quindi INSTRADA
+                  // e non appartiene a nessuna VLAN — nemmeno alla 1, che è il
+                  // default dei soli port commutati. Distingue «non sta in una
+                  // VLAN» (un fatto) da «la VLAN c'è ma l'apparato tace» (una
+                  // lacuna): senza, i due stati erano lo stesso silenzio.
                   operStatus: f.oper || 0, speed, vlan: f.vlan, lagId: lagLogicalId, lagIfIndex, mac,
-                  isTrunk, trunkVlans };
+                  isTrunk, trunkVlans, routed: ownsIp.has(idx) };
     if (snmpMedium)    obj.snmpMedium = snmpMedium;
     if (snmpPoe !== null) obj.snmpPoe = snmpPoe;
 

@@ -72,6 +72,7 @@ store._isDirty = false;   // var: idem (switchProject guard)
 // Import+re-export: import per i call-site interni (es. _getUiModeMeta) e re-export per
 // i molti consumatori ESM (nodeById 25, getNodeByPortId 16, getPortNodeId 13, ...).
 import { _invalidateIdx, nodeById, _linksForPort, getPortNodeId, isPortOnNode, getNodeByPortId } from "./app-index.js";
+import { _linkColor, _linkPaintVlan } from "./app-link-color.js";   // «di che VLAN è questo cavo»: UNA risposta, condivisa con topologia ed export
 export { _invalidateIdx, nodeById, _linksForPort, getPortNodeId, isPortOnNode, getNodeByPortId };
 
 // selId/selType: var (non let) così sono proprietà di window e i moduli migrati
@@ -1355,7 +1356,7 @@ export function _chainVlanColors(){
     return chainVlanColorMap(
         state.links || [],
         pid => !!TYPES[getNodeByPortId(pid)?.type]?.passThrough,
-        l => { const vl = _getLinkVlan(l); return vl > 1 ? (state.vlanColors[vl] || null) : null; });
+        l => { const p = _linkPaintVlan(l); return (p.known && p.vlan > 1) ? (state.vlanColors[p.vlan] || null) : null; });
 }
 
 // Proof-State del cavo -> classe SVG (spec Proof-State unificato §5.2). Il cavo
@@ -1496,9 +1497,9 @@ function _renderCablesNow(){
         // si controllano i capi FLOOR: un cavo device↔presa non va mai perso per un rect
         // transitorio (era la causa di «manca la tratta verso il device»).
         if((_srcRack && sr.width===0 && sr.height===0) || (_dstRack && dr.width===0 && dr.height===0)) return;
-        const vl=_getLinkVlan(l);
-        const autoColor=state.vlanColors[vl]||_chainCol.get(l.id)||'#6e7681';
-        const color=l.colorOvr||autoColor;
+        // Colore: UNA sola definizione (src/app-link-color.js), la stessa che usano
+        // topologia, planimetria, PDF e draw.io. Manual-first dentro _linkColor.
+        const color=_linkColor(l,_chainCol);
         const isSelected=selType==='link'&&selId===l.id;
         // Segnala visivamente i cavi "inferiti" (MAC/ARP/FDB) anche in rack/floor:
         // l'utente che arriva dalla topology deve poterli identificare per agire.
@@ -1607,8 +1608,7 @@ function _renderCablesNow(){
         const dr=deviceEl?deviceEl.getBoundingClientRect():sr;
         const yDip=dr.bottom-vp.top+10;   // 10px sotto il bordo inferiore del device
 
-        const vl=_getLinkVlan(l);
-        const col=l.colorOvr||state.vlanColors[vl]||_chainCol.get(l.id)||'#6e7681';
+        const col=_linkColor(l,_chainCol);
         const isSelected=selType==='link'&&selId===l.id;
         const isTrace=highPath.has(l.id);
 

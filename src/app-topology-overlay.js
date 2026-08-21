@@ -5,6 +5,7 @@ import { nodeById, getPortNodeId, _showToast, _chainAmbiguousLinkIds, _chainVlan
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _portDisplayName } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _getLinkTrunk, showVlanMembers, setVlanFilter, _linkIsTrunk } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
+import { _linkPaintVlan, CABLE_NEUTRAL } from './app-link-color.js';   // colore del cavo: una definizione sola
 import { _findPortByIfName } from './app-topology-discover.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { _getLinkVlan, toggleTopoTrunkFilter, toggleTopoEndpointFilter, toggleTopoWlanFilter, _linkMatchesVlanFilter, _rackPairMatchesVlan, _findProjectLinkByPorts, _drawFanoutLineDesc, _rectEdge, _showTopoTip, _hideTopoTip, _showPhysicalCablePath } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
 
@@ -116,6 +117,16 @@ export function _renderTopoLegend(hidden){
             const tip = (name ? `VLAN ${vid} — ${name}` : `VLAN ${vid}`) + (isGuest ? ' · ' + t('pnl.disc.vlanGuestSuffix') : '');
             html += `<span class="topo-leg-vlan${isActive?' active':''}${isGuest?' guest':''}" data-vid="${vid}" data-tip="${escapeHTML(tip)}" data-tip-pos="bottom" style="background:${col}2e;color:${col}"><span class="vlan-dot" style="background:${col}"></span>${vid}</span>`;
         });
+        // «Non rilevata»: chiave di lettura del neutro dedicato, non un filtro. Compare
+        // SOLO se almeno un cavo ci cade davvero — altrimenti sarebbe una voce che
+        // spiega un colore che non c'è. Dopo la 2.10.1 le VLAN assenti sono tante e
+        // VERE: senza questa voce il neutro somiglierebbe al grigio della VLAN 1.
+        const _hasUnknown = (store.state.links || []).some(l => !_linkPaintVlan(l).known);
+        if(_hasUnknown){
+            html += `<span class="topo-leg-novlan" data-tip="${escapeHTML(t('legend.noVlanTip'))}" data-tip-pos="bottom"`
+                 +  ` style="background:${CABLE_NEUTRAL}2e;color:${CABLE_NEUTRAL};cursor:default">`
+                 +  `<span class="vlan-dot" style="background:${CABLE_NEUTRAL}"></span>${escapeHTML(t('legend.noVlan'))}</span>`;
+        }
         html += `</div>`;
     }
     // Pillola TRUNK (solo in topologia): toggle che evidenzia i collegamenti
@@ -197,12 +208,14 @@ function _buildTopoModel(){
         mediumFilter: (typeof store._topoMedium !== 'undefined' && store._topoMedium) || 'all',
         physicalTrace: (typeof store._physicalTraceActive !== 'undefined') && store._physicalTraceActive,
         vlanColors: store.state.vlanColors || {},
+        unknownVlanColor: CABLE_NEUTRAL,   // niente colore VLAN ≠ grigio della VLAN 1
         highPathIds: store.highPath,
         selectedLinkId: (store.selType === 'link') ? store.selId : null,
         helpers: {
             portNodeId: getPortNodeId,
             portDisplayName: _portDisplayName,
             linkVlan: _getLinkVlan,
+            linkPaintVlan: _linkPaintVlan,   // che VLAN RAPPRESENTA il cavo (= il suo colore)
             // Trunk EFFETTIVO (anche derivato da voce/SSID): i trunk derivati si
             // comportano da trunk in topologia (pillola, toggle "solo trunk").
             linkIsTrunk: (typeof _linkIsTrunk==='function') ? _linkIsTrunk : null,

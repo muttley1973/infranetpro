@@ -17,6 +17,7 @@ import { TYPES, _ensureNodeSpec } from './app-types.js';   // ritiro ponte fase 
 import { _isLeafEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
 import { _renderTopoLegend } from './app-topology-overlay.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { _getLinkVlan, _vlanLabel } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
+import { _invalidateLinkColor } from './app-link-color.js';   // le cache del colore-cavo si rifanno a ogni propagazione
 import { _deviceAccessVlanPid } from './app-properties-node-devices.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { applyUiColors } from './app-search-zoom-rack.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: modale «Membership VLAN» + popover Automazioni + modale VLAN voce via event delegation
@@ -184,6 +185,11 @@ function _buildPortAdjacency(){
 }
 
 export function propagateVlans(){
+    // Gli indici del colore-cavo (sotto-interfacce, cavi per nodo, VLAN dell'IP)
+    // dipendono dalle stesse cose che qui cambiano: si rifanno insieme, cosi' non
+    // esiste un secondo contratto di invalidazione da tenere allineato a mano.
+    if(typeof _invalidateLinkColor==='function') _invalidateLinkColor();
+
     // 1. Grafo di adiacenza porta→[porte connesse] (+ ponte interno media conv.)
     const adj=_buildPortAdjacency();
 

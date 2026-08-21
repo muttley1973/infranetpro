@@ -12,7 +12,8 @@ import { renderProps, _propsSectionIsOpen, _buildPropsHeader } from './app-prope
 import { TYPES, _frontPanelPortLabel, _frontPanelIsUplink } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _effPortVlan, _getLinkTrunk, _parseTrunkVlans, _runActiveAnchor, setLinkNativeVlan, setLinkColor, setLinkMode, setLinkTrunkVlans } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _portDisplayName } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
-import { _getLinkVlan, selectPathSegment } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
+import { _getLinkVlan, selectPathSegment } from './app-popup.js';
+import { _linkAutoColor, _linkPaintLabel } from './app-link-color.js';   // colore e MOTIVO del colore: una definizione sola
 import { _routeHopRemovable, enterRoutingMode, removeRouteHop } from './app-cabling-editor.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { _wifiAssocHtml } from './app-wifi.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { cableIssueTexts, chainWarnTexts } from './app-issue-text.js';   // le PAROLE dei validatori puri (i18n), che le lib non hanno più
@@ -85,13 +86,42 @@ function _cablePortDesc(pid){
 }
 
 // Proprieta' di un CAVO/link selezionato (selType==='link').
+/**
+ * Le VLAN trasportate rese come PASTIGLIE colorate, tutte allo stesso peso.
+ * È la resa che sostituisce il colore sul cavo: su un trunk nessuna VLAN vince,
+ * quindi invece di eleggerne una si mostrano tutte insieme — stesso linguaggio
+ * delle pillole della legenda, che l'occhio già conosce. Una VLAN senza colore
+ * assegnato prende il neutro invece di sparire.
+ * @param {number[]} vlans @returns {string} HTML (stringa vuota se non c'è nulla da mostrare)
+ */
+function _vlanPills(vlans){
+    const list = (Array.isArray(vlans) ? vlans : []).filter(v => v >= 1 && v <= 4094);
+    if(!list.length) return '';
+    const pills = list.map(v => {
+        const col = store.state.vlanColors?.[v] || '#8b949e';
+        const nome = store.state.vlanNames?.[v] || '';
+        return `<span data-tip="${escapeHTML(nome ? `VLAN ${v} — ${nome}` : `VLAN ${v}`)}" data-tip-pos="bottom"
+            style="display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:var(--radius-sm);
+                   font-size:0.7rem;font-weight:700;background:${escapeHTML(col)}2e;color:${escapeHTML(col)}">
+            <span style="width:7px;height:7px;border-radius:50%;background:${escapeHTML(col)};flex-shrink:0"></span>${Number(v)}</span>`;
+    }).join('');
+    return `<div style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0 6px">${pills}</div>`;
+}
+
 export function _renderLinkProps(panel){
         const l=store.state.links.find(x=>x.id===store.selId);
         if(!l){store.selType=null;store.selId=null;renderProps();return;}
         const isAuto = !!l.autoLinked;
         const lockAttr = isAuto ? ' disabled' : '';
         const vl=_getLinkVlan(l);
-        const autoColor=store.state.vlanColors[vl]||'#6e7681';
+        // Colore proposto quando l'utente azzera il suo: la STESSA regola del canvas
+        // (src/app-link-color.js), senza l'override manuale.
+        const autoColor=(typeof _linkAutoColor==='function') ? _linkAutoColor(l) : (store.state.vlanColors[vl]||'#6e7681');
+        // Il pallino accanto al NUMERO di VLAN mostra il colore DI QUEL numero: e' la
+        // VLAN nativa, editabile qui. Il colore del CAVO puo' essere un altro (un trunk
+        // e' dipinto dalla VLAN che rappresenta) e lo dice la riga «Colore» piu' sotto:
+        // due significati, due posti — non un pallino che ne racconta un terzo.
+        const vlDotColor=store.state.vlanColors[vl]||'#6e7681';
         const srcNode=getNodeByPortId(l.src), dstNode=getNodeByPortId(l.dst);
         const srcLbl=(srcNode?.name||'?')+' · '+_cablePortDesc(l.src);
         const dstLbl=(dstNode?.name||'?')+' · '+_cablePortDesc(l.dst);
@@ -121,6 +151,11 @@ export function _renderLinkProps(panel){
         const tk = (typeof _getLinkTrunk==='function') ? _getLinkTrunk(l)
                  : { mode: l.mode==='trunk'?'trunk':'access', native: vl, vlans: (typeof _parseTrunkVlans==='function'?_parseTrunkVlans(l.trunkVlans||''):[]), carried:[], derived:false };
         const isTrunk = tk.mode === 'trunk';
+        // «Perché questo colore»: si mostra solo quando AGGIUNGE qualcosa — il cavo
+        // è dipinto da una VLAN diversa da quella scritta sopra, oppure non se ne
+        // conosce nessuna, oppure la scelta è una convenzione e va dichiarata.
+        const _pl = (typeof _linkPaintLabel === 'function') ? _linkPaintLabel(l) : null;
+        const _paint = (_pl && (_pl.kind !== 'vlan' || _pl.vlan !== vl)) ? _pl : null;
         const trunkVlans = l.trunkVlans || '';
         // Capo ATTIVO del trunk: la nativa è il PVID (vlanOvr) di quella porta →
         // editabile inline. Se nessun capo è attivo, la nativa arriva da monte.
@@ -137,7 +172,7 @@ export function _renderLinkProps(panel){
                ${_tkTagged.length?`<span style="margin-left:6px;font-size:0.75rem;color:var(--text-muted)">· ${t('cable.trunkCarried')}&nbsp;<b style="color:var(--text-main)">${_tkTagged.join(', ')}</b></span>`:''}
                ${tk.derived?`<span style="margin-left:6px;font-size:0.68rem;color:#5ba3f5"><i class="fas fa-wand-magic-sparkles"></i> auto</span>`:''}`
             : `<span style="display:inline-flex;align-items:center;gap:6px">
-                 <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${autoColor};flex-shrink:0;border:1px solid rgba(255,255,255,.18)"></span>
+                 <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${vlDotColor};flex-shrink:0;border:1px solid rgba(255,255,255,.18)"></span>
                  <b>VLAN ${vl}</b>${vlanName?`<span style="color:var(--text-muted)">— ${vlanName}</span>`:''}
                </span>`;
 
@@ -208,12 +243,18 @@ export function _renderLinkProps(panel){
               <label>VLAN</label>
               ${(!isTrunk && _nativeActivePid)
                 ? `<div style="display:flex;align-items:center;gap:8px">
-                     <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${autoColor};flex-shrink:0;border:1px solid rgba(255,255,255,.18)"></span>
+                     <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${vlDotColor};flex-shrink:0;border:1px solid rgba(255,255,255,.18)"></span>
                      <input type="number" min="1" max="4094" value="${vl}" ${lockAttr} style="flex:1"
                             data-change="link-native-vlan" data-lid="${l.id}" data-tip="${t('cable.accessVlanTip')}">
                    </div>
                    ${vlanName?`<div style="font-size:0.7rem;color:var(--text-muted);margin-top:3px"><i class="fas fa-tag" style="font-size:0.6rem;margin-right:3px"></i>${vlanName}</div>`:''}`
                 : `<div style="padding:4px 0;font-size:0.83rem;color:var(--text-main)">${vlanBadge}</div>`}
+              ${_paint ? `<div style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:0.72rem;color:var(--text-muted)"
+                     data-tip="${escapeHTML(_paint.tip || '')}" data-tip-pos="bottom">
+                   <span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${_paint.color};flex-shrink:0"></span>
+                   ${t('cable.paintLabel')}: <b style="color:var(--text-main);font-weight:600">${escapeHTML(_paint.text)}</b>
+                   ${_paint.why ? `<span>· ${escapeHTML(_paint.why)}</span>` : ''}
+                 </div>` : ''}
             </div>
             ${verifyBanner}
             ${autoEditBar}${miscabledBanner}
@@ -246,6 +287,7 @@ export function _renderLinkProps(panel){
                 ${t('cable.trunkVlans')}
                 <span style="font-size:0.68rem;color:var(--text-muted)">(es. 10,20,100-200)</span>
               </label>
+              ${_vlanPills(tk.vlans)}
               ${tk.derived ? `
               <div class="trunk-derived"><i class="fas fa-wand-magic-sparkles"></i> ${t('cable.trunkAuto')}: <b>${tk.vlans.join(', ')}</b></div>
               <div style="font-size:0.7rem;color:var(--text-muted);margin:4px 0 6px">${t('cable.trunkAutoNote')}</div>

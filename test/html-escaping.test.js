@@ -205,7 +205,13 @@ const CAPS = {
     'src/app-spare.js': 7,
     'src/app-topology-crawl.js': 4,
     'src/app-topology-discover.js': 1,
-    'src/app-topology-overlay.js': 9,
+    // +1 (2.10.1): `${CABLE_VLAN_UNKNOWN}` nella pillola «VLAN non rilevata» della
+    // legenda. È una COSTANTE esportata da src/app-link-color.js (un hex scritto nel
+    // sorgente), non un valore che arriva da fuori — lo scanner non risolve gli import
+    // e non può dimostrarlo. Avvolgerla in escapeHTML() fingerebbe un rischio che non
+    // c'è; le `${col}` accanto, già sotto il tetto, sono dato UTENTE e quindi più
+    // esposte di questa.
+    'src/app-topology-overlay.js': 10,
     'src/app-vlan-autopoll.js': 17,
     'src/app-wifi.js': 19,
     'src/app.js': 2,

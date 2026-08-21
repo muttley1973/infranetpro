@@ -91,3 +91,28 @@ test('una VLAN MISURATA > 1 vince e aggiorna il documento (regola invariata)', (
   assert.strictEqual(out.vlan, 30);
 });
 
+test('il cavo che ne dipende cambia colore: da «VLAN 1» misurata a fonte dichiarata', () => {
+  // La catena completa, come sul banco: switch muto sul PVID + endpoint mono-cablato
+  // con IP in una rete DICHIARATA. Finche' il «1» sopravviveva, il cavo restava grigio.
+  const out = run(APP.ctx, `(() => {
+    state = _buildDefaultState();
+    // Banco VUOTO: lo stato di default porta con sé nodi e VLAN d'esempio, e la
+    // propagazione arriverebbe da quelli invece che da ciò che il test dichiara.
+    state.nodes = []; state.links = []; state.ports = {};
+    state.ipam = { vlans:{}, prefixes:[{ cidr:'10.10.30.0/24', vlan:30 }], addresses:[] };
+    state.nodes.push({ id:'sw1', type:'switch', name:'SW', ports:2, ip:'10.0.0.1' });
+    state.nodes.push({ id:'pc1', type:'pc', name:'SRV', ports:1, ip:'10.10.30.10' });
+    state.links.push({ id:'l1', src:'sw1-2', dst:'pc1-1' });
+    state.ports['sw1-2'] = { ifName:'Gi1/1', vlan:1 };   // l'invenzione di ieri
+    if(typeof _invalidateIdx==='function') _invalidateIdx();
+    propagateVlans();
+    const prima = _linkPaintVlan(state.links[0]);
+    applyPollResult('sw1', ${poll(null)}, { noHistory:true });
+    if(typeof _invalidateIdx==='function') _invalidateIdx();
+    propagateVlans();
+    const dopo = _linkPaintVlan(state.links[0]);
+    return { prima: prima.vlan + '/' + prima.source, dopo: dopo.vlan + '/' + dopo.source };
+  })()`);
+  assert.strictEqual(out.prima, '1/measured', 'partenza: il documento crede a una misura che non esiste');
+  assert.strictEqual(out.dopo, '30/declared-ip', 'dopo il ri-poll vince la rete DICHIARATA dell\'endpoint');
+});

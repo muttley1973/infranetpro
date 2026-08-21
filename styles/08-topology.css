@@ -179,7 +179,11 @@
         /* Toggle ENDPOINT attivo: nasconde i device endpoint sul floor in topologia */
         body.view-topology.topo-hide-endpoints .floor-node.topo-endpoint { display: none; }
         /* Pillole VLAN — stessa forma rettangolare dei tile equip-item */
-        #topo-legend .topo-leg-vlan {
+        /* .topo-leg-novlan = chiave di lettura del neutro «VLAN non rilevata»: STESSA
+           forma delle pillole VLAN ma classe diversa, perche' non è una VLAN e non
+           filtra niente (il gestore del click ignora chi non ha data-vid). */
+        #topo-legend .topo-leg-vlan,
+        #topo-legend .topo-leg-novlan {
             display: inline-flex; align-items: center; gap: 5px;
             padding: 3px 8px; border-radius: var(--radius-sm); cursor: default;
             font-size: 11px; font-weight: 700; user-select: none;
@@ -191,7 +195,8 @@
         #topo-legend .topo-leg-vlan.active {
             border-color: var(--text-main);
         }
-        #topo-legend .topo-leg-vlan .vlan-dot {
+        #topo-legend .topo-leg-vlan .vlan-dot,
+        #topo-legend .topo-leg-novlan .vlan-dot {
             width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
         }
         /* Indicatore passivo "endpoint": pillola ATTENUATA (smorzata + desaturata).

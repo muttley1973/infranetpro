@@ -546,9 +546,8 @@ function _buildFloorSVG(opts){
         const rLinks=_getRackFloorLinks(rack.id);
         for(const {link,floorNode} of rLinks){
             if(_filterVlan&&!_linkMatchesVlanFilter(link)) continue;
-            // Colore = VLAN del link (come i cavi), con override manuale rispettato.
-            const vl=_getLinkVlan(link);
-            const col=link.colorOvr||state.vlanColors[vl]||'#6e7681';
+            // Colore: la STESSA definizione del canvas (src/app-link-color.js).
+            const col=_linkColor(link);
             s+=`<line x1="${rack.x}" y1="${rack.y}" x2="${floorNode.x}" y2="${floorNode.y}"`
               +` stroke="${col}" stroke-width="${P.fanSW}" stroke-dasharray="4,3" stroke-linecap="round" opacity="${P.fanOp}"/>`;
         }
@@ -564,8 +563,7 @@ function _buildFloorSVG(opts){
         const sn=getNodeByPortId(l.src),dn=getNodeByPortId(l.dst);
         if(!sn||!dn||!TYPES[sn.type]?.isFloor||!TYPES[dn.type]?.isFloor) return;
         const p=floorPos(sn.id),q=floorPos(dn.id); if(!p||!q) return;
-        const vl=_getLinkVlan(l);
-        const col=l.colorOvr||state.vlanColors[vl]||'#6e7681';
+        const col=_linkColor(l);
         const cx=(p.x+q.x)/2;
         s+=`<path d="M${p.x},${p.y} C${cx},${p.y} ${cx},${q.y} ${q.x},${q.y}"`
           +` fill="none" stroke="${col}" stroke-width="${P.cableSW}" stroke-linecap="round" opacity="${P.cableOp}"/>`;
@@ -796,11 +794,11 @@ function exportDrawio(){
             isAbsent:           n => _absentIds.has(n.id) && n.snmpStatus !== 'ok',
             // Colore cavo = stessa convenzione della vista live (topologia/fanout):
             // override manuale, poi colore VLAN; null -> il builder usa il default.
-            linkColor:          l => (l && l.colorOvr)
-                || ((typeof _getLinkVlan === 'function' && state.vlanColors) ? state.vlanColors[_getLinkVlan(l)] : null)
-                || null,
+            linkColor:          l => _linkColor(l),
             // VLAN del cavo + nome VLAN -> un layer draw.io per VLAN, nominato col nome.
-            linkVlan:           (typeof _getLinkVlan === 'function') ? (l => _getLinkVlan(l)) : undefined,
+            // STESSA VLAN che ne decide il colore: layer e colore che si contraddicono
+            // sono il modo in cui questa classe di bug e' sempre ricominciata.
+            linkVlan:           l => { const _p = _linkPaintVlan(l); return _p.known ? _p.vlan : _getLinkVlan(l); },
             vlanName:           vid => (state.vlanNames && state.vlanNames[vid]) || '',
         },
     });
@@ -1196,13 +1194,21 @@ function _buildPdfReportData() {
         const sn = getNodeByPortId(l.src), dn = getNodeByPortId(l.dst);
         const sp = l.src.split('-').slice(1).join('-');
         const dp = l.dst.split('-').slice(1).join('-');
-        const vl = _getLinkVlan(l);
+        // VLAN nel dossier = la stessa che DIPINGE il cavo a schermo. Prima stampava
+        // la nativa: su un trunk usciva «VLAN 1» anche quando le VLAN vere viaggiavano
+        // taggate — la stessa bugia della fotografia, ma su carta.
+        const _p  = _linkPaintVlan(l);
+        const vl  = _p.known ? _p.vlan : _getLinkVlan(l);
+        const _tg = _p.vlans.filter(v => v > 1);
         return {
             label:    (l.label || _cableAutoLabel(l)).replace(/→/g, '->'),
             from:     `${(typeof _dispName==='function'?_dispName(sn?.name||'?'):(sn?.name||'?'))} P${sp}`,
             to:       `${(typeof _dispName==='function'?_dispName(dn?.name||'?'):(dn?.name||'?'))} P${dp}`,
             vlan:     vl > 1 ? vl : null,
             vlanName: vl > 1 ? (state.vlanNames?.[vl] || '') : '',
+            // Un trunk porta piu' di una VLAN: la colonna VLAN ne mostra UNA, questa
+            // dice quali sono davvero. Vuota sugli access (niente rumore in tabella).
+            vlanCarried: _tg.length > 1 ? _tg.join(', ') : '',
             cableType:l.cableType || '',
             medium:   l.medium   || '',
             length:   l.lengthM != null ? String(l.lengthM) : (l.length != null ? String(l.length) : ''),

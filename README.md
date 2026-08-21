@@ -128,7 +128,12 @@ Double-click <code>avvia.bat</code>.<br>
 > devices were saying and nobody was reading: the **native VLAN of a Cisco trunk**, the **dot1Q
 > sub-interface** where a router-on-a-stick keeps its VLAN and its management address, and what a
 > **link aggregate** declares to the ports bundled into it. Every case was reproduced on real hardware
-> before being written down.
+> before being written down. And the consequence reaches the picture: a cable's colour used to show the
+> *native* VLAN, which on a trunk is legitimately 1 — so a network where everything real travels tagged
+> came out uniformly grey. An access cable now takes the colour of the one VLAN that applies to it, while
+> **a trunk takes none** — on a trunk no VLAN wins, so instead of electing one the panel shows them all as
+> coloured pills. And a **routed** link, which belongs to no VLAN at all, is finally told apart from a
+> switched port whose VLAN nobody has declared: the first is a fact, the second is a gap worth closing.
 >
 > 📰 **v2.10.0 — the document learns where things are, and what hosts what.**
 > A NetBox **location becomes a room** on the floor plan, with its racks and devices inside it; what has
