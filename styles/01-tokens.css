@@ -19,18 +19,21 @@
                (snmp-pending) e le credenziali v3 mancanti, il verde la risposta buona,
                il grigio il non-verificabile. Serviva un gradino fra ambra e rosso. */
             --probe-warn: #f0883e;
-            /* Le due porte «off», su una scala MONOCROMA che finisce nel grigio
-               neutro (--inactive-color #6e7681). Non sono un quinto e un sesto
-               colore: verde/rosso/ambra dicono già altro e una tinta in più li
-               farebbe litigare. Qui si scende di tono man mano che il fatto è più
-               forte, e si legge come assenza sul metallo del rack (#4a4a4a→#2b2b2b)
-               invece di gridare come il guasto.
-                 --shut-color   spenta a mano (ifAdminStatus=down): una DECISIONE.
-                 --nolink-color senza link da ≥3 verifiche: un sintomo. Sta ESATTAMENTE
-                                a metà fra le altre due, così i tre grigi si ordinano
-                                da soli sotto l'occhio. */
+            /* Le due porte «off». NON sono la stessa cosa e non si somigliano più:
+                 --shut-color   spenta a mano (ifAdminStatus=down): una DECISIONE, e
+                                una decisione non chiede niente a nessuno — resta il
+                                buco quasi nero sul metallo del rack.
+                 --nolink-color senza link da ≥3 verifiche: un SINTOMO ambiguo (device
+                                spento? NIC morta? SFP sfilato?) che qualcuno deve
+                                andare a guardare — ambra, cioè attenzione.
+               ⚠️ L'ambra è VOLUTAMENTE diversa da --idle-color (#f5a623, «Pronta»):
+               due stati non possono condividere una tinta, o l'occhio li fonde. E
+               questo non ha alone: gli stati vivi brillano, questo segnala e basta.
+               ⚠️ Lo stesso valore è scritto in export.js e lib/drawio-export.js, che
+               non possono leggere un token CSS: li tiene allineati la guardia in
+               test/porta-senza-link-colore.test.js. */
             --shut-color: #0a0d11;
-            --nolink-color: #3c4149;
+            --nolink-color: #d29922;
             --rack-bg: #969696; --rack-metal: linear-gradient(180deg, #4a4a4a, #2b2b2b);
 
             /* ---- TOKEN SEMANTICI DI SUPERFICIE ----
@@ -150,7 +153,7 @@
             --idle-color:     #9a6700;   /* ambra scura */
             --probe-warn:     #bc4c00;   /* arancio scuro: regge su bianco */
             --shut-color:     #11161c;   /* il chassis resta scuro: il buco resta quasi nero */
-            --nolink-color:   #414852;   /* a metà fra il buco e --inactive-color #57606a */
+            --nolink-color:   #bf8700;   /* ambra scura: attenzione, distinta da --idle-color */
             --rack-bg:        #8a9099;
             --rack-metal:     linear-gradient(180deg, #5a6270, #3d4450); /* chassis resta scuro */
             --surface-1:      #ffffff;

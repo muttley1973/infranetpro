@@ -645,13 +645,14 @@
         /* Le due porte «off» — DOPO .active/.fault/.idle nella cascata, quindi a
            parita' di specificita' vincono: qualunque cosa il documento dica di questa
            porta, se lo switch la misura giu' quello e' il fatto che conta. Nessun
-           alone: gli altri stati brillano perche' sono vivi, questi sono buchi.
-           Scala monocroma, dal fatto piu' forte al piu' debole:
-             .admin-down  spenta a mano (`shutdown`) — una decisione;
-             .no-link     senza link da >=3 verifiche — un sintomo ambiguo (device
-                          spento? NIC morta? SFP sfilato?), quindi un grigio scuro e
-                          non il nero: mezza strada verso il grigio neutro del «non
-                          risulta niente», che e' esattamente quel che sappiamo. */
+           alone in nessuna delle due: gli stati vivi brillano, queste no — l'una
+           perche' e' un buco, l'altra perche' segnala senza fingersi accesa.
+             .admin-down  spenta a mano (`shutdown`) — una DECISIONE: nero, quieta,
+                          identica a una porta che non c'e'. Chi l'ha spenta lo sa.
+             .no-link     senza link da >=3 verifiche — un SINTOMO ambiguo (device
+                          spento? NIC morta? SFP sfilato?) che qualcuno deve andare a
+                          guardare: AMBRA, cioe' attenzione. Deliberatamente diversa
+                          dall'ambra di `.idle` (#f5a623), che e' una dichiarazione. */
         /* ⚠️ Il gemello di queste due regole sta in 06-panels.css, subito dopo
            `.port-led.lag-member`: quella e' `!important` e vince su qualsiasi cosa
            scritta qui. Se cambi un colore, cambialo in ENTRAMBI. */

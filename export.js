@@ -846,7 +846,7 @@ function _buildRackSVG(rackId, opts){
     // in cui parla l'apparato invece del documento, e un dossier che stampa verde
     // una porta in `shutdown` è esattamente il genere di bugia che non vogliamo su
     // carta. La regola NON si riscrive qui: è portShade() di lib/port-state.js.
-    const SHUT_COLOR = '#0a0d11', NOLINK_COLOR = '#3c4149';
+    const SHUT_COLOR = '#0a0d11', NOLINK_COLOR = '#d29922';   // ⚠️ gemelli in 01-tokens.css e lib/drawio-export.js
     const shadeColor = pi => {
         const s = (typeof portShade === 'function') ? portShade(pi) : null;
         return s === 'shut' ? SHUT_COLOR : (s === 'no-link' ? NOLINK_COLOR : null);

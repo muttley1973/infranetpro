@@ -582,7 +582,7 @@ test('draw.io: porta senza link da >=N verifiche -> grigio scuro', () => {
     ports: { 'sw1-1': { status: 'inactive', downStreak: 4 }, 'sw1-2': { status: 'inactive', downStreak: 1 } },
     helpers: { types: TYPES, portShade },
   });
-  assert.match(cellOf(xml, 'sw1-1'), /#3c4149/);
+  assert.match(cellOf(xml, 'sw1-1'), /#d29922/);
   assert.match(cellOf(xml, 'sw1-2'), /#6e7681/, 'un blip sotto soglia resta grigio neutro');
 });
 

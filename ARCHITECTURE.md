@@ -360,10 +360,23 @@ requires a signal a live host cannot suppress:
 `ifOperStatus` says whether a port has link; `ifAdminStatus` (IF-MIB `.7`, read since
 2.9.2) says whether a person turned it off. The two are different facts — the first is
 a symptom (device off, dead NIC, SFP pulled), the second a decision written on the
-device — and the rack draws them on a **monochrome scale** rather than as new hues,
-since green/red/amber already mean something else: near-black `--shut-color` for a port
-in `shutdown`, dark grey `--nolink-color` for no link across `DOWN_STREAK_N` verifies,
-plain grey for everything unknown.
+device — and the rack draws them apart *because* they are apart. A port in `shutdown`
+keeps the near-black `--shut-color`: a decision asks nothing of anybody, and whoever
+made it knows. No link across `DOWN_STREAK_N` verifies takes **amber** `--nolink-color`,
+because an ambiguous symptom is precisely the thing somebody has to walk over and look
+at. Everything unknown stays plain grey — a port nobody has measured is not a symptom.
+Neither of the two glows: the live states glow because they are lit, these signal
+without pretending to be.
+
+⚠️ That amber is deliberately **not** the amber of `idle` («Ready», `#f5a623`), which is
+a *declared* state: two states cannot share a hue or the eye merges them and the colour
+stops saying anything. And the hex is written **three times** — the CSS token plus the
+two exports, which build files outside the browser where a token does not exist — which
+is this project's most expensive shape of defect, here landing on a PDF handed to a
+customer with a port one colour on screen and another on paper. Unifying is impossible
+(a `.css` cannot be imported from Node), so the second house recipe applies:
+`test/porta-senza-link-colore.test.js` compares the three copies and refuses any two of
+the five port states that resolve to the same value.
 
 The rule is `portShade()` in **`lib/port-state.js`**, read by both renderers (the
 generated front panel and the vector skin), by the port Properties, by the PDF dossier
@@ -389,7 +402,8 @@ true→false transition so a reopened port must re-earn its `no-link` over N rea
 verifies, and `buildDriftReport` skips a cable whose end is shut regardless of a
 streak stored by an older save. Without this, shutting a port for a few verifies
 turned every inferred cable on it into a ghost — 35% opacity and a sparse dash, which
-on screen reads as gone — and reopening the port jumped straight back to dark grey.
+on screen reads as gone — and reopening the port jumped straight back to the no-link
+shade, on a streak matured for the wrong reason.
 
 The streak counts a **measurement**, not `port.status`. That field has three writers
 with three meanings — the user drawing a cable, the DCIM import, the poll — and when

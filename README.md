@@ -141,7 +141,10 @@ Double-click <code>avvia.bat</code>.<br>
 > link, which belongs to no VLAN at all — not even 1, since `no switchport` takes the interface out of
 > the switching domain altogether. Everything a cable's VLAN involves now lives in **one section of the
 > cable panel** — what applies, the port mode, the native VLAN, the carried ones, the colour override —
-> instead of being spread across the panel and repeated three times over.
+> instead of being spread across the panel and repeated three times over. And in the rack, a port with
+> **no link across three consecutive verifies** is amber rather than dark grey: a port somebody turned
+> off by hand is a decision and stays quiet, while a port that simply stopped having link is an ambiguous
+> symptom, and those are worth walking over to look at.
 >
 > 📰 **v2.10.0 — the document learns where things are, and what hosts what.**
 > A NetBox **location becomes a room** on the floor plan, with its racks and devices inside it; what has

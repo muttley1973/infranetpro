@@ -298,9 +298,9 @@ test('export: nel rack SVG la porta spenta a mano è quasi nera, quella senza li
       const svg = _exportInternals._buildRackSVG(state.currentRack, { pdfMode:true }).svg;
       return JSON.stringify({ ok:true,
         hasShut:   svg.includes('#0a0d11'),
-        hasNoLink: svg.includes('#3c4149'),
+        hasNoLink: svg.includes('#d29922'),
         shutCount:   (svg.match(/#0a0d11/g)||[]).length,
-        nolinkCount: (svg.match(/#3c4149/g)||[]).length });
+        nolinkCount: (svg.match(/#d29922/g)||[]).length });
     } catch(e){ return JSON.stringify({ ok:false, err:String(e&&e.stack||e) }); }
   })()`);
   const r = JSON.parse(out);
@@ -319,7 +319,7 @@ test('export: senza porte misurate il rack SVG non contiene i due grigi', () => 
     try {
       ${SETUP}
       const svg = _exportInternals._buildRackSVG(state.currentRack, { pdfMode:true }).svg;
-      return JSON.stringify({ ok:true, shut: svg.includes('#0a0d11'), nolink: svg.includes('#3c4149') });
+      return JSON.stringify({ ok:true, shut: svg.includes('#0a0d11'), nolink: svg.includes('#d29922') });
     } catch(e){ return JSON.stringify({ ok:false, err:String(e&&e.stack||e) }); }
   })()`);
   const r = JSON.parse(out);
