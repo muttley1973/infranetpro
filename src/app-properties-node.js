@@ -21,7 +21,7 @@ import { osIconHtmlFor } from '../lib/os-icon.js';   // icona OS (accento colora
 import { pduManagementPortCount } from '../lib/pdu-layout.js';
 import { _discIdentityLabel } from './app-discovery-classify.js';   // ritiro ponte: alias-block sciolto (ex win.*)
 import { _defaultStackName, setNodeStack, setNodeStackMemberId, removeNodeFromStack, acceptStackHint, dismissStackHint, setNodeHaPair, setNodeHaCluster, setNodeHaRole, setNodeHaMode, setNodeHaSync, removeNodeFromHa, _defaultHaGroupName } from './app-stack-ha.js';   // ritiro ponte: stacking/HA (ex win.*)
-import { getLagGroupsForNode, setLagMode, renameLag, dissolveLag } from './app-ports.js';   // ritiro ponte: alias-block sciolto + LAG manuali (ex win.*)
+import { getLagGroupsForNode, setLagMode, setLagVlan, renameLag, dissolveLag } from './app-ports.js';   // ritiro ponte: alias-block sciolto + LAG manuali (ex win.*)
 import { _nodeDeviceChainHtml } from './app-properties-node-devices.js';   // ritiro ponte: alias-block sciolto (ex win.*)
 import { _l3SviSectionHtml } from './app-l3.js';   // ritiro ponte: alias-block sciolto (ex win.*)
 import { _panelSkinSectionHtml } from './app-panel-skin.js';   // ritiro ponte: alias-block sciolto (ex win.*)
@@ -166,6 +166,7 @@ registerChangeActions({
     'ha-sync':            (el) => setNodeHaSync(el.value),
     'ha-cluster-name':    (el) => setNodeHaCluster(el.value, el.dataset.harole, el.dataset.hamode),
     'lag-mode-set':       (el) => setLagMode(el.dataset.gid, el.value),
+    'lag-vlan-set':       (el) => setLagVlan(el.dataset.gid, el.value),
     'lag-rename':         (el) => renameLag(el.dataset.gid, el.value),
 });
 registerInputActions({
@@ -809,6 +810,7 @@ ${showFiber ? `<div class="prop-row2">
                             // → cricchetto invariato). Warning solo se c'è un problema reale
                             // (giudica solo dati documentati, niente invenzioni).
                             const _bits=[];
+                            let _lagVlans=[];      // VLAN EFFICACE dei membri, distinte (dall'audit)
                             try {
                                 if(typeof checkLagMembers==='function'){
                                     const _mm=_lagMap[gid].map(m=>{
@@ -818,6 +820,7 @@ ${showFiber ? `<div class="prop-row2">
                                         return { num:m.num, speed:_sp, vlan:_vl };
                                     });
                                     const _c=checkLagMembers(_mm);
+                                    _lagVlans=Array.from(_c.vlans||[]);
                                     const _fmt=s=>s>=1000?`${(s/1000).toFixed(s%1000?1:0)}G`:`${s}M`;
                                     if(_c.speedMismatch) _bits.push(t('lag.warnSpeed',{list:_c.speeds.map(_fmt).join(', ')}));
                                     if(_c.vlanMismatch)  _bits.push(t('lag.warnVlan',{list:_c.vlans.join(', ')}));
@@ -829,17 +832,31 @@ ${showFiber ? `<div class="prop-row2">
                                 }
                             } catch(_){}
                             const _lagWarn=_bits.length?`<div class="lag-warn" style="font-size:0.72rem;color:#d29922;padding:2px 0 6px">⚠ ${escapeHTML(_bits.join(' · '))}</div>`:'';
-                            const _modeSel=`<select class="lag-group-mode" data-change="lag-mode-set" data-gid="${gid}" data-tip="${t('lag.modeTip')}">`
+                            // VLAN del BUNDLE. Il campo porta la DICHIARAZIONE — e solo
+                            // se e' la stessa su tutti i membri, perche' un numero solo
+                            // non puo' rappresentarne due; quando divergono resta vuoto e
+                            // il placeholder dice cosa vale davvero. Stessa forma del
+                            // pannello porta: valore = cio' che hai detto, placeholder =
+                            // cio' che si applica, e un placeholder non afferma niente.
+                            const _lagOvr = _lagMap[gid].map(m => ((state.ports&&state.ports[m.pid])||{}).vlanOvr);
+                            const _lagOvrUnici = [...new Set(_lagOvr.map(v => v==null ? '' : String(v)))];
+                            const _lagVlanVal = _lagOvrUnici.length===1 ? _lagOvrUnici[0] : '';
+                            const _lagVlanPh = _lagVlans.length===1 ? String(_lagVlans[0]) : t('lag.vlanMixed');
+                            const _lagVlanInp = `<input type="number" min="1" max="4094" class="lag-group-vlan"
+                              value="${escapeHTML(_lagVlanVal)}" placeholder="${escapeHTML(_lagVlanPh)}"
+                              data-change="lag-vlan-set" data-gid="${escapeHTML(gid)}" data-tip="${t('lag.vlanTip')}">`;
+                            const _modeSel=`<select class="lag-group-mode" data-change="lag-mode-set" data-gid="${escapeHTML(gid)}" data-tip="${t('lag.modeTip')}">`
                               +`<option value="" ${!_curMode?'selected':''}>${escapeHTML(t('lag.modeUnset'))}</option>`
                               +`<option value="active" ${_curMode==='active'?'selected':''}>${escapeHTML(t('lag.modeActive'))}</option>`
                               +`<option value="passive" ${_curMode==='passive'?'selected':''}>${escapeHTML(t('lag.modePassive'))}</option>`
                               +`<option value="static" ${_curMode==='static'?'selected':''}>${escapeHTML(t('lag.modeStatic'))}</option>`
                               +`</select>`;
                             lagHtml+=`<div class="lag-group-row">
-                              <input class="lag-group-name" value="${escapeHTML(gname)}" placeholder="${t('pnl.node.lagNamePlaceholder')}" data-change="lag-rename" data-gid="${gid}" data-tip="${t('pnl.node.renameLagGroup')}">
+                              <input class="lag-group-name" value="${escapeHTML(gname)}" placeholder="${t('pnl.node.lagNamePlaceholder')}" data-change="lag-rename" data-gid="${escapeHTML(gid)}" data-tip="${t('pnl.node.renameLagGroup')}">
                               <span class="lag-chips">${members}</span>
+                              ${_lagVlanInp}
                               ${_modeSel}
-                              <button class="lag-group-del" data-act="lag-dissolve" data-gid="${gid}" data-tip="${t('pnl.node.dissolveGroup')}">✕</button>
+                              <button class="lag-group-del" data-act="lag-dissolve" data-gid="${escapeHTML(gid)}" data-tip="${t('pnl.node.dissolveGroup')}">✕</button>
                             </div>${_lagWarn}`;
                         }
                         lagHtml+='</div></div></details>';

@@ -247,6 +247,47 @@ function removePortFromLag(pid){
     renderProps();
 }
 
+/** VLAN DICHIARATA di un LAG: si scrive una volta, e finisce su tutti i membri.
+ *
+ *  Su un apparato vero un Port-channel si configura una volta sola
+ *  (`interface Po1 / switchport access vlan 20`) e i membri ereditano; membri
+ *  discordi non aggregano nemmeno — LACP li scarta, ed e' proprio cio' che
+ *  `checkLagMembers` avvisa. Finora l'unico modo di dirlo qui era ripeterlo su
+ *  ogni porta, e chi ne dimenticava una si prendeva l'avviso di incoerenza per un
+ *  lavoro che il ferro fa da se'.
+ *
+ *  La dichiarazione appartiene al BUNDLE, ma viene scritta come `vlanOvr` su OGNI
+ *  porta membro: cosi' ogni consumatore continua a leggere la porta — nessun altro
+ *  strato deve imparare che cos'e' un LAG — e l'avviso di coerenza resta
+ *  RAGGIUNGIBILE se piu' tardi qualcuno ne cambia una a mano.
+ *
+ *  ⛔ La strada scartata era farla EREDITARE dentro `propagateVlans` a un membro
+ *  «vuoto» da un fratello che ce l'ha. Sarebbe un numero scritto su una porta che
+ *  nessuno ha dichiarato — la classe di difetto chiusa in questa stessa versione —
+ *  e in piu' zittirebbe l'unico avviso che scopre una configurazione sbagliata sul
+ *  ferro vero.
+ *
+ *  Valore vuoto o fuori da 1..4094 = TOGLIE la dichiarazione da tutti i membri
+ *  (non scrive 1: «nessuna dichiarazione» e «dichiarata 1» sono due cose diverse).
+ *  @param {string} gid @param {string|number} val */
+export function setLagVlan(gid, val){
+    const state = store.state;
+    if(!gid) return;
+    const membri = Object.entries(state.ports || {}).filter(([, pi]) => pi && pi.lagGroup === gid);
+    if(!membri.length) return;
+    const v = parseInt(val, 10);
+    const dichiara = Number.isFinite(v) && v >= 1 && v <= 4094;
+    pushHistory();
+    for(const [, pi] of membri){
+        if(dichiara) pi.vlanOvr = v; else delete pi.vlanOvr;
+    }
+    if(dichiara && typeof _ensureVlanColor === 'function') _ensureVlanColor(v);
+    if(typeof propagateVlans === 'function') propagateVlans();
+    markDirty();
+    renderAll();
+    renderProps();
+}
+
 function dissolveLag(gid){
     const state = store.state;
     pushHistory();
@@ -692,7 +733,7 @@ export {
 expose({
     togglePortVlanLock,
     renderPortsTable, getLagGroupsForNode, startLagMode, _toggleLagPort,
-    confirmLag, cancelLag, removePortFromLag, dissolveLag, renameLag, setLagMode,
+    confirmLag, cancelLag, removePortFromLag, dissolveLag, renameLag, setLagMode, setLagVlan,
     _updateLagBanner, computeLagCarrierPids, getPassivePortLagInfo,
     togglePortHidden, clearAllPortOverrides, _refreshPortRow, portTip,
     _portDisplayName, setPortField, clearPortField, setPortSpeed,

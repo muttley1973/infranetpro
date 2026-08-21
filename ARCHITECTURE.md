@@ -500,6 +500,21 @@ what applies as a placeholder. Pre-filling it with a fallback is the driver's «
 defect one layer up and in a worse place: there, one keystroke turns a stopgap into the
 user's own assertion. A placeholder asserts nothing; a value does.
 
+**A bundle's VLAN is declared once, and written to every member.** On real hardware a
+Port-channel is configured once and the members inherit; members that disagree do not
+aggregate at all, which is what `checkLagMembers` already warned about. The LAG row
+therefore carries its own VLAN field, and `setLagVlan()` writes `vlanOvr` onto every port
+of the group — an empty value clears them rather than writing 1, since «nothing declared»
+and «declared VLAN 1» are different states. Writing it onto the members, rather than
+holding it on the group, keeps two properties: no other layer has to learn what a LAG is,
+and the coherence warning stays **reachable** if somebody later changes one port by hand.
+
+⛔ The shortcut refused here is worth recording, because it looks elegant: letting an
+undeclared member inherit from a sibling inside `propagateVlans()`. It would write a
+number onto a port nobody declared — the defect this release exists to close — and it
+would silence the one warning that catches a genuinely broken bundle. A test pins both
+halves, including the fact that propagation does *not* inherit.
+
 ⚠️ **One VLAN means one in total, native included.** The count used to filter VLAN 1 out, so
 a trunk with native 1 plus one tagged VLAN passed for «carrying a single VLAN» and took that
 colour — while two VLANs cross that copper, since the native's untagged traffic goes over it

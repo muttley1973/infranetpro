@@ -374,6 +374,10 @@
             background:var(--bg-color); border:1px solid var(--panel-border); border-radius: var(--radius-sm); }
         .lag-group-name:focus { border-color:var(--accent); outline:none; }
         .lag-group-ports { color:var(--text-main); flex:1; font-size:var(--fs-md); }
+        /* VLAN del bundle: stessa altezza del nome, largo quanto basta a 4 cifre. */
+        .lag-group-vlan { flex:0 0 62px; font-family:inherit; font-size:var(--fs-lg); color:var(--text-main);
+            padding:5px 7px; background:var(--bg-color); border:1px solid var(--panel-border); border-radius: var(--radius-sm); }
+        .lag-group-vlan:focus { border-color:var(--accent); outline:none; }
         .lag-group-del { background:none; border:1px solid #444; color:#666; border-radius:3px;
             padding:1px 6px; font-size:var(--fs-xs); cursor:pointer; flex-shrink:0; }
         .lag-group-del:hover { border-color:var(--fault-color); color:var(--fault-color); }

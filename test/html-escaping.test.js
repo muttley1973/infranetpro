@@ -200,7 +200,12 @@ const CAPS = {
     // picker dell'utente: era il piu' esposto dei quattro.
     'src/app-properties-link.js': 12,
     'src/app-properties-node-devices.js': 84,
-    'src/app-properties-node.js': 49,
+    // −3 (2.10.1, da 49): la riga del gruppo LAG ha guadagnato il campo VLAN del
+    // bundle, e nel farlo i quattro `data-gid` di quella riga sono passati
+    // dall'escaper. Non e' cosmesi: per un LAG scoperto via SNMP il gid e'
+    // costruito dal nome dell'apparato, cioe' testo che arriva dalla rete e
+    // finiva crudo dentro un attributo.
+    'src/app-properties-node.js': 46,
     'src/app-properties-port.js': 16,
     'src/app-properties-vm.js': 15,
     'src/app-properties.js': 17,
