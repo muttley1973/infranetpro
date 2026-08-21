@@ -132,8 +132,14 @@ Double-click <code>avvia.bat</code>.<br>
 > *native* VLAN, which on a trunk is legitimately 1 — so a network where everything real travels tagged
 > came out uniformly grey. An access cable now takes the colour of the one VLAN that applies to it, while
 > **a trunk takes none** — on a trunk no VLAN wins, so instead of electing one the panel shows them all as
-> coloured pills. And a **routed** link, which belongs to no VLAN at all, is finally told apart from a
-> switched port whose VLAN nobody has declared: the first is a fact, the second is a gap worth closing.
+> coloured pills. Who may name that VLAN is **whoever switches it**, not merely whoever is an active
+> device: a box whose entire VLAN world is `[1]` is saying «my port is untagged», and its 1 no longer
+> overrules a declared network. A cable that switches always ends up with a colour, because every bridge
+> port has a PVID and where nobody configured one that PVID is 1 — so a cable nobody can name takes the
+> **site's native VLAN**, and the panel says it is a default rather than a reading. The only cables left
+> without a colour are the two that genuinely have no single VLAN: a multi-VLAN trunk, and a **routed**
+> link, which belongs to no VLAN at all — not even 1, since `no switchport` takes the interface out of
+> the switching domain altogether.
 >
 > 📰 **v2.10.0 — the document learns where things are, and what hosts what.**
 > A NetBox **location becomes a room** on the floor plan, with its racks and devices inside it; what has
@@ -379,7 +385,12 @@ Double-click <code>avvia.bat</code>.<br>
 - **VLAN details grouped by device** — the members modal collapses access ports into per-device accordions.
 - **Auto-derived trunks** — a link's trunk membership is *derived* from the VLANs its endpoints carry (VoIP voice VLAN, per-SSID Wi-Fi VLANs) plus the polled trunk. Manual-first: a hand-set trunk wins (`lib/vlan-trunk.js`).
 - **Unified VLAN distribution, cable ↔ wireless** — the same propagation seeds physical ports *and* radios, so a wireless client inherits its SSID's VLAN exactly like a wired access port.
-- **Site default native VLAN** — change the untagged default site-wide; per-port and per-trunk overrides win.
+- **Site default native VLAN** — change the untagged default site-wide; per-port and per-trunk overrides win. It is also the **floor**: a cable that switches and that no source can name takes it, labelled as a default rather than a reading.
+- **One decision for a cable's colour** (`lib/link-vlan-color.js`) — three outcomes and nothing else: one VLAN applies and you see its colour; a trunk carries several and stays neutral with the carried VLANs as equal pills; a routed link belongs to no VLAN at all. Eight sites used to compute this independently and had already drifted apart.
+- **Whoever names a VLAN must switch it** (`lib/vlan-authority.js`) — being an *active* device is not enough: a box whose entire VLAN world is `[1]` is saying «my port is untagged», so its 1 no longer overrules a declared network. The same rule governs propagation, so the claim cannot come back as an inherited VLAN one rung lower.
+- **Unmanaged switches are VLAN-transparent** — declared in the Switch panel, never guessed: the VLAN arriving at the box's edge applies to every one of its sockets, the way a plain 802.1D bridge actually behaves.
+- **Routed ports are measured, not inferred** — a port that owns an address *and* is absent from the bridge-port table routes; being **in** that table vetoes the verdict, because a device that switches is not routing.
+- **Carried VLANs are reconciled** — the trunk list written by hand is compared with what the switches allow, one row per end, and adopting reality writes onto the cable where the declaration lives.
 - **IPAM occupancy from DHCP leases** — real address usage per VLAN: capacity, a usage bar, and a documented / DHCP-only / free breakdown, with an *"N undocumented → Adopt"* shortcut that carries MAC, IP and hostname (`lib/ipam.js`, read-only).
 
 </details>

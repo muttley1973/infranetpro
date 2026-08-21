@@ -438,7 +438,7 @@ also what `_getLinkTrunk` uses as the trunk native. The colour was asking it the
 question. On an access cable the native is the whole truth, but on a trunk it is one VLAN
 among several and legitimately 1, so painting it says «VLAN 1» about a cable carrying four.
 
-`lib/link-vlan-color.js` answers a different question — *what is this cable* — with four
+`lib/link-vlan-color.js` answers a different question — *what is this cable* — with three
 outcomes, each saying one thing only:
 
 | outcome | when | shown as |
