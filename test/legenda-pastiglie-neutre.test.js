@@ -1,18 +1,20 @@
 'use strict';
 // ============================================================================
-// La legenda dice che cosa un cavo È, non che cosa gli manca
+// La legenda delle VLAN contiene VLAN — e una sola voce che non lo è
 // ============================================================================
-// C'era una voce sola, «senza colore VLAN», che copriva tutti i cavi neutri.
-// Era un'etichetta definita per ASSENZA — e in un modello dove un cavo che
-// commuta un colore ce l'ha sempre, l'assenza non è più una categoria: restano
-// due stati, e sono due affermazioni precise.
+// C'era una voce, «senza colore VLAN», che copriva tutti i cavi neutri: un
+// etichetta definita per ASSENZA, in un modello dove ormai un cavo che commuta
+// un colore ce l'ha sempre. È stata tolta.
 //
-//   trunk       porta più VLAN e nessuna prevale → neutro, le mostra tutte
-//   instradato  non sta in nessuna VLAN, nemmeno nella 1
+// Resta **una** voce non-VLAN: il collegamento **INSTRADATO**, perché è l'unico
+// neutro che non ha altro modo di farsi scoprire. Il trunk ce l'ha — il suo
+// bottone in topologia lo evidenzia meglio di una pastiglia, e il colore si
+// cambia comunque dalle Proprietà del cavo — quindi in legenda non ci va: quella
+// è la legenda delle VLAN, e un trunk non è una VLAN.
 //
-// ⚠️ Ognuna compare SOLO se almeno un cavo ci cade davvero: una voce di legenda
-// che spiega un colore assente dalla mappa è rumore. Ed è il tipo di regola che
-// si rompe in silenzio — nessuno guarda una legenda finché non è sbagliata.
+// ⚠️ La voce compare SOLO se almeno un cavo ci cade davvero: una voce che spiega
+// un colore assente dalla mappa è rumore. Ed è il tipo di regola che si rompe in
+// silenzio — nessuno guarda una legenda finché non è sbagliata.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('path');
@@ -47,13 +49,7 @@ function pastiglieNeutre(setup) {
   return { pastiglie: out2, esiti: Array.from(out.esiti || []) };
 }
 
-test('un trunk multi-VLAN mette in legenda «trunk», e nient’altro', () => {
-  const r = pastiglieNeutre(`state.links.push({ id:'l1', src:'a-1', dst:'b-1', mode:'trunk', trunkVlans:'10,20' });`);
-  assert.deepEqual(r.esiti, ['trunk']);
-  assert.deepEqual(r.pastiglie, ['trunk']);
-});
-
-test('un collegamento instradato mette «instradato», e nient’altro', () => {
+test('un collegamento instradato mette in legenda «instradato»', () => {
   const r = pastiglieNeutre(`
     state.links.push({ id:'l1', src:'a-1', dst:'b-1' });
     state.ports['a-1'] = { ownsIp:true };`);
@@ -61,18 +57,24 @@ test('un collegamento instradato mette «instradato», e nient’altro', () => {
   assert.deepEqual(r.pastiglie, ['instradato']);
 });
 
-test('se ci sono tutti e due, la legenda li elenca tutti e due', () => {
+test('un trunk NON mette niente in legenda: ha il suo bottone', () => {
+  const r = pastiglieNeutre(`state.links.push({ id:'l1', src:'a-1', dst:'b-1', mode:'trunk', trunkVlans:'10,20' });`);
+  assert.deepEqual(r.esiti, ['trunk'], 'il cavo è neutro come prima…');
+  assert.deepEqual(r.pastiglie, [], '…ma la legenda delle VLAN non lo elenca');
+});
+
+test('con trunk E instradato insieme, resta la sola voce «instradato»', () => {
   const r = pastiglieNeutre(`
     state.links.push({ id:'l1', src:'a-1', dst:'b-1', mode:'trunk', trunkVlans:'10,20' });
     state.links.push({ id:'l2', src:'a-2', dst:'b-2' });
     state.ports['a-2'] = { ownsIp:true };`);
   assert.deepEqual(r.esiti, ['trunk', 'routed']);
-  assert.deepEqual(r.pastiglie, ['trunk', 'instradato']);
+  assert.deepEqual(r.pastiglie, ['instradato']);
 });
 
 test('se ogni cavo ha la sua VLAN, di pastiglie neutre non ce n’è nessuna', () => {
-  // La riprova del riconoscitore: se le pastiglie comparissero sempre, i tre
-  // test sopra passerebbero lo stesso e non proverebbero niente.
+  // La riprova del riconoscitore: se la voce comparisse sempre, il primo test
+  // passerebbe lo stesso e non proverebbe niente.
   const r = pastiglieNeutre(`
     state.links.push({ id:'l1', src:'a-1', dst:'b-1' });
     state.ports['a-1'] = { vlan:10 };`);
