@@ -524,7 +524,7 @@ function driftApplyDoc(key){
     const state = store.state;
     const row = (store._driftReport && store._driftReport.stateDrift || []).find(r => r.key === key);
     if(!row || !row.patch) return;
-    const { pid, status, speed, duplex, vlan } = row.patch;
+    const { pid, status, speed, duplex, vlan, trunkVlans, linkId } = row.patch;
     pushHistory();
     if(!state.ports[pid]) state.ports[pid] = {};
     // allinea la DOC alla realta': scrivo i valori reali come nuovi valori base
@@ -536,6 +536,13 @@ function driftApplyDoc(key){
     delete state.ports[pid].statusOvr;
     delete state.ports[pid].speedOvr;
     delete state.ports[pid].vlanOvr;
+    // Le VLAN trasportate si adottano sul CAVO: è lì che vive la dichiarazione
+    // («VLAN trasportate» del pannello Proprietà cavo). Scriverle sulla porta
+    // sarebbe scrivere una misura, e il poll dopo la riscriverebbe da sé.
+    if(linkId && trunkVlans){
+        const lk = state.links.find(x => x.id === linkId);
+        if(lk){ lk.trunkVlans = trunkVlans; lk.mode = 'trunk'; }
+    }
     if(typeof logAudit === 'function') logAudit('drift-apply', { target: row.label, summary: (row.diffs || []).map(d => `${d.field}→${d.real}`).join(', ') });
     markDirty(); renderAll();
     _driftDropRow(key);
