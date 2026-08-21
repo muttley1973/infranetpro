@@ -407,7 +407,10 @@ function _addReportPages(doc, report, projName, date, SVGtoPDF, options = {}, la
     ]; // 539
     const rows = (report.cables || []).map((c, i) => [
       i + 1, c.label || '-', c.from || '-', c.to || '-',
-      c.vlan ? `${c.vlan}${c.vlanName ? ' - ' + c.vlanName : ''}` : '-',
+      // Un trunk porta piu' VLAN: si stampa la LISTA, non una sola col nome — su
+      // carta non c'e' il colore a distinguerle, e una sola diceva meno del vero.
+      c.vlanCarried ? c.vlanCarried
+        : (c.vlan ? `${c.vlan}${c.vlanName ? ' - ' + c.vlanName : ''}` : '-'),
       c.medium || '-', c.length || '-', c.category || '-',
     ]);
     if (!rows.length)
