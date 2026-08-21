@@ -41,8 +41,9 @@ const scenario = (extra = '') => `(() => {
   propagateVlans();
   selType='link'; selId='l1'; renderProps();
   const html = document.getElementById('props-panel').innerHTML || '';
-  const i = html.indexOf('<label>VLAN</label>');
-  const blocco = i >= 0 ? html.slice(i, i + 1200) : '';
+  const i = html.indexOf('data-section="link-vlan"');   // la fisarmonica VLAN
+  const fine = i >= 0 ? html.indexOf('</details>', i) : -1;   // la sezione non ne annida altre
+  const blocco = i >= 0 ? html.slice(i, fine > 0 ? fine : html.length) : '';
   const inp = blocco.match(/<input[^>]*data-change="link-native-vlan"[^>]*>/);
   const p = _linkPaintVlan(state.links[0]);
   return {

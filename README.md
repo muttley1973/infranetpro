@@ -139,7 +139,9 @@ Double-click <code>avvia.bat</code>.<br>
 > **site's native VLAN**, and the panel says it is a default rather than a reading. The only cables left
 > without a colour are the two that genuinely have no single VLAN: a multi-VLAN trunk, and a **routed**
 > link, which belongs to no VLAN at all — not even 1, since `no switchport` takes the interface out of
-> the switching domain altogether.
+> the switching domain altogether. Everything a cable's VLAN involves now lives in **one section of the
+> cable panel** — what applies, the port mode, the native VLAN, the carried ones, the colour override —
+> instead of being spread across the panel and repeated three times over.
 >
 > 📰 **v2.10.0 — the document learns where things are, and what hosts what.**
 > A NetBox **location becomes a room** on the floor plan, with its racks and devices inside it; what has

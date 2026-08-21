@@ -469,6 +469,23 @@ it has no answer, not a hard one. So a multi-VLAN trunk takes no colour, and the
 carries are shown together at equal weight. A trunk carrying exactly one VLAN keeps its
 colour: there nothing is chosen, it is observed.
 
+**Where that answer lives on screen.** All of it — the outcome, the port mode, the native
+VLAN, the carried ones and the colour override — sits in one collapsible section of the
+cable panel, the same `details.props-collapsible` every other section of the properties
+panel uses, with the model's own verdict previewed in the head while it is closed. What
+the section says once it does not say again: on a trunk the carried VLANs *are* the pills,
+not a sentence repeating them, and the provenance line appears everywhere except a
+multi-VLAN trunk — which asserts no VLAN at all, so it has no default that could pass for
+a reading. The port **mode** is not in there at all: TRUNK/ACCESS is a property of the
+link, so it stands with the badges that answer *what is this cable* — first among them,
+before the state, the discovery protocol and the proof state.
+
+⚠️ The VLAN field in that section is **editable, and writes an override onto the active
+port**. It therefore carries only the *declaration*, empty when there is none, and shows
+what applies as a placeholder. Pre-filling it with a fallback is the driver's «VLAN 1»
+defect one layer up and in a worse place: there, one keystroke turns a stopgap into the
+user's own assertion. A placeholder asserts nothing; a value does.
+
 ⚠️ **One VLAN means one in total, native included.** The count used to filter VLAN 1 out, so
 a trunk with native 1 plus one tagged VLAN passed for «carrying a single VLAN» and took that
 colour — while two VLANs cross that copper, since the native's untagged traffic goes over it

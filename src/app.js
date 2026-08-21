@@ -1390,7 +1390,11 @@ const _CABLE_PROOF_BADGE = {
 export function _cableProofBadgeHtml(state){
     const m = _CABLE_PROOF_BADGE[state];
     if(!m) return '';
-    return `<span class="cable-proof-badge" style="background:${m.color};color:#fff;padding:2px 9px;border-radius:4px;font-weight:700;font-size:0.74rem" data-tip="${t('proof.badge.tip')}">${t('proof.badge.' + m.key)}</span>`;
+    // La FORMA sta nel foglio di stile (.cable-proof-badge): qui resta solo il
+    // colore, che dipende dallo stato. Cosi' chi lo ospita puo' ridimensionarlo
+    // senza toccare questa funzione — e senza !important, che e' il sintomo di
+    // una forma scritta due volte.
+    return `<span class="cable-proof-badge" style="background:${m.color};color:#fff" data-tip="${t('proof.badge.tip')}">${t('proof.badge.' + m.key)}</span>`;
 }
 
 let _renderCablesRaf = 0;

@@ -16,6 +16,13 @@
         .snmp-section   { border-top:1px solid var(--panel-border); margin-top:10px; padding-top:10px; }
         .snmp-section h5{ font-size:var(--fs-md); text-transform:uppercase; color:var(--text-main); margin:0 0 8px; letter-spacing:.04em; }
         .props-collapsible { border-top:1px solid var(--panel-border); margin-top:10px; padding-top:10px; }
+        /* Badge di stato-di-prova del cavo. La forma sta QUI e non negli stili
+           inline di _cableProofBadgeHtml(), perche' lo stesso badge compare in due
+           posti a due misure: Panoramica (base) e riga «Stato» del pannello cavo
+           (120%, insieme agli altri badge di quella riga). */
+        .cable-proof-badge { padding:2px 9px; border-radius:4px; font-weight:700; font-size:0.74rem; }
+        .link-state-badges .cable-proof-badge { padding:3px 11px; border-radius:5px; font-size:0.89rem; }
+
         /* Gerarchia visiva: device-specifici hanno accent left, secondari sono muted. */
         .props-collapsible.props-primary { border-left:2px solid var(--accent); padding-left:8px; margin-left:-10px; transition:background-color .12s; }
         .props-collapsible.props-primary:not([open]) { background:color-mix(in srgb, var(--accent) 5%, transparent); }

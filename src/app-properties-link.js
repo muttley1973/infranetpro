@@ -97,15 +97,22 @@ function _cablePortDesc(pid){
 function _vlanPills(vlans){
     const list = (Array.isArray(vlans) ? vlans : []).filter(v => v >= 1 && v <= 4094);
     if(!list.length) return '';
+    // Taglia 160% rispetto a una pastiglia da elenco: qui non sono una
+    // decorazione accanto a un testo, sono la RISPOSTA — su un trunk le VLAN
+    // trasportate sono l'unica cosa che si possa dire del cavo, e la riga di
+    // testo che le ripeteva se n'e' andata.
+    // ⚠️ Il commento sta QUI e non dentro il map: lo scanner dell'escaping legge
+    // il membro destro senza saltare i commenti, e un apostrofo la' dentro gli fa
+    // perdere il filo — `${pills}` finiva nel residuo del cricchetto per un'apostrofe.
     const pills = list.map(v => {
         const col = store.state.vlanColors?.[v] || '#8b949e';
         const nome = store.state.vlanNames?.[v] || '';
         return `<span data-tip="${escapeHTML(nome ? `VLAN ${v} — ${nome}` : `VLAN ${v}`)}" data-tip-pos="bottom"
-            style="display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:var(--radius-sm);
-                   font-size:0.7rem;font-weight:700;background:${escapeHTML(col)}2e;color:${escapeHTML(col)}">
-            <span style="width:7px;height:7px;border-radius:50%;background:${escapeHTML(col)};flex-shrink:0"></span>${Number(v)}</span>`;
+            style="display:inline-flex;align-items:center;gap:6px;padding:3px 11px;border-radius:var(--radius-md);
+                   font-size:1.12rem;font-weight:700;background:${escapeHTML(col)}2e;color:${escapeHTML(col)}">
+            <span style="width:11px;height:11px;border-radius:50%;background:${escapeHTML(col)};flex-shrink:0"></span>${Number(v)}</span>`;
     }).join('');
-    return `<div style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0 6px">${pills}</div>`;
+    return `<div style="display:flex;flex-wrap:wrap;gap:6px;margin:3px 0 10px">${pills}</div>`;
 }
 
 export function _renderLinkProps(panel){
@@ -173,7 +180,12 @@ export function _renderLinkProps(panel){
         // distingue «VLAN 1 misurata» da «VLAN 1 perché nessuno ne ha assegnata
         // un'altra»: tacerla rimetterebbe un default a passare per una misura.
         const _presunta = _pl && (_pl.source === 'site-native' || _pl.source === 'untagged');
-        const _paint = (_pl && (_presunta || _pl.kind !== 'vlan' || _pl.vlan !== vl)) ? _pl : null;
+        // ⛔ Sul trunk quella riga direbbe una TERZA volta cio' che la pastiglia TRUNK
+        // in alto e le VLAN trasportate qui sotto dicono gia'. Non e' una provenienza
+        // nascosta: un trunk multi-VLAN non afferma nessuna VLAN, quindi non c'e'
+        // nessun ripiego che possa passare per una misura. Ovunque altro la riga
+        // resta, ed e' li' che serve davvero.
+        const _paint = (_pl && _pl.kind !== 'trunk' && (_presunta || _pl.kind !== 'vlan' || _pl.vlan !== vl)) ? _pl : null;
         const trunkVlans = l.trunkVlans || '';
         // Capo ATTIVO del trunk: la nativa è il PVID (vlanOvr) di quella porta →
         // editabile inline. Se nessun capo è attivo, la nativa arriva da monte.
@@ -191,16 +203,39 @@ export function _renderLinkProps(panel){
         // nome è quello della 99, non quello della nativa.
         const _vlMostrata = _plVlan != null ? _plVlan : vl;
         const vlanName = store.state.vlanNames[_vlMostrata] ? escapeHTML(store.state.vlanNames[_vlMostrata]) : '';
-        const _tkTagged = tk.vlans.filter(v=>v!==tk.native);
-        const vlanBadge = isTrunk
-            ? `<span style="background:#0e2233;border:1px solid #2d6a9f;border-radius:4px;padding:2px 10px;font-size:0.78rem;font-weight:700;color:#5ba3f5">TRUNK</span>
-               <span style="margin-left:6px;font-size:0.75rem;color:var(--text-muted)">${t('cable.trunkNative')}&nbsp;<b style="color:var(--text-main)">VLAN ${tk.native}</b></span>
-               ${_tkTagged.length?`<span style="margin-left:6px;font-size:0.75rem;color:var(--text-muted)">· ${t('cable.trunkCarried')}&nbsp;<b style="color:var(--text-main)">${_tkTagged.join(', ')}</b></span>`:''}
-               ${tk.derived?`<span style="margin-left:6px;font-size:0.68rem;color:#5ba3f5"><i class="fas fa-wand-magic-sparkles"></i> auto</span>`:''}`
-            : `<span style="display:inline-flex;align-items:center;gap:6px">
-                 <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${vlDotColor};flex-shrink:0;border:1px solid rgba(255,255,255,.18)"></span>
+        // La pastiglia TRUNK/ACCESS vive in alto, nella riga «Stato», insieme agli
+        // altri badge del cavo: dice che cos'e' il COLLEGAMENTO, non che VLAN porta.
+        // Qui sotto resta la sola forma ACCESS: la lettura del trunk (nativa +
+        // trasportate) ripeteva parola per parola i due campi della sezione, e le
+        // pastiglie colorate la dicono meglio di una riga di testo.
+        const vlanBadge = `<span style="display:inline-flex;align-items:center;gap:6px">
+                 <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${escapeHTML(vlDotColor)};flex-shrink:0;border:1px solid rgba(255,255,255,.18)"></span>
                  <b>${_pl ? escapeHTML(_pl.text) : `VLAN ${vl}`}</b>${vlanName?`<span style="color:var(--text-muted)">— ${vlanName}</span>`:''}
                </span>`;
+
+        // Il riquadro di lettura in testa alla sezione. Su un ACCESS dice qual e' la
+        // VLAN e la lascia dichiarare; su un TRUNK non dice piu' niente, e allora non
+        // c'e' proprio — un gruppo vuoto lascerebbe uno spazio che sembra un errore.
+        // ⚠️ Scritto a pezzi NOMINATI e non come funzione al volo: lo scanner
+        // dell'escaping sa risolvere una variabile, non una IIFE, e cio' che non sa
+        // dimostrare finisce nel residuo del cricchetto.
+        const _vlanLettura = _nativeActivePid
+            ? `<div style="display:flex;align-items:center;gap:8px">
+                     <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${escapeHTML(vlDotColor)};flex-shrink:0;border:1px solid rgba(255,255,255,.18)"></span>
+                     <input type="number" min="1" max="4094" value="${escapeHTML(_dichiarata != null ? _dichiarata : '')}"
+                            placeholder="${escapeHTML(_vlMostrata)}" ${lockAttr} style="flex:1"
+                            data-change="link-native-vlan" data-lid="${escapeHTML(l.id)}" data-tip="${t('cable.accessVlanTip')}">
+                   </div>
+                   ${vlanName?`<div style="font-size:0.7rem;color:var(--text-muted);margin-top:3px"><i class="fas fa-tag" style="font-size:0.6rem;margin-right:3px"></i>${vlanName}</div>`:''}`
+            : `<div style="padding:4px 0;font-size:0.83rem;color:var(--text-main)">${vlanBadge}</div>`;
+        const _vlanCorpo = isTrunk ? '' : _vlanLettura;
+        const _vlanProv = _paint ? `<div style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:0.72rem;color:var(--text-muted)"
+                     data-tip="${escapeHTML(_paint.tip || '')}" data-tip-pos="bottom">
+                   <span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${escapeHTML(_paint.color)};flex-shrink:0"></span>
+                   ${t('cable.paintLabel')}: <b style="color:var(--text-main);font-weight:600">${escapeHTML(_paint.text)}</b>
+                   ${_paint.why ? `<span>· ${escapeHTML(_paint.why)}</span>` : ''}
+                 </div>` : '';
+        const _vlanReadout = (_vlanCorpo || _vlanProv) ? `<div class="prop-group">${_vlanCorpo}${_vlanProv}</div>` : '';
 
         const autoLbl = _cableAutoLabel(l);
         const hasManualLbl = !!l.label;
@@ -231,12 +266,32 @@ export function _renderLinkProps(panel){
                 <div class="link-verify-msg"><i class="fas fa-triangle-exclamation" style="color:#cf222e"></i>
                     <span>${t('cable.miscabledMsg', { obs: escapeHTML(_misName(l.miscabled.observed)), decl: escapeHTML(_misName(l.miscabled.declared)) })}</span>
                 </div></div>` : '';
-        const stateRow = _ls ? `<div class="prop-group" style="flex:0 0 45%;padding-right:10px"><label style="text-align:right">${t('common.status')}</label>
-            <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;padding:4px 0;flex-wrap:wrap">
-              <span style="background:${_lsCol[_ls.key]||'#57606a'};color:#fff;padding:2px 9px;border-radius:4px;font-weight:700;font-size:0.74rem">${escapeHTML(_lsLabel)}</span>
-              ${_lsProtoStr?`<span style="background:${_lsProtoCol};color:#fff;padding:2px 9px;border-radius:4px;font-weight:700;font-size:0.74rem">${escapeHTML(_lsProtoStr)}</span>`:''}${_pfBadge}
-              ${_ls.confidence!=null?`<span style="font-size:0.73rem;color:var(--text-muted)">${Math.round(_ls.confidence*100)}%</span>`:''}
+        // Modalita' della porta come PASTIGLIA, in testa ai badge del cavo: risponde
+        // alla stessa domanda degli altri («che cos'e' questo collegamento») ed e' la
+        // piu' generale, quindi viene prima. Stessa geometria dei vicini — il bordo
+        // di 1px compensa 1px di padding — cosi' le altezze coincidono.
+        // Un'associazione wireless non ha modalita' di porta: nessuna pastiglia.
+        const _chipGeom = 'padding:2px 10px;border-radius:5px;font-weight:700;font-size:0.89rem';
+        const _modeChip = l.wireless ? '' : (isTrunk
+            ? `<span data-tip="${t('cable.portMode')}" style="${_chipGeom};background:#0e2233;border:1px solid #2d6a9f;color:#5ba3f5">TRUNK</span>`
+            : `<span data-tip="${t('cable.portMode')}" style="${_chipGeom};background:rgba(110,118,129,.12);border:1px solid var(--panel-border);color:var(--text-muted)">ACCESS</span>`);
+        // Larghezza NATURALE del gruppo (`flex-basis:auto` + `flex-grow:0`): i badge
+        // occupano quel che serve loro su una riga sola. A cedere e' il campo Tipo, che
+        // shrink-a 100 volte piu' in fretta — «Cavo (auto)» sta in poco, i badge no.
+        // Se il pannello si stringe oltre il ragionevole i badge tornano a capo invece
+        // di sfondare il pannello: e' l'ultimo ripiego, non il comportamento normale.
+        const stateRow = (_ls || _modeChip) ? `<div class="prop-group" style="flex:0 1 auto;min-width:0;padding-right:10px"><label style="text-align:right">${t('common.status')}</label>
+            <div class="link-state-badges" style="display:flex;align-items:center;justify-content:flex-end;gap:6px;padding:4px 0;flex-wrap:wrap">
+              ${_modeChip}
+              ${_ls?`<span style="background:${escapeHTML(_lsCol[_ls.key]||'#57606a')};color:#fff;padding:3px 11px;border-radius:5px;font-weight:700;font-size:0.89rem">${escapeHTML(_lsLabel)}</span>`:''}
+              ${_lsProtoStr?`<span style="background:${escapeHTML(_lsProtoCol)};color:#fff;padding:3px 11px;border-radius:5px;font-weight:700;font-size:0.89rem">${escapeHTML(_lsProtoStr)}</span>`:''}${_pfBadge}
+              ${_ls&&_ls.confidence!=null?`<span style="font-size:0.88rem;color:var(--text-muted)">${Math.round(_ls.confidence*100)}%</span>`:''}
             </div></div>` : '';
+
+        // Anteprima della fisarmonica chiusa: la risposta in una riga sola — quella
+        // che il MODELLO da' al cavo, col suo colore davanti. Il CSS di casa la
+        // nasconde da sola quando la sezione si apre, cosi' non si ripete mai.
+        const _vlanPreview = `<span class="props-collapsible-preview"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${escapeHTML((_pl && _pl.color) || vlDotColor)};border:1px solid rgba(255,255,255,.18);margin-right:6px"></span>${escapeHTML(_pl ? _pl.text : `VLAN ${vl}`)}</span>`;
 
         const _linkDeleteTip = l.autoLinked ? t('cable.delTipAuto') : t('cable.delTip');
         panel.innerHTML=`
@@ -247,7 +302,7 @@ export function _renderLinkProps(panel){
                 `<span class="props-toggles"><button class="props-toggle-btn" data-act="props-expand-all" data-tip="${t('props.expandAll')}"><i class="fas fa-angles-down"></i></button><button class="props-toggle-btn" data-act="props-collapse-all" data-tip="${t('props.collapseAll')}"><i class="fas fa-angles-up"></i></button><button class="props-toggle-btn" data-act="props-reset-sections" data-tip="${t('props.resetSections')}"><i class="fas fa-rotate"></i></button><button class="props-toggle-btn danger" data-act="link-del" data-lid="${l.id}" data-tip="${_linkDeleteTip}"><i class="fas fa-trash"></i></button></span>`
             )}
             <div class="prop-row2">
-              <div class="prop-group" style="flex:0 0 55%"><label>${t('common.type')}</label><input disabled value="${l.wireless?'Wireless':t('cable.cable')}${l.autoLinked?' (auto)':''}"></div>
+              <div class="prop-group" style="flex:1 1 0;min-width:64px"><label>${t('common.type')}</label><input disabled style="width:100%;text-overflow:ellipsis" value="${escapeHTML(l.wireless?'Wireless':t('cable.cable'))}${l.autoLinked?' (auto)':''}"></div>
               ${stateRow}
             </div>
             <div class="prop-group"><label>${t('cable.from')}</label><input disabled value="${escapeHTML(srcLbl)}"></div>
@@ -265,26 +320,13 @@ export function _renderLinkProps(panel){
                      data-change="link-label" data-lid="${l.id}">
               ${hasManualLbl?`<div style="font-size:0.7rem;color:var(--text-muted);margin-top:3px"><i class="fas fa-arrow-right-arrow-left" style="font-size:0.6rem;margin-right:3px"></i>${escapeHTML(autoLbl)}</div>`:''}
             </div>
-            <div class="prop-group" style="margin-top:6px">
-              <label>VLAN</label>
-              ${(!isTrunk && _nativeActivePid)
-                ? `<div style="display:flex;align-items:center;gap:8px">
-                     <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${vlDotColor};flex-shrink:0;border:1px solid rgba(255,255,255,.18)"></span>
-                     <input type="number" min="1" max="4094" value="${_dichiarata != null ? _dichiarata : ''}"
-                            placeholder="${_vlMostrata}" ${lockAttr} style="flex:1"
-                            data-change="link-native-vlan" data-lid="${l.id}" data-tip="${t('cable.accessVlanTip')}">
-                   </div>
-                   ${vlanName?`<div style="font-size:0.7rem;color:var(--text-muted);margin-top:3px"><i class="fas fa-tag" style="font-size:0.6rem;margin-right:3px"></i>${vlanName}</div>`:''}`
-                : `<div style="padding:4px 0;font-size:0.83rem;color:var(--text-main)">${vlanBadge}</div>`}
-              ${_paint ? `<div style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:0.72rem;color:var(--text-muted)"
-                     data-tip="${escapeHTML(_paint.tip || '')}" data-tip-pos="bottom">
-                   <span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${_paint.color};flex-shrink:0"></span>
-                   ${t('cable.paintLabel')}: <b style="color:var(--text-main);font-weight:600">${escapeHTML(_paint.text)}</b>
-                   ${_paint.why ? `<span>· ${escapeHTML(_paint.why)}</span>` : ''}
-                 </div>` : ''}
-            </div>
             ${verifyBanner}
             ${autoEditBar}${miscabledBanner}
+
+            <details class="props-collapsible props-primary" ${_propsSectionIsOpen('link-vlan')?'open':''} data-toggle="props-section" data-section="link-vlan" style="margin-top:14px">
+              <summary class="props-collapsible-head"><span><i class="fas fa-network-wired"></i> VLAN</span>${_vlanPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
+              <div class="props-collapsible-body">
+            ${_vlanReadout}
 
             <div class="prop-group" style="margin-top:10px;border-top:1px solid var(--panel-border);padding-top:10px">
               <label>${t('cable.portMode')}</label>
@@ -340,6 +382,8 @@ export function _renderLinkProps(panel){
                       style="width:100%;${l.colorOvr?'border-color:#e3b341':''}" ${lockAttr}
                       data-change="link-color" data-lid="${l.id}">
             </div>
+              </div>
+            </details>
             ${(()=>{
                 // Wireless: nessun percorso FISICO (è un'associazione radio).
                 // L'eventuale percorso via repeater/mesh è un concetto diverso (da fare).

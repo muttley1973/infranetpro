@@ -193,7 +193,12 @@ const CAPS = {
     'src/app-popup.js': 10,
     'src/app-ports.js': 1,
     'src/app-properties-floor.js': 10,
-    'src/app-properties-link.js': 15,
+    // −3 (2.10.1, da 15): la sezione VLAN del pannello cavo e' stata riscritta e i
+    // valori che finiscono dentro style="…" e value="…" — colore del pallino, colore
+    // della provenienza, VLAN dichiarata e mostrata, id del link — ora passano
+    // dall'escaper invece di essere interpolati crudi. Il colore arriva dal color
+    // picker dell'utente: era il piu' esposto dei quattro.
+    'src/app-properties-link.js': 12,
     'src/app-properties-node-devices.js': 84,
     'src/app-properties-node.js': 49,
     'src/app-properties-port.js': 16,
