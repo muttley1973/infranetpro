@@ -49,6 +49,7 @@
     "lib/node-label.js",
     "lib/link-model.js",
     "lib/link-vlan-color.js",
+    "lib/vlan-authority.js",
     "lib/mac-class.js",
     "lib/netnames.js",
     "lib/onboarding.js",

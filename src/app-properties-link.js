@@ -155,7 +155,14 @@ export function _renderLinkProps(panel){
         // è dipinto da una VLAN diversa da quella scritta sopra, oppure non se ne
         // conosce nessuna, oppure la scelta è una convenzione e va dichiarata.
         const _pl = (typeof _linkPaintLabel === 'function') ? _linkPaintLabel(l) : null;
-        const _paint = (_pl && (_pl.kind !== 'vlan' || _pl.vlan !== vl)) ? _pl : null;
+        // La riga «Questo cavo» compare quando aggiunge qualcosa alla riga sopra:
+        // se il colore racconta un'altra storia (trunk, instradato, VLAN diversa
+        // da quella mostrata) — e SEMPRE quando la VLAN è un DEFAULT invece di una
+        // lettura. Il numero coincide, la provenienza no, ed è l'unica cosa che
+        // distingue «VLAN 1 misurata» da «VLAN 1 perché nessuno ne ha assegnata
+        // un'altra»: tacerla rimetterebbe un default a passare per una misura.
+        const _presunta = _pl && (_pl.source === 'site-native' || _pl.source === 'untagged');
+        const _paint = (_pl && (_presunta || _pl.kind !== 'vlan' || _pl.vlan !== vl)) ? _pl : null;
         const trunkVlans = l.trunkVlans || '';
         // Capo ATTIVO del trunk: la nativa è il PVID (vlanOvr) di quella porta →
         // editabile inline. Se nessun capo è attivo, la nativa arriva da monte.

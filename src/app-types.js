@@ -316,6 +316,51 @@ export function _frontPanelPortLabel(node, portNum, portCount){
 // bridge in Node) ripiega sul nome del catalogo (TYPES[k].name, italiano).
 // Usa `t` dal bridge (NON win.t) → non fa crescere il ratchet del ponte.
 // Punto unico: ogni resa UI del nome-tipo deve passare di qui (no TYPES[x].name nudo).
+/**
+ * Questo apparato CLASSIFICA le VLAN?
+ *
+ * È la domanda che fanno gli apparati veri quando si passano i frame: un frame
+ * viaggia con la sua identità finché una porta VLAN-aware non lo RICLASSIFICA
+ * (ingresso 802.1Q: senza tag ⇒ prende il PVID della porta). Chi classifica
+ * decide la VLAN del proprio cavo; chi non classifica lascia passare.
+ *
+ * Due condizioni, e servono entrambe:
+ *   • il tipo è ATTIVO — un patch panel o una presa non hanno mai classificato;
+ *   • non è uno switch dichiarato NON GESTITO — un bridge 802.1D puro commuta
+ *     sul MAC, non ha tabella VLAN, non aggiunge né toglie tag. La VLAN di tutto
+ *     ciò che gli sta appeso la decide la porta VLAN-aware al suo bordo.
+ *
+ * ⚠️ Solo `unmanaged`: uno **smart-managed** le VLAN ce l'ha (interfaccia web,
+ * 802.1Q), quindi classifica come un managed.
+ * ⚠️ E si DICHIARA, non si deduce: uno switch gestito che non abbiamo mai
+ * interrogato è indistinguibile da uno non gestito, e dedurlo vorrebbe dire far
+ * passare una VLAN attraverso un apparato che invece le separa. Il campo
+ * (`swMgmt`, pannello Switch) esisteva già e non lo leggeva nessuno.
+ *
+ * Una definizione sola: la leggono il colore del cavo, la propagazione e la
+ * VLAN efficace della porta — che se la componevano ciascuno per conto proprio.
+ * @param {any} node
+ * @returns {boolean}
+ */
+export function isVlanAware(node){
+    if(!node) return false;
+    if(!TYPES[node.type]?.isActive) return false;
+    return node.swMgmt !== 'unmanaged';
+}
+
+/**
+ * I frame passano da una porta all'altra DENTRO questo apparato?
+ * Vale per i trasparenti dichiarati tali dal catalogo (`passThrough:'device'`,
+ * il media converter) e per uno switch non gestito, il cui interno è un dominio
+ * di broadcast solo: quello che entra da una presa esce da tutte le altre.
+ * @param {any} node
+ * @returns {boolean}
+ */
+export function bridgesOwnPorts(node){
+    if(!node) return false;
+    return TYPES[node.type]?.passThrough === 'device' || node.swMgmt === 'unmanaged';
+}
+
 export function typeName(k){
     const key = 'type.' + k;
     const s = t(key);
@@ -333,6 +378,7 @@ export function typeShort(k){
 
 expose({
     TYPES, typeName, typeShort,
+    isVlanAware, bridgesOwnPorts,
     NODE_ID_PREFIX,
     _fixedRackLabel, _isNodeSpecField, _ensureNodeSpec, _compactNodeSpec, _nodeSpecView,
     _frontPanelLegacyState, _frontPanelState, _frontPanelSfpPorts, _frontPanelSfpGroups,

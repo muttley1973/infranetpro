@@ -41,7 +41,7 @@ test('routed: una porta che possiede un IP non appartiene a nessuna VLAN', () =>
   // SW-CORE Gi0/0 dichiara 10.99.0.2: `no switchport` + indirizzo → livello 3.
   // La VLAN 1 è il default dei port COMMUTATI, non un ripiego universale.
   const r = paint({ mode: 'access', native: 1, vlans: [1],
-    src: { active: true, routed: true }, dst: { active: true } });
+    src: { active: true, ownsIp: true }, dst: { active: true } });
   assert.equal(r.kind, 'routed');
   assert.equal(r.vlan, null);
   assert.equal(r.known, false);
@@ -51,7 +51,7 @@ test('routed: NON batte una VLAN che si applica davvero', () => {
   // Se lo switch dice che la porta è in VLAN 30, il cavo è in VLAN 30 — anche se
   // all'altro capo c'è un apparato con un indirizzo sulla sua interfaccia.
   const r = paint({ mode: 'access', native: 1, vlans: [1],
-    src: { active: true, vlan: 30 }, dst: { active: true, routed: true } });
+    src: { active: true, vlan: 30 }, dst: { active: true, ownsIp: true } });
   assert.equal(r.kind, 'vlan');
   assert.equal(r.vlan, 30);
 });
@@ -63,13 +63,13 @@ test('routed: un HOST con l’IP sulla NIC resta un endpoint dentro la sua VLAN'
   // non dice niente su come lo switch tratta quel cavo.
   const vyos = paint({ mode: 'access', native: 1, vlans: [1],
     src: { active: true },                                             // switch muto sul PVID
-    dst: { active: true, routed: true, endpointVlan: 99, singleHomed: true } });
+    dst: { active: true, ownsIp: true, endpointVlan: 99, singleHomed: true } });
   assert.equal(vyos.kind, 'vlan');
   assert.equal(vyos.vlan, 99, 'la rete dichiarata dell’endpoint si applica prima di «instradato»');
 
   const wlc = paint({ mode: 'access', native: 1, vlans: [1],
     src: { active: true, vlan: 1 },                                    // lo switch la misura
-    dst: { active: true, routed: true } });
+    dst: { active: true, ownsIp: true } });
   assert.equal(wlc.vlan, 1, 'la misura dello switch vince su un IP di NIC');
 });
 
@@ -78,22 +78,27 @@ test('routed: vale quando NESSUNA VLAN si applica — è lì che spiega il perch
   // un router fuori da ogni prefisso dichiarato. Nessuna fonte dice una VLAN, e
   // la ragione non è che non la sappiamo: è che non ce n'è una.
   const r = paint({ mode: 'access', vlans: [],
-    src: { active: true, routed: true }, dst: { active: true } });
+    src: { active: true, ownsIp: true }, dst: { active: true } });
   assert.equal(r.kind, 'routed');
   assert.equal(r.vlan, null);
 });
 
-test('routed: NON è la stessa cosa di «non dichiarata»', () => {
-  const instradato = paint({ mode: 'access', vlans: [], src: { routed: true }, dst: {} });
+test('routed: NON è la stessa cosa di «nessuno l’ha assegnata»', () => {
+  // Due silenzi, due mondi. Chi INSTRADA è fuori dal dominio di commutazione e
+  // una VLAN non ce l'ha; chi COMMUTA ce l'ha per forza, e senza altre
+  // indicazioni è la nativa — il default che ogni bridge applica da sé.
+  const instradato = paint({ mode: 'access', vlans: [], src: { ownsIp: true }, dst: {} });
   const muto       = paint({ mode: 'access', vlans: [], src: { active: true }, dst: {} });
   assert.equal(instradato.kind, 'routed');
-  assert.equal(muto.kind, 'undeclared');
-  assert.notEqual(instradato.kind, muto.kind, 'un fatto e una lacuna non sono lo stesso stato');
+  assert.equal(instradato.vlan, null);
+  assert.equal(muto.kind, 'vlan');
+  assert.equal(muto.vlan, 1, 'commuta: la VLAN 1 esiste sempre ed è lì che finisce');
+  assert.equal(muto.source, 'site-native');
 });
 
 test('routed: un override manuale resta piu’ forte (l’utente sa cosa scrive)', () => {
   const r = paint({ mode: 'access', vlans: [],
-    src: { active: true, vlanOvr: 42, routed: true }, dst: {} });
+    src: { active: true, vlanOvr: 42, ownsIp: true }, dst: {} });
   assert.equal(r.kind, 'vlan');
   assert.equal(r.vlan, 42);
 });
@@ -103,8 +108,11 @@ test('routed: un override manuale resta piu’ forte (l’utente sa cosa scrive)
 test('access: la VLAN misurata sul capo attivo vince sulle fonti dichiarate', () => {
   // Uno switch che risponde «VLAN 1» su una porta il cui endpoint ha un IP in
   // VLAN 30: vince la MISURA. La contraddizione la segnala l'audit, non il colore.
+  // ⚠️ …purché chi misura abbia TITOLO: qui lo switch conosce anche la 30, quindi
+  // quel «1» è una scelta fra VLAN che conosce. Un apparato il cui mondo VLAN è
+  // `[1]` non sta commutando e non vince (→ test/vlan-autorita-commuta.test.js).
   const r = paint({ mode: 'access', native: 1, vlans: [1],
-    src: { active: true, vlan: 1 },
+    src: { active: true, vlan: 1, deviceVlans: [1, 30] },
     dst: { endpointVlan: 30, singleHomed: true } });
   assert.equal(r.vlan, 1);
   assert.equal(r.source, 'measured');
@@ -129,20 +137,29 @@ test('access: l’IP di un endpoint MULTI-cablato non dice nulla su QUESTO cavo'
   const r = paint({ mode: 'access', native: 1, vlans: [1],
     src: { active: true },
     dst: { endpointVlan: 30, singleHomed: false } });
-  assert.equal(r.kind, 'undeclared');
+  assert.notEqual(r.vlan, 30, 'con più cavi l’indirizzo direbbe di uno qualsiasi');
+  assert.equal(r.source, 'site-native', 'non sapendo, si cade sul pavimento — non sull’IP');
 });
 
 test('access: due capi mono-cablati che si contraddicono ⇒ non si arbitra', () => {
   const r = paint({ mode: 'access', native: 1, vlans: [1],
     src: { endpointVlan: 10, singleHomed: true },
     dst: { endpointVlan: 30, singleHomed: true } });
-  assert.equal(r.kind, 'undeclared');
+  assert.equal(r.source, 'site-native', 'fra 10 e 30 non si sceglie: si scende di gradino');
+  assert.notEqual(r.vlan, 10);
+  assert.notEqual(r.vlan, 30);
 });
 
-test('access: cavo fra due passivi muti ⇒ non dichiarata, NON «VLAN 1»', () => {
+test('access: cavo fra due passivi muti ⇒ VLAN 1, ma come PAVIMENTO', () => {
+  // ⚠️ Ha cambiato verdetto il 2026-08-21, e il motivo conta: «senza VLAN» non è
+  // uno stato che esiste nella commutazione. Il numero torna a essere 1 — ma la
+  // provenienza dice che è il default, non una misura, ed è quella la differenza
+  // che la 2.10.1 aveva perso quando il driver scriveva 1 al posto del silenzio.
   const r = paint({ mode: 'access', native: 1, vlans: [1], src: {}, dst: {} });
-  assert.equal(r.kind, 'undeclared');
-  assert.equal(r.vlan, null);
+  assert.equal(r.kind, 'vlan');
+  assert.equal(r.vlan, 1);
+  assert.equal(r.source, 'site-native');
+  assert.notEqual(r.source, 'measured', 'un default non deve mai spacciarsi per una misura');
 });
 
 // ---- Cavo TRUNK: nessuna VLAN vince ---------------------------------------
@@ -190,9 +207,10 @@ test('trunk: nessuna taggata e nativa NOTA ⇒ quella è l’unica VLAN che pass
   assert.equal(paint({ mode: 'trunk', native: 1, vlans: [1], src: {}, dst: {} }).vlan, 1);
 });
 
-test('trunk: nessuna VLAN nota affatto ⇒ non dichiarata', () => {
+test('trunk: nessuna VLAN nota affatto ⇒ la nativa, che su un trunk è quella untagged', () => {
   const r = paint({ mode: 'trunk', vlans: [], src: { active: true }, dst: { active: true } });
-  assert.equal(r.kind, 'undeclared');
+  assert.equal(r.vlan, 1);
+  assert.equal(r.source, 'site-native');
 });
 
 // ---- Igiene ---------------------------------------------------------------
@@ -200,20 +218,22 @@ test('trunk: nessuna VLAN nota affatto ⇒ non dichiarata', () => {
 test('valori fuori range o spazzatura sono ASSENZA, non zero', () => {
   const r = paint({ mode: 'access', native: 0, vlans: [0, 5000, 'x', 30],
     src: { active: true, vlan: 5000 }, dst: { active: true, vlanOvr: 'abc' } });
-  assert.equal(r.kind, 'undeclared');
+  assert.equal(r.source, 'site-native', 'spazzatura = nessuna fonte, non una VLAN 0');
+  assert.equal(r.vlan, 1);
   assert.deepEqual(r.vlans, [30]);
 });
 
 test('input vuoto non lancia', () => {
-  assert.equal(paint(undefined).kind, 'undeclared');
-  assert.equal(paint({}).known, false);
+  assert.equal(paint(undefined).kind, 'vlan');
+  assert.equal(paint({}).vlan, 1, 'anche senza input il pavimento è la VLAN che esiste sempre');
 });
 
 test('un colore si chiede SOLO quando kind vale «vlan»', () => {
+  // Restano due soli stati senza colore, e sono affermazioni precise: un trunk
+  // multi-VLAN (nessuna prevale) e un collegamento instradato (nessuna VLAN).
   for (const r of [
     paint({ mode: 'trunk', vlans: [1, 10, 20], src: {}, dst: {} }),
-    paint({ mode: 'access', vlans: [], src: { routed: true }, dst: {} }),
-    paint({ mode: 'access', vlans: [], src: {}, dst: {} }),
+    paint({ mode: 'access', vlans: [], src: { ownsIp: true }, dst: {} }),
   ]) {
     assert.equal(r.known, false);
     assert.equal(r.vlan, null, 'niente VLAN fuori dallo stato «vlan»: chi dipinge non deve indovinare');

@@ -446,7 +446,22 @@ outcomes, each saying one thing only:
 | `vlan` | exactly one VLAN applies | that VLAN’s colour |
 | `trunk` | it carries more than one | neutral + the carried VLANs as pills |
 | `routed` | the port owns an IP: it routes | neutral, and the panel says why |
-| `undeclared` | it switches, so a VLAN exists — nobody names it | neutral + an audit row |
+
+⭐ **A cable that switches always has a VLAN, so it always has a colour.** «VLAN not
+declared» is not a state that exists in switching: every port of a bridge has a PVID, and
+where nobody configured one that PVID is 1 — the 802.1Q default, not a vendor convention.
+VLAN 1 exists on every switch, cannot be deleted, and is where everything nobody assigned
+elsewhere ends up; measured on the bench, the Arista reports PVID 1 on every untouched port
+and VLAN 1’s membership list contains exactly those. So the last rung of the access ladder
+is the **site native VLAN** (`state.nativeVlan`, 1 by default, declarable for a site whose
+native sits elsewhere). It is deliberately last: one rung higher it would cover a real
+answer with a plausible number. The provenance travels with the outcome and the panel
+always prints it — the number alone would let a default pass for a reading.
+
+⚠️ `routed` stays outside that floor, and it is the only case where a VLAN genuinely does
+not exist: VLAN 1 is the floor of the *switching domain*, not of the universe. The hardware
+says so itself — make a port routed and the switch allocates it an internal VLAN from the
+extended range (1006–4094) rather than putting it in 1.
 
 ⭐ **On a trunk no VLAN wins.** Every rule for electing one was tried and each asserted
 something untrue; the case that settles it is an interface doing management *and* VLAN 30 —
@@ -459,13 +474,43 @@ a measured one, the propagated one, a dot1Q sub-interface standing on the cabled
 the declared network of an end that has **exactly one cable** — its address can only be
 talking about that cable. A multi-homed device’s address says nothing about *this* one.
 
+⚠️ **Who may name the VLAN is not «an active device» but «one that switches VLANs»**
+(`lib/vlan-authority.js`). *Active* is a property of the type — our own classification — and
+says nothing about whether the device assigns VLANs. The discriminant is already in the
+measurement and needs no vendor list: a device whose entire VLAN world is `[1]` has named
+only the VLAN that exists when nothing is configured, so its `vlan=1` means *my port is
+untagged*, not *this cable is in VLAN 1* — and it cannot be authoritative about a VLAN it
+does not know. Measured on the bench: a wireless controller and an EXOS switch, both
+answering on 10.10.99.x and therefore living in VLAN 99, published `vlan=1` with a VLAN
+world of `[1]` and overruled the declared network. A device that does know other VLANs and
+still says 1 is *choosing*, and keeps its authority.
+
+⭐ **Where a VLAN stops is decided the way the hardware decides it**: a frame keeps its
+identity until a VLAN-aware port reclassifies it. So «does this device classify VLANs?»
+(`isVlanAware`, one definition read by the cable colour, the propagation and the port
+panel) is not «is the type active»: an **unmanaged switch** is a plain 802.1D bridge —
+forwards on MAC, no VLAN table, adds and strips no tags — and its whole inside is one
+broadcast domain, so the VLAN arriving at its edge applies to every one of its sockets.
+Before this, the VLAN reached its uplink port and died there. It is **declared** (`swMgmt`
+in the Switch panel, a field that already existed and nothing read) and never inferred: a
+managed switch nobody has polled looks identical, and guessing would push a VLAN through a
+device that in fact keeps VLANs apart. Only `unmanaged` is transparent — a smart-managed
+switch has VLANs and classifies like a managed one.
+
+That untagged 1 is not thrown away, it is demoted: it sits **below** the declared sources,
+as `untagged`, so a flat network — where 1 really is the only VLAN there is — still reads
+VLAN 1, while a declared network wins wherever the two disagree. The same rule governs
+propagation, or the discarded claim would cross the cable as `vlanProp` and win one rung
+lower: a **passive** port still inherits an untagged VLAN (it has none of its own), an
+**active** one inherits only a value that carries authority.
+
 ⚠️ **`routed` is consulted last, never first.** Owning an IP address is normal for any
 host; it is the switch side that decides whether a cable is in a VLAN. Measured on the
 bench: with the check placed first, a VyOS router and a wireless controller sitting on
 access ports in VLAN 99 both came out as routed links. It only distinguishes *why* no VLAN
-applies — a routed port is a fact with nothing missing, an undeclared one is a gap that can
-be closed — and the evidence is the standard address-to-interface table, of which only the
-IPv6 rows were previously kept.
+applies — a routed port is a fact with nothing missing, while a switched one always has a
+VLAN — and the evidence is the standard address-to-interface table, of which only the IPv6
+rows were previously kept.
 
 The glue `src/app-link-color.js` is the only translator from that outcome to a colour.
 Before, eight sites computed it — `app.js` ×3, `topo-lines.js` ×2, `export.js` ×2, the

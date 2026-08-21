@@ -13,11 +13,12 @@ import { primaryPrefixForVlan, upsertPrefix, removePrefix, prefixKey, migrateIpa
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { showConfirm } from './app-core.js';   // modale di conferma dell'app (non il confirm() nativo)
-import { TYPES, _ensureNodeSpec } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { TYPES, isVlanAware, bridgesOwnPorts, _ensureNodeSpec } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _isLeafEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
 import { _renderTopoLegend } from './app-topology-overlay.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { _getLinkVlan, _vlanLabel } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
 import { _invalidateLinkColor } from './app-link-color.js';   // le cache del colore-cavo si rifanno a ogni propagazione
+import { authoritativeVlan } from '../lib/vlan-authority.js';   // chi ha TITOLO per dire la VLAN: unica definizione, condivisa col colore del cavo
 import { _deviceAccessVlanPid } from './app-properties-node-devices.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { applyUiColors } from './app-search-zoom-rack.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: modale «Membership VLAN» + popover Automazioni + modale VLAN voce via event delegation
@@ -176,7 +177,12 @@ function _buildPortAdjacency(){
     const edge=(a,b)=>{ (adj[a]||(adj[a]=[])).push(b); };
     store.state.links.forEach(l=>{ edge(l.src,l.dst); edge(l.dst,l.src); });
     store.state.nodes.forEach(n=>{
-        const d=TYPES[n.type]; if(!d || d.passThrough!=='device') return;
+        const d=TYPES[n.type]; if(!d) return;
+        // Il media converter (`passThrough:'device'`) e lo switch dichiarato NON
+        // GESTITO: dentro sono un dominio solo, quindi il frame passa da una presa
+        // a tutte le altre. Senza questo la VLAN moriva sulla porta di uplink e le
+        // prese dall'altro lato non sapevano in che VLAN fossero.
+        if(!bridgesOwnPorts(n)) return;
         const pc = n.ports!==undefined ? n.ports : d.ports;
         const first=`${n.id}-1`;
         for(let i=2;i<=pc;i++){ const p=`${n.id}-${i}`; edge(first,p); edge(p,first); }
@@ -198,6 +204,19 @@ export function propagateVlans(){
 
     const _active = pid => !!TYPES[getNodeByPortId(pid)?.type]?.isActive;
 
+    // ⭐ La VLAN che una porta dichiara CON TITOLO. Una definizione sola, la
+    // stessa che usa il colore del cavo (`lib/vlan-authority.js`): essere un
+    // apparato ATTIVO non basta, bisogna COMMUTARE VLAN. Un apparato il cui
+    // mondo VLAN e' `[1]` sta dicendo «sono untagged» — se quel «1» entrasse
+    // qui come seme attraverserebbe il cavo come `vlanProp` e tornerebbe a
+    // vincere un gradino piu' in basso: la stessa affermazione, riciclata.
+    const _titolo = (n, pi) => authoritativeVlan({
+        active: isVlanAware(n),
+        deviceVlans: n?.integration?.vlans || [],
+        vlanOvr: pi?.vlanOvr,
+        vlan: pi?.vlan,
+    });
+
     // BFS riutilizzabile. Regola: un dispositivo ATTIVO (switch/router) è
     // AUTOREVOLE per la VLAN e blocca la sovrascrittura; una porta PASSIVA
     // (patch panel, presa a muro, AP) non ha VLAN propria → riceve SEMPRE la
@@ -206,20 +225,25 @@ export function propagateVlans(){
         const visited=new Set(queue.map(s=>s.pid));
         let head=0;
         while(head<queue.length){
-            const {pid,vlan}=queue[head++];
+            const {pid,vlan,titolato}=queue[head++];
             (adj[pid]||[]).forEach(npid=>{
                 if(visited.has(npid)) return;
                 visited.add(npid);
                 if(!store.state.ports[npid]) store.state.ports[npid]={};
                 const npi=store.state.ports[npid];
+                // Autorevole = dichiara una VLAN CON TITOLO: blocca la
+                // sovrascrittura e comanda da li' in poi.
+                const nAuth = _titolo(getNodeByPortId(npid), npi);
+                // ⭐ Chi RICEVE conta quanto ciò che si propaga. Una porta PASSIVA
+                // (patch panel, presa, AP) non ha VLAN propria: eredita sempre,
+                // anche un «untagged» — su una rete piatta è l'unica VLAN che c'è.
+                // Una porta ATTIVA eredita solo un valore CON TITOLO: altrimenti
+                // l'affermazione di chi non commuta attraversa il cavo, si
+                // deposita come «propagata» sullo switch di fronte e torna a
+                // vincere un gradino più in basso — la stessa cosa, riciclata.
                 const nActive=_active(npid);
-                // Autorevole solo se ATTIVO con override o vlan SNMP
-                const nAuth = nActive && (npi.vlanOvr!=null || npi.vlan>1);
-                if(!nAuth) npi.vlanProp=vlan;
-                const nextVlan = (nActive&&npi.vlanOvr!=null) ? npi.vlanOvr
-                               : (nActive&&npi.vlan>=1)       ? npi.vlan
-                               :                                vlan;
-                queue.push({pid:npid, vlan:nextVlan});
+                if(nAuth==null && (!nActive || titolato)) npi.vlanProp=vlan;
+                queue.push({pid:npid, vlan: nAuth!=null ? nAuth : vlan, titolato: nAuth!=null ? true : titolato});
             });
         }
     }
@@ -228,13 +252,24 @@ export function propagateVlans(){
     //     Lo switch comanda l'intera catena a valle: patch panel → presa → AP.
     const strong=[];
     store.state.nodes.forEach(n=>{
-        const def=TYPES[n.type]; if(!def||!def.isActive) return;
+        // Semina solo chi CLASSIFICA le VLAN. Uno switch non gestito non ha una
+        // VLAN propria da seminare: se il documento gliene ha lasciata una addosso
+        // (un import, una lettura vecchia), quella non deve comandare la catena —
+        // la VLAN gliela porta il cavo che lo alimenta.
+        const def=TYPES[n.type]; if(!def||!isVlanAware(n)) return;
         const pc=n.ports!==undefined?n.ports:def.ports;
         for(let i=1;i<=pc;i++){
             const pid=`${n.id}-${i}`;
             const pi=store.state.ports[pid]||{};
-            const auth = pi.vlanOvr!=null ? pi.vlanOvr : (pi.vlan>=1 ? pi.vlan : null);
-            if(auth!=null) strong.push({pid,vlan:auth});
+            const auth = _titolo(n, pi);
+            if(auth!=null){ strong.push({pid, vlan:auth, titolato:true}); continue; }
+            // Senza titolo il valore non sparisce: viaggia come «untagged», e lo
+            // riceveranno solo le porte passive a valle (vedi bfs). È la rete
+            // piatta — un apparato che conosce solo la VLAN 1 — dove quel numero
+            // resta l'unica VLAN esistente, ma non ha titolo per contraddire una
+            // rete DICHIARATA sull'apparato di fronte.
+            const untagged = parseInt(pi.vlan, 10);
+            if(untagged>=1 && untagged<=4094) strong.push({pid, vlan:untagged, titolato:false});
         }
     });
     // Seed FORTI dalle ASSOCIAZIONI wireless, BSS-aware. Una radio AP trasmette
@@ -270,7 +305,9 @@ export function propagateVlans(){
                     store.state.ports[clientPid]=store.state.ports[clientPid]||{};
                     store.state.ports[clientPid].vlanProp=v;
                 }
-                strong.push({ pid: clientPid, vlan: v });
+                // La VLAN di un SSID è DICHIARATA sull'AP: ha titolo quanto la
+                // misura di chi commuta, e può governare porte attive a valle.
+                strong.push({ pid: clientPid, vlan: v, titolato: true });
             }
         }
     }
@@ -281,7 +318,7 @@ export function propagateVlans(){
     const weak=[];
     for(const [pid,pi] of Object.entries(store.state.ports)){
         if(_active(pid)) continue;
-        if(pi.vlanOvr!=null && pi.vlanProp==null) weak.push({pid,vlan:pi.vlanOvr});
+        if(pi.vlanOvr!=null && pi.vlanProp==null) weak.push({pid,vlan:pi.vlanOvr,titolato:true});
     }
     bfs(weak);
 
@@ -409,7 +446,10 @@ export function _runActiveAnchor(link){
  *  monte ha priorità sull'override locale — un patch panel non ha VLAN propria. */
 export function _effPortVlan(pid){
     const pi=store.state.ports[pid]||{};
-    const active=!!TYPES[getNodeByPortId(pid)?.type]?.isActive;
+    // Stessa domanda del colore del cavo e della propagazione, stessa risposta:
+    // «questo apparato classifica le VLAN?». Se se la componesse per conto suo,
+    // il pannello della porta e il cavo direbbero due VLAN diverse.
+    const active=isVlanAware(getNodeByPortId(pid));
     if(active) return pi.vlanOvr ?? (pi.vlan>=1?pi.vlan:undefined) ?? pi.vlanProp ?? _siteNativeVlan();
     return pi.vlanProp ?? pi.vlanOvr ?? (pi.vlan>=1?pi.vlan:undefined) ?? _siteNativeVlan();
 }

@@ -15,19 +15,20 @@
 // ============================================================
 import { expose, t } from './_bridge.js';
 import { store } from './store.js';
-import { TYPES } from './app-types.js';
+import { isVlanAware } from './app-types.js';   // «classifica le VLAN?» ha UNA definizione, non tre
 import { nodeById, getNodeByPortId, getPortNodeId } from './app.js';
 import { _getLinkVlan } from './app-popup.js';
-import { _getLinkTrunk } from './app-vlan-autopoll.js';
+import { _getLinkTrunk, _siteNativeVlan } from './app-vlan-autopoll.js';
 import { prefixForIp } from '../lib/ipam-model.js';
 import { linkPaintVlan } from '../lib/link-vlan-color.js';   // la DECISIONE pura: solo questo modulo la usa → import ESM, non <script>
 
-// Il neutro dei cavi SENZA un colore VLAN. Copre i tre stati in cui una VLAN da
-// dipingere non esiste: trunk multi-VLAN (nessuna vince), collegamento
-// instradato (non sta in nessuna VLAN), VLAN non dichiarata. NON e' il grigio
-// della VLAN 1 (`vlanColors[1]`, che l'utente puo' pure cambiare): un cavo di
-// cui non sappiamo dire la VLAN non deve somigliare a uno che sappiamo essere in
-// VLAN 1 — la confusione fra i due e' il difetto da cui e' partito tutto.
+// Il neutro dei cavi SENZA un colore VLAN. Restano DUE stati, e sono entrambi
+// affermazioni precise, non ignoranza: un trunk multi-VLAN (nessuna prevale) e un
+// collegamento instradato (non sta in nessuna VLAN, nemmeno nella 1). Un cavo che
+// COMMUTA ha sempre un colore: dove nessuno ha assegnato una VLAN vale la nativa
+// di sito, perche' e' li' che ogni bridge mette cio' che non e' stato assegnato.
+// NON e' il grigio della VLAN 1 (`vlanColors[1]`, che l'utente puo' cambiare):
+// «nessuna VLAN» e «VLAN 1» sono due cose diverse e non devono somigliarsi.
 // Ardesia desaturata: si stacca dal grigio neutro per TINTA, non solo per
 // luminosita', e regge sia il tema scuro sia il chiaro.
 export const CABLE_NEUTRAL = '#6b7d99';
@@ -88,8 +89,14 @@ function _end(pid) {
     const nid = getPortNodeId(pid);
     const node = getNodeByPortId(pid);
     return {
-        active: !!TYPES[node?.type]?.isActive,
-        routed: !!pi.routed,
+        // «Classifica le VLAN?», non «e' di tipo attivo»: uno switch dichiarato NON
+        // GESTITO commuta sul MAC e le VLAN non le conosce — il frame lo attraversa.
+        active: isVlanAware(node),
+        // Il mondo VLAN MISURATO dell'apparato (PVID+egress+trunk): decide se la
+        // sua parola sulla VLAN vale. Chi conosce solo la 1 non sta commutando.
+        deviceVlans: node?.integration?.vlans || [],
+        ownsIp: !!pi.ownsIp,
+        bridges: pi.bridges,
         vlanOvr: pi.vlanOvr,
         vlan: pi.vlan,
         vlanProp: pi.vlanProp,
@@ -110,6 +117,10 @@ export function _linkPaintVlan(l) {
     return linkPaintVlan({
         mode: tk ? tk.mode : (l.mode === 'trunk' ? 'trunk' : 'access'),
         native: (typeof _getLinkVlan === 'function') ? _getLinkVlan(l) : undefined,
+        // Il pavimento: la VLAN in cui finisce cio' che nessuno ha assegnato. 1 di
+        // default — quella che esiste sempre e non si cancella — o quella che la
+        // sede ha dichiarato, per chi lavora con la nativa spostata.
+        siteNative: (typeof _siteNativeVlan === 'function') ? _siteNativeVlan() : 1,
         vlans: tk ? tk.vlans : [],
         src: _end(l.src),
         dst: _end(l.dst),
@@ -120,10 +131,9 @@ export function _linkPaintVlan(l) {
  * Colore del cavo. Manual-first: `colorOvr` vince sempre. Poi il colore della
  * VLAN, ma SOLO quando una VLAN sola si applica davvero; poi il colore ereditato
  * lungo la catena fisica; infine il NEUTRO — che non e' il grigio della VLAN 1 e
- * copre i tre stati in cui una VLAN da dipingere non c'e': trunk multi-VLAN,
- * collegamento instradato, VLAN non dichiarata. A distinguerli non e' la
- * sfumatura ma cio' che il cavo si porta dietro: le pastiglie delle VLAN
- * trasportate ci sono solo sul trunk.
+ * copre i due stati in cui una VLAN da dipingere non c'e': trunk multi-VLAN e
+ * collegamento instradato. A distinguerli non e' la sfumatura ma cio' che il cavo
+ * si porta dietro: le pastiglie delle VLAN trasportate ci sono solo sul trunk.
  * @param {any} l @param {Map<string,string>} [chainCol] mappa linkId → colore di catena
  */
 export function _linkColor(l, chainCol) {
@@ -153,6 +163,8 @@ const _SRC_KEY = {
     'subif':       'cable.paintSubif',
     'declared-ip': 'cable.paintDeclaredIp',
     'passive':     'cable.paintPassive',
+    'untagged':    'cable.paintUntagged',
+    'site-native': 'cable.paintSiteNative',
     'single-vlan': 'cable.paintSingleVlan',
     'multi-vlan':  'cable.paintMultiTip',
     'routed':      'cable.paintRoutedTip',
@@ -168,7 +180,9 @@ export function _linkPaintLabel(l) {
     const p = _linkPaintVlan(l);
     const color = _linkAutoColor(l);
     const tip = _SRC_KEY[p.source] ? t(_SRC_KEY[p.source]) : '';
-    const base = { vlan: p.vlan, kind: p.kind, known: p.known, color, vlans: p.vlans, tip };
+    // `source` viaggia con l'etichetta: chi la mostra deve poter distinguere una
+    // VLAN LETTA da una VLAN di DEFAULT anche quando il numero è lo stesso.
+    const base = { vlan: p.vlan, kind: p.kind, source: p.source, known: p.known, color, vlans: p.vlans, tip };
     // `why` sta nella riga, `tip` nel tooltip: quando coincidono si tiene solo il
     // tooltip, o la stessa frase compare due volte a un dito di distanza.
     if (p.kind === 'vlan')   return Object.assign(base, { text: 'VLAN ' + p.vlan, why: tip });

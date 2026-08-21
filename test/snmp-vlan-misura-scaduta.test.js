@@ -113,6 +113,11 @@ test('il cavo che ne dipende cambia colore: da «VLAN 1» misurata a fonte dichi
     const dopo = _linkPaintVlan(state.links[0]);
     return { prima: prima.vlan + '/' + prima.source, dopo: dopo.vlan + '/' + dopo.source };
   })()`);
-  assert.strictEqual(out.prima, '1/measured', 'partenza: il documento crede a una misura che non esiste');
+  // ⚠️ La provenienza di partenza è `prop`, non `measured`: lo switch di questo
+  // scenario non pubblica alcun mondo VLAN, quindi il suo «1» non ha titolo per
+  // valere come misura del cavo (→ test/vlan-autorita-commuta.test.js) e arriva
+  // al capo PASSIVO come untagged propagato. Il punto del test non cambia: prima
+  // del ri-poll il cavo dice 1, dopo lo dimentica e vince la rete dichiarata.
+  assert.strictEqual(out.prima, '1/prop', 'partenza: il documento crede a un «1» che nessuno ha misurato');
   assert.strictEqual(out.dopo, '30/declared-ip', 'dopo il ri-poll vince la rete DICHIARATA dell\'endpoint');
 });
