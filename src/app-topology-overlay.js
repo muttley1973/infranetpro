@@ -117,16 +117,24 @@ export function _renderTopoLegend(hidden){
             const tip = (name ? `VLAN ${vid} — ${name}` : `VLAN ${vid}`) + (isGuest ? ' · ' + t('pnl.disc.vlanGuestSuffix') : '');
             html += `<span class="topo-leg-vlan${isActive?' active':''}${isGuest?' guest':''}" data-vid="${vid}" data-tip="${escapeHTML(tip)}" data-tip-pos="bottom" style="background:${col}2e;color:${col}"><span class="vlan-dot" style="background:${col}"></span>${vid}</span>`;
         });
-        // «Non rilevata»: chiave di lettura del neutro dedicato, non un filtro. Compare
-        // SOLO se almeno un cavo ci cade davvero — altrimenti sarebbe una voce che
-        // spiega un colore che non c'è. Dopo la 2.10.1 le VLAN assenti sono tante e
-        // VERE: senza questa voce il neutro somiglierebbe al grigio della VLAN 1.
-        const _hasUnknown = (store.state.links || []).some(l => !_linkPaintVlan(l).known);
-        if(_hasUnknown){
-            html += `<span class="topo-leg-novlan" data-tip="${escapeHTML(t('legend.noVlanTip'))}" data-tip-pos="bottom"`
-                 +  ` style="background:${CABLE_NEUTRAL}2e;color:${CABLE_NEUTRAL};cursor:default">`
-                 +  `<span class="vlan-dot" style="background:${CABLE_NEUTRAL}"></span>${escapeHTML(t('legend.noVlan'))}</span>`;
+        // Chiavi di lettura del neutro (non filtri). Ogni voce dice che cosa quel
+        // cavo È — «trunk», «instradato» — invece di dire che cosa gli manca: la
+        // vecchia voce si chiamava «senza colore VLAN» ed era un'etichetta definita
+        // per assenza, in un modello dove ormai un cavo che COMMUTA un colore ce
+        // l'ha sempre. Ognuna compare SOLO se almeno un cavo ci cade davvero,
+        // altrimenti spiegherebbe un colore che non c'è.
+        let _neutroTrunk = false, _neutroRouted = false;
+        for(const l of (store.state.links || [])){
+            const k = _linkPaintVlan(l).kind;
+            if(k === 'trunk')  _neutroTrunk = true;
+            if(k === 'routed') _neutroRouted = true;
         }
+        const _pillaNeutra = (chiave, tip) =>
+            `<span class="topo-leg-novlan" data-tip="${escapeHTML(t(tip))}" data-tip-pos="bottom"`
+          + ` style="background:${CABLE_NEUTRAL}2e;color:${CABLE_NEUTRAL};cursor:default">`
+          + `<span class="vlan-dot" style="background:${CABLE_NEUTRAL}"></span>${escapeHTML(t(chiave))}</span>`;
+        if(_neutroTrunk)  html += _pillaNeutra('legend.trunkNeutral', 'legend.trunkNeutralTip');
+        if(_neutroRouted) html += _pillaNeutra('legend.routedLink',   'legend.routedLinkTip');
         html += `</div>`;
     }
     // Pillola TRUNK (solo in topologia): toggle che evidenzia i collegamenti
