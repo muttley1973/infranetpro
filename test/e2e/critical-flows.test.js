@@ -166,7 +166,17 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
   };
 
   try {
-    await page.goto(srv.baseURL, { waitUntil: 'load' });
+    // La prima navigazione è il punto in cui si manifesta un server di prova
+    // caduto: il browser dice ERR_CONNECTION_RESET, che sembra un difetto
+    // dell'app e non lo è. Prima di rilanciare si CHIEDE al server se è vivo —
+    // se è morto, l'errore lo dice e porta con sé il suo output.
+    try {
+      await page.goto(srv.baseURL, { waitUntil: 'load' });
+    } catch (e) {
+      const motivo = (typeof srv.morto === 'function') ? srv.morto() : null;
+      if (motivo) throw new Error(`navigazione fallita su ${srv.baseURL}: ${motivo}`, { cause: e });
+      throw e;
+    }
     // L'app è pronta quando i globali chiave esistono e lo stato è caricato.
     await page.waitForFunction(() => {
       try { return typeof renderAll === 'function' && typeof state === 'object' && Array.isArray(state.nodes); }
