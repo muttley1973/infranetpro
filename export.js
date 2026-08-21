@@ -1446,7 +1446,9 @@ function _buildPdfReportData() {
     if (typeof buildHandoffSections === 'function') {
         const _vs = new Set();
         for (const pid in state.ports) { const v = state.ports[pid]?.vlan; if (v && v > 1) _vs.add(v); }
-        for (const l of state.links) { const v = _getLinkVlan(l); if (v > 1) _vs.add(v); }
+        // La VLAN di un cavo la dice il MODELLO, non la nativa: `_getLinkVlan`
+        // raccoglieva 1 dove il cavo è in 99, e quelle VLAN sparivano dal dossier.
+        for (const l of state.links) { const _p = _linkPaintVlan(l); const v = _p.known ? _p.vlan : _getLinkVlan(l); if (v > 1) _vs.add(v); }
         const _lg = (typeof getLang === 'function' ? getLang() : 'it');
         handoff = buildHandoffSections({
             title: (_lg === 'en' ? 'Handover dossier' : 'Dossier di consegna'),

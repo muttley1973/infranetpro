@@ -557,6 +557,21 @@ function _floorNodeHiddenByVlan(nid){
  * (es. patch-panel→switch o switch→patch-panel) — la VLAN autorevole
  * sta sempre sullo switch, non sulla porta sorgente del link.
  */
+/**
+ * La VLAN **NATIVA** di un collegamento: quella in cui viaggia il traffico
+ * SENZA TAG. La usano `_getLinkTrunk` (come nativa del trunk) e il modello del
+ * colore (come uno dei suoi ingressi).
+ *
+ * ⛔ **NON è «di che VLAN è questo cavo».** Quella domanda ha una risposta sola,
+ * e sta in `lib/link-vlan-color.js` (via `_linkPaintVlan`/`_linkPaintLabel`):
+ * la scala di qui non conosce né la sotto-interfaccia dot1Q né la rete
+ * DICHIARATA di un endpoint mono-cablato, e non controlla se chi misura abbia
+ * titolo. Il pannello del cavo la usava per rispondere a quella domanda, e su
+ * quattro cavi del banco dipinti 99 o 30 scriveva «VLAN 1» — nono punto della
+ * classe di bug «un concetto, due definizioni». Se ti serve la VLAN del cavo,
+ * chiama il modello.
+ * @param {any} l @returns {number} la nativa (nativa di sito se nessuno la dice)
+ */
 export function _getLinkVlan(l){
     const sp=store.state.ports[l.src]||{};
     const dp=store.state.ports[l.dst]||{};

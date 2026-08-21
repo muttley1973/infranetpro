@@ -113,7 +113,17 @@ export function _renderLinkProps(panel){
         if(!l){store.selType=null;store.selId=null;renderProps();return;}
         const isAuto = !!l.autoLinked;
         const lockAttr = isAuto ? ' disabled' : '';
-        const vl=_getLinkVlan(l);
+        // ⚠️ `_getLinkVlan` risponde a una domanda DIVERSA: è la VLAN **nativa** del
+        // collegamento, e come tale la usano il trunk e il modello. Il pannello la
+        // usava per dire «di che VLAN è questo cavo» — che è la domanda del modello,
+        // e la scala di `_getLinkVlan` non ha né la sotto-interfaccia né la rete
+        // dichiarata dell'endpoint. Risultato misurato sul banco: quattro cavi
+        // dipinti 99 o 30 mentre il pannello scriveva «VLAN 1». Nono punto della
+        // stessa classe di bug, trovato ancora una volta guardando lo schermo.
+        const vl=_getLinkVlan(l);              // la NATIVA — usata solo dove serve la nativa
+        const _pl = (typeof _linkPaintLabel === 'function') ? _linkPaintLabel(l) : null;
+        // Quello che il modello dice del cavo: è questo che il pannello deve mostrare.
+        const _plVlan = (_pl && _pl.kind === 'vlan') ? _pl.vlan : null;
         // Colore proposto quando l'utente azzera il suo: la STESSA regola del canvas
         // (src/app-link-color.js), senza l'override manuale.
         const autoColor=(typeof _linkAutoColor==='function') ? _linkAutoColor(l) : (store.state.vlanColors[vl]||'#6e7681');
@@ -121,7 +131,9 @@ export function _renderLinkProps(panel){
         // VLAN nativa, editabile qui. Il colore del CAVO puo' essere un altro (un trunk
         // e' dipinto dalla VLAN che rappresenta) e lo dice la riga «Colore» piu' sotto:
         // due significati, due posti — non un pallino che ne racconta un terzo.
-        const vlDotColor=store.state.vlanColors[vl]||'#6e7681';
+        // Il pallino segue il CAVO, cioè il modello: se la mappa lo dipinge rosso,
+        // qui non può esserci il grigio della VLAN 1.
+        const vlDotColor=(_pl && _pl.color) || store.state.vlanColors[vl] || '#6e7681';
         const srcNode=getNodeByPortId(l.src), dstNode=getNodeByPortId(l.dst);
         const srcLbl=(srcNode?.name||'?')+' · '+_cablePortDesc(l.src);
         const dstLbl=(dstNode?.name||'?')+' · '+_cablePortDesc(l.dst);
@@ -154,7 +166,6 @@ export function _renderLinkProps(panel){
         // «Perché questo colore»: si mostra solo quando AGGIUNGE qualcosa — il cavo
         // è dipinto da una VLAN diversa da quella scritta sopra, oppure non se ne
         // conosce nessuna, oppure la scelta è una convenzione e va dichiarata.
-        const _pl = (typeof _linkPaintLabel === 'function') ? _linkPaintLabel(l) : null;
         // La riga «Questo cavo» compare quando aggiunge qualcosa alla riga sopra:
         // se il colore racconta un'altra storia (trunk, instradato, VLAN diversa
         // da quella mostrata) — e SEMPRE quando la VLAN è un DEFAULT invece di una
@@ -168,10 +179,18 @@ export function _renderLinkProps(panel){
         // editabile inline. Se nessun capo è attivo, la nativa arriva da monte.
         const _nativeActivePid = (TYPES[getNodeByPortId(l.src)?.type]?.isActive) ? l.src
                                : (TYPES[getNodeByPortId(l.dst)?.type]?.isActive) ? l.dst : null;
+        // ⚠️ Il campo VLAN è EDITABILE e scrive un override sulla porta attiva:
+        // pre-compilarlo con un ripiego afferma una cosa che nessuno ha detto, ed è
+        // esattamente il «VLAN 1» che l'utente vedeva su un cavo dipinto 99. Porta
+        // solo la DICHIARAZIONE; il resto vive nel placeholder, che non afferma.
+        const _dichiarata = _nativeActivePid ? store.state.ports[_nativeActivePid]?.vlanOvr : undefined;
         // (La vecchia riga "Rilevato automaticamente" sotto la VLAN e' stata
         // rimossa: protocollo e confidence ora vivono come badge nella riga
         // Stato, accanto a Membro LAG/AUTO — UI uniforme.)
-        const vlanName = store.state.vlanNames[vl] ? escapeHTML(store.state.vlanNames[vl]) : '';
+        // Il nome accompagna il numero che si mostra: se il cavo è in VLAN 99, il
+        // nome è quello della 99, non quello della nativa.
+        const _vlMostrata = _plVlan != null ? _plVlan : vl;
+        const vlanName = store.state.vlanNames[_vlMostrata] ? escapeHTML(store.state.vlanNames[_vlMostrata]) : '';
         const _tkTagged = tk.vlans.filter(v=>v!==tk.native);
         const vlanBadge = isTrunk
             ? `<span style="background:#0e2233;border:1px solid #2d6a9f;border-radius:4px;padding:2px 10px;font-size:0.78rem;font-weight:700;color:#5ba3f5">TRUNK</span>
@@ -180,7 +199,7 @@ export function _renderLinkProps(panel){
                ${tk.derived?`<span style="margin-left:6px;font-size:0.68rem;color:#5ba3f5"><i class="fas fa-wand-magic-sparkles"></i> auto</span>`:''}`
             : `<span style="display:inline-flex;align-items:center;gap:6px">
                  <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${vlDotColor};flex-shrink:0;border:1px solid rgba(255,255,255,.18)"></span>
-                 <b>VLAN ${vl}</b>${vlanName?`<span style="color:var(--text-muted)">— ${vlanName}</span>`:''}
+                 <b>${_pl ? escapeHTML(_pl.text) : `VLAN ${vl}`}</b>${vlanName?`<span style="color:var(--text-muted)">— ${vlanName}</span>`:''}
                </span>`;
 
         const autoLbl = _cableAutoLabel(l);
@@ -251,7 +270,8 @@ export function _renderLinkProps(panel){
               ${(!isTrunk && _nativeActivePid)
                 ? `<div style="display:flex;align-items:center;gap:8px">
                      <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${vlDotColor};flex-shrink:0;border:1px solid rgba(255,255,255,.18)"></span>
-                     <input type="number" min="1" max="4094" value="${vl}" ${lockAttr} style="flex:1"
+                     <input type="number" min="1" max="4094" value="${_dichiarata != null ? _dichiarata : ''}"
+                            placeholder="${_vlMostrata}" ${lockAttr} style="flex:1"
                             data-change="link-native-vlan" data-lid="${l.id}" data-tip="${t('cable.accessVlanTip')}">
                    </div>
                    ${vlanName?`<div style="font-size:0.7rem;color:var(--text-muted);margin-top:3px"><i class="fas fa-tag" style="font-size:0.6rem;margin-right:3px"></i>${vlanName}</div>`:''}`
