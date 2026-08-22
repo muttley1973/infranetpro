@@ -13,7 +13,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, normalizeNumber } from './app-util.js';
-import { nodeById, getNodeDisplayName, selected, _patchPanelOffset, _enableManualValueInProps, _activatePropsTab, getNodeRackSize, _patchPanelChainOptions, isRackTopNumbered, rackUToVisible, updateN, updateFrontPanel, deleteNode, visibleUToRackU, markDirty, logAudit } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, getNodeDisplayName, selected, _patchPanelOffset, _enableManualValueInProps, _activatePropsTab, getNodeRackSize, _patchPanelChainOptions, isRackTopNumbered, rackUToVisible, updateN, updateFrontPanel, getPortNodeId, deleteNode, visibleUToRackU, markDirty, logAudit } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // P4: re-render dopo adozione/scarto del retype proposto
 import { TYPES, typeName, _nodeSpecView, _fixedRackLabel, _frontPanelState } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { _propsSectionIsOpen, _buildNetAccessHtml, renderProps, _buildPropsHeader, _propsIconForType, _buildPatchPanelPreview } from './app-properties.js';   // ritiro ponte: builder pannello (ex win.*)
@@ -835,6 +835,30 @@ ${showFiber ? `<div class="prop-row2">
                                     const _fmt=s=>s>=1000?`${(s/1000).toFixed(s%1000?1:0)}G`:`${s}M`;
                                     if(_c.speedMismatch) _bits.push(t('lag.warnSpeed',{list:_c.speeds.map(_fmt).join(', ')}));
                                     if(_c.vlanMismatch)  _bits.push(t('lag.warnVlan',{list:_c.vlans.join(', ')}));
+                                }
+                                // DOVE stanno i membri e QUANTI sono (lib/lag-audit.js).
+                                // ⚠️ Si guarda il gruppo in TUTTO il progetto e non solo su
+                                // questo apparato: la sezione LAG è per-device, ma è proprio
+                                // l'attraversamento fra apparati la cosa che si vuole vedere,
+                                // e da qui non si vedrebbe mai.
+                                if(typeof checkLagPlacement==='function'){
+                                    const _pids=[];
+                                    for(const _k of Object.keys(state.ports||{})){
+                                        const _p=state.ports[_k];
+                                        if(_p && _p.lagGroup===gid) _pids.push(_k);
+                                    }
+                                    // «Quegli apparati sono un solo switch logico?» lo decide
+                                    // lib/stack.js, dove quella definizione vive già (il
+                                    // cross-stack EtherChannel). Non se ne scrive una seconda.
+                                    // Se la lib non risponde resta «non si sa», e non si accusa:
+                                    // un LAG su due apparati può benissimo essere un MLAG.
+                                    let _uno=null;
+                                    if(_pids.length>1 && typeof getLagCrossMemberInfo==='function'){
+                                        _uno = !!getLagCrossMemberInfo(state.nodes, _pids, getPortNodeId).isCross;
+                                    }
+                                    const _pl=checkLagPlacement(_pids.map(p=>({ nodeId:getPortNodeId(p) })), { oneChassis:_uno });
+                                    if(_pl.singleMember) _bits.push(t('lag.warnSingle'));
+                                    if(_pl.crossChassis) _bits.push(t('lag.warnCrossChassis',{n:_pl.nodes.length}));
                                 }
                                 if(_curMode && typeof checkLagPair==='function'){
                                     const _peerMode=_lagPeerMode(_lagMap[gid]);

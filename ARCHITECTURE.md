@@ -143,6 +143,11 @@ lib/                   Shared browser + test modules (the heart of the app)
                     from the 2.8.x shape where the subnet was a field of the VLAN.
                     `prefix.reserved[]` holds the booked addresses: they belong to the
                     NETWORK, not to a device — a booked address has no device by definition  (pure)
+  lag-audit.js      checkLagMembers → how each member is built (speed/VLAN uniformity);
+                    checkLagPlacement → where they live and how many (single-member
+                    bundle, members across devices that are not one logical switch —
+                    the «one chassis?» answer is injected, since lib/stack.js owns it);
+                    checkLagPair → LACP mode across the two ends  (pure)
   ipam-audit.js     buildIpamAudit → duplicate addresses (v4+v6, canonical) + overlapping
                     prefixes + addresses outside the declared plan (IPAM hygiene, doc↔doc);
                     ⭐ `notChecked[]` names every check that could not run, because an

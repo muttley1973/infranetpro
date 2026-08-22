@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { checkLagMembers, checkLagPair } = require('../lib/lag-audit.js');
+const { checkLagMembers, checkLagPlacement, checkLagPair } = require('../lib/lag-audit.js');
 
 test('membri omogenei (stessa velocità + VLAN) → nessun mismatch', () => {
   const c = checkLagMembers([
@@ -112,4 +112,67 @@ test('modalità sconosciuta/assente su un lato → null (serve conoscere entramb
   assert.equal(checkLagPair('', 'passive'), null);
   assert.equal(checkLagPair('active', 'boh'), null);
   assert.equal(checkLagPair(undefined, undefined), null);
+});
+
+// ---- checkLagPlacement -----------------------------------------------------
+// `checkLagMembers` guarda COM'È fatto ogni membro; qui si guarda DOVE stanno e
+// QUANTI sono — le due domande che restavano scoperte, e che sul ferro costano:
+// un bundle con una porta sola non aggrega niente, e membri su due apparati non
+// formano un bundle a meno che quei due apparati non siano un unico switch logico.
+
+const M = (...ids) => ids.map(nodeId => ({ nodeId }));
+
+test('un solo membro: il bundle non aggrega niente', () => {
+  const r = checkLagPlacement(M('sw1'));
+  assert.equal(r.singleMember, true);
+  assert.equal(r.count, 1);
+  assert.equal(r.crossDevice, false);
+});
+
+test('due membri sullo stesso apparato: niente da dire', () => {
+  const r = checkLagPlacement(M('sw1', 'sw1'));
+  assert.equal(r.singleMember, false);
+  assert.equal(r.crossDevice, false);
+  assert.equal(r.crossChassis, false);
+  assert.deepEqual(r.nodes, ['sw1'], 'l’apparato si conta una volta sola');
+});
+
+test('due apparati che NON sono un unico switch logico → si segnala', () => {
+  const r = checkLagPlacement(M('sw1', 'sw2'), { oneChassis: false });
+  assert.equal(r.crossDevice, true);
+  assert.equal(r.crossChassis, true);
+  assert.deepEqual(r.nodes, ['sw1', 'sw2']);
+});
+
+test('due apparati che SONO un unico switch logico (stack, MLAG) → si tace', () => {
+  const r = checkLagPlacement(M('sw1', 'sw2'), { oneChassis: true });
+  assert.equal(r.crossDevice, true, 'il fatto resta: i membri stanno su due apparati');
+  assert.equal(r.crossChassis, false, '…ma non è un problema, ed è la differenza che conta');
+  assert.equal(r.chassisUnknown, false);
+});
+
+test('⚠️ se non si sa se sono un unico chassis, non si accusa — ma si dice', () => {
+  // Un LAG su due apparati PUÒ essere un MLAG legittimo, e su un core lo è quasi
+  // sempre. Il silenzio è l'unica risposta onesta quando manca il dato; quello che
+  // non deve succedere è che il silenzio passi per un'assoluzione.
+  const r = checkLagPlacement(M('sw1', 'sw2'));
+  assert.equal(r.crossChassis, false, 'nessuna accusa senza il dato');
+  assert.equal(r.chassisUnknown, true, 'ma è dichiarato che non si è potuto giudicare');
+});
+
+test('un solo apparato: la domanda sul chassis non si pone nemmeno', () => {
+  const r = checkLagPlacement(M('sw1', 'sw1'));
+  assert.equal(r.chassisUnknown, false);
+});
+
+test('gruppo vuoto: non è «un membro solo», è un residuo', () => {
+  const r = checkLagPlacement([]);
+  assert.equal(r.count, 0);
+  assert.equal(r.singleMember, false);
+  assert.equal(r.crossDevice, false);
+});
+
+test('input degeneri non inventano un apparato', () => {
+  assert.deepEqual(checkLagPlacement(null).nodes, []);
+  assert.deepEqual(checkLagPlacement([{}, { nodeId: '' }, { nodeId: null }]).nodes, []);
 });
