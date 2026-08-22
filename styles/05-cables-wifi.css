@@ -141,8 +141,12 @@
         .radio-iface-row .ri-sub { color:var(--text-muted); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         .radio-iface-row .ri-cnt, .radio-assoc-row .ra-kind { color:var(--text-muted); font-size:0.72rem; margin-left:auto; }
         .radio-assocs { margin-top:10px; }
-        .radio-assoc-empty { margin-top:10px; color:var(--text-muted); font-size:0.78rem; }
-        .radio-hint { margin-top:10px; color:var(--text-muted); font-size:0.74rem; line-height:1.4; }
+        /* --fs-md: la misura unica dei riquadri informativi del pannello — la
+           stessa di .pdu-port-model-note / .pdu-connection-hint / .vlan-ipam-hint.
+           Erano 0.78 e 0.74rem: due valori a mano, tutt'e due FUORI dalla scala e
+           diversi fra loro a due righe di distanza. */
+        .radio-assoc-empty { margin-top:10px; color:var(--text-muted); font-size:var(--fs-md); }
+        .radio-hint { margin-top:10px; color:var(--text-muted); font-size:var(--fs-md); line-height:1.4; }
         .radio-hint .fa-circle-info { color:var(--accent); margin-right:4px; }
         /* Link ambiguo (auto-link a bassa confidenza, da verificare): ambra tratteggiato.
            Solo quando non selezionato/evidenziato, per non interferire con quegli stati. */

@@ -841,7 +841,12 @@
             border-radius:4px;
             background:rgba(0,212,255,.05);
             color:var(--text-muted);
-            font-size:.72rem;
+            /* --fs-md, come TUTTI i riquadri informativi del pannello
+               (.pdu-connection-hint, .vlan-ipam-hint): stessa cornice, stessa
+               misura. Era .72rem, cioe' FUORI dalla scala — sotto al piu' piccolo
+               dei token — per una scatola che contiene la regola del modello, non
+               una didascalia. Il grado secondario sta nel colore, non nel corpo. */
+            font-size:var(--fs-md);
             line-height:1.35;
         }
         .pdu-port-model-note i { color:var(--accent); margin-right:4px; }
@@ -867,7 +872,8 @@
         /* sezione "Skin pannello" nel pannello Proprieta */
         .panel-skin-preview { background:#161616; border:1px solid var(--panel-border); border-radius: var(--radius-sm); padding:6px; margin-bottom:8px; }
         .panel-skin-preview svg { width:100%; height:auto; display:block; max-height:120px; }
-        .panel-skin-meta { font-size:0.72rem; color:var(--text-muted); margin:0 0 8px; line-height:1.4; }
+        /* --fs-md: la misura unica delle note del pannello. Vedi .pdu-port-model-note. */
+        .panel-skin-meta { font-size:var(--fs-md); color:var(--text-muted); margin:0 0 8px; line-height:1.4; }
         .panel-skin-hint { font-size:0.74rem; color:var(--text-muted); margin:0 0 8px; line-height:1.45; }
         .panel-skin-btn { display:inline-flex; align-items:center; gap:6px; justify-content:center; flex:1; padding:6px 8px; font-size:var(--fs-md); border:1px solid var(--panel-border); border-radius: var(--radius-md); background:var(--bg-color); color:var(--text-main); cursor:pointer; }
         .panel-skin-btn:hover { border-color:var(--accent); }

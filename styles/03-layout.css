@@ -117,6 +117,15 @@
         .prop-group input,.prop-group select { width:100%; background:var(--bg-color); border:1px solid var(--panel-border); color:var(--text-main); padding:5px 7px; border-radius: var(--radius-sm); font-family:inherit; font-size:var(--fs-lg); }
         .prop-group textarea { width:100%; background:var(--bg-color); border:1px solid var(--panel-border); color:var(--text-main); padding:5px 7px; border-radius: var(--radius-sm); font-family:inherit; font-size:var(--fs-lg); resize:vertical; min-height:62px; line-height:1.45; }
         .prop-group textarea:focus { outline:none; border-color:var(--accent); }
+        /* La riga sotto un campo: dice QUANDO si compila, non quanto vale. Stava
+           scritta inline in tre punti a 0.73rem — fuori dalla scala, sotto al piu'
+           piccolo dei token — e ogni copia poteva divergere dalle altre. Ora e' una
+           regola sola, a --fs-md come TUTTI i riquadri informativi del pannello
+           (.pdu-port-model-note, .pdu-connection-hint, .vlan-ipam-hint, .radio-hint):
+           cio` che spiega si legge a una misura sola, e il grado secondario sta nel
+           colore, non nel corpo. */
+        .prop-hint { font-size:var(--fs-md); line-height:1.4; color:var(--text-muted); margin-top:4px; padding-left:2px; }
+        .prop-hint.warn { color:var(--probe-warn); }
         .prop-notes-header { font-size:var(--fs-md); text-transform:uppercase; color:var(--text-main); letter-spacing:.04em; margin:12px 0 6px; padding-top:10px; border-top:1px solid var(--panel-border); display:flex; align-items:center; gap:5px; }
         .prop-group input[type="color"] { padding:2px; height:30px; cursor:pointer; }
         /* Nel pannello Proprieta' TUTTI i campi modificabili hanno la taglia dei

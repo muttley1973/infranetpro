@@ -773,7 +773,7 @@ ${showFiber ? `<div class="prop-row2">
                             <div class="prop-group"><label>Hostname</label><input value="${escapeHTML(n.hostname||'')}" placeholder="${escapeHTML(d.brand)}" data-change="update-hostname"></div>
                         </div></details>`;
                     } else if(n.type==='pdu' && pduManagementPortCount(n)===0){
-                        _networkAccessHtml = `<details class="props-collapsible" ${_propsSectionIsOpen('network-access')?'open':''} data-toggle="props-section" data-section="network-access"><summary class="props-collapsible-head"><span><i class="fas fa-link"></i> ${t('sec.netAccess')}</span><span class="props-collapsible-preview muted">${t('o.pduMgmtNone')}</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body"><div class="pdu-port-model-note"><i class="fas fa-circle-info"></i> ${t('pnl.node.pduNoNetworkNote')}</div></div></details>`;
+                        _networkAccessHtml = `<details class="props-collapsible" ${_propsSectionIsOpen('network-access')?'open':''} data-toggle="props-section" data-section="network-access"><summary class="props-collapsible-head"><span><i class="fas fa-link"></i> ${t('sec.netAccess')}</span><span class="props-collapsible-preview muted">${t('o.pduMgmtNone')}</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body"><div class="pdu-port-model-note" data-tip="${escapeHTML(t('pnl.node.pduNoNetworkNoteTip'))}" data-tip-wrap><i class="fas fa-circle-info"></i> ${t('pnl.node.pduNoNetworkNote')}</div></div></details>`;
                     } else {
                         _networkAccessHtml = _buildNetAccessHtml(n, d);
                     }

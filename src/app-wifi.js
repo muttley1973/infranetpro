@@ -472,7 +472,7 @@ export function _renderRadioProps(panel, pid){
                 if(_canServeSsid(n)) return _wifiCfgHtml(cfg, p.nodeId, p.idx);
                 // CLIENT non ancora associato: niente creazione SSID, solo l'invito a
                 // collegare l'onda a un AP (l'SSID/VLAN si erediteranno dall'associazione).
-                return `<div class="radio-hint" style="margin-top:6px"><i class="fas fa-circle-info"></i> ${esc(_t('radio.clientOnly'))}</div>`;
+                return `<div class="radio-hint" style="margin-top:6px" data-tip="${esc(_t('radio.clientOnlyTip'))}" data-tip-wrap><i class="fas fa-circle-info"></i> ${esc(_t('radio.clientOnly'))}</div>`;
             }
             // Client: SCEGLIE il BSS offerto dall'AP (tutti i suoi SSID, su ogni radio);
             // la VLAN deriva dal BSS → sempre valida. value = id BSS (link.bss).
@@ -487,7 +487,7 @@ export function _renderRadioProps(panel, pid){
             return _picker + _wifiInheritedRO(_srv);
         })()}
         ${assocBlock}
-        <div class="radio-hint"><i class="fas fa-circle-info"></i> ${esc(_t('radio.hint'))}</div>`;
+        <div class="radio-hint" data-tip="${esc(_t('radio.hintTip'))}" data-tip-wrap><i class="fas fa-circle-info"></i> ${esc(_t('radio.hint'))}</div>`;
 }
 
 // ── Pannello "associazione" wireless (il link/onda) ──────────────────

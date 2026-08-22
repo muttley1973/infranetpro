@@ -183,7 +183,11 @@ test('golden render: power outlet ha editor manual-first separato dalle porte di
   assert.match(html, /Device collegato/);
   assert.match(html, /Server-01/);
   assert.match(html, /PSU-1/);
-  assert.match(html, /non crea cavi di rete/);
+  // Il fatto non si perde, si divide: la RIGA dice cos'e` la presa, il TOOLTIP
+  // cosa non fa. Se una delle due meta` sparisce, il riquadro sta mentendo per
+  // omissione — quindi il test pretende tutt'e due.
+  assert.match(html, /Presa di alimentazione, non porta Ethernet/);
+  assert.match(html, /data-tip="Non crea cavi di rete\."/);
 });
 
 // Ospitare macchine virtuali e' una CAPACITA' del tipo (TYPES.hostsVms), non un

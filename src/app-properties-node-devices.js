@@ -150,9 +150,9 @@ function _pduOutletStateHtml(n){
         return `<span title="${escapeHTML(title)}" style="display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border:1px solid var(--panel-border);border-radius:4px;font-size:.8rem;color:var(--text-main);background:var(--bg-color)"><i class="fas fa-square" style="font-size:.65rem;color:${colors[status]||colors.inactive}"></i>${escapeHTML(label)}</span>`;
     }).join('');
     const summary = Object.entries(counts).filter(([, count]) => count > 0).map(([status, count]) => `<span style="color:${colors[status]}">${count} ${escapeHTML(_pduOutletStatusLabel(status))}</span>`).join(' · ');
-    return `<div class="prop-group"><label>Stato prese power</label>
+    return `<div class="prop-group"><label>${escapeHTML(t('pnl.dev.pduOutletsState'))}</label>
         <div style="display:flex;flex-wrap:wrap;gap:6px">${chips}</div>
-        <div class="pdu-port-model-note"><i class="fas fa-circle-info"></i> ${summary} · stato operativo importato da NetBox; le prese power non sono porte Ethernet e non generano cavi.</div>
+        <div class="pdu-port-model-note" data-tip="${escapeHTML(t('pnl.dev.pduOutletsStateNoteTip'))}" data-tip-wrap><i class="fas fa-circle-info"></i> ${summary} · ${escapeHTML(t('pnl.dev.pduOutletsStateNote'))}</div>
     </div>`;
 }
 
@@ -286,8 +286,8 @@ function _powerGroupsHtml(n){
     let html = `<details class="props-collapsible props-secondary pwg-section" ${escapeHTML(openAttr)} data-toggle="props-section" data-section="power-groups">
         <summary class="props-collapsible-head"><span><i class="fas fa-layer-group"></i> ${escapeHTML(t('pwg.title'))}</span><span class="props-collapsible-preview">${escapeHTML(preview)}</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
         <div class="props-collapsible-body"><div>
-            <div class="pdu-connection-hint"><i class="fas fa-circle-info"></i> ${escapeHTML(t('pwg.hint'))}</div>`;
-    if(!groups.length) html += `<div class="pwg-empty">${escapeHTML(t('pwg.empty'))}</div>`;
+            <div class="pdu-connection-hint" data-tip="${escapeHTML(t('pwg.hintTip'))}" data-tip-wrap><i class="fas fa-circle-info"></i> ${escapeHTML(t('pwg.hint'))}</div>`;
+    if(!groups.length) html += `<div class="pwg-empty" data-tip="${escapeHTML(t('pwg.emptyTip'))}" data-tip-wrap>${escapeHTML(t('pwg.empty'))}</div>`;
     html += '<div class="pwg-list">';
     for(const g of groups) html += _powerGroupRowHtml(n, g, g.outlets.length);
     html += '</div>';
@@ -328,7 +328,7 @@ function _pduPowerConnectionsHtml(n){
     return `<details class="props-collapsible props-secondary pdu-connections-section" ${_propsSectionIsOpen('pdu-power-connections')?'open':''} data-toggle="props-section" data-section="pdu-power-connections">
         <summary class="props-collapsible-head"><span><i class="fas fa-bolt"></i> ${escapeHTML(t('pdu.connectionsTitle'))}</span><span class="props-collapsible-preview">${escapeHTML(t('pdu.connectionsPreview',{connected,total:count}))}</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
         <div class="props-collapsible-body"><div>
-            <div class="pdu-connection-hint"><i class="fas fa-circle-info"></i> ${escapeHTML(t('pdu.connectionsHint'))}</div>
+            <div class="pdu-connection-hint" data-tip="${escapeHTML(t('pdu.connectionsHintTip'))}" data-tip-wrap><i class="fas fa-circle-info"></i> ${escapeHTML(t('pdu.connectionsHint'))}</div>
             <div class="pdu-connection-list">${rows}</div>
         </div></div>
     </details>`;
@@ -1354,7 +1354,7 @@ export function _nodeDeviceChainHtml(n, d){
                     <label class="prop-check"><input type="checkbox" ${checked(n.upsHotSwap)} data-change="update-n" data-nfield="upsHotSwap" data-ncoerce="bool" style="width:auto;margin-right:6px">${t('pnl.dev.hotSwapBatteries')}</label>
                     <div class="prop-group"><label>${t('f.totalSockets')}</label>
                         <input type="number" min="0" max="${escapeHTML(String(MAX_PDU_OUTLETS))}" value="${escapeHTML(String(n.pduOutletCount||''))}" placeholder="0" data-change="update-n" data-nfield="pduOutletCount" data-ncoerce="intdef" data-ndef="0"></div>
-                    <div class="pdu-port-model-note"><i class="fas fa-circle-info"></i> ${t('pnl.dev.upsOutletsNote')}</div>
+                    <div class="pdu-port-model-note" data-tip="${escapeHTML(t('pnl.dev.upsOutletsNoteTip'))}" data-tip-wrap><i class="fas fa-circle-info"></i> ${t('pnl.dev.upsOutletsNote')}</div>
                     ${_pduOutletStateHtml(n)}
                     ${rendersOutletGrid(n) ? _powerGroupsHtml(n) : ''}
                     ${rendersOutletGrid(n) ? _pduPowerConnectionsHtml(n) : ''}
@@ -1403,7 +1403,7 @@ export function _nodeDeviceChainHtml(n, d){
                     </div>
                     <div class="prop-group"><label>${t('f.pduExpansionPorts')}</label>
                         <input type="number" min="0" max="2" value="${_pduExpansionPorts}" data-change="update-n" data-nfield="pduExpansionPorts" data-ncoerce="intdef" data-ndef="0"></div>
-                    <div class="pdu-port-model-note"><i class="fas fa-circle-info"></i> ${t('pnl.node.pduPortsNote')}</div>
+                    <div class="pdu-port-model-note" data-tip="${escapeHTML(t('pnl.node.pduPortsNoteTip'))}" data-tip-wrap><i class="fas fa-circle-info"></i> ${t('pnl.node.pduPortsNote')}</div>
                     <div class="prop-group"><label>${t('f.phases')}</label><select data-change="update-n" data-nfield="pduPhase" data-ncoerce="stropt">
                         <option value="" ${selected(n.pduPhase||'','')}>${t('o.notDeclared')}</option>
                         <option value="single" ${selected(n.pduPhase,'single')}>${t('o.single230')}</option>

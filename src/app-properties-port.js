@@ -129,7 +129,7 @@ export function _renderPduOutletProps(panel){
     const connectionHtml = `<details class="props-collapsible props-secondary pdu-outlet-connection-section" ${_propsSectionIsOpen('pdu-outlet-connection')?'open':''} data-toggle="props-section" data-section="pdu-outlet-connection">
         <summary class="props-collapsible-head"><span><i class="fas fa-bolt"></i> ${escapeHTML(t('pduOutlet.connection'))}</span><span class="pdu-connection-source ${connectionSourceClass}">${escapeHTML(connectionSourceLabel)}</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
         <div class="props-collapsible-body"><div>
-            <div class="pdu-connection-hint"><i class="fas fa-circle-info"></i> ${escapeHTML(t('pduOutlet.connectionHint'))}</div>
+            <div class="pdu-connection-hint" data-tip="${escapeHTML(t('pduOutlet.connectionHintTip'))}" data-tip-wrap><i class="fas fa-circle-info"></i> ${escapeHTML(t('pduOutlet.connectionHint'))}</div>
             <div class="prop-row2 pdu-outlet-connection-fields">
                 <div class="prop-group pdu-outlet-connection-field"><label>${escapeHTML(t('pduOutlet.connectedDevice'))}</label>${pduConnectionDeviceSelect({ nodeId:node.id, index, connection })}</div>
                 <div class="prop-group pdu-outlet-connection-field"><label>${escapeHTML(t('pdu.connectionPort'))}</label><input class="${connection.manualPort ? 'ovr' : ''}" value="${escapeHTML(connection.portName)}" placeholder="${escapeHTML(t('pdu.notSet'))}" data-change="pdu-connection-field" data-nid="${escapeHTML(node.id)}" data-pindex="${index}" data-pfield="portName"></div>
@@ -161,8 +161,8 @@ export function _renderPduOutletProps(panel){
             </div>
             <div class="pdu-outlet-status-meta"><span class="pdu-connection-source ${statusSourceClass}">${escapeHTML(statusSourceLabel)}</span> · ${t('pduOutlet.importedStatus')}: <strong>${escapeHTML(importedStatus || t('pduOutlet.statusNotDocumented'))}</strong></div>
         </div>
-        <div class="pdu-port-model-note"><i class="fas fa-shield-halved"></i> ${t('pduOutlet.manualHint')}</div>
-        <div class="pdu-port-model-note"><i class="fas fa-link-slash"></i> ${t('pduOutlet.noNetworkCable')}</div>`;
+        <div class="pdu-port-model-note" data-tip="${escapeHTML(t('pduOutlet.manualHintTip'))}" data-tip-wrap><i class="fas fa-shield-halved"></i> ${t('pduOutlet.manualHint')}</div>
+        <div class="pdu-port-model-note" data-tip="${escapeHTML(t('pduOutlet.noNetworkCableTip'))}" data-tip-wrap><i class="fas fa-link-slash"></i> ${t('pduOutlet.noNetworkCable')}</div>`;
 }
 
 function _portInheritedLinkData(pid){
@@ -307,11 +307,11 @@ export function _renderPortProps(panel){
             // un IPv4» in giro è il difetto che si ripete da solo.
             const looksIp = !val || (typeof _parseIpv4Int === 'function' ? _parseIpv4Int(val) !== null : true);
             const warn = looksIp ? '' :
-                `<div style="font-size:0.73rem;color:var(--probe-warn);margin-top:4px;padding-left:2px;line-height:1.4">${t('port.ipNotAnAddress')}</div>`;
+                `<div class="prop-hint warn">${t('port.ipNotAnAddress')}</div>`;
             return `<div class="prop-group"><label>${t('port.ifaceIp')}</label>
               <input value="${escapeHTML(val)}" placeholder="${escapeHTML(t('port.ifaceIpPh'))}" inputmode="numeric"
                      data-change="port-field" data-pid="${pid}" data-pfield="ip">
-              <div style="font-size:0.73rem;color:var(--text-muted);margin-top:4px;padding-left:2px;line-height:1.4">${t('port.ifaceIpHint')}</div>
+              <div class="prop-hint" data-tip="${escapeHTML(t('port.ifaceIpHintTip'))}" data-tip-wrap>${t('port.ifaceIpHint')}</div>
               ${warn}
             </div>`;
         })();
@@ -355,7 +355,7 @@ export function _renderPortProps(panel){
             ${_ifaceAddrGroup}
             ${_passiveConduit ? `<div class="prop-group"><label>${t('common.status')}</label>
               ${_statusSelect()}
-              <div style="font-size:0.73rem;color:var(--text-muted);margin-top:4px;padding-left:2px;line-height:1.4">${t('port.passiveStatusHint')}</div>
+              <div class="prop-hint">${t('port.passiveStatusHint')}</div>
             </div>` : (_floorLeaf ? `<div class="prop-group"><label>${t('common.status')}</label>
               ${_roBox(_leafKnown ? escapeHTML(_statusLabel(_leafStatus)) : `<span style="color:var(--text-muted)">${t('port.statusUnknown')}</span>`)}
             </div>

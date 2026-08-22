@@ -508,10 +508,12 @@
         .vlan-ipam-row { display:flex; align-items:center; gap:6px; }
         .vlan-ipam-fields { margin:8px 0 0 68px; display:grid; grid-template-columns:1fr 1fr; gap:7px; }
         .vlan-ipam-fields .prop-group { margin-bottom:0; }
-        /* --fs-sm e non --fs-xs: e' testo da leggere dentro un pannello il cui
-           corpo sta a --fs-md, non una didascalia a pie' di pagina. Resta
-           chiaramente secondario (un gradino sotto), ma leggibile. */
-        .vlan-ipam-hint { grid-column:1/-1; font-size:var(--fs-sm); line-height:1.45; color:var(--text-muted); padding:6px 8px; border-radius: var(--radius-md); background:rgba(13,17,23,.35); border:1px solid rgba(255,255,255,.05); }
+        /* --fs-md, il corpo del pannello: qui non ci sono didascalie ma FRASI
+           intere — «risponde X», «nessun apparato ha questo IP», lo stato che
+           il DCIM dichiara. Un verdetto si legge alla stessa misura di cio' che
+           giudica; a --fs-sm si leggeva come una nota a pie' di pagina. Il grado
+           secondario resta nel COLORE (--text-muted), non nella misura. */
+        .vlan-ipam-hint { grid-column:1/-1; font-size:var(--fs-md); line-height:1.45; color:var(--text-muted); padding:6px 8px; border-radius: var(--radius-md); background:rgba(13,17,23,.35); border:1px solid rgba(255,255,255,.05); }
         .vlan-ipam-hint span { color:var(--text-main); }
         .vlan-ipam-hint.warn { color:#e3b341; border-color:rgba(227,179,65,.18); }
         /* Occupazione IPAM (lib/ipam.js): barra di capacità + ripartizione + liberi. */

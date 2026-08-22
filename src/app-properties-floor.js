@@ -290,7 +290,7 @@ function _netGwDeviceHtml(gw){
     const dev = _l3DeviceForIp(gw);
     return dev
         ? `<div class="vlan-ipam-hint"><i class="fas fa-server"></i> ${t('floor.gwDeviceIs',{name:`<span>${escapeHTML(dev.name || dev.id || '')}</span>`})}</div>`
-        : `<div class="vlan-ipam-hint warn"><i class="fas fa-triangle-exclamation"></i> ${t('floor.gwDeviceNone')}</div>`;
+        : `<div class="vlan-ipam-hint warn" data-tip="${t('floor.gwDeviceNoneTip')}"><i class="fas fa-triangle-exclamation"></i> ${t('floor.gwDeviceNone')}</div>`;
 }
 
 // Il dettaglio della rete aperta: com'e' fatta. La VLAN e' una tendina (— = nessuna),

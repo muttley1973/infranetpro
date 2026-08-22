@@ -559,7 +559,9 @@ test('gateway: l\'INDIRIZZO dice chi risponde, la card VLAN dice quale APPARATO 
     return JSON.stringify({
       // «chi risponde a questo indirizzo» sta accanto all'INDIRIZZO, cioè in «Reti»
       answersInDetail: nets.includes('RT1'),
-      noneInDetail: nets.includes('Nessun apparato documentato ha questo indirizzo'),
+      noneInDetail: nets.includes('Nessun apparato documentato ha questo IP'),
+      // e il rimedio — le due sole cose che possono essere successe — sta nel tooltip
+      noneSaysWhatToDo: nets.includes('o manca dal progetto, o l') && nets.includes('data-tip='),
       // e NON nella card VLAN, dove l'indirizzo non si vede né si corregge
       noOrphanInVlanCard: !vlanPart.includes('non corrisponde a nessun device'),
       // la card VLAN parla dell'APPARATO, con un nome che non dice «gateway»
@@ -571,6 +573,7 @@ test('gateway: l\'INDIRIZZO dice chi risponde, la card VLAN dice quale APPARATO 
   const r = JSON.parse(out);
   assert.strictEqual(r.answersInDetail, true, 'il dettaglio dice quale apparato risponde all\'indirizzo');
   assert.strictEqual(r.noneInDetail, true, 'e lo dice anche quando non risponde nessuno');
+  assert.strictEqual(r.noneSaysWhatToDo, true, 'e il rimedio resta raggiungibile: nel tooltip');
   assert.strictEqual(r.noOrphanInVlanCard, true, 'l\'avviso non sta piu` dove l\'IP non si vede');
   assert.strictEqual(r.routedByLabel, true, '«Instradata da»: e` l\'apparato, non l\'indirizzo');
   assert.strictEqual(r.saysFromWhichIp, true, 'e dice da quale indirizzo l\'ha dedotto');
