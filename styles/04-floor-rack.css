@@ -303,7 +303,18 @@
             filter:drop-shadow(0 0 5px rgba(0,212,255,.45));
             z-index:102;
         }
-        .port.active { color:#9aa4ad; } .port.fault { color:var(--fault-color); } .port.idle { color:var(--idle-color); }
+        .port.active { color:#9aa4ad; } .port.fault { color:var(--fault-color); }
+        /* DOPO le due qui sopra, e per la stessa ragione del rack: il documento puo'
+           dire «attiva» mentre lo switch la misura giu' da tre verifiche, e a parita' di
+           specificita' vince chi e' scritto per ultimo — cioe' la misura.
+           ⚠️ `admin-down` NON si dipinge qui, di proposito. Nel rack il nero e' un buco
+           nello chassis e si legge; in planimetria l'icona E' il dispositivo, e un nero
+           su fondo scuro non dice «spenta a mano», dice «non disegnata». Chi ha dato lo
+           `shutdown` lo sa: resta il colore del tipo. L'ambra invece serve a chi passa
+           di li' e non sa niente. ⚠️ Perche' questa regola arrivi davvero servono i
+           `:not(.no-link)` in 10-modern.css, che colora le icone per tipo con selettori
+           piu' specifici di questo. */
+        .port.no-link { color:var(--nolink-color); }
 
         /* Rack devices */
         .rack-device { grid-column:1/-1; width:100%; background:var(--rack-metal); border:1px solid #111; border-left:3px solid var(--inactive-color); border-bottom:2px solid #000; display:flex; align-items:center; justify-content:space-between; padding:2px 6px; color:#ddd; position:relative; cursor:move; box-sizing:border-box; overflow:hidden; }
@@ -640,24 +651,36 @@
         .port-led.active:hover { box-shadow:0 0 9px var(--active-color); }
         .port-led.fault  { background:var(--fault-color);  box-shadow:0 0 5px var(--fault-color); }
         .port-led.sfp-slot.fault { background:rgba(248,81,73,.15); box-shadow:0 0 4px rgba(248,81,73,.5); border-color:rgba(248,81,73,.8); }
-        .port-led.idle   { background:var(--idle-color);   box-shadow:0 0 5px var(--idle-color); }
-        .port-led.sfp-slot.idle { background:rgba(210,153,34,.14); box-shadow:0 0 4px rgba(210,153,34,.45); border-color:rgba(210,153,34,.75); }
-        /* Le due porte «off» — DOPO .active/.fault/.idle nella cascata, quindi a
+        /* Le due porte «off» — DOPO .active/.fault nella cascata, quindi a
            parita' di specificita' vincono: qualunque cosa il documento dica di questa
-           porta, se lo switch la misura giu' quello e' il fatto che conta. Nessun
-           alone in nessuna delle due: gli stati vivi brillano, queste no — l'una
-           perche' e' un buco, l'altra perche' segnala senza fingersi accesa.
+           porta, se lo switch la misura giu' quello e' il fatto che conta.
+           ⚠️ L'alone distingue le due, e l'asse NON e' «accesa vs spenta» — sarebbe una
+           domanda a cui il colore risponde gia'. E' «ti chiede qualcosa vs no»: brillano
+           gli stati su cui c'e' qualcosa da fare (verde e rosso perche' sono vivi, ambra
+           perche' e' un sintomo da andare a guardare), non brilla cio' che e' gia' deciso.
+           E' l'aspetto che era di `idle` — alone pieno sul LED, riempimento traslucido con
+           bordo tinto sugli slot — passato allo stato che quell'ambra la merita davvero.
              .admin-down  spenta a mano (`shutdown`) — una DECISIONE: nero, quieta,
                           identica a una porta che non c'e'. Chi l'ha spenta lo sa.
              .no-link     senza link da >=3 verifiche — un SINTOMO ambiguo (device
                           spento? NIC morta? SFP sfilato?) che qualcuno deve andare a
-                          guardare: AMBRA, cioe' attenzione. Deliberatamente diversa
-                          dall'ambra di `.idle` (#f5a623), che e' una dichiarazione. */
+                          guardare: AMBRA con l'alone, come gli altri due stati che
+                          chiedono attenzione. ⚠️ E' l'UNICA ambra sulle
+                          porte: `.idle` ne aveva una seconda (#f5a623) per una lettura
+                          che dopo tre verifiche diventava questa. Un colore che si
+                          trasforma da solo non e' uno stato — quella classe non esiste
+                          piu', la lettura vive nella barra SNMP a parole. */
         /* ⚠️ Il gemello di queste due regole sta in 06-panels.css, subito dopo
            `.port-led.lag-member`: quella e' `!important` e vince su qualsiasi cosa
            scritta qui. Se cambi un colore, cambialo in ENTRAMBI. */
-        .port-led.no-link { background:var(--nolink-color); box-shadow:none; }
-        .port-led.sfp-slot.no-link { background:var(--nolink-color); border-color:var(--nolink-color); box-shadow:none; }
+        /* ⚠️ Le percentuali si mescolano dal TOKEN (`color-mix`) e non si riscrivono come
+           `rgba(210,153,34,…)`: quell'hex e' gia' scritto in tre posti sorvegliati da
+           test/porta-senza-link-colore.test.js, e tre copie a mano dentro il CSS sarebbero
+           la quarta, quinta e sesta — invisibili a quella guardia. */
+        .port-led.no-link { background:var(--nolink-color); box-shadow:0 0 5px var(--nolink-color); }
+        .port-led.sfp-slot.no-link { background:color-mix(in srgb, var(--nolink-color) 14%, transparent);
+            box-shadow:0 0 4px color-mix(in srgb, var(--nolink-color) 45%, transparent);
+            border-color:color-mix(in srgb, var(--nolink-color) 75%, transparent); }
         /* Nero PIENO, senza anello e senza alone: identica in tutto a una porta non
            attiva, solo di un altro colore. Un contorno chiaro la faceva sembrare
            selezionata, cioe' un'altra cosa; e il bordo degli SFP/MGMT va spento
@@ -719,7 +742,6 @@
         .pdu-power-outlet.active:hover { box-shadow:0 0 9px var(--active-color); }
         .pdu-power-outlet.active { background:var(--active-color); border-color:var(--active-color); box-shadow:0 0 5px var(--active-color); }
         .pdu-power-outlet.fault { background:var(--fault-color); border-color:var(--fault-color); box-shadow:0 0 5px var(--fault-color); }
-        .pdu-power-outlet.idle { background:var(--idle-color); border-color:var(--idle-color); box-shadow:0 0 5px var(--idle-color); }
         .pdu-power-outlet.inactive { background:var(--inactive-color); border-color:var(--inactive-color); box-shadow:none; }
         .pdu-power-outlet.unknown { background:#242b33; border:1px dashed rgba(105,117,134,.72); box-shadow:none; color:rgba(255,255,255,.48); }
         .pdu-power-outlet.selected { outline:1px solid var(--accent); outline-offset:1px; transform:scale(1.35); box-shadow:0 0 0 2px var(--accent), 0 0 7px rgba(0,212,255,.55); z-index:102; }
@@ -826,7 +848,6 @@
         .panel-skin-svg .skin-port, .panel-skin-svg .skin-port * { fill:var(--inactive-color) !important; }
         .panel-skin-svg .skin-port.active, .panel-skin-svg .skin-port.active * { fill:var(--active-color) !important; }
         .panel-skin-svg .skin-port.fault,  .panel-skin-svg .skin-port.fault *  { fill:var(--fault-color) !important; }
-        .panel-skin-svg .skin-port.idle,   .panel-skin-svg .skin-port.idle *   { fill:var(--idle-color) !important; }
         .panel-skin-svg .skin-port.no-link, .panel-skin-svg .skin-port.no-link * { fill:var(--nolink-color) !important; }
         .panel-skin-svg .skin-port.admin-down, .panel-skin-svg .skin-port.admin-down * { fill:var(--shut-color) !important; }
         .panel-skin-svg .skin-port:hover,  .panel-skin-svg .skin-port:hover *  { fill:var(--accent) !important; }
@@ -872,10 +893,14 @@
         .port-led.mgmt-slot:hover { box-shadow:0 0 6px rgba(0,212,255,.45); }
         .port-led.mgmt-slot.active { box-shadow:0 0 4px rgba(0,212,255,.5); border-color:rgba(0,212,255,.85); }
         .port-led.mgmt-slot.fault  { box-shadow:0 0 4px rgba(248,81,73,.5);  border-color:rgba(248,81,73,.7); }
-        .port-led.mgmt-slot.idle   { box-shadow:0 0 4px rgba(0,212,255,.45); border-color:rgba(0,212,255,.65); }
         /* La MGMT e' trasparente col bordo ciano: qui il riempimento va rimesso, e va
-           messo DOPO .port-led.mgmt-slot (che lo azzera) per vincere la cascata. */
-        .port-led.mgmt-slot.no-link { background:var(--nolink-color); border-color:var(--nolink-color); box-shadow:none; }
+           messo DOPO .port-led.mgmt-slot (che lo azzera) per vincere la cascata. Il
+           «senza link» prende lo stesso trattamento dello slot SFP — traslucido, bordo
+           tinto, alone — perche' due slot che dicono la stessa cosa non possono dirla
+           in due modi; `admin-down` resta pieno e muto, che e' il suo. */
+        .port-led.mgmt-slot.no-link { background:color-mix(in srgb, var(--nolink-color) 14%, transparent);
+            border-color:color-mix(in srgb, var(--nolink-color) 75%, transparent);
+            box-shadow:0 0 4px color-mix(in srgb, var(--nolink-color) 45%, transparent); }
         .port-led.mgmt-slot.admin-down { background:var(--shut-color); border-color:var(--shut-color); box-shadow:none; }
         /* Numero sotto cella MGMT: stessa tipografia del .port-num SFP (font-size
            4px) ma colorato ciano per identificare visivamente come MGMT. */

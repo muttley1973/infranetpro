@@ -243,7 +243,10 @@ function _buildFloorNodeEl(n, def, absentCls){
     const pc = n.ports!==undefined?n.ports:def.ports;
     let icon = `<i class="fas ${def.icon} icon"></i>`;
     if(pc===1){
-        const pid = `${n.id}-1`, pi = store.state.ports[pid]||{}, st = normalizeStatus(pi.statusOvr??pi.status);
+        // `_portStateCls` come nel rack: su un nodo a UNA porta l'icona fa da spia, e
+        // finora diceva meno di quanto l'app sapesse — la porta risultava senza link da
+        // tre verifiche e in planimetria non si vedeva niente.
+        const pid = `${n.id}-1`, pi = store.state.ports[pid]||{}, st = normalizeStatus(pi.statusOvr??pi.status)+_portStateCls(pi);
         const selectedPortCls = (store.selType==='port' && store.selId===pid) ? ' selected' : '';
         icon = `<i class="fas ${def.icon} icon port ${st}${selectedPortCls}" data-pid="${pid}" title="${escapeHTML(portTip(pid))}"></i>`;
     }
@@ -757,7 +760,8 @@ function _renderFloorNow(){
 
 function getPortHTML(pid){
     const pi=store.state.ports[pid]||{};
-    const st=normalizeStatus(pi.statusOvr??pi.status);
+    // Le spie di un nodo a piu' porte: stessa misura del rack, stessa classe.
+    const st=normalizeStatus(pi.statusOvr??pi.status)+_portStateCls(pi);
     const isSelected = store.selType==='port' && store.selId===pid;
     // Tooltip HTML nativo (title) per uniformita' con i LED del rack:
     // stesso formato portTip e stesso comportamento browser nativo.

@@ -492,7 +492,7 @@ function _addReportPages(doc, report, projName, date, SVGtoPDF, options = {}, la
       )
     );
     y = _rSub(doc, `${allRows.length} ${_rt(L, 'sub.portsA')} ${(report.portAssignment || []).length} ${_rt(L, 'sub.portsB')}`, y);
-    const SC = { active: '#16a34a', fault: '#dc2626', idle: '#d97706', inactive: '#6b7280' };
+    const SC = { active: '#16a34a', fault: '#dc2626', inactive: '#6b7280' };
     const cols = [
       { label: _rt(L, 'col.rack'),   w: 96, wrap: true },
       { label: _rt(L, 'col.device'), w: 74, wrap: true },

@@ -26,9 +26,17 @@ export function normalizeNumber(v, fb, min = -Infinity, max = Infinity) {
     let n = parseInt(v, 10); if (Number.isNaN(n)) n = fb; return Math.max(min, Math.min(max, n));
 }
 
-/** Normalizza uno stato porta/device a uno dei valori ammessi. */
+/** Normalizza uno stato porta a uno dei TRE valori ammessi.
+ *  ⚠️ `idle` non c'e' piu': una porta o passa pacchetti, o non li passa, o e' guasta.
+ *  Il quarto valore raccontava quattro storie diverse (l'etichetta diceva «su ma senza
+ *  traffico», l'SNMP ci scriveva dormant/testing che sono l'opposto, la demo ci
+ *  scriveva «spenta a mano») e nessuno lo leggeva per decidere qualcosa: era solo una
+ *  tinta. Il fatto misurato vive adesso in `pi.operWait`, con la parola dell'apparato.
+ *  I progetti salvati prima non hanno bisogno di migrazione: un `'idle'` sul disco
+ *  cade nel ramo di sinistra e diventa `'inactive'`, che e' esattamente cio' che
+ *  l'apparato stava dicendo. */
 export function normalizeStatus(s) {
-    return ['inactive', 'active', 'fault', 'idle'].includes(s) ? s : 'inactive';
+    return ['inactive', 'active', 'fault'].includes(s) ? s : 'inactive';
 }
 
 /** Lo stato di questa porta è NOTO? (dichiarato dall'utente o misurato via SNMP)

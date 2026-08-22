@@ -528,8 +528,17 @@ async function pollAllSNMP(opts){
 function _snmpOperToUiStatus(v, prev){
     const n = Number(v);
     if(n === 1) return 'active';
-    if(n === 2) return 'inactive';
-    if(n === 3 || n === 5) return 'idle';    // testing · dormant: stati VERI, riportati dall'apparato
+    // 2 down · 3 testing · 5 dormant: nessuna delle tre passa pacchetti, e il LED non
+    // ha una tinta che le distingua senza mentire. `idle` ci provava, e diceva quattro
+    // cose diverse a seconda di chi la leggeva — l'etichetta prometteva «su ma senza
+    // traffico», la RFC 2863 dice l'opposto (dormant e testing NON sono su), il
+    // generatore della demo la usava per «spenta a mano». Peggio: la stessa lettura
+    // scriveva `operUp=false`, quindi la porta accumulava `downStreak` e dopo tre
+    // Verifiche passava da un'ambra all'altra da sola. Una tinta che dura tre poll e
+    // poi cambia non e' uno stato, e' un rumore.
+    // La lettura vera non si perde: la PAROLA dell'apparato va in `operWait` qui
+    // sotto, che e' una misura e come tale scade.
+    if(n === 2 || n === 3 || n === 5) return 'inactive';
     if(n === 6 || n === 7) return 'fault';
     // 4 = unknown. Nella RFC 2863 vuol dire «l'agente non riesce a determinare lo
     // stato»: è un «non risulta», non uno stato. Stava con testing/dormant e usciva
@@ -538,6 +547,20 @@ function _snmpOperToUiStatus(v, prev){
     // (guardia SNMP-M2): quella guardava i buchi, e il 4 le era sfuggito perché è un
     // valore PRESENTE che significa assente.
     return prev ?? 'inactive';
+}
+// ifOperStatus → p.operWait, la PAROLA dell'agente quando la porta non e' ne' su ne'
+// giu'. Sono i due valori che il LED non sa dire (3 testing, 5 dormant) e che pero'
+// l'apparato ha DICHIARATO: un dialer Cisco in spoofing, una NIC Linux che aspetta
+// l'802.1X. Non si traduce — «dormant» e' la parola della RFC 2863 e della CLI, ed e'
+// quella che si cerca su Google (stessa scelta di `port.shut`).
+// E' una misura a tutti gli effetti: la scrive solo un poll riuscito e scade con le
+// altre tre in forgetPortMeasure(). Assente per 0 (colonna mai letta) e per 4
+// (unknown: l'agente dichiara di non sapere), esattamente come `operUp`.
+function _snmpOperToWait(v){
+    const n = Number(v);
+    if(n === 3) return 'testing';
+    if(n === 5) return 'dormant';
+    return undefined;
 }
 // ifOperStatus → p.operUp, campo di MISURA gemello di `adminDown`: stessa fonte (solo
 // un poll riuscito), stessa scadenza (forgetPortMeasure). Tre valori e non due:
@@ -622,6 +645,8 @@ function _applySnmpBasePortFields(pid, iface){
     if(wasShut && adminDown === false) p.downStreak = 0;
     const operUp = _snmpOperToUi(iface.operStatus);
     if(operUp === undefined) delete p.operUp; else p.operUp = operUp;
+    const operWait = _snmpOperToWait(iface.operStatus);
+    if(operWait === undefined) delete p.operWait; else p.operWait = operWait;
     p.status = _snmpOperToUiStatus(iface.operStatus, p.status);
     p.vlan   = _snmpVlanToUi(iface.vlan, p.vlan);
     p.speed  = _snmpSpeedToUi(iface.speed, p.speed);
@@ -775,6 +800,8 @@ export function applyPollResult(nodeId, data, opts={}){
         p.status  = _snmpOperToUiStatus(sub.operStatus, p.status);
         const operUp = _snmpOperToUi(sub.operStatus);
         if(operUp === undefined) delete p.operUp; else p.operUp = operUp;
+        const operWait = _snmpOperToWait(sub.operStatus);
+        if(operWait === undefined) delete p.operWait; else p.operWait = operWait;
         const adminDown = _snmpAdminToUi(sub.adminStatus);
         if(adminDown === undefined) delete p.adminDown; else p.adminDown = adminDown;
         const mac = _snmpMacToUi(sub.mac, p.mac);
@@ -944,7 +971,7 @@ expose({
     _hasSnmpIntegration, _snmpFreshness, _snmpIsStale, _lastSnmpSyncTs, _hasSnmpTargets,
     _renderSyncFreshness, _renderV3PendingChip, _v3JumpNext, _v3NeedsCreds, _v3PendingNodes,
     updateIntegration, _pollPowerNode, pollSNMP, pollAllSNMP,
-    _snmpOperToUiStatus, _snmpSpeedToUi, _snmpVlanToUi, _snmpNameToUi, _snmpAliasToUi,
+    _snmpOperToUiStatus, _snmpOperToWait, _snmpOperToUi, _snmpSpeedToUi, _snmpVlanToUi, _snmpNameToUi, _snmpAliasToUi,
     _snmpLagToUi, _snmpMacToUi, _applySnmpBasePortFields, applyPollResult,
 });
 

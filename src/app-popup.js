@@ -276,7 +276,6 @@ ${snmpBar}
   <select class="${pi.statusOvr?'ovr':''}" data-change="port-field" data-pid="${pid}" data-pfield="statusOvr">
     <option value=""         ${effStatus===''        ?'selected':''}>${t('port.statusUnknown')}</option>
     <option value="active"   ${effStatus==='active'  ?'selected':''}>ACTIVE</option>
-    <option value="idle"     ${effStatus==='idle'    ?'selected':''}>IDLE</option>
     <option value="inactive" ${effStatus==='inactive'?'selected':''}>INACTIVE</option>
     <option value="fault"    ${effStatus==='fault'   ?'selected':''}>FAULT</option>
   </select>

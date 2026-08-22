@@ -241,7 +241,7 @@
         .prst:hover { color:var(--fault-color); }
         .pop-conn { margin-top:7px; padding-top:6px; border-top:1px solid #2a3040; font-size:var(--fs-xs); color:var(--text-muted); }
         .badge { padding:2px 6px; border-radius: var(--radius-xl); font-size:var(--fs-xs); font-weight:bold; background:#333; }
-        .badge.active { color:var(--active-color); } .badge.fault { color:var(--fault-color); } .badge.idle { color:var(--idle-color); }
+        .badge.active { color:var(--active-color); } .badge.fault { color:var(--fault-color); }
 
         /* Cross-rack connection banner */
         #cross-rack-banner { position:absolute; top:8px; left:50%; transform:translateX(-50%);
@@ -310,7 +310,6 @@
         .pdu-connection-status, .pdu-connection-source { flex:0 0 auto; padding:2px 5px; border:1px solid var(--panel-border); border-radius:var(--radius-xl); color:var(--text-muted); font-size:var(--fs-xs); line-height:1.1; }
         .pdu-connection-status.active { color:var(--active-color); border-color:color-mix(in srgb, var(--active-color) 45%, var(--panel-border)); }
         .pdu-connection-status.fault { color:var(--fault-color); border-color:color-mix(in srgb, var(--fault-color) 45%, var(--panel-border)); }
-        .pdu-connection-status.idle { color:var(--idle-color); border-color:color-mix(in srgb, var(--idle-color) 45%, var(--panel-border)); }
         .pdu-connection-status.inactive, .pdu-connection-status.unknown { color:var(--text-muted); }
         .pdu-connection-source { margin-left:auto; }
         .pdu-connection-source.netbox { color:var(--text-muted); }
@@ -360,7 +359,10 @@
            allo schermo. `lag-sel`/`lag-focus` restano SOPRA di proposito: quelli non
            sono dati, sono «ti sto puntando questa». */
         .port-led.admin-down  { background:var(--shut-color)   !important; box-shadow:none !important; }
-        .port-led.no-link     { background:var(--nolink-color) !important; box-shadow:none !important; }
+        /* ⚠️ L'alone del «senza link» va ripetuto QUI o non arriva mai allo schermo: e'
+           questa riga a portare l'`!important`, e un `box-shadow:none` qui cancellava
+           silenziosamente la regola scritta in 04-floor-rack.css. */
+        .port-led.no-link     { background:var(--nolink-color) !important; box-shadow:0 0 5px var(--nolink-color) !important; }
         /* Bundle selezionato: violetto coerente col badge "Membro LAG" (#a371f7) */
         .port-led.lag-focus   { background:#a371f7 !important;
                                 box-shadow:0 0 7px #a371f7cc !important; z-index:2; }

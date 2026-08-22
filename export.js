@@ -839,7 +839,7 @@ function _buildRackSVG(rackId, opts){
     };
     // Colori LED identici alla vista rack dell'app (variabili CSS :root)
     const statusColor = st => ({
-        active:'#39d353', fault:'#f85149', idle:'#f5a623', inactive:'#6e7681',
+        active:'#39d353', fault:'#f85149', inactive:'#6e7681',
     })[normalizeStatus(st)] || '#6e7681';
     // Le due porte «off» MISURATE dallo switch (--shut-color / --nolink-color).
     // Vincono su qualunque stato dichiarato: in tutto il disegno sono l'unico punto

@@ -85,7 +85,6 @@ function renderPortsTable(n){
           data-change="port-field">
     <option value=""         ${effStatus===''        ?'selected':''}>—</option>
     <option value="active"   ${effStatus==='active'  ?'selected':''}>▲ ACT</option>
-    <option value="idle"     ${effStatus==='idle'    ?'selected':''}>◌ IDLE</option>
     <option value="inactive" ${effStatus==='inactive'?'selected':''}>OFF</option>
     <option value="fault"    ${effStatus==='fault'   ?'selected':''}>✕ ERR</option>
   </select>
@@ -419,7 +418,7 @@ function clearAllPortOverrides(pid){
     if(el){
         const pi = state.ports[pid] || {};
         const st = normalizeStatus(pi.statusOvr ?? pi.status);
-        el.className = el.className.replace(/\b(active|inactive|fault|idle)\b/g,'').replace(/\s+/,' ').trim() + ' ' + st;
+        el.className = el.className.replace(/\b(active|inactive|fault)\b/g,'').replace(/\s+/,' ').trim() + ' ' + st;
         el.title = portTip(pid);
     }
     propagateVlans();
@@ -550,7 +549,7 @@ function setPortField(pid, field, val){
     if(el){
         const pi = state.ports[pid] || {};
         const st = normalizeStatus(pi.statusOvr ?? pi.status);
-        el.className = el.className.replace(/\b(active|inactive|fault|idle)\b/g,'').replace(/\s+/,' ').trim() + ' ' + st;
+        el.className = el.className.replace(/\b(active|inactive|fault)\b/g,'').replace(/\s+/,' ').trim() + ' ' + st;
         el.title = portTip(pid);
     }
     _refreshPortRow(pid);
@@ -579,7 +578,7 @@ function clearPortField(pid, field){
     if(el){
         const pi = state.ports[pid] || {};
         const st = normalizeStatus(pi.statusOvr ?? pi.status);
-        el.className = el.className.replace(/\b(active|inactive|fault|idle)\b/g,'').replace(/\s+/,' ').trim() + ' ' + st;
+        el.className = el.className.replace(/\b(active|inactive|fault)\b/g,'').replace(/\s+/,' ').trim() + ' ' + st;
         el.title = portTip(pid);
     }
     _refreshPortRow(pid);

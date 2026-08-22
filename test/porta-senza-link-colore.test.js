@@ -16,10 +16,14 @@
 // seconda ricetta della casa: un test che confronta le copie.
 //
 // ⚠️ E una seconda cosa, che è il motivo per cui questo file nasce oggi: da
-// quando «senza link» è AMBRA e non più grigio, deve restare distinguibile
-// dall'ambra di `--idle-color` («Pronta»). Sono due stati diversi — uno misurato
-// e uno dichiarato — e due stati non possono condividere una tinta, o l'occhio
-// li fonde e il colore smette di dire qualcosa.
+// quando «senza link» è AMBRA e non più grigio, deve restare distinguibile da
+// `--idle-color`, l'ambra generica di avviso che vive in una trentina di punti
+// dell'interfaccia (chip AI, righe di Verifica, campi con override). Due ambre
+// che coincidono l'occhio le fonde, e il colore smette di dire qualcosa.
+//
+// ⚠️ Quel token NON è più uno stato porta: `idle` era la quarta tinta del LED e non
+// c'è più (test/stato-porta-senza-idle.test.js spiega perché — una tinta che dopo tre
+// Verifiche diventava proprio questa). Sulle porte l'ambra è UNA sola, ed è questa.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -57,11 +61,45 @@ test('le tre copie del colore «spenta a mano» dicono lo stesso hex', () => {
     assert.equal(costante(leggi('lib/drawio-export.js'), 'SHUT_COLOR', 'lib/drawio-export.js'), atteso);
 });
 
-test('«senza link» e «Pronta» non condividono la tinta: sono due stati diversi', () => {
+// ⚠️ La regola che conta NON è quella di 04-floor-rack.css: il gemello in 06-panels.css
+// porta `!important` e vince comunque. Un `box-shadow` scritto solo nel primo file non
+// arriva allo schermo, e non lo si scopre guardando il file che si è appena modificato —
+// è la stessa forma di difetto delle copie qui sopra, con in più il silenzio.
+//
+// L'invariante è l'ASSE: brilla ciò che chiede qualcosa (senza link = un sintomo da
+// andare a guardare), non brilla ciò che è già deciso (spenta a mano). Se un giorno le
+// due tornano uguali, uno dei due stati ha smesso di dire la sua.
+function decl(css, selettore) {
+    const i = css.indexOf(selettore + ' ');
+    const j = css.indexOf('{', i);
+    assert.ok(i >= 0 && j > i, `regola «${selettore}» non trovata`);
+    return css.slice(j, css.indexOf('}', j) + 1);
+}
+const alone = (regola) => /box-shadow\s*:\s*(?!none)[^;}]+/.test(regola);
+
+test('«senza link» ha l’alone in ENTRAMBE le copie, «spenta a mano» in nessuna', () => {
+    for (const rel of ['styles/04-floor-rack.css', 'styles/06-panels.css']) {
+        const css = leggi(rel);
+        assert.ok(alone(decl(css, '.port-led.no-link')),
+            `${rel}: «senza link» ha perso l’alone — se manca qui, lo schermo non ce l’ha`);
+        assert.equal(alone(decl(css, '.port-led.admin-down')), false,
+            `${rel}: «spenta a mano» ha preso un alone: è una decisione, non chiede niente`);
+    }
+});
+
+test('controprova: il riconoscitore dell’alone distingue davvero', () => {
+    assert.equal(alone('{ background:red; box-shadow:none; }'), false);
+    assert.equal(alone('{ background:red; box-shadow:none !important; }'), false);
+    assert.equal(alone('{ background:red; }'), false);
+    assert.equal(alone('{ box-shadow:0 0 5px var(--nolink-color); }'), true);
+    assert.equal(alone('{ box-shadow:0 0 5px var(--nolink-color) !important; }'), true);
+});
+
+test('l’ambra della porta non coincide con l’ambra generica di avviso', () => {
     const css = leggi('styles/01-tokens.css');
     assert.notEqual(token(css, 'nolink-color'), token(css, 'idle-color'),
-        'l’ambra misurata («senza link da N verifiche») e quella dichiarata («Pronta») ' +
-        'si sono fuse: uno dei due stati ha smesso di essere leggibile');
+        'l’ambra della porta («senza link da N verifiche») e quella generica di avviso ' +
+        'si sono fuse: sullo stesso schermo non si distinguono più');
     // E nemmeno con gli altri tre stati del LED, per lo stesso motivo.
     for (const altro of ['active-color', 'fault-color', 'inactive-color', 'shut-color']) {
         assert.notEqual(token(css, 'nolink-color'), token(css, altro),

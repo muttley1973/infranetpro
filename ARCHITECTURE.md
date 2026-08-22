@@ -355,7 +355,7 @@ requires a signal a live host cannot suppress:
 - **grey** (`.node-unverified`, bucket `unverified`) — everything else: FDB ageing,
   host-filtered ICMP, a mute SNMP agent, a remote/unreached subnet. Honest "don't know".
 
-### Port state: shut by hand vs merely idle
+### Port state: shut by hand vs simply without link
 
 `ifOperStatus` says whether a port has link; `ifAdminStatus` (IF-MIB `.7`, read since
 2.9.2) says whether a person turned it off. The two are different facts — the first is
@@ -368,9 +368,16 @@ at. Everything unknown stays plain grey — a port nobody has measured is not a 
 Neither of the two glows: the live states glow because they are lit, these signal
 without pretending to be.
 
-⚠️ That amber is deliberately **not** the amber of `idle` («Ready», `#f5a623`), which is
-a *declared* state: two states cannot share a hue or the eye merges them and the colour
-stops saying anything. And the hex is written **three times** — the CSS token plus the
+⚠️ That amber is deliberately **not** `#f5a623`, the interface's generic warning amber
+(AI chips, verification rows, overridden fields): two ambers that coincide get merged by
+the eye and the colour stops saying anything. On the ports themselves there is now only
+one amber, because the port state that used to own the other — `idle` — is gone. It said
+four different things depending on the layer reading it, nothing consulted it to decide
+anything, and the same SNMP reading that produced it also started the down-streak that
+turned it into *this* amber three verifies later. A port switches, does not switch, or is
+faulty; the two readings that had no colour (`testing`, `dormant`) survive as `operWait`,
+a measurement printed in the port panel in the device's own words. And the hex is written
+**three times** — the CSS token plus the
 two exports, which build files outside the browser where a token does not exist — which
 is this project's most expensive shape of defect, here landing on a PDF handed to a
 customer with a port one colour on screen and another on paper. Unifying is impossible

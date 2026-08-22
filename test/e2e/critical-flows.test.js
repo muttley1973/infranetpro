@@ -111,7 +111,7 @@ const CABLE_RENDER_FIXTURE = {
   ],
   ports: {
     'nasd1-1': { status: 'active', vlan: 20, vlanProp: 20 },
-    'sw3-25': { status: 'idle', vlan: 20, speed: 1000 },
+    'sw3-25': { status: 'inactive', vlan: 20, speed: 1000 },
     'ap1-1': { status: 'active', mode: 'trunk', trunkVlans: [10, 20, 40, 50], vlanOvr: 10, isTrunk: true },
     'wp64-1': { status: 'active', vlanProp: 10, trunkProp: [10, 20, 40, 50], isTrunkProp: true },
     'pp4-12': { status: 'active', vlanProp: 10, trunkProp: [10, 20, 40, 50], isTrunkProp: true },

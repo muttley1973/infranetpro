@@ -192,13 +192,13 @@ test('colore porta: stato + LAG (ciano)', () => {
       'sw1-1': { status: 'active' },
       'sw1-2': { status: 'fault' },
       'sw1-3': { lagGroup: 'po1' },
-      'sw1-4': { statusOvr: 'idle', status: 'active' },  // override vince
+      'sw1-4': { statusOvr: 'inactive', status: 'active' },  // override vince
     },
   });
   assert.match(cellOf(xml, 'sw1-1'), /fillColor=#39d353/);
   assert.match(cellOf(xml, 'sw1-2'), /fillColor=#f85149/);
   assert.match(cellOf(xml, 'sw1-3'), /fillColor=#00d4ff/);
-  assert.match(cellOf(xml, 'sw1-4'), /fillColor=#f5a623/);
+  assert.match(cellOf(xml, 'sw1-4'), /fillColor=#6e7681/);
 });
 
 test('porte compatte: gap limitato + blocco centrato (non spalmate su tutta la larghezza)', () => {

@@ -210,7 +210,7 @@ export function _renderPortProps(panel){
         const _floorLeaf = !!(portNode && TYPES[portNode.type] && TYPES[portNode.type].isFloor
             && TYPES[portNode.type].hasIP && !TYPES[portNode.type].isActive);
         const _roBox = inner => `<div style="padding:5px 7px;background:var(--bg-color);border:1px solid var(--panel-border);border-radius:4px;font-size:var(--fs-lg);color:var(--text-main)">${inner}</div>`;
-        const _statusLabel = s => ({active:t('port.statusActive'),idle:t('port.statusIdle'),inactive:t('port.statusInactive'),fault:'Fault'}[s] || s);
+        const _statusLabel = s => ({active:t('port.statusActive'),inactive:t('port.statusInactive'),fault:'Fault'}[s] || s);
         // Endpoint floor: stato/velocità EREDITATI dalla porta switch a monte (sono
         // proprietà del link). Così un device collegato replica i dati della porta.
         const _inh = _floorLeaf ? _portInheritedLinkData(pid) : {};
@@ -257,7 +257,21 @@ export function _renderPortProps(panel){
             const txt = s === 'shut' ? t('port.shut') : t('port.noLink', { n: Number(pi.downStreak) || DOWN_STREAK_N });
             return `${sep}<span style="background:${bg};color:var(--text-main);border-radius:3px;padding:1px 6px">${escapeHTML(txt)}</span>`;
         };
-        const snmpBar=(snmpParts.length||portShade(pi,DOWN_STREAK_N))?`<div class="snmp-bar" style="margin:0 0 10px"><span class="sb">SNMP</span>${escapeHTML(snmpParts.join(' · '))}${_shadeChip()}</div>`:'';
+        // La PAROLA dell'apparato quando la porta non e' ne' su ne' giu' — `dormant`
+        // (aspetta un evento esterno: una chiamata, un'autenticazione 802.1X) o
+        // `testing`. Il LED resta grigio, perche' nessuno dei due passa pacchetti e
+        // una quarta tinta era proprio il difetto da cui veniamo; il fatto pero' e'
+        // stato DETTO dall'apparato e non si butta via, va dove stanno gli altri fatti
+        // misurati. Neutra e non ambra: qui si CITA, non si dipinge — l'ambra in
+        // questa barra ha gia' un solo significato («qualcuno vada a guardare») e non
+        // se ne aggiunge un secondo. La parola non si traduce, come `admin shutdown`.
+        const _operWaitChip = () => {
+            const w = pi.operWait;
+            if(w !== 'testing' && w !== 'dormant') return '';
+            const sep = (snmpParts.length || portShade(pi, DOWN_STREAK_N)) ? ' &middot; ' : '';
+            return `${sep}<span data-tip="${escapeHTML(t('port.operWaitTip'))}" style="background:rgba(110,118,129,.12);border:1px solid var(--panel-border);color:var(--text-muted);border-radius:3px;padding:1px 6px">${escapeHTML(w)}</span>`;
+        };
+        const snmpBar=(snmpParts.length||portShade(pi,DOWN_STREAK_N)||pi.operWait)?`<div class="snmp-bar" style="margin:0 0 10px"><span class="sb">SNMP</span>${escapeHTML(snmpParts.join(' · '))}${_shadeChip()}${_operWaitChip()}</div>`:'';
         const rst=(f,lbl)=>pi[f]!=null?`<button class="toolbar-btn" style="padding:2px 6px;margin:0;font-size:0.7rem" data-tip="${t('pnl.dev.restoreField',{field:lbl})}" data-act="port-clear-render" data-pid="${pid}" data-pfield="${f}">↺</button>`:'';
         // Select dello STATO dichiarabile. Una sola definizione, usata sia dallo
         // switchport sia dalla tappa passiva: due copie delle stesse cinque voci
@@ -266,7 +280,6 @@ export function _renderPortProps(panel){
                   <select class="${pi.statusOvr?'ovr':''} " style="flex:1" data-change="port-field" data-pid="${pid}" data-pfield="statusOvr">
                     <option value=""         ${effStatus===''        ?'selected':''}>${t('port.statusUnknown')}</option>
                     <option value="active"   ${effStatus==='active'  ?'selected':''}>${t('port.statusActive')}</option>
-                    <option value="idle"     ${effStatus==='idle'    ?'selected':''}>${t('port.statusIdle')}</option>
                     <option value="inactive" ${effStatus==='inactive'?'selected':''}>${t('port.statusInactive')}</option>
                     <option value="fault"    ${effStatus==='fault'   ?'selected':''}>Fault</option>
                   </select>${rst('statusOvr',t('pnl.dev.fieldStatus'))}

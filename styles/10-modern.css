@@ -306,7 +306,8 @@ header {
    rendono l'icona con la classe fa-* del tipo (app-render-core.js).
    Coloro per FAMIGLIA, ripetendo gli stessi colori in libreria e su mappa.
    NB: sui nodi floor a 1 porta l'icona fa anche da spia di stato porta:
-   preservo fault/idle (rosso/ambra) con :not(); il resto prende il colore-tipo.
+   preservo fault (rosso) e senza-link (ambra) con :not(); il resto prende il
+   colore-tipo. Chi aggiunge una tinta di stato alla porta deve aggiungerla qui.
    ============================================================ */
 
 /* ---- LIBRERIA: chip icona tinto per tipo ---- */
@@ -339,26 +340,26 @@ header {
 .equip-item[data-type="cablemanager"] i, .equip-item[data-type="room"] i { color:#8b949e; background:rgba(139,148,158,.14); }
 
 /* ---- PLANIMETRIA: stessa palette sull'icona del nodo (per classe fa-*) ---- */
-.floor-node i.icon.fa-ethernet:not(.fault):not(.idle),
-.floor-node i.icon.fa-desktop:not(.fault):not(.idle),
-.floor-node i.icon.fa-tv:not(.fault):not(.idle),
-.floor-node i.icon.fa-mobile-screen-button:not(.fault):not(.idle),
-.floor-node i.icon.fa-wifi:not(.fault):not(.idle),
-.floor-node i.icon.fa-cube:not(.fault):not(.idle) { color:#00d4ff; }
+.floor-node i.icon.fa-ethernet:not(.fault):not(.no-link),
+.floor-node i.icon.fa-desktop:not(.fault):not(.no-link),
+.floor-node i.icon.fa-tv:not(.fault):not(.no-link),
+.floor-node i.icon.fa-mobile-screen-button:not(.fault):not(.no-link),
+.floor-node i.icon.fa-wifi:not(.fault):not(.no-link),
+.floor-node i.icon.fa-cube:not(.fault):not(.no-link) { color:#00d4ff; }
 
-.floor-node i.icon.fa-video:not(.fault):not(.idle),
-.floor-node i.icon.fa-chalkboard:not(.fault):not(.idle) { color:#a371f7; }
+.floor-node i.icon.fa-video:not(.fault):not(.no-link),
+.floor-node i.icon.fa-chalkboard:not(.fault):not(.no-link) { color:#a371f7; }
 
-.floor-node i.icon.fa-microchip:not(.fault):not(.idle),
-.floor-node i.icon.fa-cubes:not(.fault):not(.idle),
-.floor-node i.icon.fa-hard-drive:not(.fault):not(.idle),
-.floor-node i.icon.fa-print:not(.fault):not(.idle) { color:#3fb950; }
+.floor-node i.icon.fa-microchip:not(.fault):not(.no-link),
+.floor-node i.icon.fa-cubes:not(.fault):not(.no-link),
+.floor-node i.icon.fa-hard-drive:not(.fault):not(.no-link),
+.floor-node i.icon.fa-print:not(.fault):not(.no-link) { color:#3fb950; }
 
-.floor-node i.icon.fa-phone:not(.fault):not(.idle) { color:#2dd4a7; }
+.floor-node i.icon.fa-phone:not(.fault):not(.no-link) { color:#2dd4a7; }
 
-.floor-node i.icon.fa-id-card:not(.fault):not(.idle),
-.floor-node i.icon.fa-door-open:not(.fault):not(.idle),
-.floor-node i.icon.fa-bolt:not(.fault):not(.idle) { color:#f0b429; }
+.floor-node i.icon.fa-id-card:not(.fault):not(.no-link),
+.floor-node i.icon.fa-door-open:not(.fault):not(.no-link),
+.floor-node i.icon.fa-bolt:not(.fault):not(.no-link) { color:#f0b429; }
 
 /* La selezione vince sul colore-tipo — in VERDE ACQUAMARINA (#2ee6c0),
    così stacca dal ciano usato dalle icone/accent. */
