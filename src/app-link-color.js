@@ -168,6 +168,7 @@ const _SRC_KEY = {
     'single-vlan': 'cable.paintSingleVlan',
     'multi-vlan':  'cable.paintMultiTip',
     'routed':      'cable.paintRoutedTip',
+    'ends-disagree': 'cable.paintConflictTip',
     'undeclared':  'cable.paintUndeclaredTip',
 };
 
@@ -191,6 +192,11 @@ export function _linkPaintLabel(l) {
     // la decisione: la nativa e' una VLAN come le altre.
     if (p.kind === 'trunk')  return Object.assign(base, { text: t('cable.paintTrunk', { n: p.vlans.length }), why: '' });
     if (p.kind === 'routed') return Object.assign(base, { text: t('cable.paintRouted'), why: '' });
+    // I due capi si contraddicono: la riga dice QUALI sono i due numeri, perche' e'
+    // l'unica informazione che serve per andare a guardare — «non lo so» da solo
+    // manderebbe l'utente a cercare cosa, dove.
+    if (p.kind === 'conflict') return Object.assign(base,
+        { text: t('cable.paintConflict', { a: (p.ends || [])[0], b: (p.ends || [])[1] }), why: '' });
     return Object.assign(base, { text: t('cable.paintUndeclared'), why: '' });
 }
 

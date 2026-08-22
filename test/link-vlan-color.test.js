@@ -241,3 +241,77 @@ test('un colore si chiede SOLO quando kind vale «vlan»', () => {
     assert.equal(r.vlan, null, 'niente VLAN fuori dallo stato «vlan»: chi dipinge non deve indovinare');
   }
 });
+
+// ── I DUE CAPI IN DISACCORDO ────────────────────────────────────────────────
+// La scala prendeva il PRIMO capo che parlava e ne dipingeva la VLAN con
+// `known: true`. Su un cavo con 20 di qua e 30 di là usciva «VLAN 20, impostata a
+// mano», identico hex per hex al caso in cui i due capi concordano — l'unico stato
+// in cui il disegno era SICURO e la rete era rotta: sul ferro un access così non
+// passa traffico. Adesso non si arbitra, e non si scende nemmeno di gradino (sotto
+// c'è il pavimento, cioè un numero plausibile al posto di una contraddizione vera).
+//
+// Le tre cose da non rompere sono qui sotto assieme all'esito nuovo: un capo solo
+// che parla vale ancora, due capi d'accordo valgono ancora, e chi non ha TITOLO
+// non litiga (un PC non contraddice uno switch — non ha voce in capitolo).
+
+test('contesa: due capi ATTIVI dichiarano VLAN diverse → nessuna vince', () => {
+    const r = paint({ src: { active: true, vlanOvr: 20, deviceVlans: [1, 20, 30] },
+                      dst: { active: true, vlanOvr: 30, deviceVlans: [1, 20, 30] } });
+    assert.equal(r.kind, 'conflict');
+    assert.equal(r.known, false, 'un cavo conteso non è una VLAN «nota»');
+    assert.equal(r.vlan, null, 'nessuno dei due numeri va dipinto');
+    assert.equal(r.source, 'ends-disagree');
+    assert.deepEqual(r.ends, [20, 30], 'la coppia viaggia con l’esito: serve a dire dove guardare');
+});
+
+test('contesa: due MISURE che si contraddicono (il caso vero sul ferro)', () => {
+    const r = paint({ src: { active: true, vlan: 20, deviceVlans: [1, 20, 30] },
+                      dst: { active: true, vlan: 30, deviceVlans: [1, 20, 30] } });
+    assert.equal(r.kind, 'conflict');
+    assert.equal(r.rung, 'measured');
+    assert.deepEqual(r.ends, [20, 30]);
+});
+
+test('contesa: l’esito non dipende da quale capo è `src`', () => {
+    // Lo stesso cavo fisico deve leggersi uguale a prescindere da come è stato
+    // disegnato: se la coppia uscisse nell'ordine di inserimento, due progetti
+    // identici mostrerebbero due frasi diverse.
+    const a = paint({ src: { active: true, vlanOvr: 30 }, dst: { active: true, vlanOvr: 20 } });
+    const b = paint({ src: { active: true, vlanOvr: 20 }, dst: { active: true, vlanOvr: 30 } });
+    assert.deepEqual(a.ends, b.ends);
+    assert.deepEqual(a.ends, [20, 30]);
+});
+
+test('capi CONCORDI: niente cambia', () => {
+    const r = paint({ src: { active: true, vlanOvr: 20 }, dst: { active: true, vlanOvr: 20 } });
+    assert.equal(r.kind, 'vlan');
+    assert.equal(r.vlan, 20);
+    assert.equal(r.known, true);
+});
+
+test('un capo solo che parla NON è una contesa', () => {
+    // «Assente» non è «in disaccordo»: è la stessa distinzione che regge tutto il
+    // modulo, e qui la si difende sul gradino nuovo.
+    const r = paint({ src: { active: true, vlanOvr: 20 }, dst: { active: true } });
+    assert.equal(r.kind, 'vlan');
+    assert.equal(r.vlan, 20);
+});
+
+test('chi non commuta VLAN non contraddice nessuno', () => {
+    // Un PC il cui mondo VLAN è [1] dice «sono untagged», non «questo cavo è in 1»:
+    // non ha titolo, quindi non può aprire una contesa con lo switch.
+    const r = paint({ src: { active: true, vlanOvr: 20, deviceVlans: [1, 20, 30] },
+                      dst: { active: true, vlan: 1, deviceVlans: [1] } });
+    assert.equal(r.kind, 'vlan');
+    assert.equal(r.vlan, 20);
+});
+
+test('sul TRUNK il ramo resta identico: due native diverse non sono una contesa', () => {
+    // Su un trunk `vlanOvr` è la NATIVA, e due native diverse hanno già il loro
+    // nome altrove (`native-mismatch`, lib/cable-validate.js). Se la contesa
+    // scattasse anche qui, il colore di un trunk cambierebbe per un motivo che il
+    // trunk ha già.
+    const r = paint({ mode: 'trunk', vlans: [10, 20, 30],
+                      src: { active: true, vlanOvr: 1 }, dst: { active: true, vlanOvr: 99 } });
+    assert.notEqual(r.kind, 'conflict');
+});

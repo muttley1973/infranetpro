@@ -207,3 +207,45 @@ test('fibra: senza classe, senza velocità o senza lunghezza NON si inventa un v
   // OS2 monomodale: 10 km di portata LR/LX, una dorsale di campus non la supera.
   assert.equal(has(validateCable({ medium: 'fiber', cableCategory: 'OS2', maxSpeed: '10G', length: 2000 }), 'fiber-reach'), false);
 });
+
+// ── VLAN CONSENTITE ASIMMETRICHE ────────────────────────────────────────────
+// La nativa la controllava già `native-mismatch`; le TAGGATE, che sono l'altra
+// metà del trunk, non le confrontava nessuno. Sul ferro non è un link-down: il
+// cavo si alza e passa quel che le due liste hanno in comune, mentre le VLAN
+// presenti da una parte sola muoiono lì — la causa più comune del «funziona per
+// alcune VLAN e non per altre», e la più difficile da vedere proprio perché il
+// link è UP e i contatori girano.
+
+test('trunk: liste consentite diverse → avviso, con i due elenchi', () => {
+    const r = validateCable({ mode: 'trunk' }, { isTrunk: true, srcVlans: [10, 20], dstVlans: [10, 30] });
+    assert.ok(has(r, 'trunk-vlans-mismatch'));
+    const m = r.find(x => x.code === 'trunk-vlans-mismatch');
+    assert.equal(m.level, 'warn', 'potare una VLAN è legittimo: si segnala, non si condanna');
+    assert.equal(m.params.a, '20');
+    assert.equal(m.params.b, '30');
+});
+
+test('trunk: stesse VLAN in ordine diverso, o ripetute → tace', () => {
+    const r = validateCable({ mode: 'trunk' }, { isTrunk: true, srcVlans: [30, 10, 20], dstVlans: [20, 10, 30, 10] });
+    assert.equal(has(r, 'trunk-vlans-mismatch'), false);
+});
+
+test('trunk: un capo che non pubblica la lista → tace (assente non è vuoto)', () => {
+    // Sul banco succede davvero: un vIOS non espone la tabella delle VLAN
+    // trasportate. Confrontare un elenco con il nulla direbbe che l'altro capo ha
+    // tutto in più — un allarme inventato su una lettura che non c'è stata.
+    assert.equal(has(validateCable({}, { isTrunk: true, srcVlans: [10, 20, 30], dstVlans: [] }), 'trunk-vlans-mismatch'), false);
+    assert.equal(has(validateCable({}, { isTrunk: true, srcVlans: [], dstVlans: [10] }), 'trunk-vlans-mismatch'), false);
+    assert.equal(has(validateCable({}, { isTrunk: true }), 'trunk-vlans-mismatch'), false);
+});
+
+test('access: le liste non si confrontano (non c’è nessun trunk)', () => {
+    assert.equal(has(validateCable({}, { isTrunk: false, srcVlans: [10, 20], dstVlans: [10, 30] }), 'trunk-vlans-mismatch'), false);
+});
+
+test('valori fuori range non aprono differenze inesistenti', () => {
+    // 0 e 4095 non sono VLAN: se entrassero nell'insieme, due liste identiche
+    // sporcate da un valore illegale risulterebbero diverse.
+    const r = validateCable({}, { isTrunk: true, srcVlans: [10, 0, 4095, 20], dstVlans: [20, 10] });
+    assert.equal(has(r, 'trunk-vlans-mismatch'), false);
+});

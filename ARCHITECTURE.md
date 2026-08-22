@@ -459,7 +459,7 @@ also what `_getLinkTrunk` uses as the trunk native. The colour was asking it the
 question. On an access cable the native is the whole truth, but on a trunk it is one VLAN
 among several and legitimately 1, so painting it says «VLAN 1» about a cable carrying four.
 
-`lib/link-vlan-color.js` answers a different question — *what is this cable* — with three
+`lib/link-vlan-color.js` answers a different question — *what is this cable* — with four
 outcomes, each saying one thing only:
 
 | outcome | when | shown as |
@@ -467,6 +467,22 @@ outcomes, each saying one thing only:
 | `vlan` | exactly one VLAN applies | that VLAN’s colour |
 | `trunk` | it carries more than one | neutral + the carried VLANs as pills |
 | `routed` | the port is not part of the bridge: it routes | neutral, and the panel says why |
+| `conflict` | both ends name a VLAN, with equal authority, and the two differ | neutral, and the panel names both numbers |
+
+⭐ The fourth does not describe the cable, it describes **us**: the document contradicts
+itself, so there is no answer until somebody decides. The ladder used to take the first
+end that spoke and paint its VLAN with `known: true` — a cable with 20 on one side and 30
+on the other read «VLAN 20, set by hand», identical hex for hex to the case where the two
+ends agree. On the wire an access link like that carries nothing: it was the only state in
+which the drawing was *certain* and the network was broken. Falling through to the next
+rung would have been worse still — the bottom rung is the site native, so a real
+contradiction would have come out as a plausible number.
+
+⚠️ Only between ends that hold the **same** authority, and only on access links. A PC does
+not contradict a switch (it has no say — `lib/vlan-authority.js` already filters it out);
+a declared value against a measured one is not a conflict but manual-first, and the place
+to discuss those two is Verifica; and on a trunk `vlanOvr` is the *native*, whose
+disagreement already has a name of its own (`native-mismatch`).
 
 ⭐ **A cable that switches always has a VLAN, so it always has a colour.** «VLAN not
 declared» is not a state that exists in switching: every port of a bridge has a PVID, and

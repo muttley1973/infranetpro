@@ -185,7 +185,10 @@ export function _renderLinkProps(panel){
         // nascosta: un trunk multi-VLAN non afferma nessuna VLAN, quindi non c'e'
         // nessun ripiego che possa passare per una misura. Ovunque altro la riga
         // resta, ed e' li' che serve davvero.
-        const _paint = (_pl && _pl.kind !== 'trunk' && (_presunta || _pl.kind !== 'vlan' || _pl.vlan !== vl)) ? _pl : null;
+        // ⚠️ 'conflict' esce come 'trunk': la riga sopra PORTA GIA' tutto il messaggio
+        // («i due capi non concordano — 20 da una parte, 30 dall'altra»), e ripeterla
+        // sotto identica è la ripetizione che questa sezione ha già tolto una volta.
+        const _paint = (_pl && _pl.kind !== 'trunk' && _pl.kind !== 'conflict' && (_presunta || _pl.kind !== 'vlan' || _pl.vlan !== vl)) ? _pl : null;
         const trunkVlans = l.trunkVlans || '';
         // Capo ATTIVO del trunk: la nativa è il PVID (vlanOvr) di quella porta →
         // editabile inline. Se nessun capo è attivo, la nativa arriva da monte.
@@ -558,7 +561,14 @@ export function _renderLinkProps(panel){
                                          snmpMedium: _vsp.snmpMedium || _vdp.snmpMedium || null,
                                          isTrunk: tk.mode === 'trunk',
                                          srcNative: _bothActive ? _effPortVlan(l.src) : null,
-                                         dstNative: _bothActive ? _effPortVlan(l.dst) : null })
+                                         dstNative: _bothActive ? _effPortVlan(l.dst) : null,
+                                         // Le VLAN TRASPORTATE da ciascun capo, per il confronto delle
+                                         // liste consentite. Si passa `trunkVlans` — cioe' cio' che QUEL
+                                         // capo dichiara o misura — e non `trunkProp`, che e' propagata
+                                         // dall'altro lato: confrontare una propagazione con la sua
+                                         // sorgente farebbe sempre risultare i due capi d'accordo.
+                                         srcVlans: _parseTrunkVlans(_vsp.trunkVlans || []),
+                                         dstVlans: _parseTrunkVlans(_vdp.trunkVlans || []) })
                     : [];
                 // Wireless = connessione radio↔radio (tipologia a sé, non un flag
                 // attivabile su un cavo). Sezione dedicata, niente specifiche cavo.
