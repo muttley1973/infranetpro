@@ -53,6 +53,17 @@ and never by the model.
   coverage). A capability field absent from `spec` is **omitted**, so the
   assistant says "not documented" (`lib/hw-capabilities.js`, CHANGELOG
   2026-06-30).
+- **Input surfaces declare nothing on the user's behalf** — an editable field
+  pre-filled with a fabricated default is an assertion, and it contradicts the
+  point above: the dossier omits what `spec` does not carry while the panel was
+  showing a number. Device panels therefore render the suggested value as a
+  `placeholder`, offer «not declared» in every dropdown, and use the optional
+  coercions `intopt`/`floatopt`/`stropt` so that clearing a field **deletes**
+  the key instead of restoring the default (`src/app-properties-node.js`,
+  `updateN` in `src/app.js`). Geometry, structural counts and the tool's own
+  connection parameters are not claims about the customer's equipment and keep
+  their defaults; `test/campi-non-inventati.test.js` scans the source and
+  refuses the next fabricated default.
 - **Prompt grounding** — `server/ai/prompt.js`: forbids invention, mandates
   "not in the documentation" (it/en, asserted in `test/ai-prompt.test.js`).
 - **Draft, never executed** — `lib/ai-draft.js` segments any Ansible output into

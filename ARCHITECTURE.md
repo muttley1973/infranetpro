@@ -1256,6 +1256,19 @@ is VPN/LAN.
     harness event types. `_bridge.js` / `expose()` are deleted only when Axis B is finished. *(Side note: the AI help
     catalog in `lib/ui-catalog.js`, which reads the real button labels/tooltips, derives a button's action
     from `data-act` as well as `onclick`, so delegated buttons stay in the assistant's catalog.)*
+
+    **Coercion — `data-ncoerce`.** A `change` handler receives a string, and the attribute says
+    what to make of it: absent = string, `num`, `bool`, `int`/`int-empty` (clamped by
+    `data-nmin`/`data-nmax`), `intdef`/`floatdef` (falling back to `data-ndef`), and the three
+    **optional** ones — `intopt`, `floatopt`, `stropt`. Those three are how
+    [paletto #2](docs/adr/no-invention.md) reaches the *input* surface: an empty or unparseable
+    field yields `undefined` and `updateN` **deletes** the key rather than writing the default
+    back, so "not declared" is expressible and the suggested value can sit in the `placeholder`
+    without asserting anything. An editable field that arrives pre-filled is a statement, and the
+    handover dossier — which omits whatever `spec` does not carry — would contradict it. What
+    keeps a default is what is not a claim about the customer's equipment: drawing geometry,
+    structural counts that generate real objects, and the parameters the tool itself connects
+    with. `test/campi-non-inventati.test.js` scans the panel sources and refuses the next one.
 - **ESLint gate (`eslint.config.js`, v9).** `no-undef` is enforced as a safety net where
   the module system is explicit (Node/CommonJS + UMD `lib/`) and is **off on `src/`** until
   the `window` bridge is retired (then it re-enables). Cosmetic rules are warnings, so the

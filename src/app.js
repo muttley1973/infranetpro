@@ -1709,9 +1709,14 @@ function updateN(k,v){
     if(k==='mac') v=normalizeMacAddress(v);
     if(k==='sizeU'){const rs=getNodeRackSize(n);v=normalizeNumber(v,TYPES[n.type]?.sizeU||1,1,rs);n.rackU=normalizeNumber(n.rackU,1,1,rs-v+1);}
     if(k==='rackU'){const su=n.sizeU!==undefined?n.sizeU:TYPES[n.type]?.sizeU||1,rs=getNodeRackSize(n);v=normalizeNumber(v,1,1,rs-su+1);}
+    // undefined = «non dichiarato»: si CANCELLA la chiave invece di scriverci sopra. Senza
+    // questo, svuotare un campo opzionale lasciava la chiave nel modello e un lettore che
+    // guarda hasOwnProperty avrebbe visto una dichiarazione dove non c'e'.
     if(_isNodeSpecField(k)){
         const spec = _ensureNodeSpec(n);
-        spec[k] = v;
+        if(v === undefined) delete spec[k]; else spec[k] = v;
+        delete n[k];
+    } else if(v === undefined){
         delete n[k];
     } else {
         n[k]=v;
@@ -1719,11 +1724,11 @@ function updateN(k,v){
     if(n.type==='pdu' && (k==='pduMgmtMode' || k==='pduEthernetPorts')) _cleanupPduNetworkPorts(n);
     // Tipo scelto a mano = pinnato (manual-first): Discovery/Verifica non lo ricambiano.
     if(k==='type') n.typeManual = true;
-    if(k==='brand') n.brandManual = !!String(v).trim();
+    if(k==='brand') n.brandManual = v !== undefined && !!String(v).trim();
     // Nome scelto a mano = pinnato (manual-first), gemello di typeManual/hostnameManual:
     // Discovery non rinomina piu' un nome deliberato, nemmeno se coincide con host/IP/tipo.
     // Vuoto = sblocca (torna a seguire l'auto-naming), come il campo Hostname.
-    if(k==='name') n.nameManual = !!String(v).trim();
+    if(k==='name') n.nameManual = v !== undefined && !!String(v).trim();
     // Conteggio porte scelto a mano = pinnato (manual-first, gemello di typeManual):
     // l'SNMP non alza piu' `ports` in silenzio, propone «Adotta porte rilevate»
     // (src/app-snmp.js via lib/ports-reconcile.js). Se riscrivi il conteggio a >=

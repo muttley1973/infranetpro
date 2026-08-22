@@ -365,8 +365,11 @@ export function _hvPanelHtml(n, d){
     const open = (typeof _propsSectionIsOpen === 'function' && _propsSectionIsOpen(secId)) ? 'open' : '';
     const title = esc(isLab ? t('dev.homelab') : t('dev.hypervisor'));
     const plats = isLab ? _LAB_PLATFORMS : _HV_PLATFORMS;
-    const platDefault = isLab ? 'proxmox' : 'esxi';
-    const platOpts = plats.map(p => `<option value="${esc(p[0])}"${String(n.hvPlatform || platDefault) === p[0] ? ' selected' : ''}>${esc(p[1])}</option>`).join('');
+    // Paletto (2): niente piattaforma indovinata. Un host senza hvPlatform dichiarato
+    // resta su «non dichiarato» — «e' un homelab, quindi Proxmox» era una deduzione dal
+    // tipo, non una lettura.
+    const platOpts = `<option value=""${n.hvPlatform ? '' : ' selected'}>${esc(t('o.notDeclared'))}</option>`
+        + plats.map(p => `<option value="${esc(p[0])}"${String(n.hvPlatform || '') === p[0] ? ' selected' : ''}>${esc(p[1])}</option>`).join('');
     const inv = (typeof _buildInventoryFieldsHtml === 'function') ? _buildInventoryFieldsHtml(n, d) : '';
     const preview = (typeof _buildDeviceBrandModelPreview === 'function') ? _buildDeviceBrandModelPreview(n) : '';
 
@@ -378,10 +381,10 @@ export function _hvPanelHtml(n, d){
             <div class="prop-group"><label>${t('hv.manager')}</label><input value="${esc(n.hvManager || '')}" placeholder="vCenter / Prism…" data-change="update-n" data-nfield="hvManager"></div>
         </div>
         <div class="prop-grid2">
-            <div class="prop-group"><label>RAM (GB)</label><input type="number" min="1" max="65536" value="${n.hvRamGb || 64}" data-change="update-n" data-nfield="hvRamGb" data-ncoerce="intdef" data-ndef="64"></div>
-            <div class="prop-group"><label>Storage (TB)</label><input type="number" min="0" max="10000" step="0.5" value="${n.hvStorageTb || 1}" data-change="update-n" data-nfield="hvStorageTb" data-ncoerce="floatdef" data-ndef="0"></div>
+            <div class="prop-group"><label>RAM (GB)</label><input type="number" min="1" max="65536" value="${n.hvRamGb ?? ''}" placeholder="64" data-change="update-n" data-nfield="hvRamGb" data-ncoerce="intopt"></div>
+            <div class="prop-group"><label>Storage (TB)</label><input type="number" min="0" max="10000" step="0.5" value="${n.hvStorageTb ?? ''}" placeholder="1" data-change="update-n" data-nfield="hvStorageTb" data-ncoerce="floatopt"></div>
         </div>
-        <div class="prop-group"><label>${t('hv.mgmtVlan')}</label><input type="number" min="1" max="4094" value="${n.mgmtVlan || 1}" data-tip="${esc(t('hv.mgmtVlanTip'))}" data-change="update-n" data-nfield="mgmtVlan" data-ncoerce="intdef" data-ndef="1"></div>
+        <div class="prop-group"><label>${t('hv.mgmtVlan')}</label><input type="number" min="1" max="4094" value="${n.mgmtVlan ?? ''}" placeholder="1" data-tip="${esc(t('hv.mgmtVlanTip'))}" data-change="update-n" data-nfield="mgmtVlan" data-ncoerce="intopt"></div>
         ${''/* Questa riga vale 8 spazi nell'output e il golden li conta: non si
              toglie. La sezione VM vive in _vmSectionHtml — condivisa con gli
              altri tipi che ospitano macchine virtuali. */}

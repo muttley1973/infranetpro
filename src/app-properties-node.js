@@ -51,6 +51,14 @@ function _nVal(el){
     if(c === 'bool') return el.checked;
     if(c === 'intdef')   return parseInt(el.value, 10) || +el.dataset.ndef;
     if(c === 'floatdef') return parseFloat(el.value)  || +el.dataset.ndef;
+    // Paletto (2) «no invenzioni» — le coercizioni OPZIONALI. intdef/floatdef hanno il
+    // default INVENTATO in data-ndef: svuotare il campo ci riscriveva quel numero, quindi
+    // «non lo so» non era esprimibile. Le opzionali usano lo stesso parser con UN esito in
+    // piu': vuoto (o non numerico) = NIENTE, e updateN cancella la chiave. Il numero
+    // suggerito vive nel placeholder, dove si legge come proposta e non come dichiarazione.
+    if(c === 'intopt'){   const v = parseInt(el.value, 10); return Number.isFinite(v) ? v : undefined; }
+    if(c === 'floatopt'){ const v = parseFloat(el.value);   return Number.isFinite(v) ? v : undefined; }
+    if(c === 'stropt'){   const v = String(el.value).trim(); return v || undefined; }
     if(c === 'int' || c === 'int-empty'){
         if(c === 'int-empty' && el.value === '') return undefined;
         return normalizeNumber(el.value, +el.dataset.ndef, +el.dataset.nmin, +el.dataset.nmax);

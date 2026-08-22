@@ -201,7 +201,11 @@ function handleDrop(e,zone){
         if(t==='webcam'){
             const c=store.state.nodes.filter(x=>x.type==='webcam').length+1;
             n.name='CAM-'+c.toString().padStart(2,'0');
-            Object.assign(spec,{mountType:'ceiling',installHeight:2.8,powerType:'poe',resolution:'1080p',lens:'2.8mm / 110deg',coverageZone:'',recorder:'',installStatus:'planned',irEnabled:true,audioEnabled:false});
+            // Paletto (2): si posa una telecamera, non la si specifica. L'unica cosa vera
+            // di una CAM appena trascinata e' che e' PIANIFICATA — l'atto dell'utente.
+            // Ottica, risoluzione, altezza e alimentazione erano invenzioni che poi
+            // finivano nel dossier come se qualcuno le avesse rilevate.
+            spec.installStatus='planned';
         }
         n.x=_snapFloor(rx); n.y=_snapFloor(ry);
         pushHistory(); store.state.nodes.push(n);
