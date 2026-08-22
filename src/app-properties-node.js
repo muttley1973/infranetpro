@@ -499,8 +499,13 @@ ${mgmtCount > 0 ? `<div class="prop-row2" style="margin-top:4px">
                 // stack; il fallback in getStackMaster gestisce buchi e auto-promote.
                 if(d.stackEligible && !isRackFiller){
                     const _isIn = isInStack(n);
-                    const _stackId = _isIn ? n.spec.stackId : '';
-                    const _mid = _isIn ? (n.spec.stackMemberId||1) : 1;
+                    // ⚠️ Il valore si legge con lo STESSO lettore della guardia qui sopra
+                    // (lib/stack.js): `isInStack` accetta anche lo `stackId` scritto piatto
+                    // sul nodo, e leggerlo da `n.spec` faceva esplodere l'INTERO pannello
+                    // proprietà — non la sezione stack, tutto — su un nodo che la guardia
+                    // aveva appena approvato.
+                    const _stackId = _isIn ? (stackIdOf(n) || '') : '';
+                    const _mid = _isIn ? (stackMemberIdOf(n) || 1) : 1;
                     const _members = _isIn ? getStackMembers(state.nodes, _stackId) : [];
                     const _summary = getStackSummary(state.nodes, n);
                     const _allStacks = getAllStackIds(state.nodes);

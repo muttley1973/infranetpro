@@ -38,8 +38,13 @@ function setNodeStack(stackId, memberId){
 }
 function setNodeStackMemberId(newId){
     const n = nodeById(store.selId); if(!n) return;
-    if(!win.isInStack(n)) return;
-    const stackId = n.spec.stackId;
+    // ⚠️ UNA sola lettura, non due. `isInStack` non è altro che «stackIdOf ha
+    // risposto qualcosa», e chiamarli entrambi era chiedere due volte la stessa cosa —
+    // col rischio, pagato proprio qui, che la guardia accettasse una forma che la
+    // lettura sotto non sapeva leggere. Così il ponte win.* non cresce: uno entra,
+    // uno esce.
+    const stackId = win.stackIdOf(n);
+    if(!stackId) return;
     const mid = parseInt(newId, 10);
     if(!Number.isFinite(mid) || mid < 1){ return; }
     if(!win.isMemberIdAvailable(store.state.nodes, stackId, mid, n.id)){
