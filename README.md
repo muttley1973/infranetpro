@@ -278,6 +278,7 @@ Double-click <code>avvia.bat</code>.<br>
 | **🔄 DCIM / IPAM sync** | Import an existing **NetBox** into a new project over its REST API — sites, racks (front/rear split), floor-placed, devices, interfaces, VLANs/prefixes and patch-panel cabling; free import, paid write-back |
 | **🔗 LAG detection** | A four-level cascade — `ifStackTable` · IEEE 802.3ad · LACP actor state · LLDP-inferred — plus LACP mode coherence across both ends |
 | **🏷️ VLAN** | Access and trunk detection, Q-BRIDGE bitmaps with a VTP fallback, auto-derived trunks, per-VLAN IPAM occupancy, one-click isolation across the whole map |
+| **🧮 IPAM hygiene** | Duplicate addresses (IPv4 and IPv6, compared in canonical form), overlapping prefixes told apart from the hierarchies a plan legitimately contains, and addresses that fall outside every declared network — judged per address family, so a plan with no IPv6 network passes no verdict on IPv6. Any check that could not run says so instead of reporting a clean result |
 | **📶 Wireless** | Up to 8 radios per device with their own SSID, band, channel, security and VLAN; over-the-air association discovery from the bridge FDB and the L3 neighbour table |
 | **🧵 Cabling** | Segment editor on the TIA-568 hierarchy, copper *and* fibre reach validation, end-to-end physical path trace, printable label sheets and CSV |
 | **🕓 History & automation** | One **Automatic monitoring** scheduler (Light / Full), opt-in autosave, a verification timeline and restorable full-state snapshots — kept outside the project file, behind a database-ready interface |

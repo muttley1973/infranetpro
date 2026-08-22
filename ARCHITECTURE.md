@@ -144,7 +144,10 @@ lib/                   Shared browser + test modules (the heart of the app)
                     `prefix.reserved[]` holds the booked addresses: they belong to the
                     NETWORK, not to a device — a booked address has no device by definition  (pure)
   ipam-audit.js     buildIpamAudit → duplicate addresses (v4+v6, canonical) + overlapping
-                    prefixes (IPAM hygiene, doc↔doc);
+                    prefixes + addresses outside the declared plan (IPAM hygiene, doc↔doc);
+                    ⭐ `notChecked[]` names every check that could not run, because an
+                    empty list used to mean both «nothing found» and «never looked», and
+                    an audit that says nothing is believed;
                     compareCidr = the one address-space ordering, shared with the panel  (pure)
   l3-gateway.js     buildL3Report → one row PER DECLARED PREFIX (not per VLAN): who routes
                     each network, both families. `byVlan` is the derived per-VLAN view for

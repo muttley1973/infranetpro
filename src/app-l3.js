@@ -277,7 +277,9 @@ function _l3StatusBadge(row){
 // interpolati sono gia' escapati (nomi device = input utente).
 function _l3HygieneHtml(audit, esc){
     const _expected = (audit && audit.subnetOverlapsExpected) ? audit.subnetOverlapsExpected.length : 0;
-    if(!audit || (!audit.duplicateIps.length && !audit.subnetOverlaps.length && !_expected)) return '';
+    const _fuori = (audit && audit.addressesOutsidePlan) ? audit.addressesOutsidePlan : [];
+    const _nc = (audit && audit.notChecked) ? audit.notChecked : [];
+    if(!audit || (!audit.duplicateIps.length && !audit.subnetOverlaps.length && !_expected && !_fuori.length && !_nc.length)) return '';
     const rs = 'style="font-size:0.8rem;color:var(--text-muted);padding:2px 0"';
     const rows = [];
     for(const d of audit.duplicateIps){
@@ -296,6 +298,19 @@ function _l3HygieneHtml(audit, esc){
     // legge deve poter distinguere «nessuna sovrapposizione» da «ce n'erano e le ho
     // giudicate normali».
     if(_expected) rows.push(`<div ${rs}>${t('l3.overlapExpected',{n:_expected})}</div>`);
+    // Indirizzi fuori dal piano DICHIARATO: il declare-first applicato all'IPAM. Non
+    // si dice quale delle due cose sia (indirizzo sbagliato o rete mai dichiarata):
+    // sono conclusioni diverse e la scelta e' di chi legge.
+    for(const a of _fuori){
+        rows.push(`<div ${rs}>⚠ ${t('l3.outsidePlanRow',{ip:`<b>${esc(a.ip)}</b>`, name:esc(a.node && a.node.name)})}</div>`);
+    }
+    // ⭐ E in fondo cio' che NON e' stato controllato. Senza questa riga una lista
+    // vuota diceva due cose opposte con la stessa faccia — «ho guardato, e' pulito»
+    // e «non ho guardato» — e in un audit la seconda viene creduta come la prima.
+    for(const c of _nc){
+        const _che = t('l3.chk.' + c.check), _perche = t('l3.why.' + c.reason);
+        rows.push(`<div ${rs} style="font-size:0.8rem;color:var(--text-muted);padding:2px 0;opacity:.85">${t('l3.notCheckedRow',{what:esc(_che), why:esc(_perche)})}</div>`);
+    }
     return `<div class="l3-hygiene" style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">`
         + `<div style="font-weight:600;margin-bottom:4px"><i class="fas fa-triangle-exclamation" style="color:#d29922"></i> ${t('l3.ipamHygiene')}</div>`
         + rows.join('') + `</div>`;
@@ -305,8 +320,13 @@ function openL3Report(){
     const rep = _l3Report = _l3Compute(true);
     // Global bare (risolve a window via la lib UMD-lite ipam-audit.js): non passa
     // dal ponte win.* (cricchetto invariato). Ripiego "rete pulita" se non caricata.
-    let audit = { duplicateIps: [], subnetOverlaps: [] };
-    try { if(typeof buildIpamAudit === 'function') audit = buildIpamAudit(_l3BuildModel(false, { withVmIps: true })); } catch(_){ /* ripiego */ }
+    // ⚠️ Il ripiego dichiara di NON aver controllato. Prima era `{duplicateIps:[],
+    // subnetOverlaps:[]}`, cioe' esattamente la forma di una rete pulita: se la lib
+    // non era caricata, o se lanciava, il report scriveva «nessun problema» su un
+    // audit mai partito — la bugia peggiore che un audit possa dire.
+    let audit = { duplicateIps: [], subnetOverlaps: [], subnetOverlapsExpected: [],
+                  addressesOutsidePlan: [], notChecked: [{ check: 'all', reason: 'no-audit' }] };
+    try { if(typeof buildIpamAudit === 'function') audit = buildIpamAudit(_l3BuildModel(false, { withVmIps: true })); } catch(_){ /* ripiego: resta «non controllato» */ }
     const ov = _l3EnsureOverlay();
     ov.style.display = 'flex';
     const esc = s => escapeHTML(String(s == null ? '' : s));
@@ -319,6 +339,12 @@ function openL3Report(){
     if(tot.familyMismatch) warnBits.push(`<span class="l3-sum-warn">⚠ ${t('l3.famMismatch',{n:tot.familyMismatch})}</span>`);
     if(audit.duplicateIps.length) warnBits.push(`<span class="l3-sum-warn">⚠ ${t('l3.dupIpChip',{n:audit.duplicateIps.length})}</span>`);
     if(audit.subnetOverlaps.length) warnBits.push(`<span class="l3-sum-warn">⚠ ${t('l3.overlapChip',{n:audit.subnetOverlaps.length})}</span>`);
+    const _fuori = (audit.addressesOutsidePlan || []).length;
+    if(_fuori) warnBits.push(`<span class="l3-sum-warn">⚠ ${t('l3.outsidePlanChip',{n:_fuori})}</span>`);
+    // ⚠️ Va nel sommario, non solo nel dettaglio: e' la riga che impedisce di leggere
+    // «nessun problema» come «ho guardato dappertutto».
+    const _nc = (audit.notChecked || []).length;
+    if(_nc) warnBits.push(`<span class="l3-sum-warn">${t('l3.notCheckedChip',{n:_nc})}</span>`);
     const header = `<div class="spare-summary">
         <div class="spare-summary-hdr">
             <div class="spare-summary-big">${t('l3.summary',{dev:`<b>${tot.l3Devices}</b>`,gw:`<b>${tot.withGateway}</b>`,nets:tot.nets})}</div>

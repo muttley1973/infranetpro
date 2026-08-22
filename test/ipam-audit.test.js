@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { buildIpamAudit, findDuplicateIps, findSubnetOverlaps, findExpectedOverlaps } = require('../lib/ipam-audit.js');
+const { buildIpamAudit, findDuplicateIps, findSubnetOverlaps, findExpectedOverlaps, findAddressesOutsidePlan } = require('../lib/ipam-audit.js');
 const { _parseCidrInfo } = require('../lib/cidr.js');
 
 // ---- findDuplicateIps -------------------------------------------------------
@@ -289,4 +289,91 @@ test('findDuplicateIps: IPv4 con grafie diverse (zeri iniziali) è un duplicato'
     { id: 'b', name: 'B', ip: '192.168.001.005' },
   ]);
   assert.equal(dup.length, 1, 'stesso IPv4 scritto in due modi = un conflitto');
+});
+
+// ---- findAddressesOutsidePlan ----------------------------------------------
+// Il piano IPAM è l'autorità (declare-first): un apparato che vive fuori da tutte
+// le reti dichiarate o ha un indirizzo sbagliato, o sta su una rete che nessuno ha
+// mai scritto. Sono due conclusioni diverse e la scelta è di chi legge — qui si
+// difende solo che la domanda venga posta, e che non venga posta a sproposito.
+
+const PLAN = [{ cidr: '10.0.10.0/24', vlan: 10 }, { cidr: '10.0.20.0/24', vlan: 20 }];
+const fuori = (nodes, prefixes) => findAddressesOutsidePlan(nodes, prefixes || PLAN, _parseCidrInfo);
+
+test('fuori dal piano: un indirizzo che non cade in nessuna rete dichiarata', () => {
+  const r = fuori([{ id: 'a', name: 'SW', ip: '10.0.10.1' }, { id: 'b', name: 'PC', ip: '192.168.77.5' }]);
+  assert.equal(r.length, 1);
+  assert.equal(r[0].ip, '192.168.77.5');
+  assert.equal(r[0].family, 4);
+  assert.deepEqual(r[0].node, { id: 'b', name: 'PC' });
+});
+
+test('dentro il piano: nessuna accusa', () => {
+  assert.deepEqual(fuori([{ id: 'a', name: 'SW', ip: '10.0.10.1' }, { id: 'b', name: 'PC', ip: '10.0.20.99' }]), []);
+});
+
+test('⚠️ nessuna rete di quella FAMIGLIA → non si giudica quella famiglia', () => {
+  // Il piano è tutto IPv4: se ogni IPv6 documentato risultasse «fuori dal piano»
+  // non sarebbe una scoperta, sarebbe il rumore di un confronto contro il nulla.
+  const r = fuori([{ id: 'a', name: 'R', ip: '10.0.10.1', ip6: '2001:db8::9' }]);
+  assert.deepEqual(r, []);
+  // …e appena una rete v6 c'è, la domanda torna ad avere senso.
+  const r2 = fuori([{ id: 'a', name: 'R', ip6: '2001:db8::9' }], PLAN.concat([{ cidr: '2001:db8:1::/64' }]));
+  assert.equal(r2.length, 1);
+  assert.equal(r2[0].family, 6);
+});
+
+test('nessuna rete dichiarata → nessuno è fuori da niente', () => {
+  assert.deepEqual(fuori([{ id: 'a', name: 'PC', ip: '192.168.77.5' }], []), []);
+});
+
+test('il link-local IPv6 non appartiene a nessun piano e non si accusa', () => {
+  const r = fuori([{ id: 'a', name: 'R', ip6: 'fe80::1' }], [{ cidr: '2001:db8::/32' }]);
+  assert.deepEqual(r, []);
+});
+
+test('un campo scritto male non è «fuori dal piano»: è un problema diverso', () => {
+  assert.deepEqual(fuori([{ id: 'a', name: 'X', ip: 'non-un-indirizzo' }]), []);
+});
+
+test('senza il lettore dei CIDR non si inventa un esito', () => {
+  assert.deepEqual(findAddressesOutsidePlan([{ id: 'a', ip: '192.168.77.5' }], PLAN, null), []);
+});
+
+// ---- notChecked -------------------------------------------------------------
+// ⭐ «Non ho potuto controllare» e «ho controllato e non c'è niente» uscivano
+// identici: una lista vuota. In un disegno è un difetto; in un audit è peggio,
+// perché un audit che tace viene creduto.
+
+test('tutto controllabile → notChecked vuoto', () => {
+  const a = buildIpamAudit({ nodes: [{ id: 'a', ip: '10.0.10.1' }], prefixes: PLAN, parseCidr: _parseCidrInfo });
+  assert.deepEqual(a.notChecked, []);
+});
+
+test('senza lettore CIDR: sovrapposizioni e fuori-piano si dichiarano NON eseguiti', () => {
+  const a = buildIpamAudit({ nodes: [{ id: 'a', ip: '192.168.77.5' }], prefixes: PLAN });
+  assert.deepEqual(a.subnetOverlaps, [], 'la lista resta vuota…');
+  const chi = a.notChecked.map(x => x.check).sort();
+  assert.deepEqual(chi, ['addressesOutsidePlan', 'subnetOverlaps'], '…ma adesso si sa perché');
+  assert.ok(a.notChecked.every(x => x.reason === 'no-parser'));
+});
+
+test('nessun piano dichiarato: il fuori-piano si dichiara non eseguito, non «pulito»', () => {
+  const a = buildIpamAudit({ nodes: [{ id: 'a', ip: '192.168.77.5' }], prefixes: [], parseCidr: _parseCidrInfo });
+  assert.deepEqual(a.addressesOutsidePlan, []);
+  assert.deepEqual(a.notChecked, [{ check: 'addressesOutsidePlan', reason: 'no-plan' }]);
+});
+
+test('un prefisso senza CIDR non conta come piano', () => {
+  const a = buildIpamAudit({ nodes: [], prefixes: [{ vlan: 10 }, { cidr: '  ' }], parseCidr: _parseCidrInfo });
+  assert.equal(a.notChecked.some(x => x.check === 'addressesOutsidePlan' && x.reason === 'no-plan'), true);
+});
+
+test('buildIpamAudit espone il fuori-piano accanto agli altri due', () => {
+  const a = buildIpamAudit({
+    nodes: [{ id: 'a', name: 'SW', ip: '10.0.10.1' }, { id: 'b', name: 'PC', ip: '172.16.5.5' }],
+    prefixes: PLAN, parseCidr: _parseCidrInfo });
+  assert.equal(a.addressesOutsidePlan.length, 1);
+  assert.equal(a.addressesOutsidePlan[0].ip, '172.16.5.5');
+  assert.deepEqual(a.notChecked, []);
 });
