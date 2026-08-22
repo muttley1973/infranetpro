@@ -1287,6 +1287,17 @@ is VPN/LAN.
   system browser via `INFRANET_DEV_NO_AUTH`, isolated temp store) — see §7.
 - **Floor/rack navigation parity.** Both canvases pan via a `transform: translate`
   (floor: `floorView`, rack: `rackView.x/y` on `#rack-chassis-wrap`) + wheel-zoom;
+  the rack's zoom percentage is also its **fit-to-width** button (`rack-fit` →
+  `rackFitZoom`/`fitRack`), and turns amber while the chassis is wider than its
+  viewport — the sides, and with them a device's state ring, fall outside
+  `overflow:hidden` and there was no one-gesture way back. ⚠️ The break-even is
+  measured with `offsetWidth`: `#rack-chassis-wrap` has a `transition` on its
+  transform, so mid-animation `getBoundingClientRect()` reports a value between two
+  zooms — and one already multiplied by the scale. ⚠️ Rack devices are all
+  `position:relative` with no `z-index`, so paint order is DOM order: a device
+  carrying a **state ring** (absent / declared-off / status-conflict) is lifted above
+  its neighbours, or the one below repaints over the ring's bottom edge and the alert
+  degrades into a single line;
   the rack has **no scrollbars** (`overflow:hidden`). Drag on empty area pans, drag
   on a device moves it, Space+drag pans anywhere. Rack px→U conversion reads the
   `--ru-h` token (`rackUPx()`), never a hardcoded unit height.

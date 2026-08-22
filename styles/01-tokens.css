@@ -26,9 +26,14 @@
                  --nolink-color senza link da ≥3 verifiche: un SINTOMO ambiguo (device
                                 spento? NIC morta? SFP sfilato?) che qualcuno deve
                                 andare a guardare — ambra, cioè attenzione.
-               ⚠️ L'ambra è VOLUTAMENTE diversa da --idle-color (#f5a623, «Pronta»):
-               due stati non possono condividere una tinta, o l'occhio li fonde. E
-               questo non ha alone: gli stati vivi brillano, questo segnala e basta.
+               ⚠️ L'ambra è VOLUTAMENTE diversa da --idle-color (#f5a623): due stati
+               non possono condividere una tinta, o l'occhio li fonde. E questo non ha
+               alone: gli stati vivi brillano, questo segnala e basta.
+               ⓘ --idle-color NON è più uno stato porta: la porta «idle» è stata tolta
+               (una parola per quattro significati, vedi CHANGELOG 2.10.1) e quel token
+               ora è l'ambra generica dell'ATTENZIONE — contraddizione fra documento e
+               realtà (node-status-conflict), chip e bozze dell'assistente, avvisi
+               wireless. Il nome è rimasto, il significato no.
                ⚠️ Lo stesso valore è scritto in export.js e lib/drawio-export.js, che
                non possono leggere un token CSS: li tiene allineati la guardia in
                test/porta-senza-link-colore.test.js. */
