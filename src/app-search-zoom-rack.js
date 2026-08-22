@@ -164,7 +164,12 @@ export function updateTransforms(){
     document.getElementById('floor-canvas').style.transform=`translate(${store.state.floorView.x}px,${store.state.floorView.y}px) scale(${store.state.floorView.zoom})`;
     document.getElementById('floor-zoom-lbl').innerText=Math.round(store.state.floorView.zoom*100)+'%';
     document.getElementById('rack-chassis-wrap').style.transform=`translate(${store.state.rackView.x||0}px,${store.state.rackView.y||0}px) scale(${store.state.rackView.zoom})`;
-    document.getElementById('rack-zoom-lbl').innerText=Math.round(store.state.rackView.zoom*100)+'%';
+    const _zl = document.getElementById('rack-zoom-lbl');
+    _zl.innerText=Math.round(store.state.rackView.zoom*100)+'%';
+    // Segnala che stai guardando una PARTE del rack: senza, l'unico indizio che i
+    // fianchi sono fuori e' che mancano, e cio' che manca non si vede.
+    const _fz = rackFitZoom();
+    _zl.classList.toggle('over-fit', _fz !== null && store.state.rackView.zoom > _fz + 0.001);
     applyUiColors(); renderCables();
     // #rack-chassis-wrap ha transition:transform .1s in CSS (animazione zoom),
     // quindi le coordinate dei LED rack restano in movimento per ~100ms.
@@ -196,6 +201,41 @@ function zoomFloor(delta,ex=null,ey=null){
 }
 function zoomRack(delta){
     store.state.rackView.zoom=Math.max(0.3,Math.min(5,store.state.rackView.zoom+delta));
+    updateTransforms(); markDirty();
+}
+// Lo zoom al quale il rack ENTRA tutto nella sua finestra. Il chassis ha una
+// larghezza fissa (356px + i montanti) mentre il viewport dipende dal pannello,
+// quindi il punto di pareggio non e' una costante: si misura. Torna null se gli
+// elementi non ci sono ancora (primo render) — chi chiama non deve inventare.
+export function rackFitZoom(){
+    const vp = document.getElementById('rack-viewport');
+    const ch = document.getElementById('rack-chassis');
+    if(!vp || !ch) return null;
+    // ⚠️ offsetWidth, NON getBoundingClientRect: il rect è già scalato dal transform
+    // E #rack-chassis-wrap ha transition .1s, quindi durante l'animazione dello zoom
+    // il rect misura una via di mezzo e il pareggio verrebbe calcolato su un numero
+    // che non esiste. La larghezza di LAYOUT il transform non la tocca mai.
+    const nat = ch.offsetWidth;                          // larghezza a zoom 1, stabile
+    if(!(nat > 0)) return null;
+    const cs = getComputedStyle(vp);
+    const utile = vp.clientWidth - parseFloat(cs.paddingLeft||0) - parseFloat(cs.paddingRight||0);
+    if(!(utile > 0)) return null;
+    // Gli stessi estremi di zoomRack: adattare non deve poter uscire dalla scala.
+    return Math.max(0.3, Math.min(5, utile / nat));
+}
+// ⭐ La via di RITORNO. Zoomare il rack e' il gesto normale per leggere le porte, ma
+// sopra il punto di pareggio i fianchi finiscono oltre l'overflow:hidden del viewport
+// e con loro l'ANELLO di stato (assente/non risponde/…): resta una riga rossa
+// orizzontale, che si legge come un artefatto invece che come un allarme. Prima si
+// tornava indietro a passi del 10% leggendo la percentuale; ora la percentuale E' il
+// comando. Il pan orizzontale si azzera (il viewport centra da se'), quello verticale
+// segue lo zoom cosi' resti sulla stessa unita' invece di essere sbalzato in cima.
+export function fitRack(){
+    const z = rackFitZoom(); if(z === null) return;
+    const old = store.state.rackView.zoom || 1;
+    store.state.rackView.zoom = z;
+    store.state.rackView.x = 0;
+    store.state.rackView.y = (store.state.rackView.y || 0) * (z / old);
     updateTransforms(); markDirty();
 }
 function handleFloorZoom(e){e.preventDefault();zoomFloor(e.deltaY>0?-0.1:0.1,e.clientX,e.clientY);}
@@ -762,6 +802,7 @@ registerClickActions({
     'sidebar-toggle':      () => toggleSidebarPanel(),
     'zoom-floor':          (el) => zoomFloor(parseFloat(el.dataset.delta)),
     'zoom-rack':           (el) => zoomRack(parseFloat(el.dataset.delta)),
+    'rack-fit':            () => fitRack(),
     'rack-panel-toggle':   () => toggleRackPanel(),
     'rack-menu-toggle':    () => toggleRackMenu(),
     'rack-add':            () => { addRack(); closeRackMenu(); },

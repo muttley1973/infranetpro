@@ -8,6 +8,17 @@
         .zoom-btn { background:none; border:none; color:var(--text-main); padding:5px 9px; cursor:pointer; }
         .zoom-btn:hover { color:var(--accent); }
         .zoom-label { font-size:var(--fs-sm); padding:0 5px; min-width:44px; text-align:center; }
+        /* Sul rack l'etichetta E' il comando «adatta alla larghezza»: il rack ha una
+           larghezza sua, quindi «tutto quanto» e' un punto preciso a cui tornare. Il
+           floor non ce l'ha (tela libera) e la sua etichetta resta uno <span>. */
+        button.zoom-label { background:none; border:none; color:inherit; font-family:inherit; cursor:pointer; }
+        button.zoom-label:hover { color:var(--accent); }
+        button.zoom-label:focus-visible { outline:2px solid var(--accent); outline-offset:1px; border-radius:var(--radius-xs); }
+        /* Oltre il pareggio: ne vedi solo una parte, e i fianchi — anello di stato
+           compreso — sono fuori dalla finestra. Ambra, non rosso: e' una condizione
+           della vista, non un guasto della rete. */
+        button.zoom-label.over-fit { color:var(--idle-color); }
+        button.zoom-label.over-fit::after { content:"\2194"; margin-left:3px; font-size:.85em; }
         /* (Regole #floorplan-toolbar-wrap e #floorplan-toolbar-hint rimosse:
            il menu "Planimetria" in alto a sinistra non viene piu' renderizzato.
            Le funzioni toggleFloorMenu/closeFloorMenu/_updateFloorMenuState/

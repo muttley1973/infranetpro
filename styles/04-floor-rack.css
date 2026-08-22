@@ -321,6 +321,18 @@
         .rack-device.type-pdu { overflow:visible; }
         .rack-device.type-pdu > .pdu-power-ports { align-self:stretch; }
         .rack-device.selected { outline:1px solid var(--accent); outline-offset:-1px; filter:brightness(1.15); z-index:5; }
+        /* ⚠️ Un device che porta un ANELLO di stato deve stare sopra i vicini. L'alone e'
+           un box-shadow che esce dal riquadro, e i device del rack sono tutti
+           `position:relative` senza z-index: a parita' di livello vince l'ORDINE DEL DOM,
+           quindi il vicino che sta piu' in basso nell'elenco ridipinge sopra l'alone di chi
+           viene prima. Misurato: l'assente era il figlio n.3 e il pannello patch attaccato
+           sotto il n.16 → il lato INFERIORE dell'anello spariva, e restava una riga rossa
+           orizzontale sola, che si legge come un artefatto e non come un allarme. Sotto il 5
+           della selezione: se selezioni un device assente, il contorno della selezione resta
+           quello che vince. */
+        .rack-device.node-absent,
+        .rack-device.node-absent-expected,
+        .rack-device.node-status-conflict { z-index:4; }
         /* Errore SNMP: barra di stato a SINISTRA rossa (come gli altri stati) +
            LED di stato; niente piu' "tutto il bordo rosso". */
         .rack-device.snmp-fault { border-left-color:var(--fault-color); }
@@ -343,7 +355,7 @@
            unverified, nessun overlay senza IP, e snmp-ok azzera l'overlay. Sul rack l'alone
            rosso è volutamente diverso dal bordo-sinistro rosso di snmp-err/snmp-fault. */
         .floor-node.node-absent,
-        .rack-device.node-absent { box-shadow:0 0 0 2px var(--fault-color), 0 0 9px rgba(248,81,73,.55); }
+        .rack-device.node-absent { box-shadow:0 0 0 1px var(--fault-color), 0 0 9px rgba(248,81,73,.55); }
         /* Errore del driver SNMP sul pavimento: sulla TILE come tutti gli altri stati
            (prima era un contorno inline sull'etichetta interna, e a schermo sembrava
            un bordo rosso messo a caso).
@@ -355,7 +367,7 @@
            avere la stessa forma, altrimenti sembrano due decorazioni scorrelate
            invece di due valori della stessa notizia. Cambia il colore, che è la
            notizia: arancione «non risponde all'interrogazione» ≠ rosso «non c'è». */
-        .floor-node.snmp-fault { box-shadow:0 0 0 2px var(--probe-warn), 0 0 9px rgba(240,136,62,.55); }
+        .floor-node.snmp-fault { box-shadow:0 0 0 1px var(--probe-warn), 0 0 9px rgba(240,136,62,.55); }
         .floor-node.node-unverified { opacity:0.4; filter:grayscale(0.9); }
         .floor-node.node-unverified.selected { opacity:0.72; }
         .rack-device.node-unverified { opacity:0.45; filter:grayscale(0.9); }
@@ -374,11 +386,11 @@
            quello dice «non risponde all'interrogazione», questa dice «il documento non
            torna con la realtà». E niente tratteggio: in quest'app vuol dire «dedotto». */
         .floor-node.node-absent-expected,
-        .rack-device.node-absent-expected { box-shadow:0 0 0 2px var(--inactive-color); opacity:0.7; }
+        .rack-device.node-absent-expected { box-shadow:0 0 0 1px var(--inactive-color); opacity:0.7; }
         .floor-node.node-absent-expected.selected,
         .rack-device.node-absent-expected.selected { opacity:1; }
         .floor-node.node-status-conflict,
-        .rack-device.node-status-conflict { box-shadow:0 0 0 2px var(--idle-color), 0 0 9px rgba(245,166,35,.45); }
+        .rack-device.node-status-conflict { box-shadow:0 0 0 1px var(--idle-color), 0 0 9px rgba(245,166,35,.45); }
         /* Brand visibile solo per dispositivi a bassa densità (=8 porte) */
         /* .rack-brand rimosso: l'hostname e' ora un title HTML sul .rack-device
            (tooltip browser nativo al hover) e non occupa piu' spazio fisso a
