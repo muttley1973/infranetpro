@@ -1378,7 +1378,12 @@ const _CABLE_PROOF_CLS = {
 // Reso sia nell'header Proprietà cavo sia nella lista Cavi della Panoramica. Il
 // dichiarato NON millanta liveness: resta «Dichiarato» (cablaggio ≠ liveness).
 const _CABLE_PROOF_BADGE = {
-    'derived-strong':  { key: 'fresh',    color: '#1a7f37' },   // inferenza con evidenza FRESCA
+    // ⚠️ La pillola dice la FORZA dell'adiacenza (LLDP/CDP con confidenza ≥ 0.90 —
+    // lib/proof.js `cableTier`), non quanto è recente: la freschezza degli estremi è
+    // un moltiplicatore a parte (`endpointFreshness`) e non ha una pillola sua. Si
+    // chiamava «Fresca», e il manuale la spiegava due righe sotto come «adiacenza
+    // forte»: la parola nominava l'asse sbagliato.
+    'derived-strong':  { key: 'strong',   color: '#1a7f37' },   // adiacenza FORTE (protocollo di vicinato)
     'derived-weak':    { key: 'weak',     color: '#bf8700' },   // inferenza debole/che invecchia
     'ghost':           { key: 'ghost',    color: '#6e7681' },   // inferenza che ha PERSO l'evidenza
     'declared-review': { key: 'review',   color: '#cf222e' },   // la realtà contraddice il cavo
