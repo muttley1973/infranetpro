@@ -7,7 +7,7 @@
 // ============================================================
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { escapeHTML, normalizeStatus, hasPortStatus } from './app-util.js';
+import { escapeHTML, normalizePortStatus, hasPortStatus } from './app-util.js';
 import { nodeById, getNodeByPortId, getPortNodeId, renderCables, _showToast, switchRightTab, _linksForPort, getRackById, _getLinkPhysicalView } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderTopoOverlay } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps, setPropsSectionState } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -245,7 +245,7 @@ export function showPop(e,pid){
     // Valori effettivi (override > SNMP > default)
     // Mai dichiarato né misurato = «—»: preselezionare INACTIVE farebbe passare
     // un default per una scelta dell'utente (vedi hasPortStatus).
-    const effStatus = hasPortStatus(pi) ? (pi.statusOvr ?? normalizeStatus(pi.status)) : '';
+    const effStatus = hasPortStatus(pi) ? (pi.statusOvr ?? normalizePortStatus(pi.status)) : '';
     const effVlan   = _effPortVlan(pid);
     const effSpeed  = pi.speedOvr  ?? pi.speed  ?? null;
     const effDesc   = pi.desc      ?? '';

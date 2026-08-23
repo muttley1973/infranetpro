@@ -8,7 +8,7 @@
 import { expose, t } from './_bridge.js';
 import { registerClickActions, registerChangeActions, registerInputActions, registerFocusActions, registerKeydownActions } from './app-delegation.js';   // ASSE B: event delegation (data-act/change/input/focus/keydown) — toolbar rack/zoom/palette + search box
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { escapeHTML, uid, hexToRgba, normalizeStatus, normalizeNumber } from './app-util.js';
+import { escapeHTML, uid, hexToRgba, normalizePortStatus, normalizeNumber } from './app-util.js';
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _showToast, getRackById, getRackName, getNodeRackSize, getPortConnectionCount, getNodePortCount, getRackSize, _repairRackPlacements, removeNodePorts, _resetSelection } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { showAlert, showPrompt, showConfirm } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -29,7 +29,7 @@ function getSearchIcon(kind,type='') {
 }
 function getPortSummary(pid) {
     const p=store.state.ports[pid]||{}, n=getNodeByPortId(pid);
-    const parts=[getNodeDisplayName(n),pid,`status:${normalizeStatus(p.status)}`,
+    const parts=[getNodeDisplayName(n),pid,`status:${normalizePortStatus(p.status)}`,
                  `vlan:${p.vlan||1}`,`speed:${p.speed||'1G'}`,`connections:${getPortConnectionCount(pid)}`];
     if(n?.rackId) parts.push(`rack:${getRackName(n.rackId)}`);
     return parts.join(' ');

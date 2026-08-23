@@ -52,7 +52,7 @@ function val(expr) {
 }
 
 // ---- il vocabolario è chiuso a tre ----------------------------------------
-// ⚠️ `normalizeStatus` NON si interroga dal globale: su `window` ce ne sono due con
+// ⚠️ `normalizePortStatus` NON si interroga dal globale: su `window` ce ne sono due con
 // lo stesso nome e vocabolari diversi (questa delle porte, e quella dello stato
 // operativo del device in lib/device-status.js, che risponde `''`). A runtime non si
 // confondono — chi disegna le porte importa la sua via ESM — ma un test che chiama
@@ -156,7 +156,7 @@ test('la parola «idle» non è più uno stato porta in nessuno dei posti che la
         assert.doesNotMatch(leggi(rel), /value="idle"/, `${rel}: la voce «idle» è rientrata nella tendina`);
     }
     const util = /return \[([^\]]*)\]\.includes\(s\)/.exec(leggi('src/app-util.js'));
-    assert.ok(util, 'normalizeStatus non ha più la forma attesa: rivedi questo guardiano');
+    assert.ok(util, 'normalizePortStatus non ha più la forma attesa: rivedi questo guardiano');
     assert.equal(util[1].replace(/[\s']/g, ''), 'inactive,active,fault');
 
     for (const rel of ['export.js', 'lib/drawio-export.js', 'server/pdf-report.js']) {

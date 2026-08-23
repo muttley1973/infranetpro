@@ -17,7 +17,7 @@
 //     non-strict, scrivono la stessa proprietà di window.
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { escapeHTML, uid, normalizeStatus, hasPortStatus, portAnchorEl } from './app-util.js';   // portAnchorEl: il LED della porta, non il primo controllo del pannello con lo stesso data-pid
+import { escapeHTML, uid, normalizePortStatus, hasPortStatus, portAnchorEl } from './app-util.js';   // portAnchorEl: il LED della porta, non il primo controllo del pannello con lo stesso data-pid
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, pushHistory, renderCables, _patchPanelOffset } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { radioLabelForPid } from '../lib/radio.js';   // il nome di una radio sta sul modello, non nel pid
 import { propagateVlans, _effPortVlan, _ensureVlanColor } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -66,7 +66,7 @@ function renderPortsTable(n){
         // Stato NON determinato (mai dichiarato né misurato): il menu resta su «—»
         // invece di mostrare OFF, che si leggerebbe come «l'ho dichiarata spenta».
         const stKnown = hasPortStatus(pi);
-        const effStatus = stKnown ? (pi.statusOvr ?? normalizeStatus(pi.status)) : '';
+        const effStatus = stKnown ? (pi.statusOvr ?? normalizePortStatus(pi.status)) : '';
         const effVlan = _effPortVlan(pid);
         const effSpeed = pi.speedOvr ?? pi.speed ?? null;
         const spdVal = effSpeed != null ? fmtSpd(effSpeed) : '';
@@ -417,7 +417,7 @@ function clearAllPortOverrides(pid){
     const el = portAnchorEl(pid);
     if(el){
         const pi = state.ports[pid] || {};
-        const st = normalizeStatus(pi.statusOvr ?? pi.status);
+        const st = normalizePortStatus(pi.statusOvr ?? pi.status);
         el.className = el.className.replace(/\b(active|inactive|fault)\b/g,'').replace(/\s+/,' ').trim() + ' ' + st;
         el.title = portTip(pid);
     }
@@ -548,7 +548,7 @@ function setPortField(pid, field, val){
     const el = portAnchorEl(pid);
     if(el){
         const pi = state.ports[pid] || {};
-        const st = normalizeStatus(pi.statusOvr ?? pi.status);
+        const st = normalizePortStatus(pi.statusOvr ?? pi.status);
         el.className = el.className.replace(/\b(active|inactive|fault)\b/g,'').replace(/\s+/,' ').trim() + ' ' + st;
         el.title = portTip(pid);
     }
@@ -577,7 +577,7 @@ function clearPortField(pid, field){
     const el = portAnchorEl(pid);
     if(el){
         const pi = state.ports[pid] || {};
-        const st = normalizeStatus(pi.statusOvr ?? pi.status);
+        const st = normalizePortStatus(pi.statusOvr ?? pi.status);
         el.className = el.className.replace(/\b(active|inactive|fault)\b/g,'').replace(/\s+/,' ').trim() + ' ' + st;
         el.title = portTip(pid);
     }

@@ -2,7 +2,7 @@
 // ============================================================
 // UNA PORTA MAI OSSERVATA NON È «SPENTA»
 // ============================================================
-// `normalizeStatus(undefined)` vale 'inactive': un default deliberato per
+// `normalizePortStatus(undefined)` vale 'inactive': un default deliberato per
 // DISEGNARE (il grigio neutro del pannello rack). Il guaio era spacciarlo per un
 // fatto — i menu «Stato» preselezionavano OFF/INACTIVE su porte mai dichiarate né
 // misurate, cioè mostravano una dichiarazione che l'utente non aveva mai fatto, e

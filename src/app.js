@@ -10,7 +10,7 @@ import { migrateIpam } from '../lib/ipam-model.js';   // la subnet esce dalla VL
 import { migrateVmNics, VM_FLAT_NET_FIELDS, vmIps } from '../lib/vm-nics.js';   // migrazione vm.ip/mac/vlan → vm.nics[]; vmIps = IPv4 di tutte le vNIC
 import { normalizePduOutletCount, normalizePduManagementMode, normalizePduPortCount, pduManagementPortCount } from '../lib/pdu-layout.js';
 import { store, resetProjectRuntime } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { escapeHTML, uid, normalizeNumber, normalizeStatus, normalizeMacAddress, _shadeHex, PORT_ANCHOR_SEL } from './app-util.js';   // helper puri estratti dal god-file + ancora visuale delle porte
+import { escapeHTML, uid, normalizeNumber, normalizePortStatus, normalizeMacAddress, _shadeHex, PORT_ANCHOR_SEL } from './app-util.js';   // helper puri estratti dal god-file + ancora visuale delle porte
 import { TYPES, typeName, typeShort } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (prima letto dal global implicito) + nome localizzato
 import { nodeLabelParts } from '../lib/node-label.js';   // lib pura importata ESM: come si LEGGE il nome di un device
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: chiamate prima bare-global
@@ -1259,7 +1259,7 @@ export function removeNodePorts(nodeIds) {
     Object.keys(state.ports).forEach(pid=>{ if(nodeIds.has(getPortNodeId(pid))) delete state.ports[pid]; });
 }
 
-// normalizeNumber/normalizeStatus/normalizeMacAddress/hexToRgba/_shadeHex:
+// normalizeNumber/normalizePortStatus/normalizeMacAddress/hexToRgba/_shadeHex:
 // estratti nel modulo foglia ./app-util.js (importati sopra). selected() resta
 // qui: è l'helper option-selected, da non confondere con lo stato win.selected.
 export function selected(v,o)  { return v===o?'selected':''; }
@@ -1960,7 +1960,7 @@ function updateFloorId(value){
 }
 function updateP(k,v){
     if(!state.ports[selId])state.ports[selId]={};
-    if(k==='status')v=normalizeStatus(v);
+    if(k==='status')v=normalizePortStatus(v);
     if(k==='speed'&&!['10M','100M','1G','10G'].includes(v))v='1G';
     const _auditOldVlan=(k==='vlan')?state.ports[selId].vlan:null;
     state.ports[selId][k]=v;

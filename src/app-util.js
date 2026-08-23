@@ -35,12 +35,12 @@ export function normalizeNumber(v, fb, min = -Infinity, max = Infinity) {
  *  I progetti salvati prima non hanno bisogno di migrazione: un `'idle'` sul disco
  *  cade nel ramo di sinistra e diventa `'inactive'`, che e' esattamente cio' che
  *  l'apparato stava dicendo. */
-export function normalizeStatus(s) {
+export function normalizePortStatus(s) {
     return ['inactive', 'active', 'fault'].includes(s) ? s : 'inactive';
 }
 
 /** Lo stato di questa porta è NOTO? (dichiarato dall'utente o misurato via SNMP)
- *  `normalizeStatus(undefined)` vale 'inactive' — un default deliberato per
+ *  `normalizePortStatus(undefined)` vale 'inactive' — un default deliberato per
  *  DISEGNARE (il grigio neutro), che però non va mai spacciato per un fatto:
  *  una porta mai osservata non è «spenta», è NON DETERMINATA. Chi scrive una
  *  parola o preseleziona un campo dichiarato deve chiedere prima a questa. */
@@ -132,7 +132,7 @@ export function isDrawable(el) {
     return r.width > 0 || r.height > 0;
 }
 
-// Ponte legacy: i classic script (export.js usa normalizeStatus/normalizeNumber)
+// Ponte legacy: i classic script (export.js usa normalizePortStatus/normalizeNumber)
 // e gli onclick="" inline leggono questi helper dallo scope globale. Sparirà a
 // ritiro del ponte completato.
-expose({ escapeHTML, uid, normalizeNumber, normalizeStatus, hasPortStatus, normalizeMacAddress, hexToRgba, _shadeHex });
+expose({ escapeHTML, uid, normalizeNumber, normalizePortStatus, hasPortStatus, normalizeMacAddress, hexToRgba, _shadeHex });

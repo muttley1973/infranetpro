@@ -8,7 +8,7 @@
 // ============================================================
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { escapeHTML, hexToRgba, normalizeStatus } from './app-util.js';
+import { escapeHTML, hexToRgba, normalizePortStatus } from './app-util.js';
 import { DOWN_STREAK_N, portShade } from '../lib/port-state.js';   // lib pura importata ESM (come lib/node-label.js): NON un globale su window
 import { nodeById, getNodeByPortId, getPortNodeId, renderCables, _linksForPort, _nodeRadios, _renderModeIndicator, getWallPortLabel, isRackTopNumbered, getRackSize, _dispName, clampRackDevice, _rackDeviceBg, isPortOnNode } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { propagateVlans, _linkIsTrunk, _effPortVlan } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -99,7 +99,7 @@ function _pduManagementHtml(n){
     for(let i=1;i<=count;i++){
         const pid=`${n.id}-${i}`;
         const pi=store.state.ports[pid]||{};
-        const st=normalizeStatus(pi.statusOvr??pi.status)+_portStateCls(pi);
+        const st=normalizePortStatus(pi.statusOvr??pi.status)+_portStateCls(pi);
         const label=count===1 ? base : `${base}${i}`;
         const tip=portTip(pid) || label;
         cells += `<div class="rack-port-unit mgmt-slot"><div class="port-led mgmt-slot ${st}" data-pid="${pid}" title="${escapeHTML(tip)}"></div><span class="port-num mgmt-num" title="${escapeHTML(label)}">${i}</span></div>`;
@@ -246,7 +246,7 @@ function _buildFloorNodeEl(n, def, absentCls){
         // `_portStateCls` come nel rack: su un nodo a UNA porta l'icona fa da spia, e
         // finora diceva meno di quanto l'app sapesse — la porta risultava senza link da
         // tre verifiche e in planimetria non si vedeva niente.
-        const pid = `${n.id}-1`, pi = store.state.ports[pid]||{}, st = normalizeStatus(pi.statusOvr??pi.status)+_portStateCls(pi);
+        const pid = `${n.id}-1`, pi = store.state.ports[pid]||{}, st = normalizePortStatus(pi.statusOvr??pi.status)+_portStateCls(pi);
         const selectedPortCls = (store.selType==='port' && store.selId===pid) ? ' selected' : '';
         icon = `<i class="fas ${def.icon} icon port ${st}${selectedPortCls}" data-pid="${pid}" title="${escapeHTML(portTip(pid))}"></i>`;
     }
@@ -436,7 +436,7 @@ function _renderAllNow(){
                     const pid=`${n.id}-${i}`;
                     const pi=store.state.ports[pid]||{};
                     if(pi.hidden) return ''; // interfaccia nascosta (virtuale)
-                    const st=normalizeStatus(pi.statusOvr??pi.status)+_portStateCls(pi);
+                    const st=normalizePortStatus(pi.statusOvr??pi.status)+_portStateCls(pi);
                     const lagSelCls=store.lagSelMode&&store.lagSelPorts.has(pid)?' lag-sel':'';
                     const lagGid=_portLagGid(pid);
                     const lagMemCls=lagGid?' lag-member':'';
@@ -472,7 +472,7 @@ function _renderAllNow(){
                     for(let i=1;i<=mc;i++){
                         const pid=`${n.id}-mgmt${i}`;
                         const pi=store.state.ports[pid]||{};
-                        const st=normalizeStatus(pi.statusOvr??pi.status)+_portStateCls(pi);
+                        const st=normalizePortStatus(pi.statusOvr??pi.status)+_portStateCls(pi);
                         const selectedCls=(store.selType==='port' && store.selId===pid)?' selected':'';
                         const cellName = mc===1 ? base : `${base}${i}`;
                         const tip=portTip(pid) || cellName;
@@ -761,7 +761,7 @@ function _renderFloorNow(){
 function getPortHTML(pid){
     const pi=store.state.ports[pid]||{};
     // Le spie di un nodo a piu' porte: stessa misura del rack, stessa classe.
-    const st=normalizeStatus(pi.statusOvr??pi.status)+_portStateCls(pi);
+    const st=normalizePortStatus(pi.statusOvr??pi.status)+_portStateCls(pi);
     const isSelected = store.selType==='port' && store.selId===pid;
     // Tooltip HTML nativo (title) per uniformita' con i LED del rack:
     // stesso formato portTip e stesso comportamento browser nativo.

@@ -42,7 +42,7 @@ function countInCode(re, exceptFile) {
 // tornare a leggerli da win.*. (Le occorrenze nei template inline onclick="" sono
 // BARE e risolvono a window via expose() — non sono `win.X`, quindi non contano.)
 const RETIRED = ['escapeHTML', 'uid', 'hexToRgba', '_shadeHex',
-  'normalizeStatus', 'normalizeNumber', 'normalizeMacAddress'];
+  'normalizePortStatus', 'normalizeNumber', 'normalizeMacAddress'];
 test('ponte: i simboli migrati non sono più letti da win.*', () => {
   for (const sym of RETIRED) {
     const viaWin = countInCode(new RegExp('\\bwin\\.' + sym + '\\b', 'g'));

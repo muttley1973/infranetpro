@@ -14,7 +14,7 @@
 
 import { expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { escapeHTML, normalizeStatus, hasPortStatus } from './app-util.js';
+import { escapeHTML, normalizePortStatus, hasPortStatus } from './app-util.js';
 import { DOWN_STREAK_N, portShade } from '../lib/port-state.js';   // lib pura importata ESM: la stessa misura che colora il LED
 import { nodeById, getNodeByPortId, getPortNodeId, _isRadioPid, _enableManualValueInProps } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
@@ -214,7 +214,7 @@ export function _renderPortProps(panel){
         // Endpoint floor: stato/velocità EREDITATI dalla porta switch a monte (sono
         // proprietà del link). Così un device collegato replica i dati della porta.
         const _inh = _floorLeaf ? _portInheritedLinkData(pid) : {};
-        // normalizeStatus(undefined) ritorna 'inactive': quindi NON si può usare ?? a
+        // normalizePortStatus(undefined) ritorna 'inactive': quindi NON si può usare ?? a
         // valle. Scegliamo prima il valore GREZZO (proprio se presente, altrimenti
         // ereditato dallo switch), poi normalizziamo.
         const _rawStatus = (pi.statusOvr != null) ? pi.statusOvr
@@ -224,12 +224,12 @@ export function _renderPortProps(panel){
         // ereditato dallo switch) dice qualcosa, lo stato è IGNOTO — e un riquadro
         // in sola lettura che dice «Inattiva» sarebbe un'affermazione inventata.
         const _leafKnown = _rawStatus != null && _rawStatus !== '';
-        const _leafStatus = normalizeStatus(_rawStatus);
+        const _leafStatus = normalizePortStatus(_rawStatus);
         const _leafSpeedVal = pi.speedOvr ?? pi.speed ?? _inh.speed ?? null;
         const _leafSpd = _leafSpeedVal!=null ? (_leafSpeedVal>=1000?`${(_leafSpeedVal/1000).toFixed(_leafSpeedVal%1000?1:0)}G`:`${_leafSpeedVal}M`) : '';
         const portNum=pid.split('-').slice(1).join('-');
         const _stKnown=hasPortStatus(pi);
-        const effStatus=_stKnown?(pi.statusOvr??normalizeStatus(pi.status)):'';
+        const effStatus=_stKnown?(pi.statusOvr??normalizePortStatus(pi.status)):'';
         const effVlan=_effPortVlan(pid);
         const effSpeed=pi.speedOvr??pi.speed??null;
         const spdDisplay=effSpeed!=null?(effSpeed>=1000?`${(effSpeed/1000).toFixed(effSpeed%1000?1:0)}G`:`${effSpeed}M`):'';

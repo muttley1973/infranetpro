@@ -784,7 +784,7 @@ function exportDrawio(){
         helpers: {
             types: TYPES,
             getRackSize:        (typeof getRackSize === 'function')        ? getRackSize        : null,
-            normalizeStatus:    (typeof normalizeStatus === 'function')    ? normalizeStatus    : undefined,
+            normalizePortStatus:    (typeof normalizePortStatus === 'function')    ? normalizePortStatus    : undefined,
             normalizeNumber:    (typeof normalizeNumber === 'function')    ? normalizeNumber    : undefined,
             hasSnmpIntegration: (typeof _hasSnmpIntegration === 'function') ? _hasSnmpIntegration : undefined,
             typeName:           _typeName,
@@ -840,7 +840,7 @@ function _buildRackSVG(rackId, opts){
     // Colori LED identici alla vista rack dell'app (variabili CSS :root)
     const statusColor = st => ({
         active:'#39d353', fault:'#f85149', inactive:'#6e7681',
-    })[normalizeStatus(st)] || '#6e7681';
+    })[normalizePortStatus(st)] || '#6e7681';
     // Le due porte «off» MISURATE dallo switch (--shut-color / --nolink-color).
     // Vincono su qualunque stato dichiarato: in tutto il disegno sono l'unico punto
     // in cui parla l'apparato invece del documento, e un dossier che stampa verde
@@ -972,7 +972,7 @@ function _buildRackSVG(rackId, opts){
             if(!isVisible(i)) return '';
             const pid = `${dev.id}-${i}`;
             const pi = state.ports[pid] || {};
-            const st = normalizeStatus(pi.statusOvr ?? pi.status);
+            const st = normalizePortStatus(pi.statusOvr ?? pi.status);
             const vlan = _effPortVlan(pid);
             const lag = portLag(pid);
             // Ordine: misura dello switch, poi LAG (ciano), poi stato dichiarato.
@@ -1278,12 +1278,12 @@ function _buildPdfReportData() {
                     return `${on?.name || '?'} P${op.split('-').slice(1).join('-')}`;
                 }).join(', ') || '—';
                 // Onesto: una porta senza stato misurato (SNMP) NÉ override manuale
-                // non è "inactive" — è NON DETERMINATA. normalizeStatus(undefined)
+                // non è "inactive" — è NON DETERMINATA. normalizePortStatus(undefined)
                 // ritorna 'inactive' (default deliberato per la UI), ma nel dossier
                 // affermerebbe "spenta/libera" su porte mai osservate (schema ①). Stessa
                 // guardia del rack SVG poco sopra (statusOvr||status ? colore : trasparente).
                 const _hasStatus = pi.statusOvr != null || pi.status != null;
-                const st = _hasStatus ? normalizeStatus(pi.statusOvr ?? pi.status) : '';
+                const st = _hasStatus ? normalizePortStatus(pi.statusOvr ?? pi.status) : '';
                 const spd = pi.speedOvr ?? pi.speed;
                 let spdStr = '';
                 if(typeof spd === 'number' && Number.isFinite(spd) && spd > 0){
