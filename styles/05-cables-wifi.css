@@ -44,7 +44,6 @@
         .link-wireless-toggle i { color:var(--accent); }
         .link-wireless-note { font-size:var(--fs-xs); color:var(--text-muted); line-height:1.4; padding:6px 8px; margin-top:6px; background:color-mix(in srgb, var(--accent) 6%, transparent); border:1px solid color-mix(in srgb, var(--accent) 20%, transparent); border-radius: var(--radius-md); }
         .link-wireless-note i { color:var(--accent); margin-right:5px; }
-        .link-wireless-suggest { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:var(--fs-xs); color:var(--idle-color); margin:4px 2px 2px; }
         /* Pannello Wi-Fi (config radio AP + associazione) */
         .wifi-cfg { margin-top:8px; }
         .prop-grid2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }

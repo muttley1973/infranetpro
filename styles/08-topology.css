@@ -42,8 +42,6 @@
         .topotip-port { font-family: var(--font-ui); font-variant-numeric: tabular-nums; font-size: var(--fs-xs); font-weight: 600; color: var(--text-muted); }
         .topotip-link { font-family: var(--font-ui); font-variant-numeric: tabular-nums; font-size: var(--fs-xs); padding: 2px 0; }
         .topotip-link span { color: var(--text-muted); }
-        .topotip-link-btn { display:block; width:100%; text-align:left; border:0; background:transparent; color:var(--text-main); cursor:pointer; border-radius: var(--radius-sm); }
-        .topotip-link-btn:hover { background:rgba(255,255,255,.07); color:var(--accent); }
         .topotip-more { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
         .topotip-hint { font-size: 14px; color: var(--text-muted); margin-top: 8px; display: flex; align-items: center; gap: 6px; }
         .topotip-hint i { color: var(--accent); }
@@ -51,7 +49,6 @@
         .seg-pick:not(.sel):hover { border-color: var(--accent) !important; background: rgba(0,212,255,.06) !important; }
         .topotip-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; border-top: 1px solid var(--panel-border); padding-top: 9px; }
         #topo-tip .toolbar-btn { font-size:12px !important; padding:5px 10px !important; }
-        #topo-tip .topotip-btn-full { width:100%; justify-content:center; }
 
         /* Toast non invasivo in basso */
         #topo-toast {
@@ -211,9 +208,6 @@
         }
         #topo-legend .topo-leg-empty {
             font-size: 11px; color: var(--text-muted); font-style: italic;
-        }
-        #topo-legend .topo-leg-hint {
-            font-size: 10px; color: var(--text-muted); white-space: nowrap;
         }
         /* Vista separata: in Topologia nasconde mappa ed elementi posizionati */
         /* Topology mode: nasconde solo griglia e cavi floor (riduce rumore visivo).

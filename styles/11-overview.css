@@ -378,7 +378,6 @@ button.ov-r:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 }
 .ov-cta:hover { background: var(--surface-hover); }
 .ov-cta:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.ov-empty { font-size: var(--fs-md); color: var(--inactive-color); padding: 6px; }
 
 /* ── legenda a piè di pagina ───────────────────────────────── */
 .ov-foot {
