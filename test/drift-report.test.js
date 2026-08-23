@@ -400,6 +400,51 @@ test('device ignoto non documentato → undocumented; se in rejectedSigs → esc
   assert.equal(r.undocumented[0].sig, 'ghost-x');
 });
 
+test('undocumented: un MAC all\'indirizzo di un documentato SENZA mac non e\' un ignoto', () => {
+  // Al banco: la SVI di SW-CORE. Uno switch non espone un «MAC di device» via SNMP,
+  // quindi il nodo sta in ipOnly con il solo indirizzo e la sua firma non incontra
+  // nessuna riga della FDB → veniva accusato a ogni Verifica, e l'accusa era
+  // impossibile da chiudere. Si riconcilia su cio' che il documento HA: l'indirizzo.
+  const doc = { deviceSigs: [], knownIps: ['10.10.99.1'] };
+  const snmp = {
+    observedDevices: [
+      { sig: '50:25:c2:00:80:63', mac: '50:25:C2:00:80:63', label: 'dietro SW-CORE Gi0/1' },
+      { sig: 'aa:bb:cc:00:00:01', mac: 'AA:BB:CC:00:00:01', label: 'davvero ignoto' },
+    ],
+    macAtIps: { '50:25:c2:00:80:63': ['10.10.99.1'], 'aa:bb:cc:00:00:01': ['10.10.99.77'] },
+  };
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.deepEqual(r.undocumented.map(u => u.sig), ['aa:bb:cc:00:00:01'],
+    'accusato solo chi non sta a un indirizzo documentato');
+  assert.equal(r.counts.undocumented, 1);
+});
+
+test('undocumented: anche un GATEWAY dichiarato e\' un indirizzo che il documento conosce', () => {
+  // Fermarsi all'indirizzo di gestione curava un esemplare, non il caso: le altre
+  // interfacce dello stesso switch (le SVI, i gateway del piano) restavano accusate.
+  const doc = { deviceSigs: [], knownIps: ['10.10.99.1', '10.10.30.1'] };
+  const snmp = {
+    observedDevices: [{ sig: '50:25:c2:00:80:1e', mac: '50:25:C2:00:80:1E', label: 'dietro vEOS Po3' }],
+    macAtIps: { '50:25:c2:00:80:1e': ['10.10.30.1'] },
+  };
+  assert.equal(buildDriftReport(snmp, doc, [], {}).counts.undocumented, 0);
+});
+
+test('undocumented: un apparato MULTIHOMED basta che UNO dei suoi IP sia documentato', () => {
+  const doc = { deviceSigs: [], knownIps: ['10.99.0.1'] };
+  const snmp = {
+    observedDevices: [{ sig: '11:22:33:44:55:66', mac: '11:22:33:44:55:66', label: 'x' }],
+    macAtIps: { '11:22:33:44:55:66': ['192.168.1.200', '10.99.0.1'] },
+  };
+  assert.equal(buildDriftReport(snmp, doc, [], {}).counts.undocumented, 0);
+});
+
+test('undocumented: senza ARP che lo collochi, un MAC ignoto resta un\'accusa', () => {
+  const doc = { deviceSigs: [], knownIps: ['10.10.99.1'] };
+  const snmp = { observedDevices: [{ sig: 'zz', mac: '00:00:00:00:00:01', label: 'y' }] };
+  assert.equal(buildDriftReport(snmp, doc, [], {}).counts.undocumented, 1,
+    'la riconciliazione vale solo dove c\'e\' una MISURA che lega MAC e indirizzo');
+});
 test('undocumented: default → cls infra, contato in counts.undocumented', () => {
   const snmp = { observedDevices: [{ sig: 'x', mac: '11:22:33:44:55:66', label: 'switch?' }] };
   const r = buildDriftReport(snmp, {}, [], {});

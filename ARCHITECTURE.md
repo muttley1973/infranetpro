@@ -686,6 +686,19 @@ a grey device whose DHCP lease is **released** (the device sent DHCPRELEASE) as 
 (`releasedMacs`) — a weak hint that stays grey, never red, and only from `released` state
 (never from lease expiry).
 
+**A MAC at an address the document knows is not an undocumented device** (2026-08-23).
+The "undocumented" bucket matches observed MACs against documented ones, and infrastructure
+has no documented MAC to match: a switch or a router exposes no device MAC over SNMP, so the
+node is carried by its address alone and its signature can never meet a row of any forwarding
+table. On the bench SW-CORE's switched interface was accused at every Verify — true in form,
+wrong in substance, and impossible to close. `buildDocSnapshot` therefore also returns
+**`knownIps`**: every address the document knows *and has no MAC for* — the management address
+of a MAC-less node, plus the **declared gateways** of the plan, which are the other interfaces
+of those same devices (curing only the first left the siblings accused). If ARP places an
+observed MAC at one of them, it is that device's MAC and the finding is dropped; a multihomed
+device needs only one of its live addresses to match. An address the document *does* have a MAC
+for stays out: there a different MAC is a changed identity, and deserves a signal of its own.
+
 ---
 
 ## 5. Recipe: add a new device type

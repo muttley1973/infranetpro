@@ -463,11 +463,26 @@ test('default: senza helper iniettati non lancia e produce strutture vuote sensa
   assert.doesNotThrow(() => buildDocSnapshot());
   assert.doesNotThrow(() => buildSnmpSnapshot());
   const d = buildDocSnapshot({});
-  assert.deepEqual(d, { ports: {}, macs: [], ipOnly: [], deviceSigs: [], cables: [], identities: [] });
+  assert.deepEqual(d, { ports: {}, macs: [], ipOnly: [], knownIps: [], deviceSigs: [], cables: [], identities: [] });
   const s = buildSnmpSnapshot({});
   assert.equal(s.fdbObserved, false);
   assert.deepEqual(s.observedDevices, []);
   assert.deepEqual(s.measuredIds, {}, 'nessun nodo → nessuna identità misurata');
+});
+
+test('docSnap knownIps: indirizzi che il documento conosce SENZA averne il MAC', () => {
+  // Un apparato SNMP non espone un «MAC di device»: il documento lo tiene per
+  // indirizzo. I GATEWAY dichiarati sono le ALTRE interfacce degli stessi apparati
+  // (SW-CORE risponde su .99.1 come su .30.1) e vanno riconosciuti uguale.
+  const d = buildDocSnapshot({
+    nodes: [
+      { id: 'sw6', name: 'SW-CORE', type: 'switch', integration: { host: '10.10.99.1', driver: 'snmp-v2c' } },
+      { id: 'pc1', name: 'PC1', type: 'pc', ip: '10.10.10.100', mac: 'AA:BB:CC:00:00:01' },
+    ],
+    prefixes: [{ cidr: '10.10.30.0/24', gateway: '10.10.30.1' }, { cidr: '10.10.10.0/24', gateway: '10.10.10.100' }],
+  });
+  assert.deepEqual(d.knownIps, ['10.10.99.1', '10.10.30.1'],
+    'l\'indirizzo di gestione e il gateway; NON 10.10.10.100, di cui il documento HA il MAC');
 });
 
 // ── Identità hardware (serial/model/firmware): dichiarata vs misurata ────────

@@ -65,6 +65,9 @@ export function _driftBuildDocSnapshot(){
     // raccolta-dati da stato + iniezione degli helper UI (etichette) e del catalogo.
     return buildDocSnapshot({
         nodes: state.nodes, links: state.links, ports: state.ports,
+        // Le reti DICHIARATE: da qui escono i gateway, cioè gli indirizzi che il
+        // documento conosce senza averne il MAC (le altre interfacce degli apparati).
+        prefixes: prefixesOf(state),
         portLabel: _driftPortLabel,
         nodeLabel: n => getNodeDisplayName(n) || n.name || n.id,
         cableLabel: l => l.label || _cableAutoLabel(l),
