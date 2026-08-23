@@ -9,6 +9,11 @@
 //   registro IANA dot3MauType (gigabit rame 30 → "fibra"; SX fibra 26 → "rame").
 // SNMP-A2: le OID vlanTrunkPortDynamicState/Status erano lette a .14/.15 invece di
 //   .13/.14 (colonne reali del CISCO-VTP-MIB). Gemello dell'ifStackStatus .2→.3.
+// SNMP-A3 (smoke 2026-08-23, B1): vtpVlanName puntava alla colonna .2 della
+//   vtpVlanTable, che è vtpVlanState (1=operational); il nome è la .4. Ogni VLAN di
+//   ogni Cisco usciva col nome «1», e la Panoramica la dichiarava in conflitto con
+//   lo switch accanto che (MIB standard) dava il nome vero. Terzo caso della stessa
+//   famiglia: la colonna giusta si inchioda con un test, non con un commento.
 // ============================================================
 const test = require('node:test');
 const assert = require('node:assert');
@@ -89,4 +94,40 @@ test('nomi VLAN: catturati SOLO per le VLAN reali (in uso), mai le pre-create de
   const out = extractData(vbs);
   assert.deepEqual(out.vlanNames, { 10: 'Voice', 20: 'Guest' }, 'nome per ogni VLAN reale, da entrambe le MIB');
   assert.ok(!('999' in out.vlanNames), 'le VLAN pre-create (non in uso) restano fuori — motivo per cui il driver le scartava');
+});
+
+test('SNMP-A3: vtpVlanName legge la colonna .4 (nome), non la .2 (vtpVlanState)', () => {
+  // Guardia sulla costante: la colonna è parte del contratto, non un dettaglio.
+  assert.equal(OID.vtpVlanName, '1.3.6.1.4.1.9.9.46.1.3.1.1.4', 'vtpVlanName = vtpVlanTable colonna .4');
+
+  const vbs = {};
+  // VLAN 10 REALE (egress bitmap → vlansOut).
+  vbs[`${OID.dot1qVlanEgressPorts}.10`] = Buffer.from([0x80]);
+  // La riga VTP della VLAN 10 come la restituisce un IOS: stato (.2) = 1 operational,
+  // nome (.4) = "DATA". Indice {domainIdx}.{vlanId} = 1.10. Col vecchio OID il driver
+  // leggeva la .2 e il nome misurato diventava "1".
+  const vtpEntry = '1.3.6.1.4.1.9.9.46.1.3.1.1';
+  vbs[`${vtpEntry}.2.1.10`] = 1;
+  vbs[`${vtpEntry}.4.1.10`] = Buffer.from('DATA');
+
+  const out = extractData(vbs);
+  assert.deepEqual(out.vlanNames, { 10: 'DATA' }, 'il nome misurato è la colonna .4, mai lo stato');
+});
+
+test('SNMP-A3: le righe riservate 1002-1005 del dominio VTP non diventano nomi', () => {
+  const vbs = {};
+  // Due VLAN in vlansOut: una reale (10) e, per forzare il caso, una riservata (1002)
+  // che un trunk dichiarasse di trasportare. Le quattro righe riservate stanno in
+  // OGNI dominio VTP, quindi il walk le restituisce sempre.
+  vbs[`${OID.dot1qVlanEgressPorts}.10`]   = Buffer.from([0x80]);
+  vbs[`${OID.dot1qVlanEgressPorts}.1002`] = Buffer.from([0x80]);
+  vbs[`${OID.vtpVlanName}.1.10`]   = 'DATA';
+  vbs[`${OID.vtpVlanName}.1.1002`] = 'fddi-default';
+  vbs[`${OID.vtpVlanName}.1.1003`] = 'token-ring-default';
+  vbs[`${OID.vtpVlanName}.1.1004`] = 'fddinet-default';
+  vbs[`${OID.vtpVlanName}.1.1005`] = 'trnet-default';
+
+  const out = extractData(vbs);
+  assert.deepEqual(out.vlanNames, { 10: 'DATA' }, 'solo la VLAN Ethernet reale ha un nome');
+  assert.ok(!('1002' in out.vlanNames), 'fddi-default non è un nome di VLAN di traffico');
 });

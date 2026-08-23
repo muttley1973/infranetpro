@@ -774,7 +774,7 @@ VLAN data is collected from three sources, in priority order:
 
 1. **Q-BRIDGE-MIB egress/untagged bitmaps** (`dot1qVlanCurrentEgressPorts`) — most accurate, but requires per-VLAN SNMP community context (`public@100`) on Cisco IOS
 2. **Bridge port → VLAN membership** from `state.ports` — used when explicit VLAN bitmaps are available
-3. **Cisco VTP MIB** (`vtpVlanName`, OID `1.3.6.1.4.1.9.9.46.1.3.1.1.2`) — fallback that works without any special community, returns all VLANs defined in the VTP domain
+3. **Cisco VTP MIB** (`vtpVlanName`, OID `1.3.6.1.4.1.9.9.46.1.3.1.1.4` — column `.4` of `vtpVlanTable`; `.2` is `vtpVlanState`) — fallback that works without any special community, returns all VLANs defined in the VTP domain (the reserved rows 1002-1005 are skipped)
 
 Trunk vs access detection is derived from the egress / untagged bitmaps: a port is a trunk if it carries any VLAN not in its untagged set.
 

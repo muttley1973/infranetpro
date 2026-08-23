@@ -248,7 +248,14 @@ const OID = {
   dot1qVlanUntaggedPorts:'1.3.6.1.2.1.17.7.1.4.2.1.5',   // per-VLAN untagged portlist bitmap (access)
   dot1qVlanStaticName:   '1.3.6.1.2.1.17.7.1.4.3.1.1',   // Q-BRIDGE static VLAN name — indicizzato solo per VlanIndex
   vmVlan:                '1.3.6.1.4.1.9.9.68.1.2.2.1.2',  // Cisco CISCO-VLAN-MEMBERSHIP-MIB: VLAN access per ifIndex — FALLBACK quando dot1qPvid non espone la VLAN access reale (es. Cisco vIOS: PVID resta 1)
-  vtpVlanName:          '1.3.6.1.4.1.9.9.46.1.3.1.1.2', // Cisco VTP: VLAN name — indice {domainIdx}.{vlanId} (funziona senza @vlan community)
+  // vtpVlanName — colonna .4 della vtpVlanTable (CISCO-VTP-MIB), indice {domainIdx}.{vlanId},
+  // funziona senza @vlan community. Colonne: .1 index · .2 state · .3 type · .4 name · .5 mtu.
+  // Fino al 2026-08-23 puntava alla .2, cioè vtpVlanState (1=operational), e quel «1»
+  // letto come nome finiva in integration.vlanNames di OGNI VLAN di OGNI Cisco; a valle la
+  // Panoramica lo confrontava col nome vero degli altri switch e dichiarava in conflitto il
+  // fabric. Misurato sul banco: la .4 su SW-CORE risponde default/DATA/VOIP/SERVER/MGMT.
+  // Stesso errore già visto sul trunk (SNMP-A2: .14/.15 → .13/.14).
+  vtpVlanName:          '1.3.6.1.4.1.9.9.46.1.3.1.1.4',
   vlanTrunkPortDynState:'1.3.6.1.4.1.9.9.46.1.6.1.1.13', // Cisco vlanTrunkPortDynamicState (col .13): stato CONFIGURATO del trunk (1=on, 2=off/access, 3=desirable, 4=auto, 5=onNoNegotiate)
   vlanTrunkPortStatus:  '1.3.6.1.4.1.9.9.46.1.6.1.1.14', // Cisco vlanTrunkPortDynamicStatus (col .14): stato OPERATIVO trunking (1=trunking, 2=notTrunking) — ATTENZIONE: su IOS virtuale può essere 1 anche su porte access
   vlanTrunkPortVlans:   '1.3.6.1.4.1.9.9.46.1.6.1.1.4',  // Cisco: bitmap VLAN 0-1023 abilitate sul trunk per ifIndex — senza @vlan community
@@ -899,6 +906,10 @@ function extractData(vbs) {
     // Le VLAN reali vengono raccolte dai PVID delle porte e dai trunk VLAN.
     if (oid.startsWith(OID.vtpVlanName + '.')) {
       const vid = lastIdx(oid), nm = bufToStr(val).trim();
+      // Le righe 1002-1005 stanno in OGNI dominio VTP (fddi-default, token-ring-default,
+      // fddinet-default, trnet-default): VLAN riservate non-Ethernet, che il walk
+      // restituisce sempre. Non sono un nome da attribuire a traffico: si scartano.
+      if (vid >= 1002 && vid <= 1005) continue;
       if (vid >= 1 && vid <= 4094 && nm && vlanNameByVid[vid] == null) vlanNameByVid[vid] = nm;
       continue;
     }
