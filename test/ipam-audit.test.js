@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { buildIpamAudit, findDuplicateIps, findSubnetOverlaps, findExpectedOverlaps, findAddressesOutsidePlan } = require('../lib/ipam-audit.js');
+const { buildIpamAudit, findDuplicateIps, findSubnetOverlaps, findExpectedOverlaps, findAddressesOutsidePlan, isContainerPrefix, containerDeclarationFor } = require('../lib/ipam-audit.js');
 const { _parseCidrInfo } = require('../lib/cidr.js');
 
 // ---- findDuplicateIps -------------------------------------------------------
@@ -158,6 +158,56 @@ test('overlap: una VRF sola non compra il silenzio (non sapere non e\' sapere)',
 test('overlap: «Container» e «container» sono la stessa cosa (vocabolario del DCIM)', () => {
   const rows = [C('10.0.0.0/8', { status: 'Container' }), C('10.10.10.0/24', {})];
   assert.deepEqual(findSubnetOverlaps(rows, _parseCidrInfo), []);
+});
+
+// ---- e la stessa cosa DETTA DA TE -------------------------------------------
+// Il contenitore lo diceva solo il DCIM. Una gerarchia scritta a mano — un /16 di
+// sede con le sue /24 dentro, che è il modo normale di scrivere un piano — non
+// aveva modo di dichiararsi: restava accusata a ogni apertura del report, per
+// sempre. ⚠️ Un avviso vero-ma-voluto che non si può chiudere è il modo più
+// rapido per insegnare a chi legge a ignorare TUTTI gli avvisi.
+
+test('un contenitore DICHIARATO A MANO vale quanto quello del DCIM', () => {
+  const rows = [C('172.20.0.0/16', { container: true }), C('172.20.10.0/24')];
+  assert.deepEqual(findSubnetOverlaps(rows, _parseCidrInfo), [], 'la gerarchia dichiarata non si accusa');
+  assert.equal(findExpectedOverlaps(rows, _parseCidrInfo)[0].reason, 'hierarchy');
+});
+
+test('e vale ANCHE AL CONTRARIO: la tua parola nega quella del DCIM', () => {
+  // Manual-first in entrambi i versi: chi documenta ha visto la rete, l'import ha
+  // letto un altro archivio. Se dici che NON è un contenitore, torna un conflitto.
+  const rows = [C('10.0.0.0/8', { status: 'container', container: false }), C('10.10.10.0/24')];
+  assert.equal(findSubnetOverlaps(rows, _parseCidrInfo).length, 1, 'negato a mano = di nuovo un fatto da guardare');
+  assert.deepEqual(findExpectedOverlaps(rows, _parseCidrInfo), []);
+});
+
+test('la chiave ASSENTE non è una negazione: parla la sorgente', () => {
+  assert.equal(isContainerPrefix({ status: 'container' }), true, 'nessuna dichiarazione → decide il DCIM');
+  assert.equal(isContainerPrefix({}), false, 'e senza nessuna delle due, non lo è');
+  assert.equal(isContainerPrefix({ container: true }), true);
+  assert.equal(isContainerPrefix({ container: false, status: 'container' }), false);
+  assert.equal(isContainerPrefix(null), false, 'input sporco non lancia');
+});
+
+test('l\'interruttore salva la DIFFERENZA rispetto alla sorgente, non il suo stato', () => {
+  // La casella mostra la risposta, quindi una rete importata come contenitore
+  // nasce accesa: lasciarla accesa non è una dichiarazione, è un accordo.
+  const daDcim = { cidr: '10.0.0.0/8', status: 'container' };
+  const aMano = { cidr: '172.20.0.0/16' };
+  assert.equal(containerDeclarationFor(daDcim, true), '', 'd\'accordo col DCIM: niente da salvare');
+  assert.equal(containerDeclarationFor(daDcim, false), false, 'in disaccordo: la negazione resta scritta');
+  assert.equal(containerDeclarationFor(aMano, true), true, 'lo dichiari tu: si scrive');
+  assert.equal(containerDeclarationFor(aMano, false), '', 'e tornare indietro TOGLIE la chiave');
+  // ⚠️ Senza questa regola ogni rete che apri porterebbe a casa un `container:false`
+  // che non afferma niente: la zavorra dei campi che si pre-compilavano da soli.
+  assert.equal(containerDeclarationFor(null, false), '', 'input sporco non lancia');
+});
+
+test('anche dichiarato, lo sconto resta solo del PIÙ LARGO', () => {
+  // La regola non cambia con la sorgente: una /25 dichiarata contenitore dentro
+  // una /24 che non ha dichiarato niente resta una sovrapposizione da guardare.
+  const rows = [C('10.0.0.0/24'), C('10.0.0.0/25', { container: true })];
+  assert.equal(findSubnetOverlaps(rows, _parseCidrInfo).length, 1);
 });
 
 test('buildIpamAudit: le attese escono a parte, non spariscono', () => {

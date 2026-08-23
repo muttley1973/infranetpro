@@ -19,6 +19,7 @@ import { _renderTopoLegend } from './app-topology-overlay.js';   // ritiro ponte
 import { _getLinkVlan, _vlanLabel } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
 import { _invalidateLinkColor } from './app-link-color.js';   // le cache del colore-cavo si rifanno a ogni propagazione
 import { authoritativeVlan } from '../lib/vlan-authority.js';   // chi ha TITOLO per dire la VLAN: unica definizione, condivisa col colore del cavo
+import { containerDeclarationFor } from '../lib/ipam-audit.js';   // che cosa salvare quando dichiari un contenitore: la regola sta con l'audit che la legge
 import { effLinkVlans, carriedVlans, parseVlanList } from '../lib/vlan-trunk.js';   // il motore PURO del trunk, per import invece che da window: un modulo importato o c'è o il bundle non parte, e sparisce il ripiego «se il motore non c'è rispondo io»
 import { _deviceAccessVlanPid } from './app-properties-node-devices.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { applyUiColors } from './app-search-zoom-rack.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
@@ -665,6 +666,22 @@ export function removeDeclaredPrefix(key){
     pushHistory();
     removePrefix(store.state, row.cidr);
     store._prefixOpen.delete(key);
+    markDirty();
+    renderProps();
+}
+
+// «Questa rete è un CONTENITORE»: esiste per essere suddivisa, non per ospitare
+// apparati, e le sue sottoreti non le si sovrappongono — la contengono.
+//
+// ⚠️ Che cosa si SALVI non si decide qui: l'interruttore mostra la risposta
+// (dichiarata o detta dal DCIM), quindi si conserva la differenza rispetto alla
+// sorgente — e quella regola vive accanto all'audit che la legge, non in due
+// posti che un giorno rispondono diverso (`containerDeclarationFor`).
+export function setPrefixContainer(key, checked){
+    const row = prefixesOf(store.state).find(p => prefixKey(p.cidr) === key);
+    if(!row) return;
+    pushHistory();
+    upsertPrefix(store.state, { cidr: row.cidr, container: containerDeclarationFor(row, checked) });
     markDirty();
     renderProps();
 }

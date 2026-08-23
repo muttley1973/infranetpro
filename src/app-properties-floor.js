@@ -29,8 +29,9 @@ import { toggleBgImageLock, scaleBgImage, scaleBgImageTo, fitBgImageToCanvas, cl
 import { openAdoptFromPrefix } from './app-drift-adopt.js';   // ASSE B: adotta lease non documentati (ex onclick inline)
 import { _l3Compute, _l3GatewayBindingHtml, _l3DeviceForIp } from './app-l3.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*) + «chi risponde a questo IP»
 import { _ipamUsageForPrefix } from './app-ipam.js';   // occupazione di UN prefisso (non piu' di una VLAN)
-import { addDeclaredNetworks, removeDeclaredPrefix, updatePrefixField, togglePrefixOpen } from './app-vlan-autopoll.js';   // scritture sulle reti dichiarate
+import { addDeclaredNetworks, removeDeclaredPrefix, updatePrefixField, setPrefixContainer, togglePrefixOpen } from './app-vlan-autopoll.js';   // scritture sulle reti dichiarate
 import { prefixesOf, prefixesForVlan, prefixForIp, prefixKey } from '../lib/ipam-model.js';   // l'autorita' sui prefissi
+import { isContainerPrefix } from '../lib/ipam-audit.js';   // la spunta mostra la RISPOSTA (dichiarata o dal DCIM), non il campo grezzo
 // Bare globals dei <script> puri: `_parseCidrInfo` (lib/cidr.js), `compareCidr` e
 // `findSubnetOverlaps` (lib/ipam-audit.js). SENZA typeof-guard: se una lib non c'e'
 // la sezione «Reti» deve rompersi a voce alta, non ordinare a caso o dichiarare
@@ -82,6 +83,7 @@ registerChangeActions({
     'vlan-color':      (el) => updateVlanColor(_vid(el), el.value),
     'vlan-ipam-field': (el) => updateVlanIpam(_vid(el), el.dataset.field, el.value),
     'prefix-field':    (el) => updatePrefixField(el.dataset.key, el.dataset.field, el.value),
+    'prefix-container':(el) => setPrefixContainer(el.dataset.key, el.checked),
     'floor-grid':      (el) => toggleFloorGrid(el.checked),
     'ui-color':        (el) => updateUiColor(el.dataset.uikey, el.value),
     'abbrev-names':    (el) => toggleAbbrevNames(el.checked),
@@ -322,6 +324,13 @@ function _netDetailHtml(p, usage){
                     <div class="prop-group">
                       <label>${t('floor.netName')}</label>
                       <input value="${escapeHTML(p.name||'')}" placeholder="${t('floor.netPhName')}" data-change="prefix-field" data-key="${escapeHTML(key)}" data-field="name">
+                    </div>
+                    <div class="prop-group" style="grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:10px">
+                      <label style="margin:0" data-tip="${t('floor.netContainerTip')}" data-tip-wrap>${t('floor.netContainer')}</label>
+                      <label class="toggle-sw">
+                        <input type="checkbox" ${isContainerPrefix(p)?'checked':''} data-change="prefix-container" data-key="${escapeHTML(key)}">
+                        <span class="toggle-track"></span>
+                      </label>
                     </div>
                     <div class="prop-group" style="grid-column:1/-1">
                       <label>${t('f.gatewayIp')}</label>
