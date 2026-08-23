@@ -31,6 +31,8 @@ module.exports = [
       'tools/snmp-sim/**', // regola di progetto: mai toccare
       'modules/**',        // moduli a pagamento (privati, gitignored) — fuori dal gate pubblico
       '.worktrees/**',     // git worktree locali (checkout + dist propri) — non fanno parte della sorgente
+      '.claude/worktrees/**',   // stessa cosa, dove li mette Claude Code: un worktree dimenticato qui dentro
+                                // faceva contare al gate 4.365 errori che sono una COPIA di sorgenti già viste
       '**/*.min.js',
     ],
   },
