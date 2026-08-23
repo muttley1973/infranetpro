@@ -134,7 +134,8 @@
            VLAN, l'ID della nuova VLAN, «Aggiungi rete» — se lo scordavano uno
            alla volta, e restavano ai 13,3px di default del browser. */
         #props-panel input:not([type="color"]), #props-panel select, #props-panel textarea { font-size: var(--fs-lg); }
-        /* Dichiarato dal DCIM: sola lettura. Volutamente SPENTO rispetto ai campi
+
+        /* Dichiarato dal DCIM: sola lettura. Volutamente SPENTO rispetto ai campi
            editabili sopra — si legge come una citazione, non come roba tua. */
         .dcim-src { display:flex; flex-direction:column; gap:3px; padding:7px 9px; border:1px dashed var(--panel-border); border-radius:5px; background:rgba(255,255,255,0.02); }
         .dcim-src-row { display:flex; justify-content:space-between; align-items:baseline; gap:10px; font-size:var(--fs-sm); }

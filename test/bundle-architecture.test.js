@@ -90,6 +90,25 @@ test('⚠️ nessun sorgente contiene byte di controllo: git li tratterebbe da b
     try { buf = fs.readFileSync(path.join(ROOT, rel)); } catch (_) { continue; }
     const at = buf.indexOf(0);
     if (at >= 0) bad.push(`${rel} (byte NUL a offset ${at})`);
+    // ⚠️ E il CR SOLITARIO, che non è un caso di scuola: successo il 23/08 in
+    // lib/i18n.js, generato da uno script che ricuciva una riga già terminata
+    // (`riga + NL`) e poi ri-splittava su '\n' — il '\r\n' diventava '\r\r\n'.
+    // UN solo byte, e git ha smesso di considerare il file testo: `git add` non
+    // ha più normalizzato i fine-riga e il commit conteneva l'INTERO file
+    // riscritto, 10.896 righe di rumore attorno a 6 righe vere. Nessun controllo
+    // abituale lo vede — il codice gira, eslint tace, i test passano — e il
+    // contatore dei fine-riga nemmeno, perché quel '\n' un '\r' davanti ce l'ha.
+    const cr = _crSolitario(buf);
+    if (cr >= 0) bad.push(`${rel} (CR senza LF a offset ${cr}: git lo tratta da binario)`);
   }
   assert.deepEqual(bad, [], 'usa la sequenza di escape, non il carattere:\n' + bad.join('\n'));
 });
+
+// Primo CR non seguito da LF, oppure -1. Sui byte: un file misto va guardato per
+// com'è scritto sul disco, non per come lo decodifica una stringa.
+function _crSolitario(buf) {
+  for (let i = 0; i < buf.length; i++) {
+    if (buf[i] === 0x0d && buf[i + 1] !== 0x0a) return i;
+  }
+  return -1;
+}
