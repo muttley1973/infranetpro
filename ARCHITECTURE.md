@@ -481,7 +481,7 @@ outcomes, each saying one thing only:
 |---|---|---|
 | `vlan` | exactly one VLAN applies | that VLAN’s colour |
 | `trunk` | it carries more than one | neutral + the carried VLANs as pills |
-| `routed` | the port is not part of the bridge: it routes | neutral, and the panel says why |
+| `routed` | the port is declared L3, or measured as not being a port of the bridge: it routes | neutral, and the panel says why |
 | `conflict` | both ends name a VLAN, with equal authority, and the two differ | neutral; the panel names both numbers, lists it among the cable’s problems at error level (`vlan-ends-disagree`, the access twin of `native-mismatch`), and the topology legend explains this second neutral |
 
 ⭐ The fourth does not describe the cable, it describes **us**: the document contradicts
@@ -626,6 +626,41 @@ being absent from it proves nothing, because a vIOS publishes the table for two 
 of eight and another unit of the same image for none. So the two measurements keep their
 own names, `ownsIp` and `bridges` (absent, not false, when the agent is silent), and
 `isRoutedPort` composes them in one place.
+
+⚠️ **But a port can also be DECLARED routed, and that comes before both measurements.**
+Port mode (`state.ports[pid].mode`) has a third value beside `access` and `trunk`:
+`routed`. It reaches the engine as `declaredRouted` on the paint end and is consulted at
+rung 0 of `linkPaintVlan` — above `vlanOvr` too, because the two sentences are not about
+the same thing: `vlanOvr` states the PVID of one port, `routed` states that this *cable*
+carries no VLAN, and on a single wire the sentence about the wire decides the wire. On the
+same port they cannot collide, since `setPortMode('routed')` deletes `vlanOvr` and
+`trunkVlans` — a document must not hold two incompatible statements and let the reader
+choose. It also beats the `bridges` veto: manual-first is not suspended when it is
+convenient, so the declaration stands and the port panel says the two disagree. Without
+this a project drawn by hand could never produce a routed cable at all: the wire between
+two routers fell to the site-native floor and was painted VLAN 1, asserting that it
+switches. ⚠️ It is not consulted on trunks — a trunk switches by definition — and the UI
+does not offer L3 there. ⚠️ It is a third value of one field rather than a separate
+switch, because two independent controls answering «what kind of port is this?» can
+contradict each other and one field cannot.
+
+The optional companion is `state.ports[pid].routedNet`: the `cidr` of one of the declared
+networks (`ipam.prefixes[]`). It stores only the key — `prefixesOf` stays the authority on
+prefixes — and it feeds the port column of the device's «Gateway L3 / SVI» section, which
+previously said *which* network a device routes but never from where. ⚠️ Optional on
+purpose: requiring it would block the half-drawn case, and the cable's colour depends on
+the mode alone. ⚠️ The picker lists **every** declared network, `prefixesWithoutVlan` first
+and the rest labelled with their VLAN. Restricting it to VLAN-less networks was the first
+cut and it was wrong twice over: a real project declares five networks that all have a
+VLAN, so the field came up empty and the mode looked broken; and the *measured* path calls
+a port routed even when its address sits in a network that has a VLAN, so the declared path
+would have refused to name what the measured one happily concludes. ⚠️ The `<select>`
+carries `data-no-manual="1"`: `_enableManualValueInProps` appends a «Custom…» option to
+every select in the panel, and this field is a **reference** — a typed CIDR would point at
+nothing and would be a second place for a network to live. ⚠️ Never inferred, neither from the port's own
+declared address (`ports[pid].ip` — an indication any NIC satisfies, the very reason the
+measured field was renamed from `routed` to `ownsIp`) nor from the VLAN card's «routed by»,
+which proves the device sits *inside* that VLAN, the opposite of what it looks like.
 
 The glue `src/app-link-color.js` is the only translator from that outcome to a colour.
 Before, eight sites computed it — `app.js` ×3, `topo-lines.js` ×2, `export.js` ×2, the

@@ -20,7 +20,7 @@ import { radioPid } from '../lib/radio.js';   // pid porta radio (ESM, no win.*)
 // ridecide. ⚠️ È un anello (app-link-color importa `_getLinkVlan` da qui): innocuo,
 // perché entrambe sono dichiarazioni di funzione — nessuna delle due gira mentre i
 // moduli si valutano, solo dopo, a filtro attivo.
-import { _linkPaintVlan } from './app-link-color.js';
+import { _linkPaintVlan, CABLE_NEUTRAL } from './app-link-color.js';
 import { _portDisplayName, _focusLagForPort, getPassivePortLagInfo,
          setPortField, clearPortField, setPortSpeed, removePortFromLag, startLagMode } from './app-ports.js';   // ritiro ponte + ASSE B: fn del dominio porta (ex win.*)
 import { _cancelLink } from './app-pointer.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
@@ -303,6 +303,26 @@ ${snmpBar}
   ${rst('speedOvr',t('pnl.misc.fieldSpeed'))}
 </div>
 ${(()=>{
+    // Porta DICHIARATA L3: qui si LEGGE e basta — la modalità si cambia dai tre
+    // bottoni del pannello Proprietà, che è l'unico posto dove vive quel comando.
+    // Sta PRIMA del ramo trunk: una porta che instrada non è un trunk nemmeno se
+    // il poll l'aveva vista tale, e mostrarle la nativa sarebbe offrirle una VLAN.
+    if(pi.mode === 'routed'){
+        const _net = String(pi.routedNet || '');
+        return `<div class="port-row">
+  <label>${t('pnl.misc.mode')}</label>
+  <span style="display:inline-flex;align-items:center;gap:5px;font-weight:600;color:var(--text-main)">
+    <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${CABLE_NEUTRAL};flex-shrink:0"></span>
+    ${escapeHTML(t('legend.routedLink'))} <span style="color:var(--text-muted);font-weight:400">— ${escapeHTML(t('cable.paintRouted'))}</span>
+  </span>
+  <span></span>
+</div>${_net?`
+<div class="port-row">
+  <label>${t('port.routedNet')}</label>
+  <span style="font-family:monospace;font-size:0.82rem;color:var(--text-main)">${escapeHTML(_net)}</span>
+  <span></span>
+</div>`:''}`;
+    }
     // Cerca il cavo trunk collegato a questa porta per ottenere la lista VLAN
     const tLink = store.state.links.find(l=>_linkTouchesPort(l, pid) && l.mode==='trunk');
     const isTrunk = pi.isTrunk || !!tLink;

@@ -576,6 +576,9 @@ body.spare-mode .port-led.spare-suspect {
    cella si accorcia con l'ellissi invece di spingere fuori il nome. */
 .l3-svi-gw { color: var(--text-muted); font-size: .74rem; margin-left: auto; min-width: 0; max-width: 62%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .l3-svi-sub { opacity: .7; }
+/* La porta da cui esce la rete: è una DICHIARAZIONE della porta (modalità L3 +
+   rete scelta), quindi porta l'ambra di tutto ciò che si dichiara a mano. */
+.l3-svi-port { color: #e3b341; font-size: .7rem; font-weight: 700; margin-left: 4px; white-space: nowrap; }
 .l3-svi-warn { color: #e3b341; }
 /* Overlay "Mappa L3 / Gateway" — tabella rete→VLAN→gateway→device→stato */
 /* Piu' largo degli altri report: e' l'unico con una TABELLA a sei colonne, e a

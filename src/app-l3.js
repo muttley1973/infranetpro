@@ -23,6 +23,7 @@ import { carriedVlans, parseVlanList } from '../lib/vlan-trunk.js';   // cosa tr
 import { vmIps, vmIp6s } from '../lib/vm-nics.js';   // lib pura importata ESM (come lib/ipv6.js): NON un globale su window
 import { ipamByVidView, prefixesOf } from '../lib/ipam-model.js';   // l'autorità sui prefissi + la vista per-VLAN (per `gatewayNodeId`)
 import { compareCidr } from '../lib/ipam-audit.js';   // l'ordine dello spazio degli indirizzi: la STESSA regola dell'elenco «Reti»
+import { portNumLabel } from './app-ports.js';   // come si chiama una porta sul frontale: definizione UNICA, condivisa col tooltip
 
 // Tipi che possono fare da gateway L3 (per il dropdown di scelta).
 const _L3_GATEWAY_TYPES = ['router', 'firewall', 'switch'];
@@ -239,15 +240,28 @@ export function _l3SviSectionHtml(nodeId){
     const dev = (rep.l3Devices || []).find(d => String(d.id) === String(nodeId));
     if(!dev || !dev.nets.length) return '';
     const rowByCidr = new Map(); (rep.rows || []).forEach(r => { if(r.cidr) rowByCidr.set(r.cidr, r); });
+    // DA QUALE PORTA esce ogni rete. Il legame lo dichiara la porta stessa
+    // (`ports[pid].routedNet` sulle interfacce messe in modalità L3): qui non si
+    // deduce niente, si legge la dichiarazione e la si mostra dal capo opposto —
+    // il pannello del device diceva QUALE rete instrada e non da dove.
+    const portByCidr = new Map();
+    const _pfx = String(nodeId) + '-';
+    for(const pid in (store.state.ports || {})){
+        if(!pid.startsWith(_pfx)) continue;
+        const pi = store.state.ports[pid];
+        if(!pi || pi.mode !== 'routed' || !pi.routedNet) continue;
+        if(!portByCidr.has(pi.routedNet)) portByCidr.set(pi.routedNet, pi.ifName || t('pnl.dev.portN',{n:portNumLabel(pid)}));
+    }
     const items = dev.nets.map(v => {
             const r = rowByCidr.get(v.cidr) || {};
+            const port = portByCidr.get(v.cidr) || '';
             const color = r.color || '#8b949e';
             const wrn = Array.isArray(r.warnings) ? r.warnings : [];
             const badKey = wrn.includes('gatewayFamilyMismatch') ? 'pnl.feat.gwFamilyMismatch'
                 : wrn.includes('gatewayOutOfSubnet') ? 'pnl.feat.gwOutOfSubnet' : '';
             return `<div class="l3-svi-row">
                 <span class="l3-svi-vlan" style="color:${esc(color)}">${v.vid != null ? `VLAN ${Number(v.vid)}` : '—'}</span>
-                <span class="l3-svi-name">${esc(r.name || '')}</span>
+                <span class="l3-svi-name">${esc(r.name || '')}${port ? ` <span class="l3-svi-port">${esc(port)}</span>` : ''}</span>
                 <span class="l3-svi-gw">${esc(v.gateway || '—')}${v.cidr ? ` <span class="l3-svi-sub">${esc(v.cidr)}</span>` : ''}${badKey ? ` <span class="l3-svi-warn" data-tip="${esc(t(badKey))}">⚠</span>` : ''}</span>
               </div>`;
         }).join('');

@@ -92,10 +92,12 @@ function renderPortsTable(n){
          class="${pi.speedOvr!=null?'ovr':''}"
          data-ovr-pid="${pid}" data-ovr-field="speedOvr" ${hidden?'disabled':''}
          data-change="port-speed" data-tip="${t('pnl.dev.speedTip')}">
-  <input type="number" min="1" max="4094" value="${effVlan}"
+  ${pi.mode==='routed'
+    ? `<span class="pt-l3" data-tip="${escapeHTML(t('port.routedModeTip'))}" data-tip-wrap>${escapeHTML(t('legend.routedLink'))}</span>`
+    : `<input type="number" min="1" max="4094" value="${effVlan}"
          class="${pi.vlanOvr!=null?'ovr':''}"
          data-ovr-pid="${pid}" data-ovr-field="vlanOvr" ${hidden?'disabled':''}
-         data-change="port-field">
+         data-change="port-field">`}
   <button class="pt-rst${hasOvr?' has-ovr':''}" data-tip="${t('pnl.dev.resetPortOvr',{n:i})}"
           data-act="port-clear-all" data-pid="${pid}" data-ovr-rst="${pid}">↺</button>
   <button class="pt-hide${hidden?' pt-hide-on':''}" data-tip="${hidden?t('pnl.dev.showIface'):t('pnl.dev.hideIface')}"
@@ -448,21 +450,28 @@ function _refreshPortRow(pid){
     if(rst) rst.className = `pt-rst${hasOvr?' has-ovr':''}`;
 }
 
-export function portTip(pid){
-    const state = store.state;
-    const pi = state.ports[pid] || {};
-    const portNum = pid.split('-').slice(1).join('-');
+/**
+ * Il NUMERO con cui questa porta si chiama sul frontale — qualificato dallo stack
+ * e dallo sfalsamento del patch panel, che sono le due ragioni per cui il numero
+ * nel pid e quello scritto sul rame possono non coincidere.
+ *
+ * ⚠️ Sta qui, da solo ed esportato, perché è la definizione UNICA: la usa il
+ * tooltip della porta e la usa la sezione «Gateway L3 / SVI» del device. Una
+ * seconda copia altrove divergerebbe il giorno che qualcuno tocca lo stacking —
+ * è il difetto che in questo progetto si ripete da solo.
+ */
+export function portNumLabel(pid){
+    const portNum = String(pid).split('-').slice(1).join('-');
     // Stacking (P7.2): per porte numeriche su switch in stack mostro la
     // numerazione qualificata `<member>/0/<port>` (convenzione Cisco IOS-XE
     // / Aruba CX / Juniper VC). Le porte MGMT (`mgmt1`...) e altre non
     // numeriche non vengono qualificate.
-    let portLabel = portNum;
     const _nid = (typeof getPortNodeId === 'function') ? getPortNodeId(pid) : null;
     const _node = _nid && typeof nodeById === 'function' ? nodeById(_nid) : null;
     if(_node && typeof win.isInStack === 'function' && win.isInStack(_node)){
         const numeric = parseInt(portNum, 10);
         if(Number.isFinite(numeric) && String(numeric) === portNum){
-            portLabel = win.getQualifiedPortName(_node, numeric);
+            return win.getQualifiedPortName(_node, numeric);
         }
     }
     // Patch panel con numerazione progressiva (catena ppContinueFrom / startNum):
@@ -470,10 +479,16 @@ export function portTip(pid){
     if(_node && _node.type==='patchpanel' && typeof _patchPanelOffset==='function'){
         const numeric = parseInt(portNum, 10);
         if(Number.isFinite(numeric) && String(numeric) === portNum){
-            portLabel = String(numeric + _patchPanelOffset(_node));
+            return String(numeric + _patchPanelOffset(_node));
         }
     }
-    const parts = [t('pnl.dev.portN',{n:portLabel})];
+    return portNum;
+}
+
+export function portTip(pid){
+    const state = store.state;
+    const pi = state.ports[pid] || {};
+    const parts = [t('pnl.dev.portN',{n:portNumLabel(pid)})];
     const desc = pi.desc || (pi.alias && pi.alias!==pi.ifName ? pi.alias : '') || pi.ifName || '';
     if(desc) parts.push(desc);
     const spd = pi.speedOvr ?? pi.speed;

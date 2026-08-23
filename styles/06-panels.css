@@ -119,6 +119,19 @@
         }
         .pt-row input:focus, .pt-row select:focus { outline:none; border-color:var(--accent); }
         .pt-row .ovr { border-color:#e3b341 !important; }
+        /* Porta DICHIARATA L3: al posto del numero, la sigla. Non è un campo
+           disabilitato ma un valore letto — la modalità si cambia dai tre bottoni
+           del pannello, e un input grigio qui inviterebbe a scriverci un PVID che
+           contraddirebbe la dichiarazione. Ambra come ogni cosa dichiarata a mano;
+           stessa taglia e stesso bordo dell'input che sostituisce, così la griglia
+           non si muove. */
+        .pt-row .pt-l3 {
+            border:1px solid #e3b341; border-radius: var(--radius-sm);
+            background:var(--bg-color); color:#e3b341;
+            font-size:0.62rem; font-weight:700; letter-spacing:.03em;
+            padding:2px 0; text-align:center; cursor:default; user-select:none;
+            overflow:hidden; white-space:nowrap;
+        }
         .pt-rst { background:none; border:none; color:transparent; cursor:pointer; padding:0; font-size:var(--fs-sm); }
         .pt-rst.has-ovr { color:var(--text-muted); }
         .pt-rst.has-ovr:hover { color:var(--fault-color); }

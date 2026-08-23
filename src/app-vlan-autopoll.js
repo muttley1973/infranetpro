@@ -356,6 +356,11 @@ export function _portEffTrunk(pi){
     pi = pi || {};
     if(pi.mode==='trunk') return true;
     if(pi.mode==='access') return false;   // override manuale ad access vince sullo SNMP
+    // Dichiarata L3: non commuta, quindi non è un trunk — e la misura SNMP non può
+    // riaprire la questione. Senza questa riga una porta messa in L3 su cui il poll
+    // aveva visto un trunk (`isTrunk`) sarebbe uscita trunk lo stesso, cioè la
+    // dichiarazione sarebbe valsa per il colore del cavo e non per la modalità.
+    if(pi.mode==='routed') return false;
     return !!pi.isTrunk;
 }
 
@@ -1152,15 +1157,47 @@ function setPortMode(pid, mode){
     const node = getNodeByPortId(pid);
     if(!node || !TYPES[node.type]?.isActive) return;
     if(!store.state.ports[pid]) store.state.ports[pid] = {};
-    const cur = _portEffTrunk(store.state.ports[pid]) ? 'trunk' : 'access';
+    const pi0 = store.state.ports[pid];
+    const cur = pi0.mode==='routed' ? 'routed' : (_portEffTrunk(pi0) ? 'trunk' : 'access');
     // No-op solo se la scelta coincide ED è già fissata a mano: se il trunk è
     // solo da SNMP, cliccarlo lo "fissa" come manuale (intento esplicito).
-    if(cur===mode && store.state.ports[pid].mode) return;
+    if(cur===mode && pi0.mode) return;
     pushHistory();
-    if(mode==='trunk') store.state.ports[pid].mode='trunk';
-    else if(store.state.ports[pid].isTrunk) store.state.ports[pid].mode='access';  // override esplicito vs SNMP
-    else { delete store.state.ports[pid].mode; delete store.state.ports[pid].trunkVlans; }
+    if(mode==='routed'){
+        // «Questa porta instrada»: una DICHIARAZIONE, e le dichiarazioni che la
+        // contraddicono se ne vanno con lei. Una porta L3 non ha un PVID (`vlanOvr`)
+        // né una lista di VLAN trasportate: lasciarli scritti significherebbe tenere
+        // in stato due affermazioni incompatibili e affidare a chi legge il compito
+        // di scegliere quale credere — cioè il difetto che si ripete da solo.
+        pi0.mode='routed';
+        delete pi0.vlanOvr;
+        delete pi0.trunkVlans;
+    }
+    else if(mode==='trunk'){ pi0.mode='trunk'; delete pi0.routedNet; }
+    else if(pi0.isTrunk){ pi0.mode='access'; delete pi0.routedNet; }  // override esplicito vs SNMP
+    else { delete pi0.mode; delete pi0.trunkVlans; delete pi0.routedNet; }
     if(typeof propagateVlans==='function') propagateVlans();
+    markDirty(); renderAll(); renderProps();
+}
+
+/**
+ * QUALE rete instrada una porta dichiarata L3. Riferimento FACOLTATIVO a un prefisso
+ * già dichiarato (`ipam.prefixes[]`), non un secondo posto dove la rete vive: qui si
+ * scrive solo il `cidr`, che ne è la chiave logica.
+ *
+ * ⚠️ Facoltativo davvero. Sapere che una porta instrada e non aver ancora dichiarato
+ * il transito è normale a metà disegno: pretendere la rete per accettare la modalità
+ * bloccherebbe il caso semplice per difendere quello completo. Il colore del cavo non
+ * dipende da questo campo — dipende solo da `mode === 'routed'`.
+ */
+function setPortRoutedNet(pid, cidr){
+    const node = getNodeByPortId(pid);
+    if(!node || !TYPES[node.type]?.isActive) return;
+    if(!store.state.ports[pid]) store.state.ports[pid] = {};
+    const pi = store.state.ports[pid];
+    if(pi.mode !== 'routed') return;   // il campo esiste solo dentro la modalità che lo giustifica
+    const next = String(cidr||'').trim();
+    if(next) pi.routedNet = next; else delete pi.routedNet;
     markDirty(); renderAll(); renderProps();
 }
 
@@ -1218,7 +1255,7 @@ export {
 };
 // ASSE B: pannello PORTA / popup porta importano queste per la registrazione delegata
 // (ex onchange/onclick inline). Restano anche in expose() per le superfici non migrate.
-export { setPortMode, setPortTrunkVlans, setNodeVoiceVlan };
+export { setPortMode, setPortTrunkVlans, setPortRoutedNet, setNodeVoiceVlan };
 // ASSE B (Blocco 5): la catena device-spec floor importa setEndpointVlan per la riga VLAN
 // endpoint editabile (ex onchange="setEndpointVlan(...)"). Resta anche in expose().
 export { setEndpointVlan };

@@ -19,7 +19,9 @@ import { DOWN_STREAK_N, portShade } from '../lib/port-state.js';   // lib pura i
 import { nodeById, getNodeByPortId, getPortNodeId, _isRadioPid, _enableManualValueInProps } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _effPortVlan, _getLinkTrunk, _parseTrunkVlans, _runActiveAnchor, _voipVoiceVlan, _portEffTrunk,
-         setPortMode, setPortTrunkVlans, setNodeVoiceVlan } from './app-vlan-autopoll.js';   // ritiro ponte + ASSE B: funzioni foglia UI/vlan + azioni porta (ex win.*)
+         setPortMode, setPortTrunkVlans, setPortRoutedNet, setNodeVoiceVlan } from './app-vlan-autopoll.js';   // ritiro ponte + ASSE B: funzioni foglia UI/vlan + azioni porta (ex win.*)
+import { prefixesOf, prefixesWithoutVlan } from '../lib/ipam-model.js';   // l'autorità sui prefissi, e su che cosa vuol dire «senza VLAN»
+import { CABLE_NEUTRAL } from './app-link-color.js';   // il colore del cavo che non sta in nessuna VLAN: una definizione sola, non una copia dell'hex
 import { renderProps, _buildPropsHeader, _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte + ASSE B: dispatcher + builder header (ex win.*)
 import { _vlanLabel } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*) — carica anche le azioni CONDIVISE port-field/port-speed
 import { _floorAccessVlanRow } from './app-properties-node-devices.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
@@ -44,6 +46,7 @@ registerClickActions({
 });
 registerChangeActions({
     'port-trunk-vlans': (el) => setPortTrunkVlans(el.dataset.pid, el.value),
+    'port-routed-net':  (el) => setPortRoutedNet(el.dataset.pid, el.value),
     'node-voice-vlan':  (el) => setNodeVoiceVlan(el.dataset.nid, el.value),
 });
 registerBlurActions({
@@ -428,14 +431,65 @@ export function _renderPortProps(panel){
                 // Switchport (interfaccia ATTIVA): GUI UNIFORME al pannello cavo —
                 // badge TRUNK/access · nativa · trasportate → Modalità porta →
                 // VLAN nativa (untagged/PVID) → VLAN trasportate. La nativa È il PVID.
-                const _isTrunk = (typeof _portEffTrunk==='function') ? _portEffTrunk(pi) : (pi.mode==='trunk');
+                // ⭐ Terza modalità, accanto ad access e trunk: la porta DICHIARATA L3.
+                // Non è un flag a parte — è il terzo valore di `pi.mode`, l'unico campo
+                // che già significa «che tipo di porta ho detto che è». Due controlli
+                // indipendenti per una domanda sola prima o poi si contraddicono; un
+                // campo con tre valori non può.
+                const _isRouted = pi.mode === 'routed';
+                const _isTrunk = _isRouted ? false
+                    : ((typeof _portEffTrunk==='function') ? _portEffTrunk(pi) : (pi.mode==='trunk'));
                 const _tvArr   = _parseTrunkVlans(pi.trunkVlans||[]);
                 const _tagged  = _tvArr.filter(v=>v!==effVlan);
                 const _tvStr   = Array.isArray(pi.trunkVlans) ? pi.trunkVlans.join(',') : (pi.trunkVlans || '');
                 const _fromSnmp= _isTrunk && pi.mode!=='trunk' && pi.isTrunk;
                 const _color   = state.vlanColors[effVlan] || '#6e7681';
                 const _vlanName= state.vlanNames?.[effVlan] ? escapeHTML(state.vlanNames[effVlan]) : '';
-                const _badge = _isTrunk
+                // TUTTE le reti dichiarate, non solo quelle senza VLAN.
+                // ⚠️ Il primo taglio offriva le sole VLAN-less — il transito /30, il caso
+                // da manuale — e sul banco il difetto è uscito subito: un progetto vero ne
+                // dichiara cinque e hanno tutte la loro VLAN, quindi il campo non offriva
+                // niente e la modalità sembrava rotta. Ed era anche incoerente col percorso
+                // MISURATO, che una porta la dichiara instradata anche quando il suo
+                // indirizzo cade in una rete CON VLAN: un'interfaccia L3 che guarda una
+                // VLAN è normale, ed è il caso del router del banco. Le senza-VLAN restano
+                // in cima perché sono il caso tipico; le altre portano scritta la loro
+                // VLAN, così si sceglie vedendo invece di scegliere alla cieca.
+                // `prefixesWithoutVlan`/`prefixesOf` (lib/ipam-model.js) sono l'autorità:
+                // qui non si ridefinisce che cosa vuol dire «senza VLAN».
+                const _l3Nets = _isRouted
+                    ? prefixesWithoutVlan(state).filter(p => p && p.cidr)
+                        .concat(prefixesOf(state).filter(p => p && p.cidr && p.vlan != null))
+                    : [];
+                const _routedNetField = () => {
+                    const cur = String(pi.routedNet || '');
+                    const opts = [`<option value="">${escapeHTML(t('port.routedNetNone'))}</option>`].concat(
+                        _l3Nets.map(p => {
+                            const c = String(p.cidr);
+                            const nm = String(p.name || '').trim();
+                            // La VLAN si SCRIVE nell'etichetta invece di escludere la rete:
+                            // scegliere una rete che una VLAN ce l'ha è legittimo, sceglierla
+                            // senza saperlo no.
+                            const vl = p.vlan != null ? ' · VLAN ' + Number(p.vlan) : '';
+                            return `<option value="${escapeHTML(c)}"${c===cur?' selected':''}>${escapeHTML(c)}${nm?' · '+escapeHTML(nm):''}${vl}</option>`;
+                        })).join('');
+                    // Il veto misurato non spegne la dichiarazione: la contraddizione si
+                    // DICE. Chi decide è l'utente, chi avvisa è l'app (grammatica del Drift).
+                    const warn = pi.bridges === true
+                        ? `<div class="prop-hint warn">${escapeHTML(t('port.routedBridgeWarn'))}</div>` : '';
+                    return `<div class="prop-group" style="margin-top:6px">
+                    <label>${t('port.routedNet')}</label>
+                    <select class="${cur?'ovr':''}" data-change="port-routed-net" data-pid="${pid}" data-no-manual="1">${opts}</select>
+                    <div class="prop-hint">${escapeHTML(t(_l3Nets.length ? 'port.routedNetHint' : 'port.routedNetEmpty'))}</div>
+                    ${warn}
+                  </div>`;
+                };
+                const _badge = _isRouted
+                  ? `<span style="display:inline-flex;align-items:center;gap:6px">
+                       <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${CABLE_NEUTRAL};flex-shrink:0;border:1px solid rgba(255,255,255,.18)"></span>
+                       <b>${escapeHTML(t('legend.routedLink'))}</b><span style="color:var(--text-muted)">— ${escapeHTML(t('cable.paintRouted'))}</span>
+                     </span>`
+                  : _isTrunk
                   ? `<span style="background:#0e2233;border:1px solid #2d6a9f;border-radius:4px;padding:2px 10px;font-size:0.78rem;font-weight:700;color:#5ba3f5">TRUNK</span>
                      <span style="margin-left:6px;font-size:0.75rem;color:var(--text-muted)">${t('cable.trunkNative')}&nbsp;<b style="color:var(--text-main)">VLAN ${effVlan}</b></span>
                      ${_tagged.length?`<span style="margin-left:6px;font-size:0.75rem;color:var(--text-muted)">· ${t('cable.trunkCarried')}&nbsp;<b style="color:var(--text-main)">${_tagged.join(', ')}</b></span>`:''}
@@ -451,11 +505,12 @@ export function _renderPortProps(panel){
                   <div class="prop-group" style="margin-top:8px;border-top:1px solid var(--panel-border);padding-top:8px">
                     <label>${t('cable.portMode')}</label>
                     <div style="display:flex;gap:6px;margin-top:4px">
-                      <button class="toolbar-btn${!_isTrunk?' soft':''}" style="flex:1;padding:5px" data-act="port-mode" data-pid="${pid}" data-mode="access"><i class="fas fa-circle" style="font-size:0.6rem"></i> Access</button>
+                      <button class="toolbar-btn${(!_isTrunk&&!_isRouted)?' soft':''}" style="flex:1;padding:5px" data-act="port-mode" data-pid="${pid}" data-mode="access"><i class="fas fa-circle" style="font-size:0.6rem"></i> Access</button>
                       <button class="toolbar-btn${_isTrunk?' soft':''}" style="flex:1;padding:5px" data-act="port-mode" data-pid="${pid}" data-mode="trunk"><i class="fas fa-layer-group" style="font-size:0.7rem"></i> Trunk</button>
+                      <button class="toolbar-btn${_isRouted?' soft':''}" style="flex:1;padding:5px" data-tip="${escapeHTML(t('port.routedModeTip'))}" data-tip-wrap data-act="port-mode" data-pid="${pid}" data-mode="routed"><i class="fas fa-route" style="font-size:0.7rem"></i> ${escapeHTML(t('legend.routedLink'))}</button>
                     </div>
                   </div>
-                  ${_vlanField(_isTrunk ? t('cable.trunkNativeLabel') : 'VLAN')}
+                  ${_isRouted ? _routedNetField() : _vlanField(_isTrunk ? t('cable.trunkNativeLabel') : 'VLAN')}
                   ${_isTrunk?`<div class="prop-group">
                     <label style="display:flex;align-items:center;gap:5px">${t('cable.trunkVlans')}
                       <span style="font-size:0.68rem;color:var(--text-muted)">${t('pnl.dev.egVlanRange')}</span></label>

@@ -97,6 +97,11 @@ function _end(pid) {
         deviceVlans: node?.integration?.vlans || [],
         ownsIp: !!pi.ownsIp,
         bridges: pi.bridges,
+        // La MODALITA' dichiarata a mano, terzo valore accanto a access/trunk: la
+        // porta e' un'interfaccia L3 e non sta in nessuna VLAN. E' una dichiarazione,
+        // non una misura — per questo viaggia in un campo dal nome diverso da
+        // `ownsIp`/`bridges`, che sono cio' che l'apparato ha risposto.
+        declaredRouted: pi.mode === 'routed',
         vlanOvr: pi.vlanOvr,
         vlan: pi.vlan,
         vlanProp: pi.vlanProp,
