@@ -631,7 +631,17 @@ test('ponte: la coda funzioni A batch 2 non è più letta da win.*', () => {
 // testata); il renderer la legge da `win`, lib-script read della STESSA categoria di
 // buildTopoLines/temporalConfidence — legge l'unica istanza viva, niente ri-bundle.
 // Aumento MOTIVATO di 1, nessuno stato nuovo sul ponte (ASSE A resta sospeso, §2.2).
-const MAX_WIN_REFS = 276;
+// -12 (276 → 264, 2026-08-23): VLAN-TRUNK — il motore puro del trunk si
+// raggiungeva da window, e ogni chiamata portava con sé un ripiego per il caso
+// «il motore non c'è». I due ripieghi dicevano cose diverse e sbagliavano allo
+// stesso modo: `_getLinkTrunk` rispondeva «access, VLAN 1» — una VLAN affermata
+// su un cavo di cui non sapeva niente — e `app-hypervisor` lasciava senza colore
+// la VLAN appena dichiarata su una vNIC, che finiva nel ripiego della palette.
+// Un modulo IMPORTATO o c'è o il bundle non parte: il ripiego non ha più un caso
+// da coprire, e sparisce con le sue guardie `typeof win.X==='function'`. Con
+// l'ultima se n'è andato anche l'import di `win` da app-hypervisor.js, che ora
+// non legge più il ponte.
+const MAX_WIN_REFS = 264;
 
 test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => {
   const total = countInCode(/\bwin\./g);
@@ -649,7 +659,7 @@ test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => 
 // ASSE B — CRICCHETTO SUGLI HANDLER INLINE (on*="…")
 // ════════════════════════════════════════════════════════════════════════════
 // Il ritiro del ponte ha DUE assi (vedi ARCHITECTURE.md §10):
-//   • ASSE A = letture win.* → import ESM      (MAX_WIN_REFS sopra, pavimento 268)
+//   • ASSE A = letture win.* → import ESM      (MAX_WIN_REFS sopra, oggi 266)
 //   • ASSE B = handler inline (onclick/onchange/oninput/ontoggle/ondragstart/…)
 //     → event delegation (data-act/data-change/data-input/… in app-delegation.js)
 // Gli handler inline sono IL motivo per cui il ponte esiste ancora: risolvono i
@@ -664,7 +674,7 @@ test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => 
 // restano inline per scelta (es. l'ingranaggio che apre l'editor protocolli VIVE
 // nel pannello proprietà GOLDEN → migrarlo cambierebbe lo snapshot; i classic
 // export.js sono fuori-ASSE per design). Quando il pavimento vero emergerà lo si
-// fissa qui, come MAX_WIN_REFS=268.
+// fissa qui, come MAX_WIN_REFS fa per l'ASSE A.
 //
 // RICETTA: quando migri un cluster (on*="key" → data-act/data-change="key" +
 // register*Actions nel modulo che POSSIEDE la funzione) il conteggio cala →

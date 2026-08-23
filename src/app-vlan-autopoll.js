@@ -19,6 +19,7 @@ import { _renderTopoLegend } from './app-topology-overlay.js';   // ritiro ponte
 import { _getLinkVlan, _vlanLabel } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
 import { _invalidateLinkColor } from './app-link-color.js';   // le cache del colore-cavo si rifanno a ogni propagazione
 import { authoritativeVlan } from '../lib/vlan-authority.js';   // chi ha TITOLO per dire la VLAN: unica definizione, condivisa col colore del cavo
+import { effLinkVlans, carriedVlans, parseVlanList } from '../lib/vlan-trunk.js';   // il motore PURO del trunk, per import invece che da window: un modulo importato o c'è o il bundle non parte, e sparisce il ripiego «se il motore non c'è rispondo io»
 import { _deviceAccessVlanPid } from './app-properties-node-devices.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { applyUiColors } from './app-search-zoom-rack.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: modale «Membership VLAN» + popover Automazioni + modale VLAN voce via event delegation
@@ -378,9 +379,9 @@ function _propagateTrunkMembership(adj){
     }
     // b) VLAN trasportate dai device (radio/voce) sulle loro porte dati: la
     //    membership sale lungo il run verso lo switch (no flag: è trunk solo se
-    //    l'unione supera la nativa, deciso da win.effLinkVlans a valle).
+    //    l'unione supera la nativa, deciso da effLinkVlans a valle).
     store.state.nodes.forEach(n=>{
-        const cv = (typeof win.carriedVlans==='function') ? win.carriedVlans(n) : [];
+        const cv = carriedVlans(n);
         if(!cv.length) return;
         const def = TYPES[n.type]; if(!def) return;
         const pc = n.ports!==undefined ? n.ports : def.ports;
@@ -461,17 +462,25 @@ export function _effPortVlan(pid){
 // verso il PC). Manual-first: un trunkVlans impostato a mano vince. Logica pura
 // in lib/vlan-trunk.js. Ritorna { mode, native, vlans[], carried[], derived }.
 export function _getLinkTrunk(l){
-    if(!l || typeof win.effLinkVlans!=='function') return { mode:'access', native:1, vlans:[1], carried:[], derived:true };
-    const native = (typeof _getLinkVlan==='function') ? _getLinkVlan(l) : 1;
+    // ⚠️ NIENTE cavo = niente da dire. Il ripiego di prima rispondeva «access,
+    // VLAN 1» — un'affermazione precisa su un collegamento CHE NON ESISTE — e a
+    // valle nessuno poteva distinguerla da una lettura: il filtro VLAN se la
+    // beveva (`[1].includes(1)` → un cavo inesistente entrava nella VLAN 1).
+    // Ciò che il cavo porta è ORA vuoto, che è l'unica cosa vera qui; la nativa
+    // resta quella di SITO perché è una proprietà del sito, non di questo cavo,
+    // e non è un ripiego scritto a mano: la VLAN 1 letterale era una SECONDA
+    // definizione del pavimento, che su una sede con nativa 99 diceva 1.
+    if(!l) return { mode:'access', native:_siteNativeVlan(), vlans:[], carried:[], derived:true };
+    const native = _getLinkVlan(l);
     const srcNode = getNodeByPortId(l.src), dstNode = getNodeByPortId(l.dst);
     const _isLeaf = n => !!(n && typeof _isLeafEndpoint==='function' && _isLeafEndpoint(n.type, n));
     let carried = [];
-    if(srcNode && !_isLeaf(dstNode) && typeof win.carriedVlans==='function') carried = carried.concat(win.carriedVlans(srcNode));
-    if(dstNode && !_isLeaf(srcNode) && typeof win.carriedVlans==='function') carried = carried.concat(win.carriedVlans(dstNode));
+    if(srcNode && !_isLeaf(dstNode)) carried = carried.concat(carriedVlans(srcNode));
+    if(dstNode && !_isLeaf(srcNode)) carried = carried.concat(carriedVlans(dstNode));
     // SNMP: il trunk REALE polled sulla porta (pi.trunkVlans/isTrunk) alimenta il
     // derivato — vale su ENTRAMBI i capi del link fisico (non leaf-gated: è la
     // membership di quel cavo). Manual-first resta: un l.trunkVlans/access a mano
-    // vince comunque in win.effLinkVlans (questo entra solo nel ramo derivato).
+    // vince comunque in effLinkVlans (questo entra solo nel ramo derivato).
     const _sp = store.state.ports[l.src] || {}, _dp = store.state.ports[l.dst] || {};
     // VLAN taggate "viste" su un capo del cavo: interfaccia attiva in trunk
     // (mode manuale o isTrunk SNMP) + trunkProp propagata lungo il run passivo.
@@ -485,7 +494,7 @@ export function _getLinkTrunk(l){
     // Trunk forzato (anche con sola nativa): interfaccia in trunk (mode manuale o
     // isTrunk SNMP) o membership trunk propagata lungo il run (isTrunkProp).
     const snmpTrunk = !!(_portEffTrunk(_sp) || _portEffTrunk(_dp) || _sp.isTrunkProp || _dp.isTrunkProp);
-    return win.effLinkVlans({ manualMode:l.mode, manualTrunkVlans:l.trunkVlans, native, carried, snmpTrunk });
+    return effLinkVlans({ manualMode:l.mode, manualTrunkVlans:l.trunkVlans, native, carried, snmpTrunk });
 }
 export function _linkIsTrunk(l){ return _getLinkTrunk(l).mode === 'trunk'; }
 
@@ -1155,7 +1164,7 @@ function setPortTrunkVlans(pid, raw){
  */
 export function _parseTrunkVlans(raw){
     // Parser canonico unico: lib/vlan-trunk.js (puro, testato). Niente duplicato.
-    return (typeof win.parseVlanList === 'function') ? win.parseVlanList(raw) : [];
+    return parseVlanList(raw);
 }
 
 /**

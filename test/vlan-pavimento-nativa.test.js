@@ -106,3 +106,33 @@ test('percorso completo: la catena muta prende la nativa dichiarata del progetto
   assert.equal(out.source, 'site-native');
   assert.equal(out.eff, 99, 'il pannello della porta diceva gia’ la nativa: ora concordano');
 });
+
+// ---- Il rovescio del pavimento: dove non c'e' un cavo, non c'e' una VLAN ----
+//
+// Il pavimento vale per un cavo che COMMUTA. Un cavo che non esiste non commuta
+// niente, e il ripiego di `_getLinkTrunk` rispondeva lo stesso «access, VLAN 1»:
+// un'affermazione su un collegamento assente, indistinguibile a valle da una
+// lettura. Il filtro VLAN la prendeva per buona — `[1].includes(1)` — e un cavo
+// inesistente risultava membro della VLAN 1.
+//
+// ⚠️ E quel «1» era anche una SECONDA definizione del pavimento, scritta a mano
+// accanto a `_siteNativeVlan()`: su una sede con nativa 99 diceva 1.
+test('un cavo che non esiste non entra in nessuna VLAN, nemmeno nella 1', () => {
+  const APP = loadApp(ROOT);
+  const out = run(APP.ctx, `(() => {
+    state = _buildDefaultState();
+    state.nodes = []; state.links = []; state.ports = {};
+    state.nativeVlan = 99;                       // la sede lavora con native 99
+    if(typeof _invalidateIdx==='function') _invalidateIdx();
+    _filterVlan = 1;                             // la VLAN che c'e' sempre
+    const tk = _getLinkTrunk(null);
+    return { vlans: tk.vlans.join(','), mode: tk.mode, native: tk.native,
+             filtro: _linkMatchesVlanFilter(null), trunk: _linkIsTrunk(null) };
+  })()`);
+  // ⚠️ Stringa e non array: l'oggetto torna da un altro contesto `node:vm`, dove
+  // Array.prototype e’ un altro — `deepStrictEqual([], [])` fallirebbe.
+  assert.equal(out.vlans, '', 'niente cavo, niente VLAN trasportate');
+  assert.equal(out.filtro, false, 'il filtro VLAN 1 non deve pescare un cavo che non esiste');
+  assert.equal(out.trunk, false);
+  assert.equal(out.native, 99, 'la nativa e’ quella di SITO: il pavimento ha UNA definizione sola');
+});

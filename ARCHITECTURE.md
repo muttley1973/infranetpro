@@ -836,7 +836,7 @@ is VPN/LAN.
   (`export.js`/inline). `TYPES` è ora `export const` in `app-types.js` (importato dai
   consumatori; resta su `window.TYPES` via `expose()` per i classic). Le funzioni del
   nucleo (`renderAll`, `renderProps`, `showAlert`, …) sono `export` e importate. Ciò
-  che resta sul ponte (`win.*`, ~1800 letture) sono funzioni non ancora ritirate
+  che resta sul ponte (`win.*`, 264 letture — erano ~1800) sono funzioni non ancora ritirate
   (`selected`/`checked`/`_build*`).
 - **Commit only when asked.** Keep secrets and user data out of the repo.
 - **SNMP walk — adaptive retry kills FDB truncation under crawl load (2026-07-04).** The crawl's
@@ -1177,11 +1177,19 @@ is VPN/LAN.
   code reach globals (`win.*` read, `expose()` publish). Removing it has **two independent axes**,
   each tracked so it can only move forward:
   - **Axis A — `win.*` → real `import`.** A monotonic ratchet (`test/bridge-ratchet.test.js`,
-    `MAX_WIN_REFS`, may only decrease) drove `win.*` references down to a floor of **276**: every
+    `MAX_WIN_REFS`, may only decrease) has driven `win.*` references down to **264**: every
     retirable function is imported, and mutable view-state (`state`, `selId`, `_history`, …) lives
     behind a proxy in `src/store.js`. The residue is the pure `lib/*.js` `<script>` globals and their
-    `typeof` guards, which stay by design (importing them would re-bundle the UMD, clobbering the live
-    `<script>` copy).
+    `typeof` guards. ⚠️ It was long held that importing one of those would re-bundle the UMD and
+    clobber the live `<script>` copy — which holds only for a lib that carries **state**. A stateless
+    one can be imported by `src/` while its `<script>` tag stays for the classic scripts and the e2e
+    page probes: both copies come from the same source and hold nothing, so in a built tree they
+    cannot say different things. `lib/vlan-trunk.js` is the worked example (2026-08-23), and the
+    reason to do it was not the count. Reaching an engine through a global obliges every caller to
+    carry a fallback for «what if it is not there», and such a fallback answers instead of admitting
+    ignorance: one of them stated that a cable which did not exist carried VLAN 1. An imported module
+    is either present or the bundle does not start, so the case disappears together with the answer
+    it was inventing.
   - **Axis B — inline handlers (`onclick`/`onchange`/`oninput`/…) → event delegation.** Inline handlers
     are *why* the bridge still exists (they resolve names in page lexical scope). **A monotonic ratchet
     (`MAX_INLINE_HANDLERS` in `test/bridge-ratchet.test.js`, may only decrease) now caps their count —

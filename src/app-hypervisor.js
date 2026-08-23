@@ -9,12 +9,16 @@
 // che porta tutte le VLAN, native = mgmtVlan. Stesso identico meccanismo dei BSS
 // di un AP: nessuna logica di trunk nuova, solo una sorgente di VLAN in più.
 //
-// MODULO ESM: legge i globali legacy (nodeById, updateN, propagateVlans,
-// renderAll/renderProps, _ensureVlanColor, parseVlanList) via win.*; `t` dal
-// ponte; pubblica con expose(). Gli onclick/onchange dell'HTML girano in scope
-// PAGINA → nomi bare; in JS si usa win.*.
+// MODULO ESM, e da oggi SENZA letture da window: nucleo, VLAN, render e pannelli
+// arrivano per import. L'ultima ad andarsene è `parseVlanList`, che aveva il
+// ripiego più silenzioso di tutti: se il parser non c'era la lista usciva VUOTA,
+// e la VLAN appena dichiarata su una vNIC non entrava nella palette del progetto
+// — restava disegnata col colore di ripiego di un numero sconosciuto, senza che
+// niente lo dicesse. `t` arriva dal ponte, e si pubblica ancora con expose():
+// gli onclick/onchange dell'HTML girano in scope PAGINA, e lì i nomi si
+// risolvono bare.
 
-import { win, expose, t } from './_bridge.js';
+import { expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: selId/selType dopo l'assorbimento
 import { escapeHTML, normalizeMacAddress } from './app-util.js';
 import { nodeById, markDirty, pushHistory, _invalidateIdx, getNodeDisplayName, _showToast, _removeNodeById } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
@@ -26,6 +30,7 @@ import { registerClickActions, registerChangeActions } from './app-delegation.js
 import { _openMgmt } from './app-management.js';   // apertura console di management (stessa strategia dei device)
 import { vmNics, vmPrimaryIp, migrateVmNics, nextVmNicId, VM_FLAT_NET_FIELDS, VM_NIC_FIELDS } from '../lib/vm-nics.js';   // vNIC: lib pura importata ESM (come lib/ipv6.js)
 import { osIconHtmlFor } from '../lib/os-icon.js';   // icona OS dal guest-OS della VM (lib pura)
+import { parseVlanList } from '../lib/vlan-trunk.js';   // il parser VLAN canonico, lo stesso di carriedVlans: una vNIC su un trunk puo' dichiararne piu' d'una
 
 // Piattaforme datacenter (hypervisor) e homelab: liste diverse, stesso campo
 // `hvPlatform`. Tutte on-prem (il cloud pubblico è un modello a sé, fuori scope).
@@ -164,7 +169,7 @@ export function updateVmNic(nodeId, vmId, nicId, field, value){
     }
     if(v) nic[field] = v; else delete nic[field];
     if(field === 'vlan'){
-        const list = (typeof win.parseVlanList === 'function') ? win.parseVlanList(nic.vlan) : [];
+        const list = parseVlanList(nic.vlan);
         if(typeof _ensureVlanColor === 'function') list.forEach(x => { if(x > 1) _ensureVlanColor(x); });
         if(typeof _invalidateIdx === 'function') _invalidateIdx();
         if(typeof propagateVlans === 'function') propagateVlans();
