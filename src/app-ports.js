@@ -17,7 +17,7 @@
 //     non-strict, scrivono la stessa proprietà di window.
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { escapeHTML, uid, normalizePortStatus, hasPortStatus, portAnchorEl } from './app-util.js';   // portAnchorEl: il LED della porta, non il primo controllo del pannello con lo stesso data-pid
+import { escapeHTML, uid, normalizePortStatus, hasPortStatus, hasPortVlan, portAnchorEl } from './app-util.js';   // portAnchorEl: il LED della porta, non il primo controllo del pannello con lo stesso data-pid
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, pushHistory, renderCables, _patchPanelOffset } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { radioLabelForPid } from '../lib/radio.js';   // il nome di una radio sta sul modello, non nel pid
 import { propagateVlans, _effPortVlan, _ensureVlanColor } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -67,6 +67,13 @@ function renderPortsTable(n){
         // invece di mostrare OFF, che si leggerebbe come «l'ho dichiarata spenta».
         const stKnown = hasPortStatus(pi);
         const effStatus = stKnown ? (pi.statusOvr ?? normalizePortStatus(pi.status)) : '';
+        // Stessa regola della VLAN, e per lo stesso motivo dello stato qui sopra:
+        // `_effPortVlan` risponde SEMPRE — senza fonti scende sulla nativa di sito,
+        // che è la risposta giusta per il CAVO e non per la PORTA. Scriverla dentro
+        // l'input la trasformava in una dichiarazione: il numero va nel placeholder,
+        // dove propone, e il campo resta vuoto finché qualcuno non lo compila.
+        // ⚠️ Il pannello Proprietà lo faceva già; questa riga diceva il contrario.
+        const vlKnown = hasPortVlan(pi);
         const effVlan = _effPortVlan(pid);
         const effSpeed = pi.speedOvr ?? pi.speed ?? null;
         const spdVal = effSpeed != null ? fmtSpd(effSpeed) : '';
@@ -94,7 +101,7 @@ function renderPortsTable(n){
          data-change="port-speed" data-tip="${t('pnl.dev.speedTip')}">
   ${pi.mode==='routed'
     ? `<span class="pt-l3" data-tip="${escapeHTML(t('port.routedModeTip'))}" data-tip-wrap>${escapeHTML(t('legend.routedLink'))}</span>`
-    : `<input type="number" min="1" max="4094" value="${effVlan}"
+    : `<input type="number" min="1" max="4094" value="${vlKnown ? effVlan : ''}" placeholder="${effVlan}"
          class="${pi.vlanOvr!=null?'ovr':''}"
          data-ovr-pid="${pid}" data-ovr-field="vlanOvr" ${hidden?'disabled':''}
          data-change="port-field">`}

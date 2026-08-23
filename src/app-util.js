@@ -49,6 +49,26 @@ export function hasPortStatus(pi) {
     return p.statusOvr != null || (p.status != null && p.status !== '');
 }
 
+/**
+ * La VLAN di questa porta è DETERMINATA? Cioè: qualcuno l'ha dichiarata, oppure
+ * misurata, oppure è arrivata propagata da monte.
+ *
+ * ⚠️ Serve perché `_effPortVlan()` una risposta la dà SEMPRE: senza nessuna fonte
+ * scende sulla nativa di sito, che è la risposta giusta per il CAVO — un cavo che
+ * commuta sta sempre in una VLAN — ma non è una risposta sulla PORTA. Chi disegna
+ * un campo editabile deve distinguere le due cose: un valore scritto dentro un
+ * input è un'affermazione, e qui l'affermazione non c'è.
+ *
+ * ⭐ Sta qui, esportata, perché la usano il pannello Proprietà e la tabella porte
+ * del device. Erano due, e dicevano cose diverse: il pannello lasciava il campo
+ * vuoto col numero come segnaposto, la tabella ci scriveva `1` — stessa porta,
+ * stesso istante, due risposte. Gemella di `hasPortStatus` sopra, stessa forma.
+ */
+export function hasPortVlan(pi) {
+    const p = pi || {};
+    return p.vlanOvr != null || p.vlan >= 1 || p.vlanProp != null;
+}
+
 /** Normalizza un MAC a formato AA:BB:CC:DD:EE:FF (accetta i formati comuni). */
 export function normalizeMacAddress(v) {
     const raw = String(v || '').trim();

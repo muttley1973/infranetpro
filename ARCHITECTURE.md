@@ -163,7 +163,15 @@ lib/                   Shared browser + test modules (the heart of the app)
                     compareCidr = the one address-space ordering, shared with the panel  (pure)
   l3-gateway.js     buildL3Report → one row PER DECLARED PREFIX (not per VLAN): who routes
                     each network, both families. `byVlan` is the derived per-VLAN view for
-                    the SVI binding, which is the only genuinely per-VLAN fact  (pure)
+                    the SVI binding, which is the only genuinely per-VLAN fact.
+                    ⚠️ A VLAN with no network keeps a row of its own only when somebody
+                    performed an ACT on it — gave it a name, or chose who routes it. A
+                    colour is not an act: `vlans` arrives from `vlanColors`, which fills
+                    itself in and which a brand-new project already carries five entries
+                    of, so listing those printed «declared VLAN, no network» about VLANs
+                    nobody had declared. Same warning ipam-audit already carried; the
+                    palette itself stays whole, so a prefix citing VLAN 40 keeps its
+                    colour — what narrows is who earns a row  (pure)
   lag-audit.js      checkLagMembers → LAG member consistency (speed/VLAN mismatch);
                     checkLagPair → LACP cross-end mode coherence (both-passive /
                     lacp-vs-static)  (pure)

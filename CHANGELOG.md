@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased] — post-v2.10.1
+
+### Fixed
+
+- **The port table stopped writing «1» into the VLAN field of a port nobody had declared.** `_effPortVlan()` always answers — with no source it falls to the site native, which is the right answer for the *cable* and not for the *port* — and writing it inside an editable input turned it into a statement. The properties panel already knew this and left the field empty with the number as a placeholder, so the two disagreed about the same port at the same instant. The test is now `hasPortVlan()` in `app-util.js`, twin of the `hasPortStatus()` that was already there for the identical problem on port state, and both renderers ask it.
+- **The L3 report stopped calling «declared» the VLANs a project is merely born with.** A new project seeds `vlanColors` with 10/20/30/40/99 as a palette, and every one of them earned a row reading «declared VLAN, no network» — declared by nobody. A colour is not an act; a name is, and so is having chosen who routes it. ⚠️ The palette itself stays whole, so a prefix citing VLAN 40 keeps its colour: what narrows is who earns a row of their own. It is the same warning `ipam-audit` already carried — it compares against what was declared and never against `vlanColors` — which had not reached here.
+
 ## [2.10.1] — 2026-08-23
 
 ### Fixed

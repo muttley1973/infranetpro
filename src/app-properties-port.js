@@ -14,7 +14,7 @@
 
 import { expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { escapeHTML, normalizePortStatus, hasPortStatus } from './app-util.js';
+import { escapeHTML, normalizePortStatus, hasPortStatus, hasPortVlan } from './app-util.js';
 import { DOWN_STREAK_N, portShade } from '../lib/port-state.js';   // lib pura importata ESM: la stessa misura che colora il LED
 import { nodeById, getNodeByPortId, getPortNodeId, _isRadioPid, _enableManualValueInProps } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
@@ -415,7 +415,7 @@ export function _renderPortProps(panel){
                 // manuale, misurata via SNMP, o propagata da monte); altrimenti il
                 // campo è vuoto con la nativa di sito come placeholder — non afferma
                 // "VLAN 1" su una porta il cui PVID non è mai stato osservato (schema ①).
-                const _vlanDet = pi.vlanOvr != null || (pi.vlan >= 1) || pi.vlanProp != null;
+                const _vlanDet = hasPortVlan(pi);
                 const _vlanField = (label) => `<div class="prop-group"><label>${label}</label>
                     <div style="display:flex;gap:5px">
                       <input type="number" min="1" max="4094" value="${_vlanDet ? effVlan : ''}" placeholder="${effVlan}" class="${pi.vlanOvr!=null?'ovr':''}" style="flex:1"
