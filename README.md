@@ -123,43 +123,28 @@ Double-click <code>avvia.bat</code>.<br>
 
 > 📰 **What's new (v2.10.1) — the app stopped filling in what nobody had told it.**
 >
-> - **A VLAN nobody declared is left absent**, not written down as 1. The reader used to end every
->   port with a fallback, so a device that says nothing still produced a number that looked measured —
->   and a VLAN you had declared by hand could never prevail against it.
-> - **Three things the devices were saying and nobody was reading**: the native VLAN of a Cisco trunk,
->   the **dot1Q sub-interface** where a router-on-a-stick keeps its VLAN and its management address,
->   and what a **link aggregate** declares to the ports bundled into it. Each was reproduced on real
->   hardware before being written down.
-> - **A cable's colour has one definition** instead of the eight that had already drifted apart. An
->   access cable takes the one VLAN that applies to it; **a trunk takes none** — no VLAN wins there, so
->   it shows what it carries as coloured pills; and a **routed** link belongs to no VLAN at all, not
->   even 1. That last one **you can now declare by hand**, so a project drawn without polling anything
->   stops claiming that a router-to-router cable switches.
-> - **Everything about a cable's VLAN lives in one section** of its panel, instead of being spread
->   across it and repeated three times over.
-> - **A port with no link across three verifies is amber**, not dark grey: one turned off by hand is a
->   decision and stays quiet, while one that simply stopped having link is an ambiguous symptom worth
->   walking over to look at. And "idle" is gone — one word had been doing four different jobs.
-> - **"I could not check" stopped looking like "there is nothing wrong".** Every verification that
->   could not run now leaves its name and its reason, instead of an empty result that reads as a
->   clean bill of health.
+> - **A VLAN nobody declared is left absent**, not written down as 1. And three things the devices
+>   were saying that nobody was reading: the native VLAN of a Cisco trunk, the dot1Q sub-interface
+>   where a router-on-a-stick keeps its VLAN and its address, and what a link aggregate declares to
+>   the ports bundled into it.
+> - **A cable's colour has one definition** instead of the eight that had drifted apart. An access
+>   cable takes the one VLAN that applies; **a trunk takes none** and shows what it carries; a
+>   **routed** link belongs to no VLAN at all — and you can now declare one **by hand**, so a project
+>   drawn without polling anything stops claiming a router-to-router cable switches.
+> - **A port has three states, and "idle" is no longer one of them** — one word had been doing four
+>   jobs. A port with no link across three verifies turns amber: one switched off by hand is a
+>   decision and stays quiet, one that simply lost link is a symptom worth going to look at.
 >
 > Twenty areas were re-tested live against a home network and a 12-device, 7-OS bench.
 >
 > 📰 **v2.10.0 — the document learns where things are, and what hosts what.**
 >
-> - **A NetBox location becomes a room** on the floor plan, with its racks and devices inside it. What
->   has no location stays outside the rooms rather than tucked into one nobody declared.
-> - **Hosting virtual machines is a capability, not a type** — storage, NAS and servers carry the same
->   VM section a hypervisor does, and the import stops rewriting the type to make room for them.
-> - **A device can declare where it is in its life cycle**, so a planned device that stays quiet is
->   expected and a decommissioned one that answers is flagged.
-> - **Imported ports, patch-panel slots and racks keep their DCIM identity**, so renaming a rack
->   upstream is a rename and not a delete followed by an arrival.
-> - **The neighbour protocols got honest**: an LLDP identifier is read from the subtype it declares,
->   not from the length of its value, and a neighbour that produces no cable says why. Two devices
->   that announce each other are drawn adjacent even when the port is unknown — with `?` where the
->   port would be, rather than a port picked at random.
+> - **A NetBox location becomes a room** on the floor plan, with its racks and devices inside it.
+>   What has no location stays outside the rooms rather than in one nobody declared.
+> - **Hosting virtual machines is a capability, not a type**, so the import stops rewriting a
+>   device's type to make room for them.
+> - **An LLDP identifier is read from the subtype it declares**, not from the length of its value —
+>   the old rule lost MAC addresses written out in full and invented others out of port names.
 >
 > 📖 Earlier releases — networks as first-class objects with IPv6 parity (2.9.0), the NetBox/DCIM import (2.8.0),
 > per-interface addresses (2.8.2) — are in the [CHANGELOG](CHANGELOG.md).
