@@ -284,17 +284,21 @@ function _buildModel() {
         presence[id] = { tier: ageDays > PRESENCE_STALE_DAYS ? 'stale' : 'live', ageDays };
     }
 
-    // Nomi VLAN MISURATI (SNMP), aggregati sui nodi. Se due switch danno nomi diversi
-    // per lo stesso VID è una discordanza del fabric (conflict): la Panoramica la
-    // segnala, non sceglie un vincitore (paletto ② no-invenzioni). Solo VLAN reali.
+    // Nomi VLAN MISURATI (SNMP), aggregati sui nodi. Se due apparati danno nomi diversi
+    // per lo stesso VID è una discordanza del fabric: la Panoramica la segnala e non
+    // sceglie un vincitore (paletto ② no-invenzioni). Solo VLAN reali.
+    // ⭐ Qui si RACCOGLIE soltanto: `said` è il verbale di CHI ha detto COSA, e il
+    // giudizio — quali nomi contano per lo stesso, quindi chi discorda con chi — sta
+    // tutto nel motore (una regola sola, in un posto solo, collaudabile in Node).
+    // Senza i testimoni un conflitto è un'accusa che non si può chiudere.
     const measuredVlanNames = {};
     for (const n of nodes) {
         const mv = (n.integration && n.integration.vlanNames) || {};
         for (const vid in mv) {
             const nm = String(mv[vid] || '').trim();
             if (!nm) continue;
-            if (!(vid in measuredVlanNames)) measuredVlanNames[vid] = { name: nm, conflict: false };
-            else if (measuredVlanNames[vid].name !== nm) measuredVlanNames[vid].conflict = true;
+            const rec = measuredVlanNames[vid] || (measuredVlanNames[vid] = { name: nm, said: [] });
+            rec.said.push({ node: getNodeDisplayName(n), name: nm });
         }
     }
 

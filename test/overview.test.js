@@ -201,9 +201,9 @@ test('① Nomi VLAN via SNMP: colma le lacune e segnala i conflitti; il dichiara
     vlanIdsInUse: [10, 20, 30, 40],
     vlanNames: { 10: 'Voice', 20: 'Guest' },            // dichiarate: 10 e 20
     measuredVlanNames: {
-      10: { name: 'Voice', conflict: false },           // dichiarato = misurato → ok
-      20: { name: 'VOIP', conflict: false },            // dichiarato ≠ misurato → conflitto
-      30: { name: 'Servers', conflict: false },         // non dichiarato, ma la rete lo sa → colmabile
+      10: { name: 'Voice' },                            // dichiarato = misurato → ok
+      20: { name: 'VOIP' },                             // dichiarato ≠ misurato → conflitto
+      30: { name: 'Servers' },                          // non dichiarato, ma la rete lo sa → colmabile
       // 40: nessun nome da nessuna parte → gap semplice (né colmabile né conflitto)
     },
   });
@@ -223,9 +223,54 @@ test('① Nomi VLAN: due switch che discordano tra loro = conflitto (paletto ②
   const vn = rowOf(buildOverview({
     types: TYPES, nodes: [],
     vlanIdsInUse: [100], vlanNames: { 100: 'Voice' },
-    measuredVlanNames: { 100: { name: 'Voice', conflict: true } },   // sw1:Voice · sw2:Telefoni
+    measuredVlanNames: { 100: { name: 'Voice', said: [
+      { node: 'SW-A', name: 'Voice' }, { node: 'SW-B', name: 'Telefoni' },
+    ] } },
   }).complete, 'vlanNames');
   assert.equal(vn.extra.conflict, 1, 'gli switch discordano → conflitto, anche se il dichiarato combacia con uno');
+});
+
+test('① Il conflitto NOMINA il dissenziente: mai due volte lo stesso nome', () => {
+  // Il difetto che questo test inchioda: la riga stampava «dichiarato ↔ PRIMO misurato»,
+  // e quando a discordare erano gli apparati fra loro usciva «DATA ↔ DATA» — un'accusa
+  // che chi legge non può né capire né chiudere. Il nome divergente esisteva solo in un
+  // commento. Misurato al banco il 23/08: SW-CORE/SW-ACC1 dicono DATA, l'Arista VLAN0010.
+  const vn = rowOf(buildOverview({
+    types: TYPES, nodes: [],
+    vlanIdsInUse: [10], vlanNames: { 10: 'DATA' },
+    measuredVlanNames: { 10: { name: 'DATA', said: [
+      { node: 'SW-CORE', name: 'DATA' }, { node: 'SW-ACC1', name: 'DATA' }, { node: 'vEOS', name: 'VLAN0010' },
+    ] } },
+  }).complete, 'vlanNames');
+  assert.equal(vn.extra.conflict, 1);
+  assert.deepEqual(vn.items, [{ id: 'VLAN 10', meta: 'DATA (SW-CORE, SW-ACC1) ↔ VLAN0010 (vEOS)' }],
+    'si vede CHI dice cosa; il dichiarato non si ripete, perché due apparati lo confermano');
+});
+
+test('① Nomi VLAN: la sola MAIUSCOLA non è una discordanza del fabric', () => {
+  // Misurato al banco: la VLAN 1 è `default` per Cisco e Arista e `Default` per Extreme.
+  // È la stessa VLAN e lo stesso nome — accusarli di discordare è un falso positivo che
+  // insegna a saltare gli avvisi veri. Famiglia di macKey/addrKey: mai confronti nudi.
+  const vn = rowOf(buildOverview({
+    types: TYPES, nodes: [],
+    vlanIdsInUse: [1, 20], vlanNames: { 1: 'default', 20: 'VOIP' },
+    measuredVlanNames: {
+      1:  { name: 'default', said: [{ node: 'SW-CORE', name: 'default' }, { node: 'EXOS', name: 'Default' }] },
+      20: { name: 'voip',    said: [{ node: 'SW-CORE', name: 'voip' }] },   // dichiarato «VOIP»: stesso nome
+    },
+  }).complete, 'vlanNames');
+  assert.equal(vn.extra.conflict, 0, 'né fra apparati né contro il dichiarato: cambia solo come ogni vendor lo compita');
+  assert.deepEqual(vn.items, [], 'nessun reperto da mostrare');
+});
+
+test('① Nomi VLAN: il verbale senza rappresentante resta leggibile (lacuna colmabile)', () => {
+  const vn = rowOf(buildOverview({
+    types: TYPES, nodes: [],
+    vlanIdsInUse: [30], vlanNames: {},
+    measuredVlanNames: { 30: { said: [{ node: 'SW-CORE', name: 'SERVER' }] } },   // niente `name`
+  }).complete, 'vlanNames');
+  assert.equal(vn.extra.fromSnmp, 1, 'la rete un nome ce l\'ha: si legge dal verbale, non solo dal rappresentante');
+  assert.deepEqual(vn.items, [{ id: 'VLAN 30', meta: 'SERVER', tag: 'measured' }]);
 });
 
 test('① Gateway per subnet: le dichiarate SENZA gateway emergono come lacuna (dato dal pannello VLAN)', () => {
