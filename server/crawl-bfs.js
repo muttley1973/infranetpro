@@ -173,4 +173,64 @@ async function crawlNetwork(opts) {
   return { results, arpTables, ndTables, fdbTables, visited };
 }
 
-module.exports = { crawlNetwork, cmpIp, runPool, _ipNum, _skipNeighborIp };
+// ── probeArpCandidates(list, opts) → { rows, answered, dup } ─────────────────
+//  I candidati ARP sono host che l'ARP di un apparato SNMP dichiara ESISTENTI ma
+//  che nessun protocollo di vicinato ha annunciato. Prima di descriverli si
+//  INTERROGANO, con le stesse credenziali del crawl: fino al 23/08 uscivano tutti
+//  «osservati, bassa confidenza» anche quando rispondevano SNMP, e bastava una
+//  sweep sulla stessa subnet per ritrovarli tutti gestiti. Succede ogni volta che
+//  un apparato non parla il protocollo di vicinato del collector (al banco:
+//  l'Arista fa solo LLDP, il Cisco solo CDP → tre apparati d'infrastruttura
+//  descritti come PC).
+//  Chi non risponde resta esattamente quello che era: un host VISTO, non confermato.
+//  Dipendenze iniettate come in crawlNetwork (probe/decorate/emit) — qui non si sa
+//  nulla di SNMP né di HTTP.
+async function probeArpCandidates(list, opts) {
+  const o = opts || {};
+  const probe = o.probe, decorate = o.decorate;
+  if (typeof probe !== 'function' || typeof decorate !== 'function') {
+    throw new Error('probeArpCandidates: probe e decorate sono obbligatori');
+  }
+  const emit = typeof o.emit === 'function' ? o.emit : () => {};
+  const isAborted = typeof o.isAborted === 'function' ? o.isAborted : () => false;
+  // I nomi gia' visti dal crawl: un candidato che risponde col nome di un apparato
+  // gia' trovato e' un SUO secondo indirizzo, non un device in piu' (stessa regola
+  // di dedup del BFS — un apparato L3 risponde su tutte le sue SVI).
+  const seenNames = new Set(o.knownNames || []);
+  const items = Array.isArray(list) ? list : [];
+
+  const probes = await runPool(items, o.pool, async (c) => {
+    if (isAborted()) return null;
+    try { return await probe(c.ip); }
+    catch (e) { return { reachable: false, error: e && e.message }; }
+  });
+
+  const rows = [];
+  let answered = 0, dup = 0;
+  for (let i = 0; i < items.length; i++) {
+    if (isAborted()) break;
+    const c = items[i];
+    const pr = probes[i];
+    const via = { viaProtocol: 'ARP', viaFrom: c.viaFrom };
+    if (pr && pr.reachable) {
+      const sysN = String(pr.hostname || '').trim();
+      if (sysN && seenNames.has(sysN)) { dup++; emit({ type: 'dup', ip: c.ip, name: sysN }); continue; }
+      if (sysN) seenNames.add(sysN);
+      answered++;
+      const device = decorate({
+        ip: c.ip, mac: c.mac, hostname: pr.hostname, descr: pr.descr, objectId: pr.objectId,
+        sysServices: parseInt(pr.sysServices || 0, 10) || 0,
+        snmpReachable: true, alive: true, status: 'On', ...via,
+      }, via);
+      rows.push(device);
+      emit({ type: 'found', device, arp: true });
+      continue;
+    }
+    const device = decorate({ ip: c.ip, mac: c.mac, snmpReachable: false, alive: false, ...via }, via);
+    rows.push(device);
+    emit({ type: 'arp', device, from: c.viaFrom });
+  }
+  return { rows, answered, dup };
+}
+
+module.exports = { crawlNetwork, probeArpCandidates, cmpIp, runPool, _ipNum, _skipNeighborIp };

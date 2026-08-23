@@ -915,6 +915,16 @@ is VPN/LAN.
     on-segment IPs the local sweep/ARP is authoritative, so a dead one isn't resurrected
     from a remote device's stale table. Off-segment (the feature's real purpose) is
     unaffected. Verified in-browser: full `/24` scan 7 phantoms → 0.
+    ⭐ **And since 2026-08-23 the surviving candidates are asked who they are**
+    (`probeArpCandidates`, `server/crawl-bfs.js`, probe/decorate injected like the BFS).
+    They used to be described without being questioned — passively observed, low confidence,
+    typed by the classifier's floor as a PC — while answering SNMP with the crawl's own
+    community one UDP round-trip away; a sweep of the same subnet found every one of them
+    managed. It happens whenever a device does not speak the collector's neighbour protocol:
+    on the bench the Arista speaks only LLDP and the Cisco switches only CDP, and three pieces
+    of infrastructure came out as PCs (crawl 8 devices, sweep 11). One that answers with the
+    name of a device already found is a second address of it, not a new device; one that stays
+    silent is left exactly as it was.
   - **Local ARP read is state-aware on Windows.** `_readArpMap` now uses `netsh
     interface ipv4 show neighbors` (has the neighbour state) instead of `arp -a`, keeping
     only rows whose physical-address column is a real MAC. "Unreachable"/"Incomplete"

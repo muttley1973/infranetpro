@@ -14,7 +14,7 @@ const { _cleanHostname, PEN_VENDOR, _penFromObjectId, _vendorByObjectId, _decode
 const { OuiEngine } = require('../../engine');
 const { publicMdns } = require('../../lib/discovery-mdns');
 const dhcpDrivers = require('../dhcp-drivers');
-const { crawlNetwork } = require('../crawl-bfs');
+const { crawlNetwork, probeArpCandidates } = require('../crawl-bfs');
 
 // Concorrenza della fase deep/neighbor del crawl (probe+pollNeighbors di device GIA'
 // scoperti e autenticati SNMP → non e' una firma di scansione). Default BASSO e Pi-safe:
@@ -827,17 +827,20 @@ router.post('/api/discover/topology', auth.requireAdmin, async (req, res) => {
     let list = [...arpMap.values()];
     const truncated = list.length > CAP;
     if (truncated) list = list.slice(0, CAP);
-    for (const c of list) {
-      if (aborted) break;
-      const device = _decorateDiscoveryRow(
-        { ip: c.ip, mac: c.mac, snmpReachable: false, alive: false,
-          viaProtocol: 'ARP', viaFrom: c.viaFrom },
-        { viaProtocol: 'ARP', viaFrom: c.viaFrom }
-      );
-      results.push(device);
-      send({ type: 'arp', device, from: c.viaFrom });
-    }
-    console.log(`  [CRAWL] ARP-SNMP: ${total} candidati off-segment in ${scanCidr}${truncated ? ` (mostrati i primi ${CAP})` : ''}`);
+    // Un candidato ARP si INTERROGA prima di descriverlo: la regola (e il perché)
+    // stanno in probeArpCandidates, qui resta l'impianto idraulico.
+    const knownNames = [];
+    for (const r of results) { const h = String((r && r.hostname) || '').trim(); if (h) knownNames.push(h); }
+    const arpOut = await probeArpCandidates(list, {
+      pool: CRAWL_POOL,
+      probe: ip => drv.probe({ ...cfg, host: ip }),
+      decorate: _decorateDiscoveryRow,
+      knownNames,
+      emit: send,
+      isAborted: () => aborted,
+    });
+    for (const device of arpOut.rows) results.push(device);
+    console.log(`  [CRAWL] ARP-SNMP: ${total} candidati off-segment in ${scanCidr}${truncated ? ` (mostrati i primi ${CAP})` : ''} · ${arpOut.answered} hanno risposto SNMP`);
     if (truncated) send({ type: 'warn', message: `ARP: ${total} host visti, mostrati i primi ${CAP}` });
   }
 

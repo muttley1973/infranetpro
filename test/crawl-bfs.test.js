@@ -5,7 +5,7 @@
 // parallelismo non cambia i dati; il determinismo e' garantito dalla barriera+ordinamento).
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { crawlNetwork, cmpIp, _skipNeighborIp } = require('../server/crawl-bfs.js');
+const { crawlNetwork, probeArpCandidates, cmpIp, _skipNeighborIp } = require('../server/crawl-bfs.js');
 
 const delay = ms => new Promise(r => setTimeout(r, ms));
 // Ritardo deterministico ma "sfasato": IP piu' alto risponde PRIMA -> l'ordine di
@@ -156,4 +156,59 @@ test('abort: isAborted true ferma il crawl senza errori', async () => {
 test('cmpIp ordina numericamente per ottetti', () => {
   const a = ['10.0.0.20', '10.0.0.3', '10.0.0.100', '10.0.0.1'].sort(cmpIp);
   assert.deepEqual(a, ['10.0.0.1', '10.0.0.3', '10.0.0.20', '10.0.0.100']);
+});
+
+// ── candidati ARP: si INTERROGANO prima di descriverli ───────────────────────
+// Il difetto: un apparato che non parla il protocollo di vicinato del collector
+// (Arista solo LLDP, Cisco solo CDP) usciva dal crawl come host «osservato» a
+// bassa confidenza anche se rispondeva SNMP con la stessa community — e una sweep
+// sulla stessa subnet lo ritrovava gestito. Misurato al banco il 23/08: 3 apparati
+// d'infrastruttura (Arista, Juniper, Extreme) descritti come PC.
+const ARP_LIST = [
+  { ip: '10.0.99.13', mac: '50:45:45:aa:95:55', viaFrom: '10.0.0.1' },   // risponde
+  { ip: '10.0.99.50', mac: 'aa:bb:cc:dd:ee:ff', viaFrom: '10.0.0.1' },   // muto
+];
+// decorate finto: tiene solo cio' che serve al test (la riga vera la costruisce la route).
+const dec = (row) => ({ ip: row.ip, mac: row.mac, hostname: row.hostname || '', snmp: !!row.snmpReachable, alive: !!row.alive, via: row.viaProtocol });
+
+test('candidati ARP: chi risponde SNMP diventa un apparato, chi tace resta osservato', async () => {
+  const asked = [];
+  const probe = async (ip) => {
+    asked.push(ip);
+    return ip === '10.0.99.13'
+      ? { reachable: true, hostname: 'SW-ARISTA', descr: 'Arista Networks EOS', objectId: '1.3.6.1.4.1.30065.1' }
+      : { reachable: false };
+  };
+  const ev = [];
+  const out = await probeArpCandidates(ARP_LIST, { pool: 2, probe, decorate: dec, emit: e => ev.push(e.type) });
+  assert.deepEqual(asked.sort(), ['10.0.99.13', '10.0.99.50'], 'entrambi interrogati');
+  assert.equal(out.answered, 1);
+  assert.deepEqual(out.rows.map(r => [r.ip, r.snmp, r.hostname]), [
+    ['10.0.99.13', true, 'SW-ARISTA'],
+    ['10.0.99.50', false, ''],
+  ], 'chi risponde porta identita\' e SNMP; chi tace resta com\'era');
+  assert.deepEqual(ev.sort(), ['arp', 'found'], 'un ritrovamento e un osservato');
+});
+
+test('candidati ARP: un nome gia\' visto dal crawl e\' un SECONDO indirizzo, non un device in piu\'', async () => {
+  const probe = async () => ({ reachable: true, hostname: 'SW-CORE' });
+  const out = await probeArpCandidates([{ ip: '10.0.10.1', mac: '', viaFrom: '10.0.0.1' }], {
+    probe, decorate: dec, knownNames: ['SW-CORE'],
+  });
+  assert.equal(out.dup, 1);
+  assert.equal(out.rows.length, 0, 'nessuna riga: e\' l\'apparato che il crawl ha gia\'');
+});
+
+test('candidati ARP: una sonda che ESPLODE non ferma le altre', async () => {
+  const probe = async (ip) => { if (ip === '10.0.99.13') throw new Error('socket'); return { reachable: false }; };
+  const out = await probeArpCandidates(ARP_LIST, { probe, decorate: dec });
+  assert.equal(out.answered, 0);
+  assert.equal(out.rows.length, 2, 'l\'errore di una sonda non cancella nessun candidato');
+});
+
+test('candidati ARP: con abort non si interroga nessuno', async () => {
+  let n = 0;
+  const out = await probeArpCandidates(ARP_LIST, { probe: async () => { n++; return { reachable: true }; }, decorate: dec, isAborted: () => true });
+  assert.equal(n, 0);
+  assert.equal(out.rows.length, 0);
 });
