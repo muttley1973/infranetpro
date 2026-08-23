@@ -568,7 +568,12 @@ export function _renderLinkProps(panel){
                                          // dall'altro lato: confrontare una propagazione con la sua
                                          // sorgente farebbe sempre risultare i due capi d'accordo.
                                          srcVlans: _parseTrunkVlans(_vsp.trunkVlans || []),
-                                         dstVlans: _parseTrunkVlans(_vdp.trunkVlans || []) })
+                                         dstVlans: _parseTrunkVlans(_vdp.trunkVlans || []),
+                                         // La contraddizione fra i due capi è già DECISA dal modello del
+                                         // colore (`_linkPaintVlan`): qui si consegna il verdetto, non si
+                                         // rifà il calcolo. Rifarlo sarebbe la solita coppia di strati che
+                                         // un giorno rispondono diverso alla stessa domanda.
+                                         vlanConflict: (_pl && _pl.kind === 'conflict') ? _pl : null })
                     : [];
                 // Wireless = connessione radio↔radio (tipologia a sé, non un flag
                 // attivabile su un cavo). Sezione dedicata, niente specifiche cavo.

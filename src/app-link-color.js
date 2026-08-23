@@ -183,7 +183,12 @@ export function _linkPaintLabel(l) {
     const tip = _SRC_KEY[p.source] ? t(_SRC_KEY[p.source]) : '';
     // `source` viaggia con l'etichetta: chi la mostra deve poter distinguere una
     // VLAN LETTA da una VLAN di DEFAULT anche quando il numero è lo stesso.
-    const base = { vlan: p.vlan, kind: p.kind, source: p.source, known: p.known, color, vlans: p.vlans, tip };
+    // `ends` viaggia con l'etichetta per la stessa ragione di `source`: i due numeri
+    // in contraddizione servono anche FUORI dalla riga — al validatore del cavo, che
+    // ne fa un reperto — e farglieli ricalcolare vorrebbe dire due strati che
+    // decidono la stessa cosa. Su ogni altro esito `ends` non esiste, e infatti resta
+    // `undefined`: nessun esito diverso dalla contesa ha due capi da nominare.
+    const base = { vlan: p.vlan, kind: p.kind, source: p.source, known: p.known, color, vlans: p.vlans, ends: p.ends, tip };
     // `why` sta nella riga, `tip` nel tooltip: quando coincidono si tiene solo il
     // tooltip, o la stessa frase compare due volte a un dito di distanza.
     if (p.kind === 'vlan')   return Object.assign(base, { text: 'VLAN ' + p.vlan, why: tip });

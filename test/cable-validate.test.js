@@ -151,6 +151,33 @@ test('native VLAN mismatch su trunk fra apparati attivi → error', () => {
   assert.ok(!has(validateCable({}, { isTrunk:true, srcNative:1, dstNative:null }), 'native-mismatch'));
 });
 
+// ---- i due capi di un ACCESS dicono VLAN diverse ----------------------------
+// Gemello di `native-mismatch`, che copre la stessa contraddizione sul trunk. Sul
+// ferro il risultato è lo stesso: i due lati stanno in domini diversi e il
+// traffico non passa. Esisteva già come COLORE — il cavo usciva neutro — ma
+// nessun elenco lo nominava: il caso peggiore era l'unico senza una riga.
+//
+// ⚠️ La DECISIONE non si prende qui: arriva dal modello del colore
+// (lib/link-vlan-color.js) già fatta, in `opts.vlanConflict`. Rifare il calcolo
+// vorrebbe dire due strati che rispondono diverso alla stessa domanda.
+
+test('capi discordi su access → error vlan-ends-disagree, con i due numeri', () => {
+  const r = validateCable({}, { vlanConflict: { kind: 'conflict', ends: [20, 30] } });
+  const e = r.find(x => x.code === 'vlan-ends-disagree');
+  assert.ok(e && e.level === 'error');
+  assert.equal(e.params.a, 20);
+  assert.equal(e.params.b, 30);
+});
+
+test('senza verdetto di contesa non si inventa niente', () => {
+  assert.ok(!has(validateCable({}, {}), 'vlan-ends-disagree'));
+  assert.ok(!has(validateCable({}, { vlanConflict: null }), 'vlan-ends-disagree'));
+  // Un verdetto malformato (un capo solo, o due capi uguali) non è una contesa.
+  assert.ok(!has(validateCable({}, { vlanConflict: { ends: [20] } }), 'vlan-ends-disagree'));
+  assert.ok(!has(validateCable({}, { vlanConflict: { ends: [20, 20] } }), 'vlan-ends-disagree'));
+  assert.ok(!has(validateCable({}, { vlanConflict: { ends: 'boh' } }), 'vlan-ends-disagree'));
+});
+
 test('campi vuoti / link nullo → nessun crash, nessun problema', () => {
   assert.deepEqual(validateCable(null), []);
   assert.deepEqual(validateCable({}), []);
