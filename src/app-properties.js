@@ -180,6 +180,19 @@ function _propsKebabClose(){
  *  SNMP quando scade il contratto o quando il vendor smette di venderlo — sono
  *  DICHIARATE e basta (`n.warrantyUntil` / `n.eolDate`, data ISO). Restano vuote
  *  finche' qualcuno non le scrive: assenza, mai uno zero o una data inventata. */
+// Lucchetto manual-first VISIBILE: riflette e commuta il flag `<campo>Manual`.
+// UN significato solo per tutti i campi che lo portano — «questo valore è MIO,
+// non riscrivetelo» — ma cambia CHI lo riscriverebbe, e quindi cambia il testo:
+//   · hostname / IP / IPv6 → li aggiorna la RETE (Sync, Verifica) → `lock.locked`
+//   · stato operativo      → non lo misura nessuno, lo DICHIARA un DCIM → `lock.decl*`
+// ⚠️ Il testo del lucchetto dello stato non promette una protezione che non c'è
+// ancora: dice che cosa il segno REGISTRA, non che cosa impedisce. Vive in due
+// builder (inventario e Rete & Accesso), quindi sta qui e non dentro uno dei due.
+function _lockBtn(field, locked, decl){
+    const _k = decl ? (locked?'lock.declLocked':'lock.declUnlocked') : (locked?'lock.locked':'lock.unlocked');
+    return `<button type="button" class="toolbar-btn" style="padding:2px 7px;margin:0;font-size:0.78rem;line-height:1${locked?';color:var(--accent);border-color:var(--accent)':''}" data-tip="${t(_k)}" aria-label="${t(_k)}" aria-pressed="${locked?'true':'false'}" data-act="node-lock" data-field="${field}"><i class="fas fa-lock${locked?'':'-open'}"></i></button>`;
+}
+
 export function _buildInventoryFieldsHtml(n, d){
     const inventory = (n.integration && n.integration.inventory) || {};
     const placeholders = {
@@ -190,7 +203,13 @@ export function _buildInventoryFieldsHtml(n, d){
     };
     // Stato operativo DICHIARATO. Vuoto = non dichiarato, ed è il default: i progetti
     // che esistono si comportano esattamente come prima. `node-field-manual` scrive
-    // anche `statusManual`, così un ri-import DCIM non sovrascrive la tua scelta.
+    // anche `statusManual`, e il lucchetto accanto lo mostra e lo commuta.
+    // ⚠️ Il flag REGISTRA che lo stato è una tua dichiarazione; oggi non IMPEDISCE
+    // niente, perché l'unico altro scrittore di `node.status` è l'import DCIM, che
+    // crea un progetto NUOVO e non ha nessuna tua scelta da sovrascrivere. Sarà la
+    // metà che RISCRIVE del Sync a doverlo leggere, e non lo scoprirà per gentilezza:
+    // `test/stato-dichiarato-manual-first.test.js` fa fallire ogni nuovo scrittore di
+    // `node.status` che non consulti il flag o non si dichiari fra le eccezioni.
     const curStatus = normalizeStatus(n.status);
     const statusOpts = [''].concat(STATUSES).map(s =>
         `<option value="${escapeHTML(s)}"${s === curStatus ? ' selected' : ''}>${escapeHTML(t(s ? 'status.' + s : 'status.undeclared'))}</option>`
@@ -203,7 +222,7 @@ export function _buildInventoryFieldsHtml(n, d){
         <div class="prop-group"><label>${t('field.serial')}</label><input value="${escapeHTML(n.serialNumber||'')}" placeholder="${placeholders.serialNumber}" data-change="node-field" data-field="serialNumber"></div>
         <div class="prop-group"><label>Firmware / OS</label><input value="${escapeHTML(n.firmwareVer||'')}" placeholder="${placeholders.firmwareVer}" data-change="node-field" data-field="firmwareVer"></div>
     </div>
-    <div class="prop-group"><label>${t('field.status')}</label><select data-tip="${t('field.statusTip')}" data-change="node-field-manual" data-field="status">${statusOpts}</select></div>
+    <div class="prop-group"><label>${t('field.status')}</label><div style="display:flex;gap:5px;align-items:center"><select style="flex:1" data-tip="${t('field.statusTip')}" data-change="node-field-manual" data-field="status">${statusOpts}</select>${_lockBtn('status',!!n.statusManual,true)}</div></div>
     <div class="prop-row2">
         <div class="prop-group"><label>${t('field.warranty')}</label><input type="date" value="${escapeHTML(n.warrantyUntil||'')}" data-tip="${t('field.warrantyTip')}" data-change="node-field" data-field="warrantyUntil"></div>
         <div class="prop-group"><label>${t('field.eol')}</label><input type="date" value="${escapeHTML(n.eolDate||'')}" data-tip="${t('field.eolTip')}" data-change="node-field" data-field="eolDate"></div>
@@ -402,9 +421,6 @@ export function _buildNetAccessHtml(n, d, opts){
              ${(typeof _radioIfacesHtml==='function') ? _radioIfacesHtml(n) : ''}
            </div></details>`
         : '';
-    // Lucchetto manual-first VISIBILE: riflette/commuta il flag *Manual del campo
-    // (ipManual/hostnameManual). Bloccato = la Verifica segnala se la rete diverge.
-    const _lockBtn = (field, locked) => `<button type="button" class="toolbar-btn" style="padding:2px 7px;margin:0;font-size:0.78rem;line-height:1${locked?';color:var(--accent);border-color:var(--accent)':''}" data-tip="${t(locked?'lock.locked':'lock.unlocked')}" aria-label="${t(locked?'lock.locked':'lock.unlocked')}" aria-pressed="${locked?'true':'false'}" data-act="node-lock" data-field="${field}"><i class="fas fa-lock${locked?'':'-open'}"></i></button>`;
     return `<details class="props-collapsible" ${_propsSectionIsOpen('network-access')?'open':''} data-toggle="props-section" data-section="network-access"><summary class="props-collapsible-head"><span><i class="fas fa-link"></i> ${t('sec.netAccess')}</span>${_previewHtml}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
         ${_stackHint}
         ${includeHostname ? `<div class="prop-group"><label>Hostname</label><div style="display:flex;gap:5px;align-items:center"><input style="flex:1" value="${escapeHTML(n.hostname||'')}" placeholder="${escapeHTML(d.brand||'')}" ${_ro} data-change="node-field-manual" data-field="hostname">${_ro?'':_lockBtn('hostname',!!n.hostnameManual)}</div></div>` : ''}
