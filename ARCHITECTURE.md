@@ -597,6 +597,19 @@ propagation, or the discarded claim would cross the cable as `vlanProp` and win 
 lower: a **passive** port still inherits an untagged VLAN (it has none of its own), an
 **active** one inherits only a value that carries authority.
 
+⚠️ **The VLAN legend's routed badge is a filter, and it shares `store._filterVlan`.**
+It shows only when some cable actually falls there, reads «L3» (the same in both languages —
+the full word opens its tooltip), and a click on it shows only routed cables, exactly as a
+click on a VLAN badge shows only that VLAN's. It is a *value* of the VLAN filter rather than
+a switch of its own because the two are mutually exclusive: asking for VLAN 30 and for the
+cables that are in no VLAN at all is not a question. ⚠️ That makes `_filterVlan` a variable
+that holds a number **or** the string `FILTER_ROUTED` (`src/app-popup.js`) — the comparisons
+`_effPortVlan(pid) === store._filterVlan` therefore stay false, which is the right answer (no
+port has "routed" as its VLAN), not a coincidence to lean on. Which cables are routed is not
+recomputed for the filter: it comes from the same verdict that colours them. The other neutral
+entry, a cable whose two ends disagree, stays read-only — a finding to close, not a view to
+inhabit.
+
 ⚠️ **`routed` is consulted last, never first.** Owning an IP address is normal for any
 host; it is the switch side that decides whether a cable is in a VLAN. Measured on the
 bench: with the check placed first, a VyOS router and a wireless controller sitting on

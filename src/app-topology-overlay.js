@@ -7,7 +7,7 @@ import { _portDisplayName } from './app-ports.js';   // ritiro ponte: funzioni f
 import { _getLinkTrunk, showVlanMembers, setVlanFilter, _linkIsTrunk } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _linkPaintVlan, CABLE_NEUTRAL } from './app-link-color.js';   // colore del cavo: una definizione sola
 import { _findPortByIfName } from './app-topology-discover.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
-import { _getLinkVlan, toggleTopoTrunkFilter, toggleTopoEndpointFilter, toggleTopoWlanFilter, _linkMatchesVlanFilter, _rackPairMatchesVlan, _findProjectLinkByPorts, _drawFanoutLineDesc, _rectEdge, _showTopoTip, _hideTopoTip, _showPhysicalCablePath } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
+import { _getLinkVlan, toggleTopoTrunkFilter, toggleTopoEndpointFilter, toggleTopoWlanFilter, _linkMatchesVlanFilter, _rackPairMatchesVlan, _findProjectLinkByPorts, _drawFanoutLineDesc, _rectEdge, _showTopoTip, _hideTopoTip, _showPhysicalCablePath, FILTER_ROUTED } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
 
 // ============================================================
 // TOPOLOGIA — OVERLAY SULLA PLANIMETRIA
@@ -82,6 +82,14 @@ export function _renderTopoLegend(hidden){
                 if(typeof toggleTopoWlanFilter === 'function') toggleTopoWlanFilter();
                 return;
             }
+            // Pillola INSTRADATO: stesso gesto delle VLAN («mostra solo questi»), e
+            // stessa variabile → accenderla spegne la VLAN e viceversa. Va PRIMA del
+            // ramo VLAN: la pastiglia ne condivide la classe (è quello il punto) e
+            // `parseInt(undefined)` cadrebbe muta nel NaN.
+            if(e.target.closest('[data-routed]')){
+                setVlanFilter(store._filterVlan === FILTER_ROUTED ? null : FILTER_ROUTED);
+                return;
+            }
             const pill = e.target.closest('.topo-leg-vlan');
             if(!pill) return;
             const vid = parseInt(pill.dataset.vid, 10);
@@ -135,12 +143,28 @@ export function _renderTopoLegend(hidden){
             else if(k === 'conflict') _hasConflict = true;
             if(_hasRouted && _hasConflict) break;
         }
-        const _neutro = (chiave, mostra) => mostra
-            ? `<span class="topo-leg-novlan" data-tip="${escapeHTML(t('legend.' + chiave + 'Tip'))}" data-tip-pos="bottom"`
-              + ` style="background:${CABLE_NEUTRAL}2e;color:${CABLE_NEUTRAL};cursor:default">`
+        // ⭐ Una pastiglia sola, due ruoli. L'INSTRADATO è una pastiglia COME LE VLAN
+        // — stessa classe, stessa forma, stesso stato attivo, stesso clic: «mostra solo
+        // questi cavi» — perché è l'unica delle due voci neutre che descrive un INSIEME
+        // di cavi, quindi un posto dove si può stare. La CONTESA fra i due capi resta
+        // di sola lettura: è un reperto da chiudere, non una vista da abitare.
+        // Un solo punto che emette il markup: sono la stessa cosa a meno della classe e
+        // dell'attributo, e due copie divergerebbero al primo ritocco (oltre a contare
+        // due volte nel cricchetto degli escape).
+        const _routedActive = isInteractive && store._filterVlan === FILTER_ROUTED;
+        // ⚠️ `cls` passa da escapeHTML anche se lo compone questo file: al cricchetto
+        // degli escape un parametro di funzione è indimostrabile (non fa analisi fra
+        // procedure), e una riga in più di residuo la si paga per sempre. L'attributo
+        // NON si può escapare — ci sono dentro le sue virgolette — quindi è un ternario
+        // fra due letterali, che è la forma che lo scanner sa leggere.
+        const _neutro = (chiave, mostra, cls, filtrabile) => mostra
+            ? `<span class="${escapeHTML(cls)}"${filtrabile ? ' data-routed="1"' : ' style="cursor:default"'}`
+              + ` data-tip="${escapeHTML(t('legend.' + chiave + 'Tip'))}" data-tip-pos="bottom"`
+              + ` style="background:${CABLE_NEUTRAL}2e;color:${CABLE_NEUTRAL}">`
               + `<span class="vlan-dot" style="background:${CABLE_NEUTRAL}"></span>${escapeHTML(t('legend.' + chiave))}</span>`
             : '';
-        html += _neutro('routedLink', _hasRouted) + _neutro('conflictLink', _hasConflict);
+        html += _neutro('routedLink', _hasRouted, 'topo-leg-vlan' + (_routedActive ? ' active' : ''), true)
+             +  _neutro('conflictLink', _hasConflict, 'topo-leg-novlan', false);
         html += `</div>`;
     }
     // Pillola TRUNK (solo in topologia): toggle che evidenzia i collegamenti

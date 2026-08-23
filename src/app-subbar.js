@@ -19,6 +19,7 @@ import { store } from './store.js';
 import { TYPES } from './app-types.js';
 import { _snmpFreshness } from './app-snmp.js';   // età "adesso/min/h/gg" per l'esito auto-link
 import { snapFloor } from '../lib/floor-snap.js';   // aggancio alla griglia: stessa regola del drag (rispetta gridHidden)
+import { FILTER_ROUTED } from './app-popup.js';     // il valore «instradato» del filtro ha UNA definizione, non una stringa ricopiata qui
 
 // Nome progetto: la fonte viva e' la <select> dell'header (si aggiorna al cambio
 // progetto); fallback al nome nello store, poi a un segnaposto i18n.
@@ -143,8 +144,12 @@ function _vlanFilterEl() {
   wrap.setAttribute('tabindex', '0');
   wrap.title = t('vlanfilter.tip');
   const ico = document.createElement('i'); ico.className = 'fas fa-filter'; wrap.appendChild(ico);
-  const lbl = (typeof _vlanLabel === 'function') ? _vlanLabel(vid) : String(vid);
-  const txt = document.createElement('span'); txt.className = 'msb-vlan-txt'; txt.textContent = 'VLAN ' + lbl;
+  // Il filtro «instradato» abita la stessa variabile del filtro VLAN, ma non È una
+  // VLAN: scriverci davanti «VLAN» direbbe l'esatto contrario di quello che filtra.
+  const lbl = (vid === FILTER_ROUTED)
+    ? t('legend.routedLink')
+    : 'VLAN ' + ((typeof _vlanLabel === 'function') ? _vlanLabel(vid) : String(vid));
+  const txt = document.createElement('span'); txt.className = 'msb-vlan-txt'; txt.textContent = lbl;
   wrap.appendChild(txt);
   const x = document.createElement('i'); x.className = 'fas fa-times msb-vlan-x'; wrap.appendChild(x);
   const clear = () => { if (typeof setVlanFilter === 'function') setVlanFilter(null); };

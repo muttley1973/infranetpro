@@ -16,6 +16,11 @@ import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: cata
 import { ensureNodeRackVisible, renderRackTabs, _updateFloorToolbarVisibility } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { _effPortVlan, _getLinkTrunk, _siteNativeVlan, _vlansToRangeStr } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { radioPid } from '../lib/radio.js';   // pid porta radio (ESM, no win.*): filtro VLAN wireless
+// Il verdetto del colore serve al filtro «solo instradati»: si CONSUMA, non si
+// ridecide. ⚠️ È un anello (app-link-color importa `_getLinkVlan` da qui): innocuo,
+// perché entrambe sono dichiarazioni di funzione — nessuna delle due gira mentre i
+// moduli si valutano, solo dopo, a filtro attivo.
+import { _linkPaintVlan } from './app-link-color.js';
 import { _portDisplayName, _focusLagForPort, getPassivePortLagInfo,
          setPortField, clearPortField, setPortSpeed, removePortFromLag, startLagMode } from './app-ports.js';   // ritiro ponte + ASSE B: fn del dominio porta (ex win.*)
 import { _cancelLink } from './app-pointer.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
@@ -447,6 +452,15 @@ store._topoNeighborsCache = {};   // var: letto/scritto dal bundle src/app-topol
 store._topoTipTimer= null;   // timer per nascondere il tooltip  (var: letto/scritto dal bundle src/app-topology-overlay.js via win.*)
 store._hoverRackId = null;   // rack ID in hover sulla planimetria (proposta C)  (var: letto dal bundle via win.*)
 store._filterVlan  = null;   // VLAN ID attivo come filtro visuale (null = nessun filtro)  (var: idem)
+// ⭐ …oppure INSTRADATO. Vive nella STESSA variabile e non in un interruttore suo
+// perché è mutuamente esclusivo con una VLAN: filtrare «la 30» e «i cavi che non
+// stanno in nessuna VLAN» insieme non vuol dire niente, e due stati separati
+// avrebbero permesso di chiederlo. Gli altri toggle della legenda (ENDPOINT, WLAN,
+// TRUNK) sono un ALTRO asse — nascondono, non selezionano — e restano separati.
+// ⚠️ È una stringa in una variabile che altrove porta numeri: i confronti
+// `_effPortVlan(pid) === store._filterVlan` restano falsi, ed è la risposta GIUSTA
+// (nessuna porta ha «instradato» come VLAN), non una coincidenza da cui dipendere.
+export const FILTER_ROUTED = 'routed';   // stesso vocabolario di `_linkPaintVlan().kind`
 store._topoTrunkMode = 'all'; // pillola legenda: 'all' | 'access' | 'trunk'  (store: ex win.*)
 store._topoHideEndpoints = false; // toggle legenda: nasconde le linee verso gli endpoint  (var: idem)
 store._topoMedium = 'all';        // pillola legenda: 'all' | 'wired' | 'wireless'  (var: idem)
@@ -607,10 +621,18 @@ export function _getLinkVlan(l){
  *  la VLAN: divergenza motore↔renderer, ora unificata. */
 export function _linkMatchesVlanFilter(l){
     if(!store._filterVlan) return true;
-    const tk = (typeof _getLinkTrunk==='function') ? _getLinkTrunk(l) : null;
-    if(tk && Array.isArray(tk.vlans)) return tk.vlans.includes(store._filterVlan);
-    // Fallback (motore trunk non caricato): comportamento storico.
-    return _getLinkVlan(l)===store._filterVlan;
+    // «Solo i cavi instradati». Il verdetto NON si ricalcola qui: arriva già deciso
+    // dal modello del colore (`_linkPaintVlan` → lib/link-vlan-color), lo stesso che
+    // tinge il cavo e che accende la pastiglia in legenda. Riderivarlo da `ownsIp`
+    // sembrerebbe equivalente e non lo è — «instradato» si guarda in FONDO, dopo che
+    // nessuna VLAN si è applicata — e due risposte diverse alla stessa domanda sono
+    // il modo in cui questa classe di difetti ricomincia ogni volta.
+    if(store._filterVlan === FILTER_ROUTED) return _linkPaintVlan(l).kind === 'routed';
+    // `_getLinkTrunk` è un import ESM: o c'è o il bundle non parte. Il vecchio
+    // `typeof …==='function'` con ripiego non difendeva da niente e prometteva un
+    // comportamento alternativo che non poteva accadere.
+    const tk = _getLinkTrunk(l);
+    return !!(tk && Array.isArray(tk.vlans) && tk.vlans.includes(store._filterVlan));
 }
 
 // ---- Colori per tipo floor node (usati SOLO dall'export SVG/PDF planimetria;
