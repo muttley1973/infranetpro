@@ -149,7 +149,14 @@ lib/                   Shared browser + test modules (the heart of the app)
                     the «one chassis?» answer is injected, since lib/stack.js owns it);
                     checkLagPair → LACP mode across the two ends  (pure)
   ipam-audit.js     buildIpamAudit → duplicate addresses (v4+v6, canonical) + overlapping
-                    prefixes + addresses outside the declared plan (IPAM hygiene, doc↔doc);
+                    prefixes + addresses outside the declared plan + VLANs the document
+                    carries and the plan never names (IPAM hygiene, doc↔doc). The VLAN check
+                    compares against what was DECLARED — a name or a network — and never
+                    against `vlanColors`, which fills itself in with every VLAN ever seen and
+                    would make the check pass on every project; the site native is never
+                    accused, being the floor. `isContainerPrefix` = the one answer to «is this
+                    prefix a container», declared by hand or said by the DCIM, so a hierarchy
+                    written by hand can stop being reported as an overlap;
                     ⭐ `notChecked[]` names every check that could not run, because an
                     empty list used to mean both «nothing found» and «never looked», and
                     an audit that says nothing is believed;
@@ -475,7 +482,7 @@ outcomes, each saying one thing only:
 | `vlan` | exactly one VLAN applies | that VLAN’s colour |
 | `trunk` | it carries more than one | neutral + the carried VLANs as pills |
 | `routed` | the port is not part of the bridge: it routes | neutral, and the panel says why |
-| `conflict` | both ends name a VLAN, with equal authority, and the two differ | neutral, and the panel names both numbers |
+| `conflict` | both ends name a VLAN, with equal authority, and the two differ | neutral; the panel names both numbers, lists it among the cable’s problems at error level (`vlan-ends-disagree`, the access twin of `native-mismatch`), and the topology legend explains this second neutral |
 
 ⭐ The fourth does not describe the cable, it describes **us**: the document contradicts
 itself, so there is no answer until somebody decides. The ladder used to take the first
