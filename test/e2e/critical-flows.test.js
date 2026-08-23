@@ -4388,6 +4388,45 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.sviHasBoth, 'la sezione SVI del device elenca ENTRAMBE le reti che instrada');
     });
 
+    await t.test('igiene VLAN: una VLAN in uso che il piano non dichiara arriva a schermo', async () => {
+      // Prima non c'era NESSUN segnale: un apparato poteva portare la VLAN 30 e il
+      // piano non nominarla mai. La regola sta nei test puri di lib/ipam-audit.js;
+      // qui si chiude la catena — raccolta dal documento, audit, riga nel report —
+      // perché il pezzo in mezzo (il modello che costruisce l'app) non lo vede
+      // nessun test puro, e se smettesse di raccogliere uscirebbe «tutto a posto».
+      const r = await page.evaluate(() => {
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes.length = 0; state.links.length = 0; state.ports = {};
+        state.nodes.push({ id: 'sw1', type: 'switch', name: 'CORE', rackId: state.currentRack,
+          rackU: 1, sizeU: 1, ports: 8 });
+        // Il piano dichiara la 10 e basta. Sul filo, la porta 2 misura la 30.
+        state.ipam.prefixes.push({ cidr: '10.0.10.0/24', vlan: 10 });
+        state.ports['sw1-1'] = { vlan: 10 };
+        state.ports['sw1-2'] = { vlan: 30 };
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        const cta = document.createElement('button');
+        cta.dataset.act = 'overview-l3-report'; document.body.appendChild(cta);
+        cta.click();
+        const ov = document.getElementById('l3-overlay');
+        const hyg = ov && ov.querySelector('.l3-hygiene');
+        const txt = hyg ? hyg.textContent : '';
+        const res = {
+          sezione: !!hyg,
+          dice30: txt.indexOf('VLAN 30') >= 0,
+          diceChi: txt.indexOf('CORE') >= 0,
+          tace10: txt.indexOf('VLAN 10') < 0,
+        };
+        const cl = ov && ov.querySelector('[data-act="l3-close"]');
+        if (cl) cl.click();
+        cta.remove();
+        return res;
+      });
+      assert.ok(r.sezione, 'la sezione «igiene» compare quando c\'è qualcosa da dire');
+      assert.ok(r.dice30, 'la VLAN usata e mai dichiarata arriva fino alla riga del report');
+      assert.ok(r.diceChi, 'e la riga nomina chi la porta, che è da dove si va a guardare');
+      assert.ok(r.tace10, 'la VLAN dichiarata nel piano NON viene accusata');
+    });
+
     await t.test('app-drift-adopt migrato: candidati + creazione nodi + dedup nel browser reale', async () => {
       // Copertura spostata dallo smoke. Esercita anche il var-ify di _driftReport:
       // il modulo (bundle) legge win._driftReport che impostiamo qui dalla pagina.

@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { buildIpamAudit, findDuplicateIps, findSubnetOverlaps, findExpectedOverlaps, findAddressesOutsidePlan, isContainerPrefix, containerDeclarationFor } = require('../lib/ipam-audit.js');
+const { buildIpamAudit, findDuplicateIps, findSubnetOverlaps, findExpectedOverlaps, findAddressesOutsidePlan, isContainerPrefix, containerDeclarationFor, declaredVlans, findVlansOutsidePlan, collectVlansInUse } = require('../lib/ipam-audit.js');
 const { _parseCidrInfo } = require('../lib/cidr.js');
 
 // ---- findDuplicateIps -------------------------------------------------------
@@ -201,6 +201,100 @@ test('l\'interruttore salva la DIFFERENZA rispetto alla sorgente, non il suo sta
   // ⚠️ Senza questa regola ogni rete che apri porterebbe a casa un `container:false`
   // che non afferma niente: la zavorra dei campi che si pre-compilavano da soli.
   assert.equal(containerDeclarationFor(null, false), '', 'input sporco non lancia');
+});
+
+// ---- le VLAN fuori dal piano ------------------------------------------------
+// Il declare-first applicato alle VLAN, gemello di `addressesOutsidePlan`. Prima
+// non c'era NESSUN segnale: un cavo poteva portare la VLAN 30 e il piano non
+// nominarla mai, e il documento non se ne accorgeva.
+//
+// ⚠️ Il confronto NON si fa contro `vlanColors`: quello si riempie da solo con
+// ogni VLAN letta via SNMP, quindi «usate» e «note» erano lo stesso insieme e il
+// controllo sarebbe uscito sempre verde.
+
+const { carriedVlans, parseVlanList } = require('../lib/vlan-trunk.js');
+const _nodeOfPort = (nodi) => (pid) => nodi.find(n => String(pid || '').startsWith(n.id + '-')) || null;
+
+test('collectVlansInUse: le TRE sorgenti, e nessuna dimenticata', () => {
+  const nodi = [
+    { id: 'sw', name: 'CORE' },
+    { id: 'ap', name: 'AP-1', radios: [{ ssids: [{ vlan: 40 }] }] },      // SSID
+    { id: 'tel', name: 'TEL', type: 'voip', spec: { voiceVlan: 50 } },     // voce VoIP
+    { id: 'hv', name: 'HV', vms: [{ nics: [{ vlan: 60 }] }] },             // vNIC di VM
+  ];
+  const uso = collectVlansInUse({
+    ports: {
+      'sw-1': { vlan: 10 },                        // misurata
+      'sw-2': { vlanOvr: 20 },                     // dichiarata a mano
+      'sw-3': { vlanProp: 30 },                    // propagata
+      'sw-4': { trunkVlans: '70,80' },             // trasportate del trunk
+      'sw-5': { trunkProp: [90] },                 // propagate lungo il run passivo
+    },
+    nodes: nodi,
+    links: [{ src: 'sw-6', dst: 'ap-1', trunkVlans: '99' }],   // trunk scritto sul cavo
+    carriedVlans, parseVlanList, nodeOfPort: _nodeOfPort(nodi),
+    nameOf: n => (n ? n.name : ''),
+  });
+  assert.deepEqual(uso.map(u => u.vlan), [10, 20, 30, 40, 50, 60, 70, 80, 90, 99]);
+  assert.deepEqual(uso.find(u => u.vlan === 10).where, ['CORE'], 'e si dice CHI la porta');
+  assert.deepEqual(uso.find(u => u.vlan === 40).where, ['AP-1']);
+});
+
+test('collectVlansInUse: numeri fuori range e input sporchi non entrano', () => {
+  const uso = collectVlansInUse({
+    ports: { 'x-1': { vlan: 0 }, 'x-2': { vlan: 4095 }, 'x-3': { vlanOvr: 'boh' }, 'x-4': null },
+    nodes: [null], links: [null, { trunkVlans: '' }],
+    carriedVlans, parseVlanList,
+  });
+  assert.deepEqual(uso, []);
+});
+
+test('declaredVlans: dichiarare è un ATTO — un nome, oppure una rete', () => {
+  const piano = declaredVlans(
+    [{ cidr: '10.0.10.0/24', vlan: 10 }, { cidr: '10.0.0.0/24', vlan: null }],
+    { 20: 'Voce', 30: '   ' },   // il nome vuoto non dichiara niente
+  );
+  assert.deepEqual([...piano].sort((a, b) => a - b), [10, 20]);
+});
+
+test('findVlansOutsidePlan: si dice solo ciò che il piano non nomina', () => {
+  const uso = [{ vlan: 10, where: ['CORE'] }, { vlan: 30, where: ['CORE', 'AP-1'] }];
+  const fuori = findVlansOutsidePlan(uso, new Set([10]), 1);
+  assert.equal(fuori.length, 1);
+  assert.equal(fuori[0].vlan, 30);
+  assert.deepEqual(fuori[0].where, ['CORE', 'AP-1'], 'con i nomi di chi la porta');
+});
+
+test('findVlansOutsidePlan: la nativa di SITO non si accusa mai', () => {
+  // È il pavimento: chiedere di dichiararlo sarebbe una riga su ogni progetto, e
+  // una riga che compare sempre non la legge più nessuno.
+  assert.deepEqual(findVlansOutsidePlan([{ vlan: 1 }], new Set([10]), 1), []);
+  assert.deepEqual(findVlansOutsidePlan([{ vlan: 99 }], new Set([10]), 99), [], 'e vale per la nativa spostata');
+  assert.equal(findVlansOutsidePlan([{ vlan: 99 }], new Set([10]), 1).length, 1, 'ma 99 senza esserlo si dice');
+});
+
+test('findVlansOutsidePlan: un piano VUOTO non accusa nessuno', () => {
+  // La stessa guardia degli indirizzi: nessuna VLAN dichiarata = nessun metro, e
+  // accusarle tutte non sarebbe una scoperta, solo il rumore di un confronto
+  // contro il nulla — su ogni progetto che non usa ancora la sezione VLAN.
+  assert.deepEqual(findVlansOutsidePlan([{ vlan: 10 }, { vlan: 20 }], new Set(), 1), []);
+});
+
+test('buildIpamAudit: il piano VLAN vuoto si DICHIARA non controllato', () => {
+  const a = buildIpamAudit({ prefixes: [], nodes: [], vlansInUse: [{ vlan: 30 }], parseCidr: _parseCidrInfo });
+  assert.deepEqual(a.vlansOutsidePlan, []);
+  assert.ok(a.notChecked.some(c => c.check === 'vlansOutsidePlan' && c.reason === 'no-vlan-plan'),
+    'una lista vuota non deve poter dire due cose opposte');
+});
+
+test('buildIpamAudit: con un piano, la VLAN non dichiarata esce', () => {
+  const a = buildIpamAudit({
+    prefixes: [{ cidr: '10.0.10.0/24', vlan: 10 }],
+    nodes: [], vlansInUse: [{ vlan: 10 }, { vlan: 30, where: ['CORE'] }],
+    siteNativeVlan: 1, parseCidr: _parseCidrInfo,
+  });
+  assert.deepEqual(a.vlansOutsidePlan.map(v => v.vlan), [30]);
+  assert.ok(!a.notChecked.some(c => c.check === 'vlansOutsidePlan'), 'e il controllo è girato davvero');
 });
 
 test('anche dichiarato, lo sconto resta solo del PIÙ LARGO', () => {
@@ -411,7 +505,12 @@ test('senza lettore CIDR: sovrapposizioni e fuori-piano si dichiarano NON esegui
 test('nessun piano dichiarato: il fuori-piano si dichiara non eseguito, non «pulito»', () => {
   const a = buildIpamAudit({ nodes: [{ id: 'a', ip: '192.168.77.5' }], prefixes: [], parseCidr: _parseCidrInfo });
   assert.deepEqual(a.addressesOutsidePlan, []);
-  assert.deepEqual(a.notChecked, [{ check: 'addressesOutsidePlan', reason: 'no-plan' }]);
+  // Senza prefissi mancano DUE metri, non uno: le reti dichiarate e le VLAN
+  // dichiarate (che dai prefissi arrivano anche loro). Si dicono tutt'e due.
+  assert.deepEqual(a.notChecked, [
+    { check: 'addressesOutsidePlan', reason: 'no-plan' },
+    { check: 'vlansOutsidePlan', reason: 'no-vlan-plan' },
+  ]);
 });
 
 test('un prefisso senza CIDR non conta come piano', () => {

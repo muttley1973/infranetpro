@@ -499,6 +499,7 @@ export function _getLinkTrunk(l){
 }
 export function _linkIsTrunk(l){ return _getLinkTrunk(l).mode === 'trunk'; }
 
+
 // Imposta la VLAN NATIVA (untagged/PVID) di un trunk scrivendo il `vlanOvr` del
 // capo ATTIVO del link (switch/router) — la nativa È il PVID di quella porta,
 // nessun modello nuovo. Su switch↔switch scrive il capo attivo trovato. Tiene il

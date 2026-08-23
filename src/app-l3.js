@@ -17,7 +17,9 @@ import { getNodeDisplayName, _ipamUsageForPrefix, getNodeByPortId } from './app.
 import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: voce menu Report + report L3 (template dinamico) via event delegation
 import { _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte: builder pannello (ex win.*)
 import { closeReportMenu } from './app-auth.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
-import { updateVlanIpam } from './app-vlan-autopoll.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
+import { updateVlanIpam, _siteNativeVlan } from './app-vlan-autopoll.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*) + il pavimento VLAN
+import { collectVlansInUse } from '../lib/ipam-audit.js';   // «quali VLAN usa il documento»: raccolta PURA, con le funzioni iniettate qui sotto
+import { carriedVlans, parseVlanList } from '../lib/vlan-trunk.js';   // cosa trasporta un apparato / parser VLAN: unica definizione
 import { vmIps, vmIp6s } from '../lib/vm-nics.js';   // lib pura importata ESM (come lib/ipv6.js): NON un globale su window
 import { ipamByVidView, prefixesOf } from '../lib/ipam-model.js';   // l'autorità sui prefissi + la vista per-VLAN (per `gatewayNodeId`)
 import { compareCidr } from '../lib/ipam-audit.js';   // l'ordine dello spazio degli indirizzi: la STESSA regola dell'elenco «Reti»
@@ -124,7 +126,19 @@ function _l3BuildModel(withUsage, opts){
             try { usageByCidr[String(p.cidr)] = _ipamUsageForPrefix(p.cidr, p.gateway || '').usedCount; } catch(_){}
         }
     }
+    // Per l'igiene VLAN: il PIANO (i nomi dati a mano + i prefissi qui sopra) e
+    // l'USO (dove le VLAN vivono davvero). Due elenchi diversi apposta — `vlans`
+    // qui sopra viene da `vlanColors`, che si riempie da solo con ogni VLAN letta
+    // via SNMP e quindi non può fare da piano.
     return { prefixes, vlans, ipamByVid, nodes, usageByCidr,
+             vlanNames: store.state.vlanNames || {},
+             vlansInUse: collectVlansInUse({
+                 ports: store.state.ports, nodes: store.state.nodes, links: store.state.links,
+                 carriedVlans, parseVlanList,
+                 nodeOfPort: getNodeByPortId,
+                 nameOf: n => (n ? (getNodeDisplayName(n) || n.name || n.id || '') : ''),
+             }),
+             siteNativeVlan: _siteNativeVlan(),
              parseCidr: win._parseCidrInfo, ipInCidr: win._ipInCidr, compareCidr };
 }
 export function _l3Compute(withUsage){ return win.buildL3Report(_l3BuildModel(withUsage)); }
@@ -278,8 +292,9 @@ function _l3StatusBadge(row){
 function _l3HygieneHtml(audit, esc){
     const _expected = (audit && audit.subnetOverlapsExpected) ? audit.subnetOverlapsExpected.length : 0;
     const _fuori = (audit && audit.addressesOutsidePlan) ? audit.addressesOutsidePlan : [];
+    const _vlanFuori = (audit && audit.vlansOutsidePlan) ? audit.vlansOutsidePlan : [];
     const _nc = (audit && audit.notChecked) ? audit.notChecked : [];
-    if(!audit || (!audit.duplicateIps.length && !audit.subnetOverlaps.length && !_expected && !_fuori.length && !_nc.length)) return '';
+    if(!audit || (!audit.duplicateIps.length && !audit.subnetOverlaps.length && !_expected && !_fuori.length && !_vlanFuori.length && !_nc.length)) return '';
     const rs = 'style="font-size:0.8rem;color:var(--text-muted);padding:2px 0"';
     const rows = [];
     for(const d of audit.duplicateIps){
@@ -304,6 +319,20 @@ function _l3HygieneHtml(audit, esc){
     for(const a of _fuori){
         rows.push(`<div ${rs}>⚠ ${t('l3.outsidePlanRow',{ip:`<b>${esc(a.ip)}</b>`, name:esc(a.node && a.node.name)})}</div>`);
     }
+    // Lo stesso declare-first, applicato alle VLAN: il documento la trasporta e il
+    // piano non ne sa niente — né un nome, né una rete. Non si dice QUALE delle due
+    // cose sia (configurata e mai scritta, oppure scritta e non più quella): sono
+    // conclusioni diverse e la scelta è di chi legge, come per gli indirizzi.
+    // ⚠️ I nomi di chi la porta si fermano a tre: una VLAN su quaranta porte
+    // riempirebbe la riga di un elenco che nessuno legge, e la riga serve a far
+    // guardare da qualche parte, non a fare l'inventario.
+    for(const v of _vlanFuori){
+        const chi = (v.where || []).map(String);
+        const testa = chi.slice(0, 3).join(', ') + (chi.length > 3 ? ` +${chi.length - 3}` : '');
+        rows.push(`<div ${rs}>⚠ ${chi.length
+            ? t('l3.vlanOutsidePlanRow', { vlan:`<b>VLAN ${+v.vlan}</b>`, where: esc(testa) })
+            : t('l3.vlanOutsidePlanRowBare', { vlan:`<b>VLAN ${+v.vlan}</b>` })}</div>`);
+    }
     // ⭐ E in fondo cio' che NON e' stato controllato. Senza questa riga una lista
     // vuota diceva due cose opposte con la stessa faccia — «ho guardato, e' pulito»
     // e «non ho guardato» — e in un audit la seconda viene creduta come la prima.
@@ -325,7 +354,7 @@ function openL3Report(){
     // non era caricata, o se lanciava, il report scriveva «nessun problema» su un
     // audit mai partito — la bugia peggiore che un audit possa dire.
     let audit = { duplicateIps: [], subnetOverlaps: [], subnetOverlapsExpected: [],
-                  addressesOutsidePlan: [], notChecked: [{ check: 'all', reason: 'no-audit' }] };
+                  addressesOutsidePlan: [], vlansOutsidePlan: [], notChecked: [{ check: 'all', reason: 'no-audit' }] };
     try { if(typeof buildIpamAudit === 'function') audit = buildIpamAudit(_l3BuildModel(false, { withVmIps: true })); } catch(_){ /* ripiego: resta «non controllato» */ }
     const ov = _l3EnsureOverlay();
     ov.style.display = 'flex';
