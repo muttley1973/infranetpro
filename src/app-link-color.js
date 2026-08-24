@@ -29,9 +29,11 @@ import { linkPaintVlan } from '../lib/link-vlan-color.js';   // la DECISIONE pur
 // di sito, perche' e' li' che ogni bridge mette cio' che non e' stato assegnato.
 // NON e' il grigio della VLAN 1 (`vlanColors[1]`, che l'utente puo' cambiare):
 // «nessuna VLAN» e «VLAN 1» sono due cose diverse e non devono somigliarsi.
-// Ardesia desaturata: si stacca dal grigio neutro per TINTA, non solo per
-// luminosita', e regge sia il tema scuro sia il chiaro.
-export const CABLE_NEUTRAL = '#6b7d99';
+// Grigio neutro dei cavi senza VLAN (trunk multi-VLAN, instradato). Tenuto un
+// gradino piu' CHIARO del grigio delle porte inattive (--inactive-color): un
+// cavo che passa SOPRA una porta a riposo deve restare visibile, non
+// confondersi con lei. Diverso anche dal grigio della VLAN 1.
+export const CABLE_NEUTRAL = '#979ca4';
 
 let _subIfIdx = null;    // parentPid → number[] VLAN delle sotto-interfacce
 let _cableCnt = null;    // nodeId    → quanti cavi tocca il nodo

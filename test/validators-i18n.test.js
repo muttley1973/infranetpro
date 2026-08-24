@@ -35,6 +35,7 @@ const CABLE_CASES = [
   [{ medium: 'copper', maxSpeed: '1G' }, { snmpSpeedMbps: 10000 }],
   [{ medium: 'copper' }, { snmpMedium: 'fiber' }],
   [{}, { isTrunk: true, srcNative: 1, dstNative: 99 }],
+  [{}, { ipVlanMismatch: { ip: 99, port: 1 } }],
 ];
 const WIFI_CASES = [
   { band: '2.4', channel: 99 },

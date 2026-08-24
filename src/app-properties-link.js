@@ -586,7 +586,16 @@ export function _renderLinkProps(panel){
                                          // colore (`_linkPaintVlan`): qui si consegna il verdetto, non si
                                          // rifà il calcolo. Rifarlo sarebbe la solita coppia di strati che
                                          // un giorno rispondono diverso alla stessa domanda.
-                                         vlanConflict: (_pl && _pl.kind === 'conflict') ? _pl : null })
+                                         vlanConflict: (_pl && _pl.kind === 'conflict') ? _pl : null,
+                                         // Cavo dipinto dalla VLAN dell'IP dell'endpoint (declared-ip) ma la
+                                         // porta risulta in un'altra VLAN: reperto sobrio, verdetto gia' deciso a
+                                         // monte (link-vlan-color). Qui si consegna, non si ricalcola la VLAN.
+                                         ipVlanMismatch: (()=>{
+                                             if(!(_pl && _pl.kind==='vlan' && _pl.source==='declared-ip')) return null;
+                                             const _evs=[_effPortVlan(l.src),_effPortVlan(l.dst)].map(v=>parseInt(v,10)).filter(v=>v>=1&&v<=4094);
+                                             const _diff=_evs.find(v=>v!==_pl.vlan);
+                                             return _diff ? { ip:_pl.vlan, port:_diff } : null;
+                                         })() })
                     : [];
                 // Wireless = connessione radio↔radio (tipologia a sé, non un flag
                 // attivabile su un cavo). Sezione dedicata, niente specifiche cavo.

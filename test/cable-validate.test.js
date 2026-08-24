@@ -178,6 +178,27 @@ test('senza verdetto di contesa non si inventa niente', () => {
   assert.ok(!has(validateCable({}, { vlanConflict: { ends: 'boh' } }), 'vlan-ends-disagree'));
 });
 
+// ---- Regola 13: IP di un capo in VLAN diversa da quella della porta ---------
+// Il colore del cavo può prendere la VLAN dall'INDIRIZZO dell'endpoint
+// (source 'declared-ip') mentre la porta resta sul pavimento (VLAN 1): due numeri
+// per lo stesso cavo. Il verdetto arriva già DECISO dalla glue (opts.ipVlanMismatch),
+// qui diventa un reperto sobrio — gemello di vlan-ends-disagree, warn non error.
+test('regola 13: IP in VLAN diversa dalla porta → warn coi due numeri', () => {
+  const r = validateCable({}, { ipVlanMismatch: { ip: 99, port: 1 } });
+  const w = r.find(x => x.code === 'ip-vlan-mismatch');
+  assert.ok(w && w.level === 'warn', 'è un avviso sobrio, non un errore');
+  assert.equal(w.params.ip, 99);
+  assert.equal(w.params.port, 1);
+});
+
+test('regola 13: niente avviso se concordano, o se il dato manca/è invalido', () => {
+  assert.equal(has(validateCable({}, { ipVlanMismatch: { ip: 99, port: 99 } }), 'ip-vlan-mismatch'), false);
+  assert.equal(has(validateCable({}, {}), 'ip-vlan-mismatch'), false);
+  assert.equal(has(validateCable({}, { ipVlanMismatch: null }), 'ip-vlan-mismatch'), false);
+  assert.equal(has(validateCable({}, { ipVlanMismatch: { ip: 99 } }), 'ip-vlan-mismatch'), false);
+  assert.equal(has(validateCable({}, { ipVlanMismatch: { ip: 'x', port: 1 } }), 'ip-vlan-mismatch'), false);
+});
+
 test('campi vuoti / link nullo → nessun crash, nessun problema', () => {
   assert.deepEqual(validateCable(null), []);
   assert.deepEqual(validateCable({}), []);
