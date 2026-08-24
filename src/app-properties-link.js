@@ -264,10 +264,23 @@ export function _renderLinkProps(panel){
         const _pfBadge = _pfOn ? _cableProofBadgeHtml(cableProof(l, srcNode && srcNode.proof, dstNode && dstNode.proof)) : '';
         // Miscablaggio: la porta annuncia via LLDP/CDP un vicino diverso dal cavo →
         // dice COSA vede vs COSA dice il documento (spec Proof-State §4.3).
-        const _misName = (id) => { const nn = (store.state.nodes || []).find(x => x && x.id === id); return (nn && getNodeDisplayName(nn)) || String(id || ''); };
-        const miscabledBanner = l.miscabled ? `<div class="link-verify-banner" style="border-color:rgba(207,34,46,.40);background:rgba(207,34,46,.08)">
+        // Se i due capi sono OMONIMI (due nodi «SW-CORE») miscabledLabels disambigua
+        // con IP/tipo/id: il messaggio non collassa in «annuncia SW-CORE, non SW-CORE».
+        const _misInfo = (id) => { const nn = (store.state.nodes || []).find(x => x && x.id === id); return nn ? { name: getNodeDisplayName(nn), ip: nn.ip, type: nn.type } : null; };
+        const _misL = l.miscabled ? miscabledLabels(l.miscabled.observed, l.miscabled.declared, _misInfo) : null;
+        const miscabledBanner = _misL ? `<div class="link-verify-banner" style="border-color:rgba(207,34,46,.40);background:rgba(207,34,46,.08)">
                 <div class="link-verify-msg"><i class="fas fa-triangle-exclamation" style="color:#cf222e"></i>
-                    <span>${t('cable.miscabledMsg', { obs: escapeHTML(_misName(l.miscabled.observed)), decl: escapeHTML(_misName(l.miscabled.declared)) })}</span>
+                    <span>${t('cable.miscabledMsg', { obs: escapeHTML(_misL.obs), decl: escapeHTML(_misL.decl) })}</span>
+                </div></div>` : '';
+        // Conflitto di porta: una porta fisica (non passante) con >=2 cavi — il segnale
+        // a MONTE del miscablaggio, strutturale, visibile senza alcuna Verifica.
+        const _ptPass = new Set((store.state.nodes || []).filter(n => n && TYPES[n.type] && TYPES[n.type].passThrough).map(n => n.id));
+        const _ptOwner = {}; for (const _pl of (store.state.links || [])) { if (_pl && _pl.src) _ptOwner[_pl.src] = getNodeByPortId(_pl.src)?.id; if (_pl && _pl.dst) _ptOwner[_pl.dst] = getNodeByPortId(_pl.dst)?.id; }
+        const _ptConf = detectPortConflicts(store.state.links || [], _ptOwner, _ptPass);
+        const _ptHit = l.wireless ? null : [l.src, l.dst].find(pid => _ptConf[pid] && _ptConf[pid].length >= 2);
+        const portConflictBanner = _ptHit ? `<div class="link-verify-banner" style="border-color:rgba(207,34,46,.40);background:rgba(207,34,46,.08)">
+                <div class="link-verify-msg"><i class="fas fa-triangle-exclamation" style="color:#cf222e"></i>
+                    <span>${t('cable.portConflict', { n: _ptConf[_ptHit].length })}</span>
                 </div></div>` : '';
         // Modalita' della porta come PASTIGLIA, in testa ai badge del cavo: risponde
         // alla stessa domanda degli altri («che cos'e' questo collegamento») ed e' la
@@ -324,7 +337,7 @@ export function _renderLinkProps(panel){
               ${hasManualLbl?`<div style="font-size:0.7rem;color:var(--text-muted);margin-top:3px"><i class="fas fa-arrow-right-arrow-left" style="font-size:0.6rem;margin-right:3px"></i>${escapeHTML(autoLbl)}</div>`:''}
             </div>
             ${verifyBanner}
-            ${autoEditBar}${miscabledBanner}
+            ${autoEditBar}${miscabledBanner}${portConflictBanner}
 
             <details class="props-collapsible props-primary" ${_propsSectionIsOpen('link-vlan')?'open':''} data-toggle="props-section" data-section="link-vlan" style="margin-top:14px">
               <summary class="props-collapsible-head"><span><i class="fas fa-network-wired"></i> VLAN</span>${_vlanPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
