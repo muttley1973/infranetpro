@@ -264,5 +264,5 @@ test('il cavo esce instradato passando dal SETTER, non dallo stato scritto a man
   const o = JSON.parse(r);
   assert.equal(o.kind, 'routed');
   assert.equal(o.source, 'ovr-routed');
-  assert.equal(o.colore, '#979ca4', 'il neutro dei cavi, preso da CABLE_NEUTRAL');
+  assert.equal(o.colore, '#a6aab1', 'il neutro dei cavi, preso da CABLE_NEUTRAL');
 });

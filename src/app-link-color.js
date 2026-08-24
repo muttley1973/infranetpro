@@ -33,7 +33,7 @@ import { linkPaintVlan } from '../lib/link-vlan-color.js';   // la DECISIONE pur
 // gradino piu' CHIARO del grigio delle porte inattive (--inactive-color): un
 // cavo che passa SOPRA una porta a riposo deve restare visibile, non
 // confondersi con lei. Diverso anche dal grigio della VLAN 1.
-export const CABLE_NEUTRAL = '#979ca4';
+export const CABLE_NEUTRAL = '#a6aab1';
 
 let _subIfIdx = null;    // parentPid → number[] VLAN delle sotto-interfacce
 let _cableCnt = null;    // nodeId    → quanti cavi tocca il nodo

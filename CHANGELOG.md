@@ -13,7 +13,7 @@
 
 ### Changed
 
-- **The neutral cable colour is kept a step lighter than the inactive-port grey** (`#6b7d99` → `#979ca4`), so a neutral cable (multi-VLAN trunk or routed) crossing a port at rest stays visible instead of blending with `--inactive-color`. One definition — floor, rack, topology, PDF and draw.io all follow.
+- **The neutral cable colour is kept a step lighter than the inactive-port grey** (`#6b7d99` → `#a6aab1`), so a neutral cable (multi-VLAN trunk or routed) crossing a port at rest stays visible instead of blending with `--inactive-color`. One definition — floor, rack, topology, PDF and draw.io all follow.
 
 ## [2.10.1] — 2026-08-23
 
