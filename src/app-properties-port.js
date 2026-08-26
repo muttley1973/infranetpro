@@ -422,7 +422,7 @@ export function _renderPortProps(panel){
                              data-change="port-field" data-pid="${pid}" data-pfield="vlanOvr">
                       <button type="button" class="toolbar-btn" style="padding:2px 7px;margin:0;font-size:0.78rem;line-height:1${pi.vlanOvr!=null?';color:var(--accent);border-color:var(--accent)':''}" data-tip="${t(pi.vlanOvr!=null?'lock.locked':'lock.unlocked')}" aria-label="${t(pi.vlanOvr!=null?'lock.locked':'lock.unlocked')}" aria-pressed="${pi.vlanOvr!=null?'true':'false'}" data-act="port-vlan-lock" data-pid="${pid}"><i class="fas fa-lock${pi.vlanOvr!=null?'':'-open'}"></i></button>
                     </div>
-                    ${state.vlanNames?.[effVlan]?`<div style="font-size:0.73rem;color:var(--text-muted);margin-top:3px;padding-left:2px"><i class="fas fa-tag" style="font-size:0.65rem;margin-right:4px"></i>${escapeHTML(state.vlanNames[effVlan])}</div>`:''}
+                    ${state.vlanNames?.[effVlan]?`<div style="font-size:var(--fs-md);color:var(--text-muted);margin-top:3px;padding-left:2px"><i class="fas fa-tag" style="font-size:0.65rem;margin-right:4px"></i>${escapeHTML(state.vlanNames[effVlan])}</div>`:''}
                   </div>`;
 
                 // Porta passiva (patch/presa/…): solo il campo VLAN semplice.
@@ -491,8 +491,8 @@ export function _renderPortProps(panel){
                      </span>`
                   : _isTrunk
                   ? `<span style="background:#0e2233;border:1px solid #2d6a9f;border-radius:4px;padding:2px 10px;font-size:0.78rem;font-weight:700;color:#5ba3f5">TRUNK</span>
-                     <span style="margin-left:6px;font-size:0.75rem;color:var(--text-muted)">${t('cable.trunkNative')}&nbsp;<b style="color:var(--text-main)">VLAN ${effVlan}</b></span>
-                     ${_tagged.length?`<span style="margin-left:6px;font-size:0.75rem;color:var(--text-muted)">· ${t('cable.trunkCarried')}&nbsp;<b style="color:var(--text-main)">${_tagged.join(', ')}</b></span>`:''}
+                     <span style="margin-left:6px;font-size:var(--fs-md);color:var(--text-muted)">${t('cable.trunkNative')}&nbsp;<b style="color:var(--text-main)">VLAN ${effVlan}</b></span>
+                     ${_tagged.length?`<span style="margin-left:6px;font-size:var(--fs-md);color:var(--text-muted)">· ${t('cable.trunkCarried')}&nbsp;<b style="color:var(--text-main)">${_tagged.join(', ')}</b></span>`:''}
                      ${_fromSnmp?`<span style="margin-left:6px;font-size:0.68rem;color:#5ba3f5"><i class="fas fa-satellite-dish"></i> SNMP</span>`:''}`
                   : `<span style="display:inline-flex;align-items:center;gap:6px">
                        <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${_color};flex-shrink:0;border:1px solid rgba(255,255,255,.18)"></span>
@@ -500,7 +500,7 @@ export function _renderPortProps(panel){
                      </span>`;
                 return `
                   <div class="prop-group" style="margin-top:6px"><label>VLAN</label>
-                    <div style="padding:4px 0;font-size:0.83rem;color:var(--text-main)">${_badge}</div>
+                    <div style="padding:4px 0;font-size:var(--fs-md);color:var(--text-main)">${_badge}</div>
                   </div>
                   <div class="prop-group" style="margin-top:8px;border-top:1px solid var(--panel-border);padding-top:8px">
                     <label>${t('cable.portMode')}</label>
@@ -513,11 +513,11 @@ export function _renderPortProps(panel){
                   ${_isRouted ? _routedNetField() : _vlanField(_isTrunk ? t('cable.trunkNativeLabel') : 'VLAN')}
                   ${_isTrunk?`<div class="prop-group">
                     <label style="display:flex;align-items:center;gap:5px">${t('cable.trunkVlans')}
-                      <span style="font-size:0.68rem;color:var(--text-muted)">${t('pnl.dev.egVlanRange')}</span></label>
+                      <span style="font-size:var(--fs-md);color:var(--text-muted)">${t('pnl.dev.egVlanRange')}</span></label>
                     <input type="text" value="${escapeHTML(_tvStr)}" placeholder="1,10,20,100"
-                           style="width:100%;font-family:monospace;font-size:0.82rem"
+                           style="width:100%"
                            data-change="port-trunk-vlans" data-pid="${pid}" data-blur="port-trunk-vlans">
-                    <div style="font-size:0.7rem;color:var(--text-muted);margin-top:3px">
+                    <div style="font-size:var(--fs-md);color:var(--text-muted);margin-top:3px">
                       ${_fromSnmp?`<span style="color:#5ba3f5"><i class="fas fa-satellite-dish" style="font-size:0.6rem;margin-right:3px"></i>SNMP</span> · `:''}${t('cable.vlansConfigured',{n:_tvArr.length})} · ${t('port.trunkPropNote')}
                     </div>
                   </div>`:''}`;

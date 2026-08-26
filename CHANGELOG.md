@@ -17,6 +17,7 @@
 ### Changed
 
 - **The neutral cable colour is kept a step lighter than the inactive-port grey** (`#6b7d99` → `#a6aab1`), so a neutral cable (multi-VLAN trunk or routed) crossing a port at rest stays visible instead of blending with `--inactive-color`. One definition — floor, rack, topology, PDF and draw.io all follow.
+- **The port panel’s VLAN section reads at one size.** Its explanatory sub-texts — the trunk summary, the VLAN-name tag, the range hint, the «N VLANs configured» line — now use the hint size like every other hint (secondary weight is carried by colour, not a smaller body), and the carried-VLAN field matches the native-VLAN field instead of a smaller monospace box.
 
 ## [2.10.1] — 2026-08-23
 
