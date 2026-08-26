@@ -12,6 +12,7 @@
 - **A cable whose device carries an IP in a different VLAN than its port now says so.** The colour follows the endpoint's declared-IP VLAN while the port shows its own; instead of the two disagreeing in silence, a sober warning (`ip-vlan-mismatch`) names both numbers. The verdict is decided once in `link-vlan-color` and only reported by the cable validator, like `vlan-ends-disagree`.
 - **A trackpad pinch now zooms the floor and the rack in Safari.** Chrome and Firefox deliver the pinch as a `ctrl`+wheel event the zoom already caught; Safari sends its own `gesture*` stream with a cumulative scale, and nothing was listening. The scale ratio now drives the same `zoomFloor`/`zoomRack`, with the point under the fingers held fixed.
 - **Clicking a cable in the dashboard now lights up its path on the floor.** The «Cables» list opened one endpoint of the row; a cable row now carries its link id and, on click, leaves the Panoramica and traces the whole physical route (through patch panels) across the floor and the rack, with the «Physical path» panel open — reusing the same highlight the topology view and the port popup already use.
+- **The dashboard’s subnet, gateway, VLAN and LLDP/CDP neighbour rows are clickable too.** A subnet or gateway opens its network detail in «Networks»; a VLAN opens its card in «VLAN»; an LLDP/CDP neighbour that matches a documented cable lights up that cable’s path. Each one leaves the Panoramica for the place where the item is edited or shown — the same move the cable rows already make.
 
 ### Changed
 

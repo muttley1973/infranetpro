@@ -190,7 +190,7 @@ test('① subnet e nomi VLAN assenti escono come «non dichiarato», non come ze
   const sub = rowOf(o.complete, 'subnets');
   assert.equal(sub.prov, 'none', 'nessuna subnet dichiarata');
   assert.equal(sub.extra.observed, 1, 'ma una rete e\' OSSERVATA dagli indirizzi');
-  assert.deepEqual(sub.items[0], { id: '10.0.0.0/24', meta: 7, tag: 'undeclared' });
+  assert.deepEqual(sub.items[0], { id: '10.0.0.0/24', meta: 7, tag: 'undeclared', net: '10.0.0.0/24' });
   assert.equal(rowOf(o.complete, 'vlanNames').prov, 'none');
   assert.equal(rowOf(o.complete, 'vlanNames').total, 3, '3 VLAN in uso, 0 con un nome');
 });
@@ -214,8 +214,8 @@ test('① Nomi VLAN via SNMP: colma le lacune e segnala i conflitti; il dichiara
   assert.equal(vn.extra.conflict, 1, 'VLAN 20 in conflitto (Guest ↔ VOIP)');
   // drill-down: prima i conflitti (decisione umana), poi le lacune colmabili.
   assert.deepEqual(vn.items, [
-    { id: 'VLAN 20', meta: 'Guest ↔ VOIP' },
-    { id: 'VLAN 30', meta: 'Servers', tag: 'measured' },
+    { id: 'VLAN 20', meta: 'Guest ↔ VOIP', vid: 20 },
+    { id: 'VLAN 30', meta: 'Servers', tag: 'measured', vid: 30 },
   ]);
 });
 
@@ -243,7 +243,7 @@ test('① Il conflitto NOMINA il dissenziente: mai due volte lo stesso nome', ()
     ] } },
   }).complete, 'vlanNames');
   assert.equal(vn.extra.conflict, 1);
-  assert.deepEqual(vn.items, [{ id: 'VLAN 10', meta: 'DATA (SW-CORE, SW-ACC1) ↔ VLAN0010 (vEOS)' }],
+  assert.deepEqual(vn.items, [{ id: 'VLAN 10', meta: 'DATA (SW-CORE, SW-ACC1) ↔ VLAN0010 (vEOS)', vid: 10 }],
     'si vede CHI dice cosa; il dichiarato non si ripete, perché due apparati lo confermano');
 });
 
@@ -270,7 +270,7 @@ test('① Nomi VLAN: il verbale senza rappresentante resta leggibile (lacuna col
     measuredVlanNames: { 30: { said: [{ node: 'SW-CORE', name: 'SERVER' }] } },   // niente `name`
   }).complete, 'vlanNames');
   assert.equal(vn.extra.fromSnmp, 1, 'la rete un nome ce l\'ha: si legge dal verbale, non solo dal rappresentante');
-  assert.deepEqual(vn.items, [{ id: 'VLAN 30', meta: 'SERVER', tag: 'measured' }]);
+  assert.deepEqual(vn.items, [{ id: 'VLAN 30', meta: 'SERVER', tag: 'measured', vid: 30 }]);
 });
 
 test('① Gateway per subnet: le dichiarate SENZA gateway emergono come lacuna (dato dal pannello VLAN)', () => {
@@ -289,8 +289,8 @@ test('① Gateway per subnet: le dichiarate SENZA gateway emergono come lacuna (
   // gateway (marcate, azione), poi le complete con il loro gateway come meta.
   assert.deepEqual(gw.items.map((i) => i.id), ['10.0.20.0/24', '10.0.0.0/24'],
     'prima le subnet SENZA gateway, poi le complete');
-  assert.deepEqual(gw.items[0], { id: '10.0.20.0/24', meta: '—', tag: 'noGateway' }, 'la lacuna è marcata');
-  assert.deepEqual(gw.items[1], { id: '10.0.0.0/24', meta: '10.0.0.1' }, 'la completa mostra il suo gateway');
+  assert.deepEqual(gw.items[0], { id: '10.0.20.0/24', meta: '—', tag: 'noGateway', net: '10.0.20.0/24' }, 'la lacuna è marcata');
+  assert.deepEqual(gw.items[1], { id: '10.0.0.0/24', meta: '10.0.0.1', net: '10.0.0.0/24' }, 'la completa mostra il suo gateway');
   assert.equal(gw.prov, 'declared');
   assert.ok(o.complete.health.issues >= 1, 'un gateway mancante pesa sulla salute di Documento');
 
@@ -1797,4 +1797,22 @@ test('① Cavi: la voce dedotta porta il link-id (lid) per evidenziare il percor
     links: [{ id: 'L-42', autoLinked: true, src: 'sw1-1', dst: 'pc1-1' }] });
   assert.deepEqual(rowOf(o.complete, 'cables').items, [{ id: 'sw1', peer: 'pc1', lid: 'L-42' }],
     'il link-id viaggia con la voce → il click evidenzia il percorso sul floor');
+});
+
+test('① Vicini: un\'adiacenza che e\' anche un cavo del progetto porta il link-id (lid)', () => {
+  const o = buildOverview({
+    types: TYPES,
+    nodes: [
+      { id: 'sw1', type: 'switch', ip: '10.0.0.1', integration: { driver: 'snmp-v2c', host: '10.0.0.1' } },
+      { id: 'pc1', type: 'pc', ip: '10.0.0.50' },
+    ],
+    now: 5000,
+    topoCache: { sw1: { ts: 1900, neighbors: [{ remoteDevice: 'AA:BB:CC:DD:EE:FF', remotePort: 'eth0' }] } },
+    macToNode: { aabbccddeeff: 'pc1' },
+    links: [{ id: 'L-sw1-pc1', src: 'sw1-3', dst: 'pc1-1' }],
+  });
+  const nb = rowOf(o.truth, 'neighbors');
+  const item = nb.items.find((i) => i.peer === 'pc1');
+  assert.ok(item, 'il vicino risolto a pc1 c\'e\'');
+  assert.equal(item.lid, 'L-sw1-pc1', 'porta il link-id del cavo che rappresenta l\'adiacenza -> il click evidenzia il percorso');
 });

@@ -151,6 +151,20 @@ export function openNetInNets(key){
     if(row && typeof row.scrollIntoView === 'function') row.scrollIntoView({ block: 'center' });
 }
 
+// Dalla dashboard alla card VLAN: apre la sezione «VLAN» e ci porta sopra. Sola
+// NAVIGAZIONE — la modifica (nome, colore, ruoli, gateway SVI) si fa nella card,
+// dove i campi vivono. Gemella di openNetInNets per le reti.
+export function openVlanInFloor(vid){
+    const v = parseInt(vid, 10);
+    if(!(v >= 1 && v <= 4094)) return;
+    setPropsSectionState('floor-vlan', true);
+    renderProps();
+    const panel = document.getElementById('props-panel');
+    const card = (panel && typeof panel.querySelector === 'function')
+        ? panel.querySelector(`.vlan-ipam-card[data-vid="${v}"]`) : null;
+    if(card && typeof card.scrollIntoView === 'function') card.scrollIntoView({ block: 'center' });
+}
+
 // ── Card VLAN: le reti che la CITANO, in sola lettura ───────────────────────
 // Un prefisso ha AL MASSIMO una VLAN: e' una relazione molti-a-uno, e il campo
 // esiste da un lato solo — sulla rete. Scriverla anche da qui voleva dire dare
@@ -505,7 +519,7 @@ export function _renderFloorProps(panel){
             // questa riga sparirebbe dalla vista pur restando nel file.
             const _orphanGw=(!_vlanPrefixes.length && (ipam?.gateway||ipam?.dns))
                 ? [ipam.gateway, ipam.dns].filter(Boolean).join(' · ') : '';
-            _vlanHtml+=`<div class="vlan-ipam-card">
+            _vlanHtml+=`<div class="vlan-ipam-card" data-vid="${escapeHTML(vid)}">
                   <div class="vlan-ipam-row">
                     <label style="margin:0;font-size:0.96rem;flex-shrink:0;white-space:nowrap;font-weight:700;text-align:left;color:${escapeHTML(state.vlanColors[v]||'#8b949e')}">VLAN ${vid}</label>
                     <input type="text" value="${vname}" placeholder="${t('vlan.namePlaceholder')}"
@@ -616,4 +630,4 @@ export function _renderFloorProps(panel){
 }
 
 // Chiamato dal dispatcher renderProps() (app-properties.js, ancora classic).
-expose({ _renderFloorProps, openNetInNets });
+expose({ _renderFloorProps, openNetInNets, openVlanInFloor });

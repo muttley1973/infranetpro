@@ -22,6 +22,7 @@ import { _isLeafEndpoint } from './app-autolink.js';
 import { nodeById, getNodeByPortId, getNodeDisplayName, _linksForPort, switchRightTab, _cableProofBadgeHtml } from './app.js';
 import { focusNode } from './app-search-zoom-rack.js';
 import { _showPhysicalCablePath } from './app-popup.js';   // click su un cavo in lista → evidenzia il percorso sul floor
+import { openNetInNets, openVlanInFloor } from './app-properties-floor.js';   // subnet/gateway/VLAN in lista → pannello di dichiarazione
 import { _snmpFreshness } from './app-snmp.js';
 import { _driftRowHtml, _driftNetworksSection } from './app-drift.js';   // B3/B4: drill-down inline «Vero» riusa righe+azioni e la sezione «Reti» del Drift
 import { registerClickActions } from './app-delegation.js';
@@ -30,7 +31,7 @@ import { _ipamAuditReport } from './app-l3.js';   // ② «Vero»: igiene IPAM (
 import { wifiVlanCoherence } from './app-wifi.js';   // ⑤ «Sicurezza»: coerenza VLAN wireless (stesso motore del vecchio report, ora assorbito nella Dashboard)
 import { buildOverview, _rackFill } from '../lib/overview.js';
 import { computeHealthAlerts } from '../lib/health-alerts.js';   // ⑥ Salute live: soglie DOCUMENTATE una volta sola (le stesse che legge l'assistente AI)
-import { ipamByVidView, prefixesOf } from '../lib/ipam-model.js';   // vista per-VLAN + l'autorità prefix-first
+import { ipamByVidView, prefixesOf, prefixKey } from '../lib/ipam-model.js';   // vista per-VLAN + l'autorità prefix-first
 
 // La vista corrente e' una preferenza DELL'UTENTE su QUESTA macchina, non un
 // dato del progetto: se vivesse in `state` riaprirebbe il bug chiuso il
@@ -750,8 +751,14 @@ function _itemLi(it) {
     // Un cavo porta il suo link-id (it.lid): il click evidenzia il PERCORSO sul
     // floor invece di aprire un solo capo. Ogni altra voce resta «vai al nodo».
     const goLink = it.lid ? String(it.lid) : null;
-    const inner = (aN || goLink) ? _el('button', 'ov-go') : _el('span', 'ov-go');
+    // Subnet/gateway (it.net) e VLAN (it.vid) portano al pannello di dichiarazione
+    // per la modifica; il cavo (it.lid) al suo percorso; ogni altra voce al nodo.
+    const goNet = it.net ? String(it.net) : null;
+    const goVlan = (it.vid != null) ? String(it.vid) : null;
+    const inner = (aN || goLink || goNet || goVlan) ? _el('button', 'ov-go') : _el('span', 'ov-go');
     if (goLink) { inner.type = 'button'; inner.dataset.act = 'overview-goto-link'; inner.dataset.lid = goLink; }
+    else if (goNet) { inner.type = 'button'; inner.dataset.act = 'overview-goto-net'; inner.dataset.net = goNet; }
+    else if (goVlan) { inner.type = 'button'; inner.dataset.act = 'overview-goto-vlan'; inner.dataset.vid = goVlan; }
     else if (aN) { inner.type = 'button'; inner.dataset.act = 'overview-goto'; inner.dataset.id = aId; }
     inner.appendChild(_el('span', null, aN ? (getNodeDisplayName(aN) || aId) : String(aId != null ? aId : '')));
     // Il secondo capo, risolto a nome (l'altro estremo di un LAG/cavo dedotto).
@@ -1398,6 +1405,22 @@ function _gotoLink(lid) {
     if (target && typeof focusNode === 'function') focusNode(target);
 }
 
+// Subnet/gateway (CIDR) e VLAN nella dashboard portano al pannello dove reti e
+// VLAN si DICHIARANO, per l'eventuale modifica. Stesso cambio d'intento di
+// _gotoNode/_gotoVlanPanel (si esce dalla Panoramica), poi la navigazione per-voce
+// già esistente: openNetInNets apre «Reti» sul prefisso e ci scrolla; openVlanInFloor
+// apre la sezione «VLAN» sulla card giusta.
+function _gotoNet(cidr) {
+    if (!cidr) return;
+    setOverview(false);
+    if (typeof openNetInNets === 'function') openNetInNets(prefixKey(cidr));
+}
+function _gotoVlan(vid) {
+    if (vid == null || vid === '') return;
+    setOverview(false);
+    if (typeof openVlanInFloor === 'function') openVlanInFloor(vid);
+}
+
 // Dalla lacuna alla dichiarazione: «Subnet» e «Indirizzi liberi» portano al
 // pannello dove le reti si DICHIARANO (contesto progetto → sezione «VLAN»),
 // con la sezione già aperta. Stesso cambio d'intento di _gotoNode — da
@@ -1466,6 +1489,8 @@ registerClickActions({
     'overview-detail-close': (el) => { const c = el.closest('.ov-col'); if (c) _closeIn(c); },
     'overview-goto': (el) => _gotoNode(el.dataset.id),
     'overview-goto-link': (el) => _gotoLink(el.dataset.lid),
+    'overview-goto-net': (el) => _gotoNet(el.dataset.net),
+    'overview-goto-vlan': (el) => _gotoVlan(el.dataset.vid),
     'overview-vlan-panel': () => _gotoVlanPanel(),
     'overview-lens': (el) => _setLens(el.dataset.lens),
     'overview-grp-tab': (el) => _switchGrpTab(el),
