@@ -1787,3 +1787,14 @@ test('② VERO: uno stato non riconosciuto non dichiara nulla e non silenzia nul
   assert.equal(r.extra.undeclared, 1);
   assert.equal(r.extra.absentExpected, 0);
 });
+
+test('① Cavi: la voce dedotta porta il link-id (lid) per evidenziare il percorso sul floor', () => {
+  const nodes = [
+    { id: 'sw1', type: 'switch', name: 'SW', ip: '10.0.0.1' },
+    { id: 'pc1', type: 'pc', name: 'PC', ip: '10.0.0.2' },
+  ];
+  const o = buildOverview({ types: TYPES, nodes,
+    links: [{ id: 'L-42', autoLinked: true, src: 'sw1-1', dst: 'pc1-1' }] });
+  assert.deepEqual(rowOf(o.complete, 'cables').items, [{ id: 'sw1', peer: 'pc1', lid: 'L-42' }],
+    'il link-id viaggia con la voce → il click evidenzia il percorso sul floor');
+});

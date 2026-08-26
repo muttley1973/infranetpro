@@ -19,8 +19,9 @@ import { t, expose, buildSpareReport, deriveProjectNetworks, computeDeviceCapabi
 import { store } from './store.js';
 import { TYPES, _frontPanelSfpGroups } from './app-types.js';
 import { _isLeafEndpoint } from './app-autolink.js';
-import { nodeById, getNodeDisplayName, _linksForPort, switchRightTab, _cableProofBadgeHtml } from './app.js';
+import { nodeById, getNodeByPortId, getNodeDisplayName, _linksForPort, switchRightTab, _cableProofBadgeHtml } from './app.js';
 import { focusNode } from './app-search-zoom-rack.js';
+import { _showPhysicalCablePath } from './app-popup.js';   // click su un cavo in lista → evidenzia il percorso sul floor
 import { _snmpFreshness } from './app-snmp.js';
 import { _driftRowHtml, _driftNetworksSection } from './app-drift.js';   // B3/B4: drill-down inline «Vero» riusa righe+azioni e la sezione «Reti» del Drift
 import { registerClickActions } from './app-delegation.js';
@@ -746,8 +747,12 @@ function _itemLi(it) {
     let aN = aId ? nodeById(aId) : null;
     if (!aN && bId) { aId = bId; bId = null; aN = nodeById(aId); }
     // Un elemento del progetto si apre; una rete o una porta e' solo testo.
-    const inner = aN ? _el('button', 'ov-go') : _el('span', 'ov-go');
-    if (aN) { inner.type = 'button'; inner.dataset.act = 'overview-goto'; inner.dataset.id = aId; }
+    // Un cavo porta il suo link-id (it.lid): il click evidenzia il PERCORSO sul
+    // floor invece di aprire un solo capo. Ogni altra voce resta «vai al nodo».
+    const goLink = it.lid ? String(it.lid) : null;
+    const inner = (aN || goLink) ? _el('button', 'ov-go') : _el('span', 'ov-go');
+    if (goLink) { inner.type = 'button'; inner.dataset.act = 'overview-goto-link'; inner.dataset.lid = goLink; }
+    else if (aN) { inner.type = 'button'; inner.dataset.act = 'overview-goto'; inner.dataset.id = aId; }
     inner.appendChild(_el('span', null, aN ? (getNodeDisplayName(aN) || aId) : String(aId != null ? aId : '')));
     // Il secondo capo, risolto a nome (l'altro estremo di un LAG/cavo dedotto).
     if (bId) {
@@ -1375,6 +1380,24 @@ function _gotoNode(id) {
     if (typeof focusNode === 'function') focusNode(n);
 }
 
+// Un cavo nella lista «Cavi» porta al suo PERCORSO sul floor. Stesso cambio
+// d'intento di _gotoNode (da consultare ad agire, quindi si esce dalla Panoramica),
+// poi _showPhysicalCablePath evidenzia i segmenti (store.highPath), seleziona il
+// cavo e apre la fisarmonica «Percorso fisico». Infine porta il cavo in vista
+// mettendo a fuoco un estremo — di preferenza quello sul floor.
+function _gotoLink(lid) {
+    if (!lid) return;
+    const l = (store.state.links || []).find((x) => x && x.id === lid);
+    if (!l) return;
+    setOverview(false);
+    if (typeof _showPhysicalCablePath === 'function') _showPhysicalCablePath(lid);
+    const sn = getNodeByPortId(l.src), dn = getNodeByPortId(l.dst);
+    const target = (sn && TYPES[sn.type] && TYPES[sn.type].isFloor) ? sn
+                 : (dn && TYPES[dn.type] && TYPES[dn.type].isFloor) ? dn
+                 : (sn || dn);
+    if (target && typeof focusNode === 'function') focusNode(target);
+}
+
 // Dalla lacuna alla dichiarazione: «Subnet» e «Indirizzi liberi» portano al
 // pannello dove le reti si DICHIARANO (contesto progetto → sezione «VLAN»),
 // con la sezione già aperta. Stesso cambio d'intento di _gotoNode — da
@@ -1442,6 +1465,7 @@ registerClickActions({
     'overview-row': (el) => _toggleRow(el),
     'overview-detail-close': (el) => { const c = el.closest('.ov-col'); if (c) _closeIn(c); },
     'overview-goto': (el) => _gotoNode(el.dataset.id),
+    'overview-goto-link': (el) => _gotoLink(el.dataset.lid),
     'overview-vlan-panel': () => _gotoVlanPanel(),
     'overview-lens': (el) => _setLens(el.dataset.lens),
     'overview-grp-tab': (el) => _switchGrpTab(el),
