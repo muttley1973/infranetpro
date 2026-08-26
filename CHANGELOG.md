@@ -10,6 +10,7 @@
 ### Added
 
 - **A cable whose device carries an IP in a different VLAN than its port now says so.** The colour follows the endpoint's declared-IP VLAN while the port shows its own; instead of the two disagreeing in silence, a sober warning (`ip-vlan-mismatch`) names both numbers. The verdict is decided once in `link-vlan-color` and only reported by the cable validator, like `vlan-ends-disagree`.
+- **A trackpad pinch now zooms the floor and the rack in Safari.** Chrome and Firefox deliver the pinch as a `ctrl`+wheel event the zoom already caught; Safari sends its own `gesture*` stream with a cumulative scale, and nothing was listening. The scale ratio now drives the same `zoomFloor`/`zoomRack`, with the point under the fingers held fixed.
 
 ### Changed
 

@@ -241,6 +241,39 @@ export function fitRack(){
 function handleFloorZoom(e){e.preventDefault();zoomFloor(e.deltaY>0?-0.1:0.1,e.clientX,e.clientY);}
 function handleRackZoom(e){e.preventDefault();zoomRack(e.deltaY>0?-0.1:0.1);}
 
+// ---- Pinch-to-zoom su trackpad --------------------------------------------
+// Chrome/Firefox mandano il pinch del trackpad gia' come wheel+ctrlKey, quindi
+// handleFloorZoom/handleRackZoom lo prendono. Su SAFARI no: il pinch e' una
+// serie di gesturestart/gesturechange/gestureend con e.scale CUMULATIVO (1
+// all'inizio). Convertiamo il RAPPORTO fra due change in un delta additivo, per
+// riusare le stesse zoomFloor/zoomRack tenendo il fuoco sotto le dita
+// (e.clientX/Y). preventDefault ferma lo zoom-pagina; i gesture* sono non-passivi
+// di default, quindi vale. Vendor-neutral: e' una capacita' del browser, non del lab.
+(function(){
+    function wirePinch(el, apply){
+        if(!el || el._pinchWired) return;
+        el._pinchWired = true;
+        let last = 1;
+        el.addEventListener('gesturestart',  e=>{ e.preventDefault(); last = e.scale || 1; });
+        el.addEventListener('gesturechange', e=>{
+            e.preventDefault();
+            const s = e.scale || last;
+            const ratio = s / (last || 1);
+            last = s;
+            if(ratio && ratio !== 1) apply(ratio, e.clientX, e.clientY);
+        });
+        el.addEventListener('gestureend',    e=>{ e.preventDefault(); last = 1; });
+    }
+    function wireAll(){
+        wirePinch(document.getElementById('floorplan'),
+            (ratio, x, y)=> zoomFloor(store.state.floorView.zoom * (ratio - 1), x, y));
+        wirePinch(document.getElementById('rack-viewport'),
+            (ratio)=> zoomRack(store.state.rackView.zoom * (ratio - 1)));
+    }
+    if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wireAll);
+    else wireAll();
+}());
+
 // ---- Resize/collapse divider floor ↔ rack (orizzontale) --------------------
 // _rackCollapsed deve stare su window: lo leggono BARE (anche senza typeof-guard,
 // es. app-render-core renderFloor dblclick) file ancora-legacy + app.js. Tenerlo
