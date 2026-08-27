@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased] — post-v2.10.1
+## [2.10.2] — 2026-08-27
 
 ### Fixed
 

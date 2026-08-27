@@ -121,7 +121,22 @@ Double-click <code>avvia.bat</code>.<br>
 
 > **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then run **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.10.1) — the app stopped filling in what nobody had told it.**
+> 📰 **What's new (v2.10.2) — a scan now recognises the model, and the dashboard is a map you can click.**
+>
+> - **A scan recognises the device model and proposes it — it never applies it on its own.** The model is
+>   matched against the catalogue from what the device actually reports (its ENTITY-MIB model name, else its
+>   sysDescr), with an honest confidence — an exact hit, or a family. A chip in *Discover* names the match, and
+>   the properties panel offers an **Adopt** button: the same manual choice you always had, one step shorter.
+> - **The dashboard is a map you can click.** A cable lights up its physical path across the floor and the rack;
+>   a subnet, gateway, VLAN or LLDP/CDP neighbour jumps to where it is declared. Each row leaves the overview for
+>   the place the thing is edited.
+> - **A device that answers on several NICs is one box, not one per address.** A multi-homed server or NAS is
+>   folded on authoritative keys only — its own IP table, serial, engine-id — shown with a badge and reversible
+>   with a split, and each interface now carries the IP it owns.
+>
+> The cable VLAN diagnostics were also made consistent and legible.
+>
+> 📰 **v2.10.1 — the app stopped filling in what nobody had told it.**
 >
 > - **A VLAN nobody declared is left absent**, not written down as 1. And three things the devices
 >   were saying that nobody was reading: the native VLAN of a Cisco trunk, the dot1Q sub-interface
