@@ -23,6 +23,7 @@
 
 - **The neutral cable colour is kept a step lighter than the inactive-port grey** (`#6b7d99` → `#a6aab1`), so a neutral cable (multi-VLAN trunk or routed) crossing a port at rest stays visible instead of blending with `--inactive-color`. One definition — floor, rack, topology, PDF and draw.io all follow.
 - **The port panel’s VLAN section reads at one size.** Its explanatory sub-texts — the trunk summary, the VLAN-name tag, the range hint, the «N VLANs configured» line — now use the hint size like every other hint (secondary weight is carried by colour, not a smaller body), and the carried-VLAN field matches the native-VLAN field instead of a smaller monospace box.
+- **The cable diagnostics now read in one voice, and the trunk carried-VLAN warning is legible again.** When one trunk end carried no extra VLAN the warning printed a bare «—» as the subject of the sentence («— only on one side»); each side is now named after a label, so the placeholder reads as «none». The Italian dropped the untranslated «Allowed VLAN» / «allowed-list» for the app’s own «VLAN trasportate» (carried VLANs), and the three VLAN-mismatch titles — access, native and carried — now share the «not aligned» register their own fix line already used («Align…»). Two smaller alignments came with it: «Max speed» to match the field label, and «permanent link» for the TIA-568 term.
 
 ## [2.10.1] — 2026-08-23
 
