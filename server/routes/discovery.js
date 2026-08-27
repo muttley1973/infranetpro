@@ -465,6 +465,23 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
                   // Matricola del chassis: chiave AUTOREVOLE per fondere le NIC di
                   // uno stesso apparato fisico (host-merge). Vuota se non esposta.
                   if (sn.serialNumber) row.serialNumber = String(sn.serialNumber).trim();
+                  // IP PROPRI del device (own-ip, host-merge): fondono anche una NIC
+                  // rimasta MUTA allo scan (golden A1). Walk leggero, solo sui responder
+                  // e non in FURTIVA (footprint SNMP minimo). >1 IP = puo' fondere; <=1
+                  // non serve. Fallimento -> nessun ownIps, mai un errore fatale.
+                  if (!stealth && drv?.deviceIps) {
+                    try {
+                      const di = await drv.deviceIps({
+                        driver: sn.driverUsed || driver || 'snmp-v2c',
+                        host: row.ip,
+                        community: community || 'public',
+                        port: port || 161,
+                        timeout: Math.max(1, Math.min(parseInt(timeout || 2, 10), 2)),
+                        ...v3,
+                      });
+                      if (di && Array.isArray(di.ips) && di.ips.length > 1) row.ownIps = di.ips;
+                    } catch (_) {}
+                  }
                   row.hostname = row.hostname || _cleanHostname(sn.hostname || '');
                   row.alive = true;
                   row.status = 'On';

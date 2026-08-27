@@ -745,6 +745,47 @@ function _ownIp6FromVbs(vbs) {
   return pickBestIp6(own);
 }
 
+// IPv4 PROPRI del device dalle due tabelle standard: la storica (ipAdEntTable,
+// RFC 1213: INDICE = A.B.C.D) e la moderna (ipAddressTable, IP-MIB: INDICE =
+// addrType.addrLen.byte..., IPv4 = 1.4.a.b.c.d). Lista piatta e deduplicata, per
+// fondere le NIC dello STESSO apparato in discovery (lib/host-merge.js, chiave
+// own-ip): se il device autorevole elenca fra i suoi indirizzi anche quello di
+// una NIC rimasta MUTA allo scan, sono lo stesso box. Loopback e 0.0.0.0 esclusi
+// (non identificano una NIC). Puro, vendor-neutral.
+function _ownIp4FromVbs(vbs) {
+  const ips = [], seen = new Set();
+  for (const oid of Object.keys(vbs || {})) {
+    const a = _ipv4FromAddrOid(oid);
+    if (_isUsableOwnIp4(a) && !seen.has(a)) { seen.add(a); ips.push(a); }
+  }
+  return ips;
+}
+
+// L'IPv4 che un OID di tabella-indirizzi INDICIZZA, o '' — da ipAdEntTable
+// (RFC 1213: indice = A.B.C.D) o da ipAddressTable (IP-MIB: indice =
+// addrType.addrLen.byte, IPv4 = 1.4.a.b.c.d). UNA definizione sola: il poll
+// (port.ip) e deviceIps (own-ip) leggevano l'indice in DUE punti e sono
+// divergiuti — un backslash perso in una copia rendeva muto port.ip.
+function _ipv4FromAddrOid(oid) {
+  if (oid.startsWith(OID.ipAdEntIfIndex + '.')) {
+    const a = oid.slice(OID.ipAdEntIfIndex.length + 1);
+    return /^\d+\.\d+\.\d+\.\d+$/.test(a) ? a : '';
+  }
+  if (oid.startsWith(OID.ipAddrIfIndex + '.')) {
+    const p = oid.slice(OID.ipAddrIfIndex.length + 1).split('.');
+    return (p.length === 6 && p[0] === '1' && p[1] === '4') ? p.slice(2).join('.') : '';
+  }
+  return '';
+}
+
+// Un IPv4 e' un'IDENTITA' d'interfaccia utilizzabile? No per loopback, 0.0.0.0,
+// link-local (169.254/16) e broadcast (ultimo ottetto 255: net-snmp su Linux li
+// ELENCA nella ipAdEntTable — misurato su una Synology — e un broadcast non
+// identifica una NIC ne' e' l'indirizzo di servizio di una porta).
+function _isUsableOwnIp4(a) {
+  return /^\d+\.\d+\.\d+\.\d+$/.test(a) && !a.startsWith('127.') && !a.startsWith('169.254.') && a !== '0.0.0.0' && !a.endsWith('.255');
+}
+
 function extractData(vbs) {
   const ifaces = {};
   const bpToIf = {};
@@ -852,7 +893,7 @@ function extractData(vbs) {
         // l'indirizzo lo DICE l'apparato, non un'euristica. Primo per ifIndex;
         // loopback/0.0.0.0 esclusi (non sono l'indirizzo di servizio dell'interfaccia).
         const a = oid.slice(OID.ipAdEntIfIndex.length + 1);
-        if (!ipByIfIndex[ifIdx] && /^d+.d+.d+.d+$/.test(a) && !a.startsWith('127.') && a !== '0.0.0.0') ipByIfIndex[ifIdx] = a;
+        if (!ipByIfIndex[ifIdx] && _isUsableOwnIp4(a)) ipByIfIndex[ifIdx] = a;
       }
       continue;
     }
@@ -866,7 +907,7 @@ function extractData(vbs) {
         const idx = oid.slice(OID.ipAddrIfIndex.length + 1).split('.');
         if (!ipByIfIndex[ifIdx] && idx.length === 6 && idx[0] === '1' && idx[1] === '4') {
           const a = idx.slice(2).join('.');
-          if (!a.startsWith('127.') && a !== '0.0.0.0') ipByIfIndex[ifIdx] = a;
+          if (_isUsableOwnIp4(a)) ipByIfIndex[ifIdx] = a;
         }
       }
       continue;   // l'IPv6 proprio lo estrae `_ownIp6FromVbs`, che rilegge i varbind per conto suo
@@ -1642,6 +1683,31 @@ async function poll(cfg) {
   }
 }
 
+// Gli IPv4 PROPRI del device (own-ip): un walk LEGGERO delle sole due tabelle IP
+// (non l'inventario intero di poll). Serve alla fusione stesso-apparato in
+// discovery — golden A1: se il device autorevole elenca fra i suoi indirizzi
+// anche quello di una NIC rimasta MUTA allo scan, le due righe sono un box solo.
+// Timeout stretto; su host non-SNMP torna lista vuota, mai un errore fatale.
+async function deviceIps(cfg) {
+  const host = (cfg.host || '').trim();
+  if (!host) return { reachable: false, ips: [] };
+  const port    = parseInt(cfg.port) || 161;
+  const timeout = Math.min((parseInt(cfg.timeout) || 2), 5) * 1000;
+  const driver  = (cfg.driver || 'snmp-v2c').toLowerCase();
+  let session;
+  try {
+    session = _createSnmpSession(driver === 'auto' ? 'snmp-v2c' : driver, host, port, timeout, cfg);
+    const result = {};
+    await _runWalks(session, [OID.ipAdEntIfIndex, OID.ipAddrIfIndex], result, 'SNMP-IPS', WALK_CONCURRENCY, { deadline: _walkDeadline(timeout, 3, 8000) });
+    const ips = _ownIp4FromVbs(result);
+    return { reachable: ips.length > 0, ips };
+  } catch (e) {
+    return { reachable: false, ips: [], error: e.message };
+  } finally {
+    try { session?.close(); } catch (_) { /* ignore */ }
+  }
+}
+
 // ============================================================
 //  Neighbor Discovery — LLDP (802.1AB) + CDP (Cisco)
 //
@@ -2388,7 +2454,7 @@ async function pollPower(cfg, kind) {
   return out;
 }
 
-module.exports = { poll, pollNeighbors, probe, pollPower };
+module.exports = { poll, pollNeighbors, probe, pollPower, deviceIps };
 
 // Funzioni pure interne esposte SOLO per i test di regressione (node --test).
 // Additivo: non altera il comportamento runtime del driver.
@@ -2399,4 +2465,5 @@ module.exports._internals = {
   extractSystem, _formatUptime, extractPrinter, _supplyColorKey,
   extractHostResources, _isPathPrefix, OID, PRT_OID, HR_OID, _oidGt,
   _v3RemoteEngineDiscovered, _runWalks, FDB_RETRY_BASES, _walkDeadline,
+  _ownIp4FromVbs, _ipv4FromAddrOid, _isUsableOwnIp4,
 };
