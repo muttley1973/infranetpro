@@ -668,6 +668,12 @@ function _applySnmpBasePortFields(pid, iface){
     // in un posto solo. Come ogni misura, se il poll non la riporta si dimentica.
     if(iface.ownsIp) p.ownsIp = true; else delete p.ownsIp;
     if(iface.bridges === undefined) delete p.bridges; else p.bridges = !!iface.bridges;
+    // L'indirizzo che l'interfaccia POSSIEDE (ipAddrTable -> ifIndex, la fonte
+    // AUTOREVOLE: chi possiede l'IP lo dichiara l'apparato). Riempie il campo IP
+    // della porta SOLO se vuoto — manual-first, come i campi inventory in
+    // applyPollResult: non sovrascrive un IP scritto a mano. Un IP misurato che
+    // CAMBIA e' un affinamento futuro (shadow, come ip6Real), non questo giro.
+    if(iface.ip && !String(p.ip || '').trim()) p.ip = iface.ip;
 }
 
 export function applyPollResult(nodeId, data, opts={}){

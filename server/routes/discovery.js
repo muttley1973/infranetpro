@@ -462,6 +462,9 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
                   row.snmpDriver = sn.driverUsed || row.snmpDriver;
                   row.snmpVersions = Array.isArray(sn.snmpVersions) ? sn.snmpVersions : (sn.driverUsed ? [sn.driverUsed] : []);
                   row.needsCredentials = !!sn.needsCredentials;
+                  // Matricola del chassis: chiave AUTOREVOLE per fondere le NIC di
+                  // uno stesso apparato fisico (host-merge). Vuota se non esposta.
+                  if (sn.serialNumber) row.serialNumber = String(sn.serialNumber).trim();
                   row.hostname = row.hostname || _cleanHostname(sn.hostname || '');
                   row.alive = true;
                   row.status = 'On';

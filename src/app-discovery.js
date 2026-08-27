@@ -390,7 +390,7 @@ async function runDiscovery(){
         const data = await r.json();
         if(!data.ok){ document.getElementById('disc-progress').innerHTML=`<span class="tm-err">${_dt('disc.error','Errore')}: ${escapeHTML(data.error)}</span>`; return; }
 
-        store._discResults = (data.results || []).map(_discEnsureMeta);
+        store._discResults = _discApplySameChassisFold((data.results || []).map(_discEnsureMeta));
         const found1 = store._discResults.filter(d=>d.alive).length;
 
         _discRenderTable();
@@ -766,6 +766,43 @@ function _discReconcileInfo(d, type){
     return { label:_dt('disc.rec.same','Già presente'), cls:'same', title:`${_ex} ${_dt('disc.tip.noCritical','Nessun campo critico da aggiornare')}` };
 }
 
+// Same-chassis fold: le N righe di uno stesso apparato fisico (piu' NIC) collassano
+// in UNA, con le NIC in piu' su _foldedRows (reversibile). Chiave AUTOREVOLE via
+// lib/host-merge.js (own-ip / serial / engineID / mDNS-UUID); MAI nome o MAC.
+// Vendor-neutral (campi MIB standard). Se la lib non e' caricata: no-op.
+function _discApplySameChassisFold(rows){
+    if(typeof foldScanRows !== 'function') return rows;
+    try { return foldScanRows(rows).rows; } catch(_) { return rows; }
+}
+function _discFoldKeyLabel(k){
+    switch(k){
+        case 'own-ip':    return _dt('disc.foldKey.ownip','tabella IP propri');
+        case 'serial':    return _dt('disc.foldKey.serial','matricola');
+        case 'engine-id': return _dt('disc.foldKey.engine','SNMP engine-ID');
+        case 'mdns-uuid': return _dt('disc.foldKey.mdns','UUID mDNS');
+        default:          return k || '';
+    }
+}
+function _discFoldBadge(d, i){
+    const folded = Array.isArray(d && d._foldedRows) ? d._foldedRows : [];
+    if(!folded.length) return '';
+    const ips = folded.map(r => r && r.ip).filter(Boolean).join(', ');
+    const tip = _dt('disc.tip.fold','Stesso apparato fisico: {n} NIC extra fuse qui (chiave: {key}). IP fusi: {ips}. Clic per dividere.',
+        { n: folded.length, key: _discFoldKeyLabel(d._mergeKey), ips });
+    return ` <span class="disc-badge fold" data-idx="${escapeHTML(i)}" data-act="disc-fold-split" role="button" tabindex="0" data-tip="${escapeHTML(tip)}"><i class="fas fa-object-group"></i> ${escapeHTML(_dt('disc.fold.badge','+{n} NIC',{n:folded.length}))}</span>`;
+}
+// «Dividi»: rimette le NIC fuse come righe separate subito dopo il primario (reversibile).
+function _discFoldSplit(el){
+    const idx = parseInt(el && el.dataset ? el.dataset.idx : '', 10);
+    if(!Number.isInteger(idx)) return;
+    const d = store._discResults[idx];
+    const folded = d && Array.isArray(d._foldedRows) ? d._foldedRows.slice() : null;
+    if(!folded || !folded.length) return;
+    delete d._foldedRows; delete d._mergeKey;
+    store._discResults.splice(idx + 1, 0, ...folded);
+    _discRenderTable();
+}
+
 function _discRenderTable(){
     _discCaptureUiState();
     // Indice identita' fresco ma costruito UNA volta per render: senza questo,
@@ -805,7 +842,8 @@ function _discRenderTable(){
             + _v3cred + _v3also
             + ` <span class="disc-badge conf-${conf.cls}" data-tip="${escapeHTML(conf.label + ' · ' + conf.title)}">${conf.score}%</span>`
             + ` <span class="disc-badge rec-${rec.cls}" data-tip="${escapeHTML(rec.label + ' · ' + rec.title)}"><i class="fas ${_discRecIcon(rec.cls)}"></i></span>`
-            + _discEdgeBadge(d);
+            + _discEdgeBadge(d)
+            + _discFoldBadge(d, i);
         const reach = _discReachabilityInfo(d);
         const rowLabel = _discRowLabel(d, t);   // NOME senza l'IP: quello ha la sua colonna
         // Pre-selezione = vivo E confidenza sopra la soglia fantasmi (i solo-ping a
@@ -1292,6 +1330,10 @@ async function importDiscovered(){
                 };
             }
             if(d._typeManual) n.typeManual = true;   // tipo scelto a mano nel dialogo = pinnato
+            // NB: le NIC fuse (d._foldedRows) NON diventano un campo parallelo sul nodo.
+            // L'apparato le dichiara da se' come interfacce (ifTable/ipAddrTable): al primo
+            // Sync ogni NIC torna come PORTA col suo IP, agganciata per ifIndex (app-snmp.js).
+            // Un modello solo, la porta CORRETTA — niente doppioni ne' porte indovinate.
             _discTouchNodeIdentity(n, d, match.matchedBy || 'new', existingIdx);
             if(match.conflict?.existing){
                 n.discoveryConflicts = [{
@@ -1382,4 +1424,5 @@ registerClickActions({
     'disc-close':     () => closeDiscovery(),
     'disc-run':       () => runDiscovery(),
     'disc-import':    () => importDiscovered(),
+    'disc-fold-split':(el) => _discFoldSplit(el),
 });

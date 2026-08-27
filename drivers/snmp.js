@@ -779,6 +779,7 @@ function extractData(vbs) {
   // loopback ci finiscono dentro anch'esse — giusto così, non sono porte fisiche
   // e non diventano porte del documento.
   const ownsIp = new Set();
+  const ipByIfIndex = {};  // ifIndex -> indirizzo IPv4 PROPRIO dell'interfaccia (per port.ip)
   // Tutti gli ID VLAN definiti sullo switch (da OID key dot1qVlanEgressPorts.{vlanId})
   // — include anche VLAN senza porte assegnate (bitmap vuota)
   const allVlanIds = new Set();
@@ -844,12 +845,30 @@ function extractData(vbs) {
     // valore — quale interfaccia — non l'indirizzo, che ha già i suoi lettori.
     if (oid.startsWith(OID.ipAdEntIfIndex + '.')) {
       const ifIdx = bufToInt(val);
-      if (ifIdx > 0) ownsIp.add(ifIdx);
+      if (ifIdx > 0) {
+        ownsIp.add(ifIdx);
+        // L'indirizzo IPv4 e' l'INDICE dell'OID (RFC 1213): A.B.C.D. Va alla porta
+        // (port.ip), agganciata all'interfaccia CORRETTA per ifIndex — chi possiede
+        // l'indirizzo lo DICE l'apparato, non un'euristica. Primo per ifIndex;
+        // loopback/0.0.0.0 esclusi (non sono l'indirizzo di servizio dell'interfaccia).
+        const a = oid.slice(OID.ipAdEntIfIndex.length + 1);
+        if (!ipByIfIndex[ifIdx] && /^d+.d+.d+.d+$/.test(a) && !a.startsWith('127.') && a !== '0.0.0.0') ipByIfIndex[ifIdx] = a;
+      }
       continue;
     }
     if (oid.startsWith(OID.ipAddrIfIndex + '.')) {
       const ifIdx = bufToInt(val);
-      if (ifIdx > 0) ownsIp.add(ifIdx);
+      if (ifIdx > 0) {
+        ownsIp.add(ifIdx);
+        // ipAddressTable (IP-MIB): indice = addrType.addrLen.byte… Per l'IPv4
+        // (addrType 1, addrLen 4) l'indirizzo sono i 4 byte finali. L'IPv6 proprio
+        // lo estrae `_ownIp6FromVbs`; qui solo il fallback IPv4 per port.ip.
+        const idx = oid.slice(OID.ipAddrIfIndex.length + 1).split('.');
+        if (!ipByIfIndex[ifIdx] && idx.length === 6 && idx[0] === '1' && idx[1] === '4') {
+          const a = idx.slice(2).join('.');
+          if (!a.startsWith('127.') && a !== '0.0.0.0') ipByIfIndex[ifIdx] = a;
+        }
+      }
       continue;   // l'IPv6 proprio lo estrae `_ownIp6FromVbs`, che rilegge i varbind per conto suo
     }
 
@@ -1317,7 +1336,7 @@ function extractData(vbs) {
                   // pubblica la tabella (silenzio, non un «no») — il vIOS del banco
                   // la pubblica per 2 porte su 8, un altro esemplare per nessuna.
                   operStatus: f.oper || 0, speed, vlan: f.vlan, lagId: lagLogicalId, lagIfIndex, mac,
-                  isTrunk, trunkVlans, ownsIp: ownsIp.has(idx) };
+                  isTrunk, trunkVlans, ownsIp: ownsIp.has(idx), ip: ipByIfIndex[idx] || '' };
     if (bridgeIfIdx) obj.bridges = bridgeIfIdx.has(idx);
     if (snmpMedium)    obj.snmpMedium = snmpMedium;
     if (snmpPoe !== null) obj.snmpPoe = snmpPoe;
@@ -2205,6 +2224,11 @@ async function probe(cfg) {
     // vendor-neutral ("DS918+", "GS1900-8", "C9300-24T") dove il device lo implementa.
     // Un solo GET in piu'; se il device non ha ENTITY-MIB torna un varbind-error -> ignorato.
     '1.3.6.1.2.1.47.1.1.1.1.13.1',
+    // entPhysicalSerialNum del chassis (indice 1): matricola ESATTA, standard e
+    // vendor-neutral. Chiave AUTOREVOLE per fondere le NIC di uno stesso apparato
+    // (lib/host-merge.js): due IP che rispondono con lo STESSO serial = un box solo.
+    // Un GET in piu'; assente -> varbind-error ignorato, nessuna fusione inventata.
+    '1.3.6.1.2.1.47.1.1.1.1.11.1',
   ];
 
   // Ogni probe ritorna un handle { promise, close }. close() interrompe SUBITO
@@ -2256,6 +2280,9 @@ async function probe(cfg) {
             sysServices: bufToInt(vbs[3]?.value || 0),
             // ENTITY-MIB model (opzionale): solo se il varbind non e' un errore.
             model: (vbs[4] && !snmp.isVarbindError(vbs[4])) ? bufToStr(vbs[4].value || '') : '',
+            // matricola del chassis: chiave same-chassis (host-merge). Vuota se il
+            // device non espone ENTITY-MIB -> nessuna fusione, mai una inventata.
+            serialNumber: (vbs[5] && !snmp.isVarbindError(vbs[5])) ? bufToStr(vbs[5].value || '') : '',
           });
         });
       } catch (e) { done({ reachable: false, error: e.message }); }

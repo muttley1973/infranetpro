@@ -212,3 +212,56 @@ test('applyPollResult: una porta mappata che la walk NON copre dimentica le sue 
   assert.equal(r.bHasAdmin, false, 'e l\'admin: stessa fonte, stessa scadenza');
   assert.equal(r.bStreak, 0, 'e il conteggio riparte, invece di maturare al buio');
 });
+
+// ── port.ip: l'indirizzo va sulla PORTA CORRETTA (per ifName), fill-if-empty ──
+// Completa il same-chassis merge: un box multi-NIC importato come UN nodo mostra,
+// al primo Sync ogni NIC come porta col SUO IP — agganciato dall'apparato stesso
+// (ipAddrTable -> ifIndex), non indovinato. Manual-first: non tocca un IP a mano.
+
+test('applyPollResult: port.ip dalla misura, sulla porta giusta e senza scambi', () => {
+  const out = run(APP.ctx, `(() => {
+    state = _buildDefaultState(); state.ports = state.ports || {};
+    state.nodes.push({ id:'nas', type:'nas', name:'NAS', ports:1, ip:'192.168.1.120' });
+    if(typeof _invalidateIdx==='function') _invalidateIdx();
+    const data = { ok:true, interfaces:[
+      { name:'eth0', operStatus:1, ownsIp:true, ip:'192.168.1.120' },
+      { name:'eth1', operStatus:1, ownsIp:true, ip:'192.168.1.121' },
+    ], lags:[], vlans:[] };
+    applyPollResult('nas', data, { noHistory:true });
+    return JSON.stringify({ p1:(state.ports['nas-1']||{}).ip||null, p2:(state.ports['nas-2']||{}).ip||null });
+  })()`);
+  const r = JSON.parse(out);
+  assert.equal(r.p1, '192.168.1.120', 'eth0 -> nas-1 col suo IP');
+  assert.equal(r.p2, '192.168.1.121', 'eth1 (NIC fusa) -> nas-2 col SUO IP, non scambiato');
+});
+
+test('applyPollResult: port.ip fill-if-empty, non sovrascrive un IP a mano', () => {
+  const out = run(APP.ctx, `(() => {
+    state = _buildDefaultState(); state.ports = state.ports || {};
+    state.nodes.push({ id:'rtr', type:'router', name:'R', ports:2, ip:'10.0.0.1' });
+    state.ports['rtr-1'] = { status:'active', ifName:'Gi0/0', ip:'10.9.9.9' };
+    if(typeof _invalidateIdx==='function') _invalidateIdx();
+    const data = { ok:true, interfaces:[
+      { name:'Gi0/0', operStatus:1, ownsIp:true, ip:'10.0.0.1' },
+      { name:'Gi0/1', operStatus:1, ownsIp:true, ip:'10.0.0.2' },
+    ], lags:[], vlans:[] };
+    applyPollResult('rtr', data, { noHistory:true });
+    return JSON.stringify({ p1:(state.ports['rtr-1']||{}).ip||null, p2:(state.ports['rtr-2']||{}).ip||null });
+  })()`);
+  const r = JSON.parse(out);
+  assert.equal(r.p1, '10.9.9.9', 'IP a mano preservato: la misura non lo tocca');
+  assert.equal(r.p2, '10.0.0.2', 'la porta senza IP lo riceve dalla misura');
+});
+
+test('applyPollResult: interfaccia senza indirizzo non inventa un port.ip', () => {
+  const out = run(APP.ctx, `(() => {
+    state = _buildDefaultState(); state.ports = state.ports || {};
+    state.nodes.push({ id:'sw', type:'switch', name:'SW', ports:1, ip:'10.0.0.1' });
+    if(typeof _invalidateIdx==='function') _invalidateIdx();
+    const data = { ok:true, interfaces:[ { name:'Gi0/1', operStatus:1, ownsIp:false, ip:'' } ], lags:[], vlans:[] };
+    applyPollResult('sw', data, { noHistory:true });
+    return JSON.stringify({ ip:(state.ports['sw-1']||{}).ip||null });
+  })()`);
+  const r = JSON.parse(out);
+  assert.equal(r.ip, null, 'niente indirizzo -> niente port.ip inventato');
+});
