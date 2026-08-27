@@ -478,6 +478,10 @@
         .disc-badge.src-cdp  { background:rgba(255,140,0,.14); color:#ffb35c; border-color:rgba(255,140,0,.30); }
         .disc-badge.src-web  { background:rgba(255,140,0,.12); color:#ffb35c; border-color:rgba(255,140,0,.25); }
         .disc-badge.src-deep { background:rgba(236,179,60,.12); color:#e3b341; border-color:rgba(236,179,60,.26); }
+        .disc-badge.model-exact  { background:rgba(88,166,255,.14); color:#79b8ff; border-color:rgba(88,166,255,.30); }
+        .disc-badge.model-exact i { margin-right:3px; }
+        .disc-badge.model-family { background:rgba(88,166,255,.07); color:#8bb7e6; border-color:rgba(88,166,255,.20); }
+        .disc-badge.model-family i { margin-right:3px; opacity:.85; }
         .disc-badge.src-arp  { background:rgba(163,113,247,.12); color:#b995ff; border-color:rgba(163,113,247,.25); }
         .disc-badge.src-dhcp { background:rgba(46,204,164,.13); color:#4fd1b5; border-color:rgba(46,204,164,.28); }
         .disc-badge.src-ping { background:rgba(139,148,158,.14); color:#b6beca; border-color:rgba(139,148,158,.25); }

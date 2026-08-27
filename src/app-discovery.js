@@ -1,6 +1,7 @@
 import { win, expose } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, normalizeMacAddress } from './app-util.js';
+import { recognizeModel } from './app-device-types.js';   // riconoscimento modello a scansione (proposta)
 import { markDirty, pushHistory, renderCables, _showToast, _nextNodeId, _vlanIpam } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { _ensureVlanColor, updateVlanIpam } from './app-vlan-autopoll.js';   // associazione VLAN↔subnet dallo scan (declare-first)
 import { prefixesOf } from '../lib/ipam-model.js';   // le VLAN note includono quelle citate da un prefisso
@@ -548,6 +549,10 @@ function _discEnsureMeta(d){
         notes: row.notes,
         reasonCodes: row.reasonCodes,
     };
+    // RICONOSCIMENTO modello (proposta, non scrive): entPhysicalModelName ->
+    // sysDescr -> mDNS, risolto sul catalogo. Serve alla riga (chip) e, se
+    // adottato, all'import. `null` quando nulla aggancia.
+    row._modelMatch = recognizeModel(row);
     return row;
 }
 
@@ -803,6 +808,23 @@ function _discFoldSplit(el){
     _discRenderTable();
 }
 
+// Chip «modello riconosciuto» nella colonna Nome. PROPOSTA misurata (manual-first):
+// exact = un modello di catalogo; family = piu' varianti (porte diverse), da
+// scegliere. Non applica niente: e' un'etichetta. Il vendor e' gia' in colonna
+// sua -> il nome del modello si mostra pulito del prefisso-vendor.
+function _discModelBadge(d){
+    const m = d && d._modelMatch;
+    if(!m) return '';
+    if(m.confidence === 'exact'){
+        const label = _discCleanModel(m.model, m.brand) || m.model;
+        const tip = _dt('disc.tip.modelExact','Modello riconosciuto dal catalogo (misurato: {src}). All\'import viene proposto il modello; le porte NON si applicano da sole.', { src: m.source });
+        return ` <span class="disc-badge model-exact" data-tip="${escapeHTML(tip)}"><i class="fas fa-microchip"></i> ${escapeHTML(label)}</span>`;
+    }
+    const n = (m.candidates || []).length;
+    const tip = _dt('disc.tip.modelFamily','Famiglia riconosciuta ({n} varianti, porte diverse): scegli la variante nel pannello. Nessun modello applicato in automatico.', { n });
+    return ` <span class="disc-badge model-family" data-tip="${escapeHTML(tip)}"><i class="fas fa-layer-group"></i> ${escapeHTML(_dt('disc.modelFamily','famiglia'))}</span>`;
+}
+
 function _discRenderTable(){
     _discCaptureUiState();
     // Indice identita' fresco ma costruito UNA volta per render: senza questo,
@@ -843,7 +865,8 @@ function _discRenderTable(){
             + ` <span class="disc-badge conf-${conf.cls}" data-tip="${escapeHTML(conf.label + ' · ' + conf.title)}">${conf.score}%</span>`
             + ` <span class="disc-badge rec-${rec.cls}" data-tip="${escapeHTML(rec.label + ' · ' + rec.title)}"><i class="fas ${_discRecIcon(rec.cls)}"></i></span>`
             + _discEdgeBadge(d)
-            + _discFoldBadge(d, i);
+            + _discFoldBadge(d, i)
+            + _discModelBadge(d);
         const reach = _discReachabilityInfo(d);
         const rowLabel = _discRowLabel(d, t);   // NOME senza l'IP: quello ha la sua colonna
         // Pre-selezione = vivo E confidenza sopra la soglia fantasmi (i solo-ping a
@@ -1330,6 +1353,15 @@ async function importDiscovered(){
                 };
             }
             if(d._typeManual) n.typeManual = true;   // tipo scelto a mano nel dialogo = pinnato
+            // MODELLO RICONOSCIUTO (misurato, exact): PROPOSTA sul nodo, NON scrive
+            // il campo `model` (resta dichiarazione) e NON applica porte. Il pannello
+            // offre «Adotta modello»; family -> niente (la variante la scegli tu).
+            // Manual-first, come osTypeMeasured.
+            if(d._modelMatch && d._modelMatch.confidence === 'exact'){
+                n.modelMatch = { model: d._modelMatch.model || '', brand: d._modelMatch.brand || '',
+                    sourceSlug: d._modelMatch.sourceSlug || null, source: d._modelMatch.source || '',
+                    catalogVersion: d._modelMatch.catalogVersion || null };
+            }
             // NB: le NIC fuse (d._foldedRows) NON diventano un campo parallelo sul nodo.
             // L'apparato le dichiara da se' come interfacce (ifTable/ipAddrTable): al primo
             // Sync ogni NIC torna come PORTA col suo IP, agganciata per ifIndex (app-snmp.js).

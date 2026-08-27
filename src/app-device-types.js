@@ -18,11 +18,13 @@ import { registerClickActions, registerChangeActions } from './app-delegation.js
 import { hasPowerOutlets } from '../lib/pdu-layout.js';   // «ha prese», non «è un PDU»: unica definizione
 import { powerGroups } from '../lib/power-groups.js';     // i gruppi dichiarati dall'utente non si toccano
 import { _ensureNodeSpec } from './app-types.js';         // i campi `spec` si scrivono in `spec`, come fa il pannello
+import { buildIndexes, resolveCatalogEntry } from '../lib/device-catalog.js';
 
 let _catalog = [];
 let _byKey = {};   // "brand model" (lower) -> template
 let _bySourceSlug = {};
 let _catalogVersion = '';
+let _catIndexes = null;   // indici model-core + partNumber, costruiti una volta dal catalogo
 
 /** Carica il catalogo device-type dal server nella cache (chiamata al boot). */
 export async function loadDeviceTypes() {
@@ -44,6 +46,10 @@ export async function loadDeviceTypes() {
         _byKey[(c.brand + ' ' + c.model).toLowerCase()] = c;
         if (c.sourceSlug || c.slug) _bySourceSlug[String(c.sourceSlug || c.slug).toLowerCase()] = c;
     });
+    // Indici per il RICONOSCIMENTO a scansione (partNumber + model-core, fuzzy
+    // opt-in). Costruiti una volta: stesso resolver dell'import DCIM
+    // (lib/device-catalog.js), nessun drift.
+    _catIndexes = buildIndexes(_catalog);
     _ensureDeviceTypeDatalist();
 }
 
@@ -127,6 +133,21 @@ export function applyTemplateToNode(node, tmpl, rackTotalU) {
 
 /** HTML del control "Applica modello" per la sezione Layout porte. Vuoto se il
  *  catalogo non e' caricato (es. ambiente test/golden senza fetch). */
+/** Banner «modello rilevato allo scan» nel pannello Proprieta'. PROPOSTA misurata
+ *  (node.modelMatch, come osTypeMeasured): il campo `model` resta una dichiarazione
+ *  finche' l'utente non clicca «Adotta». Sparisce se un modello e' gia' stato
+ *  applicato a mano. */
+function _recognizedModelBanner(node){
+    const rec = node && node.modelMatch;
+    if(!rec || !rec.model) return '';
+    if(node.catalogMatch && node.catalogMatch.manual) return '';
+    const label = (rec.brand ? rec.brand + ' ' : '') + rec.model;
+    return `<div style="display:flex;align-items:center;gap:7px;margin-top:6px;padding:6px 8px;border:0.5px solid var(--accent,#58a6ff);border-radius:var(--radius);color:var(--accent,#58a6ff);font-size:11px">
+        <i class="fas fa-microchip"></i><span style="flex:1">${escapeHTML(t('devtype.detected'))}: ${escapeHTML(label)}</span>
+        <button type="button" class="um-btn" data-act="adopt-recognized-model" style="padding:2px 7px;font-size:11px">${escapeHTML(t('devtype.adopt'))}</button>
+      </div>`;
+}
+
 export function _deviceTypeApplyHtml(node) {
     if (!_catalog.length) return '';
     // Il <datalist id="devtype-options"> e' costruito UNA volta al boot in
@@ -141,7 +162,7 @@ export function _deviceTypeApplyHtml(node) {
         <i class="fas fa-arrows-rotate"></i><span style="flex:1">${escapeHTML(t('devtype.updated'))}</span>
         <button type="button" class="um-btn" data-act="apply-current-device-type" style="padding:2px 7px;font-size:11px">${escapeHTML(t('devtype.applyCurrent'))}</button>
       </div>` : '';
-    return `<div class="prop-group" style="margin-top:6px"><label>${t('devtype.apply')}</label>
+    return `${_recognizedModelBanner(node)}<div class="prop-group" style="margin-top:6px"><label>${t('devtype.apply')}</label>
       <input type="text" list="devtype-options" placeholder="${escapeHTML(t('devtype.placeholder'))}" data-change="apply-device-type" data-tip="${escapeHTML(t('devtype.tip'))}">
     </div>${update}`;
 }
@@ -194,9 +215,56 @@ function applyCurrentDeviceType() {
     showAlert(t('devtype.updatedApplied', { model: tmpl.brand + ' ' + tmpl.model }));
 }
 
+/** RICONOSCIMENTO modello a scansione (manual-first: PROPONE, non scrive nulla).
+ *  Fonte-modello in PRIORITA' misurata: entPhysicalModelName (ENTITY-MIB) ->
+ *  sysDescr -> mDNS/UPnP. Il resolver auto-filtra i banner OS/versione a «non
+ *  riconosciuto», quindi passare sysDescr e' sicuro (misurato sul campo). La
+ *  `family` NON porta un modello (varianti con porte diverse) -> niente si
+ *  applica in automatico. Ritorna null se il catalogo non e' caricato o se
+ *  nulla aggancia. Vendor-neutral: nessuna regola per marca. */
+export function recognizeModel(row){
+    if(!row || !_catIndexes) return null;
+    const virtual = !!(row.virtual || row.isVirtual || row.deviceClass === 'vm' || row.deviceClass === 'hypervisor-vm');
+    const sources = [['entity', row.snmpModel], ['sysdescr', row.descr], ['mdns', row.mdns && row.mdns.model]];
+    for(const pair of sources){
+        const raw = String(pair[1] || '').trim();
+        if(!raw) continue;
+        const r = resolveCatalogEntry({ model: raw, virtual }, _catIndexes, null, { fuzzy: true });
+        if(r.strategy === 'virtual') return null;   // verdetto del classificatore: una VM, si declina
+        if(r.entry && r.confidence === 'exact'){
+            return { confidence: 'exact', strategy: r.strategy, source: pair[0],
+                sourceSlug: r.entry.sourceSlug || r.entry.slug || null,
+                brand: r.entry.brand || '', model: r.entry.model || '', catalogVersion: _catalogVersion };
+        }
+        if(r.confidence === 'family'){
+            return { confidence: 'family', strategy: r.strategy, source: pair[0], candidates: r.candidates || [] };
+        }
+    }
+    return null;
+}
+
+/** «Adotta modello»: applica il modello RICONOSCIUTO allo scan come farebbe la
+ *  scelta manuale (stesso applyTemplateToNode: brand/model/porte/frontPanel). E'
+ *  un'azione ESPLICITA dell'utente -> qui applicare le porte e' voluto. Poi la
+ *  proposta (node.modelMatch) ha esaurito il suo scopo e si toglie. */
+function adoptRecognizedModel(){
+    const n = nodeById(store.selId);
+    const rec = n && n.modelMatch;
+    if(!n || !rec) return;
+    const tmpl = (rec.sourceSlug && _bySourceSlug[String(rec.sourceSlug).toLowerCase()])
+        || _byKey[((rec.brand || '') + ' ' + (rec.model || '')).trim().toLowerCase()];
+    if(!tmpl) return;
+    applyTemplateToNode(n, tmpl, getNodeRackSize(n));
+    _markCatalogApplied(n, tmpl, 'recognized-adopt');
+    delete n.modelMatch;
+    renderAll(); markDirty(); renderProps();
+    showAlert(t('devtype.applied', { model: tmpl.brand + ' ' + tmpl.model }));
+}
+
 // Delega: il change sull'input "Applica modello" (data-change) chiama l'handler.
 registerChangeActions({ 'apply-device-type': (el) => applyDeviceType(el.value) });
 registerClickActions({ 'apply-current-device-type': () => applyCurrentDeviceType() });
+registerClickActions({ 'adopt-recognized-model': () => adoptRecognizedModel() });
 
 if (typeof window !== 'undefined' && window.addEventListener) {
     window.addEventListener('infranet:catalog-updated', () => {
