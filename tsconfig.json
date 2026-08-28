@@ -36,6 +36,7 @@
     "lib/drift-snapshot.js",
     "lib/drawio-export.js",
     "lib/project-networks.js",
+    "lib/project-schema.js",
     "lib/frontpanel.js",
     "lib/ha-pair.js",
     "lib/handoff.js",
