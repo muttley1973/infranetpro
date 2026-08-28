@@ -69,8 +69,14 @@ for (const scope of Object.keys(CENSUS)) {
 test('CRICCHETTO — la classifica non elenca campi mai visti in nessun progetto', () => {
   // Non è un errore (esistono campi che compaiono solo dopo uno scan: `proof`,
   // `modelMatch`, `portsMeasured`…), ma vederli elencati tiene onesta la lista.
+  // Gli ultimi tre li scrive SOLO un import DCIM, e il censimento è stato fatto
+  // su progetti nati prima che l'import esistesse: `color` e `lengthM` arrivano
+  // dal cavo NetBox, `overflow` da un apparato le cui interfacce sfondano le
+  // posizioni del frontale. Visti su un import da NetBox vero (4.6.7), quindi
+  // non sono campi finti — sono campi che il campione non poteva contenere.
   const attesi = new Set(['proof', 'modelMatch', 'portsMeasured', 'osTypeMeasured', 'portsReal',
-    'portsManual', 'backup', 'snmp', 'srcDevice', 'srcRack']);
+    'portsManual', 'backup', 'snmp', 'srcDevice', 'srcRack',
+    'color', 'lengthM', 'overflow']);
   for (const scope of Object.keys(CENSUS)) {
     const visti = new Set(keysOf(scope));
     const extra = Object.keys(FIELD_CLASS_BY_SCOPE[scope]).filter(k => !visti.has(k) && !attesi.has(k));
