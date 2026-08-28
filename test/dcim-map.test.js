@@ -87,6 +87,66 @@ test('slot porte deterministici: dati numerici e MGMT su PID dedicato', () => {
   assert.equal(state.ports['nb-dev-100-1'].mac, '00:11:22:33:44:01');
 });
 
+test('il MAC di una porta fisica arriva anche nella forma NetBox 4.2+ (oggetto dedicato)', () => {
+  // ⚠️ NetBox 4.2 ha spostato i MAC in oggetti dedicati: sull'interfaccia il campo
+  // piatto `mac_address` resta ma vale `null`, e il valore sta in
+  // `primary_mac_address`. Il mapper sapeva già leggerlo — ma solo per le vNIC
+  // delle VM; le porte fisiche guardavano il campo piatto e basta.
+  //
+  // Misurato su un NetBox 4.6.7 vero: TUTTE le porte importate arrivavano senza
+  // MAC. Non è un dettaglio — su `port.mac` poggiano `macKey`, l'audit di
+  // presenza, l'aggancio FDB e il drift d'identità.
+  const fx = fixture();
+  fx.interfaces.push({
+    id: 1004, device: { id: 100 }, name: 'GigabitEthernet1/0/4',
+    mac_address: null,                                     // com'è davvero in 4.2+
+    primary_mac_address: { id: 9, mac_address: '00:AA:BB:CC:DD:EE', display: '00:AA:BB:CC:DD:EE' },
+  });
+  const { state } = map.netboxToState(fx);
+  const p = Object.values(state.ports).find(x => x && x.ifName === 'GigabitEthernet1/0/4');
+  assert.ok(p, 'la porta deve esistere');
+  assert.equal(p.mac, '00:AA:BB:CC:DD:EE', 'il MAC arriva dall\'oggetto dedicato');
+
+  // La forma vecchia (≤4.1) continua a funzionare: è lo stesso archivio letto da
+  // una versione diversa, non un formato da abbandonare.
+  assert.equal(state.ports['nb-dev-100-1'].mac, '00:11:22:33:44:01');
+
+  // E un'interfaccia senza MAC in nessuna delle due forme non se lo inventa.
+  const senza = Object.values(state.ports).find(x => x && x.ifName === 'GigabitEthernet1/0/2');
+  assert.equal('mac' in senza, false);
+});
+
+test('la VLAN nativa di un trunk arriva: `untagged_vlan` non vale solo sulle access', () => {
+  // ⚠️ In NetBox `untagged_vlan` significa due cose a seconda del modo, ed
+  // entrambe sono una VLAN DICHIARATA: su una access è il PVID, su una tagged è
+  // la NATIVA. Il mapper leggeva solo il primo caso, quindi la nativa di ogni
+  // trunk importato veniva letta e buttata via.
+  //
+  // Non è cosmetico: `native-mismatch` (lib/cable-validate.js) è un errore di
+  // livello ERROR — due switch con native diverse ai capi di un trunk fanno
+  // passare il traffico untagged dove non deve — e confronta `srcNative` con
+  // `dstNative`. Senza questo campo, su QUALUNQUE progetto nato da un import
+  // NetBox quel controllo non poteva scattare: entrambi i capi erano vuoti.
+  // Trovato dallo smoke `_local/netbox/smoke-two-sites.js`.
+  const fx = fixture();
+  fx.interfaces.push({
+    id: 1003, device: { id: 100 }, name: 'GigabitEthernet1/0/3',
+    mode: { value: 'tagged' }, untagged_vlan: { vid: 99 }, tagged_vlans: [{ vid: 10 }, { vid: 20 }],
+  });
+  const { state } = map.netboxToState(fx);
+  const trunk = Object.values(state.ports).find(p => p && p.ifName === 'GigabitEthernet1/0/3');
+  assert.ok(trunk, 'la porta del trunk deve esistere');
+  assert.equal(trunk.mode, 'trunk');
+  assert.deepEqual(trunk.trunkVlans, [10, 20], 'le taggate restano quelle');
+  assert.equal(trunk.vlanOvr, 99, 'su un trunk vlanOvr È la nativa (lib/link-vlan-color.js)');
+
+  // Il caso access non cambia, e una tagged SENZA nativa non se la inventa:
+  // un campo assente alla sorgente deve restare assente qui (paletto ②).
+  assert.equal(state.ports['nb-dev-100-1'].vlanOvr, 10, 'access: PVID invariato');
+  const senzaNativa = Object.values(state.ports).find(p => p && p.ifName === 'GigabitEthernet1/0/2');
+  assert.equal('vlanOvr' in senzaNativa, false, 'trunk senza untagged_vlan: nessuna nativa inventata');
+});
+
 test('PDU NetBox: interfacce Ethernet diventano MGMT e power outlet conservano lo stato', () => {
   const nb = {
     deviceTypes: [{ id: 50, manufacturer: { id: 1 }, model: 'APC PDU', slug: 'apc-pdu', u_height: 1 }],
