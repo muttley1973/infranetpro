@@ -386,6 +386,23 @@
         .dcim-result-count { padding:10px 6px; border-radius:var(--radius); background:var(--surface-2); text-align:center; }
         .dcim-result-count strong { display:block; color:var(--text-main); font-size:20px; font-weight:600; }
         .dcim-result-count span { display:block; color:var(--text-muted); font-size:var(--fs-xs); margin-top:2px; }
+        /* Proposta «questo progetto è una sede»: una riga fra i conteggi e le
+           azioni. Tono NEUTRO quando c'è qualcosa da fare (è un'offerta, non un
+           allarme), ambra quando si spiega perché non si può, verde quando è
+           già fatto. Il testo va a capo: sono frasi, non etichette. */
+        .dcim-site-prop { display:flex; align-items:flex-start; gap:10px; margin:0 0 16px;
+            padding:11px 13px; border-radius:var(--radius-md,8px);
+            background:var(--surface-2,#0e131a); border:1px solid var(--panel-border,#232b35);
+            font-size:13px; line-height:1.55; color:var(--text-main); }
+        .dcim-site-prop > i { flex-shrink:0; margin-top:2px; color:var(--accent); font-size:13px; }
+        .dcim-site-prop > span { flex:1 1 auto; min-width:0; }
+        .dcim-site-prop > button { flex-shrink:0; align-self:center; }
+        .dcim-site-prop.is-muted { color:var(--text-muted); }
+        .dcim-site-prop.is-warn { background:rgba(240,180,41,.10); border-color:rgba(240,180,41,.32); }
+        .dcim-site-prop.is-warn > i { color:#f0b429; }
+        .dcim-site-prop.is-done { background:rgba(63,185,80,.10); border-color:rgba(63,185,80,.30); }
+        .dcim-site-prop.is-done > i { color:#3fb950; }
+        .dcim-site-err { margin:-10px 0 16px; font-size:12.5px; color:#f85149; }
         .dcim-result-actions { display:flex; justify-content:flex-end; gap:8px; }
         @media (max-width:520px) { .dcim-result-grid { grid-template-columns:repeat(2,1fr); } .dcim-result-actions { flex-wrap:wrap; } }
         /* Tabella risultati discovery */

@@ -16,6 +16,9 @@ import { closeImpExpMenu } from './app-auth.js';
 import { showAlert, switchProject } from './app-core.js';
 import { registerClickActions, registerChangeActions, registerInputActions } from './app-delegation.js';
 import { buildDecisions, sanitizeDecisions } from '../lib/dcim-decisions.js';
+import { proposeSite, applyProposal } from '../lib/dcim-site-proposal.js';
+import { uid } from './app-util.js';
+import { orgContextInvalidate } from './app-org-context.js';
 
 const API = '/api/integrations/dcim';
 
@@ -179,6 +182,10 @@ const _wiz = {
   compare: { state: 'idle', result: null, error: '' },
   projectName: '',
   commit: { state: 'idle', stage: 0, result: null, error: '', name: '' },
+  // La proposta «questo progetto è una sede», caricata DOPO il commit riuscito.
+  // `off` = non si è potuta leggere l'organizzazione: si tace, l'import è andato
+  // bene lo stesso. Vedi `_caricaPropostaSede`.
+  sede: { stato: 'off', prop: null, org: null, errore: '' },
 };
 
 let _catalogStatus = null;
@@ -270,6 +277,10 @@ function _stopCommitProgressTimer() {
 function _resetCommitState() {
   _stopCommitProgressTimer();
   _wiz.commit = { state: 'idle', stage: 0, result: null, error: '', name: '' };
+  // La proposta appartiene AL commit che l'ha generata: lasciarla in piedi
+  // farebbe offrire di iscrivere una sede per un progetto che non esiste più
+  // nella schermata corrente.
+  _wiz.sede = { stato: 'off', prop: null, org: null, errore: '' };
 }
 
 function _scheduleCommitProgress() {
@@ -542,6 +553,55 @@ function _renderCommitProgress() {
   </section>`;
 }
 
+/**
+ * La proposta «questa è una sede», sotto i conteggi dell'import.
+ *
+ * Sei esiti, e cinque su sei NON hanno un bottone: proporre è utile solo quando
+ * c'è davvero qualcosa da scrivere. Negli altri casi si SPIEGA — un riquadro
+ * che tace lascia credere che il legame sia stato fatto, e non lo è stato.
+ */
+function _renderPropostaSede() {
+  const s = _wiz.sede;
+  if (!s || s.stato === 'off') return '';
+  if (s.stato === 'loading') return `<div class="dcim-site-prop is-muted">${escapeHTML(t('integrations.siteChecking'))}</div>`;
+  const p = s.prop;
+  if (!p || p.kind === 'none') return '';
+  const err = s.errore ? `<p class="dcim-site-err">${escapeHTML(s.errore)}</p>` : '';
+  const salva = s.stato === 'saving';
+
+  if (p.kind === 'already') {
+    return `<div class="dcim-site-prop is-done"><i class="fas fa-circle-check"></i>
+      <span>${escapeHTML(t('integrations.siteAlready', { site: p.siteName }))}</span></div>`;
+  }
+  if (p.kind === 'multi') {
+    // ⚠️ Non si propone: due sedi sullo stesso progetto sarebbero una scrittura
+    // falsa. Si dice che cosa è successo e come rifarlo.
+    // ⚠️ L'elenco si TRONCA. Misurato su un NetBox vero: un import senza ambito
+    // ne ha tirati dentro VENTI, e la frase diventava un muro di nomi in cui il
+    // consiglio spariva. Tre nomi bastano a far riconoscere il caso, il numero
+    // dice quanto è grosso.
+    const nomi = p.sites || [];
+    const TETTO = 3;
+    const elenco = nomi.length > TETTO
+      ? nomi.slice(0, TETTO).join(', ') + t('integrations.siteMoreN', { n: nomi.length - TETTO })
+      : nomi.join(', ');
+    return `<div class="dcim-site-prop is-warn"><i class="fas fa-triangle-exclamation"></i>
+      <span>${escapeHTML(t('integrations.siteMulti', { sites: elenco }))}</span></div>`;
+  }
+  if (p.kind === 'conflict') {
+    return `<div class="dcim-site-prop is-warn"><i class="fas fa-triangle-exclamation"></i>
+      <span>${escapeHTML(t('integrations.siteConflict', { site: p.siteName }))}</span></div>${err}`;
+  }
+  // create | link → l'unico caso con un'azione
+  const testo = p.kind === 'link'
+    ? t('integrations.siteLink', { site: p.siteName })
+    : t('integrations.siteCreate', { site: p.siteName });
+  return `<div class="dcim-site-prop"><i class="fas fa-sitemap"></i>
+      <span>${escapeHTML(testo)}</span>
+      <button class="um-btn" data-act="dcim-add-site"${salva ? ' disabled' : ''}>${escapeHTML(t(salva ? 'integrations.siteAdding' : 'integrations.siteAdd'))}</button>
+    </div>${err}`;
+}
+
 function _renderCommitResult() {
   const result = _wiz.commit.result || {};
   const c = result.counts || {};
@@ -551,6 +611,7 @@ function _renderCommitResult() {
     <div class="dcim-result-hero"><span class="dcim-result-icon"><i class="fas fa-circle-check"></i></span>
       <div><h4>${escapeHTML(t('integrations.commitDone'))}</h4><p>${escapeHTML(t('integrations.created', { name }))}</p></div></div>
     <div class="dcim-result-grid">${count(c.devices, 'integrations.cDevices')}${count(c.interfaces, 'integrations.cInterfaces')}${count(c.cables, 'integrations.cCables')}${count(c.vlans, 'integrations.cVlans')}</div>
+    ${_renderPropostaSede()}
     <div class="dcim-result-actions"><button class="um-btn primary" data-act="dcim-open-created"${result.projectId == null ? ' disabled' : ''}><i class="fas fa-arrow-up-right-from-square"></i> ${escapeHTML(t('integrations.openProject'))}</button>
       <button class="um-btn ghost" data-act="dcim-close">${escapeHTML(t('integrations.progressClose'))}</button></div>
   </section>`;
@@ -1107,12 +1168,67 @@ async function _commit() {
     _wiz.commit.result = j;
     _stopCommitProgressTimer();
     _renderImport();
+    _caricaPropostaSede(j);   // il passo dopo: questo progetto è una sede?
   } catch (e) {
     _stopCommitProgressTimer();
     _wiz.commit.state = 'error';
     _wiz.commit.error = String((e && e.message) || e || t('integrations.importFail'));
     _renderImport();
   }
+}
+
+// ── Dopo l'import: questo progetto è una SEDE dell'organizzazione? ─────────
+// L'import creava il progetto e finiva lì: chi importava una sede si ritrovava
+// la mappa inter-sede che non la conosceva, e nulla diceva che il legame andava
+// scritto a mano nel pannello. Qui si CHIEDE, con nome e progetto già in mano —
+// la decisione resta una dichiarazione, e la prende una persona (paletto ①).
+//
+// La decisione di cosa proporre sta in `lib/dcim-site-proposal.js`, pura e
+// testata: qui c'è solo la lettura, la resa e il salvataggio.
+async function _caricaPropostaSede(esito) {
+  const projectId = esito && esito.projectId;
+  const origine = (esito && esito.originSites) || [];
+  if (projectId == null) return;
+  _wiz.sede = { stato: 'loading', prop: null, org: null, errore: '' };
+  _renderImport();
+  try {
+    const r = await fetch('/api/organization', { headers: { Accept: 'application/json' } });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    const org = (j && j.organization) || null;
+    _wiz.sede = { stato: 'ready', prop: proposeSite(org, origine, projectId), org, errore: '' };
+  } catch (e) {
+    // Non poter leggere l'organizzazione non è un fallimento dell'import: il
+    // progetto è stato creato. Si tace la proposta invece di allarmare.
+    _wiz.sede = { stato: 'off', prop: null, org: null, errore: String((e && e.message) || e) };
+  }
+  _renderImport();
+}
+
+async function _iscriviSede() {
+  const s = _wiz.sede;
+  const projectId = _wiz.commit.result && _wiz.commit.result.projectId;
+  if (!s || s.stato === 'saving' || projectId == null) return;
+  if (!s.prop || (s.prop.kind !== 'create' && s.prop.kind !== 'link')) return;
+  s.stato = 'saving'; _renderImport();
+  try {
+    const nuova = applyProposal(s.org, s.prop, projectId, () => uid('site'));
+    const r = await fetch('/api/organization', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(nuova),
+    });
+    if (r.status === 403) { s.stato = 'ready'; s.errore = t('org.saveForbidden'); _renderImport(); return; }
+    const j = await r.json().catch(() => null);
+    if (!r.ok || !j) throw new Error('HTTP ' + r.status);
+    // ③ Si adotta ciò che il server ha SCRITTO, come fa il pannello: se una
+    // sede è rientrata diversa, è quella la verità.
+    s.org = j.organization || nuova;
+    s.prop = proposeSite(s.org, (_wiz.commit.result && _wiz.commit.result.originSites) || [], projectId);
+    s.stato = 'ready'; s.errore = '';
+    orgContextInvalidate();   // la briciola in alto deve accorgersene
+  } catch (e) {
+    s.stato = 'ready'; s.errore = String((e && e.message) || e);
+  }
+  _renderImport();
 }
 
 registerClickActions({
@@ -1165,6 +1281,7 @@ registerClickActions({
   'dcim-commit': () => _commit(),
   'dcim-commit-retry': () => { _resetCommitState(); _renderImport(); },
   'dcim-open-created': () => { const id = _wiz.commit.result && _wiz.commit.result.projectId; if (id != null) { switchProject(id); closeDcimSync(); } },
+  'dcim-add-site': () => _iscriviSede(),
 });
 registerChangeActions({
   'dcim-scope': (el) => { _wiz.scopeMode = 'custom'; _toggleScope(el.dataset.kind, el.dataset.id, el.checked); _wiz.previewStale = true; _renderImport(); },

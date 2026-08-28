@@ -647,7 +647,12 @@ router.post('/api/integrations/dcim/import', auth.requireAdmin, async (req, res)
   // un'altra sessione e rilegge, perché nel frattempo il DCIM può essere cambiato.
   saveProject(id, name, state, now, now);
   pullCache.invalidate(cacheKey);
-  res.status(201).json({ ok: true, projectId: id, counts: report.counts });
+  // I siti NetBox da cui il progetto nasce viaggiano nella risposta perché il
+  // passo dopo l'import è iscriverlo all'organizzazione, e senza questo il
+  // pannello dovrebbe indovinare da un nome. Sono gli STESSI che finiscono in
+  // `state.source` — non una seconda lista: si legge quella appena scritta.
+  const origine = (state.source && state.source.dcim && state.source.dcim.sites) || [];
+  res.status(201).json({ ok: true, projectId: id, counts: report.counts, originSites: origine });
 });
 
 // ── Ri-lettura: che cosa è cambiato nel DCIM da quando hai importato ────────

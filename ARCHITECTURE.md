@@ -229,6 +229,13 @@ lib/                   Shared browser + test modules (the heart of the app)
   lag-reconcile.js  isLagEligibleType (active-only, no passive/pass-through) +
                     stripLagOnPassive + reconcileLagMemberConflicts (one member per
                     active port, manual-first) — LAG data hygiene on load + auto-link  (pure)
+  dcim-site-proposal.js  after an import: is this project a SITE of the organisation?
+                    Pure decision only (propose / link / conflict / multi / already),
+                    so the wizard can offer it and the answer stays testable without a
+                    server. It OFFERS: joining the organisation is a declaration, and an
+                    import that registered itself would decide on the user's behalf. A
+                    project born from more than one NetBox site is refused with the
+                    reason — one site is one project.
   subbar-stats.js   computeSubbarStats → sub-header numbers: doc completeness
                     (withIp/addressable), device count (rooms excluded), SNMP health
                     (ok/err/warn/none) — same field defs as api-shape/app-drift  (pure)
