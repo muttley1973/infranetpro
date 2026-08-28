@@ -45,6 +45,11 @@
         <button class="toolbar-btn danger" data-act="project-delete" data-i18n-tip="project.tipDelete" data-tip="Elimina progetto"><i class="fas fa-trash"></i></button>
     </div>
     <div class="header-sep"></div>
+    <!-- Il layer SOPRA il progetto: un progetto = una sede, questo = come le sedi
+         si parlano. Sta accanto al selettore di progetto perché è la stessa
+         domanda a una scala più grande («dove sono?»), non un'esportazione. -->
+    <button class="toolbar-btn" id="btn-org" data-act="org-open" data-i18n-tip="org.tip" data-tip="Sedi, uplink WAN e collegamenti fra le sedi"><i class="fas fa-sitemap"></i></button>
+    <div class="header-sep"></div>
     <div id="impexp-menu-wrap" style="position:relative">
         <button class="toolbar-btn" id="btn-impexp" data-act="impexp-toggle" data-i18n-tip="impexp.tip" data-tip="Importa / Esporta">
             <i class="fas fa-right-left"></i><span class="btn-label" data-i18n="impexp.btnLabel"> Esporta</span><i class="fas fa-chevron-down" style="font-size:0.6rem;margin-left:4px;opacity:.6"></i>
@@ -1099,6 +1104,23 @@
       <button class="toolbar-btn" id="shared-bind-back" data-act="ssbind-back" style="display:none"><i class="fas fa-arrow-left"></i> <span data-i18n="common.back">Indietro</span></button>
       <button class="toolbar-btn primary" data-act="ssbind-close" data-i18n="common.close">Chiudi</button>
     </div>
+  </div>
+</div>
+
+<!-- ===== SEDI E COLLEGAMENTI (layer multi-sede, Fase 1) =====
+     Il piano SOPRA il progetto: un progetto documenta un edificio, questo
+     pannello documenta come gli edifici si parlano. Corpo e piè di pagina sono
+     costruiti interamente da src/app-inter-site.js (mappa + form + coerenza):
+     qui c'è solo il guscio, così l'a11y del `.tool-modal-overlay` (focus-trap +
+     Esc) vale anche per lui senza codice dedicato. -->
+<div id="org-overlay" class="tool-modal-overlay" data-act="org-backdrop">
+  <div id="org-modal" class="tool-modal" style="width:min(1150px,96vw);max-height:92vh" role="dialog" aria-modal="true" aria-labelledby="org-title">
+    <div class="tool-modal-header um-header">
+      <h3 id="org-title"><i class="fas fa-sitemap"></i> <span data-i18n="org.title">Sedi e collegamenti</span></h3>
+      <button class="toolbar-btn" data-act="org-close" style="padding:4px 8px" data-i18n-tip="common.close" data-tip="Chiudi"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="org-body" class="tool-modal-body"></div>
+    <div id="org-footer" class="tool-modal-footer"></div>
   </div>
 </div>
 

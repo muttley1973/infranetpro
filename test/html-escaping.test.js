@@ -186,6 +186,24 @@ const CAPS = {
     'src/app-drift.js': 15,
     'src/app-hypervisor.js': 9,
     'src/app-integrations.js': 41,
+    // Sedi e collegamenti (2.11, layer multi-sede). Tutto cio' che arriva
+    // dall'utente o dal server passa da escapeHTML(), e le coordinate SVG da
+    // Number(): questi sette residui sono composizione, che lo scanner non
+    // risolve per costruzione.
+    //   · `interSiteEdgePath(e)` costruisce "M x y Q .. L .." da numeri gia'
+    //     arrotondati in lib/inter-site-layout.js (sotto test): nessun testo di
+    //     nessuno lo attraversa;
+    //   · `_siteOptions`/`_projectOptions`/`_deviceOptions` sono .map(_opt) e
+    //     concatenazioni, e _opt e' un builder riconosciuto che escapa valore ed
+    //     etichetta (le sole altre stringhe sono le `<optgroup label>`, escapate
+    //     a mano) — ma una funzione che RITORNA una concatenazione non contiene
+    //     un template HTML, quindi non entra nell'elenco dei builder;
+    //   · `_renderBody()` e `_deviceStatus()` ritornano il risultato di un'ALTRA
+    //     builder (rispettivamente la render della scheda e un helper `hint` che
+    //     escapa il testo): non contengono un template HTML in proprio, quindi
+    //     restano fuori dall'elenco dei builder pur non emettendo mai testo crudo;
+    //   · `drop` e' una variabile che tiene un template gia' scansionato.
+    'src/app-inter-site.js': 10,
     'src/app-l3.js': 3,
     'src/app-management.js': 9,
     'src/app-panel-skin.js': 3,

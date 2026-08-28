@@ -52,7 +52,20 @@ These are deliberate. Don't "fix" them without understanding why:
 server.js              Express bootstrap: static files, auth, routers, listen (127.0.0.1)
 auth.js                Sessions, bcrypt login, roles (admin/viewer), user CRUD
 server/                Backend (CommonJS): projects-store, netscan, classify,
-                       pdf-report, label-sheet, routes/{projects,discovery,export,ai,skins,device-types}
+                       pdf-report, label-sheet, routes/{projects,discovery,export,ai,skins,device-types,organization}
+server/organization-store.js  data/organization.json — ONE organisation per installation
+                       (this install of InfraNet is this company, with its sites), never inside
+                       a project: it is shared across the per-site projects, and a copy in each
+                       would be the same fact in two places. Atomic write + .bak; a corrupt file
+                       restarts from empty, never from invented data.
+server/routes/organization.js  GET (open, like the project list) returns the organisation TOGETHER
+                       with its coherence audit — no second call. PUT (admin, like saving a
+                       project) re-normalises the body instead of trusting the client and answers
+                       with what was actually WRITTEN plus a count of what was refused: a link
+                       with a kind outside the vocabulary must not enter, but vanishing in
+                       silence would let the person who saved believe they had saved it. Adds
+                       the one check a browser cannot make — does a site's projectRef point at a
+                       project that exists — and says so in notChecked when the list is unreadable.
 server/routes/device-types.js  GET /api/device-types -> data/device-types.json: native
                        device templates (ports + frontPanel) generated from public-domain
                        (CC0) device-type data by tools/import-device-types.js --catalog.
@@ -84,6 +97,44 @@ plugins/               Seed vendor catalogs (zero database)
 
 lib/                   Shared browser + test modules (the heart of the app)
   i18n.js              t(key,vars), it/en dictionaries, glossary  (pure)
+  provenance.js     The envelope: how a value is known. `declared` (a person wrote it, and
+                    it never ages — a decision does not expire), `measured{at}` (read from a
+                    device at a stated instant), `derived{from}`. A bare value is NOT promoted
+                    to `declared` for convenience, and a measurement whose timestamp cannot be
+                    read stays undated instead of being stamped with the current time. The age
+                    scale is a REQUIRED argument, never a silent default: `proof.js` (6h/7d/30d)
+                    and `temporal-confidence.js` (30d/60d) answer different questions and
+                    legitimately keep different half-lives. Composes with source-ref.js
+                    (epistemics vs identity), so there is no fourth `imported` origin.
+  inter-site.js     The multi-site layer, ABOVE the per-site projects: an organisation with
+                    its sites (each a projectRef — a reference, never a copy), WAN uplinks and
+                    inter-site links over a CLOSED vocabulary (ipsec/mpls/vpls/sdwan/directLink,
+                    plus `other` + a free label as a DECLARED escape hatch, never an open
+                    string). `reach` — which subnets a link makes reachable at each end — is
+                    one concept for every kind (on an ipsec it IS the encryption domain), so no
+                    vendor's word and no viewpoint-dependent local/remote. Both ends carry the
+                    device that holds them (a ref into the site's project, OR a hand-typed name
+                    — mutually exclusive), because on an MPLS the end is the CE. `publicIps` is
+                    a LIST: a business line comes with a routed block, IPv6 rides the same line
+                    and an HA pair exposes several. An unknown kind is refused, not corrected.
+  inter-site-audit.js  Coherence of the declared multi-site model — no network, no discovery.
+                    Five INCOHERENCES (something is wrong) and five GAPS (nothing is broken,
+                    but you cannot answer) in separate lists, plus `notChecked`: every check
+                    that could not run leaves its name and its reason, the same discipline as
+                    ipam-audit.js — an empty list must mean "I looked", never also "I didn't".
+  inter-site-layout.js  Where each site goes on the map, as coordinates: no SVG, no DOM, no
+                    strings — which is what lets the browser and the coming PDF/draw.io export
+                    draw the SAME map. Deterministic and physics-free (a graph that re-settles
+                    on every open cannot be compared with yesterday's or printed twice alike);
+                    the shape follows the DECLARED role, and zero hubs or two fall back to a
+                    ring rather than picking one for you. Labels are deliberately NOT measured
+                    (a pure module cannot know a font) — it leaves a margin and says so, and
+                    the renderer tightens the viewBox with getBBox() on the drawn SVG.
+  project-schema.js  What every field of state/node/spec/port/link IS — document / measure /
+                    derived / private / secret — and therefore what happens to it in a portable
+                    export. A field a person can type in the UI stays a `document`: erring
+                    towards document adds one field to an export the user made themselves,
+                    erring towards measure DELETES somebody's work.
   cidr.js           IPv4+IPv6 prefix arithmetic; `addrFamily`/`addrKey` = the identity of
                     a single ADDRESS (both families canonical), `segmentKey` = the segment
                     an address belongs to — the DECLARED prefix containing it (most
@@ -221,6 +272,12 @@ styles/                Modular CSS (9 ordered partials + design tokens) — ex s
 build.js               esbuild build of the frontend ESM bundle (dist/app.bundle.js)
 src/                   GLUE migrated to ESM (bundled): _bridge, main, app-types (TYPES,
                        imported first), + all ex-`lib/app-*.js`
+src/app-inter-site.js  "Sites and links": the multi-site layer with a face. Map (SVG from
+                       lib/inter-site-layout.js) and hand entry in ONE panel — not two features:
+                       a map nobody can populate stays empty forever, and a form with no map
+                       never shows what it is for. Does NOT recompute the audit (it travels in
+                       the route's answer) and ADOPTS the server's reply after saving, so a
+                       subnet coming back canonical or a link being refused is visible.
 src/_bridge.js         Migration bridge: win.* read, expose() publish (sparirà a fine migrazione)
 src/store.js           Shared mutable view-state behind a proxy (state/selId/… ex-win.*)
 src/app-delegation.js  Delegated click/change/input listeners: data-act/change/input="key" → imported fn

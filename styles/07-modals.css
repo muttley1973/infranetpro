@@ -843,3 +843,175 @@
             50%      { opacity: 0.55; }
         }
         .tfl-badge { font-size: 9px; font-weight: 700; fill: #000; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+
+        /* ============================================================
+           SEDI E COLLEGAMENTI (#org-overlay) â€” layer multi-sede, Fase 1.
+           Il pannello ha due nature: una MAPPA (SVG, coordinate da
+           lib/inter-site-layout.js) e un FORM (righe una-per-entita').
+           Le classi sono divise di conseguenza: .org-map-* per il disegno,
+           .org-row/.org-grid/.org-f per la scrittura, .org-audit-* per la
+           coerenza. Nessuna misura di geometria qui: quelle stanno nel modulo
+           puro, qui c'e' solo come si vede.
+           ============================================================ */
+        #org-body { display:flex; flex-direction:column; gap:0; padding:0; }
+        .org-head { display:flex; align-items:flex-end; gap:var(--space-6); padding:14px 18px 10px; flex-wrap:wrap; }
+        .org-f-name { flex:1; min-width:220px; }
+        .org-counts { display:flex; align-items:center; gap:var(--space-3); flex-wrap:wrap; }
+        .org-chip { display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:var(--radius-pill);
+                    background:var(--surface-2); border:1px solid var(--hairline); color:var(--text-muted); font-size:var(--fs-xs); }
+        .org-chip.is-ok       { color:var(--active-color); }
+        .org-chip.is-problem  { color:var(--fault-color);  border-color:var(--fault-color); }
+        .org-chip.is-gap      { color:var(--idle-color); }
+        .org-chip.is-unchecked{ color:var(--text-muted); border-style:dashed; }
+        .org-tabs { padding:0 18px; }
+        .org-pane { padding:16px 18px 4px; overflow:auto; }
+
+        /* --- Mappa ------------------------------------------------------- */
+        .org-map-wrap { display:flex; flex-direction:column; align-items:center; gap:var(--space-4); }
+        .org-map { width:100%; max-height:58vh; overflow:visible; }
+        .org-map-hint, .org-warn { font-size:var(--fs-xs); color:var(--text-muted); margin:0; text-align:center; }
+        .org-warn { color:var(--idle-color); }
+        .org-node-circle { fill:var(--surface-2); stroke:var(--panel-border); stroke-width:1.5; transition:stroke var(--transition-fast), fill var(--transition-fast); }
+        .org-node.is-linked  .org-node-circle { stroke:var(--accent); }
+        /* Una sede senza progetto collegato non e' un errore: e' documentazione a
+           meta'. Tratteggio, non rosso. */
+        .org-node.is-unlinked .org-node-circle { stroke-dasharray:4 3; }
+        .org-node { cursor:pointer; }
+        .org-node:hover .org-node-circle, .org-node:focus .org-node-circle { fill:var(--surface-hover); }
+        .org-node:focus { outline:none; }
+        .org-node:focus .org-node-circle { stroke:var(--accent); stroke-width:2.5; }
+        .org-node-icon  { fill:var(--idle-color); font-size:17px; }
+        .org-node-label { fill:var(--text-main);  font-size:13px; font-weight:600; }
+        .org-node-sub   { fill:var(--text-muted); font-size:11px; }
+        .org-edge-line  { fill:none; stroke:var(--text-muted); stroke-width:2; }
+        .org-edge-label { fill:var(--text-muted); font-size:11px; }
+        /* Lo STATO e' il valore, l'ORIGINE e' chi lo afferma: due assi, due segni
+           grafici diversi. Il colore dice su/giu'; il tratteggio dice "dichiarato,
+           nessuno l'ha misurato". Un tunnel misurato-su e uno dichiarato-su NON
+           devono avere la stessa faccia. */
+        .org-edge.is-up   .org-edge-line { stroke:var(--active-color); }
+        .org-edge.is-down .org-edge-line { stroke:var(--fault-color); }
+        .org-edge.is-declared  .org-edge-line { stroke-dasharray:7 4; }
+        .org-edge.is-unspoken  .org-edge-line { stroke-dasharray:2 4; opacity:.75; }
+        .org-uplink-line  { stroke:var(--text-muted); stroke-width:1.5; stroke-dasharray:3 3; }
+        .org-uplink-dot   { fill:var(--surface-2); stroke:var(--text-muted); stroke-width:1.5; }
+        .org-uplink-label { fill:var(--text-muted); font-size:11px; }
+
+        /* --- Form -------------------------------------------------------- */
+        .org-row { border:1px solid var(--panel-border); border-radius:var(--radius-lg); padding:10px 12px 12px; margin-bottom:12px; background:var(--surface-2); }
+        .org-row-head { display:flex; align-items:center; gap:var(--space-4); margin-bottom:10px; color:var(--text-muted); }
+        .org-row-title { flex:1; font-weight:600; font-size:var(--fs-md); background:transparent; border:1px solid transparent;
+                         border-radius:var(--radius-sm); color:var(--text-main); padding:4px 6px; font-family:inherit; }
+        .org-row-title:hover:not(:disabled) { border-color:var(--hairline); }
+        .org-row-title:focus { border-color:var(--accent); outline:none; background:var(--panel-bg); }
+        .org-row-static { padding:4px 6px; }
+        .org-del { padding:4px 9px; }
+        .org-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:var(--space-4) var(--space-5); }
+        .org-f { display:flex; flex-direction:column; gap:3px; font-size:var(--fs-sm); color:var(--text-muted); }
+        .org-f-wide { grid-column:1/-1; }
+        .org-f input, .org-f select { padding:6px 9px; background:var(--panel-bg); border:1px solid var(--panel-border);
+                                      border-radius:var(--radius-md); color:var(--text-main); font-size:var(--fs-md); outline:none; font-family:inherit; }
+        .org-f input:focus, .org-f select:focus { border-color:var(--accent); }
+        .org-f input:disabled, .org-f select:disabled { opacity:.6; cursor:not-allowed; }
+        .org-hint { font-size:var(--fs-xs); color:var(--text-muted); margin:0; }
+        .org-reach-hint { margin-top:8px; }
+        .org-bad  { font-size:var(--fs-xs); color:var(--fault-color); }
+        .org-note { font-size:var(--fs-sm); color:var(--text-muted); }
+        .org-add  { margin:4px 0 8px; }
+        .org-origin { display:inline-block; margin-left:5px; padding:1px 6px; border-radius:var(--radius-pill);
+                      font-size:9px; text-transform:uppercase; letter-spacing:.4px; background:var(--accent-soft); color:var(--accent); }
+        .org-origin-measured { background:rgba(57,211,83,.14); color:var(--active-color); }
+
+        /* --- Coerenza ----------------------------------------------------
+           TRE livelli di lettura, e nient'altro: il GRUPPO (incoerenze /
+           lacune / non controllato) come titoletto maiuscolo muto, come le
+           sezioni del pannello utenti; il CONTROLLO come riga in evidenza; le
+           OCCORRENZE come elenco spaziato. Il corpo cresce dall'alto verso il
+           basso — muto→testo→muto — cosi' l'occhio scende senza rileggere.
+           Le righe NON ripetono il titolo del gruppo: portano solo cio' che
+           varia, e il complemento («presso Caci») e' visivamente secondario. */
+        .org-audit-group { border-left:3px solid var(--panel-border); padding:2px 0 2px 14px; margin-bottom:26px; }
+        .org-audit-group h4 { display:flex; align-items:center; gap:7px;
+            font-size:var(--fs-sm); text-transform:uppercase; letter-spacing:.6px;
+            font-weight:700; color:var(--text-muted); margin:0 0 12px; }
+        .org-audit-group.is-problem   { border-left-color:var(--fault-color); }
+        .org-audit-group.is-problem   h4 { color:var(--fault-color); }
+        .org-audit-group.is-gap       { border-left-color:var(--idle-color); }
+        .org-audit-group.is-gap       h4 { color:var(--idle-color); }
+        .org-audit-group.is-unchecked { border-left-color:var(--text-muted); border-left-style:dashed; }
+        .org-audit-group.is-clean     { border-left-color:var(--active-color); }
+        .org-audit-group.is-clean  h4 { color:var(--text-muted); }
+
+        .org-audit-item { margin-bottom:18px; }
+        .org-audit-item:last-child { margin-bottom:2px; }
+        .org-audit-item h5 { display:flex; align-items:baseline; gap:8px; margin:0 0 6px;
+            font-size:var(--fs-md); font-weight:600; color:var(--text-main); line-height:1.45; }
+        .org-audit-n { flex:none; min-width:20px; padding:1px 7px; border-radius:var(--radius-pill);
+            background:var(--surface-2); border:1px solid var(--hairline);
+            font-size:var(--fs-xs); font-weight:600; color:var(--text-muted);
+            font-variant-numeric:tabular-nums; text-align:center; }
+
+        /* Le occorrenze: nessun pallino: sono elenchi corti sotto un titolo che
+           gia' li introduce, e il pallino aggiungeva rumore a sinistra dove
+           serve invece l'allineamento. L'interlinea e' larga apposta — sono
+           righe che si scorrono cercandone una. */
+        .org-audit-item ul, .org-audit-flat { margin:0; padding:0; list-style:none; }
+        .org-audit-item li, .org-audit-flat li {
+            padding:3px 0; line-height:1.75; font-size:var(--fs-sm); color:var(--text-main); }
+        .org-audit-flat li { padding:5px 0; }
+        .org-audit-at { color:var(--text-muted); }
+        .org-audit-at::before { content:'·'; margin:0 7px; opacity:.6; }
+        .org-audit-group code { font-family:var(--font-mono); font-size:var(--fs-xs);
+            background:var(--surface-2); padding:2px 6px; border-radius:var(--radius-xs); }
+
+        /* --- Vuoto ------------------------------------------------------- */
+        .org-empty { display:flex; flex-direction:column; align-items:center; gap:var(--space-4); padding:34px 20px; text-align:center; }
+        .org-empty-icon { font-size:34px; color:var(--text-muted); opacity:.5; }
+        .org-empty-title { font-size:var(--fs-lg); font-weight:600; color:var(--text-main); margin:0; }
+        .org-empty-sub { font-size:var(--fs-sm); color:var(--text-muted); margin:0; max-width:46ch; line-height:1.5; }
+        #org-footer { gap:var(--space-4); }
+        .org-dropped { flex:1; font-size:var(--fs-xs); color:var(--idle-color); }
+        /* Azione secondaria dentro un campo (es. Â«prendi le reti dal progettoÂ»):
+           sta sotto al suo input, non nella barra dei comandi, perche' agisce su
+           QUEL campo e non sul pannello. */
+        .org-row-actions { display:flex; gap:var(--space-3); margin-top:4px; }
+        .org-mini { padding:4px 9px; font-size:var(--fs-xs); }
+        .org-mini:disabled { opacity:.45; cursor:not-allowed; }
+        .org-f optgroup { font-style:normal; font-weight:600; color:var(--text-muted); }
+        .org-f optgroup option { font-weight:400; color:var(--text-main); }
+        /* I riquadri di conteggio stanno ACCANTO al campo Â«OrganizzazioneÂ» e
+           devono leggersi come lui: stesso corpo e stessa altezza, non
+           didascalie in un angolo. L'altezza e' UNA definizione (--org-field-h),
+           usata sia dal campo sia dai riquadri: due numeri separati
+           divergerebbero al primo ritocco di padding. */
+        .org-head { --org-field-h: 34px; align-items:flex-end; }
+        .org-head .org-f input { min-height:var(--org-field-h); }
+        .org-counts { align-items:flex-end; gap:var(--space-4); }
+        .org-chip { min-height:var(--org-field-h); padding:0 13px; gap:7px;
+                    font-size:var(--fs-md); font-variant-numeric:tabular-nums; }
+        .org-chip i { font-size:0.95em; opacity:.9; }
+        /* La mappa: il viewBox lo stringe il renderer sull'ingombro VERO delle
+           etichette (`_fitMapViewBox`), quindi qui non serve altro margine â€”
+           serve invece che il disegno possa usare tutta l'altezza disponibile. */
+        .org-map { min-height:300px; }
+        /* Colonne piu' larghe: i valori qui dentro sono nomi di progetto e di
+           apparato, non sigle, e a 190px una tendina tagliava proprio il campo
+           su cui uno vuole essere sicuro. `span2` e' per il progetto, che e' il
+           testo piu' lungo del pannello (nome progetto + descrizione). */
+        .org-grid { grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); }
+        .org-f-span2 { grid-column:span 2; }
+        @media (max-width:760px) { .org-f-span2 { grid-column:1/-1; } }
+        .org-f select { text-overflow:ellipsis; }
+        .org-ok { color:var(--active-color); }
+        /* Caselle di spunta in un campo (uplink underlay): un clic, un effetto.
+           La riga intera e' cliccabile, non solo il quadratino. */
+        .org-check { display:flex; align-items:center; gap:9px; padding:5px 2px;
+                     font-size:var(--fs-md); color:var(--text-main); cursor:pointer; line-height:1.5; }
+        .org-check:hover { color:var(--accent); }
+        .org-check input { width:15px; height:15px; accent-color:var(--accent); cursor:pointer; flex:none; }
+        .org-check input:disabled { cursor:not-allowed; }
+        .org-check input:disabled + span { opacity:.6; }
+        /* La natura del collegamento accanto ai due capi, nell'intestazione:
+           secondaria per colore, non per dimensione. */
+        .org-row-kind { color:var(--text-muted); font-weight:400; }
+        .org-row-kind::before { content:'Â·'; margin:0 8px; opacity:.6; }
