@@ -27,9 +27,9 @@ const SANE = {
     site('na', 'spoke', ['10.3.0.0/24']),
   ],
   uplinks: [
-    { id: 'u-mi', siteId: 'mi', publicIp: factDeclared('203.0.113.1') },
-    { id: 'u-rm', siteId: 'rm', publicIp: factDeclared('203.0.113.2') },
-    { id: 'u-na', siteId: 'na', publicIp: factDeclared('203.0.113.3') },
+    { id: 'u-mi', siteId: 'mi', publicIps: factDeclared(['203.0.113.1']) },
+    { id: 'u-rm', siteId: 'rm', publicIps: factDeclared(['203.0.113.2']) },
+    { id: 'u-na', siteId: 'na', publicIps: factDeclared(['203.0.113.3']) },
   ],
   links: [
     ipsec('mi-rm', 'mi', 'rm', reach(['10.1.0.0/24', '10.3.0.0/24'], ['10.2.0.0/24'])),
@@ -147,7 +147,7 @@ test('una rete dichiarata da DUE sedi (sovrapposizione)', () => {
 test('un capo che punta a una sede inesistente', () => {
   const org = clone(SANE);
   org.links.push(ipsec('orfano', 'mi', 'fantasma', reach(['10.1.0.0/24'], [])));
-  org.uplinks.push({ id: 'u-x', siteId: 'fantasma', publicIp: factDeclared('203.0.113.9') });
+  org.uplinks.push({ id: 'u-x', siteId: 'fantasma', publicIps: factDeclared(['203.0.113.9']) });
   const a = buildInterSiteAudit(org);
   assert.deepStrictEqual(a.linksToUnknownSite, [{ linkId: 'orfano', kind: 'ipsec', missing: ['fantasma'] }]);
   assert.deepStrictEqual(a.uplinksToUnknownSite, [{ uplinkId: 'u-x', siteId: 'fantasma' }]);
@@ -185,7 +185,7 @@ test('una sede SENZA collegamenti non ripete ogni sua rete: lo dice una volta', 
 
 test('un uplink senza IP pubblico, e una sede senza uplink', () => {
   const org = clone(SANE);
-  delete org.uplinks[0].publicIp;   // Milano non dichiara l'IP
+  delete org.uplinks[0].publicIps;   // Milano non dichiara l'IP
   org.uplinks.splice(2, 1);         // Napoli non ha uplink
   const a = buildInterSiteAudit(org);
   assert.deepStrictEqual(a.uplinksWithoutPublicIp, [{ uplinkId: 'u-mi', siteId: 'mi' }]);
@@ -194,7 +194,7 @@ test('un uplink senza IP pubblico, e una sede senza uplink', () => {
 
 test('② un IP pubblico NUDO non conta come dichiarato', () => {
   const org = clone(SANE);
-  org.uplinks[0].publicIp = '203.0.113.1'; // senza envelope: non sappiamo da dove viene
+  org.uplinks[0].publicIps = ['203.0.113.1']; // senza envelope: non sappiamo da dove viene
   const a = buildInterSiteAudit(org);
   assert.deepStrictEqual(a.uplinksWithoutPublicIp, [{ uplinkId: 'u-mi', siteId: 'mi' }]);
 });
@@ -206,7 +206,7 @@ test('② incoerenze, lacune e non-esaminati si contano SEPARATAMENTE', () => {
   // la sovrapposizione, e la 10.2.0.0/24 che i tunnel portano ancora ma che ora
   // non risulta più a nessuna sede. I controlli si compongono, ed è giusto così.
   org.sites[1].subnets = ['10.1.0.0/24'];
-  delete org.uplinks[0].publicIp;           // 1 lacuna
+  delete org.uplinks[0].publicIps;           // 1 lacuna
   const a = buildInterSiteAudit(org);
   assert.deepStrictEqual(a.subnetsAtTwoSites, [{ subnet: '10.1.0.0/24', siteIds: ['mi', 'rm'] }]);
   assert.deepStrictEqual(a.subnetsNowhere.map(x => x.subnet), ['10.2.0.0/24']);
