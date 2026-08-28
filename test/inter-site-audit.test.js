@@ -1,6 +1,6 @@
 'use strict';
 // ============================================================
-// AUDIT INTER-SEDE — test della diagnostica sul dichiarato (lib/inter-site-audit.ts).
+// AUDIT INTER-SEDE — test della diagnostica sul dichiarato (lib/inter-site-audit.js).
 //
 // Le invarianti che questo modulo deve difendere:
 //   ① «ho guardato e va bene» ≠ «non ho potuto guardare» → `notChecked` con il perché;
@@ -11,8 +11,8 @@
 // ============================================================
 const test = require('node:test');
 const assert = require('node:assert');
-const { buildInterSiteAudit, interSiteAuditCounts } = require('../lib/inter-site-audit.ts');
-const { factDeclared } = require('../lib/provenance.ts');
+const { buildInterSiteAudit, interSiteAuditCounts } = require('../lib/inter-site-audit.js');
+const { factDeclared } = require('../lib/provenance.js');
 
 const reach = (a, b) => factDeclared({ a, b });
 const site = (id, role, subnets) => ({ id, name: id.toUpperCase(), role, subnets: subnets || [] });
@@ -247,7 +247,7 @@ test('due giri sullo stesso input danno lo stesso risultato (ordine stabile)', (
 });
 
 test('accetta un\'organizzazione grezza (normalizeOrganization è idempotente)', () => {
-  const IS = require('../lib/inter-site.ts');
+  const IS = require('../lib/inter-site.js');
   const grezza = buildInterSiteAudit(SANE);
   const normalizzata = buildInterSiteAudit(IS.normalizeOrganization(SANE));
   assert.deepStrictEqual(normalizzata, grezza);

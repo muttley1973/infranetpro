@@ -1,6 +1,6 @@
 'use strict';
 // ============================================================
-// INTER-SEDE — test del modello multi-sede, Fase 0 (lib/inter-site.ts).
+// INTER-SEDE — test del modello multi-sede, Fase 0 (lib/inter-site.js).
 //
 // Le invarianti che questo modulo deve difendere:
 //   ② no-invenzioni — un `kind` fuori vocabolario si RIFIUTA, non si corregge;
@@ -14,8 +14,8 @@
 // ============================================================
 const test = require('node:test');
 const assert = require('node:assert');
-const IS = require('../lib/inter-site.ts');
-const { factDeclared, factMeasured, factDerived } = require('../lib/provenance.ts');
+const IS = require('../lib/inter-site.js');
+const { factDeclared, factMeasured, factDerived } = require('../lib/provenance.js');
 
 const {
   SITE_ROLES, INTER_SITE_KINDS, INTER_SITE_TOPOLOGIES, INTER_SITE_STATES,

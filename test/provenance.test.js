@@ -1,6 +1,6 @@
 'use strict';
 // ============================================================
-// PROVENANCE — test dell'envelope di provenienza (lib/provenance.ts).
+// PROVENANCE — test dell'envelope di provenienza (lib/provenance.js).
 //
 // Le invarianti d'onestà, che sono il motivo per cui il modulo esiste:
 //   * un valore NUDO non è un fatto — non viene promosso a 'declared' per
@@ -19,7 +19,7 @@
 // ============================================================
 const test = require('node:test');
 const assert = require('node:assert');
-const PROV = require('../lib/provenance.ts');
+const PROV = require('../lib/provenance.js');
 const PROOF = require('../lib/proof.js');
 
 const {

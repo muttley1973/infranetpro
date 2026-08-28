@@ -86,3 +86,36 @@ declare function require(id: string): any;
 /** i18n: funzione di traduzione globale (browser); i puri la usano con
  *  guardia `typeof t === 'function'` e fallback IT in Node/test. */
 declare var t: ((key: string, vars?: any) => string) | undefined;
+
+// ── Provenienza: l'envelope condiviso (lib/provenance.js) ─────────────
+// Stanno QUI e non in provenance.js perché li usa anche lib/inter-site.js, e
+// un `@typedef` dentro un modulo non è visibile agli altri: questo file è il
+// posto che il repo ha già per i tipi di dominio condivisi.
+
+/** I tre assi della provenienza. Chiusi di proposito. */
+type FactOrigin = "declared" | "measured" | "derived";
+
+/** Un valore con la sua provenienza. Unione discriminata su `origin`: `at`
+ *  esiste SOLO su un misurato e `from` SOLO su un derivato — non c'è modo di
+ *  leggere una data da una dichiarazione. */
+type Fact<T> =
+  | { origin: "declared"; value: T }
+  | { origin: "measured"; value: T; at: string }
+  | { origin: "derived"; value: T; from: string };
+
+/** Quanto è vecchia una misura, detto a parole. `undated` è la parola già in
+ *  uso in temporal-confidence.js, e copre anche il dichiarato e il derivato,
+ *  che non hanno una data *per costruzione*. */
+type AgeTier = "fresh" | "aging" | "stale" | "expired" | "undated";
+
+/** Le soglie di una scala d'età. Si passa, non si assume: non esiste UNA
+ *  regola d'età (vedi l'intestazione di lib/provenance.js). */
+interface AgeScale { freshMs: number; staleMs: number; expireMs: number; }
+
+/** L'esito di `factStaleness`. `dated:false` ⇒ tier `undated`, età null. */
+interface Staleness {
+  tier: AgeTier;
+  ageMs: number | null;
+  ageDays: number | null;
+  dated: boolean;
+}

@@ -17,9 +17,9 @@
   },
   "include": [
     "lib/types.d.ts",
-    "lib/provenance.ts",
-    "lib/inter-site.ts",
-    "lib/inter-site-audit.ts",
+    "lib/provenance.js",
+    "lib/inter-site.js",
+    "lib/inter-site-audit.js",
     "lib/ai-draft.js",
     "lib/ai-grounding.js",
     "lib/audit-log.js",
