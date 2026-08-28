@@ -108,8 +108,10 @@ test('② un hub SENZA spoke resta una sede sola al centro', () => {
 });
 
 // ── Nessuna sovrapposizione, per quante siano ─────────────────────────────
-test('l\'anello cresce con le sedi: due cerchi vicini non si toccano mai', () => {
-  const R = INTER_SITE_LAYOUT_DEFAULTS.nodeR;
+test('l\'anello cresce con le sedi: due riquadri vicini non si toccano mai', () => {
+  // ⑩ La misura che conta è la LARGHEZZA: i riquadri sono più larghi che alti,
+  // quindi è lei a decidere se due vicini si sovrappongono.
+  const R = INTER_SITE_LAYOUT_DEFAULTS.nodeW / 2;
   for (const n of [2, 3, 5, 8, 13, 30]) {
     const L = buildInterSiteLayout(ring(n));
     const on = L.nodes.filter(x => !x.center);
@@ -137,7 +139,7 @@ test('⑥ un hub e due filiali si dispongono in ORIZZONTALE, non in colonna', ()
 });
 
 test('⑥ il mezzo passo NON riordina e NON avvicina: cambia solo l\'orientamento', () => {
-  const R = INTER_SITE_LAYOUT_DEFAULTS.nodeR;
+  const R = INTER_SITE_LAYOUT_DEFAULTS.nodeW / 2;
   for (const n of [2, 4, 6, 10]) {
     const L = buildInterSiteLayout(ring(n));
     assert.deepEqual(L.nodes.map(x => x.siteId), Array.from({ length: n }, (_, i) => 's' + i), 'ordine dichiarato');
@@ -158,9 +160,8 @@ test('tutto il disegno sta DENTRO il viewBox dichiarato', () => {
     assert.ok(x >= 0 && x <= L.width, `${what}: x=${x} fuori da 0..${L.width}`);
     assert.ok(y >= 0 && y <= L.height, `${what}: y=${y} fuori da 0..${L.height}`);
   };
-  for (const n of L.nodes) { inside(n.x - n.r, n.y - n.r, 'nodo'); inside(n.x + n.r, n.y + n.r, 'nodo'); }
+  for (const n of L.nodes) { inside(n.x - n.w / 2, n.y - n.h / 2, 'nodo'); inside(n.x + n.w / 2, n.y + n.h / 2, 'nodo'); }
   for (const e of L.edges) { inside(e.x1, e.y1, 'arco'); inside(e.x2, e.y2, 'arco'); inside(e.mx, e.my, 'apice'); }
-  for (const u of L.uplinks) inside(u.x2, u.y2, 'uplink');
 });
 
 // ── ③ Ciò che non si può disegnare si DICE ────────────────────────────────
@@ -232,48 +233,96 @@ test('lo scostamento non dipende dall\'ordine dei capi (a↔b è la stessa coppi
   assert.ok(L.edges.every(e => e.bow !== 0), 'due archi sulla stessa coppia, scritta nei due versi');
 });
 
-test('l\'arco parte dal BORDO del cerchio, non dal centro', () => {
+test('l\'arco parte dal BORDO del riquadro, non dal centro', () => {
   const L = buildInterSiteLayout({
     sites: [site('mi', 'Milano'), site('rm', 'Roma')], uplinks: [], links: [link('l1', 'mi', 'rm')],
   });
   const e = L.edges[0], A = byId(L, 'mi'), B = byId(L, 'rm');
-  assert.ok(Math.abs(Math.hypot(e.x1 - A.x, e.y1 - A.y) - A.r) < 0.05);
-  assert.ok(Math.abs(Math.hypot(e.x2 - B.x, e.y2 - B.y) - B.r) < 0.05);
+  // Sul BORDO del rettangolo: una delle due coordinate tocca il lato.
+  assert.ok(Math.abs(Math.abs(e.x1 - A.x) - A.w / 2) < 0.05 || Math.abs(Math.abs(e.y1 - A.y) - A.h / 2) < 0.05);
+  assert.ok(Math.abs(Math.abs(e.x2 - B.x) - B.w / 2) < 0.05 || Math.abs(Math.abs(e.y2 - B.y) - B.h / 2) < 0.05);
+  // e DENTRO il riquadro non ci finisce: il testo non viene attraversato.
+  assert.ok(Math.abs(e.x1 - A.x) >= A.w / 2 - 0.05 || Math.abs(e.y1 - A.y) >= A.h / 2 - 0.05);
 });
 
-// ── Uplink ────────────────────────────────────────────────────────────────
-test('un uplink esce dalla sede verso il FUORI, non verso il centro', () => {
+// ── ⑩ Gli uplink stanno DENTRO la sede ────────────────────────────────────
+test('⑩ gli uplink appartengono alla SEDE, e viaggiano col suo nodo', () => {
+  // Erano monconi che uscivano verso il fuori, e a chi guardava la mappa
+  // sembravano staccati dal collegamento. Un uplink è di una sede
+  // (`wanUplink.siteId`), e la sede è il capo del collegamento: il nodo se li
+  // porta dentro, in ordine dichiarato.
   const L = buildInterSiteLayout({
     sites: [site('mi', 'Milano', 'hub'), site('rm', 'Roma', 'spoke')],
-    uplinks: [uplink('u1', 'rm')], links: [],
+    uplinks: [uplink('u-fibra', 'mi'), uplink('u-backup', 'mi'), uplink('u-rm', 'rm')],
+    links: [],
   });
-  const hub = byId(L, 'mi'), rm = byId(L, 'rm'), u = L.uplinks[0];
-  const dNode = Math.hypot(rm.x - hub.x, rm.y - hub.y);
-  const dTip = Math.hypot(u.x2 - hub.x, u.y2 - hub.y);
-  assert.ok(dTip > dNode, 'la punta è più lontana dal centro della sede stessa');
+  assert.deepEqual(byId(L, 'mi').uplinkIds, ['u-fibra', 'u-backup'], 'ordine dichiarato, non riordinato');
+  assert.deepEqual(byId(L, 'rm').uplinkIds, ['u-rm']);
+  assert.ok(!('uplinks' in L), 'non esistono più monconi da disegnare fuori');
 });
 
-test('più uplink sulla stessa sede si aprono a ventaglio (non si sovrappongono)', () => {
+test('⑩ una sede senza uplink porta una lista VUOTA, non l\'assenza del campo', () => {
+  // Chi disegna non deve difendersi da `undefined`: «nessuna linea» è una
+  // risposta, e si vede come lista vuota.
+  assert.deepEqual(buildInterSiteLayout(ring(2)).nodes[0].uplinkIds, []);
+});
+
+test('⛔ l\'operatore NON viene appoggiato sull\'arco: nessuno ha dichiarato quale linea lo porta', () => {
+  // La tentazione era mettere il nome dell'operatore al capo del collegamento,
+  // come se quella linea portasse quel tunnel. Con due linee in una sede non lo
+  // sa nessuno — l'unico posto dove l'associazione esiste è `underlayUplinkIds`
+  // dell'SD-WAN — e disegnarla sarebbe inventare con la faccia di un fatto.
   const L = buildInterSiteLayout({
-    sites: [site('mi', 'Milano')], uplinks: [uplink('a', 'mi'), uplink('b', 'mi'), uplink('c', 'mi')], links: [],
+    sites: [site('mi', 'Milano'), site('rm', 'Roma')],
+    uplinks: [uplink('u1', 'mi'), uplink('u2', 'mi')],
+    links: [link('l1', 'mi', 'rm')],
   });
-  const angles = L.uplinks.map(u => u.angle);
-  assert.equal(new Set(angles).size, 3, 'tre direzioni diverse');
-  assert.equal(L.uplinks[1].angle, -1.57, 'quello di mezzo tiene la direzione base (in alto)');
+  assert.deepEqual(Object.keys(L.edges[0]).filter(k => /uplink/i.test(k)), [],
+    'un arco non porta e non può portare un uplink');
+});
+
+// ── ④ Il righello si può passare da fuori ─────────────────────────────────
+test('④ chi disegna può passare la misura VERA dei riquadri', () => {
+  // Il modulo puro non sa quanto è largo un testo; chi disegna sì. Con il
+  // righello la geometria si adatta — ed è lo stesso meccanismo che userà
+  // l'export PDF, con il suo motore di misura al posto del canvas.
+  const org = {
+    sites: [site('mi', 'Milano'), site('rm', 'Roma')], uplinks: [],
+    links: [link('l1', 'mi', 'rm')],
+  };
+  const senza = buildInterSiteLayout(org);
+  const con = buildInterSiteLayout(org, { boxOf: (id) => (id === 'mi' ? { w: 400, h: 200 } : { w: 120, h: 60 }) });
+  assert.equal(byId(con, 'mi').w, 400);
+  assert.equal(byId(con, 'mi').h, 200);
+  assert.equal(byId(con, 'rm').w, 120);
+  assert.ok(con.width > senza.width, 'un riquadro più largo allarga anche l\'anello');
+});
+
+test('④ un righello che risponde male non rompe niente: si torna alla misura dichiarata', () => {
+  // ⚠️ `null` è il caso insidioso: `Number(null)` è 0, che è FINITO — senza
+  // escluderlo prima della conversione, «non lo so» sarebbe diventato «zero», e
+  // il riquadro sarebbe uscito largo zero. È la trappola `+null === 0` che
+  // questo repo ha già annotato in `lib/ipam-model.js`.
+  for (const risposta of [{ w: 'larghissimo', h: null }, null, {}, { w: undefined, h: '' }, 'no']) {
+    const L = buildInterSiteLayout(ring(3), { boxOf: () => risposta });
+    assert.equal(L.nodes[0].w, INTER_SITE_LAYOUT_DEFAULTS.nodeW, JSON.stringify(risposta));
+    assert.equal(L.nodes[0].h, INTER_SITE_LAYOUT_DEFAULTS.nodeH, JSON.stringify(risposta));
+  }
 });
 
 // ── Geometria parametrica ─────────────────────────────────────────────────
 test('le misure sono parametri: chi esporta può disegnare più grande', () => {
   const org = ring(4);
   const piccolo = buildInterSiteLayout(org);
-  const grande = buildInterSiteLayout(org, { nodeR: 68, minRingR: 260 });
+  const grande = buildInterSiteLayout(org, { nodeW: 420, nodeH: 160, minRingR: 500 });
   assert.ok(grande.width > piccolo.width && grande.height > piccolo.height);
-  assert.equal(grande.nodes[0].r, 68);
+  assert.equal(grande.nodes[0].w, 420);
+  assert.equal(grande.nodes[0].h, 160);
 });
 
 test('un\'opzione assurda non rompe la geometria: si torna al default', () => {
-  const L = buildInterSiteLayout(ring(3), { nodeR: 'grande', pad: null });
-  assert.equal(L.nodes[0].r, INTER_SITE_LAYOUT_DEFAULTS.nodeR);
+  const L = buildInterSiteLayout(ring(3), { nodeW: 'grande', pad: null });
+  assert.equal(L.nodes[0].w, INTER_SITE_LAYOUT_DEFAULTS.nodeW);
   assert.ok(Number.isFinite(L.width) && L.width > 0);
 });
 

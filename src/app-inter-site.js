@@ -453,8 +453,75 @@ function _netsLabel(n) {
   return n + ' ' + t(n === 1 ? 'org.netsOne' : 'org.netsShort');
 }
 
-function _renderMap() {
-  const L = buildInterSiteLayout(_st.org);
+// ── ⑩ Il contenuto del riquadro di una sede ───────────────────────────────
+// La geometria la decide `lib/inter-site-layout.js`; COSA c'è scritto dentro lo
+// decide qui, perché è l'unico posto che sa in che lingua si sta parlando.
+
+/** Le righe di misura del riquadro: quanto è alto lo dice il NUMERO di righe (che
+ *  è un dato), quanto è largo lo dirà il testo misurato. Costanti di geometria,
+ *  non di stile: il font sta nel CSS. */
+const BOX = { padX: 15, padY: 13, nameH: 20, lineH: 15, maxUplinks: 3 };
+
+/**
+ * Le righe di testo dentro il riquadro di una sede: il nome, poi ogni linea WAN
+ * con il suo operatore, il tipo di servizio e gli indirizzi pubblici, e infine
+ * quante reti ha la sede.
+ *
+ * ⚠️ Con molte linee il riquadro crescerebbe senza fine: se ne mostrano al più
+ * `maxUplinks` e le altre si CONTANO. Un elenco troncato in silenzio direbbe
+ * «queste sono tutte»; «+2 altre» dice quante ne restano.
+ */
+function _nodeLines(n) {
+  const righe = [{ text: n.name, cls: 'org-node-name' }];
+  const mie = (n.uplinkIds || []).map(id => _uplinks().find(u => u.id === id)).filter(Boolean);
+  for (const u of mie.slice(0, BOX.maxUplinks)) {
+    const testa = [u.provider || t('org.uplinkNoProvider'), u.serviceType].filter(Boolean).join(' · ');
+    righe.push({ text: testa, cls: 'org-node-wan' });
+    const ips = isFact(u.publicIps) ? (factValue(u.publicIps) || []) : [];
+    if (ips.length) righe.push({ text: ips.join('  '), cls: 'org-node-ip' });
+  }
+  if (mie.length > BOX.maxUplinks) {
+    righe.push({ text: t('org.moreUplinks').replace('{n}', String(mie.length - BOX.maxUplinks)), cls: 'org-node-wan' });
+  }
+  if (!mie.length) righe.push({ text: t('org.noUplinkShort'), cls: 'org-node-wan' });
+  righe.push({ text: n.subnets ? _netsLabel(n.subnets) : t('org.noNets'), cls: 'org-node-sub' });
+  return righe;
+}
+
+/** L'altezza del riquadro dal NUMERO di righe — che è un dato, non una misura. */
+function _boxHeight(righe) {
+  return BOX.padY * 2 + BOX.nameH + (righe.length - 1) * BOX.lineH;
+}
+
+/**
+ * Le larghezze VERE dei riquadri, lette dall'SVG già disegnato.
+ *
+ * ④ Il modulo puro non misura il testo, e chi disegna non copia i font dal CSS
+ * (sarebbe la definizione doppia che diverge al primo restyle): si disegna una
+ * prima volta con la misura dichiarata, si chiede a `getBBox()` quanto sono
+ * larghe le righe DAVVERO, e si ridisegna con quelle. Due passate, e la seconda
+ * è esatta perché misura il testo reso, non una stima.
+ */
+function _measureBoxes(svg) {
+  /** @type {Record<string, {w:number, h:number}>} */
+  const box = Object.create(null);
+  if (!svg) return box;
+  for (const g of svg.querySelectorAll('.org-node')) {
+    const id = g.dataset.site;
+    if (!id) continue;
+    let max = 0;
+    for (const t2 of g.querySelectorAll('text')) {
+      try { max = Math.max(max, t2.getBBox().width); } catch (_) { return Object.create(null); }
+    }
+    if (!max) return Object.create(null);   // non ancora impaginato: si tiene il primo giro
+    const alt = Number(g.dataset.boxh) || 0;
+    box[id] = { w: max + BOX.padX * 2, h: alt };
+  }
+  return box;
+}
+
+function _renderMap(boxOf) {
+  const L = buildInterSiteLayout(_st.org, boxOf ? { boxOf } : undefined);
   if (L.layout === 'empty') {
     return `<div class="org-empty">
       <i class="fas fa-sitemap org-empty-icon"></i>
@@ -484,26 +551,21 @@ function _renderMap() {
     </g>`;
   }).join('');
 
-  const ups = L.uplinks.map(u => {
-    const up = _uplinks().find(x => x.id === u.uplinkId);
-    const name = (up && up.provider) || t('org.uplinkNoProvider');
-    const anchor = u.x2 < byId[u.siteId].x ? 'end' : 'start';
-    return `<g class="org-uplink">
-      <line x1="${Number(u.x1)}" y1="${Number(u.y1)}" x2="${Number(u.x2)}" y2="${Number(u.y2)}" class="org-uplink-line"/>
-      <circle cx="${Number(u.x2)}" cy="${Number(u.y2)}" r="5" class="org-uplink-dot"/>
-      <text x="${Number(u.x2 + (anchor === 'end' ? -9 : 9))}" y="${Number(u.y2 + 4)}" class="org-uplink-label" text-anchor="${anchor}">${escapeHTML(name)}</text>
-    </g>`;
-  }).join('');
-
   const nodes = L.nodes.map(n => {
     const linked = n.projectRef && _st.projects.some(p => String(p.id) === String(n.projectRef));
-    const sub = n.subnets ? _netsLabel(n.subnets) : t('org.noNets');
-    return `<g class="org-node ${linked ? 'is-linked' : 'is-unlinked'}" data-act="org-node" data-site="${escapeHTML(n.siteId)}" tabindex="0" role="button">
+    const righe = _nodeLines(n);
+    const x0 = n.x - n.w / 2 + BOX.padX;          // testo allineato a SINISTRA: i CIDR
+    let y = n.y - n.h / 2 + BOX.padY + 13;        // si leggono incolonnati, non centrati
+    const testi = righe.map((r, i) => {
+      const el = `<text x="${Number(x0)}" y="${Number(y)}" class="${escapeHTML(r.cls)}">${escapeHTML(r.text)}</text>`;
+      y += (i === 0 ? BOX.nameH : BOX.lineH);
+      return el;
+    }).join('');
+    return `<g class="org-node ${linked ? 'is-linked' : 'is-unlinked'}" data-act="org-node" data-site="${escapeHTML(n.siteId)}" data-boxh="${Number(_boxHeight(righe))}" tabindex="0" role="button">
       <title>${escapeHTML(n.name + ' · ' + t('org.role.' + n.role) + (linked ? '' : ' · ' + t('org.noProject')))}</title>
-      <circle cx="${Number(n.x)}" cy="${Number(n.y)}" r="${Number(n.r)}" class="org-node-circle"/>
-      <text x="${Number(n.x)}" y="${Number(n.y + 5)}" class="org-node-icon" text-anchor="middle">${n.role === 'hub' ? '★' : ''}</text>
-      <text x="${Number(n.x)}" y="${Number(n.y + n.r + 18)}" class="org-node-label" text-anchor="middle">${escapeHTML(n.name)}</text>
-      <text x="${Number(n.x)}" y="${Number(n.y + n.r + 33)}" class="org-node-sub" text-anchor="middle">${escapeHTML(sub)}</text>
+      <rect x="${Number(n.x - n.w / 2)}" y="${Number(n.y - n.h / 2)}" width="${Number(n.w)}" height="${Number(n.h)}" rx="10" class="org-node-box"/>
+      ${n.role === 'hub' ? `<text x="${Number(n.x + n.w / 2 - BOX.padX)}" y="${Number(n.y - n.h / 2 + BOX.padY + 13)}" class="org-node-icon" text-anchor="end">★</text>` : ''}
+      ${testi}
     </g>`;
   }).join('');
 
@@ -516,7 +578,7 @@ function _renderMap() {
 
   return `<div class="org-map-wrap">
     <svg class="org-map" viewBox="0 0 ${Number(L.width)} ${Number(L.height)}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${escapeHTML(t('org.mapAria'))}">
-      ${edges}${ups}${nodes}
+      ${edges}${nodes}
     </svg>
     <p class="org-map-hint">${escapeHTML(L.layout === 'hub' ? t('org.layoutHub') : t('org.layoutRing'))} · ${escapeHTML(t('org.clickSite'))}</p>
     ${warn}
@@ -602,7 +664,7 @@ function _deviceStatus(siteId, ep) {
   const site = _sites().find(s => s.id === siteId);
   const stato = (site && site.projectRef) ? _st.projectData.get(String(site.projectRef)) : undefined;
   const hint = (cls, icona, chiave) =>
-    `<small class="${cls}">${icona ? `<i class="fas ${icona}"></i> ` : ''}${escapeHTML(t(chiave))}</small>`;
+    `<small class="${escapeHTML(cls)}">${icona ? `<i class="fas ${escapeHTML(icona)}"></i> ` : ''}${escapeHTML(t(chiave))}</small>`;
   if (e.deviceRef) {
     // ⚠️ «Non l'ho ancora letto» e «non si legge» sono due cose diverse: senza
     // distinguerle, un progetto rotto passerebbe per uno lento.
@@ -1064,6 +1126,18 @@ function _render() {
       ${TABS.map(([k, icon, key]) => `<button class="um-tab${_st.tab === k ? ' active' : ''}" data-act="org-tab" data-tab="${k}"><i class="fas ${icon}"></i> <span>${escapeHTML(t(key))}</span></button>`).join('')}
     </div>
     <div class="org-pane">${_renderBody()}</div>`;
+  // ④ La SECONDA passata della mappa: ora l'SVG è nel documento, quindi le righe
+  // dentro i riquadri si possono misurare per davvero e la geometria si rifà con
+  // le larghezze vere. Si fa una volta sola — con un `boxOf` già in mano non si
+  // rientra — perché due passate bastano e una terza inseguirebbe sé stessa.
+  if (_st.tab === 'map') {
+    const svg = body.querySelector('svg.org-map');
+    const misure = _measureBoxes(svg);
+    if (Object.keys(misure).length) {
+      const pane = body.querySelector('.org-pane');
+      if (pane) pane.innerHTML = _renderMap((id) => misure[id] || null);
+    }
+  }
   // Il ritaglio si fa DOPO che l'SVG è nel documento: prima non c'è niente da
   // misurare, e `getBBox()` risponderebbe zero.
   _fitMapViewBox(body.querySelector('svg.org-map'));
