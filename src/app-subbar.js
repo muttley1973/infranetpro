@@ -1,14 +1,17 @@
 // ============================================================
 // SOTTO-HEADER — barra sotto l'<header>:
-//   - SINISTRA  breadcrumb "percorso" (InfraNet Pro / <progetto> / Planimetria)
-//   - CENTRO    suggerimento prossimo-passo: solo scritta + pulsante
+//   - SINISTRA  breadcrumb "percorso" (InfraNet Pro / <org> / <progetto> / <vista>)
+//   - CENTRO    chip del filtro VLAN attivo (vuoto -> :empty, collassa via CSS)
 //   - DESTRA    statistiche: completamento documentazione - device - salute SNMP
 //
-// "InfraNet calcola, l'AI racconta": il suggerimento e' il passo DETERMINISTICO
-// di lib/onboarding (nextStep), le statistiche sono lib/subbar-stats (puro). Qui
-// c'e' SOLO il rendering nell'elemento #modern-subbar (gia' nell'HTML). Manual-first:
-// il pulsante GUIDA (clicca il bottone reale, o semina la domanda nell'assistente),
-// non applica mai nulla da solo.
+// Le statistiche sono lib/subbar-stats (puro): qui c'e' SOLO il rendering
+// nell'elemento #modern-subbar (gia' nell'HTML).
+//
+// ⛔ NIENTE suggerimento «prossimo passo» in questa barra (tolto su richiesta,
+// 2026-08-28). Il motore NON e' stato rimosso: `lib/onboarding.js` (`nextStep`)
+// resta, perche' lo consuma l'ASSISTENTE in src/app-ai.js, che e' il posto dove
+// un consiglio e' richiesto invece che imposto. Qui era un nudge permanente in
+// cima allo schermo, sempre acceso anche a documentazione finita.
 //
 // Aggiornata a ogni renderAll (hook in app-render-core) -> sempre coerente col
 // progetto/selezione correnti. Lib consumati come GLOBAL BARE (typeof-guard):
@@ -20,80 +23,75 @@ import { TYPES } from './app-types.js';
 import { _snmpFreshness } from './app-snmp.js';   // età "adesso/min/h/gg" per l'esito auto-link
 import { snapFloor } from '../lib/floor-snap.js';   // aggancio alla griglia: stessa regola del drag (rispetta gridHidden)
 import { FILTER_ROUTED } from './app-popup.js';     // il valore «instradato» del filtro ha UNA definizione, non una stringa ricopiata qui
+import { orgContextFor, orgContextReady, orgContextLoad } from './app-org-context.js';
 
 // Nome progetto: la fonte viva e' la <select> dell'header (si aggiorna al cambio
 // progetto); fallback al nome nello store, poi a un segnaposto i18n.
+//
+// ⚠️ La tendina e' un DOM che viene RICOSTRUITO (loadProjectList la svuota e la
+// ripopola). Un ridisegno della barra che capiti in quell'istante la trova senza
+// opzioni: prima leggeva «Nessun progetto» e lo lasciava scritto fino al render
+// successivo — che puo' non arrivare mai. Un progetto E' aperto (currentProjectId
+// valorizzato) e chiamarlo «nessuno» e' falso, non prudente: si tiene l'ultimo
+// nome noto, che e' vero. Il segnaposto resta per il caso reale in cui nessun
+// progetto e' aperto.
+let _lastProjName = '';
+
 function _projectName() {
   try {
     const sel = document.getElementById('project-select');
     const o = sel && sel.selectedOptions && sel.selectedOptions[0];
     const txt = o && (o.textContent || '').trim();
-    if (txt) return txt;
+    if (txt) { _lastProjName = txt; return txt; }
   } catch (_) {}
   const st = store.state || {};
-  return (st.projectName && String(st.projectName).trim()) || t('subbar.noProject');
-}
-
-// Riassunto per nextStep: riusa quello dell'assistente (unica fonte, include
-// drift/gaps live) se disponibile; altrimenti fallback minimo (devices+verified),
-// che copre comunque i due nudge principali Scopri/Verifica.
-function _summary() {
-  if (typeof _aiBuildSummary === 'function') {
-    try { return _aiBuildSummary(); } catch (_) {}
-  }
-  const st = store.state || {};
-  const nodes = Array.isArray(st.nodes) ? st.nodes : [];
-  // devices: non-strutturali (come la stat subbar), non nodes.length → coerenza
-  // «dispositivi documentati» fra onboarding e statistica (schema ⑤).
-  let snmpDown = 0, deviceCount = nodes.length;
-  if (typeof computeSubbarStats === 'function') {
-    try { const _ss = computeSubbarStats(nodes, TYPES); snmpDown = _ss.snmpDown || 0; deviceCount = _ss.devices; } catch (_) {}
-  }
-  let portConflicts = 0;
-  for (const n of nodes) portConflicts += Array.isArray(n && n.portReconcileConflicts) ? n.portReconcileConflicts.length : 0;
-  const rep = (store._driftReport && typeof store._driftReport === 'object') ? store._driftReport : {};
-  return {
-    devices: deviceCount, verified: !!store._driftReport, snmpDown, portConflicts,
-    drift: { unverified: Array.isArray(rep.unverified) ? rep.unverified.length : 0 }, gaps: {},
-  };
-}
-
-// I due soli step "a bottone reale" mappano a un'etichetta d'azione dedicata;
-// gli altri (a domanda) usano l'etichetta generica "Chiedi".
-const _TARGET_BTN = { discover: 'subbar.doDiscover', verify: 'subbar.doVerify' };
-
-// Traduce lo step in { ok, text, btnLabel, onClick } | null.
-function _suggest() {
-  if (typeof nextStep !== 'function') return null;
-  let step;
-  try { step = nextStep(_summary()); } catch (_) { return null; }
-  if (!step || !step.id) return null;
-  const ok = step.id === 'allGood';
-  const text = t('onboard.' + step.id, step.data);
-  if (step.target) {
-    return {
-      ok, text,
-      btnLabel: t(_TARGET_BTN[step.id] || 'subbar.show'),
-      onClick: () => { try { const el = document.querySelector(step.target); if (el) el.click(); } catch (_) {} },
-    };
-  }
-  if (step.askKey && typeof aiExplain === 'function') {
-    return {
-      ok, text,
-      btnLabel: t('subbar.ask'),
-      onClick: () => {
-        try {
-          if (typeof openAssistant === 'function') openAssistant();
-          aiExplain(t(step.askKey, step.data));
-        } catch (_) {}
-      },
-    };
-  }
-  return { ok, text, btnLabel: null, onClick: null };
+  const nome = st.projectName && String(st.projectName).trim();
+  if (nome) { _lastProjName = nome; return nome; }
+  if (store.currentProjectId != null && _lastProjName) return _lastProjName;
+  return t('subbar.noProject');
 }
 
 // ---- costruttori DOM (textContent ovunque -> zero injection) ----
 function _sep() { const s = document.createElement('span'); s.className = 'sep'; s.textContent = '/'; return s; }
+
+// L'organizzazione a cui il progetto aperto appartiene — se qualcuno l'ha
+// DICHIARATO collegando una sede a questo progetto (`site.projectRef`).
+//
+// È il gradino che mancava: dalla mappa delle sedi si scendeva già dentro un
+// progetto, ma una volta dentro nulla diceva da dove si veniva né come tornare
+// su. Il segmento è un bottone e riporta esattamente là (il Back della
+// Physical Workspace Bar di Packet Tracer, applicato a due DOCUMENTI diversi:
+// qui salire non è uno zoom, è riaprire il piano di sopra).
+//
+// Assente finché la risposta non è arrivata (② di app-org-context): un percorso
+// che appare e sparisce a ogni ridisegno sarebbe peggio di un percorso assente.
+function _orgCrumb() {
+  if (!orgContextReady()) {
+    // Il primo ridisegno la chiede; quando arriva, si ridisegna UNA volta sola.
+    // `renderSubbar` è locale a questo modulo: nessun global, nessun ciclo.
+    orgContextLoad().then(() => { try { renderSubbar(); } catch (_) {} });
+    return null;
+  }
+  return orgContextFor(store.currentProjectId);
+}
+
+function _orgCrumbEl(ctx) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'msb-up';
+  // Un'organizzazione senza nome è normale (il campo è facoltativo): l'etichetta
+  // generica dice comunque DOVE porta il bottone, che è il punto.
+  b.textContent = ctx.orgName || t('subbar.org');
+  b.title = t('subbar.upTip', { site: ctx.siteName || t('subbar.siteNoName') });
+  const ico = document.createElement('i'); ico.className = 'fas fa-arrow-turn-up';
+  b.insertBefore(ico, b.firstChild);
+  // Apre il pannello «Sedi e collegamenti» cliccando il bottone REALE della
+  // toolbar: una sola definizione di «come si apre», già registrata su data-act.
+  b.addEventListener('click', () => {
+    try { const el = document.getElementById('btn-org'); if (el) el.click(); } catch (_) {}
+  });
+  return b;
+}
 
 function _crumbEl() {
   const wrap = document.createElement('div');
@@ -101,7 +99,16 @@ function _crumbEl() {
   const ico = document.createElement('i'); ico.className = 'fas fa-layer-group'; wrap.appendChild(ico);
   const brand = document.createElement('span'); brand.textContent = 'InfraNet Pro'; wrap.appendChild(brand);
   wrap.appendChild(_sep());
+  const org = _orgCrumb();
+  if (org) { wrap.appendChild(_orgCrumbEl(org)); wrap.appendChild(_sep()); }
   const proj = document.createElement('b'); proj.className = 'msb-proj'; proj.textContent = _projectName(); wrap.appendChild(proj);
+  // Il nome del PROGETTO resta il segmento: è il documento davvero aperto. Quando
+  // la sede si chiama diversamente, il nome dichiarato nell'organizzazione sta nel
+  // tooltip — due nomi affiancati sarebbero rumore, uno solo sceglierebbe al posto
+  // dell'utente quale dei due è «vero».
+  if (org && org.siteName && org.siteName !== proj.textContent) {
+    proj.title = t('subbar.siteIs', { site: org.siteName });
+  }
   wrap.appendChild(_sep());
   // Il terzo segmento segue la VISTA attiva, non e' fisso su "Planimetria":
   // map → Planimetria · topology → Topologia · overview → Panoramica. Riusa le
@@ -110,23 +117,6 @@ function _crumbEl() {
     : store._viewMode === 'topology' ? t('f.topology')
     : t('subbar.floor');
   const view = document.createElement('span'); view.textContent = viewLabel; wrap.appendChild(view);
-  return wrap;
-}
-
-function _suggestEl(sug) {
-  const wrap = document.createElement('div');
-  wrap.className = 'msb-suggest' + (sug && sug.ok ? ' msb-ok' : '');
-  if (!sug) return wrap;
-  const ico = document.createElement('i');
-  ico.className = 'fas ' + (sug.ok ? 'fa-circle-check' : 'fa-wand-magic-sparkles');
-  wrap.appendChild(ico);
-  const txt = document.createElement('span'); txt.className = 'msb-txt'; txt.textContent = sug.text; wrap.appendChild(txt);
-  if (sug.btnLabel && sug.onClick) {
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'msb-btn';
-    b.textContent = sug.btnLabel;
-    b.addEventListener('click', sug.onClick);
-    wrap.appendChild(b);
-  }
   return wrap;
 }
 
@@ -294,11 +284,11 @@ export function renderSubbar() {
   const stats = (typeof computeSubbarStats === 'function') ? computeSubbarStats(nodes, TYPES) : null;
   bar.innerHTML = '';
   bar.appendChild(_crumbEl());
-  // Zona centrale: quando il filtro VLAN e' attivo il chip PRENDE il posto del
-  // suggerimento (cosi' resta centrato tra breadcrumb e statistiche, senza il
-  // nudge largo che lo spingerebbe a destra). Tolto il filtro, torna il suggerimento.
-  if (store._filterVlan != null) bar.appendChild(_vlanFilterEl());
-  else bar.appendChild(_suggestEl(_suggest()));
+  // Zona centrale: il solo chip del filtro VLAN. Si appende SEMPRE — senza filtro
+  // e' un div vuoto che il CSS collassa (`:empty`) — invece che condizionarne
+  // l'aggiunta: cosi' il numero e l'ordine dei figli non cambiano fra un
+  // ridisegno e l'altro, e il chip resta nella stessa posizione quando compare.
+  bar.appendChild(_vlanFilterEl());
   bar.appendChild(_autoLinkEl());
   bar.appendChild(_topoWarnEl(_topoWarn()));
   bar.appendChild(_statsEl(stats));

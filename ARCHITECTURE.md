@@ -278,6 +278,14 @@ src/app-inter-site.js  "Sites and links": the multi-site layer with a face. Map 
                        never shows what it is for. Does NOT recompute the audit (it travels in
                        the route's answer) and ADOPTS the server's reply after saving, so a
                        subnet coming back canonical or a link being refused is visible.
+src/app-org-context.js "Where am I": answers whether the OPEN project is a site declared by the
+                       organisation (site.projectRef — read, never guessed by name), so the
+                       sub-header can offer the step back up. Imports NOTHING on purpose: the
+                       sub-header reads it on every render and the panel invalidates it after
+                       saving, and importing either would close an ESM cycle — which in a bundle
+                       surfaces as an `undefined` at runtime, not as a build error. Tells "not
+                       loaded yet" apart from "not a site": announcing the second while the first
+                       is true would flash a false statement on every cold start.
 src/_bridge.js         Migration bridge: win.* read, expose() publish (sparirà a fine migrazione)
 src/store.js           Shared mutable view-state behind a proxy (state/selId/… ex-win.*)
 src/app-delegation.js  Delegated click/change/input listeners: data-act/change/input="key" → imported fn
@@ -410,7 +418,7 @@ files.
 the right panel. `renderProps()` dispatches by selection (`selType`/`selId`) to
 `_renderNodeProps` / `_renderLinkProps` / `_renderPortProps` / `_renderFloorProps`.
 At the tail of each rebuild it also refreshes the sub-header (`src/app-subbar.js`
-`renderSubbar` → `#modern-subbar`: breadcrumb · next-step suggestion · project
+`renderSubbar` → `#modern-subbar`: breadcrumb · active VLAN-filter chip · project
 stats) — a bare-global typeof-guarded call, so no new `win.*` reference.
 
 Floor nodes also carry a **presence overlay** derived from the last Drift report,

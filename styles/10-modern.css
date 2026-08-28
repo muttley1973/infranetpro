@@ -435,8 +435,8 @@ header {
    Step 9 — SOTTO-HEADER (breadcrumb + azione consigliata)
    DORMIENTE: lo stile e' pronto ma NESSUN #modern-subbar esiste ancora
    Feature VERA (src/app-subbar.js -> renderSubbar): 3 zone.
-     - SINISTRA  .msb-crumb   breadcrumb "percorso" (InfraNet Pro / progetto / vista)
-     - CENTRO    .msb-suggest suggerimento prossimo-passo: FLAT (solo scritta + pulsante)
+     - SINISTRA  .msb-crumb   breadcrumb "percorso" (InfraNet Pro / org / progetto / vista)
+     - CENTRO    .msb-vlan    chip del filtro VLAN attivo (:empty -> collassa)
      - DESTRA    .msb-stats   statistiche: documentazione % - device - salute SNMP (pallino)
    ============================================================ */
 #modern-subbar {
@@ -448,7 +448,7 @@ header {
    solo il nome si accorcia (icona, "InfraNet Pro", separatori e "Planimetria" restano
    sempre interi), con ellissi unicamente se la barra e' davvero stretta.
    flex-basis:0 (come la zona DESTRA .msb-stats): le due fasce laterali crescono in modo
-   SIMMETRICO, cosi' l'elemento centrale (suggerimento o chip del filtro VLAN) resta
+   SIMMETRICO, cosi' l'elemento centrale (il chip del filtro VLAN) resta
    davvero centrato nella barra. Con basis:auto il breadcrumb si seminava con la
    larghezza del nome e sbilanciava il centro (il chip finiva schiacciato a destra). */
 #modern-subbar .msb-crumb { flex:1 1 0; display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-muted); font-weight:500; min-width:0; overflow:hidden; }
@@ -457,18 +457,22 @@ header {
 #modern-subbar .msb-crumb i { color:#4d5560; font-size:11px; }
 #modern-subbar .msb-crumb .sep { color:#3d444d; }
 #modern-subbar .msb-crumb b { flex:0 1 auto; min-width:0; color:var(--text-main); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* Il segmento ORGANIZZAZIONE: l'unico cliccabile del percorso, perché è l'unico
+   che porta ALTROVE (riapre «Sedi e collegamenti»). Si comporta da link — non da
+   bottone con riquadro — così resta un percorso e non diventa una barra di
+   pulsanti: il sottolineato compare al passaggio, che è dove serve il segnale.
+   `flex-shrink` acceso e larghezza minima: quando il nome del progetto è lungo,
+   a cedere è questo, non il nome del documento aperto. */
+#modern-subbar .msb-crumb .msb-up { flex:0 1 auto; min-width:0; display:inline-flex; align-items:center; gap:5px;
+  background:none; border:0; padding:0; cursor:pointer; font:inherit; color:var(--text-muted);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#modern-subbar .msb-crumb .msb-up i { color:inherit; font-size:10px; }
+#modern-subbar .msb-crumb .msb-up:hover { color:var(--accent); text-decoration:underline; }
+#modern-subbar .msb-crumb .msb-up:hover i { color:var(--accent); }
+#modern-subbar .msb-crumb .msb-up:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:3px; }
 
-/* ZONA CENTRO: suggerimento FLAT — niente pill/riquadro, solo icona + scritta + pulsante */
-#modern-subbar .msb-suggest { flex:0 1 auto; min-width:0; display:flex; align-items:center; gap:9px; justify-content:center; }
-#modern-subbar .msb-suggest > i { color:var(--accent); font-size:12px; flex-shrink:0; }
-#modern-subbar .msb-suggest.msb-ok > i { color:#3fb950; }
-#modern-subbar .msb-txt { font-size:12.5px; color:#c9eef7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-#modern-subbar .msb-suggest.msb-ok .msb-txt { color:var(--text-muted); }
-#modern-subbar .msb-btn {
-    background:var(--accent); color:#04141a; font-weight:700; font-size:11.5px; border:none; border-radius:999px;
-    padding:4px 11px; cursor:pointer; font-family:inherit; white-space:nowrap; box-shadow:0 0 14px rgba(0,212,255,.35);
-}
-#modern-subbar .msb-btn:hover { filter:brightness(1.08); }
+/* ZONA CENTRO: solo il chip del filtro VLAN (piu' in basso). Il suggerimento
+   "prossimo passo" che stava qui e' stato tolto il 2026-08-28. */
 
 /* ZONA DESTRA: statistiche progetto */
 #modern-subbar .msb-stats { flex:1 1 0; display:flex; align-items:center; justify-content:flex-end; gap:18px; }
@@ -506,14 +510,13 @@ header {
 #modern-subbar .msb-vlan > i { font-size:11px; flex-shrink:0; }
 #modern-subbar .msb-vlan .msb-vlan-x { font-size:10px; opacity:.7; }
 
-/* Stretto: nascondi il breadcrumb e le etichette-parola delle statistiche (restano
-   icone + valori + pulsante del suggerimento). */
+/* Stretto: nascondi il breadcrumb e le etichette-parola delle statistiche
+   (restano icone e valori). */
 @media (max-width:1200px){
     #modern-subbar .msb-crumb { display:none; }
     #modern-subbar .msb-stat-l { display:none; }
 }
 @media (max-width:820px){
-    #modern-subbar .msb-txt { display:none; }
     #modern-subbar .msb-warn-txt { display:none; }
     #modern-subbar .msb-autolink { display:none; }
 }

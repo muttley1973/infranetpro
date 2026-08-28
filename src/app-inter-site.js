@@ -46,6 +46,7 @@ import { factDeclared, factOrigin, factValue, isFact } from '../lib/provenance.j
 import { subnetInputToCidr, addrFamily } from '../lib/cidr.js';
 import { prefixesOf, migrateIpam } from '../lib/ipam-model.js';   // l'autorità sulle reti DICHIARATE di un progetto
 import { nodeLabelParts } from '../lib/node-label.js';
+import { orgContextInvalidate } from './app-org-context.js';
 import { TYPES } from './app-types.js';
 
 const API = '/api/organization';
@@ -208,6 +209,10 @@ async function _save() {
     if (!r.ok || !j) throw new Error('HTTP ' + r.status);
     _st.dropped = j.dropped || null;
     _adopt(j);   // ③ si adotta ciò che il server ha SCRITTO
+    // La briciola «dove sono» della sotto-header legge la stessa organizzazione da
+    // una cache sua: senza questo, rinominare qui una sede lascerebbe il vecchio
+    // nome scritto là sotto — la stessa verità raccontata in due modi diversi.
+    orgContextInvalidate();
   } catch (e) {
     showAlert(t('org.saveFailed') + ' ' + String((e && e.message) || e));
   } finally {

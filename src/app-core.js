@@ -51,6 +51,14 @@ async function loadProjectList() {
         if (p.id === store.currentProjectId) opt.selected = true;
         sel.appendChild(opt);
     });
+    // La sotto-header legge il nome del progetto DA QUESTA tendina, e qui la
+    // tendina e' appena cambiata. Senza questa riga il breadcrumb restava indietro
+    // di un passo: `switchProject` fa loadProject (che ridisegna tutto) e SOLO DOPO
+    // ripopola la <select>, quindi all'avvio a freddo la barra leggeva un elenco
+    // ancora vuoto e scriveva «Nessun progetto» con un progetto aperto — fino al
+    // primo click, che ridisegnando la correggeva da sola. Bare global con guardia:
+    // stesso idioma del resto del modulo, nessun import nuovo (niente cicli).
+    if (typeof renderSubbar === 'function') renderSubbar();
     return list;
 }
 
