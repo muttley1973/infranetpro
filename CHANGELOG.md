@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased] — post-v2.10.2
+
+Groundwork only: nothing here changes what the app shows or does yet. These are the two
+foundations the multi-site layer is built on (plan: `_local/notes/PIANO_multi-sede-wan-vpn.md`,
+phase 0), plus the guard that keeps them inside a gate.
+
+### Added
+
+- **A value can now carry how we know it.** `lib/provenance.ts` is the envelope: a value is `declared` (a person wrote it — and it never ages, because a decision does not expire), `measured` (read from a device at a stated instant), or `derived` (computed, naming what from). A bare value is deliberately *not* promoted to `declared` for convenience, and a measurement whose timestamp cannot be read is never stamped with the current time — it stays `undated` and says so. It composes with `lib/source-ref.js` instead of repeating it: *which* external object a value came from is an identity question that already has a home, so there is no fourth `imported` origin. The four state engines that exist (`proof`, `temporal-confidence`, `identity-reconcile`, presence) are untouched; new facts are born with the envelope and the model converges forward. ⚠️ One thing the plan got wrong and the code does not: there is no single age rule to unify. `proof.js` (6h / 7d / 30d) measures how fresh the *proof that a device is alive* is; `temporal-confidence.js` (30d / 60d) measures confidence in a *repeated sighting*. Different questions, legitimately different half-lives — so what is shared is the shape of the answer, and the scale is a required argument with no silent default.
+- **The model of the multi-site layer: an organisation above the per-site projects.** InfraNet documents one site per project and the projects are islands — nothing modelled the WAN uplinks and the site-to-site tunnels that actually hold a multi-site business together. `lib/inter-site.ts` carries sites (each a *reference* to its existing project, never a copy), WAN uplinks, and inter-site links over one closed vocabulary — `ipsec`, `mpls`, `vpls`, `sdwan`, `directLink`. Which subnets a link makes reachable at each end is a single concept (`reach`) across every kind — on an IPsec link it *is* the encryption domain — so no vendor's word enters the model and no viewpoint-dependent «local/remote» either. The envelope sits only on what a device could actually report: a provider, a circuit ID or a contracted rate are declarations by construction (and the contracted rate is never `ifSpeed`). Subnets are canonicalised through `lib/cidr`, so the same network written two ways is one subnet. Model only — no view, no network, no diagnostics.
+- **A TypeScript source can no longer slip past every gate.** `eslint` matches only `**/*.js` and skips a `.ts` in silence («File ignored because no matching configuration»); `tools/check-syntax.js` filters `.js` as well. That leaves `tsconfig.json` as the *only* gate a `.ts` has — and a file forgotten out of `include` would be checked by nobody at all, while still compiling and running. `test/ts-gate.test.js` turns that into a red test: every `lib/*.ts` must be listed, and `include` may not name a file that no longer exists.
+
+### Changed
+
+- **The first real TypeScript modules in the repo.** Node loads them with native type stripping and esbuild compiles them for free, so no dependency and no build step were added. ⚠️ A `.ts` cannot be loaded by `<script src>`: `lib/*.js` reaches the browser either as a script tag in `netmapper.html` *or* through the `src/` bundle, and a `.ts` has only the second route. That is the direction the strangler migration is going anyway, but it is a real constraint and it is written at the top of both files.
+
 ## [2.10.2] — 2026-08-27
 
 ### Fixed

@@ -79,6 +79,10 @@ interface LinkVlanInfo {
 // ── Globali del wrapper UMD dei moduli puri (niente @types/node) ──────
 declare var module: { exports: any } | undefined;
 
+/** UMD: dipendenza da un altro puro in Node (in browser si passa `root`).
+ *  Nei `.js` TS lo deduce dal modulo CJS; in un `.ts` script va dichiarato. */
+declare function require(id: string): any;
+
 /** i18n: funzione di traduzione globale (browser); i puri la usano con
  *  guardia `typeof t === 'function'` e fallback IT in Node/test. */
 declare var t: ((key: string, vars?: any) => string) | undefined;

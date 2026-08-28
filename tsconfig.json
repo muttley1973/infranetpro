@@ -1,5 +1,6 @@
 {
   "//": "Type-check dei moduli PURI (UMD-lite) via JSDoc + checkJs (npm run typecheck). Nessun emit: i .js restano identici a runtime. Il glue app-*.js (scope globale) resta fuori per scelta.",
+  "//ts": "I .ts (provenance, inter-site) sono moduli NUOVI: Node li carica con type-stripping nativo, esbuild li compila gratis. ⚠️ Per un .ts questo file è l'UNICO cancello: eslint aggancia solo **/*.js e check-syntax filtra .js. La guardia che lo impone è test/ts-gate.test.js.",
   "compilerOptions": {
     "allowJs": true,
     "checkJs": true,
@@ -16,6 +17,8 @@
   },
   "include": [
     "lib/types.d.ts",
+    "lib/provenance.ts",
+    "lib/inter-site.ts",
     "lib/ai-draft.js",
     "lib/ai-grounding.js",
     "lib/audit-log.js",
