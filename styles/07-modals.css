@@ -889,6 +889,11 @@
         .org-node-wan   { fill:var(--text-main);  font-size:11px; }
         .org-node-ip    { fill:var(--text-muted); font-size:10.5px; font-family:var(--font-mono); }
         .org-node-sub   { fill:var(--text-muted); font-size:11px; }
+        /* «Cosa c'è dentro»: letto dal progetto-sede, non dichiarato qui. Più
+           tenue delle altre righe perché è un'ANTEPRIMA del gradino sotto, non
+           un dato dell'organizzazione — e perché la sua assenza (progetto non
+           collegato) deve leggersi come silenzio, non come un buco. */
+        .org-node-in    { fill:var(--text-muted); font-size:10.5px; opacity:.75; }
         .org-edge-line  { fill:none; stroke:var(--text-muted); stroke-width:2; }
         .org-edge-label { fill:var(--text-muted); font-size:11px; }
         /* Lo STATO e' il valore, l'ORIGINE e' chi lo afferma: due assi, due segni

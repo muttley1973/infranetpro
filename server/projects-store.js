@@ -7,6 +7,12 @@ const fs   = require('fs');
 const path = require('path');
 const { PROJECT_STATE_SCHEMA_VERSION } = require('../lib/project-format.js');
 const { migrateIpam } = require('../lib/ipam-model.js');
+// `LAYOUT_TYPES` (oggi: `room`) è la denylist strutturale GIÀ definita e motivata
+// lato server in lib/api-shape.js. Riusarla — invece di riscrivere qui `!== 'room'`
+// — è ciò che tiene UNO il significato di «quanti apparati»: il conteggio della
+// lista progetti e quello della sotto-header devono dare lo stesso numero, o il
+// riquadro della mappa contraddice la barra dentro la stessa sede.
+const { LAYOUT_TYPES } = require('../lib/api-shape.js');
 
 // La cartella projects/ sta nella root del progetto (server/ è un livello sotto).
 // Override via INFRANET_PROJECTS_DIR: serve a far girare il server su uno store
@@ -177,13 +183,35 @@ function loadProject(id) {
   return null;
 }
 
+// Quanto c'è DENTRO un progetto, per chi lo guarda da fuori (il riquadro-sede
+// della mappa inter-sede lo mostra prima di entrarci).
+//
+// ⚠️ `null`, non `0`, quando lo stato non c'è o non è leggibile. Un progetto
+// senza `state` — importato da una versione vecchia, o copiato a mano — non è un
+// progetto VUOTO: è un progetto di cui non sappiamo il contenuto. Scrivere `0`
+// sarebbe un ripiego che a valle nessuno distingue da una misura, e la mappa
+// direbbe «questa sede non ha apparati» di una sede che ne ha trenta.
+function _projectCounts(state) {
+  if (!state || typeof state !== 'object') return { devices: null, racks: null };
+  const nodes = Array.isArray(state.nodes) ? state.nodes : null;
+  const racks = Array.isArray(state.racks) ? state.racks : null;
+  return {
+    devices: nodes ? nodes.filter(n => n && !LAYOUT_TYPES.has(n.type)).length : null,
+    racks: racks ? racks.length : null,
+  };
+}
+
 function listProjects() {
   return fs.readdirSync(PROJECTS_DIR)
     .filter(f => /^\d+\.json$/.test(f))
     .map(f => {
       try {
         const o = JSON.parse(fs.readFileSync(path.join(PROJECTS_DIR, f), 'utf8'));
-        return { id: o.id, name: o.name, created_at: o.created_at, updated_at: o.updated_at };
+        // Il parse dell'intero file avviene comunque (serve a id/name/date): i
+        // conteggi costano una scansione dell'array già in memoria, non un I/O.
+        const c = _projectCounts(o.state);
+        return { id: o.id, name: o.name, created_at: o.created_at, updated_at: o.updated_at,
+                 devices: c.devices, racks: c.racks };
       } catch (_) { return null; }
     })
     .filter(Boolean)
@@ -191,7 +219,18 @@ function listProjects() {
     // (importato da una versione vecchia o copiato a mano) faceva throw su
     // `undefined.localeCompare` -> 500 sull'INTERA lista progetti (utente bloccato
     // su ogni progetto). Ora quel record finisce in coda, la lista regge.
-    .sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
+    // ⚠️ A PARITÀ di `updated_at` decide l'id, dal più recente. Senza questo
+    // spareggio l'ordine dei pari non era definito: `timestamp()` (utils.js)
+    // tronca ai SECONDI, quindi due progetti salvati nello stesso secondo
+    // confrontano uguale e a decidere restava l'ordine di `readdirSync` — che è
+    // lessicografico sui nomi di file, quindi `10.json` prima di `2.json`, e non
+    // è nemmeno garantito dal filesystem. Non è un dettaglio da test: all'avvio
+    // l'app apre `list[0]`, così *quale progetto si apre* poteva cambiare fra un
+    // riavvio e l'altro, e la tendina mostrare due ordini diversi per gli stessi
+    // dati. L'id cresce nel tempo: a parità di secondo, l'ultimo creato è l'ultimo
+    // toccato — stessa direzione dell'ordinamento, non una regola nuova.
+    .sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || ''))
+                 || (Number(b.id) || 0) - (Number(a.id) || 0));
 }
 
 module.exports = {

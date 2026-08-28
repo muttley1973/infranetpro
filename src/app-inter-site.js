@@ -115,7 +115,18 @@ async function _load() {
     // La lista progetti serve alla tendina `projectRef`. Se non arriva, la
     // tendina resta col solo valore già scritto: meglio un campo povero di un
     // riferimento perso.
-    _st.projects = rp.ok ? (await rp.json()).map(p => ({ id: p.id, name: p.name })) : [];
+    // `devices`/`racks` arrivano dalla lista (il server li conta nel parse che fa
+    // comunque): il riquadro-sede mostra quanto c'è dentro senza scaricare i
+    // progetti interi — una planimetria come data-URL pesa più di tutto il resto.
+    // `?? null` e non `|| 0`: un server più vecchio non li manda, e «non lo so»
+    // non deve diventare «zero» (vedi `_contentLabel`).
+    _st.projects = rp.ok
+      ? (await rp.json()).map(p => ({
+          id: p.id, name: p.name,
+          devices: p.devices == null ? null : p.devices,
+          racks: p.racks == null ? null : p.racks,
+        }))
+      : [];
   } catch (e) {
     _st.loadErr = String((e && e.message) || e);
   } finally {
@@ -485,7 +496,38 @@ function _nodeLines(n) {
   }
   if (!mie.length) righe.push({ text: t('org.noUplinkShort'), cls: 'org-node-wan' });
   righe.push({ text: n.subnets ? _netsLabel(n.subnets) : t('org.noNets'), cls: 'org-node-sub' });
+  const dentro = _contentLabel(n.projectRef);
+  if (dentro) righe.push({ text: dentro, cls: 'org-node-in' });
   return righe;
+}
+
+/**
+ * Cosa c'è DENTRO la sede: il conto di apparati e rack del progetto collegato.
+ * È l'anteprima del gradino sotto — si vede quanto pesa una sede prima di
+ * entrarci, e un riquadro senza questa riga dice a colpo d'occhio che lì il
+ * progetto non c'è ancora.
+ *
+ * ⚠️ Tre casi diversi, e due di essi devono restare MUTI:
+ *   • nessun `projectRef`, o riferimento a un progetto sparito → niente riga
+ *     (l'audit lo segnala già come tale: non è compito del riquadro accusare);
+ *   • progetto collegato ma conteggi `null` (un JSON senza `state`, importato da
+ *     una versione vecchia) → niente riga. Scrivere «0 apparati» sarebbe un
+ *     ripiego indistinguibile da una misura, e direbbe che la sede è vuota.
+ * Solo il terzo caso — conteggi veri — parla.
+ *
+ * I numeri li calcola il SERVER in `listProjects()` con la stessa denylist
+ * strutturale del resto del backend: qui non si ricontano i nodi, o sarebbe la
+ * n-esima definizione doppia motore↔renderer.
+ */
+function _contentLabel(projectRef) {
+  if (!projectRef) return '';
+  const p = _st.projects.find(x => String(x.id) === String(projectRef));
+  if (!p || p.devices == null) return '';
+  const parti = [p.devices + ' ' + t(p.devices === 1 ? 'org.boxDeviceOne' : 'org.boxDevices')];
+  // I rack sono facoltativi: una sede tutta a muro non ne ha, e «0 rack» è un
+  // dato vero ma inutile accanto agli apparati. Si nomina solo se ce n'è almeno uno.
+  if (p.racks) parti.push(p.racks + ' ' + t(p.racks === 1 ? 'org.boxRackOne' : 'org.boxRacks'));
+  return parti.join(' · ');
 }
 
 /** L'altezza del riquadro dal NUMERO di righe — che è un dato, non una misura. */
