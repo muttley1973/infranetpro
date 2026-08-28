@@ -113,6 +113,8 @@ data/dcim-config.json*
 # dal NetBox devicetype-library (ref/sha pinnati nel manifest). Restano versionati
 # il runtime data/device-types.json, il manifest, il diff e i piccoli file di
 # controllo (aliases/overrides/exclusions).
+data/organization.json
+data/organization.json.bak
 data/device-types-canonical.json
 
 # -------------------------------------------------------

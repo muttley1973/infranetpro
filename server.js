@@ -146,6 +146,11 @@ app.get('/', (_, res) => res.sendFile(path.join(ROOT, 'netmapper.html')));
 // ---- Progetti (server/routes/projects.js) -----------------------------------
 app.use(require('./server/routes/projects'));
 
+// ---- Organizzazione multi-sede (server/routes/organization.js) --------------
+// Il livello SOPRA i progetti: sedi, uplink WAN e collegamenti inter-sede.
+// UNA per installazione (data/organization.json).
+app.use(require('./server/routes/organization'));
+
 // ---- Storico progetto (server/routes/history.js) ----------------------------
 app.use(require('./server/routes/history'));
 
