@@ -1072,6 +1072,17 @@
         .org-wan-head .org-mini { margin-left:auto; }
         .org-wan-report ul { margin:6px 0 0; padding-left:18px; color:var(--text-muted); font-size:var(--fs-xs); line-height:1.5; }
         .org-wan-report li { margin-bottom:3px; }
+        /* Il verbale dei tipi di circuito. È un RENDICONTO, non un elenco di
+           eccezioni: sta sopra le note e si legge nel colore del testo, mentre
+           le note restano smorzate. La riga finale che spiega i tipi senza
+           tecnologia è invece un margine, e come tale si smorza.
+           ⚠️ I selettori nominano il riquadro (`.org-wan-report …`) perché
+           `.org-wan-report p` batterebbe una classe da sola sui margini: qui
+           la specificità è la regola, non un `!important`. */
+        .org-wan-report .org-wan-types-head { margin-top:6px; font-size:var(--fs-xs); color:var(--text-muted); }
+        .org-wan-report ul.org-wan-types { color:var(--text-main); margin-top:2px; }
+        .org-wan-report ul.org-wan-types + p { margin-top:5px; }
+        .org-wan-report .org-wan-types-note { font-size:var(--fs-xs); color:var(--text-muted); }
         .org-f optgroup { font-style:normal; font-weight:600; color:var(--text-muted); }
         .org-f optgroup option { font-weight:400; color:var(--text-main); }
         /* I riquadri di conteggio stanno ACCANTO al campo «Organizzazione» e

@@ -624,6 +624,11 @@ function _mergeWan(site, j) {
     siteName: site.name, fetchedAt: (j && j.fetchedAt) || null,
     added, total: uplinkCand.length, already,
     addedLinks, totalLinks: linkCand.length, alreadyLinks,
+    // ⑱ Il censimento dei tipi arriva dal server e si porta avanti tale e
+    // quale: è un verbale, e riscriverlo qui vorrebbe dire tenere una seconda
+    // copia della stessa regola — quella che decide la tecnologia — in un
+    // posto dove non ci sono gli slug per applicarla.
+    types: (j && j.types) || [],
     notes,
   };
   if (added || addedLinks) _touch();
@@ -1246,6 +1251,47 @@ function _wanNoteText(n) {
     .replace('{rows}', (n.rows || []).map(r => String(r.circuitId || r.name || '—') + ' (' + String(r.status || '') + ')').join(', '));
 }
 
+/**
+ * ⑱ **Il verbale dei tipi di circuito.** Il tipo di un circuito in NetBox è
+ * testo libero dell'istanza, e la tecnologia di un collegamento nasce da una
+ * regola che il software applica DA SÉ: se lo slug del tipo è già una nostra
+ * tecnologia allora è quella, altrimenti «Altro» con il nome per descrizione.
+ * Una decisione presa in silenzio è una decisione che nessuno può correggere,
+ * e qui si dice tipo per tipo — con i NUMERI, perché «un tipo che si chiama
+ * MPLS» e «due collegamenti letti come MPLS» non sono la stessa affermazione.
+ *
+ * ⚠️ La tecnologia si nomina SOLO dove è stata davvero decisa, cioè dove quel
+ * tipo ha prodotto un collegamento fra sedi. Un tipo che ha prodotto soltanto
+ * linee WAN non ha nessuna tecnologia da mostrare: là il tipo finisce tale e
+ * quale nel campo del servizio, e nessuno sceglie niente. Scriverlo lo stesso
+ * sarebbe raccontare una decisione mai presa.
+ */
+function _renderWanTypes(types) {
+  const elenco = (types || []).filter(x => x && (x.name || x.slug));
+  if (!elenco.length) return '';
+  let soloUplink = false;
+  const righe = elenco.map(x => {
+    const n = Math.max(0, Number(x.n) || 0);
+    const nl = Math.max(0, Number(x.nLinks) || 0);
+    const testa = t(n === 1 ? 'org.wanTypeRowOne' : 'org.wanTypeRow')
+      .replace('{n}', String(n)).replace('{name}', String(x.name || x.slug));
+    if (!nl) { soloUplink = true; return testa; }
+    // Una tecnologia che il modello non conosce non si stampa: sarebbe una
+    // parola inventata a schermo, e il vocabolario è quello del modello.
+    const kind = INTER_SITE_KINDS.indexOf(x.kind) >= 0 ? x.kind : 'other';
+    // ⚠️ Le quattro chiavi si scrivono PER ESTESO: il cricchetto delle
+    // traduzioni legge le chiavi dal sorgente, e una composta a runtime gli
+    // sarebbe invisibile — potrebbe mancare dal dizionario e comparire nuda.
+    const chiave = kind === 'other'
+      ? (nl === 1 ? 'org.wanTypeOtherOne' : 'org.wanTypeOther')
+      : (nl === 1 ? 'org.wanTypeAsOne' : 'org.wanTypeAs');
+    return testa + t(chiave).replace('{n}', String(nl)).replace('{kind}', t('org.kind.' + kind));
+  });
+  return `<p class="org-wan-types-head">${escapeHTML(t('org.wanTypes'))}</p>
+    <ul class="org-wan-types">${righe.map(x => `<li>${escapeHTML(x)}</li>`).join('')}</ul>
+    ${soloUplink ? `<p class="org-wan-types-note">${escapeHTML(t('org.wanTypesUplinkOnly'))}</p>` : ''}`;
+}
+
 function _renderWanReport() {
   const r = _st.wanReport;
   if (!r) return '';
@@ -1270,6 +1316,7 @@ function _renderWanReport() {
       <strong>${escapeHTML(r.siteName || '')}</strong>${testa ? ' — ' + escapeHTML(testa) : ''}
       <button class="um-btn ghost org-mini" data-act="org-wan-clear" title="${escapeHTML(t('common.close'))}"><i class="fas fa-xmark"></i></button></p>
     ${capi ? `<p>${escapeHTML(capi)}</p>` : ''}
+    ${_renderWanTypes(r.types)}
     ${righe.length ? `<ul>${righe.map(x => `<li>${escapeHTML(x)}</li>`).join('')}</ul>` : ''}
   </div>`;
 }

@@ -324,8 +324,8 @@ test('⑱ il censimento dice quali tipi ha incontrato, quanti e in che natura so
     ],
   }, { siteIds: [30, 31] });
   assert.deepEqual(r.types, [
-    { slug: 'dark-fiber', name: 'Dark Fiber', n: 1, kind: 'other' },
-    { slug: 'mpls', name: 'MPLS', n: 2, kind: 'mpls' },
+    { slug: 'dark-fiber', name: 'Dark Fiber', n: 1, nLinks: 1, kind: 'other' },
+    { slug: 'mpls', name: 'MPLS', n: 2, nLinks: 2, kind: 'mpls' },
   ]);
 });
 
@@ -336,4 +336,41 @@ test('⑱ il censimento conta anche i circuiti che diventano UPLINK', () => {
   const r = circuitsToWan({ circuits: [circuito({ termination_a: termSite(30, 'Verona') })] }, { siteIds: [30] });
   assert.equal(r.uplinks.length, 1);
   assert.deepEqual(r.types.map(x => [x.slug, x.n]), [['internet', 1]]);
+});
+
+test('⭐ ⑱ il censimento separa i circuiti dai COLLEGAMENTI: la natura si decide solo là', () => {
+  // Lo stesso tipo su due circuiti: uno fra due sedi, uno con un capo solo. Il
+  // primo riceve una tecnologia, il secondo diventa una linea WAN e il tipo gli
+  // finisce tale e quale nel campo del servizio — nessuno sceglie niente.
+  // Un numero solo mescolerebbe le due cose, e il verbale racconterebbe una
+  // decisione presa dodici volte quando è stata presa una volta.
+  const r = circuitsToWan({
+    circuits: [
+      tipo('MPLS', 'mpls'),
+      Object.assign(circuito({ termination_a: termSite(30, 'Verona') }), { id: 2, cid: 'B', type: { id: 9, name: 'MPLS', slug: 'mpls' } }),
+    ],
+  }, { siteIds: [30, 31] });
+  assert.equal(r.links.length, 1);
+  assert.equal(r.uplinks.length, 1);
+  assert.deepEqual(r.types, [{ slug: 'mpls', name: 'MPLS', n: 2, nLinks: 1, kind: 'mpls' }]);
+});
+
+test('⑱ un circuito che NON diventa niente non conta come collegamento', () => {
+  // I due capi nello stesso sito: né uplink né collegamento (nota `sameSite`).
+  // Il tipo lo si è incontrato — quindi `n` lo conta — ma nessuna tecnologia è
+  // stata decisa, e `nLinks` resta a zero invece di prendersene il merito.
+  const r = circuitsToWan({
+    circuits: [fraSedi({ termination_z: termSite(30, 'Verona'), type: { id: 9, name: 'MPLS', slug: 'mpls' } })],
+  }, { siteIds: [30] });
+  assert.equal(r.links.length, 0);
+  assert.ok(r.notes.some(n => n.code === 'wan.sameSite'));
+  assert.deepEqual(r.types, [{ slug: 'mpls', name: 'MPLS', n: 1, nLinks: 0, kind: 'mpls' }]);
+});
+
+test('⑱ un tipo senza slug entra nel censimento con il suo nome', () => {
+  // Senza slug la natura resta `other` (⑱ non giudica dal nome): il verbale
+  // deve comunque nominare il tipo, o quel collegamento sembrerebbe venuto dal
+  // nulla. La chiave è il nome, quindi due tipi omonimi restano una riga sola.
+  const r = circuitsToWan({ circuits: [tipo('Fibra spenta')] }, { siteIds: [30, 31] });
+  assert.deepEqual(r.types, [{ slug: null, name: 'Fibra spenta', n: 1, nLinks: 1, kind: 'other' }]);
 });
