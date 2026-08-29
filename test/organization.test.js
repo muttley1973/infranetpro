@@ -226,3 +226,27 @@ test('la LETTURA resta aperta: documentare non è amministrare', async () => {
   ROLE = null;
   try { assert.equal((await get()).status, 200); } finally { ROLE = 'admin'; }
 });
+
+// ── ⑪ Un'identità duplicata sparisce, ma DETTA ─────────────────────────────
+test('⭐ una sede con un id già preso non entra, e `dropped` lo dice', async () => {
+  const raw = ORG();
+  raw.sites.push({ id: 'mi', name: 'Milano (vecchia)', role: 'spoke', subnets: ['10.9.0.0/24'] });
+  const j = await (await put(raw)).json();
+  // Prima passava: il modello ne teneva tre, il report ne contava tre e la mappa
+  // — che indicizza per id — ne disegnava DUE. La terza spariva dallo schermo
+  // restando nei totali, e `dropped` diceva 0: nessuno avvertiva chi salvava.
+  assert.equal(j.dropped.sites, 1, 'chi salva deve sapere che quella sede non è entrata');
+  assert.deepEqual(j.organization.sites.map(s => s.name), ['Milano', 'Roma']);
+});
+
+test('⭐ una banda contrattuale che non è banda non viene salvata', async () => {
+  const raw = ORG();
+  raw.uplinks[0].cirMbps = -100;
+  const j = await (await put(raw)).json();
+  assert.equal(j.organization.uplinks[0].cirMbps, null,
+    'il -100 arrivava fino alla scheda di ripristino travestito da dato');
+  // ⚠️ L'uplink NON cade: il resto della linea (operatore, codice circuito) è
+  // buono e serve. Cade il solo campo che non poteva essere vero.
+  assert.equal(j.dropped.uplinks, 0);
+  assert.equal(j.organization.uplinks[0].provider, 'Acme Fiber');
+});

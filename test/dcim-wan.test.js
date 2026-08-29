@@ -374,3 +374,40 @@ test('⑱ un tipo senza slug entra nel censimento con il suo nome', () => {
   const r = circuitsToWan({ circuits: [tipo('Fibra spenta')] }, { siteIds: [30, 31] });
   assert.deepEqual(r.types, [{ slug: null, name: 'Fibra spenta', n: 1, nLinks: 1, kind: 'other' }]);
 });
+
+// ── ⑥ La porta WAN arriva fino al modello ──────────────────────────────────
+test('⭐ la porta risolta esce anche come stringa pronta per il modello', () => {
+  const out = circuitsToWan({
+    circuits: [circuito({ id: 19 })],
+    circuitTerminations: [{
+      id: 23, circuit: { id: 19 }, term_side: 'Z',
+      ...termSite(2, 'DM-Akron'),
+      ...cavoVerso('dmi01-akron-rtr01', 'GigabitEthernet0/0/1'),
+    }],
+  }, { siteIds: [2] });
+  // Il difetto che questo chiude: `wanPort` c'era, era giusto, e nessuno fuori
+  // da questo modulo lo leggeva — il campo `wanIfRef` dell'uplink restava vuoto
+  // e il dossier stampava un trattino su una risposta già in mano.
+  assert.equal(out.uplinks[0].wanIf, 'dmi01-akron-rtr01/GigabitEthernet0/0/1');
+});
+
+test('senza porta risolta non si inventa una stringa', () => {
+  const out = circuitsToWan({
+    circuits: [circuito({ id: 19 })],
+    circuitTerminations: [{
+      id: 23, circuit: { id: 19 }, term_side: 'z', ...termSite(2, 'DM-Akron'),
+      cable: { id: 9 }, link_peers_type: 'dcim.frontport', link_peers: [{ id: 5, name: '1' }],
+    }],
+  }, { siteIds: [2] });
+  assert.equal(out.uplinks[0].wanPort, null);
+  assert.equal(out.uplinks[0].wanIf, null);
+});
+
+test('wanPortLabel: un capo solo si scrive da solo, e non gli si cuce accanto un pezzo che non c\'è', () => {
+  const { wanPortLabel } = require('../lib/dcim-wan.js');
+  assert.equal(wanPortLabel({ deviceName: 'rtr01', ifaceName: 'Gi0/0/1' }), 'rtr01/Gi0/0/1');
+  assert.equal(wanPortLabel({ deviceName: 'rtr01', ifaceName: '' }), 'rtr01');
+  assert.equal(wanPortLabel({ deviceName: null, ifaceName: 'Gi0/0/1' }), 'Gi0/0/1');
+  assert.equal(wanPortLabel(null), null);
+  assert.equal(wanPortLabel({}), null);
+});

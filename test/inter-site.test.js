@@ -168,7 +168,39 @@ test('⑦ il vecchio campo singolare `publicIp` non si perde: diventa il primo d
 test('cirMbps non numerico è null, non 0 (0 Mbps sarebbe un\'affermazione)', () => {
   assert.strictEqual(normalizeWanUplink({ id: 'u', siteId: 's', cirMbps: 'cento' }).cirMbps, null);
   assert.strictEqual(normalizeWanUplink({ id: 'u', siteId: 's', cirMbps: '' }).cirMbps, null);
-  assert.strictEqual(normalizeWanUplink({ id: 'u', siteId: 's', cirMbps: 0 }).cirMbps, 0);
+  assert.strictEqual(normalizeWanUplink({ id: 'u', siteId: 's', cirMbps: undefined }).cirMbps, null);
+});
+
+test('⭐ ⑩ zero e i negativi non sono banda BASSA: non sono banda', () => {
+  // Questa riga prima passava (`0 → 0`), sul ragionamento che uno zero SCRITTO
+  // è una dichiarazione. Ma una linea da 0 Mbps non esiste, e il posto dove
+  // finiva è la scheda di ripristino: là «Banda contrattuale: 0 Mbps» si legge
+  // come un fatto misurato che dice «questa linea non porta niente».
+  // Un trattino dice la verità — «non risulta» — e non manda nessuno fuori strada.
+  const cir = (v) => normalizeWanUplink({ id: 'u', siteId: 's', cirMbps: v }).cirMbps;
+  assert.strictEqual(cir(0), null, 'una linea da 0 Mbps non è una linea');
+  assert.strictEqual(cir(-100), null);
+  assert.strictEqual(cir('-100'), null, 'anche digitata: `min` non impedisce di scriverla');
+  assert.strictEqual(cir(Infinity), null);
+  assert.strictEqual(cir(-0), null);
+  // ⚠️ E ciò che è banda resta intatto, incluse le frazioni (una 0.5 Mbps
+  // esiste) e i numeri grandi: nessun tetto massimo inventato (paletto ③).
+  assert.strictEqual(cir(100), 100);
+  assert.strictEqual(cir('100'), 100);
+  assert.strictEqual(cir(0.5), 0.5);
+  assert.strictEqual(cir(400000), 400000, '400G è una linea vera, non un errore di battitura');
+});
+
+test('⭐ la stessa regola che l\'import applica da sempre — una sola definizione, due strade', () => {
+  // `lib/dcim-wan.js` scarta `n <= 0` da prima che il pannello esistesse: il
+  // difetto era che il percorso A MANO diceva un'altra cosa. Se un giorno le due
+  // divergono di nuovo, è qui che si vede.
+  const { _cirMbps } = require('../lib/dcim-wan.js');
+  for (const kbps of [0, -1, -100000]) {
+    assert.strictEqual(_cirMbps(kbps), null, 'import: ' + kbps);
+    assert.strictEqual(normalizeWanUplink({ id: 'u', siteId: 's', cirMbps: kbps / 1000 }).cirMbps, null,
+      'modello: ' + (kbps / 1000));
+  }
 });
 
 // ── Collegamento inter-sede ────────────────────────────────────────────────
@@ -517,4 +549,50 @@ test('un\'organizzazione normalizzata è stabile al giro JSON e ri-normalizzabil
   const once = normalizeOrganization(ORG);
   const twice = normalizeOrganization(JSON.parse(JSON.stringify(once)));
   assert.deepStrictEqual(twice, once, 'normalizzare due volte deve dare lo stesso risultato');
+});
+
+// ── ⑪ Un id ripetuto non identifica ────────────────────────────────────────
+test('⭐ due sedi con lo stesso id: entra la prima, la seconda CADE (e si conta)', () => {
+  const org = normalizeOrganization({
+    sites: [
+      { id: 'mi', name: 'Milano', role: 'hub', subnets: ['10.0.0.0/24'] },
+      { id: 'mi', name: 'Milano (vecchia)', role: 'spoke', subnets: ['10.9.0.0/24'] },
+      { id: 'rm', name: 'Roma', role: 'spoke', subnets: ['10.1.0.0/24'] },
+    ],
+  });
+  assert.strictEqual(org.sites.length, 2);
+  assert.deepStrictEqual(org.sites.map(s => s.name), ['Milano', 'Roma'], 'vince la prima');
+  // Il difetto che questo chiude: la mappa indicizza per id e ne disegnava UNA
+  // sola, quindi la seconda spariva dallo schermo restando nei conti del report.
+  // Ora i due numeri non possono più discordare, perché la lista è una sola.
+  assert.strictEqual(siteById(org, 'mi').name, 'Milano');
+});
+
+test('un id ripetuto cade anche fra gli uplink e fra i collegamenti', () => {
+  const org = normalizeOrganization({
+    sites: [{ id: 'a', name: 'A', role: 'hub' }, { id: 'b', name: 'B', role: 'spoke' }],
+    uplinks: [{ id: 'u', siteId: 'a', provider: 'TIM' }, { id: 'u', siteId: 'b', provider: 'Fastweb' }],
+    links: [
+      { id: 'l', aSiteId: 'a', bSiteId: 'b', kind: 'ipsec' },
+      { id: 'l', aSiteId: 'a', bSiteId: 'b', kind: 'gre' },
+    ],
+  });
+  assert.strictEqual(org.uplinks.length, 1);
+  assert.strictEqual(org.uplinks[0].provider, 'TIM');
+  assert.strictEqual(org.links.length, 1);
+  assert.strictEqual(org.links[0].kind, 'ipsec');
+});
+
+test('⚠️ e NIENTE cade quando gli id sono diversi: più collegamenti fra le stesse due sedi restano', () => {
+  // Il caso vero: fra due sedi si mettono un MPLS primario e un IPsec di scorta.
+  // Una deduplica fatta sulla COPPIA invece che sull'id li avrebbe fusi.
+  const org = normalizeOrganization({
+    sites: [{ id: 'a', name: 'A', role: 'hub' }, { id: 'b', name: 'B', role: 'spoke' }],
+    links: [
+      { id: 'l1', aSiteId: 'a', bSiteId: 'b', kind: 'mpls' },
+      { id: 'l2', aSiteId: 'a', bSiteId: 'b', kind: 'ipsec' },
+      { id: 'l3', aSiteId: 'b', bSiteId: 'a', kind: 'gre' },
+    ],
+  });
+  assert.strictEqual(org.links.length, 3, 'sono tre collegamenti veri, non tre copie');
 });

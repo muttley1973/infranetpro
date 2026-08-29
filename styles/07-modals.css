@@ -1072,17 +1072,35 @@
         .org-wan-head .org-mini { margin-left:auto; }
         .org-wan-report ul { margin:6px 0 0; padding-left:18px; color:var(--text-muted); font-size:var(--fs-xs); line-height:1.5; }
         .org-wan-report li { margin-bottom:3px; }
-        /* Il verbale dei tipi di circuito. È un RENDICONTO, non un elenco di
-           eccezioni: sta sopra le note e si legge nel colore del testo, mentre
-           le note restano smorzate. La riga finale che spiega i tipi senza
-           tecnologia è invece un margine, e come tale si smorza.
+        /* ⑦ I due cassetti: le note e il verbale dei tipi, chiusi. Il riquadro
+           prima era alto 389px perché diceva quattro cose diverse tutte con lo
+           stesso peso; ora l'esito sta in faccia e il resto si apre a richiesta.
+           Il conteggio è nel `summary`, quindi niente è nascosto: è ordinato.
            ⚠️ I selettori nominano il riquadro (`.org-wan-report …`) perché
            `.org-wan-report p` batterebbe una classe da sola sui margini: qui
            la specificità è la regola, non un `!important`. */
-        .org-wan-report .org-wan-types-head { margin-top:6px; font-size:var(--fs-xs); color:var(--text-muted); }
-        .org-wan-report ul.org-wan-types { color:var(--text-main); margin-top:2px; }
-        .org-wan-report ul.org-wan-types + p { margin-top:5px; }
-        .org-wan-report .org-wan-types-note { font-size:var(--fs-xs); color:var(--text-muted); }
+        .org-wan-drawers { display:flex; flex-direction:column; gap:2px; margin-top:6px; }
+        .org-wan-more > summary { cursor:pointer; font-size:var(--fs-xs); color:var(--accent);
+                                  padding:2px 0; list-style:none; user-select:none; }
+        .org-wan-more > summary::-webkit-details-marker { display:none; }
+        /* La freccia la disegna il CSS e ruota all'apertura: un marcatore nativo
+           cambia glifo da un browser all'altro, e qui deve stare in riga col
+           testo piccolo. `inline-block` perché una `transform` su un inline non
+           ha effetto. */
+        .org-wan-more > summary::before { content:'\203A'; display:inline-block; width:10px;
+                                          transition:transform .12s ease; }
+        .org-wan-more[open] > summary::before { transform:rotate(90deg); }
+        .org-wan-more > summary:hover { text-decoration:underline; }
+        .org-wan-more > summary:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
+        /* Una classe di note: il MOTIVO fa da titolo, le righe stanno sotto.
+           Il filetto a sinistra lega le righe al loro titolo senza aggiungere
+           un secondo riquadro dentro il riquadro. */
+        .org-wan-group { margin-top:8px; padding-left:10px; border-left:1px solid var(--panel-border); }
+        .org-wan-report .org-wan-group-head { margin:0 0 2px; font-size:var(--fs-xs); color:var(--text-main); }
+        .org-wan-group-n { color:var(--text-muted); }
+        .org-wan-report .org-wan-group ul { margin:0; }
+        .org-wan-report ul.org-wan-types { color:var(--text-main); margin-top:6px; }
+        .org-wan-report .org-wan-types-note { margin-top:5px; font-size:var(--fs-xs); color:var(--text-muted); }
         .org-f optgroup { font-style:normal; font-weight:600; color:var(--text-muted); }
         .org-f optgroup option { font-weight:400; color:var(--text-main); }
         /* I riquadri di conteggio stanno ACCANTO al campo «Organizzazione» e

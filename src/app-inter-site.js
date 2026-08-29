@@ -326,6 +326,28 @@ function _paintAddrHint(el) {
   hint.style.display = bad.length ? '' : 'none';
 }
 
+/** Come sopra, per la banda contrattuale (⑩ di `lib/inter-site.js`).
+ *  ⚠️ Il campo è `type="number" min="1"`, ma `min` NON impedisce di digitare
+ *  `-100`: il browser lo marca `rangeUnderflow` e lascia il valore leggibile.
+ *  Chi lo legge deve CHIEDERGLIELO — il vecchio codice non lo faceva, e il -100
+ *  arrivava fino alla scheda di ripristino. */
+function _paintCirHint(el) {
+  const hint = el.parentElement && el.parentElement.querySelector('[data-cir-hint]');
+  if (!hint) return;
+  const cattivo = el.value !== '' && _cirValue(el.value) === null;
+  hint.textContent = cattivo ? t('org.cirNotPositive') + ' ' + el.value : '';
+  hint.style.display = cattivo ? '' : 'none';
+}
+
+/** La banda che il MODELLO accetterà, o `null`. Stessa regola di `_posNum` in
+ *  `lib/inter-site.js`: un campo pre-validato qui e rifiutato là sarebbe la
+ *  solita definizione scritta due volte, che diverge. */
+function _cirValue(v) {
+  if (v === '' || v == null) return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 // ── Scrittura dei campi (una sola azione delegata per tutti) ──────────────
 
 /**
@@ -349,7 +371,7 @@ function _setField(el) {
     return;
   }
   if (scope === 'uplink') {
-    if (f === 'cirMbps') row.cirMbps = v === '' ? null : Number(v);
+    if (f === 'cirMbps') { row.cirMbps = _cirValue(v); _paintCirHint(el); }
     else if (f === 'publicIps') { const l = _splitNets(v); row.publicIps = l.length ? factDeclared(l) : null; _paintAddrHint(el); }
     else if (f === 'wanIfRef') _setFact(row, f, v);
     else row[f] = v;                                   // siteId, provider, serviceType, circuitId, slaRef
@@ -569,11 +591,19 @@ function _mergeWan(site, j) {
       id: uid('wan'), siteId: site.id,
       provider: c.provider || '', serviceType: c.serviceType || '', circuitId: c.circuitId || '',
       cirMbps: c.cirMbps == null ? null : c.cirMbps,
-      // ⚠️ Il resto NON si riempie: l'SLA non sta in NetBox, e gli indirizzi
+      // ⚠️ Questi due NON si riempiono: l'SLA non sta in NetBox, e gli indirizzi
       // pubblici non si deducono dall'IP di un'interfaccia WAN — dietro a una
       // linea business ci sono NAT e blocchi instradati, e scriverne uno
       // sbagliato in un campo dichiarato è peggio di lasciarlo vuoto.
-      slaRef: '', publicIps: null, wanIfRef: null,
+      slaRef: '', publicIps: null,
+      // ⑥ La porta WAN invece SI riempie, e prima non lo faceva: NetBox dice su
+      // quale interfaccia arriva il circuito (il cavo dalla terminazione va lì),
+      // l'import la risolveva davvero — lo smoke quattro-sedi lo pretende per
+      // OGNI uplink — e poi la lasciava cadere qui, così il dossier stampava un
+      // trattino su una risposta che l'applicazione aveva in mano.
+      // `declared` e non `measured`: NetBox è un archivio di dichiarazioni, e
+      // seguire il cavo è LEGGERE quella dichiarazione, non misurare la rete.
+      wanIfRef: c.wanIf ? factDeclared(c.wanIf) : null,
     });
     added++;
   }
@@ -1326,37 +1356,115 @@ function _renderWanTypes(types) {
       : (nl === 1 ? 'org.wanTypeAsOne' : 'org.wanTypeAs');
     return testa + t(chiave).replace('{n}', String(nl)).replace('{kind}', t('org.kind.' + kind));
   });
-  return `<p class="org-wan-types-head">${escapeHTML(t('org.wanTypes'))}</p>
+  // ⑦ CHIUSO di default, come le note. Questo è il verbale di una decisione che
+  // il software ha preso da sé: prezioso quando lo si cerca, rumore quando non
+  // lo si cerca — e prima stava aperto a ogni import, in mezzo all'esito.
+  const quante = t(righe.length === 1 ? 'org.wanTypesMoreOne' : 'org.wanTypesMore')
+    .split('{n}').join(String(righe.length));
+  return `<details class="org-wan-more"><summary>${escapeHTML(quante)}</summary>
     <ul class="org-wan-types">${righe.map(x => `<li>${escapeHTML(x)}</li>`).join('')}</ul>
-    ${soloUplink ? `<p class="org-wan-types-note">${escapeHTML(t('org.wanTypesUplinkOnly'))}</p>` : ''}`;
+    ${soloUplink ? `<p class="org-wan-types-note">${escapeHTML(t('org.wanTypesUplinkOnly'))}</p>` : ''}</details>`;
 }
 
+/** Il titolo della CLASSE a cui una nota appartiene — il suo codice, in parole.
+ *  ⚠️ I due prefissi si scrivono PER ESTESO, come per `org.wanNote.`: il
+ *  cricchetto delle traduzioni legge le chiavi dal sorgente, e uno composto a
+ *  runtime gli sarebbe invisibile. E li conosce entrambi, così un codice nuovo
+ *  arriva con l'obbligo di portarsi anche il titolo della sua classe. */
+function _wanGroupTitle(code) {
+  const PREFISSO = { wan: 'org.wanGroup.', vpn: 'org.vpnGroup.' };
+  const m = /^(wan|vpn)\.(.+)$/.exec(String(code || ''));
+  if (!m || !PREFISSO[m[1]]) return '';
+  const k = PREFISSO[m[1]] + m[2];
+  const s = t(k);
+  return (!s || s === k) ? '' : s;
+}
+
+/**
+ * Le note della lettura, RAGGRUPPATE per codice e chiuse.
+ *
+ * ⑦ **Erano un elenco piatto di paragrafi, e tutti insieme.** Sette frasi
+ * lunghe, ciascuna col suo perché, servite ogni volta — anche al ventesimo
+ * import, anche a chi quel perché lo sa. Il ragionamento resta parola per
+ * parola: cambia CHI lo chiede e QUANDO. Niente sparisce, perché il numero
+ * («7 note su questa lettura») sta in faccia e apre con un click.
+ *
+ * ⚠️ Il conteggio in testa dice «note», non «cose non importate»: alcune non
+ * sono rifiuti ma avvisi sulla lettura (troncata, filtro non accettato), e
+ * chiamarle tutte scarti direbbe una cosa falsa di un terzo di loro.
+ *
+ * Il raggruppamento è per `code` — cioè per MOTIVO, che è la struttura che il
+ * dato ha già: stesso codice, stessa ragione. Non è una compressione inventata.
+ */
+function _renderWanNotes(notes) {
+  const ordine = [];
+  const perCodice = new Map();
+  for (const n of (notes || [])) {
+    const code = String((n && n.code) || '');
+    if (!code) continue;
+    if (!perCodice.has(code)) { perCodice.set(code, []); ordine.push(code); }
+    perCodice.get(code).push(n);
+  }
+  let totale = 0;
+  const blocchi = ordine.map((code) => {
+    const righe = perCodice.get(code).map(_wanNoteText).filter(Boolean);
+    if (!righe.length) return '';
+    totale += righe.length;
+    // Un titolo che manca non fa sparire il gruppo: le sue righe si leggono lo
+    // stesso. Il cricchetto arrossisce, l'utente non perde niente.
+    const titolo = _wanGroupTitle(code);
+    return `<section class="org-wan-group">
+      ${titolo ? `<p class="org-wan-group-head">${escapeHTML(titolo)}${righe.length > 1
+        ? ` <span class="org-wan-group-n">· ${escapeHTML(righe.length)}</span>` : ''}</p>` : ''}
+      <ul>${righe.map(x => `<li>${escapeHTML(x)}</li>`).join('')}</ul>
+    </section>`;
+  }).filter(Boolean);
+  if (!blocchi.length) return '';
+  const quante = t(totale === 1 ? 'org.wanNotesMoreOne' : 'org.wanNotesMore')
+    .split('{n}').join(String(totale));
+  return `<details class="org-wan-more"><summary>${escapeHTML(quante)}</summary>
+    ${blocchi.join('')}</details>`;
+}
+
+/**
+ * L'esito della lettura, in tre livelli: l'ESITO sempre in faccia, il resto a
+ * un click.
+ *
+ * ⑦ **Erano quattro discorsi nello stesso registro.** Un esito, un censimento
+ * dei tipi, una nota di metodo sul censimento e sette rifiuti motivati —
+ * stessa dimensione, stesso colore, stessi puntini, 389 pixel. Il fatto che
+ * conta («non è cambiato niente, sei allineato») bisognava ricostruirselo
+ * leggendo due frasi. Ora la prima riga lo dice e le altre due si aprono se
+ * uno le vuole. Il contenuto è lo stesso: cambia l'ordine di lettura.
+ */
 function _renderWanReport() {
   const r = _st.wanReport;
   if (!r) return '';
-  const righe = (r.notes || []).map(_wanNoteText).filter(Boolean);
   // «Aggiunto 1 collegamenti» fa dubitare del resto di ciò che c'è scritto
   // sopra: il singolare non è un dettaglio di stile. E una riga «0 su 0» accanto
   // a un elenco di collegamenti veri è rumore — si scrive solo di ciò che c'è.
-  // ⚠️ Le due chiavi si passano PER ESTESO invece di comporre `chiave + 'One'`:
+  // ⚠️ Le chiavi si passano PER ESTESO invece di comporre `chiave + 'One'`:
   // il cricchetto che verifica le traduzioni legge le chiavi dal sorgente, e una
   // chiave composta a runtime gli sarebbe invisibile — cioè potrebbe mancare dal
   // dizionario e comparire nuda a schermo senza che nessun test arrossisca.
-  const frase = (molti, uno, n, tot, gia) =>
-    t(n === 1 ? uno : molti).replace('{n}', String(n)).replace('{tot}', String(tot))
-    + (gia ? ' ' + t(gia === 1 ? 'org.wanAlreadyOne' : 'org.wanAlready').replace('{n}', String(gia)) : '');
+  // ⚠️ E quando non è entrato NIENTE non si apre con uno zero: «Aggiunte 0
+  // linee» mette in testa il numero meno interessante della frase, e il lettore
+  // deve fare 0+2 per sapere come sta. La frase dedicata dice prima com'è
+  // andata, e il numero che conta — quante c'erano già — resta il suo seguito.
+  const frase = (molti, uno, nessuno, n, tot, gia) =>
+    (n === 0 ? t(nessuno) : t(n === 1 ? uno : molti).split('{n}').join(String(n)).split('{tot}').join(String(tot)))
+    + (gia ? ' ' + t(gia === 1 ? 'org.wanAlreadyOne' : 'org.wanAlready').split('{n}').join(String(gia)) : '');
   const vuoto = !r.total && !r.totalLinks;
   const testa = vuoto ? t('org.wanNone')
-    : (r.total ? frase('org.wanAdded', 'org.wanAddedOne', r.added, r.total, r.already) : '');
+    : (r.total ? frase('org.wanAdded', 'org.wanAddedOne', 'org.wanNoNewLines', r.added, r.total, r.already) : '');
   const capi = r.totalLinks
-    ? frase('org.wanAddedLinks', 'org.wanAddedLinksOne', r.addedLinks, r.totalLinks, r.alreadyLinks) : '';
+    ? frase('org.wanAddedLinks', 'org.wanAddedLinksOne', 'org.wanNoNewLinks', r.addedLinks, r.totalLinks, r.alreadyLinks) : '';
   return `<div class="org-wan-report">
     <p class="org-wan-head"><i class="fas fa-cloud-arrow-down"></i>
       <strong>${escapeHTML(r.siteName || '')}</strong>${testa ? ' — ' + escapeHTML(testa) : ''}
       <button class="um-btn ghost org-mini" data-act="org-wan-clear" title="${escapeHTML(t('common.close'))}"><i class="fas fa-xmark"></i></button></p>
     ${capi ? `<p>${escapeHTML(capi)}</p>` : ''}
-    ${_renderWanTypes(r.types)}
-    ${righe.length ? `<ul>${righe.map(x => `<li>${escapeHTML(x)}</li>`).join('')}</ul>` : ''}
+    <div class="org-wan-drawers">${_renderWanNotes(r.notes)}${_renderWanTypes(r.types)}</div>
   </div>`;
 }
 
@@ -1383,8 +1491,9 @@ function _renderUplinks() {
           <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(u.circuitId || '')}"
                  data-input="org-field" data-scope="uplink" data-idx="${i}" data-field="circuitId"></label>
         <label class="org-f"><span>${escapeHTML(t('org.cir'))}</span>
-          <input type="number" min="0" step="1" ${ro ? 'disabled' : ''} value="${u.cirMbps == null ? '' : escapeHTML(u.cirMbps)}"
+          <input type="number" min="1" step="1" ${ro ? 'disabled' : ''} value="${u.cirMbps == null ? '' : escapeHTML(u.cirMbps)}"
                  data-input="org-field" data-scope="uplink" data-idx="${i}" data-field="cirMbps">
+          <small class="org-bad" data-cir-hint style="display:none"></small>
           <small class="org-hint">${escapeHTML(t('org.cirHint'))}</small></label>
         <label class="org-f org-f-span2"><span>${escapeHTML(t('org.publicIps'))} ${_originBadge(u.publicIps)}</span>
           <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(ips.join(', '))}" placeholder="203.0.113.10, 203.0.113.8/29, 2001:db8::1"
@@ -1394,6 +1503,10 @@ function _renderUplinks() {
         <label class="org-f"><span>${escapeHTML(t('org.slaRef'))}</span>
           <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(u.slaRef || '')}"
                  data-input="org-field" data-scope="uplink" data-idx="${i}" data-field="slaRef"></label>
+        <label class="org-f"><span>${escapeHTML(t('org.wanIf'))} ${_originBadge(u.wanIfRef)}</span>
+          <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(isFact(u.wanIfRef) ? factValue(u.wanIfRef) : '')}" placeholder="MI-RTR-01/GigabitEthernet0/0/1"
+                 data-input="org-field" data-scope="uplink" data-idx="${i}" data-field="wanIfRef">
+          <small class="org-hint">${escapeHTML(t('org.wanIfHint'))}</small></label>
       </div>
     </article>`;
   }).join('');

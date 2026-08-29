@@ -68,6 +68,11 @@ const CODE = {
   // `vpn.truncated` sono due frasi diverse, e un solo spazio di chiavi ne
   // avrebbe fatta sparire una in silenzio.
   'org.vpnNote.': _codiciNota('vpn'),
+  // ⑦ E ogni nota appartiene a una CLASSE, che nel riquadro dell'esito fa da
+  // titolo del suo gruppo. Stessi codici, stesso obbligo: un motivo nuovo
+  // arriva con la sua frase E con il nome della sua classe, o questo arrossisce.
+  'org.wanGroup.': _codiciNota('wan'),
+  'org.vpnGroup.': _codiciNota('vpn'),
 };
 
 /** I `code: '<fam>.…'` che possono finire nell'esito della lettura. */
@@ -163,4 +168,35 @@ test('la sonda regge: una chiave inventata verrebbe vista', () => {
   assert.ok(chiaviAttese().size > 60, 'trovate troppe poche chiavi: l\'estrattore è cieco');
   // Una chiave con una CIFRA è il caso che l'estrattore aveva davvero perso.
   assert.ok(chiaviAttese().has('org.phase1'), 'le chiavi con una cifra tornano invisibili');
+});
+
+// ── ⑦ L'esito della lettura: due cassetti, chiusi ──────────────────────────
+test('⭐ le note e il verbale dei tipi nascono CHIUSI, e portano il loro numero', () => {
+  // Il riquadro era alto 389px: un esito, un censimento e sette rifiuti motivati
+  // tutti con lo stesso peso tipografico. Chiuderli è la modifica; se qualcuno
+  // togliesse il `<details>` o gli mettesse `open`, tornerebbe il muro e nessun
+  // altro test se ne accorgerebbe — a schermo si vede, in CI no.
+  const src = fs.readFileSync(path.join(ROOT, 'src/app-inter-site.js'), 'utf8');
+  const cassetti = src.match(/<details class="org-wan-more"[^>]*>/g) || [];
+  assert.equal(cassetti.length, 2, 'i cassetti dell\'esito devono essere due: le note e i tipi');
+  for (const c of cassetti) assert.ok(!/\bopen\b/.test(c), 'un cassetto dell\'esito nasce aperto: ' + c);
+  // E il numero sta nel `summary`, che è ciò che rende legittimo chiudere: si
+  // ordina, non si nasconde. Senza il conteggio in faccia questa sarebbe una
+  // sparizione, e questo repo le combatte da sempre.
+  assert.ok(/org\.wanNotesMore/.test(src) && /org\.wanTypesMore/.test(src),
+    'i cassetti non dicono più quante cose contengono');
+});
+
+test('ogni classe di nota ha il suo titolo in tutt\'e due le lingue', () => {
+  // Il raggruppamento per codice regge solo se ogni codice ha un nome: senza,
+  // il gruppo si vedrebbe lo stesso ma senza testa, e le sue righe sembrerebbero
+  // appese al gruppo precedente.
+  for (const fam of ['wan', 'vpn']) {
+    for (const coda of _codiciNota(fam)) {
+      const k = 'org.' + fam + 'Group.' + coda;
+      for (const lang of ['it', 'en']) {
+        assert.equal(typeof DICT[lang][k], 'string', 'manca il titolo di classe ' + k + ' in ' + lang);
+      }
+    }
+  }
 });
