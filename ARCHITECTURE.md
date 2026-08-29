@@ -116,7 +116,9 @@ lib/                   Shared browser + test modules (the heart of the app)
                     device that holds them (a ref into the site's project, OR a hand-typed name
                     — mutually exclusive), because on an MPLS the end is the CE; and so do
                     `provider`/`circuitId`, for the same reason — every kind is bought from
-                    someone under a code, and that code is what you dictate when it is down.
+                    someone under a code, and that code is what you dictate when it is down;
+                    and so does `name`, because "what is this link called" is one question too
+                    — «GRE-LAB» is the name, «GRE» is the nature, and the map draws the second.
                     `publicIps` is
                     a LIST: a business line comes with a routed block, IPv6 rides the same line
                     and an HA pair exposes several. An unknown kind is refused, not corrected.
