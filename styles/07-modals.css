@@ -894,9 +894,19 @@
         .org-node-box { fill:var(--surface-2); stroke:var(--panel-border); stroke-width:1.5;
                         transition:stroke var(--transition-fast), fill var(--transition-fast); }
         .org-node.is-linked  .org-node-box { stroke:var(--accent); }
-        /* Una sede senza progetto collegato non e' un errore: e' documentazione a
-           meta'. Tratteggio, non rosso. */
-        .org-node.is-unlinked .org-node-box { stroke-dasharray:4 3; }
+        /* Lo STATO della sede, con gli stessi tre colori delle pastiglie in
+           cima. Dopo `.is-linked` di proposito. Il fuoco viene dopo ancora e
+           vince su tutto, che e' come dev'essere. */
+        .org-node.is-problem .org-node-box { stroke:var(--fault-color); }
+        .org-node.is-gap     .org-node-box { stroke:var(--idle-color); }
+        .org-node.is-ok      .org-node-box { stroke:var(--active-color); }
+        /* Una sede senza progetto agganciato resta GRIGIA, e vince sui tre
+           colori di sopra: e' scritta DOPO, a parita' di specificita'. Non e'
+           che la sua salute non conti - il titolo la dice lo stesso - ma un
+           riquadro che non apre niente non deve gridare quanto uno che apre.
+           Il grigio e' lo stesso dei controlli non eseguiti in cima: qui non
+           si afferma niente. */
+        .org-node.is-unlinked .org-node-box { stroke:var(--text-muted); }
         .org-node { cursor:pointer; }
         .org-node:hover .org-node-box, .org-node:focus .org-node-box { fill:var(--surface-hover); }
         .org-node:focus { outline:none; }
@@ -954,6 +964,13 @@
         .org-row-title:hover:not(:disabled) { border-color:var(--hairline); }
         .org-row-title:focus { border-color:var(--accent); outline:none; background:var(--panel-bg); }
         .org-row-static { padding:4px 6px; }
+        /* L'icona di una sede porta il suo stato, con gli stessi tre colori
+           delle pastiglie in cima: rosso incoerenza, giallo lacuna, verde
+           nessun rilievo. Un colore in piu' non e' una legenda in piu': e' la
+           stessa che si legge gia' sopra. */
+        .org-site-state.is-problem { color:var(--fault-color); }
+        .org-site-state.is-gap     { color:var(--idle-color); }
+        .org-site-state.is-ok      { color:var(--active-color); }
         /* La riga a cui la mappa ha appena portato: si accende un istante e si
            spegne da sola. Dopo il salto le righe si somigliano tutte, e senza
            un segno tocca ricontare dall'alto per sapere dove si e' finiti. */

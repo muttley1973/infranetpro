@@ -889,8 +889,15 @@ function _renderMap(m) {
       y += (i === 0 ? BOX.nameH : BOX.lineH);
       return el;
     }).join('');
-    return `<g class="org-node ${linked ? 'is-linked' : 'is-unlinked'}" data-act="org-node" data-keydown="org-activate" data-site="${escapeHTML(n.siteId)}" data-boxh="${Number(_boxHeight(righe))}" tabindex="0" role="button">
-      <title>${escapeHTML(n.name + ' · ' + t('org.role.' + n.role) + (linked ? '' : ' · ' + t('org.noProject')))}</title>
+    // ⑯ Il bordo porta lo STATO della sede: rosso incoerenza, giallo lacuna,
+    // verde nessun rilievo — gli stessi tre colori delle pastiglie in cima.
+    // ⚠️ Tranne una sede SENZA progetto agganciato, che resta grigia e non
+    // dichiara niente. Prima era tratteggiata, e il tratteggio su un riquadro
+    // pieno di testo si legge come un difetto di disegno, non come un'assenza.
+    // La salute di quella sede non sparisce: resta scritta nel titolo.
+    const h = _siteHealth(n.siteId);
+    return `<g class="org-node ${linked ? 'is-linked' : 'is-unlinked'}${h ? ' ' + h.cls : ''}" data-act="org-node" data-keydown="org-activate" data-site="${escapeHTML(n.siteId)}" data-boxh="${Number(_boxHeight(righe))}" tabindex="0" role="button">
+      <title>${escapeHTML(n.name + ' · ' + t('org.role.' + n.role) + (linked ? '' : ' · ' + t('org.noProject')) + (h ? ' · ' + h.title : ''))}</title>
       <rect x="${Number(n.x - n.w / 2)}" y="${Number(n.y - n.h / 2)}" width="${Number(n.w)}" height="${Number(n.h)}" rx="10" class="org-node-box"/>
       ${n.role === 'hub' ? `<text x="${Number(n.x + n.w / 2 - BOX.padX)}" y="${Number(n.y - n.h / 2 + BOX.padY + 13)}" class="org-node-icon" text-anchor="end">★</text>` : ''}
       ${testi}
@@ -1128,7 +1135,7 @@ function _renderSites() {
     const unknown = _st.unknownRefs.some(u => u.siteId === s.id);
     return `<article class="org-row">
       <header class="org-row-head">
-        <i class="fas ${escapeHTML(ROLE_ICON[s.role] || 'fa-building')}"></i>
+        ${(() => { const h = _siteHealth(s.id); return `<i class="fas ${escapeHTML(ROLE_ICON[s.role] || 'fa-building')} org-site-state${h ? ' ' + h.cls : ''}"${h ? ` title="${escapeHTML(h.title)}"` : ''}></i>`; })()}
         <input class="org-row-title" type="text" value="${escapeHTML(s.name)}" ${ro ? 'disabled' : ''}
                data-input="org-field" data-scope="site" data-idx="${i}" data-field="name" aria-label="${escapeHTML(t('org.siteName'))}">
         ${ro ? '' : `<button class="um-btn danger org-del" data-act="org-del-site" data-idx="${i}" title="${escapeHTML(t('org.removeSite'))}"><i class="fas fa-trash"></i></button>`}
@@ -1345,6 +1352,65 @@ function _renderLinks() {
 /** Le liste dell'audit, in tre gruppi che NON si sommano fra loro. */
 const AUDIT_PROBLEMS = ['subnetsNowhere', 'subnetsAtTwoSites', 'linksToUnknownSite', 'uplinksToUnknownSite', 'spokesWithoutHub', 'linkTopologyVsRoles'];
 const AUDIT_GAPS = ['subnetsNotCarried', 'linksWithoutReach', 'sitesWithoutLink', 'sitesWithoutUplink', 'uplinksWithoutPublicIp'];
+
+/**
+ * ⑯ **Quale sede nomina una riga d'audit.** L'audit parla per liste, e ogni
+ * lista ha una forma sua: chi porta un `siteId`, chi due, chi un `linkId` o un
+ * `uplinkId` da risolvere sul modello. Qui, e in un posto solo, si dice come si
+ * risale dalla riga alle sedi che riguarda.
+ *
+ * ⚠️ `subnetsNowhere` NON c'è, ed è voluto: è una rete che nessuna sede
+ * rivendica, quindi non esiste una sede a cui attribuirla. Sceglierne una
+ * farebbe diventare colpa di qualcuno un problema che è di tutti — e resta
+ * comunque contato in alto, nelle pastiglie dell'organizzazione.
+ */
+const _AUDIT_SITES_OF = {
+  subnetsAtTwoSites: (r) => r.siteIds || [],
+  linksToUnknownSite: (r) => _linkSites(r.linkId),
+  uplinksToUnknownSite: (r) => [r.siteId],
+  spokesWithoutHub: (r) => [r.siteId],
+  linkTopologyVsRoles: (r) => _linkSites(r.linkId),
+  subnetsNotCarried: (r) => [r.siteId],
+  linksWithoutReach: (r) => _linkSites(r.linkId),
+  sitesWithoutLink: (r) => [r.siteId],
+  sitesWithoutUplink: (r) => [r.siteId],
+  uplinksWithoutPublicIp: (r) => [r.siteId],
+};
+
+/** Le due sedi ai capi di un collegamento, per risalire da un `linkId`. */
+function _linkSites(linkId) {
+  const l = _links().find(x => x.id === linkId);
+  return l ? [l.aSiteId, l.bSiteId] : [];
+}
+
+/**
+ * Come sta UNA sede: rosso se un'incoerenza la nomina, giallo se la nomina una
+ * lacuna, verde se nessun rilievo la nomina. Si RACCONTA l'audit del server
+ * (④), non se ne calcola un altro.
+ *
+ * ⚠️ Verde vuol dire «nessun rilievo su questa sede», e il titolo lo dice con
+ * quelle parole. NON vuol dire «tutto a posto»: i controlli che non hanno
+ * potuto girare sono contati a parte, in cima, e trasformarli qui in
+ * un'assoluzione sarebbe la bugia che questo audit evita da sempre — «ho
+ * guardato e va bene» non è «non ho potuto guardare».
+ *
+ * Senza audit (pannello appena aperto) non si colora niente: un colore
+ * inventato prima di avere la risposta è un'affermazione senza fonte.
+ */
+function _siteHealth(siteId) {
+  const A = _st.audit;
+  if (!A) return null;
+  const conta = (chiavi) => chiavi.reduce((n, k) => {
+    const dove = _AUDIT_SITES_OF[k];
+    if (!dove) return n;
+    return n + (A[k] || []).filter(r => dove(r).some(id => id === siteId)).length;
+  }, 0);
+  const bad = conta(AUDIT_PROBLEMS);
+  if (bad) return { cls: 'is-problem', title: t('org.siteBad').replace('{n}', String(bad)) };
+  const gap = conta(AUDIT_GAPS);
+  if (gap) return { cls: 'is-gap', title: t('org.siteGap').replace('{n}', String(gap)) };
+  return { cls: 'is-ok', title: t('org.siteOk') };
+}
 
 /** Una rete, in tondo monospazio: un CIDR si legge a colpo d'occhio solo se le
  *  cifre sono allineate, e in mezzo a una frase si perde. */
