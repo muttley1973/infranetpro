@@ -644,7 +644,11 @@ function _netsLabel(n) {
 /** Le righe di misura del riquadro: quanto è alto lo dice il NUMERO di righe (che
  *  è un dato), quanto è largo lo dirà il testo misurato. Costanti di geometria,
  *  non di stile: il font sta nel CSS. */
-const BOX = { padX: 15, padY: 13, nameH: 20, lineH: 15, maxUplinks: 3 };
+// ⚠️ L'imbottitura è stata STRETTA (era 15/13): il riquadro è il pezzo grosso
+// della mappa, e ogni pixel che si prende lo toglie al collegamento — che è
+// l'altra metà di quello che la mappa deve raccontare. Segnalato guardandola:
+// «il collegamento si vede ancora poco, riduci un po' i riquadri».
+const BOX = { padX: 11, padY: 10, nameH: 20, lineH: 15, maxUplinks: 3 };
 
 /**
  * Le righe di testo dentro il riquadro di una sede: il nome, poi ogni linea WAN
@@ -720,23 +724,64 @@ function _boxHeight(righe) {
 function _measureBoxes(svg) {
   /** @type {Record<string, {w:number, h:number}>} */
   const box = Object.create(null);
-  if (!svg) return box;
+  if (!svg) return null;
   for (const g of svg.querySelectorAll('.org-node')) {
     const id = g.dataset.site;
     if (!id) continue;
     let max = 0;
     for (const t2 of g.querySelectorAll('text')) {
-      try { max = Math.max(max, t2.getBBox().width); } catch (_) { return Object.create(null); }
+      try { max = Math.max(max, t2.getBBox().width); } catch (_) { return null; }
     }
-    if (!max) return Object.create(null);   // non ancora impaginato: si tiene il primo giro
+    if (!max) return null;                  // non ancora impaginato: si tiene il primo giro
     const alt = Number(g.dataset.boxh) || 0;
     box[id] = { w: max + BOX.padX * 2, h: alt };
   }
-  return box;
+  if (!Object.keys(box).length) return null;
+  // ⚠️ Si misura anche l'ETICHETTA DEGLI ARCHI, e non è un di più: lo spazio fra
+  // due riquadri è dove quella pastiglia finisce. Con lo spazio di default (56 px)
+  // «Fibra spenta · 2 reti» esce da tutte e due le parti e si appoggia sopra i
+  // riquadri — cioè si legge male e per giunta sembra appartenere a loro. La
+  // misura la fa chi disegna, che è l'unico ad avere il font: il modulo puro
+  // riceve due numeri (④).
+  // Si tiene la larghezza di OGNI etichetta, non solo la massima: ognuna avrà la
+  // sua pastiglia, e una pastiglia larga quanto la più lunga delle altre sarebbe
+  // un riquadro vuoto attorno a una parola corta.
+  /** @type {Record<string, number>} */
+  const labels = Object.create(null);
+  let maxLabel = 0;
+  for (const t2 of svg.querySelectorAll('.org-edge-label')) {
+    const id = t2.dataset.link;
+    let w;
+    try { w = t2.getBBox().width; } catch (_) { w = 0; }
+    if (!w) continue;
+    if (id) labels[id] = w;
+    maxLabel = Math.max(maxLabel, w);
+  }
+  return {
+    box, labels,
+    labelW: maxLabel ? maxLabel + BADGE.padX * 2 + BADGE.margin * 2 : 0,
+    labelH: maxLabel ? BADGE.h + BADGE.margin * 2 : 0,
+  };
 }
 
-function _renderMap(boxOf) {
-  const L = buildInterSiteLayout(_st.org, boxOf ? { boxOf } : undefined);
+/** La pastiglia di un collegamento: quanto è imbottita, quanto è alta, quanto
+ *  sta lontana dai due riquadri. Sono misure di DISEGNO e stanno qui, non nel
+ *  modulo puro — che riceve solo l'ingombro che ne risulta. */
+// ⚠️ `margin` è quanta LINEA resta scoperta di qua e di là dalla pastiglia. Con
+// 12 la pastiglia sembrava appoggiata fra due riquadri senza niente che la
+// tenesse: un collegamento si legge dal filo, non dall'etichetta. Alzarlo
+// allarga la fessura fra le sedi, e quindi la parte di linea che si vede.
+const BADGE = { padX: 9, h: 20, r: 10, margin: 30 };
+
+/** Un numero pronto per un attributo SVG, senza code di virgola. */
+const _n = (v) => Math.round(Number(v) * 100) / 100;
+
+function _renderMap(m) {
+  const opts = m ? { boxOf: (id) => m.box[id] || null } : null;
+  // Lo spazio non si RESTRINGE mai sotto il default: è il modulo puro a tenere
+  // il minimo, qui si dice solo quanto serve IN PIÙ per la pastiglia.
+  if (opts && m.labelW) { opts.labelW = m.labelW; opts.labelH = m.labelH; }
+  const L = buildInterSiteLayout(_st.org, opts || undefined);
   if (L.layout === 'empty') {
     return `<div class="org-empty">
       <i class="fas fa-sitemap org-empty-icon"></i>
@@ -759,10 +804,19 @@ function _renderMap(boxOf) {
     const nets = isFact(l && l.reach) ? factValue(l.reach) : null;
     const carried = nets ? (nets.a.length + nets.b.length) : 0;
     const label = _kindText(l) + (carried ? ' · ' + _netsLabel(carried) : '');
+    // ⑫ La PASTIGLIA: si disegna solo quando la larghezza del testo è nota, cioè
+    // dalla seconda passata. Al primo giro resta il solo testo con il suo alone —
+    // una pastiglia di larghezza indovinata sarebbe un rettangolo che non
+    // contiene le parole, che è peggio del rettangolo che manca.
+    const lw = (m && m.labels && m.labels[e.linkId]) || 0;
+    const chip = lw ? `<rect class="org-edge-badge" x="${_n(e.mx - lw / 2 - BADGE.padX)}" y="${_n(e.my - BADGE.h / 2)}"
+        width="${_n(lw + BADGE.padX * 2)}" height="${_n(BADGE.h)}" rx="${_n(BADGE.r)}"/>` : '';
     return `<g class="org-edge ${escapeHTML(st.cls)}">
       <title>${escapeHTML(_siteName(e.aSiteId) + ' ↔ ' + _siteName(e.bSiteId) + ' · ' + st.title)}</title>
       <path d="${interSiteEdgePath(e)}" class="org-edge-line"/>
-      <text x="${Number(e.mx)}" y="${Number(e.my - 6)}" class="org-edge-label" text-anchor="middle">${escapeHTML(label)}</text>
+      ${chip}
+      <text x="${Number(e.mx)}" y="${Number(e.my)}" data-link="${escapeHTML(String(e.linkId))}"
+            class="org-edge-label" text-anchor="middle" dominant-baseline="central">${escapeHTML(label)}</text>
     </g>`;
   }).join('');
 
@@ -1417,9 +1471,9 @@ function _render() {
   if (_st.tab === 'map') {
     const svg = body.querySelector('svg.org-map');
     const misure = _measureBoxes(svg);
-    if (Object.keys(misure).length) {
+    if (misure) {
       const pane = body.querySelector('.org-pane');
-      if (pane) pane.innerHTML = _renderMap((id) => misure[id] || null);
+      if (pane) pane.innerHTML = _renderMap(misure);
     }
   }
   // Il ritaglio si fa DOPO che l'SVG è nel documento: prima non c'è niente da

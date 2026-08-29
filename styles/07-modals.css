@@ -924,6 +924,16 @@
         /* L'etichetta dell'arco si stacca dalla linea con un alone del colore del
            fondo: senza, il tratteggio le passa in mezzo alle lettere. */
         .org-edge-label { paint-order:stroke; stroke:var(--panel-bg); stroke-width:4px; stroke-linejoin:round; }
+        /* La PASTIGLIA della natura del collegamento: sta SULLA linea e la copre,
+           che è quello che la rende leggibile. Colore neutro apposta — lo stato
+           lo dice la linea, e due cose che dicono la stessa cosa con due colori
+           diversi sono il modo in cui si smette di credere a entrambe.
+           L'alone del testo qui sopra resta: serve al primo giro, quando la
+           larghezza non è ancora misurata e la pastiglia non c'è. */
+        /* ⚠️ Il bordo NON è `--panel-border`: su questo fondo è quasi lo stesso
+           colore del riempimento, e la pastiglia si vedeva solo perché copriva
+           la linea. Un grigio del testo, scaricato, si legge in tutti e due i temi. */
+        .org-edge-badge { fill:var(--panel-bg); stroke:var(--text-muted); stroke-opacity:.4; stroke-width:1; }
 
         /* --- Form -------------------------------------------------------- */
         .org-row { border:1px solid var(--panel-border); border-radius:var(--radius-lg); padding:10px 12px 12px; margin-bottom:12px; background:var(--surface-2); }

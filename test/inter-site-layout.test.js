@@ -122,6 +122,117 @@ test('l\'anello cresce con le sedi: due riquadri vicini non si toccano mai', () 
   }
 });
 
+// ── ⑪ Con un hub c'è un riquadro AL CENTRO, e nessuno lo guardava ──────────
+
+/** Due riquadri si sovrappongono? Sono allineati agli assi: basta un asse a
+ *  separarli. È la stessa domanda che si fa la geometria, posta al contrario. */
+function _sovrapposti(a, b) {
+  return Math.abs(a.x - b.x) < (a.w + b.w) / 2 && Math.abs(a.y - b.y) < (a.h + b.h) / 2;
+}
+
+test('⑪ con un hub NESSUNA coppia si sovrappone — nemmeno hub↔filiale', () => {
+  // ⚠️ Il controllo che c'era guardava solo i VICINI SULL'ANELLO, ed è per questo
+  // che il difetto è passato: al centro c'era un terzo riquadro che nessuno
+  // confrontava. Misurato a schermo con i riquadri veri (300×140): l'hub e le
+  // sue filiali si sovrapponevano di 122 px e l'arco spariva sotto.
+  for (const n of [1, 2, 3, 4, 6, 9]) {
+    const L = buildInterSiteLayout({
+      sites: [site('hub', 'Hub', 'hub'), ...Array.from({ length: n }, (_, i) => site('s' + i, 'Sede ' + i, 'spoke'))],
+      uplinks: [], links: [],
+    }, { boxOf: () => ({ w: 300, h: 140 }) });
+    for (let i = 0; i < L.nodes.length; i++) {
+      for (let j = i + 1; j < L.nodes.length; j++) {
+        assert.ok(!_sovrapposti(L.nodes[i], L.nodes[j]),
+          `con ${n} filiali «${L.nodes[i].siteId}» e «${L.nodes[j].siteId}» si sovrappongono`);
+      }
+    }
+  }
+});
+
+test('⑪ lo spazio fra hub e filiale c\'è davvero: l\'arco ha una lunghezza', () => {
+  // Un arco lungo zero non è un arco: è quello che si vedeva, con l'etichetta
+  // schiacciata fra due riquadri appiccicati.
+  const L = buildInterSiteLayout({
+    sites: [site('vr', 'Verona', 'hub'), site('tn', 'Trento', 'spoke'), site('ca', 'Caci', 'spoke')],
+    uplinks: [], links: [link('l1', 'vr', 'tn', 'other')],
+  }, { boxOf: () => ({ w: 300, h: 140 }) });
+  const e = L.edges[0];
+  const lungo = Math.hypot(e.x2 - e.x1, e.y2 - e.y1);
+  assert.ok(lungo >= INTER_SITE_LAYOUT_DEFAULTS.nodeGap - 0.5,
+    `l'arco è lungo ${lungo.toFixed(1)}, meno dello spazio minimo fra due riquadri`);
+});
+
+test('⑪ uno spazio più largo (l\'etichetta misurata) allontana anche l\'hub', () => {
+  // Chi disegna misura l'etichetta dell'arco e passa lo spazio che serve: se
+  // valesse solo per i vicini sull'anello, l'etichetta continuerebbe a finire
+  // sopra l'hub — che è il riquadro contro cui sbatteva.
+  const org = {
+    sites: [site('hub', 'Hub', 'hub'), site('a', 'A', 'spoke'), site('b', 'B', 'spoke')],
+    uplinks: [], links: [],
+  };
+  const stretto = buildInterSiteLayout(org, { boxOf: () => ({ w: 300, h: 140 }) });
+  const largo = buildInterSiteLayout(org, { boxOf: () => ({ w: 300, h: 140 }), nodeGap: 160 });
+  assert.ok(largo.ringR > stretto.ringR, 'uno spazio maggiore deve allargare l\'anello');
+  assert.equal(largo.ringR - stretto.ringR, 160 - INTER_SITE_LAYOUT_DEFAULTS.nodeGap,
+    'e deve allargarlo ESATTAMENTE di quanto è cresciuto lo spazio');
+});
+
+test('⑫ la pastiglia del collegamento si prende il suo spazio FRA le due sedi', () => {
+  const org = {
+    sites: [site('hub', 'Hub', 'hub'), site('a', 'A', 'spoke'), site('b', 'B', 'spoke')],
+    uplinks: [], links: [],
+  };
+  const box = { boxOf: () => ({ w: 300, h: 140 }) };
+  const senza = buildInterSiteLayout(org, box);
+  const con = buildInterSiteLayout(org, { ...box, labelW: 200, labelH: 44 });
+  // Due filiali → una per lato, quindi orizzontale: comanda la LARGHEZZA.
+  assert.equal(con.ringR - senza.ringR, 200 - INTER_SITE_LAYOUT_DEFAULTS.nodeGap);
+});
+
+test('⑫ larghezza e altezza sono DUE numeri: una filiale sopra l\'hub non si allontana di 200', () => {
+  // Con un solo spoke sta in verticale. Se la pastiglia occupasse la sua
+  // LARGHEZZA anche in altezza, la mappa diventerebbe alta il triplo per far
+  // posto a un'etichetta che in verticale è alta venti pixel.
+  const org = { sites: [site('hub', 'Hub', 'hub'), site('a', 'A', 'spoke')], uplinks: [], links: [] };
+  const box = { boxOf: () => ({ w: 300, h: 140 }) };
+  const L = buildInterSiteLayout(org, { ...box, labelW: 200, labelH: 44 });
+  const a = byId(L, 'a'), hub = byId(L, 'hub');
+  assert.ok(Math.abs(a.x - hub.x) < 0.5, 'con una filiale sola sta in verticale');
+  // 140 (mezze altezze) + 56 (lo spazio minimo, che batte i 44 della pastiglia)
+  assert.equal(L.ringR, 140 + INTER_SITE_LAYOUT_DEFAULTS.nodeGap);
+});
+
+test('⑫ una pastiglia più stretta dello spazio minimo non stringe niente', () => {
+  const org = {
+    sites: [site('hub', 'Hub', 'hub'), site('a', 'A', 'spoke'), site('b', 'B', 'spoke')],
+    uplinks: [], links: [],
+  };
+  const box = { boxOf: () => ({ w: 300, h: 140 }) };
+  assert.equal(
+    buildInterSiteLayout(org, { ...box, labelW: 10, labelH: 8 }).ringR,
+    buildInterSiteLayout(org, box).ringR);
+});
+
+test('⑫ anche sull\'ANELLO due vicini si allontanano per far posto alla pastiglia', () => {
+  // Due sedi vicine sull'anello possono essere collegate come le altre: se lo
+  // spazio valesse solo attorno all'hub, l'etichetta finirebbe sopra un riquadro
+  // in ogni mappa senza hub.
+  const org = ring(4);
+  const stretto = buildInterSiteLayout(org, { boxOf: () => ({ w: 300, h: 140 }) });
+  const largo = buildInterSiteLayout(org, { boxOf: () => ({ w: 300, h: 140 }), labelW: 200 });
+  assert.ok(largo.ringR > stretto.ringR);
+});
+
+test('⑪ senza hub la geometria non cambia: il difetto era solo del centro', () => {
+  const org = {
+    sites: [site('a', 'A'), site('b', 'B'), site('c', 'C')],
+    uplinks: [], links: [],
+  };
+  const L = buildInterSiteLayout(org, { boxOf: () => ({ w: 300, h: 140 }) });
+  // (300 + 56) / (2·sin(π/3)) — la corda fra due vicini, come prima.
+  assert.equal(L.ringR, Math.round((356 / (2 * Math.sin(Math.PI / 3))) * 100) / 100);
+});
+
 // ── ⑥ La mappa si legge su un foglio largo ────────────────────────────────
 test('⑥ un hub e due filiali si dispongono in ORIZZONTALE, non in colonna', () => {
   // È il caso più comune di tutti. Senza il mezzo passo di rotazione le due

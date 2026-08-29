@@ -131,8 +131,15 @@ lib/                   Shared browser + test modules (the heart of the app)
                     on every open cannot be compared with yesterday's or printed twice alike);
                     the shape follows the DECLARED role, and zero hubs or two fall back to a
                     ring rather than picking one for you. Labels are deliberately NOT measured
-                    (a pure module cannot know a font) — it leaves a margin and says so, and
-                    the renderer tightens the viewBox with getBBox() on the drawn SVG.
+                    (a pure module cannot know a font) — the renderer measures the drawn SVG
+                    with getBBox() and hands back BOTH rulers: the real box sizes and the gap
+                    the longest edge label needs. The ring radius clears three things, not one:
+                    two neighbours on the ring, the HUB IN THE MIDDLE (a third box nobody was
+                    comparing — with real box sizes the hub and its spokes overlapped by 122px
+                    and the link vanished under them), and the label that has to fit between
+                    them. Separation uses the axis test (ONE axis apart is enough), never the
+                    sum of the two boxes' radii along the line — that shortcut leaves a
+                    wide-flat and a tall-narrow box overlapping at 45°.
   project-schema.js  What every field of state/node/spec/port/link IS — document / measure /
                     derived / private / secret — and therefore what happens to it in a portable
                     export. A field a person can type in the UI stays a `document`: erring
