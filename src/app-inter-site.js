@@ -1221,6 +1221,31 @@ function _renderSites() {
  * NetBox: «0 su 3» vuol dire «le avevi già», «0 su 0» vuol dire «NetBox non ne
  * conosce», e con un numero solo si confonderebbero.
  */
+/**
+ * Le note che contano qualcosa hanno anche il loro SINGOLARE. «Non proposte 1
+ * linee» fa dubitare del resto di ciò che c'è scritto sopra, esattamente come
+ * «Aggiunto 1 collegamenti» — è la stessa regola dei due conteggi del riquadro,
+ * che però passavano da `frase()` e queste no: una nota è una chiave sola,
+ * cercata di piatto, e nessuno le aveva dato la variante.
+ *
+ * ⚠️ Le chiavi si scrivono PER ESTESO tutt'e due, invece di comporre
+ * `chiave + 'One'` a runtime: il cricchetto delle traduzioni legge le chiavi dal
+ * SORGENTE, e una composta gli sarebbe invisibile — potrebbe mancare dal
+ * dizionario, o restare orfana, senza che nessun test arrossisca.
+ *
+ * ⚠️ `vpn.multipoint` porta un `n` e NON è qui di proposito: scatta solo sopra
+ * le due sedi, quindi «1 sede» non esiste e una frase per quel caso sarebbe una
+ * traduzione da mantenere per sempre senza che nessuno la veda mai.
+ */
+const NOTA_SINGOLARE = {
+  'org.wanNote.notActive': 'org.wanNote.notActiveOne',
+  'org.wanNote.cirMissing': 'org.wanNote.cirMissingOne',
+  'org.wanNote.outOfScope': 'org.wanNote.outOfScopeOne',
+  'org.vpnNote.notActive': 'org.vpnNote.notActiveOne',
+  'org.vpnNote.endpointNoSite': 'org.vpnNote.endpointNoSiteOne',
+  'org.vpnNote.outOfScope': 'org.vpnNote.outOfScopeOne',
+};
+
 function _wanNoteText(n) {
   const code = String((n && n.code) || '');
   if (!code) return '';
@@ -1235,7 +1260,8 @@ function _wanNoteText(n) {
   const PREFISSO = { wan: 'org.wanNote.', vpn: 'org.vpnNote.' };
   const m = /^(wan|vpn)\.(.+)$/.exec(code);
   if (!m || !PREFISSO[m[1]]) return '';
-  const key = PREFISSO[m[1]] + m[2];
+  const plurale = PREFISSO[m[1]] + m[2];
+  const key = (Number(n.n) === 1 && NOTA_SINGOLARE[plurale]) || plurale;
   const s = t(key);
   if (!s || s === key) return '';        // codice che non conosciamo: si tace, non si stampa una chiave
   // ⚠️ Sostituzione GLOBALE, e con `split`/`join` invece di `replace`. Due
