@@ -300,7 +300,7 @@ test('un `kind` fuori vocabolario non arriva nemmeno a essere disegnato', () => 
   // il layout non ha una seconda opinione sul vocabolario, e non deve averla.
   const L = buildInterSiteLayout({
     sites: [site('mi', 'Milano'), site('rm', 'Roma')],
-    uplinks: [], links: [link('l1', 'mi', 'rm', 'wireguard')],
+    uplinks: [], links: [link('l1', 'mi', 'rm', 'pptp')],   // ⑲ tenuto FUORI di proposito
   });
   assert.deepEqual(L.edges, []);
   assert.deepEqual(L.undrawable.links, [], 'non è indisegnabile: non esiste proprio');

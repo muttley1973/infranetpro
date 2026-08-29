@@ -36,7 +36,14 @@ const ipsec = (over) => Object.assign({
 test('i vocabolari sono chiusi e contengono esattamente ciò che è stato deciso', () => {
   assert.deepStrictEqual(SITE_ROLES, ['hub', 'spoke', 'standalone']);
   // ⑨ `other` in FONDO: la porta di servizio non sta fra le scelte precise.
-  assert.deepStrictEqual(INTER_SITE_KINDS, ['ipsec', 'mpls', 'vpls', 'sdwan', 'directLink', 'other']);
+  // ⑲ L'ordine È il contenuto: è quello che si legge nella tendina, e cambiarlo
+  // per sbaglio riordinerebbe un menu senza che nessuno se ne accorga.
+  assert.deepStrictEqual(INTER_SITE_KINDS, [
+    'ipsec', 'gre', 'wireguard', 'openvpn', 'l2tp',
+    'mpls', 'vpls', 'vpws', 'vxlan', 'evpn',
+    'sdwan', 'directLink', 'other',
+  ]);
+  assert.equal(INTER_SITE_KINDS[INTER_SITE_KINDS.length - 1], 'other', 'other in fondo');
   assert.deepStrictEqual(INTER_SITE_TOPOLOGIES, ['hub-and-spoke', 'mesh']);
   // ③ 'declared' NON è uno stato: è un'origine. Vedi la scelta ③ del modulo.
   assert.deepStrictEqual(INTER_SITE_STATES, ['up', 'down']);
@@ -166,7 +173,10 @@ test('cirMbps non numerico è null, non 0 (0 Mbps sarebbe un\'affermazione)', ()
 
 // ── Collegamento inter-sede ────────────────────────────────────────────────
 test('⑤ un kind fuori vocabolario si RIFIUTA, non si corregge', () => {
-  assert.strictEqual(normalizeInterSiteLink(ipsec({ kind: 'wireguard' })), null);
+  // ⑲ `pptp` è un incapsulamento VERO di NetBox tenuto deliberatamente FUORI
+  // dal nostro vocabolario: è l'esempio giusto di «rifiutato», non un nome
+  // inventato che nessuno scriverebbe mai.
+  assert.strictEqual(normalizeInterSiteLink(ipsec({ kind: 'pptp' })), null);
   assert.strictEqual(normalizeInterSiteLink(ipsec({ kind: 'IPSEC' })), null);
   assert.strictEqual(normalizeInterSiteLink(ipsec({ kind: undefined })), null);
 });
@@ -424,7 +434,7 @@ const ORG = {
   links: [
     { id: 'hq-rm', aSiteId: 'hq', bSiteId: 'rm', kind: 'ipsec', topology: 'hub-and-spoke', state: factMeasured('up', AT), reach: factDeclared({ a: ['10.1.0.0/24'], b: ['10.2.0.0/24'] }) },
     { id: 'hq-na', aSiteId: 'hq', bSiteId: 'na', kind: 'ipsec', topology: 'hub-and-spoke', state: factDeclared('up') },
-    { id: 'nope', aSiteId: 'hq', bSiteId: 'rm', kind: 'wireguard' },
+    { id: 'nope', aSiteId: 'hq', bSiteId: 'rm', kind: 'pptp' },
   ],
 };
 

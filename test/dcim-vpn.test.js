@@ -40,24 +40,33 @@ test('① un VPLS di NetBox diventa un collegamento `vpls` — il vocabolario è
 });
 
 test('① un tipo L2 che il nostro vocabolario non ha entra come `other`, col NOME NetBox', () => {
+  // ⑲ EPL è un servizio Ethernet d'operatore: una famiglia che il nostro
+  // vocabolario NON ha, e che schiacciata su VPWS direbbe una cosa per un'altra.
   const out = vpnToLinks({
-    l2vpns: [{ id: 1, name: 'VX-LAB', type: { value: 'vxlan', label: 'VXLAN' }, status: { value: 'active' } }],
+    l2vpns: [{ id: 1, name: 'EPL-LAB', type: { value: 'epl', label: 'EPL' }, status: { value: 'active' } }],
     l2vpnTerminations: [l2t(1, 1, itf(10, 'a', VR)), l2t(2, 1, itf(11, 'b', TN))],
   }, { siteIds: [1], siteOf });
   assert.equal(out.links[0].kind, 'other');
-  assert.equal(out.links[0].kindLabel, 'VXLAN', 'che cos\'È');
-  assert.equal(out.links[0].name, 'VX-LAB', 'come si CHIAMA — e sono due cose diverse');
+  assert.equal(out.links[0].kindLabel, 'EPL', 'che cos\'È');
+  assert.equal(out.links[0].name, 'EPL-LAB', 'come si CHIAMA — e sono due cose diverse');
 });
 
-test('① un tunnel IPsec (tunnel o transport) diventa `ipsec`; GRE e WireGuard no', () => {
+test('① ⑲ ogni incapsulamento che il vocabolario ha diventa la sua natura', () => {
   const tun = (id, name, enc, label) => ({ id, name, status: { value: 'active' }, encapsulation: { value: enc, label } });
   const out = vpnToLinks({
     tunnels: [tun(1, 'T1', 'ipsec-tunnel', 'IPsec - Tunnel'), tun(2, 'T2', 'ipsec-transport', 'IPsec - Transport'),
-      tun(3, 'T3', 'gre', 'GRE'), tun(4, 'T4', 'wireguard', 'WireGuard')],
-    tunnelTerminations: [1, 2, 3, 4].flatMap(t => [tunt(t * 10, t, itf(10, 'a', VR), 'peer'), tunt(t * 10 + 1, t, itf(11, 'b', TN), 'peer')]),
+      tun(3, 'T3', 'gre', 'GRE'), tun(4, 'T4', 'wireguard', 'WireGuard'),
+      tun(5, 'T5', 'openvpn', 'OpenVPN'), tun(6, 'T6', 'l2tp', 'L2TP'),
+      // I due che restano fuori: `ip-ip` è raro, `pptp` è morto. Entrano come
+      // `other` con l'etichetta, che è il modo di dire «non lo so chiamare».
+      tun(7, 'T7', 'ip-ip', 'IP-in-IP'), tun(8, 'T8', 'pptp', 'PPTP')],
+    tunnelTerminations: [1, 2, 3, 4, 5, 6, 7, 8].flatMap(t => [tunt(t * 10, t, itf(10, 'a', VR), 'peer'), tunt(t * 10 + 1, t, itf(11, 'b', TN), 'peer')]),
   }, { siteIds: [1], siteOf });
-  assert.deepEqual(out.links.map(l => l.kind), ['ipsec', 'ipsec', 'other', 'other']);
-  assert.deepEqual(out.links.slice(2).map(l => l.kindLabel), ['GRE', 'WireGuard']);
+  assert.deepEqual(out.links.map(l => l.kind),
+    ['ipsec', 'ipsec', 'gre', 'wireguard', 'openvpn', 'l2tp', 'other', 'other']);
+  assert.deepEqual(out.links.slice(6).map(l => l.kindLabel), ['IP-in-IP', 'PPTP']);
+  assert.deepEqual(out.links.slice(0, 6).map(l => l.kindLabel), [null, null, null, null, null, null],
+    'con una natura vera l\'etichetta sarebbe la stessa cosa detta due volte');
 });
 
 test('② ⚠️ gli indirizzi si INCROCIANO: il peer di A è l\'esterno di B', () => {

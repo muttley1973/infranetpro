@@ -98,7 +98,7 @@ test('① la sede porta un RIFERIMENTO al progetto, non una copia', () => {
 test('③ ciò che non è modellabile non entra — e il conteggio lo dice', () => {
   const raw = ORG();
   raw.sites.push({ name: 'senza id' });                                   // -1 sede
-  raw.links.push({ id: 'x', aSiteId: 'mi', bSiteId: 'rm', kind: 'wireguard' }); // -1 collegamento
+  raw.links.push({ id: 'x', aSiteId: 'mi', bSiteId: 'rm', kind: 'pptp' }); // -1 collegamento (⑲ fuori vocabolario di proposito)
   raw.uplinks.push({ id: 'orfano' });                                     // -1 uplink (senza sede)
   const { organization, dropped } = store.writeOrganization(raw);
   assert.deepEqual(dropped, { sites: 1, uplinks: 1, links: 1 });
@@ -148,7 +148,7 @@ test('② il server RI-NORMALIZZA il body: non si fida del client', async () => 
 
 test('③ il PUT risponde con ciò che è stato SCRITTO e con cosa è caduto', async () => {
   const raw = ORG();
-  raw.links.push({ id: 'x', aSiteId: 'mi', bSiteId: 'rm', kind: 'wireguard' });
+  raw.links.push({ id: 'x', aSiteId: 'mi', bSiteId: 'rm', kind: 'pptp' });
   const j = await (await put(raw)).json();
   assert.equal(j.dropped.links, 1, 'chi salva deve sapere che quel collegamento non è entrato');
   assert.deepEqual(j.organization.links.map(l => l.id), ['mi-rm']);

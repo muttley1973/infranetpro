@@ -652,10 +652,19 @@ function _removeSite(i) {
 
 // ── Mappa (⑤: le coordinate arrivano dal modulo puro) ─────────────────────
 
-const KIND_ICON = { ipsec: 'fa-lock', mpls: 'fa-network-wired', vpls: 'fa-diagram-project', sdwan: 'fa-cloud-bolt', directLink: 'fa-grip-lines', other: 'fa-circle-question' };
+// ⑲ Un'icona per natura, così le famiglie si riconoscono a colpo d'occhio: i
+// tunnel hanno un'idea di chiusura o di percorso, i servizi un'idea di rete,
+// il fisico una di filo.
+const KIND_ICON = {
+  ipsec: 'fa-lock', gre: 'fa-route', wireguard: 'fa-shield-halved',
+  openvpn: 'fa-key', l2tp: 'fa-arrows-left-right',
+  mpls: 'fa-network-wired', vpls: 'fa-diagram-project', vpws: 'fa-circle-nodes',
+  vxlan: 'fa-layer-group', evpn: 'fa-sitemap',
+  sdwan: 'fa-cloud-bolt', directLink: 'fa-grip-lines', other: 'fa-circle-question',
+};
 
 /**
- * Come si CHIAMA un collegamento, a schermo. Per le cinque nature è la loro
+ * Come si CHIAMA un collegamento, a schermo. Per le nature del vocabolario è la loro
  * parola; per `other` (⑨) sono le parole di chi l'ha documentato — «FWA
  * punto-punto» dice qualcosa, «Altro» no. Sta in una funzione sola perché la
  * mappa, l'intestazione della riga e l'audit devono dire lo stesso nome: due
@@ -1098,6 +1107,16 @@ function _fieldsOfKind(l, i) {
       data-input="org-field" data-scope="link" data-idx="${i}" data-field="${escapeHTML(field)}">
     ${hint ? `<small class="org-hint">${escapeHTML(hint)}</small>` : ''}</label>`;
   switch (l.kind) {
+    // ⑲ I TUNNEL. Gli IP dei peer valgono per tutti: è la coppia di indirizzi
+    // che si scrive nella configurazione, quale che sia l'incapsulamento. Fase 1
+    // e versione IKE no — quelle sono di IPsec, e chiederle su un GRE sarebbe
+    // chiedere un dato che non esiste.
+    case 'gre':
+    case 'wireguard':
+    case 'openvpn':
+    case 'l2tp':
+      return F('peerA', _atSite('org.peerA', l.aSiteId), (l.endpointA || {}).peerIp, '203.0.113.1')
+        + F('peerB', _atSite('org.peerB', l.bSiteId), (l.endpointB || {}).peerIp, '198.51.100.1');
     case 'ipsec':
       // ⚠️ Gli APPARATI dei due capi non stanno qui: valgono per ogni `kind` e
       // si disegnano una volta sola in `_renderLinks`. Qui restano gli IP dei
@@ -1114,8 +1133,16 @@ function _fieldsOfKind(l, i) {
             <select ${ro ? 'disabled' : ''} data-change="org-field" data-scope="link" data-idx="${i}" data-field="ikeVersion">
               ${_opt('', '—', l.ikeVersion == null ? '' : l.ikeVersion)}${_opt('1', 'IKEv1', l.ikeVersion)}${_opt('2', 'IKEv2', l.ikeVersion)}
             </select></label>`;
+    // ⑲ I SERVIZI: comprati da un operatore o costruiti su una dorsale, hanno
+    // un'istanza (VRF) e un nome di servizio. ⚠️ L'identificativo numerico — il
+    // VNI di una VXLAN, il VC-ID di un VPWS — NON ha un campo, e non lo si
+    // infila in «Servizio»: un campo che ospita due cose diverse comincia a
+    // mentire alla prima riga in cui ne porta una sola.
     case 'mpls':
     case 'vpls':
+    case 'vpws':
+    case 'vxlan':
+    case 'evpn':
       return F('vrf', 'VRF', l.vrf) + F('service', t('org.service'), l.service);
     case 'sdwan':
       return F('overlay', t('org.overlay'), l.overlay, t('org.overlayPh'), t('org.overlayHint'))
