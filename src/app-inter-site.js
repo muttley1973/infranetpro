@@ -830,6 +830,14 @@ function _renderMap(m) {
   // Lo spazio non si RESTRINGE mai sotto il default: è il modulo puro a tenere
   // il minimo, qui si dice solo quanto serve IN PIÙ per la pastiglia.
   if (opts && m.labelW) { opts.labelW = m.labelW; opts.labelH = m.labelH; }
+  // ⑰ E la misura di OGNI pastiglia, che è il testo più il suo bordo: è la
+  // pastiglia a non doversi sovrapporre, non il testo dentro.
+  if (opts && m.labels) {
+    opts.labelOf = (id) => {
+      const w = m.labels[id];
+      return w ? { w: w + BADGE.padX * 2, h: BADGE.h } : null;
+    };
+  }
   const L = buildInterSiteLayout(_st.org, opts || undefined);
   if (L.layout === 'empty') {
     return `<div class="org-empty">

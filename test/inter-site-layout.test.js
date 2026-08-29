@@ -421,6 +421,100 @@ test('④ un righello che risponde male non rompe niente: si torna alla misura d
   }
 });
 
+// ── ⑰ le pastiglie dei collegamenti non si sovrappongono ──────────────────
+// Il caso vero è un hub con tre raggi: la corda verso il primo spoke è
+// VERTICALE, quindi la normale — dove il ventaglio scosta gli archi — è
+// orizzontale, ed è lì che due etichette affiancate si pestano i piedi.
+// ⚠️ Con due sole sedi la corda è orizzontale e i 34 px costanti separano già
+// due pastiglie alte 20: un test scritto su quella forma sarebbe verde senza
+// dimostrare niente. La forma del fixture È il test.
+
+/** Il riquadro di una pastiglia attorno al punto in cui è ancorata. */
+const pill = (e, m) => ({ x: e.mx, y: e.my, w: m.w, h: m.h });
+const sovrapposti = (a, b) =>
+  Math.abs(a.x - b.x) < (a.w + b.w) / 2 && Math.abs(a.y - b.y) < (a.h + b.h) / 2;
+const EDGE = (Lo, id) => Lo.edges.find(e => e.linkId === id);
+
+/** Un hub con tre raggi; verso il primo spoke ne partono `quanti` paralleli. */
+const raggi = (quanti) => {
+  const links = [];
+  for (let k = 0; k < quanti; k++) links.push(link('p' + k, 'vr', 's0'));
+  return {
+    id: 'o', name: 'O',
+    sites: [site('vr', 'Verona', 'hub'), site('s0', 'S0', 'spoke'),
+      site('s1', 'S1', 'spoke'), site('s2', 'S2', 'spoke')],
+    uplinks: [],
+    links: links.concat([link('a1', 'vr', 's1'), link('a2', 'vr', 's2')]),
+  };
+};
+
+// «Collegamento diretto» contro «IPsec»: le due larghezze del caso segnalato.
+const MIS = { p0: { w: 190, h: 20 }, p1: { w: 60, h: 20 } };
+const righello = (mis) => ({ labelOf: (id) => mis[id] || null });
+
+test('⑰ due pastiglie della stessa coppia non si sovrappongono', () => {
+  const Lo = buildInterSiteLayout(raggi(2), righello(MIS));
+  const a = EDGE(Lo, 'p0'), b = EDGE(Lo, 'p1');
+  assert.ok(!sovrapposti(pill(a, MIS.p0), pill(b, MIS.p1)),
+    'si toccano: |dx|=' + Math.abs(a.mx - b.mx).toFixed(1) + ', ne servono 125');
+});
+
+test('⑰ la sonda regge: col passo costante di prima si sovrapporrebbero', () => {
+  // Senza righello il modulo non sa quanto sono larghe, e resta il passo
+  // costante: con QUELLE etichette non basta, ed è esattamente il difetto
+  // segnalato. Se un giorno questa asserzione diventasse falsa, il test qui
+  // sopra sarebbe verde su un caso che non si sovrappone da solo — cioè non
+  // dimostrerebbe più niente.
+  const Lo = buildInterSiteLayout(raggi(2));
+  assert.ok(sovrapposti(pill(EDGE(Lo, 'p0'), MIS.p0), pill(EDGE(Lo, 'p1'), MIS.p1)));
+});
+
+test('⑰ senza righello il passo resta la costante', () => {
+  const bows = buildInterSiteLayout(raggi(2)).edges
+    .filter(e => e.linkId.startsWith('p')).map(e => e.bow).sort((x, y) => x - y);
+  assert.deepEqual(bows, [-INTER_SITE_LAYOUT_DEFAULTS.bowStep / 2, INTER_SITE_LAYOUT_DEFAULTS.bowStep / 2]);
+});
+
+test('⑰ etichette minuscole non STRINGONO il ventaglio sotto il minimo', () => {
+  const Lo = buildInterSiteLayout(raggi(2), { labelOf: () => ({ w: 4, h: 4 }) });
+  const bows = Lo.edges.filter(e => e.linkId.startsWith('p')).map(e => e.bow).sort((x, y) => x - y);
+  assert.deepEqual(bows, [-INTER_SITE_LAYOUT_DEFAULTS.bowStep / 2, INTER_SITE_LAYOUT_DEFAULTS.bowStep / 2]);
+});
+
+test('⑰ e il ventaglio non si allarga quando non serve', () => {
+  // Due sole sedi: stanno affiancate, la corda è orizzontale e il ventaglio
+  // scosta in VERTICALE, dove due pastiglie alte 20 stanno larghe già con 34.
+  // Le stesse etichette larghe non devono allargare niente: la misura serve a
+  // risolvere una sovrapposizione, non a gonfiare ogni mappa.
+  const due = {
+    id: 'o', name: 'O',
+    sites: [site('vr', 'Verona'), site('tn', 'Trento')],
+    uplinks: [],
+    links: [link('p0', 'vr', 'tn'), link('p1', 'vr', 'tn')],
+  };
+  const bows = buildInterSiteLayout(due, righello(MIS)).edges.map(e => e.bow).sort((x, y) => x - y);
+  assert.deepEqual(bows, [-INTER_SITE_LAYOUT_DEFAULTS.bowStep / 2, INTER_SITE_LAYOUT_DEFAULTS.bowStep / 2]);
+});
+
+test('⑰ una pastiglia stretta in mezzo non chiude addosso le due larghe', () => {
+  const mis = { p0: { w: 200, h: 20 }, p1: { w: 20, h: 20 }, p2: { w: 200, h: 20 } };
+  const Lo = buildInterSiteLayout(raggi(3), righello(mis));
+  for (const [x, y] of [['p0', 'p1'], ['p1', 'p2'], ['p0', 'p2']]) {
+    assert.ok(!sovrapposti(pill(EDGE(Lo, x), mis[x]), pill(EDGE(Lo, y), mis[y])),
+      'si sovrappongono ' + x + ' e ' + y);
+  }
+});
+
+test('⑰ vale anche quando la corda è OBLIQUA', () => {
+  // Un hub con quattro raggi: verso il primo spoke la corda è a 45 gradi, e la
+  // formula deve scegliere l'asse che separa invece di fidarsi di uno fisso.
+  const org = raggi(2);
+  org.sites.push(site('s3', 'S3', 'spoke'));
+  org.links.push(link('a3', 'vr', 's3'));
+  const Lo = buildInterSiteLayout(org, righello(MIS));
+  assert.ok(!sovrapposti(pill(EDGE(Lo, 'p0'), MIS.p0), pill(EDGE(Lo, 'p1'), MIS.p1)));
+});
+
 // ── Geometria parametrica ─────────────────────────────────────────────────
 test('le misure sono parametri: chi esporta può disegnare più grande', () => {
   const org = ring(4);
