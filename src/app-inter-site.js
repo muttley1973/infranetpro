@@ -1238,17 +1238,30 @@ function _wanNoteText(n) {
   const key = PREFISSO[m[1]] + m[2];
   const s = t(key);
   if (!s || s === key) return '';        // codice che non conosciamo: si tace, non si stampa una chiave
-  return s
-    .replace('{n}', String(n.n == null ? '' : n.n))
-    .replace('{circuitId}', String(n.circuitId || '—'))
-    .replace('{site}', String(n.site || '—'))
-    .replace('{type}', String(n.type || '—'))
-    .replace('{name}', String(n.name || '—'))
-    .replace('{id}', String(n.id || '—'))
-    .replace('{error}', String(n.error || '—'))
-    .replace('{clouds}', ((n.clouds || []).join(', ')))
-    .replace('{sites}', ((n.sites || []).join(', ')))
-    .replace('{rows}', (n.rows || []).map(r => String(r.circuitId || r.name || '—') + ' (' + String(r.status || '') + ')').join(', '));
+  // ⚠️ Sostituzione GLOBALE, e con `split`/`join` invece di `replace`. Due
+  // ragioni, e tutt'e due si vedono a schermo quando mancano:
+  //   · `replace` con una stringa cambia solo la PRIMA occorrenza, quindi una
+  //     frase che nomina lo stesso segnaposto due volte ne lasciava uno CRUDO
+  //     — capitato alla nota del servizio multipunto, vista in un archivio a
+  //     quattro sedi: «tocca 3 sedi … non {n} coppie»;
+  //   · nel rimpiazzo `replace` interpreta le sequenze col dollaro ($& e $1), e
+  //     qui i valori sono NOMI di sede e di servizio scritti da chi documenta:
+  //     un nome che contiene un dollaro verrebbe riscritto invece che stampato.
+  const VALORI = {
+    '{n}': n.n == null ? '' : n.n,
+    '{circuitId}': n.circuitId || '—',
+    '{site}': n.site || '—',
+    '{type}': n.type || '—',
+    '{name}': n.name || '—',
+    '{id}': n.id || '—',
+    '{error}': n.error || '—',
+    '{clouds}': (n.clouds || []).join(', '),
+    '{sites}': (n.sites || []).join(', '),
+    '{rows}': (n.rows || []).map(r => String(r.circuitId || r.name || '—') + ' (' + String(r.status || '') + ')').join(', '),
+  };
+  let out = s;
+  for (const [segno, v] of Object.entries(VALORI)) out = out.split(segno).join(String(v));
+  return out;
 }
 
 /**
