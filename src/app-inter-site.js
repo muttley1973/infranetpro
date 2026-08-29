@@ -248,6 +248,23 @@ const _siteName = (id) => {
   return s ? s.name : '';
 };
 
+/**
+ * L'etichetta di un campo che parla di UN capo: «Apparato presso Verona».
+ *
+ * ⑬ Il nome della sede al posto di «primo capo»/«secondo capo». I due capi
+ * altrimenti si distinguono solo per POSIZIONE, e per sapere quale sia il primo
+ * bisogna risalire alle due tendine in cima alla riga: sei campi più su, fuori
+ * dallo sguardo mentre si compila. Col nome scritto non c'è niente da ricordare.
+ *
+ * ⚠️ Se la sede non c'è — riferimento rotto, ed è l'audit a dirlo — resta il suo
+ * id. Un'etichetta che finisce nel vuoto («Apparato presso ») è peggio di un id
+ * brutto: non si vede nemmeno che manca qualcosa. Stessa scelta già fatta per le
+ * caselle dell'underlay.
+ */
+function _atSite(key, siteId) {
+  return t(key).replace('{site}', _siteName(siteId) || siteId || '—');
+}
+
 /** Il valore nudo di un campo che PUÒ portare l'envelope (`publicIp`, `state`…). */
 function _fv(f) { return isFact(f) ? String(factValue(f) == null ? '' : factValue(f)) : ''; }
 
@@ -1034,8 +1051,12 @@ function _fieldsOfKind(l, i) {
       // si disegnano una volta sola in `_renderLinks`. Qui restano gli IP dei
       // peer, che sono davvero una cosa da tunnel — su un MPLS non vogliono
       // dire niente, e un campo che non vuole dire niente invita a riempirlo.
-      return F('peerA', t('org.peerA'), (l.endpointA || {}).peerIp, '203.0.113.1')
-        + F('peerB', t('org.peerB'), (l.endpointB || {}).peerIp, '198.51.100.1')
+      // ⚠️ «visto da», non «presso»: `endpointA.peerIp` è l'indirizzo dell'ALTRO
+      // capo — quello che si scrive nella configurazione del tunnel SU A. Un
+      // «IP del peer presso Verona» direbbe l'esatto contrario, e nessuno a
+      // valle potrebbe accorgersene: sono due indirizzi ugualmente plausibili nei due campi sbagliati.
+      return F('peerA', _atSite('org.peerA', l.aSiteId), (l.endpointA || {}).peerIp, '203.0.113.1')
+        + F('peerB', _atSite('org.peerB', l.bSiteId), (l.endpointB || {}).peerIp, '198.51.100.1')
         + F('phase1Name', t('org.phase1'), l.phase1Name)
         + `<label class="org-f"><span>${escapeHTML(t('org.ike'))}</span>
             <select ${ro ? 'disabled' : ''} data-change="org-field" data-scope="link" data-idx="${i}" data-field="ikeVersion">
@@ -1254,24 +1275,24 @@ function _renderLinks() {
         <label class="org-f"><span>${escapeHTML(t('org.circuitId'))}</span>
           <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(l.circuitId || '')}"
                  data-input="org-field" data-scope="link" data-idx="${i}" data-field="circuitId"></label>
-        <label class="org-f"><span>${escapeHTML(t('org.devA').replace('{site}', _siteName(l.aSiteId)))}</span>
+        <label class="org-f"><span>${escapeHTML(_atSite('org.devA', l.aSiteId))}</span>
           <input type="text" ${ro ? 'disabled' : ''} list="org-dl-${i}-a" title="${escapeHTML(t('org.devTip'))}"
                  value="${escapeHTML(_deviceFieldValue(l.aSiteId, l.endpointA))}" placeholder="${escapeHTML(t('org.devPh'))}"
                  data-input="org-field" data-scope="link" data-idx="${i}" data-field="devA">
           ${_deviceDatalist('org-dl-' + i + '-a', l.aSiteId)}
           ${_deviceStatus(l.aSiteId, l.endpointA)}</label>
-        <label class="org-f"><span>${escapeHTML(t('org.devB').replace('{site}', _siteName(l.bSiteId)))}</span>
+        <label class="org-f"><span>${escapeHTML(_atSite('org.devB', l.bSiteId))}</span>
           <input type="text" ${ro ? 'disabled' : ''} list="org-dl-${i}-b" title="${escapeHTML(t('org.devTip'))}"
                  value="${escapeHTML(_deviceFieldValue(l.bSiteId, l.endpointB))}" placeholder="${escapeHTML(t('org.devPh'))}"
                  data-input="org-field" data-scope="link" data-idx="${i}" data-field="devB">
           ${_deviceDatalist('org-dl-' + i + '-b', l.bSiteId)}
           ${_deviceStatus(l.bSiteId, l.endpointB)}</label>
         ${_fieldsOfKind(l, i)}
-        <label class="org-f org-f-wide"><span>${escapeHTML(t('org.reachA').replace('{site}', _siteName(l.aSiteId)))}</span>
+        <label class="org-f org-f-wide"><span>${escapeHTML(_atSite('org.reachA', l.aSiteId))}</span>
           <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(a.join(' '))}" placeholder="10.1.0.0/24"
                  data-input="org-field" data-scope="link" data-idx="${i}" data-field="reachA">
           <small class="org-bad" data-net-hint ${badA.length ? '' : 'style="display:none"'}>${badA.length ? escapeHTML(t('org.notNetworks') + ' ' + badA.join(', ')) : ''}</small></label>
-        <label class="org-f org-f-wide"><span>${escapeHTML(t('org.reachB').replace('{site}', _siteName(l.bSiteId)))}</span>
+        <label class="org-f org-f-wide"><span>${escapeHTML(_atSite('org.reachB', l.bSiteId))}</span>
           <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(b.join(' '))}" placeholder="10.2.0.0/24"
                  data-input="org-field" data-scope="link" data-idx="${i}" data-field="reachB">
           <small class="org-bad" data-net-hint ${badB.length ? '' : 'style="display:none"'}>${badB.length ? escapeHTML(t('org.notNetworks') + ' ' + badB.join(', ')) : ''}</small></label>
