@@ -1016,6 +1016,13 @@ function _originBadge(f) {
  * riesco a modificare» è esattamente la domanda che si è fatto chi l'ha usato.
  * Caselle di spunta: un clic, un effetto, e si legge senza istruzioni.
  * Le linee si mostrano con l'operatore e la sede, perché l'id non dice niente.
+ *
+ * ⚠️ Sotto le caselle NON c'è una riga d'aiuto. C'era, e diceva a parole ciò che
+ * l'etichetta dice già sopra: in fondo a un elenco di voci la stessa frase
+ * ricompare più in piccolo, e si legge come se fosse un'altra — l'occhio ci
+ * torna a cercare la differenza che non c'è. Il gergo («underlay») è rimasto
+ * dove serve: nella riga d'aiuto dell'overlay, che è il campo dove quella
+ * parola si incontra per la prima volta.
  */
 function _underlayField(l, i, ro) {
   const scelti = l.underlayUplinkIds || [];
@@ -1025,9 +1032,8 @@ function _underlayField(l, i, ro) {
              data-change="org-underlay" data-idx="${i}" data-uplink="${escapeHTML(u.id)}">
       <span>${escapeHTML((u.provider || t('org.uplinkNoProvider')) + ' · ' + (_siteName(u.siteId) || u.siteId))}</span>
     </label>`).join('');
-  return `<div class="org-f org-f-wide"><span>${escapeHTML(t('org.underlay'))}</span>
-    ${righe || `<p class="org-note">${escapeHTML(t('org.underlayNone'))}</p>`}
-    <small class="org-hint">${escapeHTML(t('org.underlayHint'))}</small></div>`;
+  return `<div class="org-f org-f-wide org-f-underlay"><span>${escapeHTML(t('org.underlay'))}</span>
+    ${righe || `<p class="org-note">${escapeHTML(t('org.underlayNone'))}</p>`}</div>`;
 }
 
 function _fieldsOfKind(l, i) {

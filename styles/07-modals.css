@@ -1065,6 +1065,10 @@
         .org-check input { width:15px; height:15px; accent-color:var(--accent); cursor:pointer; flex:none; }
         .org-check input:disabled { cursor:not-allowed; }
         .org-check input:disabled + span { opacity:.6; }
+        /* Il filo che CHIUDE l'elenco delle caselle. Senza, l'etichetta del campo
+           successivo cade a ridosso dell'ultima riga cliccabile e si legge come
+           la voce dopo: un elenco non finisce da solo, lo si deve chiudere. */
+        .org-f-underlay { padding-bottom:var(--space-4); border-bottom:1px solid var(--panel-border); }
         /* La natura del collegamento accanto ai due capi, nell'intestazione:
            secondaria per colore, non per dimensione. */
         .org-row-kind { color:var(--text-muted); font-weight:400; }
