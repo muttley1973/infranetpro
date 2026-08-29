@@ -293,6 +293,13 @@ function _setFact(obj, key, raw) {
 /** Una lista di subnet scritta a mano → righe. La canonicalizzazione la fa il
  *  SERVER (non ne esiste una seconda qui): questa è solo la spezzettatura. */
 function _splitNets(s) {
+  // ⚠️ Si LEGGE largo e si SCRIVE stretto: qui entrano virgole, punti e
+  // virgola, spazi e a capo, perché chi incolla da un preventivo o da una
+  // console non deve rimettere a posto i separatori a mano; ma quando il
+  // campo si ridisegna esce sempre con la virgola, che è il separatore del
+  // resto dell'app (le VLAN di un trunk si scrivono «1,10,20,100»). Un campo
+  // che accetta tutto e restituisce un formato diverso da quello di tutti
+  // gli altri insegna una regola sbagliata a ogni ridisegno.
   return String(s == null ? '' : s).split(/[\s,;]+/).filter(Boolean);
 }
 
@@ -1141,7 +1148,7 @@ function _renderSites() {
           <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(s.address || '')}"
                  data-input="org-field" data-scope="site" data-idx="${i}" data-field="address"></label>
         <label class="org-f org-f-wide"><span>${escapeHTML(t('org.subnets'))}</span>
-          <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML((s.subnets || []).join(' '))}" placeholder="10.1.0.0/24 10.1.1.0/24"
+          <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML((s.subnets || []).join(', '))}" placeholder="10.1.0.0/24, 10.1.1.0/24"
                  data-input="org-field" data-scope="site" data-idx="${i}" data-field="subnets">
           <small class="org-bad" data-net-hint ${bad.length ? '' : 'style="display:none"'}>${bad.length ? escapeHTML(t('org.notNetworks') + ' ' + bad.join(', ')) : ''}</small>
           ${ro ? '' : `<div class="org-row-actions">
@@ -1252,7 +1259,7 @@ function _renderUplinks() {
                  data-input="org-field" data-scope="uplink" data-idx="${i}" data-field="cirMbps">
           <small class="org-hint">${escapeHTML(t('org.cirHint'))}</small></label>
         <label class="org-f org-f-span2"><span>${escapeHTML(t('org.publicIps'))} ${_originBadge(u.publicIps)}</span>
-          <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(ips.join(' '))}" placeholder="203.0.113.10 203.0.113.8/29 2001:db8::1"
+          <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(ips.join(', '))}" placeholder="203.0.113.10, 203.0.113.8/29, 2001:db8::1"
                  data-input="org-field" data-scope="uplink" data-idx="${i}" data-field="publicIps">
           <small class="org-bad" data-net-hint ${badIps.length ? '' : 'style="display:none"'}>${badIps.length ? escapeHTML(t('org.notAddresses') + ' ' + badIps.join(', ')) : ''}</small>
           <small class="org-hint">${escapeHTML(t('org.publicIpsHint'))}</small></label>
@@ -1319,11 +1326,11 @@ function _renderLinks() {
           ${_deviceStatus(l.bSiteId, l.endpointB)}</label>
         ${_fieldsOfKind(l, i)}
         <label class="org-f org-f-wide"><span>${escapeHTML(_atSite('org.reachA', l.aSiteId))}</span>
-          <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(a.join(' '))}" placeholder="10.1.0.0/24"
+          <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(a.join(', '))}" placeholder="10.1.0.0/24, 10.1.1.0/24"
                  data-input="org-field" data-scope="link" data-idx="${i}" data-field="reachA">
           <small class="org-bad" data-net-hint ${badA.length ? '' : 'style="display:none"'}>${badA.length ? escapeHTML(t('org.notNetworks') + ' ' + badA.join(', ')) : ''}</small></label>
         <label class="org-f org-f-wide"><span>${escapeHTML(_atSite('org.reachB', l.bSiteId))}</span>
-          <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(b.join(' '))}" placeholder="10.2.0.0/24"
+          <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(b.join(', '))}" placeholder="10.2.0.0/24, 10.2.1.0/24"
                  data-input="org-field" data-scope="link" data-idx="${i}" data-field="reachB">
           <small class="org-bad" data-net-hint ${badB.length ? '' : 'style="display:none"'}>${badB.length ? escapeHTML(t('org.notNetworks') + ' ' + badB.join(', ')) : ''}</small></label>
       </div>
