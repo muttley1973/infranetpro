@@ -179,6 +179,12 @@ test('scanner: il corpus non è vuoto (il cricchetto non è vacuo)', () => {
 const CAPS = {
     'export.js': 149,
     'lib/drawio-export.js': 21,
+    // La mappa inter-sede del dossier (2.11). I 25 residui sono NUMERI, tutti:
+    // le coordinate passano da `_n()` — arrotondamento a 0.01 — e la misura del
+    // viewBox da `W`/`H`, che vengono dal layout puro (lib/inter-site-layout.js,
+    // sotto test). Nessun testo di nessuno le attraversa. Ciò che è TESTO passa
+    // invece da `_esc`, cioè dall'escaper XML condiviso, e lo scanner lo prova.
+    'lib/inter-site-svg.js': 25,
     'src/app-audit.js': 3,
     'src/app-auth.js': 4,
     'src/app-discovery.js': 11,
@@ -296,10 +302,14 @@ test('escaping: nel frontend esiste UNA sola definizione di escape HTML', () => 
     }
 
     // app-util.js = l'escaper HTML condiviso.
-    // drawio-export.js = _escXml, contesto XML del .drawio: escape COMPLETO sui
-    //   5 caratteri, entità XML (&apos; invece di &#39;). Concetto diverso,
-    //   legittimamente separato.
-    assert.deepStrictEqual(trovati.sort(), ['lib/drawio-export.js', 'src/app-util.js'],
+    // xml-escape.js = l'escaper XML condiviso: escape COMPLETO sui 5 caratteri,
+    //   entità XML (&apos; invece di &#39;). Concetto diverso da quello HTML, e
+    //   legittimamente separato — ma UNO SOLO anche lui. Stava dentro
+    //   `lib/drawio-export.js` finché il formato XML che uscivamo era uno; col
+    //   secondo (l'SVG della mappa inter-sede nel dossier, 2.11) è diventato un
+    //   modulo invece di una seconda copia identica. Lo consumano drawio-export
+    //   e inter-site-svg.
+    assert.deepStrictEqual(trovati.sort(), ['lib/xml-escape.js', 'src/app-util.js'],
         'è comparsa una nuova definizione di escape. Usa escapeHTML di src/app-util.js\n' +
         '  (o importalo con un alias): due definizioni dello stesso concetto divergono,\n' +
         '  e vince sempre quella incompleta.');

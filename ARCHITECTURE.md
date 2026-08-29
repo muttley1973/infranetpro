@@ -128,8 +128,8 @@ lib/                   Shared browser + test modules (the heart of the app)
                     that could not run leaves its name and its reason, the same discipline as
                     ipam-audit.js — an empty list must mean "I looked", never also "I didn't".
   inter-site-layout.js  Where each site goes on the map, as coordinates: no SVG, no DOM, no
-                    strings — which is what lets the browser and the coming PDF/draw.io export
-                    draw the SAME map. Deterministic and physics-free (a graph that re-settles
+                    strings — which is what lets the browser and the PDF export (and the coming
+                    draw.io one) draw the SAME map. Deterministic and physics-free (a graph that re-settles
                     on every open cannot be compared with yesterday's or printed twice alike);
                     the shape follows the DECLARED role, and zero hubs or two fall back to a
                     ring rather than picking one for you. Labels are deliberately NOT measured
@@ -142,6 +142,26 @@ lib/                   Shared browser + test modules (the heart of the app)
                     them. Separation uses the axis test (ONE axis apart is enough), never the
                     sum of the two boxes' radii along the line — that shortcut leaves a
                     wide-flat and a tall-narrow box overlapping at 45°.
+  inter-site-report.js  The WAN chapter of the dossier, as DATA: one row per WAN line and per
+                    link, with what it takes to rebuild them after an incident. Codes only, no
+                    words (the glue translates — same split as pdu-report.js). What is missing
+                    stays `null` and is COUNTED in the totals: a line with no circuit id is the
+                    finding, not a hole in the layout. A ref that does not resolve says which
+                    of five things happened (linked / typed / missing / unreadable / none), and
+                    "not found" is never said without having looked. Carries the organisation
+                    it was built from, so the map comes from the SAME coordinates as the panel.
+  inter-site-svg.js  That map as printable SVG: white ground DECLARED as a rectangle, every
+                    colour an attribute — the panel's SVG wears CSS classes and follows the
+                    THEME, so through svg-to-pdfkit it would print as black shapes, or as a
+                    dark theme's light text on white paper. Vector, never a raster. Words
+                    arrive already written and the text is measured OUTSIDE (the PDF measures
+                    with its own engine, which is inter-site-layout.js's ④ ruler). No glyph
+                    outside CP1252: the hub is marked with a WORD, because a standard PDF font
+                    draws a glyph it lacks wrong instead of substituting it.
+  xml-escape.js     The one XML escaper (5 chars, XML entities). Separate from escapeHTML —
+                    different context — but ONE, shared by drawio-export.js and
+                    inter-site-svg.js: the second XML format we emit would otherwise have been
+                    an identical copy of the first. Pinned by test/html-escaping.test.js.
   project-schema.js  What every field of state/node/spec/port/link IS — document / measure /
                     derived / private / secret — and therefore what happens to it in a portable
                     export. A field a person can type in the UI stays a `document`: erring

@@ -5,7 +5,9 @@
 const express = require('express');
 const auth = require('../../auth');
 const { buildPduReport } = require('../../lib/pdu-report.js');
-const { _loadPdfDeps, _addReportPages, _addCoverPage, _addChangelogPages, _addSparePages, _addPduPages, _addAssetRegisterPages, _addRecoveryPages, _addOverviewPages, _rt } = require('../pdf-report');
+const { buildInterSiteWanReport } = require('../../lib/inter-site-report.js');
+const { readOrganization } = require('../organization-store');
+const { _loadPdfDeps, _addReportPages, _addCoverPage, _addChangelogPages, _addSparePages, _addPduPages, _addAssetRegisterPages, _addRecoveryPages, _addWanPages, _addOverviewPages, _rt } = require('../pdf-report');
 const { addLabelPages } = require('../label-sheet');
 const { loadProject } = require('../projects-store');
 const { projectToDevices, applyPortMacFallback, applyDeviceNotes, isStructuralCabling } = require('../../lib/api-shape');
@@ -25,13 +27,21 @@ router.post('/api/export-pdf', auth.requireAdmin, (req, res) => {
     includeTopology: true,
     includeAssets: false,   // registro asset (per-device): opt-in dal client nuovo; default OFF = retrocompat coi client vecchi
     includeRecovery: false, // sezione Ripristinabilità (DR): opt-in; backup pointer + serial/firmware + posizione
+    includeWan: false,      // capitolo WAN inter-sede: mappa + schede di ripristino. Opt-in = i client vecchi restano identici
     ...(reportOptions || {}),
   };
 
   const hasPlanSvg = typeof svg === 'string' && svg.length > 0;
   const wantsReportPages = !!(opts.includeInventory || opts.includeAsBuilt || opts.includeRacks || opts.includePorts || opts.includeVlans || opts.includeTopology || opts.includeCover || opts.includeChangelog || opts.includeSpare || opts.includeAssets || opts.includeRecovery || opts.includePdu);
 
-  if (!opts.includePlanimetria && !wantsReportPages) {
+  // ⚠️ Il capitolo WAN si compone TUTTO nel server (l'organizzazione sta in
+  // data/organization.json, non nel progetto): è una sezione vera, ma non chiede
+  // `reportData`. Tenerlo fuori da `wantsReportPages` è ciò che permette di
+  // spuntare solo lui senza che la richiesta venga respinta per un payload che
+  // non gli serve.
+  const wantsServerPages = !!opts.includeWan;
+
+  if (!opts.includePlanimetria && !wantsReportPages && !wantsServerPages) {
     return res.status(400).json({ error: 'Nessuna sezione selezionata per l\'export PDF' });
   }
   if (opts.includePlanimetria && !hasPlanSvg) {
@@ -194,6 +204,53 @@ router.post('/api/export-pdf', auth.requireAdmin, (req, res) => {
     // credential-free, MAI il config né la community.
     if (opts.includeRecovery && reportData && reportData.recovery) {
       _addRecoveryPages(doc, reportData.recovery, hName, hDate, _lang);
+    }
+    // WAN inter-sede: la mappa delle sedi (vettoriale, fondo bianco) e le schede
+    // per rifare una linea o un collegamento. Sta accanto alla Ripristinabilità
+    // perché è la stessa domanda, un piano sopra: quella dice come si rimette in
+    // piedi un apparato, questa come si rimette in piedi il collegamento fra due
+    // edifici.
+    // ⚠️ Nessun `reportData`: l'organizzazione è UNA per installazione e vive nel
+    // server (`data/organization.json`), non dentro il progetto. Il client manda
+    // solo la casella spuntata.
+    if (opts.includeWan) {
+      const _nodiCache = new Map();      // projectRef → nodi del progetto, o null
+      const _nodiDi = (ref) => {
+        const k = String(ref == null ? '' : ref);
+        if (_nodiCache.has(k)) return _nodiCache.get(k);
+        let nodi = null;
+        // ⚠️ `projectRef` arriva da un JSON che l'utente può scrivere a mano:
+        // solo interi positivi, come per `projectId` — `loadProject` fa
+        // `path.join(id)`.
+        const n = Number(k);
+        if (Number.isInteger(n) && n > 0) {
+          try {
+            const p = loadProject(n);
+            nodi = (p && p.state && Array.isArray(p.state.nodes)) ? p.state.nodes : null;
+          } catch (_) { nodi = null; }
+        }
+        _nodiCache.set(k, nodi);
+        return nodi;
+      };
+      const _org = readOrganization();
+      const wan = buildInterSiteWanReport(_org, {
+        projectRef: projectId,
+        // Tre esiti, e sono diversi: `undefined` = il progetto non si è potuto
+        // leggere, `null` = letto, ma quel nodo non c'è più, una stringa = il
+        // nome. Dire «apparato non trovato» senza aver guardato sarebbe
+        // un'accusa inventata.
+        deviceNameOf: (siteId, ref) => {
+          const sede = (_org.sites || []).find(s => s.id === siteId);
+          const nodi = sede ? _nodiDi(sede.projectRef) : null;
+          if (!nodi) return undefined;
+          const nodo = nodi.find(x => String(x.id) === String(ref));
+          if (!nodo) return null;
+          // Stessa regola di `nodeToDevice`: senza nome documentato vale l'id —
+          // è quello che il pannello mostra, e il dossier non deve dire altro.
+          return String(nodo.name || '').trim() || String(nodo.id);
+        },
+      });
+      _addWanPages(doc, wan, hName, hDate, _lang, SVGtoPDF);
     }
     // Alimentazione (PDU): riepilogo + dettaglio prese. A differenza degli altri
     // capitoli le righe si compongono QUI e non nel client: servono gli helper di

@@ -10,6 +10,11 @@ const { nodeLabelParts } = require('../lib/node-label.js');
 const { _i18nDict: _I18N_DICT } = require('../lib/i18n.js');   // dizionario indicizzabile per lingua, senza cambiare quella globale
 const { stripRefCreds } = require('../lib/backup-ref.js');     // 🔒 stessa regola del validatore: il puntatore resta, il segreto no
 const OV_THRESHOLDS = require('../lib/overview.js');           // soglie DR/ciclo di vita: una sola definizione, dossier e app
+// La mappa inter-sede del dossier nasce dalle STESSE coordinate del pannello: il
+// modulo del layout è l'unica geometria, il serializzatore la veste d'inchiostro
+// da stampa (fondo bianco, colori negli attributi). → lib/inter-site-svg.js ①
+const { buildInterSiteLayout } = require('../lib/inter-site-layout.js');
+const { buildInterSiteMapSvg, INTER_SITE_SVG_GEOM } = require('../lib/inter-site-svg.js');
 
 let _pdfkitMod = null, _svgToPdfMod = null;
 function _loadPdfDeps() {
@@ -102,6 +107,43 @@ const _RL = {
     'col.lifecycle': 'Ciclo di vita', 'rec.eolN': 'fuori produzione',
     'rec.lcEol': 'EOL', 'rec.lcExpired': 'fuori garanzia', 'rec.lcSoon': 'in scadenza', 'rec.lcOk': 'ok',
     'col.backupRef': 'Backup (dove)', 'col.method': 'Metodo', 'col.backupDate': 'Data backup',
+    // ── WAN inter-sede: la mappa e le schede di ripristino ────────────────
+    // ⚠️ Qui sta solo l'IMPALCATURA del capitolo (titoli, colonne, stati vuoti):
+    // è chrome del report e nell'app non esiste. Le parole dei vocabolari chiusi
+    // — la natura di un collegamento, il ruolo di una sede, l'origine di un fatto
+    // — NON si riscrivono: si leggono da lib/i18n.js (`_wanVoc`), o il dossier
+    // finirebbe per chiamare le stesse cose con nomi diversi dallo schermo.
+    'title.wan': 'WAN — mappa delle sedi', 'title.wanSites': 'WAN — sedi',
+    'title.wanLines': 'WAN — linee', 'title.wanLinks': 'WAN — collegamenti fra sedi',
+    'sub.wanSites': 'sedi', 'sub.wanLines': 'linee WAN', 'sub.wanLinks': 'collegamenti',
+    'sub.wanNone': 'nessuna sede dichiarata',
+    'empty.wan': 'Nessuna sede dichiarata nel pannello Inter-sede: non c\'è una WAN da documentare.',
+    'empty.wanLines': 'Nessuna linea WAN documentata.',
+    'empty.wanLinks': 'Nessun collegamento fra sedi documentato.',
+    'empty.wanMap': 'Mappa non disponibile: le sedi ci sono, ma il disegno non si è potuto comporre.',
+    'wan.noCircuitIdN': 'senza codice circuito', 'wan.noReachN': 'senza reti dichiarate',
+    'wan.noProviderN': 'senza operatore',
+    // ⚠️ Questa porta il nome di ciò che conta, quindi ha anche il suo SINGOLARE:
+    // «1 sedi senza linea WAN» in cima a un capitolo fa dubitare di tutto il
+    // resto di ciò che c'è scritto sotto. Le altre due contano senza nominare.
+    'wan.noLineN': 'sedi senza linea WAN', 'wan.noLineOne': 'sede senza linea WAN',
+    'wan.legendDown': 'tratteggio = collegamento dichiarato giù',
+    'wan.legendHere': 'bordo in evidenza = la sede di questo progetto',
+    'wan.here': 'questa sede',
+    'col.site': 'Sede', 'col.address': 'Indirizzo', 'col.nets': 'Reti', 'col.lines': 'Linee',
+    'wan.provider': 'Operatore', 'wan.service': 'Servizio', 'wan.circuitId': 'Codice circuito',
+    'wan.cir': 'Banda contrattuale', 'wan.sla': 'Riferimento SLA', 'wan.wanIf': 'Interfaccia WAN',
+    'wan.publicIps': 'INDIRIZZI PUBBLICI', 'wan.publicIpsShort': 'Indirizzi pubblici',
+    'wan.kind': 'Natura', 'wan.name': 'Nome', 'wan.topology': 'Topologia', 'wan.state': 'Stato',
+    'wan.vrf': 'VRF', 'wan.overlay': 'Overlay', 'wan.media': 'Mezzo',
+    'wan.ike': 'Versione IKE', 'wan.phase1': 'Nome fase 1',
+    'wan.ends': 'CAPI DEL COLLEGAMENTO', 'wan.reach': 'RETI RAGGIUNGIBILI',
+    'wan.underlay': 'LINEE SOTTOSTANTI (UNDERLAY)',
+    'wan.at': 'presso', 'wan.peerSeen': 'peer visto da qui',
+    'wan.dev.linked': 'agganciato al progetto', 'wan.dev.typed': 'scritto a mano',
+    'wan.dev.missing': 'apparato non trovato nel progetto', 'wan.dev.unreadable': 'progetto non leggibile',
+    'wan.dev.none': 'apparato non dichiarato',
+    'wan.missingSite': 'sede non trovata', 'wan.notFound': 'non trovata',
     'cover.title': 'Dossier di consegna', 'cover.project': 'Progetto', 'cover.date': 'Data',
     'cover.lastRevised': 'Ultima revisione', 'cover.user': 'Generato da',
     'cover.devices': 'Dispositivi', 'cover.cables': 'Cavi', 'cover.vlans': 'VLAN',
@@ -170,6 +212,35 @@ const _RL = {
     'col.lifecycle': 'Lifecycle', 'rec.eolN': 'end-of-life',
     'rec.lcEol': 'EOL', 'rec.lcExpired': 'out of warranty', 'rec.lcSoon': 'expiring', 'rec.lcOk': 'ok',
     'col.backupRef': 'Backup (where)', 'col.method': 'Method', 'col.backupDate': 'Backup date',
+    // ── Inter-site WAN: the map and the recovery cards ────────────────────
+    'title.wan': 'WAN — site map', 'title.wanSites': 'WAN — sites',
+    'title.wanLines': 'WAN — lines', 'title.wanLinks': 'WAN — links between sites',
+    'sub.wanSites': 'sites', 'sub.wanLines': 'WAN lines', 'sub.wanLinks': 'links',
+    'sub.wanNone': 'no site declared',
+    'empty.wan': 'No site declared in the Inter-site panel: there is no WAN to document.',
+    'empty.wanLines': 'No WAN line documented.',
+    'empty.wanLinks': 'No link between sites documented.',
+    'empty.wanMap': 'Map unavailable: the sites are there, but the drawing could not be composed.',
+    'wan.noCircuitIdN': 'without a circuit ID', 'wan.noReachN': 'without declared networks',
+    'wan.noProviderN': 'without a provider',
+    'wan.noLineN': 'sites without a WAN line', 'wan.noLineOne': 'site without a WAN line',
+    'wan.legendDown': 'dashed = link declared down',
+    'wan.legendHere': 'highlighted box = the site of this project',
+    'wan.here': 'this site',
+    'col.site': 'Site', 'col.address': 'Address', 'col.nets': 'Networks', 'col.lines': 'Lines',
+    'wan.provider': 'Provider', 'wan.service': 'Service', 'wan.circuitId': 'Circuit ID',
+    'wan.cir': 'Committed rate', 'wan.sla': 'SLA reference', 'wan.wanIf': 'WAN interface',
+    'wan.publicIps': 'PUBLIC ADDRESSES', 'wan.publicIpsShort': 'Public addresses',
+    'wan.kind': 'Kind', 'wan.name': 'Name', 'wan.topology': 'Topology', 'wan.state': 'State',
+    'wan.vrf': 'VRF', 'wan.overlay': 'Overlay', 'wan.media': 'Medium',
+    'wan.ike': 'IKE version', 'wan.phase1': 'Phase 1 name',
+    'wan.ends': 'LINK ENDS', 'wan.reach': 'REACHABLE NETWORKS',
+    'wan.underlay': 'UNDERLYING LINES (UNDERLAY)',
+    'wan.at': 'at', 'wan.peerSeen': 'peer as seen from here',
+    'wan.dev.linked': 'linked to the project', 'wan.dev.typed': 'typed by hand',
+    'wan.dev.missing': 'device not found in the project', 'wan.dev.unreadable': 'project cannot be read',
+    'wan.dev.none': 'device not declared',
+    'wan.missingSite': 'site not found', 'wan.notFound': 'not found',
     'cover.title': 'Handover dossier', 'cover.project': 'Project', 'cover.date': 'Date',
     'cover.lastRevised': 'Last revised', 'cover.user': 'Generated by',
     'cover.devices': 'Devices', 'cover.cables': 'Cables', 'cover.vlans': 'VLANs',
@@ -1201,6 +1272,410 @@ function _addRecoveryPages(doc, recovery, projName, date, lang = 'it', now = Dat
   _rTable(doc, cols, rows, y, T, projName, date);
 }
 
+// ── WAN INTER-SEDE: la mappa su carta e le schede di ripristino ─────────────
+// Il capitolo che risponde alla domanda della notte dell'incidente: «la linea è
+// giù — cosa mi serve per rimetterla su?». Due metà. La MAPPA, che dice com'è
+// fatta la rete fra le sedi; e le SCHEDE — una per linea WAN, una per
+// collegamento — con quello che nessuno ricorda a memoria: chi vende quel
+// circuito, che codice ha, su quale scatola si va a mettere le mani, qual è
+// l'indirizzo dell'altro capo, quali reti quel tunnel deve tornare a portare.
+//
+// ⚠️ **Le righe si compongono QUI e non nel client**, come per le PDU e per lo
+// stesso genere di motivo: l'organizzazione vive in `data/organization.json` —
+// una per INSTALLAZIONE, non per progetto — che è roba del server; e
+// `lib/inter-site*.js` nel browser stanno solo dentro il bundle ESM,
+// irraggiungibili da `export.js`, che è uno script classico. Il client manda una
+// casella spuntata, il server legge, compone e disegna.
+
+/** Quanta LINEA resta scoperta ai lati della pastiglia di un collegamento: è il
+ *  filo a dire che due sedi sono legate, non l'etichetta. Stesso numero del
+ *  pannello, per la stessa ragione. */
+const _WAN_BADGE_MARGIN = 30;
+/** Quante linee WAN si elencano dentro un riquadro. Le altre si CONTANO: un
+ *  elenco troncato in silenzio direbbe «queste sono tutte». */
+const _WAN_MAX_UPLINKS = 3;
+
+/**
+ * Le parole dei vocabolari CHIUSI — la natura di un collegamento, il ruolo di
+ * una sede, l'origine di un fatto — si leggono dal dizionario dell'app, non si
+ * riscrivono in `_RL`. Sono già tradotte una volta, e il dossier consegnato deve
+ * chiamare le cose come le chiama lo schermo di chi l'ha generato: due tabelle
+ * per le stesse parole divergono al primo ritocco.
+ * → [[definizioni-duplicate-motore-renderer]]
+ */
+function _wanVoc(lang, key, fallback) {
+  const d = (_I18N_DICT && _I18N_DICT[_rlang(lang)]) || null;
+  const v = d && d[key];
+  return (v == null || v === '') ? (fallback == null ? key : String(fallback)) : String(v);
+}
+
+/** La larghezza REALE di un testo col font che lo disegnerà. È il righello che
+ *  `buildInterSiteLayout` non ha (④ del layout): un modulo puro non sa quanto è
+ *  largo «Fibra spenta · 2 reti», chi stampa sì. Ripristina il font del
+ *  chiamante, come `_fit`. */
+function _wanTextW(doc, s, size, bold) {
+  const prev = doc._fontSize;
+  doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(size);
+  const w = doc.widthOfString(_pdfSafe(s));
+  doc.font('Helvetica').fontSize(prev);
+  return w;
+}
+
+/** «1 rete» / «3 reti»: il singolare non è un dettaglio di stile — un'etichetta
+ *  che dice «1 reti» fa dubitare del resto di ciò che c'è scritto sopra. */
+function _wanNets(n, lang) {
+  return n + ' ' + _wanVoc(lang, n === 1 ? 'org.netsOne' : 'org.netsShort');
+}
+
+/** Come si CHIAMA un collegamento. Per `other` (ignoranza dichiarata) valgono le
+ *  parole di chi l'ha documentato: «FWA punto-punto» dice qualcosa, «Altro» no. */
+function _wanKindText(l, lang) {
+  if (!l) return '';
+  if (l.kind === 'other' && l.kindLabel) return String(l.kindLabel);
+  return _wanVoc(lang, 'org.kind.' + l.kind, String(l.kind || ''));
+}
+
+/** Chi lo afferma, e da quando: « (misurato, 29/08/2026)». Un valore senza la
+ *  sua origine, in un dossier, si legge come una certezza — e spesso non lo è. */
+function _wanFactSuffix(f, lang) {
+  if (!f || !f.origin) return '';
+  const parti = [_wanVoc(lang, 'org.origin.' + f.origin, f.origin)];
+  const ms = Date.parse(String(f.at || ''));
+  if (Number.isFinite(ms)) {
+    parti.push(new Date(ms).toLocaleDateString(_localeTag(lang), { day: '2-digit', month: '2-digit', year: 'numeric' }));
+  }
+  return ' (' + parti.join(', ') + ')';
+}
+
+/**
+ * La mappa, in SVG vettoriale su fondo bianco, misurata col motore del PDF.
+ *
+ * Tre passi: si compone cosa c'è scritto in ogni riquadro (nella lingua del
+ * dossier), lo si MISURA con pdfkit — che è lo stesso motore che lo disegnerà —
+ * e si passa la misura al layout, che allarga i riquadri e le fessure fra le
+ * sedi. Le coordinate che ne escono sono le stesse del pannello, perché il
+ * modulo è lo stesso.
+ *
+ * @returns {{svg:string, width:number, height:number, layoutKind:string}|null}
+ */
+function _wanMapSvg(doc, R, lang) {
+  const org = R && R.organization;
+  if (!org || !Array.isArray(org.sites) || !org.sites.length) return null;
+  const G = INTER_SITE_SVG_GEOM;
+  const sites = Array.isArray(R.sites) ? R.sites : [];
+  const lines = Array.isArray(R.lines) ? R.lines : [];
+  const links = Array.isArray(R.links) ? R.links : [];
+
+  /** @type {Record<string, *[]>} */
+  const perSede = Object.create(null);
+  for (const u of lines) (perSede[u.siteId] || (perSede[u.siteId] = [])).push(u);
+
+  const nodeLines = {}, nodeTag = {}, edgeLabels = {}, edgeTone = {}, labelW = {};
+  const box = Object.create(null);
+  let here = null, maxLabel = 0;
+
+  for (const s of sites) {
+    if (s.here) here = s.id;
+    const righe = [{ text: _pdfSafe(s.name) }];
+    const mie = perSede[s.id] || [];
+    for (const u of mie.slice(0, _WAN_MAX_UPLINKS)) {
+      righe.push({ text: _pdfSafe([u.provider || _wanVoc(lang, 'org.uplinkNoProvider'), u.serviceType].filter(Boolean).join(' · ')) });
+      const ips = u.publicIps ? u.publicIps.value : null;
+      if (ips && ips.length) righe.push({ text: _pdfSafe(ips.join('   ')), muted: true });
+    }
+    if (mie.length > _WAN_MAX_UPLINKS) {
+      righe.push({ text: _pdfSafe(_wanVoc(lang, 'org.moreUplinks').replace('{n}', String(mie.length - _WAN_MAX_UPLINKS))), muted: true });
+    }
+    if (!mie.length) righe.push({ text: _pdfSafe(_wanVoc(lang, 'org.noUplinkShort')), muted: true });
+    righe.push({ text: _pdfSafe(s.subnets.length ? _wanNets(s.subnets.length, lang) : _wanVoc(lang, 'org.noNets')), muted: true });
+    nodeLines[s.id] = righe;
+    // ⑤ Il ruolo è un'ETICHETTA di testo, non la stellina del pannello: i font
+    // standard del PDF non sostituiscono un glifo che non hanno, lo disegnano
+    // sbagliato — e ★ uscirebbe come un simbolo a caso.
+    if (s.role === 'hub') nodeTag[s.id] = _pdfSafe(_wanVoc(lang, 'org.role.hub'));
+    let w = 0;
+    righe.forEach((r, i) => {
+      const largo = _wanTextW(doc, r.text, i === 0 ? G.nameSize : G.lineSize, i === 0)
+        // La prima riga divide lo spazio con l'etichetta del ruolo, che le sta a
+        // destra: senza contarla, «Hub» finirebbe sopra il nome della sede.
+        + (i === 0 && nodeTag[s.id] ? _wanTextW(doc, nodeTag[s.id], G.tagSize, false) + 14 : 0);
+      if (largo > w) w = largo;
+    });
+    box[s.id] = { w: w + G.padX * 2, h: G.padY * 2 + G.nameH + (righe.length - 1) * G.lineH };
+  }
+
+  for (const l of links) {
+    if (!l.drawable) continue;                    // ③ non è disegnabile: lo dirà la scheda
+    const portate = l.reach ? (l.reach.value.a.length + l.reach.value.b.length) : 0;
+    const testo = _pdfSafe(_wanKindText(l, lang) + (portate ? ' · ' + _wanNets(portate, lang) : ''));
+    edgeLabels[l.id] = testo;
+    edgeTone[l.id] = l.state ? l.state.value : null;
+    const w = _wanTextW(doc, testo, G.labelSize, false);
+    labelW[l.id] = w;
+    if (w > maxLabel) maxLabel = w;
+  }
+
+  const layout = buildInterSiteLayout(org, {
+    boxOf: (id) => box[id] || null,
+    labelOf: (id) => (labelW[id] ? { w: labelW[id] + G.badgePadX * 2, h: G.badgeH } : null),
+    labelW: maxLabel ? maxLabel + G.badgePadX * 2 + _WAN_BADGE_MARGIN * 2 : 0,
+    labelH: maxLabel ? G.badgeH + _WAN_BADGE_MARGIN * 2 : 0,
+  });
+  const svg = buildInterSiteMapSvg(layout, { nodeLines, nodeTag, edgeLabels, edgeTone, labelW, here });
+  return svg ? { svg, width: layout.width, height: layout.height, layoutKind: layout.layout } : null;
+}
+
+/**
+ * Il capitolo WAN. `wan` è l'uscita di `buildInterSiteWanReport` (lib pura), e
+ * porta con sé l'organizzazione da cui nasce la mappa.
+ */
+function _addWanPages(doc, wan, projName, date, lang = 'it', SVGtoPDF = null) {
+  const L = _rlang(lang);
+  const R = (wan && typeof wan === 'object') ? wan : {};
+  const sites = Array.isArray(R.sites) ? R.sites : [];
+  const lines = Array.isArray(R.lines) ? R.lines : [];
+  const links = Array.isArray(R.links) ? R.links : [];
+  const tot = R.totals || {};
+  const M = _RM, CW = _RW;
+  const DASH = '-';
+  const T = _rt(L, 'title.wan');
+  const A4 = () => ({ size: [595, 842], margins: { top: 0, bottom: 0, left: 0, right: 0 } });
+
+  // Capitolo chiesto su un'installazione che non ha aperto il capitolo
+  // multi-sede: si stampa lo stato vuoto, non si sparisce. Sparire si legge come
+  // un errore dell'export — stessa convenzione di PDU, VM e VLAN.
+  if (!sites.length) {
+    doc.addPage(A4());
+    _rHdr(doc, T, projName, date);
+    const y0 = _rSub(doc, _rt(L, 'sub.wanNone'), _TOP);
+    doc.font('Helvetica').fontSize(8).fillColor('#94a3b8').text(_rt(L, 'empty.wan'), M, y0);
+    return;
+  }
+
+  // ③ La testata dice l'insieme E i buchi. Una linea senza codice circuito e un
+  // collegamento senza reti dichiarate sono esattamente ciò che, la notte
+  // dell'incidente, fa perdere l'ora: si contano, come la ripristinabilità conta
+  // gli apparati senza backup. Un dossier che tace le proprie lacune è più
+  // pericoloso di uno che le stampa.
+  const testata = `${tot.sites || 0} ${_rt(L, 'sub.wanSites')}  -  ${tot.lines || 0} ${_rt(L, 'sub.wanLines')}`
+    + `  -  ${tot.links || 0} ${_rt(L, 'sub.wanLinks')}`
+    + (tot.linesNoCircuitId ? `  -  ${tot.linesNoCircuitId} ${_rt(L, 'wan.noCircuitIdN')}` : '')
+    + (tot.linesNoProvider ? `  -  ${tot.linesNoProvider} ${_rt(L, 'wan.noProviderN')}` : '')
+    + (tot.linksNoReach ? `  -  ${tot.linksNoReach} ${_rt(L, 'wan.noReachN')}` : '')
+    + (tot.sitesNoLine ? `  -  ${tot.sitesNoLine} ${_rt(L, tot.sitesNoLine === 1 ? 'wan.noLineOne' : 'wan.noLineN')}` : '');
+
+  // ── La mappa ──────────────────────────────────────────────────────────
+  const mappa = (typeof SVGtoPDF === 'function') ? _wanMapSvg(doc, R, L) : null;
+  if (mappa && mappa.svg) {
+    const sW = mappa.width || 800, sH = mappa.height || 600;
+    const ratio = Math.min(CW / sW, 660 / sH, 1);
+    const rW = Math.round(sW * ratio), rH = Math.round(sH * ratio);
+    // La pagina si taglia sulla MAPPA, come quella della topologia: una mappa
+    // larga e bassa su un A4 in piedi lascerebbe mezzo foglio bianco.
+    doc.addPage({ size: [595, Math.max(320, rH + 96)], margins: { top: 0, bottom: 0, left: 0, right: 0 } });
+    _rHdr(doc, T, projName, date);
+    const yMap = _rSub(doc, testata, _TOP);
+    try {
+      SVGtoPDF(doc, mappa.svg, M, yMap, {
+        width: rW, height: rH, assumePt: true,
+        preserveAspectRatio: 'xMidYMid meet',
+        fontCallback: (_family, bold) => (bold ? 'Helvetica-Bold' : 'Helvetica'),
+        warningCallback: () => {},
+      });
+    } catch (e) { console.error(`  [PDF] wan-map: ${e.message}`); }
+    // La legenda nomina SOLO i segni che sono davvero sulla pagina: spiegare un
+    // tratteggio che non c'è manda a cercare qualcosa di inesistente.
+    const note = [];
+    if (mappa.layoutKind === 'hub' || mappa.layoutKind === 'ring') {
+      note.push(_wanVoc(L, mappa.layoutKind === 'hub' ? 'org.layoutHub' : 'org.layoutRing'));
+    }
+    if (links.some(l => l.state && l.state.value === 'down')) note.push(_rt(L, 'wan.legendDown'));
+    if (sites.some(s => s.here)) note.push(_rt(L, 'wan.legendHere'));
+    if (note.length) {
+      doc.font('Helvetica').fontSize(6.5).fillColor('#64748b')
+         .text(_pdfSafe(note.join('   ·   ')), M, yMap + rH + 10, { width: CW });
+    }
+  } else {
+    doc.addPage(A4());
+    _rHdr(doc, T, projName, date);
+    const y0 = _rSub(doc, testata, _TOP);
+    doc.font('Helvetica').fontSize(8).fillColor('#94a3b8').text(_rt(L, 'empty.wanMap'), M, y0);
+  }
+
+  // ── Le sedi ───────────────────────────────────────────────────────────
+  // Una tabella e non delle schede: di una sede servono quattro cose, e stanno
+  // in riga. Le reti per esteso, non contate: ricostruire una WAN senza sapere
+  // quali prefissi vivono dove non si può.
+  const T1 = _rt(L, 'title.wanSites');
+  doc.addPage(A4());
+  _rHdr(doc, T1, projName, date);
+  const y1 = _rSub(doc, `${sites.length} ${_rt(L, 'sub.wanSites')}`, _TOP);
+  _rTable(doc, [
+    { label: _rt(L, 'col.num'), w: 18 },
+    { label: _rt(L, 'col.site'), w: 104, wrap: true },
+    { label: _rt(L, 'col.role'), w: 52 },
+    { label: _rt(L, 'col.address'), w: 118, wrap: true },
+    { label: _rt(L, 'col.lines'), w: 30 },
+    { label: _rt(L, 'col.nets'), w: 217, wrap: true },
+  ], sites.map((s, i) => [
+    i + 1,
+    _pdfSafe(s.name + (s.here ? `  (${_rt(L, 'wan.here')})` : '')),
+    _wanVoc(L, 'org.role.' + s.role, s.role),
+    _pdfSafe(s.address || DASH),
+    s.uplinks,
+    _pdfSafe(s.subnets.length ? s.subnets.join(', ') : DASH),
+  ]), y1, T1, projName, date);
+
+  // ── Le schede ─────────────────────────────────────────────────────────
+  // Stesso linguaggio visivo delle schede PDU (fascia scura + corpo a due
+  // colonne + blocchi in coda): chi apre il dossier riconosce la forma.
+  let cy = _TOP, sezione = T;
+  const nuova = (titolo) => {
+    doc.addPage(A4());
+    _rHdr(doc, titolo, projName, date);
+    return _TOP;
+  };
+  const scheda = (titolo, destra, dot, pairs, blocchi) => {
+    doc.font('Helvetica');
+    const pairRows = Math.ceil(pairs.length / 2);
+    const bl = (blocchi || []).filter(b => b && b.lines && b.lines.length);
+    const blH = bl.reduce((a, b) => a + 10 + b.lines.reduce((s, l) => s + _wrapFit(doc, l, CW - 12, 6).length, 0) * 9, 0);
+    const cardH = 18 + 3 + pairRows * 10 + 4 + blH + 8;
+    // Una scheda non si spezza mai fra due pagine: chi la consulta col telefono
+    // in mano deve avere tutto sotto gli occhi. Solo se è più alta di una pagina
+    // intera si accetta il taglio.
+    const pageH = _BOT - _TOP;
+    if (cy + cardH > _BOT && (cy > _TOP || cardH <= pageH)) cy = nuova(sezione);
+    doc.rect(M, cy, CW, 18).fill('#1e293b');
+    doc.circle(M + 9, cy + 9, 3.5).fill(dot);
+    doc.font('Helvetica-Bold').fontSize(8).fillColor('#ffffff')
+       .text(_fit(doc, _pdfSafe(titolo), CW - 200, 8), M + 18, cy + 5, { lineBreak: false });
+    doc.font('Helvetica').fontSize(7).fillColor('#94a3b8')
+       .text(_pdfSafe(destra), M + CW - 185, cy + 6, { width: 180, align: 'right', lineBreak: false });
+    cy += 21;
+    const colW = (CW - 12) / 2;
+    pairs.forEach((p, i) => {
+      const x = M + 6 + (i % 2) * colW;
+      const yy = cy + Math.floor(i / 2) * 10;
+      doc.font('Helvetica').fontSize(6).fillColor('#64748b')
+         .text(_fit(doc, _pdfSafe(p[0]), 86, 6), x, yy, { lineBreak: false });
+      doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#0f172a')
+         .text(_fit(doc, _pdfSafe(p[1]), colW - 92, 6.5), x + 88, yy, { lineBreak: false });
+    });
+    cy += pairRows * 10 + 4;
+    bl.forEach(b => {
+      doc.font('Helvetica-Bold').fontSize(6).fillColor(b.color || '#64748b')
+         .text(_rt(L, b.titleKey), M + 6, cy, { lineBreak: false });
+      cy += 9;
+      b.lines.forEach(l => _wrapFit(doc, l, CW - 12, 6).forEach(seg => {
+        doc.font('Helvetica').fontSize(6).fillColor('#334155').text(seg, M + 10, cy, { lineBreak: false });
+        cy += 9;
+      }));
+      cy += 1;
+    });
+    cy += 6;
+  };
+
+  // Le LINEE WAN.
+  sezione = _rt(L, 'title.wanLines');
+  cy = nuova(sezione);
+  cy = _rSub(doc, `${lines.length} ${_rt(L, 'sub.wanLines')}`, cy);
+  if (!lines.length) {
+    doc.font('Helvetica').fontSize(8).fillColor('#94a3b8').text(_rt(L, 'empty.wanLines'), M, cy);
+  }
+  for (const u of lines) {
+    // ⚠️ I campi con cui si telefona all'operatore restano in scheda ANCHE
+    // vuoti, col trattino: a differenza della scheda PDU — dove un campo assente
+    // sparisce — qui l'assenza È la scoperta. Una linea senza codice circuito si
+    // deve vedere adesso, non la notte in cui serve dettarlo.
+    const pairs = [
+      [_rt(L, 'col.site'), u.siteName || DASH],
+      [_rt(L, 'wan.provider'), u.provider || DASH],
+      [_rt(L, 'wan.service'), u.serviceType || DASH],
+      [_rt(L, 'wan.circuitId'), u.circuitId || DASH],
+      // ⚠️ La banda CONTRATTUALE, non la velocità della porta: è la trappola nota
+      // di questo dominio, e un dossier che le confonde fa comprare la linea
+      // sbagliata.
+      [_rt(L, 'wan.cir'), u.cirMbps == null ? DASH : `${u.cirMbps} Mbps`],
+      [_rt(L, 'wan.sla'), u.slaRef || DASH],
+      [_rt(L, 'wan.wanIf'), u.wanIf ? (u.wanIf.value + _wanFactSuffix(u.wanIf, L)) : DASH],
+    ];
+    if (!u.publicIps) pairs.push([_rt(L, 'wan.publicIpsShort'), DASH]);
+    scheda(
+      [u.provider, u.serviceType].filter(Boolean).join(' · ') || _wanVoc(L, 'org.uplinkNoProvider'),
+      (u.siteName || DASH) + (u.here ? `   ·   ${_rt(L, 'wan.here')}` : ''),
+      '#2563eb', pairs,
+      // ⑦ Gli indirizzi pubblici sono una LISTA perché uno solo è falso: un
+      // blocco instradato, l'IPv6 sulla stessa linea, il VIP di una coppia in HA.
+      [{ titleKey: 'wan.publicIps', color: '#1d4ed8',
+        lines: u.publicIps ? [_pdfSafe(u.publicIps.value.join('    ') + _wanFactSuffix(u.publicIps, L))] : [] }]
+    );
+  }
+
+  // I COLLEGAMENTI fra sedi.
+  sezione = _rt(L, 'title.wanLinks');
+  cy = nuova(sezione);
+  cy = _rSub(doc, `${links.length} ${_rt(L, 'sub.wanLinks')}`, cy);
+  if (!links.length) {
+    doc.font('Helvetica').fontSize(8).fillColor('#94a3b8').text(_rt(L, 'empty.wanLinks'), M, cy);
+  }
+  for (const l of links) {
+    const nat = _wanKindText(l, L);
+    const pairs = [
+      [_rt(L, 'wan.kind'), nat],
+      [_rt(L, 'wan.state'), l.state
+        ? (_wanVoc(L, l.state.value === 'up' ? 'org.stateUp' : 'org.stateDown') + _wanFactSuffix(l.state, L))
+        : DASH],
+      [_rt(L, 'wan.provider'), l.provider || DASH],
+      [_rt(L, 'wan.circuitId'), l.circuitId || DASH],
+    ];
+    // I campi propri di una natura si nominano solo dove esistono: chiedere la
+    // versione IKE a una fibra spenta sarebbe chiedere un dato che non c'è.
+    if (l.name) pairs.push([_rt(L, 'wan.name'), l.name]);
+    if (l.topology) pairs.push([_rt(L, 'wan.topology'), l.topology]);
+    if (l.vrf) pairs.push([_rt(L, 'wan.vrf'), l.vrf]);
+    if (l.service) pairs.push([_rt(L, 'wan.service'), l.service]);
+    if (l.overlay) pairs.push([_rt(L, 'wan.overlay'), l.overlay]);
+    if (l.media) pairs.push([_rt(L, 'wan.media'), l.media]);
+    if (l.ikeVersion) pairs.push([_rt(L, 'wan.ike'), 'IKEv' + l.ikeVersion]);
+    if (l.phase1Name) pairs.push([_rt(L, 'wan.phase1'), l.phase1Name]);
+    // ③ Un collegamento che punta a una sede inesistente non si può disegnare, e
+    // lo dice: sparire dalla mappa E dalle schede lo cancellerebbe due volte.
+    if (!l.drawable) pairs.push([_rt(L, 'wan.missingSite'), l.missingSites.join(', ')]);
+
+    // ⚠️ `peerIp` è l'indirizzo dell'ALTRO capo visto da questa sede, non
+    // l'indirizzo di questa sede: i due si incrociano, ed è la trappola del
+    // dominio. Le parole lo dicono per esteso.
+    const capo = (e) => `${e.siteName || e.siteId}  ->  ${e.device || _rt(L, 'wan.dev.' + e.deviceState)}`
+      + (e.device && e.deviceState !== 'linked' ? `  (${_rt(L, 'wan.dev.' + e.deviceState)})` : '')
+      + `  ·  ${_rt(L, 'wan.peerSeen')}: ${e.peerIp || DASH}`;
+    const reachLines = [];
+    if (l.reach) {
+      reachLines.push(_pdfSafe(`${_rt(L, 'wan.at')} ${l.a.siteName || l.a.siteId}: `
+        + (l.reach.value.a.length ? l.reach.value.a.join(', ') : DASH)));
+      reachLines.push(_pdfSafe(`${_rt(L, 'wan.at')} ${l.b.siteName || l.b.siteId}: `
+        + (l.reach.value.b.length ? l.reach.value.b.join(', ') : DASH)));
+      const chi = _wanFactSuffix(l.reach, L).trim();
+      if (chi) reachLines.push(_pdfSafe(chi));
+    }
+    scheda(
+      l.name || nat,
+      `${l.a.siteName || l.a.siteId} ↔ ${l.b.siteName || l.b.siteId}`,
+      l.state ? (l.state.value === 'up' ? '#16a34a' : '#dc2626') : '#94a3b8',
+      pairs,
+      [
+        { titleKey: 'wan.ends', color: '#0f766e', lines: [_pdfSafe(capo(l.a)), _pdfSafe(capo(l.b))] },
+        // ② Su un IPsec queste reti SONO l'encryption domain: senza, il tunnel
+        // si rialza e non ci passa niente.
+        { titleKey: 'wan.reach', color: '#7c3aed', lines: reachLines },
+        { titleKey: 'wan.underlay', color: '#b45309', lines: (l.underlay || []).map(u => _pdfSafe(
+          u.found ? ([u.provider, u.circuitId].filter(Boolean).join(' · ') || u.uplinkId)
+            : `${u.uplinkId} (${_rt(L, 'wan.notFound')})`)) },
+      ]
+    );
+  }
+}
+
 // ── PANORAMICA: la sintesi in testa al dossier ───────────────────────────────
 // Le tre domande e i loro verdetti, gli stessi che l'utente vede a schermo. Il
 // contenuto arriva GIA' IN PAROLE dal client (reportData.overview): la lib pura
@@ -1326,4 +1801,4 @@ function _addOverviewPages(doc, overview, projName, date, lang = 'it') {
   }
 }
 
-module.exports = { _loadPdfDeps, _addReportPages, _addCoverPage, _addChangelogPages, _addSparePages, _addPduPages, _addAssetRegisterPages, _addRecoveryPages, _addOverviewPages, _assetDeviceLabel, _fmtRevised, _rt, _fit, _wrapFit };
+module.exports = { _loadPdfDeps, _addReportPages, _addCoverPage, _addChangelogPages, _addSparePages, _addPduPages, _addAssetRegisterPages, _addRecoveryPages, _addWanPages, _wanMapSvg, _addOverviewPages, _assetDeviceLabel, _fmtRevised, _rt, _fit, _wrapFit };

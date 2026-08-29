@@ -29,6 +29,7 @@ const PDF_EXPORT_DEFAULTS = {
     includeSpare:       true,
     includeAssets:      true,   // registro asset per-device (NIS2/ISO): server-side da nodeToDevice
     includeRecovery:    true,   // sezione Ripristinabilità (DR): backup pointer + serial/firmware + posizione
+    includeWan:         true,   // capitolo "WAN": mappa inter-sede + schede per rifare linee e collegamenti
 };
 
 function exportJSON() {
@@ -333,13 +334,14 @@ function openPdfExportOptions(){
     { const _a = document.getElementById('pdfopt-assets'); if(_a) _a.checked = PDF_EXPORT_DEFAULTS.includeAssets; }
     { const _r = document.getElementById('pdfopt-recovery'); if(_r) _r.checked = PDF_EXPORT_DEFAULTS.includeRecovery; }
     { const _o = document.getElementById('pdfopt-overview'); if(_o) _o.checked = PDF_EXPORT_DEFAULTS.includeOverview; }
+    { const _w = document.getElementById('pdfopt-wan'); if(_w) _w.checked = PDF_EXPORT_DEFAULTS.includeWan; }
     syncPdfExportUi();
 }
 
 function closePdfExportOptions(){ document.getElementById('pdf-export-overlay').classList.remove('open'); }
 
 function setPdfExportAll(val){
-    ['pdfopt-plan','pdfopt-bg','pdfopt-inventory','pdfopt-asbuilt','pdfopt-racks','pdfopt-ports','pdfopt-vlans','pdfopt-topology','pdfopt-vms','pdfopt-pdu','pdfopt-spare','pdfopt-assets','pdfopt-recovery','pdfopt-overview']
+    ['pdfopt-plan','pdfopt-bg','pdfopt-inventory','pdfopt-asbuilt','pdfopt-racks','pdfopt-ports','pdfopt-vlans','pdfopt-topology','pdfopt-vms','pdfopt-pdu','pdfopt-spare','pdfopt-assets','pdfopt-recovery','pdfopt-wan','pdfopt-overview']
         .forEach(id=>{ const el=document.getElementById(id); if(el) el.checked=!!val; });
     if(!val){
         // Mantieni almeno una sezione attiva per evitare export vuoto.
@@ -379,6 +381,7 @@ function _getPdfExportOptionsFromUi(){
         includeSpare:       !!document.getElementById('pdfopt-spare')?.checked,
         includeAssets:      !!document.getElementById('pdfopt-assets')?.checked,
         includeRecovery:    !!document.getElementById('pdfopt-recovery')?.checked,
+        includeWan:         !!document.getElementById('pdfopt-wan')?.checked,
         includeOverview:    !!document.getElementById('pdfopt-overview')?.checked,
     };
 }
@@ -1715,6 +1718,10 @@ function exportDossier(){
         includeVms:true, includePdu:true,
         includeCover:true, includeChangelog:true,
         includeSpare:true, includeAssets:true,
+        // La WAN sta nel dossier di consegna per lo stesso motivo della
+        // Ripristinabilità: è la meta' del ripristino che non vive dentro il
+        // progetto — la mappa fra le sedi e i dati per rifare linee e tunnel.
+        includeWan:true,
         _dossier:true,
     });
 }

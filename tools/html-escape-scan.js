@@ -242,9 +242,13 @@ function readRhs(src, start) {
 }
 
 // Gli escaper COMPLETI del repo. `escapeHTML` (src/app-util.js) copre i 5
-// caratteri per l'HTML; `_escXml` (lib/drawio-export.js) copre gli stessi 5 per
-// l'XML del .drawio — contesto diverso, ma escape completo, quindi vale.
-const ESCAPERS = ['escapeHTML', '_escXml'];
+// caratteri per l'HTML; `escapeXML` (lib/xml-escape.js) copre gli stessi 5 per
+// i formati XML che usciamo — il .drawio e l'SVG della mappa inter-sede nel
+// dossier: contesto diverso, ma escape completo, quindi vale.
+// ⚠️ `_escXml` resta in elenco perché è il nome con cui lo chiama chi lo aveva
+// in casa (`lib/drawio-export.js`): togliere un nome da qui non rende un file
+// più sicuro, lo rende solo più rumoroso nel cricchetto.
+const ESCAPERS = ['escapeHTML', 'escapeXML', '_escXml'];
 
 function buildFileContext(src) {
     // Alias dell'escaper: sia `const esc = escapeHTML` sia `import { escapeHTML as esc }`.
