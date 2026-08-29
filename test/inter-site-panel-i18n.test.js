@@ -60,7 +60,20 @@ const CODE = {
   // (`spokesWithoutHub — no-hub`): si leggono dai sorgenti che li scrivono,
   // così aggiungerne uno senza parole fa arrossare questo test.
   'org.why.': _motiviNotChecked(),
+  // E lo stesso per le note della lettura WAN dal DCIM: i codici li scrivono il
+  // mapper e il pannello, e vengono letti da lì. Aggiungerne uno senza parole fa
+  // arrossare questo test invece di stampare la chiave nuda a schermo.
+  'org.wanNote.': _codiciNotaWan(),
 };
+
+/** I `code: 'wan.…'` che possono finire nell'esito della lettura WAN. */
+function _codiciNotaWan() {
+  const fonti = ['lib/dcim-wan.js', 'src/app-inter-site.js', 'server/routes/integrations.js']
+    .map(f => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('\n');
+  const out = new Set();
+  for (const m of fonti.matchAll(/code:\s*'wan\.([A-Za-z0-9]+)'/g)) out.add(m[1]);
+  return [...out].sort();
+}
 
 /** I `reason` che l'audit e la rotta possono mettere in `notChecked`. */
 function _motiviNotChecked() {

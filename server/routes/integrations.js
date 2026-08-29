@@ -23,6 +23,7 @@ const capabilities = require('../dcim/capabilities');
 const { DcimClient } = require('../dcim/client');
 const { createPullCache } = require('../dcim/pull-cache');
 const dcimMap = require('../../lib/dcim-map');
+const dcimWan = require('../../lib/dcim-wan');
 const deviceCatalog = require('../../lib/device-catalog');
 const { nextId, saveProject, loadProject } = require('../projects-store');
 const dcimDiff = require('../../lib/dcim-diff');
@@ -727,6 +728,59 @@ router.post('/api/integrations/dcim/compare', auth.requireAdmin, async (req, res
       sites: (origin && Array.isArray(origin.sites) ? origin.sites : []).map(s => ({ id: s.id, name: s.name })),
     },
     diff: report,
+  });
+});
+
+// ── Le LINEE WAN di una sede: i circuiti NetBox ─────────────────────────────
+// L'import crea il progetto-sede; questa rotta risponde all'altra metà della
+// domanda — «e come parla col mondo, questa sede?». NetBox lo modella nella sua
+// applicazione `circuits/`, che l'import non apre affatto: gli uplink WAN e i
+// collegamenti fra sedi non vivono nel progetto, vivono nell'organizzazione.
+//
+// ⚠️ **Non scrive niente.** Ritorna CANDIDATI: chi li iscrive è il pannello
+// «Sedi e collegamenti», con un clic della persona che se ne assume la
+// dichiarazione — la stessa scelta ① della proposta di sede.
+//
+// L'ambito arriva dal chiamante come id di SITI NetBox, che il pannello legge da
+// `state.source.dcim.sites` del progetto della sede: è il documento a dire da
+// dove viene, non chi guarda.
+router.post('/api/integrations/dcim/wan', auth.requireAdmin, async (req, res) => {
+  const body = req.body || {};
+  const siteIds = Array.isArray(body.siteIds) ? body.siteIds.filter(x => x != null) : [];
+  if (!siteIds.length) return res.status(400).json({ error: 'siteIds mancante', code: 'no-scope' });
+
+  let client;
+  try { client = _client(); } catch (e) { return res.status(400).json({ error: e.message, code: 'not-configured' }); }
+
+  let circuits, terminations;
+  try {
+    // ⚠️ Un `site_id` che in NetBox non esiste più fa fallire l'INTERA query con
+    // un 400 (misurato). `_paginatedWithFallback` rilegge senza filtro e lo
+    // DICE: la cintura d'ambito del mapper rifà comunque il taglio giusto, e
+    // nessuno resta a credere di aver chiesto una fetta.
+    circuits = await _paginatedWithFallback(client, '/api/circuits/circuits/', { site_id: siteIds }, { cap: 5000 });
+    // Le terminazioni lette a parte sono l'unica forma che porta il CAVO, e
+    // quindi la porta WAN: quelle annidate nel circuito non ce l'hanno.
+    terminations = await _batchByField(client, '/api/circuits/circuit-terminations/', 'circuit_id',
+      (circuits.results || []).map(c => c && c.id), 10000);
+  } catch (e) {
+    return res.status(502).json({ error: String((e && e.message) || e), code: 'dcim-unreachable' });
+  }
+
+  const out = dcimWan.circuitsToWan({
+    circuits: circuits.results,
+    circuitTerminations: terminations.results,
+    truncated: !!(circuits.truncated || terminations.truncated),
+  }, { siteIds });
+
+  res.json({
+    ok: true,
+    fetchedAt: new Date().toISOString(),
+    uplinks: out.uplinks,
+    links: out.links,
+    // Il filtro non ha retto (versione che non lo conosce, o sito sparito): si
+    // dice, invece di far credere che la lettura fosse mirata.
+    notes: circuits.fallback ? out.notes.concat([{ code: 'wan.scopeFilterFailed' }]) : out.notes,
   });
 });
 

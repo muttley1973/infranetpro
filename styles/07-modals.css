@@ -1002,9 +1002,25 @@
         /* Azione secondaria dentro un campo (es. Â«prendi le reti dal progettoÂ»):
            sta sotto al suo input, non nella barra dei comandi, perche' agisce su
            QUEL campo e non sul pannello. */
-        .org-row-actions { display:flex; gap:var(--space-3); margin-top:4px; }
+        .org-row-actions { display:flex; flex-wrap:wrap; gap:var(--space-3); margin-top:4px; }
         .org-mini { padding:4px 9px; font-size:var(--fs-xs); }
         .org-mini:disabled { opacity:.45; cursor:not-allowed; }
+        /* L'esito della lettura delle linee WAN dal DCIM: sta in cima alla sua
+           scheda e resta finche' non lo si congeda, perche' le note sono un
+           elenco da leggere e non un lampo. Non e' un errore: colore neutro. */
+        /* ⚠️ I token qui sono quelli DICHIARATI in 01-tokens.css (--panel-border,
+           --accent, --accent-soft). Nel resto di questo file girano anche
+           --border-color e --accent-color, che non esistono da nessuna parte:
+           copiarli avrebbe dato un riquadro senza bordo e senza colore. */
+        .org-wan-report { border:1px solid var(--panel-border); border-left:3px solid var(--accent);
+                          border-radius:var(--radius-md); padding:10px 12px; margin-bottom:var(--space-4);
+                          background:var(--accent-soft); font-size:var(--fs-sm); }
+        .org-wan-report p { margin:0 0 4px; }
+        .org-wan-head { display:flex; align-items:center; gap:var(--space-3); }
+        .org-wan-head strong { flex:0 0 auto; }
+        .org-wan-head .org-mini { margin-left:auto; }
+        .org-wan-report ul { margin:6px 0 0; padding-left:18px; color:var(--text-muted); font-size:var(--fs-xs); line-height:1.5; }
+        .org-wan-report li { margin-bottom:3px; }
         .org-f optgroup { font-style:normal; font-weight:600; color:var(--text-muted); }
         .org-f optgroup option { font-weight:400; color:var(--text-main); }
         /* I riquadri di conteggio stanno ACCANTO al campo Â«OrganizzazioneÂ» e

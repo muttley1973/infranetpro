@@ -81,6 +81,13 @@ const _st = {
    *  non c'era niente» non devono avere la stessa faccia a schermo.
    *  @type {Map<string, {devices:{id:string,name:string,type:string}[], nets:string[]}|null>} */
   projectData: new Map(),
+  /** L'esito dell'ultima lettura delle linee WAN dal DCIM. Sta nel pannello e
+   *  non in un modale: le note sono più d'una, e un elenco dentro un avviso che
+   *  si chiude col primo clic è un elenco che nessuno legge. `null` = mai fatta.
+   *  @type {{added:number, total:number, already:number, addedLinks:number,
+   *          totalLinks:number, notes:any[]}|null} */
+  wanReport: null,
+  /** @type {boolean} */ wanBusy: false,
   tab: 'map',
   dirty: false,
   saving: false,
@@ -155,7 +162,7 @@ async function _load() {
  */
 function _readProject(p) {
   const state = (p && p.state && typeof p.state === 'object') ? p.state : null;
-  if (!state) return { devices: [], nets: [] };
+  if (!state) return { devices: [], nets: [], dcimSites: [] };
   migrateIpam(state);
   const nets = [];
   for (const row of prefixesOf(state)) {
@@ -165,7 +172,17 @@ function _readProject(p) {
   const devices = (Array.isArray(state.nodes) ? state.nodes : [])
     .filter(n => n && n.id)
     .map(n => ({ id: String(n.id), name: nodeLabelParts(n).primary || String(n.id), type: String(n.type || '') }));
-  return { devices, nets: nets.sort() };
+  // Da quale fetta di DCIM è nato questo progetto. È il documento a dirlo
+  // (`state.source`, scritto dall'import), e da qui si sa QUALI siti chiedere a
+  // NetBox per le linee WAN: senza, bisognerebbe indovinarlo da un nome.
+  // ⚠️ Assente = progetto scritto a mano, o importato prima della 2.9.2. Sono
+  // due cose diverse da «nessun sito», e chi legge deve poterlo distinguere:
+  // una lista vuota qui vuol dire solo «non risulta».
+  const dcim = state.source && state.source.dcim;
+  const dcimSites = (dcim && Array.isArray(dcim.sites) ? dcim.sites : [])
+    .filter(s => s && s.id != null)
+    .map(s => ({ id: s.id, name: s.name == null ? '' : String(s.name) }));
+  return { devices, nets: nets.sort(), dcimSites };
 }
 
 /** Legge un progetto-sede una volta sola. Un progetto che non si legge resta
@@ -378,7 +395,7 @@ function _addLink() {
   if (ss.length < 2) { showAlert(t('org.needTwoSites')); return; }
   _links().push({
     id: uid('isl'), aSiteId: ss[0].id, bSiteId: ss[1].id, kind: 'ipsec',
-    topology: null, state: null, reach: null,
+    topology: null, state: null, reach: null, provider: null, circuitId: null,
     endpointA: { deviceRef: null, peerIp: null }, endpointB: { deviceRef: null, peerIp: null },
     phase1Name: null, ikeVersion: null,
   });
@@ -410,6 +427,157 @@ async function _netsFromProject(i) {
   showAlert(t('org.netsImported')
     .replace('{n}', String(nuove.length))
     .replace('{tot}', String(data.nets.length)));
+}
+
+// ── Le linee WAN dal DCIM ─────────────────────────────────────────────────
+
+/** La chiave d'identità di una linea: il CODICE del circuito, e chi lo vende.
+ *  In NetBox il `cid` è obbligatorio, quindi non è mai vuota per una candidata —
+ *  ma resta vuota per una riga appena aggiunta a mano, e due righe vuote non
+ *  sono «la stessa linea»: chi la usa lo sa e non deduplica su una chiave nuda. */
+const _wanKey = (provider, circuitId) => JSON.stringify([
+  String(circuitId == null ? '' : circuitId).trim().toLowerCase(),
+  String(provider == null ? '' : provider).trim().toLowerCase(),
+]);
+
+/**
+ * `id del sito NetBox → id della sede InfraNet`, letto dai progetti già in cache.
+ *
+ * ⚠️ Il valore `null` vuol dire **ambiguo**: due sedi che dichiarano lo stesso
+ * sito NetBox sono un dato reale e sbagliato, e sceglierne una attaccherebbe un
+ * collegamento alla sede sbagliata senza dirlo. Chi lo trova si ferma e lo dice.
+ */
+function _siteByNetboxId() {
+  const idx = new Map();
+  for (const s of _sites()) {
+    const d = s.projectRef ? _st.projectData.get(String(s.projectRef)) : null;
+    for (const x of ((d && d.dcimSites) || [])) {
+      const k = String(x.id);
+      idx.set(k, (idx.has(k) && idx.get(k) !== s.id) ? null : s.id);
+    }
+  }
+  return idx;
+}
+
+/**
+ * Legge da NetBox le linee WAN di questa sede e le AGGIUNGE.
+ *
+ * Stessa forma del bottone «Reti dal progetto», e per lo stesso motivo:
+ * **additivo**. Quello che c'era scritto a mano resta dov'è — qui non c'è modo
+ * di distinguere una riga scritta ieri da una presa dal DCIM, e un pulsante che
+ * rimpiazza una lista è un pulsante che, premuto per sbaglio, cancella il lavoro
+ * di qualcuno.
+ *
+ * L'AMBITO non lo sceglie chi guarda: lo dice il progetto della sede, che
+ * registra da quale sito NetBox è nato (`state.source.dcim.sites`). Un progetto
+ * scritto a mano non ne ha, e allora non c'è niente da chiedere: si dice, invece
+ * di leggere tutto NetBox e far finta che riguardi questa sede.
+ */
+async function _wanFromDcim(i) {
+  const s = _sites()[i];
+  if (!s || _st.wanBusy) return;
+  if (!s.projectRef) { showAlert(t('org.netsNoProject')); return; }
+  const data = await _fetchProject(s.projectRef);
+  if (data === null) { showAlert(t('org.projectUnreadable')); return; }
+  if (!data.dcimSites.length) { showAlert(t('org.wanNoOrigin')); return; }
+
+  _st.wanBusy = true; _render();
+  let esito = null, errore = '';
+  try {
+    const r = await fetch('/api/integrations/dcim/wan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ siteIds: data.dcimSites.map(x => x.id) }),
+    });
+    const j = await r.json().catch(() => null);
+    if (r.status === 403) errore = t('org.saveForbidden');
+    else if (!r.ok || !j) errore = t('org.wanFailed') + ' ' + String((j && j.error) || ('HTTP ' + r.status));
+    else esito = j;
+  } catch (e) {
+    errore = t('org.wanFailed') + ' ' + String((e && e.message) || e);
+  }
+  _st.wanBusy = false;
+  if (errore) { _render(); showAlert(errore); return; }
+
+  // Le ALTRE sedi servono solo ai collegamenti, e si leggono adesso: scaricarle
+  // prima avrebbe pagato dei progetti anche quando la lettura fallisce.
+  await _warmProjects(_sites().map(x => x.projectRef));
+  _mergeWan(s, esito);
+  _st.tab = 'wan';
+  _render();
+}
+
+/** L'innesto vero e proprio. Puro rispetto alla rete: prende ciò che il server
+ *  ha mappato e decide che cosa entra, che cosa c'era già e che cosa non si può
+ *  mettere da nessuna parte — e quest'ultima categoria si DICE. */
+function _mergeWan(site, j) {
+  const cache = _st.projectData.get(String(site.projectRef));
+  const nostri = new Set(((cache && cache.dcimSites) || []).map(x => String(x.id)));
+  const perNb = _siteByNetboxId();
+  const notes = ((j && j.notes) || []).slice();
+
+  const uplinkCand = (j && j.uplinks) || [];
+  const visti = new Set(_uplinks().filter(u => u.siteId === site.id).map(u => _wanKey(u.provider, u.circuitId)));
+  let added = 0, already = 0;
+  for (const c of uplinkCand) {
+    if (!nostri.has(String(c.netboxSiteId))) { notes.push({ code: 'wan.otherSite', circuitId: c.circuitId, site: c.netboxSiteName }); continue; }
+    const k = _wanKey(c.provider, c.circuitId);
+    if (visti.has(k)) { already++; continue; }
+    visti.add(k);
+    _uplinks().push({
+      id: uid('wan'), siteId: site.id,
+      provider: c.provider || '', serviceType: c.serviceType || '', circuitId: c.circuitId || '',
+      cirMbps: c.cirMbps == null ? null : c.cirMbps,
+      // ⚠️ Il resto NON si riempie: l'SLA non sta in NetBox, e gli indirizzi
+      // pubblici non si deducono dall'IP di un'interfaccia WAN — dietro a una
+      // linea business ci sono NAT e blocchi instradati, e scriverne uno
+      // sbagliato in un campo dichiarato è peggio di lasciarlo vuoto.
+      slaRef: '', publicIps: null, wanIfRef: null,
+    });
+    added++;
+  }
+
+  const linkCand = (j && j.links) || [];
+  let addedLinks = 0, alreadyLinks = 0;
+  for (const c of linkCand) {
+    const a = perNb.get(String(c.aNetboxSiteId));
+    const b = perNb.get(String(c.bNetboxSiteId));
+    if (!a || !b) {
+      // Il capo lontano non è una sede di questa organizzazione (o è ambiguo):
+      // un collegamento ha bisogno di DUE sedi, e inventarne una sarebbe peggio.
+      notes.push({ code: 'wan.farSiteUnknown', circuitId: c.circuitId, site: a ? c.bNetboxSiteName : c.aNetboxSiteName });
+      continue;
+    }
+    if (a === b) { notes.push({ code: 'wan.samePairSite', circuitId: c.circuitId }); continue; }
+    const dup = _links().some(l => _wanKey(l.provider, l.circuitId) === _wanKey(c.provider, c.circuitId)
+      && ((l.aSiteId === a && l.bSiteId === b) || (l.aSiteId === b && l.bSiteId === a)));
+    if (dup) { alreadyLinks++; continue; }
+    const row = {
+      id: uid('isl'), aSiteId: a, bSiteId: b,
+      // ⑤ di `lib/dcim-wan.js`: la natura NON si deduce dal nome del tipo di
+      // circuito, che è testo libero dell'istanza. `other` porta quelle parole
+      // e la tendina resta a chi sa.
+      kind: 'other', kindLabel: c.kindLabel || null,
+      topology: null, state: null, reach: null,
+      provider: c.provider || null, circuitId: c.circuitId || null,
+      endpointA: { deviceRef: null, deviceName: null, peerIp: null },
+      endpointB: { deviceRef: null, deviceName: null, peerIp: null },
+    };
+    // Il nome dell'apparato diventa un RIFERIMENTO solo se combacia con uno solo
+    // del progetto di quella sede: la regola è già scritta lì, e qui si chiama.
+    _setEndpointDevice(row, 'endpointA', a, c.aDeviceName || '');
+    _setEndpointDevice(row, 'endpointB', b, c.bDeviceName || '');
+    _links().push(row);
+    addedLinks++;
+  }
+
+  _st.wanReport = {
+    siteName: site.name, fetchedAt: (j && j.fetchedAt) || null,
+    added, total: uplinkCand.length, already,
+    addedLinks, totalLinks: linkCand.length, alreadyLinks,
+    notes,
+  };
+  if (added || addedLinks) _touch();
 }
 
 /**
@@ -806,9 +974,14 @@ function _fieldsOfKind(l, i) {
     case 'directLink':
       return F('media', t('org.media'), l.media, t('org.mediaPh'));
     case 'other':
-      // ⑨ Il campo che rende `other` diverso da un buco: le parole di chi
-      // documenta. Se resta vuoto, «non so come chiamarlo» è già una risposta.
-      return F('kindLabel', t('org.kindLabel'), l.kindLabel, t('org.kindLabelPh'));
+      // ⑨ Il campo che rende `other` diverso da un buco — le parole di chi
+      // documenta — NON sta qui: sta attaccato alla tendina «Natura», in
+      // `_renderLinks`. Gli altri `kind` portano PROPRIETÀ del collegamento
+      // (il VRF, l'overlay, il mezzo); questo invece COMPLETA la natura stessa,
+      // ed è la risposta alla stessa domanda della tendina, scritta a parole.
+      // Staccarlo di sei campi lo faceva leggere come una domanda a sé — ed è
+      // esattamente così che è stato segnalato («ma non è lo stesso di Stato?»).
+      return '';
     default:
       return '';
   }
@@ -848,6 +1021,9 @@ function _renderSites() {
             <button class="um-btn ghost org-mini" data-act="org-nets-from-project" data-idx="${i}"${s.projectRef ? '' : ' disabled'}
                     title="${escapeHTML(s.projectRef ? t('org.netsFromProjectTip') : t('org.netsNoProject'))}">
               <i class="fas fa-down-long"></i> ${escapeHTML(t('org.netsFromProject'))}</button>
+            <button class="um-btn ghost org-mini" data-act="org-wan-from-dcim" data-idx="${i}"${(s.projectRef && !_st.wanBusy) ? '' : ' disabled'}
+                    title="${escapeHTML(s.projectRef ? t('org.wanFromDcimTip') : t('org.netsNoProject'))}">
+              <i class="fas ${_st.wanBusy ? 'fa-spinner fa-spin' : 'fa-cloud-arrow-down'}"></i> ${escapeHTML(t('org.wanFromDcim'))}</button>
           </div>`}</label>
       </div>
     </article>`;
@@ -855,9 +1031,61 @@ function _renderSites() {
   return rows + (ro ? '' : `<button class="um-btn primary org-add" data-act="org-add-site"><i class="fas fa-plus"></i> ${escapeHTML(t('org.addSite'))}</button>`);
 }
 
+/**
+ * L'esito dell'ultima lettura dal DCIM, a schermo.
+ *
+ * Sta nel pannello e non in un avviso: le note sono più d'una, e un elenco
+ * dentro un modale che si chiude col primo clic è un elenco che nessuno legge.
+ * E dice sempre **due** numeri — quante ne ha aggiunte e quante ne dichiarava
+ * NetBox: «0 su 3» vuol dire «le avevi già», «0 su 0» vuol dire «NetBox non ne
+ * conosce», e con un numero solo si confonderebbero.
+ */
+function _wanNoteText(n) {
+  const code = String((n && n.code) || '');
+  if (!code) return '';
+  const key = 'org.wanNote.' + code.replace(/^wan\./, '');
+  const s = t(key);
+  if (!s || s === key) return '';        // codice che non conosciamo: si tace, non si stampa una chiave
+  return s
+    .replace('{n}', String(n.n == null ? '' : n.n))
+    .replace('{circuitId}', String(n.circuitId || '—'))
+    .replace('{site}', String(n.site || '—'))
+    .replace('{type}', String(n.type || '—'))
+    .replace('{clouds}', ((n.clouds || []).join(', ')))
+    .replace('{rows}', (n.rows || []).map(r => String(r.circuitId || '—') + ' (' + String(r.status || '') + ')').join(', '));
+}
+
+function _renderWanReport() {
+  const r = _st.wanReport;
+  if (!r) return '';
+  const righe = (r.notes || []).map(_wanNoteText).filter(Boolean);
+  // «Aggiunto 1 collegamenti» fa dubitare del resto di ciò che c'è scritto
+  // sopra: il singolare non è un dettaglio di stile. E una riga «0 su 0» accanto
+  // a un elenco di collegamenti veri è rumore — si scrive solo di ciò che c'è.
+  // ⚠️ Le due chiavi si passano PER ESTESO invece di comporre `chiave + 'One'`:
+  // il cricchetto che verifica le traduzioni legge le chiavi dal sorgente, e una
+  // chiave composta a runtime gli sarebbe invisibile — cioè potrebbe mancare dal
+  // dizionario e comparire nuda a schermo senza che nessun test arrossisca.
+  const frase = (molti, uno, n, tot, gia) =>
+    t(n === 1 ? uno : molti).replace('{n}', String(n)).replace('{tot}', String(tot))
+    + (gia ? ' ' + t(gia === 1 ? 'org.wanAlreadyOne' : 'org.wanAlready').replace('{n}', String(gia)) : '');
+  const vuoto = !r.total && !r.totalLinks;
+  const testa = vuoto ? t('org.wanNone')
+    : (r.total ? frase('org.wanAdded', 'org.wanAddedOne', r.added, r.total, r.already) : '');
+  const capi = r.totalLinks
+    ? frase('org.wanAddedLinks', 'org.wanAddedLinksOne', r.addedLinks, r.totalLinks, r.alreadyLinks) : '';
+  return `<div class="org-wan-report">
+    <p class="org-wan-head"><i class="fas fa-cloud-arrow-down"></i>
+      <strong>${escapeHTML(r.siteName || '')}</strong>${testa ? ' — ' + escapeHTML(testa) : ''}
+      <button class="um-btn ghost org-mini" data-act="org-wan-clear" title="${escapeHTML(t('common.close'))}"><i class="fas fa-xmark"></i></button></p>
+    ${capi ? `<p>${escapeHTML(capi)}</p>` : ''}
+    ${righe.length ? `<ul>${righe.map(x => `<li>${escapeHTML(x)}</li>`).join('')}</ul>` : ''}
+  </div>`;
+}
+
 function _renderUplinks() {
   const ro = !_isAdmin();
-  if (!_sites().length) return `<p class="org-note">${escapeHTML(t('org.needSiteFirst'))}</p>`;
+  if (!_sites().length) return _renderWanReport() + `<p class="org-note">${escapeHTML(t('org.needSiteFirst'))}</p>`;
   const rows = _uplinks().map((u, i) => {
     const ips = isFact(u.publicIps) ? (factValue(u.publicIps) || []) : [];
     const badIps = _badAddrs(ips);
@@ -892,7 +1120,7 @@ function _renderUplinks() {
       </div>
     </article>`;
   }).join('');
-  return rows + (ro ? '' : `<button class="um-btn primary org-add" data-act="org-add-uplink"><i class="fas fa-plus"></i> ${escapeHTML(t('org.addUplink'))}</button>`);
+  return _renderWanReport() + rows + (ro ? '' : `<button class="um-btn primary org-add" data-act="org-add-uplink"><i class="fas fa-plus"></i> ${escapeHTML(t('org.addUplink'))}</button>`);
 }
 
 function _renderLinks() {
@@ -917,12 +1145,21 @@ function _renderLinks() {
         <label class="org-f"><span>${escapeHTML(t('org.kind'))}</span>
           <select ${ro ? 'disabled' : ''} data-change="org-field" data-scope="link" data-idx="${i}" data-field="kind">
             ${INTER_SITE_KINDS.map(k => _opt(k, t('org.kind.' + k), l.kind)).join('')}</select></label>
+        ${l.kind !== 'other' ? '' : `<label class="org-f"><span>${escapeHTML(t('org.kindLabel'))}</span>
+          <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(l.kindLabel || '')}" placeholder="${escapeHTML(t('org.kindLabelPh'))}"
+                 data-input="org-field" data-scope="link" data-idx="${i}" data-field="kindLabel"></label>`}
         <label class="org-f"><span>${escapeHTML(t('org.topology'))}</span>
           <select ${ro ? 'disabled' : ''} data-change="org-field" data-scope="link" data-idx="${i}" data-field="topology">
             ${_opt('', '—', l.topology || '')}${INTER_SITE_TOPOLOGIES.map(x => _opt(x, t('org.topo.' + x), l.topology || '')).join('')}</select></label>
         <label class="org-f"><span>${escapeHTML(t('org.linkState'))} ${_originBadge(l.state)}</span>
           <select ${ro ? 'disabled' : ''} data-change="org-field" data-scope="link" data-idx="${i}" data-field="state">
             ${_opt('', '— ' + t('org.stateUnspoken'), _fv(l.state))}${INTER_SITE_STATES.map(s => _opt(s, t('org.state' + (s === 'up' ? 'Up' : 'Down')), _fv(l.state))).join('')}</select></label>
+        <label class="org-f"><span>${escapeHTML(t('org.provider'))}</span>
+          <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(l.provider || '')}" placeholder="${escapeHTML(t('org.providerPh'))}"
+                 data-input="org-field" data-scope="link" data-idx="${i}" data-field="provider"></label>
+        <label class="org-f"><span>${escapeHTML(t('org.circuitId'))}</span>
+          <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(l.circuitId || '')}"
+                 data-input="org-field" data-scope="link" data-idx="${i}" data-field="circuitId"></label>
         <label class="org-f"><span>${escapeHTML(t('org.devA').replace('{site}', _siteName(l.aSiteId)))}</span>
           <input type="text" ${ro ? 'disabled' : ''} list="org-dl-${i}-a" title="${escapeHTML(t('org.devTip'))}"
                  value="${escapeHTML(_deviceFieldValue(l.aSiteId, l.endpointA))}" placeholder="${escapeHTML(t('org.devPh'))}"
@@ -1215,7 +1452,7 @@ export function openOrgPanel() {
   _wireBackdrop();
   ov.classList.add('open');
   if (_st.dirty) { _render(); return; }
-  _st.tab = 'map'; _st.dropped = null;
+  _st.tab = 'map'; _st.dropped = null; _st.wanReport = null; _st.wanBusy = false;
   _render();
   _load();
 }
@@ -1280,6 +1517,10 @@ registerClickActions({
   },
   'org-node': (el) => _openSite(el.dataset.site || ''),
   'org-nets-from-project': (el) => { _netsFromProject(Number(el.dataset.idx)); },
+  'org-wan-from-dcim': (el) => { _wanFromDcim(Number(el.dataset.idx)); },
+  // L'esito resta finché non lo si congeda: è un elenco da leggere, non un
+  // lampo. Chiuderlo non tocca le righe già iscritte.
+  'org-wan-clear': () => { _st.wanReport = null; _render(); },
 });
 
 registerInputActions({

@@ -55,6 +55,31 @@ const NB = {
   '/api/ipam/vlans/': [{ id: 60, vid: 10, name: 'Mgmt' }],
   '/api/ipam/prefixes/': [{ id: 70, prefix: '10.0.0.0/24', vlan: { vid: 10 } }],
   '/api/ipam/ip-addresses/': [{ id: 80, address: '10.0.0.2/24', assigned_object: { id: 1000, device: { id: 100 } } }],
+  // I CIRCUITI: la linea WAN del sito 40, più una che è di un altro sito. Il
+  // mock ignora i filtri come fa NetBox con un parametro che non conosce, quindi
+  // la seconda è anche la prova che la cintura d'ambito morde davvero.
+  '/api/circuits/circuits/': [
+    {
+      id: 900, cid: 'FTTH-1', provider: { id: 1, name: 'Fastweb' }, type: { id: 1, name: 'FTTH' },
+      status: { value: 'active', label: 'Active' }, commit_rate: 30000,
+      termination_a: null,
+      termination_z: { termination_type: 'dcim.site', termination_id: 40, termination: { id: 40, name: 'HQ' } },
+    },
+    {
+      id: 901, cid: 'DI-UN-ALTRO', provider: { id: 2, name: 'TIM' }, type: { id: 2, name: 'MPLS' },
+      status: { value: 'active', label: 'Active' }, commit_rate: null,
+      termination_a: null,
+      termination_z: { termination_type: 'dcim.site', termination_id: 41, termination: { id: 41, name: 'Filiale' } },
+    },
+  ],
+  '/api/circuits/circuit-terminations/': [
+    {
+      id: 950, circuit: { id: 900 }, term_side: 'Z',
+      termination_type: 'dcim.site', termination_id: 40, termination: { id: 40, name: 'HQ' },
+      cable: { id: 1 }, cable_end: 'A', link_peers_type: 'dcim.interface',
+      link_peers: [{ id: 1000, name: 'Gi1/0/1', device: { id: 100, name: 'SW-CORE-01' } }],
+    },
+  ],
 };
 
 before(async () => {
@@ -421,4 +446,45 @@ test('POST /import: il progetto creato registra il sito da cui nasce', async () 
   const saved = JSON.parse(fs.readFileSync(path.join(PROJECTS, j.projectId + '.json'), 'utf8'));
   assert.deepEqual(saved.state.source.dcim.sites, [{ id: '40', name: 'HQ' }]);
   assert.equal(saved.state.source.dcim.system, 'netbox');
+});
+
+// ── Le linee WAN: i circuiti del sito ───────────────────────────────────────
+
+test('POST /wan → gli uplink del sito, e SOLO quelli', async () => {
+  const r = await fetch(`${base}${P}/wan`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ siteIds: [40] }),
+  });
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  assert.equal(j.ok, true);
+  assert.equal(j.uplinks.length, 1, 'il circuito di un altro sito non entra');
+  const u = j.uplinks[0];
+  assert.equal(u.circuitId, 'FTTH-1');
+  assert.equal(u.provider, 'Fastweb');
+  assert.equal(u.serviceType, 'FTTH');
+  assert.equal(u.cirMbps, 30, 'i 30000 kbps di NetBox sono 30 Mbps');
+  assert.deepEqual(u.wanPort, { deviceName: 'SW-CORE-01', ifaceName: 'Gi1/0/1' });
+  // Il mock ignora i filtri, esattamente come NetBox davanti a un parametro che
+  // non conosce: la cintura ha dovuto togliere una riga, e lo dice.
+  assert.ok(j.notes.some(n => n.code === 'wan.outOfScope' && n.n === 1));
+  assert.ok(!/token|SEG-RE-TO/i.test(JSON.stringify(j)), 'nessun segreto nella risposta');
+});
+
+test('POST /wan senza ambito → 400 (non si legge tutto NetBox per sbaglio)', async () => {
+  const r = await fetch(`${base}${P}/wan`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+  });
+  assert.equal(r.status, 400);
+  assert.equal((await r.json()).code, 'no-scope');
+});
+
+test('POST /wan come non-admin → 403', async () => {
+  role = 'viewer';
+  const r = await fetch(`${base}${P}/wan`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ siteIds: [40] }),
+  });
+  assert.equal(r.status, 403);
+  role = 'admin';
 });

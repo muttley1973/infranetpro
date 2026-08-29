@@ -254,6 +254,24 @@ test('⑨ `other` è un collegamento come gli altri: capi, reach e stato ci sono
   assert.strictEqual(l.state.value, 'up');
 });
 
+test('⑩ operatore e codice del circuito valgono per OGNI kind, e restano nudi', () => {
+  // Stessa lezione della ⑥: una domanda che è la stessa per tutte le nature si
+  // modella una volta sola. Senza, un circuito inter-sede letto dal DCIM entrava
+  // perdendo per strada le due cose che lo identificano.
+  for (const kind of ['ipsec', 'mpls', 'vpls', 'sdwan', 'directLink', 'other']) {
+    const l = normalizeInterSiteLink({
+      id: 'l', aSiteId: 'a', bSiteId: 'b', kind,
+      provider: '  CenturyLink ', circuitId: 'DEOW4921',
+    });
+    assert.strictEqual(l.provider, 'CenturyLink', kind + ': lo spazio in più non è un operatore diverso');
+    assert.strictEqual(l.circuitId, 'DEOW4921', kind);
+  }
+  // ④ Sono DICHIARAZIONI per costruzione: nessun envelope, come sull'uplink.
+  const nudo = normalizeInterSiteLink({ id: 'l', aSiteId: 'a', bSiteId: 'b', kind: 'ipsec' });
+  assert.strictEqual(nudo.provider, null, '«non c\'è un operatore» è una risposta');
+  assert.strictEqual(nudo.circuitId, null);
+});
+
 test('⑨ l\'etichetta può mancare: «non so come chiamarlo» è già un\'informazione', () => {
   assert.strictEqual(normalizeInterSiteLink({ id: 'l', aSiteId: 'a', bSiteId: 'b', kind: 'other' }).kindLabel, null);
 });

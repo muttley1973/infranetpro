@@ -114,7 +114,10 @@ lib/                   Shared browser + test modules (the heart of the app)
                     one concept for every kind (on an ipsec it IS the encryption domain), so no
                     vendor's word and no viewpoint-dependent local/remote. Both ends carry the
                     device that holds them (a ref into the site's project, OR a hand-typed name
-                    — mutually exclusive), because on an MPLS the end is the CE. `publicIps` is
+                    — mutually exclusive), because on an MPLS the end is the CE; and so do
+                    `provider`/`circuitId`, for the same reason — every kind is bought from
+                    someone under a code, and that code is what you dictate when it is down.
+                    `publicIps` is
                     a LIST: a business line comes with a routed block, IPv6 rides the same line
                     and an HA pair exposes several. An unknown kind is refused, not corrected.
   inter-site-audit.js  Coherence of the declared multi-site model — no network, no discovery.
@@ -236,6 +239,20 @@ lib/                   Shared browser + test modules (the heart of the app)
                     import that registered itself would decide on the user's behalf. A
                     project born from more than one NetBox site is refused with the
                     reason — one site is one project.
+  dcim-wan.js       NetBox CIRCUITS → the organisation's WAN lines. Pure: turns circuits
+                    into CANDIDATES (it writes nothing and does not know the organisation).
+                    One end at a site → uplink; two sites → inter-site link; a carrier
+                    PROVIDER NETWORK stays an uplink and the cloud is SAID, because several
+                    sites on one MPLS cloud are not pairs of connected sites and inferring
+                    the adjacencies would invent N·(N−1)/2 links. The link `kind` is never
+                    guessed from the circuit type (free text of that instance): it enters as
+                    `other` carrying those words. Only ACTIVE circuits become candidates — an
+                    uplink has no state field, so a `planned` one would be indistinguishable
+                    from a line in service. `commit_rate` is kbps → Mbps; `port_speed` is
+                    NEVER a fallback (that is the ifSpeed, not the contract). Reads both
+                    termination shapes (≤4.1 `site`/`provider_network`, 4.2+ `termination_type`)
+                    and re-checks the scope row by row, because NetBox ignores an unknown
+                    query filter and answers with the whole archive.
   subbar-stats.js   computeSubbarStats → sub-header numbers: doc completeness
                     (withIp/addressable), device count (rooms excluded), SNMP health
                     (ok/err/warn/none) — same field defs as api-shape/app-drift  (pure)
@@ -285,6 +302,11 @@ src/app-inter-site.js  "Sites and links": the multi-site layer with a face. Map 
                        never shows what it is for. Does NOT recompute the audit (it travels in
                        the route's answer) and ADOPTS the server's reply after saving, so a
                        subnet coming back canonical or a link being refused is visible.
+                       Per site it can also READ THE WAN LINES from the DCIM (lib/dcim-wan.js
+                       via POST /api/integrations/dcim/wan): additive like the networks button,
+                       scoped by the project's own `state.source.dcim.sites` rather than by
+                       whoever is looking, and everything it could not place is listed in the
+                       panel instead of dropped.
 src/app-org-context.js "Where am I": answers whether the OPEN project is a site declared by the
                        organisation (site.projectRef — read, never guessed by name), so the
                        sub-header can offer the step back up. Imports NOTHING on purpose: the
