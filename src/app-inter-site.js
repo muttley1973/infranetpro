@@ -1019,9 +1019,15 @@ function _fieldsOfKind(l, i) {
   // dal server. Un campo che accetta quello che scrivi e non lo salva è peggio
   // di un campo spento.
   const ro = !_isAdmin();
-  const F = (field, label, val, ph) => `<label class="org-f"><span>${escapeHTML(label)}</span>
+  // Il quinto argomento è la RIGA DI AIUTO. Non è ornamento: «Overlay» da solo,
+  // sopra una casella vuota, è la parola che ha fatto fermare chi lo guardava —
+  // e la parola resta perché è quella scritta su ogni console (in italiano non
+  // esiste un termine standard: la letteratura tecnica la tiene in inglese e la
+  // spiega). Allora la spiega anche il campo, invece di darla per saputa.
+  const F = (field, label, val, ph, hint) => `<label class="org-f"><span>${escapeHTML(label)}</span>
     <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(val == null ? '' : val)}" ${ph ? `placeholder="${escapeHTML(ph)}"` : ''}
-      data-input="org-field" data-scope="link" data-idx="${i}" data-field="${escapeHTML(field)}"></label>`;
+      data-input="org-field" data-scope="link" data-idx="${i}" data-field="${escapeHTML(field)}">
+    ${hint ? `<small class="org-hint">${escapeHTML(hint)}</small>` : ''}</label>`;
   switch (l.kind) {
     case 'ipsec':
       // ⚠️ Gli APPARATI dei due capi non stanno qui: valgono per ogni `kind` e
@@ -1039,7 +1045,8 @@ function _fieldsOfKind(l, i) {
     case 'vpls':
       return F('vrf', 'VRF', l.vrf) + F('service', t('org.service'), l.service);
     case 'sdwan':
-      return F('overlay', t('org.overlay'), l.overlay) + _underlayField(l, i, ro);
+      return F('overlay', t('org.overlay'), l.overlay, t('org.overlayPh'), t('org.overlayHint'))
+        + _underlayField(l, i, ro);
     case 'directLink':
       return F('media', t('org.media'), l.media, t('org.mediaPh'));
     case 'other':
