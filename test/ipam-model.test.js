@@ -234,3 +234,57 @@ test('migrateIpam: una chiave VLAN vuota non inventa la «VLAN 0»', () => {
   migrateIpam(st2);
   assert.equal(st2.ipam.prefixes[0].vlan, 20);
 });
+
+// ---- Doppioni: uno stato IMPOSSIBILE, non un caso d'uso ---------------------
+
+test('migrateIpam fonde due righe con lo STESSO CIDR: qui una rete È il suo CIDR', () => {
+  // Le scriveva l'import da un NetBox con lo stesso prefisso in due VRF. A
+  // schermo erano due righe che condividevano UNA identità: stesso tooltip,
+  // stessa occupazione, e «togli» le cancellava tutte e due — perché
+  // `removePrefix` filtra per chiave. Segnalato guardandolo.
+  const st = { ipam: { vlans: {}, prefixes: [
+    { cidr: '10.10.20.0/24', vlan: 20, source: 'dcim' },
+    { cidr: '10.10.20.0/24', vlan: null, source: 'dcim', description: 'in VRF CLIENTI' },
+  ] } };
+  migrateIpam(st);
+  assert.equal(st.ipam.prefixes.length, 1);
+  assert.equal(st.ipam.prefixes[0].vlan, 20, 'la VLAN si tiene da qualunque riga ce l\'abbia');
+  assert.equal(st.ipam.prefixes[0].description, 'in VRF CLIENTI', 'e non si butta ciò che aveva l\'altra');
+});
+
+test('la fusione vale anche se il CIDR è scritto in due forme diverse', () => {
+  const st = { ipam: { vlans: {}, prefixes: [
+    { cidr: '10.10.20.0/24', vlan: null },
+    { cidr: '10.10.20.5/24', vlan: 20 },     // stessa rete, scritta da un indirizzo
+  ] } };
+  migrateIpam(st);
+  assert.equal(st.ipam.prefixes.length, 1);
+  assert.equal(st.ipam.prefixes[0].vlan, 20);
+});
+
+test('dopo la fusione «togli» cancella UNA rete, non due', () => {
+  const st = { ipam: { vlans: {}, prefixes: [
+    { cidr: '10.10.20.0/24', vlan: 20 },
+    { cidr: '10.10.20.0/24', vlan: null },
+    { cidr: '10.10.30.0/24', vlan: 30 },
+  ] } };
+  migrateIpam(st);
+  removePrefix(st, '10.10.20.0/24');
+  assert.deepEqual(prefixesOf(st).map(p => p.cidr), ['10.10.30.0/24']);
+});
+
+test('la fusione è idempotente e non tocca un documento già sano', () => {
+  const sano = { ipam: { vlans: {}, prefixes: [
+    { cidr: '10.10.10.0/24', vlan: 10 }, { cidr: '10.10.20.0/24', vlan: 20 },
+  ] } };
+  const prima = JSON.stringify(sano);
+  migrateIpam(sano); migrateIpam(sano);
+  assert.equal(JSON.stringify(sano), prima);
+});
+
+test('una riga SENZA cidr non si fonde con le altre: non ha una chiave', () => {
+  // Fonderle vorrebbe dire dichiarare uguali due righe di cui non si sa niente.
+  const st = { ipam: { vlans: {}, prefixes: [{ cidr: '', vlan: 1 }, { cidr: null, vlan: 2 }] } };
+  migrateIpam(st);
+  assert.equal(st.ipam.prefixes.length, 2);
+});
