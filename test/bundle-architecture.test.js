@@ -100,9 +100,68 @@ test('⚠️ nessun sorgente contiene byte di controllo: git li tratterebbe da b
     // contatore dei fine-riga nemmeno, perché quel '\n' un '\r' davanti ce l'ha.
     const cr = _crSolitario(buf);
     if (cr >= 0) bad.push(`${rel} (CR senza LF a offset ${cr}: git lo tratta da binario)`);
+    // ⚠️ E la DOPPIA CODIFICA: un testo UTF-8 letto come latin-1 e riscritto in
+    // UTF-8 lascia `Â` o `Ã` davanti al carattere vero. Nessuno se ne accorge
+    // finché sta in un commento — ma in `styles/07-modals.css` era finita dentro
+    // un `content:'·'`, e il puntino che separa le due sedi dalla natura del
+    // collegamento si leggeva raddoppiato in cima a OGNI riga del pannello. Il
+    // codice gira, eslint tace, i test passano: la vede solo l'occhio, e solo
+    // se guarda quel pannello.
+    // In it/en `Â` e `Ã` non compaiono mai per davvero, quindi qui sono sempre
+    // un errore di codifica.
+    // ⚠️ `data/` è ESCLUSO da questo controllo, e non per comodità: lì dentro ci
+    // sono i registri scaricati (OUI dello IEEE, PEN dello IANA), e la doppia
+    // codifica sta nel dato di ORIGINE — un nome spagnolo del registro ha la prima
+    // parola giusta e la seconda rotta, il che dimostra che non è il nostro
+    // lettore a sbagliare (sbaglierebbe tutte e due). Raddrizzarla vorrebbe dire
+    // indovinare come si chiama un'azienda. Si lascia il nome come lo dichiara
+    // chi lo ha registrato, e lo si dice qui invece di far arrossire un cancello
+    // su una cosa che non possiamo sapere.
+    const mj = rel.startsWith('data/') ? -1 : _doppiaCodifica(buf);
+    if (mj >= 0) bad.push(`${rel} (doppia codifica UTF-8 a offset ${mj}: una testa latin-1 davanti al carattere vero)`);
   }
   assert.deepEqual(bad, [], 'usa la sequenza di escape, non il carattere:\n' + bad.join('\n'));
 });
+
+test('⚠️ la sonda della doppia codifica regge: il caso VERO viene visto', () => {
+  // Senza questa prova la guardia sopra è una promessa. La prima versione era
+  // verde su tutto il repo *e* sul difetto che doveva prendere — cercava un byte
+  // di continuazione dove c'è un `C2`. Una guardia che non si prova è una
+  // guardia che dice sempre di sì.
+  // ⚠️ I casi rotti si scrivono con le SEQUENZE DI ESCAPE, non con i caratteri:
+  // scritti per esteso, questo file sarebbe il primo a far arrossire la guardia
+  // che sta provando — la prova si mangerebbe la cosa provata.
+  const rotto = Buffer.from('content:\'\u00c2\u00b7\';', 'utf8');   // com'era in 07-modals.css
+  assert.ok(_doppiaCodifica(rotto) >= 0, 'il separatore rotto del CSS deve essere visto');
+  assert.ok(_doppiaCodifica(Buffer.from('x \u00e2\u20ac\u201d y', 'utf8')) >= 0,
+    'e anche il trattino lungo rotto, che \u00e8 la forma a tre byte');
+  // …e NON deve arrossire su un accento vero, che in questo repo è ovunque.
+  assert.equal(_doppiaCodifica(Buffer.from("content:'·'; perché, però, città, è", 'utf8')), -1);
+  assert.equal(_doppiaCodifica(Buffer.from('un trattino — vero e «virgolette» vere', 'utf8')), -1);
+});
+
+/**
+ * Primo punto di doppia codifica, oppure -1.
+ *
+ * ⚠️ La firma NON è «`Â` seguito da un byte di continuazione»: quella è la
+ * prima cosa che viene in mente, ed è sbagliata — la guardia scritta così è
+ * andata VERDE sul caso vero. Il giro è questo: `·` è `C2 B7`; letto come
+ * latin-1 diventa due caratteri (`Â`, `·`); riscritto in UTF-8 diventa
+ * `C3 82  C2 B7`. Il terzo byte è quindi la RICODIFICA del secondo byte
+ * originale, che stando fra 0x80 e 0xBF finisce sempre in `C2 xx` — mai un byte
+ * di continuazione nudo.
+ * Si cercano le due teste che in italiano e in inglese non compaiono mai:
+ * `C3 82`/`C3 83` seguiti da `C2`/`C3`, e `C3 A2 E2 82`, che è la stessa cosa per i caratteri a
+ * tre byte (trattini lunghi, virgolette tipografiche).
+ */
+function _doppiaCodifica(buf) {
+  for (let i = 0; i < buf.length - 3; i++) {
+    if (buf[i] === 0xc3 && (buf[i + 1] === 0x82 || buf[i + 1] === 0x83)
+        && (buf[i + 2] === 0xc2 || buf[i + 2] === 0xc3)) return i;
+    if (buf[i] === 0xc3 && buf[i + 1] === 0xa2 && buf[i + 2] === 0xe2 && buf[i + 3] === 0x82) return i;
+  }
+  return -1;
+}
 
 // Primo CR non seguito da LF, oppure -1. Sui byte: un file misto va guardato per
 // com'è scritto sul disco, non per come lo decodifica una stringa.

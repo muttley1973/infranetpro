@@ -862,7 +862,7 @@
         .tfl-badge { font-size: 9px; font-weight: 700; fill: #000; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
 
         /* ============================================================
-           SEDI E COLLEGAMENTI (#org-overlay) â€” layer multi-sede, Fase 1.
+           SEDI E COLLEGAMENTI (#org-overlay) — layer multi-sede, Fase 1.
            Il pannello ha due nature: una MAPPA (SVG, coordinate da
            lib/inter-site-layout.js) e un FORM (righe una-per-entita').
            Le classi sono divise di conseguenza: .org-map-* per il disegno,
@@ -1009,7 +1009,7 @@
         .org-empty-sub { font-size:var(--fs-sm); color:var(--text-muted); margin:0; max-width:46ch; line-height:1.5; }
         #org-footer { gap:var(--space-4); }
         .org-dropped { flex:1; font-size:var(--fs-xs); color:var(--idle-color); }
-        /* Azione secondaria dentro un campo (es. Â«prendi le reti dal progettoÂ»):
+        /* Azione secondaria dentro un campo (es. «prendi le reti dal progetto»):
            sta sotto al suo input, non nella barra dei comandi, perche' agisce su
            QUEL campo e non sul pannello. */
         .org-row-actions { display:flex; flex-wrap:wrap; gap:var(--space-3); margin-top:4px; }
@@ -1033,7 +1033,7 @@
         .org-wan-report li { margin-bottom:3px; }
         .org-f optgroup { font-style:normal; font-weight:600; color:var(--text-muted); }
         .org-f optgroup option { font-weight:400; color:var(--text-main); }
-        /* I riquadri di conteggio stanno ACCANTO al campo Â«OrganizzazioneÂ» e
+        /* I riquadri di conteggio stanno ACCANTO al campo «Organizzazione» e
            devono leggersi come lui: stesso corpo e stessa altezza, non
            didascalie in un angolo. L'altezza e' UNA definizione (--org-field-h),
            usata sia dal campo sia dai riquadri: due numeri separati
@@ -1045,7 +1045,7 @@
                     font-size:var(--fs-md); font-variant-numeric:tabular-nums; }
         .org-chip i { font-size:0.95em; opacity:.9; }
         /* La mappa: il viewBox lo stringe il renderer sull'ingombro VERO delle
-           etichette (`_fitMapViewBox`), quindi qui non serve altro margine â€”
+           etichette (`_fitMapViewBox`), quindi qui non serve altro margine —
            serve invece che il disegno possa usare tutta l'altezza disponibile. */
         .org-map { min-height:300px; }
         /* Colonne piu' larghe: i valori qui dentro sono nomi di progetto e di
@@ -1068,4 +1068,4 @@
         /* La natura del collegamento accanto ai due capi, nell'intestazione:
            secondaria per colore, non per dimensione. */
         .org-row-kind { color:var(--text-muted); font-weight:400; }
-        .org-row-kind::before { content:'Â·'; margin:0 8px; opacity:.6; }
+        .org-row-kind::before { content:'·'; margin:0 8px; opacity:.6; }
