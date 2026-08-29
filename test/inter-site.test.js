@@ -272,6 +272,23 @@ test('⑩ operatore e codice del circuito valgono per OGNI kind, e restano nudi'
   assert.strictEqual(nudo.circuitId, null);
 });
 
+test('⑪ un collegamento ha un NOME, e non è la sua natura', () => {
+  // Un GRE letto da NetBox si chiama «GRE-LAB» ed È un GRE: due fatti diversi,
+  // due campi. Prima il nome non aveva dove andare e andava perso — e due
+  // tunnel fra le stesse due sedi diventavano indistinguibili.
+  const l = normalizeInterSiteLink({
+    id: 'l', aSiteId: 'a', bSiteId: 'b', kind: 'other',
+    name: '  GRE-LAB ', kindLabel: 'GRE',
+  });
+  assert.strictEqual(l.name, 'GRE-LAB');
+  assert.strictEqual(l.kindLabel, 'GRE');
+  // Vale per OGNI natura, non solo per `other`.
+  for (const kind of ['ipsec', 'mpls', 'vpls', 'sdwan', 'directLink']) {
+    assert.strictEqual(normalizeInterSiteLink({ id: 'l', aSiteId: 'a', bSiteId: 'b', kind, name: 'X' }).name, 'X', kind);
+  }
+  assert.strictEqual(normalizeInterSiteLink({ id: 'l', aSiteId: 'a', bSiteId: 'b', kind: 'ipsec' }).name, null);
+});
+
 test('⑨ l\'etichetta può mancare: «non so come chiamarlo» è già un\'informazione', () => {
   assert.strictEqual(normalizeInterSiteLink({ id: 'l', aSiteId: 'a', bSiteId: 'b', kind: 'other' }).kindLabel, null);
 });

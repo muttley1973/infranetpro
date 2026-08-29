@@ -63,15 +63,19 @@ const CODE = {
   // E lo stesso per le note della lettura WAN dal DCIM: i codici li scrivono il
   // mapper e il pannello, e vengono letti da lì. Aggiungerne uno senza parole fa
   // arrossare questo test invece di stampare la chiave nuda a schermo.
-  'org.wanNote.': _codiciNotaWan(),
+  'org.wanNote.': _codiciNota('wan'),
+  // I servizi L2 e i tunnel hanno la LORO famiglia di note: `wan.truncated` e
+  // `vpn.truncated` sono due frasi diverse, e un solo spazio di chiavi ne
+  // avrebbe fatta sparire una in silenzio.
+  'org.vpnNote.': _codiciNota('vpn'),
 };
 
-/** I `code: 'wan.…'` che possono finire nell'esito della lettura WAN. */
-function _codiciNotaWan() {
-  const fonti = ['lib/dcim-wan.js', 'src/app-inter-site.js', 'server/routes/integrations.js']
+/** I `code: '<fam>.…'` che possono finire nell'esito della lettura. */
+function _codiciNota(famiglia) {
+  const fonti = ['lib/dcim-wan.js', 'lib/dcim-vpn.js', 'src/app-inter-site.js', 'server/routes/integrations.js']
     .map(f => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('\n');
   const out = new Set();
-  for (const m of fonti.matchAll(/code:\s*'wan\.([A-Za-z0-9]+)'/g)) out.add(m[1]);
+  for (const m of fonti.matchAll(new RegExp('code:\\s*\'' + famiglia + '\\.([A-Za-z0-9]+)\'', 'g'))) out.add(m[1]);
   return [...out].sort();
 }
 

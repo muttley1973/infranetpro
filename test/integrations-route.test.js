@@ -80,6 +80,40 @@ const NB = {
       link_peers: [{ id: 1000, name: 'Gi1/0/1', device: { id: 100, name: 'SW-CORE-01' } }],
     },
   ],
+  // I SERVIZI L2 e i TUNNEL: quello che LEGA due sedi, e che nei `circuits` non
+  // c'è. Un VPLS (natura vera, il vocabolario di NetBox è chiuso) e un IPsec con
+  // i ruoli hub/spoke e gli indirizzi esterni ai due capi.
+  '/api/vpn/l2vpns/': [
+    { id: 800, name: 'VPLS-HQ-BR', slug: 'vpls-hq-br', type: { value: 'vpls', label: 'VPLS' },
+      status: { value: 'active', label: 'Active' }, identifier: 1001 },
+  ],
+  '/api/vpn/l2vpn-terminations/': [
+    { id: 810, l2vpn: { id: 800 }, assigned_object_type: 'dcim.interface',
+      assigned_object: { id: 1001, name: 'Gi1/0/2', device: { id: 100, name: 'SW-CORE-01' } } },
+    { id: 811, l2vpn: { id: 800 }, assigned_object_type: 'dcim.interface',
+      assigned_object: { id: 1200, name: 'Gi0/1', device: { id: 102, name: 'BR-RTR-01' } } },
+  ],
+  '/api/vpn/tunnels/': [
+    { id: 820, name: 'IPSEC-HQ-BR', status: { value: 'active', label: 'Active' },
+      encapsulation: { value: 'ipsec-tunnel', label: 'IPsec - Tunnel' }, tunnel_id: 7 },
+  ],
+  '/api/vpn/tunnel-terminations/': [
+    { id: 830, tunnel: { id: 820 }, role: { value: 'hub', label: 'Hub' }, termination_type: 'dcim.interface',
+      termination: { id: 1000, name: 'Gi1/0/1', device: { id: 100, name: 'SW-CORE-01' } },
+      outside_ip: { address: '203.0.113.1/32' } },
+    { id: 831, tunnel: { id: 820 }, role: { value: 'spoke', label: 'Spoke' }, termination_type: 'dcim.interface',
+      termination: { id: 1200, name: 'Gi0/1', device: { id: 102, name: 'BR-RTR-01' } },
+      outside_ip: { address: '198.51.100.9/32' } },
+  ],
+};
+
+// ⚠️ Un apparato che sta in un ALTRO sito. Esiste SOLO per la risoluzione «capo
+// del tunnel → sede», che NetBox serve chiedendo gli apparati per id: se entrasse
+// nella lista generale, l'import di HQ se lo porterebbe dentro e i conteggi delle
+// prove qui sopra cambierebbero — un dato di prova non deve spostarne un altro.
+const DEVICE_ALTRO_SITO = {
+  id: 102, name: 'BR-RTR-01', site: { id: 41, name: 'Branch' },
+  device_type: { id: 10 }, role: { id: 20 },
 };
 
 before(async () => {
@@ -109,6 +143,12 @@ before(async () => {
       }
       const rows = NB[p];
       return res.end(JSON.stringify({ count: rows.length + unassignedIps, next: null, results: rows }));
+    }
+    // Gli apparati chiesti PER ID: è così che si risolve la sede di un capo di
+    // tunnel, e solo lì compare quello dell'altro sito (vedi DEVICE_ALTRO_SITO).
+    if (p === '/api/dcim/devices/' && url.searchParams.has('id')) {
+      const rows = [...NB[p], DEVICE_ALTRO_SITO];
+      return res.end(JSON.stringify({ count: rows.length, next: null, results: rows }));
     }
     if (NB[p]) return res.end(JSON.stringify({ count: NB[p].length, next: null, results: NB[p] }));
     res.end(JSON.stringify({ count: 0, next: null, results: [] }));
@@ -469,6 +509,32 @@ test('POST /wan → gli uplink del sito, e SOLO quelli', async () => {
   // non conosce: la cintura ha dovuto togliere una riga, e lo dice.
   assert.ok(j.notes.some(n => n.code === 'wan.outOfScope' && n.n === 1));
   assert.ok(!/token|SEG-RE-TO/i.test(JSON.stringify(j)), 'nessun segreto nella risposta');
+});
+
+test('POST /wan → anche i SERVIZI L2 e i TUNNEL, che nei circuiti non ci sono', async () => {
+  const r = await fetch(`${base}${P}/wan`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ siteIds: [40] }),
+  });
+  const j = await r.json();
+  const vpls = j.links.find(l => l.name === 'VPLS-HQ-BR');
+  const ipsec = j.links.find(l => l.name === 'IPSEC-HQ-BR');
+  assert.ok(vpls && ipsec, 'il VPLS e il tunnel devono arrivare entrambi');
+
+  // Il vocabolario di NetBox qui è CHIUSO: `vpls` e `ipsec-tunnel` si traducono,
+  // non si indovinano (a differenza del tipo di un circuito, che è testo libero).
+  assert.equal(vpls.kind, 'vpls');
+  assert.equal(ipsec.kind, 'ipsec');
+  assert.deepEqual([vpls.aNetboxSiteName, vpls.bNetboxSiteName].sort(), ['Branch', 'HQ']);
+  assert.deepEqual([ipsec.aDeviceName, ipsec.bDeviceName].sort(), ['BR-RTR-01', 'SW-CORE-01']);
+
+  // I ruoli dicono la forma; e gli indirizzi esterni si INCROCIANO.
+  assert.equal(ipsec.topology, 'hub-and-spoke');
+  const hq = ipsec.aNetboxSiteName === 'HQ' ? 'a' : 'b';
+  assert.equal(ipsec[hq + 'PeerIp'], '198.51.100.9', 'il peer di HQ è l\'indirizzo della filiale');
+
+  // L'identificativo non ha un campo, e lo si dice invece di infilarlo altrove.
+  assert.ok(j.notes.some(n => n.code === 'vpn.identifierNoField' && n.id === '1001'));
 });
 
 test('POST /wan senza ambito → 400 (non si legge tutto NetBox per sbaglio)', async () => {

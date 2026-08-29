@@ -1819,3 +1819,47 @@ test('origine: nessun indirizzo dell\'istanza finisce nel documento', () => {
   assert.equal(/https?:\/\//.test(dump), false);
   assert.deepEqual(Object.keys(state.source.dcim).sort(), ['sites', 'system']);
 });
+
+test('lo STESSO CIDR dichiarato due volte in NetBox diventa UNA riga, e si dice', () => {
+  // In NetBox lo stesso prefisso può stare in due VRF, o esserci una volta legato
+  // a una VLAN e una volta no: là sono reti diverse. Qui una rete È il suo CIDR,
+  // e spingerne due dentro produceva un documento che contraddice il proprio
+  // modello — due righe a schermo con UNA identità, che il bottone «togli»
+  // cancellava insieme.
+  const { state, report } = map.netboxToState({
+    devices: [], prefixes: [
+      { id: 1, prefix: '10.10.20.0/24', vlan: { vid: 20 } },
+      { id: 2, prefix: '10.10.20.0/24', vlan: null, vrf: { id: 9, name: 'CLIENTI' }, description: 'in VRF' },
+      { id: 3, prefix: '10.10.30.0/24', vlan: { vid: 30 } },
+    ],
+  });
+  const righe = state.ipam.prefixes.map(p => p.cidr);
+  assert.deepEqual(righe, ['10.10.20.0/24', '10.10.30.0/24']);
+  const dup = state.ipam.prefixes.find(p => p.cidr === '10.10.20.0/24');
+  assert.equal(dup.vlan, 20, 'vince la riga che porta la VLAN');
+  const iss = report.issues.find(i => i.code === 'prefix.collapsed');
+  assert.ok(iss, 'la fusione si DICHIARA, come il collasso delle VLAN');
+  assert.equal(iss.declared, 3);
+  assert.equal(iss.kept, 2);
+});
+
+test('senza doppioni non si dichiara nessuna fusione', () => {
+  const { report } = map.netboxToState({
+    devices: [], prefixes: [{ id: 1, prefix: '10.0.0.0/24' }, { id: 2, prefix: '10.0.1.0/24' }],
+  });
+  assert.equal(report.issues.some(i => i.code === 'prefix.collapsed'), false);
+});
+
+test('la fusione non dipende dall\'ORDINE in cui NetBox risponde', () => {
+  // ⚠️ Il difetto vero: la descrizione della riga senza VLAN veniva tenuta solo
+  // se quella riga arrivava per PRIMA. Sull'archivio vero arriva per seconda, e
+  // spariva. Le due direzioni devono dare la stessa riga.
+  const A = { id: 1, prefix: '10.10.20.0/24', vlan: { vid: 20 } };
+  const B = { id: 2, prefix: '10.10.20.0/24', vlan: null, vrf: { id: 9 }, description: 'in VRF' };
+  for (const righe of [[A, B], [B, A]]) {
+    const { state } = map.netboxToState({ devices: [], prefixes: righe });
+    const r = state.ipam.prefixes.find(p => p.cidr === '10.10.20.0/24');
+    assert.equal(r.vlan, 20, 'la VLAN si tiene da qualunque parte arrivi');
+    assert.equal(r.description, 'in VRF', 'e anche la descrizione dell\'altra riga');
+  }
+});

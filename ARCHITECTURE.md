@@ -260,6 +260,18 @@ lib/                   Shared browser + test modules (the heart of the app)
                     termination shapes (≤4.1 `site`/`provider_network`, 4.2+ `termination_type`)
                     and re-checks the scope row by row, because NetBox ignores an unknown
                     query filter and answers with the whole archive.
+  dcim-vpn.js       NetBox's `vpn/` app (L2VPN + tunnels) → INTER-SITE LINKS. Pure, and the
+                    twin of dcim-wan.js: circuits say what a site buys, these say what
+                    binds it to the others. Here the kind IS translated — `l2vpn.type` and
+                    `tunnel.encapsulation` are CLOSED NetBox vocabularies (vpls→vpls,
+                    ipsec-*→ipsec), unlike a circuit type, which is free text of the
+                    instance; anything with no counterpart enters as `other` with NetBox's
+                    label. ⚠️ `outside_ip` and `peerIp` CROSS: the peer of A is B's outside
+                    address. Roles hub/spoke give the topology, two peers give nothing
+                    ("mesh" is a claim about the whole set). Multipoint is refused with the
+                    reason rather than split into pairs. Where an end lives is injected
+                    (`siteOf`), so the module stays pure. ⚠️ NetBox accepts `?site_id=` here
+                    and IGNORES it (measured on 4.6.7): the belt is the only real scoping.
   subbar-stats.js   computeSubbarStats → sub-header numbers: doc completeness
                     (withIp/addressable), device count (rooms excluded), SNMP health
                     (ok/err/warn/none) — same field defs as api-shape/app-drift  (pure)

@@ -395,7 +395,7 @@ function _addLink() {
   if (ss.length < 2) { showAlert(t('org.needTwoSites')); return; }
   _links().push({
     id: uid('isl'), aSiteId: ss[0].id, bSiteId: ss[1].id, kind: 'ipsec',
-    topology: null, state: null, reach: null, provider: null, circuitId: null,
+    topology: null, state: null, reach: null, provider: null, circuitId: null, name: null,
     endpointA: { deviceRef: null, peerIp: null }, endpointB: { deviceRef: null, peerIp: null },
     phase1Name: null, ikeVersion: null,
   });
@@ -439,6 +439,13 @@ const _wanKey = (provider, circuitId) => JSON.stringify([
   String(circuitId == null ? '' : circuitId).trim().toLowerCase(),
   String(provider == null ? '' : provider).trim().toLowerCase(),
 ]);
+
+/** L'identità di un COLLEGAMENTO, per non iscriverlo due volte. È fatta di ciò
+ *  che di lui resta scritto: un candidato dai `circuits` porta il codice, uno da
+ *  `vpn/` porta il nome. ⚠️ Non basta la coppia di sedi: due sedi possono essere
+ *  legate da un MPLS e da un IPsec di scorta, ed è il caso normale. */
+const _linkKey = (name, provider, circuitId, kindLabel) => JSON.stringify(
+  [name, circuitId, provider, kindLabel].map(x => String(x == null ? '' : x).trim().toLowerCase()));
 
 /**
  * `id del sito NetBox → id della sede InfraNet`, letto dai progetti già in cache.
@@ -549,19 +556,27 @@ function _mergeWan(site, j) {
       continue;
     }
     if (a === b) { notes.push({ code: 'wan.samePairSite', circuitId: c.circuitId }); continue; }
-    const dup = _links().some(l => _wanKey(l.provider, l.circuitId) === _wanKey(c.provider, c.circuitId)
+    // L'identità di un collegamento importato è ciò che di lui viene SCRITTO: il
+    // nome, il codice del circuito e l'operatore. Un candidato che non porta
+    // niente di distinguibile (capita ai `circuits`, che non hanno un nome) si
+    // riconosce comunque dal codice, che in NetBox è obbligatorio.
+    const chiave = _linkKey(c.name, c.provider, c.circuitId, c.kindLabel);
+    const dup = _links().some(l => _linkKey(l.name, l.provider, l.circuitId, l.kindLabel) === chiave
       && ((l.aSiteId === a && l.bSiteId === b) || (l.aSiteId === b && l.bSiteId === a)));
     if (dup) { alreadyLinks++; continue; }
+    // La natura la porta il candidato: dai `circuits` è sempre `other` (il tipo
+    // è testo libero dell'istanza), da `vpn/` è quella vera, perché là il
+    // vocabolario di NetBox è chiuso quanto il nostro.
+    const kind = INTER_SITE_KINDS.indexOf(c.kind) >= 0 ? c.kind : 'other';
     const row = {
       id: uid('isl'), aSiteId: a, bSiteId: b,
-      // ⑤ di `lib/dcim-wan.js`: la natura NON si deduce dal nome del tipo di
-      // circuito, che è testo libero dell'istanza. `other` porta quelle parole
-      // e la tendina resta a chi sa.
-      kind: 'other', kindLabel: c.kindLabel || null,
-      topology: null, state: null, reach: null,
+      kind, kindLabel: kind === 'other' ? (c.kindLabel || null) : null,
+      name: c.name || null,
+      topology: INTER_SITE_TOPOLOGIES.indexOf(c.topology) >= 0 ? c.topology : null,
+      state: null, reach: null,
       provider: c.provider || null, circuitId: c.circuitId || null,
-      endpointA: { deviceRef: null, deviceName: null, peerIp: null },
-      endpointB: { deviceRef: null, deviceName: null, peerIp: null },
+      endpointA: { deviceRef: null, deviceName: null, peerIp: c.aPeerIp || null },
+      endpointB: { deviceRef: null, deviceName: null, peerIp: c.bPeerIp || null },
     };
     // Il nome dell'apparato diventa un RIFERIMENTO solo se combacia con uno solo
     // del progetto di quella sede: la regola è già scritta lì, e qui si chiama.
@@ -1097,7 +1112,18 @@ function _renderSites() {
 function _wanNoteText(n) {
   const code = String((n && n.code) || '');
   if (!code) return '';
-  const key = 'org.wanNote.' + code.replace(/^wan\./, '');
+  // ⚠️ Due famiglie, due prefissi. `wan.truncated` e `vpn.truncated` sono due
+  // frasi diverse (una parla di circuiti, l'altra di tunnel): appiattirle sullo
+  // stesso spazio di chiavi ne farebbe sparire una — e a schermo comparirebbe la
+  // frase sbagliata, che è peggio di nessuna frase.
+  // ⚠️ I due prefissi si scrivono PER ESTESO: il cricchetto delle traduzioni
+  // legge le chiavi dal sorgente, e un `'org.' + famiglia + 'Note.'` composto a
+  // runtime gli è invisibile — le venti frasi qui sotto risulterebbero senza
+  // nessuno che le chiede, e verrebbero tolte come morte.
+  const PREFISSO = { wan: 'org.wanNote.', vpn: 'org.vpnNote.' };
+  const m = /^(wan|vpn)\.(.+)$/.exec(code);
+  if (!m || !PREFISSO[m[1]]) return '';
+  const key = PREFISSO[m[1]] + m[2];
   const s = t(key);
   if (!s || s === key) return '';        // codice che non conosciamo: si tace, non si stampa una chiave
   return s
@@ -1105,8 +1131,12 @@ function _wanNoteText(n) {
     .replace('{circuitId}', String(n.circuitId || '—'))
     .replace('{site}', String(n.site || '—'))
     .replace('{type}', String(n.type || '—'))
+    .replace('{name}', String(n.name || '—'))
+    .replace('{id}', String(n.id || '—'))
+    .replace('{error}', String(n.error || '—'))
     .replace('{clouds}', ((n.clouds || []).join(', ')))
-    .replace('{rows}', (n.rows || []).map(r => String(r.circuitId || '—') + ' (' + String(r.status || '') + ')').join(', '));
+    .replace('{sites}', ((n.sites || []).join(', ')))
+    .replace('{rows}', (n.rows || []).map(r => String(r.circuitId || r.name || '—') + ' (' + String(r.status || '') + ')').join(', '));
 }
 
 function _renderWanReport() {
@@ -1187,7 +1217,7 @@ function _renderLinks() {
     return `<article class="org-row">
       <header class="org-row-head">
         <i class="fas ${escapeHTML(KIND_ICON[l.kind] || 'fa-link')}"></i>
-        <span class="org-row-title org-row-static">${escapeHTML(_siteName(l.aSiteId) || '?')} ↔ ${escapeHTML(_siteName(l.bSiteId) || '?')}
+        <span class="org-row-title org-row-static">${escapeHTML(_siteName(l.aSiteId) || '?')} ↔ ${escapeHTML(_siteName(l.bSiteId) || '?')}${l.name ? ' · ' + escapeHTML(l.name) : ''}
           <span class="org-row-kind">${escapeHTML(_kindText(l))}</span></span>
         ${ro ? '' : `<button class="um-btn danger org-del" data-act="org-del-link" data-idx="${i}" title="${escapeHTML(t('org.removeLink'))}"><i class="fas fa-trash"></i></button>`}
       </header>
@@ -1208,6 +1238,9 @@ function _renderLinks() {
         <label class="org-f"><span>${escapeHTML(t('org.linkState'))} ${_originBadge(l.state)}</span>
           <select ${ro ? 'disabled' : ''} data-change="org-field" data-scope="link" data-idx="${i}" data-field="state">
             ${_opt('', '— ' + t('org.stateUnspoken'), _fv(l.state))}${INTER_SITE_STATES.map(s => _opt(s, t('org.state' + (s === 'up' ? 'Up' : 'Down')), _fv(l.state))).join('')}</select></label>
+        <label class="org-f"><span>${escapeHTML(t('org.linkName'))}</span>
+          <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(l.name || '')}" placeholder="${escapeHTML(t('org.linkNamePh'))}"
+                 data-input="org-field" data-scope="link" data-idx="${i}" data-field="name"></label>
         <label class="org-f"><span>${escapeHTML(t('org.provider'))}</span>
           <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(l.provider || '')}" placeholder="${escapeHTML(t('org.providerPh'))}"
                  data-input="org-field" data-scope="link" data-idx="${i}" data-field="provider"></label>

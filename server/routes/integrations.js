@@ -24,6 +24,7 @@ const { DcimClient } = require('../dcim/client');
 const { createPullCache } = require('../dcim/pull-cache');
 const dcimMap = require('../../lib/dcim-map');
 const dcimWan = require('../../lib/dcim-wan');
+const dcimVpn = require('../../lib/dcim-vpn');
 const deviceCatalog = require('../../lib/device-catalog');
 const { nextId, saveProject, loadProject } = require('../projects-store');
 const dcimDiff = require('../../lib/dcim-diff');
@@ -773,15 +774,75 @@ router.post('/api/integrations/dcim/wan', auth.requireAdmin, async (req, res) =>
     truncated: !!(circuits.truncated || terminations.truncated),
   }, { siteIds });
 
+  // I SERVIZI L2 e i TUNNEL: i circuiti dicono che cosa una sede compra, questi
+  // dicono che cosa la LEGA alle altre. Vivono in un'applicazione a parte
+  // (`vpn/`), e un NetBox che non ce l'ha non deve far fallire la lettura dei
+  // circuiti — che è la metà che quasi tutti hanno.
+  let vpn;
+  try { vpn = await _pullVpnLinks(client, siteIds); }
+  catch (e) { vpn = { links: [], notes: [{ code: 'vpn.unreadable', error: String((e && e.message) || e).slice(0, 200) }] }; }
+
   res.json({
     ok: true,
     fetchedAt: new Date().toISOString(),
     uplinks: out.uplinks,
-    links: out.links,
+    links: out.links.concat(vpn.links),
     // Il filtro non ha retto (versione che non lo conosce, o sito sparito): si
     // dice, invece di far credere che la lettura fosse mirata.
-    notes: circuits.fallback ? out.notes.concat([{ code: 'wan.scopeFilterFailed' }]) : out.notes,
+    notes: (circuits.fallback ? out.notes.concat([{ code: 'wan.scopeFilterFailed' }]) : out.notes).concat(vpn.notes),
   });
 });
+
+// I collegamenti fra sedi che NetBox tiene in `vpn/`: servizi L2VPN e tunnel.
+//
+// ⚠️ Un capo dice su quale INTERFACCIA sta, non in quale sede: il sito si
+// risolve risalendo all'apparato (o alla VM, o alla VLAN) con una lettura in
+// più. È l'unica cosa che il modulo puro non può fare da sé, e infatti la
+// riceve come funzione.
+// ⚠️ **Il filtro per sito qui NON tiene, e non è un sospetto: è misurato.** Su
+// NetBox 4.6.7 `/api/vpn/l2vpns/?site_id=30` e la stessa chiamata senza filtro
+// tornano lo STESSO elenco. Il parametro viene accettato e ignorato — non è un
+// 400, non è una lista ridotta: è tutto l'archivio. Si manda lo stesso (una
+// versione futura potrebbe onorarlo, e allora si legge di meno), ma ciò che
+// scopa davvero è la CINTURA del mapper, che ricontrolla riga per riga.
+async function _pullVpnLinks(client, siteIds) {
+  const [l2, tun] = await Promise.all([
+    _paginatedWithFallback(client, '/api/vpn/l2vpns/', { site_id: siteIds }, { cap: 5000 }),
+    _paginatedWithFallback(client, '/api/vpn/tunnels/', { site_id: siteIds }, { cap: 5000 }),
+  ]);
+  const [tl2, ttun] = await Promise.all([
+    _batchByField(client, '/api/vpn/l2vpn-terminations/', 'l2vpn_id', (l2.results || []).map(x => x && x.id), 10000),
+    _batchByField(client, '/api/vpn/tunnel-terminations/', 'tunnel_id', (tun.results || []).map(x => x && x.id), 10000),
+  ]);
+
+  // Chi tiene i capi: apparati, VM, VLAN. Si chiedono per ID, una volta sola.
+  const capi = [...(tl2.results || []), ...(ttun.results || [])]
+    .map(t => dcimVpn._holder(t && (t.assigned_object_type || t.termination_type), t && (t.assigned_object || t.termination)))
+    .filter(h => h && h.id != null);
+  const perTipo = { device: [], vm: [], vlan: [] };
+  for (const h of capi) if (perTipo[h.kind]) perTipo[h.kind].push(h.id);
+
+  const [dev, vm, vlan] = await Promise.all([
+    perTipo.device.length ? _batchByField(client, '/api/dcim/devices/', 'id', perTipo.device) : Promise.resolve({ results: [] }),
+    perTipo.vm.length ? _batchByField(client, '/api/virtualization/virtual-machines/', 'id', perTipo.vm) : Promise.resolve({ results: [] }),
+    perTipo.vlan.length ? _batchByField(client, '/api/ipam/vlans/', 'id', perTipo.vlan) : Promise.resolve({ results: [] }),
+  ]);
+  const sito = { device: Object.create(null), vm: Object.create(null), vlan: Object.create(null) };
+  const _sito = o => (o && o.site && o.site.id != null) ? { id: o.site.id, name: o.site.name || null } : null;
+  for (const d of (dev.results || [])) if (d && d.id != null) sito.device[String(d.id)] = _sito(d);
+  for (const v of (vm.results || [])) if (v && v.id != null) sito.vm[String(v.id)] = _sito(v);
+  for (const v of (vlan.results || [])) if (v && v.id != null) sito.vlan[String(v.id)] = _sito(v);
+
+  const out = dcimVpn.vpnToLinks({
+    l2vpns: l2.results, l2vpnTerminations: tl2.results,
+    tunnels: tun.results, tunnelTerminations: ttun.results,
+    truncated: !!(l2.truncated || tun.truncated || tl2.truncated || ttun.truncated),
+  }, {
+    siteIds,
+    siteOf: (h) => (h && sito[h.kind] ? sito[h.kind][String(h.id)] || null : null),
+  });
+  if (l2.fallback || tun.fallback) out.notes.push({ code: 'vpn.scopeFilterFailed' });
+  return out;
+}
 
 module.exports = router;
