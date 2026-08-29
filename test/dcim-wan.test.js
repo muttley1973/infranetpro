@@ -258,3 +258,82 @@ test('la mappatura non muta il bundle che le è stato dato', () => {
   circuitsToWan(nb, { siteIds: [2] });
   assert.equal(JSON.stringify(nb), prima);
 });
+
+// ── ⑱ quando lo slug del tipo È già una natura ─────────────────────────────
+// Il tipo di un circuito è testo libero dell'istanza, quindi la natura non si
+// deduce dal nome. Ma se lo slug È una delle nostre nature non si deduce
+// niente: è identità. Tutto il resto resta «altro» con l'etichetta.
+
+/** Due sedi vere ai capi: è la forma che produce un COLLEGAMENTO, non un uplink. */
+const fraSedi = (o) => circuito(Object.assign({
+  termination_a: termSite(30, 'Verona'),
+  termination_z: termSite(31, 'Trento'),
+}, o || {}));
+const tipo = (name, slug) => fraSedi({ type: slug ? { id: 9, name, slug } : { id: 9, name } });
+
+test('⑱ slug che È una natura: quella natura, e l\'etichetta sparisce', () => {
+  const r = circuitsToWan({ circuits: [tipo('MPLS', 'mpls')] }, { siteIds: [30, 31] });
+  assert.equal(r.links[0].kind, 'mpls');
+  assert.equal(r.links[0].kindLabel, null,
+    'con una natura vera l\'etichetta sarebbe la stessa cosa detta due volte');
+});
+
+test('⑱ si confronta il TERMINE, non l\'ortografia dello slug', () => {
+  // Lo slug lo costruisce NetBox: da «SD-WAN» tira fuori sd-wan, che è la
+  // stessa parola con la punteggiatura del suo generatore.
+  assert.equal(circuitsToWan({ circuits: [tipo('SD-WAN', 'sd-wan')] }, { siteIds: [30, 31] }).links[0].kind, 'sdwan');
+  assert.equal(circuitsToWan({ circuits: [tipo('Direct link', 'direct-link')] }, { siteIds: [30, 31] }).links[0].kind, 'directLink');
+});
+
+test('⑱ tutto il resto resta «altro», con il nome del tipo per etichetta', () => {
+  for (const [nome, slug] of [['Dark Fiber', 'dark-fiber'], ['Internet Access', 'internet'], ['Fibra spenta', 'fibra-spenta']]) {
+    const l = circuitsToWan({ circuits: [tipo(nome, slug)] }, { siteIds: [30, 31] }).links[0];
+    assert.equal(l.kind, 'other', slug + ' non è una nostra natura: avvicinarlo alla più somigliante sarebbe dire una cosa per un\'altra');
+    assert.equal(l.kindLabel, nome);
+  }
+});
+
+test('⭐ ⑱ senza slug NON si giudica dal nome (o funzionerebbe solo in inglese)', () => {
+  // È il paletto vendor-neutral in una riga: il nome dice «MPLS», e non basta.
+  const l = circuitsToWan({ circuits: [tipo('MPLS')] }, { siteIds: [30, 31] }).links[0];
+  assert.equal(l.kind, 'other');
+  assert.equal(l.kindLabel, 'MPLS');
+});
+
+test('⑱ uno slug «other» non è una dichiarazione: resta indistinguibile dal niente', () => {
+  const l = circuitsToWan({ circuits: [tipo('Altro', 'other')] }, { siteIds: [30, 31] }).links[0];
+  assert.equal(l.kind, 'other');
+  assert.equal(l.kindLabel, 'Altro');
+});
+
+test('⭐ ⑱ il vocabolario è QUELLO vero, non una copia che diverge', () => {
+  const { INTER_SITE_KINDS } = require('../lib/inter-site.js');
+  const { KIND_TOKEN } = require('../lib/dcim-wan.js');
+  const attese = INTER_SITE_KINDS.filter(k => k !== 'other');
+  assert.deepEqual(Object.values(KIND_TOKEN).sort(), attese.slice().sort(),
+    'ogni natura del modello dev\'essere riconoscibile per identità, e nessuna in più');
+  assert.ok(!Object.values(KIND_TOKEN).includes('other'));
+});
+
+test('⑱ il censimento dice quali tipi ha incontrato, quanti e in che natura sono entrati', () => {
+  const r = circuitsToWan({
+    circuits: [
+      tipo('MPLS', 'mpls'),
+      Object.assign(tipo('MPLS', 'mpls'), { id: 2, cid: 'B' }),
+      Object.assign(tipo('Dark Fiber', 'dark-fiber'), { id: 3, cid: 'C' }),
+    ],
+  }, { siteIds: [30, 31] });
+  assert.deepEqual(r.types, [
+    { slug: 'dark-fiber', name: 'Dark Fiber', n: 1, kind: 'other' },
+    { slug: 'mpls', name: 'MPLS', n: 2, kind: 'mpls' },
+  ]);
+});
+
+test('⑱ il censimento conta anche i circuiti che diventano UPLINK', () => {
+  // Un capo solo su una sede: è una linea WAN. Il tipo lo si è incontrato lo
+  // stesso, e il verbale deve dirlo — altrimenti racconterebbe solo i rari
+  // circuiti fra due sedi.
+  const r = circuitsToWan({ circuits: [circuito({ termination_a: termSite(30, 'Verona') })] }, { siteIds: [30] });
+  assert.equal(r.uplinks.length, 1);
+  assert.deepEqual(r.types.map(x => [x.slug, x.n]), [['internet', 1]]);
+});

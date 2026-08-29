@@ -790,6 +790,9 @@ router.post('/api/integrations/dcim/wan', auth.requireAdmin, async (req, res) =>
     // Il filtro non ha retto (versione che non lo conosce, o sito sparito): si
     // dice, invece di far credere che la lettura fosse mirata.
     notes: (circuits.fallback ? out.notes.concat([{ code: 'wan.scopeFilterFailed' }]) : out.notes).concat(vpn.notes),
+    // ⑱ Che tipi di circuito si sono incontrati e in che natura sono entrati:
+    // il verbale di una decisione che il software prende da sé.
+    types: out.types,
   });
 });
 

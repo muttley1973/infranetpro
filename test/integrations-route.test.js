@@ -60,13 +60,13 @@ const NB = {
   // la seconda è anche la prova che la cintura d'ambito morde davvero.
   '/api/circuits/circuits/': [
     {
-      id: 900, cid: 'FTTH-1', provider: { id: 1, name: 'Fastweb' }, type: { id: 1, name: 'FTTH' },
+      id: 900, cid: 'FTTH-1', provider: { id: 1, name: 'Fastweb' }, type: { id: 1, name: 'FTTH', slug: 'ftth' },
       status: { value: 'active', label: 'Active' }, commit_rate: 30000,
       termination_a: null,
       termination_z: { termination_type: 'dcim.site', termination_id: 40, termination: { id: 40, name: 'HQ' } },
     },
     {
-      id: 901, cid: 'DI-UN-ALTRO', provider: { id: 2, name: 'TIM' }, type: { id: 2, name: 'MPLS' },
+      id: 901, cid: 'DI-UN-ALTRO', provider: { id: 2, name: 'TIM' }, type: { id: 2, name: 'MPLS', slug: 'mpls' },
       status: { value: 'active', label: 'Active' }, commit_rate: null,
       termination_a: null,
       termination_z: { termination_type: 'dcim.site', termination_id: 41, termination: { id: 41, name: 'Filiale' } },
@@ -553,4 +553,20 @@ test('POST /wan come non-admin → 403', async () => {
   });
   assert.equal(r.status, 403);
   role = 'admin';
+});
+
+// ⑱ La regola d'identità non vive solo nel modulo puro: deve arrivare fino
+// all'esito che la rotta consegna. Il finto NetBox serve un tipo con slug
+// `mpls`, ed è quello che il verbale deve raccontare.
+test('POST /wan → il censimento dei tipi, con la natura decisa per identità', async () => {
+  const r = await fetch(`${base}${P}/wan`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ siteIds: [40, 41] }),
+  });
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  const mpls = j.types.find(x => x.slug === 'mpls');
+  assert.equal(mpls.kind, 'mpls', 'lo slug È la natura: nessuna configurazione di mezzo');
+  const ftth = j.types.find(x => x.slug === 'ftth');
+  assert.equal(ftth.kind, 'other', 'FTTH non è una nostra natura, e non ci si avvicina');
 });
