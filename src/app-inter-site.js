@@ -1102,7 +1102,7 @@ function _fieldsOfKind(l, i) {
       return F('media', t('org.media'), l.media, t('org.mediaPh'));
     case 'other':
       // ⑨ Il campo che rende `other` diverso da un buco — le parole di chi
-      // documenta — NON sta qui: sta attaccato alla tendina «Natura», in
+      // documenta — NON sta qui: sta attaccato alla tendina «Tecnologia», in
       // `_renderLinks`. Gli altri `kind` portano PROPRIETÀ del collegamento
       // (il VRF, l'overlay, il mezzo); questo invece COMPLETA la natura stessa,
       // ed è la risposta alla stessa domanda della tendina, scritta a parole.
