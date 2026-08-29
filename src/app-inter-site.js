@@ -39,7 +39,7 @@ import { t } from './_bridge.js';
 import { escapeHTML, uid } from './app-util.js';
 import { store } from './store.js';
 import { showAlert, showConfirm, switchProject } from './app-core.js';
-import { registerClickActions, registerChangeActions, registerInputActions } from './app-delegation.js';
+import { registerClickActions, registerChangeActions, registerInputActions, registerKeydownActions, dispatchClick } from './app-delegation.js';
 import { buildInterSiteLayout, interSiteEdgePath } from '../lib/inter-site-layout.js';
 import { SITE_ROLES, INTER_SITE_KINDS, INTER_SITE_TOPOLOGIES, INTER_SITE_STATES } from '../lib/inter-site.js';
 import { factDeclared, factOrigin, factValue, isFact } from '../lib/provenance.js';
@@ -93,6 +93,14 @@ const _st = {
   saving: false,
   loading: false,
   loadErr: '',
+  /** ⑭ Il collegamento a cui la mappa ha appena mandato: la riga da portare
+   *  sotto gli occhi al prossimo disegno. `null` = nessuno. */
+  /** @type {string|null} */ focusLink: null,
+  /** ⚠️ Vero mentre i progetti-sede stanno arrivando. Serve SOLO a `focusLink`:
+   *  quando arrivano si ridisegna, l'HTML della riga viene rifatto da capo e
+   *  con esso se ne va lo scorrimento. Finché è vero, la richiesta di messa a
+   *  fuoco non si consuma — o il salto durerebbe un decimo di secondo. */
+  warming: false,
 };
 
 function _el(id) { return document.getElementById(id); }
@@ -208,7 +216,9 @@ async function _fetchProject(ref) {
 async function _warmProjects(refs) {
   const mancanti = [...new Set(refs.filter(Boolean).map(String))].filter(k => !_st.projectData.has(k));
   if (!mancanti.length) return;
-  await Promise.all(mancanti.map(_fetchProject));
+  _st.warming = true;
+  try { await Promise.all(mancanti.map(_fetchProject)); }
+  finally { _st.warming = false; }
   _render();
 }
 
@@ -843,12 +853,22 @@ function _renderMap(m) {
     const lw = (m && m.labels && m.labels[e.linkId]) || 0;
     const chip = lw ? `<rect class="org-edge-badge" x="${_n(e.mx - lw / 2 - BADGE.padX)}" y="${_n(e.my - BADGE.h / 2)}"
         width="${_n(lw + BADGE.padX * 2)}" height="${_n(BADGE.h)}" rx="${_n(BADGE.r)}"/>` : '';
+    // ⑭ La pastiglia è un BOTTONE, e porta alla riga di QUEL collegamento.
+    // La domanda che si fa guardando la mappa — «questo qui che cos'è?» — aveva
+    // come risposta tre passaggi: cambia scheda, scorri, riconosci la riga fra
+    // le altre dai due nomi. Che è di nuovo il problema da cui si era partiti.
+    // ⚠️ Cliccabile è la pastiglia, NON l'arco. Il filo è spesso due pixel e
+    // prenderlo col mouse è un tiro; e un arco sensibile per tutta la sua
+    // lunghezza ruba il clic destinato alla sede che ci passa vicino.
     return `<g class="org-edge ${escapeHTML(st.cls)}">
       <title>${escapeHTML(_siteName(e.aSiteId) + ' ↔ ' + _siteName(e.bSiteId) + ' · ' + st.title)}</title>
       <path d="${interSiteEdgePath(e)}" class="org-edge-line"/>
-      ${chip}
-      <text x="${Number(e.mx)}" y="${Number(e.my)}" data-link="${escapeHTML(String(e.linkId))}"
-            class="org-edge-label" text-anchor="middle" dominant-baseline="central">${escapeHTML(label)}</text>
+      <g class="org-edge-chip" data-act="org-link" data-keydown="org-activate" data-link="${escapeHTML(String(e.linkId))}"
+         tabindex="0" role="button" aria-label="${escapeHTML(t('org.editLink').replace('{link}', _linkName(e.linkId, l && l.kind)))}">
+        ${chip}
+        <text x="${Number(e.mx)}" y="${Number(e.my)}" data-link="${escapeHTML(String(e.linkId))}"
+              class="org-edge-label" text-anchor="middle" dominant-baseline="central">${escapeHTML(label)}</text>
+      </g>
     </g>`;
   }).join('');
 
@@ -862,7 +882,7 @@ function _renderMap(m) {
       y += (i === 0 ? BOX.nameH : BOX.lineH);
       return el;
     }).join('');
-    return `<g class="org-node ${linked ? 'is-linked' : 'is-unlinked'}" data-act="org-node" data-site="${escapeHTML(n.siteId)}" data-boxh="${Number(_boxHeight(righe))}" tabindex="0" role="button">
+    return `<g class="org-node ${linked ? 'is-linked' : 'is-unlinked'}" data-act="org-node" data-keydown="org-activate" data-site="${escapeHTML(n.siteId)}" data-boxh="${Number(_boxHeight(righe))}" tabindex="0" role="button">
       <title>${escapeHTML(n.name + ' · ' + t('org.role.' + n.role) + (linked ? '' : ' · ' + t('org.noProject')))}</title>
       <rect x="${Number(n.x - n.w / 2)}" y="${Number(n.y - n.h / 2)}" width="${Number(n.w)}" height="${Number(n.h)}" rx="10" class="org-node-box"/>
       ${n.role === 'hub' ? `<text x="${Number(n.x + n.w / 2 - BOX.padX)}" y="${Number(n.y - n.h / 2 + BOX.padY + 13)}" class="org-node-icon" text-anchor="end">★</text>` : ''}
@@ -881,7 +901,11 @@ function _renderMap(m) {
     <svg class="org-map" viewBox="0 0 ${Number(L.width)} ${Number(L.height)}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${escapeHTML(t('org.mapAria'))}">
       ${edges}${nodes}
     </svg>
-    <p class="org-map-hint">${escapeHTML(L.layout === 'hub' ? t('org.layoutHub') : t('org.layoutRing'))} · ${escapeHTML(t('org.clickSite'))}</p>
+    <p class="org-map-hint">${escapeHTML(L.layout === 'hub' ? t('org.layoutHub') : t('org.layoutRing'))} · ${escapeHTML(t('org.clickSite'))}${
+      // Un'istruzione per una mossa che a schermo non c'è è un'istruzione che
+      // fa cercare qualcosa di inesistente: la pastiglia si nomina solo se
+      // almeno un arco è disegnato.
+      L.edges.length ? ' · ' + escapeHTML(t('org.clickLink')) : ''}</p>
     ${warn}
   </div>`;
 }
@@ -1248,7 +1272,7 @@ function _renderLinks() {
     const reach = isFact(l.reach) ? factValue(l.reach) : { a: [], b: [] };
     const a = (reach && reach.a) || [], b = (reach && reach.b) || [];
     const badA = _badNets(a), badB = _badNets(b);
-    return `<article class="org-row">
+    return `<article class="org-row" data-link="${escapeHTML(String(l.id))}">
       <header class="org-row-head">
         <i class="fas ${escapeHTML(KIND_ICON[l.kind] || 'fa-link')}"></i>
         <span class="org-row-title org-row-static">${escapeHTML(_siteName(l.aSiteId) || '?')} ↔ ${escapeHTML(_siteName(l.bSiteId) || '?')}${l.name ? ' · ' + escapeHTML(l.name) : ''}
@@ -1546,7 +1570,33 @@ function _render() {
   // Il ritaglio si fa DOPO che l'SVG è nel documento: prima non c'è niente da
   // misurare, e `getBBox()` risponderebbe zero.
   _fitMapViewBox(body.querySelector('svg.org-map'));
+  _applyFocusLink(body);
   _renderFooter();
+}
+
+/**
+ * ⑭ Porta sotto gli occhi la riga del collegamento che la mappa ha indicato.
+ *
+ * Non basta cambiare scheda: in un elenco di dodici collegamenti la riga
+ * cercata è una delle dodici, e ritrovarla a occhio è la fatica che il clic
+ * doveva togliere.
+ *
+ * ⚠️ La richiesta si consuma solo quando NON si sta aspettando un progetto.
+ * Quando i progetti arrivano si ridisegna: l'HTML della riga viene rifatto e
+ * lo scorrimento torna in cima. Tenendo la richiesta, il secondo disegno la
+ * riporta dov'era — altrimenti il salto durerebbe il tempo di una fetch.
+ *
+ * ⚠️ Nessun selettore costruito con l'id dentro: un id arriva anche da un
+ * documento importato, e infilarlo in una stringa di selettore è un'iniezione
+ * che aspetta. Si confrontano i dataset, che è anche più corto.
+ */
+function _applyFocusLink(body) {
+  if (!_st.focusLink) return;
+  const row = Array.from(body.querySelectorAll('.org-row')).find(r => r.dataset.link === _st.focusLink);
+  if (!row) return;                       // altra scheda, o riga sparita: si riproverà
+  row.scrollIntoView({ block: 'center' });
+  row.classList.add('org-row-target');    // si spegne da sé: l'animazione finisce
+  if (!_st.warming) _st.focusLink = null;
 }
 
 // Chiusura sul backdrop solo se anche la PRESSIONE era sul backdrop: una
@@ -1614,6 +1664,7 @@ registerClickActions({
   // finché non ci sono, e `_warmProjects` ridisegna una volta sola alla fine.
   'org-tab': (el) => {
     _st.tab = el.dataset.tab || 'map';
+    _st.focusLink = null;
     _render();
     if (_st.tab === 'links') {
       _warmProjects(_links()
@@ -1637,6 +1688,17 @@ registerClickActions({
     _st.dirty = true; _render();
   },
   'org-node': (el) => _openSite(el.dataset.site || ''),
+  // ⑭ Dalla mappa alla riga. Si scaldano i progetti come fa `org-tab`: le due
+  // tendine degli apparati vivono di quelli, e arrivarci dalla mappa non è un
+  // modo diverso di aprire la stessa scheda.
+  'org-link': (el) => {
+    _st.focusLink = el.dataset.link || null;
+    _st.tab = 'links';
+    _render();
+    _warmProjects(_links()
+      .flatMap(l => [l.aSiteId, l.bSiteId])
+      .map(id => (_sites().find(s => s.id === id) || {}).projectRef));
+  },
   'org-nets-from-project': (el) => { _netsFromProject(Number(el.dataset.idx)); },
   'org-wan-from-dcim': (el) => { _wanFromDcim(Number(el.dataset.idx)); },
   // L'esito resta finché non lo si congeda: è un elenco da leggere, non un
@@ -1650,6 +1712,17 @@ registerInputActions({
   // butterebbe via il cursore. La mappa vive in un'altra tab e si ricostruisce
   // quando ci si torna.
   'org-field': (el) => _setField(el),
+});
+
+// ⚠️ `role="button"` senza tastiera è un'etichetta che mente: chi naviga col
+// tabulatore arriva sull'elemento, legge «bottone» e preme invano. Il riquadro
+// della sede lo prometteva già da prima; ora tutti e due lo mantengono.
+registerKeydownActions({
+  'org-activate': (el, ev) => {
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    ev.preventDefault();   // o la barra fa scorrere il pannello sotto le dita
+    dispatchClick(el, ev);
+  },
 });
 
 registerChangeActions({

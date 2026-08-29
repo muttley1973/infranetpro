@@ -934,6 +934,17 @@
            colore del riempimento, e la pastiglia si vedeva solo perché copriva
            la linea. Un grigio del testo, scaricato, si legge in tutti e due i temi. */
         .org-edge-badge { fill:var(--panel-bg); stroke:var(--text-muted); stroke-opacity:.4; stroke-width:1; }
+        /* La pastiglia e' un bottone: porta alla riga di quel collegamento.
+           Il RIEMPIMENTO non cambia al passaggio del mouse, e non e' pigrizia:
+           l'alone del testo e' dipinto dello stesso colore del riquadro, e
+           schiarire l'uno senza l'altro disegnerebbe un contorno attorno alle
+           lettere. Si alza il contrasto del bordo e del testo, e basta. */
+        .org-edge-chip { cursor:pointer; }
+        .org-edge-chip:hover .org-edge-badge { stroke-opacity:1; }
+        .org-edge-chip:hover .org-edge-label { fill:var(--text-main); }
+        .org-edge-chip:focus { outline:none; }
+        .org-edge-chip:focus .org-edge-badge { stroke:var(--accent); stroke-opacity:1; stroke-width:2; }
+        .org-edge-chip:focus .org-edge-label { fill:var(--text-main); }
 
         /* --- Form -------------------------------------------------------- */
         .org-row { border:1px solid var(--panel-border); border-radius:var(--radius-lg); padding:10px 12px 12px; margin-bottom:12px; background:var(--surface-2); }
@@ -943,6 +954,19 @@
         .org-row-title:hover:not(:disabled) { border-color:var(--hairline); }
         .org-row-title:focus { border-color:var(--accent); outline:none; background:var(--panel-bg); }
         .org-row-static { padding:4px 6px; }
+        /* La riga a cui la mappa ha appena portato: si accende un istante e si
+           spegne da sola. Dopo il salto le righe si somigliano tutte, e senza
+           un segno tocca ricontare dall'alto per sapere dove si e' finiti. */
+        .org-row-target { animation:org-row-target 1.6s ease-out 1; }
+        @keyframes org-row-target {
+          from { box-shadow:inset 3px 0 0 var(--accent); }
+          to   { box-shadow:inset 3px 0 0 transparent; }
+        }
+        /* Chi ha chiesto meno movimento tiene il segno FERMO, non niente: era
+           un'informazione, non un'animazione. */
+        @media (prefers-reduced-motion:reduce) {
+          .org-row-target { animation:none; box-shadow:inset 3px 0 0 var(--accent); }
+        }
         .org-del { padding:4px 9px; }
         .org-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:var(--space-4) var(--space-5); }
         .org-f { display:flex; flex-direction:column; gap:3px; font-size:var(--fs-sm); color:var(--text-muted); }
