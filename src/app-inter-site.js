@@ -1336,7 +1336,7 @@ function _renderLinks() {
 // ── Coerenza (④: si RACCONTA l'audit del server, non se ne calcola un altro) ─
 
 /** Le liste dell'audit, in tre gruppi che NON si sommano fra loro. */
-const AUDIT_PROBLEMS = ['subnetsNowhere', 'subnetsAtTwoSites', 'linksToUnknownSite', 'uplinksToUnknownSite', 'spokesWithoutHub'];
+const AUDIT_PROBLEMS = ['subnetsNowhere', 'subnetsAtTwoSites', 'linksToUnknownSite', 'uplinksToUnknownSite', 'spokesWithoutHub', 'linkTopologyVsRoles'];
 const AUDIT_GAPS = ['subnetsNotCarried', 'linksWithoutReach', 'sitesWithoutLink', 'sitesWithoutUplink', 'uplinksWithoutPublicIp'];
 
 /** Una rete, in tondo monospazio: un CIDR si legge a colpo d'occhio solo se le
@@ -1383,6 +1383,7 @@ function _auditLine(key, row) {
     case 'linksToUnknownSite': return `${escapeHTML(_linkName(row.linkId, row.kind))} <span class="org-audit-at">${row.missing.map(escapeHTML).join(' · ')}</span>`;
     case 'uplinksToUnknownSite': return `${escapeHTML(_uplinkName(row.uplinkId, row.siteId))}`;
     case 'spokesWithoutHub': return S(row.siteId);
+    case 'linkTopologyVsRoles': return `${escapeHTML(_linkName(row.linkId, row.kind))} <span class="org-audit-at">${escapeHTML(t('org.bothRole').replace('{role}', t('org.role.' + row.role)))}</span>`;
     case 'subnetsNotCarried': return `${NET(row.subnet)} <span class="org-audit-at">${S(row.siteId)}</span>`;
     case 'linksWithoutReach': return escapeHTML(_linkName(row.linkId, row.kind));
     case 'sitesWithoutLink': return S(row.siteId);

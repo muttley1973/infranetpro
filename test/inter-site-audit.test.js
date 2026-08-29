@@ -17,6 +17,8 @@ const { factDeclared } = require('../lib/provenance.js');
 const reach = (a, b) => factDeclared({ a, b });
 const site = (id, role, subnets) => ({ id, name: id.toUpperCase(), role, subnets: subnets || [] });
 const ipsec = (id, a, b, r) => ({ id, aSiteId: a, bSiteId: b, kind: 'ipsec', reach: r });
+/** Lo stesso collegamento, ma che si DICHIARA hub-and-spoke. */
+const hs = (l) => Object.assign(l, { topology: 'hub-and-spoke' });
 
 // Le tre sedi da cui InfraNet è nata: Milano hub, Roma e Napoli spoke.
 const SANE = {
@@ -31,9 +33,12 @@ const SANE = {
     { id: 'u-rm', siteId: 'rm', publicIps: factDeclared(['203.0.113.2']) },
     { id: 'u-na', siteId: 'na', publicIps: factDeclared(['203.0.113.3']) },
   ],
+  // I due tunnel DICHIARANO la loro forma, e concorda con i ruoli: senza,
+  // «un modello coerente» resterebbe uno su cui un controllo non ha potuto
+  // girare — che è una terza cosa, non un modello coerente.
   links: [
-    ipsec('mi-rm', 'mi', 'rm', reach(['10.1.0.0/24', '10.3.0.0/24'], ['10.2.0.0/24'])),
-    ipsec('mi-na', 'mi', 'na', reach(['10.1.0.0/24', '10.2.0.0/24'], ['10.3.0.0/24'])),
+    hs(ipsec('mi-rm', 'mi', 'rm', reach(['10.1.0.0/24', '10.3.0.0/24'], ['10.2.0.0/24']))),
+    hs(ipsec('mi-na', 'mi', 'na', reach(['10.1.0.0/24', '10.2.0.0/24'], ['10.3.0.0/24']))),
   ],
 };
 
@@ -165,6 +170,68 @@ test('uno spoke collegato solo a un altro spoke non conta come agganciato', () =
   org.links = [ipsec('rm-na', 'rm', 'na', reach(['10.2.0.0/24'], ['10.3.0.0/24']))];
   const a = buildInterSiteAudit(org);
   assert.deepStrictEqual(a.spokesWithoutHub.map(x => x.siteId), ['rm', 'na']);
+});
+
+// ── ⑮ la topologia del collegamento contro i ruoli dei suoi capi ───────────
+// Due frasi sulla stessa cosa, scritte in due posti. Nessuna delle due, da
+// sola, sembra sbagliata: è per questo che serve un controllo.
+
+test('⑮ un hub-and-spoke fra due SPOKE: una delle due frasi è falsa', () => {
+  const org = clone(SANE);
+  org.links.push(hs(ipsec('rm-na', 'rm', 'na', reach(['10.2.0.0/24'], ['10.3.0.0/24']))));
+  const a = buildInterSiteAudit(org);
+  assert.deepStrictEqual(a.linkTopologyVsRoles, [{ linkId: 'rm-na', kind: 'ipsec', role: 'spoke' }]);
+});
+
+test('⑮ un hub-and-spoke fra due HUB: due centri non fanno un centro', () => {
+  const org = clone(SANE);
+  org.sites[2].role = 'hub';                       // na diventa il secondo datacenter
+  org.links[1] = hs(org.links[1]);                 // e mi-na si dichiara hub-and-spoke
+  const a = buildInterSiteAudit(org);
+  assert.deepStrictEqual(a.linkTopologyVsRoles.map(x => [x.linkId, x.role]), [['mi-na', 'hub']]);
+});
+
+test('⑮ un hub e uno spoke: non c-è niente da dire', () => {
+  const a = buildInterSiteAudit(SANE);   // SANE dichiara già hub-and-spoke
+  assert.deepStrictEqual(a.linkTopologyVsRoles, []);
+  assert.ok(!a.notChecked.some(n => n.check === 'linkTopologyVsRoles'),
+    'il controllo ha potuto girare: non deve dichiararsi cieco');
+});
+
+test('⑮ su una MAGLIA i ruoli non c-entrano, e non si inventa una contraddizione', () => {
+  const org = clone(SANE);
+  org.links.forEach(l => { delete l.topology; });   // nessuno si dichiara hub-and-spoke
+  org.links.push(Object.assign(ipsec('rm-na', 'rm', 'na', reach(['10.2.0.0/24'], ['10.3.0.0/24'])), { topology: 'mesh' }));
+  const a = buildInterSiteAudit(org);
+  assert.deepStrictEqual(a.linkTopologyVsRoles, []);
+  // e lo dice: nessun collegamento si dichiara hub-and-spoke, quindi è cieco
+  assert.ok(a.notChecked.some(n => n.check === 'linkTopologyVsRoles' && n.reason === 'no-topology'));
+});
+
+test('⑮ un capo `standalone` NON accusa: è anche il ripiego di un ruolo mai scritto', () => {
+  const org = clone(SANE);
+  org.sites.push(site('bz', 'standalone', ['10.4.0.0/24']));
+  org.links = [hs(ipsec('mi-bz', 'mi', 'bz', reach(['10.1.0.0/24'], ['10.4.0.0/24'])))];
+  const a = buildInterSiteAudit(org);
+  assert.deepStrictEqual(a.linkTopologyVsRoles, []);
+  assert.ok(a.notChecked.some(n => n.check === 'linkTopologyVsRoles' && n.reason === 'no-roles'),
+    'una lista vuota qui deve dire PERCHÉ è vuota');
+});
+
+test('⑮ senza collegamenti il controllo si dichiara cieco per quel motivo', () => {
+  const org = clone(SANE);
+  org.links = [];
+  const a = buildInterSiteAudit(org);
+  assert.ok(a.notChecked.some(n => n.check === 'linkTopologyVsRoles' && n.reason === 'no-links'));
+});
+
+test('⑮ è un-INCOERENZA, non una lacuna: entra nel conto giusto', () => {
+  const org = clone(SANE);
+  org.links.push(hs(ipsec('rm-na', 'rm', 'na', reach(['10.2.0.0/24'], ['10.3.0.0/24']))));
+  const prima = interSiteAuditCounts(buildInterSiteAudit(SANE));
+  const dopo = interSiteAuditCounts(buildInterSiteAudit(org));
+  assert.strictEqual(dopo.problems, prima.problems + 1);
+  assert.strictEqual(dopo.gaps, prima.gaps);
 });
 
 // ── Lacune ─────────────────────────────────────────────────────────────────
