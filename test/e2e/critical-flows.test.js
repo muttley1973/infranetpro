@@ -6454,6 +6454,119 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         await orgPage.close();
       }
     });
+
+    await t.test('Una modifica fatta DURANTE il salvataggio non si perde, e il pallino non si spegne', async () => {
+      // Difetto misurato il 30/08 (audit A1): il corpo del PUT viene serializzato
+      // PRIMA della richiesta, quindi ciò che l'utente tocca mentre la richiesta è
+      // in volo non è in quel corpo — ma al ritorno `_clearDirty()` spegneva il
+      // pallino comunque. Risultato: la modifica non era su disco e l'interfaccia
+      // diceva «salvato». Con l'autosave acceso il timer già armato trovava
+      // `_isDirty` falso e SALTAVA: la modifica restava in memoria fino al primo
+      // edit successivo, e se era l'ultima azione della giornata spariva.
+      //
+      // La finestra vera è di ~200 ms su un progetto grosso e di pochi ms su
+      // questo: qui la si APRE apposta ritardando la risposta del PUT, perché una
+      // corsa che si vince per fortuna non è una prova (e domani, su una macchina
+      // più veloce, non la si vincerebbe più).
+      const racePage = await browser.newPage({ viewport: { width: 1500, height: 950 } });
+      const raceErrors = [];
+      racePage.on('pageerror', (e) => raceErrors.push(String(e)));
+      try {
+        await racePage.goto(srv.baseURL, { waitUntil: 'load' });
+        await racePage.waitForFunction(() => typeof renderAll === 'function' && Array.isArray(state.nodes), null, { timeout: 15000 });
+        // ⚠️ `state.nodes` esiste PRIMA che il boot abbia finito: `_initApp` fa
+        // `loadProject` e poi `loadProjectList`, e `loadProject` chiude con un
+        // `_clearDirty()` senza argomento — legittimo, lì il documento è appena
+        // stato caricato. Partire troppo presto vuol dire correre contro il boot e
+        // vedersi spegnere il pallino da lui: misurato, 194ms, con lo stack.
+        // La tendina piena è il segnale che `loadProjectList` è passata, cioè che
+        // `_initApp` è oltre; `networkidle` chiude anche le code in ritardo.
+        await racePage.waitForFunction(
+          () => document.getElementById('project-select')?.options.length > 0, null, { timeout: 15000 });
+        await racePage.waitForLoadState('networkidle');
+
+        await racePage.route('**/api/projects/*', async (route) => {
+          if (route.request().method() !== 'PUT') return route.continue();
+          await new Promise((r) => setTimeout(r, 700));   // la finestra, resa visibile
+          return route.continue();
+        });
+
+        const sporco = () => racePage.evaluate(() =>
+          !!document.getElementById('btn-save')?.classList.contains('save-dirty'));
+
+        // Diario di chi accende e spegne il pallino, con i tempi: se questo banco
+        // torna rosso, la prima domanda è «chi l'ha spento», e senza il diario si
+        // risponde a indovinelli.
+        await racePage.evaluate(() => {
+          window.__diario = [];
+          const b = document.getElementById('btn-save');
+          const t0 = performance.now();
+          const ora = () => Math.round(performance.now() - t0) + 'ms ';
+          new MutationObserver(() => window.__diario.push(
+            ora() + 'pallino sporco=' + b.classList.contains('save-dirty')
+              + ' _isDirty=' + window._isDirty
+          )).observe(b, { attributes: true, attributeFilter: ['class'] });
+          const vero = window.fetch;
+          window.fetch = function (u, o) {
+            const m = (o && o.method) || 'GET';
+            const breve = String(u).replace(/^https?:\/\/[^/]+/, '');
+            if (m === 'PUT') window.__diario.push(ora() + 'PUT parte ' + breve);
+            return vero.apply(this, arguments).then((r) => {
+              if (m === 'PUT') window.__diario.push(ora() + 'PUT torna ' + r.status);
+              return r;
+            });
+          };
+        });
+
+        await racePage.evaluate(() => { _clearDirty(); });
+        assert.equal(await sporco(), false, 'si parte da un documento pulito');
+
+        // Il Salva parte e NON si aspetta: mentre è in volo si modifica davvero.
+        // ⚠️ `store` è un binding ESM del bundle, NON un globale di pagina: citarlo
+        // qui dentro è un ReferenceError prima ancora del ternario. L'id del
+        // progetto si legge da `window.currentProjectId`, che è la cella vera —
+        // `store.js` non fa che proxarla.
+        const id = await racePage.evaluate(() => {
+          document.getElementById('btn-save').click();
+          return window.currentProjectId;
+        });
+        await racePage.waitForTimeout(120);
+        await racePage.evaluate(() => {
+          state.nodes.push({ id: 'NODO-CORSA', type: 'pc', name: 'aggiunto durante il salvataggio', x: 40, y: 40 });
+          markDirty();
+        });
+        assert.equal(await sporco(), true, 'la modifica accende il pallino');
+
+        // Il PUT risponde: è qui che prima si spegneva tutto.
+        await racePage.waitForTimeout(1200);
+        const diario = await racePage.evaluate(() => window.__diario.join(' | '));
+        assert.equal(await sporco(), true,
+          'il pallino resta ACCESO: quel salvataggio non conteneva la modifica — diario: ' + diario);
+
+        // E il documento sul server non la contiene davvero — la coerenza è il punto:
+        // l'interfaccia sta dicendo la verità, non è rimasta indietro.
+        const dopoIlPrimo = await racePage.evaluate(async (pid) => {
+          const p = await (await fetch('/api/projects/' + pid)).json();
+          return p.state.nodes.some((n) => n.id === 'NODO-CORSA');
+        }, id);
+        assert.equal(dopoIlPrimo, false, 'la modifica non era in quel corpo, e infatti non è sul disco');
+
+        // Secondo Salva, senza ritardo: adesso ci va, e il pallino si spegne.
+        await racePage.unroute('**/api/projects/*');
+        await racePage.evaluate(() => { document.getElementById('btn-save').click(); });
+        await racePage.waitForFunction(() =>
+          !document.getElementById('btn-save')?.classList.contains('save-dirty'), null, { timeout: 10000 });
+        const dopoIlSecondo = await racePage.evaluate(async (pid) => {
+          const p = await (await fetch('/api/projects/' + pid)).json();
+          return p.state.nodes.some((n) => n.id === 'NODO-CORSA');
+        }, id);
+        assert.equal(dopoIlSecondo, true, 'il salvataggio successivo la porta a destinazione');
+
+        assert.deepEqual(raceErrors, [], 'nessun errore JS: ' + raceErrors.join(' | '));
+      } finally {
+        await racePage.close();
+      }
+    });
   } finally {
     await browser.close();
     await srv.close();

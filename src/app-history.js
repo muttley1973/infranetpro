@@ -65,9 +65,22 @@ export function _resetSelection() { selId=null; selType=null; highPath.clear(); 
 // ============================================================
 // DIRTY FLAG (sostituisce saveState)
 // ============================================================
+// ⭐ Quante volte il documento è stato sporcato. Non è un contatore statistico: è
+// il modo di distinguere «il salvataggio ha coperto tutto» da «nel frattempo è
+// arrivata un'altra modifica». Il corpo del PUT viene serializzato PRIMA della
+// richiesta, quindi ciò che l'utente tocca mentre la richiesta è in volo NON è in
+// quel corpo — e spegnere il pallino al ritorno diceva «salvato» di una modifica
+// che sul disco non c'era. Vive qui, modulo-scoped: non è stato del documento e
+// non ha ragione di stare su window.
+let _dirtyEpoch = 0;
+
+/** L'epoca corrente: chi sta per salvare la prende ORA e la ripresenta a cose fatte. */
+export function dirtyEpoch() { return _dirtyEpoch; }
+
 export function markDirty() {
     _invalidateIdx();
     _isDirty = true;
+    _dirtyEpoch++;
     const dot = document.getElementById('save-dot');
     const btn = document.getElementById('btn-save');
     if (dot) dot.style.display = 'inline-block';
@@ -93,7 +106,16 @@ export function _scheduleAutosave() {
     }, wait);
 }
 
-export function _clearDirty() {
+/**
+ * Spegne il pallino «da salvare».
+ * @param {number} [epoca] Se passata, spegne SOLO se da allora non è arrivata
+ *   nessuna nuova modifica. Chi carica/crea/duplica un progetto la omette: lì il
+ *   documento è nuovo di zecca e pulito per costruzione, senza niente da
+ *   confrontare. Chi SALVA la passa sempre, perché fra la partenza della
+ *   richiesta e la sua risposta l'utente continua a lavorare.
+ */
+export function _clearDirty(epoca) {
+    if (epoca !== undefined && epoca !== _dirtyEpoch) return;   // sporcato DOPO: resta sporco
     _isDirty = false;
     const dot = document.getElementById('save-dot');
     const btn = document.getElementById('btn-save');

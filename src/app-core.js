@@ -6,7 +6,7 @@
 // ============================================================
 import { win, expose, t } from './_bridge.js';
 import { store, resetProjectRuntime } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { pushHistory, _invalidateIdx, logAudit, _clearDirty, _migrateState, _updateHistoryBtns, _buildDefaultState, bindEventsOnce, _loadDefaultLocal } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { pushHistory, _invalidateIdx, logAudit, _clearDirty, dirtyEpoch, _migrateState, _updateHistoryBtns, _buildDefaultState, bindEventsOnce, _loadDefaultLocal } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderRackTabs, updateTransforms, _updateFloorToolbarVisibility, initPaletteUi } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { _restoreTopoSession } from './app-topology-discover.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
@@ -17,19 +17,52 @@ import { loadDeviceTypes } from './app-device-types.js';   // boot catalogo devi
 
 const API = '/api/projects';
 
+// ⭐ La versione del progetto che questa scheda ha in mano, presa dall'ETag della
+// risposta. La ripresentiamo a ogni Salva come `If-Match`: se sul server nel
+// frattempo ha scritto qualcun altro, il salvataggio viene RIFIUTATO invece di
+// sovrascrivere in silenzio. È metadato di trasporto, non documento: modulo-scoped,
+// non nello store (e quindi non su window).
+// ⚠️ Va aggiornata dopo OGNI risposta che tocca `<id>.json` — Salva, ma anche la
+// RINOMINA, che riscrive il file. Dimenticarla lì produrrebbe un 409 contro sé
+// stessi al primo Salva dopo un rinomina: la guardia accuserebbe l'unica sessione
+// aperta, che è il modo classico di far disattivare una guardia.
+let _projectEtag = null;
+// ⚠️ SOLO sulle risposte riuscite. Anche il 409 porta un ETag — quello di chi ha
+// scritto per ultimo — e adottarlo qui farebbe passare il salvataggio successivo
+// senza chiedere niente a nessuno: la guardia si disinnescherebbe da sé, al primo
+// caso che deve fermare. Chi decide di sovrascrivere prende quel valore dal corpo
+// della risposta, esplicitamente.
+const _captureEtag = (res) => {
+    if (!res.ok) return;
+    const t = res.headers.get('ETag');
+    if (t) _projectEtag = t;
+};
+const _ifMatch = () => (_projectEtag ? { 'If-Match': _projectEtag } : {});
+
 async function apiFetch(path, opts={}) {
-    const method=(opts.method||'GET').toUpperCase();
+    // `onResponse` non è un'opzione di fetch: si sfila prima, o finirebbe
+    // nell'init della richiesta. Serve a leggere le INTESTAZIONI (l'ETag del
+    // progetto) senza sporcare il corpo delle risposte, che è il DTO letto anche
+    // dalla REST API v1.
+    const { onResponse, ...init } = opts;
+    const method=(init.method||'GET').toUpperCase();
     if(store._currentUser?.role==='viewer' && method!=='GET'){
         throw new Error(t('pnl.seg.viewerNotAllowed'));
     }
     try {
         const res = await fetch(path, {
             headers:{'Content-Type':'application/json'},
-            ...opts
+            ...init
         });
+        // Prima del controllo sull'esito: anche un 409 porta l'ETag di chi ha
+        // scritto per ultimo, ed è l'informazione che serve a decidere.
+        if (typeof onResponse === 'function') onResponse(res);
         if (!res.ok) {
             const err = await res.json().catch(()=>({error:'Server error'}));
-            throw new Error(err.error || `HTTP ${res.status}`);
+            const e = new Error(err.error || `HTTP ${res.status}`);
+            e.status = res.status;      // chi chiama può distinguere i casi (409 = versione superata)
+            e.payload = err;
+            throw e;
         }
         return res.status === 204 ? null : res.json();
     } catch(e) {
@@ -63,7 +96,7 @@ async function loadProjectList() {
 }
 
 async function loadProject(id) {
-    const proj = await apiFetch(`${API}/${id}`);
+    const proj = await apiFetch(`${API}/${id}`, { onResponse: _captureEtag });
     store.currentProjectId = proj.id;
     store.state = _migrateState(proj.state);
     resetProjectRuntime();
@@ -115,7 +148,8 @@ async function newProject() {
         const defaultState = _buildDefaultState();
         const proj = await apiFetch(API, {
             method:'POST',
-            body: JSON.stringify({name: name.trim(), state: defaultState})
+            body: JSON.stringify({name: name.trim(), state: defaultState}),
+            onResponse: _captureEtag,
         });
         store.currentProjectId = proj.id;
         store.state = _migrateState(proj.state);
@@ -135,10 +169,25 @@ async function renameProject() {
     const current = document.getElementById('project-select').selectedOptions[0]?.textContent || '';
     showPrompt(t('pnl.seg.newName'), current, async name => {
         if (!name || !name.trim()) return;
-        await apiFetch(`${API}/${store.currentProjectId}`, {
-            method:'PUT',
-            body: JSON.stringify({name: name.trim()})
-        });
+        // ⚠️ Anche la rinomina presenta la versione, e non per simmetria: senza
+        // `If-Match` una rinomina RIUSCITA rinfrescherebbe la versione di una
+        // sessione rimasta indietro, e il Salva successivo sovrascriverebbe il
+        // lavoro altrui senza che nessuno chieda niente — la rinomina farebbe da
+        // lavanderia alla guardia. E poiché adesso può fallire, il fallimento si
+        // DICE: prima un errore qui non lo vedeva nessuno (la callback rifiutava
+        // e basta), e una rinomina che non ha funzionato in silenzio è peggio di
+        // una che non c'era.
+        try {
+            await apiFetch(`${API}/${store.currentProjectId}`, {
+                method:'PUT',
+                headers: { 'Content-Type':'application/json', ..._ifMatch() },
+                body: JSON.stringify({name: name.trim()}),
+                onResponse: _captureEtag,   // la rinomina riscrive il file: versione nuova
+            });
+        } catch (e) {
+            showAlert(t('msg.ui.saveFailed', { message: e.message }));
+            return;
+        }
         await loadProjectList();
         document.title = `InfraNet Pro — ${name.trim()}`;
         if(typeof logAudit === 'function') logAudit('project-rename', { target:name.trim(), summary:current?((typeof t==='function')?t('audit.wasNamed',{name:current}):`era «${current}»`):'' });
@@ -151,7 +200,8 @@ async function duplicateProject() {
         if (!name || !name.trim()) return;
         const proj = await apiFetch(`${API}/${store.currentProjectId}/copy`, {
             method:'POST',
-            body: JSON.stringify({name: name.trim()})
+            body: JSON.stringify({name: name.trim()}),
+            onResponse: _captureEtag,   // da qui in poi la scheda lavora sulla COPIA
         });
         store.currentProjectId = proj.id;
         store.state = _migrateState(proj.state);
@@ -184,12 +234,21 @@ async function deleteProject() {
 export async function saveProject(opts = {}) {   // ASSE B: importata da app.js (scorciatoia Ctrl+S), non più su window
     if (!store.currentProjectId) return;
     if (store._snmpSyncing) return;
+    // ⭐ L'epoca si legge PRIMA di serializzare: da questa riga in poi ciò che
+    // l'utente tocca non entra nel corpo che sta per partire, e quindi non è
+    // coperto da questo salvataggio. La si ripresenta a `_clearDirty` alla
+    // risposta, che spegnerà il pallino solo se nel frattempo non è cambiato
+    // niente. Prima il pallino si spegneva sempre, e una modifica fatta durante
+    // il salvataggio spariva mentre l'interfaccia diceva «salvato».
+    const epoca = dirtyEpoch();
     try {
         await apiFetch(`${API}/${store.currentProjectId}`, {
             method:'PUT',
-            body: JSON.stringify({state: store.state})
+            headers: { 'Content-Type':'application/json', ..._ifMatch() },
+            body: JSON.stringify({state: store.state}),
+            onResponse: _captureEtag,
         });
-        _clearDirty();
+        _clearDirty(epoca);
         // Snapshot completo su Salva MANUALE (non autosave, non ripristino), con throttle:
         // così una raffica di salvataggi non riempie lo storico (l'assottigliamento fa il resto).
         if (!opts.quiet && !opts.noSnapshot) _maybeSnapshotOnSave();
@@ -203,11 +262,38 @@ export async function saveProject(opts = {}) {   // ASSE B: importata da app.js 
             if (label) label.textContent = (typeof t==='function') ? t('save.label') : ' Salva ';
         }, 1800);
     } catch(e) {
+        // 409: sul server c'è una versione più recente della nostra. Non è un
+        // errore di rete né un guasto — è un'altra persona che ha salvato.
+        if (e && e.status === 409) { _progettoSuperato(e, opts); return; }
         // Autosave silenzioso: non rubare lo schermo con un alert; _isDirty resta
         // true (non abbiamo raggiunto _clearDirty) → il prossimo edit riprova.
         if (opts.quiet) { console.warn('[autosave] salvataggio fallito:', e && e.message); return; }
         showAlert(t('msg.ui.saveFailed',{message: e.message}));
     }
+}
+
+/**
+ * Il documento sul server è cambiato dopo che l'abbiamo aperto.
+ * Qui non si decide al posto di nessuno: sovrascrivere perderebbe il lavoro
+ * dell'altra sessione, ricaricare perderebbe quello di questa. In entrambi i casi
+ * il pallino resta acceso — non abbiamo salvato — finché l'utente non sceglie.
+ */
+function _progettoSuperato(err, opts) {
+    const quando = (err.payload && err.payload.updated_at) || '';
+    if (opts.quiet) {
+        // Autosave: il pallino sta già dicendo che c'è da salvare, e un modale
+        // comparso da solo mentre si lavora è il modo di far spegnere l'autosave.
+        console.warn('[autosave] il progetto è cambiato in un\'altra sessione:', quando);
+        return;
+    }
+    showConfirm(t('msg.ui.projectChangedElsewhere', { when: quando }), () => {
+        // «Salva lo stesso»: si riparte dalla versione che c'è ADESSO sul server,
+        // presa dal corpo del 409. Così la forzatura è una decisione presa su un
+        // numero letto un attimo fa, non un salvataggio cieco.
+        const attuale = err.payload && err.payload.etag;
+        if (attuale) _projectEtag = attuale;
+        saveProject(opts);
+    });
 }
 
 // Throttle degli snapshot su Salva: al massimo uno ogni 10 minuti (best-effort).

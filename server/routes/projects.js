@@ -7,7 +7,7 @@ const fs   = require('fs');
 const path = require('path');
 const auth = require('../../auth');
 const { timestamp } = require('../../utils');
-const { PROJECTS_DIR, nextId, saveProject, loadProject, listProjects, removeBgAsset } = require('../projects-store');
+const { PROJECTS_DIR, nextId, saveProject, loadProject, listProjects, removeBgAsset, projectEtag } = require('../projects-store');
 const { removeProjectHistory, createFsHistoryStore } = require('../history-store-fs');
 const { mergePresence, foldPresence, collectPresence, stripPresence } = require('../../lib/presence-store');
 const { mergeObservations, foldObservations, stripObservations } = require('../../lib/discovery-history');
@@ -124,6 +124,18 @@ function _sanitizeBackupRefs(state) {
   return stripped;
 }
 
+// ── Chi ha in mano quale versione ────────────────────────────────────────────
+// L'ETag viaggia nell'INTESTAZIONE, non nel corpo: il corpo di GET/POST/copia è il
+// DTO del progetto, che esce anche dalla REST API v1 e dall'inventario Ansible, e
+// un campo di trasporto lì dentro diventerebbe un campo del documento per chiunque
+// legga di là. Chi non manda `If-Match` non se ne accorge e continua a funzionare
+// come prima (l'import, gli script, i test): la guardia è per chi la chiede.
+function _tag(res, id) {
+  const t = projectEtag(id);
+  if (t) res.set('ETag', t);
+  return t;
+}
+
 // Lista (solo metadati, senza state)
 router.get('/api/projects', (_, res) => {
   res.json(listProjects());
@@ -144,6 +156,7 @@ router.post('/api/projects', auth.requireAdmin, (req, res) => {
   stripDerivedVlan(state);
   stripAudit(state);              // il giornale di un altro impianto non è la nostra storia
   saveProject(id, name, state, now, now);
+  _tag(res, id);
   res.status(201).json(loadProject(id));
 });
 
@@ -160,6 +173,7 @@ router.get('/api/projects/:id', (req, res) => {
   try { mergeObservations(p.state, _history.readObservations(id)); } catch (_) { /* idem */ }
   try { mergeAudit(p.state, _history.readAudit(id)); } catch (_) { /* idem */ }
   if (req.session?.user?.role !== 'admin') _redactSnmpSecrets(p);   // SEC-M1
+  _tag(res, id);   // versione di ciò che il client sta per tenere in mano
   return res.json(p);
 });
 
@@ -168,6 +182,28 @@ router.put('/api/projects/:id', auth.requireAdmin, (req, res) => {
   const id = +req.params.id;
   const p  = loadProject(id);
   if (!p) return res.status(404).json({ error: 'Project not found' });
+
+  // ── La versione che il client crede di stare aggiornando ───────────────────
+  // Chi manda `If-Match` chiede: «scrivi solo se nel frattempo non ha scritto
+  // nessun altro». Se qualcuno ha scritto, qui si RIFIUTA con 409 invece di
+  // sovrascrivere e rispondere 200 — che è ciò che faceva sparire il lavoro
+  // dell'altra sessione senza che nessuna delle due vedesse un errore.
+  // Chi NON manda l'intestazione ha il comportamento di prima, apposta: l'import
+  // DCIM, gli script e i test non devono imparare un protocollo per continuare a
+  // funzionare, e una guardia che rompe i suoi chiamanti non viene adottata.
+  // `attuale === null` = il file non si è potuto interrogare: non è «non
+  // combacia», è «non lo so», e su un dubbio nostro non si blocca un salvataggio.
+  const atteso  = req.get('If-Match');
+  const attuale = projectEtag(id);
+  if (atteso && attuale && atteso !== attuale) {
+    res.set('ETag', attuale);
+    return res.status(409).json({
+      error: 'Project changed by another session',
+      code: 'stale-project',
+      updated_at: p.updated_at,
+      etag: attuale,
+    });
+  }
 
   const name  = req.body?.name  ? (req.body.name.toString().trim() || p.name) : p.name;
   const state = req.body?.state !== undefined ? req.body.state : p.state;
@@ -182,6 +218,10 @@ router.put('/api/projects/:id', auth.requireAdmin, (req, res) => {
   saveProject(id, name, state, p.created_at, now);
   // Solo metadati: NON ricarichiamo il progetto (eviterebbe di ri-encodare l'asset
   // bgImage in base64 ad ogni Salva). Save leggero = obiettivo dell'estrazione asset.
+  // L'ETag NUOVO torna subito: senza, il client dovrebbe rileggere il progetto
+  // intero per poter salvare una seconda volta, e il secondo Salva prenderebbe un
+  // 409 contro sé stesso.
+  _tag(res, id);
   res.json({ id, name, updated_at: now });
 });
 
@@ -215,6 +255,7 @@ router.post('/api/projects/:id/copy', auth.requireAdmin, (req, res) => {
   stripDerivedVlan(src.state);
   stripAudit(src.state);          // la copia è un documento nuovo: la sua storia inizia ora
   saveProject(newId, name, src.state, now, now);
+  _tag(res, newId);
   res.status(201).json(loadProject(newId));
 });
 

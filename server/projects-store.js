@@ -183,6 +183,33 @@ function loadProject(id) {
   return null;
 }
 
+// ---- Marcatore di versione (ETag) -------------------------------------------
+// A che serve: al PUT, per accorgersi che il progetto è cambiato SOTTO chi sta
+// salvando. Senza, due sessioni che salvano lo stesso progetto ricevono entrambe
+// 200 e il lavoro di una delle due sparisce senza che nessuno lo dica — e con
+// `data/organization.json`, che è UNO per installazione, bastano due sessioni
+// qualsiasi, non due che hanno aperto lo stesso progetto.
+//
+// Si ricava dal FILE (mtime in millisecondi + dimensione), non dal documento: il
+// formato non cambia e i progetti già scritti ne hanno uno da subito, senza
+// migrazione.
+//
+// ⚠️ NON si usa `updated_at`: `timestamp()` (utils.js) tronca ai SECONDI, quindi
+// due salvataggi nello stesso secondo darebbero lo stesso marcatore — e due
+// salvataggi nello stesso secondo sono ESATTAMENTE il caso da riconoscere. Un
+// marcatore che si ripete proprio quando serve non è un marcatore.
+//
+// `null` quando il file non c'è o non è leggibile: niente marcatore, nessuna
+// pretesa. Chi confronta deve trattare `null` come «non posso saperlo» e lasciar
+// passare, non come «non combacia» (rifiutare un salvataggio per un file che non
+// siamo riusciti a interrogare punirebbe l'utente per un nostro dubbio).
+function projectEtag(id) {
+  try {
+    const st = fs.statSync(path.join(PROJECTS_DIR, `${id}.json`));
+    return `W/"${Math.round(st.mtimeMs)}-${st.size}"`;
+  } catch (_) { return null; }
+}
+
 // Quanto c'è DENTRO un progetto, per chi lo guarda da fuori (il riquadro-sede
 // della mappa inter-sede lo mostra prima di entrarci).
 //
@@ -235,5 +262,5 @@ function listProjects() {
 
 module.exports = {
   PROJECTS_DIR, ASSETS_DIR, atomicWriteFile, nextId, saveProject, loadProject, listProjects,
-  extractBgAsset, reattachBgAsset, removeBgAsset,
+  extractBgAsset, reattachBgAsset, removeBgAsset, projectEtag,
 };
