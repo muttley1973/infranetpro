@@ -114,6 +114,11 @@ const _st = {
   /** ⑭ Il collegamento a cui la mappa ha appena mandato: la riga da portare
    *  sotto gli occhi al prossimo disegno. `null` = nessuno. */
   /** @type {string|null} */ focusLink: null,
+  /** L'id del record appena creato dal bottone «aggiungi»: la riga da portare
+   *  sotto gli occhi al prossimo disegno. Da quando il bottone sta in cima, nella
+   *  barra delle schede, la riga nuova nasce IN FONDO all'elenco — cioè fuori
+   *  dallo schermo — e senza questo un «aggiungi» sembrerebbe non fare niente.
+   *  @type {string|null} */ focusNew: null,
   /** ⚠️ Vero mentre i progetti-sede stanno arrivando. Serve SOLO a `focusLink`:
    *  quando arrivano si ridisegna, l'HTML della riga viene rifatto da capo e
    *  con esso se ne va lo scorrimento. Finché è vero, la richiesta di messa a
@@ -559,8 +564,9 @@ function _paintNetHint(el) {
 // ── Righe: aggiunta e rimozione ───────────────────────────────────────────
 
 function _addSite() {
-  _sites().push({ id: uid('site'), name: t('org.newSiteName'), role: 'standalone', projectRef: null, address: null, subnets: [] });
-  _st.dirty = true; _st.tab = 'sites'; _render();
+  const id = uid('site');
+  _sites().push({ id, name: t('org.newSiteName'), role: 'standalone', projectRef: null, address: null, subnets: [] });
+  _st.dirty = true; _st.tab = 'sites'; _st.focusNew = id; _render();
 }
 function _addUplink() {
   const s = _sites()[0];
@@ -574,7 +580,7 @@ function _addUplink() {
     supportRef: '',
     publicIps: null, wanIfRef: null,
   });
-  _st.dirty = true; _st.tab = 'wan'; _render();
+  _st.dirty = true; _st.tab = 'wan'; _st.focusNew = _uplinks()[_uplinks().length - 1].id; _render();
 }
 function _addLink() {
   const ss = _sites();
@@ -589,7 +595,7 @@ function _addLink() {
     phase1Name: null, ikeVersion: null,
     phase1Proposal: null, phase2Proposal: null, pskRef: null,
   });
-  _st.dirty = true; _st.tab = 'links'; _render();
+  _st.dirty = true; _st.tab = 'links'; _st.focusNew = _links()[_links().length - 1].id; _render();
 }
 
 /**
@@ -1425,7 +1431,7 @@ function _renderSites() {
   const rows = _sites().map((s, i) => {
     const bad = _badNets(s.subnets);
     const unknown = _st.unknownRefs.some(u => u.siteId === s.id);
-    return `<article class="org-row">
+    return `<article class="org-row" data-row="${escapeHTML(String(s.id))}">
       <header class="org-row-head">
         ${(() => { const h = _siteHealth(s.id); return `<i class="fas ${escapeHTML(ROLE_ICON[s.role] || 'fa-building')} org-site-state${h ? ' ' + h.cls : ''}"${h ? ` title="${escapeHTML(h.title)}"` : ''}></i>`; })()}
         <input class="org-row-title" type="text" value="${escapeHTML(s.name)}" ${ro ? 'disabled' : ''}
@@ -1461,7 +1467,7 @@ function _renderSites() {
       </div>
     </article>`;
   }).join('');
-  return rows + (ro ? '' : `<button class="um-btn primary org-add" data-act="org-add-site"><i class="fas fa-plus"></i> ${escapeHTML(t('org.addSite'))}</button>`);
+  return rows || `<p class="org-note">${escapeHTML(t('org.emptySites'))}</p>`;
 }
 
 /**
@@ -1696,7 +1702,7 @@ function _renderUplinks() {
   const rows = _uplinks().map((u, i) => {
     const ips = isFact(u.publicIps) ? (factValue(u.publicIps) || []) : [];
     const badIps = _badAddrs(ips);
-    return `<article class="org-row">
+    return `<article class="org-row" data-row="${escapeHTML(String(u.id))}">
       <header class="org-row-head">
         <i class="fas fa-cloud-arrow-up"></i>
         <input class="org-row-title" type="text" value="${escapeHTML(u.provider || '')}" placeholder="${escapeHTML(t('org.providerPh'))}" ${ro ? 'disabled' : ''}
@@ -1758,7 +1764,7 @@ function _renderUplinks() {
   // non c'è lo scrive.
   const suggerimenti = `<datalist id="org-svc-types">${
     WAN_SERVICE_TYPES.map(k => `<option value="${escapeHTML(t('org.svc.' + k))}"></option>`).join('')}</datalist>`;
-  return _renderWanReport() + suggerimenti + rows + (ro ? '' : `<button class="um-btn primary org-add" data-act="org-add-uplink"><i class="fas fa-plus"></i> ${escapeHTML(t('org.addUplink'))}</button>`);
+  return _renderWanReport() + suggerimenti + (rows || `<p class="org-note">${escapeHTML(t('org.emptyUplinks'))}</p>`);
 }
 
 function _renderLinks() {
@@ -1768,7 +1774,7 @@ function _renderLinks() {
     const reach = isFact(l.reach) ? factValue(l.reach) : { a: [], b: [] };
     const a = (reach && reach.a) || [], b = (reach && reach.b) || [];
     const badA = _badNets(a), badB = _badNets(b);
-    return `<article class="org-row" data-link="${escapeHTML(String(l.id))}">
+    return `<article class="org-row" data-row="${escapeHTML(String(l.id))}">
       <header class="org-row-head">
         <i class="fas ${escapeHTML(_natureIcon(l))}"></i>
         <span class="org-row-title org-row-static">${escapeHTML(_siteName(l.aSiteId) || '?')} ↔ ${escapeHTML(_siteName(l.bSiteId) || '?')}${l.name ? ' · ' + escapeHTML(l.name) : ''}
@@ -1832,7 +1838,7 @@ function _renderLinks() {
       <p class="org-hint org-reach-hint">${escapeHTML(t('org.reachHint'))}</p>
     </article>`;
   }).join('');
-  return rows + (ro ? '' : `<button class="um-btn primary org-add" data-act="org-add-link"><i class="fas fa-plus"></i> ${escapeHTML(t('org.addLink'))}</button>`);
+  return rows || `<p class="org-note">${escapeHTML(t('org.emptyLinks'))}</p>`;
 }
 
 // ── Coerenza (④: si RACCONTA l'audit del server, non se ne calcola un altro) ─
@@ -2044,6 +2050,30 @@ function _auditChips() {
     ${u ? `<span class="org-chip is-unchecked" title="${escapeHTML(t('org.a.notChecked'))}"><i class="fas fa-circle-question"></i> ${u}</span>` : ''}`;
 }
 
+/**
+ * Il bottone «aggiungi» della scheda ATTIVA, in fondo alla barra delle schede.
+ *
+ * Prima ce n'era uno in coda a ciascun elenco: per aggiungere la dodicesima sede
+ * bisognava scorrere oltre le undici, e dopo il disegno il bottone si era
+ * spostato più in basso di prima. Qui sta fermo, sempre nello stesso punto.
+ *
+ * ⚠️ Le schede «Mappa» e «Coerenza» non hanno un'aggiunta e restituiscono la
+ * stringa vuota: sono una VISTA e un REFERTO, non un elenco a cui si aggiunge.
+ * La mappa vuota tiene il suo invito («aggiungi una sede») dentro il riquadro,
+ * perché lì è la sola cosa da fare e un invito è un'altra cosa da una barra.
+ */
+function _renderTabAction() {
+  if (!_isAdmin()) return '';
+  const AZIONI = {
+    sites: ['org-add-site', 'org.addSite'],
+    wan: ['org-add-uplink', 'org.addUplink'],
+    links: ['org-add-link', 'org.addLink'],
+  };
+  const a = AZIONI[_st.tab];
+  if (!a) return '';
+  return `<button class="um-btn primary org-tab-add" data-act="${a[0]}"><i class="fas fa-plus"></i> ${escapeHTML(t(a[1]))}</button>`;
+}
+
 function _renderBody() {
   switch (_st.tab) {
     case 'sites': return _renderSites();
@@ -2124,9 +2154,30 @@ function _fitMapViewBox(svg) {
     `${r(b.x - m)} ${r(b.y - m)} ${r(b.width + m * 2)} ${r(b.height + m * 2)}`);
 }
 
+/** L'ultima scheda DISEGNATA: serve a sapere se lo scorrimento salvato parla
+ *  ancora dello stesso elenco. Cambiando scheda si riparte dall'alto, che è
+ *  giusto — il contenuto è un altro. @type {string|null} */
+let _tabDisegnata = null;
+
 function _render() {
   const body = _el('org-body');
   if (!body) return;
+
+  // ⚠️ `body.innerHTML = …` rifà TUTTO, e con il contenuto se ne va lo
+  // scorrimento. Ogni cambio di valore che ridisegna riportava quindi in cima: si
+  // cambiava una tendina alla dodicesima sede e ci si ritrovava alla prima. Si
+  // salva prima e si rimette dopo — ma solo se si sta ridisegnando la STESSA
+  // scheda, o si erediterebbe l'offset di un elenco che non c'è più.
+  // ⚠️⚠️ A scorrere è `.org-pane`, **non** `#org-body`: entrambi hanno
+  // `overflow:auto`, ma il corpo è un flex che dà al pane l'altezza residua, e il
+  // pane si tiene il traboccamento. Misurato con la finestra a 560px: corpo 0px
+  // scorribili, pane 1346. Ripristinare `body.scrollTop` è un no-op che sembra
+  // una correzione — se un giorno questa riga «non funziona più», la domanda da
+  // farsi è quale dei due scorre oggi, non se il salvataggio avviene.
+  // Chi vuole spostare la vista di proposito (la messa a fuoco di una riga) gira
+  // DOPO e vince: una richiesta esplicita batte un ripristino.
+  const paneVecchio = body.querySelector('.org-pane');
+  const scorrimento = (_tabDisegnata === _st.tab && paneVecchio) ? paneVecchio.scrollTop : 0;
 
   if (_st.loading) { body.innerHTML = `<p class="org-note">${escapeHTML(t('org.loading'))}</p>`; _renderFooter(); return; }
   if (_st.loadErr) {
@@ -2151,6 +2202,7 @@ function _render() {
     </div>
     <div class="um-tabs org-tabs">
       ${TABS.map(([k, icon, key]) => `<button class="um-tab${_st.tab === k ? ' active' : ''}" data-act="org-tab" data-tab="${k}"><i class="fas ${icon}"></i> <span>${escapeHTML(t(key))}</span></button>`).join('')}
+      ${_renderTabAction()}
     </div>
     <div class="org-pane">${_renderBody()}</div>`;
   // ④ La SECONDA passata della mappa: ora l'SVG è nel documento, quindi le righe
@@ -2171,8 +2223,35 @@ function _render() {
   // ㉖ L'SVG è appena stato ricostruito: la vista è nello stato, non nel DOM, e
   // va riscritta o si tornerebbe al 100% a ogni salvataggio.
   _applyMapView();
+  // Dopo la seconda passata della mappa: quella rifà l'HTML DENTRO il pane, non il
+  // pane, quindi l'elemento è lo stesso e il valore regge.
+  const paneNuovo = body.querySelector('.org-pane');
+  if (paneNuovo) paneNuovo.scrollTop = scorrimento;
+  _tabDisegnata = _st.tab;
   _applyFocusLink(body);
+  _applyFocusNew(body);
   _renderFooter();
+}
+
+/**
+ * Porta sotto gli occhi la riga appena creata.
+ *
+ * Serve da quando il bottone «aggiungi» sta in cima: la riga nasce in fondo
+ * all'elenco, cioè fuori dallo schermo, e un'aggiunta che non si vede sembra
+ * un'aggiunta che non è avvenuta. Prima il bottone stava in fondo e ci si era
+ * già — per un motivo sbagliato, ma ci si era.
+ *
+ * ⚠️ Nessun selettore costruito con l'id dentro: si confrontano i dataset, come
+ * fa `_applyFocusLink` e per la stessa ragione (un id arriva anche da un
+ * documento importato).
+ */
+function _applyFocusNew(body) {
+  if (!_st.focusNew) return;
+  const row = Array.from(body.querySelectorAll('.org-row')).find(r => r.dataset.row === _st.focusNew);
+  if (!row) return;                       // altra scheda, o riga sparita: si riproverà
+  row.scrollIntoView({ block: 'center' });
+  row.classList.add('org-row-target');
+  _st.focusNew = null;
 }
 
 /**
@@ -2193,7 +2272,7 @@ function _render() {
  */
 function _applyFocusLink(body) {
   if (!_st.focusLink) return;
-  const row = Array.from(body.querySelectorAll('.org-row')).find(r => r.dataset.link === _st.focusLink);
+  const row = Array.from(body.querySelectorAll('.org-row')).find(r => r.dataset.row === _st.focusLink);
   if (!row) return;                       // altra scheda, o riga sparita: si riproverà
   row.scrollIntoView({ block: 'center' });
   row.classList.add('org-row-target');    // si spegne da sé: l'animazione finisce

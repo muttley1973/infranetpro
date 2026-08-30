@@ -6347,6 +6347,113 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         await orgPage.close();
       }
     });
+
+    await t.test('«Sedi e collegamenti»: il bottone «aggiungi» sta nella barra, e cambiare un valore non riporta l’elenco in cima', async () => {
+      const orgPage = await browser.newPage({ viewport: { width: 1500, height: 950 } });
+      const orgErrors = [];
+      orgPage.on('pageerror', (e) => orgErrors.push(String(e)));
+      try {
+        await orgPage.goto(srv.baseURL, { waitUntil: 'load' });
+        await orgPage.waitForFunction(() => typeof renderAll === 'function' && Array.isArray(state.nodes), null, { timeout: 15000 });
+
+        // ⚠️ OTTO sedi, e non tre: servono a far SCORRERE il pannello. Con poche
+        // righe il riquadro non trabocca, lo scorrimento è 0 prima e 0 dopo, e la
+        // prova passerebbe senza provare niente. È successo davvero misurando a
+        // mano — per questo la prima asserzione qui sotto è che ci sia qualcosa
+        // da scorrere.
+        await orgPage.evaluate(async () => {
+          await fetch('/api/organization', {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: 'e2e3', name: 'E2E Scorrimento',
+              sites: Array.from({ length: 8 }, (_, i) => ({ id: 's' + i, name: 'Sede ' + i, role: 'standalone' })),
+              uplinks: [{ id: 'u0', siteId: 's0', provider: 'Tizio' }],
+              links: [{ id: 'l0', aSiteId: 's0', bSiteId: 's1' }],
+            }),
+          });
+        });
+        await orgPage.click('#btn-org');
+        await orgPage.waitForSelector('#org-overlay.open', { timeout: 5000 });
+
+        // ① Un bottone per scheda, dentro la barra e a destra — e NESSUNO dove non
+        // si aggiunge niente: la mappa è una vista, la coerenza è un referto.
+        const perScheda = {};
+        for (const tab of ['map', 'sites', 'wan', 'links', 'audit']) {
+          await orgPage.click('button[data-act="org-tab"][data-tab="' + tab + '"]');
+          await orgPage.waitForSelector('#org-body .org-tabs', { timeout: 5000 });
+          perScheda[tab] = await orgPage.evaluate(() => {
+            const barra = document.querySelector('#org-body .org-tabs');
+            const b = barra.querySelector('.org-tab-add');
+            if (!b) return { azione: null };
+            const bb = barra.getBoundingClientRect(), ab = b.getBoundingClientRect();
+            return {
+              azione: b.dataset.act,
+              dentroLaBarra: ab.top >= bb.top - 1 && ab.bottom <= bb.bottom + 1,
+              aDestra: ab.left > bb.left + bb.width / 2,
+            };
+          });
+        }
+        assert.equal(perScheda.sites.azione, 'org-add-site', 'la scheda Sedi offre «aggiungi una sede»');
+        assert.equal(perScheda.wan.azione, 'org-add-uplink', 'la scheda Linee WAN offre «aggiungi una linea»');
+        assert.equal(perScheda.links.azione, 'org-add-link', 'la scheda Collegamenti offre «aggiungi un collegamento»');
+        assert.equal(perScheda.map.azione, null, 'la Mappa non ha un bottone di aggiunta: è una vista');
+        assert.equal(perScheda.audit.azione, null, 'la Coerenza non ha un bottone di aggiunta: è un referto');
+        for (const k of ['sites', 'wan', 'links']) {
+          assert.ok(perScheda[k].dentroLaBarra, k + ': il bottone sta DENTRO la barra delle schede, non sopra o sotto');
+          assert.ok(perScheda[k].aDestra, k + ': e sta a destra, non in mezzo alle schede');
+        }
+
+        // ② Cambiare un valore non riporta in cima.
+        await orgPage.click('button[data-act="org-tab"][data-tab="sites"]');
+        await orgPage.waitForSelector('#org-body .org-row', { timeout: 5000 });
+        const scorrimento = await orgPage.evaluate(async () => {
+          const attesa = (ms) => new Promise((r) => setTimeout(r, ms));
+          const pane = () => document.querySelector('#org-body .org-pane');
+          const scorribile = pane().scrollHeight - pane().clientHeight;
+          pane().scrollTop = 300;
+          await attesa(80);
+          const prima = Math.round(pane().scrollTop);
+          const paneVecchio = pane();
+          const sel = document.querySelector('#org-body .org-row select');
+          sel.selectedIndex = (sel.selectedIndex + 1) % sel.options.length;
+          sel.dispatchEvent(new Event('change', { bubbles: true }));
+          await attesa(400);
+          return { scorribile, prima, dopo: Math.round(pane().scrollTop), ridisegnato: !paneVecchio.isConnected };
+        });
+        assert.ok(scorrimento.scorribile > 200, 'il pannello deve avere qualcosa da scorrere, o la prova è vuota (scorribile=' + scorrimento.scorribile + ')');
+        assert.ok(scorrimento.prima >= 250, 'e lo scorrimento deve aver fatto effetto prima di misurare (prima=' + scorrimento.prima + ')');
+        // ⚠️ Questa asserzione è la metà che conta: senza, «lo scorrimento è
+        // rimasto» sarebbe vero anche se il pannello non si fosse ridisegnato
+        // affatto — cioè per il motivo sbagliato.
+        assert.ok(scorrimento.ridisegnato, 'il cambio di valore RIDISEGNA il pannello (il vecchio riquadro è staccato dal documento)');
+        assert.ok(Math.abs(scorrimento.dopo - scorrimento.prima) <= 2,
+          'e dopo il ridisegno si resta dov’eri: ' + scorrimento.prima + ' → ' + scorrimento.dopo);
+
+        // ③ Aggiungendo dalla barra, la riga nuova — che nasce in FONDO — si vede.
+        const aggiunta = await orgPage.evaluate(async () => {
+          const attesa = (ms) => new Promise((r) => setTimeout(r, ms));
+          const pane = () => document.querySelector('#org-body .org-pane');
+          document.querySelector('#org-body .org-tabs .org-tab-add').click();
+          await attesa(500);
+          const righe = [...document.querySelectorAll('#org-body .org-row')];
+          const n = righe[righe.length - 1];
+          const rb = n.getBoundingClientRect(), pb = pane().getBoundingClientRect();
+          return {
+            righe: righe.length, altezza: rb.height, vista: pb.height,
+            fetta: Math.min(rb.bottom, pb.bottom) - Math.max(rb.top, pb.top),
+            evidenziata: n.classList.contains('org-row-target'),
+          };
+        });
+        assert.equal(aggiunta.righe, 9, 'il bottone in barra aggiunge davvero una riga');
+        assert.ok(aggiunta.fetta >= Math.min(aggiunta.altezza, aggiunta.vista) - 2,
+          'e la riga nuova è sotto gli occhi: se ne vede tutto quello che ci sta (' + Math.round(aggiunta.fetta) + ' di ' + Math.round(aggiunta.altezza) + 'px)');
+        assert.ok(aggiunta.evidenziata, 'ed è marcata come la riga appena creata');
+
+        assert.deepEqual(orgErrors, [], 'nessun errore JS: ' + orgErrors.join(' | '));
+      } finally {
+        await orgPage.close();
+      }
+    });
   } finally {
     await browser.close();
     await srv.close();

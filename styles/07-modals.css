@@ -1035,7 +1035,13 @@
         .org-reach-hint { margin-top:8px; }
         .org-bad  { font-size:var(--fs-xs); color:var(--fault-color); }
         .org-note { font-size:var(--fs-sm); color:var(--text-muted); }
-        .org-add  { margin:4px 0 8px; }
+        /* Il bottone «aggiungi» della scheda attiva vive nella barra delle schede:
+           `margin-left:auto` lo spinge a destra senza un contenitore in più, e
+           `align-self:center` lo centra sulla riga SENZA toccare l'allineamento
+           degli altri figli — le schede devono restare stirate, o il loro
+           `margin-bottom:-1px` non coprirebbe più il bordo della barra.
+           Più basso di una scheda di proposito: è la barra a dare l'altezza. */
+        .org-tab-add { margin-left:auto; align-self:center; padding:4px 11px; font-size:var(--fs-sm); white-space:nowrap; }
         .org-origin { display:inline-block; margin-left:5px; padding:1px 6px; border-radius:var(--radius-pill);
                       font-size:9px; text-transform:uppercase; letter-spacing:.4px; background:var(--accent-soft); color:var(--accent); }
         .org-origin-measured { background:rgba(57,211,83,.14); color:var(--active-color); }
