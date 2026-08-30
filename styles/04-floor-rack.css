@@ -16,11 +16,17 @@
         body.link-mode .floor-rack,
         body.link-mode .rack-device { cursor: crosshair !important; }
         #floor-canvas { position:absolute; transform-origin:0 0; width:5000px; height:5000px; pointer-events:none; }
-        /* ⚠️ Il passo NON si sceglie qui: lo impone il render leggendo
+        /* ⚠️ Il passo NON si sceglie qui: lo impone paintFloorGrid() leggendo
            FLOOR_SNAP_STEP (lib/floor-snap.js), che è anche il passo a cui gli
            oggetti si agganciano. Erano due numeri diversi — disegnata a 40,
            aggancio a 20 — e ci si fermava a mezza cella. Questo valore resta
-           solo come disegno prima del primo render: tienilo uguale. */
+           solo come disegno prima del primo render: tienilo uguale.
+           ⚠️ `inset:0` qui è la VISTA (#floorplan), non la tela: dal 30/08 la
+           griglia è figlia della finestra e non di #floor-canvas, quindi non si
+           sposta e non si scala con la planimetria — a muoversi è il suo
+           background-position, e un motivo ripetuto non ha bordi. Conseguenza
+           voluta: le righe restano spesse 1px a ogni ingrandimento (dentro la tela
+           venivano scalate: 5px a zoom 5). */
         #floorplan-grid { position:absolute; inset:0; background-size:20px 20px; background-image:linear-gradient(to right,rgba(255,255,255,0.03) 1px,transparent 1px),linear-gradient(to bottom,rgba(255,255,255,0.03) 1px,transparent 1px); pointer-events:none; z-index:0; }
         #floor-bg-img { position:absolute; top:0; left:0; opacity:0.4; pointer-events:none; transform-origin:top left; display:none; }
         #floor-structures { position:absolute; inset:0; z-index:1; pointer-events:none; }

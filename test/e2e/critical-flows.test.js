@@ -4997,8 +4997,14 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         const dopo = await page.evaluate(() => {
           const n = nodeById('rmA');
           const g = document.getElementById('floorplan-grid');
-          const passo = parseFloat(getComputedStyle(g).backgroundSize) || 0;
-          return { x: n.x, y: n.y, passoDisegnato: passo };
+          // ⚠️ backgroundSize è in pixel di SCHERMO: da quando la griglia sta nella
+          // vista (30/08) il suo passo è quello di aggancio × zoom. Diviso per lo
+          // zoom torna il passo del MODELLO, che è il numero con cui ha senso
+          // confrontare dove si ferma un oggetto. Senza questa divisione il banco
+          // resterebbe verde — qui si gira a zoom 1 — e avrebbe smesso di dire
+          // quello che dice di dire.
+          const passo = (parseFloat(getComputedStyle(g).backgroundSize) || 0) / (state.floorView.zoom || 1);
+          return { x: n.x, y: n.y, passoDisegnato: passo, zoom: state.floorView.zoom };
         });
         return { durante, dopo };
       };
@@ -5022,6 +5028,61 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(accesa.dopo.x % accesa.dopo.passoDisegnato, 0,
         'griglia accesa: ci si ferma sulla linea che la griglia disegna (x=' + accesa.dopo.x + ', passo=' + accesa.dopo.passoDisegnato + ')');
       assert.equal(accesa.dopo.y % accesa.dopo.passoDisegnato, 0, 'idem in verticale');
+    });
+
+    await t.test('Planimetria: la griglia non ha bordo — copre la vista a ogni panoramica e a ogni zoom', async () => {
+      // ⚠️ Perché questo banco esiste. La griglia era il background di
+      // #floor-canvas, un rettangolo di 5000×5000px: finiva dove finiva quello, e
+      // bastava trascinare 200px oltre l'origine per trovare il vuoto — l'angolo
+      // della tela coincide con quello della vista. Ora è figlia della VISTA e a
+      // muoversi è il suo background-position, che non ha estremi.
+      // Si provano le tre cose che possono rompersi, non la regola CSS:
+      //   ① che copra la vista anche a 9000px dall'origine (col disegno vecchio là
+      //      la griglia era interamente fuori schermo);
+      //   ② che il motivo segua la panoramica invece di restare fermo;
+      //   ③ l'invariante che rende la griglia VERA — ogni riga disegnata è una
+      //      posizione di aggancio. Sotto zoom basso il passo si RADDOPPIA (le
+      //      righe diventano un sottoinsieme dei punti di aggancio); se qualcuno
+      //      lo dimezzasse si disegnerebbero righe dove non si aggancia niente, e
+      //      questa riga diventerebbe rossa.
+      const r = await page.evaluate(() => {
+        const fp = document.getElementById('floorplan');
+        const g = document.getElementById('floorplan-grid');
+        const orig = { x: state.floorView.x, y: state.floorView.y, zoom: state.floorView.zoom };
+        const R = (e) => { const b = e.getBoundingClientRect(); return { sx: Math.round(b.x), sy: Math.round(b.y), dx: Math.round(b.right), giu: Math.round(b.bottom) }; };
+        const misura = (x, y, z) => {
+          state.floorView.x = x; state.floorView.y = y; state.floorView.zoom = z;
+          updateTransforms();
+          const cs = getComputedStyle(g);
+          const cella = parseFloat(cs.backgroundSize);
+          const bp = cs.backgroundPosition.split(' ').map(parseFloat);
+          const vp = R(fp), gr = R(g);
+          return {
+            z, cella, passoModello: cella / z,
+            copre: gr.sx === vp.sx && gr.sy === vp.sy && gr.dx === vp.dx && gr.giu === vp.giu,
+            segue: bp[0] === x && bp[1] === y,
+          };
+        };
+        const casi = [[0, 0, 1], [-9000, -7000, 1], [-9000, -7000, 2.5], [340, -120, 0.2], [0, 0, 0.05]].map((a) => misura(a[0], a[1], a[2]));
+        const ordine = Array.from(fp.children).map((c) => c.id);
+        state.floorView.x = orig.x; state.floorView.y = orig.y; state.floorView.zoom = orig.zoom;
+        updateTransforms();
+        return { casi, ordine };
+      });
+      // Il passo di aggancio NON è ricopiato qui: si legge da ciò che la griglia
+      // disegna a zoom 1, come nel banco sopra. Un numero scritto due volte è la
+      // premessa del difetto «disegnata a 40, aggancio a 20».
+      const passo = r.casi[0].passoModello;
+      assert.ok(passo > 0, 'la griglia deve dichiarare un passo');
+      for (const c of r.casi) {
+        assert.ok(c.copre, 'zoom ' + c.z + ': la griglia copre tutta la vista (col disegno vecchio, a 9000px dall’origine era interamente fuori schermo)');
+        assert.ok(c.segue, 'zoom ' + c.z + ': il motivo segue la panoramica — background-position = floorView, o la griglia resta ferma mentre la planimetria scorre');
+        const multiplo = c.passoModello / passo;
+        assert.ok(Math.abs(multiplo - Math.round(multiplo)) < 1e-9 && multiplo >= 1,
+          'zoom ' + c.z + ': ogni riga disegnata è una posizione di aggancio (passo modello ' + c.passoModello + ', cioè ' + multiplo + '× quello di aggancio). Sotto zoom basso il passo si RADDOPPIA, mai si dimezza.');
+      }
+      assert.ok(r.ordine.indexOf('floorplan-grid') < r.ordine.indexOf('floor-canvas'),
+        "la griglia sta PRIMA della tela nel DOM: fra fratelli posizionati a z-index 0/auto decide l'ordine del DOM, e dopo la tela coprirebbe apparati e cavi");
     });
 
     await t.test('Planimetria: il PIANO si trascina e si cancella come la stanza', async () => {

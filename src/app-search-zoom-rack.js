@@ -15,7 +15,7 @@ import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: fun
 import { renderAll, rackUPx } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName, _nodeSpecView } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { trace } from './app-pointer.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
-import { snapFloor } from '../lib/floor-snap.js';   // aggancio alla griglia: stessa regola del drag (rispetta gridHidden)
+import { snapFloor, FLOOR_SNAP_STEP } from '../lib/floor-snap.js';   // aggancio alla griglia: stessa regola del drag (rispetta gridHidden) + il passo che la griglia DISEGNA
 
 // Stato ricerca: module-local (prima era `let` in app.js, usato SOLO qui).
 let searchResults = [], activeSearchIndex = -1;
@@ -160,8 +160,44 @@ export function focusNode(n){
 // ============================================================
 // ZOOM & PAN
 // ============================================================
+// Sotto questa dimensione le righe si toccano e la griglia diventa una tinta
+// piatta invece di un reticolo. Col passo di 20px ci si arriva sotto il 40% di zoom.
+const GRID_MIN_CELL_PX = 8;
+
+/**
+ * Disegna la griglia della planimetria. È la GEMELLA del transform della tela e
+ * vive accanto a lui apposta: dicono la stessa cosa (dove sto guardando) a due
+ * elementi diversi, e separarle è il modo in cui divergerebbero.
+ *
+ * Perché non ha un bordo: la griglia è figlia della VISTA, non della tela, e a
+ * muoversi è il suo `background-position`. Un motivo ripetuto non ha estremi —
+ * mentre un background dentro un rettangolo di 5000×5000px finisce dove finisce il
+ * rettangolo, che è com'era prima del 30/08.
+ *
+ * L'invariante che conta: **ogni riga disegnata è una posizione di aggancio.** Un
+ * oggetto a coordinata modello X sta sullo schermo a `floorView.x + X·zoom`; le
+ * righe cadono a `floorView.x + k·cella`. Con cella = FLOOR_SNAP_STEP·zoom le due
+ * famiglie coincidono a qualunque ingrandimento.
+ */
+export function paintFloorGrid(){
+    const g = document.getElementById('floorplan-grid');
+    if(!g) return;
+    if(store.state.gridHidden){ g.style.display='none'; return; }
+    g.style.display='';
+    const zoom = store.state.floorView.zoom || 1;
+    let cella = FLOOR_SNAP_STEP * zoom;
+    // ⚠️ Si RADDOPPIA, mai si dimezza. Raddoppiando si disegna un SOTTOINSIEME dei
+    // punti di aggancio (una riga ogni 2, poi ogni 4…): ciò che si vede resta vero,
+    // se ne vede solo meno. Dimezzando si disegnerebbero righe dove non si aggancia
+    // niente — una griglia che mente su dove ti fermerai.
+    while(cella < GRID_MIN_CELL_PX) cella *= 2;
+    g.style.backgroundSize = cella+'px '+cella+'px';
+    g.style.backgroundPosition = store.state.floorView.x+'px '+store.state.floorView.y+'px';
+}
+
 export function updateTransforms(){
     document.getElementById('floor-canvas').style.transform=`translate(${store.state.floorView.x}px,${store.state.floorView.y}px) scale(${store.state.floorView.zoom})`;
+    paintFloorGrid();
     document.getElementById('floor-zoom-lbl').innerText=Math.round(store.state.floorView.zoom*100)+'%';
     document.getElementById('rack-chassis-wrap').style.transform=`translate(${store.state.rackView.x||0}px,${store.state.rackView.y||0}px) scale(${store.state.rackView.zoom})`;
     const _zl = document.getElementById('rack-zoom-lbl');
@@ -730,8 +766,7 @@ function scaleBgImage(delta){ scaleBgImageTo(store.state.bgImageScale+delta); }
 /** Mostra/nasconde la griglia della planimetria (per-progetto) */
 function toggleFloorGrid(show){
     store.state.gridHidden = !show;
-    const g=document.getElementById('floorplan-grid');
-    if(g) g.style.display = show ? '' : 'none';
+    paintFloorGrid();   // una sola funzione disegna la griglia: accenderla e spegnerla non è un caso a parte
     markDirty();
 }
 

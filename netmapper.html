@@ -365,9 +365,20 @@
                 <span class="zoom-label" id="floor-zoom-lbl">100%</span>
                 <button class="zoom-btn" data-act="zoom-floor" data-delta="0.1"><i class="fas fa-plus"></i></button>
             </div>
+            <!-- La griglia sta nella FINESTRA, non nella tela — ed è per questo che
+                 non ha un bordo. Un background si disegna solo dove c'è un elemento:
+                 finché stava dentro #floor-canvas (5000×5000px fissi) finiva dove
+                 finiva quel rettangolo, e bastava trascinare di 200px oltre l'origine
+                 per vedere il vuoto. Qui l'elemento è grande quanto la vista e a
+                 seguire la panoramica è il MOTIVO (background-position), che non ha
+                 estremi. Il disegno lo compone paintFloorGrid() in
+                 src/app-search-zoom-rack.js: qui non c'è nessun numero.
+                 ⚠️ Deve restare PRIMA di #floor-canvas: fra fratelli posizionati a
+                 z-index 0/auto decide l'ordine del DOM, e una griglia dopo la tela
+                 coprirebbe apparati e cavi. -->
+            <div id="floorplan-grid"></div>
             <div id="floor-canvas">
                 <img id="floor-bg-img" src="" alt="mappa">
-                <div id="floorplan-grid"></div>
                 <div id="floor-structures"></div>
                 <div id="floor-items"></div>
                 <svg id="topo-floor-overlay" xmlns="http://www.w3.org/2000/svg"></svg>
