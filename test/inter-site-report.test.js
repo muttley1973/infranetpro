@@ -134,6 +134,24 @@ test('⑦ l\'underlay di un SD-WAN: un id che non risolve resta in elenco, marca
   assert.equal(u[1].uplinkId, 'u-sparito');
 });
 
+test('⭐ ⑳ e non solo di un SD-WAN: la linea sotto un IPsec arriva sulla carta', () => {
+  // È LA domanda del capitolo: «è giù la Fastweb di Milano — quali collegamenti
+  // cadono con lei?». Finché le linee sotto vivevano nel solo `sdwan`, il
+  // dossier teneva le due metà separate senza una relazione, e la risposta non
+  // era deducibile nemmeno leggendolo tutto.
+  // ⚠️ `orgBase` NORMALIZZA: questa prova passa dal modello, che è il punto dove
+  // il campo veniva buttato via. Su un oggetto grezzo sarebbe verde da sempre.
+  const R = buildInterSiteWanReport(orgBase({
+    links: [{ id: 'l1', aSiteId: 'mi', bSiteId: 'rm', kind: 'ipsec', name: 'T1',
+      underlayUplinkIds: ['u1', 'u2'] }],
+  }));
+  const u = R.links[0].underlay;
+  assert.equal(u.length, 2);
+  assert.equal(u[0].provider, 'Fastweb');
+  assert.equal(u[0].circuitId, 'FW-1');
+  assert.equal(u[1].found, true, 'la seconda linea non ha operatore, ma esiste');
+});
+
 test('⑧ la sede del progetto che si sta stampando è marcata, e con lei le sue righe', () => {
   const R = buildInterSiteWanReport(orgBase(), { projectRef: '17' });
   assert.equal(R.here, '17');

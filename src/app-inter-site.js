@@ -452,6 +452,7 @@ function _addLink() {
   _links().push({
     id: uid('isl'), aSiteId: ss[0].id, bSiteId: ss[1].id, kind: 'ipsec',
     topology: null, state: null, reach: null, provider: null, circuitId: null, name: null,
+    underlayUplinkIds: [],
     endpointA: { deviceRef: null, peerIp: null }, endpointB: { deviceRef: null, peerIp: null },
     phase1Name: null, ikeVersion: null,
   });
@@ -639,6 +640,11 @@ function _mergeWan(site, j) {
       topology: INTER_SITE_TOPOLOGIES.indexOf(c.topology) >= 0 ? c.topology : null,
       state: null, reach: null,
       provider: c.provider || null, circuitId: c.circuitId || null,
+      // ⑳ Vuoto, e non dedotto: nessun import sa su quale linea corre un tunnel
+      // (paletto ②). Far combaciare `peerIp` con un `publicIps` è una
+      // corrispondenza, non un'identità — e sull'archivio vero non ne combacia
+      // nemmeno una. Lo dichiara chi documenta, con le caselle del pannello.
+      underlayUplinkIds: [],
       endpointA: { deviceRef: null, deviceName: null, peerIp: c.aPeerIp || null },
       endpointB: { deviceRef: null, deviceName: null, peerIp: c.bPeerIp || null },
     };
@@ -1098,7 +1104,20 @@ function _originBadge(f) {
 }
 
 /**
- * Quali linee WAN trasportano questo overlay SD-WAN.
+ * Su quali linee WAN corre questo collegamento.
+ *
+ * ⑳ **Vale per ogni natura, non solo per l'SD-WAN.** Era un campo di `sdwan` —
+ * la parola «underlay» lo faceva sembrare un concetto da SD-WAN — e la domanda
+ * invece è la stessa per tutti: un IPsec esce da una linea, un MPLS ci viene
+ * consegnato sopra. «È giù la linea di Milano: cosa cade con lei» è la domanda
+ * del dossier di ripristino, e senza questo campo su ogni `kind` non ha risposta.
+ *
+ * ⚠️ Si offrono le linee **dei due capi**, non tutte quelle dell'organizzazione:
+ * una linea di Torino non può portare un collegamento fra Milano e Roma, e
+ * offrirla è invitare a un errore che poi nessuno rilegge. Ma ciò che è **già
+ * dichiarato** si mostra comunque, anche se il capo è cambiato dopo — e persino
+ * se la linea non esiste più: un valore che c'è nel modello e non si vede a
+ * schermo è impossibile da togliere, e intanto finisce sulla carta.
  *
  * ⚠️ Era un `<select multiple>`, ed **era inutilizzabile**: si aggiunge e si
  * toglie solo col ctrl-clic, un clic normale azzera la selezione, e con un
@@ -1116,12 +1135,22 @@ function _originBadge(f) {
  */
 function _underlayField(l, i, ro) {
   const scelti = l.underlayUplinkIds || [];
-  const righe = _uplinks().map(u => `
+  const capi = [l.aSiteId, l.bSiteId];
+  const casella = (id, testo, checked) => `
     <label class="org-check">
-      <input type="checkbox" ${ro ? 'disabled' : ''} ${scelti.includes(u.id) ? 'checked' : ''}
-             data-change="org-underlay" data-idx="${i}" data-uplink="${escapeHTML(u.id)}">
-      <span>${escapeHTML((u.provider || t('org.uplinkNoProvider')) + ' · ' + (_siteName(u.siteId) || u.siteId))}</span>
-    </label>`).join('');
+      <input type="checkbox" ${ro ? 'disabled' : ''} ${checked ? 'checked' : ''}
+             data-change="org-underlay" data-idx="${i}" data-uplink="${escapeHTML(id)}">
+      <span>${escapeHTML(testo)}</span>
+    </label>`;
+  const offerte = _uplinks().filter(u => capi.indexOf(u.siteId) >= 0 || scelti.indexOf(u.id) >= 0);
+  const righe = offerte.map(u => casella(u.id,
+    (u.provider || t('org.uplinkNoProvider')) + ' · ' + (_siteName(u.siteId) || u.siteId),
+    scelti.indexOf(u.id) >= 0)).join('')
+    // La linea cancellata dopo: la casella resta, spuntata, così si può togliere.
+    // Il dossier la stampa già come «non trovata» — se qui sparisse, chi legge
+    // quella riga sulla carta non avrebbe nessun posto dove andare a spegnerla.
+    + scelti.filter(id => !offerte.some(u => u.id === id))
+      .map(id => casella(id, id + ' — ' + t('org.underlayGone'), true)).join('');
   return `<div class="org-f org-f-wide org-f-underlay"><span>${escapeHTML(t('org.underlay'))}</span>
     ${righe || `<p class="org-note">${escapeHTML(t('org.underlayNone'))}</p>`}</div>`;
 }
@@ -1180,8 +1209,11 @@ function _fieldsOfKind(l, i) {
     case 'evpn':
       return F('vrf', 'VRF', l.vrf) + F('service', t('org.service'), l.service);
     case 'sdwan':
-      return F('overlay', t('org.overlay'), l.overlay, t('org.overlayPh'), t('org.overlayHint'))
-        + _underlayField(l, i, ro);
+      // ⑳ Le linee sotto NON stanno più qui: come i due capi (⑥), si disegnano
+      // una volta sola in `_renderLinks`, per ogni natura. Qui resta l'overlay,
+      // che è davvero dell'SD-WAN. La riga d'aiuto dice «sono qui sotto» e resta
+      // vera: il campo comune si disegna subito dopo questo.
+      return F('overlay', t('org.overlay'), l.overlay, t('org.overlayPh'), t('org.overlayHint'));
     case 'directLink':
       return F('media', t('org.media'), l.media, t('org.mediaPh'));
     case 'other':
@@ -1566,6 +1598,7 @@ function _renderLinks() {
           ${_deviceDatalist('org-dl-' + i + '-b', l.bSiteId)}
           ${_deviceStatus(l.bSiteId, l.endpointB)}</label>
         ${_fieldsOfKind(l, i)}
+        ${_underlayField(l, i, ro)}
         <label class="org-f org-f-wide"><span>${escapeHTML(_atSite('org.reachA', l.aSiteId))}</span>
           <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(a.join(', '))}" placeholder="10.1.0.0/24, 10.1.1.0/24"
                  data-input="org-field" data-scope="link" data-idx="${i}" data-field="reachA">
@@ -1584,7 +1617,7 @@ function _renderLinks() {
 // ── Coerenza (④: si RACCONTA l'audit del server, non se ne calcola un altro) ─
 
 /** Le liste dell'audit, in tre gruppi che NON si sommano fra loro. */
-const AUDIT_PROBLEMS = ['subnetsNowhere', 'subnetsAtTwoSites', 'linksToUnknownSite', 'uplinksToUnknownSite', 'spokesWithoutHub', 'linkTopologyVsRoles'];
+const AUDIT_PROBLEMS = ['subnetsNowhere', 'subnetsAtTwoSites', 'linksToUnknownSite', 'uplinksToUnknownSite', 'spokesWithoutHub', 'linkTopologyVsRoles', 'underlaysNotAtEnds'];
 const AUDIT_GAPS = ['subnetsNotCarried', 'linksWithoutReach', 'sitesWithoutLink', 'sitesWithoutUplink', 'uplinksWithoutPublicIp'];
 
 /**
@@ -1604,6 +1637,10 @@ const _AUDIT_SITES_OF = {
   uplinksToUnknownSite: (r) => [r.siteId],
   spokesWithoutHub: (r) => [r.siteId],
   linkTopologyVsRoles: (r) => _linkSites(r.linkId),
+  // ⑳ Le sedi sono quelle del COLLEGAMENTO, non quella della linea sbagliata:
+  // la spunta da togliere sta sulla riga del collegamento, e accendere la
+  // terza sede la farebbe sembrare colpevole di un difetto che non è suo.
+  underlaysNotAtEnds: (r) => _linkSites(r.linkId),
   subnetsNotCarried: (r) => [r.siteId],
   linksWithoutReach: (r) => _linkSites(r.linkId),
   sitesWithoutLink: (r) => [r.siteId],
@@ -1691,6 +1728,12 @@ function _auditLine(key, row) {
     case 'uplinksToUnknownSite': return `${escapeHTML(_uplinkName(row.uplinkId, row.siteId))}`;
     case 'spokesWithoutHub': return S(row.siteId);
     case 'linkTopologyVsRoles': return `${escapeHTML(_linkName(row.linkId, row.kind))} <span class="org-audit-at">${escapeHTML(t('org.bothRole').replace('{role}', t('org.role.' + row.role)))}</span>`;
+    // ⑳ Ciò che varia è QUALE linea non torna, e dove sta davvero: senza la
+    // sede la riga direbbe «una linea sbagliata» senza dire quale — e la sede è
+    // esattamente il pezzo che manca sulla carta, dove il difetto è invisibile.
+    case 'underlaysNotAtEnds': return `${escapeHTML(_linkName(row.linkId, row.kind))} <span class="org-audit-at">${row.siteId
+      ? escapeHTML(_uplinkName(row.uplinkId, row.siteId))
+      : escapeHTML(row.uplinkId + ' — ' + t('org.underlayGone'))}</span>`;
     case 'subnetsNotCarried': return `${NET(row.subnet)} <span class="org-audit-at">${S(row.siteId)}</span>`;
     case 'linksWithoutReach': return escapeHTML(_linkName(row.linkId, row.kind));
     case 'sitesWithoutLink': return S(row.siteId);

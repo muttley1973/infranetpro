@@ -36,9 +36,15 @@ const SANE = {
   // I due tunnel DICHIARANO la loro forma, e concorda con i ruoli: senza,
   // «un modello coerente» resterebbe uno su cui un controllo non ha potuto
   // girare — che è una terza cosa, non un modello coerente.
+  // ⑳ E dicono su quali linee corrono, per lo stesso identico motivo: da quando
+  // il controllo esiste, un modello che non lo dichiara è un modello su cui c'è
+  // una domanda senza risposta. Ogni tunnel corre sulla linea dei suoi due capi,
+  // che è il caso normale e non deve produrre niente.
   links: [
-    hs(ipsec('mi-rm', 'mi', 'rm', reach(['10.1.0.0/24', '10.3.0.0/24'], ['10.2.0.0/24']))),
-    hs(ipsec('mi-na', 'mi', 'na', reach(['10.1.0.0/24', '10.2.0.0/24'], ['10.3.0.0/24']))),
+    Object.assign(hs(ipsec('mi-rm', 'mi', 'rm', reach(['10.1.0.0/24', '10.3.0.0/24'], ['10.2.0.0/24']))),
+      { underlayUplinkIds: ['u-mi', 'u-rm'] }),
+    Object.assign(hs(ipsec('mi-na', 'mi', 'na', reach(['10.1.0.0/24', '10.2.0.0/24'], ['10.3.0.0/24']))),
+      { underlayUplinkIds: ['u-mi', 'u-na'] }),
   ],
 };
 
@@ -223,6 +229,79 @@ test('⑮ senza collegamenti il controllo si dichiara cieco per quel motivo', ()
   org.links = [];
   const a = buildInterSiteAudit(org);
   assert.ok(a.notChecked.some(n => n.check === 'linkTopologyVsRoles' && n.reason === 'no-links'));
+});
+
+// ── ⑳ la linea su cui un collegamento dice di correre, contro le sue sedi ──
+// Terza coppia di frasi che si contraddicono senza che nessuna delle due, presa
+// da sola, sembri sbagliata: la linea appartiene a una sede, il collegamento a
+// due, e nessuno confrontava le tre cose.
+
+test('⭐ ⑳ una linea di una TERZA sede non può portare quel collegamento', () => {
+  const org = clone(SANE);
+  org.links[0].underlayUplinkIds = ['u-mi', 'u-na'];   // mi↔rm che corre su una linea di NAPOLI
+  const a = buildInterSiteAudit(org);
+  assert.deepStrictEqual(a.underlaysNotAtEnds,
+    [{ linkId: 'mi-rm', kind: 'ipsec', uplinkId: 'u-na', siteId: 'na' }]);
+  // ⚠️ La linea GIUSTA dello stesso collegamento non viene accusata insieme.
+  assert.strictEqual(a.underlaysNotAtEnds.length, 1);
+});
+
+test('⭐ ⑳ e una linea che non esiste affatto: stessa lista, `siteId` a null', () => {
+  // Il caso vero è la linea cancellata dopo: la spunta resta nel file, il
+  // pannello la mostra come «non più descritta» e la carta la stampa come «non
+  // trovata». Mancava solo chi la CONTA fra le cose che non tornano.
+  const org = clone(SANE);
+  org.links[1].underlayUplinkIds = ['u-mi', 'u-sparita'];
+  const a = buildInterSiteAudit(org);
+  assert.deepStrictEqual(a.underlaysNotAtEnds,
+    [{ linkId: 'mi-na', kind: 'ipsec', uplinkId: 'u-sparita', siteId: null }]);
+});
+
+test('⑳ il caso normale — la linea di un capo — non produce niente', () => {
+  const a = buildInterSiteAudit(SANE);
+  assert.deepStrictEqual(a.underlaysNotAtEnds, []);
+  assert.ok(!a.notChecked.some(n => n.check === 'underlaysNotAtEnds'),
+    'il controllo ha potuto girare: non deve dichiararsi cieco');
+});
+
+test('⭐ ⑳ nessuno che lo dichiara ⇒ CIECO, non «va tutto bene»', () => {
+  // È la disciplina ① applicata a un campo nuovo, e sull'archivio vero è il caso
+  // di tutti e otto i collegamenti. Una lista vuota direbbe «ho guardato»: qui
+  // non c'era niente da guardare, ed è un'informazione diversa — dice a chi
+  // documenta che quella domanda esiste e non ha ancora una risposta.
+  const org = clone(SANE);
+  org.links.forEach(l => { delete l.underlayUplinkIds; });
+  const a = buildInterSiteAudit(org);
+  assert.deepStrictEqual(a.underlaysNotAtEnds, []);
+  assert.ok(a.notChecked.some(n => n.check === 'underlaysNotAtEnds' && n.reason === 'no-underlay'));
+});
+
+test('⑳ senza collegamenti il controllo si dichiara cieco per QUEL motivo', () => {
+  const org = clone(SANE);
+  org.links = [];
+  const a = buildInterSiteAudit(org);
+  assert.ok(a.notChecked.some(n => n.check === 'underlaysNotAtEnds' && n.reason === 'no-links'));
+});
+
+test('⭐ ⑳ un capo che punta a una sede inesistente NON viene accusato due volte', () => {
+  // Il difetto è già detto da `linksToUnknownSite`, e finché quel capo è rotto
+  // nessuno può dire a quale sede la linea dovrebbe appartenere. Due righe per
+  // un guasto solo lo fanno sembrare due guasti.
+  const org = clone(SANE);
+  org.links[0].bSiteId = 'sede-che-non-ce';
+  org.links[0].underlayUplinkIds = ['u-na'];
+  const a = buildInterSiteAudit(org);
+  assert.strictEqual(a.linksToUnknownSite.length, 1);
+  assert.deepStrictEqual(a.underlaysNotAtEnds, []);
+});
+
+test('⑳ è un-INCOERENZA, non una lacuna: entra nel conto giusto', () => {
+  const org = clone(SANE);
+  org.links[0].underlayUplinkIds = ['u-na'];
+  const prima = interSiteAuditCounts(buildInterSiteAudit(SANE));
+  const dopo = interSiteAuditCounts(buildInterSiteAudit(org));
+  assert.strictEqual(dopo.problems, prima.problems + 1);
+  assert.strictEqual(dopo.gaps, prima.gaps);
 });
 
 test('⑮ è un-INCOERENZA, non una lacuna: entra nel conto giusto', () => {

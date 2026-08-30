@@ -380,9 +380,12 @@ test('⑩ una sede senza uplink porta una lista VUOTA, non l\'assenza del campo'
 
 test('⛔ l\'operatore NON viene appoggiato sull\'arco: nessuno ha dichiarato quale linea lo porta', () => {
   // La tentazione era mettere il nome dell'operatore al capo del collegamento,
-  // come se quella linea portasse quel tunnel. Con due linee in una sede non lo
-  // sa nessuno — l'unico posto dove l'associazione esiste è `underlayUplinkIds`
-  // dell'SD-WAN — e disegnarla sarebbe inventare con la faccia di un fatto.
+  // come se quella linea portasse quel tunnel. Con due linee in una sede e
+  // niente di dichiarato non lo sa nessuno, e disegnarla sarebbe inventare con
+  // la faccia di un fatto.
+  // ⚠️ Da ⑳ ogni collegamento può DIRLO (`underlayUplinkIds`, per ogni natura):
+  // qui non è dichiarato, quindi il divieto vale intero. Il giorno in cui la
+  // mappa disegnerà la relazione, lo farà dove c'è — non per deduzione.
   const L = buildInterSiteLayout({
     sites: [site('mi', 'Milano'), site('rm', 'Roma')],
     uplinks: [uplink('u1', 'mi'), uplink('u2', 'mi')],

@@ -331,6 +331,55 @@ test('⑪ un collegamento ha un NOME, e non è la sua natura', () => {
   assert.strictEqual(normalizeInterSiteLink({ id: 'l', aSiteId: 'a', bSiteId: 'b', kind: 'ipsec' }).name, null);
 });
 
+test('⭐ ⑳ su quali linee CORRE vale per ogni kind, non solo per l\'SD-WAN', () => {
+  // La quarta volta della stessa lezione (⑥, ⑩, ⑪), e stavolta il campo c'era
+  // già: viveva nel solo `sdwan`, dove la parola «underlay» lo aveva fatto
+  // sembrare un concetto da SD-WAN. Un IPsec esce da una linea, un MPLS ci viene
+  // consegnato sopra: «è giù la linea di Milano, cosa cade con lei» è la stessa
+  // domanda per tutti — ed è LA domanda del capitolo di ripristino.
+  for (const kind of ['ipsec', 'gre', 'wireguard', 'openvpn', 'l2tp',
+    'mpls', 'vpls', 'vpws', 'vxlan', 'evpn', 'sdwan', 'directLink', 'other']) {
+    const l = normalizeInterSiteLink({
+      id: 'l', aSiteId: 'a', bSiteId: 'b', kind, underlayUplinkIds: ['u1', 'u2'],
+    });
+    assert.deepStrictEqual(l.underlayUplinkIds, ['u1', 'u2'], kind);
+  }
+});
+
+test('⑳ chi non lo dichiara porta una lista VUOTA, non l\'assenza del campo', () => {
+  // Stessa forma dei capi (⑥) e degli uplink di una sede: chi legge non si deve
+  // difendere da `undefined`. E vuoto vuol dire «non dichiarato», non «non corre
+  // su niente» — su una fibra fra due capannoni il vuoto è la risposta giusta.
+  for (const kind of ['ipsec', 'mpls', 'sdwan', 'directLink']) {
+    assert.deepStrictEqual(
+      normalizeInterSiteLink({ id: 'l', aSiteId: 'a', bSiteId: 'b', kind }).underlayUplinkIds, [], kind);
+  }
+});
+
+test('⑳ la stessa linea dichiarata due volte è UNA linea', () => {
+  // Non si perde niente: la stessa linea due volte è la stessa linea. Sulla
+  // scheda di ripristino comparirebbe due volte, facendo credere a due accessi
+  // dove ce n'è uno — e chi legge quella scheda sta decidendo dove telefonare.
+  const l = normalizeInterSiteLink({
+    id: 'l', aSiteId: 'a', bSiteId: 'b', kind: 'ipsec',
+    underlayUplinkIds: ['u1', 'u2', 'u1', '', null, 'u2'],
+  });
+  assert.deepStrictEqual(l.underlayUplinkIds, ['u1', 'u2']);
+});
+
+test('⑳ l\'SD-WAN non perde niente: overlay suo, linee comuni', () => {
+  // La generalizzazione non deve togliere il campo a chi ce l'aveva: `overlay`
+  // resta dell'SD-WAN (su un IPsec non vuol dire niente), le linee no.
+  const l = normalizeInterSiteLink({
+    id: 'l', aSiteId: 'a', bSiteId: 'b', kind: 'sdwan',
+    overlay: 'Corporate', underlayUplinkIds: ['u1'],
+  });
+  assert.strictEqual(l.overlay, 'Corporate');
+  assert.deepStrictEqual(l.underlayUplinkIds, ['u1']);
+  assert.ok(!('overlay' in normalizeInterSiteLink({ id: 'l', aSiteId: 'a', bSiteId: 'b', kind: 'ipsec' })),
+    'e l\'overlay NON è diventato di tutti per simmetria');
+});
+
 test('⑨ l\'etichetta può mancare: «non so come chiamarlo» è già un\'informazione', () => {
   assert.strictEqual(normalizeInterSiteLink({ id: 'l', aSiteId: 'a', bSiteId: 'b', kind: 'other' }).kindLabel, null);
 });

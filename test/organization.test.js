@@ -250,3 +250,20 @@ test('⭐ una banda contrattuale che non è banda non viene salvata', async () =
   assert.equal(j.dropped.uplinks, 0);
   assert.equal(j.organization.uplinks[0].provider, 'Acme Fiber');
 });
+
+// ── ⑳ Su quale linea corre: il salvataggio non lo butta più via ────────────
+test('⭐ un IPsec può dire su quali linee corre, e il salvataggio lo tiene', async () => {
+  const raw = ORG();
+  raw.uplinks.push({ id: 'u-rm', siteId: 'rm', provider: 'Acme Wireless' });
+  raw.links[0].underlayUplinkIds = ['u-mi', 'u-rm'];
+  const j = await (await put(raw)).json();
+  // Prima il campo esisteva SOLO sul `kind` `sdwan`: su un IPsec il server lo
+  // normalizzava via, in silenzio e senza contarlo in `dropped` — chi l'aveva
+  // dichiarato non aveva modo di accorgersene. E «è giù la linea di Milano,
+  // quali collegamenti cadono?» restava senza risposta anche col dossier in mano.
+  assert.deepEqual(j.organization.links[0].underlayUplinkIds, ['u-mi', 'u-rm']);
+  assert.equal(j.dropped.links, 0);
+  // E ci resta: la conferma vera è la RILETTURA, non l'eco della scrittura.
+  const dopo = await (await get()).json();
+  assert.deepEqual(dopo.organization.links[0].underlayUplinkIds, ['u-mi', 'u-rm']);
+});
