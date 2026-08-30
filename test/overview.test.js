@@ -1601,6 +1601,16 @@ test('perimetro esplicito: buildOverview dichiara «cosa non sto guardando» (ch
   for (const gone of ['power', 'health', 'lifecycle']) {
     assert.ok(!keys.includes(gone), 'ora modellato, quindi fuori dal perimetro: ' + gone);
   }
+  // ⭐ E c'e' un TERZO caso, che non e' ne' «lo guardo» ne' «non esiste»: la WAN.
+  // Le linee verso l'operatore, la banda contrattuale e i collegamenti fra sedi
+  // sono modellati dal 30/08 — ma nel pannello «Sedi e collegamenti», che e' UNO
+  // per INSTALLAZIONE, mentre questo motore legge UN progetto. Toglierlo dalla
+  // lista direbbe che la Panoramica li guarda; lasciarlo 'unmodeled' diceva che
+  // il prodotto non li modella. Sono due bugie opposte, e il tier che le evita
+  // tutt'e due esisteva gia' e non lo usava nessuno.
+  const wan = o.blindSpots.find((b) => b.key === 'wan');
+  assert.equal(wan.tier, 'elsewhere',
+    'la WAN e\' documentata altrove (pannello inter-sede), non non-modellata');
   // Il perimetro e\' una COPIA difensiva della costante (mutarlo non tocca la lib).
   assert.notStrictEqual(o.blindSpots, _BLIND_SPOTS);
 });
