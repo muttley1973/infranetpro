@@ -74,9 +74,17 @@ test('CRICCHETTO — la classifica non elenca campi mai visti in nessun progetto
   // dal cavo NetBox, `overflow` da un apparato le cui interfacce sfondano le
   // posizioni del frontale. Visti su un import da NetBox vero (4.6.7), quindi
   // non sono campi finti — sono campi che il campione non poteva contenere.
+  // ⚠️ `length` è un caso a sé, e l'ha trovato l'ALTRO guard — quello sui
+  // progetti veri di questa installazione, non il censimento congelato qui
+  // sopra. La lunghezza di un cavo ha due nomi: `lengthM` (documenti ed
+  // etichette) e `length`, che è quello che il pannello cavo SCRIVE davvero.
+  // Nessuno dei tredici progetti del campione aveva una lunghezza compilata,
+  // quindi il censimento non poteva vederlo: non è un campo finto, è un campo
+  // che il campione non conteneva. Si aggiunge qui invece che al censimento,
+  // che è una misura e non si riscrive.
   const attesi = new Set(['proof', 'modelMatch', 'portsMeasured', 'osTypeMeasured', 'portsReal',
     'portsManual', 'backup', 'snmp', 'srcDevice', 'srcRack',
-    'color', 'lengthM', 'overflow']);
+    'color', 'lengthM', 'length', 'overflow']);
   for (const scope of Object.keys(CENSUS)) {
     const visti = new Set(keysOf(scope));
     const extra = Object.keys(FIELD_CLASS_BY_SCOPE[scope]).filter(k => !visti.has(k) && !attesi.has(k));
