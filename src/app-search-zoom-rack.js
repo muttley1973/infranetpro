@@ -8,7 +8,7 @@
 import { expose, t } from './_bridge.js';
 import { registerClickActions, registerChangeActions, registerInputActions, registerFocusActions, registerKeydownActions } from './app-delegation.js';   // ASSE B: event delegation (data-act/change/input/focus/keydown) — toolbar rack/zoom/palette + search box
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { escapeHTML, uid, hexToRgba, normalizePortStatus, normalizeNumber } from './app-util.js';
+import { escapeHTML, uid, hexToRgba, normalizePortStatus, normalizeNumber, floorStructEl } from './app-util.js';
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _showToast, getRackById, getRackName, getNodeRackSize, getPortConnectionCount, getNodePortCount, getRackSize, _repairRackPlacements, removeNodePorts, _resetSelection } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { showAlert, showPrompt, showConfirm } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -759,20 +759,20 @@ function toggleRoomLock(nodeId){
     markDirty(); renderAll();
 }
 
-/** Aggiorna live il colore sfondo di una stanza (senza re-render) */
+/** Aggiorna live il colore sfondo di un contenitore (senza re-render) */
 function _liveStructColor(nodeId, col){
     const n=nodeById(nodeId); if(!n) return;
     const alpha=n.opacity !== undefined ? n.opacity : 1;
-    const el=document.querySelector(`.floor-room[data-id="${nodeId}"]`);
+    const el=floorStructEl(nodeId);
     if(el) el.style.backgroundColor = alpha<1 ? hexToRgba(col,alpha) : col;
 }
-/** Aggiorna live l'opacità sfondo di una stanza (senza re-render) */
+/** Aggiorna live l'opacità sfondo di un contenitore (senza re-render) */
 function _liveStructOpacity(nodeId, val){
     const lbl=document.getElementById('struct-opacity-lbl');
     if(lbl) lbl.textContent=Math.round(val*100)+'%';
     const n=nodeById(nodeId); if(!n) return;
     const col=n.color||TYPES[n.type]?.defaultColor||'#16212b';
-    const el=document.querySelector(`.floor-room[data-id="${nodeId}"]`);
+    const el=floorStructEl(nodeId);
     if(el) el.style.backgroundColor = val<1 ? hexToRgba(col,val) : col;
 }
 

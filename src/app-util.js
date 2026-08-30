@@ -124,19 +124,40 @@ export function portAnchorEl(pid) {
 }
 
 /**
- * L'oggetto di un nodo sulla planimetria: il tile di un apparato OPPURE il
- * rettangolo di una stanza.
- * ⚠️ Le stanze hanno una classe TUTTA LORO (`.floor-room`, non `.floor-node`):
- * chi cercava solo i tile tornava null su una stanza e saltava il proprio
- * lavoro senza dirlo. È costato il trascinamento delle stanze — il dato si
- * spostava, il rettangolo restava fermo, e sembrava che si incollasse alla
- * griglia. Il pointerdown accettava già entrambe le classi
- * (app-pointer.js): la differenza viveva in due strati e sono divergiti.
+ * Ogni oggetto-nodo sulla planimetria: il tile di un apparato (`.floor-node`)
+ * oppure un contenitore disegnato (`.floor-struct` — stanza, piano, e qualunque
+ * altro nasca domani).
+ *
+ * ⚠️ Qui c'era l'elenco dei contenitori scritto a mano — `.floor-node,
+ * .floor-room` — nato quando la stanza era l'unico contenitore esistente. Ha
+ * fatto danno DUE volte:
+ *   1ª — il trascinamento delle stanze: chi cercava solo i tile tornava null su
+ *        una stanza e saltava il proprio lavoro senza dirlo. Il dato si spostava,
+ *        il rettangolo restava fermo, e sembrava che si incollasse alla griglia.
+ *   2ª — il giorno in cui è nato il PIANO l'elenco non l'ha seguito. Il piano si
+ *        disegnava e si ridimensionava (la maniglia risale al `parentElement`,
+ *        non passa di qui) ma non si poteva né spostare né cancellare: senza
+ *        selezione `deleteNode()` esce alla prima riga.
+ * Un selettore che non trova niente non si lamenta — nessun errore, nessun rosso.
+ * Perciò il renderer marchia i contenitori con una classe COMUNE e qui si cerca
+ * quella: un tipo nuovo non deve più bussare a questa porta.
  */
+export const FLOOR_NODE_SEL = '.floor-node, .floor-struct';
+
 export function floorNodeEl(id) {
     if (id == null || id === '') return null;
     const e = _cssEsc(id);
-    return document.querySelector(`.floor-node[data-id="${e}"], .floor-room[data-id="${e}"]`);
+    return document.querySelector(`.floor-node[data-id="${e}"], .floor-struct[data-id="${e}"]`);
+}
+
+/**
+ * Solo il rettangolo di un contenitore (stanza/piano), mai il tile di un
+ * apparato: lo usa chi cambia l'aspetto di una STRUTTURA dal vivo, dove
+ * colpire un device sarebbe un errore silenzioso.
+ */
+export function floorStructEl(id) {
+    if (id == null || id === '') return null;
+    return document.querySelector(`.floor-struct[data-id="${_cssEsc(id)}"]`);
 }
 
 /** L'apparato dentro il telaio del rack. */

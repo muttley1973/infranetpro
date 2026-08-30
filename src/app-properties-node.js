@@ -253,7 +253,7 @@ export function _renderNodeProps(panel){
             const _autoFs   = Math.max(10, Math.min(Math.min(n.w||200, n.h||200) * 0.1, 36));
             const _fontSize = n.fontSize !== undefined ? n.fontSize : '';
             h+=`<div class="prop-group">
-                  <label>${t('f.roomName')}</label>
+                  <label>${t('f.structName')}</label>
                   <input value="${escapeHTML(n.name||'')}" placeholder="${t('pnl.node.noNamePlaceholder')}"
                          data-change="update-n" data-nfield="name">
                 </div>

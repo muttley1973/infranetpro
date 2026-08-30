@@ -198,7 +198,12 @@ export function renderScope(scope){
 function _buildFloorNodeEl(n, def, absentCls){
     const el = document.createElement('div'); el.dataset.id = n.id;
     if(def.isStructural){
-        el.className = `floor-${n.type}${store.selId===n.id?' selected':''}${n.locked?' locked':''}`;
+        // `floor-struct` PRIMA della classe di tipo: è la classe con cui il resto
+        // dell'app riconosce «questo è un contenitore disegnato». La classe di tipo
+        // resta per l'aspetto che DIFFERISCE (impilamento, etichetta) e per i banchi
+        // che puntano una stanza precisa. Chi cerca un contenitore cerchi
+        // FLOOR_NODE_SEL, mai un elenco di tipi scritto a mano → app-util.js.
+        el.className = `floor-struct floor-${n.type}${store.selId===n.id?' selected':''}${n.locked?' locked':''}`;
         const _sCol = n.color || def.defaultColor;
         const _sAlpha = n.opacity !== undefined ? n.opacity : 1;
         const _sBg = _sAlpha < 1 ? hexToRgba(_sCol, _sAlpha) : _sCol;

@@ -26,7 +26,7 @@ import { _clearTopoHighlight, _highlightTopoLinks } from './app-topology-discove
 import { _assignWirelessBss } from './app-wifi.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { _resolveRackOverlap } from './app-topology-crawl.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { snapFloor } from '../lib/floor-snap.js';   // aggancio alla griglia: regola unica condivisa con piazza-rack/segmento/sotto-barra
-import { portAnchorEl, floorNodeEl, rackDeviceEl, isDrawable } from './app-util.js';   // ancore visuali: data-pid/data-id sono dual-use, il primo del documento è spesso un controllo del pannello
+import { portAnchorEl, floorNodeEl, rackDeviceEl, isDrawable, FLOOR_NODE_SEL } from './app-util.js';   // ancore visuali: data-pid/data-id sono dual-use, il primo del documento è spesso un controllo del pannello
 
 // soglia drag/click (px): unico lettore era questo modulo → module-local
 const _DRAG_THRESHOLD_PX = 5;
@@ -340,7 +340,7 @@ function handlePointerDown(e){
     const port=e.target.closest('[data-pid]');
     const pduOutlet=e.target.closest('[data-pdu-outlet]');
     const rackFloorEl=e.target.closest('.floor-rack');
-    const floorEl=!rackFloorEl&&(e.target.closest('.floor-node')||e.target.closest('.floor-room'));
+    const floorEl=!rackFloorEl&&e.target.closest(FLOOR_NODE_SEL);
     const rackEl=e.target.closest('.rack-device');
     const resize=e.target.closest('.resize-handle');
 
@@ -959,7 +959,7 @@ function handleFloorDoubleClick(e){
     // NOTA: il rack icon e' uniformato tra Map e Topology: il SINGLE click
     // (gestito in handlePointerUp se non armato dal threshold drag) apre la
     // rack window. Qui niente da fare.
-    const nodeEl = e.target.closest('.floor-node, .floor-room');
+    const nodeEl = e.target.closest(FLOOR_NODE_SEL);
     if(nodeEl && nodeEl.dataset.id){
         e.stopPropagation();
         // Fallback: di norma il doppio click sul nodo floor lo intercetta gia' il

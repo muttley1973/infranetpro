@@ -294,7 +294,7 @@ header {
 
 /* Nodi e stanze del floor: bordi coerenti coi token (niente più #444/#555) */
 .floor-node { border-color: #2b323c; box-shadow: 0 4px 12px rgba(0,0,0,.42); }
-.floor-room, .floor-storey { border-color: #2b323c; }
+.floor-struct { border-color: #2b323c; }
 
 /* Divider (sidebar / floor-rack): hover coerente */
 #floor-rack-divider:hover,

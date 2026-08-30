@@ -4969,6 +4969,64 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(accesa.dopo.y % accesa.dopo.passoDisegnato, 0, 'idem in verticale');
     });
 
+    await t.test('Planimetria: il PIANO si trascina e si cancella come la stanza', async () => {
+      // ⚠️ Perché questo banco esiste. Il livello di interazione riconosceva un
+      // contenitore da un ELENCO di classi scritto a mano (`.floor-node,
+      // .floor-room`), nato quando la stanza era l'unico contenitore. Il giorno in
+      // cui è nato il PIANO l'elenco non l'ha seguito: il piano si disegnava e si
+      // ridimensionava — la maniglia risale al parentElement e non passa da quel
+      // selettore — ma non si poteva né spostare né cancellare, perché senza
+      // selezione deleteNode() esce alla prima riga. Nessun errore, nessun rosso:
+      // un selettore che non trova niente non si lamenta. Il banco prova le due
+      // AZIONI che mancavano, non la classe che le abilita: se domani cambia il
+      // modo di marcare i contenitori, qui resta rosso solo se si rompe l'uso.
+      await page.evaluate(() => {
+        ['audit-overlay', 'spare-overlay'].forEach((id) => { const o = document.getElementById(id); if (o) o.style.display = 'none'; });
+        const um = document.getElementById('user-manager-overlay'); if (um) um.classList.remove('open');
+        document.querySelectorAll('.modal-overlay.open, .overlay.open').forEach(o => o.classList.remove('open'));
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes.length = 0; state.links.length = 0; state.ports = {};
+        state.nodes.push({ id: 'piA', type: 'storey', name: 'Piano 1', x: 60, y: 60, w: 220, h: 220, color: '#111a22' });
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        state.floorView.x = 0; state.floorView.y = 0; state.floorView.zoom = 1;
+        _viewMode = 'map';
+        toggleFloorGrid(false);   // griglia spenta: il delta si legge esatto, senza aggancio
+        renderAll();
+      });
+
+      // ── Trascinamento ────────────────────────────────────────────────────
+      const b = await rectStabile('.floor-storey[data-id="piA"]');
+      const x0 = Math.round(b.x + 40), y0 = Math.round(b.y + 40);
+      await page.mouse.move(x0, y0);
+      await page.mouse.down();
+      await page.mouse.move(x0 + 8, y0 + 8);      // supera la soglia dei 5px
+      await page.mouse.move(x0 + 37, y0 + 13);    // delta dispari, di proposito
+      await page.mouse.up();
+
+      const dopo = await page.evaluate(() => {
+        const n = nodeById('piA');
+        const el = document.querySelector('[data-id="piA"]');
+        return { x: n.x, y: n.y, left: el ? el.style.left : '', cls: el ? el.className : '' };
+      });
+      assert.ok(Math.abs((dopo.x - 60) - 37) <= 1,
+        'il PIANO si sposta di quanto si è spostato il puntatore (' + (dopo.x - 60) + ' invece di 37)');
+      assert.ok(Math.abs((dopo.y - 60) - 13) <= 1, 'idem in verticale (' + (dopo.y - 60) + ' invece di 13)');
+      assert.equal(dopo.left, dopo.x + 'px', 'il rettangolo SEGUE il dato (non solo il dato si sposta)');
+      assert.ok(/\bselected\b/.test(dopo.cls),
+        'dopo il click il piano risulta SELEZIONATO: senza selezione non è cancellabile (classi: ' + dopo.cls + ')');
+
+      // ── Cancellazione col tasto Canc ─────────────────────────────────────
+      await page.keyboard.press('Delete');
+      const nelModello = await page.evaluate(() => !!nodeById('piA'));
+      assert.equal(nelModello, false, 'il piano sparisce dal modello col tasto Canc');
+      // ⚠️ Il ridisegno è differito di un frame (renderAll è debounced su rAF):
+      // leggere il DOM subito dopo il tasto misura il frame PRECEDENTE, e il primo
+      // giro è fallito così — il modello era già pulito, il rettangolo «ancora lì».
+      // Si ASPETTA la sparizione invece di fotografarla: un rosso qui vuol dire che
+      // il rettangolo resta davvero, non che siamo arrivati un frame presto.
+      await page.waitForFunction(() => !document.querySelector('[data-id="piA"]'), { timeout: 3000 });
+    });
+
     await t.test('Assistente AI (scheletro): 3ª tab + entry toolbar + shortcut «A» + scheda impostazioni + a11y', async () => {
       await page.evaluate(() => {
         ['audit-overlay', 'spare-overlay'].forEach((id) => { const o = document.getElementById(id); if (o) o.style.display = 'none'; });
