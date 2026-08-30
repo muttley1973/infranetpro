@@ -83,6 +83,38 @@ follows is the machinery under it; the last entry is the part you can see and us
   split in two has surfaced in this codebase; the panel now imports the engine's lists, and a bench fails
   if any audit list is missing from both — or sits in both.
 
+- **A floorplan gains a second level of containment: the storey.** A drawn plan had one — the room —
+  and the buildings it documents have two. `storey` is a structural element with *exactly* the room's
+  properties (same drag, resize, lock, colour, opacity), because it is the same shape at a larger
+  scale and two definitions of one shape diverge at the first change. It stacks below the room, which
+  stacks below the devices, and that ordering is explicit rather than left to DOM order: a container
+  that covers what it contains is not an aesthetic detail, it makes the contents unselectable. Its
+  label sits top-left instead of centred, where the rooms inside it would otherwise cover it. It also
+  joins the server's layout denylist, or a storey would have walked into the asset inventory as if it
+  were a device — the two lists are kept in step by a bench that already existed.
+  ⚠️ The id is `storey` and not `floor` deliberately: in this catalogue `isFloor` already means «sits
+  on the floorplan rather than in a rack», so a type called `floor` would have made `TYPES.floor.isFloor`
+  a sentence nobody can read. It is also separate from the multi-floor design sketched earlier, where a
+  floor is a *canvas* carrying its own plan; this is a rectangle on the sheet. Both can exist, and the
+  word will have to be split when the other arrives.
+- **The NetBox import stops flattening the location hierarchy into a name.** NetBox locations nest —
+  Site → Location → sub-Location → Rack → Device — and the import said so in a comment while doing the
+  opposite: it collapsed the parent chain into the room's name, «Floor 1 · Server room», *«instead of
+  pretending a hierarchy the document cannot represent»*. The document can represent it now, so the
+  parent location becomes the storey and the child becomes the room, carrying its own name — inside a
+  box already labelled «Floor 1», a room called «Floor 1 · Server room» says the same thing twice.
+  Four decisions come with it, each one a case the data actually contains. **Two levels are drawn, not
+  N**: with Building → Floor → Room the storey is the *immediate* parent and whatever sits above stays
+  in its name («Building A · Floor 1»), because faking three levels with two is the same lie one storey
+  higher. **A storey is always top-level**, since a storey inside a storey would need a third level that
+  does not exist. **A location holding devices of its own *and* sub-locations is a storey**, and those
+  devices sit inside it next to the rooms rather than in an invented room NetBox never declared. And **a
+  parent the read did not bring back** — out of scope, truncated — **is not a storey at all**, because that
+  would be a rectangle with an id inside it. ⚠️ The decision line shown in the import panel promised
+  «an InfraNet room does not contain another» and the bench against the real NetBox pinned the
+  flattened names: both were true until this worked, and both are updated. The bench now proves
+  something it could not before — that the room sits *inside* the storey — because a name reads
+  correctly even when the geometry is wrong.
 
 ### Fixed
 

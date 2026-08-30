@@ -72,10 +72,28 @@ export const TYPES = {
     ats:         { isRack:true,  isPassive:true,  hasIP:true, name:'ATS — Transfer Switch', icon:'fa-shuffle', sizeU:1, ports:1, brand:'APC' },
     mediaconv:   { isRack:true,  isPassive:true,  hasIP:true, passThrough:'device', name:'Media Converter', icon:'fa-right-left', sizeU:1, ports:2, brand:'Moxa' },
     // ── Strutturale ───────────────────────────────────────────────────────────
+    // Due contenitori disegnati, uno dentro l'altro: PIANO ⊃ STANZA ⊃ apparati.
+    //
+    // ⚠️ **L'id è `storey`, non `floor`, e non è pedanteria.** In questo catalogo
+    // `isFloor` vuol già dire «sta sulla planimetria invece che in un rack»
+    // (`placement:'floor'`), e un tipo che si chiamasse `floor` avrebbe reso
+    // `TYPES.floor.isFloor` una frase che non si può leggere. È la famiglia di
+    // difetti di «uplink», che qui è già costata una giornata: una parola per due
+    // concetti non la vede nessun cancello.
+    // ⚠️ E resta separato dal MULTIPIANO disegnato il 28/08, che è un'altra cosa:
+    // là un piano è una TELA con la sua piantina (`state.floors[]`), qui è un
+    // rettangolo sul foglio. Coesistono, ma la parola sarà la stessa: quando il
+    // multipiano arriverà, quello si chiamerà «piantina» o «livello».
+    //
+    // Le proprietà sono ESATTAMENTE quelle della stanza — stesso comportamento di
+    // trascinamento, ridimensionamento, blocco, colore, opacità — perché è la
+    // stessa cosa a una scala più grande, e due definizioni divergerebbero.
+    storey:      { isFloor:true, isPassive:false, name:'Piano', icon:'fa-layer-group',   isStructural:true, defaultColor:'#111a22' },
     room:        { isFloor:true, isPassive:false, name:'Stanza', icon:'fa-vector-square', isStructural:true, defaultColor:'#16212b' }
 };
 
 const NODE_ID_PREFIX = {
+    storey: 'pi',
     room: 'r',
     wallport: 'wp',
     ap: 'ap',

@@ -1493,6 +1493,10 @@ function locFixture() {
   };
 }
 const _rooms = (state) => state.nodes.filter(n => n.type === 'room');
+const _storeys = (state) => state.nodes.filter(n => n.type === 'storey');
+/** Un rettangolo dentro l'altro, bordi compresi. */
+const _dentro = (o, c) => o.x >= c.x && o.y >= c.y
+  && o.x + (o.w || 0) <= c.x + c.w && o.y + (o.h || 0) <= c.y + c.h;
 
 test('ubicazioni: una stanza per ogni ubicazione CON qualcosa dentro, e nessuna per le vuote', () => {
   const { state } = map.netboxToState(locFixture());
@@ -1510,10 +1514,89 @@ test('ubicazioni: la stanza porta il riferimento NetBox, non solo il nome', () =
   assert.equal(sala.id, 'nb-loc-5');
 });
 
-test('ubicazioni: l\'annidamento diventa un nome solo, non una gerarchia finta', () => {
+// ㉗ Le ubicazioni NetBox si ANNIDANO. Fino a ieri la catena dei padri finiva
+// appiattita nel nome («Piano 1 · Sala server») e il commento diceva il perché:
+// «invece di fingere una gerarchia che il documento non sa rappresentare». Ora il
+// documento la sa rappresentare — c'è il tipo `storey` — quindi si DISEGNA.
+test('⭐ ubicazioni: l\'annidamento diventa un PIANO che contiene la stanza', () => {
   const { state } = map.netboxToState(locFixture());
+  const piano = _storeys(state).find(s => s.srcLoc === 4);
+  assert.ok(piano, 'il padre «Piano 1» diventa un piano, non una parola nel nome');
+  assert.equal(piano.name, 'Piano 1');
+  assert.equal(piano.id, 'nb-loc-4', 'l\'id è l\'identità: regge al ri-confronto');
+
   const sala = _rooms(state).find(r => r.srcLoc === 5);
-  assert.equal(sala.name, 'Piano 1 · Sala server');
+  // Il nome PROPRIO: dentro un rettangolo che si chiama già «Piano 1», una
+  // stanza chiamata «Piano 1 · Sala server» direbbe due volte la stessa cosa.
+  assert.equal(sala.name, 'Sala server');
+  assert.ok(_dentro(sala, piano), 'e ci sta DENTRO, bordi compresi');
+});
+
+test('ubicazioni: chi non ha un padre resta una stanza di primo livello', () => {
+  const { state } = map.netboxToState(locFixture());
+  const uffici = _rooms(state).find(r => r.srcLoc === 6);
+  assert.equal(uffici.name, 'Uffici');
+  for (const p of _storeys(state)) {
+    assert.equal(_dentro(uffici, p), false, 'non sta dentro nessun piano: non ne ha uno');
+  }
+});
+
+test('⚠️ ubicazioni: i livelli disegnati sono DUE — il resto resta nel nome', () => {
+  const nb = locFixture();
+  // Edificio A → Piano 1 → Sala server. Il piano è il padre IMMEDIATO.
+  nb.locations.push({ id: 3, name: 'Edificio A' });
+  nb.locations.find(l => l.id === 4).parent = { id: 3 };
+  const { state } = map.netboxToState(nb);
+  const piano = _storeys(state).find(s => s.srcLoc === 4);
+  assert.ok(piano, 'il piano resta il padre immediato della stanza');
+  assert.equal(piano.name, 'Edificio A · Piano 1',
+    'ciò che sta più su si dice a parole: fingere tre livelli con due è la stessa bugia, più in alto');
+  assert.equal(_storeys(state).some(s => s.srcLoc === 3), false,
+    'un piano dentro un piano il modello non lo prevede');
+});
+
+test('⭐ ubicazioni: un\'ubicazione con contenuto SUO e dei figli è un piano, e i suoi apparati stanno dentro di lui', () => {
+  const nb = locFixture();
+  // Una telecamera appesa direttamente a «Piano 1», che ha già la Sala server.
+  nb.devices.push({ id: 103, name: 'CAM-PIANO', device_type: { id: 10 }, role: { id: 21 },
+    location: { id: 4, name: 'Piano 1' } });
+  const { state } = map.netboxToState(nb);
+  const piano = _storeys(state).find(s => s.srcLoc === 4);
+  const cam = state.nodes.find(n => n.name === 'CAM-PIANO');
+  assert.ok(_dentro(cam, piano), 'sta dentro il piano');
+  // ⚠️ E NON dentro una stanza inventata: NetBox non ne ha mai dichiarata una.
+  assert.equal(_rooms(state).some(r => r.srcLoc === 4), false,
+    'nessuna stanza fantasma per il contenuto proprio del piano');
+  const sala = _rooms(state).find(r => r.srcLoc === 5);
+  assert.equal(_dentro(cam, sala), false, 'e nemmeno nella sala server, dove non è');
+});
+
+test('ubicazioni: due ubicazioni sotto lo stesso padre finiscono nello STESSO piano', () => {
+  const nb = locFixture();
+  nb.locations.push({ id: 8, name: 'Sala UPS', parent: { id: 4 } });
+  nb.devices.push({ id: 104, name: 'CAM-UPS', device_type: { id: 10 }, role: { id: 21 },
+    location: { id: 8, name: 'Sala UPS' } });
+  const { state } = map.netboxToState(nb);
+  const piani = _storeys(state);
+  assert.equal(piani.length, 1, 'un padre solo, un piano solo');
+  for (const loc of [5, 8]) {
+    const st = _rooms(state).find(r => r.srcLoc === loc);
+    assert.ok(_dentro(st, piani[0]), 'la stanza ' + loc + ' sta dentro il piano');
+  }
+  // E le due stanze non si accavallano fra loro.
+  const a = _rooms(state).find(r => r.srcLoc === 5), b = _rooms(state).find(r => r.srcLoc === 8);
+  assert.ok(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y);
+});
+
+test('ubicazioni: un padre che la lettura NON ha portato non diventa un piano', () => {
+  const nb = locFixture();
+  // NetBox nomina il padre 99, ma la lettura non lo contiene (fuori scope, troncata).
+  nb.locations.find(l => l.id === 6).parent = { id: 99 };
+  const { state } = map.netboxToState(nb);
+  assert.equal(_storeys(state).some(s => s.srcLoc === 99), false,
+    'un piano senza nome non si disegna: sarebbe un rettangolo con dentro un id');
+  const uffici = _rooms(state).find(r => r.srcLoc === 6);
+  assert.ok(uffici, 'e la stanza resta, di primo livello');
 });
 
 test('ubicazioni: il contenuto sta DENTRO i bordi della propria stanza', () => {
@@ -1556,12 +1639,20 @@ test('ubicazioni: la riga di decisione dice quante stanze e che la disposizione 
   assert.ok(iss);
   assert.equal(iss.n, 2);
   assert.equal(iss.placed, 2, 'un rack e una telecamera messi dentro');
-  assert.equal(iss.nested, 1, 'una sola ubicazione annidata');
+  // ㉗ `nested` ha cambiato SIGNIFICATO col numero uguale, ed è il modo in cui un
+  // test resta verde smettendo di provare quello che provava: prima contava le
+  // stanze col nome appiattito, ora quelle finite DENTRO un piano. Il numero
+  // coincide sul banco, la cosa detta no — quindi accanto c'è `storeys`, che di
+  // quel cambio è la prova vera.
+  assert.equal(iss.nested, 1, 'una stanza è finita dentro un piano');
+  assert.equal(iss.storeys, 1, 'e il piano è stato disegnato');
 });
 
 test('ubicazioni: la posizione e\' DICHIARATA, e il dato lo dice', () => {
   const { state } = map.netboxToState(locFixture());
-  for (const r of _rooms(state)) {
+  // ㉗ I PIANI valgono come le stanze: anche il loro rettangolo l'abbiamo scelto
+  // noi, e un contenitore che non lo dicesse sarebbe la bugia più grande dei due.
+  for (const r of _rooms(state).concat(_storeys(state))) {
     // Stesso marchio dei rack piazzati dall\'import: chi legge il documento sa che
     // quei numeri non vengono dal DCIM.
     assert.equal(r.positionSource, 'infranet-import-grid');
