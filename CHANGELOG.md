@@ -43,6 +43,46 @@ follows is the machinery under it; the last entry is the part you can see and us
 
   Like the power chapter, the rows are composed **in the server** — the organisation is one per installation and lives in `data/organization.json`, not inside the project, and `lib/inter-site*.js` in the browser lives only inside the ESM bundle where `export.js` cannot reach it. The client sends a ticked box; nothing else. One piece of housekeeping came with it: the XML escaper that the draw.io export kept to itself is now a shared module (`lib/xml-escape.js`), because the second XML format we emit would otherwise have started life as an identical copy of the first — which is precisely the duplicate definition this codebase has grown twelve times.
 
+- **The WAN audit stops handing out clean bills of health it never earned.** An organisation carrying nine
+  things a network engineer would reject on sight — a link declaring a WAN line at one end and nothing at
+  the other, a tunnel that never says which line carries it, a link whose two ends are crossed so the peer
+  address «seen from Milan» is Milan's own, a line claiming an MTU of 150000 — came out of the audit with
+  *zero problems, zero gaps, zero unchecked*: a full acquittal. Four checks close that, and the one that
+  fires hardest on a real archive is the plainest: **a link that does not say which WAN line carries it**.
+  «The Milan fibre is down — what falls with it?» is the question the recovery chapter exists to answer,
+  and on the first real organisation five links out of eight had no answer, with nothing saying so.
+  A `directLink` is deliberately exempt: between two of your own buildings the emptiness is the *right*
+  answer, because that link **is** the line, and asking would accuse half the real cases of a gap they do
+  not have. Two of the four were **promises the model had already made in writing** — «an implausible MTU
+  is the audit's business, which flags without destroying, not the normaliser's, which discards» — to a
+  module that had never received anything: the model declined to discard *because* somebody else would
+  flag, and that somebody was not looking. The thresholds signal rather than reject, and are set where
+  they cannot be wrong later: below 1280 IPv6 cannot run on that link at all, above 9216 is past ordinary
+  jumbo delivery (some platforms reach 9600, which is exactly why it is a flag and not a refusal), and
+  beyond a terabit on a site access is almost always kbps typed into the Mbps field.
+  ⚠️ **One guard that was asked for is deliberately not here, because it would refuse true archives.**
+  «The same line cannot carry another technology» sounds right and is not: an internet line under three
+  IPsec tunnels is the ordinary case — it is why that field is a list — and on the real archive one access
+  legitimately carries both a VPLS and an EVPN. Written as asked, it would have accused a correct document
+  twice on day one. The version that survives is its opposite: not «a line cannot carry two things», but
+  «a link must say what carries it».
+- **The recovery chapter now prints what does not add up, instead of printing the fields and going quiet.**
+  A WAN line declared at the wrong site read, on paper, exactly like a right one — the card prints
+  «provider · circuit id» and no site — and that is the worst place to leave something false, because the
+  person opening that chapter is opening it on the night they have no time to verify it. A closing section
+  carries the findings, each with its subject, and below them what **could not** be checked and why: a
+  chapter that stays silent about what it did not examine reads like a chapter that found nothing. It is
+  printed even when there is nothing to report, since a section that disappears reads as an oversight.
+  The words come from the same dictionary the panel uses rather than a second copy: forty sentences
+  transcribed diverge at the first one reworded, and on screen that divergence is visible while on paper
+  it is not.
+- **One definition of what counts as an inconsistency and what counts as a gap.** The classification lived
+  in two places — the engine and the panel — and matched by habit, not by any gate. A check added to the
+  engine alone would have been computed and **never drawn**: the panel renders only what appears in one of
+  those two lists, so a row in neither exists and nobody sees it. That is the thirteenth time a definition
+  split in two has surfaced in this codebase; the panel now imports the engine's lists, and a bench fails
+  if any audit list is missing from both — or sits in both.
+
 ### Fixed
 
 - **Running the headless test suite could have overwritten your organisation.** The end-to-end harness spawns a real server with every store redirected into a throw-away directory — projects, skins, users, API tokens, the assistant and DCIM configs — and the organisation was the one left out. It is *one per installation* and lives in `data/organization.json`, outside any project, so redirecting the projects directory never moved it: a test that opened «Sites and links» and pressed Save would have rewritten the real sites, WAN lines and links of whoever ran the suite — and a test suite has to be safe to run on a working copy. Nothing had done it yet, for exactly the reason that made it possible: no headless test had ever reached that panel. It has two now, and they cover the chain rather than the screen — the WAN lines arrive from a mock NetBox and add themselves to what was written by hand, the panel offers the lines of the link's *two sites* instead of every line in the organisation, and a ticked line is saved and read back off the route, which is the step that used to drop it in silence. The other half is the opposite rule: what is already declared keeps being shown even when it belongs to a third site, and even when the line has been deleted since — a value that lives in the model and cannot be seen on screen is impossible to switch off, and it goes on printing on the recovery card.

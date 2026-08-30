@@ -11,7 +11,8 @@
 // ============================================================
 const test = require('node:test');
 const assert = require('node:assert');
-const { buildInterSiteAudit, interSiteAuditCounts } = require('../lib/inter-site-audit.js');
+const { buildInterSiteAudit, interSiteAuditCounts,
+  INTER_SITE_AUDIT_PROBLEMS, INTER_SITE_AUDIT_GAPS } = require('../lib/inter-site-audit.js');
 const { factDeclared } = require('../lib/provenance.js');
 
 const reach = (a, b) => factDeclared({ a, b });
@@ -29,20 +30,29 @@ const SANE = {
   // ㉑ Le tre linee dicono COME prendono l'indirizzo e a chi parlano. Senza,
   // «un modello coerente» resterebbe uno su cui un controllo non ha potuto
   // girare — che è una terza cosa, non un modello coerente.
+  // ㉖ E dicono anche la banda e l'MTU. Stessa ragione della ㉑ qui sopra: da
+  // quando esiste un controllo di plausibilità, tre linee che non dichiarano
+  // nessun numero non sono «un modello coerente» — sono un modello su cui quel
+  // controllo non ha potuto girare, che è la terza cosa.
   uplinks: [
-    { id: 'u-mi', siteId: 'mi', publicIps: factDeclared(['203.0.113.1']), addressing: 'static', nextHop: '203.0.113.254' },
-    { id: 'u-rm', siteId: 'rm', publicIps: factDeclared(['203.0.113.2']), addressing: 'static', nextHop: '203.0.113.253' },
-    { id: 'u-na', siteId: 'na', publicIps: factDeclared(['203.0.113.3']), addressing: 'static', nextHop: '203.0.113.252' },
+    { id: 'u-mi', siteId: 'mi', publicIps: factDeclared(['203.0.113.1']), addressing: 'static', nextHop: '203.0.113.254', mtu: 1500, cirMbps: 200 },
+    { id: 'u-rm', siteId: 'rm', publicIps: factDeclared(['203.0.113.2']), addressing: 'static', nextHop: '203.0.113.253', mtu: 1500, cirMbps: 100 },
+    { id: 'u-na', siteId: 'na', publicIps: factDeclared(['203.0.113.3']), addressing: 'static', nextHop: '203.0.113.252', mtu: 1492, cirMbps: 100 },
   ],
   // ⑳ I due tunnel dicono su quali linee corrono, per lo stesso motivo: da quando
   // il controllo esiste, un modello che non lo dichiara è un modello su cui c'è
   // una domanda senza risposta. Ogni tunnel corre sulla linea dei suoi due capi,
   // che è il caso normale e non deve produrre niente.
   links: [
+  // ㉖ E i due capi portano l'indirizzo dell'ALTRO: `endpointA.peerIp` è quello
+  // che si digita SU mi, cioè l'indirizzo di rm. Scritti al contrario sarebbero
+  // il difetto che `crossedPeerIps` cerca — qui sono giusti, e devono tacere.
     Object.assign(ipsec('mi-rm', 'mi', 'rm', reach(['10.1.0.0/24', '10.3.0.0/24'], ['10.2.0.0/24'])),
-      { underlayUplinkIds: ['u-mi', 'u-rm'] }),
+      { underlayUplinkIds: ['u-mi', 'u-rm'],
+        endpointA: { peerIp: '203.0.113.2' }, endpointB: { peerIp: '203.0.113.1' } }),
     Object.assign(ipsec('mi-na', 'mi', 'na', reach(['10.1.0.0/24', '10.2.0.0/24'], ['10.3.0.0/24'])),
-      { underlayUplinkIds: ['u-mi', 'u-na'] }),
+      { underlayUplinkIds: ['u-mi', 'u-na'],
+        endpointA: { peerIp: '203.0.113.3' }, endpointB: { peerIp: '203.0.113.1' } }),
   ],
 };
 
@@ -363,6 +373,127 @@ test('② un controllo NON eseguito non entra né in problems né in gaps', () =
 
 test('interSiteAuditCounts regge un input degenere', () => {
   assert.deepStrictEqual(interSiteAuditCounts({}), { problems: 0, gaps: 0, notChecked: 0 });
+});
+
+// ── ㉖ Le guardie del ripristino ───────────────────────────────────────────
+// Prima di queste, un'organizzazione con nove cose sbagliate usciva dall'audit
+// con «problems: 0, gaps: 0, notChecked: 0» — cioè con un'assoluzione piena.
+
+test('un collegamento che non dice su quale LINEA corre è una lacuna', () => {
+  const org = clone(SANE);
+  delete org.links[0].underlayUplinkIds;
+  const a = buildInterSiteAudit(org);
+  assert.deepStrictEqual(a.linksWithoutUnderlay, [{ linkId: 'mi-rm' }]);
+  assert.strictEqual(interSiteAuditCounts(a).problems, 0,
+    'non contraddice niente: manca una riga, e una lacuna non è un\'incoerenza');
+});
+
+test('⚠️ un `directLink` senza linee sotto NON si accusa: quel collegamento È la linea', () => {
+  const org = clone(SANE);
+  org.links[0].transport = 'directLink';
+  org.links[0].underlayUplinkIds = [];
+  assert.deepStrictEqual(buildInterSiteAudit(org).linksWithoutUnderlay, []);
+});
+
+test('senza NESSUNA linea in tutta l\'organizzazione la domanda non esiste: si registra', () => {
+  const org = clone(SANE);
+  org.uplinks = [];
+  const a = buildInterSiteAudit(org);
+  assert.deepStrictEqual(a.linksWithoutUnderlay, [], 'accusare tutti sarebbe una lista di rimproveri');
+  assert.ok(a.notChecked.some(c => c.check === 'linksWithoutUnderlay' && c.reason === 'no-uplinks'));
+});
+
+test('una linea dichiarata a un capo solo: l\'altro capo resta cieco', () => {
+  const org = clone(SANE);
+  org.links[0].underlayUplinkIds = ['u-mi'];
+  const a = buildInterSiteAudit(org);
+  assert.deepStrictEqual(a.underlaysAtOneEndOnly, [{ linkId: 'mi-rm', siteId: 'rm' }]);
+  assert.deepStrictEqual(a.underlaysNotAtEnds, [],
+    'la linea esiste e sta a un capo: non è quel difetto');
+});
+
+test('⚠️ se le linee sono TUTTE altrove il guasto è uno, non due', () => {
+  const org = clone(SANE);
+  org.links[0].underlayUplinkIds = ['u-na'];
+  const a = buildInterSiteAudit(org);
+  assert.strictEqual(a.underlaysNotAtEnds.length, 1);
+  assert.deepStrictEqual(a.underlaysAtOneEndOnly, [],
+    'accusare due volte lo stesso guasto lo fa sembrare due guasti');
+});
+
+test('⭐ un MTU e una banda fuori dal plausibile si SEGNALANO, e il numero resta scritto', () => {
+  const org = clone(SANE);
+  org.uplinks[0].mtu = 150000;
+  org.uplinks[1].cirMbps = 4000000;
+  const a = buildInterSiteAudit(org);
+  assert.deepStrictEqual(a.uplinksImplausible, [
+    { uplinkId: 'u-mi', siteId: 'mi', field: 'mtu', value: 150000 },
+    { uplinkId: 'u-rm', siteId: 'rm', field: 'cirMbps', value: 4000000 },
+  ]);
+  // La promessa del modello per esteso: «segnala senza distruggere».
+  const IS = require('../lib/inter-site.js');
+  assert.strictEqual(IS.normalizeOrganization(org).uplinks[0].mtu, 150000);
+});
+
+test('un MTU BASSO è implausibile quanto uno alto (sotto 1280 l\'IPv6 non passa)', () => {
+  const org = clone(SANE);
+  org.uplinks[0].mtu = 576;
+  assert.deepStrictEqual(buildInterSiteAudit(org).uplinksImplausible,
+    [{ uplinkId: 'u-mi', siteId: 'mi', field: 'mtu', value: 576 }]);
+});
+
+test('nessun numero dichiarato: il controllo non ha potuto girare, e lo dice', () => {
+  const org = clone(SANE);
+  for (const u of org.uplinks) { delete u.mtu; delete u.cirMbps; }
+  const a = buildInterSiteAudit(org);
+  assert.deepStrictEqual(a.uplinksImplausible, []);
+  assert.ok(a.notChecked.some(c => c.check === 'uplinksImplausible' && c.reason === 'no-numbers'));
+});
+
+test('⭐ i due capi incrociati: il peer «visto da mi» è un indirizzo di mi', () => {
+  const org = clone(SANE);
+  org.links[0].endpointA.peerIp = '203.0.113.1';
+  const a = buildInterSiteAudit(org);
+  assert.deepStrictEqual(a.crossedPeerIps,
+    [{ linkId: 'mi-rm', end: 'a', siteId: 'mi', addr: '203.0.113.1' }]);
+  assert.ok(INTER_SITE_AUDIT_PROBLEMS.includes('crossedPeerIps'),
+    'è una contraddizione fra due cose dichiarate, non una lacuna');
+});
+
+test('⚠️ il confronto guarda anche DENTRO un blocco dichiarato', () => {
+  const org = clone(SANE);
+  org.uplinks[0].publicIps = factDeclared(['203.0.113.8/29']);
+  org.links[0].endpointA.peerIp = '203.0.113.11';
+  assert.deepStrictEqual(buildInterSiteAudit(org).crossedPeerIps.map(x => x.addr),
+    ['203.0.113.11']);
+});
+
+test('un peer scritto giusto non produce niente', () => {
+  assert.deepStrictEqual(buildInterSiteAudit(SANE).crossedPeerIps, []);
+});
+
+test('nessun peer dichiarato: si registra invece di assolvere', () => {
+  const org = clone(SANE);
+  for (const l of org.links) { delete l.endpointA; delete l.endpointB; }
+  const a = buildInterSiteAudit(org);
+  assert.deepStrictEqual(a.crossedPeerIps, []);
+  assert.ok(a.notChecked.some(c => c.check === 'crossedPeerIps' && c.reason === 'no-peer-ip'));
+});
+
+// ── ㉖ Il cancello che tiene insieme le due definizioni ────────────────────
+// La classificazione era scritta due volte — qui e nel pannello — e coincideva
+// per abitudine. Un controllo fuori da entrambi gli elenchi sarebbe calcolato e
+// mai disegnato: esiste, e non lo vede nessuno.
+test('⭐ ogni lista dell\'audit sta in ESATTAMENTE uno dei due gruppi', () => {
+  const chiavi = Object.keys(buildInterSiteAudit({})).filter(k => k !== 'notChecked');
+  for (const k of chiavi) {
+    const dove = [INTER_SITE_AUDIT_PROBLEMS.indexOf(k) >= 0, INTER_SITE_AUDIT_GAPS.indexOf(k) >= 0]
+      .filter(Boolean).length;
+    assert.strictEqual(dove, 1, `${k} sta in ${dove} gruppi invece che in 1: il pannello non lo disegnerebbe`);
+  }
+  for (const k of INTER_SITE_AUDIT_PROBLEMS.concat(INTER_SITE_AUDIT_GAPS)) {
+    assert.ok(chiavi.indexOf(k) >= 0, `${k} è classificato, ma l'audit non lo produce`);
+  }
 });
 
 // ── Purezza & determinismo ─────────────────────────────────────────────────

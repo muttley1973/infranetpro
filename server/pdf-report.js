@@ -115,7 +115,16 @@ const _RL = {
     // finirebbe per chiamare le stesse cose con nomi diversi dallo schermo.
     'title.wan': 'WAN — mappa delle sedi', 'title.wanSites': 'WAN — sedi',
     'title.wanLines': 'WAN — linee', 'title.wanLinks': 'WAN — collegamenti fra sedi',
+    'title.wanAudit': 'WAN — cosa non torna',
     'sub.wanSites': 'sedi', 'sub.wanLines': 'linee WAN', 'sub.wanLinks': 'collegamenti',
+    // ㉖ I NOMI dei controlli non stanno qui: si leggono da `lib/i18n.js`
+    // (`org.a.*` e `org.why.*`), che è lo stesso dizionario del pannello. Una
+    // seconda copia di quaranta frasi diverge alla prima riformulata, e sulla
+    // carta la divergenza non la vede nessuno.
+    'wan.aProblems': 'incoerenze', 'wan.aGaps': 'lacune',
+    'wan.aNotChecked': 'non controllati',
+    'wan.aClean': 'Nessun rilievo su sedi, linee e collegamenti.',
+    'wan.aNotCheckedTitle': 'Non ho potuto controllare',
     'sub.wanNone': 'nessuna sede dichiarata',
     'empty.wan': 'Nessuna sede dichiarata nel pannello Inter-sede: non c\'è una WAN da documentare.',
     'empty.wanLines': 'Nessuna linea WAN documentata.',
@@ -222,7 +231,12 @@ const _RL = {
     // ── Inter-site WAN: the map and the recovery cards ────────────────────
     'title.wan': 'WAN — site map', 'title.wanSites': 'WAN — sites',
     'title.wanLines': 'WAN — lines', 'title.wanLinks': 'WAN — links between sites',
+    'title.wanAudit': 'WAN — what does not add up',
     'sub.wanSites': 'sites', 'sub.wanLines': 'WAN lines', 'sub.wanLinks': 'links',
+    'wan.aProblems': 'inconsistencies', 'wan.aGaps': 'gaps',
+    'wan.aNotChecked': 'not checked',
+    'wan.aClean': 'Nothing to report on sites, lines and links.',
+    'wan.aNotCheckedTitle': 'Could not be checked',
     'sub.wanNone': 'no site declared',
     'empty.wan': 'No site declared in the Inter-site panel: there is no WAN to document.',
     'empty.wanLines': 'No WAN line documented.',
@@ -1725,6 +1739,86 @@ function _addWanPages(doc, wan, projName, date, lang = 'it', SVGtoPDF = null) {
             : `${u.uplinkId} (${_rt(L, 'wan.notFound')})`)) },
       ]
     );
+  }
+
+  // ── ㉖ COSA NON TORNA ───────────────────────────────────────────────────
+  //
+  // In coda, e non in testa: prima si legge cosa c'è, poi cosa non torna. Fino a
+  // ieri questa sezione non esisteva, e il capitolo stampava i campi tacendo sui
+  // rilievi — cioè una linea dichiarata alla sede sbagliata si leggeva
+  // esattamente come una giusta, perché sulla carta la sede non c'è. È il posto
+  // peggiore in cui lasciare una cosa falsa: chi apre questo capitolo lo apre
+  // quando non ha tempo di verificarlo.
+  //
+  // ⚠️ Le PAROLE dei controlli non si riscrivono qui: si leggono da `lib/i18n.js`
+  // (`org.a.*`, `org.why.*`), lo stesso dizionario del pannello. Quaranta frasi
+  // ricopiate divergono alla prima riformulata, e a schermo la differenza si
+  // vede mentre sulla carta no.
+  // ⚠️ E la sezione si stampa ANCHE quando non c'è niente: «nessun rilievo» è
+  // un'informazione, una sezione che sparisce si legge come una dimenticanza.
+  const dizAudit = (_I18N_DICT && _I18N_DICT[L]) || null;
+  const parolaDi = (k, fallback) => (dizAudit && dizAudit[k]) || fallback;
+  const RIL = (R.audit && typeof R.audit === 'object') ? R.audit : { counts: {}, findings: [], notChecked: [] };
+  const rilievi = Array.isArray(RIL.findings) ? RIL.findings : [];
+  const nonVisti = Array.isArray(RIL.notChecked) ? RIL.notChecked : [];
+  const cnt = RIL.counts || {};
+  sezione = _rt(L, 'title.wanAudit');
+  cy = nuova(sezione);
+  cy = _rSub(doc, `${cnt.problems || 0} ${_rt(L, 'wan.aProblems')}`
+    + `  -  ${cnt.gaps || 0} ${_rt(L, 'wan.aGaps')}`
+    + `  -  ${cnt.notChecked || 0} ${_rt(L, 'wan.aNotChecked')}`, cy);
+  if (!rilievi.length && !nonVisti.length) {
+    doc.font('Helvetica').fontSize(8).fillColor('#94a3b8').text(_rt(L, 'wan.aClean'), M, cy);
+  }
+  // Un blocco per CONTROLLO, e non una `scheda`: il titolo di una scheda si
+  // taglia a 339 punti, e qui il titolo È il rilievo — «Collegamenti che non
+  // dichiarano quale linea WAN li trasmette…» tagliato a metà smette di dire la
+  // cosa per cui esiste. Le frasi si mandano a capo su tutta la larghezza, e
+  // sotto stanno i soggetti: la frase detta una volta, le righe portano solo
+  // ciò che cambia — la stessa cura presa a schermo.
+  const spazio = (h) => { if (cy + h > _BOT) cy = nuova(sezione); };
+  const perControllo = [];
+  for (const f of rilievi) {
+    let g = perControllo.find(x => x.check === f.check);
+    if (!g) { g = { check: f.check, group: f.group, righe: [] }; perControllo.push(g); }
+    g.righe.push(f);
+  }
+  for (const g of perControllo) {
+    const frase = _wrapFit(doc, _pdfSafe(parolaDi('org.a.' + g.check, g.check)), CW - 30, 7);
+    spazio(frase.length * 10 + 14);
+    doc.circle(M + 5, cy + 3.5, 3).fill(g.group === 'problem' ? '#dc2626' : '#d97706');
+    for (const seg of frase) {
+      doc.font('Helvetica-Bold').fontSize(7).fillColor('#0f172a').text(seg, M + 14, cy, { lineBreak: false });
+      cy += 10;
+    }
+    for (const r of g.righe) {
+      spazio(9);
+      doc.font('Helvetica').fontSize(6.5).fillColor('#334155')
+        .text(_fit(doc, _pdfSafe(r.subject || DASH), 250, 6.5), M + 18, cy, { lineBreak: false });
+      if (r.note) {
+        doc.font('Helvetica').fontSize(6.5).fillColor('#64748b')
+          .text(_fit(doc, _pdfSafe(r.note), CW - 290, 6.5), M + 280, cy, { lineBreak: false });
+      }
+      cy += 9;
+    }
+    cy += 6;
+  }
+  if (nonVisti.length) {
+    // ① «Non ho potuto guardare» è la terza cosa, e sulla carta serve più che a
+    // schermo: un capitolo che tace ciò che non ha esaminato si legge come un
+    // capitolo che non ha trovato niente.
+    spazio(16);
+    doc.font('Helvetica-Bold').fontSize(7).fillColor('#64748b')
+      .text(_pdfSafe(_rt(L, 'wan.aNotCheckedTitle')), M, cy, { lineBreak: false });
+    cy += 11;
+    for (const c of nonVisti) {
+      const frase = `${parolaDi('org.a.' + c.check, c.check)}: ${parolaDi('org.why.' + c.reason, c.reason)}`;
+      for (const seg of _wrapFit(doc, _pdfSafe(frase), CW - 18, 6.5)) {
+        spazio(9);
+        doc.font('Helvetica').fontSize(6.5).fillColor('#64748b').text(seg, M + 14, cy, { lineBreak: false });
+        cy += 9;
+      }
+    }
   }
 }
 

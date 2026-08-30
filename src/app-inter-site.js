@@ -43,6 +43,12 @@ import { registerClickActions, registerChangeActions, registerInputActions, regi
 import { buildInterSiteLayout, interSiteEdgePath } from '../lib/inter-site-layout.js';
 import { SITE_ROLES, INTER_SITE_STATES, WAN_ADDRESSING, WAN_SERVICE_TYPES,
   INTER_SITE_TRANSPORTS, INTER_SITE_TUNNELS, CARRIER_TRANSPORTS } from '../lib/inter-site.js';
+// ㉖ La classificazione problema/lacuna si IMPORTA. C'era una seconda copia qui,
+// e coincideva con quella del motore per abitudine: un controllo aggiunto di là
+// sarebbe stato calcolato e mai disegnato, perché questo file disegna solo ciò
+// che sta in uno dei due elenchi. Tredicesima occorrenza della famiglia.
+import { INTER_SITE_AUDIT_PROBLEMS as AUDIT_PROBLEMS,
+  INTER_SITE_AUDIT_GAPS as AUDIT_GAPS } from '../lib/inter-site-audit.js';
 import { factDeclared, factOrigin, factValue, isFact } from '../lib/provenance.js';
 import { subnetInputToCidr, addrFamily } from '../lib/cidr.js';
 // 🔒 La stessa guardia che il modello applica ai due puntatori (l'assistenza
@@ -1831,9 +1837,9 @@ function _renderLinks() {
 
 // ── Coerenza (④: si RACCONTA l'audit del server, non se ne calcola un altro) ─
 
-/** Le liste dell'audit, in tre gruppi che NON si sommano fra loro. */
-const AUDIT_PROBLEMS = ['subnetsNowhere', 'subnetsAtTwoSites', 'linksToUnknownSite', 'uplinksToUnknownSite', 'spokesWithoutHub', 'underlaysNotAtEnds'];
-const AUDIT_GAPS = ['subnetsNotCarried', 'linksWithoutReach', 'sitesWithoutLink', 'sitesWithoutUplink', 'uplinksWithoutPublicIp', 'staticUplinksWithoutNextHop'];
+// ㉖ Le liste dell'audit, in tre gruppi che NON si sommano fra loro. I due
+// elenchi arrivano dal motore (vedi l'import in cima): erano scritti anche qui,
+// e due definizioni della stessa cosa divergono al primo controllo aggiunto.
 
 /**
  * ⑯ **Quale sede nomina una riga d'audit.** L'audit parla per liste, e ogni
@@ -1855,6 +1861,15 @@ const _AUDIT_SITES_OF = {
   // la spunta da togliere sta sulla riga del collegamento, e accendere la
   // terza sede la farebbe sembrare colpevole di un difetto che non è suo.
   underlaysNotAtEnds: (r) => _linkSites(r.linkId),
+  // ㉖ Il capo incrociato è UNO dei due, e la sede è quella: accendere anche
+  // l'altra direbbe che il difetto è di tutt'e due, mentre il campo da girare
+  // sta su una riga sola.
+  crossedPeerIps: (r) => [r.siteId],
+  uplinksImplausible: (r) => [r.siteId],
+  // La spunta che manca sta sulla riga del collegamento: riguarda i due capi.
+  linksWithoutUnderlay: (r) => _linkSites(r.linkId),
+  // Qui invece la sede è UNA: è il capo rimasto cieco.
+  underlaysAtOneEndOnly: (r) => [r.siteId],
   subnetsNotCarried: (r) => [r.siteId],
   linksWithoutReach: (r) => _linkSites(r.linkId),
   sitesWithoutLink: (r) => [r.siteId],
@@ -1948,6 +1963,16 @@ function _auditLine(key, row) {
     case 'underlaysNotAtEnds': return `${escapeHTML(_linkName(row.linkId))} <span class="org-audit-at">${row.siteId
       ? escapeHTML(_uplinkName(row.uplinkId, row.siteId))
       : escapeHTML(row.uplinkId + ' — ' + t('org.underlayGone'))}</span>`;
+    // ㉖ Ciò che varia è QUALE capo è incrociato e con quale indirizzo: senza
+    // l'indirizzo la riga direbbe «uno dei due campi è sbagliato» senza dire
+    // quale, ed è il campo che si va a girare.
+    case 'crossedPeerIps': return `${escapeHTML(_linkName(row.linkId))} <span class="org-audit-at">${S(row.siteId)} · ${escapeHTML(row.addr)}</span>`;
+    // Il NUMERO è tutto il rilievo: dirlo qui evita di andare a cercarlo.
+    case 'uplinksImplausible': return `${escapeHTML(_uplinkName(row.uplinkId, row.siteId))} <span class="org-audit-at">${escapeHTML(t(row.field === 'mtu' ? 'org.mtu' : 'org.cir'))} ${Number(row.value)}</span>`;
+    case 'linksWithoutUnderlay': return escapeHTML(_linkName(row.linkId));
+    // La sede è il capo RIMASTO SCOPERTO, non quello documentato: è lì che manca
+    // la spunta, ed è l'unica metà della frase che il lettore non sa già.
+    case 'underlaysAtOneEndOnly': return `${escapeHTML(_linkName(row.linkId))} <span class="org-audit-at">${S(row.siteId)}</span>`;
     case 'subnetsNotCarried': return `${NET(row.subnet)} <span class="org-audit-at">${S(row.siteId)}</span>`;
     case 'linksWithoutReach': return escapeHTML(_linkName(row.linkId));
     case 'sitesWithoutLink': return S(row.siteId);

@@ -116,6 +116,66 @@ test('㉑ le righe con cui la linea si rimette su arrivano sul foglio', { skip: 
   assert.ok(txt.includes('noc.example'), 'chi si chiama');
 });
 
+// ── ㉖ I rilievi in coda al capitolo ───────────────────────────────────────
+// ⚠️ Si guarda il flusso di `doc.text`, che è quello dove queste righe passano
+// davvero. Le etichette della MAPPA no — le disegna SVGtoPDF — ed è la trappola
+// per cui un banco di questo file è già andato verde guardando il flusso
+// sbagliato. Qui la sezione è testo, quindi il flusso è quello giusto.
+
+test('⭐ ㉖ il capitolo dice anche COSA NON TORNA, con le parole del pannello', { skip: !deps }, () => {
+  const doc = newDoc();
+  const seen = scritte(doc);
+  // Il collegamento del banco non dichiara su quale linea corre, e Roma non ha
+  // nessuna linea: due rilievi veri, prodotti dai dati e non forzati a mano.
+  _addWanPages(doc, rapporto(), 'P', 'd', 'it', deps.SVGtoPDF);
+  const txt = seen.join(' | ');
+  assert.ok(txt.includes('WAN — cosa non torna'), 'la sezione esiste e si intitola');
+  // La FRASE arriva dal dizionario condiviso con il pannello, non da una copia
+  // scritta nel generatore: se qualcuno la riformula, cambia in tutt'e due.
+  assert.ok(txt.includes('Collegamenti che non dichiarano quale linea WAN li trasmette'),
+    'e il rilievo è scritto per esteso, non tagliato a metà');
+  assert.ok(txt.includes('IPSEC-MI-RM'), 'col soggetto: QUALE collegamento');
+  assert.ok(/2 lacune|1 lacune|lacune/.test(txt), 'e il conto in testata');
+});
+
+test('㉖ «non ho potuto controllare» arriva sul foglio col suo perché', { skip: !deps }, () => {
+  const doc = newDoc();
+  const seen = scritte(doc);
+  // Nessun collegamento dichiara i suoi peer: un controllo che non può girare.
+  _addWanPages(doc, rapporto({ links: [] }), 'P', 'd', 'it', deps.SVGtoPDF);
+  const txt = seen.join(' | ');
+  assert.ok(txt.includes('Non ho potuto controllare'), 'il titolo del terzo gruppo');
+  assert.ok(txt.includes('non c’è nessun collegamento'), 'e il motivo, tradotto');
+});
+
+test('㉖ senza rilievi la sezione NON sparisce: «nessun rilievo» è un\'informazione', { skip: !deps }, () => {
+  const doc = newDoc();
+  const seen = scritte(doc);
+  // Un modello coerente: due sedi, due linee, un collegamento che dice tutto.
+  _addWanPages(doc, buildInterSiteWanReport(normalizeOrganization({
+    id: 'o', name: 'P',
+    sites: [{ id: 'mi', name: 'MI', role: 'standalone', subnets: ['10.10.0.0/16'] },
+      { id: 'rm', name: 'RM', role: 'standalone', subnets: ['10.20.0.0/16'] }],
+    uplinks: [
+      // ⚠️ Anche `addressing` e il gateway: senza, un controllo resta fra i «non
+      // ho potuto», e un modello su cui una domanda non si è potuta fare non è
+      // un modello senza rilievi — è la terza cosa.
+      { id: 'u1', siteId: 'mi', provider: 'A', circuitId: 'C1', mtu: 1500, cirMbps: 100,
+        addressing: 'static', nextHop: '203.0.113.1', publicIps: factDeclared(['203.0.113.10']) },
+      { id: 'u2', siteId: 'rm', provider: 'B', circuitId: 'C2', mtu: 1500, cirMbps: 100,
+        addressing: 'static', nextHop: '198.51.100.1', publicIps: factDeclared(['198.51.100.10']) },
+    ],
+    links: [{ id: 'l1', aSiteId: 'mi', bSiteId: 'rm', transport: 'internet', tunnel: 'ipsec',
+      reach: factDeclared({ a: ['10.10.0.0/16'], b: ['10.20.0.0/16'] }),
+      underlayUplinkIds: ['u1', 'u2'],
+      endpointA: { peerIp: '198.51.100.10' }, endpointB: { peerIp: '203.0.113.10' } }],
+  })), 'P', 'd', 'it', deps.SVGtoPDF);
+  const txt = seen.join(' | ');
+  assert.ok(txt.includes('WAN — cosa non torna'));
+  assert.ok(txt.includes('Nessun rilievo su sedi, linee e collegamenti.'),
+    'una sezione che sparisce si legge come una dimenticanza');
+});
+
 test('㉑ il gateway si stampa solo dove vuol dire qualcosa', { skip: !deps }, () => {
   const foglio = (addressing, nextHop) => {
     const doc = newDoc();
