@@ -128,6 +128,14 @@ async function _startOnce(opts, port) {
       // isolazione hermetica degli altri store).
       INFRANET_API_TOKENS_FILE: path.join(tmpDir, 'api-tokens.json'),
       INFRANET_USERS_FILE: path.join(tmpDir, 'users.json'),
+      // ⚠️ L'ORGANIZZAZIONE è UNA per installazione e vive in `data/organization.json`
+      // (server/organization-store.js): NON è un sidecar di progetto, quindi
+      // `INFRANET_PROJECTS_DIR` non la sposta. Senza questa riga un e2e che apre
+      // «Sedi e collegamenti» e preme Salva riscrive il file VERO di chi esegue i
+      // test — le sue sedi, le sue linee WAN, i suoi collegamenti.
+      // Mancava perché nessun test headless era mai arrivato a quel pannello: è la
+      // prima cosa che il buco «quel pannello non ha un e2e» teneva nascosta.
+      INFRANET_ORG_FILE: path.join(tmpDir, 'organization.json'),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });

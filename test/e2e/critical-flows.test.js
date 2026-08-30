@@ -63,7 +63,73 @@ const DCIM_E2E_DATA = {
   ],
 };
 
-async function startMockNetBox() {
+// Le rotte che il pannello «Sedi e collegamenti» interroga quando legge le linee
+// WAN di una sede: i CIRCUITI (che cosa una sede compra) e i TUNNEL (che cosa la
+// lega alle altre), che in NetBox vivono in due applicazioni separate.
+//
+// Due circuiti, uno per sede, ciascuno con un capo solo su una sede → due
+// uplink. Un tunnel IPsec fra un apparato di HQ e uno di Branch → un
+// collegamento fra le due sedi. `/api/dcim/devices/` è sovrascritto perché il
+// tunnel ha bisogno di due apparati in DUE sedi diverse (vedi startMockNetBox).
+const ORG_WAN_DATA = {
+  '/api/dcim/devices/': [
+    { id: 200, name: 'HQ-FW-01', display: 'HQ-FW-01', site: { id: 40, name: 'HQ' } },
+    { id: 201, name: 'BR-FW-01', display: 'BR-FW-01', site: { id: 41, name: 'Branch' } },
+  ],
+  '/api/circuits/circuits/': [
+    {
+      id: 900, cid: 'FW-HQ-1G',
+      provider: { id: 5, name: 'Fastweb', slug: 'fastweb' },
+      type: { id: 1, name: 'Internet Access', slug: 'internet' },
+      status: { value: 'active', label: 'Active' },
+      commit_rate: 1000000,   // kbps: NetBox li tiene così, e il mapper divide
+      termination_a: { termination_type: 'dcim.site', termination_id: 40, termination: { id: 40, name: 'HQ' } },
+      termination_z: null,
+    },
+    {
+      id: 901, cid: 'TIM-BR-100M',
+      provider: { id: 6, name: 'TIM', slug: 'tim' },
+      type: { id: 1, name: 'Internet Access', slug: 'internet' },
+      status: { value: 'active', label: 'Active' },
+      commit_rate: 100000,
+      termination_a: { termination_type: 'dcim.site', termination_id: 41, termination: { id: 41, name: 'Branch' } },
+      termination_z: null,
+    },
+  ],
+  // Le terminazioni lette a parte (quelle che porterebbero il cavo, e con lui la
+  // porta WAN) qui non servono: il fixture usa quelle ANNIDATE nel circuito, che
+  // sono il ripiego previsto dal mapper. La porta WAN ha già i suoi banchi.
+  '/api/circuits/circuit-terminations/': [],
+  '/api/vpn/l2vpns/': [],
+  '/api/vpn/l2vpn-terminations/': [],
+  '/api/vpn/tunnels/': [
+    { id: 700, name: 'HQ-BR', display: 'HQ-BR', encapsulation: { value: 'ipsec-tunnel', label: 'IPsec - Tunnel' }, status: { value: 'active', label: 'Active' } },
+  ],
+  '/api/vpn/tunnel-terminations/': [
+    {
+      id: 710, tunnel: { id: 700 }, role: { value: 'peer', label: 'Peer' },
+      termination_type: 'dcim.interface',
+      termination: { id: 1, name: 'Gi0/0', display: 'Gi0/0', device: { id: 200, name: 'HQ-FW-01', display: 'HQ-FW-01' } },
+      outside_ip: { address: '198.51.100.21/32' },
+    },
+    {
+      id: 711, tunnel: { id: 700 }, role: { value: 'peer', label: 'Peer' },
+      termination_type: 'dcim.interface',
+      termination: { id: 2, name: 'Gi0/0', display: 'Gi0/0', device: { id: 201, name: 'BR-FW-01', display: 'BR-FW-01' } },
+      outside_ip: { address: '203.0.113.20/32' },
+    },
+  ],
+};
+
+/**
+ * Il mock NetBox. `extra` SOVRASCRIVE le rotte di `DCIM_E2E_DATA` per la sola
+ * istanza che lo chiede: il flusso WAN ha bisogno di due apparati in due sedi
+ * DIVERSE, mentre i due dell'import stanno tutti e due in HQ. Cambiare il
+ * fixture condiviso li avrebbe fatti diventare tre, e l'import conta i nodi che
+ * crea — un test avrebbe pagato per l'altro.
+ */
+async function startMockNetBox(extra) {
+  const DATA = Object.assign({}, DCIM_E2E_DATA, extra || {});
   const authHeaders = [];
   const requestUrls = [];
   const server = http.createServer((req, res) => {
@@ -76,7 +142,7 @@ async function startMockNetBox() {
       return res.end(JSON.stringify({ detail: 'NetBox v2 Bearer token required' }));
     }
     if (url.pathname === '/api/status/') return res.end(JSON.stringify({ 'netbox-version': '4.2.0-e2e' }));
-    const results = DCIM_E2E_DATA[url.pathname];
+    const results = DATA[url.pathname];
     if (!results) {
       res.statusCode = 404;
       return res.end(JSON.stringify({ detail: 'Not found' }));
@@ -5846,6 +5912,261 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.deepEqual(r.gruppiDichiarati, ['Critici'], 'i gruppi che hai dichiarato non vengono ribattezzati dal catalogo');
       const e = pageErrors.slice(errBefore);
       assert.equal(e.length, 0, 'nessun errore JS: ' + e.join(' | '));
+    });
+    // ⭐ Il pannello «Sedi e collegamenti» non aveva NESSUN e2e, ed era il buco
+    // segnato come «quello che si ripete»: le diramazioni del disegnatore si
+    // guardavano a schermo, una per una, a ogni modifica. Scriverlo si è ripagato
+    // subito — la prima cosa trovata è che il server di prova non isolava
+    // `data/organization.json` (helpers/server.js), cioè un e2e che avesse premuto
+    // Salva avrebbe riscritto le sedi VERE di chi esegue i test.
+    //
+    // Qui si prova la catena intera, che è l'unica prova che conta: le linee
+    // arrivano dal DCIM, il pannello offre quelle dei due capi e non tutte, e la
+    // scelta sopravvive al salvataggio — che è il punto in cui il campo veniva
+    // buttato via prima della 2.10.3.
+    await t.test('«Sedi e collegamenti»: le linee WAN arrivano dal DCIM, e la linea su cui corre un collegamento si spunta e si salva', async () => {
+      const mock = await startMockNetBox(ORG_WAN_DATA);
+      const orgPage = await browser.newPage({ viewport: { width: 1500, height: 950 } });
+      const orgErrors = [];
+      orgPage.on('pageerror', (e) => orgErrors.push(String(e)));
+      try {
+        await orgPage.goto(srv.baseURL, { waitUntil: 'load' });
+        await orgPage.waitForFunction(() => typeof renderAll === 'function' && Array.isArray(state.nodes), null, { timeout: 15000 });
+
+        const seed = await orgPage.evaluate(async (url) => {
+          await fetch('/api/integrations/dcim/config', {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url, token: 'nbt_key.secret', verifyTls: false }),
+          });
+          // Un progetto per sede, ciascuno con la fetta di DCIM da cui è nato: è
+          // il documento a dire QUALI siti NetBox chiedere, non chi sta guardando.
+          const progetto = async (name, siteId, siteName, devName) => {
+            const r = await fetch('/api/projects', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name,
+                state: {
+                  nodes: [{ id: 'fw1', type: 'firewall', name: devName }],
+                  racks: [], links: [],
+                  source: { dcim: { sites: [{ id: siteId, name: siteName }] } },
+                },
+              }),
+            });
+            return (await r.json()).id;
+          };
+          const pMi = await progetto('E2E Org Milano', 40, 'HQ', 'HQ-FW-01');
+          const pRm = await progetto('E2E Org Roma', 41, 'Branch', 'BR-FW-01');
+          // ⚠️ La TERZA sede con la sua linea è il perno del test: senza una linea
+          // che NON può portare il collegamento, «si offrono solo quelle dei due
+          // capi» resta un'affermazione che nessuno controlla.
+          const put = await fetch('/api/organization', {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: 'e2e', name: 'E2E Multi-sede',
+              sites: [
+                { id: 'mi', name: 'Milano', role: 'hub', projectRef: String(pMi) },
+                { id: 'rm', name: 'Roma', role: 'spoke', projectRef: String(pRm) },
+                { id: 'to', name: 'Torino', role: 'spoke' },
+              ],
+              uplinks: [{ id: 'u-to', siteId: 'to', provider: 'WindTre Business' }],
+              links: [],
+            }),
+          });
+          return { putStatus: put.status, pMi, pRm };
+        }, mock.baseURL);
+        assert.equal(seed.putStatus, 200, "l'organizzazione di partenza viene scritta");
+
+        await orgPage.click('#btn-org');
+        await orgPage.waitForSelector('#org-overlay.open', { timeout: 5000 });
+        await orgPage.click('button[data-act="org-tab"][data-tab="sites"]');
+        await orgPage.waitForSelector('button[data-act="org-wan-from-dcim"][data-idx="0"]:not([disabled])', { timeout: 10000 });
+
+        // Milano, poi Roma: l'ambito lo decide il progetto della SEDE, quindi la
+        // lettura è per sede e non una sola per tutta l'organizzazione.
+        await orgPage.click('button[data-act="org-wan-from-dcim"][data-idx="0"]');
+        await orgPage.waitForSelector('.org-wan-report', { timeout: 15000 });
+        await orgPage.waitForFunction(() => /Milano/.test(document.querySelector('.org-wan-head')?.textContent || ''), null, { timeout: 10000 });
+        await orgPage.click('button[data-act="org-tab"][data-tab="sites"]');
+        await orgPage.waitForSelector('button[data-act="org-wan-from-dcim"][data-idx="1"]:not([disabled])', { timeout: 10000 });
+        await orgPage.click('button[data-act="org-wan-from-dcim"][data-idx="1"]');
+        await orgPage.waitForFunction(() => /Roma/.test(document.querySelector('.org-wan-head')?.textContent || ''), null, { timeout: 15000 });
+
+        const dopoImport = await orgPage.evaluate(() => ({
+          uplinks: document.querySelectorAll('.org-pane article.org-row').length,
+          providers: [...document.querySelectorAll('.org-pane input[data-field="provider"][data-scope="uplink"]')].map(i => i.value),
+        }));
+        assert.equal(dopoImport.uplinks, 3, 'le due linee lette dal DCIM si AGGIUNGONO a quella scritta a mano, non la sostituiscono');
+        assert.deepEqual(dopoImport.providers.slice().sort(), ['Fastweb', 'TIM', 'WindTre Business']);
+
+        await orgPage.click('button[data-act="org-tab"][data-tab="links"]');
+        await orgPage.waitForSelector('.org-f-underlay', { timeout: 10000 });
+
+        const caselle = await orgPage.evaluate(() => {
+          const box = document.querySelector('.org-f-underlay');
+          const et = [...box.querySelectorAll('label.org-check')].map(l => l.textContent.replace(/\s+/g, ' ').trim());
+          return {
+            righeCollegamento: document.querySelectorAll('.org-pane article.org-row').length,
+            n: box.querySelectorAll('input[data-change="org-underlay"]').length,
+            etichette: et,
+            spuntate: box.querySelectorAll('input[data-change="org-underlay"]:checked').length,
+          };
+        });
+        assert.equal(caselle.righeCollegamento, 1, 'il tunnel letto da NetBox è diventato UN collegamento fra le due sedi');
+        // ⭐ La misura che il pannello prometteva e che nessuno controllava: si
+        // offrono le linee dei DUE CAPI. Tre linee esistono, due possono portare
+        // questo collegamento, e quella di Torino non compare.
+        assert.equal(caselle.n, 2, 'si offrono le linee WAN delle due sedi, non tutte quelle dell\'organizzazione');
+        assert.equal(caselle.etichette.some(e => /Fastweb · Milano/.test(e)), true, "la linea si legge con l'operatore e la SEDE: l'id non dice niente");
+        assert.equal(caselle.etichette.some(e => /TIM · Roma/.test(e)), true);
+        assert.equal(caselle.etichette.some(e => /WindTre/.test(e)), false, 'una linea di Torino non può portare un Milano↔Roma, e non viene offerta');
+        assert.equal(caselle.spuntate, 0, "⑳ nessun import lo deduce: il campo arriva VUOTO ed è chi documenta a dichiararlo");
+
+        const idFastweb = await orgPage.evaluate(() => {
+          const l = [...document.querySelectorAll('.org-f-underlay label.org-check')].find(x => /Fastweb/.test(x.textContent));
+          return l ? l.querySelector('input').dataset.uplink : null;
+        });
+        assert.ok(idFastweb, 'la casella della Fastweb esiste');
+        await orgPage.check(`.org-f-underlay input[data-uplink="${idFastweb}"]`);
+        await orgPage.waitForSelector('button[data-act="org-save"]:not([disabled])', { timeout: 5000 });
+        await orgPage.click('button[data-act="org-save"]');
+        await orgPage.waitForSelector('button[data-act="org-save"][disabled]', { timeout: 10000 });
+
+        // ⚠️ La prova vera è QUI, e non sulla casella: il punto in cui il campo
+        // veniva buttato via era il salvataggio, in silenzio e senza finire fra
+        // gli scarti. Una verifica sul solo DOM sarebbe stata verde anche prima.
+        const salvato = await orgPage.evaluate(async () => {
+          const j = await (await fetch('/api/organization')).json();
+          const l = j.organization.links[0];
+          return {
+            kind: l.kind,
+            underlay: l.underlayUplinkIds,
+            capi: [l.aSiteId, l.bSiteId],
+            capoA: l.endpointA || {},
+            problemi: (j.audit.underlaysNotAtEnds || []).length,
+          };
+        });
+        assert.equal(salvato.kind, 'ipsec', 'la natura viene dal vocabolario CHIUSO di NetBox, non da un\'etichetta libera');
+        assert.deepEqual(salvato.capi, ['mi', 'rm']);
+        assert.deepEqual(salvato.underlay, [idFastweb], 'la linea dichiarata sopravvive al salvataggio: è il giro che prima la perdeva');
+        // ① un RIFERIMENTO al nodo del progetto-sede, non il nome ricopiato: il
+        // nome combaciava con un apparato solo, e allora si aggancia.
+        assert.equal(salvato.capoA.deviceRef, 'fw1', 'il capo del tunnel si aggancia all\'apparato del progetto-sede');
+        assert.equal(salvato.capoA.deviceName, null, 'agganciato = niente copia del nome accanto al riferimento');
+        assert.equal(salvato.capoA.peerIp, '203.0.113.20', '⚠️ gli indirizzi si INCROCIANO: il peer di Milano è l\'esterno di Roma');
+        assert.equal(salvato.problemi, 0, 'una linea di un capo VERO non è un\'incoerenza');
+
+        assert.deepEqual(orgErrors, [], 'nessun errore JS nel pannello multi-sede: ' + orgErrors.join(' | '));
+      } finally {
+        await orgPage.close();
+        await mock.close();
+      }
+    });
+
+    // ⭐ Le due diramazioni che finora si guardavano a occhio (handoff 29-30/08).
+    // Sono l'una il rovescio dell'altra rispetto al filtro qui sopra: si offre di
+    // MENO, ma ciò che è già dichiarato non si nasconde MAI — un valore che sta
+    // nel modello e non si vede a schermo è impossibile da spegnere, e intanto
+    // continua a stampare sulla scheda di ripristino del dossier.
+    await t.test('«Sedi e collegamenti»: una linea dichiarata non si nasconde — nemmeno se è di una terza sede o se è stata cancellata', async () => {
+      const orgPage = await browser.newPage({ viewport: { width: 1500, height: 950 } });
+      const orgErrors = [];
+      orgPage.on('pageerror', (e) => orgErrors.push(String(e)));
+      try {
+        await orgPage.goto(srv.baseURL, { waitUntil: 'load' });
+        await orgPage.waitForFunction(() => typeof renderAll === 'function' && Array.isArray(state.nodes), null, { timeout: 15000 });
+
+        // Il caso vero non si costruisce col pannello: il file si scrive a mano,
+        // torna da un backup, e i capi si cambiano DOPO aver spuntato le linee.
+        const seed = await orgPage.evaluate(async () => {
+          const r = await fetch('/api/organization', {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: 'e2e2', name: 'E2E Linee sbagliate',
+              sites: [
+                { id: 'mi', name: 'Milano', role: 'hub' },
+                { id: 'rm', name: 'Roma', role: 'spoke' },
+                { id: 'to', name: 'Torino', role: 'spoke' },
+              ],
+              uplinks: [
+                { id: 'u-mi', siteId: 'mi', provider: 'Fastweb' },
+                { id: 'u-rm', siteId: 'rm', provider: 'TIM' },
+                { id: 'u-to', siteId: 'to', provider: 'WindTre Business' },
+              ],
+              links: [{
+                id: 'isl-1', aSiteId: 'mi', bSiteId: 'rm', kind: 'ipsec',
+                underlayUplinkIds: ['u-to', 'wan_sparito_ieri'],
+              }],
+            }),
+          });
+          const j = await r.json();
+          return { status: r.status, dropped: j.dropped, underlay: j.organization.links[0].underlayUplinkIds };
+        });
+        assert.equal(seed.status, 200);
+        assert.equal(seed.dropped.links, 0, 'il server non butta via un collegamento perché una sua linea non torna: lo TIENE e l\'audit lo dice');
+        assert.deepEqual(seed.underlay, ['u-to', 'wan_sparito_ieri'], 'e non ne cancella nemmeno una in silenzio');
+
+        await orgPage.click('#btn-org');
+        await orgPage.waitForSelector('#org-overlay.open', { timeout: 5000 });
+        await orgPage.click('button[data-act="org-tab"][data-tab="links"]');
+        await orgPage.waitForSelector('.org-f-underlay', { timeout: 10000 });
+
+        const mostrate = await orgPage.evaluate(() => {
+          const box = document.querySelector('.org-f-underlay');
+          return [...box.querySelectorAll('label.org-check')].map(l => ({
+            testo: l.textContent.replace(/\s+/g, ' ').trim(),
+            id: l.querySelector('input').dataset.uplink,
+            spuntata: l.querySelector('input').checked,
+          }));
+        });
+        const perId = (id) => mostrate.find(x => x.id === id);
+        assert.equal(mostrate.length, 4, 'le due dei capi PIÙ le due dichiarate che cadono fuori');
+        assert.equal(perId('u-mi').spuntata, false);
+        assert.equal(perId('u-rm').spuntata, false);
+        // ① la linea di una TERZA sede: fuori dal filtro, ma dichiarata → si vede.
+        assert.ok(perId('u-to'), 'la linea di Torino è dichiarata: si mostra anche se il filtro non la offrirebbe');
+        assert.equal(perId('u-to').spuntata, true);
+        assert.match(perId('u-to').testo, /WindTre Business · Torino/);
+        // ② la linea CANCELLATA dopo: non c'è più niente da cui prendere un nome,
+        // e allora si mostra l'id con la ragione — mai una casella muta.
+        assert.ok(perId('wan_sparito_ieri'), 'una linea cancellata dopo resta spegnibile: se sparisse dal pannello, resterebbe accesa per sempre');
+        assert.equal(perId('wan_sparito_ieri').spuntata, true);
+        assert.match(perId('wan_sparito_ieri').testo, /wan_sparito_ieri — linea WAN non più descritta/);
+
+        // L'audit le racconta tutte e due, e nomina la SEDE — che è il pezzo che
+        // sulla carta non c'è: la scheda di ripristino stampa «operatore · codice»
+        // senza sede, quindi una linea sbagliata si legge come una giusta.
+        await orgPage.click('button[data-act="org-tab"][data-tab="audit"]');
+        await orgPage.waitForSelector('.org-audit-group.is-problem', { timeout: 5000 });
+        const audit = await orgPage.evaluate(() => {
+          const blocchi = [...document.querySelectorAll('.org-audit-group.is-problem .org-audit-item')];
+          const b = blocchi.find(x => /non appartiene a nessuna delle loro due sedi/.test(x.querySelector('h5').textContent));
+          return b ? { n: b.querySelectorAll('li').length, righe: [...b.querySelectorAll('li')].map(li => li.textContent.replace(/\s+/g, ' ').trim()) } : null;
+        });
+        assert.ok(audit, 'l\'incoerenza sta fra i PROBLEMI, non fra le lacune: è una dichiarazione falsa, non una che manca');
+        assert.equal(audit.n, 2);
+        assert.equal(audit.righe.some(r => /Milano ↔ Roma/.test(r) && /WindTre Business · Torino/.test(r)), true);
+        assert.equal(audit.righe.some(r => /wan_sparito_ieri — linea WAN non più descritta/.test(r)), true);
+
+        // E si spengono: è tutto il motivo per cui si mostrano.
+        await orgPage.click('button[data-act="org-tab"][data-tab="links"]');
+        await orgPage.waitForSelector('.org-f-underlay', { timeout: 5000 });
+        await orgPage.uncheck('.org-f-underlay input[data-uplink="u-to"]');
+        await orgPage.uncheck('.org-f-underlay input[data-uplink="wan_sparito_ieri"]');
+        await orgPage.waitForSelector('button[data-act="org-save"]:not([disabled])', { timeout: 5000 });
+        await orgPage.click('button[data-act="org-save"]');
+        await orgPage.waitForSelector('button[data-act="org-save"][disabled]', { timeout: 10000 });
+
+        const dopo = await orgPage.evaluate(async () => {
+          const j = await (await fetch('/api/organization')).json();
+          return { underlay: j.organization.links[0].underlayUplinkIds, problemi: (j.audit.underlaysNotAtEnds || []).length };
+        });
+        assert.deepEqual(dopo.underlay, [], 'tolte le spunte, il modello resta senza linee dichiarate — vuoto è una RISPOSTA, non un buco');
+        assert.equal(dopo.problemi, 0, 'e l\'incoerenza sparisce perché è stata riparata, non perché è stata nascosta');
+
+        assert.deepEqual(orgErrors, [], 'nessun errore JS: ' + orgErrors.join(' | '));
+      } finally {
+        await orgPage.close();
+      }
     });
   } finally {
     await browser.close();
