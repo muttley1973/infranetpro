@@ -45,9 +45,22 @@
         <button class="toolbar-btn danger" data-act="project-delete" data-i18n-tip="project.tipDelete" data-tip="Elimina progetto"><i class="fas fa-trash"></i></button>
     </div>
     <div class="header-sep"></div>
+    <!-- «Salva» sta QUI, attaccato alla barra del progetto: salva il progetto che il
+         selettore lì accanto ha aperto, e i due gesti si leggono insieme. Prima stava
+         tre gruppi più in là, dopo «Esporta», dove nessuno lo cercava. Spostato su
+         richiesta dell'utente il 30/08.
+         ⚠️ L'ordine di questi bottoni è anche l'ordine di TABULAZIONE: qui «Salva»
+         arriva prima di Multisito ed Esporta, che è la priorità voluta anche da
+         tastiera. Nessuna regola CSS dipende dalla posizione (niente selettori di
+         fratello adiacente su questi id): a spostarlo si sposta e basta. -->
+    <button class="toolbar-btn primary" id="btn-save" data-act="project-save" data-i18n-tip="save.tip" data-tip="Salva (Ctrl+S)">
+        <i id="save-icon" class="fas fa-floppy-disk"></i><span id="save-label" data-i18n="save.label"> Salva </span><span id="save-dot"></span>
+    </button>
+    <div class="header-sep"></div>
     <!-- Il layer SOPRA il progetto: un progetto = una sede, questo = come le sedi
-         si parlano. Sta accanto al selettore di progetto perché è la stessa
-         domanda a una scala più grande («dove sono?»), non un'esportazione. -->
+         si parlano. Fra lui e il selettore di progetto ora c'è «Salva», ma resta
+         di casa lì: è la stessa domanda a una scala più grande («dove sono?»),
+         non un'esportazione. -->
     <button class="toolbar-btn" id="btn-org" data-act="org-open" data-i18n-tip="org.tip" data-tip="Sedi, uplink WAN e collegamenti fra le sedi"><i class="fas fa-sitemap"></i><span class="btn-label" data-i18n="org.btnLabel"> Multisito</span></button>
     <div class="header-sep"></div>
     <div id="impexp-menu-wrap" style="position:relative">
@@ -87,10 +100,6 @@
             </button>
         </div>
     </div>
-    <div class="header-sep"></div>
-    <button class="toolbar-btn primary" id="btn-save" data-act="project-save" data-i18n-tip="save.tip" data-tip="Salva (Ctrl+S)">
-        <i id="save-icon" class="fas fa-floppy-disk"></i><span id="save-label" data-i18n="save.label"> Salva </span><span id="save-dot"></span>
-    </button>
     <div class="header-sep"></div>
 
     <!-- Undo / Redo -->

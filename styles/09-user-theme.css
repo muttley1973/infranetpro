@@ -129,25 +129,32 @@
            Automazioni sono già icon-only per classe. Il blocco ≤1100 sotto aggiunge
            la compattazione estrema. ---- */
         /* ≤1920px: i pulsanti-azione diventano SOLO-ICONA (etichetta nel tooltip) →
-           la barra sta su UNA riga sui monitor comuni. Sopra ~1920 (2K/4K) tornano le
-           etichette. Report/Assistente/Automazioni sono già icon-only per classe.
+           la barra sta su UNA riga sui monitor comuni. ⚠️ Sopra i 1920 le etichette
+           NON tornano subito: torna il padding pieno e la barra richiede 1938px, quindi
+           fra 1921 e 1980 va a capo e a raddrizzarla è il fitter (misurato a 1930: due
+           righe, hf1). Ci stanno da sole dai ~1981 in su — vedi il blocco «senza limite
+           superiore» più sotto. Report/Assistente/Automazioni sono già icon-only per classe.
            Il wrap (rete di sicurezza) è strutturale sull'header, non serve qui. */
         @media (max-width: 1920px) {
             /* A 1920 restano etichettati: Multisito (#btn-org), Esporta (#btn-impexp),
                Dashboard (#btn-overview), Scopri (#btn-discover) e Verifica (#btn-drift).
                Collassano a icona più in basso.
-               ⚠️ **Qui cede SALVA**, e non è la scelta ovvia: era la penultima a cedere
-               (≤1280) ed è salita in cima. La ragione è che «Multisito» è la SESTA
-               parola e a taglia piena la barra chiede già 1938px — più di 1920 — quindi
-               a 1920 una delle sei deve andarsene comunque. Sceglierla è una decisione
-               di prodotto, non di layout: fra «Salva» (un'azione che ha già il suo
-               tasto, il suo stato e l'autosalvataggio) e «Multisito» (il nome di DOVE
-               si sta andando), la parola che serve leggere è la seconda. Richiesta
-               esplicita dell'utente il 30/08.
-               ⚠️ Il conto: Multisito è 55,9px e Salva 33,7 → +22px netti a 1920, che
-               stanno nel margine della ricerca (320px con pavimento a 250).
+               ⚠️ **«Salva» NON cede qui**, e il perché è una misura, non un'opinione.
+               Fino al 30/08 cedeva, sul ragionamento che a taglia piena la barra chiede
+               1938px — più di 1920 — e che a 1920 una delle sei parole deve andarsene
+               comunque. Il conto era giusto, il posto sbagliato: quel 1938 è misurato
+               SOPRA i 1920, dove i bottoni hanno il padding pieno. Dentro questo stesso
+               blocco il padding è già ridotto (17 bottoni × 4px = 68px) e l'etichetta
+               utente è già via: lo spazio qui c'è. Misurato a 1920 con tutte e sei le
+               parole accese: la ricerca resta a 428px contro un basis di 320 → **108px
+               liberi**, e «Salva» ne costa 33,7. Ci sta, con 74px di margine.
+               ⚠️ E «Salva» non è un'etichetta come le altre: a salvataggio riuscito il
+               bottone scrive «Salvato» per 1,8s (app-core.js). Con l'etichetta sr-only
+               quella conferma non la leggeva nessuno — restava la sola spunta dell'icona,
+               sulla larghezza desktop più diffusa.
+               Cede a ≤1800, subito PRIMA di «Multisito»: fra le due, quella che serve
+               leggere resta Multisito (richiesta dell'utente il 30/08, invariata).
                sr-only: il nome accessibile del bottone resta. */
-            #btn-save #save-label,
             #btn-export-drawio .btn-label,
             #btn-user #user-label,
             #modules-nav-slot .btn-label {
@@ -197,6 +204,23 @@
            sr-only: il nome accessibile del bottone non si perde. */
         @media (max-width: 1850px) {
             #btn-overview .btn-label {
+                position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+                overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
+            }
+        }
+        /* ≤1800px: cede «Salva» (#btn-save). È il 3° gradino, e la sua posizione è una
+           scelta di prodotto: subito PRIMA di «Multisito» (≤1737), perché fra le due la
+           parola che serve leggere è il nome di dove si sta andando — ma dopo Esporta e
+           Dashboard, perché quelle due sono scorciatoie a viste, non lo stato di un
+           documento che potresti perdere.
+           ⚠️ La soglia ha margine, come le due sopra: alla lettera il posto non manca
+           nemmeno a 1738 (misurato a badge spenti: 91px liberi a 1851, 116 a 1801, e a
+           1738 ne resterebbero ~57 anche tenendo «Salva» accesa). Il margine è per il
+           contatore di freschezza, che si allarga col testo e che nessuna @media può
+           prevedere. Chi lo esaurisce davvero è il fitter, un gradino alla volta.
+           sr-only: il nome accessibile del bottone resta. */
+        @media (max-width: 1800px) {
+            #btn-save #save-label {
                 position:absolute; width:1px; height:1px; padding:0; margin:-1px;
                 overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
             }
@@ -271,10 +295,9 @@
             header { padding: 4px 10px; }
             #project-select { max-width: 80px; }
             .search-panel { flex: 1 1 64px; min-width: 48px; }
-            /* ⚠️ Qui NON c'è più «Salva»: da quando «Multisito» esiste, Salva è la
-               PRIMA a cedere e se n'è andata a ≤1920 (vedi lassù). Ripeterla qui
-               sarebbe una regola che non può mai scattare — e una regola morta si
-               legge come una regola viva. */
+            /* ⚠️ Qui NON c'è più «Salva»: cede a ≤1800 (vedi lassù), quindi a questa
+               soglia è già andata da un pezzo. Ripeterla sarebbe una regola che non può
+               mai scattare — e una regola morta si legge come una regola viva. */
         }
 
         /* ---- Header fallback B ----
@@ -326,23 +349,28 @@
         /* ⚠️ L'ordine è quello delle @media, o le due si contraddicono: la finestra
            che si stringe toglierebbe una parola e i badge che si accendono un'altra,
            e il risultato dipenderebbe da quale dei due è successo per ultimo.
-           Salva → Esporta → Dashboard → Multisito → Scopri, poi la ricerca.
-           ⚠️ Salva ed Esporta stanno INSIEME al primo livello: i gradini sono cinque
-           (`MAX_LEVEL`) e le parole da togliere sei, quindi due condividono uno
-           scalino. Le prime due, che sono quelle che si rimpiangono meno. */
-        header.hf1 #btn-save #save-label,
+           Esporta → Dashboard → Salva → Multisito → Scopri, poi la ricerca: gli stessi
+           cinque scalini delle @media (1900 · 1850 · 1800 · 1737 · 1200), nello stesso
+           ordine.
+           ⚠️ Ora ogni parola ha il SUO scalino (`MAX_LEVEL` = 6, era 5): finché erano
+           cinque per sei parole, Salva ed Esporta ne condividevano uno — e con «Salva»
+           accesa a 1920 sarebbe bastato accendere due badge insieme per riportarla a
+           icona, che sui progetti con SNMP è la condizione normale. Misurato a 1920 a
+           scalini separati: un badge lo assorbe la ricerca (nessuna parola cede), a due
+           cedono Esporta e Dashboard e «Salva» resta, e cede al terzo. */
         header.hf1 #btn-impexp .btn-label,
         header.hf2 #btn-overview .btn-label,
-        header.hf3 #btn-org .btn-label,
-        header.hf4 #btn-discover .btn-label {
+        header.hf3 #btn-save #save-label,
+        header.hf4 #btn-org .btn-label,
+        header.hf5 #btn-discover .btn-label {
             position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
             overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
         }
-        /* hf5 — ultima risorsa: la ricerca cede il suo basis (grow → resta grande
+        /* hf6 — ultima risorsa: la ricerca cede il suo basis (grow → resta grande
            quando c'è spazio; qui si stringe fino a ~icona+poco). min-width piccolo
            per massimizzare lo spazio recuperato: si arriva qui solo su finestre
            strette con più badge accesi insieme. */
-        header.hf5 .search-panel { flex: 1 1 0; min-width: 40px; }
+        header.hf6 .search-panel { flex: 1 1 0; min-width: 40px; }
 
 /* ============================================================
    TOOLTIP CSS CUSTOM (traducibile dal browser)

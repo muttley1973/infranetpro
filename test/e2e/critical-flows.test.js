@@ -476,6 +476,61 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       }
     });
 
+    await t.test('header a 1920: «Salva» ha la sua scritta, e cede dopo Esporta e Dashboard', async () => {
+      // 1920 è la larghezza desktop più diffusa (ed è quella dello schermo dell'utente).
+      // Due affermazioni, misurate a schermo e non dedotte dal CSS:
+      //   a) a badge spenti l'etichetta «Salva» SI LEGGE — è il motivo di tutta la
+      //      modifica, e una regola @media letta a occhio non lo dimostra;
+      //   b) l'ordine in cui le parole cedono è Esporta → Dashboard → Salva → Multisito
+      //      → Scopri. Questo si prova un gradino alla volta (una sola classe hfN
+      //      addosso all'header) invece che accendendo badge: così non dipende da quanto
+      //      è lungo il nome del progetto o il testo di un chip, che cambiano larghezza.
+      const p = await browser.newPage({ viewport: { width: 1920, height: 1000 } });
+      try {
+        await p.goto(srv.baseURL, { waitUntil: 'load' });
+        await p.waitForFunction(
+          () => typeof window._fitHeader === 'function' && !!document.querySelector('header'),
+          null, { timeout: 15000 });
+        const r = await p.evaluate(() => {
+          const h = document.querySelector('header');
+          const right = h.querySelector('.header-right');
+          const title = h.querySelector('.header-title');
+          // Larghezza RESA: l'sr-only lascia l'elemento nel DOM a 1px, quindi
+          // «si vede» = più largo di una manciata di pixel, non «esiste».
+          const w = (sel) => { const e = document.querySelector(sel); return e ? Math.round(e.getBoundingClientRect().width) : 0; };
+          const ETICHETTE = {
+            esporta: '#btn-impexp .btn-label', dashboard: '#btn-overview .btn-label',
+            salva: '#save-label', multisito: '#btn-org .btn-label',
+            scopri: '#btn-discover .btn-label', verifica: '#btn-drift .btn-label',
+          };
+          const lette = () => Object.fromEntries(Object.entries(ETICHETTE).map(([k, s]) => [k, w(s) > 5]));
+          window._fitHeader();
+          const nudo = { wrap: (right.offsetTop - title.offsetTop) > 20, ...lette() };
+          // Un gradino per volta: che cosa toglie hfN, da solo.
+          const classiPrima = h.className;
+          const scala = [];
+          for (let i = 1; i <= 6; i++) {
+            h.className = 'hf' + i;
+            void h.offsetWidth;
+            const v = lette();
+            scala.push(Object.keys(ETICHETTE).filter((k) => !v[k]));
+          }
+          h.className = classiPrima;
+          return { nudo, scala };
+        });
+        assert.equal(r.nudo.wrap, false, 'a 1920 e a badge spenti l’header sta su UNA riga');
+        assert.ok(r.nudo.salva, '«Salva» si legge a 1920: è la larghezza desktop più diffusa');
+        assert.ok(r.nudo.multisito, '«Multisito» si legge a 1920 (non ha ceduto il posto a Salva)');
+        assert.ok(r.nudo.verifica, '«Verifica» (azione primaria) si legge sempre');
+        assert.deepEqual(
+          r.scala,
+          [['esporta'], ['dashboard'], ['salva'], ['multisito'], ['scopri'], []],
+          'la scala del fitter cede nell’ordine Esporta → Dashboard → Salva → Multisito → Scopri (hf6 stringe la ricerca, non toglie parole)');
+      } finally {
+        await p.close();
+      }
+    });
+
     await t.test('instradamento cavi: getCablePath è direction-true (niente nodo) nel browser reale', async () => {
       const r = await page.evaluate(() => ({
         horiz: getCablePath(10, 20, 210, 20),

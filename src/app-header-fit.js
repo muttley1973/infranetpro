@@ -12,12 +12,12 @@
 // condizione di larghezza), quindi qui MISURIAMO e recuperiamo spazio nella
 // PRIORITÀ chiesta:
 //   1) prima si portano a ICONA le etichette dei pulsanti (meno importanti →
-//      più importanti: Esporta, Dashboard, Salva, Scopri);
+//      più importanti: Esporta, Dashboard, Salva, Multisito, Scopri);
 //   2) SOLO come ultima risorsa si stringe la barra di ricerca.
 // L'etichetta di «Verifica» (azione primaria) non si tocca mai — resta l'unica
 // scritta anche nel caso peggiore (coerente con la scelta storica del layout).
 //
-// Come: si aggiungono al `<header>` le classi cumulative hf1…hf5 (una alla
+// Come: si aggiungono al `<header>` le classi cumulative hf1…hf6 (una alla
 // volta, finché torna su una riga); il collasso vero lo fa il CSS in
 // styles/09-user-theme.css. Nessuno stile inline → nessun ciclo con l'osservatore.
 // Le media query restano l'autorità del layout SENZA badge (a badge spenti il
@@ -25,7 +25,11 @@
 // ============================================================
 
 if (typeof document !== 'undefined' && typeof window !== 'undefined') {
-  const MAX_LEVEL = 5;          // hf1…hf5 (4 etichette + stretta ricerca)
+  // Sei gradini, uno per parola che può cedere (Esporta · Dashboard · Salva ·
+  // Multisito · Scopri) più la stretta della ricerca. Erano cinque, con Salva ed
+  // Esporta appaiate sul primo: appaiarle costava «Salva» al primo badge acceso,
+  // che sui progetti con SNMP è la condizione normale, non il caso raro.
+  const MAX_LEVEL = 6;          // hf1…hf6 (5 etichette + stretta ricerca)
   const WRAP_EPS = 20;          // px: soglia "il cluster destro è su un'altra riga"
 
   const header = () => document.querySelector('header');
@@ -54,7 +58,7 @@ if (typeof document !== 'undefined' && typeof window !== 'undefined') {
       level++;
       h.classList.add('hf' + level);
     }
-    // Se anche hf5 non basta (finestra molto stretta + molti badge insieme)
+    // Se anche hf6 non basta (finestra molto stretta + molti badge insieme)
     // l'header va a capo come prima: rete di sicurezza invariata, nessun
     // pulsante tagliato fuori schermo.
   }
