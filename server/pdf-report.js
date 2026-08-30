@@ -123,6 +123,7 @@ const _RL = {
     'empty.wanMap': 'Mappa non disponibile: le sedi ci sono, ma il disegno non si è potuto comporre.',
     'wan.noCircuitIdN': 'senza codice circuito', 'wan.noReachN': 'senza reti dichiarate',
     'wan.noProviderN': 'senza operatore',
+    'wan.noNextHopN': 'statiche senza gateway',
     // ⚠️ Questa porta il nome di ciò che conta, quindi ha anche il suo SINGOLARE:
     // «1 sedi senza linea WAN» in cima a un capitolo fa dubitare di tutto il
     // resto di ciò che c'è scritto sotto. Le altre due contano senza nominare.
@@ -132,13 +133,19 @@ const _RL = {
     'wan.here': 'questa sede',
     'col.site': 'Sede', 'col.address': 'Indirizzo', 'col.nets': 'Reti', 'col.lines': 'Linee',
     'wan.provider': 'Operatore', 'wan.service': 'Servizio', 'wan.circuitId': 'Codice circuito',
-    'wan.cir': 'Banda contrattuale', 'wan.sla': 'Riferimento SLA', 'wan.wanIf': 'Interfaccia WAN',
+    'wan.cir': 'Banda contrattuale', 'wan.wanIf': 'Interfaccia WAN',
+    'wan.addressing': 'Indirizzamento', 'wan.nextHop': 'Gateway (next-hop)',
+    'wan.addr.static': 'Statico', 'wan.addr.dhcp': 'DHCP', 'wan.addr.pppoe': 'PPPoE',
+    'wan.deliveryVlan': 'VLAN di consegna', 'wan.mtu': 'MTU',
+    'wan.support': 'Assistenza operatore',
     'wan.publicIps': 'INDIRIZZI PUBBLICI', 'wan.publicIpsShort': 'Indirizzi pubblici',
-    'wan.kind': 'Natura', 'wan.name': 'Nome', 'wan.topology': 'Topologia', 'wan.state': 'Stato',
+    'wan.kind': 'Natura', 'wan.name': 'Nome', 'wan.state': 'Stato',
     'wan.vrf': 'VRF', 'wan.overlay': 'Overlay', 'wan.media': 'Mezzo',
     'wan.ike': 'Versione IKE', 'wan.phase1': 'Nome fase 1',
+    'wan.prop1': 'Proposta fase 1 (IKE)', 'wan.prop2': 'Proposta fase 2 (IPsec)',
+    'wan.pskRef': 'Dove sta la chiave (PSK)',
     'wan.ends': 'CAPI DEL COLLEGAMENTO', 'wan.reach': 'RETI RAGGIUNGIBILI',
-    'wan.underlay': 'LINEE SU CUI CORRE (UNDERLAY)',
+    'wan.underlay': 'LINEE CHE LO TRASMETTONO (UNDERLAY)',
     'wan.at': 'presso', 'wan.peerSeen': 'peer visto da qui',
     'wan.dev.linked': 'agganciato al progetto', 'wan.dev.typed': 'scritto a mano',
     'wan.dev.missing': 'apparato non trovato nel progetto', 'wan.dev.unreadable': 'progetto non leggibile',
@@ -223,19 +230,26 @@ const _RL = {
     'empty.wanMap': 'Map unavailable: the sites are there, but the drawing could not be composed.',
     'wan.noCircuitIdN': 'without a circuit ID', 'wan.noReachN': 'without declared networks',
     'wan.noProviderN': 'without a provider',
+    'wan.noNextHopN': 'static without a gateway',
     'wan.noLineN': 'sites without a WAN line', 'wan.noLineOne': 'site without a WAN line',
     'wan.legendDown': 'dashed = link declared down',
     'wan.legendHere': 'highlighted box = the site of this project',
     'wan.here': 'this site',
     'col.site': 'Site', 'col.address': 'Address', 'col.nets': 'Networks', 'col.lines': 'Lines',
     'wan.provider': 'Provider', 'wan.service': 'Service', 'wan.circuitId': 'Circuit ID',
-    'wan.cir': 'Committed rate', 'wan.sla': 'SLA reference', 'wan.wanIf': 'WAN interface',
+    'wan.cir': 'Committed rate', 'wan.wanIf': 'WAN interface',
+    'wan.addressing': 'Addressing', 'wan.nextHop': 'Gateway (next hop)',
+    'wan.addr.static': 'Static', 'wan.addr.dhcp': 'DHCP', 'wan.addr.pppoe': 'PPPoE',
+    'wan.deliveryVlan': 'Delivery VLAN', 'wan.mtu': 'MTU',
+    'wan.support': 'Operator support',
     'wan.publicIps': 'PUBLIC ADDRESSES', 'wan.publicIpsShort': 'Public addresses',
-    'wan.kind': 'Kind', 'wan.name': 'Name', 'wan.topology': 'Topology', 'wan.state': 'State',
+    'wan.kind': 'Kind', 'wan.name': 'Name', 'wan.state': 'State',
     'wan.vrf': 'VRF', 'wan.overlay': 'Overlay', 'wan.media': 'Medium',
     'wan.ike': 'IKE version', 'wan.phase1': 'Phase 1 name',
+    'wan.prop1': 'Phase 1 proposal (IKE)', 'wan.prop2': 'Phase 2 proposal (IPsec)',
+    'wan.pskRef': 'Where the key lives (PSK)',
     'wan.ends': 'LINK ENDS', 'wan.reach': 'REACHABLE NETWORKS',
-    'wan.underlay': 'LINES IT RUNS ON (UNDERLAY)',
+    'wan.underlay': 'LINES CARRYING IT (UNDERLAY)',
     'wan.at': 'at', 'wan.peerSeen': 'peer as seen from here',
     'wan.dev.linked': 'linked to the project', 'wan.dev.typed': 'typed by hand',
     'wan.dev.missing': 'device not found in the project', 'wan.dev.unreadable': 'project cannot be read',
@@ -1331,8 +1345,19 @@ function _wanNets(n, lang) {
  *  parole di chi l'ha documentato: «FWA punto-punto» dice qualcosa, «Altro» no. */
 function _wanKindText(l, lang) {
   if (!l) return '';
-  if (l.kind === 'other' && l.kindLabel) return String(l.kindLabel);
-  return _wanVoc(lang, 'org.kind.' + l.kind, String(l.kind || ''));
+  // ㉔ «IPsec su MPLS»: due assi, e la frase che ne esce è quella che un tecnico
+  // dice davvero. Quando ce n'è uno solo si stampa quello; quando non c'è
+  // niente lo si DICE, perché su una scheda di ripristino un vuoto si legge
+  // come un difetto di stampa invece che come un dato che manca.
+  const tr = l.transport === 'other' ? (l.transportLabel || _wanVoc(lang, 'org.transport.other', 'Altro'))
+    : l.transport ? _wanVoc(lang, 'org.transport.' + l.transport, String(l.transport)) : null;
+  const tu = l.tunnel === 'other' ? (l.tunnelLabel || _wanVoc(lang, 'org.tunnel.other', 'Altro'))
+    : (l.tunnel && l.tunnel !== 'none') ? _wanVoc(lang, 'org.tunnel.' + l.tunnel, String(l.tunnel)) : null;
+  if (tu && tr) return _wanVoc(lang, 'org.natureOver', '{tunnel} / {transport}')
+    .replace('{tunnel}', tu).replace('{transport}', tr);
+  if (tu || tr) return String(tu || tr);
+  if (l.tunnel === 'none') return _wanVoc(lang, 'org.tunnel.none', 'Nessuno');
+  return _wanVoc(lang, 'org.natureUnspoken', '—');
 }
 
 /** Chi lo afferma, e da quando: « (misurato, 29/08/2026)». Un valore senza la
@@ -1407,7 +1432,11 @@ function _wanMapSvg(doc, R, lang) {
   for (const l of links) {
     if (!l.drawable) continue;                    // ③ non è disegnabile: lo dirà la scheda
     const portate = l.reach ? (l.reach.value.a.length + l.reach.value.b.length) : 0;
-    const testo = _pdfSafe(_wanKindText(l, lang) + (portate ? ' · ' + _wanNets(portate, lang) : ''));
+    // ㉗ Anche qui CHI la vende, e nello stesso ordine dello schermo: la mappa
+    // sulla carta e quella nel pannello sono LA STESSA mappa, e due composizioni
+    // diverse la farebbero divergere alla prima modifica di una delle due.
+    const testo = _pdfSafe([l.provider, _wanKindText(l, lang), portate ? _wanNets(portate, lang) : null]
+      .filter(Boolean).join(' · '));
     edgeLabels[l.id] = testo;
     edgeTone[l.id] = l.state ? l.state.value : null;
     const w = _wanTextW(doc, testo, G.labelSize, false);
@@ -1461,6 +1490,7 @@ function _addWanPages(doc, wan, projName, date, lang = 'it', SVGtoPDF = null) {
     + `  -  ${tot.links || 0} ${_rt(L, 'sub.wanLinks')}`
     + (tot.linesNoCircuitId ? `  -  ${tot.linesNoCircuitId} ${_rt(L, 'wan.noCircuitIdN')}` : '')
     + (tot.linesNoProvider ? `  -  ${tot.linesNoProvider} ${_rt(L, 'wan.noProviderN')}` : '')
+    + (tot.linesStaticNoNextHop ? `  -  ${tot.linesStaticNoNextHop} ${_rt(L, 'wan.noNextHopN')}` : '')
     + (tot.linksNoReach ? `  -  ${tot.linksNoReach} ${_rt(L, 'wan.noReachN')}` : '')
     + (tot.sitesNoLine ? `  -  ${tot.sitesNoLine} ${_rt(L, tot.sitesNoLine === 1 ? 'wan.noLineOne' : 'wan.noLineN')}` : '');
 
@@ -1597,9 +1627,27 @@ function _addWanPages(doc, wan, projName, date, lang = 'it', SVGtoPDF = null) {
       // di questo dominio, e un dossier che le confonde fa comprare la linea
       // sbagliata.
       [_rt(L, 'wan.cir'), u.cirMbps == null ? DASH : `${u.cirMbps} Mbps`],
-      [_rt(L, 'wan.sla'), u.slaRef || DASH],
       [_rt(L, 'wan.wanIf'), u.wanIf ? (u.wanIf.value + _wanFactSuffix(u.wanIf, L)) : DASH],
+      // ㉑ Come si rimette su. Restano col trattino anche vuoti: su questa
+      // scheda l'assenza È la scoperta, e una riga mancante si deve vedere
+      // adesso e non la notte in cui serve digitarla.
+      [_rt(L, 'wan.addressing'), u.addressing ? _rt(L, 'wan.addr.' + u.addressing) : DASH],
     ];
+    // ⚠️ Il gateway si stampa dove VUOL DIRE qualcosa. Su DHCP e PPPoE lo dà la
+    // linea: una riga «Gateway —» direbbe che manca un dato che non esiste, e
+    // un trattino che accusa il documento giusto insegna a non leggere i
+    // trattini. Finché l'indirizzamento non è dichiarato la riga c'è, perché
+    // allora il buco è vero.
+    // ⚠️ Ma un valore DICHIARATO si stampa sempre, qualunque sia il modo: chi
+    // scrive statico + gateway e poi passa a DHCP lascia scritto un indirizzo,
+    // e nasconderlo sarebbe un dato che esiste e non si vede — la famiglia di
+    // difetti di questo codice. La condizione toglie il TRATTINO, mai un dato.
+    if (u.nextHop || (u.addressing !== 'dhcp' && u.addressing !== 'pppoe')) {
+      pairs.push([_rt(L, 'wan.nextHop'), u.nextHop || DASH]);
+    }
+    pairs.push([_rt(L, 'wan.deliveryVlan'), u.deliveryVlan == null ? DASH : String(u.deliveryVlan)]);
+    pairs.push([_rt(L, 'wan.mtu'), u.mtu == null ? DASH : String(u.mtu)]);
+    pairs.push([_rt(L, 'wan.support'), u.supportRef ? _pdfSafe(u.supportRef) : DASH]);
     if (!u.publicIps) pairs.push([_rt(L, 'wan.publicIpsShort'), DASH]);
     scheda(
       [u.provider, u.serviceType].filter(Boolean).join(' · ') || _wanVoc(L, 'org.uplinkNoProvider'),
@@ -1632,13 +1680,17 @@ function _addWanPages(doc, wan, projName, date, lang = 'it', SVGtoPDF = null) {
     // I campi propri di una natura si nominano solo dove esistono: chiedere la
     // versione IKE a una fibra spenta sarebbe chiedere un dato che non c'è.
     if (l.name) pairs.push([_rt(L, 'wan.name'), l.name]);
-    if (l.topology) pairs.push([_rt(L, 'wan.topology'), l.topology]);
     if (l.vrf) pairs.push([_rt(L, 'wan.vrf'), l.vrf]);
     if (l.service) pairs.push([_rt(L, 'wan.service'), l.service]);
     if (l.overlay) pairs.push([_rt(L, 'wan.overlay'), l.overlay]);
     if (l.media) pairs.push([_rt(L, 'wan.media'), l.media]);
     if (l.ikeVersion) pairs.push([_rt(L, 'wan.ike'), 'IKEv' + l.ikeVersion]);
     if (l.phase1Name) pairs.push([_rt(L, 'wan.phase1'), l.phase1Name]);
+    // ㉓ Le due proposte, che sono ciò che si ridigita alle tre di notte, e il
+    // PUNTATORE alla chiave — mai la chiave: questo foglio si stampa.
+    if (l.phase1Proposal) pairs.push([_rt(L, 'wan.prop1'), _pdfSafe(l.phase1Proposal)]);
+    if (l.phase2Proposal) pairs.push([_rt(L, 'wan.prop2'), _pdfSafe(l.phase2Proposal)]);
+    if (l.pskRef) pairs.push([_rt(L, 'wan.pskRef'), _pdfSafe(l.pskRef)]);
     // ③ Un collegamento che punta a una sede inesistente non si può disegnare, e
     // lo dice: sparire dalla mappa E dalle schede lo cancellerebbe due volte.
     if (!l.drawable) pairs.push([_rt(L, 'wan.missingSite'), l.missingSites.join(', ')]);

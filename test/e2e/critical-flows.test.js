@@ -6038,14 +6038,19 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           const j = await (await fetch('/api/organization')).json();
           const l = j.organization.links[0];
           return {
-            kind: l.kind,
+            transport: l.transport,
+            tunnel: l.tunnel,
             underlay: l.underlayUplinkIds,
             capi: [l.aSiteId, l.bSiteId],
             capoA: l.endpointA || {},
             problemi: (j.audit.underlaysNotAtEnds || []).length,
           };
         });
-        assert.equal(salvato.kind, 'ipsec', 'la natura viene dal vocabolario CHIUSO di NetBox, non da un\'etichetta libera');
+        // ㉔ Un tunnel di NetBox finisce sull'asse TUNNEL, e il trasporto resta
+        // muto: NetBox non dice su cosa quel tunnel corra, e inventarlo sarebbe
+        // esattamente il difetto che i due assi esistono per togliere.
+        assert.equal(salvato.tunnel, 'ipsec', 'la natura viene dal vocabolario CHIUSO di NetBox, non da un\'etichetta libera');
+        assert.equal(salvato.transport, null, 'e su cosa corra non lo dice nessuno: non si inventa');
         assert.deepEqual(salvato.capi, ['mi', 'rm']);
         assert.deepEqual(salvato.underlay, [idFastweb], 'la linea dichiarata sopravvive al salvataggio: è il giro che prima la perdeva');
         // ① un RIFERIMENTO al nodo del progetto-sede, non il nome ricopiato: il

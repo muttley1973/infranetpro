@@ -41,9 +41,16 @@ import { store } from './store.js';
 import { showAlert, showConfirm, switchProject } from './app-core.js';
 import { registerClickActions, registerChangeActions, registerInputActions, registerKeydownActions, dispatchClick } from './app-delegation.js';
 import { buildInterSiteLayout, interSiteEdgePath } from '../lib/inter-site-layout.js';
-import { SITE_ROLES, INTER_SITE_KINDS, INTER_SITE_TOPOLOGIES, INTER_SITE_STATES } from '../lib/inter-site.js';
+import { SITE_ROLES, INTER_SITE_STATES, WAN_ADDRESSING, WAN_SERVICE_TYPES,
+  INTER_SITE_TRANSPORTS, INTER_SITE_TUNNELS, CARRIER_TRANSPORTS } from '../lib/inter-site.js';
 import { factDeclared, factOrigin, factValue, isFact } from '../lib/provenance.js';
 import { subnetInputToCidr, addrFamily } from '../lib/cidr.js';
+// 🔒 La stessa guardia che il modello applica ai due puntatori (l'assistenza
+// dell'operatore e dove sta la PSK) e che `node.backup.ref` usa da sempre. Si
+// IMPORTA invece di riscriverne una: una seconda definizione di «questo è un
+// segreto» diverge alla prima regex ritoccata, ed è la famiglia di difetti che
+// qui è già tornata dodici volte.
+import { validateBackupRef } from '../lib/backup-ref.js';
 import { prefixesOf, migrateIpam } from '../lib/ipam-model.js';   // l'autorità sulle reti DICHIARATE di un progetto
 import { nodeLabelParts } from '../lib/node-label.js';
 import { orgContextInvalidate } from './app-org-context.js';
@@ -70,6 +77,11 @@ const WAN_EDGE_TYPES = ['firewall', 'router', 'sdwan', 'vpncon'];
 const EMPTY_ORG = () => ({ id: '', name: '', sites: [], uplinks: [], links: [] });
 
 const _st = {
+  /** ㉖ Come stai GUARDANDO la mappa — non che cosa hai documentato. Sta qui e
+   *  non nell'organizzazione: non si salva, non sporca, non fa scattare il
+   *  «da salvare». `zoom: 1` è l'inquadratura «tutto dentro».
+   *  @type {{x:number, y:number, zoom:number}} */
+  mapView: { x: 0, y: 0, zoom: 1 },
   /** @type {any} */ org: EMPTY_ORG(),
   /** @type {any} */ audit: null,
   /** @type {{siteId:string, projectRef:string}[]} */ unknownRefs: [],
@@ -104,6 +116,81 @@ const _st = {
 };
 
 function _el(id) { return document.getElementById(id); }
+
+/**
+ * ㉖ **La vista della mappa: `{x, y, zoom}`, come la planimetria.**
+ * Non è una seconda invenzione: è lo stesso modello di `store.state.floorView`
+ * (`src/app-search-zoom-rack.js`), perché chi ha imparato a muoversi sul
+ * pavimento non deve reimparare qui — e perché quel modello ha già risolto la
+ * parte difficile, cioè ingrandire VERSO IL CURSORE invece che verso il centro.
+ *
+ * ⚠️ Vive in `_st`, non nel progetto: è come stai guardando, non che cosa hai
+ * documentato. Non sporca l'organizzazione e non fa scattare il «da salvare».
+ * ⚠️ `zoom: 1` è esattamente l'inquadratura che `_fitMapViewBox` calcola, cioè
+ * «tutto dentro»: così il 100% vuol dire una cosa sola, e il bottone che ci
+ * riporta non deve ricalcolare niente.
+ */
+const MAP_ZOOM = { min: 0.4, max: 6, step: 0.2 };
+
+/** Un punto dello schermo nelle unità del `viewBox`. Si chiede all'SVG con
+ *  `getScreenCTM()` invece di dividere per un rapporto calcolato a mano: con
+ *  `preserveAspectRatio` il disegno è centrato e ha due bande ai lati, e una
+ *  proporzione scritta a mano sbaglierebbe proprio dove serve — sotto il
+ *  cursore. ⚠️ È anche la ragione per cui non si misura con `getBoundingClientRect`. */
+function _mapPoint(svg, ev) {
+  if (!svg || typeof svg.getScreenCTM !== 'function') return null;
+  const ctm = svg.getScreenCTM();
+  if (!ctm) return null;
+  const p = svg.createSVGPoint();
+  p.x = ev.clientX; p.y = ev.clientY;
+  return p.matrixTransform(ctm.inverse());
+}
+
+/** L'SVG della mappa, se la scheda aperta è quella. */
+function _mapSvg() {
+  const body = _el('org-body');
+  return body ? body.querySelector('svg.org-map') : null;
+}
+
+/** Scrive la vista sul gruppo, senza ridisegnare niente: il trascinamento deve
+ *  essere fluido, e un `_render()` per fotogramma ricostruirebbe l'intero SVG. */
+function _applyMapView() {
+  const svg = _mapSvg();
+  const g = svg && svg.querySelector('.org-map-zoom');
+  if (!g) return;
+  const v = _st.mapView;
+  g.setAttribute('transform', `translate(${_n(v.x)} ${_n(v.y)}) scale(${_n(v.zoom)})`);
+  const lbl = _el('org-map-zoom-lbl');
+  if (lbl) lbl.textContent = Math.round(v.zoom * 100) + '%';
+  const wrap = svg.closest('.org-map-frame');
+  if (wrap) wrap.classList.toggle('is-zoomed', Math.abs(v.zoom - 1) > 0.001 || !!v.x || !!v.y);
+}
+
+/** Ingrandisce di `delta`, tenendo fermo il punto sotto il cursore (o il centro
+ *  dell'inquadratura, se lo chiede un bottone). Stessa aritmetica di `zoomFloor`. */
+function _zoomMap(delta, ev) {
+  const svg = _mapSvg();
+  if (!svg) return;
+  const v = _st.mapView;
+  const vecchio = v.zoom;
+  const z = Math.max(MAP_ZOOM.min, Math.min(MAP_ZOOM.max, vecchio + delta));
+  if (Math.abs(z - vecchio) < 1e-9) return;
+  const p = ev ? _mapPoint(svg, ev) : null;
+  const vb = svg.viewBox && svg.viewBox.baseVal;
+  const cx = p ? p.x : (vb ? vb.x + vb.width / 2 : 0);
+  const cy = p ? p.y : (vb ? vb.y + vb.height / 2 : 0);
+  v.x = cx - (cx - v.x) / vecchio * z;
+  v.y = cy - (cy - v.y) / vecchio * z;
+  v.zoom = z;
+  _applyMapView();
+}
+
+/** Torna a «tutto dentro». Il 100% è l'inquadratura del `viewBox`, quindi
+ *  rimettere i tre numeri a zero-zero-uno È il ritorno alla vista intera. */
+function _fitMap() {
+  _st.mapView = { x: 0, y: 0, zoom: 1 };
+  _applyMapView();
+}
 const _isAdmin = () => !(store._currentUser && store._currentUser.role === 'viewer');
 
 // ── Rete ──────────────────────────────────────────────────────────────────
@@ -339,6 +426,18 @@ function _paintCirHint(el) {
   hint.style.display = cattivo ? '' : 'none';
 }
 
+/** 🔒 Un puntatore che porta credenziali: il modello lo SCARTA, e senza una
+ *  parola chi ha digitato vede sparire il suo testo al salvataggio senza sapere
+ *  che è stato lui. Il valore non si tocca mentre scrive — manual-first — ma la
+ *  riga rossa compare subito, come per una subnet che subnet non è. */
+function _paintCredHint(el) {
+  const hint = el.parentElement && el.parentElement.querySelector('[data-cred-hint]');
+  if (!hint) return;
+  const cattivo = el.value !== '' && validateBackupRef(el.value).reason === 'credentials';
+  hint.textContent = cattivo ? t('backup.credWarn') : '';
+  hint.style.display = cattivo ? '' : 'none';
+}
+
 /** La banda che il MODELLO accetterà, o `null`. Stessa regola di `_posNum` in
  *  `lib/inter-site.js`: un campo pre-validato qui e rifiutato là sarebbe la
  *  solita definizione scritta due volte, che diverge. */
@@ -374,7 +473,19 @@ function _setField(el) {
     if (f === 'cirMbps') { row.cirMbps = _cirValue(v); _paintCirHint(el); }
     else if (f === 'publicIps') { const l = _splitNets(v); row.publicIps = l.length ? factDeclared(l) : null; _paintAddrHint(el); }
     else if (f === 'wanIfRef') _setFact(row, f, v);
-    else row[f] = v;                                   // siteId, provider, serviceType, circuitId, slaRef
+    // ㉑ I tre numeri della scheda di ripristino restano NUMERI, con la stessa
+    // regola della banda: un `<input type=number>` svuotato dà '', e '' in un
+    // campo numerico è una stringa che il modello butterebbe in silenzio al
+    // primo salvataggio. Qui diventa `null`, che è come si scrive «non
+    // dichiarato». ⚠️ L'INTERVALLO (intero, VLAN ≤ 4094) lo tiene il modello, e
+    // qui non si riscrive: gli attributi `min`/`max`/`step` guidano chi digita,
+    // la definizione resta una sola — vedi `_cirValue`.
+    else if (f === 'deliveryVlan' || f === 'mtu') row[f] = _cirValue(v);
+    // `addressing` è un vocabolario chiuso e la tendina offre solo i suoi
+    // valori; «—» è la stringa vuota, cioè non dichiarato.
+    else if (f === 'addressing') row.addressing = v || null;
+    else if (f === 'supportRef') { row.supportRef = v; _paintCredHint(el); }
+    else row[f] = v;                                   // siteId, provider, serviceType, circuitId, nextHop, supportRef
     return;
   }
   // link
@@ -382,7 +493,6 @@ function _setField(el) {
     case 'state':
       row.state = v ? factDeclared(v) : null;          // «—» = non pronunciato, che NON è «giù»
       break;
-    case 'topology': row.topology = v || null; break;
     case 'reachA':
     case 'reachB': {
       const cur = isFact(row.reach) ? factValue(row.reach) : { a: [], b: [] };
@@ -397,13 +507,19 @@ function _setField(el) {
     case 'devA': _setEndpointDevice(row, 'endpointA', row.aSiteId, v); break;
     case 'devB': _setEndpointDevice(row, 'endpointB', row.bSiteId, v); break;
     case 'ikeVersion': row.ikeVersion = v ? Number(v) : null; break;
-    default: row[f] = v; break;                        // aSiteId, bSiteId, kind, vrf, service, overlay, media, phase1Name
+    case 'pskRef': row.pskRef = v; _paintCredHint(el); break;
+    // ㉔ «—» è la stringa vuota, cioè «non dichiarato»: non è `none`, che sul
+    // tunnel vuol dire «guardato, non c'è».
+    case 'transport': row.transport = v || null; break;
+    case 'tunnel': row.tunnel = v || null; break;
+    default: row[f] = v; break;                        // aSiteId, bSiteId, vrf, service, overlay, media, le etichette, phase1Name, le due proposte, pskRef
   }
   // `kind` cambia QUALI campi esistono; cambiare un capo cambia il titolo della
   // riga, le etichette di `reach` e — soprattutto — l'elenco dell'altra tendina,
   // che deve smettere di offrire la sede appena scelta. Sono tutti `change` su
   // una tendina: ridisegnare non toglie il cursore a nessuno.
-  if (f === 'kind' || f === 'aSiteId' || f === 'bSiteId') _render();
+  // ㉔ I due assi cambiano QUALI campi esistono, e i capi cambiano il titolo.
+  if (f === 'transport' || f === 'tunnel' || f === 'aSiteId' || f === 'bSiteId') _render();
 }
 
 /**
@@ -443,18 +559,29 @@ function _addSite() {
 function _addUplink() {
   const s = _sites()[0];
   if (!s) { showAlert(t('org.needSiteFirst')); return; }
-  _uplinks().push({ id: uid('wan'), siteId: s.id, provider: '', serviceType: '', circuitId: '', cirMbps: null, slaRef: '', publicIps: null, wanIfRef: null });
+  _uplinks().push({
+    id: uid('wan'), siteId: s.id, provider: '', serviceType: '', circuitId: '', cirMbps: null,
+    // ㉑ Tutti a «non dichiarato», nessuno con un valore di comodo: un campo
+    // pre-compilato è un'AFFERMAZIONE, e su una scheda di ripristino sarebbe
+    // un'affermazione che nessuno ha fatto.
+    addressing: null, nextHop: '', deliveryVlan: null, mtu: null,
+    supportRef: '',
+    publicIps: null, wanIfRef: null,
+  });
   _st.dirty = true; _st.tab = 'wan'; _render();
 }
 function _addLink() {
   const ss = _sites();
   if (ss.length < 2) { showAlert(t('org.needTwoSites')); return; }
   _links().push({
-    id: uid('isl'), aSiteId: ss[0].id, bSiteId: ss[1].id, kind: 'ipsec',
-    topology: null, state: null, reach: null, provider: null, circuitId: null, name: null,
+    // ㉔ Nessuna natura pre-scelta: un campo pre-compilato è un'AFFERMAZIONE, e
+    // «IPsec» messo lì dal software è una frase che non ha detto nessuno.
+    id: uid('isl'), aSiteId: ss[0].id, bSiteId: ss[1].id, transport: null, tunnel: null,
+    state: null, reach: null, provider: null, circuitId: null, name: null,
     underlayUplinkIds: [],
     endpointA: { deviceRef: null, peerIp: null }, endpointB: { deviceRef: null, peerIp: null },
     phase1Name: null, ikeVersion: null,
+    phase1Proposal: null, phase2Proposal: null, pskRef: null,
   });
   _st.dirty = true; _st.tab = 'links'; _render();
 }
@@ -596,7 +723,10 @@ function _mergeWan(site, j) {
       // pubblici non si deducono dall'IP di un'interfaccia WAN — dietro a una
       // linea business ci sono NAT e blocchi instradati, e scriverne uno
       // sbagliato in un campo dichiarato è peggio di lasciarlo vuoto.
-      slaRef: '', publicIps: null,
+      // ㉑ E con loro i sei campi del ripristino: NetBox non ha un next-hop, un
+      // tag di consegna né un MTU di consegna, e dedurli sarebbe una
+      // corrispondenza, non un'identità (paletto ②). Li scrive chi documenta.
+      publicIps: null,
       // ⑥ La porta WAN invece SI riempie, e prima non lo faceva: NetBox dice su
       // quale interfaccia arriva il circuito (il cavo dalla terminazione va lì),
       // l'import la risolveva davvero — lo smoke quattro-sedi lo pretende per
@@ -625,19 +755,24 @@ function _mergeWan(site, j) {
     // nome, il codice del circuito e l'operatore. Un candidato che non porta
     // niente di distinguibile (capita ai `circuits`, che non hanno un nome) si
     // riconosce comunque dal codice, che in NetBox è obbligatorio.
-    const chiave = _linkKey(c.name, c.provider, c.circuitId, c.kindLabel);
-    const dup = _links().some(l => _linkKey(l.name, l.provider, l.circuitId, l.kindLabel) === chiave
+    const chiave = _linkKey(c.name, c.provider, c.circuitId, c.transportLabel);
+    const dup = _links().some(l => _linkKey(l.name, l.provider, l.circuitId, l.transportLabel) === chiave
       && ((l.aSiteId === a && l.bSiteId === b) || (l.aSiteId === b && l.bSiteId === a)));
     if (dup) { alreadyLinks++; continue; }
     // La natura la porta il candidato: dai `circuits` è sempre `other` (il tipo
     // è testo libero dell'istanza), da `vpn/` è quella vera, perché là il
     // vocabolario di NetBox è chiuso quanto il nostro.
-    const kind = INTER_SITE_KINDS.indexOf(c.kind) >= 0 ? c.kind : 'other';
+    // ㉔ Il candidato porta già i DUE assi: NetBox li tiene separati alla
+    // sorgente (`l2vpn.type` ≠ `tunnel.encapsulation`), e l'import ha smesso di
+    // schiacciarli in uno.
+    const transport = INTER_SITE_TRANSPORTS.indexOf(c.transport) >= 0 ? c.transport : null;
+    const tunnel = INTER_SITE_TUNNELS.indexOf(c.tunnel) >= 0 ? c.tunnel : null;
     const row = {
       id: uid('isl'), aSiteId: a, bSiteId: b,
-      kind, kindLabel: kind === 'other' ? (c.kindLabel || null) : null,
+      transport, tunnel,
+      transportLabel: transport === 'other' ? (c.transportLabel || null) : null,
+      tunnelLabel: tunnel === 'other' ? (c.tunnelLabel || null) : null,
       name: c.name || null,
-      topology: INTER_SITE_TOPOLOGIES.indexOf(c.topology) >= 0 ? c.topology : null,
       state: null, reach: null,
       provider: c.provider || null, circuitId: c.circuitId || null,
       // ⑳ Vuoto, e non dedotto: nessun import sa su quale linea corre un tunnel
@@ -696,13 +831,25 @@ function _removeSite(i) {
 // ⑲ Un'icona per natura, così le famiglie si riconoscono a colpo d'occhio: i
 // tunnel hanno un'idea di chiusura o di percorso, i servizi un'idea di rete,
 // il fisico una di filo.
-const KIND_ICON = {
-  ipsec: 'fa-lock', gre: 'fa-route', wireguard: 'fa-shield-halved',
-  openvpn: 'fa-key', l2tp: 'fa-arrows-left-right',
+const TRANSPORT_ICON = {
+  internet: 'fa-globe',
   mpls: 'fa-network-wired', vpls: 'fa-diagram-project', vpws: 'fa-circle-nodes',
   vxlan: 'fa-layer-group', evpn: 'fa-sitemap',
-  sdwan: 'fa-cloud-bolt', directLink: 'fa-grip-lines', other: 'fa-circle-question',
+  directLink: 'fa-grip-lines', other: 'fa-circle-question',
 };
+const TUNNEL_ICON = {
+  ipsec: 'fa-lock', gre: 'fa-route', wireguard: 'fa-shield-halved',
+  openvpn: 'fa-key', l2tp: 'fa-arrows-left-right',
+  sdwan: 'fa-cloud-bolt', other: 'fa-circle-question',
+};
+/** ㉔ L'icona di un collegamento: vince il TUNNEL quando c'è, perché è la cosa
+ *  che ci corre sopra ed è quella che si va a rimettere su. Senza tunnel parla
+ *  il trasporto; senza nessuno dei due, il filo generico. */
+function _natureIcon(l) {
+  if (!l) return 'fa-link';
+  if (l.tunnel && l.tunnel !== 'none' && TUNNEL_ICON[l.tunnel]) return TUNNEL_ICON[l.tunnel];
+  return TRANSPORT_ICON[l.transport] || 'fa-link';
+}
 
 /**
  * Come si CHIAMA un collegamento, a schermo. Per le nature del vocabolario è la loro
@@ -711,10 +858,20 @@ const KIND_ICON = {
  * mappa, l'intestazione della riga e l'audit devono dire lo stesso nome: due
  * posti che lo compongono da soli sono il modo in cui divergono.
  */
-function _kindText(l) {
+function _natureText(l) {
   if (!l) return '';
-  if (l.kind === 'other' && l.kindLabel) return String(l.kindLabel);
-  return t('org.kind.' + l.kind);
+  const tr = l.transport === 'other' ? (l.transportLabel || t('org.transport.other'))
+    : l.transport ? t('org.transport.' + l.transport) : null;
+  const tu = l.tunnel === 'other' ? (l.tunnelLabel || t('org.tunnel.other'))
+    : (l.tunnel && l.tunnel !== 'none') ? t('org.tunnel.' + l.tunnel) : null;
+  // ㉔ «IPsec su MPLS»: è la frase che un tecnico dice davvero, e con un campo
+  // solo non si poteva scrivere. Quando ce n'è uno solo si dice quello; quando
+  // non c'è niente si DICE che non c'è, invece di lasciare un vuoto che si legge
+  // come un difetto del disegno.
+  if (tu && tr) return t('org.natureOver').replace('{tunnel}', tu).replace('{transport}', tr);
+  if (tu || tr) return tu || tr;
+  if (l.tunnel === 'none') return t('org.tunnel.none');
+  return t('org.natureUnspoken');
 }
 const ROLE_ICON = { hub: 'fa-star', spoke: 'fa-circle-dot', standalone: 'fa-building' };
 
@@ -910,7 +1067,17 @@ function _renderMap(m) {
     const st = _edgeStateAttrs(l);
     const nets = isFact(l && l.reach) ? factValue(l.reach) : null;
     const carried = nets ? (nets.a.length + nets.b.length) : 0;
-    const label = _kindText(l) + (carried ? ' · ' + _netsLabel(carried) : '');
+    // ㉗ Sulla pastiglia c'è anche CHI la vende. Sulla mappa un arco si guarda
+    // per capire in fretta che cos'è, e la natura da sola non basta: fra Milano
+    // e Roma corrono tre collegamenti, e «VXLAN» non dice quale contratto
+    // guardare quando è giù. L'ordine è lo stesso con cui i tile scrivono già le
+    // loro linee — «TIM · MPLS» — perché due posti che dicono la stessa cosa in
+    // due ordini diversi si leggono come due cose diverse.
+    // ⚠️ L'operatore c'è su 3 collegamenti su 8: manca su tutto ciò che non si
+    // compra da nessuno. Si compone per FILTRO, così quando non c'è non resta
+    // un separatore appeso a niente.
+    const label = [l && l.provider, _natureText(l), carried ? _netsLabel(carried) : null]
+      .filter(Boolean).join(' · ');
     // ⑫ La PASTIGLIA: si disegna solo quando la larghezza del testo è nota, cioè
     // dalla seconda passata. Al primo giro resta il solo testo con il suo alone —
     // una pastiglia di larghezza indovinata sarebbe un rettangolo che non
@@ -928,8 +1095,9 @@ function _renderMap(m) {
     return `<g class="org-edge ${escapeHTML(st.cls)}">
       <title>${escapeHTML(_siteName(e.aSiteId) + ' ↔ ' + _siteName(e.bSiteId) + ' · ' + st.title)}</title>
       <path d="${interSiteEdgePath(e)}" class="org-edge-line"/>
+      ${st.cls.indexOf('is-up') >= 0 ? `<path d="${interSiteEdgePath(e)}" class="org-edge-flow"/>` : ''}
       <g class="org-edge-chip" data-act="org-link" data-keydown="org-activate" data-link="${escapeHTML(String(e.linkId))}"
-         tabindex="0" role="button" aria-label="${escapeHTML(t('org.editLink').replace('{link}', _linkName(e.linkId, l && l.kind)))}">
+         tabindex="0" role="button" aria-label="${escapeHTML(t('org.editLink').replace('{link}', _linkName(e.linkId)))}">
         ${chip}
         <text x="${Number(e.mx)}" y="${Number(e.my)}" data-link="${escapeHTML(String(e.linkId))}"
               class="org-edge-label" text-anchor="middle" dominant-baseline="central">${escapeHTML(label)}</text>
@@ -969,15 +1137,25 @@ function _renderMap(m) {
         .replace('{u}', String(L.undrawable.uplinks.length)))}</p>`
     : '';
 
+  // ㉖ Tutto il disegno sta in UN gruppo, ed è quello che si sposta e si
+  // ingrandisce: il `viewBox` resta l'inquadratura «tutto dentro» calcolata da
+  // `_fitMapViewBox`, e le due cose non si contendono lo stesso numero.
   return `<div class="org-map-wrap">
+    <div class="org-map-frame">
     <svg class="org-map" viewBox="0 0 ${Number(L.width)} ${Number(L.height)}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${escapeHTML(t('org.mapAria'))}">
-      ${edges}${nodes}
+      <g class="org-map-zoom">${edges}${nodes}</g>
     </svg>
+    <div class="zoom-controls org-map-zoom-ctl">
+      <button class="zoom-btn" type="button" data-act="org-zoom" data-delta="-0.2" title="${escapeHTML(t('org.zoomOut'))}" aria-label="${escapeHTML(t('org.zoomOut'))}"><i class="fas fa-minus"></i></button>
+      <button class="zoom-label" type="button" id="org-map-zoom-lbl" data-act="org-zoom-fit" title="${escapeHTML(t('org.zoomFit'))}">100%</button>
+      <button class="zoom-btn" type="button" data-act="org-zoom" data-delta="0.2" title="${escapeHTML(t('org.zoomIn'))}" aria-label="${escapeHTML(t('org.zoomIn'))}"><i class="fas fa-plus"></i></button>
+    </div>
+    </div>
     <p class="org-map-hint">${escapeHTML(L.layout === 'hub' ? t('org.layoutHub') : t('org.layoutRing'))} · ${escapeHTML(t('org.clickSite'))}${
       // Un'istruzione per una mossa che a schermo non c'è è un'istruzione che
       // fa cercare qualcosa di inesistente: la pastiglia si nomina solo se
       // almeno un arco è disegnato.
-      L.edges.length ? ' · ' + escapeHTML(t('org.clickLink')) : ''}</p>
+      L.edges.length ? ' · ' + escapeHTML(t('org.clickLink')) : ''} · ${escapeHTML(t('org.mapZoomHint'))}</p>
     ${warn}
   </div>`;
 }
@@ -1151,11 +1329,17 @@ function _underlayField(l, i, ro) {
     // quella riga sulla carta non avrebbe nessun posto dove andare a spegnerla.
     + scelti.filter(id => !offerte.some(u => u.id === id))
       .map(id => casella(id, id + ' — ' + t('org.underlayGone'), true)).join('');
+  // Le caselle stanno in un contenitore loro, in RIGA: sono poche (le linee dei
+  // due capi) e brevi, e una colonna le faceva sembrare un elenco lungo quanto
+  // il resto della scheda. In riga si leggono per quello che sono — un insieme
+  // fra cui scegliere — e il blocco smette di dominare il collegamento.
   return `<div class="org-f org-f-wide org-f-underlay"><span>${escapeHTML(t('org.underlay'))}</span>
-    ${righe || `<p class="org-note">${escapeHTML(t('org.underlayNone'))}</p>`}</div>`;
+    ${righe
+      ? `<div class="org-checks">${righe}</div>`
+      : `<p class="org-note">${escapeHTML(t('org.underlayNone'))}</p>`}</div>`;
 }
 
-function _fieldsOfKind(l, i) {
+function _fieldsOfNature(l, i) {
   // ⚠️ La sola lettura vale ANCHE qui. Mancava: i campi propri del `kind` erano
   // scrivibili da un viewer, che poi si sarebbe visto rifiutare il salvataggio
   // dal server. Un campo che accetta quello che scrivi e non lo salva è peggio
@@ -1166,68 +1350,68 @@ function _fieldsOfKind(l, i) {
   // e la parola resta perché è quella scritta su ogni console (in italiano non
   // esiste un termine standard: la letteratura tecnica la tiene in inglese e la
   // spiega). Allora la spiega anche il campo, invece di darla per saputa.
-  const F = (field, label, val, ph, hint) => `<label class="org-f"><span>${escapeHTML(label)}</span>
+  // 🔒 `cred` chiede la riga rossa delle credenziali: la porta solo il campo che
+  // ne ha bisogno, così gli altri restano quelli di prima.
+  const F = (field, label, val, ph, hint, cred) => `<label class="org-f"><span>${escapeHTML(label)}</span>
     <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(val == null ? '' : val)}" ${ph ? `placeholder="${escapeHTML(ph)}"` : ''}
       data-input="org-field" data-scope="link" data-idx="${i}" data-field="${escapeHTML(field)}">
+    ${cred ? '<small class="org-bad" data-cred-hint style="display:none"></small>' : ''}
     ${hint ? `<small class="org-hint">${escapeHTML(hint)}</small>` : ''}</label>`;
-  switch (l.kind) {
-    // ⑲ I TUNNEL. Gli IP dei peer valgono per tutti: è la coppia di indirizzi
-    // che si scrive nella configurazione, quale che sia l'incapsulamento. Fase 1
-    // e versione IKE no — quelle sono di IPsec, e chiederle su un GRE sarebbe
-    // chiedere un dato che non esiste.
-    case 'gre':
-    case 'wireguard':
-    case 'openvpn':
-    case 'l2tp':
-      return F('peerA', _atSite('org.peerA', l.aSiteId), (l.endpointA || {}).peerIp, '203.0.113.1')
-        + F('peerB', _atSite('org.peerB', l.bSiteId), (l.endpointB || {}).peerIp, '198.51.100.1');
-    case 'ipsec':
-      // ⚠️ Gli APPARATI dei due capi non stanno qui: valgono per ogni `kind` e
-      // si disegnano una volta sola in `_renderLinks`. Qui restano gli IP dei
-      // peer, che sono davvero una cosa da tunnel — su un MPLS non vogliono
-      // dire niente, e un campo che non vuole dire niente invita a riempirlo.
-      // ⚠️ «visto da», non «presso»: `endpointA.peerIp` è l'indirizzo dell'ALTRO
-      // capo — quello che si scrive nella configurazione del tunnel SU A. Un
-      // «IP del peer presso Verona» direbbe l'esatto contrario, e nessuno a
-      // valle potrebbe accorgersene: sono due indirizzi ugualmente plausibili nei due campi sbagliati.
-      return F('peerA', _atSite('org.peerA', l.aSiteId), (l.endpointA || {}).peerIp, '203.0.113.1')
-        + F('peerB', _atSite('org.peerB', l.bSiteId), (l.endpointB || {}).peerIp, '198.51.100.1')
-        + F('phase1Name', t('org.phase1'), l.phase1Name)
-        + `<label class="org-f"><span>${escapeHTML(t('org.ike'))}</span>
-            <select ${ro ? 'disabled' : ''} data-change="org-field" data-scope="link" data-idx="${i}" data-field="ikeVersion">
-              ${_opt('', '—', l.ikeVersion == null ? '' : l.ikeVersion)}${_opt('1', 'IKEv1', l.ikeVersion)}${_opt('2', 'IKEv2', l.ikeVersion)}
-            </select></label>`;
-    // ⑲ I SERVIZI: comprati da un operatore o costruiti su una dorsale, hanno
-    // un'istanza (VRF) e un nome di servizio. ⚠️ L'identificativo numerico — il
-    // VNI di una VXLAN, il VC-ID di un VPWS — NON ha un campo, e non lo si
-    // infila in «Servizio»: un campo che ospita due cose diverse comincia a
-    // mentire alla prima riga in cui ne porta una sola.
-    case 'mpls':
-    case 'vpls':
-    case 'vpws':
-    case 'vxlan':
-    case 'evpn':
-      return F('vrf', 'VRF', l.vrf) + F('service', t('org.service'), l.service);
-    case 'sdwan':
-      // ⑳ Le linee sotto NON stanno più qui: come i due capi (⑥), si disegnano
-      // una volta sola in `_renderLinks`, per ogni natura. Qui resta l'overlay,
-      // che è davvero dell'SD-WAN. La riga d'aiuto dice «sono qui sotto» e resta
-      // vera: il campo comune si disegna subito dopo questo.
-      return F('overlay', t('org.overlay'), l.overlay, t('org.overlayPh'), t('org.overlayHint'));
-    case 'directLink':
-      return F('media', t('org.media'), l.media, t('org.mediaPh'));
-    case 'other':
-      // ⑨ Il campo che rende `other` diverso da un buco — le parole di chi
-      // documenta — NON sta qui: sta attaccato alla tendina «Tecnologia», in
-      // `_renderLinks`. Gli altri `kind` portano PROPRIETÀ del collegamento
-      // (il VRF, l'overlay, il mezzo); questo invece COMPLETA la natura stessa,
-      // ed è la risposta alla stessa domanda della tendina, scritta a parole.
-      // Staccarlo di sei campi lo faceva leggere come una domanda a sé — ed è
-      // esattamente così che è stato segnalato («ma non è lo stesso di Stato?»).
-      return '';
-    default:
-      return '';
+  // ㉔ I campi propri seguono il loro ASSE. Prima era uno `switch` sulla natura;
+  // con due assi le combinazioni sarebbero il prodotto dei due vocabolari, e
+  // ognuna direbbe soltanto «i campi del trasporto più quelli del tunnel». Due
+  // blocchi, e si compongono da soli.
+  let out = '';
+
+  // ── il TRASPORTO ─────────────────────────────────────────────────────
+  // ⑲ I servizi d'operatore hanno un'istanza (VRF) e un nome di servizio.
+  // ⚠️ L'identificativo numerico — il VNI di una VXLAN, il VC-ID di un VPWS —
+  // NON ha un campo, e non lo si infila in «Servizio»: un campo che ospita due
+  // cose diverse comincia a mentire alla prima riga in cui ne porta una sola.
+  if (CARRIER_TRANSPORTS.indexOf(l.transport) >= 0) {
+    out += F('vrf', 'VRF', l.vrf) + F('service', t('org.service'), l.service);
   }
+  if (l.transport === 'directLink') out += F('media', t('org.media'), l.media, t('org.mediaPh'));
+
+  // ── il TUNNEL ────────────────────────────────────────────────────────
+  // Gli IP dei peer valgono per OGNI tunnel: è la coppia di indirizzi che si
+  // scrive nella configurazione, quale che sia l'incapsulamento. Su un trasporto
+  // nudo non vogliono dire niente, e un campo che non vuol dire niente invita a
+  // riempirlo.
+  // ⚠️ «visto da», non «presso»: `endpointA.peerIp` è l'indirizzo dell'ALTRO
+  // capo — quello che si scrive nella configurazione del tunnel SU A. Un «IP del
+  // peer presso Verona» direbbe l'esatto contrario, e nessuno a valle potrebbe
+  // accorgersene: due indirizzi ugualmente plausibili nei due campi sbagliati.
+  // ⚠️ Gli APPARATI dei due capi non stanno qui: valgono per ogni natura (⑥) e
+  // si disegnano una volta sola in `_renderLinks`.
+  if (l.tunnel && l.tunnel !== 'none') {
+    out += F('peerA', _atSite('org.peerA', l.aSiteId), (l.endpointA || {}).peerIp, '203.0.113.1')
+      + F('peerB', _atSite('org.peerB', l.bSiteId), (l.endpointB || {}).peerIp, '198.51.100.1');
+  }
+  if (l.tunnel === 'ipsec') {
+    out += F('phase1Name', t('org.phase1'), l.phase1Name)
+      + `<label class="org-f"><span>${escapeHTML(t('org.ike'))}</span>
+          <select ${ro ? 'disabled' : ''} data-change="org-field" data-scope="link" data-idx="${i}" data-field="ikeVersion">
+            ${_opt('', '—', l.ikeVersion == null ? '' : l.ikeVersion)}${_opt('1', 'IKEv1', l.ikeVersion)}${_opt('2', 'IKEv2', l.ikeVersion)}
+          </select></label>`
+      // ㉓ Le due proposte: è ciò che si ridigita sull'apparato, e i due capi
+      // devono averle identiche. Testo libero, perché ogni piattaforma le scrive
+      // a modo suo e normalizzare fra vendor vorrebbe dire decidere al posto di
+      // chi guarda la sua console (paletto ③).
+      + F('phase1Proposal', t('org.phase1Proposal'), l.phase1Proposal, t('org.phase1ProposalPh'), t('org.phase1ProposalHint'))
+      + F('phase2Proposal', t('org.phase2Proposal'), l.phase2Proposal, t('org.phase2ProposalPh'), t('org.phase2ProposalHint'))
+      // 🔒 DOVE sta la chiave, mai la chiave.
+      + F('pskRef', t('org.pskRef'), l.pskRef, t('org.pskRefPh'), t('org.pskRefHint'), true);
+  }
+  // ⑳ Le linee sotto NON stanno qui: come i due capi, si disegnano una volta
+  // sola in `_renderLinks`, per ogni natura. Qui resta l'overlay, che dell'SD-WAN
+  // è davvero.
+  if (l.tunnel === 'sdwan') out += F('overlay', t('org.overlay'), l.overlay, t('org.overlayPh'), t('org.overlayHint'));
+  // ⑨ Le etichette di `other` NON stanno qui: stanno attaccate alla loro
+  // tendina, in `_renderLinks`. Gli altri campi sono PROPRIETÀ del collegamento
+  // (il VRF, l'overlay, il mezzo); quelle COMPLETANO la scelta stessa, e sono la
+  // risposta alla stessa domanda della tendina, scritta a parole.
+  return out;
 }
 
 function _renderSites() {
@@ -1379,14 +1563,14 @@ function _renderWanTypes(types) {
     if (!nl) { soloUplink = true; return testa; }
     // Una tecnologia che il modello non conosce non si stampa: sarebbe una
     // parola inventata a schermo, e il vocabolario è quello del modello.
-    const kind = INTER_SITE_KINDS.indexOf(x.kind) >= 0 ? x.kind : 'other';
+    const kind = INTER_SITE_TRANSPORTS.indexOf(x.transport) >= 0 ? x.transport : 'other';
     // ⚠️ Le quattro chiavi si scrivono PER ESTESO: il cricchetto delle
     // traduzioni legge le chiavi dal sorgente, e una composta a runtime gli
     // sarebbe invisibile — potrebbe mancare dal dizionario e comparire nuda.
     const chiave = kind === 'other'
       ? (nl === 1 ? 'org.wanTypeOtherOne' : 'org.wanTypeOther')
       : (nl === 1 ? 'org.wanTypeAsOne' : 'org.wanTypeAs');
-    return testa + t(chiave).replace('{n}', String(nl)).replace('{kind}', t('org.kind.' + kind));
+    return testa + t(chiave).replace('{n}', String(nl)).replace('{kind}', t('org.transport.' + kind));
   });
   // ⑦ CHIUSO di default, come le note. Questo è il verbale di una decisione che
   // il software ha preso da sé: prezioso quando lo si cerca, rumore quando non
@@ -1517,8 +1701,9 @@ function _renderUplinks() {
         <label class="org-f"><span>${escapeHTML(t('org.site'))}</span>
           <select ${ro ? 'disabled' : ''} data-change="org-field" data-scope="uplink" data-idx="${i}" data-field="siteId">${_siteOptions(u.siteId)}</select></label>
         <label class="org-f"><span>${escapeHTML(t('org.serviceType'))}</span>
-          <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(u.serviceType || '')}" placeholder="FTTH"
-                 data-input="org-field" data-scope="uplink" data-idx="${i}" data-field="serviceType"></label>
+          <input type="text" list="org-svc-types" ${ro ? 'disabled' : ''} value="${escapeHTML(u.serviceType || '')}" placeholder="FTTH"
+                 data-input="org-field" data-scope="uplink" data-idx="${i}" data-field="serviceType">
+          <small class="org-hint">${escapeHTML(t('org.serviceTypeHint'))}</small></label>
         <label class="org-f"><span>${escapeHTML(t('org.circuitId'))}</span>
           <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(u.circuitId || '')}"
                  data-input="org-field" data-scope="uplink" data-idx="${i}" data-field="circuitId"></label>
@@ -1532,9 +1717,27 @@ function _renderUplinks() {
                  data-input="org-field" data-scope="uplink" data-idx="${i}" data-field="publicIps">
           <small class="org-bad" data-net-hint ${badIps.length ? '' : 'style="display:none"'}>${badIps.length ? escapeHTML(t('org.notAddresses') + ' ' + badIps.join(', ')) : ''}</small>
           <small class="org-hint">${escapeHTML(t('org.publicIpsHint'))}</small></label>
-        <label class="org-f"><span>${escapeHTML(t('org.slaRef'))}</span>
-          <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(u.slaRef || '')}"
-                 data-input="org-field" data-scope="uplink" data-idx="${i}" data-field="slaRef"></label>
+        <label class="org-f"><span>${escapeHTML(t('org.addressing'))}</span>
+          <select ${ro ? 'disabled' : ''} data-change="org-field" data-scope="uplink" data-idx="${i}" data-field="addressing">
+            ${_opt('', '—', u.addressing || '')}${WAN_ADDRESSING.map(x => _opt(x, t('org.addr.' + x), u.addressing || '')).join('')}</select>
+          <small class="org-hint">${escapeHTML(t('org.addressingHint'))}</small></label>
+        <label class="org-f"><span>${escapeHTML(t('org.nextHop'))}</span>
+          <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(u.nextHop || '')}" placeholder="203.0.113.1"
+                 data-input="org-field" data-scope="uplink" data-idx="${i}" data-field="nextHop">
+          <small class="org-hint">${escapeHTML(t('org.nextHopHint'))}</small></label>
+        <label class="org-f"><span>${escapeHTML(t('org.deliveryVlan'))}</span>
+          <input type="number" min="1" max="4094" step="1" ${ro ? 'disabled' : ''} value="${u.deliveryVlan == null ? '' : escapeHTML(u.deliveryVlan)}"
+                 data-input="org-field" data-scope="uplink" data-idx="${i}" data-field="deliveryVlan">
+          <small class="org-hint">${escapeHTML(t('org.deliveryVlanHint'))}</small></label>
+        <label class="org-f"><span>${escapeHTML(t('org.mtu'))}</span>
+          <input type="number" min="1" step="1" ${ro ? 'disabled' : ''} value="${u.mtu == null ? '' : escapeHTML(u.mtu)}" placeholder="1500"
+                 data-input="org-field" data-scope="uplink" data-idx="${i}" data-field="mtu">
+          <small class="org-hint">${escapeHTML(t('org.mtuHint'))}</small></label>
+        <label class="org-f org-f-span2"><span>${escapeHTML(t('org.supportRef'))}</span>
+          <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(u.supportRef || '')}" placeholder="${escapeHTML(t('org.supportRefPh'))}"
+                 data-input="org-field" data-scope="uplink" data-idx="${i}" data-field="supportRef">
+          <small class="org-bad" data-cred-hint style="display:none"></small>
+          <small class="org-hint">${escapeHTML(t('org.supportRefHint'))}</small></label>
         <label class="org-f"><span>${escapeHTML(t('org.wanIf'))} ${_originBadge(u.wanIfRef)}</span>
           <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(isFact(u.wanIfRef) ? factValue(u.wanIfRef) : '')}" placeholder="MI-RTR-01/GigabitEthernet0/0/1"
                  data-input="org-field" data-scope="uplink" data-idx="${i}" data-field="wanIfRef">
@@ -1542,7 +1745,14 @@ function _renderUplinks() {
       </div>
     </article>`;
   }).join('');
-  return _renderWanReport() + rows + (ro ? '' : `<button class="um-btn primary org-add" data-act="org-add-uplink"><i class="fas fa-plus"></i> ${escapeHTML(t('org.addUplink'))}</button>`);
+  // ㉕ Una `<datalist>` SOLA per tutte le righe: è lo stesso elenco, e un id
+  // ripetuto in pagina è un id che non identifica. Il campo resta `type=text`,
+  // quindi la tendina SUGGERISCE e non chiude: quello che l'import ha scritto
+  // dal NetBox di qualcun altro entra lo stesso, e chi ha un accesso che qui
+  // non c'è lo scrive.
+  const suggerimenti = `<datalist id="org-svc-types">${
+    WAN_SERVICE_TYPES.map(k => `<option value="${escapeHTML(t('org.svc.' + k))}"></option>`).join('')}</datalist>`;
+  return _renderWanReport() + suggerimenti + rows + (ro ? '' : `<button class="um-btn primary org-add" data-act="org-add-uplink"><i class="fas fa-plus"></i> ${escapeHTML(t('org.addUplink'))}</button>`);
 }
 
 function _renderLinks() {
@@ -1554,9 +1764,9 @@ function _renderLinks() {
     const badA = _badNets(a), badB = _badNets(b);
     return `<article class="org-row" data-link="${escapeHTML(String(l.id))}">
       <header class="org-row-head">
-        <i class="fas ${escapeHTML(KIND_ICON[l.kind] || 'fa-link')}"></i>
+        <i class="fas ${escapeHTML(_natureIcon(l))}"></i>
         <span class="org-row-title org-row-static">${escapeHTML(_siteName(l.aSiteId) || '?')} ↔ ${escapeHTML(_siteName(l.bSiteId) || '?')}${l.name ? ' · ' + escapeHTML(l.name) : ''}
-          <span class="org-row-kind">${escapeHTML(_kindText(l))}</span></span>
+          <span class="org-row-kind">${escapeHTML(_natureText(l))}</span></span>
         ${ro ? '' : `<button class="um-btn danger org-del" data-act="org-del-link" data-idx="${i}" title="${escapeHTML(t('org.removeLink'))}"><i class="fas fa-trash"></i></button>`}
       </header>
       <div class="org-grid">
@@ -1564,15 +1774,20 @@ function _renderLinks() {
           <select ${ro ? 'disabled' : ''} data-change="org-field" data-scope="link" data-idx="${i}" data-field="aSiteId">${_siteOptions(l.aSiteId, l.bSiteId)}</select></label>
         <label class="org-f"><span>${escapeHTML(t('org.siteB'))}</span>
           <select ${ro ? 'disabled' : ''} data-change="org-field" data-scope="link" data-idx="${i}" data-field="bSiteId">${_siteOptions(l.bSiteId, l.aSiteId)}</select></label>
-        <label class="org-f"><span>${escapeHTML(t('org.kind'))}</span>
-          <select ${ro ? 'disabled' : ''} data-change="org-field" data-scope="link" data-idx="${i}" data-field="kind">
-            ${INTER_SITE_KINDS.map(k => _opt(k, t('org.kind.' + k), l.kind)).join('')}</select></label>
-        ${l.kind !== 'other' ? '' : `<label class="org-f"><span>${escapeHTML(t('org.kindLabel'))}</span>
-          <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(l.kindLabel || '')}" placeholder="${escapeHTML(t('org.kindLabelPh'))}"
-                 data-input="org-field" data-scope="link" data-idx="${i}" data-field="kindLabel"></label>`}
-        <label class="org-f"><span>${escapeHTML(t('org.topology'))}</span>
-          <select ${ro ? 'disabled' : ''} data-change="org-field" data-scope="link" data-idx="${i}" data-field="topology">
-            ${_opt('', '—', l.topology || '')}${INTER_SITE_TOPOLOGIES.map(x => _opt(x, t('org.topo.' + x), l.topology || '')).join('')}</select></label>
+        <label class="org-f"><span>${escapeHTML(t('org.transport'))}</span>
+          <select ${ro ? 'disabled' : ''} data-change="org-field" data-scope="link" data-idx="${i}" data-field="transport">
+            ${_opt('', '—', l.transport || '')}${INTER_SITE_TRANSPORTS.map(k => _opt(k, t('org.transport.' + k), l.transport || '')).join('')}</select>
+          <small class="org-hint">${escapeHTML(t('org.transportHint'))}</small></label>
+        ${l.transport !== 'other' ? '' : `<label class="org-f"><span>${escapeHTML(t('org.transportLabel'))}</span>
+          <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(l.transportLabel || '')}" placeholder="${escapeHTML(t('org.transportLabelPh'))}"
+                 data-input="org-field" data-scope="link" data-idx="${i}" data-field="transportLabel"></label>`}
+        <label class="org-f"><span>${escapeHTML(t('org.tunnel'))}</span>
+          <select ${ro ? 'disabled' : ''} data-change="org-field" data-scope="link" data-idx="${i}" data-field="tunnel">
+            ${_opt('', '—', l.tunnel || '')}${INTER_SITE_TUNNELS.map(k => _opt(k, t('org.tunnel.' + k), l.tunnel || '')).join('')}</select>
+          <small class="org-hint">${escapeHTML(t('org.tunnelHint'))}</small></label>
+        ${l.tunnel !== 'other' ? '' : `<label class="org-f"><span>${escapeHTML(t('org.tunnelLabel'))}</span>
+          <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(l.tunnelLabel || '')}" placeholder="${escapeHTML(t('org.tunnelLabelPh'))}"
+                 data-input="org-field" data-scope="link" data-idx="${i}" data-field="tunnelLabel"></label>`}
         <label class="org-f"><span>${escapeHTML(t('org.linkState'))} ${_originBadge(l.state)}</span>
           <select ${ro ? 'disabled' : ''} data-change="org-field" data-scope="link" data-idx="${i}" data-field="state">
             ${_opt('', '— ' + t('org.stateUnspoken'), _fv(l.state))}${INTER_SITE_STATES.map(s => _opt(s, t('org.state' + (s === 'up' ? 'Up' : 'Down')), _fv(l.state))).join('')}</select></label>
@@ -1597,7 +1812,7 @@ function _renderLinks() {
                  data-input="org-field" data-scope="link" data-idx="${i}" data-field="devB">
           ${_deviceDatalist('org-dl-' + i + '-b', l.bSiteId)}
           ${_deviceStatus(l.bSiteId, l.endpointB)}</label>
-        ${_fieldsOfKind(l, i)}
+        ${_fieldsOfNature(l, i)}
         ${_underlayField(l, i, ro)}
         <label class="org-f org-f-wide"><span>${escapeHTML(_atSite('org.reachA', l.aSiteId))}</span>
           <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(a.join(', '))}" placeholder="10.1.0.0/24, 10.1.1.0/24"
@@ -1617,8 +1832,8 @@ function _renderLinks() {
 // ── Coerenza (④: si RACCONTA l'audit del server, non se ne calcola un altro) ─
 
 /** Le liste dell'audit, in tre gruppi che NON si sommano fra loro. */
-const AUDIT_PROBLEMS = ['subnetsNowhere', 'subnetsAtTwoSites', 'linksToUnknownSite', 'uplinksToUnknownSite', 'spokesWithoutHub', 'linkTopologyVsRoles', 'underlaysNotAtEnds'];
-const AUDIT_GAPS = ['subnetsNotCarried', 'linksWithoutReach', 'sitesWithoutLink', 'sitesWithoutUplink', 'uplinksWithoutPublicIp'];
+const AUDIT_PROBLEMS = ['subnetsNowhere', 'subnetsAtTwoSites', 'linksToUnknownSite', 'uplinksToUnknownSite', 'spokesWithoutHub', 'underlaysNotAtEnds'];
+const AUDIT_GAPS = ['subnetsNotCarried', 'linksWithoutReach', 'sitesWithoutLink', 'sitesWithoutUplink', 'uplinksWithoutPublicIp', 'staticUplinksWithoutNextHop'];
 
 /**
  * ⑯ **Quale sede nomina una riga d'audit.** L'audit parla per liste, e ogni
@@ -1636,7 +1851,6 @@ const _AUDIT_SITES_OF = {
   linksToUnknownSite: (r) => _linkSites(r.linkId),
   uplinksToUnknownSite: (r) => [r.siteId],
   spokesWithoutHub: (r) => [r.siteId],
-  linkTopologyVsRoles: (r) => _linkSites(r.linkId),
   // ⑳ Le sedi sono quelle del COLLEGAMENTO, non quella della linea sbagliata:
   // la spunta da togliere sta sulla riga del collegamento, e accendere la
   // terza sede la farebbe sembrare colpevole di un difetto che non è suo.
@@ -1646,6 +1860,7 @@ const _AUDIT_SITES_OF = {
   sitesWithoutLink: (r) => [r.siteId],
   sitesWithoutUplink: (r) => [r.siteId],
   uplinksWithoutPublicIp: (r) => [r.siteId],
+  staticUplinksWithoutNextHop: (r) => [r.siteId],
 };
 
 /** Le due sedi ai capi di un collegamento, per risalire da un `linkId`. */
@@ -1691,13 +1906,13 @@ function NET(n) {
 
 /** Il nome leggibile di un collegamento: «Caci ↔ Aloys · VPLS». Un `linkId`
  *  generato non dice niente a chi legge, e l'audit può solo darci quello. */
-function _linkName(linkId, kind) {
+function _linkName(linkId) {
   const l = _links().find(x => x.id === linkId);
   const capi = l ? `${_siteName(l.aSiteId) || '?'} ↔ ${_siteName(l.bSiteId) || '?'}` : linkId;
-  // ⑨ Il nome della natura lo dà `_kindText`, che per `other` usa le parole
-  // scritte da chi documenta: qui dire «Altro» butterebbe via l'unica cosa
-  // che quel collegamento aveva da dire di sé.
-  const natura = l ? _kindText(l) : (kind ? t('org.kind.' + kind) : '');
+  // ⑨ Il nome della natura lo dà `_natureText`, che per `other` usa le parole
+  // scritte da chi documenta: dire «Altro» butterebbe via l'unica cosa che quel
+  // collegamento aveva da dire di sé.
+  const natura = l ? _natureText(l) : '';
   return natura ? `${capi} · ${natura}` : capi;
 }
 
@@ -1724,21 +1939,21 @@ function _auditLine(key, row) {
   switch (key) {
     case 'subnetsNowhere': return NET(row.subnet);
     case 'subnetsAtTwoSites': return `${NET(row.subnet)} <span class="org-audit-at">${row.siteIds.map(S).join(' · ')}</span>`;
-    case 'linksToUnknownSite': return `${escapeHTML(_linkName(row.linkId, row.kind))} <span class="org-audit-at">${row.missing.map(escapeHTML).join(' · ')}</span>`;
+    case 'linksToUnknownSite': return `${escapeHTML(_linkName(row.linkId))} <span class="org-audit-at">${row.missing.map(escapeHTML).join(' · ')}</span>`;
     case 'uplinksToUnknownSite': return `${escapeHTML(_uplinkName(row.uplinkId, row.siteId))}`;
     case 'spokesWithoutHub': return S(row.siteId);
-    case 'linkTopologyVsRoles': return `${escapeHTML(_linkName(row.linkId, row.kind))} <span class="org-audit-at">${escapeHTML(t('org.bothRole').replace('{role}', t('org.role.' + row.role)))}</span>`;
     // ⑳ Ciò che varia è QUALE linea non torna, e dove sta davvero: senza la
     // sede la riga direbbe «una linea sbagliata» senza dire quale — e la sede è
     // esattamente il pezzo che manca sulla carta, dove il difetto è invisibile.
-    case 'underlaysNotAtEnds': return `${escapeHTML(_linkName(row.linkId, row.kind))} <span class="org-audit-at">${row.siteId
+    case 'underlaysNotAtEnds': return `${escapeHTML(_linkName(row.linkId))} <span class="org-audit-at">${row.siteId
       ? escapeHTML(_uplinkName(row.uplinkId, row.siteId))
       : escapeHTML(row.uplinkId + ' — ' + t('org.underlayGone'))}</span>`;
     case 'subnetsNotCarried': return `${NET(row.subnet)} <span class="org-audit-at">${S(row.siteId)}</span>`;
-    case 'linksWithoutReach': return escapeHTML(_linkName(row.linkId, row.kind));
+    case 'linksWithoutReach': return escapeHTML(_linkName(row.linkId));
     case 'sitesWithoutLink': return S(row.siteId);
     case 'sitesWithoutUplink': return S(row.siteId);
     case 'uplinksWithoutPublicIp': return escapeHTML(_uplinkName(row.uplinkId, row.siteId));
+    case 'staticUplinksWithoutNextHop': return escapeHTML(_uplinkName(row.uplinkId, row.siteId));
     default: return escapeHTML(JSON.stringify(row));
   }
 }
@@ -1867,9 +2082,16 @@ function _touch() {
  * tiene il viewBox del layout, che è comunque un margine generoso.
  */
 function _fitMapViewBox(svg) {
-  if (!svg || typeof svg.getBBox !== 'function') return;
+  // ㉖ ⚠️ Si misura il GRUPPO, non l'SVG. `getBBox()` risponde nello spazio
+  // dell'elemento su cui lo chiami, PRIMA della sua trasformazione: chiedendolo
+  // all'SVG l'ingombro seguirebbe lo zoom, e l'inquadratura «tutto dentro» si
+  // rimpicciolirebbe a ogni giro di rotella inseguendo sé stessa. Al gruppo
+  // risponde sempre lo stesso numero, qualunque sia la vista.
+  const g = svg && typeof svg.querySelector === 'function' ? svg.querySelector('.org-map-zoom') : null;
+  const target = g || svg;
+  if (!target || typeof target.getBBox !== 'function') return;
   let b;
-  try { b = svg.getBBox(); } catch (_) { return; }
+  try { b = target.getBBox(); } catch (_) { return; }
   if (!b || !(b.width > 0) || !(b.height > 0)) return;
   const m = 14;
   const r = (n) => Math.round(n * 100) / 100;
@@ -1921,6 +2143,9 @@ function _render() {
   // Il ritaglio si fa DOPO che l'SVG è nel documento: prima non c'è niente da
   // misurare, e `getBBox()` risponderebbe zero.
   _fitMapViewBox(body.querySelector('svg.org-map'));
+  // ㉖ L'SVG è appena stato ricostruito: la vista è nello stato, non nel DOM, e
+  // va riscritta o si tornerebbe al 100% a ogni salvataggio.
+  _applyMapView();
   _applyFocusLink(body);
   _renderFooter();
 }
@@ -1960,6 +2185,53 @@ function _wireBackdrop() {
   const ov = _el('org-overlay');
   if (!ov) return;
   ov.addEventListener('mousedown', (e) => { _pressOnBackdrop = (e.target === ov); });
+
+  // ㉖ Rotella e trascinamento. Un listener SOLO, sul contenitore che non viene
+  // mai ricostruito: `_render()` rifà l'SVG a ogni giro, e agganciarsi lì
+  // vorrebbe dire riagganciarsi ogni volta — con il rischio, noto in questo
+  // codice, di dimenticarsene una.
+  // ⚠️ `passive: false`: senza, il browser ignora `preventDefault()` e la rotella
+  // fa scorrere il pannello INVECE di ingrandire. È il difetto che si vede solo
+  // provandolo, e solo con un pannello più alto dello schermo.
+  ov.addEventListener('wheel', (e) => {
+    if (!e.target.closest || !e.target.closest('.org-map-frame')) return;
+    e.preventDefault();
+    _zoomMap(e.deltaY > 0 ? -MAP_ZOOM.step : MAP_ZOOM.step, e);
+  }, { passive: false });
+
+  // Il trascinamento parte SOLO dallo sfondo. Sui riquadri e sulle pastiglie il
+  // clic ha già un significato — aprire il progetto, aprire il collegamento — e
+  // un trascinamento che parte da lì li renderebbe difficili da premere.
+  let trascina = null;
+  ov.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || !e.target.closest) return;
+    const frame = e.target.closest('.org-map-frame');
+    if (!frame || e.target.closest('.org-edge-chip') || e.target.closest('.org-node')) return;
+    const p = _mapPoint(_mapSvg(), e);
+    if (!p) return;
+    trascina = { px: p.x, py: p.y, x: _st.mapView.x, y: _st.mapView.y };
+    frame.classList.add('is-panning');
+    try { frame.setPointerCapture(e.pointerId); } catch (_) { /* niente cattura: si trascina lo stesso */ }
+  });
+  ov.addEventListener('pointermove', (e) => {
+    if (!trascina) return;
+    const p = _mapPoint(_mapSvg(), e);
+    if (!p) return;
+    // ⚠️ Si converte OGNI volta invece di sommare i pixel: le unità del disegno
+    // e quelle dello schermo non stanno in rapporto fisso — dipende da quanto è
+    // largo il pannello — e sommare pixel farebbe scivolare la mappa sotto il dito.
+    _st.mapView.x = trascina.x + (p.x - trascina.px);
+    _st.mapView.y = trascina.y + (p.y - trascina.py);
+    _applyMapView();
+  });
+  for (const ev of ['pointerup', 'pointercancel']) {
+    ov.addEventListener(ev, () => {
+      if (!trascina) return;
+      trascina = null;
+      const f = _el('org-body') && _el('org-body').querySelector('.org-map-frame');
+      if (f) f.classList.remove('is-panning');
+    });
+  }
   _wired = true;
 }
 
@@ -2005,6 +2277,8 @@ function _openSite(siteId) {
 }
 
 registerClickActions({
+  'org-zoom': (el) => _zoomMap(Number(el.dataset.delta) || 0, null),
+  'org-zoom-fit': () => _fitMap(),
   'org-open': () => openOrgPanel(),
   'org-close': () => closeOrgPanel(),
   'org-backdrop': (el, ev) => { if (ev.target === el && _pressOnBackdrop) closeOrgPanel(); },

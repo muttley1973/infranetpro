@@ -18,7 +18,8 @@ const IS = require('../lib/inter-site.js');
 const { factDeclared, factMeasured, factDerived } = require('../lib/provenance.js');
 
 const {
-  SITE_ROLES, INTER_SITE_KINDS, INTER_SITE_TOPOLOGIES, INTER_SITE_STATES,
+  SITE_ROLES, INTER_SITE_STATES, WAN_ADDRESSING,
+  INTER_SITE_TRANSPORTS, INTER_SITE_TUNNELS,
   normalizeSubnets, normalizeSite, normalizeWanUplink, normalizeInterSiteLink,
   normalizeOrganization,
   linkSites, linkPeerSite, linkReach, linkReachAt,
@@ -38,15 +39,23 @@ test('i vocabolari sono chiusi e contengono esattamente ciò che è stato deciso
   // ⑨ `other` in FONDO: la porta di servizio non sta fra le scelte precise.
   // ⑲ L'ordine È il contenuto: è quello che si legge nella tendina, e cambiarlo
   // per sbaglio riordinerebbe un menu senza che nessuno se ne accorga.
-  assert.deepStrictEqual(INTER_SITE_KINDS, [
-    'ipsec', 'gre', 'wireguard', 'openvpn', 'l2tp',
-    'mpls', 'vpls', 'vpws', 'vxlan', 'evpn',
-    'sdwan', 'directLink', 'other',
+  // ㉔ DUE vocabolari, non uno: su cosa viaggia, e cosa ci corre sopra.
+  assert.deepStrictEqual(INTER_SITE_TRANSPORTS, [
+    'internet', 'mpls', 'vpls', 'vpws', 'vxlan', 'evpn', 'directLink', 'other',
   ]);
-  assert.equal(INTER_SITE_KINDS[INTER_SITE_KINDS.length - 1], 'other', 'other in fondo');
-  assert.deepStrictEqual(INTER_SITE_TOPOLOGIES, ['hub-and-spoke', 'mesh']);
+  assert.deepStrictEqual(INTER_SITE_TUNNELS, [
+    'none', 'ipsec', 'gre', 'wireguard', 'openvpn', 'l2tp', 'sdwan', 'other',
+  ]);
+  for (const v of [INTER_SITE_TRANSPORTS, INTER_SITE_TUNNELS]) {
+    assert.equal(v[v.length - 1], 'other', 'other in fondo');
+  }
+  // ㉔ `sdwan` è un TUNNEL: una SD-WAN è un overlay, cioè ciò che corre sopra a
+  // uno o più trasporti — ed è il motivo per cui `underlayUplinkIds` esiste.
+  assert.ok(INTER_SITE_TUNNELS.indexOf('sdwan') >= 0 && INTER_SITE_TRANSPORTS.indexOf('sdwan') < 0);
   // ③ 'declared' NON è uno stato: è un'origine. Vedi la scelta ③ del modulo.
   assert.deepStrictEqual(INTER_SITE_STATES, ['up', 'down']);
+  // ㉑ Tre modi, e sono i tre che cambiano cosa si digita sul router.
+  assert.deepStrictEqual(WAN_ADDRESSING, ['static', 'dhcp', 'pppoe']);
 });
 
 // ── Subnet: canonicalizzazione, non confronto per stringa ──────────────────
@@ -101,19 +110,103 @@ test('un uplink senza sede non entra', () => {
 test('④ i campi dichiarati-per-costruzione restano nudi, i misurabili sono envelope', () => {
   const u = normalizeWanUplink({
     id: 'u1', siteId: 'hq',
-    provider: 'Acme', serviceType: 'fiber', circuitId: 'CID-9', cirMbps: '100', slaRef: 'SLA-A',
+    provider: 'Acme', serviceType: 'fiber', circuitId: 'CID-9', cirMbps: '100',
     publicIps: factMeasured(['203.0.113.7'], AT),
     wanIfRef: factDeclared('wan1'),
   });
   // dichiarati: nudi — un envelope qui direbbe una cosa in più che non c'è
   assert.strictEqual(u.provider, 'Acme');
   assert.strictEqual(u.circuitId, 'CID-9');
-  assert.strictEqual(u.slaRef, 'SLA-A');
   // ⚠️ banda CONTRATTUALE, non ifSpeed
   assert.strictEqual(u.cirMbps, 100);
   // misurabili: envelope intatto, con la sua origine
   assert.deepStrictEqual(u.publicIps, { origin: 'measured', value: ['203.0.113.7'], at: AT });
   assert.deepStrictEqual(u.wanIfRef, { origin: 'declared', value: 'wan1' });
+});
+
+// ── ㉑ I campi con cui una linea si rimette su ─────────────────────────────
+// La scheda esiste per la notte in cui la linea è giù: ogni campo qui sotto
+// risponde a una domanda che si fa quella notte, e nessuno lo riempie un import.
+
+test('㉑ indirizzamento, gateway, VLAN di consegna, MTU e contatto', () => {
+  const u = normalizeWanUplink({
+    id: 'u1', siteId: 'hq',
+    addressing: 'pppoe', nextHop: '203.0.113.1', deliveryVlan: '835', mtu: '1492',
+    supportRef: 'https://noc.example/ticket',
+  });
+  assert.strictEqual(u.addressing, 'pppoe');
+  assert.strictEqual(u.nextHop, '203.0.113.1');
+  assert.strictEqual(u.deliveryVlan, 835);
+  assert.strictEqual(u.mtu, 1492);
+  assert.strictEqual(u.supportRef, 'https://noc.example/ticket');
+});
+
+test('㉑ un modo d\'indirizzamento fuori vocabolario si RIFIUTA, non si corregge', () => {
+  // ⑤ Meglio un campo vuoto che uno pieno di una parola che nessuno riconosce:
+  // «non dichiarato» è una risposta, «unnumbered» letto come statico è una bugia.
+  assert.strictEqual(normalizeWanUplink({ id: 'u', siteId: 's', addressing: 'unnumbered' }).addressing, null);
+  assert.strictEqual(normalizeWanUplink({ id: 'u', siteId: 's', addressing: 'STATIC' }).addressing, null);
+});
+
+test('㉑ il gateway è un INDIRIZZO, e non diventa la sua rete', () => {
+  // ⑦ La stessa trappola degli indirizzi pubblici: `subnetInputToCidr` farebbe
+  // di 203.0.113.1 la 203.0.113.0/24 — un altro fatto, e più grande.
+  assert.strictEqual(normalizeWanUplink({ id: 'u', siteId: 's', nextHop: '203.0.113.1' }).nextHop, '203.0.113.1');
+  assert.strictEqual(normalizeWanUplink({ id: 'u', siteId: 's', nextHop: '203.0.113.0/24' }).nextHop, null);
+  assert.strictEqual(normalizeWanUplink({ id: 'u', siteId: 's', nextHop: 'il router di sopra' }).nextHop, null);
+  // IPv6: stessa strada, e in forma canonica
+  assert.strictEqual(normalizeWanUplink({ id: 'u', siteId: 's', nextHop: '2001:DB8::1' }).nextHop, '2001:db8::1');
+});
+
+test('㉑ una VLAN di consegna sta fra 1 e 4094: 0 e 4095 sono RISERVATI', () => {
+  const v = (x) => normalizeWanUplink({ id: 'u', siteId: 's', deliveryVlan: x }).deliveryVlan;
+  assert.strictEqual(v(1), 1);
+  assert.strictEqual(v(4094), 4094);
+  assert.strictEqual(v(0), null);
+  assert.strictEqual(v(4095), null, 'riservata: nessuno può consegnare lì');
+  assert.strictEqual(v(1.5), null, 'una VLAN si conta, non si misura');
+});
+
+test('㉑ nessun tetto sull\'MTU, come per la banda: è materia dell\'audit', () => {
+  // Un limite scelto oggi rifiuterebbe domani una consegna vera (paletto ③).
+  assert.strictEqual(normalizeWanUplink({ id: 'u', siteId: 's', mtu: 9216 }).mtu, 9216);
+  assert.strictEqual(normalizeWanUplink({ id: 'u', siteId: 's', mtu: 0 }).mtu, null);
+  assert.strictEqual(normalizeWanUplink({ id: 'u', siteId: 's', mtu: 1500.5 }).mtu, null);
+});
+
+test('㉑ 🔒 il contatto dell\'operatore non porta credenziali', () => {
+  // Stessa guardia di `node.backup.ref`, e non una seconda scritta qui: un
+  // segreto in un campo che si stampa e si manda in giro è un segreto perso.
+  const u = normalizeWanUplink({ id: 'u', siteId: 's', supportRef: 'https://tizio:segreto@noc.example/x' });
+  assert.strictEqual(u.supportRef, null, 'con le credenziali dentro non si persiste niente');
+});
+
+test('㉓ la proposta di un tunnel: due frasi da ridigitare, e DOVE sta la chiave', () => {
+  const l = normalizeInterSiteLink({
+    id: 't1', aSiteId: 'a', bSiteId: 'b', kind: 'ipsec',
+    phase1Proposal: 'aes256-sha256-modp2048 - 28800s',
+    phase2Proposal: 'esp-aes256-sha256 - PFS group 14 - 3600s',
+    pskRef: 'Bitwarden / VPN / MI-RM',
+  });
+  // ⚠️ Testo libero, e non dodici campi: ogni piattaforma scrive la proposta a
+  // modo suo, e spezzarla obbligherebbe a normalizzare fra vendor (paletto ③).
+  assert.strictEqual(l.phase1Proposal, 'aes256-sha256-modp2048 - 28800s');
+  assert.strictEqual(l.phase2Proposal, 'esp-aes256-sha256 - PFS group 14 - 3600s');
+  assert.strictEqual(l.pskRef, 'Bitwarden / VPN / MI-RM');
+});
+
+test('㉓ 🔒 il puntatore alla chiave non porta credenziali', () => {
+  // Stessa guardia di `node.backup.ref`: un segreto in un campo che si stampa
+  // e si manda in giro è un segreto perso.
+  const l = normalizeInterSiteLink({ id: 't1', aSiteId: 'a', bSiteId: 'b', kind: 'ipsec',
+    pskRef: 'https://vault:chiavesegreta@vault.example/kv/vpn' });
+  assert.strictEqual(l.pskRef, null);
+});
+
+test('㉓ la proposta è di IPsec: su un GRE non esiste un campo da riempire', () => {
+  // ⑲ Chiedere una proposta IKE a un GRE sarebbe chiedere un dato che non esiste.
+  const g = normalizeInterSiteLink({ id: 'g', aSiteId: 'a', bSiteId: 'b', kind: 'gre', phase1Proposal: 'x' });
+  assert.strictEqual(g.phase1Proposal, undefined);
 });
 
 test('② un valore NUDO su un campo misurabile non viene promosso a fatto', () => {
@@ -204,13 +297,71 @@ test('⭐ la stessa regola che l\'import applica da sempre — una sola definizi
 });
 
 // ── Collegamento inter-sede ────────────────────────────────────────────────
-test('⑤ un kind fuori vocabolario si RIFIUTA, non si corregge', () => {
-  // ⑲ `pptp` è un incapsulamento VERO di NetBox tenuto deliberatamente FUORI
-  // dal nostro vocabolario: è l'esempio giusto di «rifiutato», non un nome
-  // inventato che nessuno scriverebbe mai.
-  assert.strictEqual(normalizeInterSiteLink(ipsec({ kind: 'pptp' })), null);
-  assert.strictEqual(normalizeInterSiteLink(ipsec({ kind: 'IPSEC' })), null);
-  assert.strictEqual(normalizeInterSiteLink(ipsec({ kind: undefined })), null);
+test('㉔ un valore fuori vocabolario diventa «non dichiarato», e la riga RESTA', () => {
+  // ⚠️ Il cambio più delicato dei due assi. Con `kind` il rifiuto aveva un
+  // motivo: quel campo DISCRIMINAVA l'unione, e una natura ignota lasciava un
+  // oggetto senza forma. Ora i due assi sono facoltativi come `role` o
+  // `addressing`, e buttare via un collegamento intero — i due capi, le reti,
+  // le linee spuntate — per una parola storta sarebbe peggio del male.
+  // ⑲ `pptp` è un incapsulamento VERO di NetBox tenuto deliberatamente FUORI dal
+  // nostro vocabolario: è l'esempio giusto, non un nome che nessuno scriverebbe.
+  for (const brutto of ['pptp', 'IPSEC', 'eolo', undefined]) {
+    const l = normalizeInterSiteLink({ id: 'l', aSiteId: 'a', bSiteId: 'b', tunnel: brutto });
+    assert.ok(l, 'il collegamento non si perde per una parola storta');
+    assert.strictEqual(l.tunnel, null, 'e la parola storta non entra: resta «non dichiarato»');
+  }
+  // Ma un collegamento senza IDENTITÀ o senza due capi diversi resta rifiutato:
+  // quello non è un collegamento inter-sede, ed è un'altra cosa.
+  assert.strictEqual(normalizeInterSiteLink({ aSiteId: 'a', bSiteId: 'b' }), null);
+  assert.strictEqual(normalizeInterSiteLink({ id: 'l', aSiteId: 'a', bSiteId: 'a' }), null);
+});
+
+test('㉔ MIGRAZIONE: un `kind` di ieri finisce sull\'asse giusto, e l\'altro resta VUOTO', () => {
+  // ⚠️ L'asse che il vecchio campo non nominava resta `null`, non un valore di
+  // comodo: un `kind: 'ipsec'` diceva «c'è un IPsec» e NON diceva su cosa
+  // corresse. Scrivere `transport: 'internet'` sarebbe inventare — e quel caso,
+  // l'IPsec sopra l'MPLS, è esattamente ciò che questo cambio rende scrivibile.
+  const t = normalizeInterSiteLink({ id: 'l', aSiteId: 'a', bSiteId: 'b', kind: 'ipsec' });
+  assert.strictEqual(t.tunnel, 'ipsec');
+  assert.strictEqual(t.transport, null, 'il vecchio campo non diceva su cosa correva');
+
+  const c = normalizeInterSiteLink({ id: 'l', aSiteId: 'a', bSiteId: 'b', kind: 'mpls' });
+  assert.strictEqual(c.transport, 'mpls');
+  assert.strictEqual(c.tunnel, null, 'e non dichiarava «nessun tunnel»: non poteva dirlo');
+
+  // ⑨ Il vecchio `kindLabel` è del TRASPORTO: un `other` era una cosa che PORTA
+  // il collegamento — un servizio d'operatore senza nome, un ponte radio.
+  const o = normalizeInterSiteLink({ id: 'l', aSiteId: 'a', bSiteId: 'b', kind: 'other', kindLabel: 'ponte radio' });
+  assert.strictEqual(o.transport, 'other');
+  assert.strictEqual(o.transportLabel, 'ponte radio');
+
+  // Idempotente: rileggere un documento GIÀ migrato non lo tocca.
+  assert.deepStrictEqual(normalizeInterSiteLink(t), t);
+  // E se i due assi sono già scritti, `kind` non li sovrascrive.
+  const due = normalizeInterSiteLink({ id: 'l', aSiteId: 'a', bSiteId: 'b',
+    kind: 'ipsec', transport: 'mpls', tunnel: 'gre' });
+  assert.strictEqual(due.transport, 'mpls');
+  assert.strictEqual(due.tunnel, 'gre');
+});
+
+test('㉔ i DUE assi insieme: «IPsec sopra MPLS», che prima non si poteva scrivere', () => {
+  const l = normalizeInterSiteLink({
+    id: 'l', aSiteId: 'a', bSiteId: 'b', transport: 'mpls', tunnel: 'ipsec',
+    vrf: 'CORP', service: 'L3VPN', phase1Name: 'P1',
+  });
+  assert.strictEqual(l.transport, 'mpls');
+  assert.strictEqual(l.tunnel, 'ipsec');
+  // e i campi propri dei DUE assi convivono, perché sono di due cose diverse
+  assert.strictEqual(l.vrf, 'CORP');
+  assert.strictEqual(l.phase1Name, 'P1');
+});
+
+test('㉔ `none` non è `null`: «guardato, non c\'è» ≠ «non l\'ho scritto»', () => {
+  // È la stessa distinzione di `state` (③): un MPLS in chiaro è una SCELTA.
+  const n = normalizeInterSiteLink({ id: 'l', aSiteId: 'a', bSiteId: 'b', transport: 'mpls', tunnel: 'none' });
+  assert.strictEqual(n.tunnel, 'none');
+  const v = normalizeInterSiteLink({ id: 'l', aSiteId: 'a', bSiteId: 'b', transport: 'mpls' });
+  assert.strictEqual(v.tunnel, null);
 });
 
 test('un collegamento senza id o senza uno dei due capi non entra', () => {
@@ -229,7 +380,7 @@ test('ogni kind porta i suoi campi propri, e solo quelli', () => {
     endpointB: { deviceRef: 'fw-rm', peerIp: '198.51.100.2' },
     phase1Name: 'HQ-to-RM', ikeVersion: 2,
   }));
-  assert.strictEqual(l.kind, 'ipsec');
+  assert.strictEqual(l.tunnel, 'ipsec');
   assert.deepStrictEqual(l.endpointA, { deviceRef: 'fw-hq', deviceName: null, peerIp: '198.51.100.1' });
   assert.strictEqual(l.phase1Name, 'HQ-to-RM');
   assert.strictEqual(l.ikeVersion, 2);
@@ -279,8 +430,8 @@ test('⑨ un collegamento che non è nessuno dei cinque si documenta come `other
   const l = normalizeInterSiteLink({
     id: 'l1', aSiteId: 'hq', bSiteId: 'na', kind: 'other', kindLabel: 'FWA punto-punto',
   });
-  assert.strictEqual(l.kind, 'other');
-  assert.strictEqual(l.kindLabel, 'FWA punto-punto');
+  assert.strictEqual(l.transport, 'other');
+  assert.strictEqual(l.transportLabel, 'FWA punto-punto');
 });
 
 test('⑨ `other` è un collegamento come gli altri: capi, reach e stato ci sono tutti', () => {
@@ -323,7 +474,7 @@ test('⑪ un collegamento ha un NOME, e non è la sua natura', () => {
     name: '  GRE-LAB ', kindLabel: 'GRE',
   });
   assert.strictEqual(l.name, 'GRE-LAB');
-  assert.strictEqual(l.kindLabel, 'GRE');
+  assert.strictEqual(l.transportLabel, 'GRE');
   // Vale per OGNI natura, non solo per `other`.
   for (const kind of ['ipsec', 'mpls', 'vpls', 'sdwan', 'directLink']) {
     assert.strictEqual(normalizeInterSiteLink({ id: 'l', aSiteId: 'a', bSiteId: 'b', kind, name: 'X' }).name, 'X', kind);
@@ -381,14 +532,14 @@ test('⑳ l\'SD-WAN non perde niente: overlay suo, linee comuni', () => {
 });
 
 test('⑨ l\'etichetta può mancare: «non so come chiamarlo» è già un\'informazione', () => {
-  assert.strictEqual(normalizeInterSiteLink({ id: 'l', aSiteId: 'a', bSiteId: 'b', kind: 'other' }).kindLabel, null);
+  assert.strictEqual(normalizeInterSiteLink({ id: 'l', aSiteId: 'a', bSiteId: 'b', kind: 'other' }).transportLabel, null);
 });
 
 test('⑨ la porta di servizio NON apre il vocabolario: un kind inventato resta rifiutato', () => {
   // È la differenza fra `other` e una stringa libera: quest'ultima avrebbe rotto
   // in silenzio traduzioni, icone e ogni futura logica per-natura.
-  assert.strictEqual(normalizeInterSiteLink({ id: 'l', aSiteId: 'a', bSiteId: 'b', kind: 'eolo' }), null);
-  assert.strictEqual(normalizeInterSiteLink({ id: 'l', aSiteId: 'a', bSiteId: 'b', kind: 'Other' }), null);
+  assert.strictEqual(normalizeInterSiteLink({ id: 'l', aSiteId: 'a', bSiteId: 'b', kind: 'eolo' }).transport, null);
+  assert.strictEqual(normalizeInterSiteLink({ id: 'l', aSiteId: 'a', bSiteId: 'b', kind: 'Other' }).transport, null);
 });
 
 // ── ⑧ L'apparato di un capo: riferimento OPPURE nome scritto a mano ────────
@@ -453,10 +604,13 @@ test('② reach canonicalizza le subnet dei due capi, mantenendo l\'origine', ()
 
 test('③ reach è lo stesso concetto su ogni kind (su un ipsec È l\'encryption domain)', () => {
   const r = factDeclared({ a: ['10.1.0.0/24'], b: ['10.2.0.0/24'] });
-  for (const kind of INTER_SITE_KINDS) {
-    const l = normalizeInterSiteLink({ id: 'l', aSiteId: 'hq', bSiteId: 'rm', kind, reach: r });
-    assert.deepStrictEqual(linkReach(l), { a: ['10.1.0.0/24'], b: ['10.2.0.0/24'] },
-      `reach deve leggersi allo stesso modo su ${kind}`);
+  // ㉔ Su ogni valore di TUTT'E DUE gli assi: `reach` è una domanda sola.
+  for (const [asse, voci] of [['transport', INTER_SITE_TRANSPORTS], ['tunnel', INTER_SITE_TUNNELS]]) {
+    for (const v of voci) {
+      const l = normalizeInterSiteLink({ id: 'l', aSiteId: 'hq', bSiteId: 'rm', [asse]: v, reach: r });
+      assert.deepStrictEqual(linkReach(l), { a: ['10.1.0.0/24'], b: ['10.2.0.0/24'] },
+        `reach deve leggersi allo stesso modo su ${asse}=${v}`);
+    }
   }
 });
 
@@ -515,7 +669,10 @@ const ORG = {
   links: [
     { id: 'hq-rm', aSiteId: 'hq', bSiteId: 'rm', kind: 'ipsec', topology: 'hub-and-spoke', state: factMeasured('up', AT), reach: factDeclared({ a: ['10.1.0.0/24'], b: ['10.2.0.0/24'] }) },
     { id: 'hq-na', aSiteId: 'hq', bSiteId: 'na', kind: 'ipsec', topology: 'hub-and-spoke', state: factDeclared('up') },
-    { id: 'nope', aSiteId: 'hq', bSiteId: 'rm', kind: 'pptp' },
+    // ㉔ Ciò che NON è modellabile non è più «una natura che non conosco» — quella
+    // entra come «non dichiarata» — ma un collegamento senza IDENTITÀ: senza id
+    // niente a valle può indicizzarlo, e la mappa ne disegnerebbe uno a caso.
+    { aSiteId: 'hq', bSiteId: 'rm', tunnel: 'ipsec' },
   ],
 };
 
@@ -629,7 +786,7 @@ test('un id ripetuto cade anche fra gli uplink e fra i collegamenti', () => {
   assert.strictEqual(org.uplinks.length, 1);
   assert.strictEqual(org.uplinks[0].provider, 'TIM');
   assert.strictEqual(org.links.length, 1);
-  assert.strictEqual(org.links[0].kind, 'ipsec');
+  assert.strictEqual(org.links[0].tunnel, 'ipsec');
 });
 
 test('⚠️ e NIENTE cade quando gli id sono diversi: più collegamenti fra le stesse due sedi restano', () => {

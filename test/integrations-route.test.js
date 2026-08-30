@@ -523,13 +523,15 @@ test('POST /wan → anche i SERVIZI L2 e i TUNNEL, che nei circuiti non ci sono'
 
   // Il vocabolario di NetBox qui è CHIUSO: `vpls` e `ipsec-tunnel` si traducono,
   // non si indovinano (a differenza del tipo di un circuito, che è testo libero).
-  assert.equal(vpls.kind, 'vpls');
-  assert.equal(ipsec.kind, 'ipsec');
+  assert.equal(vpls.transport, 'vpls');
+  assert.equal(ipsec.tunnel, 'ipsec');
   assert.deepEqual([vpls.aNetboxSiteName, vpls.bNetboxSiteName].sort(), ['Branch', 'HQ']);
   assert.deepEqual([ipsec.aDeviceName, ipsec.bDeviceName].sort(), ['BR-RTR-01', 'SW-CORE-01']);
 
-  // I ruoli dicono la forma; e gli indirizzi esterni si INCROCIANO.
-  assert.equal(ipsec.topology, 'hub-and-spoke');
+  // ㉒ Il ruolo delle terminazioni NON diventa una forma sul collegamento: la
+  // forma d'insieme e' una proprieta' dell'INSIEME dei collegamenti di un
+  // servizio, non di uno. Gli indirizzi esterni invece si INCROCIANO.
+  assert.equal(ipsec.topology, undefined);
   const hq = ipsec.aNetboxSiteName === 'HQ' ? 'a' : 'b';
   assert.equal(ipsec[hq + 'PeerIp'], '198.51.100.9', 'il peer di HQ è l\'indirizzo della filiale');
 
@@ -566,7 +568,7 @@ test('POST /wan → il censimento dei tipi, con la natura decisa per identità',
   assert.equal(r.status, 200);
   const j = await r.json();
   const mpls = j.types.find(x => x.slug === 'mpls');
-  assert.equal(mpls.kind, 'mpls', 'lo slug È la natura: nessuna configurazione di mezzo');
+  assert.equal(mpls.transport, 'mpls', 'lo slug È la natura: nessuna configurazione di mezzo');
   const ftth = j.types.find(x => x.slug === 'ftth');
-  assert.equal(ftth.kind, 'other', 'FTTH non è una nostra natura, e non ci si avvicina');
+  assert.equal(ftth.transport, 'other', 'FTTH non è una nostra natura, e non ci si avvicina');
 });

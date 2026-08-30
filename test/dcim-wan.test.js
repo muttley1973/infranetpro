@@ -73,7 +73,7 @@ test('③ due capi su due SEDI diverse → è un collegamento, non due uplink', 
   assert.equal(l.provider, 'CenturyLink');
   // ⑤ la natura NON si deduce dal nome del tipo: quello è testo libero
   // dell'istanza, e riconoscerlo per stringa funzionerebbe solo su questa.
-  assert.equal(l.kindLabel, 'Dark Fiber');
+  assert.equal(l.transportLabel, 'Dark Fiber');
 });
 
 test('⑥ il cavo dalla terminazione dice QUALE porta di quale apparato è il capo WAN', () => {
@@ -273,46 +273,55 @@ const tipo = (name, slug) => fraSedi({ type: slug ? { id: 9, name, slug } : { id
 
 test('⑱ slug che È una natura: quella natura, e l\'etichetta sparisce', () => {
   const r = circuitsToWan({ circuits: [tipo('MPLS', 'mpls')] }, { siteIds: [30, 31] });
-  assert.equal(r.links[0].kind, 'mpls');
-  assert.equal(r.links[0].kindLabel, null,
+  assert.equal(r.links[0].transport, 'mpls');
+  assert.equal(r.links[0].transportLabel, null,
     'con una natura vera l\'etichetta sarebbe la stessa cosa detta due volte');
 });
 
 test('⑱ si confronta il TERMINE, non l\'ortografia dello slug', () => {
   // Lo slug lo costruisce NetBox: da «SD-WAN» tira fuori sd-wan, che è la
   // stessa parola con la punteggiatura del suo generatore.
-  assert.equal(circuitsToWan({ circuits: [tipo('SD-WAN', 'sd-wan')] }, { siteIds: [30, 31] }).links[0].kind, 'sdwan');
-  assert.equal(circuitsToWan({ circuits: [tipo('Direct link', 'direct-link')] }, { siteIds: [30, 31] }).links[0].kind, 'directLink');
+  assert.equal(circuitsToWan({ circuits: [tipo('Direct link', 'direct-link')] }, { siteIds: [30, 31] }).links[0].transport, 'directLink');
+  assert.equal(circuitsToWan({ circuits: [tipo('Internet Access', 'internet')] }, { siteIds: [30, 31] }).links[0].transport, 'internet');
+  // ㉔ ⚠️ `sd-wan` NON si riconosce più, ed è giusto: una SD-WAN è un TUNNEL —
+  // un overlay che corre sopra a un trasporto — e un CIRCUITO è ciò su cui si
+  // corre. Un tipo di circuito chiamato «SD-WAN» è il nome commerciale del
+  // prodotto di un operatore, e leggerlo come il tunnel direbbe una cosa per
+  // un'altra: resta `other` con le sue parole, che è ciò che il software fa
+  // quando sa di non sapere.
+  const sd = circuitsToWan({ circuits: [tipo('SD-WAN', 'sd-wan')] }, { siteIds: [30, 31] }).links[0];
+  assert.equal(sd.transport, 'other');
+  assert.equal(sd.transportLabel, 'SD-WAN');
 });
 
 test('⑱ tutto il resto resta «altro», con il nome del tipo per etichetta', () => {
-  for (const [nome, slug] of [['Dark Fiber', 'dark-fiber'], ['Internet Access', 'internet'], ['Fibra spenta', 'fibra-spenta']]) {
+  for (const [nome, slug] of [['Dark Fiber', 'dark-fiber'], ['Fibra spenta', 'fibra-spenta']]) {
     const l = circuitsToWan({ circuits: [tipo(nome, slug)] }, { siteIds: [30, 31] }).links[0];
-    assert.equal(l.kind, 'other', slug + ' non è una nostra natura: avvicinarlo alla più somigliante sarebbe dire una cosa per un\'altra');
-    assert.equal(l.kindLabel, nome);
+    assert.equal(l.transport, 'other', slug + ' non è una nostra natura: avvicinarlo alla più somigliante sarebbe dire una cosa per un\'altra');
+    assert.equal(l.transportLabel, nome);
   }
 });
 
 test('⭐ ⑱ senza slug NON si giudica dal nome (o funzionerebbe solo in inglese)', () => {
   // È il paletto vendor-neutral in una riga: il nome dice «MPLS», e non basta.
   const l = circuitsToWan({ circuits: [tipo('MPLS')] }, { siteIds: [30, 31] }).links[0];
-  assert.equal(l.kind, 'other');
-  assert.equal(l.kindLabel, 'MPLS');
+  assert.equal(l.transport, 'other');
+  assert.equal(l.transportLabel, 'MPLS');
 });
 
 test('⑱ uno slug «other» non è una dichiarazione: resta indistinguibile dal niente', () => {
   const l = circuitsToWan({ circuits: [tipo('Altro', 'other')] }, { siteIds: [30, 31] }).links[0];
-  assert.equal(l.kind, 'other');
-  assert.equal(l.kindLabel, 'Altro');
+  assert.equal(l.transport, 'other');
+  assert.equal(l.transportLabel, 'Altro');
 });
 
 test('⭐ ⑱ il vocabolario è QUELLO vero, non una copia che diverge', () => {
-  const { INTER_SITE_KINDS } = require('../lib/inter-site.js');
-  const { KIND_TOKEN } = require('../lib/dcim-wan.js');
-  const attese = INTER_SITE_KINDS.filter(k => k !== 'other');
-  assert.deepEqual(Object.values(KIND_TOKEN).sort(), attese.slice().sort(),
+  const { INTER_SITE_TRANSPORTS } = require('../lib/inter-site.js');
+  const { TRANSPORT_TOKEN } = require('../lib/dcim-wan.js');
+  const attese = INTER_SITE_TRANSPORTS.filter(k => k !== 'other');
+  assert.deepEqual(Object.values(TRANSPORT_TOKEN).sort(), attese.slice().sort(),
     'ogni natura del modello dev\'essere riconoscibile per identità, e nessuna in più');
-  assert.ok(!Object.values(KIND_TOKEN).includes('other'));
+  assert.ok(!Object.values(TRANSPORT_TOKEN).includes('other'));
 });
 
 test('⑱ il censimento dice quali tipi ha incontrato, quanti e in che natura sono entrati', () => {
@@ -324,8 +333,8 @@ test('⑱ il censimento dice quali tipi ha incontrato, quanti e in che natura so
     ],
   }, { siteIds: [30, 31] });
   assert.deepEqual(r.types, [
-    { slug: 'dark-fiber', name: 'Dark Fiber', n: 1, nLinks: 1, kind: 'other' },
-    { slug: 'mpls', name: 'MPLS', n: 2, nLinks: 2, kind: 'mpls' },
+    { slug: 'dark-fiber', name: 'Dark Fiber', n: 1, nLinks: 1, transport: 'other' },
+    { slug: 'mpls', name: 'MPLS', n: 2, nLinks: 2, transport: 'mpls' },
   ]);
 });
 
@@ -352,7 +361,7 @@ test('⭐ ⑱ il censimento separa i circuiti dai COLLEGAMENTI: la natura si dec
   }, { siteIds: [30, 31] });
   assert.equal(r.links.length, 1);
   assert.equal(r.uplinks.length, 1);
-  assert.deepEqual(r.types, [{ slug: 'mpls', name: 'MPLS', n: 2, nLinks: 1, kind: 'mpls' }]);
+  assert.deepEqual(r.types, [{ slug: 'mpls', name: 'MPLS', n: 2, nLinks: 1, transport: 'mpls' }]);
 });
 
 test('⑱ un circuito che NON diventa niente non conta come collegamento', () => {
@@ -364,7 +373,7 @@ test('⑱ un circuito che NON diventa niente non conta come collegamento', () =>
   }, { siteIds: [30] });
   assert.equal(r.links.length, 0);
   assert.ok(r.notes.some(n => n.code === 'wan.sameSite'));
-  assert.deepEqual(r.types, [{ slug: 'mpls', name: 'MPLS', n: 1, nLinks: 0, kind: 'mpls' }]);
+  assert.deepEqual(r.types, [{ slug: 'mpls', name: 'MPLS', n: 1, nLinks: 0, transport: 'mpls' }]);
 });
 
 test('⑱ un tipo senza slug entra nel censimento con il suo nome', () => {
@@ -372,7 +381,7 @@ test('⑱ un tipo senza slug entra nel censimento con il suo nome', () => {
   // deve comunque nominare il tipo, o quel collegamento sembrerebbe venuto dal
   // nulla. La chiave è il nome, quindi due tipi omonimi restano una riga sola.
   const r = circuitsToWan({ circuits: [tipo('Fibra spenta')] }, { siteIds: [30, 31] });
-  assert.deepEqual(r.types, [{ slug: null, name: 'Fibra spenta', n: 1, nLinks: 1, kind: 'other' }]);
+  assert.deepEqual(r.types, [{ slug: null, name: 'Fibra spenta', n: 1, nLinks: 1, transport: 'other' }]);
 });
 
 // ── ⑥ La porta WAN arriva fino al modello ──────────────────────────────────

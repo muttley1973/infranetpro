@@ -17,8 +17,6 @@ const { factDeclared } = require('../lib/provenance.js');
 const reach = (a, b) => factDeclared({ a, b });
 const site = (id, role, subnets) => ({ id, name: id.toUpperCase(), role, subnets: subnets || [] });
 const ipsec = (id, a, b, r) => ({ id, aSiteId: a, bSiteId: b, kind: 'ipsec', reach: r });
-/** Lo stesso collegamento, ma che si DICHIARA hub-and-spoke. */
-const hs = (l) => Object.assign(l, { topology: 'hub-and-spoke' });
 
 // Le tre sedi da cui InfraNet è nata: Milano hub, Roma e Napoli spoke.
 const SANE = {
@@ -28,22 +26,22 @@ const SANE = {
     site('rm', 'spoke', ['10.2.0.0/24']),
     site('na', 'spoke', ['10.3.0.0/24']),
   ],
-  uplinks: [
-    { id: 'u-mi', siteId: 'mi', publicIps: factDeclared(['203.0.113.1']) },
-    { id: 'u-rm', siteId: 'rm', publicIps: factDeclared(['203.0.113.2']) },
-    { id: 'u-na', siteId: 'na', publicIps: factDeclared(['203.0.113.3']) },
-  ],
-  // I due tunnel DICHIARANO la loro forma, e concorda con i ruoli: senza,
+  // ㉑ Le tre linee dicono COME prendono l'indirizzo e a chi parlano. Senza,
   // «un modello coerente» resterebbe uno su cui un controllo non ha potuto
   // girare — che è una terza cosa, non un modello coerente.
-  // ⑳ E dicono su quali linee corrono, per lo stesso identico motivo: da quando
+  uplinks: [
+    { id: 'u-mi', siteId: 'mi', publicIps: factDeclared(['203.0.113.1']), addressing: 'static', nextHop: '203.0.113.254' },
+    { id: 'u-rm', siteId: 'rm', publicIps: factDeclared(['203.0.113.2']), addressing: 'static', nextHop: '203.0.113.253' },
+    { id: 'u-na', siteId: 'na', publicIps: factDeclared(['203.0.113.3']), addressing: 'static', nextHop: '203.0.113.252' },
+  ],
+  // ⑳ I due tunnel dicono su quali linee corrono, per lo stesso motivo: da quando
   // il controllo esiste, un modello che non lo dichiara è un modello su cui c'è
   // una domanda senza risposta. Ogni tunnel corre sulla linea dei suoi due capi,
   // che è il caso normale e non deve produrre niente.
   links: [
-    Object.assign(hs(ipsec('mi-rm', 'mi', 'rm', reach(['10.1.0.0/24', '10.3.0.0/24'], ['10.2.0.0/24']))),
+    Object.assign(ipsec('mi-rm', 'mi', 'rm', reach(['10.1.0.0/24', '10.3.0.0/24'], ['10.2.0.0/24'])),
       { underlayUplinkIds: ['u-mi', 'u-rm'] }),
-    Object.assign(hs(ipsec('mi-na', 'mi', 'na', reach(['10.1.0.0/24', '10.2.0.0/24'], ['10.3.0.0/24']))),
+    Object.assign(ipsec('mi-na', 'mi', 'na', reach(['10.1.0.0/24', '10.2.0.0/24'], ['10.3.0.0/24'])),
       { underlayUplinkIds: ['u-mi', 'u-na'] }),
   ],
 };
@@ -87,13 +85,27 @@ test('① senza collegamenti i controlli che ne hanno bisogno si registrano', ()
   assert.strictEqual(why.uplinksWithoutPublicIp, 'no-uplinks');
 });
 
-test('① senza hub dichiarato, «spoke senza hub» NON gira (non è un via libera)', () => {
+test('① con degli spoke e nessun hub, «spoke senza hub» NON gira (non è un via libera)', () => {
+  const org = clone(SANE);
+  org.sites[0].role = 'standalone';        // Milano smette di essere l'hub…
+  const a = buildInterSiteAudit(org);      // …e Roma e Napoli restano spoke
+  assert.deepStrictEqual(a.spokesWithoutHub, []);
+  assert.ok(a.notChecked.some(n => n.check === 'spokesWithoutHub' && n.reason === 'no-hub'),
+    'una lista vuota qui deve essere accompagnata dal perché');
+});
+
+test('⚠️ sedi tutte INDIPENDENTI: il controllo non gira e non si lamenta', () => {
+  // Il caso vero che l'ha fatto vedere: quattro sedi, nessuna che si dichiari
+  // spoke. Registrarsi fra i «non ho potuto» chiedeva al lettore di rimediare a
+  // una domanda che non si era mai posta — «non ho potuto guardare» e «non c'era
+  // niente da guardare» sono due cose diverse, e confonderle riempie di
+  // rimproveri l'unica lista che deve restare credibile.
   const org = clone(SANE);
   org.sites.forEach(s => { s.role = 'standalone'; });
   const a = buildInterSiteAudit(org);
   assert.deepStrictEqual(a.spokesWithoutHub, []);
-  assert.ok(a.notChecked.some(n => n.check === 'spokesWithoutHub' && n.reason === 'no-hub'),
-    'una lista vuota qui deve essere accompagnata dal perché');
+  assert.ok(!a.notChecked.some(n => n.check === 'spokesWithoutHub'),
+    'senza spoke non c\'è niente da controllare: niente lista, e nessuna nota');
 });
 
 test('① senza reach, i due controlli che la usano si dichiarano ciechi', () => {
@@ -160,7 +172,7 @@ test('un capo che punta a una sede inesistente', () => {
   org.links.push(ipsec('orfano', 'mi', 'fantasma', reach(['10.1.0.0/24'], [])));
   org.uplinks.push({ id: 'u-x', siteId: 'fantasma', publicIps: factDeclared(['203.0.113.9']) });
   const a = buildInterSiteAudit(org);
-  assert.deepStrictEqual(a.linksToUnknownSite, [{ linkId: 'orfano', kind: 'ipsec', missing: ['fantasma'] }]);
+  assert.deepStrictEqual(a.linksToUnknownSite, [{ linkId: 'orfano', missing: ['fantasma'] }]);
   assert.deepStrictEqual(a.uplinksToUnknownSite, [{ uplinkId: 'u-x', siteId: 'fantasma' }]);
 });
 
@@ -178,59 +190,6 @@ test('uno spoke collegato solo a un altro spoke non conta come agganciato', () =
   assert.deepStrictEqual(a.spokesWithoutHub.map(x => x.siteId), ['rm', 'na']);
 });
 
-// ── ⑮ la topologia del collegamento contro i ruoli dei suoi capi ───────────
-// Due frasi sulla stessa cosa, scritte in due posti. Nessuna delle due, da
-// sola, sembra sbagliata: è per questo che serve un controllo.
-
-test('⑮ un hub-and-spoke fra due SPOKE: una delle due frasi è falsa', () => {
-  const org = clone(SANE);
-  org.links.push(hs(ipsec('rm-na', 'rm', 'na', reach(['10.2.0.0/24'], ['10.3.0.0/24']))));
-  const a = buildInterSiteAudit(org);
-  assert.deepStrictEqual(a.linkTopologyVsRoles, [{ linkId: 'rm-na', kind: 'ipsec', role: 'spoke' }]);
-});
-
-test('⑮ un hub-and-spoke fra due HUB: due centri non fanno un centro', () => {
-  const org = clone(SANE);
-  org.sites[2].role = 'hub';                       // na diventa il secondo datacenter
-  org.links[1] = hs(org.links[1]);                 // e mi-na si dichiara hub-and-spoke
-  const a = buildInterSiteAudit(org);
-  assert.deepStrictEqual(a.linkTopologyVsRoles.map(x => [x.linkId, x.role]), [['mi-na', 'hub']]);
-});
-
-test('⑮ un hub e uno spoke: non c-è niente da dire', () => {
-  const a = buildInterSiteAudit(SANE);   // SANE dichiara già hub-and-spoke
-  assert.deepStrictEqual(a.linkTopologyVsRoles, []);
-  assert.ok(!a.notChecked.some(n => n.check === 'linkTopologyVsRoles'),
-    'il controllo ha potuto girare: non deve dichiararsi cieco');
-});
-
-test('⑮ su una MAGLIA i ruoli non c-entrano, e non si inventa una contraddizione', () => {
-  const org = clone(SANE);
-  org.links.forEach(l => { delete l.topology; });   // nessuno si dichiara hub-and-spoke
-  org.links.push(Object.assign(ipsec('rm-na', 'rm', 'na', reach(['10.2.0.0/24'], ['10.3.0.0/24'])), { topology: 'mesh' }));
-  const a = buildInterSiteAudit(org);
-  assert.deepStrictEqual(a.linkTopologyVsRoles, []);
-  // e lo dice: nessun collegamento si dichiara hub-and-spoke, quindi è cieco
-  assert.ok(a.notChecked.some(n => n.check === 'linkTopologyVsRoles' && n.reason === 'no-topology'));
-});
-
-test('⑮ un capo `standalone` NON accusa: è anche il ripiego di un ruolo mai scritto', () => {
-  const org = clone(SANE);
-  org.sites.push(site('bz', 'standalone', ['10.4.0.0/24']));
-  org.links = [hs(ipsec('mi-bz', 'mi', 'bz', reach(['10.1.0.0/24'], ['10.4.0.0/24'])))];
-  const a = buildInterSiteAudit(org);
-  assert.deepStrictEqual(a.linkTopologyVsRoles, []);
-  assert.ok(a.notChecked.some(n => n.check === 'linkTopologyVsRoles' && n.reason === 'no-roles'),
-    'una lista vuota qui deve dire PERCHÉ è vuota');
-});
-
-test('⑮ senza collegamenti il controllo si dichiara cieco per quel motivo', () => {
-  const org = clone(SANE);
-  org.links = [];
-  const a = buildInterSiteAudit(org);
-  assert.ok(a.notChecked.some(n => n.check === 'linkTopologyVsRoles' && n.reason === 'no-links'));
-});
-
 // ── ⑳ la linea su cui un collegamento dice di correre, contro le sue sedi ──
 // Terza coppia di frasi che si contraddicono senza che nessuna delle due, presa
 // da sola, sembri sbagliata: la linea appartiene a una sede, il collegamento a
@@ -241,7 +200,7 @@ test('⭐ ⑳ una linea di una TERZA sede non può portare quel collegamento', (
   org.links[0].underlayUplinkIds = ['u-mi', 'u-na'];   // mi↔rm che corre su una linea di NAPOLI
   const a = buildInterSiteAudit(org);
   assert.deepStrictEqual(a.underlaysNotAtEnds,
-    [{ linkId: 'mi-rm', kind: 'ipsec', uplinkId: 'u-na', siteId: 'na' }]);
+    [{ linkId: 'mi-rm', uplinkId: 'u-na', siteId: 'na' }]);
   // ⚠️ La linea GIUSTA dello stesso collegamento non viene accusata insieme.
   assert.strictEqual(a.underlaysNotAtEnds.length, 1);
 });
@@ -254,7 +213,7 @@ test('⭐ ⑳ e una linea che non esiste affatto: stessa lista, `siteId` a null'
   org.links[1].underlayUplinkIds = ['u-mi', 'u-sparita'];
   const a = buildInterSiteAudit(org);
   assert.deepStrictEqual(a.underlaysNotAtEnds,
-    [{ linkId: 'mi-na', kind: 'ipsec', uplinkId: 'u-sparita', siteId: null }]);
+    [{ linkId: 'mi-na', uplinkId: 'u-sparita', siteId: null }]);
 });
 
 test('⑳ il caso normale — la linea di un capo — non produce niente', () => {
@@ -298,15 +257,6 @@ test('⭐ ⑳ un capo che punta a una sede inesistente NON viene accusato due vo
 test('⑳ è un-INCOERENZA, non una lacuna: entra nel conto giusto', () => {
   const org = clone(SANE);
   org.links[0].underlayUplinkIds = ['u-na'];
-  const prima = interSiteAuditCounts(buildInterSiteAudit(SANE));
-  const dopo = interSiteAuditCounts(buildInterSiteAudit(org));
-  assert.strictEqual(dopo.problems, prima.problems + 1);
-  assert.strictEqual(dopo.gaps, prima.gaps);
-});
-
-test('⑮ è un-INCOERENZA, non una lacuna: entra nel conto giusto', () => {
-  const org = clone(SANE);
-  org.links.push(hs(ipsec('rm-na', 'rm', 'na', reach(['10.2.0.0/24'], ['10.3.0.0/24']))));
   const prima = interSiteAuditCounts(buildInterSiteAudit(SANE));
   const dopo = interSiteAuditCounts(buildInterSiteAudit(org));
   assert.strictEqual(dopo.problems, prima.problems + 1);
@@ -360,6 +310,48 @@ test('② incoerenze, lacune e non-esaminati si contano SEPARATAMENTE', () => {
   assert.strictEqual(c.problems, 2);
   assert.ok(c.gaps >= 1);
   assert.strictEqual(c.notChecked, 0);
+});
+
+// ── ㉑ una linea STATICA che non dice a chi parla ──────────────────────────
+// Non è una contraddizione: è una riga che manca. Ma è LA riga — con
+// l'indirizzo e senza il gateway la scheda di ripristino sembra piena, e chi
+// riconfigura il router alle tre di notte se ne accorge in fondo alla pagina.
+
+test('㉑ una linea statica senza gateway è una LACUNA, e dice quale linea', () => {
+  const org = clone(SANE);
+  delete org.uplinks[1].nextHop;
+  const a = buildInterSiteAudit(org);
+  assert.deepStrictEqual(a.staticUplinksWithoutNextHop, [{ uplinkId: 'u-rm', siteId: 'rm' }]);
+  const c = interSiteAuditCounts(a);
+  assert.strictEqual(c.problems, 0, 'niente si contraddice: manca una riga');
+  assert.strictEqual(c.gaps, 1);
+});
+
+test('㉑ su DHCP e PPPoE il gateway lo dà la linea: non si accusa', () => {
+  const org = clone(SANE);
+  org.uplinks[1].addressing = 'dhcp'; delete org.uplinks[1].nextHop;
+  org.uplinks[2].addressing = 'pppoe'; delete org.uplinks[2].nextHop;
+  const a = buildInterSiteAudit(org);
+  assert.deepStrictEqual(a.staticUplinksWithoutNextHop, [],
+    'accusare qui vorrebbe dire segnalare una documentazione giusta');
+});
+
+test('㉑ un indirizzamento MAI SCRITTO non è «statico»: non accusa, e lo dice', () => {
+  // Un ripiego che accusa è un ripiego che afferma: ogni linea appena creata
+  // comincerebbe in colpa per un campo che nessuno ha ancora compilato.
+  const org = clone(SANE);
+  for (const u of org.uplinks) { delete u.addressing; delete u.nextHop; }
+  const a = buildInterSiteAudit(org);
+  assert.deepStrictEqual(a.staticUplinksWithoutNextHop, []);
+  assert.ok(a.notChecked.some(n => n.check === 'staticUplinksWithoutNextHop' && n.reason === 'no-static-uplink'),
+    'una lista vuota deve dire PERCHÉ è vuota');
+});
+
+test('㉑ senza nessuna linea WAN il controllo si dichiara cieco', () => {
+  const org = clone(SANE);
+  org.uplinks = [];
+  const a = buildInterSiteAudit(org);
+  assert.ok(a.notChecked.some(n => n.check === 'staticUplinksWithoutNextHop' && n.reason === 'no-uplinks'));
 });
 
 test('② un controllo NON eseguito non entra né in problems né in gaps', () => {

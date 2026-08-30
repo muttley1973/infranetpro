@@ -33,16 +33,22 @@ const DICT = i18n._i18nDict;
 /**
  * Le chiavi che il pannello nomina. Due forme:
  *   · complete   — `t('org.tabMap')`, `data-i18n="org.title"`;
- *   · a pezzi    — `t('org.kind.' + e.kind)`, dove la coda è un vocabolario
+ *   · a pezzi    — `t('org.tunnel.' + l.tunnel)`, dove la coda è un vocabolario
  *                  CHIUSO: il prefisso si espande con tutti i suoi valori.
  * Espandere il vocabolario invece di elencare le chiavi a mano è ciò che rende
  * la guardia utile domani: aggiungere un `kind` al modello fa arrossare questo
  * test finché non ha la sua parola in tutt'e due le lingue.
  */
 const CODE = {
-  'org.kind.': IS.INTER_SITE_KINDS,
+  // ㉔ DUE vocabolari, non uno: su cosa viaggia, e cosa ci corre sopra.
+  'org.transport.': IS.INTER_SITE_TRANSPORTS,
+  'org.tunnel.': IS.INTER_SITE_TUNNELS,
   'org.role.': IS.SITE_ROLES,
-  'org.topo.': IS.INTER_SITE_TOPOLOGIES,
+  'org.addr.': IS.WAN_ADDRESSING,
+  // ㉕ I suggerimenti del tipo di servizio: non è un vocabolario CHIUSO (il campo
+  // resta libero), ma le voci che la tendina offre devono avere le loro parole
+  // in tutt'e due le lingue come tutte le altre.
+  'org.svc.': IS.WAN_SERVICE_TYPES,
   // Le tre origini dell'envelope, chieste all'envelope: `provenance.js` non
   // esporta un elenco, ma esporta i tre costruttori, e l'origine è ciò che
   // ciascuno scrive. Leggerla così vuol dire che una quarta origine — se mai
@@ -164,7 +170,7 @@ test('la sonda regge: una chiave inventata verrebbe vista', () => {
   // un refactor), i tre test sopra passerebbero sempre e non guarderebbero più
   // niente. Questo è il loro controllo di vita.
   assert.ok(chiaviNominate().has('org.title'), 'l\'estrattore non vede più le chiavi del sorgente');
-  assert.ok(chiaviAttese().has('org.kind.ipsec'), 'i prefissi non si espandono più sul vocabolario');
+  assert.ok(chiaviAttese().has('org.tunnel.ipsec'), 'i prefissi non si espandono più sul vocabolario');
   assert.ok(chiaviAttese().size > 60, 'trovate troppe poche chiavi: l\'estrattore è cieco');
   // Una chiave con una CIFRA è il caso che l'estrattore aveva davvero perso.
   assert.ok(chiaviAttese().has('org.phase1'), 'le chiavi con una cifra tornano invisibili');

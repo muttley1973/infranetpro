@@ -32,8 +32,11 @@ test('① un VPLS di NetBox diventa un collegamento `vpls` — il vocabolario è
   }, { siteIds: [1], siteOf });
   assert.equal(out.links.length, 1);
   const l = out.links[0];
-  assert.equal(l.kind, 'vpls');
-  assert.equal(l.kindLabel, null, 'una natura vera non porta l\'etichetta di `other`');
+  // ㉔ Un servizio L2 di NetBox è un TRASPORTO: è ciò SU CUI il collegamento
+  // viaggia. L'asse lo dice la sorgente, non un indovinello.
+  assert.equal(l.transport, 'vpls');
+  assert.equal(l.tunnel, null, 'un servizio L2 non dice niente su cosa ci corra sopra');
+  assert.equal(l.transportLabel, null, 'una natura vera non porta l\'etichetta di `other`');
   assert.equal(l.name, 'VPLS-VR-TN');
   assert.deepEqual([l.aNetboxSiteName, l.bNetboxSiteName], ['Verona HQ', 'Trento Filiale']);
   assert.deepEqual([l.aDeviceName, l.bDeviceName], ['VR-CORE-SW', 'TN-SW-01']);
@@ -46,8 +49,8 @@ test('① un tipo L2 che il nostro vocabolario non ha entra come `other`, col NO
     l2vpns: [{ id: 1, name: 'EPL-LAB', type: { value: 'epl', label: 'EPL' }, status: { value: 'active' } }],
     l2vpnTerminations: [l2t(1, 1, itf(10, 'a', VR)), l2t(2, 1, itf(11, 'b', TN))],
   }, { siteIds: [1], siteOf });
-  assert.equal(out.links[0].kind, 'other');
-  assert.equal(out.links[0].kindLabel, 'EPL', 'che cos\'È');
+  assert.equal(out.links[0].transport, 'other');
+  assert.equal(out.links[0].transportLabel, 'EPL', 'che cos\'È');
   assert.equal(out.links[0].name, 'EPL-LAB', 'come si CHIAMA — e sono due cose diverse');
 });
 
@@ -62,10 +65,14 @@ test('① ⑲ ogni incapsulamento che il vocabolario ha diventa la sua natura', 
       tun(7, 'T7', 'ip-ip', 'IP-in-IP'), tun(8, 'T8', 'pptp', 'PPTP')],
     tunnelTerminations: [1, 2, 3, 4, 5, 6, 7, 8].flatMap(t => [tunt(t * 10, t, itf(10, 'a', VR), 'peer'), tunt(t * 10 + 1, t, itf(11, 'b', TN), 'peer')]),
   }, { siteIds: [1], siteOf });
-  assert.deepEqual(out.links.map(l => l.kind),
+  // ㉔ Un tunnel di NetBox finisce sull'asse TUNNEL, e il trasporto resta muto:
+  // NetBox non dice su cosa quel tunnel corra, e inventarlo sarebbe proprio il
+  // difetto che questo cambio esiste per togliere.
+  assert.deepEqual(out.links.map(l => l.tunnel),
     ['ipsec', 'ipsec', 'gre', 'wireguard', 'openvpn', 'l2tp', 'other', 'other']);
-  assert.deepEqual(out.links.slice(6).map(l => l.kindLabel), ['IP-in-IP', 'PPTP']);
-  assert.deepEqual(out.links.slice(0, 6).map(l => l.kindLabel), [null, null, null, null, null, null],
+  assert.deepEqual(out.links.map(l => l.transport), new Array(8).fill(null));
+  assert.deepEqual(out.links.slice(6).map(l => l.tunnelLabel), ['IP-in-IP', 'PPTP']);
+  assert.deepEqual(out.links.slice(0, 6).map(l => l.tunnelLabel), [null, null, null, null, null, null],
     'con una natura vera l\'etichetta sarebbe la stessa cosa detta due volte');
 });
 
@@ -95,15 +102,23 @@ test('la maschera non viaggia: un capo di tunnel è un INDIRIZZO', () => {
   assert.equal(out.links[0].bPeerIp, '2001:db8::1');
 });
 
-test('⑤ hub + spoke → `hub-and-spoke`; due `peer` NON diventano una maglia', () => {
+test('㉒ il RUOLO delle terminazioni non diventa una forma sul collegamento', () => {
+  // Prima di qui l'import leggeva hub+spoke sui due capi e scriveva
+  // `topology: 'hub-and-spoke'` sul collegamento. È già un'interpretazione — la
+  // forma d'insieme è una proprietà dell'INSIEME dei collegamenti di un
+  // servizio, non di uno — e a valle serviva solo a un controllo che
+  // confrontava quella parola con i ruoli delle SEDI, cioè a rincorrere una
+  // copia. Il campo non c'è più, e questo banco tiene ferma la sua assenza.
   const base = (term) => vpnToLinks({
     tunnels: [{ id: 1, name: 'T', status: { value: 'active' }, encapsulation: { value: 'ipsec-tunnel' } }],
     tunnelTerminations: term,
   }, { siteIds: [1], siteOf }).links[0];
-  assert.equal(base([tunt(1, 1, itf(10, 'a', VR), 'hub'), tunt(2, 1, itf(11, 'b', TN), 'spoke')]).topology, 'hub-and-spoke');
-  // «maglia» è un'affermazione sull'INSIEME dei collegamenti: due capi non la
-  // sostengono, e dedurla da qui la scriverebbe su ogni tunnel punto-punto.
-  assert.equal(base([tunt(1, 1, itf(10, 'a', VR), 'peer'), tunt(2, 1, itf(11, 'b', TN), 'peer')]).topology, null);
+  const conRuoli = base([tunt(1, 1, itf(10, 'a', VR), 'hub'), tunt(2, 1, itf(11, 'b', TN), 'spoke')]);
+  assert.equal(conRuoli.topology, undefined, 'nessuna forma dedotta sul singolo collegamento');
+  // e il collegamento entra lo stesso, con tutto il resto: togliere un campo
+  // non deve far cadere una riga (è la trappola del `case` mancante).
+  assert.equal(conRuoli.tunnel, 'ipsec');
+  assert.equal(conRuoli.name, 'T');
 });
 
 test('③ ciò che non è ATTIVO non entra, e si dice con il suo stato', () => {

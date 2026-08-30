@@ -23,7 +23,9 @@ function orgBase(extra) {
     ],
     uplinks: [
       { id: 'u1', siteId: 'mi', provider: 'Fastweb', serviceType: 'Fibra', circuitId: 'FW-1', cirMbps: 1000,
-        slaRef: 'SLA-4H', publicIps: factDeclared(['203.0.113.10']), wanIfRef: factMeasured('Gi0/0/0', '2026-08-20T10:00:00Z') },
+        addressing: 'static', nextHop: '203.0.113.9', deliveryVlan: 835, mtu: 1492,
+        supportRef: 'https://noc.example/ticket',
+        publicIps: factDeclared(['203.0.113.10']), wanIfRef: factMeasured('Gi0/0/0', '2026-08-20T10:00:00Z') },
       { id: 'u2', siteId: 'rm', provider: null, serviceType: 'FTTC', circuitId: null, cirMbps: null },
     ],
     links: [
@@ -118,7 +120,7 @@ test('⭐ ⑥ un collegamento verso una sede che non esiste NON si perde', () =>
   assert.deepEqual(R.links[0].missingSites, ['ba']);
   assert.equal(R.totals.linksUndrawable, 1);
   // ⑨ `other` è ignoranza DICHIARATA: l'etichetta di chi documenta arriva intera.
-  assert.equal(R.links[0].kindLabel, 'FWA punto-punto');
+  assert.equal(R.links[0].transportLabel, 'FWA punto-punto');
 });
 
 test('⑦ l\'underlay di un SD-WAN: un id che non risolve resta in elenco, marcato', () => {

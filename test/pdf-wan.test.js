@@ -43,12 +43,17 @@ function org(extra) {
     ],
     uplinks: [
       { id: 'u1', siteId: 'mi', provider: 'Fastweb', serviceType: 'Fibra', circuitId: 'FW-88213',
-        cirMbps: 1000, slaRef: 'SLA-4H', publicIps: factDeclared(['203.0.113.10']),
+        cirMbps: 1000, addressing: 'static', nextHop: '203.0.113.9', deliveryVlan: 835,
+        mtu: 1492, supportRef: 'https://noc.example/ticket',
+        publicIps: factDeclared(['203.0.113.10']),
         wanIfRef: factMeasured('Gi0/0/0', '2026-08-20T10:00:00Z') },
     ],
     links: [
       { id: 'l1', aSiteId: 'mi', bSiteId: 'rm', kind: 'ipsec', name: 'IPSEC-MI-RM',
         state: factDeclared('up'), ikeVersion: 2, phase1Name: 'MI-RM-P1',
+        phase1Proposal: 'aes256-sha256-modp2048 28800s',
+        phase2Proposal: 'esp-aes256-sha256 PFS14 3600s',
+        pskRef: 'Bitwarden / VPN / MI-RM',
         reach: factDeclared({ a: ['10.10.0.0/16'], b: ['10.20.0.0/16'] }),
         endpointA: { deviceName: 'MI-FW-01', peerIp: '198.51.100.2' },
         endpointB: { deviceName: 'RM-FW-01', peerIp: '198.51.100.1' } },
@@ -91,6 +96,93 @@ test('⭐ i quattro dati per telefonare all\'operatore restano in scheda ANCHE v
     assert.ok(txt.includes(etichetta), 'in scheda anche vuoto: ' + etichetta);
   }
   assert.ok(txt.includes('1 senza codice circuito'), 'e il buco si conta in testata');
+});
+
+test('㉑ le righe con cui la linea si rimette su arrivano sul foglio', { skip: !deps }, () => {
+  const doc = newDoc();
+  const seen = scritte(doc);
+  _addWanPages(doc, rapporto(), 'P', 'd', 'it', deps.SVGtoPDF);
+  const txt = seen.join(' | ');
+  for (const etichetta of ['Indirizzamento', 'Gateway (next-hop)', 'VLAN di consegna', 'MTU',
+    'Assistenza operatore']) {
+    assert.ok(txt.includes(etichetta), 'in scheda: ' + etichetta);
+  }
+  // e i VALORI, non le sole etichette: è la differenza fra una guardia verde e
+  // un lettore servito.
+  assert.ok(txt.includes('Statico'), 'il modo tradotto, non la sigla interna');
+  assert.ok(txt.includes('203.0.113.9'), 'il gateway');
+  assert.ok(txt.includes('835'), 'il tag di consegna');
+  assert.ok(txt.includes('1492'), "l'MTU");
+  assert.ok(txt.includes('noc.example'), 'chi si chiama');
+});
+
+test('㉑ il gateway si stampa solo dove vuol dire qualcosa', { skip: !deps }, () => {
+  const foglio = (addressing, nextHop) => {
+    const doc = newDoc();
+    const seen = scritte(doc);
+    _addWanPages(doc, rapporto({
+      uplinks: [{ id: 'u1', siteId: 'mi', provider: 'X', circuitId: 'Y', addressing, nextHop }],
+    }), 'P', 'd', 'it', deps.SVGtoPDF);
+    return seen.join(' | ');
+  };
+  // Su DHCP e PPPoE il gateway lo dà la linea: una riga «Gateway —» direbbe che
+  // manca un dato che non esiste, e un trattino che accusa il documento giusto
+  // insegna a non leggere i trattini.
+  assert.ok(!/Gateway/.test(foglio('dhcp')), 'su DHCP la riga non c\'è');
+  assert.ok(!/Gateway/.test(foglio('pppoe')), 'su PPPoE nemmeno');
+  assert.ok(/Gateway/.test(foglio('static')), 'su statico c\'è, col trattino: quello è un buco vero');
+  // ⚠️ E finché non è dichiarato, la riga resta: allora il buco è vero davvero.
+  assert.ok(/Gateway/.test(foglio(null)), 'non dichiarato non vuol dire DHCP');
+  // ⚠️ E un valore DICHIARATO non si nasconde mai: chi scrive statico + gateway e
+  // poi passa a DHCP lascia scritto un indirizzo, e toglierlo dal foglio sarebbe
+  // un dato che esiste e non si vede. La condizione toglie il trattino, non il dato.
+  assert.ok(/203.0.113.7/.test(foglio('dhcp', '203.0.113.7')),
+    'su DHCP niente riga vuota, ma un gateway scritto si stampa');
+});
+
+test('㉑ la testata conta le linee statiche che non dicono a chi parlano', { skip: !deps }, () => {
+  const doc = newDoc();
+  const seen = scritte(doc);
+  _addWanPages(doc, rapporto({
+    uplinks: [{ id: 'u1', siteId: 'mi', provider: 'X', circuitId: 'Y', addressing: 'static' }],
+  }), 'P', 'd', 'it', deps.SVGtoPDF);
+  // Non fa perdere un'ora: fa perdere la notte. Sta in testata come le altre.
+  assert.ok(seen.join(' | ').includes('1 statiche senza gateway'));
+});
+
+test('㉓ la proposta del tunnel arriva sul foglio, la chiave no', { skip: !deps }, () => {
+  const doc = newDoc();
+  const seen = scritte(doc);
+  _addWanPages(doc, rapporto(), 'P', 'd', 'it', deps.SVGtoPDF);
+  const txt = seen.join(' | ');
+  // È ciò che si ridigita alle tre di notte, e i due capi devono averla identica.
+  assert.ok(txt.includes('aes256-sha256-modp2048 28800s'), 'la proposta di fase 1');
+  assert.ok(txt.includes('esp-aes256-sha256 PFS14 3600s'), 'la proposta di fase 2');
+  // 🔒 E DOVE sta la chiave — che è un puntatore, non un segreto.
+  assert.ok(txt.includes('Bitwarden / VPN / MI-RM'), 'il puntatore alla chiave');
+});
+
+test('㉗ la pastiglia della mappa dice anche CHI la vende', { skip: !deps }, () => {
+  // Fra due sedi corrono più collegamenti: la natura da sola non dice quale
+  // contratto guardare quando è giù. L'ordine è quello con cui i riquadri
+  // scrivono già le loro linee — «operatore · natura» — perché la mappa sulla
+  // carta e quella nel pannello sono LA STESSA mappa.
+  // ⚠️ Si guarda l'SVG e non ciò che passa da `doc.text`: le etichette della
+  // mappa le disegna `SVGtoPDF`, quindi da lì non passano MAI. È la trappola in
+  // cui è caduto questo stesso banco al primo tentativo.
+  const m = _wanMapSvg(newDoc(), rapporto({
+    links: [{ id: 'l1', aSiteId: 'mi', bSiteId: 'rm', tunnel: 'ipsec', provider: 'TIM',
+      reach: factDeclared({ a: ['10.10.0.0/16'], b: ['10.20.0.0/16'] }),
+      endpointA: {}, endpointB: {} }],
+  }), 'it');
+  assert.ok(m.svg.includes('TIM · IPsec'), 'operatore prima della natura, come sui riquadri');
+  // ⚠️ E quando l'operatore non c'è — 5 collegamenti su 8 sull'archivio vero —
+  // non resta un separatore appeso a niente.
+  const m2 = _wanMapSvg(newDoc(), rapporto({
+    links: [{ id: 'l1', aSiteId: 'mi', bSiteId: 'rm', tunnel: 'ipsec', endpointA: {}, endpointB: {} }],
+  }), 'it');
+  assert.ok(/>IPsec/.test(m2.svg), 'la natura resta');
+  assert.ok(!/> · |· · /.test(m2.svg), 'niente separatore senza niente davanti');
 });
 
 test('⭐ la testata accorda il singolare col numero che porta', { skip: !deps }, () => {

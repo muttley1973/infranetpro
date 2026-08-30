@@ -885,7 +885,27 @@
 
         /* --- Mappa ------------------------------------------------------- */
         .org-map-wrap { display:flex; flex-direction:column; align-items:center; gap:var(--space-4); }
-        .org-map { width:100%; max-height:58vh; overflow:visible; }
+        /* ㉖ La CORNICE: è ciò che ritaglia il disegno ingrandito. Senza, una
+           mappa al 300% deborderebbe sul resto del pannello — e i controlli
+           dello zoom, che stanno qui dentro in assoluto, non avrebbero un
+           riferimento a cui appoggiarsi. */
+        .org-map-frame { position:relative; width:100%; overflow:hidden;
+                         border-radius:var(--radius-md); }
+        /* ⚠️ `overflow` torna a `hidden` (il valore d'origine di un `<svg>`): era
+           `visible` per lasciar sporgere le etichette, ma da quando
+           `_fitMapViewBox` allarga l'inquadratura fino a contenerle quella
+           deroga non serve più — e con lo zoom farebbe uscire il disegno dal
+           riquadro invece di ritagliarlo. */
+        .org-map { display:block; width:100%; max-height:58vh; overflow:hidden;
+                   touch-action:none; }
+        /* Lo sfondo si prende col dito: il cursore lo dice prima che ci provi. */
+        .org-map-frame.is-zoomed .org-map { cursor:grab; }
+        .org-map-frame.is-panning .org-map { cursor:grabbing; }
+        /* I controlli sono gli STESSI del pavimento (.zoom-controls / .zoom-btn /
+           .zoom-label): stessa faccia per lo stesso gesto, e nessuna seconda
+           definizione di come si veste un bottone di zoom. Qui cambia solo dove
+           stanno — in basso a sinistra, dove non coprono nessun riquadro. */
+        .org-map-zoom-ctl { bottom:10px; left:10px; right:auto; }
         .org-map-hint, .org-warn { font-size:var(--fs-xs); color:var(--text-muted); margin:0; text-align:center; }
         .org-warn { color:var(--idle-color); }
         /* La sede e' un RIQUADRO, e la sua linea WAN sta DENTRO: un uplink e' di
@@ -930,6 +950,25 @@
         .org-edge.is-up   .org-edge-line { stroke:var(--active-color); }
         .org-edge.is-down .org-edge-line { stroke:var(--fault-color); }
         .org-edge.is-declared  .org-edge-line { stroke-dasharray:7 4; }
+        /* Un collegamento che FUNZIONA si vede muoversi: un impulso corto che
+           scorre da un capo all'altro. È una seconda linea sopra la prima, non
+           un'animazione della prima, e la ragione è che la prima porta già un
+           significato — piena = misurata, tratteggiata = dichiarata — che
+           un'animazione del suo tratteggio avrebbe mangiato. Così i due segnali
+           restano leggibili insieme: COME lo sappiamo lo dice il filo, CHE va lo
+           dice l'impulso.
+           ⚠️ Solo `is-up`. Su un collegamento dichiarato giù, o su uno che non
+           dice niente, un movimento direbbe che qualcosa passa — cioè l'esatto
+           contrario, con la faccia di una misura. */
+        .org-edge-flow { fill:none; stroke:var(--active-color); stroke-width:3;
+                         stroke-linecap:round; stroke-dasharray:5 190;
+                         animation:org-flow 2.4s linear infinite; }
+        @keyframes org-flow { from { stroke-dashoffset:195; } to { stroke-dashoffset:0; } }
+        /* ⚠️ Chi ha chiesto meno movimento non lo riceve: l'impulso si ferma e
+           resta il colore, che l'informazione la porta già tutta. */
+        @media (prefers-reduced-motion:reduce) {
+          .org-edge-flow { animation:none; opacity:0; }
+        }
         .org-edge.is-unspoken  .org-edge-line { stroke-dasharray:2 4; opacity:.75; }
         /* L'etichetta dell'arco si stacca dalla linea con un alone del colore del
            fondo: senza, il tratteggio le passa in mezzo alle lettere. */
@@ -1135,10 +1174,20 @@
         .org-check input { width:15px; height:15px; accent-color:var(--accent); cursor:pointer; flex:none; }
         .org-check input:disabled { cursor:not-allowed; }
         .org-check input:disabled + span { opacity:.6; }
-        /* Il filo che CHIUDE l'elenco delle caselle. Senza, l'etichetta del campo
-           successivo cade a ridosso dell'ultima riga cliccabile e si legge come
-           la voce dopo: un elenco non finisce da solo, lo si deve chiudere. */
-        .org-f-underlay { padding-bottom:var(--space-4); border-bottom:1px solid var(--panel-border); }
+        /* Le caselle in RIGA, e vanno a capo da sole quando non ci stanno. Sono
+           poche e brevi — le linee dei due capi — e in colonna occupavano quanto
+           tutto il resto della scheda, facendosi leggere come la parte
+           principale del collegamento invece che come una scelta fra poche. */
+        .org-checks { display:flex; flex-wrap:wrap; gap:2px var(--space-5); }
+        /* I due fili che CHIUDONO il blocco, sopra e sotto. Senza quello di
+           sotto l'etichetta del campo successivo cade a ridosso dell'ultima
+           casella e si legge come la voce dopo; senza quello di sopra il blocco
+           non comincia da nessuna parte — un insieme di caselle in riga, in
+           mezzo a campi di testo, ha bisogno di due bordi per esistere come
+           blocco. Un elenco non finisce da solo, e nemmeno comincia. */
+        .org-f-underlay { padding:var(--space-4) 0;
+                          border-top:1px solid var(--panel-border);
+                          border-bottom:1px solid var(--panel-border); }
         /* La natura del collegamento accanto ai due capi, nell'intestazione:
            secondaria per colore, non per dimensione. */
         .org-row-kind { color:var(--text-muted); font-weight:400; }

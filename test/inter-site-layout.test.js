@@ -295,15 +295,20 @@ test('③ una mappa sana non dichiara niente di indisegnabile', () => {
   assert.deepEqual(L.undrawable, { links: [], uplinks: [] });
 });
 
-test('un `kind` fuori vocabolario non arriva nemmeno a essere disegnato', () => {
-  // Composizione con `normalizeInterSiteLink` (scelta ⑤ di lib/inter-site.js):
-  // il layout non ha una seconda opinione sul vocabolario, e non deve averla.
+test('㉔ una natura fuori vocabolario si disegna lo stesso: manca il NOME, non il collegamento', () => {
+  // ⚠️ Cambio di comportamento, e voluto. Prima il layout componeva con
+  // `normalizeInterSiteLink`, che RIFIUTAVA un `kind` ignoto: due sedi che si
+  // parlano sparivano dalla mappa per una parola storta. Ora i due assi sono
+  // facoltativi, la parola non entra e il collegamento sì — perché la mappa
+  // esiste per mostrare CHE due sedi si parlano, e quello resta vero anche
+  // quando non sappiamo come chiamare il mezzo.
   const L = buildInterSiteLayout({
     sites: [site('mi', 'Milano'), site('rm', 'Roma')],
-    uplinks: [], links: [link('l1', 'mi', 'rm', 'pptp')],   // ⑲ tenuto FUORI di proposito
+    uplinks: [], links: [{ id: 'l1', aSiteId: 'mi', bSiteId: 'rm', tunnel: 'pptp' }],   // ⑲ tenuto FUORI di proposito
   });
-  assert.deepEqual(L.edges, []);
-  assert.deepEqual(L.undrawable.links, [], 'non è indisegnabile: non esiste proprio');
+  assert.equal(L.edges.length, 1, 'l\'arco c\'è: le due sedi si parlano');
+  assert.equal(L.edges[0].tunnel, null, 'ma la parola storta non è entrata');
+  assert.deepEqual(L.undrawable.links, []);
 });
 
 // ── ⑤ Archi della stessa coppia ───────────────────────────────────────────
