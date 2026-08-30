@@ -80,7 +80,27 @@
         #project-select:focus { outline: none; border-color: var(--accent); }
 
         /* Toolbar buttons */
-        .toolbar-btn { background: var(--surface-2); border: 1px solid var(--panel-border); color: var(--text-main); padding: 5px 10px; border-radius: var(--radius-md); cursor: pointer; font-size:var(--fs-md); box-shadow: var(--shadow-sm); transition: background 0.15s, color 0.15s, box-shadow 0.15s, transform 0.1s; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; flex-shrink: 0; }
+        /* ⚠️ `line-height` ESPLICITA, e non `normal`: con `normal` l'altezza di un
+           bottone dipende da COSA c'è dentro — una riga di testo fa 32px, un'icona
+           sola 26,4 — quindi lo stesso bottone cambiava altezza al breakpoint in
+           cui la sua etichetta passa a sr-only, e nella barra convivevano tre
+           altezze diverse (26,4 · 29 · 32). Un'altezza che dipende dal fatto che
+           un'etichetta si veda è un difetto, non uno stile. Con 1.4 la riga
+           d'appoggio è la stessa per l'icona e per la parola, a QUALUNQUE scala
+           del font (`--fs-md`), che è la ragione per cui non è un `min-height`
+           in pixel. ⚠️ In `em` e non come numero puro: un numero si EREDITA e i
+           figli lo ricalcolano sul PROPRIO font-size — l'icona da 16px del
+           Dashboard diventava così più alta della parola, e il bottone cresceva
+           di 2px. In `em` la riga d'appoggio è una lunghezza, uguale per tutti. ⚠️ Non costa niente in verticale: «Verifica» non perde mai la
+           scritta, quindi la riga era già alta 32. */
+        .toolbar-btn { background: var(--surface-2); border: 1px solid var(--panel-border); color: var(--text-main); padding: 5px 10px; border-radius: var(--radius-md); cursor: pointer; font-size:var(--fs-md); line-height: 1.4em; box-shadow: var(--shadow-sm); transition: background 0.15s, color 0.15s, box-shadow 0.15s, transform 0.1s; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; flex-shrink: 0; }
+        /* ⚠️ E l'ICONA deve stare sulla stessa riga d'appoggio della parola. Font
+           Awesome impone `line-height: 1` alle sue classi, che vince sul bottone:
+           col solo <i> in flusso (etichetta sr-only) il contenuto tornava alto
+           quanto il glifo — 14,4px — e il bottone di nuovo a 26,4. Ereditare qui è
+           ciò che rende l'altezza indipendente da quale dei due figli sia visibile,
+           che è tutto il punto. */
+        .toolbar-btn > i { line-height: inherit; }
         .toolbar-btn:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
         .toolbar-btn:active { transform: translateY(1px); box-shadow: var(--shadow-sm); }
         .toolbar-btn:hover { background: var(--panel-border); }

@@ -83,6 +83,7 @@ follows is the machinery under it; the last entry is the part you can see and us
   split in two has surfaced in this codebase; the panel now imports the engine's lists, and a bench fails
   if any audit list is missing from both — or sits in both.
 
+
 ### Fixed
 
 - **Running the headless test suite could have overwritten your organisation.** The end-to-end harness spawns a real server with every store redirected into a throw-away directory — projects, skins, users, API tokens, the assistant and DCIM configs — and the organisation was the one left out. It is *one per installation* and lives in `data/organization.json`, outside any project, so redirecting the projects directory never moved it: a test that opened «Sites and links» and pressed Save would have rewritten the real sites, WAN lines and links of whoever ran the suite — and a test suite has to be safe to run on a working copy. Nothing had done it yet, for exactly the reason that made it possible: no headless test had ever reached that panel. It has two now, and they cover the chain rather than the screen — the WAN lines arrive from a mock NetBox and add themselves to what was written by hand, the panel offers the lines of the link's *two sites* instead of every line in the organisation, and a ticked line is saved and read back off the route, which is the step that used to drop it in silence. The other half is the opposite rule: what is already declared keeps being shown even when it belongs to a third site, and even when the line has been deleted since — a value that lives in the model and cannot be seen on screen is impossible to switch off, and it goes on printing on the recovery card.
@@ -106,6 +107,26 @@ follows is the machinery under it; the last entry is the part you can see and us
 - **Which project opens at start-up is no longer a coin toss.** `updated_at` is written truncated to the second, and the project list sorted on nothing else — so two projects saved within the same second compared *equal*, and what actually decided the order was `readdirSync`: lexicographic on file names, which puts `10.json` before `2.json`, and is not guaranteed by the filesystem in the first place. Since the app opens `list[0]` on boot, the same data could open a different project between two restarts, and the picker could list the same projects in two different orders. Ties now break on the id, newest first — ids grow over time, so at equal seconds the last created is the last touched, which is the direction the sort already had. Found as an intermittently failing e2e — the boot landed on a project with no devices — and it had been failing on the unmodified branch too: the timing was what varied, never the code.
 - **Three fields the NetBox import writes had no class, so nobody had decided what an export does with them.** `link.color` and `link.lengthM` (the cable's colour and length, read from NetBox but also typed by hand in the cable panel) are **documents** — the rule for dual-origin fields is that `document` wins, because getting it wrong that way leaves one extra field in an export the user made, while getting it wrong the other way deletes their work. `port.overflow` is **derived**: it is a comparison the importer computes (`slot > layout.dataPorts`), nobody writes it, and it is recomputed on the next import — so it now stops travelling in a portable export, where an unclassified field was silently kept. The guard that catches this went red the moment a project imported from NetBox sat on disk, which is exactly its job; the field census predates the DCIM import, so the three are listed as known-absent-from-the-sample rather than pretended into it.
 - **The path in the sub-header no longer says «No project» while a project is open.** It reads the name out of the header's `<select>`, and that `<select>` gets *rebuilt* on every project list refresh — which happens **after** the project is loaded and redrawn. On a cold start the bar therefore drew from a list that was still empty and wrote «No project» under a fully loaded project, until the first click redrew it and quietly fixed it. The list refresh now redraws the bar it feeds, and the bar keeps the last known name instead of asserting «none» whenever a project is in fact open: not knowing the name is not the same as there being no project.
+
+- **A toolbar button's height no longer depends on whether its label happens to be visible.** With
+  `line-height: normal` the height came from the content: a button showing a word was 32px and the same
+  button was 26.4px once its label collapsed to sr-only at a breakpoint — so the bar carried three
+  different heights at once (26.4 · 29 · 32) and they changed as the window resized. An explicit
+  `line-height` fixes it, in `em` rather than as a bare number: a number is inherited and recomputed
+  against each child's own font size, which made the Dashboard button's larger icon grow it by 2px.
+  The icon needs the same line box as the word, and Font Awesome sets `line-height: 1` on its own
+  classes, so it inherits explicitly — without that, a button whose label was hidden went straight back
+  to the glyph's height. All seventeen buttons are now one height, and the header does not get taller:
+  «Verify» never loses its word, so the row was already that tall.
+- **The multi-site button says its name.** It was an icon with a tooltip; it now reads «Multisito» and
+  takes its place in the header's yield ladder. ⚠️ That ladder had to be re-ordered rather than extended,
+  and the measurement is why: at full size the bar already asks for 1938px — more than the commonest
+  desktop width — so a sixth word does not fit at 1920 and one of the six has to go. «Save» yields first
+  now, moving from second-to-last to first: between a word for an action that already has its own key,
+  its own state and autosave, and the name of *where you are going*, the one worth reading is the second.
+  The runtime fitter was re-ordered to match, because two ladders disagreeing means the result depends on
+  whether the window shrank or a badge lit up last. And «Save»'s old rule at ≤1280 is gone rather than
+  left behind: a rule that can no longer fire reads exactly like one that can.
 
 ### Removed
 

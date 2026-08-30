@@ -133,10 +133,21 @@
            etichette. Report/Assistente/Automazioni sono già icon-only per classe.
            Il wrap (rete di sicurezza) è strutturale sull'header, non serve qui. */
         @media (max-width: 1920px) {
-            /* A 1920 restano etichettati: Dashboard (#btn-overview), Salva (#btn-save),
-               Scopri (#btn-discover) e Verifica (#btn-drift). Collassano a icona più in
-               basso (Dashboard per prima, ≤1600: è la 4ª parola e va lasciato fiato al
-               contatore di freschezza, che si allarga col numero — ok/tot). */
+            /* A 1920 restano etichettati: Multisito (#btn-org), Esporta (#btn-impexp),
+               Dashboard (#btn-overview), Scopri (#btn-discover) e Verifica (#btn-drift).
+               Collassano a icona più in basso.
+               ⚠️ **Qui cede SALVA**, e non è la scelta ovvia: era la penultima a cedere
+               (≤1280) ed è salita in cima. La ragione è che «Multisito» è la SESTA
+               parola e a taglia piena la barra chiede già 1938px — più di 1920 — quindi
+               a 1920 una delle sei deve andarsene comunque. Sceglierla è una decisione
+               di prodotto, non di layout: fra «Salva» (un'azione che ha già il suo
+               tasto, il suo stato e l'autosalvataggio) e «Multisito» (il nome di DOVE
+               si sta andando), la parola che serve leggere è la seconda. Richiesta
+               esplicita dell'utente il 30/08.
+               ⚠️ Il conto: Multisito è 55,9px e Salva 33,7 → +22px netti a 1920, che
+               stanno nel margine della ricerca (320px con pavimento a 250).
+               sr-only: il nome accessibile del bottone resta. */
+            #btn-save #save-label,
             #btn-export-drawio .btn-label,
             #btn-user #user-label,
             #modules-nav-slot .btn-label {
@@ -153,6 +164,14 @@
         @media (max-width: 1737px) {
             header { gap: 5px; }
             .header-title span { display: none; }   /* solo il logo a rete */
+            /* «Multisito» cede QUI, e non prima: sotto i 1738 la barra sta compattando
+               tutto (il titolo si riduce al logo, la ricerca cala), e una sesta parola
+               a quel punto la manderebbe a capo. Sopra, resiste — è il senso della
+               richiesta: si legge dove c'è spazio per leggerla. */
+            #btn-org .btn-label {
+                position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+                overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
+            }
             #project-select { max-width: 112px; }
             .project-bar { gap: 4px; }
             /* La ricerca è l'AMMORTIZZATORE: con flex-wrap la decisione di andare a capo
@@ -252,13 +271,10 @@
             header { padding: 4px 10px; }
             #project-select { max-width: 80px; }
             .search-panel { flex: 1 1 64px; min-width: 48px; }
-            /* Salva torna solo-icona: da qui in giù i tre cluster + le tre etichette
-               d'azione non stanno su una riga (Scopri/Verifica restano — sono nel cluster
-               destro, con più aria). sr-only: il nome accessibile del bottone resta. */
-            #btn-save #save-label {
-                position:absolute; width:1px; height:1px; padding:0; margin:-1px;
-                overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
-            }
+            /* ⚠️ Qui NON c'è più «Salva»: da quando «Multisito» esiste, Salva è la
+               PRIMA a cedere e se n'è andata a ≤1920 (vedi lassù). Ripeterla qui
+               sarebbe una regola che non può mai scattare — e una regola morta si
+               legge come una regola viva. */
         }
 
         /* ---- Header fallback B ----
@@ -307,9 +323,17 @@
            (azione primaria) non perde mai la scritta. Stessa tecnica sr-only delle
            @media: l'etichetta resta nel DOM per gli screen reader, sparisce solo
            a video. Specificità (id+classi) sopra quella delle @media → vince. */
+        /* ⚠️ L'ordine è quello delle @media, o le due si contraddicono: la finestra
+           che si stringe toglierebbe una parola e i badge che si accendono un'altra,
+           e il risultato dipenderebbe da quale dei due è successo per ultimo.
+           Salva → Esporta → Dashboard → Multisito → Scopri, poi la ricerca.
+           ⚠️ Salva ed Esporta stanno INSIEME al primo livello: i gradini sono cinque
+           (`MAX_LEVEL`) e le parole da togliere sei, quindi due condividono uno
+           scalino. Le prime due, che sono quelle che si rimpiangono meno. */
+        header.hf1 #btn-save #save-label,
         header.hf1 #btn-impexp .btn-label,
         header.hf2 #btn-overview .btn-label,
-        header.hf3 #btn-save #save-label,
+        header.hf3 #btn-org .btn-label,
         header.hf4 #btn-discover .btn-label {
             position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
             overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
