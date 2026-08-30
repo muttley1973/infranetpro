@@ -127,7 +127,7 @@ const _RL = {
     // «1 sedi senza linea WAN» in cima a un capitolo fa dubitare di tutto il
     // resto di ciò che c'è scritto sotto. Le altre due contano senza nominare.
     'wan.noLineN': 'sedi senza linea WAN', 'wan.noLineOne': 'sede senza linea WAN',
-    'wan.legendDown': 'tratteggio = collegamento dichiarato giù',
+    'wan.legendDown': 'tratteggio = collegamento dichiarato down',
     'wan.legendHere': 'bordo in evidenza = la sede di questo progetto',
     'wan.here': 'questa sede',
     'col.site': 'Sede', 'col.address': 'Indirizzo', 'col.nets': 'Reti', 'col.lines': 'Linee',
