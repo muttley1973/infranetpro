@@ -76,6 +76,10 @@ const NB = {
     {
       id: 950, circuit: { id: 900 }, term_side: 'Z',
       termination_type: 'dcim.site', termination_id: 40, termination: { id: 40, name: 'HQ' },
+      // ⚠️ La banda che la rotta deve consegnare è quella della PORTA, e sta QUI
+      // sulla terminazione — non il `commit_rate` del circuito, che sopra dice
+      // 30000 apposta: i due numeri sono diversi, e si vede quale dei due passa.
+      port_speed: 100000,
       cable: { id: 1 }, cable_end: 'A', link_peers_type: 'dcim.interface',
       link_peers: [{ id: 1000, name: 'Gi1/0/1', device: { id: 100, name: 'SW-CORE-01' } }],
     },
@@ -503,7 +507,7 @@ test('POST /wan → gli uplink del sito, e SOLO quelli', async () => {
   assert.equal(u.circuitId, 'FTTH-1');
   assert.equal(u.provider, 'Fastweb');
   assert.equal(u.serviceType, 'FTTH');
-  assert.equal(u.cirMbps, 30, 'i 30000 kbps di NetBox sono 30 Mbps');
+  assert.equal(u.cirMbps, 100, 'i 100000 kbps della PORTA sono 100 Mbps — non i 30 del contratto');
   assert.deepEqual(u.wanPort, { deviceName: 'SW-CORE-01', ifaceName: 'Gi1/0/1' });
   // Il mock ignora i filtri, esattamente come NetBox davanti a un parametro che
   // non conosce: la cintura ha dovuto togliere una riga, e lo dice.

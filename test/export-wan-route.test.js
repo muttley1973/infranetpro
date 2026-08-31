@@ -130,7 +130,7 @@ test('⭐ il nome dell\'apparato si risolve leggendo il progetto-sede', { skip: 
   assert.ok(txt.includes('RM-FW-01'), 'e il nome scritto a mano resta com\'è');
   // E il resto di ciò che serve per rifare la linea.
   assert.ok(txt.includes('ACME-77120'), 'il codice del circuito');
-  assert.ok(txt.includes('200 Mbps'), 'la banda contrattuale');
+  assert.ok(txt.includes('200 Mbps'), 'la banda della linea');
   assert.ok(txt.includes('198.51.100.2'), 'l\'indirizzo dell\'altro capo');
   assert.ok(txt.includes('10.1.0.0/24') && txt.includes('10.2.0.0/24'), 'le reti raggiungibili');
   assert.ok(txt.includes('Milano DC') && txt.includes('Roma Sede'), 'e i nomi delle sedi, sulla mappa e in tabella');

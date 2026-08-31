@@ -11,7 +11,7 @@ const { PROJECTS_DIR, nextId, saveProject, loadProject, listProjects, removeBgAs
 const { removeProjectHistory, createFsHistoryStore } = require('../history-store-fs');
 const { mergePresence, foldPresence, collectPresence, stripPresence } = require('../../lib/presence-store');
 const { mergeObservations, foldObservations, stripObservations } = require('../../lib/discovery-history');
-const { stripDerivedVlan } = require('../../lib/project-format');
+const { stripDerivedVlan, redactSecretBag } = require('../../lib/project-format');
 const { mergeAudit, foldAudit, stripAudit } = require('../../lib/audit-log');
 const { runProjectDeleteHooks } = require('../module-registry');
 const { stripRefCreds } = require('../../lib/backup-ref.js');
@@ -78,25 +78,26 @@ function _auditOutOfDocument(id, state) {
 // (ruolo viewer) non deve riceverli. loadProject ritorna un parse FRESCO → si può
 // azzerare in-place sulla risposta senza toccare il disco né altre richieste. Il
 // viewer non salva (PUT/copy sono admin-only) → nessuna perdita nel round-trip.
-const SNMP_SECRET_KEYS = ['community', 'v3authPass', 'v3privPass'];
-function _redactBag(bag) {
-  if (bag && typeof bag === 'object') {
-    for (const k of SNMP_SECRET_KEYS) if (bag[k]) bag[k] = '';
-  }
-}
+// ⚠️ QUALI siano i segreti non si decide qui. Era un elenco di tre nomi, gemello di
+// quello in `lib/project-format.js`, dentro un contenitore che `lib/project-schema.js`
+// dichiarava `secret` per intero: due copie della stessa verita', e nessuna delle due
+// derivata. Un quarto campo segreto sarebbe uscito in chiaro verso un lettore non-admin
+// lasciando la suite VERDE, perche' anche le prove enumeravano quei tre nomi.
+// Adesso i nomi stanno nello scope `integration` della classifica e questo file li
+// chiede, con la stessa funzione che usa l'export portatile.
 function _redactSnmpSecrets(project) {
   const nodes = project && project.state && project.state.nodes;
   if (!Array.isArray(nodes)) return project;
   for (const n of nodes) {
     if (!n) continue;
-    _redactBag(n.integration);
+    redactSecretBag(n.integration);
     // Le VM usano lo stesso contenitore dei device (`vm.integration`, più il
     // legacy `vm.snmp` dei progetti vecchi): stessi segreti, stessa redazione.
     if (Array.isArray(n.vms)) {
       for (const vm of n.vms) {
         if (!vm) continue;
-        _redactBag(vm.integration);
-        _redactBag(vm.snmp);
+        redactSecretBag(vm.integration);
+        redactSecretBag(vm.snmp);
       }
     }
   }

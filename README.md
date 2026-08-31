@@ -10,8 +10,8 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="3,333 tests, 0 failing" src="https://img.shields.io/badge/tests-3%2C333%20%C2%B7%200%20failing-3fb950"></a>
-  <a href="#testing"><img alt="112 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-112%20real--browser%20flows-3fb950"></a>
+  <a href="#testing"><img alt="3,432 tests, 0 failing" src="https://img.shields.io/badge/tests-3%2C432%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="119 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-119%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#oui-intelligence-engine"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
   <img alt="No database" src="https://img.shields.io/badge/database-none-8b949e">
@@ -273,7 +273,7 @@ Double-click <code>avvia.bat</code>.<br>
 
 | Area | At a glance |
 |---|---|
-| **🗺️ Diagramming** | 19″ racks with live port LEDs, floor plans, ~4,100 device models across 52 vendors, MGMT & SFP blocks, hypervisors and VMs, the Dashboard, exports to PDF · SVG · draw.io |
+| **🗺️ Diagramming** | 19″ racks with live port LEDs, floor plans, ~5,300 device models across 276 vendors, MGMT & SFP blocks, hypervisors and VMs, the Dashboard, exports to PDF · SVG · draw.io |
 | **📡 Live SNMP** | v1 / v2c / v3 discovery, interfaces, VLANs, LAG, LLDP/CDP neighbours, ENTITY-MIB inventory, wireless associations, DHCP lease import, the Verify / Drift report |
 | **🔄 DCIM / IPAM sync** | Import an existing **NetBox** into a new project over its REST API — sites, racks (front/rear split), floor-placed, devices, interfaces, VLANs/prefixes and patch-panel cabling; free import, paid write-back |
 | **🔗 LAG detection** | A four-level cascade — `ifStackTable` · IEEE 802.3ad · LACP actor state · LLDP-inferred — plus coherence checks on what a bundle needs to actually form: uniform member speed and VLAN, LACP mode across both ends, a bundle that is not left with a single member, and members that do not straddle two devices unless those are one logical switch (stack / MLAG) |
@@ -284,26 +284,27 @@ Double-click <code>avvia.bat</code>.<br>
 | **🕓 History & automation** | One **Automatic monitoring** scheduler (Light / Full), opt-in autosave, a verification timeline and restorable full-state snapshots — kept outside the project file, behind a database-ready interface |
 | **🤖 AI assistant** | Bring-your-own-key, OpenAI-compatible, local by default; allowlist context, grounded answers with clickable citations, Ansible drafts — advisory, never auto-applied |
 | **🔒 Security** | Session auth with admin/viewer roles, rate-limited login, loopback bind, secrets structurally excluded from every data surface |
-| **🌍 Bilingual** | Complete Italian and English interface, onboarding and ~49-page manual, guarded by an `it ↔ en` key-parity test |
+| **🌍 Bilingual** | Complete Italian and English interface, onboarding and a ~65-page manual, guarded by an `it ↔ en` key-parity test |
 
 > Every heading below opens. Deeper detail lives in [ARCHITECTURE.md](ARCHITECTURE.md), the [technical manuals](MANUALE_TECNICO_IT.pdf) and the commit history.
 <details>
 <summary><b>🗺️ Diagramming</b> — <sub>racks, floor plans, labels, hypervisors, the Dashboard and every export</sub></summary>
 
 - **Rack view** — drag-and-drop 19″ rack units (1U–8U) with colour-coded port LEDs.
-- **Apply model** — search a real switch or router model and apply it in one click: port count and front panel are set natively and drawn by the built-in renderer. The catalogue ships ~4,100 models across 52 vendors, generated from public-domain device data (`tools/import-device-types.js`).
+- **Apply model** — search a real switch or router model and apply it in one click: port count and front panel are set natively and drawn by the built-in renderer. The catalogue ships ~5,300 models across 276 vendors, generated from public-domain device data (`tools/import-device-types.js`).
 - **Front-panel controls** — per-device port count and layout (Auto / Linear / Sequential / Cisco-alternating), with an optional separate SFP block and a dedicated MGMT block.
 - **Dedicated MGMT ports** — up to 4 cyan cells outside the regular `1..N` numbering, with an editable label (MGMT, iLO, iDRAC, fxp0…). Excluded from VLAN/LAG/FDB data-plane logic.
 - **SFP block** — a separate cell group with an anodised border, left or right of the main port grid, up to 48 per block; high-density combinations compact the gaps and cells automatically so copper, SFP and MGMT ports remain visible.
 - **Floor map** — place devices on an SVG floor plan; cables drawn as bezier curves.
+- **Two levels of containment: storeys and rooms** — a room for an office or a server room, a **storey** for the level that holds them. Same shape at a larger scale, so same drag, resize, lock, colour and opacity; the stacking is declared rather than left to DOM order (storey under room, room under devices), because a container covering what it contains makes its contents unselectable. A storey is always top-level, and neither ever enters the device inventory.
 - **Labels say what a thing is** — the name on top, the address underneath. When Discover finds no hostname it stores the IP as the name, so the readable line is *derived for display* from the classified type and vendor (`IoT-AzureWave`, `NAS-LaCie`); `node.name` is never rewritten and a declared name always wins (`lib/node-label.js`).
 - **Multi-port floor devices** — PCs, access points and custom endpoints can declare several ports, each independently cablable. Orthogonal to the pass-through model of wall sockets and VoIP phones.
 - **VMs under whatever hosts them** — hypervisor, home lab, storage array, desktop NAS or server: hosting VMs is something a device *does*, not what it is, and a Synology or QNAP running them from a package is still a storage box. Model VMs under a host (`node.vms[]`): a compact list, and a dedicated **VM card** with identity, network & access, allocated resources and handover data. A VM can declare several **vNICs** (a virtual firewall has WAN + LAN + DMZ), each feeding the derived trunk, the documented devices of the Check and the duplicate audit. A vNIC has no cable of its own: it rides the host uplink, and with uplinks in teaming which one carries it is not knowable — so it is not declared.
 - **VMs over SNMP** — a VM exposing its own agent is polled like any host (`vm.integration` mirrors the device shape field for field). What comes back is a **measured block stamped with the read time**, kept apart from what you declared. An answer proves the VM is running; silence never marks it stopped.
 - **Absorb a discovered tile into its host** — drag a loose tile onto the host's *Virtual machines* section and it becomes a VM, inheriting name/IP/MAC, so it stops being flagged undocumented. A MAC *or* an IP is enough. Undoable.
-- **Sites and links (multi-site)** — a project documents one building; this is the floor above it. Describe the organisation, its **sites** (each a *reference* to its existing project, never a copy), the **WAN uplinks** and the **links between sites** — IPsec, MPLS, VPLS, SD-WAN, direct link, or *other* with a name of your own. Which subnets a link makes reachable at each end is one concept for every kind (on an IPsec it *is* the encryption domain). Both ends record the device that holds them, picked from the site's project or typed by hand — because the CE of a carrier link is often not a documented node, and so do the provider and the circuit id, which are the same question whatever the kind. Written by hand — no device is queried — or, for a site imported from a DCIM, **read from NetBox's circuits** with one button per site.
-- **The inter-site map** — sites as nodes, links as edges carrying their kind and the networks they transport, uplinks as stubs; a declared state and a measured one never look the same. Deterministic geometry — the same input always draws the same map, so it can be compared with yesterday's and printed twice alike. Click a site to walk down into its own project.
-- **Multi-site coherence** — the questions a hand-drawn multi-site document should have to survive: a link carrying a network no site claims, the same subnet declared at two sites, an endpoint pointing at a site that does not exist, a spoke touching no hub. **Incoherences and gaps stay apart** — one is wrong, the other is merely unwritten — and every check that could not run says so by name, so an empty list never means two things at once.
+- **Sites and links (multi-site)** — a project documents one building; this is the floor above it. Describe the organisation, its **sites** (each a *reference* to its existing project, never a copy), the **WAN uplinks** and the **links between sites**. A link answers **two** questions on two separate fields, because an IPsec inside an MPLS is one link and a single field forced you to drop half of it: **transport** — what it travels on (internet, MPLS, VPLS, VPWS, VXLAN, EVPN, direct link, *other*) — and **tunnel** — what runs on top (none, IPsec, GRE, WireGuard, OpenVPN, L2TP, SD-WAN, *other*). Either may stay unstated; neither is ever guessed. Which subnets a link makes reachable at each end is one concept for every nature (on an IPsec it *is* the encryption domain), and so is **which WAN lines carry it** — the recovery question: *the Milan fibre is down, what falls with it?* Both ends record the device that holds them, picked from the site's project or typed by hand — because the CE of a carrier link is often not a documented node, and so do the provider and the circuit id, which are the same question whatever the kind. Written by hand — no device is queried — or, for a site imported from a DCIM, **read from NetBox's circuits** with one button per site.
+- **The inter-site map** — sites as boxes holding their own WAN lines, links as edges carrying their transport, tunnel and the networks they transport, and two links between the same pair fanned apart instead of drawn over each other; a declared state and a measured one never look the same. Deterministic geometry — the same input always draws the same map, so it can be compared with yesterday's and printed twice alike. Click a site to walk down into its own project.
+- **Multi-site coherence** — the questions a hand-drawn multi-site document should have to survive: a link carrying a network no site claims, the same subnet declared at two sites, an endpoint pointing at a site that does not exist, a spoke touching no hub, a link declaring a WAN line that belongs to neither of its two sites — a Turin line cannot carry a Milan-to-Rome link — and a link that never says which line carries it at all. **Incoherences and gaps stay apart** — one is wrong, the other is merely unwritten — and every check that could not run says so by name, so an empty list never means two things at once.
 - **Take a site's networks from its project** — one button adds the networks *declared* in the site's project, and never the /24s inferred from device addresses: the first are a document, the second a derivation. It only adds, never replaces.
 - **Uniform floor/rack interaction** — single click selects, double click opens Properties, on the floor as in the rack.
 - **Operating-system logos** — in the device and VM panel headers and the VM list, from public-domain and permissively-licensed sets. A specific logo only from an **authoritative source** (SNMP `sysDescr`, a manual field, a guest OS), a grey family glyph for a mere TTL hint, and **nothing** when the OS is unknown (`lib/os-icon.js`).
@@ -851,7 +852,7 @@ All endpoints require an authenticated session. Write endpoints require the **ad
 | `GET` | `/api/projects` | any | List all projects (metadata only) |
 | `POST` | `/api/projects` | admin | Create a new project |
 | `GET` | `/api/projects/:id` | any | Get full project (including state) |
-| `PUT` | `/api/projects/:id` | admin | Update project name or state |
+| `PUT` | `/api/projects/:id` | admin | Update project name or state — send `If-Match` with the ETag of the version you read and a save that has been superseded is refused with **409** instead of overwriting in silence |
 | `DELETE` | `/api/projects/:id` | admin | Delete a project |
 | `POST` | `/api/projects/:id/copy` | admin | Duplicate a project |
 | `GET` | `/api/organization` | any | The organisation (sites, WAN uplinks, inter-site links) **with its coherence audit** |
@@ -873,7 +874,7 @@ All endpoints require an authenticated session. Write endpoints require the **ad
 
 ### Request bodies
 
-Full request/response schemas are in the machine-readable **OpenAPI 3.0** spec at `GET /api/v1/openapi.json`. In short: `/api/poll` takes `{ driver, host, community, port, timeout }`; `/api/discover` takes a `subnet` (CIDR or `a.b.c.1-254` range) plus `driver` / `community` / `concurrency` / `timeout` and scan flags (`safeMode`, `deepScan`); `/api/discover/topology` takes one or more `seed`(s) with `maxDepth` / `maxDevices` and streams `text/event-stream` progress (`start`, `probing`, `found`, `queued`, `dup`, `skip`, `warn`, `done`).
+Full request/response schemas are in the machine-readable **OpenAPI 3.0** spec at `GET /api/v1/openapi.json`. A project (and the organisation) travels with an **ETag** taken from the file itself: a client sending `If-Match` gets a **409** carrying who wrote last and when, rather than a silent last-writer-wins; a client sending nothing keeps the previous behaviour, deliberately, so imports and scripts do not have to learn a protocol to stay alive. In short: `/api/poll` takes `{ driver, host, community, port, timeout }`; `/api/discover` takes a `subnet` (CIDR or `a.b.c.1-254` range) plus `driver` / `community` / `concurrency` / `timeout` and scan flags (`safeMode`, `deepScan`); `/api/discover/topology` takes one or more `seed`(s) with `maxDepth` / `maxDevices` and streams `text/event-stream` progress (`start`, `probing`, `found`, `queued`, `dup`, `skip`, `warn`, `done`).
 
 ---
 
@@ -917,7 +918,7 @@ See [integrations/ansible/README.md](integrations/ansible/README.md) for the ful
 | VLAN bitmap size | Q-BRIDGE bitmaps cover VLANs 1–4094; extended range VLANs (4095+) not supported | — |
 | SNMPv3 EngineID | Must be auto-discovered; manual EngineID entry not yet supported | Use v2c if v3 discovery fails |
 | CDP | Read-only; Cisco proprietary CDP is polled but not written | Use LLDP where possible |
-| Concurrent users | No WebSocket push; each browser polls independently | Refresh manually after another admin makes changes |
+| Concurrent users | No WebSocket push; each browser polls independently | A save that has been superseded is now refused instead of silently overwriting: the app says who wrote and when, and offers to overwrite. You still learn of the other session at save time, not while they work |
 | Storage | File-based JSON; not suitable for >1000 projects or multi-server deployments | Migrate to a database backend for large scale |
 | Physical Path | Segment editing (P1.5) supports linear chains through `port`-type pass-throughs (`wallport`, `patchpanel`, `voip`); `device`-type media converters are not yet offered as routing hops | Media-converter routing + automatic voice-VLAN tagging are archived for a later step |
 
@@ -928,7 +929,9 @@ See [integrations/ansible/README.md](integrations/ansible/README.md) for the ful
 Full release notes live in [CHANGELOG.md](CHANGELOG.md). Highlights of what has shipped:
 
 <details>
-<summary><b>✅ Shipped</b> — <sub>29 milestones</sub></summary>
+<summary><b>✅ Shipped</b> — <sub>30 milestones</sub></summary>
+
+- [x] **The multi-site layer** — the floor above the per-site projects: an organisation with its sites (each a *reference* to its project, never a copy), their WAN lines and the links between them, as a deterministic map and a form in one panel. A link answers two questions on two fields — **transport** and **tunnel** — because an IPsec inside an MPLS is one link; both ends name the device that holds them; and *which WAN lines carry it* is the recovery question, asked of every nature. It checks itself (incoherences and gaps kept apart, every check that could not run named), it fills itself from NetBox circuits and `vpn/` services where a site came from a DCIM, and it prints a **WAN chapter** in the handover dossier with one recovery card per line and per link
 
 - [x] **DCIM / IPAM sync (NetBox), read side** — sites, racks, devices, interfaces, patch-panel front/rear ports, PDU outlets, virtual machines on their host, IPAM prefixes/addresses/reservations and VLAN roles. Every import is a **list of decisions**, one row per choice, with what is not coming across declared rather than dropped; re-import **compares without writing** (`lib/dcim-diff.js`) and one site is one project. Imported objects keep their DCIM id in a field of their own, so a rename never looks like a delete plus an add
 - [x] **Declared life-cycle status** — planned / staged / in stock / in service / failed / decommissioning / out of service, filled by the import or by hand. It changes how *silence* is read (a planned device that stays quiet is expected, not a fault) and flags the opposite too: declared out of service but answering. The measure underneath is never touched
@@ -963,7 +966,7 @@ Full release notes live in [CHANGELOG.md](CHANGELOG.md). Highlights of what has 
 </details>
 
 **Planned:**
-- [ ] **Per-field provenance in the schema** — every field carrying an explicit origin (observed / declared / derived), so the document can say where each value came from instead of the app inferring it per screen
+- [ ] **Per-field provenance in the schema** — every field carrying an explicit origin (declared / measured / derived), so the document can say where each value came from instead of the app inferring it per screen. **Half of it exists**: `lib/provenance.js` is the envelope and `lib/project-schema.js` classifies all 165 fields of a project — what is missing is the consumption, since today only the multi-site layer is born wrapped in it
 - [ ] **DCIM write-back** — the half that writes, gated: maker-checker, dry-run, re-read after the write, and a closed list of writable fields. A deduced cable is never promoted to the DCIM unless its proof state allows it
 - [ ] `ENTITY-SENSOR-MIB` (temperatures/fans/PSU) + real PoE wattage per switch
 - [ ] Explicit topology states in the UI (`exact / probable / ambiguous / shared-segment / uplink-to-unknown`)
@@ -998,8 +1001,8 @@ server on a temp store and is skipped unless `RUN_E2E=1`.
 Coverage focuses on the pure, bug-prone logic that has historically broken: SNMP parsing & extraction (`test/snmp.test.js`, `test/extractData.test.js`), discovery & classification (`test/discovery.test.js`, 14 real-device cases), correlation primitives (`test/correlate.test.js`), the sysObjectID / OUI / Fusion engines (`tests/*.test.js`), front-panel state, cable validation (incl. **Cat8 30 m reach**), IPAM & LAG audits, and an app-wide **smoke E2E** (`test/smoke-app.test.js`) that loads every `netmapper.html` script plus the esbuild bundle into a `vm` + DOM stub and asserts `renderAll`/`renderProps` never throw on any device type.
 
 Current local quality baseline:
-- `npm run check` validates all project JS sources (839 files)
-- `npm test` runs the full regression suite (currently **3,333 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **112 flows**)
+- `npm run check` parses every JS source in the working tree — 522 of them in the project itself (the walker also descends into a git worktree checked out beside it, so the number it prints can be higher)
+- `npm test` runs the full regression suite (currently **3,432 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **119 flows**)
 - final visual verification is still important for rack/front-panel refinements
 
 > Pure functions are exposed for tests via an additive `_internals` export on

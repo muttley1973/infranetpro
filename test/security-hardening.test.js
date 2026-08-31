@@ -47,6 +47,84 @@ test('SEC-M1: _redactSnmpSecrets copre anche le VM (vm.integration + legacy vm.s
   assert.equal(vms[2].name, 'bare', 'VM senza integrazione intatta');
 });
 
+// ── SEC-M1-bis: QUALI siano i segreti lo dice lo schema, non i consumatori ─
+// Il difetto che questo test chiude (audit persistenza/segreti, 2026-08-30):
+// `node.integration` era dichiarato `secret` PER INTERO in lib/project-schema.js,
+// ma i due consumatori — l'export portatile e la redazione verso il lettore
+// non-admin — svuotavano tre nomi ELENCATI a mano, in due copie. Un quarto campo
+// segreto sarebbe uscito in chiaro **lasciando la suite verde**, perché anche le
+// prove qui sotto enumeravano quei tre nomi.
+//
+// ⚠️ Per questo il banco che segue NON nomina nessun campo: costruisce il
+// sacchetto dalla classifica. Il giorno che un quarto segreto entra nello scope
+// `integration`, questo test lo copre **senza che nessuno lo tocchi** — ed è
+// esattamente ciò che prima non succedeva.
+const { fieldsOfClass } = require('../lib/project-schema.js');
+const { sanitizePortableState } = require('../lib/project-format.js');
+
+const SEGRETI = fieldsOfClass('integration', 'secret');
+const NON_SEGRETI = { driver: 'snmp-v3', host: '10.0.0.9', port: 1161, v3user: 'mon' };
+function sacchetto() {
+  const b = Object.assign({}, NON_SEGRETI);
+  for (const k of SEGRETI) b[k] = 'VALORE-' + k;
+  return b;
+}
+function statoDiProva() {
+  return { racks: [], nodes: [{ id: 'sw1', name: 'sw1', integration: sacchetto(), vms: [
+    { id: 'vm1', name: 'web', integration: sacchetto() },
+    { id: 'vm2', name: 'db', snmp: sacchetto() },       // il contenitore legacy
+  ] }] };
+}
+
+test('⭐ SEC-M1: i segreti del sacchetto li dichiara lo SCHEMA, e i due consumatori li chiedono', () => {
+  assert.ok(SEGRETI.length >= 3, 'se la classifica non dichiarasse niente, questo banco non proverebbe nulla');
+
+  // ① il lettore non-admin (server/routes/projects.js)
+  const project = { id: 1, name: 'p', state: statoDiProva() };
+  _redactSnmpSecrets(project);
+  // ② l'export portatile (lib/project-format.js)
+  const exported = sanitizePortableState(statoDiProva());
+
+  for (const [dove, n] of [['viewer', project.state.nodes[0]], ['export', exported.nodes[0]]]) {
+    const sacchetti = [
+      [dove + ' · node.integration', n.integration],
+      [dove + ' · vm.integration', n.vms[0].integration],
+      [dove + ' · vm.snmp (legacy)', n.vms[1].snmp],
+    ];
+    for (const [etichetta, bag] of sacchetti) {
+      for (const k of SEGRETI) {
+        assert.strictEqual(bag[k], '', `${etichetta}: ${k} è dichiarato secret e deve uscire SVUOTATO`);
+        assert.ok(k in bag, `${etichetta}: ${k} si svuota, non si toglie — la forma resta`);
+      }
+      // e quello che non è un segreto resta: una redazione che porta via la
+      // configurazione non protegge niente, rompe soltanto.
+      assert.strictEqual(bag.driver, NON_SEGRETI.driver, `${etichetta}: il driver non è un segreto`);
+      assert.strictEqual(bag.host, NON_SEGRETI.host, `${etichetta}: l'host non è un segreto`);
+      assert.strictEqual(bag.v3user, NON_SEGRETI.v3user, `${etichetta}: l'utente USM identifica, non autentica`);
+    }
+  }
+});
+
+test('SEC-M1: nessuno dei due consumatori tiene una LISTA sua dei nomi delle credenziali', () => {
+  // La guardia contro il ritorno del difetto: la duplicazione, non il sintomo.
+  // Se un domani qualcuno riscrive un elenco dentro uno dei due file, qui si vede
+  // — ed è la classe di bug più frequente di questo progetto (un lato deriva,
+  // l'altro enumera, e la copia che enumera si buca in silenzio).
+  const fs = require('node:fs');
+  const path = require('node:path');
+  for (const rel of ['server/routes/projects.js']) {
+    const src = fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
+    for (const nome of SEGRETI) {
+      assert.ok(!new RegExp("['\"]" + nome + "['\"]").test(src),
+        `${rel} nomina «${nome}»: i nomi delle credenziali si dichiarano solo in `
+        + 'lib/project-schema.js (scope `integration`), qui si chiedono');
+    }
+  }
+  // `lib/project-format.js` è l'eccezione DICHIARATA: ha il pavimento a mano,
+  // perché nel browser la classifica potrebbe non essere caricata. Che il
+  // pavimento non diverga lo tiene `test/project-schema.test.js`.
+});
+
 // ── L3: il puntatore backup non arriva al disco con dentro un segreto ──────
 // La barriera viveva SOLO nel client (il campo che l'utente digita). Un PUT
 // costruito a mano o un progetto importato da JSON la scavalcava — e da lì il

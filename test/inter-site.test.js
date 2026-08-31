@@ -288,9 +288,9 @@ test('⭐ la stessa regola che l\'import applica da sempre — una sola definizi
   // `lib/dcim-wan.js` scarta `n <= 0` da prima che il pannello esistesse: il
   // difetto era che il percorso A MANO diceva un'altra cosa. Se un giorno le due
   // divergono di nuovo, è qui che si vede.
-  const { _cirMbps } = require('../lib/dcim-wan.js');
+  const { _kbpsToMbps } = require('../lib/dcim-wan.js');
   for (const kbps of [0, -1, -100000]) {
-    assert.strictEqual(_cirMbps(kbps), null, 'import: ' + kbps);
+    assert.strictEqual(_kbpsToMbps(kbps), null, 'import: ' + kbps);
     assert.strictEqual(normalizeWanUplink({ id: 'u', siteId: 's', cirMbps: kbps / 1000 }).cirMbps, null,
       'modello: ' + (kbps / 1000));
   }
@@ -801,4 +801,41 @@ test('⚠️ e NIENTE cade quando gli id sono diversi: più collegamenti fra le 
     ],
   });
   assert.strictEqual(org.links.length, 3, 'sono tre collegamenti veri, non tre copie');
+});
+// ── Gli operatori già scritti, da suggerire ────────────────────────────────
+
+test('⭐ gli operatori si suggeriscono, e due grafie dello stesso operatore sono UNA voce', () => {
+  // La regola di casa vale anche qui: mai un confronto per stringa. «TIM», «tim»
+  // e « TIM » sono lo stesso operatore, e proporli tre volte insegnerebbe a
+  // scriverli in tre modi — che è esattamente il difetto da cui nasce l'elenco.
+  const org = IS.normalizeOrganization({
+    sites: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }],
+    uplinks: [
+      { id: 'u1', siteId: 'a', provider: 'TIM' },
+      { id: 'u2', siteId: 'a', provider: ' tim ' },
+      { id: 'u3', siteId: 'b', provider: 'Vodafone' },
+      { id: 'u4', siteId: 'b', provider: '' },
+    ],
+    links: [{ id: 'l1', aSiteId: 'a', bSiteId: 'b', transport: 'mpls', provider: 'Fastweb' }],
+  });
+  assert.deepStrictEqual(IS.knownProviders(org), ['Fastweb', 'TIM', 'Vodafone']);
+});
+
+test('⭐ la grafia che sopravvive è la PRIMA scritta, non la chiave normalizzata', () => {
+  // Come si scrive il nome del proprio fornitore lo decide chi documenta. Se
+  // l'elenco proponesse «tim italia» al posto di «TIM Italia», suggerirebbe di
+  // riscrivere in minuscolo un nome che l'utente aveva scritto per bene.
+  const org = { uplinks: [{ provider: 'TIM  Italia' }, { provider: 'tim italia' }], links: [] };
+  assert.deepStrictEqual(IS.knownProviders(org), ['TIM  Italia']);
+  assert.strictEqual(IS.providerKey('  TIM   Italia '), 'tim italia');
+});
+
+test('l\'elenco è lo stesso a ogni apertura, e regge un\'organizzazione vuota o assente', () => {
+  // Ordine alfabetico sulla chiave, come le coordinate della mappa sono
+  // deterministiche: una tendina che si rimescola non si impara.
+  const org = { uplinks: [{ provider: 'Zeta' }, { provider: 'alfa' }], links: [{ provider: 'Mu' }] };
+  assert.deepStrictEqual(IS.knownProviders(org), ['alfa', 'Mu', 'Zeta']);
+  assert.deepStrictEqual(IS.knownProviders(org), IS.knownProviders(org));
+  assert.deepStrictEqual(IS.knownProviders({}), []);
+  assert.deepStrictEqual(IS.knownProviders(null), []);
 });

@@ -66,6 +66,24 @@ server/routes/organization.js  GET (open, like the project list) returns the org
                        silence would let the person who saved believe they had saved it. Adds
                        the one check a browser cannot make — does a site's projectRef point at a
                        project that exists — and says so in notChecked when the list is unreadable.
+server/routes/projects.js  Project CRUD — and the two halves of an honest save. A project
+                       travels with an ETag taken from the file itself (never `updated_at`, which is
+                       truncated to SECONDS — and two saves in the same second are precisely the case
+                       this exists to catch); a PUT presenting a superseded one is refused with 409
+                       carrying who wrote last, when, and an ETag of its own that the client
+                       deliberately does NOT adopt — swallowing it would let the next save through
+                       unasked, disarming the guard on the first case it was built for. A caller
+                       sending no If-Match keeps the old behaviour ON PURPOSE: the DCIM import, the
+                       scripts and the benches should not have to learn a protocol to stay alive, and
+                       a guard that breaks its callers is a guard that gets switched off. Rename
+                       presents the version too, or a successful rename would refresh the version of a
+                       session that is behind. The client half is a DIRTY EPOCH (src/app-core.js): the
+                       document counts how many times it has been dirtied, a save reads that number
+                       before serialising and hands it back on return, and the unsaved dot goes out
+                       only if nothing arrived meanwhile — an edit made during the ~200ms of a save on
+                       a 1000-node project could not be inside a body already serialised. Load, create
+                       and duplicate still clear outright: there the document is clean by construction
+                       and there is nothing to compare against.
 server/routes/device-types.js  GET /api/device-types -> data/device-types.json: native
                        device templates (ports + frontPanel) generated from public-domain
                        (CC0) device-type data by tools/import-device-types.js --catalog.
@@ -108,10 +126,22 @@ lib/                   Shared browser + test modules (the heart of the app)
                     (epistemics vs identity), so there is no fourth `imported` origin.
   inter-site.js     The multi-site layer, ABOVE the per-site projects: an organisation with
                     its sites (each a projectRef — a reference, never a copy), WAN uplinks and
-                    inter-site links over a CLOSED vocabulary (ipsec/mpls/vpls/sdwan/directLink,
-                    plus `other` + a free label as a DECLARED escape hatch, never an open
-                    string). `reach` — which subnets a link makes reachable at each end — is
-                    one concept for every kind (on an ipsec it IS the encryption domain), so no
+                    inter-site links over TWO closed vocabularies, because one field held two
+                    questions and an IPsec inside an MPLS had to drop one of them: `transport`
+                    (internet/mpls/vpls/vpws/vxlan/evpn/directLink/other) says what it travels
+                    ON, `tunnel` (none/ipsec/gre/wireguard/openvpn/l2tp/sdwan/other) says what
+                    runs on TOP; each carries `other` + a free label as a DECLARED escape hatch,
+                    never an open string. An out-of-vocabulary value on either axis becomes null
+                    and does NOT drop the row (the old `kind` DISCRIMINATED the union, so refusing
+                    was right there; these two are optional like `role` or `state`, and losing a
+                    whole link over one crooked word would be a cure worse than the disease); a
+                    document still written with `kind` migrates onto the axis it belonged to, and
+                    only when NEITHER axis is already set, so a migrated file is never touched
+                    twice. `reach` — which subnets a link makes reachable at each end — is
+                    one concept for every nature (on an ipsec it IS the encryption domain), so no
+                    vendor-specific word and no viewpoint-dependent local/remote; and so is
+                    `underlayUplinkIds`, WHICH WAN LINES CARRY IT — the recovery question, not an
+                    sdwan one, which is where it used to live.
                     vendor's word and no viewpoint-dependent local/remote. Both ends carry the
                     device that holds them (a ref into the site's project, OR a hand-typed name
                     — mutually exclusive), because on an MPLS the end is the CE; and so do
@@ -121,7 +151,8 @@ lib/                   Shared browser + test modules (the heart of the app)
                     — «GRE-LAB» is the name, «GRE» is the nature, and the map draws the second.
                     `publicIps` is
                     a LIST: a business line comes with a routed block, IPv6 rides the same line
-                    and an HA pair exposes several. An unknown kind is refused, not corrected.
+                    and an HA pair exposes several. An unknown transport or tunnel drops to null
+                    and is SAID, never corrected into a neighbouring value.
   inter-site-audit.js  Coherence of the declared multi-site model — no network, no discovery.
                     Five INCOHERENCES (something is wrong) and five GAPS (nothing is broken,
                     but you cannot answer) in separate lists, plus `notChecked`: every check
@@ -277,8 +308,11 @@ lib/                   Shared browser + test modules (the heart of the app)
                     guessed from the circuit type (free text of that instance): it enters as
                     `other` carrying those words. Only ACTIVE circuits become candidates — an
                     uplink has no state field, so a `planned` one would be indistinguishable
-                    from a line in service. `commit_rate` is kbps → Mbps; `port_speed` is
-                    NEVER a fallback (that is the ifSpeed, not the contract). Reads both
+                    from a line in service. The bandwidth that enters is the PORT one —
+                    `port_speed` on the SITE-side termination, kbps → Mbps — because the
+                    field is presented as «Port bandwidth»; the circuit’s `commit_rate` is
+                    NEVER a fallback, since on the real archive `FW-VR-100M` sells 100 Mbps
+                    over a 1000 Mbps port and the two are different numbers. Reads both
                     termination shapes (≤4.1 `site`/`provider_network`, 4.2+ `termination_type`)
                     and re-checks the scope row by row, because NetBox ignores an unknown
                     query filter and answers with the whole archive.

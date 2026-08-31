@@ -3,7 +3,7 @@
 // un NetBox 4.6.7 vero (29 circuiti) e quella ≤ 4.1, che è ancora là fuori.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { circuitsToWan, _termTarget, _cirMbps } = require('../lib/dcim-wan.js');
+const { circuitsToWan, _termTarget, _kbpsToMbps } = require('../lib/dcim-wan.js');
 
 // Una terminazione nella forma 4.2+ (`termination_type` + `termination`).
 const termSite = (id, name, extra) => Object.assign({
@@ -128,23 +128,44 @@ test('② un circuito che non è ATTIVO non diventa un uplink, e si dice perché
   assert.deepEqual(n.rows.map(r => r.status).sort(), ['decommissioned', 'planned']);
 });
 
-test('① `commit_rate` è in kbps e diventa Mbps — `port_speed` NON è un ripiego', () => {
+test('① la banda viene da `port_speed` della terminazione di SEDE — il `commit_rate` non è un ripiego', () => {
+  // Il verso di questa guardia è cambiato il 31/08, ed è il punto: il campo del
+  // modello si chiama ancora `cirMbps`, ma quello che il pannello e il dossier
+  // mostrano è la BANDA DELLA PORTA. Prima qui si pretendeva l'esatto contrario.
   const out = circuitsToWan({
     circuits: [
       circuito({ id: 1, cid: 'A', commit_rate: 20000, termination_z: termSite(2, 'S') }),
-      circuito({ id: 2, cid: 'B', commit_rate: 1544, termination_z: termSite(2, 'S') }),
-      circuito({ id: 3, cid: 'C', commit_rate: null, termination_z: termSite(2, 'S') }),
+      circuito({ id: 2, cid: 'B', commit_rate: null, termination_z: termSite(2, 'S') }),
+      circuito({ id: 3, cid: 'C', commit_rate: 100000, termination_z: termSite(2, 'S') }),
     ],
     circuitTerminations: [
-      // La porta va a 1 Gbps: è l'ifSpeed, e non è la banda contrattuale.
-      { id: 9, circuit: { id: 3 }, term_side: 'z', ...termSite(2, 'S'), port_speed: 1000000, upstream_speed: 1000000 },
+      // Il caso VERO, misurato sul NetBox del banco (`FW-VR-100M`): 100 Mbps di
+      // contratto consegnati su una porta da 1000. I due numeri sono diversi, e
+      // il campo dice «della porta» — quindi vince 1000.
+      { id: 9, circuit: { id: 3 }, term_side: 'z', ...termSite(2, 'S'), port_speed: 1000000 },
+      { id: 10, circuit: { id: 2 }, term_side: 'z', ...termSite(2, 'S'), port_speed: 1544 },
     ],
   }, { siteIds: [2] });
   const per = Object.fromEntries(out.uplinks.map(u => [u.circuitId, u.cirMbps]));
-  assert.equal(per.A, 20);
-  assert.equal(per.B, 1.544);
-  assert.equal(per.C, null, 'la velocità della porta non riempie la banda garantita');
+  assert.equal(per.C, 1000, 'la porta, non il contratto');
+  assert.equal(per.B, 1.544, 'kbps → Mbps anche su un numero non tondo');
+  assert.equal(per.A, null, 'un contratto da solo non riempie un campo che dice «della porta»');
   assert.equal(out.notes.find(n => n.code === 'wan.cirMissing').n, 1);
+});
+
+test('① e la porta è quella DI SEDE: quella dell\'altro capo è la porta di qualcun altro', () => {
+  // Su un MPLS il capo lontano è la nuvola d'operatore. Se la banda si prendesse
+  // dalla prima terminazione che ne dichiara una, la sede erediterebbe la porta
+  // del PoP del provider — un numero plausibile, e di qualcun altro.
+  const out = circuitsToWan({
+    circuits: [circuito({ id: 5, cid: 'MPLS', termination_a: null, termination_z: termSite(2, 'S') })],
+    circuitTerminations: [
+      { id: 20, circuit: { id: 5 }, term_side: 'a', ...termCloud(9, 'Nuvola'), port_speed: 10000000 },
+      { id: 21, circuit: { id: 5 }, term_side: 'z', ...termSite(2, 'S') },
+    ],
+  }, { siteIds: [2] });
+  assert.equal(out.uplinks.length, 1);
+  assert.equal(out.uplinks[0].cirMbps, null, 'la porta della nuvola non è la banda della sede');
 });
 
 test('la banda mancante si conta solo sugli UPLINK: un collegamento non ha quel campo', () => {
@@ -235,12 +256,12 @@ test('un bundle vuoto, assurdo o assente non esplode e non inventa', () => {
   }
 });
 
-test('_cirMbps: zero e valori assurdi restano `null`, non diventano 0 Mbps', () => {
-  assert.equal(_cirMbps(0), null);
-  assert.equal(_cirMbps(-5), null);
-  assert.equal(_cirMbps('boh'), null);
-  assert.equal(_cirMbps(null), null);
-  assert.equal(_cirMbps(100000), 100);
+test('_kbpsToMbps: zero e valori assurdi restano `null`, non diventano 0 Mbps', () => {
+  assert.equal(_kbpsToMbps(0), null);
+  assert.equal(_kbpsToMbps(-5), null);
+  assert.equal(_kbpsToMbps('boh'), null);
+  assert.equal(_kbpsToMbps(null), null);
+  assert.equal(_kbpsToMbps(100000), 100);
 });
 
 test('_termTarget risponde `none` a ciò che non è una terminazione', () => {

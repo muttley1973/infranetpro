@@ -239,7 +239,7 @@ test('⭐ una sede con un id già preso non entra, e `dropped` lo dice', async (
   assert.deepEqual(j.organization.sites.map(s => s.name), ['Milano', 'Roma']);
 });
 
-test('⭐ una banda contrattuale che non è banda non viene salvata', async () => {
+test('⭐ una banda che non è banda non viene salvata', async () => {
   const raw = ORG();
   raw.uplinks[0].cirMbps = -100;
   const j = await (await put(raw)).json();

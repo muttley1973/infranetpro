@@ -42,7 +42,8 @@ import { showAlert, showConfirm, switchProject } from './app-core.js';
 import { registerClickActions, registerChangeActions, registerInputActions, registerKeydownActions, dispatchClick } from './app-delegation.js';
 import { buildInterSiteLayout, interSiteEdgePath } from '../lib/inter-site-layout.js';
 import { SITE_ROLES, INTER_SITE_STATES, WAN_ADDRESSING, WAN_SERVICE_TYPES,
-  INTER_SITE_TRANSPORTS, INTER_SITE_TUNNELS, CARRIER_TRANSPORTS } from '../lib/inter-site.js';
+  INTER_SITE_TRANSPORTS, INTER_SITE_TUNNELS, CARRIER_TRANSPORTS,
+  knownProviders } from '../lib/inter-site.js';
 // ㉖ La classificazione problema/lacuna si IMPORTA. C'era una seconda copia qui,
 // e coincideva con quella del motore per abitudine: un controllo aggiunto di là
 // sarebbe stato calcolato e mai disegnato, perché questo file disegna solo ciò
@@ -424,7 +425,8 @@ function _paintAddrHint(el) {
   hint.style.display = bad.length ? '' : 'none';
 }
 
-/** Come sopra, per la banda contrattuale (⑩ di `lib/inter-site.js`).
+/** Come sopra, per la banda (⑩ di `lib/inter-site.js`; il campo si chiama ancora
+ *  `cirMbps` mentre l'etichetta dice «della porta» — la ragione sta lì).
  *  ⚠️ Il campo è `type="number" min="1"`, ma `min` NON impedisce di digitare
  *  `-100`: il browser lo marca `rangeUnderflow` e lascia il valore leggibile.
  *  Chi lo legge deve CHIEDERGLIELO — il vecchio codice non lo faceva, e il -100
@@ -1224,6 +1226,30 @@ function _devicesOf(siteId) {
  * reso indocumentabile proprio il caso più comune dei collegamenti d'operatore —
  * la mano è la strada base (①), l'elenco è la scorciatoia.
  */
+/**
+ * ㉗ Gli operatori gia' scritti, come suggerimenti — su tutt'e due i campi
+ * «Operatore», quello della linea WAN e quello del collegamento.
+ *
+ * Il campo resta `type=text` e la tendina SUGGERISCE: e' la stessa scelta del
+ * tipo di servizio (㉕) e dei dispositivi. Chiudere l'elenco renderebbe
+ * indocumentabile il primo operatore locale che si presenta, e l'elenco degli
+ * operatori del mondo non ce l'ha nessuno. Serve solo a non far nascere tre
+ * grafie di «TIM», che a valle diventano tre operatori diversi.
+ *
+ * L'elenco lo costruisce `knownProviders` (lib/inter-site.js), che e' puro e
+ * ha il suo banco: qui non si ri-normalizza niente — sarebbe la seconda
+ * definizione della stessa cosa, che in questo progetto e' il bug ricorrente.
+ *
+ * ⚠️ Una `<datalist>` SOLA per tutte le righe, come la ㉕: un id ripetuto in
+ * pagina e' un id che non identifica. I due pannelli non sono mai disegnati
+ * insieme (`_renderBody` ne rende uno per volta), quindi l'id resta unico
+ * anche se la emettono in due.
+ */
+function _providerDatalist() {
+  return `<datalist id="org-providers">${knownProviders(_st.org)
+    .map(p => `<option value="${escapeHTML(p)}"></option>`).join('')}</datalist>`;
+}
+
 function _deviceDatalist(id, siteId) {
   const devs = _devicesOf(siteId);
   if (!devs || !devs.length) return `<datalist id="${escapeHTML(id)}"></datalist>`;
@@ -1705,7 +1731,8 @@ function _renderUplinks() {
     return `<article class="org-row" data-row="${escapeHTML(String(u.id))}">
       <header class="org-row-head">
         <i class="fas fa-cloud-arrow-up"></i>
-        <input class="org-row-title" type="text" value="${escapeHTML(u.provider || '')}" placeholder="${escapeHTML(t('org.providerPh'))}" ${ro ? 'disabled' : ''}
+        <input class="org-row-title" type="text" list="org-providers" title="${escapeHTML(t('org.providerTip'))}"
+               value="${escapeHTML(u.provider || '')}" placeholder="${escapeHTML(t('org.providerPh'))}" ${ro ? 'disabled' : ''}
                data-input="org-field" data-scope="uplink" data-idx="${i}" data-field="provider" aria-label="${escapeHTML(t('org.provider'))}">
         ${ro ? '' : `<button class="um-btn danger org-del" data-act="org-del-uplink" data-idx="${i}" title="${escapeHTML(t('org.removeUplink'))}"><i class="fas fa-trash"></i></button>`}
       </header>
@@ -1714,16 +1741,14 @@ function _renderUplinks() {
           <select ${ro ? 'disabled' : ''} data-change="org-field" data-scope="uplink" data-idx="${i}" data-field="siteId">${_siteOptions(u.siteId)}</select></label>
         <label class="org-f"><span>${escapeHTML(t('org.serviceType'))}</span>
           <input type="text" list="org-svc-types" ${ro ? 'disabled' : ''} value="${escapeHTML(u.serviceType || '')}" placeholder="FTTH"
-                 data-input="org-field" data-scope="uplink" data-idx="${i}" data-field="serviceType">
-          <small class="org-hint">${escapeHTML(t('org.serviceTypeHint'))}</small></label>
+                 data-input="org-field" data-scope="uplink" data-idx="${i}" data-field="serviceType"></label>
         <label class="org-f"><span>${escapeHTML(t('org.circuitId'))}</span>
           <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(u.circuitId || '')}"
                  data-input="org-field" data-scope="uplink" data-idx="${i}" data-field="circuitId"></label>
         <label class="org-f"><span>${escapeHTML(t('org.cir'))}</span>
           <input type="number" min="1" step="1" ${ro ? 'disabled' : ''} value="${u.cirMbps == null ? '' : escapeHTML(u.cirMbps)}"
                  data-input="org-field" data-scope="uplink" data-idx="${i}" data-field="cirMbps">
-          <small class="org-bad" data-cir-hint style="display:none"></small>
-          <small class="org-hint">${escapeHTML(t('org.cirHint'))}</small></label>
+          <small class="org-bad" data-cir-hint style="display:none"></small></label>
         <label class="org-f org-f-span2"><span>${escapeHTML(t('org.publicIps'))} ${_originBadge(u.publicIps)}</span>
           <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(ips.join(', '))}" placeholder="203.0.113.10, 203.0.113.8/29, 2001:db8::1"
                  data-input="org-field" data-scope="uplink" data-idx="${i}" data-field="publicIps">
@@ -1764,7 +1789,8 @@ function _renderUplinks() {
   // non c'è lo scrive.
   const suggerimenti = `<datalist id="org-svc-types">${
     WAN_SERVICE_TYPES.map(k => `<option value="${escapeHTML(t('org.svc.' + k))}"></option>`).join('')}</datalist>`;
-  return _renderWanReport() + suggerimenti + (rows || `<p class="org-note">${escapeHTML(t('org.emptyUplinks'))}</p>`);
+  return _renderWanReport() + suggerimenti + _providerDatalist()
+    + (rows || `<p class="org-note">${escapeHTML(t('org.emptyUplinks'))}</p>`);
 }
 
 function _renderLinks() {
@@ -1807,7 +1833,8 @@ function _renderLinks() {
           <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(l.name || '')}" placeholder="${escapeHTML(t('org.linkNamePh'))}"
                  data-input="org-field" data-scope="link" data-idx="${i}" data-field="name"></label>
         <label class="org-f"><span>${escapeHTML(t('org.provider'))}</span>
-          <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(l.provider || '')}" placeholder="${escapeHTML(t('org.providerPh'))}"
+          <input type="text" list="org-providers" title="${escapeHTML(t('org.providerTip'))}" ${ro ? 'disabled' : ''}
+                 value="${escapeHTML(l.provider || '')}" placeholder="${escapeHTML(t('org.providerPh'))}"
                  data-input="org-field" data-scope="link" data-idx="${i}" data-field="provider"></label>
         <label class="org-f"><span>${escapeHTML(t('org.circuitId'))}</span>
           <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(l.circuitId || '')}"
@@ -1838,7 +1865,7 @@ function _renderLinks() {
       <p class="org-hint org-reach-hint">${escapeHTML(t('org.reachHint'))}</p>
     </article>`;
   }).join('');
-  return rows || `<p class="org-note">${escapeHTML(t('org.emptyLinks'))}</p>`;
+  return _providerDatalist() + (rows || `<p class="org-note">${escapeHTML(t('org.emptyLinks'))}</p>`);
 }
 
 // ── Coerenza (④: si RACCONTA l'audit del server, non se ne calcola un altro) ─

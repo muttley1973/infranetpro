@@ -53,6 +53,15 @@ const CENSUS = {
     vlanProp`,
   link: `autoLinked bss cableCategory confidence dst id isPermanent lagLogicalKey lagMemberPair
     lagMembers mode protocol resolution source sourceCableId src trunkVlans wireless`,
+  // Censimento 2026-08-31 · 17 progetti reali, 191 sacchetti `node.integration`
+  // (nel campione nessun `vm.integration` ne' `vm.snmp`: le VM di questa
+  // installazione non hanno un'integrazione propria). Vale come le altre righe —
+  // una MISURA, non una deduzione dal codice che ci scrive dentro. La differenza
+  // l'ha pagata subito: `lastError` sta in tre sacchetti veri e nel prodotto non lo
+  // scrive ne' lo legge nessuno (lo lasciano i generatori di demo in `_local/`).
+  // Dedotto dal codice, sarebbe rimasto senza classe.
+  integration: `community driver host hostResources inventory lags lastError lastPoll port
+    printer system vlanNames vlans`,
 };
 const keysOf = (scope) => CENSUS[scope].trim().split(/\s+/);
 
@@ -84,7 +93,14 @@ test('CRICCHETTO — la classifica non elenca campi mai visti in nessun progetto
   // che è una misura e non si riscrive.
   const attesi = new Set(['proof', 'modelMatch', 'portsMeasured', 'osTypeMeasured', 'portsReal',
     'portsManual', 'backup', 'snmp', 'srcDevice', 'srcRack',
-    'color', 'lengthM', 'length', 'overflow']);
+    'color', 'lengthM', 'length', 'overflow',
+    // Il blocco SNMPv3 e il `timeout`: li scrive il pannello Integrazione
+    // (`data-ikey`), ma nessuno dei 17 progetti del campione usa la v3. Campi che
+    // il campione non poteva contenere, non campi finti. `hostManual` lo scrive il
+    // Drift quando l'host lo decide una persona; `integration.mac` lo legge
+    // `lib/correlate.js` e nel pannello non c'e' un campo che lo scriva.
+    'timeout', 'v3user', 'v3authProto', 'v3authPass', 'v3privProto', 'v3privPass',
+    'v3secLevel', 'v3context', 'hostManual', 'mac']);
   for (const scope of Object.keys(CENSUS)) {
     const visti = new Set(keysOf(scope));
     const extra = Object.keys(FIELD_CLASS_BY_SCOPE[scope]).filter(k => !visti.has(k) && !attesi.has(k));
@@ -110,7 +126,18 @@ test('sui progetti VERI, se ci sono, nessun campo sfugge (in CI questo test pass
     if (s && s.state && Array.isArray(s.state.nodes)) s = s.state;
     if (!s || !Array.isArray(s.nodes)) continue;
     nota('state', s);
-    for (const n of s.nodes) { nota('node', n); if (n) nota('spec', n.spec); }
+    for (const n of s.nodes) {
+      nota('node', n); if (!n) continue;
+      nota('spec', n.spec);
+      // Il sacchetto credenziali: tre contenitori, una tabella sola. E' qui che si
+      // vede per primo un campo segreto NUOVO — prima che qualcuno se ne accorga
+      // perche' e' uscito in chiaro da un export.
+      nota('integration', n.integration); nota('integration', n.snmp);
+      for (const vm of (Array.isArray(n.vms) ? n.vms : [])) {
+        if (!vm) continue;
+        nota('integration', vm.integration); nota('integration', vm.snmp);
+      }
+    }
     for (const l of (s.links || [])) nota('link', l);
     const ports = (s.ports && typeof s.ports === 'object' && !Array.isArray(s.ports)) ? Object.values(s.ports) : [];
     for (const p of ports) nota('port', p);
@@ -205,6 +232,40 @@ test('il giornale delle modifiche è PRIVATO, non una misura (porta nomi utente)
 test('le credenziali si svuotano, non spariscono', () => {
   assert.strictEqual(exportActionFor('node', 'integration'), 'blank');
   assert.strictEqual(exportActionFor('node', 'snmp'), 'blank');
+});
+
+test('⭐ un contenitore `secret` non è un contenitore TUTTO segreto', () => {
+  // `node.integration` porta la credenziale SNMP, ma anche host/driver/porta e le
+  // misure dell'ultimo poll. `secret` sul CONTENITORE vuol dire «qui dentro c'è da
+  // svuotare qualcosa»; CHE COSA lo dice lo scope `integration`. Prima non lo diceva
+  // nessuno, e i due consumatori enumeravano tre nomi per conto loro — quindi un
+  // quarto campo segreto sarebbe uscito in chiaro lasciando questa suite verde.
+  assert.deepStrictEqual(fieldsOfClass('integration', 'secret'),
+    ['community', 'v3authPass', 'v3privPass'],
+    'i segreti del sacchetto sono i tre campi che il pannello marca type="password"');
+  for (const k of ['driver', 'host', 'port', 'v3user', 'v3context']) {
+    assert.strictEqual(classifyField('integration', k), 'document',
+      `integration.${k} lo digita una persona: identifica, non autentica`);
+  }
+  for (const k of ['lags', 'vlans', 'inventory', 'system', 'lastPoll']) {
+    assert.strictEqual(classifyField('integration', k), 'measure',
+      `integration.${k} lo scrive il poll SNMP`);
+  }
+});
+
+test('il PAVIMENTO della redazione non può restare indietro rispetto alla classifica', () => {
+  // Gemello esatto della guardia su `DERIVED_VLAN_FIELDS`. `SECRET_FLOOR_FIELDS` sta
+  // a mano APPOSTA — copre il caso in cui la classifica non sia caricata nel browser,
+  // dove arriva da un `<script>` che netmapper.html mette prima di project-format —
+  // quindi le due liste convivono. Questa guardia impedisce che il pavimento diventi
+  // una TERZA verità invece di un minimo garantito.
+  const { SECRET_FLOOR_FIELDS } = require('../lib/project-format.js');
+  const dichiarati = new Set(fieldsOfClass('integration', 'secret'));
+  for (const k of SECRET_FLOOR_FIELDS) {
+    assert.ok(dichiarati.has(k),
+      `${k} è nel pavimento di project-format ma non risulta \`secret\` nello scope `
+      + 'integration: o è un segreto e va classificato, o non lo è e non va svuotato');
+  }
 });
 
 // ── L'elenco delle cose da confermare prima di cambiare comportamento ──────

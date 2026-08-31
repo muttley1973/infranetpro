@@ -1602,7 +1602,7 @@ test('perimetro esplicito: buildOverview dichiara «cosa non sto guardando» (ch
     assert.ok(!keys.includes(gone), 'ora modellato, quindi fuori dal perimetro: ' + gone);
   }
   // ⭐ E c'e' un TERZO caso, che non e' ne' «lo guardo» ne' «non esiste»: la WAN.
-  // Le linee verso l'operatore, la banda contrattuale e i collegamenti fra sedi
+  // Le linee verso l'operatore, la loro banda e i collegamenti fra sedi
   // sono modellati dal 30/08 — ma nel pannello «Sedi e collegamenti», che e' UNO
   // per INSTALLAZIONE, mentre questo motore legge UN progetto. Toglierlo dalla
   // lista direbbe che la Panoramica li guarda; lasciarlo 'unmodeled' diceva che

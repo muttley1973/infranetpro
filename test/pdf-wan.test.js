@@ -92,7 +92,7 @@ test('⭐ i quattro dati per telefonare all\'operatore restano in scheda ANCHE v
   // A differenza della scheda PDU — dove un campo assente sparisce — qui l'assenza
   // È la scoperta: una linea senza codice circuito si deve vedere adesso, non la
   // notte in cui serve dettarlo al telefono.
-  for (const etichetta of ['Operatore', 'Servizio', 'Codice circuito', 'Banda contrattuale']) {
+  for (const etichetta of ['Operatore', 'Servizio', 'Codice circuito', 'Banda della porta']) {
     assert.ok(txt.includes(etichetta), 'in scheda anche vuoto: ' + etichetta);
   }
   assert.ok(txt.includes('1 senza codice circuito'), 'e il buco si conta in testata');
