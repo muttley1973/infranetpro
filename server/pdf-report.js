@@ -1795,9 +1795,15 @@ function _addWanPages(doc, wan, projName, date, lang = 'it', SVGtoPDF = null) {
       spazio(9);
       doc.font('Helvetica').fontSize(6.5).fillColor('#334155')
         .text(_fit(doc, _pdfSafe(r.subject || DASH), 250, 6.5), M + 18, cy, { lineBreak: false });
-      if (r.note) {
+      // ㉗ Lo scopo di un indirizzo arriva come codice e si traduce qui, come
+      // il nome del controllo: sulla carta «100.64.8.2» da solo non dice perche'
+      // e' finito nell'elenco, e il pannello invece lo dice.
+      const nota = r.note && r.scope
+        ? `${r.note} · ${parolaDi('org.scope.' + r.scope, r.scope)}`
+        : r.note;
+      if (nota) {
         doc.font('Helvetica').fontSize(6.5).fillColor('#64748b')
-          .text(_fit(doc, _pdfSafe(r.note), CW - 290, 6.5), M + 280, cy, { lineBreak: false });
+          .text(_fit(doc, _pdfSafe(nota), CW - 290, 6.5), M + 280, cy, { lineBreak: false });
       }
       cy += 9;
     }

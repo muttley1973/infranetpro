@@ -26,6 +26,7 @@ const HTML = fs.readFileSync(path.join(ROOT, 'netmapper.html'), 'utf8');
 const i18n = require('../lib/i18n.js');
 const IS = require('../lib/inter-site.js');
 const { buildInterSiteAudit } = require('../lib/inter-site-audit.js');
+const { ADDR_SCOPES } = require('../lib/cidr.js');
 const prov = require('../lib/provenance.js');
 
 const DICT = i18n._i18nDict;
@@ -59,6 +60,10 @@ const CODE = {
   // perché il valore è già il vocabolario `INTER_SITE_STATES` con l'iniziale
   // maiuscola. Si deriva da quello, non si riscrive.
   'org.state': IS.INTER_SITE_STATES.map(s => s[0].toUpperCase() + s.slice(1)),
+  // ㉗ Lo scopo di un indirizzo: il vocabolario si chiede a chi classifica
+  // (`lib/cidr.js`), non si riscrive qui. Uno scopo nuovo arriva con l'obbligo
+  // di avere la sua parola in tutt'e due le lingue.
+  'org.scope.': ADDR_SCOPES,
   // I nomi delle liste dell'audit non si scrivono qui: si CHIEDONO all'audit.
   // Così un controllo nuovo arriva con l'obbligo di avere delle parole.
   'org.a.': Object.keys(buildInterSiteAudit({})).filter(k => k !== 'notChecked'),

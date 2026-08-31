@@ -480,6 +480,80 @@ test('nessun peer dichiarato: si registra invece di assolvere', () => {
   assert.ok(a.notChecked.some(c => c.check === 'crossedPeerIps' && c.reason === 'no-peer-ip'));
 });
 
+// ── ㉗ Un indirizzo che promette di essere pubblico e non lo è ─────────────
+// Il campo accettava qualunque cosa fosse un indirizzo. Nessuno a valle poteva
+// accorgersene: il documento non prova a raggiungere quell'indirizzo.
+
+test('⭐ il 100.64 del provider dichiarato come pubblico è un\'incoerenza', () => {
+  const org = clone(SANE);
+  org.uplinks[1].publicIps = factDeclared(['100.64.8.2']);
+  const a = buildInterSiteAudit(org);
+  assert.deepStrictEqual(a.uplinksWithNonPublicIp,
+    [{ uplinkId: 'u-rm', siteId: 'rm', addr: '100.64.8.2', scope: 'cgnat' }]);
+  assert.ok(INTER_SITE_AUDIT_PROBLEMS.includes('uplinksWithNonPublicIp'),
+    'il campo dice una cosa e il valore ne dice un\'altra: è una contraddizione, non una lacuna');
+});
+
+test('una riga per INDIRIZZO, non per linea: due sbagliati sulla stessa linea sono due', () => {
+  const org = clone(SANE);
+  org.uplinks[0].publicIps = factDeclared(['192.168.1.1', '203.0.113.1', '127.0.0.1']);
+  const a = buildInterSiteAudit(org);
+  assert.deepStrictEqual(a.uplinksWithNonPublicIp.map(r => [r.addr, r.scope]),
+    [['192.168.1.1', 'private'], ['127.0.0.1', 'loopback']]);
+});
+
+test('⭐ gli indirizzi di DOCUMENTAZIONE non si accusano: sono quelli del suggerimento', () => {
+  // Le tre linee di SANE sono tutte 203.0.113.x — TEST-NET-3, cioè esattamente
+  // ciò che la IANA riserva a chi scrive un esempio e ciò che il campo suggerisce
+  // sotto di sé. Un controllo che le accusasse accuserebbe la pratica che il
+  // prodotto stesso consiglia, e arrosserebbe il suo archivio di prova.
+  assert.deepStrictEqual(buildInterSiteAudit(SANE).uplinksWithNonPublicIp, []);
+  const org = clone(SANE);
+  org.uplinks[0].publicIps = factDeclared(['192.0.2.1', '198.51.100.1', '2001:db8::1']);
+  assert.deepStrictEqual(buildInterSiteAudit(org).uplinksWithNonPublicIp, []);
+});
+
+test('l\'indirizzo si riporta COME È SCRITTO, blocco compreso', () => {
+  const org = clone(SANE);
+  org.uplinks[0].publicIps = factDeclared(['10.8.0.0/29']);
+  assert.deepStrictEqual(buildInterSiteAudit(org).uplinksWithNonPublicIp.map(r => r.addr),
+    ['10.8.0.0/29'], 'chi deve correggere cerca la riga che ha scritto, non una forma canonica');
+});
+
+test('vale per l\'IPv6 come per l\'IPv4', () => {
+  const org = clone(SANE);
+  org.uplinks[0].publicIps = factDeclared(['fd00:1234::1']);
+  org.uplinks[1].publicIps = factDeclared(['fe80::1']);
+  org.uplinks[2].publicIps = factDeclared(['2a00:1450:4001::200e']);
+  const a = buildInterSiteAudit(org);
+  assert.deepStrictEqual(a.uplinksWithNonPublicIp.map(r => [r.siteId, r.scope]),
+    [['mi', 'private'], ['rm', 'linkLocal']]);
+});
+
+test('⚠️ ciò che non è un indirizzo non viene accusato', () => {
+  // «Non lo so» non è «non è pubblico»: su un dubbio non si accusa nessuno.
+  const org = clone(SANE);
+  org.uplinks[0].publicIps = factDeclared(['mela']);
+  assert.deepStrictEqual(buildInterSiteAudit(org).uplinksWithNonPublicIp, []);
+});
+
+test('nessuna linea dichiara un indirizzo: si registra invece di assolvere', () => {
+  const org = clone(SANE);
+  for (const u of org.uplinks) delete u.publicIps;
+  const a = buildInterSiteAudit(org);
+  assert.deepStrictEqual(a.uplinksWithNonPublicIp, []);
+  assert.ok(a.notChecked.some(c => c.check === 'uplinksWithNonPublicIp' && c.reason === 'no-public-ip'),
+    'senza nessun indirizzo il controllo non ha guardato niente, e deve dirlo');
+  assert.equal(a.uplinksWithoutPublicIp.length, 3, 'e le tre lacune restano lacune');
+});
+
+test('nessuna linea WAN: il controllo si dichiara cieco', () => {
+  const org = clone(SANE);
+  org.uplinks = [];
+  const a = buildInterSiteAudit(org);
+  assert.ok(a.notChecked.some(c => c.check === 'uplinksWithNonPublicIp' && c.reason === 'no-uplinks'));
+});
+
 // ── ㉖ Il cancello che tiene insieme le due definizioni ────────────────────
 // La classificazione era scritta due volte — qui e nel pannello — e coincideva
 // per abitudine. Un controllo fuori da entrambi gli elenchi sarebbe calcolato e

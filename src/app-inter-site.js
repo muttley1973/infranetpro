@@ -1908,6 +1908,7 @@ const _AUDIT_SITES_OF = {
   sitesWithoutLink: (r) => [r.siteId],
   sitesWithoutUplink: (r) => [r.siteId],
   uplinksWithoutPublicIp: (r) => [r.siteId],
+  uplinksWithNonPublicIp: (r) => [r.siteId],
   staticUplinksWithoutNextHop: (r) => [r.siteId],
 };
 
@@ -2011,6 +2012,10 @@ function _auditLine(key, row) {
     case 'sitesWithoutLink': return S(row.siteId);
     case 'sitesWithoutUplink': return S(row.siteId);
     case 'uplinksWithoutPublicIp': return escapeHTML(_uplinkName(row.uplinkId, row.siteId));
+    // ㉗ L'indirizzo E il suo scopo: «non è pubblico» e «è il 100.64 del
+    // provider» mandano a girare due campi diversi, e senza lo scopo il lettore
+    // dovrebbe riconoscere un prefisso a memoria.
+    case 'uplinksWithNonPublicIp': return `${escapeHTML(_uplinkName(row.uplinkId, row.siteId))} <span class="org-audit-at">${escapeHTML(row.addr)} · ${escapeHTML(t('org.scope.' + row.scope))}</span>`;
     case 'staticUplinksWithoutNextHop': return escapeHTML(_uplinkName(row.uplinkId, row.siteId));
     default: return escapeHTML(JSON.stringify(row));
   }

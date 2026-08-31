@@ -138,6 +138,35 @@ test('⭐ ㉖ il capitolo dice anche COSA NON TORNA, con le parole del pannello'
   assert.ok(/2 lacune|1 lacune|lacune/.test(txt), 'e il conto in testata');
 });
 
+test('⭐ ㉗ un indirizzo che non è pubblico arriva sul foglio col suo SCOPO', { skip: !deps }, () => {
+  // Un controllo verde in `lib/` non è ancora una riga che il lettore riceve:
+  // qui si guarda ciò che finisce davvero sulla pagina. Senza lo scopo, alle tre
+  // di notte resterebbe un indirizzo nudo da riconoscere a memoria.
+  const doc = newDoc();
+  const seen = scritte(doc);
+  _addWanPages(doc, rapporto({
+    uplinks: [{ id: 'u1', siteId: 'mi', provider: 'Fastweb', circuitId: 'FW-88213',
+      publicIps: factDeclared(['100.64.8.2']) }],
+  }), 'P', 'd', 'it', deps.SVGtoPDF);
+  const txt = seen.join(' | ');
+  assert.ok(txt.includes('Linee WAN che dichiarano come pubblico un indirizzo che non lo è'),
+    'la frase arriva dal dizionario condiviso col pannello');
+  assert.ok(txt.includes('100.64.8.2'), 'e con l\'indirizzo: è il campo da andare a girare');
+  assert.ok(/100\.64\.8\.2 · CGNAT/.test(txt), 'lo scopo sta accanto all\'indirizzo, tradotto');
+});
+
+test('㉗ lo scopo si traduce, come il nome del controllo', { skip: !deps }, () => {
+  const doc = newDoc();
+  const seen = scritte(doc);
+  _addWanPages(doc, rapporto({
+    uplinks: [{ id: 'u1', siteId: 'mi', provider: 'Fastweb', circuitId: 'FW-88213',
+      publicIps: factDeclared(['192.168.1.1']) }],
+  }), 'P', 'd', 'en', deps.SVGtoPDF);
+  const txt = seen.join(' | ');
+  assert.ok(txt.includes('WAN lines declaring as public an address that is not'));
+  assert.ok(/192\.168\.1\.1 · Private/.test(txt), 'in inglese lo scopo è la parola inglese');
+});
+
 test('㉖ «non ho potuto controllare» arriva sul foglio col suo perché', { skip: !deps }, () => {
   const doc = newDoc();
   const seen = scritte(doc);

@@ -154,10 +154,18 @@ lib/                   Shared browser + test modules (the heart of the app)
                     and an HA pair exposes several. An unknown transport or tunnel drops to null
                     and is SAID, never corrected into a neighbouring value.
   inter-site-audit.js  Coherence of the declared multi-site model — no network, no discovery.
-                    Five INCOHERENCES (something is wrong) and five GAPS (nothing is broken,
-                    but you cannot answer) in separate lists, plus `notChecked`: every check
-                    that could not run leaves its name and its reason, the same discipline as
+                    INCOHERENCES (something is wrong) and GAPS (nothing is broken, but you
+                    cannot answer) in separate lists, plus `notChecked`: every check that
+                    could not run leaves its name and its reason, the same discipline as
                     ipam-audit.js — an empty list must mean "I looked", never also "I didn't".
+                    Which check is of which kind is said by `INTER_SITE_AUDIT_PROBLEMS` /
+                    `INTER_SITE_AUDIT_GAPS`, which are code and not prose: a sentence here
+                    that counted them would go stale the next time one is added, and this one
+                    did — it said five and five while they had become nine and eight.
+                    Among the incoherences: an address declared PUBLIC that is not one
+                    (RFC1918, CGNAT, loopback…), classified by `addrScope` (cidr.js) off the
+                    IANA registry. Documentation ranges are deliberately exempt — they are
+                    what the field's own hint suggests writing.
   inter-site-layout.js  Where each site goes on the map, as coordinates: no SVG, no DOM, no
                     strings — which is what lets the browser and the PDF export (and the coming
                     draw.io one) draw the SAME map. Deterministic and physics-free (a graph that re-settles
@@ -199,7 +207,12 @@ lib/                   Shared browser + test modules (the heart of the app)
                     towards document adds one field to an export the user made themselves,
                     erring towards measure DELETES somebody's work.
   cidr.js           IPv4+IPv6 prefix arithmetic; `addrFamily`/`addrKey` = the identity of
-                    a single ADDRESS (both families canonical), `segmentKey` = the segment
+                    a single ADDRESS (both families canonical), `addrScope` = WHERE it can
+                    live — `global`, or which special-purpose range says it cannot (RFC 6890,
+                    a registry rather than a vendor list). For IPv6 it TRANSLATES `ipv6Class`
+                    (ipv6.js) instead of re-deciding what `fe80::/10` is; the vocabulary
+                    `ADDR_SCOPES` is derived from the tables, because the panel asks `t()`
+                    for each scope by name. `segmentKey` = the segment
                     an address belongs to — the DECLARED prefix containing it (most
                     specific first), and only where nothing is declared the /24 (v4) /
                     /64 (v6) convention, stated here instead of assumed per file. One
@@ -511,7 +524,12 @@ shared `remapLagId` helper so they stay aligned across formats (`snmp-lag-…`,
 so this is a no-op for them; it only reshapes imported/generated projects.
 
 The server saves the main project with a temporary file, `fsync`, rename and `.bak`
-fallback. The floor-plan image is a sidecar under `projects/assets/`; timeline and
+fallback — and the fallback is **declared**: `readProjectFile(id)` says whether the
+content came from the project file or from the last valid copy, and in the second case
+whether the file was missing or unreadable. A GET reports it in a response header (never
+in the body, which is the DTO the REST API v1 also serves) and the browser warns before
+the older content can be saved back over the newer one; `loadProject(id)` stays the
+plain one-value call for everything that has nobody to tell. The floor-plan image is a sidecar under `projects/assets/`; timeline and
 snapshot history are separate files under `projects/history/<id>/`, written atomically
 with `fsync` and pruned when a project is deleted. The browser JSON export is a portable
 envelope, not a raw server backup: it redacts SNMP credentials and sanitizes backup

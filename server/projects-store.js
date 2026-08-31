@@ -170,17 +170,48 @@ function saveProject(id, name, state, createdAt, updatedAt) {
   ));
 }
 
-function loadProject(id) {
+// ---- Leggere un progetto, e sapere DA DOVE --------------------------------
+// `source`: 'main' quando si è letto il file del progetto, 'backup' quando si è
+// dovuto ripiegare sull'ultima copia valida. `reason` dice quale dei due modi di
+// non poter leggere: 'missing' (il file non c'è) oppure 'unreadable' (c'è e non
+// si apre — un JSON troncato, ma su Windows anche un lock momentaneo di un
+// antivirus o di un backup, che è il caso in cui il principale era SANO).
+//
+// ⚠️ **Perché ripiegare in silenzio non basta.** Il ripiego serve un contenuto
+// più VECCHIO senza dirlo, e nello stesso istante `projectEtag` risponde `null`
+// — «non lo so», che per disegno lascia passare il salvataggio (v. sotto). Chi
+// apre, modifica e salva riscrive quindi il file principale con lo stato
+// recuperato: da lì in poi la versione più vecchia È il progetto, e quella che
+// c'era non la nomina più nessuno. Le due scelte sono giuste una per una; è il
+// loro incrocio che perde lavoro. La cura non è rifiutare il salvataggio —
+// punirebbe l'utente per un dubbio nostro — ma DIRLO a chi ha in mano il file,
+// prima che ci scriva sopra.
+function readProjectFile(id) {
   const file = path.join(PROJECTS_DIR, `${id}.json`);
-  try {
-    if (fs.existsSync(file)) return reattachBgAsset(JSON.parse(fs.readFileSync(file, 'utf8')), ASSETS_DIR);
-  } catch (_) { /* file principale illeggibile → tenta il backup */ }
-  // Recupero: se il file finale e' assente o corrotto, prova l'ultimo `.bak`.
+  // Senza valore iniziale apposta: ogni via che arriva in fondo ne assegna uno,
+  // e un `null` di partenza sarebbe un ripiego che nessuna riga legge mai.
+  let reason;
+  if (fs.existsSync(file)) {
+    try {
+      return { project: reattachBgAsset(JSON.parse(fs.readFileSync(file, 'utf8')), ASSETS_DIR), source: 'main', reason: null };
+    } catch (_) { reason = 'unreadable'; }
+  } else {
+    reason = 'missing';
+  }
   try {
     const bak = `${file}.bak`;
-    if (fs.existsSync(bak)) return reattachBgAsset(JSON.parse(fs.readFileSync(bak, 'utf8')), ASSETS_DIR);
+    if (fs.existsSync(bak)) {
+      return { project: reattachBgAsset(JSON.parse(fs.readFileSync(bak, 'utf8')), ASSETS_DIR), source: 'backup', reason };
+    }
   } catch (_) { /* nemmeno il backup e' valido */ }
-  return null;
+  return { project: null, source: null, reason };
+}
+
+// Il progetto e basta. La usano tutti i chiamanti che non hanno nessuno a cui
+// dirlo (export, REST API v1, assistente, storico): il comportamento è quello di
+// sempre, e non devono imparare niente di nuovo per continuare a funzionare.
+function loadProject(id) {
+  return readProjectFile(id).project;
 }
 
 // ---- Marcatore di versione (ETag) -------------------------------------------
@@ -228,17 +259,33 @@ function _projectCounts(state) {
   };
 }
 
+// ⚠️ **Un progetto illeggibile non deve SPARIRE dalla lista.** Misurato dal
+// vivo: con il file principale troncato questo record cadeva, e con esso il
+// progetto — la tendina non lo mostrava più, l'avviso di recupero non poteva
+// scattare (nessuno chiedeva quell'id), e se era l'unico progetto l'avvio ne
+// creava uno NUOVO e vuoto, che è il modo più silenzioso di far sembrare perso
+// un lavoro che sta ancora tutto lì, nel `.bak` accanto. La riga si ricostruisce
+// quindi dall'ultima copia valida — lo stesso ripiego dell'apertura, non un
+// secondo — e solo se manca anche quella il record cade davvero.
+// Costa zero sulla via normale: il ripiego vive dentro il `catch`.
+function _rigaLista(o) {
+  // Il parse dell'intero file avviene comunque (serve a id/name/date): i
+  // conteggi costano una scansione dell'array già in memoria, non un I/O.
+  const c = _projectCounts(o.state);
+  return { id: o.id, name: o.name, created_at: o.created_at, updated_at: o.updated_at,
+           devices: c.devices, racks: c.racks };
+}
+
 function listProjects() {
   return fs.readdirSync(PROJECTS_DIR)
     .filter(f => /^\d+\.json$/.test(f))
     .map(f => {
+      const file = path.join(PROJECTS_DIR, f);
       try {
-        const o = JSON.parse(fs.readFileSync(path.join(PROJECTS_DIR, f), 'utf8'));
-        // Il parse dell'intero file avviene comunque (serve a id/name/date): i
-        // conteggi costano una scansione dell'array già in memoria, non un I/O.
-        const c = _projectCounts(o.state);
-        return { id: o.id, name: o.name, created_at: o.created_at, updated_at: o.updated_at,
-                 devices: c.devices, racks: c.racks };
+        return _rigaLista(JSON.parse(fs.readFileSync(file, 'utf8')));
+      } catch (_) { /* principale illeggibile → l'ultima copia valida */ }
+      try {
+        return _rigaLista(JSON.parse(fs.readFileSync(`${file}.bak`, 'utf8')));
       } catch (_) { return null; }
     })
     .filter(Boolean)
@@ -261,6 +308,6 @@ function listProjects() {
 }
 
 module.exports = {
-  PROJECTS_DIR, ASSETS_DIR, atomicWriteFile, nextId, saveProject, loadProject, listProjects,
+  PROJECTS_DIR, ASSETS_DIR, atomicWriteFile, nextId, saveProject, loadProject, readProjectFile, listProjects,
   extractBgAsset, reattachBgAsset, removeBgAsset, projectEtag,
 };

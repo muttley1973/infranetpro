@@ -3,7 +3,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { _parseIpv4Int, _parseCidrInfo, _ipInCidr, _cidrsOverlap, _intToIpv4, subnetInputToCidr,
-        addrFamily, addrKey, addrIsLinkLocalV6, segmentKey } = require('../lib/cidr.js');
+        addrFamily, addrKey, addrIsLinkLocalV6, addrScope, ADDR_SCOPES, segmentKey } = require('../lib/cidr.js');
+const { ipv6Class } = require('../lib/ipv6.js');
 
 test('_parseIpv4Int: parsing e validazione ottetti', () => {
   assert.equal(_parseIpv4Int('0.0.0.0'), 0);
@@ -262,4 +263,97 @@ test('segmentKey: accetta i prefissi come stringhe o come righe IPAM, e ignora i
   assert.equal(segmentKey('10.0.1.7', ['10.0.0.0/22']), '10.0.0.0/22');
   assert.equal(segmentKey('10.0.1.7', [null, {}, { cidr: '' }, { cidr: 'mela' }]), '10.0.1');
   assert.equal(segmentKey('10.0.1.7', 'non-un-elenco'), '10.0.1');
+});
+
+// ── Lo scopo di un indirizzo ───────────────────────────────────────────────
+// Il campo «indirizzi pubblici» di una linea WAN accettava qualunque cosa fosse
+// un indirizzo: RFC1918, il 100.64 del provider, 0.0.0.0. Nessuno a valle poteva
+// accorgersene, perché il documento non prova a raggiungerli.
+
+test('addrScope: i prefissi a scopo speciale, e i loro CONFINI', () => {
+  const casi = [
+    ['8.8.8.8', 'global'],
+    ['172.32.0.1', 'global'],          // appena FUORI dalla 172.16/12
+    ['100.128.0.1', 'global'],         // appena FUORI dalla 100.64/10
+    ['10.0.0.5', 'private'],
+    ['172.16.0.1', 'private'],
+    ['172.31.255.254', 'private'],
+    ['192.168.1.1', 'private'],
+    ['100.64.0.1', 'cgnat'],
+    ['100.127.255.254', 'cgnat'],
+    ['127.0.0.1', 'loopback'],
+    ['169.254.1.1', 'linkLocal'],
+    ['224.0.0.1', 'multicast'],
+    ['198.18.0.1', 'benchmark'],
+    ['0.0.0.0', 'unspecified'],
+    ['0.1.2.3', 'reserved'],
+    ['255.255.255.255', 'reserved'],
+    ['192.0.2.1', 'documentation'],
+    ['198.51.100.1', 'documentation'],
+    ['203.0.113.1', 'documentation'],
+  ];
+  for (const [ip, atteso] of casi) assert.equal(addrScope(ip), atteso, ip);
+});
+
+test('addrScope: un BLOCCO vale per la rete che dichiara', () => {
+  assert.equal(addrScope('203.0.113.8/29'), 'documentation');
+  assert.equal(addrScope('100.64.8.0/29'), 'cgnat');
+  assert.equal(addrScope('2a00:1450::/48'), 'global');
+});
+
+test('⚠️ addrScope: «non è un indirizzo» NON è «non è pubblico»', () => {
+  // Sono due risposte diverse e vanno tenute diverse: chi accusa deve poter
+  // tacere su ciò che non ha capito, invece di chiamarlo privato.
+  for (const x of ['', '   ', null, undefined, 'mela', '192.168.1', '999.1.1.1']) {
+    assert.equal(addrScope(x), null, JSON.stringify(x));
+  }
+  assert.notEqual(addrScope('10.0.0.1'), null);
+});
+
+test("addrScope: l'IPv6 nel vocabolario comune alle due famiglie", () => {
+  assert.equal(addrScope('2a00:1450:4001::200e'), 'global');
+  assert.equal(addrScope('fe80::1'), 'linkLocal');
+  assert.equal(addrScope('fc00::1'), 'private');          // ULA
+  assert.equal(addrScope('::1'), 'loopback');
+  assert.equal(addrScope('::'), 'unspecified');
+  assert.equal(addrScope('ff02::1'), 'multicast');
+  assert.equal(addrScope('2001:db8::1'), 'documentation');
+  assert.equal(addrScope('::ffff:8.8.8.8'), 'reserved');  // IPv4-mapped: non va sul filo
+});
+
+test("⭐ addrScope non riclassifica l'IPv6: chi ha la stessa classe ha lo stesso scopo", () => {
+  // La guardia NON riscrive la mappa classe→scopo: sarebbe elencare due volte la
+  // stessa cosa, e un verde così non dimostrerebbe niente. Verifica la RELAZIONE
+  // fra le due funzioni: se qualcuno mettesse un `fe80` a mano dentro
+  // `addrScope`, due link-local finirebbero in scopi diversi e questo arrossisce.
+  const campioni = ['fe80::1', 'fe80::abcd:1', 'fc00::1', 'fd12:3456::7', '::1', '::',
+    'ff02::1', 'ff05::2', '2a00:1450:4001::200e', '2001:db8::1', '::ffff:8.8.8.8'];
+  const perClasse = new Map();
+  for (const ip of campioni) {
+    const cls = ipv6Class(ip);
+    assert.ok(cls, 'campione non riconosciuto da ipv6Class: ' + ip);
+    if (cls === 'global') continue;      // `global` è la sola classe che addrScope RAFFINA
+    if (!perClasse.has(cls)) perClasse.set(cls, new Set());
+    perClasse.get(cls).add(addrScope(ip));
+  }
+  assert.ok(perClasse.size >= 4, 'i campioni non coprono più le classi di ipv6Class');
+  for (const [cls, scopi] of perClasse) {
+    assert.equal(scopi.size, 1,
+      'la classe ' + cls + ' finisce in ' + scopi.size + ' scopi diversi ('
+      + [...scopi].join(', ') + '): sono due definizioni');
+  }
+});
+
+test('⭐ ogni scopo che addrScope sa restituire sta in ADDR_SCOPES', () => {
+  // Il pannello chiede a `t()` la parola di `org.scope.<scopo>` espandendo
+  // ADDR_SCOPES: uno scopo aggiunto alla tabella e non al vocabolario stamperebbe
+  // a schermo la chiave nuda, e la parità i18n non se ne accorgerebbe.
+  const sonda = ['8.8.8.8', '10.0.0.1', '100.64.0.1', '127.0.0.1', '169.254.0.1',
+    '224.0.0.1', '198.18.0.1', '0.0.0.0', '240.0.0.1', '203.0.113.1',
+    '2a00:1450::1', 'fe80::1', 'fc00::1', '::1', '::', 'ff02::1', '2001:db8::1', '::ffff:1.2.3.4'];
+  const visti = new Set(sonda.map(addrScope).filter(Boolean));
+  assert.ok(visti.size >= 9, 'la sonda non tocca più tutti gli scopi: ' + [...visti].join(' '));
+  for (const s of visti) {
+    assert.ok(ADDR_SCOPES.includes(s), s + ' non è nel vocabolario ADDR_SCOPES');
+  }
 });

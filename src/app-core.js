@@ -6,7 +6,7 @@
 // ============================================================
 import { win, expose, t } from './_bridge.js';
 import { store, resetProjectRuntime } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { pushHistory, _invalidateIdx, logAudit, _clearDirty, dirtyEpoch, _migrateState, _updateHistoryBtns, _buildDefaultState, bindEventsOnce, _loadDefaultLocal } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { pushHistory, _invalidateIdx, logAudit, _clearDirty, dirtyEpoch, _migrateState, _updateHistoryBtns, _buildDefaultState, bindEventsOnce, _loadDefaultLocal, _showToast } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderRackTabs, updateTransforms, _updateFloorToolbarVisibility, initPaletteUi } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { _restoreTopoSession } from './app-topology-discover.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
@@ -38,6 +38,24 @@ const _captureEtag = (res) => {
     if (t) _projectEtag = t;
 };
 const _ifMatch = () => (_projectEtag ? { 'If-Match': _projectEtag } : {});
+
+// ⭐ Il progetto può arrivare dall'ULTIMA COPIA VALIDA, quando il suo file non si
+// è potuto leggere: è un contenuto più vecchio, e chi lo ha in mano sta per
+// salvarci sopra — da quel momento la copia recuperata È il progetto. Il server
+// lo dice in un'intestazione (il corpo è il DTO pubblico, v. la rotta), e qui si
+// dice all'utente. Si avvisa, non si blocca: fermare il salvataggio lo
+// punirebbe per un guasto che non è suo, e non gli restituirebbe niente.
+const _avvisaRecupero = (res) => {
+    if (!res.ok) return;
+    const motivo = res.headers.get('X-InfraNet-Recovered');
+    if (!motivo) return;
+    _showToast(t(motivo === 'missing' ? 'msg.ui.projectRecoveredMissing' : 'msg.ui.projectRecoveredUnreadable'),
+        'warn', 12000);
+};
+
+// Le due cose da fare su una risposta che porta un progetto: prendere la
+// versione, e dire se è stata recuperata.
+const _onProjectGet = (res) => { _captureEtag(res); _avvisaRecupero(res); };
 
 async function apiFetch(path, opts={}) {
     // `onResponse` non è un'opzione di fetch: si sfila prima, o finirebbe
@@ -96,7 +114,7 @@ async function loadProjectList() {
 }
 
 async function loadProject(id) {
-    const proj = await apiFetch(`${API}/${id}`, { onResponse: _captureEtag });
+    const proj = await apiFetch(`${API}/${id}`, { onResponse: _onProjectGet });
     store.currentProjectId = proj.id;
     store.state = _migrateState(proj.state);
     resetProjectRuntime();

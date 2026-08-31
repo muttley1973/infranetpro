@@ -7,7 +7,7 @@ const fs   = require('fs');
 const path = require('path');
 const auth = require('../../auth');
 const { timestamp } = require('../../utils');
-const { PROJECTS_DIR, nextId, saveProject, loadProject, listProjects, removeBgAsset, projectEtag } = require('../projects-store');
+const { PROJECTS_DIR, nextId, saveProject, loadProject, readProjectFile, listProjects, removeBgAsset, projectEtag } = require('../projects-store');
 const { removeProjectHistory, createFsHistoryStore } = require('../history-store-fs');
 const { mergePresence, foldPresence, collectPresence, stripPresence } = require('../../lib/presence-store');
 const { mergeObservations, foldObservations, stripObservations } = require('../../lib/discovery-history');
@@ -161,11 +161,29 @@ router.post('/api/projects', auth.requireAdmin, (req, res) => {
   res.status(201).json(loadProject(id));
 });
 
+// ── Da dove arriva ciò che sto per servire ───────────────────────────────────
+// Quando il file del progetto non si è potuto leggere, lo store ripiega
+// sull'ultima copia valida — che è un contenuto PIÙ VECCHIO. Chi lo riceve deve
+// saperlo prima di salvarci sopra, o la versione recuperata diventa il progetto
+// e quella che c'era non la nomina più nessuno (v. `readProjectFile`).
+//
+// Viaggia in un'INTESTAZIONE, non nel corpo, per la stessa ragione dell'ETag: il
+// corpo è il DTO letto anche dalla REST API v1 e dall'inventario Ansible, e un
+// campo di trasporto lì dentro diventerebbe un campo del documento per chiunque
+// legga di là. Chi non guarda l'intestazione continua a funzionare come prima.
+function _tagRecupero(res, id, letto) {
+  if (!letto || letto.source !== 'backup') return;
+  res.set('X-InfraNet-Recovered', letto.reason || 'backup');
+  console.warn(`  [PROJECTS] ${id}: servito dall'ultima copia valida (${letto.reason})`);
+}
+
 // Leggi
 router.get('/api/projects/:id', (req, res) => {
   const id = +req.params.id;
-  const p = loadProject(id);
+  const letto = readProjectFile(id);
+  const p = letto.project;
   if (!p) return res.status(404).json({ error: 'Project not found' });
+  _tagRecupero(res, id, letto);
   // La PRESENZA vive fuori dal <id>.json (come lo storico) perché è una misura, non
   // una modifica: la Verifica la salva da sé, senza aspettare che qualcuno prema
   // Salva. Qui torna dentro allo stato, così chi riapre il progetto ritrova gli
