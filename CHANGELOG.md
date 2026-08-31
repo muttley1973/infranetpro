@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased] — post-v2.10.2
+## [2.11.0] — 2026-08-31
 
 The multi-site layer: a project documents one building, and this is the floor above it — how the
 buildings talk to each other (plan: `_local/notes/PIANO_multi-sede-wan-vpn.md`). Most of what

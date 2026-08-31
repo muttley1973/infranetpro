@@ -10,7 +10,7 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="3,432 tests, 0 failing" src="https://img.shields.io/badge/tests-3%2C432%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="3,465 tests, 0 failing" src="https://img.shields.io/badge/tests-3%2C465%20%C2%B7%200%20failing-3fb950"></a>
   <a href="#testing"><img alt="119 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-119%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#oui-intelligence-engine"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
@@ -121,7 +121,28 @@ Double-click <code>avvia.bat</code>.<br>
 
 > **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then run **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.10.2) — a scan now recognises the model, and the dashboard is a map you can click.**
+> 📰 **What's new (v2.11.0) — a project documents one building; this release documents how the buildings talk to each other.**
+>
+> - **Sites and links, as a map and as a form in the same place.** A panel beside the project picker holds the
+>   organisation: its sites, the WAN lines each one buys, the tunnels between them. Clicking a site on the map
+>   walks down into that site's own project. Writing it by hand is the primary path, not a fallback — and the
+>   NetBox import fills these same fields rather than different ones, reading the circuits and the VPN tunnels
+>   an import used never to open.
+> - **The declared model now checks itself.** A tunnel carrying a network no site claims, the same subnet
+>   declared at two sites, a link that never says which WAN line carries it, an address declared *public* that
+>   is a carrier's `100.64` — inconsistencies and gaps kept in separate lists, because a missing line and a
+>   false one are not the same thing. Every check that could not run leaves its name and its reason instead of
+>   passing for a clean bill of health.
+> - **The dossier gains the WAN chapter.** The map of the sites, then one recovery card per line and per link:
+>   who sells it, the circuit id you dictate on the phone, the port bandwidth, the device holding each end, and
+>   the networks the link makes reachable — which on an IPsec **are** the encryption domain.
+> - **A floor plan can hold storeys**, drawn as containers rather than modelled as devices, and the NetBox
+>   import stops flattening the locations it reads.
+> - **Three ways of quietly losing work are closed.** An edit made *during* a save no longer vanishes; two
+>   sessions no longer overwrite each other in silence; and a project reopened from its backup now says so,
+>   before you save the older content back over the newer.
+>
+> 📰 **v2.10.2 — a scan now recognises the model, and the dashboard is a map you can click.**
 >
 > - **A scan recognises the device model and proposes it — it never applies it on its own.** The model is
 >   matched against the catalogue from what the device actually reports (its ENTITY-MIB model name, else its
