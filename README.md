@@ -10,8 +10,8 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="3,465 tests, 0 failing" src="https://img.shields.io/badge/tests-3%2C465%20%C2%B7%200%20failing-3fb950"></a>
-  <a href="#testing"><img alt="119 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-119%20real--browser%20flows-3fb950"></a>
+  <a href="#testing"><img alt="3,478 tests, 0 failing" src="https://img.shields.io/badge/tests-3%2C478%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="120 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-120%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#oui-intelligence-engine"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
   <img alt="No database" src="https://img.shields.io/badge/database-none-8b949e">
@@ -1028,8 +1028,8 @@ server on a temp store and is skipped unless `RUN_E2E=1`.
 Coverage focuses on the pure, bug-prone logic that has historically broken: SNMP parsing & extraction (`test/snmp.test.js`, `test/extractData.test.js`), discovery & classification (`test/discovery.test.js`, 14 real-device cases), correlation primitives (`test/correlate.test.js`), the sysObjectID / OUI / Fusion engines (`tests/*.test.js`), front-panel state, cable validation (incl. **Cat8 30 m reach**), IPAM & LAG audits, and an app-wide **smoke E2E** (`test/smoke-app.test.js`) that loads every `netmapper.html` script plus the esbuild bundle into a `vm` + DOM stub and asserts `renderAll`/`renderProps` never throw on any device type.
 
 Current local quality baseline:
-- `npm run check` parses every JS source in the working tree — 522 of them in the project itself (the walker also descends into a git worktree checked out beside it, so the number it prints can be higher)
-- `npm test` runs the full regression suite (currently **3,432 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **119 flows**)
+- `npm run check` parses every JS source of the product — **525** of them. It skips the folders `eslint.config.js` already ignores (git worktrees, the private workspace, the editor's caches), so the number stays stable between runs instead of drifting with whatever happens to be checked out beside the repo
+- `npm test` runs the full regression suite (currently **3,478 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **120 flows**)
 - final visual verification is still important for rack/front-panel refinements
 
 > Pure functions are exposed for tests via an additive `_internals` export on

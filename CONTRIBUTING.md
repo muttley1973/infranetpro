@@ -48,6 +48,19 @@ retired). Stylistic findings are warnings, not errors, so the gate stays green.
    Use `data-i18n` for static HTML, `t('key')` for JS templates. Never machine-
    translate; leave technical terms and vendor names alone. The key-parity test
    fails if a translation is missing on one side.
+6. **Every value interpolated into HTML goes through `escapeHTML()`.** There is no
+   framework doing it for you, and the input is not only your keyboard: `sysName`,
+   `sysDescr`, DHCP hostnames and LLDP neighbour names come from the devices, i.e.
+   from anyone on the network being documented. A static guard
+   (`tools/html-escape-scan.js`) proves what it can and ratchets the rest per file,
+   so a new raw `${d.sysName}` fails the build. Run
+   `node tools/html-escape-scan.js --list` to see where a file's residue is.
+7. **Use the design tokens, including for text size.** Sizes come from
+   `--fs-xs…--fs-2xl` in `styles/01-tokens.css` — writing `0.82rem` by hand is the
+   same pixel today and a different one the day the token moves, and
+   `test/type-scale-ratchet.test.js` fails on it, naming the line and the token to
+   use. Same for colour: a badge's ink is derived from its background, never fixed.
+   See `styles/README.md`.
 
 ## Your first change (worked example)
 
@@ -80,6 +93,7 @@ Add a field to a device, the right way:
 | Touch SNMP polling/discovery | `drivers/snmp.js`, `server/routes/discovery.js`, `src/app-snmp.js` |
 | Classification (sysObjectID / OUI) | `engine/`, `plugins/` |
 | Translations | `lib/i18n.js` |
+| CSS, design tokens, the type scale | `styles/` (start from `styles/README.md`) |
 | Backend routes / storage | `server/` |
 
 Thanks for keeping it simple. The lack of tooling is a feature — please preserve it.

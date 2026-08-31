@@ -380,7 +380,7 @@ src/app.js             Core bootstrap/nucleus: state init, init(), bindEvents, e
                        (ESM; imported 2nd in src/main.js after app-types). Cohesive helper
                        clusters extracted → app-ipam/app-cables/app-history/app-index/app-props-tabs.js
 netmapper.html         The app shell + the <script> load order (authoritative)
-styles/                Modular CSS (9 ordered partials + design tokens) — ex style.css; see styles/README.md
+styles/                Modular CSS (11 ordered partials + design tokens) — ex style.css; see styles/README.md
 build.js               esbuild build of the frontend ESM bundle (dist/app.bundle.js)
 src/                   GLUE migrated to ESM (bundled): _bridge, main, app-types (TYPES,
                        imported first), + all ex-`lib/app-*.js`
@@ -982,7 +982,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. ~1594 tests. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **3,478 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`
@@ -997,6 +997,29 @@ with an X button and a `*-title` id.
   **Active by default** as a gate (UI considered stable after the June 2026
   redesign): skip with `SKIP_GOLDEN=1`, refresh the baseline after a deliberate UI
   change with `UPDATE_GOLDEN=1 node --test test/golden-render.test.js`.
+- **Invariant guards** — the tests that protect a *rule* rather than a behaviour.
+  Each one is measured, monotonic (its ceiling may only fall) and, where it can
+  be, **derived from the source rather than restating it**: a guard that lists
+  what it checks goes green and blind the day the list grows.
+  - **HTML escaping** (`tools/html-escape-scan.js` + `test/html-escaping.test.js`).
+    The app builds its UI with template literals and `innerHTML`, so nothing
+    escapes for us; the scanner tries to *prove* every `${…}` in an HTML template
+    safe and ratchets the residue per file. Its own fixtures pin the behaviour in
+    both directions, which matters because a scanner that breaks permissively
+    stays green forever. Two blind spots were closed on 2026-08-31: it did not
+    descend into **nested templates** (a value one level deep was invisible and
+    uncounted) and it did not skip **comments** inside an expression (one
+    apostrophe in an Italian `//` opened a string and swallowed the rest).
+    Interpolations actually examined went 3810 → 4922 on the same sources.
+  - **Type scale** (`test/type-scale-ratchet.test.js`): a hard zero on
+    declarations that rewrite a token's own value by hand, plus a ratchet on the
+    remaining off-scale sizes. The forbidden literals are read out of
+    `styles/01-tokens.css`, never listed.
+  - **Badge contrast** (`test/badge-ink.test.js`): every solid badge colour, read
+    from the colour tables in the source, must reach WCAG AA with the ink
+    `badgeInk()` picks for it.
+  - **Bridge ratchets** (`test/bridge-ratchet.test.js`): `MAX_WIN_REFS` and
+    `MAX_INLINE_HANDLERS`, see §10.
 - **Smoke E2E** (`test/smoke-app.test.js` + `tools/smoke-dom-stub.js`): loads the
   whole app into `node:vm` with a stubbed DOM and exercises `renderAll`/`renderProps`
   to catch crashes (missing globals, wrong script order). It does **not** verify
@@ -1039,7 +1062,14 @@ atomic write (owner-only `0o600` where a secret is involved) protects
 `api-tokens.json`, `data/ai-config.json` and the shared skin SVGs. **Uploaded skin
 SVGs are sanitized** (regex on the server, a real DOM parse on the client for both
 preview and rack) so an event handler / `<script>` in a shared skin-pack cannot run
-in another user's Properties panel. **Login runs a constant bcrypt compare** (dummy
+in another user's Properties panel. **Every value interpolated into HTML goes
+through an escaper** — an invariant, not a habit, because the UI is built with
+template literals and `innerHTML` and the input is not only the operator's
+keyboard: `sysName`, `sysDescr`, DHCP lease hostnames, HTTP titles and LLDP
+neighbour names arrive from the devices, i.e. from anyone on the network being
+documented. It rests on more than a thousand hand-written escaper calls, so it is
+held up by a static guard rather than by discipline (`tools/html-escape-scan.js`,
+§7), which proves what it can and ratchets the rest per file. **Login runs a constant bcrypt compare** (dummy
 hash for unknown usernames) to deny user-enumeration by timing, and a **global
 Express error handler** returns JSON — never an HTML stack trace — for
 malformed/oversized bodies or thrown route errors. The data
@@ -1554,10 +1584,10 @@ is VPN/LAN.
   the module system is explicit (Node/CommonJS + UMD `lib/`) and is **off on `src/`** until
   the `window` bridge is retired (then it re-enables). Cosmetic rules are warnings, so the
   gate is green; it runs in CI via `npm run lint`.
-- **Modular CSS + tokens.** `style.css` (≈1990 lines) is split into 9 ordered
+- **Modular CSS + tokens.** `style.css` (≈1990 lines) is split into 11 ordered
   partials in `styles/` (loaded via `<link>` in cascade order, served by
-  `/styles/:file`). Design tokens (colors/surfaces/shadows/typography already
-  present; **radius** and **font families** applied, **spacing/z-index/transition**
+  `/styles/:file`). Design tokens (colors/surfaces/shadows; **radius**, **font
+  families** and now the **type scale** applied; **spacing/z-index/transition**
   documented) live in `styles/01-tokens.css`. See **`styles/README.md`**.
   Two families only — `--font-ui` and `--font-mono` — and no new `font-family`
   outside them. An **address is interface text, not code**: IP, CIDR, MAC and

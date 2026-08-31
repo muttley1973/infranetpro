@@ -19,6 +19,8 @@ cascata CSS: cambiare l'ordine cambia la resa). Servite da `server.js` via
 | 07 | `07-modals.css` | zoom, modal generica, connection overlay, rack-icon su floor, discovery, auto-poll, toggle |
 | 08 | `08-topology.css` | overlay/tooltip topologia, toast, legenda, pillole TRUNK/WLAN/ENDPOINT/VLAN, modalità instradamento |
 | 09 | `09-user-theme.css` | user menu, disabilitazione viewer, modal utenti, override tema chiaro |
+| 10 | `10-modern.css` | sotto-header (`#modern-subbar`), briciole di percorso, chip di stato, reskin |
+| 11 | `11-overview.css` | Panoramica/Dashboard: colonne, righe chiave→valore, verdetti, lenti |
 
 **Aggiungere CSS**: mettilo nel modulo del componente giusto. Un componente
 nuovo e trasversale → nuovo file `NN-nome.css` + nuovo `<link>` nella posizione
@@ -27,12 +29,48 @@ generica).
 
 ## Design tokens (`01-tokens.css` → `:root`)
 
-Già esistenti (non toccati): **colori** (`--bg-color`, `--panel-*`, `--text-*`,
-`--accent`, stati `--active/fault/inactive/idle-color`), **superfici semantiche**
+Preesistenti: **colori** (`--bg-color`, `--panel-*`, `--text-*`, `--accent`,
+stati `--active/fault/inactive/idle-color`), **superfici semantiche**
 (`--surface-1/2/hover`, `--hairline`, `--accent-soft`, `--danger-soft`),
-**ombre** (`--shadow-sm/md/lg`), **tipografia** (`--fs-xs…--fs-2xl`).
+**ombre** (`--shadow-sm/md/lg`).
 
-Aggiunti in questa sessione:
+### La scala tipografica è APPLICATA, e una guardia la tiene (31/08/2026)
+
+`--fs-xs…--fs-2xl` esistevano da sempre, e per anni sono stati usati **a metà**:
+761 dichiarazioni `font-size`, il **45% fuori scala**, in **53 corpi distinti** —
+di cui **31 stipati fra i 10 e i 16 px**. Trentuno gradini in sei millimetri non
+sono una gerarchia: l'occhio non li distingue, e tutto quello che ci sta dentro
+si appiattisce in «testo minore» indifferenziato.
+
+**97 di quelle dichiarazioni riscrivevano a mano il valore di un token**
+(`0.82rem` ventisette volte, mentre `--fs-sm` **è** 0.82rem): stesso pixel oggi,
+pixel diverso il giorno in cui il token si muove. Ora usano il token, a resa
+invariata (lo conferma il golden).
+
+⚠️ **Le unità `em` restano fuori PER MISURA**: `0.9em` è relativo al **padre**,
+non alla radice, quindi non è «`--fs-md` scritto a mano» e convertirlo
+cambierebbe il disegno. Fuori anche `login.html` (non carica i token) ed
+`export.js` (produce un documento **serializzato**, dove `var(--fs-*)` non
+troverebbe chi lo definisce e il testo cadrebbe alla misura di default: lì il
+letterale è la scelta giusta).
+
+La guardia è `test/type-scale-ratchet.test.js`: tetto **zero** sui valori di
+token riscritti a mano, e un cricchetto sul resto che può solo **calare**.
+⚠️ I letterali proibiti si **derivano** leggendo `01-tokens.css`, non sono
+elencati: un token aggiunto domani entra nella guardia da solo, mentre un elenco
+resterebbe verde e cieco.
+
+### Il colore di un badge non porta anche il suo inchiostro
+
+I badge a fondo pieno scrivevano `color:#fff` fisso, e quattro dei dodici fondi
+non reggevano il bianco — il peggiore a **2,03:1**, ed era proprio quello che
+avverte «non fidarti di questo cavo». L'inchiostro ora lo sceglie `badgeInk()`
+(`src/app-util.js`) confrontando i due contrasti, **senza cambiare un colore**.
+⚠️ Nessuna soglia di luminanza: la prima versione ne usava una (0,45) e correggeva
+un caso su quattro con la guardia contenta. Guardia: `test/badge-ink.test.js`,
+che legge i fondi **dalle tabelle nel sorgente**.
+
+Aggiunti nella sessione del 13/08/2026:
 
 - **Famiglie** `--font-ui` e `--font-mono` — **APPLICATE** ovunque (31
   dichiarazioni). Prima non esistevano: `var(--font-mono, monospace)` e
@@ -64,9 +102,16 @@ Aggiunti in questa sessione:
 - **Transizioni** `--transition-fast|base` (.12s/.15s) — guida per le durate.
 
 ### Regola
-Per ogni valore **nuovo** usa un token. Niente colori di superficie, raggi o
-(d'ora in poi) spaziature hardcoded: così un eventuale tema chiaro futuro si fa
-"a regole" (un blocco `html[data-theme=light]` che ridefinisce solo i token).
+Per ogni valore **nuovo** usa un token. Niente colori di superficie, raggi,
+**corpi del testo** o (d'ora in poi) spaziature hardcoded: così un eventuale tema
+chiaro futuro si fa "a regole" (un blocco `html[data-theme=light]` che ridefinisce
+solo i token). Sui corpi non è più una raccomandazione: c'è un cancello, e uno
+`0.82rem` scritto a mano lo fa rosso indicandoti riga e token.
+
+⚠️ Vale anche per il CSS scritto **inline dentro il JS**: è da lì che la scala si
+era sfaldata (173 `font-size` nei template di `src/`, di cui solo 11 passavano da
+un token). Il cancello guarda `netmapper.html` + `styles/*.css` + `src/*.js`, cioè
+tutto quello che carica `01-tokens.css`.
 
 ## Verifica dopo modifiche
 Le modifiche CSS osservabili vanno verificate nel browser reale:
