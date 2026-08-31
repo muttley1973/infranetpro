@@ -19,7 +19,7 @@ tooling).
 ## The commands you'll use
 
 ```bash
-npm run check        # syntax-check every .js file (tools/check-syntax.js)
+npm run check        # syntax-check every source .js (tools/check-syntax.js)
 npm run lint         # ESLint gate — no-undef as a safety net (eslint.config.js)
 npm test             # run all tests (node --test, zero dependencies)
 npm start            # serve the app
