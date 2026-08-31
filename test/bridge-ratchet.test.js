@@ -10,6 +10,12 @@
 // Quando converti altri simboli a import ESM, abbassa MAX_WIN_REFS al nuovo
 // valore stampato dal test (ricetta di ritiro del ponte).
 //
+// ⚠️ I DUE TETTI SI SCRIVONO IN UN POSTO SOLO: la loro `const` (MAX_WIN_REFS e
+// MAX_INLINE_HANDLERS, più sotto). Le note li citano per NOME, mai per VALORE. Le due
+// copie che stavano nei commenti (266 e 276) non hanno seguito un calo del tetto, e per
+// giorni questo file ha raccontato TRE numeri diversi per lo STESSO invariante — dentro
+// il file che quell'invariante lo custodisce.
+//
 // ── ⏸️ MIGRAZIONE SOSPESA (decisione 2026-07-14) ─────────────────────────────
 // Il ritiro del ponte è PARCHEGGIATO come task "a tempo perso" (NON abbandonato).
 // Questi cricchetti RESTANO come guardia ANTI-REGRESSIONE (il conteggio può solo
@@ -659,7 +665,7 @@ test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => 
 // ASSE B — CRICCHETTO SUGLI HANDLER INLINE (on*="…")
 // ════════════════════════════════════════════════════════════════════════════
 // Il ritiro del ponte ha DUE assi (vedi ARCHITECTURE.md §10):
-//   • ASSE A = letture win.* → import ESM      (MAX_WIN_REFS sopra, oggi 266)
+//   • ASSE A = letture win.* → import ESM      (MAX_WIN_REFS, dichiarato sopra)
 //   • ASSE B = handler inline (onclick/onchange/oninput/ontoggle/ondragstart/…)
 //     → event delegation (data-act/data-change/data-input/… in app-delegation.js)
 // Gli handler inline sono IL motivo per cui il ponte esiste ancora: risolvono i
@@ -902,7 +908,9 @@ function countInlineHandlers() {
 //   • 21 in netmapper.html = dialoghi PDF/etichette export (14 onclick + 3 onchange +
 //     4 oninput) + le 4 voci EXPORT del menu (JSON/PDF/dossier/etichette) → chiamano
 //     export.js (CLASSIC <script>, non-ESM): registrarli richiederebbe una lettura
-//     win.* e romperebbe il tetto A (MAX_WIN_REFS=276, esatto). Restano per DESIGN.
+//     win.* e romperebbe il tetto A, oggi SATURO (letture misurate = tetto, margine
+//     ZERO). Il valore vive in MAX_WIN_REFS e solo lì; quando il margine si apre è il
+//     promemoria [ratchet] a dirlo. Restano per DESIGN.
 //   • 11 CANVAS = 10 in netmapper.html (wheel×2/drop×2/dragover×2/contextmenu/scroll/
 //     mouseenter/mouseleave) + 1 in app-render-core (onpointerdown). Aspettano NUOVI
 //     tipi di evento nell'harness (app-delegation.js oggi: click·change·input·focus·
