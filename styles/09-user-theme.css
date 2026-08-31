@@ -126,14 +126,15 @@
            diventano SOLO-ICONA (etichetta nel tooltip) e i campi di sinistra si
            stringono. La barra a etichette piene chiede ~2000px: su laptop/monitor
            comuni così nulla viene tagliato fuori schermo. Report/Assistente/
-           Automazioni sono già icon-only per classe. Il blocco ≤1100 sotto aggiunge
+           Automazioni restano icon-only per classe (Storia no: ha una parola, e cede
+           a ≤1737). Il blocco ≤1100 sotto aggiunge
            la compattazione estrema. ---- */
         /* ≤1920px: i pulsanti-azione diventano SOLO-ICONA (etichetta nel tooltip) →
            la barra sta su UNA riga sui monitor comuni. ⚠️ Sopra i 1920 le etichette
            NON tornano subito: torna il padding pieno e la barra richiede 1938px, quindi
            fra 1921 e 1980 va a capo e a raddrizzarla è il fitter (misurato a 1930: due
            righe, hf1). Ci stanno da sole dai ~1981 in su — vedi il blocco «senza limite
-           superiore» più sotto. Report/Assistente/Automazioni sono già icon-only per classe.
+           superiore» più sotto. Assistente e Automazioni restano icon-only per classe.
            Il wrap (rete di sicurezza) è strutturale sull'header, non serve qui. */
         @media (max-width: 1920px) {
             /* A 1920 restano etichettati: Multisito (#btn-org), Esporta (#btn-impexp),
@@ -175,7 +176,13 @@
                tutto (il titolo si riduce al logo, la ricerca cala), e una sesta parola
                a quel punto la manderebbe a capo. Sopra, resiste — è il senso della
                richiesta: si legge dove c'è spazio per leggerla. */
-            #btn-org .btn-label {
+            /* «Storia» (#btn-audit) cede QUI insieme a «Multisito». È la 6ª parola —
+               la più recente e la meno urgente delle sei — e sopra i 1738 lo spazio
+               c'è: il passaggio di information design le ha dato una parola proprio
+               perché tre icone mute affiancate (storia · assistente · automazioni)
+               erano indistinguibili. Sotto, torna icona col nome nel tooltip. */
+            #btn-org .btn-label,
+            #btn-audit .btn-label {
                 position:absolute; width:1px; height:1px; padding:0; margin:-1px;
                 overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
             }
@@ -263,19 +270,17 @@
         header .sync-fresh-chip { border-color: var(--panel-border); border-radius: var(--radius-md); }
         /* Slot-cluster che possono restare SENZA figli visibili — `#modules-nav-slot`
            (nessun modulo a pagamento) e `#status-cluster` (nessun chip acceso: i suoi
-           3 chip nascono display:none e li accende il JS uno per volta). Da item flex a
-           larghezza 0 mangiavano un gap di 6px PER LATO → il "buco" prima del separatore
-           utente nel cluster destro (misurato: 12px dove il ritmo è 6). `display:contents`
-           li toglie dal flusso quando sono vuoti (nessun gap riservato); quando invece
-           hanno un figlio visibile, questo entra nel flex di `.header-right` con lo stesso
-           passo di 6px → ritmo regolare a destra come a sinistra. */
+           QUATTRO chip — freschezza · SNMPv3 · porte libere · auto-poll — nascono
+           display:none e li accende il JS uno per volta). Da item flex a larghezza 0
+           mangiavano un gap di 6px PER LATO (misurato: 12px dove il ritmo è 6).
+           `display:contents` li toglie dal flusso quando sono vuoti (nessun gap
+           riservato); quando invece hanno un figlio visibile, questo entra nel flex del
+           genitore con lo stesso passo di 6px → ritmo regolare.
+           ⓘ Dal passaggio di information design `#status-cluster` NON è più dentro
+           `.header-right`: sta subito dopo la ricerca, dove la comparsa di un chip la
+           paga la ricerca elastica invece dei bottoni. Il selettore resta valido perché
+           è `header #status-cluster`, non legato al cluster destro. */
         #modules-nav-slot, header #status-cluster { display: contents; }
-        /* Il `|` DOPO il contatore freschezza (#fresh-chip-sep) esiste solo se il
-           contatore c'è. Quando #sync-fresh-chip è nascosto (JS mette display:none —
-           niente target SNMP o durante il Sync) il suo divisore si nasconde: dopo la
-           ricerca resta il solo `|` che chiude la casella, non un divisore orfano/doppio.
-           Chip mostrato = inline style `display: inline-flex` → il divisore riappare. */
-        #sync-fresh-chip:not([style*="inline-flex"]) + #fresh-chip-sep { display: none; }
 
         /* Il chip mostra SEMPRE la freschezza (l'età dell'ultima lettura): il
            conteggio ok/tot vive nella sotto-header, quindi qui non c'è più il
@@ -603,18 +608,19 @@ body.spare-mode .port-led.spare-suspect {
    breakpoint che rimpiccioliscono il font. Il chip a zero resta in pagina
    invisibile (visibility, non display) proprio per tenere il posto. */
 #v3-pending-chip { min-width: 3.6em; justify-content: center; }
-/* A ZERO device il chip non deve lasciare un cuscinetto vuoto nel suo scomparto: lo
-   marca `aria-hidden="true"` (lo mette _renderV3PendingChip in app-snmp.js). Azzero
-   larghezza/bordo/spazi e nascondo il suo `|` destro (#v3-chip-sep) → resta
-   «Scopri | Verifica |», con Verifica centrata. Con device da configurare (aria-hidden
-   rimosso) il chip torna nel suo scomparto «| n |». Il posto non è più RISERVATO qui: la
-   ricerca elastica (flex-grow) assorbe la comparsa senza spostare i pulsanti d'azione. */
+/* A ZERO device il chip non deve lasciare un cuscinetto vuoto: lo marca
+   `aria-hidden="true"` (lo mette _renderV3PendingChip in app-snmp.js) e questa regola
+   lo toglie dal flusso. ⓘ Il chip non ha più uno scomparto suo fra Scopri e Verifica:
+   dal passaggio di information design vive nella ZONA DI STATO unica (netmapper.html,
+   subito dopo la ricerca) insieme agli altri tre, e i suoi due `|` di servizio non
+   esistono più. Lì la sua comparsa la assorbe la ricerca (`flex-grow`) senza spostare
+   nessun bottone: nessuna larghezza riservata, per non tenere l'header alla larghezza
+   peggiore anche quando non c'è niente da dire. */
 /* `display:none` (non width:0): a width:0 il chip resta un item flex e i suoi DUE gap da
    6px sopravvivono (12px) sballando il centraggio di Verifica. `!important` perché
    _renderV3PendingChip imposta `display:inline-flex` inline (le dichiarazioni important
    battono lo stile inline). Fuori-flusso = nessun gap, Verifica centrata 6/6. */
 #v3-pending-chip[aria-hidden="true"] { display: none !important; }
-#v3-pending-chip[aria-hidden="true"] + #v3-chip-sep { display: none; }
 .vlan-l3-hint { grid-column: 1/-1; font-size: var(--fs-xs); color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
 .vlan-l3-hint b { color: var(--text-main); }
 .vlan-l3-hint.warn { color: #e3b341; }

@@ -42,9 +42,8 @@
         <button class="toolbar-btn" data-act="project-new"       data-i18n-tip="project.tipNew"       data-tip="Nuovo progetto"><i class="fas fa-plus"></i></button>
         <button class="toolbar-btn" data-act="project-rename"    data-i18n-tip="project.tipRename"    data-tip="Rinomina"><i class="fas fa-pen"></i></button>
         <button class="toolbar-btn" data-act="project-duplicate" data-i18n-tip="project.tipDuplicate" data-tip="Duplica"><i class="fas fa-copy"></i></button>
-        <button class="toolbar-btn danger" data-act="project-delete" data-i18n-tip="project.tipDelete" data-tip="Elimina progetto"><i class="fas fa-trash"></i></button>
+        <button class="toolbar-btn danger-quiet" data-act="project-delete" data-i18n-tip="project.tipDelete" data-tip="Elimina progetto"><i class="fas fa-trash"></i></button>
     </div>
-    <div class="header-sep"></div>
     <!-- «Salva» sta QUI, attaccato alla barra del progetto: salva il progetto che il
          selettore lì accanto ha aperto, e i due gesti si leggono insieme. Prima stava
          tre gruppi più in là, dopo «Esporta», dove nessuno lo cercava. Spostato su
@@ -62,7 +61,6 @@
          di casa lì: è la stessa domanda a una scala più grande («dove sono?»),
          non un'esportazione. -->
     <button class="toolbar-btn" id="btn-org" data-act="org-open" data-i18n-tip="org.tip" data-tip="Sedi, uplink WAN e collegamenti fra le sedi"><i class="fas fa-sitemap"></i><span class="btn-label" data-i18n="org.btnLabel"> Multisito</span></button>
-    <div class="header-sep"></div>
     <div id="impexp-menu-wrap" style="position:relative">
         <button class="toolbar-btn" id="btn-impexp" data-act="impexp-toggle" data-i18n-tip="impexp.tip" data-tip="Importa / Esporta">
             <i class="fas fa-right-left"></i><span class="btn-label" data-i18n="impexp.btnLabel"> Esporta</span><i class="fas fa-chevron-down" style="font-size:0.6rem;margin-left:4px;opacity:.6"></i>
@@ -100,17 +98,14 @@
             </button>
         </div>
     </div>
-    <div class="header-sep"></div>
 
     <!-- Undo / Redo -->
     <button class="toolbar-btn" id="btn-undo" data-act="undo" data-i18n-tip="undo.tip" data-tip="Annulla (Ctrl+Z)" disabled><i class="fas fa-rotate-left"></i></button>
     <button class="toolbar-btn" id="btn-redo" data-act="redo" data-i18n-tip="redo.tip" data-tip="Ripeti (Ctrl+Y)"  disabled><i class="fas fa-rotate-right"></i></button>
-    <!-- `|` che chiude il gruppo modifica (undo/redo) prima della ricerca. NIENTE
-         `margin-left:auto` qui (né sul gemello `.header-right`): i due margini auto
+    <!-- NIENTE `margin-left:auto` qui (né sul gemello `.header-right`): i due margini auto
          accumulavano lo spazio libero in DUE vuoti simmetrici attorno a una ricerca a
          larghezza fissa. Ora lo spazio lo assorbe la RICERCA (`flex-grow`, sotto), che
          riempie il centro e spinge il cluster destro al bordo — niente vuoti. -->
-    <div class="header-sep"></div>
 
     <!-- Search + chip freschezza. La ricerca ha PRIORITÀ DI ESPANSIONE (flex-grow):
          cresce a riempire lo spazio fra il gruppo modifica e il cluster destro. I
@@ -125,17 +120,44 @@
         </div>
         <div id="search-results"></div>
     </div>
-    <!-- `|` "dopo cerca": chiude la casella di ricerca. Sempre presente (la ricerca c'è
-         sempre); col chip nascosto è l'unico divisore dopo la ricerca. -->
+    <!-- ZONA DI STATO — una sola, e sta QUI per una ragione MECCANICA, non estetica.
+         I quattro chip (freschezza · SNMPv3 da configurare · porte libere · auto-poll)
+         rispondono tutti alla stessa domanda — «come sta il progetto adesso?» — e prima
+         vivevano in TRE punti diversi della barra: chi guardava non aveva un posto dove
+         guardare. Riuniti, il posto è uno.
+         ⚠️ Il posto è SUBITO DOPO la ricerca, e non in fondo al cluster destro, per una
+         ragione MISURATA: la ricerca è l'unico elemento con `flex-grow`, quindi quando un
+         chip compare è LEI a cedere la larghezza, e i bottoni alla sua destra restano dove
+         sono. Misurato a 1920px accendendo i quattro chip insieme — Scopri, Verifica,
+         Storia, Automazioni e l'account si spostano di ZERO px; prima (coi due badge in
+         fondo al cluster destro) si spostavano di 267, 210, 210 px. Dashboard è l'unica che
+         cambia posizione, ma perché il fitter le collassa l'ETICHETTA: non è un chip che la
+         spinge, è la scala di cedimento che fa il suo mestiere.
+         ⚠️ NIENTE larghezza riservata: riservare lo spazio dei chip spenti significa
+         tenere l'header sempre alla sua larghezza PEGGIORE, e il fitter
+         (src/app-header-fit.js) spegnerebbe le etichette SEMPRE invece che solo coi
+         badge accesi. La riserva risolverebbe lo stesso difetto pagandolo in mutismo.
+         `display:contents` (09-user-theme.css) evita il gap doppio quando sono tutti
+         spenti; i chip nascono `display:none` e li accende il JS uno per volta. -->
+    <div id="status-cluster" class="status-cluster">
+        <!-- Freschezza del progetto (ex badge dentro il bottone Sync, ritirato): lo
+        alimenta _renderSyncFreshness in app-snmp.js. Clic → apre la Dashboard. -->
+        <button class="status-chip sync-fresh-chip" id="sync-fresh-chip" data-act="overview-toggle" style="display:none" data-i18n-tip="sync.freshChipTip" data-tip="Freschezza dati del progetto · clic per la Dashboard"></button>
+        <!-- SNMPv3 «da configurare»: è un avviso PRE-Verifica. Larghezza fissa (min-width
+        in 09-user-theme.css) perché 1, 12 o 128 device occupino lo stesso spazio; a
+        zero device esce dal flusso (aria-hidden) e non lascia cuscinetto. -->
+        <button class="status-chip s-warn" id="v3-pending-chip" data-act="v3-jump-next" data-tip="Device SNMPv3 da configurare — clic per saltare al prossimo"></button>
+        <button class="status-chip s-info" id="spare-active-badge" data-act="spare-highlight-off" data-i18n-tip="spare.badgeTip" data-tip="Porte libere evidenziate nel rack — clicca per spegnere">
+            <i class="fas fa-plug-circle-plus"></i><span data-i18n="report.spare">Porte libere</span><i class="fas fa-times chip-x"></i>
+        </button>
+        <button class="status-chip s-ok" id="autopoll-badge" data-act="automation-menu-toggle" data-i18n-tip="autopoll.tip" data-tip="Polling automatico attivo — clic per le automazioni"></button>
+        <!-- Il badge del filtro VLAN vive ora nella sotto-header (#modern-subbar,
+            src/app-subbar.js: _vlanFilterEl), centrato tra breadcrumb e statistiche. -->
+    </div>
+    <!-- `|` che chiude la zona «ricerca + stato» e apre il cluster delle azioni. È uno
+         dei CINQUE divisori rimasti (erano 13): la struttura la fa lo spazio, la linea
+         separa i DOMINI. -->
     <div class="header-sep"></div>
-    <!-- Chip freschezza del progetto (ex badge dentro il bottone Sync, ritirato): indicatore
-         di stato autonomo SUBITO DOPO la ricerca, visibile in OGNI vista e all'apertura
-         (lo alimenta _renderSyncFreshness in app-snmp.js). Clic → apre la Panoramica. -->
-    <button class="status-chip sync-fresh-chip" id="sync-fresh-chip" data-act="overview-toggle" style="display:none" data-i18n-tip="sync.freshChipTip" data-tip="Freschezza dati del progetto · clic per la Dashboard"></button>
-    <!-- `|` "dopo il contatore freschezza": esiste solo QUANDO il contatore è visibile.
-         Se il chip è nascosto (niente SNMP / durante il Sync) questo divisore si nasconde
-         via CSS (regola in 09-user-theme.css) per non lasciare un `|` orfano o doppio. -->
-    <div class="header-sep" id="fresh-chip-sep"></div>
 
     <!-- Actions — allineati a destra -->
 <!-- Tooltip topologia (compare vicino al cursore al hover sulle linee) -->
@@ -157,15 +179,6 @@
                 data-tip="Scansiona la rete via SNMP, poi espande automaticamente via LLDP/CDP">
             <i class="fas fa-satellite-dish"></i><span class="btn-label" data-i18n="discover.label"> Scopri</span>
         </button>
-        <div class="header-sep"></div>
-        <!-- Scomparto del chip SNMPv3 «da configurare»: «Scopri | [n] | Verifica |». Il chip
-             sta FUORI dal bay di Verifica (che resta «| Verifica |», centrata nel cuscinetto).
-             A ZERO device il chip non ingombra e il suo `|` destro (#v3-chip-sep) sparisce →
-             resta «Scopri | Verifica |» (regole in 09-user-theme.css). Con device da
-             configurare torna «| n |». È un avviso pre-Verifica → sta accanto a Scopri; la
-             ricerca elastica (flex-grow) assorbe la comparsa senza spostare i pulsanti. -->
-        <button class="status-chip s-warn" id="v3-pending-chip" data-act="v3-jump-next" data-tip="Device SNMPv3 da configurare — clic per saltare al prossimo"></button>
-        <div class="header-sep" id="v3-chip-sep"></div>
         <button class="toolbar-btn primary" id="btn-drift" data-act="run-drift-check"
                 data-i18n-tip="verify.tip"
                 data-tip="Controllo completo: rilegge i dati SNMP, ricostruisce la topologia e verifica la presenza reale (ping/ARP/TCP), evidenziando differenze e cambi IP">
@@ -176,17 +189,16 @@
              nei drill-down dei tile, coerenza VLAN wireless come verdetto ⑤ Sicurezza).
              Resta la sola «Storia modifiche», ora bottone header autonomo (il log è un
              registro temporale, non una fotografia di stato → non appartiene alla Dashboard). -->
-        <button class="toolbar-btn icon-only" id="btn-audit" data-act="report-audit" data-i18n-tip="report.audit" data-tip="Storia modifiche">
-            <i class="fas fa-clock-rotate-left"></i>
+        <button class="toolbar-btn" id="btn-audit" data-act="report-audit" data-i18n-tip="report.audit" data-tip="Storia modifiche">
+            <i class="fas fa-clock-rotate-left"></i><span class="btn-label" data-i18n="report.auditLabel"> Storia</span>
         </button>
         <button class="toolbar-btn icon-only" id="btn-assistant" data-act="assistant-open"
                 data-i18n-tip="assistant.toolbarTip" data-tip="Impostazioni assistente (admin) · la chat si apre dalla tab «Assistente» o col tasto A">
             <i class="fas fa-robot"></i><span class="btn-label" data-i18n="assistant.label"> Assistente</span>
         </button>
-        <div class="header-sep"></div>
         <div id="automation-menu-wrap" style="position:relative">
             <button class="toolbar-btn icon-only" id="btn-automation" data-act="automation-menu-toggle" data-i18n-tip="autom.tip" data-tip="Automazioni di rete: polling SNMP in background e rinnovo automatico IP (DHCP)">
-                <i class="fas fa-gear"></i><span class="btn-label" data-i18n="autom.label"> Automazioni</span><i class="fas fa-chevron-down" style="font-size:0.6rem;margin-left:4px;opacity:.6"></i>
+                <i class="fas fa-arrows-rotate"></i><span class="btn-label" data-i18n="autom.label"> Automazioni</span><i class="fas fa-chevron-down" style="font-size:0.6rem;margin-left:4px;opacity:.6"></i>
             </button>
             <div id="automation-dropdown" class="header-menu-dropdown autom-pop" style="display:none"></div>
         </div>
@@ -194,14 +206,6 @@
              Niente stile inline: il layout è in CSS (.modules-nav-slot → display:contents) così
              quando è vuoto non riserva un gap nel cluster destro. -->
         <div id="modules-nav-slot" class="modules-nav-slot"></div>
-        <div id="status-cluster" class="status-cluster">
-            <button class="status-chip s-info" id="spare-active-badge" data-act="spare-highlight-off" data-i18n-tip="spare.badgeTip" data-tip="Porte libere evidenziate nel rack — clicca per spegnere">
-                <i class="fas fa-plug-circle-plus"></i><span data-i18n="report.spare">Porte libere</span><i class="fas fa-times chip-x"></i>
-            </button>
-            <button class="status-chip s-ok" id="autopoll-badge" data-act="automation-menu-toggle" data-i18n-tip="autopoll.tip" data-tip="Polling automatico attivo — clic per le automazioni"></button>
-            <!-- Il badge del filtro VLAN vive ora nella sotto-header (#modern-subbar,
-                 src/app-subbar.js: _vlanFilterEl), centrato tra breadcrumb e statistiche. -->
-        </div>
         <div class="header-sep"></div>
         <!-- Badge utente + menu (la lingua vive dentro questo menu) -->
         <div id="user-menu-wrap" style="position:relative">
