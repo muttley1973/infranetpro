@@ -34,11 +34,23 @@ import { nodePresenceClass } from '../lib/presence.js';
 // griglia e righello. Scelta in scala reale (19" : 1.75" ≈ 10.86:1) così le skin
 // del pannello entrano con proporzioni corrette. Fallback 24 se la var non c'è
 // (es. ambiente di test senza CSS).
+// ⚠️ MEMOIZZATA (fase ③ cura render): il profiler contava ~5 ms/render in
+// QUESTA lettura — una sola chiamata, ma piazzata dopo applyUiColors() che
+// scrive variabili su :root, quindi il getComputedStyle forzava il ricalcolo
+// stili dell'intero documento a ogni render (classico write-then-read).
+// `--ru-h` la scrive SOLO il foglio di stile, dentro una media query: può
+// cambiare unicamente al resize della finestra — ed è lì che il memo si svuota.
+let _ruHCache = 0;
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function'){
+    window.addEventListener('resize', () => { _ruHCache = 0; });
+}
 export function rackUPx(){
+    if (_ruHCache > 0) return _ruHCache;
     try {
         const v = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--ru-h'), 10);
-        return v > 0 ? v : 24;
-    } catch(_){ return 24; }
+        _ruHCache = v > 0 ? v : 24;
+    } catch(_){ _ruHCache = 24; }
+    return _ruHCache;
 }
 
 // La misura di porta -> classe del LED, CONCATENATA allo stato invece che
@@ -192,33 +204,142 @@ export function renderScope(scope){
 }
 
 // ─────────────────────────────────────────────────────────────────
+// _keyedSync — riuso keyed del DOM (fase ② cura render)
+// ─────────────────────────────────────────────────────────────────
+// Il banco (PRE su dc9bde2) dice che il rebuild costa 118 ms a 500 nodi e che
+// metà è JS (creare elementi, riparsare innerHTML), metà è layout/paint di
+// nodi IDENTICI a prima. Qui i tre popoli grossi — stanze, tile floor, device
+// rack — vengono RICONCILIATI per chiave (`data-id`) invece che distrutti:
+//   • la FIRMA di un elemento è l'OUTPUT del builder (className+cssText+
+//     title+html), mai un elenco dei suoi input: un elenco sarebbe la 17ª
+//     definizione duplicata e si bucherebbe in silenzio quando il builder
+//     impara un campo nuovo. Cambia l'output → si patcha; identico → si salta.
+//   • un elemento esistente non viene MAI sostituito: o riusato o patchato in
+//     place. (È anche la cura della race e2e sui boundingBox nulli: il nodo
+//     sotto il puntatore non sparisce più a ogni render.)
+//   • le classi applicate DOPO il render da altri passi (routing targets,
+//     spare highlight, renderSelection) sopravvivono sui nodi non patchati —
+//     ed è il comportamento giusto: quei passi ri-girano quando serve a loro.
+//   • ordine: nel caso comune (stesso ordine di comparsa) ZERO mosse; se
+//     cambia, si riappende in ordine (appendChild su un nodo già nel
+//     contenitore lo SPOSTA — lo stub dei test lo imita, vedi smoke-dom-stub).
+//   • chiavi duplicate nello stato: l'ultima vince (oggi renderebbe due tile
+//     gemelle; uno stato così è già corrotto altrove).
+// Le ICONE rack restano fuori dal riuso: attaccano listener condizionali
+// (hover solo se topologia attiva e rack non corrente) e sono ≤ una decina —
+// si ricostruiscono come sempre, via _buildRackIconEl condiviso.
+const _sigDi = new WeakMap();   // Element → firma dell'ultima materializzazione
+function _applicaDesc(el, d, sig){
+    el.className = d.className;
+    el.style.cssText = d.cssText;
+    el.title = d.title || '';
+    el.innerHTML = d.html;
+    _sigDi.set(el, sig);
+}
+function _keyedSync(container, voci){
+    const vecchi = new Map();
+    for(const c of Array.prototype.slice.call(container.children)){
+        if(c.dataset && c.dataset.id !== undefined) vecchi.set(String(c.dataset.id), c);
+    }
+    const nuovi = [];
+    for(const d of voci){
+        const sig = d.className + '\u0000' + d.cssText + '\u0000' + (d.title||'') + '\u0000' + d.html;
+        let el = vecchi.get(d.key);
+        if(el){
+            vecchi.delete(d.key);
+            if(_sigDi.get(el) !== sig) _applicaDesc(el, d, sig);
+        } else {
+            el = document.createElement('div');
+            el.dataset.id = d.key;
+            _applicaDesc(el, d, sig);
+        }
+        nuovi.push(el);
+    }
+    for(const el of vecchi.values()) container.removeChild(el);
+    // Ordine: se i sopravvissuti stanno già nell'ordine nuovo (caso comune),
+    // niente mosse; altrimenti si riappende tutto in ordine.
+    const attuali = Array.prototype.slice.call(container.children)
+        .filter(c => c.dataset && c.dataset.id !== undefined);
+    const allineati = attuali.length === nuovi.length && attuali.every((c, i) => c === nuovi[i]);
+    if(!allineati) for(const el of nuovi) container.appendChild(el);
+}
+
+// ─────────────────────────────────────────────────────────────────
+// _buildRackIconEl — UNICA sorgente dell'icona rack in planimetria.
+// ─────────────────────────────────────────────────────────────────
+// Prima viveva DUE volte (in _renderAllNow e in _renderFloorNow, identica riga
+// per riga): la classe twin-renderer che questo file ha già pagato una volta
+// coi nodi floor. Estratta nella fase ② mentre i due chiamanti cambiavano.
+function _buildRackIconEl(rack, fI){
+    const el = document.createElement('div');
+    el.dataset.rackid = rack.id;
+    const isActive = rack.id === store.state.currentRack;
+    el.className = `floor-rack${isActive?' rack-active':''}`;
+    el.style.cssText = `left:${rack.x}px;top:${rack.y}px`;
+    const devs = store.state.nodes.filter(n => TYPES[n.type]?.isRack && n.rackId===rack.id);
+    const devCount = devs.length;
+    const devNames = devs.slice(0,3).map(n => escapeHTML(n.name||n.hostname||n.type)).join(' · ') + (devs.length>3?' …':'');
+    // Badge connessioni verso floor node (visibile solo con overlay topologia attivo)
+    const floorLinkCount = store._topoVisible ? _getRackFloorLinks(rack.id).length : 0;
+    const floorBadge = floorLinkCount>0
+        ? `<span class="floor-rack-floor-badge" data-tip="${t('pnl.gen.floorLinksTip',{n:floorLinkCount})}">${floorLinkCount}</span>` : '';
+    el.innerHTML = `<div class="floor-rack-icon"><i class="fas fa-server"></i>${devCount>0?`<span class="floor-rack-badge">${devCount}</span>`:''}</div>`
+        + `<div class="floor-rack-name">${escapeHTML(rack.name)}${floorBadge}</div>`
+        + (devNames ? `<div class="floor-rack-devs">${devNames}</div>` : '');
+    // Hover per rack non corrente: mostra anteprima connessioni (Proposta C)
+    if(!isActive && store._topoVisible){
+        el.addEventListener('mouseenter', ()=>{ store._hoverRackId=rack.id; renderTopoOverlay(); });
+        el.addEventListener('mouseleave', ()=>{ store._hoverRackId=null; renderTopoOverlay(); });
+    }
+    // Doppio click: apre la vista del rack corrispondente (espande il pannello se nascosto)
+    el.addEventListener('dblclick', e => {
+        e.stopPropagation();
+        if(store._rackCollapsed) toggleRackPanel();
+        switchRack(rack.id);
+    });
+    fI.appendChild(el);
+}
+// Le icone si tolgono PRIMA di _keyedSync (così il passo d'ordine vede solo
+// nodi keyed) e si riappendono DOPO: l'ordine finale resta [nodi…, icone…],
+// identico a prima.
+function _rimuoviRackIcons(fI){
+    for(const c of Array.prototype.slice.call(fI.children)){
+        if(c.dataset && c.dataset.rackid !== undefined) fI.removeChild(c);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────
 // _buildFloorNodeEl — UNICA sorgente di verità del nodo-floor (strutturale o
 // device). Condivisa da _renderAllNow e _renderFloorNow: prima erano DUE copie
 // che DERIVAVANO (bug twin-renderer: topo-endpoint su un renderer, node-absent +
 // badge v3 sull'altro). `absentCls` è pre-calcolato dal chiamante (come la riga di
 // _renderAllNow, PRIMA della pulizia snmpStatus, per non alterarne l'ordine).
-// Ritorna { el, structural } oppure null se il nodo è nascosto in topologia.
+// Ritorna un DESCRITTORE { key, structural, className, cssText, title, html }
+// oppure null se il nodo è nascosto in topologia. (Fase ② cura render: il
+// descrittore è ciò che _keyedSync confronta e materializza — la FIRMA del
+// riuso è l'output di questa funzione, mai un elenco dei suoi input.)
 // ─────────────────────────────────────────────────────────────────
+/** @typedef {{key:string, structural:boolean, className:string, cssText:string, title:string, html:string}} FloorNodeDesc */
 function _buildFloorNodeEl(n, def, absentCls){
-    const el = document.createElement('div'); el.dataset.id = n.id;
     if(def.isStructural){
         // `floor-struct` PRIMA della classe di tipo: è la classe con cui il resto
         // dell'app riconosce «questo è un contenitore disegnato». La classe di tipo
         // resta per l'aspetto che DIFFERISCE (impilamento, etichetta) e per i banchi
         // che puntano una stanza precisa. Chi cerca un contenitore cerchi
         // FLOOR_NODE_SEL, mai un elenco di tipi scritto a mano → app-util.js.
-        el.className = `floor-struct floor-${n.type}${store.selId===n.id?' selected':''}${n.locked?' locked':''}`;
         const _sCol = n.color || def.defaultColor;
         const _sAlpha = n.opacity !== undefined ? n.opacity : 1;
         const _sBg = _sAlpha < 1 ? hexToRgba(_sCol, _sAlpha) : _sCol;
         const _w = n.w || 200, _h = n.h || 200;
         const _autoFs = Math.max(10, Math.min(Math.min(_w, _h) * 0.1, 36));
         const _fontSize = n.fontSize !== undefined ? n.fontSize : _autoFs;
-        el.style.cssText = `left:${n.x}px;top:${n.y}px;width:${_w}px;height:${_h}px;background-color:${_sBg}`;
         const _lockIcon = `<i class="fas ${n.locked?'fa-lock':'fa-lock-open'} room-lock-icon"></i>`;
         const _resizeHandle = n.locked ? '' : `<div class="resize-handle"></div>`;
-        el.innerHTML = `<span style="font-size:${_fontSize}px">${escapeHTML(n.name)}</span>${_lockIcon}${_resizeHandle}`;
-        return { el, structural: true };
+        return { key: String(n.id), structural: true,
+            className: `floor-struct floor-${n.type}${store.selId===n.id?' selected':''}${n.locked?' locked':''}`,
+            cssText: `left:${n.x}px;top:${n.y}px;width:${_w}px;height:${_h}px;background-color:${_sBg}`,
+            title: '',
+            html: `<span style="font-size:${_fontSize}px">${escapeHTML(n.name)}</span>${_lockIcon}${_resizeHandle}` };
     }
     const _selectedPortOnNode = store.selType==='port' && store.selId && getPortNodeId(store.selId)===n.id;
     const _nodeDim = store._filterVlan && (()=>{
@@ -247,8 +368,8 @@ function _buildFloorNodeEl(n, def, absentCls){
     // lib nessun tile viene nascosto, meglio di nasconderne di sbagliati.
     const _isEp = win.isTopoEndpointType;
     const _epCls = (typeof _isEp === 'function' && _isEp(def)) ? ' topo-endpoint' : '';
-    el.className = `floor-node ${store.selId===n.id?'selected':''}${_selectedPortOnNode?' port-selected':''}${_nodeDim?' vlan-dim':''}${_epCls}${absentCls}`;
-    el.style.cssText = `left:${n.x}px;top:${n.y}px`;
+    let _cls = `floor-node ${store.selId===n.id?'selected':''}${_selectedPortOnNode?' port-selected':''}${_nodeDim?' vlan-dim':''}${_epCls}${absentCls}`;
+    let _titolo = '';
     const pc = n.ports!==undefined?n.ports:def.ports;
     let icon = `<i class="fas ${def.icon} icon"></i>`;
     if(pc===1){
@@ -281,13 +402,14 @@ function _buildFloorNodeEl(n, def, absentCls){
     // notizia solo quando l'apparato c'è ma non risponde: community sbagliata, ACL,
     // agent fermo. Stessa regola dei verdetti: niente allarme senza misura che lo regga.
     if(_snmpOn && n.snmpStatus==='err' && !absentCls){
-        el.classList.add('snmp-fault');
-        el.title = t('floor.snmpFaultTip');
+        _cls += ' snmp-fault';
+        _titolo = t('floor.snmpFaultTip');
     }
     const _v3BadgeF = (typeof _v3NeedsCreds === 'function' && _v3NeedsCreds(n))
         ? `<span class="floor-v3-badge" title="${t('pnl.gen.v3MissingCreds')}"><i class="fas fa-key"></i></span>` : '';
-    el.innerHTML = `${icon}${_v3BadgeF}<div class="label">${_floorLabelHtml(n)}</div>${pts}${_radioPortHtml(n)}`;
-    return { el, structural: false };
+    return { key: String(n.id), structural: false, className: _cls,
+        cssText: `left:${n.x}px;top:${n.y}px`, title: _titolo,
+        html: `${icon}${_v3BadgeF}<div class="label">${_floorLabelHtml(n)}</div>${pts}${_radioPortHtml(n)}` };
 }
 // _floorLabelHtml — etichetta del nodo in planimetria: PRIMA la parte leggibile,
 // POI l'indirizzo (piu' tenue). Vedi lib/node-label.js per il perche': quando lo
@@ -353,7 +475,10 @@ function _renderAllNow(){
     }
     ruler.innerHTML=ruHtml;
 
-    fS.innerHTML=''; fI.innerHTML=''; ch.innerHTML='';
+    // Fase ② cura render: NIENTE svuotamento. I tre popoli keyed (stanze, tile
+    // floor, device rack) si raccolgono come descrittori e si riconciliano in
+    // fondo (_keyedSync): un elemento identico a prima non si tocca.
+    const vociFS=[], vociFI=[], vociCH=[];
 
     // L3-lite: insieme dei device che fanno da gateway L3 (badge "L3" sulla
     // rack-label). Calcolato UNA volta per render, non per device.
@@ -394,10 +519,9 @@ function _renderAllNow(){
             // `_absentCls` (calcolato sopra, PRIMA della pulizia snmpStatus).
             const built = _buildFloorNodeEl(n, def, _absentCls);
             if(!built) return;
-            (built.structural ? fS : fI).appendChild(built.el);
+            (built.structural ? vociFS : vociFI).push(built);
         } else if(def.isRack&&n.rackId===store.state.currentRack){
             clampRackDevice(n);
-            const el=document.createElement('div'); el.dataset.id=n.id;
             const _lldpDisc=store._topoVisible&&store._topoData&&store._topoData.nodes.some(tn=>tn.nodeId===n.id);
             const _snmpOn=_hasSnmpIntegration(n);
             // Il LED verde diceva «risponde» leggendo solo `snmpStatus`, che il
@@ -416,11 +540,10 @@ function _renderAllNow(){
             // ogni nodo): rosso solo con IP + subnet sondata + assenza affidabile, grigio se
             // non raggiunta, niente overlay senza IP, e snmpStatus 'ok' lo azzera (device
             // riacceso+risponde = di nuovo pieno). Il dato c'era nel Drift; ora si vede sul telaio.
-            el.className=`rack-device type-${n.type} ${store.selId===n.id?'selected':''}${_lldpDisc?' lldp-discovered':''}${_snmpStateCls}${_absentCls}`;
+            let _clsDev=`rack-device type-${n.type} ${store.selId===n.id?'selected':''}${_lldpDisc?' lldp-discovered':''}${_snmpStateCls}${_absentCls}`;
             const sU=n.sizeU!==undefined?n.sizeU:def.sizeU;
             const rackBg = _rackDeviceBg(n.color);
-            el.style.gridRow=`${rs-n.rackU-sU+2}/span ${sU}`;
-            if(rackBg) el.style.background = rackBg;
+            const _cssDev=`grid-row:${rs-n.rackU-sU+2}/span ${sU}`+(rackBg?`;background:${rackBg}`:'');
             const pc=n.ports!==undefined?n.ports:def.ports;
             let pts='';
             // La griglia di prese al posto del frontale. Vale per la barra sempre, e
@@ -582,7 +705,7 @@ function _renderAllNow(){
             } else if(_haInfo){
                 _fullHoverInfo = `${_hoverInfo ? _hoverInfo + ' · ' : ''}${_haInfo}`;
             }
-            if(_fullHoverInfo) el.title = _fullHoverInfo;
+            // (_fullHoverInfo finisce nel descrittore come title, in coda al blocco)
             // Badge "L3": il device fa da gateway per >=1 VLAN (L3-lite).
             const _l3Badge = (_l3ids && _l3ids.has(String(n.id)))
                 ? `<span class="rack-l3-badge" title="${t('pnl.gen.l3GatewayBadge')}">L3</span>` : '';
@@ -596,51 +719,32 @@ function _renderAllNow(){
             if(typeof _panelSkinRackHtml==='function'){ const _skin=_panelSkinRackHtml(n); if(_skin){ pts=_skin; _hasSkin=true; } }
             // Con la skin: niente padding/bordo del device → l'artwork riempie tutto
             // il box (in scala 1U) e la cornice la disegna l'SVG stesso.
-            if(_hasSkin) el.classList.add('has-skin');
+            if(_hasSkin) _clsDev += ' has-skin';
+            let _htmlDev;
             if(n.type==='cablemanager'){
                 const cmFingers='<div class="cm-fingers"><span class="cm-finger"></span><span class="cm-finger"></span><span class="cm-finger"></span><span class="cm-finger"></span><span class="cm-finger"></span><span class="cm-finger"></span></div>';
-                el.innerHTML=`<div class="cm-face"></div>${cmFingers}`;
+                _htmlDev=`<div class="cm-face"></div>${cmFingers}`;
             } else {
                 // Con la skin la targhetta nera (nome/ID) viene OMESSA per liberare
                 // tutto il campo all'artwork; il nome resta nell'hover del device
                 // (el.title, gia' valorizzato con hostname/nome/IP). Senza skin
                 // resta com'era.
                 const _labelHtml = _hasSkin ? '' : `<div class="rack-label${_stackCls}">${escapeHTML(n.name)}${_l3Badge}${_v3Badge}</div>`;
-                el.innerHTML=`${pts}${_labelHtml}${_radioPortHtml(n)}`;
+                _htmlDev=`${pts}${_labelHtml}${_radioPortHtml(n)}`;
             }
-            ch.appendChild(el);
+            vociCH.push({ key:String(n.id), className:_clsDev, cssText:_cssDev, title:_fullHoverInfo||'', html:_htmlDev });
         }
     });
+    // Riconciliazione keyed (fase ②): le icone rack via PRIMA (non sono keyed
+    // per data-id e attaccano listener → si ricostruiscono, vedi _buildRackIconEl).
+    _rimuoviRackIcons(fI);
+    _keyedSync(fS, vociFS);
+    _keyedSync(fI, vociFI);
+    _keyedSync(ch, vociCH);
     // ---- Icone rack sulla planimetria ----------------------------------------
     store.state.racks.forEach(rack=>{
         if(rack.x===undefined||rack.y===undefined) return;
-        const el=document.createElement('div');
-        el.dataset.rackid=rack.id;
-        const isActive=rack.id===store.state.currentRack;
-        el.className=`floor-rack${isActive?' rack-active':''}`;
-        el.style.cssText=`left:${rack.x}px;top:${rack.y}px`;
-        const devs=store.state.nodes.filter(n=>TYPES[n.type]?.isRack&&n.rackId===rack.id);
-        const devCount=devs.length;
-        const devNames=devs.slice(0,3).map(n=>escapeHTML(n.name||n.hostname||n.type)).join(' · ')+(devs.length>3?' …':'');
-        // Badge connessioni verso floor node (visibile solo con overlay topologia attivo)
-        const floorLinkCount=store._topoVisible?_getRackFloorLinks(rack.id).length:0;
-        const floorBadge=floorLinkCount>0
-            ?`<span class="floor-rack-floor-badge" data-tip="${t('pnl.gen.floorLinksTip',{n:floorLinkCount})}">${floorLinkCount}</span>`:'';
-        el.innerHTML=`<div class="floor-rack-icon"><i class="fas fa-server"></i>${devCount>0?`<span class="floor-rack-badge">${devCount}</span>`:''}</div>`
-            +`<div class="floor-rack-name">${escapeHTML(rack.name)}${floorBadge}</div>`
-            +(devNames?`<div class="floor-rack-devs">${devNames}</div>`:'');
-        // Hover per rack non corrente: mostra anteprima connessioni (Proposta C)
-        if(!isActive&&store._topoVisible){
-            el.addEventListener('mouseenter',()=>{ store._hoverRackId=rack.id; renderTopoOverlay(); });
-            el.addEventListener('mouseleave',()=>{ store._hoverRackId=null; renderTopoOverlay(); });
-        }
-        // Doppio click: apre la vista del rack corrispondente (espande il pannello se nascosto)
-        el.addEventListener('dblclick',e=>{
-            e.stopPropagation();
-            if(store._rackCollapsed) toggleRackPanel();
-            switchRack(rack.id);
-        });
-        fI.appendChild(el);
+        _buildRackIconEl(rack, fI);
     });
 
     // F6: la resa Proprieta' e' costosa SOLO nel ramo planimetria (nessuna selezione):
@@ -741,7 +845,9 @@ function _renderFloorNow(){
     const fS = document.getElementById('floor-structures');
     const fI = document.getElementById('floor-items');
     if(!fS || !fI) return;
-    fS.innerHTML = ''; fI.innerHTML = '';
+    // Fase ② cura render: niente svuotamento — riconciliazione keyed come in
+    // _renderAllNow (stesso _keyedSync, stessi descrittori: il twin non rinasce).
+    const vociFS = [], vociFI = [];
     // Stessa guardia presenza di _renderAllNow: i device assenti (macOrphan → rosso)
     // e non verificabili (unverified → grigio) restano evidenziati ANCHE su un render
     // mirato del solo floor (es. resize struttura) — senza questo, un
@@ -768,35 +874,16 @@ function _renderFloorNow(){
         const _absentCls = nodePresenceClass(n, store._driftReport);
         const built = _buildFloorNodeEl(n, def, _absentCls);
         if(!built) return;
-        (built.structural ? fS : fI).appendChild(built.el);
+        (built.structural ? vociFS : vociFI).push(built);
     });
-    // Icone rack sulla planimetria
+    _rimuoviRackIcons(fI);
+    _keyedSync(fS, vociFS);
+    _keyedSync(fI, vociFI);
+    // Icone rack sulla planimetria (helper CONDIVISO con _renderAllNow: prima
+    // era una copia riga per riga — la classe twin-renderer, di nuovo)
     store.state.racks.forEach(rack => {
         if(rack.x===undefined || rack.y===undefined) return;
-        const el = document.createElement('div');
-        el.dataset.rackid = rack.id;
-        const isActive = rack.id === store.state.currentRack;
-        el.className = `floor-rack${isActive?' rack-active':''}`;
-        el.style.cssText = `left:${rack.x}px;top:${rack.y}px`;
-        const devs = store.state.nodes.filter(n => TYPES[n.type]?.isRack && n.rackId===rack.id);
-        const devCount = devs.length;
-        const devNames = devs.slice(0,3).map(n => escapeHTML(n.name||n.hostname||n.type)).join(' · ') + (devs.length>3?' …':'');
-        const floorLinkCount = store._topoVisible ? _getRackFloorLinks(rack.id).length : 0;
-        const floorBadge = floorLinkCount>0
-            ? `<span class="floor-rack-floor-badge" data-tip="${t('pnl.gen.floorLinksTip',{n:floorLinkCount})}">${floorLinkCount}</span>` : '';
-        el.innerHTML = `<div class="floor-rack-icon"><i class="fas fa-server"></i>${devCount>0?`<span class="floor-rack-badge">${devCount}</span>`:''}</div>`
-            + `<div class="floor-rack-name">${escapeHTML(rack.name)}${floorBadge}</div>`
-            + (devNames ? `<div class="floor-rack-devs">${devNames}</div>` : '');
-        if(!isActive && store._topoVisible){
-            el.addEventListener('mouseenter', ()=>{ store._hoverRackId=rack.id; renderTopoOverlay(); });
-            el.addEventListener('mouseleave', ()=>{ store._hoverRackId=null; renderTopoOverlay(); });
-        }
-        el.addEventListener('dblclick', e => {
-            e.stopPropagation();
-            if(store._rackCollapsed) toggleRackPanel();
-            switchRack(rack.id);
-        });
-        fI.appendChild(el);
+        _buildRackIconEl(rack, fI);
     });
     // Topology overlay deve girare DOPO layout (usa offsetWidth/Height)
     requestAnimationFrame(renderTopoOverlay);

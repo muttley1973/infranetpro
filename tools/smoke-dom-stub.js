@@ -26,7 +26,9 @@ function makeEl(tag) {
     dataset: {},
     classList: { add() {}, remove() {}, toggle() {}, contains() { return false; }, replace() {} },
   };
-  el.appendChild = (c) => { el.children.push(c); if (c) c.parentNode = el; return c; };
+  // Come nel DOM vero: appendChild di un figlio GIÀ presente lo SPOSTA in coda,
+  // non lo duplica (il riuso keyed di app-render-core riappende per riordinare).
+  el.appendChild = (c) => { const i = el.children.indexOf(c); if (i >= 0) el.children.splice(i, 1); el.children.push(c); if (c) c.parentNode = el; return c; };
   el.removeChild = (c) => { const i = el.children.indexOf(c); if (i >= 0) el.children.splice(i, 1); return c; };
   el.insertBefore = (c) => { el.children.push(c); return c; };
   el.replaceChild = () => {};

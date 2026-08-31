@@ -53,7 +53,10 @@ const RENDER = fs.readFileSync(path.join(__dirname, '..', 'src', 'app-render-cor
 const CSS = fs.readFileSync(path.join(__dirname, '..', 'styles', '04-floor-rack.css'), 'utf8');
 
 test('errore SNMP sul pavimento: anello sulla tile, mai sull\'etichetta interna', () => {
-  assert.match(RENDER, /el\.classList\.add\('snmp-fault'\)/, 'classe sul contenitore');
+  // Fase ② cura render: il builder produce un DESCRITTORE (niente più el.classList
+  // nel builder) — la classe si somma alla className della TILE (`_cls`), che
+  // _applicaDesc scrive sul contenitore. Stessa notizia, nuovo idioma.
+  assert.match(RENDER, /_cls \+= ' snmp-fault'/, 'classe sul contenitore (via descrittore)');
   assert.equal(/class="label"\s*\$\{_ferr\}/.test(RENDER), false, 'niente stile inline sull\'etichetta');
   assert.equal(/outline:2px solid #f85149/.test(RENDER), false, 'niente colore cablato a mano nel renderer');
   // ⚠️ Guasto e assenza sono due valori della STESSA notizia: stessa forma,
@@ -74,7 +77,11 @@ test('errore SNMP sul pavimento: anello sulla tile, mai sull\'etichetta interna'
 
 test('l\'anello di guasto SNMP si spiega da sé (nessuna legenda da cercare)', () => {
   // Un anello colorato senza testo obbliga a chiedere cosa significa: è successo.
-  assert.match(RENDER, /el\.title = t\('floor\.snmpFaultTip'\)/, 'la tile porta la spiegazione nel title');
+  // Fase ②: il builder mette la spiegazione nel descrittore (`_titolo`) e
+  // _applicaDesc la porta sull'elemento — si verifica TUTTA la catena, o il
+  // title potrebbe nascere nel builder e non arrivare mai a schermo.
+  assert.match(RENDER, /_titolo = t\('floor\.snmpFaultTip'\)/, 'il descrittore porta la spiegazione');
+  assert.match(RENDER, /el\.title = d\.title/, 'e il materializzatore la scrive sulla tile');
 });
 
 test('⚠️ nessun anello di guasto se la presenza ha gia\' un verdetto', () => {

@@ -13,12 +13,21 @@ import { nodeIdOfPort } from '../lib/port-id.js';
 let _idxDirty      = true;
 let _nodeByIdMap   = Object.create(null); // nodeId  → node
 let _linksByPortMap = Object.create(null); // portId → Link[]
+// pid → nodeId GIÀ RISOLTO. Il profiler (fase ③ cura render, 500 nodi) ha
+// contato ~9 ms/render dentro getPortNodeId: i pid coi suffissi multi-trattino
+// (-mgmt1, -logical-…) bucano il fast-path a OGNI chiamata e ricadono nella
+// scansione longest-prefix, e le chiamate sono decine di migliaia per render
+// (portTip/LAG le fanno per porta). Il memo vive e muore con l'indice: si
+// svuota in _rebuildIdx, cioè con la STESSA invalidazione (_invalidateIdx) di
+// _nodeByIdMap — nessun secondo meccanismo da tenere allineato.
+let _pidNodeMemo   = Object.create(null); // portId → nodeId risolto
 
 export function _invalidateIdx() { _idxDirty = true; }
 
 function _rebuildIdx() {
     _nodeByIdMap   = Object.create(null);
     _linksByPortMap = Object.create(null);
+    _pidNodeMemo   = Object.create(null);
     for (const n of state.nodes) _nodeByIdMap[n.id] = n;
     for (const l of state.links) {
         for(const pid of _getLinkPortIds(l)){
@@ -56,11 +65,16 @@ export function getPortNodeId(pid, knownNodeIds)          {
     if (knownNodeIds) return nodeIdOfPort(pid, knownNodeIds);
     if (_idxDirty) _rebuildIdx();
     const p = String(pid || '');
+    const memo = _pidNodeMemo[p];
+    if (memo !== undefined) return memo;                  // O(1) anche per i multi-trattino
     const cut = p.lastIndexOf('-');
     const naive = cut > 0 ? p.slice(0, cut) : p;
-    if (naive && (naive in _nodeByIdMap)) return naive;   // O(1): copre id canonici + gran parte dei dashed
-    if (!naive) return p;
-    return nodeIdOfPort(p, _nodeByIdMap);                 // raro: suffisso multi-trattino → longest-prefix
+    let out;
+    if (naive && (naive in _nodeByIdMap)) out = naive;    // copre id canonici + gran parte dei dashed
+    else if (!naive) out = p;
+    else out = nodeIdOfPort(p, _nodeByIdMap);             // suffisso multi-trattino → longest-prefix, UNA volta
+    _pidNodeMemo[p] = out;
+    return out;
 }
 export function isPortOnNode(pid,nodeId)    { return getPortNodeId(pid)===nodeId; }
 export function getNodeByPortId(pid)        { return nodeById(getPortNodeId(pid)); }

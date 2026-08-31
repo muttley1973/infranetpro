@@ -4,6 +4,8 @@
 
 ### Changed
 
+- **A full canvas render reuses the DOM instead of recreating it.** Rooms, floor tiles and rack devices are reconciled by key: an element whose rendered output is unchanged is left alone, a changed one is patched in place, and no existing element is ever torn down and recreated. Measured on the render bench against the frozen baseline: a full rebuild costs 54 ms at 500 devices and 92 ms at 1000 (was 119 and 203), the floor-only render no longer grows with project size (29 ms at 1000, was 93), the topology toggle is about 20% faster, and dragging a device no longer produces a single long task. A new end-to-end guard pins the invariant: same key, same DOM element, across any render.
+- **Two hot lookups stopped being paid on every render.** Resolving a port id to its device now remembers the answer (cleared together with the existing node index, by the same invalidation), and the rack-unit height no longer forces a whole-document style recalculation on each redraw.
 - **Selecting or deselecting a device no longer rebuilds the whole canvas.** A click paid for a full re-render of every room, tile, rack device and port — 122 ms at 500 devices, 205 ms at 1000, measured on the render bench. Selection now repaints only what depends on it: the selection classes, the properties panel, the cables (whose visibility reads the selection) and the topology overlay. The click now costs the same at 500 and at 1000 devices, and the DOM survives it — nodes are no longer torn down and recreated under the pointer.
 
 ## [2.11.0] — 2026-08-31

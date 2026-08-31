@@ -4295,6 +4295,51 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.propsRefreshed, 'il pannello Proprietà si aggiorna sull’elemento selezionato');
     });
 
+    await t.test('riuso keyed (fase ② cura render): un render non sostituisce un elemento esistente, e un nodo cambiato viene patchato in place', async () => {
+      // L'invariante nuovo di app-render-core (_keyedSync): un elemento con
+      // data-id o si RIUSA (firma identica) o si PATCHA (stessa identità DOM,
+      // contenuto nuovo) — mai distrutto e ricreato. È anche la cura della
+      // race storica sui boundingBox nulli (un nodo ricreato non ha box):
+      // qui si prova con l'identità JS, che un rebuild non può falsificare.
+      const r = await page.evaluate(() => {
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        _renderAllNow();
+        const fi = document.getElementById('floor-items');
+        const prima = fi.querySelector('.floor-node[data-id]');
+        const id = prima.dataset.id;
+        const htmlPrima = prima.innerHTML;
+        // ① niente cambia → stesso elemento, stesso contenuto (riuso puro)
+        _renderAllNow();
+        const dopoNulla = fi.querySelector(`.floor-node[data-id="${id}"]`);
+        // ② cambia il NOME → stesso elemento (patch in place), contenuto nuovo
+        const nodo = state.nodes.find(n => String(n.id) === id);
+        const nomePrima = nodo.name;
+        nodo.name = 'RIUSO-PROVA';
+        _renderAllNow();
+        const dopoRinomina = fi.querySelector(`.floor-node[data-id="${id}"]`);
+        const htmlDopo = dopoRinomina ? dopoRinomina.innerHTML : '';
+        // ③ il nodo sparisce dallo stato → l'elemento sparisce dal DOM
+        state.nodes = state.nodes.filter(n => String(n.id) !== id);
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        _renderAllNow();
+        const dopoRimozione = fi.querySelector(`.floor-node[data-id="${id}"]`);
+        return {
+          riusato: prima === dopoNulla,
+          patchatoInPlace: prima === dopoRinomina,
+          contenutoInvariato: htmlPrima === (dopoNulla ? dopoNulla.innerHTML : null) || false,
+          contenutoAggiornato: htmlDopo.includes('RIUSO-PROVA') && htmlDopo !== htmlPrima,
+          nomePrimaDiverso: nomePrima !== 'RIUSO-PROVA',
+          rimosso: !dopoRimozione,
+        };
+      });
+      assert.ok(r.nomePrimaDiverso, 'il fixture non si chiamava già come il nome di prova');
+      assert.ok(r.riusato, 'render senza cambi: STESSO elemento DOM (riuso, non ricreazione)');
+      assert.ok(r.patchatoInPlace, 'nodo rinominato: stessa identità DOM (patch in place)');
+      assert.ok(r.contenutoAggiornato, 'la patch ha davvero aggiornato il contenuto (il nome nuovo è a schermo)');
+      assert.ok(r.rimosso, 'nodo tolto dallo stato: l\'elemento lascia il DOM');
+    });
+
     await t.test('bundle esbuild: i moduli ESM migrati (app-audit, app-spare, app-management) girano nel browser reale', async () => {
       const r = await page.evaluate(() => {
         // Le funzioni provengono dal bundle (src/*.js → expose()).

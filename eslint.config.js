@@ -31,6 +31,10 @@ module.exports = [
       'tools/snmp-sim/**', // regola di progetto: mai toccare
       'modules/**',        // moduli a pagamento (privati, gitignored) — fuori dal gate pubblico
       '.worktrees/**',     // git worktree locali (checkout + dist propri) — non fanno parte della sorgente
+      '_local/**',         // workspace privato (repo git A PARTE, gitignorato qui): banco render, note,
+                           // marketing. Non è sorgente del prodotto — il gate pubblico non deve dipenderne.
+                           // (Scoperto quando bench-render/bench.js, che ha codice page-side dentro
+                           // page.evaluate(), ha regalato 44 no-undef al gate del repo sbagliato.)
       '.claude/worktrees/**',   // stessa cosa, dove li mette Claude Code: un worktree dimenticato qui dentro
                                 // faceva contare al gate 4.365 errori che sono una COPIA di sorgenti già viste
       '**/*.min.js',
