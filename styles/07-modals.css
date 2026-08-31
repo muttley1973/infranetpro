@@ -113,7 +113,7 @@
         .dcim-scope-all-link { flex:none; padding:7px 10px; font-size:var(--fs-sm); }
         .dcim-scope-all-link i { font-size:15px; }
         .dcim-scope-summary { display:flex; align-items:center; gap:8px; margin-bottom:10px; padding:9px 10px; border:1px solid rgba(0,212,255,.24); border-radius:var(--radius); background:rgba(0,212,255,.06); color:var(--accent); font-size:var(--fs-sm); }
-        .dcim-scope-summary > i { font-size:16px; }
+        .dcim-scope-summary > i { font-size:var(--fs-lg); }
         .dcim-scope-summary span { color:var(--text-main); }
         .dcim-scope-tabs { display:flex; gap:5px; margin-bottom:8px; border-bottom:1px solid var(--border); }
         .dcim-scope-tab { display:inline-flex; align-items:center; gap:7px; padding:8px 10px; border:0; border-bottom:2px solid transparent; background:transparent; color:var(--text-muted); font:inherit; font-size:var(--fs-sm); cursor:pointer; }

@@ -249,11 +249,11 @@ function renderDhcpSources() {
     if (!host) return;
     const srcs = _ensureSources();
     const totalLeases = Array.isArray(store._dhcpLeases) ? store._dhcpLeases.length : 0;
-    const head = `<div style="display:flex;align-items:center;gap:8px;font-size:0.75rem;font-weight:600;color:var(--text-muted);margin-bottom:8px;border-top:1px solid var(--panel-border);padding-top:12px">
+    const head = `<div style="display:flex;align-items:center;gap:8px;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);margin-bottom:8px;border-top:1px solid var(--panel-border);padding-top:12px">
         <i class="fas fa-database"></i><span>${esc(t('dhcp.sources'))}</span>
         <span style="margin-left:auto;font-weight:500">${esc(t('dhcp.sourcesTotal', { m: totalLeases, s: srcs.length }))}</span></div>`;
     if (!srcs.length) {
-        host.innerHTML = head + `<div style="font-size:0.75rem;color:var(--text-muted);padding:6px 2px">${esc(t('dhcp.noSources'))}</div>`;
+        host.innerHTML = head + `<div style="font-size:var(--fs-xs);color:var(--text-muted);padding:6px 2px">${esc(t('dhcp.noSources'))}</div>`;
         _syncClearBtn(); return;
     }
     const body = srcs.map(s => {

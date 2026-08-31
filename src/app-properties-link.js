@@ -6,7 +6,7 @@
 // delegation, registrati sopra). Nessun cambio logica.
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { escapeHTML } from './app-util.js';
+import { escapeHTML, badgeInk } from './app-util.js';
 import { getNodeByPortId, getNodeDisplayName, getWallPortLabel, _getLinkPhysicalView, _enableManualValueInProps, _activatePropsTab, _cableAutoLabel, promoteLinkToManual, setCableLabel, setLinkProp, deleteLink, _cableProofBadgeHtml } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderProps, _propsSectionIsOpen, _buildPropsHeader } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { TYPES, _frontPanelPortLabel, _frontPanelIsUplink } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
@@ -250,6 +250,7 @@ export function _renderLinkProps(panel){
         // coerente con la convenzione visiva applicata in topology.
         const _ls = (typeof win.linkState === 'function') ? win.linkState(l) : null;
         const _lsCol = { manual:'#57606a', lag:'#a371f7', discovered:'#1a7f37', ambiguous:'#f5a623' };
+        const _lsBg = (_ls && _lsCol[_ls.key]) || '#57606a';
         const _lsLabel = _ls && _ls.key === 'ambiguous' ? 'AUTO' : (_ls ? _ls.label : '');
         // Badge protocollo (LLDP blu / CDP arancio, incluse label fuse 'LLDP+MAC')
         // accanto al badge di stato, STESSA altezza/forma: UI uniforme. Sostituisce
@@ -287,10 +288,13 @@ export function _renderLinkProps(panel){
         // piu' generale, quindi viene prima. Stessa geometria dei vicini — il bordo
         // di 1px compensa 1px di padding — cosi' le altezze coincidono.
         // Un'associazione wireless non ha modalita' di porta: nessuna pastiglia.
-        const _chipGeom = 'padding:2px 10px;border-radius:5px;font-weight:700;font-size:0.89rem';
+        // La geometria sta in `.link-state-chip` (06-panels.css) e NON coincide con
+        // quella di `.link-state-badge`: qui il padding e' 2px/10px perche' il bordo
+        // di 1px aggiunge il pixel mancante. Stesso CORPO pero' — misurato dal vivo,
+        // il chip era rimasto a 14,24px accanto a badge da 14,4.
         const _modeChip = l.wireless ? '' : (isTrunk
-            ? `<span data-tip="${t('cable.portMode')}" style="${_chipGeom};background:#0e2233;border:1px solid #2d6a9f;color:#5ba3f5">TRUNK</span>`
-            : `<span data-tip="${t('cable.portMode')}" style="${_chipGeom};background:rgba(110,118,129,.12);border:1px solid var(--panel-border);color:var(--text-muted)">ACCESS</span>`);
+            ? `<span class="link-state-chip" data-tip="${t('cable.portMode')}" style="background:#0e2233;border:1px solid #2d6a9f;color:#5ba3f5">TRUNK</span>`
+            : `<span class="link-state-chip" data-tip="${t('cable.portMode')}" style="background:rgba(110,118,129,.12);border:1px solid var(--panel-border);color:var(--text-muted)">ACCESS</span>`);
         // Larghezza NATURALE del gruppo (`flex-basis:auto` + `flex-grow:0`): i badge
         // occupano quel che serve loro su una riga sola. A cedere e' il campo Tipo, che
         // shrink-a 100 volte piu' in fretta — «Cavo (auto)» sta in poco, i badge no.
@@ -299,9 +303,9 @@ export function _renderLinkProps(panel){
         const stateRow = (_ls || _modeChip) ? `<div class="prop-group" style="flex:0 1 auto;min-width:0;padding-right:10px"><label style="text-align:right">${t('common.status')}</label>
             <div class="link-state-badges" style="display:flex;align-items:center;justify-content:flex-end;gap:6px;padding:4px 0;flex-wrap:wrap">
               ${_modeChip}
-              ${_ls?`<span style="background:${escapeHTML(_lsCol[_ls.key]||'#57606a')};color:#fff;padding:3px 11px;border-radius:5px;font-weight:700;font-size:0.89rem">${escapeHTML(_lsLabel)}</span>`:''}
-              ${_lsProtoStr?`<span style="background:${escapeHTML(_lsProtoCol)};color:#fff;padding:3px 11px;border-radius:5px;font-weight:700;font-size:0.89rem">${escapeHTML(_lsProtoStr)}</span>`:''}${_pfBadge}
-              ${_ls&&_ls.confidence!=null?`<span style="font-size:0.88rem;color:var(--text-muted)">${Math.round(_ls.confidence*100)}%</span>`:''}
+              ${_ls?`<span class="link-state-badge" style="background:${escapeHTML(_lsBg)};color:${badgeInk(_lsBg)}">${escapeHTML(_lsLabel)}</span>`:''}
+              ${_lsProtoStr?`<span class="link-state-badge" style="background:${escapeHTML(_lsProtoCol)};color:${badgeInk(_lsProtoCol)}">${escapeHTML(_lsProtoStr)}</span>`:''}${_pfBadge}
+              ${_ls&&_ls.confidence!=null?`<span class="link-state-conf">${Math.round(_ls.confidence*100)}%</span>`:''}
             </div></div>` : '';
 
         // Anteprima della fisarmonica chiusa: la risposta in una riga sola — quella
@@ -448,7 +452,7 @@ export function _renderLinkProps(panel){
                     : { ok: true, warnings: [] };
                 const _chainWarnHtml = (!_chainCheck.ok && _chainCheck.warnings.length)
                     ? `<div class="prop-group" style="margin-top:10px;padding:8px 10px;border:1px solid #b8860b;border-radius:8px;background:rgba(245,197,24,.08)">
-                         <div style="font-size:.82rem;font-weight:700;color:#f5c518;margin-bottom:4px"><i class="fas fa-triangle-exclamation"></i> ${t('cable.chainAnomaly')}</div>
+                         <div style="font-size:var(--fs-sm);font-weight:700;color:#f5c518;margin-bottom:4px"><i class="fas fa-triangle-exclamation"></i> ${t('cable.chainAnomaly')}</div>
                          <ul style="margin:0;padding-left:18px;font-size:.8rem;color:var(--text-muted);line-height:1.45">
                            ${chainWarnTexts(_chainCheck.warnings).map(m => `<li>${escapeHTML(m)}</li>`).join('')}
                          </ul>
@@ -525,7 +529,7 @@ export function _renderLinkProps(panel){
                     const _segClick = s.linkId ? ` data-act="link-seg-pick" data-seglink="${escapeHTML(s.linkId)}"` : '';
                     return `<div class="prop-group seg-pick${s.isSelected?' sel':''}"${_segClick} data-tip="${t('cable.segPickTip')}" style="margin-bottom:8px;padding:8px 10px;border:1px solid ${_segBorder};border-radius:8px;background:${_segBg}${s.linkId?';cursor:pointer':''}">
                         <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:4px">
-                          <div style="font-size:.9rem;font-weight:700;color:var(--text-main)">${s.isSelected?'<i class="fas fa-caret-right" style="color:var(--active-color);margin-right:4px"></i>':''}${t('cable.segmentN',{n:idx+1})}</div>
+                          <div style="font-size:var(--fs-md);font-weight:700;color:var(--text-main)">${s.isSelected?'<i class="fas fa-caret-right" style="color:var(--active-color);margin-right:4px"></i>':''}${t('cable.segmentN',{n:idx+1})}</div>
                           <div style="display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--text-muted)">${_selBadge}<span>${_segBits.join(' · ')}</span></div>
                         </div>
                         <div style="font-size:.88rem;color:var(--text-main);line-height:1.4">${_from} <span style="color:var(--active-color)">→</span> ${_to}</div>
@@ -539,8 +543,8 @@ export function _renderLinkProps(panel){
                   <div class="props-collapsible-body">
                     <div class="prop-group" style="padding:10px 12px;border:1px solid var(--panel-border);border-radius:8px;background:rgba(255,255,255,.02)">
                       <div style="font-size:.86rem;font-weight:700;color:var(--text-main);margin-bottom:6px">${t('cable.path')}</div>
-                      <div style="font-size:.9rem;color:var(--text-main);line-height:1.45">${_pathText}</div>
-                      <div style="font-size:.82rem;color:var(--text-muted);margin-top:8px">${_summaryBits.join(' · ')}</div>
+                      <div style="font-size:var(--fs-md);color:var(--text-main);line-height:1.45">${_pathText}</div>
+                      <div style="font-size:var(--fs-sm);color:var(--text-muted);margin-top:8px">${_summaryBits.join(' · ')}</div>
                     </div>
                     ${_chainWarnHtml}
                     <div class="prop-group" style="margin-top:10px">

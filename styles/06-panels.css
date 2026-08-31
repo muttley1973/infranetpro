@@ -20,8 +20,19 @@
            inline di _cableProofBadgeHtml(), perche' lo stesso badge compare in due
            posti a due misure: Panoramica (base) e riga «Stato» del pannello cavo
            (120%, insieme agli altri badge di quella riga). */
-        .cable-proof-badge { padding:2px 9px; border-radius:4px; font-weight:700; font-size:0.74rem; }
-        .link-state-badges .cable-proof-badge { padding:3px 11px; border-radius:5px; font-size:0.89rem; }
+        .cable-proof-badge { padding:2px 9px; border-radius:4px; font-weight:700; font-size:var(--fs-xs); }
+        /* I badge della riga «Stato» del cavo — provenienza (linkstate), protocollo e
+           stato-di-prova — hanno la STESSA forma: erano tre volte lo stesso stile
+           inline in app-properties-link.js, con corpi (0,89rem) che la scala non ha.
+           Qui la forma sta scritta una volta. Il FONDO resta al chiamante (dipende
+           dallo stato), l'INCHIOSTRO lo calcola badgeInk() dal fondo. */
+        .link-state-badges .cable-proof-badge,
+        .link-state-badges .link-state-badge { padding:3px 11px; border-radius:5px; font-weight:700; font-size:var(--fs-md); }
+        /* ⚠️ Il chip modo-porta (TRUNK/ACCESS) ha un padding DIVERSO di proposito: ha
+           un bordo di 1px, che aggiunge il pixel che qui manca al padding. Stesso
+           corpo, altezza uguale. Fonderlo con .link-state-badge lo farebbe crescere. */
+        .link-state-badges .link-state-chip { padding:2px 10px; border-radius:5px; font-weight:700; font-size:var(--fs-md); }
+        .link-state-badges .link-state-conf { font-size:var(--fs-md); color:var(--text-muted); }
 
         /* Gerarchia visiva: device-specifici hanno accent left, secondari sono muted. */
         .props-collapsible.props-primary { border-left:2px solid var(--accent); padding-left:8px; margin-left:-10px; transition:background-color .12s; }

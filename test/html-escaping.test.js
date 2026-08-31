@@ -248,7 +248,13 @@ const CAPS = {
     'src/app-topology-overlay.js': 10,
     'src/app-vlan-autopoll.js': 17,
     'src/app-wifi.js': 19,
-    'src/app.js': 2,
+    // +1 (2026-08-31): `${badgeInk(m.color)}` nel badge di stato-di-prova del cavo.
+    // `badgeInk` (src/app-util.js) ritorna UNO DI DUE LETTERALI scritti nel sorgente
+    // ('#fff' o '#0d1117') e nient'altro: non è una funzione che possa restituire
+    // testo libero. Lo scanner dichiara di non fare analisi interprocedurale, quindi
+    // non può dimostrarlo. Avvolgerla in escapeHTML() fingerebbe un rischio che non
+    // c'è — stesso ragionamento già scritto sopra per CABLE_VLAN_UNKNOWN.
+    'src/app.js': 3,
 };
 
 test('cricchetto: nessun file supera il suo tetto di interpolazioni non provate', () => {

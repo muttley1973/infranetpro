@@ -128,7 +128,7 @@
         .toolbar-btn.icon-only .btn-label { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
         /* Panoramica è solo-icona sui monitor comuni: la «i» un filo più grande così il
            pulsante è alto quanto quelli con etichetta (Scopri/Verifica), non più basso. */
-        #btn-overview i { font-size: 1rem; }
+        #btn-overview i { font-size: var(--fs-lg); }
         /* Stato "soft cyan": alternativa morbida a .primary — sfondo tint accent
            + bordo/testo accent. Riusabile (toggle attivo, azioni evidenziate). */
         .toolbar-btn.soft { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }

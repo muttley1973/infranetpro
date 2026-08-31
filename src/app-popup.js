@@ -244,7 +244,7 @@ export function showPop(e,pid){
     const connText = conn.length
         ? conn.map(fmtConnPid).join(', ')
         : (lagRepConn
-            ? `${fmtConnPid(lagRepConn.remotePid)} <span style="color:var(--text-muted);font-size:0.75rem">(${t('pnl.misc.viaMember',{lag:escapeHTML(lagBadgeName),port:escapeHTML(String(lagRepConn.localPid).split('-').slice(1).join('-'))})})</span>`
+            ? `${fmtConnPid(lagRepConn.remotePid)} <span style="color:var(--text-muted);font-size:var(--fs-xs)">(${t('pnl.misc.viaMember',{lag:escapeHTML(lagBadgeName),port:escapeHTML(String(lagRepConn.localPid).split('-').slice(1).join('-'))})})</span>`
             : t('pnl.misc.none'));
 
     // Valori effettivi (override > SNMP > default)
@@ -319,7 +319,7 @@ ${(()=>{
 </div>${_net?`
 <div class="port-row">
   <label>${t('port.routedNet')}</label>
-  <span style="font-family:monospace;font-size:0.82rem;color:var(--text-main)">${escapeHTML(_net)}</span>
+  <span style="font-family:monospace;font-size:var(--fs-sm);color:var(--text-main)">${escapeHTML(_net)}</span>
   <span></span>
 </div>`:''}`;
     }
@@ -348,13 +348,13 @@ ${(()=>{
 </div>`;
         return `<div class="port-row">
   <label>${t('pnl.misc.mode')}</label>
-  <span style="background:#0e2233;border:1px solid #2d6a9f;border-radius:4px;padding:1px 8px;font-size:0.75rem;font-weight:700;color:#5ba3f5">TRUNK</span>
+  <span style="background:#0e2233;border:1px solid #2d6a9f;border-radius:4px;padding:1px 8px;font-size:var(--fs-xs);font-weight:700;color:#5ba3f5">TRUNK</span>
   <span></span>
 </div>
 ${vlanNativaRow}
 <div class="port-row">
   <label>${t('pnl.misc.trunkVlan')}</label>
-  <span style="font-family:monospace;font-size:0.82rem;color:var(--text-main)">${vlanStr||`<span style="color:var(--text-muted);font-style:italic">${t('pnl.misc.seeCable')}</span>`}</span>
+  <span style="font-family:monospace;font-size:var(--fs-sm);color:var(--text-main)">${vlanStr||`<span style="color:var(--text-muted);font-style:italic">${t('pnl.misc.seeCable')}</span>`}</span>
   <span></span>
 </div>`;
     } else {
@@ -394,7 +394,7 @@ ${(()=>{
             </div>`;
         } else {
             return `<div style="border-top:1px solid #30363d;margin-top:6px;padding-top:6px">
-              <button class="toolbar-btn" style="width:100%;font-size:0.75rem;padding:4px 8px" data-act="port-lag-add" data-pid="${pid}">⛓ ${t('pnl.misc.addToLag')}</button>
+              <button class="toolbar-btn" style="width:100%;font-size:var(--fs-xs);padding:4px 8px" data-act="port-lag-add" data-pid="${pid}">⛓ ${t('pnl.misc.addToLag')}</button>
             </div>`;
         }
     } else {

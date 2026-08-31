@@ -146,7 +146,7 @@ async function umLoadUsers(){
     try {
         const r = await fetch('/api/auth/users');
         const users = await r.json();
-        if(!users.length){ list.innerHTML=`<div style="color:var(--text-muted);font-size:.82rem">${t('pnl.sys.noUsers')}</div>`; return; }
+        if(!users.length){ list.innerHTML=`<div style="color:var(--text-muted);font-size:var(--fs-sm)">${t('pnl.sys.noUsers')}</div>`; return; }
         list.innerHTML = users.map(u=>`
             <div class="um-user-row">
                 <span class="um-user-name">${escapeHTML(u.username)}
@@ -155,11 +155,11 @@ async function umLoadUsers(){
                 <span class="role-badge ${u.role}">${u.role==='admin'?'Admin':'Viewer'}</span>
                 <span class="um-user-date">${u.createdAt?.substring(0,10)||''}</span>
                 ${u.id!==store._currentUser?.id?`
-                <button class="um-btn ghost" style="padding:3px 8px;font-size:.75rem"
+                <button class="um-btn ghost" style="padding:3px 8px;font-size:var(--fs-xs)"
                     data-act="um-toggle-role" data-id="${u.id}" data-newrole="${u.role==='admin'?'viewer':'admin'}">
                     <i class="fas fa-exchange-alt"></i> ${u.role==='admin'?'-> Viewer':'-> Admin'}
                 </button>
-                <button class="um-btn danger" style="padding:3px 8px;font-size:.75rem"
+                <button class="um-btn danger" style="padding:3px 8px;font-size:var(--fs-xs)"
                     data-act="um-del-user" data-id="${u.id}">
                     <i class="fas fa-trash"></i>
                 </button>`:'<span style="width:100px"></span>'}
@@ -252,7 +252,7 @@ async function tkLoadTokens(){
         const r = await fetch('/api/auth/tokens');
         const tokens = await r.json();
         if(!Array.isArray(tokens) || !tokens.length){
-            list.innerHTML=`<div style="color:var(--text-muted);font-size:.82rem">${t('tk.none')}</div>`; return;
+            list.innerHTML=`<div style="color:var(--text-muted);font-size:var(--fs-sm)">${t('tk.none')}</div>`; return;
         }
         list.innerHTML = tokens.map(tk=>`
             <div class="tk-row">
@@ -267,7 +267,7 @@ async function tkLoadTokens(){
                         ? `<div class="tk-used">${t('tk.lastUse')} ${escapeHTML(tk.lastUsedAt.substring(0,10))}</div>`
                         : `<div style="opacity:.7">${t('tk.never')}</div>`}
                 </div>
-                <button class="um-btn danger" style="padding:5px 9px;font-size:.75rem"
+                <button class="um-btn danger" style="padding:5px 9px;font-size:var(--fs-xs)"
                     data-act="tk-revoke" data-id="${tk.id}" title="${escapeHTML(t('tk.revoke'))}">
                     <i class="fas fa-trash"></i>
                 </button>

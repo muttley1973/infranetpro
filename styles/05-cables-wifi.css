@@ -39,7 +39,7 @@
         .cable.mode-emph.sel, .cable.mode-emph.highlight,
         .cable-xrack.mode-emph.sel, .cable-xrack.mode-emph.highlight { stroke-width:2.9; }
         /* Toggle/nota "Collegamento wireless" nel pannello del cavo */
-        .link-wireless-toggle { display:flex; align-items:center; gap:7px; font-size:.82rem; color:var(--text-main); cursor:pointer; user-select:none; padding:4px 2px; }
+        .link-wireless-toggle { display:flex; align-items:center; gap:7px; font-size:var(--fs-sm); color:var(--text-main); cursor:pointer; user-select:none; padding:4px 2px; }
         .link-wireless-toggle input { width:auto; margin:0; }
         .link-wireless-toggle i { color:var(--accent); }
         .link-wireless-note { font-size:var(--fs-xs); color:var(--text-muted); line-height:1.4; padding:6px 8px; margin-top:6px; background:color-mix(in srgb, var(--accent) 6%, transparent); border:1px solid color-mix(in srgb, var(--accent) 20%, transparent); border-radius: var(--radius-md); }
@@ -68,7 +68,7 @@
         .power-live-head { display:flex; align-items:center; gap:6px; font-size:var(--fs-xs); font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:var(--text-muted); margin-bottom:6px; }
         .power-live-head i { color:var(--accent); }
         .power-live-ts { margin-left:auto; font-weight:400; text-transform:none; letter-spacing:0; opacity:.75; }
-        .power-live-row { display:flex; justify-content:space-between; gap:10px; font-size:.82rem; padding:2px 0; }
+        .power-live-row { display:flex; justify-content:space-between; gap:10px; font-size:var(--fs-sm); padding:2px 0; }
         .power-live-row > span:first-child { color:var(--text-muted); }
         .power-live-row > span:last-child { color:var(--text-main); font-variant-numeric:tabular-nums; }
         /* Misurato ≠ dichiarato: la riga si evidenzia invece di correggere il campo

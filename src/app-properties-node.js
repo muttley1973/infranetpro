@@ -260,7 +260,7 @@ export function _renderNodeProps(panel){
                 <div class="prop-group">
                   <label style="display:flex;align-items:center;justify-content:space-between">
                     <span>${t('pnl.node.fontSize')}</span>
-                    <span style="font-size:0.75rem;color:var(--text-muted)">${t('pnl.node.autoEquals',{n:Math.round(_autoFs)})}</span>
+                    <span style="font-size:var(--fs-xs);color:var(--text-muted)">${t('pnl.node.autoEquals',{n:Math.round(_autoFs)})}</span>
                   </label>
                   <input type="number" min="6" max="200" step="1"
                          value="${_fontSize}" placeholder="${t('pnl.node.autoPxPlaceholder',{n:Math.round(_autoFs)})}"

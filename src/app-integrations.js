@@ -310,7 +310,7 @@ function _showTab(tab) {
 
 function _renderExport() {
   const b = _el('dcim-export-body');
-  if (b) b.innerHTML = `<div style="padding:14px;border:0.5px dashed var(--border-strong);border-radius:var(--radius);color:var(--text-secondary);font-size:.9rem">
+  if (b) b.innerHTML = `<div style="padding:14px;border:0.5px dashed var(--border-strong);border-radius:var(--radius);color:var(--text-secondary);font-size:var(--fs-md)">
     <i class="fas fa-lock" style="margin-right:6px"></i>${escapeHTML(t('integrations.exportUpsell'))}</div>`;
 }
 
@@ -393,7 +393,7 @@ function _renderImport() {
   // diversi — «crea una fotocopia» e «dimmi che cosa è cambiato».
   if (_wiz.compare.state !== 'idle') { b.innerHTML = _renderCompare(); return; }
   const s = _wiz.step;
-  const dot = (n, key) => `<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:${n <= s ? 'var(--text-primary)' : 'var(--text-muted)'}">
+  const dot = (n, key) => `<div style="display:flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:${n <= s ? 'var(--text-primary)' : 'var(--text-muted)'}">
     <span style="width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:0.5px solid var(--border-strong);${n <= s ? 'background:var(--text-accent);color:var(--surface-2)' : ''}">${n}</span>${escapeHTML(t(key))}</div>`;
   const stepper = `<div style="display:flex;align-items:center;gap:12px;margin:12px 0 14px">
     ${dot(1, 'integrations.wizStep1')}<div style="flex:1;height:0.5px;background:var(--border)"></div>
@@ -627,7 +627,7 @@ function _renderCommitError() {
 
 function _renderScopeStep() {
   if (_wiz.loadingScopes) return `<div>${_sp()}</div>`;
-  if (_wiz.scopeErr) return `<div style="color:var(--danger-color);font-size:.9rem">${escapeHTML(_wiz.scopeErr)}
+  if (_wiz.scopeErr) return `<div style="color:var(--danger-color);font-size:var(--fs-md)">${escapeHTML(_wiz.scopeErr)}
     <button class="um-btn" data-act="dcim-load-scopes" style="margin-left:8px">${escapeHTML(t('integrations.retry'))}</button></div>`;
   const sc = _wiz.scopes || { sites: [], roles: [], tags: [] };
   const totalDevices = sc.sites.reduce((sum, site) => sum + Number(site.deviceCount || 0), 0);
@@ -1056,7 +1056,7 @@ function _renderDecisions(p) {
 
 function _renderPreviewStep() {
   if (_wiz.loadingPreview) return `<div>${_sp()}</div>`;
-  if (_wiz.previewErr) return `<div style="color:var(--danger-color);font-size:.9rem">${escapeHTML(_wiz.previewErr)}</div>`;
+  if (_wiz.previewErr) return `<div style="color:var(--danger-color);font-size:var(--fs-md)">${escapeHTML(_wiz.previewErr)}</div>`;
   const p = _wiz.preview;
   if (!p) return `<div>${_sp()}</div>`;
   const c = p.counts || {};
@@ -1076,7 +1076,7 @@ function _renderPreviewStep() {
         <input type="checkbox" data-change="dcim-dev-row" data-key="${escapeHTML(d.key)}"${checked ? ' checked' : ''}>
         <span style="flex:1">${escapeHTML(d.name)}${d.model ? ` <span style="color:var(--text-muted)">· ${escapeHTML(d.model)}</span>` : ''}</span></label>`;
     }).join('')
-    : `<p style="color:var(--text-muted);font-size:.9rem">${escapeHTML(t('integrations.previewEmpty'))}</p>`;
+    : `<p style="color:var(--text-muted);font-size:var(--fs-md)">${escapeHTML(t('integrations.previewEmpty'))}</p>`;
   const nameVal = _wiz.projectName || p.proposedProjectName || '';
   const reconciliationBlocked = p.reconciliation && !_wiz.selection.allowUnresolved && (
     p.reconciliation.required > 0 || (Array.isArray(p.reconciliation.invalid) && p.reconciliation.invalid.length > 0)

@@ -32,7 +32,7 @@
         .topotip-header { display: flex; align-items: center; gap: 7px; margin:-2px -2px 8px; padding:2px; cursor:move; user-select:none; }
         .topotip-proto { font-size: 11px; font-weight: 700; padding: 3px 7px; border-radius: 5px; color: #000; }
         .topotip-ok { font-size: 11px; color: var(--active-color); font-weight: 600; }
-        .topotip-racks { font-size: 12px; color: var(--text-muted); margin-bottom: 7px; border-bottom: 1px solid var(--panel-border); padding-bottom: 7px; }
+        .topotip-racks { font-size: var(--fs-xs); color: var(--text-muted); margin-bottom: 7px; border-bottom: 1px solid var(--panel-border); padding-bottom: 7px; }
         /* Porta accanto al nome del device sulla riga fusa "device porta → device porta".
            Nome di interfaccia = testo dell'interfaccia, come indirizzi e MAC: il
            carattere e' quello dell'app, le cifre restano incolonnate con
@@ -48,7 +48,7 @@
         .seg-pick { transition: border-color .12s, background .12s; }
         .seg-pick:not(.sel):hover { border-color: var(--accent) !important; background: rgba(0,212,255,.06) !important; }
         .topotip-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; border-top: 1px solid var(--panel-border); padding-top: 9px; }
-        #topo-tip .toolbar-btn { font-size:12px !important; padding:5px 10px !important; }
+        #topo-tip .toolbar-btn { font-size:var(--fs-xs) !important; padding:5px 10px !important; }
 
         /* Toast — PILA persistente in basso al centro (31/08). I messaggi non
            scadono: si chiudono con la X, e finche' non lo fai restano tutti.
@@ -74,7 +74,7 @@
             max-width: min(680px, 92vw);
             background: var(--panel-bg); border: 1px solid var(--panel-border);
             border-radius: var(--radius-md); padding: 7px 8px 7px 18px;
-            font-size: 12px; line-height: 1.5; color: var(--text-main);
+            font-size: var(--fs-xs); line-height: 1.5; color: var(--text-main);
             box-shadow: 0 4px 14px rgba(0,0,0,.4);
             animation: toast-in .22s ease-out;
         }
@@ -84,7 +84,7 @@
         .toast-x {
             pointer-events: auto;
             flex: none; background: none; border: 0; cursor: pointer;
-            color: var(--text-muted); font-size: 12px; line-height: 1;
+            color: var(--text-muted); font-size: var(--fs-xs); line-height: 1;
             padding: 4px 6px; border-radius: var(--radius-sm); font-family: inherit;
         }
         .toast-x:hover { color: var(--text-main); background: var(--surface-hover); }
@@ -297,7 +297,7 @@
         }
         #routing-hint button {
             margin-left:4px; background:none; border:none; color:var(--text-muted);
-            cursor:pointer; font-size:1rem; padding:2px 6px; border-radius:5px;
+            cursor:pointer; font-size:var(--fs-lg); padding:2px 6px; border-radius:5px;
         }
         #routing-hint button:hover { background:var(--panel-border); color:var(--text-main); }
 

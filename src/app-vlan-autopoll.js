@@ -89,7 +89,7 @@ export function renderAutomationMenu(){
         <div class="autom-grouphd"><i class="fas fa-gauge-high"></i>${escapeHTML(t('autom.monitor'))}</div>
         <div class="autom-row">
           <span class="autom-title"><i class="fas fa-rotate"></i>${escapeHTML(t('autom.syncNow'))}</span>
-          <button class="toolbar-btn" style="padding:3px 9px;font-size:0.75rem" data-act="automation-sync-now" data-tip="${escapeHTML(t('autom.syncNowTip'))}"><i class="fas fa-rotate"></i> ${escapeHTML(t('autom.syncNowBtn'))}</button>
+          <button class="toolbar-btn" style="padding:3px 9px;font-size:var(--fs-xs)" data-act="automation-sync-now" data-tip="${escapeHTML(t('autom.syncNowTip'))}"><i class="fas fa-rotate"></i> ${escapeHTML(t('autom.syncNowBtn'))}</button>
         </div>
         <div class="autom-desc">${escapeHTML(t('autom.syncNowDesc'))}</div>
         <div class="autom-row" style="margin-top:11px">
@@ -100,11 +100,11 @@ export function renderAutomationMenu(){
           </label>
         </div>
         <div style="display:flex;gap:5px;margin-top:8px;${cfg.enabled?'':'opacity:.4;pointer-events:none'}">
-          <button class="toolbar-btn${cfg.depth==='light'?' primary':''}" style="padding:3px 9px;font-size:0.75rem;flex:1" data-act="automonitor-depth" data-depth="light">${escapeHTML(t('autom.depthLight'))}</button>
-          <button class="toolbar-btn${cfg.depth==='full'?' primary':''}" style="padding:3px 9px;font-size:0.75rem;flex:1" data-act="automonitor-depth" data-depth="full">${escapeHTML(t('autom.depthFull'))}</button>
+          <button class="toolbar-btn${cfg.depth==='light'?' primary':''}" style="padding:3px 9px;font-size:var(--fs-xs);flex:1" data-act="automonitor-depth" data-depth="light">${escapeHTML(t('autom.depthLight'))}</button>
+          <button class="toolbar-btn${cfg.depth==='full'?' primary':''}" style="padding:3px 9px;font-size:var(--fs-xs);flex:1" data-act="automonitor-depth" data-depth="full">${escapeHTML(t('autom.depthFull'))}</button>
         </div>
         <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;${cfg.enabled?'':'opacity:.4;pointer-events:none'}">
-          ${ivls.map(m=>`<button class="toolbar-btn${cfg.interval===m?' primary':''}" style="padding:3px 9px;font-size:0.75rem" data-act="automonitor-interval" data-interval="${m}">${fmtMonitorInterval(m)}</button>`).join('')}
+          ${ivls.map(m=>`<button class="toolbar-btn${cfg.interval===m?' primary':''}" style="padding:3px 9px;font-size:var(--fs-xs)" data-act="automonitor-interval" data-interval="${m}">${fmtMonitorInterval(m)}</button>`).join('')}
         </div>
         <div class="autom-desc">${escapeHTML(cfg.depth==='full'?t('autom.depthFullDesc'):t('autom.depthLightDesc'))}</div>
       </div>
@@ -120,7 +120,7 @@ export function renderAutomationMenu(){
         <div class="autom-desc">${escapeHTML(t('autom.ipRenewDesc'))}</div>
         <div class="autom-row" style="margin-top:11px">
           <span class="autom-title"><i class="fas fa-table-list"></i>${escapeHTML(t('dhcp.title'))}</span>
-          <button class="toolbar-btn" style="padding:3px 9px;font-size:0.75rem" data-act="dhcp-open"><i class="fas fa-folder-open"></i> ${escapeHTML(t('dhcp.load'))}</button>
+          <button class="toolbar-btn" style="padding:3px 9px;font-size:var(--fs-xs)" data-act="dhcp-open"><i class="fas fa-folder-open"></i> ${escapeHTML(t('dhcp.load'))}</button>
         </div>
         <div class="autom-desc">${escapeHTML(dl.length ? t('dhcp.inMemory',{n:dl.length}) : t('dhcp.loadDesc'))}</div>
       </div>

@@ -580,7 +580,7 @@ export function _renderFloorProps(panel){
                     <button class="zoom-btn" style="background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:4px;padding:4px 9px" data-act="bg-scale-step" data-delta="0.05"><i class="fas fa-plus"></i></button>
                     <span id="bg-scale-lbl" style="font-size:0.78rem;min-width:42px;text-align:right">${Math.round((state.bgImageScale||1)*100)}%</span>
                   </div>
-                  <button class="toolbar-btn" style="width:100%;margin-top:6px;font-size:0.75rem" data-act="bg-scale-reset"><i class="fas fa-undo" style="margin-right:4px"></i>${t('floor.reset100')}</button>
+                  <button class="toolbar-btn" style="width:100%;margin-top:6px;font-size:var(--fs-xs)" data-act="bg-scale-reset"><i class="fas fa-undo" style="margin-right:4px"></i>${t('floor.reset100')}</button>
                 </div>
                 <div class="prop-group" style="margin-bottom:10px">
                   <button class="panel-skin-btn primary" style="width:100%"

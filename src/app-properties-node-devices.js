@@ -720,9 +720,9 @@ export function _nodeDeviceChainHtml(n, d){
                     </select></div>
                     <div class="prop-group"><label>${t('f.exposedProtocols')}</label>
                         <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:2px">
-                            <label style="font-size:0.82rem"><input type="checkbox" ${checked(protos.includes('smb'))}   data-change="toggle-array" data-taid="${n.id}" data-tafield="nasProtocols" data-taval="smb"   style="width:auto;margin-right:6px">SMB</label>
-                            <label style="font-size:0.82rem"><input type="checkbox" ${checked(protos.includes('nfs'))}   data-change="toggle-array" data-taid="${n.id}" data-tafield="nasProtocols" data-taval="nfs"   style="width:auto;margin-right:6px">NFS</label>
-                            <label style="font-size:0.82rem"><input type="checkbox" ${checked(protos.includes('iscsi'))} data-change="toggle-array" data-taid="${n.id}" data-tafield="nasProtocols" data-taval="iscsi" style="width:auto;margin-right:6px">iSCSI</label>
+                            <label style="font-size:var(--fs-sm)"><input type="checkbox" ${checked(protos.includes('smb'))}   data-change="toggle-array" data-taid="${n.id}" data-tafield="nasProtocols" data-taval="smb"   style="width:auto;margin-right:6px">SMB</label>
+                            <label style="font-size:var(--fs-sm)"><input type="checkbox" ${checked(protos.includes('nfs'))}   data-change="toggle-array" data-taid="${n.id}" data-tafield="nasProtocols" data-taval="nfs"   style="width:auto;margin-right:6px">NFS</label>
+                            <label style="font-size:var(--fs-sm)"><input type="checkbox" ${checked(protos.includes('iscsi'))} data-change="toggle-array" data-taid="${n.id}" data-tafield="nasProtocols" data-taval="iscsi" style="width:auto;margin-right:6px">iSCSI</label>
                         </div>
                     </div>
                     ${_vmSectionHtml(n)}
@@ -850,9 +850,9 @@ export function _nodeDeviceChainHtml(n, d){
                     </select></div>
                     <div class="prop-group"><label>${t('f.accessProtocols')}</label>
                         <div style="display:flex;flex-direction:column;gap:4px;margin-top:2px">
-                            <label style="font-size:0.82rem"><input type="checkbox" ${checked(n.accessSsh!==false)}  data-change="update-n" data-nfield="accessSsh" data-ncoerce="bool"   style="width:auto;margin-right:6px">SSH</label>
-                            <label style="font-size:0.82rem"><input type="checkbox" ${checked(n.accessHttps)}        data-change="update-n" data-nfield="accessHttps" data-ncoerce="bool" style="width:auto;margin-right:6px">HTTPS Web UI</label>
-                            <label style="font-size:0.82rem"><input type="checkbox" ${checked(n.accessTelnet)}       data-change="update-n" data-nfield="accessTelnet" data-ncoerce="bool" style="width:auto;margin-right:6px">${t('pnl.dev.telnetDeprecated')}</label>
+                            <label style="font-size:var(--fs-sm)"><input type="checkbox" ${checked(n.accessSsh!==false)}  data-change="update-n" data-nfield="accessSsh" data-ncoerce="bool"   style="width:auto;margin-right:6px">SSH</label>
+                            <label style="font-size:var(--fs-sm)"><input type="checkbox" ${checked(n.accessHttps)}        data-change="update-n" data-nfield="accessHttps" data-ncoerce="bool" style="width:auto;margin-right:6px">HTTPS Web UI</label>
+                            <label style="font-size:var(--fs-sm)"><input type="checkbox" ${checked(n.accessTelnet)}       data-change="update-n" data-nfield="accessTelnet" data-ncoerce="bool" style="width:auto;margin-right:6px">${t('pnl.dev.telnetDeprecated')}</label>
                         </div>
                     </div>
                 </div></details>`;
@@ -994,10 +994,10 @@ export function _nodeDeviceChainHtml(n, d){
                     </select></div>
                     <div class="prop-group"><label>${t('f.protocols')}</label>
                         <div style="display:flex;flex-direction:column;gap:4px;margin-top:2px">
-                            <label style="font-size:0.82rem"><input type="checkbox" ${checked(n.vpnProtoIpsec!==false)}  data-change="update-n" data-nfield="vpnProtoIpsec" data-ncoerce="bool"   style="width:auto;margin-right:6px">IPsec (IKEv2)</label>
-                            <label style="font-size:0.82rem"><input type="checkbox" ${checked(n.vpnProtoSsl)}            data-change="update-n" data-nfield="vpnProtoSsl" data-ncoerce="bool"     style="width:auto;margin-right:6px">SSL/TLS</label>
-                            <label style="font-size:0.82rem"><input type="checkbox" ${checked(n.vpnProtoWg)}             data-change="update-n" data-nfield="vpnProtoWg" data-ncoerce="bool"      style="width:auto;margin-right:6px">WireGuard</label>
-                            <label style="font-size:0.82rem"><input type="checkbox" ${checked(n.vpnProtoL2tp)}           data-change="update-n" data-nfield="vpnProtoL2tp" data-ncoerce="bool"    style="width:auto;margin-right:6px">L2TP/IPsec</label>
+                            <label style="font-size:var(--fs-sm)"><input type="checkbox" ${checked(n.vpnProtoIpsec!==false)}  data-change="update-n" data-nfield="vpnProtoIpsec" data-ncoerce="bool"   style="width:auto;margin-right:6px">IPsec (IKEv2)</label>
+                            <label style="font-size:var(--fs-sm)"><input type="checkbox" ${checked(n.vpnProtoSsl)}            data-change="update-n" data-nfield="vpnProtoSsl" data-ncoerce="bool"     style="width:auto;margin-right:6px">SSL/TLS</label>
+                            <label style="font-size:var(--fs-sm)"><input type="checkbox" ${checked(n.vpnProtoWg)}             data-change="update-n" data-nfield="vpnProtoWg" data-ncoerce="bool"      style="width:auto;margin-right:6px">WireGuard</label>
+                            <label style="font-size:var(--fs-sm)"><input type="checkbox" ${checked(n.vpnProtoL2tp)}           data-change="update-n" data-nfield="vpnProtoL2tp" data-ncoerce="bool"    style="width:auto;margin-right:6px">L2TP/IPsec</label>
                         </div>
                     </div>
                     <div class="prop-group"><label>${t('f.maxSessions')}</label>
@@ -1178,11 +1178,11 @@ export function _nodeDeviceChainHtml(n, d){
                     </select></div>
                     <div class="prop-group"><label>${t('f.routingProtocols')}</label>
                         <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:2px">
-                            <label style="font-size:0.82rem"><input type="checkbox" ${checked(protos.includes('static'))} data-change="toggle-array" data-taid="${n.id}" data-tafield="rtRoutingProtos" data-taval="static" style="width:auto;margin-right:6px">Static</label>
-                            <label style="font-size:0.82rem"><input type="checkbox" ${checked(protos.includes('ospf'))}   data-change="toggle-array" data-taid="${n.id}" data-tafield="rtRoutingProtos" data-taval="ospf"   style="width:auto;margin-right:6px">OSPF</label>
-                            <label style="font-size:0.82rem"><input type="checkbox" ${checked(hasBgp)}                   data-change="toggle-array" data-taid="${n.id}" data-tafield="rtRoutingProtos" data-taval="bgp"    style="width:auto;margin-right:6px">BGP</label>
-                            <label style="font-size:0.82rem"><input type="checkbox" ${checked(protos.includes('eigrp'))}  data-change="toggle-array" data-taid="${n.id}" data-tafield="rtRoutingProtos" data-taval="eigrp"  style="width:auto;margin-right:6px">EIGRP</label>
-                            <label style="font-size:0.82rem"><input type="checkbox" ${checked(protos.includes('rip'))}    data-change="toggle-array" data-taid="${n.id}" data-tafield="rtRoutingProtos" data-taval="rip"    style="width:auto;margin-right:6px">RIP</label>
+                            <label style="font-size:var(--fs-sm)"><input type="checkbox" ${checked(protos.includes('static'))} data-change="toggle-array" data-taid="${n.id}" data-tafield="rtRoutingProtos" data-taval="static" style="width:auto;margin-right:6px">Static</label>
+                            <label style="font-size:var(--fs-sm)"><input type="checkbox" ${checked(protos.includes('ospf'))}   data-change="toggle-array" data-taid="${n.id}" data-tafield="rtRoutingProtos" data-taval="ospf"   style="width:auto;margin-right:6px">OSPF</label>
+                            <label style="font-size:var(--fs-sm)"><input type="checkbox" ${checked(hasBgp)}                   data-change="toggle-array" data-taid="${n.id}" data-tafield="rtRoutingProtos" data-taval="bgp"    style="width:auto;margin-right:6px">BGP</label>
+                            <label style="font-size:var(--fs-sm)"><input type="checkbox" ${checked(protos.includes('eigrp'))}  data-change="toggle-array" data-taid="${n.id}" data-tafield="rtRoutingProtos" data-taval="eigrp"  style="width:auto;margin-right:6px">EIGRP</label>
+                            <label style="font-size:var(--fs-sm)"><input type="checkbox" ${checked(protos.includes('rip'))}    data-change="toggle-array" data-taid="${n.id}" data-tafield="rtRoutingProtos" data-taval="rip"    style="width:auto;margin-right:6px">RIP</label>
                         </div>
                     </div>
                     ${hasBgp ? `<div class="prop-group"><label>ASN (BGP)</label>
@@ -1209,11 +1209,11 @@ export function _nodeDeviceChainHtml(n, d){
                         <input type="number" min="10" max="1000000" value="${n.fwThroughputMbps ?? ''}" placeholder="1000" data-change="update-n" data-nfield="fwThroughputMbps" data-ncoerce="intopt"></div>
                     <div class="prop-group"><label>${t('f.activeServices')}</label>
                         <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:2px">
-                            <label style="font-size:0.82rem"><input type="checkbox" ${checked(svcs.includes('vpn'))}    data-change="toggle-array" data-taid="${n.id}" data-tafield="fwServices" data-taval="vpn"    style="width:auto;margin-right:6px">VPN</label>
-                            <label style="font-size:0.82rem"><input type="checkbox" ${checked(svcs.includes('ips'))}    data-change="toggle-array" data-taid="${n.id}" data-tafield="fwServices" data-taval="ips"    style="width:auto;margin-right:6px">IPS</label>
-                            <label style="font-size:0.82rem"><input type="checkbox" ${checked(svcs.includes('av'))}     data-change="toggle-array" data-taid="${n.id}" data-tafield="fwServices" data-taval="av"     style="width:auto;margin-right:6px">Antivirus</label>
-                            <label style="font-size:0.82rem"><input type="checkbox" ${checked(svcs.includes('web'))}    data-change="toggle-array" data-taid="${n.id}" data-tafield="fwServices" data-taval="web"    style="width:auto;margin-right:6px">Web filter</label>
-                            <label style="font-size:0.82rem"><input type="checkbox" ${checked(svcs.includes('sdwan'))}  data-change="toggle-array" data-taid="${n.id}" data-tafield="fwServices" data-taval="sdwan"  style="width:auto;margin-right:6px">SD-WAN</label>
+                            <label style="font-size:var(--fs-sm)"><input type="checkbox" ${checked(svcs.includes('vpn'))}    data-change="toggle-array" data-taid="${n.id}" data-tafield="fwServices" data-taval="vpn"    style="width:auto;margin-right:6px">VPN</label>
+                            <label style="font-size:var(--fs-sm)"><input type="checkbox" ${checked(svcs.includes('ips'))}    data-change="toggle-array" data-taid="${n.id}" data-tafield="fwServices" data-taval="ips"    style="width:auto;margin-right:6px">IPS</label>
+                            <label style="font-size:var(--fs-sm)"><input type="checkbox" ${checked(svcs.includes('av'))}     data-change="toggle-array" data-taid="${n.id}" data-tafield="fwServices" data-taval="av"     style="width:auto;margin-right:6px">Antivirus</label>
+                            <label style="font-size:var(--fs-sm)"><input type="checkbox" ${checked(svcs.includes('web'))}    data-change="toggle-array" data-taid="${n.id}" data-tafield="fwServices" data-taval="web"    style="width:auto;margin-right:6px">Web filter</label>
+                            <label style="font-size:var(--fs-sm)"><input type="checkbox" ${checked(svcs.includes('sdwan'))}  data-change="toggle-array" data-taid="${n.id}" data-tafield="fwServices" data-taval="sdwan"  style="width:auto;margin-right:6px">SD-WAN</label>
                         </div>
                     </div>
                 </div></details>`;
@@ -1294,11 +1294,11 @@ export function _nodeDeviceChainHtml(n, d){
                     </select></div>
                     <div class="prop-group"><label>${t('f.exposedProtocols')}</label>
                         <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:2px">
-                            <label style="font-size:0.82rem"><input type="checkbox" ${checked(protos.includes('smb'))}   data-change="toggle-array" data-taid="${n.id}" data-tafield="nasProtocols" data-taval="smb"   style="width:auto;margin-right:6px">SMB</label>
-                            <label style="font-size:0.82rem"><input type="checkbox" ${checked(protos.includes('nfs'))}   data-change="toggle-array" data-taid="${n.id}" data-tafield="nasProtocols" data-taval="nfs"   style="width:auto;margin-right:6px">NFS</label>
-                            <label style="font-size:0.82rem"><input type="checkbox" ${checked(protos.includes('iscsi'))} data-change="toggle-array" data-taid="${n.id}" data-tafield="nasProtocols" data-taval="iscsi" style="width:auto;margin-right:6px">iSCSI</label>
-                            <label style="font-size:0.82rem"><input type="checkbox" ${checked(protos.includes('fc'))}    data-change="toggle-array" data-taid="${n.id}" data-tafield="nasProtocols" data-taval="fc"    style="width:auto;margin-right:6px">FC</label>
-                            <label style="font-size:0.82rem"><input type="checkbox" ${checked(protos.includes('s3'))}    data-change="toggle-array" data-taid="${n.id}" data-tafield="nasProtocols" data-taval="s3"    style="width:auto;margin-right:6px">S3</label>
+                            <label style="font-size:var(--fs-sm)"><input type="checkbox" ${checked(protos.includes('smb'))}   data-change="toggle-array" data-taid="${n.id}" data-tafield="nasProtocols" data-taval="smb"   style="width:auto;margin-right:6px">SMB</label>
+                            <label style="font-size:var(--fs-sm)"><input type="checkbox" ${checked(protos.includes('nfs'))}   data-change="toggle-array" data-taid="${n.id}" data-tafield="nasProtocols" data-taval="nfs"   style="width:auto;margin-right:6px">NFS</label>
+                            <label style="font-size:var(--fs-sm)"><input type="checkbox" ${checked(protos.includes('iscsi'))} data-change="toggle-array" data-taid="${n.id}" data-tafield="nasProtocols" data-taval="iscsi" style="width:auto;margin-right:6px">iSCSI</label>
+                            <label style="font-size:var(--fs-sm)"><input type="checkbox" ${checked(protos.includes('fc'))}    data-change="toggle-array" data-taid="${n.id}" data-tafield="nasProtocols" data-taval="fc"    style="width:auto;margin-right:6px">FC</label>
+                            <label style="font-size:var(--fs-sm)"><input type="checkbox" ${checked(protos.includes('s3'))}    data-change="toggle-array" data-taid="${n.id}" data-tafield="nasProtocols" data-taval="s3"    style="width:auto;margin-right:6px">S3</label>
                         </div>
                     </div>
                     <div class="prop-group"><label>${t('f.swPlatform')}</label><select data-change="update-n" data-nfield="nasPlatform" data-ncoerce="stropt">

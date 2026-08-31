@@ -379,7 +379,7 @@ export function _buildNetAccessHtml(n, d, opts){
         ? win.getStackMaster(store.state.nodes, n.spec?.stackId || n.stackId)
         : null;
     const _stackHint = _isStackMember && _stackMaster
-        ? `<div style="margin:4px 0 6px;padding:6px 8px;border-radius:3px;background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.4);font-size:0.75rem;color:var(--text-main);line-height:1.3"><i class="fas fa-info-circle" style="color:var(--accent);margin-right:4px"></i>${t('pnl.gen.stackInheritHint',{master:`<strong>${escapeHTML(_stackMaster.name || _stackMaster.hostname || _stackMaster.id)}</strong>`})}</div>`
+        ? `<div style="margin:4px 0 6px;padding:6px 8px;border-radius:3px;background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.4);font-size:var(--fs-xs);color:var(--text-main);line-height:1.3"><i class="fas fa-info-circle" style="color:var(--accent);margin-right:4px"></i>${t('pnl.gen.stackInheritHint',{master:`<strong>${escapeHTML(_stackMaster.name || _stackMaster.hostname || _stackMaster.id)}</strong>`})}</div>`
         : '';
     const _ro = _isStackMember ? 'readonly disabled' : '';
     // Endpoint foglia: il bottone "Tenta collegamento automatico" sta DENTRO

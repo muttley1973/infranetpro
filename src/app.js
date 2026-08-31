@@ -10,7 +10,7 @@ import { migrateIpam } from '../lib/ipam-model.js';   // la subnet esce dalla VL
 import { migrateVmNics, VM_FLAT_NET_FIELDS, vmIps } from '../lib/vm-nics.js';   // migrazione vm.ip/mac/vlan → vm.nics[]; vmIps = IPv4 di tutte le vNIC
 import { normalizePduOutletCount, normalizePduManagementMode, normalizePduPortCount, pduManagementPortCount } from '../lib/pdu-layout.js';
 import { store, resetProjectRuntime } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { escapeHTML, uid, normalizeNumber, normalizePortStatus, normalizeMacAddress, _shadeHex, PORT_ANCHOR_SEL } from './app-util.js';   // helper puri estratti dal god-file + ancora visuale delle porte
+import { escapeHTML, uid, normalizeNumber, normalizePortStatus, normalizeMacAddress, _shadeHex, badgeInk, PORT_ANCHOR_SEL } from './app-util.js';   // helper puri estratti dal god-file + ancora visuale delle porte
 import { TYPES, typeName, typeShort } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (prima letto dal global implicito) + nome localizzato
 import { nodeLabelParts } from '../lib/node-label.js';   // lib pura importata ESM: come si LEGGE il nome di un device
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: chiamate prima bare-global
@@ -1399,7 +1399,9 @@ export function _cableProofBadgeHtml(state){
     // colore, che dipende dallo stato. Cosi' chi lo ospita puo' ridimensionarlo
     // senza toccare questa funzione — e senza !important, che e' il sintomo di
     // una forma scritta due volte.
-    return `<span class="cable-proof-badge" style="background:${m.color};color:#fff" data-tip="${t('proof.badge.tip')}">${t('proof.badge.' + m.key)}</span>`;
+    // L'INCHIOSTRO non si sceglie qui: lo calcola badgeInk dal fondo. Era `#fff`
+    // fisso, e su «Debole» (#bf8700) faceva 3,14:1 — sotto la soglia AA.
+    return `<span class="cable-proof-badge" style="background:${m.color};color:${badgeInk(m.color)}" data-tip="${t('proof.badge.tip')}">${t('proof.badge.' + m.key)}</span>`;
 }
 
 let _renderCablesRaf = 0;

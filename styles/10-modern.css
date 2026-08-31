@@ -395,7 +395,7 @@ header {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 1rem;
+    font-size: var(--fs-lg);
     color: var(--accent);
     background: rgba(0,212,255,.10);
     border: 1px solid rgba(0,212,255,.35);
@@ -451,7 +451,7 @@ header {
    SIMMETRICO, cosi' l'elemento centrale (il chip del filtro VLAN) resta
    davvero centrato nella barra. Con basis:auto il breadcrumb si seminava con la
    larghezza del nome e sbilanciava il centro (il chip finiva schiacciato a destra). */
-#modern-subbar .msb-crumb { flex:1 1 0; display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-muted); font-weight:500; min-width:0; overflow:hidden; }
+#modern-subbar .msb-crumb { flex:1 1 0; display:flex; align-items:center; gap:8px; font-size:var(--fs-xs); color:var(--text-muted); font-weight:500; min-width:0; overflow:hidden; }
 #modern-subbar .msb-crumb > i,
 #modern-subbar .msb-crumb > span { flex-shrink:0; white-space:nowrap; }
 #modern-subbar .msb-crumb i { color:#4d5560; font-size:11px; }
@@ -476,7 +476,7 @@ header {
 
 /* ZONA DESTRA: statistiche progetto */
 #modern-subbar .msb-stats { flex:1 1 0; display:flex; align-items:center; justify-content:flex-end; gap:18px; }
-#modern-subbar .msb-stat { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--text-muted); white-space:nowrap; }
+#modern-subbar .msb-stat { display:inline-flex; align-items:center; gap:6px; font-size:var(--fs-xs); color:var(--text-muted); white-space:nowrap; }
 #modern-subbar .msb-stat > i { color:#5b6570; font-size:11px; }
 #modern-subbar .msb-stat b { color:var(--text-main); font-weight:700; font-size:12.5px; }
 #modern-subbar .msb-stat-l { color:var(--text-muted); }
@@ -488,7 +488,7 @@ header {
 
 /* Avviso Topologia "cavi non mostrati" (rack non piazzato): pill ambra, appare
    solo in vista Topologia quando c'e' qualcosa di nascosto; :empty -> collassa. */
-#modern-subbar .msb-warn { flex:0 0 auto; display:inline-flex; align-items:center; gap:7px; padding:3px 10px; border-radius:6px; font-size:12px; font-weight:600; white-space:nowrap; cursor:default; background:rgba(240,180,41,.12); color:#f0b429; border:1px solid rgba(240,180,41,.32); }
+#modern-subbar .msb-warn { flex:0 0 auto; display:inline-flex; align-items:center; gap:7px; padding:3px 10px; border-radius:6px; font-size:var(--fs-xs); font-weight:600; white-space:nowrap; cursor:default; background:rgba(240,180,41,.12); color:#f0b429; border:1px solid rgba(240,180,41,.32); }
 #modern-subbar .msb-warn:empty { display:none; }
 #modern-subbar .msb-warn > i { font-size:11px; flex-shrink:0; }
 #modern-subbar .msb-warn-btn { cursor:pointer; transition:background .12s, border-color .12s; }
@@ -497,13 +497,13 @@ header {
 
 /* Esito ultimo auto-link (riga informativa persistente, tono neutro): appare dopo
    un Sync/import che ha eseguito l'auto-link; :empty -> collassa. Diagnostica nel title. */
-#modern-subbar .msb-autolink { flex:0 0 auto; display:inline-flex; align-items:center; gap:7px; padding:3px 10px; border-radius:6px; font-size:12px; white-space:nowrap; cursor:default; background:rgba(255,255,255,.03); color:var(--text-muted); border:1px solid var(--panel-border); }
+#modern-subbar .msb-autolink { flex:0 0 auto; display:inline-flex; align-items:center; gap:7px; padding:3px 10px; border-radius:6px; font-size:var(--fs-xs); white-space:nowrap; cursor:default; background:rgba(255,255,255,.03); color:var(--text-muted); border:1px solid var(--panel-border); }
 #modern-subbar .msb-autolink:empty { display:none; }
 #modern-subbar .msb-autolink > i { font-size:11px; flex-shrink:0; color:var(--accent); opacity:.75; }
 
 /* Filtro VLAN attivo: chip centrato (spostato qui dal #status-cluster dell'header).
    Stessa grammatica del vecchio .status-chip.s-info (tono info/accent); :empty -> collassa. */
-#modern-subbar .msb-vlan { flex:0 0 auto; display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:600; white-space:nowrap; cursor:pointer; background:#00d4ff1a; color:var(--accent); border:1px solid #00d4ff44; transition:filter .12s; }
+#modern-subbar .msb-vlan { flex:0 0 auto; display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; font-size:var(--fs-xs); font-weight:600; white-space:nowrap; cursor:pointer; background:#00d4ff1a; color:var(--accent); border:1px solid #00d4ff44; transition:filter .12s; }
 #modern-subbar .msb-vlan:empty { display:none; }
 #modern-subbar .msb-vlan:hover { filter:brightness(1.2); }
 #modern-subbar .msb-vlan:focus-visible { outline:2px solid #00d4ff88; outline-offset:1px; }

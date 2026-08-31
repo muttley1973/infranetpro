@@ -413,22 +413,22 @@
             <!-- Tab bar: Rack / Proprietà / Assistente -->
             <div id="right-tab-bar" role="tablist" data-i18n-aria="tab.barAria" aria-label="Pannello destro">
                 <div class="right-tab active" id="tab-rack" role="tab" aria-selected="true" aria-controls="rack-viewport" tabindex="0" data-act="right-tab" data-tab="rack">
-                    <i class="fas fa-server" style="font-size:0.75rem"></i> <span data-i18n="tab.rack">Rack</span>
+                    <i class="fas fa-server" style="font-size:var(--fs-xs)"></i> <span data-i18n="tab.rack">Rack</span>
                 </div>
                 <div class="right-tab" id="tab-props" role="tab" aria-selected="false" aria-controls="props-panel-wrap" tabindex="0" data-act="right-tab" data-tab="props">
-                    <i class="fas fa-sliders" style="font-size:0.75rem"></i> <span data-i18n="tab.props">Proprietà</span>
+                    <i class="fas fa-sliders" style="font-size:var(--fs-xs)"></i> <span data-i18n="tab.props">Proprietà</span>
                     <span class="tab-badge" id="props-tab-badge"></span>
                 </div>
                 <div class="right-tab" id="tab-ai" role="tab" aria-selected="false" aria-controls="ai-panel-wrap" tabindex="0" data-act="right-tab" data-tab="ai"
                      data-i18n-tip="assistant.tabTip" data-tip="Assistente di rete — domande, diagnosi e bozze · scorciatoia: A">
-                    <i class="fas fa-robot" style="font-size:0.75rem"></i> <span data-i18n="tab.ai">Assistente</span>
+                    <i class="fas fa-robot" style="font-size:var(--fs-xs)"></i> <span data-i18n="tab.ai">Assistente</span>
                     <span class="tab-badge" id="ai-tab-badge"></span>
                 </div>
             </div>
 
             <!-- Pannello Proprietà (nascosto di default) -->
             <div id="props-panel-wrap">
-                <div id="props-panel"><p style="color:var(--text-muted);font-size:0.82rem">Seleziona un elemento per modificarne le proprietà.</p></div>
+                <div id="props-panel"><p style="color:var(--text-muted);font-size:var(--fs-sm)">Seleziona un elemento per modificarne le proprietà.</p></div>
             </div>
 
             <!-- Pannello Assistente AI (nascosto di default). Due stati gestiti da
@@ -558,7 +558,7 @@
       <button class="toolbar-btn" data-act="dcim-close" style="padding:4px 8px" data-tip="Chiudi"><i class="fas fa-times"></i></button>
     </div>
     <div class="tool-modal-body">
-      <p data-i18n="integrations.hint" style="color:var(--text-muted);margin:0 0 14px;font-size:.9rem">Collega un'istanza DCIM/IPAM esterna (NetBox) per importare o esportare la documentazione di rete.</p>
+      <p data-i18n="integrations.hint" style="color:var(--text-muted);margin:0 0 14px;font-size:var(--fs-md)">Collega un'istanza DCIM/IPAM esterna (NetBox) per importare o esportare la documentazione di rete.</p>
       <div class="um-form">
         <div class="um-row" style="align-items:center">
           <label style="min-width:110px" data-i18n="integrations.adapter">Adattatore</label>
@@ -803,7 +803,7 @@
       <div id="td-results" style="display:none">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
           <span id="td-summary" style="font-size:0.8rem;font-weight:600"></span>
-          <label style="font-size:0.75rem;color:var(--text-muted);cursor:pointer">
+          <label style="font-size:var(--fs-xs);color:var(--text-muted);cursor:pointer">
             <input type="checkbox" id="td-selall" data-change="td-selall" style="margin-right:4px;accent-color:var(--accent)"><span data-i18n="common.selectAllPl">Seleziona tutti</span>
           </label>
         </div>
@@ -903,7 +903,7 @@
       <div id="disc-results" style="display:none">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
           <span id="disc-summary" style="font-size:0.8rem;font-weight:600"></span>
-          <label style="font-size:0.75rem;color:var(--text-muted);cursor:pointer">
+          <label style="font-size:var(--fs-xs);color:var(--text-muted);cursor:pointer">
             <input type="checkbox" id="disc-selall" data-change="disc-selall" style="margin-right:4px;accent-color:var(--accent)"><span data-i18n="common.selectAllPl">Seleziona tutti</span>
           </label>
         </div>
@@ -913,7 +913,7 @@
             <tbody id="disc-tbody"></tbody>
           </table>
         </div>
-        <div style="margin-top:10px;font-size:0.75rem;color:var(--text-muted)">
+        <div style="margin-top:10px;font-size:var(--fs-xs);color:var(--text-muted)">
           <span data-i18n="disc.rackTarget">Rack di destinazione:</span> <strong id="disc-rack-name">—</strong>
           <span style="margin-left:8px;opacity:.6" data-i18n="disc.rackTargetNote">(dispositivi rack aggiuntivi al rack corrente)</span>
         </div>
@@ -945,18 +945,18 @@
       <div class="tm-row" style="gap:8px;margin-bottom:8px">
         <button class="toolbar-btn" data-act="csv-file-pick"><i class="fas fa-folder-open"></i> Scegli file</button>
         <input type="file" id="csv-file" accept=".csv,.txt" style="display:none" data-change="csv-file">
-        <span style="font-size:0.75rem;color:var(--text-muted);align-self:center">oppure incolla il testo qui sotto</span>
+        <span style="font-size:var(--fs-xs);color:var(--text-muted);align-self:center">oppure incolla il testo qui sotto</span>
       </div>
       <textarea id="csv-textarea" rows="7"
         placeholder="name,hostname,ip,type,rack,rackU,sizeU,ports&#10;Switch-01,,192.168.1.1,switch,Rack A,,,24&#10;Server-02,,192.168.1.10,server,Rack A,,,4"
         style="width:100%;background:#0d1117;border:1px solid var(--panel-border);color:var(--text-main);padding:8px;border-radius:5px;font-family: var(--font-mono);font-size:0.78rem;resize:vertical"
         data-input="csv-preview"></textarea>
       <div id="csv-preview" style="margin-top:10px;display:none">
-        <div style="font-size:0.75rem;font-weight:600;margin-bottom:6px;color:var(--text-muted)">ANTEPRIMA</div>
+        <div style="font-size:var(--fs-xs);font-weight:600;margin-bottom:6px;color:var(--text-muted)">ANTEPRIMA</div>
         <div style="max-height:200px;overflow-y:auto">
           <table class="disc-table" id="csv-preview-table"></table>
         </div>
-        <div id="csv-errors" style="margin-top:6px;font-size:0.75rem;color:var(--fault-color)"></div>
+        <div id="csv-errors" style="margin-top:6px;font-size:var(--fs-xs);color:var(--fault-color)"></div>
       </div>
     </div>
     <div class="tool-modal-footer">
@@ -976,7 +976,7 @@
     <div class="tool-modal-body">
       <div class="tm-hint" data-i18n="dhcp.hint">Incolla o carica la tabella dei lease DHCP. Formati riconosciuti in automatico: ISC dhcpd, dnsmasq, Kea (CSV) e CSV generico.</div>
       <div id="dhcp-live-section" style="border:1px solid var(--panel-border);border-radius:6px;padding:10px;margin-bottom:10px;display:none">
-        <div style="font-size:0.75rem;font-weight:600;margin-bottom:8px;color:var(--text-muted)"><i class="fas fa-cloud-arrow-down"></i> <span data-i18n="dhcp.liveTitle">Recupero live dall'API del firewall</span></div>
+        <div style="font-size:var(--fs-xs);font-weight:600;margin-bottom:8px;color:var(--text-muted)"><i class="fas fa-cloud-arrow-down"></i> <span data-i18n="dhcp.liveTitle">Recupero live dall'API del firewall</span></div>
         <div class="tm-row" style="gap:8px;flex-wrap:wrap;align-items:center;font-size:0.78rem">
           <select id="dhcp-live-vendor" data-change="dhcp-vendor" style="background:#0d1117;border:1px solid var(--panel-border);color:var(--text-main);padding:5px 7px;border-radius:4px">
             <option value="fortigate">Fortinet FortiGate</option>
@@ -996,7 +996,7 @@
       <div class="tm-row" style="gap:8px;margin-bottom:8px">
         <button class="toolbar-btn" data-act="dhcp-file-pick"><i class="fas fa-folder-open"></i> <span data-i18n="dhcp.chooseFile">Scegli file</span></button>
         <input type="file" id="dhcp-file" accept=".csv,.txt,.leases" style="display:none" data-change="dhcp-file">
-        <span style="font-size:0.75rem;color:var(--text-muted);align-self:center" data-i18n="dhcp.orPaste">oppure incolla il testo qui sotto</span>
+        <span style="font-size:var(--fs-xs);color:var(--text-muted);align-self:center" data-i18n="dhcp.orPaste">oppure incolla il testo qui sotto</span>
       </div>
       <textarea id="dhcp-textarea" rows="8"
         placeholder="10.0.20.50  aa:bb:cc:dd:ee:ff  laptop-01&#10;ISC dhcpd / dnsmasq / Kea CSV / CSV (ip,mac,hostname)…"
@@ -1006,7 +1006,7 @@
         <button class="toolbar-btn primary" id="dhcp-use-btn" data-act="dhcp-use" disabled><i class="fas fa-plus"></i> <span data-i18n="dhcp.add">Aggiungi</span></button>
         <div id="dhcp-summary" style="font-size:0.78rem;font-weight:600;color:var(--accent-color)"></div>
       </div>
-      <div id="dhcp-errors" style="margin-top:6px;font-size:0.75rem;color:var(--fault-color)"></div>
+      <div id="dhcp-errors" style="margin-top:6px;font-size:var(--fs-xs);color:var(--fault-color)"></div>
       <!-- Fonti lease in memoria (persistite nel progetto, una per DHCP server) -->
       <div id="dhcp-sources" style="margin-top:14px"></div>
       <!-- Opzione presenza: un lease RILASCIATO annota il grigio "probabilmente scollegato" (mai rosso) -->
@@ -1034,8 +1034,8 @@
     </div>
     <div class="tool-modal-body">
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-bottom:10px">
-        <button class="toolbar-btn" style="padding:3px 8px;font-size:0.75rem" onclick="setPdfExportAll(true)" data-i18n="common.selectAll">Seleziona tutto</button>
-        <button class="toolbar-btn" style="padding:3px 8px;font-size:0.75rem" onclick="setPdfExportAll(false)" data-i18n="common.deselectAll">Deseleziona tutto</button>
+        <button class="toolbar-btn" style="padding:3px 8px;font-size:var(--fs-xs)" onclick="setPdfExportAll(true)" data-i18n="common.selectAll">Seleziona tutto</button>
+        <button class="toolbar-btn" style="padding:3px 8px;font-size:var(--fs-xs)" onclick="setPdfExportAll(false)" data-i18n="common.deselectAll">Deseleziona tutto</button>
       </div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-plan" checked onchange="syncPdfExportUi()"> <span data-i18n="pdf.plan">Planimetria (pagina 1)</span></label>
