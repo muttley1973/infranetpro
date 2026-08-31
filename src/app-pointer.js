@@ -531,7 +531,8 @@ function handlePointerDown(e){
             store._propsExplicit=false;   // single-click/drag = SOLO selezione; le proprietà si aprono col doppio click (uniforme col rack)
             // Stanza bloccata: seleziona ma non avvia drag
             if(TYPES[dn.type].isStructural && dn.locked){
-                store.selType='node'; store.selId=_fid; renderAll(); return;
+                // È cambiata SOLO la selezione → render mirato (fase ① cura render).
+                store.selType='node'; store.selId=_fid; renderScope('selection'); return;
             }
             store.dragNode=_fid; store.selType='node'; store.selId=store.dragNode;
             _floorDragOrigin={x:dn.x,y:dn.y};   // per il "ritorno a casa" se rilasciato in area sbagliata
@@ -539,7 +540,10 @@ function handlePointerDown(e){
             const r=floorEl.getBoundingClientRect();
             if(TYPES[dn.type].isStructural) store.dragOffset={x:(e.clientX-r.left)/store.state.floorView.zoom,y:(e.clientY-r.top)/store.state.floorView.zoom};
             else store.dragOffset={x:(e.clientX-(r.left+r.width/2))/store.state.floorView.zoom,y:(e.clientY-(r.top+r.height/2))/store.state.floorView.zoom};
-            renderAll();
+            // Qui è cambiata solo la selezione (drag/offset sono stato, non DOM) e
+            // il trace: renderSelection ridipinge classi, props e cavi senza il
+            // rebuild da 122 ms che il banco ha misurato su 500 nodi (fase ①).
+            renderScope('selection');
         } else if(rackEl){
             if(store.lagSelMode) return; // in selezione LAG: ignora click sul device body
             e.preventDefault();
@@ -562,7 +566,8 @@ function handlePointerDown(e){
             // Le props del device rack restano chiuse al click singolo grazie al
             // guard !store._propsExplicit in renderProps() (si aprono solo con intent
             // esplicito: doppio click, tasto P, oppure switchRightTab('props')).
-            renderAll();
+            // Solo la selezione è cambiata → render mirato (fase ① cura render).
+            renderScope('selection');
         } else if(e.target.closest('#rack-viewport') && !e.target.closest('.rack-header') && e.button===0 && !store.linkStart){
             // Area VUOTA del rack (no device, no controlli header, non in cabling)
             // → pan come il floor, senza Space (il rack non ha piu' scrollbar: il
@@ -578,12 +583,12 @@ function handlePointerDown(e){
             // Click area vuota mappa: se c'e' un filtro VLAN attivo, rimuovilo
             // (UX coerente: click "fuori" = reset filtro/selezione).
             if(store._filterVlan != null && typeof setVlanFilter === 'function') setVlanFilter(null);
-            else renderAll();
+            else renderScope('selection');   // solo deselezione → niente rebuild (fase ①)
         } else if(e.target.closest('#workspace')&&!e.target.closest('.cable-hit')){
             if(store.linkStart){ _cancelLink(); }
             store.selType=null; store.selId=null; _clearTopoHighlight(); _hideTopoTip();
             if(store._filterVlan != null && typeof setVlanFilter === 'function') setVlanFilter(null);
-            else renderAll();
+            else renderScope('selection');   // solo deselezione → niente rebuild (fase ①)
         }
     }
 }

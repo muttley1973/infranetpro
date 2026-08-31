@@ -8,7 +8,7 @@
 // ============================================================
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { escapeHTML, hexToRgba, normalizePortStatus } from './app-util.js';
+import { escapeHTML, hexToRgba, normalizePortStatus, floorNodeEl, rackDeviceEl } from './app-util.js';
 import { DOWN_STREAK_N, portShade } from '../lib/port-state.js';   // lib pura importata ESM (come lib/node-label.js): NON un globale su window
 import { nodeById, getNodeByPortId, getPortNodeId, renderCables, _linksForPort, _nodeRadios, _renderModeIndicator, getWallPortLabel, isRackTopNumbered, getRackSize, _dispName, clampRackDevice, _rackDeviceBg, isPortOnNode } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { propagateVlans, _linkIsTrunk, _effPortVlan } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -156,6 +156,8 @@ export function renderNow(){ _renderPending = false; _renderAllNow(); }
 //   'cables'   → renderCables (cavi SVG)
 //   'topology' → renderTopoOverlay(overlay topologia, con coalescing)
 //   'floor'    → renderFloor (planimetria: structures + items + icone rack)
+//   'selection'→ renderSelection (SOLO cambio selezione nodo/deselezione:
+//                classi + props + cavi, senza rebuild — fase ① cura render)
 //   'rack'     → fallback renderAll() — estrazione rack chassis NON fatta
 //                (P4 valutato 8-12h con rischio alto, decisione: skip).
 //                Convertibile in futuro se ROI cambia.
@@ -177,6 +179,9 @@ export function renderScope(scope){
             return;
         case 'floor':
             if(typeof renderFloor === 'function') renderFloor();
+            return;
+        case 'selection':
+            renderSelection();
             return;
         case 'rack':
         case 'all':
@@ -669,6 +674,49 @@ function _renderAllNow(){
     // subito altrimenti). Il suo modello gira su tutti i nodi e tutte le porte:
     // spenderlo mentre si guarda la planimetria sarebbe lavoro buttato.
     if(typeof renderOverview === 'function') renderOverview();
+}
+
+// ─────────────────────────────────────────────────────────────────
+// renderSelection() — la selezione smette di ricostruire il mondo (fase ① cura render)
+// ─────────────────────────────────────────────────────────────────
+// Il banco (PIANO_bench-render.md, PRE su dc9bde2) ha misurato il click a
+// 122 ms su 500 nodi: era il prezzo di un rebuild INTERO per togliere e
+// mettere una classe. Qui si riproduce il SOTTOINSIEME di _renderAllNow che
+// dipende davvero da selType/selId, lasciando in piedi tutto il resto del DOM:
+//   • classi `selected`/`port-selected` (tile floor, stanze, device rack,
+//     LED porta, prese PDU) — nel rebuild nascono dentro i template;
+//   • pulizia _propsTabHold (riga gemella in _renderAllNow, poco sotto);
+//   • renderProps, STESSA condizione del rebuild — è lui che apre la tab
+//     props (via _activatePropsTab) quando c'è una selezione;
+//   • renderCables: shouldRenderLink LEGGE selType/selId (in tab props i cavi
+//     si filtrano al nodo selezionato) e il trace (highPath) va ridipinto;
+//   • renderTopoOverlay: in topologia il percorso del nodo si mostra lì.
+//     Chiamata DIRETTA (non nel rAF di _renderAllNow): quel rinvio serve al
+//     layout dei div NUOVI, e qui di nuovo non c'è niente.
+// NON si chiamano — ed è correttezza, non risparmio: _paintRoutingTargets e
+// _applySpareHighlight esistono per RI-applicare classi dopo che il rebuild ha
+// distrutto il DOM (qui sopravvive, le classi restano da sole);
+// _updateLagBanner/_updateRackFloorBtn/_renderTopoLegend/renderSubbar/
+// renderOverview non leggono la selezione.
+// CONTRATTO: solo per un cambio selezione-nodo/deselezione in cui non è
+// cambiato NIENT'ALTRO (i cinque call-site di app-pointer.js). Una selezione
+// di porta/cavo resta sul suo percorso di sempre.
+export function renderSelection(){
+    if(store._propsTabHold &&
+       !(store.selType === 'link' && store.selId === store._propsTabHold)) store._propsTabHold = null;
+    document.querySelectorAll(
+        '#floor-structures .selected, #floor-items .selected, #rack-chassis .selected, ' +
+        '#floor-items .port-selected')
+        .forEach(el => { el.classList.remove('selected'); el.classList.remove('port-selected'); });
+    if(store.selType === 'node' && store.selId){
+        const el = floorNodeEl(store.selId) || rackDeviceEl(store.selId);
+        if(el) el.classList.add('selected');
+    }
+    // `_rightTab` letto bare (var globale su window, come alla riga gemella di
+    // _renderAllNow) → 0 nuove letture win.*.
+    if(_rightTab === 'props' || (store.selType && store.selId)) renderProps();
+    renderCables();
+    renderTopoOverlay();
 }
 
 // ─────────────────────────────────────────────────────────────────
