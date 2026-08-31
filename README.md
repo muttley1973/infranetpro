@@ -259,6 +259,11 @@ Double-click <code>avvia.bat</code>.<br>
 </p>
 
 <p align="center">
+  <img src="GitHub%20Images/Multisito.png" alt="InfraNet Pro — Sites and links: the multi-site map, with each site's WAN lines, the tunnels between them and the coherence counters" width="900"><br>
+  <em>Sites and links — the floor above a project: each site with the lines it buys and what is inside it, the tunnels between them, and the counters of what does not add up. Click a site to walk down into its own project.</em>
+</p>
+
+<p align="center">
   <img src="GitHub%20Images/Topologia.png" alt="InfraNet Pro — topology view" width="900"><br>
   <em>Topology — auto-discovered L1/L2 neighbours (LLDP / CDP / FDB) drawn over the floor plan</em>
 </p>
@@ -295,6 +300,7 @@ Double-click <code>avvia.bat</code>.<br>
 | Area | At a glance |
 |---|---|
 | **🗺️ Diagramming** | 19″ racks with live port LEDs, floor plans, ~5,300 device models across 276 vendors, MGMT & SFP blocks, hypervisors and VMs, the Dashboard, exports to PDF · SVG · draw.io |
+| **🏢 Multi-site** | The floor above a project: the sites, the WAN lines each one buys and the tunnels between them, as a map and as a form in the same place. A coherence audit on the declared model alone keeps inconsistencies and gaps apart and names what it could not check; NetBox circuits and VPN tunnels are read per site; the dossier gains a WAN chapter with a recovery card per line and per link. |
 | **📡 Live SNMP** | v1 / v2c / v3 discovery, interfaces, VLANs, LAG, LLDP/CDP neighbours, ENTITY-MIB inventory, wireless associations, DHCP lease import, the Verify / Drift report |
 | **🔄 DCIM / IPAM sync** | Import an existing **NetBox** into a new project over its REST API — sites, racks (front/rear split), floor-placed, devices, interfaces, VLANs/prefixes and patch-panel cabling; free import, paid write-back |
 | **🔗 LAG detection** | A four-level cascade — `ifStackTable` · IEEE 802.3ad · LACP actor state · LLDP-inferred — plus coherence checks on what a bundle needs to actually form: uniform member speed and VLAN, LACP mode across both ends, a bundle that is not left with a single member, and members that do not straddle two devices unless those are one logical switch (stack / MLAG) |
