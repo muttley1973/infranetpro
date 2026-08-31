@@ -938,7 +938,7 @@
     <div class="tool-modal-body">
       <div class="tm-hint">
         Formato CSV (intestazione obbligatoria):<br>
-        <code style="font-size:0.72rem;opacity:.8">name, hostname, ip, type, rack, rackU, sizeU, ports</code><br>
+        <code style="font-size:var(--fs-2xs);opacity:.8">name, hostname, ip, type, rack, rackU, sizeU, ports</code><br>
         Campi obbligatori: <strong>name</strong>, <strong>type</strong>. Tutti gli altri sono facoltativi.<br>
         Tipi validi: switch · router · firewall · server · nas · kvm · ups · pdu · ats · patchpanel · ap · wallport · webcam · tv · iot · pc · customfloor · customrack
       </div>
@@ -991,7 +991,7 @@
           <label style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted)"><input type="checkbox" id="dhcp-live-insecure" style="width:auto"> <span data-i18n="dhcp.insecureTls">Salta verifica TLS (cert self-signed)</span></label>
           <button class="toolbar-btn" id="dhcp-live-fetch" data-act="dhcp-fetch-live" style="margin-left:auto"><i class="fas fa-cloud-arrow-down"></i> <span data-i18n="dhcp.fetch">Recupera</span></button>
         </div>
-        <div style="font-size:.68rem;color:var(--text-muted);margin-top:6px" data-i18n="dhcp.liveNote">Le credenziali servono solo per questo recupero e non vengono salvate.</div>
+        <div style="font-size:var(--fs-2xs);color:var(--text-muted);margin-top:6px" data-i18n="dhcp.liveNote">Le credenziali servono solo per questo recupero e non vengono salvate.</div>
       </div>
       <div class="tm-row" style="gap:8px;margin-bottom:8px">
         <button class="toolbar-btn" data-act="dhcp-file-pick"><i class="fas fa-folder-open"></i> <span data-i18n="dhcp.chooseFile">Scegli file</span></button>
@@ -1015,7 +1015,7 @@
           <input type="checkbox" id="dhcp-released-hint" data-change="dhcp-released-hint" style="width:auto">
           <span><i class="fas fa-plug-circle-xmark" style="color:var(--text-muted)"></i> <span data-i18n="dhcp.releasedHint">Lease rilasciato = probabilmente scollegato</span></span>
         </label>
-        <div style="font-size:.68rem;color:var(--text-muted);margin-top:6px" data-i18n="dhcp.releasedHintDesc">Se un dispositivo documentato non dà segni di vita ma ha rilasciato il lease DHCP, la Verifica lo segna come probabilmente scollegato: resta grigio, mai rosso. Solo dai lease rilasciati, mai da quelli scaduti.</div>
+        <div style="font-size:var(--fs-2xs);color:var(--text-muted);margin-top:6px" data-i18n="dhcp.releasedHintDesc">Se un dispositivo documentato non dà segni di vita ma ha rilasciato il lease DHCP, la Verifica lo segna come probabilmente scollegato: resta grigio, mai rosso. Solo dai lease rilasciati, mai da quelli scaduti.</div>
       </div>
     </div>
     <div class="tool-modal-footer" style="justify-content:space-between">
@@ -1096,14 +1096,14 @@
         <div id="lblexp-grid" style="display:none;flex-direction:column;gap:6px;border-top:1px solid var(--panel-border);padding-top:10px">
           <span style="font-size:0.8rem;font-weight:600" data-i18n="lbl.gridTitle">Griglia generica (mm)</span>
           <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
-            <label style="font-size:0.72rem">colonne<input type="number" id="lblg-cols" value="4" min="1" style="width:100%" oninput="syncLabelExportUi()"></label>
-            <label style="font-size:0.72rem">righe<input type="number" id="lblg-rows" value="10" min="1" style="width:100%" oninput="syncLabelExportUi()"></label>
-            <label style="font-size:0.72rem">largh. et.<input type="number" id="lblg-labelW" value="48" min="1" style="width:100%" oninput="syncLabelExportUi()"></label>
-            <label style="font-size:0.72rem">alt. et.<input type="number" id="lblg-labelH" value="25" min="1" style="width:100%" oninput="syncLabelExportUi()"></label>
-            <label style="font-size:0.72rem">marg. sx<input type="number" id="lblg-marginLeft" value="8" min="0" style="width:100%"></label>
-            <label style="font-size:0.72rem">marg. alto<input type="number" id="lblg-marginTop" value="12" min="0" style="width:100%"></label>
-            <label style="font-size:0.72rem">passo X<input type="number" id="lblg-pitchX" value="49" min="1" style="width:100%"></label>
-            <label style="font-size:0.72rem">passo Y<input type="number" id="lblg-pitchY" value="27" min="1" style="width:100%"></label>
+            <label style="font-size:var(--fs-2xs)">colonne<input type="number" id="lblg-cols" value="4" min="1" style="width:100%" oninput="syncLabelExportUi()"></label>
+            <label style="font-size:var(--fs-2xs)">righe<input type="number" id="lblg-rows" value="10" min="1" style="width:100%" oninput="syncLabelExportUi()"></label>
+            <label style="font-size:var(--fs-2xs)">largh. et.<input type="number" id="lblg-labelW" value="48" min="1" style="width:100%" oninput="syncLabelExportUi()"></label>
+            <label style="font-size:var(--fs-2xs)">alt. et.<input type="number" id="lblg-labelH" value="25" min="1" style="width:100%" oninput="syncLabelExportUi()"></label>
+            <label style="font-size:var(--fs-2xs)">marg. sx<input type="number" id="lblg-marginLeft" value="8" min="0" style="width:100%"></label>
+            <label style="font-size:var(--fs-2xs)">marg. alto<input type="number" id="lblg-marginTop" value="12" min="0" style="width:100%"></label>
+            <label style="font-size:var(--fs-2xs)">passo X<input type="number" id="lblg-pitchX" value="49" min="1" style="width:100%"></label>
+            <label style="font-size:var(--fs-2xs)">passo Y<input type="number" id="lblg-pitchY" value="27" min="1" style="width:100%"></label>
           </div>
         </div>
 

@@ -73,9 +73,17 @@
             --font-ui:   system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
 
-            /* ---- TIPOGRAFIA — scala 6 step (base 16px del browser) ----
+            /* ---- TIPOGRAFIA — scala 7 step (base 16px del browser) ----
                GUIDA: per ogni testo nuovo usa SEMPRE uno di questi token.
-               Outlier deliberati ammessi: 0.48rem/0.5rem (solo .rack-label fisica). */
+               Outlier deliberati ammessi: 0.48rem/0.5rem (solo .rack-label fisica).
+               ⚠️ `--fs-2xs` è nato il 31/08 DALLA MISURA, non dal gusto: sotto --fs-xs
+               la scala non aveva niente, e 84 dichiarazioni si erano inventate lo stesso
+               corpo in SETTE scritture diverse (0.72rem ×33, 11px ×19, 0.7rem ×18,
+               0.68rem ×10, e le varianti senza lo zero). Non erano sette misure: era una
+               misura che nessuno poteva chiamare per nome. Accorpate qui, scarto massimo
+               0,32 px. Se ti serve un corpo che la scala non ha, il gradino mancante è
+               questo — non un ottavo valore scritto a mano. */
+            --fs-2xs: 0.7rem;   /* ~11 px — pastiglie minuscole, note a margine, contatori */
             --fs-xs:  0.75rem;  /* ~12 px — hint, helper text, badge minuscoli, footer */
             --fs-sm:  0.82rem;  /* ~13 px — label uppercase, controlli compatti, secondari */
             --fs-md:  0.9rem;   /* ~14.5 px — body UI: bottoni, input, popup, properties */

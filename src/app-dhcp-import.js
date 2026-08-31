@@ -273,7 +273,7 @@ function renderDhcpSources() {
             <span style="margin-left:auto;display:inline-flex;gap:2px">${refresh}${rmv}</span>
           </summary>
           <div style="padding:0 4px 6px">
-            <table style="width:100%;border-collapse:collapse;font-size:0.72rem">
+            <table style="width:100%;border-collapse:collapse;font-size:var(--fs-2xs)">
               <thead><tr style="color:var(--text-muted);text-align:left">
                 <th style="padding:3px 6px;font-weight:600">${esc(t('dhcp.thMac'))}</th>
                 <th style="padding:3px 6px;font-weight:600">${esc(t('dhcp.thLeaseIp'))}</th>

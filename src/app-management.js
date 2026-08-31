@@ -154,7 +154,7 @@ function _renderMgmtProtoEditor(){
         <tr>
             <td><input value="${escapeHTML(p.label)}" data-input="mgmt-proto-field" data-idx="${i}" data-field="label"></td>
             <td><input value="${escapeHTML(p.scheme)}" data-input="mgmt-proto-field" data-idx="${i}" data-field="scheme" placeholder="es. winbox://"></td>
-            <td><code style="font-size:0.7rem;color:var(--text-muted)">${escapeHTML(p.id)}</code></td>
+            <td><code style="font-size:var(--fs-2xs);color:var(--text-muted)">${escapeHTML(p.id)}</code></td>
             <td><button class="toolbar-btn" data-act="mgmt-proto-del" data-idx="${i}" data-tip="${t('pnl.misc.remove')}" style="padding:2px 7px"><i class="fas fa-trash"></i></button></td>
         </tr>
     `).join('');

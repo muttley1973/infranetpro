@@ -56,7 +56,7 @@ retired). Stylistic findings are warnings, not errors, so the gate stays green.
    so a new raw `${d.sysName}` fails the build. Run
    `node tools/html-escape-scan.js --list` to see where a file's residue is.
 7. **Use the design tokens, including for text size.** Sizes come from
-   `--fs-xs…--fs-2xl` in `styles/01-tokens.css` — writing `0.82rem` by hand is the
+   `--fs-2xs…--fs-2xl` in `styles/01-tokens.css` — writing `0.82rem` by hand is the
    same pixel today and a different one the day the token moves, and
    `test/type-scale-ratchet.test.js` fails on it, naming the line and the token to
    use. Same for colour: a badge's ink is derived from its background, never fixed.

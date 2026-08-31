@@ -275,7 +275,7 @@ export function _renderPortProps(panel){
             return `${sep}<span data-tip="${escapeHTML(t('port.operWaitTip'))}" style="background:rgba(110,118,129,.12);border:1px solid var(--panel-border);color:var(--text-muted);border-radius:3px;padding:1px 6px">${escapeHTML(w)}</span>`;
         };
         const snmpBar=(snmpParts.length||portShade(pi,DOWN_STREAK_N)||pi.operWait)?`<div class="snmp-bar" style="margin:0 0 10px"><span class="sb">SNMP</span>${escapeHTML(snmpParts.join(' · '))}${_shadeChip()}${_operWaitChip()}</div>`:'';
-        const rst=(f,lbl)=>pi[f]!=null?`<button class="toolbar-btn" style="padding:2px 6px;margin:0;font-size:0.7rem" data-tip="${t('pnl.dev.restoreField',{field:lbl})}" data-act="port-clear-render" data-pid="${pid}" data-pfield="${f}">↺</button>`:'';
+        const rst=(f,lbl)=>pi[f]!=null?`<button class="toolbar-btn" style="padding:2px 6px;margin:0;font-size:var(--fs-2xs)" data-tip="${t('pnl.dev.restoreField',{field:lbl})}" data-act="port-clear-render" data-pid="${pid}" data-pfield="${f}">↺</button>`:'';
         // Select dello STATO dichiarabile. Una sola definizione, usata sia dallo
         // switchport sia dalla tappa passiva: due copie delle stesse cinque voci
         // divergono al primo che ne aggiunge una.
@@ -339,7 +339,7 @@ export function _renderPortProps(panel){
             return `<div class="props-lag-head">
                 <span style="background:#a371f7;color:#fff;padding:2px 9px;border-radius:4px;font-weight:700;font-size:0.74rem" data-tip="${gname}">${t('pnl.dev.lagMember')}</span>
                 <span class="lag-chips">${chips.join('')}</span>
-                <button class="toolbar-btn danger" style="padding:3px 9px;font-size:0.72rem" data-act="port-lag-remove-render" data-pid="${pid}">${t('pnl.misc.remove')}</button>
+                <button class="toolbar-btn danger" style="padding:3px 9px;font-size:var(--fs-2xs)" data-act="port-lag-remove-render" data-pid="${pid}">${t('pnl.misc.remove')}</button>
             </div>`;
         })();
         panel.innerHTML=`
@@ -493,7 +493,7 @@ export function _renderPortProps(panel){
                   ? `<span style="background:#0e2233;border:1px solid #2d6a9f;border-radius:4px;padding:2px 10px;font-size:0.78rem;font-weight:700;color:#5ba3f5">TRUNK</span>
                      <span style="margin-left:6px;font-size:var(--fs-md);color:var(--text-muted)">${t('cable.trunkNative')}&nbsp;<b style="color:var(--text-main)">VLAN ${effVlan}</b></span>
                      ${_tagged.length?`<span style="margin-left:6px;font-size:var(--fs-md);color:var(--text-muted)">· ${t('cable.trunkCarried')}&nbsp;<b style="color:var(--text-main)">${_tagged.join(', ')}</b></span>`:''}
-                     ${_fromSnmp?`<span style="margin-left:6px;font-size:0.68rem;color:#5ba3f5"><i class="fas fa-satellite-dish"></i> SNMP</span>`:''}`
+                     ${_fromSnmp?`<span style="margin-left:6px;font-size:var(--fs-2xs);color:#5ba3f5"><i class="fas fa-satellite-dish"></i> SNMP</span>`:''}`
                   : `<span style="display:inline-flex;align-items:center;gap:6px">
                        <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${_color};flex-shrink:0;border:1px solid rgba(255,255,255,.18)"></span>
                        <b>VLAN ${effVlan}</b>${_vlanName?`<span style="color:var(--text-muted)">— ${_vlanName}</span>`:''}
@@ -506,8 +506,8 @@ export function _renderPortProps(panel){
                     <label>${t('cable.portMode')}</label>
                     <div style="display:flex;gap:6px;margin-top:4px">
                       <button class="toolbar-btn${(!_isTrunk&&!_isRouted)?' soft':''}" style="flex:1;padding:5px" data-act="port-mode" data-pid="${pid}" data-mode="access"><i class="fas fa-circle" style="font-size:0.6rem"></i> Access</button>
-                      <button class="toolbar-btn${_isTrunk?' soft':''}" style="flex:1;padding:5px" data-act="port-mode" data-pid="${pid}" data-mode="trunk"><i class="fas fa-layer-group" style="font-size:0.7rem"></i> Trunk</button>
-                      <button class="toolbar-btn${_isRouted?' soft':''}" style="flex:1;padding:5px" data-tip="${escapeHTML(t('port.routedModeTip'))}" data-tip-wrap data-act="port-mode" data-pid="${pid}" data-mode="routed"><i class="fas fa-route" style="font-size:0.7rem"></i> ${escapeHTML(t('legend.routedLink'))}</button>
+                      <button class="toolbar-btn${_isTrunk?' soft':''}" style="flex:1;padding:5px" data-act="port-mode" data-pid="${pid}" data-mode="trunk"><i class="fas fa-layer-group" style="font-size:var(--fs-2xs)"></i> Trunk</button>
+                      <button class="toolbar-btn${_isRouted?' soft':''}" style="flex:1;padding:5px" data-tip="${escapeHTML(t('port.routedModeTip'))}" data-tip-wrap data-act="port-mode" data-pid="${pid}" data-mode="routed"><i class="fas fa-route" style="font-size:var(--fs-2xs)"></i> ${escapeHTML(t('legend.routedLink'))}</button>
                     </div>
                   </div>
                   ${_isRouted ? _routedNetField() : _vlanField(_isTrunk ? t('cable.trunkNativeLabel') : 'VLAN')}
@@ -536,7 +536,7 @@ export function _renderPortProps(panel){
                 // Dispositivo passivo: info LAG traversal se presente.
                 const info=getPassivePortLagInfo(pid);
                 if(!info) return '';
-                return `<div style="border-top:1px solid var(--panel-border);margin-top:8px;padding-top:7px;font-size:0.72rem;color:var(--text-muted)">
+                return `<div style="border-top:1px solid var(--panel-border);margin-top:8px;padding-top:7px;font-size:var(--fs-2xs);color:var(--text-muted)">
                   <span style="color:var(--accent);margin-right:5px">🔗</span>
                   ${t('pnl.dev.path')} <strong style="color:var(--accent)">${escapeHTML(info.gname)}</strong> · ${escapeHTML(info.nodeName)}
                 </div>`;

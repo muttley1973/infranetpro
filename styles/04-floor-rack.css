@@ -205,7 +205,7 @@
            del bonding (porta corrente evidenziata in ciano). */
         .props-lag-head { display:flex; align-items:center; flex-wrap:wrap; gap:7px; margin:-2px 0 12px; }
         .lag-chips { display:inline-flex; flex-wrap:wrap; gap:3px; margin-left:auto; }
-        .lag-chip { font-size:.68rem; padding:1px 6px; border-radius:3px; border:1px solid var(--panel-border); background:var(--bg-color); color:var(--text-main); }
+        .lag-chip { font-size:var(--fs-2xs); padding:1px 6px; border-radius:3px; border:1px solid var(--panel-border); background:var(--bg-color); color:var(--text-main); }
         .lag-chip.self { border-color:var(--accent); background:var(--accent-soft); color:var(--accent); font-weight:700; }
         .props-toggles { display:inline-flex; gap:4px; flex-shrink:0; align-items:center; }
         .props-toggle-btn { background:transparent; border:1px solid var(--panel-border); color:var(--text-main); padding:3px 7px; border-radius: var(--radius-sm); cursor:pointer; font-size:var(--fs-md); transition:color .12s, border-color .12s, background-color .12s, transform .12s; line-height:1; }
@@ -262,7 +262,7 @@
            sempre visibile ma piu' tenue — vedi lib/node-label.js. */
         .floor-node .label .nl-name { color:var(--text-main); font-weight:550; max-width:118px; overflow:hidden; text-overflow:ellipsis; }
         .floor-node .label .nl-name.nl-derived { font-weight:450; color:var(--text-muted); }
-        .floor-node .label .nl-addr { font-size:.68rem; color:var(--text-muted); opacity:.85; font-variant-numeric:tabular-nums; }
+        .floor-node .label .nl-addr { font-size:var(--fs-2xs); color:var(--text-muted); opacity:.85; font-variant-numeric:tabular-nums; }
         .floor-node.port-selected .label .nl-name { color:#d7f7ff; }
         .floor-node.vlan-dim { opacity:0.18; pointer-events:none; }
         /* VLAN membership modal */

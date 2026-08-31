@@ -229,10 +229,10 @@ export function _renderLinkProps(panel){
                             placeholder="${escapeHTML(_vlMostrata)}" ${lockAttr} style="flex:1"
                             data-change="link-native-vlan" data-lid="${escapeHTML(l.id)}" data-tip="${t('cable.accessVlanTip')}">
                    </div>
-                   ${vlanName?`<div style="font-size:0.7rem;color:var(--text-muted);margin-top:3px"><i class="fas fa-tag" style="font-size:0.6rem;margin-right:3px"></i>${vlanName}</div>`:''}`
+                   ${vlanName?`<div style="font-size:var(--fs-2xs);color:var(--text-muted);margin-top:3px"><i class="fas fa-tag" style="font-size:0.6rem;margin-right:3px"></i>${vlanName}</div>`:''}`
             : `<div style="padding:4px 0;font-size:0.83rem;color:var(--text-main)">${vlanBadge}</div>`;
         const _vlanCorpo = isTrunk ? '' : _vlanLettura;
-        const _vlanProv = _paint ? `<div style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:0.72rem;color:var(--text-muted)"
+        const _vlanProv = _paint ? `<div style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:var(--fs-2xs);color:var(--text-muted)"
                      data-tip="${escapeHTML(_paint.tip || '')}" data-tip-pos="bottom">
                    <span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${escapeHTML(_paint.color)};flex-shrink:0"></span>
                    ${t('cable.paintLabel')}: <b style="color:var(--text-main);font-weight:600">${escapeHTML(_paint.text)}</b>
@@ -338,7 +338,7 @@ export function _renderLinkProps(panel){
                      style="width:100%"
                      ${lockAttr}
                      data-change="link-label" data-lid="${l.id}">
-              ${hasManualLbl?`<div style="font-size:0.7rem;color:var(--text-muted);margin-top:3px"><i class="fas fa-arrow-right-arrow-left" style="font-size:0.6rem;margin-right:3px"></i>${escapeHTML(autoLbl)}</div>`:''}
+              ${hasManualLbl?`<div style="font-size:var(--fs-2xs);color:var(--text-muted);margin-top:3px"><i class="fas fa-arrow-right-arrow-left" style="font-size:0.6rem;margin-right:3px"></i>${escapeHTML(autoLbl)}</div>`:''}
             </div>
             ${verifyBanner}
             ${autoEditBar}${miscabledBanner}${portConflictBanner}
@@ -357,7 +357,7 @@ export function _renderLinkProps(panel){
                 </button>
                 <button class="toolbar-btn${isTrunk?' soft':''}" style="flex:1;padding:5px" ${lockAttr}
                   data-act="link-mode" data-lid="${l.id}" data-mode="trunk">
-                  <i class="fas fa-layer-group" style="font-size:0.7rem"></i> Trunk
+                  <i class="fas fa-layer-group" style="font-size:var(--fs-2xs)"></i> Trunk
                 </button>
               </div>
             </div>
@@ -369,17 +369,17 @@ export function _renderLinkProps(panel){
                 ? `<input type="number" min="1" max="4094" value="${tk.native}" ${lockAttr}
                      data-change="link-native-vlan" data-lid="${l.id}"
                      data-tip="${t('cable.trunkNativeTip')}">`
-                : `<div style="padding:4px 0;font-size:0.8rem;color:var(--text-muted)">VLAN ${tk.native} <span style="font-size:0.7rem">· ${t('cable.trunkNativeUpstream')}</span></div>`}
+                : `<div style="padding:4px 0;font-size:0.8rem;color:var(--text-muted)">VLAN ${tk.native} <span style="font-size:var(--fs-2xs)">· ${t('cable.trunkNativeUpstream')}</span></div>`}
             </div>
             <div class="prop-group" id="trunk-vlans-group">
               <label style="display:flex;align-items:center;gap:5px">
                 ${t('cable.trunkVlans')}
-                <span style="font-size:0.68rem;color:var(--text-muted)">(es. 10,20,100-200)</span>
+                <span style="font-size:var(--fs-2xs);color:var(--text-muted)">(es. 10,20,100-200)</span>
               </label>
               ${_vlanPills(tk.vlans)}
               ${tk.derived ? `
               <div class="trunk-derived"><i class="fas fa-wand-magic-sparkles"></i> ${t('cable.trunkAuto')}: <b>${tk.vlans.join(', ')}</b></div>
-              <div style="font-size:0.7rem;color:var(--text-muted);margin:4px 0 6px">${t('cable.trunkAutoNote')}</div>
+              <div style="font-size:var(--fs-2xs);color:var(--text-muted);margin:4px 0 6px">${t('cable.trunkAutoNote')}</div>
               <input type="text" value="" placeholder="${tk.vlans.join(',')}"
                 style="width:100%" ${lockAttr}
                 data-change="link-trunk-vlans" data-lid="${l.id}"
@@ -388,7 +388,7 @@ export function _renderLinkProps(panel){
                 style="width:100%" ${lockAttr}
                 data-change="link-trunk-vlans" data-lid="${l.id}"
                 data-blur="link-trunk-vlans">
-              <div style="font-size:0.7rem;color:var(--text-muted);margin-top:3px">
+              <div style="font-size:var(--fs-2xs);color:var(--text-muted);margin-top:3px">
                 ${t('cable.vlansConfigured',{n:_parseTrunkVlans(trunkVlans).length})}
               </div>`}
             </div>` : ''}
@@ -669,7 +669,7 @@ export function _renderLinkProps(panel){
                     '802.3at':'802.3at — 30 W','802.3bt':'802.3bt — 90 W'}[_snmpPoeDet] || null;
                 // Badge: visibile solo se SNMP ha un valore e l'utente non ha ancora impostato un override manuale
                 const _snmpBadge=(lbl,key)=>lbl&&!l[key]
-                    ?`<div style="font-size:0.68rem;color:#5ba3f5;margin-top:2px"><i class="fas fa-satellite-dish" style="font-size:0.6rem;margin-right:3px"></i>SNMP: <b>${escapeHTML(String(lbl))}</b></div>`:'';
+                    ?`<div style="font-size:var(--fs-2xs);color:#5ba3f5;margin-top:2px"><i class="fas fa-satellite-dish" style="font-size:0.6rem;margin-right:3px"></i>SNMP: <b>${escapeHTML(String(lbl))}</b></div>`:'';
                 // -------------------------------------------------------------------
 
                 const catLabel = l.medium==='fiber' ? t('cable.fiberType') : t('cable.category');

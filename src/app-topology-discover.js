@@ -79,7 +79,7 @@ function _setTopoBtn(st, meta){
     const _T = (k,v) => (typeof t==='function') ? t(k,v) : k;
     if(st==='on'){
         btn.className='toolbar-btn primary';
-        btn.innerHTML=`<i class="fas fa-project-diagram"></i>${_lbl} <i class="fas fa-eye" style="font-size:0.7rem;margin-left:3px;opacity:.85"></i>`;
+        btn.innerHTML=`<i class="fas fa-project-diagram"></i>${_lbl} <i class="fas fa-eye" style="font-size:var(--fs-2xs);margin-left:3px;opacity:.85"></i>`;
         btn.setAttribute('data-tip', _T('topology.titleOn',{f:f.txt}));
     } else if(st==='discovering'){
         btn.className='toolbar-btn';

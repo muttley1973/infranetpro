@@ -142,9 +142,9 @@ function _recognizedModelBanner(node){
     if(!rec || !rec.model) return '';
     if(node.catalogMatch && node.catalogMatch.manual) return '';
     const label = (rec.brand ? rec.brand + ' ' : '') + rec.model;
-    return `<div style="display:flex;align-items:center;gap:7px;margin-top:6px;padding:6px 8px;border:0.5px solid var(--accent,#58a6ff);border-radius:var(--radius);color:var(--accent,#58a6ff);font-size:11px">
+    return `<div style="display:flex;align-items:center;gap:7px;margin-top:6px;padding:6px 8px;border:0.5px solid var(--accent,#58a6ff);border-radius:var(--radius);color:var(--accent,#58a6ff);font-size:var(--fs-2xs)">
         <i class="fas fa-microchip"></i><span style="flex:1">${escapeHTML(t('devtype.detected'))}: ${escapeHTML(label)}</span>
-        <button type="button" class="um-btn" data-act="adopt-recognized-model" style="padding:2px 7px;font-size:11px">${escapeHTML(t('devtype.adopt'))}</button>
+        <button type="button" class="um-btn" data-act="adopt-recognized-model" style="padding:2px 7px;font-size:var(--fs-2xs)">${escapeHTML(t('devtype.adopt'))}</button>
       </div>`;
 }
 
@@ -158,9 +158,9 @@ export function _deviceTypeApplyHtml(node) {
     const currentTemplate = sourceSlug && _bySourceSlug[String(sourceSlug).toLowerCase()];
     const stale = !!(node && node.catalogMatch && node.catalogMatch.catalogVersion && _catalogVersion
         && node.catalogMatch.catalogVersion !== _catalogVersion);
-    const update = stale && currentTemplate ? `<div style="display:flex;align-items:center;gap:7px;margin-top:6px;padding:6px 8px;border:0.5px solid var(--warning-color,#e3b341);border-radius:var(--radius);color:var(--warning-color,#e3b341);font-size:11px">
+    const update = stale && currentTemplate ? `<div style="display:flex;align-items:center;gap:7px;margin-top:6px;padding:6px 8px;border:0.5px solid var(--warning-color,#e3b341);border-radius:var(--radius);color:var(--warning-color,#e3b341);font-size:var(--fs-2xs)">
         <i class="fas fa-arrows-rotate"></i><span style="flex:1">${escapeHTML(t('devtype.updated'))}</span>
-        <button type="button" class="um-btn" data-act="apply-current-device-type" style="padding:2px 7px;font-size:11px">${escapeHTML(t('devtype.applyCurrent'))}</button>
+        <button type="button" class="um-btn" data-act="apply-current-device-type" style="padding:2px 7px;font-size:var(--fs-2xs)">${escapeHTML(t('devtype.applyCurrent'))}</button>
       </div>` : '';
     return `${_recognizedModelBanner(node)}<div class="prop-group" style="margin-top:6px"><label>${t('devtype.apply')}</label>
       <input type="text" list="devtype-options" placeholder="${escapeHTML(t('devtype.placeholder'))}" data-change="apply-device-type" data-tip="${escapeHTML(t('devtype.tip'))}">

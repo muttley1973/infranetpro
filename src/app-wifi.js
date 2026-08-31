@@ -296,8 +296,8 @@ export function _radioIfacesHtml(n){
           ${_allVlans.map(v => {
               const col = _vc[v] || '#6e7681';
               const ss = _ssidByVlan[v];
-              const _add = ss ? '' : `<button data-act="radio-add-ssid-vlan" data-nid="${n.id}" data-vlan="${v}" data-tip="${esc(_t('radio.createSsid'))}" style="border:0;background:transparent;color:var(--active-color);cursor:pointer;padding:0 0 0 2px;font-size:0.72rem;line-height:1"><i class="fas fa-plus-circle"></i></button>`;
-              return `<span style="display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:11px;background:rgba(255,255,255,.04);border:1px solid var(--panel-border);font-size:0.72rem;white-space:nowrap">
+              const _add = ss ? '' : `<button data-act="radio-add-ssid-vlan" data-nid="${n.id}" data-vlan="${v}" data-tip="${esc(_t('radio.createSsid'))}" style="border:0;background:transparent;color:var(--active-color);cursor:pointer;padding:0 0 0 2px;font-size:var(--fs-2xs);line-height:1"><i class="fas fa-plus-circle"></i></button>`;
+              return `<span style="display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:11px;background:rgba(255,255,255,.04);border:1px solid var(--panel-border);font-size:var(--fs-2xs);white-space:nowrap">
                   <span style="width:9px;height:9px;border-radius:50%;background:${col};flex-shrink:0;border:1px solid rgba(255,255,255,.18)"></span>
                   <b>VLAN ${v}</b><span style="color:var(--text-muted)">${ss ? esc(ss) : esc(_t('radio.unassigned'))}</span>${_add}
                 </span>`;

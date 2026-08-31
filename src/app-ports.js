@@ -112,7 +112,7 @@ function renderPortsTable(n){
 </div>`;
     }
     const hiddenCount = pc - visibleCount;
-    const hiddenNote = hiddenCount ? `<span style="color:var(--text-muted);font-size:0.7rem">${t('pnl.dev.hiddenCount',{n:hiddenCount})}</span>` : '';
+    const hiddenNote = hiddenCount ? `<span style="color:var(--text-muted);font-size:var(--fs-2xs)">${t('pnl.dev.hiddenCount',{n:hiddenCount})}</span>` : '';
     return `<div class="ports-section">
 <h5>${t('pnl.dev.ports')} <span>${t('pnl.dev.physicalCount',{n:visibleCount})}${hiddenNote?'  '+hiddenNote:''}</span></h5>
 <div class="pt-head"><span></span><span>${t('common.description')}</span><span>${t('common.status')}</span><span>${t('pnl.dev.speedAbbr')}</span><span>VLAN</span><span></span><span></span></div>

@@ -390,7 +390,7 @@ ${(()=>{
             const gname=escapeHTML(store.state.lagGroups&&store.state.lagGroups[gid]?store.state.lagGroups[gid]:'LAG');
             return `<div style="border-top:1px solid #30363d;margin-top:6px;padding-top:6px;display:flex;align-items:center;gap:6px">
               <span style="color:#00d4ff;font-size:0.76rem;font-weight:600">⛓ ${gname}</span>
-              <button class="toolbar-btn danger" style="padding:2px 7px;font-size:0.72rem;margin:0" data-act="port-lag-remove-close" data-pid="${pid}">${t('pnl.misc.remove')}</button>
+              <button class="toolbar-btn danger" style="padding:2px 7px;font-size:var(--fs-2xs);margin:0" data-act="port-lag-remove-close" data-pid="${pid}">${t('pnl.misc.remove')}</button>
             </div>`;
         } else {
             return `<div style="border-top:1px solid #30363d;margin-top:6px;padding-top:6px">
@@ -401,7 +401,7 @@ ${(()=>{
         // dispositivo passivo — mostra info se il cavo trasporta un LAG
         const info=getPassivePortLagInfo(pid);
         if(info){
-            return `<div style="border-top:1px solid #30363d;margin-top:6px;padding-top:6px;display:flex;align-items:center;gap:6px;font-size:0.72rem;color:#8b949e">
+            return `<div style="border-top:1px solid #30363d;margin-top:6px;padding-top:6px;display:flex;align-items:center;gap:6px;font-size:var(--fs-2xs);color:#8b949e">
               <span style="color:#00d4ff">🔗</span>
               <span>${t('pnl.misc.pathVia',{path:`<strong style="color:#00d4ff">${escapeHTML(info.gname)}</strong>`,node:escapeHTML(info.nodeName)})}</span>
             </div>`;
@@ -860,10 +860,10 @@ const _portTag = (p) => { const s = escapeHTML(String(p == null ? '' : p).trim()
 function _showFloorLinkTip(ev,td){
     const tip=document.getElementById('topo-tip'); if(!tip) return;
     const modeBadge = td.mode==='trunk'
-        ? `<span style="background:#0e2233;border:1px solid #2d6a9f;border-radius:4px;padding:1px 7px;font-size:0.68rem;font-weight:700;color:#5ba3f5">TRUNK</span>`
-          + (td.trunkVlans ? `<span style="color:var(--text-muted);font-size:0.7rem;margin-left:6px">VLAN ${escapeHTML(td.trunkVlans)}</span>` : '')
-        : `<span style="background:#10241a;border:1px solid #2c6a45;border-radius:4px;padding:1px 7px;font-size:0.68rem;font-weight:700;color:#5fbf83">ACCESS</span>`
-          + `<span style="color:var(--text-muted);font-size:0.7rem;margin-left:6px">VLAN ${escapeHTML(td.vlan)}</span>`;
+        ? `<span style="background:#0e2233;border:1px solid #2d6a9f;border-radius:4px;padding:1px 7px;font-size:var(--fs-2xs);font-weight:700;color:#5ba3f5">TRUNK</span>`
+          + (td.trunkVlans ? `<span style="color:var(--text-muted);font-size:var(--fs-2xs);margin-left:6px">VLAN ${escapeHTML(td.trunkVlans)}</span>` : '')
+        : `<span style="background:#10241a;border:1px solid #2c6a45;border-radius:4px;padding:1px 7px;font-size:var(--fs-2xs);font-weight:700;color:#5fbf83">ACCESS</span>`
+          + `<span style="color:var(--text-muted);font-size:var(--fs-2xs);margin-left:6px">VLAN ${escapeHTML(td.vlan)}</span>`;
     // device + porta su UN'UNICA riga ("device porta → device porta").
     let h=`<div class="topotip-header">
         <span class="topotip-proto" style="background:${td.color}">${escapeHTML(td.nodeType)}</span>

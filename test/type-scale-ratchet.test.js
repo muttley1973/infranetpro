@@ -107,10 +107,15 @@ test('scala tipografica: i token non si riscrivono a mano', () => {
 // Misurato il 2026-08-31: 370 → 273 col rientro di 97 letterali nella scala,
 // poi → 267 quando i badge della riga «Stato» del cavo hanno smesso di scrivere
 // la propria forma inline (quattro copie di 0,89rem e una di 0,88rem, sostituite
-// da tre regole in 06-panels.css: badge, chip modo-porta e percentuale).
+// da tre regole in 06-panels.css: badge, chip modo-porta e percentuale),
+// poi → 183 con la nascita di `--fs-2xs`: sotto --fs-xs la scala non aveva NIENTE,
+// e 84 dichiarazioni si erano inventate lo stesso corpo in sette scritture diverse.
+// ⭐ Quel giro non ha richiesto di toccare questa guardia: i letterali proibiti si
+// derivano da 01-tokens.css, quindi `0.7rem` è diventato vietato nell'istante in cui
+// il token è nato. È il motivo per cui l'elenco non si scrive a mano.
 // Quando ne assorbi altri, ABBASSA questo numero a quello stampato dal test.
 // ⚠️ Il tetto si scrive QUI e in nessun altro posto: le note lo citano per NOME.
-const MAX_OFFSCALE_FONTS = 267;
+const MAX_OFFSCALE_FONTS = 183;
 
 test('scala tipografica: i corpi fuori scala possono solo calare', () => {
   const off = declarations().filter((d) => !/^var\(--fs-/.test(d.value));

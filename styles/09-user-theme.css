@@ -537,7 +537,7 @@ header .header-right [data-tip]:not([data-tip-pos]):focus-visible::after {
 }
 .drift-blind i { margin-top: 2px; }
 .drift-sec { margin-bottom: 6px; }
-.drift-count { margin-left: auto; font-size: .72rem; font-weight: 700; padding: 1px 8px; border-radius: var(--radius-pill); }
+.drift-count { margin-left: auto; font-size: var(--fs-2xs); font-weight: 700; padding: 1px 8px; border-radius: var(--radius-pill); }
 .drift-sec-body { padding: 4px 0; }
 /* +120% — intestazione modale "Verifica documentazione" e titoli categoria
    (scoped al solo overlay Drift: spare/L3/adopt restano invariati) */
@@ -581,7 +581,7 @@ body.spare-mode .port-led.spare-suspect {
 .spare-cap { margin-left: auto; font-size: var(--fs-sm); color: var(--text-muted); display: inline-flex; align-items: center; gap: 6px; }
 .spare-cap b { color: var(--active-color); }
 .spare-cap-sub { color: var(--text-muted); opacity: .8; }
-.spare-susp-pill { color: var(--idle-color); font-weight: 700; font-size: .72rem; }
+.spare-susp-pill { color: var(--idle-color); font-weight: 700; font-size: var(--fs-2xs); }
 /* ── L3-lite (gateway VLAN→device): badge rack, hint binding, sezione SVI,
    overlay Mappa L3. Riusa il guscio modale del Drift. ─────────────────── */
 .rack-l3-badge {
@@ -636,7 +636,7 @@ body.spare-mode .port-led.spare-suspect {
 .l3-svi-sub { opacity: .7; }
 /* La porta da cui esce la rete: è una DICHIARAZIONE della porta (modalità L3 +
    rete scelta), quindi porta l'ambra di tutto ciò che si dichiara a mano. */
-.l3-svi-port { color: #e3b341; font-size: .7rem; font-weight: 700; margin-left: 4px; white-space: nowrap; }
+.l3-svi-port { color: #e3b341; font-size: var(--fs-2xs); font-weight: 700; margin-left: 4px; white-space: nowrap; }
 .l3-svi-warn { color: #e3b341; }
 /* Overlay "Mappa L3 / Gateway" — tabella rete→VLAN→gateway→device→stato */
 /* Piu' largo degli altri report: e' l'unico con una TABELLA a sei colonne, e a
@@ -704,7 +704,7 @@ body.spare-mode .port-led.spare-suspect {
 /* Trasparenza "perché è nascosto": tag-pillola per ogni segnale BYOD scattato. */
 .drift-why { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: 8px; }
 .drift-why-tag {
-    font-size: .68rem; line-height: 1.5; color: var(--text-muted);
+    font-size: var(--fs-2xs); line-height: 1.5; color: var(--text-muted);
     background: var(--surface-hover); border-radius: 999px;
     padding: 0 7px; white-space: nowrap;
 }
@@ -733,7 +733,7 @@ body.spare-mode .port-led.spare-suspect {
 .drift-row-acts { margin-left: auto; display: flex; gap: 4px; flex-shrink: 0; }
 .drift-act {
     background: transparent; border: 1px solid var(--hairline); color: var(--text-muted);
-    border-radius: 5px; width: 26px; height: 24px; cursor: pointer; font-size: .72rem;
+    border-radius: 5px; width: 26px; height: 24px; cursor: pointer; font-size: var(--fs-2xs);
 }
 .drift-act:hover { color: var(--text-main); border-color: var(--accent); }
 .drift-act.apply:hover { color: var(--accent); background: var(--accent-soft); }

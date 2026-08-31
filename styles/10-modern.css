@@ -454,7 +454,7 @@ header {
 #modern-subbar .msb-crumb { flex:1 1 0; display:flex; align-items:center; gap:8px; font-size:var(--fs-xs); color:var(--text-muted); font-weight:500; min-width:0; overflow:hidden; }
 #modern-subbar .msb-crumb > i,
 #modern-subbar .msb-crumb > span { flex-shrink:0; white-space:nowrap; }
-#modern-subbar .msb-crumb i { color:#4d5560; font-size:11px; }
+#modern-subbar .msb-crumb i { color:#4d5560; font-size:var(--fs-2xs); }
 #modern-subbar .msb-crumb .sep { color:#3d444d; }
 #modern-subbar .msb-crumb b { flex:0 1 auto; min-width:0; color:var(--text-main); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 /* Il segmento ORGANIZZAZIONE: l'unico cliccabile del percorso, perché è l'unico
@@ -477,7 +477,7 @@ header {
 /* ZONA DESTRA: statistiche progetto */
 #modern-subbar .msb-stats { flex:1 1 0; display:flex; align-items:center; justify-content:flex-end; gap:18px; }
 #modern-subbar .msb-stat { display:inline-flex; align-items:center; gap:6px; font-size:var(--fs-xs); color:var(--text-muted); white-space:nowrap; }
-#modern-subbar .msb-stat > i { color:#5b6570; font-size:11px; }
+#modern-subbar .msb-stat > i { color:#5b6570; font-size:var(--fs-2xs); }
 #modern-subbar .msb-stat b { color:var(--text-main); font-weight:700; font-size:12.5px; }
 #modern-subbar .msb-stat-l { color:var(--text-muted); }
 #modern-subbar .msb-dot { width:8px; height:8px; border-radius:50%; display:inline-block; flex-shrink:0; }
@@ -490,7 +490,7 @@ header {
    solo in vista Topologia quando c'e' qualcosa di nascosto; :empty -> collassa. */
 #modern-subbar .msb-warn { flex:0 0 auto; display:inline-flex; align-items:center; gap:7px; padding:3px 10px; border-radius:6px; font-size:var(--fs-xs); font-weight:600; white-space:nowrap; cursor:default; background:rgba(240,180,41,.12); color:#f0b429; border:1px solid rgba(240,180,41,.32); }
 #modern-subbar .msb-warn:empty { display:none; }
-#modern-subbar .msb-warn > i { font-size:11px; flex-shrink:0; }
+#modern-subbar .msb-warn > i { font-size:var(--fs-2xs); flex-shrink:0; }
 #modern-subbar .msb-warn-btn { cursor:pointer; transition:background .12s, border-color .12s; }
 #modern-subbar .msb-warn-btn:hover { background:rgba(240,180,41,.2); border-color:rgba(240,180,41,.55); }
 #modern-subbar .msb-warn-btn:focus-visible { outline:2px solid rgba(240,180,41,.7); outline-offset:1px; }
@@ -499,7 +499,7 @@ header {
    un Sync/import che ha eseguito l'auto-link; :empty -> collassa. Diagnostica nel title. */
 #modern-subbar .msb-autolink { flex:0 0 auto; display:inline-flex; align-items:center; gap:7px; padding:3px 10px; border-radius:6px; font-size:var(--fs-xs); white-space:nowrap; cursor:default; background:rgba(255,255,255,.03); color:var(--text-muted); border:1px solid var(--panel-border); }
 #modern-subbar .msb-autolink:empty { display:none; }
-#modern-subbar .msb-autolink > i { font-size:11px; flex-shrink:0; color:var(--accent); opacity:.75; }
+#modern-subbar .msb-autolink > i { font-size:var(--fs-2xs); flex-shrink:0; color:var(--accent); opacity:.75; }
 
 /* Filtro VLAN attivo: chip centrato (spostato qui dal #status-cluster dell'header).
    Stessa grammatica del vecchio .status-chip.s-info (tono info/accent); :empty -> collassa. */
@@ -507,7 +507,7 @@ header {
 #modern-subbar .msb-vlan:empty { display:none; }
 #modern-subbar .msb-vlan:hover { filter:brightness(1.2); }
 #modern-subbar .msb-vlan:focus-visible { outline:2px solid #00d4ff88; outline-offset:1px; }
-#modern-subbar .msb-vlan > i { font-size:11px; flex-shrink:0; }
+#modern-subbar .msb-vlan > i { font-size:var(--fs-2xs); flex-shrink:0; }
 #modern-subbar .msb-vlan .msb-vlan-x { font-size:10px; opacity:.7; }
 
 /* Stretto: nascondi il breadcrumb e le etichette-parola delle statistiche

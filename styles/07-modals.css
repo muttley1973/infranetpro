@@ -343,7 +343,7 @@
         .dcim-dec-fold summary::-webkit-details-marker { display:none; }
         .dcim-dec-fold-title { flex:1; min-width:0; font-size:var(--fs-sm); font-weight:600; color:var(--text-main); }
         .dcim-dec-fold-chosen { flex:none; color:var(--text-muted); font-size:var(--fs-xs); }
-        .dcim-dec-fold summary > i { flex:none; align-self:center; color:var(--text-muted); font-size:11px; transition:transform .15s ease; }
+        .dcim-dec-fold summary > i { flex:none; align-self:center; color:var(--text-muted); font-size:var(--fs-2xs); transition:transform .15s ease; }
         .dcim-dec-fold[open] summary > i { transform:rotate(180deg); }
         .dcim-dec-fold .dcim-dec-body { padding-top:0; }
         /* Il tag delle sole righe che bloccano la creazione: il semaforo sta
@@ -378,7 +378,7 @@
         .dcim-progress-step { display:flex; align-items:center; gap:10px; padding:9px 11px; border:1px solid var(--border); border-radius:var(--radius); color:var(--text-muted); font-size:var(--fs-sm); transition:border-color .18s, background .18s, color .18s; }
         .dcim-progress-step.is-active { color:var(--text-main); border-color:rgba(0,212,255,.55); background:rgba(0,212,255,.07); }
         .dcim-progress-step.is-done { color:var(--active-color); border-color:rgba(51,209,122,.28); }
-        .dcim-progress-marker { width:22px; height:22px; display:flex; align-items:center; justify-content:center; border-radius:50%; color:var(--text-muted); background:var(--surface-2); font-size:11px; flex:none; }
+        .dcim-progress-marker { width:22px; height:22px; display:flex; align-items:center; justify-content:center; border-radius:50%; color:var(--text-muted); background:var(--surface-2); font-size:var(--fs-2xs); flex:none; }
         .dcim-progress-step.is-active .dcim-progress-marker { color:var(--accent); background:rgba(0,212,255,.15); }
         .dcim-progress-step.is-done .dcim-progress-marker { color:#07110b; background:var(--active-color); }
         .dcim-progress-live { display:flex; align-items:center; gap:7px; margin-top:14px; color:var(--accent); font-size:var(--fs-xs); }
@@ -712,7 +712,7 @@
                          padding:4px 9px; border-radius:999px; border:1px solid var(--panel-border);
                          background:var(--bg-color); color:var(--text-main);
                          transition:border-color .12s, background .12s, color .12s; }
-        .vm-state-chip i { font-size:0.72rem; }
+        .vm-state-chip i { font-size:var(--fs-2xs); }
         .vm-state-chip.is-running { color:var(--active-color); border-color:color-mix(in srgb, var(--active-color) 45%, transparent);
                                     background:color-mix(in srgb, var(--active-color) 12%, transparent); }
         .vm-state-chip.is-stopped { color:var(--fault-color); border-color:color-mix(in srgb, var(--fault-color) 45%, transparent);
@@ -749,7 +749,7 @@
                      border-radius:var(--radius-md); padding:7px 8px 4px; margin-bottom:7px;
                      background:rgba(255,255,255,.015); }
         .vnic-head { display:flex; align-items:center; gap:6px; margin-bottom:5px; }
-        .vnic-head > i { color:var(--text-muted); font-size:0.72rem; flex:none; }
+        .vnic-head > i { color:var(--text-muted); font-size:var(--fs-2xs); flex:none; }
         .vnic-head .vnic-name { flex:1 1 auto; min-width:0; background:transparent;
                                 border:1px solid transparent; border-radius:var(--radius-sm);
                                 color:var(--text-main); font-weight:600; font-size:var(--fs-xs);
@@ -758,7 +758,7 @@
         .vnic-head .vnic-name:focus { border-color:var(--accent); background:var(--bg-input, rgba(0,0,0,.2)); outline:none; }
         .vnic-card .prop-group { margin-bottom:5px; }
         /* sysDescr: riga a tutta larghezza sotto i valori, testo che va a capo. */
-        .vm-snmp-descr { display:block; font-family: var(--font-mono); font-size:0.7rem;
+        .vm-snmp-descr { display:block; font-family: var(--font-mono); font-size:var(--fs-2xs);
                          color:var(--text-muted); white-space:normal; word-break:break-word; }
         /* Fantasma del device mentre lo trascini sul pannello (il tile sul floor è
            clippato e non può salire sopra il pannello → mostriamo cosa stai portando). */
@@ -933,16 +933,16 @@
         .org-node:focus .org-node-box { stroke:var(--accent); stroke-width:2.5; }
         .org-node-icon  { fill:var(--idle-color); font-size:14px; }
         .org-node-name  { fill:var(--text-main);  font-size:14px; font-weight:700; }
-        .org-node-wan   { fill:var(--text-main);  font-size:11px; }
+        .org-node-wan   { fill:var(--text-main);  font-size:var(--fs-2xs); }
         .org-node-ip    { fill:var(--text-muted); font-size:10.5px; font-family:var(--font-mono); }
-        .org-node-sub   { fill:var(--text-muted); font-size:11px; }
+        .org-node-sub   { fill:var(--text-muted); font-size:var(--fs-2xs); }
         /* «Cosa c'è dentro»: letto dal progetto-sede, non dichiarato qui. Più
            tenue delle altre righe perché è un'ANTEPRIMA del gradino sotto, non
            un dato dell'organizzazione — e perché la sua assenza (progetto non
            collegato) deve leggersi come silenzio, non come un buco. */
         .org-node-in    { fill:var(--text-muted); font-size:10.5px; opacity:.75; }
         .org-edge-line  { fill:none; stroke:var(--text-muted); stroke-width:2; }
-        .org-edge-label { fill:var(--text-muted); font-size:11px; }
+        .org-edge-label { fill:var(--text-muted); font-size:var(--fs-2xs); }
         /* Lo STATO e' il valore, l'ORIGINE e' chi lo afferma: due assi, due segni
            grafici diversi. Il colore dice su/giu'; il tratteggio dice "dichiarato,
            nessuno l'ha misurato". Un tunnel misurato-su e uno dichiarato-su NON

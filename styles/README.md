@@ -47,6 +47,18 @@ si appiattisce in «testo minore» indifferenziato.
 pixel diverso il giorno in cui il token si muove. Ora usano il token, a resa
 invariata (lo conferma il golden).
 
+⭐ **E il resto del grappolo aveva una causa sola: mancava un gradino.** Sotto
+`--fs-xs` (12 px) la scala non aveva **niente**, e **84 dichiarazioni** si erano
+inventate lo stesso corpo in **sette scritture diverse** (`0.72rem` ×33, `11px`
+×19, `0.7rem` ×18, `0.68rem` ×10, più le varianti senza lo zero iniziale). Non
+erano sette misure: era **una** misura che nessuno poteva chiamare per nome. È
+nato **`--fs-2xs`** (0.7rem ≈ 11 px) e le ha accorpate tutte — scarto massimo
+**0,32 px**, fuori scala **267 → 183**, sulla scala dal 64% al **76%**.
+
+⚠️ **La guardia ha preso in carico `0.7rem` DA SOLA**, nell'istante in cui il
+token è nato, perché legge `01-tokens.css` invece di avere un elenco scritto a
+mano. È il motivo per cui l'elenco non si scrive.
+
 ⚠️ **Le unità `em` restano fuori PER MISURA**: `0.9em` è relativo al **padre**,
 non alla radice, quindi non è «`--fs-md` scritto a mano» e convertirlo
 cambierebbe il disegno. Fuori anche `login.html` (non carica i token) ed

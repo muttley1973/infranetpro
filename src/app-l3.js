@@ -215,7 +215,7 @@ export function _l3GatewayBindingHtml(vid, row){
         // «Dedotto da <ip>»: l'indirizzo che ha prodotto l'aggancio si NOMINA, o la
         // riga afferma un legame senza dire da dove viene — e l'indirizzo, ora, sta
         // in un'altra sezione.
-        else if(row.status === 'auto') hint = `<i class="fas fa-wand-magic-sparkles"></i> ${t('l3.hintAuto',{ip:`<b>${esc(row.gateway)}</b>`, name:`<b>${esc(row.nodeName)}</b>`})} <button class="toolbar-btn" style="padding:1px 6px;margin:0 0 0 4px;font-size:0.7rem" data-act="l3-gw-confirm" data-vid="${+vid}" data-node="${esc(row.nodeId)}">${t('common.confirm')}</button>`;
+        else if(row.status === 'auto') hint = `<i class="fas fa-wand-magic-sparkles"></i> ${t('l3.hintAuto',{ip:`<b>${esc(row.gateway)}</b>`, name:`<b>${esc(row.nodeName)}</b>`})} <button class="toolbar-btn" style="padding:1px 6px;margin:0 0 0 4px;font-size:var(--fs-2xs)" data-act="l3-gw-confirm" data-vid="${+vid}" data-node="${esc(row.nodeId)}">${t('common.confirm')}</button>`;
         else if(row.warnings && row.warnings.includes('staleBinding')){ warn = true; hint = `<i class="fas fa-triangle-exclamation"></i> ${t('l3.hintStale')}`; }
         // Lo stato «orfano» (c'è un indirizzo, non risponde nessun apparato) NON si
         // dice più qui: parlava di un valore che da questa sezione non si vede né si

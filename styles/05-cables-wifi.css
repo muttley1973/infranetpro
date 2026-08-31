@@ -138,7 +138,7 @@
         .radio-iface-row .fa-wifi, .radio-assoc-row .fa-wifi, .radio-assoc-row .fa-ethernet { color:var(--accent); }
         .radio-iface-row .ri-name, .radio-assoc-row .ra-name { font-weight:600; }
         .radio-iface-row .ri-sub { color:var(--text-muted); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-        .radio-iface-row .ri-cnt, .radio-assoc-row .ra-kind { color:var(--text-muted); font-size:0.72rem; margin-left:auto; }
+        .radio-iface-row .ri-cnt, .radio-assoc-row .ra-kind { color:var(--text-muted); font-size:var(--fs-2xs); margin-left:auto; }
         .radio-assocs { margin-top:10px; }
         /* --fs-md: la misura unica dei riquadri informativi del pannello — la
            stessa di .pdu-port-model-note / .pdu-connection-hint / .vlan-ipam-hint.

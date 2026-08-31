@@ -440,7 +440,7 @@ ${sfpCount > 0 ? `<div class="prop-row2" style="margin-top:4px">
   </div>
 </div>
 <div class="prop-row2" style="margin-top:6px;padding-top:4px;border-top:1px dashed var(--panel-border)">
-  <div class="prop-group" style="grid-column:1/-1"><label style="font-size:0.72rem;color:var(--text-muted);font-weight:600">${t('f.sfp2ndBlock')}</label></div>
+  <div class="prop-group" style="grid-column:1/-1"><label style="font-size:var(--fs-2xs);color:var(--text-muted);font-weight:600">${t('f.sfp2ndBlock')}</label></div>
 </div>
 <div class="prop-row2">
   <div class="prop-group"><label>${t('f.ports2block')}</label>
@@ -468,7 +468,7 @@ ${isPatch ? (()=>{
     const _ppPorts = n.ports!==undefined ? n.ports : (d.ports||0);
     const _ppPreview = _ppPorts>0 ? t('pnl.node.portsNumbered',{from:_ppOff+1,to:_ppOff+_ppPorts}) : '';
     return `<div class="prop-row2" style="margin-top:6px;padding-top:4px;border-top:1px dashed var(--panel-border)">
-  <div class="prop-group" style="grid-column:1/-1"><label style="font-size:0.72rem;color:var(--text-muted);font-weight:600">${t('f.progNumbering')}</label></div>
+  <div class="prop-group" style="grid-column:1/-1"><label style="font-size:var(--fs-2xs);color:var(--text-muted);font-weight:600">${t('f.progNumbering')}</label></div>
 </div>
 <div class="prop-group"><label>${t('f.continueFrom')}</label>
   <select data-change="update-fp" data-fpkey="ppContinueFrom" data-tip="${t('pnl.node.ppContinueFromTip')}">
@@ -479,7 +479,7 @@ ${isPatch ? (()=>{
 <div class="prop-group"><label>${t('f.orStartFrom')}</label>
   <input type="number" min="1" max="9999" value="${escapeHTML(String(_ppStart))}" placeholder="${t('pnl.node.autoPlaceholder')}" data-change="update-fp" data-fpkey="ppStartNum" data-tip="${t('pnl.node.ppStartNumTip')}">
 </div>
-${_ppPreview?`<div style="font-size:0.72rem;color:var(--text-muted);margin:2px 2px 0"><i class="fas fa-hashtag" style="margin-right:5px"></i>${_ppPreview}</div>`:''}`;
+${_ppPreview?`<div style="font-size:var(--fs-2xs);color:var(--text-muted);margin:2px 2px 0"><i class="fas fa-hashtag" style="margin-right:5px"></i>${_ppPreview}</div>`:''}`;
 })() : ''}
 ${fp.mgmtEligible && n.type!=='pdu' ? `<div class="prop-row2" style="margin-top:4px">
   <div class="prop-group"><label>${t('f.mgmtPorts')}</label>
@@ -522,7 +522,7 @@ ${mgmtCount > 0 ? `<div class="prop-row2" style="margin-top:4px">
                         : `<span class="props-collapsible-preview muted">Standalone</span>`;
                     // Membri lista: nome / memberId / ruolo / "questo device"
                     const _renderMembersList = () => {
-                        if(!_members.length) return `<div style="font-size:0.7rem;color:var(--text-muted);padding:4px 0">${t('pnl.node.noOtherMembers')}</div>`;
+                        if(!_members.length) return `<div style="font-size:var(--fs-2xs);color:var(--text-muted);padding:4px 0">${t('pnl.node.noOtherMembers')}</div>`;
                         return `<div class="stack-members-list">${_members.map(m => {
                             const _role = getEffectiveRole(state.nodes, m);
                             const _mIsThis = m.id === n.id;
@@ -623,7 +623,7 @@ ${_renderMembersList()}
                         : `<span class="props-collapsible-preview muted">Standalone</span>`;
                     // Lista peer/cluster members
                     const _renderHaPartnersList = () => {
-                        if(!_haPartners.length) return `<div style="font-size:0.7rem;color:var(--text-muted);padding:4px 0">${t('pnl.node.noPeerConfigured')}</div>`;
+                        if(!_haPartners.length) return `<div style="font-size:var(--fs-2xs);color:var(--text-muted);padding:4px 0">${t('pnl.node.noPeerConfigured')}</div>`;
                         return `<div class="ha-partners-list">${_haPartners.map(p => {
                             const _pRole = p.spec?.haRole || p.haRole || '';
                             const _pLabel = `${escapeHTML(p.name || p.hostname || p.id)} · ${escapeHTML(_pRole || t('common.unspecifiedM'))}`;
@@ -804,7 +804,7 @@ ${showFiber ? `<div class="prop-row2">
                           <input type="color" value="${n.color||'#4a4a4a'}"
                                  style="width:38px;height:26px;padding:1px;cursor:pointer"
                                  data-change="update-n" data-nfield="color">
-                          <button class="toolbar-btn" type="button" style="padding:3px 8px;font-size:0.72rem"
+                          <button class="toolbar-btn" type="button" style="padding:3px 8px;font-size:var(--fs-2xs)"
                                   data-act="update-n-clear" data-nfield="color">Reset</button>
                         </span>
                       </label>
@@ -888,7 +888,7 @@ ${showFiber ? `<div class="prop-row2">
                                     if(_pair) _bits.push(_pair.issue==='both-passive'?t('lag.warnBothPassive'):t('lag.warnLacpStatic'));
                                 }
                             } catch(_){}
-                            const _lagWarn=_bits.length?`<div class="lag-warn" style="font-size:0.72rem;color:#d29922;padding:2px 0 6px">⚠ ${escapeHTML(_bits.join(' · '))}</div>`:'';
+                            const _lagWarn=_bits.length?`<div class="lag-warn" style="font-size:var(--fs-2xs);color:#d29922;padding:2px 0 6px">⚠ ${escapeHTML(_bits.join(' · '))}</div>`:'';
                             // VLAN del BUNDLE. Il campo porta la DICHIARAZIONE — e solo
                             // se e' la stessa su tutti i membri, perche' un numero solo
                             // non puo' rappresentarne due; quando divergono resta vuoto e
@@ -939,9 +939,9 @@ ${showFiber ? `<div class="prop-row2">
                   const lastOkStr  = n.snmpLastOk  ? new Date(n.snmpLastOk).toLocaleString('it-IT')  : '—';
                   const lastErrMsg = n.snmpError   ? escapeHTML(n.snmpError) : '';
                   if(st === 'ok'){
-                    return `<div style="display:flex;align-items:center;gap:6px;margin-top:10px;padding:6px 8px;background:rgba(57,211,83,.08);border:1px solid rgba(57,211,83,.25);border-radius:5px;font-size:0.72rem">` + `<span class="snmp-dot ok" style="flex-shrink:0"></span>` + `<span style="color:#39d353;font-weight:600">SNMP OK</span>` + `<span style="color:var(--text-muted);margin-left:auto"><i class="fas fa-clock" style="margin-right:3px"></i>${lastOkStr}</span>` + `</div>`;
+                    return `<div style="display:flex;align-items:center;gap:6px;margin-top:10px;padding:6px 8px;background:rgba(57,211,83,.08);border:1px solid rgba(57,211,83,.25);border-radius:5px;font-size:var(--fs-2xs)">` + `<span class="snmp-dot ok" style="flex-shrink:0"></span>` + `<span style="color:#39d353;font-weight:600">SNMP OK</span>` + `<span style="color:var(--text-muted);margin-left:auto"><i class="fas fa-clock" style="margin-right:3px"></i>${lastOkStr}</span>` + `</div>`;
                   } else {
-                    return `<div style="display:flex;flex-direction:column;gap:4px;margin-top:10px;padding:6px 8px;background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.3);border-radius:5px;font-size:0.72rem">` + `<div style="display:flex;align-items:center;gap:6px">` + `<i class="fas fa-circle-exclamation" style="color:#f85149;flex-shrink:0"></i>` + `<span style="color:#f85149;font-weight:600">${t('pnl.node.snmpNotResponding')}</span>` + `<span style="color:var(--text-muted);margin-left:auto"><i class="fas fa-clock" style="margin-right:3px"></i>${intg.lastPoll ? new Date(intg.lastPoll).toLocaleString('it-IT') : '—'}</span>` + `</div>` + (lastErrMsg ? `<div style="color:var(--text-muted);padding-left:18px">${lastErrMsg}</div>` : '') + (n.snmpLastOk ? `<div style="color:var(--text-muted);padding-left:18px">${t('pnl.node.lastOk',{when:lastOkStr})}</div>` : '') + `</div>`;
+                    return `<div style="display:flex;flex-direction:column;gap:4px;margin-top:10px;padding:6px 8px;background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.3);border-radius:5px;font-size:var(--fs-2xs)">` + `<div style="display:flex;align-items:center;gap:6px">` + `<i class="fas fa-circle-exclamation" style="color:#f85149;flex-shrink:0"></i>` + `<span style="color:#f85149;font-weight:600">${t('pnl.node.snmpNotResponding')}</span>` + `<span style="color:var(--text-muted);margin-left:auto"><i class="fas fa-clock" style="margin-right:3px"></i>${intg.lastPoll ? new Date(intg.lastPoll).toLocaleString('it-IT') : '—'}</span>` + `</div>` + (lastErrMsg ? `<div style="color:var(--text-muted);padding-left:18px">${lastErrMsg}</div>` : '') + (n.snmpLastOk ? `<div style="color:var(--text-muted);padding-left:18px">${t('pnl.node.lastOk',{when:lastOkStr})}</div>` : '') + `</div>`;
                   }
                 })() : '';
                 // Info di sistema live (sysLocation/sysContact/uptime) — card
@@ -955,7 +955,7 @@ ${showFiber ? `<div class="prop-row2">
                   if(sy.sysContact)    rows.push(_row('fa-user',         t('intg.sysContact'),  sy.sysContact));
                   if(sy.sysUpTimeText) rows.push(_row('fa-clock',        t('intg.sysUptime'),   sy.sysUpTimeText));
                   if(!rows.length) return '';
-                  return `<div style="display:flex;flex-direction:column;gap:5px;margin-top:8px;padding:7px 9px;background:rgba(139,148,158,.07);border:1px solid rgba(139,148,158,.25);border-radius:5px;font-size:0.72rem">${rows.join('')}</div>`;
+                  return `<div style="display:flex;flex-direction:column;gap:5px;margin-top:8px;padding:7px 9px;background:rgba(139,148,158,.07);border:1px solid rgba(139,148,158,.25);border-radius:5px;font-size:var(--fs-2xs)">${rows.join('')}</div>`;
                 })() : '';
                 // Stato stampante live (Printer-MIB): barre toner/inchiostro per
                 // colore + contapagine + stato. Stessa card grigia neutra; i colori
@@ -977,7 +977,7 @@ ${showFiber ? `<div class="prop-row2">
                   if(pr.hasError)  foot.push(`<span style="color:#f85149"><i class="fas fa-triangle-exclamation" style="margin-right:4px"></i>${t('prt.error')}</span>`);
                   const footHtml = foot.length ? `<div style="display:flex;gap:12px;flex-wrap:wrap;color:var(--text-muted);padding-top:4px;border-top:1px solid rgba(139,148,158,.15);margin-top:1px">${foot.join('')}</div>` : '';
                   if(!rows.length && !footHtml) return '';
-                  return `<div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;padding:8px 9px;background:rgba(139,148,158,.07);border:1px solid rgba(139,148,158,.25);border-radius:5px;font-size:0.72rem">${rows.join('')}${footHtml}</div>`;
+                  return `<div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;padding:8px 9px;background:rgba(139,148,158,.07);border:1px solid rgba(139,148,158,.25);border-radius:5px;font-size:var(--fs-2xs)">${rows.join('')}${footHtml}</div>`;
                 })() : '';
                 // Risorse host live (HOST-RESOURCES): CPU/RAM/dischi con barre
                 // colorate per occupazione. Stessa card grigia neutra.
@@ -992,11 +992,11 @@ ${showFiber ? `<div class="prop-row2">
                   if(hr.ram) rows.push(_row('fa-memory','RAM',hr.ram.pct,_fb(hr.ram.totalBytes),`${_fb(hr.ram.usedBytes)} / ${_fb(hr.ram.totalBytes)}`));
                   (hr.volumes||[]).forEach(v=>rows.push(_row('fa-hard-drive',v.name,v.pct,_fb(v.totalBytes),`${_fb(v.usedBytes)} / ${_fb(v.totalBytes)}`)));
                   if(!rows.length) return '';
-                  return `<div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;padding:8px 9px;background:rgba(139,148,158,.07);border:1px solid rgba(139,148,158,.25);border-radius:5px;font-size:0.72rem">${rows.join('')}</div>`;
+                  return `<div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;padding:8px 9px;background:rgba(139,148,158,.07);border:1px solid rgba(139,148,158,.25);border-radius:5px;font-size:var(--fs-2xs)">${rows.join('')}</div>`;
                 })() : '';
                 const snmpImportBlock = showSnmp ? `<div style="margin-top:10px"><button class="toolbar-btn primary" style="width:100%;font-size:0.78rem;padding:5px 6px" id="snmp-poll-btn" data-act="snmp-poll" data-nid="${n.id}"><i class="fas fa-network-wired"></i> ${t('snmp.import')}</button></div>` : '';
                 // Avviso: device SNMPv3 rilevato dalla discovery senza credenziali.
-                const snmpV3CredWarn = v3NeedsCreds ? `<div style="display:flex;align-items:center;gap:6px;margin-top:10px;padding:6px 8px;background:rgba(210,153,34,.10);border:1px solid rgba(210,153,34,.35);border-radius:5px;font-size:0.72rem"><i class="fas fa-key" style="color:#d29922;flex-shrink:0"></i><span style="color:#d29922;font-weight:600">${t('intg.v3NeedsCreds')}</span></div>` : '';
+                const snmpV3CredWarn = v3NeedsCreds ? `<div style="display:flex;align-items:center;gap:6px;margin-top:10px;padding:6px 8px;background:rgba(210,153,34,.10);border:1px solid rgba(210,153,34,.35);border-radius:5px;font-size:var(--fs-2xs)"><i class="fas fa-key" style="color:#d29922;flex-shrink:0"></i><span style="color:#d29922;font-weight:600">${t('intg.v3NeedsCreds')}</span></div>` : '';
                 const _intgPreview = (() => {
                     if(!showSnmp) return `<span class="props-collapsible-preview muted">${t('intg.noDriver')}</span>`;
                     const _drvLbl = drv==='snmp-v1'?'SNMPv1':drv==='snmp-v2c'?'SNMPv2c':'SNMPv3';
@@ -1031,7 +1031,7 @@ ${showFiber ? `<div class="prop-row2">
                     _backupHtml = `<details class="props-collapsible props-secondary" ${_propsSectionIsOpen('backup') ? 'open' : ''} data-toggle="props-section" data-section="backup"><summary class="props-collapsible-head"><span><i class="fas fa-database"></i> ${t('sec.backup')}</span>${_bPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">`
                         + `<div class="prop-group"><label>${t('backup.ref')}</label><input value="${escapeHTML(_bk.ref || '')}" placeholder="${t('backup.refPlaceholder')}" data-tip="${t('backup.refTip')}" data-change="backup-ref" data-node="${n.id}"></div>`
                         + `<div class="prop-group"><label>${t('backup.method')}</label><select data-change="backup-method" data-node="${n.id}">${_mOpt('', t('o.sepNone'))}${_mOpt('ansible', 'Ansible')}${_mOpt('rancid', 'RANCID')}${_mOpt('oxidized', 'Oxidized')}${_mOpt('git', 'Git')}${_mOpt('manual', t('backup.methodManual'))}</select></div>`
-                        + `<div class="prop-group"><label>${t('backup.last')}</label><div style="display:flex;align-items:center;gap:8px"><span style="color:${_bColor};font-size:0.78rem;font-weight:600">${escapeHTML(_bAtLabel)}</span><button type="button" class="toolbar-btn" style="font-size:0.72rem;padding:3px 8px" data-act="backup-mark-now" data-node="${n.id}" data-tip="${t('backup.markNowTip')}"><i class="fas fa-check"></i> ${t('backup.markNow')}</button></div></div>`
+                        + `<div class="prop-group"><label>${t('backup.last')}</label><div style="display:flex;align-items:center;gap:8px"><span style="color:${_bColor};font-size:0.78rem;font-weight:600">${escapeHTML(_bAtLabel)}</span><button type="button" class="toolbar-btn" style="font-size:var(--fs-2xs);padding:3px 8px" data-act="backup-mark-now" data-node="${n.id}" data-tip="${t('backup.markNowTip')}"><i class="fas fa-check"></i> ${t('backup.markNow')}</button></div></div>`
                         + `</div></details>`;
                 }
                 } // fine Integrazione SNMP (rack attivi/power + floor con IP)
@@ -1082,7 +1082,7 @@ ${showFiber ? `<div class="prop-row2">
                     <div class="prop-group"><label>${t('field.portCount')}</label>
                       <input type="number" min="1" max="8" value="${_fpc}" data-change="update-n" data-nfield="ports" data-ncoerce="int" data-ndef="${d.ports||1}" data-nmin="1" data-nmax="8" data-tip="${t('pnl.node.floorPortsTip')}">
                     </div>
-                    <p style="font-size:0.72rem;color:var(--text-muted);margin:6px 2px 0;line-height:1.4"><i class="fas fa-circle-info" style="margin-right:5px"></i>${t('pnl.node.floorPortsInfo')}</p>
+                    <p style="font-size:var(--fs-2xs);color:var(--text-muted);margin:6px 2px 0;line-height:1.4"><i class="fas fa-circle-info" style="margin-right:5px"></i>${t('pnl.node.floorPortsInfo')}</p>
                 </div></details>`;
             }
             // (Bottone "Tenta collegamento automatico" e' stato spostato dentro
