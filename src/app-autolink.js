@@ -646,7 +646,7 @@ async function _autoLinkEndpointUI(){
         'manual-link':       t('msg.net.alManualLink'),
         'tipo-non-endpoint': t('msg.net.alNotEndpoint'),
     }[r.reason] || t('msg.net.alFailed');
-    _showToast(msg, r.reason==='manual-link' ? 'ok' : 'warn', 4000);
+    _showToast(msg, r.reason==='manual-link' ? 'ok' : 'warn');
 }
 
 export function _autoLinkDiagText(diag){

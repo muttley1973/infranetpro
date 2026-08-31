@@ -214,7 +214,7 @@ function _placeHiddenRacks(rackIds) {
   todo.forEach((r, i) => { r.x = snap(cx + (base + i) * GAP); r.y = snap(cy); });
   if (typeof markDirty === 'function') markDirty();
   if (typeof renderAll === 'function') renderAll();   // ridisegna floor + overlay -> linee visibili
-  if (typeof _showToast === 'function') _showToast(t('subbar.topoPlaced', { n: todo.length }), 'ok', 3500);
+  if (typeof _showToast === 'function') _showToast(t('subbar.topoPlaced', { n: todo.length }), 'ok');
 }
 
 function _topoWarnEl(info) {

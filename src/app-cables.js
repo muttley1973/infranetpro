@@ -109,7 +109,7 @@ export function promoteLinkToManual(id){
     renderAll();
     renderCables();
     renderProps();
-    _showToast(t('msg.ui.linkConfirmedManual'), 'ok', 2500);
+    _showToast(t('msg.ui.linkConfirmedManual'), 'ok');
 }
 
 /** Imposta o cancella l'etichetta manuale di un cavo. */

@@ -231,13 +231,13 @@ function _declareScanSubnetToVlan(){
     const existing = (typeof _vlanIpam === 'function' && (_vlanIpam(vid) || {}).subnet) || '';
     if(existing === cidr) return;   // già dichiarata identica → nulla da fare
     if(existing && existing !== cidr){
-        _showToast(_dt('disc.vlanKept', `VLAN ${vid}: subnet ${existing} già dichiarata (non modificata)`, { vid, subnet: existing }), 'warn', 4500);
+        _showToast(_dt('disc.vlanKept', `VLAN ${vid}: subnet ${existing} già dichiarata (non modificata)`, { vid, subnet: existing }), 'warn');
         return;
     }
     if(typeof pushHistory === 'function') pushHistory();
     if(typeof _ensureVlanColor === 'function') _ensureVlanColor(vid);
     if(typeof updateVlanIpam === 'function') updateVlanIpam(vid, 'subnet', cidr);   // markDirty + renderProps
-    _showToast(_dt('disc.vlanDeclared', `VLAN ${vid}: subnet ${cidr} dichiarata nel pannello`, { vid, subnet: cidr }), 'ok', 3500);
+    _showToast(_dt('disc.vlanDeclared', `VLAN ${vid}: subnet ${cidr} dichiarata nel pannello`, { vid, subnet: cidr }), 'ok');
 }
 
 function openDiscovery(prefillCidr){
@@ -331,7 +331,7 @@ function _discShowResultsPhase(){
 function _closeDiscoveryOverlayClick(){
     if(store._discRunning || store._discImporting){
         if(typeof _showToast === 'function'){
-            _showToast(_dt('msg.ui.scanInProgress','Scansione in corso. Usa "Annulla" per interrompere.'), 'warn', 3500);
+            _showToast(_dt('msg.ui.scanInProgress','Scansione in corso. Usa "Annulla" per interrompere.'), 'warn');
         }
         return;
     }

@@ -180,8 +180,8 @@ header {
     border-color: var(--hairline);
     box-shadow: var(--shadow-lg);
 }
-/* Toast */
-#topo-toast {
+/* Toast (pila persistente: il selettore e' la classe, non piu' l'id unico) */
+.toast {
     background: rgba(19,25,34,.92);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);

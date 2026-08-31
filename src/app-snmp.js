@@ -289,15 +289,15 @@ async function pollSNMP(nodeId){
                 if(_ld.created>0){
                     const ps=_ld.protocols?.size>0?[..._ld.protocols].join('/'):'auto';
                     const dx = _autoLinkDiagText(_ld.diag);
-                    _showToast(t('msg.net.autoLinkCreated',{n:_ld.created,proto:ps})+(dx?' - '+dx:''),'ok',10000);
+                    _showToast(t('msg.net.autoLinkCreated',{n:_ld.created,proto:ps})+(dx?' - '+dx:''),'ok');
                 } else if(_ld.pruned>0){
-                    _showToast(t('msg.net.linkPruned',{n:_ld.pruned}),'ok',10000);
+                    _showToast(t('msg.net.linkPruned',{n:_ld.pruned}),'ok');
                 }
             } else if(Array.isArray(_ld.diag?.reasons) && _ld.diag.reasons.length){
-                _showToast(t('msg.net.noAutoLink')+_autoLinkDiagText(_ld.diag),'warn',10000);
+                _showToast(t('msg.net.noAutoLink')+_autoLinkDiagText(_ld.diag),'warn');
             } else {
                 const dx = _autoLinkDiagText(_ld.diag);
-                if(dx) _showToast(t('msg.net.autoLinkPrefix')+dx,'warn',10000);
+                if(dx) _showToast(t('msg.net.autoLinkPrefix')+dx,'warn');
             }
         } else {
             showAlert(t('msg.net.errSnmp')+(data.error||t('msg.net.errUnknown')));
@@ -446,15 +446,15 @@ async function pollAllSNMP(opts){
             if(_ld.created>0){
                 const protoSet=_ld.protocols?.size>0?[..._ld.protocols].join('/'):'auto';
                 const dx = _autoLinkDiagText(_ld.diag);
-                _showToast(t('msg.net.autoLinkCreated',{n:_ld.created,proto:protoSet})+(dx?' - '+dx:''),'ok',10000);
+                _showToast(t('msg.net.autoLinkCreated',{n:_ld.created,proto:protoSet})+(dx?' - '+dx:''),'ok');
             } else if(_ld.pruned>0){
-                _showToast(t('msg.net.linkPruned',{n:_ld.pruned}),'ok',10000);
+                _showToast(t('msg.net.linkPruned',{n:_ld.pruned}),'ok');
             }
         } else if(Array.isArray(_ld.diag?.reasons) && _ld.diag.reasons.length){
-            _showToast(t('msg.net.noAutoLink')+_autoLinkDiagText(_ld.diag),'warn',10000);
+            _showToast(t('msg.net.noAutoLink')+_autoLinkDiagText(_ld.diag),'warn');
         } else {
             const dx = _autoLinkDiagText(_ld.diag);
-            if(dx) _showToast(t('msg.net.autoLinkPrefix')+dx,'warn',10000);
+            if(dx) _showToast(t('msg.net.autoLinkPrefix')+dx,'warn');
         }
     }
 

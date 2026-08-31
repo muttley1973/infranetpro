@@ -117,7 +117,7 @@ export function enterRoutingMode(linkId){
             const names = valid.map(ty => LBL[ty] || ty).join(t('msg.rack.orJoin'));
             msg = t('msg.rack.needHopWithSlots',{names:names});
         }
-        _showToast(msg, 'warn', 6500);
+        _showToast(msg, 'warn');
         return;
     }
     store._routingLinkId = linkId;
@@ -145,7 +145,7 @@ export function enterRoutingMode(linkId){
     const an = getNodeByPortId(link.src), bn = getNodeByPortId(link.dst);
     const _where = (_nFloor && _nRack) ? t('msg.rack.whereRackAndFloor')
                  : _nRack ? t('msg.rack.whereRack') : t('msg.rack.whereFloor');
-    _showToast(t('msg.rack.routeHint',{a:_routeNodeLabel(an),b:_routeNodeLabel(bn),n:_routingTargetPids.size,where:_where}), 'ok', 4500);
+    _showToast(t('msg.rack.routeHint',{a:_routeNodeLabel(an),b:_routeNodeLabel(bn),n:_routingTargetPids.size,where:_where}), 'ok');
 }
 
 function _exitRoutingMode(){
@@ -210,7 +210,7 @@ export function _routingPickPort(midPid){
         } else {
             why = t('msg.rack.whyNoFreeSlots');
         }
-        _showToast(t('msg.rack.portInvalid',{why:why}), 'warn', 4000);
+        _showToast(t('msg.rack.portInvalid',{why:why}), 'warn');
         return;
     }
     const linkId = store._routingLinkId;
@@ -245,7 +245,7 @@ export function _routingPickPort(midPid){
         // torna alle Proprietà del cavo per mostrare il percorso aggiornato
         if(typeof switchRightTab === 'function') switchRightTab('props');
         markDirty(); renderAll(); renderProps();
-        _showToast(t('msg.rack.routedReuse',{name:_routeNodeLabel(midNode0)}), 'ok', 3800);
+        _showToast(t('msg.rack.routedReuse',{name:_routeNodeLabel(midNode0)}), 'ok');
         return;
     }
 
@@ -256,7 +256,7 @@ export function _routingPickPort(midPid){
         maxConn: getPortMaxConnections(midPid),
     });
     if(!res.ok){
-        _showToast(t('msg.rack.routingNotPossible',{reason:res.reason}), 'warn', 4000);
+        _showToast(t('msg.rack.routingNotPossible',{reason:res.reason}), 'warn');
         return;
     }
 
@@ -279,7 +279,7 @@ export function _routingPickPort(midPid){
     // torna alle Proprietà del cavo per mostrare il percorso aggiornato
     if(typeof switchRightTab === 'function') switchRightTab('props');
     markDirty(); renderAll(); renderProps();
-    _showToast(t('msg.rack.routed',{name:_routeNodeLabel(midNode)}), 'ok', 3500);
+    _showToast(t('msg.rack.routed',{name:_routeNodeLabel(midNode)}), 'ok');
 }
 
 // "Togli tappa": fonde i 2 tratti che si incontrano sulla porta pass-through.
@@ -287,12 +287,12 @@ export function removeRouteHop(midPid){
     const touching = (store.state.links || []).filter(l =>
         l && (String(l.src) === midPid || String(l.dst) === midPid));
     if(touching.length !== 2){
-        _showToast(t('msg.rack.hopNotRemovable',{count:touching.length}), 'warn', 4000);
+        _showToast(t('msg.rack.hopNotRemovable',{count:touching.length}), 'warn');
         return;
     }
     const res = win.mergeLinksThrough(touching[0], touching[1], midPid, { uid: uid });
     if(!res.ok){
-        _showToast(t('msg.rack.mergeNotPossible',{reason:res.reason}), 'warn', 4000);
+        _showToast(t('msg.rack.mergeNotPossible',{reason:res.reason}), 'warn');
         return;
     }
 
@@ -308,7 +308,7 @@ export function removeRouteHop(midPid){
 
     markDirty(); renderAll(); renderProps();
     const midNode = getNodeByPortId(midPid);
-    _showToast(t('msg.rack.hopRemoved',{name:_routeNodeLabel(midNode)}), 'ok', 3500);
+    _showToast(t('msg.rack.hopRemoved',{name:_routeNodeLabel(midNode)}), 'ok');
 }
 
 // Una tappa intermedia del percorso è rimovibile se la porta è pass-through

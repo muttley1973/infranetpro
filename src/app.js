@@ -1077,7 +1077,7 @@ function _expandLagMemberLinks(s){
     if(typeof stripLagOnPassive==='function'){
         const _stripped = stripLagOnPassive(s.links, _lagTypeOfPort);
         if(_stripped > 0 && typeof _showToast === 'function')
-            setTimeout(() => _showToast(t('msg.lag.strippedPassive', { n: _stripped }), 'warn', 7000), 800);
+            setTimeout(() => _showToast(t('msg.lag.strippedPassive', { n: _stripped }), 'warn'), 800);
     }
     const seen = Object.create(null);
     const out = [];
@@ -2022,7 +2022,7 @@ export function deleteLink(id){
             state.rejectedAutoLinks.push(sig);
         }
         if(typeof _showToast === 'function'){
-            _showToast(t('msg.ui.cableDeleted'), 'ok', 3500);
+            _showToast(t('msg.ui.cableDeleted'), 'ok');
         }
     }
     if(link) logAudit('cable-remove', { target: link.label || _cableAutoLabel(link) });
@@ -2040,22 +2040,56 @@ export function deleteLink(id){
 
 // ---- Toast ------------------------------------------------------------------
 
-// Durata minima di lettura: anche i toast piu' corti restano qualche secondo
-// in piu' a fondo finestra (richiesta UX). Click sul toast per chiuderlo subito.
-const TOAST_MIN_MS = 5500;
+// I toast NON SCADONO: restano finche' non li chiudi con la X (richiesta utente,
+// 31/08). Prima era UN riquadro solo, riusato e a tempo: due messaggi ravvicinati
+// significavano che il primo non lo leggeva nessuno — il secondo gli scriveva sopra
+// e ne resettava il timer. Ora si IMPILANO in colonna, centrati in basso, e la pila
+// si svuota solo per mano di chi legge.
+// ⚠️ NIENTE terzo argomento di durata: c'era, ed era passato da 58 punti con valori
+// da 2500 a 12000 ms. Lasciarlo avrebbe voluto dire 58 numeri che non fanno piu'
+// niente — e un numero che non fa niente si legge come un numero che fa qualcosa.
+// La guardia e2e «i toast si impilano e non scadono» tiene ferma la promessa.
+// ⚠️ Al puntatore la pila e' TRASPARENTE: `pointer-events:none` sul contenitore e
+// sulle schede, `auto` solo sulla X (CSS in 08-topology.css). Non e' un dettaglio:
+// una pila che non scade resta li', e con le schede cliccabili si mangia i gesti
+// sulla planimetria sotto — misurato, l'e2e del pan trovava 0px invece di -120.
+// Un solo listener delegato sulla pila, non uno per toast.
+function _toastStack(){
+    let s = document.getElementById('toast-stack');
+    if (s) return s;
+    s = document.createElement('div');
+    s.id = 'toast-stack';
+    s.setAttribute('role', 'status');
+    s.setAttribute('aria-live', 'polite');
+    s.addEventListener('click', (e) => {
+        const x = e.target && e.target.closest && e.target.closest('.toast-x');
+        if (x) { const box = x.closest('.toast'); if (box) box.remove(); }
+    });
+    document.body.appendChild(s);
+    return s;
+}
 
-export function _showToast(msg,type='',dur=3000){
-    let t=document.getElementById('topo-toast');
-    if(!t){
-        t=document.createElement('div'); t.id='topo-toast';
-        t.style.cursor='pointer';
-        t.addEventListener('click',()=>{ clearTimeout(t._tmr); t.classList.remove('topo-toast-in'); });
-        document.body.appendChild(t);
-    }
-    t.textContent=msg;
-    t.className=`topo-toast topo-toast-${type} topo-toast-in`;
-    clearTimeout(t._tmr);
-    t._tmr=setTimeout(()=>t.classList.remove('topo-toast-in'), Math.max(dur, TOAST_MIN_MS));
+export function _showToast(msg, type=''){
+    const pila = _toastStack();
+    const box = document.createElement('div');
+    box.className = 'toast' + (type ? ' toast-' + type : '');
+    const testo = document.createElement('span');
+    testo.className = 'toast-msg';
+    testo.textContent = msg;
+    const chiudi = document.createElement('button');
+    chiudi.type = 'button';
+    chiudi.className = 'toast-x';
+    const etichetta = (typeof t === 'function') ? t('common.close') : 'Chiudi';
+    chiudi.setAttribute('aria-label', etichetta);
+    chiudi.setAttribute('data-tip', etichetta);
+    chiudi.innerHTML = '<i class="fas fa-times"></i>';
+    box.appendChild(testo);
+    box.appendChild(chiudi);
+    pila.appendChild(box);
+    // La pila cresce verso l'alto e si ferma a 60vh: oltre, scorre. Nessun toast
+    // viene buttato via in silenzio — se non ci sta, si raggiunge scorrendo.
+    pila.scrollTop = pila.scrollHeight;
+    return box;
 }
 
 

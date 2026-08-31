@@ -664,7 +664,7 @@ function moveNodeToRack(nodeId, newRackId){
     markDirty();
     renderAll();
     if(typeof _showToast === 'function'){
-        _showToast(t('msg.rack.movedTo',{name:destRack.name,u:freeU}), 'ok', 3500);
+        _showToast(t('msg.rack.movedTo',{name:destRack.name,u:freeU}), 'ok');
     }
     return true;
 }

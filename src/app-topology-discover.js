@@ -146,7 +146,7 @@ async function discoverTopology(force=false){
         return !!((cfg.host||n.ip||'').trim());
     });
     if(!store.state.racks.some(r=>r.x!==undefined)){
-        _showToast(t('msg.net.placeRack'),'warn',4500);
+        _showToast(t('msg.net.placeRack'),'warn');
     }
 
     // ---- MANUAL-FIRST (principio "manuale ha sempre priorita'"): la vista
@@ -174,7 +174,7 @@ async function discoverTopology(force=false){
         if(!cached.length){
             _showToast(targets.length
                 ? t('topo.fromCabling')
-                : t('topo.fromCablingNoSNMP'), 'ok', 4500);
+                : t('topo.fromCablingNoSNMP'), 'ok');
             return;
         }
         const ne=store._topoData.edges.length, nn=store._topoData.nodes.length;
@@ -199,7 +199,7 @@ async function discoverTopology(force=false){
             msg += ` ${t('topo.msgFresh', {age:_fresh})}`;
         }
         if(missing > 0){ type = 'warn'; msg += ` · ${t('topo.msgMissing', {n:missing})}`; }
-        _showToast(msg, type, type === 'warn' ? 6000 : 3000);
+        _showToast(msg, type);
         return;
     }
 
@@ -220,7 +220,7 @@ async function discoverTopology(force=false){
         }));
     const failedCount = targets.length - allResults.length;
     if(!allResults.length){
-        _showToast(t('msg.net.noSnmpReachable',{n:targets.length}),'warn',5000);
+        _showToast(t('msg.net.noSnmpReachable',{n:targets.length}),'warn');
         _setTopoBtn('off'); return;
     }
     store._topoData=_buildTopoGraph(allResults);
@@ -230,7 +230,7 @@ async function discoverTopology(force=false){
     _applyViewMode();
     const ne=store._topoData.edges.length, nn=store._topoData.nodes.length;
     if(failedCount > 0){
-        _showToast(t('msg.net.topoSummaryFailed',{nn,ne,failed:failedCount}),'warn',5000);
+        _showToast(t('msg.net.topoSummaryFailed',{nn,ne,failed:failedCount}),'warn');
     } else {
         _showToast(t('msg.net.topoSummary',{nn,ne}),'ok');
     }

@@ -182,7 +182,7 @@ function useDhcpLeases() {
     _commit();
     _clearStaging();
     renderDhcpSources();
-    _showToast(t('dhcp.added', { n }), 'ok', 3500);
+    _showToast(t('dhcp.added', { n }), 'ok');
 }
 
 // Rinnova una fonte LIVE: ripopola il form (vendor/host/porta) e prepara la

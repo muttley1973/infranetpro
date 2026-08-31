@@ -50,7 +50,7 @@ const _avvisaRecupero = (res) => {
     const motivo = res.headers.get('X-InfraNet-Recovered');
     if (!motivo) return;
     _showToast(t(motivo === 'missing' ? 'msg.ui.projectRecoveredMissing' : 'msg.ui.projectRecoveredUnreadable'),
-        'warn', 12000);
+        'warn');
 };
 
 // Le due cose da fare su una risposta che porta un progetto: prendere la

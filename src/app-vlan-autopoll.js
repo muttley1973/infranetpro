@@ -661,7 +661,7 @@ export function addDeclaredNetworks(raw){
         if(fresh.length === 1) store._prefixOpen.add(prefixKey(fresh[0]));
         markDirty();
     }
-    if(dup.length) _showToast(t('floor.netDup', { cidr: dup.join(', ') }), 'warn', 3500);
+    if(dup.length) _showToast(t('floor.netDup', { cidr: dup.join(', ') }), 'warn');
     store._netsBad = bad.join(', ');
     renderProps();
 }
@@ -701,7 +701,7 @@ export function updatePrefixField(key, field, value){
     if(field === 'cidr'){
         const cidr = (typeof subnetInputToCidr === 'function') ? subnetInputToCidr(val) : val;
         if(!cidr || prefixKey(cidr) === key){ renderProps(); return; }   // vuoto o invariato: nulla da fare
-        if(findPrefix(store.state, cidr)){ _showToast(t('floor.netDup', { cidr }), 'warn', 3500); renderProps(); return; }
+        if(findPrefix(store.state, cidr)){ _showToast(t('floor.netDup', { cidr }), 'warn'); renderProps(); return; }
         pushHistory();
         const moved = Object.assign({}, row, { cidr });
         removePrefix(store.state, row.cidr);
@@ -869,7 +869,7 @@ function applyVoiceVlanBulk(vid, scope, policy){
     if(!(vid >= 1 && vid <= 4094)) return;
     const targets = _voiceAssignTargets(vid, scope, policy);
     if(!targets.length){
-        if(typeof _showToast === 'function') _showToast(_tV('voice.noPhones','Nessun telefono da modificare in questo ambito.'), 'warn', 3500);
+        if(typeof _showToast === 'function') _showToast(_tV('voice.noPhones','Nessun telefono da modificare in questo ambito.'), 'warn');
         return;
     }
     if(typeof pushHistory === 'function') pushHistory();
@@ -880,7 +880,7 @@ function applyVoiceVlanBulk(vid, scope, policy){
     markDirty();
     if(typeof renderAll === 'function') renderAll();
     if(typeof renderProps === 'function') renderProps();
-    if(typeof _showToast === 'function') _showToast(_tV('voice.done','VLAN voce {vid} assegnata a {n} telefoni.', {vid, n:targets.length}), 'ok', 3500);
+    if(typeof _showToast === 'function') _showToast(_tV('voice.done','VLAN voce {vid} assegnata a {n} telefoni.', {vid, n:targets.length}), 'ok');
 }
 
 // i18n con fallback letterale (no shadowing in questo scope).

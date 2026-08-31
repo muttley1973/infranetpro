@@ -59,7 +59,7 @@ function closeTopoCrawl(){
 function _closeTopoCrawlOverlayClick(){
     if(_tdAbort){
         if(typeof _showToast === 'function'){
-            _showToast(t('msg.net.crawlInProgress'), 'warn', 3500);
+            _showToast(t('msg.net.crawlInProgress'), 'warn');
         }
         return;
     }

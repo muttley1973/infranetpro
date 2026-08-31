@@ -107,7 +107,7 @@ export function _showPhysicalCablePath(linkId){
     if(typeof setPropsSectionState==='function') setPropsSectionState('link-physical-path', true);
     if(typeof switchRightTab==='function') switchRightTab('props');
     renderAll();
-    _showToast(t('msg.ui.physicalPathHighlighted'), 'ok', 3500);
+    _showToast(t('msg.ui.physicalPathHighlighted'), 'ok');
 }
 
 // Selezione di un segmento dalla fisarmonica "Percorso fisico" (pannello cavo):

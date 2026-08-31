@@ -50,20 +50,47 @@
         .topotip-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; border-top: 1px solid var(--panel-border); padding-top: 9px; }
         #topo-tip .toolbar-btn { font-size:12px !important; padding:5px 10px !important; }
 
-        /* Toast non invasivo in basso */
-        #topo-toast {
-            position: fixed; bottom: 22px; left: 50%;
-            transform: translateX(-50%) translateY(16px);
-            background: var(--panel-bg); border: 1px solid var(--panel-border);
-            border-radius: var(--radius-md); padding: 7px 18px;
-            font-size: 12px; color: var(--text-main);
-            box-shadow: 0 4px 14px rgba(0,0,0,.4);
-            opacity: 0; transition: opacity .22s, transform .22s;
-            pointer-events: none; z-index: 2000; white-space: nowrap;
+        /* Toast — PILA persistente in basso al centro (31/08). I messaggi non
+           scadono: si chiudono con la X, e finche' non lo fai restano tutti.
+           ⚠️ `pointer-events`: none sul contenitore E sulle schede, auto SOLO sulla X.
+           Misurato: con le schede cliccabili una pila che non scade si mangia i gesti
+           sulla planimetria sotto — l'e2e del pan e' passato da -120px a 0 perche' il
+           `mousedown` cadeva su un toast di due prove prima. Chiudere vuole 24px di
+           bersaglio, non tutta la scheda: fuori dalla X il puntatore passa attraverso.
+           (Il vecchio riquadro aveva il difetto opposto e speculare: dichiarava «click
+           per chiudere» stando tutto sotto `pointer-events:none`, quindi non si chiudeva.)
+           ⚠️ `max-height` + `overflow-y`: la pila cresce verso l'alto e senza un
+           tetto i toast piu' vecchi finirebbero fuori schermo, dove nessuno puo'
+           piu' chiuderli. Oltre i 60vh si scorre: niente viene buttato via. */
+        #toast-stack {
+            position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+            display: flex; flex-direction: column; align-items: center; gap: 8px;
+            max-height: 60vh; overflow-y: auto; overscroll-behavior: contain;
+            padding: 2px; z-index: 2000; pointer-events: none;
         }
-        #topo-toast.topo-toast-in { opacity: 1; transform: translateX(-50%) translateY(0); }
-        #topo-toast.topo-toast-ok   { border-color: var(--active-color); }
-        #topo-toast.topo-toast-warn { border-color: #e3b341; }
+        .toast {
+            pointer-events: none;
+            display: flex; align-items: flex-start; gap: 8px;
+            max-width: min(680px, 92vw);
+            background: var(--panel-bg); border: 1px solid var(--panel-border);
+            border-radius: var(--radius-md); padding: 7px 8px 7px 18px;
+            font-size: 12px; line-height: 1.5; color: var(--text-main);
+            box-shadow: 0 4px 14px rgba(0,0,0,.4);
+            animation: toast-in .22s ease-out;
+        }
+        @keyframes toast-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+        @media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
+        .toast-msg { flex: 1 1 auto; padding-top: 2px; }
+        .toast-x {
+            pointer-events: auto;
+            flex: none; background: none; border: 0; cursor: pointer;
+            color: var(--text-muted); font-size: 12px; line-height: 1;
+            padding: 4px 6px; border-radius: var(--radius-sm); font-family: inherit;
+        }
+        .toast-x:hover { color: var(--text-main); background: var(--surface-hover); }
+        .toast-x:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+        .toast-ok   { border-color: var(--active-color); }
+        .toast-warn { border-color: #e3b341; }
 
         /* Legenda topology — stessa estetica dei tile della libreria elementi:
            sfondo scuro var(--surface-2), border-radius 4px (rettangolare leggero),

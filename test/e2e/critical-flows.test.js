@@ -4210,7 +4210,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           const ox = nodeById('pcanon').x, oy = nodeById('pcanon').y;
           gestureDropOn('pcanon');
           const anon = nodeById('pcanon');
-          const toastText = (document.getElementById('topo-toast') || {}).textContent || '';
+          const toastText = (document.getElementById('toast-stack') || {}).textContent || '';
           return { absorbedNoMac, anonAlive: !!anon, anonBackX: anon ? anon.x === ox : null, anonBackY: anon ? anon.y === oy : null,
             anonCount: (lab.vms || []).length, toastText };
         } catch (e) { return { err: String(e && e.stack || e) }; }
@@ -6610,6 +6610,74 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         assert.deepEqual(raceErrors, [], 'nessun errore JS: ' + raceErrors.join(' | '));
       } finally {
         await racePage.close();
+      }
+    });
+
+    // ── I toast si IMPILANO e NON SCADONO ───────────────────────────────────
+    // Prima era un riquadro solo, riusato e a tempo: il secondo messaggio
+    // scriveva sopra il primo, che nessuno aveva ancora letto. Da qui in poi
+    // restano tutti finche' non li chiudi con la X — e questa e' la guardia
+    // della promessa: due toast convivono, sopravvivono al vecchio timer,
+    // stanno in colonna centrati, e la X chiude QUELLO su cui hai cliccato.
+    await t.test('toast: si impilano in colonna, non scadono, e la X chiude solo il suo', async () => {
+      const tp = await browser.newPage({ viewport: { width: 1500, height: 950 } });
+      const erroriToast = [];
+      tp.on('pageerror', (e) => erroriToast.push(String(e)));
+      try {
+        await tp.goto(srv.baseURL, { waitUntil: 'load' });
+        await tp.waitForFunction(() => typeof _showToast === 'function', null, { timeout: 15000 });
+
+        await tp.evaluate(() => {
+          document.getElementById('toast-stack')?.remove();   // parto da pila vuota
+          _showToast('PRIMO messaggio di prova', 'ok');
+          _showToast('SECONDO messaggio di prova', 'warn');
+        });
+
+        const subito = await tp.evaluate(() => {
+          const pila = document.getElementById('toast-stack');
+          const box = [...pila.querySelectorAll('.toast')];
+          const cs = getComputedStyle(pila);
+          const centri = box.map((b) => { const r = b.getBoundingClientRect(); return Math.round(r.left + r.width / 2); });
+          return {
+            quanti: box.length,
+            colonna: cs.flexDirection === 'column',
+            centrati: centri.length === 2 && Math.abs(centri[0] - centri[1]) <= 1,
+            pilaNonClicca: cs.pointerEvents === 'none',
+            schedaTrasparente: box.length ? getComputedStyle(box[0]).pointerEvents === 'none' : false,
+            xCliccabile: box.length ? getComputedStyle(box[0].querySelector('.toast-x')).pointerEvents !== 'none' : false,
+            conX: box.every((b) => !!b.querySelector('.toast-x')),
+            testi: box.map((b) => b.querySelector('.toast-msg')?.textContent || ''),
+          };
+        });
+        assert.equal(subito.quanti, 2, 'due toast convivono (prima il secondo cancellava il primo)');
+        assert.ok(subito.colonna, 'la pila e in COLONNA');
+        assert.ok(subito.centrati, 'i due toast sono centrati sullo stesso asse');
+        assert.ok(subito.pilaNonClicca, 'il contenitore non intercetta i click sulla planimetria');
+        assert.ok(subito.schedaTrasparente, 'la SCHEDA non riceve il puntatore: una pila che non scade',
+          + ' non deve rubare i gesti sulla planimetria sotto');
+        assert.ok(subito.xCliccabile, 'ma la X sì, o non si chiuderebbe niente');
+        assert.ok(subito.conX, 'ogni toast ha la sua X');
+        assert.deepEqual(subito.testi, ['PRIMO messaggio di prova', 'SECONDO messaggio di prova'],
+          'i messaggi restano distinti e in ordine di arrivo');
+
+        // Il vecchio riquadro spariva dopo 5,5s nel caso PIU LUNGO: qui si aspetta
+        // oltre quella soglia apposta. E l attesa e il punto, non un ritardo inutile.
+        await tp.waitForTimeout(6200);
+        const dopo = await tp.evaluate(() => document.querySelectorAll('#toast-stack .toast').length);
+        assert.equal(dopo, 2, 'dopo 6,2s ci sono ancora tutti e due: non scadono');
+
+        // La X chiude SOLO il suo: resta il secondo, non il primo.
+        await tp.click('#toast-stack .toast:first-child .toast-x');
+        const resta = await tp.evaluate(() => {
+          const box = [...document.querySelectorAll('#toast-stack .toast')];
+          return { quanti: box.length, testo: box[0]?.querySelector('.toast-msg')?.textContent || '' };
+        });
+        assert.equal(resta.quanti, 1, 'la X ne chiude uno solo');
+        assert.equal(resta.testo, 'SECONDO messaggio di prova', 'chiude QUELLO su cui hai cliccato');
+
+        assert.deepEqual(erroriToast, [], 'nessun errore JS: ' + erroriToast.join(' | '));
+      } finally {
+        await tp.close();
       }
     });
   } finally {

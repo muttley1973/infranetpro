@@ -366,7 +366,7 @@ function _openSharedSegmentBind(pid, role){
         .filter(n=>n.id !== sourceNodeId && _sharedSegmentNodeMatchesRole(n, role))
         .sort((a,b)=>_sharedSegmentNodeRoleScore(b, role) - _sharedSegmentNodeRoleScore(a, role) || getNodeDisplayName(a).localeCompare(getNodeDisplayName(b)));
     if(!candidates.length){
-        _showToast(t('msg.rack.noRoleFound',{role:_sharedExistingRoleLabel(role).toLowerCase()}), 'warn', 3500);
+        _showToast(t('msg.rack.noRoleFound',{role:_sharedExistingRoleLabel(role).toLowerCase()}), 'warn');
         return;
     }
     _sharedBindState = { pid, role, step:'nodes', nodeId:'', portChoices:[], candidates };
@@ -381,7 +381,7 @@ function _selectSharedSegmentBindNode(nodeId){
     if(!node) return;
     const choices = _sharedSegmentPortChoices(node, _sharedBindState.role, _sharedBindState.pid);
     if(!choices.length){
-        _showToast(t('msg.rack.noUsablePorts'), 'warn', 3800);
+        _showToast(t('msg.rack.noUsablePorts'), 'warn');
         return;
     }
     if(choices.length === 1){
@@ -408,7 +408,7 @@ function _confirmSharedSegmentBind(nodeId, portId){
     const srcManualConflict = _linksForPort(srcPid).some(l=>!l.autoLinked && !_linkHasPair(l, srcPid, portId));
     const dstManualConflict = _linksForPort(portId).some(l=>!l.autoLinked && !_linkHasPair(l, srcPid, portId));
     if(srcManualConflict || dstManualConflict){
-        _showToast(t('msg.rack.manualLinkExists'), 'warn', 4200);
+        _showToast(t('msg.rack.manualLinkExists'), 'warn');
         return;
     }
 
@@ -420,7 +420,7 @@ function _confirmSharedSegmentBind(nodeId, portId){
         store.state.links = store.state.links.filter(l => !(l.autoLinked && (_linkTouchesPort(l, srcPid) || _linkTouchesPort(l, portId))));
         _invalidateIdx();
         if(!canAddConnection(srcPid) || !canAddConnection(portId)){
-            _showToast(t('msg.rack.portUnavailable'), 'warn', 3800);
+            _showToast(t('msg.rack.portUnavailable'), 'warn');
             return;
         }
         _connectPortsSafe(srcPid, portId);
@@ -442,7 +442,7 @@ function _confirmSharedSegmentBind(nodeId, portId){
         showPop({clientX:store._lastPopX, clientY:store._lastPopY}, srcPid);
     }
     _closeSharedSegmentBind();
-    _showToast(t('msg.rack.connectedTo',{name:getNodeDisplayName(node)}), 'ok', 3200);
+    _showToast(t('msg.rack.connectedTo',{name:getNodeDisplayName(node)}), 'ok');
 }
 
 function _sharedSegmentNotes(info, role){
@@ -723,7 +723,7 @@ function _createSharedSegmentNode(pid, role){
     if(!info) return;
     const existingManual = _linksForPort(pid).some(l=>!l.autoLinked);
     if(existingManual){
-        _showToast(t('msg.rack.portHasManualLink'), 'warn', 4500);
+        _showToast(t('msg.rack.portHasManualLink'), 'warn');
         return;
     }
 
@@ -798,7 +798,7 @@ function _createSharedSegmentNode(pid, role){
     markDirty(); renderAll(); renderCables(); renderProps();
     if(TYPES[n.type]?.isFloor) focusNode(n);
     closePop();
-    _showToast(t('msg.rack.intermediateCreated',{role:_sharedSegmentRoleLabel(role)}), 'ok', 4200);
+    _showToast(t('msg.rack.intermediateCreated',{role:_sharedSegmentRoleLabel(role)}), 'ok');
 }
 
 expose({

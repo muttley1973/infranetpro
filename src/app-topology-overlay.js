@@ -411,7 +411,7 @@ function _drawTopoPair(p, svg, NS, isDark, els){
         ev.stopPropagation(); ev.preventDefault();
         const lid = p.edges.find(e=>e.linkId)?.linkId;
         if(lid && typeof _showPhysicalCablePath==='function') _showPhysicalCablePath(lid);
-        else _showToast(t('msg.ui.cableNotInProject'), 'warn', 3500);
+        else _showToast(t('msg.ui.cableNotInProject'), 'warn');
     });
 
     // Gruppo

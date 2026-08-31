@@ -99,7 +99,7 @@ function updateBssCfg(nodeId, radioIdx, bssId, field, value){
 // Aggiunge un BSS vuoto (o con VLAN preimpostata) a una radio e lo lascia da nominare.
 function addBss(nodeId, radioIdx, vlan){
     const n = nodeById(nodeId); if(!n) return;
-    if(!_canServeSsid(n)){ if(typeof _showToast==='function') _showToast(t('msg.ui.onlyApCanServeSsid'), 'warn', 3500); return; }
+    if(!_canServeSsid(n)){ if(typeof _showToast==='function') _showToast(t('msg.ui.onlyApCanServeSsid'), 'warn'); return; }
     const radio = ((typeof _nodeRadios==='function')?_nodeRadios(n):(n.radios||[]))[radioIdx]; if(!radio) return;
     if(typeof pushHistory === 'function') pushHistory();
     if(!Array.isArray(radio.ssids)) radio.ssids = [];
@@ -139,7 +139,7 @@ function selectRadioIface(nodeId, idx){
 // una radio nuova per ogni SSID: una radio fisica trasmette più SSID.
 function addSsidForVlan(nodeId, vlan){
     const n = nodeById(nodeId); if(!n) return;
-    if(!_canServeSsid(n)){ if(typeof _showToast==='function') _showToast(t('msg.ui.deviceIsWirelessClient'), 'warn', 3500); return; }
+    if(!_canServeSsid(n)){ if(typeof _showToast==='function') _showToast(t('msg.ui.deviceIsWirelessClient'), 'warn'); return; }
     if(!Array.isArray(n.radios) || !n.radios.length){
         if(typeof win.setRadioCount === 'function') win.setRadioCount(n, 1); else n.radios = [{}];
     }

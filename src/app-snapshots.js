@@ -56,7 +56,7 @@ export async function fetchTimeline(limit){
 // Toast (visibile anche sopra i modali) + onDone(rec) per l'avviso inline nel pannello.
 export async function createManualPoint(onDone){
     const rec = await createSnapshot('', 'on-demand');
-    if(_showToast) _showToast(rec ? t('snap.pointCreated') : t('snap.pointFailed'), rec ? 'ok' : 'err', rec ? 3000 : 4000);
+    if(_showToast) _showToast(rec ? t('snap.pointCreated') : t('snap.pointFailed'), rec ? 'ok' : 'err');
     if(typeof onDone === 'function') onDone(rec);
     return rec;
 }
@@ -71,15 +71,15 @@ export function restoreSnapshot(sid, meta, onDone){
             await createSnapshot('', 'pre-restore');   // rete di sicurezza: com'era PRIMA
             const r = await fetch(`${_histBase()}/snapshots/${encodeURIComponent(sid)}`);
             const d = r.ok ? await r.json() : null;
-            if(!d || !d.state){ if(_showToast) _showToast(t('snap.restoreFailed'), 'err', 4000); if(typeof onDone === 'function') onDone(false); return; }
+            if(!d || !d.state){ if(_showToast) _showToast(t('snap.restoreFailed'), 'err'); if(typeof onDone === 'function') onDone(false); return; }
             applyRestoredState(d.state);
             if(typeof logAudit === 'function') logAudit('restore', { summary: t('snap.restoredSummary', { when }) });
             markDirty();
             await saveProject({ noSnapshot: true });   // niente snapshot 'save': il pre-restore l'abbiamo già fatto
-            if(_showToast) _showToast(t('snap.restoreDone', { when }), 'ok', 3500);
+            if(_showToast) _showToast(t('snap.restoreDone', { when }), 'ok');
             if(typeof onDone === 'function') onDone(true);
         } catch(_){
-            if(_showToast) _showToast(t('snap.restoreFailed'), 'err', 4000);
+            if(_showToast) _showToast(t('snap.restoreFailed'), 'err');
             if(typeof onDone === 'function') onDone(false);
         }
     });

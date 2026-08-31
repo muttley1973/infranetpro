@@ -419,7 +419,7 @@ export async function pollVmSnmp(hostId, vmId){
     // una sola di esse: se non è la prima, si usa l'host override — non si
     // tentano tutte a raffica (sarebbe rumore verso la rete del cliente).
     const host = String(cfg.host || vmPrimaryIp(vm) || '').trim();
-    if(!host){ _showToast(t('hv.vmSnmpNoIp'), 'warn', 5000); return false; }
+    if(!host){ _showToast(t('hv.vmSnmpNoIp'), 'warn'); return false; }
     const body = JSON.stringify({
         driver: cfg.driver || 'snmp-v2c',
         host, port: cfg.port || 161, timeout: cfg.timeout || 3,
@@ -438,7 +438,7 @@ export async function pollVmSnmp(hostId, vmId){
         // Niente conclusioni sullo stato: si annota solo il tentativo fallito.
         vm.snmpError = String((data && data.error) || 'timeout');
         markDirty(); renderProps();
-        _showToast(t('hv.vmSnmpFail', { err: vm.snmpError }), 'warn', 7000);
+        _showToast(t('hv.vmSnmpFail', { err: vm.snmpError }), 'warn');
         return false;
     }
     const sys = data.system || {};
@@ -480,7 +480,7 @@ export async function pollVmSnmp(hostId, vmId){
     vm.snmpSeen = seen;
     delete vm.snmpError;
     markDirty(); renderProps(); if(typeof renderAll === 'function') renderAll();
-    _showToast(t('hv.vmSnmpOk', { name: seen.sysName || vm.name || 'VM' }), 'ok', 5000);
+    _showToast(t('hv.vmSnmpOk', { name: seen.sysName || vm.name || 'VM' }), 'ok');
     return true;
 }
 
@@ -512,7 +512,7 @@ export function applyVmSnmpValues(hostId, vmId){
     // discrepanza da mostrarti, non un campo da correggerti alle spalle.
     if(s.powerState) vm.state = s.powerState;
     markDirty(); renderProps();
-    _showToast(t('hv.vmSnmpApplied'), 'ok', 4000);
+    _showToast(t('hv.vmSnmpApplied'), 'ok');
 }
 
 // ── Assorbi un tile (device scoperto) come VM dell'host ──────────────

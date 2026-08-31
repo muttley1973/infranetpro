@@ -845,7 +845,7 @@ function handlePointerUp(e){
                 if(_n){ _n.x=_floorDragOrigin.x; _n.y=_floorDragOrigin.y; }
                 store.dragNode=null;   // (resizeNode è già null in un node-drag)
                 renderAll();
-                _showToast(t(_drop.onDz ? 'hv.vmNotEligible' : 'hv.vmImportMissed'), _drop.onDz ? 'warn' : 'info', 4500);
+                _showToast(t(_drop.onDz ? 'hv.vmNotEligible' : 'hv.vmImportMissed'), _drop.onDz ? 'warn' : 'info');
             } else {
                 const _wasRackDrag=!!(_dn&&TYPES[_dn.type]?.isRack);
                 // Commit del drag (resolveOverlap, pushHistory, markDirty, rerender)
