@@ -526,7 +526,16 @@ ${mgmtCount > 0 ? `<div class="prop-row2" style="margin-top:4px">
                         return `<div class="stack-members-list">${_members.map(m => {
                             const _role = getEffectiveRole(state.nodes, m);
                             const _mIsThis = m.id === n.id;
-                            const _mLabel = `${escapeHTML(m.name || m.hostname || m.id)} · #${m.spec?.stackMemberId||'?'} ${_role === 'master' ? '(master)' : ''}`;
+                            // ⚠️ stackMemberId e' escapato come il nome accanto, anche se OGGI ogni
+                            // scrittore lo riduce a un intero (parseInt in app-stack-ha.js,
+                            // +dev.vc_position nell'import DCIM). L'invariante «e' un numero» e'
+                            // garantito lontano da qui, e questa riga finisce GREZZA nella
+                            // interpolazione di _mLabel piu' sotto: un progetto scritto a mano, o un
+                            // writer futuro senza coercizione, arriverebbe fin qui. Escape a costo zero.
+                            // ⚠️ NIENTE apici inversi in questo commento: alcuni passaggi dello
+                            // scanner html-escape sono testuali, e un backtick di troppo qui dentro
+                            // gli sposta i confini dei template piu' avanti nel file.
+                            const _mLabel = `${escapeHTML(m.name || m.hostname || m.id)} · #${escapeHTML(m.spec?.stackMemberId||'?')} ${_role === 'master' ? '(master)' : ''}`;
                             return `<div class="stack-member-row${_mIsThis ? ' is-this' : ''}">${_mLabel}${_mIsThis ? ` <span class="stack-this-marker">← ${t('pnl.node.thisMarker')}</span>` : ''}</div>`;
                         }).join('')}</div>`;
                     };

@@ -4,8 +4,10 @@
 // ============================================================
 // L'app costruisce l'interfaccia con template literal e `innerHTML`: non c'e'
 // un framework che escapi da solo. L'invariante «ogni valore interpolato in
-// HTML passa da escapeHTML()» oggi regge su ~660 chiamate a mano, sparse in 33
-// file. Una sola dimenticata e' una XSS — e l'input NON e' solo la tastiera
+// HTML passa da escapeHTML()» regge su piu' di mille chiamate scritte a mano
+// (1064 in 36 file, misurate il 2026-08-31: il numero CRESCE, non fidarsi della
+// cifra, fidarsi dell'ordine di grandezza).
+// Una sola dimenticata e' una XSS — e l'input NON e' solo la tastiera
 // dell'operatore: sysName, sysDescr, hostname DHCP, titoli HTTP e nomi dei
 // vicini LLDP arrivano dagli APPARATI, cioe' da chiunque sia sulla rete.
 //
@@ -33,11 +35,14 @@
 // finestra sconfina nelle funzioni vicine e finisce per promuovere a builder
 // qualunque cosa — compreso chi ritorna una stringa GREZZA. Da lì il numero
 // scendeva a 396 invece di 461: 65 casi nascosti da un bug dello scanner.
+// (396 e 461 sono i totali di ALLORA, non di oggi: sono qui come cronaca.)
 //
 // ── Limiti dichiarati (non sono bug, sono il prezzo di non avere un parser) ─
 //  · niente analisi INTERPROCEDURALE: un parametro di funzione (`label`,
 //    `icon`, `col`) non e' risolvibile → resta nel residuo anche quando il
-//    chiamante passa un valore gia' escapato. Buona parte dei 461 e' questo.
+//    chiamante passa un valore gia' escapato. E' la fetta piu' grossa del
+//    residuo (niente cifra qui: il totale cambia, e un numero fossile in un
+//    commento e' peggio di nessun numero — il totale vivo lo stampa la CLI).
 //  · risoluzione delle variabili locali solo per la PRIMA assegnazione.
 //  · l'analisi e' testuale: se sbaglia, sbaglia in modo CONSERVATIVO (segnala
 //    di piu', non di meno). L'unica direzione pericolosa e' il falso NEGATIVO,
@@ -97,32 +102,53 @@ function skipRegex(src, i) {
     return j;
 }
 
+// ⚠️ `nested` NON e' un dettaglio del parser: e' la differenza fra un guard che
+// vede e uno che si fida. Fino al 2026-08-31 `readExpr` inghiottiva il template
+// annidato come TESTO OPACO, e le sue interpolazioni non venivano ne' classificate
+// ne' CONTATE: `${d.userName}` era segnalato nel template esterno e invisibile a un
+// livello di profondita'. isProvablySafe() lo assolveva scrivendo «scansionato a
+// parte» — e non era vero. Ora l'albero e' completo e quella frase e' vera.
 function readTemplate(src, start) {
     let i = start + 1;
     const n = src.length;
     let raw = '';
     const parts = [];
+    const nested = [];
     while (i < n) {
         const c = src[i];
         if (c === '\\') { raw += src.slice(i, i + 2); i += 2; continue; }
         if (c === '`') { i++; break; }
         if (c === '$' && src[i + 1] === '{') {
-            const e = readExpr(src, i + 2);
+            const e = readExpr(src, i + 2, nested);
             parts.push({ expr: e.text, at: i });
             i = e.end;
             continue;
         }
         raw += c; i++;
     }
-    return { start, end: i, raw, parts };
+    return { start, end: i, raw, parts, nested };
 }
 
-function readExpr(src, start) {
+/** `nested` (facoltativo) raccoglie i template incontrati DENTRO l'espressione,
+ *  con offset ASSOLUTI: e' cosi' che le righe riportate restano quelle del file. */
+function readExpr(src, start, nested) {
     let i = start, depth = 0, text = '';
     const n = src.length;
     while (i < n) {
         const c = src[i];
         if (c === '}' && depth === 0) { i++; break; }
+        // ⚠️ I COMMENTI SI SALTANO, e non e' pedanteria: un'interpolazione puo'
+        // contenere un blocco di codice (`${items.map(i => { … })}`), e li' dentro
+        // un commento in italiano ha gli APOSTROFI. Senza questo salto il primo
+        // `'` apre una stringa che mangia il resto dell'espressione: il template
+        // annidato sparisce e l'espressione riportata finisce a meta' commento.
+        // Misurato: UN apostrofo in un `//` bastava a perdere un template intero.
+        if (c === '/' && src[i + 1] === '/') { while (i < n && src[i] !== '\n') { text += src[i]; i++; } continue; }
+        if (c === '/' && src[i + 1] === '*') {
+            const e = src.indexOf('*/', i + 2);
+            const fine = e < 0 ? n : e + 2;
+            text += src.slice(i, fine); i = fine; continue;
+        }
         if (c === '{' || c === '(' || c === '[') depth++;
         if (c === '}' || c === ')' || c === ']') depth--;
         if (c === "'" || c === '"') {
@@ -130,7 +156,11 @@ function readExpr(src, start) {
             while (i < n && src[i] !== q) { if (src[i] === '\\') { text += src[i]; i++; } text += src[i]; i++; }
             text += src[i]; i++; continue;
         }
-        if (c === '`') { const t = readTemplate(src, i); text += src.slice(i, t.end); i = t.end; continue; }
+        if (c === '`') {
+            const t = readTemplate(src, i);
+            if (nested) nested.push(t);
+            text += src.slice(i, t.end); i = t.end; continue;
+        }
         if (c === '/' && regexStartsAt(src, i)) { const e = skipRegex(src, i); text += src.slice(i, e); i = e; continue; }
         text += c; i++;
     }
@@ -227,6 +257,9 @@ function readRhs(src, start) {
         const c = src[i];
         if (depth === 0 && c === ';') break;
         if (depth === 0 && c === '\n' && text.trim() && balanced(text) && !/[,+?:&|([{=*/-]\s*$/.test(text)) break;
+        // Stesso motivo di readExpr: un apostrofo in un commento aprirebbe una stringa.
+        if (c === '/' && src[i + 1] === '/') { while (i < n && src[i] !== '\n') i++; continue; }
+        if (c === '/' && src[i + 1] === '*') { const e = src.indexOf('*/', i + 2); i = e < 0 ? n : e + 2; continue; }
         if (c === '(' || c === '[' || c === '{') depth++;
         if (c === ')' || c === ']' || c === '}') { if (depth === 0) break; depth--; }
         if (c === "'" || c === '"') {
@@ -368,7 +401,12 @@ function isProvablySafe(expr, ctx, builders, seen) {
 
     if (/^-?[\d.]+$/.test(e) || /^(true|false|null|undefined)$/.test(e)) return true;
     if (/^'[^'\\]*'$/.test(e) || /^"[^"\\]*"$/.test(e)) return true;
-    if (/^`/.test(e) && balanced(e)) return true;             // template annidato → scansionato a parte
+    // Template annidato: l'espressione in se' non stampa nulla di suo — quello che
+    // stampa sono le SUE interpolazioni, che `visita()` in scanSource classifica una
+    // per una scendendo nell'albero. Assolverla qui non e' un atto di fede solo
+    // FINCHE' quella discesa esiste davvero: fino al 2026-08-31 non esisteva, e
+    // questa riga era un falso negativo che copriva un livello intero.
+    if (/^`/.test(e) && balanced(e)) return true;
 
     // TERNARIO: la condizione NON finisce a schermo, solo i due rami.
     const tern = splitTernary(e);
@@ -410,24 +448,80 @@ function isProvablySafe(expr, ctx, builders, seen) {
 
 const HTMLISH = /<\/?[a-zA-Z][a-zA-Z0-9-]*(\s|>|\/)/;
 
+/**
+ * Gli intervalli [apertura, chiusura) degli ARGOMENTI delle chiamate dentro le
+ * quali un template annidato NON va guardato. Due famiglie, per due motivi diversi:
+ *
+ *  · ESCAPER — `escapeHTML(\`VLAN ${v} — ${nome}\`)`: quel template lo escapa la
+ *    chiamata che lo contiene. Scenderci accuserebbe valori gia' protetti.
+ *
+ *  · BUILDER del corpus — `_buildPropsHeader(\`${node.name} — ${label}\`, …)`: il
+ *    template e' un ARGOMENTO, cioe' un ingresso di una funzione il cui CORPO lo
+ *    scansiona gia' questo strumento. Se quel builder interpolasse il parametro
+ *    grezzo, il rosso scatterebbe a casa sua. E' la stessa regola compositiva che
+ *    vale sopra per i valori di ritorno, applicata agli ingressi — coerente, fra
+ *    l'altro, con come lo scanner tratta oggi un argomento NON template, che non
+ *    conta come interpolazione del chiamante.
+ *
+ * ⚠️ Le funzioni i18n restano FUORI da entrambe: `t('k', {n: \`<b>${x}</b>\`})`
+ * interpola `{n}` nel dizionario SENZA escaparlo, quindi li' dentro si guarda.
+ */
+function noDescendSpans(src, nomi) {
+    const spans = [];
+    const rx = /([\w$]+)\s*\(/g;
+    let m;
+    while ((m = rx.exec(src)) !== null) {
+        if (!nomi.has(m[1]) || I18N_FNS.has(m[1])) continue;
+        let i = m.index + m[0].length, depth = 1;
+        const n = src.length;
+        while (i < n && depth > 0) {
+            const c = src[i];
+            if (c === '(') depth++;
+            else if (c === ')') depth--;
+            else if (c === "'" || c === '"') { const q = c; i++; while (i < n && src[i] !== q) { if (src[i] === '\\') i++; i++; } }
+            else if (c === '`') { i = readTemplate(src, i).end; continue; }
+            i++;
+        }
+        spans.push([m.index + m[0].length, i]);
+    }
+    return spans;
+}
+
 /** Scansiona UN sorgente. `builders` = insieme dei builder del corpus. */
 function scanSource(src, builders, label) {
     const ctx = buildFileContext(src);
     const set = builders || new Set();
     let interpolations = 0;
     const unproven = [];
-    for (const tpl of scanTemplates(src)) {
-        if (!HTMLISH.test(tpl.raw)) continue;
-        for (const part of tpl.parts) {
-            interpolations++;
-            if (isProvablySafe(part.expr, ctx, set)) continue;
-            unproven.push({
-                file: label || '(source)',
-                line: src.slice(0, part.at).split('\n').length,
-                expr: part.expr.replace(/\s+/g, ' ').trim(),
-            });
+
+    // Si scende nell'albero dei template. Un template si scansiona se il suo testo
+    // sembra HTML **oppure se un suo antenato lo sembrava**: se il padre produce
+    // HTML, il valore del figlio ci finisce dentro comunque, anche quando il figlio
+    // da solo non ha un tag (`${items.map(i => `${i.nome}`)}` e' esattamente questo).
+    // Ereditare il flag e' la scelta CONSERVATIVA: segnala di piu', mai di meno.
+    const spans = noDescendSpans(src, new Set([...ctx.escAliases, ...set]));
+    const argomentoAltrui = (pos) => spans.some(([a, b]) => pos >= a && pos < b);
+
+    const visita = (tpl, dentroHtml) => {
+        const html = dentroHtml || HTMLISH.test(tpl.raw);
+        if (html) {
+            for (const part of tpl.parts) {
+                interpolations++;
+                if (isProvablySafe(part.expr, ctx, set)) continue;
+                unproven.push({
+                    file: label || '(source)',
+                    line: src.slice(0, part.at).split('\n').length,
+                    expr: part.expr.replace(/\s+/g, ' ').trim(),
+                });
+            }
         }
-    }
+        for (const figlio of tpl.nested) {
+            if (argomentoAltrui(figlio.start)) continue;   // vedi noDescendSpans()
+            visita(figlio, html);
+        }
+    };
+    for (const tpl of scanTemplates(src)) visita(tpl, false);
+
     return { interpolations, unproven };
 }
 
@@ -469,6 +563,7 @@ module.exports = {
     scanCorpus, scanSource, collectHtmlBuilders, corpusFiles, parseImports,
     // esportati per i test dello scanner stesso
     scanTemplates, splitTernary, splitTop, isProvablySafe, buildFileContext, HTMLISH,
+    noDescendSpans,
 };
 
 // ---- CLI: elenca il residuo, per chi lo deve bonificare ---------------------

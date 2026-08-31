@@ -4,8 +4,10 @@
 // ============================================================
 // L'interfaccia è costruita a mano con template literal e `innerHTML`: nessun
 // framework escapa al posto nostro. L'invariante «ogni valore interpolato in
-// HTML passa da un escaper» regge oggi su ~660 chiamate sparse in 33 file, e
-// non era imposta da niente. Una dimenticata è una XSS — e l'input NON è solo
+// HTML passa da un escaper» regge su più di mille chiamate scritte a mano (1064
+// in 36 file, misurate il 2026-08-31), e non era imposta da niente. La cifra
+// cresce col prodotto: conta l'ordine di grandezza, non il numero esatto.
+// Una dimenticata è una XSS — e l'input NON è solo
 // la tastiera dell'operatore: sysName, sysDescr, hostname dei lease DHCP,
 // titoli HTTP e nomi dei vicini LLDP arrivano dagli APPARATI, cioè da chiunque
 // stia sulla rete che si sta documentando.
@@ -106,6 +108,67 @@ test('scanner: un regex con apici non lo desincronizza', () => {
     ]), 1);
 });
 
+// ── Il punto cieco dei TEMPLATE ANNIDATI (chiuso il 2026-08-31) ─────────────
+// `isProvablySafe` assolve un'interpolazione che sia un template intero, con la
+// motivazione che quel template «lo scansiona a parte». Per anni quella frase e'
+// stata falsa: `readExpr` inghiottiva il template annidato come testo opaco, le
+// sue interpolazioni non erano ne' classificate ne' CONTATE, e un valore a un
+// livello di profondita' era invisibile. Queste fixture tengono vera la frase.
+
+test('scanner: valore crudo dentro un template ANNIDATO → segnalato', () => {
+    assert.strictEqual(countUnproven(
+        'const h = `<div>${`<span>${d.userName}</span>`}</div>`;'
+    ), 1);
+});
+
+test('scanner: valore crudo in un template annidato dentro un TERNARIO → segnalato', () => {
+    assert.strictEqual(countUnproven(
+        "const h = `<div>${cond ? `<span>${d.userName}</span>` : ''}</div>`;"
+    ), 1);
+});
+
+test('scanner: due livelli di annidamento → segnalato lo stesso', () => {
+    assert.strictEqual(countUnproven(
+        'const h = `<div>${`<i>${`<b>${d.x}</b>`}</i>`}</div>`;'
+    ), 1);
+});
+
+test('scanner: annidato senza tag propri → segnalato (l\'HTML lo mette il padre)', () => {
+    // Il figlio non ha un tag suo, ma finisce dentro l'HTML del padre: il flag
+    // «sono dentro HTML» si eredita, altrimenti ogni `.map(x => `${x.nome}`)`
+    // resterebbe fuori dal conto.
+    assert.strictEqual(countUnproven(
+        "const h = `<ul>${items.map(i => `${i.nome}`).join('')}</ul>`;"
+    ), 1);
+});
+
+test('scanner: un template annidato in un contesto NON html resta fuori', () => {
+    assert.strictEqual(countUnproven('const q = `SELECT ${`${x}`}`;'), 0);
+});
+
+test('scanner: un apostrofo in un commento non fa sparire il template che segue', () => {
+    // Il codice e i commenti sono in italiano: dentro un'interpolazione che
+    // contiene un blocco (`${items.map(i => { … })}`) un solo `'` apriva una
+    // stringa e mangiava il resto dell'espressione — template annidato incluso.
+    const conApostrofo = [
+        'const h = `<ul>${items.map(i => {',
+        "    // un apostrofo solo: l'invariante",
+        '    return `<li>${i.nome}</li>`;',
+        "}).join('')}</ul>`;",
+    ];
+    const senzaApostrofo = [
+        'const h = `<ul>${items.map(i => {',
+        '    // nessun apostrofo qui',
+        '    return `<li>${i.nome}</li>`;',
+        "}).join('')}</ul>`;",
+    ];
+    // Stesso codice, stesso esito: il commento non deve contare.
+    assert.strictEqual(countUnproven(conApostrofo), countUnproven(senzaApostrofo));
+    assert.strictEqual(scanFixture(conApostrofo).interpolations,
+        scanFixture(senzaApostrofo).interpolations);
+    assert.strictEqual(countUnproven(conApostrofo), 1);
+});
+
 // ════════════════════════════════════════════════════════════════════════════
 // 1-bis) LO SCANNER NON ABBAIA A VUOTO — casi che NON vanno segnalati
 // ════════════════════════════════════════════════════════════════════════════
@@ -154,6 +217,35 @@ test('scanner: builder HTML dello stesso file → pulito (regola compositiva)', 
     ]), 0);
 });
 
+test('scanner: template ARGOMENTO di un escaper → pulito (lo escapa chi lo contiene)', () => {
+    // La discesa nei template annidati non deve entrare qui dentro: quel
+    // template esce gia' protetto dalla chiamata che lo avvolge.
+    assert.strictEqual(countUnproven(
+        'const h = `<div t="${escapeHTML(`VLAN ${v} — ${nome}`)}">x</div>`;'
+    ), 0);
+});
+
+test('scanner: template ARGOMENTO di un builder → pulito (il rosso scatta nel builder)', () => {
+    // Un argomento e' un INGRESSO di una funzione il cui corpo lo scanner
+    // gia' controlla: se quel builder interpolasse il parametro crudo, il
+    // rilievo comparirebbe a casa sua. E' la stessa regola compositiva dei
+    // valori di ritorno, e allinea i template al trattamento che gli argomenti
+    // NON template hanno sempre avuto (non contano come interpolazione).
+    assert.strictEqual(countUnproven([
+        'function intestazione(t){ return `<h3>${escapeHTML(t)}</h3>`; }',
+        'const h = `<div>${intestazione(`${node.name} — ${label}`)}</div>`;',
+    ]), 0);
+});
+
+test('scanner: t() NON escapa i suoi parametri → il valore dentro va segnalato', () => {
+    // `t('k', {n: …})` sostituisce {n} nella stringa del dizionario SENZA
+    // escaparla: una funzione i18n non e' un escaper, e non deve diventarlo
+    // per sbaglio quando si esclude la discesa negli argomenti altrui.
+    assert.strictEqual(countUnproven(
+        "const h = `<div>${t('k', {n: `<b>${found}</b>`})}</div>`;"
+    ), 1);
+});
+
 test('scanner: il corpus non è vuoto (il cricchetto non è vacuo)', () => {
     // Se un refactor spostasse i file o rompesse il parser, `unproven` andrebbe
     // a zero e tutti i tetti passerebbero: verde per il motivo sbagliato.
@@ -176,6 +268,29 @@ test('scanner: il corpus non è vuoto (il cricchetto non è vacuo)', () => {
 // soprattutto PARAMETRI DI FUNZIONE (`label`, `icon`, `col`) — che uno scanner
 // senza analisi interprocedurale non può risolvere nemmeno quando il chiamante
 // passa un valore già escapato. Sono «non dimostrati», non «sbagliati».
+// ⚠️ RIBASATI IL 2026-08-31, e non per una regressione: lo scanner ha smesso di
+// essere CIECO su due punti, e i tetti sono saliti di conseguenza.
+//
+//   ① I TEMPLATE ANNIDATI non venivano guardati. `isProvablySafe` assolveva
+//      un'interpolazione che fosse un template scrivendo «scansionato a parte»,
+//      e quella scansione non esisteva: un valore a UN livello di profondita'
+//      era invisibile — e nemmeno CONTATO.
+//   ② I COMMENTI dentro un'espressione desincronizzavano il parser: un solo
+//      apostrofo in un `//` italiano apriva una stringa e faceva sparire il
+//      template che seguiva.
+//
+// Misurato sulle STESSE sorgenti, per isolare il cambio dello scanner dal codice:
+// interpolazioni contate **3810 → 4922**, residuo **624 → 788**. Quei 164 non
+// sono peggiorati oggi: erano li' e non si vedevano. Sette rilievi risultano
+// invece assorbiti, tutti legittimi — con i commenti gestiti, `readRhs` risolve
+// l'assegnazione intera e la regola del `.join()` diventa applicabile *perche'*
+// adesso i pezzi che unisce vengono davvero scansionati.
+//
+// Delle 160 voci emerse, UNA sola meritava una correzione invece di un tetto:
+// `spec.stackMemberId` nella lista membri dello stack, ora escapato come il nome
+// che gli sta accanto (src/app-properties-node.js). Le altre sono numeri, id
+// generati, frammenti gia' controllati dove nascono, o il limite dichiarato dello
+// scanner sui parametri di funzione.
 const CAPS = {
     'export.js': 149,
     'lib/drawio-export.js': 21,
@@ -186,12 +301,16 @@ const CAPS = {
     // invece da `_esc`, cioè dall'escaper XML condiviso, e lo scanner lo prova.
     'lib/inter-site-svg.js': 25,
     'src/app-audit.js': 3,
-    'src/app-auth.js': 4,
-    'src/app-discovery.js': 11,
+    'src/app-auth.js': 6,
+    // L'unico residuo e' `${c}` nelle intestazioni dell'anteprima CSV, dove `c`
+    // scorre un ARRAY DI LETTERALI scritto due righe sopra ('name','hostname',…).
+    // I dati del file caricato — quelli si' non fidati — passano da escapeHTML().
+    'src/app-csv-import.js': 1,
+    'src/app-discovery.js': 14,
     'src/app-drift-adopt.js': 3,
     'src/app-drift.js': 15,
     'src/app-hypervisor.js': 9,
-    'src/app-integrations.js': 41,
+    'src/app-integrations.js': 27,
     // Sedi e collegamenti (2.11, layer multi-sede). Tutto cio' che arriva
     // dall'utente o dal server passa da escapeHTML(), e le coordinate SVG da
     // Number(): questi sette residui sono composizione, che lo scanner non
@@ -209,34 +328,34 @@ const CAPS = {
     //     escapa il testo): non contengono un template HTML in proprio, quindi
     //     restano fuori dall'elenco dei builder pur non emettendo mai testo crudo;
     //   · `drop` e' una variabile che tiene un template gia' scansionato.
-    'src/app-inter-site.js': 10,
-    'src/app-l3.js': 3,
+    'src/app-inter-site.js': 20,
+    'src/app-l3.js': 9,
     'src/app-management.js': 9,
     'src/app-panel-skin.js': 3,
     'src/app-pdu-connection.js': 2,
-    'src/app-popup.js': 10,
-    'src/app-ports.js': 1,
-    'src/app-properties-floor.js': 10,
+    'src/app-popup.js': 21,
+    'src/app-ports.js': 2,
+    'src/app-properties-floor.js': 13,
     // −3 (2.10.1, da 15): la sezione VLAN del pannello cavo e' stata riscritta e i
     // valori che finiscono dentro style="…" e value="…" — colore del pallino, colore
     // della provenienza, VLAN dichiarata e mostrata, id del link — ora passano
     // dall'escaper invece di essere interpolati crudi. Il colore arriva dal color
     // picker dell'utente: era il piu' esposto dei quattro.
-    'src/app-properties-link.js': 12,
-    'src/app-properties-node-devices.js': 84,
+    'src/app-properties-link.js': 57,
+    'src/app-properties-node-devices.js': 87,
     // −3 (2.10.1, da 49): la riga del gruppo LAG ha guadagnato il campo VLAN del
     // bundle, e nel farlo i quattro `data-gid` di quella riga sono passati
     // dall'escaper. Non e' cosmesi: per un LAG scoperto via SNMP il gid e'
     // costruito dal nome dell'apparato, cioe' testo che arriva dalla rete e
     // finiva crudo dentro un attributo.
-    'src/app-properties-node.js': 46,
-    'src/app-properties-port.js': 16,
-    'src/app-properties-vm.js': 15,
-    'src/app-properties.js': 17,
-    'src/app-render-core.js': 39,
+    'src/app-properties-node.js': 79,
+    'src/app-properties-port.js': 45,
+    'src/app-properties-vm.js': 16,
+    'src/app-properties.js': 15,
+    'src/app-render-core.js': 38,
     'src/app-shared-segment.js': 25,
     'src/app-snmp.js': 2,
-    'src/app-spare.js': 7,
+    'src/app-spare.js': 8,
     'src/app-topology-crawl.js': 4,
     'src/app-topology-discover.js': 1,
     // +1 (2.10.1): `${CABLE_VLAN_UNKNOWN}` nella pillola «VLAN non rilevata» della
@@ -246,8 +365,8 @@ const CAPS = {
     // c'è; le `${col}` accanto, già sotto il tetto, sono dato UTENTE e quindi più
     // esposte di questa.
     'src/app-topology-overlay.js': 10,
-    'src/app-vlan-autopoll.js': 17,
-    'src/app-wifi.js': 19,
+    'src/app-vlan-autopoll.js': 19,
+    'src/app-wifi.js': 29,
     // +1 (2026-08-31): `${badgeInk(m.color)}` nel badge di stato-di-prova del cavo.
     // `badgeInk` (src/app-util.js) ritorna UNO DI DUE LETTERALI scritti nel sorgente
     // ('#fff' o '#0d1117') e nient'altro: non è una funzione che possa restituire
