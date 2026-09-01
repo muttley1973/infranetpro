@@ -55,6 +55,13 @@
             --surface-hover: #243140;             /* hover su superficie */
             --hairline:      rgba(255,255,255,.08); /* separatori/bordi sottili interni */
             --accent-soft:   rgba(0,212,255,.12);  /* tint dell'accent ciano (selezione/hover tenui) */
+            /* L'accent quando fa da TESTO sopra `--accent-soft` (bottoni `.soft`).
+               Qui coincide con l'accent perche' sul fondo scuro regge da solo: ciano
+               su tinta ciano al 12% sopra `--surface-2` misura 7,73:1. Esiste come
+               token perche' nel tema chiaro NON coincide — vedi sotto — e senza un
+               nome la differenza sarebbe finita dentro una regola di componente,
+               dove nessuno la trova piu'. */
+            --accent-on-soft: var(--accent);
             --danger-soft:   rgba(248,81,73,.12);  /* tint azione distruttiva */
             --shadow-sm:     0 1px 3px rgba(0,0,0,.35);
             --shadow-md:     0 1px 4px rgba(0,0,0,.40);
@@ -159,7 +166,7 @@
             --panel-border:   rgba(0,0,0,.42);
             --text-main:      #1f2328;
             --text-muted:     #57606a;   /* ~6:1 su bianco */
-            --accent:         #0969da;   /* blu, ~5.9:1 su bianco (il ciano dark non regge) */
+            --accent:         #0969da;   /* blu, 5,19:1 su bianco (il ciano dark non regge) */
             --active-color:   #1a7f37;   /* verde scuro per contrasto */
             --fault-color:    #cf222e;
             --inactive-color: #57606a;
@@ -174,6 +181,16 @@
             --surface-hover:  #e7ebf0;
             --hairline:       rgba(0,0,0,.10);
             --accent-soft:    rgba(9,105,218,.10);
+            /* ⚠️ Qui l'accent NON puo' fare anche da testo su quella tinta: la tinta
+               scurisce il fondo (10% di blu sopra `--surface-2 #f1f4f7` da' #dae6f4) e
+               `#0969da` sopra misura **4,11:1**, sotto la soglia di 4,5 — mentre su
+               bianco pieno arriva a 5,19. Un gradino piu' scuro dello stesso blu
+               risolve senza cambiare colore: 5,42:1.
+               ⚠️ Non e' un difetto vivo OGGI (nessuno mette ancora `data-theme=light`,
+               manca l'interruttore — punto 5 della nota qui sopra): e' la mina che
+               scoppierebbe il giorno che lo si rimette, su due bottoni veri
+               (`#audit-export` e l'azione del pannello collegamento). */
+            --accent-on-soft: #0757b8;
             --danger-soft:    rgba(207,34,46,.12);
             /* in chiaro le ombre devono essere NETTE (nel dark .06 sparisce) */
             --shadow-sm:      0 2px 5px rgba(0,0,0,.18);

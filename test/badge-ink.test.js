@@ -96,3 +96,57 @@ test('badgeInk: sceglie l\'inchiostro col contrasto migliore, non una soglia', a
     assert.strictEqual(badgeInk(v), '#fff');
   }
 });
+
+// ── ④ L'ACCENT SOPRA UNA TINTA DI SE STESSO (`.toolbar-btn.soft`) ───────────
+// Stessa famiglia dei badge, difetto opposto: qui il colore non e' un fondo
+// pieno ma una TINTA translucida del testo stesso, quindi il contrasto dipende
+// da cosa c'e' SOTTO. Nel tema scuro reggeva (7,73:1); nel chiaro no — 4,11:1,
+// sotto la soglia — e la classe non e' inerte: la usano `#audit-export` e
+// un'azione del pannello collegamento.
+// ⚠️ Non era ancora un difetto vivo (manca l'interruttore del tema chiaro): e'
+// una mina che scoppia il giorno che lo si rimette. Questa e' la guardia che la
+// disinnesca prima, e i valori si LEGGONO dai token — se un tema domani cambia
+// accent, il test lo segue da solo.
+
+/** I token di un tema, letti dal blocco che li definisce in 01-tokens.css. */
+function temaTokens(selettore) {
+  const css = fs.readFileSync(path.join(ROOT, 'styles', '01-tokens.css'), 'utf8');
+  const i = css.indexOf(selettore);
+  assert.ok(i >= 0, 'blocco non trovato: ' + selettore);
+  // Fino alla graffa di chiusura del blocco (i blocchi dei token non annidano).
+  const blocco = css.slice(i, css.indexOf('\n        }', i));
+  const val = (nome) => {
+    const m = blocco.match(new RegExp('--' + nome + '\\s*:\\s*([^;]+);'));
+    return m ? m[1].trim() : null;
+  };
+  return val;
+}
+
+/** `rgba(r,g,b,a)` steso sopra un hex → l'hex del risultato. Una tinta non e'
+ *  un colore: e' una lastra, e finche' non si sa cosa c'e' sotto non si puo'
+ *  dire quanto contrasta. */
+function componi(rgba, sottoHex) {
+  const m = String(rgba).match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+)\s*)?\)/);
+  assert.ok(m, 'non e\' un rgba: ' + rgba);
+  const a = m[4] === undefined ? 1 : parseFloat(m[4]);
+  const sotto = [1, 3, 5].map(i => parseInt(sottoHex.slice(i, i + 2), 16));
+  const v = [1, 2, 3].map((k, i) => Math.round(parseInt(m[k], 10) * a + sotto[i] * (1 - a)));
+  return '#' + v.map(x => x.toString(16).padStart(2, '0')).join('');
+}
+
+for (const [nome, selettore] of [['scuro', ':root {'], ['chiaro', 'html[data-theme="light"] {']]) {
+  test(`⚠️ .toolbar-btn.soft resta leggibile nel tema ${nome}`, () => {
+    const val = temaTokens(selettore);
+    const tinta = val('accent-soft');
+    const sotto = val('surface-2');
+    let ink = val('accent-on-soft');
+    assert.ok(tinta && sotto && ink, `token mancanti nel tema ${nome}: il bottone .soft li usa tutti e tre`);
+    // Nel tema scuro il token rimanda all'accent: si segue il rimando invece di
+    // duplicare il valore, se no la prova enumera cio' che il codice deriva.
+    if (/^var\(/.test(ink)) ink = val(ink.replace(/^var\(\s*--|\s*\)$/g, ''));
+    const fondo = componi(tinta, sotto);
+    const c = contrast(ink, fondo);
+    assert.ok(c >= AA,
+      `tema ${nome}: ${ink} su ${fondo} (tinta ${tinta} sopra ${sotto}) = ${c.toFixed(2)}:1, serve ${AA}`);
+  });
+}

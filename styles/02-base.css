@@ -131,8 +131,8 @@
         #btn-overview i { font-size: var(--fs-lg); }
         /* Stato "soft cyan": alternativa morbida a .primary — sfondo tint accent
            + bordo/testo accent. Riusabile (toggle attivo, azioni evidenziate). */
-        .toolbar-btn.soft { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
-        .toolbar-btn.soft:hover { background: var(--accent-soft); border-color: var(--accent); filter: brightness(1.25); }
+        .toolbar-btn.soft { background: var(--accent-soft); border-color: var(--accent-on-soft); color: var(--accent-on-soft); }
+        .toolbar-btn.soft:hover { background: var(--accent-soft); border-color: var(--accent-on-soft); filter: brightness(1.25); }
         /* «Salva» pesa quando c'e' DA salvare, non quando non c'e'. Era il contrario:
            a documento pulito il bottone era .primary — accent pieno, 10,69:1 contro il
            fondo pagina, il piu' forte della barra — e con lavoro NON salvato diventava
