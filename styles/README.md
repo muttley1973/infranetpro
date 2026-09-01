@@ -11,7 +11,7 @@ cascata CSS: cambiare l'ordine cambia la resa). Servite da `server.js` via
 | # | file | contenuto |
 |---|------|-----------|
 | 01 | `01-tokens.css` | **Design tokens** (`:root`) + scheletro tema chiaro inerte |
-| 02 | `02-base.css` | reset, body, header, project bar, toolbar buttons, search, save-dot |
+| 02 | `02-base.css` | reset, body, header, project bar, toolbar buttons, search, stato «da salvare» del bottone Salva |
 | 03 | `03-layout.css` | workspace, divider floor/rack, sidebar (libreria), fisarmoniche |
 | 04 | `04-floor-rack.css` | floor plan, rack view, righello U, floor nodes, porte, rack-device, stacking/HA, skin, MGMT |
 | 05 | `05-cables-wifi.css` | cavi (trace/wireless), pannello Wi-Fi, porte radio, banner autolink/validazione |

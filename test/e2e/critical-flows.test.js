@@ -6500,11 +6500,11 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       }
     });
 
-    await t.test('Una modifica fatta DURANTE il salvataggio non si perde, e il pallino non si spegne', async () => {
+    await t.test('Una modifica fatta DURANTE il salvataggio non si perde, e il segnale «da salvare» non si spegne', async () => {
       // Difetto misurato il 30/08 (audit A1): il corpo del PUT viene serializzato
       // PRIMA della richiesta, quindi ciò che l'utente tocca mentre la richiesta è
       // in volo non è in quel corpo — ma al ritorno `_clearDirty()` spegneva il
-      // pallino comunque. Risultato: la modifica non era su disco e l'interfaccia
+      // segnale comunque. Risultato: la modifica non era su disco e l'interfaccia
       // diceva «salvato». Con l'autosave acceso il timer già armato trovava
       // `_isDirty` falso e SALTAVA: la modifica restava in memoria fino al primo
       // edit successivo, e se era l'ultima azione della giornata spariva.
@@ -6523,7 +6523,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         // `loadProject` e poi `loadProjectList`, e `loadProject` chiude con un
         // `_clearDirty()` senza argomento — legittimo, lì il documento è appena
         // stato caricato. Partire troppo presto vuol dire correre contro il boot e
-        // vedersi spegnere il pallino da lui: misurato, 194ms, con lo stack.
+        // vedersi spegnere il segnale da lui: misurato, 194ms, con lo stack.
         // La tendina piena è il segnale che `loadProjectList` è passata, cioè che
         // `_initApp` è oltre; `networkidle` chiude anche le code in ritardo.
         await racePage.waitForFunction(
@@ -6539,7 +6539,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         const sporco = () => racePage.evaluate(() =>
           !!document.getElementById('btn-save')?.classList.contains('save-dirty'));
 
-        // Diario di chi accende e spegne il pallino, con i tempi: se questo banco
+        // Diario di chi accende e spegne il segnale, con i tempi: se questo banco
         // torna rosso, la prima domanda è «chi l'ha spento», e senza il diario si
         // risponde a indovinelli.
         await racePage.evaluate(() => {
@@ -6548,7 +6548,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           const t0 = performance.now();
           const ora = () => Math.round(performance.now() - t0) + 'ms ';
           new MutationObserver(() => window.__diario.push(
-            ora() + 'pallino sporco=' + b.classList.contains('save-dirty')
+            ora() + 'segnale sporco=' + b.classList.contains('save-dirty')
               + ' _isDirty=' + window._isDirty
           )).observe(b, { attributes: true, attributeFilter: ['class'] });
           const vero = window.fetch;
@@ -6580,13 +6580,13 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           state.nodes.push({ id: 'NODO-CORSA', type: 'pc', name: 'aggiunto durante il salvataggio', x: 40, y: 40 });
           markDirty();
         });
-        assert.equal(await sporco(), true, 'la modifica accende il pallino');
+        assert.equal(await sporco(), true, 'la modifica accende il segnale');
 
         // Il PUT risponde: è qui che prima si spegneva tutto.
         await racePage.waitForTimeout(1200);
         const diario = await racePage.evaluate(() => window.__diario.join(' | '));
         assert.equal(await sporco(), true,
-          'il pallino resta ACCESO: quel salvataggio non conteneva la modifica — diario: ' + diario);
+          'il segnale resta ACCESO: quel salvataggio non conteneva la modifica — diario: ' + diario);
 
         // E il documento sul server non la contiene davvero — la coerenza è il punto:
         // l'interfaccia sta dicendo la verità, non è rimasta indietro.
@@ -6596,7 +6596,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         }, id);
         assert.equal(dopoIlPrimo, false, 'la modifica non era in quel corpo, e infatti non è sul disco');
 
-        // Secondo Salva, senza ritardo: adesso ci va, e il pallino si spegne.
+        // Secondo Salva, senza ritardo: adesso ci va, e il segnale si spegne.
         await racePage.unroute('**/api/projects/*');
         await racePage.evaluate(() => { document.getElementById('btn-save').click(); });
         await racePage.waitForFunction(() =>

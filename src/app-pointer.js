@@ -763,7 +763,7 @@ function _tryFinishLink(tgt){
 
 // Il puntatore si e' MOSSO davvero fra pointerdown e pointerup? Stessa soglia del
 // drag (5px). Serve ai pan: un pan che non ha spostato nulla NON e' una modifica
-// del documento — senza questo un semplice click sulla mappa accendeva il pallino
+// del documento — senza questo un semplice click sulla mappa accendeva il segnale
 // "non salvato", e l'indicatore di modifica diventa rumore che si impara a ignorare.
 function _pointerMoved(e){
     const p = store._dragDownPt;
