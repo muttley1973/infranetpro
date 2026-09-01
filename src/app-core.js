@@ -255,8 +255,8 @@ export async function saveProject(opts = {}) {   // ASSE B: importata da app.js 
     // ⭐ L'epoca si legge PRIMA di serializzare: da questa riga in poi ciò che
     // l'utente tocca non entra nel corpo che sta per partire, e quindi non è
     // coperto da questo salvataggio. La si ripresenta a `_clearDirty` alla
-    // risposta, che spegnerà il pallino solo se nel frattempo non è cambiato
-    // niente. Prima il pallino si spegneva sempre, e una modifica fatta durante
+    // risposta, che spegnerà il segnale «da salvare» solo se non è cambiato
+    // niente. Prima il segnale si spegneva sempre, e una modifica fatta durante
     // il salvataggio spariva mentre l'interfaccia diceva «salvato».
     const epoca = dirtyEpoch();
     try {
@@ -294,12 +294,12 @@ export async function saveProject(opts = {}) {   // ASSE B: importata da app.js 
  * Il documento sul server è cambiato dopo che l'abbiamo aperto.
  * Qui non si decide al posto di nessuno: sovrascrivere perderebbe il lavoro
  * dell'altra sessione, ricaricare perderebbe quello di questa. In entrambi i casi
- * il pallino resta acceso — non abbiamo salvato — finché l'utente non sceglie.
+ * il bottone resta acceso — non abbiamo salvato — finché l'utente non sceglie.
  */
 function _progettoSuperato(err, opts) {
     const quando = (err.payload && err.payload.updated_at) || '';
     if (opts.quiet) {
-        // Autosave: il pallino sta già dicendo che c'è da salvare, e un modale
+        // Autosave: il bottone sta già dicendo che c'è da salvare, e un modale
         // comparso da solo mentre si lavora è il modo di far spegnere l'autosave.
         console.warn('[autosave] il progetto è cambiato in un\'altra sessione:', quando);
         return;

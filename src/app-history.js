@@ -69,7 +69,7 @@ export function _resetSelection() { selId=null; selType=null; highPath.clear(); 
 // il modo di distinguere «il salvataggio ha coperto tutto» da «nel frattempo è
 // arrivata un'altra modifica». Il corpo del PUT viene serializzato PRIMA della
 // richiesta, quindi ciò che l'utente tocca mentre la richiesta è in volo NON è in
-// quel corpo — e spegnere il pallino al ritorno diceva «salvato» di una modifica
+// quel corpo — e spegnere il segnale al ritorno diceva «salvato» di una modifica
 // che sul disco non c'era. Vive qui, modulo-scoped: non è stato del documento e
 // non ha ragione di stare su window.
 let _dirtyEpoch = 0;
@@ -81,9 +81,7 @@ export function markDirty() {
     _invalidateIdx();
     _isDirty = true;
     _dirtyEpoch++;
-    const dot = document.getElementById('save-dot');
     const btn = document.getElementById('btn-save');
-    if (dot) dot.style.display = 'inline-block';
     if (btn) btn.classList.add('save-dirty');
     _scheduleAutosave();
 }
@@ -107,7 +105,9 @@ export function _scheduleAutosave() {
 }
 
 /**
- * Spegne il pallino «da salvare».
+ * Spegne il segnale «da salvare» — che dal 01/09 è il riempimento ambra del
+ * bottone, non piu' un pallino a lato: era dello stesso colore del riempimento
+ * (quindi invisibile) e allargava il bottone di 14px nel solo stato sporco.
  * @param {number} [epoca] Se passata, spegne SOLO se da allora non è arrivata
  *   nessuna nuova modifica. Chi carica/crea/duplica un progetto la omette: lì il
  *   documento è nuovo di zecca e pulito per costruzione, senza niente da
@@ -117,9 +117,7 @@ export function _scheduleAutosave() {
 export function _clearDirty(epoca) {
     if (epoca !== undefined && epoca !== _dirtyEpoch) return;   // sporcato DOPO: resta sporco
     _isDirty = false;
-    const dot = document.getElementById('save-dot');
     const btn = document.getElementById('btn-save');
-    if (dot) dot.style.display = 'none';
     if (btn) btn.classList.remove('save-dirty');
 }
 

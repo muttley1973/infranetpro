@@ -1,6 +1,6 @@
 /* ============================================================
    InfraNet Pro — styles/02-base.css
-   Reset, body, header, project bar, toolbar buttons, search, save-dot
+   Reset, body, header, project bar, toolbar buttons, search
    Generato dallo split di style.css (ordine cascata preservato).
    ============================================================ */
         input, textarea, select { user-select: text; }
@@ -147,7 +147,12 @@
            ⚠️ Il peso 600 sta sul BOTTONE, non sullo stato: se stesse sullo stato la
            larghezza cambierebbe fra i due e la barra sussulterebbe (prima succedeva —
            600 da pulito, normale da sporco). Cosi' il caso peggiore per il budget di
-           larghezza dell'header resta quello di prima. */
+           larghezza dell'header resta quello di prima.
+           ⚠️ E il PALLINO se n'e' andato con questa regola, non per svista: era un disco
+           di 7px dello stesso #e3b341 del riempimento — invisibile sopra il proprio colore —
+           e intanto allargava il bottone di 14px (7 + 2 di margine + 5 di gap) solo da
+           sporco. Era il segnale di quando il bottone cambiava poco: ora il segnale e' il
+           riempimento, e i due stati hanno la STESSA geometria. */
         #btn-save { font-weight: 600; }
         .toolbar-btn.save-dirty { background: #e3b341; border-color: #e3b341; color: #000; }
         .toolbar-btn.save-dirty:hover { background: #f0c766; border-color: #f0c766; }
@@ -173,5 +178,4 @@
         .search-kind  { font-size:var(--fs-xs); color:var(--text-muted); border:1px solid var(--panel-border); border-radius: var(--radius-xl); padding:2px 5px; }
         .search-empty { padding:12px; color:var(--text-muted); font-size:var(--fs-md); }
         /* Save dot */
-        #save-dot { display:none; width:7px; height:7px; background:#e3b341; border-radius:50%; margin-left:2px; }
 
