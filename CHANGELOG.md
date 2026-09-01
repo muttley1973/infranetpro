@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **An OpenWrt access point was not recognised as wireless at all.** When an agent does not report the standard wireless interface type, the discovery falls back to the interface name — and on Linux it always falls back, because a radio in AP mode presents itself to the kernel as Ethernet. Current OpenWrt names that interface `phy0-ap0`, which the pattern did not match, so on a platform the compatibility notes list as supported nothing was found and nothing said why. The systemd name for a USB Wi-Fi adapter (`wlx` followed by its MAC) was missing for the same reason. Both are matched now, and the other direction is pinned as well: no wired interface may be read as a radio, which is the error that would put a false statement in the document rather than merely omitting one.
+
 ## [2.11.1] — 2026-09-01
 
 Faster where you feel it, and a few things the app used to state without having measured them.

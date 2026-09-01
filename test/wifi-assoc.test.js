@@ -25,6 +25,42 @@ test('isWirelessInterface: NON confondere ethernet/velocità/wan con wireless', 
   }
 });
 
+test('isWirelessInterface: i nomi di fabbrica di OpenWrt attuale e della chiavetta USB', () => {
+  // ⚠️ Misurati il 01/09 come falsi negativi VERI, su piattaforme che COMPATIBILITY.md
+  // dichiara supportate. Su Linux una radio in modalità AP si presenta al kernel come
+  // ethernet (net-snmp riporta ifType=6, non 71): il nome è l'unico canale rimasto, e
+  // non riconoscerlo vuol dire non vedere niente — in silenzio, come tutti gli altri
+  // cancelli di questa catena.
+  for (const n of ['phy0-ap0', 'phy1-ap0', 'phy0-sta0', 'phy0-mesh0',
+                   'wlx00c0ca123456', 'wlxa0b1c2d3e4f5']) {
+    assert.equal(W.isWirelessInterface(n), true, `atteso wireless: ${n}`);
+  }
+});
+
+test('isWirelessInterface: le esclusioni VOLUTE restano fuori, e non sono lacune', () => {
+  // ⛔ Nomi di DRIVER FreeBSD: la rete non ci gira sopra, si clona un `wlan0` con
+  // `ifconfig wlan0 create wlandev ath0` ed è quello a portare il traffico — già
+  // coperto sopra. Riconoscerli allargherebbe la regex a interfacce che non hanno
+  // mai un client, senza guadagnare un'onda.
+  for (const n of ['run0', 'iwm0', 'rtwn0', 'bwn0']) {
+    assert.equal(W.isWirelessInterface(n), false, `driver FreeBSD, non porta client: ${n}`);
+  }
+  // ⛔ Modalità MONITOR: cattura pacchetti, non ha associati. Dirla wireless sarebbe
+  // vero della radio e falso di quello che ci si chiede — se ha client attaccati.
+  assert.equal(W.isWirelessInterface('mon0'), false, 'monitor: nessun associato');
+});
+
+test('isWirelessInterface: le aggiunte non aprono falsi positivi sul cablato', () => {
+  // ⭐ È il verso che conta di più: un falso positivo disegna un client CABLATO come
+  // associazione wireless, cioè scrive nel documento una cosa falsa. Un falso negativo
+  // perde un'onda. `phy…` e `wlx…` sono stretti apposta — la controparte cablata di
+  // `wlx` è `enx`, e `phyN` in Linux è per definizione la PHY wireless.
+  for (const n of ['enx00c0ca123456', 'phy0', 'phy0-eth0', 'physical0', 'phyto1',
+                   'wlxyz', 'sfp-sfpplus1', 'bridge-local', 'br-lan', 'ether1']) {
+    assert.equal(W.isWirelessInterface(n), false, `NON wireless: ${n}`);
+  }
+});
+
 test('isWirelessInterface: input vuoto/nullo → false', () => {
   assert.equal(W.isWirelessInterface(''), false);
   assert.equal(W.isWirelessInterface(null), false);
