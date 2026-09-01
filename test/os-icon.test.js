@@ -45,6 +45,15 @@ test('collisioni: gli OS di rete non finiscono su Apple/Windows/generico', () =>
   assert.equal(osIconFromString('FortiOS 7.2').key, 'netdev');
   // "IOS-XE" non deve diventare Apple, "PVE" resta Proxmox
   assert.equal(osIconFromString('Cisco IOS-XE').key, 'netdev');
+  // ⚠️ Extreme: il sysDescr vero dice "ExtremeXOS", la forma corta dice "EXOS".
+  // Il confine di parola di /(b)eos(b)/ (Arista) NON cade dentro extremexos —
+  // prima di "exos" c'e' una lettera — quindi servono tutt'e due le scritture,
+  // e prima di questa riga ogni switch Extreme prendeva l'icona generica.
+  assert.equal(osIconFromString('ExtremeXOS (X460-48t) version 16.2.1.4').key, 'netdev');
+  assert.equal(osIconFromString('EXOS 31.7').key, 'netdev');
+  // E il verso opposto, che e' il motivo del confine di parola: "exos" dentro
+  // un'altra parola non deve diventare un apparato di rete.
+  assert.equal(osIconFromString('exosphere linux 6.1').key, 'linux');
 });
 
 test('stringhe ignote / vuote → null (nessuna icona inventata)', () => {

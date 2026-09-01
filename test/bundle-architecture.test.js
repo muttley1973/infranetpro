@@ -90,6 +90,21 @@ test('⚠️ nessun sorgente contiene byte di controllo: git li tratterebbe da b
     try { buf = fs.readFileSync(path.join(ROOT, rel)); } catch (_) { continue; }
     const at = buf.indexOf(0);
     if (at >= 0) bad.push(`${rel} (byte NUL a offset ${at})`);
+    // ⚠️ E OGNI ALTRO byte di controllo — che il titolo di questa guardia
+    // prometteva e il codice non guardava: si controllavano il NUL e il CR
+    // solitario, due casi veri ma due soli.
+    // Successo il 01/09 in lib/os-icon.js, mentre sistemavo la regex degli OS di
+    // rete: uno script ha perso una backslash per strada, e in JS una "b"
+    // preceduta da backslash dentro una stringa non e' backslash-b — e' il
+    // carattere BACKSPACE, U+0008. Nel sorgente ne sono finiti due, dentro una
+    // regex. Invisibili a grep, invisibili a `git diff`, eslint muto, i test
+    // verdi: e la regex aveva smesso di cercare un confine di parola per
+    // mettersi a cercare un backspace. Me ne sono accorto solo perche' la prova
+    // dal vivo diceva netdev per "ExtremeXOS" e null per "EXOS" — in un commento
+    // o in una stringa non se ne sarebbe accorto nessuno.
+    const cc = _controlloCrudo(buf);
+    if (cc >= 0) bad.push(rel + ' (byte di controllo 0x' + buf[cc].toString(16).padStart(2, '0')
+      + ' a offset ' + cc + ': git tratta il file da binario)');
     // ⚠️ E il CR SOLITARIO, che non è un caso di scuola: successo il 23/08 in
     // lib/i18n.js, generato da uno script che ricuciva una riga già terminata
     // (`riga + NL`) e poi ri-splittava su '\n' — il '\r\n' diventava '\r\r\n'.
@@ -121,6 +136,22 @@ test('⚠️ nessun sorgente contiene byte di controllo: git li tratterebbe da b
     if (mj >= 0) bad.push(`${rel} (doppia codifica UTF-8 a offset ${mj}: una testa latin-1 davanti al carattere vero)`);
   }
   assert.deepEqual(bad, [], 'usa la sequenza di escape, non il carattere:\n' + bad.join('\n'));
+});
+
+test('⚠️ la sonda dei byte di controllo regge: il caso VERO viene visto', () => {
+  // Il caso non e' inventato: e' quello del 01/09 raccontato nella guardia.
+  // ⚠️ I byte si scrivono per NUMERO, non per carattere — se no questo file
+  // sarebbe il primo a far arrossire la guardia che sta provando (stessa regola
+  // della sonda qui sotto).
+  const rotto = Buffer.concat([Buffer.from('const re = /'), Buffer.from([0x08]), Buffer.from('bexos/;')]);
+  assert.ok(_controlloCrudo(rotto) >= 0, 'il backspace finito dentro una regex deve essere visto');
+  assert.equal(_controlloCrudo(Buffer.from([0x7f])), 0, 'e anche il DEL');
+  // E il verso opposto, che conta quanto il primo: il testo normale — coi suoi
+  // fine-riga e i suoi tab — non deve arrossire.
+  assert.equal(_controlloCrudo(Buffer.from([0x72, 0x0d, 0x0a, 0x09, 0x72, 0x0a])), -1);
+  assert.equal(_controlloCrudo(Buffer.from('perché accenti e «virgolette» vere', 'utf8')), -1);
+  // Il NUL ha il suo messaggio sopra: qui non deve contarsi due volte.
+  assert.equal(_controlloCrudo(Buffer.from([0x00])), -1);
 });
 
 test('⚠️ la sonda della doppia codifica regge: il caso VERO viene visto', () => {
@@ -165,6 +196,18 @@ function _doppiaCodifica(buf) {
 
 // Primo CR non seguito da LF, oppure -1. Sui byte: un file misto va guardato per
 // com'è scritto sul disco, non per come lo decodifica una stringa.
+// Ogni byte di controllo C0 tranne tab/LF/CR, piu' il DEL. Il NUL e' escluso
+// QUI perche' ha gia' il suo messaggio sopra, con la sua storia: contarlo due
+// volte direbbe due volte la stessa cosa.
+function _controlloCrudo(buf) {
+  for (let i = 0; i < buf.length; i++) {
+    const b = buf[i];
+    if (b === 0x00 || b === 0x09 || b === 0x0a || b === 0x0d) continue;
+    if (b < 0x20 || b === 0x7f) return i;
+  }
+  return -1;
+}
+
 function _crSolitario(buf) {
   for (let i = 0; i < buf.length; i++) {
     if (buf[i] === 0x0d && buf[i + 1] !== 0x0a) return i;

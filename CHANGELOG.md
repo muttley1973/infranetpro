@@ -17,6 +17,10 @@
 - **Two hot lookups stopped being paid on every render.** Resolving a port id to its device now remembers the answer (cleared together with the existing node index, by the same invalidation), and the rack-unit height no longer forces a whole-document style recalculation on each redraw.
 - **Selecting or deselecting a device no longer rebuilds the whole canvas.** A click paid for a full re-render of every room, tile, rack device and port — 122 ms at 500 devices, 205 ms at 1000, measured on the render bench. Selection now repaints only what depends on it: the selection classes, the properties panel, the cables (whose visibility reads the selection) and the topology overlay. The click now costs the same at 500 and at 1000 devices, and the DOM survives it — nodes are no longer torn down and recreated under the pointer.
 
+### Fixed
+
+- **Extreme switches were showing the generic icon.** The pattern that recognises network operating systems carried a word-bounded `eos` for Arista, and a word boundary does not fall inside `ExtremeXOS` — the letter before it is a letter. Both spellings are matched now, the long one the sysDescr actually reports and the short `EXOS`, while `eos` keeps its boundary so a word that merely contains those letters is still not a switch.
+
 ## [2.11.0] — 2026-08-31
 
 A project documents one building; this release documents how the buildings talk to each other — the sites, the WAN lines each one buys, the tunnels between them, as a map and as a form in the same place, with the declared model checking itself and a WAN chapter in the handover dossier.
