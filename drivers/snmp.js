@@ -868,9 +868,18 @@ function extractData(vbs) {
       bpToIf[lastIdx(oid)] = bufToInt(val); continue;
     }
 
-    // PVID — raccolto raw, risolto dopo (bpToIf potrebbe non essere ancora completo)
+    // PVID — raccolto raw, risolto dopo (bpToIf potrebbe non essere ancora completo).
+    // ⚠️ Qui c'era un `|| 1`. `bufToInt` rende 0 quando la decodifica non riesce, e quello
+    // zero diventava un PVID 1 che a valle nessuno sa piu' distinguere da una lettura
+    // riuscita. Ma `dot1qPvid` e' un `VlanIndex` (RFC 4363) e lo 0 non gli e' permesso: uno
+    // zero li' e' un errore di DECODIFICA, non una porta sulla VLAN 1 — e la differenza pesa,
+    // perche' su un apparato che commuta VLAN il PVID ha TITOLO e quel «1» poteva scavalcare
+    // la rete DICHIARATA. Fuori range non si registra niente: l'assenza e' la risposta onesta,
+    // e il ripiego vmVlan puo' ancora riempirla. Stesso controllo di `cviRoutedVlan` piu' sotto.
     if (oid.startsWith(OID.dot1qPvid + '.')) {
-      rawPvid[lastIdx(oid)] = bufToInt(val) || 1; continue;
+      const pvid = bufToInt(val);
+      if (pvid >= 1 && pvid <= 4094) rawPvid[lastIdx(oid)] = pvid;
+      continue;
     }
 
     // vmVlan (Cisco) — VLAN access indicizzata direttamente per ifIndex; raccolta raw,
