@@ -84,7 +84,7 @@ export function markDirty() {
     const dot = document.getElementById('save-dot');
     const btn = document.getElementById('btn-save');
     if (dot) dot.style.display = 'inline-block';
-    if (btn) { btn.classList.add('save-dirty'); btn.classList.remove('primary'); }
+    if (btn) btn.classList.add('save-dirty');
     _scheduleAutosave();
 }
 
@@ -120,7 +120,7 @@ export function _clearDirty(epoca) {
     const dot = document.getElementById('save-dot');
     const btn = document.getElementById('btn-save');
     if (dot) dot.style.display = 'none';
-    if (btn) { btn.classList.remove('save-dirty'); btn.classList.add('primary'); }
+    if (btn) btn.classList.remove('save-dirty');
 }
 
 // ── Audit trail (N2): journal append-only "chi / quando / cosa" ──────

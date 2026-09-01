@@ -133,8 +133,24 @@
            + bordo/testo accent. Riusabile (toggle attivo, azioni evidenziate). */
         .toolbar-btn.soft { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
         .toolbar-btn.soft:hover { background: var(--accent-soft); border-color: var(--accent); filter: brightness(1.25); }
-        .toolbar-btn.save-dirty { background: #2d2000; border-color: #e3b341; color: #e3b341; }
-        .toolbar-btn.save-dirty:hover { background: #3a2900; }
+        /* «Salva» pesa quando c'e' DA salvare, non quando non c'e'. Era il contrario:
+           a documento pulito il bottone era .primary — accent pieno, 10,69:1 contro il
+           fondo pagina, il piu' forte della barra — e con lavoro NON salvato diventava
+           un contorno ambra che contro lo stesso fondo misura 1,19:1: a quel punto non
+           e' una forma, e' un bordino. Nove volte l'enfasi, dalla parte sbagliata.
+           E' lo stesso ragionamento gia' scritto qui sopra per .danger-quiet: a riposo
+           il bottone pesa come i suoi fratelli.
+           ⚠️ Toglie anche il SECONDO .primary della barra: il redesign aveva deciso che
+           il primario e' Verifica (#btn-drift), e due primari non sono un primario.
+           L'inchiostro non e' scelto a occhio, e' la domanda di badgeInk(): sull'ambra
+           risponde #000 (10,79:1) e non il bianco (1,95:1). Hover piu' chiaro, 13,07:1.
+           ⚠️ Il peso 600 sta sul BOTTONE, non sullo stato: se stesse sullo stato la
+           larghezza cambierebbe fra i due e la barra sussulterebbe (prima succedeva —
+           600 da pulito, normale da sporco). Cosi' il caso peggiore per il budget di
+           larghezza dell'header resta quello di prima. */
+        #btn-save { font-weight: 600; }
+        .toolbar-btn.save-dirty { background: #e3b341; border-color: #e3b341; color: #000; }
+        .toolbar-btn.save-dirty:hover { background: #f0c766; border-color: #f0c766; }
 
         /* Search */
         /* flex-GROW 1: la ricerca ha priorità di espansione, riempie lo spazio fra i
