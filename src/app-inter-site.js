@@ -787,7 +787,20 @@ function _mergeWan(site, j) {
       transportLabel: transport === 'other' ? (c.transportLabel || null) : null,
       tunnelLabel: tunnel === 'other' ? (c.tunnelLabel || null) : null,
       name: c.name || null,
-      state: null, reach: null,
+      state: null,
+      // ⑧ di `lib/dcim-vpn.js` — le reti raggiungibili a ciascun capo, quando
+      // l'archivio le dichiara: oggi solo un servizio L2 appeso a una VLAN, perché
+      // per i tunnel NetBox non modella l'encryption domain e per i circuiti non
+      // modella le reti trasportate. Prima qui c'era `null` fisso, e due controlli
+      // dell'audit si dichiaravano ciechi su OGNI progetto importato.
+      // `declared` e non `derived`: seguire il campo `vlan` di un prefisso è LEGGERE
+      // una dichiarazione dell'archivio, non calcolarla da roba nostra — è la stessa
+      // ragione già scritta qui sopra per `wanIfRef`, che segue un cavo.
+      // ⚠️ `null` se nessuno dei due capi porta niente: un `reach` assente è «non lo
+      // sappiamo», e `{a:[],b:[]}` sarebbe «non raggiunge niente».
+      reach: (c.aReach && c.aReach.length) || (c.bReach && c.bReach.length)
+        ? factDeclared({ a: c.aReach || [], b: c.bReach || [] })
+        : null,
       provider: c.provider || null, circuitId: c.circuitId || null,
       // ⑳ Vuoto, e non dedotto: nessun import sa su quale linea corre un tunnel
       // (paletto ②). Far combaciare `peerIp` con un `publicIps` è una

@@ -830,6 +830,23 @@ async function _pullVpnLinks(client, siteIds) {
     perTipo.vm.length ? _batchByField(client, '/api/virtualization/virtual-machines/', 'id', perTipo.vm) : Promise.resolve({ results: [] }),
     perTipo.vlan.length ? _batchByField(client, '/api/ipam/vlans/', 'id', perTipo.vlan) : Promise.resolve({ results: [] }),
   ]);
+  // ⑧ di `lib/dcim-vpn.js` — le reti che l'archivio DICHIARA per un capo. Esistono
+  // solo per una VLAN: un prefisso NetBox porta il campo `vlan`, quindi la domanda
+  // «quali reti rende raggiungibili questo servizio a questo capo» è già scritta,
+  // in due oggetti invece che in uno. Per un apparato o una VM non esiste niente di
+  // simile, e per i TUNNEL non esiste affatto (misurato: nessun campo per le reti
+  // protette su `vpn/tunnels/`) — quindi là `reach` resta vuoto, che è la verità.
+  const prefissi = perTipo.vlan.length
+    ? await _batchByField(client, '/api/ipam/prefixes/', 'vlan_id', perTipo.vlan, 20000)
+    : { results: [] };
+  // ⚠️ `?vlan_id=` su questo endpoint è ONORATO — verificato sul NetBox vero
+  // (4.6.7): `?vlan_id=80` torna 1 riga su 121, mentre un filtro INVENTATO ne
+  // torna 121. Non è una formalità: su `vpn/` lo stesso archivio accetta e
+  // IGNORA `?site_id=`, e se questo si comportasse così ogni VLAN si prenderebbe
+  // i prefissi di tutte le altre.
+  // La mappatura sta nel modulo puro, dove ci sono le prove: qui si LEGGE.
+  const retiPerVlan = dcimVpn.netsByVlan(prefissi.results);
+
   const sito = { device: Object.create(null), vm: Object.create(null), vlan: Object.create(null) };
   const _sito = o => (o && o.site && o.site.id != null) ? { id: o.site.id, name: o.site.name || null } : null;
   for (const d of (dev.results || [])) if (d && d.id != null) sito.device[String(d.id)] = _sito(d);
@@ -843,6 +860,7 @@ async function _pullVpnLinks(client, siteIds) {
   }, {
     siteIds,
     siteOf: (h) => (h && sito[h.kind] ? sito[h.kind][String(h.id)] || null : null),
+    netsOf: (h) => (h && h.kind === 'vlan' ? retiPerVlan[String(h.id)] || null : null),
   });
   if (l2.fallback || tun.fallback) out.notes.push({ code: 'vpn.scopeFilterFailed' });
   return out;

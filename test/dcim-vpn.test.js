@@ -236,3 +236,169 @@ test('la mappatura non muta il bundle che le è stato dato', () => {
   vpnToLinks(nb, { siteIds: [1], siteOf });
   assert.equal(JSON.stringify(nb), prima);
 });
+
+// ── ⑧ `reach`: le reti che il collegamento rende raggiungibili ───────────────
+// Era il buco più grande dell'import: `reach` non lo riempiva NESSUNO, e due
+// controlli dell'audit (`subnetsNowhere`, `subnetsNotCarried`) si dichiaravano
+// ciechi con motivo `no-reach` su OGNI progetto importato — una copertura che
+// valeva sempre zero. Adesso si legge dove l'archivio lo dichiara, e SOLO lì.
+
+const vlan = (id, name) => ({ id, name, display: name });
+const V_VR = vlan(300, 'VLAN300-VR'), V_TN = vlan(400, 'VLAN400-TN'), V_VR2 = vlan(301, 'VLAN301-VR');
+const l2tv = (id, l2vpn, v) => ({ id, l2vpn: { id: l2vpn }, assigned_object_type: 'ipam.vlan', assigned_object: v });
+// Le VLAN stanno in una sede come gli apparati; le reti le dichiarano i prefissi
+// che le citano (in NetBox un prefisso porta il campo `vlan`).
+const SEDI_VLAN = { 300: SEDI[171], 301: SEDI[171], 400: SEDI[172] };
+const siteOfAll = (h) => h ? (h.kind === 'device' ? SEDI[h.id] || null
+  : h.kind === 'vlan' ? SEDI_VLAN[h.id] || null : null) : null;
+const RETI = { 300: ['10.30.0.0/24'], 301: ['10.31.0.0/24', '10.30.0.0/24'], 400: ['10.40.0.0/24', '10.41.0.0/24'] };
+const netsOf = (h) => (h && h.kind === 'vlan' ? RETI[h.id] || null : null);
+const vpls = (id, name) => ({ id, name, type: { value: 'vpls', label: 'VPLS' }, status: { value: 'active' } });
+
+test('⑧ un servizio L2 appeso a una VLAN porta le reti che l\'archivio dichiara, al capo GIUSTO', () => {
+  const out = vpnToLinks({
+    l2vpns: [vpls(1, 'VPLS-VR-TN')],
+    l2vpnTerminations: [l2tv(1, 1, V_VR), l2tv(2, 1, V_TN)],
+  }, { siteIds: [1], siteOf: siteOfAll, netsOf });
+  const l = out.links[0];
+  // ⚠️ Le reti NON si incrociano, a differenza degli indirizzi (②): quelle di A
+  // stanno presso A. Se si incrociassero, `linkReachAt` risponderebbe al
+  // contrario e nessuno a valle potrebbe accorgersene — due liste plausibili
+  // nei due campi sbagliati.
+  assert.deepEqual([l.aNetboxSiteName, l.bNetboxSiteName], ['Verona HQ', 'Trento Filiale']);
+  assert.deepEqual(l.aReach, ['10.30.0.0/24'], 'le reti di Verona stanno sul capo di Verona');
+  assert.deepEqual(l.bReach, ['10.40.0.0/24', '10.41.0.0/24']);
+});
+
+test('⑧ due VLAN nella STESSA sede si UNISCONO, senza doppioni', () => {
+  // Fermarsi al primo capo farebbe accusare le reti dell'altro di «non
+  // trasportate»: un'accusa FALSA, che è l'errore peggiore di questo audit.
+  const out = vpnToLinks({
+    l2vpns: [vpls(1, 'VPLS-2VLAN')],
+    l2vpnTerminations: [l2tv(1, 1, V_VR), l2tv(2, 1, V_VR2), l2tv(3, 1, V_TN)],
+  }, { siteIds: [1], siteOf: siteOfAll, netsOf });
+  assert.equal(out.links.length, 1, 'due VLAN in una sede restano DUE capi di UNA sede, non due sedi');
+  // 10.30.0.0/24 è dichiarata da tutt'e due le VLAN: compare una volta sola.
+  assert.deepEqual(out.links[0].aReach, ['10.30.0.0/24', '10.31.0.0/24']);
+});
+
+test('⑧ ⛔ un TUNNEL non porta reach: NetBox non modella l\'encryption domain', () => {
+  // ⚠️ Questa è la guardia contro l'INVENZIONE, e vale più delle altre. Misurato
+  // su NetBox 4.6.7 (OPTIONS su /api/vpn/tunnels/): i campi sono `encapsulation`,
+  // `ipsec_profile`, `tunnel_id` — cifratura e incapsulamento — e NESSUNO parla
+  // di reti protette. Dedurle dalle reti della sede sarebbe inventare il campo
+  // perno di tutta la discovery. Resta vuoto, ed è la verità.
+  const out = vpnToLinks({
+    tunnels: [{ id: 1, name: 'IPSEC-VR-TN', status: { value: 'active' }, encapsulation: { value: 'ipsec-tunnel' } }],
+    tunnelTerminations: [tunt(1, 1, itf(10, 'Gi0/1', VR), 'peer', '203.0.113.1/32'),
+                         tunt(2, 1, itf(11, 'Gi0/1', TN), 'peer', '198.51.100.1/32')],
+  }, { siteIds: [1], siteOf: siteOfAll, netsOf });
+  const l = out.links[0];
+  assert.equal(l.tunnel, 'ipsec', 'il tunnel entra: è solo `reach` che non si può sapere');
+  assert.equal(l.aReach, null);
+  assert.equal(l.bReach, null);
+});
+
+test('⑧ una VLAN senza prefissi dà `null`, non una lista vuota', () => {
+  // «Non lo sappiamo» e «non ne raggiunge nessuna» sono due risposte diverse, e a
+  // valle nessuno le rimette insieme (`linkReach` in lib/inter-site.js).
+  const V_MUTA = vlan(999, 'VLAN-SENZA-PREFISSI');
+  const out = vpnToLinks({
+    l2vpns: [vpls(1, 'VPLS-MUTO')],
+    l2vpnTerminations: [l2tv(1, 1, V_MUTA), l2tv(2, 1, V_TN)],
+  }, { siteIds: [1],
+       siteOf: (h) => (h && h.kind === 'vlan' ? (h.id === 999 ? SEDI[171] : SEDI_VLAN[h.id] || null) : null),
+       netsOf });
+  const l = out.links[0];
+  assert.equal(l.aReach, null, 'nessuna rete dichiarata ⇒ null, mai []');
+  assert.deepEqual(l.bReach, ['10.40.0.0/24', '10.41.0.0/24'], 'e l\'altro capo resta pieno');
+});
+
+test('⑧ senza `netsOf` il modulo non cambia comportamento (chiamanti vecchi)', () => {
+  const out = vpnToLinks({
+    l2vpns: [vpls(1, 'VPLS-VR-TN')],
+    l2vpnTerminations: [l2tv(1, 1, V_VR), l2tv(2, 1, V_TN)],
+  }, { siteIds: [1], siteOf: siteOfAll });
+  assert.equal(out.links[0].aReach, null);
+  assert.equal(out.links[0].bReach, null);
+});
+
+test('⑧ un capo su APPARATO non porta reach: l\'archivio non lo dichiara', () => {
+  // Un'interfaccia ha degli indirizzi, ma l'indirizzo di un capo NON è la rete
+  // che quel capo rende raggiungibile: sarebbe la stessa invenzione del tunnel,
+  // travestita da lettura.
+  const out = vpnToLinks({
+    l2vpns: [vpls(1, 'VPLS-SU-PORTE')],
+    l2vpnTerminations: [l2t(1, 1, itf(10, 'Gi1/0/23', VR)), l2t(2, 1, itf(11, 'Gi0/2', TN))],
+  }, { siteIds: [1], siteOf: siteOfAll, netsOf });
+  assert.equal(out.links[0].aReach, null);
+  assert.equal(out.links[0].bReach, null);
+});
+
+// ── ⑧ `netsByVlan`: i prefissi di NetBox → le reti dichiarate per ogni VLAN ──
+// ⚠️ Questa funzione si guasta in SILENZIO: se sbaglia, «nessuna rete» si legge
+// identico all'onesto «l'archivio non lo dichiara» — cioè proprio la risposta
+// che tutto questo lavoro doveva togliere di mezzo. Per questo non sta nella
+// rotta, dove nessuna prova la raggiunge.
+const { netsByVlan } = require('../lib/dcim-vpn.js');
+const pfx = (id, prefix, vlanId, status) => ({
+  id, prefix, vlan: vlanId == null ? null : { id: vlanId, vid: vlanId, name: 'V' + vlanId },
+  status: status ? { value: status, label: status } : { value: 'active', label: 'Active' },
+});
+
+test('⑧ i prefissi si raggruppano per VLAN, e chi non ne ha una resta fuori', () => {
+  const m = netsByVlan([
+    pfx(1, '10.10.20.0/24', 201),
+    pfx(2, '2001:db8:10::/64', 201),
+    pfx(3, '10.20.120.0/24', 211),
+    pfx(4, '192.168.99.0/24', null),   // rete di servizio senza VLAN: non è di nessuno
+  ]);
+  assert.deepEqual(m['201'], ['10.10.20.0/24', '2001:db8:10::/64'], 'IPv4 e IPv6 insieme: sono due reti dichiarate');
+  assert.deepEqual(m['211'], ['10.20.120.0/24']);
+  assert.equal(Object.keys(m).length, 2, 'un prefisso senza VLAN non inventa una chiave');
+});
+
+test('⑧ un prefisso `deprecated` non entra: è una dichiarazione RITIRATA', () => {
+  // ⚠️ E solo quello. Un `container` è una FORMA di voce (una supernet), non uno
+  // stato: chi l'ha appeso a quella VLAN l'ha appeso apposta, e toglierlo
+  // vorrebbe dire decidere al posto suo.
+  const m = netsByVlan([
+    pfx(1, '10.10.0.0/16', 201, 'container'),
+    pfx(2, '10.10.20.0/24', 201, 'active'),
+    pfx(3, '10.10.99.0/24', 201, 'deprecated'),
+    pfx(4, '10.10.98.0/24', 201, 'reserved'),
+  ]);
+  assert.deepEqual(m['201'], ['10.10.0.0/16', '10.10.20.0/24', '10.10.98.0/24']);
+});
+
+test('⑧ lo stesso prefisso scritto due volte sulla stessa VLAN compare una volta', () => {
+  const m = netsByVlan([pfx(1, '10.10.20.0/24', 201), pfx(2, '10.10.20.0/24', 201)]);
+  assert.deepEqual(m['201'], ['10.10.20.0/24']);
+});
+
+test('⑧ `netsByVlan` non ordina: ordina chi normalizza, e una volta sola', () => {
+  // Due ordinamenti con due regole diverse sono il modo di non sapere più quale
+  // vince. `normalizeSubnets` (lib/inter-site.js) ordina da sé, all'ingresso nel
+  // modello.
+  const m = netsByVlan([pfx(1, '10.30.0.0/24', 7), pfx(2, '10.10.0.0/24', 7)]);
+  assert.deepEqual(m['7'], ['10.30.0.0/24', '10.10.0.0/24'], 'resta l\'ordine di NetBox');
+});
+
+test('⑧ una lista assurda, vuota o assente non esplode e non inventa', () => {
+  // ⚠️ Si guardano le CHIAVI e non l'oggetto: la mappa nasce senza prototipo
+  // (`Object.create(null)`), quindi `deepEqual` con un `{}` normale fallisce pur
+  // essendo la stessa cosa. Il prototipo assente è voluto — le chiavi qui sono
+  // dati che arrivano da fuori, e una mappa che risponde da sola a `toString` o a
+  // `__proto__` è il modo classico di far dire a un lookup una cosa che non c'è.
+  const vuoto = (v) => assert.deepEqual(Object.keys(netsByVlan(v)), []);
+  vuoto(null); vuoto(undefined); vuoto([]); vuoto('niente');
+  vuoto([null, 3, 'x', {}, { prefix: '10.0.0.0/8' }, { vlan: { id: 1 } }]);
+  assert.equal(Object.getPrototypeOf(netsByVlan([])), null, 'nessun prototipo, di proposito');
+});
+
+test('⑧ la VLAN si legge sia come oggetto sia come id nudo', () => {
+  // NetBox espande la chiave esterna in lettura; chi scrive manda l'id nudo. Il
+  // mock fa la stessa cosa, quindi il lettore deve reggere tutt'e due.
+  const m = netsByVlan([{ id: 1, prefix: '10.1.0.0/24', vlan: 55 }, pfx(2, '10.2.0.0/24', 55)]);
+  assert.deepEqual(m['55'], ['10.1.0.0/24', '10.2.0.0/24']);
+});
