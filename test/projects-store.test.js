@@ -117,3 +117,56 @@ test('removeBgAsset: elimina l\'asset del progetto (usato dalla delete)', () => 
   assert.equal(fs.existsSync(path.join(dir, '9.png')), false);
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+// ── Il nome del temporaneo identifica la SCRITTURA, non il processo ─────────
+// Era `<file>.<pid>.tmp`: dentro un processo, tutte le scritture dello stesso
+// file condividevano quel nome. Con l'I/O sincrona non fa danno; il giorno che
+// diventa asincrona, due salvataggi si sovrascriverebbero il temporaneo a
+// vicenda PRIMA del rename — che resterebbe atomico, e consegnerebbe un JSON
+// valido col contenuto di due scritture mescolate, senza un errore da nessuna
+// parte. Queste prove tengono il nome unico prima che serva.
+const { _tmpPath } = require('../server/projects-store.js');
+
+test('⚠️ due scritture dello STESSO file non condividono il temporaneo', () => {
+  const f = path.join(os.tmpdir(), 'x', '1.json');
+  const a = _tmpPath(f), b = _tmpPath(f), c = _tmpPath(f);
+  assert.notEqual(a, b);
+  assert.notEqual(b, c);
+  assert.equal(new Set([a, b, c]).size, 3, 'ogni scrittura ha il suo nome');
+  // ⚠️ E non deve essere tornato alla forma vecchia: quella si riconosce perché
+  // finisce col pid subito prima di `.tmp`.
+  assert.equal(new RegExp('\\.' + process.pid + '\\.tmp$').test(a), false,
+    'il nome non può essere <file>.<pid>.tmp: e\' esattamente quello che collideva');
+});
+
+test('il pid resta nel nome: due PROCESSI non devono collidere fra loro', () => {
+  // Il progressivo separa le scritture dentro un processo, il pid separa i
+  // processi. Togliere il pid sposterebbe la collisione un piano più su.
+  const n = _tmpPath(path.join(os.tmpdir(), 'x', '1.json'));
+  assert.ok(n.includes('.' + process.pid + '.'), 'nome: ' + n);
+  assert.ok(n.endsWith('.tmp'));
+});
+
+test('⚠️ una scrittura FALLITA non lascia il temporaneo dietro di sé', () => {
+  // Col nome fisso, un temporaneo rimasto indietro veniva riusato dalla
+  // scrittura successiva. Con un nome nuovo ogni volta, ogni fallimento
+  // lascerebbe un orfano che nessuno raccoglie: il nome unico OBBLIGA a pulire,
+  // e questa è la prova che l'obbligo è rispettato.
+  const dir  = tmpDir();
+  const file = path.join(dir, '1.json');
+  assert.throws(() => atomicWriteFile(file, 12345), 'un dato non scrivibile deve fallire');
+  assert.deepEqual(fs.readdirSync(dir), [], 'né il file né il suo temporaneo');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('e dopo una scrittura RIUSCITA non ne resta comunque nessuno', () => {
+  const dir  = tmpDir();
+  const file = path.join(dir, '1.json');
+  atomicWriteFile(file, '{"a":1}');
+  atomicWriteFile(file, '{"a":2}');
+  atomicWriteFile(file, '{"a":3}');
+  const restati = fs.readdirSync(dir).filter(f => f.endsWith('.tmp'));
+  assert.deepEqual(restati, [], 'tre scritture, tre nomi diversi, zero avanzi');
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { a: 3 });
+  fs.rmSync(dir, { recursive: true, force: true });
+});

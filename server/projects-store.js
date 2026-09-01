@@ -31,19 +31,44 @@ if (!fs.existsSync(PROJECTS_DIR)) fs.mkdirSync(PROJECTS_DIR, { recursive: true }
 // `mode` opzionale: crea il file temporaneo con quei permessi FIN DALL'INIZIO
 // (es. 0o600 per un file con segreti) → nessuna finestra world-readable fra
 // scrittura e chmod. Omesso → permessi di default (comportamento invariato).
+// ⚠️ Il nome del temporaneo identifica la SCRITTURA, non il processo. Prima era
+// `<file>.<pid>.tmp`: dentro un processo tutte le scritture dello stesso file
+// condividevano quel nome. Oggi non fa danno — sono sincrone, non si intrecciano —
+// ma e' una trappola che scatta il giorno che questa I/O diventa asincrona, e a
+// quel punto due salvataggi si sovrascriverebbero il temporaneo A VICENDA, PRIMA
+// del rename: il rename resterebbe atomico e il file finale conterrebbe meta' di
+// una scrittura e meta' dell'altra, senza che niente segnali un errore.
+// ⚠️ Prima il NOME, poi semmai l'asincrono: nell'altro ordine il guasto e' gia'
+// passato, e si presenta come un JSON valido col contenuto sbagliato.
+// Il contatore basta e non serve altro: il pid separa i processi, il progressivo
+// separa le scritture dentro un processo. Niente orologio e niente casualita', che
+// renderebbero il nome irriproducibile in una prova.
+let _tmpSeq = 0;
+function _tmpPath(file) { return `${file}.${process.pid}.${++_tmpSeq}.tmp`; }
+
+// ⚠️ E un nome unico OBBLIGA a ripulire. Col nome fisso un temporaneo rimasto
+// indietro veniva riusato dalla scrittura dopo; con un nome nuovo ogni volta,
+// ogni fallimento lascerebbe un orfano che nessuno raccoglie piu'. Il `finally`
+// lo toglie: se il rename e' avvenuto, il temporaneo non c'e' gia' piu'.
 function atomicWriteFile(file, data, mode) {
-  const tmp = `${file}.${process.pid}.tmp`;
-  const fd  = (mode !== undefined) ? fs.openSync(tmp, 'w', mode) : fs.openSync(tmp, 'w');
+  const tmp = _tmpPath(file);
+  let rinominato = false;
   try {
-    fs.writeSync(fd, data, 0, 'utf8');
-    fs.fsyncSync(fd);
+    const fd = (mode !== undefined) ? fs.openSync(tmp, 'w', mode) : fs.openSync(tmp, 'w');
+    try {
+      fs.writeSync(fd, data, 0, 'utf8');
+      fs.fsyncSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
+    if (fs.existsSync(file)) {
+      try { fs.copyFileSync(file, `${file}.bak`); } catch (_) { /* best-effort */ }
+    }
+    fs.renameSync(tmp, file);
+    rinominato = true;
   } finally {
-    fs.closeSync(fd);
+    if (!rinominato) { try { fs.unlinkSync(tmp); } catch (_) { /* non c'e': niente da togliere */ } }
   }
-  if (fs.existsSync(file)) {
-    try { fs.copyFileSync(file, `${file}.bak`); } catch (_) { /* best-effort */ }
-  }
-  fs.renameSync(tmp, file);
 }
 
 // ---- bgImage: estrazione su file (lo stato/JSON resta piccolo) --------------
@@ -77,10 +102,16 @@ function _hashBuf(buf) {
 // l'hash; un asset perso/corrotto degrada a "nessuna immagine" (riattacco fallisce
 // in modo soft), non corrompe il progetto.
 function _writeAssetAtomic(file, buf) {
-  const tmp = `${file}.${process.pid}.tmp`;
-  const fd  = fs.openSync(tmp, 'w');
-  try { fs.writeSync(fd, buf); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
-  fs.renameSync(tmp, file);
+  const tmp = _tmpPath(file);
+  let rinominato = false;
+  try {
+    const fd = fs.openSync(tmp, 'w');
+    try { fs.writeSync(fd, buf); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+    fs.renameSync(tmp, file);
+    rinominato = true;
+  } finally {
+    if (!rinominato) { try { fs.unlinkSync(tmp); } catch (_) { /* niente da togliere */ } }
+  }
 }
 
 // Ritorna una COPIA dello stato pronta per il disco: se bgImage è un data-URL lo
@@ -308,6 +339,6 @@ function listProjects() {
 }
 
 module.exports = {
-  PROJECTS_DIR, ASSETS_DIR, atomicWriteFile, nextId, saveProject, loadProject, readProjectFile, listProjects,
+  PROJECTS_DIR, ASSETS_DIR, atomicWriteFile, _tmpPath, nextId, saveProject, loadProject, readProjectFile, listProjects,
   extractBgAsset, reattachBgAsset, removeBgAsset, projectEtag,
 };
