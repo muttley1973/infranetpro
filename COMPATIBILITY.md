@@ -85,6 +85,17 @@ Legend: ✅ verified on real hardware · 🧪 covered by a replay fixture ·
   bind-mounts/subvolumes → filtered + de-duplicated.
 - **SNMPv3 without credentials**: a v3 agent answers a report on the engineID/USM
   handshake even with an empty user → used to *detect* v3 in discovery.
+- **Consumer/ISP all-in-one boxes cannot report wireless associations**, and locked-down
+  SNMP is only half the reason. Even where the agent answers, these boxes keep the Wi-Fi
+  and the LAN sockets in one bridge (`br0`), so a client that associated over the air and
+  one plugged into a socket are learned on the *same* interface — nothing tells them
+  apart. Association discovery needs a MAC learned on an interface that reports itself as
+  wireless (`ifType=71`, or a wireless name), and on these boxes that interface does not
+  exist as a separate object. Measured on an ISP-supplied rebranded Zyxel: it answers a
+  ping and says nothing over SNMP. It works on kit that exposes the radio as an interface
+  of its own — enterprise AP/WLC, MikroTik, UniFi, OpenWrt — and on a Windows or Linux
+  SoftAP, which is also the cheapest way to exercise the feature without buying anything.
+  On an all-in-one, drawing the waves by hand is the correct path, not a workaround.
 - **Static LAG reports a bogus ActorState**: the Zyxel GS1900 returns
   `dot3adAggPortActorOperState = 0xc4` (Aggregation **+ Defaulted + Expired**) on *every*
   port, even for a non-LACP static LAG. We label the LACP mode (active/passive) only when
