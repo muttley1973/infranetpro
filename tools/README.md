@@ -1,149 +1,153 @@
 # Import device-type YAML → InfraNet catalog / skins
 
-`import-device-types.js` trasforma **dati YAML pubblici di device-type** (formato
-`device-types/<Vendor>/<model>.yaml`, licenza **CC0-1.0** / pubblico dominio) in:
+`import-device-types.js` turns **public device-type YAML data** (the
+`device-types/<Vendor>/<model>.yaml` format, **CC0-1.0** / public domain licence)
+into:
 
-- un **catalogo di template nativi** InfraNet (`ports` + `frontPanel`), e/o
-- **skin di pannello native**: SVG vettoriali con porte *vive* (`id="port-N"`).
+- a **catalog of native InfraNet templates** (`ports` + `frontPanel`), and/or
+- **native panel skins**: vector SVGs with *live* ports (`id="port-N"`).
 
-## Perché così (licenza)
-- I dati usati sono **CC0-1.0** (pubblico dominio): marca, modello, `u_height` ed
-  elenco porte sono riusabili liberamente, anche in commercio, senza attribuzione.
-- **NON** usiamo immagini di elevazione raster: sono senza id-porta (non
-  diventerebbero LED vivi) e con provenienza incerta. Prendiamo solo il dato e
-  **ridisegniamo l'artwork da zero**, così le porte restano interattive e nostre.
+## Why this way (licence)
+- The data used is **CC0-1.0** (public domain): brand, model, `u_height` and the
+  port list are freely reusable, commercially too, without attribution.
+- We do **NOT** use raster elevation images: they carry no port ids (they would
+  never become live LEDs) and their provenance is uncertain. We take only the
+  data and **redraw the artwork from scratch**, so the ports stay interactive and
+  ours.
 
-## Due modi d'uso
+## Two ways to use it
 
-### A) Template NATIVI → "Applica modello" (CONSIGLIATO, look ESATTO)
-Genera un **catalogo** di template nativi (`ports` + `frontPanel`: sfpCount/sfp2Count/
-sfpStartNum/mgmtCount/sharedMediaSlots) che il **renderer di default** dell'app usa per disegnare
-porte/SFP/MGMT esatte. È la strada giusta: nessun SVG, riusa il render nativo.
+### A) NATIVE templates → "Apply model" (RECOMMENDED, EXACT look)
+Generates a **catalog** of native templates (`ports` + `frontPanel`: sfpCount/sfp2Count/
+sfpStartNum/mgmtCount/sharedMediaSlots) that the app's **default renderer** uses to draw
+exact ports/SFP/MGMT. This is the right road: no SVG, it reuses the native render.
 
-`sharedMediaSlots` descrive posizioni fisiche condivise da più media senza aumentare
-il numero delle porte: `{ start: 10, count: 1, media: ["copper", "fiber"] }` è
-uno slot dati unico compatibile con rame o fibra. Le correzioni hardware verificate
-restano in `data/device-types-overrides.json`, senza regole dipendenti dal vendor.
+`sharedMediaSlots` describes physical positions shared by several media without
+increasing the number of ports: `{ start: 10, count: 1, media: ["copper", "fiber"] }`
+is a single data slot that accepts copper or fibre. Verified hardware corrections
+live in `data/device-types-overrides.json`, with no vendor-dependent rules.
 ```bash
 node tools/import-device-types.js <inputDir> <outDir> --catalog=data/device-types.json
 ```
-Filtri utili: `--vendors=A,B` (limita alle cartelle-vendor indicate) e `--roles`
-(tiene solo apparati di rete: switch/router/AP/firewall/UPS-PDU/NAS/console;
-scarta endpoint, server/blade e accessori, con report per-vendor tenuti/scartati).
+Useful filters: `--vendors=A,B` (restrict to the named vendor folders) and `--roles`
+(keep network equipment only: switch/router/AP/firewall/UPS-PDU/NAS/console; drop
+endpoints, servers/blades and accessories, with a per-vendor kept/dropped report).
 
-Il file `data/device-types.json` è servito da `GET /api/device-types`; nell'app,
-device → Proprietà → **Layout porte → "Applica modello"** (cerca marca/modello) setta
-`ports`+`frontPanel` → il device si disegna esatto. Merge idempotente per slug (piu'
-vendor si accumulano).
+`data/device-types.json` is served by `GET /api/device-types`; in the app,
+device → Properties → **Port layout → "Apply model"** (search brand/model) sets
+`ports`+`frontPanel` → the device is drawn exactly. The merge is idempotent by slug
+(several vendors accumulate).
 
-### B) Skin SVG custom (faceplate su misura)
+### B) Custom SVG skins (bespoke faceplates)
 ```bash
-# genera skin .svg + catalogo:
+# generate .svg skins + catalog:
 node tools/import-device-types.js <inputDir> <outDir>
-# ...oppure installa le skin nello skin store del server:
+# ...or install the skins into the server's skin store:
 node tools/import-device-types.js <inputDir> <outDir> --seed
 ```
-Nota: la skin **non** riproduce le gabbie SFP/MGMT trasparenti del default (il render
-skin forza il `fill`). Per il look esatto usa la strada A.
-Con `--seed` le skin finiscono in `skins/<slug>.svg` + `skins/index.json` (lo skin
-store letto da `GET /api/skins`): compaiono nel dropdown **Skin pannello** e col
-match brand/model (il ✓). Il seed è **idempotente**: ri-eseguendolo rimuove prima
-le skin preesistenti con stessa `(brand, model, face)`.
+Note: a skin does **not** reproduce the default's transparent SFP/MGMT cages (the
+skin renderer forces the `fill`). For the exact look, take road A.
+With `--seed` the skins end up in `skins/<slug>.svg` + `skins/index.json` (the skin
+store read by `GET /api/skins`): they appear in the **Panel skin** dropdown and via
+the brand/model match (the ✓). The seed is **idempotent**: re-running it first
+removes pre-existing skins with the same `(brand, model, face)`.
 
-Output senza `--seed`: `<outDir>/<slug>.svg` (una per modello) + `<outDir>/catalog.json`
-(brand, modello, u_height, conteggi porte).
+Output without `--seed`: `<outDir>/<slug>.svg` (one per model) + `<outDir>/catalog.json`
+(brand, model, u_height, port counts).
 
-## Come classifica e numera
-- **rame** (`*base-t/tx`) → `id="port-N"` · **fibra** (`*sfp/qsfp/base-x`) →
-  `id="sfp-N"` · **management** (`mgmt_only` o nome *mgmt*) → `id="mgmt-K"`.
-- Porte dati numerate in ordine **assoluto** `1..N` (fibra dopo il rame);
-  console/power/interfacce virtuali/wireless vengono **scartate**.
-- Ogni skin è validata con `lib/panel-skin.js` (`parsePanelSkin`) prima di salvarla.
+## How it classifies and numbers
+- **copper** (`*base-t/tx`) → `id="port-N"` · **fibre** (`*sfp/qsfp/base-x`) →
+  `id="sfp-N"` · **management** (`mgmt_only`, or a name containing *mgmt*) →
+  `id="mgmt-K"`.
+- Data ports numbered in **absolute** order `1..N` (fibre after copper);
+  console/power/virtual/wireless interfaces are **dropped**.
+- Every skin is validated with `lib/panel-skin.js` (`parsePanelSkin`) before it is
+  saved.
 
-Il renderer nativo del rack usa gli stessi dati `frontPanel` senza introdurre una
-classificazione dipendente dal vendor. Quando un modello combina una riga principale
-densa con un blocco SFP ampio, applica automaticamente una modalità visuale compatta:
-riduce gli spazi e le celle, rimuove gli spostamenti fissi e mantiene visibili le porte
-rame, SFP/QSFP e MGMT. La modalità riguarda solo la geometria CSS: non modifica il
-conteggio, l'ordine, la numerazione o il mapping delle interfacce.
+The native rack renderer uses the same `frontPanel` data without introducing any
+vendor-dependent classification. When a model combines a dense main row with a wide
+SFP block, it automatically applies a compact visual mode: it shrinks the gaps and
+the cells, removes the fixed offsets, and keeps copper, SFP/QSFP and MGMT ports
+visible. The mode concerns CSS geometry only: it does not change the count, the
+order, the numbering or the interface mapping.
 
-## Limiti noti
-- Layout **generico** a 2 righe: leggibile ma non 1:1 col pannello fisico reale
-  (con l'ancoraggio SNMP all'`ifName`, il numero disegnato è comunque cosmetico).
-- Gestisce `interfaces`; **`rear-ports` / faccia retro** non ancora (i `module-bays`
-  dei chassis modulari sono riconosciuti dal filtro ruolo, ma non disegnati).
-- `u_height` 0 o frazionario (AP/antenne) forzato a 1U.
+## Known limits
+- A **generic** 2-row layout: readable, but not 1:1 with the real physical panel
+  (with SNMP anchored on `ifName`, the drawn number is cosmetic anyway).
+- It handles `interfaces`; **`rear-ports` / the rear face** not yet (the
+  `module-bays` of modular chassis are recognised by the role filter, but not
+  drawn).
+- A `u_height` of 0 or a fractional one (APs/antennas) is forced to 1U.
 
-> Nota: `skins/` è gitignored. Le skin generate restano locali; questo strumento
-> le rigenera on-demand da qualunque set di YAML CC0.
+> Note: `skins/` is gitignored. Generated skins stay local; this tool regenerates
+> them on demand from any set of CC0 YAML.
 
-## Aggiornamento periodico del catalogo
+## Periodic catalog updates
 
-Il catalogo CC0 viene aggiornato separatamente dall'importazione DCIM/IPAM.
-L'importazione NetBox usa sempre l'ultimo catalogo locale valido e non scarica
-la sorgente durante il wizard.
+The CC0 catalog is updated separately from the DCIM/IPAM import. The NetBox import
+always uses the latest valid local catalog and never downloads the source during
+the wizard.
 
-Nella finestra **Sincronizzazione DCIM/IPAM**, l'amministratore vede lo stato
-del catalogo e può usare **Controlla aggiornamenti** o **Aggiorna catalogo**.
-Il viewer può consultare lo stato ma non avviare operazioni. L'aggiornamento
-usa lo stesso script locale, non modifica i progetti e non invia dati NetBox.
-Per la sorgente GitHub l'updater usa un clone parziale (`sparse checkout`):
-scarica solo `device-types/*.yaml` e `device-types/*.yml`, non l'intero archivio
-del repository. Il timeout del trasferimento è di 120 secondi; se Git non è
-disponibile, l'errore viene mostrato senza sostituire il catalogo precedente.
+In the **DCIM/IPAM synchronisation** window, an administrator sees the catalog
+status and can use **Check for updates** or **Update catalog**. A viewer can read
+the status but not start any operation. The update uses the same local script, does
+not modify projects and sends no NetBox data. For the GitHub source the updater uses
+a partial clone (`sparse checkout`): it fetches only `device-types/*.yaml` and
+`device-types/*.yml`, not the repository's whole archive. The transfer timeout is
+120 seconds; if Git is unavailable, the error is shown without replacing the
+previous catalog.
 
 ```bash
-# acquisisce la sorgente pubblica, genera canonico e runtime
+# fetch the public source, generate the canonical and the runtime catalogs
 npm run update-device-types
 
-# analizza la sorgente senza scrivere file
+# analyse the source without writing any file
 npm run update-device-types -- --dry
 
-# controlla se la revisione locale è cambiata (exit code 2 se c'è un aggiornamento)
+# check whether the local revision has changed (exit code 2 if an update exists)
 npm run update-device-types -- --check
 
-# usa una checkout locale, utile per sviluppo e CI senza rete
+# use a local checkout, useful for development and for CI without network
 npm run update-device-types -- --input=C:\path\to\devicetype-library
 
-# usa una revisione precisa della sorgente
+# use one precise revision of the source
 npm run update-device-types -- --ref=<commit>
 
-# riscrive SOLO il catalogo runtime dal canonico che hai già sul disco,
-# senza rete: serve quando cambia la PROIEZIONE (nuovi campi nel template)
-# e non la sorgente. Manifesto e diff non vengono toccati.
+# rewrite ONLY the runtime catalog from the canonical one already on disk,
+# with no network: this is what you want when the PROJECTION changes (new
+# template fields) and the source does not. Manifest and diff are left alone.
 npm run update-device-types -- --from-canonical
 
-# salva un report differenziale in un percorso esplicito
+# write a differential report to an explicit path
 npm run update-device-types -- --dry --report=data/device-types-review.json
 ```
 
-Lo script genera:
+The script generates:
 
-- `data/device-types-canonical.json` con dati e interfacce completi;
-- `data/device-types.json` con i template leggeri usati dall'app;
-  include le PRESE di alimentazione (nome, tipo, e il gruppo quando il
-  costruttore lo scrive nel nome: «Group 2 - Output 1» → gruppo 2);
-- `data/device-types-manifest.json` con sorgente, commit, checksum e statistiche;
-- `data/device-types-diff.json` con modelli aggiunti, rimossi, modificati ed esclusi.
+- `data/device-types-canonical.json` with the full data and interfaces;
+- `data/device-types.json` with the light templates the app uses;
+  it includes power OUTLETS (name, type, and the group when the manufacturer
+  writes it into the name: «Group 2 - Output 1» → group 2);
+- `data/device-types-manifest.json` with source, commit, checksum and statistics;
+- `data/device-types-diff.json` with models added, removed, changed and excluded.
 
-Le correzioni locali restano separate dalla sorgente CC0:
+Local corrections stay separate from the CC0 source:
 
-- `data/device-types-aliases.json` per rinominare slug NetBox non allineati;
-- `data/device-types-overrides.json` per correzioni hardware verificate;
-- `data/device-types-exclusions.json` per escludere esplicitamente modelli dal runtime.
+- `data/device-types-aliases.json` to rename NetBox slugs that do not line up;
+- `data/device-types-overrides.json` for verified hardware corrections;
+- `data/device-types-exclusions.json` to explicitly exclude models from the runtime.
 
-Gli override sono applicati solo alla proiezione runtime; il canonico conserva
-sempre il valore originale. Il comando interrompe l'aggiornamento se trova YAML
-incompleti, slug duplicati, file troppo grandi, symlink o una variazione anomala
-delle esclusioni. `--strict-license` abilita anche il controllo esplicito della
-licenza CC0 nella sorgente locale.
+Overrides are applied to the runtime projection only; the canonical file always
+keeps the original value. The command aborts the update if it finds incomplete
+YAML, duplicate slugs, oversized files, symlinks, or an abnormal change in the
+exclusions. `--strict-license` additionally enables the explicit CC0 licence check
+on the local source.
 
-Il runtime usa prima `device_type.slug` NetBox, poi alias e marca/modello
-normalizzati. Se il modello non viene trovato, il device e le sue interfacce
-restano comunque importabili e visualizzabili; il report segnala il fallback.
-Un aggiornamento del catalogo non modifica automaticamente i progetti esistenti.
-Se un progetto contiene un nodo importato con una revisione precedente, il pannello
-proprietà mostra un avviso **scheda hardware aggiornata**: l'azione **Rivedi /
-applica nuova scheda** aggiorna porte, front-panel e altezza solo dopo conferma
-esplicita. La preview DCIM distingue inoltre i casi non riconciliati dagli oggetti
-esclusi manualmente dall'utente.
+The runtime uses the NetBox `device_type.slug` first, then aliases and normalised
+brand/model. If the model is not found, the device and its interfaces remain
+importable and viewable all the same; the report flags the fallback. A catalog
+update never modifies existing projects on its own. If a project holds a node
+imported under an earlier revision, the properties panel shows a **hardware sheet
+updated** notice: the **Review / apply new sheet** action updates ports, front
+panel and height only after explicit confirmation. The DCIM preview also
+distinguishes the unreconciled cases from the objects the user excluded by hand.
