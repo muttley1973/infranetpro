@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [2.11.1] — 2026-09-01
 
 ### Changed
 

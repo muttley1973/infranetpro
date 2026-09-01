@@ -121,7 +121,30 @@ Double-click <code>avvia.bat</code>.<br>
 
 > **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then run **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.11.0) — a project documents one building; this release documents how the buildings talk to each other.**
+> 📰 **What's new (v2.11.1) — the canvas got about twice as fast, and the app stopped stating things it had not measured.**
+>
+> - **Drawing is roughly twice as fast, and a click costs the same at any size.** A full render now reuses the
+>   DOM instead of recreating it: 55 ms at 500 devices and 92 at 1000, where it used to be 119 and 203. The
+>   floor-only render no longer grows with the project at all, selecting a device repaints only what depends on
+>   the selection rather than the whole canvas, and dragging one no longer produces a single long frame. The
+>   project list is paid once per save instead of once per read — which is what the per-site device counts on
+>   the multi-site map are made of, so the cost used to grow with the number of sites.
+> - **A port's VLAN that could not be read is no longer written down as 1.** Zero is not a value a PVID can
+>   take — the standard uses it to mean *no VLAN* — so a zero there was a decoding failure wearing the shape of
+>   a measurement, and on a device that switches VLANs that invented 1 could outrank a network somebody had
+>   documented by hand. It stays absent now, which is a state the rest of the app already knows how to read.
+> - **The toolbar stopped moving under your hand.** The four status badges live in one bay after the search
+>   field, so nothing shifts when one of them lights up; thirteen dividers became the five that mark what the
+>   bar actually does; Delete is no longer painted red at rest, because a warning that is always lit stops
+>   warning; and Save is loud when there *is* something to save rather than when there is not.
+> - **Notifications stay until you dismiss them.** They used to share one box at the bottom of the screen and
+>   fade on a timer, so a second message overwrote a first nobody had read yet.
+> - **Text you could not read, in two places.** Four of the twelve cable badges could not carry white text —
+>   the worst at 2.03:1 was the one warning you *not* to trust that cable — and the ink is now derived from
+>   each background instead of assumed. The type scale is applied as well, which retires 31 near-identical
+>   text sizes crammed between 10 and 16 pixels.
+
+> 📰 **v2.11.0 — a project documents one building; this release documents how the buildings talk to each other.**
 >
 > - **Sites and links, as a map and as a form in the same place.** A panel beside the project picker holds the
 >   organisation: its sites, the WAN lines each one buys, the tunnels between them. Clicking a site on the map
