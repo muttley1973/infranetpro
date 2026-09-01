@@ -79,8 +79,8 @@ server/routes/projects.js  Project CRUD — and the two halves of an honest save
                        presents the version too, or a successful rename would refresh the version of a
                        session that is behind. The client half is a DIRTY EPOCH (src/app-core.js): the
                        document counts how many times it has been dirtied, a save reads that number
-                       before serialising and hands it back on return, and the unsaved dot goes out
-                       only if nothing arrived meanwhile — an edit made during the ~200ms of a save on
+                       before serialising and hands it back on return, and the unsaved signal goes
+                       out only if nothing arrived meanwhile — an edit made during the ~200ms of a save on
                        a 1000-node project could not be inside a body already serialised. Load, create
                        and duplicate still clear outright: there the document is clean by construction
                        and there is nothing to compare against.
@@ -524,7 +524,13 @@ shared `remapLagId` helper so they stay aligned across formats (`snmp-lag-…`,
 so this is a no-op for them; it only reshapes imported/generated projects.
 
 The server saves the main project with a temporary file, `fsync`, rename and `.bak`
-fallback — and the fallback is **declared**: `readProjectFile(id)` says whether the
+fallback. ⚠️ **The temporary is named after the write, not after the process** — a name per
+process meant every save of the same project inside one server shared one filename, and the
+day any of that I/O became asynchronous two saves would have overwritten each other's
+temporary before the rename, which being atomic would then have delivered a *valid* file
+holding half of each. A unique name creates an obligation the fixed one did not have, so a
+failed write removes its own temporary rather than leaving an orphan nobody collects.
+And the fallback is **declared**: `readProjectFile(id)` says whether the
 content came from the project file or from the last valid copy, and in the second case
 whether the file was missing or unreadable. A GET reports it in a response header (never
 in the body, which is the DTO the REST API v1 also serves) and the browser warns before
@@ -535,6 +541,20 @@ with `fsync` and pruned when a project is deleted. The browser JSON export is a 
 envelope, not a raw server backup: it redacts SNMP credentials and sanitizes backup
 references before download, and the importer unwraps both this format and legacy state
 files.
+
+⚠️ **The project list is paid once per write, not once per read.** `listProjects()` used to
+re-read and re-parse every project file on every call, synchronously, in the single server
+process — and the per-site device counts on the multi-site map come out of that same call, so
+the cost grew with the number of sites. Each row depends only on its own file, so rows are
+kept and rebuilt when that file changes. ⭐ **Whether it changed is decided by the very two
+facts `projectEtag` already trusts** to refuse a save when somebody has overwritten a project
+underneath one in flight — last-written time to the millisecond, and size — read from one
+place, so the weaker use can never disagree with the stronger one. `saveProject` drops its own
+row directly, which covers the one case no signature can see (two writes in the same
+millisecond at the same size), and the map is rebuilt each pass from the files that are
+actually there rather than pruned, so a deleted project falls out by itself and the cache
+cannot grow. Rows are handed out copied: a change of speed must not quietly change the
+contract callers already had.
 
 `renderAll()` (rAF-coalesced) rebuilds the rack chassis, floor, cables overlay and
 the right panel. `renderProps()` dispatches by selection (`selType`/`selId`) to
@@ -696,19 +716,27 @@ disagreement already has a name of its own (`native-mismatch`).
 
 ⭐ **A cable that switches always has a VLAN, so it always has a colour.** «VLAN not
 declared» is not a state that exists in switching: every port of a bridge has a PVID, and
-where nobody configured one that PVID is 1 — the 802.1Q default, not a vendor convention.
-VLAN 1 exists on every switch, cannot be deleted, and is where everything nobody assigned
-elsewhere ends up; measured on the bench, the Arista reports PVID 1 on every untouched port
-and VLAN 1’s membership list contains exactly those. So the last rung of the access ladder
+where nobody configured one that PVID is 1. Two claims, kept apart because they rest on
+different things: the default PVID of 1 and the 1..4094 range are **standard** (`dot1qPvid`
+carries `DEFVAL { 1 }` in RFC 4363, and the range is in the YANG IEEE publishes for
+802.1Q-2022), while *VLAN 1 cannot be deleted* is a **multi-vendor fact** — EXOS ships a
+«Default» VLAN with VID 1, Junos puts everything in access on the default, Aruba uses 1
+untagged — and not a clause of 802.1Q. Measured on the bench, the Arista reports PVID 1 on
+every untouched port and VLAN 1’s membership list contains exactly those: a list of members,
+not a complement. So the last rung of the access ladder
 is the **site native VLAN** (`state.nativeVlan`, 1 by default, declarable for a site whose
 native sits elsewhere). It is deliberately last: one rung higher it would cover a real
 answer with a plausible number. The provenance travels with the outcome and the panel
 always prints it — the number alone would let a default pass for a reading.
 
 ⚠️ `routed` stays outside that floor, and it is the only case where a VLAN genuinely does
-not exist: VLAN 1 is the floor of the *switching domain*, not of the universe. The hardware
-says so itself — make a port routed and the switch allocates it an internal VLAN from the
-extended range (1006–4094) rather than putting it in 1.
+not exist: VLAN 1 is the floor of the *switching domain*, not of the universe. Three proofs
+on three vendors, measured on the bench, and they are kept together because they close the
+argument from both sides. Where nothing switches there is no floor: make a Cisco port routed
+and the switch allocates it an internal VLAN from the extended range (1006–4094) rather than
+putting it in 1, and the MikroTik edge router — no bridge ports, no VLAN table — has no VLAN 1
+at all. Where something does switch the floor is really there, which is the Arista membership
+list above. One of the three on its own reads as one vendor's behaviour; the set does not.
 
 ⭐ **On a trunk no VLAN wins.** Every rule for electing one was tried and each asserted
 something untrue; the case that settles it is an interface doing management *and* VLAN 30 —
@@ -982,7 +1010,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **3,478 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **3,509 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`
@@ -1370,6 +1398,12 @@ is VPN/LAN.
     is now read from CISCO-VLAN-MEMBERSHIP-MIB (`vmVlan`, `9.9.68.1.2.2.1.2`, per ifIndex)
     when Q-BRIDGE `dot1qPvid` doesn't carry it — standard-first (used only where PVID is
     missing/1 and `vmVlan` > 1), vendor-neutral (empty subtree on non-Cisco → no effect).
+    ⚠️ The standard read itself records **nothing** when the decoded value falls outside
+    1..4094: `dot1qPvid` is a `VlanIndex`, so a zero there is a decoding error and not a port
+    in VLAN 1, and it used to be written down as 1 — a failure wearing the shape of a
+    measurement, which on a device that switches VLANs carries enough authority to outrank a
+    hand-documented network. An unreadable PVID is now an absence, which is also why `vmVlan`
+    fills it: because there is nothing there, not because it beat a 1.
     And an SNMP read of VLAN 1 (default/native, or simply not exposed on an image) never
     overwrites a hand-documented non-default VLAN (`_snmpVlanToUi` guard). `drivers/snmp.js`,
     `src/app-snmp.js`. *(Lab image `vios_l2` exposes **neither** `dot1qPvid`-real **nor**
@@ -1465,7 +1499,7 @@ is VPN/LAN.
   ESM modules — `app-ipam.js` (IPAM occupancy), `app-cables.js` (cable labels/setters),
   `app-history.js` (undo/redo + dirty + audit), `app-index.js` (O(1) lookups + port/node
   getters), `app-props-tabs.js` (right-panel tabs + manual-value select). Each is a **verbatim
-  move** (golden byte-identical). `app.js` (now ~2065 lines) keeps the bootstrap + the final
+  move** (golden byte-identical). `app.js` keeps the bootstrap + the final
   `expose()` and **re-exports every moved symbol**, so the 41 consumer modules were untouched;
   both ratchets are unchanged. State init and the entry render/event wiring stay in `app.js`.
 - **Retiring the `window` bridge — RESUMED (2026-08-01): finishing it, one panel at a time.**
@@ -1480,7 +1514,9 @@ is VPN/LAN.
   code reach globals (`win.*` read, `expose()` publish). Removing it has **two independent axes**,
   each tracked so it can only move forward:
   - **Axis A — `win.*` → real `import`.** A monotonic ratchet (`test/bridge-ratchet.test.js`,
-    `MAX_WIN_REFS`, may only decrease) has driven `win.*` references down to **264**: every
+    `MAX_WIN_REFS`, may only decrease) has driven `win.*` references down to the ceiling that
+    constant holds — the number lives **only** there, because a copy of it here would go stale
+    the first time the ratchet moves and nothing would notice. Every
     retirable function is imported, and mutable view-state (`state`, `selId`, `_history`, …) lives
     behind a proxy in `src/store.js`. The residue is the pure `lib/*.js` `<script>` globals and their
     `typeof` guards. ⚠️ It was long held that importing one of those would re-bundle the UMD and
@@ -1584,9 +1620,9 @@ is VPN/LAN.
   the module system is explicit (Node/CommonJS + UMD `lib/`) and is **off on `src/`** until
   the `window` bridge is retired (then it re-enables). Cosmetic rules are warnings, so the
   gate is green; it runs in CI via `npm run lint`.
-- **Modular CSS + tokens.** `style.css` (≈1990 lines) is split into 11 ordered
-  partials in `styles/` (loaded via `<link>` in cascade order, served by
-  `/styles/:file`). Design tokens (colors/surfaces/shadows; **radius**, **font
+- **Modular CSS + tokens.** The old `style.css` monolith was split into 11 ordered
+  partials in `styles/` and no longer exists (loaded via `<link>` in cascade order, served
+  by `/styles/:file`; the split itself is documented in `styles/README.md`). Design tokens (colors/surfaces/shadows; **radius**, **font
   families** and now the **type scale** applied; **spacing/z-index/transition**
   documented) live in `styles/01-tokens.css`. See **`styles/README.md`**.
   Two families only — `--font-ui` and `--font-mono` — and no new `font-family`

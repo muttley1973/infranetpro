@@ -53,6 +53,15 @@ an "observed but unconfirmed" value pass as a meter reading.
 - **Cross-subnet scope is stated, not faked** — mDNS is link-local (TTL 1); the
   sweep says it only sees the local subnet rather than implying full coverage
   (`lib/discovery-mdns.js`, CHANGELOG).
+- **A fallback value is an assertion, so the case is removed rather than defaulted**
+  — a port's PVID that cannot be decoded is recorded as nothing (`drivers/snmp.js`):
+  it used to become 1, which downstream is indistinguishable from a switch that
+  genuinely answered 1, and on a device that switches VLANs a measured PVID carries
+  enough authority to outrank a hand-documented network. ⚠️ Deleting the default is
+  not enough on its own — the decoder returns zero, and a zero travelling on is a
+  VLAN that does not exist standing in for an absence. Only values the standard
+  allows are recorded; everything else stays absent, which is a state the rest of
+  the app already knows how to read.
 
 ## Cited in code as
 
