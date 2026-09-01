@@ -199,6 +199,14 @@ function saveProject(id, name, state, createdAt, updatedAt) {
   atomicWriteFile(file, JSON.stringify(
     { format: 'infranet-project', schemaVersion: storeState.schemaVersion, id, name, created_at: createdAt, updated_at: updatedAt, state: storeState }
   ));
+  // ⚠️ Chi ha scritto LO SA: la riga d'elenco tenuta da parte per questo progetto
+  // non vale piu'. La firma su disco se ne accorgerebbe da sola quasi sempre, ma
+  // «quasi» qui ha un caso vero — due scritture nello stesso millesimo e con la
+  // stessa dimensione — e capita dove le scritture sono piu' fitte, cioe' in una
+  // prova. Non e' una ridondanza: le due vie coprono due popolazioni diverse di
+  // scrittori, la firma quelli che non controlliamo e questa riga l'unico che si
+  // controlla.
+  _cacheRighe.delete(`${id}.json`);
 }
 
 // ---- Leggere un progetto, e sapere DA DOVE --------------------------------
@@ -245,6 +253,29 @@ function loadProject(id) {
   return readProjectFile(id).project;
 }
 
+// ---- Da cosa si capisce che un file e' cambiato -----------------------------
+// Due fatti, e sempre gli stessi: quando e' stato scritto (al millesimo) e quanto
+// e' grande. Li leggono DUE cose che sembrano lontane — il marcatore di versione
+// qui sotto e la cache dell'elenco piu' giu' — e devono leggere gli stessi, perche'
+// rispondono alla stessa domanda: «questo file e' ancora quello di prima?».
+//
+// ⭐ Se la coppia basta a RIFIUTARE un salvataggio perche' qualcuno ha riscritto il
+// progetto sotto chi sta salvando, basta anche a dire che una riga d'elenco tenuta
+// da parte e' ancora buona: il secondo uso e' piu' debole del primo, non piu' forte.
+// E se un giorno non bastasse piu', i due sbaglierebbero INSIEME, da un posto solo —
+// che e' la ragione per cui la coppia sta qui e non scritta due volte.
+//
+// `null` = il file non si puo' interrogare. Mai «invariato».
+function _versioneFile(p) {
+  try { const st = fs.statSync(p); return { mtimeMs: st.mtimeMs, size: st.size }; }
+  catch (_) { return null; }
+}
+
+function _firmaFile(p) {
+  const v = _versioneFile(p);
+  return v ? `${v.mtimeMs}-${v.size}` : null;
+}
+
 // ---- Marcatore di versione (ETag) -------------------------------------------
 // A che serve: al PUT, per accorgersi che il progetto è cambiato SOTTO chi sta
 // salvando. Senza, due sessioni che salvano lo stesso progetto ricevono entrambe
@@ -266,10 +297,13 @@ function loadProject(id) {
 // passare, non come «non combacia» (rifiutare un salvataggio per un file che non
 // siamo riusciti a interrogare punirebbe l'utente per un nostro dubbio).
 function projectEtag(id) {
-  try {
-    const st = fs.statSync(path.join(PROJECTS_DIR, `${id}.json`));
-    return `W/"${Math.round(st.mtimeMs)}-${st.size}"`;
-  } catch (_) { return null; }
+  const v = _versioneFile(path.join(PROJECTS_DIR, `${id}.json`));
+  // ⚠️ L'arrotondamento resta QUI, non nell'helper. Il marcatore viaggia in un
+  // header e il client ne tiene uno in mano fra l'apertura e il salvataggio:
+  // cambiargli forma farebbe fallire il confronto di ogni scheda gia' aperta, cioe'
+  // un «qualcuno ha modificato il progetto» FALSO al primo salvataggio dopo
+  // l'aggiornamento. Si condividono i due fatti, non come si scrivono.
+  return v ? `W/"${Math.round(v.mtimeMs)}-${v.size}"` : null;
 }
 
 // Quanto c'è DENTRO un progetto, per chi lo guarda da fuori (il riquadro-sede
@@ -307,19 +341,74 @@ function _rigaLista(o) {
            devices: c.devices, racks: c.racks };
 }
 
+// ---- L'elenco, pagato una volta per SCRITTURA e non una per lettura ---------
+// Misurato prima di toccarlo, 40 giri sincroni, su DUE regimi: sullo store reale
+// (19 progetti, 0,72 MB) **9,9 ms p50**; su dodici progetti da 1000 nodi (5,79 MB)
+// **67,9 p50 e 84,0 p95** — e l'audit del 30/08, su 7,6 MB, misurava 102 e 251.
+// ⚠️ Non sono due difetti: sono lo stesso codice a due REGIMI, e quello che conta e'
+// il secondo, perche' e' il profilo cliente (dodici sedi da cinquecento apparati).
+// Il primo numero, da solo, direbbe che qui non c'e' niente da sistemare.
+//
+// Perche' fa male: e' tutto sincrono nel processo unico del server, quindi per quella
+// durata NON viene servita nessun'altra richiesta, di nessun utente. E il conteggio
+// apparati per sede del pannello inter-sede esce da qui — il costo cresce col numero
+// di sedi, cioe' proprio con cio' che rende grande un'installazione.
+//
+// La riga d'elenco di un progetto dipende SOLO dal suo file: quindi si tiene da parte
+// e si rifa' quando il file cambia. Il parse si paga una volta per scrittura invece
+// che una per lettura.
+//
+// ⚠️ La mappa si RICOSTRUISCE a ogni giro con i soli file che ci sono davvero, invece
+// di cancellare le voci morte: un progetto eliminato esce da solo, e la cache non puo'
+// crescere oltre il numero di file. Non c'e' un elenco da tenere aggiornato a mano.
+//
+// ⚠️ Le righe escono COPIATE. Prima ogni chiamata ne costruiva di nuove e il chiamante
+// se le teneva; consegnare quelle della cache vorrebbe dire che un chiamante che ne
+// modifica una — oggi nessuno lo fa, ma e' una riga in un'altra rotta — avvelenerebbe
+// tutte le letture successive. Il contratto non cambia perche' e' cambiato il modo di
+// fare il conto.
+let _cacheRighe = new Map();
+
+// La riga di un file, con la firma di cio' da cui e' stata ricavata.
+// `daBak`: la riga non viene dal file principale ma dall'ultima copia valida, e allora
+// va sorvegliata anche la copia — se no una riga ricavata da un `.bak` poi riscritto
+// resterebbe ferma per sempre.
+function _voceElenco(file, firma) {
+  try {
+    return { firma, daBak: false, firmaBak: null, riga: _rigaLista(JSON.parse(fs.readFileSync(file, 'utf8'))) };
+  } catch (_) { /* principale illeggibile → l'ultima copia valida */ }
+  // ⚠️ La firma del ripiego si prende PRIMA di leggerlo. Presa dopo, se il `.bak`
+  // venisse riscritto nel mezzo, terrebbe da parte la firma NUOVA accanto a un
+  // contenuto vecchio: uno stantio che non scade piu'.
+  const bak = `${file}.bak`;
+  const firmaBak = _firmaFile(bak);
+  let riga = null;
+  try { riga = _rigaLista(JSON.parse(fs.readFileSync(bak, 'utf8'))); }
+  catch (_) { /* nemmeno la copia e' valida: qui il record cade davvero */ }
+  return { firma, daBak: true, firmaBak, riga };
+}
+
 function listProjects() {
-  return fs.readdirSync(PROJECTS_DIR)
-    .filter(f => /^\d+\.json$/.test(f))
-    .map(f => {
-      const file = path.join(PROJECTS_DIR, f);
-      try {
-        return _rigaLista(JSON.parse(fs.readFileSync(file, 'utf8')));
-      } catch (_) { /* principale illeggibile → l'ultima copia valida */ }
-      try {
-        return _rigaLista(JSON.parse(fs.readFileSync(`${file}.bak`, 'utf8')));
-      } catch (_) { return null; }
-    })
-    .filter(Boolean)
+  const nuova = new Map();
+  const righe = [];
+  for (const f of fs.readdirSync(PROJECTS_DIR)) {
+    if (!/^\d+\.json$/.test(f)) continue;
+    const file = path.join(PROJECTS_DIR, f);
+    // La firma si legge PRIMA del contenuto, per lo stesso motivo del `.bak`.
+    const firma = _firmaFile(file);
+    const vecchia = _cacheRighe.get(f);
+    // ⚠️ Due `null` combaciano, ed e' voluto: se il file non si riesce a interrogare
+    // (su Windows un lock momentaneo di un antivirus e' il caso normale) la riga di
+    // prima e' la risposta migliore che abbiamo. L'alternativa sarebbe far SPARIRE il
+    // progetto dall'elenco, che questo file ha gia' deciso di non fare mai.
+    const buona = !!vecchia && vecchia.firma === firma
+      && (!vecchia.daBak || vecchia.firmaBak === _firmaFile(`${file}.bak`));
+    const voce = buona ? vecchia : _voceElenco(file, firma);
+    nuova.set(f, voce);
+    if (voce.riga) righe.push({ ...voce.riga });
+  }
+  _cacheRighe = nuova;
+  return righe
     // Fallback su stringa vuota: un JSON progetto valido ma privo di `updated_at`
     // (importato da una versione vecchia o copiato a mano) faceva throw su
     // `undefined.localeCompare` -> 500 sull'INTERA lista progetti (utente bloccato
