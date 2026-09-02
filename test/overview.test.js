@@ -1826,3 +1826,123 @@ test('① Vicini: un\'adiacenza che e\' anche un cavo del progetto porta il link
   assert.ok(item, 'il vicino risolto a pc1 c\'e\'');
   assert.equal(item.lid, 'L-sw1-pc1', 'porta il link-id del cavo che rappresenta l\'adiacenza -> il click evidenzia il percorso');
 });
+
+// ============================================================
+//  IL VERDETTO — una forma sola per tutte e sei le sezioni.
+//
+//  Ce n'erano DUE: la Sintesi rendeva una frase da i18n, le tre lenti un numero
+//  grande costruito a mano dentro il renderer. Due alfabeti per la stessa
+//  domanda, dentro il componente che esiste per non averne — e l'idea migliore
+//  delle due («non lo so ha il suo colore») viveva in una sezione su sei.
+//
+//  ⚠️ Le prove qui sotto DERIVANO l'elenco delle sezioni da `buildOverview`:
+//  una sezione aggiunta domani entra nel controllo da sola. Elencarle a mano
+//  sarebbe il difetto che questa unificazione toglie, riscritto nel banco.
+// ============================================================
+
+const sezioniDi = (o) => Object.keys(o).filter((k) => k !== 'blindSpots');
+
+test('verdetto: ogni sezione ne ha uno, e nessuna resta indietro in silenzio', () => {
+  const o = buildOverview({ types: TYPES, nodes: [{ id: 'a', type: 'switch', ip: '10.0.0.1' }] });
+  const sez = sezioniDi(o);
+  assert.ok(sez.length >= 6, 'le sezioni ci sono: ' + sez.join(', '));
+  for (const k of sez) {
+    assert.ok(o[k].verdict, 'sezione senza verdetto: ' + k);
+    assert.ok(['ok', 'warn', 'bad', 'none'].includes(o[k].verdict.level),
+      k + ': livello inatteso ' + o[k].verdict.level);
+  }
+});
+
+test('verdetto: un progetto vuoto dice «non lo so», non «tutto a posto»', () => {
+  // ⭐ È la proprietà che vale più di tutte: l'assenza di dati non deve avere lo
+  // stesso aspetto di un esito positivo. Un verde su un progetto mai letto è la
+  // bugia più costosa che questa Panoramica possa dire.
+  const o = buildOverview({ types: TYPES, nodes: [] });
+  for (const k of sezioniDi(o)) {
+    assert.notEqual(o[k].verdict.level, 'ok',
+      k + ': senza un dato il verdetto non può essere «ok»');
+  }
+});
+
+test('verdetto: «mai sincronizzato» è un NON SO, non un guasto', () => {
+  // ⚠️ Cambio di comportamento voluto: prima era rosso. Ma il rosso è un guasto,
+  // e non aver mai letto non è un guasto — è non sapere. Il rosso prometteva una
+  // diagnosi che nessuno aveva fatto.
+  const o = buildOverview({ types: TYPES, nodes: [{ id: 'a', type: 'switch', ip: '10.0.0.1' }] });
+  assert.equal(o.truth.verdict.level, 'none', 'mai letto -> non so');
+  assert.equal(o.truth.health.level, 'bad', 'la salute grezza resta quella di prima');
+});
+
+test('verdetto: dove la risposta È un numero, il numero c\'è; dove non lo è, non si inventa', () => {
+  const nodes = [{ id: 'a', type: 'switch', ip: '10.0.0.1', snmp: { community: 'x' } }];
+  const o = buildOverview({ types: TYPES, nodes });
+  // Le tre lenti portano una coppia che riassume la domanda.
+  for (const k of ['recovery', 'security', 'health']) {
+    const v = o[k].verdict;
+    assert.ok(v.total === null || typeof v.total === 'number', k + ': totale malformato');
+  }
+  // Le tre della Sintesi non ne hanno una: la loro risposta è la frase.
+  for (const k of ['complete', 'truth', 'margin']) {
+    assert.equal(o[k].verdict.value, null, k + ': non deve inventarsi un numero per simmetria');
+  }
+});
+
+test('verdetto: `none` azzera i conteggi invece di riportare quelli della salute', () => {
+  // Un «3 da decidere» accanto a un grigio direbbe due cose incompatibili nella
+  // stessa riga: non lo so, ma sono tre.
+  const o = buildOverview({ types: TYPES, nodes: [] });
+  for (const k of sezioniDi(o)) {
+    if (o[k].verdict.level !== 'none') continue;
+    assert.equal(o[k].verdict.issues, 0, k + ': un «non so» non conta problemi');
+    assert.equal(o[k].verdict.value, null, k + ': un «non so» non porta numeri');
+  }
+});
+
+test('verdetto: ogni frase che il renderer andrà a cercare ESISTE, in tutt\'e due le lingue', () => {
+  // ⚠️ Una chiave i18n mancante NON è silenziosa: `t()` rende la chiave stessa,
+  // quindi a schermo comparirebbe «ov.health.margin.none». Prima di questa
+  // unificazione tre sezioni su sei non avevano nessuna di queste chiavi — non
+  // si vedeva solo perché passavano da un secondo verdetto scritto a mano.
+  //
+  // ⭐ I due elenchi si DERIVANO: le sezioni leggendo quali passano da
+  // `_sectionEl` nel renderer, i livelli osservando quelli che il motore produce
+  // davvero su modelli diversi. Scriverli a mano qui vorrebbe dire che il banco
+  // enumera lo stesso elenco del codice, e allora il verde non dimostra niente.
+  const fs = require('fs');
+  const path = require('path');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'app-overview.js'), 'utf8');
+  const conFrase = [...src.matchAll(/_sectionEl\('(\w+)'/g)].map((m) => m[1]);
+  assert.ok(conFrase.length >= 3, 'sezioni che usano la frase: ' + conFrase.join(', '));
+
+  // I livelli davvero raggiungibili, osservati su modelli diversi.
+  const modelli = [
+    { types: TYPES, nodes: [] },
+    { types: TYPES, nodes: [{ id: 'a', type: 'switch', ip: '10.0.0.1' }] },
+    { types: TYPES, nodes: [{ id: 'a', type: 'switch', ip: '10.0.0.1' }, { id: 'b', type: 'pc' }] },
+  ];
+  const visti = new Map();
+  for (const m of modelli) {
+    const o = buildOverview(m);
+    for (const k of conFrase) if (o[k] && o[k].verdict) {
+      if (!visti.has(k)) visti.set(k, new Set());
+      visti.get(k).add(o[k].verdict.level);
+    }
+  }
+
+  const i18n = require('../lib/i18n.js');
+  const dizionari = i18n._i18nDict;
+  // Le lingue si leggono da `LANGS`, che è la dichiarazione: una terza aggiunta
+  // domani entra nel controllo da sola.
+  const lingue = i18n.LANGS.slice();
+  assert.ok(lingue.length >= 2, 'servono due lingue, trovate: ' + lingue.join(', '));
+  const mancanti = [];
+  for (const [sez, livelli] of visti) {
+    for (const lvl of livelli) {
+      for (const lang of lingue) {
+        const k = 'ov.health.' + sez + '.' + lvl;
+        if (!dizionari[lang] || dizionari[lang][k] == null) mancanti.push(lang + ':' + k);
+      }
+    }
+  }
+  assert.deepEqual(mancanti, [], 'frasi di verdetto mancanti: ' + mancanti.join(' · '));
+});

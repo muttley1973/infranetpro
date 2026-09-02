@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **All six Overview sections now answer their question the same way, and «I don't know» has its own colour everywhere.** There were two verdicts: the three Summary columns showed a coloured dot and a sentence, while Recoverability, Security and Health each built their own on the spot — a big number, no sentence, no delta. Two alphabets for one question, inside the component that exists so the app does not have several. They are one now, keeping the better half of each: the number stays where the answer *is* a number, because «19 of 31» answers «if it falls over tonight, do you get it back?» while «headroom tight» only comments on it. And the best idea of the two, which lived in Health alone — a grey dot for *no reading at all*, so an absent verdict never looks like a good one — now applies to every section. A section with nothing to judge says what is missing rather than staying silent or green.
+
 ### Fixed
 
 - **An OpenWrt access point was not recognised as wireless at all.** When an agent does not report the standard wireless interface type, the discovery falls back to the interface name — and on Linux it always falls back, because a radio in AP mode presents itself to the kernel as Ethernet. Current OpenWrt names that interface `phy0-ap0`, which the pattern did not match, so on a platform the compatibility notes list as supported nothing was found and nothing said why. The systemd name for a USB Wi-Fi adapter (`wlx` followed by its MAC) was missing for the same reason. Both are matched now, and the other direction is pinned as well: no wired interface may be read as a radio, which is the error that would put a false statement in the document rather than merely omitting one.

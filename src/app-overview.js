@@ -986,28 +986,62 @@ function _metaStripEl(sec, keys) {
 // Verdetto di sintesi della colonna: pallino colorato (salute ok/warn/bad) + una
 // frase sobria. Il COLORE da' il colpo d'occhio, le parole restano pacate (scelta
 // utente «via di mezzo»). Livello e conteggio arrivano dalla lib; qui solo la resa.
-function _verdictEl(secKey, health, deltaN) {
-    const lvl = (health && health.level) || 'ok';
+// ⚠️ UNICA implementazione del verdetto, per tutte e sei le sezioni. Ce n'erano
+// DUE: questa per la Sintesi (frase da i18n + delta) e una scritta a mano dentro
+// ognuna delle tre lenti (numero grande, nessuna frase, nessun delta) — cioè due
+// alfabeti per la stessa domanda, dentro il componente che esiste per non averne.
+// Fuse prendendo il meglio dei due, e il livello `none` — «non lo so ha il suo
+// colore, non si traveste da verde», che viveva nella sola Salute — vale adesso
+// ovunque. Livello, numeri e conteggio arrivano dalla lib: qui solo la resa.
+// @param {string} secKey @param {Object} sec @param {number} deltaN
+// @param {string} [bigLabelKey] la voce che accompagna il numero, se la sezione ne ha uno
+// @param {string} [noneLabelKey] la frase del VUOTO, se la sezione ne ha una sua più
+//   precisa di `ov.health.<sec>.none` — due lenti distinguono perfino due motivi
+//   diversi di essere vuote, e appiattirli sarebbe perdere il PERCHÉ
+function _verdictEl(secKey, sec, deltaN, bigLabelKey, noneLabelKey) {
+    const v = (sec && sec.verdict) || {};
+    const lvl = v.level || 'ok';
     const el = _el('div', 'ov-verdict v-' + lvl);
     el.appendChild(_el('span', 'ov-vdot'));
+    // Dove la risposta È un numero, si mostra il numero: «19 di 31» risponde a «se
+    // cade stanotte lo rimetti in piedi?», «margine risicato» lo commenta soltanto.
+    // Le altre tre sezioni non hanno una coppia che le riassuma e tengono la frase:
+    // inventare un numero per simmetria sarebbe la simmetria che mente.
+    if (bigLabelKey && v.value != null && v.total > 0) {
+        // Il numero grande ha un allineamento suo (baseline, non centro): la classe
+        // lo dice al CSS invece di far scegliere al foglio di stile in base ai figli.
+        el.className += ' is-big';
+        const big = _el('span', 'ov-dr-big');
+        big.appendChild(_el('b', null, String(v.value)));
+        big.appendChild(_el('span', 'ov-dr-of', ' ' + t('ov.of', { n: v.total })));
+        el.appendChild(big);
+        el.appendChild(_el('span', 'ov-dr-lbl', t(bigLabelKey)));
+        if (deltaN) el.appendChild(_deltaChipEl(deltaN));
+        return el;
+    }
     // Verdetto stantìo: se è warn per SOLA vecchiaia del dato (niente da decidere),
     // il messaggio lo dice invece di «0 da decidere» o «margine risicato» — che
     // sarebbero due bugie diverse sulla stessa causa. Vale per ogni lente che
     // porta il flag: la lib decide QUALI (② e ③), il renderer lo racconta e basta.
-    const vtxt = (health && health.stale)
-        ? t('ov.staleVerdict', { n: health.staleDays || 0 })
-        : t('ov.health.' + secKey + '.' + lvl, { n: (health && health.issues) || 0 });
-    el.appendChild(_el('span', 'ov-vtxt', vtxt));
-    // Delta dall'ultima lettura: segno esplicito (−N meno · +N piu'), colore
-    // ridondante col segno (verde meglio · rosso peggio). Solo se != 0.
-    if (deltaN) {
-        const better = deltaN < 0;
-        const chip = _el('span', 'ov-delta ' + (better ? 'd-better' : 'd-worse'),
-            (deltaN > 0 ? '+' : '−') + Math.abs(deltaN));
-        chip.title = t(better ? 'ov.deltaBetter' : 'ov.deltaWorse', { n: Math.abs(deltaN) });
-        el.appendChild(chip);
-    }
+    const vtxt = v.stale
+        ? t('ov.staleVerdict', { n: v.staleDays || 0 })
+        : t((lvl === 'none' && noneLabelKey) ? noneLabelKey : ('ov.health.' + secKey + '.' + lvl),
+            { n: v.issues || 0 });
+    el.appendChild(_el('span', lvl === 'none' && noneLabelKey ? 'ov-dr-lbl' : 'ov-vtxt', vtxt));
+    if (deltaN) el.appendChild(_deltaChipEl(deltaN));
     return el;
+}
+
+// Delta dall'ultima lettura: segno esplicito (−N meno · +N piu'), colore
+// ridondante col segno (verde meglio · rosso peggio). Solo se != 0. Estratto
+// perche' ora lo usano ENTRAMBE le forme del verdetto, quella col numero e
+// quella con la frase: due copie sarebbero due modi di dire lo stesso delta.
+function _deltaChipEl(deltaN) {
+    const better = deltaN < 0;
+    const chip = _el('span', 'ov-delta ' + (better ? 'd-better' : 'd-worse'),
+        (deltaN > 0 ? '+' : '−') + Math.abs(deltaN));
+    chip.title = t(better ? 'ov.deltaBetter' : 'ov.deltaWorse', { n: Math.abs(deltaN) });
+    return chip;
 }
 
 function _sectionEl(secKey, num, sec, deltaN) {
@@ -1021,7 +1055,7 @@ function _sectionEl(secKey, num, sec, deltaN) {
 
     // Strato colpo d'occhio: la RISPOSTA alla domanda, con pallino di salute e
     // il delta dall'ultima lettura.
-    if (sec.health) col.appendChild(_verdictEl(secKey, sec.health, deltaN));
+    if (sec.verdict) col.appendChild(_verdictEl(secKey, sec, deltaN));
 
     // Il «quando» del dato in cima, fuori dalla griglia dei risultati.
     const metaKeys = _META_ROWS[secKey] || [];
@@ -1108,20 +1142,10 @@ function _recoveryEl(secKey, sec) {
     col.appendChild(h2);
     col.appendChild(_el('p', 'ov-ask', t('ov.sec.recoveryQ')));
 
-    // Verdetto: «se cade stanotte, quanti rimetti in piedi?». Colore dalla salute.
-    const lvl = (sec.health && sec.health.level) || 'ok';
-    const verdict = _el('div', 'ov-dr-verdict v-' + lvl);
-    verdict.appendChild(_el('span', 'ov-vdot'));
-    if (sec.total > 0) {
-        const big = _el('span', 'ov-dr-big');
-        big.appendChild(_el('b', null, String(sec.recoverable)));
-        big.appendChild(_el('span', 'ov-dr-of', ' ' + t('ov.of', { n: sec.total })));
-        verdict.appendChild(big);
-        verdict.appendChild(_el('span', 'ov-dr-lbl', t('ov.dr.recoverable')));
-    } else {
-        verdict.appendChild(_el('span', 'ov-dr-lbl', t('ov.dr.empty')));
-    }
-    col.appendChild(verdict);
+    // Verdetto: «se cade stanotte, quanti rimetti in piedi?». Stesso componente
+    // delle altre cinque — prima era scritto a mano qui, ed era il secondo alfabeto.
+    // Senza apparati gestiti il livello è `none` (grigio) e la frase lo dice.
+    col.appendChild(_verdictEl(secKey, sec, null, 'ov.dr.recoverable', 'ov.dr.empty'));
 
     // Nessun apparato gestito → solo il verdetto vuoto (righe a «0 di 0» sarebbero rumore).
     if (sec.total > 0) {
@@ -1144,20 +1168,12 @@ function _securityEl(secKey, sec) {
     col.appendChild(h2);
     col.appendChild(_el('p', 'ov-ask', t('ov.sec.securityQ')));
 
-    // Verdetto: «quanti accessi di gestione sono cifrati?». Colore dalla salute.
-    const lvl = (sec.health && sec.health.level) || 'ok';
-    const verdict = _el('div', 'ov-dr-verdict v-' + lvl);
-    verdict.appendChild(_el('span', 'ov-vdot'));
-    if (sec.managed > 0 && sec.snmpTotal > 0) {
-        const big = _el('span', 'ov-dr-big');
-        big.appendChild(_el('b', null, String(sec.secured)));
-        big.appendChild(_el('span', 'ov-dr-of', ' ' + t('ov.of', { n: sec.snmpTotal })));
-        verdict.appendChild(big);
-        verdict.appendChild(_el('span', 'ov-dr-lbl', t('ov.sx.secured')));
-    } else {
-        verdict.appendChild(_el('span', 'ov-dr-lbl', t(sec.managed > 0 ? 'ov.sx.noSnmp' : 'ov.sx.empty')));
-    }
-    col.appendChild(verdict);
+    // Verdetto: «quanti accessi di gestione sono cifrati?». Stesso componente delle
+    // altre cinque. ⚠️ I DUE motivi di essere vuota restano distinti: apparati
+    // gestiti ma nessun accesso SNMP misurato è un'altra cosa da nessun apparato
+    // gestito, e il verdetto deve dire QUALE dei due — è il perché, non il fatto.
+    col.appendChild(_verdictEl(secKey, sec, null, 'ov.sx.secured',
+        sec.managed > 0 ? 'ov.sx.noSnmp' : 'ov.sx.empty'));
 
     // Con apparati gestiti mostriamo le righe (anche senza SNMP: la VLAN di gestione
     // resta un segnale). Progetto senza apparati gestiti → solo il verdetto vuoto.
@@ -1185,15 +1201,9 @@ function _healthEl(secKey, sec) {
     // Verdetto: «quanti apparati non hanno niente da segnalare?». Senza NEMMENO
     // una lettura il livello è 'none' (grigio): «non lo so» ha il suo colore, non
     // si traveste da verde — l'errore che questa lente non deve ripetere.
-    const lvl = (sec.health && sec.health.level) || 'none';
-    const verdict = _el('div', 'ov-dr-verdict v-' + lvl);
-    verdict.appendChild(_el('span', 'ov-vdot'));
+    const verdict = _verdictEl(secKey, sec, null, 'ov.hl.healthy',
+        sec.targets > 0 ? 'ov.hl.empty' : 'ov.hl.noSnmp');
     if (sec.measured > 0) {
-        const big = _el('span', 'ov-dr-big');
-        big.appendChild(_el('b', null, String(sec.healthy)));
-        big.appendChild(_el('span', 'ov-dr-of', ' ' + t('ov.of', { n: sec.measured })));
-        verdict.appendChild(big);
-        verdict.appendChild(_el('span', 'ov-dr-lbl', t('ov.hl.healthy')));
         // Dato vecchio: il verde diventa giallo e il PERCHÉ è scritto, non implicito.
         // Una salute letta ieri non è la salute di adesso. Due frasi, due fatti
         // diversi: se anche la lettura PIÙ RECENTE è vecchia il dato è vecchio e
@@ -1208,9 +1218,10 @@ function _healthEl(secKey, sec) {
                 : t('ov.hl.staleSome', { n: sec.staleReadings || 0 });
             verdict.appendChild(_el('span', 'ov-hl-stale', w));
         }
-    } else {
-        verdict.appendChild(_el('span', 'ov-dr-lbl', t(sec.targets > 0 ? 'ov.hl.empty' : 'ov.hl.noSnmp')));
     }
+    // ⚠️ Il ramo `else` che riscriveva qui la frase del vuoto è stato TOLTO: adesso
+    // la mette `_verdictEl` dalla chiave passata sopra. Lasciarlo avrebbe stampato
+    // due volte la stessa riga — il doppione che questa unificazione toglie.
     col.appendChild(verdict);
 
     // Il «quando» della lettura in cima, come la data del capitolo nella «Vero».
