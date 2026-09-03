@@ -53,62 +53,27 @@ server.js              Express bootstrap: static files, auth, routers, listen (1
 auth.js                Sessions, bcrypt login, roles (admin/viewer), user CRUD
 server/                Backend (CommonJS): projects-store, netscan, classify,
                        pdf-report, label-sheet, routes/{projects,discovery,export,ai,skins,device-types,organization}
-server/organization-store.js  data/organization.json — ONE organisation per installation
-                       (this install of InfraNet is this company, with its sites), never inside
-                       a project: it is shared across the per-site projects, and a copy in each
-                       would be the same fact in two places. Atomic write + .bak; a corrupt file
-                       restarts from empty, never from invented data.
-server/routes/organization.js  GET (open, like the project list) returns the organisation TOGETHER
-                       with its coherence audit — no second call. PUT (admin, like saving a
-                       project) re-normalises the body instead of trusting the client and answers
-                       with what was actually WRITTEN plus a count of what was refused: a link
-                       with a kind outside the vocabulary must not enter, but vanishing in
-                       silence would let the person who saved believe they had saved it. Adds
-                       the one check a browser cannot make — does a site's projectRef point at a
-                       project that exists — and says so in notChecked when the list is unreadable.
-server/routes/projects.js  Project CRUD — and the two halves of an honest save. A project
-                       travels with an ETag taken from the file itself (never `updated_at`, which is
-                       truncated to SECONDS — and two saves in the same second are precisely the case
-                       this exists to catch); a PUT presenting a superseded one is refused with 409
-                       carrying who wrote last, when, and an ETag of its own that the client
-                       deliberately does NOT adopt — swallowing it would let the next save through
-                       unasked, disarming the guard on the first case it was built for. A caller
-                       sending no If-Match keeps the old behaviour ON PURPOSE: the DCIM import, the
-                       scripts and the benches should not have to learn a protocol to stay alive, and
-                       a guard that breaks its callers is a guard that gets switched off. Rename
-                       presents the version too, or a successful rename would refresh the version of a
-                       session that is behind. The client half is a DIRTY EPOCH (src/app-core.js): the
-                       document counts how many times it has been dirtied, a save reads that number
-                       before serialising and hands it back on return, and the unsaved signal goes
-                       out only if nothing arrived meanwhile — an edit made during the ~200ms of a save on
-                       a 1000-node project could not be inside a body already serialised. Load, create
-                       and duplicate still clear outright: there the document is clean by construction
-                       and there is nothing to compare against.
-server/routes/device-types.js  GET /api/device-types -> data/device-types.json: native
-                       device templates (ports + frontPanel) generated from public-domain
-                       (CC0) device-type data by tools/import-device-types.js --catalog.
-                       "Apply model" (src/app-device-types.js, Properties -> Port layout) applies
-                       a template's ports+frontPanel -> the DEFAULT rack renderer draws the exact
-                       faceplate (SFP/QSFP/MGMT), reusing the native render 100% (no new drawing).
+server/organization-store.js  data/organization.json — ONE organisation per installation,
+                       never inside a project (a copy in each would be the same fact twice).
+                       Atomic write + .bak; a corrupt file restarts from empty, never invented.
+server/routes/organization.js  GET (open) returns the organisation with its coherence audit in
+                       one call; PUT (admin) re-normalises the body and reports what was written
+                       and what was refused. The reasoning is in §4 (data flow) and §8.
+server/routes/projects.js  Project CRUD, and the two halves of an honest save: a file-derived
+                       ETag (never `updated_at`) refuses a superseded PUT with 409, and a DIRTY
+                       EPOCH (src/app-core.js) keeps the unsaved signal lit for an edit made mid-save.
+                       No If-Match = old behaviour, on purpose (imports/scripts/benches). See §4.
+server/routes/device-types.js  GET /api/device-types -> data/device-types.json: native templates
+                       (ports + frontPanel) from CC0 data via tools/import-device-types.js. "Apply
+                       model" feeds the DEFAULT rack renderer — no new drawing. See tools/README.md.
 server/ai-config.js    AI assistant config: enabled/endpoint/model/key + scope/features
                        (data/ai-config.json git-ignored; key server-side only, env INFRANET_AI_KEY)
-server/ai/             AI assistant: context.js (sanitized §8b + ports/SNMP-health/topology +
-                       hw-capabilities + health alerts, re-sanitized browser liveFacts,
-                       scope-aware, allowlist+denylist; nested driver shapes survive a
-                       depth-4 secret-filtered sanitizer; passive no-IP gear -- wall
-                       ports/patch panels -- marked passive:true so the AI won't call
-                       them missing-IP gaps), prompt.js (grounding it/en +
-                       capabilities + problem alerts + §4c help: UI catalog + full workflow
-                       journey), provider.js (OpenAI-compatible client via
-                       node:https, zero-dep). routes/ai.js derives the UI help catalog once
-                       (lib/ui-catalog from netmapper.html+i18n) and returns an entities digest
-                       (extractEntities) so the client can run the anti-invention check.
-server/module-registry.js  Generic paid-module plugin seam (feature-agnostic): loadModules
-                       mounts modules/<name>/server if present (modules/ gitignored, private
-                       repo, in-process so modules get req.session.user + auth.requireAdmin);
-                       getNav feeds GET /api/modules (header nav slot); onProjectDelete lets a
-                       module clean its own sidecars on project delete. The core knows no
-                       specific module.
+server/ai/             AI assistant: context.js (sanitized facts, scope-aware, secret-filtered —
+                       see §8b), prompt.js (grounding it/en + §4c help catalog), provider.js
+                       (OpenAI-compatible, node:https, zero-dep); routes/ai.js wires them.
+server/module-registry.js  Generic paid-module seam: loadModules mounts modules/<name>/server if
+                       present (modules/ gitignored, private repo, in-process); getNav feeds
+                       GET /api/modules; onProjectDelete cleans a module's sidecars. Core-agnostic.
 drivers/snmp.js        SNMP v1/v2c/v3 driver
 engine/                sysObjectID + OUI classification engines (plugin loaders)
 plugins/               Seed vendor catalogs (zero database)

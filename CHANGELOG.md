@@ -1,19 +1,22 @@
 # Changelog
 
-## [Unreleased]
+## [2.11.2] — 2026-09-01
 
-### Security
-
-- **`qs` pinned to 6.16.0 to clear two advisories, though neither was reachable here.** The version shipped transitively under Express carried the `arrayLimit` bypass (GHSA-x5fp-wj9c-mxmx) and a parser denial-of-service — but the first needs `comma: true`, which Express's default query parser does not set and this app never does, and request bodies are parsed only by `express.json()`, which does not use `qs` at all; the sole place `qs` sees attacker input is a query string on one authenticated route that reads scalar values. The fix is a one-line `overrides`, not an Express bump: it lifts `qs` to 6.16.0 and leaves `express` and `body-parser` untouched, so the lockfile change is confined to the `qs` subtree.
+Post-release polish: the Overview reads the same in every section, wireless discovery
+explains itself, and a transitive dependency advisory is cleared.
 
 ### Changed
 
-- **Wireless discovery says why it found nothing, instead of three silent zeros.** When a Sync produced no wireless associations it reported `0 created, 0 updated, 0 pruned` and nothing else, so a network with an access point that answers no SNMP read as «broken» — a real user with a SOHO all-in-one gave up and drew the waves by hand. Each of the five gates that can quietly skip a device is now counted and named: an access point that returned no clients (SNMP silent or none associated), one with no declared SSID so the L3 read is off, a client seen but not yet in the document, a client that is not an endpoint, a rejected pair, a manual link left alone. The Sync reports the reasons only when there was an access point to expect clients from — a wired-only network stays silent, as it should. It is the rule the multi-site audit already follows: every check that could not run leaves its name and its reason rather than passing for a clean result.
-- **All six Overview sections now answer their question the same way, and «I don't know» has its own colour everywhere.** There were two verdicts: the three Summary columns showed a coloured dot and a sentence, while Recoverability, Security and Health each built their own on the spot — a big number, no sentence, no delta. Two alphabets for one question, inside the component that exists so the app does not have several. They are one now, keeping the better half of each: the number stays where the answer *is* a number, because «19 of 31» answers «if it falls over tonight, do you get it back?» while «headroom tight» only comments on it. And the best idea of the two, which lived in Health alone — a grey dot for *no reading at all*, so an absent verdict never looks like a good one — now applies to every section. A section with nothing to judge says what is missing rather than staying silent or green.
+- **All six Overview sections give their verdict the same way, and «I don't know» is now grey everywhere.** There used to be two verdicts — a sentence in the Summary columns, a hand-built number in the other three lenses. They are one component now: the number where the answer is a number, the sentence otherwise. A section with nothing to judge shows grey and says what is missing, instead of a green that was never earned or a red that promised a diagnosis nobody made — a never-synced project no longer reads as a fault.
+- **Wireless discovery says why it found nothing, instead of three silent zeros.** A Sync that made no wireless associations used to report `0 / 0 / 0` and no reason, so an access point that answers no SNMP looked broken. Each of the five gates that can skip a device is now named — no clients read, no declared SSID, client not yet in the document, not an endpoint, rejected pair, manual link — and a wired-only network stays silent, as it should.
 
 ### Fixed
 
-- **An OpenWrt access point was not recognised as wireless at all.** When an agent does not report the standard wireless interface type, the discovery falls back to the interface name — and on Linux it always falls back, because a radio in AP mode presents itself to the kernel as Ethernet. Current OpenWrt names that interface `phy0-ap0`, which the pattern did not match, so on a platform the compatibility notes list as supported nothing was found and nothing said why. The systemd name for a USB Wi-Fi adapter (`wlx` followed by its MAC) was missing for the same reason. Both are matched now, and the other direction is pinned as well: no wired interface may be read as a radio, which is the error that would put a false statement in the document rather than merely omitting one.
+- **An OpenWrt access point was not recognised as wireless.** On Linux a radio in AP mode reports itself as Ethernet, so recognition falls back to the interface name — and the current OpenWrt name `phy0-ap0` (and the `wlx` name of a USB adapter) did not match. Both match now, with the reverse pinned too: no wired interface may be read as a radio.
+
+### Security
+
+- **`qs` pinned to 6.16.0**, clearing two advisories carried transitively under Express. Neither was reachable here — the `arrayLimit` bypass needs `comma: true`, which the app never sets, and bodies are parsed only by `express.json()` — but the fix is a one-line `overrides` that leaves Express and body-parser untouched.
 
 ## [2.11.1] — 2026-09-01
 
