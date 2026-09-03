@@ -39,5 +39,8 @@
     "globals": "^17.6.0",
     "playwright-core": "^1.61.0",
     "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "qs": ">=6.16.0"
   }
 }

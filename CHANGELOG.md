@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Security
+
+- **`qs` pinned to 6.16.0 to clear two advisories, though neither was reachable here.** The version shipped transitively under Express carried the `arrayLimit` bypass (GHSA-x5fp-wj9c-mxmx) and a parser denial-of-service — but the first needs `comma: true`, which Express's default query parser does not set and this app never does, and request bodies are parsed only by `express.json()`, which does not use `qs` at all; the sole place `qs` sees attacker input is a query string on one authenticated route that reads scalar values. The fix is a one-line `overrides`, not an Express bump: it lifts `qs` to 6.16.0 and leaves `express` and `body-parser` untouched, so the lockfile change is confined to the `qs` subtree.
+
 ### Changed
 
 - **All six Overview sections now answer their question the same way, and «I don't know» has its own colour everywhere.** There were two verdicts: the three Summary columns showed a coloured dot and a sentence, while Recoverability, Security and Health each built their own on the spot — a big number, no sentence, no delta. Two alphabets for one question, inside the component that exists so the app does not have several. They are one now, keeping the better half of each: the number stays where the answer *is* a number, because «19 of 31» answers «if it falls over tonight, do you get it back?» while «headroom tight» only comments on it. And the best idea of the two, which lived in Health alone — a grey dot for *no reading at all*, so an absent verdict never looks like a good one — now applies to every section. A section with nothing to judge says what is missing rather than staying silent or green.
