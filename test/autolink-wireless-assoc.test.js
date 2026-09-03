@@ -210,3 +210,67 @@ test('prune manual-first: onda WIFI-FDB AUTO stantia su AP riscansionato viene r
   assert.equal(r.hasOld, false, 'onda stantia rimossa');
   assert.equal(r.hasNew, true, 'onda del client attuale presente');
 });
+
+// ============================================================
+//  IL PERCHÉ, non solo i tre zeri.
+//
+//  Prima questa funzione, quando non trovava niente, rendeva {created:0,
+//  updated:0, pruned:0} — muto. Un utente vero (SOHO Zyxel, SNMP che non
+//  risponde) ha concluso «è rotto» e ha smesso di provare. Ora ogni cancello che
+//  si chiude in silenzio si conta, e il Sync lo racconta.
+// ============================================================
+
+test('zero onde con un AP presente: dice PERCHÉ (SNMP muto → noSignal)', () => {
+  const r = JSON.parse(run(APP.ctx, `(() => {
+    state = _buildDefaultState(); state.nodes = []; state.links = [];
+    state.nodes.push({ id:'ap', type:'router', name:'Zyxel', ports:5,
+      radios:[{ band:'2.4', ssids:[{ id:'s', ssid:'Casa', vlan:10 }] }] });
+    if(typeof _invalidateIdx==='function') _invalidateIdx();
+    // Nessuna cache popolata: è l'apparato che non risponde all'SNMP.
+    window._topoFdbCache = {}; window._topoWifiIfsCache = {}; window._topoWifiNbrCache = {};
+    return JSON.stringify(_autoLinkWirelessAssoc());
+  })()`));
+  assert.equal(r.created, 0);
+  assert.equal(r.apsSeen, 1, 'l\'AP c\'è: da lui ci si aspettavano client');
+  assert.equal(r.reasons.noSignal, 1, 'e il motivo è scritto, non taciuto');
+});
+
+test('zero onde perché il client non è ancora nel documento (→ «Scopri»)', () => {
+  const r = JSON.parse(run(APP.ctx, `(() => {
+    state = _buildDefaultState(); state.nodes = []; state.links = [];
+    state.nodes.push({ id:'ap', type:'router', name:'AP', ports:5,
+      radios:[{ band:'2.4', ssids:[{ id:'s', ssid:'Casa', vlan:10 }] }] });
+    if(typeof _invalidateIdx==='function') _invalidateIdx();
+    const fdb = {}; fdb[_normMacKey('de:ad:be:ef:00:99')] = 'wlan0';  // un MAC che nessun nodo possiede
+    window._topoFdbCache = { ap: fdb };
+    window._topoWifiIfsCache = { ap: ['wlan0'] };
+    return JSON.stringify(_autoLinkWirelessAssoc());
+  })()`));
+  assert.equal(r.created, 0);
+  assert.equal(r.clientsSeen, 1, 'un client è stato VISTO nella FDB');
+  assert.equal(r.reasons.clientNotInDoc, 1, 'ma non è un nodo: motivo azionabile');
+});
+
+test('rete solo cablata: apsSeen=0 → la funzione TACE (niente rumore ogni Sync)', () => {
+  const r = JSON.parse(run(APP.ctx, `(() => {
+    state = _buildDefaultState(); state.nodes = []; state.links = [];
+    state.nodes.push({ id:'sw', type:'switch', name:'SW', ports:24 });  // nessuna radio
+    if(typeof _invalidateIdx==='function') _invalidateIdx();
+    return JSON.stringify(_autoLinkWirelessAssoc());
+  })()`));
+  assert.equal(r.apsSeen, 0, 'nessun apparato con radio → non c\'è wireless da aspettarsi');
+});
+
+test('_autoLinkDiagText: a zero onde con AP presente, il testo NON è vuoto e nomina un motivo', () => {
+  const txt = run(APP.ctx, `_autoLinkDiagText({ wifiAssoc:{ created:0, updated:0, pruned:0,
+    apsSeen:2, clientsSeen:0, reasons:{ noSignal:2, noSsid:0, clientNotInDoc:0, notLeaf:0, rejected:0, manualLink:0 } } })`);
+  assert.ok(txt && txt.length > 0, 'il testo del verdetto non è vuoto');
+  assert.ok(/AP|SNMP|wireless/i.test(txt), 'nomina il motivo, non tre zeri: ' + JSON.stringify(txt));
+  // ⚠️ Prova che il ramo NON stampi una chiave i18n grezza (t() rende la chiave se assente).
+  assert.ok(!/msg\.net\.alWifi/.test(txt), 'nessuna chiave i18n grezza a schermo: ' + JSON.stringify(txt));
+});
+
+test('_autoLinkDiagText: rete cablata (apsSeen=0) → nessuna riga wireless', () => {
+  const txt = run(APP.ctx, `_autoLinkDiagText({ wifiAssoc:{ created:0, updated:0, pruned:0, apsSeen:0, clientsSeen:0, reasons:{} } })`);
+  assert.ok(!/wireless|wave|onde/i.test(txt || ''), 'niente riga wireless su rete cablata: ' + JSON.stringify(txt));
+});

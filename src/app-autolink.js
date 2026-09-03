@@ -534,7 +534,15 @@ export function _autoLinkWirelessAssoc(){
     const CONF_WIFI_FDB = 0.85;   // MAC appreso su radio nella FDB bridge (L2, diretto)
     const CONF_WIFI_NBR = 0.80;   // vicino ARP/ND su radio (L3, un filo meno diretto)
     const WIFI_PROTOS = new Set(['WIFI-FDB', 'WIFI-NBR']);
-    const out = { created:0, updated:0, pruned:0, protocols:new Set() };
+    // ⚠️ `reasons` e `apsSeen`: il PERCHÉ, non solo l'esito. Prima questa funzione
+    // rendeva tre zeri muti quando non trovava niente, e un utente vero (SOHO Zyxel,
+    // SNMP muto) ha concluso «è rotto» e ha smesso di provare. Ogni `continue` qui
+    // sotto è un cancello che si chiude in silenzio: ora si conta quale, e il Sync
+    // lo racconta — la stessa regola che l'audit multi-sede applica già («ogni
+    // controllo che non gira lascia il suo nome e il suo motivo»).
+    const out = { created:0, updated:0, pruned:0, protocols:new Set(),
+        apsSeen:0, clientsSeen:0,
+        reasons: { noSignal:0, noSsid:0, clientNotInDoc:0, notLeaf:0, rejected:0, manualLink:0 } };
     if(typeof radioPid !== 'function') return out;   // libreria radio non caricata → no-op
     const _radiosLen = nd => (nd && Array.isArray(nd.radios)) ? nd.radios.length : 0;
     const _rejectedW = Array.isArray(store.state.rejectedAutoLinks) ? store.state.rejectedAutoLinks : [];
@@ -542,7 +550,8 @@ export function _autoLinkWirelessAssoc(){
     const wifiAffirmed = new Set();   // client-radio-pid (ri)confermati questo giro
     const wifiApsSeen  = new Set();    // AP con evidenza fresca → pruning consentito solo lì
     for(const dev of store.state.nodes){
-        if(_radiosLen(dev) < 1) continue;                                    // solo device che TRASMETTONO onda
+        if(_radiosLen(dev) < 1) continue;                                    // non trasmette onda: NON è un AP, non è un motivo
+        out.apsSeen++;                                                       // da qui in giù è un apparato che DOVREBBE avere client
         const wifiIfs = (store._topoWifiIfsCache && store._topoWifiIfsCache[dev.id]) || [];
         const wifiNbr = (store._topoWifiNbrCache && store._topoWifiNbrCache[dev.id]) || [];
         const fdb     = (store._topoFdbCache && store._topoFdbCache[dev.id]) || {};
@@ -553,14 +562,24 @@ export function _autoLinkWirelessAssoc(){
         // SSID → al Sync successivo il client non viene mai scambiato per un AP.
         const nbrMacs = apList.length ? wifiNbr : [];
         const hasSignal = (wifiIfs.length && Object.keys(fdb).length) || nbrMacs.length;
-        if(!hasSignal) continue;                                             // nessun segnale wireless su questo dev
+        if(!hasSignal){
+            // Due motivi DIVERSI, e la differenza è azionabile: se c'erano vicini su
+            // radio ma nessun SSID dichiarato, il path L3 è stato spento e basta
+            // dichiarare l'SSID; altrimenti l'AP non ha dato NIENTE (SNMP muto o
+            // nessun client visto). Sommarli nasconderebbe la cura.
+            if(!apList.length && wifiNbr.length) out.reasons.noSsid++;
+            else out.reasons.noSignal++;
+            continue;
+        }
         wifiApsSeen.add(dev.id);
         const fdbVlan = (store._topoFdbVlanCache && store._topoFdbVlanCache[dev.id]) || {};
         const clients = collectWirelessClients({ fdb, wifiIfs, wifiNeighborMacs: nbrMacs, fdbVlan });
         for(const w of clients){
+            out.clientsSeen++;
             const client = macToNode.get(_normMacKey(w.mac));
-            if(!client || client.id === dev.id) continue;
-            if(!_isLeafEndpoint(client.type, client)) continue;                      // solo endpoint foglia (PC/telefono/…)
+            if(!client){ out.reasons.clientNotInDoc++; continue; }           // MAC visto ma nessun nodo: manca «Scopri»
+            if(client.id === dev.id) continue;                              // l'AP vede se stesso: non è un motivo
+            if(!_isLeafEndpoint(client.type, client)){ out.reasons.notLeaf++; continue; }   // solo endpoint foglia (PC/telefono/…)
             // Assicura una radio-stazione sul client (idx 0), come nel modello manuale.
             if(_radiosLen(client) < 1) setRadioCount(client, 1);
             if(_radiosLen(client) < 1) continue;                             // radio non creabile → salta
@@ -568,9 +587,9 @@ export function _autoLinkWirelessAssoc(){
             const { radioIdx, bssId } = resolveClientAssoc({ apSsidList: apList, vlan: w.vlan });
             const apPid = radioPid(dev.id, radioIdx);
             const pairKey = pairSig(apPid, clientPid);
-            if(_rejectedW.includes(pairKey)) continue;                       // coppia rifiutata dall'utente
+            if(_rejectedW.includes(pairKey)){ out.reasons.rejected++; continue; }   // coppia rifiutata dall'utente
             const existing = store.state.links.find(l => _linkTouchesPort(l, clientPid));
-            if(existing && !existing.autoLinked) continue;                   // link manuale sul client → non toccare
+            if(existing && !existing.autoLinked){ out.reasons.manualLink++; continue; }   // link manuale sul client → non toccare
             const proto = (w.source === 'neighbor') ? 'WIFI-NBR' : 'WIFI-FDB';
             const conf  = (w.source === 'neighbor') ? CONF_WIFI_NBR : CONF_WIFI_FDB;
             wifiAffirmed.add(clientPid);
@@ -684,6 +703,26 @@ export function _autoLinkDiagText(diag){
             const det = nr.sort((a,b)=>b[1]-a[1])
                 .map(([k,v]) => `${_lbl(k)}: ${v}`).join(' · ');
             parts.push(`${tot} ${t('msg.net.alNbUnresolved')} (${det})`);
+        }
+    }
+    // Wireless: se c'erano AP da cui aspettarsi client (`apsSeen`) ma sono uscite
+    // zero onde, si dice PERCHÉ invece dei tre zeri muti di prima. Stessa forma dei
+    // vicini L3 qui sopra: `t()` con fallback al nome della chiave, così un motivo
+    // nuovo resta leggibile anche prima di avere la sua traduzione.
+    if(diag.wifiAssoc && diag.wifiAssoc.apsSeen > 0){
+        const w = diag.wifiAssoc;
+        if(w.created || w.updated){
+            parts.push(`${t('msg.net.alWifiMade')}: +${w.created||0}${w.updated?(' / '+w.updated):''}`);
+        } else {
+            const _lbl = k => { const key = 'msg.net.alWifi_' + k; const s = t(key); return s === key ? k : s; };
+            const det = Object.entries(w.reasons || {})
+                .filter(([,v]) => v > 0)
+                .sort((a,b) => b[1] - a[1])
+                .map(([k,v]) => `${_lbl(k)}: ${v}`);
+            const lead = t('msg.net.alWifiNone');   // «nessuna associazione wireless (N AP)»
+            parts.push(det.length
+                ? `${lead} (${w.apsSeen}): ${det.join(' · ')}`
+                : `${lead} (${w.apsSeen})`);
         }
     }
     if(Array.isArray(diag.reasons) && diag.reasons.length) parts.push(diag.reasons.slice(0,2).join(' · '));
@@ -1682,8 +1721,14 @@ async function _autoDiscoverLinks(nodeIds){
         if(_w.created || _w.updated || _w.pruned){
             created += _w.created; updated += _w.updated; pruned += _w.pruned;
             for(const p of (_w.protocols || [])) protocols.add(p);
-            diag.wifiAssoc = { created:_w.created, updated:_w.updated, pruned:_w.pruned };
         }
+        // ⚠️ Si registra SEMPRE il risultato wireless grezzo — anche a zero onde e
+        // anche su rete cablata. La REGOLA «mostralo solo se c'era un AP da cui
+        // aspettarsi client» (`apsSeen > 0`) vive in UN posto solo, `_autoLinkDiagText`:
+        // metterla anche qui la duplicherebbe, ed è già successo. `diag` è interno, lo
+        // rende solo quella funzione: un wifiAssoc con `apsSeen:0` è dato inerte.
+        diag.wifiAssoc = { created:_w.created, updated:_w.updated, pruned:_w.pruned,
+            apsSeen:_w.apsSeen, clientsSeen:_w.clientsSeen, reasons:_w.reasons };
     } catch(e){ console.warn(`[AutoLink] wireless-assoc: ${e.message}`); }
 
     // Le adiacenze senza porta di QUESTO giro sostituiscono quelle di prima: sono
