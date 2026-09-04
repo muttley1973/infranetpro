@@ -674,6 +674,19 @@ function _discReachabilityInfo(d){
     return { label:_dt('disc.reach.inactive','Inattivo'), cls:'off', title:d?.mac ? _dt('disc.tip.inactiveArp','Visto passivamente via ARP/MAC, ma non confermato raggiungibile') : _dt('disc.tip.inactiveNone','Nessun segnale attivo confermato') };
 }
 
+/** Qualcosa di AUTOREVOLE ha parlato di questo host?
+ *  Cioe': ha risposto lui a SNMP, oppure un vicino l'ha DICHIARATO via LLDP/CDP.
+ *  ⚠️ Tutto il resto che alza il punteggio — NetBIOS, SMB, servizi TCP, hostname,
+ *  MAC, vendor, ping — sono osservazioni SU di lui, non affermazioni DI lui.
+ *  Sommate bene fanno un numero alto, non una lettura: e' la stessa distinzione
+ *  qualitativa che lib/linkstate.js applica ai cavi.
+ *  ⚠️ Si legge dal RECORD, non dal punteggio, cosi' vale identica sui due rami di
+ *  _discConfidenceInfo (quello col livello dal server e quello calcolato qui). */
+function _discAuthoritative(d){
+    const proto = String(d?.viaProtocol || d?.protocol || '').toUpperCase();
+    return !!(d?.snmpReachable || proto === 'LLDP' || proto === 'CDP' || d?._via === 'lldp');
+}
+
 function _discConfidenceInfo(d){
     const confObj = d?.confidence || d?.discovery?.confidence;
     if(confObj && Number.isFinite(confObj.score)){
@@ -707,6 +720,22 @@ function _discConfidenceInfo(d){
     if(score >= 70) return { label:_dt('disc.conf.high','Alta'), cls:'high', score, title: reasons.join(' · ') };
     if(score >= 40) return { label:_dt('disc.conf.mid','Media'), cls:'mid', score, title: reasons.join(' · ') };
     return { label:_dt('disc.conf.low','Bassa'), cls:'low', score, title: reasons.join(' · ') || _dt('disc.tip.fewSignals','pochi segnali raccolti') };
+}
+
+/** Il badge di confidenza della riga. Il SEGNO dice da dove viene (notazione
+ *  unica, lib/certainty.js), il NUMERO quanto forte e' il voto — sono due
+ *  domande e ora hanno due posti.
+ *  ⚠️ Prima il livello viveva nel COLORE del badge, e la scala era verde/ambra/
+ *  ROSSA: un apparato che la scansione aveva riconosciuto poco veniva dipinto
+ *  come un guasto. Non lo e'. Ora il badge e' neutro e il grado sta nel punto.
+ *  ⚠️ Punto e non pastiglia: questa e' una LISTA, e la ripetizione fitta vuole il
+ *  segno piu' leggero — la stessa scelta del pannello proprieta'. */
+function _discConfBadge(d, conf){
+    if (typeof certaintyForDiscovery !== 'function')
+        return ` <span class="disc-badge disc-conf" data-tip="${escapeHTML(conf.label + ' · ' + conf.title)}">${conf.score}%</span>`;
+    const c = certaintyForDiscovery(_discAuthoritative(d));
+    const tip = t('cty.' + c.grade) + ' — ' + t('cty.tip.' + c.grade) + ' · ' + conf.title;
+    return ` <span class="disc-badge disc-conf" data-tip="${escapeHTML(tip)}"><span class="cty-mark cty-${escapeHTML(c.grade)}"></span>${conf.score}%</span>`;
 }
 
 function _discSummaryHtml(results, extra={}){
@@ -862,9 +891,8 @@ function _discRenderTable(){
         //  · reconcile (Nuovo/Aggiorna/Verifica/Già presente) = ICONA sola, parola nel tooltip.
         const badges = ` <span class="disc-badge src-${src.cls}" data-tip="${escapeHTML(src.title)}">${escapeHTML(src.label)}</span>`
             + _v3cred + _v3also
-            + ` <span class="disc-badge conf-${conf.cls}" data-tip="${escapeHTML(conf.label + ' · ' + conf.title)}">${conf.score}%</span>`
+            + _discConfBadge(d, conf)
             + ` <span class="disc-badge rec-${rec.cls}" data-tip="${escapeHTML(rec.label + ' · ' + rec.title)}"><i class="fas ${_discRecIcon(rec.cls)}"></i></span>`
-            + _discEdgeBadge(d)
             + _discFoldBadge(d, i)
             + _discModelBadge(d);
         const reach = _discReachabilityInfo(d);
@@ -978,21 +1006,6 @@ function _discApplyNd6(nd6){
 
 // Badge "porta di accesso" dal macsuck (es. SW-CORE · Gi0/5). ambiguous → tinta
 // d'avviso. Il MAC compare su piu' porte allo stesso peso = da verificare.
-// Abbrevia il nome interfaccia per il badge posizione (GigabitEthernet0/1 → Gi0/1):
-// nella tabella Scopri il nome esteso traboccava dalla cella Nome. Vendor-neutral,
-// prefissi lunghi PRIMA dei corti (Ten… prima di Gigabit…). Il nome pieno resta nel tooltip.
-function _abbrevIfName(s){
-    return String(s == null ? '' : s)
-        .replace(/TwentyFiveGig(?:abitEthernet|E)?/gi, 'Twe')
-        .replace(/TenGigabitEthernet|TenGigE/gi, 'Te')
-        .replace(/FortyGig(?:abitEthernet|E)?/gi, 'Fo')
-        .replace(/HundredGig(?:abitEthernet|E)?/gi, 'Hu')
-        .replace(/GigabitEthernet/gi, 'Gi')
-        .replace(/FastEthernet/gi, 'Fa')
-        .replace(/\bEthernet(?=\d|\s|$|\/)/gi, 'Eth')
-        .replace(/Port-?[Cc]hannel/g, 'Po')
-        .replace(/Management/gi, 'Mgmt');
-}
 // Icona (sola) per il badge reconcile: la parola resta nel tooltip. Simbologia:
 // Nuovo=＋ · Aggiorna=↻ · Verifica=? · Già presente=✓. Il colore (rec-*) conferma.
 function _discRecIcon(cls){
@@ -1001,23 +1014,11 @@ function _discRecIcon(cls){
          : cls === 'check'  ? 'fa-question'
          : 'fa-check';   // same (Già presente)
 }
-function _discEdgeBadge(d){
-    const e = d && d.edge;
-    if(!e || !e.ifName) return '';
-    const sw = e.switchName || e.switchIp || _dt('disc.edge.switch','switch');
-    const ifn = _abbrevIfName(e.ifName);
-    // SHARED: il MAC pende DIETRO questa porta (AP/switch non gestito, molti MAC) →
-    // indizio piu' debole, badge "dietro …" tenue. Non e' un cavo diretto.
-    if(e.shared){
-        const tip = _dt('disc.tip.edgeShared','Visto DIETRO questa porta (segmento condiviso: {n} MAC, probabile AP o switch non gestito) — non un collegamento diretto',{n:e.macCount});
-        return ` <span class="disc-badge loc loc-shared" data-tip="${escapeHTML(tip)}"><i class="fas fa-diagram-project"></i> ${escapeHTML(sw + ' · ' + ifn)}</span>`;
-    }
-    // EDGE: collegamento diretto (o quasi) a questa porta.
-    const tip = e.ambiguous
-        ? _dt('disc.tip.edgeAmb','Porta di accesso dedotta dalla MAC-table (FDB), ma il MAC compare su piu\' porte allo stesso peso — verifica')
-        : _dt('disc.tip.edge','Porta di accesso dedotta dalla MAC-table (FDB) dello switch');
-    return ` <span class="disc-badge loc${e.ambiguous?' loc-amb':''}" data-tip="${escapeHTML(tip)}"><i class="fas fa-location-dot"></i> ${escapeHTML(sw + ' · ' + ifn)}</span>`;
-}
+// ⚠️ QUI STAVA `_discEdgeBadge`: il badge 📍 «switch · porta» che diceva su quale
+// porta di accesso l'apparato risultava agganciato (dedotta dalla MAC-table). Tolto
+// su richiesta il 04/09 — la riga era diventata affollata. Il DATO resta: la
+// correlazione FDB (`_discApplyEdges`) continua a riempire `d.edge`, e oggi non lo
+// legge più nessuno. Se un giorno serve di nuovo, si riparte da lì.
 
 async function _runCrawlPhase(seeds, driver, community, timeout, scanCidr){
     if(!seeds.length) return;
@@ -1432,7 +1433,7 @@ expose({
     openDiscovery, closeDiscovery, _closeDiscoveryOverlayClick, runDiscovery,
     importDiscovered,
     _discExistingNode, _discRenderTable, _discCrawlRow, _discArpRow, _discVendorLabel,
-    _discApplyEdges, _discEdgeBadge,
+    _discApplyEdges,
 });
 
 // ASSE B — superficie DINAMICA tabella Scopri (righe rese da _discRenderTable):

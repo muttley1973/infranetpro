@@ -8,6 +8,11 @@
             --bg-color: #0d1117; --panel-bg: #1e2733; --panel-border: #30363d;
             --text-main: #c9d1d9; --text-muted: #8b949e; --accent: #00d4ff;
             --active-color: #39d353; --fault-color: #f85149; --inactive-color: #6e7681; --idle-color: #f5a623;
+            /* «dedotto»: calcolato dall'app da altro, non letto e non dichiarato. Era un
+               LETTERALE scritto due volte in 11-overview.css; ora ha un nome perche' la
+               notazione unica della certezza (lib/certainty.js) lo usa su piu' superfici,
+               e un colore senza nome non puo' seguire un tema ne' essere confrontato. */
+            --derived-color: #a371f7;
             /* Gruppi di prese: otto tinte distinguibili fra loro e dai colori di STATO
                (verde attivo / rosso guasto / grigio spento), che vivono sul fondo della
                presa. Il gruppo e' una dichiarazione, lo stato una misura: canali separati. */

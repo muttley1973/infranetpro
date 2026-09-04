@@ -193,6 +193,64 @@ function _lockBtn(field, locked, decl){
     return `<button type="button" class="toolbar-btn" style="padding:2px 7px;margin:0;font-size:0.78rem;line-height:1${locked?';color:var(--accent);border-color:var(--accent)':''}" data-tip="${t(_k)}" aria-label="${t(_k)}" aria-pressed="${locked?'true':'false'}" data-act="node-lock" data-field="${field}"><i class="fas fa-lock${locked?'':'-open'}"></i></button>`;
 }
 
+/** Il segno di provenienza di un campo in cui il DICHIARATO e il LETTO vivono in
+ *  due posti diversi: `n.<campo>` e' quello che ha scritto una persona,
+ *  `integration.inventory.<campo>` quello che ha letto la scansione. Finora la
+ *  differenza la raccontava un paragrafo per campo; ora la dice il segno.
+ *  ⚠️ Il valore letto si prende da `inventory`, MAI dal placeholder: per
+ *  `brand` il placeholder puo' venire dal CATALOGO (`d.brand`), che e' un
+ *  suggerimento e non una misura — segnarlo «Misurato» sarebbe una bugia.
+ *  ⚠️ Nessun segno se la libreria non c'e': meglio niente che un grigio che
+ *  afferma «non risulta» su una cosa che non abbiamo guardato. */
+function _ctyMark(declared, read){
+    if (typeof certaintyForField !== 'function') return '';
+    const c = certaintyForField(declared, read);
+    // ⭐ NESSUN SEGNO SU UN CAMPO VUOTO (deciso il 04/09, guardando il risultato).
+    //    La regola che ne esce è più pulita di quella che avevo scritto: il segno
+    //    dice DA DOVE VIENE un valore — se il valore non c'è, la domanda non si
+    //    pone, e il campo vuoto lo dice già da sé. Quattro anelli grigi in fila
+    //    aggiungevano un segno senza aggiungere un'informazione, e a colpo d'occhio
+    //    somigliavano a quattro avvisi.
+    // ⚠️ NON è in contraddizione con la Panoramica, che il dato mancante lo disegna
+    //    tratteggiato: là la domanda la pone la RIGA, che esiste comunque; qui a
+    //    porla sarebbe stato il segno stesso. `certaintyForField` continua a
+    //    rispondere `absent` — è il renderer a non disegnarlo, ed è giusto così:
+    //    la logica resta onesta, la presentazione decide cosa vale la pena mostrare.
+    if (c.grade === 'undeclared' || c.grade === 'unread') return '';
+    const tip = t('cty.' + c.grade) + ' — ' + t('cty.tip.' + c.grade);
+    return ` <span class="cty-mark cty-${escapeHTML(c.grade)}" data-tip="${escapeHTML(tip)}" aria-label="${escapeHTML(tip)}"></span>`;
+}
+
+/** Una voce della legenda. È una funzione del file, non una lambda dentro il
+ *  builder, perché lo scanner dell'escaping riconosce i builder HTML dello
+ *  stesso file (regola compositiva) e non le arrow assegnate a una const: così
+ *  il cricchetto delle interpolazioni non provate resta dov'era invece di
+ *  salire di tre. ⚠️ Il grado passa da escapeHTML come ovunque — viene da un
+ *  insieme chiuso, ma il cricchetto non lo sa e ha ragione a non fidarsi. */
+function _ctyLegendItemHtml(g){
+    return `<span class="cty-leg-i"><span class="cty-mark cty-${escapeHTML(g)}"></span>${escapeHTML(t('cty.' + g))}</span>`;
+}
+
+/** La legenda, UNA volta in cima al blocco: l'alfabeto si impara qui e vale per
+ *  tutti i campi che portano il segno. ⚠️ Mostra i tre gradi che in questo blocco
+ *  possono davvero capitare — elencarne cinque prometterebbe distinzioni che qui
+ *  non si fanno (una contraddizione la dichiara chi ha la misura confermata). */
+function _ctyLegendHtml(coppie){
+    if (typeof certaintyForField !== 'function') return '';
+    // ⚠️ La legenda si mostra solo se sotto c'e' almeno un segno da spiegare. Su un
+    // apparato ancora vuoto spiegherebbe simboli che non compaiono — la stessa
+    // forma di rumore degli anelli grigi, un piano piu' su. E per lo stesso motivo
+    // elenca i due gradi che qui possono CAPITARE: `absent` non si disegna piu',
+    // quindi non va promesso. Una legenda che nomina un segno che non arriva mai e'
+    // una frase che nessun cancello verifica.
+    if (!(coppie || []).some(([d, r]) => certaintyForField(d, r).grade !== 'undeclared' && certaintyForField(d, r).grade !== 'unread')) return '';
+    // ⚠️ Il grado sta sul PUNTO, non sulla voce: se stesse sulla voce colorerebbe
+    // anche l'etichetta, e una legenda con tre parole colorate grida piu' dei campi
+    // che deve spiegare. Il colore lo porta il segno; la parola resta neutra.
+    const voci = ['declared', 'measured'].map(_ctyLegendItemHtml).join('');
+    return `<div class="cty-legend" data-tip="${escapeHTML(t('cty.legendTip'))}"><span class="cty-leg-t">${escapeHTML(t('cty.legend'))}</span>${voci}</div>`;
+}
+
 export function _buildInventoryFieldsHtml(n, d){
     const inventory = (n.integration && n.integration.inventory) || {};
     const placeholders = {
@@ -214,13 +272,15 @@ export function _buildInventoryFieldsHtml(n, d){
     const statusOpts = [''].concat(STATUSES).map(s =>
         `<option value="${escapeHTML(s)}"${s === curStatus ? ' selected' : ''}>${escapeHTML(t(s ? 'status.' + s : 'status.undeclared'))}</option>`
     ).join('');
-    return `<div class="prop-row2">
-        <div class="prop-group"><label>${t('field.brand')}</label><input value="${escapeHTML(n.brand||'')}" placeholder="${placeholders.brand}" data-change="node-field" data-field="brand"></div>
-        <div class="prop-group"><label>${t('field.model')}</label><input value="${escapeHTML(n.model||'')}" placeholder="${placeholders.model}" data-change="node-field" data-field="model"></div>
+    const _ctyCoppie = [[n.brand, inventory.brand], [n.model, inventory.model],
+        [n.serialNumber, inventory.serialNumber], [n.firmwareVer, inventory.firmwareVer]];
+    return _ctyLegendHtml(_ctyCoppie) + `<div class="prop-row2">
+        <div class="prop-group"><label>${t('field.brand')}${_ctyMark(n.brand, inventory.brand)}</label><input value="${escapeHTML(n.brand||'')}" placeholder="${placeholders.brand}" data-change="node-field" data-field="brand"></div>
+        <div class="prop-group"><label>${t('field.model')}${_ctyMark(n.model, inventory.model)}</label><input value="${escapeHTML(n.model||'')}" placeholder="${placeholders.model}" data-change="node-field" data-field="model"></div>
     </div>
     <div class="prop-row2">
-        <div class="prop-group"><label>${t('field.serial')}</label><input value="${escapeHTML(n.serialNumber||'')}" placeholder="${placeholders.serialNumber}" data-change="node-field" data-field="serialNumber"></div>
-        <div class="prop-group"><label>Firmware / OS</label><input value="${escapeHTML(n.firmwareVer||'')}" placeholder="${placeholders.firmwareVer}" data-change="node-field" data-field="firmwareVer"></div>
+        <div class="prop-group"><label>${t('field.serial')}${_ctyMark(n.serialNumber, inventory.serialNumber)}</label><input value="${escapeHTML(n.serialNumber||'')}" placeholder="${placeholders.serialNumber}" data-change="node-field" data-field="serialNumber"></div>
+        <div class="prop-group"><label>Firmware / OS${_ctyMark(n.firmwareVer, inventory.firmwareVer)}</label><input value="${escapeHTML(n.firmwareVer||'')}" placeholder="${placeholders.firmwareVer}" data-change="node-field" data-field="firmwareVer"></div>
     </div>
     <div class="prop-group"><label>${t('field.status')}</label><div style="display:flex;gap:5px;align-items:center"><select style="flex:1" data-tip="${t('field.statusTip')}" data-change="node-field-manual" data-field="status">${statusOpts}</select>${_lockBtn('status',!!n.statusManual,true)}</div></div>
     <div class="prop-row2">

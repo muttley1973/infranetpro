@@ -242,7 +242,10 @@ button.ov-r:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 .ov-d { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; background: var(--inactive-color); }
 .ov-d.p-declared { background: var(--accent); }
 .ov-d.p-measured { background: var(--active-color); }
-.ov-d.p-derived  { background: #a371f7; }
+.ov-d.p-derived  { background: var(--derived-color); }
+/* ⚠️ Le due assenze si disegnano UGUALI (anello vuoto): a distinguerle e la
+   PAROLA, non un colore nuovo. */
+.ov-d.p-unread,
 .ov-d.p-none     { background: transparent; box-shadow: inset 0 0 0 1px var(--inactive-color); }
 
 .ov-meter {
@@ -348,7 +351,7 @@ button.ov-r:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
     color: var(--text-muted);
 }
 .ov-detail li .ov-tag.p-measured { color: var(--active-color); border-color: var(--active-color); }
-.ov-detail li .ov-tag.p-derived  { color: #a371f7; border-color: #a371f7; }
+.ov-detail li .ov-tag.p-derived  { color: var(--derived-color); border-color: var(--derived-color); }
 /* ② il dichiarato è legge: subnet DICHIARATA (accento) vs «non dichiarata» (tratteggiata, muta). */
 .ov-detail li .ov-tag.p-declaredNet { color: var(--accent); border-color: var(--accent); }
 .ov-detail li .ov-tag.p-undeclared  { color: var(--inactive-color); border-style: dashed; }

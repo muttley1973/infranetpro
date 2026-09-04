@@ -349,7 +349,9 @@ test('② VERO: verificabili, porte sospette ordinate per gravita, chi non ha ma
   assert.deepEqual(lg.items.map((i) => i.peer), [null, 'sw2'], 'lldp-lag-<a>||<b>: il secondo capo');
   assert.deepEqual(lg.items.map((i) => i.tag), ['measured', 'derived']);
   assert.deepEqual(lg.items.map((i) => i.meta), ['LAG1', 'Po1']);
-  assert.equal(rowOf(t, 'verify').prov, 'none', 'mai verificato -> riga \'none\' (tratteggiata), non 0');
+  // ⭐ `unread` e non `none`: qui non manca una TUA dichiarazione, manca una
+  // VERIFICA. Resta tratteggiata come prima — cambia la parola, non la forma.
+  assert.equal(rowOf(t, 'verify').prov, 'unread', 'mai verificato -> riga \'unread\' (tratteggiata), non 0');
   assert.equal(t.headline.key, 'suspectPorts', 'il colpo d\'occhio e\' la cosa da guardare');
 });
 
@@ -1367,7 +1369,11 @@ test('nessuna riga contiene stringhe di interfaccia (le parole le mette il rende
   const all = [...o.complete.rows, ...o.truth.rows, ...o.margin.rows, ...o.recovery.rows, ...o.security.rows, ...o.health.rows];
   for (const r of all) {
     assert.equal(typeof r.key, 'string');
-    assert.ok(['declared', 'measured', 'derived', 'none'].includes(r.prov), 'provenienza dichiarata: ' + r.key);
+    // ⚠️ `unread` è la SECONDA assenza: `none` = nessuno l'ha SCRITTO,
+    // `unread` = nessuno l'ha LETTO. Chiedono a due persone diverse di muoversi,
+    // e prima collassavano su `none` — con l'etichetta «non dichiarato» appiccicata
+    // anche alla riga `verify`, dove di dichiarazioni non ne mancava nessuna.
+    assert.ok(['declared', 'measured', 'derived', 'none', 'unread'].includes(r.prov), 'provenienza dichiarata: ' + r.key);
     assert.ok(!('label' in r) && !('text' in r), 'la lib non scrive testo: ' + r.key);
   }
 });

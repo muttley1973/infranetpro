@@ -1290,7 +1290,7 @@ export function buildOverviewReport() {
             lead: t('ov.perimeter.hint'),
             chips: (o.blindSpots || []).map((b) => t('ov.blind.' + b.key)),
         },
-        legend: ['declared', 'measured', 'derived', 'none'].map((p) => ({ prov: p, label: t('ov.prov.' + p) })),
+        legend: ['declared', 'measured', 'derived', 'none', 'unread'].map((p) => ({ prov: p, label: t('ov.prov.' + p) })),
     };
 }
 

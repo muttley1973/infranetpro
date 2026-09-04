@@ -6,8 +6,8 @@
 // delegation, registrati sopra). Nessun cambio logica.
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { escapeHTML, badgeInk } from './app-util.js';
-import { getNodeByPortId, getNodeDisplayName, getWallPortLabel, _getLinkPhysicalView, _enableManualValueInProps, _activatePropsTab, _cableAutoLabel, promoteLinkToManual, setCableLabel, setLinkProp, deleteLink, _cableProofBadgeHtml } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { escapeHTML } from './app-util.js';
+import { getNodeByPortId, getNodeDisplayName, getWallPortLabel, _getLinkPhysicalView, _enableManualValueInProps, _activatePropsTab, _cableAutoLabel, promoteLinkToManual, setCableLabel, setLinkProp, deleteLink } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderProps, _propsSectionIsOpen, _buildPropsHeader } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { TYPES, _frontPanelPortLabel, _frontPanelIsUplink } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _effPortVlan, _getLinkTrunk, _parseTrunkVlans, _runActiveAnchor, setLinkNativeVlan, setLinkColor, setLinkMode, setLinkTrunkVlans } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
@@ -245,24 +245,36 @@ export function _renderLinkProps(panel){
         const linkHeaderTitle = l.label || autoLbl || l.id || (l.wireless ? 'Wireless' : t('cable.cable'));
         const linkHeaderSubtitle = l.wireless ? t('cable.wirelessAssoc') : (l.autoLinked ? t('cable.autoCable') : t('cable.cable'));
 
-        // Stato esplicito del link (lib/linkwin.state.js) — derivato, sola lettura.
-        // Per i cavi "inferiti" il badge usa label "AUTO" + colore arancione,
-        // coerente con la convenzione visiva applicata in topology.
+        // ---- LA RIGA «STATO»: due domande, due segni (lib/certainty.js) ----
+        // ⭐ Qui c'erano fino a CINQUE segni, e TRE rispondevano alla stessa
+        //    domanda in tre notazioni incompatibili: una parola di `linkstate`
+        //    («AUTO»), una parola di `proof` («Debole») e una percentuale. E si
+        //    contraddicevano: `linkstate.js` scrive nei propri commenti che uno
+        //    score 8/8 «resta una INFERENZA», poi il numero si stampava lo stesso.
+        //    Ora le due domande sono separate — COS'E' questo collegamento (modo
+        //    porta, LAG) e QUANTO CI FIDIAMO (una pastiglia, con le cinque parole
+        //    valide su ogni superficie) — e il dettaglio scende invece di sparire.
+        // ⛔ I motori NON sono fusi: `proof` e `linkstate` calcolano quel che
+        //    calcolavano, ed emivite diverse restano diverse. Cambia l'alfabeto.
         const _ls = (typeof win.linkState === 'function') ? win.linkState(l) : null;
-        const _lsCol = { manual:'#57606a', lag:'#a371f7', discovered:'#1a7f37', ambiguous:'#f5a623' };
-        const _lsBg = (_ls && _lsCol[_ls.key]) || '#57606a';
-        const _lsLabel = _ls && _ls.key === 'ambiguous' ? 'AUTO' : (_ls ? _ls.label : '');
-        // Badge protocollo (LLDP blu / CDP arancio, incluse label fuse 'LLDP+MAC')
-        // accanto al badge di stato, STESSA altezza/forma: UI uniforme. Sostituisce
-        // la vecchia riga "Rilevato automaticamente" sotto la VLAN.
-        const _lsProtoStr = _ls ? String(_ls.protocol||'') : '';
-        const _lsProtoCol = _lsProtoStr.startsWith('LLDP') ? '#0969da' : _lsProtoStr.startsWith('CDP') ? '#e8640a' : '#57606a';
-        // Badge STATO-DI-PROVA del cavo, accanto ai badge di provenienza (stessa
-        // forma). Solo dopo una Verifica (≥1 nodo con proof): senza dati di prova
-        // niente badge — non spacciamo per fantasma un cavo verso estremi mai
-        // verificati. Il dichiarato resta «Dichiarato» (cablaggio ≠ liveness).
+        // Stato di prova, solo dopo una Verifica (≥1 nodo con proof): senza dati di
+        // prova non si spaccia per fantasma un cavo verso estremi mai verificati.
         const _pfOn = (typeof cableProof === 'function') && store.state.nodes.some(n => n && n.proof);
-        const _pfBadge = _pfOn ? _cableProofBadgeHtml(cableProof(l, srcNode && srcNode.proof, dstNode && dstNode.proof)) : '';
+        const _pfState = _pfOn ? cableProof(l, srcNode && srcNode.proof, dstNode && dstNode.proof) : null;
+        // ⚠️ Si passa `certaintyKey`, MAI `key`: quest'ultimo puo' valere 'lag',
+        //    che non e' una certezza ma un'identita' — sta sull'asse di TRUNK/ACCESS.
+        const _cty = (typeof certaintyForCable === 'function')
+            ? certaintyForCable(_pfState, _ls && _ls.certaintyKey)
+            : { grade: null, source: null };
+        // Il tooltip dice la definizione E chi sta parlando dei due motori, cosi'
+        // «Dedotto all'ultima Verifica» non si confonde con «Dedotto da come e' nato».
+        const _ctyTip = _cty.grade
+            ? (t('cty.tip.' + _cty.grade) + (_cty.source ? ' — ' + t('cty.src.' + _cty.source) : ''))
+            : '';
+        // Il dettaglio che scende: protocollo e punteggio, che restano raggiungibili.
+        const _lsProtoStr = _ls ? String(_ls.protocol || '') : '';
+        const _ctyDetail = [_lsProtoStr, (_ls && _ls.confidence != null) ? Math.round(_ls.confidence * 100) + '%' : '']
+            .filter(Boolean).join(' · ');
         // Miscablaggio: la porta annuncia via LLDP/CDP un vicino diverso dal cavo →
         // dice COSA vede vs COSA dice il documento (spec Proof-State §4.3).
         // Se i due capi sono OMONIMI (due nodi «SW-CORE») miscabledLabels disambigua
@@ -303,9 +315,9 @@ export function _renderLinkProps(panel){
         const stateRow = (_ls || _modeChip) ? `<div class="prop-group" style="flex:0 1 auto;min-width:0;padding-right:10px"><label style="text-align:right">${t('common.status')}</label>
             <div class="link-state-badges" style="display:flex;align-items:center;justify-content:flex-end;gap:6px;padding:4px 0;flex-wrap:wrap">
               ${_modeChip}
-              ${_ls?`<span class="link-state-badge" style="background:${escapeHTML(_lsBg)};color:${badgeInk(_lsBg)}">${escapeHTML(_lsLabel)}</span>`:''}
-              ${_lsProtoStr?`<span class="link-state-badge" style="background:${escapeHTML(_lsProtoCol)};color:${badgeInk(_lsProtoCol)}">${escapeHTML(_lsProtoStr)}</span>`:''}${_pfBadge}
-              ${_ls&&_ls.confidence!=null?`<span class="link-state-conf">${Math.round(_ls.confidence*100)}%</span>`:''}
+              ${_ls && _ls.key === 'lag' ? `<span class="link-state-chip" data-tip="${escapeHTML(t('cable.lagChip'))}" style="background:rgba(110,118,129,.12);border:1px solid var(--panel-border);color:var(--text-muted)">LAG</span>` : ''}
+              ${_cty.grade ? `<span class="cty-pill cty-${escapeHTML(_cty.grade)}" data-tip="${escapeHTML(_ctyTip)}"><span class="cty-dot"></span>${escapeHTML(t('cty.' + _cty.grade))}</span>` : ''}
+              ${_ctyDetail ? `<span class="cty-detail" data-tip="${escapeHTML(t('cty.detailTip'))}">${escapeHTML(_ctyDetail)}</span>` : ''}
             </div></div>` : '';
 
         // Anteprima della fisarmonica chiusa: la risposta in una riga sola — quella

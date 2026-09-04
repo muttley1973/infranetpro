@@ -503,22 +503,27 @@
         .disc-badge.src-dhcp { background:rgba(46,204,164,.13); color:#4fd1b5; border-color:rgba(46,204,164,.28); }
         .disc-badge.src-ping { background:rgba(139,148,158,.14); color:#b6beca; border-color:rgba(139,148,158,.25); }
         .disc-badge.src-seen { background:rgba(139,148,158,.08); color:var(--text-muted); border-color:rgba(139,148,158,.18); }
-        .disc-badge.conf-high { background:rgba(57,211,83,.13); color:var(--active-color); border-color:rgba(57,211,83,.25); }
-        .disc-badge.conf-mid  { background:rgba(227,179,65,.13); color:#e3b341; border-color:rgba(227,179,65,.25); }
-        .disc-badge.conf-low  { background:rgba(248,81,73,.10); color:#f78166; border-color:rgba(248,81,73,.22); }
+        /* ⚠️ QUI STAVA conf-high/mid/low, una scala VERDE/AMBRA/ROSSA per la
+           confidenza del riconoscimento. Ritirata, e non per estetica: il rosso
+           in quest'app vuol dire «contraddetto/guasto», e un apparato che la
+           scansione ha riconosciuto poco non e' rotto — e' solo poco conosciuto.
+           Portava anche due letterali fuori dai token (#e3b341, quinta ambra
+           dell'app, e #f78166, secondo rosso). Ora il badge e' neutro e il grado
+           lo dice il punto della notazione unica, che i token li usa. */
+        /* ⚠️ Contenitore SI', ma quieto: senza fondo ne' bordo sembrava testo sciolto
+           fra due pastiglie tinte (misurato dal vivo). Bordo hairline e inchiostro
+           muted lo tengono nella famiglia della riga restando subordinato — stessa
+           scelta del dettaglio protocollo/punteggio sulla riga del cavo. Il
+           significato lo porta il punto; il numero dice quanto forte. */
+        .disc-badge.disc-conf { display:inline-flex; align-items:center; gap:5px;
+            background:transparent; border-color:var(--panel-border); color:var(--text-muted); }
         .disc-badge.rec-new    { background:rgba(57,211,83,.10); color:var(--active-color); border-color:rgba(57,211,83,.22); }
         .disc-badge.rec-update { background:rgba(227,179,65,.13); color:#e3b341; border-color:rgba(227,179,65,.25); }
         .disc-badge.rec-check  { background:rgba(0,170,255,.12); color:#4cc9ff; border-color:rgba(0,170,255,.25); }
         .disc-badge.rec-same   { background:rgba(139,148,158,.10); color:var(--text-muted); border-color:rgba(139,148,158,.20); }
-        /* macsuck: porta di accesso dedotta dalla MAC-table (FDB). loc-amb = MAC su piu' porte → da verificare. */
-        /* Badge posizione: nome interfaccia già abbreviato (Gi0/1); qui la rete di
-           sicurezza — se lo switchName è lungo, tronca con ellissi (nome pieno nel tooltip)
-           invece di spingere la riga. inline-block per far funzionare text-overflow. */
-        .disc-badge.loc     { background:rgba(88,166,255,.10); color:#79b8ff; border-color:rgba(88,166,255,.24); font-weight:700; display:inline-block; max-width:158px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-        .disc-badge.loc i   { margin-right:3px; opacity:.85; }
-        .disc-badge.loc-amb { background:rgba(227,179,65,.12); color:#e3b341; border-color:rgba(227,179,65,.26); }
-        /* shared: il MAC pende DIETRO la porta (AP/switch non gestito) — indizio tenue */
-        .disc-badge.loc-shared { background:rgba(139,148,158,.10); color:var(--text-muted); border-color:rgba(139,148,158,.22); font-weight:600; }
+        /* ⚠️ QUI STAVANO `.disc-badge.loc` / `.loc-amb` / `.loc-shared`, il badge
+           📍 «switch · porta» tolto il 04/09 su richiesta. Se ne va anche una quinta
+           ambra scritta a mano (#e3b341) e un azzurro fuori dai token (#79b8ff). */
         .disc-summary-grid { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
         .disc-summary-grid span { display:inline-flex; align-items:center; gap:5px; background:rgba(255,255,255,.05); border:1px solid var(--panel-border); border-radius: var(--radius-pill); padding:3px 8px; color:var(--text-muted); font-size:var(--fs-sm); }
         .disc-summary-grid b { color:var(--text-main); font-size:var(--fs-sm); }

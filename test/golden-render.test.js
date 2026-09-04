@@ -48,6 +48,24 @@ function buildSnapshots() {
       });
     }
 
+    // A-bis. Provenienza dei campi — l'unico scenario in cui i segni della
+    // notazione unica compaiono davvero. Gli altri device del golden hanno
+    // marca/modello/seriale/firmware VUOTI, quindi non portano segno (un campo
+    // vuoto non ha una provenienza da dichiarare) e non coprirebbero niente.
+    // Qui: marca scritta a mano → «Dichiarato»; modello letto dalla scansione e
+    // non scritto → «Misurato»; seriale e firmware vuoti → nessun segno.
+    // ⚠️ NIENTE BACKTICK nei commenti di questo blocco: tutto lo scenario vive
+    // dentro un template literal, e un backtick lo chiude a meta'.
+    cap('scope:provenienza', () => {
+      const n={ id:'g_prov', type:'switch', name:'G_prov', rackId:state.currentRack, rackU:3, sizeU:1,
+                x:40, y:40, w:60, h:40, ports:(TYPES.switch&&TYPES.switch.ports)||1,
+                brand:'Aruba',                                   // dichiarato
+                integration:{ inventory:{ model:'JL255A' } } };   // misurato
+      state.nodes=state.nodes.filter(x=>x.id!==n.id); state.nodes.push(n);
+      if(typeof _invalidateIdx==='function') _invalidateIdx();
+      selType='node'; selId=n.id; renderProps(); snap['scope:provenienza']=panel();
+    });
+
     // B. Scope link — cavo router→switch (trunk derivato)
     cap('scope:link', () => {
       const rt={id:'rt',type:'router',name:'RT',rackId:state.currentRack,rackU:1,sizeU:1,radios:[{ssid:'A',vlan:30},{ssid:'B',vlan:40}]};

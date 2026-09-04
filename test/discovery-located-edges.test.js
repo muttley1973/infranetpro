@@ -1,8 +1,11 @@
 'use strict';
 // macsuck lato client: l'evento SSE 'located' porta { [macLowercase]: edge }.
 // _discApplyEdges aggancia l'edge alle righe scoperte (match per MAC normalizzato
-// lowercase; le righe hanno il MAC MAIUSCOLO) e _discEdgeBadge lo rende come badge
-// "porta di accesso". Inoltre una riga da lease DHCP prende _via:'dhcp'. DOM-stub.
+// lowercase; le righe hanno il MAC MAIUSCOLO). Inoltre una riga da lease DHCP
+// prende _via:'dhcp'. DOM-stub.
+// ⚠️ Il badge che RENDEVA quell'edge (📍 «switch · porta») è stato tolto il 04/09
+// su richiesta: la riga di Scoperta era affollata. Quindi oggi `d.edge` si calcola
+// e non lo legge nessuno — il dato c'è, a mancare è chi lo mostra.
 const test = require('node:test');
 const assert = require('node:assert');
 const path = require('path');
@@ -31,16 +34,14 @@ test('_discApplyEdges: aggancia l\'edge per MAC (case-insensitive)', () => {
   assert.equal(out.other, null, 'le altre righe restano senza edge');
 });
 
-test('_discEdgeBadge: rende switch · porta; vuoto senza edge; loc-amb se ambiguo', () => {
-  const withEdge = run(APP.ctx, `_discEdgeBadge({ edge:{ switchName:'SW-CORE', ifName:'Gi0/5', ambiguous:false } })`);
-  assert.ok(/SW-CORE/.test(withEdge) && /Gi0\/5/.test(withEdge), 'mostra switch e porta');
-  assert.ok(/disc-badge loc/.test(withEdge), 'classe badge location');
-  assert.ok(!/loc-amb/.test(withEdge), 'non ambiguo → nessuna tinta d\'avviso');
-
-  const none = run(APP.ctx, `_discEdgeBadge({})`);
-  assert.equal(none, '', 'nessun edge → nessun badge');
-
-  const amb = run(APP.ctx, `_discEdgeBadge({ edge:{ switchIp:'10.0.0.2', ifName:'Gi0/9', ambiguous:true } })`);
-  assert.ok(/loc-amb/.test(amb), 'ambiguo → classe loc-amb');
-  assert.ok(/10\.0\.0\.2/.test(amb), 'fallback allo switchIp quando manca il nome');
+// ⚠️ QUI STAVA il test di `_discEdgeBadge` (il badge 📍 «switch · porta»), tolto il
+// 04/09 insieme al badge stesso su richiesta: la riga di Scoperta era affollata.
+// Il test sopra RESTA ed è quello che conta ancora — `_discApplyEdges` continua ad
+// agganciare l'edge alla riga per MAC. Il dato c'è; a non mostrarlo più è la UI.
+// Il test sopra prova già che il DATO si aggancia. Qui resta solo la cosa che
+// quel test non può dire: il badge non c'è più, e se torna deve tornare con una
+// decisione — non perché qualcuno ha ripristinato una riga senza accorgersene.
+test('il badge 📍 «switch · porta» è stato tolto, e non rientra per distrazione', () => {
+  assert.equal(run(APP.ctx, `typeof _discEdgeBadge`), 'undefined',
+    '_discEdgeBadge è tornato: se è voluto, togli questa guardia dicendo perché');
 });

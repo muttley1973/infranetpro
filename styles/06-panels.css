@@ -21,18 +21,101 @@
            posti a due misure: Panoramica (base) e riga «Stato» del pannello cavo
            (120%, insieme agli altri badge di quella riga). */
         .cable-proof-badge { padding:2px 9px; border-radius:4px; font-weight:700; font-size:var(--fs-xs); }
-        /* I badge della riga «Stato» del cavo — provenienza (linkstate), protocollo e
-           stato-di-prova — hanno la STESSA forma: erano tre volte lo stesso stile
-           inline in app-properties-link.js, con corpi (0,89rem) che la scala non ha.
-           Qui la forma sta scritta una volta. Il FONDO resta al chiamante (dipende
-           dallo stato), l'INCHIOSTRO lo calcola badgeInk() dal fondo. */
-        .link-state-badges .cable-proof-badge,
-        .link-state-badges .link-state-badge { padding:3px 11px; border-radius:5px; font-weight:700; font-size:var(--fs-md); }
-        /* ⚠️ Il chip modo-porta (TRUNK/ACCESS) ha un padding DIVERSO di proposito: ha
-           un bordo di 1px, che aggiunge il pixel che qui manca al padding. Stesso
-           corpo, altezza uguale. Fonderlo con .link-state-badge lo farebbe crescere. */
+        /* ⚠️ QUI STAVANO `.link-state-badge` (provenienza + protocollo, a fondo pieno)
+           e `.link-state-conf` (la percentuale). Sono state RITIRATE, non spostate:
+           la riga «Stato» del cavo e' passata alla notazione unica, e quei tre segni
+           erano proprio i tre che rispondevano alla stessa domanda in tre alfabeti.
+           Verificato col grep prima di togliere: nessuno le emette piu' — ne' src/,
+           ne' export.js, ne' l'e2e. Il badge di prova a fondo pieno sopravvive dove
+           serve ancora, in Panoramica, con la sua forma base (.cable-proof-badge). */
+        /* ⚠️ Il chip modo-porta (TRUNK/ACCESS, e ora anche LAG) ha un padding DIVERSO
+           di proposito: ha un bordo di 1px, che aggiunge il pixel che al fondo pieno
+           mancava. Stesso corpo, altezza uguale — e la stessa geometria la ripete
+           .cty-pill, cosi' i segni della riga restano allineati fra loro. */
         .link-state-badges .link-state-chip { padding:2px 10px; border-radius:5px; font-weight:700; font-size:var(--fs-md); }
-        .link-state-badges .link-state-conf { font-size:var(--fs-md); color:var(--text-muted); }
+
+        /* ---- NOTAZIONE UNICA DELLA CERTEZZA (lib/certainty.js) ----
+           La pastiglia che risponde a «quanto mi fido di questo?», con le stesse
+           cinque parole su ogni superficie. Stessa geometria dei vicini (il bordo
+           di 1px compensa 1px di padding, come nel chip modo-porta).
+           ⚠️ Tinta, bordo e inchiostro DERIVANO tutti dallo stesso token con
+           color-mix: cosi' aggiungere un grado non vuol dire scegliere tre colori
+           a mano, e nessuno di questi valori puo' sfuggire al sistema — che e'
+           esattamente il difetto che questa notazione viene a chiudere.
+           ⚠️ L'inchiostro e' il token PIENO, non una sua tinta: sul fondo del
+           pannello regge da solo, e badgeInk() qui non serve perche' il fondo e'
+           una lastra al 13%, non un colore. */
+        /* ⚠️ SPECIFICITA': la base e le classi di grado stanno tutte a UNA classe, e
+           l'ordine di sorgente decide. Scritta come `.link-state-badges .cty-pill`
+           la base pesava due classi e vinceva sul grado: bordo e tratteggio di
+           «Non risulta» sparivano, e i bordi al 45% tornavano a colore pieno —
+           misurato dal vivo, non dedotto. E non e' solo un fix: la pastiglia deve
+           poter viaggiare su altre superfici (pannello, Scoperta, planimetria), e
+           una regola agganciata al contenitore del cavo non ci arriverebbe. */
+        /* ⭐ UN GRADO = UN INCHIOSTRO, e basta. Tinta, bordo e pallino si RICAVANO
+           da `currentColor`: cosi' il colore di un grado e' scritto in UN posto
+           solo, e la pastiglia e il punto non possono divergere. Prima erano tre
+           valori per grado ripetuti a mano — la stessa forma del difetto che
+           questa notazione viene a chiudere, dentro la sua stessa cura. */
+        .cty-measured    { color:var(--active-color); }
+        .cty-declared    { color:var(--accent); }
+        .cty-derived     { color:var(--derived-color); }
+        .cty-contradicted{ color:var(--fault-color); }
+        /* ⚠️ L'assenza ha inchiostro --text-muted, non --inactive-color: quest'ultimo
+           sul fondo del pannello sta a ~4:1, sotto la soglia AA. */
+        .cty-undeclared,
+        .cty-unread      { color:var(--text-muted); }
+
+        /* LA PASTIGLIA — per un'affermazione singola e in vista (la riga del cavo). */
+        .cty-pill { display:inline-flex; align-items:center; gap:6px;
+            padding:2px 10px; border-radius:5px; font-weight:600; font-size:var(--fs-md);
+            border:1px solid color-mix(in srgb, currentColor 45%, transparent);
+            background:color-mix(in srgb, currentColor 13%, transparent); }
+        /* ⚠️ L'assenza si disegna TRATTEGGIATA e senza tinta — la stessa regola che la
+           Panoramica usa gia' per il dato che manca (`.ov-r.is-missing`): un'assenza
+           non e' uno stato acceso, e una tinta la farebbe sembrare tale. */
+        .cty-pill.cty-undeclared,
+        .cty-pill.cty-unread { background:transparent; border-style:dashed;
+            border-color:var(--inactive-color); }
+
+        /* IL PUNTO — per la ripetizione fitta (un campo dopo l'altro nel pannello),
+           dove quattro pastiglie di fila peserebbero piu' dei valori che descrivono.
+           Stessa geometria dei pallini di provenienza della Panoramica (7px). */
+        .cty-pill .cty-dot,
+        .cty-mark { width:7px; height:7px; border-radius:50%; flex:0 0 auto;
+            display:inline-block; background:currentColor; }
+        .cty-undeclared .cty-dot, .cty-unread .cty-dot,
+        .cty-mark.cty-undeclared, .cty-mark.cty-unread { background:transparent;
+            box-shadow:inset 0 0 0 1px currentColor; }
+        /* LA LEGENDA — una volta in cima al blocco, non una spiegazione per campo.
+           E' la mossa che ripaga: le ~1.030 parole del pannello dicevano in forme
+           diverse la stessa cosa (chi ha scritto questo valore, quanto e' vecchio,
+           cosa succede se non sei d'accordo). Imparata qui, vale per ogni campo che
+           porta il segno — e il paragrafo per campo diventa ridondante. */
+        .cty-legend { display:flex; align-items:center; flex-wrap:wrap; gap:3px 12px;
+            margin:0 0 8px; padding:5px 8px; border-radius:var(--radius-sm);
+            background:var(--surface-2); font-size:var(--fs-2xs); color:var(--text-muted); }
+        .cty-leg-t { text-transform:uppercase; letter-spacing:.06em; }
+        .cty-leg-i { display:inline-flex; align-items:center; gap:5px; }
+        /* Il segno dentro l'etichetta di un campo: staccato dalla parola quanto
+           basta, e allineato al testo invece che alla riga. */
+        label > .cty-mark { vertical-align:middle; margin-left:2px; }
+
+        /* Il DETTAGLIO che scende: protocollo e punteggio non spariscono, smettono
+           di essere una terza opinione alla pari e diventano quello che sono —
+           la PROVA dietro la pastiglia, non una risposta concorrente.
+           ⚠️ E' una pastiglia nella FORMA (contenuta, allineata alle vicine) ma
+           deliberatamente SUBORDINATA nel peso: fondo trasparente, bordo hairline,
+           corpo piu' piccolo della scala, inchiostro muted. Se prendesse lo stesso
+           peso della pastiglia di certezza tornerebbe esattamente il difetto che
+           questa riga viene a chiudere — due segni pari, uno dei quali sembra una
+           seconda opinione.
+           ⚠️ L'inchiostro e' --text-muted e non --inactive-color: quest'ultimo sul
+           fondo del pannello sta a ~4:1, sotto la soglia AA per un corpo di 11px. */
+        .cty-detail { display:inline-flex; align-items:center;
+            padding:2px 8px; border-radius:5px; font-size:var(--fs-2xs); font-weight:600;
+            background:transparent; border:1px solid var(--panel-border);
+            color:var(--text-muted); cursor:help; }
 
         /* Gerarchia visiva: device-specifici hanno accent left, secondari sono muted. */
         .props-collapsible.props-primary { border-left:2px solid var(--accent); padding-left:8px; margin-left:-10px; transition:background-color .12s; }

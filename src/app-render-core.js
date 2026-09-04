@@ -369,7 +369,17 @@ function _buildFloorNodeEl(n, def, absentCls){
     const _isEp = win.isTopoEndpointType;
     const _epCls = (typeof _isEp === 'function' && _isEp(def)) ? ' topo-endpoint' : '';
     let _cls = `floor-node ${store.selId===n.id?'selected':''}${_selectedPortOnNode?' port-selected':''}${_nodeDim?' vlan-dim':''}${_epCls}${absentCls}`;
+    // ⭐ IL COLORE DELLA PRESENZA PRENDE UNA PAROLA. Alone rosso, grigio
+    // desaturato e anello grigio erano l'unico posto dell'app in cui uno stato si
+    // diceva SOLO col colore — e il commento qui sotto, scritto per l'anello SNMP,
+    // dichiarava già la regola giusta senza applicarla a questi tre.
+    // ⚠️ Le due sorgenti di titolo si escludono: l'anello SNMP si disegna solo
+    // `!absentCls`, quindi non si sovrascrivono mai a vicenda.
     let _titolo = '';
+    if (absentCls && typeof certaintyForPresence === 'function') {
+        const _pc = certaintyForPresence(absentCls);
+        if (_pc.grade) _titolo = t(_pc.labelKey) + ' — ' + t(_pc.reasonKey);
+    }
     const pc = n.ports!==undefined?n.ports:def.ports;
     let icon = `<i class="fas ${def.icon} icon"></i>`;
     if(pc===1){

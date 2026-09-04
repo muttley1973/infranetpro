@@ -393,10 +393,10 @@ test('PANORAMICA — al RELOAD (niente report vivo): niente righe drill, ma la V
   assert.equal(truth.health.level, 'warn', 'le differenze persistite pesano sulla salute');
 });
 
-test('PANORAMICA — mai verificato: riga verify «none» (tratteggiata), non zero; salute non "warn" da lì', () => {
+test('PANORAMICA — mai verificato: riga verify «unread» (tratteggiata), non zero; salute non "warn" da lì', () => {
   const truth = buildOverview(ovModel(null, null)).truth;
   const v = rowOf(truth, 'verify');
-  assert.equal(v.prov, 'none', 'mai verificato → riga tratteggiata, non 0');
+  assert.equal(v.prov, 'unread', 'mai verificato → riga tratteggiata, non 0: manca una LETTURA, non una tua dichiarazione');
   assert.equal(v.value, null, 'nessun numero inventato');
 });
 
