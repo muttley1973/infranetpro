@@ -344,39 +344,57 @@ button.ov-r:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 }
 /* Il secondo capo (l'altro estremo di un LAG o di un cavo dedotto). */
 .ov-detail li .ov-peer { color: var(--text-muted); }
-/* Provenienza per-voce (misurato/dedotto): pastiglia piccola, colore = pallino. */
-.ov-detail li .ov-tag {
-    font-size: var(--fs-xs); line-height: 1.5; padding: 0 6px;
-    border: 1px solid var(--hairline); border-radius: var(--radius-pill);
-    color: var(--text-muted);
-}
-.ov-detail li .ov-tag.p-measured { color: var(--active-color); border-color: var(--active-color); }
-.ov-detail li .ov-tag.p-derived  { color: var(--derived-color); border-color: var(--derived-color); }
-/* ② il dichiarato è legge: subnet DICHIARATA (accento) vs «non dichiarata» (tratteggiata, muta). */
-.ov-detail li .ov-tag.p-declaredNet { color: var(--accent); border-color: var(--accent); }
-.ov-detail li .ov-tag.p-undeclared  { color: var(--inactive-color); border-style: dashed; }
+/* ⭐ UNA SOLA PASTIGLIA IN TUTTA LA PANORAMICA — geometria scritta UNA volta.
+   Fin qui la riga di una voce poteva portare due segni disegnati in due modi:
+   `.cty-pill` (tondo 5px, tinta, pallino, «Misurato») accanto a `.ov-tag` (tondo
+   pieno, nessuna tinta, nessun pallino, «misurato») — stessa domanda, due forme,
+   e in un caso la stessa parola due volte con due maiuscole diverse.
+   ⭐ La cura NON è far combaciare due regole: è togliere la seconda. Ogni tag monta
+   ora anche `.cty-pill`, quindi forma, tinta, bordo e pallino li dà 06-panels.css in
+   un posto solo e non possono divergere. Qui resta la sola DENSITÀ della lista
+   fitta, scritta per tutt'e due insieme: un numero condiviso non può marcire a metà.
+   ⚠️ Il colore NON si duplica: `.p-<tag>` dichiara SOLO l'inchiostro, e
+   tinta/bordo/pallino si ricavano da `currentColor`. Prima ogni tag ripeteva il
+   token due volte (`color` + `border-color`): è la stessa forma di difetto che la
+   notazione è venuta a chiudere — un grado, un inchiostro — e viveva ancora qui. */
+.ov-detail li .cty-pill,
+.ov-detail li .ov-tag { font-size: var(--fs-xs); line-height: 1.5; padding: 0 8px; gap: 5px; }
+/* ⚠️ L'inchiostro di DEFAULT dei tag sta in una regola SUA e non in quella qui
+   sopra, che vale anche per `.cty-pill`: a due classi batterebbe `.cty-<grado>` (una
+   sola) e spegnerebbe il colore di OGNI grado.
+   ⚠️ Misurata dal vivo, non dedotta: tolto il blocco base se ne era andato con lui
+   anche questo default, e i tag senza `.p-*` (senza gateway, senza lettura,
+   public/private, fuori garanzia) uscivano al colore pieno del testo invece che muti. */
+.ov-detail li .ov-tag { color: var(--text-muted); }
+
+/* ⛔ RITIRATE QUI: `.p-measured`, `.p-derived`, `.p-declaredNet`, `.p-undeclared`.
+   Non sono state rinominate — hanno smesso di esistere come tag, perché quelle
+   quattro parole SONO l'alfabeto della certezza e ora le dice la notazione
+   (`certaintyOf(prov, …)` in app-overview.js). `lib/certainty.js` dichiara proprio
+   `ov.prov` come «il vocabolario di riferimento»: la superficie che ha dato le
+   parole all'alfabeto era rimasta l'unica a disegnarle nel modo vecchio. */
+
 /* Lente DR: un backup datato / una presenza stantìa (ambra) · un apparato sostituito (rosso). */
-.ov-detail li .ov-tag.p-stale    { color: var(--idle-color); border-color: var(--idle-color); }
-.ov-detail li .ov-tag.p-dated    { color: var(--idle-color); border-color: var(--idle-color); }
-.ov-detail li .ov-tag.p-mismatch { color: var(--fault-color); border-color: var(--fault-color); }
-.ov-detail li .ov-tag.p-crit     { color: var(--fault-color); border-color: var(--fault-color); }
-.ov-detail li .ov-tag.p-warn     { color: var(--idle-color); border-color: var(--idle-color); }
+.ov-detail li .ov-tag.p-stale    { color: var(--idle-color); }
+.ov-detail li .ov-tag.p-dated    { color: var(--idle-color); }
+.ov-detail li .ov-tag.p-mismatch { color: var(--fault-color); }
+.ov-detail li .ov-tag.p-crit     { color: var(--fault-color); }
+.ov-detail li .ov-tag.p-warn     { color: var(--idle-color); }
 /* Perché quell'apparato non è a posto nella lettura SNMP: non risponde (misura
    fallita, rosso) oppure non lo si interroga affatto: non verificabile (ambra). */
-.ov-detail li .ov-tag.p-snmpErr { color: var(--fault-color); border-color: var(--fault-color); }
-.ov-detail li .ov-tag.p-unverifiable { color: var(--idle-color); border-color: var(--idle-color); border-style: solid; }
+.ov-detail li .ov-tag.p-snmpErr { color: var(--fault-color); }
+.ov-detail li .ov-tag.p-unverifiable { color: var(--idle-color); }
 /* ③ Espansione: patch panel / appliance dentro «Porte libere» — hanno porte libere
-   ma non sono capacità switch, quindi il tag è muto (fuori dal numero grande). */
-.ov-detail li .ov-tag.p-nonSwitch { color: var(--text-muted); border-color: var(--hairline); border-style: dashed; }
-/* LA NOTAZIONE UNICA (lib/certainty.js) anche nella lista «Cavi»: la stessa pastiglia
-   del pannello Proprietà del cavo. Fin qui questa lista mostrava le parole VECCHIE
-   dello stesso motore mentre il pannello diceva già quelle nuove — un cavo, due
-   alfabeti, due schermate.
-   ⚠️ Qui si tocca SOLO la densità (corpo, passo, gap), per stare accanto a `.ov-tag`
-   in una lista fitta: MAI il colore. Tinta, bordo e pallino li dà `.cty-<grado>` da un
-   token solo — riscriverli qui riaprirebbe esattamente il difetto che la notazione
-   chiude, e per giunta con più specificità, quindi vincendo in silenzio. */
-.ov-detail li .cty-pill { font-size: var(--fs-xs); line-height: 1.5; padding: 0 8px; gap: 5px; }
+   ma non sono capacità switch, quindi il tag è muto (fuori dal numero grande).
+   ⚠️ Tratteggiato, senza tinta e col pallino VUOTO: è la stessa regola con cui la
+   notazione disegna le due assenze — «non conta» non è uno stato acceso, e una
+   tinta lo farebbe sembrare tale. */
+.ov-detail li .ov-tag.p-nonSwitch { color: var(--text-muted); border-style: dashed;
+    border-color: var(--hairline); background: transparent; }
+.ov-detail li .ov-tag.p-nonSwitch .cty-dot { background: transparent;
+    box-shadow: inset 0 0 0 1px currentColor; }
+/* (La densità della pastiglia sta più su, nella regola che la condivide con
+   `.ov-tag`: stava qui da sola quando le due forme erano due.) */
 .ov-detail li button.ov-go {
     all: unset; cursor: pointer; padding: 2px 4px; border-radius: var(--radius-sm);
     display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; width: 100%;
@@ -425,10 +443,14 @@ button.ov-r:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
     scrollbar-width: none;
 }
 .ov-perim-chips::-webkit-scrollbar { height: 0; }
+/* ⚠️ Stessa forma delle pastiglie della lista (tondo 5px, stesso corpo, stesso
+   passo): erano l'ultimo posto della Panoramica con una geometria propria.
+   Restano SENZA tinta e tratteggiate perché dicono un'assenza — un punto cieco
+   non è uno stato acceso, ed è la stessa convenzione delle due assenze. */
 .ov-perim-chip {
-    display: inline-flex; align-items: center; gap: 4px;
-    padding: 0 6px; border: 1px dashed var(--inactive-color); border-radius: var(--radius-pill);
-    font-size: var(--fs-xs); line-height: 1.65;
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 0 8px; border: 1px dashed var(--inactive-color); border-radius: 5px;
+    font-size: var(--fs-xs); line-height: 1.5; font-weight: 600;
     color: var(--text-muted); white-space: nowrap; cursor: help;
 }
 /* Schermi stretti: l'introduzione cede il posto alle pastiglie, che sono il

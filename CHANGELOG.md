@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased]
+
+The surface that gave the certainty notation its vocabulary was the last one still
+drawing it in the old shape.
+
+### Changed
+
+- **The Overview draws one badge, not two.** A row could carry a certainty pill (rounded, tinted, with a dot, *Measured*) next to a provenance tag (fully round, no tint, no dot, *measured*) — the same question in two shapes, and in one case the same word twice in two different cases. Every badge in the panel now mounts the same pill, so shape, tint, border and dot come from one place and cannot drift apart; the perimeter chips join it too. Colour still carries the meaning, and the two absences stay dashed and hollow.
+- **The provenance words are said by the notation, not by a copy of it.** `lib/certainty.js` names `ov.prov` as its *reference vocabulary* — the Overview is where those words came from — yet the Overview alone still printed them from the old table. The renderer now asks the engine (`certaintyOf`) which tags answer the certainty question and which do not, so the boundary lives in one place instead of an inline list; the footer legend says the same words as the rows it explains.
+- **`declaredNet` was `declared` all along, spelled feminine.** The key was forked for Italian gender agreement («subnet dichiarata») and the fork made the word invisible to the alphabet: the engine did not recognise it, so the Overview drew it with the retired badge. It is mapped now, and the notation keeps one word per grade.
+- **A tag declares its own ink once.** Each `.p-<tag>` rule repeated its colour token twice (`color` and `border-color`); tint, border and dot are derived from `currentColor` instead — the same cure the notation applied to its grades, reaching the one file it had not yet touched.
+
+### Fixed
+
+- **The guard that derives the Overview vocabulary saw only one of its two birth sites.** Row provenance is written as `prov:`, item provenance as `tag:` — same question, same map, two fields — and the derivation read only the first, which is how a word born as `tag:` could sit outside the alphabet with every gate green. It reads both now, and the seven words of the second site that answer a *different* question (no gateway, no reading, not answering, unverifiable, stale, dated, identity mismatch) are declared as non-certainties instead of being silently unmapped.
+
 ## [2.11.3] — 2026-09-04
 
 Looking at a row, a person asks one question — *how much do I trust this?* — and the app

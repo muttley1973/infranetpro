@@ -740,6 +740,21 @@ function _rowEl(secKey, r) {
 }
 
 // Costruisce la riga <li> di UNA voce del dettaglio (device / rete / porta).
+// La pastiglia della notazione unica (lib/certainty.js), costruita in UN posto
+// solo: la lista «Cavi» e la provenienza per-voce sono la stessa riga, e devono
+// restare identiche per COSTRUZIONE invece che per disciplina.
+function _ctyPill(grade, source) {
+    const pill = _el('span', 'cty-pill cty-' + grade);
+    pill.appendChild(_el('span', 'cty-dot'));
+    pill.appendChild(_el('span', null, t('cty.' + grade)));
+    // Tooltip nativo (`title`), come ogni altro suggerimento della Panoramica: il
+    // `data-tip` del pannello è un ::after che qui verrebbe tagliato dalla lista
+    // che scorre. Il TESTO però è lo stesso — definizione più, quando si sa, chi
+    // dei due motori sta parlando.
+    pill.title = t('cty.tip.' + grade) + (source ? ' — ' + t('cty.src.' + source) : '');
+    return pill;
+}
+
 function _itemLi(it) {
     const li = document.createElement('li');
     // id e (opzionale) peer = i due capi di un LAG o di un cavo dedotto. Se il
@@ -780,21 +795,34 @@ function _itemLi(it) {
     // ⚠️ E il colore non si sceglie qui: lo dà `.cty-<grado>` dai token.
     if (it.proof && typeof certaintyForCable === 'function') {
         const _c = certaintyForCable(it.proof, null);
-        if (_c.grade) {
-            const pill = _el('span', 'cty-pill cty-' + _c.grade);
-            pill.appendChild(_el('span', 'cty-dot'));
-            pill.appendChild(_el('span', null, t('cty.' + _c.grade)));
-            // Tooltip nativo (`title`), come ogni altro suggerimento della Panoramica:
-            // il `data-tip` del pannello è un ::after che qui verrebbe tagliato dalla
-            // lista che scorre. Il TESTO però è lo stesso del pannello — definizione
-            // più chi dei due motori sta parlando.
-            pill.title = t('cty.tip.' + _c.grade) + (_c.source ? ' — ' + t('cty.src.' + _c.source) : '');
-            inner.appendChild(pill);
+        if (_c.grade) inner.appendChild(_ctyPill(_c.grade, _c.source));
+    }
+    // Provenienza per-voce: la lib dà il token, la parola la mette qui — mai
+    // stringhe di interfaccia dentro la lib.
+    // ⭐⭐ E QUI la parola la dice la NOTAZIONE, non una sua copia. `ov.prov` È il
+    //    vocabolario di riferimento dell'alfabeto — lib/certainty.js lo scrive a
+    //    chiare lettere («qui la mappa è quasi un'identità, ed è il motivo per cui
+    //    è questo il vocabolario di riferimento e non un altro») — e proprio la
+    //    superficie che ha DATO le parole all'alfabeto era rimasta l'unica a
+    //    disegnarle nella forma vecchia: nella stessa riga di un cavo si leggevano
+    //    «Misurato» (pastiglia nuova) e «misurato» (pastiglia vecchia), a due dita
+    //    di distanza. La sesta superficie era stata contata sui CHIAMANTI della
+    //    funzione vecchia; questa non la chiamava — diceva l'alfabeto per conto suo.
+    // ⚠️ Il confine lo decide il MOTORE, non un elenco scritto qui: `certaintyOf`
+    //    rende un `grade` solo per le chiavi che rispondono alla domanda della
+    //    certezza. Gli altri tag (senza gateway, non verificabile, fuori garanzia,
+    //    critico…) rispondono a un'ALTRA domanda: prendono la stessa geometria —
+    //    è quello che li rende una lista sola — ma mai il nome di un grado.
+    if (it.tag) {
+        const _p = (typeof certaintyOf === 'function') ? certaintyOf('prov', it.tag) : { grade: null };
+        if (_p.grade) { inner.appendChild(_ctyPill(_p.grade, null)); }
+        else {
+            const tag = _el('span', 'cty-pill ov-tag p-' + it.tag);
+            tag.appendChild(_el('span', 'cty-dot'));
+            tag.appendChild(_el('span', null, t('ov.prov.' + it.tag)));
+            inner.appendChild(tag);
         }
     }
-    // Provenienza per-voce (misurato/dedotto): la lib da' il token, la parola
-    // la mette qui — mai stringhe di interfaccia dentro la lib.
-    if (it.tag) inner.appendChild(_el('span', 'ov-tag p-' + it.tag, t('ov.prov.' + it.tag)));
     // Alcune voci portano un TOKEN di metrica invece di un numero nudo (la lente
     // «Salute», il debito PoE, le date del ciclo di vita): la parola la mette qui
     // — la lib resta senza stringhe d'interfaccia. `l` è il nome grezzo (volume,
@@ -1355,10 +1383,16 @@ export function renderOverview() {
     if (Array.isArray(o.blindSpots) && o.blindSpots.length) root.appendChild(_perimeterEl(o.blindSpots));
 
     const foot = _el('div', 'ov-foot');
+    // ⚠️ La legenda spiega i PALLINI delle righe, quindi tiene il pallino delle righe
+    //    (`.ov-d p-*`, che ha già la convenzione dell'assenza: cerchio vuoto). A
+    //    cambiare è la PAROLA: la diceva in minuscolo dal vecchio vocabolario, e a due
+    //    centimetri la stessa voce nella lista ora dice «Dichiarato». Due parole per una
+    //    cosa sola, nello stesso pannello e a colpo d'occhio.
     for (const p of ['declared', 'measured', 'derived', 'none']) {
         const lg = _el('span', 'ov-lg');
         lg.appendChild(_el('span', 'ov-d p-' + p));
-        lg.appendChild(document.createTextNode(t('ov.prov.' + p)));
+        const _g = (typeof certaintyOf === 'function') ? certaintyOf('prov', p).grade : null;
+        lg.appendChild(document.createTextNode(_g ? t('cty.' + _g) : t('ov.prov.' + p)));
         foot.appendChild(lg);
     }
     foot.appendChild(_el('span', 'ov-hint', t('ov.clickHint')));

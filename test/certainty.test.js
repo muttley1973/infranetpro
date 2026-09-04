@@ -70,10 +70,28 @@ const derivedProof = () => {
 const derivedDisc = () =>
   uniq([...rd('src/app-discovery.js').matchAll(/disc\.conf\.([a-z]+)/g)].map((m) => m[1]));
 
-// prov: le provenienze scritte sulle righe di Panoramica. ⚠️ Virgoletta
-// ANCORATA e confine di parola, o si raccolgono frammenti di altre parole.
-const derivedProv = () =>
-  uniq([...rd('lib/overview.js').matchAll(/\bprov\s*:\s*['"]([a-z]+)['"]/g)].map((m) => m[1]));
+// prov: il vocabolario della Panoramica. ⚠️ Virgoletta ANCORATA e confine di
+// parola, o si raccolgono frammenti di altre parole.
+// ⭐⭐ E ha DUE siti di nascita, non uno: le RIGHE lo scrivono come `prov:`, le
+//    VOCI di una lista come `tag:` — stessa domanda, stessa mappa, due campi.
+//    Derivando solo dal primo, `declaredNet` (che nasce solo come `tag:`) restava
+//    fuori dall’alfabeto: il motore non la riconosceva e la Panoramica la
+//    disegnava col segno vecchio, senza che nessun cancello lo dicesse.
+//    ⚠️ Il secondo sito porta anche parole che NON sono certezze (senza gateway,
+//    non risponde, datato…): non si filtrano qui — vanno DICHIARATE in
+//    NOT_A_CERTAINTY.prov, se no il silenzio non distingue «non è una certezza»
+//    da «me la sono dimenticata». È la regola che lib/certainty.js si è data.
+//    ⚠️ Solo i letterali: `tag: f.status` o `tag: sev` qui non si vedono, ed è
+//    un limite dichiarato — come per ogni altra derivazione di questo file.
+const derivedProv = () => {
+  const src = rd('lib/overview.js');
+  const q = (re) => [...src.matchAll(re)].map((m) => m.slice(1)).flat();
+  return uniq([
+    ...q(/\bprov\s*:\s*['"]([a-z]+)['"]/g),
+    ...q(/\btag\s*:\s*['"]([A-Za-z]+)['"]/g),
+    ...q(/\btag\s*:[^,}]*\?\s*['"]([A-Za-z]+)['"]\s*:\s*['"]([A-Za-z]+)['"]/g),
+  ]);
+};
 
 const VOCABS = {
   linkstate: derivedLinkstate,
@@ -284,6 +302,76 @@ test('notazione unica della certezza', async (t) => {
     const scoperte = finto.filter((k) => !mapped.has(k) && !notCert.has(k));
     assert.deepStrictEqual(scoperte, ['tier-inventato-oggi'],
       'il controllo non riconosce una chiave non mappata: la guardia non prova niente');
+  });
+
+  // ── LA PANORAMICA: una domanda, un segno solo ────────────────────────
+  //
+  // ⭐ `ov.prov` è il vocabolario DI RIFERIMENTO della notazione (CERTAINTY_MAP.prov:
+  //    "qui la mappa è quasi un’identità") — e proprio la superficie che ha dato le
+  //    parole all’alfabeto è stata l’ultima a disegnarle col segno nuovo: nella riga
+  //    di un cavo si leggevano «Misurato» e «misurato» in due pastiglie diverse.
+
+  await t.test("declaredNet non e un grado in piu: e declared al femminile", () => {
+    assert.strictEqual(certaintyOf('prov', 'declaredNet').grade, 'declared');
+    assert.strictEqual(certaintyOf('prov', 'declaredNet').axis, 'certainty');
+  });
+
+  await t.test("nessuna parola dell alfabeto ha ancora un tag suo", () => {
+    // DERIVA: le parole stampabili per un tag nascono in i18n come `ov.prov.<k>`.
+    // Per ognuna che È una certezza non deve esistere più una regola `.ov-tag.p-<k>`:
+    // quelle voci montano la pastiglia della notazione.
+    const provKeys = uniq([...rd('lib/i18n.js')
+      .matchAll(/['"]ov\.prov\.([A-Za-z]+)['"]/g)].map((m) => m[1]));
+    assert.ok(provKeys.length > 8, 'derivazione a vuoto: ' + provKeys.length);
+    // ⚠️ Commenti via PRIMA di guardare: questo foglio spiega a parole le regole
+    //    ritirate, e un nome citato in un commento non e una regola.
+    const css = rd('styles/11-overview.css').replace(/\/\*[\s\S]*?\*\//g, '');
+    const doppie = provKeys.filter((k) =>
+      certaintyOf('prov', k).grade && css.includes('.ov-tag.p-' + k + ' '));
+    assert.deepStrictEqual(doppie, [],
+      'parole della certezza ancora disegnate come tag: ' + doppie);
+  });
+
+  await t.test("il renderer chiede al MOTORE, non a un elenco scritto a mano", () => {
+    const src = rd('src/app-overview.js');
+    assert.ok(src.includes("certaintyOf('prov', it.tag)"),
+      "la Panoramica non passa piu dal motore per decidere se un tag e una certezza");
+    // E la legenda in fondo dice le parole della notazione, non quelle vecchie:
+    // stava a due centimetri dalla lista e diceva la stessa cosa in minuscolo.
+    assert.ok(src.includes("t('cty.' + _g)"),
+      "la legenda della Panoramica e tornata al vocabolario vecchio");
+  });
+
+  await t.test("la geometria della pastiglia e scritta UNA volta sola", () => {
+    const css = rd('styles/11-overview.css').replace(/\/\*[\s\S]*?\*\//g, '');
+    // Le due classi devono condividere LA STESSA regola: due regole che oggi
+    // combaciano sono due numeri, e due numeri prima o poi divergono.
+    const insieme = /\.ov-detail li \.cty-pill,\s*\.ov-detail li \.ov-tag \{[^}]*font-size[^}]*padding[^}]*\}/
+      .test(css);
+    assert.ok(insieme,
+      "densita della pastiglia non piu condivisa fra .cty-pill e .ov-tag");
+    // E nessuna regola PROPRIA di `.ov-tag` puo rifarsi una forma: forma, tinta e
+    // pallino vengono da `.cty-pill` (styles/06-panels.css), in un posto solo.
+    // ⚠️ Si separano le regole per davvero (selettore + corpo) invece di partire
+    //    da `.ov-tag` con una regex larga: al primo tentativo quella pescava LA
+    //    regola condivisa e pure la successiva, ed era rossa per il motivo
+    //    sbagliato — cioe non provava quello che dice.
+    const regole = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .map((m) => ({ sel: m[1], corpo: m[2] }))
+      .filter((r) => /\.ov-tag\b/.test(r.sel) && !/\.cty-pill\b/.test(r.sel));
+    assert.ok(regole.length > 0, 'nessuna regola .ov-tag trovata: la guardia non prova niente');
+    const propria = regole.filter((r) => /border-radius|font-size|font-weight/.test(r.corpo))
+      .map((r) => r.sel.trim());
+    assert.deepStrictEqual(propria, [],
+      "un .ov-tag si e rifatto una forma sua: " + propria);
+  });
+
+  await t.test("LA GUARDIA MORDE anche qui: un tag di certezza rimesso fa rosso", () => {
+    const cssFinto = '.ov-detail li .ov-tag.p-measured { color: red; }';
+    const colpevoli = ['measured', 'noGateway'].filter((k) =>
+      certaintyOf('prov', k).grade && cssFinto.includes('.ov-tag.p-' + k + ' '));
+    assert.deepStrictEqual(colpevoli, ['measured'],
+      'il controllo non vede un tag di certezza rimesso: non prova niente');
   });
 
 });
