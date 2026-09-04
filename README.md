@@ -10,7 +10,7 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="3,509 tests, 0 failing" src="https://img.shields.io/badge/tests-3%2C509%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="3,523 tests, 0 failing" src="https://img.shields.io/badge/tests-3%2C523%20%C2%B7%200%20failing-3fb950"></a>
   <a href="#testing"><img alt="120 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-120%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#oui-intelligence-engine"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
@@ -121,7 +121,24 @@ Double-click <code>avvia.bat</code>.<br>
 
 > **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then run **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.11.1) — the canvas got about twice as fast, and the app stopped stating things it had not measured.**
+> 📰 **What's new (v2.11.2) — the Overview reads the same in every section, and wireless discovery explains itself.**
+>
+> - **All six Overview sections give their verdict the same way, and «I don't know» is grey everywhere.** There
+>   used to be two — a sentence in the Summary columns, a hand-built number in the other three lenses. One
+>   component says both now: the number where the answer is a number, the sentence otherwise. A section with
+>   nothing to judge shows grey and names what is missing, instead of a green it never earned or a red that
+>   promised a diagnosis nobody made — so a never-synced project no longer reads as a fault.
+> - **Wireless discovery says why it found nothing, instead of three silent zeros.** A Sync that made no
+>   associations used to report `0 / 0 / 0` and no reason, so an access point that answers no SNMP looked broken.
+>   Each of the five gates that can skip a device is named now — no clients read, no declared SSID, client not
+>   yet in the document, not an endpoint, rejected pair, manual link — and a wired-only network stays silent. An
+>   OpenWrt access point is recognised again as well: its current interface name `phy0-ap0` (and a USB adapter's
+>   `wlx…`) was not being matched.
+> - **`qs` pinned to 6.16.0**, clearing two dependency advisories carried under Express. Neither was reachable
+>   here — the `arrayLimit` bypass needs `comma: true`, which the app never sets, and bodies are parsed only by
+>   `express.json()` — so the fix is a one-line override that leaves Express untouched.
+
+> 📰 **v2.11.1 — the canvas got about twice as fast, and the app stopped stating things it had not measured.**
 >
 > - **Drawing is roughly twice as fast, and a click costs the same at any size.** A full render now reuses the
 >   DOM instead of recreating it: 55 ms at 500 devices and 92 at 1000, where it used to be 119 and 203. The
@@ -1052,7 +1069,7 @@ Coverage focuses on the pure, bug-prone logic that has historically broken: SNMP
 
 Current local quality baseline:
 - `npm run check` parses every JS source of the product — **525** of them. It skips the folders `eslint.config.js` already ignores (git worktrees, the private workspace, the editor's caches), so the number stays stable between runs instead of drifting with whatever happens to be checked out beside the repo
-- `npm test` runs the full regression suite (currently **3,509 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **120 flows**)
+- `npm test` runs the full regression suite (currently **3,523 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **120 flows**)
 - final visual verification is still important for rack/front-panel refinements
 
 > Pure functions are exposed for tests via an additive `_internals` export on
