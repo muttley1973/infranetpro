@@ -986,12 +986,24 @@ Three properties of that alphabet carry weight:
   it `measured` would pass a well-summed pile of clues off as a reading. The difference is
   qualitative, not quantitative — which `lib/linkstate.js` had already written about itself.
 - **The grade carries no colour.** `.cty-<grade>` defines one ink and tint, border and dot
-  are derived from it with `color-mix`, so a grade's colour exists in exactly one place.
+  are derived from it with `color-mix`, so a grade's colour exists in exactly one place. The
+  Overview's non-certainty tags follow the same rule and share the same pill: one geometry,
+  written once, so the panel cannot end up drawing one question in two shapes again.
 
 `test/certainty.test.js` **derives** each engine's key set from that engine's own source
 instead of listing it: the map necessarily enumerates, so the proof must not — a state added
 to `proof.js` or `linkstate.js` and not mapped here turns the guard red rather than slipping
 through as an unlabelled badge.
+
+A derivation, though, is only as complete as the birth sites it reads, and `prov` has **two**:
+the Overview writes a row's provenance as `prov:` and a list item's as `tag:` — same question,
+same map, two fields. Reading only the first left `declaredNet` outside the alphabet — it is
+`declared` spelled feminine, because the Italian label agrees with «subnet» — so the engine did
+not recognise the word and the Overview kept drawing it with the retired badge, with every gate
+green. The derivation reads both now, and the words of the second site that answer a *different*
+question (no gateway, no reading, not answering, unverifiable, stale, dated, identity mismatch)
+are declared in `NOT_A_CERTAINTY.prov` rather than left unmapped — which is what lets the
+renderer ask the engine where the boundary is instead of keeping a list of its own.
 
 ---
 

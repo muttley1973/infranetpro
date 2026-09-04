@@ -82,6 +82,16 @@ feels done.
   anything needing the exact tier keeps reading the engine.
 - **Neutral:** an engine gaining a state now has a second obligation (map it), which
   is enforced rather than remembered.
+- **Found later (2026-09-04):** the Overview kept a *second* copy of the alphabet. Its
+  rows carry the provenance as a dot, but its list items carried it as a hand-styled tag
+  with the words in lower case, so one row could show the new pill and the old tag side by
+  side — in one case the same word twice, in two different cases. It is the screen the
+  alphabet took its vocabulary from (`CERTAINTY_MAP.prov` says as much), and the last one
+  still spelling it its own way: being the reference is not the same as being converted.
+  Every badge there is one pill now, and the renderer asks `certaintyOf` which tags are
+  certainties instead of holding a list. `declaredNet` — `declared` spelled feminine, so
+  the Italian label could agree with «subnet» — had been carried out of the alphabet by
+  that fork alone: a word split for grammar stops being the word.
 
 ## Enforcement
 
@@ -99,6 +109,13 @@ feels done.
     saying "anchor not found" — refusing to go blind, which is what it is for. The
     fix was not to restore the anchor but to move it to the **engine**, the only
     place a state cannot disappear from without ceasing to exist.
+  - ⚠️ And a derivation is only as complete as the **birth sites** it reads. `prov`
+    has two — a row writes it as `prov:`, a list item as `tag:` — and the guard read
+    only the first, which is how `declaredNet` sat outside the alphabet with every gate
+    green. Before writing a derivation, count how many places produce the data; one
+    `grep` says so in seconds. The words of the second site that answer a *different*
+    question are declared in `NOT_A_CERTAINTY.prov` rather than filtered out in the
+    guard — filtering would have put a hand-written list back inside the proof.
 - **`test/badge-ink.test.js`** forbids either cable surface — the property panel and
   the Overview's cable list — from painting its certainty badges by hand again, and
   forbids the retired vocabulary from returning anywhere: a separate case walks all
@@ -106,8 +123,15 @@ feels done.
   `_cableProofBadgeHtml` or a `proof.badge.*` key outside a comment. Two per-surface
   cases enumerate their files (a third surface must be added by hand); the
   vocabulary case does not, so a new file cannot slip past it.
-- **`test/overview.test.js`** holds the provenance vocabulary as a *closed* list, so
-  a seventh word cannot appear without a decision.
+- **The provenance vocabulary cannot grow silently**, and the guard that holds it is
+  `test/certainty.test.js`, not `test/overview.test.js` — this record said otherwise
+  until 2026-09-04, which is the **second** misattribution found in this very section
+  (the first put the hex grep in `badge-ink`). A claim about which file enforces what
+  is exactly the kind of sentence no gate reads: check it against the file.
+- **`test/certainty.test.js`** also pins the Overview badge itself: the pill geometry
+  must stay written in **one** shared CSS rule, no `.ov-tag` rule may re-invent a shape
+  of its own, no certainty word may get a `.p-<tag>` rule back, and the renderer must
+  still route tags through `certaintyOf`. Each was proved by putting the defect back.
 - **`test/golden-render.test.js`** carries a `scope:provenienza` scenario, because
   the golden's own devices have empty inventory fields and had gone blind to the
   marks.

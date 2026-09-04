@@ -144,6 +144,12 @@ Double-click <code>avvia.bat</code>.<br>
 > - **The two kinds of «missing» are told apart.** «Nobody wrote it» and «nobody read it» shared one grey dot
 >   labelled *not declared*, which was simply false wherever no declaration was missing in the first place. They
 >   are two signs now, drawn identically, because what separates them is who has to move next: you, or a probe.
+> - **And the Dashboard draws one badge, not two.** A row could carry the new pill next to the old provenance
+>   tag — rounded against fully round, tinted against hollow, *Measured* against *measured* — which is odd in a
+>   panel and absurd on one line. Every label there has one shape now, so what tells them apart is the word and
+>   the colour: where a value came from, and why an entry is on the list, no longer look like two different
+>   kinds of thing. It was the screen the alphabet took its words from, and the last one still spelling them
+>   its own way.
 
 > 📰 **v2.11.2 — the Overview reads the same in every section, and wireless discovery explains itself.**
 >

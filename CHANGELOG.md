@@ -1,43 +1,29 @@
 # Changelog
 
-## [Unreleased]
+## [2.11.3] — 2026-09-04
 
-The surface that gave the certainty notation its vocabulary was the last one still
-drawing it in the old shape.
+One question — *how much do I trust this?* — used to be answered in seven vocabularies.
+It is one alphabet now, on the five screens where the question is actually asked. No engine
+was merged and no number moved: what changed is the word you read.
 
 ### Changed
 
-- **The Overview draws one badge, not two.** A row could carry a certainty pill (rounded, tinted, with a dot, *Measured*) next to a provenance tag (fully round, no tint, no dot, *measured*) — the same question in two shapes, and in one case the same word twice in two different cases. Every badge in the panel now mounts the same pill, so shape, tint, border and dot come from one place and cannot drift apart; the perimeter chips join it too. Colour still carries the meaning, and the two absences stay dashed and hollow.
-- **The provenance words are said by the notation, not by a copy of it.** `lib/certainty.js` names `ov.prov` as its *reference vocabulary* — the Overview is where those words came from — yet the Overview alone still printed them from the old table. The renderer now asks the engine (`certaintyOf`) which tags answer the certainty question and which do not, so the boundary lives in one place instead of an inline list; the footer legend says the same words as the rows it explains.
-- **`declaredNet` was `declared` all along, spelled feminine.** The key was forked for Italian gender agreement («subnet dichiarata») and the fork made the word invisible to the alphabet: the engine did not recognise it, so the Overview drew it with the retired badge. It is mapped now, and the notation keeps one word per grade.
-- **A tag declares its own ink once.** Each `.p-<tag>` rule repeated its colour token twice (`color` and `border-color`); tint, border and dot are derived from `currentColor` instead — the same cure the notation applied to its grades, reaching the one file it had not yet touched.
+- **Six signs, learnt once, read everywhere.** *Measured*, *Declared*, *Derived*, *Contradicted*, *Not declared*, *No reading* — on a cable, a panel field, a discovered host, a floor-plan tile and the Dashboard. The two absences are drawn identically on purpose: the word says who has to move next, you or a probe.
+- **A cable's «Status» row went from five badges to two plus a detail.** Three of the five answered that one question in three incompatible notations, one of them a percentage that contradicted the other two. What a link *is* (access, trunk, LAG member) and how far it is trusted are separate questions now, with the protocol and score in a quiet chip behind the grade.
+- **The property panel says who wrote each inventory value** — a mark per field and one legend at the top, instead of a paragraph explaining it field by field.
+- **Discovery grades a device by its signals, never by its score.** The score is an additive vote that reaches «high» with no SNMP and no LLDP at all, so a well-summed pile of weak clues used to read as a measurement. *Measured* now means something authoritative spoke, and a barely-recognised device is no longer painted red.
+- **The floor plan and the racks say in words what they used to say only in colour.** A red halo, a greyed-out tile and a grey ring were the last place in the app with no words at all.
+- **The Dashboard speaks the alphabet it gave its words to.** It is where the six words came from, and the last screen still spelling them its own way — a row could show the new pill beside the old tag, *Measured* against *measured*. Every badge there is one pill now, and the renderer asks the engine which tags are certainties instead of holding a list of its own. `declaredNet` had been carried out of the alphabet by a fork made for Italian gender agreement.
+- **A grade's colour, and a tag's, exist in exactly one place.** Tint, border and dot derive from one ink, retiring three hand-written colour tables, a fifth amber, two off-token literals and a colour token repeated on every tag.
 
 ### Fixed
 
-- **The guard that derives the Overview vocabulary saw only one of its two birth sites.** Row provenance is written as `prov:`, item provenance as `tag:` — same question, same map, two fields — and the derivation read only the first, which is how a word born as `tag:` could sit outside the alphabet with every gate green. It reads both now, and the seven words of the second site that answer a *different* question (no gateway, no reading, not answering, unverifiable, stale, dated, identity mismatch) are declared as non-certainties instead of being silently unmapped.
-
-## [2.11.3] — 2026-09-04
-
-Looking at a row, a person asks one question — *how much do I trust this?* — and the app
-answered it in seven vocabularies. It is one alphabet now, on the five screens where the
-question is actually asked. No engine was merged and no number moved: what changed is the
-word you read, and how few of them there are.
-
-### Changed
-
-- **Certainty is said the same way everywhere: six signs, learnt once.** *Measured* (read from a device), *Declared* (written by a person — it does not age), *Derived* (computed from something else, to be confirmed), *Contradicted* (reality says the opposite of the document), *Not declared* and *No reading*. The last two are both absences and are drawn identically, because what tells them apart is the word: one asks *you* to write something, the other asks a probe to go and look. Four of the six are not new — they are the provenance dots the Overview already had, which simply never left that screen.
-- **A cable's «Status» row went from five badges to two plus a detail.** Three of the five were answering the same question in three incompatible notations — a link-state word, a proof word, and a percentage that contradicted both. What the link *is* (access, trunk, LAG member) and how much it is *trusted* are now separate questions, and the protocol and score sit in a quiet chip behind the grade instead of standing as a third opinion. Under a LAG the certainty no longer disappears.
-- **The inventory fields of the property panel say who wrote each value.** A mark per field and one legend at the top, instead of a paragraph explaining it field by field. Nothing is inferred here: the value you typed and the value a scan read already live in two different places.
-- **Discovery grades a device by its signals, never by its score.** The score is an additive vote over heterogeneous clues and reaches «high» with no SNMP and no LLDP at all, so a well-summed pile of weak clues used to read as a measurement. A device is *Measured* only when something authoritative spoke — it answered SNMP, or a neighbour declared it over LLDP/CDP — and everything else is *Derived*. «Low» is also no longer painted red: a device the scan barely recognised is not a faulty one.
-- **The floor plan and the racks say in words what they used to say only in colour.** A red halo, a desaturated grey and a grey ring were the only place in the app where a state had no words at all: each now names itself and says whether the probe looked and found nothing, looked nowhere, or found a device you had declared out of service.
-- **The Overview's cable list speaks the same alphabet as the cable panel.** It was the last place showing the OLD words for the very same engine — *Strong · Weak · Ghost · Review · Port shut · Declared* — while the panel next to it already showed the new ones: one cable, two alphabets, two screens, which is the defect this notation exists to close, surviving inside its own cure. It now mounts the same pill, with the same tooltip. Counting the screens still to convert from memory is what let it survive; the callers of the old function would have said so in a second.
-- **The Overview tells its two absences apart.** «Nobody wrote it» and «nobody read it» shared one grey dot labelled *not declared*, which was simply false on the Verify row — no declaration was missing there. Its wording is aligned with the rest of the app as well («from scan» → «measured»).
-- **A grade's colour is written in exactly one place.** Tint, border and dot are derived from the grade's single ink, which retires three hand-written colour tables, a fifth amber and two off-token literals.
+- **The guard that derives the Dashboard vocabulary read only one of its two birth sites** — `prov:` on rows, `tag:` on list items — which is how a word could sit outside the alphabet with every gate green. It reads both now, and the words of the second site that answer a *different* question (no gateway, unverifiable, stale…) are declared as non-certainties instead of left unmapped.
 
 ### Removed
 
-- **The cable's proof-state badge**, the sixth vocabulary for «how much do I trust this?» — with its hand-written colour table, its CSS class, its seven translation keys, and `badgeInk()`, a helper that existed only to pick legible text for those solid backgrounds. A grade now defines one ink taken from a token, and tint, border and dot derive from it, so the question the helper answered no longer arises. The `cableProof` engine is untouched: what changed is the alphabet its result is read in.
-- **The discovery row's «switch · port» badge**, which named the access port a device was found on. The row was crowded and the badge was the least load-bearing thing on it. The FDB correlation behind it is untouched — the data is still computed, nothing displays it now.
+- **The cable's proof-state badge**, the sixth vocabulary for the same question, with its colour table, its CSS class, its seven translation keys and `badgeInk()` — a helper that existed only to pick legible text for those solid backgrounds. The `cableProof` engine is untouched: what changed is the alphabet its result is read in.
+- **The discovery row's «switch · port» badge**, which named the access port a device was found on. The row was crowded and this was the least load-bearing thing on it; the FDB correlation behind it still runs.
 
 ## [2.11.2] — 2026-09-01
 
