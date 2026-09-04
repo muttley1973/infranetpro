@@ -1,5 +1,28 @@
 # Changelog
 
+## [2.11.3] — 2026-09-04
+
+Looking at a row, a person asks one question — *how much do I trust this?* — and the app
+answered it in seven vocabularies. It is one alphabet now, on the five screens where the
+question is actually asked. No engine was merged and no number moved: what changed is the
+word you read, and how few of them there are.
+
+### Changed
+
+- **Certainty is said the same way everywhere: six signs, learnt once.** *Measured* (read from a device), *Declared* (written by a person — it does not age), *Derived* (computed from something else, to be confirmed), *Contradicted* (reality says the opposite of the document), *Not declared* and *No reading*. The last two are both absences and are drawn identically, because what tells them apart is the word: one asks *you* to write something, the other asks a probe to go and look. Four of the six are not new — they are the provenance dots the Overview already had, which simply never left that screen.
+- **A cable's «Status» row went from five badges to two plus a detail.** Three of the five were answering the same question in three incompatible notations — a link-state word, a proof word, and a percentage that contradicted both. What the link *is* (access, trunk, LAG member) and how much it is *trusted* are now separate questions, and the protocol and score sit in a quiet chip behind the grade instead of standing as a third opinion. Under a LAG the certainty no longer disappears.
+- **The inventory fields of the property panel say who wrote each value.** A mark per field and one legend at the top, instead of a paragraph explaining it field by field. Nothing is inferred here: the value you typed and the value a scan read already live in two different places.
+- **Discovery grades a device by its signals, never by its score.** The score is an additive vote over heterogeneous clues and reaches «high» with no SNMP and no LLDP at all, so a well-summed pile of weak clues used to read as a measurement. A device is *Measured* only when something authoritative spoke — it answered SNMP, or a neighbour declared it over LLDP/CDP — and everything else is *Derived*. «Low» is also no longer painted red: a device the scan barely recognised is not a faulty one.
+- **The floor plan and the racks say in words what they used to say only in colour.** A red halo, a desaturated grey and a grey ring were the only place in the app where a state had no words at all: each now names itself and says whether the probe looked and found nothing, looked nowhere, or found a device you had declared out of service.
+- **The Overview's cable list speaks the same alphabet as the cable panel.** It was the last place showing the OLD words for the very same engine — *Strong · Weak · Ghost · Review · Port shut · Declared* — while the panel next to it already showed the new ones: one cable, two alphabets, two screens, which is the defect this notation exists to close, surviving inside its own cure. It now mounts the same pill, with the same tooltip. Counting the screens still to convert from memory is what let it survive; the callers of the old function would have said so in a second.
+- **The Overview tells its two absences apart.** «Nobody wrote it» and «nobody read it» shared one grey dot labelled *not declared*, which was simply false on the Verify row — no declaration was missing there. Its wording is aligned with the rest of the app as well («from scan» → «measured»).
+- **A grade's colour is written in exactly one place.** Tint, border and dot are derived from the grade's single ink, which retires three hand-written colour tables, a fifth amber and two off-token literals.
+
+### Removed
+
+- **The cable's proof-state badge**, the sixth vocabulary for «how much do I trust this?» — with its hand-written colour table, its CSS class, its seven translation keys, and `badgeInk()`, a helper that existed only to pick legible text for those solid backgrounds. A grade now defines one ink taken from a token, and tint, border and dot derive from it, so the question the helper answered no longer arises. The `cableProof` engine is untouched: what changed is the alphabet its result is read in.
+- **The discovery row's «switch · port» badge**, which named the access port a device was found on. The row was crowded and the badge was the least load-bearing thing on it. The FDB correlation behind it is untouched — the data is still computed, nothing displays it now.
+
 ## [2.11.2] — 2026-09-01
 
 Post-release polish: the Overview reads the same in every section, wireless discovery

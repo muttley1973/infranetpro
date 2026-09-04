@@ -40,13 +40,28 @@ const derivedLinkstate = () =>
 const derivedTemporal = () =>
   uniq([...rd('lib/temporal-confidence.js').matchAll(/tier\s*=\s*['"]([a-z]+)['"]/g)].map((m) => m[1]));
 
-// proof: gli stati sono le CHIAVI della mappa `_CABLE_PROOF_BADGE`.
+// proof: gli stati che il MOTORE restituisce davvero — i letterali dei `return`
+// delle due funzioni che li producono (`cableTier` e `cableProof`).
+// ⭐ Prima questa derivazione leggeva le chiavi di `_CABLE_PROOF_BADGE`, una mappa
+//    di COLORI in src/app.js. Ha funzionato finche' quel badge e' esistito: il
+//    04/09 e' stato ritirato (era il sesto vocabolario della certezza) e la
+//    guardia e' andata rossa dicendo «ancora non trovata» — cioe' ha fatto
+//    esattamente il suo mestiere, rifiutando di diventare cieca. La correzione non
+//    e' rimetterla dov'era: e' ancorarla al MOTORE, che e' dove gli stati nascono
+//    e l'unico posto che non puo' sparire senza che spariscano anche loro.
+// ⚠️ Il taglio parte da `return`, non dalla riga: cosi' le condizioni che citano
+//    altri vocabolari (`worst === 'diverged'`) restano fuori dall'insieme.
 const derivedProof = () => {
-  const src = rd('src/app.js');
-  const i = src.indexOf('_CABLE_PROOF_BADGE = {');
-  assert.ok(i > -1, 'ancora _CABLE_PROOF_BADGE non trovata in src/app.js');
-  const block = src.slice(i).split('};')[0];
-  return uniq([...block.matchAll(/^\s*['"]([a-z-]+)['"]\s*:/gm)].map((m) => m[1]));
+  const src = rd('lib/proof.js');
+  const corpo = (da, a) => {
+    const i = src.indexOf(da), j = src.indexOf(a, i);
+    assert.ok(i > -1 && j > i, `ancora non trovata in lib/proof.js: ${da} … ${a}`);
+    return src.slice(i, j);
+  };
+  const zona = corpo('function cableTier(', 'function _worst(')
+             + corpo('function cableProof(', 'function deriveNodeProof(');
+  return uniq([...zona.matchAll(/return[^;]*;/g)]
+    .flatMap((m) => [...m[0].matchAll(/'([a-z][a-z-]*)'/g)].map((q) => q[1])));
 };
 
 // disc: la classe di confidenza si riconosce dalle chiavi i18n `disc.conf.*`

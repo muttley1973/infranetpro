@@ -10,7 +10,7 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="3,523 tests, 0 failing" src="https://img.shields.io/badge/tests-3%2C523%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="3,544 tests, 0 failing" src="https://img.shields.io/badge/tests-3%2C544%20%C2%B7%200%20failing-3fb950"></a>
   <a href="#testing"><img alt="120 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-120%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#oui-intelligence-engine"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
@@ -31,11 +31,11 @@
 <tr>
 <td align="center" width="50%">
 <a href="MANUALE_TECNICO_IT.pdf"><img src="GitHub%20Images/flag-it.svg" width="26" alt=""><br><b>Manuale tecnico — Italiano</b></a><br>
-<sub>48 pagine illustrate · interfaccia, onboarding e manuale completi in italiano, con selettore IT/EN nell'app.</sub>
+<sub>65 pagine illustrate · interfaccia, onboarding e manuale completi in italiano, con selettore IT/EN nell'app.</sub>
 </td>
 <td align="center" width="50%">
 <a href="TECHNICAL_MANUAL_EN.pdf"><img src="GitHub%20Images/flag-gb.svg" width="26" alt=""><br><b>Technical manual — English</b></a><br>
-<sub>48 illustrated pages · fully bilingual UI, onboarding and manual, with an in-app IT/EN switcher.</sub>
+<sub>69 illustrated pages · fully bilingual UI, onboarding and manual, with an in-app IT/EN switcher.</sub>
 </td>
 </tr>
 </table>
@@ -121,7 +121,31 @@ Double-click <code>avvia.bat</code>.<br>
 
 > **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then run **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.11.2) — the Overview reads the same in every section, and wireless discovery explains itself.**
+> 📰 **What's new (v2.11.3) — one question, one alphabet: how sure the app is, said the same way everywhere.**
+>
+> - **Six words in place of seven vocabularies.** Looking at a row you ask one thing — *how much do I trust
+>   this?* — and the app used to answer in whatever notation that screen happened to own. It is one alphabet now:
+>   **Measured**, **Declared**, **Derived**, **Contradicted**, **Not declared**, **No reading**. Learn it once and
+>   it reads the same on a cable, a device field, a discovered host, a floor-plan tile and the Overview. No engine
+>   was merged — a declaration still does not age and a measurement still does — what is shared is the word.
+> - **A cable's «Status» row went from five badges to two.** Three of the five were answering that one question in
+>   three incompatible notations, one of them a percentage that contradicted the other two. What the link *is*
+>   (access, trunk, LAG member) and how far it is trusted are separate questions now, with the protocol and the
+>   score in a quiet chip behind the grade instead of standing as a third opinion.
+>   The Dashboard's cable list, which had kept a vocabulary of its own for that same engine, now shows the
+>   very same pill: one cable, one word, wherever you look at it.
+> - **A discovered device reads as «Measured» only when something authoritative spoke** — it answered SNMP, or a
+>   neighbour declared it over LLDP/CDP. The confidence score is an additive vote over heterogeneous clues and
+>   reaches «high» with neither of those, so a well-summed pile of weak signals used to look like a reading. And a
+>   barely-recognised device is no longer painted red: not being sure about something is not a fault.
+> - **The floor plan and the racks say in words what they used to say in colour alone.** A red halo, a greyed-out
+>   tile and a grey ring were the last place in the app with no words at all — you can now read whether the probe
+>   looked and found nothing, never looked there, or found a device you had declared out of service.
+> - **The two kinds of «missing» are told apart.** «Nobody wrote it» and «nobody read it» shared one grey dot
+>   labelled *not declared*, which was simply false wherever no declaration was missing in the first place. They
+>   are two signs now, drawn identically, because what separates them is who has to move next: you, or a probe.
+
+> 📰 **v2.11.2 — the Overview reads the same in every section, and wireless discovery explains itself.**
 >
 > - **All six Overview sections give their verdict the same way, and «I don't know» is grey everywhere.** There
 >   used to be two — a sentence in the Summary columns, a hand-built number in the other three lenses. One
@@ -295,7 +319,7 @@ Double-click <code>avvia.bat</code>.<br>
   <b>Full feature manual (PDF)</b> —
   <a href="MANUALE_TECNICO_IT.pdf"><img src="GitHub%20Images/flag-it.svg" width="20" alt=""> Italiano</a> ·
   <a href="TECHNICAL_MANUAL_EN.pdf"><img src="GitHub%20Images/flag-gb.svg" width="20" alt=""> English</a><br>
-  <sub>Dark cover, white printable interior, 19 illustrated chapters, 48 pages per language.</sub>
+  <sub>Dark cover, white printable interior, 22 illustrated chapters — 65 pages in Italian, 69 in English.</sub>
 </p>
 
 <p align="center">
@@ -1068,8 +1092,8 @@ server on a temp store and is skipped unless `RUN_E2E=1`.
 Coverage focuses on the pure, bug-prone logic that has historically broken: SNMP parsing & extraction (`test/snmp.test.js`, `test/extractData.test.js`), discovery & classification (`test/discovery.test.js`, 14 real-device cases), correlation primitives (`test/correlate.test.js`), the sysObjectID / OUI / Fusion engines (`tests/*.test.js`), front-panel state, cable validation (incl. **Cat8 30 m reach**), IPAM & LAG audits, and an app-wide **smoke E2E** (`test/smoke-app.test.js`) that loads every `netmapper.html` script plus the esbuild bundle into a `vm` + DOM stub and asserts `renderAll`/`renderProps` never throw on any device type.
 
 Current local quality baseline:
-- `npm run check` parses every JS source of the product — **525** of them. It skips the folders `eslint.config.js` already ignores (git worktrees, the private workspace, the editor's caches), so the number stays stable between runs instead of drifting with whatever happens to be checked out beside the repo
-- `npm test` runs the full regression suite (currently **3,523 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **120 flows**)
+- `npm run check` parses every JS source of the product — **528** of them. It skips the folders `eslint.config.js` already ignores (git worktrees, the private workspace, the editor's caches), so the number stays stable between runs instead of drifting with whatever happens to be checked out beside the repo
+- `npm test` runs the full regression suite (currently **3,544 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **120 flows**)
 - final visual verification is still important for rack/front-panel refinements
 
 > Pure functions are exposed for tests via an additive `_internals` export on

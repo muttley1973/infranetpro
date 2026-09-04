@@ -10,7 +10,7 @@ import { migrateIpam } from '../lib/ipam-model.js';   // la subnet esce dalla VL
 import { migrateVmNics, VM_FLAT_NET_FIELDS, vmIps } from '../lib/vm-nics.js';   // migrazione vm.ip/mac/vlan → vm.nics[]; vmIps = IPv4 di tutte le vNIC
 import { normalizePduOutletCount, normalizePduManagementMode, normalizePduPortCount, pduManagementPortCount } from '../lib/pdu-layout.js';
 import { store, resetProjectRuntime } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { escapeHTML, uid, normalizeNumber, normalizePortStatus, normalizeMacAddress, _shadeHex, badgeInk, PORT_ANCHOR_SEL } from './app-util.js';   // helper puri estratti dal god-file + ancora visuale delle porte
+import { escapeHTML, uid, normalizeNumber, normalizePortStatus, normalizeMacAddress, _shadeHex, PORT_ANCHOR_SEL } from './app-util.js';   // helper puri estratti dal god-file + ancora visuale delle porte
 import { TYPES, typeName, typeShort } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (prima letto dal global implicito) + nome localizzato
 import { nodeLabelParts } from '../lib/node-label.js';   // lib pura importata ESM: come si LEGGE il nome di un device
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: chiamate prima bare-global
@@ -1373,36 +1373,18 @@ const _CABLE_PROOF_CLS = {
     'ghost':           ' cable-ghost',
 };
 
-// Badge dello STATO-DI-PROVA del cavo — pillola compatta accanto ai badge di
-// provenienza (LLDP/CDP/MAC), STESSA misura/forma (padding/border-radius/font).
-// Reso sia nell'header Proprietà cavo sia nella lista Cavi della Panoramica. Il
-// dichiarato NON millanta liveness: resta «Dichiarato» (cablaggio ≠ liveness).
-const _CABLE_PROOF_BADGE = {
-    // ⚠️ La pillola dice la FORZA dell'adiacenza (LLDP/CDP con confidenza ≥ 0.90 —
-    // lib/proof.js `cableTier`), non quanto è recente: la freschezza degli estremi è
-    // un moltiplicatore a parte (`endpointFreshness`) e non ha una pillola sua. Si
-    // chiamava «Fresca», e il manuale la spiegava due righe sotto come «adiacenza
-    // forte»: la parola nominava l'asse sbagliato.
-    'derived-strong':  { key: 'strong',   color: '#1a7f37' },   // adiacenza FORTE (protocollo di vicinato)
-    'derived-weak':    { key: 'weak',     color: '#bf8700' },   // inferenza debole/che invecchia
-    'ghost':           { key: 'ghost',    color: '#6e7681' },   // inferenza che ha PERSO l'evidenza
-    'declared-review': { key: 'review',   color: '#cf222e' },   // la realtà contraddice il cavo
-    'declared-shut':   { key: 'shut',     color: '#cf222e' },   // porta in shutdown: due dichiarazioni in conflitto
-    'declared':        { key: 'declared', color: '#57606a' },   // asserito a mano, nessun claim di liveness
-};
-// state (output di cableProof) → HTML della pillola, o '' se lo stato è ignoto
-// (nessuna Verifica → nessun badge, non spacciamo per fantasma un cavo mai provato).
-export function _cableProofBadgeHtml(state){
-    const m = _CABLE_PROOF_BADGE[state];
-    if(!m) return '';
-    // La FORMA sta nel foglio di stile (.cable-proof-badge): qui resta solo il
-    // colore, che dipende dallo stato. Cosi' chi lo ospita puo' ridimensionarlo
-    // senza toccare questa funzione — e senza !important, che e' il sintomo di
-    // una forma scritta due volte.
-    // L'INCHIOSTRO non si sceglie qui: lo calcola badgeInk dal fondo. Era `#fff`
-    // fisso, e su «Debole» (#bf8700) faceva 3,14:1 — sotto la soglia AA.
-    return `<span class="cable-proof-badge" style="background:${m.color};color:${badgeInk(m.color)}" data-tip="${t('proof.badge.tip')}">${t('proof.badge.' + m.key)}</span>`;
-}
+// ⛔ QUI STAVA `_CABLE_PROOF_BADGE` + `_cableProofBadgeHtml`: la tabella colore a
+//    mano dello stato-di-prova del cavo e il suo badge (Forte · Debole · Fantasma ·
+//    Da rivedere · Porta spenta · Dichiarato). Ritirati il 04/09 con i suoi ultimi
+//    due chiamanti — pannello del cavo prima, lista Cavi della Panoramica poi.
+//    ⭐ Erano un SESTO vocabolario per la domanda «quanto mi fido di questo?», che
+//    `lib/certainty.js` risponde con sei parole sole su ogni superficie; e il colore
+//    lo sceglievano qui, nel punto in cui si disegna, invece di prenderlo dai token.
+//    Con loro se ne vanno `.cable-proof-badge` (06-panels.css), le chiavi
+//    `proof.badge.*` e `badgeInk()`, che esisteva solo per scrivere sopra quei fondi.
+//    ⚠️ Il MOTORE resta intero: `cableProof` (lib/proof.js) calcola quello che
+//    calcolava — a cambiare è l'alfabeto in cui il risultato si legge.
+//    La guardia che vieta di riportarli indietro sta in `test/badge-ink.test.js`.
 
 let _renderCablesRaf = 0;
 export function renderCables(){

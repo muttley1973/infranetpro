@@ -16,18 +16,15 @@
         .snmp-section   { border-top:1px solid var(--panel-border); margin-top:10px; padding-top:10px; }
         .snmp-section h5{ font-size:var(--fs-md); text-transform:uppercase; color:var(--text-main); margin:0 0 8px; letter-spacing:.04em; }
         .props-collapsible { border-top:1px solid var(--panel-border); margin-top:10px; padding-top:10px; }
-        /* Badge di stato-di-prova del cavo. La forma sta QUI e non negli stili
-           inline di _cableProofBadgeHtml(), perche' lo stesso badge compare in due
-           posti a due misure: Panoramica (base) e riga «Stato» del pannello cavo
-           (120%, insieme agli altri badge di quella riga). */
-        .cable-proof-badge { padding:2px 9px; border-radius:4px; font-weight:700; font-size:var(--fs-xs); }
-        /* ⚠️ QUI STAVANO `.link-state-badge` (provenienza + protocollo, a fondo pieno)
-           e `.link-state-conf` (la percentuale). Sono state RITIRATE, non spostate:
-           la riga «Stato» del cavo e' passata alla notazione unica, e quei tre segni
-           erano proprio i tre che rispondevano alla stessa domanda in tre alfabeti.
-           Verificato col grep prima di togliere: nessuno le emette piu' — ne' src/,
-           ne' export.js, ne' l'e2e. Il badge di prova a fondo pieno sopravvive dove
-           serve ancora, in Panoramica, con la sua forma base (.cable-proof-badge). */
+        /* ⚠️ QUI STAVANO `.link-state-badge` (provenienza + protocollo, a fondo pieno),
+           `.link-state-conf` (la percentuale) e `.cable-proof-badge` (lo stato di
+           prova). Sono state RITIRATE, non spostate: rispondevano alla stessa domanda
+           in tre alfabeti diversi, ed e' esattamente cio' che la notazione unica
+           chiude. Le prime due col passaggio della riga «Stato» del pannello; la
+           terza il 04/09, quando anche la lista Cavi della Panoramica — il suo ultimo
+           chiamante, e l'unico posto rimasto con le parole vecchie — e' passata alla
+           `.cty-pill`. Verificato col grep prima di togliere: nessuno le emette piu',
+           ne' src/, ne' export.js, ne' l'e2e. */
         /* ⚠️ Il chip modo-porta (TRUNK/ACCESS, e ora anche LAG) ha un padding DIVERSO
            di proposito: ha un bordo di 1px, che aggiunge il pixel che al fondo pieno
            mancava. Stesso corpo, altezza uguale — e la stessa geometria la ripete
@@ -43,8 +40,10 @@
            a mano, e nessuno di questi valori puo' sfuggire al sistema — che e'
            esattamente il difetto che questa notazione viene a chiudere.
            ⚠️ L'inchiostro e' il token PIENO, non una sua tinta: sul fondo del
-           pannello regge da solo, e badgeInk() qui non serve perche' il fondo e'
-           una lastra al 13%, non un colore. */
+           pannello regge da solo, e qui non c'e' niente da calcolare perche' il
+           fondo e' una lastra al 13%, non un colore. (Il calcolo lo faceva
+           `badgeInk()`, ritirata il 04/09 proprio perche' non serviva piu' a
+           nessuno: questa regola e' il motivo.) */
         /* ⚠️ SPECIFICITA': la base e le classi di grado stanno tutte a UNA classe, e
            l'ordine di sorgente decide. Scritta come `.link-state-badges .cty-pill`
            la base pesava due classi e vinceva sul grado: bordo e tratteggio di

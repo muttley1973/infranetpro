@@ -63,6 +63,13 @@ an "observed but unconfirmed" value pass as a meter reading.
   allows are recorded; everything else stays absent, which is a state the rest of
   the app already knows how to read.
 
+- **The label itself is a closed alphabet** — six signs (`measured`, `declared`,
+  `derived`, `contradicted`, `undeclared`, `unread`) in `lib/certainty.js`, mapped
+  from each engine's real keys and guarded by `test/certainty.test.js`. This rule
+  says a soft fact must be labelled; that one fixes the words, so a new state
+  cannot ship wearing an unlabelled badge. See
+  [one-certainty-alphabet.md](one-certainty-alphabet.md).
+
 ## Cited in code as
 
 `misurato≠dichiarato` / "measured ≠ declared", "observed" (discovery rows),
@@ -75,4 +82,6 @@ an "observed but unconfirmed" value pass as a meter reading.
 - [no-invention.md](no-invention.md) — don't fabricate a fact; this rule adds:
   don't mis-label a soft fact as a hard one.
 - [manual-first.md](manual-first.md) — observed candidates stay proposals.
+- [one-certainty-alphabet.md](one-certainty-alphabet.md) — the six words this rule
+  is written in, and why the engines behind them are not merged.
 - `ARCHITECTURE.md` §8 (report honesty), §9 (discovery confidence bands).

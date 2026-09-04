@@ -368,6 +368,15 @@ button.ov-r:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 /* ③ Espansione: patch panel / appliance dentro «Porte libere» — hanno porte libere
    ma non sono capacità switch, quindi il tag è muto (fuori dal numero grande). */
 .ov-detail li .ov-tag.p-nonSwitch { color: var(--text-muted); border-color: var(--hairline); border-style: dashed; }
+/* LA NOTAZIONE UNICA (lib/certainty.js) anche nella lista «Cavi»: la stessa pastiglia
+   del pannello Proprietà del cavo. Fin qui questa lista mostrava le parole VECCHIE
+   dello stesso motore mentre il pannello diceva già quelle nuove — un cavo, due
+   alfabeti, due schermate.
+   ⚠️ Qui si tocca SOLO la densità (corpo, passo, gap), per stare accanto a `.ov-tag`
+   in una lista fitta: MAI il colore. Tinta, bordo e pallino li dà `.cty-<grado>` da un
+   token solo — riscriverli qui riaprirebbe esattamente il difetto che la notazione
+   chiude, e per giunta con più specificità, quindi vincendo in silenzio. */
+.ov-detail li .cty-pill { font-size: var(--fs-xs); line-height: 1.5; padding: 0 8px; gap: 5px; }
 .ov-detail li button.ov-go {
     all: unset; cursor: pointer; padding: 2px 4px; border-radius: var(--radius-sm);
     display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; width: 100%;

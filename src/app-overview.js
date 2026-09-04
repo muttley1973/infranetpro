@@ -19,7 +19,7 @@ import { t, expose, buildSpareReport, deriveProjectNetworks, computeDeviceCapabi
 import { store } from './store.js';
 import { TYPES, _frontPanelSfpGroups } from './app-types.js';
 import { _isLeafEndpoint } from './app-autolink.js';
-import { nodeById, getNodeByPortId, getNodeDisplayName, _linksForPort, switchRightTab, _cableProofBadgeHtml } from './app.js';
+import { nodeById, getNodeByPortId, getNodeDisplayName, _linksForPort, switchRightTab } from './app.js';
 import { focusNode } from './app-search-zoom-rack.js';
 import { _showPhysicalCablePath } from './app-popup.js';   // click su un cavo in lista → evidenzia il percorso sul floor
 import { openNetInNets, openVlanInFloor } from './app-properties-floor.js';   // subnet/gateway/VLAN in lista → pannello di dichiarazione
@@ -766,12 +766,31 @@ function _itemLi(it) {
         const bN = nodeById(bId);
         inner.appendChild(_el('span', 'ov-peer', '↔ ' + (bN ? (getNodeDisplayName(bN) || bId) : String(bId))));
     }
-    // Numero-d'identità del singolo cavo: il badge dello stato di prova (post-Verifica),
-    // stessa pillola dei badge di provenienza nel pannello Proprietà. `it.proof` è un
-    // token dal motore (cableProof); la parola/colore li mette il badge (i18n), mai la lib.
-    if (it.proof && typeof _cableProofBadgeHtml === 'function') {
-        const _pb = _cableProofBadgeHtml(it.proof);
-        if (_pb) { const holder = _el('span', 'ov-proof'); holder.innerHTML = _pb; inner.appendChild(holder); }
+    // La CERTEZZA del singolo cavo (post-Verifica), nella NOTAZIONE UNICA: la stessa
+    // pastiglia e le stesse sei parole del pannello Proprietà del cavo.
+    // ⭐ Qui stavano le parole VECCHIE dello stesso motore (Forte · Debole · Fantasma ·
+    //    Da rivedere · …) mentre il pannello diceva già quelle nuove: lo STESSO cavo con
+    //    due alfabeti su due schermate — cioè il difetto che lib/certainty.js viene a
+    //    chiudere, sopravvissuto dentro la propria cura perché la conversione si era
+    //    contata sulle schermate ricordate invece che sui CHIAMANTI della funzione vecchia.
+    // ⚠️ Qui c'è SOLO lo stato di prova: `linkState` non arriva fino a questa lista, e
+    //    non è una mancanza — `certaintyForCable` tratta il secondo argomento assente
+    //    come «nessuna seconda fonte», che è esattamente il caso. La precedenza fra i
+    //    due motori resta quella del pannello, decisa in un posto solo.
+    // ⚠️ E il colore non si sceglie qui: lo dà `.cty-<grado>` dai token.
+    if (it.proof && typeof certaintyForCable === 'function') {
+        const _c = certaintyForCable(it.proof, null);
+        if (_c.grade) {
+            const pill = _el('span', 'cty-pill cty-' + _c.grade);
+            pill.appendChild(_el('span', 'cty-dot'));
+            pill.appendChild(_el('span', null, t('cty.' + _c.grade)));
+            // Tooltip nativo (`title`), come ogni altro suggerimento della Panoramica:
+            // il `data-tip` del pannello è un ::after che qui verrebbe tagliato dalla
+            // lista che scorre. Il TESTO però è lo stesso del pannello — definizione
+            // più chi dei due motori sta parlando.
+            pill.title = t('cty.tip.' + _c.grade) + (_c.source ? ' — ' + t('cty.src.' + _c.source) : '');
+            inner.appendChild(pill);
+        }
     }
     // Provenienza per-voce (misurato/dedotto): la lib da' il token, la parola
     // la mette qui — mai stringhe di interfaccia dentro la lib.

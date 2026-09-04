@@ -53,6 +53,7 @@ create drift. Instead every tag string is made resolvable as-is.
 | [no-invention.md](no-invention.md) | InfraNet computes, the AI narrates | `paletto #2`, "no invention" |
 | [vendor-neutral.md](vendor-neutral.md) | Build for every vendor; the lab only validates | `vendor-neutral`, `REGOLA CARDINE ③`, `paletto 3`, `vendor ≠ type` |
 | [measured-not-declared.md](measured-not-declared.md) | A reported fact is measured, or labelled as not | `misurato≠dichiarato`, "observed", "theoretical max, not a meter reading" |
+| [one-certainty-alphabet.md](one-certainty-alphabet.md) | One alphabet for "how sure is this"; the engines stay separate | `NOTAZIONE UNICA DELLA CERTEZZA`, `cty.*`, `NOT_A_CERTAINTY`, `.cty-<grade>` |
 | [pure-lib-modules.md](pure-lib-modules.md) | Decision logic in pure, tested `lib/` modules | `ADR D4` |
 
 ## Decisions documented in `ARCHITECTURE.md` (no separate file)

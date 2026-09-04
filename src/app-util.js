@@ -98,54 +98,19 @@ export function _shadeHex(hex, factor) {
     return `#${[r, g, b].map(v => v.toString(16).padStart(2, '0')).join('')}`;
 }
 
-/**
- * L'inchiostro leggibile sopra un fondo pieno: bianco sui fondi scuri, lo scuro
- * di pagina sui fondi chiari. REGOLA, non elenco di casi.
- *
- * ⚠️ Nasce da una misura. I badge a fondo pieno scrivevano `color:#fff` fisso, e
- * quattro dei dodici colori non reggevano la soglia AA (4,5:1) col bianco sopra:
- * `#f5a623` «Inferito · da verificare» a **2,03:1** — cioè il badge che dice
- * «non fidarti di questo cavo» era il meno leggibile di tutti — poi `#bf8700`
- * (3,14), `#a371f7` (3,35), `#e8640a` (3,36). Girando l'inchiostro invece del
- * fondo diventano 9,34 · 6,02 · 5,64 · 5,64 **senza cambiare un colore dell'app**.
- *
- * Il fondo resta la decisione di chi disegna; il contrasto smette di esserlo.
- *
- * ⚠️ NESSUNA SOGLIA DI LUMINANZA, di proposito: si CONFRONTANO i due contrasti e
- * vince il maggiore. Una soglia è un numero da azzeccare, e il primo che avevo
- * scritto (0,45) ne correggeva uno su quattro — lasciando `#bf8700` a 3,14 con la
- * guardia contenta. Il punto di pareggio vero sta a 0,204 di luminanza, ma
- * scriverlo vorrebbe dire ricalcolarlo a mano ogni volta che cambia INK_DARK.
- *
- * Un colore non-hex (rgba, var(), un nome CSS) NON si può misurare qui: si
- * risponde bianco, cioè quello che il codice faceva prima.
- * @param {string} hex fondo del badge, forma #rrggbb
- * @returns {string} il colore del testo
- */
-const INK_DARK = '#0d1117';   // = --bg-color del tema scuro
-const INK_LIGHT = '#fff';
-export function badgeInk(hex) {
-    if (!hex || !/^#[0-9a-f]{6}$/i.test(hex)) return INK_LIGHT;
-    return _contrast(INK_DARK, hex) > _contrast(INK_LIGHT, hex) ? INK_DARK : INK_LIGHT;
-}
-
-/** Luminanza relativa WCAG 2.1 di un hex #rgb o #rrggbb. */
-function _relLuminance(hex) {
-    let h = hex.slice(1);
-    if (h.length === 3) h = h.split('').map(c => c + c).join('');
-    const chan = (i) => {
-        const c = (parseInt(h.slice(i * 2, i * 2 + 2), 16) || 0) / 255;
-        return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
-    };
-    return 0.2126 * chan(0) + 0.7152 * chan(1) + 0.0722 * chan(2);
-}
-
-/** Rapporto di contrasto WCAG 2.1 fra due colori hex. */
-function _contrast(a, b) {
-    const la = _relLuminance(a), lb = _relLuminance(b);
-    const hi = Math.max(la, lb), lo = Math.min(la, lb);
-    return (hi + 0.05) / (lo + 0.05);
-}
+// ⛔ QUI STAVA `badgeInk(hex)` — l'inchiostro leggibile sopra un fondo PIENO, con
+//    le sue due funzioni private di luminanza/contrasto WCAG. Ritirato il 04/09
+//    insieme al suo unico chiamante, il badge dello stato-di-prova del cavo.
+//    ⭐ Era la cura giusta per il problema di allora: quattro dei dodici fondi dei
+//    badge non reggevano la soglia AA col `color:#fff` fisso che c'era sopra — il
+//    peggiore a 2,03:1 era proprio quello che diceva «non fidarti di questo cavo».
+//    ⭐ Ma la cura MIGLIORE è arrivata dopo, ed è strutturale: con la notazione
+//    unica un grado definisce UN inchiostro preso dai token, e tinta, bordo e
+//    pallino si ricavano da `currentColor` con `color-mix`. Non esiste più un fondo
+//    pieno scelto a mano su cui calcolare cosa scriverci sopra — quindi non esiste
+//    più la domanda. Tenere l'attrezzo renderebbe facile la mossa abbandonata.
+//    Il ragionamento per esteso è nella storia di questo file e in
+//    `docs/adr/one-certainty-alphabet.md`.
 
 // ─────────────────────────────────────────────────────────────
 // ANCORE VISUALI — quale ELEMENTO rappresenta una porta o un apparato

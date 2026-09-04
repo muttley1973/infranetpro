@@ -89,6 +89,20 @@ lib/                   Shared browser + test modules (the heart of the app)
                     and `temporal-confidence.js` (30d/60d) answer different questions and
                     legitimately keep different half-lives. Composes with source-ref.js
                     (epistemics vs identity), so there is no fourth `imported` origin.
+  certainty.js      ONE ALPHABET for "how much do I trust this", over engines that stay
+                    separate. Six signs — measured / declared / derived / contradicted /
+                    undeclared / unread — and a pure map from each engine's REAL keys onto
+                    them (proof.js, linkstate.js, temporal-confidence.js, the Overview's
+                    `prov`, presence.js). ⛔ It does NOT merge the engines: provenance.js is
+                    right that they keep legitimately different half-lives, and each one
+                    still computes exactly what it computed. What is unified is the WORD.
+                    ⚠️ And no colour is decided here — the grade is semantic, the ink comes
+                    from the stylesheet's tokens (`.cty-<grade>`); a guard greps this file
+                    for a hex literal. Keys that are NOT a certainty are declared as such
+                    (`NOT_A_CERTAINTY`) rather than left unmapped, because silence would not
+                    distinguish "different axis" from "forgotten": `lag` says what a link
+                    IS, and Discovery's high/mid/low say how STRONG a guess is. The
+                    reasoning is in §4 (one question, one alphabet).
   inter-site.js     The multi-site layer, ABOVE the per-site projects: an organisation with
                     its sites (each a projectRef — a reference, never a copy), WAN uplinks and
                     inter-site links over TWO closed vocabularies, because one field held two
@@ -935,6 +949,50 @@ observed MAC at one of them, it is that device's MAC and the finding is dropped;
 device needs only one of its live addresses to match. An address the document *does* have a MAC
 for stays out: there a different MAC is a changed identity, and deserves a signal of its own.
 
+### One question, one alphabet: how certainty is said
+
+Looking at any row a person asks one question — *how much do I trust this?* — and until
+2.11.3 the app answered it in **seven vocabularies**: `proof`, `linkstate`,
+`temporal-confidence`, the Overview's `prov`, Discovery's `conf`, `status`, and the
+presence classes. They were never synonyms, which is why the worst case was measurable: a
+cable's Status row could mount **five** badges, three of them answering that one question
+in three incompatible notations — a link-state word, a proof word, and a percentage that
+contradicted both.
+
+**`lib/certainty.js` unifies the ALPHABET, not the model.** The engines are not merged and
+none of them changed: `provenance.js` is right that they keep legitimately different
+half-lives — a declaration does not age, a measurement does, and at a rate that depends on
+what was measured. What is shared is the sign a reader sees: six of them, ordered from the
+most load-bearing to the least — `measured`, `declared`, `derived`, `contradicted`,
+`undeclared`, `unread`. Four are not new: they are the provenance dots the Overview already
+had and which never left that screen.
+
+Three properties of that alphabet carry weight:
+
+- **The two absences are separate signs, drawn identically.** `undeclared` is the absence of
+  a *declaration*, `unread` the absence of a *reading*: symmetric to the two positive
+  origins, and they ask different people to move — one asks you to write something, the
+  other asks a probe to go and look. Collapsing them (as `prov:'none'` did) told the reader
+  a value was missing without saying who had to act, and on the Overview's `verify` row the
+  label *not declared* was plainly false, since no declaration was missing there. But the
+  empty ring is the same for both: the word carries the meaning and the colour only confirms
+  it — the rule `11-overview.css` had already written for itself.
+- **A key that is not a certainty is DECLARED as such** (`NOT_A_CERTAINTY`), because silence
+  would not distinguish "this is a different axis" from "somebody forgot to map it".
+  `linkstate`'s `lag` says what a link *is* — the same axis as TRUNK/ACCESS — not how much
+  it is trusted; Discovery's high/mid/low say how *strong* a guess is, and that score is an
+  additive vote over heterogeneous signals that reaches «high» with no SNMP and no LLDP at
+  all (NetBIOS 14 + SMB 20 + services 18 + hostname 12 + MAC 12 + ping 10 = 86), so grading
+  it `measured` would pass a well-summed pile of clues off as a reading. The difference is
+  qualitative, not quantitative — which `lib/linkstate.js` had already written about itself.
+- **The grade carries no colour.** `.cty-<grade>` defines one ink and tint, border and dot
+  are derived from it with `color-mix`, so a grade's colour exists in exactly one place.
+
+`test/certainty.test.js` **derives** each engine's key set from that engine's own source
+instead of listing it: the map necessarily enumerates, so the proof must not — a state added
+to `proof.js` or `linkstate.js` and not mapped here turns the guard red rather than slipping
+through as an unlabelled badge.
+
 ---
 
 ## 5. Recipe: add a new device type
@@ -975,7 +1033,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **3,523 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **3,544 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`

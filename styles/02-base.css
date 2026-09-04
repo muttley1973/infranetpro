@@ -147,8 +147,10 @@
            e il bottone piu' importante della barra non e' il posto dove aggiungerne una
            quarta. ⚠️ Se quella pastiglia cambia tono, questo va cambiato con lei: sono
            due punti che dicono la stessa cosa e nessun cancello li confronta.
-           L'inchiostro non e' scelto a occhio, e' la domanda di badgeInk(): su questa
-           ambra risponde #000 (9,40:1) e non il bianco (2,23:1). Hover piu' chiaro, 10,98:1.
+           L'inchiostro non e' scelto a occhio ma MISURATO: su questa ambra il nero fa
+           9,40:1 e il bianco 2,23:1, quindi #000. Hover piu' chiaro, 10,98:1.
+           ⚠️ La misura la faceva `badgeInk()`, ritirata il 04/09 con l'ultimo badge a
+           fondo pieno: il NUMERO resta vero, la funzione non c'e' piu'.
            ⚠️ Il peso 600 sta sul BOTTONE, non sullo stato: se stesse sullo stato la
            larghezza cambierebbe fra i due e la barra sussulterebbe (prima succedeva —
            600 da pulito, normale da sporco). Cosi' il caso peggiore per il budget di

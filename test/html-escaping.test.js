@@ -341,7 +341,11 @@ const CAPS = {
     // della provenienza, VLAN dichiarata e mostrata, id del link — ora passano
     // dall'escaper invece di essere interpolati crudi. Il colore arriva dal color
     // picker dell'utente: era il piu' esposto dei quattro.
-    'src/app-properties-link.js': 57,
+    // −2 (2.11.3, da 57): il cricchetto chiedeva da un po' di stringere questo tetto —
+    // la riga «Stato» era passata alla notazione unica e due interpolazioni non provate
+    // se n'erano andate con i badge a fondo pieno. Un tetto lasciato largo e' spazio
+    // libero per una regressione: si abbassa appena lo strumento lo dice.
+    'src/app-properties-link.js': 55,
     'src/app-properties-node-devices.js': 87,
     // −3 (2.10.1, da 49): la riga del gruppo LAG ha guadagnato il campo VLAN del
     // bundle, e nel farlo i quattro `data-gid` di quella riga sono passati
@@ -367,13 +371,14 @@ const CAPS = {
     'src/app-topology-overlay.js': 10,
     'src/app-vlan-autopoll.js': 19,
     'src/app-wifi.js': 29,
-    // +1 (2026-08-31): `${badgeInk(m.color)}` nel badge di stato-di-prova del cavo.
-    // `badgeInk` (src/app-util.js) ritorna UNO DI DUE LETTERALI scritti nel sorgente
-    // ('#fff' o '#0d1117') e nient'altro: non è una funzione che possa restituire
-    // testo libero. Lo scanner dichiara di non fare analisi interprocedurale, quindi
-    // non può dimostrarlo. Avvolgerla in escapeHTML() fingerebbe un rischio che non
-    // c'è — stesso ragionamento già scritto sopra per CABLE_VLAN_UNKNOWN.
-    'src/app.js': 3,
+    // −2 (2.11.3, da 3): il badge di stato-di-prova del cavo è stato RITIRATO, e con
+    // lui le sue due interpolazioni non provate — `${badgeInk(m.color)}` e `${m.color}`.
+    // ⭐ Vale la pena dire come si chiude una deroga: la nota precedente spiegava
+    // perché quelle due fossero sicure pur non essendo dimostrabili (`badgeInk`
+    // ritornava uno di due letterali, e lo scanner non fa analisi interprocedurale).
+    // Una deroga motivata resta comunque una deroga: il modo migliore di chiuderla
+    // non è dimostrarla, è che sparisca il codice che la chiedeva.
+    'src/app.js': 1,
 };
 
 test('cricchetto: nessun file supera il suo tetto di interpolazioni non provate', () => {

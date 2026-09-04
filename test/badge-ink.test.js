@@ -1,55 +1,34 @@
 'use strict';
 // ============================================================
-// CONTRASTO DEI BADGE A FONDO PIENO
+// CONTRASTO — e l'invariante che ha preso il posto della copertura
 // ============================================================
-// I badge che dicono la provenienza di un cavo (linkstate, protocollo) e il suo
-// stato-di-prova sono pastiglie a FONDO PIENO. Fino al 2026-08-31 scrivevano
-// `color:#fff` fisso, e quattro dei fondi non reggevano la soglia AA col bianco
-// sopra. Il peggiore era il piu' grave nel merito: `#f5a623`, «Inferito · da
-// verificare», a 2,03:1 — cioe' il badge che avverte «non fidarti di questo
-// cavo» era il meno leggibile di tutti.
+// Questo file nasce il 2026-08-31 su un difetto misurato: i badge del cavo erano
+// pastiglie a FONDO PIENO che scrivevano `color:#fff` fisso, e quattro dei fondi
+// non reggevano la soglia AA col bianco sopra. Il peggiore era il piu' grave nel
+// merito: `#f5a623`, «Inferito · da verificare», a 2,03:1 — cioe' il badge che
+// avverte «non fidarti di questo cavo» era il meno leggibile di tutti.
 //
-// La cura non ha cambiato un colore: `badgeInk()` (src/app-util.js) sceglie
-// l'inchiostro confrontando i due contrasti. Questo test tiene la promessa.
+// ⭐ LA CURA E' CAMBIATA DUE VOLTE, e la seconda ha tolto il problema invece di
+//    misurarlo meglio. Prima `badgeInk()` sceglieva l'inchiostro confrontando i
+//    due contrasti (il fondo restava scelto a mano). Poi e' arrivata la notazione
+//    unica: un grado definisce UN inchiostro preso dai token, e tinta, bordo e
+//    pallino si ricavano da `currentColor` con `color-mix`. Non esiste piu' un
+//    fondo pieno scelto a mano, quindi non esiste piu' la domanda «cosa ci scrivo
+//    sopra» — e il 04/09, con l'ultima tabella (`_CABLE_PROOF_BADGE`), se n'e'
+//    andato anche `badgeInk`, che serviva solo a quello.
 //
-// ⚠️ I COLORI NON SONO ELENCATI QUI: si LEGGONO dalle tabelle nel sorgente. Se
-// domani si aggiunge un badge con un fondo nuovo, questo test lo prende da solo.
-// Elencarli qui vorrebbe dire che il verde non dimostra piu' niente — un lato
-// deriva, l'altro enumera, e il buco non si vede.
+// ⚠️ Quando una copertura perde il suo soggetto NON si cancella: si converte in
+//    un invariante che vieta al soggetto di tornare. Le due prove sui contrasti
+//    dei fondi pieni sono diventate l'ultimo test di questo file. Se domani serve
+//    davvero un badge a fondo pieno, `badgeInk` e le sue prove stanno nella storia
+//    di git e vanno rimessi INSIEME — non uno senza l'altra.
 const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const { pathToFileURL } = require('node:url');
 
 const ROOT = path.join(__dirname, '..');
 const AA = 4.5;   // WCAG 2.1 AA, testo normale
-
-/** Tutti i fondi hex delle tabelle di colore dei badge, letti dal sorgente. */
-function badgeBackgrounds() {
-  const found = new Map();   // hex -> da dove viene
-  const sorgenti = [
-    // app.js: _CABLE_PROOF_BADGE = { 'derived-strong': { key:…, color:'#1a7f37' }, … }
-    ['src/app.js', /_CABLE_PROOF_BADGE\s*=\s*\{[\s\S]*?\n\};/],
-    // ⚠️ QUI CE N'ERANO ALTRE DUE — `_lsCol` e `_lsProtoCol` in
-    // src/app-properties-link.js — e non sono sparite per sbaglio: la riga «Stato»
-    // del cavo e' passata alla notazione unica (lib/certainty.js), dove il colore
-    // NON si sceglie piu' nel punto in cui si disegna. Lo danno i token via
-    // color-mix (.cty-* in styles/06-panels.css), quindi non c'e' piu' un fondo
-    // pieno da controllare: c'e' una tinta al 13% sotto l'inchiostro del token.
-    // La copertura persa e' riconvertita nell'invariante qui sotto, che vieta di
-    // riportarle indietro — se no il difetto rientra dalla finestra.
-  ];
-  for (const [rel, rx] of sorgenti) {
-    const src = fs.readFileSync(path.join(ROOT, rel), 'utf8');
-    const blocco = src.match(rx);
-    assert.ok(blocco, `tabella colori non trovata in ${rel}: la guardia sarebbe cieca`);
-    for (const m of blocco[0].matchAll(/#[0-9a-fA-F]{6}\b/g)) {
-      if (!found.has(m[0])) found.set(m[0], rel);
-    }
-  }
-  return found;
-}
 
 function relLuminance(hex) {
   let h = hex.slice(1);
@@ -65,46 +44,6 @@ function contrast(a, b) {
   const la = relLuminance(a), lb = relLuminance(b);
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 }
-
-test('badge a fondo pieno: ogni colore raggiunge la soglia AA con l\'inchiostro scelto', async () => {
-  const { badgeInk } = await import(pathToFileURL(path.join(ROOT, 'src', 'app-util.js')).href);
-  const fondi = badgeBackgrounds();
-  // ⚠️ Era 8 quando le tabelle a mano erano tre. Ora la sola rimasta e'
-  // _CABLE_PROOF_BADGE, che di fondi distinti ne ha 5 (#cf222e sta su due stati).
-  // Il pavimento resta perche' serve a dire «la guardia vede ancora qualcosa»: se
-  // scende, o la tabella ha cambiato forma o qualcuno l'ha svuotata.
-  assert.ok(fondi.size >= 5, `letti solo ${fondi.size} fondi: la tabella e' cambiata di forma e la guardia non la vede piu'`);
-
-  const bocciati = [];
-  for (const [hex, dove] of fondi) {
-    const cr = contrast(badgeInk(hex), hex);
-    if (cr < AA) bocciati.push(`  ${hex} (${dove}): ${cr.toFixed(2)}:1 con ${badgeInk(hex)}`);
-  }
-
-  assert.deepStrictEqual(bocciati, [],
-    `${bocciati.length} fondi di badge non arrivano a ${AA}:1 con nessuno dei due inchiostri.\n` +
-    `Non basta girare il testo: quel COLORE va scelto piu' scuro o piu' chiaro.\n` + bocciati.join('\n'));
-});
-
-test('badgeInk: sceglie l\'inchiostro col contrasto migliore, non una soglia', async () => {
-  const { badgeInk } = await import(pathToFileURL(path.join(ROOT, 'src', 'app-util.js')).href);
-
-  // I due estremi: il bianco non puo' che volere inchiostro scuro, e viceversa.
-  assert.strictEqual(badgeInk('#ffffff'), '#0d1117');
-  assert.strictEqual(badgeInk('#000000'), '#fff');
-
-  // Il caso che aveva smascherato la prima versione a soglia fissa: #bf8700
-  // ha luminanza 0,28 — sotto lo 0,45 che avevo scritto, e quindi prendeva il
-  // bianco e restava a 3,14:1.
-  assert.strictEqual(badgeInk('#bf8700'), '#0d1117');
-  assert.ok(contrast(badgeInk('#bf8700'), '#bf8700') > AA);
-
-  // Un valore che non e' un hex non si puo' misurare: si risponde bianco, cioe'
-  // quello che il codice faceva prima di questa funzione.
-  for (const v of ['var(--accent)', 'rgba(0,0,0,.5)', 'red', '', null, undefined]) {
-    assert.strictEqual(badgeInk(v), '#fff');
-  }
-});
 
 // ── ④ L'ACCENT SOPRA UNA TINTA DI SE STESSO (`.toolbar-btn.soft`) ───────────
 // Stessa famiglia dei badge, difetto opposto: qui il colore non e' un fondo
@@ -160,22 +99,60 @@ for (const [nome, selettore] of [['scuro', ':root {'], ['chiaro', 'html[data-the
   });
 }
 
-// ⭐ L'INVARIANTE CHE SOSTITUISCE LA COPERTURA RITIRATA.
-// La riga «Stato» del cavo montava fino a cinque segni, tre dei quali con il
-// fondo scritto A MANO nel punto in cui si disegnava — ed e' cosi' che
-// «Inferito · da verificare» era finito a 2,03:1. Ora quel pannello non sceglie
-// piu' colori: usa le pastiglie .cty-*, che prendono tinta, bordo e inchiostro
-// dallo stesso token via color-mix. Questa prova impedisce il ritorno indietro.
-test('⚠️ il pannello del cavo non torna a dipingersi i badge a mano', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src', 'app-properties-link.js'), 'utf8');
-  // Le due tabelle ritirate non devono ricomparire.
-  assert.ok(!/const\s+_lsCol\s*=/.test(src), '_lsCol e\' tornata: i colori dei badge sono di nuovo scelti nel renderer');
-  assert.ok(!/const\s+_lsProtoCol\s*=/.test(src), '_lsProtoCol e\' tornata: idem');
-  // E la riga deve continuare a montare la pastiglia della notazione unica.
-  assert.ok(/cty-pill/.test(src), 'la pastiglia .cty-pill non c\'e\' piu\': la riga e\' tornata a un alfabeto suo');
-  // ⚠️ Nessun fondo hex scritto a mano dentro un badge di quel pannello. Restano
-  // ammessi i colori del chip TRUNK, che e' l'asse IDENTITA' e non la certezza.
-  const badgeHex = [...src.matchAll(/class="(?:link-state-badge|cty-pill)[^"]*"[^>]*background:\s*(#[0-9a-fA-F]{3,6})/g)];
-  assert.deepStrictEqual(badgeHex.map((m) => m[1]), [],
-    'un badge di questo pannello ha di nuovo un fondo hex scritto a mano');
+// ⭐ L'INVARIANTE CHE SOSTITUISCE LA COPERTURA RITIRATA — su TUTT'E DUE le
+// superfici che parlano della certezza di un cavo.
+// La riga «Stato» del pannello montava fino a cinque segni, tre col fondo scritto
+// A MANO nel punto in cui si disegnava; la lista «Cavi» della Panoramica montava
+// il sesto vocabolario (Forte · Debole · Fantasma · Da rivedere · Porta spenta ·
+// Dichiarato) con la sua tabella di colori. Oggi nessuna delle due sceglie un
+// colore: usano le pastiglie `.cty-*`, che prendono tinta, bordo e inchiostro
+// dallo stesso token via color-mix.
+// ⚠️ Le due superfici si ELENCANO qui, e l'elenco e' il punto debole della prova:
+//    se ne nasce una terza va aggiunta. Il presidio contro la dimenticanza sta nel
+//    caso qui sotto, che vieta il RITORNO della funzione vecchia ovunque — quello
+//    invece non si puo' dimenticare, perche' cerca in tutto `src/`.
+for (const rel of ['src/app-properties-link.js', 'src/app-overview.js']) {
+  test(`⚠️ ${rel} non torna a dipingersi i badge della certezza a mano`, () => {
+    const src = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+    // Le tabelle di colore ritirate non devono ricomparire.
+    assert.ok(!/const\s+_lsCol\s*=/.test(src), '_lsCol e\' tornata: i colori dei badge sono di nuovo scelti nel renderer');
+    assert.ok(!/const\s+_lsProtoCol\s*=/.test(src), '_lsProtoCol e\' tornata: idem');
+    // E la superficie deve continuare a montare la pastiglia della notazione unica.
+    assert.ok(/cty-pill/.test(src), `${rel}: la pastiglia .cty-pill non c'e' piu', la superficie e' tornata a un alfabeto suo`);
+    // ⚠️ Nessun fondo hex scritto a mano dentro un badge di certezza. Restano
+    // ammessi i colori del chip TRUNK/ACCESS, che e' l'asse IDENTITA', non la certezza.
+    const badgeHex = [...src.matchAll(/class="(?:link-state-badge|cable-proof-badge|cty-pill)[^"]*"[^>]*background:\s*(#[0-9a-fA-F]{3,6})/g)];
+    assert.deepStrictEqual(badgeHex.map((m) => m[1]), [],
+      `un badge di certezza in ${rel} ha di nuovo un fondo hex scritto a mano`);
+  });
+}
+
+// ⚠️ E il SESTO VOCABOLARIO non rientra da nessuna porta. Questo caso non elenca
+// superfici: cerca in tutto `src/` e in `lib/i18n.js`, quindi non lo si puo'
+// aggirare aggiungendo un file nuovo.
+test('⚠️ il badge di stato-di-prova (Forte/Debole/Fantasma/…) non torna', () => {
+  const files = [];
+  (function walk(dir) {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (e.name.endsWith('.js')) files.push(p);
+    }
+  })(path.join(ROOT, 'src'));
+  files.push(path.join(ROOT, 'lib', 'i18n.js'));
+  assert.ok(files.length > 20, `letti solo ${files.length} file: la guardia sarebbe cieca`);
+
+  const colpevoli = [];
+  for (const f of files) {
+    const src = fs.readFileSync(f, 'utf8');
+    // Solo il CODICE: i commenti raccontano perche' e' stato tolto, e devono poterlo dire.
+    const senzaCommenti = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+    if (/_CABLE_PROOF_BADGE|_cableProofBadgeHtml|['"]proof\.badge\./.test(senzaCommenti)) {
+      colpevoli.push(path.relative(ROOT, f));
+    }
+  }
+  assert.deepStrictEqual(colpevoli, [],
+    'il badge di stato-di-prova e\' tornato: e\' un SESTO vocabolario per «quanto mi fido di questo?»,\n' +
+    'che lib/certainty.js risponde con sei parole sole. Se il ritorno e\' voluto, togli questa guardia\n' +
+    'dicendo perche\' — e rimetti anche badgeInk con le sue prove di contrasto.\n' + colpevoli.join('\n'));
 });
