@@ -2115,6 +2115,9 @@ function _syncLangButtons(){
 export function switchLang(l){
     if(typeof setLang!=='function') return;
     setLang(l);
+    // <html lang> segue la lingua scelta: prima restava «it» anche in inglese
+    // (screen reader e correttore del browser leggevano la lingua sbagliata).
+    document.documentElement.lang = l;
     _syncLangButtons();
     applyStaticI18n();
     if(typeof _refreshTopoBtnState==='function') _refreshTopoBtnState(); // bottone topologia: innerHTML JS

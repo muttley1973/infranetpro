@@ -568,6 +568,7 @@ function _addReportPages(doc, report, projName, date, SVGtoPDF, options = {}, la
         _rHdr(doc, `${T} - ${rackName}`, projName, date);
         try {
           SVGtoPDF(doc, rack.svg, x, 34, {
+            imageCallback: _svgImageCallback,
             width: rW, height: rH, assumePt: true,
             preserveAspectRatio: 'xMidYMid meet',
             fontCallback: (_family, bold) => bold ? 'Helvetica-Bold' : 'Helvetica',
@@ -742,6 +743,7 @@ function _addReportPages(doc, report, projName, date, SVGtoPDF, options = {}, la
     _rHdr(doc, T, projName, date);
     try {
       SVGtoPDF(doc, report.topoSvg, _RM, 34, {
+        imageCallback: _svgImageCallback,
         width: rW, height: rH, assumePt: true,
         preserveAspectRatio: 'xMidYMid meet',
         fontCallback: () => 'Helvetica',
@@ -1521,6 +1523,7 @@ function _addWanPages(doc, wan, projName, date, lang = 'it', SVGtoPDF = null) {
     const yMap = _rSub(doc, testata, _TOP);
     try {
       SVGtoPDF(doc, mappa.svg, M, yMap, {
+        imageCallback: _svgImageCallback,
         width: rW, height: rH, assumePt: true,
         preserveAspectRatio: 'xMidYMid meet',
         fontCallback: (_family, bold) => (bold ? 'Helvetica-Bold' : 'Helvetica'),
@@ -1953,4 +1956,14 @@ function _addOverviewPages(doc, overview, projName, date, lang = 'it') {
   }
 }
 
-module.exports = { _loadPdfDeps, _addReportPages, _addCoverPage, _addChangelogPages, _addSparePages, _addPduPages, _addAssetRegisterPages, _addRecoveryPages, _addWanPages, _wanMapSvg, _addOverviewPages, _assetDeviceLabel, _fmtRevised, _rt, _fit, _wrapFit };
+// imageCallback per svg-to-pdfkit (smoke 06/09): senza, un <image href="C:/…">
+// nell'SVG faceva leggere a pdfkit un file LOCALE del server (openImage →
+// fs.readFileSync) e lo incorporava nel PDF. Passa solo immagini inline PNG/JPEG
+// in base64; tutto il resto → '' (pdfkit non apre nulla, svg-to-pdfkit emette
+// un warning e salta l'elemento). Va passato a OGNI chiamata SVGtoPDF.
+function _svgImageCallback(link) {
+  const s = String(link == null ? '' : link).trim();
+  return /^data:image\/(png|jpe?g);base64,/i.test(s) ? s : '';
+}
+
+module.exports = { _loadPdfDeps, _svgImageCallback, _addReportPages, _addCoverPage, _addChangelogPages, _addSparePages, _addPduPages, _addAssetRegisterPages, _addRecoveryPages, _addWanPages, _wanMapSvg, _addOverviewPages, _assetDeviceLabel, _fmtRevised, _rt, _fit, _wrapFit };

@@ -413,6 +413,21 @@ test('POST /import come non-admin → 403', async () => {
 // «novita'» vere e inutili — misurato su un NetBox reale: 181. Dalla 2.9.2 il
 // documento registra da dove viene e il confronto rilegge esattamente quella
 // fetta: la prova e' nella QUERY, non nel risultato.
+// Smoke 06/09: `projectId` andava crudo a loadProject → "../projects/900" leggeva
+// lo stesso file per un'altra via, e un id inesistente distingueva 404 da 400:
+// un oracolo di esistenza su qualunque .json raggiungibile dalla cartella.
+test('POST /compare: projectId non intero → 400, senza toccare il filesystem', async () => {
+  for (const cattivo of ['../projects/900', '../users', '900.json', '-1', '0', 'abc', '', '1.5']) {
+    const r = await fetch(`${base}${P}/compare`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId: cattivo, selection: {} }),
+    });
+    assert.equal(r.status, 400, JSON.stringify(cattivo));
+    const j = await r.json();
+    assert.match(j.error, /projectId/);
+  }
+});
+
 test('POST /compare: l\'ambito viene dal progetto, non dal mago', async () => {
   const saved = { id: 900, name: 'Sede HQ', state: {
     nodes: [{ id: 'nb-dev-100', name: 'SW-CORE-01', type: 'switch', source: { deviceId: 100 } }],

@@ -114,13 +114,21 @@ function nextUserId(users) {
   return users.reduce((max, u) => u.id > max ? u.id : max, 0) + 1;
 }
 
-// ---- Invalidazione sessioni ------------------------------------------------
+// ---- Invalidazione sessioni: un'EPOCA per utente ----------------------------
 //
-// Set in-memory degli ID utente le cui sessioni devono essere invalidate.
-// Viene popolato quando la password o il ruolo di un utente vengono cambiati.
-// Si svuota al riavvio del server (le sessioni Express sono già perse al restart).
+// Mappa in-memory id utente → epoca (contatore). Ogni sessione porta con sé
+// l'epoca letta al login; un cambio di password o ruolo, o la cancellazione,
+// incrementano l'epoca e ogni sessione più vecchia muore alla prima richiesta.
+// Un NUOVO login non riabilita le vecchie: legge l'epoca corrente, le altre
+// restano indietro. (Smoke 06/09: con un Set svuotato al login, una sessione
+// declassata e lasciata intatta tornava admin appena l'utente rientrava
+// altrove.) Si azzera al riavvio, come le sessioni Express.
 
-const _invalidatedUsers = new Set();
+const _sessionEpoch = new Map();
+const _epochOf   = id => _sessionEpoch.get(id) || 0;
+const _bumpEpoch = id => _sessionEpoch.set(id, _epochOf(id) + 1);
+// Forma pubblica dell'utente in sessione: l'epoca resta dentro il server.
+const _publicUser = u => ({ id: u.id, username: u.username, role: u.role });
 
 // ---- Primo avvio: crea admin di default ------------------------------------
 
@@ -208,8 +216,9 @@ function requireAuth(req, res, next) {
     return next();
   }
   if (req.session?.user) {
-    // Controlla se la sessione è stata invalidata (cambio password / ruolo)
-    if (_invalidatedUsers.has(req.session.user.id)) {
+    // Sessione più vecchia dell'epoca corrente (cambio password / ruolo, utente
+    // cancellato e ricreato con lo stesso id) → distrutta.
+    if ((req.session.user.epoch || 0) !== _epochOf(req.session.user.id)) {
       req.session.destroy(() => {});
       if (req.method === 'GET' && !req.path.startsWith('/api/'))
         return res.redirect('/login');
@@ -237,7 +246,9 @@ function loginPage(req, res) {
 
 function loginApi(req, res) {
   const { username, password } = req.body ?? {};
-  if (!username || !password) {
+  // Tipo controllato PRIMA di usarli: un body {"username":{}} arrivava a
+  // toLowerCase() e usciva come 500 (smoke 06/09).
+  if (typeof username !== 'string' || typeof password !== 'string' || !username || !password) {
     return res.status(400).json({ ok: false, error: 'Username e password obbligatori' });
   }
 
@@ -252,11 +263,12 @@ function loginApi(req, res) {
     return res.status(401).json({ ok: false, error: 'Credenziali non valide' });
   }
 
-  req.session.user = { id: user.id, username: user.username, role: user.role };
-  _invalidatedUsers.delete(user.id); // nuovo login → rimuove eventuale invalidazione pendente
+  // L'epoca CORRENTE entra nella sessione nuova; quelle già aperte restano
+  // all'epoca in cui sono nate e, se è passata, muoiono alla prossima richiesta.
+  req.session.user = { id: user.id, username: user.username, role: user.role, epoch: _epochOf(user.id) };
   req.session.save(err => {
     if (err) return res.status(500).json({ ok: false, error: 'Errore sessione' });
-    res.json({ ok: true, user: req.session.user });
+    res.json({ ok: true, user: _publicUser(req.session.user) });
   });
 }
 
@@ -268,7 +280,7 @@ function logoutApi(req, res) {
 }
 
 function meApi(req, res) {
-  res.json({ ok: true, user: req.session.user });
+  res.json({ ok: true, user: _publicUser(req.session.user) });
 }
 
 // ---- User CRUD (admin only) -------------------------------------------------
@@ -326,7 +338,7 @@ function updateUser(req, res) {
 
   // Invalida le sessioni attive dell'utente se password o ruolo cambiano
   // (check PRIMA di aggiornare users[idx] per confrontare il valore corrente)
-  if (password || (role && role !== users[idx].role)) _invalidatedUsers.add(id);
+  if (password || (role && role !== users[idx].role)) _bumpEpoch(id);
 
   if (role) users[idx].role = role;
   if (password) users[idx].passwordHash = bcrypt.hashSync(password, BCRYPT_COST);
@@ -351,7 +363,7 @@ function deleteUser(req, res) {
     }
   }
 
-  _invalidatedUsers.add(id); // forza logout immediato se l'utente ha una sessione attiva
+  _bumpEpoch(id); // ogni sessione dell'utente muore alla prossima richiesta; un futuro utente con lo stesso id non le eredita
   saveUsers(users.filter(u => u.id !== id));
   res.json({ ok: true, deleted_id: id });
 }

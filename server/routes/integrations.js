@@ -26,7 +26,7 @@ const dcimMap = require('../../lib/dcim-map');
 const dcimWan = require('../../lib/dcim-wan');
 const dcimVpn = require('../../lib/dcim-vpn');
 const deviceCatalog = require('../../lib/device-catalog');
-const { nextId, saveProject, loadProject } = require('../projects-store');
+const { nextId, saveProject, loadProject, safeProjectId } = require('../projects-store');
 const dcimDiff = require('../../lib/dcim-diff');
 
 const router = express.Router();
@@ -669,8 +669,10 @@ router.post('/api/integrations/dcim/import', auth.requireAdmin, async (req, res)
 router.post('/api/integrations/dcim/compare', auth.requireAdmin, async (req, res) => {
   const body = req.body || {};
   const selection = (body.selection && typeof body.selection === 'object') ? body.selection : {};
-  const projectId = body.projectId;
-  if (projectId == null) return res.status(400).json({ error: 'projectId mancante' });
+  if (body.projectId == null) return res.status(400).json({ error: 'projectId mancante' });
+  // Coercizione a intero (smoke 06/09): "../projects/2" passava crudo a loadProject.
+  const projectId = safeProjectId(body.projectId);
+  if (projectId == null) return res.status(400).json({ error: 'projectId non valido' });
   const project = loadProject(projectId);
   if (!project) return res.status(404).json({ error: 'progetto non trovato' });
 

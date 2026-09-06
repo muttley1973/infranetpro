@@ -427,7 +427,16 @@ function listProjects() {
                  || (Number(b.id) || 0) - (Number(a.id) || 0));
 }
 
+// Id progetto SICURO: intero positivo, o null. `loadProject` fa
+// path.join(PROJECTS_DIR, `${id}.json`): senza coercizione un projectId preso
+// da un body ("../projects/2") usciva dalla cartella (smoke 06/09: la
+// /dcim/compare lo passava crudo). Le route con :id usano già `+req.params.id`.
+function safeProjectId(raw) {
+  const n = Number(raw);
+  return (Number.isInteger(n) && n > 0) ? n : null;
+}
+
 module.exports = {
-  PROJECTS_DIR, ASSETS_DIR, atomicWriteFile, _tmpPath, nextId, saveProject, loadProject, readProjectFile, listProjects,
+  PROJECTS_DIR, ASSETS_DIR, atomicWriteFile, _tmpPath, nextId, saveProject, loadProject, readProjectFile, listProjects, safeProjectId,
   extractBgAsset, reattachBgAsset, removeBgAsset, projectEtag,
 };

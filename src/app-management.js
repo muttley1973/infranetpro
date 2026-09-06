@@ -10,6 +10,7 @@
 // (nessun lettore esterno) → persistito in localStorage.
 import { expose, t } from './_bridge.js';   // (win non più necessario: ultima win.* ritirata in fase 2)
 import { escapeHTML } from './app-util.js';
+import { isSafeMgmtUrl } from '../lib/mgmt-url.js';   // smoke 06/09: uno schema non è un testo
 import { nodeById } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { registerClickActions, registerInputActions } from './app-delegation.js';   // ASSE B: editor protocolli (modale) via data-act/data-input
@@ -57,6 +58,11 @@ function _mgmtBuildUrl(protoId, ip){
     if(!ip) return '';
     return _mgmtProtoDef(protoId).scheme + ip;
 }
+// Schemi che «Apri» accetta: quelli della lista protocolli più http/https.
+// Tutto il resto (javascript:, data:, …) non è un management URL: è codice.
+function _mgmtSchemes(){
+    return ['http', 'https'].concat(MGMT_PROTOCOLS.map(p => p.scheme));
+}
 
 // Riuso per superfici che NON sono un nodo del progetto (oggi: la scheda di una
 // macchina virtuale). La lista protocolli e' personalizzabile dall'utente e vive
@@ -79,6 +85,12 @@ export function _mgmtProtoOptionsHtml(selectedId){
  *  l'<a> non fa il navigate di default. */
 export function _openMgmt(url){
     if(!url) return false;
+    // Guardia sullo SCHEMA (smoke 06/09): un `javascript:` messo in mgmtUrl, anche
+    // da un progetto importato, finiva nell'iframe e girava nell'origin dell'app.
+    if(!isSafeMgmtUrl(url, _mgmtSchemes())){
+        console.warn('[mgmt] URL rifiutato: schema non ammesso', url);
+        return false;
+    }
     if(/^https?:\/\//i.test(url)){
         window.open(url, '_blank', 'noopener');
         return false;
@@ -107,14 +119,16 @@ export function _mgmtRow(url, autoIp, nodeId){
     const proto    = n?.mgmtProto || 'https';
     const custom   = (url||'').trim();
     const primary  = custom || _mgmtBuildUrl(proto, autoIp);
-    const canOpen  = !!primary;
+    // Un URL con schema fuori lista (javascript:, data:, …) non si apre e non
+    // finisce in un href: resta nel campo, così chi legge il documento lo vede.
+    const canOpen  = !!primary && isSafeMgmtUrl(primary, _mgmtSchemes());
     const primDef  = _mgmtProtoDef(proto);
     const protoOpts = MGMT_PROTOCOLS.map(p =>
         `<option value="${p.id}" ${p.id===proto?'selected':''}>${p.label}</option>`).join('');
     return `<div class="prop-group mgmt-block">
       <label style="display:flex;align-items:center;justify-content:space-between">
         <span>Management</span>
-        <a href="${escapeHTML(primary)}"
+        <a href="${canOpen ? escapeHTML(primary) : '#'}"
            data-act="mgmt-open"
            id="mgmt-open-${nodeId}"
            class="mgmt-open-btn"

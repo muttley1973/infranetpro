@@ -7,7 +7,7 @@ const auth = require('../../auth');
 const { buildPduReport } = require('../../lib/pdu-report.js');
 const { buildInterSiteWanReport } = require('../../lib/inter-site-report.js');
 const { readOrganization } = require('../organization-store');
-const { _loadPdfDeps, _addReportPages, _addCoverPage, _addChangelogPages, _addSparePages, _addPduPages, _addAssetRegisterPages, _addRecoveryPages, _addWanPages, _addOverviewPages, _rt } = require('../pdf-report');
+const { _loadPdfDeps, _svgImageCallback, _addReportPages, _addCoverPage, _addChangelogPages, _addSparePages, _addPduPages, _addAssetRegisterPages, _addRecoveryPages, _addWanPages, _addOverviewPages, _rt } = require('../pdf-report');
 const { addLabelPages } = require('../label-sheet');
 const { loadProject } = require('../projects-store');
 const { projectToDevices, applyPortMacFallback, applyDeviceNotes, isStructuralCabling } = require('../../lib/api-shape');
@@ -124,6 +124,7 @@ router.post('/api/export-pdf', auth.requireAdmin, (req, res) => {
               : decodeURIComponent(dataPart);
             const bgWarn = [];
             SVGtoPDF(doc, svgText, MARGIN, HEADER_H, {
+              imageCallback: _svgImageCallback,
               width: iW, height: iH, assumePt: true,
               preserveAspectRatio: 'xMidYMid meet',
               fontCallback: () => 'Helvetica',
@@ -153,6 +154,7 @@ router.post('/api/export-pdf', auth.requireAdmin, (req, res) => {
 
       const svgWarnings = [];
       SVGtoPDF(doc, svg, MARGIN, HEADER_H, {
+        imageCallback: _svgImageCallback,
         width: pdfW, height: pdfH, assumePt: true,
         preserveAspectRatio: 'xMidYMid meet',
         fontCallback: (_family, _bold) => _bold ? 'Helvetica-Bold' : 'Helvetica',

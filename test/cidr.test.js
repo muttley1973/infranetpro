@@ -62,6 +62,15 @@ test('subnetInputToCidr: input di scansione -> subnet CIDR da dichiarare', () =>
   assert.equal(subnetInputToCidr('192.168.10.0/24'), '192.168.10.0/24');
   assert.equal(subnetInputToCidr('192.168.10.20/24'), '192.168.10.0/24');
   assert.equal(subnetInputToCidr('10.0.0.0/16'), '10.0.0.0/16');
+  // Un prefisso NUMERICO fuori range è un refuso, non un IP nudo: niente /24
+  // inventato in silenzio (smoke 06/09: "10.0.0.0/33" veniva DICHIARATO /24).
+  assert.equal(subnetInputToCidr('10.0.0.0/33'), '');
+  assert.equal(subnetInputToCidr('10.0.0.0/-1'), '');
+  assert.equal(subnetInputToCidr('2001:db8::/129'), '');
+  // Una netmask NON è un prefisso numerico: resta gestita come prima (IP + /24).
+  assert.equal(subnetInputToCidr('192.168.1.0/255.255.255.0'), '192.168.1.0/24');
+  // Host bits con prefisso valido: canonicalizzati alla rete.
+  assert.equal(subnetInputToCidr('10.1.0.5/24'), '10.1.0.0/24');
   assert.equal(subnetInputToCidr(' 172.16.5.4 / 30 '), '172.16.5.4/30');
   // range senza prefisso -> la /24 che lo contiene
   assert.equal(subnetInputToCidr('192.168.10.1-254'), '192.168.10.0/24');

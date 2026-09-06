@@ -157,6 +157,51 @@ test('invalidazione sessione: cambio password → il cookie vecchio del viewer s
   assert.match(after.json.error, /scadut|login/i);
 });
 
+// Smoke 06/09: con un Set svuotato al login, la revoca era annullata dal login
+// successivo. Ora ogni sessione porta l'EPOCA letta al login: chi rientra altrove
+// legge l'epoca nuova, le sessioni vecchie restano indietro e muoiono.
+test('revoca per epoca: declassato, poi rientra altrove → la sessione vecchia NON torna admin', async () => {
+  const a = await login('admin', 'adminpw');
+  const c = await request('POST', '/api/auth/users', { cookie: a.cookie, body: { username: 'xavier', password: 'xavierpw', role: 'admin' } });
+  assert.equal(c.status, 201);
+  const xid = c.json.user.id;
+
+  const xA = await login('xavier', 'xavierpw');            // «browser A»
+  assert.equal(xA.status, 200);
+  const dem = await request('PUT', `/api/auth/users/${xid}`, { cookie: a.cookie, body: { role: 'viewer' } });
+  assert.equal(dem.status, 200);
+  // Il browser A NON viene toccato: nessuna richiesta fra il declassamento e il login in B.
+  const xB = await login('xavier', 'xavierpw');            // «browser B»
+  assert.equal(xB.status, 200);
+  assert.equal(xB.json.user.role, 'viewer');
+
+  const oldMe = await request('GET', '/api/auth/me', { cookie: xA.cookie });
+  assert.equal(oldMe.status, 401, 'la sessione del browser A resta revocata anche dopo il login in B');
+  const oldAdmin = await request('GET', '/api/auth/users', { cookie: xA.cookie });
+  assert.equal(oldAdmin.status, 401, 'e non apre più le route admin');
+  const newMe = await request('GET', '/api/auth/me', { cookie: xB.cookie });
+  assert.equal(newMe.status, 200);
+  assert.equal(newMe.json.user.role, 'viewer');
+  assert.equal(newMe.json.user.epoch, undefined, 'l\'epoca non esce dall\'API');
+
+  // Variante: reset password + nuovo login → la sessione B (nata prima del reset) muore.
+  const rst = await request('PUT', `/api/auth/users/${xid}`, { cookie: a.cookie, body: { password: 'xavierpw2' } });
+  assert.equal(rst.status, 200);
+  const xC = await login('xavier', 'xavierpw2');
+  assert.equal(xC.status, 200);
+  const bDopo = await request('GET', '/api/auth/me', { cookie: xB.cookie });
+  assert.equal(bDopo.status, 401, 'la sessione precedente al reset non sopravvive al nuovo login');
+});
+
+test('login: username o password non stringa → 400, mai 500', async () => {
+  const r = await request('POST', '/api/auth/login', { body: { username: { a: 1 }, password: 'x' } });
+  assert.notEqual(r.status, 500);
+  assert.ok(r.status === 400 || r.status === 429, 'status=' + r.status);
+  const r2 = await request('POST', '/api/auth/login', { body: { username: 'admin', password: ['x'] } });
+  assert.notEqual(r2.status, 500);
+  assert.ok(r2.status === 400 || r2.status === 429, 'status=' + r2.status);
+});
+
 // DEVE restare l'ULTIMO: una volta scattato, il limiter blocca anche i login validi.
 test('rate-limit login: troppi tentativi falliti → 429', async () => {
   let first401 = false, got429 = false;

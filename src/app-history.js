@@ -41,6 +41,9 @@ export function undo() {
     _invalidateIdx();
     _resetSelection(); renderRackTabs(); updateTransforms(); renderAll();
     _updateHistoryBtns();
+    // Lo stato ripristinato è DIVERSO da quello salvato: «Salva» si accende e
+    // l'autosave riparte (smoke 06/09: Ctrl+S, Ctrl+Z, il bottone restava pulito).
+    markDirty();
 }
 
 export function redo() {
@@ -53,6 +56,9 @@ export function redo() {
     _invalidateIdx();
     _resetSelection(); renderRackTabs(); updateTransforms(); renderAll();
     _updateHistoryBtns();
+    // Lo stato ripristinato è DIVERSO da quello salvato: «Salva» si accende e
+    // l'autosave riparte (smoke 06/09: Ctrl+S, Ctrl+Z, il bottone restava pulito).
+    markDirty();
 }
 
 export function _updateHistoryBtns() {

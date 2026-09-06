@@ -9,13 +9,56 @@ let deps;
 try { deps = require('../server/pdf-report.js')._loadPdfDeps(); }
 catch { /* pdfkit non installato: salto sotto */ }
 
-const { _fit, _wrapFit, _addReportPages, _assetDeviceLabel } = require('../server/pdf-report.js');
+const { _fit, _wrapFit, _addReportPages, _assetDeviceLabel, _svgImageCallback } = require('../server/pdf-report.js');
 
 function newDoc() {
   const doc = new deps.PDFDocument({ size: [595, 842], margins: { top: 0, bottom: 0, left: 0, right: 0 } });
   doc.font('Helvetica');
   return doc;
 }
+
+// Smoke 06/09: un <image href="C:/…"> nell'SVG faceva leggere a pdfkit un file
+// LOCALE del server e lo incorporava nel PDF (da 1,5 KB a 42 KB con un PNG del
+// repo). Il callback lascia passare solo immagini inline PNG/JPEG in base64.
+test('_svgImageCallback: solo data:image/png|jpeg in base64, tutto il resto vuoto', () => {
+  const ok = 'data:image/png;base64,iVBORw0KGgo=';
+  assert.equal(_svgImageCallback(ok), ok);
+  assert.equal(_svgImageCallback('DATA:IMAGE/JPEG;base64,/9j/'), 'DATA:IMAGE/JPEG;base64,/9j/');
+  for (const brutto of ['C:/Users/x/foto.png', '/etc/passwd', 'file:///etc/passwd', 'http://x/y.png',
+    'data:text/html;base64,PHNjcmlwdD4=', 'data:image/svg+xml;base64,PHN2Zz4=', '', null, undefined]) {
+    assert.equal(_svgImageCallback(brutto), '', String(brutto));
+  }
+});
+
+test('SVGtoPDF col callback: un <image href> verso un file locale NON finisce nel PDF', { skip: !deps }, async () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const os = require('node:os');
+  // un PNG vero, in un percorso senza spazi (il parser SVG li mangia)
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'infranet-pdfimg-'));
+  const png = path.join(tmp, 'locale.png');
+  fs.writeFileSync(png, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64'));
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 30" width="40" height="30">'
+            + '<rect width="40" height="30" fill="#eee"/>'
+            + '<image href="' + png.split('\\').join('/') + '" width="40" height="30"/></svg>';
+  const render = (opts) => new Promise((resolve) => {
+    const doc = newDoc();
+    const chunks = [];
+    doc.on('data', c => chunks.push(c));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    deps.SVGtoPDF(doc, svg, 0, 0, Object.assign({ width: 40, height: 30, assumePt: true, warningCallback: () => {} }, opts));
+    doc.end();
+  });
+  try {
+    const senza = await render({});
+    const con   = await render({ imageCallback: _svgImageCallback });
+    const haImmagine = (buf) => buf.includes('/Subtype /Image') || buf.includes('/Subtype/Image');
+    assert.equal(haImmagine(senza), true, 'senza callback il file locale entra nel PDF (è il difetto)');
+    assert.equal(haImmagine(con), false, 'col callback il file locale resta fuori');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
 
 test('_fit: tronca cosi che la larghezza REALE stia nella colonna', { skip: !deps }, () => {
   const doc = newDoc();
