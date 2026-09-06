@@ -1,3 +1,12 @@
+# Fine riga: nell'indice tutto LF, e nel worktree pure — così uno script che legge e
+# riscrive un sorgente non trova mai un CRLF a metà file. Misurato il 2026-09-06 con
+# autocrlf=true ereditato dal gitconfig di sistema: indice 567 LF, worktree 205 CRLF ·
+# 352 LF · 10 MISTI. Nel repo non è cambiato un byte: è cambiato solo il worktree.
+* text=auto eol=lf
+
+# I file batch li legge cmd.exe, che vuole CRLF (label e goto si perdono con LF).
+*.bat text eol=crlf
+
 # I PDF (e binari in genere) NON devono essere normalizzati (autocrlf): un PDF
 # con i fine-riga alterati si corrompe e GitHub non lo renderizza. "binary" =
 # -diff -merge -text.
