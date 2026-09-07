@@ -12,6 +12,7 @@ let lastAuth = '';
 let authHistory = [];
 let probeStatus = 200;
 let hits429 = 0;
+let cicli = 0;
 
 before(async () => {
   server = http.createServer((req, res) => {
@@ -30,6 +31,7 @@ before(async () => {
       if (offset === '2') return json(200, { count: 3, next: null, results: [{ id: 3, name: 'Torino' }] });
       return json(200, { count: 3, next: base + '/api/dcim/sites/?limit=2&offset=2', results: [{ id: 1, name: 'Milano' }, { id: 2, name: 'Roma' }] });
     }
+    if (p === '/api/ciclo/') { cicli++; return json(200, { count: 9999, next: base + '/api/ciclo/?limit=2&offset=' + cicli, results: [] }); }
     if (p === '/api/boom/') return json(500, { detail: 'kaboom' });
     if (p === '/api/big/') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end('[' + '0,'.repeat(2000) + '0]'); }
     if (p === '/api/429/') {
@@ -146,4 +148,34 @@ test('probe 401/403 suggerisce il formato v2 senza esporre il token', async () =
   } finally {
     probeStatus = 200;
   }
+});
+
+// ── Un NetBox che non smette mai di paginare (08/09) ───────────────────────
+// Il cap conta gli ELEMENTI: una pagina VUOTA che rimanda a sé stessa non lo tocca
+// mai. Misurato con un mock ostile prima del fix: **184.073 richieste in 20
+// secondi** e la rotta che non rispondeva più — uno stallo servito dall'altra
+// parte del cavo, da un sistema che non è nostro. Il tetto sulle PAGINE si deriva
+// dal cap (più pagine di quante ne servano a riempirlo non hanno senso), così non
+// c'è un secondo numero da tenere allineato.
+test('getPaginated: una paginazione che gira a vuoto FINISCE, e lo dichiara', async () => {
+  cicli = 0;
+  const c = new DcimClient({ url: base, token: 't' });
+  const t = Date.now();
+  const { results, truncated } = await c.getPaginated('/api/ciclo/', {}, { pageSize: 2, cap: 10 });
+  const ms = Date.now() - t;
+  assert.equal(results.length, 0, 'non c\'era niente da prendere');
+  assert.equal(truncated, true, 'il dato è parziale, e la parola è quella che l\'interfaccia già mostra');
+  // cap 10 / pageSize 2 = 5 pagine, +1 di coda: 6 richieste, non infinite.
+  assert.ok(cicli <= 6, `richieste al mock: ${cicli} (atteso <= 6)`);
+  assert.ok(ms < 5000, `finito in ${ms} ms`);
+});
+
+test('getPaginated: il tetto sulle pagine NON tocca una paginazione normale', async () => {
+  // La controprova nell'altro verso: tre elementi su due pagine continuano a
+  // uscire tutti e tre, e `truncated` resta falso. Un tetto che tronca il caso
+  // buono sarebbe peggio del difetto che chiude.
+  const c = new DcimClient({ url: base, token: 't' });
+  const { results, truncated } = await c.getPaginated('/api/dcim/sites/', {}, { pageSize: 2, cap: 100 });
+  assert.equal(results.length, 3);
+  assert.equal(truncated, false);
 });

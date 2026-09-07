@@ -189,6 +189,16 @@ class DcimClient {
   async getPaginated(apiPath, query, opts) {
     const cap = (opts && opts.cap) || 10000;
     const pageSize = (opts && opts.pageSize) || 250;
+    // ⚠️ Il cap conta gli ELEMENTI, e una pagina VUOTA non lo tocca mai: un NetBox
+    // che risponde `{results: [], next: <sé stesso>}` teneva il ciclo aperto per
+    // sempre. Misurato con un mock ostile: **184.073 richieste in 20 secondi**, e la
+    // rotta che non risponde più — uno stallo servito dall'altra parte del cavo.
+    // Non serve un secondo numero da tarare: più pagine di quante ne servano a
+    // riempire il cap non hanno senso, quindi il tetto si DERIVA (una in più per la
+    // pagina di coda). Quando scatta, il dato è parziale ed è `truncated` a dirlo —
+    // la stessa parola che l'interfaccia già sa mostrare.
+    const maxPages = Math.ceil(cap / Math.max(1, pageSize)) + 1;
+    let pages = 1;
     const out = [];
     let truncated = false;
     let page = await this.get(apiPath, Object.assign({ limit: pageSize }, query || {}));
@@ -201,6 +211,8 @@ class DcimClient {
       if (truncated) break;
       const next = page && page.next;
       if (!next) break;
+      if (pages >= maxPages) { truncated = true; break; }
+      pages++;
       let validNext;
       try {
         const nextUrl = new URL(next);

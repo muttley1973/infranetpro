@@ -1954,3 +1954,50 @@ test('la fusione non dipende dall\'ORDINE in cui NetBox risponde', () => {
     assert.equal(r.description, 'in VRF', 'e anche la descrizione dell\'altra riga');
   }
 });
+
+// ── Le stringhe di NetBox sono di un sistema TERZO (08/09) ─────────────────
+// `_str` è il confine: 92 chiamate, ed è lì che un dato di qualcun altro diventa
+// il nostro documento. Misurato con un mock ostile: un nome di apparato da 2 MB
+// attraversava tutto e tornava al client (2.049 KB di risposta), coi caratteri di
+// controllo dentro. Da lì il nome va nel progetto, nei PDF, nelle etichette e
+// negli inventari Ansible — dove un a-capo non è un carattere, è una riga nuova.
+// Stessa forma delle scritte dell'utente (`lib/user-text.js`): il CONTENUTO resta.
+test('mappa DCIM: un nome enorme o sporco non entra nel documento', () => {
+  const CTRL = 'DEV' + String.fromCharCode(13, 10) + 'X' + String.fromCharCode(0) + 'Y';
+  const nb = {
+    devices: [
+      { id: 1, name: 'A'.repeat(2 * 1024 * 1024), device_type: { id: 1 }, site: { id: 1 }, role: { id: 1, slug: 'switch' }, status: { value: 'active' } },
+      { id: 2, name: CTRL, device_type: { id: 1 }, site: { id: 1 }, role: { id: 1, slug: 'switch' }, status: { value: 'active' } },
+    ],
+    deviceTypes: [{ id: 1, model: 'M', manufacturer: { id: 1, name: 'Acme' } }],
+    sites: [{ id: 1, name: 'Sede', slug: 'sede' }],
+    roles: [{ id: 1, name: 'Switch', slug: 'switch' }],
+    racks: [], interfaces: [], cables: [], ipAddresses: [], vlans: [], prefixes: [],
+  };
+  const out = map.netboxToState(nb);
+  const nomi = (out.state.nodes || []).map(n => String(n.name || ''));
+  assert.ok(nomi.length >= 2, 'i device arrivano nel documento');
+  for (const n of nomi) {
+    assert.ok(n.length <= 200, `nome lungo ${n.length}: nessun nome deve passare il tetto`);
+    for (let i = 0; i < n.length; i++) {
+      const c = n.charCodeAt(i);
+      assert.ok(c >= 0x20 && c !== 0x7f, `carattere di controllo 0x${c.toString(16)} nel nome «${n.slice(0, 20)}»`);
+    }
+  }
+});
+
+test('mappa DCIM: e i nomi NORMALI restano identici', () => {
+  // L'altro verso: una guardia che storpia i nomi buoni è peggio del difetto.
+  const nb = {
+    devices: [{ id: 1, name: 'SW-CORE 3° piano', device_type: { id: 1 }, site: { id: 1 }, role: { id: 1, slug: 'switch' }, status: { value: 'active' } }],
+    deviceTypes: [{ id: 1, model: 'Catalyst 9300', manufacturer: { id: 1, name: 'Cisco' } }],
+    sites: [{ id: 1, name: 'Sede di Milano', slug: 'mi' }],
+    roles: [{ id: 1, name: 'Switch', slug: 'switch' }],
+    racks: [], interfaces: [], cables: [], ipAddresses: [], vlans: [], prefixes: [],
+  };
+  const out = map.netboxToState(nb);
+  const n = (out.state.nodes || [])[0];
+  assert.equal(n.name, 'SW-CORE 3° piano');
+  assert.equal(n.model, 'Catalyst 9300');
+  assert.equal(n.brand, 'Cisco');
+});
