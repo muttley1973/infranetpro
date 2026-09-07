@@ -10,7 +10,7 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="3,577 tests, 0 failing" src="https://img.shields.io/badge/tests-3%2C577%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="3,685 tests, 0 failing" src="https://img.shields.io/badge/tests-3%2C685%20%C2%B7%200%20failing-3fb950"></a>
   <a href="#testing"><img alt="120 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-120%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#oui-intelligence-engine"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
@@ -121,7 +121,20 @@ Double-click <code>avvia.bat</code>.<br>
 
 > **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then run **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.11.4) — a security release: two passes over the whole product, and everything they found that could be fixed safely.**
+> 📰 **What's new (v2.11.5) — saving got out of the way, and three surfaces nobody had probed were driven against hostile input.**
+>
+> - **Saving no longer holds the server still.** While one document went to disk, every other request
+>   waited for it. Two sessions saving at once still cannot overwrite each other: that check moved
+>   inside the queue, together with the write.
+> - **The Overview counted who had not failed, not who answered.** A device configured for SNMP but
+>   never queried read as one that answers, so a project nobody had polled reported *all reachable*
+>   in green.
+> - **A misbehaving DCIM cannot hang an import**, and a report whose list is not a list answers *400*
+>   instead of failing halfway through a PDF.
+> - **Text you type has a shape and a ceiling** — names, labels and site fields, with control
+>   characters removed and a cap, at the point where each is written.
+
+> 📰 **v2.11.4 — a security release: two passes over the whole product, and everything they found that could be fixed safely.**
 >
 > - **Credentials stay where you put them.** A management URL could carry them out — and a topology crawl
 >   handed the SNMP community to whatever address a switch announced as its neighbour. The crawl stays in
@@ -1138,8 +1151,8 @@ server on a temp store and is skipped unless `RUN_E2E=1`.
 Coverage focuses on the pure, bug-prone logic that has historically broken: SNMP parsing & extraction (`test/snmp.test.js`, `test/extractData.test.js`), discovery & classification (`test/discovery.test.js`, 14 real-device cases), correlation primitives (`test/correlate.test.js`), the sysObjectID / OUI / Fusion engines (`tests/*.test.js`), front-panel state, cable validation (incl. **Cat8 30 m reach**), IPAM & LAG audits, and an app-wide **smoke E2E** (`test/smoke-app.test.js`) that loads every `netmapper.html` script plus the esbuild bundle into a `vm` + DOM stub and asserts `renderAll`/`renderProps` never throw on any device type.
 
 Current local quality baseline:
-- `npm run check` parses every JS source of the product — **533** of them. It skips the folders `eslint.config.js` already ignores (git worktrees, the private workspace, the editor's caches), so the number stays stable between runs instead of drifting with whatever happens to be checked out beside the repo
-- `npm test` runs the full regression suite (currently **3,577 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **120 flows**)
+- `npm run check` parses every JS source of the product — **541** of them. It skips the folders `eslint.config.js` already ignores (git worktrees, the private workspace, the editor's caches), so the number stays stable between runs instead of drifting with whatever happens to be checked out beside the repo
+- `npm test` runs the full regression suite (currently **3,685 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **120 flows**)
 - final visual verification is still important for rack/front-panel refinements
 
 > Pure functions are exposed for tests via an additive `_internals` export on

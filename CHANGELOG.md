@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.11.5] — 2026-09-07
+
+A maintenance release. Saving stopped holding the server still, three surfaces no probe had
+ever touched were driven against deliberately hostile input, and one number on the Overview
+stopped answering a question nobody had asked.
+
+### Changed
+
+- **Saving no longer holds the server still.** The write left the single thread, behind one queue per project — while a document went to disk, every other request waited for it. The version check moved inside that queue together with the write, and so did the choice of a new project's number: otherwise two saves, or two imports in flight, would both pass and one of them would disappear.
+- **Text a person types has a shape and a ceiling** — project names, token labels, skin names, site fields: control characters removed and a 200-character cap, applied where each is written instead of in four separate places. Names arriving from a DCIM go through the same rule.
+
+### Fixed
+
+- **The Overview counted who had not failed, not who answered.** A device configured for SNMP but never queried read as one that answers, so a project nobody had polled reported *all reachable* in green. The three states are told apart now, and the row's label says what its number says.
+- **A misbehaving DCIM can no longer hang an import** — a page whose *next* pointed at itself made the client fetch forever, and a two-megabyte device name travelled through untouched.
+- **A report whose list is not a list** answers *400* naming the field, instead of failing halfway through a PDF.
+- **Cables outlived the ports they were on.** Reducing a device's port count left links attached to ports that no longer exist; they are found and named, with SFP numbering respected so a real uplink is never cut.
+- **Two sessions can no longer overwrite each other's organisation** — the same version check the projects have, with limits on sites and links; a panel skin has a size limit; an API token can be given an expiry; and Windows name discovery ignores answers that did not come from the host it asked.
+- **The REST API v1 answers the right question** for a path it does not serve — *404* for a read, *405* with `Allow` for a write — and a project id that is not a number is refused before it becomes a file name.
+- **The floor-plan grid no longer flashes** when a project that has it switched off is opened, and label export speaks both languages.
+
 ## [2.11.4] — 2026-09-07
 
 A security release. Two smoke passes went over the product — the code, the app driven
