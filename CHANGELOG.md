@@ -1,5 +1,40 @@
 # Changelog
 
+## [2.11.4] — 2026-09-07
+
+A security release. Two smoke passes went over the product — the code, the live app, and
+the surfaces the first pass had not touched — and everything short enough to fix safely
+was fixed, each finding reproduced before and each covered by a test. Nothing here changes
+what the app documents; what changes is what it refuses to do.
+
+### Added
+
+- **Anyone can change their own password** — `POST /api/auth/password`, viewers included, who had no way to do it at all. It asks for the current one, keeps the session that made the change and expires the other sessions of that account.
+- **Every secret can live on the data volume**, via `INFRANET_API_TOKENS_FILE`, `INFRANET_AI_CONFIG_FILE`, `INFRANET_DCIM_CONFIG_FILE` and `INFRANET_SESSION_SECRET_FILE` — and `INFRANET_AI_ENDPOINT` pins the AI endpoint, so a key supplied by the operator cannot be pointed somewhere else from the interface.
+- **Closing the tab with unsaved changes now warns you.** Autosave is opt-in and off by default, so until now the work simply went.
+
+### Changed
+
+- **The Docker image runs as a non-root user**, and the secrets are kept out of its layers and written to the `/data` volume instead of `/app`.
+- **Login throttling counts per IP *and* username.** Behind a reverse proxy every request shares one address, so ten failures from anyone locked everyone out for fifteen minutes.
+- **A new password must be at least eight characters**, and signing in regenerates the session id.
+- **The topology crawl stays in internal address space** unless you declare otherwise, and its depth and device count are capped.
+- **A VLAN id outside 1–4094 is refused, not clamped** — `4095` used to become a second «VLAN 4094» card, quietly.
+- **Every `/api/*` response is `Cache-Control: no-store`**, and deleting a rack now goes through the same path as deleting a device, so a surviving HA partner is no longer left pointing at something that is gone.
+
+### Fixed
+
+- **A management URL could carry credentials out of the app.** With a `javascript:` scheme it ran in the app's origin when opened; written without a scheme (`admin:pw@10.0.0.1`) it travelled with its password into the REST v1 DTO, the Ansible inventory and the context sent to the AI provider. The scheme is decided before the link is built, and userinfo is stripped in every form.
+- **Revoking a session survives the next login.** A demoted administrator who left a tab open regained administrator rights as soon as they signed in elsewhere; each session now carries the epoch it was born in.
+- **The PDF export no longer reads files off the server**, and a malformed background image no longer leaves the request hanging: an `<image href="C:/…">` used to be embedded, and a PNG with an alpha channel could make the engine throw inside an asynchronous callback, so the document was never finalized and the client waited forever.
+- **A long table cell no longer freezes the server.** Fitting text to a column re-measured the whole string for every character dropped, so 16,000 characters held the single event-loop thread for nineteen seconds. Same output, in a millisecond.
+- **A malformed `state` no longer empties a project** — `PUT /api/projects/:id` accepted a null, a string or an array, rewrote the document empty and answered *200 OK*.
+- **Undo and redo mark the project as unsaved**, so «Save» lights up and a reload no longer brings back the server's copy.
+- **A subnet prefix outside its range is refused** instead of being read as `/24`, and `projectId` is coerced to a positive integer before a project is loaded.
+- **Signing in with a non-string username answers 400**, not 500; a snapshot id is validated before it becomes a path; and the DCIM «test connection» sends the saved token only to the instance it was saved for.
+- **An import from discovery is written to the document's journal**, which had recorded everything except that.
+- **Three strings that never made it into either language** — two panel labels and the SNMP button — now follow the chosen one, and `<html lang>` follows it too.
+
 ## [2.11.3] — 2026-09-04
 
 One question — *how much do I trust this?* — used to be answered in seven vocabularies.

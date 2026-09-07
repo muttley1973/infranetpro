@@ -10,7 +10,7 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="3,549 tests, 0 failing" src="https://img.shields.io/badge/tests-3%2C549%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="3,577 tests, 0 failing" src="https://img.shields.io/badge/tests-3%2C577%20%C2%B7%200%20failing-3fb950"></a>
   <a href="#testing"><img alt="120 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-120%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#oui-intelligence-engine"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
@@ -121,7 +121,26 @@ Double-click <code>avvia.bat</code>.<br>
 
 > **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then run **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.11.3) — one question, one alphabet: how sure the app is, said the same way everywhere.**
+> 📰 **What's new (v2.11.4) — a security release: two passes over the whole product, and everything they found that could be fixed safely.**
+>
+> - **Credentials stay where you put them.** A management URL could carry them out of the app — with a
+>   `javascript:` scheme it ran in the app's own origin when opened, and written without a scheme
+>   (`admin:pw@10.0.0.1`) it travelled with its password into the REST API, the Ansible inventory and the context
+>   sent to the AI provider. And a topology crawl handed the SNMP community to whatever address a switch announced
+>   as its neighbour: it stays in internal address space now unless you declare otherwise.
+> - **Nothing you did gets thrown away quietly.** A malformed save used to rewrite a project as empty and answer
+>   *200 OK*; undo and redo did not light «Save», so a reload brought the server's copy back; deleting a rack left
+>   its HA partner pointing at something gone; and closing the tab with unsaved work said nothing. All four are
+>   closed, and an import from discovery is finally written to the document's journal.
+> - **Revoking access now sticks.** A demoted administrator who left a tab open got their rights back simply by
+>   signing in elsewhere. Sessions carry the moment they were born in, signing in regenerates the session id, and
+>   login throttling counts per address *and* account instead of locking out everyone behind one proxy.
+> - **The export stopped being a way in.** It could read files off the server through an image reference, hang
+>   forever on a broken PNG, and freeze the single thread the server has for nineteen seconds on one long cell.
+> - **And the container behaves like one.** The image runs as a non-root user and keeps API tokens, the AI and
+>   DCIM configuration and the session secret out of its layers, on the data volume where they belong.
+
+> 📰 **v2.11.3 — one question, one alphabet: how sure the app is, said the same way everywhere.**
 >
 > - **Six words in place of seven vocabularies.** Looking at a row you ask one thing — *how much do I trust
 >   this?* — and the app used to answer in whatever notation that screen happened to own. It is one alphabet now:
@@ -709,6 +728,14 @@ docker run -d --name infranetpro \
 | `/data/projects` | saved projects + image assets |
 | `/data/skins` | uploaded panel skins |
 | `/data/users.json` | user accounts (bcrypt hashes) |
+| `/data/api-tokens.json` | REST API tokens (SHA-256 hashes) |
+| `/data/ai-config.json` | AI assistant configuration, including the BYO key |
+| `/data/dcim-config.json` | DCIM/IPAM instance and token |
+| `/data/.session-secret` | session signing secret, when `SESSION_SECRET` is not supplied |
+
+> The container runs as the **non-root `node` user**, and every secret above lives on the volume
+> rather than inside the image: the build context excludes them, so they are never baked into a
+> layer even when the files exist beside the source at build time.
 
 ---
 
@@ -724,7 +751,16 @@ All configuration is done via **environment variables** — no config file neede
 | `INFRANET_PROJECTS_DIR` | `./projects` | Where project JSON + image assets are stored |
 | `INFRANET_SKINS_DIR` | `./skins` | Where uploaded panel skins are stored |
 | `INFRANET_USERS_FILE` | `./users.json` | Path to the user-accounts file |
+| `INFRANET_API_TOKENS_FILE` | `./api-tokens.json` | Path to the REST API token store |
+| `INFRANET_AI_CONFIG_FILE` | `./data/ai-config.json` | Path to the AI assistant configuration (holds the BYO key) |
+| `INFRANET_DCIM_CONFIG_FILE` | `./data/dcim-config.json` | Path to the DCIM/IPAM configuration (holds the instance token) |
+| `INFRANET_SESSION_SECRET_FILE` | `./.session-secret` | Where the auto-generated session secret is kept. Point it at a writable, persistent path when the process cannot write next to the code |
+| `INFRANET_AI_KEY` | *(unset)* | Supply the AI key from the environment, keeping it off disk entirely |
+| `INFRANET_AI_ENDPOINT` | *(unset)* | Pin the AI endpoint. When set it wins over the saved one, so a key supplied here cannot be redirected from the interface |
+| `INFRANET_DCIM_URL` / `INFRANET_DCIM_TOKEN` | *(unset)* | Supply the DCIM instance and token from the environment instead of from disk |
 | `INFRANET_TRUST_PROXY` | *(off)* | Set `1` when behind a TLS reverse proxy: flags the session cookie `secure` (HTTPS-only) and trusts `X-Forwarded-*`. Leave unset for plain HTTP / localhost |
+
+> The four `*_FILE` paths exist so a deployment can keep **every** secret on one persistent volume instead of beside the code. The Docker image sets them to `/data/…` for exactly that reason.
 
 Example:
 ```bash
@@ -900,7 +936,7 @@ The login endpoint is rate-limited to **10 attempts per 15 minutes** per IP.
 InfraNet Pro is designed for a **trusted LAN, behind login**, bound to `127.0.0.1` by default. The codebase has undergone an **application-security audit** (no critical findings) and the follow-up hardening is enforced by tests.
 
 <details>
-<summary><b>The 14 hardening measures, and the test that guards each one</b></summary>
+<summary><b>The 24 hardening measures, and the test that guards each one</b></summary>
 
 - **Secrets never leave the machine on the data surfaces** — the AI context, the REST API v1 DTOs and the exports are built from an **explicit allowlist** (`lib/api-shape.js`, `server/ai/context.js`): SNMP communities, Wi-Fi passphrases/PSK, API keys and tokens are structurally excluded. A **build-failing guard test** (`test/ai-context.test.js`) fails the build if a secret-looking field ever reaches the AI context.
 - **The bring-your-own AI key is stored owner-only** — `data/ai-config.json` is written `0o600` (and re-tightened at startup) so a co-tenant on the host can't read the key; supply it via `INFRANET_AI_KEY` to keep it off disk entirely (`server/ai-config.js`, guarded by `test/ai-config.test.js`).
@@ -916,6 +952,16 @@ InfraNet Pro is designed for a **trusted LAN, behind login**, bound to `127.0.0.
 - **The dev auth-bypass is fail-closed** — `INFRANET_DEV_NO_AUTH=1` (a preview convenience) is honoured **only** when the server is bound to loopback and `NODE_ENV` is not `production`; on a network-reachable bind it is ignored with a loud warning, so it can never silently disable auth in production (`auth.js`, guarded by `test/security-hardening.test.js`).
 - **Baseline HTTP security headers on every response** — `Content-Security-Policy` (self-hosted assets → `default-src 'self'` with `object-src 'none'`, `base-uri 'self'`, `frame-ancestors 'none'`; inline kept because the UI needs it), `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` (`server.js`).
 - **Skin CSS sanitized too** — beyond `<script>` / event handlers / external refs, `<style>` and `style=""` are stripped of external / `data:` / `javascript:` `url()` (local `url(#id)` kept), `expression()` and `@import`, and `vbscript:` is neutralised like `javascript:` (`lib/panel-skin.js`).
+- **A management URL is a decision, not text** — the scheme is checked both when the link is built and when it is opened, so `javascript:`, `data:` or `file:` never become an href; and credentials are stripped from the authority in **every** form it can be written in — including without a scheme — before the value reaches the REST DTOs, the Ansible inventory or the AI context (`lib/mgmt-url.js`, `lib/api-shape.js`, guarded by `test/mgmt-url.test.js` and `test/api-shape.test.js`).
+- **Revoking a session cannot be undone by signing in again** — each session carries the epoch it was born in, and a password change, a role change or a deletion moves that epoch, so older sessions die on their next request (`auth.js`, guarded by `test/auth-api.test.js`).
+- **Signing in regenerates the session id** (anti session-fixation); a created or changed password must be at least eight characters; and any authenticated user, viewers included, can change their own with `POST /api/auth/password` — it asks for the current one, keeps that session and expires the account's others (`auth.js`).
+- **Login throttling is keyed by address *and* account** — behind a shared proxy every request comes from one address, so a per-address counter let ten failures lock everyone out for fifteen minutes (`auth.js`).
+- **API responses are never stored** — every `/api/*` response carries `Cache-Control: no-store`, so project data and identity do not linger in a shared cache or on disk after a logout (`server.js`).
+- **A saved integration secret only travels to the instance it was saved for** — a DCIM «test connection» aimed at a different origin, with no token of its own, sends none; and an AI key supplied through the environment can be pinned with `INFRANET_AI_ENDPOINT` so the interface cannot redirect it (`server/routes/integrations.js`, `server/ai-config.js`).
+- **The discovery crawl does not take an apparatus at its word** — neighbours are announced over LLDP/CDP by the device being questioned, so following one blindly would hand it the SNMP community for an address of its choosing. The crawl stays in internal address space unless a person declares otherwise, and its depth and device count are capped (`server/crawl-bfs.js`, guarded by `test/crawl-bfs.test.js`).
+- **The PDF export cannot be made to read the disk, hang, or spin** — only inline base64 images pass, and they are validated (full signature, header, dimension ceiling) before the engine sees them; fitting text to a column is bounded instead of quadratic; and the route always answers, whatever stalls (`server/pdf-report.js`, `server/routes/export.js`, guarded by `test/pdf-report.test.js`).
+- **A document is checked before it replaces one** — a project `state` must be an object (a null or a string used to be written as an empty project), and a snapshot id must be numeric before it becomes a path (`server/routes/projects.js`, `server/history-store-fs.js`).
+- **The container runs as the non-root `node` user** and keeps API tokens, the AI and DCIM configuration and the session secret out of its image layers, on the data volume (`Dockerfile`, `.dockerignore`).
 
 </details>
 
@@ -1098,8 +1144,8 @@ server on a temp store and is skipped unless `RUN_E2E=1`.
 Coverage focuses on the pure, bug-prone logic that has historically broken: SNMP parsing & extraction (`test/snmp.test.js`, `test/extractData.test.js`), discovery & classification (`test/discovery.test.js`, 14 real-device cases), correlation primitives (`test/correlate.test.js`), the sysObjectID / OUI / Fusion engines (`tests/*.test.js`), front-panel state, cable validation (incl. **Cat8 30 m reach**), IPAM & LAG audits, and an app-wide **smoke E2E** (`test/smoke-app.test.js`) that loads every `netmapper.html` script plus the esbuild bundle into a `vm` + DOM stub and asserts `renderAll`/`renderProps` never throw on any device type.
 
 Current local quality baseline:
-- `npm run check` parses every JS source of the product — **528** of them. It skips the folders `eslint.config.js` already ignores (git worktrees, the private workspace, the editor's caches), so the number stays stable between runs instead of drifting with whatever happens to be checked out beside the repo
-- `npm test` runs the full regression suite (currently **3,549 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **120 flows**)
+- `npm run check` parses every JS source of the product — **533** of them. It skips the folders `eslint.config.js` already ignores (git worktrees, the private workspace, the editor's caches), so the number stays stable between runs instead of drifting with whatever happens to be checked out beside the repo
+- `npm test` runs the full regression suite (currently **3,577 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **120 flows**)
 - final visual verification is still important for rack/front-panel refinements
 
 > Pure functions are exposed for tests via an additive `_internals` export on

@@ -1045,7 +1045,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **3,549 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **3,577 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`
@@ -1155,7 +1155,22 @@ git-ignored. A 2026-06 AppSec audit found **no critical issues**; a
 2026-07 follow-up (again no critical) closed the remaining highs (panel-skin XSS, auth
 test coverage, project-list robustness); a third **2026-07-21 six-domain audit** (zero
 critical, avg 7.8/10) closed 8 highs (all ② no-invention) + 15 mediums, the SNMP layer
-live-verified on real hardware. The whole surface — including the auth flow — is covered
+live-verified on real hardware. Two **2026-09 smoke passes** — the code and the live app,
+then the surfaces the first pass had not touched — moved six trust boundaries, all shipped
+in 2.11.4: a **management URL** is scheme-checked when the link is built *and* when it is
+opened, and stripped of credentials in every form it can be written in (including without a
+scheme) before it reaches a DTO, the Ansible inventory or the AI context; **session
+revocation survives a new login** (a per-user epoch) and signing in regenerates the session
+id; login throttling is keyed by address *and* account, so one shared proxy address cannot
+lock out everyone; every `/api/*` answer is `Cache-Control: no-store`; a **saved integration
+secret travels only to the origin it was saved for**, and an AI key from the environment can
+be pinned to an endpoint the interface cannot change; the **LLDP/CDP crawl stays in internal
+address space** unless a person declares otherwise, because a neighbour address is declared
+by the device being questioned and not by us; and the **PDF export** accepts only validated
+inline images, bounds its text fitting (it was quadratic) and always answers, whatever
+stalls. A written document is checked before it replaces one — a project `state` must be an
+object, a snapshot id must be numeric. The **container runs non-root** with every secret on
+the data volume rather than in an image layer. The whole surface — including the auth flow — is covered
 by regression tests (`test/ai-context.test.js`,
 `test/ai-route-security.test.js`, `test/auth-api.test.js`, `test/panel-skin.test.js`, `test/security-hardening.test.js`). Do **not** expose the instance to the public
 internet — it is a network scanner with command execution; the right access model
