@@ -310,7 +310,7 @@ const CAPS = {
     'src/app-drift-adopt.js': 3,
     'src/app-drift.js': 15,
     'src/app-hypervisor.js': 9,
-    'src/app-integrations.js': 27,
+    'src/app-integrations.js': 17,
     // Sedi e collegamenti (2.11, layer multi-sede). Tutto cio' che arriva
     // dall'utente o dal server passa da escapeHTML(), e le coordinate SVG da
     // Number(): questi sette residui sono composizione, che lo scanner non
@@ -328,12 +328,12 @@ const CAPS = {
     //     escapa il testo): non contengono un template HTML in proprio, quindi
     //     restano fuori dall'elenco dei builder pur non emettendo mai testo crudo;
     //   · `drop` e' una variabile che tiene un template gia' scansionato.
-    'src/app-inter-site.js': 20,
+    'src/app-inter-site.js': 19,
     'src/app-l3.js': 9,
     'src/app-management.js': 9,
     'src/app-panel-skin.js': 3,
     'src/app-pdu-connection.js': 2,
-    'src/app-popup.js': 21,
+    'src/app-popup.js': 19,
     'src/app-ports.js': 2,
     'src/app-properties-floor.js': 13,
     // −3 (2.10.1, da 15): la sezione VLAN del pannello cavo e' stata riscritta e i
@@ -352,12 +352,12 @@ const CAPS = {
     // dall'escaper. Non e' cosmesi: per un LAG scoperto via SNMP il gid e'
     // costruito dal nome dell'apparato, cioe' testo che arriva dalla rete e
     // finiva crudo dentro un attributo.
-    'src/app-properties-node.js': 79,
-    'src/app-properties-port.js': 45,
+    'src/app-properties-node.js': 71,
+    'src/app-properties-port.js': 35,
     'src/app-properties-vm.js': 16,
     'src/app-properties.js': 15,
     'src/app-render-core.js': 38,
-    'src/app-shared-segment.js': 25,
+    'src/app-shared-segment.js': 20,
     'src/app-snmp.js': 2,
     'src/app-spare.js': 8,
     'src/app-topology-crawl.js': 4,
@@ -370,7 +370,7 @@ const CAPS = {
     // esposte di questa.
     'src/app-topology-overlay.js': 10,
     'src/app-vlan-autopoll.js': 19,
-    'src/app-wifi.js': 29,
+    'src/app-wifi.js': 27,
     // −2 (2.11.3, da 3): il badge di stato-di-prova del cavo è stato RITIRATO, e con
     // lui le sue due interpolazioni non provate — `${badgeInk(m.color)}` e `${m.color}`.
     // ⭐ Vale la pena dire come si chiude una deroga: la nota precedente spiegava
@@ -467,4 +467,103 @@ test('escaping: escapeHTML neutralizza tutti e cinque i caratteri', () => {
     // Null/undefined non devono diventare la stringa "null"/"undefined".
     assert.strictEqual(escapeHTML(null), '');
     assert.strictEqual(escapeHTML(undefined), '');
+});
+
+// ── La regola del `.join(` — stretta alla FORMA (08/09) ─────────────────────
+// Era una regola-PAROLA: bastava che l'espressione contenesse `.join(` da qualche
+// parte. Misurato (§62) assolveva 123 interpolazioni, di cui 77 solo perché
+// fermava la DISCESA dentro i template uniti. Le prove qui sotto girano nei DUE
+// versi — cosa deve passare e cosa NON deve — perché una regola che assolve
+// troppo e una che assolve troppo poco si scrivono uguale finché non le provi.
+test('join: un array GREZZO unito è segnalato (la vecchia regola-parola lo assolveva)', () => {
+    assert.strictEqual(countUnproven('const h = `<b>${names.join(", ")}</b>`;'), 1);
+});
+
+test('join: `.map(<template>).join()` resta pulito — i pezzi li scandisce lo scanner', () => {
+    assert.strictEqual(countUnproven('const h = `<ul>${xs.map(x => `<li>${escapeHTML(x)}</li>`).join("")}</ul>`;'), 0);
+});
+
+test('join: `.map(<builder>)` passato per NOME è la stessa cosa scritta senza parentesi', () => {
+    assert.strictEqual(countUnproven([
+        'const riga = (d) => `<tr><td>${escapeHTML(d.name)}</td></tr>`;',
+        'const h = `<table>${rows.map(riga).join("")}</table>`;',
+    ]), 0);
+});
+
+test('join: `.map(x => x)` NON è costruire — unisce l\'array com\'è', () => {
+    assert.strictEqual(countUnproven('const h = `<b>${xs.map(x => x).join(", ")}</b>`;'), 1);
+});
+
+test('join: array riempito a pezzi — si giudicano i PEZZI, uno per uno', () => {
+    assert.strictEqual(countUnproven([
+        'const rows = [];',
+        'rows.push(`<li>${escapeHTML(a)}</li>`);',
+        'const h = `<ul>${rows.join("")}</ul>`;',
+    ]), 0);
+});
+
+test('join: un pezzo crudo dentro l\'array si vede DOVE STA — l\'unione non lo nasconde', () => {
+    // ⚠️ La prima stesura di questa prova pretendeva DUE segnalazioni: il valore
+    // crudo, e l'array reso non provato da lui. Era sbagliata LEI, e la ragione
+    // conta: un template è provato PERCHÉ le sue interpolazioni si contano una per
+    // una dove stanno. Contarlo due volte manderebbe a cercare la stessa cosa in
+    // due posti. Il difetto da escludere è l'opposto — che non si conti da NESSUNA
+    // parte, che è com'era prima (§25: «li scansiono a parte», e non lo faceva nessuno).
+    const u = scanFixture([
+        'const rows = [];',
+        'rows.push(`<li>${escapeHTML(a)}</li>`);',
+        'rows.push(`<li>${d.hostname}</li>`);',
+        'const h = `<ul>${rows.join("")}</ul>`;',
+    ]).unproven;
+    assert.strictEqual(u.length, 1);
+    assert.match(u[0].expr, /d\.hostname/, 'ed è il valore crudo, non l\'array');
+});
+
+test('join: un array riempito con un valore CRUDO (non un template) non è provato', () => {
+    // Qui non c'è nessuna discesa a salvare il conto: il pezzo è il valore.
+    assert.strictEqual(countUnproven([
+        'const bits = [];',
+        'bits.push(d.hostname);',
+        'const h = `<b>${bits.join(" · ")}</b>`;',
+    ]), 1);
+});
+
+test('join: `[<pezzo>,<pezzo>].filter(Boolean).join()` — la forma di classi e attributi', () => {
+    assert.strictEqual(countUnproven([
+        'const cls = [a ? "off" : "", b ? "low" : ""].filter(Boolean).join(" ");',
+        'const h = `<tr class="${cls}">x</tr>`;',
+    ]), 0);
+});
+
+test('join: e se un elemento del letterale è crudo, si vede', () => {
+    assert.ok(countUnproven([
+        'const cls = [a ? "off" : "", d.vendor].filter(Boolean).join(" ");',
+        'const h = `<tr class="${cls}">x</tr>`;',
+    ]) >= 1);
+});
+
+// ── Builder: freccia con corpo-ESPRESSIONE, e IIFE ──────────────────────────
+test('builder: una freccia col corpo-espressione ritorna HTML quanto una col blocco', () => {
+    // ⚠️ Non si riconosceva: `functionBody` cerca una `{`, e la prima `{` di un
+    // template è quella di `${` — quindi credeva di aver trovato un blocco e
+    // leggeva spazzatura. Erano i builder locali più comuni di questo repo.
+    assert.strictEqual(countUnproven([
+        'const opt = (v, sel) => `<option value="${escapeHTML(v)}" ${sel ? "selected" : ""}></option>`;',
+        'const h = `<select>${opt(a, true)}</select>`;',
+    ]), 0);
+});
+
+test('builder: una freccia col corpo-espressione che ritorna testo GREZZO non è un builder', () => {
+    assert.strictEqual(countUnproven([
+        'const lbl = (d) => d.vendor || "—";',
+        'const h = `<td>${lbl(d)}</td>`;',
+    ]), 1);
+});
+
+test('IIFE: assolta se RITORNA html, come un builder qualsiasi', () => {
+    assert.strictEqual(countUnproven('const h = `<div>${(() => { return `<b>${escapeHTML(x)}</b>`; })()}</div>`;'), 0);
+});
+
+test('IIFE: che ritorna un valore grezzo NON è assolta', () => {
+    assert.strictEqual(countUnproven('const h = `<div>${(() => { return d.hostname; })()}</div>`;'), 1);
 });

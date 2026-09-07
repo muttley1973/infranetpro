@@ -547,7 +547,7 @@ ${mgmtCount > 0 ? `<div class="prop-row2" style="margin-top:4px">
                     const _hint = n.stackDetectionHint;
                     const _hintBanner = (_hint && !_isIn) ? `<div class="stack-hint-banner" role="alert">
   <div class="stack-hint-head"><i class="fas fa-magic-wand-sparkles"></i> ${t('pnl.node.detectedStackPre')} <strong>${_hint.memberIds.length}</strong> ${t('pnl.node.detectedStackPost',{fmt:escapeHTML(_hint.suggestedFormat||'pattern')})}</div>
-  <div class="stack-hint-body">${t('pnl.node.membersFoundInPoll')} <strong>${_hint.memberIds.join(', ')}</strong>.<br>${t('pnl.node.exampleLabel')} <code>${escapeHTML(_hint.sampleNames.slice(0,3).join(' · '))}</code></div>
+  <div class="stack-hint-body">${t('pnl.node.membersFoundInPoll')} <strong>${escapeHTML(_hint.memberIds.join(', '))}</strong>.<br>${t('pnl.node.exampleLabel')} <code>${escapeHTML(_hint.sampleNames.slice(0,3).join(' · '))}</code></div>
   <div class="stack-hint-actions">
     <button class="toolbar-btn" style="justify-content:center" data-act="stack-hint-accept"><i class="fas fa-layer-group"></i> ${t('pnl.node.promoteToMaster')}</button>
     <button class="toolbar-btn" style="justify-content:center" data-act="stack-hint-dismiss">${t('pnl.node.ignore')}</button>

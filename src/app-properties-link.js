@@ -390,9 +390,9 @@ export function _renderLinkProps(panel){
               </label>
               ${_vlanPills(tk.vlans)}
               ${tk.derived ? `
-              <div class="trunk-derived"><i class="fas fa-wand-magic-sparkles"></i> ${t('cable.trunkAuto')}: <b>${tk.vlans.join(', ')}</b></div>
+              <div class="trunk-derived"><i class="fas fa-wand-magic-sparkles"></i> ${t('cable.trunkAuto')}: <b>${escapeHTML(tk.vlans.join(', '))}</b></div>
               <div style="font-size:var(--fs-2xs);color:var(--text-muted);margin:4px 0 6px">${t('cable.trunkAutoNote')}</div>
-              <input type="text" value="" placeholder="${tk.vlans.join(',')}"
+              <input type="text" value="" placeholder="${escapeHTML(tk.vlans.join(','))}"
                 style="width:100%" ${lockAttr}
                 data-change="link-trunk-vlans" data-lid="${l.id}"
                 data-blur="link-trunk-vlans">` : `

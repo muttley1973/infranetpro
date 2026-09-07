@@ -303,7 +303,28 @@ function buildFileContext(src) {
         const rhs = readRhs(src, m.index + m[0].length);
         if (rhs && !vars.has(m[1])) vars.set(m[1], rhs);
     }
-    return { escAliases, vars };
+    // ── Array che si RIEMPIONO un pezzo per volta ────────────────────────────
+    // `const rows = []` … `rows.push(<template>)` … `${rows.join('')}` è la forma
+    // più comune di questo codice, e finché lo scanner non la conosceva l'unico
+    // modo di assolverla era la vecchia regola-parola su `.join(`. Qui si RACCOGLIE
+    // cosa ci finisce dentro: chi giudica è sempre `isProvablySafe`, su ogni pezzo.
+    // Se anche un solo `push` non si prova, l'array non è provato — e la riga si
+    // conta, che è lo scopo del cricchetto.
+    // ⚠️ Limite dichiarato: `push` con più argomenti, spread e `concat` NON sono
+    // riconosciuti — un array che li usa resta NON provato. Meglio rumoroso che
+    // indulgente: è la direzione in cui un cancello deve sbagliare.
+    const pushes = new Map();
+    for (const m of src.matchAll(/\b([\w$]+)\.(?:push|unshift)\s*\(/g)) {
+        const nome = m[1];
+        // `readRhs` si ferma da sé alla `)` di chiusura: legge l'argomento e basta.
+        const arg = readRhs(src, m.index + m[0].length);
+        if (!arg) { pushes.set(nome, null); continue; }           // non leggibile → array non provabile
+        if (pushes.get(nome) === null) continue;
+        const lista = pushes.get(nome) || [];
+        lista.push(arg);
+        pushes.set(nome, lista);
+    }
+    return { escAliases, vars, pushes };
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -333,6 +354,14 @@ function functionBody(src, from) {
 const RETURNS_HTML = /return\s*(?:\(\s*)?[^;]{0,400}?`[^`]{0,400}?<\/?[a-zA-Z]/s;
 const FN_DEF = /(?:function\s+([\w$]+)\s*\([^)]*\)|(?:const|let|var)\s+([\w$]+)\s*=\s*(?:function\s*\([^)]*\)|\([^)]*\)\s*=>|[\w$]+\s*=>))/g;
 
+// Una freccia col corpo-ESPRESSIONE (`const riga = s => `<tr>…``) ritorna HTML
+// esattamente come una col blocco: non ha un `return` da cercare, il template È il
+// corpo. Restavano fuori proprio i builder locali più comuni di questo repo —
+// `riga`, `renderDev`, `opt`, `ro` — e le loro chiamate finivano nel conto come se
+// stampassero un valore grezzo. Assolverle non nasconde niente: il template dentro
+// la freccia lo scandisce lo scanner per conto suo, dove sta.
+const EXPR_HTML = /`[^`]{0,400}?<\/?[a-zA-Z]/s;
+
 /** Nomi delle funzioni definite in UN sorgente che RITORNANO HTML. */
 function collectHtmlBuilders(sourceTexts) {
     const names = new Set();
@@ -340,7 +369,18 @@ function collectHtmlBuilders(sourceTexts) {
         for (const m of src.matchAll(FN_DEF)) {
             const name = m[1] || m[2];
             if (!name) continue;
-            const body = functionBody(src, m.index + m[0].length);
+            const dopo = m.index + m[0].length;
+            // ⚠️ Il corpo-espressione va riconosciuto PRIMA di cercare un blocco:
+            // `functionBody` cerca una `{`, e la prima `{` di un template è quella
+            // di `${` — quindi su `s => `<tr>${x}</tr>`` credeva di aver trovato un
+            // blocco e restituiva spazzatura, che nessuna regola poteva provare.
+            const restoTrim = src.slice(dopo).match(/^\s*/)[0].length;
+            if (src[dopo + restoTrim] === '`') {
+                const espr = readRhs(src, dopo);
+                if (espr && EXPR_HTML.test(espr)) names.add(name);
+                continue;
+            }
+            const body = functionBody(src, dopo);
             if (body && RETURNS_HTML.test(body)) names.add(name);
         }
     }
@@ -434,8 +474,74 @@ function isProvablySafe(expr, ctx, builders, seen) {
         if (/^Math\./.test(fn)) return true;
         if (/^(toFixed|toLocaleString|padStart|padEnd)$/.test(base)) return true;
     }
-    // `.join(...)` chiude una catena di pezzi che sono template gia' scansionati.
-    if (/\.join\s*\(/.test(e) && balanced(e)) return true;
+    // `.map(<pezzo costruito>).join(...)` chiude una catena di pezzi che lo scanner
+    // vede comunque: il template dentro al `map` viene scandito per conto suo, e un
+    // escaper parla da sé.
+    //
+    // ⚠️ La condizione chiede la FORMA, non la parola. Prima bastava che
+    // l'espressione CONTENESSE `.join(` da qualche parte — un metal detector che fa
+    // passare chiunque abbia addosso la parola «personale». Misurato (§62,
+    // disattivando la regola e guardando il delta): assolveva **123** interpolazioni,
+    // di cui solo 46 nominavano `.join(`; le altre **77** passavano perché la regola
+    // fermava la DISCESA dentro i template uniti. Nessuna delle 25 «array grezzo
+    // unito» era sfruttabile allora — ma il rischio non è il presente: è che domani
+    // `${names.join(', ')}` con nomi di apparato entri senza muovere il cricchetto.
+    const mapJoin = e.match(/^([\s\S]*?)\.map\s*\(([\s\S]*)\)\s*\.join\s*\(/);
+    if (mapJoin && balanced(e)) {
+        const corpo = mapJoin[2];
+        // «Costruito» = un template (che si scandisce a parte), un escaper, o la
+        // chiamata a un BUILDER del corpus — cioè una funzione il cui corpo è a sua
+        // volta un template scansionato. Un `.map(x => x).join()` non è coperto:
+        // quello unisce l'array com'è.
+        if (costruisce(corpo, ctx, builders)) return true;
+    }
+
+    // `[<pezzo>, <pezzo>].filter(…).join(…)` — la forma con cui si compongono le
+    // classi CSS e gli attributi di un input. I pezzi stanno lì in chiaro: si
+    // giudicano uno per uno. Il `.filter` toglie soltanto, quindi non può far
+    // comparire a schermo niente che non fosse già nell'elenco.
+    const litJoin = e.match(/^\[([\s\S]*)\](?:\s*\.filter\s*\([^)]*\))?\s*\.join\s*\(/);
+    if (litJoin && balanced(e) && balanced(litJoin[1])) {
+        const elementi = splitTop(litJoin[1], [',']).map(s => s.trim()).filter(Boolean);
+        if (elementi.length && elementi.every(p => isProvablySafe(p, ctx, builders, seen))) return true;
+    }
+
+    // IIFE: `(() => { … })()`, una funzione costruita e chiamata sul posto. Vale la
+    // stessa ragione dei builder — quello che stampa sono i suoi template, che lo
+    // scanner scandisce dove stanno — e si chiede lo stesso standard: il corpo deve
+    // RITORNARE HTML. Una IIFE che ritorna un valore grezzo non è assolta.
+    if (/^\(\s*(?:\(\s*\)|function\s*\([^)]*\)|\([^)]*\))\s*(?:=>)?\s*\{[\s\S]*\}\s*\)\s*\([^)]*\)$/.test(e)
+        && balanced(e) && RETURNS_HTML.test(e)) return true;
+
+    // Array COSTRUITO qui e poi unito. Tre forme, tutte con la stessa prova: si
+    // guardano i PEZZI, uno per uno, con questa stessa funzione. Se anche uno solo
+    // non si prova, l'array non è provato — che è lo scopo del cricchetto.
+    //   · `const rows = []` … `rows.push(<pezzo>)` … `${rows.join('')}`
+    //   · `const legend = [<pezzo>, <pezzo>]` (letterale già pieno, e poi push)
+    //   · `const blocchi = <qualcosa>.map(<pezzo costruito>)`
+    // ⚠️ L'array deve NASCERE nel file: se arriva da fuori non sappiamo cosa contiene.
+    const arrJoin = e.match(/^([\w$]+)(?:\.[\w$]+)?\s*\.join\s*\(/);
+    if (arrJoin && balanced(e) && !seen.has('[]' + arrJoin[1])) {
+        const nome = arrJoin[1];
+        const inizio = String(ctx.vars.get(nome) || '').trim();
+        const pushed = ctx.pushes && ctx.pushes.get(nome);
+        if (inizio) {
+            seen.add('[]' + nome);
+            const daPush = Array.isArray(pushed) ? pushed : (pushed === null ? null : []);
+            const elementiOk = (lista) => lista.every(p => isProvablySafe(p, ctx, builders, seen));
+            if (daPush) {
+                // Letterale: vuoto, o pieno di pezzi che si provano.
+                const lett = inizio.match(/^\[([\s\S]*)\]$/);
+                if (lett && balanced(inizio)) {
+                    const elementi = splitTop(lett[1], [',']).map(s => s.trim()).filter(Boolean);
+                    if (elementiOk(elementi) && elementiOk(daPush)) return true;
+                }
+                // `<qualcosa>.map(<pezzo costruito>)`: stessa prova della forma unita.
+                const m2 = inizio.match(/^([\s\S]*?)\.map\s*\(([\s\S]*)\)$/);
+                if (m2 && balanced(inizio) && costruisce(m2[2], ctx, builders) && elementiOk(daPush)) return true;
+            }
+        }
+    }
     if (/^[\w.\s+\-*/%()?:$]+$/.test(e) && /\.(length|size)\b/.test(e)) return true;
 
     // Variabile locale risolvibile → si guarda cosa ci hanno messo dentro.
@@ -443,6 +549,28 @@ function isProvablySafe(expr, ctx, builders, seen) {
         seen.add(e);
         return isProvablySafe(ctx.vars.get(e), ctx, builders, seen);
     }
+    return false;
+}
+
+/**
+ * Il callback di un `.map(...)` COSTRUISCE il pezzo? — cioè: quello che esce lo
+ * scanner lo vede già da un'altra parte, oppure passa da un escaper.
+ *   · un template (lo scandisce per conto suo, dove sta);
+ *   · un escaper o una funzione i18n;
+ *   · un BUILDER del corpus, chiamato — `x => riga(x)` — oppure passato per NOME:
+ *     `.map(riga)` è la stessa cosa scritta senza le parentesi, e senza questo
+ *     ramo la forma point-free (che questo repo usa parecchio) restava fuori.
+ * Tutto il resto no: `.map(x => x)` unisce l'array com'è.
+ */
+function costruisce(corpo, ctx, builders) {
+    const c = String(corpo || '').trim();
+    if (!c) return false;
+    if (/`/.test(c)) return true;
+    if ([...ctx.escAliases].some(a => c.includes(a))) return true;
+    const nome = (n) => new RegExp('\\b' + n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\(');
+    for (const b of builders) if (nome(b).test(c)) return true;
+    for (const f of I18N_FNS) if (nome(f).test(c)) return true;
+    if (/^[\w$]+$/.test(c) && builders.has(c)) return true;    // point-free: `.map(riga)`
     return false;
 }
 

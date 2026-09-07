@@ -394,7 +394,7 @@ export function _renderPortProps(panel){
                         const _tg = _tk.vlans.filter(v => v !== _tk.native);
                         const _inner = `<span style="background:#0e2233;border:1px solid #2d6a9f;border-radius:4px;padding:1px 8px;font-weight:700;color:#5ba3f5">TRUNK</span>`
                           + ` <span style="color:var(--text-muted)">${t('cable.trunkNative')}</span> <b>VLAN ${_tk.native}</b>`
-                          + (_tg.length ? ` <span style="color:var(--text-muted)">· ${t('cable.trunkCarried')}</span> <b>${_tg.join(', ')}</b>` : '');
+                          + (_tg.length ? ` <span style="color:var(--text-muted)">· ${t('cable.trunkCarried')}</span> <b>${escapeHTML(_tg.join(', '))}</b>` : '');
                         // VoIP: la VLAN VOCE (taggata) è una proprietà dell'interfaccia → editabile QUI;
                         // la nativa/dati arriva dallo switch a monte (resta nel badge read-only sopra).
                         const _voiceRow = (portNode && portNode.type==='voip') ? (()=>{
@@ -492,7 +492,7 @@ export function _renderPortProps(panel){
                   : _isTrunk
                   ? `<span style="background:#0e2233;border:1px solid #2d6a9f;border-radius:4px;padding:2px 10px;font-size:0.78rem;font-weight:700;color:#5ba3f5">TRUNK</span>
                      <span style="margin-left:6px;font-size:var(--fs-md);color:var(--text-muted)">${t('cable.trunkNative')}&nbsp;<b style="color:var(--text-main)">VLAN ${effVlan}</b></span>
-                     ${_tagged.length?`<span style="margin-left:6px;font-size:var(--fs-md);color:var(--text-muted)">· ${t('cable.trunkCarried')}&nbsp;<b style="color:var(--text-main)">${_tagged.join(', ')}</b></span>`:''}
+                     ${_tagged.length?`<span style="margin-left:6px;font-size:var(--fs-md);color:var(--text-muted)">· ${t('cable.trunkCarried')}&nbsp;<b style="color:var(--text-main)">${escapeHTML(_tagged.join(', '))}</b></span>`:''}
                      ${_fromSnmp?`<span style="margin-left:6px;font-size:var(--fs-2xs);color:#5ba3f5"><i class="fas fa-satellite-dish"></i> SNMP</span>`:''}`
                   : `<span style="display:inline-flex;align-items:center;gap:6px">
                        <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${_color};flex-shrink:0;border:1px solid rgba(255,255,255,.18)"></span>
