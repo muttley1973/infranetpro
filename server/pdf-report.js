@@ -301,15 +301,33 @@ function _rSub(doc, text, y) {
 // corrente). La vecchia stima `fontSize*0.5/char` sottostimava i nomi in maiuscolo/
 // simboli (es. "CORE-SW-2 (MLAG) P1") -> il testo sforava nella colonna accanto.
 // Misura al `fs` dato e RIPRISTINA il fontSize del chiamante (niente effetti collaterali).
+// ⚠️ TETTO DURO prima di misurare. `widthOfString` costa in proporzione alla
+// lunghezza, e il vecchio ciclo la richiamava per OGNI carattere tolto: O(n²).
+// Misurato su una colonna da 22pt: 4.000 caratteri = 1,2 s · 16.000 = 18,9 s di
+// event loop FERMO — e Node ha un thread solo, quindi è tutto il server, per una
+// cella. Nessun campo del report ha un limite a monte (smoke 07/09).
+// Il taglio non può cambiare il risultato: una riga SOLA, alla larghezza massima
+// di una pagina e al corpo più piccolo che usiamo, non arriva a 300 caratteri.
+const _FIT_MAX = 2000;
 function _fit(doc, str, widthPt, fs = 7) {
   str = String(str ?? '');
   if (!str) return str;
   const prev = doc._fontSize;
   doc.fontSize(fs);
-  let r = str;
-  if (doc.widthOfString(str) > widthPt) {
-    while (r.length > 1 && doc.widthOfString(r + '...') > widthPt) r = r.slice(0, -1);
-    r += '...';
+  const s = str.length > _FIT_MAX ? str.slice(0, _FIT_MAX) : str;
+  let r = s;
+  if (doc.widthOfString(s) > widthPt) {
+    // Il prefisso PIÙ LUNGO che entra. La larghezza cresce con la lunghezza, quindi
+    // la ricerca binaria trova esattamente lo stesso punto del vecchio ciclo a
+    // decrementi (stesso output, byte per byte), con log(n) misure invece di n.
+    let lo = 1, hi = s.length;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (doc.widthOfString(s.slice(0, mid) + '...') <= widthPt) lo = mid; else hi = mid - 1;
+    }
+    r = s.slice(0, lo) + '...';
+  } else if (str.length > _FIT_MAX) {
+    r = s + '...';                      // tagliato dal tetto, non dalla larghezza: si dice comunque
   }
   doc.fontSize(prev);
   return r;
@@ -317,8 +335,14 @@ function _fit(doc, str, widthPt, fs = 7) {
 
 // Manda a capo alla larghezza REALE, preferendo gli spazi (word-aware); i token piu'
 // lunghi della colonna vengono spezzati sul punto esatto che entra. Ripristina il fontSize.
+// Stesso tetto di `_fit`, più generoso perché qui le righe sono molte: una cella
+// che manda a capo può portare una nota lunga, ma oltre questo non è più un
+// documento. Senza, un token unico senza spazi faceva rimisurare a `hardSplit`
+// tutto il residuo a ogni pezzo — curva quadratica, costante più piccola.
+const _WRAP_MAX = 8000;
 function _wrapFit(doc, str, widthPt, fs = 7) {
-  const s = String(str ?? '');
+  const s0 = String(str ?? '');
+  const s = s0.length > _WRAP_MAX ? s0.slice(0, _WRAP_MAX) : s0;
   if (!s.length) return [''];
   const prev = doc._fontSize;
   doc.fontSize(fs);
@@ -1961,9 +1985,42 @@ function _addOverviewPages(doc, overview, projName, date, lang = 'it') {
 // fs.readFileSync) e lo incorporava nel PDF. Passa solo immagini inline PNG/JPEG
 // in base64; tutto il resto → '' (pdfkit non apre nulla, svg-to-pdfkit emette
 // un warning e salta l'elemento). Va passato a OGNI chiamata SVGtoPDF.
-function _svgImageCallback(link) {
-  const s = String(link == null ? '' : link).trim();
-  return /^data:image\/(png|jpe?g);base64,/i.test(s) ? s : '';
+// Un raster che pdfkit può prendere in mano senza allocare gigabyte. Controlla la
+// FIRMA completa e l'IHDR; NON decomprime i dati (sarebbe una decompressione
+// doppia) — a un IDAT corrotto pensa la scadenza della risposta nella rotta.
+//
+// Perché serve: per un PNG con canale alfa pdfkit passa da png-js, che fa
+// `Buffer.alloc(w*h*canali)` e poi `zlib.inflate` con un `throw` DENTRO la
+// callback asincrona. Quel throw esce da qualunque try/catch sincrono, e il
+// contatore interno di pdfkit resta fermo: `doc.end()` non finalizza mai e la
+// richiesta non riceve MAI risposta (smoke 07/09). Un IHDR che dichiara
+// 30000×30000 RGBA sono 3,6 GB chiesti all'allocatore prima di ogni scadenza.
+const _RASTER_MAX_SIDE   = 20000;     // lato massimo in pixel
+const _RASTER_MAX_PIXELS = 30e6;      // ~30 Mpx: una planimetria grande sta molto sotto
+function _rasterGuard(buf) {
+  if (!Buffer.isBuffer(buf) || buf.length < 8) return { ok: false, reason: 'vuoto o troncato' };
+  // JPEG: pdfkit lo legge per via sincrona (niente png-js) → basta la firma.
+  if (buf[0] === 0xFF && buf[1] === 0xD8) return { ok: true };
+  const FIRMA = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+  for (let i = 0; i < 8; i++) if (buf[i] !== FIRMA[i]) return { ok: false, reason: 'firma non riconosciuta' };
+  if (buf.length < 33) return { ok: false, reason: 'IHDR mancante' };
+  if (buf.readUInt32BE(8) !== 13 || buf.toString('latin1', 12, 16) !== 'IHDR') return { ok: false, reason: 'IHDR malformato' };
+  const w = buf.readUInt32BE(16), h = buf.readUInt32BE(20);
+  if (!w || !h) return { ok: false, reason: 'dimensioni nulle' };
+  if (w > _RASTER_MAX_SIDE || h > _RASTER_MAX_SIDE) return { ok: false, reason: `lato oltre ${_RASTER_MAX_SIDE}px (${w}×${h})` };
+  if (w * h > _RASTER_MAX_PIXELS) return { ok: false, reason: `oltre ${Math.round(_RASTER_MAX_PIXELS / 1e6)} Mpx (${w}×${h})` };
+  return { ok: true };
 }
 
-module.exports = { _loadPdfDeps, _svgImageCallback, _addReportPages, _addCoverPage, _addChangelogPages, _addSparePages, _addPduPages, _addAssetRegisterPages, _addRecoveryPages, _addWanPages, _wanMapSvg, _addOverviewPages, _assetDeviceLabel, _fmtRevised, _rt, _fit, _wrapFit };
+function _svgImageCallback(link) {
+  const s = String(link == null ? '' : link).trim();
+  if (!/^data:image\/(png|jpe?g);base64,/i.test(s)) return '';
+  // Lo SCHEMA non basta: il fix del 06/09 chiudeva la via al file locale, non al
+  // contenuto. Un PNG con dimensioni assurde o firma rotta va fermato qui.
+  try {
+    if (!_rasterGuard(Buffer.from(s.slice(s.indexOf(',') + 1), 'base64')).ok) return '';
+  } catch (_) { return ''; }
+  return s;
+}
+
+module.exports = { _loadPdfDeps, _svgImageCallback, _rasterGuard, _addReportPages, _addCoverPage, _addChangelogPages, _addSparePages, _addPduPages, _addAssetRegisterPages, _addRecoveryPages, _addWanPages, _wanMapSvg, _addOverviewPages, _assetDeviceLabel, _fmtRevised, _rt, _fit, _wrapFit };

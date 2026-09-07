@@ -212,3 +212,43 @@ test('candidati ARP: con abort non si interroga nessuno', async () => {
   assert.equal(n, 0);
   assert.equal(out.rows.length, 0);
 });
+
+// ── Politica dei vicini (smoke 07/09) ───────────────────────────────────────
+// I vicini li DICHIARA via LLDP/CDP l'apparato interrogato, e il crawl manda a
+// ogni nuovo bersaglio la stessa `cfg` — cioè la community SNMP dell'admin.
+// Seguire un IP qualunque significa spedire quelle credenziali dove dice un
+// apparato che potrebbe essere compromesso. Il default è lo spazio INTERNO.
+test('politica vicini: lo spazio interno passa, quello pubblico no', () => {
+  for (const ip of ['10.0.0.2', '172.16.5.5', '172.31.255.254', '192.168.1.1', '100.64.0.1']) {
+    assert.equal(_skipNeighborIp(ip), false, ip + ' è interno');
+  }
+  for (const ip of ['8.8.8.8', '203.0.113.7', '172.15.0.1', '172.32.0.1', '192.169.0.1', '100.128.0.1']) {
+    assert.equal(_skipNeighborIp(ip), true, ip + ' NON è interno');
+  }
+  // non instradabili: invariato rispetto a prima
+  assert.equal(_skipNeighborIp('0.1.2.3'), true);
+  assert.equal(_skipNeighborIp('127.0.0.1'), true);
+  assert.equal(_skipNeighborIp('169.254.1.1'), true);
+  // si allarga SOLO su dichiarazione esplicita di una persona
+  assert.equal(_skipNeighborIp('8.8.8.8', { allowPublic: true }), false, 'dichiarato dal chiamante');
+  assert.equal(_skipNeighborIp('8.8.8.8', { allow: new Set(['8.8.8.8']) }), false, 'dentro l\'ambito dichiarato');
+  assert.equal(_skipNeighborIp('8.8.8.9', { allow: new Set(['8.8.8.8']) }), true, 'fuori dall\'ambito dichiarato');
+});
+
+test('CARDINE: la community non segue un vicino PUBBLICO annunciato da un apparato', async () => {
+  const RETE = {
+    '10.0.0.1': { host: 'CORE', neighbors: [nbr('10.0.0.2'), nbr('203.0.113.7')] },
+    '10.0.0.2': { host: 'ACC1', neighbors: [] },
+    '203.0.113.7': { host: 'ESCA', neighbors: [] },
+  };
+  const net = makeNet(RETE);
+  const { ips } = await crawl(net);
+  assert.ok(!net.calls.probe.includes('203.0.113.7'), 'il bersaglio pubblico non viene MAI interrogato');
+  assert.ok(!net.calls.poll.includes('203.0.113.7'), 'e non gli si chiedono nemmeno i vicini');
+  assert.deepEqual(ips.sort(), ['10.0.0.1', '10.0.0.2']);
+
+  const net2 = makeNet(RETE);
+  const { ips: ips2 } = await crawl(net2, { neighborPolicy: { allowPublic: true } });
+  assert.ok(net2.calls.probe.includes('203.0.113.7'), 'con allowPublic il crawl lo segue (scelta dichiarata)');
+  assert.deepEqual(ips2.sort(), ['10.0.0.1', '10.0.0.2', '203.0.113.7']);
+});

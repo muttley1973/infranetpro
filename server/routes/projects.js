@@ -145,6 +145,11 @@ router.get('/api/projects', (_, res) => {
 // Crea - solo admin
 router.post('/api/projects', auth.requireAdmin, (req, res) => {
   const name  = (req.body?.name || 'New Project').toString().trim() || 'New Project';
+  // Stessa guardia del PUT. `null`/assente restano «nessuno stato» → {} (invariato);
+  // una stringa o un array sarebbero finiti su disco come documento.
+  if (req.body?.state != null && (typeof req.body.state !== 'object' || Array.isArray(req.body.state))) {
+    return res.status(400).json({ error: 'state must be an object', code: 'bad-state' });
+  }
   const state = req.body?.state ?? {};
   _sanitizeBackupRefs(state);
   const id    = nextId();
@@ -224,6 +229,14 @@ router.put('/api/projects/:id', auth.requireAdmin, (req, res) => {
     });
   }
 
+  // Il documento è un OGGETTO. Senza questo controllo un `state` null/stringa/
+  // numero/array passava fino a saveProject: `Object.assign({}, null)` dà `{}`, il
+  // progetto veniva riscritto VUOTO e la risposta era 200 — misurato su null, "x",
+  // 42 e [] (smoke 07/09). Stessa forma della rotta sorella PUT /api/organization.
+  if (req.body?.state !== undefined
+      && (req.body.state === null || typeof req.body.state !== 'object' || Array.isArray(req.body.state))) {
+    return res.status(400).json({ error: 'state must be an object', code: 'bad-state' });
+  }
   const name  = req.body?.name  ? (req.body.name.toString().trim() || p.name) : p.name;
   const state = req.body?.state !== undefined ? req.body.state : p.state;
   _sanitizeBackupRefs(state);

@@ -66,12 +66,24 @@ function _fitFont(doc, text, maxW, startFs, minFs) {
 }
 
 // Tronca con ellissi se `text` a `fs` supera `maxW`.
+// ⚠️ Tetto duro + ricerca binaria, per la stessa ragione di `_fit` in pdf-report:
+// il ciclo a decrementi rimisurava l'intera stringa a ogni carattere (O(n²)) e
+// nessun campo delle etichette ha un limite a monte — una `label` da 50k
+// caratteri bloccava l'event loop per minuti (smoke 07/09). Su un'etichetta di
+// pochi centimetri il taglio non può cambiare ciò che si stampa.
+const _TRUNC_MAX = 2000;
 function _truncate(doc, text, maxW, fs) {
-  let t = String(text == null ? '' : text);
+  const full = String(text == null ? '' : text);
   doc.font('Helvetica').fontSize(fs);
-  if (doc.widthOfString(t) <= maxW) return t;
-  while (t.length > 1 && doc.widthOfString(t + '…') > maxW) t = t.slice(0, -1);
-  return t + '…';
+  const t = full.length > _TRUNC_MAX ? full.slice(0, _TRUNC_MAX) : full;
+  if (full.length <= _TRUNC_MAX && doc.widthOfString(t) <= maxW) return t;
+  // Prefisso più lungo che entra: stesso esito del vecchio ciclo, log(n) misure.
+  let lo = 1, hi = t.length;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (doc.widthOfString(t.slice(0, mid) + '…') <= maxW) lo = mid; else hi = mid - 1;
+  }
+  return t.slice(0, lo) + '…';
 }
 
 // Una riga di testo centrata orizzontalmente, baseline-top a `y`.

@@ -759,8 +759,18 @@ router.post('/api/discover/topology', auth.requireAdmin, async (req, res) => {
   const {
     seed, seeds: seedsArr,
     driver = 'snmp-v2c', community = 'public',
-    port = 161, timeout = 3, maxDepth = 5, maxDevices = 100, scanCidr, ...v3
+    port = 161, timeout = 3, maxDepth: maxDepthRaw = 5, maxDevices: maxDevicesRaw = 100,
+    scanCidr, allowPublicNeighbors, ...v3
   } = req.body ?? {};
+
+  // Tetti: arrivavano grezzi dal corpo. `maxDepth:99` + `maxDevices:100000` non
+  // sono una richiesta legittima, sono una scansione che non finisce (smoke 07/09).
+  const _clamp = (v, def, min, max) => {
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : def;
+  };
+  const maxDepth   = _clamp(maxDepthRaw, 5, 1, 16);
+  const maxDevices = _clamp(maxDevicesRaw, 100, 1, 5000);
 
   const drv = DRIVERS[(driver || 'snmp-v2c').toLowerCase()];
   if (!drv) return res.status(400).json({ ok: false, error: 'Driver non supportato' });
@@ -809,6 +819,11 @@ router.post('/api/discover/topology', auth.requireAdmin, async (req, res) => {
   try {
     const crawlOut = await crawlNetwork({
       seeds, maxDepth, maxDevices, pool: CRAWL_POOL, collectArp: !!scanSet,
+      // ⚠️ `cfg` porta la community/l'handshake v3: va SOLO dove decidiamo noi.
+      // I vicini li dichiara l'apparato interrogato, quindi il default è lo spazio
+      // interno; l'ambito scansionato (dichiarato da una persona) resta ammesso, e
+      // le reti su indirizzi pubblici si aprono con una richiesta esplicita.
+      neighborPolicy: { allowPublic: allowPublicNeighbors === true, allow: scanSet },
       probe: ip => drv.probe({ ...cfg, host: ip }),
       pollNeighbors: ip => drv.pollNeighbors({ ...cfg, host: ip }),
       decorate: _decorateDiscoveryRow,

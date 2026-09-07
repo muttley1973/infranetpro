@@ -47,13 +47,39 @@ async function runPool(items, k, fn) {
   return out;
 }
 
-// IP di vicino non instradabile/non valido → non si accoda (come il BFS originale).
-function _skipNeighborIp(nip) {
+// Spazio di indirizzamento INTERNO (RFC1918 + CGNAT RFC6598, che alcune reti
+// d'operatore usano davvero all'interno). Serve alla politica dei vicini.
+function _isPrivateIpv4(nip) {
+  const o = String(nip == null ? '' : nip).split('.').map(Number);
+  if (o.length !== 4 || o.some(x => !Number.isInteger(x) || x < 0 || x > 255)) return false;
+  if (o[0] === 10) return true;                                // 10/8
+  if (o[0] === 172 && o[1] >= 16 && o[1] <= 31) return true;   // 172.16/12
+  if (o[0] === 192 && o[1] === 168) return true;               // 192.168/16
+  if (o[0] === 100 && o[1] >= 64 && o[1] <= 127) return true;  // 100.64/10 (CGNAT)
+  return false;
+}
+
+// Si accoda un vicino solo se è instradabile E INTERNO.
+//
+// ⚠️ I vicini NON sono un dato nostro: li DICHIARA via LLDP/CDP l'apparato che
+// stiamo interrogando. Il crawl manda a ogni nuovo bersaglio la STESSA `cfg` —
+// cioè la community SNMPv2c o l'handshake v3 dell'admin. Seguendo un IP qualsiasi,
+// un solo switch compromesso (o un apparato rogue attaccato alla rete, che chiunque
+// può mettere) faceva spedire quelle credenziali a un indirizzo scelto da lui:
+// esfiltrazione pilotata da dati non fidati (smoke 07/09).
+// Il default è quindi lo spazio privato. Chi documenta una rete su indirizzi
+// PUBBLICI non resta fuori: lo dichiara (`allowPublic`), e allora sa che cosa sta
+// autorizzando; e un ambito dichiarato a mano (`allow`, la subnet scansionata)
+// vale comunque, perché lì la scelta l'ha fatta una persona, non un apparato.
+function _skipNeighborIp(nip, opts) {
   if (!nip) return true;
-  const oct = nip.split('.').map(Number);
+  const oct = String(nip).split('.').map(Number);
   if (oct[0] === 0 || oct[0] === 127) return true;
   if (oct[0] === 169 && oct[1] === 254) return true;
-  return false;
+  const o = opts || {};
+  if (o.allowPublic) return false;
+  if (o.allow && typeof o.allow.has === 'function' && o.allow.has(String(nip))) return false;
+  return !_isPrivateIpv4(nip);
 }
 
 // crawlNetwork — BFS livello-sincrono. Dipendenze iniettate (nessuna rete qui dentro):
@@ -67,6 +93,9 @@ async function crawlNetwork(opts) {
   const {
     seeds = [], maxDepth = 5, maxDevices = 100, pool = 4, collectArp = false,
     probe, pollNeighbors, decorate,
+    // Politica dei vicini (vedi _skipNeighborIp): { allowPublic?, allow?:Set }.
+    // Assente = solo spazio interno, che è il default sicuro.
+    neighborPolicy = null,
     emit: rawEmit = () => {}, isAborted = () => false,
   } = opts || {};
   if (typeof probe !== 'function' || typeof pollNeighbors !== 'function' || typeof decorate !== 'function') {
@@ -157,7 +186,7 @@ async function crawlNetwork(opts) {
           const nip = (n.remoteIP || '').trim();
           if (!nip || seenLocal.has(nip) || visited.has(nip)) continue;
           seenLocal.add(nip);
-          if (_skipNeighborIp(nip)) continue;
+          if (_skipNeighborIp(nip, neighborPolicy)) continue;
           frontier.push({ ip: nip, depth: f.depth + 1 });
           if (!discoveredBy.has(nip)) {
             discoveredBy.set(nip, { protocol: n.protocol || '', from: f.ip, port: n.localPort || '', name: n.remoteDevice || '' });
@@ -233,4 +262,4 @@ async function probeArpCandidates(list, opts) {
   return { rows, answered, dup };
 }
 
-module.exports = { crawlNetwork, probeArpCandidates, cmpIp, runPool, _ipNum, _skipNeighborIp };
+module.exports = { crawlNetwork, probeArpCandidates, cmpIp, runPool, _ipNum, _skipNeighborIp, _isPrivateIpv4 };

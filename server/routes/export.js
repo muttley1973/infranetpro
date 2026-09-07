@@ -7,7 +7,7 @@ const auth = require('../../auth');
 const { buildPduReport } = require('../../lib/pdu-report.js');
 const { buildInterSiteWanReport } = require('../../lib/inter-site-report.js');
 const { readOrganization } = require('../organization-store');
-const { _loadPdfDeps, _svgImageCallback, _addReportPages, _addCoverPage, _addChangelogPages, _addSparePages, _addPduPages, _addAssetRegisterPages, _addRecoveryPages, _addWanPages, _addOverviewPages, _rt } = require('../pdf-report');
+const { _loadPdfDeps, _svgImageCallback, _rasterGuard, _addReportPages, _addCoverPage, _addChangelogPages, _addSparePages, _addPduPages, _addAssetRegisterPages, _addRecoveryPages, _addWanPages, _addOverviewPages, _rt } = require('../pdf-report');
 const { addLabelPages } = require('../label-sheet');
 const { loadProject } = require('../projects-store');
 const { projectToDevices, applyPortMacFallback, applyDeviceNotes, isStructuralCabling } = require('../../lib/api-shape');
@@ -138,13 +138,12 @@ router.post('/api/export-pdf', auth.requireAdmin, (req, res) => {
           try {
             const b64    = bgImage.split(',')[1] || '';
             const imgBuf = Buffer.from(b64, 'base64');
-            if (imgBuf.length >= 4) {
-              const magic4 = imgBuf.readUInt32BE(0);
-              const magic2 = imgBuf.readUInt16BE(0);
-              if (magic4 !== 0x89504E47 && magic2 !== 0xFFD8) {
-                throw new Error(`Formato non supportato (magic 0x${magic4.toString(16).toUpperCase()})`);
-              }
-            }
+            // Firma COMPLETA + IHDR + tetto sulle dimensioni, non i soli 4 byte di
+            // magic: un PNG con alfa passa da png-js, che alloca w*h*canali PRIMA di
+            // decomprimere (un IHDR 30000×30000 RGBA = 3,6 GB) e lancia dentro una
+            // callback asincrona, fuori da questo try (smoke 07/09).
+            const g = _rasterGuard(imgBuf);
+            if (!g.ok) throw new Error(`Immagine di sfondo rifiutata: ${g.reason}`);
             doc.image(imgBuf, MARGIN, HEADER_H, { width: iW, height: iH });
           } catch (imgErr) {
             console.error(`  [PDF] Background raster skip: ${imgErr.message}`);
@@ -267,19 +266,38 @@ router.post('/api/export-pdf', auth.requireAdmin, (req, res) => {
       _addPduPages(doc, buildPduReport({ pdus: reportData.pdus }), hName, hDate, _lang);
     }
 
+    // ── Scadenza della risposta ────────────────────────────────────────────────
+    // `doc.end()` finalizza solo quando il contatore interno di pdfkit torna a
+    // zero. Un'immagine che fa lanciare png-js DENTRO una callback asincrona lo
+    // lascia fermo per sempre: 'end' non arriva, il client resta appeso senza
+    // risposta e i `chunks` restano in memoria col socket aperto (smoke 07/09).
+    // Qui si garantisce UNA risposta comunque. Generosa: dopo il tetto sul
+    // troncamento un dossier grande sta ampiamente sotto.
+    const PDF_DEADLINE_MS = 60000;
     const chunks = [];
-    doc.on('data', c => chunks.push(c));
-    doc.on('end', () => {
+    let risposto = false;
+    const scadenza = setTimeout(() => {
+      if (risposto) return;
+      risposto = true;
+      chunks.length = 0;                     // non trattenere il parziale
+      console.error('  [PDF] documento non finalizzato entro 60s: richiesta chiusa');
+      if (!res.headersSent) res.status(500).json({ error: 'PDF generation timed out', code: 'pdf-timeout' });
+      else res.end();
+    }, PDF_DEADLINE_MS);
+    const chiudi = (fn) => { if (risposto) return; risposto = true; clearTimeout(scadenza); fn(); };
+
+    doc.on('data', c => { if (!risposto) chunks.push(c); });
+    doc.on('end', () => chiudi(() => {
       const buf = Buffer.concat(chunks);
       res.setHeader('Content-Type',        'application/pdf');
       res.setHeader('Content-Disposition', 'attachment; filename="infranetpro-report.pdf"');
       res.setHeader('Content-Length',      buf.length);
       res.end(buf);
-    });
-    doc.on('error', err => {
+    }));
+    doc.on('error', err => chiudi(() => {
       console.error(`  [PDF] Errore stream: ${err.message}`);
       if (!res.headersSent) res.status(500).json({ error: err.message });
-    });
+    }));
     doc.end();
 
   } catch (err) {

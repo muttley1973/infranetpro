@@ -9,7 +9,7 @@ let deps;
 try { deps = require('../server/pdf-report.js')._loadPdfDeps(); }
 catch { /* pdfkit non installato: salto sotto */ }
 
-const { _fit, _wrapFit, _addReportPages, _assetDeviceLabel, _svgImageCallback } = require('../server/pdf-report.js');
+const { _fit, _wrapFit, _addReportPages, _assetDeviceLabel, _svgImageCallback, _rasterGuard } = require('../server/pdf-report.js');
 
 function newDoc() {
   const doc = new deps.PDFDocument({ size: [595, 842], margins: { top: 0, bottom: 0, left: 0, right: 0 } });
@@ -20,14 +20,48 @@ function newDoc() {
 // Smoke 06/09: un <image href="C:/…"> nell'SVG faceva leggere a pdfkit un file
 // LOCALE del server e lo incorporava nel PDF (da 1,5 KB a 42 KB con un PNG del
 // repo). Il callback lascia passare solo immagini inline PNG/JPEG in base64.
+// PNG 1×1 REALE (firma + IHDR validi): dal 07/09 il callback guarda anche il
+// CONTENUTO, non solo lo schema, quindi i fixture devono essere immagini vere.
+const PNG_1X1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+const JPEG_MIN = '/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAA==';
+
 test('_svgImageCallback: solo data:image/png|jpeg in base64, tutto il resto vuoto', () => {
-  const ok = 'data:image/png;base64,iVBORw0KGgo=';
+  const ok = 'data:image/png;base64,' + PNG_1X1;
   assert.equal(_svgImageCallback(ok), ok);
-  assert.equal(_svgImageCallback('DATA:IMAGE/JPEG;base64,/9j/'), 'DATA:IMAGE/JPEG;base64,/9j/');
+  assert.equal(_svgImageCallback('DATA:IMAGE/JPEG;base64,' + JPEG_MIN), 'DATA:IMAGE/JPEG;base64,' + JPEG_MIN);
   for (const brutto of ['C:/Users/x/foto.png', '/etc/passwd', 'file:///etc/passwd', 'http://x/y.png',
     'data:text/html;base64,PHNjcmlwdD4=', 'data:image/svg+xml;base64,PHN2Zz4=', '', null, undefined]) {
     assert.equal(_svgImageCallback(brutto), '', String(brutto));
   }
+});
+
+// Smoke 07/09: lo schema giusto non basta. Per un PNG con alfa pdfkit passa da
+// png-js, che alloca w*h*canali PRIMA di decomprimere e lancia dentro una
+// callback asincrona — fuori da ogni try/catch sincrono: la richiesta non
+// riceveva mai risposta e un IHDR 30000×30000 RGBA chiede 3,6 GB.
+test('_rasterGuard: firma completa, IHDR sano, tetto sulle dimensioni', () => {
+  const png = Buffer.from(PNG_1X1, 'base64');
+  assert.equal(_rasterGuard(png).ok, true, 'un PNG valido passa');
+  assert.equal(_rasterGuard(Buffer.from(JPEG_MIN, 'base64')).ok, true, 'un JPEG passa (via sincrona)');
+
+  const conIhdr = (w, h) => {
+    const b = Buffer.alloc(40);
+    Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]).copy(b, 0);
+    b.writeUInt32BE(13, 8); b.write('IHDR', 12, 'latin1');
+    b.writeUInt32BE(w, 16); b.writeUInt32BE(h, 20); b[24] = 8; b[25] = 6;   // 8 bit, RGBA
+    return b;
+  };
+  assert.equal(_rasterGuard(conIhdr(30000, 30000)).ok, false, 'lato fuori tetto → rifiutato');
+  assert.equal(_rasterGuard(conIhdr(19000, 19000)).ok, false, 'oltre 30 Mpx → rifiutato');
+  assert.equal(_rasterGuard(conIhdr(0, 10)).ok, false, 'dimensione nulla → rifiutato');
+  assert.equal(_rasterGuard(conIhdr(1200, 800)).ok, true, 'una planimetria normale passa');
+
+  assert.equal(_rasterGuard(Buffer.from([0x89, 0x50, 0x4E, 0x47, 0, 0, 0, 0, 0])).ok, false, 'firma troncata → rifiutato');
+  assert.equal(_rasterGuard(Buffer.from('iVBORw0KGgo=', 'base64')).ok, false, 'solo la firma, senza IHDR → rifiutato');
+  assert.equal(_rasterGuard(Buffer.alloc(0)).ok, false, 'vuoto → rifiutato');
+  assert.equal(_rasterGuard(null).ok, false, 'non-buffer → rifiutato');
+  // e il callback lo onora
+  assert.equal(_svgImageCallback('data:image/png;base64,' + conIhdr(30000, 30000).toString('base64')), '');
 });
 
 test('SVGtoPDF col callback: un <image href> verso un file locale NON finisce nel PDF', { skip: !deps }, async () => {
