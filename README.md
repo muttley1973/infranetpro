@@ -123,22 +123,16 @@ Double-click <code>avvia.bat</code>.<br>
 
 > 📰 **What's new (v2.11.4) — a security release: two passes over the whole product, and everything they found that could be fixed safely.**
 >
-> - **Credentials stay where you put them.** A management URL could carry them out of the app — with a
->   `javascript:` scheme it ran in the app's own origin when opened, and written without a scheme
->   (`admin:pw@10.0.0.1`) it travelled with its password into the REST API, the Ansible inventory and the context
->   sent to the AI provider. And a topology crawl handed the SNMP community to whatever address a switch announced
->   as its neighbour: it stays in internal address space now unless you declare otherwise.
-> - **Nothing you did gets thrown away quietly.** A malformed save used to rewrite a project as empty and answer
->   *200 OK*; undo and redo did not light «Save», so a reload brought the server's copy back; deleting a rack left
->   its HA partner pointing at something gone; and closing the tab with unsaved work said nothing. All four are
->   closed, and an import from discovery is finally written to the document's journal.
-> - **Revoking access now sticks.** A demoted administrator who left a tab open got their rights back simply by
->   signing in elsewhere. Sessions carry the moment they were born in, signing in regenerates the session id, and
->   login throttling counts per address *and* account instead of locking out everyone behind one proxy.
-> - **The export stopped being a way in.** It could read files off the server through an image reference, hang
->   forever on a broken PNG, and freeze the single thread the server has for nineteen seconds on one long cell.
-> - **And the container behaves like one.** The image runs as a non-root user and keeps API tokens, the AI and
->   DCIM configuration and the session secret out of its layers, on the data volume where they belong.
+> - **Credentials stay where you put them.** A management URL could carry them out — and a topology crawl
+>   handed the SNMP community to whatever address a switch announced as its neighbour. The crawl stays in
+>   internal address space now unless you declare otherwise.
+> - **Nothing you did gets thrown away quietly.** A malformed save rewrote a project as empty and answered
+>   *200 OK*; undo and redo did not light «Save»; deleting a rack left its HA partner pointing at something
+>   gone; closing the tab said nothing.
+> - **Revoking access now sticks** — a demoted administrator who left a tab open used to get their rights
+>   back simply by signing in elsewhere.
+> - **The export stopped being a way in**, and the container behaves like one: non-root, with every secret
+>   on the data volume instead of in an image layer.
 
 > 📰 **v2.11.3 — one question, one alphabet: how sure the app is, said the same way everywhere.**
 >
