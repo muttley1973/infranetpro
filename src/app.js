@@ -201,8 +201,8 @@ store._history=[]; store._histIdx=-1;   // var: reset dal bundle app-core (loadP
 // STORICO/DIRTY/AUDIT estratti in ./app-history.js (split app.js #3). Import+re-export:
 // import per i molti call-site interni (markDirty/pushHistory/logAudit/undo/redo) e
 // re-export per i consumatori ESM che importano queste fn da ./app.js.
-import { pushHistory, undo, redo, _updateHistoryBtns, _resetSelection, markDirty, _clearDirty, dirtyEpoch, logAudit } from "./app-history.js";
-export { pushHistory, undo, redo, _updateHistoryBtns, _resetSelection, markDirty, _clearDirty, dirtyEpoch, logAudit };
+import { pushHistory, undo, redo, _updateHistoryBtns, _resetSelection, markDirty, _clearDirty, dirtyEpoch, isDirty, logAudit } from "./app-history.js";
+export { pushHistory, undo, redo, _updateHistoryBtns, _resetSelection, markDirty, _clearDirty, dirtyEpoch, isDirty, logAudit };
 
 // ============================================================
 // API CLIENT
@@ -1979,6 +1979,17 @@ export function _removeNodeById(rid){
             return !String(obs.portId || '').startsWith(String(rid) + '-');
         });
     }
+    // Un partner HA sopravvissuto non deve restare a puntare a un nodo sparito: il
+    // pair è rotto, si azzerano riferimento e campi che avevano senso solo in coppia.
+    // Il cluster (haGroupId) è un'etichetta condivisa, non un puntatore → si lascia.
+    // (Vale a OGNI rimozione, singola o di rack: quest'ultima ci passa ora che
+    // deleteCurrentRack delega qui — gruppo G, smoke 06/09.)
+    for(const other of state.nodes){
+        if(other && other.spec && String(other.spec.haPeer) === String(rid)){
+            delete other.spec.haPeer; delete other.spec.haRole;
+            delete other.spec.haMode; delete other.spec.haSync;
+        }
+    }
 }
 function deleteNode(){
     if(!selId) return;
@@ -2172,6 +2183,12 @@ async function init(){
     _refreshTopoBtnState();
     // Check periodico ogni 60s per disabilitare il pulsante quando la cache scade
     setInterval(_refreshTopoBtnState, 60 * 1000);
+    // Avviso alla chiusura della scheda con modifiche non salvate. Il dialogo nativo
+    // del browser appare SOLO se isDirty() (autosave OFF, o modifiche dopo l'ultimo
+    // salvataggio): nessun prompt quando non c'è nulla da perdere. (gruppo G, smoke 06/09.)
+    window.addEventListener('beforeunload', (e) => {
+        if (isDirty()) { e.preventDefault(); e.returnValue = ''; }
+    });
 }
 
 // ASSE B (ritiro ponte): il pannello NODE (app-properties-node.js) importa queste

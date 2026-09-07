@@ -7,7 +7,7 @@
 // ============================================================
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { escapeHTML, normalizeNumber } from './app-util.js';
+import { escapeHTML, isValidVlanId } from './app-util.js';
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, pushHistory, renderCables, _showToast, _promoteLinkToManual, _vlanRecord, _ensureIpamState } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { primaryPrefixForVlan, upsertPrefix, removePrefix, prefixKey, migrateIpam, prefixesForVlan, prefixesWithoutVlan, prefixesOf, findPrefix, parseNetworkList } from '../lib/ipam-model.js';   // la subnet è un prefisso, non un campo della VLAN
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -1239,7 +1239,10 @@ export function _vlansToRangeStr(sorted){
 
 function updateUiColor(k,c){if(!store.state.uiColors)store.state.uiColors={};store.state.uiColors[k]=c;applyUiColors();markDirty();}
 function addVlanColor(){
-    const v=normalizeNumber(document.getElementById('new-vlan-id').value,NaN,1,4094);
+    const raw=document.getElementById('new-vlan-id').value;
+    // RIFIUTA 0/4095/fuori range invece di CLAMPARLI: normalizeNumber portava «4095»
+    // a 4094 in silenzio, creando una seconda card «VLAN 4094» (gruppo G, smoke 06/09).
+    const v=isValidVlanId(raw)?parseInt(String(raw).trim(),10):NaN;
     const c=document.getElementById('new-vlan-color').value;
     if(!Number.isNaN(v)&&c){pushHistory();store.state.vlanColors[v]=c;renderAll();markDirty();}
 }

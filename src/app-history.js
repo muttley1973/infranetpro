@@ -83,6 +83,10 @@ let _dirtyEpoch = 0;
 /** L'epoca corrente: chi sta per salvare la prende ORA e la ripresenta a cose fatte. */
 export function dirtyEpoch() { return _dirtyEpoch; }
 
+/** Il documento ha modifiche non salvate? Lettura pura del segnale — la usa la
+ *  guardia `beforeunload` per avvisare prima di chiudere la scheda. */
+export function isDirty() { return !!_isDirty; }
+
 export function markDirty() {
     _invalidateIdx();
     _isDirty = true;

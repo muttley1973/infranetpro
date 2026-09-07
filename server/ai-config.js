@@ -83,18 +83,34 @@ function _effectiveKey(cfg) {
   return cfg.key || '';
 }
 
+// Endpoint EFFETTIVO: come per la chiave, l'ambiente ha la precedenza. Serve a
+// LEGARE una chiave fornita via env a un endpoint fissato dall'operatore. Senza,
+// un admin dalla UI può ripuntare l'endpoint salvato e far volare la chiave-da-env
+// (un segreto di deployment) verso un URL scelto da lui. Con INFRANET_AI_ENDPOINT
+// impostato, la chat parla SOLO con quell'endpoint e il campo UI diventa cosmetico.
+// Non impostato → comportamento invariato (endpoint dal disco). Server-side only.
+function _effectiveEndpoint(cfg) {
+  const env = process.env.INFRANET_AI_ENDPOINT;
+  if (typeof env === 'string' && env.trim()) return env.trim();
+  return (cfg && cfg.endpoint) || DEFAULTS.endpoint;
+}
+
 // Forma MASCHERATA per il browser: mai la chiave, solo `keySet` (+ `keyFromEnv`
 // così la UI sa che è gestita via ambiente e non si può cambiare da qui).
 function _mask(cfg) {
   const envKey = typeof process.env.INFRANET_AI_KEY === 'string' && process.env.INFRANET_AI_KEY.trim();
+  const envEndpoint = typeof process.env.INFRANET_AI_ENDPOINT === 'string' && process.env.INFRANET_AI_ENDPOINT.trim();
+  const endpoint = _effectiveEndpoint(cfg);
   return {
     enabled: cfg.enabled,
-    endpoint: cfg.endpoint,
+    endpoint,
+    // endpoint fissato via ambiente → la UI lo mostra bloccato (non modificabile da qui)
+    endpointFromEnv: !!envEndpoint,
     model: cfg.model,
     keySet: !!_effectiveKey(cfg),
     keyFromEnv: !!envKey,
     // l'inferenza locale (es. Ollama) non richiede chiave: la UI mostra 🔒 Locale
-    local: _isLocalEndpoint(cfg.endpoint),
+    local: _isLocalEndpoint(endpoint),
     scope: _normFlags(cfg.scope, SCOPE_KEYS),
     features: _normFlags(cfg.features, FEATURE_KEYS),
   };
@@ -133,7 +149,7 @@ function getConfig() {
 function getConfigWithKey() {
   const cfg = _readFile();
   return {
-    enabled: cfg.enabled, endpoint: cfg.endpoint, model: cfg.model, key: _effectiveKey(cfg),
+    enabled: cfg.enabled, endpoint: _effectiveEndpoint(cfg), model: cfg.model, key: _effectiveKey(cfg),
     scope: _normFlags(cfg.scope, SCOPE_KEYS), features: _normFlags(cfg.features, FEATURE_KEYS),
   };
 }
@@ -178,6 +194,6 @@ module.exports = {
   setConfig,
   CONFIG_FILE,
   // esportati per i test puri
-  _normalize, _mask, _effectiveKey, _isLocalEndpoint, _normFlags, _mergeFlags, _hardenPerms,
+  _normalize, _mask, _effectiveKey, _effectiveEndpoint, _isLocalEndpoint, _normFlags, _mergeFlags, _hardenPerms,
   DEFAULTS, SCOPE_KEYS, FEATURE_KEYS,
 };

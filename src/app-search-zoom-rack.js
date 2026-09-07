@@ -9,7 +9,7 @@ import { expose, t } from './_bridge.js';
 import { registerClickActions, registerChangeActions, registerInputActions, registerFocusActions, registerKeydownActions } from './app-delegation.js';   // ASSE B: event delegation (data-act/change/input/focus/keydown) — toolbar rack/zoom/palette + search box
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, hexToRgba, normalizePortStatus, normalizeNumber, floorStructEl } from './app-util.js';
-import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _showToast, getRackById, getRackName, getNodeRackSize, getPortConnectionCount, getNodePortCount, getRackSize, _repairRackPlacements, removeNodePorts, _resetSelection } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, markDirty, getNodeByPortId, getNodeDisplayName, pushHistory, renderCables, _showToast, getRackById, getRackName, getNodeRackSize, getPortConnectionCount, getNodePortCount, getRackSize, _repairRackPlacements, _removeNodeById, _resetSelection } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { showAlert, showPrompt, showConfirm } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll, rackUPx } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -724,10 +724,11 @@ function deleteCurrentRack(){
     if(store.state.racks.length<=1){showAlert(t('msg.rack.cannotDeleteOnly'));return;}
     showConfirm(t('msg.rack.confirmDelete'),()=>{
         pushHistory();
-        const ids=new Set(store.state.nodes.filter(n=>TYPES[n.type]?.isRack&&n.rackId===store.state.currentRack).map(n=>n.id));
-        store.state.nodes=store.state.nodes.filter(n=>!ids.has(n.id));
-        store.state.links=store.state.links.filter(l=>!ids.has(getPortNodeId(l.src))&&!ids.has(getPortNodeId(l.dst)));
-        removeNodePorts(ids);
+        const ids=[...new Set(store.state.nodes.filter(n=>TYPES[n.type]?.isRack&&n.rackId===store.state.currentRack).map(n=>n.id))];
+        // Delego a _removeNodeById (una via sola): rimuove nodo + cavi + porte E
+        // ripulisce topoCache, avvistamenti di scoperta e il partner HA sopravvissuto.
+        // La vecchia rimozione inline del rack saltava le ultime tre (gruppo G, smoke 06/09).
+        ids.forEach(id => _removeNodeById(id));
         store.state.racks=store.state.racks.filter(r=>r.id!==store.state.currentRack);
         store.state.currentRack=store.state.racks[0].id;
         _resetSelection(); renderRackTabs();renderAll();markDirty();

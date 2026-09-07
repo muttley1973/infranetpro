@@ -2,7 +2,7 @@ import { win, expose } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, normalizeMacAddress } from './app-util.js';
 import { recognizeModel } from './app-device-types.js';   // riconoscimento modello a scansione (proposta)
-import { markDirty, pushHistory, renderCables, _showToast, _nextNodeId, _vlanIpam } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { markDirty, pushHistory, renderCables, _showToast, _nextNodeId, _vlanIpam, logAudit } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { _ensureVlanColor, updateVlanIpam } from './app-vlan-autopoll.js';   // associazione VLAN↔subnet dallo scan (declare-first)
 import { prefixesOf } from '../lib/ipam-model.js';   // le VLAN note includono quelle citate da un prefisso
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -1415,6 +1415,15 @@ async function importDiscovered(){
         if(updated > 0)               parts.push(_dt('disc.imp.updated','{n} aggiornati',{n:updated}));
         if(autoLinked > 0)            parts.push(_dt('disc.imp.autoLinked','{n} collegati auto',{n:autoLinked}));
         if(conflicts > 0)             parts.push(_dt('disc.imp.conflicts','{n} conflitti IP/MAC',{n:conflicts}));
+        // Storia del documento: l'import da discovery è un evento strutturale come
+        // aggiungere un device o un Sync. pushHistory() lo rende annullabile, ma il
+        // GIORNALE «chi/quando/cosa» non lo registrava — un buco nella provenienza (gruppo G).
+        if(imported || updated || autoLinked){
+            logAudit('discovery-import', {
+                target: _dt('disc.imp.auditTarget','Scoperta di rete'),
+                summary: parts.join(' · '),
+            });
+        }
         const progress = document.getElementById('disc-progress');
         if(progress){
             progress.innerHTML = `<span class="tm-ok">${escapeHTML(_dt('disc.imp.done','Import completato - {parts}',{parts:parts.join(' · ') || _dt('disc.imp.nothing','nessuna novità')}))}</span>`

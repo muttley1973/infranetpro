@@ -60,6 +60,25 @@ test('env INFRANET_AI_KEY ha precedenza (deployment senza chiave su disco)', () 
   delete process.env.INFRANET_AI_KEY;
 });
 
+// Gruppo G (smoke 06/09): una chiave fornita via env non deve poter essere
+// ripuntata dalla UI verso un endpoint scelto dall'admin. Con INFRANET_AI_ENDPOINT
+// l'operatore FISSA l'endpoint: la chat parla solo con quello, il campo salvato è
+// ignorato, e la UI sa che è bloccato (endpointFromEnv).
+test('env INFRANET_AI_ENDPOINT fissa l\'endpoint (lega la chiave-da-env a un URL)', () => {
+  ai.setConfig({ endpoint: 'https://ripuntato-dalla-ui.example/v1', key: 'sk-disco' });
+  assert.equal(ai.getConfigWithKey().endpoint, 'https://ripuntato-dalla-ui.example/v1', 'senza env: vale il disco');
+  process.env.INFRANET_AI_ENDPOINT = 'https://pinned-operatore.example/v1';
+  try {
+    assert.equal(ai.getConfigWithKey().endpoint, 'https://pinned-operatore.example/v1', 'con env: la chat usa SOLO quello');
+    const c = ai.getConfig();
+    assert.equal(c.endpoint, 'https://pinned-operatore.example/v1');
+    assert.equal(c.endpointFromEnv, true, 'la UI sa che è bloccato');
+  } finally {
+    delete process.env.INFRANET_AI_ENDPOINT;
+  }
+  assert.equal(ai.getConfig().endpointFromEnv, false, 'tolto l\'env, torna modificabile');
+});
+
 test('_isLocalEndpoint: loopback/LAN/.local = locale; dominio pubblico = cloud', () => {
   assert.equal(ai._isLocalEndpoint('http://localhost:11434/v1'), true);
   assert.equal(ai._isLocalEndpoint('http://127.0.0.1:11434'), true);

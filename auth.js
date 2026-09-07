@@ -10,6 +10,10 @@ const crypto    = require('crypto');
 const bcrypt    = require('bcryptjs');
 const session   = require('express-session');
 const rateLimit = require('express-rate-limit');
+// Helper della libreria: normalizza l'IP (mascheratura /56 dell'IPv6) per una
+// keyGenerator personalizzata — express-rate-limit v8 lo richiede quando si compone
+// la chiave a partire da req.ip, altrimenti avverte del rischio di bypass IPv6.
+const ipKeyGenerator = rateLimit.ipKeyGenerator;
 const { timestamp } = require('./utils');
 const { atomicWriteFile } = require('./server/projects-store');
 
@@ -50,7 +54,11 @@ const TRUST_PROXY = process.env.INFRANET_TRUST_PROXY === '1';
 
 // ---- Secret auto-generato (persiste tra riavvii grazie a .session-secret) --
 
-const SECRET_FILE = path.join(__dirname, '.session-secret');
+// Override via INFRANET_SESSION_SECRET_FILE: in Docker (utente non-root, /app di
+// sola lettura) il secret auto-generato deve poter essere scritto su un path
+// scrivibile e persistente (/data), altrimenti l'avvio senza SESSION_SECRET nell'
+// ambiente fallirebbe con EACCES. Default invariato su bare-metal.
+const SECRET_FILE = process.env.INFRANET_SESSION_SECRET_FILE || path.join(__dirname, '.session-secret');
 
 function _genSecret() {
   if (fs.existsSync(SECRET_FILE)) {
@@ -112,6 +120,21 @@ function saveUsers(users) {
 function nextUserId(users) {
   // reduce() evita il limite dello stack di Math.max(...spread) su array grandi
   return users.reduce((max, u) => u.id > max ? u.id : max, 0) + 1;
+}
+
+// ---- Policy password --------------------------------------------------------
+// Requisito minimo: la LUNGHEZZA. Niente vincoli di composizione (maiuscole/
+// simboli obbligatori spingono a password prevedibili — «Password1!» — e sono
+// scoraggiati dalle linee guida NIST). Vale a chi CREA o CAMBIA una password
+// (createUser, updateUser, cambio-proprio); il LOGIN non la applica, perché si
+// deve poter entrare con la password esistente qualunque essa sia. Ritorna un
+// messaggio d'errore (stringa) o null se accettabile.
+const MIN_PASSWORD_LEN = 8;
+function _passwordError(pw) {
+  if (typeof pw !== 'string' || pw.length < MIN_PASSWORD_LEN) {
+    return `La password deve avere almeno ${MIN_PASSWORD_LEN} caratteri`;
+  }
+  return null;
 }
 
 // ---- Invalidazione sessioni: un'EPOCA per utente ----------------------------
@@ -206,6 +229,18 @@ const loginLimiter = rateLimit({
   legacyHeaders:    false,
   message:          { ok: false, error: 'Troppi tentativi. Riprova tra 15 minuti.' },
   skipSuccessfulRequests: true,
+  // Chiave IP+username, non il solo IP. Dietro un reverse-proxy senza
+  // INFRANET_TRUST_PROXY (o nel bridge di docker-compose) tutte le richieste
+  // arrivano da un unico IP: con la sola chiave-IP 10 tentativi di CHIUNQUE
+  // bloccavano il login a TUTTI per 15' (smoke 06/09). Con IP+username l'attacco
+  // a un utente non consuma il budget degli altri; un anonimo senza username
+  // ricade sulla sola chiave-IP. `req.body` è già parsato (express.json globale
+  // gira prima di questa route). Username non-stringa → si usa il solo IP.
+  keyGenerator: (req) => {
+    const ipKey = ipKeyGenerator(req.ip);
+    const u = (req.body && typeof req.body.username === 'string') ? req.body.username.toLowerCase().trim() : '';
+    return u ? `${ipKey}|${u}` : ipKey;
+  },
 });
 
 // ---- Middleware autenticazione ----------------------------------------------
@@ -263,12 +298,18 @@ function loginApi(req, res) {
     return res.status(401).json({ ok: false, error: 'Credenziali non valide' });
   }
 
-  // L'epoca CORRENTE entra nella sessione nuova; quelle già aperte restano
-  // all'epoca in cui sono nate e, se è passata, muoiono alla prossima richiesta.
-  req.session.user = { id: user.id, username: user.username, role: user.role, epoch: _epochOf(user.id) };
-  req.session.save(err => {
-    if (err) return res.status(500).json({ ok: false, error: 'Errore sessione' });
-    res.json({ ok: true, user: _publicUser(req.session.user) });
+  // Anti session-fixation: si RIGENERA l'id di sessione al passaggio da anonimo
+  // ad autenticato, così un id piantato prima del login (via cookie preimpostato)
+  // non sopravvive all'accesso. Solo DOPO la rigenerazione si scrive l'utente.
+  req.session.regenerate(regenErr => {
+    if (regenErr) return res.status(500).json({ ok: false, error: 'Errore sessione' });
+    // L'epoca CORRENTE entra nella sessione nuova; quelle già aperte restano
+    // all'epoca in cui sono nate e, se è passata, muoiono alla prossima richiesta.
+    req.session.user = { id: user.id, username: user.username, role: user.role, epoch: _epochOf(user.id) };
+    req.session.save(err => {
+      if (err) return res.status(500).json({ ok: false, error: 'Errore sessione' });
+      res.json({ ok: true, user: _publicUser(req.session.user) });
+    });
   });
 }
 
@@ -281,6 +322,40 @@ function logoutApi(req, res) {
 
 function meApi(req, res) {
   res.json({ ok: true, user: _publicUser(req.session.user) });
+}
+
+// Cambio password del PROPRIO account: ogni utente autenticato, viewer inclusi
+// (che non hanno accesso alla gestione utenti admin-only). Richiede la password
+// ATTUALE — difende da una sessione lasciata aperta o dirottata — e rispetta la
+// policy. Le ALTRE sessioni dell'utente muoiono (epoca+1); QUESTA resta viva
+// perché ne riallineiamo l'epoca: cambiare la propria password non deve
+// disconnettere chi la sta cambiando.
+function changeOwnPassword(req, res) {
+  const { currentPassword, newPassword } = req.body ?? {};
+  if (typeof currentPassword !== 'string' || typeof newPassword !== 'string' || !currentPassword || !newPassword) {
+    return res.status(400).json({ ok: false, error: 'Password attuale e nuova obbligatorie' });
+  }
+  const pErr = _passwordError(newPassword);
+  if (pErr) return res.status(400).json({ ok: false, error: pErr });
+
+  const users = loadUsers();
+  const idx   = users.findIndex(u => u.id === req.session.user.id);
+  if (idx < 0) return res.status(404).json({ ok: false, error: 'Utente non trovato' });
+
+  // compareSync SEMPRE (non un ramo che salta il bcrypt): la password attuale
+  // sbagliata è un 403, non un errore di forma.
+  if (!bcrypt.compareSync(currentPassword, users[idx].passwordHash)) {
+    return res.status(403).json({ ok: false, error: 'Password attuale errata' });
+  }
+
+  users[idx].passwordHash = bcrypt.hashSync(newPassword, BCRYPT_COST);
+  saveUsers(users);
+  _bumpEpoch(req.session.user.id);                        // le ALTRE sessioni muoiono
+  req.session.user.epoch = _epochOf(req.session.user.id);  // ...ma non questa
+  req.session.save(err => {
+    if (err) return res.status(500).json({ ok: false, error: 'Errore sessione' });
+    res.json({ ok: true });
+  });
 }
 
 // ---- User CRUD (admin only) -------------------------------------------------
@@ -303,6 +378,8 @@ function createUser(req, res) {
   if (users.find(u => u.username.toLowerCase() === username.toLowerCase())) {
     return res.status(409).json({ ok: false, error: 'Username già esistente' });
   }
+  const pErr = _passwordError(password);
+  if (pErr) return res.status(400).json({ ok: false, error: pErr });
   const now  = new Date().toISOString().replace('T', ' ').substring(0, 19);
   const user = {
     id:           nextUserId(users),
@@ -324,6 +401,11 @@ function updateUser(req, res) {
 
   const { password, role } = req.body ?? {};
 
+  // Se si imposta una nuova password, deve rispettare la policy (lunghezza).
+  if (password !== undefined) {
+    const pErr = _passwordError(password);
+    if (pErr) return res.status(400).json({ ok: false, error: pErr });
+  }
   // Impedisce di cambiare il proprio ruolo
   if (req.session.user.id === id && role && role !== users[idx].role) {
     return res.status(400).json({ ok: false, error: 'Non puoi cambiare il tuo ruolo' });
@@ -404,6 +486,7 @@ function register(app) {
 
   // API auth — autenticate
   app.get('/api/auth/me', meApi);
+  app.post('/api/auth/password', changeOwnPassword);   // cambio password proprio (ogni ruolo)
 
   // API utenti — solo admin
   app.get   ('/api/auth/users',     requireAdmin, listUsers);
@@ -418,4 +501,6 @@ module.exports = {
   loadUsers, saveUsers, ensureDefaultAdmin, _readUsersFile,
   // SEC-M2: guardia pura del bypass auth (loopback + non-produzione)
   _computeDevNoAuth,
+  // policy password (pura, testabile a tavolino)
+  _passwordError, MIN_PASSWORD_LEN,
 };

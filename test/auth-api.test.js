@@ -112,10 +112,10 @@ test('createUser: duplicato → 409, ruolo invalido → 400, valido → 201 (+ l
   assert.equal(dup.status, 409);
   const badRole = await request('POST', '/api/auth/users', { cookie: a.cookie, body: { username: 'zed', password: 'x', role: 'root' } });
   assert.equal(badRole.status, 400);
-  const created = await request('POST', '/api/auth/users', { cookie: a.cookie, body: { username: 'tempuser', password: 'temppw', role: 'viewer' } });
+  const created = await request('POST', '/api/auth/users', { cookie: a.cookie, body: { username: 'tempuser', password: 'temppw12', role: 'viewer' } });
   assert.equal(created.status, 201);
   // la password è stata hashata e memorizzata correttamente → il login riesce
-  const tl = await login('tempuser', 'temppw');
+  const tl = await login('tempuser', 'temppw12');
   assert.equal(tl.status, 200);
 });
 
@@ -131,7 +131,7 @@ test('guardia self: admin non può cambiare il PROPRIO ruolo né eliminarsi', as
 
 test('ultimo admin protetto: il 2° admin è eliminabile, il solo admin no', async () => {
   const a = await login('admin', 'adminpw');
-  const c = await request('POST', '/api/auth/users', { cookie: a.cookie, body: { username: 'admin2', password: 'a2pw', role: 'admin' } });
+  const c = await request('POST', '/api/auth/users', { cookie: a.cookie, body: { username: 'admin2', password: 'admin2pw', role: 'admin' } });
   assert.equal(c.status, 201);
   const id2 = c.json.user.id;
   // eliminare il 2° admin è consentito (restano ≥1 admin)
@@ -148,7 +148,7 @@ test('invalidazione sessione: cambio password → il cookie vecchio del viewer s
   assert.equal(before.status, 200, 'il cookie del viewer funziona prima');
 
   const a = await login('admin', 'adminpw');
-  const upd = await request('PUT', '/api/auth/users/2', { cookie: a.cookie, body: { password: 'nuovapw' } });
+  const upd = await request('PUT', '/api/auth/users/2', { cookie: a.cookie, body: { password: 'nuovapw1' } });
   assert.equal(upd.status, 200);
 
   // il vecchio cookie del viewer è ora invalidato (_invalidatedUsers)
@@ -191,6 +191,42 @@ test('revoca per epoca: declassato, poi rientra altrove → la sessione vecchia 
   assert.equal(xC.status, 200);
   const bDopo = await request('GET', '/api/auth/me', { cookie: xB.cookie });
   assert.equal(bDopo.status, 401, 'la sessione precedente al reset non sopravvive al nuovo login');
+});
+
+// Policy password (min 8): vale a chi CREA/MODIFICA, mai al login.
+test('policy password: troppo corta → 400 su creazione e su modifica', async () => {
+  const a = await login('admin', 'adminpw');
+  const short = await request('POST', '/api/auth/users', { cookie: a.cookie, body: { username: 'shorty', password: 'abc', role: 'viewer' } });
+  assert.equal(short.status, 400);
+  assert.match(short.json.error, /8 caratteri|almeno 8/i);
+  const ok = await request('POST', '/api/auth/users', { cookie: a.cookie, body: { username: 'shorty', password: 'abcdefgh', role: 'viewer' } });
+  assert.equal(ok.status, 201);
+  const upd = await request('PUT', '/api/auth/users/' + ok.json.user.id, { cookie: a.cookie, body: { password: 'short' } });
+  assert.equal(upd.status, 400);
+});
+
+// Cambio password del PROPRIO account (utente dedicato per isolarsi dallo stato
+// lasciato dai test precedenti). Password attuale richiesta; la sessione che
+// cambia resta viva, le altre dello stesso utente scadono.
+test('cambio password proprio: password attuale corretta funziona; le altre sessioni scadono, questa resta', async () => {
+  const a = await login('admin', 'adminpw');
+  const cr = await request('POST', '/api/auth/users', { cookie: a.cookie, body: { username: 'selfy', password: 'selfy-pw1', role: 'viewer' } });
+  assert.equal(cr.status, 201);
+  const sA = await login('selfy', 'selfy-pw1');   // sessione A
+  const sB = await login('selfy', 'selfy-pw1');   // sessione B
+  assert.equal(sA.status, 200); assert.equal(sB.status, 200);
+  const bad = await request('POST', '/api/auth/password', { cookie: sA.cookie, body: { currentPassword: 'NOPE', newPassword: 'selfy-pw2' } });
+  assert.equal(bad.status, 403, 'password attuale sbagliata → 403');
+  const shortNew = await request('POST', '/api/auth/password', { cookie: sA.cookie, body: { currentPassword: 'selfy-pw1', newPassword: 'short' } });
+  assert.equal(shortNew.status, 400, 'la nuova rispetta la policy');
+  const okc = await request('POST', '/api/auth/password', { cookie: sA.cookie, body: { currentPassword: 'selfy-pw1', newPassword: 'selfy-pw2' } });
+  assert.equal(okc.status, 200);
+  const meA = await request('GET', '/api/auth/me', { cookie: sA.cookie });
+  assert.equal(meA.status, 200, 'chi cambia la propria password resta connesso');
+  const meB = await request('GET', '/api/auth/me', { cookie: sB.cookie });
+  assert.equal(meB.status, 401, 'le altre sessioni dello stesso utente scadono');
+  const nl = await login('selfy', 'selfy-pw2');
+  assert.equal(nl.status, 200, 'il nuovo login funziona');
 });
 
 test('login: username o password non stringa → 400, mai 500', async () => {

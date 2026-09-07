@@ -92,6 +92,16 @@ app.use((req, res, next) => {
   next();
 });
 
+// no-store su OGNI risposta /api/*: i JSON dell'API portano dati del progetto,
+// config mascherate, l'identità dell'utente (/api/auth/me). Vietarne del tutto la
+// conservazione (cache del browser, disco, proxy condiviso) evita che restino
+// leggibili dopo il logout o su una macchina condivisa. Vale per ogni metodo, non
+// solo GET; gli asset del frontend (sopra) restano rivalidabili con no-cache.
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/')) res.set('Cache-Control', 'no-store');
+  next();
+});
+
 // ---- Frontend statico -------------------------------------------------------
 
 // CSS modularizzato (cartella styles/): partial ordinate, caricate via <link>

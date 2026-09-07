@@ -13,6 +13,19 @@ skins
 users.json
 .session-secret
 
+# SEGRETI: mai nel contesto di build → mai cotti nei layer dell'immagine.
+# A runtime vivono nel volume /data (vedi le ENV INFRANET_*_FILE nel Dockerfile).
+api-tokens.json
+api-tokens*.json
+data/ai-config.json
+data/ai-config.json*
+data/dcim-config.json
+data/dcim-config.json*
+
+# Catalogo canonico (33 MB, rigenerabile via `npm run update-device-types`):
+# non serve a runtime (solo un statSync per lo stato) e gonfierebbe l'immagine.
+data/device-types-canonical.json
+
 # Cartella di lavoro locale + archivi + roba di sessione
 _local
 _archive

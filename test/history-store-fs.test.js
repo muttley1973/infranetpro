@@ -153,6 +153,21 @@ test('getSnapshot di un id inesistente → null (nessun crash)', () => {
   assert.equal(store.getSnapshot(8, 'nope'), null);
 });
 
+// Gruppo G (smoke 06/09): :sid arriva grezzo dall'URL. Gli id sono sempre
+// numerici; un id con separatori o «..» non deve poter leggere fuori da snapshots/.
+test('getSnapshot valida l\'id: solo numerico; traversal/formati strani → null', () => {
+  const { store, baseDir } = freshStore();
+  const rec = store.putSnapshot(8, { at: '2999-01-01 10:00:00', by: 'me' }, { nodes: [{ id: 'x' }] });
+  assert.ok(rec.id && /^\d+$/.test(rec.id));
+  // un file .json.gz fuori dalla cartella snapshots/ del progetto: NON deve essere raggiungibile via :sid
+  const outside = path.join(baseDir, 'segreto.json.gz');
+  fs.writeFileSync(outside, require('node:zlib').gzipSync(Buffer.from(JSON.stringify({ rubato: true }))));
+  for (const bad of ['../segreto', '..\\segreto', '8/../../segreto', 'abc', '1.5', '-1', '', '../../etc/passwd']) {
+    assert.equal(store.getSnapshot(8, bad), null, JSON.stringify(bad));
+  }
+  assert.deepEqual(store.getSnapshot(8, rec.id), { nodes: [{ id: 'x' }] }, 'l\'id numerico legittimo funziona ancora');
+});
+
 test('listSnapshots elenca i meta e ignora i record col blob mancante', () => {
   const { store, baseDir } = freshStore();
   const a = store.putSnapshot(9, { at: '2999-01-01 10:00:00', by: 'me' }, { nodes: [] });

@@ -26,6 +26,15 @@ export function normalizeNumber(v, fb, min = -Infinity, max = Infinity) {
     let n = parseInt(v, 10); if (Number.isNaN(n)) n = fb; return Math.max(min, Math.min(max, n));
 }
 
+/** VLAN id VALIDO? Intervallo 802.1Q utilizzabile: 1..4094 (0 e 4095 sono
+ *  RISERVATI). Interi soltanto. Serve a RIFIUTARE all'ingresso, non a clampare:
+ *  clampare «4095» a 4094 (come faceva normalizeNumber) creava in silenzio una
+ *  seconda card «VLAN 4094», e «0» una seconda «VLAN 1». */
+export function isValidVlanId(v) {
+    const n = (typeof v === 'number') ? v : parseInt(String(v ?? '').trim(), 10);
+    return Number.isInteger(n) && n >= 1 && n <= 4094;
+}
+
 /** Normalizza uno stato porta a uno dei TRE valori ammessi.
  *  ⚠️ `idle` non c'e' piu': una porta o passa pacchetti, o non li passa, o e' guasta.
  *  Il quarto valore raccontava quattro storie diverse (l'etichetta diceva «su ma senza

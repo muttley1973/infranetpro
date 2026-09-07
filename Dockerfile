@@ -23,13 +23,25 @@ RUN node build.js
 
 # 3) Dati persistenti FUORI da /app (montati come volume → sopravvivono al re-create).
 #    Tutti i path sono già configurabili via env nel codice (stesso pattern di PROJECTS_DIR).
+#    ⚠️ I SEGRETI (users, token API, config AI/DCIM, session-secret) vanno nel volume,
+#    NON in /app: senza questo venivano scritti nell'immagine (layer) e, se presenti
+#    nel contesto di build, ci finivano cotti dentro. Restano anche in .dockerignore.
 ENV INFRANET_PROJECTS_DIR=/data/projects \
     INFRANET_SKINS_DIR=/data/skins \
     INFRANET_USERS_FILE=/data/users.json \
+    INFRANET_API_TOKENS_FILE=/data/api-tokens.json \
+    INFRANET_AI_CONFIG_FILE=/data/ai-config.json \
+    INFRANET_DCIM_CONFIG_FILE=/data/dcim-config.json \
+    INFRANET_SESSION_SECRET_FILE=/data/.session-secret \
     HOST=0.0.0.0 \
     PORT=8421
-RUN mkdir -p /data/projects /data/skins
+# 4) Utente NON-root. /data (volume) e /app/data (catalogo rigenerabile a runtime
+#    dall'aggiornamento catalogo admin) devono essere scrivibili da `node`; il resto
+#    di /app resta di sola lettura per il processo (non può riscrivere il proprio codice).
+#    `node` esiste già nell'immagine ufficiale. Il named volume eredita l'owner di /data.
+RUN mkdir -p /data/projects /data/skins /app/data && chown -R node:node /data /app/data
 VOLUME ["/data"]
+USER node
 
 EXPOSE 8421
 

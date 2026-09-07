@@ -200,7 +200,7 @@ async function _pollPowerNode(nodeId){
     const host=(cfg.host||n.ip||'').trim();
     if(!host){ showAlert(t('msg.net.needHost')); return; }
     const btn=document.getElementById('snmp-poll-btn');
-    if(btn){ btn.disabled=true; btn.className='toolbar-btn'; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Polling…'; }
+    if(btn){ btn.disabled=true; btn.className='toolbar-btn'; btn.innerHTML=`<i class="fas fa-spinner fa-spin"></i> ${t('sync.btn.polling')}`; }
     const body=JSON.stringify({
         driver: cfg.driver||'snmp-v2c', host, port: cfg.port||161, timeout: cfg.timeout||3,
         community: cfg.community||'public',
@@ -237,7 +237,7 @@ async function _pollPowerNode(nodeId){
         } else {
             n.snmpStatus='err'; markDirty(); renderProps();
             showAlert(t('msg.net.errSnmp')+(data.error||t('msg.net.errUnknown')));
-            if(btn){ btn.disabled=false; btn.className='toolbar-btn poll-btn-err'; btn.innerHTML='<i class="fas fa-exclamation-triangle"></i> Errore'; }
+            if(btn){ btn.disabled=false; btn.className='toolbar-btn poll-btn-err'; btn.innerHTML=`<i class="fas fa-exclamation-triangle"></i> ${t('sync.btn.err')}`; }
             setTimeout(_reset,3000);
         }
     }catch(e){
@@ -255,7 +255,7 @@ async function pollSNMP(nodeId){
     const host=(cfg.host||n.ip||'').trim();
     if(!host){ showAlert(t('msg.net.needHost')); return; }
     const btn=document.getElementById('snmp-poll-btn');
-    if(btn){ btn.disabled=true; btn.className='toolbar-btn'; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Polling…'; }
+    if(btn){ btn.disabled=true; btn.className='toolbar-btn'; btn.innerHTML=`<i class="fas fa-spinner fa-spin"></i> ${t('sync.btn.polling')}`; }
     const body=JSON.stringify({
         driver:   cfg.driver   ||'snmp-v2c',
         host, port: cfg.port||161, timeout: cfg.timeout||3,
@@ -302,7 +302,7 @@ async function pollSNMP(nodeId){
         } else {
             showAlert(t('msg.net.errSnmp')+(data.error||t('msg.net.errUnknown')));
             if(btn){ btn.disabled=false; btn.className='toolbar-btn poll-btn-err';
-                     btn.innerHTML='<i class="fas fa-exclamation-triangle"></i> Errore'; }
+                     btn.innerHTML=`<i class="fas fa-exclamation-triangle"></i> ${t('sync.btn.err')}`; }
             setTimeout(()=>{ if(btn){ btn.className='toolbar-btn primary';
                 btn.innerHTML=`<i class="fas fa-network-wired"></i> ${(typeof t==='function'?t('snmp.import'):'Importa SNMP')}`; } },3000);
         }

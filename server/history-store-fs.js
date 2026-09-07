@@ -180,8 +180,15 @@ function createFsHistoryStore(opts = {}) {
       return _readLines(_snapIndex(projectId)).filter(m => fs.existsSync(path.join(_snapDir(projectId), m.id + '.json.gz')));
     },
     getSnapshot(projectId, id) {
+      const sid = String(id);
+      // :sid arriva grezzo dall'URL. Gli id sono SEMPRE numerici (String(Date.now())
+      // eventualmente +1 in caso di collisione), quindi qualunque cosa fuori da
+      // [0-9] è ostile: un id con separatori o «..» potrebbe uscire dalla cartella
+      // snapshots/ (path traversal; admin-only, ma comunque da chiudere). Fuori
+      // formato → niente, come un id inesistente.
+      if (!/^\d+$/.test(sid)) return null;
       let buf;
-      try { buf = fs.readFileSync(path.join(_snapDir(projectId), String(id) + '.json.gz')); } catch (_) { return null; }
+      try { buf = fs.readFileSync(path.join(_snapDir(projectId), sid + '.json.gz')); } catch (_) { return null; }
       try { return JSON.parse(zlib.gunzipSync(buf).toString('utf8')); } catch (_) { return null; }
     },
     // Prune on-demand (now iniettabile per test deterministici dell'assottigliamento).

@@ -48,6 +48,16 @@ function _pullKey(req, selection) {
   });
 }
 
+// Due URL hanno la STESSA origin? (protocollo + host + porta). Serve al «prova
+// connessione»: il token salvato non deve seguire un URL a origine diversa.
+// URL non parsabile → false (conservativo: nel dubbio, niente segreto).
+function _sameOrigin(a, b) {
+  try {
+    const ua = new URL(a), ub = new URL(b);
+    return ua.protocol === ub.protocol && ua.hostname === ub.hostname && ua.port === ub.port;
+  } catch (_) { return false; }
+}
+
 // Client DCIM dalle credenziali salvate (env > disco). Lancia se non configurato.
 function _client() {
   const c = dcimConfig.getConfigWithToken();
@@ -445,9 +455,19 @@ router.post('/api/integrations/dcim/test', auth.requireAdmin, async (req, res) =
   const body = req.body || {};
   const stored = dcimConfig.getConfigWithToken();
   const url = (typeof body.url === 'string' && body.url.trim()) ? body.url.trim() : stored.url;
-  const token = (typeof body.token === 'string' && body.token) ? body.token : stored.token;
   const verifyTls = (typeof body.verifyTls === 'boolean') ? body.verifyTls : stored.verifyTls;
   if (!url) return res.status(400).json({ ok: false, error: 'URL DCIM mancante' });
+  // Egress del segreto: il token SALVATO (o da env) parte solo se si prova la
+  // STESSA istanza per cui è stato salvato. Un «prova connessione» verso un URL
+  // a origine diversa, senza token nel body, NON si porta dietro il token
+  // salvato (altrimenti: punti il test a un tuo server, lasci vuoto il token, e
+  // te lo spedisce). Chi prova un'altra istanza fornisce il proprio token.
+  let token = '';
+  if (typeof body.token === 'string' && body.token) {
+    token = body.token;                                  // esplicito dal chiamante
+  } else if (_sameOrigin(url, stored.url)) {
+    token = stored.token;                                // stessa istanza salvata
+  }
   try {
     const client = new DcimClient({ url, token, verifyTls, timeoutMs: 12000 });
     const r = await client.probe();
@@ -868,4 +888,5 @@ async function _pullVpnLinks(client, siteIds) {
   return out;
 }
 
+router._sameOrigin = _sameOrigin;   // esportato per il test di sicurezza dell'egress
 module.exports = router;

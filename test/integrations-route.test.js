@@ -591,3 +591,69 @@ test('POST /wan → il censimento dei tipi, con la natura decisa per identità',
   const ftth = j.types.find(x => x.slug === 'ftth');
   assert.equal(ftth.transport, 'other', 'FTTH non è una nostra natura, e non ci si avvicina');
 });
+
+// ── Egress del segreto: il token salvato non segue un URL a origine diversa ──
+// Smoke 06/09 (gruppo G): POST /test con un URL scelto dall'admin e SENZA token
+// nel body si portava dietro il token salvato → punti il test a un server tuo,
+// lasci vuoto il token, e te lo spedisce. Ora il token salvato parte solo verso
+// la STESSA origin per cui è stato salvato. (Questi test restano ULTIMI: ridefiniscono
+// la config salvata verso server usa-e-getta.)
+const integrations = require('../server/routes/integrations');
+
+test('_sameOrigin: protocollo+host+porta; url non parsabile → false', () => {
+  const so = integrations._sameOrigin;
+  assert.equal(so('https://a.example/x', 'https://a.example/y'), true);
+  assert.equal(so('https://a.example:443', 'https://a.example'), true);  // 443 è la porta di default https → stessa origin
+  assert.equal(so('https://a.example:8443', 'https://a.example'), false); // porta diversa → origine diversa
+  assert.equal(so('https://a.example', 'http://a.example'), false);      // protocollo diverso
+  assert.equal(so('https://a.example', 'https://b.example'), false);     // host diverso
+  assert.equal(so('non-un-url', 'https://a.example'), false);
+  assert.equal(so('https://a.example', ''), false);
+});
+
+test('POST /test: il token salvato parte solo verso la STESSA origin', async () => {
+  const seen = { same: undefined, other: undefined };
+  const mk = (slot) => http.createServer((rq, rs) => {
+    seen[slot] = rq.headers.authorization || null;   // undefined → null: «nessun Authorization»
+    rs.writeHead(200, { 'Content-Type': 'application/json' });
+    rs.end(JSON.stringify({ 'netbox-version': '4.1.3' }));
+  });
+  const sameSrv = mk('same'), otherSrv = mk('other');
+  await new Promise(r => sameSrv.listen(0, '127.0.0.1', r));
+  await new Promise(r => otherSrv.listen(0, '127.0.0.1', r));
+  const sameBase = `http://127.0.0.1:${sameSrv.address().port}`;
+  const otherBase = `http://127.0.0.1:${otherSrv.address().port}`;
+  try {
+    const put = await fetch(`${base}${P}/config`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: sameBase, token: 'STORED-TOK', verifyTls: false }),
+    });
+    assert.equal(put.status, 200);
+
+    // A) stessa origin, nessun token nel body → il token SALVATO parte.
+    seen.same = undefined;
+    const a = await fetch(`${base}${P}/test`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: sameBase }),
+    });
+    assert.equal(a.status, 200);
+    assert.ok(seen.same && /STORED-TOK/.test(seen.same), 'stessa istanza → token salvato inviato');
+
+    // B) origine diversa, nessun token → il token salvato NON parte.
+    seen.other = undefined;
+    const b = await fetch(`${base}${P}/test`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: otherBase }),
+    });
+    assert.equal(b.status, 200);
+    assert.equal(seen.other, null, 'origine diversa senza token → nessun Authorization (niente esfiltrazione)');
+
+    // C) origine diversa MA con token esplicito → parte quello del body, mai il salvato.
+    seen.other = undefined;
+    const c = await fetch(`${base}${P}/test`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: otherBase, token: 'EXPLICIT' }),
+    });
+    assert.equal(c.status, 200);
+    assert.ok(seen.other && /EXPLICIT/.test(seen.other) && !/STORED-TOK/.test(seen.other), 'token del body, non il salvato');
+  } finally {
+    sameSrv.close(); otherSrv.close();
+  }
+});
