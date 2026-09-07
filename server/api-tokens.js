@@ -15,6 +15,7 @@ const path   = require('path');
 const crypto = require('crypto');
 const { timestamp } = require('../utils');
 const { atomicWriteFile } = require('./projects-store');   // scrittura atomica + .bak
+const { cleanUserText } = require('../lib/user-text.js');  // la stessa forma del nome progetto
 
 const TOKENS_FILE = process.env.INFRANET_API_TOKENS_FILE || path.join(__dirname, '..', 'api-tokens.json');
 
@@ -102,7 +103,10 @@ function createToken(label, opts) {
   const expiresAt = _expiryFromDays(opts && opts.expiresInDays);
   const rec = {
     id: nextTokenId(tokens),
-    label: String(label || '').trim() || 'token',
+    // Stessa forma del nome di un progetto: l'etichetta la sceglie l'admin, ma
+    // finisce in un elenco, in un log e in un file su disco (misurato: 2 MB ci
+    // entravano, `\r\n` e NUL pure).
+    label: cleanUserText(label) || 'token',
     hash: _sha256(secret),
     prefix: secret.slice(0, PREFIX_SHOWN),
     createdAt: now,

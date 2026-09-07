@@ -7,6 +7,7 @@ const fs   = require('fs');
 const path = require('path');
 const { PROJECT_STATE_SCHEMA_VERSION } = require('../lib/project-format.js');
 const { migrateIpam } = require('../lib/ipam-model.js');
+const { cleanUserText } = require('../lib/user-text.js');   // la forma di una stringa che l'utente sceglie: senza controlli, con un tetto
 // `LAYOUT_TYPES` (oggi: `room`) è la denylist strutturale GIÀ definita e motivata
 // lato server in lib/api-shape.js. Riusarla — invece di riscrivere qui `!== 'room'`
 // — è ciò che tiene UNO il significato di «quanti apparati»: il conteggio della
@@ -187,6 +188,13 @@ function nextId() {
 }
 
 function saveProject(id, name, state, createdAt, updatedAt) {
+  // Il NOME passa dalla forma condivisa (lib/user-text.js) qui e non nelle rotte:
+  // è il collo di bottiglia di OGNI scrittura — crea, salva, copia, import DCIM —
+  // quindi una via sola invece di quattro guardie da tenere allineate.
+  // Misurato prima: un nome da 2 MB finiva su disco per intero (file da 2.048 KB),
+  // e `\r\n`/NUL/ESC ci entravano tali e quali — mentre il puntatore backup, due
+  // moduli più in là, li rifiuta dal primo giorno.
+  name = cleanUserText(name);
   const file = path.join(PROJECTS_DIR, `${id}.json`);
   // Meta precedente (per saltare la riscrittura dell'asset se l'immagine è invariata).
   // Letto dal JSON RAW su disco (ha bgImageHash), non dallo stato riattaccato.

@@ -8,6 +8,7 @@
 const fs   = require('fs');
 const path = require('path');
 const { atomicWriteFile } = require('./projects-store');
+const { cleanUserText } = require('../lib/user-text.js');
 
 // Override via INFRANET_SKINS_DIR (store isolato per E2E; default invariato).
 const SKINS_DIR  = process.env.INFRANET_SKINS_DIR || path.join(__dirname, '..', 'skins');
@@ -83,9 +84,12 @@ function saveSkin(meta, svg) {
   const now = new Date().toISOString();
   const rec = {
     id,
-    name:  meta.name || id,
-    brand: meta.brand || '',
-    model: meta.model || '',
+    // Nome/marca/modello sono scritte dell'utente: stessa forma del nome progetto
+    // (senza caratteri di controllo, col tetto). L'`id` non ne ha bisogno — nasce
+    // già da `slug()`, che taglia a 48 e tiene solo [a-z0-9-].
+    name:  cleanUserText(meta.name) || id,
+    brand: cleanUserText(meta.brand),
+    model: cleanUserText(meta.model),
     face:  meta.face === 'rear' ? 'rear' : 'front',
     viewBox: meta.viewBox || '',
     ports: meta.ports || [],
