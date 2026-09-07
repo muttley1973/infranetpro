@@ -219,11 +219,24 @@ app.use((req, res) => res.status(404).json({ error: 'Not found' }));
 // STACK e i path assoluti del server (info-disclosure) invece del JSON atteso
 // dai consumer dell'API. La firma DEVE avere 4 parametri per essere riconosciuta
 // come error-handler; `next` viene usato nel ramo headersSent.
+//
+// ⚠️ Sotto il 500 si rimandava `err.message` COM'E'. Per un errore del filesystem
+// quel messaggio porta il PATH ASSOLUTO del server: una GET su /styles/<nome mai
+// esistito>.css passava la regex del nome, cadeva nel sendFile, e rispondeva
+// 404 con "ENOENT: ... stat 'C:\Users\...\InfranetPro\styles\x.css'" — misurato su
+// /styles, /dist e /lib. Il 404 catch-all piu' sopra non li vede: un errore
+// scavalca i middleware normali e arriva solo qui. I codici fs non dicono niente
+// di utile a chi chiama: si risponde con la forma pulita e il dettaglio resta nel log.
+const FS_ERRNO = new Set(['ENOENT', 'EACCES', 'EPERM', 'EISDIR', 'ENOTDIR', 'ELOOP', 'ENAMETOOLONG']);
 app.use((err, req, res, next) => {
   const status = err.status || err.statusCode || 500;
   if (status >= 500) console.error(`  [ERR] ${req.method} ${req.path}: ${err.message}`);
   if (res.headersSent) return next(err);                      // risposta gia' iniziata -> delega a Express
-  const msg = status >= 500 ? 'Internal server error' : (err.message || 'Bad request');
+  const daFs = FS_ERRNO.has(err && err.code);
+  if (daFs && status < 500) console.warn(`  [404] ${req.method} ${req.path}: ${err.code}`);
+  const msg = status >= 500 ? 'Internal server error'
+            : daFs ? (status === 404 ? 'Not found' : 'Bad request')
+            : (err.message || 'Bad request');
   res.status(status).json({ error: msg });
 });
 

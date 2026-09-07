@@ -254,6 +254,10 @@ async function tkLoadTokens(){
         if(!Array.isArray(tokens) || !tokens.length){
             list.innerHTML=`<div style="color:var(--text-muted);font-size:var(--fs-sm)">${t('tk.none')}</div>`; return;
         }
+        // ⚠️ «non scade», «scade il…» e «è SCADUTO» sono tre cose diverse: un token
+        // morto deve vedersi, o l'admin cerca altrove il motivo per cui lo script
+        // non entra più. (Il commento sta QUI e non dentro al template: nel template
+        // sarebbe un'interpolazione, e il cricchetto dell'escaping la conta.)
         list.innerHTML = tokens.map(tk=>`
             <div class="tk-row">
                 <i class="fas fa-key tk-key"></i>
@@ -266,6 +270,11 @@ async function tkLoadTokens(){
                     ${tk.lastUsedAt
                         ? `<div class="tk-used">${t('tk.lastUse')} ${escapeHTML(tk.lastUsedAt.substring(0,10))}</div>`
                         : `<div style="opacity:.7">${t('tk.never')}</div>`}
+                    ${tk.expired
+                        ? `<div style="color:#f85149">${t('tk.expired')}</div>`
+                        : tk.expiresAt
+                            ? `<div>${t('tk.expires')} ${escapeHTML(tk.expiresAt.substring(0,10))}</div>`
+                            : ''}
                 </div>
                 <button class="um-btn danger" style="padding:5px 9px;font-size:var(--fs-xs)"
                     data-act="tk-revoke" data-id="${tk.id}" title="${escapeHTML(t('tk.revoke'))}">
@@ -281,9 +290,16 @@ async function tkCreateToken(){
     const msg = document.getElementById('tk-new-msg');
     msg.className='um-msg';
     if(!label){ msg.textContent=t('tk.labelRequired'); msg.className='um-msg err'; return; }
+    // Scadenza in giorni: vuoto/0 = non scade, che è il comportamento di sempre.
+    // Si dichiara alla creazione perché è l'unico momento in cui si sa a cosa serve
+    // il token: un token di CI vive quanto la campagna, uno di dashboard per sempre.
+    const daysEl = document.getElementById('tk-new-days');
+    const days = daysEl ? parseInt(daysEl.value, 10) : NaN;
+    const body = { label };
+    if(Number.isFinite(days) && days > 0) body.expiresInDays = days;
     try {
         const r = await fetch('/api/auth/tokens',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({label})});
+            body:JSON.stringify(body)});
         const d = await r.json();
         if(d && d.token){
             _lastToken = d.token;
@@ -292,6 +308,7 @@ async function tkCreateToken(){
             const cb = document.getElementById('tk-copy-btn');
             if(cb) cb.innerHTML=`<i class="fas fa-copy"></i> ${escapeHTML(t('tk.copy'))}`;
             labelEl.value='';
+            if(daysEl) daysEl.value='';
             tkLoadTokens();
         } else { msg.textContent=(d&&d.error)||t('tk.errCreate'); msg.className='um-msg err'; }
     } catch(_){ msg.textContent=t('pnl.sys.networkError'); msg.className='um-msg err'; }

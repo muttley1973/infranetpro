@@ -491,6 +491,20 @@ function _buildNbstatQuery(txId = 0x1337) {
 }
 // Parsa la risposta NBSTAT (binaria) nella STESSA forma di _parseNetbiosOutput:
 // { name, group, mac, smbServer, records:[{name,suffix(hex UPPER),kind}] } | null.
+// Il nome arriva DALLA RETE: sono 15 byte che il responder sceglie come vuole, e
+// da qui diventa `row.hostname`, cioè il nome dell'apparato nel documento — che poi
+// finisce in un dossier PDF, in un'etichetta e in un inventario Ansible, dove un
+// a-capo non è un carattere ma una riga nuova. Fuori i caratteri di CONTROLLO
+// (NUL, CR/LF, ESC, DEL); il resto resta com'è, perché quale alfabeto sia lecito in
+// un nome NetBIOS lo decide l'agente, non noi (paletto ②: non si inventa).
+function _nbCleanName(raw) {
+  let out = '';
+  for (let i = 0; i < raw.length; i++) {
+    const c = raw.charCodeAt(i);
+    if (c >= 0x20 && c !== 0x7f) out += raw[i];
+  }
+  return out.trim();
+}
 function _parseNbstatResponse(buf) {
   if (!Buffer.isBuffer(buf) || buf.length < 43) return null;
   let off = 12;                                              // salta l'header
@@ -502,7 +516,7 @@ function _parseNbstatResponse(buf) {
   const num = buf[off]; off += 1;
   const out = { name: '', group: '', mac: '', smbServer: false, records: [] };
   for (let i = 0; i < num && off + 18 <= buf.length; i++) {
-    const nm = buf.slice(off, off + 15).toString('latin1').replace(/\0+$/, '').trimEnd();
+    const nm = _nbCleanName(buf.slice(off, off + 15).toString('latin1'));
     const suffix = buf[off + 15];
     const isGroup = !!(buf.readUInt16BE(off + 16) & 0x8000);
     off += 18;
@@ -522,10 +536,26 @@ function _nbstatUdp(ip, timeoutMs = 1500, createSocket = dgram.createSocket) {
     let done = false; let sock; let to;
     const fin = v => { if (done) return; done = true; clearTimeout(to); try { sock && sock.close(); } catch (_) {} resolve(v); };
     try { sock = createSocket({ type: 'udp4' }); } catch (_) { return fin(null); }
-    sock.on('message', msg => fin(_parseNbstatResponse(msg)));
+    // ⚠️ Un socket UDP riceve da CHIUNQUE, non solo da chi ha ricevuto la domanda:
+    // la prima risposta vinceva, e chiunque sulla LAN poteva battere sul tempo
+    // l'apparato interrogato e dare a QUEL suo indirizzo il nome che voleva — un
+    // nome che poi entra nel documento come misura. Tre controlli, tutti a costo
+    // zero: viene dall'indirizzo che ho interrogato, dalla porta 137, e porta
+    // l'identificativo della MIA domanda (casuale a ogni giro: 0x1337 fisso non
+    // costava niente da indovinare a chi tira alla cieca). Un pacchetto che non
+    // torna, o che non si parsa, NON chiude il caso: si continua ad aspettare
+    // quello vero fino alla scadenza, o la spazzatura di un ostile basterebbe a
+    // far perdere il nome all'apparato onesto.
+    const txId = 1 + Math.floor(Math.random() * 0xfffe);
+    sock.on('message', (msg, rinfo) => {
+      if (!rinfo || rinfo.address !== ip || rinfo.port !== 137) return;
+      if (!Buffer.isBuffer(msg) || msg.length < 2 || msg.readUInt16BE(0) !== txId) return;
+      const r = _parseNbstatResponse(msg);
+      if (r) fin(r);
+    });
     sock.on('error', () => fin(null));
     to = setTimeout(() => fin(null), Math.max(300, Math.min(parseInt(timeoutMs, 10) || 1500, 4000)));
-    try { const q = _buildNbstatQuery(); sock.send(q, 0, q.length, 137, ip, err => { if (err) fin(null); }); }
+    try { const q = _buildNbstatQuery(txId); sock.send(q, 0, q.length, 137, ip, err => { if (err) fin(null); }); }
     catch (_) { fin(null); }
   });
 }

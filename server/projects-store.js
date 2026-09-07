@@ -296,14 +296,19 @@ function _firmaFile(p) {
 // pretesa. Chi confronta deve trattare `null` come «non posso saperlo» e lasciar
 // passare, non come «non combacia» (rifiutare un salvataggio per un file che non
 // siamo riusciti a interrogare punirebbe l'utente per un nostro dubbio).
-function projectEtag(id) {
-  const v = _versioneFile(path.join(PROJECTS_DIR, `${id}.json`));
-  // ⚠️ L'arrotondamento resta QUI, non nell'helper. Il marcatore viaggia in un
-  // header e il client ne tiene uno in mano fra l'apertura e il salvataggio:
-  // cambiargli forma farebbe fallire il confronto di ogni scheda gia' aperta, cioe'
-  // un «qualcuno ha modificato il progetto» FALSO al primo salvataggio dopo
-  // l'aggiornamento. Si condividono i due fatti, non come si scrivono.
+//
+// ⚠️ Il marcatore viaggia in un header e il client ne tiene uno in mano fra
+// l'apertura e il salvataggio: cambiargli FORMA farebbe fallire il confronto di
+// ogni scheda gia' aperta, cioe' un «qualcuno ha modificato il progetto» FALSO al
+// primo salvataggio dopo l'aggiornamento. Per questo la forma si scrive UNA volta
+// sola, qui: da quando anche l'organizzazione ha il suo marcatore i chiamanti sono
+// due, e due copie della stessa forma sarebbero due copie che un giorno divergono.
+function fileEtag(p) {
+  const v = _versioneFile(p);
   return v ? `W/"${Math.round(v.mtimeMs)}-${v.size}"` : null;
+}
+function projectEtag(id) {
+  return fileEtag(path.join(PROJECTS_DIR, `${id}.json`));
 }
 
 // Quanto c'è DENTRO un progetto, per chi lo guarda da fuori (il riquadro-sede
@@ -438,5 +443,5 @@ function safeProjectId(raw) {
 
 module.exports = {
   PROJECTS_DIR, ASSETS_DIR, atomicWriteFile, _tmpPath, nextId, saveProject, loadProject, readProjectFile, listProjects, safeProjectId,
-  extractBgAsset, reattachBgAsset, removeBgAsset, projectEtag,
+  extractBgAsset, reattachBgAsset, removeBgAsset, projectEtag, fileEtag,
 };

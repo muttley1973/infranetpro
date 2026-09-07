@@ -44,7 +44,10 @@ let ROLE = 'admin';
 
 before(async () => {
   const app = express();
-  app.use(express.json());
+  // Stesso tetto di corpo del server vero (server.js): con i 100 KB di default il
+  // body-parser rispondeva 413 PRIMA della rotta, e il tetto sulle liste — che è
+  // la cosa da provare — non veniva mai raggiunto.
+  app.use(express.json({ limit: '20mb' }));
   app.use((req, _res, next) => {
     req.session = ROLE ? { user: { id: 1, username: 'test', role: ROLE } } : {};
     next();
@@ -266,4 +269,77 @@ test('⭐ un IPsec può dire su quali linee corre, e il salvataggio lo tiene', a
   // E ci resta: la conferma vera è la RILETTURA, non l'eco della scrittura.
   const dopo = await (await get()).json();
   assert.deepEqual(dopo.organization.links[0].underlayUplinkIds, ['u-mi', 'u-rm']);
+});
+
+// ── Chi ha in mano quale versione ──────────────────────────────────────────
+// L'organizzazione è UNA per installazione: non serve che due persone abbiano
+// aperto lo stesso progetto, bastano due schede qualsiasi. Senza marcatore la
+// seconda scrittura vinceva in silenzio con un 200 (misurato dal vivo il 07/09:
+// «Prima» con una sede diventava «Seconda» con zero, e nessuno lo diceva).
+test('⑤ GET porta l\'ETag del file, e cambia quando il documento cambia', async () => {
+  await put(ORG());
+  const r1 = await get();
+  const e1 = r1.headers.get('etag');
+  assert.ok(e1, 'la GET deve portare un marcatore di versione');
+  assert.equal(e1, store.organizationEtag(), 'ed è quello del FILE, non del corpo della risposta');
+  const org2 = ORG(); org2.name = 'Acme 2';
+  await put(org2);
+  assert.notEqual(store.organizationEtag(), e1, 'una scrittura cambia il marcatore');
+});
+
+test('⑤ If-Match che non combacia → 409, e il documento NON viene toccato', async () => {
+  await put(ORG());
+  const prima = store.readOrganization();
+  const r = await fetch(`${base}/api/organization`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', 'If-Match': 'W/"inventato"' },
+    body: JSON.stringify({ id: 'x', name: 'Sovrascritta', sites: [], uplinks: [], links: [] }),
+  });
+  assert.equal(r.status, 409);
+  const j = await r.json();
+  assert.equal(j.code, 'stale-organization');
+  assert.equal(j.etag, store.organizationEtag(), 'il 409 dice qual è la versione buona');
+  assert.deepEqual(store.readOrganization(), prima, 'e sul disco non è cambiato niente');
+});
+
+test('⑤ con l\'If-Match GIUSTO il salvataggio passa; senza intestazione, come prima', async () => {
+  await put(ORG());
+  const etag = store.organizationEtag();
+  const org = ORG(); org.name = 'Con guardia';
+  const r = await fetch(`${base}/api/organization`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', 'If-Match': etag },
+    body: JSON.stringify(org),
+  });
+  assert.equal(r.status, 200);
+  assert.equal((await r.json()).organization.name, 'Con guardia');
+  assert.ok(r.headers.get('etag'), 'il marcatore NUOVO torna subito (o il Salva dopo urterebbe contro sé stesso)');
+  // Chi non manda l'intestazione ha il comportamento di sempre: script, import e
+  // test non devono imparare un protocollo per continuare a funzionare.
+  const senza = await put(ORG());
+  assert.equal(senza.status, 200);
+});
+
+// ── Tetti sulle liste ──────────────────────────────────────────────────────
+test('⑥ una lista oltre il tetto viene RIFIUTATA (non troncata), e si dice quale', async () => {
+  await put(ORG());
+  const prima = store.readOrganization();
+  const enorme = ORG();
+  enorme.sites = Array.from({ length: 5000 }, (_, i) => ({ id: 's' + i, name: 'Sede ' + i }));
+  const r = await put(enorme);
+  assert.equal(r.status, 400);
+  const j = await r.json();
+  assert.equal(j.code, 'too-many');
+  assert.equal(j.lists[0].list, 'sites');
+  assert.equal(j.lists[0].count, 5000);
+  assert.deepEqual(store.readOrganization(), prima, 'niente scritto: il rifiuto è prima della scrittura');
+});
+
+test('⑥ il tetto è largo: un impianto vero ci passa sotto senza accorgersene', async () => {
+  const route = require('../server/routes/organization');
+  assert.ok(route._MAX.sites >= 100, 'la PMI a 2-5 sedi non deve nemmeno vederlo');
+  const dieci = ORG();
+  dieci.sites = Array.from({ length: 10 }, (_, i) => ({ id: 's' + i, name: 'Sede ' + i }));
+  dieci.uplinks = []; dieci.links = [];
+  assert.equal((await put(dieci)).status, 200);
 });

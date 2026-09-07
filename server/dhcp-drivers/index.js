@@ -25,7 +25,10 @@ const { normalizeLeaseRecords } = require('../../lib/dhcp-lease.js');
 // stesso meccanismo di plugins/oui/. Cartella assente/vuota → nessun driver
 // live: l'open resta col solo import da file/incolla. Ogni file espone
 // { id, label, auth, buildRequest, parseLeases }.
-const DRIVERS = {};
+// ⚠️ Prototipo NULLO come il registro SNMP (server/drivers.js): `vendor` arriva dal
+// body e qui si fa `DRIVERS[vendor]`, quindi con un letterale `fetchLeases('constructor')`
+// non diceva «unknown vendor» ma proseguiva con un finto driver fino a un TypeError.
+const DRIVERS = Object.create(null);
 (function _loadVendorDrivers() {
     const dir = path.join(__dirname, 'vendor');
     let files;

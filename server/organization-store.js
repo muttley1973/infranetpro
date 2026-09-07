@@ -35,7 +35,7 @@
 // ============================================================
 const fs = require('fs');
 const path = require('path');
-const { atomicWriteFile } = require('./projects-store');
+const { atomicWriteFile, fileEtag } = require('./projects-store');
 const { normalizeOrganization } = require('../lib/inter-site.js');
 
 const ORG_FILE = process.env.INFRANET_ORG_FILE ||
@@ -91,10 +91,23 @@ function hasOrganization() {
   try { return fs.existsSync(ORG_FILE); } catch (_) { return false; }
 }
 
+/**
+ * Il marcatore di versione del FILE, nella stessa forma dei progetti (l'unica
+ * definizione sta in projects-store: `fileEtag`).
+ *
+ * Qui serve piu' che altrove: l'organizzazione è UNA per installazione, quindi non
+ * occorre che due sessioni abbiano aperto lo stesso progetto — bastano due
+ * sessioni qualsiasi. Senza marcatore la seconda scrittura vinceva in silenzio con
+ * un 200, e le sedi della prima sparivano senza che nessuno lo dicesse (misurato).
+ * `null` = file assente o non interrogabile: «non lo so», mai «non combacia».
+ */
+function organizationEtag() { return fileEtag(ORG_FILE); }
+
 module.exports = {
   readOrganization,
   writeOrganization,
   hasOrganization,
+  organizationEtag,
   ORG_FILE,
   // esportato per i test puri
   _count,

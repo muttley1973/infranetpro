@@ -648,6 +648,8 @@
           <h3><i class="fas fa-key"></i> <span data-i18n="tk.new">Nuovo token</span></h3>
           <div class="um-row">
             <input type="text" id="tk-new-label" data-i18n-ph="tk.phLabel" placeholder="Etichetta — es. ansible, dashboard" autocomplete="off">
+            <!-- Scadenza in giorni: vuoto = non scade (il comportamento di sempre). -->
+            <input type="number" id="tk-new-days" min="0" step="1" style="max-width:150px" data-i18n-ph="tk.phDays" placeholder="Scadenza (giorni)" autocomplete="off">
             <button class="um-btn primary" data-act="tk-create">
               <i class="fas fa-plus"></i> <span data-i18n="tk.generate">Genera token</span>
             </button>

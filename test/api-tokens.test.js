@@ -67,3 +67,56 @@ test('id incrementali, due token sono distinti', () => {
   assert.notEqual(a.token, b.token);
   assert.notEqual(a.record.id, b.record.id);
 });
+
+// ── La scadenza: opzionale, dichiarata, e VERIFICATA ───────────────────────
+// Un token che non scade mai, se sfugge (un file di CI, un playbook committato),
+// vale per sempre e nessuno se ne accorge. La scadenza è opt-in: senza, il
+// comportamento è quello di sempre — i token già mintati non cambiano significato.
+test('scadenza: senza expiresInDays il token non scade (comportamento invariato)', () => {
+  const { token, record } = tokens.createToken('senza scadenza');
+  assert.equal(record.expiresAt, null, 'null = non scade, non «scade oggi»');
+  assert.equal(record.expired, false);
+  assert.ok(tokens.verifyToken(token));
+});
+
+test('scadenza: con expiresInDays il token vale, e la lista dice quando finisce', () => {
+  const { token, record } = tokens.createToken('con scadenza', { expiresInDays: 30 });
+  assert.ok(record.expiresAt, 'la scadenza si vede nella vista pubblica');
+  assert.equal(record.expired, false);
+  assert.ok(tokens.verifyToken(token), 'finché non è passata, il token vale');
+  const inLista = tokens.listTokens().find(t => t.id === record.id);
+  assert.equal(inLista.expiresAt, record.expiresAt);
+});
+
+test('scadenza: passata la data il token NON vale più, e il record resta (spiega perché)', () => {
+  const { token, record } = tokens.createToken('scaduto');
+  // Si riscrive la scadenza NEL PASSATO sullo store: è il solo modo di provare il
+  // caso vero senza aspettare, e prova la lettura, non il calcolo della data.
+  const tutti = tokens.loadTokens();
+  tutti.find(t => t.id === record.id).expiresAt = '2020-01-01 00:00:00';
+  tokens.saveTokens(tutti);
+  assert.equal(tokens.verifyToken(token), null, 'scaduto = come se non esistesse');
+  const inLista = tokens.listTokens().find(t => t.id === record.id);
+  assert.ok(inLista, 'ma la riga resta: è ciò che spiega all\'admin perché lo script non entra più');
+  assert.equal(inLista.expired, true);
+});
+
+test('scadenza: valori assurdi non creano scadenze assurde', () => {
+  assert.equal(tokens._expiryFromDays(0), null, '0 = nessuna scadenza');
+  assert.equal(tokens._expiryFromDays(-5), null);
+  assert.equal(tokens._expiryFromDays('non un numero'), null);
+  assert.equal(tokens._expiryFromDays(undefined), null);
+  const lontano = tokens._expiryFromDays(999999, Date.UTC(2026, 0, 1));
+  const max = tokens._expiryFromDays(tokens.MAX_EXPIRY_DAYS, Date.UTC(2026, 0, 1));
+  assert.equal(lontano, max, 'oltre il tetto si ferma al tetto');
+});
+
+test('⚠️ gli istanti si leggono come UTC, come li scrive timestamp()', () => {
+  // `timestamp()` scrive l'ora UTC senza fuso: riletta come ora LOCALE, su una
+  // macchina a UTC+2 ogni nostro istante risulta due ore nel futuro — e una
+  // scadenza è una decisione di sicurezza, non un dettaglio di formato.
+  assert.equal(tokens._parseTs('2026-01-01 00:00:00'), Date.UTC(2026, 0, 1, 0, 0, 0));
+  assert.equal(tokens._parseTs(''), 0);
+  assert.equal(tokens._parseTs(null), 0);
+  assert.equal(tokens._isExpired({ expiresAt: null }), false, 'nessuna scadenza = mai scaduto');
+});

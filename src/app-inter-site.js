@@ -215,6 +215,23 @@ function _adopt(j) {
   _st.dirty = false;
 }
 
+// ⭐ La versione dell'organizzazione che questa scheda ha in mano, presa dall'ETag
+// della risposta e ripresentata a ogni Salva come `If-Match`. L'organizzazione è
+// UNA per installazione: non serve che due persone abbiano aperto lo stesso
+// progetto, bastano due schede qualsiasi — e senza questo la seconda scrittura
+// vinceva in silenzio, con le sedi della prima sparite e un 200 a dire che era
+// andato tutto bene. Metadato di TRASPORTO: modulo-scoped, non nell'organizzazione.
+// ⚠️ Solo dalle risposte RIUSCITE. Anche il 409 porta un ETag — quello di chi ha
+// scritto per ultimo — e adottarlo qui farebbe passare il salvataggio successivo
+// senza chiedere niente a nessuno: la guardia si disinnescherebbe da sé, proprio
+// al primo caso che deve fermare (stessa disciplina di `_captureEtag` sui progetti).
+let _orgEtag = null;
+function _captureOrgEtag(res) {
+  if (!res || !res.ok) return;
+  const t = res.headers.get('ETag');
+  if (t) _orgEtag = t;
+}
+
 async function _load() {
   _st.loading = true; _st.loadErr = '';
   // I progetti-sede si rileggono insieme all'organizzazione: fra un'apertura e
@@ -226,6 +243,7 @@ async function _load() {
       fetch('/api/projects', { headers: { Accept: 'application/json' } }),
     ]);
     if (!r.ok) throw new Error('HTTP ' + r.status);
+    _captureOrgEtag(r);
     _adopt(await r.json());
     // La lista progetti serve alla tendina `projectRef`. Se non arriva, la
     // tendina resta col solo valore già scritto: meglio un campo povero di un
@@ -327,10 +345,15 @@ async function _save() {
   try {
     const r = await fetch(API, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: Object.assign({ 'Content-Type': 'application/json' }, _orgEtag ? { 'If-Match': _orgEtag } : {}),
       body: JSON.stringify(_st.org),
     });
     if (r.status === 403) { showAlert(t('org.saveForbidden')); return; }
+    // 409: qualcun altro ha scritto l'organizzazione mentre questa scheda la
+    // modificava. Non si sovrascrive e non si adotta il suo ETag: si DICE, e chi
+    // legge decide se ricaricare (le sue modifiche restano qui, non le tocchiamo).
+    if (r.status === 409) { showAlert(t('org.saveStale')); return; }
+    _captureOrgEtag(r);
     const j = await r.json().catch(() => null);
     if (!r.ok || !j) throw new Error('HTTP ' + r.status);
     _st.dropped = j.dropped || null;

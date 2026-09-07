@@ -19,7 +19,10 @@ router.get('/api/auth/tokens', auth.requireAdmin, (_req, res) => {
 
 router.post('/api/auth/tokens', auth.requireAdmin, (req, res) => {
   const label = (req.body && req.body.label) || '';
-  const { token, record } = apiTokens.createToken(label);
+  // Scadenza OPZIONALE (giorni). Assente = il comportamento di sempre, il token
+  // vale finché non lo revochi; i token già mintati non cambiano significato.
+  const expiresInDays = req.body && req.body.expiresInDays;
+  const { token, record } = apiTokens.createToken(label, { expiresInDays });
   // `token` in chiaro: disponibile SOLO ORA. Il client deve mostrarlo all'utente
   // e poi dimenticarlo (a riposo c'è solo lo hash).
   res.status(201).json({ token, record });

@@ -95,3 +95,44 @@ test('cap di lunghezza', () => {
   assert.equal(r.reason, 'tooLong');
   assert.equal(r.value.length, BACKUP_REF_MAX_LEN);
 });
+
+// ── La regola applicata a metà, secondo giro ───────────────────────────────
+// `stripRefCreds` faceva UNA passata: la prima credenziale spariva, le altre no.
+// Un puntatore con due URL (un PUT costruito a mano, un progetto importato) usciva
+// ancora col segreto — e da lì andava su disco, nel DTO REST, nell'inventory
+// Ansible e nel dossier PDF. La proprietà da provare non è che sparisca IL caso
+// noto: è che dopo lo strip il validatore non veda PIÙ credenziali, qualunque
+// cosa sia entrata. Il validatore è l'autorità su cosa è una credenziale, quindi
+// è lui il giudice — non un elenco di stringhe scritto qui.
+test('🔒 stripRefCreds toglie TUTTE le credenziali, non solo la prima', () => {
+  const due = 'https://u:p@a.example/x https://u2:p2@b.example/y';
+  const out = stripRefCreds(due);
+  assert.equal(out, 'https://a.example/x https://b.example/y');
+  assert.ok(!out.includes('p2'), 'anche il secondo segreto se ne va');
+  assert.equal(stripRefCreds('https://a:b@c:d@e/x'), 'https://e/x', 'due @ nello stesso host');
+});
+
+test('🔒 PROPRIETÀ: dopo lo strip, il validatore non trova più credenziali', () => {
+  const casi = [
+    'https://u:p@a/x https://u2:p2@b/y',
+    'ssh://a:b@c/x ssh://d:e@f/y',
+    'https://a:b@c:d@e/x',
+    'user:pw@host:/path/sw1.cfg',
+    'https://u:p@git.example.com/r.git',
+    // e le forme LECITE devono restare intatte: uno strip che rovina i puntatori
+    // buoni non è una difesa, è un guasto.
+    'git@github.com:org/repo.git',
+    'smb://server/share@2024',
+    'C:\backup\admin@corp\sw1.cfg',
+    '/var/backups/sw1.cfg',
+  ];
+  for (const c of casi) {
+    const out = stripRefCreds(c);
+    const v = validateBackupRef(out);
+    assert.notEqual(v.reason, 'credentials', `dopo lo strip «${c}» → «${out}» non deve piu' contenere credenziali`);
+  }
+  // Le forme lecite escono IDENTICHE (a parte il trim).
+  for (const c of ['git@github.com:org/repo.git', 'smb://server/share@2024', 'C:\backup\admin@corp\sw1.cfg', '/var/backups/sw1.cfg']) {
+    assert.equal(stripRefCreds(c), c, `«${c}» è un puntatore legittimo e non si tocca`);
+  }
+});

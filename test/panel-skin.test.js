@@ -266,3 +266,40 @@ test('parse: warning su width/height fissi (ostacolano lo scaling)', () => {
   assert.ok(d.ok);
   assert.ok(d.warnings.some(w => /width\/height fissi/.test(w)));
 });
+
+// ── Il tetto sull'artwork ──────────────────────────────────────────────────
+// Misurato prima di scriverlo: la skin più grande dell'archivio pesa 110 KB, le
+// altre 8 KB. Mezzo mega è quattro volte la più pesante — non dice di no a nessun
+// disegno vero. Senza, un SVG da 1,5 MB entrava (provato dal vivo: 201) e da lì
+// tornava in OGNI `GET /api/skins`, che le restituisce tutte con l'artwork dentro.
+test('tetto: un SVG oltre il massimo viene rifiutato, e lo dice', () => {
+  const enorme = '<svg viewBox="0 0 10 10">' + '<rect id="port-1" width="1" height="1"/>'.repeat(30000) + '</svg>';
+  assert.ok(enorme.length > PS.PANEL_SKIN_MAX_LEN);
+  const r = PS.parsePanelSkin(enorme);
+  assert.equal(r.ok, false);
+  assert.equal(r.errorCode, 'too-large');
+  assert.match(r.error, /KB/, 'il messaggio dice quanto pesa e quanto è il massimo');
+});
+
+test('tetto: una skin di dimensioni normali passa come prima', () => {
+  const normale = '<svg viewBox="0 0 100 10"><rect id="port-1" width="1" height="1"/></svg>';
+  assert.ok(normale.length < PS.PANEL_SKIN_MAX_LEN);
+  assert.equal(PS.parsePanelSkin(normale).ok, true);
+});
+
+// ── Il blocco <style>: si DICE, non si cancella ────────────────────────────
+// Illustrator e Inkscape esportano le campiture come classi in un <style>:
+// buttarlo renderebbe grigia metà delle skin vere. Ma quel CSS, con l'SVG inline
+// nella pagina, vale per l'INTERA pagina. Manual-first: avviso, e decide chi carica.
+test('<style>: resta nell\'artwork ma chi carica viene avvisato del suo raggio', () => {
+  const r = PS.parsePanelSkin('<svg viewBox="0 0 10 10"><style>.p{fill:#eee}</style><rect id="port-1" class="p" width="1" height="1"/></svg>');
+  assert.equal(r.ok, true);
+  assert.ok(r.svg.includes('<style>'), 'la campitura non si butta: la skin deve restare disegnata');
+  assert.ok(r.warnings.some(w => /intera pagina/.test(w)), 'ma l\'avviso c\'è');
+});
+
+test('<style>: senza blocco, nessun avviso (l\'avviso deve significare qualcosa)', () => {
+  const r = PS.parsePanelSkin('<svg viewBox="0 0 10 10"><rect id="port-1" fill="#eee" width="1" height="1"/></svg>');
+  assert.equal(r.ok, true);
+  assert.ok(!r.warnings.some(w => /intera pagina/.test(w)));
+});

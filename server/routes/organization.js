@@ -41,6 +41,33 @@ function _unknownProjectRefs(org) {
     .map(s => ({ siteId: s.id, projectRef: s.projectRef }));
 }
 
+// ── Tetti sulle liste ────────────────────────────────────────────────────────
+// L'organizzazione è UNA per installazione e descrive le sedi di un'azienda: la
+// forma per cui esiste è la PMI a 2-5 sedi. Senza tetto, un PUT con 5.000 sedi
+// veniva scritto per intero (misurato: 787 KB in 35 ms) — e da lì ogni GET
+// rilegge, normalizza e ne calcola l'audit, per sempre. Il tetto è LARGO apposta:
+// non deve dire di no a nessun impianto vero, solo togliere il caso in cui il
+// documento diventa una zavorra. Si RIFIUTA, non si tronca: un'organizzazione a
+// cui mancano quattromila sedi senza dirlo sarebbe peggio dell'errore.
+const MAX = { sites: 500, uplinks: 2000, links: 2000 };
+function _troppo(body) {
+  const fuori = [];
+  for (const k of Object.keys(MAX)) {
+    const v = body[k];
+    if (Array.isArray(v) && v.length > MAX[k]) fuori.push({ list: k, count: v.length, max: MAX[k] });
+  }
+  return fuori;
+}
+
+// Il marcatore di versione di ciò che il client sta per tenere in mano. Viaggia
+// nell'INTESTAZIONE, come per i progetti: il corpo è il documento, e un campo di
+// trasporto lì dentro diventerebbe un campo del documento per chiunque lo legga.
+function _tag(res) {
+  const t = store.organizationEtag();
+  if (t) res.set('ETag', t);
+  return t;
+}
+
 // Stato corrente + audit. `exists` distingue «non c'è ancora» da «c'è ed è vuota».
 router.get('/api/organization', (_, res) => {
   const organization = store.readOrganization();
@@ -51,6 +78,7 @@ router.get('/api/organization', (_, res) => {
     // potuto girare lo dice, non tace facendo credere di aver guardato.
     audit.notChecked.push({ check: 'unknownProjectRefs', reason: 'no-project-list' });
   }
+  _tag(res);
   res.json({
     exists: store.hasOrganization(),
     organization,
@@ -65,6 +93,31 @@ router.put('/api/organization', auth.requireAdmin, (req, res) => {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     return res.status(400).json({ error: 'body must be an organization object', code: 'bad-body' });
   }
+
+  // ── La versione che il client crede di stare aggiornando ────────────────────
+  // Stessa disciplina del PUT progetto: chi manda `If-Match` chiede «scrivi solo
+  // se nel frattempo non ha scritto nessun altro», e se qualcuno ha scritto qui si
+  // RIFIUTA con 409 invece di sovrascrivere rispondendo 200. Chi NON manda
+  // l'intestazione ha il comportamento di prima, apposta: script e test non devono
+  // imparare un protocollo per continuare a funzionare. `attuale === null` è «non
+  // lo so» (file non interrogabile), non «non combacia»: su un dubbio nostro non
+  // si blocca un salvataggio.
+  const atteso  = req.get('If-Match');
+  const attuale = store.organizationEtag();
+  if (atteso && attuale && atteso !== attuale) {
+    res.set('ETag', attuale);
+    return res.status(409).json({
+      error: 'Organization changed by another session',
+      code: 'stale-organization',
+      etag: attuale,
+    });
+  }
+
+  const fuori = _troppo(body);
+  if (fuori.length) {
+    return res.status(400).json({ error: 'organization lists too long', code: 'too-many', lists: fuori });
+  }
+
   let out;
   try {
     out = store.writeOrganization(body);
@@ -76,6 +129,9 @@ router.put('/api/organization', auth.requireAdmin, (req, res) => {
   if (unknownProjectRefs === null) {
     audit.notChecked.push({ check: 'unknownProjectRefs', reason: 'no-project-list' });
   }
+  // Il marcatore NUOVO torna subito: senza, il client dovrebbe rileggere per poter
+  // salvare una seconda volta, e il secondo Salva prenderebbe un 409 contro sé stesso.
+  _tag(res);
   res.json({
     organization: out.organization,   // ciò che è stato SCRITTO, non ciò che è arrivato
     dropped: out.dropped,             // e cosa non è passato, così non sparisce in silenzio
@@ -85,3 +141,6 @@ router.put('/api/organization', auth.requireAdmin, (req, res) => {
 });
 
 module.exports = router;
+// Esposti per i test: i tetti sono una politica, e una politica si prova.
+module.exports._MAX = MAX;
+module.exports._troppo = _troppo;

@@ -195,3 +195,79 @@ test('_parseNbstatResponse: buffer troppo corto / spazzatura -> null (nessun cra
   assert.equal(_parseNbstatResponse(Buffer.from('non-una-risposta')), null);
   assert.equal(_parseNbstatResponse(null), null);
 });
+
+// ---- NBSTAT: la risposta arriva DA CHIUNQUE, e il nome viene dalla rete -------
+// Un socket UDP riceve da chiunque, non solo da chi ha ricevuto la domanda: la
+// prima risposta vinceva, quindi un host qualsiasi della LAN poteva battere sul
+// tempo l'apparato interrogato e dare a QUEL suo indirizzo il nome che voleva —
+// un nome che poi entra nel documento come misura (`row.hostname`).
+const { _nbstatUdp } = require('../server/netscan');
+const { EventEmitter } = require('node:events');
+
+// Socket finto: registra la domanda inviata e permette di iniettare datagrammi
+// con il loro mittente, che è esattamente il dato che il codice ignorava.
+function _fintoSocket() {
+  const s = new EventEmitter();
+  s.close = () => {};
+  s.send = (buf, _o, _l, port, addr, cb) => { s.inviato = { buf, port, addr }; if (cb) cb(null); };
+  return s;
+}
+function _rispostaNbstat(txId, nome) {
+  const header = Buffer.alloc(12); header.writeUInt16BE(txId, 0); header.writeUInt16BE(0x8400, 2); header.writeUInt16BE(1, 6);
+  const rrName = Buffer.from([0xC0, 0x0C]);
+  const rrMeta = Buffer.alloc(10); rrMeta.writeUInt16BE(0x0021, 0); rrMeta.writeUInt16BE(0x0001, 2);
+  const e = Buffer.alloc(18, 0x20); e.write(nome, 0, 'latin1'); e[15] = 0x00; e.writeUInt16BE(0x0400, 16);
+  return Buffer.concat([header, rrName, rrMeta, Buffer.from([1]), e, Buffer.alloc(6)]);
+}
+
+test('_nbstatUdp: la risposta dell\'apparato interrogato viene accettata', async () => {
+  const s = _fintoSocket();
+  const p = _nbstatUdp('192.168.1.10', 400, () => s);
+  await new Promise(r => setImmediate(r));
+  const txId = s.inviato.buf.readUInt16BE(0);
+  assert.equal(s.inviato.port, 137);
+  assert.equal(s.inviato.addr, '192.168.1.10');
+  s.emit('message', _rispostaNbstat(txId, 'PC-VERO'), { address: '192.168.1.10', port: 137 });
+  assert.equal((await p).name, 'PC-VERO');
+});
+
+test('_nbstatUdp: una risposta da un ALTRO indirizzo non conta (e non chiude il caso)', async () => {
+  const s = _fintoSocket();
+  const p = _nbstatUdp('192.168.1.10', 500, () => s);
+  await new Promise(r => setImmediate(r));
+  const txId = s.inviato.buf.readUInt16BE(0);
+  // L'ostile risponde per primo, con l'identificativo giusto: solo il mittente lo tradisce.
+  s.emit('message', _rispostaNbstat(txId, 'PC-FALSO'), { address: '192.168.1.66', port: 137 });
+  // ...e subito dopo arriva quella vera: deve vincere lei, non «la prima».
+  s.emit('message', _rispostaNbstat(txId, 'PC-VERO'), { address: '192.168.1.10', port: 137 });
+  assert.equal((await p).name, 'PC-VERO');
+});
+
+test('_nbstatUdp: una risposta con un altro identificativo non conta', async () => {
+  const s = _fintoSocket();
+  const p = _nbstatUdp('192.168.1.10', 300, () => s);
+  await new Promise(r => setImmediate(r));
+  const txId = s.inviato.buf.readUInt16BE(0);
+  s.emit('message', _rispostaNbstat((txId ^ 0x0f0f) & 0xffff, 'PC-FALSO'), { address: '192.168.1.10', port: 137 });
+  assert.equal(await p, null, 'scade, e nessun nome viene inventato');
+});
+
+test('_nbstatUdp: l\'identificativo cambia a ogni domanda (0x1337 fisso non costava niente)', async () => {
+  const ids = new Set();
+  for (let i = 0; i < 12; i++) {
+    const s = _fintoSocket();
+    const p = _nbstatUdp('192.168.1.10', 300, () => s);
+    await new Promise(r => setImmediate(r));
+    ids.add(s.inviato.buf.readUInt16BE(0));
+    s.emit('error', new Error('basta così'));
+    await p;
+  }
+  assert.ok(ids.size > 1, 'due domande di fila non devono avere lo stesso identificativo');
+});
+
+test('_parseNbstatResponse: dal nome escono i caratteri di CONTROLLO (finisce in PDF e YAML)', () => {
+  const sporco = 'PC\r\nadmin:\tx';
+  const r = _parseNbstatResponse(_rispostaNbstat(0x1337, sporco));
+  assert.equal(r.name, 'PCadmin:x', 'niente a-capo, niente tab: in un inventario Ansible sarebbero righe nuove');
+  assert.ok(!/[\r\n\t]/.test(r.name));
+});
