@@ -118,3 +118,46 @@ test('GET /projects/999 → 404', async () => {
   const r = await fetch(`${base}/api/v1/projects/999`, auth());
   assert.equal(r.status, 404);
 });
+
+// ── La superficie ESTERNA risponde alla domanda giusta (08/09) ──────────────
+// Misurato con `_local/tools/smoke/sonda-api-v1.js`: con un token VALIDO in mano,
+// ogni verbo di scrittura riceveva **401**. Non era un buco — nessuna scrittura
+// passava — ma la risposta era una bugia utile a nessuno: a chi ha la chiave
+// giusta, «401» dice «la tua chiave non va bene» mentre la verità è «questo verbo
+// qui non esiste». Uno script rifà il login all'infinito invece di correggere il
+// metodo, e intanto la risposta rivela che dietro c'è un'autenticazione di un
+// altro tipo (la sessione, a cui la richiesta scivolava non trovando rotta).
+for (const metodo of ['POST', 'PUT', 'PATCH', 'DELETE']) {
+  test(`${metodo} su una rotta v1 → 405 con Allow, non 401`, async () => {
+    const r = await fetch(`${base}/api/v1/projects/1`, Object.assign({ method: metodo }, auth()));
+    assert.equal(r.status, 405);
+    assert.match(r.headers.get('allow') || '', /GET/);
+    assert.equal((await r.json()).code, 'read-only');
+  });
+}
+
+test('scrivere senza token resta 401: prima l\'identità, poi il metodo', async () => {
+  const r = await fetch(`${base}/api/v1/projects/1`, { method: 'POST' });
+  assert.equal(r.status, 401, 'a chi non si è presentato non si spiega la forma dell\'API');
+});
+
+test('un percorso v1 che non esiste è 404 — e si ferma dentro l\'API', async () => {
+  const r = await fetch(`${base}/api/v1/questa-rotta-non-esiste`, auth());
+  assert.equal(r.status, 404);
+  assert.equal((await r.json()).code, 'no-route');
+});
+
+test('l\'id di progetto passa dalla definizione condivisa (una sola)', async () => {
+  // ⚠️ Non cambia cosa risponde oggi — `safeProjectId` usa `Number()` come il `+`
+  // di prima, e `01` resta il progetto 1. Cambia DOVE è scritta la regola: qui si
+  // prova che la superficie esterna non ha più una definizione sua, così il giorno
+  // che si stringe, si stringe per tutti.
+  const store = require('../server/projects-store');
+  assert.equal(store.safeProjectId('1'), 1);
+  assert.equal(store.safeProjectId('abc'), null);
+  assert.equal(store.safeProjectId('-1'), null);
+  assert.equal(store.safeProjectId('1.5'), null);
+  const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'server/routes/api-v1.js'), 'utf8');
+  assert.match(src, /safeProjectId\(req\.params\.id\)/, 'la rotta la usa');
+  assert.doesNotMatch(src, /loadProject\(\+req\.params\.id\)/, 'e non ha più la sua coercizione');
+});
