@@ -14,6 +14,13 @@ const _typeName = (k) => (typeof typeName === 'function')
     ? typeName(k)
     : ((typeof TYPES !== 'undefined' && TYPES[k] && TYPES[k].name) || k);
 
+// Frase localizzata. Come `_typeName`: export.js è uno <script> classic, quindi
+// `t` arriva da lib/i18n.js su window (caricato prima, e queste sono chiamate a
+// runtime). La guardia `typeof` c'era già in due punti sparsi — ora la forma è
+// UNA, con scritto qui perché esiste: se qualcuno caricasse questo file da solo,
+// la frase deve restare una frase, non sparire.
+const _t = (key, fallback, vars) => (typeof t === 'function' ? t(key, vars) : fallback);
+
 const PDF_EXPORT_DEFAULTS = {
     includePlanimetria: true,
     includeBackground:  true,
@@ -80,17 +87,24 @@ function _cableLabelRows(){
 
 // Campi etichetta selezionabili (ordine = ordine colonne CSV / righe etichetta).
 // Unica definizione lato client; il server ha la lista equivalente in label-sheet.js.
-const LABEL_FIELDS = [
-    { k:'label',         t:'Etichetta (ID)' },
-    { k:'da',            t:'Da' },
-    { k:'a',             t:'A' },
-    { k:'lunghezza',     t:'Lunghezza' },
-    { k:'tipo_cavo',     t:'Tipo cavo' },
+//
+// ⚠️ `t` è l'etichetta che si legge A SCHERMO, non l'intestazione del CSV: quella
+// è la CHIAVE `k` (v. `_csvColumnsFor`). Tradurre queste parole non cambia di una
+// virgola il file esportato — che è la ragione per cui erano rimaste indietro.
+// Si valuta a ogni lettura (funzione, non costante): cambiare lingua a runtime
+// deve cambiare anche queste, come ogni altra scritta dell'app.
+// «VLAN» resta com'è: è un termine del glossario, non si traduce.
+const LABEL_FIELDS = () => [
+    { k:'label',         t:_t('impexp.lblField.label', 'Label (ID)') },
+    { k:'da',            t:_t('impexp.lblField.from', 'From') },
+    { k:'a',             t:_t('impexp.lblField.to', 'To') },
+    { k:'lunghezza',     t:_t('impexp.lblField.length', 'Length') },
+    { k:'tipo_cavo',     t:_t('impexp.lblField.cableType', 'Cable type') },
     { k:'vlan',          t:'VLAN' },
-    { k:'permanente',    t:'Permanente/bretella' },
-    { k:'installato_il', t:'Installato il' },
-    { k:'installato_da', t:'Installato da' },
-    { k:'stanza',        t:'Stanza' },
+    { k:'permanente',    t:_t('impexp.lblField.permanent', 'Permanent/patch') },
+    { k:'installato_il', t:_t('impexp.lblField.installedOn', 'Installed on') },
+    { k:'installato_da', t:_t('impexp.lblField.installedBy', 'Installed by') },
+    { k:'stanza',        t:_t('impexp.lblField.room', 'Room') },
 ];
 
 // True se il progetto ha almeno un nome VLAN definito.
@@ -124,7 +138,7 @@ function _csvColumnsFor(fields){
 }
 
 function exportLabelsCSV(fields){
-    const set = fields instanceof Set ? fields : new Set(LABEL_FIELDS.map(f=>f.k));
+    const set = fields instanceof Set ? fields : new Set(LABEL_FIELDS().map(f=>f.k));
     const cols=_csvColumnsFor(set);
     if(!cols.length) cols.push({h:'etichetta',v:r=>(r.label||'').replace(/→/g,'->')});
     const rows=[cols.map(c=>c.h)];
@@ -155,7 +169,7 @@ function openLabelExportOptions(){
     // Genera le checkbox dei campi una sola volta.
     const box=document.getElementById('lblexp-fields');
     if(box && !box.dataset.built){
-        box.innerHTML=LABEL_FIELDS.map(f=>
+        box.innerHTML=LABEL_FIELDS().map(f=>
             `<label style="display:flex;align-items:center;gap:6px;font-size:0.95rem">`+
             `<input type="checkbox" class="lblexp-fld" value="${f.k}" `+
             `${LABEL_DEFAULT_FIELDS.includes(f.k)?'checked':''} onchange="syncLabelExportUi()"> ${f.t}</label>`
@@ -218,11 +232,11 @@ function _renderLabelPreview(){
     const rows=_cableLabelRows();
     const count=rows.length;
     const head=`<div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:6px">Anteprima — ${count} etichett${count===1?'a':'e'}</div>`;
-    if(!count){ box.innerHTML=head+'<div style="font-size:0.78rem;color:var(--text-muted)">Nessun cavo nel progetto.</div>'; return; }
+    if(!count){ box.innerHTML=head+`<div style="font-size:0.78rem;color:var(--text-muted)">${_t('impexp.noCables','No cables in the project.')}</div>`; return; }
 
     if(fmt==='csv'){
         const cols=_csvColumnsFor(fields);
-        if(!cols.length){ box.innerHTML=head+'<div style="font-size:0.78rem;color:var(--text-muted)">Seleziona almeno un campo.</div>'; return; }
+        if(!cols.length){ box.innerHTML=head+`<div style="font-size:0.78rem;color:var(--text-muted)">${_t('impexp.pickAField','Select at least one field.')}</div>`; return; }
         const esc=escapeHTML;   // una definizione sola: quella di app-util (esposta su window)
         const th=cols.map(c=>`<th style="text-align:left;padding:3px 8px;border-bottom:1px solid var(--border);white-space:nowrap">${esc(c.h)}</th>`).join('');
         const trs=rows.slice(0,4).map(r=>'<tr>'+cols.map(c=>`<td style="padding:3px 8px;white-space:nowrap;max-width:210px;overflow:hidden;text-overflow:ellipsis">${esc(c.v(r))}</td>`).join('')+'</tr>').join('');
@@ -250,7 +264,7 @@ function _renderLabelPreview(){
         inner=`<div style="display:flex;flex-direction:column;width:100%;height:100%">${half}<div style="border-top:1px dashed #bbb;width:60%;align-self:center"></div>${half}</div>`;
     }else{
         const lines=_previewLines(r,fields);
-        if(!lines.length){ box.innerHTML=head+'<div style="font-size:0.78rem;color:var(--text-muted)">Seleziona almeno un campo.</div>'; return; }
+        if(!lines.length){ box.innerHTML=head+`<div style="font-size:0.78rem;color:var(--text-muted)">${_t('impexp.pickAField','Select at least one field.')}</div>`; return; }
         inner=lines.map((l)=>{
             // h = Etichetta (ID) resta 14px; s/m (tutti gli altri campi) a 13px.
             const fs=l.cls==='h'?14:13;
@@ -279,12 +293,12 @@ function _genericGridFromUi(){
 async function confirmLabelExport(){
     const fmt=document.getElementById('lblexp-format')?.value||'csv';
     const fields=_selectedLabelFields();
-    if(!fields.size){ _showToast?.('Seleziona almeno un campo','warn'); return; }
+    if(!fields.size){ _showToast?.(_t('impexp.pickAField','Select at least one field.'),'warn'); return; }
 
     if(fmt==='csv'){ closeLabelExportOptions(); exportLabelsCSV(fields); return; }
 
     const rows=_cableLabelRows();
-    if(!rows.length){ _showToast?.('Nessun cavo da etichettare','warn'); return; }
+    if(!rows.length){ _showToast?.(_t('impexp.noCablesToLabel','No cables to label'),'warn'); return; }
 
     const payload={
         rows,
@@ -302,7 +316,7 @@ async function confirmLabelExport(){
             body:JSON.stringify(payload),
         });
         if(!resp.ok){
-            let msg='Errore server';
+            let msg=_t('impexp.serverError','Server error');
             try{ const j=await resp.json(); msg=j.error||msg; }catch(_){}
             throw new Error(msg);
         }
@@ -314,7 +328,7 @@ async function confirmLabelExport(){
         a.click();
         setTimeout(()=>URL.revokeObjectURL(url),5000);
     }catch(err){
-        alert('Esportazione etichette fallita:\n'+err.message);
+        alert(_t('impexp.labelExportFailed','Label export failed:')+'\n'+err.message);
     }
 }
 
@@ -362,8 +376,8 @@ function syncPdfExportUi(){
     const opts=_getPdfExportOptionsFromUi();
     const hasAny=Object.entries(opts).some(([k,v])=>k!=='includeBackground'&&v);
     hint.textContent=hasAny
-        ? 'Seleziona le sezioni che vuoi includere nel PDF.'
-        : 'Seleziona almeno una sezione.';
+        ? _t('impexp.pickSections','Select the sections you want to include in the PDF.')
+        : _t('impexp.pickASection','Select at least one section.');
 }
 
 function _getPdfExportOptionsFromUi(){
@@ -389,7 +403,7 @@ function _getPdfExportOptionsFromUi(){
 function confirmPdfExport(){
     const opts=_getPdfExportOptionsFromUi();
     const hasAny=Object.entries(opts).some(([k,v])=>k!=='includeBackground'&&v);
-    if(!hasAny){ _showToast('Seleziona almeno una sezione da esportare','warn'); return; }
+    if(!hasAny){ _showToast(_t('impexp.pickASection','Select at least one section.'),'warn'); return; }
     closePdfExportOptions();
     exportPDF(opts);
 }
@@ -755,7 +769,7 @@ function exportDrawio(){
     if(typeof buildDrawioXml !== 'function') return;
     if(!(state.racks && state.racks.length)){
         if(typeof _showToast === 'function')
-            _showToast((typeof t==='function' ? t('impexp.drawioNoRacks') : 'No racks to export'), 'warn');
+            _showToast(_t('impexp.drawioNoRacks','No racks to export'), 'warn');
         return;
     }
     // Device assenti all'ultima Verifica (bucket macOrphan del Drift) → attenuati,
@@ -782,7 +796,7 @@ function exportDrawio(){
         links: state.links || [],
         opts: {
             rackUnitSize: 20,
-            cablesLayerName: (typeof t === 'function' ? t('impexp.drawioCablesLayer') : 'Cavi'),
+            cablesLayerName: _t('impexp.drawioCablesLayer','Cables'),
         },
         helpers: {
             types: TYPES,
@@ -1689,7 +1703,7 @@ async function exportPDF(opts={}){
         });
 
         if(!resp.ok){
-            let msg='Errore server';
+            let msg=_t('impexp.serverError','Server error');
             try{ const j=await resp.json(); msg=j.error||msg; }catch(_){}
             throw new Error(msg);
         }
@@ -1702,7 +1716,7 @@ async function exportPDF(opts={}){
         a.click();
         setTimeout(()=>URL.revokeObjectURL(url),5000);
     } catch(err){
-        alert('Esportazione PDF fallita:\n'+err.message);
+        alert(_t('impexp.pdfExportFailed','PDF export failed:')+'\n'+err.message);
     } finally {
         if(btn){ btn.disabled=false; btn.innerHTML=origHtml; }
     }

@@ -5686,6 +5686,17 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       await page.waitForFunction(() => window._viewMode === 'map', null, { timeout: 5000 });
       assert.equal(await dirty(), false, 'nemmeno tornare alla mappa');
 
+      // ⚠️ La pila dei toast NON scade (scelta del 31/08): resta in piedi finché
+      // non la chiudi, e le sue X sono l'unica parte cliccabile — 24px di bersaglio
+      // sopra la planimetria, in basso al CENTRO. Se l'angolo del riquadro cade lì
+      // sotto, il `mousedown` del pan finisce su una X di due prove prima e la
+      // vista non si sposta: `-120` diventa `0`. È già successo — sta scritto in
+      // `styles/08-topology.css` — ed è tornato a succedere qui, a intermittenza,
+      // perché quale toast resti aperto dipende dalle prove che girano prima.
+      // La prova deve partire da uno stato NOTO: la pila si svuota, come si
+      // spegne la topologia due righe più su. Non cambia cosa si sta provando.
+      await page.evaluate(() => { const s = document.getElementById('toast-stack'); if (s) s.innerHTML = ''; });
+
       // Stessa classe di difetto: un click FERMO sulla mappa apre e chiude un pan
       // che non ha spostato nulla → niente da salvare.
       await clean();

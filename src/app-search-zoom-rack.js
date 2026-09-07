@@ -182,8 +182,12 @@ const GRID_MIN_CELL_PX = 8;
 export function paintFloorGrid(){
     const g = document.getElementById('floorplan-grid');
     if(!g) return;
-    if(store.state.gridHidden){ g.style.display='none'; return; }
-    g.style.display='';
+    // La visibilità la dichiara una CLASSE sul body e la applica il CSS, invece di
+    // uno `style.display` scritto qui: così il disegno non esiste finché lo stato
+    // non è noto, e una griglia salvata spenta non compare per poi sparire (il
+    // lampo al caricamento). Chi ACCENDE resta uno solo, questa funzione.
+    document.body.classList.toggle('grid-on', !store.state.gridHidden);
+    if(store.state.gridHidden) return;
     const zoom = store.state.floorView.zoom || 1;
     let cella = FLOOR_SNAP_STEP * zoom;
     // ⚠️ Si RADDOPPIA, mai si dimezza. Raddoppiando si disegna un SOTTOINSIEME dei

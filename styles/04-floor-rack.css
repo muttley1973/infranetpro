@@ -27,7 +27,14 @@
            background-position, e un motivo ripetuto non ha bordi. Conseguenza
            voluta: le righe restano spesse 1px a ogni ingrandimento (dentro la tela
            venivano scalate: 5px a zoom 5). */
-        #floorplan-grid { position:absolute; inset:0; background-size:20px 20px; background-image:linear-gradient(to right,rgba(255,255,255,0.03) 1px,transparent 1px),linear-gradient(to bottom,rgba(255,255,255,0.03) 1px,transparent 1px); pointer-events:none; z-index:0; }
+        /* ⚠️ Il MOTIVO si accende con una classe sul body, non di default: senza,
+           il CSS disegnava la griglia subito e `paintFloorGrid` la spegneva solo
+           DOPO il caricamento del progetto — quindi un progetto salvato con la
+           griglia spenta la mostrava per tutta la fetch e poi la faceva sparire.
+           Un lampo. Il riquadro invece resta sempre (misura e posizione non
+           dipendono dallo stato): a comparire è il disegno, non l'elemento. */
+        #floorplan-grid { position:absolute; inset:0; background-size:20px 20px; pointer-events:none; z-index:0; }
+        body.grid-on #floorplan-grid { background-image:linear-gradient(to right,rgba(255,255,255,0.03) 1px,transparent 1px),linear-gradient(to bottom,rgba(255,255,255,0.03) 1px,transparent 1px); }
         #floor-bg-img { position:absolute; top:0; left:0; opacity:0.4; pointer-events:none; transform-origin:top left; display:none; }
         #floor-structures { position:absolute; inset:0; z-index:1; pointer-events:none; }
         #floor-items      { position:absolute; inset:0; z-index:2; pointer-events:none; }
