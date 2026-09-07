@@ -174,7 +174,7 @@ test('listProjects: il secondo giro non riapre nessun file', () => {
   } finally { chiudi(); }
 });
 
-test('listProjects: un salvataggio dallo store si vede anche a firma IDENTICA', () => {
+test('listProjects: un salvataggio dallo store si vede anche a firma IDENTICA', async () => {
   // ⚠️ Il caso che la sola firma su disco non copre: due scritture con la stessa
   // dimensione e lo stesso millesimo hanno la stessa firma, e nessun confronto
   // può accorgersene. Qui il millesimo si pianta a mano su un valore fisso dopo
@@ -188,12 +188,12 @@ test('listProjects: un salvataggio dallo store si vede anche a firma IDENTICA', 
     const f = path.join(dir, '4.json');
     const stato = { nodes: [{ id: 'n1', type: 'switch' }], racks: [] };
 
-    store.saveProject(4, 'AAAA', stato, '2026-01-01 00:00:00', '2026-08-01 10:00:00');
+    await store.saveProject(4, 'AAAA', stato, '2026-01-01 00:00:00', '2026-08-01 10:00:00');
     fs.utimesSync(f, QUANDO, QUANDO);
     const prima = fs.statSync(f);
     assert.equal(store.listProjects()[0].name, 'AAAA');
 
-    store.saveProject(4, 'BBBB', stato, '2026-01-01 00:00:00', '2026-08-01 10:00:00');
+    await store.saveProject(4, 'BBBB', stato, '2026-01-01 00:00:00', '2026-08-01 10:00:00');
     fs.utimesSync(f, QUANDO, QUANDO);
     const dopo = fs.statSync(f);
     // ⚠️ Le due condizioni si DICHIARANO invece di darle per scontate: se un

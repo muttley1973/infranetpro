@@ -7,7 +7,8 @@ const fs   = require('fs');
 const path = require('path');
 const auth = require('../../auth');
 const { timestamp } = require('../../utils');
-const { PROJECTS_DIR, nextId, saveProject, loadProject, readProjectFile, listProjects, removeBgAsset, projectEtag } = require('../projects-store');
+const { PROJECTS_DIR, nextId, saveProject, loadProject, readProjectFile, listProjects, removeBgAsset, projectEtag,
+  withProject, CHIAVE_NUOVO } = require('../projects-store');
 const { removeProjectHistory, createFsHistoryStore } = require('../history-store-fs');
 const { mergePresence, foldPresence, collectPresence, stripPresence } = require('../../lib/presence-store');
 const { mergeObservations, foldObservations, stripObservations } = require('../../lib/discovery-history');
@@ -143,7 +144,7 @@ router.get('/api/projects', (_, res) => {
 });
 
 // Crea - solo admin
-router.post('/api/projects', auth.requireAdmin, (req, res) => {
+router.post('/api/projects', auth.requireAdmin, async (req, res) => {
   const name  = (req.body?.name || 'New Project').toString().trim() || 'New Project';
   // Stessa guardia del PUT. `null`/assente restano «nessuno stato» → {} (invariato);
   // una stringa o un array sarebbero finiti su disco come documento.
@@ -152,7 +153,6 @@ router.post('/api/projects', auth.requireAdmin, (req, res) => {
   }
   const state = req.body?.state ?? {};
   _sanitizeBackupRefs(state);
-  const id    = nextId();
   const now   = timestamp();
   // Qui si toglie e basta, senza far confluire niente: una presenza che arriva
   // insieme a un progetto NUOVO (import di un export altrui) è la misura di
@@ -161,7 +161,15 @@ router.post('/api/projects', auth.requireAdmin, (req, res) => {
   stripObservations(state);
   stripDerivedVlan(state);
   stripAudit(state);              // il giornale di un altro impianto non è la nostra storia
-  saveProject(id, name, state, now, now);
+  // ⚠️ Il numero lo decide una LETTURA della cartella, e il file compare solo dopo
+  // la scrittura: con la scrittura asincrona due creazioni in volo leggerebbero la
+  // stessa cartella e sceglierebbero lo stesso id — la seconda sovrascriverebbe la
+  // prima, con 201 a tutt'e due. Sceglierlo e usarlo devono stare nello stesso turno.
+  const id = await withProject(CHIAVE_NUOVO, async () => {
+    const nuovo = nextId();
+    await saveProject(nuovo, name, state, now, now);
+    return nuovo;
+  });
   _tag(res, id);
   res.status(201).json(loadProject(id));
 });
@@ -202,7 +210,7 @@ router.get('/api/projects/:id', (req, res) => {
 });
 
 // Aggiorna - solo admin
-router.put('/api/projects/:id', auth.requireAdmin, (req, res) => {
+router.put('/api/projects/:id', auth.requireAdmin, async (req, res) => {
   const id = +req.params.id;
   const p  = loadProject(id);
   if (!p) return res.status(404).json({ error: 'Project not found' });
@@ -218,16 +226,6 @@ router.put('/api/projects/:id', auth.requireAdmin, (req, res) => {
   // `attuale === null` = il file non si è potuto interrogare: non è «non
   // combacia», è «non lo so», e su un dubbio nostro non si blocca un salvataggio.
   const atteso  = req.get('If-Match');
-  const attuale = projectEtag(id);
-  if (atteso && attuale && atteso !== attuale) {
-    res.set('ETag', attuale);
-    return res.status(409).json({
-      error: 'Project changed by another session',
-      code: 'stale-project',
-      updated_at: p.updated_at,
-      etag: attuale,
-    });
-  }
 
   // Il documento è un OGGETTO. Senza questo controllo un `state` null/stringa/
   // numero/array passava fino a saveProject: `Object.assign({}, null)` dà `{}`, il
@@ -247,7 +245,29 @@ router.put('/api/projects/:id', auth.requireAdmin, (req, res) => {
   // La propagazione VLAN si ricalcola a ogni render: nel file non ci va. Senza
   // questa riga, aprire un progetto e guardarlo bastava a farlo crescere.
   stripDerivedVlan(state);
-  saveProject(id, name, state, p.created_at, now);
+  // ⚠️⚠️ Il confronto di versione e la scrittura stanno nello STESSO turno, e non
+  // e' pignoleria. Con l'I/O sincrona il gestore arrivava in fondo senza cedere il
+  // controllo, quindi fra il «combacia?» e il rename non poteva infilarsi nessuno.
+  // Appena la scrittura diventa asincrona quella garanzia sparisce da sola: due
+  // richieste passerebbero tutt'e due il controllo sulla versione VECCHIA, e la
+  // seconda riscriverebbe sopra la prima con un 200 a tutt'e due — cioe' il lavoro
+  // di una sessione sparito senza che nessuna delle due veda un errore. E' il
+  // difetto grave chiuso in 60969f3: rientrerebbe dalla finestra dell'asincrono.
+  const esito = await withProject(id, async () => {
+    const attuale = projectEtag(id);
+    if (atteso && attuale && atteso !== attuale) return { stantio: attuale };
+    await saveProject(id, name, state, p.created_at, now);
+    return { scritto: true };
+  });
+  if (esito.stantio) {
+    res.set('ETag', esito.stantio);
+    return res.status(409).json({
+      error: 'Project changed by another session',
+      code: 'stale-project',
+      updated_at: p.updated_at,
+      etag: esito.stantio,
+    });
+  }
   // Solo metadati: NON ricarichiamo il progetto (eviterebbe di ri-encodare l'asset
   // bgImage in base64 ad ogni Salva). Save leggero = obiettivo dell'estrazione asset.
   // L'ETag NUOVO torna subito: senza, il client dovrebbe rileggere il progetto
@@ -272,13 +292,12 @@ router.delete('/api/projects/:id', auth.requireAdmin, (req, res) => {
 });
 
 // Copia - solo admin
-router.post('/api/projects/:id/copy', auth.requireAdmin, (req, res) => {
+router.post('/api/projects/:id/copy', auth.requireAdmin, async (req, res) => {
   const id  = +req.params.id;
   const src = loadProject(id);
   if (!src) return res.status(404).json({ error: 'Project not found' });
 
   const name  = (req.body?.name || `${src.name} (Copia)`).toString().trim();
-  const newId = nextId();
   const now   = timestamp();
   // La copia nasce senza presenza: il documento si duplica, la misura no — quei
   // rossi riguardano gli apparati dell'originale, non quelli della copia.
@@ -286,7 +305,12 @@ router.post('/api/projects/:id/copy', auth.requireAdmin, (req, res) => {
   stripObservations(src.state);
   stripDerivedVlan(src.state);
   stripAudit(src.state);          // la copia è un documento nuovo: la sua storia inizia ora
-  saveProject(newId, name, src.state, now, now);
+  // Stessa ragione della creazione: il numero nuovo e la scrittura, un turno solo.
+  const newId = await withProject(CHIAVE_NUOVO, async () => {
+    const nuovo = nextId();
+    await saveProject(nuovo, name, src.state, now, now);
+    return nuovo;
+  });
   _tag(res, newId);
   res.status(201).json(loadProject(newId));
 });

@@ -199,7 +199,10 @@ function buildMiniEnterprise() {
 
 // ── PIPELINE (calcolata UNA volta, memoizzata) ───────────────────────────────
 let S = null, SETUP_ERR = null;
-function buildAll() {
+// ⚠️ `async` perché il salvataggio dei progetti ora rende una promessa: l'I/O è
+// asincrona e serializzata da una coda per progetto. Chi non aspetta legge il
+// file PRIMA che esista — qui sarebbe stato un round-trip che prova il nulla.
+async function buildAll() {
   if (S) return S;
   const APP = loadApp(ROOT);
   const ctx = APP.ctx;
@@ -307,10 +310,10 @@ function buildAll() {
 
   // store atomico: round-trip + .bak + recupero
   const saveState = JSON.parse(JSON.stringify(migrated)); saveState.bgImage = null; delete saveState.bgImageAsset; delete saveState.bgImageHash;
-  store.saveProject(9, 'stress', saveState, '2026-01-01T00:00:00Z', '2026-01-01T10:00:00Z');
+  await store.saveProject(9, 'stress', saveState, '2026-01-01T00:00:00Z', '2026-01-01T10:00:00Z');
   const loaded = store.loadProject(9);
   const ls = loaded && loaded.state;
-  store.saveProject(9, 'stress', saveState, '2026-01-01T00:00:00Z', '2026-01-01T11:00:00Z');   // v2 → .bak = v1
+  await store.saveProject(9, 'stress', saveState, '2026-01-01T00:00:00Z', '2026-01-01T11:00:00Z');   // v2 → .bak = v1
   const bakExists = fs.existsSync(path.join(TMP, '9.json.bak'));
   fs.writeFileSync(path.join(TMP, '9.json'), '{ "id":9, "name":"trunc', 'utf8');               // corrompi principale
   const recovered = store.loadProject(9);
@@ -326,7 +329,7 @@ function buildAll() {
   return S;
 }
 
-try { buildAll(); } catch (e) { SETUP_ERR = e; }
+test.before(async () => { try { await buildAll(); } catch (e) { SETUP_ERR = e; } });
 
 test.after(() => { try { for (const f of fs.readdirSync(TMP)) fs.unlinkSync(path.join(TMP, f)); fs.rmdirSync(TMP); } catch (_) { /* best-effort */ } });
 

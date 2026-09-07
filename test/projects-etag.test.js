@@ -146,3 +146,34 @@ test('⑥ due salvataggi nello stesso secondo hanno versioni diverse', async () 
     'la versione deve distinguerli anche quando updated_at (al secondo) non li distingue');
   assert.ok(typeof a === 'string' && a.length > 0);
 });
+
+// ── ⑦⑧ La corsa VERA, non due salvataggi in fila ──────────────────────────
+// Le prove da ① a ⑥ mandano le richieste una dopo l'altra: con l'I/O sincrona
+// bastava, perché il gestore arrivava in fondo senza mai cedere il turno e fra il
+// «combacia?» e il rename non poteva infilarsi nessuno. Da quando la scrittura è
+// asincrona quella garanzia non c'è più per costruzione: due richieste passano
+// tutt'e due il controllo sulla versione VECCHIA e la seconda riscrive sopra la
+// prima, con 200 a tutt'e due — cioè il difetto grave del 30/08, rientrato dalla
+// finestra. Queste due prove partono INSIEME apposta: è l'unica forma in cui la
+// corsa esiste, e quindi l'unica in cui si può dimostrare che è chiusa.
+test('⑦ due salvataggi CONCORRENTI con la stessa versione: uno passa, l\'altro è rifiutato', async () => {
+  const { id, etag } = await creaProgetto('concorrenti', 3);
+  const [a, b] = await Promise.all([salva(id, 11, etag), salva(id, 22, etag)]);
+  assert.deepEqual([a.status, b.status].sort(), [200, 409],
+    'uno solo può vincere: due 200 vorrebbero dire che un documento è sparito in silenzio');
+  // E su disco c'è il documento di CHI HA VINTO — mai una mescolanza dei due, che
+  // è il modo in cui questo difetto fa male: il rename resta atomico, quindi il
+  // file sarebbe un JSON VALIDO con dentro il lavoro sbagliato.
+  assert.equal(nodiSuDisco(id), a.status === 200 ? 11 : 22);
+});
+
+test('⑧ due creazioni CONCORRENTI non si prendono lo stesso numero', async () => {
+  // Il numero nuovo lo decide una lettura della cartella, e il file compare solo
+  // dopo la scrittura: con la scrittura asincrona due creazioni in volo leggono la
+  // stessa cartella. Senza un turno, la seconda sovrascrive la prima e le due
+  // risposte dicono 201 tutt'e due — con lo stesso id dentro.
+  const [x, y] = await Promise.all([creaProgetto('gemella A', 2), creaProgetto('gemella B', 4)]);
+  assert.notEqual(x.id, y.id, 'due progetti diversi non possono avere lo stesso numero');
+  assert.equal(nodiSuDisco(x.id), 2);
+  assert.equal(nodiSuDisco(y.id), 4);
+});

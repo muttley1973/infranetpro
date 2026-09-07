@@ -26,7 +26,7 @@ const dcimMap = require('../../lib/dcim-map');
 const dcimWan = require('../../lib/dcim-wan');
 const dcimVpn = require('../../lib/dcim-vpn');
 const deviceCatalog = require('../../lib/device-catalog');
-const { nextId, saveProject, loadProject, safeProjectId } = require('../projects-store');
+const { nextId, saveProject, loadProject, safeProjectId, withProject, CHIAVE_NUOVO } = require('../projects-store');
 const dcimDiff = require('../../lib/dcim-diff');
 
 const router = express.Router();
@@ -662,12 +662,17 @@ router.post('/api/integrations/dcim/import', auth.requireAdmin, async (req, res)
   }
 
   const name = (typeof body.projectName === 'string' && body.projectName.trim()) ? body.projectName.trim() : proposedName;
-  const id = nextId();
   const now = timestamp();
   // ⚠️ `state` e basta: nel progetto va il documento di rete, MAI il bundle grezzo
   // da cui è nato. La cache resta in memoria e muore qui — il prossimo import è
   // un'altra sessione e rilegge, perché nel frattempo il DCIM può essere cambiato.
-  saveProject(id, name, state, now, now);
+  // Il numero nuovo e la scrittura in un turno solo: due import in volo
+  // leggerebbero la stessa cartella e sceglierebbero lo stesso id.
+  const id = await withProject(CHIAVE_NUOVO, async () => {
+    const nuovo = nextId();
+    await saveProject(nuovo, name, state, now, now);
+    return nuovo;
+  });
   pullCache.invalidate(cacheKey);
   // I siti NetBox da cui il progetto nasce viaggiano nella risposta perché il
   // passo dopo l'import è iscriverlo all'organizzazione, e senza questo il

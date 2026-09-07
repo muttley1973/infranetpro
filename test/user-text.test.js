@@ -77,7 +77,11 @@ test('sta sulle vie di scrittura, e in una sola per ciascuna', () => {
   // Progetti: nel COLLO DI BOTTIGLIA (saveProject), non nelle rotte — crea,
   // salva, copia e import DCIM passano tutti di lì.
   const store = leggi('server/projects-store.js');
-  assert.match(store, /function saveProject[\s\S]{0,600}?name = cleanUserText\(name\)/);
+  // Il collo di bottiglia è la funzione che SCRIVE: da quando il salvataggio è
+  // asincrono, `saveProject` è il guscio che prende il turno di coda e `_salvaOra`
+  // è la strettoia vera. La prova segue la strettoia, non il nome della porta.
+  assert.match(store, /async function _salvaOra[\s\S]{0,600}?name = cleanUserText\(name\)/);
+  assert.match(store, /function saveProject[\s\S]{0,200}?withProject\(id, \(\) => _salvaOra\(/);
 
   assert.match(leggi('server/api-tokens.js'), /label: cleanUserText\(label\)/);
   assert.match(leggi('server/skins-store.js'), /name:\s+cleanUserText\(meta\.name\)/);

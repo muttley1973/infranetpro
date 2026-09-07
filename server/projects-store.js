@@ -4,7 +4,9 @@
 //  Estratto da server.js (comportamento invariato).
 // ============================================================
 const fs   = require('fs');
+const fsp  = require('fs/promises');
 const path = require('path');
+const { AsyncLocalStorage } = require('async_hooks');
 const { PROJECT_STATE_SCHEMA_VERSION } = require('../lib/project-format.js');
 const { migrateIpam } = require('../lib/ipam-model.js');
 const { cleanUserText } = require('../lib/user-text.js');   // la forma di una stringa che l'utente sceglie: senza controlli, con un tetto
@@ -70,6 +72,82 @@ function atomicWriteFile(file, data, mode) {
   } finally {
     if (!rinominato) { try { fs.unlinkSync(tmp); } catch (_) { /* non c'e': niente da togliere */ } }
   }
+}
+
+// La stessa scrittura, ASINCRONA. Serve al salvataggio dei progetti, che e'
+// l'unico posto dove il file e' grande abbastanza da farsi sentire: mentre il
+// disco lavora, l'event loop e' fermo e ogni altra richiesta aspetta. Misurato
+// prima di toccare niente (500 apparati, 145 KB): una rotta che non c'entra
+// niente passa da 2,5 a 12,8 ms di p95 — cinque volte, e il picco a 16,9.
+// ⚠️ I PASSI SONO GLI STESSI E NELL'ORDINE STESSO, e non e' una coincidenza da
+// tenere a mente: c'e' una guardia che li confronta leggendo le due funzioni
+// (test/projects-store-async.test.js). Due copie di una regola vanno bene solo
+// finche' qualcosa verifica che siano la stessa regola.
+// L'unica differenza e' il .bak: la versione sincrona chiede prima se il file
+// c'e', questa prova a copiarlo e accetta il fallimento — che e' lo stesso caso
+// (non c'era), senza la finestra fra la domanda e la risposta.
+async function atomicWriteFileAsync(file, data, mode) {
+  const tmp = _tmpPath(file);
+  let rinominato = false;
+  try {
+    const fh = await fsp.open(tmp, 'w', mode);
+    try {
+      await fh.writeFile(data, 'utf8');
+      await fh.sync();
+    } finally {
+      await fh.close();
+    }
+    try { await fsp.copyFile(file, `${file}.bak`); } catch (_) { /* non c'era: niente da salvare */ }
+    await fsp.rename(tmp, file);
+    rinominato = true;
+  } finally {
+    if (!rinominato) { try { await fsp.unlink(tmp); } catch (_) { /* non c'e': niente da togliere */ } }
+  }
+}
+
+// ---- Una coda per progetto -------------------------------------------------
+// ⚠️⚠️ Questa coda NON e' un ottimizzazione: e' cio' che rende l'asincrono sicuro.
+// Con l'I/O sincrona due salvataggi dello stesso progetto non potevano
+// sovrapporsi — il gestore arrivava in fondo senza mai cedere il turno, e il
+// controllo di versione (If-Match) valeva ancora nell'istante della scrittura.
+// Appena la scrittura diventa asincrona quella garanzia sparisce: due richieste
+// passano tutt'e due il controllo sulla versione VECCHIA e la seconda riscrive
+// sopra la prima, con 200 a tutt'e due. E' esattamente il difetto grave chiuso
+// in 60969f3, che tornerebbe dalla finestra.
+// Quindi: un turno per chiave, e chi entra trova il disco come l'ha lasciato
+// chi c'era prima. La chiave e' l'id del progetto; '#nuovo' serve alla CREAZIONE,
+// dove il numero lo decide una lettura della cartella e due creazioni in volo
+// sceglierebbero lo stesso.
+const CHIAVE_NUOVO = '#nuovo';
+const _codaPerChiave = new Map();
+// Rientranza: chi e' GIA' dentro il turno di una chiave non si mette in coda
+// dietro se stesso (si bloccherebbe per sempre). Serve un contesto vero, non un
+// flag globale: con l'asincrono un'altra richiesta puo' girare mentre questa
+// aspetta il disco, e un flag direbbe «sei dentro» anche a lei.
+const _turniAperti = new AsyncLocalStorage();
+
+function withProject(chiave, fn) {
+  const k = String(chiave);
+  const tenute = _turniAperti.getStore();
+  if (tenute && tenute.has(k)) return Promise.resolve().then(fn);
+  const mie = new Set(tenute || []);
+  mie.add(k);
+  const precedente = _codaPerChiave.get(k) || Promise.resolve();
+  const dentro = () => _turniAperti.run(mie, fn);
+  const turno = precedente.then(dentro);
+  // ⚠️ In coda si mette la versione con l'esito GIA' RACCOLTO, e li' sta la
+  // protezione: un turno fallito non deve lasciare quel progetto non piu'
+  // salvabile fino al riavvio — cioe' un guasto passeggero che diventa permanente,
+  // e in silenzio. ⭐ Ci avevo messo anche un gestore di rifiuto su `turno`
+  // (`.then(dentro, dentro)`) spiegandolo con questa stessa ragione: e' morto, e
+  // la controprova l'ha detto restando VERDE. `precedente` e' sempre questa coda,
+  // quindi non puo' rifiutare, e quel secondo gestore non girerebbe mai.
+  const coda = turno.then(() => {}, () => {});
+  _codaPerChiave.set(k, coda);
+  // La mappa non deve crescere per sempre: la chiave se ne va quando la coda si
+  // svuota, e solo se nessuno si e' accodato nel frattempo.
+  coda.then(() => { if (_codaPerChiave.get(k) === coda) _codaPerChiave.delete(k); });
+  return turno;
 }
 
 // ---- bgImage: estrazione su file (lo stato/JSON resta piccolo) --------------
@@ -187,7 +265,17 @@ function nextId() {
   return ids.length ? Math.max(...ids) + 1 : 1;
 }
 
+// ⚠️ Rende una PROMESSA: chi salva deve aspettarla. Senza l'attesa la risposta
+// parte prima che il file esista, e la lettura che segue puo' non trovarlo — un
+// 404 su un progetto appena creato, oppure lo stato di prima su uno appena
+// salvato. La coda per progetto (withProject) serializza le scritture: due
+// salvataggi dello stesso progetto non si sovrappongono mai, e chi entra trova
+// il disco come l'ha lasciato chi c'era prima.
 function saveProject(id, name, state, createdAt, updatedAt) {
+  return withProject(id, () => _salvaOra(id, name, state, createdAt, updatedAt));
+}
+
+async function _salvaOra(id, name, state, createdAt, updatedAt) {
   // Il NOME passa dalla forma condivisa (lib/user-text.js) qui e non nelle rotte:
   // è il collo di bottiglia di OGNI scrittura — crea, salva, copia, import DCIM —
   // quindi una via sola invece di quattro guardie da tenere allineate.
@@ -199,12 +287,14 @@ function saveProject(id, name, state, createdAt, updatedAt) {
   // Meta precedente (per saltare la riscrittura dell'asset se l'immagine è invariata).
   // Letto dal JSON RAW su disco (ha bgImageHash), non dallo stato riattaccato.
   let prevMeta = null;
-  try { if (fs.existsSync(file)) prevMeta = (JSON.parse(fs.readFileSync(file, 'utf8')).state) || null; } catch (_) { /* ignora */ }
+  // Il file che non c'e' e il file illeggibile finiscono nello stesso ramo, ed e'
+  // giusto: in tutt'e due i casi non c'e' un meta precedente da riusare.
+  try { prevMeta = (JSON.parse(await fsp.readFile(file, 'utf8')).state) || null; } catch (_) { /* ignora */ }
   const storeState = extractBgAsset(id, state, ASSETS_DIR, prevMeta);
   const rawVersion = Number(storeState.schemaVersion);
   storeState.schemaVersion = Number.isInteger(rawVersion) && rawVersion > 0
     ? rawVersion : PROJECT_STATE_SCHEMA_VERSION;
-  atomicWriteFile(file, JSON.stringify(
+  await atomicWriteFileAsync(file, JSON.stringify(
     { format: 'infranet-project', schemaVersion: storeState.schemaVersion, id, name, created_at: createdAt, updated_at: updatedAt, state: storeState }
   ));
   // ⚠️ Chi ha scritto LO SA: la riga d'elenco tenuta da parte per questo progetto
@@ -450,6 +540,7 @@ function safeProjectId(raw) {
 }
 
 module.exports = {
-  PROJECTS_DIR, ASSETS_DIR, atomicWriteFile, _tmpPath, nextId, saveProject, loadProject, readProjectFile, listProjects, safeProjectId,
+  PROJECTS_DIR, ASSETS_DIR, atomicWriteFile, atomicWriteFileAsync, withProject, CHIAVE_NUOVO,
+  _tmpPath, nextId, saveProject, loadProject, readProjectFile, listProjects, safeProjectId,
   extractBgAsset, reattachBgAsset, removeBgAsset, projectEtag, fileEtag,
 };

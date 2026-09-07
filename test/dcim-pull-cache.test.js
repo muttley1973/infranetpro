@@ -93,7 +93,10 @@ const I18N = fs.readFileSync(path.join(ROOT, 'lib', 'i18n.js'), 'utf8');
 test('⚠️ la cache resta FUORI dal progetto salvato', () => {
   // Nel progetto va lo stato mappato e basta: il bundle grezzo NetBox non compare
   // in nessuna scrittura su disco.
-  assert.match(ROUTE, /saveProject\(id, name, state, now, now\)/);
+  // Il primo argomento e il NUMERO del progetto nuovo, e da quando la scrittura
+  // e asincrona lo sceglie un turno di coda: la prova chiede la FORMA della
+  // chiamata (lo stato mappato, non il bundle), non il nome della variabile.
+  assert.match(ROUTE, /saveProject\(\w+, name, state, now, now\)/);
   assert.equal(/saveProject\([^)]*\bnb\b/.test(ROUTE), false, 'il bundle grezzo non deve finire in saveProject');
   const cacheSrc = fs.readFileSync(path.join(ROOT, 'server', 'dcim', 'pull-cache.js'), 'utf8');
   for (const forbidden of ['require(\'fs\')', 'writeFile', 'saveProject', 'JSON.stringify(entries']) {
