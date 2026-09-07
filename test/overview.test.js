@@ -303,8 +303,8 @@ test('① Gateway per subnet: le dichiarate SENZA gateway emergono come lacuna (
 
 test('② VERO: verificabili, porte sospette ordinate per gravita, chi non ha mai risposto', () => {
   const nodes = [
-    { id: 'sw1', type: 'switch', ip: '10.0.0.1', integration: { driver: 'snmp-v2c', host: '10.0.0.1' } },
-    { id: 'sw2', type: 'switch', ip: '10.0.0.2', integration: { driver: 'snmp-v2c' } },
+    { id: 'sw1', type: 'switch', ip: '10.0.0.1', integration: { driver: 'snmp-v2c', host: '10.0.0.1' }, snmpStatus: 'ok' },
+    { id: 'sw2', type: 'switch', ip: '10.0.0.2', integration: { driver: 'snmp-v2c' }, snmpStatus: 'ok' },
     { id: 'pc1', type: 'pc', ip: '10.0.0.50' },
     { id: 'pc2', type: 'pc', ip: '10.0.0.51' },
   ];
@@ -358,7 +358,7 @@ test('② VERO: verificabili, porte sospette ordinate per gravita, chi non ha ma
 test('② VERO: la Verifica persistita diventa STATO (riga misurata + salute warn)', () => {
   const model = {
     types: TYPES,
-    nodes: [{ id: 'sw1', type: 'switch', ip: '10.0.0.1', integration: { driver: 'snmp-v2c', host: '10.0.0.1' } }],
+    nodes: [{ id: 'sw1', type: 'switch', ip: '10.0.0.1', integration: { driver: 'snmp-v2c', host: '10.0.0.1' }, snmpStatus: 'ok' }],
     spare: { totals: { free: 10, suspect: 0, ports: 24 } },
     lastSyncAt: 1000, now: 1000 + 3000,
     // conteggi come da buildDriftReport: azionabili = stato+MAC+non-doc+cavi+IP+identità.
@@ -389,7 +389,7 @@ test('② VERO: la Verifica persistita diventa STATO (riga misurata + salute war
 test('② VERO: i conflitti IPAM (IP duplicati + overlap subnet) emergono come riga e ingialliscono il verdetto', () => {
   const base = {
     types: TYPES,
-    nodes: [{ id: 'sw1', type: 'switch', ip: '10.0.0.1', integration: { driver: 'snmp-v2c', host: '10.0.0.1' } }],
+    nodes: [{ id: 'sw1', type: 'switch', ip: '10.0.0.1', integration: { driver: 'snmp-v2c', host: '10.0.0.1' }, snmpStatus: 'ok' }],
     spare: { totals: { free: 10, suspect: 0, ports: 24 } },
     lastSyncAt: 1000, now: 2000, lastSyncResult: { at: 1000, ok: 1, total: 1 },
     // Igiene CALCOLATA e risultata pulita: un oggetto (vuoto) e' un esito, non
@@ -532,8 +532,8 @@ test('② VERO: chi si interroga lo dice IL DRIVER — non il tipo di apparato',
   };
   const o = buildOverview(Object.assign({}, base, {
     nodes: [
-      { id: 'sw1', type: 'switch', ip: '10.0.0.1', integration: { driver: 'snmp-v2c', host: '10.0.0.1' } },
-      { id: 'prn1', type: 'printer', ip: '10.0.0.60', integration: { driver: 'snmp-v2c', host: '10.0.0.60' } },
+      { id: 'sw1', type: 'switch', ip: '10.0.0.1', integration: { driver: 'snmp-v2c', host: '10.0.0.1' }, snmpStatus: 'ok' },
+      { id: 'prn1', type: 'printer', ip: '10.0.0.60', integration: { driver: 'snmp-v2c', host: '10.0.0.60' }, snmpStatus: 'ok' },
       { id: 'pc1', type: 'pc', ip: '10.0.0.50' },
     ],
   }));
@@ -556,7 +556,7 @@ test('② VERO: senza driver l\'apparato esce dal conto e va nella lista «a man
     types: TYPES, now: 5000, lastSyncAt: 2000, lastSyncResult: { ok: 1, total: 1, at: 2000 },
     spare: { totals: { free: 10, suspect: 0, ports: 24 } },
     nodes: [
-      { id: 'sw1', type: 'switch', ip: '10.0.0.1', integration: { driver: 'snmp-v2c', host: '10.0.0.1' } },
+      { id: 'sw1', type: 'switch', ip: '10.0.0.1', integration: { driver: 'snmp-v2c', host: '10.0.0.1' }, snmpStatus: 'ok' },
       { id: 'dumb', type: 'switch', ip: '10.0.0.2' },
       { id: 'prn1', type: 'printer', ip: '10.0.0.60' },
       { id: 'pc1', type: 'pc', ip: '10.0.0.50' },
@@ -587,6 +587,93 @@ test('② VERO: senza NESSUN accesso configurato la riga e\' tratteggiata, mai v
   assert.equal(v.extra.unverifiable, 2, 'switch e PC: nessuno dei due e\' verificabile');
 });
 
+
+// ── Il TERZO stato: configurato, e MAI interrogato ────────────────────────
+// MISURATO prima della cura, sullo stesso documento: due switch che rispondono e
+// uno mai sondato davano 2/3 nella sotto-header e 3/3 qui. Questo motore contava
+// "chi non ha fallito", che e' un'ALTRA domanda — chi non e' mai stato
+// interrogato non ha fallito, e usciva fra i buoni. La definizione giusta e'
+// quella DICHIARATA in testa a lib/subbar-stats.js e usata da src/app-drift.js:
+// ha risposto = snmpStatus 'ok'. Il prodotto quel terzo stato lo conosce da
+// sempre (la classe "snmp-pending" del LED, src/app-render-core.js): mancava
+// solo alla Panoramica, che e' la superficie dove si va a cercare un verdetto.
+
+test("② VERO: configurato e MAI interrogato non conta fra quelli che rispondono", () => {
+  const o = buildOverview({
+    types: TYPES, now: 5000, lastSyncAt: 2000, lastSyncResult: { ok: 2, total: 3, at: 2000 },
+    spare: { totals: { free: 10, suspect: 0, ports: 24 } },
+    nodes: [
+      { id: "sw1", type: "switch", ip: "10.0.0.1", integration: { driver: "snmp-v2c", host: "10.0.0.1" }, snmpStatus: "ok" },
+      { id: "sw2", type: "switch", ip: "10.0.0.2", integration: { driver: "snmp-v2c", host: "10.0.0.2" }, snmpStatus: "ok" },
+      { id: "sw3", type: "switch", ip: "10.0.0.3", integration: { driver: "snmp-v2c", host: "10.0.0.3" } },
+    ],
+  });
+  const v = rowOf(o.truth, "verifiable");
+  assert.equal(v.value, 2, "hanno risposto in due, non in tre");
+  assert.equal(v.total, 3, "il denominatore resta chi si interroga");
+  assert.equal(v.extra.silent, 1, "il muto si conta, e SEPARATO dagli errori");
+  assert.equal(v.extra.errors, 0, "non è un guasto: nessuno l'ha interrogato");
+  assert.deepEqual(v.items.map((it) => [it.id, it.tag]), [["sw3", "noReading"]],
+    "e ha un NOME: un numero che cala senza dire CHI non risponde non si agisce");
+  assert.equal(v.tone, "alert");
+  assert.equal(o.truth.health.level, "warn",
+    "la prosa della lente promette «configurati e muti»: adesso pesano tutti e due");
+});
+
+test("② VERO: nessuno interrogato = assenza, mai uno zero e mai un verde", () => {
+  const o = buildOverview({
+    types: TYPES, now: 5000, lastSyncAt: 2000, lastSyncResult: { ok: 0, total: 0, at: 2000 },
+    spare: { totals: { free: 10, suspect: 0, ports: 24 } },
+    nodes: [
+      { id: "sw1", type: "switch", ip: "10.0.0.1", integration: { driver: "snmp-v2c", host: "10.0.0.1" } },
+      { id: "sw2", type: "switch", ip: "10.0.0.2", integration: { driver: "snmp-v2c", host: "10.0.0.2" } },
+    ],
+  });
+  const v = rowOf(o.truth, "verifiable");
+  assert.equal(v.prov, "none", "mai interrogati: la misura non c'è, non è andata male");
+  assert.equal(v.value, null, "null, non 0: uno 0 a valle è un ESITO, e qui non c'è stato nemmeno il tentativo");
+  assert.equal(v.total, 2, "i bersagli però esistono, e il denominatore li dice");
+  assert.equal(v.extra.silent, 2);
+  assert.notEqual(o.truth.headline.key, "verifiable",
+    "un'assenza non si prende il titolo come se fosse un guasto misurato");
+});
+
+// ⭐ La PROPRIETÀ, non il caso singolo: due motori che rispondono alla STESSA
+// domanda non possono dare due numeri diversi sullo stesso documento. Nessuno
+// confrontava le due superfici, ed erano arrivate a contraddirsi su un progetto
+// appena aperto — 0/3 in basso, 3/3 nella Panoramica, e il verdetto VERDE.
+// ⚠️ Il TERZO testo che parla di questo fatto — "snmp.tip.result", il
+// chip di freschezza — NON entra in questa guardia, ed è una MISURA, non una
+// dimenticanza: quello dice l'esito dell'ultima CORSA di Sync ("Ultima lettura
+// SNMP…"), non lo stato del documento. Il suo numero può legittimamente essere
+// un altro, e allinearlo sarebbe il difetto opposto.
+test("② VERO: sotto-header e Panoramica non possono contraddirsi sullo stesso documento", () => {
+  const { computeSubbarStats } = require("../lib/subbar-stats.js");
+  const dev = (id, st) => {
+    const n = { id, type: "switch", name: "SW-" + id, ip: "10.0.0." + id.slice(-1),
+      integration: { driver: "snmp-v2c", host: "10.0.0." + id.slice(-1) } };
+    if (st) n.snmpStatus = st;
+    return n;
+  };
+  const DOCUMENTI = {
+    "mai sondato": [dev("sw1"), dev("sw2"), dev("sw3")],
+    "due ok, uno mai sondato": [dev("sw1", "ok"), dev("sw2", "ok"), dev("sw3")],
+    "due ok, uno in errore": [dev("sw1", "ok"), dev("sw2", "ok"), dev("sw3", "err")],
+    "uno ok, due in attesa": [dev("sw1", "ok"), dev("sw2", "timeout"), dev("sw3", "pending")],
+    "tutti ok": [dev("sw1", "ok"), dev("sw2", "ok"), dev("sw3", "ok")],
+    "nessun bersaglio": [{ id: "pc1", type: "pc", ip: "10.0.0.50" }],
+  };
+  for (const [nome, nodes] of Object.entries(DOCUMENTI)) {
+    const s2 = computeSubbarStats(nodes, TYPES, 5000);
+    const o = buildOverview({ types: TYPES, nodes, now: 5000, lastSyncAt: 2000,
+      lastSyncResult: { ok: 1, total: 1, at: 2000 }, spare: { totals: { free: 10, suspect: 0, ports: 24 } } });
+    const v = rowOf(o.truth, "verifiable");
+    assert.equal(v.total || 0, s2.snmpTotal, nome + ": stesso denominatore");
+    // La Panoramica è più severa — distingue l'assenza (null) dallo zero misurato
+    // — e questo è PERMESSO: quello che non è permesso è un NUMERO diverso.
+    assert.equal(v.value == null ? 0 : v.value, s2.snmpOk, nome + ": stesso numeratore");
+  }
+});
 
 test('② VERO: un apparato configurato che NON risponde non diventa verde', () => {
   // Configurato ma muto e' una misura FALLITA, non una scelta: pesa finche' non
@@ -629,7 +716,7 @@ test('② VERO: il verdetto degrada a «warn» quando il dato è vecchio di GIOR
   const now = 1000 * day;
   const base = {
     types: TYPES,
-    nodes: [{ id: 'sw1', type: 'switch', ip: '10.0.0.1', integration: { driver: 'snmp-v2c', host: '10.0.0.1' } }],
+    nodes: [{ id: 'sw1', type: 'switch', ip: '10.0.0.1', integration: { driver: 'snmp-v2c', host: '10.0.0.1' }, snmpStatus: 'ok' }],
     spare: { totals: { free: 10, suspect: 0, ports: 24 } },
     lastSyncResult: { ok: 1, total: 1 },
   };

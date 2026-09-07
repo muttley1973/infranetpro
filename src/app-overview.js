@@ -541,8 +541,15 @@ function _tileStatus(r) {
         // dice il SECONDO CONTATORE accanto al numero, e i nomi stanno nell'elenco
         // che si apre. Una riga di testo in più sotto il verdetto era rumore.
         case 'verifiable': {
-            if (r.prov === 'none') return { w: t('ov.st.noPoll'), tone: 'none' };
+            // Due assenze DIVERSE: nessun accesso configurato, e accessi configurati
+            // che nessuno ha ancora interrogato. Dirle con la stessa frase
+            // («nessun accesso SNMP configurato») era falso nel secondo caso.
+            if (r.prov === 'none') return { w: t(r.total ? 'ov.st.neverPolled' : 'ov.st.noPoll'), tone: 'none' };
             if (e.errors > 0) return { w: t('ov.st.errNames', { names: _itemNames(r, 'snmpErr') }), tone: 'bad' };
+            // Configurato e muto non e' un guasto e non e' una risposta: e' un lavoro
+            // non ancora fatto. Il verde «rispondono tutti» lo copriva — ed e' il
+            // verde piu' facile da comprare, perche' bastava non interrogare nessuno.
+            if (e.silent > 0) return { w: t('ov.st.silentNames', { names: _itemNames(r, 'noReading') }), tone: 'warn' };
             return { w: t('ov.st.verifiedAll'), tone: 'ok' };
         }
         // Mai letto = nessun confronto possibile: «coerente» in verde sarebbe una
