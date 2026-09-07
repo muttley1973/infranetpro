@@ -67,3 +67,70 @@ test('il campo giorni è nel markup, ed è dichiarato opzionale', () => {
   assert.match(I18N.it['tk.phDays'], /vuoto/i, 'il segnaposto DICE che vuoto significa «non scade»');
   assert.match(I18N.en['tk.phDays'], /empty/i);
 });
+
+// ── Cavi orfani alla riduzione porte (STATO_PIANO gruppo G, l'ultima aperta) ──
+// Il difetto: abbassare il conteggio porte lascia i cavi sulle porte tolte. Non
+// si vedono (nessuna ancora nel rack) ma ci sono. Qui NON si pota: si dice al
+// momento in cui il danno si crea, e si conta nella Panoramica.
+test('abbassare il conteggio porte AVVISA, e non cancella niente', () => {
+  const src = read('app.js');
+  const f = /export function messaggioCaviOrfani[\s\S]*?\n\}/.exec(src);
+  assert.ok(f, 'la funzione esiste');
+  assert.match(f[0], /orphansIfPortCount/, 'la domanda la fa la lib, non una seconda regola qui');
+  assert.match(f[0], /ports\.orphanCables/, 'e il risultato si dice');
+  // La prova che NON pota è puntuale: i cavi si leggono, non si riscrivono mai.
+  // (Un `doesNotMatch` su «filter» sarebbe stato più largo del vero — la funzione
+  // filtra gli id dei nodi, che coi cavi non c'entra: una guardia troppo larga
+  // fallisce sul codice giusto, ed è così che la si disattiva.)
+  assert.match(f[0], /store\.state\.links/, 'i cavi li legge');
+  assert.doesNotMatch(f[0], /state\.links\s*=|links\.splice|delete .*links/, 'e non li riscrive mai');
+  // Il tetto PRIMA della modifica va catturato prima dell'assegnazione, o non si
+  // può sapere se è sceso — stessa disciplina di `_auditOldName`.
+  assert.match(src, /const _tettoPrima=\(k==='ports'\) \? tettoPorteNumeriche\(n\) : null;/);
+  assert.match(f[0], /tettoDopo >= tettoPrima\) return ''/, 'si parla solo quando il tetto SCENDE');
+  assert.match(f[0], /tettoPrima == null \|\| tettoDopo == null/, '«non lo so» non accusa nessuno');
+});
+
+test('il tetto dei pid numerici passa dalla regola unica, con la PDU dichiarata', () => {
+  const src = read('app.js');
+  const f = /export function tettoPorteNumeriche[\s\S]*?\n\}/.exec(src);
+  assert.ok(f, 'corpo trovato');
+  assert.match(f[0], /numericPortCeiling/, 'la regola sta in lib/port-inventory.js');
+  assert.match(f[0], /pduMgmtPorts: n\.type === 'pdu' \? pduManagementPortCount\(n\) : null/,
+    'su una PDU i pid numerici sono le porte di RETE: `n.ports` conta altro');
+});
+
+// Regola cardine ③: il fix è della CLASSE, non del caso. Il conteggio porte si
+// abbassa anche applicando un modello del catalogo — tre strade, stesso danno.
+test('anche applicare un modello del catalogo avvisa, nella stessa frase', () => {
+  const src = read('app-device-types.js');
+  const chiamate = src.match(/applyTemplateToNode\(n, tmpl, getNodeRackSize\(n\)\);/g) || [];
+  assert.equal(chiamate.length, 3, 'le strade che applicano un modello sono tre');
+  // Ognuna misura il tetto PRIMA e compone il messaggio DOPO.
+  assert.equal((src.match(/const _tetto = tettoPorteNumeriche\(n\);/g) || []).length, 3,
+    'tutte e tre catturano il tetto prima di riscrivere le porte');
+  assert.equal((src.match(/const _orfani = messaggioCaviOrfani\(n, _tetto\);/g) || []).length, 3);
+  assert.equal((src.match(/_orfani \? ' ' \+ _orfani : ''/g) || []).length, 3,
+    'e lo appendono all\'avviso che c\'è già: una conseguenza raccontata a parte sembra un altro fatto');
+});
+
+test('la Panoramica conta gli orfani nel glue e li mostra nella riga Cavi', () => {
+  const src = read('app-overview.js');
+  assert.match(src, /findOrphanPortRefs\(/, 'il conteggio si fa dove vivono TYPES e il modello PDU');
+  assert.match(src, /orphanCables,/, 'ed entra nel modello che la lib compone');
+  const caso = /case 'cables': \{[\s\S]*?\n {8}\}/.exec(src);
+  assert.ok(caso, 'ramo della riga Cavi trovato');
+  assert.match(caso[0], /ov\.st\.cableOrphan/, 'la sotto-riga lo dice');
+  assert.match(caso[0], /orph > 0 \? ' · '/, 'in coda e SOLO se ce n\'è: uno zero perenne è rumore');
+  assert.match(caso[0], /orph > 0\) \? 'warn'/, 'e tinge la riga: nessuno può accorgersene guardando il rack');
+});
+
+test('i due messaggi nuovi esistono in tutt\'e due le lingue', () => {
+  for (const k of ['ports.orphanCables', 'ov.st.cableOrphan']) {
+    assert.ok(I18N.it[k], `${k} in it`);
+    assert.ok(I18N.en[k], `${k} in en`);
+    assert.notEqual(I18N.it[k], I18N.en[k], `${k}: tradotta, non copiata`);
+  }
+  assert.match(I18N.it['ports.orphanCables'], /Non li ho tolti/, 'il messaggio DICE che non ha cancellato niente');
+  assert.match(I18N.en['ports.orphanCables'], /not removed/);
+});

@@ -10,7 +10,7 @@
 import { t } from './_bridge.js';
 import { store } from './store.js';
 import { escapeHTML } from './app-util.js';
-import { nodeById, markDirty, getNodeRackSize } from './app.js';
+import { nodeById, markDirty, getNodeRackSize, tettoPorteNumeriche, messaggioCaviOrfani } from './app.js';
 import { showAlert } from './app-core.js';
 import { renderAll } from './app-render-core.js';
 import { renderProps } from './app-properties.js';
@@ -194,7 +194,13 @@ function applyDeviceType(value) {
     const tmpl = _byKey[String(value || '').trim().toLowerCase()];
     const n = nodeById(store.selId);
     if (!tmpl || !n) return;
+    // ⚠️ Un modello del catalogo RISCRIVE il conteggio porte, e può abbassarlo: i
+    // cavi sulle porte tolte restano nel documento senza che nessuno li disegni.
+    // Stessa classe del campo «Numero porte» (regola cardine ③: il fix è della
+    // classe, non del caso), e stessa risposta — si dice, non si pota.
+    const _tetto = tettoPorteNumeriche(n);
     applyTemplateToNode(n, tmpl, getNodeRackSize(n));
+    const _orfani = messaggioCaviOrfani(n, _tetto);
     _markCatalogApplied(n, tmpl, 'manual');
     renderAll(); markDirty(); renderProps();
     // Modelli DC ad altissima densità: le porte in fibra oltre il cap 48/blocco
@@ -202,17 +208,21 @@ function applyDeviceType(value) {
     // silenzio: ora l'utente sa che quelle porte non sono cablabili sul pannello.
     const dropped = (tmpl.counts && tmpl.counts.fiberDropped > 0) ? tmpl.counts.fiberDropped : 0;
     showAlert(t('devtype.applied', { model: tmpl.brand + ' ' + tmpl.model })
-        + (dropped ? ' ' + t('devtype.fiberDropped', { n: dropped }) : ''));
+        + (dropped ? ' ' + t('devtype.fiberDropped', { n: dropped }) : '')
+        + (_orfani ? ' ' + _orfani : ''));
 }
 
 function applyCurrentDeviceType() {
     const n = nodeById(store.selId);
     const tmpl = _catalogTemplateForNode(n);
     if (!tmpl || !n) return;
+    const _tetto = tettoPorteNumeriche(n);
     applyTemplateToNode(n, tmpl, getNodeRackSize(n));
+    const _orfani = messaggioCaviOrfani(n, _tetto);
     _markCatalogApplied(n, tmpl, 'manual-update');
     renderAll(); markDirty(); renderProps();
-    showAlert(t('devtype.updatedApplied', { model: tmpl.brand + ' ' + tmpl.model }));
+    showAlert(t('devtype.updatedApplied', { model: tmpl.brand + ' ' + tmpl.model })
+        + (_orfani ? ' ' + _orfani : ''));
 }
 
 /** RICONOSCIMENTO modello a scansione (manual-first: PROPONE, non scrive nulla).
@@ -254,11 +264,14 @@ function adoptRecognizedModel(){
     const tmpl = (rec.sourceSlug && _bySourceSlug[String(rec.sourceSlug).toLowerCase()])
         || _byKey[((rec.brand || '') + ' ' + (rec.model || '')).trim().toLowerCase()];
     if(!tmpl) return;
+    const _tetto = tettoPorteNumeriche(n);
     applyTemplateToNode(n, tmpl, getNodeRackSize(n));
+    const _orfani = messaggioCaviOrfani(n, _tetto);
     _markCatalogApplied(n, tmpl, 'recognized-adopt');
     delete n.modelMatch;
     renderAll(); markDirty(); renderProps();
-    showAlert(t('devtype.applied', { model: tmpl.brand + ' ' + tmpl.model }));
+    showAlert(t('devtype.applied', { model: tmpl.brand + ' ' + tmpl.model })
+        + (_orfani ? ' ' + _orfani : ''));
 }
 
 // Delega: il change sull'input "Applica modello" (data-change) chiama l'handler.

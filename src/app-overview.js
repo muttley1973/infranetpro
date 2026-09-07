@@ -31,6 +31,8 @@ import { _ipamAuditReport } from './app-l3.js';   // ② «Vero»: igiene IPAM (
 import { wifiVlanCoherence } from './app-wifi.js';   // ⑤ «Sicurezza»: coerenza VLAN wireless (stesso motore del vecchio report, ora assorbito nella Dashboard)
 import { buildOverview, _rackFill } from '../lib/overview.js';
 import { computeHealthAlerts } from '../lib/health-alerts.js';   // ⑥ Salute live: soglie DOCUMENTATE una volta sola (le stesse che legge l'assistente AI)
+import { numericPortCeiling, findOrphanPortRefs } from '../lib/port-inventory.js';   // ① Completo: capi di cavo su porte che l'apparato non ha (piu')
+import { pduManagementPortCount } from '../lib/pdu-layout.js';   // su una PDU i pid numerici sono le porte di RETE, non le prese
 import { ipamByVidView, prefixesOf, prefixKey } from '../lib/ipam-model.js';   // vista per-VLAN + l'autorità prefix-first
 
 // La vista corrente e' una preferenza DELL'UTENTE su QUESTA macchina, non un
@@ -304,8 +306,30 @@ function _buildModel() {
         }
     }
 
+    // Capi di cavo su una porta che l'apparato non ha (piu'). Il conteggio si fa
+    // QUI e non nel motore: la Panoramica compone, e il tetto dei pid numerici
+    // dipende dal catalogo TYPES e dal modello PDU, che stanno di qua. La REGOLA
+    // — chi vince fra conteggio dichiarato, default di tipo e porte di rete della
+    // PDU — resta una sola, in lib/port-inventory.js.
+    // ⚠️ Non si pota niente: si conta, e la riga «cavi» lo dice.
+    const _tetti = Object.create(null);
+    for (const n of nodes) {
+        if (!n || !n.id) continue;
+        _tetti[n.id] = numericPortCeiling(n, {
+            typeDefaultPorts: (TYPES[n.type] || {}).ports,
+            pduMgmtPorts: n.type === 'pdu' ? pduManagementPortCount(n) : null,
+        });
+    }
+    const _nodeIdSet = new Set(Object.keys(_tetti));
+    const orphanCables = findOrphanPortRefs(
+        Array.isArray(st.links) ? st.links : [],
+        (id) => (id in _tetti ? _tetti[id] : null),
+        _nodeIdSet,
+    ).length;
+
     return {
         nodes, types: TYPES, links: Array.isArray(st.links) ? st.links : [], portMacNodeIds, portMacById, macToNode, presence,
+        orphanCables,
         ipamVlans: ipamByVidView(st),
         prefixes: prefixesOf(st),   // prefix-first: TUTTE le reti dichiarate (anche senza VLAN, e i 2° prefissi dual-stack)
         vlanIdsInUse, vlanNames: st.vlanNames || {}, measuredVlanNames,
@@ -468,6 +492,12 @@ function _tileStatus(r) {
         // «17 documentati» era vago proprio dove serviva precisione: un cavo
         // dedotto dall'auto-link non e' un cavo dichiarato.
         case 'cables': {
+            // Capi di cavo su porte che l'apparato non ha piu' (di solito: conteggio
+            // porte abbassato, cavi rimasti). Si aggiunge in coda SOLO se ce n'è —
+            // come `shutCable` — e tinge la riga: sono cavi che nessuno disegna,
+            // quindi nessuno può accorgersene guardando il rack.
+            const orph = e.orphan || 0;
+            const coda = orph > 0 ? ' · ' + t('ov.st.cableOrphan', { n: orph }) : '';
             // Dopo una Verifica il verdetto diventa il NUMERO-D'IDENTITÀ del cablaggio:
             // ogni cavo eredita lo stato dei suoi estremi (spec Proof-State §5.3). Il
             // fantasma (inferenza senza evidenza) è la notizia → tono warn. Senza
@@ -481,12 +511,12 @@ function _tileStatus(r) {
                 // spenta» diventa rumore che si smette di leggere.
                 const shut = e.shutCable || 0;
                 const w = t('ov.st.cableProof', { g: pc.ghost, d: derived, m: declared })
-                    + (shut > 0 ? ' · ' + t('ov.st.cableShut', { n: shut }) : '');
-                return { w, tone: (pc.ghost > 0 || shut > 0) ? 'warn' : (derived > 0 ? 'info' : 'ok') };
+                    + (shut > 0 ? ' · ' + t('ov.st.cableShut', { n: shut }) : '') + coda;
+                return { w, tone: (pc.ghost > 0 || shut > 0 || orph > 0) ? 'warn' : (derived > 0 ? 'info' : 'ok') };
             }
             return e.auto
-                ? { w: t('ov.st.cableSplit', { m: e.manual, a: e.auto }), tone: 'info' }
-                : { w: t('ov.st.documented'), tone: 'info' };
+                ? { w: t('ov.st.cableSplit', { m: e.manual, a: e.auto }) + coda, tone: orph > 0 ? 'warn' : 'info' }
+                : { w: t('ov.st.documented') + coda, tone: orph > 0 ? 'warn' : 'info' };
         }
         // Nella colonna «il documento è completo?» la lacuna è il punto: la
         // subnet c'è nella rete ma NON è dichiarata nel progetto. «non dichiarate»

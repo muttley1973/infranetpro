@@ -1952,3 +1952,27 @@ test('verdetto: ogni frase che il renderer andrà a cercare ESISTE, in tutt\'e d
   }
   assert.deepEqual(mancanti, [], 'frasi di verdetto mancanti: ' + mancanti.join(' · '));
 });
+
+// ── I cavi su porte che non esistono ────────────────────────────────────────
+// Nascono abbassando il conteggio porte: i cavi sulle porte tolte restano nel
+// documento ma il renderer non ha più un'ancora dove disegnarli. Invisibili, e
+// quindi non correggibili: la Panoramica è il posto dove tornano visibili.
+// ⚠️ La Panoramica COMPONE: il conteggio arriva dal glue (che conosce TYPES e il
+// modello PDU), la lib lo mette in riga.
+test('① COMPLETO: la riga Cavi porta i capi su porte inesistenti — solo se ce ne sono', () => {
+  const nodes = [
+    { id: 'sw1', type: 'switch', name: 'SW', ip: '10.0.0.1', ports: 24 },
+    { id: 'sw2', type: 'switch', name: 'SW2', ip: '10.0.0.2', ports: 24 },
+  ];
+  const links = [{ src: 'sw1-1', dst: 'sw2-1' }, { src: 'sw1-40', dst: 'sw2-2' }];
+  const con = buildOverview({ types: TYPES, nodes, links, orphanCables: 1, spare: { totals: { used: 4 } } });
+  assert.equal(rowOf(con.complete, 'cables').extra.orphan, 1);
+  // Senza, la chiave NON c'è: `extra` è una forma che i lettori confrontano, e
+  // uno zero perenne cambierebbe il contratto per raccontare il nulla (è la
+  // stessa disciplina di `shutCable`, e la prova sta nel test qui sopra che
+  // confronta `extra` per intero).
+  const senza = buildOverview({ types: TYPES, nodes, links, orphanCables: 0, spare: { totals: { used: 4 } } });
+  assert.equal('orphan' in rowOf(senza.complete, 'cables').extra, false);
+  const mai = buildOverview({ types: TYPES, nodes, links, spare: { totals: { used: 4 } } });
+  assert.equal('orphan' in rowOf(mai.complete, 'cables').extra, false, 'un modello che non lo dice non fa comparire la chiave');
+});

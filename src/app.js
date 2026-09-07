@@ -6,6 +6,7 @@ import { win, projectFormat, expose, t, mergeLeaseSources } from './_bridge.js';
 // comunque su window (UMD) per eventuali consumatori classic.
 import { canonicalizeIpv6 } from '../lib/ipv6.js';
 import { nodeIdOfPort } from '../lib/port-id.js';
+import { numericPortCeiling, orphansIfPortCount } from '../lib/port-inventory.js';   // quali porte ESISTONO: serve a dire cosa resta scollegato abbassando il conteggio
 import { migrateIpam } from '../lib/ipam-model.js';   // la subnet esce dalla VLAN e diventa un prefisso: migrazione idempotente al load
 import { migrateVmNics, VM_FLAT_NET_FIELDS, vmIps } from '../lib/vm-nics.js';   // migrazione vm.ip/mac/vlan → vm.nics[]; vmIps = IPv4 di tutte le vNIC
 import { normalizePduOutletCount, normalizePduManagementMode, normalizePduPortCount, pduManagementPortCount } from '../lib/pdu-layout.js';
@@ -1675,6 +1676,44 @@ function _cleanupPduNetworkPorts(n){
     }
 }
 
+// ── Il tetto dei pid numerici di questo apparato ─────────────────────────────
+// La REGOLA (chi vince fra conteggio dichiarato, default di tipo e porte di rete
+// della PDU) sta in lib/port-inventory.js, dove si può provare; qui si passano
+// solo i due numeri che vengono dal catalogo e dal modello PDU, come
+// `mgmtEligible` per il front panel.
+export function tettoPorteNumeriche(n){
+    return numericPortCeiling(n, {
+        typeDefaultPorts: TYPES[n.type]?.ports,
+        pduMgmtPorts: n.type === 'pdu' ? pduManagementPortCount(n) : null,
+    });
+}
+
+// ⚠️ Abbassare il conteggio porte NON cancella i cavi che stavano sulle porte
+// tolte: restano nel documento, ma il renderer non ha più un'ancora dove
+// disegnarli. Diventano invisibili — e un cavo invisibile è peggio di uno
+// sbagliato, perché nessuno può correggerlo (contati nei totali, stampati nel
+// dossier, esportati). Qui NON si pota: potare per «porta fuori range» è il fix
+// affrettato che perde uplink veri. Si DICE, e decide l'utente.
+// Si parla solo quando il tetto SCENDE davvero: su una PDU, per esempio,
+// `ports` conta le prese e il tetto dei pid non si muove — avvisare lì sarebbe
+// un allarme su una cosa in ordine, che è il modo di insegnare a ignorarli.
+// Torna la FRASE, o '' se non c'è niente da dire: il conteggio porte si abbassa
+// anche applicando un modello dal catalogo, e lì l'avviso va appeso a quello che
+// l'app sta già dicendo («modello applicato») invece di aprire una seconda
+// finestra. Una conseguenza raccontata a parte sembra un altro fatto.
+export function messaggioCaviOrfani(n, tettoPrima){
+    const tettoDopo = tettoPorteNumeriche(n);
+    if(tettoPrima == null || tettoDopo == null || tettoDopo >= tettoPrima) return '';
+    const ids = new Set((store.state.nodes || []).map(x => x && x.id).filter(Boolean));
+    const r = orphansIfPortCount(n.id, tettoDopo, store.state.links, ids);
+    if(!r.count) return '';
+    return t('ports.orphanCables', { n: r.count, ports: r.ports.join(', ') });
+}
+function _avvisaCaviOrfani(n, tettoPrima){
+    const msg = messaggioCaviOrfani(n, tettoPrima);
+    if(msg) showAlert(msg);
+}
+
 function updateN(k,v){
     // Sentinella dell'harness manual-value (_enableManualValueInProps): NON persistere
     // mai il token. Scegliendo «Personalizzato…» il change delegato arriva qui col token
@@ -1683,6 +1722,9 @@ function updateN(k,v){
     if(v === '__custom_manual__') return;
     const n=nodeById(selId); if(!n) return;
     const _auditOldName=(k==='name') ? String(n.name||'') : null;
+    // Il tetto PRIMA della modifica: dopo l'assegnazione non è più recuperabile,
+    // e senza non si può dire se è sceso (stessa disciplina di `_auditOldName`).
+    const _tettoPrima=(k==='ports') ? tettoPorteNumeriche(n) : null;
     const fixedRackLabel=_fixedRackLabel(n.type);
     if(n.type==='wallport'&&k==='ports') v=1;
     if(n.type==='blankpanel'&&k==='ports') v=0;
@@ -1722,7 +1764,7 @@ function updateN(k,v){
     // l'SNMP non alza piu' `ports` in silenzio, propone «Adotta porte rilevate»
     // (src/app-snmp.js via lib/ports-reconcile.js). Se riscrivi il conteggio a >=
     // della misura pendente, la proposta non ha piu' senso → la togli.
-    if(k==='ports'){ n.portsManual = true; if(n.portsMeasured != null && Number(v) >= n.portsMeasured) delete n.portsMeasured; }
+    if(k==='ports'){ n.portsManual = true; if(n.portsMeasured != null && Number(v) >= n.portsMeasured) delete n.portsMeasured; _avvisaCaviOrfani(n, _tettoPrima); }
     if(k==='name' && _auditOldName!=null && v && String(v)!==_auditOldName){
         logAudit('device-rename', { target:String(v), summary:_auditOldName?((typeof t==='function')?t('audit.wasNamed',{name:_auditOldName}):`era «${_auditOldName}»`):'' });
     }
