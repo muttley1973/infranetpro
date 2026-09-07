@@ -276,6 +276,11 @@ const _RL = {
     'cover.footer': 'Generated with InfraNet Pro', 'audit.system': 'system',
   },
 };
+// «Questa è una lista da scorrere?» — la domanda che `|| []` non fa. I dati del
+// report arrivano dal client: un campo che non è un array faceva cadere il
+// generatore con un 500 (misurato: `{cables:'x'}` → «.map is not a function»).
+const _lista = (v) => (Array.isArray(v) ? v : []);
+
 function _rlang(lang) { return lang === 'en' ? 'en' : 'it'; }             // normalizza (default it)
 function _localeTag(lang) { return lang === 'en' ? 'en-GB' : 'it-IT'; }   // per toLocale*
 function _rt(lang, key) {
@@ -517,7 +522,7 @@ function _addReportPages(doc, report, projName, date, SVGtoPDF, options = {}, la
   if (opts.includeInventory) {
     const T = _rt(L, 'title.inventory');
     let y = newPage(T);
-    y = _rSub(doc, `${(report.cables || []).length} ${_rt(L, 'sub.cables')}`, y);
+    y = _rSub(doc, `${_lista(report.cables).length} ${_rt(L, 'sub.cables')}`, y);
     const cols = [
       { label: _rt(L, 'col.num'),      w: 22  },
       { label: _rt(L, 'col.label'),    w: 155, shrink: true, arrowAlign: true },
@@ -528,7 +533,7 @@ function _addReportPages(doc, report, projName, date, SVGtoPDF, options = {}, la
       { label: _rt(L, 'col.length'),   w: 30  },
       { label: _rt(L, 'col.category'), w: 72, wrap: true },
     ]; // 539
-    const rows = (report.cables || []).map((c, i) => [
+    const rows = _lista(report.cables).map((c, i) => [
       i + 1, c.label || '-', c.from || '-', c.to || '-',
       // Un trunk porta piu' VLAN: si stampa la LISTA, non una sola col nome — su
       // carta non c'e' il colore a distinguerle, e una sola diceva meno del vero.
@@ -546,15 +551,15 @@ function _addReportPages(doc, report, projName, date, SVGtoPDF, options = {}, la
   if (opts.includeAsBuilt) {
     const T = _rt(L, 'title.asbuilt');
     let y = newPage(T);
-    y = _rSub(doc, `${(report.asBuilt || []).length} ${_rt(L, 'sub.routes')}`, y);
+    y = _rSub(doc, `${_lista(report.asBuilt).length} ${_rt(L, 'sub.routes')}`, y);
     const cols = [
       { label: _rt(L, 'col.num'),    w: 22  },
       { label: _rt(L, 'col.route'),  w: 333, wrap: true },
       { label: 'VLAN',               w: 112, shrink: true },
       { label: _rt(L, 'col.medium'), w: 72  },
     ]; // 539
-    const rows = (report.asBuilt || []).map((p, i) => [
-      i + 1, (p.steps || []).join(' -> '), p.vlan || '-', p.medium || '-',
+    const rows = _lista(report.asBuilt).map((p, i) => [
+      i + 1, _lista(p.steps).join(' -> '), p.vlan || '-', p.medium || '-',
     ]);
     if (!rows.length)
       doc.font('Helvetica').fontSize(8).fillColor('#94a3b8')
@@ -609,13 +614,13 @@ function _addReportPages(doc, report, projName, date, SVGtoPDF, options = {}, la
     const T = _rt(L, 'title.ports');
     let y = newPage(T);
     const allRows = [];
-    (report.portAssignment || []).forEach(dev =>
-      (dev.ports || []).forEach(p =>
+    _lista(report.portAssignment).forEach(dev =>
+      _lista(dev.ports).forEach(p =>
         allRows.push([dev.rack, dev.device, p.num, p.alias || '-',
                       p.status || '—', p.speed || '-', p.vlan || '-', p.connectedTo || '-'])
       )
     );
-    y = _rSub(doc, `${allRows.length} ${_rt(L, 'sub.portsA')} ${(report.portAssignment || []).length} ${_rt(L, 'sub.portsB')}`, y);
+    y = _rSub(doc, `${allRows.length} ${_rt(L, 'sub.portsA')} ${_lista(report.portAssignment).length} ${_rt(L, 'sub.portsB')}`, y);
     const SC = { active: '#16a34a', fault: '#dc2626', inactive: '#6b7280' };
     const cols = [
       { label: _rt(L, 'col.rack'),   w: 96, wrap: true },
@@ -637,17 +642,17 @@ function _addReportPages(doc, report, projName, date, SVGtoPDF, options = {}, la
   if (opts.includeVlans) {
     const T = _rt(L, 'title.vlans');
     let y = newPage(T);
-    y = _rSub(doc, `${(report.vlans || []).length} ${_rt(L, 'sub.vlans')}`, y);
+    y = _rSub(doc, `${_lista(report.vlans).length} ${_rt(L, 'sub.vlans')}`, y);
 
-    if (!(report.vlans || []).length) {
+    if (!_lista(report.vlans).length) {
       doc.font('Helvetica').fontSize(8).fillColor('#94a3b8')
          .text(_rt(L, 'empty.vlans'), _RM, y);
     } else {
       const M = _RM, CW = _RW;
 
-      (report.vlans || []).forEach(v => {
-        const ag  = v.accessGroups || [];
-        const tl2 = v.trunkLinks   || [];
+      _lista(report.vlans).forEach(v => {
+        const ag  = _lista(v.accessGroups);
+        const tl2 = _lista(v.trunkLinks);
         const totalAcc = v.totalAccess || ag.reduce((s, g) => s + (g.ports||[]).length, 0);
 
         // IPAM (da tabella VLAN): range IP, gateway di default, DNS — mostrati
@@ -662,7 +667,7 @@ function _addReportPages(doc, report, projName, date, SVGtoPDF, options = {}, la
         const PORTS_W = CW - DNAME_W - 6;
         doc.font('Helvetica');                      // misura il wrapping col font di disegno
         const agRows = ag.reduce((s, g) => {
-          const portsStr = (g.ports || []).map(p => `P${p}`).join('  ');
+          const portsStr = _lista(g.ports).map(p => `P${p}`).join('  ');
           return s + _wrapFit(doc, portsStr, PORTS_W, 6).length;
         }, 0);
         const tlRows = tl2.reduce((s, link) => {
@@ -716,7 +721,7 @@ function _addReportPages(doc, report, projName, date, SVGtoPDF, options = {}, la
              .text(_rt(L, 'vlan.accessPorts'), M + 3, y + 2, { lineBreak: false });
           y += 10;
           ag.forEach(grp => {
-            const portsStr = (grp.ports || []).map(p => `P${p}`).join('  ');
+            const portsStr = _lista(grp.ports).map(p => `P${p}`).join('  ');
             const devLabel = `${String(grp.device ?? '')}:`;
             doc.font('Helvetica');                  // stesso font del pre-calcolo altezza
             const portLines = _wrapFit(doc, portsStr, PORTS_W, 6);
@@ -966,7 +971,7 @@ function _addSparePages(doc, spare, projName, date, lang = 'it') {
     rackName, d.name, String(d.free), String(d.freeAccess), d.sfp ? String(d.freeSfp) : '-',
     d.suspect ? String(d.suspect) : '', String(d.used), String(d.total),
   ]);
-  racks.forEach(r => (r.devices || []).forEach(d => pushDev(r.name, d)));
+  racks.forEach(r => _lista(r.devices).forEach(d => pushDev(r.name, d)));
   unracked.forEach(d => pushDev(_rt(L, 'spare.unracked'), d));
   _rTable(doc, cols, rows, y, T, projName, date);
 }
@@ -1048,12 +1053,12 @@ function _addPduPages(doc, pdu, projName, date, lang = 'it') {
     ].filter(p => p[1] != null && p[1] !== '');
 
     // Alimentazione in ingresso: una riga per presa di corrente del PDU.
-    const feedLines = (s.feeds || []).map(f =>
+    const feedLines = _lista(s.feeds).map(f =>
       `${f.name || '-'}${f.type ? ` (${f.type})` : ''} <- ${f.source || '?'}${f.sourcePort ? ` · ${f.sourcePort}` : ''}`);
     // I GRUPPI: due parole per gruppo (commutabile o sempre acceso, batteria o
     // solo filtrata) e quante prese contiene. E' la risposta alla domanda per cui
     // si compra un UPS, e su carta va letta senza aprire nulla.
-    const grpLines = (s.groups || []).map(g =>
+    const grpLines = _lista(s.groups).map(g =>
       `${g.name}  ·  ${lbl('pdu.grp', g.switching)}  ·  ${lbl('pdu.grp', g.backup)}  ·  ${g.outlets} ${_rt(L, 'col.outlets')}`);
     // Prese: solo quelle che alimentano qualcosa portano un testo lungo; le libere
     // restano compatte. Questo è il "collegamenti" che serve per ricablare.

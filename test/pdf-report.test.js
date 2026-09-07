@@ -333,3 +333,60 @@ test('_addRecoveryPages: nessun SEGRETO nella riga (solo puntatore backup, mai c
   const poisoned = { devices: [ { name: 'X', backupRef: 'ref', community: 'public', password: 'hunter2' } ] };
   assert.doesNotThrow(() => _addRecoveryPages(newDoc(), poisoned, 'P', 'd', 'it'));
 });
+
+// ── Le liste del report arrivano dal CLIENT (08/09) ────────────────────────
+// `X || []` difende dal NULLO, non dal tipo sbagliato: `{cables:'x'}` faceva
+// cadere il generatore con «(report.cables || []).map is not a function», cioè un
+// 500 con un messaggio da stack trace in faccia a chi chiama. Misurato con
+// `_local/tools/smoke/sonda-export.js`, che manda payload storti alla rotta vera.
+// ⭐ La rotta GEMELLA — quella delle etichette — il controllo ce l'aveva dal primo
+// giorno (`Array.isArray(rows)` → 400): era la stessa guardia presente da una
+// parte e assente dall'altra.
+test('report: una lista che non è un array non fa cadere il generatore', () => {
+  const doc = newDoc();
+  // Ogni campo-lista, uno per volta, con un valore che lista non è.
+  for (const campo of ['cables', 'asBuilt', 'portAssignment', 'vlans']) {
+    for (const storto of ['non un array', 42, {}, true]) {
+      const report = { [campo]: storto };
+      assert.doesNotThrow(() => {
+        _addReportPages(doc, report, 'P', '01/01/2026', null, {
+          includeInventory: true, includeAsBuilt: true, includePorts: true, includeVlans: true,
+          includeRacks: false, includeTopology: false, includeVms: false,
+        }, 'it');
+      }, `${campo} = ${JSON.stringify(storto)}`);
+    }
+  }
+});
+
+test('report: e una lista di ELEMENTI storti nemmeno', () => {
+  const doc = newDoc();
+  assert.doesNotThrow(() => {
+    _addReportPages(doc, {
+      portAssignment: [{ device: 'X', rack: null, ports: 'non un array' }],
+      vlans: [{ id: null, name: 'X', accessGroups: 'no', trunkLinks: 7 }],
+      asBuilt: [{ from: 'a', to: 'b', steps: 'no' }],
+    }, 'P', '01/01/2026', null, {
+      includeInventory: false, includeAsBuilt: true, includePorts: true, includeVlans: true,
+      includeRacks: false, includeTopology: false, includeVms: false,
+    }, 'it');
+  });
+});
+
+// I capitoli vicini (changelog, porte libere, ripristinabilità, PDU) NON passano
+// dal controllo alla porta: la rotta valida le quattro liste di `_addReportPages`.
+// Misurato che reggono da sé (usano `Array.isArray` dentro) — e qui resta scritto,
+// se no la prossima persona rifà la stessa domanda al buio.
+test('report: i capitoli VICINI reggono un payload storto per conto loro', () => {
+  const { _addChangelogPages, _addSparePages, _addRecoveryPages, _addPduPages } = require('../server/pdf-report.js');
+  const casi = [
+    ['changelog', (v) => _addChangelogPages(newDoc(), v, 'P', '01/01/2026', 'it')],
+    ['spare', (v) => _addSparePages(newDoc(), v, 'P', '01/01/2026', 'it')],
+    ['recovery', (v) => _addRecoveryPages(newDoc(), v, 'P', '01/01/2026', 'it')],
+    ['pdu', (v) => _addPduPages(newDoc(), v, 'P', '01/01/2026', 'it')],
+  ];
+  for (const [nome, f] of casi) {
+    for (const storto of ['non un array', 42, true, { devices: 'x' }, { racks: 'x' }, { entries: 'x' }]) {
+      assert.doesNotThrow(() => f(storto), nome + ' con ' + JSON.stringify(storto));
+    }
+  }
+});

@@ -50,6 +50,24 @@ router.post('/api/export-pdf', auth.requireAdmin, (req, res) => {
   if (wantsReportPages && (!reportData || typeof reportData !== 'object')) {
     return res.status(400).json({ error: 'Payload mancante: reportData per le pagine report richieste' });
   }
+  // ⚠️ Le liste del report arrivano dal CLIENT, e il generatore le SCORRE. Una che
+  // non è un array lo faceva cadere: `{cables:'x'}` → 500 con «(report.cables ||
+  // []).map is not a function», cioè un messaggio da stack trace in faccia a chi
+  // chiama (misurato). `|| []` difende dal nullo, non dal tipo sbagliato.
+  // ⭐ La rotta GEMELLA — quella delle etichette, dieci righe più giù — questo
+  // controllo ce l'ha dal primo giorno (`Array.isArray(rows)` → 400): era la stessa
+  // guardia presente da una parte e assente dall'altra. Qui si dice anche QUALE
+  // campo, perché un 400 che non nomina il campo manda a indovinare.
+  const LISTE_REPORT = ['cables', 'asBuilt', 'portAssignment', 'vlans', 'rackSvgs', 'vms'];
+  if (reportData && typeof reportData === 'object') {
+    const storte = LISTE_REPORT.filter(k => reportData[k] != null && !Array.isArray(reportData[k]));
+    if (storte.length) {
+      return res.status(400).json({
+        error: `reportData: ${storte.join(', ')} deve essere un array`,
+        code: 'bad-report-shape', fields: storte,
+      });
+    }
+  }
 
   let PDFDocument, SVGtoPDF;
   try {
