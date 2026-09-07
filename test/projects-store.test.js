@@ -57,10 +57,10 @@ test('atomicWriteFile: prima scrittura non crea .bak', () => {
 
 // ---- bgImage: estrazione su asset --------------------------------------------
 
-test('extractBgAsset: data-URL → asset su file + stato senza base64 (non muta l\'originale)', () => {
+test('extractBgAsset: data-URL → asset su file + stato senza base64 (non muta l\'originale)', async () => {
   const dir = tmpDir();
   const state = { foo: 1, bgImage: PNG_1x1, bgImageScale: 1 };
-  const out = extractBgAsset(5, state, dir, null);
+  const out = await extractBgAsset(5, state, dir, null);
   // stato salvato: niente base64, solo il riferimento
   assert.equal(out.bgImage, null);
   assert.equal(out.bgImageAsset, '5.png');
@@ -74,9 +74,9 @@ test('extractBgAsset: data-URL → asset su file + stato senza base64 (non muta 
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('reattachBgAsset: dal riferimento ricostruisce il data-URL e ripulisce i campi storage', () => {
+test('reattachBgAsset: dal riferimento ricostruisce il data-URL e ripulisce i campi storage', async () => {
   const dir = tmpDir();
-  const stored = extractBgAsset(5, { bgImage: PNG_1x1 }, dir, null);
+  const stored = await extractBgAsset(5, { bgImage: PNG_1x1 }, dir, null);
   const proj = reattachBgAsset({ id: 5, state: Object.assign({}, stored) }, dir);
   assert.ok(proj.state.bgImage.startsWith('data:image/png;base64,'));
   // round-trip byte-identico
@@ -88,30 +88,30 @@ test('reattachBgAsset: dal riferimento ricostruisce il data-URL e ripulisce i ca
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('extractBgAsset: immagine invariata (stesso hash) → NON riscrive l\'asset', () => {
+test('extractBgAsset: immagine invariata (stesso hash) → NON riscrive l\'asset', async () => {
   const dir = tmpDir();
-  const first = extractBgAsset(5, { bgImage: PNG_1x1 }, dir, null);
+  const first = await extractBgAsset(5, { bgImage: PNG_1x1 }, dir, null);
   // sporco il file: se venisse riscritto, il sentinel sparirebbe
   fs.writeFileSync(path.join(dir, '5.png'), 'SENTINEL');
-  extractBgAsset(5, { bgImage: PNG_1x1 }, dir, first);   // prevMeta = stesso hash
+  await extractBgAsset(5, { bgImage: PNG_1x1 }, dir, first);   // prevMeta = stesso hash
   assert.equal(fs.readFileSync(path.join(dir, '5.png'), 'utf8'), 'SENTINEL');
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('extractBgAsset: nessuna immagine + asset precedente → rimuove l\'asset e i riferimenti', () => {
+test('extractBgAsset: nessuna immagine + asset precedente → rimuove l\'asset e i riferimenti', async () => {
   const dir = tmpDir();
-  const prev = extractBgAsset(5, { bgImage: PNG_1x1 }, dir, null);
+  const prev = await extractBgAsset(5, { bgImage: PNG_1x1 }, dir, null);
   assert.ok(fs.existsSync(path.join(dir, '5.png')));
-  const out = extractBgAsset(5, { bgImage: null }, dir, prev);
+  const out = await extractBgAsset(5, { bgImage: null }, dir, prev);
   assert.equal(fs.existsSync(path.join(dir, '5.png')), false);
   assert.equal(out.bgImage, null);
   assert.equal(out.bgImageAsset, undefined);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('removeBgAsset: elimina l\'asset del progetto (usato dalla delete)', () => {
+test('removeBgAsset: elimina l\'asset del progetto (usato dalla delete)', async () => {
   const dir = tmpDir();
-  extractBgAsset(9, { bgImage: PNG_1x1 }, dir, null);
+  await extractBgAsset(9, { bgImage: PNG_1x1 }, dir, null);
   assert.ok(fs.existsSync(path.join(dir, '9.png')));
   removeBgAsset(9, dir);
   assert.equal(fs.existsSync(path.join(dir, '9.png')), false);

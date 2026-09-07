@@ -76,6 +76,56 @@ test('le due scritture atomiche fanno gli stessi passi, nello stesso ordine', ()
   // rinomina. Un rename prima del fsync consegnerebbe un file che il sistema non
   // ha ancora scritto davvero.
   assert.deepEqual(sincrona, ['open', 'write', 'sync', 'close', 'copyFile', 'rename', 'unlink']);
+
+  // La TERZA scrittura atomica è quella dell'asset (la planimetria). Segue la
+  // stessa regola MENO il `.bak`, e l'assenza è voluta: il JSON tiene l'hash, e un
+  // asset perso degrada a «nessuna immagine» invece di corrompere il progetto —
+  // mentre un `.bak` da un megabyte e mezzo raddoppierebbe lo spazio per niente.
+  // ⚠️ Si dichiara la differenza invece di ignorarla: se domani sparisse un altro
+  // passo, questa prova lo vedrebbe.
+  const asset = passi(corpo('async function _writeAssetAtomic(file, buf)'));
+  assert.deepEqual(asset, sincrona.filter((p) => p !== 'copyFile'),
+    'l\'asset segue la stessa regola, senza il .bak: ' + JSON.stringify(asset));
+});
+
+// ── Ogni promessa di questo file è aspettata ───────────────────────────────
+// ⚠️ Questa prova è nata da una CONTROPROVA TORNATA VERDE: avevo tolto l'`await`
+// davanti alla scrittura dell'asset e la prova qui sotto — «il file esiste quando
+// il salvataggio è finito» — restava verde lo stesso, perché con un'immagine
+// piccola la scrittura fa comunque in tempo. Una corsa che il banco non perde non
+// è una corsa provata: è una che non si è vista. Quindi la proprietà si chiede al
+// SORGENTE, dove è deterministica — e si DERIVA, invece di elencare le funzioni a
+// mano: qualunque `async function` aggiunta domani entra da sola in questa prova.
+test('nessuna promessa lasciata cadere: ogni async di questo file è aspettata', () => {
+  const nomi = [...SORGENTE.matchAll(/async function (\w+)\(/g)].map((m) => m[1]);
+  assert.ok(nomi.length >= 4, 'attese almeno quattro funzioni asincrone, trovate: ' + nomi.join(', '));
+  const cadute = [];
+  for (const nome of nomi) {
+    for (const m of SORGENTE.matchAll(new RegExp('(.{0,20})\\b' + nome + '\\(', 'g'))) {
+      const prima = m[1];
+      if (/async function $/.test(prima)) continue;                  // la dichiarazione
+      // `await` (anche dietro a un `!`), `return`, o una freccia che RESTITUISCE la
+      // promessa a chi la aspetterà: sono i tre modi di non lasciarla cadere.
+      if (/(await|return|=>) $/.test(prima)) continue;
+      cadute.push(nome + ' ← "' + prima.trim() + '"');
+    }
+  }
+  assert.deepEqual(cadute, [], 'chiamate non aspettate: ' + cadute.join(' · '));
+});
+
+test('con una planimetria, il file dell\'asset esiste quando il salvataggio è finito', async () => {
+  // Il JSON del progetto non porta l'immagine: porta il NOME del file che la
+  // contiene. Se la scrittura dell'asset non venisse aspettata, il documento
+  // punterebbe a un file non ancora scritto — e chi apre in quel momento vede un
+  // progetto senza planimetria, senza nessun errore da nessuna parte.
+  const png = 'data:image/png;base64,' + Buffer.from('planimetria finta, ma di byte veri').toString('base64');
+  await store.saveProject(9007, 'con pianta', { nodes: [], bgImage: png }, 't0', 't0');
+  const salvato = leggi(9007);
+  assert.equal(salvato.state.bgImage, null, 'il base64 non finisce nel JSON');
+  assert.ok(salvato.state.bgImageAsset, 'il JSON porta il riferimento al file');
+  const suDisco = path.join(PROJECTS, 'assets', salvato.state.bgImageAsset);
+  assert.ok(fs.existsSync(suDisco), 'il file a cui il documento punta deve esistere già');
+  assert.deepEqual(temporanei(), [], 'nessun temporaneo rimasto indietro');
 });
 
 test('saveProject rende una PROMESSA, e il file esiste quando la si è aspettata', async () => {

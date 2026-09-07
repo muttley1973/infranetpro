@@ -180,23 +180,40 @@ function _hashBuf(buf) {
 // Scrittura atomica dell'asset (temp + fsync + rename), SENZA .bak: il JSON tiene
 // l'hash; un asset perso/corrotto degrada a "nessuna immagine" (riattacco fallisce
 // in modo soft), non corrompe il progetto.
-function _writeAssetAtomic(file, buf) {
+// ⚠️ ASINCRONA come quella del progetto, e per lo stesso motivo misurato: una
+// planimetria e' grossa (1,5 MB nel banco) e sincrona fermava l'event loop per
+// tutto il tempo — una rotta che non c'entra niente passava a 13,8 ms di p95
+// (×4,5), cioe' esattamente il blocco appena tolto al JSON, che tornava intero
+// ogni volta che l'utente cambia la piantina.
+// La MANCANZA del .bak e' l'unica differenza voluta rispetto alle altre due
+// scritture atomiche, e la guardia dei passi la dichiara invece di ignorarla.
+async function _writeAssetAtomic(file, buf) {
   const tmp = _tmpPath(file);
   let rinominato = false;
   try {
-    const fd = fs.openSync(tmp, 'w');
-    try { fs.writeSync(fd, buf); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
-    fs.renameSync(tmp, file);
+    const fh = await fsp.open(tmp, 'w');
+    try { await fh.writeFile(buf); await fh.sync(); } finally { await fh.close(); }
+    await fsp.rename(tmp, file);
     rinominato = true;
   } finally {
-    if (!rinominato) { try { fs.unlinkSync(tmp); } catch (_) { /* niente da togliere */ } }
+    if (!rinominato) { try { await fsp.unlink(tmp); } catch (_) { /* niente da togliere */ } }
   }
+}
+
+// «C'e'?» in versione asincrona. Non e' una comodita': dentro `extractBgAsset` la
+// domanda sta in mezzo a una catena di await, e un existsSync li' sarebbe l'unico
+// passo che ferma tutto per niente.
+async function _esiste(p) {
+  try { await fsp.access(p); return true; } catch (_) { return false; }
 }
 
 // Ritorna una COPIA dello stato pronta per il disco: se bgImage è un data-URL lo
 // scrive su asset (saltando la riscrittura se l'hash combacia col precedente) e lo
 // sostituisce col riferimento. Non muta `state` (il client tiene il suo data-URL).
-function extractBgAsset(id, state, assetsDir, prevMeta) {
+// ⚠️ Rende una PROMESSA da quando la scrittura dell'asset e' asincrona: chi la
+// chiama deve aspettarla, se no il JSON del progetto punta a un file che non c'e'
+// ancora — e chi apre in quel momento vede un progetto senza planimetria.
+async function extractBgAsset(id, state, assetsDir, prevMeta) {
   const out = Object.assign({}, state);
   const durl = (state && typeof state.bgImage === 'string') ? state.bgImage : '';
   const prevAsset = prevMeta && prevMeta.bgImageAsset;
@@ -207,11 +224,16 @@ function extractBgAsset(id, state, assetsDir, prevMeta) {
       const hash  = _hashBuf(p.buf);
       const fname = `${id}.${ext}`;
       const fpath = path.join(assetsDir, fname);
-      const unchanged = prevMeta && prevMeta.bgImageHash === hash && prevMeta.bgImageAsset === fname && fs.existsSync(fpath);
+      // ⭐ La scrittura si SALTA quando l'immagine e' la stessa (l'hash decide), ed
+      // e' il caso normale: la piantina si mette una volta e poi si salva cento
+      // volte. Per questo la misura che conta e' il salvataggio che la CAMBIA —
+      // negli altri non c'e' nessuna scrittura d'asset da rendere asincrona.
+      let unchanged = !!(prevMeta && prevMeta.bgImageHash === hash && prevMeta.bgImageAsset === fname);
+      if (unchanged) unchanged = await _esiste(fpath);
       if (!unchanged) {
-        if (!fs.existsSync(assetsDir)) fs.mkdirSync(assetsDir, { recursive: true });
-        if (prevAsset && prevAsset !== fname) { try { fs.unlinkSync(path.join(assetsDir, prevAsset)); } catch (_) {} }
-        _writeAssetAtomic(fpath, p.buf);
+        if (!await _esiste(assetsDir)) await fsp.mkdir(assetsDir, { recursive: true });
+        if (prevAsset && prevAsset !== fname) { try { await fsp.unlink(path.join(assetsDir, prevAsset)); } catch (_) {} }
+        await _writeAssetAtomic(fpath, p.buf);
       }
       out.bgImage = null;
       out.bgImageAsset = fname;
@@ -220,7 +242,7 @@ function extractBgAsset(id, state, assetsDir, prevMeta) {
     }
   }
   // nessuna immagine (o non-dataurl): rimuovi l'asset precedente e i riferimenti
-  if (prevAsset) { try { fs.unlinkSync(path.join(assetsDir, prevAsset)); } catch (_) {} }
+  if (prevAsset) { try { await fsp.unlink(path.join(assetsDir, prevAsset)); } catch (_) {} }
   out.bgImage = (typeof out.bgImage === 'string' && !out.bgImage.startsWith('data:')) ? out.bgImage : null;
   delete out.bgImageAsset;
   delete out.bgImageHash;
@@ -290,7 +312,7 @@ async function _salvaOra(id, name, state, createdAt, updatedAt) {
   // Il file che non c'e' e il file illeggibile finiscono nello stesso ramo, ed e'
   // giusto: in tutt'e due i casi non c'e' un meta precedente da riusare.
   try { prevMeta = (JSON.parse(await fsp.readFile(file, 'utf8')).state) || null; } catch (_) { /* ignora */ }
-  const storeState = extractBgAsset(id, state, ASSETS_DIR, prevMeta);
+  const storeState = await extractBgAsset(id, state, ASSETS_DIR, prevMeta);
   const rawVersion = Number(storeState.schemaVersion);
   storeState.schemaVersion = Number.isInteger(rawVersion) && rawVersion > 0
     ? rawVersion : PROJECT_STATE_SCHEMA_VERSION;
