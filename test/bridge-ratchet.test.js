@@ -927,3 +927,82 @@ test('ponte ASSE B: gli handler inline on*= non superano il tetto a cricchetto',
     console.log(`[ratchet-B] handler inline = ${total} < tetto ${MAX_INLINE_HANDLERS}: abbassa MAX_INLINE_HANDLERS a ${total}.`);
   }
 });
+
+// ── ASSE B: un handler inline deve poter TROVARE la sua funzione ────────────
+// Un attributo `on*=` chiama per NOME, e quel nome si risolve nello scope
+// GLOBALE. I 32 handler rimasti in netmapper.html funzionano quindi solo finché
+// le loro funzioni stanno lì: o perché vivono in uno <script> CLASSICO (export.js,
+// drawio-export.js, i lib/*.js che si auto-pubblicano), o perché un modulo le
+// pubblica con `expose({…})` — che è `Object.assign(win, api)` in _bridge.js.
+//
+// ⚠️⚠️ Sono DUE dipendenze lunghe, fra file che non si nominano a vicenda:
+//   ① il giorno che `export.js` diventasse un modulo ESM, le sue funzioni
+//      uscirebbero dallo scope globale e **21 bottoni** morirebbero insieme;
+//   ② il giorno che un nome esce da un blocco `expose({…})` mentre l'handler
+//      inline resta, muore quel bottone lì.
+// In tutt'e due i casi **in silenzio**: nessun errore al caricamento, un
+// ReferenceError solo al click, e nel frattempo la pagina sembra sana. È la
+// classe di bug dei «bottoni morti» (onclick inline → funzione module-scoped),
+// che questo progetto ha già pagato una volta dopo la migrazione ESM.
+//
+// ⭐ La prova DERIVA l'elenco dalla pagina: non c'è una lista da tenere
+// allineata, e un handler aggiunto domani entra da solo nella guardia.
+const PAGINA = path.join(__dirname, '..', 'netmapper.html');
+// Parole che NON sono funzioni dell'app: parole chiave del linguaggio e globali
+// che il browser garantisce. Un elenco corto e dichiarato, non un filtro furbo.
+const NON_FUNZIONI = new Set(['if', 'for', 'while', 'switch', 'return', 'typeof', 'catch',
+  'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'alert', 'confirm', 'prompt',
+  'fetch', 'Number', 'String', 'Boolean', 'Array', 'Object', 'parseInt', 'parseFloat']);
+
+function nomiChiamatiDagliHandler(html) {
+  const nomi = new Set();
+  for (const m of html.matchAll(/\son[a-z]+\s*=\s*"([^"]*)"/gi)) {
+    // `(?<![.\w])` esclude le chiamate di METODO (event.preventDefault()): quelle
+    // non cercano niente nello scope globale.
+    for (const c of m[1].matchAll(/(?<![.\w$])([A-Za-z_$][\w$]*)\s*\(/g)) {
+      if (!NON_FUNZIONI.has(c[1])) nomi.add(c[1]);
+    }
+  }
+  return nomi;
+}
+
+function raggiungibiliDaGlobale(html) {
+  const dove = new Map();
+  const segna = (src, etichetta) => {
+    for (const m of src.matchAll(/^(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/gm)) dove.set(m[1], etichetta);
+    for (const m of src.matchAll(/^(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:function|\()/gm)) dove.set(m[1], etichetta);
+  };
+  // ① gli <script> CLASSICI della pagina (il bundle NO: è ESM, ha scope suo)
+  for (const m of html.matchAll(/<script src="([^"]+)"([^>]*)>/g)) {
+    if (/type=["']module/.test(m[2]) || /app\.bundle/.test(m[1])) continue;
+    const f = path.join(__dirname, '..', m[1].replace(/^\//, ''));
+    if (fs.existsSync(f)) segna(fs.readFileSync(f, 'utf8'), m[1]);
+  }
+  // ② gli <script> scritti dentro la pagina
+  for (const m of html.matchAll(/<script(?![^>]*\ssrc)[^>]*>([\s\S]*?)<\/script>/g)) segna(m[1], 'netmapper.html');
+  // ③ ciò che i moduli PUBBLICANO con expose({…}): le chiavi, non gli identificatori
+  //    qualsiasi — un nome che compare solo nel corpo del modulo non è raggiungibile.
+  for (const f of files) {
+    const src = fs.readFileSync(path.join(SRC, f), 'utf8');
+    for (const blocco of src.matchAll(/\bexpose\s*\(\s*\{([\s\S]*?)\}\s*\)/g)) {
+      for (const k of blocco[1].matchAll(/(?:^|[{,])\s*([A-Za-z_$][\w$]*)\s*(?=[,:}\s])/gm)) dove.set(k[1], 'expose() in ' + f);
+    }
+  }
+  return dove;
+}
+
+test('ponte ASSE B: ogni funzione chiamata da un handler inline è raggiungibile dallo scope globale', () => {
+  const html = fs.readFileSync(PAGINA, 'utf8');
+  const chiamate = nomiChiamatiDagliHandler(html);
+  // ⚠️ Un verificatore che non trova niente deve FALLIRE, non rassicurare: se la
+  // regex smettesse di agganciare gli handler, questa prova passerebbe a vuoto.
+  assert.ok(chiamate.size >= 10,
+    `attese almeno 10 funzioni chiamate da handler inline, trovate ${chiamate.size}: ` +
+    'la prova non sta più leggendo la pagina.');
+  const dove = raggiungibiliDaGlobale(html);
+  const morte = [...chiamate].filter((n) => !dove.has(n));
+  assert.deepEqual(morte, [],
+    `bottoni MORTI: ${morte.join(', ')} — un handler inline le chiama per nome, ma non ` +
+    'stanno nello scope globale. O la funzione torna in uno <script> classico, o il suo ' +
+    'modulo la ripubblica con expose({…}), oppure l\'handler diventa data-act + delegation.');
+});
