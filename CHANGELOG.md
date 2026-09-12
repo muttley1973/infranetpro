@@ -20,7 +20,7 @@ better known, or are we only looking at it?
 
 - **One number, one definition.** Free ports had two answers in the same context — a collector stopped counting at its cap, so a fully cabled switch reported 88 free in one block and 0 in another, and the prompt sent the assistant to the broken one. The verification tab counted divergences with a sum of its own, and the timeline silently dropped a bucket the report had been emitting all along.
 - **The anti-invention check was accusing correct answers.** Addresses from the *not verifiable* category reached the model but not the digest that validates what it cites, so the assistant correctly reported an address the app had handed it and collected a *reference not found* warning beside a right answer.
-- **The README's measured numbers had drifted**, and the one that can be measured without circularity now has a gate. The Verify's categories were declared as 6 in one place and 7 in another: there are 9.
+- **A measured number that was never about the product.** `npm run check` counted the files on the disk it ran on — 548 on a developer machine, 520 in a clean clone — so the README quoted whichever of the two had been measured last. A source of the product is now what git tracks: 519 everywhere, with a gate that fails if the count ever reaches for an untracked file again. The Verify's categories were also declared as 6 in one place and 7 in another: there are 9.
 
 ## [2.11.5] — 2026-09-07
 
