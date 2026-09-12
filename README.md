@@ -10,7 +10,7 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="3,735 tests, 0 failing" src="https://img.shields.io/badge/tests-3%2C735%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="3,736 tests, 0 failing" src="https://img.shields.io/badge/tests-3%2C736%20%C2%B7%200%20failing-3fb950"></a>
   <a href="#testing"><img alt="120 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-120%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#oui-intelligence-engine"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
@@ -35,7 +35,7 @@
 </td>
 <td align="center" width="50%">
 <a href="TECHNICAL_MANUAL_EN.pdf"><img src="GitHub%20Images/flag-gb.svg" width="26" alt=""><br><b>Technical manual — English</b></a><br>
-<sub>69 illustrated pages · fully bilingual UI, onboarding and manual, with an in-app IT/EN switcher.</sub>
+<sub>70 illustrated pages · fully bilingual UI, onboarding and manual, with an in-app IT/EN switcher.</sub>
 </td>
 </tr>
 </table>
@@ -54,9 +54,28 @@
 
 ---
 
+## The difference, in four lines
+
+Most tools do one of two things. A **DCIM stores what you declare** and never checks it. A
+**monitor draws what it measures** and never holds a declaration.
+
+**InfraNet Pro keeps both — and the product is the disagreement.** One button compares the document
+against the live network and answers in **nine categories**, including the two most tools never
+separate: *documented but absent* (we looked, it is gone) and *not verifiable* (the sweep never
+reached that subnet). A device that stays quiet because the community is wrong is reported as
+**silent to this key**, not as one without SNMP. And when it could not look at enough of the
+network to judge, **it says so instead of handing you a number**.
+
+That is the whole idea: a document you can hand to a client, that tells you what it could not check.
+
+---
+
 ## What it is
 
-InfraNet Pro is a **self-hosted web application** that lets network engineers draw rack layouts and floor-plan diagrams, then bring them to life by polling live data from real devices via SNMP. Interfaces, VLANs, LAG groups and neighbour topology are discovered automatically — no external database, no cloud dependency, minimal tooling (a lightweight esbuild bundle for the frontend; `npm start` builds it).
+InfraNet Pro is a **self-hosted web application** for documenting a network and then proving the
+document still matches it. You draw the racks and the floor plan; one button polls the real devices
+over SNMP and reports, row by row, where the drawing and the network disagree — and where it could
+not check. Interfaces, VLANs, LAG groups and neighbour topology are discovered automatically — no external database, no cloud dependency, minimal tooling (a lightweight esbuild bundle for the frontend; `npm start` builds it).
 
 Current product direction: InfraNet Pro keeps discovery and classification inside the app. External discovery and monitoring engines are not part of the active roadmap; the internal SNMP/sysObjectID/LLDP/CDP/FDB engine is the source of truth and can be refined with local plugins over time.
 
@@ -1152,7 +1171,7 @@ Coverage focuses on the pure, bug-prone logic that has historically broken: SNMP
 
 Current local quality baseline:
 - `npm run check` parses every JS source of the product — **519** of them. It skips the folders `eslint.config.js` already ignores (git worktrees, the private workspace, the editor's caches), so the number stays stable between runs instead of drifting with whatever happens to be checked out beside the repo
-- `npm test` runs the full regression suite (currently **3,735 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **120 flows**)
+- `npm test` runs the full regression suite (currently **3,736 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **120 flows**)
 - final visual verification is still important for rack/front-panel refinements
 
 > Pure functions are exposed for tests via an additive `_internals` export on

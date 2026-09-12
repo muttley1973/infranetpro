@@ -81,6 +81,34 @@ test('il numero è del REPOSITORY, non del disco di chi sviluppa', () => {
     + 'il numero tornerebbe a dipendere dalla macchina. ' + fuori.slice(0, 6).join(', '));
 });
 
+test('README: le pagine dei manuali dicono tutte lo stesso numero', () => {
+  // ⚠️ Il conteggio pagine compare in QUATTRO punti della landing, e il 12/09 ne
+  // ho aggiornati tre: il quarto («69 illustrated pages») è sopravvissuto due
+  // commit e un rilascio. È lo stesso difetto che questo file combatte per il
+  // conteggio sorgenti — due copie di un numero divergono sempre, perché la
+  // seconda non la aggiorna nessuno — solo che qui le copie sono quattro.
+  //
+  // ⚠️ QUESTO CANCELLO NON APRE I PDF, e dirlo è parte della prova. Il numero di
+  // pagine vive dentro object stream COMPRESSI (niente "/Count" leggibile), e
+  // l'unica libreria che li sa aprire non è una dipendenza dichiarata: metterne
+  // una per un controllo di documentazione sarebbe sproporzionato in un progetto
+  // che di dipendenze ne ha zero. Quindi qui si verifica la COERENZA INTERNA —
+  // che è il difetto che è successo davvero — e il confronto col PDF resta un
+  // passo della checklist di rilascio (`pdftotext | tr -cd '\\f' | wc -c`,
+  // ⚠️ SENZA aggiungere uno: pdftotext ne emette uno anche dopo l'ultima pagina).
+  const it = [...README.matchAll(/(\d+) pagine illustrate/g)].map((m) => Number(m[1]))
+    .concat([...README.matchAll(/(\d+) pages in Italian/g)].map((m) => Number(m[1])))
+    .concat([...README.matchAll(/~(\d+)-page manual/g)].map((m) => Number(m[1])));
+  const en = [...README.matchAll(/(\d+) illustrated pages/g)].map((m) => Number(m[1]))
+    .concat([...README.matchAll(/(\d+) in English/g)].map((m) => Number(m[1])));
+
+  assert.ok(it.length >= 3, 'le citazioni del manuale IT sono ' + it.length + ': se sono meno di tre la regex non aggancia più quello che dovrebbe');
+  assert.ok(en.length >= 2, 'le citazioni del manuale EN sono ' + en.length + ': idem');
+  assert.equal(new Set(it).size, 1, 'il manuale ITALIANO è citato con numeri diversi: ' + it.join(', '));
+  assert.equal(new Set(en).size, 1, 'il manuale INGLESE è citato con numeri diversi: ' + en.join(', '));
+  assert.notEqual(it[0], en[0], 'i due manuali hanno un numero di pagine DIVERSO (67 e 70): se coincidono, probabilmente uno dei due non è stato rimisurato');
+});
+
 test('README: il numero sta in UN posto solo', () => {
   // Due copie dello stesso numero divergono sempre: la seconda la aggiorna
   // nessuno. E' la stessa ragione per cui lo stato del progetto sta nella sola
