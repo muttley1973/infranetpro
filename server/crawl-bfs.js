@@ -155,7 +155,23 @@ async function crawlNetwork(opts) {
       if (results.length >= maxDevices) break;
       const f = p.f;
       if (p.skip) { emit({ type: 'skip', ip: f.ip, reason: p.skip }); continue; }
-      if (p.miss) { emit({ type: 'miss', ip: f.ip, error: p.miss }); continue; }
+      if (p.miss) {
+        // ⚠️ Un vicino che LLDP/CDP ha DICHIARATO e che non risponde alla nostra
+        // chiave non è un non-evento: è l'apparato più certamente gestito che
+        // esista — l'ha annunciato uno switch, vedendolo su una sua porta — e
+        // fino a ieri usciva di qui senza lasciare traccia. Chi guardava la
+        // tabella non leggeva un verdetto sbagliato: non leggeva NIENTE, che è
+        // peggio, perché un'assenza si scambia per «non c'è».
+        // L'evento porta CHI l'ha annunciato, da che porta e con che nome: senza
+        // quelli il client può solo dire «un IP», e un IP non è una notizia.
+        const missMeta = discoveredBy.get(f.ip) || {};
+        emit({
+          type: 'miss', ip: f.ip, error: p.miss,
+          protocol: missMeta.protocol || '', from: missMeta.from || '',
+          port: missMeta.port || '', name: missMeta.name || '',
+        });
+        continue;
+      }
 
       const pr = p.probe;
       const sysN = (pr.hostname || '').trim();

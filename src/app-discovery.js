@@ -668,6 +668,12 @@ function _discReachabilityInfo(d){
     if(d?._via === 'dhcp'){
         return { label:_dt('disc.reach.observed','Osservato'), cls:'seen', title:_dt('disc.tip.dhcpObserved','Presente in un lease DHCP; ping/SNMP diretti non confermati (host mobile/IoT che puo\' essere in standby)') };
     }
+    // ⚠️ Un vicino ANNUNCIATO da LLDP/CDP che non ha risposto non è «Inattivo»:
+    // chi lo annuncia lo sta vedendo su una sua porta adesso. Chiamarlo inattivo
+    // sarebbe un verdetto sulla PRESENZA ricavato dal silenzio a una CHIAVE.
+    if(d?._via === 'lldp' && !d?.snmpReachable){
+        return { label:_dt('disc.reach.announced','Annunciato'), cls:'seen', title:_dt('disc.tip.announced','Un apparato vicino lo ha dichiarato via LLDP/CDP — quindi esiste ed è gestito — ma non ha risposto alla nostra interrogazione SNMP. Presenza certa, identità non misurata.') };
+    }
     if(d?.alive){
         return { label:_dt('disc.reach.observed','Osservato'), cls:'seen', title:_dt('disc.tip.observed','Rilevato tramite servizio, web, NetBIOS/SMB o altra evidenza; ping/SNMP non confermati') };
     }
@@ -746,6 +752,12 @@ function _discSummaryHtml(results, extra={}){
     const off = total - on - observed;
     const snmp = rows.filter(d=>d.snmpReachable).length;
     const v3cred = rows.filter(d=>d.needsCredentials).length;
+    // ⚠️ Il conteggio conta più del badge: una riga sola si nota poco, «8 apparati
+    // non hanno risposto a questa chiave» fa rifare la scansione con l'altra
+    // community invece di archiviare un parco come non gestito.
+    const silent = (typeof countSnmpSilent === 'function')
+        ? countSnmpSilent(rows, d => _discExistingNode(d)?.integration?.driver || '')
+        : 0;
     const mac = rows.filter(d=>d.mac).length;
     const web = rows.filter(d=>d.httpTitle || d.httpsTitle).length;
     const deep = rows.filter(d=>Array.isArray(d.services) && d.services.length).length;
@@ -762,7 +774,7 @@ function _discSummaryHtml(results, extra={}){
     const chips = [
         ['total', _dt('disc.chip.total','Totale'), total], ['on', 'On', on],
         ['observed', _dt('disc.chip.observed','Osservati'), observed], ['inactive', _dt('disc.chip.inactive','Inattivi'), off],
-        ['snmp', 'SNMP', snmp], ['v3cred', _dt('disc.v3cred','v3 da configurare'), v3cred], ['mac', 'MAC/ARP', mac], ['web', 'WEB', web],
+        ['snmp', 'SNMP', snmp], ['v3cred', _dt('disc.v3cred','v3 da configurare'), v3cred], ['silent', _dt('disc.chip.silent','Muti a questa chiave'), silent], ['mac', 'MAC/ARP', mac], ['web', 'WEB', web],
         ['deep', 'TCP deep', deep], ['nbt', 'NetBIOS', nbt], ['smb', 'SMB', smb], ['lldp', 'LLDP', lldp], ['cdp', 'CDP', cdp], ['xdp', 'xDP', xdp],
         ['hi', _dt('disc.chip.confHigh','Conf. alta'), hi], ['mid', _dt('disc.chip.confMid','Conf. media'), mid],
     ];
@@ -885,12 +897,26 @@ function _discRenderTable(){
         const _v3also = ((d.snmpVersions||[]).includes('snmp-v3') && d.snmpDriver!=='snmp-v3' && !d.needsCredentials)
             ? ` <span class="disc-badge v3-also" data-tip="${escapeHTML(_dt('disc.tip.alsoV3','Supporta anche SNMPv3; interrogato via la versione con i dati. Attenzione: v2c è attivo/esposto — valuta di disattivarlo e passare a v3.'))}"><i class="fas fa-key"></i> ${escapeHTML(_dt('disc.alsoV3','+v3'))}</span>`
             : '';
+        // 🔇 «muto a questa chiave»: un FATTO, mai un verdetto. Con SNMPv2c una
+        // community sbagliata non dà errore — l'agente scarta in silenzio — quindi
+        // «non ha risposto» e «non parla SNMP» hanno la stessa faccia. Il motore
+        // (lib/snmp-silence) lo dice SOLO dove qualcosa di autorevole ci
+        // autorizzava ad aspettarci una risposta: un vicino che l'ha dichiarato,
+        // o il documento che lo registra come apparato SNMP.
+        const _sil = (typeof snmpSilence === 'function')
+            ? snmpSilence(d, { documentedDriver: _discExistingNode(d)?.integration?.driver || '' })
+            : null;
+        const _silent = _sil
+            ? ` <span class="disc-badge snmp-silent" data-tip="${escapeHTML(_sil.why === 'neighbor'
+                ? _dt('disc.tip.silentNeighbor','Annunciato da {from} via {proto}, ma non ha risposto SNMP con la community usata. Riprova con l\'altra community prima di concludere che non è gestito.', { from: d.viaFrom || '?', proto: (d.viaProtocol || 'LLDP/CDP') })
+                : _dt('disc.tip.silentDeclared','Il progetto lo documenta come apparato SNMP e l\'host è vivo, ma non ha risposto con la community usata. Riprova con la credenziale giusta.'))}"><i class="fas fa-volume-xmark"></i> ${escapeHTML(_dt('disc.silent','muto a questa chiave'))}</span>`
+            : '';
         // Badge compatti (il NOME non deve mai troncarsi → cedono i tag):
         //  · confidenza = SOLO il numero; il livello (alto/medio/basso) è già nel COLORE
         //    del badge (conf-high/mid/low), la parola "Alta/Media/Bassa" resta nel tooltip.
         //  · reconcile (Nuovo/Aggiorna/Verifica/Già presente) = ICONA sola, parola nel tooltip.
         const badges = ` <span class="disc-badge src-${src.cls}" data-tip="${escapeHTML(src.title)}">${escapeHTML(src.label)}</span>`
-            + _v3cred + _v3also
+            + _v3cred + _v3also + _silent
             + _discConfBadge(d, conf)
             + ` <span class="disc-badge rec-${rec.cls}" data-tip="${escapeHTML(rec.label + ' · ' + rec.title)}"><i class="fas ${_discRecIcon(rec.cls)}"></i></span>`
             + _discFoldBadge(d, i)
@@ -937,6 +963,34 @@ function _discCrawlRow(device, protocol){
         alive:true, status:'On', snmpReachable:true,
         mac: d.mac || '', vendor: d.vendor || '',
         httpTitle: d.httpTitle || '', httpsTitle: d.httpsTitle || '',
+    };
+}
+
+// Riga-risultato per un vicino che LLDP/CDP ha ANNUNCIATO e che non ha risposto
+// alla nostra interrogazione SNMP. Fino al 12/09 una riga così non esisteva: il
+// crawl emetteva 'miss' e il client lo ignorava, quindi l'apparato più
+// certamente gestito del parco — annunciato da uno switch che lo vede su una
+// porta — spariva senza lasciare traccia. Non era un verdetto sbagliato: era
+// un'ASSENZA, che si legge come «non c'è» ed è peggio.
+// Presenza CERTA (l'annuncio), identità NON misurata (non ha parlato): quindi
+// alive:false — non si pre-seleziona da solo (canImport vuole alive) e non si
+// importa un apparato di cui sappiamo solo l'IP senza che qualcuno lo spunti.
+// Il nome che porta è quello che gli dà il VICINO, e resta marcato come tale.
+// Puro e testabile (nessun IO/DOM).
+function _discSilentRow(evt){
+    const e = evt || {};
+    return {
+        ip: String(e.ip || ''),
+        _via: 'lldp',
+        viaProtocol: String(e.protocol || ''),
+        viaFrom: String(e.from || ''),
+        viaPort: String(e.port || ''),
+        // Il nome dell'ANNUNCIO: lo dice il vicino, non l'apparato. Tenuto
+        // separato da "hostname" (che è misurato) per non spacciare l'uno per
+        // l'altro — paletto ② no-invenzioni.
+        announcedName: String(e.name || ''),
+        hostname: '', mac: '', vendor: '',
+        snmpReachable: false, alive: false, snmpSilent: true,
     };
 }
 
@@ -1091,6 +1145,17 @@ async function _runCrawlPhase(seeds, driver, community, timeout, scanCidr){
                     // ND-SNMP: il server ha trovato l'IPv6 (ipNetToPhysicalTable) dei MAC.
                     _discApplyNd6(evt.nd6);
                     _discRenderTable(); _hb();
+                } else if(evt.type==='miss' && evt.ip && (evt.protocol || evt.from) && !knownIps.has(evt.ip)){
+                    // Un vicino DICHIARATO che non risponde alla nostra chiave: prima
+                    // finiva nel nulla. Si mostra, non pre-selezionato, con scritto chi
+                    // l'ha annunciato — la scansione può sbagliare credenziale, il
+                    // documento non deve sbagliare esistenza.
+                    // ⚠️ Si richiede protocol|from: senza un annuncio alle spalle un
+                    // 'miss' è solo un seme che non ha più risposto, e su quello non
+                    // abbiamo niente da dire.
+                    knownIps.add(evt.ip);
+                    store._discResults.push(_discEnsureMeta(_discSilentRow(evt)));
+                    _foundN++; _discRenderTable(); _hb(evt.ip);
                 } else if(evt.type==='probing'){
                     // Battito: mostra il device che sto interrogando (poll SNMP lento).
                     _hb(evt.ip);
