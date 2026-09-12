@@ -209,6 +209,28 @@ lib/                   Shared browser + test modules (the heart of the app)
                     else switch) — the Sync flags the port as a shared L2 segment with
                     that suggestion; the user materialises it from the Shared L2 panel  (pure)
   power-mib.js wifi-spec.js cable-labels.js drift-report.js
+  verify-trend.js   trendVerifiche → reads the per-Verify timeline rows and answers
+                    whether this environment is getting better KNOWN or standing
+                    still (design principle 3). Three separate ratios, because the
+                    buckets live in three worlds — consistent/stateDrift are per
+                    PORT, macOrphan/unverified/ipChanged/identityDrift per DEVICE,
+                    ghost/shut per CABLE — so a single «% confirmed» would divide
+                    ports by devices. `unverified` sits INSIDE the presence
+                    denominator, so narrowing the scan cannot raise the score; the
+                    blindness share comes out beside it and blocks the verdict when
+                    it grows. Only rows from the same instrument compare, a jump in
+                    network size BREAKS the series, and a blind check leaves the
+                    trend for the coverage curve. Reasons come out as CODES, never
+                    prose — a sentence from a pure engine lands verbatim in the
+                    other language. The queue reuses driftActionable, one definition  (pure)
+  snmp-silence.js   snmpSilence → «silent to THIS key» is not «no SNMP». With
+                    SNMPv2c a wrong community raises no error: the agent drops the
+                    request and the probe times out, indistinguishable from a device
+                    with no agent. States the FACT, and only where something
+                    AUTHORITATIVE licensed the expectation — a neighbour that
+                    declared it over LLDP/CDP, or the project documenting it with an
+                    SNMP driver AND the host being alive. Outside those two, nothing:
+                    a badge on every quiet host is noise. No vendor list anywhere  (pure)
   ansible-netos.js  vendorToNetworkOs → ansible_network_os from the documented
                     vendor + measured sysDescr (conservative; null on unknown)  (pure)
   backup-ref.js     validateBackupRef → the config-backup POINTER (never the
