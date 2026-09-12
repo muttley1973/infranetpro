@@ -58,6 +58,29 @@ test('README: il numero di `npm run check` e\' quello vero', () => {
     + 'comincia a raccontare un prodotto che non esiste piu\'.');
 });
 
+test('il numero è del REPOSITORY, non del disco di chi sviluppa', () => {
+  // ⚠️ È la prova che mancava, e la sua assenza è costata una CI rossa su un
+  // commit GIÀ TAGGATO. Lo script camminava le cartelle saltando un elenco di
+  // nomi: sulla macchina di chi sviluppa contava 548 file (c'è anche il modulo
+  // governance, che è un repo separato, i driver a pagamento, i generatori di
+  // reti di prova e il bundle), in un clone pulito 520. Il numero nel README non
+  // descriveva il prodotto: descriveva un disco, e quale dei due dipendeva da chi
+  // aveva lanciato il comando.
+  // Ora «sorgente del prodotto» vuol dire «tracciato da git», e questo cancello
+  // lo tiene: se un giorno l'elenco tornasse a pescare un file non tracciato, il
+  // numero ricomincerebbe a dipendere dalla macchina e questa prova lo vede —
+  // QUI, non in CI a rilascio fatto.
+  const { execFileSync } = require('child_process');
+  const tracciati = new Set(
+    execFileSync('git', ['ls-files', '*.js'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 1 << 26 })
+      .split('\n').filter(Boolean).map((f) => f.split('/').join(path.sep)),
+  );
+  const fuori = sourceFiles().filter((f) => !tracciati.has(f));
+  assert.deepEqual(fuori, [],
+    'questi file finiscono nel conteggio ma git non li traccia, quindi in un clone pulito non ci sono: '
+    + 'il numero tornerebbe a dipendere dalla macchina. ' + fuori.slice(0, 6).join(', '));
+});
+
 test('README: il numero sta in UN posto solo', () => {
   // Due copie dello stesso numero divergono sempre: la seconda la aggiorna
   // nessuno. E' la stessa ragione per cui lo stato del progetto sta nella sola
