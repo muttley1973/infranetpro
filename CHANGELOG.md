@@ -1,5 +1,65 @@
 # Changelog
 
+## [2.11.6] — 2026-09-12
+
+The release that taught the tool to say what it cannot see. The assistant declares the part of
+the graph it was never given, a device that stays quiet to the community in use stops being filed
+as one without SNMP, and the checks you run finally add up to a reading: is this network getting
+better known, or are we only looking at it?
+
+### Added
+
+- **A trend on the verification timeline.** The *Checks* tab opened on a list of snapshots and
+  nothing more; it now opens on their reading. A bar says where you are — the last check split into
+  consistent, mismatched and not-verifiable devices — and four sparklines say where you are going,
+  because two equal endpoints often hide a curve that moved in between. It will **refuse a verdict**
+  when the share of the network it could not look at has grown: an improvement elsewhere could come
+  from that rather than from the network. A manual check and an automatic poll are never compared,
+  the series breaks if the estate changes size, and a check that could measure nothing does not drag
+  the curve down — it leaves the trend for the coverage. Below three samples there is no trend, and
+  it says so: the confirmed share matures with use.
+- **«Silent to this key».** With SNMPv2c a wrong community raises no error — the agent drops the
+  request and the probe times out — so silence and *no SNMP* are indistinguishable from outside, and
+  an entire estate gets filed as unmanaged after knocking with the wrong key. Discover now says it,
+  and counts them at the top of the table. Only where something authoritative licensed the
+  expectation: a neighbour that declared the device over LLDP/CDP, or the project documenting it with
+  an SNMP driver and the host being alive. **A neighbour announced by a switch that did not answer
+  used not to appear at all** — not a wrong row, an absence, which reads as *not there*.
+
+### Changed
+
+- **The assistant's context declares what it had to cut.** Cutting a list is honest; cutting a
+  relation is not — one missing link makes two connected halves look separate, and from the inside
+  you cannot tell. Topology, a device's ports, a PDU's outlets, a host's VMs and an access point's
+  SSIDs now carry how much was shown and how much there was, and the prompt forbids answering past
+  that line. The caps themselves are sized on the target profile, where they never fire.
+- **Passive cabling comes out summarised.** In a well documented network wall ports and patch panels
+  are half the devices, and their record is near-empty by design. Above a threshold they are counted
+  by type while their names stay in the topology, where a path reads hop by hop: the context drops by
+  56% and of twenty exercise questions it loses one — which patch panel position a cable uses.
+
+### Fixed
+
+- **Free ports had two answers in the same context.** The collector stopped at its cap *after*
+  incrementing the counter, so a 600-port switch with every port cabled reported 88 free in one block
+  and 0 in another — and the prompt sent the assistant to the broken one. The cap stops the list and
+  never the count now.
+- **The anti-invention check was accusing correct answers.** Addresses from the *not verifiable*
+  category reached the model but not the digest that validates what it cites, so the assistant
+  correctly reported an address we had handed it and collected a *reference not found* warning beside
+  a right answer. A check that accuses the right answer teaches people to stop reading the check.
+- **VMs and SSIDs were truncated in silence**, and the SSID cap did not mean what it declared — its
+  exit left the inner loop, so every further radio slipped one more in.
+- **The verification tab counted divergences with a sum of its own** — endpoint noise in, absent
+  devices and ghost cables and IP changes out — so it could have reported *no divergences* with twenty
+  devices missing. It uses the report's own definition now. Measured on this machine's real timeline:
+  the two had not yet diverged.
+- **The timeline silently dropped one bucket** the report had been emitting; the test now derives the
+  expected set from the report itself.
+- **The README's measured numbers had drifted** — sources and tests both understated — and the one
+  that can be measured without circularity now has a gate. The page counts were correct, and nearly
+  "fixed" into being wrong.
+
 ## [2.11.5] — 2026-09-07
 
 A maintenance release. Saving stopped holding the server still, three surfaces no probe had

@@ -31,7 +31,7 @@
 <tr>
 <td align="center" width="50%">
 <a href="MANUALE_TECNICO_IT.pdf"><img src="GitHub%20Images/flag-it.svg" width="26" alt=""><br><b>Manuale tecnico — Italiano</b></a><br>
-<sub>65 pagine illustrate · interfaccia, onboarding e manuale completi in italiano, con selettore IT/EN nell'app.</sub>
+<sub>67 pagine illustrate · interfaccia, onboarding e manuale completi in italiano, con selettore IT/EN nell'app.</sub>
 </td>
 <td align="center" width="50%">
 <a href="TECHNICAL_MANUAL_EN.pdf"><img src="GitHub%20Images/flag-gb.svg" width="26" alt=""><br><b>Technical manual — English</b></a><br>
@@ -121,18 +121,20 @@ Double-click <code>avvia.bat</code>.<br>
 
 > **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then run **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.11.5) — saving got out of the way, and three surfaces nobody had probed were driven against hostile input.**
+> 📰 **What's new (v2.11.6) — the tool says what it cannot see, and the checks add up to a reading.**
 >
-> - **Saving no longer holds the server still.** While one document went to disk, every other request
->   waited for it. Two sessions saving at once still cannot overwrite each other: that check moved
->   inside the queue, together with the write.
-> - **The Overview counted who had not failed, not who answered.** A device configured for SNMP but
->   never queried read as one that answers, so a project nobody had polled reported *all reachable*
->   in green.
-> - **A misbehaving DCIM cannot hang an import**, and a report whose list is not a list answers *400*
->   instead of failing halfway through a PDF.
-> - **Text you type has a shape and a ceiling** — names, labels and site fields, with control
->   characters removed and a cap, at the point where each is written.
+> - **A trend on the verification timeline.** Where you are — the last check split into consistent,
+>   mismatched and not-verifiable devices — and where you are going, as the shape of the series. It
+>   refuses a verdict when the part it could not look at has grown, because an improvement could be
+>   coming from there rather than from the network.
+> - **«Silent to this key».** With SNMPv2c a wrong community raises no error, so silence and *no
+>   SNMP* look the same from outside. A device a switch announces over LLDP/CDP that stays quiet is
+>   now shown and counted — before, it did not appear at all.
+> - **The assistant declares the part of the graph it was not given.** Cutting a list is honest;
+>   cutting a relation is not, and from the inside you cannot tell. Passive cabling comes out
+>   summarised, which takes 56% off the context and costs one question in twenty.
+> - **Free ports had two answers in the same context**, and the anti-invention check was flagging
+>   addresses the app itself had supplied.
 
 > 📰 **v2.11.4 — a security release: two passes over the whole product, and everything they found that could be fixed safely.**
 >
@@ -351,7 +353,7 @@ Double-click <code>avvia.bat</code>.<br>
   <b>Full feature manual (PDF)</b> —
   <a href="MANUALE_TECNICO_IT.pdf"><img src="GitHub%20Images/flag-it.svg" width="20" alt=""> Italiano</a> ·
   <a href="TECHNICAL_MANUAL_EN.pdf"><img src="GitHub%20Images/flag-gb.svg" width="20" alt=""> English</a><br>
-  <sub>Dark cover, white printable interior, 22 illustrated chapters — 65 pages in Italian, 69 in English.</sub>
+  <sub>Dark cover, white printable interior, 22 illustrated chapters — 67 pages in Italian, 70 in English.</sub>
 </p>
 
 <p align="center">
@@ -397,17 +399,17 @@ Double-click <code>avvia.bat</code>.<br>
 |---|---|
 | **🗺️ Diagramming** | 19″ racks with live port LEDs, floor plans, ~5,300 device models across 276 vendors, MGMT & SFP blocks, hypervisors and VMs, the Dashboard, exports to PDF · SVG · draw.io |
 | **🏢 Multi-site** | The floor above a project: the sites, the WAN lines each one buys and the tunnels between them, as a map and as a form in the same place. A coherence audit on the declared model alone keeps inconsistencies and gaps apart and names what it could not check; NetBox circuits and VPN tunnels are read per site; the dossier gains a WAN chapter with a recovery card per line and per link. |
-| **📡 Live SNMP** | v1 / v2c / v3 discovery, interfaces, VLANs, LAG, LLDP/CDP neighbours, ENTITY-MIB inventory, wireless associations, DHCP lease import, the Verify / Drift report |
+| **📡 Live SNMP** | v1 / v2c / v3 discovery, interfaces, VLANs, LAG, LLDP/CDP neighbours, ENTITY-MIB inventory, wireless associations, DHCP lease import, the Verify / Drift report. A device announced by a neighbour that stays quiet to the community in use is reported as **silent to this key** rather than as having no SNMP |
 | **🔄 DCIM / IPAM sync** | Import an existing **NetBox** into a new project over its REST API — sites, racks (front/rear split), floor-placed, devices, interfaces, VLANs/prefixes and patch-panel cabling; free import, paid write-back |
 | **🔗 LAG detection** | A four-level cascade — `ifStackTable` · IEEE 802.3ad · LACP actor state · LLDP-inferred — plus coherence checks on what a bundle needs to actually form: uniform member speed and VLAN, LACP mode across both ends, a bundle that is not left with a single member, and members that do not straddle two devices unless those are one logical switch (stack / MLAG) |
 | **🏷️ VLAN** | Access and trunk detection, Q-BRIDGE bitmaps with a VTP fallback, auto-derived trunks, per-VLAN IPAM occupancy, one-click isolation across the whole map |
 | **🧮 IPAM hygiene** | Duplicate addresses (IPv4 and IPv6, compared in canonical form), overlapping prefixes told apart from the hierarchies a plan legitimately contains, and addresses that fall outside every declared network — judged per address family, so a plan with no IPv6 network passes no verdict on IPv6. Any check that could not run says so instead of reporting a clean result |
 | **📶 Wireless** | Up to 8 radios per device with their own SSID, band, channel, security and VLAN; over-the-air association discovery from the bridge FDB and the L3 neighbour table |
 | **🧵 Cabling** | Segment editor on the TIA-568 hierarchy, copper *and* fibre reach validation, end-to-end physical path trace, printable label sheets and CSV |
-| **🕓 History & automation** | One **Automatic monitoring** scheduler (Light / Full), opt-in autosave, a verification timeline and restorable full-state snapshots — kept outside the project file, behind a database-ready interface |
+| **🕓 History & automation** | One **Automatic monitoring** scheduler (Light / Full), opt-in autosave, a verification timeline and restorable full-state snapshots — kept outside the project file, behind a database-ready interface. The timeline is also *read*: a trend says whether this network is getting better known or standing still, and refuses a verdict when the share it could not look at has grown |
 | **🤖 AI assistant** | Bring-your-own-key, OpenAI-compatible, local by default; allowlist context, grounded answers with clickable citations, Ansible drafts — advisory, never auto-applied |
 | **🔒 Security** | Session auth with admin/viewer roles, rate-limited login, loopback bind, secrets structurally excluded from every data surface |
-| **🌍 Bilingual** | Complete Italian and English interface, onboarding and a ~65-page manual, guarded by an `it ↔ en` key-parity test |
+| **🌍 Bilingual** | Complete Italian and English interface, onboarding and a ~67-page manual, guarded by an `it ↔ en` key-parity test |
 
 > Every heading below opens. Deeper detail lives in [ARCHITECTURE.md](ARCHITECTURE.md), the [technical manuals](MANUALE_TECNICO_IT.pdf) and the commit history.
 <details>
@@ -472,7 +474,7 @@ Double-click <code>avvia.bat</code>.<br>
 - **Off-segment discovery via SNMP ARP** — the walk also reads each reachable device's ARP table and proposes hosts that answer neither ping nor SNMP nor LLDP/CDP. Bounded to the scanned subnet, deduped, presented as observed and **not pre-selected**.
 - **Manual-first** — user-edited `hostname`, `ip` and `integration.host` are protected by `*Manual` flags and never overwritten by SNMP or discovery.
 - **Port mapping by ifName** — SNMP interfaces are matched to ports by name, not by position, so a hand-cabled port is never silently reassigned. A genuine access-versus-trunk mismatch is **surfaced as a warning**, not hidden. *Validated on a multivendor lab: Cisco vIOS, MikroTik, VyOS, net-snmp, two LACP bundles, four VLANs.*
-- **Reality Check / Drift Report** — one button runs the SNMP sync plus a multi-signal presence sweep (ping / ARP / TCP on top of SNMP and FDB), then compares the live network against the documentation in **6 categories**: consistent ports, state drift, IP change on the same MAC, documented-but-absent, undocumented devices, and ghost cables.
+- **Reality Check / Drift Report** — one button runs the SNMP sync plus a multi-signal presence sweep (ping / ARP / TCP on top of SNMP and FDB), then compares the live network against the documentation in **9 categories**: consistent ports, state discrepancies, hardware identity changed (a swapped serial/model), IP change on the same MAC, documented-but-absent, not verifiable (the sweep never reached that subnet), on-network-but-undocumented, ghost cables, and cables on a shut port. A neighbour a switch announces over LLDP/CDP that does not answer the community in use is shown as **silent to this key**, not dropped: with SNMPv2c a wrong community raises no error, so silence and "no SNMP" look identical from outside.
 - **Honest presence** — red only from a signal a live host cannot suppress (a local ARP miss on the server's own segment, or a switch access port down for N consecutive syncs). A merely silent device, or one on a subnet the sweep never reached, is reported **not verified** — never wrongly absent. A device proven alive by a router's ARP table stays green across subnets.
 - **One click per row** — *update doc*, *ignore* (persisted until the condition changes), *investigate*. The diff is a pure tested function (`lib/drift-report.js`), and the result lands in the Dashboard's Conformance column as saved state rather than a transient overlay.
 - **DHCP lease import** — paste or load a lease table (ISC dhcpd, dnsmasq, Kea, generic CSV; pfSense, OPNsense, MikroTik, Synology, Windows exports) for authoritative MAC ↔ IP across **all VLANs** — what local ARP cannot see behind an L3 firewall. Multiple servers accumulate as persisted sources. A lease table is an **identity map, not a liveness probe**: a documented device missing from it is *unverifiable*, never absent (`lib/dhcp-lease.js`). Live vendor pull is a separately-distributed driver pack.
@@ -1093,7 +1095,7 @@ Full release notes live in [CHANGELOG.md](CHANGELOG.md). Highlights of what has 
 - [x] **REST API v1 + Ansible dynamic inventory** — read-only, bearer-token, sanitized `/api/v1/*`; token UI; stdlib-only `infranet_inventory.py` with rich host-vars (VLAN/subnet/gateway, serial/firmware, rack, mgmt, **`ansible_network_os`**, **config-backup pointer**) and a **`backup_missing`** group
 - [x] **DHCP lease import** — cross-VLAN authoritative MAC ↔ IP for the documentation check; multi-server persisted sources; treated as an identity map, never a false *absent*
 - [x] **IPAM occupancy · management-VLAN role · VM import** — real per-VLAN address usage (documented / DHCP-only / free); anti-guest management VLAN; absorb a discovered floor tile as a host VM
-- [x] **Reality Check / Drift Report + Adopt** — doc-vs-network diff in 7 categories (state, IP change, **hardware identity — a swapped serial/model vs ENTITY-MIB**, absent, undocumented, ghost cable, unverifiable) with per-row update/ignore/investigate and a multi-signal ping/ARP/TCP presence sweep; one-click Adopt of undocumented devices
+- [x] **Reality Check / Drift Report + Adopt** — doc-vs-network diff in 9 categories (consistent, state, IP change, **hardware identity — a swapped serial/model vs ENTITY-MIB**, absent, undocumented, ghost cable, cable on a shut port, unverifiable) with per-row update/ignore/investigate and a multi-signal ping/ARP/TCP presence sweep; one-click Adopt of undocumented devices
 - [x] **Handoff Dossier + Audit Trail** — one-click handover PDF; append-only project changelog with CSV export
 - [x] **Visible locks for documented values** — one-click freeze on IP / hostname / port-VLAN (surfaces the existing manual-first pins)
 - [x] **Wireless** — Packet-Tracer sine-wave links, up to 8 radios/device (SSID/band/channel/security/VLAN), SSID-VLAN trunk derivation
