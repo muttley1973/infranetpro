@@ -218,7 +218,7 @@ function _tlWhy(p){
 // Linea di 2px, ultimo punto marcato: è il «adesso», e l'occhio lo cerca lì.
 // Eredita il colore dalla riga (currentColor), quindi porta il MERITO, non la
 // direzione. Meno di due punti: niente disegno, perché una tendenza non c'è.
-const _TL_SPARK_W = 104, _TL_SPARK_H = 17, _TL_SPARK_MAX = 32;
+const _TL_SPARK_W = 112, _TL_SPARK_H = 20, _TL_SPARK_MAX = 32;
 function _tlSparkline(serie){
     let v = (serie || []).filter(x => x != null);
     if(v.length < 2) return '';

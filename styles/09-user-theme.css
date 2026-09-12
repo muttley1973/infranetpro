@@ -691,9 +691,9 @@ body.spare-mode .port-led.spare-suspect {
 .tl-trend { margin-bottom: 12px; padding: 10px 12px; border-radius: 8px;
             border: 1px solid var(--border); background: var(--surface-hover); }
 .tl-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
-.tl-verdetto { font-size: var(--fs-md); text-transform: uppercase; letter-spacing: .04em; }
-.tl-samples { font-size: var(--fs-xs); color: var(--text-muted); }
-.tl-row { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; font-size: var(--fs-sm); }
+.tl-verdetto { font-size: var(--fs-xl); text-transform: uppercase; letter-spacing: .04em; }
+.tl-samples { font-size: var(--fs-md); color: var(--text-muted); }
+.tl-row { display: flex; gap: 8px; align-items: baseline; padding: 4px 0; font-size: var(--fs-lg); }
 .tl-arrow { width: 1.1em; color: var(--text-muted); }
 .tl-name { flex: 1; color: var(--text-main); }
 /* Larghezza FISSA: senza, una riga col valore corto («2 → 6») spingeva la
@@ -702,7 +702,21 @@ body.spare-mode .port-led.spare-suspect {
 .tl-val { font-variant-numeric: tabular-nums; color: var(--text-muted);
           min-width: 9.5em; text-align: right; }
 .tl-verd { min-width: 7.5em; text-align: right; color: var(--text-muted); }
-.tl-why { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 4px; }
+.tl-why { font-size: var(--fs-md); color: var(--text-muted); margin-top: 4px; }
+
+/* ⚠️ Il guscio e' .drift-modal = min(680px, 92vw): sotto i ~760 px di finestra la
+   riga intera non ci sta piu' e il "pacchetto" si sfalda — nomi su tre righe e
+   il verdetto spinto fuori. Si sacrifica la SPARKLINE, non i numeri: la forma e'
+   l'arricchimento, il numero e' il fatto.
+   ⚠️ Sotto, NON c'e' una seconda regola: un impilamento a meta' (la freccia su una
+   riga vuota) legge peggio dello sfaldamento, e a quelle larghezze il resto
+   dell'app non e' comunque usabile — la vista stretta e' una decisione di
+   prodotto (STATO_PIANO: «vista mobile read-only», non fatta), non di un pannello. */
+@media (max-width: 760px) {
+    .tl-spark { display: none; }
+    .tl-val  { min-width: 8em; }
+    .tl-verd { min-width: 6em; }
+}
 /* ⚠️ --ok e --warn NON sono definiti in 01-tokens.css: si usavano solo col
    fallback, che e' un colore da tema SCURO e resta tale anche su fondo chiaro
    (misurato: 2,1:1 di contrasto, sotto la soglia). I token di STATO del prodotto
@@ -731,14 +745,14 @@ body.spare-mode .port-led.spare-suspect {
    arrotondati. ⚠️ Ogni parte porta il suo NUMERO nella legenda sotto: i due
    colori portanti stanno sotto la soglia di separazione per un occhio
    protanope, quindi il colore non puo' essere l'unico portatore. */
-.tl-bar { display: flex; gap: 2px; height: 8px; margin: 2px 0 4px; }
+.tl-bar { display: flex; gap: 2px; height: 10px; margin: 2px 0 4px; }
 .tl-seg { border-radius: 2px; min-width: 3px; }
 .tl-seg:first-child { border-top-left-radius: 4px; border-bottom-left-radius: 4px; }
 .tl-seg:last-child  { border-top-right-radius: 4px; border-bottom-right-radius: 4px; }
 .tl-seg.ok  { background: var(--active-color); }
 .tl-seg.bad { background: var(--idle-color); }
 .tl-seg.unk { background: var(--inactive-color); }
-.tl-keys { display: flex; flex-wrap: wrap; gap: 10px; font-size: var(--fs-xs);
+.tl-keys { display: flex; flex-wrap: wrap; gap: 12px; font-size: var(--fs-md);
            color: var(--text-muted); margin-bottom: 6px; }
 .tl-key { display: inline-flex; align-items: center; gap: 4px; }
 .tl-dot { width: 7px; height: 7px; border-radius: 2px; display: inline-block; }
