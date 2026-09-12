@@ -29,9 +29,15 @@ const _label  = (l) => String(l || '').replace(/[\r\n\t]+/g, ' ').trim().slice(0
 // Chiavi di conteggio AMMESSE nella riga di timeline: i bucket del Drift Report
 // (lib/drift-report.js) + gli endpoint non documentati. Whitelist = anti-bloat e
 // anti-injection (il client non può gonfiare la riga con campi arbitrari).
+// ⚠️ Questa lista e' un elenco a mano che deve combaciare con i counts di
+// lib/drift-report.js, e non combaciava: 'shutCable' usciva dal report e la
+// timeline lo buttava via in silenzio dal 2.8.x. Una riga di storia con un
+// bucket in meno non e' incompleta in modo visibile — e' incompleta e basta.
+// La prova in test/verify-trend.test.js la deriva dal report vero, cosi' un
+// bucket nuovo che non arriva qui fa rosso invece di sparire.
 const COUNT_KEYS = [
   'consistent', 'stateDrift', 'macOrphan', 'undocumented', 'undocumentedEndpoint',
-  'ghostCable', 'ipChanged', 'unverified', 'identityDrift', 'identityFirmware',
+  'ghostCable', 'shutCable', 'ipChanged', 'unverified', 'identityDrift', 'identityFirmware',
 ];
 
 function _projectExists(id) { return !!loadProject(id); }
