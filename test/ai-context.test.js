@@ -532,3 +532,196 @@ test('porte: senza un conteggio dichiarato si TACE, non si spaccia il record cou
   assert.equal(sw2.ports.free, undefined, 'e quindi nessun «libere» inventato');
   assert.equal(sw2.ports.documented, 1, 'ciò che sappiamo davvero resta');
 });
+
+// ── Un TAGLIO su una relazione si DICHIARA ─────────────────────────────────
+// Tagliare un ELENCO è onesto: chi legge sa di meno, e ciò che sa è vero.
+// Tagliare una RELAZIONE no: basta UN arco mancante perché due metà collegate
+// sembrino separate, o perché una presa risulti alimentare nessuno. La risposta
+// non diventa parziale, diventa SBAGLIATA — e da fuori ha la faccia di una
+// completa. Qui si prova che il taglio esce dichiarato, e che quando non c'è
+// taglio non esce niente: l'assenza deve restare il segnale di «completo».
+// ⚠️ Il marcatore sta sull'OGGETTO PADRE e non sull'array: una proprietà
+// appesa a un array sparisce in JSON.stringify, e il contesto viaggia in JSON —
+// sarebbe una dichiarazione che non arriva mai al lettore. Per questo la prova
+// guarda il contesto DOPO un giro di serializzazione.
+function projTagli(nCavi, nPorte, nPrese) {
+  const nodes = [{ id: 'pdu1', type: 'pdu', name: 'PDU-A', powerOutlets:
+    Array.from({ length: nPrese }, (_, i) => ({ label: 'C13-' + (i + 1), status: 'on', deviceName: 'DEV-' + i })) }];
+  const ports = {};
+  const links = [];
+  // Una stella: sw0 al centro, un apparato per ogni cavo. Ogni cavo è
+  // un'adiacenza DISTINTA, quindi il conteggio non può essere gonfiato da doppioni.
+  nodes.push({ id: 'sw0', type: 'switch', name: 'SW-CORE', ports: 400 });
+  for (let i = 0; i < nCavi; i++) {
+    nodes.push({ id: 'n' + i, type: 'pc', name: 'PC-' + i });
+    ports['sw0-' + (i + 1)] = { status: 'active' };
+    ports['n' + i + '-1'] = { status: 'active' };
+    links.push({ id: 'L' + i, src: 'sw0-' + (i + 1), dst: 'n' + i + '-1' });
+  }
+  // Porte in più sul centro-stella, tutte «interessanti» perché hanno un nome.
+  for (let i = 0; i < nPorte; i++) ports['sw0-' + (300 + i)] = { status: 'active', ifName: 'Gi1/0/' + i };
+  return { id: 1, name: 'tagli', state: { nodes, ports, links } };
+}
+
+test('taglio dichiarato: topologia, porte e prese dicono quanto se n\'è mostrato', () => {
+  // ⚠️ I tetti si DERIVANO dal modulo, non si ricopiano: ricopiati, il giorno che
+  // qualcuno li alza questa prova smette di provare il taglio — resta verde e non
+  // guarda più niente. Si costruisce sempre un po oltre il tetto, qualunque sia.
+  const { MAX_ARCHI_MOSTRATI: ARCHI, MAX_PORTE_MOSTRATE: PORTE, MAX_PRESE_MOSTRATE: PRESE } = require('../server/ai/context.js');
+  const nCavi = ARCHI + 60, nPorte = PORTE + 60, nPrese = PRESE + 16;
+  const ctx = JSON.parse(JSON.stringify(buildAiContext(projTagli(nCavi, nPorte, nPrese), null)));
+
+  assert.equal(ctx.topology.length, ARCHI, 'la topologia si ferma al tetto');
+  assert.deepEqual(ctx.topologyPartial, { shown: ARCHI, of: nCavi },
+    'e dichiara quante adiacenze distinte c\'erano DAVVERO — non quante ne ha mostrate');
+
+  const sw = ctx.devices.find(d => d.id === 'sw0');
+  assert.equal(sw.ports.list.length, PORTE, 'le porte si fermano al tetto');
+  assert.ok(sw.ports.listPartial && sw.ports.listPartial.shown === PORTE,
+    'e il taglio si dichiara: ogni porta porta connectedTo, quindi troncare porte tronca CAVI');
+  assert.ok(sw.ports.listPartial.of > PORTE, 'con il totale vero, non con quello mostrato');
+
+  const pdu = ctx.devices.find(d => d.id === 'pdu1');
+  assert.equal(pdu.outlets.length, PRESE, 'le prese si fermano al tetto');
+  assert.deepEqual(pdu.outletsPartial, { shown: PRESE, of: nPrese },
+    'e il taglio si dichiara: è la catena di alimentazione, «chi si spegne se muore la PDU»');
+});
+
+test('nessun taglio, nessun marcatore: l\'assenza resta il segnale di «completo»', () => {
+  const ctx = JSON.parse(JSON.stringify(buildAiContext(projTagli(5, 3, 4), null)));
+  assert.equal(ctx.topology.length, 5);
+  assert.ok(!('topologyPartial' in ctx), 'niente marcatore quando non si è tagliato niente');
+  const sw = ctx.devices.find(d => d.id === 'sw0');
+  assert.ok(!('listPartial' in sw.ports), 'idem sulle porte');
+  const pdu = ctx.devices.find(d => d.id === 'pdu1');
+  assert.ok(!('outletsPartial' in pdu), 'idem sulle prese');
+});
+
+test('il modello sa cosa farne: la regola della vista parziale è nel prompt, in due lingue', () => {
+  // Una dichiarazione che nessuno insegna a leggere è un campo in più e basta.
+  const { buildSystemPrompt } = require('../server/ai/prompt.js');
+  // ⚠️ Non basta cercare «Partial»: la prima versione di questa prova passava
+  // anche togliendo mezza regola, perché la parola restava nella metà rimasta.
+  // Si chiedono TUTTI E TRE i nomi (stanno su righe diverse, quindi toglierne una
+  // si vede) e il DIVIETO, che è la parte che cambia il comportamento.
+  for (const lang of ['it', 'en']) {
+    // ⚠️ La firma e POSIZIONALE — buildSystemPrompt(lang, features, help). Con
+    // {lang} usciva sempre ITALIANO, e due prove hanno detto "in due lingue" per
+    // due giorni controllando due volte la stessa lingua.
+    const p = buildSystemPrompt(lang);
+    for (const campo of ['topologyPartial', 'listPartial', 'outletsPartial']) {
+      assert.ok(p.includes(campo), lang + ': il prompt deve nominare ' + campo);
+    }
+    assert.match(p, /(NON rispondere|do NOT answer)/, lang + ': e deve dire cosa NON fare');
+  }
+});
+
+// ── I tetti sono TARATI sul profilo cliente, e la prova lo dice ─────────────
+// Un tetto è un numero, e un numero senza il caso che deve coprire si sposta al
+// primo che ha fretta. Qui il caso è scritto: la media impresa mono-sede — ~500
+// apparati attivi — documentata BENE, cioè con le prese a muro e i patch panel,
+// che è il modo in cui questo prodotto chiede di documentare.
+// ⚠️ E quello è il punto che un tetto «500 apparati = 500 archi» sbaglierebbe: un
+// percorso fisico qui è una CATENA (apparato → presa → patch panel → switch = TRE
+// adiacenze), quindi il documento fatto bene ha il DOPPIO degli archi di quello
+// fatto a metà — e verrebbe tagliato proprio lui.
+test('tetti: una PMI da profilo cliente, cablata per intero, NON viene troncata', () => {
+  const nodes = [], ports = {}, links = [];
+  const SW = 12;
+  for (let s = 0; s < SW; s++) {
+    nodes.push({ id: 'sw' + s, type: 'switch', name: 'SW-' + s, ports: 48 });
+    nodes.push({ id: 'pp' + s, type: 'patchpanel', name: 'PP-' + s, ports: 48 });
+  }
+  for (let i = 0; i < 500; i++) {
+    const s = i % SW;
+    nodes.push({ id: 'n' + i, type: 'pc', name: 'DEV-' + i });
+    nodes.push({ id: 'wp' + i, type: 'wallport', name: 'Presa ' + i, ports: 2 });
+    ports['n' + i + '-1'] = { status: 'active' };
+    ports['wp' + i + '-1'] = { status: 'active' };
+    ports['wp' + i + '-2'] = { status: 'active' };
+    ports['pp' + s + '-' + ((i % 40) + 1)] = { status: 'active' };
+    ports['sw' + s + '-' + ((i % 40) + 1)] = { status: 'active' };
+    links.push({ id: 'La' + i, src: 'n' + i + '-1', dst: 'wp' + i + '-1' });
+    links.push({ id: 'Lb' + i, src: 'wp' + i + '-2', dst: 'pp' + s + '-' + ((i % 40) + 1) });
+    links.push({ id: 'Lc' + i, src: 'pp' + s + '-' + ((i % 40) + 1), dst: 'sw' + s + '-' + ((i % 40) + 1) });
+  }
+  const ctx = buildAiContext({ id: 1, name: 'pmi', state: { nodes, ports, links } }, null);
+  assert.ok(ctx.topology.length >= 1000, 'la PMI cablata fa ~1024 adiacenze: misurate ' + ctx.topology.length);
+  assert.ok(!('topologyPartial' in ctx),
+    'e il tetto deve COPRIRLA: se questa prova arrossisce, o la rete tipo è cresciuta o ' +
+    'qualcuno ha abbassato MAX_ARCHI_MOSTRATI — in tutt\'e due i casi va deciso, non subito');
+});
+
+// ── Il cablaggio passivo esce dalle SCHEDE e resta nel PERCORSO ────────────
+// Prese a muro e patch panel sono metà del documento di una rete cablata bene, e
+// la loro scheda è quasi vuota per disegno (niente IP, MAC, VLAN). Al modello
+// servono come TAPPE di un percorso, non come apparati: i nomi restano nella
+// topologia, le schede no. Misurato sulla PMI di prova: 335 → 146 KB, il 56% in
+// meno, e delle venti domande d'esercizio se ne perde UNA (su che bandella del
+// patch panel passa un cavo).
+// ⚠️ E il riassunto DICHIARA di essere un riassunto: senza quella riga il modello
+// legge «516 apparati» e conclude che gli altri non esistono — che è peggio del
+// non saperlo, perché è una risposta invece di una domanda.
+function pmiCablata(quantiEndpoint) {
+  const nodes = [{ id: 'sw0', type: 'switch', name: 'SW-0', ports: 48 }];
+  const ports = {}, links = [];
+  nodes.push({ id: 'pp0', type: 'patchpanel', name: 'PP-0', ports: 48 });
+  for (let i = 0; i < quantiEndpoint; i++) {
+    nodes.push({ id: 'n' + i, type: 'pc', name: 'DEV-' + i });
+    nodes.push({ id: 'wp' + i, type: 'wallport', name: 'Presa ' + i, ports: 2 });
+    ports['n' + i + '-1'] = { status: 'active' };
+    ports['wp' + i + '-1'] = { status: 'active' };
+    ports['wp' + i + '-2'] = { status: 'active' };
+    ports['pp0-' + (i + 1)] = { status: 'active' };
+    ports['sw0-' + (i + 1)] = { status: 'active' };
+    links.push({ id: 'a' + i, src: 'n' + i + '-1', dst: 'wp' + i + '-1' });
+    links.push({ id: 'b' + i, src: 'wp' + i + '-2', dst: 'pp0-' + (i + 1) });
+    links.push({ id: 'c' + i, src: 'pp0-' + (i + 1), dst: 'sw0-' + (i + 1) });
+  }
+  return { id: 1, name: 'pmi', state: { nodes, ports, links } };
+}
+
+test('passivi: sopra soglia le schede si riassumono, e i nomi restano nel percorso', () => {
+  const ctx = buildAiContext(pmiCablata(60), null);
+  const nomi = (ctx.devices || []).map((d) => d.name);
+  assert.ok(!nomi.includes('Presa 3'), 'la scheda della presa non esce piu');
+  assert.ok(!nomi.includes('PP-0'), 'ne quella del patch panel');
+  assert.ok(nomi.includes('SW-0'), 'gli apparati veri restano interi');
+
+  assert.ok(ctx.passiveCabling, 'e il riassunto c\'e\'');
+  assert.equal(ctx.passiveCabling.summarised, 61, '60 prese + 1 patch panel');
+  assert.deepEqual(ctx.passiveCabling.byType, { wallport: 60, patchpanel: 1 });
+  assert.match(ctx.passiveCabling.note, /topology/,
+    'e DICE dove sono finiti: un riassunto muto si legge come «non esistono»');
+
+  // ⭐ La proprieta' che rende il taglio accettabile: il PERCORSO si legge ancora.
+  const archi = ctx.topology || [];
+  const tappe = (nome) => archi.some((e) => e.a === nome || e.b === nome);
+  assert.ok(tappe('Presa 3') && tappe('PP-0'),
+    'le tappe restano in topologia: senza, un percorso si spezza e si perde il senso del taglio');
+});
+
+test('passivi: sotto soglia non si riassume niente — un risparmio nullo e\' solo una perdita', () => {
+  const ctx = buildAiContext(pmiCablata(5), null);
+  const nomi = (ctx.devices || []).map((d) => d.name);
+  assert.ok(nomi.includes('Presa 3'), 'su una rete piccola il dettaglio costa niente e resta');
+  assert.ok(!('passiveCabling' in ctx), 'e non si dichiara un riassunto che non c\'e\'');
+});
+
+test('passivi: il modello sa cosa puo\' e cosa non puo\' rispondere, in due lingue', () => {
+  // ⚠️ Si chiede un pezzo di OGNI riga della regola, non una parola sola: la
+  // prima versione cercava «bandella» e restava verde anche togliendo l'ultima
+  // riga, perche quella parola stava in quella prima. E' la seconda volta in due
+  // giorni che una prova sul prompt passa su meta' regola.
+  const { buildSystemPrompt } = require('../server/ai/prompt.js');
+  const PEZZI = {
+    it: ['passiveCabling', 'NON sono nel context', 'restano in "topology"', 'bandella', 'Dillo e offri'],
+    en: ['passiveCabling', 'are not in the context', 'stay in "topology"', 'position', 'Say so'],
+  };
+  for (const lang of ['it', 'en']) {
+    const p = buildSystemPrompt(lang);
+    for (const pezzo of PEZZI[lang]) {
+      assert.ok(p.includes(pezzo), lang + ': manca dalla regola del cablaggio passivo -> ' + pezzo);
+    }
+  }
+});

@@ -16,6 +16,39 @@
 //  (test/ai-context.test.js): nessun segreto deve mai comparire nell'output.
 // ============================================================
 const { projectToInventory } = require('../../lib/api-shape.js');
+
+// ── I tetti che tagliano una RELAZIONE ─────────────────────────────────────
+// Tagliare un ELENCO è onesto: chi legge sa di meno, e ogni cosa che sa è vera.
+// Tagliare una RELAZIONE no: basta UN arco mancante perché due metà collegate
+// sembrino separate, o perché un apparato risulti alimentato da nessuno. La
+// risposta non diventa parziale, diventa SBAGLIATA — e da fuori ha la stessa
+// faccia di una completa.
+// I tre restano (il contesto costa, in denaro e in spazio) ma smettono di essere
+// silenziosi: accanto al dato esce quanto se n'è mostrato e quanto ce n'era. Il
+// numero è una DECISIONE di budget e vive SOLO in queste tre const.
+// I tre numeri sono TARATI SUL PROFILO CLIENTE — media impresa mono-sede, ~500
+// apparati attivi — e misurati, non scelti a occhio (banco: 12 switch d'accesso +
+// core, 500 endpoint):
+//   · senza passivi documentati ...... 512 adiacenze · contesto 124 KB
+//   · CON prese a muro e patch panel .. 1024 adiacenze · contesto 304 KB
+// ⭐ I passivi RADDOPPIANO gli archi, perché qui un percorso fisico è una CATENA
+// (apparato → presa → patch panel → switch = TRE adiacenze, non una): un tetto
+// tarato su «500 apparati = 500 archi» taglierebbe a metà proprio il documento
+// fatto bene. La topologia completa costa il 9-10% del contesto: poco, ed è
+// l'unico campo che tagliato dà risposte SBAGLIATE invece che parziali.
+// Il cablaggio PASSIVO — prese a muro, patch panel, passacavi, pannelli ciechi —
+// è metà del documento di una rete cablata bene: nella PMI di prova sono 512
+// apparati su 1028. Al modello servono come TAPPE di un percorso, e quelle restano
+// (la topologia li nomina): quello che non gli serve quasi mai è la loro SCHEDA.
+// Misurato: riassumerli porta il contesto da 335 a 146 KB — **il 56% in meno** — e
+// di venti domande d'esercizio ne perde UNA: «su che porta del patch panel passa
+// DEV-100». Il percorso resta leggibile, il numero di bandella no.
+// ⚠️ Sotto soglia non si riassume: su una rete piccola il risparmio è nullo e il
+// dettaglio costa niente — un riassunto che non fa risparmiare è solo una perdita.
+const MIN_PASSIVI_PER_RIASSUMERE = 30;
+const MAX_ARCHI_MOSTRATI = 1200;   // adiacenze device↔device: copre la PMI cablata per intero (1024) con margine
+const MAX_PORTE_MOSTRATE = 200;    // porte per apparato: uno stack di quattro 48-porte fa 192
+const MAX_PRESE_MOSTRATE = 64;     // prese PDU: una PDU vera ne ha 24-48, il tetto non si tocca nella PMI
 const { _getLinkDrawEndpoints } = require('../../lib/link-model.js');
 const { computeDeviceCapabilities, computeFleetCapabilities } = require('../../lib/hw-capabilities.js');
 const { computeHealthAlerts, summarizeAlerts } = require('../../lib/health-alerts.js');
@@ -171,6 +204,7 @@ function _devicePorts(node, state, resolveNode, neighborIndex, nameById, pids) {
   const ports = (state && state.ports) || {};
   const pidList = Array.isArray(pids) ? pids : Object.keys(ports).filter(pid => resolveNode(pid) === node.id);
   const entries = [];
+  let interessanti = 0;   // quante avrebbero meritato di uscire, tetto a parte
   let documented = 0, used = 0;
   for (const pid of pidList) {
     documented++;
@@ -196,6 +230,8 @@ function _devicePorts(node, state, resolveNode, neighborIndex, nameById, pids) {
     const pIp6 = (p.ip6 == null ? '' : String(p.ip6)).trim();
     const meaningful = neigh.length || name || (vlanRaw != null) || (status && status !== 'unknown') || trunk || p.lagGroup || pIp || pIp6;
     if (!meaningful) continue;
+    interessanti++;
+    if (entries.length >= MAX_PORTE_MOSTRATE) continue;   // si conta comunque: serve il totale
     entries.push(_compact({
       port: _portNum(pid, node.id),
       name,
@@ -209,7 +245,6 @@ function _devicePorts(node, state, resolveNode, neighborIndex, nameById, pids) {
       poe: (p.snmpPoe != null) ? p.snmpPoe : undefined,
       connectedTo: connectedTo.length ? connectedTo : undefined,
     }));
-    if (entries.length >= 64) break;          // cap di sicurezza (budget token)
   }
   const declared = _declaredPortCount(node);
   const out = _compact({
@@ -219,6 +254,10 @@ function _devicePorts(node, state, resolveNode, neighborIndex, nameById, pids) {
     free: (declared != null) ? Math.max(0, declared - used) : undefined,
   });
   if (entries.length) out.list = entries;
+  // Il taglio si DICHIARA: ogni porta porta `connectedTo`, quindi troncare le porte
+  // tronca CAVI. Senza questa riga chi legge conclude «non è collegata a niente»
+  // invece di «non lo so». Assente = completa, come ogni altra assenza qui dentro.
+  if (interessanti > entries.length) out.listPartial = { shown: entries.length, of: interessanti };
   return Object.keys(out).length ? out : undefined;
 }
 
@@ -347,9 +386,12 @@ function _vms(node) {
 // usciva solo il carico misurato. Stato e apparato alimentato si leggono con gli
 // helper CONDIVISI di lib/pdu-layout (una sola definizione: pannello, report e
 // contesto dicono la stessa cosa). Il nome del device è preferito all'id opaco.
+// ⚠️ Rende { list, of }: il marcatore del taglio non può stare sull'array (JSON lo
+// butta), quindi il totale torna a parte e il chiamante lo mette accanto, sul device.
 function _outlets(node, nameById) {
   const list = (node && Array.isArray(node.powerOutlets)) ? node.powerOutlets : [];
   const out = [];
+  let valide = 0;
   for (let i = 0; i < list.length; i++) {
     const o = list[i];
     if (!o || typeof o !== 'object') continue;
@@ -358,6 +400,8 @@ function _outlets(node, nameById) {
     // (lib/pdu-report → conn.deviceName): se l'assistente chiamasse quella presa
     // in un altro modo rispetto al documento consegnato al cliente, sarebbero due
     // verità per lo stesso dato. L'id serve solo quando il nome non c'è.
+    valide++;
+    if (out.length >= MAX_PRESE_MOSTRATE) continue;       // si conta comunque
     const byId = conn.deviceId ? (nameById && nameById[conn.deviceId]) : null;
     const powers = (conn.deviceName || byId || '').toString().trim().slice(0, 64);
     out.push(_compact({
@@ -365,9 +409,8 @@ function _outlets(node, nameById) {
       state: pduOutletStatusState(o) || undefined,
       powers: powers || undefined,
     }));
-    if (out.length >= 64) break;                 // cap di sicurezza (budget token)
   }
-  return out.length ? out : undefined;
+  return out.length ? { list: out, of: valide } : undefined;
 }
 
 // ── Topologia: adiacenza device↔device dai link. ─────────────────────────────
@@ -381,10 +424,12 @@ function _topology(links, resolveNode, nameById) {
     const key = a < b ? (a + '|' + b) : (b + '|' + a);
     if (seen.has(key)) continue;
     seen.add(key);
-    edges.push({ a: nameById[a] || a, b: nameById[b] || b });
-    if (edges.length >= 200) break;
+    // Si continua a CONTARE anche dopo il tetto: `seen.size` è il numero VERO di
+    // adiacenze distinte, e senza quello «of» varrebbe il numero mostrato — cioè
+    // una dichiarazione che non dichiara niente.
+    if (edges.length < MAX_ARCHI_MOSTRATI) edges.push({ a: nameById[a] || a, b: nameById[b] || b });
   }
-  return edges.length ? edges : undefined;
+  return edges.length ? { list: edges, of: seen.size } : undefined;
 }
 
 // ── Ri-sanitizzazione dei liveFacts (allowlist per categoria) ────────────────
@@ -495,7 +540,11 @@ function buildAiContext(project, liveFacts, scope) {
     if (raw) {
       const lc = _lifecycle(raw); if (lc) out.lifecycle = lc;              // garanzia / fine vita (dichiarate)
       const vm = _vms(raw); if (vm) out.vms = vm;                          // VM documentate sull'host
-      const ol = _outlets(raw, nameById); if (ol) out.outlets = ol;        // prese PDU → chi alimentano
+      const ol = _outlets(raw, nameById);                                   // prese PDU → chi alimentano
+      if (ol) {
+        out.outlets = ol.list;                                              // la FORMA non cambia: resta un array
+        if (ol.of > ol.list.length) out.outletsPartial = { shown: ol.list.length, of: ol.of };
+      }
     }
     // Capacità hardware DOCUMENTATE (lib/hw-capabilities): «InfraNet calcola».
     // Allowlist per costruzione (legge solo chiavi spec note). I sotto-blocchi
@@ -556,7 +605,23 @@ function buildAiContext(project, liveFacts, scope) {
     vlans,
   };
   if (networks.length) ctx.networks = networks;
-  if (devices.length) ctx.devices = devices;
+  // ── Il cablaggio passivo esce dalle SCHEDE e resta nel PERCORSO ──────────
+  // I passivi non hanno IP, MAC né VLAN per disegno: la loro scheda è quasi vuota
+  // e non risponde a niente. Il loro nome però serve — è una tappa — e continua a
+  // uscire nella topologia, che è dove un percorso si legge.
+  // ⚠️ Il riassunto DICHIARA di essere un riassunto e invita a chiedere: senza
+  // quella riga il modello legge «516 apparati» e conclude che gli altri non
+  // esistono, che è peggio del non saperlo.
+  const passivi = devices.filter((d) => d.passive === true);
+  const riassumi = passivi.length >= MIN_PASSIVI_PER_RIASSUMERE;
+  const mostrati = riassumi ? devices.filter((d) => d.passive !== true) : devices;
+  if (mostrati.length) ctx.devices = mostrati;
+  if (riassumi) {
+    const perTipo = {};
+    for (const d of passivi) perTipo[d.type] = (perTipo[d.type] || 0) + 1;
+    ctx.passiveCabling = { summarised: passivi.length, byType: perTipo,
+      note: 'cablaggio passivo riassunto: i nomi restano in topology come tappe del percorso' };
+  }
   // FRESCHEZZA dei dati (schema ②: «il tempo non entra mai»). Le misure — salute
   // SNMP, alert, UPS/batteria — sono una FOTO al momento della Verifica, non uno
   // stato live: senza dire QUANDO, l'assistente le racconta al presente («⚠ UPS
@@ -583,7 +648,13 @@ function buildAiContext(project, liveFacts, scope) {
   // Riepilogo problemi di flotta (conteggi warn/crit) — solo se almeno un alert.
   const fleetAlerts = summarizeAlerts(devices.map(d => d.alerts));
   if (fleetAlerts) ctx.summary.alerts = fleetAlerts;
-  if (sc.topology) { const topo = _topology(state.links, resolveNode, nameById); if (topo) ctx.topology = topo; }
+  if (sc.topology) {
+    const topo = _topology(state.links, resolveNode, nameById);
+    if (topo) {
+      ctx.topology = topo.list;                                             // la FORMA non cambia: resta un array
+      if (topo.of > topo.list.length) ctx.topologyPartial = { shown: topo.list.length, of: topo.of };
+    }
+  }
   const facts = _sanitizeFacts(liveFacts, sc);
   if (Object.keys(facts).length) ctx.facts = facts;
   return ctx;
@@ -592,6 +663,7 @@ function buildAiContext(project, liveFacts, scope) {
 module.exports = {
   buildAiContext, _sanitizeFacts, _device, _compact,
   _normScope, _buildPortNodeResolver, _portNum, _buildNeighborIndex,
+  MAX_ARCHI_MOSTRATI, MAX_PORTE_MOSTRATE, MAX_PRESE_MOSTRATE,
   _safeScalars, _devicePorts, _deviceHealth, _topology, _wirelessSsids, _collectPorts,
   _lifecycle, _vms, _outlets, _identityEntry,
   _PASSIVE_NO_IP_TYPES,
