@@ -544,9 +544,20 @@ test('porte: senza un conteggio dichiarato si TACE, non si spaccia il record cou
 // appesa a un array sparisce in JSON.stringify, e il contesto viaggia in JSON —
 // sarebbe una dichiarazione che non arriva mai al lettore. Per questo la prova
 // guarda il contesto DOPO un giro di serializzazione.
-function projTagli(nCavi, nPorte, nPrese) {
+function projTagli(nCavi, nPorte, nPrese, nVm, nSsid) {
   const nodes = [{ id: 'pdu1', type: 'pdu', name: 'PDU-A', powerOutlets:
     Array.from({ length: nPrese }, (_, i) => ({ label: 'C13-' + (i + 1), status: 'on', deviceName: 'DEV-' + i })) }];
+  // Un host con troppe VM e un AP con troppi SSID: le altre due relazioni che si
+  // possono tagliare. ⚠️ Gli SSID vanno sparsi su PIÙ RADIO apposta: il difetto
+  // vero era un "break" che usciva dal ciclo INTERNO, quindi con una radio sola
+  // il tetto sembrava rispettato e la prova sarebbe restata verde per caso.
+  nodes.push({ id: 'hv1', type: 'hypervisor', name: 'HV-1', ip: '10.0.0.7',
+    vms: Array.from({ length: nVm }, (_, i) => ({ name: 'VM-' + i, ip: '10.0.9.' + (i % 250) })) });
+  const RADIO = 8;
+  nodes.push({ id: 'ap1', type: 'ap', name: 'AP-1', ip: '10.0.0.8',
+    radios: Array.from({ length: RADIO }, (_, r) => ({ band: 'r' + r,
+      ssids: Array.from({ length: nSsid }, (_, i) => i).filter((i) => i % RADIO === r)
+        .map((i) => ({ ssid: 'W-' + i, vlan: 100 + i })) })) });
   const ports = {};
   const links = [];
   // Una stella: sw0 al centro, un apparato per ogni cavo. Ogni cavo è
@@ -567,9 +578,10 @@ test('taglio dichiarato: topologia, porte e prese dicono quanto se n\'è mostrat
   // ⚠️ I tetti si DERIVANO dal modulo, non si ricopiano: ricopiati, il giorno che
   // qualcuno li alza questa prova smette di provare il taglio — resta verde e non
   // guarda più niente. Si costruisce sempre un po oltre il tetto, qualunque sia.
-  const { MAX_ARCHI_MOSTRATI: ARCHI, MAX_PORTE_MOSTRATE: PORTE, MAX_PRESE_MOSTRATE: PRESE } = require('../server/ai/context.js');
-  const nCavi = ARCHI + 60, nPorte = PORTE + 60, nPrese = PRESE + 16;
-  const ctx = JSON.parse(JSON.stringify(buildAiContext(projTagli(nCavi, nPorte, nPrese), null)));
+  const { MAX_ARCHI_MOSTRATI: ARCHI, MAX_PORTE_MOSTRATE: PORTE, MAX_PRESE_MOSTRATE: PRESE,
+    MAX_VM_MOSTRATE: VM, MAX_SSID_MOSTRATI: SSID } = require('../server/ai/context.js');
+  const nCavi = ARCHI + 60, nPorte = PORTE + 60, nPrese = PRESE + 16, nVm = VM + 12, nSsid = SSID + 16;
+  const ctx = JSON.parse(JSON.stringify(buildAiContext(projTagli(nCavi, nPorte, nPrese, nVm, nSsid), null)));
 
   assert.equal(ctx.topology.length, ARCHI, 'la topologia si ferma al tetto');
   assert.deepEqual(ctx.topologyPartial, { shown: ARCHI, of: nCavi },
@@ -585,35 +597,89 @@ test('taglio dichiarato: topologia, porte e prese dicono quanto se n\'è mostrat
   assert.equal(pdu.outlets.length, PRESE, 'le prese si fermano al tetto');
   assert.deepEqual(pdu.outletsPartial, { shown: PRESE, of: nPrese },
     'e il taglio si dichiara: è la catena di alimentazione, «chi si spegne se muore la PDU»');
+
+  const hv = ctx.devices.find(d => d.id === 'hv1');
+  assert.equal(hv.vms.length, VM, 'le VM si fermano al tetto');
+  assert.deepEqual(hv.vmsPartial, { shown: VM, of: nVm },
+    'e il taglio si dichiara: «cosa gira su HV-1» è contenimento, e un elenco monco risponde «queste» a chi chiede «tutte»');
+
+  const ap = ctx.devices.find(d => d.id === 'ap1');
+  assert.equal(ap.ssids.length, SSID,
+    'gli SSID si fermano ESATTAMENTE al tetto: il break di prima usciva dal ciclo interno e ogni radia ne infilava uno in più');
+  assert.deepEqual(ap.ssidsPartial, { shown: SSID, of: nSsid },
+    'e il taglio si dichiara: un SSID porta la VLAN, che è la domanda vera');
 });
 
 test('nessun taglio, nessun marcatore: l\'assenza resta il segnale di «completo»', () => {
-  const ctx = JSON.parse(JSON.stringify(buildAiContext(projTagli(5, 3, 4), null)));
+  const ctx = JSON.parse(JSON.stringify(buildAiContext(projTagli(5, 3, 4, 2, 3), null)));
   assert.equal(ctx.topology.length, 5);
   assert.ok(!('topologyPartial' in ctx), 'niente marcatore quando non si è tagliato niente');
   const sw = ctx.devices.find(d => d.id === 'sw0');
   assert.ok(!('listPartial' in sw.ports), 'idem sulle porte');
   const pdu = ctx.devices.find(d => d.id === 'pdu1');
   assert.ok(!('outletsPartial' in pdu), 'idem sulle prese');
+  assert.ok(!('vmsPartial' in ctx.devices.find(d => d.id === 'hv1')), 'idem sulle VM');
+  assert.ok(!('ssidsPartial' in ctx.devices.find(d => d.id === 'ap1')), 'idem sugli SSID');
 });
+
+// Raccoglie i marcatori di taglio VERI da un contesto, a qualunque profondità.
+function marcatoriPartial(v, out) {
+  if (!v || typeof v !== 'object') return out;
+  if (Array.isArray(v)) { for (const x of v) marcatoriPartial(x, out); return out; }
+  for (const k of Object.keys(v)) { if (/Partial$/.test(k)) out.add(k); marcatoriPartial(v[k], out); }
+  return out;
+}
 
 test('il modello sa cosa farne: la regola della vista parziale è nel prompt, in due lingue', () => {
   // Una dichiarazione che nessuno insegna a leggere è un campo in più e basta.
   const { buildSystemPrompt } = require('../server/ai/prompt.js');
-  // ⚠️ Non basta cercare «Partial»: la prima versione di questa prova passava
-  // anche togliendo mezza regola, perché la parola restava nella metà rimasta.
-  // Si chiedono TUTTI E TRE i nomi (stanno su righe diverse, quindi toglierne una
-  // si vede) e il DIVIETO, che è la parte che cambia il comportamento.
+  const C = require('../server/ai/context.js');
+  // ⚠️ I nomi NON si ricopiano qui: erano un elenco a mano sorvegliato da un altro
+  // elenco a mano, e il giorno che ne è nato un quarto nessuno se n'è accorto. Si
+  // COSTRUISCE un contesto che taglia tutto e si raccolgono i marcatori veri: da
+  // qui in avanti, un marcatore nuovo che il prompt non conosce fa rosso da solo.
+  const ctx = JSON.parse(JSON.stringify(buildAiContext(projTagli(
+    C.MAX_ARCHI_MOSTRATI + 8, C.MAX_PORTE_MOSTRATE + 8, C.MAX_PRESE_MOSTRATE + 8,
+    C.MAX_VM_MOSTRATE + 8, C.MAX_SSID_MOSTRATI + 8), null)));
+  const marcatori = [...marcatoriPartial(ctx, new Set())].sort();
+  assert.ok(marcatori.length >= 5,
+    'il banco dei tagli deve farli scattare tutti, altrimenti questa prova non sorveglia niente: ' + marcatori.join(', '));
   for (const lang of ['it', 'en']) {
     // ⚠️ La firma e POSIZIONALE — buildSystemPrompt(lang, features, help). Con
     // {lang} usciva sempre ITALIANO, e due prove hanno detto "in due lingue" per
     // due giorni controllando due volte la stessa lingua.
     const p = buildSystemPrompt(lang);
-    for (const campo of ['topologyPartial', 'listPartial', 'outletsPartial']) {
-      assert.ok(p.includes(campo), lang + ': il prompt deve nominare ' + campo);
+    for (const campo of marcatori) {
+      assert.ok(p.includes(campo),
+        lang + ': il contesto emette ' + campo + ' e il prompt non lo nomina — un taglio dichiarato a nessuno');
     }
     assert.match(p, /(NON rispondere|do NOT answer)/, lang + ': e deve dire cosa NON fare');
   }
+});
+
+// ── Un tetto sulla LISTA non deve toccare il CONTEGGIO ─────────────────────
+// _collectPorts raccoglie le porte per il motore capacità: la lista è cappata
+// (memoria), ma "used" alimenta "free = dichiarate − used". Con un "break" al
+// posto del "continue", "used" si fermava col tetto e le porte libere venivano
+// INVENTATE — e il prompt manda proprio lì il modello che deve contarle.
+test('porte: il tetto sulla lista raccolta non inventa porte libere', () => {
+  const { MAX_PORTE_RACCOLTE: RACCOLTE } = require('../server/ai/context.js');
+  const n = RACCOLTE + 88;
+  const nodes = [{ id: 'sw', type: 'switch', name: 'SW-BIG', ip: '10.0.0.1', ports: n }];
+  const ports = {}, links = [];
+  for (let i = 1; i <= n; i++) {
+    ports['sw-' + i] = { status: 'active' };
+    ports['pc' + i + '-1'] = { status: 'active' };
+    nodes.push({ id: 'pc' + i, type: 'pc', name: 'PC-' + i });
+    links.push({ id: 'L' + i, src: 'sw-' + i, dst: 'pc' + i + '-1' });
+  }
+  const ctx = buildAiContext({ id: 1, name: 'big', state: { nodes, ports, links } }, null);
+  const sw = ctx.devices.find(d => d.id === 'sw');
+  assert.equal(sw.ports.free, 0, 'tutte cablate: nessuna libera');
+  assert.equal(sw.capabilities.ports.free, 0,
+    'e il blocco capacità deve dire LO STESSO numero: due risposte alla stessa domanda nello stesso contesto sono una di troppo');
+  assert.equal(sw.capabilities.ports.free, sw.ports.free,
+    'una sola definizione di «porte libere», non una per blocco');
 });
 
 // ── I tetti sono TARATI sul profilo cliente, e la prova lo dice ─────────────

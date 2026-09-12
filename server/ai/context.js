@@ -49,6 +49,15 @@ const MIN_PASSIVI_PER_RIASSUMERE = 30;
 const MAX_ARCHI_MOSTRATI = 1200;   // adiacenze device↔device: copre la PMI cablata per intero (1024) con margine
 const MAX_PORTE_MOSTRATE = 200;    // porte per apparato: uno stack di quattro 48-porte fa 192
 const MAX_PRESE_MOSTRATE = 64;     // prese PDU: una PDU vera ne ha 24-48, il tetto non si tocca nella PMI
+// Gli stessi due criteri valgono per le VM e per gli SSID. Le VM di un host sono
+// una relazione di CONTENIMENTO — «cosa gira su HV-01» — quindi il taglio si
+// DICHIARA come gli altri tre. Gli SSID di un AP portano la VLAN, che è la
+// domanda vera («la rete ospiti su che VLAN esce»): stessa regola.
+const MAX_VM_MOSTRATE = 48;        // VM per host: un hypervisor di PMI ne tiene 10-30
+const MAX_SSID_MOSTRATI = 64;      // SSID distinti per AP: 8 radio x 8 BSS è il massimo dell'hardware serio
+// Porte RACCOLTE per il motore capacità: questa lista NON esce verso il modello
+// (alimenta lib/hw-capabilities), quindi il tetto è memoria, non budget di token.
+const MAX_PORTE_RACCOLTE = 512;
 const { _getLinkDrawEndpoints } = require('../../lib/link-model.js');
 const { computeDeviceCapabilities, computeFleetCapabilities } = require('../../lib/hw-capabilities.js');
 const { computeHealthAlerts, summarizeAlerts } = require('../../lib/health-alerts.js');
@@ -265,6 +274,15 @@ function _devicePorts(node, state, resolveNode, neighborIndex, nameById, pids) {
 // A differenza di _devicePorts (che filtra/cappa la lista mostrata all'AI), qui
 // raccogliamo TUTTE le porte del nodo con i soli campi utili al calcolo (velocità/
 // stato/LAG/PoE) + il conteggio total/used/free dal cablaggio. Cap alto di sicurezza.
+// ⚠️ Il tetto ferma la LISTA, mai il CONTEGGIO — e la differenza non è di stile.
+// "used" alimenta "free = dichiarate − used": un "used" che si ferma a metà non
+// accorcia la risposta, la INVENTA. Misurato prima della cura, quando qui c'era un
+// "break": uno switch con 600 porte dichiarate e TUTTE cablate usciva con
+// "capabilities.ports.free = 88" mentre il blocco "ports" dello STESSO device
+// diceva "free: 0" — due risposte alla stessa domanda nello stesso contesto, e il
+// prompt («per le porte libere usa device.capabilities») mandava il modello su
+// quella sbagliata. Sopra il tetto resta tagliato solo ciò che si DERIVA dalla
+// lista (banda aggregata, PoE): quello è il prezzo dichiarato del tetto.
 function _collectPorts(node, state, resolveNode, neighborIndex, pids) {
   const ports = (state && state.ports) || {};
   const pidList = Array.isArray(pids) ? pids : Object.keys(ports).filter(pid => resolveNode(pid) === node.id);
@@ -274,13 +292,13 @@ function _collectPorts(node, state, resolveNode, neighborIndex, pids) {
     documented++;
     const p = ports[pid] || {};
     if (neighborIndex[pid] && neighborIndex[pid].size) used++;
+    if (list.length >= MAX_PORTE_RACCOLTE) continue;   // si conta comunque: serve il totale
     list.push({
       speed: (p.speedOvr != null) ? p.speedOvr : (p.speed != null ? p.speed : null),
       status: p.statusOvr || p.status || null,
       lagGroup: p.lagGroup || null,
       poe: (p.snmpPoe != null) ? p.snmpPoe : null,
     });
-    if (list.length >= 512) break;
   }
   // Stessa regola di `_devicePorts`: il totale è quello DICHIARATO, e se manca
   // si tace invece di spacciare il numero di record per capacità.
@@ -323,9 +341,15 @@ function _deviceHealth(node) {
 // NON una chiave: nel modello non esiste passphrase/psk. Per difesa in profondità
 // leggiamo SOLO ssid/vlan/security/banda (qualunque campo extra è scartato per
 // costruzione → nessun segreto può uscire). Dedup per ssid+vlan, bande raccolte.
+// ⚠️ Rende { list, of } come _outlets: il marcatore del taglio non sta sull'array.
+// E il tetto vale ESATTAMENTE quanto dichiara: il "break" di prima usciva dal ciclo
+// INTERNO, quindi ogni radio successiva ne infilava ancora uno — con 8 radio e
+// tetto 64 ne uscivano 68. Una guardia che non fa il numero che dice è una guardia
+// che nessuno ha provato al caso vero.
 function _wirelessSsids(node) {
   const radios = (node && Array.isArray(node.radios)) ? node.radios : [];
   const map = new Map();
+  const visti = new Set();          // TUTTI i BSS distinti, tetto a parte
   for (const r of radios) {
     const band = (r && r.band) ? String(r.band).slice(0, 8) : null;
     const ssids = (r && Array.isArray(r.ssids)) ? r.ssids : [];
@@ -334,14 +358,19 @@ function _wirelessSsids(node) {
       const ssid = String(s.ssid).slice(0, 64);
       const vlan = (s.vlan != null) ? (Number(s.vlan) || s.vlan) : undefined;
       const key = ssid + '|' + (vlan != null ? vlan : '');
+      visti.add(key);
       let e = map.get(key);
-      if (!e) { e = { ssid, vlan, security: s.security ? String(s.security).slice(0, 32) : undefined, bands: [] }; map.set(key, e); }
+      if (!e) {
+        if (map.size >= MAX_SSID_MOSTRATI) continue;   // si conta comunque
+        e = { ssid, vlan, security: s.security ? String(s.security).slice(0, 32) : undefined, bands: [] };
+        map.set(key, e);
+      }
       if (band && !e.bands.includes(band)) e.bands.push(band);
-      if (map.size >= 64) break;       // cap di sicurezza
     }
   }
   if (!map.size) return undefined;
-  return [...map.values()].map(e => _compact({ ssid: e.ssid, vlan: e.vlan, security: e.security, bands: e.bands.length ? e.bands : undefined }));
+  const list = [...map.values()].map(e => _compact({ ssid: e.ssid, vlan: e.vlan, security: e.security, bands: e.bands.length ? e.bands : undefined }));
+  return { list, of: visti.size };
 }
 
 // ── Ciclo di vita: due date DICHIARATE (nessun apparato le dice via SNMP). ───
@@ -361,9 +390,13 @@ function _lifecycle(node) {
 // qualunque altro campo (segreti compresi) è scartato perché non viene copiato.
 // Prima usciva solo il CONTEGGIO (capabilities.compute.vms): l'assistente sapeva
 // «2 VM» ma non sapeva dire quali, pur essendo documentate.
+// ⚠️ Rende { list, of }: «cosa gira su HV-01» è una relazione di CONTENIMENTO, e un
+// elenco di VM tagliato in silenzio risponde «queste» a chi ha chiesto «tutte». Il
+// marcatore lo mette il chiamante, sul device.
 function _vms(node) {
   const list = (node && Array.isArray(node.vms)) ? node.vms : [];
   const out = [];
+  let valide = 0;
   for (const v of list) {
     if (!v || typeof v !== 'object') continue;
     const e = _compact({
@@ -374,10 +407,12 @@ function _vms(node) {
       vlan: (v.vlan != null) ? (Number(v.vlan) || v.vlan) : undefined,
       state: (v.state == null ? '' : String(v.state).trim().slice(0, 16)) || undefined,
     });
-    if (Object.keys(e).length) out.push(e);
-    if (out.length >= 48) break;                 // cap di sicurezza (budget token)
+    if (!Object.keys(e).length) continue;
+    valide++;
+    if (out.length >= MAX_VM_MOSTRATE) continue;   // si conta comunque: serve il totale
+    out.push(e);
   }
-  return out.length ? out : undefined;
+  return out.length ? { list: out, of: valide } : undefined;
 }
 
 // ── Prese di una PDU: la catena di alimentazione. ────────────────────────────
@@ -536,10 +571,20 @@ function buildAiContext(project, liveFacts, scope) {
     const raw = rawById[d.id];
     if (sc.ports && raw) { const pr = _devicePorts(raw, state, resolveNode, neighborIndex, nameById, pidsByNode[d.id] || []); if (pr) out.ports = pr; }
     if (sc.snmpHealth && raw) { const hl = _deviceHealth(raw); if (hl) out.health = hl; }
-    if (raw) { const ss = _wirelessSsids(raw); if (ss) out.ssids = ss; }   // inventario SSID (AP)
+    if (raw) {                                                            // inventario SSID (AP)
+      const ss = _wirelessSsids(raw);
+      if (ss) {
+        out.ssids = ss.list;                                              // la FORMA non cambia: resta un array
+        if (ss.of > ss.list.length) out.ssidsPartial = { shown: ss.list.length, of: ss.of };
+      }
+    }
     if (raw) {
       const lc = _lifecycle(raw); if (lc) out.lifecycle = lc;              // garanzia / fine vita (dichiarate)
-      const vm = _vms(raw); if (vm) out.vms = vm;                          // VM documentate sull'host
+      const vm = _vms(raw);                                                 // VM documentate sull'host
+      if (vm) {
+        out.vms = vm.list;                                                  // la FORMA non cambia: resta un array
+        if (vm.of > vm.list.length) out.vmsPartial = { shown: vm.list.length, of: vm.of };
+      }
       const ol = _outlets(raw, nameById);                                   // prese PDU → chi alimentano
       if (ol) {
         out.outlets = ol.list;                                              // la FORMA non cambia: resta un array
@@ -664,6 +709,7 @@ module.exports = {
   buildAiContext, _sanitizeFacts, _device, _compact,
   _normScope, _buildPortNodeResolver, _portNum, _buildNeighborIndex,
   MAX_ARCHI_MOSTRATI, MAX_PORTE_MOSTRATE, MAX_PRESE_MOSTRATE,
+  MAX_VM_MOSTRATE, MAX_SSID_MOSTRATI, MAX_PORTE_RACCOLTE, MIN_PASSIVI_PER_RIASSUMERE,
   _safeScalars, _devicePorts, _deviceHealth, _topology, _wirelessSsids, _collectPorts,
   _lifecycle, _vms, _outlets, _identityEntry,
   _PASSIVE_NO_IP_TYPES,

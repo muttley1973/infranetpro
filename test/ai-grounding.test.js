@@ -138,3 +138,43 @@ test('digest: un IP MAI passato al modello resta un riferimento sconosciuto', ()
   const out = checkGrounding('Ho trovato anche 172.16.9.9 nella rete.', ent);
   assert.deepEqual(out.unknownRefs, [{ kind: 'ip', value: '172.16.9.9' }]);
 });
+
+// ── Il controllo deve conoscere TUTTO ciò che è uscito ─────────────────────
+// Un IP che l'app ha MESSO nel contesto e che il digest non conosce non produce
+// un buco: produce un'ACCUSA. Il modello cita correttamente un indirizzo che gli
+// abbiamo dato noi e si prende un ⚠ «riferimento non trovato» — il controllo
+// anti-invenzione che punisce la risposta giusta.
+// ⚠️ È già successo: 'unverified' (presenza non verificabile, la sweep non
+// copriva quella subnet) è nato nel contesto DOPO l'elenco delle categorie drift,
+// e l'elenco non se n'è accorto per un rilascio intero.
+test('extractEntities: anche gli IP/MAC dei NON VERIFICABILI sono roba nostra, non invenzioni', () => {
+  const c = {
+    project: { id: 3, name: 'Sede' },
+    devices: [{ id: 'n1', name: 'SW-Core', ip: '10.0.20.2' }],
+    facts: { drift: { unverified: [{ id: 'n9', name: 'SRV-9', ip: '10.0.99.9', mac: 'de:ad:be:ef:99:99', reason: 'subnet non coperta' }] } },
+  };
+  const e = extractEntities(c);
+  assert.ok(e.ips.includes('10.0.99.9'), 'IP di un non-verificabile: è NEL contesto, quindi è nel digest');
+  assert.ok(e.macs.includes('de:ad:be:ef:99:99'), 'e il suo MAC pure');
+  const r = checkGrounding('SRV-9 (10.0.99.9) non è verificabile: la scansione non copriva quella subnet.', e);
+  assert.equal(r.unknownRefs.length, 0,
+    'la risposta CORRETTA non deve prendersi un «riferimento non trovato»: sarebbe il controllo che accusa sé stesso');
+});
+
+// Ogni categoria di drift che porta indirizzi deve stare nel digest: l'elenco
+// delle categorie è nel modulo, e qui si prova che nessuna resti fuori.
+test('extractEntities: nessuna categoria di drift con indirizzi resta fuori dal digest', () => {
+  const perCategoria = {
+    absent: { id: 'a', name: 'A', ip: '10.1.0.1', mac: 'aa:00:00:00:00:01' },
+    undocumented: { ip: '10.1.0.2', mac: 'aa:00:00:00:00:02' },
+    ipChanged: { id: 'c', name: 'C', mac: 'aa:00:00:00:00:03', from: '10.1.0.3', to: '10.1.0.4' },
+    unverified: { id: 'd', name: 'D', ip: '10.1.0.5', mac: 'aa:00:00:00:00:05' },
+  };
+  for (const [cat, e] of Object.entries(perCategoria)) {
+    const ent = extractEntities({ facts: { drift: { [cat]: [e] } } });
+    for (const ip of [e.ip, e.from, e.to].filter(Boolean)) {
+      assert.ok(ent.ips.includes(ip), cat + ': ' + ip + ' esce nel contesto ma il digest non lo conosce');
+    }
+    assert.ok(ent.macs.includes(e.mac), cat + ': il MAC esce nel contesto ma il digest non lo conosce');
+  }
+});
