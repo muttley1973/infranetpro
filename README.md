@@ -121,20 +121,18 @@ Double-click <code>avvia.bat</code>.<br>
 
 > **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then run **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.11.6) — the tool says what it cannot see, and the checks add up to a reading.**
+> 📰 **What's new (v2.11.6) — the tool says what it cannot see.**
 >
-> - **A trend on the verification timeline.** Where you are — the last check split into consistent,
->   mismatched and not-verifiable devices — and where you are going, as the shape of the series. It
->   refuses a verdict when the part it could not look at has grown, because an improvement could be
->   coming from there rather than from the network.
+> - **A trend on the verification timeline.** Where you are, and where you are going. It refuses a
+>   verdict when the part it could not look at has grown: an improvement could be coming from there
+>   rather than from the network.
 > - **«Silent to this key».** With SNMPv2c a wrong community raises no error, so silence and *no
->   SNMP* look the same from outside. A device a switch announces over LLDP/CDP that stays quiet is
->   now shown and counted — before, it did not appear at all.
-> - **The assistant declares the part of the graph it was not given.** Cutting a list is honest;
->   cutting a relation is not, and from the inside you cannot tell. Passive cabling comes out
->   summarised, which takes 56% off the context and costs one question in twenty.
-> - **Free ports had two answers in the same context**, and the anti-invention check was flagging
->   addresses the app itself had supplied.
+>   SNMP* look the same from outside. A device a switch announces that stays quiet is now shown and
+>   counted — before, it did not appear at all.
+> - **The assistant declares the part of the graph it was not given**, and passive cabling comes out
+>   summarised: 56% off the context, one question in twenty.
+> - **One number, one definition** — free ports had two answers in the same context, and the
+>   anti-invention check was flagging addresses the app itself had supplied.
 
 > 📰 **v2.11.4 — a security release: two passes over the whole product, and everything they found that could be fixed safely.**
 >
