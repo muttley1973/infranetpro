@@ -36,24 +36,40 @@ function collectJsFiles(dir, out = []) {
   return out;
 }
 
-const files = collectJsFiles(ROOT)
-  .sort((a, b) => a.localeCompare(b))
-  .map(file => path.relative(ROOT, file));
-
-let failed = false;
-for (const file of files) {
-  const res = spawnSync(process.execPath, ['-c', file], {
-    cwd: ROOT,
-    encoding: 'utf8',
-    stdio: 'pipe',
-  });
-  if (res.status !== 0) {
-    failed = true;
-    if (res.stdout) process.stdout.write(res.stdout);
-    if (res.stderr) process.stderr.write(res.stderr);
-  }
+// L'ELENCO dei sorgenti del prodotto, separato dal parse. Serve a due chiamanti:
+// questo script (che li passa tutti a `node -c`, ~38 s) e il cancello che tiene
+// onesto il numero stampato nel README (test/readme-numeri-misurati.test.js), a
+// cui serve solo CONTARLI — una camminata di millisecondi.
+// ⚠️ Separati apposta: un cancello che dovesse rifare i 546 spawn costerebbe piu'
+// dell'intera suite, e un cancello caro e' un cancello che qualcuno spegne. Ma la
+// regola su COSA e' sorgente resta UNA, qui: duplicarla nel test vorrebbe dire che
+// il numero sorvegliato e quello stampato possono divergere in silenzio, che e'
+// esattamente il difetto da cui nasce questo cancello.
+function sourceFiles() {
+  return collectJsFiles(ROOT)
+    .sort((a, b) => a.localeCompare(b))
+    .map(file => path.relative(ROOT, file));
 }
 
-if (failed) process.exit(1);
+if (require.main === module) {
+  const files = sourceFiles();
+  let failed = false;
+  for (const file of files) {
+    const res = spawnSync(process.execPath, ['-c', file], {
+      cwd: ROOT,
+      encoding: 'utf8',
+      stdio: 'pipe',
+    });
+    if (res.status !== 0) {
+      failed = true;
+      if (res.stdout) process.stdout.write(res.stdout);
+      if (res.stderr) process.stderr.write(res.stderr);
+    }
+  }
 
-console.log(`Syntax OK: ${files.length} file`);
+  if (failed) process.exit(1);
+
+  console.log(`Syntax OK: ${files.length} file`);
+}
+
+module.exports = { collectJsFiles, sourceFiles, ROOT, SKIP_DIRS, SKIP_PATHS };
