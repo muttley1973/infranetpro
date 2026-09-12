@@ -26,7 +26,7 @@ test('porte, apparati e cavi restano tre rapporti separati', () => {
   }, 100));
   assert.equal(q.porte, 0.9, 'le porte si contano fra porte');
   assert.equal(q.presenza, 0.9, 'gli apparati fra apparati (100 - 10 non confermati)');
-  assert.equal(q.cecita, 0.5, 'e metà della non-conferma è cecità nostra, non assenza loro');
+  assert.equal(q.cecita, 0.05, 'e la cecità è quota del PARCO: 5 non guardati su 100, non 5 sui 10 mancanti');
 });
 
 // ── LA regola: guardare meno non deve migliorare il voto ───────────────────
@@ -37,7 +37,7 @@ test('restringere la scansione NON fa salire la presenza', () => {
   const ristretta = quoteDiUnaRiga(riga('b', { consistent: 50, macOrphan: 0, unverified: 20 }, 100));
   assert.equal(coperta.presenza, ristretta.presenza,
     'spostare apparati da «assenti» a «non guardati» non è un miglioramento: se il numero sale, la metrica premia la cecità');
-  assert.equal(ristretta.cecita, 1, 'e la cecità lo dice chiaro: tutta la non-conferma è nostra');
+  assert.equal(ristretta.cecita, 0.2, 'e la cecità lo dice chiaro: un quinto del parco non è stato guardato');
 });
 
 test('se la cecità cresce, il verdetto è «non-confrontabile» — non «migliora»', () => {
@@ -47,8 +47,20 @@ test('se la cecità cresce, il verdetto è «non-confrontabile» — non «migli
     riga('2026-09-03', { consistent: 60, stateDrift: 10, macOrphan: 2,  unverified: 25 }, 100),
   ]);
   assert.equal(t.verdetto, 'non-confrontabile');
-  assert.match(t.perche.join(' '), /NON si riesce a guardare/,
+  assert.deepEqual(t.perche.map(p => p.code), ['cecitaCresciuta'],
     'e deve DIRE perché: un miglioramento che viene dalla copertura persa non è un miglioramento');
+});
+
+test('sistemare gli ASSENTI non deve far scattare la guardia della cecità', () => {
+  // ⚠️ Trovato guardando il disegno sul caso vero, non dalle prove: con la
+  // cecità misurata sulla NON-CONFERMA, gli stessi 3 non guardati passavano dal
+  // 14% al 60% solo perché gli assenti calavano — e una rete che migliora
+  // davvero si sentiva rispondere «prima recupera la copertura».
+  const t = trendVerifiche([1, 2, 3, 4, 5].map((i) => riga('2026-09-0' + i, {
+    consistent: 80 + i * 3, stateDrift: 20 - i * 3, macOrphan: 22 - i * 4, unverified: 3, undocumented: 9 - i,
+  }, 100)));
+  assert.equal(t.cecita.verdetto, 'stagna', 'i non guardati sono sempre 3 su 100: la cecità non si è mossa');
+  assert.equal(t.verdetto, 'migliora', 'e il verdetto deve poterlo dire');
 });
 
 // ── Comparabilità ──────────────────────────────────────────────────────────
@@ -85,7 +97,8 @@ test('se la rete cambia taglia, la serie si SPEZZA invece di mentire', () => {
   ]);
   assert.ok(t.rottura, 'la rottura esiste');
   assert.equal(t.campioni, 3, 'si confronta solo il tratto che descrive la rete di adesso');
-  assert.match(t.perche.join(' '), /due reti diverse non si confrontano/);
+  assert.ok(t.perche.some(p => p.code === 'serieSpezzata' && p.da === 100 && p.a === 400),
+    'e la rottura si dichiara col prima e il dopo, non come una frase generica');
 });
 
 // ── Il verdetto, e il suo PERCHÉ ───────────────────────────────────────────
@@ -95,7 +108,7 @@ test('con meno di tre campioni non c\'è tendenza, e lo si dice all\'utente', ()
     riga('2026-09-02', { consistent: 90, stateDrift: 10 }, 100),
   ]);
   assert.equal(t.verdetto, 'non-confrontabile');
-  assert.match(t.perche.join(' '), /matura con l'uso/,
+  assert.ok(t.perche.some(p => p.code === 'pochiCampioni' && p.n === 2),
     'è il SECONDO must del principio: comunicare che la percentuale matura, non è istantanea');
 });
 
@@ -103,7 +116,7 @@ test('«stagna» porta sempre il bucket che tiene ferma la coda: senza, non è a
   const c = { consistent: 90, stateDrift: 2, macOrphan: 1, undocumented: 40, unverified: 1 };
   const t = trendVerifiche([riga('2026-09-01', c, 100), riga('2026-09-02', c, 100), riga('2026-09-03', c, 100)]);
   assert.equal(t.verdetto, 'stagna');
-  assert.match(t.perche.join(' '), /undocumented/,
+  assert.ok(t.perche.some(p => p.code === 'codaFerma' && p.bucket === 'undocumented'),
     '«la coda non cala perché 40 non-documentati non sono mai stati decisi» è una frase su cui si agisce; «stagna» no');
 });
 
@@ -132,6 +145,26 @@ test('la coda usa la definizione del Drift Report, non una seconda somma', () =>
   assert.equal(quoteDiUnaRiga(riga('a', c, 100)).coda, driftActionable(c),
     'due posti che contano «la coda» con due somme diverse sono due verità sullo stesso numero');
   assert.equal(driftActionable(c), 21, 'e chi resta fuori ci resta per un motivo: spento a mano, rumore endpoint, non guardato, informativo');
+});
+
+// ── Il motore non parla nessuna lingua ─────────────────────────────────────
+test('i perché sono CODICI, non frasi: la prosa la sceglie chi rende', () => {
+  // ⚠️ Una frase italiana che esce da un motore puro finisce tale e quale in
+  // un'interfaccia inglese, e la parità di CHIAVI i18n non la vede — perché non
+  // nasce da una chiave. Questo cancello sta qui perché quella rottura è muta.
+  const casi = [
+    trendVerifiche([riga('a', { consistent: 90, stateDrift: 10 }, 100)]),
+    trendVerifiche([riga('a', { consistent: 90, stateDrift: 10, undocumented: 9 }, 100),
+      riga('b', { consistent: 90, stateDrift: 10, undocumented: 9 }, 100),
+      riga('c', { consistent: 90, stateDrift: 10, undocumented: 9 }, 100)]),
+  ];
+  for (const t of casi) {
+    assert.ok(t.perche.length, 'un verdetto senza perché non è azionabile');
+    for (const p of t.perche) {
+      assert.equal(typeof p, 'object', 'un perché è un codice con i suoi dati, non una stringa');
+      assert.match(p.code, /^[a-zA-Z]+$/, 'e il codice è un identificatore, non prosa: ' + JSON.stringify(p));
+    }
+  }
 });
 
 // ── Il bucket che la timeline buttava via ──────────────────────────────────
