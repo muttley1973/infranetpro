@@ -146,7 +146,17 @@ Double-click <code>avvia.bat</code>.<br>
 
 > **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then run **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.11.6) — the tool says what it cannot see.**
+> 📰 **What's new (v2.11.7) — a security patch, and a README that stopped overpromising.**
+>
+> - **SNMP credentials had two ways out, both closed.** The JSON backup fell back to the raw project
+>   when the redaction had not loaded, and the VM panel showed the community in clear. Every other
+>   exit was checked and was already guarded.
+> - **Seven sentences the code had already proved wrong** are gone from the README and the
+>   architecture notes — among them a VLAN limit that does not exist, standing in for one that does.
+> - **External engines are a possible secondary evidence source** — optional, never a dependency;
+>   integrations with vendor or platform APIs on request.
+
+> 📰 **v2.11.6 — the tool says what it cannot see.**
 >
 > - **A trend on the verification timeline.** Where you are, and where you are going. It refuses a
 >   verdict when the part it could not look at has grown: an improvement could be coming from there

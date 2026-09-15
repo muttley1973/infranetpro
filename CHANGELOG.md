@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.11.7] — 2026-09-15
+
+A security patch, and a README that stopped promising more than the code does.
+
+### Fixed
+
+- **SNMP credentials had two ways out.** The *JSON backup* download fell back to the raw project when the redaction script had not loaded — community strings and SNMPv3 passphrases included, in the very file people attach and share. It now refuses, and says why. The VM panel showed the community in a plain text field, where a screenshot attached to an issue would publish it; it is masked now, like the device panel's. Every other way out — REST API, Ansible inventory, AI context, PDF dossier, portable export, viewer role, server logs — was checked and already guarded. The new test asks the schema which fields are secret, so a future one is covered on its own.
+- **Seven sentences the code had already proved wrong.** The architecture notes still listed as open a ping bug fixed in July. The top of the README claimed the product knows when a community is wrong, which SNMPv2c makes impossible: what it flags is a device that should answer and stays quiet. *Known limitations* described a VLAN limit that does not exist and hid the one that does — a Cisco trunk read from the VTP MIB stops at VLAN 1023 — pointed at a database backend that was never built, and offered LLDP as the cure for a write that never happens.
+
+### Changed
+
+- **External discovery and monitoring engines are a possible secondary evidence source**, not a closed door: optional, not a priority, never a runtime dependency. Integrations with vendor or platform APIs can be built on request.
+- `js-yaml` 4.3.1 → 4.3.2 — development only, pulled in by ESLint.
+
 ## [2.11.6] — 2026-09-12
 
 The release that taught the tool to say what it cannot see. The assistant declares the part of

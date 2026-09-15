@@ -121,7 +121,10 @@ router.get('/api/projects/:id/history/timeline', auth.requireAdmin, (req, res) =
 // ── SNAPSHOT completi ripristinabili (Fase 4) ────────────────────────
 // Crea uno snapshot INTERO (gzip lato store). Il client invia lo `state` corrente
 // (bgImage/auditLog esclusi, come pushHistory) → cattura anche le modifiche non
-// salvate. Redazione credenziali come il PUT progetto.
+// salvate. Come il PUT del progetto, qui si ripulisce SOLO il puntatore al backup
+// (_sanitizeBackupRefs): le credenziali SNMP restano dentro lo snapshot, che è un
+// file del server servito solo a un admin. Qui c'era scritto «redazione credenziali»,
+// e non è mai stato vero: chi lo leggeva si fidava di una barriera che non c'è.
 router.post('/api/projects/:id/history/snapshots', auth.requireAdmin, (req, res) => {
   const id = +req.params.id;
   if (!_projectExists(id)) return res.status(404).json({ error: 'Project not found' });
