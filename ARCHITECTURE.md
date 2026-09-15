@@ -1515,12 +1515,16 @@ is VPN/LAN.
     (`lib/correlate.js`), `server/routes/discovery.js`, `_discArpRow` (`src/app-discovery.js`).
     Validated live: the lab VPCS (`10.10.10.100`, missed 2–3/5 by the sweep) is proposed from
     SW-CORE's ARP without any ping.
-  - **Still open — the ping sweep trusts the `ping` exit code** (`_pingHost`). On Windows,
-    `ping` exits `0` even for a router's *"destination host unreachable"* reply, so empty IPs
-    **behind an L3 gateway** can be counted as live (the gateway rate-limits the ICMP errors
-    → a handful of scattered phantoms, not the whole subnet). A real echo-reply must be
-    required (`ttl=` / `bytes from`) **and** unreachable replies excluded; the text fallback
-    (`'1 received'`) is Linux-only, so on Windows the buggy exit-code path still wins.
+  - **The ping sweep no longer trusts the `ping` exit code on Windows (addressed).** There,
+    `ping` exits `0` even when a router answers *"destination host unreachable"* or *"TTL
+    expired in transit"* in place of the target, so empty IPs **behind an L3 gateway** were
+    counted as live (the gateway rate-limits the ICMP errors → a handful of scattered phantoms,
+    not the whole subnet). On Windows only a genuine echo reply counts now: its text always
+    carries `TTL=`, in every display language, and the intermediate ICMP errors never do — so
+    the exit code is ignored. On Linux/macOS the exit code is reliable and stays, with the reply
+    marker as a fallback. `_pingResultIsAlive`, `server/netscan.js`; the Italian and English
+    unreachable replies, the TTL-expired one and an empty output are pinned in
+    `test/ping-retry.test.js`.
 - **Discovery engine — SNMP port mapping is now ifName-anchored (2026-07).** A live
   **multivendor** PnetLab run (Cisco vIOS ×3, MikroTik RouterOS, VyOS and Ubuntu/net-snmp
   + VPCS; two LACP bundles, four VLANs, L3-lite) confirmed recognition / HOST-RESOURCES /
@@ -1551,9 +1555,9 @@ is VPN/LAN.
   LLDP/CDP-discovered neighbor: the backend resolves it from `sysObjectID` (e.g. Cisco from
   PEN 9), but a stale `vendor:''` default in the merge was overwriting it *after* the spread,
   so crawled devices showed Vendor "—" while a directly-scanned device kept it. The merge now
-  preserves the resolved vendor (`_discCrawlRow`, `src/app-discovery.js`). The discovery items
-  still open are the ping-sweep **exit-code false-positive** and the **off-segment ping-only**
-  miss under sweep load (both above).
+  preserves the resolved vendor (`_discCrawlRow`, `src/app-discovery.js`). The two discovery
+  items this section used to leave open — the ping-sweep **exit-code false positive** and the
+  **off-segment ping-only** miss under sweep load — are both addressed (above).
 
 ---
 

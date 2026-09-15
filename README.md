@@ -62,8 +62,9 @@ Most tools do one of two things. A **DCIM stores what you declare** and never ch
 **InfraNet Pro keeps both — and the product is the disagreement.** One button compares the document
 against the live network and answers in **nine categories**, including the two most tools never
 separate: *documented but absent* (we looked, it is gone) and *not verifiable* (the sweep never
-reached that subnet). A device that stays quiet because the community is wrong is reported as
-**silent to this key**, not as one without SNMP. And when it could not look at enough of the
+reached that subnet). A device that *should* answer SNMP — announced by a neighbour, or documented
+with an SNMP driver and alive — but stays quiet is reported as **silent to this key**, not as one
+without SNMP: most often it is the wrong community. And when it could not look at enough of the
 network to judge, **it says so instead of handing you a number**.
 
 That is the whole idea: a document you can hand to a client, that tells you what it could not check.
@@ -1089,11 +1090,11 @@ See [integrations/ansible/README.md](integrations/ansible/README.md) for the ful
 | Area | Limitation | Workaround |
 |---|---|---|
 | Cisco IOS Q-BRIDGE | `dot1qVlanStaticName` and egress bitmaps return empty without per-VLAN community context (`public@100`) | VTP MIB fallback is used automatically |
-| VLAN bitmap size | Q-BRIDGE bitmaps cover VLANs 1–4094; extended range VLANs (4095+) not supported | — |
+| Cisco trunk VLANs | Where Q-BRIDGE comes back empty (the row above), a trunk's allowed VLANs are read from the VTP MIB column that covers VLANs 0–1023; VLANs 1024–4094 on that trunk are not read (the MIB's 2k/3k/4k columns are not polled) | — |
 | SNMPv3 EngineID | Must be auto-discovered; manual EngineID entry not yet supported | Use v2c if v3 discovery fails |
-| CDP | Read-only; Cisco proprietary CDP is polled but not written | Use LLDP where possible |
+| Writes to devices | None, by design: SNMP, LLDP and CDP are only read, and nothing is ever written to a device | Configuration changes stay in your own tooling |
 | Concurrent users | No WebSocket push; each browser polls independently | A save that has been superseded is now refused instead of silently overwriting: the app says who wrote and when, and offers to overwrite. You still learn of the other session at save time, not while they work |
-| Storage | File-based JSON; not suitable for >1000 projects or multi-server deployments | Migrate to a database backend for large scale |
+| Storage | File-based JSON served by one process: not built for multi-server deployments | None today — there is no database backend (SQLite for history is under Planned below) |
 | Physical Path | Segment editing (P1.5) supports linear chains through `port`-type pass-throughs (`wallport`, `patchpanel`, `voip`); `device`-type media converters are not yet offered as routing hops | Media-converter routing + automatic voice-VLAN tagging are archived for a later step |
 
 ---
@@ -1129,7 +1130,7 @@ Full release notes live in [CHANGELOG.md](CHANGELOG.md). Highlights of what has 
 - [x] **Vector PDF / SVG export + audit-ready asset register** — full rack SVG (MGMT/SFP side blocks); bilingual (it/en) report; secret-free per-device inventory page with a "last revised" timestamp
 - [x] **Classification engines** — sysObjectID + OUI (IEEE ~57k) + Fusion Scorer (vendor identity ≠ device type), plugin-based, hot-reload, zero-database; behaviour frozen by the 55-device golden
 - [x] **SNMP parameter import** — live read-only system / Printer-MIB / HOST-RESOURCES cards; manual-first; validated on real hardware
-- [x] **Discovery** — deep scan (TCP/NetBIOS/SMB) + confidence scoring, reachability states, off-segment SNMP-ARP (`arpnip`), switch-port mapping (FDB `macsuck`), DHCP-as-source, mDNS/SSDP/ONVIF listen
+- [x] **Discovery** — deep scan (TCP/NetBIOS/SMB) + confidence scoring, reachability states, off-segment SNMP-ARP (`arpnip`), switch-port mapping (FDB `macsuck`), DHCP-as-source, mDNS/SSDP/ONVIF listen, and one device per chassis — the NICs of one box folded together on authoritative keys only (own IP, serial, SNMP engine ID, mDNS UUID), never on a name or a MAC
 - [x] **Device catalog** — NVR, SD-WAN edge, VPN concentrator, door controller, panelboard; dedicated MGMT + SFP (×2) blocks; stacking (StackWise/VSF/Virtual Chassis/IRF); HA pair/cluster modeling; management-protocol launcher
 - [x] **Multi-vendor LAG detection** — four-level cascade (ifStack / 802.3ad / ActorOperState / LLDP-inferred), logical id, LACP mode coherence
 - [x] **Topology "to confirm" states** — deduced infra/uplink cables (guessed remote port, materialised gateway, FDB uplink-resolution of a documented device) are born *Inferred · to verify* (amber Confirm/Delete, dashed on the map), never mislabelled `LLDP` — nor `LAG` when the uplink lands on a local LAG member port toward a blind switch whose port we can't know; a hidden multi-port intermediary behind a 2–4-MAC access port is surfaced as a shared L2 segment with a role **suggested** from the endpoints (other subnet → gateway · virtual OUI → hypervisor · randomised MAC → AP · else switch) and materialised from the Shared L2 panel
@@ -1143,11 +1144,9 @@ Full release notes live in [CHANGELOG.md](CHANGELOG.md). Highlights of what has 
 - [ ] **Per-field provenance in the schema** — every field carrying an explicit origin (declared / measured / derived), so the document can say where each value came from instead of the app inferring it per screen. **Half of it exists**: `lib/provenance.js` is the envelope and `lib/project-schema.js` classifies all 165 fields of a project — what is missing is the consumption, since today only the multi-site layer is born wrapped in it
 - [ ] **DCIM write-back** — the half that writes, gated: maker-checker, dry-run, re-read after the write, and a closed list of writable fields. A deduced cable is never promoted to the DCIM unless its proof state allows it
 - [ ] `ENTITY-SENSOR-MIB` (temperatures/fans/PSU) + real PoE wattage per switch
-- [ ] Explicit topology states in the UI (`exact / probable / ambiguous / shared-segment / uplink-to-unknown`)
 - [ ] SQLite-backed storage for discovery/IP history, FDB cache and audit log
 - [ ] Internal discovery/classification hardening (richer local plugins, more real-device tests)
 - [ ] Topology multi-source fusion (LLDP + FDB agreement boost; stricter unmanaged-switch detection)
-- [ ] Discovered-device de-duplication, shadow/rogue-device signal
 - [ ] Keep discovery propose-and-reconcile, never overwrite (the *"discovered ≠ intent"* model)
 
 **Out of scope** (parked): WebSocket multi-user live push, SNMP trap receiver, temporal confidence on links, per-VLAN community auto-config wizard, BGP4 / POWER-ETHERNET / Print MIBs, conduit/cable-tray modeling, fiber loss-budget math, HA Tappe B+C.
