@@ -82,7 +82,7 @@ document still matches it. You draw the racks and the floor plan; one button pol
 over SNMP and reports, row by row, where the drawing and the network disagree — and where it could
 not check. Interfaces, VLANs, LAG groups and neighbour topology are discovered automatically — no external database, no cloud dependency, minimal tooling (a lightweight esbuild bundle for the frontend; `npm start` builds it).
 
-Current product direction: InfraNet Pro keeps discovery and classification inside the app. External discovery and monitoring engines are not part of the active roadmap; the internal SNMP/sysObjectID/LLDP/CDP/FDB engine is the source of truth and can be refined with local plugins over time.
+Current product direction: InfraNet Pro keeps discovery and classification inside the app; the internal SNMP/sysObjectID/LLDP/CDP/FDB engine is the source of truth and can be refined with local plugins over time. External discovery and monitoring engines are possible as **secondary evidence sources — not a priority, and never a runtime dependency**. The groundwork is already in place: drivers and adapters resolve only through explicit allowlists, and a provenance envelope keeps what was declared apart from what was measured, so outside evidence would arrive labelled as a measurement, never as a declaration. **Integrations with vendor or platform APIs can be built on request** — see [Feedback & requests](#feedback--requests).
 
 <table>
 <tr>
@@ -645,7 +645,7 @@ infranetpro/
 **Design principles:**
 - **Minimal-tooling frontend** — the only build step is a lightweight esbuild bundle of the `src/` ESM modules; the pure `lib/*.js` and `export.js` stay classic static assets *by design*. The strangler migration to ESM is complete; retiring the transitional `window` bridge (`win.*` reads → `import`, inline handlers → event delegation) is **being finished one panel at a time** — Axis A (`win.*` → `import`) is down to 264 reads and still falling — twice now a supposed floor turned out to be one more caller nobody had converted — and Axis B (inline handlers → delegation) is driven down behind a monotonic ratchet that only shrinks. See [ARCHITECTURE.md](ARCHITECTURE.md) §10.
 - **File-based storage** — each project is a plain JSON file (easy to back up / version-control); the floor-plan image is kept out of the JSON as a sidecar asset and re-attached as a data-URL on load, so saves stay fast even with large maps.
-- **Internal plugin model** — discovery intelligence is extended with local SNMP/sysObjectID/OUI plugins and self-contained drivers, never external discovery platforms.
+- **Internal plugin model** — discovery intelligence is extended with local SNMP/sysObjectID/OUI plugins and self-contained drivers; an external platform can only ever be an optional, secondary evidence source, never a dependency.
 - **Tested core** — bug-prone parsing/normalization logic is covered by a dependency-free regression suite (`npm test`); CI also runs a syntax check, an ESLint gate, a `tsc` JSDoc type check and a real-browser e2e suite.
 
 The full module-by-module layout is documented in [ARCHITECTURE.md](ARCHITECTURE.md).
