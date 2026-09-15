@@ -275,7 +275,10 @@ function _snmpSectionHtml(vm, ref){
               + cfgSel('v3secLevel', 'Security level', cfg.v3secLevel,
                   [['noAuthNoPriv', 'noAuthNoPriv'], ['authNoPriv', 'authNoPriv'], ['authPriv', 'authPriv']], 'authPriv')
               + cfgField('v3context', t('intg.context'), cfg.v3context, { ph: t('pnl.node.v3ContextPlaceholder') })
-            : cfgField('community', 'Community', cfg.community, { ph: 'public' }))
+            // La community è una credenziale come le due password v3 qui sopra:
+            // mascherata come nel pannello dell'apparato. In chiaro, uno screenshot
+            // allegato a una segnalazione la pubblicava.
+            : cfgField('community', 'Community', cfg.community, { ph: 'public', type: 'password' }))
         + `<button type="button" class="toolbar-btn primary" style="width:100%;justify-content:center;margin-top:6px" ${ref} data-act="vm-snmp-read">`
         + `<i class="fas fa-satellite-dish"></i> ${t('hv.vmSnmpRead')}</button>`
         + err + measured

@@ -39,10 +39,20 @@ const PDF_EXPORT_DEFAULTS = {
     includeWan:         true,   // capitolo "WAN": mappa inter-sede + schede per rifare linee e collegamenti
 };
 
+// 🔒 Il file che si scarica passa SEMPRE dalla redazione delle credenziali
+// (lib/project-format.js). C'era un ripiego che, se quel file non si fosse
+// caricato, scaricava lo state GREZZO — community e password SNMPv3 comprese —
+// in un file chiamato «backup»: proprio quello che si allega a una segnalazione,
+// si manda a un collega, si mette in una cartella condivisa. Un ripiego non può
+// esportare più della strada normale: senza redazione non si esporta niente, e
+// lo si dice. La prova è test/credenziali-non-escono.test.js.
 function exportJSON() {
-    const payload = typeof createPortableProjectExport === 'function'
-        ? createPortableProjectExport(state, { projectId: typeof currentProjectId !== 'undefined' ? currentProjectId : '' })
-        : { format:'infranet-project-export', schemaVersion: Number(state?.schemaVersion) || 1, exportedAt:new Date().toISOString(), state };
+    if (typeof createPortableProjectExport !== 'function') {
+        if (typeof _showToast === 'function')
+            _showToast(_t('impexp.jsonExportUnavailable', 'JSON export unavailable: the credential redaction did not load. Reload the page.'), 'warn');
+        return;
+    }
+    const payload = createPortableProjectExport(state, { projectId: typeof currentProjectId !== 'undefined' ? currentProjectId : '' });
     const blob = new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
