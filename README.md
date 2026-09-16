@@ -146,7 +146,17 @@ Double-click <code>avvia.bat</code>.<br>
 
 > **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then run **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.11.7) — a security patch, and a README that stopped overpromising.**
+> 📰 **What's new (v2.11.8) — the passive layer gets a strategy, and the code loses its dead weight.**
+>
+> - **The patch panel, solved by derivation.** The run inside the wall never changes, so the wall socket
+>   follows from the switch port; and the devices that never move anchor a rack patched with no rule at all.
+>   The convention costs one command: put the **panel port** in the switch port description — who is plugged
+>   in, the app measures on its own.
+> - **Dead weight out.** Seventeen dead imports in the server, a layout table nobody read that still shipped
+>   in the browser bundle, and 83 lint warnings down to 5 — none of it changes behaviour.
+> - **Errors keep their cause**, and a test case that read like a Windows path, but was not one, now is.
+
+> 📰 **v2.11.7 — a security patch, and a README that stopped overpromising.**
 >
 > - **SNMP credentials had two ways out, both closed.** The JSON backup fell back to the raw project
 >   when the redaction had not loaded, and the VM panel showed the community in clear. Every other
@@ -443,6 +453,15 @@ Double-click <code>avvia.bat</code>.<br>
 | **🤖 AI assistant** | Bring-your-own-key, OpenAI-compatible, local by default; allowlist context, grounded answers with clickable citations, Ansible drafts — advisory, never auto-applied |
 | **🔒 Security** | Session auth with admin/viewer roles, rate-limited login, loopback bind, secrets structurally excluded from every data surface |
 | **🌍 Bilingual** | Complete Italian and English interface, onboarding and a ~67-page manual, guarded by an `it ↔ en` key-parity test |
+
+> **Keeping the passive layer true.** A patch panel is passive: nothing can measure which wall socket a cable
+> comes from. But the run inside the wall — socket ↔ panel port — never changes, so the socket can be *derived*
+> from the switch port, and the devices that never move (printers, access points, phones) anchor the rack
+> patching even where it was done with no rule at all. The convention that makes it work costs one command:
+> put the **panel port** in the switch port description, not who is plugged in — who is plugged in the app
+> measures on its own, the socket nobody can. InfraNet reads that description and offers it when you write
+> your own; comparing it against the document is not built yet. Full strategy in the manual, chapter
+> *Cables, connections and wireless*.
 
 > Every heading below opens. Deeper detail lives in [ARCHITECTURE.md](ARCHITECTURE.md), the [technical manuals](MANUALE_TECNICO_IT.pdf) and the commit history.
 <details>

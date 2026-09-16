@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.11.8] — 2026-09-16
+
+A strategy for the one layer nothing can measure, and a spring clean of the code.
+
+### Added
+
+- **The passive layer gets a method, written down.** A patch panel answers no query: which wall socket a cable comes from is the one thing SNMP will never see. But the run inside the wall does not change, so the socket can be **derived** from the switch port, and the devices that never move — printers, access points, phones — anchor the rack patching even where cords were attached with no rule at all. The convention that makes it work costs one command per port: put the **panel port** in the switch port description, not who is plugged in. Who is plugged in the app measures on its own; the socket nobody can. The manual carries the full strategy (chapter *Cables, connections and wireless*), and the README a summary. ⚠️ InfraNet reads that description and offers it when you type your own, but does not yet compare it with the document — this is a working convention, not an automatic check.
+
+### Changed
+
+- **Dead weight out of the code.** Seventeen dead imports left in `server.js` by the split into routes, a front-panel layout table nobody reads that still travelled in the browser bundle, unused locals and parameters, and unnecessary escapes in regular expressions: 83 lint warnings down to 5, and the five that stay are deliberate. No behaviour changes.
+
+### Fixed
+
+- **Errors keep their cause.** Three places rethrew a library failure as a fresh message, dropping the original: they now pass `{ cause }`, so what really failed travels with the message.
+- **A test case that was not what it looked like.** `test/backup-ref.test.js` used `'C:\backup\admin@corp\sw1.cfg'`, which in JavaScript is not a Windows path — `\b` is a control character — so the case never tested what its author meant. It does now.
+
 ## [2.11.7] — 2026-09-15
 
 A security patch, and a README that stopped promising more than the code does.
