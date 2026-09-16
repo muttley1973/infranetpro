@@ -168,7 +168,7 @@ async function main() {
   const dedupe = new Map();
   // Process from shortest to longest so the longer ones overwrite during lookup
   // refinement. We keep both in the JSON; the engine picks longest-prefix-wins.
-  for (const { source, entries } of fetched) {
+  for (const { entries } of fetched) {
     for (const e of entries) {
       const existing = dedupe.get(e.prefix);
       if (!existing) { dedupe.set(e.prefix, e); continue; }

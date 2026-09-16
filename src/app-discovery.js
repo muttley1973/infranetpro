@@ -782,8 +782,8 @@ function _discSummaryHtml(results, extra={}){
     if(extra.updated != null) chips.push(['updated', _dt('disc.chip.updated','Aggiornati'), extra.updated]);
     if(extra.autoLinked != null) chips.push(['autolink', _dt('disc.chip.autoLink','Link auto'), extra.autoLinked]);
     return `<div class="disc-summary-grid">${chips
-        .filter(([key,label,value])=>Number(value) > 0 || key === 'total' || key === 'on')
-        .map(([key,label,value])=>`<span><b>${escapeHTML(value)}</b>${escapeHTML(label)}</span>`)
+        .filter(([key,_label,value])=>Number(value) > 0 || key === 'total' || key === 'on')
+        .map(([_key,label,value])=>`<span><b>${escapeHTML(value)}</b>${escapeHTML(label)}</span>`)
         .join('')}</div>`;
 }
 
@@ -1101,7 +1101,7 @@ async function _runCrawlPhase(seeds, driver, community, timeout, scanCidr){
         _prog.innerHTML = `<span class="tm-ok"><i class="fas fa-spinner fa-spin"></i> ` +
             _dt('disc.expandingLive','Espansione LLDP/CDP… {ip} · {n} via LLDP/CDP · {m} localizzati su porta',{ip:_lastIp,n:_foundN,m:_locatedN}) + `</span>`;
     };
-    let crawlAbort = null;
+    let crawlAbort;
 
     try{
         crawlAbort = new AbortController();

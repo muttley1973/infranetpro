@@ -436,7 +436,7 @@ function _cmpMore(n) {
   return `<div class="dcim-cmp-more">${escapeHTML(t('dcim.cmp.andMore', { n }))}</div>`;
 }
 
-function _cmpRows(list, kind, groupKey) {
+function _cmpRows(list, kind, _groupKey) {
   return list.slice(0, _CMP_ROWS_SHOWN).map(item => {
     const fields = (item.fields || []).map(f => {
       const manual = f.manual ? ` <span class="dcim-cmp-manual">${escapeHTML(t('dcim.cmp.yours'))}</span>` : '';

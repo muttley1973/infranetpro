@@ -49,7 +49,7 @@ registerClickActions({
 });
 
 let _sharedBindState = null; // stato wizard bind (module-local, nessun lettore esterno)
-function _macRowsForPort(pid, opts={}){
+function _macRowsForPort(pid, _opts={}){
     const pi = store.state.ports[pid] || {};
     const node = getNodeByPortId(pid);
     if(!node || !TYPES[node.type]?.isActive) return null;
@@ -741,7 +741,7 @@ function _createSharedSegmentNode(pid, role){
 
     const used = new Set((store.state.nodes || []).map(n=>String(n.id || '')));
     const epCount = info.endpoints.length;
-    let n = null;
+    let n;
     if(role === 'ap'){
         const pos = _findFreeFloorSpot();
         const c = store.state.nodes.filter(x=>x.type==='ap').length + 1;

@@ -9,7 +9,7 @@ const priority = 100;
 
 function match() { return true; }
 
-function enrich(mac, context = {}) {
+function enrich(mac, _context = {}) {
   return {
     vendor: 'Synology',
     family: 'Synology DiskStation',

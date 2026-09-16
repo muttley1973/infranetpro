@@ -63,7 +63,7 @@ export function switchRightTab(tab){
 // L'hold decade da solo: cambio selezione (selId diverso) o switch tab
 // esplicito (switchRightTab lo azzera).
 store._propsTabHold = null;   // var: scritto da app-popup (selectPathSegment) e dal bundle render-core via win.*; bare-letto dai classic
-export function _activatePropsTab(label){
+export function _activatePropsTab(_label){
     if(_propsTabHold && selType === 'link' && selId === _propsTabHold) return;
     _propsTabHold = null;   // selezione cambiata → l'hold decade
     if(_rightTab !== 'props') switchRightTab('props');

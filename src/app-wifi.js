@@ -170,8 +170,6 @@ function _wifiCfgHtml(cfg, nodeId, idx){
     const chanOpts = opt('auto', chSel, 'Auto') + chGroups.map(g =>
         `<optgroup label="${esc(g.label)}${g.dfs ? ' · DFS' : ''}">${g.channels.map(c => opt(c, chSel, c)).join('')}</optgroup>`
     ).join('');
-    const secOpts = ['<option value="">—</option>']
-        .concat((typeof win.WIFI_SECURITY !== 'undefined' ? win.WIFI_SECURITY : []).map(s => opt(s, cfg.security, _WIFI_SEC_LABELS[s] || s))).join('');
     const stdOpts = ['<option value="">—</option>']
         .concat((typeof win.WIFI_STANDARDS !== 'undefined' ? win.WIFI_STANDARDS : []).map(s => opt(s.id, cfg.standard, s.label))).join('');
     // Banner PHY della radio (canale↔banda, standard↔banda); la sicurezza è per-BSS.
@@ -205,8 +203,6 @@ function _radioSsidsHtml(radio, nodeId, idx){
     const esc = s => escapeHTML(String(s == null ? '' : s));
     const _t = t;
     const opt = (val, sel, label) => `<option value="${esc(val)}"${String(sel) === String(val) ? ' selected' : ''}>${esc(label)}</option>`;
-    const secOpts = ['<option value="">—</option>']
-        .concat((typeof win.WIFI_SECURITY !== 'undefined' ? win.WIFI_SECURITY : []).map(s => opt(s, '', _WIFI_SEC_LABELS[s] || s)));
     const list = (typeof win.radioSsids === 'function') ? win.radioSsids(radio) : (radio && radio.ssids || []);
     const rows = list.map(s => {
         const u = `data-nid="${nodeId}" data-idx="${idx}" data-sid="${esc(s.id)}"`;

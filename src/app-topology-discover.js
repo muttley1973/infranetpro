@@ -368,16 +368,16 @@ function _createTopoLink(pairKey){
     const [rAId,rBId]=pairKey.split('|');
     const rANodeIds=store.state.nodes.filter(n=>n.rackId===rAId).map(n=>n.id);
     const rBNodeIds=store.state.nodes.filter(n=>n.rackId===rBId).map(n=>n.id);
-    let created=0,skipped=0; pushHistory();
+    let created=0,_skipped=0; pushHistory();
     for(const e of store._topoData.edges){
         const sT=store._topoData.nodes.find(n=>n.id===e.src), dT=store._topoData.nodes.find(n=>n.id===e.dst);
-        if(!sT?.nodeId||!dT?.nodeId){skipped++;continue;}
+        if(!sT?.nodeId||!dT?.nodeId){_skipped++;continue;}
         const inAs=rANodeIds.includes(sT.nodeId),inBd=rBNodeIds.includes(dT.nodeId);
         const inBs=rBNodeIds.includes(sT.nodeId),inAd=rANodeIds.includes(dT.nodeId);
-        if(!((inAs&&inBd)||(inBs&&inAd))){skipped++;continue;}
+        if(!((inAs&&inBd)||(inBs&&inAd))){_skipped++;continue;}
         const sp=_findPortByIfName(sT.nodeId,e.srcPort),dp=_findPortByIfName(dT.nodeId,e.dstPort);
-        if(!sp||!dp){skipped++;continue;}
-        if(store.state.links.some(l=>_linkHasPair(l, sp, dp))){skipped++;continue;}
+        if(!sp||!dp){_skipped++;continue;}
+        if(store.state.links.some(l=>_linkHasPair(l, sp, dp))){_skipped++;continue;}
         store.state.links.push(_createLinkRecord(sp,dp)); created++;
     }
     markDirty(); renderAll(); renderCables(); renderTopoOverlay();

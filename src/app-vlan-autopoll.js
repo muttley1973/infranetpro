@@ -968,7 +968,7 @@ function _vlanTagRole(type){ return _VLAN_TAG_ROLE[type] || 'access'; }
 export function showVlanMembers(vid){
     // Raccoglie porte con questo VLAN ID (access) — letta dall'interfaccia
     const accessPorts=[];
-    for(const [pid, pi] of Object.entries(store.state.ports)){
+    for(const pid of Object.keys(store.state.ports)){
         const eff=_effPortVlan(pid);
         if(eff===vid){
             const nid=getPortNodeId(pid);

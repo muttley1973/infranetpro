@@ -180,7 +180,7 @@ export function _paintRoutingTargets(){
     });
 }
 
-function _renderRoutingHint(link){
+function _renderRoutingHint(_link){
     let hint = document.getElementById('routing-hint');
     if(!hint){
         hint = document.createElement('div');

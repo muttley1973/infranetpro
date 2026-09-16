@@ -1402,7 +1402,6 @@ function extractData(vbs) {
        *    che non espongono ifPhysAddress (fallback)       ✅ includi
        * 4. Nessun MAC + nome virtuale    → sicuramente virtuale ❌ escludi
        */
-      const hasMac   = isRealMac(f.macBuf);
       const virtName = VIRTUAL_IF_RE.test((f.name || '').toLowerCase());
 
       if (!virtName) { physical.push(obj); _classify.push({ idx, name: obj.name, type: t, mac: mac||'-', r: 'PHYS' }); }
@@ -2133,7 +2132,7 @@ function extractNeighbors(vbs) {
       if (!Number.isFinite(ifIdx)) continue;
       const key = parts.join('.');
       // Valore può essere stringa ip oppure OctetString(4)
-      let ip = '';
+      let ip;
       if (Buffer.isBuffer(val) && val.length >= 4) ip = `${val[0]}.${val[1]}.${val[2]}.${val[3]}`;
       else ip = String(val || '').trim();
       if (!_isIPv4Str(ip)) ip = parts.slice(-4).join('.');
@@ -2432,7 +2431,7 @@ async function pollPower(cfg, kind) {
 
   let session;
   try { session = _createSnmpSession(driver, host, port, timeout, cfg, 0); }
-  catch (e) { throw new Error(e.message); }
+  catch (e) { throw new Error(e.message, { cause: e }); }
 
   const raw = await new Promise((resolve, reject) => {
     session.get(oids, (err, vbs) => {

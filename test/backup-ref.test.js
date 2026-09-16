@@ -123,7 +123,7 @@ test('🔒 PROPRIETÀ: dopo lo strip, il validatore non trova più credenziali',
     // buoni non è una difesa, è un guasto.
     'git@github.com:org/repo.git',
     'smb://server/share@2024',
-    'C:\backup\admin@corp\sw1.cfg',
+    'C:\\backup\\admin@corp\\sw1.cfg',
     '/var/backups/sw1.cfg',
   ];
   for (const c of casi) {
@@ -132,7 +132,7 @@ test('🔒 PROPRIETÀ: dopo lo strip, il validatore non trova più credenziali',
     assert.notEqual(v.reason, 'credentials', `dopo lo strip «${c}» → «${out}» non deve piu' contenere credenziali`);
   }
   // Le forme lecite escono IDENTICHE (a parte il trim).
-  for (const c of ['git@github.com:org/repo.git', 'smb://server/share@2024', 'C:\backup\admin@corp\sw1.cfg', '/var/backups/sw1.cfg']) {
+  for (const c of ['git@github.com:org/repo.git', 'smb://server/share@2024', 'C:\\backup\\admin@corp\\sw1.cfg', '/var/backups/sw1.cfg']) {
     assert.equal(stripRefCreds(c), c, `«${c}» è un puntatore legittimo e non si tocca`);
   }
 });

@@ -178,7 +178,7 @@ function _lagRepresentativeConnection(pid){
     let best = null;
     for(const l of store.state.links){
         if(!l) continue;
-        let localPid = null, remotePid = null;
+        let localPid, remotePid;
         if(getPortNodeId(l.src) === nodeId){ localPid = l.src; remotePid = l.dst; }
         else if(getPortNodeId(l.dst) === nodeId){ localPid = l.dst; remotePid = l.src; }
         else continue;

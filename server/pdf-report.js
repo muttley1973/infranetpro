@@ -23,7 +23,7 @@ function _loadPdfDeps() {
       _pdfkitMod   = require('pdfkit');
       _svgToPdfMod = require('svg-to-pdfkit');
     } catch (e) {
-      throw new Error('Dipendenze PDF non disponibili (esegui: npm install pdfkit svg-to-pdfkit). ' + e.message);
+      throw new Error('Dipendenze PDF non disponibili (esegui: npm install pdfkit svg-to-pdfkit). ' + e.message, { cause: e });
     }
   }
   return { PDFDocument: _pdfkitMod, SVGtoPDF: _svgToPdfMod };

@@ -97,7 +97,7 @@ function makeBrowserContext() {
     // subito durante lo smoke, ma senza loop infiniti.
     requestAnimationFrame(cb) { if (ctx.__rafDepth > 50) return 0; ctx.__rafDepth++; try { cb(Date.now()); } finally { ctx.__rafDepth--; } return 0; },
     cancelAnimationFrame() {},
-    setTimeout(cb) { return 0; },   // no-op: lo smoke non aspetta timer
+    setTimeout(_cb) { return 0; },   // no-op: lo smoke non aspetta timer
     clearTimeout() {}, setInterval() { return 0; }, clearInterval() {},
     queueMicrotask(cb) { try { cb(); } catch (_) {} },
     getComputedStyle: () => ({ getPropertyValue: () => '', width: '0px', height: '0px' }),

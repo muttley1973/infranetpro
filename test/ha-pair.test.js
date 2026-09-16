@@ -354,8 +354,7 @@ test('scenario: HA e Stacking coesistono senza interferenze', () => {
     const sw2 = { id: 'sw-2', type: 'switch', spec: { stackId: 'stk-core', stackMemberId: 2 } };
     const fw1 = pair('fw-1', 'fw-2', 'active');
     const fw2 = pair('fw-2', 'fw-1', 'standby');
-    const nodes = [sw1, sw2, fw1, fw2];
-    // Stack switch: NON in HA
+      // Stack switch: NON in HA
     assert.equal(isInHaGroup(sw1), false);
     assert.equal(isInHaGroup(sw2), false);
     // Firewall pair: NON in stack

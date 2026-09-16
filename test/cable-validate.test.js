@@ -4,7 +4,6 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { validateCable } = require('../lib/cable-validate.js');
 
-const codes = r => r.map(x => x.code).sort();
 const has = (r, code) => r.some(x => x.code === code);
 
 test('cavo coerente → nessun problema', () => {

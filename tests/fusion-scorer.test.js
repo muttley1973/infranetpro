@@ -171,7 +171,7 @@ test('FusionScorer: contradiction discount lowers confidence when runner-up is c
 test('FusionScorer: priority tie-break (firewall wins over router)', () => {
   const scorer = makeScorer({ priority: ['firewall', 'router'] });
   // Same score on firewall and router; firewall should win by priority
-  const result = scorer.classify({}, {});
+  scorer.classify({}, {});
   // Empty row → pc fallback; verify with synthetic context instead:
   const synth = scorer.classify({
     descr: 'fortigate router gateway',

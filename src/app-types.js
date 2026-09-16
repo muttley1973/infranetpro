@@ -143,13 +143,6 @@ export function _fixedRackLabel(type){
     return FIXED_RACK_LABELS[type] || '';
 }
 
-const FRONT_PANEL_LAYOUTS = {
-    auto:         { label:'Automatico' },
-    linear:       { label:'Lineare' },
-    sequential:   { label:'2 righe sequenziale' },
-    alternating:  { label:'2 righe alternata' },
-};
-
 const NODE_SPEC_FIELDS = new Set([
     'ppMedia','ppCopperCat','ppCopperShield','ppFiberConnector','ppFiberMode',
     'ssid','band','wifiStd','channel24','channel5','apController','powerType','mgmtVlan','mountType','installHeight','coverageRadius',

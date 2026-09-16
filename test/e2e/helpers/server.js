@@ -156,7 +156,7 @@ async function _startOnce(opts, port) {
     await waitReady(baseURL, 20000, () => exited || proc.exitCode != null);
   } catch (e) {
     pulisci();
-    throw new Error(`${e.message}\n--- server output ---\n${logs.join('')}`);
+    throw new Error(`${e.message}\n--- server output ---\n${logs.join('')}`, { cause: e });
   }
   if (exited) {
     pulisci();

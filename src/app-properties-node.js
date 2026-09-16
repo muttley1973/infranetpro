@@ -932,7 +932,6 @@ ${showFiber ? `<div class="prop-row2">
                 // DERIVATO (driver v3 + utente USM vuoto) → si azzera da sé appena
                 // l'utente compila l'utente. Niente flag da mantenere.
                 const v3NeedsCreds = isV3 && !String(intg.v3user||'').trim();
-                const lp=intg.lastPoll?new Date(intg.lastPoll).toLocaleString('it-IT'):'';
                 const snmpStatusBlock = showSnmp ? (() => {
                   const st = n.snmpStatus;
                   if(!st) return '';

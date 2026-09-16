@@ -177,7 +177,6 @@ class FusionScorer {
     const score = {};
     const evidences = [];
     const reasons = new Set();
-    const oid = p => objectId.startsWith(p);
 
     const bump = (type, points, reasonId, evidence) => {
       // 'unknown' is the SysObjectEngine "matched-but-untyped" placeholder, not a

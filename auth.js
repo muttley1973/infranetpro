@@ -14,7 +14,6 @@ const rateLimit = require('express-rate-limit');
 // keyGenerator personalizzata — express-rate-limit v8 lo richiede quando si compone
 // la chiave a partire da req.ip, altrimenti avverte del rischio di bypass IPv6.
 const ipKeyGenerator = rateLimit.ipKeyGenerator;
-const { timestamp } = require('./utils');
 const { atomicWriteFile } = require('./server/projects-store');
 
 // Override via INFRANET_USERS_FILE: tiene gli account su un volume dati persistente

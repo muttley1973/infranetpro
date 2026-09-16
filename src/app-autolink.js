@@ -637,7 +637,6 @@ export function _autoLinkWirelessAssoc(){
 // Esito esplicito via toast; aggiorna la vista solo se ha creato/modificato un link.
 async function _autoLinkEndpointUI(){
     if(!store.selId){ return; }
-    const node = nodeById(store.selId);
     // Prima assicura inventario porte SNMP (ifName/alias) per il matching.
     await _refreshSnmpPortInventory(false);
     let r = _autoLinkEndpoint(store.selId);

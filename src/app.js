@@ -8,7 +8,7 @@ import { canonicalizeIpv6 } from '../lib/ipv6.js';
 import { nodeIdOfPort } from '../lib/port-id.js';
 import { numericPortCeiling, orphansIfPortCount } from '../lib/port-inventory.js';   // quali porte ESISTONO: serve a dire cosa resta scollegato abbassando il conteggio
 import { migrateIpam } from '../lib/ipam-model.js';   // la subnet esce dalla VLAN e diventa un prefisso: migrazione idempotente al load
-import { migrateVmNics, VM_FLAT_NET_FIELDS, vmIps } from '../lib/vm-nics.js';   // migrazione vm.ip/mac/vlan → vm.nics[]; vmIps = IPv4 di tutte le vNIC
+import { migrateVmNics, VM_FLAT_NET_FIELDS } from '../lib/vm-nics.js';   // migrazione vm.ip/mac/vlan → vm.nics[]; vmIps = IPv4 di tutte le vNIC
 import { normalizePduOutletCount, normalizePduManagementMode, normalizePduPortCount, pduManagementPortCount } from '../lib/pdu-layout.js';
 import { store, resetProjectRuntime } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, normalizeNumber, normalizePortStatus, normalizeMacAddress, _shadeHex, PORT_ANCHOR_SEL } from './app-util.js';   // helper puri estratti dal god-file + ancora visuale delle porte
@@ -1576,8 +1576,6 @@ function _renderCablesNow(){
 
     // --- Cavi cross-rack: sinuosi, visibili solo quando la porta/link è selezionato ---
     if(suppressRackOverlays) return;
-    const chassisRect=document.getElementById('rack-chassis').getBoundingClientRect();
-    const xExit=chassisRect.right-vp.left;  // bordo destro esterno del telaio
     const xEnd =vp.width-6;                 // esce verso il bordo dx del viewport
     state.links.forEach(l=>{
         if(!shouldRenderLink(l)) return;    // visibile solo su selezione, come tutti i cavi

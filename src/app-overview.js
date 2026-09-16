@@ -200,7 +200,7 @@ function _buildModel() {
             power: (n.powerLive && typeof n.powerLive === 'object') ? n.powerLive : null,
         };
         if (_hb.host || _hb.printer || _hb.power) {
-            let alerts = [];
+            let alerts;
             // Un blocco malformato non deve far sparire la lente: peggio di «non lo
             // so» c'è solo una schermata bianca.
             try { alerts = computeHealthAlerts({ health: _hb }) || []; } catch (_) { alerts = []; }

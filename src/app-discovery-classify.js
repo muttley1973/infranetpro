@@ -312,7 +312,7 @@ export function _discMarkIpMacConflict(existing, row){
     if(existing.discoveryConflicts.length > 20) existing.discoveryConflicts.splice(0, existing.discoveryConflicts.length - 20);
 }
 
-export function _discTouchNodeIdentity(node, row, matchedBy='', idx=null){
+export function _discTouchNodeIdentity(node, row, _matchedBy='', idx=null){
     if(!node) return;
     const now = new Date().toISOString();
     const seenIp = String(row?.ip || '').trim();
