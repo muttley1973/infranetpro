@@ -637,6 +637,8 @@ test('ponte: la coda funzioni A batch 2 non è più letta da win.*', () => {
 // testata); il renderer la legge da `win`, lib-script read della STESSA categoria di
 // buildTopoLines/temporalConfidence — legge l'unica istanza viva, niente ri-bundle.
 // Aumento MOTIVATO di 1, nessuno stato nuovo sul ponte (ASSE A resta sospeso, §2.2).
+// -4  (264 → 260, 2026-09-16): la pulizia degli avvisi ha tolto letture morte
+//     (import mai usati, locali dimenticate). Nessuna conversione: solo peso in meno.
 // -12 (276 → 264, 2026-08-23): VLAN-TRUNK — il motore puro del trunk si
 // raggiungeva da window, e ogni chiamata portava con sé un ripiego per il caso
 // «il motore non c'è». I due ripieghi dicevano cose diverse e sbagliavano allo
@@ -647,7 +649,7 @@ test('ponte: la coda funzioni A batch 2 non è più letta da win.*', () => {
 // da coprire, e sparisce con le sue guardie `typeof win.X==='function'`. Con
 // l'ultima se n'è andato anche l'import di `win` da app-hypervisor.js, che ora
 // non legge più il ponte.
-const MAX_WIN_REFS = 264;
+const MAX_WIN_REFS = 260;
 
 test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => {
   const total = countInCode(/\bwin\./g);

@@ -1229,7 +1229,7 @@ is VPN/LAN.
   (`export.js`/inline). `TYPES` è ora `export const` in `app-types.js` (importato dai
   consumatori; resta su `window.TYPES` via `expose()` per i classic). Le funzioni del
   nucleo (`renderAll`, `renderProps`, `showAlert`, …) sono `export` e importate. Ciò
-  che resta sul ponte (`win.*`, 264 letture — erano ~1800) sono funzioni non ancora ritirate
+  che resta sul ponte (`win.*`, 260 letture — erano ~1800) sono funzioni non ancora ritirate
   (`selected`/`checked`/`_build*`).
 - **Commit only when asked.** Keep secrets and user data out of the repo.
 - **SNMP walk — adaptive retry kills FDB truncation under crawl load (2026-07-04).** The crawl's
