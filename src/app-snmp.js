@@ -606,9 +606,14 @@ function _snmpNameToUi(v, prev){
     const s = String(v || '').trim();
     return s || prev || '';
 }
-function _snmpAliasToUi(v, prev){
-    const s = String(v || '').trim();
-    return s || prev || '';
+// ifAlias → p.alias, campo di MISURA (lo scrive l'apparato, project-schema.js).
+// Niente ripiego sul valore precedente: con `|| prev` una descrizione cancellata
+// sullo switch restava per sempre nel pannello, nel report e nell'incrocio dei
+// vicini per alias. Letta vuota e non letta finiscono entrambe in `undefined`
+// (= la misura non è riconfermata, la stessa regola di p.vlan), e chi applica cancella.
+function _snmpAliasToUi(v){
+    const s = String(v ?? '').trim();
+    return s || undefined;
 }
 function _snmpLagToUi(v, prev){
     const n = Number(v);
@@ -651,7 +656,8 @@ function _applySnmpBasePortFields(pid, iface){
     p.vlan   = _snmpVlanToUi(iface.vlan, p.vlan);
     p.speed  = _snmpSpeedToUi(iface.speed, p.speed);
     p.ifName = _snmpNameToUi(iface.name, p.ifName);
-    p.alias  = _snmpAliasToUi(iface.alias, p.alias);
+    const alias = _snmpAliasToUi(iface.alias);
+    if(alias === undefined) delete p.alias; else p.alias = alias;
     p.lagId  = _snmpLagToUi(iface.lagId, p.lagId);
     p.lagIfIndex = _snmpLagToUi(iface.lagIfIndex, p.lagIfIndex);
     const mac = _snmpMacToUi(iface.mac, p.mac);

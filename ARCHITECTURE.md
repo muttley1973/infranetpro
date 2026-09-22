@@ -683,6 +683,18 @@ cover. The two cases stay apart on purpose: here the walk *did* cover the port a
 device said nothing about its VLAN, which is stronger evidence than silence about the
 port itself, so only this one drops the value.
 
+The port description (`ifAlias` → `ports[pid].alias`) had the same two-layer shape, and
+the same outcome. The reader wrote `alias: f.alias || ''`, folding *not read* and *read
+empty* into one empty string, and `_snmpAliasToUi` answered that empty string with the
+previous value — so a description removed on the switch never left the document, the
+port panel, the PDF report or `lib/correlate.js`, which also resolves LLDP neighbours by
+description. The reader now keeps three states on the wire (text · `''` read and empty ·
+absent, not read), and the client drops the field in both of the last two cases: a
+description the latest walk did not confirm is not a measurement any more. The price is
+known and accepted — a walk truncated on that column costs the neighbour matching one
+cycle — because matching on a stale description is the worse error. The hand-written
+text lives in `desc`, a document field, and is never touched by a poll.
+
 ### What a cable is — and the eight places that used to answer
 
 `_getLinkVlan` answers *what is the native VLAN of this link*, and that is correct; it is

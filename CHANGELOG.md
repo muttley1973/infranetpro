@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **A port description deleted on the switch now disappears from InfraNet too.** The SNMP reader closed every interface with `alias: f.alias || ''`, so *not read* and *read empty* became the same empty string; the client then kept the previous description whenever it saw that empty string. Two fallbacks in a row made the description immortal: after `no description` on the switch, the old text stayed in the port panel, in the PDF report and in the LLDP neighbour matching that also looks ports up by description. The reader now keeps the three cases apart — text, read empty, not read — and a description the latest poll did not confirm is dropped, by the same rule that already applies to a port's measured VLAN. A description written by hand in InfraNet is a different field and is never touched. `test/snmp-descrizione-porta.test.js` covers both layers: five of its nine cases failed on the old code, exactly the ones this fix is about.
+
 ## [2.11.8] — 2026-09-16
 
 A strategy for the one layer nothing can measure, and a spring clean of the code.

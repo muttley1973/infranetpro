@@ -1366,7 +1366,10 @@ function extractData(vbs) {
     // adminStatus: stessa guardia dell'oper. 1=up · 2=down (`shutdown`) · 3=testing;
     // 0 = MAI LETTO (agente che non espone la colonna, walk troncata) — che non e'
     // "accesa" ne' "spenta": il consumatore deve poter dire "non risulta".
-    const obj = { index: idx, name: f.name || `if${idx}`, alias: f.alias || '',
+    // alias (ifAlias): tre stati come adminStatus, non due. '' = letta, e sulla
+    // porta non c'è descrizione; undefined = NON letta. `|| ''` li fondeva, e il
+    // consumatore non poteva più dire «non l'ho letta» invece di «è vuota».
+    const obj = { index: idx, name: f.name || `if${idx}`, alias: f.alias,
                   adminStatus: f.admin || 0,
                   // vlan: NON si inventa. Un apparato che non dichiara la VLAN di una
                   // porta (dot1qPvid muto, vmVlan muta — è il caso del Cisco vIOS,
