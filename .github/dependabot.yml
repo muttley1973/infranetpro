@@ -1,0 +1,28 @@
+# Dependabot — one rule, deliberately narrow.
+#
+# WHY open-pull-requests-limit IS 0
+#   This repository does not want scheduled version-update pull requests: the
+#   dependency set is small and deliberate, and it is reviewed when a release is
+#   prepared, not on a timer. A limit of 0 turns those off. Security updates are
+#   NOT affected by the limit and keep arriving, which is the only automatic
+#   pull request this project actually wants.
+#   To switch scheduled updates on, raise the limit and pick an interval.
+#
+# WHY express MAJORS ARE IGNORED
+#   Express 5 is a breaking change for the whole server layer, and taking it is
+#   a decision with its own testing pass, not a dependency bump. Minor and patch
+#   updates for express still come through, security ones included: only the
+#   major is filtered, so an alert on 4.x is never silenced.
+#
+# Ignore conditions declared here apply to security updates as well, so an
+# express 5 pull request is filtered before it is opened.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 0
+    ignore:
+      - dependency-name: "express"
+        update-types: ["version-update:semver-major"]
