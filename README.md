@@ -10,7 +10,7 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="3,752 tests, 0 failing" src="https://img.shields.io/badge/tests-3%2C752%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="3,758 tests, 0 failing" src="https://img.shields.io/badge/tests-3%2C758%20%C2%B7%200%20failing-3fb950"></a>
   <a href="#testing"><img alt="120 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-120%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#oui-intelligence-engine"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
@@ -31,11 +31,11 @@
 <tr>
 <td align="center" width="50%">
 <a href="MANUALE_TECNICO_IT.pdf"><img src="GitHub%20Images/flag-it.svg" width="26" alt=""><br><b>Manuale tecnico — Italiano</b></a><br>
-<sub>67 pagine illustrate · interfaccia, onboarding e manuale completi in italiano, con selettore IT/EN nell'app.</sub>
+<sub>68 pagine illustrate · interfaccia, onboarding e manuale completi in italiano, con selettore IT/EN nell'app.</sub>
 </td>
 <td align="center" width="50%">
 <a href="TECHNICAL_MANUAL_EN.pdf"><img src="GitHub%20Images/flag-gb.svg" width="26" alt=""><br><b>Technical manual — English</b></a><br>
-<sub>70 illustrated pages · fully bilingual UI, onboarding and manual, with an in-app IT/EN switcher.</sub>
+<sub>71 illustrated pages · fully bilingual UI, onboarding and manual, with an in-app IT/EN switcher.</sub>
 </td>
 </tr>
 </table>
@@ -146,7 +146,20 @@ Double-click <code>avvia.bat</code>.<br>
 
 > **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then run **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.11.8) — the passive layer gets a strategy, and the code loses its dead weight.**
+> 📰 **What's new (v2.11.9) — two things the app used to state without measuring them.**
+>
+> - **Two parallel cables are no longer called a LAG.** Two LLDP/CDP adjacencies between the same pair of
+>   devices were enough to infer an aggregation — and to write a LAG group, a forced `isTrunk` and a set of
+>   carried VLANs onto the ports. But LLDP says nothing about aggregation, and the same two cables are
+>   equally the picture of **spanning-tree redundancy**, one port forwarding and the other blocked with its
+>   link still up. A LAG is now declared only where one end reports the aggregate, or a person declared it;
+>   otherwise the cables stay two and the coincidence is reported in the AutoLink diagnosis, where you can
+>   judge it.
+> - **A port description deleted on the switch disappears here too.** `not read` and `read empty` had
+>   collapsed into one empty string, and the client answered it with the previous value — so `no description`
+>   left the old text behind in the port panel, the PDF report and the neighbour matching.
+>
+> 📰 **v2.11.8 — the passive layer gets a strategy, and the code loses its dead weight.**
 >
 > - **The patch panel, solved by derivation.** The run inside the wall never changes, so the wall socket
 >   follows from the switch port; and the devices that never move anchor a rack patched with no rule at all.
@@ -396,7 +409,7 @@ Double-click <code>avvia.bat</code>.<br>
   <b>Full feature manual (PDF)</b> —
   <a href="MANUALE_TECNICO_IT.pdf"><img src="GitHub%20Images/flag-it.svg" width="20" alt=""> Italiano</a> ·
   <a href="TECHNICAL_MANUAL_EN.pdf"><img src="GitHub%20Images/flag-gb.svg" width="20" alt=""> English</a><br>
-  <sub>Dark cover, white printable interior, 22 illustrated chapters — 67 pages in Italian, 70 in English.</sub>
+  <sub>Dark cover, white printable interior, 22 illustrated chapters — 68 pages in Italian, 71 in English.</sub>
 </p>
 
 <p align="center">
@@ -444,7 +457,7 @@ Double-click <code>avvia.bat</code>.<br>
 | **🏢 Multi-site** | The floor above a project: the sites, the WAN lines each one buys and the tunnels between them, as a map and as a form in the same place. A coherence audit on the declared model alone keeps inconsistencies and gaps apart and names what it could not check; NetBox circuits and VPN tunnels are read per site; the dossier gains a WAN chapter with a recovery card per line and per link. |
 | **📡 Live SNMP** | v1 / v2c / v3 discovery, interfaces, VLANs, LAG, LLDP/CDP neighbours, ENTITY-MIB inventory, wireless associations, DHCP lease import, the Verify / Drift report. A device announced by a neighbour that stays quiet to the community in use is reported as **silent to this key** rather than as having no SNMP |
 | **🔄 DCIM / IPAM sync** | Import an existing **NetBox** into a new project over its REST API — sites, racks (front/rear split), floor-placed, devices, interfaces, VLANs/prefixes and patch-panel cabling; free import, paid write-back |
-| **🔗 LAG detection** | A four-level cascade — `ifStackTable` · IEEE 802.3ad · LACP actor state · LLDP-inferred — plus coherence checks on what a bundle needs to actually form: uniform member speed and VLAN, LACP mode across both ends, a bundle that is not left with a single member, and members that do not straddle two devices unless those are one logical switch (stack / MLAG) |
+| **🔗 LAG detection** | A four-level cascade — `ifStackTable` · IEEE 802.3ad · LACP actor state · parallel LLDP adjacencies **where one end declares the aggregate** (parallel cables alone are never called a LAG: they can be spanning-tree redundancy) — plus coherence checks on what a bundle needs to actually form: uniform member speed and VLAN, LACP mode across both ends, a bundle that is not left with a single member, and members that do not straddle two devices unless those are one logical switch (stack / MLAG) |
 | **🏷️ VLAN** | Access and trunk detection, Q-BRIDGE bitmaps with a VTP fallback, auto-derived trunks, per-VLAN IPAM occupancy, one-click isolation across the whole map |
 | **🧮 IPAM hygiene** | Duplicate addresses (IPv4 and IPv6, compared in canonical form), overlapping prefixes told apart from the hierarchies a plan legitimately contains, and addresses that fall outside every declared network — judged per address family, so a plan with no IPv6 network passes no verdict on IPv6. Any check that could not run says so instead of reporting a clean result |
 | **📶 Wireless** | Up to 8 radios per device with their own SSID, band, channel, security and VLAN; over-the-air association discovery from the bridge FDB and the L3 neighbour table |
@@ -452,7 +465,7 @@ Double-click <code>avvia.bat</code>.<br>
 | **🕓 History & automation** | One **Automatic monitoring** scheduler (Light / Full), opt-in autosave, a verification timeline and restorable full-state snapshots — kept outside the project file, behind a database-ready interface. The timeline is also *read*: a trend says whether this network is getting better known or standing still, and refuses a verdict when the share it could not look at has grown |
 | **🤖 AI assistant** | Bring-your-own-key, OpenAI-compatible, local by default; allowlist context, grounded answers with clickable citations, Ansible drafts — advisory, never auto-applied |
 | **🔒 Security** | Session auth with admin/viewer roles, rate-limited login, loopback bind, secrets structurally excluded from every data surface |
-| **🌍 Bilingual** | Complete Italian and English interface, onboarding and a ~67-page manual, guarded by an `it ↔ en` key-parity test |
+| **🌍 Bilingual** | Complete Italian and English interface, onboarding and a ~68-page manual, guarded by an `it ↔ en` key-parity test |
 
 > **Keeping the passive layer true.** A patch panel is passive: nothing can measure which wall socket a cable
 > comes from. But the run inside the wall — socket ↔ panel port — never changes, so the socket can be *derived*
@@ -559,7 +572,7 @@ Double-click <code>avvia.bat</code>.<br>
 - **L0** — `ifStackTable` higher/lower layer analysis.
 - **L1** — `dot3adAggMemberPorts` (IEEE 802.3ad MIB).
 - **L2** — `lagAttached` + actor operational state bitmask.
-- **LLDP-inferred** — two or more parallel LLDP links between the same device pair.
+- **LLDP-inferred** — two or more parallel LLDP links between the same device pair, **and** at least one end reporting aggregation (`lagId` from the levels above, or a group you declared). Parallel cables on their own stay two cables and are reported in the AutoLink diagnosis, because LLDP says nothing about aggregation and the same picture is what spanning-tree redundancy looks like.
 - Cisco IOS `Port-channel` (ifType 53 / propVirtual) fully supported.
 - Groups auto-named from the aggregator interface (`Port-channel1`, `bond0`).
 - Selecting a LAG member port highlights all its siblings.
@@ -957,10 +970,15 @@ Level 1 — dot3adAggMemberPorts
 Level 2 — dot3adAggPortActorOperState
   LACP bitmask — distinguishes active/collecting/distributing ports.
 
-LLDP-inferred
-  If two or more LLDP links exist between the same device pair,
-  they are automatically grouped into a logical LAG,
-  even without SNMP LAG MIB support on the device.
+LLDP-inferred (corroborated)
+  Two or more LLDP links between the same device pair are grouped
+  into a logical LAG only when at least one end reports the aggregate
+  (lagId from the levels above, or a group declared by hand), which
+  carries the group across a peer whose SNMP is silent about LAGs.
+  With no such report the cables stay separate: two parallel links are
+  equally the picture of spanning-tree redundancy, and LLDP does not
+  speak about aggregation. The coincidence is reported in the AutoLink
+  diagnosis instead of being written into the document.
 ```
 
 **Cisco IOS specifics:**
@@ -1161,7 +1179,7 @@ Full release notes live in [CHANGELOG.md](CHANGELOG.md). Highlights of what has 
 - [x] **SNMP parameter import** — live read-only system / Printer-MIB / HOST-RESOURCES cards; manual-first; validated on real hardware
 - [x] **Discovery** — deep scan (TCP/NetBIOS/SMB) + confidence scoring, reachability states, off-segment SNMP-ARP (`arpnip`), switch-port mapping (FDB `macsuck`), DHCP-as-source, mDNS/SSDP/ONVIF listen, and one device per chassis — the NICs of one box folded together on authoritative keys only (own IP, serial, SNMP engine ID, mDNS UUID), never on a name or a MAC
 - [x] **Device catalog** — NVR, SD-WAN edge, VPN concentrator, door controller, panelboard; dedicated MGMT + SFP (×2) blocks; stacking (StackWise/VSF/Virtual Chassis/IRF); HA pair/cluster modeling; management-protocol launcher
-- [x] **Multi-vendor LAG detection** — four-level cascade (ifStack / 802.3ad / ActorOperState / LLDP-inferred), logical id, LACP mode coherence
+- [x] **Multi-vendor LAG detection** — four-level cascade (ifStack / 802.3ad / ActorOperState / LLDP-inferred *with a reported aggregate at one end*), logical id, LACP mode coherence
 - [x] **Topology "to confirm" states** — deduced infra/uplink cables (guessed remote port, materialised gateway, FDB uplink-resolution of a documented device) are born *Inferred · to verify* (amber Confirm/Delete, dashed on the map), never mislabelled `LLDP` — nor `LAG` when the uplink lands on a local LAG member port toward a blind switch whose port we can't know; a hidden multi-port intermediary behind a 2–4-MAC access port is surfaced as a shared L2 segment with a role **suggested** from the endpoints (other subnet → gateway · virtual OUI → hypervisor · randomised MAC → AP · else switch) and materialised from the Shared L2 panel
 - [x] **Engineering** — zero-dep regression suite + CI, server modularization, frontend ESM/esbuild migration, correlation primitives (`lib/correlate.js`), ENTITY-MIB inventory, `node.spec` refactor
 - [x] **IPv6 (Scope A), treated like IPv4:** address field in device Properties **with the same padlock** (`ip6Manual`); the SNMP poll reads the device's **own** address (`ipAddressTable`) so the **Sync auto-populates** it and **Verify** flags a locked divergence. Plus Neighbour Discovery (`ipNetToPhysicalTable`, routable global/ULA only) — which now also feeds **cross-subnet presence**: a device in a router's ND cache is green even if IPv6-only or ARP-aged (twin of the router-ARP path) — EUI-64 → vendor hint, privacy-IID → BYOD. IPv6 is also **declarable and audited** like IPv4: a VLAN carries both prefixes, each with its own gateway, and the L3 map checks the v6 gateway, its containment, and which device answers it — addresses compare by identity, not by text, so `2001:DB8:0:20:0:0:0:1` and `2001:db8:0:20::1` are one address. There is no capacity bar for a /64 (2^64 is not a percentage): occupancy counts the addresses actually seen. Active IPv6 sweep (`ping ff02::1`) stays parked.
@@ -1203,8 +1221,8 @@ server on a temp store and is skipped unless `RUN_E2E=1`.
 Coverage focuses on the pure, bug-prone logic that has historically broken: SNMP parsing & extraction (`test/snmp.test.js`, `test/extractData.test.js`), discovery & classification (`test/discovery.test.js`, 14 real-device cases), correlation primitives (`test/correlate.test.js`), the sysObjectID / OUI / Fusion engines (`tests/*.test.js`), front-panel state, cable validation (incl. **Cat8 30 m reach**), IPAM & LAG audits, and an app-wide **smoke E2E** (`test/smoke-app.test.js`) that loads every `netmapper.html` script plus the esbuild bundle into a `vm` + DOM stub and asserts `renderAll`/`renderProps` never throw on any device type.
 
 Current local quality baseline:
-- `npm run check` parses every JS source of the product — **521** of them. It skips the folders `eslint.config.js` already ignores (git worktrees, the private workspace, the editor's caches), so the number stays stable between runs instead of drifting with whatever happens to be checked out beside the repo
-- `npm test` runs the full regression suite (currently **3,752 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **120 flows**)
+- `npm run check` parses every JS source of the product — **522** of them. It skips the folders `eslint.config.js` already ignores (git worktrees, the private workspace, the editor's caches), so the number stays stable between runs instead of drifting with whatever happens to be checked out beside the repo
+- `npm test` runs the full regression suite (currently **3,758 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **120 flows**)
 - final visual verification is still important for rack/front-panel refinements
 
 > Pure functions are exposed for tests via an additive `_internals` export on

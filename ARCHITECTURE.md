@@ -695,6 +695,22 @@ known and accepted — a walk truncated on that column costs the neighbour match
 cycle — because matching on a stale description is the worse error. The hand-written
 text lives in `desc`, a document field, and is never touched by a poll.
 
+The third member of the family was not a fallback value but a **coincidence read as a
+fact**: two or more LLDP/CDP adjacencies between the same pair of devices created an
+inferred link aggregation, writing a `lldp-lag-…` group onto the four ports, forcing
+`isTrunk` and filling the carried VLANs from the device's VLAN inventory. LLDP says
+nothing about aggregation, and those same two parallel cables are equally the picture of
+**spanning-tree redundancy** — one port forwarding, the other blocked with its link
+still up, which is why no port state separates the two cases either. Aggregation, unlike
+the guess, is measurable and already read (`ifStackTable`, IEEE 802.3ad member ports,
+AttachedAggID → `ports[pid].lagId`), so the inference now fires only where one end
+reports the aggregate, or a person declared it; that corroborated case still carries the
+group across a peer whose SNMP is silent about LAGs, which is the reason the level
+exists. A `lldp-lag-…` group is never evidence of itself — it is what this inference
+writes — and one left behind by an earlier run is removed. What survives of the
+observation is said, not written: the AutoLink diagnosis counts the parallel pairs it
+refused to call a LAG.
+
 ### What a cable is — and the eight places that used to answer
 
 `_getLinkVlan` answers *what is the native VLAN of this link*, and that is correct; it is

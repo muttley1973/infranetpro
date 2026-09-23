@@ -724,6 +724,11 @@ export function _autoLinkDiagText(diag){
                 : `${lead} (${w.apsSeen})`);
         }
     }
+    // Due cavi fra gli stessi apparati senza aggregato misurato: NON è un LAG, e non
+    // si scrive niente sulle porte — ma la coincidenza si dice, perché può essere un
+    // bundle che l'apparato non dichiara o una ridondanza con spanning-tree, e a
+    // deciderlo è chi conosce la rete.
+    if(diag.parallelNoLag > 0) parts.push(`${diag.parallelNoLag} ${t('msg.net.alParallelNoLag')}`);
     if(Array.isArray(diag.reasons) && diag.reasons.length) parts.push(diag.reasons.slice(0,2).join(' · '));
     return parts.join(' · ');
 }
@@ -1317,6 +1322,17 @@ async function _autoDiscoverLinks(nodeIds){
     }
 
     // ---- Inferenza LAG + trunk dalle adiacenze ad alta confidenza ------------
+    // ⚠️ Il PARALLELISMO non è un'aggregazione, e LLDP/CDP non parlano di LAG: due
+    // adiacenze fra gli stessi due apparati possono essere un bundle LACP, una
+    // RIDONDANZA con spanning-tree (uno inoltra, l'altro è bloccato — e il link è su
+    // lo stesso) o due link su servizi diversi. Prima bastava contarle: nasceva un
+    // gruppo `lldp-lag-…` scritto sulle porte, con `isTrunk` forzato e le VLAN
+    // trasportate prese dall'inventario del device. Tre campi DOCUMENTALI da una
+    // coincidenza — la famiglia della VLAN 1 inventata.
+    // L'aggregazione però si MISURA, e il driver la legge già (ifStackTable · 802.3ad ·
+    // AttachedAggID → `p.lagId`, `snmp-lag-…`): quindi si dichiara solo dove un capo lo
+    // dice, o dove l'ha dichiarato una persona. Altrove restano due cavi, e la
+    // coincidenza esce nella diagnosi invece di diventare un fatto.
     let lagGroups = 0;
     try{
         const byPair = {};
@@ -1329,9 +1345,36 @@ async function _autoDiscoverLinks(nodeIds){
             (byPair[key] ??= []).push(cand);
         }
 
+        // Un capo che DICHIARA l'aggregazione: `lagId` > 0 (misura del poll) o un gruppo
+        // che non sia il nostro (`snmp-lag-…` misurato, `lg…` scritto a mano). Un
+        // `lldp-lag-…` NON conta: è quello che scrive questa stessa inferenza, e
+        // prenderlo per prova vorrebbe dire confermarsi da soli al giro dopo.
+        const _aggDichiarata = pid => {
+            const p = store.state.ports[pid] || {};
+            if(parseInt(p.lagId || 0, 10) > 0) return true;
+            const g = String(p.lagGroup || '').trim();
+            return !!g && !g.startsWith('lldp-lag-');
+        };
+
         for(const [key, pairs] of Object.entries(byPair)){
             if(pairs.length < 2) continue;
             const groupId = `lldp-lag-${key}`;
+            if(!pairs.some(p => _aggDichiarata(p.src) || _aggDichiarata(p.dst))){
+                // Nessuno dei due capi dichiara un aggregato: restano cavi paralleli.
+                diag.parallelNoLag = (diag.parallelNoLag || 0) + 1;
+                // E si disfa quello che i giri precedenti avevano scritto: solo i gruppi
+                // `lldp-lag-…` (li scrive soltanto questo blocco), mai un gruppo misurato
+                // o dichiarato. `isTrunk`/`trunkVlans` restano: dopo un poll non si
+                // distinguono più da una misura, e toglierli sarebbe l'errore gemello.
+                for(const p of pairs){
+                    for(const pid of [p.src, p.dst]){
+                        const pp = store.state.ports[pid];
+                        if(pp && String(pp.lagGroup || '').startsWith('lldp-lag-')) delete pp.lagGroup;
+                    }
+                }
+                if(store.state.lagGroups) delete store.state.lagGroups[groupId];
+                continue;
+            }
             if(!store.state.lagGroups) store.state.lagGroups = {};
             if(!store.state.lagGroups[groupId]){
                 const [na, nb] = key.split('||');

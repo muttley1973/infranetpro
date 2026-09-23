@@ -1,8 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [2.11.9] — 2026-09-23
+
+Two things the app used to state without measuring them.
 
 ### Fixed
+
+- **Two parallel cables are no longer called a LAG.** Two or more LLDP/CDP adjacencies between the same pair of devices were enough to create an inferred aggregation: a `lldp-lag-…` group written onto the ports, `isTrunk` forced to true, and the carried VLANs filled in from the device's VLAN inventory — three document fields born from a coincidence. But LLDP says nothing about aggregation, and two parallel cables are equally the picture of **spanning-tree redundancy**, where one port forwards and the other is blocked with the link still up. Aggregation is measurable and the driver already reads it (`ifStackTable`, IEEE 802.3ad, AttachedAggID), so a LAG is now declared only where one end reports it — or where a person declared it. Everywhere else the cables stay two, the coincidence is reported in the AutoLink diagnosis, and a `lldp-lag-…` group left behind by an earlier run is removed. A group the inference wrote itself never counts as evidence of itself.
 
 - **A port description deleted on the switch now disappears from InfraNet too.** The SNMP reader closed every interface with `alias: f.alias || ''`, so *not read* and *read empty* became the same empty string; the client then kept the previous description whenever it saw that empty string. Two fallbacks in a row made the description immortal: after `no description` on the switch, the old text stayed in the port panel, in the PDF report and in the LLDP neighbour matching that also looks ports up by description. The reader now keeps the three cases apart — text, read empty, not read — and a description the latest poll did not confirm is dropped, by the same rule that already applies to a port's measured VLAN. A description written by hand in InfraNet is a different field and is never touched. `test/snmp-descrizione-porta.test.js` covers both layers: five of its nine cases failed on the old code, exactly the ones this fix is about.
 
