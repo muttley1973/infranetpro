@@ -84,8 +84,13 @@ test('① COMPLETO: struttura e passivi fuori dal denominatore, le lacune escono
   // Un cavo dedotto dall'auto-link NON è un cavo dichiarato: la sezione che
   // chiede «il documento descrive tutto?» deve tenerli separati.
   assert.deepEqual(rowOf(c, 'cables').extra, { portsUsed: 4, auto: 1, manual: 1 });
-  // Il click sui Cavi mostra i DEDOTTI (i «da verificare»), coi due capi come nodo.
-  assert.deepEqual(rowOf(c, 'cables').items, [{ id: 'sw1', peer: 'pc1' }]);
+  // Il click sui Cavi mostra TUTTI i cavi, divisi in schede per COME LO SAPPIAMO,
+  // con le parole della notazione unica. Prima mostrava i soli dedotti: la riga
+  // diceva 2 e il dettaglio si apriva su 1, due popolazioni sotto lo stesso numero.
+  assert.deepEqual(rowOf(c, 'cables').items, [
+    { id: 'sw1', peer: 'pc1', group: 'measured' },
+    { id: 'sw1', peer: 'rt1', group: 'declared' },
+  ]);
   assert.equal(rowOf(c, 'addr').pct, 75, 'la percentuale la calcola la lib, non il renderer');
 });
 
@@ -108,11 +113,16 @@ test('① COMPLETO: dopo una Verifica la riga Cavi porta il numero-d\'identità 
   assert.equal(ex.proofScore.total, 3, 'i tre cavi entrano nel Truth Score');
   assert.equal(ex.proofScore.declared, 1, 'un cavo dichiarato, tenuto distinto (non collassato in proven)');
   assert.equal(ex.proofScore.proven, 0, 'un cavo non è mai «provato» dalla macchina, solo i suoi estremi');
-  // Ogni cavo (dedotto) porta il SUO stato di prova nell'item del drill-down (il badge).
+  // Ogni cavo porta il suo stato nella SCHEDA in cui sta: la parola è quella della
+  // notazione unica, e ripeterla anche in pastiglia accanto sarebbe lo stesso
+  // alfabeto due volte nella stessa riga.
   const items = rowOf(o.complete, 'cables').items;
-  assert.equal(items.length, 2, 'i due cavi dedotti nel drill-down «da verificare»');
-  assert.ok(items.some((i) => i.proof === 'ghost'), 'il dedotto verso il muto porta ghost nel suo item');
-  assert.ok(items.some((i) => i.proof === 'derived-strong'), 'il dedotto forte porta derived-strong nel suo item');
+  assert.equal(items.length, 3, 'la lista sono TUTTI i cavi, non i soli dedotti');
+  assert.ok(items.some((i) => i.group === 'unread'),
+    'il dedotto verso il muto ha perso l\'evidenza: è un\'ASSENZA di lettura, non una contraddizione');
+  assert.ok(items.some((i) => i.group === 'measured'), 'il dedotto forte (LLDP 0.97) sta fra i misurati');
+  assert.ok(items.some((i) => i.group === 'declared'), 'e il manuale con gli estremi provati resta dichiarato');
+  assert.ok(items.every((i) => !i.proof), 'niente pastiglia che ripete la parola della scheda');
   // Retro-compatibile: SENZA proof (nessuna Verifica) la extra non porta i nuovi campi.
   const noProof = buildOverview({ types: TYPES, nodes: [{ id: 'a', type: 'switch', ip: '1.1.1.1' }],
     links: [{ src: 'a-1', dst: 'a-2' }] });
@@ -316,6 +326,9 @@ test('② VERO: verificabili, porte sospette ordinate per gravita, chi non ha ma
     ] } },   // sw2: mai risposto
     macToNode: { aabbccddeeff: 'pc1' },   // quel MAC e' di pc1 (formato diverso: risolve lo stesso)
     lagGroups: { 'snmp-lag-sw1-1': 'LAG1', 'lldp-lag-sw1||sw2': 'Po1' },
+    // I capi di un gruppo sono i nodi che possiedono una porta in quel gruppo: la
+    // chiave è una targa, e appena la scrive una persona non contiene più un id.
+    lagMembers: { 'snmp-lag-sw1-1': ['sw1'], 'lldp-lag-sw1||sw2': ['sw1', 'sw2'] },
     spare: { totals: { free: 40, suspect: 5, ports: 48, freeSfp: 0 },
       racks: [{ devices: [{ id: 'sw1', suspect: 2 }, { id: 'sw2', suspect: 3 }] }], unracked: [] },
   });
@@ -343,11 +356,14 @@ test('② VERO: verificabili, porte sospette ordinate per gravita, chi non ha ma
   assert.equal(nb.items[3].peer, 'pc1', 'MAC del vicino risolto al device');
   assert.equal(nb.items[3].meta, 'eth0');
   const lg = rowOf(t, 'lags');
-  assert.deepEqual(lg.extra, { measured: 1, derived: 1 }, 'la chiave dice da dove viene');
-  // Cliccabile: i LAG coi due capi risolti e la provenienza per-voce (misurato/dedotto).
+  // Tre secchi, non due: un gruppo creato a mano non è né misurato né dedotto.
+  assert.deepEqual(lg.extra, { measured: 1, derived: 1, declared: 0 }, 'la chiave dice da dove viene');
+  // Cliccabile: i capi arrivano dalle PORTE membro, e l'origine la dice la SCHEDA
+  // (`group`) — non una pastiglia accanto che ripete la stessa parola.
   assert.deepEqual(lg.items.map((i) => i.id), ['sw1', 'sw1']);
-  assert.deepEqual(lg.items.map((i) => i.peer), [null, 'sw2'], 'lldp-lag-<a>||<b>: il secondo capo');
-  assert.deepEqual(lg.items.map((i) => i.tag), ['measured', 'derived']);
+  assert.deepEqual(lg.items.map((i) => i.peer), [null, 'sw2'], 'il secondo capo, dove c\'è');
+  assert.deepEqual(lg.items.map((i) => i.group), ['measured', 'derived']);
+  assert.ok(lg.items.every((i) => !i.tag), 'hanno porte: nessun avviso di gruppo vuoto');
   assert.deepEqual(lg.items.map((i) => i.meta), ['LAG1', 'Po1']);
   // ⭐ `unread` e non `none`: qui non manca una TUA dichiarazione, manca una
   // VERIFICA. Resta tratteggiata come prima — cambia la parola, non la forma.
@@ -1898,7 +1914,7 @@ test('① Cavi: la voce dedotta porta il link-id (lid) per evidenziare il percor
   ];
   const o = buildOverview({ types: TYPES, nodes,
     links: [{ id: 'L-42', autoLinked: true, src: 'sw1-1', dst: 'pc1-1' }] });
-  assert.deepEqual(rowOf(o.complete, 'cables').items, [{ id: 'sw1', peer: 'pc1', lid: 'L-42' }],
+  assert.deepEqual(rowOf(o.complete, 'cables').items, [{ id: 'sw1', peer: 'pc1', lid: 'L-42', group: 'measured' }],
     'il link-id viaggia con la voce → il click evidenzia il percorso sul floor');
 });
 

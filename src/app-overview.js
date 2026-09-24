@@ -107,6 +107,24 @@ function _overviewDelta(pid, o, syncAt) {
 }
 
 // ── Modello per la lib ───────────────────────────────────────────────────────
+// I CAPI di un gruppo LAG sono i nodi che possiedono una porta in quel gruppo, e
+// quello e' l'unico posto in cui sono un FATTO: la chiave del gruppo e' una targa,
+// non un dato, e appena qualcuno crea un LAG a mano smette di contenere un id di
+// nodo (sei righe mute su sedici, misurate sul progetto del banco il 24/09).
+// Un gruppo che non compare qui non ha porte: la lib lo dice invece di indovinarlo.
+function _lagMembers(st) {
+    const out = {};
+    for (const [pid, p] of Object.entries((st && st.ports) || {})) {
+        const g = String((p && p.lagGroup) || '').trim();
+        if (!g) continue;
+        const n = getNodeByPortId(pid);
+        if (!n || n.id == null) continue;
+        const arr = (out[g] ??= []);
+        if (!arr.includes(n.id)) arr.push(n.id);
+    }
+    return out;
+}
+
 // Un solo giro sui nodi: costruisce insieme i device per il report porte libere,
 // il conteggio delle porte in fibra e le capacita' hardware per apparato.
 // I timestamp «vivi» viaggiano come ISO (n.snmpLastOk, integration.lastPoll,
@@ -335,7 +353,7 @@ function _buildModel() {
         vlanIdsInUse, vlanNames: st.vlanNames || {}, measuredVlanNames,
         spare: buildSpareReport(spareDevices), sfpTotal, rackFill, networks, ipamAudit,
         caps, fleet: computeFleetCapabilities(caps.map((x) => x.caps)), liveHealth,
-        topoCache: st.topoCache || {}, lagGroups: st.lagGroups || {},
+        topoCache: st.topoCache || {}, lagGroups: st.lagGroups || {}, lagMembers: _lagMembers(st),
         lastSyncAt: st.lastSnmpSyncAt || 0, lastSyncResult: st.lastSnmpSyncResult || {},
         lastVerify: st.lastVerify || null,   // Fase 2: l'ultima Verifica come stato (riga «Vero»)
         // B3: le righe-categoria navigabili della «Vero» escono dal report VIVO, ma
@@ -580,7 +598,7 @@ function _tileStatus(r) {
         case 'neighbors':    return { w: t('ov.neighborsFrom', { n: e.fromDevices || 0 }), tone: 'info' };
         case 'lags':         return r.prov === 'none'
             ? { w: t('ov.st.none'), tone: 'none' }
-            : { w: t('ov.lagSplit', { m: e.measured, d: e.derived }), tone: 'info' };
+            : { w: t('ov.lagSplit', { m: e.measured, d: e.derived, u: e.declared || 0 }), tone: 'info' };
         case 'verify': {
             if (r.prov === 'none') return { w: t('ov.st.never'), tone: 'none' };
             const when = _age(e.ageMs, e.at);
@@ -965,6 +983,19 @@ function _detailEl(secKey, r) {
     h.appendChild(x);
     d.appendChild(h);
 
+    // La parola di una scheda. Se il gruppo È un grado della notazione unica
+    // (dichiarato · misurato · dedotto · contraddetto · non risulta) la parola la dice
+    // la NOTAZIONE, con le stesse identiche parole delle pastiglie: una lista divisa
+    // in schede e una pastiglia che parlano due alfabeti sono il difetto che
+    // lib/certainty.js e' venuta a chiudere, e questa e' la superficie che gliele ha
+    // date. Gli altri raggruppamenti (in rack, per velocita') restano coi loro nomi.
+    // ⚠️ L'elenco dei gradi NON si ricopia qui: lo chiede alla notazione.
+    const _grpLabel = (gk) => {
+        if (!gk) return '';
+        const gradi = (typeof CERTAINTY_GRADES !== 'undefined' && CERTAINTY_GRADES) || [];
+        return gradi.indexOf(gk) >= 0 ? t('cty.' + gk) : t('ov.grp.' + gk);
+    };
+
     // Item con `group` → dettaglio a SCHEDE: le sub-header in testa dividono lo
     // spazio in due e commutano la lista mostrata (una alla volta). Senza `group`
     // → lista piatta.
@@ -982,7 +1013,7 @@ function _detailEl(secKey, r) {
 
         const tabs = _el('div', 'ov-tabs');
         for (const gk of groups) {
-            const tab = _el('button', 'ov-tab' + (gk === active ? ' is-active' : ''), gk ? t('ov.grp.' + gk) : '');
+            const tab = _el('button', 'ov-tab' + (gk === active ? ' is-active' : ''), _grpLabel(gk));
             tab.type = 'button';
             tab.dataset.act = 'overview-grp-tab';
             tab.dataset.for = forKey;

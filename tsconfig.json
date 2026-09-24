@@ -28,6 +28,7 @@
     "lib/cable-reconcile.js",
     "lib/cable-validate.js",
     "lib/cabling.js",
+    "lib/certainty.js",
     "lib/cidr.js",
     "lib/correlate.js",
     "lib/drift-adopt.js",
