@@ -1375,6 +1375,24 @@ async function _autoDiscoverLinks(nodeIds){
                 if(store.state.lagGroups) delete store.state.lagGroups[groupId];
                 continue;
             }
+            // Il gruppo corroborato serve a PORTARE il bundle sul capo che l'SNMP non
+            // dichiara — è la ragione per cui questo livello esiste. Se tutt'e due i capi
+            // hanno già il proprio gruppo misurato non c'è niente da portare: nessuna
+            // porta lo adotta e nell'elenco dei LAG resta un guscio senza membri. E
+            // siccome ogni Verifica lo rifaceva, cancellarlo a mano non serviva a niente.
+            // ⚠️ Si vede da quando il driver riconosce anche gli aggregatori Cisco
+            // (ifType 53): prima il capo muto era la norma, ora è l'eccezione.
+            const _qualcunoLoAdotta = pairs.some(p => [p.src, p.dst].some(pid => {
+                const g = String(store.state.ports[pid]?.lagGroup || '');
+                return !g || g.startsWith('lldp-lag-');
+            }));
+            if(!_qualcunoLoAdotta){
+                // Via anche il guscio dei giri precedenti: un `lldp-lag-…` lo scrive
+                // soltanto questo blocco, quindi toglierlo non cancella niente di
+                // misurato né di dichiarato a mano.
+                if(store.state.lagGroups) delete store.state.lagGroups[groupId];
+                continue;
+            }
             if(!store.state.lagGroups) store.state.lagGroups = {};
             if(!store.state.lagGroups[groupId]){
                 const [na, nb] = key.split('||');

@@ -144,3 +144,60 @@ test('un `lldp-lag-` scritto da un giro precedente viene TOLTO se nessuno lo mis
     assert.equal(l.lagLogicalKey, null, 'né il cavo resta un membro di quel LAG');
   }
 });
+
+// ── ④ Due capi che misurano: il gruppo corroborato non serve più ───────────
+//
+// Il livello «corroborato» esiste per PORTARE il bundle sul capo che l'SNMP non
+// dichiara. Quando lo dichiarano tutt'e due non c'è niente da portare: registrarlo
+// lo stesso lasciava nell'elenco dei LAG un gruppo che nessuna porta adotta — le
+// porte hanno già il loro, misurato — e siccome ogni Verifica lo rifaceva, toglierlo
+// a mano non serviva a niente. Misurato sul banco PnetLab il 2026-09-24, dopo che il
+// driver ha imparato a riconoscere gli aggregatori Cisco: tre gusci su tre coppie,
+// dove prima (un capo solo che misurava) ce n'era uno.
+//
+// ⚠️ Queste prove hanno bisogno che i nodi dichiarino i loro aggregatori
+// (`integration.lags`): il nome del gruppo dedotto si prende da lì, e senza quello
+// il gruppo non nascerebbe comunque — la prova sarebbe verde per il motivo sbagliato.
+const conAggregatori = `
+  state.nodes[0].integration.lags = [{ index:10, lagId:1, name:'Port-channel1' }];
+  state.nodes[1].integration.lags = [{ index:20, lagId:2, name:'Port-channel1' }];
+`;
+const gruppoDi = pid => run(APP.ctx, `JSON.stringify(state.ports['${pid}'].lagGroup || null)`);
+
+test('se ENTRAMBI i capi misurano il bundle, non nasce un gruppo corroborato vuoto', async () => {
+  run(APP.ctx, scenario('{ lagId:1, lagGroup:"snmp-lag-sw1-1" }'));
+  run(APP.ctx, conAggregatori + `
+    for(const pid of ['sw2-1','sw2-2']){ state.ports[pid].lagId = 2; state.ports[pid].lagGroup = 'snmp-lag-sw2-2'; }`);
+  await giro();
+  const r = JSON.parse(run(APP.ctx, LETTURA));
+
+  assert.deepEqual(r.lagGroups, [], "nessun gruppo dedotto: non c'è un capo muto a cui portarlo");
+  for (const p of r.porte) assert.equal(p.lagGroup, 'snmp-lag-sw1-1', 'le porte restano nel gruppo MISURATO');
+  assert.equal(JSON.parse(gruppoDi('sw2-1')), 'snmp-lag-sw2-2', 'e anche quelle di là');
+  for (const l of r.links) assert.ok(l.lagLogicalKey, "il LAG c'è lo stesso: lo dicono i due apparati");
+});
+
+test('e il guscio lasciato da un giro precedente se ne va da solo', async () => {
+  // È la situazione dei progetti già salvati: il gruppo vuoto è lì, e chi lo trova
+  // non deve doverlo cancellare a mano perché al giro dopo tornerebbe.
+  run(APP.ctx, scenario('{ lagId:1, lagGroup:"snmp-lag-sw1-1" }'));
+  run(APP.ctx, conAggregatori + `
+    for(const pid of ['sw2-1','sw2-2']){ state.ports[pid].lagId = 2; state.ports[pid].lagGroup = 'snmp-lag-sw2-2'; }
+    state.lagGroups['lldp-lag-sw1||sw2'] = 'Port-channel1';`);
+  await giro();
+
+  assert.deepEqual(JSON.parse(run(APP.ctx, LETTURA)).lagGroups, [], 'il guscio senza membri viene tolto');
+});
+
+test('⚠️ ma il capo MUTO continua a ricevere il gruppo: è il motivo per cui il livello esiste', async () => {
+  // Guardia di DIREZIONE. Se le due prove sopra diventassero verdi smettendo di
+  // corroborare, il livello sarebbe morto e nessuno se ne accorgerebbe.
+  run(APP.ctx, scenario('{ lagId:1, lagGroup:"snmp-lag-sw1-1" }'));
+  run(APP.ctx, conAggregatori);
+  await giro();
+  const r = JSON.parse(run(APP.ctx, LETTURA));
+
+  assert.deepEqual(r.lagGroups, ['lldp-lag-sw1||sw2'], 'sw2 non dichiara niente: il gruppo dedotto lo raggiunge');
+  assert.equal(JSON.parse(gruppoDi('sw2-1')), 'lldp-lag-sw1||sw2', 'ed è la porta muta ad adottarlo');
+  for (const p of r.porte) assert.equal(p.lagGroup, 'snmp-lag-sw1-1', 'il capo che misura non viene toccato');
+});
