@@ -711,6 +711,62 @@ writes — and one left behind by an earlier run is removed. What survives of th
 observation is said, not written: the AutoLink diagnosis counts the parallel pairs it
 refused to call a LAG.
 
+⚠️ **The sequel is the part worth keeping: removing an invention does not install the
+measure that replaces it.** On the bench the aggregation then disappeared completely,
+because that measure never arrived from the Cisco switches. *Is this interface an
+aggregator?* was asked in three places in `drivers/snmp.js` and answered differently: the
+`ifStackTable` reader and the AttachedAggID cross-check demanded `ifType=161`, while the
+final classification also accepted `53` (propVirtual) when the name was a bundle. IOS
+declares `Port-channel` as 53, so the strictest answer won — the aggregator was listed in
+`lags[]` and its members kept no `lagId`, a LAG with no members, which downstream is no LAG
+at all. One predicate now answers for all three, and the name test is not a fourth copy of
+the list: `lib/netnames.js` owns it. `53` on its own cannot be enough, because on that same
+switch the SVIs are `53` too. Measured read-only over SNMP on the vIOS L2 bench:
+`ifStackTable` is the only source those images offer — 802.3ad, CISCO-PAGP-MIB,
+CISCO-LAG-MIB and the LLDP-EXT-DOT3 aggregation tables all answer zero rows. While the
+inference was inventing, that hole was covered and nobody could see it.
+
+The same repair made a second, smaller defect visible. The corroborated group was
+registered before checking that any port would adopt it, so once both ends measured their
+own bundle the LAG list kept a shell with no members — remade at every run, and therefore
+impossible to delete by hand. It is now registered only where an endpoint is free to adopt
+it, and an old shell is removed; only `lldp-lag-…` groups are touched, so nothing measured
+or declared by hand can be lost that way.
+
+### An id is a plate, not a fact
+
+The Dashboard's LAG row read the ends of a group out of its KEY (`snmp-lag-<node>-<n>`,
+`lldp-lag-<a>||<b>`), walking back from the last dash until a prefix matched a node id. It
+worked for the two keys the app writes itself and for nothing else: a group a person
+creates carries whatever id the app gave it, no node inside, so the end never resolved and
+the row rendered with an EMPTY name. Six rows out of sixteen on the bench project, and the
+list looked merely untidy rather than broken.
+
+⭐ The ends are `ports[pid].lagGroup` — the one place they are a fact — so the glue now
+passes `lagMembers` (group → the nodes owning a port in it) and the lib reads them from
+there. A group with no member ports has no ends **because it is not a LAG**: it is a
+leftover, and it says so (`noMembers`) instead of being given an end by inference. The
+same move removed a third bucket that was hiding: a group made by hand is neither measured
+nor derived but DECLARED, and it used to be counted among the derived ones.
+
+### One notation, used as a filing system
+
+Both detail lists divide into tabs, and the words are not new ones: `certaintyOf` maps the
+`proof` and `linkstate` vocabularies onto the grades of `lib/certainty.js`, and the tab
+label asks the notation for the word, so a tab and a pill can never disagree. For a cable
+the proof state decides when a Verify has run — it is the more informed answer, and it is
+where *contradicted* and the ghost live — and provenance decides otherwise; the tabs are
+ordered by the notation's own reading order, from the most load-bearing sign to the least.
+⚠️ Two consequences worth stating. The two verdict tabs are ABSENT without a Verify rather
+than empty, because nobody can call a cable a ghost before looking at it. And the per-item
+pill is gone from those lists: the tab already says that word, and saying it twice in one
+row is the defect the single notation came to close — on the very surface that gave the
+notation its vocabulary.
+
+The cable list also stopped being a different population from its own row: it listed only
+the inferred cables while the row counted all of them, so the row said 40 and the detail
+opened on 15.
+
 ### What a cable is — and the eight places that used to answer
 
 `_getLinkVlan` answers *what is the native VLAN of this link*, and that is correct; it is
@@ -1095,7 +1151,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **3,758 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **3,775 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`

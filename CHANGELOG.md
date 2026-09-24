@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.11.10] — 2026-09-24
+
+The measurement that was missing exactly where the previous release had stopped guessing — and the two lists that now say how they know.
+
+### Fixed
+
+- **A Cisco `Port-channel` brings its members with it.** 2.11.9 stopped inferring a LAG from two parallel cables and asked for a measurement instead — and on Cisco that measurement never arrived. *Is this interface an aggregator?* was asked in three places in the SNMP driver and answered differently: two demanded `ifType=161` (ieee8023adLag), the third also accepted `53` (propVirtual) when the name was a bundle. IOS declares `Port-channel` as 53, so the strictest answer won: the aggregator was listed and its members kept no membership — a LAG with no members, which downstream is no LAG at all, so the aggregation vanished from the document. One predicate now answers for all three, and membership is read from `ifStackTable`, which those switches publish and which was there all along; 802.3ad, CISCO-PAGP-MIB and CISCO-LAG-MIB answer nothing on those images. `53` on its own is not enough — a Cisco SVI is `53` too — so the name decides it, through the project's single vendor-neutral recogniser. Members inherit the trunk and its carried VLANs from the bundle again, which on Cisco is where the configuration lives.
+
+- **The Dashboard's LAG list knows who its ends are.** They were read out of the group key — a plate, not a fact — which worked only for the two key shapes the app writes itself: a group created by hand rendered with an **empty name**, six rows out of sixteen on the test bench. The ends now come from the member ports, the one place they are a fact, and a group left with no ports is labelled as such instead of having an end guessed for it, because it is not a LAG but a leftover.
+
+- **A LAG group nobody joins is no longer created.** The inferred group exists to carry a measured bundle onto a peer whose SNMP says nothing about aggregation. It was registered before checking that a port would actually adopt it, so once both ends reported their own measured group the LAG list kept an empty shell — remade at every AutoLink run, and therefore impossible to delete by hand. It is created only where a port will adopt it, and a shell left behind by an earlier run is removed.
+
+- **The cable list and its own row counted two different populations.** The row counted every cable and the detail listed only the inferred ones, so a project with 40 cables opened a drill-down of 15.
+
+### Changed
+
+- **Both Dashboard lists split by how we know.** LAG groups into measured · declared · derived — the third bucket did not exist, and a group made by hand was counted among the inferred ones. Cables into those three plus the two only a Verify can produce: **contradicted**, where the network denies the cable, and **not read** — an inference whose evidence evaporated. The words are the ones the certainty pills use everywhere else, taken from the single notation rather than written again, so a tab and a pill can never disagree; the tabs follow the notation's own reading order, and the two verdict tabs are absent, not empty, until a Verify has run.
+
+- **Three sentences that were not true.** The README promised that a Cisco `Port-channel` was *fully supported* while its members were being dropped; a second line still described the pre-2.11.9 rule, where duplicate links between two devices became a LAG on their own; and a test comment blamed the vIOS images for not publishing membership at all. They do publish it — measured on the bench, read-only.
+
 ## [2.11.9] — 2026-09-24
 
 Two things the app used to state without measuring them, and a gate for the numbers a release forgets.

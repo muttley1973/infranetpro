@@ -10,7 +10,7 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="3,758 tests, 0 failing" src="https://img.shields.io/badge/tests-3%2C758%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="3,775 tests, 0 failing" src="https://img.shields.io/badge/tests-3%2C775%20%C2%B7%200%20failing-3fb950"></a>
   <a href="#testing"><img alt="120 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-120%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#oui-intelligence-engine"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
@@ -146,7 +146,29 @@ Double-click <code>avvia.bat</code>.<br>
 
 > **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then run **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.11.9) — two things the app used to state without measuring them.**
+> 📰 **What's new (v2.11.10) — the measure that was missing exactly where we had stopped guessing.**
+>
+> - **A Cisco `Port-channel` brings its members with it.** 2.11.9 stopped calling two parallel cables a
+>   LAG and asked for a measurement instead. On Cisco that measurement never arrived: an aggregator was
+>   recognised only where the device declares `ifType=161`, and IOS declares `Port-channel` as
+>   `propVirtual` (53) — so the bundle was listed while its members kept no membership, and the LAG
+>   disappeared from the document altogether. It is read from `ifStackTable`, which those switches
+>   publish and which was there all along. Members inherit the trunk and its carried VLANs from the
+>   bundle again, which on Cisco is where the configuration lives.
+> - **The LAG list knows who its ends are.** They were read out of the group key — a plate, not a fact —
+>   so a group made by hand rendered with an empty name. They come from the member ports now, and a
+>   group left with no ports says so instead of having an end guessed for it.
+> - **Both lists split by how we know.** LAG groups into measured · declared · derived; cables into
+>   those three plus the two only a Verify can produce — *contradicted* and *not read*, the ghost whose
+>   evidence evaporated. Same words as the pills, because there is one notation. And the cables list
+>   now shows every cable: it used to show only the inferred ones, so the row said 40 and the detail
+>   opened on 15.
+> - **No more empty LAG groups.** The inferred group that carries a bundle onto a peer whose SNMP says
+>   nothing about aggregation was registered even when both ends already reported their own: no port
+>   joined it, and every AutoLink run made it again. It is created only where a port will adopt it, and
+>   the ones left behind by earlier runs are removed.
+>
+> 📰 **v2.11.9 — two things the app used to state without measuring them.**
 >
 > - **Two parallel cables are no longer called a LAG.** Two LLDP/CDP adjacencies between the same pair of
 >   devices were enough to infer an aggregation — and to write a LAG group, a forced `isTrunk` and a set of
@@ -502,6 +524,7 @@ Double-click <code>avvia.bat</code>.<br>
 - **Dashboard view** — a read-only view switch that answers three standing questions in three columns: **LAN** (is the document complete?), **Conformance** (does it still match reality?), **Expansion** (how much can I grow?). Every cell carries a number, a plain-word verdict and the **provenance** of the figure — declared, measured with a date, derived, or *not declared* as a dashed cell rather than a zero.
 - **Dashboard verdicts** — each column opens with a health dot and a sober phrase; red is reserved for *flying blind*, so a synced-but-imperfect project reads amber. A **since-last-read delta** shows problems closed or opened versus the previous read, and after seven days without contact a green verdict in the two measurement-based columns degrades and says how long ago it was read.
 - **Dashboard drill-downs** — every row opens in place. Free addresses count capacity on the **declared subnet prefix** (a /16 is ~65,000 addresses, not 254), networks you use but never declared surface as *undeclared*, free ports split into **in-rack / outside-rack / by-speed**, and IP and MAC share one row as the project's **ARP pairing**.
+- **Dashboard drill-downs, by how we know it** — the LAG list splits into **measured** (the device reports the aggregate), **declared** (a person made the group) and **derived** (the auto-link corroborated it), each group named after the devices that own its member ports; a group left with no ports is labelled as such rather than shown with a blank end. The cable list splits the same way and adds the two only a Verify can produce — **contradicted**, where the network denies the cable, and **not read**, the inference whose evidence evaporated. The words are the ones the certainty pills use everywhere else, and without a Verify the two verdict tabs are simply absent.
 - **Dashboard navigation** — the detail rows are live, not only readable: click a cable to trace its whole physical path across the floor and rack, a subnet, gateway or VLAN to open the panel where it is declared, an LLDP/CDP neighbour to light up the cable it matches. Each click leaves the Dashboard for the place the thing is edited or seen.
 - **Dashboard lenses** — three opt-in full-width lenses beyond the summary: **Recoverability (DR)** (backup freshness, hardware identity, location, presence), **Security & Services** (encrypted versus cleartext SNMP, default communities counted without the value ever leaving the engine, management-VLAN segmentation), and **Health** — the only one that speaks about the present, composing telemetry already returned through documented thresholds.
 - **"What I'm not looking at"** — a footnote under every lens naming the dimensions the summary does *not* judge (WAN, L3 routing, spanning tree, firewall/ACL, AAA, restore proof, temperature, trunk symmetry), so the absence of an alarm is never read as *all clear*. It is data in the engine, retired one line at a time.
@@ -534,7 +557,7 @@ Double-click <code>avvia.bat</code>.<br>
 - **Hardware inventory** — `brand` / `model` / `serialNumber` / `firmwareVer` from ENTITY-MIB (RFC 6933). Manually edited values are never overwritten.
 - **LLDP / CDP neighbour polling** — resolves connected neighbours and auto-draws cables.
 - **Wireless association discovery** — the Sync draws over-the-air associations from the **bridge FDB** (a client MAC on a radio interface) and the **L3 neighbour table**, the latter universally implemented so it covers all-in-one boxes and software hotspots. The SSID is chosen by VLAN match; ambiguity is left for you (`lib/wifi-assoc.js`).
-- **Auto-link creation** — duplicate links between the same pair become a LAG automatically; virtual MACs (Docker, VMware, Hyper-V, Xen, KVM) are filtered out via the OUI engine.
+- **Auto-link creation** — parallel links between the same pair are grouped as a LAG only where one end reports the aggregate (see *LAG detection*); on their own they stay separate cables. Virtual MACs (Docker, VMware, Hyper-V, Xen, KVM) are filtered out via the OUI engine.
 - **Topology walk** — one-click recursive discovery across a seed device's LLDP neighbours.
 - **Off-segment discovery via SNMP ARP** — the walk also reads each reachable device's ARP table and proposes hosts that answer neither ping nor SNMP nor LLDP/CDP. Bounded to the scanned subnet, deduped, presented as observed and **not pre-selected**.
 - **Manual-first** — user-edited `hostname`, `ip` and `integration.host` are protected by `*Manual` flags and never overwritten by SNMP or discovery.
@@ -573,7 +596,7 @@ Double-click <code>avvia.bat</code>.<br>
 - **L1** — `dot3adAggMemberPorts` (IEEE 802.3ad MIB).
 - **L2** — `lagAttached` + actor operational state bitmask.
 - **LLDP-inferred** — two or more parallel LLDP links between the same device pair, **and** at least one end reporting aggregation (`lagId` from the levels above, or a group you declared). Parallel cables on their own stay two cables and are reported in the AutoLink diagnosis, because LLDP says nothing about aggregation and the same picture is what spanning-tree redundancy looks like.
-- Cisco IOS `Port-channel` (ifType 53 / propVirtual) fully supported.
+- **Cisco `Port-channel`** — IOS declares it `propVirtual` (53), not `ieee8023adLag` (161), and publishes membership in `ifStackTable` only: 802.3ad, CISCO-PAGP-MIB and CISCO-LAG-MIB answer nothing on those images. Aggregator and members are both read from there. The same rule covers a Linux `bond`, a Juniper `ae`, an `Eth-Trunk`: an aggregator is `161`, or `53` carrying an aggregate name — `53` alone is not enough, since a Cisco SVI is `53` as well.
 - Groups auto-named from the aggregator interface (`Port-channel1`, `bond0`).
 - Selecting a LAG member port highlights all its siblings.
 
@@ -1221,8 +1244,8 @@ server on a temp store and is skipped unless `RUN_E2E=1`.
 Coverage focuses on the pure, bug-prone logic that has historically broken: SNMP parsing & extraction (`test/snmp.test.js`, `test/extractData.test.js`), discovery & classification (`test/discovery.test.js`, 14 real-device cases), correlation primitives (`test/correlate.test.js`), the sysObjectID / OUI / Fusion engines (`tests/*.test.js`), front-panel state, cable validation (incl. **Cat8 30 m reach**), IPAM & LAG audits, and an app-wide **smoke E2E** (`test/smoke-app.test.js`) that loads every `netmapper.html` script plus the esbuild bundle into a `vm` + DOM stub and asserts `renderAll`/`renderProps` never throw on any device type.
 
 Current local quality baseline:
-- `npm run check` parses every JS source of the product — **523** of them. It skips the folders `eslint.config.js` already ignores (git worktrees, the private workspace, the editor's caches), so the number stays stable between runs instead of drifting with whatever happens to be checked out beside the repo
-- `npm test` runs the full regression suite (currently **3,758 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **120 flows**)
+- `npm run check` parses every JS source of the product — **525** of them. It skips the folders `eslint.config.js` already ignores (git worktrees, the private workspace, the editor's caches), so the number stays stable between runs instead of drifting with whatever happens to be checked out beside the repo
+- `npm test` runs the full regression suite (currently **3,775 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **120 flows**)
 - `npm run release -- check` is the gate before a tag: the version in its four places, a CHANGELOG section that actually lists something, and the test count above measured against what the suite really prints — the one number no test can check without counting itself
 - final visual verification is still important for rack/front-panel refinements
 
