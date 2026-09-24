@@ -1,14 +1,20 @@
 # Changelog
 
-## [2.11.9] — 2026-09-23
+## [2.11.9] — 2026-09-24
 
-Two things the app used to state without measuring them.
+Two things the app used to state without measuring them, and a gate for the numbers a release forgets.
 
 ### Fixed
 
-- **Two parallel cables are no longer called a LAG.** Two or more LLDP/CDP adjacencies between the same pair of devices were enough to create an inferred aggregation: a `lldp-lag-…` group written onto the ports, `isTrunk` forced to true, and the carried VLANs filled in from the device's VLAN inventory — three document fields born from a coincidence. But LLDP says nothing about aggregation, and two parallel cables are equally the picture of **spanning-tree redundancy**, where one port forwards and the other is blocked with the link still up. Aggregation is measurable and the driver already reads it (`ifStackTable`, IEEE 802.3ad, AttachedAggID), so a LAG is now declared only where one end reports it — or where a person declared it. Everywhere else the cables stay two, the coincidence is reported in the AutoLink diagnosis, and a `lldp-lag-…` group left behind by an earlier run is removed. A group the inference wrote itself never counts as evidence of itself.
+- **Two parallel cables are no longer called a LAG.** Two LLDP/CDP adjacencies between the same pair of devices were enough to write an inferred aggregation — a group on the ports, `isTrunk` forced true, carried VLANs filled in — three document fields born from a coincidence. LLDP says nothing about aggregation, and two parallel cables are equally the picture of spanning-tree redundancy. A LAG is now declared only where one end reports it (`ifStackTable`, IEEE 802.3ad, AttachedAggID) or a person did; elsewhere the cables stay two, and a group an earlier run left behind is removed.
 
-- **A port description deleted on the switch now disappears from InfraNet too.** The SNMP reader closed every interface with `alias: f.alias || ''`, so *not read* and *read empty* became the same empty string; the client then kept the previous description whenever it saw that empty string. Two fallbacks in a row made the description immortal: after `no description` on the switch, the old text stayed in the port panel, in the PDF report and in the LLDP neighbour matching that also looks ports up by description. The reader now keeps the three cases apart — text, read empty, not read — and a description the latest poll did not confirm is dropped, by the same rule that already applies to a port's measured VLAN. A description written by hand in InfraNet is a different field and is never touched. `test/snmp-descrizione-porta.test.js` covers both layers: five of its nine cases failed on the old code, exactly the ones this fix is about.
+- **A port description deleted on the switch now disappears from InfraNet too.** The SNMP reader closed every interface with `alias: f.alias || ''`, so *not read* and *read empty* became one empty string, and the client kept the previous text whenever it saw it. Two fallbacks in a row made the description immortal — in the port panel, the PDF report and the LLDP neighbour matching. The three cases are now kept apart, and a description the latest poll did not confirm is dropped, by the rule that already applies to a port's measured VLAN.
+
+### Changed
+
+- **A release gate instead of a list to remember** (`npm run release -- check`): the version in its four places, a CHANGELOG section that actually lists something, and the declared test count measured against what the suite prints — the one number no test can check without counting itself.
+
+- **Dependabot gets one narrow rule**: scheduled version-update pull requests stay off, and Express majors are filtered — Express 5 is a decision with its own testing pass, not a dependency bump. Security updates keep arriving.
 
 ## [2.11.8] — 2026-09-16
 

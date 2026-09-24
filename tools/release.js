@@ -132,18 +132,24 @@ function bump(versione) {
     return 0;
 }
 
-// ── I numeri dichiarati nel README ────────────────────────────────────────
-// Tre citazioni dello stesso numero (targhetta, indirizzo della targhetta, riga
-// del capitolo Testing) piu' quella dell'e2e. Si leggono tutte: due copie di un
-// numero divergono sempre, e qui le copie sono tre.
-function numeriDelReadme() {
+// ── I numeri dichiarati ───────────────────────────────────────────────────
+// QUATTRO citazioni dello stesso numero: targhetta, indirizzo della targhetta e
+// riga del capitolo Testing nel README, piu' il §7 di ARCHITECTURE.md. Si
+// leggono tutte: due copie di un numero divergono sempre, e qui sono quattro.
+// ⚠️ La quarta e' arrivata tardi, e il modo in cui e' arrivata e' la prova che
+// serviva: preparando QUESTO rilascio, ARCHITECTURE.md dichiarava ancora 3.685
+// test contro i 3.758 veri — stantia da tre versioni, perche' il cancello
+// guardava solo il README.
+function numeriDichiarati() {
     const R = leggi('README.md');
+    const A = leggi('ARCHITECTURE.md');
     const num = (s) => Number(String(s).replace(/[,.]/g, ''));
     const badgeUrl = R.match(/badge\/tests-([^%]*(?:%[0-9A-Fa-f]{2}[^%]*)*?)%20/);
     const dichiarati = {
         badgeAlt: R.match(/alt="([\d,.]+) tests, 0 failing"/),
         badgeUrl: badgeUrl ? [badgeUrl[0], decodeURIComponent(badgeUrl[1])] : null,
         testing: R.match(/currently \*\*([\d,.]+) tests, 0 failing\*\*/),
+        architettura: A.match(/\*\*([\d,.]+) tests\*\* at the time of writing/),
     };
     const mancanti = Object.keys(dichiarati).filter((k) => !dichiarati[k]);
     const valori = Object.keys(dichiarati)
@@ -209,20 +215,20 @@ function check(argv) {
     } else ok('CHANGELOG.md: la sezione c\'e\' e ha voci');
 
     // ③ I numeri del README. Prima la coerenza fra le copie, poi la misura.
-    const { valori, mancanti, e2e } = numeriDelReadme();
+    const { valori, mancanti, e2e } = numeriDichiarati();
     if (mancanti.length) {
         // ⚠️ Una prova che non trova niente passa: qui deve ARROSSIRE, o diventa
         // un cancello che non guarda piu' nessuno.
-        ko('README: non trovo piu\' ' + mancanti.join(', ') + ' — la frase e\' stata riscritta? '
+        ko('citazioni del conteggio: non trovo piu\' ' + mancanti.join(', ') + ' — la frase e\' stata riscritta? '
             + 'Aggiorna l\'ancora in tools/release.js, non toglierla');
         rosso++;
     }
     const distinti = [...new Set(valori.map((v) => v.n))];
     if (distinti.length > 1) {
-        ko('README: il conteggio dei test e\' citato con numeri diversi — '
+        ko('il conteggio dei test e\' citato con numeri diversi — '
             + valori.map((v) => v.dove + '=' + v.n).join(', '));
         rosso++;
-    } else if (distinti.length === 1) ok('README: le ' + valori.length + ' citazioni del conteggio dicono tutte ' + distinti[0]);
+    } else if (distinti.length === 1) ok('le ' + valori.length + ' citazioni del conteggio (README ×3 + ARCHITECTURE) dicono tutte ' + distinti[0]);
 
     if (rapido) {
         nota('suite NON rilanciata (--rapido): il conteggio dei test resta NON verificato');
@@ -281,4 +287,4 @@ if (require.main === module) {
     }
 }
 
-module.exports = { posti, numeriDelReadme };
+module.exports = { posti, numeriDichiarati };
