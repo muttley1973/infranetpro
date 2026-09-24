@@ -9,7 +9,10 @@
 //
 //  L0 — ifStackTable (IF-MIB RFC 2863)
 //       OID 1.3.6.1.2.1.31.1.2.1.3.{H}.{L} → RowStatus (ifStackStatus)
-//       H=aggregatore (ifType=161), L=porta fisica membro.
+//       H=aggregatore, L=porta fisica membro. Chi sia un aggregatore lo dice
+//       `_isAggregator`: ifType=161, oppure 53 (propVirtual) con un nome da
+//       bundle — Cisco dichiara i Port-channel così, e chiedere solo il 161
+//       lasciava i suoi membri senza appartenenza (misurato sul banco 24/09).
 //       Funziona per LAG statico e LACP, tutto in spazio ifIndex.
 //       Supportato da: Cisco IOS/NX-OS, Juniper, HP/Aruba, Dell...
 //
@@ -38,6 +41,9 @@
 // ============================================================
 
 const snmp = require('net-snmp');
+// Riconoscitore vendor-neutral dei nomi d'interfaccia. Serve a una domanda sola —
+// «questo nome è un aggregato?» — che il progetto sa già rispondere in un posto.
+const { _ifNameMeta } = require('../lib/netnames.js');
 
 const SNMP_DEBUG = /^(1|true|yes|on)$/i.test(String(process.env.DEBUG_SNMP || process.env.SNMP_DEBUG || ''));
 function snmpDebug(...args) { if (SNMP_DEBUG) console.log(...args); }
@@ -682,6 +688,25 @@ function _entityPriorityScore(row) {
   return score;
 }
 
+// Questa interfaccia è un AGGREGATORE? La domanda si fa in tre punti — chi legge
+// ifStackTable, il cross-check di AttachedAggID e la classificazione finale — e
+// fino al 24/09 ognuno rispondeva a modo suo: i primi due chiedevano ifType=161,
+// il terzo accettava anche il 53 con un nome da bundle. Due risposte diverse alla
+// stessa domanda sullo stesso apparato, e su Cisco vinceva la più stretta:
+// `Port-channel1` entrava in `lags[]` e i suoi membri restavano senza `lagId` —
+// un LAG senza membri, cioè nessun LAG. Misurato sul banco: i tre vIOS pubblicano
+// l'appartenenza in ifStackTable (Po1 ← Gi0/1, Gi0/2) e nient'altro — né 802.3ad,
+// né PAgP, né CISCO-LAG-MIB; l'Arista, che dichiara 161, funzionava già.
+// RFC 2863: 161 = ieee8023adLag e da solo basta. Il 53 = propVirtual è generico
+// (ci finiscono SVI, tunnel, interfacce di servizio), quindi conta solo col NOME —
+// che qui non si enumera: lo riconosce `_ifNameMeta` (Po/Port-channel/LAG/Trk/
+// ae/bond/Eth-Trunk/BAGG/reth…), l'unico elenco del progetto.
+function _isAggregator(f) {
+  const t = (f && f.type) || 0;
+  if (t === 161) return true;
+  return t === 53 && !!_ifNameMeta((f && f.name) || '').lagToken;
+}
+
 function logicalLagIdFromName(name) {
   const m = String(name || '').trim().match(/^(?:port-?channel|po|lag|trk|eth-?trunk|bundle-?ether|bridge-?aggregation|bond|ae|reth|bagg)\s*[-_/]?\s*(\d+)$/i);
   if (!m) return 0;
@@ -1093,7 +1118,7 @@ function extractData(vbs) {
     // sottointerfaccia dot1Q dichiara su quale porta FISICA vive. Raccolta prima
     // del filtro sull'aggregatore, che scarterebbe tutto il resto.
     if (stackLower[H] === undefined) stackLower[H] = L;
-    if (((ifaces[H] && ifaces[H].type) || 0) !== 161) continue;
+    if (!_isAggregator(ifaces[H])) continue;
     if (!ifaces[L]) ifaces[L] = {};
     ifaces[L].lagId  = H;
     ifaces[L].lagSrc = 'stack';
@@ -1251,7 +1276,7 @@ function extractData(vbs) {
 
   const lagIfIndexes = new Set();
   for (const [idxStr, f] of Object.entries(ifaces)) {
-    if ((f.type || 0) === 161) lagIfIndexes.add(Number(idxStr));
+    if (_isAggregator(f)) lagIfIndexes.add(Number(idxStr));
   }
 
   // ---- Diagnostica completa interfacce con bridge port o trunk ----------------
@@ -1411,10 +1436,7 @@ function extractData(vbs) {
       else _classify.push({ idx, name: obj.name, type: t, mac: mac||'-', r: 'SKIP nome-virtuale' });
       // caso 2 e 4: nome virtuale → escludi (indipendentemente dal MAC)
     }
-    else if (t === 161) { lags.push(obj); _classify.push({ idx, name: obj.name, type: t, mac: mac||'-', r: 'LAG (ifType=161)' }); }
-    // Aggiungi anche aggregatori con tipo=53 (propVirtual) il cui nome corrisponde
-    // a pattern di aggregazione (Cisco Port-channel, Linux bond, Juniper ae, ecc.)
-    else if (t === 53 && /^(port-?channel|bond\d*|ae\d|po\d+$|lag\d)/i.test(f.name||'')) { lags.push(obj); _classify.push({ idx, name: obj.name, type: t, mac: mac||'-', r: 'LAG (ifType=53)' }); }
+    else if (_isAggregator(f)) { lags.push(obj); _classify.push({ idx, name: obj.name, type: t, mac: mac||'-', r: `LAG (ifType=${t})` }); }
     // ifType 135 = l2vlan (RFC 2863): una sottointerfaccia dot1Q, cioè un pezzo di
     // rete che vive SU una porta fisica. Non è cablabile — non diventa una porta —
     // ma non è nemmeno niente: su un router-on-a-stick è lì che stanno l'indirizzo
@@ -1533,9 +1555,11 @@ function extractData(vbs) {
     // LOGICO (`lagId`): `Po1` è l'id logico 1 e vive all'ifIndex 10, e i due numeri
     // non coincidono quasi mai. Cercando per id logico questo blocco non trovava
     // niente e l'intera eredità — trunk, VLAN trasportate, PVID — non è mai scattata.
-    // Invisibile sui vIOS, che l'appartenenza non la pubblicano affatto; visibile
-    // sull'Arista del banco, dove Ethernet1/2 risultavano access mentre stanno in un
-    // Port-Channel trunk con 30 e 99.
+    // Visibile sull'Arista del banco, dove Ethernet1/2 risultavano access mentre
+    // stanno in un Port-Channel trunk con 30 e 99. ⚠️ Qui c'era scritto che sui vIOS
+    // il difetto era invisibile «perché l'appartenenza non la pubblicano affatto»:
+    // FALSO, misurato il 24/09 — la pubblicano in ifStackTable, era il driver a non
+    // riconoscere l'aggregatore (ifType 53). Sono loro il caso peggiore, non l'esente.
     const aggIdx = p.lagIfIndex || 0;
     if (aggIdx > 0 && lagByIdx[aggIdx]) {
       const agg = lagByIdx[aggIdx];

@@ -9,8 +9,10 @@
 //
 // Misurato sul banco il 2026-08-20: sull'Arista `Ethernet1` ed `Ethernet2` sono
 // dichiarati membri di `Port-Channel3`, che è un trunk con 30 e 99 — e i due membri
-// risultavano porte access. Sui vIOS non si vedeva perché quelle immagini non
-// pubblicano affatto l'appartenenza: zero membri dichiarati, difetto invisibile.
+// risultavano porte access. ⚠️ Qui c'era scritto che sui vIOS non si vedeva
+// «perché quelle immagini non pubblicano affatto l'appartenenza»: FALSO, misurato
+// il 2026-09-24 — la pubblicano in ifStackTable, ma il driver non riconosceva come
+// aggregatore un Port-channel a ifType=53. → test/lag-aggregatore-non-solo-161.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { extractData, OID } = require('../drivers/snmp.js')._internals;
