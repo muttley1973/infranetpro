@@ -141,7 +141,33 @@ class FusionScorer {
     // Vendor RIPULITO dai sostantivi-tipo generici prima di entrare nel testo di
     // classificazione: "gateway"/"switch"/"router"/"firewall" dentro un NOME AZIENDA
     // non devono decidere il tipo (guardrail vendor≠tipo). I brand reali restano.
-    const vendorForType = vendor.replace(VENDOR_TYPE_NOUN_RE, ' ');
+    //
+    // ⭐ ...E IL NOME DEL PRODUTTORE CHE SAPPIAMO SOLO DAL MAC NON ENTRA AFFATTO.
+    // Il guardrail sopra toglieva i sostantivi generici ma lasciava i BRAND, e i
+    // brand sono proprio cio' che `SWITCH_VENDOR_RE`/`ROUTER_VENDOR_RE` cercano
+    // (`aruba`, `procurve`, `catalyst`, `mikrotik`...). Cosi' UNA SOLA evidenza —
+    // il MAC — votava DUE volte: una come `oui-plugin-type`, col tetto <=45 che il
+    // commento qui sotto dichiara apposta («non puo' MAI battere un segnale
+    // misurato >=78»), e una seconda, SENZA tetto, passando per il testo.
+    // MISURATO il 25/09 su un apparato muto a SNMP: switch 123 (45+78) contro
+    // firewall 90, cioe' il MAC batteva la pagina web dell'apparato che diceva
+    // «pfSense - Login». Il tetto c'era; la seconda porta lo aggirava.
+    // ⭐ Il principio: **il nome del produttore e' IDENTITA', non funzione** — e
+    // un'identita' vota UNA volta sola, con il suo tetto. Quando invece il vendor
+    // arriva da una MISURA (sysObjectID, OS-fingerprint, voto OID vendor-level) il
+    // testo lo tiene com'era (e il nome nel sysDescr continua a votare da solo).
+    // ⚠️ Quando il MAC e' l'UNICO segnale il tipo esce lo stesso, dal voto
+    // `oui-plugin-type` e a confidenza onesta: qui non si perde una risposta, si
+    // toglie a quella risposta un potere che non le spetta.
+    // ⚠️ La domanda giusta e' «questa stringa VIENE dal MAC?», non «esiste da
+    // qualche parte un vendor misurato?»: su un apparato che risponde a SNMP con un
+    // OID vendor-level il vendor puo' restare quello dell'OUI, e la seconda porta
+    // si riapriva (misurato mentre scrivevo questa guardia). Se invece il nome del
+    // produttore sta nel TESTO misurato — sysDescr, banner, mDNS — li' non e' il
+    // MAC a parlare ed e' quel testo, non questa riga, a farlo votare.
+    const _ouiVendor = String(ouiInfo?.vendor || '').trim().toLowerCase();
+    const vendorSoloDalMac = !!_ouiVendor && vendor === _ouiVendor;
+    const vendorForType = vendorSoloDalMac ? '' : vendor.replace(VENDOR_TYPE_NOUN_RE, ' ');
     const banner = `${row?.httpTitle || ''} ${row?.httpsTitle || ''}`.toLowerCase();
     const host = String(row?.hostname || '').toLowerCase();
     const netbiosName = String(row?.netbiosName || row?.netbios?.name || '').toLowerCase();

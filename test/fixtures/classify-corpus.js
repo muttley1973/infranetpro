@@ -32,6 +32,24 @@
 
 /** @type {{id:string, note:string, expect:string, row:Object}[]} */
 const CORPUS = [
+  // ── §93 ① (25/09) — il nome del produttore dedotto dal MAC e' IDENTITA', non
+  //    funzione: vota una volta sola (`oui-plugin-type`, tetto 45) e NON una seconda
+    //  volta passando per il testo che leggono le regex vendor→tipo.
+  { id: 'reg-oui-non-batte-il-banner', expect: 'firewall', note: '§93 ①: un apparato MUTO a SNMP con OUI di un produttore di switch, ma la cui pagina web dice cos\'e\'. Prima: switch 123 (45 OUI + 78 regex-vendor) contro firewall 90 — il MAC batteva l\'apparato',
+    row: { ip: '10.99.0.40', mac: '0c:c4:7a:11:22:33', alive: true, pingReachable: true, httpsTitle: 'pfSense - Login' } },
+  { id: 'reg-oui-non-batte-il-nome-host', expect: 'firewall', note: '§93 ①: stesso apparato muto, stesso OUI, e il nome host che lo dichiara',
+    row: { ip: '10.99.0.40', mac: '0c:c4:7a:11:22:33', alive: true, pingReachable: true, hostname: 'pfsense.home.arpa' } },
+  // ⚠️ PALETTO ③ — le due righe qui sopra usano lo stesso OUI e lo stesso apparato, e
+  //    sono i due che stanno nel banco. Questa riga tiene la regola su una CLASSE:
+  //    altro produttore (che fa router), altra vittima (una stampante), stesso difetto.
+  //    Misurato prima del taglio: router 207 contro printer 90 — la scheda di rete
+  //    batteva la pagina web della stampante.
+  { id: 'reg-oui-non-batte-il-banner-altro-vendor', expect: 'printer', note: '§93 ① su un\'altra famiglia: OUI di un produttore di ROUTER, ma la pagina web e\' quella di una stampante. Se questo torna `router`, il vendor dedotto dal MAC ha ripreso a votare due volte',
+    row: { ip: '10.99.0.43', mac: '00:0c:42:11:22:33', alive: true, pingReachable: true, httpTitle: 'HP LaserJet Pro M404' } },
+  { id: 'reg-oui-da-solo-classifica-ancora', expect: 'switch', note: 'CONTROPROVA di §93 ①: quando il MAC e\' l\'UNICO segnale deve classificare ANCORA (a confidenza onesta). Se questo diventa `pc`, non ho tolto la seconda porta: ho spento il voto',
+    row: { ip: '10.99.0.41', mac: '0c:c4:7a:11:22:44', alive: true, pingReachable: true } },
+  { id: 'reg-vendor-misurato-vota-ancora', expect: 'switch', note: 'CONTROPROVA 2 di §93 ①: se il vendor arriva da una MISURA (qui il sysDescr dell\'apparato) il testo lo tiene com\'era — la regola tocca solo il vendor DEDOTTO dal MAC',
+    row: { ip: '10.99.0.42', mac: '02:11:22:33:44:55', alive: true, pingReachable: true, snmpReachable: true, descr: 'Aruba JL258A 2930F-8G-PoE+-2SFP+ Switch' } },
 
   // ── Righe reali (anonimizzate) ────────────────────────────────────────
   { id: 'real-vios-l2', expect: 'switch', note: 'switch virtuale del banco: sysServices dichiara L2',

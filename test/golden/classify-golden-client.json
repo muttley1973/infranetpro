@@ -1,4 +1,9 @@
 {
+ "reg-oui-non-batte-il-banner": "firewall",
+ "reg-oui-non-batte-il-nome-host": "firewall",
+ "reg-oui-non-batte-il-banner-altro-vendor": "printer",
+ "reg-oui-da-solo-classifica-ancora": "pc",
+ "reg-vendor-misurato-vota-ancora": "switch",
  "real-vios-l2": "switch",
  "real-hp-jetdirect": "printer",
  "real-gs1900": "switch",
