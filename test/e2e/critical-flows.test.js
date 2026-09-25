@@ -2052,6 +2052,150 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.notPinned2, 'Ignora non pinna il tipo');
     });
 
+    await t.test('§93 un TIPO pinnato a mano non fa scattare «possibile sostituzione» a ogni scansione', async () => {
+      // La prova sta sul percorso VERO: `importDiscovered()` del bundle, con la tabella
+      // Scopri resa dal prodotto — non su una copia della condizione. Due nodi IDENTICI
+      // tranne il pin, e la stessa riga scoperta su entrambi: l'unica differenza che
+      // l'import vede e' il TIPO proposto dal classificatore. Chi non ha il pin e' la
+      // CONTROPROVA — senza di lui un `return false` secco passerebbe il test.
+      const r = await page.evaluate(async () => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0;
+          // Documentati come `firewall`; brand e hostname UGUALI a quelli che la scansione
+          // riporta, cosi' vendor/hostname (che sono misure) non hanno niente da dire.
+          state.nodes.push({ id: 'pin1', type: 'firewall', typeManual: true, name: 'PF-PIN', hostname: 'pf-pin',
+            ip: '10.93.0.1', brand: 'Netgate', ports: 4, rackId: 'rack_1', rackU: 30, sizeU: 1 });
+          state.nodes.push({ id: 'free1', type: 'firewall', name: 'PF-FREE', hostname: 'pf-free',
+            ip: '10.93.0.2', brand: 'Netgate', ports: 4, rackId: 'rack_1', rackU: 32, sizeU: 1 });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+
+          openDiscovery();
+          // ⚠️ Le righe della PROVA PRECEDENTE sono ancora nel DOM: `_discRenderTable`
+          // comincia con `_discCaptureUiState`, che le rilegge per `data-idx` e le
+          // indicizza sull'array NUOVO — cosi' il tipo scelto su una riga di prima
+          // finisce, per POSIZIONE, su un apparato che non c'entra. Qui la svuoto per
+          // isolare la prova. ⚠️ NON e' solo un fatto del banco: `openDiscovery` e
+          // `runDiscovery` azzerano `_discResults`/`_discSelMap`/`_discTypeMap` ma NON
+          // la tabella, quindi la stessa cosa succede alla SECONDA scansione vera.
+          // Difetto separato da questo, da curare a parte.
+          document.getElementById('disc-tbody').innerHTML = '';
+          window._discResults = [
+            { ip: '10.93.0.1', hostname: 'pf-pin', alive: true, snmpReachable: true, deviceClass: 'switch',
+              vendor: 'Netgate', sources: [{ id: 'snmp', label: 'SNMP' }], confidence: { score: 85, level: 'high' } },
+            { ip: '10.93.0.2', hostname: 'pf-free', alive: true, snmpReachable: true, deviceClass: 'switch',
+              vendor: 'Netgate', sources: [{ id: 'snmp', label: 'SNMP' }], confidence: { score: 85, level: 'high' } },
+          ];
+          _discRenderTable();
+          // Seleziona tutto SENZA toccare il select-tipo: cosi' `_typeManual` della RIGA
+          // resta falso e il tipo che arriva al merge e' la proposta del classificatore,
+          // non una scelta fatta ora nel dialogo (che sarebbe manuale-su-manuale).
+          const selall = document.getElementById('disc-selall');
+          selall.checked = true; selall.dispatchEvent(new Event('change', { bubbles: true }));
+          const proposti = [...document.querySelectorAll('#disc-tbody select.disc-type')].map(s => s.value);
+
+          await importDiscovered();
+
+          const shift = (n) => (Array.isArray(n.discoveryConflicts) ? n.discoveryConflicts : [])
+            .filter(c => c && c.type === 'identity-shift');
+          const pin = nodeById('pin1'), free = nodeById('free1');
+          const out = { ok: true, proposti,
+            pinType: pin.type, freeType: free.type,
+            pinFlag: !!pin.possibleReplacement, freeFlag: !!free.possibleReplacement,
+            pinShift: shift(pin).length, freeShift: shift(free).length,
+            freeNewType: (shift(free)[0] || {}).newType || '' };
+          closeDiscovery();
+          return out;
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso import con tipo pinnato: ' + r.err);
+      assert.deepEqual(r.proposti, ['switch', 'switch'], 'il classificatore propone «switch» su entrambe le righe: è la differenza che alzava la bandierina');
+      assert.equal(r.pinType, 'firewall', 'il tipo pinnato non viene sovrascritto (manual-first, già garantito prima)');
+      assert.equal(r.freeType, 'firewall', 'nemmeno quello non pinnato: la proposta resta una proposta');
+      assert.equal(r.pinFlag, false, 'su un TIPO scelto a mano l\'import NON alza più «possibile sostituzione»: una decisione non è l\'indizio che l\'apparato è cambiato');
+      assert.equal(r.pinShift, 0, 'e non registra nemmeno la proposta di ri-tipizzazione: sarebbe lo stesso rumore in un\'altra riga');
+      assert.equal(r.freeFlag, true, 'CONTROPROVA: senza pin la bandierina si alza ancora — la guardia è mirata, non un interruttore generale');
+      assert.equal(r.freeShift, 1, 'e la proposta viene registrata una volta sola');
+      assert.equal(r.freeNewType, 'switch', 'col tipo suggerito leggibile dal pannello (Adotta/Ignora)');
+    });
+
+    await t.test('la riga di «Scopri» parla solo per sé: «Dividi» non sposta tipo e spunta sui vicini', async () => {
+      // 🐞 La cattura dello stato UI leggeva il `data-idx` del DOM e ci indicizzava
+      // l'array dei risultati di ADESSO. «Dividi» su una riga fusa fa uno splice IN
+      // MEZZO all'array e ri-rende: da lì in giù ogni riga vecchia parlava per la
+      // riga successiva, e la scelta dell'utente scivolava su un altro apparato.
+      // Gesto VERO (clic sul badge, delegazione reale), non una chiamata di servizio.
+      const r = await page.evaluate(async () => {
+        const raf = () => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0;
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          openDiscovery();
+          const mk = (ip, cls) => ({ ip, alive: true, pingReachable: true, snmpReachable: true,
+            deviceClass: cls, hostname: '', sources: [{ id: 'snmp', label: 'SNMP' }],
+            confidence: { score: 80, level: 'high' } });
+          // La prima riga tiene una NIC fusa: è lei che porta il badge «Dividi».
+          const fusa = mk('10.94.0.11', 'switch');
+          const primo = mk('10.94.0.10', 'switch');
+          primo._foldedRows = [fusa]; primo._mergeKey = 'serial:E2E-94';
+          window._discResults = [primo, mk('10.94.0.12', 'printer'), mk('10.94.0.13', 'nas')];
+          _discRenderTable();
+
+          // ⚠️ La riga si identifica dall'IP che MOSTRA, non da un attributo che ho
+          // aggiunto io: così la prova misura il comportamento e resta rossa, per il
+          // motivo giusto, anche sul codice di prima.
+          const perIp = () => { const o = {}; document.querySelectorAll('#disc-tbody tr').forEach(tr => {
+            o[(tr.querySelector('.disc-ip')?.textContent || '').trim()] = {
+              tipo: tr.querySelector('.disc-type')?.value,
+              spuntata: !!tr.querySelector('.disc-chk')?.checked }; }); return o; };
+
+          // L'utente decide due cose sulle righe SOTTO quella fusa (eventi veri).
+          const trs = [...document.querySelectorAll('#disc-tbody tr')];
+          const selC = trs[1].querySelector('.disc-type');
+          selC.value = 'webcam'; selC.dispatchEvent(new Event('change', { bubbles: true }));
+          const chkD = trs[2].querySelector('.disc-chk');
+          chkD.checked = false; chkD.dispatchEvent(new Event('change', { bubbles: true }));
+          const prima = perIp();
+
+          // Il gesto: «Dividi» sulla riga fusa → splice a metà array + re-render.
+          document.querySelector('#disc-tbody .disc-badge.fold[data-act="disc-fold-split"]').click();
+          await raf();
+          const dopo = perIp();
+          closeDiscovery();
+          return { ok: true, prima, dopo, righe: Object.keys(dopo).length };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso «Dividi»: ' + r.err);
+      assert.equal(r.righe, 4, '«Dividi» rimette la NIC fusa come riga a sé (3 righe → 4)');
+      assert.equal(r.prima['10.94.0.12'].tipo, 'webcam', 'prima: il tipo scelto a mano è sulla riga .12');
+      assert.equal(r.dopo['10.94.0.12'].tipo, 'webcam', 'DOPO: il tipo scelto resta sulla riga .12, non scivola');
+      assert.equal(r.dopo['10.94.0.11'].tipo, 'switch', 'la riga appena divisa NON eredita il tipo scelto sulla .12');
+      assert.equal(r.prima['10.94.0.13'].spuntata, false, 'prima: la .13 è stata deselezionata');
+      assert.equal(r.dopo['10.94.0.13'].spuntata, false, 'DOPO: la .13 è ancora deselezionata');
+      assert.equal(r.dopo['10.94.0.12'].spuntata, true, 'e la .12 NON eredita la deselezione della .13');
+    });
+
+    await t.test('«Scopri» riaperto riparte da una tabella VUOTA (le righe di prima non parlano)', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          openDiscovery();
+          window._discResults = [
+            { ip: '10.94.1.10', alive: true, snmpReachable: true, deviceClass: 'switch', confidence: { score: 80, level: 'high' } },
+          ];
+          _discRenderTable();
+          const primaRighe = document.querySelectorAll('#disc-tbody tr').length;
+          openDiscovery();   // riapertura: azzera risultati, mappe... e la tabella
+          const dopoRighe = document.querySelectorAll('#disc-tbody tr').length;
+          closeDiscovery();
+          return { ok: true, primaRighe, dopoRighe };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nella riapertura: ' + r.err);
+      assert.equal(r.primaRighe, 1, 'la tabella aveva una riga');
+      assert.equal(r.dopoRighe, 0, 'riaprendo «Scopri» la tabella è vuota: i risultati sono azzerati e le righe pure');
+    });
+
     await t.test('P5 conteggio porte manual-first: editare a mano pinna portsManual; la misura SNMP resta una proposta adottabile', async () => {
       const r = await page.evaluate(async () => {
         const raf = () => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));

@@ -269,6 +269,10 @@ function openDiscovery(prefillCidr){
     store._discResults=[];
     store._discSelMap={};
     store._discTypeMap={};
+    // La tabella e' il quarto posto dove vive la scansione precedente: se non la si
+    // svuota, «si riparte puliti» e' vero per tre cose su quattro e le righe di
+    // prima restano a schermo (nascoste) fino al primo render della prossima.
+    _discClearTable();
     store._discRunning=false;
     store._discImporting=false;
     document.getElementById('disc-overlay').classList.add('open');
@@ -374,6 +378,7 @@ async function runDiscovery(){
     store._discRunning = true;
     store._discSelMap = {};
     store._discTypeMap = {};
+    _discClearTable();   // idem qui: una seconda scansione senza chiudere il dialogo
 
     let scanTimeout=null;
     try{
@@ -556,13 +561,28 @@ function _discEnsureMeta(d){
     return row;
 }
 
+// Prima di ri-rendere, si tiene da conto cosa aveva scelto l'utente su ogni riga.
+// ⚠️ LA RIGA PARLA SOLO PER SE' STESSA, e la sua identita' e' la CHIAVE che porta
+// scritta addosso (`data-key`), non la posizione. Leggeva invece il `data-idx` del
+// DOM e ci indicizzava `store._discResults`, cioe' l'array di ADESSO: bastava che
+// l'array cambiasse fra un render e l'altro perche' la scelta fatta sulla riga N
+// finisse sulla chiave di un ALTRO apparato. Succedeva in due modi veri:
+//  · alla SECONDA scansione (l'array viene sostituito e le righe di prima sono
+//    ancora nel DOM: `runDiscovery` azzera le mappe e rende, non svuota la tabella);
+//  · premendo «Dividi» su una riga fusa — `_discFoldSplit` fa uno splice IN MEZZO
+//    all'array e ri-rende subito: tutte le righe sotto slittano di posto.
+// Con la chiave, una riga vecchia parla al massimo per l'apparato che era lei; se
+// quell'apparato nella scansione nuova non c'e', non parla per nessuno.
+function _discClearTable(){
+    const tbody = document.getElementById('disc-tbody');
+    if(tbody) tbody.innerHTML = '';
+}
+
 function _discCaptureUiState(){
     document.querySelectorAll('#disc-tbody tr').forEach(tr=>{
         const chk = tr.querySelector('.disc-chk');
         if(!chk) return;
-        const idx = parseInt(chk.dataset.idx,10);
-        const row = store._discResults[idx];
-        const key = _discKey(row);
+        const key = String(tr.dataset.key || '');
         if(!key) return;
         store._discSelMap[key] = !!chk.checked;
         const sel = tr.querySelector('.disc-type');
@@ -929,7 +949,7 @@ function _discRenderTable(){
         const canImport = !!d.alive && (conf.score || 0) >= DISC_PRESELECT_MIN_CONF;
         const checked = Object.prototype.hasOwnProperty.call(store._discSelMap,key) ? !!store._discSelMap[key] : canImport;
         const _rowCls = [d.alive ? '' : 'disc-off', _lowConf ? 'disc-lowconf' : ''].filter(Boolean).join(' ');
-        return `<tr class="${_rowCls}">
+        return `<tr class="${_rowCls}" data-key="${escapeHTML(key)}">
           <td><input type="checkbox" class="disc-chk" data-idx="${i}" data-change="disc-row" ${checked?'checked':''}></td>
           <td><span class="disc-st ${reach.cls}" data-tip="${escapeHTML(reach.title)}">${escapeHTML(reach.label)}</span></td>
           <td class="disc-host"><span class="disc-name${rowLabel.derived ? ' nl-derived' : ''}"${rowLabel.derived ? ` title="${escapeHTML(_dt('disc.derivedName','Nome composto da tipo e marca misurati: questo apparato non dichiara né un modello né un hostname.'))}"` : ''}>${escapeHTML(rowLabel.primary)}</span><span class="disc-badges">${badges}</span></td>
@@ -1277,10 +1297,24 @@ async function importDiscovered(){
                 const autoHost = String(foundExisting.hostname || '').trim().toLowerCase();
                 const autoIp = String(foundExisting.ip || foundExisting.currentIp || foundExisting.integration?.host || '').trim().toLowerCase();
                 const shouldRefreshIdentity = strongIdentity && (match.matchedBy === 'ip' || match.matchedBy === 'hostname');
+                // UN TIPO SCELTO A MANO NON E' UN INDIZIO DI SOSTITUZIONE.
+                // `typeManual` dice che il tipo di questo nodo l'ha DECISO una persona: e' una
+                // decisione SULL'apparato, non una misura DELL'apparato, e una decisione non
+                // puo' valere come prova che dietro quell'IP c'e' un'altra macchina.
+                // Senza questa guardia bastava che il classificatore proponesse un tipo diverso
+                // della stessa famiglia (`_discCanAutoRetype`: documentato `firewall`, proposto
+                // `switch`) perche' la bandierina si rialzasse a OGNI scansione — e il rumore
+                // cresceva con la CURA del documento: chi mappa meglio veniva punito di piu'.
+                // E' la stessa lettura che `_applyRetype` (~50 righe sotto) faceva gia' quando
+                // decide se SOVRASCRIVERE: l'app non ti cambiava la scelta ma continuava a
+                // sospettare dell'apparato per averla fatta.
+                // ⚠️ Vendor e hostname diversi restano com'erano: quelle sono MISURE lette
+                // sull'apparato, e un loro cambio e' davvero il segno che e' stato sostituito.
+                const typePinned = !!foundExisting.typeManual;
                 const incomingReplacement = shouldRefreshIdentity && (
                     (!!d.vendor && !!foundExisting.brand && d.vendor !== foundExisting.brand) ||
                     (!!d.hostname && !!foundExisting.hostname && d.hostname !== foundExisting.hostname) ||
-                    _discCanAutoRetype(foundExisting.type, d.type)
+                    (!typePinned && _discCanAutoRetype(foundExisting.type, d.type))
                 );
 
                 _discTouchNodeIdentity(foundExisting, d, match.matchedBy, existingIdx);
@@ -1294,7 +1328,12 @@ async function importDiscovered(){
                         type:'identity-shift',
                         ip:d.ip || '',
                         oldType:foundExisting.type || '',
-                        newType:d.type || '',
+                        // Niente proposta di ri-tipizzazione su un tipo pinnato: il pannello
+                        // legge `newType` per offrire «Adotta/Ignora» (app-properties-node.js),
+                        // e proporre di cambiare un tipo gia' deciso e' lo stesso rumore della
+                        // bandierina, scritto in un'altra riga. Se il reperto nasce da vendor o
+                        // hostname (misure vere) resta — senza il pezzo sul tipo.
+                        newType:typePinned ? '' : (d.type || ''),
                         oldBrand:foundExisting.brand || '',
                         newBrand:d.vendor || '',
                         source:foundExisting.identitySource || '',
