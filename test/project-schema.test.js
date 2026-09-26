@@ -100,7 +100,13 @@ test('CRICCHETTO — la classifica non elenca campi mai visti in nessun progetto
     // Drift quando l'host lo decide una persona; `integration.mac` lo legge
     // `lib/correlate.js` e nel pannello non c'e' un campo che lo scriva.
     'timeout', 'v3user', 'v3authProto', 'v3authPass', 'v3privProto', 'v3privPass',
-    'v3secLevel', 'v3context', 'hostManual', 'mac']);
+    'v3secLevel', 'v3context', 'hostManual', 'mac',
+    // I tre del pannello «Gestione» (25/09): stessa storia di `length` qui sopra —
+    // li ha trovati l'ALTRO guard, quello sui progetti veri di questa installazione,
+    // e il censimento del 28/08 non poteva contenerli perche' nessuno dei tredici
+    // progetti del campione aveva compilato un accesso di gestione. Campi veri che
+    // il campione non conteneva, non campi finti.
+    'mgmtProto', 'mgmtUrl', 'mgmtVlan']);
   for (const scope of Object.keys(CENSUS)) {
     const visti = new Set(keysOf(scope));
     const extra = Object.keys(FIELD_CLASS_BY_SCOPE[scope]).filter(k => !visti.has(k) && !attesi.has(k));
