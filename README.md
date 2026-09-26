@@ -1245,7 +1245,7 @@ Coverage focuses on the pure, bug-prone logic that has historically broken: SNMP
 
 Current local quality baseline:
 - `npm run check` parses every JS source of the product — **525** of them. It skips the folders `eslint.config.js` already ignores (git worktrees, the private workspace, the editor's caches), so the number stays stable between runs instead of drifting with whatever happens to be checked out beside the repo
-- `npm test` runs the full regression suite (currently **3,775 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **123 flows**)
+- `npm test` runs the full regression suite (currently **3,775 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **124 flows**)
 - `npm run release -- check` is the gate before a tag: the version in its four places, a CHANGELOG section that actually lists something, and the test count above measured against what the suite really prints — the one number no test can check without counting itself
 - final visual verification is still important for rack/front-panel refinements
 

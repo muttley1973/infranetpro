@@ -2196,6 +2196,68 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(r.dopoRighe, 0, 'riaprendo «Scopri» la tabella è vuota: i risultati sono azzerati e le righe pure');
     });
 
+    await t.test('«Scopri»: se NESSUNO risponde a SNMP la scansione lo dice, e lo zero si vede', async () => {
+      // «Se c'è qualcosa che non va non si capisce perché non ci sono risultati»: il
+      // caso è una scansione che trova host vivi e non ottiene una sola risposta SNMP
+      // (community sbagliata, o SNMP spento). Prima: «3 dispositivi trovati» e nessun
+      // segno — il chip SNMP a zero era NASCOSTO dal filtro dei chip.
+      // Il percorso è quello vero: `runDiscovery()` del bundle, con /api/discover
+      // sostituito da una risposta finta. Nessuna funzione interna chiamata a mano.
+      const ROTTA = '**/api/discover';
+      const rispostaConNRisposte = (conSnmp) => ({
+        ok: true, total: 3,
+        results: [1, 2, 3].map((i) => ({
+          ip: '10.95.9.' + i, mac: '02:11:22:33:44:0' + i, alive: true, pingReachable: true,
+          ...(conSnmp && i === 2 ? { snmpReachable: true, descr: 'Cisco IOS Software, Catalyst 2960' } : {}),
+        })),
+      });
+      const scansiona = async (conSnmp) => {
+        await page.route(ROTTA, async (route) => {
+          await route.fulfill({ status: 200, contentType: 'application/json',
+            body: JSON.stringify(rispostaConNRisposte(conSnmp)) });
+        });
+        const out = await page.evaluate(async () => {
+          try {
+            state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+            state.nodes.length = 0; state.links.length = 0;
+            if (typeof _invalidateIdx === 'function') _invalidateIdx();
+            openDiscovery();
+            document.getElementById('disc-subnet').value = '10.95.9.0/29';
+            const exp = document.getElementById('disc-expand-topology');
+            if (exp) exp.checked = false;          // niente fase 2: qui interessa il messaggio
+            await runDiscovery();
+            const prog = document.getElementById('disc-progress');
+            const chips = [...prog.querySelectorAll('.disc-summary-grid span')].map((s) => s.textContent.trim());
+            const frase = prog.querySelector('.tm-warn');
+            const out = { ok: true, testo: prog.textContent, chips,
+              frase: frase ? frase.textContent.trim() : '' };
+            closeDiscovery();
+            return out;
+          } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+        });
+        await page.unroute(ROTTA);
+        return out;
+      };
+
+      const muti = await scansiona(false);
+      assert.ok(muti.ok, 'nessun errore nella scansione senza risposte SNMP: ' + muti.err);
+      assert.ok(muti.chips.some((c) => /^0\s*SNMP$/.test(c)),
+        'il chip «SNMP» si vede ANCHE a zero (era nascosto: è così che l\'assenza diventava invisibile). Chip letti: ' + muti.chips.join(' | '));
+      assert.match(muti.frase, /SNMP/,
+        'la scansione chiude con una frase sul silenzio SNMP, non solo con «3 dispositivi trovati»');
+      assert.match(muti.frase, /3/, 'la frase porta quanti host sono vivi');
+      // Due possibilità dichiarate, nessun verdetto: è la regola del motore del silenzio.
+      assert.ok(/possibilit|possibilit/i.test(muti.frase) || /community/i.test(muti.frase),
+        'la frase offre le due possibilità (community sbagliata / SNMP non attivo) senza scegliere: ' + muti.frase);
+
+      const conUno = await scansiona(true);
+      assert.ok(conUno.ok, 'nessun errore nella scansione con una risposta SNMP: ' + conUno.err);
+      assert.equal(conUno.frase, '',
+        'CONTROPROVA: se anche UNO risponde la frase NON compare — non è un avviso permanente');
+      assert.ok(conUno.chips.some((c) => /^1\s*SNMP$/.test(c)),
+        'e il chip SNMP conta la risposta vera. Chip letti: ' + conUno.chips.join(' | '));
+    });
+
     await t.test('P5 conteggio porte manual-first: editare a mano pinna portsManual; la misura SNMP resta una proposta adottabile', async () => {
       const r = await page.evaluate(async () => {
         const raf = () => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));

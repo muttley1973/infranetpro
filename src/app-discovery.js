@@ -408,7 +408,8 @@ async function runDiscovery(){
         }
         if(!expandTopology){
             document.getElementById('disc-progress').innerHTML =
-                `<span class="tm-ok">${_dt('disc.doneBase','Completato - {n} dispositivi trovati (solo discovery base)',{n:`<strong>${found1}</strong>`})}</span>${baseSummary}`;
+                `<span class="tm-ok">${_dt('disc.doneBase','Completato - {n} dispositivi trovati (solo discovery base)',{n:`<strong>${found1}</strong>`})}</span>${baseSummary}`
+                + _discSnmpZeroHint(store._discResults);
         } else {
             document.getElementById('disc-progress').innerHTML =
                 `<span class="tm-ok">${_dt('disc.phase1','Fase 1 - Scansionati {total} IP · {n} trovati',{total:data.total,n:`<strong>${found1}</strong>`})}</span>` +
@@ -425,7 +426,8 @@ async function runDiscovery(){
             const newViaLldp = total - found1;
             document.getElementById('disc-progress').innerHTML =
                 `<span class="tm-ok">${_dt('disc.doneTotal','Completato - {n} dispositivi',{n:`<strong>${total}</strong>`})}` +
-                (newViaLldp > 0 ? ` ${_dt('disc.viaSplit','({scan} scan + {lldp} via LLDP/CDP)',{scan:found1,lldp:`<strong>${newViaLldp}</strong>`})}` : '') + `</span>${_discSummaryHtml(store._discResults)}`;
+                (newViaLldp > 0 ? ` ${_dt('disc.viaSplit','({scan} scan + {lldp} via LLDP/CDP)',{scan:found1,lldp:`<strong>${newViaLldp}</strong>`})}` : '') + `</span>${_discSummaryHtml(store._discResults)}`
+                + _discSnmpZeroHint(store._discResults);
         }
 
     }catch(e){
@@ -802,9 +804,39 @@ function _discSummaryHtml(results, extra={}){
     if(extra.updated != null) chips.push(['updated', _dt('disc.chip.updated','Aggiornati'), extra.updated]);
     if(extra.autoLinked != null) chips.push(['autolink', _dt('disc.chip.autoLink','Link auto'), extra.autoLinked]);
     return `<div class="disc-summary-grid">${chips
-        .filter(([key,_label,value])=>Number(value) > 0 || key === 'total' || key === 'on')
+        // ⚠️ `snmp` sta con `total` e `on` fra i chip SEMPRE visibili, e non e' un
+        // dettaglio: gli altri chip a zero si nascondono perche' un'assenza non e'
+        // notizia (nessun NetBIOS, nessun LLDP), ma «0 SNMP» E' la notizia — e',
+        // spesso, l'unica ragione per cui una scansione sembra non aver dato niente.
+        // Nascosto, rendeva l'assenza INVISIBILE: si leggeva «40 dispositivi trovati»
+        // e nessun segno del fatto che nessuno dei 40 aveva parlato.
+        .filter(([key,_label,value])=>Number(value) > 0 || key === 'total' || key === 'on' || key === 'snmp')
         .map(([_key,label,value])=>`<span><b>${escapeHTML(value)}</b>${escapeHTML(label)}</span>`)
         .join('')}</div>`;
+}
+
+// Quando NESSUNO ha risposto a SNMP ma degli host sono vivi, la tabella dice il vero
+// e non si capisce niente: «40 dispositivi trovati», e tutto il resto della scansione
+// (tipi, porte, topologia) manca senza che nulla lo spieghi.
+// ⚠️ Questa frase NON marca nessun apparato: `lib/snmp-silence.js` lo vieta con una
+// ragione scritta — senza un'autorita' (un vicino LLDP/CDP, o il documento) dire
+// «muto a questa chiave» su un host qualunque e' rumore, e il rumore cancella il
+// segnale. Qui si LEGGONO due numeri gia' misurati e gia' mostrati, e si dicono le
+// due possibilita' senza scegliere: la community non e' quella, o SNMP non e' attivo.
+// ⚠️ Solo il caso NETTO (zero risposte). Il parziale ha gia' il suo conteggio quando
+// un'autorita' esiste, e una frase «pochi hanno risposto» sarebbe un giudizio su una
+// soglia che nessuno ha misurato.
+// ⚠️ Con SNMPv3 rilevato la discovery sa gia' dire di meglio (needsCredentials, 🔑):
+// li' questa frase tace, se no manda a cercare una community a chi serve un utente.
+function _discSnmpZeroHint(rows){
+    const list = Array.isArray(rows) ? rows : [];
+    const vivi = list.filter(d => d.alive === true || d.pingReachable === true).length;
+    if(!vivi) return '';                                       // ha gia' il suo messaggio
+    if(list.some(d => d.snmpReachable)) return '';             // qualcuno ha parlato
+    if(list.some(d => d.needsCredentials)) return '';          // v3: lo dice meglio il badge
+    return `<div class="tm-warn" style="margin-top:6px">${_dt('disc.snmpNoneAnswered',
+        '{n} host vivi, nessuno ha risposto a SNMP con questa community. Due possibilità: la community non è quella giusta, oppure SNMP non è attivo su questi apparati.',
+        { n: `<strong>${escapeHTML(vivi)}</strong>` })}</div>`;
 }
 
 export function _discExistingNode(d){

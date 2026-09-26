@@ -242,6 +242,11 @@
         .tm-progress { font-size:var(--fs-sm); color:var(--text-muted); margin-bottom:8px; min-height:20px; }
         .tm-progress .tm-ok { color:var(--active-color); font-weight:600; }
         .tm-progress .tm-err { color:var(--fault-color); }
+        /* «L'ho interrogato e non risponde» non e' «non c'e'»: e' esattamente il caso
+           per cui --probe-warn esiste (vedi il suo commento in 01-tokens.css). Serve alla
+           frase che chiude una scansione in cui nessuno ha risposto a SNMP: va vista, ma
+           non e' un errore — l'errore e' il rosso, e li' l'apparato non c'era. */
+        .tm-progress .tm-warn { color:var(--probe-warn); font-weight:600; }
         .dcim-import-progress,
         .dcim-import-result { padding:8px 0 2px; }
         /* ── Riconciliazione: una riga = una DECISIONE ─────────────────────────
