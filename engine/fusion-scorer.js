@@ -319,7 +319,15 @@ class FusionScorer {
     if (/\bios\b/.test(fullText) && !/switch|catalyst/.test(fullText)) bump('router', 40, 'cisco-ios-text');
     if (HYPERVISOR_RE.test(fullText))           bump('hypervisor', 90, 'regex-hypervisor');
     if (SERVER_VIRT_RE.test(fullText))          bump('server', 90, 'regex-server-virt');
-    if (SERVER_LINUX_RE.test(fullText))         bump('server', 55, 'regex-linux-distro');
+    // ⚠️ STESSA EVIDENZA DI `os-unix-server` (~30 righe sopra), quindi STESSA GUARDIA:
+    // una distribuzione nominata nel testo E il fingerprint dell'OS guardano il
+    // sistema operativo, e sommandosi facevano 125 — cosi' sul sysDescr vero di un
+    // pfSense («pfSense … FreeBSD 12.2-STABLE») la parola FreeBSD (70+55) batteva la
+    // parola pfSense (90, `regex-firewall`) e l'apparato usciva `server`. La guardia
+    // sopra era stata messa su un ramo solo: qui mancava. L'OS dice CON COSA E' FATTO
+    // un apparato, non CHE COSA FA — vale per un NAS, un firewall e un access point,
+    // che girano tutti su un unix. Senza fingerprint il testo classifica ancora.
+    if (SERVER_LINUX_RE.test(fullText) && !_osAlreadyVoted) bump('server', 55, 'regex-linux-distro');
 
     // Smart home / appliance / TV (brand-agnostic)
     const isTv = TV_SIGNAL_RE.test(fullText) && !svc.l2 && !svc.l3 && !switchWords && !routerWords;

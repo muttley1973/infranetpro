@@ -35,6 +35,35 @@ const CORPUS = [
   // ── §93 ① (25/09) — il nome del produttore dedotto dal MAC e' IDENTITA', non
   //    funzione: vota una volta sola (`oui-plugin-type`, tetto 45) e NON una seconda
     //  volta passando per il testo che leggono le regex vendor→tipo.
+  // ── famiglia FreeBSD/BSD (25/09) — nel corpus non c'era NESSUN caso, ed e' il
+  //    motivo per cui il prefisso 12325 «firewall 95» e i due voti sull'OS sono
+  //    sopravvissuti tanto. Tutti con il sysObjectID di default di bsnmpd.
+  // ⚠️ SENZA objectId, DI PROPOSITO: con l'OID dentro, i due difetti si annullavano
+  //    (firewall 95 dall'OID contro server 125 dall'OS doppio) e la riga usciva giusta
+  //    per caso — un invariante che non e' mai stato rosso non sorveglia niente.
+  //    Cosi' isola UN fix: l'OS non si conta due volte. Prima: server 125 vs firewall
+  //    90 -> `server`. Dopo: server 70 vs firewall 90 -> `firewall`.
+  { id: 'reg-os-non-si-conta-due-volte', expect: 'firewall', note: 'un firewall unix che si dichiara nel sysDescr: la FUNZIONE dichiarata vince sull\'OS. L\'OS dice con cosa e\' fatto un apparato, non che cosa fa — e non deve votare due volte (fingerprint + regex della distribuzione)',
+    row: { ip: '10.99.1.10', alive: true, snmpReachable: true,
+      descr: 'pfSense fw.lan 2.5.2-RELEASE FreeBSD 12.2-STABLE amd64', hostname: 'pfsense' } },
+  // ⚠️ Queste due NON sono mai state rosse (i due difetti si annullavano su di loro):
+  //    valgono come guardie della COMBINAZIONE, non come prova dei fix. Detto qui
+  //    perche' una guardia di cui non sai se ha mai morso e' un'illusione di copertura.
+  { id: 'reg-bsd-server-non-e-un-firewall', expect: 'server', note: 'lo STESSO sysObjectID su un server FreeBSD qualunque: 12325 dice «gira bsnmpd», non «e\' un firewall». Se questo torna `firewall`, la firma del PROGRAMMA e\' rientrata come firma di APPARATO',
+    row: { ip: '10.99.1.11', alive: true, snmpReachable: true, objectId: '1.3.6.1.4.1.12325.1.1.2.1.1',
+      descr: 'FreeBSD srv01.lan 13.2-RELEASE FreeBSD 13.2-RELEASE amd64', hostname: 'srv01' } },
+  { id: 'reg-bsd-nas-resta-nas', expect: 'nas', note: 'stesso sysObjectID su un NAS BSD: la funzione dichiarata vince sia sull\'OS sia sul prefisso',
+    row: { ip: '10.99.1.12', alive: true, snmpReachable: true, objectId: '1.3.6.1.4.1.12325.1.1.2.1.1',
+      descr: 'FreeBSD nas01.lan 13.1-RELEASE TrueNAS amd64', hostname: 'nas01' } },
+  // ── LA CLASSE: un PEN di AGENTE SNMP non implica una FUNZIONE ────────────────
+  // Paletto ③: la regola non e' «il prefisso di pfSense», e' «il prefisso di un
+  // PROGRAMMA». Tenuta su DUE famiglie di sistema operativo, cosi' non ha la forma
+  // del banco: bsnmpd (BSD) e net-snmp (Linux), che sono la stessa cosa — l'agente
+  // che risponde, non il mestiere dell'apparato.
+  { id: 'reg-agent-pen-bsd-non-implica-funzione', expect: 'customrack', note: 'il PEN dell\'agente bsnmpd e nient\'altro: prima usciva `firewall` a fiducia 99, perche\' quel prefisso era in tabella come firma di apparato. La risposta onesta e\' «apparato gestibile che non so nominare». ⚠️ Il punto e\' che NON sia una funzione specifica: se un giorno quel prefisso portera\' «famiglia OS = bsd» e questo diventera\' `server`, e\' un miglioramento — si aggiorna leggendo questa nota',
+    row: { ip: '10.99.1.13', alive: true, snmpReachable: true, objectId: '1.3.6.1.4.1.12325.1.1.2.1.1' } },
+  { id: 'reg-agent-pen-linux-non-implica-funzione', expect: 'pc', note: 'IL GEMELLO, e la controprova del paletto: net-snmp e\' l\'agente di qualunque Linux ed e\' la stessa classe di bsnmpd. Qui non e\' cambiato NIENTE coi fix — il lato Linux era gia\' onesto, e questo dimostra che la voce BSD era un\'anomalia, non una politica. Se un giorno anche questo prefisso pretendesse di dire una funzione, questa riga arrossisce',
+    row: { ip: '10.99.1.14', alive: true, snmpReachable: true, objectId: '1.3.6.1.4.1.8072.3.2.10' } },
   { id: 'reg-oui-non-batte-il-banner', expect: 'firewall', note: '§93 ①: un apparato MUTO a SNMP con OUI di un produttore di switch, ma la cui pagina web dice cos\'e\'. Prima: switch 123 (45 OUI + 78 regex-vendor) contro firewall 90 — il MAC batteva l\'apparato',
     row: { ip: '10.99.0.40', mac: '0c:c4:7a:11:22:33', alive: true, pingReachable: true, httpsTitle: 'pfSense - Login' } },
   { id: 'reg-oui-non-batte-il-nome-host', expect: 'firewall', note: '§93 ①: stesso apparato muto, stesso OUI, e il nome host che lo dichiara',

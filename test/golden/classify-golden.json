@@ -1,4 +1,9 @@
 {
+ "reg-os-non-si-conta-due-volte": "firewall",
+ "reg-bsd-server-non-e-un-firewall": "server",
+ "reg-bsd-nas-resta-nas": "nas",
+ "reg-agent-pen-bsd-non-implica-funzione": "customrack",
+ "reg-agent-pen-linux-non-implica-funzione": "pc",
  "reg-oui-non-batte-il-banner": "firewall",
  "reg-oui-non-batte-il-nome-host": "firewall",
  "reg-oui-non-batte-il-banner-altro-vendor": "printer",
