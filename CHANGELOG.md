@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.11.11] — 2026-09-29
+
+One piece of evidence, one vote: the scan stops counting the same clue twice, and says when it had nothing to go on.
+
+### Fixed
+
+- **The same clue no longer casts two ballots.** Two signals were capped on one door and walked in through another. The vendor derived from the MAC is capped at 45 points, well below any measured signal — but the same name also went into the text the vendor→type rules read, where no cap applies: 123 points for an OUI whose owner makes switches, 207 for one whose owner makes routers. And two rules read the same operating system out of the same text, summing to 125. Measured on rows a real scan produces with no SNMP answer: a printer whose page reads *HP LaserJet Pro M404* came out `router`, and on a BSD firewall the word *FreeBSD* outvoted the word *pfSense*. A vendor name is identity, not function; an operating system says what a device is made of, not what it does. Each votes once now — and with the MAC as the only signal the class is still assigned, at honest confidence.
+
+- **An OID that names an SNMP agent no longer names a device.** `1.3.6.1.4.1.12325.` claimed *firewall, 95*; FreeBSD's own `snmpd.config` sets it as the identifier of the SNMP implementation, so every FreeBSD-family host sends it and pfSense reports the same value as plain FreeBSD. A device that says nothing else about itself now comes out unnamed at low confidence instead of `firewall` at 99. Manufacturer identifiers, such as Fortinet's and Palo Alto's, are unaffected.
+
+- **A scan row speaks only for itself.** The Discover dialog identified each row by its position and looked that up in the results of the moment, so when the list changed between two renders a choice made on one row landed on another device — on a second scan, and on *split* of a folded row, which happens inside a single scan with one click. Each row now carries its own key.
+
+- **A type you picked by hand is not a suspect.** Any different type of the same family raised *possible replacement* on every scan, so whoever mapped their network most carefully got the most noise. A hand-picked type is a decision about the device, not a measurement of it; vendor and hostname differences still raise the flag.
+
+- **The three fields the Management panel writes are declared** in the project schema, so the gate that catches a new field before it leaves with an export is green again instead of red out of habit.
+
+### Added
+
+- **A scan that gets no SNMP answer at all now says so.** The summary hid every counter worth zero, including the SNMP one — which is what the rest of the scan depends on: types, ports, topology. It is always visible now, and when hosts are alive and not one answered, the scan offers the two possibilities without picking between them: the community is not the right one, or SNMP is not enabled on these devices. No individual host is marked — calling one silent without the authority to say so would be noise on the only signal that matters.
+
 ## [2.11.10] — 2026-09-24
 
 The measurement that was missing exactly where the previous release had stopped guessing — and the two lists that now say how they know.

@@ -11,7 +11,7 @@
 </p>
 <p>
   <a href="#testing"><img alt="3,775 tests, 0 failing" src="https://img.shields.io/badge/tests-3%2C775%20%C2%B7%200%20failing-3fb950"></a>
-  <a href="#testing"><img alt="120 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-120%20real--browser%20flows-3fb950"></a>
+  <a href="#testing"><img alt="124 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-124%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#oui-intelligence-engine"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
   <img alt="No database" src="https://img.shields.io/badge/database-none-8b949e">
@@ -146,7 +146,28 @@ Double-click <code>avvia.bat</code>.<br>
 
 > **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then run **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.11.10) — the measure that was missing exactly where we had stopped guessing.**
+> 📰 **What's new (v2.11.11) — one piece of evidence, one vote.**
+>
+> - **The same clue stopped casting two ballots.** The vendor we only know from the MAC is capped at 45
+>   points, far below any measured signal — but that name also went into the text the vendor→type rules
+>   read, where no cap applies: 123 points for an OUI whose owner makes switches, 207 for one whose
+>   owner makes routers. And two rules read the same operating system out of the same text, summing to
+>   125. On rows a real scan produces with no SNMP answer, a printer came out `router` and a BSD
+>   firewall came out `server`. Each votes once now.
+> - **An OID that names an SNMP agent no longer names a device.** `1.3.6.1.4.1.12325.` was read as
+>   *firewall*; it identifies FreeBSD's SNMP implementation, which every FreeBSD-family host sends. A
+>   device that says nothing else about itself now comes out unnamed at low confidence, instead of
+>   confidently wrong.
+> - **A scan row speaks only for itself.** Rows were identified by position, so when the list changed
+>   between two renders a choice made on one row landed on another device — including inside a single
+>   scan, with one click on *split*. And a type you picked by hand no longer raises *possible
+>   replacement*: it is a decision about the device, not a measurement of it.
+> - **A scan that gets no SNMP answer says so.** The summary hid every counter worth zero, the SNMP one
+>   included — the signal the rest of the scan depends on. It is always visible now, and a scan where
+>   nobody answered closes by naming the two possibilities without choosing: the community is not the
+>   right one, or SNMP is not enabled on these devices.
+
+> 📰 **v2.11.10 — the measure that was missing exactly where we had stopped guessing.**
 >
 > - **A Cisco `Port-channel` brings its members with it.** 2.11.9 stopped calling two parallel cables a
 >   LAG and asked for a measurement instead. On Cisco that measurement never arrived: an aggregator was
