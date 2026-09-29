@@ -16,6 +16,32 @@ test('_parseIpv4Int: parsing e validazione ottetti', () => {
   assert.equal(_parseIpv4Int(''), null);
 });
 
+// ⚠️ Un ottetto e' fatto di CIFRE DECIMALI e basta. `Number()` digerisce molto di
+// piu': '1e2' vale 100, '0x7f' vale 127, la stringa VUOTA vale 0 e '+1' vale 1 —
+// forme che nessun resolver accetta, quindi indirizzi che il documento poteva
+// tenere e la rete non raggiungere MAI. Ora non sono IPv4: fanno da chiave a se
+// stessi e NON ricevono uno scopo, cioe' un'assenza (che l'app sa maneggiare)
+// invece di un'affermazione falsa.
+test("un ottetto e' fatto di cifre decimali, non di tutto cio' che Number() digerisce", () => {
+  for (const finto of ['0x7f.0.0.1', '1e2.0.0.1', '1..2.3', '+1.2.3.4', '1 .2.3.4', '1.2.3.0b1']) {
+    assert.equal(_parseIpv4Int(finto), null, finto + ' non risulta un IPv4');
+    assert.equal(addrKey(finto), finto, finto + ': chiave di se stesso, nessun collasso');
+    assert.equal(addrScope(finto), null, finto + ': nessuno scopo dichiarato su un non-indirizzo');
+  }
+
+  // ⭐ E la meta' che protegge una DECISIONE gia' presa, che questo taglio NON
+  // deve portarsi via: gli zeri iniziali restano ammessi. "192.168.001.005" e
+  // "192.168.1.5" sono lo stesso indirizzo e devono avere la stessa chiave —
+  // senza, un duplicato v4 sfugge, ed e' il motivo scritto dentro addrKey().
+  // Un taglio piu' largo (rifiutare lo zero iniziale, come ha fatto ip-address
+  // per CVE-2026-69192) riaprirebbe proprio quel bug: li' il contesto e' un
+  // filtro anti-SSRF su input ostile, qui e' un documento che una persona
+  // allinea a mano.
+  assert.equal(addrKey('192.168.001.005'), '192.168.1.5');
+  assert.equal(addrKey('192.168.1.5'), '192.168.1.5');
+  assert.equal(_parseIpv4Int('010.0.0.1'), _parseIpv4Int('10.0.0.1'));
+});
+
 test('_parseCidrInfo: rete/mask/broadcast corretti', () => {
   const c = _parseCidrInfo('192.168.10.0/24');
   assert.equal(c.prefix, 24);

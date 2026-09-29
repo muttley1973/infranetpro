@@ -96,6 +96,26 @@ test('ipv6Class: classi principali', () => {
   assert.equal(ipv6Class('garbage'), null);
 });
 
+// ⚠️ IL /10 NON E' IL /64, ed e' esattamente li' che si sbaglia. RFC 4291 §2.4 e
+// il registro IANA definiscono il link-local unicast come **fe80::/10 intero**;
+// il §2.5.6 vincola la FORMA di un indirizzo autoconfigurato e NON definisce
+// l'intervallo — leggerlo come definizione e' l'origine tipica del confronto a
+// /64. Le sei righe qui sotto sono quelle su cui `ip-address` sbagliava
+// (CVE-2026-101913, GHSA-rpw4-54j3-4h4q): cinque su sei passano un confronto a
+// /64, e NESSUNA prova di questo progetto le guardava, perche' usavano tutte
+// `fe80::1` — l'unica che un confronto sbagliato prende comunque.
+test("ipv6Class: il link-local e' il /10 INTERO, non il /64 dell'autoconfigurazione", () => {
+  for (const ip of ['fe80::1', 'fe81::1', 'fe8f::1', 'febf::1',
+                    'fe80:0:0:1::1', 'fe80::1:0:0:0:1']) {
+    assert.equal(ipv6Class(ip), 'link-local', ip + ' sta dentro fe80::/10');
+  }
+  // ⭐ E la meta' che conta davvero: i due confini APPENA FUORI devono restare
+  // fuori. Senza queste due righe una maschera troppo larga (`& 0xff00`)
+  // passerebbe tutte e sei quelle sopra ed sarebbe comunque sbagliata.
+  assert.equal(ipv6Class('fe7f::1'), 'global');   // subito sotto il /10
+  assert.equal(ipv6Class('fec0::1'), 'global');   // subito sopra: site-local, ritirato
+});
+
 test('isPrivacyIid: random-looking global => true; EUI-64/basso/multicast => false', () => {
   assert.equal(isPrivacyIid('2001:db8::dead:beef:cafe:1234'), true);   // IID sparso, non EUI-64
   assert.equal(isPrivacyIid('fe80::a6bb:6dff:fe11:2233'), false);      // EUI-64
