@@ -47,7 +47,7 @@ const DEFAULT_DECISION_THRESHOLD = 30;
 
 // Canonical, SHARED regex tables (lib/device-patterns.js) — single source consumed
 // here (weighted) and by the client fallback (first-match) so the two can't drift
-// (B3). Extraction is behavior-preserving; tests/classify-golden.test.js proves it.
+// (B3). Extraction is behavior-preserving; test/classify-behaviour-freeze.test.js proves it.
 const {
   SWITCH_WORDS_RE, NOT_A_NET_SWITCH_RE, ROUTER_WORDS_RE, NET_VENDOR_GW_RE, PRINTER_RE, WEBCAM_RE, NAS_RE,
   FIREWALL_RE, AP_RE, WLANCTRL_RE, PDU_RE, UPS_RE, VOIP_RE, IOT_EMBED_RE,

@@ -259,7 +259,7 @@ test('shared OID table: server now recognizes vendors it previously missed (Lexm
 // the single authoritative path (commit: one authoritative classifier). These
 // rows used to prove fusion == legacy; they are kept as a golden-style freeze of
 // the fusion scorer's decisions — a compact regression net alongside the broader
-// tests/classify-golden.test.js. A deliberate behaviour change updates the
+// test/classify-behaviour-freeze.test.js. A deliberate behaviour change updates the
 // expected type here in the same commit.
 
 const FREEZE_CASES = [

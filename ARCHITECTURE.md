@@ -1167,7 +1167,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **3,852 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **3,855 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`
@@ -1363,15 +1363,17 @@ is VPN/LAN.
   question and was left alone on purpose: the forms show it, and the Overview already flags it.
 - **Windows:** Git shows LF→CRLF warnings; harmless. The login page blocks the
   preview tooling unless you authenticate.
-- **Don't add a new *runtime* dependency** without a strong reason (the build is
-  esbuild-only, a dev dep).
+- **Don't add a new *runtime* dependency** without a strong reason (the frontend build is
+  esbuild-only — and esbuild itself is a `dependency` on purpose: `npm install` and the Docker
+  image build the bundle after the dev dependencies are gone; `test/bundle-architecture.test.js`
+  guards it).
 - **Shared state lives behind `src/store.js`** (getter/setter proxy su `window`):
   i moduli ESM leggono/scrivono `store.state`, `store.selId`, `store._viewMode`, …
   (23+ simboli pure-data, ADR D18), mentre `window.X` resta vivo per i classic
   (`export.js`/inline). `TYPES` è ora `export const` in `app-types.js` (importato dai
   consumatori; resta su `window.TYPES` via `expose()` per i classic). Le funzioni del
   nucleo (`renderAll`, `renderProps`, `showAlert`, …) sono `export` e importate. Ciò
-  che resta sul ponte (`win.*`, 260 letture — erano ~1800) sono funzioni non ancora ritirate
+  che resta sul ponte (`win.*` — erano ~1800 letture; quante restano lo dice `MAX_WIN_REFS`) sono funzioni non ancora ritirate
   (`selected`/`checked`/`_build*`).
 - **Commit only when asked.** Keep secrets and user data out of the repo.
 - **SNMP walk — adaptive retry kills FDB truncation under crawl load (2026-07-04).** The crawl's
@@ -1575,7 +1577,7 @@ is VPN/LAN.
     (`serverAuthoritative` in `src/app-discovery.js`); the thin client `_guessType` only fills gaps.
     `engine/fusion-scorer.js` is the single authoritative classifier (`server/classify.js` wraps it);
     the in-line "legacy twin" was removed once the fusion path was proven, with the 55-device
-    `tests/classify-golden.test.js` as the behaviour freeze.
+    `test/classify-behaviour-freeze.test.js` as the behaviour freeze.
   - **Signal tiering — a measured signal always beats a vendor-identity inference (2026-07-07).** A
     per-vendor MAC-OUI plugin proposes a device-type *candidate* (Zyxel→router, D-Link→router, …); that
     guess used to be scored high enough (≤80) to beat a real banner/model/port signal, so a Zyxel box
@@ -1749,11 +1751,11 @@ is VPN/LAN.
     it was inventing.
   - **Axis B — inline handlers (`onclick`/`onchange`/`oninput`/…) → event delegation.** Inline handlers
     are *why* the bridge still exists (they resolve names in page lexical scope). **A monotonic ratchet
-    (`MAX_INLINE_HANDLERS` in `test/bridge-ratchet.test.js`, may only decrease) now caps their count —
-    currently 32 across `src/*.js` templates + `netmapper.html` static — so Axis B is measured and
+    (`MAX_INLINE_HANDLERS` in `test/bridge-ratchet.test.js`, may only decrease) now caps their count
+    across `src/*.js` templates + `netmapper.html` static (the number lives only in that constant) — so Axis B is measured and
     converges like Axis A; the target is the structural floor. Every property-panel and overlay
     surface in `src/*.js` is delegated, and so is `netmapper.html`'s static shell (buttons, tabs,
-    dialogs — each action registered in its owning module). At 32 the remaining handlers are all
+    dialogs — each action registered in its owning module). At that floor the remaining handlers are all
     non-migratable with the current harness. The residue is: the PDF/label export dialogs and the
     export-menu items (JSON/PDF/dossier/labels — they call `export.js`, a classic non-ESM `<script>`;
     delegating them would need a `win.*` read and breach the Axis-A floor, so they stay by design),

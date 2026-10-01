@@ -905,7 +905,7 @@ function countInlineHandlers() {
 // (nuovo register nel modulo; _exitRoutingMode resta in expose() perché app.js lo
 // chiama ancora come bareword con guardia typeof al tasto Esc). Non-golden, LIVE.
 //
-// PAVIMENTO ASSE B con l'harness attuale = 32 (nessun altro handler è migrabile senza
+// PAVIMENTO ASSE B con l'harness attuale = MAX_INLINE_HANDLERS (nessun altro handler è migrabile senza
 // nuovi tipi di evento o senza sfondare il tetto A). Fotografia onesta del residuo:
 //   • 21 in netmapper.html = dialoghi PDF/etichette export (14 onclick + 3 onchange +
 //     4 oninput) + le 4 voci EXPORT del menu (JSON/PDF/dossier/etichette) → chiamano
@@ -930,9 +930,41 @@ test('ponte ASSE B: gli handler inline on*= non superano il tetto a cricchetto',
   }
 });
 
+// ── I tetti si scrivono in UN posto: la loro `const` ─────────────────────────
+// La testata di questo file lo dice («le note li citano per NOME, mai per VALORE») e per
+// giorni non lo ha verificato nessun cancello: un tetto che cala lascia falsa ogni frase
+// che ne portava il numero — due volte dentro questo file, una nel piano, una nell'indice
+// di memoria, e ancora nel README e in ARCHITECTURE. Qui il divieto si legge dai valori
+// VERI, quindi non diventa a sua volta una copia da tenere allineata.
+//
+// Un numero qualunque non è un tetto: restano fuori il valore di ARRIVO di una riga di
+// storia (`a → b`), un delta col segno e un numero dentro un altro. Si guardano le righe
+// che parlano del ponte, dei suoi handler o delle sue letture, nei file che le note le
+// scrivono: questo, ARCHITECTURE, README, CONTRIBUTING.
+test('ponte: i tetti non sono citati per VALORE nelle note, solo nella loro const', () => {
+  const ROOT = path.join(__dirname, '..');
+  const TETTI = { MAX_WIN_REFS, MAX_INLINE_HANDLERS };
+  const PAROLE = /handler|win\.\*|letture|reads|ponte|bridge|ratchet|cricchetto|templates/i;
+  const violazioni = [];
+  for (const rel of ['test/bridge-ratchet.test.js', 'ARCHITECTURE.md', 'README.md', 'CONTRIBUTING.md']) {
+    fs.readFileSync(path.join(ROOT, rel), 'utf8').split('\n').forEach((riga, i) => {
+      if (/^\s*const MAX_/.test(riga)) return;                       // la const stessa
+      if (rel.endsWith('.js') && !/^\s*\/\//.test(riga)) return;     // in questo file: solo le note
+      if (!PAROLE.test(riga)) return;
+      for (const [nome, v] of Object.entries(TETTI)) {
+        const citato = new RegExp('(?<![\\d.,\\u2212+-])(?<!\\u2192 )\\b' + v + '\\b(?![.,]?\\d)');
+        if (citato.test(riga)) violazioni.push(`${rel}:${i + 1} (${nome}) ${riga.trim().slice(0, 100)}`);
+      }
+    });
+  }
+  assert.deepEqual(violazioni, [],
+    'un tetto è citato per valore in una nota: va citato per NOME (o per il comando che lo legge) ' +
+    'e il numero lasciato solo nella sua const.\n  ' + violazioni.join('\n  '));
+});
+
 // ── ASSE B: un handler inline deve poter TROVARE la sua funzione ────────────
 // Un attributo `on*=` chiama per NOME, e quel nome si risolve nello scope
-// GLOBALE. I 32 handler rimasti in netmapper.html funzionano quindi solo finché
+// GLOBALE. Gli handler rimasti in netmapper.html funzionano quindi solo finché
 // le loro funzioni stanno lì: o perché vivono in uno <script> CLASSICO (export.js,
 // drawio-export.js, i lib/*.js che si auto-pubblicano), o perché un modulo le
 // pubblica con `expose({…})` — che è `Object.assign(win, api)` in _bridge.js.

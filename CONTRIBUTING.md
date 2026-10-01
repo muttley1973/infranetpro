@@ -8,7 +8,7 @@ migration). You can be productive in minutes. Read
 ## Setup & run
 
 ```bash
-npm install          # runtime (Express, net-snmp, pdfkit…) + dev (esbuild, typescript, playwright-core)
+npm install          # runtime (Express, net-snmp, pdfkit, esbuild…) + dev (eslint, typescript, playwright-core)
 npm start            # build the frontend bundle + serve → http://localhost:8421
 ```
 

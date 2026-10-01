@@ -214,3 +214,50 @@ function _crSolitario(buf) {
   }
   return -1;
 }
+
+// ── esbuild è una DEPENDENCY, e deve restarlo ────────────────────────────────
+// Sembra una devDependency (è un attrezzo di build) e due frasi della documentazione
+// lo dicevano. Ma il bundle si costruisce DOPO aver tolto le devDependencies: il
+// Dockerfile fa `npm ci --omit=dev` e poi `node build.js`, e `postinstall` lancia
+// build.js anche per chi installa solo il runtime. Spostarlo in devDependencies
+// romperebbe l'immagine e l'installazione, e nessuno se ne accorgerebbe prima.
+// La prova legge i due punti che costruiscono, quindi se un giorno non costruiscono
+// più così lo dice (anti-vuoto) invece di passare a vuoto.
+test('build: esbuild sta in dependencies perché il bundle si costruisce senza le devDependencies', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  const docker = fs.readFileSync(path.join(ROOT, 'Dockerfile'), 'utf8');
+  const dockerCostruisce = /npm ci[^\n]*--omit=dev/.test(docker) && /node build\.js/.test(docker);
+  const postinstallCostruisce = /build\.js/.test((pkg.scripts && pkg.scripts.postinstall) || '');
+  assert.ok(dockerCostruisce || postinstallCostruisce,
+    'né il Dockerfile (--omit=dev + node build.js) né postinstall costruiscono più il bundle: ' +
+    'la regola «esbuild è una dependency» ha perso il suo motivo, e questa prova va riscritta');
+  assert.ok(pkg.dependencies && pkg.dependencies.esbuild,
+    'esbuild non è in dependencies, ma il bundle si costruisce senza le devDependencies (Docker --omit=dev, postinstall)');
+  assert.equal(pkg.devDependencies && pkg.devDependencies.esbuild, undefined,
+    'esbuild è anche in devDependencies: una sola dichiarazione, in dependencies');
+});
+
+// ── Una cartella di test sola, e nessun nome ripetuto ────────────────────────
+// I test stavano in due alberi (`test/` e `tests/`), e due file si chiamavano
+// `classify-golden.test.js`: uno è lo snapshot del classificatore su un corpus,
+// l'altro il congelamento di comportamento del consolidamento B3. Chi diceva
+// «il classify-golden» parlava di uno dei due. `node --test` trova i `*.test.js`
+// ovunque, quindi nessuno dei due alberi si è mai accorto dell'altro.
+test('layout: i test vivono in test/, e nessun nome di file di test si ripete', () => {
+  assert.equal(fs.existsSync(path.join(ROOT, 'tests')), false,
+    'esiste una cartella tests/ accanto a test/: la suite sta in test/ (node --test la troverebbe lo stesso, i lettori no)');
+  const visti = new Map();
+  const doppi = [];
+  (function visita(dir) {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) visita(p);
+      else if (/\.test\.js$/.test(e.name)) {
+        if (visti.has(e.name)) doppi.push(`${path.relative(ROOT, visti.get(e.name))} e ${path.relative(ROOT, p)}`);
+        else visti.set(e.name, p);
+      }
+    }
+  })(path.join(ROOT, 'test'));
+  assert.ok(visti.size > 100, `anti-vuoto: trovati solo ${visti.size} file di test in test/`);
+  assert.deepEqual(doppi, [], 'due file di test con lo stesso nome: chi li cita non sa quale intende');
+});
