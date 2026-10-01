@@ -25,6 +25,7 @@
 // e' ora delegato in fase di CATTURA (non fa bubbling), vedi app-delegation.js.
 // ============================================================
 import { t } from './_bridge.js';
+import { V3_AUTH, V3_PRIV, V3_LEVELS, V3_DEFAULTS } from '../lib/snmp-v3.js';   // le scelte SNMPv3 sono quelle del driver: un elenco solo
 import { store } from './store.js';
 import { escapeHTML } from './app-util.js';
 import { nodeById, getNodeDisplayName, _enableManualValueInProps } from './app.js';
@@ -206,7 +207,7 @@ function _snmpSectionHtml(vm, ref){
     const cfgSel = (field, label, value, pairs, def) =>
         `<div class="prop-group"><label>${label}</label>`
         + `<select ${ref} data-vm-field="${_esc(field)}" data-change="vm-intg" data-no-manual="1">`
-        + pairs.map(([v, lab]) => `<option value="${_esc(v)}"${String(value || def) === v ? ' selected' : ''}>${_esc(lab)}</option>`).join('')
+        + pairs.map(([v, lab]) => `<option value="${_esc(v)}"${String(value || def).trim().toLowerCase() === v.toLowerCase() ? ' selected' : ''}>${_esc(lab)}</option>`).join('')
         + `</select></div>`;
 
     // Senza indirizzo non c'e' nulla da interrogare: si dice perche', invece di
@@ -265,15 +266,11 @@ function _snmpSectionHtml(vm, ref){
         + `</div>`
         + (isV3
             ? cfgField('v3user', t('intg.usmUser'), cfg.v3user)
-              + `<div class="prop-grid2">`
-              + cfgSel('v3authProto', 'Auth', cfg.v3authProto, [['MD5', 'MD5'], ['SHA', 'SHA']], 'SHA')
+              + cfgSel('v3authProto', 'Auth', cfg.v3authProto, V3_AUTH.map((o) => [o.value, o.label]), V3_DEFAULTS.auth)
               + cfgField('v3authPass', t('f.authPass'), cfg.v3authPass, { type: 'password' })
-              + `</div><div class="prop-grid2">`
-              + cfgSel('v3privProto', 'Priv', cfg.v3privProto, [['DES', 'DES'], ['AES', 'AES']], 'AES')
+              + cfgSel('v3privProto', 'Priv', cfg.v3privProto, V3_PRIV.map((o) => [o.value, o.label]), V3_DEFAULTS.priv)
               + cfgField('v3privPass', t('f.privPass'), cfg.v3privPass, { type: 'password' })
-              + `</div>`
-              + cfgSel('v3secLevel', 'Security level', cfg.v3secLevel,
-                  [['noAuthNoPriv', 'noAuthNoPriv'], ['authNoPriv', 'authNoPriv'], ['authPriv', 'authPriv']], 'authPriv')
+              + cfgSel('v3secLevel', 'Security level', cfg.v3secLevel, V3_LEVELS.map((v) => [v, v]), V3_DEFAULTS.level)
               + cfgField('v3context', t('intg.context'), cfg.v3context, { ph: t('pnl.node.v3ContextPlaceholder') })
             // La community è una credenziale come le due password v3 qui sopra:
             // mascherata come nel pannello dell'apparato. In chiaro, uno screenshot

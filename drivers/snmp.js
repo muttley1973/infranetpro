@@ -44,6 +44,7 @@ const snmp = require('net-snmp');
 // Riconoscitore vendor-neutral dei nomi d'interfaccia. Serve a una domanda sola —
 // «questo nome è un aggregato?» — che il progetto sa già rispondere in un posto.
 const { _ifNameMeta } = require('../lib/netnames.js');
+const { v3Params } = require('../lib/snmp-v3.js');
 
 const SNMP_DEBUG = /^(1|true|yes|on)$/i.test(String(process.env.DEBUG_SNMP || process.env.SNMP_DEBUG || ''));
 function snmpDebug(...args) { if (SNMP_DEBUG) console.log(...args); }
@@ -1647,30 +1648,19 @@ function _createSnmpSession(driver, host, port, timeout, cfg, retries = 1) {
   }
 
   if (driver === 'snmp-v3') {
-    const levelMap = {
-      noAuthNoPriv: snmp.SecurityLevel.noAuthNoPriv,
-      authNoPriv:   snmp.SecurityLevel.authNoPriv,
-      authPriv:     snmp.SecurityLevel.authPriv,
-    };
-    const authMap = {
-      MD5:    snmp.AuthProtocols.md5,
-      SHA:    snmp.AuthProtocols.sha,
-      SHA224: snmp.AuthProtocols.sha224,
-      SHA256: snmp.AuthProtocols.sha256,
-      SHA384: snmp.AuthProtocols.sha384,
-      SHA512: snmp.AuthProtocols.sha512,
-    };
-    const privMap = {
-      DES:    snmp.PrivProtocols.des,
-      AES:    snmp.PrivProtocols.aes,
-      AES256: snmp.PrivProtocols.aes256b,
-    };
+    // I nomi si leggono in lib/snmp-v3.js (unica definizione, la stessa che offrono i
+    // pannelli). Un nome che non conosce NON diventa SHA-1/AES-128: si rifiuta dicendolo,
+    // perché il ripiego si vedeva solo come un timeout, cioè un apparato che sembra spento.
+    const p = v3Params(cfg);
+    if (!p.ok) throw new Error(p.error);
     return snmp.createV3Session(host, {
       name:         cfg.v3user || '',
-      level:        levelMap[cfg.v3secLevel]                          ?? snmp.SecurityLevel.authPriv,
-      authProtocol: authMap[(cfg.v3authProto || '').toUpperCase()]    ?? snmp.AuthProtocols.sha,
+      level:        snmp.SecurityLevel[p.level],
+      // Solo ciò che il livello usa: net-snmp non legge i protocolli quando non c'è
+      // autenticazione/cifratura.
+      authProtocol: p.auth ? snmp.AuthProtocols[p.auth.key] : undefined,
       authKey:      cfg.v3authPass || '',
-      privProtocol: privMap[(cfg.v3privProto || '').toUpperCase()]    ?? snmp.PrivProtocols.aes,
+      privProtocol: p.priv ? snmp.PrivProtocols[p.priv.key] : undefined,
       privKey:      cfg.v3privPass || '',
       // Context name SNMPv3: necessario su alcuni agenti (es. stampanti HP
       // JetDirect → context "jetdirect"). Vuoto = context di default.
@@ -2500,5 +2490,5 @@ module.exports._internals = {
   extractSystem, _formatUptime, extractPrinter, _supplyColorKey,
   extractHostResources, _isPathPrefix, OID, PRT_OID, HR_OID, _oidGt,
   _v3RemoteEngineDiscovered, _runWalks, FDB_RETRY_BASES, _walkDeadline,
-  _ownIp4FromVbs, _ipv4FromAddrOid, _isUsableOwnIp4,
+  _ownIp4FromVbs, _ipv4FromAddrOid, _isUsableOwnIp4, _createSnmpSession,
 };
