@@ -1,5 +1,31 @@
 # Changelog
 
+## [2.11.12] — 2026-10-01
+
+An address is compared by what it is, not by how it is written — and a register that asks for an owner now has one.
+
+### Fixed
+
+- **A NAT64 local-use address is no longer called public.** An address from `64:ff9b:1::/48` (RFC 8215) came out as a global address, so one sitting among a device's public IPs was described as reachable from the internet while it is not routable at all. IANA's registry marks that whole block as not globally reachable, and that is how it is declared now. The IPv4 embedded in such an address is deliberately **not** decoded: RFC 8215 leaves the prefix length to the operator, so `127.0.0.1` is written one way under a /48 and another under a /96 — there is no single address inside to read. The well-known prefix `64:ff9b::/96` is a different case and stays global, which is what the registry says of it.
+
+- **An octet is decimal digits, in every reader.** The IPv4 parser existed in five places and three of them accepted forms no resolver does: `0x7f.0.0.1` was read as 127.0.0.1, `1e2.0.0.1` as 100.0.0.1, `12abc.1.1.1` as 12.1.1.1, an empty octet as zero. Two of the three decide something: which of two ARP rows sharing a MAC stays active and which is marked Inactive, and the order of the discovery frontier — which settles deduplication and who is recorded as having discovered a device, from a neighbour address written by whatever is on the other end of the cable. All of them now use one definition, and an address that cannot be read sorts last instead of first.
+
+- **A link-local IPv6 address is recognised across the whole `fe80::/10`**, not only in its first /64, and there is now a test that would have caught the difference.
+
+- **The check on an AI answer compares addresses, not text.** Three things followed from one validator being stricter than the rest of the project: an address of yours written with leading zeros (`192.168.001.005` — the same address as `192.168.1.5`) was neither cited nor flagged; an **invented** address written the same way passed the no-invention check with nothing said about it; and a device whose address is the beginning of another's (`10.0.0.1` inside `10.0.0.100`) raised the wrong chip, so the jump landed on the wrong node.
+
+- **The manual explains an empty VLAN column.** After a Sync the VLAN can be empty on ports that plainly have one: not a failed reading, but a reading that says the device never declared it — some switches leave the standard PVID at 1 whatever the port really carries. The chapter also says why a `1` from a device that knows no other VLAN is not a measurement, and what to do instead.
+
+### Added
+
+- **The asset register carries the tenant.** ISO 27001 A.5.9 asks an asset register for identity, owner and location; the owner imported from NetBox was visible only in the Properties panel. It now has a column in the PDF, which appears only when at least one device has one — on an installation that never imported from NetBox it would be a column of dashes. The column is headed *Tenant* in both languages, not *Owner*: in a register that word means the A.5.9 owner, which is a different field.
+
+- **A security policy** (`SECURITY.md`): how to report a vulnerability privately, which versions get fixes, and the two premises that decide whether a finding is a vulnerability or a deployment choice.
+
+### Security
+
+- `ip-address` 10.4.0 → 10.7.2, closing three advisories. The two that describe a class this project also has — an address classifier disagreeing with the network — were read as classes and fixed here too, above.
+
 ## [2.11.11] — 2026-09-29
 
 One piece of evidence, one vote: the scan stops counting the same clue twice, and says when it had nothing to go on.

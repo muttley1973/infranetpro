@@ -35,7 +35,7 @@
 </td>
 <td align="center" width="50%">
 <a href="TECHNICAL_MANUAL_EN.pdf"><img src="GitHub%20Images/flag-gb.svg" width="26" alt=""><br><b>Technical manual — English</b></a><br>
-<sub>71 illustrated pages · fully bilingual UI, onboarding and manual, with an in-app IT/EN switcher.</sub>
+<sub>72 illustrated pages · fully bilingual UI, onboarding and manual, with an in-app IT/EN switcher.</sub>
 </td>
 </tr>
 </table>
@@ -146,7 +146,25 @@ Double-click <code>avvia.bat</code>.<br>
 
 > **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then run **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.11.11) — one piece of evidence, one vote.**
+> 📰 **What's new (v2.11.12) — an address is what it is, not how it is written.**
+>
+> - **A NAT64 local-use address is no longer called public.** One from `64:ff9b:1::/48` came out as a
+>   global address, so an address of that block among a device's public IPs was described as reachable
+>   from the internet while it is not routable. The whole range is declared not globally reachable, as
+>   IANA's registry does — and the IPv4 inside is deliberately not decoded, because the RFC leaves the
+>   prefix length to the operator, so there is no single address in there to read.
+> - **An octet is decimal digits, in every reader.** The parser lived in five places and three accepted
+>   what no resolver does (`0x7f.0.0.1` as 127.0.0.1, `12abc.1.1.1` as 12.1.1.1). Two of them decide
+>   something: which of two ARP rows sharing a MAC stays active, and the order of the discovery
+>   frontier — which settles deduplication and who gets recorded as the discoverer, from an address
+>   written by whatever is on the other end of the cable.
+> - **The check on an AI answer compares addresses, not text.** An address of yours written with leading
+>   zeros was neither cited nor flagged, an *invented* one written the same way passed with nothing
+>   said, and a device whose address begins another's raised the wrong chip.
+> - **The asset register carries the tenant**, in a column that appears only when a device has one; and
+>   the manual now explains why a VLAN column can legitimately stay empty after a Sync.
+
+> 📰 **v2.11.11 — one piece of evidence, one vote.**
 >
 > - **The same clue stopped casting two ballots.** The vendor we only know from the MAC is capped at 45
 >   points, far below any measured signal — but that name also went into the text the vendor→type rules
@@ -452,7 +470,7 @@ Double-click <code>avvia.bat</code>.<br>
   <b>Full feature manual (PDF)</b> —
   <a href="MANUALE_TECNICO_IT.pdf"><img src="GitHub%20Images/flag-it.svg" width="20" alt=""> Italiano</a> ·
   <a href="TECHNICAL_MANUAL_EN.pdf"><img src="GitHub%20Images/flag-gb.svg" width="20" alt=""> English</a><br>
-  <sub>Dark cover, white printable interior, 22 illustrated chapters — 68 pages in Italian, 71 in English.</sub>
+  <sub>Dark cover, white printable interior, 22 illustrated chapters — 68 pages in Italian, 72 in English.</sub>
 </p>
 
 <p align="center">
