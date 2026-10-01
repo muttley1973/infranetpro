@@ -23,17 +23,31 @@
 //   vicini; ora e' l'IP piu' basso: comportamento *deterministico*, entrambi validi.)
 // ============================================================
 
+// La definizione di «ottetto» non si riscrive qui: arriva da lib/cidr.js, che e' puro e
+// senza dipendenze (stessa convenzione di lib/ipam-audit.js).
+const { _parseIpv4Int } = require('../lib/cidr.js');
+
+// ⭐ Un ottetto e' SOLO cifre decimali. Qui c'era una copia con `parseInt`, che si ferma
+// al primo carattere non cifra: '12abc.1.1.1' valeva 12.1.1.1 e si ordinava IN MEZZO
+// agli indirizzi veri. Non e' una vetrina: il remoteIP di un vicino LLDP/CDP lo scrive
+// l'agente dall'altra parte (SECURITY.md: la rete documentata e' input NON fidato), e
+// l'ordine della frontiera decide il dedup e il `discoveredBy`. Sentinella -1 come prima.
 function _ipNum(ip) {
-  const p = String(ip || '').split('.');
-  if (p.length !== 4) return -1;
-  let n = 0;
-  for (const o of p) { const v = parseInt(o, 10); if (!(v >= 0 && v <= 255)) return -1; n = n * 256 + v; }
-  return n;
+  const n = _parseIpv4Int(ip);
+  return n == null ? -1 : n;
 }
 // Ordina per valore numerico dell'IP (stabile, deterministico); IP non-IPv4 in coda.
+// ⚠️ «In coda» questo commento lo diceva da sempre e il codice NON lo faceva: `na - nb`
+// con na = -1 mandava in TESTA cio' che non si legge, cioe' esattamente dove si pesca il
+// vincitore del dedup («l'IP piu' basso»). Stringere il parser DA SOLO avrebbe peggiorato
+// il caso, perche' in testa ci sarebbe finito anche '12abc.1.1.1': le due meta' non si
+// possono separare, ed e' la ragione per cui stanno nello stesso commit.
 function cmpIp(a, b) {
   const na = _ipNum(a), nb = _ipNum(b);
-  if (na !== nb) return na - nb;
+  if (na !== nb) {
+    if (na < 0 || nb < 0) return na < 0 ? 1 : -1;
+    return na - nb;
+  }
   return String(a).localeCompare(String(b));
 }
 

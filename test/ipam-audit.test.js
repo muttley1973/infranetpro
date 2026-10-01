@@ -526,3 +526,19 @@ test('buildIpamAudit espone il fuori-piano accanto agli altri due', () => {
   assert.equal(a.addressesOutsidePlan[0].ip, '172.16.5.5');
   assert.deepEqual(a.notChecked, []);
 });
+
+test("⭐ l'ordine del report duplicati non si fida di Number()", () => {
+  // `_ipSortKey` usava `Number()`, quindi '0x7f.0.0.1' valeva 127.0.0.1 e il record si
+  // metteva in fila FRA gli indirizzi veri, come se fosse uno di loro. Non lo è: va in
+  // coda, col resto di ciò che non è un IPv4 (la regola di questo sort, già scritta).
+  // ⚠️ Qui l'effetto è l'ORDINE di un report, non un fatto sulla rete — e la
+  // seconda sede di _ipSortKey (addressesOutsidePlan) filtra per famiglia prima di
+  // ordinare, quindi la spazzatura non ci arriva nemmeno.
+  const nodi = [
+    { id: 'a', name: 'A', ip: '200.0.0.1' }, { id: 'b', name: 'B', ip: '200.0.0.1' },
+    { id: 'c', name: 'C', ip: '0x7f.0.0.1' }, { id: 'd', name: 'D', ip: '0x7f.0.0.1' },
+  ];
+  const dup = findDuplicateIps(nodi);
+  assert.equal(dup.length, 2);
+  assert.deepEqual(dup.map(r => r.ip), ['200.0.0.1', '0x7f.0.0.1']);
+});

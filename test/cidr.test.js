@@ -392,3 +392,29 @@ test('⭐ ogni scopo che addrScope sa restituire sta in ADDR_SCOPES', () => {
     assert.ok(ADDR_SCOPES.includes(s), s + ' non è nel vocabolario ADDR_SCOPES');
   }
 });
+
+test("⭐ NAT64 local-use (64:ff9b:1::/48) non è un indirizzo pubblico", () => {
+  // RFC 8215: il blocco è local-use, e il registro IANA degli indirizzi IPv6 a scopo
+  // speciale — la stessa fonte su cui è costruito _V4_SPECIAL — lo marca NON
+  // globalmente raggiungibile. Finora usciva `global`, quindi un indirizzo di questo
+  // blocco messo fra i publicIps veniva RACCONTATO come pubblico: è la stessa famiglia
+  // del CGNAT, non una vulnerabilità.
+  for (const a of ['64:ff9b:1::1', '64:ff9b:1:7f00:0:100::',
+                   '64:ff9b:1:ffff:ffff:ffff:ffff:ffff', '64:ff9b:1::/48']) {
+    assert.equal(addrScope(a), 'reserved', a + ' dovrebbe essere riservato');
+  }
+  // ⛔ LA STRADA DA NON PRENDERE, pinnata qui perché è quella ovvia: la RFC lascia
+  // all'operatore la lunghezza del prefisso (/48, /56, /64, /96), quindi 127.0.0.1 si
+  // scrive `64:ff9b:1:7f00:0:100::` sotto una /48 e `64:ff9b:1::7f00:1` sotto una /96 —
+  // NON esiste UN indirizzo incastonato da decodificare. Chi un giorno provasse a
+  // leggerlo farebbe uscire `loopback` da queste due righe.
+  assert.notEqual(addrScope('64:ff9b:1:7f00:0:100::'), 'loopback');
+  assert.notEqual(addrScope('64:ff9b:1::7f00:1'), 'loopback');
+  // Il confine del /48: fuori resta `global`, perché non è assegnato a nulla.
+  assert.equal(addrScope('64:ff9b:2::1'), 'global');
+  assert.equal(addrScope('64:ff9b:0:1::1'), 'global');
+  // ⚠️ Il NAT64 WELL-KNOWN (64:ff9b::/96) è un'altra cosa e qui NON si tocca: lì
+  // l'IPv4 si decodifica davvero e la raggiungibilità dipende da quello. Riga di
+  // MISURA — dice cosa risponde oggi, non cosa si è deciso.
+  assert.equal(addrScope('64:ff9b::102:304'), 'global');
+});

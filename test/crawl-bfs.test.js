@@ -5,7 +5,7 @@
 // parallelismo non cambia i dati; il determinismo e' garantito dalla barriera+ordinamento).
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { crawlNetwork, probeArpCandidates, cmpIp, _skipNeighborIp } = require('../server/crawl-bfs.js');
+const { crawlNetwork, probeArpCandidates, cmpIp, _ipNum, _skipNeighborIp } = require('../server/crawl-bfs.js');
 
 const delay = ms => new Promise(r => setTimeout(r, ms));
 // Ritardo deterministico ma "sfasato": IP piu' alto risponde PRIMA -> l'ordine di
@@ -251,4 +251,24 @@ test('CARDINE: la community non segue un vicino PUBBLICO annunciato da un appara
   const { ips: ips2 } = await crawl(net2, { neighborPolicy: { allowPublic: true } });
   assert.ok(net2.calls.probe.includes('203.0.113.7'), 'con allowPublic il crawl lo segue (scelta dichiarata)');
   assert.deepEqual(ips2.sort(), ['10.0.0.1', '10.0.0.2', '203.0.113.7']);
+});
+
+test("⭐ _ipNum: un ottetto è solo cifre decimali — e il non-IPv4 va in CODA", () => {
+  // Il vicino LLDP/CDP è input NON fidato, e SECURITY.md lo dice a chiare lettere: il
+  // remoteIP lo scrive l'agente dall'altra parte. Con `parseInt` '12abc.1.1.1' valeva
+  // 12.1.1.1 e si ordinava IN MEZZO agli indirizzi veri; e l'ordine della frontiera
+  // decide il dedup e il `discoveredBy`.
+  for (const brutto of ['12abc.1.1.1', '1.2.3.4abc', '+1.2.3.4', '1 .2.3.4', '0x7f.0.0.1',
+                        '1e2.0.0.1', '1..2.3', '1.2.3', '256.1.1.1', '1.2.3.0b1', 'zzz']) {
+    assert.equal(_ipNum(brutto), -1, brutto + ' non è un IPv4');
+  }
+  assert.equal(_ipNum('10.0.0.1'), 167772161);
+  assert.equal(_ipNum('  10.0.0.1  '), 167772161);            // gli spazi ATTORNO si tagliano
+  assert.equal(_ipNum('192.168.001.005'), _ipNum('192.168.1.5')); // zeri iniziali: scelta di addrKey
+  // ⚠️ E la metà che non si può separare dalla prima: il commento di cmpIp promette
+  // «IP non-IPv4 in coda», ma con il sentinella -1 finivano in TESTA — cioè dove si
+  // pesca il vincitore del dedup («l'IP più basso»). Stringere il parser da solo
+  // avrebbe PEGGIORATO questo caso, perché manda in testa anche '12abc.1.1.1'.
+  assert.deepEqual(['10.0.0.20', 'zzz', '10.0.0.3', '12abc.1.1.1'].sort(cmpIp),
+                   ['10.0.0.3', '10.0.0.20', '12abc.1.1.1', 'zzz']);
 });

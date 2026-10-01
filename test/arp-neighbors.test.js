@@ -143,3 +143,16 @@ test('_ipToNum: ordina gli IP e rifiuta input non validi', () => {
   assert.equal(_ipToNum('bad'), -1);
   assert.equal(_ipToNum('1.2.3.999'), -1);
 });
+
+test("⭐ _ipToNum: un ottetto è solo cifre decimali (una definizione sola, lib/cidr.js)", () => {
+  // Qui non è solo ordine: `_demoteStaleArpDup` pesca con questo il VINCITORE fra
+  // righe ARP con lo stesso MAC («IP più alto»), e chi perde va a «Inattivo». Un
+  // parser che legge '12abc.1.1.1' come 12.1.1.1 decide un fatto, non una vetrina.
+  // Il sentinella -1 è il più BASSO, quindi ciò che non si legge non vince mai: è la
+  // direzione giusta, e stringere il parser la rafforza.
+  for (const brutto of ['12abc.1.1.1', '1.2.3.4abc', '+1.2.3.4', '1 .2.3.4', '0x7f.0.0.1',
+                        '1e2.0.0.1', '1..2.3', '1.2.3.0b1']) {
+    assert.equal(_ipToNum(brutto), -1, brutto + ' non è un IPv4');
+  }
+  assert.equal(_ipToNum('192.168.001.005'), _ipToNum('192.168.1.5'));
+});

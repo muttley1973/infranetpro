@@ -16,6 +16,7 @@ const {
   MDNS_ADDR, MDNS_PORT, SSDP_ADDR, SSDP_PORT, WSD_ADDR, WSD_PORT, MDNS_DEFAULT_QUERIES,
 } = require('../lib/discovery-mdns');
 const { parseTtl } = require('../lib/os-hint');   // TTL dell'echo-reply → hint OS (a costo zero)
+const { _parseIpv4Int } = require('../lib/cidr.js'); // la definizione di «ottetto», una sola
 
 // ---- Subnet expansion -------------------------------------------------------
 
@@ -248,12 +249,15 @@ async function _readArpMap() {
 // il duplicato e' un fantasma. Puro: corregge solo i flag di presenza (alive/status),
 // non cancella la riga (manual-first: resta visibile, "Inattivo", non pre-selezionata).
 // `strongByMac` (opz.) = Map(macNormalizzato -> ip) da fonti forti esterne (lease DHCP).
+// ⭐ Un ottetto e' SOLO cifre decimali, e la definizione sta in lib/cidr.js: una sola.
+// Qui c'era una copia con `parseInt` ('12abc.1.1.1' -> 12.1.1.1). E qui il parser non
+// ordina: _demoteStaleArpDup ci pesca il VINCITORE fra righe ARP con lo stesso MAC
+// («IP piu' alto»), e chi perde va a «Inattivo» — e' un fatto, non una vetrina. Il
+// sentinella -1 e' il piu' basso, quindi cio' che non si legge non vince mai: la
+// direzione era gia' giusta e stringere il parser la rafforza.
 function _ipToNum(ip) {
-  const p = String(ip || '').split('.');
-  if (p.length !== 4) return -1;
-  let n = 0;
-  for (const o of p) { const v = parseInt(o, 10); if (!(v >= 0 && v <= 255)) return -1; n = n * 256 + v; }
-  return n;
+  const n = _parseIpv4Int(ip);
+  return n == null ? -1 : n;
 }
 
 function _demoteStaleArpDup(rows, strongByMac) {
