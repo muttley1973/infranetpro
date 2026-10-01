@@ -21,6 +21,7 @@ import { radioPid, setRadioCount, apSsidList } from '../lib/radio.js';   // Laye
 import { pairSig } from '../lib/correlate.js';   // Layer 4c: firma-coppia canonica (stesso formato di _pairSig usato per rejectedAutoLinks)
 import { _normMacKey } from '../lib/netnames.js';   // Layer 4c: normalizzazione MAC (stessa del resto del motore)
 import { pduManagementPortCount } from '../lib/pdu-layout.js';
+import { directConnectionPairs } from '../lib/direct-connection.js';   // Layer 5: Direct Connection Theorem (pura, bundle-only)
 // ============================================================
 // AUTO-LINK DISCOVERY — algoritmo multi-layer trasparente
 //
@@ -1261,52 +1262,16 @@ async function _autoDiscoverLinks(nodeIds){
 
     // ---- Layer 5: Direct Connection Theorem — link switch<->switch via FDB ----
     // Inferisce i collegamenti tra switch confrontando le MAC table, anche SENZA
-    // LLDP/CDP (caso tipico dei lab tipo PNETLab). Riferimento: Lowekamp et al.,
-    // "Topology Discovery for Large Ethernet Networks", SIGCOMM 2001.
-    //
-    // Teorema: le porte x (su switch A) e y (su switch B) sono DIRETTAMENTE
-    // connesse se gli insiemi di MAC appresi dietro x e dietro y sono complementari
-    // — cioè non condividono alcun MAC (oltre ai MAC degli switch stessi). Se un
-    // terzo switch C fosse in mezzo, il suo MAC comparirebbe dietro entrambe le
-    // porte → intersezione non vuota → scartato.
+    // LLDP/CDP (caso tipico dei lab tipo PNETLab). L'algoritmo (Lowekamp et al., SIGCOMM
+    // 2001: due porte sono collegate se i MAC dietro l'una e dietro l'altra sono
+    // complementari) vive in lib/direct-connection.js, pura e provata da sola; qui si
+    // risolvono le porte del progetto e si propongono i candidati, nello STESSO punto della
+    // funzione di prima (l'ordine dei livelli decide chi vince a parità di confidenza).
     let dctLinks = 0;
     try{
-        // MAC di ogni nodo (dalle porte SNMP importate)
-        const nodeMacs = {};
-        for(const [mac, e] of Object.entries(macMap)){
-            (nodeMacs[e.nodeId] ??= new Set()).add(mac);
-        }
-        // Per ogni switch con FDB: ifName -> Set(MAC) appresi su quella porta
-        const portMacs = {};
-        for(const [swId, fdb] of Object.entries(store._topoFdbCache)){
-            const pm = portMacs[swId] = {};
-            for(const [mac, ifn] of Object.entries(fdb)){
-                (pm[ifn] ??= new Set()).add(String(mac).toLowerCase());
-            }
-        }
-        const swIds = Object.keys(portMacs);
-        for(let i=0;i<swIds.length;i++){
-            for(let j=i+1;j<swIds.length;j++){
-                const A=swIds[i], B=swIds[j];
-                const macsA=nodeMacs[A], macsB=nodeMacs[B];
-                if(!macsA?.size || !macsB?.size) continue; // servono i MAC dei due switch
-                // porta x di A che "vede" un MAC di B, e porta y di B che vede un MAC di A
-                const findPort = (pm, macs) => {
-                    for(const [ifn,set] of Object.entries(pm)) if([...macs].some(m=>set.has(m))) return ifn;
-                    return null;
-                };
-                const portX = findPort(portMacs[A], macsB);
-                const portY = findPort(portMacs[B], macsA);
-                if(!portX || !portY) continue;
-                // Complementarità: nessun MAC comune dietro le due porte, esclusi i
-                // MAC degli switch A e B stessi → garantisce assenza di switch in mezzo.
-                const exclude = new Set([...macsA, ...macsB]);
-                const Fby = portMacs[B][portY];
-                const overlap = [...portMacs[A][portX]].some(m => !exclude.has(m) && Fby.has(m));
-                if(overlap) continue;
-                const pa=_findPortByIfName(A,portX), pb=_findPortByIfName(B,portY);
-                if(pa && pb){ addCandidate(pa, pb, 0.85, 'FDB-DCT'); dctLinks++; }
-            }
+        for(const { a, b, ifA, ifB } of directConnectionPairs(macMap, store._topoFdbCache)){
+            const pa=_findPortByIfName(a,ifA), pb=_findPortByIfName(b,ifB);
+            if(pa && pb){ addCandidate(pa, pb, 0.85, 'FDB-DCT'); dctLinks++; }
         }
     }catch(e){ console.warn('[AutoLink] DCT:', e.message); }
 
