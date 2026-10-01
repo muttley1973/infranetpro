@@ -89,6 +89,14 @@ const _RL = {
     'col.device': 'Dispositivo', 'col.pnum': 'P#', 'col.alias': 'Alias / Desc', 'col.status': 'Stato',
     'col.speed': 'Vel.', 'col.connto': 'Connesso a', 'col.type': 'Tipo', 'col.brand': 'Marca',
     'col.model': 'Modello', 'col.serial': 'Serial', 'col.note': 'Nota', 'col.datetime': 'Data / ora',
+    // ⚠️ «Tenant» e non «Responsabile» DI PROPOSITO, e in tutt'e due le lingue: nel
+    // Registro asset «responsabile» e' la parola dell'owner ISO 27001 A.5.9, che qui
+    // e' un'ALTRA cosa — `governance.owner` del modulo a pagamento, che vuole un
+    // riferimento `u:`/`p:` e non un nome. Questo campo e' il tenant importato da
+    // NetBox, e il pannello Proprieta' lo chiama «Responsabile (tenant)» proprio per
+    // disambiguare: in una colonna da 55pt la parentesi non entra, quindi resta la
+    // meta' che NON si confonde.
+    'col.tenant': 'Tenant',
     'col.user': 'Utente', 'col.action': 'Azione', 'col.object': 'Oggetto', 'col.detail': 'Dettaglio',
     'col.free': 'Libere', 'col.access': 'Access', 'col.sfp': 'SFP', 'col.suspect': 'Sospette',
     'col.used': 'Occupate', 'col.total': 'Totale',
@@ -210,6 +218,7 @@ const _RL = {
     'col.device': 'Device', 'col.pnum': 'P#', 'col.alias': 'Alias / Desc', 'col.status': 'Status',
     'col.speed': 'Speed', 'col.connto': 'Connected to', 'col.type': 'Type', 'col.brand': 'Brand',
     'col.model': 'Model', 'col.serial': 'Serial', 'col.note': 'Note', 'col.datetime': 'Date / time',
+    'col.tenant': 'Tenant',   // v. la nota sul dizionario IT: non «Owner», che e' un'altra cosa
     'col.user': 'User', 'col.action': 'Action', 'col.object': 'Object', 'col.detail': 'Detail',
     'col.free': 'Free', 'col.access': 'Access', 'col.sfp': 'SFP', 'col.suspect': 'Suspect',
     'col.used': 'Used', 'col.total': 'Total',
@@ -1170,6 +1179,57 @@ function _assetDeviceLabel(d, lang) {
   return nodeLabelParts(d, { typeName: typeLabel }).primary || d.name || '';
 }
 
+// Le colonne del Registro asset, DERIVATE: la somma deve fare `_RW` (539 = 595 - 28*2)
+// in tutt'e due i rami, e una prova la misura (test/pdf-handoff.test.js) invece di
+// affidarsi a un `// 539` scritto a mano accanto ai numeri — che e' una frase che
+// nessun cancello verifica, e sono sei in questo file.
+//
+// ⭐ Il tenant compare SOLO se almeno un apparato ce l'ha: su un'installazione che non
+// ha importato da NetBox sarebbero 55pt di pagina spesi per una colonna di «-».
+// Stessa regola della riga Cavi nella Panoramica — in coda e solo se ce n'e'.
+//
+// ⚠️ I 55pt sono presi dalle colonne che hanno avanzo MISURATO col font di disegno
+// (Helvetica 7pt, larghezza utile = w-6), non a occhio:
+//   MAC     82 -> 60   (un MAC sta in 51,7pt: 24,3 di avanzo, il donatore piu' grosso)
+//   Tipo    46 -> 32   («firewall» 21,5pt; restano 2,5 di margine)
+//   Device  84 -> 72   (il piu' lungo dei campioni 52,6pt, ed e' wrap: eccede -> va a capo)
+//   Serial  66 -> 61   (52,9pt misurati)
+//   VLAN    30 -> 28   (l'intestazione «VLAN» 19,1pt e' il vincolo, non il valore)
+// ⛔ Marca (50), Modello (66) e Rack (37) NON danno niente: il loro contenuto e' GIA'
+// piu' largo della colonna e va a capo o si tronca — togliergli spazio peggiora una
+// cosa che e' gia' al limite.
+function _assetRegisterCols(lang = 'it', conTenant = false) {
+  const L = _rlang(lang);
+  if (!conTenant) {
+    return [
+      { label: _rt(L, 'col.num'),    w: 18  },
+      { label: _rt(L, 'col.device'), w: 84, wrap: true },
+      { label: _rt(L, 'col.type'),   w: 46  },
+      { label: _rt(L, 'col.brand'),  w: 50  },
+      { label: _rt(L, 'col.model'),  w: 66, wrap: true },
+      { label: _rt(L, 'col.serial'), w: 66, shrink: true },
+      { label: 'IP',                 w: 60  },
+      { label: 'MAC',                w: 82, shrink: true },
+      { label: 'VLAN',               w: 30  },
+      { label: _rt(L, 'col.rack'),   w: 37, wrap: true },
+    ];
+  }
+  return [
+    { label: _rt(L, 'col.num'),    w: 18  },
+    { label: _rt(L, 'col.device'), w: 72, wrap: true },
+    // Di chi e' sta accanto a che cosa e': l'A.5.9 chiede identita' + owner + ubicazione.
+    { label: _rt(L, 'col.tenant'), w: 55, wrap: true },
+    { label: _rt(L, 'col.type'),   w: 32  },
+    { label: _rt(L, 'col.brand'),  w: 50  },
+    { label: _rt(L, 'col.model'),  w: 66, wrap: true },
+    { label: _rt(L, 'col.serial'), w: 61, shrink: true },
+    { label: 'IP',                 w: 60  },
+    { label: 'MAC',                w: 60, shrink: true },
+    { label: 'VLAN',               w: 28  },
+    { label: _rt(L, 'col.rack'),   w: 37, wrap: true },
+  ];
+}
+
 function _addAssetRegisterPages(doc, assets, projName, date, lastRevised, lang = 'it') {
   const list = Array.isArray(assets) ? assets : [];
   const L = _rlang(lang);
@@ -1191,25 +1251,17 @@ function _addAssetRegisterPages(doc, assets, projName, date, lastRevised, lang =
        .text(_rt(L, 'empty.assets'), _RM, y);
     return;
   }
-  const cols = [
-    { label: _rt(L, 'col.num'),    w: 18  },
-    { label: _rt(L, 'col.device'), w: 84, wrap: true },
-    { label: _rt(L, 'col.type'),   w: 46  },
-    { label: _rt(L, 'col.brand'),  w: 50  },
-    { label: _rt(L, 'col.model'),  w: 66, wrap: true },
-    { label: _rt(L, 'col.serial'), w: 66, shrink: true },
-    { label: 'IP',                 w: 60  },
-    { label: 'MAC',                w: 82, shrink: true },
-    { label: 'VLAN',               w: 30  },
-    { label: _rt(L, 'col.rack'),   w: 37, wrap: true },
-  ]; // 539
-  const rows = list.map((d, i) => [
-    i + 1,
-    _assetDeviceLabel(d, lang) || '-', d.type || '-', d.brand || '-', d.model || '-',
-    d.serial || '-', d.ip || '-', d.mac || '-',
-    (d.vlan != null ? String(d.vlan) : '-'),
-    d.rack ? (String(d.rack.name || d.rack.id || '') + (d.rack.u != null ? ` U${d.rack.u}` : '')) : '-',
-  ]);
+  const conTenant = list.some((d) => d && String(d.tenant == null ? '' : d.tenant).trim());
+  const cols = _assetRegisterCols(lang, conTenant);
+  const rows = list.map((d, i) => {
+    const r = [i + 1, _assetDeviceLabel(d, lang) || '-'];
+    if (conTenant) r.push(String(d.tenant == null ? '' : d.tenant).trim() || '-');
+    r.push(d.type || '-', d.brand || '-', d.model || '-',
+      d.serial || '-', d.ip || '-', d.mac || '-',
+      (d.vlan != null ? String(d.vlan) : '-'),
+      d.rack ? (String(d.rack.name || d.rack.id || '') + (d.rack.u != null ? ` U${d.rack.u}` : '')) : '-');
+    return r;
+  });
   _rTable(doc, cols, rows, y, T, projName, date, { notes, noteLabel: _rt(L, 'col.note') });
 }
 
@@ -2028,4 +2080,4 @@ function _svgImageCallback(link) {
   return s;
 }
 
-module.exports = { _loadPdfDeps, _svgImageCallback, _rasterGuard, _addReportPages, _addCoverPage, _addChangelogPages, _addSparePages, _addPduPages, _addAssetRegisterPages, _addRecoveryPages, _addWanPages, _wanMapSvg, _addOverviewPages, _assetDeviceLabel, _fmtRevised, _rt, _fit, _wrapFit };
+module.exports = { _loadPdfDeps, _svgImageCallback, _rasterGuard, _addReportPages, _addCoverPage, _addChangelogPages, _addSparePages, _addPduPages, _addAssetRegisterPages, _assetRegisterCols, _addRecoveryPages, _addWanPages, _wanMapSvg, _addOverviewPages, _assetDeviceLabel, _fmtRevised, _rt, _fit, _wrapFit };

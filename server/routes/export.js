@@ -10,7 +10,7 @@ const { readOrganization } = require('../organization-store');
 const { _loadPdfDeps, _svgImageCallback, _rasterGuard, _addReportPages, _addCoverPage, _addChangelogPages, _addSparePages, _addPduPages, _addAssetRegisterPages, _addRecoveryPages, _addWanPages, _addOverviewPages, _rt } = require('../pdf-report');
 const { addLabelPages } = require('../label-sheet');
 const { loadProject } = require('../projects-store');
-const { projectToDevices, applyPortMacFallback, applyDeviceNotes, isStructuralCabling } = require('../../lib/api-shape');
+const { projectToDevices, applyPortMacFallback, applyDeviceNotes, applyDeviceTenant, isStructuralCabling } = require('../../lib/api-shape');
 
 const router = express.Router();
 
@@ -208,6 +208,11 @@ router.post('/api/export-pdf', auth.requireAdmin, (req, res) => {
       // capitolo «Note» separato, dove per capire a chi si riferisse bisognava
       // reincrociare i nomi). Come il fallback MAC: vive solo nel registro.
       if (_project && _project.state) applyDeviceNotes(assets, _project.state.nodes);
+      // Il responsabile importato da NetBox (`node.source.tenant`): finora si vedeva
+      // solo nel pannello Proprieta', e nel registro — che e' il documento dove serve,
+      // perche' l'A.5.9 chiede proprio identita' + owner + ubicazione — non c'era.
+      // Terzo arricchimento della stessa famiglia: vive SOLO qui, il DTO resta com'e'.
+      if (_project && _project.state) applyDeviceTenant(assets, _project.state.nodes);
       _addAssetRegisterPages(doc, assets, hName, hDate, _lastRevised, _lang);
     }
     // Dossier di consegna (N4): storia modifiche in coda

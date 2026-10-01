@@ -163,3 +163,55 @@ test('porte libere: «nessuna fibra dichiarata» non si scrive «0 SFP»', { ski
   const t2 = await pdfText(doc => R._addSparePages(doc, conFibra, 'P', '30/07/2026', 'it'));
   assert.ok(/2 libere su 2 SFP\/uplink/.test(t2), 'con fibra dichiarata torna il rapporto: ' + t2.slice(0, 200));
 });
+
+// ⭐ Il tenant nel Registro asset. Il dato arriva dall'import NetBox e vive in
+// `node.source.tenant`: NON e' nel DTO nodeToDevice, che e' contratto della REST API
+// v1, e aggiungerlo la' cambierebbe cosa esce dall'installazione — una decisione, non
+// un fix. Quindi viaggia come il fallback MAC e le note: un arricchimento che vive
+// SOLO nel registro (`applyDeviceTenant`).
+test('⭐ registro asset: il tenant esce in colonna, e SOLO se qualcuno ce l\'ha', { skip: !has }, async () => {
+  const con = [
+    { id: 'sw1', name: 'CORE-SW', type: 'switch', brand: 'Cisco', model: 'C9300', serial: 'FCW1', ip: '10.0.0.1', mac: 'AA:BB', vlan: 10, rack: null, tenant: 'Amministrazione' },
+    { id: 'ap1', name: 'AP-Lobby', type: 'ap', brand: null, model: null, serial: null, ip: null, mac: null, vlan: null, rack: null },
+  ];
+  const it = await pdfText(doc => R._addAssetRegisterPages(doc, con, 'Net', '11/08/2026', null, 'it'));
+  assert.ok(it.includes('Tenant'), 'la colonna c\'e\': ' + it.slice(0, 200));
+  assert.ok(it.includes('Amministrazione'), 'e il valore esce');
+  const en = await pdfText(doc => R._addAssetRegisterPages(doc, con, 'Net', '11/08/2026', null, 'en'));
+  assert.ok(en.includes('Tenant') && en.includes('Amministrazione'), 'in EN la parola e\' la stessa');
+
+  // ⚠️ Senza nessun tenant la colonna NON compare: su un'installazione che non ha
+  // importato da NetBox sarebbe 55pt di pagina spesi per una colonna di «-».
+  // Stessa regola della riga Cavi nella Panoramica: in coda e solo se ce n'e'.
+  const senza = await pdfText(doc => R._addAssetRegisterPages(doc, [con[1]], 'Net', '11/08/2026', null, 'it'));
+  assert.ok(!/Tenant/.test(senza), 'senza tenant la colonna tace');
+});
+
+// ⭐⭐ La trappola del ribilanciamento, trasformata in cancello. Il file porta SEI
+// commenti `// 539` accanto ad altrettante tabelle: una somma scritta a mano accanto
+// a dei numeri e' una frase che nessun cancello verifica, e qui la colonna nuova la
+// rimetteva in discussione. Ora le colonne del registro le DERIVA una funzione, e
+// questa prova le misura in tutt'e due i rami.
+test('⭐ registro asset: le colonne sommano alla larghezza utile, e nessuna intestazione si tronca', { skip: !has }, async () => {
+  const doc = new PDFDocument({ autoFirstPage: false });
+  for (const lang of ['it', 'en']) {
+    for (const conTenant of [false, true]) {
+      const cols = R._assetRegisterCols(lang, conTenant);
+      const tot = cols.reduce((s, c) => s + c.w, 0);
+      assert.equal(tot, 539,
+        'colonne ' + lang + (conTenant ? ' con' : ' senza') + ' tenant: somma ' + tot
+        + ', la larghezza utile della pagina e\' 539 (595 - 28*2)');
+      assert.equal(cols.length, conTenant ? 11 : 10);
+      // L'intestazione e' disegnata in Helvetica-Bold 7 e fittata a w-6: se non
+      // entra, `_fit` la TRONCA in silenzio — che e' il modo in cui un
+      // ribilanciamento sbaglia senza che niente arrossisca.
+      doc.font('Helvetica-Bold').fontSize(7);
+      for (const c of cols) {
+        const w = doc.widthOfString(String(c.label));
+        assert.ok(w <= c.w - 6,
+          'l\'intestazione «' + c.label + '» misura ' + w.toFixed(1) + 'pt e la colonna ne ha '
+          + (c.w - 6) + ': verrebbe troncata (' + lang + (conTenant ? ', con' : ', senza') + ' tenant)');
+      }
+    }
+  }
+});
