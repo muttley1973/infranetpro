@@ -10,7 +10,7 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="3,781 tests, 0 failing" src="https://img.shields.io/badge/tests-3%2C781%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="3,782 tests, 0 failing" src="https://img.shields.io/badge/tests-3%2C782%20%C2%B7%200%20failing-3fb950"></a>
   <a href="#testing"><img alt="124 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-124%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#oui-intelligence-engine"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
@@ -1266,7 +1266,7 @@ Coverage focuses on the pure, bug-prone logic that has historically broken: SNMP
 
 Current local quality baseline:
 - `npm run check` parses every JS source of the product — **525** of them. It skips the folders `eslint.config.js` already ignores (git worktrees, the private workspace, the editor's caches), so the number stays stable between runs instead of drifting with whatever happens to be checked out beside the repo
-- `npm test` runs the full regression suite (currently **3,781 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **124 flows**)
+- `npm test` runs the full regression suite (currently **3,782 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **124 flows**)
 - `npm run release -- check` is the gate before a tag: the version in its four places, a CHANGELOG section that actually lists something, and the test count above measured against what the suite really prints — the one number no test can check without counting itself
 - final visual verification is still important for rack/front-panel refinements
 

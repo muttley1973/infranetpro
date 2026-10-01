@@ -413,8 +413,14 @@ test("⭐ NAT64 local-use (64:ff9b:1::/48) non è un indirizzo pubblico", () => 
   // Il confine del /48: fuori resta `global`, perché non è assegnato a nulla.
   assert.equal(addrScope('64:ff9b:2::1'), 'global');
   assert.equal(addrScope('64:ff9b:0:1::1'), 'global');
-  // ⚠️ Il NAT64 WELL-KNOWN (64:ff9b::/96) è un'altra cosa e qui NON si tocca: lì
-  // l'IPv4 si decodifica davvero e la raggiungibilità dipende da quello. Riga di
-  // MISURA — dice cosa risponde oggi, non cosa si è deciso.
+  // ⚠️⭐ Il NAT64 WELL-KNOWN (64:ff9b::/96) è un'altra cosa, e `global` è la risposta
+  // GIUSTA — non un residuo da sistemare. Il registro IANA degli indirizzi IPv6 a
+  // scopo speciale gli dà **Globally Reachable = True** (RFC 6052), contro il
+  // **False** del local-use qui sopra (RFC 8215): è la riga del registro, non una
+  // nostra deduzione. Il motivo sta nella forma: il /96 è fisso, quindi l'IPv4
+  // incastonato si decodifica davvero e la raggiungibilità è quella dell'IPv4 che
+  // porta dentro — mentre il /48 non ha un indirizzo da leggere.
+  // ⛔ Quindi NON si aggiunge a _V6_SPECIAL copiando la riga del /48: sarebbe
+  // dichiarare non raggiungibile un blocco che il registro dà per raggiungibile.
   assert.equal(addrScope('64:ff9b::102:304'), 'global');
 });

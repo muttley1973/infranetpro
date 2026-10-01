@@ -178,3 +178,41 @@ test('extractEntities: nessuna categoria di drift con indirizzi resta fuori dal 
     assert.ok(ent.macs.includes(e.mac), cat + ': il MAC esce nel contesto ma il digest non lo conosce');
   }
 });
+
+test('⭐ gli indirizzi si confrontano per CHIAVE, non per stringa (tre difetti in due righe)', () => {
+  const c1 = (ip) => ({ devices: [{ id: 'n1', name: 'SW-Core', ip, mac: '' }], vlans: [] });
+
+  // ① Zeri iniziali su un indirizzo DOCUMENTATO. '192.168.001.005' è LO STESSO
+  //    indirizzo di '192.168.1.5': è deciso dentro `addrKey` (lib/cidr.js) e una
+  //    prova (F1) lo pinna dal principio. Prima: né citato né segnalato, cioè
+  //    silenzio su un indirizzo che è nostro.
+  const a = checkGrounding('Il nodo 192.168.001.005 risponde.', extractEntities(c1('192.168.1.5')));
+  assert.deepEqual(a.citations, [{ kind: 'device', id: 'n1', name: 'SW-Core' }]);
+  assert.deepEqual(a.unknownRefs, []);
+
+  // ② ⚠️ Lo stesso difetto sull'altro lato è un BUCO nel paletto #2: un indirizzo
+  //    INVENTATO con uno zero davanti passava senza che nessuno lo segnalasse,
+  //    perché `_validIp` lo scartava e il ciclo faceva `continue`. A valle «non
+  //    ho niente da dire» non si distingue da «va bene» — un ripiego è
+  //    un'affermazione.
+  const b = checkGrounding('Aggiungi il server 203.000.113.250.', extractEntities(c1('10.0.0.1')));
+  assert.deepEqual(b.unknownRefs, [{ kind: 'ip', value: '203.000.113.250' }]);
+
+  // ③ E il confronto per stringa citava per PREFISSO: `text.includes('10.0.0.1')`
+  //    è vero dentro '10.0.0.100', quindi il chip saltava a un ALTRO nodo. È lo
+  //    stesso difetto che `_wordHit` risolve per i NOMI («AP» dentro «APPLE») e
+  //    che nessuno aveva risolto per gli indirizzi.
+  const c = checkGrounding('Il nodo 10.0.0.100 è giù.', extractEntities(c1('10.0.0.1')));
+  assert.deepEqual(c.citations, [], 'un indirizzo che CONTIENE il nostro non è il nostro');
+  assert.deepEqual(c.unknownRefs, [{ kind: 'ip', value: '10.0.0.100' }]);
+
+  // Controprove — ciò che funzionava deve continuare a funzionare.
+  assert.equal(checkGrounding('Il nodo 10.0.0.1 è giù.', extractEntities(c1('10.0.0.1'))).citations.length, 1);
+  const oid = checkGrounding('Leggi l\'OID 1.3.6.1.2.1.43.11.1.1.9 via SNMP.', extractEntities(c1('10.0.0.1')));
+  assert.deepEqual(oid.citations, [], 'un OID non cita un device');
+  assert.deepEqual(oid.unknownRefs, [], 'un OID non è un indirizzo inventato');
+  // Le maschere restano benigne anche con gli zeri davanti, perché si guarda la chiave.
+  assert.deepEqual(checkGrounding('maschera 255.255.255.000', extractEntities(c1('10.0.0.1'))).unknownRefs, []);
+  // Una rete non è un host, con o senza zeri.
+  assert.deepEqual(checkGrounding('la rete 010.0.030.0/24', extractEntities(c1('10.0.0.1'))).unknownRefs, []);
+});
