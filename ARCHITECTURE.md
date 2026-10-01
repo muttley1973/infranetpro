@@ -1189,6 +1189,14 @@ with an X button and a `*-title` id.
   `'unsafe-eval'` put back by hand must say *allowed*). And `npm run check` counts the files
   **git tracks**, so a new `.js` changes the number the README cites only once it is staged:
   run the suite after `git add`, not before.
+- **Repository-shape guards** (added after 2.11.12, in `test/bridge-ratchet.test.js` and
+  `test/bundle-architecture.test.js`): the two bridge ceilings are quoted **by name, never by value**
+  in the notes of that test, ARCHITECTURE, README and CONTRIBUTING — the guard reads the real values
+  from the two constants and refuses them anywhere else, because a ceiling that drops leaves every
+  sentence carrying its number false and nothing notices; `esbuild` stays in `dependencies`, since the
+  Docker image and `postinstall` build the bundle after the dev dependencies are gone; and the suite
+  lives in `test/` only, with no file name repeated (two files were once both called
+  `classify-golden.test.js`, and `node --test` finds `*.test.js` anywhere, so neither tree noticed).
 - **A local SNMPv3 agent in the test** (added after 2.11.12, `test/snmp-v3-params.test.js`): net-snmp can be
   the *agent* too, so the session the driver builds from nothing but the project's text is run against one on
   127.0.0.1 — constants that exist do not prove a device would answer. The test also compares the project's
