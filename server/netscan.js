@@ -598,7 +598,7 @@ function _nbstatUdp(ip, timeoutMs = 1500, createSocket = dgram.createSocket) {
   });
 }
 async function _netbiosProbe(ip, timeoutMs = 1800) {
-  const t = scanTarget(ip);               // stessa regola del ping: nbtstat legge gli zeri come ottale
+  const t = scanTarget(ip);               // stessa cautela del ping (di nbtstat la lettura NON e' misurata)
   if (!t.ok) return null;
   ip = t.ip;
   // UDP NBSTAT prima (veloce, cross-platform, niente ritardo multi-interfaccia della CLI).
@@ -644,7 +644,7 @@ function _parseNetViewOutput(text) {
 
 async function _smbSharesProbe(ip, timeoutMs = 2500) {
   if (os.platform() !== 'win32') return [];
-  const t = scanTarget(ip);               // stessa regola del ping: net.exe legge gli zeri come ottale
+  const t = scanTarget(ip);               // stessa cautela del ping (di net.exe la lettura NON e' misurata)
   if (!t.ok) return [];
   const r = await _execFileAsync('net', ['view', `\\\\${t.ip}`, '/all'], timeoutMs);
   return _parseNetViewOutput(`${r.stdout}\n${r.stderr}`);

@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **A damaged state file is read from its backup, and never copied over it.** If `organization.json` got corrupted — a full disk, an antivirus, a hand edit — the organisation came back empty without anyone trying the `.bak`, and the first save after that copied the broken file over the only good copy: the very mechanism that makes the backup destroyed it. Four more stores shared the habit: the AI and DCIM configurations, the API tokens (all of them silently invalid) and the skin index. Users and projects already read their backup; now all seven go through one reader. A file that is present but unreadable is read from its `.bak`; one that is absent stays absent, because deleting a config by hand is a decision and a revived API key would be a surprise; and a `.json` that no longer parses is never promoted to `.bak`, since a copy of a broken file is not a copy. A recovery is logged once per broken state, by file name only, and `GET /api/organization` carries the same `X-InfraNet-Recovered` header as a project. The price is one extra parse of the previous file per save: about 1 ms at 500 devices.
+
+- **An address is checked and sent as the same string.** `ping.exe` reads an octet with a leading zero as octal — `010.8.8.8` is pinged as 8.8.8.8 — while Node's resolver refuses the same string, and the project accepts those zeros on purpose (`192.168.001.005` is `192.168.1.5`). A documented `10.10.010.5` was therefore pinged as `10.10.8.5`, another host, and the Verification's present/absent verdict spoke about that one; the TCP probes never resolved it at all. Every door that turns an address into traffic — the scan field, the reachability list, the crawl seeds and neighbours, the host of a poll — now reads it with the one definition and sends the canonical form. `999.999.999.999` and `256.1.1.1` are no longer targets, and multicast, broadcast and `0.0.0.0/8` never are: an SNMP request to a group sends the community to the whole segment, and the crawl no longer follows such a neighbour even when public addresses are allowed. A documented IP that is not valid now has no verdict (*not verified*) instead of "tried, no answer", and `/api/reachability` lists what it rejected. The prefix message said `/16 - /30`; the accepted range is `/22 - /30`, and it is now derived from the 1024-host cap instead of written twice.
+
+### Security
+
+- **The Content-Security-Policy no longer allows `eval`.** `'unsafe-eval'` was there "for libraries that compile at runtime"; the frontend has none. The only `new Function` re-ran the text of an `onchange="…"` attribute that no select has any more, together with a reader that parsed the handler's source with regular expressions to find the field — dead code since the selects moved to event delegation, now removed. The policy the server actually sends is tested on every kind of response (nothing tested those headers before), and `no-eval` / `no-new-func` / `no-implied-eval` guard the browser sources. `'unsafe-inline'` remains, until the last static `on*=` handlers are retired.
+
 ## [2.11.12] — 2026-10-01
 
 An address is compared by what it is, not by how it is written — and a register that asks for an owner now has one.

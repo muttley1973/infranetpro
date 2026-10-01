@@ -1158,7 +1158,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **3,784 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **3,835 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`
@@ -1167,6 +1167,19 @@ with an X button and a `*-title` id.
   `test/auth-store.test.js` for the user store and the corrupt-file guard) and the
   **panel-skin sanitizer** against a battery of `on*`/`<script>` bypass payloads
   (`test/panel-skin.test.js`).
+- **Guards that sit on a boundary** (added after 2.11.12):
+  `test/json-state-recovery.test.js` (one policy for every JSON state file: read from the
+  `.bak`, never promote a broken file to it), `test/security-headers.test.js` (the policy
+  the server actually sends — no `'unsafe-eval'` — plus the closures §8 claims) and
+  `test/scan-targets.test.js` (an address that becomes traffic is read once and sent
+  canonical; `child_process.execFile` is replaced by a spy *before* the modules load, so
+  nothing leaves the machine). Two rules they taught. A probe written inside
+  `page.evaluate()` cannot prove that a CSP blocks `eval`: DevTools suspends the block for
+  the whole call, so the attempt runs in a `setTimeout` after it returns, is driven with
+  real key and click events, and the probe is shown to see a red (the same page with
+  `'unsafe-eval'` put back by hand must say *allowed*). And `npm run check` counts the files
+  **git tracks**, so a new `.js` changes the number the README cites only once it is staged:
+  run the suite after `git add`, not before.
 - **Golden-master render** (`test/golden-render.test.js`): snapshots the rendered
   `innerHTML` of every device's Properties panel + the 4 scopes + the generated
   rack render vs `test/golden/render-golden.json`, to catch unintended UI changes.
@@ -1320,6 +1333,12 @@ is VPN/LAN.
   same ifType, same MAC — stopped being counted as a two-port device. Getting that
   count wrong is not cosmetic: a neighbour announced on a multi-port device has its
   far end deduced rather than known, and the link is downgraded to an inference.
+- **An address that goes to the OS goes canonical.** `ping.exe` reads an octet with a
+  leading zero as **octal** — `010.8.8.8` is 8.8.8.8 (measured) — while Node's resolver
+  rejects it and the project reads it as 10.8.8.8 on purpose. `nbtstat` and `net view` get
+  the same care, though how they read it was not measured. A new probe takes its address
+  from `scanTarget` (`server/scan-target.js`) and sends `.ip`, never the raw string; it also
+  refuses what is never a host (multicast, broadcast, `0.0.0.0/8`).
 - **Windows:** Git shows LF→CRLF warnings; harmless. The login page blocks the
   preview tooling unless you authenticate.
 - **Don't add a new *runtime* dependency** without a strong reason (the build is
