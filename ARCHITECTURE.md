@@ -53,6 +53,12 @@ server.js              Express bootstrap: static files, auth, routers, listen (1
 auth.js                Sessions, bcrypt login, roles (admin/viewer), user CRUD
 server/                Backend (CommonJS): projects-store, netscan, classify,
                        pdf-report, label-sheet, routes/{projects,discovery,export,ai,skins,device-types,organization}
+server/scan-target.js  The ONE reading of an address that is about to become traffic — scan targets,
+                       crawl seeds and neighbours, poll hosts, reachability lists. `_parseIpv4Int`
+                       decides, and what goes on the wire is the CANONICAL form: the same string is
+                       checked and sent (`ping.exe` reads `010.8.8.8` as octal, i.e. 8.8.8.8, while the
+                       project deliberately reads it as 10.8.8.8). Multicast, broadcast and 0.0.0.0/8
+                       are never a host: a community sent to a group reaches the whole segment.
 server/organization-store.js  data/organization.json — ONE organisation per installation,
                        never inside a project (a copy in each would be the same fact twice).
                        Atomic write + .bak; a corrupt file is read from the .bak, and only if that

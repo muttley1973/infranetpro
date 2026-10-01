@@ -15,6 +15,8 @@ const { OuiEngine } = require('../../engine');
 const { publicMdns } = require('../../lib/discovery-mdns');
 const dhcpDrivers = require('../dhcp-drivers');
 const { crawlNetwork, probeArpCandidates } = require('../crawl-bfs');
+const { targetList, hostOrName, targetError } = require('../scan-target');   // la lettura unica dei bersagli
+const { _parseIpv4Int } = require('../../lib/cidr.js');
 
 // Concorrenza della fase deep/neighbor del crawl (probe+pollNeighbors di device GIA'
 // scoperti e autenticati SNMP → non e' una firma di scansione). Default BASSO e Pi-safe:
@@ -59,14 +61,9 @@ function _ouiVendor(mac) {
   catch (_) { return ''; }
 }
 
-// IPv4 dotted → intero unsigned 32-bit (null se non valido).
-function _ipToInt(ip) {
-  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(String(ip || ''));
-  if (!m) return null;
-  const a = +m[1], b = +m[2], c = +m[3], d = +m[4];
-  if (a > 255 || b > 255 || c > 255 || d > 255) return null;
-  return ((a << 24) | (b << 16) | (c << 8) | d) >>> 0;
-}
+// IPv4 dotted → intero unsigned 32-bit (null se non valido). Era una copia della lettura
+// dell'indirizzo, con la sua regex: ora e' la definizione unica (lib/cidr.js).
+function _ipToInt(ip) { return _parseIpv4Int(ip); }
 // Reti IPv4 LOCALI del server (address & netmask di ogni interfaccia non-interna).
 // Distinguono un IP sul FILO del server — dove il silenzio ARP dopo il ping È una
 // prova di assenza (l'ARP non si firewalla) — da un IP REMOTO dietro un router,
@@ -98,13 +95,17 @@ const router = express.Router();
 // Solo admin (SNMP richiede credenziali di rete)
 
 router.post('/api/poll', auth.requireAdmin, async (req, res) => {
-  const cfg    = req.body ?? {};
-  const driver = (cfg.driver || '').toLowerCase();
+  const cfg0   = req.body ?? {};
+  const driver = (cfg0.driver || '').toLowerCase();
   const drv    = DRIVERS[driver];
 
   if (!drv) {
     return res.json({ ok: false, error: `Driver non supportato: ${driver}` });
   }
+  // L'host puo' essere un NOME; se ha la forma di un IPv4 lo e' davvero (e parte canonico).
+  const h = hostOrName(cfg0.host);
+  if (h.error) return res.json({ ok: false, error: h.error });
+  const cfg = { ...cfg0, host: h.host };
 
   try {
     const data = await drv.poll(cfg);
@@ -118,13 +119,16 @@ router.post('/api/poll', auth.requireAdmin, async (req, res) => {
 
 // ---- Poll power: valori live UPS (UPS-MIB) / ATS (APC PowerNet) -------------
 router.post('/api/poll-power', auth.requireAdmin, async (req, res) => {
-  const cfg    = req.body ?? {};
-  const kind   = (cfg.kind === 'ats') ? 'ats' : 'ups';
-  const driver = (cfg.driver || '').toLowerCase();
+  const cfg0   = req.body ?? {};
+  const kind   = (cfg0.kind === 'ats') ? 'ats' : 'ups';
+  const driver = (cfg0.driver || '').toLowerCase();
   const drv    = DRIVERS[driver];
   if (!drv || typeof drv.pollPower !== 'function') {
     return res.json({ ok: false, error: `Driver non supportato: ${driver}` });
   }
+  const h = hostOrName(cfg0.host);
+  if (h.error) return res.json({ ok: false, error: h.error });
+  const cfg = { ...cfg0, host: h.host };
   try {
     const data = await drv.pollPower(cfg, kind);
     res.json({ ok: true, ...data });
@@ -148,10 +152,16 @@ router.post('/api/poll-power', auth.requireAdmin, async (req, res) => {
 router.post('/api/reachability', auth.requireAdmin, async (req, res) => {
   try {
     const { ips = [], timeout } = req.body ?? {};
-    const list = [...new Set((Array.isArray(ips) ? ips : [])
-      .map(x => String(x || '').trim())
-      .filter(ip => /^\d{1,3}(\.\d{1,3}){3}$/.test(ip)))].slice(0, 1024);
-    if (!list.length) return res.json({ ok: true, results: {} });
+    // I bersagli si leggono con la definizione unica (server/scan-target.js): una sonda per
+    // indirizzo CANONICO — ping.exe leggerebbe `10.10.010.5` come 10.10.8.5, un altro host —,
+    // e la risposta torna sotto ogni scrittura che il chiamante ha usato, perche' la sua lista
+    // parla con le sue stringhe. Cio' che non e' un bersaglio si DICE (`rejected`), non sparisce.
+    const { targets, rejected } = targetList(Array.isArray(ips) ? ips : [], { max: 1024 });
+    const list = [...targets.keys()];
+    const scarti = rejected.length
+      ? { rejected: rejected.map(r => ({ ip: r.value, reason: r.reason, message: targetError({ ok: false, reason: r.reason, ip: r.value }, r.value) })) }
+      : {};
+    if (!list.length) return res.json({ ok: true, results: {}, ...scarti });
 
     const pingMs = Math.max(300, Math.min((parseInt(timeout, 10) || 1) * 1000, 2000));
     const arp = await _readArpMap().catch(() => new Map());   // ip -> mac (comunicazioni recenti)
@@ -225,7 +235,10 @@ router.post('/api/reachability', auth.requireAdmin, async (req, res) => {
     for (const [ip, mac] of arp2) { if (cap++ >= 2048) break; if (mac && /^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) arpTable[ip] = mac; }
     const aliveCount = Object.values(results).filter(r => r.alive).length;
     console.log(`  [REACH] ${list.length} IP verificati, ${aliveCount} raggiungibili, ${Object.keys(arpTable).length} in ARP`);
-    res.json({ ok: true, results, arpTable });
+    // Il verdetto di un indirizzo si rende sotto OGNI scrittura con cui e' stato chiesto.
+    const risposte = {};
+    for (const [ip, chiavi] of targets) for (const k of chiavi) if (results[ip]) risposte[k] = results[ip];
+    res.json({ ok: true, results: risposte, arpTable, ...scarti });
   } catch (err) {
     res.json({ ok: false, error: err?.message || String(err) });
   }
@@ -683,8 +696,8 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
 // Solo admin
 
 router.post('/api/topology', auth.requireAdmin, async (req, res) => {
-  const cfg    = req.body ?? {};
-  const driver = (cfg.driver || '').toLowerCase();
+  const cfg0   = req.body ?? {};
+  const driver = (cfg0.driver || '').toLowerCase();
   const drv    = DRIVERS[driver];
 
   if (!drv) {
@@ -693,6 +706,9 @@ router.post('/api/topology', auth.requireAdmin, async (req, res) => {
   if (typeof drv.pollNeighbors !== 'function') {
     return res.json({ ok: false, error: `Driver non supporta topology: ${driver}` });
   }
+  const h = hostOrName(cfg0.host);
+  if (h.error) return res.json({ ok: false, error: h.error });
+  const cfg = { ...cfg0, host: h.host };
 
   try {
     const data = await drv.pollNeighbors(cfg);
@@ -776,10 +792,17 @@ router.post('/api/discover/topology', auth.requireAdmin, async (req, res) => {
   if (!drv) return res.status(400).json({ ok: false, error: 'Driver non supportato' });
 
   // Accetta seeds[] (multi-source) o seed (singolo) - backward compatible
-  const seeds = (Array.isArray(seedsArr) ? seedsArr : [seed])
-    .map(s => (s || '').trim())
-    .filter(s => /^\d{1,3}(\.\d{1,3}){3}$/.test(s));
-  if (seeds.length === 0) return res.status(400).json({ ok: false, error: 'Nessun IP seme valido' });
+  // I semi si leggono con la definizione unica: `999.1.1.1` non e' un seme, e un multicast
+  // non e' un host a cui spedire la community. Cio' che si scarta si DICE (sotto, come
+  // eventi 'warn' del crawl) invece di sparire dalla lista.
+  const semi = targetList(Array.isArray(seedsArr) ? seedsArr : [seed]);
+  const seeds = [...semi.targets.keys()];
+  if (seeds.length === 0) {
+    return res.status(400).json({
+      ok: false, error: 'Nessun IP seme valido',
+      rejected: semi.rejected.map(r => ({ ip: r.value, reason: r.reason })),
+    });
+  }
 
   // --- SSE headers ---
   res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
@@ -799,6 +822,9 @@ router.post('/api/discover/topology', auth.requireAdmin, async (req, res) => {
   const hb = setInterval(() => { if (!aborted) res.write(':hb\n\n'); }, 15000);
 
   const send = obj => { if (!aborted) res.write(`data: ${JSON.stringify(obj)}\n\n`); };
+  for (const r of semi.rejected) {
+    send({ type: 'warn', ip: r.value, message: 'Seme scartato — ' + targetError({ ok: false, reason: r.reason, ip: r.value }, r.value) });
+  }
 
   const cfg      = { driver, community, port, timeout, ...v3 };
   // ARP-SNMP: raccogliamo la ipNetToMediaTable di OGNI device SNMP del crawl per

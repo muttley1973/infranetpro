@@ -16,47 +16,74 @@ const {
   MDNS_ADDR, MDNS_PORT, SSDP_ADDR, SSDP_PORT, WSD_ADDR, WSD_PORT, MDNS_DEFAULT_QUERIES,
 } = require('../lib/discovery-mdns');
 const { parseTtl } = require('../lib/os-hint');   // TTL dell'echo-reply → hint OS (a costo zero)
-const { _parseIpv4Int } = require('../lib/cidr.js'); // la definizione di «ottetto», una sola
+const { _parseIpv4Int, _intToIpv4 } = require('../lib/cidr.js'); // la definizione di «ottetto», una sola
+const { scanTarget, targetError } = require('./scan-target');   // cosa e' un bersaglio, e in che forma parte
 
 // ---- Subnet expansion -------------------------------------------------------
 
+// Il tetto di host per scansione, e da lui il prefisso piu' largo che ci sta: DERIVATO, non
+// scritto. Il messaggio diceva «/16 - /30» mentre da /16 a /21 cadeva il tetto — l'intervallo
+// vero era /22 - /30 —, perche' i due numeri erano scritti a mano in due posti.
+const MAX_SCAN_HOSTS = 1024;
+const MAX_SCAN_PREFIX = 30;
+const MIN_SCAN_PREFIX = (() => {
+  for (let p = 0; p <= MAX_SCAN_PREFIX; p++) if (Math.pow(2, 32 - p) - 2 <= MAX_SCAN_HOSTS) return p;
+  return MAX_SCAN_PREFIX;
+})();
+
+// Un blocco vale per i suoi estremi: se il primo e l'ultimo host sono host, lo sono tutti
+// (i blocchi speciali sono interi: 0.0.0.0/8, 224.0.0.0/4).
+function _bloccoDiHost(primo, ultimo) {
+  for (const n of [primo, ultimo]) {
+    const t = scanTarget(_intToIpv4(n));
+    if (!t.ok) throw new Error(targetError(t, _intToIpv4(n)));
+  }
+}
+
+// ⚠️ Cio' che esce e' sempre la forma CANONICA (`10.0.0.5`, mai `010.000.000.005`): chi manda
+// l'indirizzo a `ping` non deve lasciare a lui la lettura degli zeri iniziali — ping.exe li
+// legge come ottale. V. server/scan-target.js.
 function expandSubnet(input) {
   const str = (input || '').trim();
 
   // CIDR: 192.168.1.0/24
   const cidr = str.match(/^(\d{1,3}(?:\.\d{1,3}){3})\/(\d{1,2})$/);
   if (cidr) {
-    const parts  = cidr[1].split('.').map(Number);
-    if (parts.some(p => p < 0 || p > 255)) throw new Error('IP non valido');
-    const prefix = parseInt(cidr[2]);
-    if (prefix < 16 || prefix > 30)  throw new Error('Prefisso /16 - /30 supportato');
-    const count = (1 << (32 - prefix)) - 2;
-    if (count > 1024) throw new Error('Massimo 1024 host per scansione');
-    const base = ((parts[0]<<24)|(parts[1]<<16)|(parts[2]<<8)|parts[3]) >>> 0;
+    const base = _parseIpv4Int(cidr[1]);
+    if (base == null) throw new Error(targetError({ ok: false, reason: 'invalid' }, cidr[1]));
+    const prefix = parseInt(cidr[2], 10);
+    if (prefix < MIN_SCAN_PREFIX || prefix > MAX_SCAN_PREFIX) {
+      throw new Error(`Prefisso /${MIN_SCAN_PREFIX} - /${MAX_SCAN_PREFIX} supportato (massimo ${MAX_SCAN_HOSTS} host per scansione)`);
+    }
+    const count = Math.pow(2, 32 - prefix) - 2;
     const mask = (0xFFFFFFFF << (32 - prefix)) >>> 0;
     const net  = (base & mask) >>> 0;
+    _bloccoDiHost(net + 1, net + count);
     const ips  = [];
-    for (let i = 1; i <= count; i++) {
-      const n = (net + i) >>> 0;
-      ips.push([(n>>>24)&255,(n>>>16)&255,(n>>>8)&255,n&255].join('.'));
-    }
+    for (let i = 1; i <= count; i++) ips.push(_intToIpv4((net + i) >>> 0));
     return ips;
   }
 
   // Range semplice: 192.168.1.1-254
   const range = str.match(/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.)(\d{1,3})-(\d{1,3})$/);
   if (range) {
-    if (range[1].split('.').some(p => p !== '' && parseInt(p, 10) > 255)) throw new Error('IP non valido');
-    const from = parseInt(range[2]), to = parseInt(range[3]);
+    const base3 = _parseIpv4Int(range[1] + '0');
+    if (base3 == null) throw new Error(targetError({ ok: false, reason: 'invalid' }, range[1] + range[2]));
+    const from = parseInt(range[2], 10), to = parseInt(range[3], 10);
     if (from > to || to > 254) throw new Error('Range non valido');
-    if (to - from + 1 > 1024)  throw new Error('Massimo 1024 host per scansione');
+    if (to - from + 1 > MAX_SCAN_HOSTS) throw new Error(`Massimo ${MAX_SCAN_HOSTS} host per scansione`);
+    _bloccoDiHost(base3 + from, base3 + to);
     const ips = [];
-    for (let i = from; i <= to; i++) ips.push(range[1] + i);
+    for (let i = from; i <= to; i++) ips.push(_intToIpv4((base3 + i) >>> 0));
     return ips;
   }
 
   // IP singolo
-  if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(str)) return [str];
+  if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(str)) {
+    const t = scanTarget(str);
+    if (!t.ok) throw new Error(targetError(t, str));
+    return [t.ip];
+  }
 
   throw new Error('Formato non valido. Usa: 192.168.1.0/24 oppure 192.168.1.1-254');
 }
@@ -91,6 +118,13 @@ function _pingResultIsAlive(platform, r) {
 
 async function _pingHost(ip, timeoutMs = 800) {
   const plat = os.platform();
+  // ⚠️ Si controlla e si manda la STESSA stringa. ping.exe legge `010.8.8.8` come OTTALE
+  // (cioe' 8.8.8.8): l'indirizzo documentato era 10.8.8.8, e il verdetto «presente/assente»
+  // parlava di un altro host. Misurato il 01/10 con `ping 0300.0250.0.1` → 192.168.0.1.
+  // Un indirizzo che non e' un host (invalido, multicast, broadcast) non parte affatto.
+  const t = scanTarget(ip);
+  if (!t.ok) return { alive: false, ttl: null };
+  ip = t.ip;
   timeoutMs = Math.max(250, Math.min(parseInt(timeoutMs || 800, 10), 1500));
   // Unità di timeout di `ping` diverse per OS — sbagliarle azzera la rilevazione:
   //  • Windows  : '-w' in MILLISECONDI
@@ -564,6 +598,9 @@ function _nbstatUdp(ip, timeoutMs = 1500, createSocket = dgram.createSocket) {
   });
 }
 async function _netbiosProbe(ip, timeoutMs = 1800) {
+  const t = scanTarget(ip);               // stessa regola del ping: nbtstat legge gli zeri come ottale
+  if (!t.ok) return null;
+  ip = t.ip;
   // UDP NBSTAT prima (veloce, cross-platform, niente ritardo multi-interfaccia della CLI).
   const udp = await _nbstatUdp(ip, Math.max(500, Math.min(timeoutMs, 1800))).catch(() => null);
   if (udp && (udp.name || udp.group)) return udp;
@@ -607,7 +644,9 @@ function _parseNetViewOutput(text) {
 
 async function _smbSharesProbe(ip, timeoutMs = 2500) {
   if (os.platform() !== 'win32') return [];
-  const r = await _execFileAsync('net', ['view', `\\\\${ip}`, '/all'], timeoutMs);
+  const t = scanTarget(ip);               // stessa regola del ping: net.exe legge gli zeri come ottale
+  if (!t.ok) return [];
+  const r = await _execFileAsync('net', ['view', `\\\\${t.ip}`, '/all'], timeoutMs);
   return _parseNetViewOutput(`${r.stdout}\n${r.stderr}`);
 }
 

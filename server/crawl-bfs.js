@@ -26,6 +26,7 @@
 // La definizione di «ottetto» non si riscrive qui: arriva da lib/cidr.js, che e' puro e
 // senza dipendenze (stessa convenzione di lib/ipam-audit.js).
 const { _parseIpv4Int } = require('../lib/cidr.js');
+const { scanTarget } = require('./scan-target');   // la lettura che poi va sul filo: stessa per controllo e per invio
 
 // ⭐ Un ottetto e' SOLO cifre decimali. Qui c'era una copia con `parseInt`, che si ferma
 // al primo carattere non cifra: '12abc.1.1.1' valeva 12.1.1.1 e si ordinava IN MEZZO
@@ -61,18 +62,6 @@ async function runPool(items, k, fn) {
   return out;
 }
 
-// Spazio di indirizzamento INTERNO (RFC1918 + CGNAT RFC6598, che alcune reti
-// d'operatore usano davvero all'interno). Serve alla politica dei vicini.
-function _isPrivateIpv4(nip) {
-  const o = String(nip == null ? '' : nip).split('.').map(Number);
-  if (o.length !== 4 || o.some(x => !Number.isInteger(x) || x < 0 || x > 255)) return false;
-  if (o[0] === 10) return true;                                // 10/8
-  if (o[0] === 172 && o[1] >= 16 && o[1] <= 31) return true;   // 172.16/12
-  if (o[0] === 192 && o[1] === 168) return true;               // 192.168/16
-  if (o[0] === 100 && o[1] >= 64 && o[1] <= 127) return true;  // 100.64/10 (CGNAT)
-  return false;
-}
-
 // Si accoda un vicino solo se è instradabile E INTERNO.
 //
 // ⚠️ I vicini NON sono un dato nostro: li DICHIARA via LLDP/CDP l'apparato che
@@ -86,14 +75,20 @@ function _isPrivateIpv4(nip) {
 // autorizzando; e un ambito dichiarato a mano (`allow`, la subnet scansionata)
 // vale comunque, perché lì la scelta l'ha fatta una persona, non un apparato.
 function _skipNeighborIp(nip, opts) {
-  if (!nip) return true;
-  const oct = String(nip).split('.').map(Number);
-  if (oct[0] === 0 || oct[0] === 127) return true;
-  if (oct[0] === 169 && oct[1] === 254) return true;
+  // ⚠️ La lettura e' quella UNICA (server/scan-target.js), la stessa che poi decide cosa
+  // si manda sul filo. Qui c'era una copia con `Number()` sui pezzi: `Number('0x0a')` vale 10,
+  // quindi `0x0a.0.0.1` passava per interno. Un indirizzo che non si legge non si segue, e
+  // MULTICAST, BROADCAST e «questa rete» non si seguono MAI — neppure con `allowPublic` o
+  // dentro un ambito dichiarato: non sono indirizzi pubblici, sono gruppi, e la community
+  // spedita a un gruppo arriva a tutto il segmento.
+  const t = scanTarget(nip);
+  if (!t.ok) return true;
+  if (t.scope === 'loopback' || t.scope === 'linkLocal') return true;
   const o = opts || {};
   if (o.allowPublic) return false;
-  if (o.allow && typeof o.allow.has === 'function' && o.allow.has(String(nip))) return false;
-  return !_isPrivateIpv4(nip);
+  if (o.allow && typeof o.allow.has === 'function' && o.allow.has(t.ip)) return false;
+  // Interno = RFC1918 + CGNAT (RFC 6598, che alcune reti d'operatore usano davvero dentro).
+  return !(t.scope === 'private' || t.scope === 'cgnat');
 }
 
 // crawlNetwork — BFS livello-sincrono. Dipendenze iniettate (nessuna rete qui dentro):
@@ -213,7 +208,11 @@ async function crawlNetwork(opts) {
         const seenLocal = new Set();
         const neigh = (nb.neighbors || []).slice().sort((a, b) => cmpIp(a && a.remoteIP, b && b.remoteIP));
         for (const n of neigh) {
-          const nip = (n.remoteIP || '').trim();
+          // Si accoda, si interroga e si ricorda la forma CANONICA: `010.0.0.2` e `10.0.0.2` sono
+          // UN apparato, e quel che parte sul filo e' quel che si e' controllato.
+          const grezzo = (n.remoteIP || '').trim();
+          const lettura = scanTarget(grezzo);
+          const nip = lettura.ok ? lettura.ip : grezzo;
           if (!nip || seenLocal.has(nip) || visited.has(nip)) continue;
           seenLocal.add(nip);
           if (_skipNeighborIp(nip, neighborPolicy)) continue;
@@ -292,4 +291,4 @@ async function probeArpCandidates(list, opts) {
   return { rows, answered, dup };
 }
 
-module.exports = { crawlNetwork, probeArpCandidates, cmpIp, runPool, _ipNum, _skipNeighborIp, _isPrivateIpv4 };
+module.exports = { crawlNetwork, probeArpCandidates, cmpIp, runPool, _ipNum, _skipNeighborIp };
