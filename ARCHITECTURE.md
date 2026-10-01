@@ -238,6 +238,15 @@ lib/                   Shared browser + test modules (the heart of the app)
                     declared it over LLDP/CDP, or the project documenting it with an
                     SNMP driver AND the host being alive. Outside those two, nothing:
                     a badge on every quiet host is noise. No vendor list anywhere  (pure)
+  snmp-v3.js        The ONE list of what the driver speaks over SNMPv3 — levels, auth and
+                    privacy protocols (project value, net-snmp constant, label), the
+                    defaults the form already shows selected, and v3Params(cfg). The driver
+                    builds its session from it and both panels (device, VM) render their
+                    selects from it. An unknown name is an ERROR naming the field, never a
+                    stand-in: the old `map[name] ?? SHA` showed up only as a timeout. Only
+                    what the security level uses is checked. AES-256 has two key
+                    derivations (`AES256` = Blumenthal, `AES256R` = Reeder): with a short
+                    auth hash they differ, with SHA-2 they coincide  (pure)
   ansible-netos.js  vendorToNetworkOs → ansible_network_os from the documented
                     vendor + measured sysDescr (conservative; null on unknown)  (pure)
   backup-ref.js     validateBackupRef → the config-backup POINTER (never the
@@ -1180,6 +1189,12 @@ with an X button and a `*-title` id.
   `'unsafe-eval'` put back by hand must say *allowed*). And `npm run check` counts the files
   **git tracks**, so a new `.js` changes the number the README cites only once it is staged:
   run the suite after `git add`, not before.
+- **A local SNMPv3 agent in the test** (added after 2.11.12, `test/snmp-v3-params.test.js`): net-snmp can be
+  the *agent* too, so the session the driver builds from nothing but the project's text is run against one on
+  127.0.0.1 — constants that exist do not prove a device would answer. The test also compares the project's
+  protocol list with what net-snmp exposes (an upgrade that adds one turns it red) and renders both panels.
+  ⚠️ Pick the combination where the difference shows: with SHA-256 or longer the two AES-256 variants coincide,
+  so a test using only SHA-2 stays green with the wrong mapping; MD5, SHA-1 or SHA-224 tell them apart.
 - **Golden-master render** (`test/golden-render.test.js`): snapshots the rendered
   `innerHTML` of every device's Properties panel + the 4 scopes + the generated
   rack render vs `test/golden/render-golden.json`, to catch unintended UI changes.
@@ -1339,6 +1354,13 @@ is VPN/LAN.
   the same care, though how they read it was not measured. A new probe takes its address
   from `scanTarget` (`server/scan-target.js`) and sends `.ip`, never the raw string; it also
   refuses what is never a host (multicast, broadcast, `0.0.0.0/8`).
+- **An SNMPv3 name is read through `lib/snmp-v3.js`, and an unknown one is refused.** The driver and both
+  property panels used to keep their own lists (six and three entries in the driver, two and two in the
+  selects), and the driver turned a name it did not know into SHA-1 / AES-128 / authPriv — visible only as a
+  timeout, a device that looks switched off. A new protocol is one entry in that list, and the test compares
+  the list with what net-snmp exposes. `AES256` stays Blumenthal because saved projects contain it; `AES192`
+  is absent because the library does not implement it. The `public` community default is a different
+  question and was left alone on purpose: the forms show it, and the Overview already flags it.
 - **Windows:** Git shows LF→CRLF warnings; harmless. The login page blocks the
   preview tooling unless you authenticate.
 - **Don't add a new *runtime* dependency** without a strong reason (the build is
