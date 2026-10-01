@@ -1259,7 +1259,10 @@ exported document; report chrome is
 localized it/en server-side while device data is emitted verbatim.) Binds to
 `127.0.0.1`. Every response carries **baseline security headers** — a `Content-Security-Policy`
 (self-hosted assets: `default-src 'self'`, `object-src 'none'`, `base-uri 'self'`,
-`frame-ancestors 'none'`; inline kept, since the UI needs it), `nosniff`, `X-Frame-Options: DENY`,
+`frame-ancestors 'none'`; inline kept, since the UI needs it — but **never `'unsafe-eval'`**:
+no frontend code compiles strings, and `test/security-headers.test.js` (the policy actually sent) and
+the `no-eval`/`no-new-func` rules in `eslint.config.js` (browser sources) keep it that way),
+`nosniff`, `X-Frame-Options: DENY`,
 `Referrer-Policy: no-referrer`. `GET /api/projects/:id` **redacts SNMP secrets** (community + v3
 passphrases) for a non-admin reader (viewers can't save → loss-free), and the
 `INFRANET_DEV_NO_AUTH` bypass is **fail-closed** (honoured only on a loopback bind, non-production).

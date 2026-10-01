@@ -1,7 +1,7 @@
 // ============================================================
 // PANNELLO PROPRIETA: tab destra + valore manuale nelle select  [modulo ESM, ex app.js]
 // Split app.js #5 (ultimo). switchRightTab/_activatePropsTab/_clearPropsTab governano
-// le tab del pannello destro; _enableManualValueInProps (+ resolver/runner) aggiunge
+// le tab del pannello destro; _enableManualValueInProps (+ resolver) aggiunge
 // la voce «Personalizzato...» alle select rileggendo il valore dal modello.
 // _propsTabHold/_rightTab/selId/... sono window-globals (proxy store), letti/scritti bare.
 // ============================================================
@@ -11,7 +11,7 @@ import { nodeById, renderCables } from "./app.js";   // cicli benigni: uso solo 
 import { renderProps } from "./app-properties.js";
 // Bare globals (no-undef OFF): _propsTabHold/_rightTab/_propsExplicit/selId/selType/state
 // (proxy store) - _cancelLink/_aiPanelOpen/_updateFloorToolbarVisibility/showPrompt (window,
-// altri moduli) - console/Function.
+// altri moduli) - console.
 
 export function switchRightTab(tab){
     _propsTabHold = null;   // cambio tab esplicito → decade l'hold di selectPathSegment
@@ -98,76 +98,33 @@ function _readManualByRef(kind, nodeId, field){
 
 function _resolveManualPropValue(sel){
     try{
-        // Percorso ROBUSTO (preferito): se la select dichiara data-mkind/-mnode/
-        // -mfield, risolvi da quelli — nessun parsing di codice, nessun
-        // accoppiamento alla firma inline. I nuovi builder possono optare per
-        // questa via; i 221 handler inline storici restano gestiti sotto.
+        // Percorso per RIFERIMENTO: se la select dichiara data-mkind/-mnode/-mfield,
+        // si risolve da quelli — nessun parsing di codice, nessun accoppiamento alla
+        // firma di un handler. E' il percorso dei builder nuovi (le VM).
         if(sel.dataset && sel.dataset.mkind){
             const v = _readManualByRef(sel.dataset.mkind, sel.dataset.mnode, sel.dataset.mfield);
             if(v !== undefined && v !== null) return String(v);
         }
-        // Select MIGRATE a event-delegation (`data-change="update-n" data-nfield=…`):
-        // niente `onchange` da parsare e niente `data-mkind` → il ramo storico sotto non
-        // le vede, e senza questo il resolver tornerebbe il default (`sel.value`) al
-        // re-render, PERDENDO il valore custom appena salvato: la select ricade sul
-        // default. È la regressione del bug fba8d48 dopo il ritiro degli handler inline
-        // (ASSE B). Rileggo dal modello con la STESSA regola spec/`n[key]` di updateN.
+        // Select a event-delegation (`data-change="update-n" data-nfield=…`): senza questo
+        // il resolver tornerebbe il default (`sel.value`) al re-render, PERDENDO il valore
+        // custom appena salvato: la select ricade sul default (bug fba8d48). Si rilegge dal
+        // modello con la STESSA regola spec/`n[key]` di updateN.
+        //
+        // ⚠️ Prima c'era un terzo ramo, che leggeva col regex il SORGENTE dell'`onchange`
+        // inline (`updateN\('([^']+)'…`) per risalire al campo. Era codice MORTO: nessuna
+        // select di src/ ha piu' un `onchange` (sono tutte `data-change`), quindi `oc` era
+        // sempre la stringa vuota e nessun pattern combaciava. Era il compagno di un
+        // `new Function` (anch'esso tolto) che rieseguiva quel testo, ed e' quello che teneva
+        // in piedi il permesso `'unsafe-eval'` della CSP. Un campo nuovo dichiara da dove si
+        // rilegge (`data-change` o `data-mkind`): niente da indovinare.
         if(sel.dataset && sel.dataset.change === 'update-n' && sel.dataset.nfield){
             const n = nodeById(selId);
             const key = sel.dataset.nfield;
             const v = n ? ((n.spec && n.spec[key] !== undefined && n.spec[key] !== null) ? n.spec[key] : n[key]) : undefined;
             if(v !== undefined && v !== null) return String(v);
         }
-        const oc = String(sel.getAttribute('onchange') || '');
-        let matched = false;
-        let m = oc.match(/updateN\('([^']+)',\s*this\.value\)/);
-        if(m){
-            matched = true;
-            const n = nodeById(selId);
-            const key = m[1];
-            // I campi device-specifici vivono in n.spec[key]: updateN ci salva il
-            // valore e CANCELLA n[key]. Senza leggere prima lo spec, il valore
-            // custom appena impostato non viene riconosciuto al re-render → la
-            // select torna al default (bug "non riesco ad approvare il custom").
-            const v = n ? ((n.spec && n.spec[key] !== undefined) ? n.spec[key] : n[key]) : undefined;
-            if(v !== undefined && v !== null) return String(v);
-        }
-        m = oc.match(/updateIntegration\('([^']+)','([^']+)',\s*this\.value\)/);
-        if(m){
-            matched = true;
-            const n = nodeById(m[1]);
-            const v = n?.integration?.[m[2]];
-            if(v !== undefined && v !== null) return String(v);
-        }
-        m = oc.match(/setPortField\('([^']+)','([^']+)',\s*this\.value\)/);
-        if(m){
-            matched = true;
-            const v = state.ports?.[m[1]]?.[m[2]];
-            if(v !== undefined && v !== null) return String(v);
-        }
-        m = oc.match(/setLinkProp\('([^']+)','([^']+)',\s*this\.value(?:\.trim\(\))?\)/);
-        if(m){
-            matched = true;
-            const l = (state.links || []).find(x=>x.id===m[1]);
-            const v = l ? l[m[2]] : undefined;
-            if(v !== undefined && v !== null) return String(v);
-        }
-        // Mutator NOTO presente ma NESSUN pattern combacia → la firma inline è
-        // cambiata (era il ceppo del bug fba8d48): segnala RUMOROSAMENTE invece di
-        // far tornare la select al default in silenzio. Un campo semplicemente
-        // vuoto (pattern ok, valore assente) NON scatta il warn (matched=true).
-        if(!matched && /\b(?:updateN|updateIntegration|setPortField|setLinkProp)\s*\(/.test(oc)){
-            console.warn('[props-manual] onchange non riconosciuto dal resolver (firma inline cambiata?):', oc);
-        }
     }catch(_){}
     return String(sel.value ?? '');
-}
-
-function _runInlineOnChange(el, inlineCode){
-    const code = String(inlineCode || el.getAttribute('onchange') || '').trim();
-    if(!code) return;
-    try { new Function(code).call(el); }
-    catch(err){ console.warn('[props-manual]', err?.message || err); }
 }
 
 export function _enableManualValueInProps(panel){
@@ -179,7 +136,6 @@ export function _enableManualValueInProps(panel){
         if(sel.dataset.manualEnhanced === '1') return;
         sel.dataset.manualEnhanced = '1';
 
-        const originalChange = sel.getAttribute('onchange') || '';
         const customToken = '__custom_manual__';
         let customOpt = [...sel.options].find(o=>o.value===customToken);
         if(!customOpt){
@@ -225,12 +181,10 @@ export function _enableManualValueInProps(panel){
                 }
                 sel.value = manual;
                 sel.dataset.prevValue = manual;
-                // Le select migrate a event delegation (data-change) non hanno un
-                // onchange da eseguire: l'assegnazione programmatica di .value NON
-                // emette 'change', quindi il valore custom non arriverebbe mai al
-                // modello. Si emette l'evento vero, che risale al listener delegato.
-                if(originalChange) _runInlineOnChange(sel, originalChange);
-                else sel.dispatchEvent(new Event('change', { bubbles: true }));
+                // L'assegnazione programmatica di .value NON emette 'change', quindi il
+                // valore custom non arriverebbe mai al modello. Si emette l'evento vero,
+                // che risale al listener delegato (data-change).
+                sel.dispatchEvent(new Event('change', { bubbles: true }));
             }, ()=>{
                 sel.value = prev;
             });
@@ -238,6 +192,7 @@ export function _enableManualValueInProps(panel){
     });
 }
 
-// Superficie window invariata: i 6 erano nell expose() di app.js.
+// Superficie window: i 6 erano nell expose() di app.js; `_runInlineOnChange` e' uscito
+// con il `new Function` che lo reggeva.
 expose({ switchRightTab, _activatePropsTab, _clearPropsTab, _enableManualValueInProps,
-         _resolveManualPropValue, _runInlineOnChange });
+         _resolveManualPropValue });

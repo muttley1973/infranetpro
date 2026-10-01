@@ -89,6 +89,26 @@ module.exports = [
     rules: { 'no-undef': 'off' }, // riaccendere dopo il ritiro del ponte window
   },
 
+  // ----- 6a) Il codice che gira nel BROWSER non compila stringhe ------------
+  // La CSP (server.js) non concede `'unsafe-eval'`, e questo blocco e' l'altra meta'
+  // della stessa guardia (l'altra e' test/security-headers.test.js, che guarda la
+  // politica mandata davvero). `no-eval`/`no-new-func`/`no-implied-eval` leggono
+  // l'AST, quindi non si fanno ingannare da un commento o da una stringa che
+  // contiene «Function(». Senza, qualcuno riaggiunge un `new Function` e il primo
+  // segno e' la CSP che lo blocca nel browser — a chi lo scopre in produzione.
+  // Il permesso c'era `per librerie che compilano a runtime`; il frontend non ha
+  // dipendenze, e l'unico che lo usava (src/app-props-tabs.js) rieseguiva un
+  // `onchange="…"` che nessuna select ha piu'. Restano fuori test/ e tools/: non
+  // vengono serviti al browser.
+  {
+    files: ['src/**/*.js', 'lib/**/*.js', 'export.js'],
+    rules: {
+      'no-eval': 'error',
+      'no-new-func': 'error',
+      'no-implied-eval': 'error',
+    },
+  },
+
   // ----- 6b) test/e2e — mix Node (Playwright) + browser (page.evaluate) ----
   // I corpi passati a page.evaluate() girano NEL BROWSER e leggono i globali
   // vivi della pagina (state, nodeById, …) che ESLint-lato-Node non può

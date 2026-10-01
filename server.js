@@ -38,12 +38,15 @@ app.use(express.json({ limit: '20mb' }));
 // - frame-ancestors 'none' + X-Frame-Options DENY: niente framing → anti-clickjacking.
 // - CSP: default-src 'self' con object-src/base-uri stretti. script/style tengono
 //   'unsafe-inline' PERCHÉ l'app usa handler ed elementi inline (ASSE B non chiuso) e
-//   stili inline nei template; 'unsafe-eval' per librerie che compilano a runtime. Tutte
+//   stili inline nei template. NIENTE 'unsafe-eval': c'era, «per librerie che compilano a
+//   runtime», ma il frontend non ha dipendenze e l'unico `new Function` era codice morto
+//   (rimosso). Lo guardano test/security-headers.test.js (la politica mandata davvero) e
+//   le regole no-eval/no-new-func di eslint.config.js (il sorgente). Tutte
 //   le risorse sono self-hosted (Font Awesome locale, nessun CDN) e le chiamate LLM sono
 //   server-side → connect-src 'self'. img data:/blob: per bgImage base64 e SVG skin.
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self'",
