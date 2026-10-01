@@ -247,6 +247,13 @@ lib/                   Shared browser + test modules (the heart of the app)
                     what the security level uses is checked. AES-256 has two key
                     derivations (`AES256` = Blumenthal, `AES256R` = Reeder): with a short
                     auth hash they differ, with SHA-2 they coincide  (pure)
+  direct-connection.js  directConnectionPairs → which switches are linked DIRECTLY, from their
+                    MAC tables (Direct Connection Theorem, Lowekamp et al. 2001: two ports are
+                    linked when the MAC sets behind them are complementary, the two switches'
+                    own MACs aside). Layer 5 of `_autoDiscoverLinks`, moved out of the glue
+                    unchanged and pinned first. It reads the session FDB cache of every switch
+                    ever polled, not only this round's, and the order of its pairs follows that
+                    cache's keys — which matters at equal confidence  (pure)
   ansible-netos.js  vendorToNetworkOs → ansible_network_os from the documented
                     vendor + measured sysDescr (conservative; null on unknown)  (pure)
   backup-ref.js     validateBackupRef → the config-backup POINTER (never the
@@ -1197,6 +1204,12 @@ with an X button and a `*-title` id.
   Docker image and `postinstall` build the bundle after the dev dependencies are gone; and the suite
   lives in `test/` only, with no file name repeated (two files were once both called
   `classify-golden.test.js`, and `node --test` finds `*.test.js` anywhere, so neither tree noticed).
+- **Pinning a layer before it moves** (added after 2.11.12, `test/autolink-dct.test.js`):
+  `_autoDiscoverLinks` cannot be called in pieces, so the pin runs the whole function with a fake
+  `fetch` that serves the topology and reads back the links it creates; only then does a layer
+  leave for `lib/`. The move was also checked against the old code taken from git on 20,000 random
+  inputs — and that comparison was shown to see three deliberately broken variants, because an
+  equivalence check that cannot fail proves nothing.
 - **A local SNMPv3 agent in the test** (added after 2.11.12, `test/snmp-v3-params.test.js`): net-snmp can be
   the *agent* too, so the session the driver builds from nothing but the project's text is run against one on
   127.0.0.1 — constants that exist do not prove a device would answer. The test also compares the project's
@@ -1362,6 +1375,12 @@ is VPN/LAN.
   the same care, though how they read it was not measured. A new probe takes its address
   from `scanTarget` (`server/scan-target.js`) and sends `.ip`, never the raw string; it also
   refuses what is never a host (multicast, broadcast, `0.0.0.0/8`).
+- **In `_autoDiscoverLinks` the ORDER of the layers is part of the answer.** The candidate set keeps
+  the *first* candidate at equal confidence, so a cable that layer 3 proposes at 0.85 stays `MAC`
+  even when the Direct Connection Theorem proposes the same pair at 0.85 afterwards — move that
+  layer earlier and the label changes without an error. Its other implicit input is the FDB cache of
+  every switch polled in the session, not only this round's. `test/autolink-dct.test.js` pins both;
+  the function is being taken apart one layer at a time, pin first and move second.
 - **An SNMPv3 name is read through `lib/snmp-v3.js`, and an unknown one is refused.** The driver and both
   property panels used to keep their own lists (six and three entries in the driver, two and two in the
   selects), and the driver turned a name it did not know into SHA-1 / AES-128 / authPriv — visible only as a
