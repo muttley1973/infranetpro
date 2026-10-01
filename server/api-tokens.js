@@ -14,7 +14,7 @@ const fs     = require('fs');
 const path   = require('path');
 const crypto = require('crypto');
 const { timestamp } = require('../utils');
-const { atomicWriteFile } = require('./projects-store');   // scrittura atomica + .bak
+const { atomicWriteFile, readJsonWithBak } = require('./projects-store');   // scrittura atomica + .bak, e il lettore che lo apre
 const { cleanUserText } = require('../lib/user-text.js');  // la stessa forma del nome progetto
 
 const TOKENS_FILE = process.env.INFRANET_API_TOKENS_FILE || path.join(__dirname, '..', 'api-tokens.json');
@@ -60,12 +60,12 @@ function _expiryFromDays(days, fromMs) {
   return new Date(t).toISOString().replace('T', ' ').substring(0, 19);
 }
 
+// ⚠️ Un file rotto NON vuol dire «nessun token»: vuol dire «cerca nel .bak». Rendere
+// [] invalidava TUTTI i token in silenzio, e il primo createToken dopo scriveva [nuovo]
+// sopra il guasto. (Il compromesso e' lo stesso degli utenti: il .bak e' UNA
+// generazione fa, quindi un token revocato proprio prima del guasto puo' tornare.)
 function loadTokens() {
-  try {
-    if (!fs.existsSync(TOKENS_FILE)) return [];
-    const arr = JSON.parse(fs.readFileSync(TOKENS_FILE, 'utf8'));
-    return Array.isArray(arr) ? arr : [];
-  } catch (_) { return []; }
+  return readJsonWithBak(TOKENS_FILE, { shape: 'array' }).value || [];
 }
 
 function saveTokens(tokens) {
@@ -73,7 +73,8 @@ function saveTokens(tokens) {
   // file ~1/min per aggiornare lastUsedAt, quindi un crash a meta' scrittura era
   // molto piu' probabile qui che altrove. Con la write raw un file troncato ->
   // loadTokens degradava a [] -> TUTTI i token API invalidati in silenzio (nessun
-  // .bak da cui recuperare). Ora e' durevole come lo store progetti/utenti.
+  // .bak da cui recuperare). Ora il .bak c'e' E loadTokens lo apre (`readJsonWithBak`):
+  // per un po' la frase diceva «durevole» ma il lettore non lo leggeva mai.
   atomicWriteFile(TOKENS_FILE, JSON.stringify(tokens, null, 2));
 }
 

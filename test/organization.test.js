@@ -114,6 +114,12 @@ test('un salvataggio pulito non riporta nessuno scarto', () => {
 });
 
 test('un file CORROTTO riparte dal vuoto, non da dati inventati', () => {
+  // ⚠️ «Dal vuoto» vale quando NON c'è una copia valida da cui ripartire. Questa prova
+  // scriveva il rotto con un .bak buono lì accanto (lasciato dai test precedenti) e
+  // pretendeva comunque [] — cioè fissava come regola il difetto che butta l'ultima
+  // copia buona. Col .bak buono si legge il .bak: v. test/json-state-recovery.test.js.
+  // Qui si prova l'altro caso, quello senza.
+  try { fs.unlinkSync(process.env.INFRANET_ORG_FILE + '.bak'); } catch (_) { /* assente */ }
   fs.writeFileSync(process.env.INFRANET_ORG_FILE, '{ questo non è json', 'utf8');
   assert.deepEqual(store.readOrganization().sites, []);
   assert.equal(store.hasOrganization(), true, 'il file c\'è: è rotto, non assente — sono due cose diverse');

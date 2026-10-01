@@ -7,7 +7,7 @@
 // ============================================================
 const fs   = require('fs');
 const path = require('path');
-const { atomicWriteFile } = require('./projects-store');
+const { atomicWriteFile, readJsonWithBak } = require('./projects-store');
 const { cleanUserText } = require('../lib/user-text.js');
 
 // Override via INFRANET_SKINS_DIR (store isolato per E2E; default invariato).
@@ -49,8 +49,7 @@ function removeFromIndex(arr, id) {
 // ---- fs ---------------------------------------------------------------------
 
 function readIndex() {
-  try { const a = JSON.parse(fs.readFileSync(INDEX_FILE, 'utf8')); return Array.isArray(a) ? a : []; }
-  catch (_) { return []; }
+  return readJsonWithBak(INDEX_FILE, { shape: 'array' }).value || [];
 }
 function writeIndex(arr) { atomicWriteFile(INDEX_FILE, JSON.stringify(arr, null, 2)); }
 function svgPath(id) { return path.join(SKINS_DIR, slug(id) + '.svg'); }

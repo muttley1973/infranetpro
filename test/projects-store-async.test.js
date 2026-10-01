@@ -75,16 +75,18 @@ test('le due scritture atomiche fanno gli stessi passi, nello stesso ordine', ()
   // e si forza sul disco, poi si mette da parte la copia, e solo alla fine si
   // rinomina. Un rename prima del fsync consegnerebbe un file che il sistema non
   // ha ancora scritto davvero.
-  assert.deepEqual(sincrona, ['open', 'write', 'sync', 'close', 'copyFile', 'rename', 'unlink']);
+  // `readFile` sta fra il flush e la copia: si guarda che il vecchio file si legga
+  // PRIMA di metterlo da parte, perche' la copia di un file rotto non e' una copia.
+  assert.deepEqual(sincrona, ['open', 'write', 'sync', 'close', 'readFile', 'copyFile', 'rename', 'unlink']);
 
   // La TERZA scrittura atomica è quella dell'asset (la planimetria). Segue la
-  // stessa regola MENO il `.bak`, e l'assenza è voluta: il JSON tiene l'hash, e un
+  // stessa regola MENO il `.bak` (che porta DUE passi: leggere il vecchio file e copiarlo), e l'assenza è voluta: il JSON tiene l'hash, e un
   // asset perso degrada a «nessuna immagine» invece di corrompere il progetto —
   // mentre un `.bak` da un megabyte e mezzo raddoppierebbe lo spazio per niente.
   // ⚠️ Si dichiara la differenza invece di ignorarla: se domani sparisse un altro
   // passo, questa prova lo vedrebbe.
   const asset = passi(corpo('async function _writeAssetAtomic(file, buf)'));
-  assert.deepEqual(asset, sincrona.filter((p) => p !== 'copyFile'),
+  assert.deepEqual(asset, sincrona.filter((p) => p !== 'readFile' && p !== 'copyFile'),
     'l\'asset segue la stessa regola, senza il .bak: ' + JSON.stringify(asset));
 });
 

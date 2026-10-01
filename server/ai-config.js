@@ -17,7 +17,7 @@
 // ============================================================
 const fs = require('fs');
 const path = require('path');
-const { atomicWriteFile } = require('./projects-store');   // scrittura atomica (+ mode)
+const { atomicWriteFile, readJsonWithBak } = require('./projects-store');   // scrittura atomica (+ mode) e lettura col .bak
 
 const CONFIG_FILE = process.env.INFRANET_AI_CONFIG_FILE ||
   path.join(__dirname, '..', 'data', 'ai-config.json');
@@ -67,12 +67,11 @@ function _normalize(raw) {
   };
 }
 
-// Legge il file su disco (sola fonte di verità persistita); assente/corrotto → default.
+// Legge il file su disco (sola fonte di verità persistita). Assente → default.
+// Illeggibile → l'ultima copia valida (.bak), e solo se nemmeno quella c'e' → default:
+// prima si ripartiva dai default a ogni guasto, e con loro spariva la chiave salvata.
 function _readFile() {
-  try {
-    if (fs.existsSync(CONFIG_FILE)) return _normalize(JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')));
-  } catch (_) { /* file illeggibile → default sicuri */ }
-  return _normalize({});
+  return _normalize(readJsonWithBak(CONFIG_FILE, { shape: 'object' }).value || {});
 }
 
 // Chiave EFFETTIVA usata dal provider: env INFRANET_AI_KEY ha la precedenza

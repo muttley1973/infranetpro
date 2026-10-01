@@ -14,7 +14,7 @@ const rateLimit = require('express-rate-limit');
 // keyGenerator personalizzata — express-rate-limit v8 lo richiede quando si compone
 // la chiave a partire da req.ip, altrimenti avverte del rischio di bypass IPv6.
 const ipKeyGenerator = rateLimit.ipKeyGenerator;
-const { atomicWriteFile } = require('./server/projects-store');
+const { atomicWriteFile, readJsonWithBak } = require('./server/projects-store');
 
 // Override via INFRANET_USERS_FILE: tiene gli account su un volume dati persistente
 // (es. /data/users.json in Docker); default invariato su bare-metal.
@@ -85,24 +85,13 @@ const SESSION_SECRET = process.env.SESSION_SECRET || _genSecret();
 //   { ok:false, absent:true }              nessun file → primo avvio legittimo
 //   { ok:false, absent:false }             file PRESENTE ma illeggibile/corrotto (e .bak idem)
 function _readUsersFile() {
-  const bak = `${USERS_FILE}.bak`;
-  let mainErr = null;
-  if (fs.existsSync(USERS_FILE)) {
-    try {
-      const parsed = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
-      if (Array.isArray(parsed)) return { ok: true, users: parsed };
-      mainErr = new Error('users.json non e\' un array');
-    } catch (e) { mainErr = e; }
-  }
-  // main assente o corrotto → prova il backup lasciato da atomicWriteFile
-  if (fs.existsSync(bak)) {
-    try {
-      const parsed = JSON.parse(fs.readFileSync(bak, 'utf8'));
-      if (Array.isArray(parsed)) return { ok: true, users: parsed };
-    } catch (_) { /* nemmeno il backup e' valido */ }
-  }
-  if (mainErr) return { ok: false, absent: false };  // c'era ma e' corrotto/non-array
-  return { ok: false, absent: true };                 // davvero primo avvio
+  // La politica e' quella comune (`readJsonWithBak`, in projects-store): main, poi
+  // il backup lasciato da atomicWriteFile, mancante compreso. Qui resta solo cosa
+  // significano i due esiti senza valore.
+  const r = readJsonWithBak(USERS_FILE, { shape: 'array', recoverMissing: true });
+  if (r.value) return { ok: true, users: r.value };
+  // c'era ma e' corrotto/non-array (e il .bak idem) vs davvero primo avvio
+  return { ok: false, absent: r.reason === 'missing' };
 }
 
 function loadUsers() {

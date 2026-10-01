@@ -30,6 +30,10 @@ if (!fs.existsSync(PROJECTS_DIR)) fs.mkdirSync(PROJECTS_DIR, { recursive: true }
 // calo di tensione a meta' scrittura lascia INTATTO il file originale — mai un
 // JSON troncato. Prima del rename conserva l'ultima versione valida come `.bak`
 // (best-effort), da cui loadProject sa recuperare.
+// ⚠️ «Valida» e' una condizione, non un aggettivo: un file `.json` che non si legge
+// piu' NON diventa il `.bak` (v. `_backupVale`), perche' la copia di un file rotto
+// non e' una copia — e se lo diventasse, il primo salvataggio dopo il guasto
+// butterebbe l'unica copia buona. Provato il 01/10 su `organization.json`.
 // Helper puro nel path: accetta un percorso esplicito → testabile su dir temp.
 // `mode` opzionale: crea il file temporaneo con quei permessi FIN DALL'INIZIO
 // (es. 0o600 per un file con segreti) → nessuna finestra world-readable fra
@@ -64,7 +68,11 @@ function atomicWriteFile(file, data, mode) {
     } finally {
       fs.closeSync(fd);
     }
-    if (fs.existsSync(file)) {
+    // Si legge il vecchio file PRIMA di metterlo da parte: se non c'e' non c'e' nulla da
+    // salvare, e se c'e' ma non si legge e' spazzatura (v. `_backupVale`).
+    let prima = null;
+    try { prima = fs.readFileSync(file, 'utf8'); } catch (_) { /* assente: niente da salvare */ }
+    if (prima !== null && _backupVale(file, prima)) {
       try { fs.copyFileSync(file, `${file}.bak`); } catch (_) { /* best-effort */ }
     }
     fs.renameSync(tmp, file);
@@ -83,9 +91,10 @@ function atomicWriteFile(file, data, mode) {
 // tenere a mente: c'e' una guardia che li confronta leggendo le due funzioni
 // (test/projects-store-async.test.js). Due copie di una regola vanno bene solo
 // finche' qualcosa verifica che siano la stessa regola.
-// L'unica differenza e' il .bak: la versione sincrona chiede prima se il file
-// c'e', questa prova a copiarlo e accetta il fallimento — che e' lo stesso caso
-// (non c'era), senza la finestra fra la domanda e la risposta.
+// Lo STESSO vale per la decisione sul .bak: la prende `_backupVale`, una funzione
+// pura che le due scritture condividono, cosi' che la regola abbia UN posto solo.
+// In entrambe si legge il vecchio file prima di copiarlo; se non c'e' (ENOENT) non
+// c'e' niente da salvare, e si accetta il fallimento senza chiedere prima.
 async function atomicWriteFileAsync(file, data, mode) {
   const tmp = _tmpPath(file);
   let rinominato = false;
@@ -97,12 +106,109 @@ async function atomicWriteFileAsync(file, data, mode) {
     } finally {
       await fh.close();
     }
-    try { await fsp.copyFile(file, `${file}.bak`); } catch (_) { /* non c'era: niente da salvare */ }
+    let prima = null;
+    try { prima = await fsp.readFile(file, 'utf8'); } catch (_) { /* non c'era: niente da salvare */ }
+    if (prima !== null && _backupVale(file, prima)) {
+      try { await fsp.copyFile(file, `${file}.bak`); } catch (_) { /* best-effort */ }
+    }
     await fsp.rename(tmp, file);
     rinominato = true;
   } finally {
     if (!rinominato) { try { await fsp.unlink(tmp); } catch (_) { /* non c'e': niente da togliere */ } }
   }
+}
+
+// ---- Quale file merita di diventare il .bak ----------------------------------
+// Puro: nessun I/O, cosi' lo condividono la scrittura sincrona e quella asincrona.
+// Vale per i `.json` — tutti gli stati che si rileggono. Gli altri (gli SVG delle
+// skin) non hanno un modo di dirsi «rotti», e si conservano com'erano.
+function _backupVale(file, testo) {
+  if (!/\.json$/i.test(String(file))) return true;
+  try { JSON.parse(testo); return true; } catch (_) { return false; }
+}
+
+// ---- Lettura con ripiego sul .bak: la politica UNICA --------------------------
+// Prima c'erano tre politiche per lo stesso guasto. Utenti e progetti leggevano dal
+// `.bak`; organizzazione, config AI, config DCIM, token API e indice delle skin
+// rispondevano «vuoto» o «default» e basta — e il commento di `api-tokens.js` diceva
+// che il `.bak` li rendeva «durevoli come progetti e utenti» senza che il lettore
+// lo aprisse mai. Qui sta la regola, in un posto solo.
+//
+// Rende sempre `{ value, source, reason }`:
+//   main valido              → { value, source:'main',   reason:null }
+//   main PRESENTE e illegibile, .bak buono
+//                            → { value, source:'backup', reason:'unreadable' }
+//   main ASSENTE, .bak buono, `recoverMissing`
+//                            → { value, source:'backup', reason:'missing' }
+//   nessuno dei due          → { value:null, source:null, reason }
+// Non inventa mai un valore: `null` e' `null`, e decide il chiamante cosa significa
+// (utenti: fermare l'avvio; organizzazione: ripartire vuota).
+//
+// ⚠️ Un file ASSENTE resta assente, a meno che il chiamante dica il contrario.
+// Cancellare a mano una config e' una DECISIONE, non un guasto: se il `.bak` la
+// facesse rivivere, una chiave API cancellata per ruotarla tornerebbe da sola. Per
+// questo `recoverMissing` e' opt-in — lo vogliono utenti e progetti, che non hanno
+// una rotta di cancellazione a mano.
+//
+// opts.shape  'object' | 'array' — un JSON valido ma della forma sbagliata e'
+//             illeggibile quanto uno rotto (`null`, `42` o `"x"` non sono un documento).
+// opts.parse  testo → valore (default `JSON.parse`); se lancia, il file e' illeggibile.
+// opts.quiet  chi segnala gia' per conto suo (la rotta dei progetti) non si ripete.
+//
+// ⚠️ Il lettore NON ripara: se serve dal `.bak`, il file principale resta com'e'
+// fino al prossimo salvataggio, che lo sostituisce. Una lettura che scrive e' una
+// lettura che puo' peggiorare le cose.
+const _FORME = {
+  array: (v) => Array.isArray(v),
+  object: (v) => !!v && typeof v === 'object' && !Array.isArray(v),
+};
+const _avvisati = new Set();
+function readJsonWithBak(file, opts) {
+  const o = opts || {};
+  if (o.shape !== undefined && !_FORME[o.shape]) {
+    // Una forma che non conosciamo NON si ignora: sarebbe un controllo che tace.
+    throw new Error('readJsonWithBak: shape sconosciuta: ' + String(o.shape));
+  }
+  const forma = o.shape ? _FORME[o.shape] : null;
+  const parse = typeof o.parse === 'function' ? o.parse : JSON.parse;
+  const tenta = (f) => {
+    try {
+      const v = parse(fs.readFileSync(f, 'utf8'));
+      return (forma && !forma(v)) ? { ok: false } : { ok: true, value: v };
+    } catch (_) { return { ok: false }; }
+  };
+
+  let reason;
+  if (fs.existsSync(file)) {
+    const r = tenta(file);
+    if (r.ok) return { value: r.value, source: 'main', reason: null };
+    reason = 'unreadable';
+  } else {
+    reason = 'missing';
+    if (!o.recoverMissing) return { value: null, source: null, reason };
+  }
+  const bak = `${file}.bak`;
+  if (fs.existsSync(bak)) {
+    const r = tenta(bak);
+    if (r.ok) {
+      _avvisaRecupero(file, reason, o);
+      return { value: r.value, source: 'backup', reason };
+    }
+  }
+  return { value: null, source: null, reason };
+}
+
+// Una volta per STATO guasto, non per lettura: i token si leggono a ogni richiesta e
+// un avviso a ogni lettura sommergerebbe il log. La chiave include la versione del
+// file (mtime+dimensione): se si ripara e si rompe di nuovo, si avvisa di nuovo.
+// Mai il contenuto: i file di stato portano segreti. Solo il nome.
+function _avvisaRecupero(file, reason, o) {
+  if (o.quiet) return;
+  const chiave = `${file}|${reason}|${fileEtag(file)}`;
+  if (_avvisati.has(chiave)) return;
+  _avvisati.add(chiave);
+  console.warn(`  [STORE] ${path.basename(file)}: ${reason === 'missing' ? 'assente' : 'illeggibile'}` +
+    ` — letto dall'ultima copia valida (.bak)`);
 }
 
 // ---- Una coda per progetto -------------------------------------------------
@@ -347,23 +453,16 @@ async function _salvaOra(id, name, state, createdAt, updatedAt) {
 // prima che ci scriva sopra.
 function readProjectFile(id) {
   const file = path.join(PROJECTS_DIR, `${id}.json`);
-  // Senza valore iniziale apposta: ogni via che arriva in fondo ne assegna uno,
-  // e un `null` di partenza sarebbe un ripiego che nessuna riga legge mai.
-  let reason;
-  if (fs.existsSync(file)) {
-    try {
-      return { project: reattachBgAsset(JSON.parse(fs.readFileSync(file, 'utf8')), ASSETS_DIR), source: 'main', reason: null };
-    } catch (_) { reason = 'unreadable'; }
-  } else {
-    reason = 'missing';
-  }
-  try {
-    const bak = `${file}.bak`;
-    if (fs.existsSync(bak)) {
-      return { project: reattachBgAsset(JSON.parse(fs.readFileSync(bak, 'utf8')), ASSETS_DIR), source: 'backup', reason };
-    }
-  } catch (_) { /* nemmeno il backup e' valido */ }
-  return { project: null, source: null, reason };
+  // La politica e' quella comune (`readJsonWithBak`): qui cambia solo cosa significa
+  // «leggere» — il testo si rimette insieme col suo asset — e che il progetto
+  // mancante si cerca ANCHE nel .bak. `quiet`: a segnalare il recupero, con l'id
+  // del progetto, ci pensa la rotta (`_tagRecupero`).
+  const r = readJsonWithBak(file, {
+    parse: (testo) => reattachBgAsset(JSON.parse(testo), ASSETS_DIR),
+    recoverMissing: true,
+    quiet: true,
+  });
+  return { project: r.value, source: r.source, reason: r.reason };
 }
 
 // Il progetto e basta. La usano tutti i chiamanti che non hanno nessuno a cui
@@ -562,7 +661,7 @@ function safeProjectId(raw) {
 }
 
 module.exports = {
-  PROJECTS_DIR, ASSETS_DIR, atomicWriteFile, atomicWriteFileAsync, withProject, CHIAVE_NUOVO,
+  PROJECTS_DIR, ASSETS_DIR, atomicWriteFile, atomicWriteFileAsync, readJsonWithBak, withProject, CHIAVE_NUOVO,
   _tmpPath, nextId, saveProject, loadProject, readProjectFile, listProjects, safeProjectId,
   extractBgAsset, reattachBgAsset, removeBgAsset, projectEtag, fileEtag,
 };

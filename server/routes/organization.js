@@ -70,7 +70,11 @@ function _tag(res) {
 
 // Stato corrente + audit. `exists` distingue «non c'è ancora» da «c'è ed è vuota».
 router.get('/api/organization', (_, res) => {
-  const organization = store.readOrganization();
+  const letto = store.readOrganizationFile();
+  const organization = letto.organization;
+  // Stessa intestazione dei progetti: il corpo è il documento, e un campo di
+  // trasporto lì dentro diventerebbe un campo del documento per chi lo legge.
+  if (letto.source === 'backup') res.set('X-InfraNet-Recovered', letto.reason || 'backup');
   const audit = buildInterSiteAudit(organization);
   const unknownProjectRefs = _unknownProjectRefs(organization);
   if (unknownProjectRefs === null) {

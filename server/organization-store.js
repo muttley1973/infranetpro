@@ -35,7 +35,7 @@
 // ============================================================
 const fs = require('fs');
 const path = require('path');
-const { atomicWriteFile, fileEtag } = require('./projects-store');
+const { atomicWriteFile, fileEtag, readJsonWithBak } = require('./projects-store');
 const { normalizeOrganization } = require('../lib/inter-site.js');
 
 const ORG_FILE = process.env.INFRANET_ORG_FILE ||
@@ -48,18 +48,23 @@ function _count(raw, key) {
 }
 
 /**
- * L'organizzazione su disco, normalizzata.
- * File assente o illeggibile → organizzazione VUOTA, non un errore: «non c'è
- * ancora» è lo stato normale di un'installazione che non ha aperto il capitolo
- * multi-sede, e non deve somigliare a un guasto.
+ * L'organizzazione su disco, normalizzata, con la provenienza.
+ * File assente → organizzazione VUOTA, non un errore: «non c'è ancora» è lo stato
+ * normale di un'installazione che non ha aperto il capitolo multi-sede, e non deve
+ * somigliare a un guasto. File PRESENTE ma illeggibile → l'ultima copia valida
+ * (`.bak`): prima si rendeva il vuoto, e il primo salvataggio dopo copiava il rotto
+ * sopra l'unica copia buona. Solo se nemmeno il `.bak` si legge si riparte dal
+ * vuoto — mai da dati inventati. `source`/`reason` dicono da dove viene, come per
+ * i progetti: chi serve una copia più vecchia deve poterlo dire.
  */
+function readOrganizationFile() {
+  const r = readJsonWithBak(ORG_FILE, { shape: 'object' });
+  return { organization: normalizeOrganization(r.value || {}), source: r.source, reason: r.reason };
+}
+
+/** L'organizzazione e basta — per chi non ha nessuno a cui dire da dove viene. */
 function readOrganization() {
-  try {
-    if (fs.existsSync(ORG_FILE)) {
-      return normalizeOrganization(JSON.parse(fs.readFileSync(ORG_FILE, 'utf8')));
-    }
-  } catch (_) { /* file corrotto → si riparte dal vuoto, mai da dati inventati */ }
-  return normalizeOrganization({});
+  return readOrganizationFile().organization;
 }
 
 /**
@@ -105,6 +110,7 @@ function organizationEtag() { return fileEtag(ORG_FILE); }
 
 module.exports = {
   readOrganization,
+  readOrganizationFile,
   writeOrganization,
   hasOrganization,
   organizationEtag,

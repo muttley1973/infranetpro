@@ -55,7 +55,8 @@ server/                Backend (CommonJS): projects-store, netscan, classify,
                        pdf-report, label-sheet, routes/{projects,discovery,export,ai,skins,device-types,organization}
 server/organization-store.js  data/organization.json — ONE organisation per installation,
                        never inside a project (a copy in each would be the same fact twice).
-                       Atomic write + .bak; a corrupt file restarts from empty, never invented.
+                       Atomic write + .bak; a corrupt file is read from the .bak, and only if that
+                       is unreadable too does it restart from empty — never invented.
 server/routes/organization.js  GET (open) returns the organisation with its coherence audit in
                        one call; PUT (admin) re-normalises the body and reports what was written
                        and what was refused. The reasoning is in §4 (data flow) and §8.
@@ -1228,7 +1229,14 @@ is coerced to a positive integer (no path traversal). The user store is written
 present-but-corrupt `users.json` recovers from the `.bak` and, failing that, **halts
 startup** instead of regenerating a default admin over existing accounts. The same
 atomic write (owner-only `0o600` where a secret is involved) protects
-`api-tokens.json`, `data/ai-config.json` and the shared skin SVGs. **Uploaded skin
+`api-tokens.json`, `data/ai-config.json` and the shared skin SVGs. **One policy for
+every JSON state file**, in one place (`readJsonWithBak` in `server/projects-store.js`):
+a file that is *present but unreadable* is read from its `.bak`; one that is *absent*
+stays absent (deleting a config by hand is a decision, and a revived API key would be a
+surprise); and a `.json` that no longer parses is **never copied over the `.bak`** — a copy
+of a broken file is not a copy. Before this, the organisation, the AI and DCIM configs, the
+API tokens and the skin index answered "empty" or "defaults" and the next save destroyed
+the only good copy. **Uploaded skin
 SVGs are sanitized** (regex on the server, a real DOM parse on the client for both
 preview and rack) so an event handler / `<script>` in a shared skin-pack cannot run
 in another user's Properties panel. **Every value interpolated into HTML goes
