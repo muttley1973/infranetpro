@@ -22,6 +22,7 @@ import { pairSig } from '../lib/correlate.js';   // Layer 4c: firma-coppia canon
 import { _normMacKey } from '../lib/netnames.js';   // Layer 4c: normalizzazione MAC (stessa del resto del motore)
 import { pduManagementPortCount } from '../lib/pdu-layout.js';
 import { directConnectionPairs } from '../lib/direct-connection.js';   // Layer 5: Direct Connection Theorem (pura, bundle-only)
+import { endpointAttachDecision } from '../lib/endpoint-attach.js';   // Layer 4: cosa fare di un endpoint foglia (pura, bundle-only)
 // ============================================================
 // AUTO-LINK DISCOVERY — algoritmo multi-layer trasparente
 //
@@ -1242,21 +1243,26 @@ async function _autoDiscoverLinks(nodeIds){
         const epPid = `${node.id}-1`;
         // non sovrascrivere un link manuale già presente sull'endpoint
         const ex = store.state.links.find(l => _linkTouchesPort(l, epPid));
-        if(ex && !ex.autoLinked){
+        // La DECISIONE (manuale? porta giusta? cavo da potare?) è pura, in lib/endpoint-attach.js;
+        // qui restano gli EFFETTI. ⚠️ Il risolutore si passa come funzione e la potatura si applica
+        // QUI, prima del nodo dopo: `_resolveEndpointSwitchPort` rilegge `store.state.links`, quindi
+        // la potatura di un endpoint cambia ciò che vede il successivo (l'ordine dei nodi conta).
+        const dec = endpointAttachDecision(ex, () => _resolveEndpointSwitchPort(node));
+        if(dec.action === 'keep-manual'){
             diag.endpointReasons['manual-link'] = (diag.endpointReasons['manual-link']||0) + 1;
             continue;
         }
-        const res = _resolveEndpointSwitchPort(node);
-        if(res.ok) addCandidate(res.swPid, epPid, res.confidence, 'MAC');
-        else {
-            if(res.reason) diag.endpointReasons[res.reason] = (diag.endpointReasons[res.reason]||0) + 1;
-            // Pruning degli auto-link MAC ora riconosciuti errati: porta con
-            // troppi MAC (port-uplink) O porta di transito trunk/LAG/uplink
-            // (port-trunk, es. VM attaccata a torto alla porta del trunk).
-            if((res.reason === 'port-uplink' || res.reason === 'port-trunk') && ex?.autoLinked && (ex.protocol === 'MAC' || ex.protocol === 'ARP-MAC' || ex.protocol === 'MAC+ARP')){
-                store.state.links = store.state.links.filter(l => l !== ex);
-                prunedEndpointLinks++;
-            }
+        if(dec.action === 'propose'){
+            addCandidate(dec.swPid, epPid, dec.confidence, dec.protocol);
+            continue;
+        }
+        if(dec.reason) diag.endpointReasons[dec.reason] = (diag.endpointReasons[dec.reason]||0) + 1;
+        // Pruning degli auto-link MAC ora riconosciuti errati: porta con
+        // troppi MAC (port-uplink) O porta di transito trunk/LAG/uplink
+        // (port-trunk, es. VM attaccata a torto alla porta del trunk).
+        if(dec.prune){
+            store.state.links = store.state.links.filter(l => l !== ex);
+            prunedEndpointLinks++;
         }
     }
 
