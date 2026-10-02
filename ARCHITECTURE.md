@@ -254,6 +254,15 @@ lib/                   Shared browser + test modules (the heart of the app)
                     unchanged and pinned first. It reads the session FDB cache of every switch
                     ever polled, not only this round's, and the order of its pairs follows that
                     cache's keys — which matters at equal confidence  (pure)
+  endpoint-attach.js  endpointAttachDecision → what to do with a leaf endpoint (PC, printer, UPS…)
+                    once its MAC has been looked up in the FDBs: keep a MANUAL cable (the
+                    resolver is not even asked), propose a `MAC` cable on the right port, or
+                    reject with the reason — and flag the cable for pruning when the reason is
+                    «uplink port» or «transit port» and the existing auto-cable was born from a
+                    MAC (MAC, ARP-MAC, MAC+ARP; never LLDP or MAC-WALLPORT). Layer 4 of
+                    `_autoDiscoverLinks`, decision only: the effects (counting the reasons,
+                    proposing, reassigning `state.links`) stay in the glue. The resolver is
+                    passed as a function on purpose — see §9, pruning order  (pure)
   ansible-netos.js  vendorToNetworkOs → ansible_network_os from the documented
                     vendor + measured sysDescr (conservative; null on unknown)  (pure)
   backup-ref.js     validateBackupRef → the config-backup POINTER (never the
@@ -1174,7 +1183,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **3,874 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **3,896 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`
@@ -1204,12 +1213,16 @@ with an X button and a `*-title` id.
   Docker image and `postinstall` build the bundle after the dev dependencies are gone; and the suite
   lives in `test/` only, with no file name repeated (two files were once both called
   `classify-golden.test.js`, and `node --test` finds `*.test.js` anywhere, so neither tree noticed).
-- **Pinning a layer before it moves** (added after 2.11.12, `test/autolink-dct.test.js`):
-  `_autoDiscoverLinks` cannot be called in pieces, so the pin runs the whole function with a fake
-  `fetch` that serves the topology and reads back the links it creates; only then does a layer
-  leave for `lib/`. The move was also checked against the old code taken from git on 20,000 random
-  inputs — and that comparison was shown to see three deliberately broken variants, because an
-  equivalence check that cannot fail proves nothing.
+- **Pinning a layer before it moves** (added after 2.11.12, `test/autolink-dct.test.js` for layer 5 and
+  `test/autolink-endpoint-attach.test.js` for layer 4): `_autoDiscoverLinks` cannot be called in
+  pieces, so the pin runs the whole function with a fake `fetch` that serves the topology and reads
+  back the links it creates; only then does a layer leave for `lib/`. Each move was also checked
+  against the old code taken from git (`git archive HEAD`, built on its own) on random inputs —
+  20,000 for layer 5, 30,000 whole-function runs for layer 4 — and that comparison was shown to see deliberately broken variants, because an
+  equivalence check that cannot fail proves nothing. ⚠️ **Random inputs are blind to what they
+  do not generate**: for layer 4 the variant «prune at the end of the loop» showed 0 differences on
+  600 scenarios until the generator was given one aimed at node order, and that case is what the
+  pin ⑫ guards. A control that finds nothing says nothing about the interplay it never reaches.
 - **A local SNMPv3 agent in the test** (added after 2.11.12, `test/snmp-v3-params.test.js`): net-snmp can be
   the *agent* too, so the session the driver builds from nothing but the project's text is run against one on
   127.0.0.1 — constants that exist do not prove a device would answer. The test also compares the project's
@@ -1381,6 +1394,18 @@ is VPN/LAN.
   layer earlier and the label changes without an error. Its other implicit input is the FDB cache of
   every switch polled in the session, not only this round's. `test/autolink-dct.test.js` pins both;
   the function is being taken apart one layer at a time, pin first and move second.
+- **In layer 4 the pruning of one endpoint changes what the NEXT one sees.** The resolver
+  (`_resolveEndpointSwitchPort`) re-reads `state.links` — `_isTransitPort` looks at the cables on a
+  port, and a cable in `trunk` mode makes it transit — and the loop reassigns `state.links` when it
+  prunes. So with two endpoints learned on the same port and an auto-cable of the first in `trunk`
+  mode, the node order decides: first-then-second prunes the first and then connects the second;
+  second-then-first leaves both unconnected. That is how it behaves today and
+  `test/autolink-endpoint-attach.test.js` (case ⑫) pins it. A «decide everything, then apply» loop
+  would give the same answer in both orders — a behaviour change with no error. It is also why
+  `endpointAttachDecision` takes the resolver as a function: the caller prunes before the next node
+  and the resolver is never asked about a manual cable. ⚠️ The same pin shows that an endpoint that
+  moved keeps its old auto-cable next to the new one (case ⑮): layer 4 has no «the port it was on
+  before» reason. Left as it is, on purpose, until someone decides it should change.
 - **An SNMPv3 name is read through `lib/snmp-v3.js`, and an unknown one is refused.** The driver and both
   property panels used to keep their own lists (six and three entries in the driver, two and two in the
   selects), and the driver turned a name it did not know into SHA-1 / AES-128 / authPriv — visible only as a
