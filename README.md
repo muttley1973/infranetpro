@@ -31,7 +31,7 @@
 <tr>
 <td align="center" width="50%">
 <a href="MANUALE_TECNICO_IT.pdf"><img src="GitHub%20Images/flag-it.svg" width="26" alt=""><br><b>Manuale tecnico — Italiano</b></a><br>
-<sub>68 pagine illustrate · interfaccia, onboarding e manuale completi in italiano, con selettore IT/EN nell'app.</sub>
+<sub>69 pagine illustrate · interfaccia, onboarding e manuale completi in italiano, con selettore IT/EN nell'app.</sub>
 </td>
 <td align="center" width="50%">
 <a href="TECHNICAL_MANUAL_EN.pdf"><img src="GitHub%20Images/flag-gb.svg" width="26" alt=""><br><b>Technical manual — English</b></a><br>
@@ -146,7 +146,17 @@ Double-click <code>avvia.bat</code>.<br>
 
 > **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then run **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.11.12) — an address is what it is, not how it is written.**
+> 📰 **What's new (v2.11.13) — a damaged file is read from its backup, an address is sent as it was checked.**
+>
+> - **A damaged state file is read from its backup, and never copied over it.** A corrupted
+>   `organization.json` came back empty and the first save overwrote the only good copy; the AI and DCIM
+>   configurations, the API tokens and the skin index had the same habit. All seven stores now share one reader.
+> - **An address is checked and sent as the same string.** `ping.exe` reads `010.8.8.8` as 8.8.8.8, so a
+>   documented `10.10.010.5` was pinged as another host and the Verification spoke about that one.
+> - **An SNMPv3 device with AES-256 or SHA-2 can be queried**, and an unknown protocol name is an error
+>   instead of a silent SHA-1 and a timeout. The Content-Security-Policy no longer allows `eval`.
+
+> 📰 **v2.11.12 — an address is what it is, not how it is written.**
 >
 > - **A NAT64 local-use address is no longer called public.** One from `64:ff9b:1::/48` came out as a
 >   global address, so an address of that block among a device's public IPs was described as reachable
@@ -470,7 +480,7 @@ Double-click <code>avvia.bat</code>.<br>
   <b>Full feature manual (PDF)</b> —
   <a href="MANUALE_TECNICO_IT.pdf"><img src="GitHub%20Images/flag-it.svg" width="20" alt=""> Italiano</a> ·
   <a href="TECHNICAL_MANUAL_EN.pdf"><img src="GitHub%20Images/flag-gb.svg" width="20" alt=""> English</a><br>
-  <sub>Dark cover, white printable interior, 22 illustrated chapters — 68 pages in Italian, 72 in English.</sub>
+  <sub>Dark cover, white printable interior, 22 illustrated chapters — 69 pages in Italian, 72 in English.</sub>
 </p>
 
 <p align="center">
@@ -526,7 +536,7 @@ Double-click <code>avvia.bat</code>.<br>
 | **🕓 History & automation** | One **Automatic monitoring** scheduler (Light / Full), opt-in autosave, a verification timeline and restorable full-state snapshots — kept outside the project file, behind a database-ready interface. The timeline is also *read*: a trend says whether this network is getting better known or standing still, and refuses a verdict when the share it could not look at has grown |
 | **🤖 AI assistant** | Bring-your-own-key, OpenAI-compatible, local by default; allowlist context, grounded answers with clickable citations, Ansible drafts — advisory, never auto-applied |
 | **🔒 Security** | Session auth with admin/viewer roles, rate-limited login, loopback bind, secrets structurally excluded from every data surface |
-| **🌍 Bilingual** | Complete Italian and English interface, onboarding and a ~68-page manual, guarded by an `it ↔ en` key-parity test |
+| **🌍 Bilingual** | Complete Italian and English interface, onboarding and a ~69-page manual, guarded by an `it ↔ en` key-parity test |
 
 > **Keeping the passive layer true.** A patch panel is passive: nothing can measure which wall socket a cable
 > comes from. But the run inside the wall — socket ↔ panel port — never changes, so the socket can be *derived*
