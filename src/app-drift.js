@@ -376,15 +376,18 @@ async function runDriftCheck(opts = {}){
 // La Verifica INGLOBA già il polling SNMP: le due profondità NON girano insieme, si
 // sceglie quella eseguita a ogni tick (config/migrazione in lib/auto-monitor.js).
 // "Rileva, non adotta": nessuna adozione automatica. Limite onesto: vive nel browser
-// (serve la scheda aperta). Il prossimo giro è in store._autoMonitorNextAt (badge).
+// (serve la scheda APERTA, non per forza in primo piano). Il prossimo giro è in
+// store._autoMonitorNextAt (badge).
 // La macchina (cadenza, giro DOVUTO e recupero) vive in lib/auto-monitor.js
 // (createMonitorScheduler): qui si attacca solo il giro vero e lo stato visibile.
-// ⚠️ Un giro che non può partire (scheda nascosta, Sync/Verifica in corso) NON si perde e
-// non lascia il badge a «0s»: resta dovuto e parte appena il campo è libero.
+// ⚠️ NON si ferma a scheda nascosta: un monitoraggio che si spegne appena si passa a un'altra
+// finestra non monitora niente. In background rete e timer girano (Chrome rallenta i timer,
+// non le fetch); a restare sospeso è solo il disegno (rAF), che si rinfresca al ritorno.
+// Un giro che non può partire perché un Sync/Verifica tiene il campo NON si perde e non
+// lascia il badge a «0s»: resta dovuto e parte appena il campo è libero.
 const _monitor = createMonitorScheduler({
     getConfig: () => effAutoConfig(store.state.autoPoll),
     isBlocked: () => _driftRunning || !!store._snmpSyncing,            // non sovrapporre a Sync/Verifica (mai due sweep SNMP insieme)
-    isHidden:  () => typeof document !== 'undefined' && document.visibilityState === 'hidden',   // scheda nascosta: il giro aspetta
     run: async (cfg) => {
         if(cfg.depth === 'full') await runDriftCheck({ silent: true });   // include SNMP + storico
         else await win.pollAllSNMP({ dataOnly: true });                   // 'light': solo dati SNMP (come runDriftCheck, non guardato)
@@ -395,11 +398,6 @@ const _monitor = createMonitorScheduler({
     },
     onError: (e) => console.warn('[auto-monitor] giro fallito:', e && e.message || e),   // riproverà alla prossima scadenza
 });
-// La scheda che torna visibile recupera subito il giro dovuto: non si aspetta il prossimo
-// intervallo (con la Verifica completa sarebbe un'ora di monitoraggio fermo).
-if(typeof document !== 'undefined' && typeof document.addEventListener === 'function'){
-    document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') _monitor.resume(); });
-}
 
 // Rearm idempotente: ferma i timer e li riavvia se il monitoraggio è ATTIVO con un
 // intervallo. Chiamata da setAutoMonitor e al caricamento progetto (app-core.loadProject).

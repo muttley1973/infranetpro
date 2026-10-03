@@ -72,10 +72,10 @@ test('effAutoConfig è PURA: non muta l\'input', () => {
 });
 
 // ── Scheduler: il giro che non può partire resta DOVUTO, e il badge non resta a «0s» ──
-// Il difetto: alla scadenza con la scheda nascosta (o un Sync/Verifica in corso) il giro
+// Il difetto: alla scadenza con un Sync/Verifica in corso (o, allora, la scheda nascosta) il giro
 // usciva PRIMA di riprogrammare. Il badge «Auto Nm» arrivava a 0s e ci restava fino alla
 // scadenza successiva (un'ora, con la Verifica completa), e nessuno recuperava il giro
-// nemmeno al ritorno della scheda. Si prova con un orologio finto: nessun timer vero.
+// nemmeno quando il campo si liberava. Si prova con un orologio finto: nessun timer vero.
 function fakeClock() {
   let t = 0;
   const timers = new Set();
@@ -102,11 +102,10 @@ function fakeClock() {
 const MIN = 60000;
 function mkSched(over) {
   const clk = fakeClock();
-  const env = { hidden: false, blocked: false, runs: 0, errors: 0, changes: 0, cfg: { enabled: true, interval: 5, depth: 'light' }, gate: null };
+  const env = { blocked: false, runs: 0, errors: 0, changes: 0, cfg: { enabled: true, interval: 5, depth: 'light' }, gate: null };
   const sched = createMonitorScheduler(Object.assign({
     getConfig: () => env.cfg,
     isBlocked: () => env.blocked,
-    isHidden: () => env.hidden,
     run: async () => { env.runs++; if (env.gate) await env.gate; if (env.fail) throw new Error('rete'); },
     onChange: () => { env.changes++; },
     onError: () => { env.errors++; },
@@ -125,19 +124,19 @@ test('scheduler: alla scadenza libera il giro parte e il prossimo è un interval
   assert.equal(sched.isDue(), false);
 });
 
-test('scheduler: SCHEDA NASCOSTA alla scadenza — il badge non resta nel passato e il giro è recuperato al ritorno', async () => {
+test('scheduler: bloccato alla scadenza — il badge non resta nel passato e il giro è recuperato con resume()', async () => {
   const { clk, env, sched } = mkSched();
   sched.start();
-  env.hidden = true;
+  env.blocked = true;
   await clk.advance(5 * MIN + 1000);
-  assert.equal(env.runs, 0, 'nascosta: il giro non parte');
+  assert.equal(env.runs, 0, 'bloccato: il giro non parte');
   assert.equal(sched.isDue(), true, 'ma resta DOVUTO');
   assert.ok(sched.nextAt() > clk.now(), 'il prossimo appuntamento è nel FUTURO, non fermo a 0s');
   await clk.advance(2 * MIN);
-  assert.equal(env.runs, 0, 'finché è nascosta non gira');
-  env.hidden = false;
-  await sched.resume();      // il ritorno della scheda (visibilitychange)
-  assert.equal(env.runs, 1, 'tornata visibile: il giro dovuto parte SUBITO, senza aspettare un altro intervallo');
+  assert.equal(env.runs, 0, 'finché è bloccato non gira');
+  env.blocked = false;
+  await sched.resume();      // chi libera il campo può chiedere il recupero subito
+  assert.equal(env.runs, 1, 'liberato: il giro dovuto parte SUBITO, senza aspettare un altro intervallo');
   assert.equal(sched.isDue(), false);
 });
 
@@ -156,10 +155,10 @@ test('scheduler: bloccato da un\'altra operazione — il giro parte appena si li
 test('scheduler: più scadenze mentre è fermo → UN solo giro di recupero (niente accumulo)', async () => {
   const { clk, env, sched } = mkSched();
   sched.start();
-  env.hidden = true;
+  env.blocked = true;
   await clk.advance(40 * MIN);            // otto scadenze perse
   assert.equal(env.runs, 0);
-  env.hidden = false;
+  env.blocked = false;
   await sched.resume();
   await clk.advance(1000);
   assert.equal(env.runs, 1);
@@ -197,21 +196,21 @@ test('scheduler: un giro fallito non ferma il monitoraggio', async () => {
 test('scheduler: stop() azzera appuntamento e giro dovuto; disattivato a metà non gira', async () => {
   const { clk, env, sched } = mkSched();
   sched.start();
-  env.hidden = true;
+  env.blocked = true;
   await clk.advance(5 * MIN);
   assert.equal(sched.isDue(), true);
   sched.stop();
   assert.equal(sched.nextAt(), 0);
   assert.equal(sched.isDue(), false);
-  env.hidden = false;
+  env.blocked = false;
   await clk.advance(60 * MIN);
   assert.equal(env.runs, 0, 'fermo non gira, nemmeno il recupero');
   // disattivato (toggle) con un giro dovuto: lo scioglie senza eseguirlo
   const b = mkSched();
-  b.sched.start(); b.env.hidden = true;
+  b.sched.start(); b.env.blocked = true;
   await b.clk.advance(5 * MIN);
   b.env.cfg = { enabled: false, interval: 5, depth: 'light' };
-  b.env.hidden = false;
+  b.env.blocked = false;
   await b.sched.resume();
   assert.equal(b.env.runs, 0);
   assert.equal(b.sched.isDue(), false);
