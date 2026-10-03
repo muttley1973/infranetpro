@@ -24,7 +24,7 @@ import { nodeById, markDirty, getNodeByPortId, getNodeDisplayName, pushHistory, 
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAutomationMenu, _updateAutoPollBadge } from './app-vlan-autopoll.js';   // popover Automazioni + badge del monitoraggio (ciclo benigno: solo a runtime)
-import { effAutoConfig, clampMonitorInterval } from '../lib/auto-monitor.js';   // config PURA del monitoraggio unificato (schema nuovo + migrazione legacy)
+import { effAutoConfig, clampMonitorInterval, createMonitorScheduler } from '../lib/auto-monitor.js';   // config PURA del monitoraggio unificato (schema nuovo + migrazione legacy) + la macchina dello scheduler
 import { prefixesOf } from '../lib/ipam-model.js';   // l'autorità sulle reti dichiarate (prefix-first)
 import { radioLabelForPid } from '../lib/radio.js';   // il nome di una radio sta sul modello, non nel pid
 import { ensureNodeRackVisible, focusNode, selectAndFocusNode } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
@@ -377,45 +377,34 @@ async function runDriftCheck(opts = {}){
 // sceglie quella eseguita a ogni tick (config/migrazione in lib/auto-monitor.js).
 // "Rileva, non adotta": nessuna adozione automatica. Limite onesto: vive nel browser
 // (serve la scheda aperta). Il prossimo giro è in store._autoMonitorNextAt (badge).
-let _monitorTimer = null;       // handle setInterval del giro
-let _monitorBadgeTimer = null;  // handle setInterval del conto alla rovescia sul badge
-let _monitorBusy = false;       // guardia anti-sovrapposizione: mai due giri (né due sweep SNMP) insieme
-
-async function _autoMonitorTick(){
-    if(_monitorBusy || _driftRunning || store._snmpSyncing) return;                      // non sovrapporre a Sync/Verifica/altro giro
-    if(typeof document !== 'undefined' && document.visibilityState === 'hidden') return;  // scheda nascosta: salta il giro
-    const cfg = effAutoConfig(store.state.autoPoll);
-    if(!cfg.enabled) return;
-    _monitorBusy = true;
-    store._autoMonitorNextAt = Date.now() + cfg.interval * 60000;   // pianifica il prossimo (per il badge)
-    try {
+// La macchina (cadenza, giro DOVUTO e recupero) vive in lib/auto-monitor.js
+// (createMonitorScheduler): qui si attacca solo il giro vero e lo stato visibile.
+// ⚠️ Un giro che non può partire (scheda nascosta, Sync/Verifica in corso) NON si perde e
+// non lascia il badge a «0s»: resta dovuto e parte appena il campo è libero.
+const _monitor = createMonitorScheduler({
+    getConfig: () => effAutoConfig(store.state.autoPoll),
+    isBlocked: () => _driftRunning || !!store._snmpSyncing,            // non sovrapporre a Sync/Verifica (mai due sweep SNMP insieme)
+    isHidden:  () => typeof document !== 'undefined' && document.visibilityState === 'hidden',   // scheda nascosta: il giro aspetta
+    run: async (cfg) => {
         if(cfg.depth === 'full') await runDriftCheck({ silent: true });   // include SNMP + storico
         else await win.pollAllSNMP({ dataOnly: true });                   // 'light': solo dati SNMP (come runDriftCheck, non guardato)
-    } catch(e){
-        console.warn('[auto-monitor] giro fallito:', e && e.message || e);   // riproverà al prossimo tick
-    } finally {
-        _monitorBusy = false;
+    },
+    onChange: () => {
+        store._autoMonitorNextAt = _monitor.nextAt();                     // il badge legge da qui
         if(typeof _updateAutoPollBadge === 'function') _updateAutoPollBadge();
-    }
+    },
+    onError: (e) => console.warn('[auto-monitor] giro fallito:', e && e.message || e),   // riproverà alla prossima scadenza
+});
+// La scheda che torna visibile recupera subito il giro dovuto: non si aspetta il prossimo
+// intervallo (con la Verifica completa sarebbe un'ora di monitoraggio fermo).
+if(typeof document !== 'undefined' && typeof document.addEventListener === 'function'){
+    document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') _monitor.resume(); });
 }
 
 // Rearm idempotente: ferma i timer e li riavvia se il monitoraggio è ATTIVO con un
 // intervallo. Chiamata da setAutoMonitor e al caricamento progetto (app-core.loadProject).
-export function _startAutoMonitor(){
-    _stopAutoMonitor();
-    const cfg = effAutoConfig(store.state.autoPoll);
-    if(!cfg.enabled || !(cfg.interval > 0)) return;
-    store._autoMonitorNextAt = Date.now() + cfg.interval * 60000;
-    _monitorTimer = setInterval(_autoMonitorTick, cfg.interval * 60000);
-    _monitorBadgeTimer = setInterval(() => { if(typeof _updateAutoPollBadge === 'function') _updateAutoPollBadge(); }, 30000);
-    if(typeof _updateAutoPollBadge === 'function') _updateAutoPollBadge();
-}
-export function _stopAutoMonitor(){
-    if(_monitorTimer){ clearInterval(_monitorTimer); _monitorTimer = null; }
-    if(_monitorBadgeTimer){ clearInterval(_monitorBadgeTimer); _monitorBadgeTimer = null; }
-    store._autoMonitorNextAt = 0;
-    if(typeof _updateAutoPollBadge === 'function') _updateAutoPollBadge();
-}
+export function _startAutoMonitor(){ _monitor.start(); }
+export function _stopAutoMonitor(){ _monitor.stop(); }
 
 // Setter unico dal popover Automazioni: setAutoMonitor(enabled, interval, depth),
 // passa null al campo che non cambi. Persiste lo schema NUOVO (enabled/interval/depth)

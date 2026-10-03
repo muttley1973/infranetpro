@@ -4,7 +4,7 @@
 // Verifica automatica separati) e clamp dell'intervallo per profondità.
 const test = require('node:test');
 const assert = require('node:assert');
-const { effAutoConfig, clampMonitorInterval, fmtMonitorInterval, MONITOR_INTERVALS } = require('../lib/auto-monitor.js');
+const { effAutoConfig, clampMonitorInterval, fmtMonitorInterval, createMonitorScheduler, MONITOR_INTERVALS } = require('../lib/auto-monitor.js');
 
 test('effAutoConfig: schema nuovo rispettato (enabled/interval/depth)', () => {
   assert.deepEqual(effAutoConfig({ enabled: true, depth: 'light', interval: 5 }), { enabled: true, depth: 'light', interval: 5 });
@@ -69,4 +69,159 @@ test('effAutoConfig è PURA: non muta l\'input', () => {
   const snapshot = JSON.stringify(ap);
   effAutoConfig(ap);
   assert.equal(JSON.stringify(ap), snapshot, 'effAutoConfig non deve toccare l\'oggetto passato');
+});
+
+// ── Scheduler: il giro che non può partire resta DOVUTO, e il badge non resta a «0s» ──
+// Il difetto: alla scadenza con la scheda nascosta (o un Sync/Verifica in corso) il giro
+// usciva PRIMA di riprogrammare. Il badge «Auto Nm» arrivava a 0s e ci restava fino alla
+// scadenza successiva (un'ora, con la Verifica completa), e nessuno recuperava il giro
+// nemmeno al ritorno della scheda. Si prova con un orologio finto: nessun timer vero.
+function fakeClock() {
+  let t = 0;
+  const timers = new Set();
+  return {
+    now: () => t,
+    setInterval: (fn, ms) => { const h = { fn, ms, at: t + ms }; timers.add(h); return h; },
+    clearInterval: (h) => { timers.delete(h); },
+    // Avanza l'orologio scattando i timer IN ORDINE; lascia girare le promise fra uno scatto e l'altro.
+    async advance(ms) {
+      const end = t + ms;
+      for (;;) {
+        let nxt = null;
+        for (const h of timers) if (h.at <= end && (!nxt || h.at < nxt.at)) nxt = h;
+        if (!nxt) break;
+        t = nxt.at; nxt.at += nxt.ms;
+        nxt.fn();                       // come un timer vero: il risultato non si aspetta
+        await new Promise(r => setImmediate(r));
+      }
+      t = end;
+      await new Promise(r => setImmediate(r));
+    },
+  };
+}
+const MIN = 60000;
+function mkSched(over) {
+  const clk = fakeClock();
+  const env = { hidden: false, blocked: false, runs: 0, errors: 0, changes: 0, cfg: { enabled: true, interval: 5, depth: 'light' }, gate: null };
+  const sched = createMonitorScheduler(Object.assign({
+    getConfig: () => env.cfg,
+    isBlocked: () => env.blocked,
+    isHidden: () => env.hidden,
+    run: async () => { env.runs++; if (env.gate) await env.gate; if (env.fail) throw new Error('rete'); },
+    onChange: () => { env.changes++; },
+    onError: () => { env.errors++; },
+    now: clk.now, setInterval: clk.setInterval, clearInterval: clk.clearInterval,
+  }, over || {}));
+  return { clk, env, sched };
+}
+
+test('scheduler: alla scadenza libera il giro parte e il prossimo è un intervallo dopo', async () => {
+  const { clk, env, sched } = mkSched();
+  sched.start();
+  assert.equal(sched.nextAt(), 5 * MIN);
+  await clk.advance(5 * MIN);
+  assert.equal(env.runs, 1);
+  assert.equal(sched.nextAt(), 10 * MIN);
+  assert.equal(sched.isDue(), false);
+});
+
+test('scheduler: SCHEDA NASCOSTA alla scadenza — il badge non resta nel passato e il giro è recuperato al ritorno', async () => {
+  const { clk, env, sched } = mkSched();
+  sched.start();
+  env.hidden = true;
+  await clk.advance(5 * MIN + 1000);
+  assert.equal(env.runs, 0, 'nascosta: il giro non parte');
+  assert.equal(sched.isDue(), true, 'ma resta DOVUTO');
+  assert.ok(sched.nextAt() > clk.now(), 'il prossimo appuntamento è nel FUTURO, non fermo a 0s');
+  await clk.advance(2 * MIN);
+  assert.equal(env.runs, 0, 'finché è nascosta non gira');
+  env.hidden = false;
+  await sched.resume();      // il ritorno della scheda (visibilitychange)
+  assert.equal(env.runs, 1, 'tornata visibile: il giro dovuto parte SUBITO, senza aspettare un altro intervallo');
+  assert.equal(sched.isDue(), false);
+});
+
+test('scheduler: bloccato da un\'altra operazione — il giro parte appena si libera (controllo ogni 30s), non alla scadenza dopo', async () => {
+  const { clk, env, sched } = mkSched();
+  sched.start();
+  env.blocked = true;                     // un Sync/Verifica in corso quando scade
+  await clk.advance(5 * MIN);
+  assert.equal(env.runs, 0);
+  assert.equal(sched.isDue(), true);
+  env.blocked = false;
+  await clk.advance(30000);               // un giro del controllo del badge
+  assert.equal(env.runs, 1, 'recuperato entro 30s dalla liberazione');
+});
+
+test('scheduler: più scadenze mentre è fermo → UN solo giro di recupero (niente accumulo)', async () => {
+  const { clk, env, sched } = mkSched();
+  sched.start();
+  env.hidden = true;
+  await clk.advance(40 * MIN);            // otto scadenze perse
+  assert.equal(env.runs, 0);
+  env.hidden = false;
+  await sched.resume();
+  await clk.advance(1000);
+  assert.equal(env.runs, 1);
+});
+
+test('scheduler: una scadenza durante il NOSTRO giro non ne accoda un secondo', async () => {
+  let release;
+  const { clk, env, sched } = mkSched();
+  env.gate = new Promise(r => { release = r; });
+  sched.start();
+  await clk.advance(5 * MIN);             // il giro parte e resta in corso
+  assert.equal(env.runs, 1);
+  assert.equal(sched.isRunning(), true);
+  await clk.advance(5 * MIN);             // scade di nuovo mentre ancora gira
+  assert.equal(env.runs, 1, 'niente giro sovrapposto');
+  release();
+  await clk.advance(1000);
+  assert.equal(env.runs, 1, 'e finito il primo non ne parte uno di recupero: il prossimo appuntamento è già fissato');
+  assert.equal(sched.isRunning(), false);
+});
+
+test('scheduler: un giro fallito non ferma il monitoraggio', async () => {
+  const { clk, env, sched } = mkSched();
+  env.fail = true;
+  sched.start();
+  await clk.advance(5 * MIN);
+  assert.equal(env.runs, 1);
+  assert.equal(env.errors, 1);
+  assert.equal(sched.isRunning(), false);
+  env.fail = false;
+  await clk.advance(5 * MIN);
+  assert.equal(env.runs, 2, 'la scadenza dopo riparte');
+});
+
+test('scheduler: stop() azzera appuntamento e giro dovuto; disattivato a metà non gira', async () => {
+  const { clk, env, sched } = mkSched();
+  sched.start();
+  env.hidden = true;
+  await clk.advance(5 * MIN);
+  assert.equal(sched.isDue(), true);
+  sched.stop();
+  assert.equal(sched.nextAt(), 0);
+  assert.equal(sched.isDue(), false);
+  env.hidden = false;
+  await clk.advance(60 * MIN);
+  assert.equal(env.runs, 0, 'fermo non gira, nemmeno il recupero');
+  // disattivato (toggle) con un giro dovuto: lo scioglie senza eseguirlo
+  const b = mkSched();
+  b.sched.start(); b.env.hidden = true;
+  await b.clk.advance(5 * MIN);
+  b.env.cfg = { enabled: false, interval: 5, depth: 'light' };
+  b.env.hidden = false;
+  await b.sched.resume();
+  assert.equal(b.env.runs, 0);
+  assert.equal(b.sched.isDue(), false);
+});
+
+test('scheduler: config non attiva → start() non arma nulla', async () => {
+  const { clk, env, sched } = mkSched();
+  env.cfg = { enabled: false, interval: 5, depth: 'light' };
+  sched.start();
+  assert.equal(sched.nextAt(), 0);
+  await clk.advance(60 * MIN);
+  assert.equal(env.runs, 0);
 });
