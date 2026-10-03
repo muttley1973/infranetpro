@@ -30,7 +30,7 @@ store._spareActive = store._spareActive || false;     // toggle highlight nel ra
 let _spareReport = null;      // ultimo report calcolato
 
 // ── Glue: costruisce i device con le porte collegabili ───────────────
-function _spareBuildDevices(){
+export function _spareBuildDevices(){   // esportata: la usa anche il report «Descrizioni di porta» (stessa popolazione di porte)
     const out = [];
     const rackName = id => { const r = (store.state.racks||[]).find(x => x.id === id); return r ? (r.name || id) : id; };
     for(const n of (store.state.nodes || [])){
@@ -50,7 +50,9 @@ function _spareBuildDevices(){
             if(pi.hidden) continue;                                   // porte nascoste: non sono "spare"
             const cabled = _linksForPort(pid).length > 0;
             const activeSnmp = responded && (pi.status === 'active');  // cross-check realtà↔doc
-            ports.push({ pid, kind: sfpSet.has(i) ? 'sfp' : 'access', cabled, activeSnmp });
+            // desc/alias/ifName: non servono al report delle porte libere, ma al censimento delle
+            // descrizioni (lib/port-descriptions.js), che conta le STESSE porte.
+            ports.push({ pid, kind: sfpSet.has(i) ? 'sfp' : 'access', cabled, activeSnmp, desc: pi.desc, alias: pi.alias, ifName: pi.ifName });
         }
         if(ports.length) out.push({ id: n.id, type: n.type, name: getNodeDisplayName(n) || n.name || n.id, rackId: n.rackId || null, rackName: rackName(n.rackId), ports });
     }

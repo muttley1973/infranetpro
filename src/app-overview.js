@@ -741,7 +741,8 @@ function _meter(r) {
 function _rowEl(secKey, r) {
     // Cliccabile se ha un elenco (drill-down nativo) OPPURE è una riga-categoria del
     // Drift (B3): il suo dettaglio riusa le righe+azioni dell'overlay (store._driftReport).
-    const clickable = (Array.isArray(r.items) && r.items.length > 0) || !!r.drill;
+    const clickable = (Array.isArray(r.items) && r.items.length > 0) || !!r.drill
+        || !!(_REPORT_CTA[secKey + ':' + r.key] || {}).always;
     const el = document.createElement(clickable ? 'button' : 'div');
     const st = _tileStatus(r);
     el.className = 'ov-r s-' + st.tone + (r.prov === 'none' ? ' is-missing' : '');
@@ -941,6 +942,11 @@ function _wantsVlanCta(secKey, key) {
 const _REPORT_CTA = {
     'margin:freePorts':  { act: 'overview-spare-report', label: 'ov.cta.spareReport' },
     'complete:gateways': { act: 'overview-l3-report',    label: 'ov.cta.l3Report' },
+    // Descrizioni di porta: un REPORT, non un riquadro — la Panoramica ha un contratto di
+    // layout (sei per colonna) e questa convenzione e' facoltativa. Vive in app-port-desc.
+    // `always`: la riga e' apribile anche con ZERO cavi — le descrizioni stanno sulle porte, e un
+    // progetto appena sincronizzato ha porte descritte prima di avere un solo cavo.
+    'complete:cables':   { act: 'overview-portdesc-report', label: 'ov.cta.portDescReport', always: true },
 };
 
 function _detailEl(secKey, r) {

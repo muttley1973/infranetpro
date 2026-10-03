@@ -52,6 +52,15 @@ Where the line is actually held (not exhaustive — grep `manual-first`):
   (`src/app-snmp.js`): a hand-cabled port without an ifName is *preserved*, never
   clobbered; a genuine endpoint-vs-trunk conflict is *surfaced*
   (`portReconcileConflicts` → amber panel warning), not silenced.
+- **The port Description fills a blank, and follows only its own copy** — `adoptedDescription`
+  (`lib/port-descriptions.js`, called from `_applySnmpBasePortFields` in `src/app-snmp.js`): the
+  text a device reports for a port (ifAlias) becomes the port's Description when that is empty, and a
+  Description equal to the device's PREVIOUS text is a copy that follows the device. One that differs was
+  written or edited by a person and is never touched, even when the device says something else. An alias equal
+  to the interface name is not a description (VyOS fills ifAlias that way), and a read that brings no text
+  never erases one — a truncated walk is not a device that removed the text. Ports documented by hand with no
+  `ifName` are not matched at all. This is the **fill a blank** case above, decided by the operator
+  (03/10/2026) in place of a manual "adopt" step in the report.
 - **Discovery candidates are observed, not imported** — DHCP-lease and ARP-SNMP
   rows arrive `alive:false` / `snmpReachable:false` and are **not** pre-selected;
   pre-selection is gated on confidence ≥ 15% (`DISC_PRESELECT_MIN_CONF`,

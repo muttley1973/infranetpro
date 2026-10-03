@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **A "Port descriptions" report counts the ports that carry a description in the "jack | text" format, and says whether the jack exists in the project.** It opens from the button at the foot of the *Cables* row in the Dashboard and reads like "13 in the format · 22 described out of 330 ports · 13 with a jack found". The table lists every port that has a description — the ones outside the format first, then the ones whose jack is unknown or ambiguous — with the device, the port, the text, the jack, whether it was found in the document (as a wall jack, or as a patch-panel port named "panel-number") and whether someone typed it or the device returned it. Columns can be resized by dragging their edge (double-click resets), a row opens to show the whole text, and the CSV keeps it all. The separator is the project's to choose and is saved with it. A project that documents no jacks is told so, instead of every jack being called unknown; a description a device fills in by itself (an alias equal to the interface name) is not counted as one. Checked on seven lab devices: the `|` came back unchanged from every one, while the length did not — some cut the text at 64 characters, one refuses it, three keep it whole.
+
+### Changed
+
+- **The text a device reports for a port now becomes the port's Description by itself.** On every read — a Check, a Sync, the scheduled monitoring — a port with an empty Description takes the text its device reports for it (the interface alias), so the Description field is no longer empty after a Check. A Description you typed is never overwritten, not even when the device says something else, and one that is still a copy of what the device said follows the device when it changes. A device that merely echoes the interface name (VyOS does) is not read as a description, and a read that brings no text never erases one. The text read from the device is still kept as a measurement, and in the "Port descriptions" report a Description that equals it is shown as read from the device.
+
 ## [2.11.13] — 2026-10-02
 
 A damaged file is read from its backup, an address is sent as it was checked, and an SNMPv3 name is never guessed.

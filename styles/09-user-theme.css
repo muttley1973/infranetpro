@@ -679,6 +679,49 @@ body.spare-mode .port-led.spare-suspect {
 .l3-st-auto { color: var(--active-color); opacity: .85; }
 .l3-st-warn { color: #e3b341; }
 .l3-st-none { color: var(--inactive-color); }
+/* Overlay «Descrizioni di porta» — tabella dispositivo · porta · descrizione · presa · nel documento · origine.
+   A 1080px (e non a 780 come L3): la colonna che conta e' la DESCRIZIONE, e un testo di 64-70
+   caratteri ha bisogno di ~450px per non finire nei puntini. Stessa struttura della tabella L3
+   (griglia, ellissi per cella con min-width:0: un ifName lungo non deve allargare la modale).
+   Nessun colore d'allarme: le righe FUORI formato salgono in cima, ma non sono un errore — la
+   convenzione e' facoltativa. */
+#portdesc-overlay .drift-modal { width: min(1080px, 94vw); }
+#portdesc-overlay .spare-summary-sub { font-size: var(--fs-md); }
+.pd-sep { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; font-size: var(--fs-sm); color: var(--text-muted); }
+.pd-sep input { width: 44px; text-align: center; font-size: var(--fs-md); }
+/* La tabella scorre in orizzontale quando le colonne ridimensionate superano la finestra. Con le
+   larghezze di default (elastiche) non c'e' nulla da scorrere: nessuna barra, nessun cambiamento. */
+.pd-table { display: flex; flex-direction: column; gap: 1px; overflow-x: auto; }
+.pd-table.is-custom .pd-row { width: max-content; min-width: 100%; }
+.pd-row {
+    display: grid;
+    /* Dispositivo, porta e presa hanno un TETTO: oltre non servono, e lo spazio va alla descrizione,
+       che e' l'unica colonna che si legge davvero. Con i tetti la descrizione prende il resto. */
+    grid-template-columns: var(--pd-cols, minmax(100px, 144px) minmax(100px, 126px) minmax(300px, 1fr) minmax(52px, 56px) 84px 76px);
+    align-items: center; gap: 6px; padding: 6px 8px; border-radius: var(--radius-md); font-size: var(--fs-lg);
+}
+.pd-row:hover { background: var(--surface-hover); }
+.pd-row-head { font-size: var(--fs-sm); text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); font-weight: 700; border-bottom: 1px solid var(--panel-border); border-radius: 0; }
+.pd-row > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pd-dev { color: var(--text-main); font-weight: 600; }
+.pd-port, .pd-src { color: var(--text-muted); font-size: var(--fs-md); }
+/* Un gradino sotto il corpo delle altre liste: e' la colonna piu' lunga (64-70 caratteri) e a --fs-lg
+   chiedeva ~570px, piu' di quanti la finestra a 1080 ne dia senza tagliare le altre. */
+.pd-text { color: var(--text-main); font-size: var(--fs-md); }
+.pd-jack { color: var(--text-main); font-weight: 600; }
+.pd-none { color: var(--inactive-color); }
+/* Maniglia di ridimensionamento: una striscia sul bordo destro dell'intestazione di colonna.
+   Dentro la cella (che ha overflow:hidden), quindi a filo e senza uscire. */
+.pd-row-head > span { position: relative; padding-right: 8px; }
+.pd-rs { position: absolute; top: 0; right: 0; bottom: 0; width: 7px; cursor: col-resize; touch-action: none; border-right: 1px solid var(--panel-border); }
+.pd-rs:hover { border-right: 2px solid var(--accent); }
+/* Una riga si APRE con un clic: il testo va a capo (anche una stringa senza spazi, come i 70 caratteri di prova). */
+.pd-row[data-act] { cursor: pointer; }
+.pd-row.is-open { align-items: start; background: var(--surface-hover); }
+.pd-row.is-open > span { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+.pd-st { color: var(--text-muted); font-size: var(--fs-md); }
+/* «sconosciuta» e «ambigua» si leggono in grassetto, non in rosso: sono da guardare, non un errore. */
+.pd-st-look { color: var(--text-main); font-weight: 700; }
 .drift-empty { font-size: .74rem; color: var(--text-muted); padding: 4px 8px; }
 
 /* ── Tendenza delle Verifiche (Principio ③) ─────────────────────────────────

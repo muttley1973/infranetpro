@@ -5,7 +5,11 @@
 // applicazione risultati al progetto (applyPollResult). Migrato a modulo ESM
 // (src/) — globali legacy via win.*, t (i18n) dal ponte.
 // Manual-first: applyPollResult NON tocca mai gli override manuali
-// (desc, statusOvr, speedOvr, vlanOvr, hostnameManual, lagGroup manuali).
+// (statusOvr, speedOvr, vlanOvr, hostnameManual, lagGroup manuali).
+// ⚠️ `desc` (la Descrizione della porta) fa eccezione CONTROLLATA: il testo che l'apparato
+// dice (ifAlias) diventa la descrizione quando questa è VUOTA, o quando è ancora la COPIA di
+// ciò che il dispositivo diceva prima — e MAI sopra a un testo che una persona ha scritto o
+// cambiato (lib/port-descriptions.js, `adoptedDescription`: è lì che si prova la regola).
 // ============================================================
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
@@ -16,6 +20,7 @@ import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funz
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { reconcilePortCount } from '../lib/ports-reconcile.js';   // P5: conteggio porte dichiarato vs misura (manual-first, lib pura)
 import { reconcileInventory } from '../lib/identity-reconcile.js'; // identità hardware misurata: riconferma o «ultimo noto» (lib pura)
+import { adoptedDescription } from '../lib/port-descriptions.js';   // l'ifAlias letto diventa la Descrizione della porta (adozione AUTOMATICA, mai sopra a una persona)
 import { forgetPortMeasure } from '../lib/port-state.js';   // scadenza delle misure di porta (lib pura): una lettura che questo giro non c'è stata non vale più
 import { _driftBuildDocSnapshot, _driftComputeFromDoc } from './app-drift.js';   // presenza→grigio: ricalcolo Drift dopo il Sync
 import { _ensureVlanColor, toggleAutomationMenu } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*) + ASSE B: chiude il popover Automazioni dopo il sync
@@ -657,7 +662,12 @@ function _applySnmpBasePortFields(pid, iface){
     p.speed  = _snmpSpeedToUi(iface.speed, p.speed);
     p.ifName = _snmpNameToUi(iface.name, p.ifName);
     const alias = _snmpAliasToUi(iface.alias);
+    const prevAlias = p.alias;   // PRIMA di sovrascriverlo: serve a capire se la descrizione e' una copia di quello che il dispositivo diceva
     if(alias === undefined) delete p.alias; else p.alias = alias;
+    // ADOZIONE AUTOMATICA: il testo che l'apparato dice diventa la Descrizione della porta (v. in testa).
+    // `ifName` e' gia' aggiornato qui sopra: un alias uguale al NOME dell'interfaccia non e' una descrizione.
+    const adopted = adoptedDescription(p, prevAlias, alias);
+    if(adopted !== undefined) p.desc = adopted;
     p.lagId  = _snmpLagToUi(iface.lagId, p.lagId);
     p.lagIfIndex = _snmpLagToUi(iface.lagIfIndex, p.lagIfIndex);
     const mac = _snmpMacToUi(iface.mac, p.mac);

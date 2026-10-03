@@ -32,6 +32,7 @@ import './app-core.js';
 import './app-cabling-editor.js';
 import './app-audit.js';
 import './app-spare.js';
+import './app-port-desc.js';
 import './app-management.js';
 import './app-stack-ha.js';
 import './app-panel-skin.js';

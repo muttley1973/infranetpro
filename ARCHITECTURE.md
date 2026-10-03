@@ -263,6 +263,31 @@ lib/                   Shared browser + test modules (the heart of the app)
                     `_autoDiscoverLinks`, decision only: the effects (counting the reasons,
                     proposing, reassigning `state.links`) stay in the glue. The resolver is
                     passed as a function on purpose — see §9, pruning order  (pure)
+  port-descriptions.js  portDescriptionCensus → how many ports carry a description in the
+                    «jack | text» format, where the text comes from (typed by a person: `desc`,
+                    always wins; or read from the device: `alias`, i.e. ifAlias), and — when the
+                    caller passes the jacks the PROJECT documents — whether the jack named in the
+                    text EXISTS: `known` / `unknown` / `ambiguous`, by KEY (`jackKey`: lower
+                    case, every run of spaces, dots, underscores and dashes becomes ONE dash;
+                    separators are kept, so «PP11-4» is not «PP1-14»). A project with no jacks
+                    documented gives NO verdict (`jackEvaluable: false`), not «unknown» for all.
+                    An alias EQUAL to the interface name is the name itself, not a description
+                    (VyOS fills ifAlias that way) — the same rule `portTip` uses, and the two must
+                    stay equal. It does NOT say a port «declares the right jack»: that needs the
+                    chain port → patch cord → panel → wall run → jack. Measured live on seven
+                    devices: `|` survives all of them; the length does not (Cisco and Arista cut
+                    ifAlias at 64, Aruba CX refuses the command, EXOS, VyOS and MikroTik return it
+                    whole), and Aruba CX returns real UTF-8. Feeds the «Port descriptions» report
+                    (src/app-port-desc.js: table + CSV, opened from the button at the foot of the
+                    «Cables» row of the Dashboard, resizable columns, a row opens to show the whole
+                    text). A report and NOT a Dashboard tile on purpose: the Dashboard has a fixed
+                    layout of six tiles per column pinned by the E2E suite, and the convention is
+                    optional — «0 of 330» is not a gap. The separator is a project DECLARATION
+                    (`state.portDescSeparator`, absent = `|`). `adoptedDescription` decides what the AUTOMATIC adoption writes into the port `desc` on every SNMP read
+                    (`_applySnmpBasePortFields` in src/app-snmp.js): an empty `desc` takes the read text; a `desc`
+                    equal to the PREVIOUS alias is a copy of the device and follows it; anything else is a
+                    person's and is never touched; an alias equal to the interface name is not a description;
+                    an absent alias never erases. A `desc` equal to the alias reports its origin as measured  (pure)
   ansible-netos.js  vendorToNetworkOs → ansible_network_os from the documented
                     vendor + measured sysDescr (conservative; null on unknown)  (pure)
   backup-ref.js     validateBackupRef → the config-backup POINTER (never the
@@ -1183,7 +1208,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **3,896 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **3,960 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`

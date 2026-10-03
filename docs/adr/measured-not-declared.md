@@ -63,6 +63,12 @@ an "observed but unconfirmed" value pass as a meter reading.
   allows are recorded; everything else stays absent, which is a state the rest of
   the app already knows how to read.
 
+- **An adopted measurement keeps its origin** — once a device's text has become the port's Description, the
+  "Port descriptions" report still labels it *measured*, because it equals what the device reports
+  (`portDescription` in `lib/port-descriptions.js`). Only a text that differs from the device's, or one that
+  equals the interface name (a name nobody read as a description), counts as *declared* — so copying a
+  measurement into the document never turns it into something a person wrote.
+
 - **The label itself is a closed alphabet** — six signs (`measured`, `declared`,
   `derived`, `contradicted`, `undeclared`, `unread`) in `lib/certainty.js`, mapped
   from each engine's real keys and guarded by `test/certainty.test.js`. This rule

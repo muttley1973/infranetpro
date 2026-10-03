@@ -113,3 +113,51 @@ test('la descrizione SCRITTA IN INFRANET non si tocca: `desc` è documento, non 
   assert.equal(out.desc, 'presa A-12, ufficio 3');
   assert.equal(out.has, false);
 });
+
+// ---- ③ L'ADOZIONE AUTOMATICA: il testo letto diventa la Descrizione -----------
+// L'ifAlias è una misura e resta tale (`alias`); in più, quando la Descrizione della porta è vuota —
+// o è ancora la COPIA di ciò che il dispositivo diceva prima — prende il testo letto. Mai sopra a un
+// testo che una persona ha scritto o cambiato (la regola si prova in test/port-descriptions.test.js).
+
+test('adozione automatica: una porta senza descrizione prende il testo letto, e l\'alias resta una misura', () => {
+  const out = dopoIlPoll({ ifName: 'Gi0/1' }, `, alias:'PP1-14 | 203'`);
+  assert.equal(out.desc, 'PP1-14 | 203');
+  assert.equal(out.alias, 'PP1-14 | 203', 'la misura non sparisce: desc e alias sono due cose');
+});
+
+test('adozione automatica: ⭐ una descrizione scritta da una persona NON si tocca', () => {
+  const out = dopoIlPoll({ ifName: 'Gi0/1', desc: 'B12 | stampante' }, `, alias:'PP1-14 | 203'`);
+  assert.equal(out.desc, 'B12 | stampante');
+  assert.equal(out.alias, 'PP1-14 | 203');
+});
+
+test('adozione automatica: una COPIA del dispositivo segue il dispositivo quando cambia testo', () => {
+  const out = dopoIlPoll({ ifName: 'Gi0/1', alias: 'PP1-14 | 203', desc: 'PP1-14 | 203' }, `, alias:'PP1-15 | 204'`);
+  assert.equal(out.desc, 'PP1-15 | 204');
+});
+
+test('adozione automatica: ⭐ una copia che la persona ha MODIFICATO non si tocca più', () => {
+  const out = dopoIlPoll({ ifName: 'Gi0/1', alias: 'PP1-14 | 203', desc: 'PP1-14 | 203 (rifatta)' }, `, alias:'PP1-15 | 204'`);
+  assert.equal(out.desc, 'PP1-14 | 203 (rifatta)');
+});
+
+test('adozione automatica: un alias uguale al NOME dell\'interfaccia non è una descrizione', () => {
+  const out = dopoIlPoll({ ifName: 'Gi0/1' }, `, alias:'Gi0/1'`);
+  assert.equal(out.desc, undefined, 'VyOS riempie ifAlias col nome: adottarlo riempirebbe il documento di nomi');
+});
+
+test('adozione automatica: ⭐ se lo switch toglie il testo, la descrizione NON sparisce (la misura sì)', () => {
+  const out = dopoIlPoll({ ifName: 'Gi0/1', alias: 'A-12', desc: 'A-12' }, `, alias:''`);
+  assert.equal(out.has, false, 'la misura si dimentica, come sempre');
+  assert.equal(out.desc, 'A-12', 'ma un poll senza testo non è la prova che qualcuno l\'ha tolto: niente descrizioni perse per un timeout');
+});
+
+test('adozione automatica: un poll che non porta l\'alias non cambia la descrizione', () => {
+  const out = dopoIlPoll({ ifName: 'Gi0/1', alias: 'A-12', desc: 'A-12' }, '');
+  assert.equal(out.desc, 'A-12');
+});
+
+test('adozione automatica: il testo tagliato dall\'apparato (64) si adotta tagliato', () => {
+  const lungo = 'PP1-14 | 203 | 0123456789012345678901234567890123456789012345678';
+  assert.equal(dopoIlPoll({ ifName: 'Gi0/1' }, `, alias:'${lungo}'`).desc, lungo);
+});

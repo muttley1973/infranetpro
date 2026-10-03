@@ -10,7 +10,7 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="3,896 tests, 0 failing" src="https://img.shields.io/badge/tests-3%2C896%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="3,960 tests, 0 failing" src="https://img.shields.io/badge/tests-3%2C960%20%C2%B7%200%20failing-3fb950"></a>
   <a href="#testing"><img alt="124 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-124%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#oui-intelligence-engine"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
@@ -543,8 +543,10 @@ Double-click <code>avvia.bat</code>.<br>
 > from the switch port, and the devices that never move (printers, access points, phones) anchor the rack
 > patching even where it was done with no rule at all. The convention that makes it work costs one command:
 > put the **panel port** in the switch port description, not who is plugged in — who is plugged in the app
-> measures on its own, the socket nobody can. InfraNet reads that description and offers it when you write
-> your own; comparing it against the document is not built yet. Full strategy in the manual, chapter
+> measures on its own, the socket nobody can. InfraNet reads that description into the port Description by itself
+> (never over what you typed), and the *Port descriptions* report counts the ports that follow the "jack | text" form
+> and says whether that jack exists in the project; checking that it is the right jack for that port against the
+> physical run is not built yet. Full strategy in the manual, chapter
 > *Cables, connections and wireless*.
 
 > Every heading below opens. Deeper detail lives in [ARCHITECTURE.md](ARCHITECTURE.md), the [technical manuals](MANUALE_TECNICO_IT.pdf) and the commit history.
@@ -584,6 +586,7 @@ Double-click <code>avvia.bat</code>.<br>
 - **IPAM hygiene** — the L3 map flags the same address documented on two devices (IPv4 and IPv6, compared canonically, so two spellings of one IPv6 are one address) and any two declared prefixes that overlap (`lib/ipam-audit.js`, document against document, never invented).
 - **LAG member consistency** — warns when a group's members have different speeds or access VLANs; they would not bundle on real hardware (`lib/lag-audit.js`).
 - **LACP mode & cross-end coherence** — each group has a mode (active / passive / static), auto-derived over SNMP and manual-first. InfraNet resolves the peer LAG from the cabling and warns on the two classic failures: both ends passive, and LACP against static.
+- **Port descriptions** — the text a device reports for a port (its interface alias) becomes the port's **Description** by itself on every read, never over what you typed: a Description that is still a copy follows the device, a device that merely echoes the interface name is not read as a description, and a read with no text never erases one. The **Port descriptions** report (Dashboard → *Cables* → button) counts the ports that follow the "jack | text" convention, says whether that jack exists in the project — a wall jack, or a patch-panel port named *panel-number*; a project with no jacks is told so rather than every jack being called unknown — and exports CSV; columns resize and a row opens to show the whole text (`lib/port-descriptions.js`). Measured on seven devices from different vendors: the `|` survives all of them, the length does not — Cisco and Arista cut at 64 characters, Aruba CX refuses, EXOS, VyOS and MikroTik keep it whole.
 - **Cable path insight** — cable properties reconstruct the linear path across wall ports, patch panels and media converters.
 - **Multiple projects** — create, rename, copy and delete independent maps.
 - **Vector PDF / SVG export** — full rack export including MGMT and SFP side blocks, with a port-assignment table.
@@ -1248,6 +1251,7 @@ Full release notes live in [CHANGELOG.md](CHANGELOG.md). Highlights of what has 
 - [x] **VLAN** — IPAM (subnet/gateway/DNS), floor legend/filter, per-device VLAN accordions, auto-derived trunks
 - [x] **Cabling** — segment editor (TIA-568 hierarchy), physical-path trace, progressive patch-panel numbering, cable metadata, cable-label PDF/CSV export
 - [x] **Free ports report** — "where do I plug in?" rack highlight + CSV / PDF page
+- [x] **Port descriptions report** — the device's interface alias adopted as the port Description (never over a person), the "jack | text" convention counted, the jack looked up in the project, CSV
 - [x] **draw.io (diagrams.net) rack export** (`lib/drawio-export.js`): native, editable mxGraph rack, one page per rack, devices/ports as cells in draw.io's numbered rack container (snap-to-U), names outside the rack; the live SNMP status stripe is not exported. Cables = one native edge each, one draw.io layer per VLAN (coloured by VLAN, per-cable anti-overlap routing) with a click-to-highlight cable table per layer; A4 portrait auto-switching to A3 when content doesn't fit
 - [x] **Vector PDF / SVG export + audit-ready asset register** — full rack SVG (MGMT/SFP side blocks); bilingual (it/en) report; secret-free per-device inventory page with a "last revised" timestamp
 - [x] **Classification engines** — sysObjectID + OUI (IEEE ~57k) + Fusion Scorer (vendor identity ≠ device type), plugin-based, hot-reload, zero-database; behaviour frozen by the 55-device golden
@@ -1296,8 +1300,8 @@ server on a temp store and is skipped unless `RUN_E2E=1`.
 Coverage focuses on the pure, bug-prone logic that has historically broken: SNMP parsing & extraction (`test/snmp.test.js`, `test/extractData.test.js`), discovery & classification (`test/discovery.test.js`, 14 real-device cases), correlation primitives (`test/correlate.test.js`), the sysObjectID / OUI / Fusion engines (`test/sysobject-engine.test.js`, `test/oui-engine.test.js`, `test/fusion-scorer.test.js`), front-panel state, cable validation (incl. **Cat8 30 m reach**), IPAM & LAG audits, and an app-wide **smoke E2E** (`test/smoke-app.test.js`) that loads every `netmapper.html` script plus the esbuild bundle into a `vm` + DOM stub and asserts `renderAll`/`renderProps` never throw on any device type.
 
 Current local quality baseline:
-- `npm run check` parses every JS source of the product — **535** of them. It skips the folders `eslint.config.js` already ignores (git worktrees, the private workspace, the editor's caches), so the number stays stable between runs instead of drifting with whatever happens to be checked out beside the repo
-- `npm test` runs the full regression suite (currently **3,896 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **124 flows**)
+- `npm run check` parses every JS source of the product — **538** of them. It skips the folders `eslint.config.js` already ignores (git worktrees, the private workspace, the editor's caches), so the number stays stable between runs instead of drifting with whatever happens to be checked out beside the repo
+- `npm test` runs the full regression suite (currently **3,960 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **124 flows**)
 - `npm run release -- check` is the gate before a tag: the version in its four places, a CHANGELOG section that actually lists something, and the test count above measured against what the suite really prints — the one number no test can check without counting itself
 - final visual verification is still important for rack/front-panel refinements
 
