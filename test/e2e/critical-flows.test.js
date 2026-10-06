@@ -23,6 +23,7 @@ if (RUN) {
   ({ chromium } = require('playwright-core'));
   ({ startServer } = require('./helpers/server.js'));
 }
+const { reachabilityBudgetMs } = require('../../lib/auto-monitor.js');   // il budget dello sweep: i test lo accorciano dal valore VERO, non da un numero scritto a mano
 
 // Una route 404 attesa: il browser chiede /favicon.ico (nessuna favicon servita).
 const isBenign404 = (u) => /\/favicon\.ico(\?|$)/.test(u);
@@ -4990,16 +4991,24 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
     // nel browser: ciò che si prova è la LOGICA di scadenza, non l'orologio.
     //   · `/api/poll` verso `hung.invalid` NON RISPONDE MAI (la rotta non chiama fulfill);
     //   · ogni altro host risponde subito con una lettura minima valida.
-    const monitorPage = async (readMs) => {
+    //   · con `sweepMs`, anche `/api/reachability` NON RISPONDE MAI e il suo budget (che scala con
+    //     gli IP: una ondata = reachabilityBudgetMs(1)) si accorcia a `sweepMs`. `/api/topology`
+    //     risponde sempre «niente»: nessun pacchetto vero esce dalla macchina di prova.
+    const monitorPage = async (readMs, sweepMs) => {
       const p = await browser.newPage({ viewport: { width: 1500, height: 950 } });
-      await p.addInitScript((ms) => {
+      await p.addInitScript(({ ms, sweep, sweepBudget }) => {
         window.__readMs = ms;
         const st = window.setTimeout.bind(window), si = window.setInterval.bind(window);
-        window.setTimeout = (fn, d, ...a) => st(fn, (d >= 60000 && d < 300000) ? window.__readMs : d, ...a);
+        window.setTimeout = (fn, d, ...a) => st(fn, (d >= 60000 && d < 300000) ? window.__readMs : ((sweep && d === sweepBudget) ? sweep : d), ...a);
         window.setInterval = (fn, d, ...a) => si(fn, d >= 300000 ? 3000 : d, ...a);
-      }, readMs);
+      }, { ms: readMs, sweep: sweepMs || 0, sweepBudget: reachabilityBudgetMs(1) });
       const warns = [];
       p.on('console', (m) => { if (m.type() === 'warning') warns.push(m.text()); });
+      const sweepAppese = [];
+      if (sweepMs) {
+        await p.route('**/api/reachability', async (route) => { sweepAppese.push(route); });   // non risponde MAI
+        await p.route('**/api/topology', async (route) => { await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'stub' }) }); });
+      }
       const appese = [];
       await p.route('**/api/poll', async (route) => {
         let host = '';
@@ -5018,7 +5027,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         if (typeof _invalidateIdx === 'function') _invalidateIdx();
         renderAll();
       });
-      return { p, warns, appese };
+      return { p, warns, appese, sweepAppese };
     };
 
     await t.test('lettura SNMP che non risponde MAI: viene abbandonata, il giro finisce e il campo si libera', async () => {
@@ -5122,6 +5131,73 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         assert.ok(r.toastErrore, 'l\'errore si dice a schermo, non solo in console');
         assert.deepEqual(r.dopoOccupato, { disabled: false, spin: false }, 'con un giro già in corso il bottone non resta spento');
         assert.ok(r.avvisi.some((x) => /lettura|reading|read/i.test(x)), 'con un giro in corso il «refresh» chiesto NON parte, e lo dice: ' + r.avvisi.join(' | '));
+      } finally {
+        await p.close();
+      }
+    });
+
+    await t.test('sweep di raggiungibilità che non risponde MAI: la Verifica finisce comunque e non lascia il campo occupato', async () => {
+      // PRIMA: `fetch('/api/reachability')` senza scadenza, e il suo `await` sta DENTRO runDriftCheck.
+      // Una risposta che non tornava teneva acceso `_driftRunning`: la Verifica, e con lei il
+      // monitoraggio «Completo», non partivano più — in silenzio. Ora lo sweep scade (budget scalato
+      // sugli IP), la Verifica prosegue SENZA la presenza multi-segnale e il campo si libera.
+      const { p, warns, sweepAppese } = await monitorPage(1500, 1500);
+      try {
+        const r = await p.evaluate(async () => {
+          // lo sweep legge solo IPv4 letterali: i nomi non contano
+          nodeById('okx').integration.host = '203.0.113.5';
+          nodeById('hungx').integration.host = '203.0.113.6';
+          delete state.lastVerify;
+          const t0 = performance.now();
+          const giro = window.runDriftCheck({ silent: true });
+          const esito = await Promise.race([giro.then(() => 'finito'), new Promise((res) => setTimeout(res, 12000, 'APPESO'))]);
+          return {
+            esito, ms: Math.round(performance.now() - t0),
+            verificata: !!(state.lastVerify && state.lastVerify.at),
+            saveDisabled: document.getElementById('btn-save').disabled, syncing: !!window._snmpSyncing,
+          };
+        });
+        assert.equal(r.esito, 'finito', 'la Verifica TERMINA anche se lo sweep non risponde mai (prima restava appesa per sempre)');
+        assert.ok(r.ms >= 1200 && r.ms < 9000, `l'attesa è il budget (accorciato a 1,5 s), non zero e non infinita: ${r.ms} ms`);
+        assert.equal(r.verificata, true, 'la Verifica è arrivata in fondo: ha persistito lo stato (lastVerify)');
+        assert.equal(r.saveDisabled, false, 'Salva è acceso');
+        assert.equal(r.syncing, false, 'il campo SNMP è libero');
+        assert.ok(warns.some((w) => /sweep di raggiungibilit/.test(w) && /nessuna risposta entro/.test(w)), 'il motivo è nel log: ' + warns.join(' | '));
+        assert.equal(sweepAppese.length, 1, 'una sola richiesta di sweep, ed era quella appesa');
+        // …e il campo è DAVVERO libero: una seconda Verifica parte (prima restava `_driftRunning`).
+        await p.evaluate(() => { window.runDriftCheck({ silent: true }); });
+        await p.waitForTimeout(900);
+        assert.equal(sweepAppese.length, 2, 'una seconda Verifica PARTE (arriva allo sweep): `_driftRunning` si era liberato');
+      } finally {
+        await p.close();
+      }
+    });
+
+    await t.test('tasto destro su Topologia: durante un refresh lungo il bottone resta «Topologia…» anche se qualcuno lo riallinea', async () => {
+      // `_refreshTopoBtnState` gira da un timer ogni 60 s (app.js) e a ogni render, e riportava il
+      // bottone a «normale» con la lettura ancora in corso (sul lab dura ~2 minuti): visto dal vivo.
+      // Qui il timer lo simula la chiamata diretta. Il bottone lo ripristina chi l'ha messo, a fine lavoro.
+      const { p } = await monitorPage(2500, 1500);
+      try {
+        const r = await p.evaluate(async () => {
+          const btn = document.getElementById('btn-topology');
+          const stato = () => ({ disabled: btn.disabled, spin: /fa-spin/.test(btn.innerHTML) });
+          const lavoro = discoverTopology(true);                         // la lettura appesa tiene il refresh ~2,5 s
+          await new Promise((res) => setTimeout(res, 400));
+          const durante1 = stato();
+          _refreshTopoBtnState();                                         // ciò che fa il timer da 60 s
+          const durante2 = stato();
+          await lavoro;
+          const dopo = stato();
+          // a lavoro finito il riallineamento torna a funzionare: un bottone rimasto spento a mano si riaccende
+          btn.disabled = true;
+          _refreshTopoBtnState();
+          return { durante1, durante2, dopo, dopoRealign: stato() };
+        });
+        assert.deepEqual(r.durante1, { disabled: true, spin: true }, 'durante il refresh il bottone è «Topologia…» e spento');
+        assert.deepEqual(r.durante2, { disabled: true, spin: true }, 'un riallineamento (timer da 60 s, render) NON lo ripristina a lettura in corso');
+        assert.deepEqual(r.dopo, { disabled: false, spin: false }, 'a refresh finito il bottone è acceso e senza spinner');
+        assert.deepEqual(r.dopoRealign, { disabled: false, spin: false }, 'e il riallineamento ordinario funziona di nuovo (un bottone spento a mano si riaccende)');
       } finally {
         await p.close();
       }

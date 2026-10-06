@@ -17,6 +17,7 @@ const dhcpDrivers = require('../dhcp-drivers');
 const { crawlNetwork, probeArpCandidates } = require('../crawl-bfs');
 const { targetList, hostOrName, targetError } = require('../scan-target');   // la lettura unica dei bersagli
 const { _parseIpv4Int } = require('../../lib/cidr.js');
+const { REACHABILITY_BATCH, REACHABILITY_MAX_IPS } = require('../../lib/auto-monitor.js');   // ondata e tetto dello sweep: il client ne ricava la scadenza, UNA definizione
 
 // Concorrenza della fase deep/neighbor del crawl (probe+pollNeighbors di device GIA'
 // scoperti e autenticati SNMP → non e' una firma di scansione). Default BASSO e Pi-safe:
@@ -156,7 +157,7 @@ router.post('/api/reachability', auth.requireAdmin, async (req, res) => {
     // indirizzo CANONICO — ping.exe leggerebbe `10.10.010.5` come 10.10.8.5, un altro host —,
     // e la risposta torna sotto ogni scrittura che il chiamante ha usato, perche' la sua lista
     // parla con le sue stringhe. Cio' che non e' un bersaglio si DICE (`rejected`), non sparisce.
-    const { targets, rejected } = targetList(Array.isArray(ips) ? ips : [], { max: 1024 });
+    const { targets, rejected } = targetList(Array.isArray(ips) ? ips : [], { max: REACHABILITY_MAX_IPS });
     const list = [...targets.keys()];
     const scarti = rejected.length
       ? { rejected: rejected.map(r => ({ ip: r.value, reason: r.reason, message: targetError({ ok: false, reason: r.reason, ip: r.value }, r.value) })) }
@@ -199,7 +200,7 @@ router.post('/api/reachability', auth.requireAdmin, async (req, res) => {
     };
 
     const results = {};
-    const CONC = 24;
+    const CONC = REACHABILITY_BATCH;
     for (let i = 0; i < list.length; i += CONC) {
       const part = await Promise.all(list.slice(i, i + CONC).map(checkOne));
       for (const r of part) results[r.ip] = { alive: r.alive, via: r.via, mac: '', absent: false };

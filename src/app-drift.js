@@ -19,12 +19,12 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { DOWN_STREAK_N, forgetPortMeasure, nextDownStreak } from '../lib/port-state.js';   // lib pura importata ESM: soglia anti-flap + avanzamento e scadenza delle misure di porta
 import { TYPES, _frontPanelPortLabel } from './app-types.js';   // catalogo tipi: distingue gli elementi passivi dall'audit di presenza
-import { escapeHTML, normalizeMacAddress } from './app-util.js';
+import { escapeHTML, normalizeMacAddress, postJsonWithDeadline } from './app-util.js';
 import { nodeById, markDirty, getNodeByPortId, getNodeDisplayName, pushHistory, logAudit, _cableAutoLabel, _showToast } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAutomationMenu, _updateAutoPollBadge } from './app-vlan-autopoll.js';   // popover Automazioni + badge del monitoraggio (ciclo benigno: solo a runtime)
-import { effAutoConfig, clampMonitorInterval, createMonitorScheduler } from '../lib/auto-monitor.js';   // config PURA del monitoraggio unificato (schema nuovo + migrazione legacy) + la macchina dello scheduler
+import { effAutoConfig, clampMonitorInterval, createMonitorScheduler, reachabilityBudgetMs } from '../lib/auto-monitor.js';   // config PURA del monitoraggio unificato (schema nuovo + migrazione legacy) + la macchina dello scheduler
 import { prefixesOf } from '../lib/ipam-model.js';   // l'autorità sulle reti dichiarate (prefix-first)
 import { radioLabelForPid } from '../lib/radio.js';   // il nome di una radio sta sul modello, non nel pid
 import { ensureNodeRackVisible, focusNode, selectAndFocusNode } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
@@ -290,14 +290,19 @@ async function _driftReachabilitySweep(){
         .map(n => ((n.integration || {}).host || n.ip || '').trim())
         .filter(ip => /^\d{1,3}(\.\d{1,3}){3}$/.test(ip)))];
     if(!ips.length) return null;
+    // Con scadenza lato client, scalata sul numero di IP (ondate da REACHABILITY_BATCH): il suo
+    // `await` sta DENTRO runDriftCheck, e una risposta che non torna terrebbe acceso
+    // `_driftRunning` — la Verifica, e con lei il monitoraggio «Completo», non partirebbero più.
+    // Alla scadenza (o a un errore) si torna `null`, come sempre: la Verifica prosegue SENZA
+    // la presenza multi-segnale, e non dichiara assente nessuno (manca l'osservabilità).
+    const ms = reachabilityBudgetMs(ips.length);
     try{
-        const r = await fetch('/api/reachability', {
-            method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({ ips }),
-        });
-        const d = await r.json();
+        const d = await postJsonWithDeadline('/api/reachability', JSON.stringify({ ips }), ms);
         return (d && d.ok) ? { reachable: d.results || {}, arpTable: d.arpTable || {} } : null;
-    }catch(_){ return null; }
+    }catch(e){
+        if(e && e.deadline) console.warn(`[verifica] sweep di raggiungibilità abbandonato: nessuna risposta entro ${Math.round(ms / 1000)} s`);
+        return null;
+    }
 }
 
 // ── Entry point: bottone "Verifica documentazione" ───────────────────

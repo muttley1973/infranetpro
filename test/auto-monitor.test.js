@@ -264,3 +264,42 @@ test('snmpReadBudgetMs: valori sporchi → ripiego come il driver (parseInt || 3
   }
   assert.equal(snmpReadBudgetMs({ timeout: '10' }), snmpReadBudgetMs({ timeout: 10 }));   // stringa numerica, come arriva da un campo
 });
+
+// ── Scadenza lato client dello sweep di raggiungibilità (reachabilityBudgetMs) ──────────
+// La risposta di /api/reachability sta DENTRO runDriftCheck: se non tornava mai restava acceso
+// `_driftRunning` e il monitoraggio «Completo» non partiva più. Il budget scala con le ONDATE
+// (REACHABILITY_BATCH IP alla volta) e deve stare sopra il caso peggiore del server.
+const { reachabilityBudgetMs, REACHABILITY_BATCH, REACHABILITY_MAX_IPS } = require('../lib/auto-monitor.js');
+
+test('reachabilityBudgetMs: una ondata = 38 s, e cresce di 8 s a ondata', () => {
+  assert.equal(reachabilityBudgetMs(1), 38000);
+  assert.equal(reachabilityBudgetMs(REACHABILITY_BATCH), 38000);          // ancora una ondata
+  assert.equal(reachabilityBudgetMs(REACHABILITY_BATCH + 1), 46000);      // la seconda
+  assert.equal(reachabilityBudgetMs(2 * REACHABILITY_BATCH), 46000);
+  assert.equal(reachabilityBudgetMs(2 * REACHABILITY_BATCH + 1), 54000);
+});
+
+test('reachabilityBudgetMs: sta SEMPRE sopra il caso peggiore del server (13 s di ARP + 6,4 s a ondata) e sopra il lab (14 s)', () => {
+  for (const n of [1, 18, 24, 25, 100, 500, 1024]) {
+    const ondate = Math.ceil(n / REACHABILITY_BATCH);
+    const peggiore = (13 + 6.4 * ondate) * 1000;
+    assert.ok(reachabilityBudgetMs(n) >= peggiore + 15000, `${n} IP: ${reachabilityBudgetMs(n)} ms contro un peggiore di ${peggiore} ms`);
+  }
+  assert.ok(reachabilityBudgetMs(18) > 2.5 * 13800, 'il lab (18 IP, 11-14 s misurati) ha più del doppio e mezzo di margine');
+});
+
+test('reachabilityBudgetMs: oltre il tetto del server non cresce, e un valore sporco vale una ondata', () => {
+  assert.equal(reachabilityBudgetMs(REACHABILITY_MAX_IPS), reachabilityBudgetMs(REACHABILITY_MAX_IPS + 5000));
+  assert.equal(reachabilityBudgetMs(REACHABILITY_MAX_IPS), (30 + 8 * Math.ceil(REACHABILITY_MAX_IPS / REACHABILITY_BATCH)) * 1000);
+  for (const v of [0, -3, NaN, undefined, null, 'abc']) assert.equal(reachabilityBudgetMs(v), 38000, String(v));
+});
+
+test('reachabilityBudgetMs: ondata e tetto li legge il SERVER da qui — una definizione sola', () => {
+  // Se la rotta riscrive «24» e «1024» a mano, il budget del client smette di descriverla e
+  // nessuno se ne accorge (con ondate più piccole servirebbero più secondi).
+  const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'server', 'routes', 'discovery.js'), 'utf8');
+  assert.match(src, /require\('\.\.\/\.\.\/lib\/auto-monitor\.js'\)/, 'il server importa la lib');
+  assert.match(src, /const CONC = REACHABILITY_BATCH;/, 'l\'ondata dello sweep è REACHABILITY_BATCH');
+  assert.match(src, /max: REACHABILITY_MAX_IPS/, 'il tetto di IP dello sweep è REACHABILITY_MAX_IPS');
+  assert.doesNotMatch(src, /const CONC = 24;/, 'niente 24 scritto a mano');
+});

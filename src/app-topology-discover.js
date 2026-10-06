@@ -104,8 +104,16 @@ function _setTopoBtn(st, meta){
 // - 'stale': dati SNMP assenti/vecchi — SOLO hint visivo (icona attenuata),
 //   il bottone resta cliccabile: la topologia si apre comunque dal cablaggio
 //   documentato (manual-first), il Sync serve ad aggiornare il layer LLDP/CDP.
+// Quanti refresh col tasto destro sono in corso (`discoverTopology(true)`). Mentre ce n'è uno il
+// bottone dice «Topologia…» e NON lo riallinea nessun altro: questa funzione gira anche da un
+// timer ogni 60 s (app.js) e a ogni render, e una lettura del lab dura ~2 minuti — dopo il primo
+// tick il bottone tornava normale con la lettura ancora in corso. Il bottone lo ripristina chi
+// l'ha messo in «Topologia…», a fine lavoro.
+let _topoForcedRunning = 0;
+
 export function _refreshTopoBtnState(){
     if(typeof _renderSyncFreshness === 'function') _renderSyncFreshness();  // chip toolbar (#1)
+    if(_topoForcedRunning > 0) return;
     if(store._topoVisible){ _setTopoBtn('on'); return; }
     const targets = store.state.nodes.filter(n => {
         const cfg = n.integration || {};
@@ -216,15 +224,22 @@ async function discoverTopology(force=false){
     // Il bottone resta «Topologia…» e disabilitato finché non lo ripristina qualcuno: se la
     // lettura (o il disegno che segue) esce con un errore, nessuno lo faceva. Ora il
     // ripristino è garantito da qui, e l'errore si dice invece di sparire nella console.
+    _topoForcedRunning++;
+    let _released = false;
+    const _release = () => { if(!_released){ _released = true; _topoForcedRunning--; } };
     try{
         if(typeof win.pollAllSNMP === 'function' && !store._snmpSyncing){
             await win.pollAllSNMP();
         }
+        _release();
         _drawForcedTopology(targets);
     }catch(e){
+        _release();
         console.warn('[topologia] aggiornamento fallito:', e && e.message || e);
         _showToast(t('msg.net.errSnmp') + (e && e.message || t('msg.net.errUnknown')), 'warn');
         _refreshTopoBtnState();
+    }finally{
+        _release();
     }
 }
 

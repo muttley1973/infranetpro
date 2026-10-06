@@ -29,6 +29,7 @@ import { selectAndFocusNode } from './app-search-zoom-rack.js';   // ritiro pont
 import { _refreshTopoBtnState } from './app-topology-discover.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { registerClickActions } from './app-delegation.js';   // ASSE B: azione «Sincronizza ora» del popover Automazioni (owner di pollAllSNMP)
 import { snmpReadBudgetMs } from '../lib/auto-monitor.js';   // quanto aspettare UNA lettura prima di abbandonarla (lib pura)
+import { postJsonWithDeadline } from './app-util.js';   // POST con scadenza lato client (foglia: nessun ciclo)
 
 // POST di UNA lettura SNMP (`/api/poll`, `/api/poll-power`) con scadenza lato CLIENT.
 // Prima `fetch` non aveva né segnale né tetto: una sola risposta che non tornava mai
@@ -36,24 +37,17 @@ import { snmpReadBudgetMs } from '../lib/auto-monitor.js';   // quanto aspettare
 // giro del monitoraggio dopo usciva in silenzio. Il server ha il suo tetto (il driver
 // si ferma da solo), ma non è una garanzia che il client possa darsi per scontata: qui
 // c'è la cintura, come per `/api/topology`. Alla scadenza la lettura FALLISCE con un
-// messaggio leggibile (il nodo diventa «err», il giro prosegue con gli altri); il
-// corpo si legge DENTRO lo stesso tetto, perché anche `r.json()` può non finire mai.
+// messaggio leggibile (il nodo diventa «err», il giro prosegue con gli altri).
 // `body` è la stringa JSON già pronta: ne ricava il timeout del driver e i passaggi
-// (base + stampante + HOST-RESOURCES), come li fa il server.
+// (base + stampante + HOST-RESOURCES), come li fa il server. Il meccanismo (segnale,
+// timer, corpo letto dentro il tetto) è `postJsonWithDeadline`, condiviso con lo sweep.
 export async function postSnmpRead(url, body){
-    const b = JSON.parse(body);
-    const ms = snmpReadBudgetMs(b);
-    const ctrl = (typeof AbortController === 'function') ? new AbortController() : null;
-    const timer = ctrl ? setTimeout(() => { try{ ctrl.abort(); }catch(_){} }, ms) : null;
+    const ms = snmpReadBudgetMs(JSON.parse(body));
     try{
-        const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body,
-                                     signal: ctrl ? ctrl.signal : undefined });
-        return await r.json();
+        return await postJsonWithDeadline(url, body, ms);
     }catch(e){
-        if(ctrl && ctrl.signal.aborted) throw new Error(t('msg.net.pollDeadline', { s: Math.round(ms / 1000) }), { cause: e });
+        if(e && e.deadline) throw new Error(t('msg.net.pollDeadline', { s: Math.round(ms / 1000) }), { cause: e });
         throw e;
-    }finally{
-        if(timer) clearTimeout(timer);
     }
 }
 

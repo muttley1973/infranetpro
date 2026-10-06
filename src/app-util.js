@@ -17,6 +17,26 @@ export function escapeHTML(v) {
 }
 
 /** ID univoco con prefisso: timestamp base36 + 3 caratteri casuali. */
+// POST di un corpo JSON GIÀ PRONTO (stringa) con scadenza lato CLIENT: ritorna il JSON della
+// risposta. Il corpo si legge DENTRO lo stesso tetto, perché anche `r.json()` può non finire
+// mai. Alla scadenza lancia un Error con `.deadline = true` e il messaggio lo sceglie il
+// chiamante (qui non c'è `t()`): una richiesta che non torna non deve tenere acceso un flag
+// del giro per sempre. Prima ogni chiamante faceva `fetch` nudo.
+export async function postJsonWithDeadline(url, body, ms) {
+    const ctrl = (typeof AbortController === 'function') ? new AbortController() : null;
+    const timer = ctrl ? setTimeout(() => { try { ctrl.abort(); } catch (_) { /* già chiusa */ } }, ms) : null;
+    try {
+        const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body,
+                                     signal: ctrl ? ctrl.signal : undefined });
+        return await r.json();
+    } catch (e) {
+        if (ctrl && ctrl.signal.aborted) { const err = new Error('deadline', { cause: e }); err.deadline = true; throw err; }
+        throw e;
+    } finally {
+        if (timer) clearTimeout(timer);
+    }
+}
+
 export function uid(prefix) {
     return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 }
