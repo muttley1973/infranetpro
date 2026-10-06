@@ -247,6 +247,15 @@ lib/                   Shared browser + test modules (the heart of the app)
                     what the security level uses is checked. AES-256 has two key
                     derivations (`AES256` = Blumenthal, `AES256R` = Reeder): with a short
                     auth hash they differ, with SHA-2 they coincide  (pure)
+  auto-monitor.js   The monitoring's rules, no DOM: the config of «Automatic monitoring» (one scheduler,
+                    two depths — Light = SNMP data only, Full = a silent Verify — with the legacy
+                    auto-poll / auto-verify fields migrated on read, never written), the SCHEDULER
+                    itself (`createMonitorScheduler`, clock and timers INJECTED so it is tested with a
+                    fake clock), and the client-side DEADLINES of a round: `snmpReadBudgetMs` (one SNMP
+                    read) and `reachabilityBudgetMs` (the Verify's sweep). The server reads the sweep's
+                    batch size and address cap from here too (`REACHABILITY_BATCH`,
+                    `REACHABILITY_MAX_IPS`), because the budget depends on them — see §9, a round never
+                    waits without a deadline  (pure)
   direct-connection.js  directConnectionPairs → which switches are linked DIRECTLY, from their
                     MAC tables (Direct Connection Theorem, Lowekamp et al. 2001: two ports are
                     linked when the MAC sets behind them are complementary, the two switches'
@@ -1438,6 +1447,29 @@ is VPN/LAN.
   the list with what net-snmp exposes. `AES256` stays Blumenthal because saved projects contain it; `AES192`
   is absent because the library does not implement it. The `public` community default is a different
   question and was left alone on purpose: the forms show it, and the Overview already flags it.
+- **A monitoring round never waits without a deadline, and never looks at the tab.** A round holds
+  `_snmpSyncing` (Save is off and any other read refuses to start while it is on) and, at the full depth,
+  `_driftRunning` (the Check and the next scheduled round wait for it). So an `await` in a round whose
+  request never comes back does not slow the monitoring down — it ends it, without a word. Every request of a round goes through
+  `postJsonWithDeadline` (`src/app-util.js`): the SNMP reads through `postSnmpRead`, whose
+  `snmpReadBudgetMs` sits above the driver's own cap for that device (per pass `max(25 s, 5 × timeout)`
+  plus a wave of overshoot, one pass more for a printer and one for HOST-RESOURCES), and the reachability
+  sweep through `reachabilityBudgetMs`, which scales with the waves of 24 addresses and stays above what the
+  server can take (about 13 s of ARP plus 6.4 s a wave, worked out from the cap on each step). On expiry a read
+  fails with a readable reason — the node is `err`, the round goes on — and the sweep returns `null`, so the
+  Check goes on without the presence and declares nobody absent. Measured on the lab: the slowest device
+  takes 25-60 s, against 70 s for one pass and 110 s for two. A new request inside a round copies this or
+  does not enter it; a request a person starts from a button that holds no flag is not covered, on purpose.
+  The scheduler, for its part, **does not look at the tab**: in the background the timers are slowed but the
+  fetches are not, and a monitor that stops when you switch window monitors nothing. A round that cannot
+  start because another holds the field stays *due* and runs when it is free — one catch-up, however many
+  expiries were missed. The badge reads `store._autoMonitorNextAt` and `store._autoMonitorRunning`, both
+  written by the scheduler's `onChange`.
+- **`_refreshTopoBtnState` does not own the Topology button while a refresh is running.** It runs from a
+  60 s timer (`src/app.js`) and on every render, and a right-click refresh takes about two minutes on the lab;
+  without a guard the button went back to normal with the read still in progress. `_topoForcedRunning`
+  (a counter, because two refreshes can overlap) makes it leave the button alone, and whoever put it in
+  «Topology…» puts it back — on success and on error.
 - **Windows:** Git shows LF→CRLF warnings; harmless. The login page blocks the
   preview tooling unless you authenticate.
 - **Don't add a new *runtime* dependency** without a strong reason (the frontend build is
