@@ -28,6 +28,34 @@ import { _autoLinkDiagText } from './app-autolink.js';   // ritiro ponte: funzio
 import { selectAndFocusNode } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
 import { _refreshTopoBtnState } from './app-topology-discover.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { registerClickActions } from './app-delegation.js';   // ASSE B: azione «Sincronizza ora» del popover Automazioni (owner di pollAllSNMP)
+import { snmpReadBudgetMs } from '../lib/auto-monitor.js';   // quanto aspettare UNA lettura prima di abbandonarla (lib pura)
+
+// POST di UNA lettura SNMP (`/api/poll`, `/api/poll-power`) con scadenza lato CLIENT.
+// Prima `fetch` non aveva né segnale né tetto: una sola risposta che non tornava mai
+// teneva `store._snmpSyncing` acceso per sempre — Salva spento, Verifica muta, e ogni
+// giro del monitoraggio dopo usciva in silenzio. Il server ha il suo tetto (il driver
+// si ferma da solo), ma non è una garanzia che il client possa darsi per scontata: qui
+// c'è la cintura, come per `/api/topology`. Alla scadenza la lettura FALLISCE con un
+// messaggio leggibile (il nodo diventa «err», il giro prosegue con gli altri); il
+// corpo si legge DENTRO lo stesso tetto, perché anche `r.json()` può non finire mai.
+// `body` è la stringa JSON già pronta: ne ricava il timeout del driver e i passaggi
+// (base + stampante + HOST-RESOURCES), come li fa il server.
+export async function postSnmpRead(url, body){
+    const b = JSON.parse(body);
+    const ms = snmpReadBudgetMs(b);
+    const ctrl = (typeof AbortController === 'function') ? new AbortController() : null;
+    const timer = ctrl ? setTimeout(() => { try{ ctrl.abort(); }catch(_){} }, ms) : null;
+    try{
+        const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body,
+                                     signal: ctrl ? ctrl.signal : undefined });
+        return await r.json();
+    }catch(e){
+        if(ctrl && ctrl.signal.aborted) throw new Error(t('msg.net.pollDeadline', { s: Math.round(ms / 1000) }), { cause: e });
+        throw e;
+    }finally{
+        if(timer) clearTimeout(timer);
+    }
+}
 
 // Tipi per cui richiedere HOST-RESOURCES-MIB standard (CPU/RAM/dischi). Oltre agli
 // host generici, includiamo gli apparati di rete spesso Linux-based (MikroTik,
@@ -216,8 +244,7 @@ async function _pollPowerNode(nodeId){
     });
     const _reset=()=>{ if(btn){ btn.className='toolbar-btn primary'; btn.innerHTML=`<i class="fas fa-network-wired"></i> ${(typeof t==='function'?t('snmp.import'):'Importa SNMP')}`; } };
     try{
-        const r=await fetch('/api/poll-power',{method:'POST',headers:{'Content-Type':'application/json'},body});
-        const data=await r.json();
+        const data=await postSnmpRead('/api/poll-power', body);
         // ATS che non parla il profilo APC PowerNet (Eaton, Vertiv, Socomec…): la
         // sessione SNMP è riuscita, gli OID no. NON è un errore di rete e non è una
         // lettura: prima usciva un pannello di trattini indistinguibile da un
@@ -278,8 +305,7 @@ async function pollSNMP(nodeId){
         hostResources: _HOST_RES_TYPES.includes(n.type)
     });
     try{
-        const r=await fetch('/api/poll',{method:'POST',headers:{'Content-Type':'application/json'},body});
-        const data=await r.json();
+        const data=await postSnmpRead('/api/poll', body);
         applyPollResult(nodeId, data); // aggiorna snmpStatus sempre (ok o err)
         if(data.ok){
             if(btn){ btn.disabled=false; btn.className='toolbar-btn poll-btn-ok';
@@ -325,8 +351,13 @@ async function pollSNMP(nodeId){
 // leggero in background, niente scoperta cavi (quella resta sul bottone Sync /
 // Topologia, che fanno l'auto-link "al volo").
 async function pollAllSNMP(opts){
-    if(store._snmpSyncing) return;
     const dataOnly = !!(opts && opts.dataOnly);
+    if(store._snmpSyncing){
+        // «Sincronizza ora» durante un giro in corso tornava muto. Lo scheduler e la
+        // Verifica (silent/dataOnly) non passano di qui da occupati: controllano prima.
+        if(!(opts && (opts.silent || dataOnly))) _showToast(t(store._autoMonitorRunning ? 'msg.net.busyMonitor' : 'msg.net.busySync'), 'warn');
+        return;
+    }
     // deferPresence: schedula il ricalcolo presenza differito (grigio device assenti)
     // dopo il Sync standalone. La Verifica (runDriftCheck) lo DISATTIVA perché fa già
     // un compute completo CON sweep subito dopo: senza questa guardia i due compute
@@ -409,16 +440,14 @@ async function pollAllSNMP(opts){
         // UPS/ATS: niente walk interfacce, ma valori live via UPS-MIB / ATS.
         if(n.type==='ups' || n.type==='ats'){
             try{
-                const pr=await fetch('/api/poll-power',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...JSON.parse(body), kind:n.type==='ats'?'ats':'ups'})});
-                const pd=await pr.json();
+                const pd=await postSnmpRead('/api/poll-power', JSON.stringify({...JSON.parse(body), kind:n.type==='ats'?'ats':'ups'}));
                 if(pd.ok && pd.live){ n.powerLive=pd.live; n.powerLiveAt=new Date().toISOString(); n.snmpStatus='ok'; n.snmpLastOk=n.powerLiveAt; ok++; }
                 else{ err++; n.snmpStatus='err'; console.warn(`[SNMP Sync] ${n.name||n.id}: ${pd.error||'no live'}`); }
             }catch(e){ err++; n.snmpStatus='err'; console.warn(`[SNMP Sync] ${n.name||n.id}: ${e.message}`); }
             return;
         }
         try{
-            const r=await fetch('/api/poll',{method:'POST',headers:{'Content-Type':'application/json'},body});
-            const data=await r.json();
+            const data=await postSnmpRead('/api/poll', body);
             applyPollResult(n.id, data, {noHistory:true, noRender:true});
             if(data.ok){ ok++; } else{ err++; console.warn(`[SNMP Sync] ${n.name||n.id}: ${data.error}`); }
         }catch(e){

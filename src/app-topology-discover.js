@@ -207,9 +207,31 @@ async function discoverTopology(force=false){
 
     // ---- force=true (tasto destro): refresh esplicito tramite Sync SNMP completo.
     _setTopoBtn('discovering');
-    if(typeof win.pollAllSNMP === 'function' && !store._snmpSyncing){
-        await win.pollAllSNMP();
+    // Un giro già in corso (monitoraggio automatico o un altro Sync) NON si rifà: si usa
+    // quello che c'è in cache, ma lo si DICE — prima il tasto destro tornava con dati
+    // vecchi senza avvisare che il «refresh» chiesto non era partito.
+    if(store._snmpSyncing){
+        _showToast(t(store._autoMonitorRunning ? 'msg.net.busyMonitor' : 'msg.net.busySync'), 'warn');
     }
+    // Il bottone resta «Topologia…» e disabilitato finché non lo ripristina qualcuno: se la
+    // lettura (o il disegno che segue) esce con un errore, nessuno lo faceva. Ora il
+    // ripristino è garantito da qui, e l'errore si dice invece di sparire nella console.
+    try{
+        if(typeof win.pollAllSNMP === 'function' && !store._snmpSyncing){
+            await win.pollAllSNMP();
+        }
+        _drawForcedTopology(targets);
+    }catch(e){
+        console.warn('[topologia] aggiornamento fallito:', e && e.message || e);
+        _showToast(t('msg.net.errSnmp') + (e && e.message || t('msg.net.errUnknown')), 'warn');
+        _refreshTopoBtnState();
+    }
+}
+
+// Il tratto finale di `discoverTopology(true)`: dalla cache dei vicini (appena
+// rinfrescata dal Sync) al grafo e alla vista. Separato perché sta DENTRO il try che
+// garantisce il ripristino del bottone.
+function _drawForcedTopology(targets){
     const allResults = targets
         .filter(n => store._topoNeighborsCache[n.id])
         .map(n => ({

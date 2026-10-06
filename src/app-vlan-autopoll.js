@@ -154,6 +154,16 @@ export function _updateAutoPollBadge(){
     const cfg=effAutoConfig(store.state.autoPoll);
     const nextAt=store._autoMonitorNextAt||0;
     if(!cfg.enabled || !nextAt){ badge.style.display='none'; return; }
+    // Giro IN CORSO: il programmato è silenzioso (Salva spento, nessuna scritta) e dura
+    // minuti. Il badge lo dice con un'icona che gira al posto dell'orologio e senza il
+    // conto alla rovescia (che riparte dalla scadenza dopo) — più CORTO di «Auto 5m»:
+    // l'header ha un budget di larghezza tarato al pixel, qui non si aggiunge niente.
+    if(store._autoMonitorRunning){
+        badge.style.display='inline-flex';
+        badge.innerHTML='<i class="fas fa-spinner fa-spin"></i> Auto';
+        badge.setAttribute('data-tip', (typeof t==='function') ? t('autopoll.titleRunning') : 'Monitoraggio automatico in corso');
+        return;
+    }
     const diffMs=Math.max(0, nextAt-Date.now());
     const mins=Math.floor(diffMs/60000);
     const secs=Math.floor((diffMs%60000)/1000);

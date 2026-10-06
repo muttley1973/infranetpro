@@ -224,3 +224,43 @@ test('scheduler: config non attiva → start() non arma nulla', async () => {
   await clk.advance(60 * MIN);
   assert.equal(env.runs, 0);
 });
+
+// ── Scadenza lato client di UNA lettura SNMP (snmpReadBudgetMs) ──────────────
+// Prima il client non aveva nessun tetto: una risposta che non tornava mai teneva
+// `_snmpSyncing` acceso per sempre. Il budget deve stare SOPRA il caso peggiore del
+// driver (altrimenti taglia un apparato lento ma vivo) e restare FINITO. Si legge dal
+// corpo della richiesta: timeout + flag dei passaggi in più (stampante, HOST-RESOURCES).
+const { snmpReadBudgetMs } = require('../lib/auto-monitor.js');
+
+test('snmpReadBudgetMs: default (timeout 3 s, un passaggio) = 70 s — sopra il caso peggiore misurato sul lab (42 s)', () => {
+  assert.equal(snmpReadBudgetMs({}), 70000);
+  assert.equal(snmpReadBudgetMs(undefined), 70000);
+  assert.ok(snmpReadBudgetMs({}) > 42000);
+});
+
+test('snmpReadBudgetMs: ogni passaggio in più (stampante, HOST-RESOURCES) ha il suo budget fresco, come nel driver', () => {
+  const uno = snmpReadBudgetMs({ timeout: 3 });
+  const due = snmpReadBudgetMs({ timeout: 3, hostResources: true });
+  const stampante = snmpReadBudgetMs({ timeout: 3, printer: true });
+  const tre = snmpReadBudgetMs({ timeout: 3, printer: true, hostResources: true });
+  assert.equal(due - uno, 40000);
+  assert.equal(stampante - uno, 40000);
+  assert.equal(tre - uno, 80000);
+});
+
+test('snmpReadBudgetMs: chi alza il timeout per un apparato lento ma vivo non viene tagliato', () => {
+  // il driver si concede max(25 s, 5×timeout) per passaggio: il client sempre di più
+  for (const t of [1, 3, 5, 10, 30]) {
+    const driverPass = Math.max(25, 5 * t) * 1000;
+    assert.ok(snmpReadBudgetMs({ timeout: t }) > driverPass + 5 * t * 1000, `timeout ${t}`);
+  }
+  assert.equal(snmpReadBudgetMs({ timeout: 10 }), (50 + 50 + 30) * 1000);
+});
+
+test('snmpReadBudgetMs: valori sporchi → ripiego come il driver (parseInt || 3), mai zero né infinito', () => {
+  for (const cfg of [{ timeout: 'abc' }, { timeout: 0 }, { timeout: -4 }, { timeout: null }, null]) {
+    const ms = snmpReadBudgetMs(cfg);
+    assert.ok(Number.isFinite(ms) && ms >= 60000 && ms < 400000, JSON.stringify(cfg));
+  }
+  assert.equal(snmpReadBudgetMs({ timeout: '10' }), snmpReadBudgetMs({ timeout: 10 }));   // stringa numerica, come arriva da un campo
+});

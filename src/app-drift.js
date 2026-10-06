@@ -20,7 +20,7 @@ import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (e
 import { DOWN_STREAK_N, forgetPortMeasure, nextDownStreak } from '../lib/port-state.js';   // lib pura importata ESM: soglia anti-flap + avanzamento e scadenza delle misure di porta
 import { TYPES, _frontPanelPortLabel } from './app-types.js';   // catalogo tipi: distingue gli elementi passivi dall'audit di presenza
 import { escapeHTML, normalizeMacAddress } from './app-util.js';
-import { nodeById, markDirty, getNodeByPortId, getNodeDisplayName, pushHistory, logAudit, _cableAutoLabel } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, markDirty, getNodeByPortId, getNodeDisplayName, pushHistory, logAudit, _cableAutoLabel, _showToast } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAutomationMenu, _updateAutoPollBadge } from './app-vlan-autopoll.js';   // popover Automazioni + badge del monitoraggio (ciclo benigno: solo a runtime)
@@ -308,7 +308,13 @@ async function _driftReachabilitySweep(){
 async function runDriftCheck(opts = {}){
     const silent = !!opts.silent;
     const state = store.state;
-    if(_driftRunning || store._snmpSyncing) return;
+    if(_driftRunning || store._snmpSyncing){
+        // Un clic su «Verifica» mentre una lettura è in corso tornava SENZA dire niente:
+        // col giro del monitoraggio (~2,5 min sul lab) sembrava un bottone rotto. La
+        // programmata invece tace (è lo scheduler a ripresentarsi, v. isBlocked).
+        if(!silent) _showToast(t(store._autoMonitorRunning ? 'msg.net.busyMonitor' : 'msg.net.busySync'), 'warn');
+        return;
+    }
     const hasSnmp = state.nodes.some(n => String((n.integration||{}).driver||'').startsWith('snmp') && String((n.integration||{}).host||n.ip||'').trim());
     // I lease DHCP sono una fonte valida anche senza SNMP (rete dietro firewall):
     // se ce ne sono, la Verifica gira lo stesso (il poll SNMP viene saltato).
@@ -394,6 +400,7 @@ const _monitor = createMonitorScheduler({
     },
     onChange: () => {
         store._autoMonitorNextAt = _monitor.nextAt();                     // il badge legge da qui
+        store._autoMonitorRunning = _monitor.isRunning();                 // ...e da qui: un giro in corso si VEDE (il programmato è silenzioso: Salva spento, nessuna scritta)
         if(typeof _updateAutoPollBadge === 'function') _updateAutoPollBadge();
     },
     onError: (e) => console.warn('[auto-monitor] giro fallito:', e && e.message || e),   // riproverà alla prossima scadenza

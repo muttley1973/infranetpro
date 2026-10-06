@@ -4983,6 +4983,150 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.manualNoStrayLbl, 'la Verifica manuale ripulisce dataset._lbl a fine controllo');
     });
 
+    // ── Monitoraggio automatico: le tre fragilità lette il 03/10 (handoff §124 ③) ──────────────
+    // Pagina DEDICATA (non il `page` condiviso): ha timer accorciati e una rotta `/api/poll`
+    // finta, due cose che non devono toccare i subtest che seguono. Le scadenze lunghe del
+    // prodotto (budget di una lettura ~70 s, intervallo del monitoraggio 5 min) si accorciano
+    // nel browser: ciò che si prova è la LOGICA di scadenza, non l'orologio.
+    //   · `/api/poll` verso `hung.invalid` NON RISPONDE MAI (la rotta non chiama fulfill);
+    //   · ogni altro host risponde subito con una lettura minima valida.
+    const monitorPage = async (readMs) => {
+      const p = await browser.newPage({ viewport: { width: 1500, height: 950 } });
+      await p.addInitScript((ms) => {
+        window.__readMs = ms;
+        const st = window.setTimeout.bind(window), si = window.setInterval.bind(window);
+        window.setTimeout = (fn, d, ...a) => st(fn, (d >= 60000 && d < 300000) ? window.__readMs : d, ...a);
+        window.setInterval = (fn, d, ...a) => si(fn, d >= 300000 ? 3000 : d, ...a);
+      }, readMs);
+      const warns = [];
+      p.on('console', (m) => { if (m.type() === 'warning') warns.push(m.text()); });
+      const appese = [];
+      await p.route('**/api/poll', async (route) => {
+        let host = '';
+        try { host = JSON.parse(route.request().postData() || '{}').host || ''; } catch (_) { /* corpo non JSON */ }
+        if (host === 'hung.invalid') { appese.push(route); return; }   // non risponde MAI
+        await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, hostname: 'sw-ok', interfaces: [] }) });
+      });
+      await p.goto(srv.baseURL, { waitUntil: 'load' });
+      await p.waitForFunction(() => { try { return typeof renderAll === 'function' && Array.isArray(state.nodes) && document.querySelectorAll('[data-pid]').length > 3; } catch (e) { return false; } }, null, { timeout: 15000 });
+      await p.waitForTimeout(1500);   // ⚠️ dopo il primo render: l'init carica da solo un progetto e sostituirebbe lo stato iniettato
+      await p.evaluate(() => {
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes.push(
+          { id: 'okx',   type: 'switch', name: 'OK-X',   x: 5,  y: 5, ports: 8, integration: { driver: 'snmp-v2c', host: 'ok.invalid',   community: 'public' } },
+          { id: 'hungx', type: 'switch', name: 'HUNG-X', x: 25, y: 5, ports: 8, integration: { driver: 'snmp-v2c', host: 'hung.invalid', community: 'public' } });
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        renderAll();
+      });
+      return { p, warns, appese };
+    };
+
+    await t.test('lettura SNMP che non risponde MAI: viene abbandonata, il giro finisce e il campo si libera', async () => {
+      // PRIMA: `fetch('/api/poll')` senza segnale né tetto. Una sola risposta che non tornava
+      // teneva `_snmpSyncing` acceso per sempre — Salva spento, Verifica muta, ogni giro del
+      // monitoraggio dopo usciva in silenzio. Ora scade (budget lato client) e il nodo diventa «err».
+      const { p, warns, appese } = await monitorPage(1500);
+      try {
+        const r = await p.evaluate(async () => {
+          const t0 = performance.now();
+          const giro = window.pollAllSNMP({ dataOnly: true });
+          const durante = { syncing: !!window._snmpSyncing, saveDisabled: document.getElementById('btn-save').disabled };
+          const esito = await Promise.race([giro.then(() => 'finito'), new Promise((res) => setTimeout(res, 12000, 'APPESO'))]);
+          return {
+            esito, ms: Math.round(performance.now() - t0), durante,
+            syncingDopo: !!window._snmpSyncing, saveDisabledDopo: document.getElementById('btn-save').disabled,
+            ok: nodeById('okx').snmpStatus, hung: nodeById('hungx').snmpStatus,
+          };
+        });
+        assert.equal(r.esito, 'finito', 'il giro TERMINA anche se una lettura non risponde mai (prima restava appeso per sempre)');
+        assert.ok(r.durante.syncing && r.durante.saveDisabled, 'durante il giro il campo è occupato e Salva è spento (comportamento invariato)');
+        assert.ok(r.ms >= 1200 && r.ms < 8000, `l'attesa è il budget (accorciato a 1,5 s), non zero e non infinita: ${r.ms} ms`);
+        assert.equal(r.syncingDopo, false, '_snmpSyncing torna spento');
+        assert.equal(r.saveDisabledDopo, false, 'Salva torna acceso');
+        assert.equal(r.hung, 'err', 'il nodo che non ha risposto è «err»');
+        assert.equal(r.ok, 'ok', 'gli altri nodi del giro sono letti normalmente');
+        assert.ok(warns.some((w) => /HUNG-X/.test(w) && /nessuna risposta entro|no answer within/.test(w)), 'il motivo è leggibile nel log: ' + warns.join(' | '));
+        assert.equal(appese.length, 1, 'la richiesta appesa era una sola');
+      } finally {
+        await p.close();
+      }
+    });
+
+    await t.test('giro programmato: si VEDE (badge «Auto» con icona che gira) e un clic su Verifica non torna muto', async () => {
+      // Il giro programmato è silenzioso: Salva spento, nessuna scritta, ~2,5 min sul lab. Il
+      // badge dice «in corso» (più corto di «Auto 5m»: il budget di larghezza dell'header è
+      // tarato al pixel) e Verifica / Sincronizza ora, che tornavano senza dire niente, avvisano.
+      const { p } = await monitorPage(2500);
+      try {
+        await p.evaluate(() => toggleAutomationMenu());
+        await p.waitForTimeout(300);
+        await p.evaluate(() => {
+          document.querySelector('[data-act="automonitor-depth"][data-depth="light"]').click();
+          const tg = document.querySelector('[data-change="automonitor-toggle"]'); tg.checked = true; tg.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+        await p.evaluate(() => toggleAutomationMenu());
+        const badge = () => p.evaluate(() => { const b = document.getElementById('autopoll-badge'); return { txt: b.textContent.trim(), spin: !!b.querySelector('.fa-spin'), w: Math.round(b.getBoundingClientRect().width), tip: b.getAttribute('data-tip') || '' }; });
+        const idle = await badge();
+        assert.match(idle.txt, /^Auto \d+[ms]$/, 'a riposo il badge conta alla rovescia: ' + idle.txt);
+        assert.equal(idle.spin, false, 'a riposo non gira');
+        await p.waitForFunction(() => !!document.querySelector('#autopoll-badge .fa-spin'), null, { timeout: 12000 });
+        const run = await badge();
+        assert.equal(run.txt, 'Auto', 'durante il giro il badge dice solo «Auto» (nessun conto alla rovescia): ' + run.txt);
+        assert.match(run.tip, /in corso|in progress/, 'il tooltip dice che sta leggendo la rete: ' + run.tip);
+        assert.ok(run.w <= idle.w, `il badge in corso NON è più largo di quello a riposo (${run.w} > ${idle.w}px: budget dell'header)`);
+        const prima = await p.evaluate(() => document.querySelectorAll('.toast').length);
+        await p.click('#btn-drift');
+        await p.evaluate(() => window.pollAllSNMP());   // «Sincronizza ora» passa di qui
+        const toasts = await p.evaluate(() => [...document.querySelectorAll('.toast .toast-msg')].map((e) => e.textContent));
+        assert.equal(toasts.length - prima, 2, 'Verifica e Sincronizza ora avvisano entrambi: ' + toasts.join(' | '));
+        assert.ok(toasts.slice(prima).every((x) => /monitoraggio automatico|Automatic monitoring/.test(x)), 'e dicono che è il monitoraggio: ' + toasts.join(' | '));
+        await p.waitForFunction(() => !document.querySelector('#autopoll-badge .fa-spin'), null, { timeout: 12000 });
+        const fine = await badge();
+        assert.match(fine.txt, /^Auto \d+[ms]$/, 'a giro finito il conto alla rovescia RIPARTE: ' + fine.txt);
+        assert.equal(await p.evaluate(() => !!window._snmpSyncing), false, 'il campo è libero');
+        assert.equal(await p.evaluate(() => document.getElementById('btn-save').disabled), false, 'Salva è acceso');
+        // …e una lettura lanciata A CAMPO LIBERO non dice «occupato».
+        const n0 = await p.evaluate(() => document.querySelectorAll('.toast').length);
+        await p.evaluate(() => window.pollAllSNMP({ dataOnly: true }));
+        assert.equal(await p.evaluate(() => document.querySelectorAll('.toast').length), n0, 'a campo libero nessun avviso di «occupato»');
+      } finally {
+        await p.close();
+      }
+    });
+
+    await t.test('tasto destro su Topologia: se l\'aggiornamento esce con un errore il bottone NON resta «Topologia…» spento', async () => {
+      // Il ripristino dipendeva da chi falliva: la lettura vera lo fa nel proprio finally, ma
+      // un errore DOPO (o in un ramo che non passa di lì) lasciava il bottone con lo spinner e
+      // `disabled` per sempre. Ora il ripristino è garantito dal chiamante, e l'errore si DICE.
+      const { p } = await monitorPage(1500);
+      try {
+        const r = await p.evaluate(async () => {
+          const btn = document.getElementById('btn-topology');
+          const orig = window.pollAllSNMP;
+          window.pollAllSNMP = async () => { throw new Error('boom-e2e'); };
+          let rifiutata = false;
+          try { await discoverTopology(true); } catch (_) { rifiutata = true; }
+          const dopoErrore = { disabled: btn.disabled, spin: /fa-spin/.test(btn.innerHTML) };
+          window.pollAllSNMP = orig;
+          // Un giro già in corso: la cache si usa lo stesso, ma lo si DICE.
+          const prima = document.querySelectorAll('.toast').length;
+          window._snmpSyncing = true;
+          await discoverTopology(true);
+          window._snmpSyncing = false;
+          const avvisi = [...document.querySelectorAll('.toast .toast-msg')].slice(prima).map((e) => e.textContent);
+          const dopoOccupato = { disabled: btn.disabled, spin: /fa-spin/.test(btn.innerHTML) };
+          return { rifiutata, dopoErrore, dopoOccupato, avvisi, toastErrore: [...document.querySelectorAll('.toast .toast-msg')].map((e) => e.textContent).some((x) => /boom-e2e/.test(x)) };
+        });
+        assert.equal(r.rifiutata, false, 'discoverTopology non propaga l\'errore al gestore del tasto destro (rejection non gestita)');
+        assert.deepEqual(r.dopoErrore, { disabled: false, spin: false }, 'dopo l\'errore il bottone è di nuovo cliccabile e senza spinner');
+        assert.ok(r.toastErrore, 'l\'errore si dice a schermo, non solo in console');
+        assert.deepEqual(r.dopoOccupato, { disabled: false, spin: false }, 'con un giro già in corso il bottone non resta spento');
+        assert.ok(r.avvisi.some((x) => /lettura|reading|read/i.test(x)), 'con un giro in corso il «refresh» chiesto NON parte, e lo dice: ' + r.avvisi.join(' | '));
+      } finally {
+        await p.close();
+      }
+    });
+
     await t.test('app-ports migrato: override porta + flusso LAG + stato cross-boundary su window', async () => {
       // Copertura della glue Ports (ex lib/app-ports.js) nel bundle ESM. Verifica
       // soprattutto i binding CROSS-BOUNDARY che solo il browser reale cattura:
