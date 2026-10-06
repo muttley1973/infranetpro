@@ -10,7 +10,6 @@
 //  File `api-tokens.json` (gitignored). Override via INFRANET_API_TOKENS_FILE →
 //  store isolato per i test, senza toccare i dati reali (come INFRANET_USERS_FILE).
 // ============================================================
-const fs     = require('fs');
 const path   = require('path');
 const crypto = require('crypto');
 const { timestamp } = require('../utils');

@@ -965,8 +965,7 @@ function _buildRackSVG(rackId, opts){
             cursor += mgmtBlockW + 2;
         }
         if(sfpCount > 0 && !sfpRight){
-            sideSvg += drawSideBlock(buildSfpCells(), cursor, y, sfpBlockW, h, '#9aa5b1', null);
-            cursor += sfpBlockW + 2;
+            sideSvg += drawSideBlock(buildSfpCells(), cursor, y, sfpBlockW, h, '#9aa5b1', null);   // ultimo blocco a sinistra: il cursore non serve più
         }
         // Cursor right side (start from far right going inward)
         let rcursor = x + w;
@@ -977,8 +976,7 @@ function _buildRackSVG(rackId, opts){
         }
         if(sfpCount > 0 && sfpRight){
             rcursor -= sfpBlockW;
-            sideSvg += drawSideBlock(buildSfpCells(), rcursor, y, sfpBlockW, h, '#9aa5b1', null);
-            rcursor -= 2;
+            sideSvg += drawSideBlock(buildSfpCells(), rcursor, y, sfpBlockW, h, '#9aa5b1', null);   // ultimo blocco a destra: il cursore non serve più
         }
         // Area data ports ridotta
         const dataX = x + leftAlloc;

@@ -695,7 +695,7 @@ function _closeDriftReport(){ const ov = document.getElementById('drift-overlay'
 // delegati globalmente (funzionano da qualunque punto del documento).
 export function _driftRowHtml(cat, r){
     const esc = s => escapeHTML(String(s == null ? '' : s));
-    let main = '', actions = '';
+    let main, actions = '';   // main lo scrive OGNI ramo (l'ultimo è un else); actions resta vuota per le righe consistenti
     const invBtn = `<button class="drift-act" data-act="drift-investigate" data-key="${esc(r.key)}" data-tip="${t('drift.tipOpen')}"><i class="fas fa-magnifying-glass"></i></button>`;
     const ignBtn = `<button class="drift-act" data-act="drift-ignore" data-key="${esc(r.key)}" data-tip="${t('drift.tipIgnore')}"><i class="fas fa-eye-slash"></i></button>`;
     // L4: «Spiega» con l'Assistente AI (semina la domanda sul caso → loop Verifica→capisci→agisci).
