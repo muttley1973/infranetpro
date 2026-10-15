@@ -6,6 +6,7 @@
 // esposti mantengono la superficie window. app.js re-exporta tutti e 8 per gli import ESM.
 // ============================================================
 import { expose } from "./_bridge.js";
+import { store } from "./store.js";   // currentProjectId per persistAuditEntries
 import { _invalidateIdx } from "./app.js";   // ciclo benigno: uso solo a runtime
 import { renderAll } from "./app-render-core.js";
 import { saveProject } from "./app-core.js";   // ciclo benigno: solo a runtime (autosave debounced)
@@ -145,6 +146,24 @@ export function logAudit(action, info){
     const user = (typeof _currentUser === 'object' && _currentUser && _currentUser.username) ? _currentUser.username : 'sistema';
     appendAudit(state.auditLog, { user, action, target: info.target, summary: info.summary });
     markDirty();
+    return state.auditLog[state.auditLog.length - 1];   // la voce appena scritta: chi la vuole mandare subito al server la riceve
+}
+
+// Le voci di un GIRO (oggi il Sync, anche quello del monitoraggio automatico) vanno sul disco SUBITO:
+// la voce di una persona viaggia col Salva, ma nessuno salva il giro dell'ora, e con l'autosave spento
+// (il default) la riga moriva con la pagina — e la scheda Modifiche si fermava all'ultimo Salva.
+// Il server accetta solo le azioni di giro (`RUN_ACTIONS`, lib/audit-log.js) e fonde senza
+// duplicati, quindi la stessa voce che arriva anche col Salva non raddoppia.
+// Best-effort come presenza e timeline: se fallisce la riga resta in memoria e va su disco al Salva.
+export function persistAuditEntries(entries){
+    try {
+        const list = (entries || []).filter(Boolean);
+        if(!store.currentProjectId || !list.length) return;
+        fetch(`/api/projects/${store.currentProjectId}/history/audit`, {
+            method:'PUT', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ entries: list }),
+        }).catch(()=>{});
+    } catch(_){ /* best-effort */ }
 }
 
 // Superficie window invariata (i 6 erano nell expose() di app.js). undo/redo NO:

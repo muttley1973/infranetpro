@@ -1657,6 +1657,90 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.hasPoll, 'pollAllSNMP resta esposto (Verifica / Automazioni / Topologia)');
     });
 
+    await t.test('Storia: la riga del Sync dice cosa ha LETTO e quanti apparati non legge, mai «raggiungibili»', async () => {
+      // La riga diceva «18/18 dispositivi · tutti raggiungibili» in un progetto da 47 apparati: i 18 erano
+      // quelli con integrazione SNMP, gli unici che il Sync interroga. Qui la colla vera (pollAllSNMP →
+      // computeSubbarStats → lib/snmp-sync-audit.js → logAudit) con /api/poll simulata; la logica pura e
+      // i testi sono provati a parte in test/snmp-sync-audit.test.js.
+      const run = (lang, failHosts) => page.evaluate(async ([lang, failHosts]) => {
+        setLang(lang);
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes.length = 0; state.links.length = 0; state.ports = {}; state.auditLog = [];
+        for (let i = 0; i < 4; i++) state.nodes.push({ id: 'sw' + i, type: 'switch', name: 'SW' + i, x: 100 + i * 120, y: 100, ports: 8, ip: '10.0.0.' + (i + 1), integration: { driver: 'snmp-v2c', host: '10.0.0.' + (i + 1), community: 'x' } });
+        for (let i = 0; i < 3; i++) state.nodes.push({ id: 'pc' + i, type: 'pc', name: 'PC' + i, x: 100 + i * 120, y: 300, ip: '10.0.1.' + (i + 1) });
+        state.nodes.push({ id: 'wp1', type: 'wallport', name: 'WA-01', x: 500, y: 300, ports: 1 });   // passivo puro: non conta
+        state.nodes.push({ id: 'room1', type: 'room', name: 'Sala', x: 40, y: 40, w: 600, h: 400 });   // stanza: non conta
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        const orig = window.fetch;
+        window.fetch = (url, opts) => {
+          if (String(url).includes('/api/poll') && !String(url).includes('poll-power')) {
+            const bad = failHosts.includes(JSON.parse(opts.body).host);
+            return Promise.resolve({ json: () => Promise.resolve(bad ? { ok: false, error: 'timeout' } : { ok: true, hostname: 'h', system: { sysDescr: 'x' }, interfaces: [] }) });
+          }
+          return orig(url, opts);
+        };
+        try { await pollAllSNMP({ silent: true, dataOnly: true }); } finally { window.fetch = orig; setLang('it'); }
+        const a = (state.auditLog || []).filter((x) => x.action === 'snmp-sync').slice(-1)[0];
+        return a ? { target: a.target, summary: a.summary } : null;
+      }, [lang, failHosts]);
+
+      // Ogni giro MANDA la sua riga al server (PUT /history/audit): si aspetta la risposta, perche' e' quella che prova
+      // che la riga e' andata sul disco e non e' rimasta solo in memoria.
+      const sync = async (lang, failHosts) => {
+        const [resp, r] = await Promise.all([
+          page.waitForResponse((x) => x.url().includes('/history/audit') && x.request().method() === 'PUT'),
+          run(lang, failHosts),
+        ]);
+        assert.equal(resp.status(), 200, 'la rotta del giornale risponde');
+        return r;
+      };
+      const ok = await sync('it', []);
+      assert.deepEqual(ok, { target: '4/4 apparati SNMP letti', summary: 'nessun errore di lettura · 3 senza SNMP, non letti' },
+        'quattro apparati SNMP letti e tre PC che il Sync non tocca (presa a muro e stanza non contano)');
+      const bad = await sync('it', ['10.0.0.2']);
+      assert.deepEqual(bad, { target: '3/4 apparati SNMP letti', summary: '1 in errore · 3 senza SNMP, non letti' }, 'un fallimento resta detto, e i non letti restano accanto');
+      const en = await sync('en', []);
+      assert.deepEqual(en, { target: '4/4 SNMP devices read', summary: 'no read errors · 3 without SNMP, not read' }, 'e in inglese');
+      for (const r of [ok, bad, en]) assert.doesNotMatch(r.target + ' ' + r.summary, /raggiungibil|reachable/i, 'la riga non parla piu\' di raggiungibilita\'');
+
+      // LE RIGHE SONO SUL DISCO, e il progetto NON e' stato salvato. Il monitoraggio automatico non lo salva nessuno
+      // (autosave spento, il default): prima la riga viveva nella memoria della pagina e moriva al ricaricamento, e la
+      // scheda Modifiche si fermava all'ultimo Salva mentre la timeline delle Verifiche andava avanti. Qui si rilegge
+      // il progetto dal SERVER (che unisce al progetto il giornale su disco): se le tre righe ci sono, sono state scritte.
+      const suDisco = await page.evaluate(async () => {
+        const id = window.currentProjectId;
+        const p = await (await fetch('/api/projects/' + id)).json();
+        return (p.state.auditLog || []).filter((e) => e.action === 'snmp-sync').map((e) => e.target + ' | ' + e.summary);
+      });
+      for (const r of [ok, bad, en]) assert.ok(suDisco.includes(r.target + ' | ' + r.summary), 'la riga e\' sul disco senza che nessuno abbia salvato: ' + r.target + ' | ' + r.summary + ' — trovate: ' + JSON.stringify(suDisco));
+      // La rotta accetta SOLO i giri: una voce che descrive una MODIFICA al documento non passa — resterebbe su disco con la
+      // modifica mai salvata, e il giornale racconterebbe una cosa che il documento non dice.
+      const rifiutata = await page.evaluate(async () => {
+        const id = window.currentProjectId;
+        const r = await fetch('/api/projects/' + id + '/history/audit', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entries: [{ ts: new Date().toISOString(), user: 'admin', action: 'device-add', target: 'Switch fantasma', summary: '' }] }),
+        });
+        const j = await r.json();
+        const p = await (await fetch('/api/projects/' + id)).json();
+        return { status: r.status, accepted: j.accepted, trovata: (p.state.auditLog || []).some((e) => e.target === 'Switch fantasma') };
+      });
+      assert.deepEqual(rifiutata, { status: 200, accepted: 0, trovata: false }, 'una voce di modifica NON passa dalla rotta dei giri');
+      // E il Salva che arriva dopo non la raddoppia (il giornale e' un'unione senza duplicati).
+      // Il Salva vero: il bottone della barra, e si aspetta la risposta del PUT del progetto.
+      assert.equal(await page.evaluate(() => document.getElementById('btn-save').disabled), false, 'Salva e\' acceso (il progetto e\' sporco: ogni riga di giro lo sporca)');
+      const [saveResp] = await Promise.all([
+        page.waitForResponse((x) => /\/api\/projects\/\d+$/.test(new URL(x.url()).pathname) && x.request().method() === 'PUT'),
+        page.evaluate(() => document.getElementById('btn-save').click()),
+      ]);
+      assert.equal(saveResp.status(), 200, 'il Salva riesce');
+      const dopoSalva = await page.evaluate(async () => {
+        const p = await (await fetch('/api/projects/' + window.currentProjectId)).json();
+        return (p.state.auditLog || []).filter((e) => e.action === 'snmp-sync').length;
+      });
+      assert.equal(dopoSalva, suDisco.length, 'dopo un Salva le righe di giro restano le stesse: ' + dopoSalva + ' vs ' + suDisco.length);
+    });
+
     await t.test('lock manual-first: toggleNodeLock (IP/hostname) e togglePortVlanLock fissano/sbloccano il valore', async () => {
       const r = await page.evaluate(() => {
         try {

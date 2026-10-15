@@ -6,6 +6,11 @@
 
 - **The map and the rack can be used with a finger on a tablet.** Two fingers zoom and pan (the point under your fingers stays put); a device, a room or a rack icon is grabbed by pressing it for a moment (it lifts), so zooming never moves anything and a finger that slides first just scrolls the view. A tap selects, the panel dividers can be dragged, and a tap on the empty map deselects only when it really is a tap. Sizes grow for a finger only on touch screens; a mouse sees no difference. Tested on Chrome with emulated touch; not yet on a real tablet or an iPad.
 
+### Fixed
+
+- **The History no longer says "all reachable" about devices the Sync never reads.** A Sync line read "18/18 devices · all reachable" in a project of 47: the 18 were the only ones with SNMP, and the rest (PCs, cameras, TVs…) are never polled — their reachability is the Check's job. The line now says what was read ("18/18 SNMP devices read · no read errors") and how many devices it leaves out ("25 without SNMP, not read"; rooms and cabling passives do not count). Lines already written keep their text.
+- **The automatic monitoring's lines are no longer lost from the History.** A Sync line reached the disk only when the project was saved, and nobody saves the monitoring round: with autosave off (the default) the lines of the hourly rounds died with the page, so the Changes tab stopped at the last manual save while the Checks tab went on. A run's line is now written at once, like the presence is; a line that describes a change to the document still waits for the save.
+
 ## [2.11.14] — 2026-10-06
 
 A device that never answers no longer freezes the monitoring, and the port descriptions get a report.

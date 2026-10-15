@@ -16,6 +16,7 @@ const { PROJECTS_DIR, loadProject } = require('../projects-store');
 const { createFsHistoryStore } = require('../history-store-fs');
 const { sanitizePresence } = require('../../lib/presence-store');
 const { foldObservations } = require('../../lib/discovery-history');
+const { foldAudit, sanitizeRunEntries } = require('../../lib/audit-log');
 const { _sanitizeBackupRefs } = require('./projects');   // stessa redazione credenziali del PUT progetto
 
 const router = express.Router();
@@ -91,6 +92,26 @@ router.put('/api/projects/:id/history/presence', auth.requireAdmin, (req, res) =
   const clean = sanitizePresence(req.body);
   const rec = store.savePresence(id, clean);
   res.json({ ok: true, at: rec.at, nodes: Object.keys(clean.nodes).length });
+});
+
+// ── GIORNALE delle modifiche: le voci dei GIRI, subito ───────────────
+// Il Sync del monitoraggio automatico scrive la sua riga («18/18 apparati SNMP letti…») e
+// la manda qui senza aspettare un Salva: con l'autosave spento (il default) quella riga
+// viveva solo in memoria e moriva al ricaricamento, e la scheda Modifiche si fermava
+// all'ultimo salvataggio mentre la timeline delle Verifiche andava avanti.
+// ⚠️ Accetta SOLO le azioni che registrano un giro (`RUN_ACTIONS`): le voci che
+// descrivono una modifica al documento restano legate al Salva — una riga «IP rinnovato» su
+// disco con l'IP nuovo mai salvato racconterebbe una cosa che il documento non dice.
+// Si FONDE con quanto c'è su disco (unione senza duplicati): la stessa voce che più tardi
+// arriva col PUT del progetto non raddoppia.
+router.put('/api/projects/:id/history/audit', auth.requireAdmin, (req, res) => {
+  const id = +req.params.id;
+  if (!_projectExists(id)) return res.status(404).json({ error: 'Project not found' });
+  const accepted = sanitizeRunEntries(req.body && req.body.entries);
+  if (!accepted.length) return res.json({ ok: true, accepted: 0 });
+  const folded = foldAudit(store.readAudit(id), accepted);
+  const rec = store.saveAudit(id, folded);
+  res.json({ ok: true, at: rec.at, accepted: accepted.length, entries: folded.entries.length });
 });
 
 // ── OSSERVAZIONI di scoperta ─────────────────────────────────────────

@@ -19,6 +19,8 @@ import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: fun
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { reconcilePortCount } from '../lib/ports-reconcile.js';   // P5: conteggio porte dichiarato vs misura (manual-first, lib pura)
+import { persistAuditEntries } from './app-history.js';   // la riga del giro va subito su disco (non aspetta il Salva)
+import { describeSnmpSync } from '../lib/snmp-sync-audit.js';   // la riga di Storia dopo un Sync: cosa e' stato LETTO e cosa no (lib pura)
 import { reconcileInventory } from '../lib/identity-reconcile.js'; // identità hardware misurata: riconferma o «ultimo noto» (lib pura)
 import { adoptedDescription } from '../lib/port-descriptions.js';   // l'ifAlias letto diventa la Descrizione della porta (adozione AUTOMATICA, mai sopra a una persona)
 import { forgetPortMeasure } from '../lib/port-state.js';   // scadenza delle misure di porta (lib pura): una lettura che questo giro non c'è stata non vale più
@@ -495,11 +497,15 @@ async function pollAllSNMP(opts){
         setTimeout(()=>{ try{ _driftComputeFromDoc(_presenceDoc); renderAll(); }catch(_){} }, 0);
     }
 
-    logAudit('snmp-sync', {
-        target: (typeof t==='function') ? t('audit.snmpDevices',{ok,total}) : `${ok}/${total} dispositivi`,
-        summary: err ? ((typeof t==='function') ? t('audit.snmpErrors',{n:err}) : `${err} in errore`)
-                     : ((typeof t==='function') ? t('audit.snmpAllOk') : 'tutti raggiungibili')
-    });
+    // La riga di Storia dice cosa il Sync ha LETTO (gli apparati con integrazione SNMP) e quanti
+    // apparati NON legge: la sua frase di prima, «tutti raggiungibili», parlava del progetto intero.
+    // Testo e conteggio sono puri (lib/snmp-sync-audit.js); `computeSubbarStats` e' la definizione
+    // di «apparato» che usa tutta l'app (stanze e passivi di cablaggio non contano).
+    const _auditStats = (typeof computeSubbarStats === 'function') ? computeSubbarStats(store.state.nodes, TYPES) : null;
+    const _syncLine = logAudit('snmp-sync', describeSnmpSync({ ok, err, total }, _auditStats, t));
+    // Il giro del monitoraggio automatico non lo salva nessuno: la sua riga va sul disco da sola
+    // (v. persistAuditEntries), altrimenti la scheda Modifiche si ferma all'ultimo Salva.
+    persistAuditEntries([_syncLine]);
 
     // Esito PERSISTITO dell'ultimo tentativo di Sync (anche 0 ok): alimenta il
     // chip "| ok/tot · età" e la regola snmpDown del «prossimo passo». Nello

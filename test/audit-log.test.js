@@ -6,6 +6,7 @@ const {
   buildAuditEntry, appendAudit, auditActionLabel,
   formatAuditLine, filterAudit, auditToCsv,
   foldAudit, stripAudit, mergeAudit, AUDIT_CAP_DEFAULT,
+  RUN_ACTIONS, isRunAction, sanitizeRunEntries,
 } = require('../lib/audit-log.js');
 
 test('buildAuditEntry: default ts + user=sistema su campi mancanti', () => {
@@ -182,4 +183,57 @@ test('⚠️ la lista non disegna 10.000 righe: finestra + avviso di quante rest
   assert.match(AUDIT_UI, /audit\.capped/, 'e si dice quante ne restano fuori');
   const max = Number(AUDIT_UI.match(/_AUDIT_VIEW_MAX\s*=\s*(\d+)/)[1]);
   assert.ok(max < AUDIT_CAP_DEFAULT, 'la finestra sta sotto il tetto dei dati, altrimenti non serve');
+});
+
+// ── Le voci dei GIRI vanno sul disco SUBITO, le altre col Salva ──────────────
+// Il Sync del monitoraggio automatico scriveva la sua riga in memoria e nessuno salvava il
+// progetto: con l'autosave spento la riga moriva con la pagina, e la scheda Modifiche si
+// fermava all'ultimo Salva mentre la timeline delle Verifiche andava avanti.
+
+test('RUN_ACTIONS: solo ciò che registra un giro; una modifica al documento NO', () => {
+  assert.deepEqual(RUN_ACTIONS, ['snmp-sync']);
+  assert.equal(isRunAction('snmp-sync'), true);
+  // Queste descrivono una modifica al documento: una riga «IP rinnovato» su disco con l'IP
+  // nuovo mai salvato racconterebbe una cosa che il documento non dice.
+  for (const a of ['device-add', 'cable-add', 'drift-ipchange-auto', 'drift-apply', 'restore', '', undefined, null]) {
+    assert.equal(isRunAction(a), false, 'non e\' un giro: ' + String(a));
+  }
+});
+
+test('sanitizeRunEntries: lascia passare solo le voci di giro, normalizzate', () => {
+  const dentro = { ts: '2026-10-12T15:09:30.000Z', user: 'admin', action: 'snmp-sync', target: '18/18 apparati SNMP letti', summary: 'nessun errore di lettura' };
+  const out = sanitizeRunEntries([
+    dentro,
+    { ts: '2026-10-12T15:10:00.000Z', user: 'admin', action: 'device-add', target: 'Switch' },   // modifica: fuori
+    { action: 'drift-ipchange-auto' },                                                              // modifica: fuori
+    null, 'x', 42,                                                                                  // non sono voci
+  ]);
+  assert.deepEqual(out, [dentro], 'esce solo la voce di giro, identica a come l\'ha scritta il client');
+});
+
+test('sanitizeRunEntries: il ts del client resta (e\' parte dell\'identita\'), uno non valido si ripara', () => {
+  const [a] = sanitizeRunEntries([{ ts: '2026-10-12T15:09:30.000Z', action: 'snmp-sync' }]);
+  assert.equal(a.ts, '2026-10-12T15:09:30.000Z', 'un ts rifatto dal server raddoppierebbe la voce al Salva');
+  const [b] = sanitizeRunEntries([{ ts: 'ieri sera', action: 'snmp-sync' }]);
+  assert.ok(Number.isFinite(Date.parse(b.ts)), 'un ts non valido diventa un istante vero');
+  assert.notEqual(b.ts, 'ieri sera');
+});
+
+test('sanitizeRunEntries: la porta e\' stretta — niente non-array, un tetto alle voci e ai campi', () => {
+  assert.deepEqual(sanitizeRunEntries(undefined), []);
+  assert.deepEqual(sanitizeRunEntries({ entries: [] }), [], 'un oggetto non e\' una lista');
+  const molte = Array.from({ length: 500 }, (_, i) => ({ ts: new Date(1e12 + i).toISOString(), action: 'snmp-sync', summary: 'x'.repeat(5000) }));
+  const out = sanitizeRunEntries(molte);
+  assert.equal(out.length, 50, 'una richiesta non puo\' gonfiare il giornale: tetto di 50 voci');
+  assert.ok(out.every(e => e.summary.length <= 400), 'e i campi sono tagliati');
+});
+
+test('⚠️ la stessa voce mandata subito E col Salva non si raddoppia', () => {
+  // La voce parte appena scritta (rotta /history/audit) e il progetto, salvato piu' tardi, la
+  // porta di nuovo dentro state.auditLog: foldAudit e' un'unione, quindi resta UNA.
+  const voce = { ts: '2026-10-12T15:09:30.000Z', user: 'admin', action: 'snmp-sync', target: '18/18 apparati SNMP letti', summary: 'nessun errore di lettura' };
+  const suDisco = foldAudit(null, sanitizeRunEntries([voce]));               // la rotta
+  const dopoSalva = foldAudit(suDisco, [voce, { ts: '2026-10-12T16:00:00.000Z', user: 'admin', action: 'device-add', target: 'Switch' }]);   // il PUT del progetto
+  assert.equal(dopoSalva.entries.length, 2, 'la voce di giro non e\' duplicata e la modifica (solo col Salva) c\'e\'');
+  assert.equal(dopoSalva.entries.filter(e => e.action === 'snmp-sync').length, 1);
 });

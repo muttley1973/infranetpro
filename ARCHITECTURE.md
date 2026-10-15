@@ -604,7 +604,14 @@ in the body, which is the DTO the REST API v1 also serves) and the browser warns
 the older content can be saved back over the newer one; `loadProject(id)` stays the
 plain one-value call for everything that has nobody to tell. The floor-plan image is a sidecar under `projects/assets/`; timeline and
 snapshot history are separate files under `projects/history/<id>/`, written atomically
-with `fsync` and pruned when a project is deleted. The browser JSON export is a portable
+with `fsync` and pruned when a project is deleted. So is the **change journal** (`audit.json`),
+which normally reaches the disk when the project is *saved*; the lines that record a **run**
+rather than a change to the document (`RUN_ACTIONS` in `lib/audit-log.js`, today the Sync) are
+sent at once to `PUT /api/projects/:id/history/audit`, like presence and observations — the
+monitoring round is never saved by anyone, and with autosave off (the default) its lines died
+with the page. The route accepts only those actions and merges with what is on disk
+(`foldAudit`, a union without duplicates), so the same line arriving later with a save is not
+doubled; a line that describes a change (a cable, a renewed IP) stays tied to the save. The browser JSON export is a portable
 envelope, not a raw server backup: it redacts SNMP credentials and sanitizes backup
 references before download, and the importer unwraps both this format and legacy state
 files.
