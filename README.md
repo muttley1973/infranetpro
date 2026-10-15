@@ -10,7 +10,7 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="3,976 tests, 0 failing" src="https://img.shields.io/badge/tests-3%2C976%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="3,989 tests, 0 failing" src="https://img.shields.io/badge/tests-3%2C989%20%C2%B7%200%20failing-3fb950"></a>
   <a href="#testing"><img alt="130 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-130%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#oui-intelligence-engine"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
@@ -146,7 +146,16 @@ Double-click <code>avvia.bat</code>.<br>
 
 > **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then run **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.11.14) — a device that never answers no longer freezes the monitoring, and port descriptions get a report.**
+> 📰 **What's new (v2.11.15) — the map and the rack work with a finger on a tablet, and the History says what the Sync really read.**
+>
+> - **A finger is enough on a tablet.** Two fingers zoom and pan with the point under them fixed; a device, a room or a rack icon
+>   is grabbed by a short press, so zooming never moves anything and a finger that slides first just scrolls the view. Tested on
+>   Chrome with emulated touch, not yet on a real tablet or an iPad.
+> - **The History stops saying more than it knows.** A Sync line read "18/18 devices · all reachable" in a project of 47 — the Sync
+>   polls only the devices with SNMP. It now says "18/18 SNMP devices read · no read errors · 25 without SNMP, not read", and the
+>   lines of the automatic rounds reach the disk at once instead of dying with the page.
+
+> 📰 **v2.11.14 — a device that never answers no longer freezes the monitoring, and port descriptions get a report.**
 >
 > - **A device that never answers no longer freezes the monitoring.** A device read and the Check's reachability
 >   sweep had no deadline in the browser, so one request that never came back kept the Check marked as running —
@@ -1228,6 +1237,7 @@ See [integrations/ansible/README.md](integrations/ansible/README.md) for the ful
 | Cisco IOS Q-BRIDGE | `dot1qVlanStaticName` and egress bitmaps return empty without per-VLAN community context (`public@100`) | VTP MIB fallback is used automatically |
 | Cisco trunk VLANs | Where Q-BRIDGE comes back empty (the row above), a trunk's allowed VLANs are read from the VTP MIB column that covers VLANs 0–1023; VLANs 1024–4094 on that trunk are not read (the MIB's 2k/3k/4k columns are not polled) | — |
 | SNMPv3 EngineID | Must be auto-discovered; manual EngineID entry not yet supported | Use v2c if v3 discovery fails |
+| Touch | The map and the rack work with a finger (two-finger zoom and pan, grab by a short press): verified on Chrome with emulated touch only, not on a real tablet or an iPad | Drawing a cable (right-click) and adding a device from the library (drag and drop) still need a mouse; a phone-sized screen is not a goal |
 | Writes to devices | None, by design: SNMP, LLDP and CDP are only read, and nothing is ever written to a device | Configuration changes stay in your own tooling |
 | Concurrent users | No WebSocket push; each browser polls independently | A save that has been superseded is now refused instead of silently overwriting: the app says who wrote and when, and offers to overwrite. You still learn of the other session at save time, not while they work |
 | Storage | File-based JSON served by one process: not built for multi-server deployments | None today — there is no database backend (SQLite for history is under Planned below) |
@@ -1240,7 +1250,9 @@ See [integrations/ansible/README.md](integrations/ansible/README.md) for the ful
 Full release notes live in [CHANGELOG.md](CHANGELOG.md). Highlights of what has shipped:
 
 <details>
-<summary><b>✅ Shipped</b> — <sub>30 milestones</sub></summary>
+<summary><b>✅ Shipped</b> — <sub>32 milestones</sub></summary>
+
+- [x] **Tablet use** — two-finger zoom and pan on the map and the rack, devices grabbed by a short press so that zooming never moves anything, draggable panel dividers, finger-sized targets only on touch screens. Verified on Chrome with emulated touch (`test/e2e/touch.test.js`), not yet on a real tablet or an iPad; drawing a cable and adding a device from the library still need a mouse.
 
 - [x] **The multi-site layer** — the floor above the per-site projects: an organisation with its sites (each a *reference* to its project, never a copy), their WAN lines and the links between them, as a deterministic map and a form in one panel. A link answers two questions on two fields — **transport** and **tunnel** — because an IPsec inside an MPLS is one link; both ends name the device that holds them; and *which WAN lines carry it* is the recovery question, asked of every nature. It checks itself (incoherences and gaps kept apart, every check that could not run named), it fills itself from NetBox circuits and `vpn/` services where a site came from a DCIM, and it prints a **WAN chapter** in the handover dossier with one recovery card per line and per link
 
@@ -1312,7 +1324,7 @@ Coverage focuses on the pure, bug-prone logic that has historically broken: SNMP
 
 Current local quality baseline:
 - `npm run check` parses every JS source of the product — **542** of them. It skips the folders `eslint.config.js` already ignores (git worktrees, the private workspace, the editor's caches), so the number stays stable between runs instead of drifting with whatever happens to be checked out beside the repo
-- `npm test` runs the full regression suite (currently **3,976 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **130 flows**)
+- `npm test` runs the full regression suite (currently **3,989 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **130 flows**)
 - `npm run release -- check` is the gate before a tag: the version in its four places, a CHANGELOG section that actually lists something, and the test count above measured against what the suite really prints — the one number no test can check without counting itself
 - final visual verification is still important for rack/front-panel refinements
 
