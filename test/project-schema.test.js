@@ -112,13 +112,38 @@ test('CRICCHETTO — la classifica non elenca campi mai visti in nessun progetto
     // progetto invece di portarsi dietro un valore uguale al predefinito. Quindi nessun progetto
     // del campione puo' averlo, e non perche' sia un campo finto: e' un campo che esiste solo
     // dopo una scelta. E' una DICHIARAZIONE del progetto, e come tale esce nell'export.
-    'portDescSeparator']);
+    'portDescSeparator',
+    // Il messaggio dell'ultima lettura SNMP fallita (15/10): compare solo in un progetto SALVATO
+    // mentre un apparato non rispondeva, e il censimento del 28/08 non ne aveva nessuno cosi'.
+    // Anche questo l'ha trovato l'ALTRO guard, quello sui progetti veri. Campo vero, non finto.
+    'snmpError']);
   for (const scope of Object.keys(CENSUS)) {
     const visti = new Set(keysOf(scope));
     const extra = Object.keys(FIELD_CLASS_BY_SCOPE[scope]).filter(k => !visti.has(k) && !attesi.has(k));
     assert.deepStrictEqual(extra, [],
       `«${scope}» classifica campi che nessun progetto ha e che non sono nell'elenco atteso: ${extra.join(', ')}`);
   }
+});
+
+test('il trio dello stato SNMP e\' tutto MISURA e nessuno esce nell\'export (il terzo non aveva classe)', () => {
+  // `snmpError` e' il messaggio dell'ultima lettura fallita. Il guard sui progetti veri lo ha trovato
+  // solo perche' sul disco di chi lavora c'era un lab con apparati spenti: in CI passa a vuoto, quindi
+  // la sua classe si fissa QUI, dove gira sempre. E si prova l'effetto, non solo l'etichetta: un campo
+  // non classificato si tiene, e usciva.
+  for (const k of ['snmpStatus', 'snmpLastOk', 'snmpError']) {
+    assert.strictEqual(classifyField('node', k), 'measure', `node.${k} deve essere una misura`);
+  }
+  const { sanitizePortableState } = require('../lib/project-format.js');
+  const out = sanitizePortableState({
+    nodes: [{ id: 'n1', type: 'switch', name: 'SW', snmpStatus: 'err', snmpLastOk: '2026-10-01T00:00:00Z',
+      snmpError: 'timeout contacting 10.0.0.2' }],
+    links: [], ports: {}, racks: [],
+  });
+  const n = out.nodes[0];
+  for (const k of ['snmpStatus', 'snmpLastOk', 'snmpError']) {
+    assert.ok(!(k in n), `${k} non deve uscire nell'export portabile: una misura di un impianto che chi apre il file non ha davanti`);
+  }
+  assert.strictEqual(n.name, 'SW', 'il resto del nodo resta');
 });
 
 test('sui progetti VERI, se ci sono, nessun campo sfugge (in CI questo test passa a vuoto)', () => {
