@@ -26,6 +26,7 @@ import './app-autolink.js';
 import './app-snmp.js';
 import './app-vlan-autopoll.js';
 import './app-pointer.js';
+import './app-touch.js';   // pinch a due dita (mappa e rack): ascolta in cattura, prima di app-pointer
 import './app-render-core.js';
 import './app-popup.js';
 import './app-core.js';

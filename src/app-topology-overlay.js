@@ -398,7 +398,13 @@ function _drawTopoPair(p, svg, NS, isDark, els){
         line.classList.remove('tfl-hl');
     });
     hit.addEventListener('pointerdown', ev=>{
-        ev.stopPropagation();
+        // Il mouse: il clic su un cavo ha il suo gestore e non deve toccare selezione ne'
+        // panoramica. Il DITO no: con 18px di area per cavo, in Topologia le linee coprono
+        // circa un quinto della mappa (misurato sul demo da 270 cavi), e un trascinamento che
+        // parte da una di esse deve spostare la mappa come uno che parte dallo sfondo.
+        // (Il tap sul cavo continua a mostrare il tooltip via click; la deselezione al tap lo
+        // esclude: v. _deselectOnTap in app-pointer.js.)
+        if(ev.pointerType !== 'touch') ev.stopPropagation();
     });
     hit.addEventListener('click', ev=>{
         ev.stopPropagation();

@@ -281,6 +281,55 @@ export function fitRack(){
 function handleFloorZoom(e){e.preventDefault();zoomFloor(e.deltaY>0?-0.1:0.1,e.clientX,e.clientY);}
 function handleRackZoom(e){e.preventDefault();zoomRack(e.deltaY>0?-0.1:0.1);}
 
+// ---- Pinch a due dita (touch) ----------------------------------------------
+// La geometria del gesto sta qui, dove vivono zoom e pan; chi LEGGE le dita e
+// decide quando il gesto comincia e finisce e' src/app-touch.js.
+// Tutto e' calcolato dallo stato INIZIALE del gesto, mai a passi: cosi' il clamp
+// dello zoom non fa derivare il punto sotto le dita (a passi, uno zoom fermo al
+// limite si porterebbe dietro il resto del rapporto e il contenuto "scapperebbe").
+// Il principio e' uno solo: il punto della tela che stava sotto il centro delle
+// due dita all'inizio resta sotto il centro delle due dita adesso. Vale per il
+// pavimento (origine della tela = angolo della finestra) e per il rack (origine =
+// centro-alto dello chassis, cioe' il transform-origin di #rack-chassis-wrap):
+// schermo = origine + traslazione + zoom * punto. Cambia solo l'origine.
+// Torna null se gli elementi non ci sono: chi chiama non deve inventare.
+export function pinchBegin(pane){
+    const v = pane === 'rack' ? store.state.rackView : store.state.floorView;
+    let box;
+    if(pane === 'rack'){
+        const wrap = document.getElementById('rack-chassis-wrap');
+        if(!wrap) return null;
+        // L'origine e' il centro-alto del riquadro SCALATO: lo scale non lo muove (e'
+        // il transform-origin), lo sposta solo la traslazione, che si toglie.
+        // ⚠️ Il chiamante spegne la transition (body.rack-panning) PRIMA di chiamare:
+        // a meta' animazione il rect misurerebbe una via di mezzo che non esiste.
+        const r = wrap.getBoundingClientRect();
+        box = { ox: r.left + r.width / 2 - (v.x || 0), oy: r.top - (v.y || 0) };
+    } else {
+        const fp = document.getElementById('floorplan');
+        if(!fp) return null;
+        const r = fp.getBoundingClientRect();
+        box = { ox: r.left, oy: r.top };
+    }
+    return { pane, v, ox: box.ox, oy: box.oy, z0: v.zoom || 1, x0: v.x || 0, y0: v.y || 0 };
+}
+export function pinchApply(s, scale, m0x, m0y, mx, my){
+    // Gli stessi estremi di zoomFloor / zoomRack: il pinch non puo' uscire dalla scala.
+    const lo = s.pane === 'rack' ? 0.3 : 0.05, hi = 5;
+    const z = Math.max(lo, Math.min(hi, s.z0 * scale));
+    const px = (m0x - s.ox - s.x0) / s.z0, py = (m0y - s.oy - s.y0) / s.z0;
+    s.v.zoom = z;
+    s.v.x = mx - s.ox - px * z;
+    s.v.y = my - s.oy - py * z;
+    updateTransforms();
+}
+// Mentre due dita pizzicano, il percorso Safari gesture* (sotto) deve tacere: su
+// iPad il pinch del tocco arriva SIA come pointer events SIA come gesture*, e
+// applicarli tutti e due raddoppierebbe lo zoom. Il trackpad di un iPad non passa
+// da qui (non ci sono dita), quindi per lui gesture* continua a valere.
+let _touchPinch = false;
+export function setTouchPinchActive(on){ _touchPinch = !!on; }
+
 // ---- Pinch-to-zoom su trackpad --------------------------------------------
 // Chrome/Firefox mandano il pinch del trackpad gia' come wheel+ctrlKey, quindi
 // handleFloorZoom/handleRackZoom lo prendono. Su SAFARI no: il pinch e' una
@@ -297,6 +346,7 @@ function handleRackZoom(e){e.preventDefault();zoomRack(e.deltaY>0?-0.1:0.1);}
         el.addEventListener('gesturestart',  e=>{ e.preventDefault(); last = e.scale || 1; });
         el.addEventListener('gesturechange', e=>{
             e.preventDefault();
+            if(_touchPinch){ last = e.scale || last; return; }   // lo zoom lo sta gia' facendo il pinch a due dita (app-touch.js); si tiene il passo per non saltare dopo
             const s = e.scale || last;
             const ratio = s / (last || 1);
             last = s;
@@ -331,41 +381,47 @@ export function toggleRackPanel(){
     setTimeout(renderCables, 280); // dopo la transizione CSS
 }
 
-(function(){
-    const divider = ()=>document.getElementById('floor-rack-divider');
-    const rackView = ()=>document.getElementById('rack-view');
-    let _dragging=false, _startX=0, _startW=0;
-
-    document.addEventListener('mousedown', e=>{
-        const d=divider();
+// Divisore trascinabile fra due colonne. UNA sola implementazione per i due
+// divisori (palette e rack), scritta con i Pointer Events: mouse, dito e penna
+// fanno lo stesso gesto. Prima erano due copie di mousedown/mousemove/mouseup, e
+// col dito non si muovevano affatto. `grow` e' il verso: +1 se trascinare a destra
+// allarga il pannello (palette), -1 se lo restringe (rack, che sta a destra).
+// Il pannello sta fra `min` px e `maxFrac` della finestra.
+function wireDividerDrag({ dividerId, collapseBtnId, panelId, grow, min, maxFrac }){
+    let dragging=false, pid=null, startX=0, startW=0;
+    document.addEventListener('pointerdown', e=>{
+        if(e.button>0) return;   // solo tasto principale (o contatto): il destro non ridimensiona
+        const d=document.getElementById(dividerId);
         if(!d) return;
-        const onDivider = e.target===d || (d.contains(e.target) && !e.target.closest('#rack-collapse-btn'));
+        const onDivider = e.target===d || (d.contains(e.target) && !e.target.closest('#'+collapseBtnId));
         if(!onDivider) return;
-        _dragging=true;
-        _startX=e.clientX;
-        _startW=rackView().getBoundingClientRect().width;
+        dragging=true; pid=e.pointerId;
+        startX=e.clientX;
+        startW=document.getElementById(panelId).getBoundingClientRect().width;
         d.classList.add('dragging');
         document.body.style.cursor='ew-resize';
         document.body.style.userSelect='none';
     });
-    document.addEventListener('mousemove', e=>{
-        if(!_dragging) return;
-        const delta=_startX-e.clientX; // positivo → rack si allarga
-        const newW=Math.min(Math.max(_startW+delta, 260), window.innerWidth*0.65);
-        const rv=rackView();
-        rv.style.width=newW+'px';
-        rv.style.minWidth=newW+'px';
+    document.addEventListener('pointermove', e=>{
+        if(!dragging || e.pointerId!==pid) return;
+        const newW=Math.min(Math.max(startW+(e.clientX-startX)*grow, min), window.innerWidth*maxFrac);
+        const p=document.getElementById(panelId);
+        p.style.width=newW+'px';
+        p.style.minWidth=newW+'px';
         renderCables();
     });
-    document.addEventListener('mouseup', ()=>{
-        if(!_dragging) return;
-        _dragging=false;
-        const d=divider();
+    const end = e=>{
+        if(!dragging || e.pointerId!==pid) return;
+        dragging=false; pid=null;
+        const d=document.getElementById(dividerId);
         if(d) d.classList.remove('dragging');
         document.body.style.cursor='';
         document.body.style.userSelect='';
-    });
-}());
+    };
+    document.addEventListener('pointerup', end);
+    document.addEventListener('pointercancel', end);
+}
+wireDividerDrag({ dividerId:'floor-rack-divider', collapseBtnId:'rack-collapse-btn', panelId:'rack-view',    grow:-1, min:260, maxFrac:0.65 });
 
 // ---- Resize/collapse divider sidebar sx ↔ floor (orizzontale) ---------------
 let _sidebarCollapsed = false;
@@ -381,41 +437,7 @@ function toggleSidebarPanel(){
     setTimeout(renderCables, 280);
 }
 
-(function(){
-    const divider = ()=>document.getElementById('sidebar-divider');
-    const sidebar = ()=>document.getElementById('sidebar-left');
-    let _dragging=false, _startX=0, _startW=0;
-
-    document.addEventListener('mousedown', e=>{
-        const d=divider();
-        if(!d) return;
-        const onDivider = e.target===d || (d.contains(e.target) && !e.target.closest('#sidebar-collapse-btn'));
-        if(!onDivider) return;
-        _dragging=true;
-        _startX=e.clientX;
-        _startW=sidebar().getBoundingClientRect().width;
-        d.classList.add('dragging');
-        document.body.style.cursor='ew-resize';
-        document.body.style.userSelect='none';
-    });
-    document.addEventListener('mousemove', e=>{
-        if(!_dragging) return;
-        const delta=e.clientX-_startX; // positivo → sidebar si allarga
-        const newW=Math.min(Math.max(_startW+delta, 180), window.innerWidth*0.45);
-        const sb=sidebar();
-        sb.style.width=newW+'px';
-        sb.style.minWidth=newW+'px';
-        renderCables();
-    });
-    document.addEventListener('mouseup', ()=>{
-        if(!_dragging) return;
-        _dragging=false;
-        const d=divider();
-        if(d) d.classList.remove('dragging');
-        document.body.style.cursor='';
-        document.body.style.userSelect='';
-    });
-}());
+wireDividerDrag({ dividerId:'sidebar-divider',    collapseBtnId:'sidebar-collapse-btn', panelId:'sidebar-left', grow:+1, min:180, maxFrac:0.45 });
 
 // ============================================================
 // PALETTE UI

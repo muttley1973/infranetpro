@@ -1,0 +1,56 @@
+/* ============================================================
+   InfraNet Pro — styles/12-touch.css
+   Uso col dito (tablet): cosa il browser NON deve fare da solo, e bersagli grandi
+   quanto un polpastrello. Trasversale a tutti i componenti, quindi in coda alla
+   cascata e in un file a parte (v. styles/README.md, «Adding CSS»).
+   ⚠️ Il desktop non deve cambiare di un pixel: tutto ciò che altera misure sta
+   dietro `(pointer: coarse)`, cioè «il puntatore PRIMARIO è un dito». Un portatile
+   col touchscreen e il mouse resta `fine`.
+   ============================================================ */
+
+/* ---- Il browser non deve prendersi il gesto ---------------------------------
+   Senza `touch-action: none` il browser usa il trascinamento a un dito per far
+   scorrere la pagina e quello a due dita per zoomarla, e al primo movimento manda
+   `pointercancel` all'app: la mappa non si sposterebbe mai. Con `none` i gesti
+   arrivano all'app come Pointer Events (src/app-pointer.js a un dito,
+   src/app-touch.js a due). Il rack lo aveva già (04-floor-rack.css). Vale per i
+   discendenti: l'azione effettiva è l'intersezione di quelle degli antenati fino
+   al primo contenitore che scorre. */
+#floorplan { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+#sidebar-divider, #floor-rack-divider { touch-action: none; }
+/* Una pressione lunga su un apparato non deve avviare la selezione del testo ne' il menu
+   di sistema: e' il gesto con cui lo si afferra (v. _TOUCH_HOLD_MS in src/app-pointer.js). */
+#rack-viewport { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+
+/* Afferrato: la pressione lunga e' compiuta e l'apparato segue il dito. Senza un segno visibile non
+   si saprebbe se il gesto e' stato preso o se si sta per far scorrere la vista. */
+.touch-lifted { outline: 2px solid var(--accent); outline-offset: 1px; filter: brightness(1.18) drop-shadow(0 6px 10px rgba(0, 0, 0, .6)); }
+
+/* Fuori dalle tele resta lo zoom di pagina (accessibilità), ma senza lo zoom da
+   doppio tap che ritarda ogni clic, e senza l'«aggiorna trascinando» che scatta
+   con un dito sul bordo alto. */
+body { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+html, body { overscroll-behavior: none; }
+
+/* ---- Bersagli da dito (≥ ~44px, la misura di un polpastrello) --------------- */
+@media (pointer: coarse) {
+    /* I divisori misurano 6px: per un dito sono invisibili. La parte che si vede
+       resta la stessa; cresce la zona che risponde. */
+    #sidebar-divider, #floor-rack-divider { width: 18px; }
+    #sidebar-collapse-btn, #rack-collapse-btn { width: 30px; height: 60px; font-size: var(--fs-md); }
+
+    .zoom-btn { min-width: 44px; min-height: 44px; }
+    .zoom-label { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+    .sidebar-mini-btn { width: 40px; height: 40px; }
+    .palette-group-head { min-height: 44px; }
+    .equip-item { min-height: 44px; }
+
+    /* Maniglia di ridimensionamento delle stanze: 14px sono un punto, non un bersaglio. */
+    .resize-handle { width: 30px; height: 30px; }
+}
+
+/* Il «passaggio» non esiste col dito: l'effetto :hover resta incollato all'ultimo
+   elemento toccato finché non se ne tocca un altro. */
+@media (hover: none) {
+    .equip-item:hover { transform: none; }
+}

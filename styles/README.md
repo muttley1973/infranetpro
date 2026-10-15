@@ -22,6 +22,7 @@ E2E screenshots).
 | 09 | `09-user-theme.css` | user menu, viewer disabling, users modal, light-theme overrides |
 | 10 | `10-modern.css` | sub-header (`#modern-subbar`), breadcrumbs, status chips, reskin |
 | 11 | `11-overview.css` | Overview/Dashboard: columns, key→value rows, verdicts, lenses |
+| 12 | `12-touch.css` | touch use (tablet): `touch-action` on the canvases, finger-sized targets behind `(pointer: coarse)` |
 
 **Adding CSS**: put it in the module its component belongs to. A component that is
 new *and* cross-cutting → a new `NN-name.css` file + a new `<link>` at the right

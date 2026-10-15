@@ -29,7 +29,75 @@ import { snapFloor } from '../lib/floor-snap.js';   // aggancio alla griglia: re
 import { portAnchorEl, floorNodeEl, rackDeviceEl, isDrawable, FLOOR_NODE_SEL } from './app-util.js';   // ancore visuali: data-pid/data-id sono dual-use, il primo del documento è spesso un controllo del pannello
 
 // soglia drag/click (px): unico lettore era questo modulo → module-local
+// Un dito trema: appoggiato "fermo" si muove di qualche pixel, e con 5px un tap
+// sarebbe un trascinamento (l'apparato si sposta, il doppio tap non scatta). Col
+// mouse resta 5, la soglia di sempre.
 const _DRAG_THRESHOLD_PX = 5;
+const _DRAG_THRESHOLD_TOUCH_PX = 10;
+const _dragThresholdPx = e => (e && e.pointerType === 'touch') ? _DRAG_THRESHOLD_TOUCH_PX : _DRAG_THRESHOLD_PX;
+// Col dito "tocco sul vuoto = deseleziona" si decide al RILASCIO, non all'appoggio:
+// il primo dito di un pinch (o di una panoramica) atterra sempre sul vuoto, e
+// deselezionare gia' li' toglierebbe selezione e filtro VLAN a chi sta solo zoomando.
+// Col mouse resta all'appoggio, come sempre. Stato di MODULO (lo leggono solo
+// down=set e up=commit).
+let _deselectOnTap = false;
+// Ultimo punto noto del puntatore: un pointercancel non porta coordinate affidabili.
+let _lastPt = null;
+
+// ── PRESSIONE LUNGA per afferrare (solo dito) ───────────────────────────────────────────────
+// Col mouse un apparato si afferra al primo contatto. Col dito NO: i due dita di un pinch non
+// atterrano mai nello stesso istante, e il primo — spesso proprio sopra un apparato, perche' nel
+// rack gli apparati coprono quasi tutta la vista — bastava che si spostasse di 10px prima
+// dell'arrivo del secondo per trascinare l'apparato di unita', cioe' per modificare il documento
+// mentre si voleva solo ingrandire. Per questo l'apparato (e una stanza, e l'icona di un rack)
+// si afferra tenendolo premuto _TOUCH_HOLD_MS, e si vede che e' "sollevato"; un dito che si muove
+// PRIMA di allora vuole far scorrere la vista, e la fa scorrere. E' il modello delle mappe e
+// delle bacheche sul telefono. La maniglia di ridimensionamento resta immediata: e' un gesto
+// esplicito su un bersaglio che esiste solo per quello.
+// _holdReady vale true quando non c'e' niente da aspettare (mouse, penna, nessun gesto).
+const _TOUCH_HOLD_MS = 300;
+let _holdTimer = 0;
+let _holdReady = true;
+export function cancelTouchHold(){
+    clearTimeout(_holdTimer); _holdTimer = 0; _holdReady = true;
+    document.querySelectorAll('.touch-lifted').forEach(el => el.classList.remove('touch-lifted'));
+}
+function _startTouchHold(e){
+    if(e.pointerType !== 'touch') return;   // mouse/penna: si afferra subito, come sempre
+    _holdReady = false;
+    _holdTimer = setTimeout(() => {
+        _holdTimer = 0;
+        if(!(store.dragNode || store.dragRack)) return;   // il gesto non c'e' piu' (pinch, panoramica, rilascio)
+        _holdReady = true;
+        let el = null;
+        if(store.dragRack) el = document.querySelector(`.floor-rack[data-rackid="${store.dragRack}"]`);
+        else {
+            const n = nodeById(store.dragNode);
+            el = (n && TYPES[n.type] && TYPES[n.type].isRack) ? rackDeviceEl(store.dragNode) : floorNodeEl(store.dragNode);
+        }
+        if(el) el.classList.add('touch-lifted');
+    }, _TOUCH_HOLD_MS);
+}
+// Il dito si e' mosso oltre la soglia PRIMA della pressione lunga: non voleva afferrare, voleva
+// scorrere. L'apparato resta dov'e' e il gesto diventa la panoramica del suo canvas (rack o
+// mappa), partendo dal punto del tocco cosi' la vista non perde i primi pixel.
+function _dragBecomesPan(){
+    const p = store._dragDownPt;
+    const n = store.dragNode ? nodeById(store.dragNode) : null;
+    const inRack = !!(n && TYPES[n.type] && TYPES[n.type].isRack);
+    store.dragNode = null; store.dragRack = null;
+    cancelTouchHold();
+    if(inRack){
+        store.isPanningRack = true;
+        store.rackPanStart = { x:p.x, y:p.y, x0:store.state.rackView.x||0, y0:store.state.rackView.y||0 };
+        document.body.classList.add('rack-panning');
+        const rv = document.getElementById('rack-viewport'); if(rv) rv.style.cursor = 'grabbing';
+    } else {
+        store.isPanningFloor = true;
+        store.panStart = { x:p.x - store.state.floorView.x, y:p.y - store.state.floorView.y };
+        const fp = document.getElementById('floorplan'); if(fp) fp.style.cursor = 'grabbing';
+    }
+}
 
 // Doppio click su un nodo floor: rilevamento MANUALE via timestamp. Il dblclick
 // nativo NON scatta sui nodi floor — il single click chiama renderAll→renderFloor
@@ -289,6 +357,9 @@ function handlePointerDown(e){
     // a sganciare il drag solo dopo > 5px di movimento.
     store._dragDownPt = { x: e.clientX, y: e.clientY };
     store._dragArmed = false;
+    _deselectOnTap = false;
+    _lastPt = { x: e.clientX, y: e.clientY };
+    cancelTouchHold();   // un tocco nuovo: nessuna pressione lunga del gesto di prima resta in attesa
 
     // Space + click sinistro → pan ovunque sulla mappa
     if(e.target.closest('#floorplan') && store._spaceDown && e.button===0){
@@ -513,6 +584,7 @@ function handlePointerDown(e){
                 x:(e.clientX-fp.left-store.state.floorView.x)/store.state.floorView.zoom-rack.x,
                 y:(e.clientY-fp.top -store.state.floorView.y)/store.state.floorView.zoom-rack.y
             };
+            _startTouchHold(e);
         } else if(floorEl){
             e.preventDefault();
             const _fid=floorEl.dataset.id;
@@ -540,6 +612,7 @@ function handlePointerDown(e){
             const r=floorEl.getBoundingClientRect();
             if(TYPES[dn.type].isStructural) store.dragOffset={x:(e.clientX-r.left)/store.state.floorView.zoom,y:(e.clientY-r.top)/store.state.floorView.zoom};
             else store.dragOffset={x:(e.clientX-(r.left+r.width/2))/store.state.floorView.zoom,y:(e.clientY-(r.top+r.height/2))/store.state.floorView.zoom};
+            _startTouchHold(e);
             // Qui è cambiata solo la selezione (drag/offset sono stato, non DOM) e
             // il trace: renderSelection ridipinge classi, props e cavi senza il
             // rebuild da 122 ms che il banco ha misurato su 500 nodi (fase ①).
@@ -563,6 +636,7 @@ function handlePointerDown(e){
             store.dragNode=_nid; store.selType='node'; store.selId=store.dragNode;
             const r=rackEl.getBoundingClientRect();
             store.dragOffset={x:(e.clientX-r.left)/store.state.rackView.zoom,y:(e.clientY-r.top)/store.state.rackView.zoom};
+            _startTouchHold(e);
             // Le props del device rack restano chiuse al click singolo grazie al
             // guard !store._propsExplicit in renderProps() (si aprono solo con intent
             // esplicito: doppio click, tasto P, oppure switchRightTab('props')).
@@ -579,11 +653,11 @@ function handlePointerDown(e){
             const rv=document.getElementById('rack-viewport'); if(rv) rv.style.cursor='grabbing';
         } else if(e.target.closest('#floorplan')){
             store.isPanningFloor=true; store.panStart={x:e.clientX-store.state.floorView.x,y:e.clientY-store.state.floorView.y};
-            store.selType=null; store.selId=null; _clearTopoHighlight(); _hideTopoTip();
-            // Click area vuota mappa: se c'e' un filtro VLAN attivo, rimuovilo
-            // (UX coerente: click "fuori" = reset filtro/selezione).
-            if(store._filterVlan != null && typeof setVlanFilter === 'function') setVlanFilter(null);
-            else renderScope('selection');   // solo deselezione → niente rebuild (fase ①)
+            // Col dito si deseleziona al RILASCIO, se e' stato un tap (v. _deselectOnTap). Non se il dito
+            // e' sopra un cavo della Topologia: il tap su un cavo apre il suo tooltip, come col mouse, e
+            // non deve togliere la selezione di chi sta guardando altro.
+            if(e.pointerType==='touch') _deselectOnTap = !e.target.closest('#topo-floor-overlay');
+            else _deselectOnEmptyMap();
         } else if(e.target.closest('#workspace')&&!e.target.closest('.cable-hit')){
             if(store.linkStart){ _cancelLink(); }
             store.selType=null; store.selId=null; _clearTopoHighlight(); _hideTopoTip();
@@ -593,17 +667,28 @@ function handlePointerDown(e){
     }
 }
 
+// Click sul vuoto della mappa: deseleziona e, se c'e' un filtro VLAN attivo, lo
+// toglie (UX coerente: click "fuori" = reset filtro/selezione).
+function _deselectOnEmptyMap(){
+    store.selType=null; store.selId=null; _clearTopoHighlight(); _hideTopoTip();
+    if(store._filterVlan != null && typeof setVlanFilter === 'function') setVlanFilter(null);
+    else renderScope('selection');   // solo deselezione → niente rebuild (fase ①)
+}
+
 function handlePointerMove(e){
-    // Threshold drag/click: finche' il puntatore non si e' mosso > 5px
+    _lastPt = { x: e.clientX, y: e.clientY };
+    // Threshold drag/click: finche' il puntatore non si e' mosso > 5px (10 col dito)
     // dal pointerdown, blocchiamo l'avanzamento dei drag attivi (rack
     // device, floor node, rack icon, resize). Pan e link-trace non sono
     // soggetti al threshold (richiedono tracking immediato).
     if(!store._dragArmed && store._dragDownPt && (store.dragNode || store.dragRack || store.resizeNode)){
         const _dx = e.clientX - store._dragDownPt.x;
         const _dy = e.clientY - store._dragDownPt.y;
-        if((_dx*_dx + _dy*_dy) < (_DRAG_THRESHOLD_PX * _DRAG_THRESHOLD_PX)) return;
-        store._dragArmed = true;
+        const _th = _dragThresholdPx(e);
+        if((_dx*_dx + _dy*_dy) < (_th * _th)) return;
         _floorDblId = null; _floorDblTime = 0;   // un drag NON è la 1ª metà di un doppio click → invalida il timer del doppio click floor
+        if(!_holdReady && (store.dragNode || store.dragRack)) _dragBecomesPan();   // dito mosso PRIMA della pressione lunga: scorre la vista (v. sopra)
+        else store._dragArmed = true;
     }
     if(store.isPanningFloor){
         store.state.floorView.x=e.clientX-store.panStart.x; store.state.floorView.y=e.clientY-store.panStart.y;
@@ -769,15 +854,21 @@ function _pointerMoved(e){
     const p = store._dragDownPt;
     if(!p) return true;   // origine sconosciuta → non azzardare, tratta come movimento
     const dx = e.clientX - p.x, dy = e.clientY - p.y;
-    return (dx*dx + dy*dy) >= (_DRAG_THRESHOLD_PX * _DRAG_THRESHOLD_PX);
+    const th = _dragThresholdPx(e);
+    return (dx*dx + dy*dy) >= (th * th);
 }
 
 function handlePointerUp(e){
+    cancelTouchHold();   // rilascio: niente pressione lunga in sospeso, niente apparato "sollevato"
     // Drag/resize: solo tasto sinistro
     if(e.button===0){
         if(store.isPanningFloor){
             store.isPanningFloor=false;
-            if(_pointerMoved(e)) markDirty();
+            const _moved = _pointerMoved(e);
+            if(_moved) markDirty();
+            // Dito: un TAP sul vuoto deseleziona (e toglie il filtro VLAN), una panoramica no.
+            if(_deselectOnTap && !_moved) _deselectOnEmptyMap();
+            _deselectOnTap = false;
             const fp=document.getElementById('floorplan');
             if(fp) fp.style.cursor=store._spaceDown?'grab':'';
             _renderModeIndicator();
@@ -880,6 +971,20 @@ function handlePointerUp(e){
         }
     }
 }
+
+// Il browser si e' ripreso il gesto (tocco interrotto: bordo dello schermo, palmo,
+// notifica di sistema). Senza questo restavano armati pan, trascinamento e
+// anteprima del cavo, perche' nessun pointerup sarebbe mai arrivato. Si chiude
+// come un rilascio nell'ULTIMO punto noto: un pointercancel non porta coordinate
+// su cui contare. Il drag gia' avviato resta dov'e' (e' dove l'utente l'ha portato).
+function handlePointerCancel(e){
+    const p = _lastPt || { x: e.clientX, y: e.clientY };
+    handlePointerUp({ button:0, clientX:p.x, clientY:p.y, pointerType:e.pointerType });
+}
+// Registrato qui e non in app.js: un riferimento bare in piu' in app.js alzerebbe
+// il tetto del ponte (test/bridge-ratchet.test.js) per un gesto che e' di questo modulo.
+// Su `document`: il DOM finto dei test smoke non ha `window.addEventListener` (v. app-touch.js).
+document.addEventListener('pointercancel', handlePointerCancel);
 
 function handleDoubleClick(e){
     // Priorita 1: porta. Differenziazione per contesto:

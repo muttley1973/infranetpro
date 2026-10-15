@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **The map and the rack can be used with a finger on a tablet.** Two fingers zoom and pan (the point under your fingers stays put); a device, a room or a rack icon is grabbed by pressing it for a moment (it lifts), so zooming never moves anything and a finger that slides first just scrolls the view. A tap selects, the panel dividers can be dragged, and a tap on the empty map deselects only when it really is a tap. Sizes grow for a finger only on touch screens; a mouse sees no difference. Tested on Chrome with emulated touch; not yet on a real tablet or an iPad.
+
 ## [2.11.14] — 2026-10-06
 
 A device that never answers no longer freezes the monitoring, and the port descriptions get a report.

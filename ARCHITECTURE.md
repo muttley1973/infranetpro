@@ -1307,6 +1307,12 @@ with an X button and a `*-title` id.
   Properties panel. Removes the "not reproducible in browser" blind spot the DOM
   stub can't cover. **Off by default** (needs Chrome + a server spawn): run with
   `RUN_E2E=1 npm run e2e`. `npm test` reports it as skipped.
+- **Touch E2E** (`test/e2e/touch.test.js`, same helpers, run by the same `npm run e2e`): a Chrome
+  context with `hasTouch` (real `(pointer: coarse)` and `(hover: none)`) and **synthetic fingers**
+  through CDP `Input.dispatchTouchEvent` — pan, tap vs. jitter, pinch (zoom, fixed focal point, limits),
+  resuming a pinch, rack, dividers, `pointercancel`, and the mouse left unchanged. To lift ONE finger
+  send `touchEnd` with that point; a `touchMove` with a single point does not lift anything.
+  It lives in its own file so the flow count quoted in the README stays that of `critical-flows`.
 - `test/smoke-ui.test.js` still asserts UX markers in the rendered HTML inside the
   DOM stub. For *manual* visual inspection in dev, `INFRANET_DEV_NO_AUTH=1` (see
   auth.js) lets the preview tooling reach the UI without a login — off by default,
@@ -1811,6 +1817,39 @@ is VPN/LAN.
   preserves the resolved vendor (`_discCrawlRow`, `src/app-discovery.js`). The two discovery
   items this section used to leave open — the ping-sweep **exit-code false positive** and the
   **off-segment ping-only** miss under sweep load — are both addressed (above).
+
+### Touch input (tablet)
+
+The canvases are driven by **Pointer Events**, so one finger already behaves like the mouse
+(`src/app-pointer.js`): tap selects, drag moves or pans, a manual timestamp makes a double tap.
+What a mouse cannot do lives in `src/app-touch.js`: the **two-finger pinch** (zoom + pan, floor
+and rack). It listens in the *capture* phase on `document` (before every element and before the app's own handlers on `window`) and stops every event of a second finger,
+so the rest of the app keeps thinking in terms of one pointer. Rules worth knowing:
+
+- With a finger a device (and a room, and a rack icon on the map) is **grabbed by a long press**
+  (`_TOUCH_HOLD_MS`, 300 ms; the pressed element gets `.touch-lifted`), not on first contact. A finger that
+  moves *before* that wants to scroll, so the gesture becomes a pan of its canvas (`_dragBecomesPan`) and
+  nothing moves. This is what makes the pinch safe: two fingers never land together, the first one is
+  usually on a device (in the rack they cover most of the view), and an immediate grab turned a few pixels of
+  drift into a device moved to another U. The mouse and the pen still grab immediately; the resize handle too.
+- `touch-action: none` on `#floorplan`, `#rack-viewport` and the two dividers (`styles/12-touch.css`).
+  Without it the browser takes the drag for page scroll and fires `pointercancel` at the first
+  move, so nothing on the map would ever move.
+- A second finger **turns the first finger's gesture into a pinch** (its pan or not-yet-grabbed device is
+  released, so no device moves). If the first finger is already moving a grabbed device, the second one is
+  ignored. A lone finger left after a pinch does nothing; putting the other back resumes the pinch.
+- The pinch is computed from the **start of the gesture**, never step by step: the canvas point under
+  the centre of the two fingers at the start stays under it (`pinchBegin`/`pinchApply`, in
+  `src/app-search-zoom-rack.js`; floor and rack differ only in the origin of that formula), and the zoom
+  clamp cannot make it drift.
+- With a finger, "tap on empty map = deselect" is decided on **release**, not on touch-down: the first
+  finger of a pinch always lands on the empty map, and deselecting there would drop the selection and
+  the VLAN filter of someone who is only zooming. The drag threshold is 10 px instead of 5.
+- `pointercancel` is handled (closes the gesture as a release at the last known point).
+- Sizes that only make sense for a finger are behind `(pointer: coarse)`; the desktop does not change by a pixel.
+- On iPad the same pinch also arrives as Safari `gesture*` events; the old handler yields while the
+  Pointer-Events pinch is active (`setTouchPinchActive`) to avoid zooming twice. **Not verified on a
+  real iPad** — the tests emulate touch in Chrome (`test/e2e/touch.test.js`).
 
 ---
 
