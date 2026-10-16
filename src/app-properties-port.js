@@ -420,7 +420,7 @@ export function _renderPortProps(panel){
                 const _vlanDet = hasPortVlan(pi);
                 const _vlanField = (label) => `<div class="prop-group"><label>${label}</label>
                     <div style="display:flex;gap:5px">
-                      <input type="number" min="1" max="4094" value="${_vlanDet ? effVlan : ''}" placeholder="${effVlan}" class="${pi.vlanOvr!=null?'ovr':''}" style="flex:1"
+                      <input type="number" min="1" max="4094" value="${escapeHTML(_vlanDet ? effVlan : '')}" placeholder="${escapeHTML(effVlan)}" class="${pi.vlanOvr!=null?'ovr':''}" style="flex:1"
                              data-change="port-field" data-pid="${pid}" data-pfield="vlanOvr">
                       <button type="button" class="toolbar-btn" style="padding:2px 7px;margin:0;font-size:0.78rem;line-height:1${pi.vlanOvr!=null?';color:var(--accent);border-color:var(--accent)':''}" data-tip="${t(pi.vlanOvr!=null?'lock.locked':'lock.unlocked')}" aria-label="${t(pi.vlanOvr!=null?'lock.locked':'lock.unlocked')}" aria-pressed="${pi.vlanOvr!=null?'true':'false'}" data-act="port-vlan-lock" data-pid="${pid}"><i class="fas fa-lock${pi.vlanOvr!=null?'':'-open'}"></i></button>
                     </div>

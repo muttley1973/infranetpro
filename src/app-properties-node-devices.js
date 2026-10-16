@@ -396,7 +396,7 @@ export function _floorAccessVlanRow(n, pid){
     return `<div style="display:flex;align-items:center;gap:7px">
         <span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${col};flex-shrink:0;border:1px solid rgba(255,255,255,.18)"></span>
         <input type="number" min="1" max="4094" class="${ovrCls}" style="flex:1"
-               value="${pi.vlanOvr != null ? pi.vlanOvr : ''}" placeholder="${eff}"
+               value="${escapeHTML(pi.vlanOvr != null ? pi.vlanOvr : '')}" placeholder="${eff}"
                data-tip="${tip}"
                data-change="endpoint-vlan" data-nid="${n.id}" data-pid="${pid}">
       </div>`;
