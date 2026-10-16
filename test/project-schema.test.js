@@ -125,7 +125,16 @@ test('CRICCHETTO — la classifica non elenca campi mai visti in nessun progetto
     // Da dove viene il valore di marca/modello/matricola/firmware (16/10): lo scrive il Sync quando copia la
     // lettura in un campo vuoto, quindi esiste solo su un progetto sincronizzato con uno switch che pubblica
     // l'ENTITY-MIB — il censimento del 28/08 non poteva contenerlo. Misura, non dichiarazione.
-    'copiedFromRead']);
+    'copiedFromRead',
+    // Misure e lucchetto che il guardiano sui percorsi di lettura (test/field-provenance.test.js) ha trovato
+    // scritti dall'SNMP senza classe (16/10). Esistono solo se l'apparato giusto e` stato letto — un UPS per
+    // `powerLive*`, un IPv6 diverso dal dichiarato per `ip6Real`, uno stack per `stackDetectionHint` — o se una
+    // persona ha chiuso il lucchetto dell'IPv6 (`ip6Manual`): il censimento del 28/08 non poteva contenerli.
+    'ip6Real', 'ip6Manual', 'powerLive', 'powerLiveAt', 'powerUnreadable', 'portReconcileConflicts', 'stackDetectionHint',
+    'operWait', 'statusOvr', 'speedOvr',
+    // Tre scelte da menu fatte a mano (progetto 24, 16/10): il WAN e il routing di un router, la connessione di una
+    // stampante. Esistono solo dopo la scelta, quindi il censimento del 28/08 non poteva contenerle.
+    'connection', 'rtWanType', 'rtRoutingProtos']);
   for (const scope of Object.keys(CENSUS)) {
     const visti = new Set(keysOf(scope));
     const extra = Object.keys(FIELD_CLASS_BY_SCOPE[scope]).filter(k => !visti.has(k) && !attesi.has(k));
@@ -406,4 +415,30 @@ test('copiedFromRead e\' MISURA: il valore esce nell\'export, la traccia no', ()
   assert.strictEqual(n.model, 'GS1900-24', 'il valore e\' il lavoro (anche copiato) e viaggia');
   assert.strictEqual(n.serialNumber, 'S1');
   assert.ok(!('copiedFromRead' in n), 'la traccia rimanda a una lettura che nel documento portabile non c\'e\'');
+});
+
+// ── Una chiave doppia in una mappa vince IN SILENZIO l'ultima ────────────────────────────────────────
+// `firmwareVer` era classificato `measure` in fondo alla mappa del nodo: una riga aggiunta piu' in alto,
+// con `document`, sarebbe stata cancellata senza un errore (16/10). Un oggetto letterale non avvisa: si
+// legge il TESTO. Le classi vanno scritte una volta.
+test('nessuna mappa di classificazione ha una chiave doppia', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'lib', 'project-schema.js'), 'utf8');
+  const doppie = [];
+  for (const nome of ['STATE', 'NODE', 'SPEC', 'PORT', 'LINK']) {
+    const inizio = src.indexOf('  const ' + nome + ' = {');
+    assert.ok(inizio >= 0, 'mappa ' + nome + ' non trovata');
+    const corpo = src.slice(inizio, src.indexOf('\n  };', inizio)).replace(/\/\/.*$/gm, '');
+    const viste = new Map();
+    for (const m of corpo.matchAll(/(?:^|[,{\s])([A-Za-z0-9_]+)\s*:\s*'([a-z]+)'/g)) {
+      if (viste.has(m[1])) doppie.push(`${nome}.${m[1]} (${viste.get(m[1])} poi ${m[2]})`);
+      viste.set(m[1], m[2]);
+    }
+    assert.ok(viste.size > 5, nome + ': letta davvero? ' + viste.size);
+  }
+  assert.deepEqual(doppie, [], 'chiavi doppie nelle mappe di lib/project-schema.js — vince l\'ultima, in silenzio');
+});
+
+test('firmwareVer e\' DOCUMENT: una persona lo scrive nel pannello, e il Sync lo riempie quando e\' vuoto', () => {
+  assert.strictEqual(classifyField('node', 'firmwareVer'), 'document');
+  assert.strictEqual(exportActionFor('node', 'firmwareVer'), 'keep', 'la versione digitata a mano non si butta nell\'export');
 });
