@@ -6322,6 +6322,53 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(errs.length, 0, 'nessun errore JS: ' + errs.join(' | '));
     });
 
+    await t.test('Scopri: il NOME di una riga — sysName per un apparato SNMP, modello dove l\'hostname e\' generico, `dc-01` non e\' un blob', async () => {
+      const r = await page.evaluate(() => ({
+        // dodici «Catalyst 2960» in colonna non dicono quale sia quale: il nome che l'amministratore ha dato, si'
+        snmp: _discDisplayName({ ip: '10.0.0.11', snmpReachable: true, snmpModel: 'Catalyst 2960', hostname: 'SW-ACCESS-01' }),
+        // senza hostname leggibile resta il modello
+        snmpNoName: _discDisplayName({ ip: '10.0.0.12', snmpReachable: true, snmpModel: 'Catalyst 2960', hostname: '' }),
+        // dove l'hostname e' un default generico (mDNS/ONVIF) il modello e' l'identita'
+        mdns: _discDisplayName({ ip: '10.0.0.13', hostname: 'IPC-BO', mdns: { model: 'RLC-810A' } }),
+        // un nome fatto di sillabe a-f/cifre e' un nome
+        dc: _discDisplayName({ ip: '10.0.0.14', hostname: 'dc-01' }),
+        // un UUID no: si ricade sull'IP
+        uuid: _discDisplayName({ ip: '10.0.0.15', hostname: '5f2a9c1e-0b3d-4c8e-9a41-7d6e2b1f3a90' }),
+        // un hostname generico di classe («gateway») nemmeno
+        generic: _discDisplayName({ ip: '10.0.0.16', snmpReachable: true, snmpModel: 'RB4011', hostname: 'router' }),
+      }));
+      assert.equal(r.snmp, 'SW-ACCESS-01');
+      assert.equal(r.snmpNoName, 'Catalyst 2960');
+      assert.equal(r.mdns, 'RLC-810A');
+      assert.equal(r.dc, 'dc-01');
+      assert.equal(r.uuid, '10.0.0.15');
+      assert.equal(r.generic, 'RB4011', 'un hostname generico non batte il modello');
+    });
+
+    await t.test('Export: titoli e nomi dei file portano il nome del progetto APERTO, non «InfraNet Pro»/«infranet»', async () => {
+      const r = await page.evaluate(() => {
+        const sel = document.getElementById('project-select');
+        const opt = sel && sel.selectedOptions && sel.selectedOptions[0];
+        const nome = opt ? opt.textContent.trim() : '';
+        const X = window._exportInternals;
+        const out = { nome, project: X._exportProjectName(), stem: X._exportFileStem() };
+        // un nome con spazi, accenti e simboli: lo stem resta un nome di file sicuro e non si svuota
+        const old = opt ? opt.textContent : null;
+        if (opt) opt.textContent = 'Sede Società & C. / piano 2';
+        out.stemSporco = X._exportFileStem();
+        if (opt) opt.textContent = '日本語';
+        out.stemSoloSimboli = X._exportFileStem();
+        if (opt) opt.textContent = old;
+        return out;
+      });
+      assert.ok(r.nome, 'c\'e\' un progetto aperto con un nome');
+      assert.equal(r.project, r.nome, 'il titolo e\' il nome del progetto');
+      assert.match(r.stem, /^[A-Za-z0-9_-]+$/, 'stem sicuro per un file');
+      assert.notEqual(r.stem, 'infranet', 'non il segnaposto');
+      assert.equal(r.stemSporco, 'Sede_Societ_C_piano_2', 'spazi, accenti e simboli → un nome di file leggibile');
+      assert.equal(r.stemSoloSimboli, 'infranet', 'un nome fatto solo di simboli non lascia un file senza nome');
+    });
+
     // Etichetta di planimetria: PRIMA cosa e', POI dove sta. Lo Scopri, senza
     // hostname, mette l'IP in `node.name` (app-discovery.js `_discDisplayName`):
     // la riga leggibile va DERIVATA dal misurato, senza riscrivere il documento.

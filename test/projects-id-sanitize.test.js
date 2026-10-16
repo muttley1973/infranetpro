@@ -111,3 +111,31 @@ test('POST /api/projects/:id/history/snapshots: nemmeno uno snapshot conserva un
   const body = await g.json();
   verifica(body.state || (body.snapshot && body.snapshot.state), 'snapshot');
 });
+
+test('chi salva viene AVVISATO di cio\' che il server ha corretto (intestazione X-InfraNet-Sanitized)', async () => {
+  const c = await fetch(url('/api/projects'), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'avviso', state: { nodes: [], links: [], racks: [] } }),
+  });
+  assert.equal(c.headers.get('x-infranet-sanitized'), null, 'nessuna correzione → nessuna intestazione');
+  const id = (await c.json()).id;
+
+  const st = stato();
+  st.nodes[1].ip = HOSTILE;                       // un IP che non e' un indirizzo
+  const r = await fetch(url(`/api/projects/${id}`), {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ state: st }),
+  });
+  assert.equal(r.status, 200);
+  assert.equal(r.headers.get('x-infranet-sanitized'), 'ip=1;id=2', 'un IP azzerato, due id (rack e cavo) rinominati');
+
+  const pulito = await fetch(url(`/api/projects/${id}`), {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ state: { nodes: [], links: [], racks: [{ id: 'r1', name: 'R' }] } }),
+  });
+  assert.equal(pulito.headers.get('x-infranet-sanitized'), null, 'uno stato pulito non fa rumore');
+
+  const nuovo = await fetch(url('/api/projects'), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'avviso2', state: stato() }),
+  });
+  assert.equal(nuovo.headers.get('x-infranet-sanitized'), 'ip=0;id=2', 'anche l\'import (POST) lo dice');
+});

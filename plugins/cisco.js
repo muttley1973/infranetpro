@@ -4,6 +4,7 @@ const vendorPrefix = '1.3.6.1.4.1.9';
 
 const knownModels = [
   ['1.3.6.1.4.1.9.1.516', 'Catalyst 3750', 'switch'],
+  ['1.3.6.1.4.1.9.1.359', 'Catalyst 2950', 'switch'],
   ['1.3.6.1.4.1.9.1.694', 'Catalyst 2960', 'switch'],
   ['1.3.6.1.4.1.9.1.1208', 'Catalyst 2960-S', 'switch'],
   ['1.3.6.1.4.1.9.1.1745', 'Catalyst 2960-X', 'switch'],
@@ -38,6 +39,11 @@ function inferCiscoType(text, sysServices) {
   if (/\bwlc\b|\bwism\b|air-?ct[0-9]|aire-?os|cisco controller|wireless\s*lan\s*controller|wlan\s*controller|catalyst\s*9800|\bc9800/.test(text)) return 'wlanctrl';
   if (/aironet|access point|\bap\b/.test(text)) return 'ap';
   if (/catalyst|nexus|switch|ios[_-]?l2/.test(text)) return 'switch';
+  // Il CODICE del modello: lo sysDescr di un Catalyst vecchio dice «C2950 Software», non
+  // «Catalyst» ne' «switch». Solo codici di famiglie che sono SWITCH (2940-2970, 3550-3850, 4500,
+  // 9200-9600): C3600/C3700 sono router («c3725», «c3745»), C9800 e' il controller wireless
+  // (gia' preso sopra). Senza questo un 2950 (sysServices 6 = L2+L3) cadeva sul «router».
+  if (/\bws-c\d{3,4}|\bc(?:29[4-7]0|35[56]0|3650|3750|3850|4500|9[2-6]\d{2})[a-z]{0,3}\b/.test(text)) return 'switch';
   const svc = parseInt(sysServices || 0, 10) || 0;
   if ((svc & 2) && !(svc & 4)) return 'switch';
   return 'router';

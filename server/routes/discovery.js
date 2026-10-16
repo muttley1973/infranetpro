@@ -9,7 +9,7 @@ const os  = require('os');
 const auth = require('../../auth');
 const { DRIVERS } = require('../drivers');
 const { buildNeighborCandidates, buildPortIndex, buildMacIndex, buildPortMacIndex, buildFdbCandidates, buildArpCandidates, buildNdCandidates, locateMacsOnEdge } = require('../../lib/correlate');
-const { expandSubnet, _execFileAsync, _pingHost, _pingHostRetry, _stealthDelayMs, _normMac, _parseArpTable, _readArpMap, _demoteStaleArpDup, _readLocalInterfaceMap, _readLocalCidrs, _extractTitle, _httpProbe, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost, _mdnsSsdpSweep, _shuffled } = require('../netscan');
+const { expandSubnet, _execFileAsync, _pingHost, _pingHostRetry, _stealthDelayMs, _normMac, _parseArpTable, _readArpMap, _demoteStaleArpDup, _readLocalInterfaceMap, _readLocalCidrs, _extractTitle, _httpProbe, _tcpProbe, _deepScanHost, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost, _mdnsSsdpSweep, _shuffled, resetToolWarnings, toolWarnings } = require('../netscan');
 const { _cleanHostname, _penFromObjectId, _vendorByObjectId, _decodeSysServices, _classifyDiscoveredDevice, _buildDiscoveryMeta, _decorateDiscoveryRow } = require('../classify');
 const { OuiEngine } = require('../../engine');
 const { publicMdns } = require('../../lib/discovery-mdns');
@@ -281,6 +281,7 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
     let ips;
     try { ips = expandSubnet(subnet); }
     catch(e) { return res.json({ ok: false, error: e.message }); }
+    resetToolWarnings();   // gli strumenti mancanti si contano PER scansione: installare `ping` fa sparire l'avviso al giro dopo
 
     const safe = String(safeMode) !== 'false';
     const defaultConc = safe ? 32 : 64;
@@ -442,7 +443,7 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
                   dns.reverse(row.ip),
                   new Promise((_, rej) => { dnsTo = setTimeout(() => rej(new Error('dns-timeout')), 700); }),
                 ]);
-                if (Array.isArray(names) && names[0]) row.hostname = _cleanHostname(names[0]);
+                if (Array.isArray(names) && names[0]) { row.hostname = _cleanHostname(names[0]); row.hostnameFrom = 'dns'; }
               } catch (_) {} finally { clearTimeout(dnsTo); }
             })());
           }
@@ -496,7 +497,10 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
                       if (di && Array.isArray(di.ips) && di.ips.length > 1) row.ownIps = di.ips;
                     } catch (_) {}
                   }
-                  row.hostname = row.hostname || _cleanHostname(sn.hostname || '');
+                  // Il nome che l'apparato dichiara di se' (sysName) vale come hostname solo se il DNS
+                  // non ne ha dato uno; e si ricorda DA DOVE viene, perche' chi classifica non lo
+                  // presenti come «risolto dal DNS» quando e' una lettura SNMP.
+                  if (!row.hostname && sn.hostname) { row.hostname = _cleanHostname(sn.hostname); if (row.hostname) row.hostnameFrom = 'snmp'; }
                   row.alive = true;
                   row.status = 'On';
                 }
@@ -684,7 +688,11 @@ router.post('/api/discover', auth.requireAdmin, async (req, res) => {
 
     const found = results.filter(r => r.alive).length;
     console.log(`  [DISCOVER] ${subnet}: scansionati ${total}, candidati ${results.length}, attivi ${found}, safe=${safe}, conc=${CONC}`);
-    res.json({ ok: true, total, found, seen: results.length, results, safeMode: safe, concurrencyUsed: sweepConc, stealth, scanDelayMs });
+    // Gli strumenti di sistema che sono mancati durante la scansione (`ping`, la tabella ARP):
+    // senza questo un «0 host» e' indistinguibile da una rete vuota.
+    const warnings = toolWarnings();
+    if (warnings.length) console.warn(`  [DISCOVER] ${subnet}: strumenti mancanti: ${warnings.map(w => w.tool).join(', ')}`);
+    res.json({ ok: true, total, found, seen: results.length, results, safeMode: safe, concurrencyUsed: sweepConc, stealth, scanDelayMs, warnings });
   } catch (err) {
     const msg = err?.message || String(err);
     console.error(`  [DISCOVER] errore non fatale: ${msg}`);

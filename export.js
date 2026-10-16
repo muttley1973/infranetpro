@@ -147,6 +147,26 @@ function _csvColumnsFor(fields){
     return cols;
 }
 
+
+// Nome del progetto APERTO, per titoli e nomi di file. `#header-proj-name` non esiste piu' (la barra
+// del progetto e' quella in alto, `#project-select`) e `state.projectName` non lo scrive nessuno: tutti
+// gli export uscivano «InfraNet Pro» / «infranet_cables.csv», qualunque progetto fosse aperto.
+function _exportProjectName(){
+    try{
+        const sel=document.getElementById('project-select');
+        const o=sel&&sel.selectedOptions&&sel.selectedOptions[0];
+        const txt=o&&String(o.textContent||'').trim();
+        if(txt) return txt;
+    }catch(_){ /* nessun DOM: si ripiega */ }
+    const st=(typeof state==='object'&&state)||{};
+    return (st.projectName&&String(st.projectName).trim())||'';
+}
+// Stem sicuro per un file: lettere/cifre/_-, mai vuoto o fatto di soli trattini bassi.
+function _exportFileStem(){
+    const stem=(_exportProjectName()||'infranet').replace(/[^a-z0-9_-]/gi,'_').replace(/_{2,}/g,'_').replace(/^_+|_+$/g,'');
+    return stem||'infranet';
+}
+
 function exportLabelsCSV(fields){
     const set = fields instanceof Set ? fields : new Set(LABEL_FIELDS().map(f=>f.k));
     const cols=_csvColumnsFor(set);
@@ -157,7 +177,7 @@ function exportLabelsCSV(fields){
     const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
     const a=document.createElement('a');
     a.href=URL.createObjectURL(blob);
-    a.download=`${(state.projectName||'infranet').replace(/[^a-z0-9_-]/gi,'_')}_cables.csv`;
+    a.download=`${_exportFileStem()}_cables.csv`;
     a.click();
     setTimeout(()=>URL.revokeObjectURL(a.href),5000);
 }
@@ -334,7 +354,7 @@ async function confirmLabelExport(){
         const url=URL.createObjectURL(blob);
         const a=document.createElement('a');
         a.href=url;
-        a.download=`${(state.projectName||'infranet').replace(/[^a-z0-9_-]/gi,'_')}_etichette.pdf`;
+        a.download=`${_exportFileStem()}_etichette.pdf`;
         a.click();
         setTimeout(()=>URL.revokeObjectURL(url),5000);
     }catch(err){
@@ -832,7 +852,7 @@ function exportDrawio(){
     const blob=new Blob([xml],{type:'application/xml;charset=utf-8'});
     const a=document.createElement('a');
     a.href=URL.createObjectURL(blob);
-    a.download=`${(state.projectName||'infranet').replace(/[^a-z0-9_-]/gi,'_')}_rack.drawio`;
+    a.download=`${_exportFileStem()}_rack.drawio`;
     a.click();
     setTimeout(()=>URL.revokeObjectURL(a.href),5000);
 }
@@ -1477,7 +1497,7 @@ function _buildPdfReportData() {
         const _lg = (typeof getLang === 'function' ? getLang() : 'it');
         handoff = buildHandoffSections({
             title: (_lg === 'en' ? 'Handover dossier' : 'Dossier di consegna'),
-            project: document.getElementById('header-proj-name')?.textContent?.trim() || 'InfraNet Pro',
+            project: _exportProjectName() || 'InfraNet Pro',
             date: new Date().toLocaleDateString(_lg === 'en' ? 'en-GB' : 'it-IT'),
             user: (typeof _currentUser === 'object' && _currentUser && _currentUser.username) || '',
             // Le NOTE non passano piu' di qui: vivono nel registro asset, accanto al
@@ -1654,7 +1674,7 @@ async function exportPDF(opts={}){
     try {
         if(btn){ btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i>'; }
 
-        const projName=document.getElementById('header-proj-name')?.textContent?.trim()||'InfraNet Pro';
+        const projName=_exportProjectName()||'InfraNet Pro';
 
         // Invia il bgImage separatamente: svg-to-pdfkit non gestisce i data URI
         // nei tag <image>; pdfkit aggiunge l'immagine via doc.image() nativo.
@@ -1787,6 +1807,6 @@ window.exportDrawio = exportDrawio;
 window._exportInternals = {
     _buildFloorSVG, _buildRackSVG, _buildRackSvgs, _buildPdfReportData,
     _cableLabelRows, _nodeRoomName, _csvColumnsFor, _parseSvgSize, _genericGridFromUi,
-    _ensureSvgXmlns, _svgDataUri,
+    _ensureSvgXmlns, _svgDataUri, _exportProjectName, _exportFileStem,
 };
 })();

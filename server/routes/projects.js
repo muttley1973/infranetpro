@@ -173,6 +173,14 @@ function _repairUnsafeIds(state) {
   return n;
 }
 
+// ── Quanto e' stato corretto, detto a chi ha salvato ─────────────────────────
+// Azzerare un IP o rinominare un id senza dirlo e' una modifica silenziosa del lavoro di
+// qualcuno: il log del server la registra, ma chi ha premuto Salva non lo vede. Il numero viaggia
+// in un'INTESTAZIONE (il corpo e' il DTO pubblico, v. ETag), e il client lo dice in un avviso.
+function _noteSanitized(res, { ip = 0, id = 0 } = {}) {
+  if (ip || id) res.set('X-InfraNet-Sanitized', `ip=${ip | 0};id=${id | 0}`);
+}
+
 // ── Chi ha in mano quale versione ────────────────────────────────────────────
 // L'ETag viaggia nell'INTESTAZIONE, non nel corpo: il corpo di GET/POST/copia è il
 // DTO del progetto, che esce anche dalla REST API v1 e dall'inventario Ansible, e
@@ -199,9 +207,9 @@ router.post('/api/projects', auth.requireAdmin, async (req, res) => {
     return res.status(400).json({ error: 'state must be an object', code: 'bad-state' });
   }
   const state = req.body?.state ?? {};
-  _repairUnsafeIds(state);
+  const fixedIds = _repairUnsafeIds(state);
   _sanitizeBackupRefs(state);
-  _sanitizeNodeAddrs(state);
+  const clearedIp = _sanitizeNodeAddrs(state);
   const now   = timestamp();
   // Qui si toglie e basta, senza far confluire niente: una presenza che arriva
   // insieme a un progetto NUOVO (import di un export altrui) è la misura di
@@ -220,6 +228,7 @@ router.post('/api/projects', auth.requireAdmin, async (req, res) => {
     return nuovo;
   });
   _tag(res, id);
+  _noteSanitized(res, { ip: clearedIp, id: fixedIds });
   res.status(201).json(loadProject(id));
 });
 
@@ -286,9 +295,9 @@ router.put('/api/projects/:id', auth.requireAdmin, async (req, res) => {
   }
   const name  = req.body?.name  ? (req.body.name.toString().trim() || p.name) : p.name;
   const state = req.body?.state !== undefined ? req.body.state : p.state;
-  _repairUnsafeIds(state);
+  const fixedIds = _repairUnsafeIds(state);
   _sanitizeBackupRefs(state);
-  _sanitizeNodeAddrs(state);
+  const clearedIp = _sanitizeNodeAddrs(state);
   const now   = timestamp();
   _presenceOutOfDocument(id, state);
   _observationsOutOfDocument(id, state);
@@ -325,6 +334,7 @@ router.put('/api/projects/:id', auth.requireAdmin, async (req, res) => {
   // intero per poter salvare una seconda volta, e il secondo Salva prenderebbe un
   // 409 contro sé stesso.
   _tag(res, id);
+  _noteSanitized(res, { ip: clearedIp, id: fixedIds });
   res.json({ id, name, updated_at: now });
 });
 

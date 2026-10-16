@@ -42,6 +42,19 @@ test('stripLagOnPassive: toglie il tag LAG (non il cavo) ai link verso un passiv
   assert.equal(links[1].lagLogicalKey, 'K', 'il LAG switch-switch resta');
 });
 
+test('stripLagOnPassive: conta SOLO gli aggregati veri — un `lagMembers: []` vuoto e\' un residuo, non un LAG', () => {
+  const links = [
+    { id: 'v', src: 'pp1-1', dst: 'sw4-1', lagMembers: [] },                                  // residuo vuoto su un passivo
+    { id: 'w', src: 'pp1-2', dst: 'sw4-2' },                                                  // nessun tag
+    { id: 'x', src: 'pp1-3', dst: 'sw4-3', lagMembers: ['a', 'b'] },                          // aggregato vero
+    { id: 'y', src: 'pp1-4', dst: 'sw4-4', lagLogicalKey: 'K' },                              // aggregato vero
+  ];
+  const n = stripLagOnPassive(links, typeOfPort);
+  assert.equal(n, 2, 'prima il toast diceva 3 (e 1 a ogni apertura del progetto)');
+  assert.equal(links[0].lagMembers, undefined, 'il residuo vuoto sparisce comunque, in silenzio');
+  assert.equal(stripLagOnPassive(links, typeOfPort), 0, 'idempotente: la seconda volta non c\'e\' piu\' niente da dire');
+});
+
 test('reconcile: cavo-membro AUTO perde contro un MANUALE sulla stessa porta attiva', () => {
   const links = [
     { id: 'man', src: 'pp1-5', dst: 'sw4-1', autoLinked: false },                          // manuale su sw4-1
