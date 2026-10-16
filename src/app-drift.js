@@ -666,6 +666,9 @@ function driftInvestigate(key){
 // riflette riaprendo l'overlay.
 const _DRIFT_CATS = [
     { k:'consistent',   tk:'drift.catConsistent',   i:'fa-circle-check',         c:'#39d353', collapsed:true },
+    // Porte di un apparato che HA risposto e che l'SNMP non ha mai letto: non coerenti, non
+    // divergenti. Copertura, non lavoro: sezione chiusa, fuori dal «da verificare».
+    { k:'portUnverified', tk:'drift.catPortUnverified', i:'fa-circle-minus',     c:'#6e7681', collapsed:true },
     { k:'stateDrift',   tk:'drift.catStateDrift',   i:'fa-triangle-exclamation', c:'#d29922' },
     { k:'identityDrift',tk:'drift.catIdentity',     i:'fa-fingerprint',          c:'#db61a2' },
     { k:'ipChanged',    tk:'drift.catIpChanged',    i:'fa-right-left',           c:'#39c5ff' },
@@ -759,11 +762,13 @@ export function _driftRowHtml(cat, r){
         const subTxt = r.reason === 'leaseReleased' ? t('drift.unverifiedReleased') : t('drift.unverifiedSub');
         main = `<span class="drift-row-main">${esc(r.label || r.mac)}</span><span class="drift-row-sub">${esc(r.mac)}${ipStr} — ${subTxt}</span>`;
         actions = `${ignBtn}${invBtn}`;
+    } else if(cat === 'portUnverified'){
+        main = `<span class="drift-row-main">${esc(r.label)}</span><span class="drift-row-sub">${esc(t('drift.portUnverifiedSub'))}</span>`;
     } else { // consistent
         main = `<span class="drift-row-main">${esc(r.label)}</span>`;
     }
-    // «Spiega» su tutte le righe azionabili (non sulle consistenti = nessuna azione).
-    const acts = (cat === 'consistent') ? actions : actions + explBtn;
+    // «Spiega» su tutte le righe azionabili (non sulle consistenti né sulle non verificate = nessuna azione).
+    const acts = (cat === 'consistent' || cat === 'portUnverified') ? actions : actions + explBtn;
     return `<div class="drift-row">${main}<span class="drift-row-acts">${acts}</span></div>`;
 }
 
@@ -899,7 +904,9 @@ export function _renderDriftReport(){
     if(!rep){ body.innerHTML = `<div class="drift-empty">${t('common.noData')}</div>`; _driftMirrorOverview(); return; }
     // Header overlay reattivo al cambio lingua (l'overlay è creato una volta).
     const _ttl = document.getElementById('drift-title'); if(_ttl) _ttl.textContent = t('report.drift');
-    const total = _DRIFT_CATS.reduce((a, c) => a + ((c.k === 'consistent' || c.k === 'unverified') ? 0 : rep.counts[c.k]), 0);
+    // Non sono lavoro da fare: coerenti (a posto), non verificabili e porte non lette (copertura).
+    const _noLavoro = c => c.k === 'consistent' || c.k === 'unverified' || c.k === 'portUnverified';
+    const total = _DRIFT_CATS.reduce((a, c) => a + (_noLavoro(c) ? 0 : rep.counts[c.k]), 0);
     // Banner a 3 vie: anomalie · "cieca" (niente verificato) · allineata. Niente
     // falso "tutto a posto" quando in realtà non si è potuto verificare nulla.
     const kind = (typeof driftBannerKind === 'function') ? driftBannerKind(rep.counts, rep) : (total > 0 ? 'discrepancies' : 'aligned');
@@ -914,15 +921,18 @@ export function _renderDriftReport(){
         const blindN = unver || rep.docCount || 0;
         header = `<div class="drift-blind"><i class="fas fa-plug-circle-xmark"></i> ${t('drift.allUnverified',{n:blindN})}</div>`;
     } else {
-        const note = unver > 0 ? ` <span class="drift-allok-note">${t('drift.someUnverified',{n:unver})}</span>` : '';
+        // Copertura detta, non nascosta: «allineata» riguarda cio' che e' stato guardato.
+        const portUn = rep.counts.portUnverified || 0;
+        const note = (unver > 0 ? ` <span class="drift-allok-note">${t('drift.someUnverified',{n:unver})}</span>` : '')
+            + (portUn > 0 ? ` <span class="drift-allok-note">${t('drift.somePortsUnverified',{n:Number(portUn)})}</span>` : '');
         header = `<div class="drift-allok"><i class="fas fa-circle-check"></i> ${t('drift.allOk')}${note}</div>`;
     }
     // "unverified" NON è più una sezione a sé: è accorpato in "Reti del progetto"
     // (annidato sotto la /24 non raggiunta). Il conteggio resta nel banner in alto.
     const sections = _DRIFT_CATS.filter(c => c.k !== 'unverified').map(c => {
         const allRows = rep[c.k] || [];
-        const n = rep.counts[c.k];
-        let rows = allRows, extra = '', topBar = '', openWhen = (c.k !== 'consistent' && c.k !== 'unverified' && n > 0);
+        const n = rep.counts[c.k] || 0;   // `|| 0`: un report persistito prima di portUnverified non ha la chiave
+        let rows = allRows, extra = '', topBar = '', openWhen = (!_noLavoro(c) && n > 0);
         if(c.k === 'undocumented'){
             // I candidati infrastruttura in chiaro; il rumore endpoint/guest
             // (telefoni/BYOD su VLAN guest, dietro uplink affollati, MAC random)

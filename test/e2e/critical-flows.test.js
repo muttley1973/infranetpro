@@ -5106,6 +5106,57 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.activeMacIncluded, 'un device attivo con MAC resta in doc.macs');
     });
 
+    await t.test('Verifica: le porte NON VERIFICATE hanno la loro sezione, chiusa, senza azioni e fuori dal «da verificare»', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          const zeri = { consistent: 0, stateDrift: 0, macOrphan: 0, undocumented: 0, undocumentedEndpoint: 0, ghostCable: 0, shutCable: 0, ipChanged: 0, unverified: 0, identityDrift: 0, identityFirmware: 0 };
+          const sezione = (re) => Array.from(document.querySelectorAll('#drift-body details.drift-sec')).find(d => re.test(d.querySelector('summary').textContent));
+          const RE = /Porte non verificate|Unverified ports/i;
+
+          // (1) solo porte non lette: banner «allineata» CON la nota di copertura
+          _driftReport = { consistent: [], stateDrift: [], macOrphan: [], undocumented: [], ghostCable: [], shutCable: [], ipChanged: [], unverified: [], identityDrift: [],
+            portUnverified: [{ key: 'portunver:sw1-1', pid: 'sw1-1', label: 'SW1 / P1', nodeId: 'sw1' }],
+            counts: Object.assign({}, zeri, { portUnverified: 1 }) };
+          _renderDriftReport();
+          const sec = sezione(RE);
+          const solo = {
+            esiste: !!sec,
+            conteggio: sec ? sec.querySelector('.drift-count').textContent.trim() : null,
+            aperta: sec ? sec.hasAttribute('open') : null,
+            righe: sec ? sec.querySelectorAll('.drift-row').length : 0,
+            azioniNellaRiga: sec ? sec.querySelectorAll('.drift-row [data-act]').length : -1,
+            testoRiga: sec ? sec.querySelector('.drift-row').textContent : '',
+            nota: (document.querySelector('#drift-body .drift-allok .drift-allok-note') || {}).textContent || '',
+            allineata: !!document.querySelector('#drift-body .drift-allok'),
+          };
+
+          // (2) con una divergenza vera: il «da verificare» conta quella, NON le porte non lette
+          _driftReport = Object.assign({}, _driftReport, {
+            stateDrift: [{ key: 'sd:1', label: 'Sw1 / P2', patch: { pid: 'sw1-2' }, diffs: [{ field: 'status', doc: 'down', real: 'active' }] }],
+            counts: Object.assign({}, zeri, { portUnverified: 5, stateDrift: 1 }) });
+          _renderDriftReport();
+          const sommario = (document.querySelector('#drift-body .drift-summary') || {}).textContent || '';
+          const sec2 = sezione(RE);
+          const conDiv = { sommario, aperta: sec2 ? sec2.hasAttribute('open') : null };
+
+          document.querySelector('#drift-overlay [data-act="drift-close"]').click();
+          return { ok: true, solo, conDiv };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore: ' + r.err);
+      assert.ok(r.solo.esiste, 'la sezione «Porte non verificate» esiste');
+      assert.equal(r.solo.conteggio, '1');
+      assert.equal(r.solo.aperta, false, 'chiusa: è copertura, non lavoro da fare');
+      assert.equal(r.solo.righe, 1);
+      assert.equal(r.solo.azioniNellaRiga, 0, 'niente da ignorare, adottare o spiegare: non serve decidere niente');
+      assert.match(r.solo.testoRiga, /SW1 \/ P1/);
+      assert.ok(r.solo.allineata, 'nessuna anomalia: il banner resta «allineata»...');
+      assert.match(r.solo.nota, /1/, '...ma dice quante porte non sono state lette: «allineata» riguarda ciò che si è guardato');
+      assert.match(r.conDiv.sommario, /\b1\b/, 'il «da verificare» conta la divergenza (1), non le 5 porte non lette: ' + r.conDiv.sommario);
+      assert.equal(r.conDiv.aperta, false, 'e la sezione resta chiusa anche quando il resto del report è aperto');
+    });
+
     await t.test('Verifica PROGRAMMATA (monitoraggio automatico): non lascia il bottone appeso allo spinner', async () => {
       // REGRESSIONE — «attivando il monitoraggio automatico la Verifica resta in spinning».
       // Il monitoraggio a profondità 'full' (il DEFAULT) esegue runDriftCheck({silent:true}),

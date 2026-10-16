@@ -37,7 +37,7 @@ const _label  = (l) => String(l || '').replace(/[\r\n\t]+/g, ' ').trim().slice(0
 // La prova in test/verify-trend.test.js la deriva dal report vero, cosi' un
 // bucket nuovo che non arriva qui fa rosso invece di sparire.
 const COUNT_KEYS = [
-  'consistent', 'stateDrift', 'macOrphan', 'undocumented', 'undocumentedEndpoint',
+  'consistent', 'portUnverified', 'stateDrift', 'macOrphan', 'undocumented', 'undocumentedEndpoint',
   'ghostCable', 'shutCable', 'ipChanged', 'unverified', 'identityDrift', 'identityFirmware',
 ];
 

@@ -415,7 +415,7 @@ test('round-trip: doc==realtà → 0 finding; cambio VLAN porta → stateDrift',
     { id: 'pc', mac: 'AA:00:00:00:00:02', ip: '10.0.0.50', snmpStatus: 'ok' },
   ];
   const links = [{ id: 'c1', src: 'sw-1', dst: 'pc-1' }];
-  const ports = { 'sw-1': { status: 'active', speed: 1000, vlan: 10 }, 'pc-1': { status: 'active', speed: 1000, vlan: 10 } };
+  const ports = { 'sw-1': { status: 'active', speed: 1000, vlan: 10, operUp: true }, 'pc-1': { status: 'active', speed: 1000, vlan: 10, operUp: true } };
   const doc = buildDocSnapshot({ nodes, links, ports, normMac: lower });
   // realtà combaciante: FDB vede i MAC, gli switch rispondono, porte uguali
   const fdb = { sw: { 'AA:00:00:00:00:01': 'Gi0/1', 'AA:00:00:00:00:02': 'Gi0/2' } };
@@ -657,4 +657,40 @@ test('ND IPv6: un vicino memorizzato non resuscita un nodo provato assente', () 
   });
   assert.equal(snap.observedMacs.includes(_ARP_MAC), false, 'il vicino ND memorizzato non vale come presenza');
   assert.equal(buildDriftReport(snap, _arpDoc, [], {}).counts.macOrphan, 1, 'resta ROSSO');
+});
+
+// ── `measured`: la porta è stata toccata dall'SNMP? ──────────────────────────
+// Doc e realtà delle porte leggono lo stesso `state.ports[pid]`. Ciò che distingue una
+// MISURA da una dichiarazione è solo chi l'ha scritta: `operUp` (ifOperStatus) e `adminDown`
+// (ifAdminStatus) li scrive l'SNMP e nessun altro. `status`/`speed`/`vlan` li scrive anche
+// l'utente; `ifName` anche l'import DCIM (lib/dcim-map.js) — quindi nessuno dei due vale.
+const _portSnap = (pi) => buildSnmpSnapshot({ nodes: [], docPorts: { 'sw-1': {} }, ports: { 'sw-1': pi }, normMac: lower }).ports['sw-1'];
+
+test('snmpSnap: measured = la porta ha operUp o adminDown (scritti solo dal poll SNMP)', () => {
+  assert.equal(_portSnap({ operUp: true }).measured, true);
+  assert.equal(_portSnap({ operUp: false }).measured, true, 'false è una misura: il link è giù');
+  assert.equal(_portSnap({ adminDown: false }).measured, true);
+  assert.equal(_portSnap({ adminDown: true }).measured, true);
+});
+
+test('snmpSnap: status/speed/vlan/ifName NON bastano — li scrive anche chi dichiara', () => {
+  assert.equal(_portSnap({ status: 'active', speed: 1000, vlan: 10 }).measured, false, 'dichiarazione a mano');
+  assert.equal(_portSnap({ status: 'active', ifName: 'GigabitEthernet0/1' }).measured, false, 'ifName arriva anche dall\'import DCIM');
+  assert.equal(_portSnap({}).measured, false);
+});
+
+test('snmpSnap → report: una porta dichiarata a mano su un apparato che risponde non è «coerente»', () => {
+  // La forma del caso reale (SW-CORE, sw1-1): dichiarata attiva su VLAN 10, mai letta; le porte
+  // accanto sono state misurate. Il cavo tocca entrambe.
+  const nodes = [{ id: 'sw1', snmpStatus: 'ok' }];
+  const ports = {
+    'sw1-1': { status: 'active', vlan: 10 },
+    'sw1-2': { status: 'active', speed: 1000, vlan: 1, ifName: 'GigabitEthernet0/1', operUp: true, adminDown: false },
+  };
+  const links = [{ id: 'c1', src: 'sw1-1', dst: 'pc-1' }, { id: 'c2', src: 'sw1-2', dst: 'pc-2' }];
+  const doc = buildDocSnapshot({ nodes, links, ports, normMac: lower });
+  const real = buildSnmpSnapshot({ nodes, docPorts: doc.ports, ports, normMac: lower });
+  const r = buildDriftReport(real, doc, [], {});
+  assert.equal(r.counts.consistent, 1, 'solo la porta letta');
+  assert.deepEqual(r.portUnverified.map(x => x.pid), ['sw1-1']);
 });

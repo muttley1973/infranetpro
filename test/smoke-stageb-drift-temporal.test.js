@@ -90,7 +90,7 @@ function baselineSnmp(doc, state) {
   const ports = {};
   for (const pid of Object.keys(doc.ports)) {
     const dp = doc.ports[pid];
-    ports[pid] = { status: dp.status, speed: dp.speed, duplex: dp.duplex, vlan: dp.vlan };
+    ports[pid] = { status: dp.status, speed: dp.speed, duplex: dp.duplex, vlan: dp.vlan, measured: true };
   }
   const observedMacs = [];
   const macAtIps = {};

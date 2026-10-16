@@ -25,8 +25,8 @@ function scena({ dichiarate, misurate, mode, isTrunk = true }) {
   ];
   const links = [{ id: 'l1', src: 'sw1-2', dst: 'sw2-2', mode, trunkVlans: dichiarate }];
   const ports = {
-    'sw1-2': { ifName: 'Gi0/1', status: 'active', isTrunk, trunkVlans: misurate },
-    'sw2-2': { ifName: 'Gi0/1', status: 'active', isTrunk, trunkVlans: misurate },
+    'sw1-2': { ifName: 'Gi0/1', status: 'active', operUp: true, isTrunk, trunkVlans: misurate },
+    'sw2-2': { ifName: 'Gi0/1', status: 'active', operUp: true, isTrunk, trunkVlans: misurate },
   };
   const doc = buildDocSnapshot({ nodes, links, ports, portLabel: p => p });
   const snmp = buildSnmpSnapshot({ nodes, docPorts: doc.ports, ports, fdb: {}, vlanCache: {} });
@@ -87,8 +87,8 @@ test('entrambi i capi vengono valutati: un trunk sbagliato da UN lato solo si ve
   const nodes = [{ id: 'sw1', type: 'switch', name: 'A' }, { id: 'sw2', type: 'switch', name: 'B' }];
   const links = [{ id: 'l1', src: 'sw1-2', dst: 'sw2-2', mode: 'trunk', trunkVlans: '10,20' }];
   const ports = {
-    'sw1-2': { ifName: 'Gi0/1', status: 'active', isTrunk: true, trunkVlans: [10, 20] },   // allineato
-    'sw2-2': { ifName: 'Gi0/1', status: 'active', isTrunk: true, trunkVlans: [10] },       // manca la 20
+    'sw1-2': { ifName: 'Gi0/1', status: 'active', operUp: true, isTrunk: true, trunkVlans: [10, 20] },   // allineato
+    'sw2-2': { ifName: 'Gi0/1', status: 'active', operUp: true, isTrunk: true, trunkVlans: [10] },       // manca la 20
   };
   const doc = buildDocSnapshot({ nodes, links, ports, portLabel: p => p });
   const snmp = buildSnmpSnapshot({ nodes, docPorts: doc.ports, ports, fdb: {}, vlanCache: {} });
@@ -103,8 +103,8 @@ test('un device MUTO non genera la discrepanza (non e\' valutabile)', () => {
   const nodes = [{ id: 'sw1', type: 'switch', name: 'A' }, { id: 'sw2', type: 'switch', name: 'B' }];
   const links = [{ id: 'l1', src: 'sw1-2', dst: 'sw2-2', mode: 'trunk', trunkVlans: '10,20' }];
   const ports = {
-    'sw1-2': { ifName: 'Gi0/1', status: 'active', isTrunk: true, trunkVlans: [30] },
-    'sw2-2': { ifName: 'Gi0/1', status: 'active', isTrunk: true, trunkVlans: [30] },
+    'sw1-2': { ifName: 'Gi0/1', status: 'active', operUp: true, isTrunk: true, trunkVlans: [30] },
+    'sw2-2': { ifName: 'Gi0/1', status: 'active', operUp: true, isTrunk: true, trunkVlans: [30] },
   };
   const doc = buildDocSnapshot({ nodes, links, ports, portLabel: p => p });
   const snmp = buildSnmpSnapshot({ nodes, docPorts: doc.ports, ports, fdb: {}, vlanCache: {} });

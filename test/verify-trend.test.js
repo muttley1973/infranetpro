@@ -184,3 +184,19 @@ test('la whitelist della timeline non deve perdere bucket per strada', () => {
     assert.ok(whitelist.has(k), 'il Drift Report emette «' + k + '» e la timeline lo butta via in silenzio');
   }
 });
+
+// ── Le porte non misurate stanno nel DENOMINATORE delle porte ──────────────
+// Stessa regola ① della presenza: una porta che l'SNMP non ha mai letto non e` «vista». Se la
+// si escludesse, una porta che smette di essere misurata (apparato che non riporta piu` operUp)
+// farebbe SALIRE la quota delle porte confermate sparendo dai conti: guardare meno che premia.
+test('una porta non misurata abbassa la quota delle porte, non la lascia invariata', () => {
+  const tutteLette   = quoteDiUnaRiga(riga('a', { consistent: 40, stateDrift: 0, portUnverified: 0 }, 100));
+  const unaNonLetta  = quoteDiUnaRiga(riga('b', { consistent: 40, stateDrift: 0, portUnverified: 10 }, 100));
+  assert.equal(tutteLette.porte, 1);
+  assert.equal(unaNonLetta.porte, 0.8, '40 confermate su 50 documentate: le 10 non lette contano come NON confermate');
+});
+
+test('una riga SENZA portUnverified (timeline scritta prima) si legge come prima', () => {
+  const vecchia = quoteDiUnaRiga(riga('a', { consistent: 90, stateDrift: 10 }, 100));
+  assert.equal(vecchia.porte, 0.9);
+});

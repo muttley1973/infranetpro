@@ -56,7 +56,7 @@ test('buildDriftReport espone evaluated/docCount: il caso cieco NON è più indi
 
 test('porta coerente → categoria consistent, nessun drift', () => {
   const doc = { ports: { 'sw1-1': { label: 'SW1 / P1', status: 'active', speed: 1000, vlan: 10 } } };
-  const snmp = { responded: { 'sw1': true }, ports: { 'sw1-1': { status: 'active', speed: 1000, vlan: 10 } } };
+  const snmp = { responded: { 'sw1': true }, ports: { 'sw1-1': { status: 'active', speed: 1000, vlan: 10, measured: true } } };
   const r = buildDriftReport(snmp, doc, [], {});
   assert.equal(r.counts.consistent, 1);
   assert.equal(r.counts.stateDrift, 0);
@@ -64,7 +64,7 @@ test('porta coerente → categoria consistent, nessun drift', () => {
 
 test('stato divergente → stateDrift con diffs e patch alla realta', () => {
   const doc = { ports: { 'sw1-1': { label: 'SW1 / P1', status: 'active', speed: 1000, vlan: 10 } } };
-  const snmp = { responded: { 'sw1': true }, ports: { 'sw1-1': { status: 'inactive', speed: 100, vlan: 20 } } };
+  const snmp = { responded: { 'sw1': true }, ports: { 'sw1-1': { status: 'inactive', speed: 100, vlan: 20, measured: true } } };
   const r = buildDriftReport(snmp, doc, [], {});
   assert.equal(r.counts.stateDrift, 1);
   const row = r.stateDrift[0];
@@ -643,7 +643,7 @@ test('cavo fantasma: una porta SPENTA A MANO non rende fantasma il cavo dedotto'
 
 test('ignore persiste: la riga con key ignorata non compare', () => {
   const doc = { ports: { 'sw1-1': { status: 'active', vlan: 10 } } };
-  const snmp = { responded: { 'sw1': true }, ports: { 'sw1-1': { status: 'inactive', vlan: 10 } } };
+  const snmp = { responded: { 'sw1': true }, ports: { 'sw1-1': { status: 'inactive', vlan: 10, measured: true } } };
   const r1 = buildDriftReport(snmp, doc, [], {});
   assert.equal(r1.counts.stateDrift, 1);
   const key = r1.stateDrift[0].key;
@@ -653,10 +653,10 @@ test('ignore persiste: la riga con key ignorata non compare', () => {
 
 test('ignore segue la condizione: se la realta cambia, la riga riappare', () => {
   const doc = { ports: { 'sw1-1': { status: 'active', vlan: 10 } } };
-  const snmpA = { responded: { 'sw1': true }, ports: { 'sw1-1': { status: 'inactive', vlan: 10 } } };
+  const snmpA = { responded: { 'sw1': true }, ports: { 'sw1-1': { status: 'inactive', vlan: 10, measured: true } } };
   const keyA = buildDriftReport(snmpA, doc, [], {}).stateDrift[0].key;
   // realta' cambia: ora vlan diversa → nuova condizione → nuova key
-  const snmpB = { responded: { 'sw1': true }, ports: { 'sw1-1': { status: 'inactive', vlan: 99 } } };
+  const snmpB = { responded: { 'sw1': true }, ports: { 'sw1-1': { status: 'inactive', vlan: 99, measured: true } } };
   const r = buildDriftReport(snmpB, doc, [keyA], {});      // keyA non copre la nuova condizione
   assert.equal(r.counts.stateDrift, 1);
 });
@@ -822,4 +822,80 @@ test('shutCable vede anche l\'estremo DST, non solo il src', () => {
   const r = buildDriftReport({ portAdminDown: { 'sw2-9': true } }, doc, [], {});
   assert.equal(r.counts.shutCable, 1);
   assert.deepEqual(r.shutCable[0].ports, ['sw2-9']);
+});
+
+// ── Una porta MAI MISURATA non è «coerente»: è non verificata ────────────────
+// Il difetto (16/10, verificato su dati reali): doc e realtà delle porte leggono lo STESSO
+// `state.ports[pid]` e si distinguono solo per i campi `*Ovr`. Una porta dichiarata a mano
+// e che l'SNMP non ha mai toccato si confrontava quindi con sé stessa, e finiva in
+// `consistent` — «porta coerente» senza che nessuno avesse guardato la porta. Nella rete
+// reale del progetto: `sw1-1` del Cisco SW-CORE (ifName parte da Gi0/1 e occupa sw1-2).
+// Il snapshot SNMP dice ora se la porta è stata MISURATA (`measured`); senza, non si confronta.
+const _docPorta = { ports: { 'sw1-1': { label: 'SW1 / P1', status: 'active', speed: 1000, vlan: 10 } } };
+
+test('porta MAI misurata di un apparato che ha risposto → non verificata, NON coerente', () => {
+  const snmp = { responded: { sw1: true }, ports: { 'sw1-1': { status: 'active', speed: 1000, vlan: 10 } } };   // niente `measured`
+  const r = buildDriftReport(snmp, _docPorta, [], {});
+  assert.equal(r.counts.consistent, 0, 'nessuno ha guardato la porta: non è coerente');
+  assert.equal(r.counts.portUnverified, 1);
+  assert.equal(r.portUnverified[0].pid, 'sw1-1');
+  assert.equal(r.portUnverified[0].label, 'SW1 / P1');
+  assert.equal(r.portUnverified[0].key, 'portunver:sw1-1');
+  assert.equal(r.counts.stateDrift, 0);
+});
+
+test('porta con measured:false → stesso esito', () => {
+  const snmp = { responded: { sw1: true }, ports: { 'sw1-1': { status: 'active', speed: 1000, vlan: 10, measured: false } } };
+  const r = buildDriftReport(snmp, _docPorta, [], {});
+  assert.equal(r.counts.consistent, 0);
+  assert.equal(r.counts.portUnverified, 1);
+});
+
+test('porta che manca del tutto fra le misure di un apparato che ha risposto → non verificata', () => {
+  const r = buildDriftReport({ responded: { sw1: true }, ports: {} }, _docPorta, [], {});
+  assert.equal(r.counts.consistent, 0, 'era: {} || {} → nessuna differenza → coerente');
+  assert.equal(r.counts.portUnverified, 1);
+});
+
+test('controllo: la stessa porta MISURATA e uguale resta coerente', () => {
+  const snmp = { responded: { sw1: true }, ports: { 'sw1-1': { status: 'active', speed: 1000, vlan: 10, measured: true } } };
+  const r = buildDriftReport(snmp, _docPorta, [], {});
+  assert.equal(r.counts.consistent, 1);
+  assert.equal(r.counts.portUnverified, 0);
+});
+
+test('controllo: la stessa porta MISURATA e diversa resta una divergenza', () => {
+  const snmp = { responded: { sw1: true }, ports: { 'sw1-1': { status: 'inactive', speed: 100, vlan: 20, measured: true } } };
+  const r = buildDriftReport(snmp, _docPorta, [], {});
+  assert.equal(r.counts.stateDrift, 1);
+  assert.equal(r.counts.portUnverified, 0);
+});
+
+test('una porta non misurata non produce NEMMENO divergenze: il «reale» è la dichiarazione stessa', () => {
+  // Override manuale (`statusOvr`) contro lo stato dichiarato: due righe del DOCUMENTO, non una
+  // contro la realtà. Prima, questo finiva in stateDrift con «reale» = un valore scritto a mano.
+  const doc = { ports: { 'sw1-1': { label: 'P1', status: 'inactive' } } };       // override: inactive
+  const snmp = { responded: { sw1: true }, ports: { 'sw1-1': { status: 'active', measured: false } } };   // dichiarato: active
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.stateDrift, 0, 'niente da confrontare con la realtà');
+  assert.equal(r.counts.portUnverified, 1);
+});
+
+test('apparato muto: le sue porte NON sono «non verificate» (non sono valutabili affatto)', () => {
+  const r = buildDriftReport({ responded: {}, ports: {} }, _docPorta, [], {});
+  assert.equal(r.counts.portUnverified, 0);
+  assert.equal(r.counts.consistent, 0);
+});
+
+test('portUnverified non è lavoro da fare: fuori dalla coda e dal banner delle anomalie', () => {
+  const snmp = { responded: { sw1: true }, ports: { 'sw1-1': { status: 'active', measured: false } } };
+  const r = buildDriftReport(snmp, _docPorta, [], {});
+  assert.equal(require('../lib/drift-report.js').driftActionable(r.counts), 0, 'non è in coda');
+  assert.equal(driftBannerKind(r.counts, r), 'aligned', 'nessuna anomalia: il banner non cambia (la nota la dice la UI)');
+});
+
+test('portUnverified: le righe NON si ignorano (non serve decidere niente) e la chiave segue la porta', () => {
+  const snmp = { responded: { sw1: true }, ports: { 'sw1-1': { status: 'active', measured: false } } };
+  const r = buildDriftReport(snmp, _docPorta, ['portunver:sw1-1'], {});
+  assert.equal(r.counts.portUnverified, 1, 'come consistent: non è una categoria ignorabile');
 });
