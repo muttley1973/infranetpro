@@ -50,6 +50,12 @@ an "observed but unconfirmed" value pass as a meter reading.
   labelled *"typical for &lt;brand/model&gt;, verify on the official
   datasheet/CLI"* and kept distinct from InfraNet's authoritative `capabilities`,
   which always win (`server/ai/prompt.js`, CHANGELOG 2026-06-30).
+- **A copy says where it came from** — what a reading writes into a field a person can
+  also write (brand, model, serial number, firmware, MAC, a port's description and
+  address) is marked `copiedFromRead` by `lib/field-provenance.js`; a person's write
+  clears the mark; and the sign asks `fieldSource()` instead of guessing from equality.
+  A registry and two guardians derived from the source (`test/field-provenance.test.js`)
+  fail when a reading starts writing a field the registry does not know.
 - **Cross-subnet scope is stated, not faked** — mDNS is link-local (TTL 1); the
   sweep says it only sees the local subnet rather than implying full coverage
   (`lib/discovery-mdns.js`, CHANGELOG).

@@ -61,6 +61,11 @@ Where the line is actually held (not exhaustive — grep `manual-first`):
   never erases one — a truncated walk is not a device that removed the text. Ports documented by hand with no
   `ifName` are not matched at all. This is the **fill a blank** case above, decided by the operator
   (03/10/2026) in place of a manual "adopt" step in the report.
+- **A typed model, serial number or firmware locks itself** — `updateN`
+  (`src/app.js`) closes `modelManual` / `serialNumberManual` / `firmwareVerManual`, and the
+  Verify, the Overview's recovery lens and the handover dossier skip a locked field
+  (`isIdentityLocked`, `lib/identity-reconcile.js`); the Sync does not fill it and "Adopt"
+  does not overwrite it. A decision a person took is not re-argued at every scan.
 - **Discovery candidates are observed, not imported** — DHCP-lease and ARP-SNMP
   rows arrive `alive:false` / `snmpReachable:false` and are **not** pre-selected;
   pre-selection is gated on confidence ≥ 15% (`DISC_PRESELECT_MIN_CONF`,

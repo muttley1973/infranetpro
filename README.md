@@ -10,8 +10,8 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="3,989 tests, 0 failing" src="https://img.shields.io/badge/tests-3%2C989%20%C2%B7%200%20failing-3fb950"></a>
-  <a href="#testing"><img alt="130 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-130%20real--browser%20flows-3fb950"></a>
+  <a href="#testing"><img alt="4,154 tests, 0 failing" src="https://img.shields.io/badge/tests-4%2C154%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="136 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-136%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#oui-intelligence-engine"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
   <img alt="No database" src="https://img.shields.io/badge/database-none-8b949e">
@@ -31,11 +31,11 @@
 <tr>
 <td align="center" width="50%">
 <a href="MANUALE_TECNICO_IT.pdf"><img src="GitHub%20Images/flag-it.svg" width="26" alt=""><br><b>Manuale tecnico — Italiano</b></a><br>
-<sub>69 pagine illustrate · interfaccia, onboarding e manuale completi in italiano, con selettore IT/EN nell'app.</sub>
+<sub>70 pagine illustrate · interfaccia, onboarding e manuale completi in italiano, con selettore IT/EN nell'app.</sub>
 </td>
 <td align="center" width="50%">
 <a href="TECHNICAL_MANUAL_EN.pdf"><img src="GitHub%20Images/flag-gb.svg" width="26" alt=""><br><b>Technical manual — English</b></a><br>
-<sub>72 illustrated pages · fully bilingual UI, onboarding and manual, with an in-app IT/EN switcher.</sub>
+<sub>73 illustrated pages · fully bilingual UI, onboarding and manual, with an in-app IT/EN switcher.</sub>
 </td>
 </tr>
 </table>
@@ -146,7 +146,16 @@ Double-click <code>avvia.bat</code>.<br>
 
 > **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then run **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.11.15) — the map and the rack work with a finger on a tablet, and the History says what the Sync really read.**
+> 📰 **What's new (v2.11.16) — a value says where it comes from, and a model you typed is no longer called a swapped device.**
+>
+> - **The sign tells the truth about copies.** What the Sync or a scan copies into a field now reads "Measured" instead of
+>   "Declared by a person", and what you type is locked: the Verify stops reporting a "replaced device" on every scan
+>   because your model is not the one the MIB spells.
+> - **The numbers count what they claim.** The Dashboard card "Answering over SNMP" stops listing the devices without SNMP —
+>   it says in small grey how many are not observed — and the bar's "Devices" counts devices: 33, not 36 with two jacks
+>   and a patch panel.
+
+> 📰 **v2.11.15 — the map and the rack work with a finger on a tablet, and the History says what the Sync really read.**
 >
 > - **A finger is enough on a tablet.** Two fingers zoom and pan with the point under them fixed; a device, a room or a rack icon
 >   is grabbed by a short press, so zooming never moves anything and a finger that slides first just scrolls the view. Tested on
@@ -500,7 +509,7 @@ Double-click <code>avvia.bat</code>.<br>
   <b>Full feature manual (PDF)</b> —
   <a href="MANUALE_TECNICO_IT.pdf"><img src="GitHub%20Images/flag-it.svg" width="20" alt=""> Italiano</a> ·
   <a href="TECHNICAL_MANUAL_EN.pdf"><img src="GitHub%20Images/flag-gb.svg" width="20" alt=""> English</a><br>
-  <sub>Dark cover, white printable interior, 22 illustrated chapters — 69 pages in Italian, 72 in English.</sub>
+  <sub>Dark cover, white printable interior, 22 illustrated chapters — 70 pages in Italian, 73 in English.</sub>
 </p>
 
 <p align="center">
@@ -556,7 +565,7 @@ Double-click <code>avvia.bat</code>.<br>
 | **🕓 History & automation** | One **Automatic monitoring** scheduler (Light / Full), opt-in autosave, a verification timeline and restorable full-state snapshots — kept outside the project file, behind a database-ready interface. The timeline is also *read*: a trend says whether this network is getting better known or standing still, and refuses a verdict when the share it could not look at has grown |
 | **🤖 AI assistant** | Bring-your-own-key, OpenAI-compatible, local by default; allowlist context, grounded answers with clickable citations, Ansible drafts — advisory, never auto-applied |
 | **🔒 Security** | Session auth with admin/viewer roles, rate-limited login, loopback bind, secrets structurally excluded from every data surface |
-| **🌍 Bilingual** | Complete Italian and English interface, onboarding and a ~69-page manual, guarded by an `it ↔ en` key-parity test |
+| **🌍 Bilingual** | Complete Italian and English interface, onboarding and a ~70-page manual, guarded by an `it ↔ en` key-parity test |
 
 > **Keeping the passive layer true.** A patch panel is passive: nothing can measure which wall socket a cable
 > comes from. But the run inside the wall — socket ↔ panel port — never changes, so the socket can be *derived*
@@ -1324,7 +1333,7 @@ Coverage focuses on the pure, bug-prone logic that has historically broken: SNMP
 
 Current local quality baseline:
 - `npm run check` parses every JS source of the product — **553** of them. It skips the folders `eslint.config.js` already ignores (git worktrees, the private workspace, the editor's caches), so the number stays stable between runs instead of drifting with whatever happens to be checked out beside the repo
-- `npm test` runs the full regression suite (currently **3,989 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **130 flows**)
+- `npm test` runs the full regression suite (currently **4,154 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **136 flows**)
 - `npm run release -- check` is the gate before a tag: the version in its four places, a CHANGELOG section that actually lists something, and the test count above measured against what the suite really prints — the one number no test can check without counting itself
 - final visual verification is still important for rack/front-panel refinements
 

@@ -216,6 +216,10 @@ lib/                   Shared browser + test modules (the heart of the app)
                     else switch) — the Sync flags the port as a shared L2 segment with
                     that suggestion; the user materialises it from the Shared L2 panel  (pure)
   power-mib.js wifi-spec.js cable-labels.js drift-report.js
+  field-provenance.js  where a value came from: the `copiedFromRead` mark, `fieldSource`
+                    (what a panel asks to draw "Measured" or "Declared") and the registry
+                    of every field that a reading and a person can both write, each with
+                    the mechanism that keeps the two apart  (pure)
   verify-trend.js   trendVerifiche → reads the per-Verify timeline rows and answers
                     whether this environment is getting better KNOWN or standing
                     still (design principle 3). Three separate ratios, because the
@@ -409,8 +413,10 @@ lib/                   Shared browser + test modules (the heart of the app)
                     (`siteOf`), so the module stays pure. ⚠️ NetBox accepts `?site_id=` here
                     and IGNORES it (measured on 4.6.7): the belt is the only real scoping.
   subbar-stats.js   computeSubbarStats → sub-header numbers: doc completeness
-                    (withIp/addressable), device count (rooms excluded), SNMP health
-                    (ok/err/warn/none) — same field defs as api-shape/app-drift  (pure)
+                    (withIp/addressable), device count (`addressable`: rooms, wall
+                    jacks and patch panels are out, and a device with several NICs
+                    counts once — nodes, never MACs), SNMP health (ok/err/warn/none)
+                    — same field defs as api-shape/app-drift  (pure)
   mac-class.js      What a MAC IS, for the whole project: `macKey` (canonical, to compare)
                     and `macFormat` (uppercase, to display); anything that is not a MAC
                     returns '' — a non-MAC used as a key is a string comparison in
@@ -697,7 +703,13 @@ invariants live there: the field **absent means "not known"**, never "port is up
 (hence `=== true`); a status **declared by hand wins the drawing** (a measurement that
 contradicts it surfaces in the Verify, not by overwriting the pixel); and the reading is
 **forgotten** by `forgetPortMeasure()` as soon as the switch stops confirming it, so a
-strong assertion cannot outlive its evidence.
+strong assertion cannot outlive its evidence. `portMeasured()` (`operUp != null ||
+adminDown != null`) is the one definition of "a port that was read", shared with
+`lib/drift-snapshot.js`; `status` is NOT a measure — the poll, a drawn cable, the cabling
+editor and a DCIM import all write it — so a cable seeds "active" without overriding a
+measured port, and removing the last cable never deletes a measured status. "Free but
+active" (`portActiveFromRead` in `lib/spare-ports.js`, one function for the rack overlay and
+the Dashboard) asks `operUp === true`, never `status`.
 
 On the cable side a **declared** cable over a shut port becomes `declared-shut`
 (bucket `diverged`, badge "Port shut", Drift category `shutCable`) — never `ghost`,
@@ -1104,6 +1116,30 @@ reflash, the Properties placeholders — with the panel saying "last known, not
 reconfirmed" and the date, since a months-old model otherwise reads as freshly
 measured.
 
+**The lock.** Whoever accuses also asks `isIdentityLocked()`. Writing the model, the serial
+number or the firmware by hand closes `modelManual` / `serialNumberManual` /
+`firmwareVerManual` (`updateN`; emptying the field opens it again), and the three
+comparisons above skip a locked field: a model typed with the commercial name used to be
+reported as a replaced device on every scan. The Sync does not fill a locked field and
+"Adopt" does not overwrite one. The padlock says who decides; the dot says where the value
+comes from — two axes, and a field can hold both (locked, and confirmed by the device).
+The price is stated: a locked serial no longer flags a real swap. Values typed before the
+lock existed carry none, and are not guessed.
+
+**Provenance (`lib/field-provenance.js`).** A reading that writes — or finds already
+written — a field a person can also write marks it in `copiedFromRead`, and every write
+by a person clears the mark (`updateN`, `updateP`, `setPortField`). The panels do not infer
+from equality: they ask `fieldSource(rec, field, read)`, which says measured if the
+current reading equals the value, or if the value is marked and the device is silent;
+declared if it is not marked, or if the reading now says something else (the brand
+excepted, since the OUI and the ENTITY-MIB spell a vendor differently). A registry
+(`FIELD_PROVENANCE`) lists each such field with the mechanism that keeps the hands apart —
+mark, lock, override slot, shadow, measure, id prefix, or a slot only the reading writes —
+and guardians derived from the source (`test/field-provenance.test.js`) turn red when a
+reading starts writing a field the registry does not know, or when a node is created from a
+reading without marking it. The mark is a measure in the portable export
+(`lib/project-schema.js`), so it does not travel; the lock flags are declarations, so they do.
+
 Rack devices keep their SNMP LED instead of an overlay. The buckets cover documented
 devices with an IP but no MAC too (`doc.ipOnly`), checked per-node rather than per-MAC.
 The signals are assembled in `lib/drift-snapshot.js` (`buildSnmpSnapshot`: `presentNodeIds`,
@@ -1224,7 +1260,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **3,989 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **4,154 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`

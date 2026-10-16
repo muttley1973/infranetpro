@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.11.16] — 2026-10-16
+
+A value says where it comes from, and a model you typed is no longer called a swapped device.
+
+### Added
+
+- **A value says where it comes from, and what you type is locked.** What the Sync or a scan copies in — brand, model, serial number, firmware, MAC, a port's description and address — now reads "Measured", and your own write turns it back to "Declared". Typing a model, serial number or firmware closes its padlock, so the Verify stops calling it a replaced device on every scan (a locked serial no longer flags a real swap: open the padlock to bring the check back).
+
+### Fixed
+
+- **What the switch says is no longer lost or overruled.** A slow agent no longer costs the poll its hardware identity (the ENTITY-MIB is read first). "Free but active" uses the read link state, a port nobody read is no longer "consistent" and has its own tab in "Ports to check", and a cable drawn on a port read as down no longer lights it green.
+- **The Dashboard and the bar count devices.** "Answering over SNMP" no longer lists the devices without SNMP and says in small grey how many are not observed; "Devices" counts devices (33, not 36 with two jacks and a patch panel); the bar's figures are 20% larger.
+- **The portable export lists the right fields:** the firmware you typed now leaves with the project; seven measures and the copy marks no longer do.
+
+### Security
+
+- **A hostile value can no longer reach a page through the IP field or a translated text, and a login no longer stalls the server.** The IP field holds only an address and an address has its own attempt limit. Restart the server once.
+
 ## [2.11.15] — 2026-10-15
 
 The map and the rack can be used with a finger on a tablet, and the History says what the Sync really read.
