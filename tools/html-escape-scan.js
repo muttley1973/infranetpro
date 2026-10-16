@@ -467,7 +467,7 @@ function isProvablySafe(expr, ctx, builders, seen) {
         const fn = call[1].replace(/\?\./g, '.');
         const base = fn.split('.').pop();
         if (ctx.escAliases.has(fn) || ctx.escAliases.has(base)) return true;
-        if (I18N_FNS.has(fn) || I18N_FNS.has(base)) return true;
+        if (I18N_FNS.has(fn) || I18N_FNS.has(base)) return i18nParamsSafe(e, ctx, builders, seen);
         if (ATTR_HELPERS.has(fn) || ATTR_HELPERS.has(base)) return true;
         if (builders.has(fn) || builders.has(base)) return true;
         if (/^(Number|parseInt|parseFloat)$/.test(fn)) return true;
@@ -550,6 +550,42 @@ function isProvablySafe(expr, ctx, builders, seen) {
         return isProvablySafe(ctx.vars.get(e), ctx, builders, seen);
     }
     return false;
+}
+
+/**
+ * `t('chiave', { ip: x })` — la FRASE viene dal dizionario autoriale, i VALORI no.
+ * `lib/i18n.js` li mette al posto di `{ip}` con una regex, senza escapare niente:
+ * `t('pnl.misc.openOn', { ip: n.ip })` dentro `data-tip="…"` era una XSS memorizzata
+ * (un `"` nell'IP chiudeva l'attributo), e lo scanner la dava per buona perché
+ * assolveva OGNI chiamata i18n per definizione («il testo viene dal dizionario»).
+ * Vero per il testo, falso per i parametri: ora si provano uno per uno, con la stessa
+ * funzione, e la chiamata e' sicura solo se lo sono tutti.
+ *
+ * Cio' che non si legge e' NON provato (conservativo, come il resto dello scanner):
+ *   · il secondo argomento non e' un letterale d'oggetto (`t('k', vars)`);
+ *   · una proprieta' con spread, calcolata o scritta come metodo.
+ * Un template dentro un parametro lo scandisce comunque `visita()`: qui conta il valore.
+ */
+function i18nParamsSafe(e, ctx, builders, seen) {
+    const aperta = e.indexOf('(');
+    const args = splitTop(e.slice(aperta + 1, e.lastIndexOf(')')), [',']).map(s => s.trim()).filter(Boolean);
+    // Dopo la chiave: `_dt('k', 'testo di ripiego', {…})` ha UN letterale prima dei parametri,
+    // e quel letterale e' testo scritto da noi (non un parametro). Ogni altra cosa che non
+    // sia un letterale d'oggetto non si legge.
+    for (const lett of args.slice(1)) {
+        if (/^'[^'\\]*'$/.test(lett) || /^"[^"\\]*"$/.test(lett)) continue;     // ripiego scritto a mano
+        if (!/^\{[\s\S]*\}$/.test(lett) || !balanced(lett)) return false;
+        const props = splitTop(lett.slice(1, -1), [',']).map(s => s.trim()).filter(Boolean);
+        for (const p of props) {
+            let valore;
+            const coppia = p.match(/^(?:[\w$]+|'[^']*'|"[^"]*")\s*:\s*([\s\S]+)$/);
+            if (coppia) valore = coppia[1];
+            else if (/^[\w$]+$/.test(p)) valore = p;           // shorthand: { ip }
+            else return false;                                 // ...spread, [calcolata], metodo()
+            if (!isProvablySafe(valore, ctx, builders, seen)) return false;
+        }
+    }
+    return true;
 }
 
 /**

@@ -195,6 +195,54 @@ test('scanner: stringa i18n → pulito (viene dal dizionario, non dalla rete)', 
     assert.strictEqual(countUnproven("const h = `<div>${t('pnl.title')}</div>`;"), 0);
 });
 
+// ── I PARAMETRI di t() non vengono dal dizionario ────────────────────────────
+// La frase si', i valori no: `lib/i18n.js` li infila al posto di `{nome}` con una regex,
+// senza escapare. `t('pnl.misc.openOn', {ip: n.ip})` dentro `data-tip="…"` era una XSS
+// memorizzata, e lo scanner la assolveva perche' dava per sicura OGNI chiamata t().
+test('scanner: parametro CRUDO di t() dentro un attributo → segnalato (la XSS di data-tip)', () => {
+    assert.strictEqual(countUnproven(
+        "const h = `<a data-tip=\"${t('pnl.misc.openOn',{label:def.label,ip:autoIp||'?'})}\">x</a>`;"), 1);
+});
+
+test('scanner: parametro crudo di t() nel testo → segnalato', () => {
+    assert.strictEqual(countUnproven("const h = `<b>${t('pnl.misc.open',{label:def.label})}</b>`;"), 1);
+});
+
+test('scanner: parametro in forma shorthand → segnalato (`{ip}` è una lettura di `ip`)', () => {
+    assert.strictEqual(countUnproven("const h = `<b>${t('dhcp.seenLease',{ip})}</b>`;"), 1);
+});
+
+test('scanner: UN parametro crudo fra tanti puliti basta a segnalare la chiamata', () => {
+    assert.strictEqual(countUnproven(
+        "const h = `<b>${t('k',{n:3,lbl:escapeHTML(a),ip:n.ip})}</b>`;"), 1);
+});
+
+test('scanner: i parametri di _dt(chiave, ripiego, {…}) si guardano, il ripiego no', () => {
+    assert.strictEqual(countUnproven("const h = `<b>${_dt('k','Trovati {n}',{n:count})}</b>`;"), 1,
+        'il parametro crudo è segnalato');
+    assert.strictEqual(countUnproven("const h = `<b>${_dt('k','Scansione…')}</b>`;"), 0,
+        'il ripiego è testo scritto a mano: non è un parametro');
+});
+
+test('scanner: secondo argomento che non è un letterale di oggetto → segnalato (non si legge)', () => {
+    assert.strictEqual(countUnproven("const h = `<b>${t('k', vars)}</b>`;"), 1);
+    assert.strictEqual(countUnproven("const h = `<b>${t('k', {...vars})}</b>`;"), 1);
+});
+
+test('scanner: parametri provati sicuri → pulito', () => {
+    // escaper sul parametro, numero esplicito, .length, letterale, o la frase INTERA escapata
+    assert.strictEqual(countUnproven("const h = `<b>${t('k',{ip:escapeHTML(n.ip)})}</b>`;"), 0);
+    assert.strictEqual(countUnproven("const h = `<b>${t('k',{n:Number(x)})}</b>`;"), 0);
+    assert.strictEqual(countUnproven("const h = `<b>${t('k',{n:items.length,sep:' · '})}</b>`;"), 0);
+    assert.strictEqual(countUnproven("const h = `<b>${escapeHTML(t('k',{ip:n.ip}))}</b>`;"), 0);
+    assert.strictEqual(countUnproven("const h = `<b>${t('k')}</b>`;"), 0);
+});
+
+test('scanner: un template dentro un parametro lo scandisce comunque (nessun livello cieco)', () => {
+    assert.strictEqual(countUnproven("const h = `<b>${t('k',{x:`<i>${n.name}</i>`})}</b>`;"), 1);
+    assert.strictEqual(countUnproven("const h = `<b>${t('k',{x:`<i>${escapeHTML(n.name)}</i>`})}</b>`;"), 0);
+});
+
 test('scanner: numeri e .length → pulito', () => {
     assert.strictEqual(countUnproven('const h = `<span>${n.ports.length}</span>`;'), 0);
 });
@@ -330,7 +378,10 @@ const CAPS = {
     //   · `drop` e' una variabile che tiene un template gia' scansionato.
     'src/app-inter-site.js': 19,
     'src/app-l3.js': 9,
-    'src/app-management.js': 9,
+    // −4 (2026-10-16, da 9): la riga Management e il suo elenco di protocolli hanno smesso di
+    // interpolare `p.id`/`p.label` e le frasi di t() crude (v. I18N_CAPS), e la riga ha ripreso
+    // `_mgmtProtoOptionsHtml` invece di riscriverla.
+    'src/app-management.js': 5,
     'src/app-panel-skin.js': 3,
     'src/app-pdu-connection.js': 2,
     'src/app-popup.js': 19,
@@ -345,14 +396,20 @@ const CAPS = {
     // la riga «Stato» era passata alla notazione unica e due interpolazioni non provate
     // se n'erano andate con i badge a fondo pieno. Un tetto lasciato largo e' spazio
     // libero per una regressione: si abbassa appena lo strumento lo dice.
-    'src/app-properties-link.js': 55,
+    // +1 (2026-10-16, da 55): `_summaryBits.join(' · ')` unisce pezzi che contengono t() con
+    // parametri (lunghezze e indici del cavo: numeri). Prima la chiamata t() era assolta per
+    // definizione; ora i parametri si provano e questi non sono dimostrabili numerici.
+    'src/app-properties-link.js': 56,
     'src/app-properties-node-devices.js': 87,
     // −3 (2.10.1, da 49): la riga del gruppo LAG ha guadagnato il campo VLAN del
     // bundle, e nel farlo i quattro `data-gid` di quella riga sono passati
     // dall'escaper. Non e' cosmesi: per un LAG scoperto via SNMP il gid e'
     // costruito dal nome dell'apparato, cioe' testo che arriva dalla rete e
     // finiva crudo dentro un attributo.
-    'src/app-properties-node.js': 71,
+    // +2 (2026-10-16, da 71): `_ppPreview` e il ternario sul conteggio porte di un device a piu'
+    // porte portano t() con parametri NUMERICI (da/a della numerazione, `_fpc`); stessa causa di
+    // app-properties-link.js. Nessuno di questi valori e' testo che arriva da fuori.
+    'src/app-properties-node.js': 73,
     'src/app-properties-port.js': 35,
     'src/app-properties-vm.js': 16,
     'src/app-properties.js': 15,
@@ -381,8 +438,61 @@ const CAPS = {
     'src/app.js': 1,
 };
 
-test('cricchetto: nessun file supera il suo tetto di interpolazioni non provate', () => {
+// ── I parametri di t() hanno il LORO cricchetto ─────────────────────────────
+// Fino al 2026-10-16 lo scanner assolveva ogni chiamata t()/_dt()/… «perche' il testo viene
+// dal dizionario»: vero per la frase, falso per i valori che `lib/i18n.js` ci infila senza
+// escape. Una XSS memorizzata (`t('pnl.misc.openOn', {ip: n.ip})` in un attributo) ci e'
+// passata sotto. Ora i parametri si provano uno per uno (`i18nParamsSafe`).
+//
+// Tetto SEPARATO e non sommato a CAPS: il residuo di questa classe e' fatto quasi tutto di
+// CONTATORI calcolati dal motore (`{n: tot.orphan}`), che lo scanner non sa dimostrare
+// numerici — fonderlo con CAPS avrebbe allargato di 38 i tetti storici, cioe' lasciato spazio
+// libero a una regressione di tutt'altra specie. Qui ogni file ha il suo numero ESATTO: un
+// parametro nuovo che porta TESTO (un nome, un indirizzo, una descrizione) lo fa salire e
+// il test lo dice. Le strade: `escapeHTML(t(…))` sulla frase intera, oppure
+// `{ip: escapeHTML(n.ip)}` sul parametro; per un contatore, `Number(x)` lo prova.
+const I18N_EXPR = /^(t|tf|_dt|_t|tHtml|tt)\(/;
+const I18N_CAPS = {
+    'src/app-discovery.js': 1,          // `{total: data.total}`: contatore del server, + un template gia' scandito
+    'src/app-drift.js': 4,              // `{n: …}` conteggi della Verifica
+    'src/app-l3.js': 7,                 // `{n: tot.orphan}` & co: totali dell'audit L3
+    'src/app-port-desc.js': 3,          // `{d: rep.described, p: rep.ports…}`: conteggi del report
+    'src/app-ports.js': 2,
+    'src/app-properties-floor.js': 6,   // `{n: u.usedCount}` & co + `{vid}` (numero di VLAN)
+    'src/app-properties-link.js': 2,
+    'src/app-properties-node.js': 4,    // contatori + `{when: lastOkStr}` (toLocaleString di una data)
+    'src/app-shared-segment.js': 1,
+    'src/app-snmp.js': 2,
+    'src/app-spare.js': 5,
+    'src/app-topology-crawl.js': 1,
+};
+
+test('cricchetto: i parametri di t() — nessun file ne ha di non provati oltre il suo tetto', () => {
     const { unproven } = scan.scanCorpus();
+    const byFile = new Map();
+    for (const u of unproven) if (I18N_EXPR.test(u.expr)) byFile.set(u.file, (byFile.get(u.file) || 0) + 1);
+    const cresciuti = [];
+    for (const [file, n] of byFile) {
+        const cap = I18N_CAPS[file] || 0;
+        if (n > cap) {
+            const righe = unproven.filter(u => u.file === file && I18N_EXPR.test(u.expr));
+            cresciuti.push(`  ${file}: ${n} > ${cap}  (+${n - cap})\n` +
+                righe.map(u => `      riga ${u.line}: \${${u.expr.slice(0, 100)}}`).join('\n'));
+        }
+    }
+    assert.strictEqual(cresciuti.length, 0,
+        't() mette i parametri nel testo SENZA escape: un valore non provato sopra il tetto:\n' + cresciuti.join('\n') +
+        '\n\n  Escapa la frase intera — escapeHTML(t(…)) — oppure il parametro; un numero: Number(x).\n' +
+        '  Se è davvero sicuro, spiega perché e alza il tetto in I18N_CAPS.');
+    const scesi = Object.keys(I18N_CAPS)
+        .filter(f => (byFile.get(f) || 0) < I18N_CAPS[f])
+        .map(f => `${f}: ${byFile.get(f) || 0} < ${I18N_CAPS[f]}`);
+    if (scesi.length) console.log(`[ratchet] escaping t(), tetti da abbassare → ${scesi.join(' · ')}`);
+});
+
+test('cricchetto: nessun file supera il suo tetto di interpolazioni non provate', () => {
+    // Le chiamate t() hanno il loro tetto (sopra): qui restano le interpolazioni di sempre.
+    const unproven = scan.scanCorpus().unproven.filter(u => !I18N_EXPR.test(u.expr));
     const byFile = new Map();
     for (const u of unproven) byFile.set(u.file, (byFile.get(u.file) || 0) + 1);
 
