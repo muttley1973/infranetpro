@@ -6568,6 +6568,94 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(e.length, 0, 'nessun errore JS: ' + e.join(' | '));
     });
 
+    await t.test('Dashboard «Porte da verificare»: le porte NON LETTE sono una scheda, non una riga (layout intatto)', async () => {
+      // Una porta documentata che l'SNMP non ha mai misurato non è coerente. La Dashboard non la
+      // mostrava da nessuna parte; ora sta nel dettaglio di una riga che ESISTE GIA`. Il contratto di
+      // layout (sei righe per sezione, tutto in una schermata) non si tocca.
+      const errBefore = pageErrors.length;
+      await page.evaluate(() => {
+        state = _buildDefaultState();
+        if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes.push({ id: 'swU', type: 'switch', name: 'SW-U', ip: '10.9.1.1', ports: 8, snmpStatus: 'ok',
+          integration: { driver: 'snmp-v2c', host: '10.9.1.1', community: 'public' } });
+        state.lastSnmpSyncAt = Date.now() - 60000; state.lastSnmpSyncResult = { ok: 1, total: 1 };
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        if (typeof _clearDirty === 'function') _clearDirty();
+        window._driftReport = null; delete state.lastVerify;
+        renderAll();
+      });
+      await page.click('#btn-overview');
+      await page.waitForSelector('#overview .ov-col', { timeout: 8000 });
+
+      const rilievo = () => page.evaluate(() => {
+        const col = document.querySelector('.ov-col[data-sec="truth"]');
+        // Una riga senza lista (nessun elemento da aprire) non è un bottone e non porta `data-key`:
+        // si riconosce dal NOME, che è quello che vede chi guarda.
+        // Le righe `drift*` sono le categorie della Verifica che compaiono COL report vivo (e «Reti della
+        // LAN»): esistevano gia`. Quello che qui non deve cambiare è il resto della sezione.
+        const righe = col ? [...col.querySelectorAll('.ov-r')].filter((r) => !/^drift/.test(r.dataset.key || '')) : [];
+        const row = righe.find((r) => /Porte da verificare|Ports to check/i.test(r.textContent));
+        return {
+          righe: righe.length,
+          verdetto: row ? (row.querySelector('.ov-st')?.textContent || '').replace(/\s+/g, ' ').trim() : '(riga «Porte da verificare» assente)',
+          apribile: row ? row.tagName : null,
+        };
+      });
+      const prima = await rilievo();
+      assert.ok(prima.apribile, 'la riga «Porte da verificare» c\'è: ' + prima.verdetto);
+      assert.ok(!/non lette|not read/i.test(prima.verdetto), 'senza Verifica nessuna menzione delle porte non lette: ' + prima.verdetto);
+
+      // …una Verifica con due porte non lette sullo stesso apparato
+      await page.evaluate(() => {
+        const zeri = { consistent: 6, stateDrift: 0, macOrphan: 0, undocumented: 0, undocumentedEndpoint: 0, ghostCable: 0, shutCable: 0, ipChanged: 0, unverified: 0, identityDrift: 0, identityFirmware: 0 };
+        window._driftReport = { _fromVerify: true, consistent: [], stateDrift: [], macOrphan: [], undocumented: [], ghostCable: [], shutCable: [], ipChanged: [], unverified: [], identityDrift: [],
+          portUnverified: [{ key: 'portunver:swU-1', pid: 'swU-1', label: 'SW-U / P1', nodeId: 'swU' }, { key: 'portunver:swU-2', pid: 'swU-2', label: 'SW-U / P2', nodeId: 'swU' }],
+          counts: Object.assign({}, zeri, { portUnverified: 2 }), docCount: 1, evaluated: true };
+        state.lastVerify = { at: Date.now() - 1000, banner: 'aligned', docCount: 1, counts: Object.assign({}, window._driftReport.counts) };
+        renderOverview();
+      });
+      const dopo = await rilievo();
+      assert.equal(dopo.righe, prima.righe, 'NESSUNA riga in più nella sezione: il contratto di layout resta com\'è');
+      assert.match(dopo.verdetto, /2 .*(non lette|not read)/i, 'il verdetto della riga lo dice in parole: ' + dopo.verdetto);
+      assert.equal(dopo.apribile, 'BUTTON', 'e la riga si apre, perché ha una lista da mostrare');
+      // Il singolare è una frase a parte: «1 non letta», mai «1 non lette».
+      await page.evaluate(() => {
+        window._driftReport.portUnverified = window._driftReport.portUnverified.slice(0, 1);
+        window._driftReport.counts.portUnverified = 1;
+        state.lastVerify.counts = Object.assign({}, window._driftReport.counts);
+        renderOverview();
+      });
+      const uno = await rilievo();
+      assert.match(uno.verdetto, /1 non letta\b|1 not read/i, 'con una sola porta il verdetto è al singolare: ' + uno.verdetto);
+      assert.ok(!/1 non lette/i.test(uno.verdetto), 'mai «1 non lette»: ' + uno.verdetto);
+
+      await page.click('.ov-col[data-sec="truth"] .ov-r[data-key="suspectPorts"]');
+      const det = await page.evaluate(() => {
+        const d = document.querySelector('.ov-detail[data-for="truth:suspectPorts"]');
+        const col = document.querySelector('.ov-col[data-sec="truth"]');
+        const box = col.getBoundingClientRect();
+        return {
+          aperto: !!d && d.classList.contains('is-open'),
+          schede: d ? [...d.querySelectorAll('.ov-tab')].map((x) => x.textContent.trim()) : [],
+          voci: d ? [...d.querySelectorAll('.ov-tab-panel:not([hidden]) li')].map((li) => li.textContent.replace(/\s+/g, ' ').trim()) : [],
+          righeVisibili: [...col.querySelectorAll('.ov-r')].filter((r) => r.getBoundingClientRect().bottom <= box.bottom).length,
+          righeTotali: col.querySelectorAll('.ov-r').length,
+          bodyScorre: document.body.scrollHeight > window.innerHeight,
+        };
+      });
+      assert.ok(det.aperto, 'il dettaglio si apre in loco');
+      assert.equal(det.schede.length, 1, 'senza porte sospette c\'è la sola scheda delle non lette: ' + det.schede.join('|'));
+      assert.match(det.schede[0], /Non lette|Not read/i);
+      // (il report e` stato ridotto a UNA porta per provare il singolare: l'apparato ne conta una)
+      assert.ok(det.voci.some((v) => /SW-U\s*1$/.test(v)), 'elenca l\'apparato con il numero di porte non lette: ' + det.voci.join(' | '));
+      assert.equal(det.righeVisibili, det.righeTotali, 'nessuna riga viene nascosta per far posto');
+      assert.ok(!det.bodyScorre, 'tutto in una schermata');
+
+      await page.evaluate(() => { window._driftReport = null; delete state.lastVerify; delete state.lastSnmpSyncAt; delete state.lastSnmpSyncResult; localStorage.removeItem('infranet.view'); if (typeof setOverview === 'function') setOverview(false); });
+      const e = pageErrors.slice(errBefore);
+      assert.equal(e.length, 0, 'nessun errore JS: ' + e.join(' | '));
+    });
+
     await t.test('Quello che il DCIM dichiara si VEDE (e gli slug tecnici restano fuori)', async () => {
       // Audit 2026-08-12: `node.source` era scritto dall'import e letto da NESSUNA
       // schermata — 13 nodi su 14 con un tenant invisibile. Sola lettura: `source`

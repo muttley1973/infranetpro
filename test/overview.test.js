@@ -2079,3 +2079,107 @@ test('① COMPLETO: la riga Cavi porta i capi su porte inesistenti — solo se c
   const mai = buildOverview({ types: TYPES, nodes, links, spare: { totals: { used: 4 } } });
   assert.equal('orphan' in rowOf(mai.complete, 'cables').extra, false, 'un modello che non lo dice non fa comparire la chiave');
 });
+
+// ── «Porte da verificare»: la scheda delle porte NON LETTE ───────────────────
+// Una porta che l'SNMP non ha mai misurato su un apparato che ha risposto non è coerente
+// (lib/drift-report.js: `portUnverified`), ma la Dashboard non la mostrava da nessuna parte.
+// Non è una riga nuova — la Panoramica ha un contratto di layout, sei per sezione — è una
+// SCHEDA del dettaglio di una riga che esiste gia`: «Porte da verificare», che è il posto dove
+// si guarda ciò che non è stato confrontato bene con la realtà.
+const _modelloNonLette = (extra) => Object.assign({
+  types: TYPES,
+  nodes: [
+    { id: 'sw1', type: 'switch', ip: '10.0.0.1', integration: { driver: 'snmp-v2c', host: '10.0.0.1' }, snmpStatus: 'ok' },
+    { id: 'sw2', type: 'switch', ip: '10.0.0.2', integration: { driver: 'snmp-v2c', host: '10.0.0.2' }, snmpStatus: 'ok' },
+  ],
+  spare: { totals: { free: 40, suspect: 5, ports: 48, freeSfp: 0 },
+    racks: [{ devices: [{ id: 'sw1', suspect: 2 }, { id: 'sw2', suspect: 3 }] }], unracked: [] },
+  lastSyncAt: 1000, now: 4000,
+}, extra || {});
+const _liveNonLette = {
+  counts: { consistent: 20, stateDrift: 0, portUnverified: 4 },
+  portUnverified: [
+    { key: 'portunver:sw1-1', pid: 'sw1-1', label: 'SW1 / P1', nodeId: 'sw1' },
+    { key: 'portunver:sw1-2', pid: 'sw1-2', label: 'SW1 / P2', nodeId: 'sw1' },
+    { key: 'portunver:sw1-3', pid: 'sw1-3', label: 'SW1 / P3', nodeId: 'sw1' },
+    { key: 'portunver:sw2-1', pid: 'sw2-1', label: 'SW2 / P1', nodeId: 'sw2' },
+  ],
+};
+
+test('② VERO: con un report vivo la riga «Porte da verificare» ha una seconda scheda: le porte non lette', () => {
+  const t = buildOverview(_modelloNonLette({ driftLive: _liveNonLette })).truth;
+  const r = rowOf(t, 'suspectPorts');
+  assert.deepEqual(r.items, [
+    { id: 'sw2', meta: 3, group: 'suspect' }, { id: 'sw1', meta: 2, group: 'suspect' },
+    { id: 'sw1', meta: 3, group: 'noMeasure' }, { id: 'sw2', meta: 1, group: 'noMeasure' },
+  ], 'due schede: le sospette come prima, le non lette per apparato (più porte in cima)');
+  assert.equal(r.extra.noMeasure, 4, 'il conteggio viaggia con la riga: il verdetto lo dice');
+});
+
+test('② VERO: la scheda delle non lette NON cambia il numero, il tono, la salute né le righe della sezione', () => {
+  const senza = buildOverview(_modelloNonLette({ driftLive: Object.assign({}, _liveNonLette, { counts: { consistent: 20 }, portUnverified: [] }) })).truth;
+  const con = buildOverview(_modelloNonLette({ driftLive: _liveNonLette })).truth;
+  assert.deepEqual(con.rows.map((x) => x.key), senza.rows.map((x) => x.key),
+    'nessuna riga nuova: il contratto di layout (sei per sezione) resta com\'e`');
+  const a = rowOf(senza, 'suspectPorts'), b = rowOf(con, 'suspectPorts');
+  assert.equal(b.value, a.value, 'il numero grande resta quello delle sospette');
+  assert.equal(b.total, a.total);
+  assert.equal(b.tone, a.tone, 'non è un\'anomalia da decidere: non tinge la riga');
+  assert.deepEqual(con.health, senza.health, 'e non sposta la salute della sezione');
+});
+
+test('② VERO: senza report vivo né porte non lette, la riga resta com\'era (lista piatta, senza schede)', () => {
+  const t = buildOverview(_modelloNonLette()).truth;
+  assert.deepEqual(rowOf(t, 'suspectPorts').items, [{ id: 'sw2', meta: 3 }, { id: 'sw1', meta: 2 }]);
+  assert.equal(rowOf(t, 'suspectPorts').extra.noMeasure, 0);
+  const vivoSenza = buildOverview(_modelloNonLette({ driftLive: { counts: { consistent: 20, portUnverified: 0 }, portUnverified: [] } })).truth;
+  assert.ok(rowOf(vivoSenza, 'suspectPorts').items.every((i) => i.group === undefined), 'niente schede se non c\'e` una seconda lista');
+});
+
+test('② VERO: anche senza sospette la riga si apre sulle non lette (e il numero resta zero)', () => {
+  const m = _modelloNonLette({ driftLive: _liveNonLette });
+  m.spare = { totals: { free: 40, suspect: 0, ports: 48, freeSfp: 0 }, racks: [{ devices: [{ id: 'sw1', suspect: 0 }] }], unracked: [] };
+  const r = rowOf(buildOverview(m).truth, 'suspectPorts');
+  assert.equal(r.value, 0);
+  assert.deepEqual(r.items.map((i) => i.group), ['noMeasure', 'noMeasure']);
+  assert.equal(r.tone, 'normal');
+});
+
+test('② VERO: dopo un ricaricamento (niente report vivo) il CONTEGGIO persistito resta, la lista no', () => {
+  const t = buildOverview(_modelloNonLette({
+    lastVerify: { at: 3000, banner: 'aligned', docCount: 2, counts: { consistent: 20, portUnverified: 4 } },
+  })).truth;
+  const r = rowOf(t, 'suspectPorts');
+  assert.equal(r.extra.noMeasure, 4, 'il numero sta nella Verifica salvata: non sparisce al reload');
+  assert.ok(r.items.every((i) => i.group === undefined), 'ma senza il report vivo non si sa QUALI porte: nessuna scheda inventata');
+});
+
+test('② VERO: una porta non letta senza apparato noto non entra nella lista (non si inventa un nome)', () => {
+  const t = buildOverview(_modelloNonLette({ driftLive: {
+    counts: { portUnverified: 2 },
+    portUnverified: [{ key: 'a', pid: 'x-1', label: 'X / P1', nodeId: '' }, { key: 'b', pid: 'sw2-1', label: 'SW2 / P1', nodeId: 'sw2' }],
+  } })).truth;
+  assert.deepEqual(rowOf(t, 'suspectPorts').items.filter((i) => i.group === 'noMeasure'), [{ id: 'sw2', meta: 1, group: 'noMeasure' }]);
+});
+
+// ⚠️ Il nome di una scheda NON puo` essere un grado della notazione: se il gruppo è un grado
+// (dichiarato · misurato · dedotto · contraddetto · non dichiarato · non risulta) la parola
+// la dice la NOTAZIONE (`cty.<grado>`), non l'etichetta della riga. La prima versione chiamava
+// `unread` la scheda delle porte non lette, e in Dashboard compariva «Non risulta» — il grado
+// «mai verificato», un'altra cosa. Questa prova ferma il prossimo gruppo che ci cade dentro.
+test('② VERO: le schede di «Porte da verificare» non portano il nome di un grado della notazione', () => {
+  const { CERTAINTY_GRADES } = require('../lib/certainty.js');
+  const r = rowOf(buildOverview(_modelloNonLette({ driftLive: _liveNonLette })).truth, 'suspectPorts');
+  const gruppi = [...new Set(r.items.map((i) => i.group))];
+  assert.deepEqual(gruppi.sort(), ['noMeasure', 'suspect']);
+  for (const g of gruppi) assert.ok(!CERTAINTY_GRADES.includes(g), 'il gruppo «' + g + '» è un grado: la scheda direbbe la parola sbagliata');
+});
+
+test('② VERO: ogni scheda ha la sua etichetta in italiano e in inglese', () => {
+  const dict = require('../lib/i18n.js')._i18nDict;
+  for (const lang of ['it', 'en']) {
+    for (const k of ['ov.grp.suspect', 'ov.grp.noMeasure', 'ov.st.noMeasure', 'ov.st.noMeasureOne']) {
+      assert.ok(dict[lang][k], lang + ': manca ' + k);
+    }
+  }
+});

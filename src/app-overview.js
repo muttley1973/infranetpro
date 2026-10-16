@@ -572,9 +572,16 @@ function _tileStatus(r) {
         }
         // Mai letto = nessun confronto possibile: «coerente» in verde sarebbe una
         // misura inventata (il numero 0 qui è assenza di dati, non assenza di guai).
-        case 'suspectPorts': return r.prov === 'none'
-            ? { w: t('ov.st.never'), tone: 'none' }
-            : (r.value > 0 ? { w: t('ov.st.mismatch'), tone: 'warn' } : { w: t('ov.st.coherent'), tone: 'ok' });
+        // Le porte NON LETTE dall'SNMP (seconda scheda del dettaglio) si dicono qui in parole:
+        // «tutto coerente» in verde con porte che nessuno ha misurato sarebbe lo stesso falso
+        // «coerente» che la Verifica ha smesso di dire. Non spostano il tono: non sono una decisione.
+        case 'suspectPorts': {
+            if (r.prov === 'none') return { w: t('ov.st.never'), tone: 'none' };
+            // «1 non letta» / «3 non lette»: il plurale e` una chiave a parte (come `…One` altrove).
+            const unread = e.noMeasure > 0 ? t(e.noMeasure === 1 ? 'ov.st.noMeasureOne' : 'ov.st.noMeasure', { n: e.noMeasure }) : '';
+            if (r.value > 0) return { w: t('ov.st.mismatch') + (unread ? ' · ' + unread : ''), tone: 'warn' };
+            return unread ? { w: unread, tone: 'info' } : { w: t('ov.st.coherent'), tone: 'ok' };
+        }
         // Conflitti IPAM: 0 = piano pulito (verde); >0 = da risolvere (ambra). Il
         // verdetto distingue duplicati e overlap così l'utente sa cosa aprire.
         case 'conflicts':    return r.prov === 'none'
