@@ -134,7 +134,10 @@ test('CRICCHETTO — la classifica non elenca campi mai visti in nessun progetto
     'operWait', 'statusOvr', 'speedOvr',
     // Tre scelte da menu fatte a mano (progetto 24, 16/10): il WAN e il routing di un router, la connessione di una
     // stampante. Esistono solo dopo la scelta, quindi il censimento del 28/08 non poteva contenerle.
-    'connection', 'rtWanType', 'rtRoutingProtos']);
+    'connection', 'rtWanType', 'rtRoutingProtos',
+    // I lucchetti di modello/matricola/firmware (16/10): si chiudono quando una persona scrive il campo, quindi
+    // non esistono in nessun progetto salvato prima. Dichiarazioni, non misure: escono nell'export.
+    'modelManual', 'serialNumberManual', 'firmwareVerManual']);
   for (const scope of Object.keys(CENSUS)) {
     const visti = new Set(keysOf(scope));
     const extra = Object.keys(FIELD_CLASS_BY_SCOPE[scope]).filter(k => !visti.has(k) && !attesi.has(k));

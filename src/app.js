@@ -16,6 +16,7 @@ import { TYPES, typeName, typeShort } from './app-types.js';   // ritiro ponte f
 import { nodeLabelParts } from '../lib/node-label.js';   // lib pura importata ESM: come si LEGGE il nome di un device
 import { addrFamily } from '../lib/cidr.js';   // cos'e' un indirizzo: una definizione sola (campo IP del device)
 import { forgetFromRead } from '../lib/field-provenance.js';   // la regola: scrivere a mano toglie la provenienza «copiato dalla lettura»
+import { identityLockFlag } from '../lib/identity-reconcile.js';   // modello/matricola/firmware: scritti a mano, il loro lucchetto si chiude
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: chiamate prima bare-global
 import { renderProps } from './app-properties.js';   // idem
 import { showAlert, saveProject } from './app-core.js';   // saveProject: ASSE B, scorciatoia Ctrl+S (ex win.saveProject)
@@ -1759,6 +1760,9 @@ function updateN(k,v){
     // Tipo scelto a mano = pinnato (manual-first): Discovery/Verifica non lo ricambiano.
     if(k==='type') n.typeManual = true;
     if(k==='brand') n.brandManual = v !== undefined && !!String(v).trim();
+    // Modello, matricola e firmware scritti a mano = bloccati: la Verifica non li ridiscute a ogni scansione
+    // (lib/identity-reconcile.js). Vuoto = sblocca, come per marca e nome. `n[lock]=false` e non `delete`, come brandManual.
+    if(identityLockFlag(k)) n[identityLockFlag(k)] = v !== undefined && !!String(v).trim();
     // Nome scelto a mano = pinnato (manual-first), gemello di typeManual/hostnameManual:
     // Discovery non rinomina piu' un nome deliberato, nemmeno se coincide con host/IP/tipo.
     // Vuoto = sblocca (torna a seguire l'auto-naming), come il campo Hostname.

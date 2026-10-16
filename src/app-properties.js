@@ -189,8 +189,11 @@ function _propsKebabClose(){
 // ⚠️ Il testo del lucchetto dello stato non promette una protezione che non c'è
 // ancora: dice che cosa il segno REGISTRA, non che cosa impedisce. Vive in due
 // builder (inventario e Rete & Accesso), quindi sta qui e non dentro uno dei due.
-function _lockBtn(field, locked, decl){
-    const _k = decl ? (locked?'lock.declLocked':'lock.declUnlocked') : (locked?'lock.locked':'lock.unlocked');
+//   · modello / matricola / firmware (`kind === 'id'`) → li legge l'apparato e la Verifica li confronta:
+//     chiuso, la Verifica non li contesta (si chiude da solo quando li scrivi tu)
+function _lockBtn(field, locked, kind){
+    const _k = kind === 'id' ? (locked?'lock.idLocked':'lock.idUnlocked')
+        : kind ? (locked?'lock.declLocked':'lock.declUnlocked') : (locked?'lock.locked':'lock.unlocked');
     return `<button type="button" class="toolbar-btn" style="padding:2px 7px;margin:0;font-size:0.78rem;line-height:1${locked?';color:var(--accent);border-color:var(--accent)':''}" data-tip="${t(_k)}" aria-label="${t(_k)}" aria-pressed="${locked?'true':'false'}" data-act="node-lock" data-field="${field}"><i class="fas fa-lock${locked?'':'-open'}"></i></button>`;
 }
 
@@ -283,11 +286,11 @@ export function _buildInventoryFieldsHtml(n, d){
         [n.serialNumber, inventory.serialNumber], [n.firmwareVer, inventory.firmwareVer]];
     return _ctyLegendHtml(_ctyCoppie) + `<div class="prop-row2">
         <div class="prop-group"><label>${t('field.brand')}${_ctyMark(n.brand, inventory.brand, _copiato('brand'))}</label><input value="${escapeHTML(n.brand||'')}" placeholder="${placeholders.brand}" data-change="node-field" data-field="brand"></div>
-        <div class="prop-group"><label>${t('field.model')}${_ctyMark(n.model, inventory.model, _copiato('model'))}</label><input value="${escapeHTML(n.model||'')}" placeholder="${placeholders.model}" data-change="node-field" data-field="model"></div>
+        <div class="prop-group"><label>${t('field.model')}${_ctyMark(n.model, inventory.model, _copiato('model'))}</label><div style="display:flex;gap:5px;align-items:center"><input style="flex:1;min-width:0" value="${escapeHTML(n.model||'')}" placeholder="${placeholders.model}" data-change="node-field" data-field="model">${_lockBtn('model',!!n.modelManual,'id')}</div></div>
     </div>
     <div class="prop-row2">
-        <div class="prop-group"><label>${t('field.serial')}${_ctyMark(n.serialNumber, inventory.serialNumber, _copiato('serialNumber'))}</label><input value="${escapeHTML(n.serialNumber||'')}" placeholder="${placeholders.serialNumber}" data-change="node-field" data-field="serialNumber"></div>
-        <div class="prop-group"><label>Firmware / OS${_ctyMark(n.firmwareVer, inventory.firmwareVer, _copiato('firmwareVer'))}</label><input value="${escapeHTML(n.firmwareVer||'')}" placeholder="${placeholders.firmwareVer}" data-change="node-field" data-field="firmwareVer"></div>
+        <div class="prop-group"><label>${t('field.serial')}${_ctyMark(n.serialNumber, inventory.serialNumber, _copiato('serialNumber'))}</label><div style="display:flex;gap:5px;align-items:center"><input style="flex:1;min-width:0" value="${escapeHTML(n.serialNumber||'')}" placeholder="${placeholders.serialNumber}" data-change="node-field" data-field="serialNumber">${_lockBtn('serialNumber',!!n.serialNumberManual,'id')}</div></div>
+        <div class="prop-group"><label>Firmware / OS${_ctyMark(n.firmwareVer, inventory.firmwareVer, _copiato('firmwareVer'))}</label><div style="display:flex;gap:5px;align-items:center"><input style="flex:1;min-width:0" value="${escapeHTML(n.firmwareVer||'')}" placeholder="${placeholders.firmwareVer}" data-change="node-field" data-field="firmwareVer">${_lockBtn('firmwareVer',!!n.firmwareVerManual,'id')}</div></div>
     </div>
     <div class="prop-group"><label>${t('field.status')}</label><div style="display:flex;gap:5px;align-items:center"><select style="flex:1" data-tip="${t('field.statusTip')}" data-change="node-field-manual" data-field="status">${statusOpts}</select>${_lockBtn('status',!!n.statusManual,true)}</div></div>
     <div class="prop-row2">

@@ -1526,13 +1526,16 @@ function _buildPdfReportData() {
             // (<script> caricato prima di questo).
             const _idConfirmed = (typeof isConfirmedMeasure === 'function')
                 ? isConfirmedMeasure(inv) : (inv.stale !== true);
+            // Una matricola bloccata a mano non si contesta nemmeno nel documento consegnato (stesso lucchetto
+            // della Verifica e della Panoramica).
+            const _idLocked = (typeof isIdentityLocked === 'function') && isIdentityLocked(n, 'serialNumber');
             return {
                 name: getNodeDisplayName(n) || n.name || n.id,
                 backupRef: b.ref || '', backupMethod: b.method || '', backupAt: b.at || '',
                 serial: n.serialNumber || inv.serialNumber || '',
                 firmware: n.firmwareVer || inv.firmwareVer || '',
                 model: n.model || inv.model || '',
-                identityMismatch: !!(_idConfirmed && _declS && _measS && _declS !== _measS),
+                identityMismatch: !!(_idConfirmed && !_idLocked && _declS && _measS && _declS !== _measS),
                 // Ciclo di vita: due date DICHIARATE (nessun apparato le misura).
                 // In una runbook di procurement pesano quanto il seriale — «lo
                 // ricompri?» viene subito dopo «cosa ricompri?». Vuote = non

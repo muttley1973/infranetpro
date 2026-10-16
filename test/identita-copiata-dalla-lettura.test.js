@@ -190,7 +190,7 @@ function segnoPannello(nodo, campo) {
     selType='node'; selId='swp'; renderProps();
     return JSON.stringify({ ok:true, html: document.getElementById('props-panel').innerHTML || '' });`);
   assert.ok(r.ok, r.err);
-  const re = new RegExp('<label>[^<]*(?:<span class="cty-mark cty-(\\w+)"[^>]*></span>)?\\s*</label><input[^>]*data-field="' + campo + '"');
+  const re = new RegExp('<label>[^<]*(?:<span class="cty-mark cty-(\\w+)"[^>]*></span>)?\\s*</label>(?:<div[^>]*>)?<input[^>]*data-field="' + campo + '"');
   const m = r.html.match(re);
   assert.ok(m, 'il campo ' + campo + ' non è nel pannello');
   return m[1] || null;
