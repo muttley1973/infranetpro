@@ -43,6 +43,32 @@ test('parseNeighborCaps: stesso vocabolario per le due famiglie', () => {
   assert.equal(c.bridge, true);
 });
 
+test('capabilities che NON sono un valore BITS: testo reso leggibile, lunghezze impossibili → nessuna prova', () => {
+  // Misurato su registrazioni vere (ProCurve, ArubaOS-CX): il valore e' il TESTO «01 7», «00», «20 2»,
+  // cioe' 0x30 0x31 0x20 0x37… Letto come bit, 0x30 = bridge + access point: un server diventava un AP.
+  for (const testo of ['30312037', '3030', '32302032', '3238203220', '0120' + '20202020']) {
+    assert.equal(parseLldpCaps(testo), null, 'LLDP ' + testo);
+    assert.equal(parseNeighborCaps('LLDP', testo), null, 'LLDP ' + testo);
+    assert.deepEqual(inferNeighborType({ protocol: 'LLDP', caps: testo }), { type: 'switch', via: 'default' }, testo);
+  }
+  assert.equal(parseLldpCaps('2001'), null, 'secondo ottetto non nullo: bit riservati');
+  assert.equal(parseLldpCaps('00000000'), null, 'quattro ottetti non sono un BITS LLDP');
+  assert.equal(parseCdpCaps('0000000000'), null, 'cinque ottetti: oltre SIZE (0..4)');
+  // i valori VERI restano validi: un ottetto, oppure due col secondo a zero
+  assert.equal(parseLldpCaps('28').router, true);
+  assert.equal(parseLldpCaps('2800').bridge, true);
+  assert.equal(parseLldpCaps('01').station, true);
+  assert.equal(parseCdpCaps('26').bridge, true);
+});
+
+test('una piattaforma da registrazione vera: ESX (senza la i), AIR-AP, WS-C, Polycom', () => {
+  assert.equal(inferNeighborType({ protocol: 'LLDP', platform: 'VMware ESX Releasebuild-15160138' }).type, 'hypervisor');
+  assert.equal(inferNeighborType({ protocol: 'LLDP', platform: 'VMware ESXi 7.0.3 Releasebuild-20328353' }).type, 'hypervisor');
+  assert.equal(inferNeighborType({ protocol: 'CDP', caps: '00000026', platform: 'cisco AIR-AP2702I-UXK9' }).type, 'ap');
+  assert.equal(inferNeighborType({ protocol: 'CDP', caps: '00000029', platform: 'cisco WS-C3850-12S' }).type, 'switch');
+  assert.equal(inferNeighborType({ protocol: 'LLDP', platform: 'Polycom;SoundPointIP' }).type, 'voip');
+});
+
 // ── il tipo ────────────────────────────────────────────────────────────────
 
 test('access point: il bit wlanAccessPoint vince sul bridge che ha dentro', () => {

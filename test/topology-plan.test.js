@@ -617,6 +617,31 @@ test('assemblePlanInputs: la dedup completa le prove mancanti, non sovrascrive q
   assert.equal(inp.neighborNodes[0].platform, 'Catalyst 9200');
 });
 
+test('assemblePlanInputs: due apparati con lo STESSO nome di default («Switch») ma MAC e IP diversi restano DUE', () => {
+  const ports = { 'gs-1': { ifName: 'Gi1' }, 'gs-2': { ifName: 'Gi2' }, 'gs-3': { ifName: 'Gi3' } };
+  const portIndex = buildPortIndex(ports, {});
+  const pollResults = [{ nodeId: 'gs', fdbTable: {}, neighbors: [
+    { localPort: 'Gi1', remoteDevice: 'Switch', remoteMac: 'aa:bb:cc:00:00:01', remoteIP: '10.0.0.11', protocol: 'LLDP' },
+    { localPort: 'Gi2', remoteDevice: 'Switch', remoteMac: 'aa:bb:cc:00:00:02', remoteIP: '10.0.0.12', protocol: 'LLDP' },
+    { localPort: 'Gi3', remoteDevice: 'switch', remoteMac: '', remoteIP: '', protocol: 'CDP' },   // senza MAC ne' IP: il nome e' tutto cio' che dice
+  ] }];
+  const inp = assemblePlanInputs(pollResults, { findPort: (nid, ifn) => findPortByIfName(nid, ifn, portIndex) });
+  assert.equal(inp.neighborNodes.length, 3, 'i due con MAC diversi non si fondono; il terzo, che col solo nome e\' ambiguo fra due candidati, non si indovina');
+  assert.deepEqual(inp.neighborNodes.map(n => n.mac).sort(), ['', 'aa:bb:cc:00:00:01', 'aa:bb:cc:00:00:02']);
+});
+
+test('assemblePlanInputs: il nome fonde quando MAC e IP non lo smentiscono (CDP senza MAC + LLDP col MAC, stesso nome)', () => {
+  const ports = { 'gs-1': { ifName: 'Gi1' }, 'gt-1': { ifName: 'Gi1' } };
+  const portIndex = buildPortIndex(ports, {});
+  const pollResults = [
+    { nodeId: 'gs', fdbTable: {}, neighbors: [{ localPort: 'Gi1', remoteDevice: 'CORE-SW', remoteIP: '', protocol: 'CDP' }] },
+    { nodeId: 'gt', fdbTable: {}, neighbors: [{ localPort: 'Gi1', remoteDevice: 'core-sw', remoteMac: 'aa:bb:cc:00:00:09', protocol: 'LLDP' }] },
+  ];
+  const inp = assemblePlanInputs(pollResults, { findPort: (nid, ifn) => findPortByIfName(nid, ifn, portIndex) });
+  assert.equal(inp.neighborNodes.length, 1);
+  assert.equal(inp.neighborNodes[0].mac, 'aa:bb:cc:00:00:09', 'il MAC che mancava arriva dal secondo');
+});
+
 test('assemblePlanInputs: due apparati DIVERSI restano due (IP e nome diversi, nessun MAC)', () => {
   const ports = { 'gs-1': { ifName: 'Gi1' }, 'gs-2': { ifName: 'Gi2' } };
   const portIndex = buildPortIndex(ports, {});
